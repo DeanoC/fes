@@ -2699,7 +2699,7 @@ git commit -m "test: add MiSTer hardware acceptance harness"
 - Consumes: The complete POC 1A package, dedicated MiSTer Pi, two lawful preloaded test ROMs, wired controller, HDMI display, wired LAN, and development SSH.
 - Produces: A passing hardware report in ignored `artifacts/hil/poc1a.json`, a committed deterministic source/runtime lock, and the evidence gate for planning POC 1B.
 
-- [ ] **Step 1: Prepare and manually verify the stock baseline**
+- [x] **Step 1: Prepare and manually verify the stock baseline**
 
 Follow `docs/runbooks/poc1a-deploy.md` on the dedicated MiSTer Pi. Before installing the daemon, verify through the stock UI:
 
@@ -2711,7 +2711,7 @@ Follow `docs/runbooks/poc1a-deploy.md` on the dedicated MiSTer Pi. Before instal
 
 If the lawful ROM filenames differ, update only the local `games.toml` and the target SD paths together; never add those names or files to Git.
 
-- [ ] **Step 2: Generate the token, package, and install**
+- [x] **Step 2: Generate the token, package, and install**
 
 Run on the MacBook:
 
@@ -2726,7 +2726,7 @@ VERSION=0.1.0 make package-poc1a
 
 Expected: installer reports both backup paths, package checksum, installed files, one startup marker, updated INI keys, and a running supervisor.
 
-- [ ] **Step 3: Create the local host configuration without committing secrets**
+- [x] **Step 3: Create the local host configuration without committing secrets**
 
 Create `~/.config/mister-remote/config.toml` with mode `0600`, using the target IP and generated token, and create sibling `games.toml` with the two approved game IDs and target paths. Run:
 
@@ -2737,7 +2737,7 @@ bin/misterctl games
 
 Expected: `ready` and exactly the two configured games.
 
-- [ ] **Step 4: Run the complete hardware acceptance sequence**
+- [x] **Step 4: Run the complete hardware acceptance sequence**
 
 Power-cycle the MiSTer Pi, immediately start the HIL runner, and answer only observations actually seen on HDMI/controller hardware:
 
@@ -2751,7 +2751,7 @@ Expected: exit zero and a report with `"passed": true`. Inspect it with:
 python3 -m json.tool artifacts/hil/poc1a.json
 ```
 
-- [ ] **Step 5: Verify independence from an interactive SSH session**
+- [x] **Step 5: Verify independence from an interactive SSH session**
 
 Close all SSH sessions, then run:
 
@@ -2763,7 +2763,7 @@ bin/misterctl stop
 
 Expected: both games launch and stop reaches idle without opening SSH or touching the MiSTer controls.
 
-- [ ] **Step 6: Capture and verify the known-good lock**
+- [x] **Step 6: Capture and verify the known-good lock**
 
 Run:
 
@@ -2775,7 +2775,7 @@ Run:
 
 Expected: verification PASS and the final command exits zero, proving the lock contains no ROM path or token.
 
-- [ ] **Step 7: Run final software and package verification**
+- [x] **Step 7: Run final software and package verification**
 
 Run:
 

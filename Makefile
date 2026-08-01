@@ -9,6 +9,7 @@ fmt:
 test:
 	go test -race ./...
 	sh scripts/tests/inventory_test.sh
+	sh scripts/tests/start-agent_test.sh
 
 vet:
 	go vet ./...

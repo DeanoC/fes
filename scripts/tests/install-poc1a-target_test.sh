@@ -7,7 +7,7 @@ trap 'rm -rf "$fixture"' EXIT INT TERM
 
 root=$fixture/root
 stage=$fixture/stage
-mkdir -p "$root/media/fat/linux" "$root/media/fat/games/SNES" "$stage/mister-remote"
+mkdir -p "$root/media/fat/linux" "$root/media/fat/games/SNES" "$root/tmp" "$stage/mister-remote"
 original_startup='#!/bin/sh
 echo stock
 '
@@ -35,7 +35,17 @@ tar -czf "$archive" -C "$stage" \
   mister-remote/mister-agent \
   mister-remote/start-agent.sh
 
+sleep 30 &
+old_supervisor=$!
+printf '%s\n' "$old_supervisor" > "$root/tmp/mister-agent-supervisor.pid"
 MISTER_REMOTE_ROOT=$root MISTER_REMOTE_SKIP_START=1 sh "$repo/scripts/install-poc1a-target.sh" "$archive"
+if kill -0 "$old_supervisor" 2>/dev/null; then
+  kill "$old_supervisor" 2>/dev/null || true
+  wait "$old_supervisor" 2>/dev/null || true
+  echo 'installer did not stop the existing supervisor' >&2
+  exit 1
+fi
+wait "$old_supervisor" 2>/dev/null || true
 MISTER_REMOTE_ROOT=$root MISTER_REMOTE_SKIP_START=1 sh "$repo/scripts/install-poc1a-target.sh" "$archive"
 
 test "$(cat "$root/media/fat/linux/user-startup.sh.pre-mister-remote")" = "$(printf '%s' "$original_startup")"
@@ -43,7 +53,7 @@ test "$(cat "$root/media/fat/MiSTer.ini.pre-mister-remote")" = "$(printf '%s' "$
 test "$(grep -c '^# BEGIN mister-remote$' "$root/media/fat/linux/user-startup.sh")" -eq 1
 test "$(grep -c '^# END mister-remote$' "$root/media/fat/linux/user-startup.sh")" -eq 1
 test "$(grep -c '^logo=0$' "$root/media/fat/MiSTer.ini")" -eq 1
-test "$(grep -c '^fb_terminal=0$' "$root/media/fat/MiSTer.ini")" -eq 1
+test "$(grep -c '^fb_terminal=1$' "$root/media/fat/MiSTer.ini")" -eq 1
 test "$(grep -c '^osd_timeout=5$' "$root/media/fat/MiSTer.ini")" -eq 1
 test "$(grep -c '^video_off=1$' "$root/media/fat/MiSTer.ini")" -eq 1
 test "$(grep -c '^video_off_logo=0$' "$root/media/fat/MiSTer.ini")" -eq 1

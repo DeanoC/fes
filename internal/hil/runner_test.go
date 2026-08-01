@@ -86,7 +86,8 @@ func TestRunnerPassesCompletePOC1ASequence(t *testing.T) {
 	if !report.Passed || len(report.Checks) == 0 {
 		t.Fatalf("report = %#v", report)
 	}
-	if api.healthCalls != 2 || report.FinishedAt.Sub(report.StartedAt) >= 45*time.Second {
+	duration := report.FinishedAt.Sub(report.StartedAt)
+	if api.healthCalls != 2 || duration < 13*time.Second || duration >= 45*time.Second {
 		t.Fatalf("health calls = %d, duration = %v", api.healthCalls, report.FinishedAt.Sub(report.StartedAt))
 	}
 	var gotSystems []protocol.System

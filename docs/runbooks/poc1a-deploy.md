@@ -24,6 +24,10 @@ MISTER_TARGET=root@MISTER_IP scripts/install-poc1a.sh dist/mister-remote-poc1a-0
 
 The installer verifies the checksum, makes one-time backups of `user-startup.sh` and `MiSTer.ini`, installs under `/media/fat/mister-remote`, and starts the supervised daemon without rebooting.
 
+`/media/fat` is FAT, so the running MiSTer synthesizes Unix mode bits and cannot enforce `0600` on `agent.toml` even though the package metadata is normalized. Treat the token as a secret, require authentication for Samba and SSH, and verify that guest Samba access is rejected before accepting a network-enabled installation.
+
+POC 1A keeps `fb_terminal=1` because current `Main_MiSTer` gates its Menu inactivity and `video_off` state machine on that setting. With `osd_timeout=5` and `video_off=1`, allow about 11 seconds after returning to Menu before expecting a black HDMI frame.
+
 Create `~/.config/mister-remote/config.toml` locally, using the same token and the MiSTer IP:
 
 ```toml

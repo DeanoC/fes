@@ -34,6 +34,43 @@ if [ "$actual" != "$expected" ]; then
 fi
 
 mkdir -p "$root/tmp" "$work" "$base" "$linux" "$fat/games/SNES"
+
+supervisor_pidfile=$root/tmp/mister-agent-supervisor.pid
+if [ -f "$supervisor_pidfile" ]; then
+  supervisor_pid=$(cat "$supervisor_pidfile")
+  case "$supervisor_pid" in
+    ''|*[!0-9]*)
+      echo 'install-poc1a-target: invalid supervisor PID file' >&2
+      exit 1
+      ;;
+  esac
+  if kill -0 "$supervisor_pid" 2>/dev/null; then
+    may_stop=0
+    if [ -n "$root" ]; then
+      may_stop=1
+    elif [ -r "/proc/$supervisor_pid/cmdline" ] && tr '\000' ' ' < "/proc/$supervisor_pid/cmdline" | grep -Fq "$base/start-agent.sh"; then
+      may_stop=1
+    fi
+    if [ "$may_stop" -ne 1 ]; then
+      echo 'install-poc1a-target: supervisor PID does not belong to mister-remote' >&2
+      exit 1
+    fi
+    kill "$supervisor_pid"
+    stop_attempt=0
+    while kill -0 "$supervisor_pid" 2>/dev/null && [ "$stop_attempt" -lt 3 ]; do
+      sleep 1
+      stop_attempt=$((stop_attempt + 1))
+    done
+    if kill -0 "$supervisor_pid" 2>/dev/null; then
+      kill -KILL "$supervisor_pid"
+    fi
+  fi
+  rm -f "$supervisor_pidfile"
+fi
+if [ -z "$root" ]; then
+  killall mister-agent 2>/dev/null || true
+fi
+
 tar -xzf "$archive" -C "$work"
 
 startup=$linux/user-startup.sh
@@ -75,7 +112,7 @@ fi
 awk '
   function settings() {
     print "logo=0"
-    print "fb_terminal=0"
+    print "fb_terminal=1"
     print "osd_timeout=5"
     print "video_off=1"
     print "video_off_logo=0"

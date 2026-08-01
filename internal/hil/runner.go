@@ -164,6 +164,13 @@ func (r Runner) Run(ctx context.Context) (Report, error) {
 	status, err := r.API.Stop(ctx)
 	idle := err == nil && status.State == protocol.StateIdle
 	record("stop observes idle", idle, boolDetail(idle, "Menu loaded and state is idle", "idle state not observed"))
+	// Current Main_MiSTer blanks in three stages: one osd_timeout to hide
+	// the menu, a second to darken the background, then video_off seconds.
+	// The deployed 5/1 settings therefore need approximately 11 seconds.
+	if err := r.Sleep(ctx, 12*time.Second); err != nil {
+		record("black HDMI after stop", false, "Menu blanking wait interrupted")
+		return finish(err)
+	}
 	black, err := r.Prompt.Confirm("Confirm black HDMI output after stop")
 	if err != nil {
 		record("black HDMI after stop", false, "operator prompt failed")
