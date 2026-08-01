@@ -1,0 +1,105 @@
+package host
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+
+	"github.com/clawzai2-tech/mister-remote/protocol"
+)
+
+const maxResponseBytes = 1 << 20
+
+type Client struct {
+	baseURL    *url.URL
+	token      string
+	httpClient *http.Client
+}
+
+func NewClient(baseURL *url.URL, token string, httpClient *http.Client) *Client {
+	baseCopy := *baseURL
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+	return &Client{baseURL: &baseCopy, token: token, httpClient: httpClient}
+}
+
+func (c *Client) Health(ctx context.Context) (protocol.Health, error) {
+	var health protocol.Health
+	err := c.doJSON(ctx, http.MethodGet, "/v1/health", nil, &health)
+	return health, err
+}
+
+func (c *Client) Status(ctx context.Context) (protocol.Status, error) {
+	var status protocol.Status
+	err := c.doJSON(ctx, http.MethodGet, "/v1/status", nil, &status)
+	return status, err
+}
+
+func (c *Client) Launch(ctx context.Context, request protocol.LaunchRequest) (protocol.Status, error) {
+	var status protocol.Status
+	err := c.doJSON(ctx, http.MethodPost, "/v1/launch", request, &status)
+	return status, err
+}
+
+func (c *Client) Stop(ctx context.Context) (protocol.Status, error) {
+	var status protocol.Status
+	err := c.doJSON(ctx, http.MethodPost, "/v1/stop", nil, &status)
+	return status, err
+}
+
+func (c *Client) doJSON(ctx context.Context, method, path string, requestBody any, responseBody any) error {
+	var body io.Reader
+	if requestBody != nil {
+		encoded, err := json.Marshal(requestBody)
+		if err != nil {
+			return fmt.Errorf("encode request: %w", err)
+		}
+		body = bytes.NewReader(encoded)
+	}
+	endpoint := *c.baseURL
+	endpoint.Path = path
+	endpoint.RawPath = ""
+	endpoint.RawQuery = ""
+	endpoint.Fragment = ""
+	request, err := http.NewRequestWithContext(ctx, method, endpoint.String(), body)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	if path != "/v1/health" {
+		request.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	if method == http.MethodPost {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	response, err := c.httpClient.Do(request)
+	if err != nil {
+		return fmt.Errorf("send request: %w", err)
+	}
+	defer response.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes+1))
+	if err != nil {
+		return fmt.Errorf("read response: %w", err)
+	}
+	if len(data) > maxResponseBytes {
+		return fmt.Errorf("response exceeds %d bytes", maxResponseBytes)
+	}
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		var envelope protocol.ErrorEnvelope
+		if err := json.Unmarshal(data, &envelope); err != nil {
+			return fmt.Errorf("decode HTTP %d error: %w", response.StatusCode, err)
+		}
+		if envelope.Error.Code == "" {
+			return fmt.Errorf("HTTP %d response has no symbolic error code", response.StatusCode)
+		}
+		return &envelope.Error
+	}
+	if err := json.Unmarshal(data, responseBody); err != nil {
+		return fmt.Errorf("decode HTTP %d response: %w", response.StatusCode, err)
+	}
+	return nil
+}
