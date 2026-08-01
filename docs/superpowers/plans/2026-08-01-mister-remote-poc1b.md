@@ -143,17 +143,17 @@ git commit -m "build: add strict POC 1B provenance lock"
 - Consumes: immutable fields in `build/sources.poc1b.lock.toml`, a Docker-compatible runtime, and network only during `fetch`.
 - Produces: verified source trees at `build/cache/poc1b/{buildroot,image-creator,linux-kernel}` and a container invoked only by digest on `linux/amd64`.
 
-- [ ] **Step 1: Write fixture-based failing source tests**
+- [x] **Step 1: Write fixture-based failing source tests**
 
 Use fake `git`, `docker`, and `sha256sum` executables prepended to `PATH`. Assert that branch names, tags without resolved commits, digest-less images, a mismatched image-creator kernel, a changed tarball, or a source tree whose `HEAD` differs from the lock all fail. Assert that a valid fixture produces exactly the three source directories and never prints the token-like fixture string.
 
-- [ ] **Step 2: Run the shell test and verify red**
+- [x] **Step 2: Run the shell test and verify red**
 
 Run: `sh scripts/tests/poc1b-sources_test.sh`
 
 Expected: FAIL because the scripts do not exist.
 
-- [ ] **Step 3: Add the pinned build container**
+- [x] **Step 3: Add the pinned build container**
 
 The Dockerfile begins `FROM docker.io/library/debian:12.11-slim@${resolved digest from the lock}` when rendered by `poc1b-container.sh`, installs only Buildroot/kernel host prerequisites (`build-essential`, `bc`, `bison`, `cpio`, `file`, `flex`, `git`, `libelf-dev`, `libncurses-dev`, `libssl-dev`, `python3`, `qemu-system-arm`, `qemu-user-static`, `rsync`, `unzip`, `wget`, `xz-utils`), creates uid/gid supplied as build arguments, and sets `/work` as the working directory. The wrapper must:
 
@@ -165,15 +165,15 @@ The Dockerfile begins `FROM docker.io/library/debian:12.11-slim@${resolved diges
 5. add `--network none` for every command except `fetch`.
 ```
 
-- [ ] **Step 4: Implement immutable fetches**
+- [x] **Step 4: Implement immutable fetches**
 
 Clone with `--filter=blob:none`, fetch each exact full commit, detach at that commit, and verify `git rev-parse HEAD`. Fetch Buildroot commit `004a792...`, image-creator commit `8aba321...`, and kernel commit `d7adb20...`. Verify the three image-creator file hashes from the lock before returning. Never use GitHub-generated source archives.
 
-- [ ] **Step 5: Wire and verify the build-host gate**
+- [x] **Step 5: Wire and verify the build-host gate**
 
 Add `poc1b-resolve`, `poc1b-fetch`, and the shell test to `make test`. `poc1b-resolve` must fail with an actionable message when no container runtime exists; it must never silently fall back to native macOS compilation.
 
-- [ ] **Step 6: Run tests and commit**
+- [x] **Step 6: Run tests and commit**
 
 ```bash
 sh scripts/tests/poc1b-sources_test.sh
