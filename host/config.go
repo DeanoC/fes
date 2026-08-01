@@ -41,8 +41,8 @@ func LoadConnection(path string) (ConnectionConfig, error) {
 	if err != nil {
 		return ConnectionConfig{}, fmt.Errorf("base_url: %w", err)
 	}
-	if baseURL.Scheme != "http" || baseURL.Hostname() == "" || baseURL.Port() != "8182" || baseURL.User != nil || baseURL.Fragment != "" || baseURL.RawQuery != "" || (baseURL.Path != "" && baseURL.Path != "/") {
-		return ConnectionConfig{}, fmt.Errorf("base_url must be an HTTP origin on port 8182 without credentials, path, query, or fragment")
+	if baseURL.Scheme != "http" || baseURL.Hostname() == "" || baseURL.User != nil || baseURL.Fragment != "" || baseURL.RawQuery != "" || (baseURL.Path != "" && baseURL.Path != "/") {
+		return ConnectionConfig{}, fmt.Errorf("base_url must be an HTTP origin without credentials, path, query, or fragment")
 	}
 	baseURL.Path = ""
 	if strings.TrimSpace(raw.Token) == "" {

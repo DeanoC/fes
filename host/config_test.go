@@ -41,7 +41,6 @@ func TestLoadConnectionRejectsInvalidValues(t *testing.T) {
 		"missing scheme":   strings.Replace(validConnectionConfig, "http://192.0.2.10:8182", "192.0.2.10:8182", 1),
 		"userinfo":         strings.Replace(validConnectionConfig, "http://192.0.2.10:8182", "http://user@192.0.2.10:8182", 1),
 		"https":            strings.Replace(validConnectionConfig, "http://", "https://", 1),
-		"wrong port":       strings.Replace(validConnectionConfig, ":8182", ":8183", 1),
 		"path":             strings.Replace(validConnectionConfig, ":8182\"", ":8182/base\"", 1),
 		"query":            strings.Replace(validConnectionConfig, ":8182\"", ":8182?x=1\"", 1),
 		"fragment":         strings.Replace(validConnectionConfig, ":8182\"", ":8182#fragment\"", 1),
@@ -61,5 +60,21 @@ func TestLoadConnectionRejectsInvalidValues(t *testing.T) {
 				t.Fatal("invalid connection loaded")
 			}
 		})
+	}
+}
+
+func TestLoadConnectionAllowsExplicitDevelopmentPort(t *testing.T) {
+	t.Parallel()
+	content := strings.Replace(validConnectionConfig, "http://192.0.2.10:8182", "http://127.0.0.1:49152", 1)
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	connection, err := host.LoadConnection(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if connection.BaseURL.String() != "http://127.0.0.1:49152" {
+		t.Fatalf("base URL = %q", connection.BaseURL)
 	}
 }
