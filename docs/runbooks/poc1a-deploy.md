@@ -59,7 +59,15 @@ bin/misterctl launch snes-test
 bin/misterctl stop
 ```
 
-Then run the committed HIL acceptance command and inventory-capture command described in the POC 1A acceptance runbook. Keep the generated hardware report and `build/sources.poc1a.lock.toml` local until they have been reviewed for machine-specific data.
+Run the operator-assisted acceptance sequence and then capture the accepted target inventory:
+
+```sh
+bin/mister-hil --output artifacts/hil/poc1a.json
+MISTER_TARGET=root@MISTER_IP scripts/capture-poc1a-lock.sh
+MISTER_TARGET=root@MISTER_IP scripts/verify-poc1a-lock.sh
+```
+
+Keep the generated hardware report and `build/sources.poc1a.lock.toml` local until they have been reviewed for machine-specific data. The verification command must remain clean before any POC 1B image work begins.
 
 ## Recover the stock installation
 

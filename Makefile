@@ -1,7 +1,7 @@
 VERSION ?= 0.1.0
 LDFLAGS = -s -w -X github.com/clawzai2-tech/mister-remote/internal/version.Version=$(VERSION)
 
-.PHONY: fmt test vet check build build-cli build-agent package-poc1a package-test
+.PHONY: fmt test vet check build build-cli build-hil build-agent package-poc1a package-test
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
@@ -14,11 +14,15 @@ vet:
 
 check: fmt test vet
 
-build: build-cli build-agent
+build: build-cli build-hil build-agent
 
 build-cli:
 	mkdir -p bin
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/misterctl ./cmd/misterctl
+
+build-hil:
+	mkdir -p bin
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/mister-hil ./cmd/mister-hil
 
 build-agent:
 	mkdir -p bin
