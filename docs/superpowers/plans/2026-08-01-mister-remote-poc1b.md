@@ -206,23 +206,24 @@ git commit -m "build: pin POC 1B container and sources"
 - Consumes: `bin/mister-agent-linux-armv7`, FAT paths from POC 1A, and Buildroot `BR2_EXTERNAL`.
 - Produces: a 64 MiB ext4 image with BusyBox init, mdev, udhcpc, the measured `Main_MiSTer` library closure, and supervised Main/agent processes.
 
-- [ ] **Step 1: Write failing static policy tests**
+- [x] **Step 1: Write failing static policy tests**
 
 Assert both defconfigs select Cortex-A9, EABIhf, glibc, BusyBox init, dynamic mdev, ext4, reproducible builds, Imlib2, FreeType, libpng, bzip2, zlib, BlueZ libraries, and libstdc++; only dev selects Dropbear. Assert no Wi-Fi, Samba, FTP, Python, compiler, package manager, Bluetooth daemon, or writable-root option. Assert every service uses absolute paths and bounded waits.
 
-- [ ] **Step 2: Run and verify red**
+- [x] **Step 2: Run and verify red**
 
 Run: `sh scripts/tests/poc1b-rootfs_test.sh`
 
 Expected: FAIL because the external tree does not exist.
 
-- [ ] **Step 3: Add the exact Buildroot configurations**
+- [x] **Step 3: Add the exact Buildroot configurations**
 
 Both defconfigs set:
 
 ```text
 BR2_arm=y
 BR2_cortex_a9=y
+BR2_ARM_ENABLE_VFP=y
 BR2_ARM_EABIHF=y
 BR2_TOOLCHAIN_BUILDROOT_GLIBC=y
 BR2_INIT_BUSYBOX=y
@@ -237,7 +238,7 @@ BR2_PACKAGE_LIBPNG=y
 BR2_PACKAGE_BZIP2=y
 BR2_PACKAGE_ZLIB=y
 BR2_PACKAGE_BLUEZ5_UTILS=y
-BR2_INSTALL_LIBSTDCPP=y
+BR2_TOOLCHAIN_BUILDROOT_CXX=y
 BR2_TARGET_ROOTFS_EXT2=y
 BR2_TARGET_ROOTFS_EXT2_4=y
 BR2_TARGET_ROOTFS_EXT2_SIZE="64M"
@@ -245,9 +246,11 @@ BR2_ROOTFS_OVERLAY="${BR2_EXTERNAL_MISTER_REMOTE_PATH}/board/mister-remote/rootf
 BR2_ROOTFS_POST_BUILD_SCRIPT="${BR2_EXTERNAL_MISTER_REMOTE_PATH}/board/mister-remote/post-build.sh"
 ```
 
+`BR2_TOOLCHAIN_BUILDROOT_CXX` is the selectable Buildroot 2021.02.4 option; its resolved configuration must contain the internal `BR2_INSTALL_LIBSTDCPP=y` symbol.
+
 Use `make olddefconfig` inside the pinned Buildroot tree to resolve implied options, then save the complete defconfigs with `savedefconfig`. Dev adds `BR2_PACKAGE_DROPBEAR=y`; production explicitly leaves it unset.
 
-- [ ] **Step 4: Implement read-only initialization**
+- [x] **Step 4: Implement read-only initialization**
 
 `fstab` mounts `/` read-only/noatime, plus proc, sysfs, devpts, `/dev/shm`, `/run`, `/tmp`, and `/var/log` as volatile filesystems. `inittab` mounts pseudo-filesystems, runs `mdev -s`, starts `rcS`, and exposes only serial/console recovery in dev.
 
@@ -257,11 +260,11 @@ Use `make olddefconfig` inside the pinned Buildroot tree to resolve implied opti
 
 `mister-supervise NAME COMMAND...` writes `/run/NAME.pid`, traps TERM/INT, terminates and waits for its child, logs timestamped lifecycle events to `/var/log/NAME.log`, and restarts after one second. It never prints command arguments for the agent, preventing the config path from becoming structured request data.
 
-- [ ] **Step 5: Enforce the final root tree**
+- [x] **Step 5: Enforce the final root tree**
 
 `post-build.sh` copies the freshly built agent, removes SSH material from production, rejects regular files under `/root`, rejects `*.rom`, `*.sfc`, `*.smc`, `*.md`, `*.gen`, `*.zip`, `agent.toml`, and strings matching `token =`, fixes root ownership, makes init scripts executable, and verifies all fourteen logical library paths from the POC 1A lock resolve inside `TARGET_DIR`.
 
-- [ ] **Step 6: Test and commit**
+- [x] **Step 6: Test and commit**
 
 ```bash
 sh scripts/tests/poc1b-rootfs_test.sh

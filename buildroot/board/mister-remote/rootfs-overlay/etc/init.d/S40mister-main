@@ -1,0 +1,56 @@
+#!/bin/sh
+set -eu
+
+main=/media/fat/MiSTer
+menu=/media/fat/menu.rbf
+main_sha=7ca3cd2f224b9264d0889f593a0d77aafa5adda61910baba92c5ae401e26fcce
+menu_sha=821bcf66181a00ff550e4a4110dc11c9fa8e68d38e9cb5558b3ddb99ca938934
+supervisor_pid=/run/mister-main-supervisor.pid
+
+verify_file() {
+  verify_path=$1
+  verify_sha=$2
+  [ -f "$verify_path" ] || {
+    printf 'mister-main: required artifact is missing: %s\n' "$verify_path" >&2
+    exit 1
+  }
+  verify_output=$(/usr/bin/sha256sum "$verify_path")
+  verify_actual=${verify_output%% *}
+  if [ "$verify_actual" != "$verify_sha" ]; then
+    printf 'mister-main: refusing changed artifact: %s\n' "$verify_path" >&2
+    exit 1
+  fi
+}
+
+stop_service() {
+  [ -f "$supervisor_pid" ] || return 0
+  IFS= read -r pid < "$supervisor_pid"
+  /bin/kill "$pid" 2>/dev/null || true
+  stop_wait=5
+  while /bin/kill -0 "$pid" 2>/dev/null && [ "$stop_wait" -gt 0 ]; do
+    /bin/sleep 1
+    stop_wait=$((stop_wait - 1))
+  done
+  /bin/rm -f "$supervisor_pid"
+}
+
+case "${1:-start}" in
+  start)
+    verify_file "$main" "$main_sha"
+    verify_file "$menu" "$menu_sha"
+    cd /media/fat
+    /usr/sbin/mister-supervise mister-main /media/fat/MiSTer /media/fat/menu.rbf &
+    printf '%s\n' "$!" > "$supervisor_pid"
+    ;;
+  stop)
+    stop_service
+    ;;
+  restart)
+    stop_service
+    "$0" start
+    ;;
+  *)
+    printf 'usage: %s start|stop|restart\n' "$0" >&2
+    exit 2
+    ;;
+esac

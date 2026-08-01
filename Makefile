@@ -12,6 +12,7 @@ test:
 	sh scripts/tests/inventory_test.sh
 	sh scripts/tests/start-agent_test.sh
 	sh scripts/tests/poc1b-sources_test.sh
+	sh scripts/tests/poc1b-rootfs_test.sh
 
 vet:
 	go vet ./...
