@@ -2789,7 +2789,7 @@ git status --short
 
 Expected: all checks pass; only `build/sources.poc1a.lock.toml` is untracked or modified.
 
-- [ ] **Step 8: Commit the accepted hardware baseline**
+- [x] **Step 8: Commit the accepted hardware baseline**
 
 ```bash
 git add build/sources.poc1a.lock.toml
