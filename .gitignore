@@ -2,6 +2,8 @@
 /artifacts/
 /dist/
 /bin/
+/build/cache/
+/build/output/
 /.cache/
 /local-games/
 /private-roms/

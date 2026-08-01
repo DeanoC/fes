@@ -63,17 +63,17 @@
 - Consumes: `build/sources.poc1a.lock.toml` and fetched files below `build/cache/poc1b/`.
 - Produces: `imagepoc.LoadPOC1A(path string) (Accepted, error)`, `imagepoc.LoadPOC1B(path string) (Sources, error)`, `imagepoc.VerifyFile(path, sha256 string, size int64) error`, and a secret-free format-1 POC 1B lock.
 
-- [ ] **Step 1: Write failing table-driven lock tests**
+- [x] **Step 1: Write failing table-driven lock tests**
 
 Test these cases using `t.TempDir()` fixtures: the committed POC 1A lock loads six artifacts and fourteen libraries; required accepted hashes match the Global Constraints; duplicate names fail; malformed SHA-256 fails; relative target paths fail; a POC 1B lock missing the immutable container digest fails; a valid source lock round-trips in stable TOML field order; `VerifyFile` accepts exact bytes and rejects changed size or digest.
 
-- [ ] **Step 2: Run the lock tests and verify red**
+- [x] **Step 2: Run the lock tests and verify red**
 
 Run: `mise exec go@1.26.5 -- go test ./internal/imagepoc -v`
 
 Expected: FAIL because `internal/imagepoc` does not exist.
 
-- [ ] **Step 3: Implement strict typed locks**
+- [x] **Step 3: Implement strict typed locks**
 
 Use `github.com/pelletier/go-toml/v2`; reject unknown fields with `toml.NewDecoder(r).DisallowUnknownFields()`. Require lowercase 64-character hex digests, positive sizes, absolute accepted target paths, full 40-character Git commits, an OCI digest beginning `sha256:`, and unique artifact/library names. Do not add a second TOML dependency.
 
@@ -105,11 +105,11 @@ release = "5.15.1-MiSTer"
 
 The CLI has `resolve --container-runtime docker`, `verify-inputs`, and `record-outputs --prod PATH --dev PATH --kernel PATH`. `resolve` asks the runtime for the immutable manifest digest, validates it as `sha256:` followed by 64 lowercase hexadecimal characters, and writes it as `container.digest` in an atomic lock with the `outputs` table omitted. `record-outputs` refuses dirty/missing inputs, computes output hashes, and atomically adds `outputs.prod_rootfs_sha256`, `outputs.dev_rootfs_sha256`, and `outputs.reproduced_kernel_sha256`.
 
-- [ ] **Step 4: Add generated-cache exclusions**
+- [x] **Step 4: Add generated-cache exclusions**
 
 Add `/build/cache/` and `/build/output/` to `.gitignore`. Keep both `build/sources.poc1a.lock.toml` and `build/sources.poc1b.lock.toml` tracked.
 
-- [ ] **Step 5: Run focused and repository tests**
+- [x] **Step 5: Run focused and repository tests**
 
 Run:
 
@@ -121,7 +121,7 @@ git diff --check
 
 Expected: PASS with no writes outside ignored build output.
 
-- [ ] **Step 6: Commit provenance support**
+- [x] **Step 6: Commit provenance support**
 
 ```bash
 git add .gitignore internal/imagepoc cmd/poc1b-lock
