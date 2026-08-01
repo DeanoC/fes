@@ -1,1 +1,8 @@
 /.worktrees/
+/artifacts/
+/dist/
+/bin/
+/.cache/
+/local-games/
+/private-roms/
+*.secret.toml
