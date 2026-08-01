@@ -8,6 +8,7 @@ fmt:
 
 test:
 	go test -race ./...
+	sh scripts/tests/inventory_test.sh
 
 vet:
 	go vet ./...
