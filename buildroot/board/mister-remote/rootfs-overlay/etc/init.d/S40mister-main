@@ -36,6 +36,16 @@ stop_service() {
 
 case "${1:-start}" in
   start)
+    wait_seconds=10
+    waiting_logged=0
+    while { [ ! -f "$main" ] || [ ! -f "$menu" ]; } && [ "$wait_seconds" -gt 0 ]; do
+      if [ "$waiting_logged" -eq 0 ]; then
+        printf '%s\n' 'mister-main: waiting for /media/fat payloads'
+        waiting_logged=1
+      fi
+      /bin/sleep 1
+      wait_seconds=$((wait_seconds - 1))
+    done
     verify_file "$main" "$main_sha"
     verify_file "$menu" "$menu_sha"
     cd /media/fat

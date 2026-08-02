@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: MiSTer Remote <build@mister-remote.invalid>
+Date: Wed, 2 Jul 2025 12:30:12 +0000
+Subject: [PATCH] create_inode: honor fake time for copied inode ctime
+
+When mke2fs populates an image with -d, source inode ctime is copied even
+when E2FSPROGS_FAKE_TIME has initialized fs->now. Host ctime cannot be set
+by Buildroot's reproducible timestamp pass, so otherwise-identical source
+trees produce different images.
+
+Use the existing fake time for ctime when it is configured. Preserve the
+current source-stat behavior when it is not.
+---
+ misc/create_inode.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/misc/create_inode.c b/misc/create_inode.c
+index e8bc9cb4..d11a53c1 100644
+--- a/misc/create_inode.c
++++ b/misc/create_inode.c
+@@ -127,7 +127,7 @@ static errcode_t set_inode_extra(ext2_filsys fs, ext2_ino_t ino,
+ 	inode.i_mode = (LINUX_S_IFMT & inode.i_mode) | (~S_IFMT & st->st_mode);
+ 	inode.i_atime = st->st_atime;
+ 	inode.i_mtime = st->st_mtime;
+-	inode.i_ctime = st->st_ctime;
++	inode.i_ctime = fs->now ? fs->now : st->st_ctime;
+ 
+ 	retval = ext2fs_write_inode(fs, ino, &inode);
+ 	if (retval)
+-- 
+2.50.1
+

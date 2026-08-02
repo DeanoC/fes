@@ -25,6 +25,7 @@ for config in "$prod" "$dev"; do
     'BR2_TOOLCHAIN_BUILDROOT_GLIBC=y' \
     'BR2_INIT_BUSYBOX=y' \
     'BR2_ROOTFS_DEVICE_CREATION_DYNAMIC_MDEV=y' \
+    'BR2_ROOTFS_MERGED_USR=y' \
     'BR2_TARGET_GENERIC_HOSTNAME="mister"' \
     'BR2_TARGET_GENERIC_ISSUE="MiSTer Remote POC 1B"' \
     'BR2_SYSTEM_DHCP=""' \
@@ -40,6 +41,8 @@ for config in "$prod" "$dev"; do
     'BR2_TARGET_ROOTFS_EXT2=y' \
     'BR2_TARGET_ROOTFS_EXT2_4=y' \
     'BR2_TARGET_ROOTFS_EXT2_SIZE="64M"' \
+    'BR2_TARGET_ROOTFS_EXT2_MKFS_OPTIONS="-U 9b3652c2-33f1-4a6b-9a53-9b667ab1b001 -E lazy_itable_init=0,lazy_journal_init=0,hash_seed=9b3652c2-33f1-4a6b-9a53-9b667ab1b001"' \
+    'BR2_GLOBAL_PATCH_DIR="${BR2_EXTERNAL_MISTER_REMOTE_PATH}/board/mister-remote/patches"' \
     'BR2_ROOTFS_OVERLAY="${BR2_EXTERNAL_MISTER_REMOTE_PATH}/board/mister-remote/rootfs-overlay"' \
     'BR2_ROOTFS_POST_BUILD_SCRIPT="${BR2_EXTERNAL_MISTER_REMOTE_PATH}/board/mister-remote/post-build.sh"'
   do
@@ -52,6 +55,10 @@ for config in "$prod" "$dev"; do
   fi
 done
 
+e2fs_patch=$repo/buildroot/board/mister-remote/patches/e2fsprogs/0001-create_inode-honor-fake-time-for-ctime.patch
+test -f "$e2fs_patch"
+grep -Fq 'inode.i_ctime = fs->now ? fs->now : st->st_ctime;' "$e2fs_patch"
+
 require_line "$prod" '# BR2_PACKAGE_DROPBEAR is not set'
 require_line "$dev" 'BR2_PACKAGE_DROPBEAR=y'
 
@@ -60,10 +67,11 @@ inittab=$rootfs/etc/inittab
 network=$rootfs/etc/init.d/S20mister-network
 main=$rootfs/etc/init.d/S40mister-main
 agent=$rootfs/etc/init.d/S50mister-agent
+smoke=$rootfs/etc/init.d/S49poc1b-smoke
 supervise=$rootfs/usr/sbin/mister-supervise
 post_build=$repo/buildroot/board/mister-remote/post-build.sh
 
-for required_file in "$fstab" "$inittab" "$network" "$main" "$agent" "$supervise" "$post_build"; do
+for required_file in "$fstab" "$inittab" "$network" "$main" "$agent" "$smoke" "$supervise" "$post_build"; do
   test -f "$required_file"
 done
 
@@ -80,9 +88,12 @@ grep -Fq 'wait_seconds=10' "$network"
 grep -Fq '/sbin/udhcpc -f -q -t 5 -T 2 -i eth0 -x hostname:mister -s /usr/share/udhcpc/default.script' "$network"
 grep -Fq '7ca3cd2f224b9264d0889f593a0d77aafa5adda61910baba92c5ae401e26fcce' "$main"
 grep -Fq '821bcf66181a00ff550e4a4110dc11c9fa8e68d38e9cb5558b3ddb99ca938934' "$main"
+grep -Fq 'wait_seconds=10' "$main"
+grep -Fq 'waiting for /media/fat' "$main"
 grep -Fq '/usr/sbin/mister-supervise mister-main /media/fat/MiSTer /media/fat/menu.rbf' "$main"
 grep -Fq 'wait_seconds=30' "$agent"
 grep -Fq '/usr/sbin/mister-supervise mister-agent /usr/sbin/mister-agent --config /media/fat/mister-remote/agent.toml' "$agent"
+grep -Fq 'POC1B_SMOKE_READY' "$smoke"
 
 grep -Fq '/run/$name.pid' "$supervise"
 grep -Fq '/var/log/$name.log' "$supervise"
@@ -92,12 +103,14 @@ grep -Fq '/bin/sleep 1' "$supervise"
 fixture=$(mktemp -d "${TMPDIR:-/tmp}/mister-remote-poc1b-rootfs.XXXXXX")
 trap 'rm -rf "$fixture"' EXIT INT TERM
 target=$fixture/target
-mkdir -p "$target/root" "$target/etc/init.d" "$target/usr/sbin" "$target/usr/libexec/bluetooth" "$target/etc/dropbear"
+mkdir -p "$target/root" "$target/etc/init.d" "$target/usr/lib" "$target/usr/sbin" "$target/usr/libexec/bluetooth" "$target/etc/dropbear" "$target/var" "$target/tmp"
 cp -R "$rootfs/." "$target/"
+ln -s ../tmp "$target/var/log"
 : > "$target/etc/init.d/S50dropbear"
 : > "$target/etc/init.d/S30dbus"
 : > "$target/usr/sbin/dropbear"
 : > "$target/usr/libexec/bluetooth/bluetoothd"
+: > "$target/usr/lib/libstdc++.so.6.0.28-gdb.py"
 
 awk '
   /^\[\[libraries\]\]$/ { in_library=1; next }
@@ -116,10 +129,13 @@ done
 prod_config=$fixture/prod.config
 printf '%s\n' '# BR2_PACKAGE_DROPBEAR is not set' > "$prod_config"
 BR2_CONFIG=$prod_config "$post_build" "$target"
+test -d "$target/var/log"
+test ! -L "$target/var/log"
 test -x "$target/usr/sbin/mister-agent"
 test ! -e "$target/usr/sbin/dropbear"
 test ! -e "$target/usr/libexec/bluetooth/bluetoothd"
 test ! -e "$target/etc/init.d/S30dbus"
+test ! -e "$target/usr/lib/libstdc++.so.6.0.28-gdb.py"
 ! grep -q 'console::respawn:/sbin/getty' "$target/etc/inittab"
 
 : > "$target/forbidden.zip"

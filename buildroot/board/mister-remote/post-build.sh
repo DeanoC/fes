@@ -26,9 +26,16 @@ target=$(CDPATH='' cd -- "$target" && pwd -P)
 
 /bin/mkdir -p "$target/usr/sbin"
 /usr/bin/install -m 0755 "$agent" "$target/usr/sbin/mister-agent"
+
+# Buildroot's default skeleton aliases /var/log to /tmp. It must be its own
+# mount point so the noexec tmpfs policy in fstab is observable and enforced.
+/bin/rm -rf "$target/var/log"
+/bin/mkdir -p "$target/var/log"
+
 /bin/chmod 0755 "$target/etc/init.d"/S20mister-network \
   "$target/etc/init.d"/S30mister-dropbear \
   "$target/etc/init.d"/S40mister-main \
+  "$target/etc/init.d"/S49poc1b-smoke \
   "$target/etc/init.d"/S50mister-agent \
   "$target/usr/sbin/mister-supervise"
 
@@ -47,6 +54,9 @@ fi
 # Main_MiSTer needs libbluetooth, not a Bluetooth or D-Bus service.
 /bin/rm -f "$target/etc/init.d/S40bluetooth" "$target/etc/init.d/S30dbus"
 /bin/rm -f "$target/usr/libexec/bluetooth/bluetoothd" "$target/usr/bin/dbus-daemon"
+
+# GCC's GDB auto-load helper embeds the per-run Buildroot output path.
+find "$target/usr/lib" -type f -name '*-gdb.py' -delete
 
 /bin/rm -f "$target/root/.empty"
 if find "$target/root" -type f -print -quit | grep -q .; then

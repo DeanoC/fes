@@ -36,5 +36,8 @@ COPY containers/poc1b/create-builder-user.sh /usr/local/sbin/create-builder-user
 RUN HOST_UID="${HOST_UID}" HOST_GID="${HOST_GID}" /usr/local/sbin/create-builder-user \
  && rm /usr/local/sbin/create-builder-user
 
+RUN mkdir -p /poc1b-output \
+ && chown "${HOST_UID}:${HOST_GID}" /poc1b-output
+
 USER builder
 WORKDIR /work

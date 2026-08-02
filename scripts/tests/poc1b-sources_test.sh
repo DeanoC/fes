@@ -102,6 +102,7 @@ POC1B_LOCK=$lock \
 MISTER_TOKEN=must-not-cross-container-boundary \
   sh "$repo/scripts/poc1b-container.sh" run true
 grep -q -- '--network none' "$docker_log"
+grep -q -- 'mister-remote-poc1b-output:/poc1b-output' "$docker_log"
 ! grep -q 'must-not-cross-container-boundary' "$docker_log"
 
 : > "$docker_log"

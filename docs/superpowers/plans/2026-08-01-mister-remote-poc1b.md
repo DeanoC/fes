@@ -228,6 +228,7 @@ BR2_ARM_EABIHF=y
 BR2_TOOLCHAIN_BUILDROOT_GLIBC=y
 BR2_INIT_BUSYBOX=y
 BR2_ROOTFS_DEVICE_CREATION_DYNAMIC_MDEV=y
+BR2_ROOTFS_MERGED_USR=y
 BR2_TARGET_GENERIC_HOSTNAME="mister"
 BR2_TARGET_GENERIC_ISSUE="MiSTer Remote POC 1B"
 BR2_SYSTEM_DHCP=""
@@ -289,21 +290,21 @@ git commit -m "build: define reduced MiSTer appliance rootfs"
 - Consumes: pinned container, fetched Buildroot, external tree, and agent binary.
 - Produces: `build/output/poc1b/{prod,dev}/linux.img`, manifests, library reports, and reproducibility evidence.
 
-- [ ] **Step 1: Write failing orchestration tests**
+- [x] **Step 1: Write failing orchestration tests**
 
 With fake Buildroot output, assert: builds run twice in separate output directories; `SOURCE_DATE_EPOCH=1751459412` is constant; differing images fail; missing fourteen-library closure fails; prod containing Dropbear fails; dev lacking Dropbear fails; `/etc/fstab` without `ro` fails; a token/ROM signature fails; and a valid fixture promotes output atomically.
 
-- [ ] **Step 2: Run and verify red**
+- [x] **Step 2: Run and verify red**
 
 Run: `sh scripts/tests/poc1b-image_test.sh`
 
 Expected: FAIL because build/verify scripts do not exist.
 
-- [ ] **Step 3: Implement two-build reproducibility**
+- [x] **Step 3: Implement two-build reproducibility**
 
-For each variant, create clean `O=build/output/poc1b/work-{1,2}-VARIANT`, run the pinned defconfig and Buildroot, normalize ext4 creation with a fixed UUID, disabled lazy inode/journal initialization, and the fixed epoch, compare the two SHA-256 values, then atomically copy the second output to `build/output/poc1b/VARIANT/linux.img`. Never run Buildroot as root.
+For each variant, create clean `O=build/output/poc1b/work-{1,2}-VARIANT`, run the pinned defconfig and Buildroot, normalize ext4 creation with UUID/hash seed `9b3652c2-33f1-4a6b-9a53-9b667ab1b001`, disabled lazy inode/journal initialization, and the fixed epoch, compare the two SHA-256 values, then atomically copy the second output to `build/output/poc1b/VARIANT/linux.img`. Never run Buildroot as root.
 
-- [ ] **Step 4: Implement mount-free inspection**
+- [x] **Step 4: Implement mount-free inspection**
 
 Inside the container use `debugfs -R`, `file`, `readelf`, and `strings`; do not mount images on macOS. Verify:
 
@@ -319,11 +320,11 @@ agent is ELF ARM EABI5, statically linked, stripped;
 manifest paths and hashes are stable and sorted.
 ```
 
-- [ ] **Step 5: Add the closest practical boot smoke**
+- [x] **Step 5: Add the closest practical boot smoke**
 
 Build a test-only `vexpress-a9` kernel in the same container and boot each root image under headless `qemu-system-arm -M vexpress-a9 -append 'root=/dev/mmcblk0 ro console=ttyAMA0'`. The service scripts must enter a bounded `waiting for /media/fat` state rather than crash-loop; the console must show read-only root and writable `/run`, `/tmp`, and `/var/log`. Kill QEMU after the sentinel `POC1B_SMOKE_READY` appears or fail at 45 seconds. Do not claim this emulates FPGA behavior.
 
-- [ ] **Step 6: Run build and tests**
+- [x] **Step 6: Run build and tests**
 
 ```bash
 mise exec go@1.26.5 -- make build-agent VERSION=0.1.0
@@ -335,7 +336,7 @@ git diff --check
 
 Expected: both repeated hashes match, both QEMU smokes pass, and ignored output contains no secret.
 
-- [ ] **Step 7: Commit the image pipeline**
+- [x] **Step 7: Commit the image pipeline**
 
 ```bash
 git add scripts Makefile

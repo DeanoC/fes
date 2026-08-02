@@ -4,6 +4,14 @@ set -eu
 repo_root=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 lock=${POC1B_LOCK:-$repo_root/build/sources.poc1b.lock.toml}
 runtime=${POC1B_CONTAINER_RUNTIME:-docker}
+output_volume=${POC1B_OUTPUT_VOLUME:-mister-remote-poc1b-output}
+
+case "$output_volume" in
+  *[!a-zA-Z0-9_.-]*|'')
+    printf 'poc1b-container: invalid output volume name: %s\n' "$output_volume" >&2
+    exit 2
+    ;;
+esac
 
 if ! command -v "$runtime" >/dev/null 2>&1; then
   printf 'poc1b-container: container runtime is not executable: %s\n' "$runtime" >&2
@@ -57,9 +65,16 @@ if ! printf '%s\n' "$digest" | grep -Eq '^sha256:[0-9a-f]{64}$'; then
 fi
 
 short_digest=$(printf '%s' "$digest" | cut -c8-19)
-build_image=mister-remote-poc1b-build:$short_digest
 host_uid=$(id -u)
 host_gid=$(id -g)
+context_digest=$(
+  /usr/bin/shasum -a 256 \
+    "$repo_root/containers/poc1b/Dockerfile" \
+    "$repo_root/containers/poc1b/create-builder-user.sh" |
+    /usr/bin/shasum -a 256 |
+    /usr/bin/awk '{print substr($1, 1, 12)}'
+)
+build_image=mister-remote-poc1b-build:$short_digest-$context_digest-$host_uid-$host_gid
 base_ref=$base_image@$digest
 
 if ! repo_digests=$("$runtime" image inspect "$base_ref" --format '{{join .RepoDigests "\n"}}' 2>/dev/null); then
@@ -94,6 +109,7 @@ if [ "$mode" = run ]; then
     --network none \
     --user "$host_uid:$host_gid" \
     --volume "$repo_root:/work" \
+    --volume "$output_volume:/poc1b-output" \
     --workdir /work \
     "$build_image" "$@"
 fi
@@ -102,5 +118,6 @@ exec "$runtime" run --rm \
   --platform "$platform" \
   --user "$host_uid:$host_gid" \
   --volume "$repo_root:/work" \
+  --volume "$output_volume:/poc1b-output" \
   --workdir /work \
   "$build_image" "$@"

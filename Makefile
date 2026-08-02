@@ -2,7 +2,7 @@ VERSION ?= 0.1.0
 CONTAINER_RUNTIME ?= docker
 LDFLAGS = -s -w -X github.com/clawzai2-tech/mister-remote/internal/version.Version=$(VERSION)
 
-.PHONY: fmt test vet check build build-cli build-hil build-agent build-lock build-lock-container package-poc1a package-test poc1b-resolve poc1b-fetch
+.PHONY: fmt test vet check build build-cli build-hil build-agent build-lock build-lock-container package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-verify-images poc1b-qemu-smoke
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
@@ -13,6 +13,7 @@ test:
 	sh scripts/tests/start-agent_test.sh
 	sh scripts/tests/poc1b-sources_test.sh
 	sh scripts/tests/poc1b-rootfs_test.sh
+	sh scripts/tests/poc1b-image_test.sh
 
 vet:
 	go vet ./...
@@ -48,6 +49,25 @@ poc1b-resolve: build-lock
 
 poc1b-fetch: build-lock-container
 	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/poc1b-container.sh fetch /work/scripts/fetch-poc1b-sources.sh
+
+poc1b-image-test:
+	sh scripts/tests/poc1b-image_test.sh
+
+poc1b-image-fetch: build-agent
+	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-poc1b-image.sh --fetch prod
+	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-poc1b-image.sh --fetch dev
+
+poc1b-images: build-agent poc1b-image-fetch
+	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-poc1b-image.sh prod
+	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-poc1b-image.sh dev
+
+poc1b-verify-images:
+	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-poc1b-image.sh prod build/output/poc1b/prod/linux.img build/output/poc1b/prod/manifest.tsv
+	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-poc1b-image.sh dev build/output/poc1b/dev/linux.img build/output/poc1b/dev/manifest.tsv
+
+poc1b-qemu-smoke:
+	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/qemu-smoke-poc1b.sh prod build/output/poc1b/prod/linux.img
+	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/qemu-smoke-poc1b.sh dev build/output/poc1b/dev/linux.img
 
 package-poc1a:
 	MISTER_TOKEN="$${MISTER_TOKEN:?MISTER_TOKEN is required}" VERSION="$(VERSION)" ./scripts/package-poc1a.sh
