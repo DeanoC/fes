@@ -45,6 +45,7 @@ printf 'format = 1\n\n'
 emit_artifact main_mister /media/fat/MiSTer https://github.com/MiSTer-devel/Main_MiSTer
 emit_artifact menu /media/fat/menu.rbf https://github.com/MiSTer-devel/Menu_MiSTer
 emit_artifact kernel /media/fat/linux/zImage_dtb https://github.com/MiSTer-devel/Linux-Kernel_MiSTer
+emit_artifact linux_root /media/fat/linux/linux.img https://github.com/MiSTer-devel/Linux_Image_creator_MiSTer
 emit_artifact megadrive_core "$megadrive_core" https://github.com/MiSTer-devel/MegaDrive_MiSTer
 emit_artifact snes_core "$snes_core" https://github.com/MiSTer-devel/SNES_MiSTer
 

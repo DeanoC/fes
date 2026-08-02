@@ -135,6 +135,12 @@ atomic_copy() {
   mv -f "$copy_temp" "$copy_target"
   sync_storage
   verify_hash "$copy_target" "$copy_expected" "$copy_label"
+  if [ "$test_mode" = 1 ] && {
+       [ "${MISTER_REMOTE_TEST_INTERRUPT_AFTER_RENAME:-}" = "$copy_label" ] ||
+       [ "${MISTER_REMOTE_TEST_INTERRUPT_AFTER_RENAME:-}" = 1 ];
+     }; then
+    fail "simulated interruption after $copy_label rename"
+  fi
 }
 
 backup_once() {
@@ -174,19 +180,79 @@ write_state() {
   sync_storage
   mv -f "$state_temp" "$state"
   sync_storage
+  if [ "$test_mode" = 1 ] && \
+     [ "${MISTER_REMOTE_TEST_INTERRUPT_AFTER_STATE:-}" = "$write_checkpoint" ]; then
+    fail "simulated interruption after $write_checkpoint state"
+  fi
 }
 
 stop_runtime() {
-  [ -z "$root" ] || return 0
-  if [ -f /run/mister-agent-supervisor.pid ]; then
-    supervisor_pid=$(cat /run/mister-agent-supervisor.pid)
-    case "$supervisor_pid" in
-      ''|*[!0-9]*) fail 'invalid agent supervisor PID' ;;
-    esac
-    kill "$supervisor_pid" 2>/dev/null || true
+  stop_supervisor "$root/tmp/mister-agent-supervisor.pid" \
+    'POC 1A agent supervisor' start-agent.sh ''
+  stop_supervisor "$root/run/mister-agent-supervisor.pid" \
+    'POC 1B agent supervisor' mister-supervise mister-agent
+  stop_supervisor "$root/run/mister-main-supervisor.pid" \
+    'POC 1B Main supervisor' mister-supervise mister-main
+
+  if [ -z "$root" ]; then
+    stop_process_name mister-agent
+    stop_process_name MiSTer
   fi
-  killall mister-agent 2>/dev/null || true
-  killall MiSTer 2>/dev/null || true
+}
+
+process_command() {
+  command_pid=$1
+  [ -r "$proc_root/$command_pid/cmdline" ] || return 1
+  tr '\000' ' ' < "$proc_root/$command_pid/cmdline"
+}
+
+stop_supervisor() {
+  supervisor_file=$1
+  supervisor_label=$2
+  supervisor_token_one=$3
+  supervisor_token_two=$4
+  [ -f "$supervisor_file" ] || return 0
+  IFS= read -r supervisor_pid < "$supervisor_file"
+  case "$supervisor_pid" in
+    ''|*[!0-9]*) fail "invalid PID for $supervisor_label" ;;
+  esac
+  if ! kill -0 "$supervisor_pid" 2>/dev/null; then
+    rm -f "$supervisor_file"
+    return 0
+  fi
+
+  supervisor_command=$(process_command "$supervisor_pid") || \
+    fail "cannot identify $supervisor_label process"
+  printf '%s\n' "$supervisor_command" | grep -Fq "$supervisor_token_one" || \
+    fail "$supervisor_label PID belongs to another process"
+  if [ -n "$supervisor_token_two" ]; then
+    printf '%s\n' "$supervisor_command" | grep -Fq "$supervisor_token_two" || \
+      fail "$supervisor_label PID belongs to another process"
+  fi
+
+  kill "$supervisor_pid" 2>/dev/null || \
+    fail "cannot stop $supervisor_label"
+  stop_wait=5
+  while kill -0 "$supervisor_pid" 2>/dev/null && [ "$stop_wait" -gt 0 ]; do
+    sleep 1
+    stop_wait=$((stop_wait - 1))
+  done
+  kill -0 "$supervisor_pid" 2>/dev/null && \
+    fail "$supervisor_label did not stop"
+  rm -f "$supervisor_file"
+}
+
+stop_process_name() {
+  process_name=$1
+  killall "$process_name" 2>/dev/null || true
+  command -v pidof >/dev/null 2>&1 || return 0
+  stop_wait=5
+  while pidof "$process_name" >/dev/null 2>&1 && [ "$stop_wait" -gt 0 ]; do
+    sleep 1
+    stop_wait=$((stop_wait - 1))
+  done
+  pidof "$process_name" >/dev/null 2>&1 && \
+    fail "$process_name did not stop"
 }
 
 [ "$#" -eq 2 ] || usage
@@ -199,8 +265,10 @@ esac
 
 test_mode=${MISTER_REMOTE_TEST_MODE:-0}
 root=${MISTER_REMOTE_ROOT:-}
+proc_root=/proc
 case "$test_mode" in
   0)
+    [ "$(id -u)" -eq 0 ] || fail 'production installation requires UID 0'
     [ -z "$root" ] || fail 'root override is forbidden outside test mode'
     [ "$archive" = "/media/fat/linux/mister-remote-poc1b-$checkpoint.tar.gz" ] || \
       fail 'production package path is not canonical'
@@ -214,6 +282,7 @@ case "$test_mode" in
     allowed_root=$(CDPATH='' cd -- "$allowed_root" && pwd -P)
     [ "$root" = "$allowed_root" ] || fail 'test root is outside explicit fixture'
     case "$root" in /|/tmp|/private/tmp) fail 'test root is too broad' ;; esac
+    proc_root=$root/proc
     ;;
   *) fail 'invalid test mode' ;;
 esac
@@ -289,6 +358,10 @@ accepted_kernel_sha=$(artifact_value "$poc1a_lock" kernel sha256)
 [ "$(artifact_value "$poc1a_lock" kernel path)" = /media/fat/linux/zImage_dtb ] || \
   fail 'unexpected accepted kernel path'
 valid_sha256 "$accepted_kernel_sha" || fail 'accepted kernel hash is invalid'
+accepted_root_sha=$(artifact_value "$poc1a_lock" linux_root sha256)
+[ "$(artifact_value "$poc1a_lock" linux_root path)" = /media/fat/linux/linux.img ] || \
+  fail 'unexpected accepted root image path'
+valid_sha256 "$accepted_root_sha" || fail 'accepted root image hash is invalid'
 verify_regular "$root_image"
 verify_regular "$kernel_image"
 
@@ -316,6 +389,7 @@ else
 fi
 
 if [ ! -f "$state" ]; then
+  verify_hash "$root_image" "$accepted_root_sha" 'accepted root image'
   backup_once "$root_image" "$root_backup"
   backup_once "$kernel_image" "$kernel_backup"
   root_backup_sha=$(sha256_file "$root_backup")
@@ -351,12 +425,20 @@ case "$checkpoint" in
     write_state binary-kernel "$dev_root_sha" "$accepted_kernel_sha"
     ;;
   source-kernel)
-    [ "$current_checkpoint" = binary-kernel ] || \
-      fail 'checkpoint 2 requires accepted checkpoint 1 state'
+    case "$current_checkpoint" in
+      binary-kernel|source-kernel) : ;;
+      *) fail 'checkpoint 2 requires accepted checkpoint 1 state' ;;
+    esac
     [ "$current_root_sha" = "$dev_root_sha" ] || \
       fail 'checkpoint 2 requires the accepted development root'
-    [ "$current_kernel_sha" = "$accepted_kernel_sha" ] || \
-      fail 'checkpoint 2 requires the accepted binary kernel'
+    if [ "$current_kernel_sha" != "$accepted_kernel_sha" ] && \
+       [ "$current_kernel_sha" != "$reproduced_kernel_sha" ]; then
+      fail 'checkpoint 2 found an unexpected current kernel'
+    fi
+    if [ "$current_checkpoint" = source-kernel ] && \
+       [ "$current_kernel_sha" != "$reproduced_kernel_sha" ]; then
+      fail 'completed checkpoint 2 requires the reproduced kernel'
+    fi
 
     modules_dir=$linux/modules.poc1b/$release
     mkdir -p "$modules_dir"
@@ -371,10 +453,15 @@ case "$checkpoint" in
     sync_storage
     mv -f "$modules_dir/manifest.toml.poc1b.new" "$modules_dir/manifest.toml"
     sync_storage
+    verify_hash "$modules_dir/manifest.toml" \
+      "$(sha256_file "$payload/kernel-manifest.toml")" \
+      'installed kernel manifest'
 
-    stop_runtime
-    atomic_copy "$payload/zImage_dtb" "$kernel_image" \
-      "$reproduced_kernel_sha" 'reproduced kernel'
+    if [ "$current_kernel_sha" = "$accepted_kernel_sha" ]; then
+      stop_runtime
+      atomic_copy "$payload/zImage_dtb" "$kernel_image" \
+        "$reproduced_kernel_sha" 'reproduced kernel'
+    fi
     write_state source-kernel "$dev_root_sha" "$reproduced_kernel_sha"
     ;;
 esac

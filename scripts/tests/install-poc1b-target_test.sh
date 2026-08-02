@@ -3,11 +3,21 @@ set -eu
 
 repo=$(CDPATH='' cd -- "$(dirname "$0")/../.." && pwd)
 fixture=$(mktemp -d "${TMPDIR:-/tmp}/mister-remote-poc1b-install.XXXXXX")
-trap 'rm -rf "$fixture"' EXIT INT TERM
+test_pids=
+cleanup() {
+  for cleanup_pid in $test_pids; do
+    kill "$cleanup_pid" 2>/dev/null || true
+    wait "$cleanup_pid" 2>/dev/null || true
+  done
+  rm -rf "$fixture"
+}
+trap cleanup EXIT INT TERM
 
 installer=$repo/deploy/poc1b/install-target.sh
+wrapper=$repo/scripts/install-poc1b.sh
 restore=$repo/scripts/restore-poc1a-sd.sh
 test -x "$installer"
+test -x "$wrapper"
 test -x "$restore"
 
 sha256_file() {
@@ -71,6 +81,13 @@ source = "fixture"
 name = "kernel"
 path = "/media/fat/linux/zImage_dtb"
 sha256 = "$(sha256_file "$fat/linux/zImage_dtb")"
+size = 1
+source = "fixture"
+
+[[artifacts]]
+name = "linux_root"
+path = "/media/fat/linux/linux.img"
+sha256 = "$(sha256_file "$fat/linux/linux.img")"
 size = 1
 source = "fixture"
 
@@ -141,6 +158,32 @@ expect_install_failure() {
   fi
 }
 
+expect_wrapper_target_failure() {
+  bad_target=$1
+  failure_log=$fixture/wrapper-target.log
+  if MISTER_TARGET=$bad_target sh "$wrapper" binary-kernel \
+      > /dev/null 2> "$failure_log"; then
+    echo "POC 1B wrapper accepted invalid target: $bad_target" >&2
+    exit 1
+  fi
+  grep -q 'MISTER_TARGET must be root@' "$failure_log"
+}
+
+expect_wrapper_target_failure user@192.0.2.1
+bad_option_target=-p22
+expect_wrapper_target_failure "$bad_option_target"
+expect_wrapper_target_failure 'root@-option'
+
+if test "$(id -u)" -ne 0; then
+  production_log=$fixture/production-uid.log
+  if sh "$installer" binary-kernel /not-canonical \
+      > /dev/null 2> "$production_log"; then
+    echo 'target installer accepted a non-root production invocation' >&2
+    exit 1
+  fi
+  grep -q 'production installation requires UID 0' "$production_log"
+fi
+
 unsafe_root=$fixture/unsafe-root
 cp -R "$baseline" "$unsafe_root"
 if MISTER_REMOTE_TEST_MODE=1 \
@@ -165,6 +208,11 @@ changed_kernel=$fixture/changed-kernel
 cp -R "$baseline" "$changed_kernel"
 write_file "$changed_kernel/media/fat/linux/zImage_dtb" changed-kernel
 expect_install_failure "$changed_kernel" binary-kernel "$binary_archive"
+
+changed_root=$fixture/changed-root
+cp -R "$baseline" "$changed_root"
+write_file "$changed_root/media/fat/linux/linux.img" changed-stock-root
+expect_install_failure "$changed_root" binary-kernel "$binary_archive"
 
 missing_output_stage=$fixture/missing-output/poc1b
 mkdir -p "$missing_output_stage"
@@ -233,6 +281,45 @@ install_fixture "$binary_root" binary-kernel "$binary_archive"
 write_file "$binary_root/media/fat/linux/linux.img.pre-poc1b" tampered-backup
 expect_install_failure "$binary_root" binary-kernel "$binary_archive"
 
+service_root=$fixture/service-root
+cp -R "$baseline" "$service_root"
+cat > "$fixture/start-agent.sh" <<'EOF'
+#!/bin/sh
+while :; do sleep 1; done
+EOF
+cat > "$fixture/mister-supervise" <<'EOF'
+#!/bin/sh
+while :; do sleep 1; done
+EOF
+chmod 0755 "$fixture/start-agent.sh" "$fixture/mister-supervise"
+"$fixture/start-agent.sh" >/dev/null 2>&1 &
+poc1a_supervisor_pid=$!
+test_pids="$test_pids $poc1a_supervisor_pid"
+"$fixture/mister-supervise" mister-main >/dev/null 2>&1 &
+main_supervisor_pid=$!
+test_pids="$test_pids $main_supervisor_pid"
+mkdir -p "$service_root/run" "$service_root/tmp"
+mkdir -p \
+  "$service_root/proc/$poc1a_supervisor_pid" \
+  "$service_root/proc/$main_supervisor_pid"
+printf '%s\n' "$fixture/start-agent.sh" > \
+  "$service_root/proc/$poc1a_supervisor_pid/cmdline"
+printf '%s\n' "$fixture/mister-supervise mister-main" > \
+  "$service_root/proc/$main_supervisor_pid/cmdline"
+printf '%s\n' "$poc1a_supervisor_pid" > \
+  "$service_root/tmp/mister-agent-supervisor.pid"
+printf '%s\n' "$main_supervisor_pid" > \
+  "$service_root/run/mister-main-supervisor.pid"
+install_fixture "$service_root" binary-kernel "$binary_archive"
+if kill -0 "$poc1a_supervisor_pid" 2>/dev/null; then
+  echo 'checkpoint install left the POC 1A supervisor running' >&2
+  exit 1
+fi
+if kill -0 "$main_supervisor_pid" 2>/dev/null; then
+  echo 'checkpoint install left the Main supervisor running' >&2
+  exit 1
+fi
+
 checkpoint2_bad_root=$fixture/checkpoint2-bad-root
 cp -R "$baseline" "$checkpoint2_bad_root"
 install_fixture "$checkpoint2_bad_root" binary-kernel "$binary_archive"
@@ -247,6 +334,37 @@ test "$(sha256_file "$source_root/media/fat/linux/zImage_dtb")" = \
   "$(sha256_file "$stage/zImage_dtb")"
 installed_modules=$source_root/media/fat/linux/modules.poc1b/5.15.1-MiSTer/modules.tar.gz
 test "$(sha256_file "$installed_modules")" = "$modules_sha"
+install_fixture "$source_root" source-kernel "$source_archive"
+
+post_rename_root=$fixture/post-rename-root
+cp -R "$baseline" "$post_rename_root"
+install_fixture "$post_rename_root" binary-kernel "$binary_archive"
+if ( MISTER_REMOTE_TEST_INTERRUPT_AFTER_RENAME='reproduced kernel' \
+  install_fixture "$post_rename_root" source-kernel "$source_archive" ) \
+    >/dev/null 2>&1; then
+  echo 'post-kernel-rename interruption unexpectedly succeeded' >&2
+  exit 1
+fi
+test "$(sha256_file "$post_rename_root/media/fat/linux/zImage_dtb")" = \
+  "$(sha256_file "$stage/zImage_dtb")"
+grep -q '^checkpoint=binary-kernel$' \
+  "$post_rename_root/media/fat/linux/poc1b-checkpoint.state"
+install_fixture "$post_rename_root" source-kernel "$source_archive"
+grep -q '^checkpoint=source-kernel$' \
+  "$post_rename_root/media/fat/linux/poc1b-checkpoint.state"
+
+post_state_root=$fixture/post-state-root
+cp -R "$baseline" "$post_state_root"
+install_fixture "$post_state_root" binary-kernel "$binary_archive"
+if ( MISTER_REMOTE_TEST_INTERRUPT_AFTER_STATE=source-kernel \
+  install_fixture "$post_state_root" source-kernel "$source_archive" ) \
+    >/dev/null 2>&1; then
+  echo 'post-state interruption unexpectedly succeeded' >&2
+  exit 1
+fi
+grep -q '^checkpoint=source-kernel$' \
+  "$post_state_root/media/fat/linux/poc1b-checkpoint.state"
+install_fixture "$post_state_root" source-kernel "$source_archive"
 
 missing_backup_root=$fixture/missing-backup-root
 cp -R "$source_root" "$missing_backup_root"

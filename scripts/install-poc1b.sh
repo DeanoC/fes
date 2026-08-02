@@ -9,7 +9,7 @@ fail() {
 }
 
 [ "$#" -eq 1 ] || {
-  printf 'usage: MISTER_TARGET=user@host install-poc1b.sh binary-kernel|source-kernel\n' >&2
+  printf 'usage: MISTER_TARGET=root@host install-poc1b.sh binary-kernel|source-kernel\n' >&2
   exit 2
 }
 checkpoint=$1
@@ -20,8 +20,14 @@ esac
 
 target=${MISTER_TARGET:-}
 [ -n "$target" ] || fail 'MISTER_TARGET is required'
-printf '%s\n' "$target" | grep -Eq '^[A-Za-z0-9_.@:-]+$' || \
-  fail 'MISTER_TARGET contains unsafe characters'
+case "$target" in
+  root@*) target_host=${target#root@} ;;
+  *) fail 'MISTER_TARGET must be root@HOST' ;;
+esac
+case "$target_host" in
+  ''|[!A-Za-z0-9]*|*[!A-Za-z0-9_.-]*) \
+    fail 'MISTER_TARGET must be root@HOST with a hostname or IPv4 address' ;;
+esac
 
 sha256_file() {
   shasum -a 256 "$1" | awk '{print $1}'
@@ -130,6 +136,6 @@ case "$checkpoint" in
 esac
 
 remote_archive=/media/fat/linux/mister-remote-poc1b-$checkpoint.tar.gz
-scp "$archive" "$target:$remote_archive"
-ssh "$target" sh -s -- "$checkpoint" "$remote_archive" < \
+scp -- "$archive" "$target:$remote_archive"
+ssh -- "$target" sh -s -- "$checkpoint" "$remote_archive" < \
   "$repo/deploy/poc1b/install-target.sh"

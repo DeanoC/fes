@@ -17,6 +17,17 @@ Do not run either installation checkpoint until all of these are true:
 4. The MacBook can physically remove and mount the dedicated MiSTer Pi SD card if boot networking fails.
 5. The offline command `scripts/restore-poc1a-sd.sh /Volumes/MISTER` is visible in a local terminal or note before the first reboot.
 6. The accepted stock menu and both test games have just been checked manually on the dedicated MiSTer Pi.
+7. With that accepted POC 1A system still running, `scripts/capture-poc1a-lock.sh` and `scripts/verify-poc1a-lock.sh` have recorded and rechecked the `linux_root` artifact at `/media/fat/linux/linux.img` as well as the other accepted artifacts.
+
+The committed pre-deployment lock predates the `linux_root` trust anchor, so the installer intentionally remains fail-closed until this physical baseline recapture is performed. Run it only after the recovery prerequisites above are satisfied:
+
+```sh
+export MISTER_TARGET=root@MISTER_IP
+scripts/capture-poc1a-lock.sh
+scripts/verify-poc1a-lock.sh
+```
+
+Review the resulting `linux_root` path and SHA-256 in `build/sources.poc1a.lock.toml` before packaging either checkpoint. Do not hand-edit or infer this hash from the root image being installed.
 
 The target-side installer makes same-volume, one-time backups before the first replacement:
 
@@ -62,7 +73,7 @@ export MISTER_TARGET=root@MISTER_IP
 POC1B_CONTAINER_RUNTIME=docker scripts/install-poc1b.sh binary-kernel
 ```
 
-The Mac wrapper verifies the locked development image, scans the exact transport payload for secret assignments, and uploads it to a fixed installer-owned path on the FAT volume rather than consuming target RAM under `/tmp`. It then streams the target installer over SSH. The target verifies the accepted Main, Menu, binary kernel, Mega Drive core, SNES core, and controller map. It creates or validates the one-time root/kernel backups, stops Main and the agent, moves the verified extracted image to `linux.img.poc1b.new`, and renames it over `linux.img` on the FAT volume. It does not replace the kernel, bootloader, Menu, Main, cores, ROMs, or controller map.
+The Mac wrapper verifies the locked development image, scans the exact transport payload for secret assignments, and uploads it to a fixed installer-owned path on the FAT volume rather than consuming target RAM under `/tmp`. It then streams the target installer over SSH as root. The target verifies the accepted Main, Menu, root image, binary kernel, Mega Drive core, SNES core, and controller map. It creates or validates the one-time root/kernel backups, identity-checks and stops the POC 1A/POC 1B supervisors plus their children, moves the verified extracted image to `linux.img.poc1b.new`, and renames it over `linux.img` on the FAT volume. It does not replace the kernel, bootloader, Menu, Main, cores, ROMs, or controller map.
 
 Cold power-cycle the MiSTer Pi. Health must become ready within 45 seconds. If it does not, stop the checkpoint: do not attempt checkpoint 2. Power off, remove the SD card, mount it on the MacBook, and follow the offline restore procedure below.
 
@@ -83,7 +94,7 @@ The target stores the verified module archive and kernel manifest beneath:
 /media/fat/linux/modules.poc1b/5.15.1-MiSTer/
 ```
 
-It does not delete or overwrite accepted modules. It then verifies `zImage_dtb.poc1b.new` and renames it over `zImage_dtb`. Cold power-cycle again and require health within 45 seconds. On failure, perform offline recovery before further diagnosis.
+It does not delete or overwrite accepted modules. It then verifies `zImage_dtb.poc1b.new` and renames it over `zImage_dtb`. If power or transport is lost after that rename, rerun the same `source-kernel` command: the installer re-verifies the reproduced kernel, versioned modules, manifest, backups, and root before reconciling checkpoint state. Repeating an already completed checkpoint is also safe. Cold power-cycle again and require health within 45 seconds. On failure, perform offline recovery before further diagnosis.
 
 ## Offline restore on the MacBook
 
