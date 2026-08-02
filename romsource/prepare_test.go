@@ -343,6 +343,131 @@ func TestPreparedRemoveUsesHeldStagingDirectoryAfterPathReplacement(t *testing.T
 	}
 }
 
+func TestPrepareCleansStagingWhenInitialFileSetupFails(t *testing.T) {
+	tests := []struct {
+		name   string
+		inject func(*Preparer, *string)
+	}{
+		{
+			name: "initial stat",
+			inject: func(preparer *Preparer, createdPath *string) {
+				preparer.statStagedFile = func(file *os.File) (fs.FileInfo, error) {
+					*createdPath = file.Name()
+					return nil, errors.New("injected staging stat failure")
+				}
+			},
+		},
+		{
+			name: "chmod",
+			inject: func(preparer *Preparer, createdPath *string) {
+				preparer.chmodStagedFile = func(file *os.File, _ fs.FileMode) error {
+					*createdPath = file.Name()
+					return errors.New("injected staging chmod failure")
+				}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root, game := rawFixture(t, "game.sfc", []byte("content"))
+			staging := t.TempDir()
+			preparer := Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}
+			createdPath := ""
+			test.inject(&preparer, &createdPath)
+
+			prepared, err := preparer.Prepare(context.Background(), root, game)
+			if prepared != nil {
+				t.Cleanup(func() { _ = prepared.Remove() })
+			}
+			assertPrepareError(t, err, game.ID, protocol.CodeTransferFailed, staging)
+			if createdPath == "" {
+				t.Fatal("fault hook did not observe the created staging file")
+			}
+			if _, err := os.Lstat(createdPath); !errors.Is(err, fs.ErrNotExist) {
+				t.Fatalf("created staging file remains after setup failure: %v", err)
+			}
+			assertStagingEmpty(t, staging)
+		})
+	}
+}
+
+func TestPrepareRejectsStagingModeChangesBeforeFinalVerification(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(string, string) error
+	}{
+		{
+			name: "root becomes group accessible",
+			mutate: func(rootPath, _ string) error {
+				return os.Chmod(rootPath, 0o750)
+			},
+		},
+		{
+			name: "file becomes group readable",
+			mutate: func(_, filePath string) error {
+				return os.Chmod(filePath, 0o640)
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root, game := rawFixture(t, "game.sfc", bytes.Repeat([]byte("content"), 1024))
+			staging := t.TempDir()
+			preparer := Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}
+			preparer.beforeStagingFinalVerify = test.mutate
+
+			prepared, err := preparer.Prepare(context.Background(), root, game)
+			if prepared != nil {
+				t.Cleanup(func() { _ = prepared.Remove() })
+			}
+			assertPrepareError(t, err, game.ID, protocol.CodeTransferFailed, staging)
+			assertStagingEmpty(t, staging)
+		})
+	}
+}
+
+func TestPrepareChmodsHeldStagingRootWithoutFollowingReplacementSymlink(t *testing.T) {
+	root, game := rawFixture(t, "game.sfc", []byte("content"))
+	parent := t.TempDir()
+	staging := filepath.Join(parent, "staging")
+	moved := filepath.Join(parent, "moved-staging")
+	external := filepath.Join(parent, "external")
+	if err := os.Mkdir(staging, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(external, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(staging, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(external, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	preparer := Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}
+	preparer.beforeStagingRootChmod = func(rootPath string) error {
+		if err := os.Rename(rootPath, moved); err != nil {
+			return err
+		}
+		return os.Symlink(external, rootPath)
+	}
+
+	prepared, err := preparer.Prepare(context.Background(), root, game)
+	if prepared != nil {
+		t.Cleanup(func() { _ = prepared.Remove() })
+	}
+	assertPrepareError(t, err, game.ID, protocol.CodeTransferFailed, staging)
+	externalInfo, err := os.Stat(external)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := externalInfo.Mode().Perm(); got != 0o755 {
+		t.Fatalf("replacement symlink target mode = %#o, want unchanged 0755", got)
+	}
+	assertStagingEmpty(t, moved)
+	assertStagingEmpty(t, external)
+}
+
 type mutatingSourceFile struct {
 	*os.File
 	path  string

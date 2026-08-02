@@ -93,8 +93,12 @@ type Preparer struct {
 	StagingRoot string
 	MaxBytes    int64
 
-	openFile      func(*os.Root, string) (sourceFile, error)
-	openZIPMember func(*zip.File) (io.ReadCloser, error)
+	openFile                 func(*os.Root, string) (sourceFile, error)
+	openZIPMember            func(*zip.File) (io.ReadCloser, error)
+	statStagedFile           func(*os.File) (fs.FileInfo, error)
+	chmodStagedFile          func(*os.File, fs.FileMode) error
+	beforeStagingFinalVerify func(string, string) error
+	beforeStagingRootChmod   func(string) error
 }
 
 type sourceFile interface {
@@ -240,7 +244,7 @@ func (p Preparer) prepareZIP(ctx context.Context, game catalog.Game, source *ver
 }
 
 func (p Preparer) stream(ctx context.Context, gameID string, source *verifiedSource, reader io.Reader, expectedSize int64, extension string, maximum int64, readCode protocol.ErrorCode) (*Prepared, error) {
-	staged, err := newStagedFile(p.StagingRoot)
+	staged, err := newStagedFile(p)
 	if err != nil {
 		return nil, preparationError(gameID, protocol.CodeTransferFailed, nil)
 	}
@@ -276,6 +280,11 @@ func (p Preparer) stream(ctx context.Context, gameID string, source *verifiedSou
 	if err := ctx.Err(); err != nil {
 		return nil, preparationError(gameID, protocol.CodeSourceUnavailable, err)
 	}
+	if p.beforeStagingFinalVerify != nil {
+		if err := p.beforeStagingFinalVerify(staged.root.Name(), staged.path); err != nil {
+			return nil, preparationError(gameID, protocol.CodeTransferFailed, nil)
+		}
+	}
 	content := protocol.ContentIdentity{SHA256: fmt.Sprintf("%x", hash.Sum(nil)), Size: written, Extension: extension}
 	if err := protocol.ValidateContentIdentity(content); err != nil {
 		return nil, preparationError(gameID, readCode, nil)
@@ -283,12 +292,16 @@ func (p Preparer) stream(ctx context.Context, gameID string, source *verifiedSou
 	if err := staged.file.Sync(); err != nil {
 		return nil, preparationError(gameID, protocol.CodeTransferFailed, nil)
 	}
+	fileInfo, err := staged.verify(true)
+	if err != nil {
+		return nil, preparationError(gameID, protocol.CodeTransferFailed, nil)
+	}
 	if err := staged.file.Close(); err != nil {
 		staged.closed = true
 		return nil, preparationError(gameID, protocol.CodeTransferFailed, nil)
 	}
 	staged.closed = true
-	fileInfo, err := staged.verify()
+	fileInfo, err = staged.verify(false)
 	if err != nil {
 		return nil, preparationError(gameID, protocol.CodeTransferFailed, nil)
 	}
@@ -445,10 +458,12 @@ type stagedFile struct {
 	path     string
 	base     string
 	info     fs.FileInfo
+	statFile func(*os.File) (fs.FileInfo, error)
 	closed   bool
 }
 
-func newStagedFile(rootPath string) (*stagedFile, error) {
+func newStagedFile(preparer Preparer) (*stagedFile, error) {
+	rootPath := preparer.StagingRoot
 	if rootPath == "" || !filepath.IsAbs(rootPath) || filepath.Clean(rootPath) != rootPath {
 		return nil, errors.New("staging root must be a clean absolute path")
 	}
@@ -458,9 +473,6 @@ func newStagedFile(rootPath string) (*stagedFile, error) {
 	rootInfo, err := os.Lstat(rootPath)
 	if err != nil || rootInfo.Mode()&fs.ModeSymlink != 0 || !rootInfo.IsDir() {
 		return nil, errors.Join(err, errors.New("staging root is not a real directory"))
-	}
-	if err := os.Chmod(rootPath, 0o700); err != nil {
-		return nil, err
 	}
 	heldRoot, err := os.OpenRoot(rootPath)
 	if err != nil {
@@ -474,40 +486,82 @@ func newStagedFile(rootPath string) (*stagedFile, error) {
 	if err != nil || !os.SameFile(rootInfo, openedRootInfo) {
 		return failRoot(errors.Join(err, errors.New("staging root identity changed")))
 	}
+	if preparer.beforeStagingRootChmod != nil {
+		if err := preparer.beforeStagingRootChmod(rootPath); err != nil {
+			return failRoot(err)
+		}
+	}
+	if err := heldRoot.Chmod(".", 0o700); err != nil {
+		return failRoot(err)
+	}
+	chmodRootInfo, err := heldRoot.Stat(".")
+	if err != nil || !chmodRootInfo.IsDir() || !os.SameFile(rootInfo, chmodRootInfo) || chmodRootInfo.Mode().Perm() != 0o700 {
+		return failRoot(errors.Join(err, errors.New("staging root mode or identity changed")))
+	}
+	pathRootInfo, err := os.Lstat(rootPath)
+	if err != nil || pathRootInfo.Mode()&fs.ModeSymlink != 0 || !pathRootInfo.IsDir() || !os.SameFile(chmodRootInfo, pathRootInfo) || pathRootInfo.Mode().Perm() != 0o700 {
+		return failRoot(errors.Join(err, errors.New("staging root path mode or identity changed")))
+	}
 	file, err := os.CreateTemp(rootPath, ".fogcast-rom-*")
 	if err != nil {
 		return failRoot(err)
 	}
-	staged := &stagedFile{file: file, root: heldRoot, rootInfo: rootInfo, path: file.Name(), base: filepath.Base(file.Name())}
-	if err := file.Chmod(0o600); err != nil {
-		staged.cleanup()
-		return nil, err
+	statFile := preparer.statStagedFile
+	if statFile == nil {
+		statFile = func(file *os.File) (fs.FileInfo, error) { return file.Stat() }
 	}
-	fileInfo, err := file.Stat()
-	if err != nil || !fileInfo.Mode().IsRegular() {
+	staged := &stagedFile{
+		file: file, root: heldRoot, rootInfo: chmodRootInfo, path: file.Name(),
+		base: filepath.Base(file.Name()), statFile: statFile,
+	}
+	fileInfo, err := statFile(file)
+	staged.info = fileInfo
+	if err != nil || fileInfo == nil || !fileInfo.Mode().IsRegular() {
 		staged.cleanup()
 		return nil, errors.Join(err, errors.New("staging file is not regular"))
 	}
-	staged.info = fileInfo
-	if _, err := staged.verify(); err != nil {
+	rootEntry, err := heldRoot.Lstat(staged.base)
+	if err != nil || !rootEntry.Mode().IsRegular() || !os.SameFile(fileInfo, rootEntry) {
+		staged.cleanup()
+		return nil, errors.Join(err, errors.New("staging file identity changed after creation"))
+	}
+	chmodFile := preparer.chmodStagedFile
+	if chmodFile == nil {
+		chmodFile = func(file *os.File, mode fs.FileMode) error { return file.Chmod(mode) }
+	}
+	if err := chmodFile(file, 0o600); err != nil {
+		staged.cleanup()
+		return nil, err
+	}
+	if _, err := staged.verify(true); err != nil {
 		staged.cleanup()
 		return nil, err
 	}
 	return staged, nil
 }
 
-func (s *stagedFile) verify() (fs.FileInfo, error) {
-	currentRoot, err := os.Lstat(s.root.Name())
-	if err != nil || currentRoot.Mode()&fs.ModeSymlink != 0 || !currentRoot.IsDir() || !os.SameFile(s.rootInfo, currentRoot) {
-		return nil, errors.Join(err, errors.New("staging root changed"))
+func (s *stagedFile) verify(fileOpen bool) (fs.FileInfo, error) {
+	heldRoot, err := s.root.Stat(".")
+	if err != nil || !heldRoot.IsDir() || !os.SameFile(s.rootInfo, heldRoot) || heldRoot.Mode().Perm() != 0o700 {
+		return nil, errors.Join(err, errors.New("held staging root mode or identity changed"))
+	}
+	pathRoot, err := os.Lstat(s.root.Name())
+	if err != nil || pathRoot.Mode()&fs.ModeSymlink != 0 || !pathRoot.IsDir() || !os.SameFile(heldRoot, pathRoot) || pathRoot.Mode().Perm() != 0o700 {
+		return nil, errors.Join(err, errors.New("staging root path mode or identity changed"))
+	}
+	if fileOpen {
+		descriptorEntry, err := s.statFile(s.file)
+		if err != nil || !descriptorEntry.Mode().IsRegular() || !os.SameFile(s.info, descriptorEntry) || descriptorEntry.Mode().Perm() != 0o600 {
+			return nil, errors.Join(err, errors.New("staging file descriptor mode or identity changed"))
+		}
 	}
 	rootEntry, err := s.root.Lstat(s.base)
-	if err != nil || !rootEntry.Mode().IsRegular() || !os.SameFile(s.info, rootEntry) {
-		return nil, errors.Join(err, errors.New("staging file identity changed"))
+	if err != nil || !rootEntry.Mode().IsRegular() || !os.SameFile(s.info, rootEntry) || rootEntry.Mode().Perm() != 0o600 {
+		return nil, errors.Join(err, errors.New("held staging file mode or identity changed"))
 	}
 	pathEntry, err := os.Lstat(s.path)
-	if err != nil || !pathEntry.Mode().IsRegular() || !os.SameFile(s.info, pathEntry) {
-		return nil, errors.Join(err, errors.New("staging path identity changed"))
+	if err != nil || !pathEntry.Mode().IsRegular() || !os.SameFile(s.info, pathEntry) || pathEntry.Mode().Perm() != 0o600 {
+		return nil, errors.Join(err, errors.New("staging path mode or identity changed"))
 	}
 	return pathEntry, nil
 }
@@ -517,11 +571,17 @@ func (s *stagedFile) cleanup() {
 		_ = s.file.Close()
 		s.closed = true
 	}
-	if entry, err := s.root.Lstat(s.base); err == nil && s.info != nil && os.SameFile(s.info, entry) {
+	entry, err := s.root.Lstat(s.base)
+	if err == nil && (s.info == nil || os.SameFile(s.info, entry)) {
 		_ = s.root.Remove(s.base)
-	}
-	if entry, err := os.Lstat(s.path); err == nil && s.info != nil && os.SameFile(s.info, entry) {
-		_ = os.Remove(s.path)
+	} else if s.info != nil {
+		currentRoot, openErr := os.OpenRoot(filepath.Dir(s.path))
+		if openErr == nil {
+			if currentEntry, statErr := currentRoot.Lstat(s.base); statErr == nil && os.SameFile(s.info, currentEntry) {
+				_ = currentRoot.Remove(s.base)
+			}
+			_ = currentRoot.Close()
+		}
 	}
 	_ = s.root.Close()
 }
