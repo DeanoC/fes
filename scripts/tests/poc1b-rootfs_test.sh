@@ -74,6 +74,7 @@ post_build=$repo/buildroot/board/mister-remote/post-build.sh
 for required_file in "$fstab" "$inittab" "$network" "$main" "$agent" "$smoke" "$supervise" "$post_build"; do
   test -f "$required_file"
 done
+test -d "$rootfs/media/fat"
 
 grep -Eq '^/dev/root[[:space:]]+/[[:space:]]+ext4[[:space:]]+ro,noatime,noauto' "$fstab"
 for volatile_mount in /dev/shm /run /tmp /var/log; do
@@ -90,7 +91,8 @@ grep -Fq '7ca3cd2f224b9264d0889f593a0d77aafa5adda61910baba92c5ae401e26fcce' "$ma
 grep -Fq '821bcf66181a00ff550e4a4110dc11c9fa8e68d38e9cb5558b3ddb99ca938934' "$main"
 grep -Fq 'wait_seconds=10' "$main"
 grep -Fq 'waiting for /media/fat' "$main"
-grep -Fq '/usr/sbin/mister-supervise mister-main /media/fat/MiSTer /media/fat/menu.rbf' "$main"
+grep -Fq '/media/fat/MiSTer /media/fat/menu.rbf >> /var/log/mister-main.log 2>&1 &' "$main"
+! grep -Fq 'mister-supervise mister-main' "$main"
 grep -Fq 'wait_seconds=30' "$agent"
 grep -Fq '/usr/sbin/mister-supervise mister-agent /usr/sbin/mister-agent --config /media/fat/mister-remote/agent.toml' "$agent"
 grep -Fq 'POC1B_SMOKE_READY' "$smoke"

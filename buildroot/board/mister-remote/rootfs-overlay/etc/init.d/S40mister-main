@@ -5,7 +5,7 @@ main=/media/fat/MiSTer
 menu=/media/fat/menu.rbf
 main_sha=7ca3cd2f224b9264d0889f593a0d77aafa5adda61910baba92c5ae401e26fcce
 menu_sha=821bcf66181a00ff550e4a4110dc11c9fa8e68d38e9cb5558b3ddb99ca938934
-supervisor_pid=/run/mister-main-supervisor.pid
+main_pid=/run/mister-main.pid
 
 verify_file() {
   verify_path=$1
@@ -23,15 +23,15 @@ verify_file() {
 }
 
 stop_service() {
-  [ -f "$supervisor_pid" ] || return 0
-  IFS= read -r pid < "$supervisor_pid"
+  [ -f "$main_pid" ] || return 0
+  IFS= read -r pid < "$main_pid"
   /bin/kill "$pid" 2>/dev/null || true
   stop_wait=5
   while /bin/kill -0 "$pid" 2>/dev/null && [ "$stop_wait" -gt 0 ]; do
     /bin/sleep 1
     stop_wait=$((stop_wait - 1))
   done
-  /bin/rm -f "$supervisor_pid"
+  /bin/rm -f "$main_pid"
 }
 
 case "${1:-start}" in
@@ -49,8 +49,8 @@ case "${1:-start}" in
     verify_file "$main" "$main_sha"
     verify_file "$menu" "$menu_sha"
     cd /media/fat
-    /usr/sbin/mister-supervise mister-main /media/fat/MiSTer /media/fat/menu.rbf &
-    printf '%s\n' "$!" > "$supervisor_pid"
+    /media/fat/MiSTer /media/fat/menu.rbf >> /var/log/mister-main.log 2>&1 &
+    printf '%s\n' "$!" > "$main_pid"
     ;;
   stop)
     stop_service

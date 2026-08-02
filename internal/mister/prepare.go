@@ -9,6 +9,16 @@ import (
 	"github.com/clawzai2-tech/mister-remote/protocol"
 )
 
+const fatRoot = "/media/fat"
+
+func mglROMPath(resolved, fallback string) string {
+	path, err := filepath.Rel(fatRoot, resolved)
+	if err == nil && path != "." && path != ".." && !strings.HasPrefix(path, ".."+string(filepath.Separator)) {
+		return filepath.ToSlash(path)
+	}
+	return filepath.ToSlash(fallback)
+}
+
 type PreparedLaunch struct {
 	Spec        core.Spec
 	AbsoluteROM string
@@ -47,7 +57,7 @@ func PrepareLaunch(spec core.Spec, candidate string) (PreparedLaunch, *protocol.
 		return fail(protocol.CodeROMNotFound, "ROM does not identify a regular file")
 	}
 	relative = filepath.ToSlash(relative)
-	mgl, err := RenderMGL(spec, relative)
+	mgl, err := RenderMGL(spec, mglROMPath(resolved, relative))
 	if err != nil {
 		return fail(protocol.CodeInternal, "MGL rendering failed")
 	}

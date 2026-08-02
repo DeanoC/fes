@@ -20,3 +20,8 @@ commit = 'd7adb20b4ca595838289406c083fff78f004a8c3'
 defconfig = 'MiSTer_defconfig'
 dtb = 'socfpga_cyclone5_de10_nano.dtb'
 release = '5.15.1-MiSTer'
+
+[outputs]
+prod_rootfs_sha256 = 'dbcf1cddfbd50b949b423ab7e5a09f478539ee400858295033c84d73aa023be2'
+dev_rootfs_sha256 = 'e038679bc82623b2911ef0e3876233ed95c6b3d546e77320cd6db2992647faa7'
+reproduced_kernel_sha256 = 'cb66e22edb04a44d883e82f62fa7eeca0d7d2b715b08ab72ad2dc5bc2a3178c5'

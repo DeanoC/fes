@@ -22,6 +22,13 @@ size = 7380857
 source = "https://github.com/MiSTer-devel/Linux-Kernel_MiSTer"
 
 [[artifacts]]
+name = "linux_root"
+path = "/media/fat/linux/linux.img"
+sha256 = "29fa75ee1ed735511f500509f625848a6d8f039f9ecec7e762c7700a386345c7"
+size = 393216000
+source = "https://github.com/MiSTer-devel/Linux_Image_creator_MiSTer"
+
+[[artifacts]]
 name = "megadrive_core"
 path = "/media/fat/_Console/MegaDrive_20260603.rbf"
 sha256 = "0cd43ea2c96e726999f04924713ca090ae73829f3ab08109c6b552cebeba0839"

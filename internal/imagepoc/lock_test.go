@@ -39,7 +39,7 @@ func TestLoadPOC1AAcceptedHardwareLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if lock.Format != 1 || len(lock.Artifacts) != 6 || len(lock.Libraries) != 14 {
+	if lock.Format != 1 || len(lock.Artifacts) != 7 || len(lock.Libraries) != 14 {
 		t.Fatalf("lock summary = format %d, %d artifacts, %d libraries", lock.Format, len(lock.Artifacts), len(lock.Libraries))
 	}
 	want := map[string]string{

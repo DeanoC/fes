@@ -240,8 +240,9 @@ stop_supervisor() {
     sleep 1
     stop_wait=$((stop_wait - 1))
   done
-  kill -0 "$supervisor_pid" 2>/dev/null && \
+  if kill -0 "$supervisor_pid" 2>/dev/null; then
     fail "$supervisor_label did not stop"
+  fi
   rm -f "$supervisor_file"
 }
 
@@ -259,8 +260,9 @@ stop_process_name() {
     sleep 1
     stop_wait=$((stop_wait - 1))
   done
-  pidof "$process_name" >/dev/null 2>&1 && \
+  if pidof "$process_name" >/dev/null 2>&1; then
     fail "$process_name did not stop"
+  fi
 }
 
 [ "$#" -eq 2 ] || usage
@@ -311,7 +313,7 @@ poc1b/modules.tar.gz
 poc1b/kernel-manifest.toml'
     ;;
 esac
-archive_members=$(tar -tzf "$archive") || fail 'package is not a readable gzip tar'
+archive_members=$(gzip -dc "$archive" | tar -tf -) || fail 'package is not a readable gzip tar'
 [ "$archive_members" = "$expected_archive" ] || \
   fail 'package does not contain the exact checkpoint allowlist'
 
@@ -342,7 +344,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 mkdir -p "$work_parent" "$work"
-tar -xzf "$archive" -C "$work"
+gzip -dc "$archive" | tar -xf - -C "$work"
 poc1a_lock=$payload/poc1a.lock.toml
 poc1b_lock=$payload/poc1b.lock.toml
 verify_regular "$poc1a_lock"
@@ -387,7 +389,7 @@ else
     modules.tar.gz sha256)
   valid_sha256 "$modules_sha" || fail 'kernel manifest has no module hash'
   verify_hash "$payload/modules.tar.gz" "$modules_sha" 'packaged kernel modules'
-  module_members=$(tar -tzf "$payload/modules.tar.gz") || fail 'module archive is unreadable'
+  module_members=$(gzip -dc "$payload/modules.tar.gz" | tar -tf -) || fail 'module archive is unreadable'
   printf '%s\n' "$module_members" | \
     grep -Eq '^\./lib/modules/5\.15\.1-MiSTer/.+\.ko(\.xz)?$' || \
     fail 'module archive has no matching kernel module'

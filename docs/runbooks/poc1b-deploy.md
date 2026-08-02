@@ -96,6 +96,10 @@ The target stores the verified module archive and kernel manifest beneath:
 
 It does not delete or overwrite accepted modules. It then verifies `zImage_dtb.poc1b.new` and renames it over `zImage_dtb`. If power or transport is lost after that rename, rerun the same `source-kernel` command: the installer re-verifies the reproduced kernel, versioned modules, manifest, backups, and root before reconciling checkpoint state. Repeating an already completed checkpoint is also safe. Cold power-cycle again and require health within 45 seconds. On failure, perform offline recovery before further diagnosis.
 
+## Recorded POC 1B hardware evidence
+
+On 2026-08-02 the dedicated MiSTer Pi completed the source-kernel checkpoint after a cold reboot. The running kernel reported `5.15.1-MiSTer`; `/` was read-only, `/media/fat` was writable, the development root hash was `e038679bc82623b2911ef0e3876233ed95c6b3d546e77320cd6db2992647faa7`, and the reproduced `zImage_dtb` hash was `cb66e22edb04a44d883e82f62fa7eeca0d7d2b715b08ab72ad2dc5bc2a3178c5`. The unchanged HIL suite passed all 34 checks, including Mega Drive and SNES HDMI video/audio, controller playability, agent restart reconciliation, invalid requests, alternating launches, and black idle output. Local evidence is `artifacts/hil/poc1b-source-kernel.json` (SHA-256 `f0d62113c24a6aee371e9163d9202c2d9c5cd808fc6a341cb4be8f37bfd74a32`).
+
 ## Offline restore on the MacBook
 
 Power the dedicated MiSTer Pi off, remove its SD card, and mount the FAT volume. Confirm its actual mount name under `/Volumes`; do not guess it and do not use a path outside `/Volumes`.
