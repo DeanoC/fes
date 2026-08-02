@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -185,6 +187,9 @@ func writeCacheFile(t *testing.T, root string, system protocol.System, identity 
 
 func openTestManager(t *testing.T, root string, options ...targetcache.Option) *targetcache.Manager {
 	t.Helper()
+	options = append([]targetcache.Option{
+		targetcache.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+	}, options...)
 	manager, err := targetcache.Open(targetcache.Config{
 		Root:         root,
 		ActiveRecord: filepath.Join(filepath.Dir(root), "run", "fogcast-active.json"),

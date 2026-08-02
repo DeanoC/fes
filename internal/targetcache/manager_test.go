@@ -1,8 +1,10 @@
 package targetcache_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -202,6 +204,72 @@ func TestInventoryExcludesInvalidEntryKindsWithoutOpeningThem(t *testing.T) {
 	}
 }
 
+func TestInventoryLogsSanitizedInvalidEntryDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	snes := filepath.Join(root, string(protocol.SystemSNES))
+	if err := os.MkdirAll(snes, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	privateName := "private-operator-note"
+	privateContent := "private synthetic bytes"
+	writeNamedFile(t, snes, privateName, []byte(privateContent))
+	var output bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&output, nil))
+
+	openTestManager(t, root, targetcache.WithLogger(logger))
+	got := output.String()
+	if !strings.Contains(got, `"category":"unfamiliar"`) || !strings.Contains(got, `"system":"snes"`) {
+		t.Fatalf("sanitized invalid-entry diagnostic missing category/system: %s", got)
+	}
+	for _, private := range []string{root, privateName, privateContent} {
+		if strings.Contains(got, private) {
+			t.Fatalf("inventory diagnostic exposes private value %q: %s", private, got)
+		}
+	}
+}
+
+func TestInventoryDoesNotFollowParentDirectoryReplacement(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	systemDirectory := filepath.Join(root, string(protocol.SystemSNES))
+	if err := os.MkdirAll(systemDirectory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writeNamedFile(t, systemDirectory, "!.trigger", []byte("trigger sanitized diagnostic"))
+	partName := ".fogcast-victim.part"
+	insidePart := writeNamedFile(t, systemDirectory, partName, []byte("inside partial"))
+	movedDirectory := systemDirectory + "-moved"
+	outsideDirectory := t.TempDir()
+	outsidePart := writeNamedFile(t, outsideDirectory, partName, []byte("outside partial"))
+
+	var mutationErr error
+	writer := &callbackWriter{callback: func() {
+		if err := os.Rename(systemDirectory, movedDirectory); err != nil {
+			mutationErr = err
+			return
+		}
+		mutationErr = os.Symlink(outsideDirectory, systemDirectory)
+	}}
+	logger := slog.New(slog.NewJSONHandler(writer, nil))
+	openTestManager(t, root, targetcache.WithLogger(logger))
+	if mutationErr != nil {
+		t.Fatalf("replace system directory: %v", mutationErr)
+	}
+	if writer.calls() == 0 {
+		t.Fatal("inventory replacement callback did not run")
+	}
+	if _, err := os.Lstat(outsidePart); err != nil {
+		t.Fatalf("inventory followed replacement and changed outside part: %v", err)
+	}
+	movedInsidePart := filepath.Join(movedDirectory, filepath.Base(insidePart))
+	if _, err := os.Lstat(movedInsidePart); !os.IsNotExist(err) {
+		t.Fatalf("descriptor-bound inventory did not clean original cache part: %v", err)
+	}
+}
+
 func TestProbeHashesOncePerMetadataVersionAndResolveUsesMemo(t *testing.T) {
 	t.Parallel()
 
@@ -250,6 +318,31 @@ func TestProbeHashesOncePerMetadataVersionAndResolveUsesMemo(t *testing.T) {
 	if got := counter.count(); got != 2 {
 		t.Fatalf("metadata change opens = %d, want 2", got)
 	}
+}
+
+func TestResolveRejectsColdDeclaredSizeMismatchWithoutOpening(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	content := []byte("cold size mismatch")
+	identity := contentIdentity(content, "sfc")
+	path := writeCacheFile(t, root, protocol.SystemSNES, identity, content)
+	counter := &openCounter{}
+	manager := openTestManager(t, root, targetcache.WithOpenFile(counter.open))
+
+	wrongSize := identity
+	wrongSize.Size++
+	_, apiErr := manager.Resolve(context.Background(), protocol.SystemSNES, wrongSize)
+	assertSafeAPIError(t, apiErr, protocol.CodeContentNotCached, root, path)
+	if got := counter.count(); got != 0 {
+		t.Fatalf("cold size mismatch opened content %d times, want 0", got)
+	}
+
+	response, apiErr := manager.Probe(context.Background(), protocol.SystemSNES, identity.Key())
+	if apiErr != nil {
+		t.Fatalf("Probe after size rejection: %v", apiErr)
+	}
+	assertPresentIdentity(t, response, protocol.SystemSNES, identity)
 }
 
 func TestProbeQuarantinesDigestMismatchUntilMetadataChangesAndAcrossReopen(t *testing.T) {
@@ -387,6 +480,48 @@ func TestProbeRejectsIdentitySwapDuringOpen(t *testing.T) {
 	}
 }
 
+func TestProbeRejectsParentDirectoryReplacementDuringOpen(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	content := []byte("same inode cannot justify an escaped parent")
+	identity := contentIdentity(content, "sfc")
+	path := writeCacheFile(t, root, protocol.SystemSNES, identity, content)
+	systemDirectory := filepath.Dir(path)
+	movedDirectory := systemDirectory + "-moved"
+	outsideDirectory := t.TempDir()
+	outsidePath := filepath.Join(outsideDirectory, filepath.Base(path))
+	if err := os.Link(path, outsidePath); err != nil {
+		t.Fatalf("create outside hard link: %v", err)
+	}
+
+	manager := openTestManager(t, root, targetcache.WithOpenFile(func(candidate string) (*os.File, error) {
+		if err := os.Rename(systemDirectory, movedDirectory); err != nil {
+			return nil, err
+		}
+		if err := os.Symlink(outsideDirectory, systemDirectory); err != nil {
+			return nil, err
+		}
+		return os.Open(candidate)
+	}))
+	response, apiErr := manager.Probe(context.Background(), protocol.SystemSNES, identity.Key())
+	assertSafeAPIError(t, apiErr, protocol.CodeInternal, root, outsideDirectory, outsidePath)
+	if response.Present {
+		t.Fatalf("Probe accepted content through a replaced parent: %#v", response)
+	}
+	resolvedCandidate, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolvedOutsidePath, err := filepath.EvalSymlinks(outsidePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolvedCandidate != resolvedOutsidePath {
+		t.Fatalf("replacement did not escape fixture root: resolved=%q want=%q", resolvedCandidate, resolvedOutsidePath)
+	}
+}
+
 func TestProbeReturnsTypedSanitizedOpenError(t *testing.T) {
 	t.Parallel()
 
@@ -404,6 +539,27 @@ func TestProbeReturnsTypedSanitizedOpenError(t *testing.T) {
 type openCounter struct {
 	mu    sync.Mutex
 	opens int
+}
+
+type callbackWriter struct {
+	mu       sync.Mutex
+	writes   int
+	once     sync.Once
+	callback func()
+}
+
+func (w *callbackWriter) Write(content []byte) (int, error) {
+	w.once.Do(w.callback)
+	w.mu.Lock()
+	w.writes++
+	w.mu.Unlock()
+	return len(content), nil
+}
+
+func (w *callbackWriter) calls() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.writes
 }
 
 func (c *openCounter) open(path string) (*os.File, error) {

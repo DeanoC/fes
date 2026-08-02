@@ -6,14 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
-	"syscall"
 
 	"github.com/DeanoC/FogCast-POC/internal/core"
 	"github.com/DeanoC/FogCast-POC/protocol"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -37,6 +39,7 @@ type openFileFunc func(string) (*os.File, error)
 
 type managerOptions struct {
 	openFile openFileFunc
+	logger   *slog.Logger
 }
 
 type Option func(*managerOptions) error
@@ -53,7 +56,19 @@ func WithOpenFile(openFile func(string) (*os.File, error)) Option {
 	}
 }
 
+// WithLogger selects the sink for sanitized cache inventory diagnostics.
+func WithLogger(logger *slog.Logger) Option {
+	return func(options *managerOptions) error {
+		if logger == nil {
+			return errors.New("target cache logger cannot be nil")
+		}
+		options.logger = logger
+		return nil
+	}
+}
+
 type inventoryEntry struct {
+	name          string
 	path          string
 	accountedSize int64
 }
@@ -71,15 +86,18 @@ type verificationMemo struct {
 type systemDirectory struct {
 	path string
 	info os.FileInfo
+	root *os.Root
 }
 
 type Manager struct {
 	config      Config
 	root        string
 	rootInfo    os.FileInfo
+	rootHandle  *os.Root
 	extensions  map[protocol.System]map[string]struct{}
 	directories map[protocol.System]systemDirectory
 	openFile    openFileFunc
+	logger      *slog.Logger
 
 	mu      sync.Mutex
 	entries map[inventoryKey]inventoryEntry
@@ -96,7 +114,7 @@ func Open(config Config, registry core.Registry, options ...Option) (*Manager, e
 		return nil, err
 	}
 
-	settings := managerOptions{openFile: openRegularNoFollow}
+	settings := managerOptions{logger: slog.Default()}
 	for _, option := range options {
 		if option == nil {
 			return nil, errors.New("target cache option cannot be nil")
@@ -106,20 +124,44 @@ func Open(config Config, registry core.Registry, options ...Option) (*Manager, e
 		}
 	}
 
+	rootHandle, err := os.OpenRoot(resolvedRoot)
+	if err != nil {
+		return nil, errors.New("open target cache root failed")
+	}
+	boundRootInfo, err := rootHandle.Stat(".")
+	if err != nil || !sameFileInfo(rootInfo, boundRootInfo) {
+		_ = rootHandle.Close()
+		return nil, errors.New("bind target cache root failed")
+	}
+	if err := chmodOpenedRoot(rootHandle, privateDirectoryMode); err != nil {
+		_ = rootHandle.Close()
+		return nil, errors.New("secure target cache root permissions failed")
+	}
+	boundRootInfo, err = rootHandle.Stat(".")
+	currentRootInfo, currentRootErr := os.Lstat(resolvedRoot)
+	if err != nil || currentRootErr != nil || !currentRootInfo.IsDir() || !sameFileInfo(boundRootInfo, currentRootInfo) {
+		_ = rootHandle.Close()
+		return nil, errors.New("recheck target cache root failed")
+	}
+
 	manager := &Manager{
 		config:      config,
 		root:        resolvedRoot,
-		rootInfo:    rootInfo,
+		rootInfo:    boundRootInfo,
+		rootHandle:  rootHandle,
 		extensions:  cloneRegisteredExtensions(registry),
 		directories: make(map[protocol.System]systemDirectory),
 		openFile:    settings.openFile,
+		logger:      settings.logger,
 		entries:     make(map[inventoryKey]inventoryEntry),
 		memos:       make(map[inventoryKey]verificationMemo),
 	}
 	if len(manager.extensions) == 0 {
+		_ = rootHandle.Close()
 		return nil, errors.New("target cache registry has no supported systems")
 	}
 	if err := manager.inventory(); err != nil {
+		manager.closeDirectoryHandles()
 		return nil, err
 	}
 	return manager, nil
@@ -154,13 +196,6 @@ func prepareRoot(configured string) (string, os.FileInfo, error) {
 	if err != nil || !info.IsDir() {
 		return "", nil, errors.New("target cache root is not a directory")
 	}
-	if err := os.Chmod(resolved, privateDirectoryMode); err != nil {
-		return "", nil, errors.New("secure target cache root permissions failed")
-	}
-	info, err = os.Lstat(resolved)
-	if err != nil {
-		return "", nil, errors.New("inspect target cache root failed")
-	}
 	return filepath.Clean(resolved), info, nil
 }
 
@@ -181,31 +216,31 @@ func cloneRegisteredExtensions(registry core.Registry) map[protocol.System]map[s
 }
 
 func (m *Manager) inventory() error {
-	rootEntries, err := os.ReadDir(m.root)
+	rootEntries, err := readDirect(m.rootHandle)
 	if err != nil {
 		return errors.New("read target cache root failed")
 	}
-	presentSystems := make(map[protocol.System]bool, len(m.extensions))
 	for _, directoryEntry := range rootEntries {
-		path := filepath.Join(m.root, directoryEntry.Name())
-		info, err := os.Lstat(path)
+		name := directoryEntry.Name()
+		info, err := m.rootHandle.Lstat(name)
 		if err != nil {
 			return errors.New("inspect target cache root entry failed")
 		}
-		system := protocol.System(directoryEntry.Name())
+		system := protocol.System(name)
 		if _, registered := m.extensions[system]; registered && info.IsDir() {
-			presentSystems[system] = true
-			if err := os.Chmod(path, privateDirectoryMode); err != nil {
-				return errors.New("secure target cache system directory permissions failed")
-			}
-			info, err = os.Lstat(path)
+			directory, err := m.bindSystemDirectory(system, info)
 			if err != nil {
-				return errors.New("inspect target cache system directory failed")
+				return err
 			}
-			m.directories[system] = systemDirectory{path: path, info: info}
+			m.directories[system] = directory
 			continue
 		}
 		m.usage += knownSize(info)
+		if _, registered := m.extensions[system]; registered {
+			m.logExcluded(system, "invalid-system-directory", info)
+		} else {
+			m.logExcluded("", "unfamiliar", info)
+		}
 	}
 
 	for _, system := range []protocol.System{protocol.SystemMegaDrive, protocol.SystemSNES} {
@@ -213,60 +248,134 @@ func (m *Manager) inventory() error {
 		if !registered {
 			continue
 		}
-		if !presentSystems[system] {
-			path := filepath.Join(m.root, string(system))
-			if _, exists := m.directories[system]; !exists {
-				if err := os.Mkdir(path, privateDirectoryMode); err != nil {
-					// An invalid direct entry already occupies the registered name.
-					if !os.IsExist(err) {
-						return errors.New("create target cache system directory failed")
-					}
-					continue
+		if _, exists := m.directories[system]; !exists {
+			if err := m.rootHandle.Mkdir(string(system), privateDirectoryMode); err != nil {
+				// An invalid direct entry already occupies the registered name.
+				if !os.IsExist(err) {
+					return errors.New("create target cache system directory failed")
 				}
-				info, err := os.Lstat(path)
-				if err != nil {
-					return errors.New("inspect created target cache system directory failed")
-				}
-				m.directories[system] = systemDirectory{path: path, info: info}
+				continue
 			}
+			info, err := m.rootHandle.Lstat(string(system))
+			if err != nil {
+				return errors.New("inspect created target cache system directory failed")
+			}
+			directory, err := m.bindSystemDirectory(system, info)
+			if err != nil {
+				return err
+			}
+			m.directories[system] = directory
 		}
 		directory, ready := m.directories[system]
 		if !ready {
 			continue
 		}
-		if err := m.inventorySystem(system, directory.path, allowed); err != nil {
+		if err := m.inventorySystem(system, directory, allowed); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (m *Manager) inventorySystem(system protocol.System, directory string, allowed map[string]struct{}) error {
-	entries, err := os.ReadDir(directory)
+func (m *Manager) bindSystemDirectory(system protocol.System, expected os.FileInfo) (systemDirectory, error) {
+	root, err := m.rootHandle.OpenRoot(string(system))
+	if err != nil {
+		return systemDirectory{}, errors.New("open target cache system directory failed")
+	}
+	boundInfo, err := root.Stat(".")
+	currentInfo, currentErr := m.rootHandle.Lstat(string(system))
+	if err != nil || currentErr != nil || !currentInfo.IsDir() || !sameFileInfo(expected, boundInfo) || !sameFileInfo(boundInfo, currentInfo) {
+		_ = root.Close()
+		return systemDirectory{}, errors.New("bind target cache system directory failed")
+	}
+	if err := chmodOpenedRoot(root, privateDirectoryMode); err != nil {
+		_ = root.Close()
+		return systemDirectory{}, errors.New("secure target cache system directory permissions failed")
+	}
+	boundInfo, err = root.Stat(".")
+	currentInfo, currentErr = m.rootHandle.Lstat(string(system))
+	if err != nil || currentErr != nil || !currentInfo.IsDir() || !sameFileInfo(boundInfo, currentInfo) {
+		_ = root.Close()
+		return systemDirectory{}, errors.New("recheck target cache system directory failed")
+	}
+	return systemDirectory{path: filepath.Join(m.root, string(system)), info: boundInfo, root: root}, nil
+}
+
+func (m *Manager) inventorySystem(system protocol.System, directory systemDirectory, allowed map[string]struct{}) error {
+	entries, err := readDirect(directory.root)
 	if err != nil {
 		return errors.New("read target cache system directory failed")
 	}
 	for _, directoryEntry := range entries {
-		path := filepath.Join(directory, directoryEntry.Name())
-		info, err := os.Lstat(path)
+		name := directoryEntry.Name()
+		path := filepath.Join(directory.path, name)
+		info, err := directory.root.Lstat(name)
 		if err != nil {
 			return errors.New("inspect target cache entry failed")
 		}
-		if info.Mode().IsRegular() && isRecognizedStalePart(directoryEntry.Name()) {
-			if err := os.Remove(path); err != nil {
+		if info.Mode().IsRegular() && isRecognizedStalePart(name) {
+			if err := directory.root.Remove(name); err != nil {
 				return errors.New("remove stale target cache part failed")
 			}
 			continue
 		}
 		size := knownSize(info)
 		m.usage += size
-		key, validName := parseInventoryName(directoryEntry.Name(), allowed)
-		if !validName || !info.Mode().IsRegular() || info.Size() < 1 || info.Size() > protocol.MaxContentBytes {
+		key, validName := parseInventoryName(name, allowed)
+		if !validName {
+			m.logExcluded(system, "unfamiliar", info)
 			continue
 		}
-		m.entries[makeInventoryKey(system, key)] = inventoryEntry{path: path, accountedSize: size}
+		if !info.Mode().IsRegular() {
+			m.logExcluded(system, "invalid-type", info)
+			continue
+		}
+		if info.Size() < 1 || info.Size() > protocol.MaxContentBytes {
+			m.logExcluded(system, "invalid-size", info)
+			continue
+		}
+		m.entries[makeInventoryKey(system, key)] = inventoryEntry{name: name, path: path, accountedSize: size}
 	}
 	return nil
+}
+
+func readDirect(root *os.Root) ([]os.DirEntry, error) {
+	directory, err := root.Open(".")
+	if err != nil {
+		return nil, err
+	}
+	entries, readErr := directory.ReadDir(-1)
+	closeErr := directory.Close()
+	if readErr != nil {
+		return nil, readErr
+	}
+	if closeErr != nil {
+		return nil, closeErr
+	}
+	sort.Slice(entries, func(left, right int) bool {
+		return entries[left].Name() < entries[right].Name()
+	})
+	return entries, nil
+}
+
+func chmodOpenedRoot(root *os.Root, mode os.FileMode) error {
+	directory, err := root.Open(".")
+	if err != nil {
+		return err
+	}
+	chmodErr := directory.Chmod(mode)
+	closeErr := directory.Close()
+	if chmodErr != nil {
+		return chmodErr
+	}
+	return closeErr
+}
+
+func (m *Manager) closeDirectoryHandles() {
+	for _, directory := range m.directories {
+		_ = directory.root.Close()
+	}
+	_ = m.rootHandle.Close()
 }
 
 func isRecognizedStalePart(name string) bool {
@@ -278,6 +387,17 @@ func knownSize(info os.FileInfo) int64 {
 		return 0
 	}
 	return info.Size()
+}
+
+func (m *Manager) logExcluded(system protocol.System, category string, info os.FileInfo) {
+	attributes := []slog.Attr{
+		slog.String("category", category),
+		slog.Int64("size", knownSize(info)),
+	}
+	if system != "" {
+		attributes = append(attributes, slog.String("system", string(system)))
+	}
+	m.logger.LogAttrs(context.Background(), slog.LevelWarn, "cache entry excluded from verified inventory", attributes...)
 }
 
 func (m *Manager) Probe(ctx context.Context, system protocol.System, key protocol.ContentKey) (protocol.CacheProbeResponse, *protocol.APIError) {
@@ -298,7 +418,8 @@ func (m *Manager) Probe(ctx context.Context, system protocol.System, key protoco
 	if entry.path != path || !m.directoriesIntact(system) {
 		return absentProbe(), internalAPIError("cache directory identity changed")
 	}
-	info, err := os.Lstat(path)
+	directory := m.directories[system]
+	info, err := directory.root.Lstat(entry.name)
 	if err != nil {
 		if os.IsNotExist(err) {
 			m.removeEntry(id, entry)
@@ -311,6 +432,9 @@ func (m *Manager) Probe(ctx context.Context, system protocol.System, key protoco
 	}
 	stamp := fileStamp{info: info}
 	if memo, ok := m.memos[id]; ok && sameStamp(memo.stamp, stamp) {
+		if !m.directoriesIntact(system) {
+			return absentProbe(), internalAPIError("cache directory identity changed")
+		}
 		if !memo.verified {
 			return absentProbe(), nil
 		}
@@ -318,15 +442,19 @@ func (m *Manager) Probe(ctx context.Context, system protocol.System, key protoco
 	}
 	delete(m.memos, id)
 
-	verified, size, stableStamp, apiErr := m.verify(ctx, id, entry, stamp)
+	verified, size, stableStamp, apiErr := m.verify(ctx, system, id, entry, stamp)
 	if apiErr != nil {
 		return absentProbe(), apiErr
 	}
 	if stableStamp.info == nil {
 		return absentProbe(), nil
 	}
+	if !m.directoriesIntact(system) {
+		return absentProbe(), internalAPIError("cache directory identity changed")
+	}
 	m.memos[id] = verificationMemo{stamp: stableStamp, verified: verified, size: size}
 	if !verified {
+		m.logExcluded(system, "digest-mismatch", stableStamp.info)
 		return absentProbe(), nil
 	}
 	return presentProbe(system, key, size), nil
@@ -340,17 +468,52 @@ func (m *Manager) Resolve(ctx context.Context, system protocol.System, content p
 	if apiErr != nil {
 		return Resolved{}, apiErr
 	}
+	if matches, apiErr := m.declaredSizeMatches(system, content.Key(), path, content.Size); apiErr != nil {
+		return Resolved{}, apiErr
+	} else if !matches {
+		return Resolved{}, contentNotCachedError()
+	}
 	response, apiErr := m.Probe(ctx, system, content.Key())
 	if apiErr != nil {
 		return Resolved{}, apiErr
 	}
 	if !response.Present || response.Content == nil || response.Content.Size != content.Size {
-		return Resolved{}, &protocol.APIError{
-			Code:    protocol.CodeContentNotCached,
-			Message: "requested content is not present in the verified cache",
-		}
+		return Resolved{}, contentNotCachedError()
 	}
 	return Resolved{Root: m.root, Path: path}, nil
+}
+
+func (m *Manager) declaredSizeMatches(system protocol.System, key protocol.ContentKey, path string, declared int64) (bool, *protocol.APIError) {
+	id := makeInventoryKey(system, key)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	entry, ok := m.entries[id]
+	if !ok {
+		return false, nil
+	}
+	if entry.path != path || !m.directoriesIntact(system) {
+		return false, internalAPIError("cache directory identity changed")
+	}
+	directory := m.directories[system]
+	info, err := directory.root.Lstat(entry.name)
+	if err != nil {
+		if os.IsNotExist(err) {
+			m.removeEntry(id, entry)
+			return false, nil
+		}
+		return false, internalAPIError("cache entry cannot be inspected")
+	}
+	if !m.reconcileStructuralEntry(id, &entry, info) {
+		return false, nil
+	}
+	return info.Size() == declared, nil
+}
+
+func contentNotCachedError() *protocol.APIError {
+	return &protocol.APIError{
+		Code:    protocol.CodeContentNotCached,
+		Message: "requested content is not present in the verified cache",
+	}
 }
 
 func (m *Manager) Usage() int64 {
@@ -361,15 +524,17 @@ func (m *Manager) Usage() int64 {
 
 func (m *Manager) directoriesIntact(system protocol.System) bool {
 	root, err := os.Lstat(m.root)
-	if err != nil || !root.IsDir() || !os.SameFile(m.rootInfo, root) {
+	boundRoot, boundErr := m.rootHandle.Stat(".")
+	if err != nil || boundErr != nil || !root.IsDir() || !sameFileInfo(m.rootInfo, root) || !sameFileInfo(m.rootInfo, boundRoot) {
 		return false
 	}
 	directory, ok := m.directories[system]
 	if !ok {
 		return false
 	}
-	current, err := os.Lstat(directory.path)
-	return err == nil && current.IsDir() && os.SameFile(directory.info, current)
+	current, err := m.rootHandle.Lstat(string(system))
+	bound, boundErr := directory.root.Stat(".")
+	return err == nil && boundErr == nil && current.IsDir() && sameFileInfo(directory.info, current) && sameFileInfo(directory.info, bound)
 }
 
 func (m *Manager) reconcileStructuralEntry(id inventoryKey, entry *inventoryEntry, info os.FileInfo) bool {
@@ -396,10 +561,10 @@ func (m *Manager) removeEntry(id inventoryKey, entry inventoryEntry) {
 	delete(m.memos, id)
 }
 
-func (m *Manager) verify(ctx context.Context, id inventoryKey, entry inventoryEntry, before fileStamp) (bool, int64, fileStamp, *protocol.APIError) {
-	file, err := m.openFile(entry.path)
+func (m *Manager) verify(ctx context.Context, system protocol.System, id inventoryKey, entry inventoryEntry, before fileStamp) (bool, int64, fileStamp, *protocol.APIError) {
+	file, err := m.openEntry(system, entry)
 	if err != nil {
-		m.reconcileAfterOpenFailure(id, entry)
+		m.reconcileAfterOpenFailure(system, id, entry)
 		if _, stillPresent := m.entries[id]; !stillPresent {
 			return false, 0, fileStamp{}, nil
 		}
@@ -408,7 +573,7 @@ func (m *Manager) verify(ctx context.Context, id inventoryKey, entry inventoryEn
 	openedInfo, err := file.Stat()
 	if err != nil || !openedInfo.Mode().IsRegular() || !sameStamp(before, fileStamp{info: openedInfo}) {
 		_ = file.Close()
-		m.reconcileAfterOpenFailure(id, entry)
+		m.reconcileAfterOpenFailure(system, id, entry)
 		return false, 0, fileStamp{}, nil
 	}
 
@@ -425,7 +590,7 @@ func (m *Manager) verify(ctx context.Context, id inventoryKey, entry inventoryEn
 			size += int64(count)
 			if size > protocol.MaxContentBytes {
 				_ = file.Close()
-				m.reconcileAfterOpenFailure(id, entry)
+				m.reconcileAfterOpenFailure(system, id, entry)
 				return false, 0, fileStamp{}, nil
 			}
 			_, _ = hasher.Write(buffer[:count])
@@ -443,17 +608,25 @@ func (m *Manager) verify(ctx context.Context, id inventoryKey, entry inventoryEn
 	if statErr != nil || closeErr != nil {
 		return false, 0, fileStamp{}, internalAPIError("cache entry verification could not finish")
 	}
-	afterPathInfo, err := os.Lstat(entry.path)
+	directory, ok := m.directories[system]
+	if !ok {
+		return false, 0, fileStamp{}, internalAPIError("cache directory identity changed")
+	}
+	afterPathInfo, err := directory.root.Lstat(entry.name)
 	if err != nil || !afterPathInfo.Mode().IsRegular() || !sameStamp(before, fileStamp{info: afterOpenInfo}) || !sameStamp(before, fileStamp{info: afterPathInfo}) || size != before.info.Size() {
-		m.reconcileAfterOpenFailure(id, entry)
+		m.reconcileAfterOpenFailure(system, id, entry)
 		return false, 0, fileStamp{}, nil
 	}
 	verified := fmt.Sprintf("%x", hasher.Sum(nil)) == id.digest
 	return verified, size, fileStamp{info: afterPathInfo}, nil
 }
 
-func (m *Manager) reconcileAfterOpenFailure(id inventoryKey, previous inventoryEntry) {
-	info, err := os.Lstat(previous.path)
+func (m *Manager) reconcileAfterOpenFailure(system protocol.System, id inventoryKey, previous inventoryEntry) {
+	directory, ok := m.directories[system]
+	if !ok {
+		return
+	}
+	info, err := directory.root.Lstat(previous.name)
 	if err != nil {
 		if os.IsNotExist(err) {
 			m.removeEntry(id, previous)
@@ -462,6 +635,17 @@ func (m *Manager) reconcileAfterOpenFailure(id inventoryKey, previous inventoryE
 	}
 	entry := previous
 	m.reconcileStructuralEntry(id, &entry, info)
+}
+
+func (m *Manager) openEntry(system protocol.System, entry inventoryEntry) (*os.File, error) {
+	if m.openFile != nil {
+		return m.openFile(entry.path)
+	}
+	directory, ok := m.directories[system]
+	if !ok {
+		return nil, errors.New("cache system directory is unavailable")
+	}
+	return openRegularAt(directory.root, entry.name, entry.path)
 }
 
 func sameStamp(left, right fileStamp) bool {
@@ -474,16 +658,34 @@ func sameStamp(left, right fileStamp) bool {
 		os.SameFile(left.info, right.info)
 }
 
+func sameFileInfo(left, right os.FileInfo) bool {
+	return left != nil && right != nil && os.SameFile(left, right)
+}
+
 func presentProbe(system protocol.System, key protocol.ContentKey, size int64) protocol.CacheProbeResponse {
 	returnedSystem := system
 	content := protocol.ContentIdentity{SHA256: key.SHA256, Size: size, Extension: key.Extension}
 	return protocol.CacheProbeResponse{Present: true, System: &returnedSystem, Content: &content}
 }
 
-func openRegularNoFollow(path string) (*os.File, error) {
-	fd, err := syscall.Open(path, syscall.O_RDONLY|syscall.O_CLOEXEC|syscall.O_NOFOLLOW, 0)
+func openRegularAt(root *os.Root, name, displayPath string) (*os.File, error) {
+	directory, err := root.Open(".")
 	if err != nil {
 		return nil, err
 	}
-	return os.NewFile(uintptr(fd), path), nil
+	fd, openErr := unix.Openat(int(directory.Fd()), name, unix.O_RDONLY|unix.O_CLOEXEC|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0)
+	closeErr := directory.Close()
+	if openErr != nil {
+		return nil, openErr
+	}
+	if closeErr != nil {
+		_ = unix.Close(fd)
+		return nil, closeErr
+	}
+	file := os.NewFile(uintptr(fd), displayPath)
+	if file == nil {
+		_ = unix.Close(fd)
+		return nil, errors.New("cache file descriptor is invalid")
+	}
+	return file, nil
 }
