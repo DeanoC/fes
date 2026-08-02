@@ -270,7 +270,7 @@ func (m *Manager) inventorySystem(system protocol.System, directory string, allo
 }
 
 func isRecognizedStalePart(name string) bool {
-	return strings.HasPrefix(name, stalePartPrefix) && strings.HasSuffix(name, stalePartSuffix) && len(name) > len(stalePartPrefix)+len(stalePartSuffix)
+	return strings.HasPrefix(name, stalePartPrefix) && strings.HasSuffix(name, stalePartSuffix)
 }
 
 func knownSize(info os.FileInfo) int64 {

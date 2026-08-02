@@ -52,6 +52,7 @@ func TestInventoryCleansOnlyDirectRegularPartsAndAccountsConservatively(t *testi
 	}
 
 	stalePart := writeNamedFile(t, snes, ".fogcast-stale.part", []byte("partial"))
+	emptyTokenPart := writeNamedFile(t, snes, ".fogcast-.part", []byte("partial without token"))
 	nested := filepath.Join(snes, "nested")
 	if err := os.Mkdir(nested, 0o700); err != nil {
 		t.Fatal(err)
@@ -97,8 +98,10 @@ func TestInventoryCleansOnlyDirectRegularPartsAndAccountsConservatively(t *testi
 	if openCount != 0 {
 		t.Fatalf("Open hashed cache content %d times", openCount)
 	}
-	if _, err := os.Lstat(stalePart); !os.IsNotExist(err) {
-		t.Fatalf("recognized stale part still exists: %v", err)
+	for _, path := range []string{stalePart, emptyTokenPart} {
+		if _, err := os.Lstat(path); !os.IsNotExist(err) {
+			t.Fatalf("recognized stale part %q still exists: %v", filepath.Base(path), err)
+		}
 	}
 	for _, path := range []string{
 		validPath, mismatchPath, wrongExtension, uppercaseDigest, shortDigest, uppercaseExtension,
