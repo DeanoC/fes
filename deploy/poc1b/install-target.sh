@@ -194,7 +194,10 @@ stop_runtime() {
   stop_supervisor "$root/run/mister-main-supervisor.pid" \
     'POC 1B Main supervisor' mister-supervise mister-main
 
-  if [ -z "$root" ]; then
+  if [ -z "$root" ] || {
+       [ "$test_mode" = 1 ] &&
+       [ "${MISTER_REMOTE_TEST_MISSING_PIDOF:-0}" = 1 ];
+     }; then
     stop_process_name mister-agent
     stop_process_name MiSTer
   fi
@@ -244,8 +247,13 @@ stop_supervisor() {
 
 stop_process_name() {
   process_name=$1
+  if [ "$test_mode" = 1 ] && \
+     [ "${MISTER_REMOTE_TEST_MISSING_PIDOF:-0}" = 1 ]; then
+    fail 'pidof is required to verify runtime shutdown'
+  fi
+  command -v pidof >/dev/null 2>&1 || \
+    fail 'pidof is required to verify runtime shutdown'
   killall "$process_name" 2>/dev/null || true
-  command -v pidof >/dev/null 2>&1 || return 0
   stop_wait=5
   while pidof "$process_name" >/dev/null 2>&1 && [ "$stop_wait" -gt 0 ]; do
     sleep 1

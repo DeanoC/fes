@@ -298,16 +298,24 @@ test_pids="$test_pids $poc1a_supervisor_pid"
 "$fixture/mister-supervise" mister-main >/dev/null 2>&1 &
 main_supervisor_pid=$!
 test_pids="$test_pids $main_supervisor_pid"
+"$fixture/mister-supervise" mister-agent >/dev/null 2>&1 &
+poc1b_agent_supervisor_pid=$!
+test_pids="$test_pids $poc1b_agent_supervisor_pid"
 mkdir -p "$service_root/run" "$service_root/tmp"
 mkdir -p \
   "$service_root/proc/$poc1a_supervisor_pid" \
+  "$service_root/proc/$poc1b_agent_supervisor_pid" \
   "$service_root/proc/$main_supervisor_pid"
 printf '%s\n' "$fixture/start-agent.sh" > \
   "$service_root/proc/$poc1a_supervisor_pid/cmdline"
 printf '%s\n' "$fixture/mister-supervise mister-main" > \
   "$service_root/proc/$main_supervisor_pid/cmdline"
+printf '%s\n' "$fixture/mister-supervise mister-agent" > \
+  "$service_root/proc/$poc1b_agent_supervisor_pid/cmdline"
 printf '%s\n' "$poc1a_supervisor_pid" > \
   "$service_root/tmp/mister-agent-supervisor.pid"
+printf '%s\n' "$poc1b_agent_supervisor_pid" > \
+  "$service_root/run/mister-agent-supervisor.pid"
 printf '%s\n' "$main_supervisor_pid" > \
   "$service_root/run/mister-main-supervisor.pid"
 install_fixture "$service_root" binary-kernel "$binary_archive"
@@ -319,6 +327,38 @@ if kill -0 "$main_supervisor_pid" 2>/dev/null; then
   echo 'checkpoint install left the Main supervisor running' >&2
   exit 1
 fi
+if kill -0 "$poc1b_agent_supervisor_pid" 2>/dev/null; then
+  echo 'checkpoint install left the POC 1B agent supervisor running' >&2
+  exit 1
+fi
+
+missing_pidof_root=$fixture/missing-pidof-root
+cp -R "$baseline" "$missing_pidof_root"
+missing_pidof_log=$fixture/missing-pidof.log
+if ( MISTER_REMOTE_TEST_MISSING_PIDOF=1 \
+  install_fixture "$missing_pidof_root" binary-kernel "$binary_archive" ) \
+    > /dev/null 2> "$missing_pidof_log"; then
+  echo 'checkpoint install proceeded without child-process verification' >&2
+  exit 1
+fi
+grep -q 'pidof is required to verify runtime shutdown' "$missing_pidof_log"
+
+wrong_identity_root=$fixture/wrong-identity-root
+cp -R "$baseline" "$wrong_identity_root"
+"$fixture/mister-supervise" unrelated-service >/dev/null 2>&1 &
+unrelated_pid=$!
+test_pids="$test_pids $unrelated_pid"
+mkdir -p "$wrong_identity_root/proc/$unrelated_pid" \
+  "$wrong_identity_root/run"
+printf '%s\n' "$fixture/mister-supervise unrelated-service" > \
+  "$wrong_identity_root/proc/$unrelated_pid/cmdline"
+printf '%s\n' "$unrelated_pid" > \
+  "$wrong_identity_root/run/mister-main-supervisor.pid"
+expect_install_failure "$wrong_identity_root" binary-kernel "$binary_archive"
+kill -0 "$unrelated_pid" 2>/dev/null || {
+  echo 'identity rejection stopped an unrelated process' >&2
+  exit 1
+}
 
 checkpoint2_bad_root=$fixture/checkpoint2-bad-root
 cp -R "$baseline" "$checkpoint2_bad_root"
