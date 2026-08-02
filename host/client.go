@@ -53,6 +53,10 @@ func (c *Client) Stop(ctx context.Context) (protocol.Status, error) {
 }
 
 func (c *Client) doJSON(ctx context.Context, method, path string, requestBody any, responseBody any) error {
+	return c.doJSONQuery(ctx, method, path, nil, requestBody, responseBody)
+}
+
+func (c *Client) doJSONQuery(ctx context.Context, method, path string, query url.Values, requestBody any, responseBody any) error {
 	var body io.Reader
 	if requestBody != nil {
 		encoded, err := json.Marshal(requestBody)
@@ -61,12 +65,7 @@ func (c *Client) doJSON(ctx context.Context, method, path string, requestBody an
 		}
 		body = bytes.NewReader(encoded)
 	}
-	endpoint := *c.baseURL
-	endpoint.Path = path
-	endpoint.RawPath = ""
-	endpoint.RawQuery = ""
-	endpoint.Fragment = ""
-	request, err := http.NewRequestWithContext(ctx, method, endpoint.String(), body)
+	request, err := http.NewRequestWithContext(ctx, method, c.endpoint(path, query).String(), body)
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
@@ -81,6 +80,19 @@ func (c *Client) doJSON(ctx context.Context, method, path string, requestBody an
 		return fmt.Errorf("send request: %w", err)
 	}
 	defer response.Body.Close()
+	return decodeResponse(response, responseBody)
+}
+
+func (c *Client) endpoint(path string, query url.Values) *url.URL {
+	endpoint := *c.baseURL
+	endpoint.Path = path
+	endpoint.RawPath = ""
+	endpoint.RawQuery = query.Encode()
+	endpoint.Fragment = ""
+	return &endpoint
+}
+
+func decodeResponse(response *http.Response, responseBody any) error {
 	data, err := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes+1))
 	if err != nil {
 		return fmt.Errorf("read response: %w", err)
