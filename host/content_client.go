@@ -58,6 +58,11 @@ func (c *Client) UploadContent(ctx context.Context, system protocol.System, cont
 	if err := decodeResponse(response, &result); err != nil {
 		return protocol.CacheUploadResponse{}, err
 	}
+	switch result.Result {
+	case protocol.CacheUploadPresent, protocol.CacheUploadCreated:
+	default:
+		return protocol.CacheUploadResponse{}, fmt.Errorf("cache upload response has invalid result")
+	}
 	if result.System != system || result.Content != content {
 		return protocol.CacheUploadResponse{}, fmt.Errorf("cache upload response does not match requested content")
 	}

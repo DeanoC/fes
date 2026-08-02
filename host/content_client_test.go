@@ -244,6 +244,22 @@ func TestContentClientRejectsMismatchedResponses(t *testing.T) {
 			},
 		},
 		{
+			name:     "upload missing result",
+			response: `{"system":"snes","content":{"sha256":"` + contentDigest + `","size":3,"extension":"sfc"}}`,
+			call: func(client *host.Client) error {
+				_, err := client.UploadContent(context.Background(), protocol.SystemSNES, valid, strings.NewReader("rom"))
+				return err
+			},
+		},
+		{
+			name:     "upload unknown result",
+			response: `{"result":"replaced","system":"snes","content":{"sha256":"` + contentDigest + `","size":3,"extension":"sfc"}}`,
+			call: func(client *host.Client) error {
+				_, err := client.UploadContent(context.Background(), protocol.SystemSNES, valid, strings.NewReader("rom"))
+				return err
+			},
+		},
+		{
 			name:     "launch content",
 			response: `{"status":{"state":"active","game_id":"snes-synthetic","system":"snes","expected_core":"SNES","observed_core":"SNES","last_error":null},"content":{"sha256":"` + otherDigest + `","size":3,"extension":"sfc"}}`,
 			call: func(client *host.Client) error {
