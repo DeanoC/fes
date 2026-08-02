@@ -190,13 +190,17 @@ func openTestManager(t *testing.T, root string, options ...targetcache.Option) *
 	options = append([]targetcache.Option{
 		targetcache.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 	}, options...)
-	manager, err := targetcache.Open(targetcache.Config{
-		Root:         root,
-		ActiveRecord: filepath.Join(filepath.Dir(root), "run", "fogcast-active.json"),
-		MaxBytes:     64 << 20,
-	}, core.DefaultRegistry(), options...)
+	manager, err := targetcache.Open(testManagerConfig(root), core.DefaultRegistry(), options...)
 	if err != nil {
 		t.Fatalf("Open target cache: %v", err)
 	}
 	return manager
+}
+
+func testManagerConfig(root string) targetcache.Config {
+	return targetcache.Config{
+		Root:         root,
+		ActiveRecord: filepath.Join(filepath.Dir(root), "run", "fogcast-active.json"),
+		MaxBytes:     64 << 20,
+	}
 }

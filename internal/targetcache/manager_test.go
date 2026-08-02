@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast-POC/internal/core"
 	"github.com/DeanoC/FogCast-POC/internal/targetcache"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
@@ -230,7 +231,7 @@ func TestInventoryLogsSanitizedInvalidEntryDiagnostics(t *testing.T) {
 	}
 }
 
-func TestInventoryDoesNotFollowParentDirectoryReplacement(t *testing.T) {
+func TestInventoryAbortsOnParentDirectoryReplacement(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -254,19 +255,150 @@ func TestInventoryDoesNotFollowParentDirectoryReplacement(t *testing.T) {
 		mutationErr = os.Symlink(outsideDirectory, systemDirectory)
 	}}
 	logger := slog.New(slog.NewJSONHandler(writer, nil))
-	openTestManager(t, root, targetcache.WithLogger(logger))
+	manager, err := targetcache.Open(testManagerConfig(root), core.DefaultRegistry(), targetcache.WithLogger(logger))
 	if mutationErr != nil {
 		t.Fatalf("replace system directory: %v", mutationErr)
 	}
 	if writer.calls() == 0 {
 		t.Fatal("inventory replacement callback did not run")
 	}
+	if manager != nil || err == nil {
+		t.Fatalf("Open after system replacement returned manager=%t error=%t; want manager=false error=true", manager != nil, err != nil)
+	}
+	for _, private := range []string{root, systemDirectory, movedDirectory, outsideDirectory, outsidePart, partName} {
+		if strings.Contains(err.Error(), private) {
+			t.Fatalf("Open error %q exposes private value %q", err, private)
+		}
+	}
 	if _, err := os.Lstat(outsidePart); err != nil {
 		t.Fatalf("inventory followed replacement and changed outside part: %v", err)
 	}
 	movedInsidePart := filepath.Join(movedDirectory, filepath.Base(insidePart))
-	if _, err := os.Lstat(movedInsidePart); !os.IsNotExist(err) {
-		t.Fatalf("descriptor-bound inventory did not clean original cache part: %v", err)
+	if info, statErr := os.Lstat(movedInsidePart); statErr != nil || !info.Mode().IsRegular() {
+		t.Fatalf("inventory changed stale part after system replacement: info=%v error=%v", info, statErr)
+	}
+}
+
+func TestInventoryAbortsBeforeCleaningDetachedSystemDirectory(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	systemDirectory := filepath.Join(root, string(protocol.SystemSNES))
+	if err := os.MkdirAll(systemDirectory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writeNamedFile(t, systemDirectory, "!.trigger", []byte("trigger sanitized diagnostic"))
+	partName := ".fogcast-detached.part"
+	writeNamedFile(t, systemDirectory, partName, []byte("detached partial"))
+	detachedDirectory := filepath.Join(t.TempDir(), "detached-snes")
+	detachedPart := filepath.Join(detachedDirectory, partName)
+
+	var mutationErr error
+	writer := &callbackWriter{callback: func() {
+		if err := os.Rename(systemDirectory, detachedDirectory); err != nil {
+			mutationErr = err
+			return
+		}
+		mutationErr = os.Mkdir(systemDirectory, 0o700)
+	}}
+	logger := slog.New(slog.NewJSONHandler(writer, nil))
+	manager, err := targetcache.Open(testManagerConfig(root), core.DefaultRegistry(), targetcache.WithLogger(logger))
+	if mutationErr != nil {
+		t.Fatalf("detach system directory: %v", mutationErr)
+	}
+	if manager != nil || err == nil {
+		t.Fatalf("Open after system detachment returned manager=%t error=%t; want manager=false error=true", manager != nil, err != nil)
+	}
+	for _, private := range []string{root, systemDirectory, detachedDirectory, detachedPart, partName, "detached partial"} {
+		if strings.Contains(err.Error(), private) {
+			t.Fatalf("Open error %q exposes private value %q", err, private)
+		}
+	}
+	if info, statErr := os.Lstat(detachedPart); statErr != nil || !info.Mode().IsRegular() {
+		t.Fatalf("detached stale part was removed or changed: info=%v error=%v", info, statErr)
+	}
+}
+
+func TestInventoryRetainsStaleCandidateReplacedBeforeRemoval(t *testing.T) {
+	tests := []struct {
+		name    string
+		replace func(*testing.T, string) string
+		check   func(os.FileInfo) bool
+	}{
+		{
+			name: "link",
+			replace: func(t *testing.T, path string) string {
+				t.Helper()
+				outside := filepath.Join(t.TempDir(), "outside")
+				if err := os.WriteFile(outside, []byte("outside bytes"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(outside, path); err != nil {
+					t.Fatal(err)
+				}
+				return outside
+			},
+			check: func(info os.FileInfo) bool { return info.Mode()&os.ModeSymlink != 0 },
+		},
+		{
+			name: "directory",
+			replace: func(t *testing.T, path string) string {
+				t.Helper()
+				if err := os.Mkdir(path, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				return ""
+			},
+			check: func(info os.FileInfo) bool { return info.IsDir() },
+		},
+		{
+			name: "special",
+			replace: func(t *testing.T, path string) string {
+				t.Helper()
+				if err := syscall.Mkfifo(path, 0o600); err != nil {
+					t.Fatal(err)
+				}
+				return ""
+			},
+			check: func(info os.FileInfo) bool { return info.Mode()&os.ModeNamedPipe != 0 },
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			systemDirectory := filepath.Join(root, string(protocol.SystemSNES))
+			if err := os.MkdirAll(systemDirectory, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			partName := ".fogcast-replaced.part"
+			part := writeNamedFile(t, systemDirectory, partName, []byte("partial to replace"))
+			var mutationErr error
+			var outside string
+			writer := &callbackWriter{callback: func() {
+				if err := os.Remove(part); err != nil {
+					mutationErr = err
+					return
+				}
+				outside = tt.replace(t, part)
+			}}
+			logger := slog.New(slog.NewJSONHandler(writer, nil))
+			manager, err := targetcache.Open(testManagerConfig(root), core.DefaultRegistry(), targetcache.WithLogger(logger))
+			if mutationErr != nil {
+				t.Fatalf("replace stale candidate: %v", mutationErr)
+			}
+			if manager != nil || err == nil {
+				t.Fatalf("Open after stale candidate replacement returned manager=%t error=%t; want manager=false error=true", manager != nil, err != nil)
+			}
+			for _, private := range []string{root, part, outside, partName, "partial to replace"} {
+				if private != "" && strings.Contains(err.Error(), private) {
+					t.Fatalf("Open error %q exposes private value %q", err, private)
+				}
+			}
+			info, statErr := os.Lstat(part)
+			if statErr != nil || !tt.check(info) {
+				t.Fatalf("replacement was removed or changed: info=%v error=%v", info, statErr)
+			}
+		})
 	}
 }
 
@@ -317,6 +449,54 @@ func TestProbeHashesOncePerMetadataVersionAndResolveUsesMemo(t *testing.T) {
 	assertPresentIdentity(t, third, protocol.SystemSNES, identity)
 	if got := counter.count(); got != 2 {
 		t.Fatalf("metadata change opens = %d, want 2", got)
+	}
+}
+
+func TestProbeRechecksCancellationAfterWaitingForManagerMutex(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	content := []byte("queued cancellation")
+	identity := contentIdentity(content, "sfc")
+	path := writeCacheFile(t, root, protocol.SystemSNES, identity, content)
+	openEntered := make(chan struct{})
+	releaseOpen := make(chan struct{})
+	var blockFirst sync.Once
+	manager := openTestManager(t, root, targetcache.WithOpenFile(func(candidate string) (*os.File, error) {
+		blockFirst.Do(func() {
+			close(openEntered)
+			<-releaseOpen
+		})
+		return os.Open(candidate)
+	}))
+
+	firstDone := make(chan probeResult, 1)
+	go func() {
+		response, apiErr := manager.Probe(context.Background(), protocol.SystemSNES, identity.Key())
+		firstDone <- probeResult{response: response, apiErr: apiErr}
+	}()
+	<-openEntered
+
+	base, cancel := context.WithCancel(context.Background())
+	observed := &observedContext{Context: base, checked: make(chan struct{})}
+	secondDone := make(chan probeResult, 1)
+	go func() {
+		response, apiErr := manager.Probe(observed, protocol.SystemSNES, identity.Key())
+		secondDone <- probeResult{response: response, apiErr: apiErr}
+	}()
+	<-observed.checked
+	cancel()
+	close(releaseOpen)
+
+	first := <-firstDone
+	if first.apiErr != nil {
+		t.Fatalf("first Probe: %v", first.apiErr)
+	}
+	assertPresentIdentity(t, first.response, protocol.SystemSNES, identity)
+	second := <-secondDone
+	assertSafeAPIError(t, second.apiErr, protocol.CodeInternal, root, path)
+	if second.response.Present {
+		t.Fatalf("queued canceled Probe returned a memoized hit: %#v", second.response)
 	}
 }
 
@@ -539,6 +719,22 @@ func TestProbeReturnsTypedSanitizedOpenError(t *testing.T) {
 type openCounter struct {
 	mu    sync.Mutex
 	opens int
+}
+
+type probeResult struct {
+	response protocol.CacheProbeResponse
+	apiErr   *protocol.APIError
+}
+
+type observedContext struct {
+	context.Context
+	checked chan struct{}
+	once    sync.Once
+}
+
+func (c *observedContext) Err() error {
+	c.once.Do(func() { close(c.checked) })
+	return c.Context.Err()
 }
 
 type callbackWriter struct {

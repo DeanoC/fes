@@ -314,8 +314,8 @@ func (m *Manager) inventorySystem(system protocol.System, directory systemDirect
 			return errors.New("inspect target cache entry failed")
 		}
 		if info.Mode().IsRegular() && isRecognizedStalePart(name) {
-			if err := directory.root.Remove(name); err != nil {
-				return errors.New("remove stale target cache part failed")
+			if err := m.removeStalePart(system, directory, name, info); err != nil {
+				return err
 			}
 			continue
 		}
@@ -335,6 +335,34 @@ func (m *Manager) inventorySystem(system protocol.System, directory systemDirect
 			continue
 		}
 		m.entries[makeInventoryKey(system, key)] = inventoryEntry{name: name, path: path, accountedSize: size}
+	}
+	return nil
+}
+
+func (m *Manager) removeStalePart(system protocol.System, directory systemDirectory, name string, inspected os.FileInfo) error {
+	m.logger.LogAttrs(
+		context.Background(),
+		slog.LevelInfo,
+		"stale cache part cleanup",
+		slog.String("category", "stale-part-cleanup"),
+		slog.String("system", string(system)),
+		slog.Int64("size", knownSize(inspected)),
+	)
+	if !m.directoriesIntact(system) {
+		return errors.New("target cache directory identity changed before stale cleanup")
+	}
+	current, err := directory.root.Lstat(name)
+	if err != nil {
+		return errors.New("reinspect stale target cache part failed")
+	}
+	if !current.Mode().IsRegular() || !sameFileInfo(inspected, current) {
+		return errors.New("stale target cache part identity changed before cleanup")
+	}
+	if !m.directoriesIntact(system) {
+		return errors.New("target cache directory identity changed before stale cleanup")
+	}
+	if err := directory.root.Remove(name); err != nil {
+		return errors.New("remove stale target cache part failed")
 	}
 	return nil
 }
@@ -411,6 +439,9 @@ func (m *Manager) Probe(ctx context.Context, system protocol.System, key protoco
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return absentProbe(), internalAPIError("cache verification was canceled")
+	}
 	entry, ok := m.entries[id]
 	if !ok {
 		return absentProbe(), nil
@@ -434,6 +465,9 @@ func (m *Manager) Probe(ctx context.Context, system protocol.System, key protoco
 	if memo, ok := m.memos[id]; ok && sameStamp(memo.stamp, stamp) {
 		if !m.directoriesIntact(system) {
 			return absentProbe(), internalAPIError("cache directory identity changed")
+		}
+		if err := ctx.Err(); err != nil {
+			return absentProbe(), internalAPIError("cache verification was canceled")
 		}
 		if !memo.verified {
 			return absentProbe(), nil
