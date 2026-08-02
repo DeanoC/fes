@@ -36,6 +36,7 @@ RUN rm -f /etc/apt/sources.list.d/debian.sources \
       libelf-dev \
       libncurses-dev \
       libssl-dev \
+      lz4 \
       patch \
       perl \
       python3 \
@@ -48,7 +49,8 @@ RUN rm -f /etc/apt/sources.list.d/debian.sources \
  && rm -rf /var/lib/apt/lists/*
 
 RUN actual="$(dpkg-query -W -f='${binary:Package}=${Version}\n' | LC_ALL=C sort | sha256sum | awk '{print $1}')" \
- && test "${actual}" = "${PACKAGE_SET_SHA256}"
+ && { test "${actual}" = "${PACKAGE_SET_SHA256}" \
+      || { echo "package-set digest is ${actual}" >&2; exit 1; }; }
 
 COPY containers/poc1b/create-builder-user.sh /usr/local/sbin/create-builder-user
 RUN HOST_UID="${HOST_UID}" HOST_GID="${HOST_GID}" /usr/local/sbin/create-builder-user \

@@ -115,6 +115,9 @@ fi
 
 docker_log=$fixture/docker.log
 fake_docker=$fixture/docker
+POC1B_FAKE_PACKAGE_DIGEST=$(tr -d '[:space:]' < \
+  "$repo/build/poc1b-container-packages.sha256")
+export POC1B_FAKE_PACKAGE_DIGEST
 cat > "$fake_docker" <<'EOF'
 #!/bin/sh
 printf '%s\n' "$*" >> "$POC1B_DOCKER_LOG"
@@ -133,7 +136,7 @@ if [ "$1 $2" = "image inspect" ]; then
           IFS=$old_ifs
           context=$2
           if [ "${POC1B_FAKE_BAD_CONTEXT:-0}" = 1 ]; then context=bad; fi
-          printf 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc|linux/amd64|sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|%s|248d70eb37287c1b072092583a5402e76ed4010b57bbcc3f41d722aa6e3d6844|%s|%s\n' "$context" "$3" "$4"
+          printf 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc|linux/amd64|sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|%s|%s|%s|%s\n' "$context" "$POC1B_FAKE_PACKAGE_DIGEST" "$3" "$4"
           ;;
       esac
       ;;
