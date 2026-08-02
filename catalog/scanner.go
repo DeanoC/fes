@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"math"
 	"os"
+	pathpkg "path"
 	"path/filepath"
 	"strings"
 
@@ -34,17 +35,29 @@ type Scanner struct {
 	Registry      core.Registry
 	MaxZIPEntries int
 
-	walkDir func(string, fs.WalkDirFunc) error
-	lstat   func(string) (fs.FileInfo, error)
-	openRaw func(string) (io.ReadCloser, error)
+	walkDir  func(string, fs.WalkDirFunc) error
+	lstat    func(string) (fs.FileInfo, error)
+	openFile func(*os.Root, string) (scannerSourceFile, error)
+}
+
+type scannerSourceFile interface {
+	io.Reader
+	io.ReaderAt
+	io.Closer
+	Stat() (fs.FileInfo, error)
+}
+
+type scannerRoot struct {
+	directory *os.Root
+	info      fs.FileInfo
 }
 
 func (s Scanner) Scan(ctx context.Context, roots []Root) (ScanReport, error) {
 	if s.Store == nil {
 		return ScanReport{}, errors.New("catalog scanner requires a store")
 	}
-	if s.MaxZIPEntries < 0 {
-		return ScanReport{}, errors.New("catalog scanner MaxZIPEntries must not be negative")
+	if s.MaxZIPEntries < 0 || s.MaxZIPEntries > defaultMaxZIPEntries {
+		return ScanReport{}, fmt.Errorf("catalog scanner MaxZIPEntries must be between 0 and %d", defaultMaxZIPEntries)
 	}
 	maximumZIPEntries := s.MaxZIPEntries
 	if maximumZIPEntries == 0 {
@@ -60,7 +73,8 @@ func (s Scanner) Scan(ctx context.Context, roots []Root) (ScanReport, error) {
 		if !ok {
 			return report, fmt.Errorf("scan root %q: system %q is not registered", root.ID, root.System)
 		}
-		if !rootDirectoryOpens(root.Path) {
+		heldRoot, err := openScannerRoot(root.Path)
+		if err != nil {
 			rootReport, err := s.Store.MarkRootOffline(ctx, root, reasonRootOffline)
 			if err != nil {
 				return report, err
@@ -69,8 +83,10 @@ func (s Scanner) Scan(ctx context.Context, roots []Root) (ScanReport, error) {
 			continue
 		}
 
-		rootReport, err := s.scanRoot(ctx, root, spec.Extensions, maximumZIPEntries)
-		if err != nil {
+		rootReport, scanErr := s.scanRoot(ctx, root, heldRoot, spec.Extensions, maximumZIPEntries)
+		closeErr := heldRoot.directory.Close()
+		if scanErr != nil || closeErr != nil {
+			err := errors.Join(scanErr, closeErr)
 			return report, err
 		}
 		report.Roots = append(report.Roots, rootReport)
@@ -78,21 +94,24 @@ func (s Scanner) Scan(ctx context.Context, roots []Root) (ScanReport, error) {
 	return report, nil
 }
 
-func rootDirectoryOpens(path string) bool {
+func openScannerRoot(path string) (*scannerRoot, error) {
 	entryInfo, err := os.Lstat(path)
 	if err != nil || entryInfo.Mode()&fs.ModeSymlink != 0 || !entryInfo.IsDir() {
-		return false
+		return nil, errors.Join(err, errors.New("catalog root is not a real directory"))
 	}
-	directory, err := os.Open(path)
+	directory, err := os.OpenRoot(path)
 	if err != nil {
-		return false
+		return nil, err
 	}
-	defer directory.Close()
-	openedInfo, err := directory.Stat()
-	return err == nil && openedInfo.IsDir() && os.SameFile(entryInfo, openedInfo)
+	openedInfo, err := directory.Stat(".")
+	if err != nil || !openedInfo.IsDir() || !os.SameFile(entryInfo, openedInfo) {
+		_ = directory.Close()
+		return nil, errors.Join(err, errors.New("catalog root identity changed while opening"))
+	}
+	return &scannerRoot{directory: directory, info: openedInfo}, nil
 }
 
-func (s Scanner) scanRoot(ctx context.Context, root Root, extensions map[string]struct{}, maximumZIPEntries int) (RootReport, error) {
+func (s Scanner) scanRoot(ctx context.Context, root Root, heldRoot *scannerRoot, extensions map[string]struct{}, maximumZIPEntries int) (RootReport, error) {
 	session, err := s.Store.BeginRootScan(ctx, root)
 	if err != nil {
 		return RootReport{}, err
@@ -107,9 +126,9 @@ func (s Scanner) scanRoot(ctx context.Context, root Root, extensions map[string]
 	if lstat == nil {
 		lstat = os.Lstat
 	}
-	openRaw := s.openRaw
-	if openRaw == nil {
-		openRaw = func(path string) (io.ReadCloser, error) { return os.Open(path) }
+	openFile := s.openFile
+	if openFile == nil {
+		openFile = func(root *os.Root, name string) (scannerSourceFile, error) { return root.Open(name) }
 	}
 
 	err = walk(root.Path, func(path string, entry fs.DirEntry, walkErr error) error {
@@ -164,18 +183,21 @@ func (s Scanner) scanRoot(ctx context.Context, root Root, extensions map[string]
 		if info.Mode()&fs.ModeSymlink != 0 || !info.Mode().IsRegular() {
 			return nil
 		}
-		candidate.Fingerprint.SourceSize = info.Size()
-		candidate.Fingerprint.ModifiedNS = info.ModTime().UnixNano()
 		candidate.State = SourceStateAvailable
 
-		if kind == SourceKindZIP {
-			classifyZIP(path, extensions, maximumZIPEntries, &candidate)
+		source, openedInfo, err := openVerifiedCandidate(heldRoot.directory, relativePath, info, openFile)
+		if err != nil {
+			candidate.Fingerprint.SourceSize = info.Size()
+			candidate.Fingerprint.ModifiedNS = info.ModTime().UnixNano()
+			candidate.State = SourceStateInvalid
+			candidate.Reason = sourceFailureReason(err)
 		} else {
-			reader, err := openRaw(path)
-			if err != nil {
-				candidate.State = SourceStateInvalid
-				candidate.Reason = sourceFailureReason(err)
-			} else if err := reader.Close(); err != nil {
+			candidate.Fingerprint.SourceSize = openedInfo.Size()
+			candidate.Fingerprint.ModifiedNS = openedInfo.ModTime().UnixNano()
+			if kind == SourceKindZIP {
+				classifyZIP(source, openedInfo.Size(), extensions, maximumZIPEntries, &candidate)
+			}
+			if err := source.Close(); err != nil && candidate.State == SourceStateAvailable {
 				candidate.State = SourceStateInvalid
 				candidate.Reason = reasonSourceUnreadable
 			}
@@ -184,9 +206,102 @@ func (s Scanner) scanRoot(ctx context.Context, root Root, extensions map[string]
 		return err
 	})
 	if err != nil {
+		if !heldRoot.matchesConfiguredPath(root.Path) {
+			return s.rollbackAndMarkOffline(ctx, root, session)
+		}
 		return RootReport{}, fmt.Errorf("scan root %q: %w", root.ID, err)
 	}
+	if !heldRoot.matchesConfiguredPath(root.Path) {
+		return s.rollbackAndMarkOffline(ctx, root, session)
+	}
 	return session.Complete(ctx)
+}
+
+func (r *scannerRoot) matchesConfiguredPath(path string) bool {
+	configuredInfo, err := os.Lstat(path)
+	if err != nil || configuredInfo.Mode()&fs.ModeSymlink != 0 || !configuredInfo.IsDir() || !os.SameFile(r.info, configuredInfo) {
+		return false
+	}
+	openedInfo, err := r.directory.Stat(".")
+	return err == nil && openedInfo.IsDir() && os.SameFile(r.info, openedInfo)
+}
+
+func (s Scanner) rollbackAndMarkOffline(ctx context.Context, root Root, session *ScanSession) (RootReport, error) {
+	if err := session.Rollback(); err != nil {
+		return RootReport{}, fmt.Errorf("roll back replaced root %q: %w", root.ID, err)
+	}
+	return s.Store.MarkRootOffline(ctx, root, reasonRootOffline)
+}
+
+func openVerifiedCandidate(root *os.Root, relativePath string, expected fs.FileInfo, openFile func(*os.Root, string) (scannerSourceFile, error)) (scannerSourceFile, fs.FileInfo, error) {
+	directoryPath, base := pathpkg.Split(relativePath)
+	directoryPath = strings.TrimSuffix(directoryPath, "/")
+	if directoryPath == "" {
+		directoryPath = "."
+	}
+
+	checkedDirectory, err := validateCandidateDirectory(root, directoryPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	candidateRoot := root
+	if directoryPath != "." {
+		candidateRoot, err = root.OpenRoot(directoryPath)
+		if err != nil {
+			return nil, nil, err
+		}
+		defer candidateRoot.Close()
+		openedDirectory, err := candidateRoot.Stat(".")
+		if err != nil || !os.SameFile(checkedDirectory, openedDirectory) {
+			return nil, nil, errors.Join(err, errors.New("candidate directory identity changed"))
+		}
+	}
+
+	currentInfo, err := root.Lstat(relativePath)
+	if err != nil || currentInfo.Mode()&fs.ModeSymlink != 0 || !currentInfo.Mode().IsRegular() || !os.SameFile(expected, currentInfo) {
+		return nil, nil, errors.Join(err, errors.New("candidate identity changed before opening"))
+	}
+	source, err := openFile(candidateRoot, base)
+	if err != nil {
+		return nil, nil, err
+	}
+	fail := func(err error) (scannerSourceFile, fs.FileInfo, error) {
+		_ = source.Close()
+		return nil, nil, err
+	}
+	openedInfo, err := source.Stat()
+	if err != nil || !openedInfo.Mode().IsRegular() || !os.SameFile(expected, openedInfo) {
+		return fail(errors.Join(err, errors.New("candidate identity changed while opening")))
+	}
+	recheckedDirectory, err := validateCandidateDirectory(root, directoryPath)
+	if err != nil || !os.SameFile(checkedDirectory, recheckedDirectory) {
+		return fail(errors.Join(err, errors.New("candidate directory identity changed after opening")))
+	}
+	recheckedInfo, err := root.Lstat(relativePath)
+	if err != nil || recheckedInfo.Mode()&fs.ModeSymlink != 0 || !recheckedInfo.Mode().IsRegular() || !os.SameFile(openedInfo, recheckedInfo) {
+		return fail(errors.Join(err, errors.New("candidate identity changed after opening")))
+	}
+	return source, openedInfo, nil
+}
+
+func validateCandidateDirectory(root *os.Root, directoryPath string) (fs.FileInfo, error) {
+	if directoryPath == "." {
+		return root.Stat(".")
+	}
+	current := ""
+	var info fs.FileInfo
+	for _, component := range strings.Split(directoryPath, "/") {
+		current = pathpkg.Join(current, component)
+		var err error
+		info, err = root.Lstat(current)
+		if err != nil {
+			return nil, err
+		}
+		if info.Mode()&fs.ModeSymlink != 0 || !info.IsDir() {
+			return nil, errors.New("candidate parent is not a real directory")
+		}
+	}
+	return info, nil
 }
 
 func sourceFailureReason(err error) string {
@@ -196,13 +311,12 @@ func sourceFailureReason(err error) string {
 	return reasonSourceUnreadable
 }
 
-func classifyZIP(path string, extensions map[string]struct{}, maximumEntries int, candidate *Candidate) {
-	reader, err := zip.OpenReader(path)
+func classifyZIP(source io.ReaderAt, sourceSize int64, extensions map[string]struct{}, maximumEntries int, candidate *Candidate) {
+	reader, err := zip.NewReader(source, sourceSize)
 	if err != nil {
 		invalidateZIP(candidate, reasonZIPCorrupt)
 		return
 	}
-	defer reader.Close()
 
 	candidate.Fingerprint.ZIPEntryCount = len(reader.File)
 	if len(reader.File) > maximumEntries {

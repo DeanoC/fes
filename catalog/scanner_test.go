@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"hash/crc32"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -45,16 +44,16 @@ func TestScannerTraversesIncrementallyWithoutFollowingSymlinks(t *testing.T) {
 	root := Root{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}
 	offline := Root{ID: "snes-offline", System: protocol.SystemSNES, Path: filepath.Join(t.TempDir(), "missing")}
 	scanner := Scanner{Store: store, Registry: core.DefaultRegistry()}
-	scanner.openRaw = func(name string) (io.ReadCloser, error) {
+	scanner.openFile = func(root *os.Root, name string) (scannerSourceFile, error) {
 		switch filepath.Base(name) {
 		case "unreadable.smc":
 			return nil, fs.ErrPermission
 		default:
-			file, err := os.Open(name)
+			file, err := root.Open(name)
 			if err != nil {
 				return nil, err
 			}
-			return &failOnReadCloser{ReadCloser: file}, nil
+			return &failOnReadFile{File: file}, nil
 		}
 	}
 	scanner.lstat = func(name string) (fs.FileInfo, error) {
@@ -287,23 +286,172 @@ func TestScannerTreatsConfiguredRootSymlinkAsOfflineWithoutReconciling(t *testin
 	}
 }
 
-func TestScannerRejectsNegativeZIPLimitBeforeChangingCatalog(t *testing.T) {
-	store := openScannerStore(t)
-	rootPath := t.TempDir()
-	mustWriteScannerFile(t, filepath.Join(rootPath, "game.sfc"), []byte("game"))
-	scanner := Scanner{Store: store, Registry: core.DefaultRegistry(), MaxZIPEntries: -1}
-	if _, err := scanner.Scan(context.Background(), []Root{{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}}); err == nil {
-		t.Fatal("Scan with negative MaxZIPEntries succeeded")
-	}
-	if got := scannerGames(t, store); len(got) != 0 {
-		t.Fatalf("invalid scanner configuration changed catalog: %+v", got)
+func TestScannerRejectsZIPLimitsOutsideHardMaximumBeforeChangingCatalog(t *testing.T) {
+	for _, limit := range []int{-1, 4097} {
+		t.Run(fmt.Sprintf("limit_%d", limit), func(t *testing.T) {
+			store := openScannerStore(t)
+			rootPath := t.TempDir()
+			mustWriteScannerFile(t, filepath.Join(rootPath, "game.sfc"), []byte("game"))
+			scanner := Scanner{Store: store, Registry: core.DefaultRegistry(), MaxZIPEntries: limit}
+			if _, err := scanner.Scan(context.Background(), []Root{{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}}); err == nil {
+				t.Fatalf("Scan with MaxZIPEntries %d succeeded", limit)
+			}
+			if got := scannerLibraryCount(t, store); got != 0 {
+				t.Fatalf("invalid scanner configuration created %d libraries", got)
+			}
+			if got := scannerGames(t, store); len(got) != 0 {
+				t.Fatalf("invalid scanner configuration changed catalog: %+v", got)
+			}
+		})
 	}
 }
 
-type failOnReadCloser struct{ io.ReadCloser }
+func TestScannerRootSwapAfterPreflightRollsBackAndMarksOffline(t *testing.T) {
+	ctx := context.Background()
+	parent := t.TempDir()
+	rootPath := filepath.Join(parent, "library")
+	mustWriteScannerFile(t, filepath.Join(rootPath, "game.sfc"), []byte("game"))
+	store := openScannerStore(t)
+	root := Root{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}
+	scanner := Scanner{Store: store, Registry: core.DefaultRegistry()}
+	if _, err := scanner.Scan(ctx, []Root{root}); err != nil {
+		t.Fatalf("seed Scan: %v", err)
+	}
+	seeded := scannerGameByPath(t, store, "game.sfc")
+	content := Content{SHA256: strings.Repeat("a", 64), Size: 4, Extension: "sfc"}
+	if updated, err := store.UpdateContent(ctx, seeded.ID, seeded.Fingerprint, content); err != nil || !updated {
+		t.Fatalf("UpdateContent = %v, %v", updated, err)
+	}
 
-func (f *failOnReadCloser) Read([]byte) (int, error) {
+	external := t.TempDir()
+	mustWriteScannerFile(t, filepath.Join(external, "outside.sfc"), []byte("outside"))
+	realPath := filepath.Join(parent, "library-real")
+	scanner.walkDir = func(path string, fn fs.WalkDirFunc) error {
+		if err := os.Rename(path, realPath); err != nil {
+			return err
+		}
+		if err := os.Symlink(external, path); err != nil {
+			return err
+		}
+		return filepath.WalkDir(path, fn)
+	}
+	report, err := scanner.Scan(ctx, []Root{root})
+	if err != nil {
+		t.Fatalf("Scan(swapped root): %v", err)
+	}
+	if got, want := report.Roots, []RootReport{{
+		RootID: root.ID, System: root.System, Offline: true, Reason: reasonRootOffline,
+	}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("swapped-root report = %+v, want %+v", got, want)
+	}
+	game := scannerGameByPath(t, store, "game.sfc")
+	if game.RootOnline || game.State != SourceStateAvailable || game.Content == nil || *game.Content != content {
+		t.Fatalf("swapped root changed prior game/content: %+v", game)
+	}
+	if got := scannerGamePaths(scannerGames(t, store)); !reflect.DeepEqual(got, []string{"game.sfc"}) {
+		t.Fatalf("swapped root accepted external paths: %v", got)
+	}
+}
+
+func TestScannerRejectsRawFinalSymlinkSwap(t *testing.T) {
+	rootPath := t.TempDir()
+	sourcePath := filepath.Join(rootPath, "game.sfc")
+	mustWriteScannerFile(t, sourcePath, []byte("inside"))
+	external := filepath.Join(t.TempDir(), "outside.sfc")
+	mustWriteScannerFile(t, external, []byte("outside"))
+
+	store := openScannerStore(t)
+	scanner := Scanner{Store: store, Registry: core.DefaultRegistry()}
+	scanner.lstat = swapScannerCandidateAfterLstat(t, sourcePath, external)
+	if _, err := scanner.Scan(context.Background(), []Root{{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}}); err != nil {
+		t.Fatalf("Scan(raw swap): %v", err)
+	}
+	game := scannerGameByPath(t, store, "game.sfc")
+	if game.State != SourceStateInvalid || game.Reason == "" || strings.Contains(game.Reason, external) {
+		t.Fatalf("raw final-component swap = %+v, want path-free invalid", game)
+	}
+}
+
+func TestScannerRejectsZIPFinalSymlinkSwapWithoutReadingExternalCentralDirectory(t *testing.T) {
+	rootPath := t.TempDir()
+	sourcePath := filepath.Join(rootPath, "game.zip")
+	mustWriteScannerFile(t, sourcePath, makeScannerZIP(t, []scannerZIPEntry{{name: "inside.sfc", body: []byte("inside")}}))
+	external := filepath.Join(t.TempDir(), "outside.zip")
+	mustWriteScannerFile(t, external, makeScannerZIP(t, []scannerZIPEntry{{name: "outside.sfc", body: []byte("outside")}}))
+
+	store := openScannerStore(t)
+	scanner := Scanner{Store: store, Registry: core.DefaultRegistry()}
+	scanner.lstat = swapScannerCandidateAfterLstat(t, sourcePath, external)
+	if _, err := scanner.Scan(context.Background(), []Root{{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}}); err != nil {
+		t.Fatalf("Scan(ZIP swap): %v", err)
+	}
+	game := scannerGameByPath(t, store, "game.zip")
+	if game.State != SourceStateInvalid || game.Fingerprint.ZIPMember != "" || game.Reason == "" || strings.Contains(game.Reason, external) {
+		t.Fatalf("ZIP final-component swap = %+v, want path-free invalid without external member", game)
+	}
+}
+
+func TestScannerRejectsParentDirectorySymlinkSwap(t *testing.T) {
+	rootPath := t.TempDir()
+	parentPath := filepath.Join(rootPath, "nested")
+	sourcePath := filepath.Join(parentPath, "game.sfc")
+	mustWriteScannerFile(t, sourcePath, []byte("inside"))
+	externalParent := t.TempDir()
+	mustWriteScannerFile(t, filepath.Join(externalParent, "game.sfc"), []byte("outside"))
+
+	store := openScannerStore(t)
+	scanner := Scanner{Store: store, Registry: core.DefaultRegistry()}
+	swapped := false
+	scanner.lstat = func(name string) (fs.FileInfo, error) {
+		info, err := os.Lstat(name)
+		if err != nil || swapped || name != sourcePath {
+			return info, err
+		}
+		swapped = true
+		if err := os.Rename(parentPath, parentPath+"-original"); err != nil {
+			t.Fatalf("rename candidate parent: %v", err)
+		}
+		if err := os.Symlink(externalParent, parentPath); err != nil {
+			t.Fatalf("replace candidate parent with symlink: %v", err)
+		}
+		return info, nil
+	}
+	if _, err := scanner.Scan(context.Background(), []Root{{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}}); err != nil {
+		t.Fatalf("Scan(parent swap): %v", err)
+	}
+	game := scannerGameByPath(t, store, "nested/game.sfc")
+	if game.State != SourceStateInvalid || game.Reason == "" || strings.Contains(game.Reason, externalParent) {
+		t.Fatalf("parent-directory swap = %+v, want path-free invalid", game)
+	}
+}
+
+type failOnReadFile struct{ *os.File }
+
+func (f *failOnReadFile) Read([]byte) (int, error) {
 	return 0, errors.New("raw ROM bytes must not be read during scan")
+}
+
+func (f *failOnReadFile) ReadAt([]byte, int64) (int, error) {
+	return 0, errors.New("raw ROM bytes must not be read during scan")
+}
+
+func swapScannerCandidateAfterLstat(t *testing.T, sourcePath, externalPath string) func(string) (fs.FileInfo, error) {
+	t.Helper()
+	swapped := false
+	return func(name string) (fs.FileInfo, error) {
+		info, err := os.Lstat(name)
+		if err != nil || swapped || name != sourcePath {
+			return info, err
+		}
+		swapped = true
+		if err := os.Rename(sourcePath, sourcePath+"-original"); err != nil {
+			t.Fatalf("rename candidate: %v", err)
+		}
+		if err := os.Symlink(externalPath, sourcePath); err != nil {
+			t.Fatalf("replace candidate with symlink: %v", err)
+		}
+		return info, nil
+	}
 }
 
 type scannerZIPEntry struct {
@@ -390,6 +538,15 @@ func scannerGames(t *testing.T, store *Store) []Game {
 		t.Fatalf("Games: %v", err)
 	}
 	return games
+}
+
+func scannerLibraryCount(t *testing.T, store *Store) int {
+	t.Helper()
+	var count int
+	if err := store.db.QueryRow("SELECT COUNT(*) FROM libraries").Scan(&count); err != nil {
+		t.Fatalf("count libraries: %v", err)
+	}
+	return count
 }
 
 func scannerGamePaths(games []Game) []string {
