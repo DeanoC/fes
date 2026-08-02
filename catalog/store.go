@@ -9,6 +9,8 @@ import (
 	"sync"
 
 	"github.com/DeanoC/FogCast-POC/protocol"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/unicode/norm"
 	_ "modernc.org/sqlite"
 )
 
@@ -243,24 +245,32 @@ func (x *ScanSession) Complete(ctx context.Context) (RootReport, error) {
 		"SELECT COUNT(*) FROM games WHERE library_id = ? AND seen_generation <> ?",
 		x.root.ID, x.generation,
 	).Scan(&x.report.Missing); err != nil {
-		return RootReport{}, fmt.Errorf("count missing games for root %q: %w", x.root.ID, err)
+		return x.terminate(fmt.Errorf("count missing games for root %q: %w", x.root.ID, err))
 	}
 	if _, err := x.tx.ExecContext(ctx,
 		"UPDATE games SET source_state = ? WHERE library_id = ? AND seen_generation <> ?",
 		SourceStateMissing, x.root.ID, x.generation,
 	); err != nil {
-		return RootReport{}, fmt.Errorf("mark missing games for root %q: %w", x.root.ID, err)
+		return x.terminate(fmt.Errorf("mark missing games for root %q: %w", x.root.ID, err))
 	}
 	if _, err := x.tx.ExecContext(ctx,
 		"UPDATE libraries SET online = 1, last_error = '' WHERE id = ?", x.root.ID,
 	); err != nil {
-		return RootReport{}, fmt.Errorf("mark root %q online: %w", x.root.ID, err)
+		return x.terminate(fmt.Errorf("mark root %q online: %w", x.root.ID, err))
 	}
 	if err := x.tx.Commit(); err != nil {
-		return RootReport{}, fmt.Errorf("commit scan for root %q: %w", x.root.ID, err)
+		return x.terminate(fmt.Errorf("commit scan for root %q: %w", x.root.ID, err))
 	}
 	x.finished = true
 	return x.report, nil
+}
+
+func (x *ScanSession) terminate(cause error) (RootReport, error) {
+	x.finished = true
+	if err := x.tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+		return RootReport{}, errors.Join(cause, fmt.Errorf("roll back failed catalog scan: %w", err))
+	}
+	return RootReport{}, cause
 }
 
 func (x *ScanSession) Rollback() error {
@@ -325,13 +335,24 @@ func (s *Store) Games(ctx context.Context) ([]Game, error) {
 }
 
 func (s *Store) Search(ctx context.Context, query string) ([]Game, error) {
-	escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(strings.ToLower(query))
-	pattern := "%" + escaped + "%"
-	return s.queryGames(ctx, selectGames+`
-		WHERE lower(g.title) LIKE ? ESCAPE '\'
-		   OR lower(g.game_id) LIKE ? ESCAPE '\'
-		   OR lower(g.system) LIKE ? ESCAPE '\'
-		ORDER BY lower(g.title), g.game_id`, pattern, pattern, pattern)
+	games, err := s.queryGames(ctx, selectGames+" ORDER BY lower(g.title), g.game_id")
+	if err != nil {
+		return nil, err
+	}
+	foldedQuery := foldSearchText(query)
+	matches := make([]Game, 0)
+	for _, game := range games {
+		if strings.Contains(foldSearchText(game.Title), foldedQuery) ||
+			strings.Contains(foldSearchText(game.ID), foldedQuery) ||
+			strings.Contains(foldSearchText(string(game.System)), foldedQuery) {
+			matches = append(matches, game)
+		}
+	}
+	return matches, nil
+}
+
+func foldSearchText(value string) string {
+	return norm.NFC.String(cases.Fold().String(norm.NFC.String(value)))
 }
 
 func (s *Store) Game(ctx context.Context, id string) (Game, error) {

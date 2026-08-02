@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DeanoC/FogCast-POC/catalog"
 	"github.com/DeanoC/FogCast-POC/protocol"
@@ -333,6 +334,49 @@ func TestScanSessionRollbackIsIdempotentAndPreservesGeneration(t *testing.T) {
 	assertGeneration(t, store.path, 1)
 }
 
+func TestScanSessionCompleteErrorRollsBackAndReleasesStore(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/games/snes"}
+	c := candidate("snes-game", "Original", "game.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA)
+	first, err := store.BeginRootScan(ctx, root)
+	if err != nil {
+		t.Fatalf("BeginRootScan(first): %v", err)
+	}
+	mustObserve(t, first, c, catalog.ChangeAdded)
+	mustComplete(t, first)
+
+	interrupted, err := store.BeginRootScan(ctx, root)
+	if err != nil {
+		t.Fatalf("BeginRootScan(interrupted): %v", err)
+	}
+	defer interrupted.Rollback()
+	c.Title = "Must Roll Back"
+	mustObserve(t, interrupted, c, catalog.ChangeUpdated)
+	canceled, cancel := context.WithCancel(ctx)
+	cancel()
+	if _, err := interrupted.Complete(canceled); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Complete(canceled) error = %v, want context.Canceled", err)
+	}
+
+	queryCtx, queryCancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer queryCancel()
+	game, err := store.Game(queryCtx, c.ID)
+	if err != nil {
+		t.Fatalf("Game after failed Complete: %v", err)
+	}
+	if game.Title != "Original" {
+		t.Fatalf("title after failed Complete = %q, want Original", game.Title)
+	}
+	assertGeneration(t, store.path, 1)
+	if err := interrupted.Rollback(); err != nil {
+		t.Fatalf("Rollback after failed Complete: %v", err)
+	}
+	if err := interrupted.Rollback(); err != nil {
+		t.Fatalf("second Rollback after failed Complete: %v", err)
+	}
+}
+
 func TestSearchUsesLiteralCaseInsensitiveSubstringAndDeterministicOrdering(t *testing.T) {
 	ctx := context.Background()
 	store := openStore(t)
@@ -359,6 +403,30 @@ func TestSearchUsesLiteralCaseInsensitiveSubstringAndDeterministicOrdering(t *te
 	assertSearchIDs(t, store, "_", []string{"snes-under_id"})
 	assertSearchIDs(t, store, "", []string{"snes-percent-id", "snes-alpha", "snes-under_id", "snes-zulu"})
 	assertSearchIDs(t, store, "SNES", []string{"snes-percent-id", "snes-alpha", "snes-under_id", "snes-zulu"})
+}
+
+func TestSearchUsesUnicodeNormalizationAndCaseFolding(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/games/snes"}
+	x, err := store.BeginRootScan(ctx, root)
+	if err != nil {
+		t.Fatalf("BeginRootScan: %v", err)
+	}
+	for _, c := range []catalog.Candidate{
+		candidate("snes-eclair", "Éclair", "eclair.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA),
+		candidate("snes-cafe", "Cafe\u0301 Racer", "cafe.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA),
+		candidate("snes-straße", "Autobahn", "strasse.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA),
+		candidate("snes-backslash", `Path\Game`, "backslash.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA),
+	} {
+		mustObserve(t, x, c, catalog.ChangeAdded)
+	}
+	mustComplete(t, x)
+
+	assertSearchIDs(t, store, "éCL", []string{"snes-eclair"})
+	assertSearchIDs(t, store, "CAFÉ", []string{"snes-cafe"})
+	assertSearchIDs(t, store, "STRASSE", []string{"snes-straße"})
+	assertSearchIDs(t, store, `\`, []string{"snes-backslash"})
 }
 
 func TestStoreGameUnknownAndContentCompareAndSet(t *testing.T) {
