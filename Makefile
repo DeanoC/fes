@@ -2,7 +2,7 @@ VERSION ?= 0.1.0
 CONTAINER_RUNTIME ?= docker
 LDFLAGS = -s -w -X github.com/clawzai2-tech/mister-remote/internal/version.Version=$(VERSION)
 
-.PHONY: fmt test vet check build build-cli build-hil build-agent build-lock build-lock-container package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-verify-images poc1b-qemu-smoke poc1b-kernel-test poc1b-kernel poc1b-verify-kernel
+.PHONY: fmt test vet check build build-cli build-hil build-agent build-lock build-lock-container package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-verify-images poc1b-qemu-smoke poc1b-kernel-test poc1b-kernel poc1b-verify-kernel poc1b-deploy-test
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
@@ -15,6 +15,7 @@ test:
 	sh scripts/tests/poc1b-rootfs_test.sh
 	sh scripts/tests/poc1b-image_test.sh
 	sh scripts/tests/poc1b-kernel_test.sh
+	sh scripts/tests/install-poc1b-target_test.sh
 
 vet:
 	go vet ./...
@@ -78,6 +79,9 @@ poc1b-kernel: poc1b-images
 
 poc1b-verify-kernel: poc1b-kernel
 	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-poc1b-kernel.sh build/output/poc1b/kernel
+
+poc1b-deploy-test:
+	sh scripts/tests/install-poc1b-target_test.sh
 
 package-poc1a:
 	MISTER_TOKEN="$${MISTER_TOKEN:?MISTER_TOKEN is required}" VERSION="$(VERSION)" ./scripts/package-poc1a.sh
