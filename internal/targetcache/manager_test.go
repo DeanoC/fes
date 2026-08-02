@@ -319,7 +319,7 @@ func TestInventoryAbortsBeforeCleaningDetachedSystemDirectory(t *testing.T) {
 	}
 }
 
-func TestInventoryRetainsStaleCandidateReplacedBeforeRemoval(t *testing.T) {
+func TestInventoryRetainsStaleCandidateReplacedAtRemoveBoundary(t *testing.T) {
 	tests := []struct {
 		name    string
 		replace func(*testing.T, string) string
@@ -375,7 +375,7 @@ func TestInventoryRetainsStaleCandidateReplacedBeforeRemoval(t *testing.T) {
 			var mutationErr error
 			var outside string
 			writer := &callbackWriter{callback: func() {
-				if err := os.Remove(part); err != nil {
+				if err := os.Remove(part); err != nil && !os.IsNotExist(err) {
 					mutationErr = err
 					return
 				}
@@ -399,6 +399,64 @@ func TestInventoryRetainsStaleCandidateReplacedBeforeRemoval(t *testing.T) {
 				t.Fatalf("replacement was removed or changed: info=%v error=%v", info, statErr)
 			}
 		})
+	}
+}
+
+func TestInventoryRetainsPartWhenSystemDetachesAtRemoveBoundary(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	systemDirectory := filepath.Join(root, string(protocol.SystemSNES))
+	if err := os.MkdirAll(systemDirectory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	partName := ".fogcast-boundary.part"
+	partContent := []byte("boundary partial")
+	writeNamedFile(t, systemDirectory, partName, partContent)
+	detachedDirectory := filepath.Join(t.TempDir(), "detached-snes")
+
+	var mutationErr error
+	writer := &callbackWriter{callback: func() {
+		if err := os.Rename(systemDirectory, detachedDirectory); err != nil {
+			mutationErr = err
+			return
+		}
+		mutationErr = os.Mkdir(systemDirectory, 0o700)
+	}}
+	logger := slog.New(slog.NewJSONHandler(writer, nil))
+	manager, err := targetcache.Open(testManagerConfig(root), core.DefaultRegistry(), targetcache.WithLogger(logger))
+	if mutationErr != nil {
+		t.Fatalf("detach system directory: %v", mutationErr)
+	}
+	if writer.calls() == 0 {
+		t.Fatal("cleanup boundary callback did not run")
+	}
+	if manager != nil || err == nil {
+		t.Fatalf("Open after boundary detachment returned manager=%t error=%t; want manager=false error=true", manager != nil, err != nil)
+	}
+	for _, private := range []string{root, systemDirectory, detachedDirectory, partName, string(partContent)} {
+		if strings.Contains(err.Error(), private) {
+			t.Fatalf("Open error %q exposes private value %q", err, private)
+		}
+	}
+	entries, readErr := os.ReadDir(detachedDirectory)
+	if readErr != nil {
+		t.Fatalf("read detached system directory: %v", readErr)
+	}
+	retained := false
+	for _, entry := range entries {
+		candidate := filepath.Join(detachedDirectory, entry.Name())
+		info, statErr := os.Lstat(candidate)
+		if statErr != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		content, readErr := os.ReadFile(candidate)
+		if readErr == nil && string(content) == string(partContent) {
+			retained = true
+		}
+	}
+	if !retained {
+		t.Fatal("stale part was deleted after the system directory detached at the remove boundary")
 	}
 }
 
