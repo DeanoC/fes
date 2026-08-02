@@ -25,6 +25,11 @@ verify_smoke_log() {
   }
   grep -Eq 'POC1B_SMOKE_ROOT options=([^,[:space:]]+,)*ro(,|[[:space:]]|$)' "$smoke_log"
   grep -Fq 'POC1B_SMOKE_VOLATILE /run /tmp /var/log writable tmpfs' "$smoke_log"
+  wait_count=$(grep -Fc 'mister-main: waiting for /media/fat payloads' "$smoke_log" || true)
+  test "$wait_count" -eq 1 || {
+    printf 'qemu-smoke-poc1b: %s did not enter exactly one bounded payload wait\n' "$smoke_variant" >&2
+    exit 1
+  }
 }
 
 case "${1:-}" in
@@ -54,17 +59,50 @@ case "${1:-}" in
     esac
     test -f "$image"
 
-    toolchain=/poc1b-output/work-2-$variant/host/bin/arm-buildroot-linux-gnueabihf-
+    # The smoke kernel is shared test infrastructure. Use one canonical pinned
+    # toolchain so switching rootfs variants cannot invalidate its cache.
+    toolchain=/poc1b-output/work-2-prod/host/bin/arm-buildroot-linux-gnueabihf-
     test -x "${toolchain}gcc" || {
       printf 'qemu-smoke-poc1b: cross compiler is missing: %sgcc\n' "$toolchain" >&2
       exit 1
     }
-    kernel_source=/work/build/cache/poc1b/linux-kernel
+    kernel_bare=/work/build/cache/poc1b/linux-kernel.git
+    kernel_source=/poc1b-output/qemu-vexpress-source
     kernel_output=/poc1b-output/qemu-vexpress-kernel
-    /bin/mkdir -p "$kernel_output"
+    /work/scripts/verify-poc1b-source-cache.sh \
+      /work/build/sources.poc1b.lock.toml \
+      /work/build/cache/poc1b
+    source_head=$(git --git-dir="$kernel_bare" rev-parse refs/poc1b/pinned)
+    source_marker=$kernel_source/.poc1b-commit
+    actual_source=
+    if [ -f "$source_marker" ]; then
+      IFS= read -r actual_source < "$source_marker"
+    fi
+    if [ "$actual_source" != "$source_head" ] || \
+       [ ! -d "$kernel_source/.git" ]; then
+      /bin/rm -rf "$kernel_source"
+      /bin/mkdir -p "$kernel_source"
+      git -C "$kernel_source" init
+      git -C "$kernel_source" fetch --depth=1 "$kernel_bare" "$source_head"
+      git -C "$kernel_source" checkout --detach FETCH_HEAD
+      printf '%s\n' "$source_head" > "$source_marker"
+    fi
+    test "$(git -C "$kernel_source" rev-parse HEAD)" = "$source_head"
+    test -z "$(git -C "$kernel_source" status --porcelain --untracked-files=all -- ':!/.poc1b-commit')"
+    compiler_sha=$(sha256sum "${toolchain}gcc" | awk '{print $1}')
+    script_sha=$(sha256sum "$0" | awk '{print $1}')
+    expected_key=$(printf '%s\n%s\n%s\n' "$source_head" "$compiler_sha" "$script_sha" | sha256sum | awk '{print $1}')
+    provenance_key=$kernel_output/provenance.key
+    actual_key=
+    if [ -f "$provenance_key" ]; then
+      IFS= read -r actual_key < "$provenance_key"
+    fi
 
-    if [ ! -f "$kernel_output/arch/arm/boot/zImage" ] || \
+    if [ "$actual_key" != "$expected_key" ] || \
+       [ ! -f "$kernel_output/arch/arm/boot/zImage" ] || \
        [ ! -f "$kernel_output/arch/arm/boot/dts/vexpress-v2p-ca9.dtb" ]; then
+      /bin/rm -rf "$kernel_output"
+      /bin/mkdir -p "$kernel_output"
       make -C "$kernel_source" O="$kernel_output" ARCH=arm CROSS_COMPILE="$toolchain" vexpress_defconfig
       "$kernel_source/scripts/config" --file "$kernel_output/.config" \
         -e DEVTMPFS \
@@ -78,6 +116,8 @@ case "${1:-}" in
         -e TMPFS
       make -C "$kernel_source" O="$kernel_output" ARCH=arm CROSS_COMPILE="$toolchain" olddefconfig
       make -C "$kernel_source" O="$kernel_output" ARCH=arm CROSS_COMPILE="$toolchain" -j4 zImage dtbs
+      printf '%s\n' "$expected_key" > "$provenance_key.new"
+      /bin/mv "$provenance_key.new" "$provenance_key"
     fi
 
     log=/work/build/output/poc1b/$variant/qemu-smoke.log

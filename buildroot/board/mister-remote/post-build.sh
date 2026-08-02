@@ -66,15 +66,16 @@ fi
 
 if find "$target" -type f \( \
   -iname '*.rom' -o -iname '*.sfc' -o -iname '*.smc' -o \
-  -iname '*.md' -o -iname '*.gen' -o -iname '*.zip' -o \
+  -iname '*.md' -o -iname '*.gen' -o -iname '*.zip' -o -iname '*.bin' -o \
   -name 'agent.toml' \
 \) -print -quit | grep -q .; then
   printf '%s\n' 'post-build: ROM, archive, or runtime configuration payload found' >&2
   exit 1
 fi
 
-if find "$target" -type f -size -2M -exec grep -IlE '(^|[[:space:]])token[[:space:]]*=' {} + | grep -q .; then
-  printf '%s\n' 'post-build: token assignment found in root filesystem' >&2
+if find "$target" -type f -print0 | xargs -0 -r /usr/bin/strings -a 2>/dev/null | \
+   grep -Eiq '(^|[[:space:]])(token|secret|bearer|api[_-]?key)[[:space:]]*(=|:)'; then
+  printf '%s\n' 'post-build: secret assignment found in root filesystem' >&2
   exit 1
 fi
 

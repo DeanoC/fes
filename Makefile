@@ -62,8 +62,8 @@ poc1b-images: build-agent poc1b-image-fetch
 	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-poc1b-image.sh dev
 
 poc1b-verify-images:
-	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-poc1b-image.sh prod build/output/poc1b/prod/linux.img build/output/poc1b/prod/manifest.tsv
-	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-poc1b-image.sh dev build/output/poc1b/dev/linux.img build/output/poc1b/dev/manifest.tsv
+	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-poc1b-image.sh prod build/output/poc1b/prod/linux.img build/output/poc1b/prod/manifest.tsv build/output/poc1b/prod/library-report.tsv
+	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-poc1b-image.sh dev build/output/poc1b/dev/linux.img build/output/poc1b/dev/manifest.tsv build/output/poc1b/dev/library-report.tsv
 
 poc1b-qemu-smoke:
 	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/qemu-smoke-poc1b.sh prod build/output/poc1b/prod/linux.img

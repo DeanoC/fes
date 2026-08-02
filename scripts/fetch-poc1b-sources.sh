@@ -87,10 +87,33 @@ fetch_repo() {
   fi
 }
 
+fetch_bare_repo() {
+  fetch_name=$1
+  fetch_url=$2
+  fetch_commit=$3
+  fetch_destination=$cache/$fetch_name.git
+  if [ ! -f "$fetch_destination/HEAD" ]; then
+    if [ -e "$fetch_destination" ]; then
+      printf 'fetch-poc1b-sources: refusing non-Git bare cache path: %s\n' "$fetch_destination" >&2
+      exit 1
+    fi
+    git init --bare "$fetch_destination"
+    git --git-dir="$fetch_destination" remote add origin "$fetch_url"
+  fi
+  test "$(git --git-dir="$fetch_destination" rev-parse --is-bare-repository)" = true || {
+    printf 'fetch-poc1b-sources: cache is not bare: %s\n' "$fetch_destination" >&2
+    exit 1
+  }
+  git --git-dir="$fetch_destination" remote set-url origin "$fetch_url"
+  git --git-dir="$fetch_destination" fetch --depth=1 origin "$fetch_commit"
+  git --git-dir="$fetch_destination" update-ref refs/poc1b/pinned "$fetch_commit"
+  git --git-dir="$fetch_destination" cat-file -e "$fetch_commit^{commit}"
+}
+
 mkdir -p "$cache"
 fetch_repo buildroot "$buildroot_repo" "$buildroot_commit"
 fetch_repo image-creator "$creator_repo" "$creator_commit"
-fetch_repo linux-kernel "$kernel_repo" "$kernel_commit"
+fetch_bare_repo linux-kernel "$kernel_repo" "$kernel_commit"
 
 "$lock_bin" verify-inputs --lock "$lock" --cache "$cache"
 printf 'POC 1B sources fetched and verified in %s\n' "$cache"

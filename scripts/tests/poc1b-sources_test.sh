@@ -5,6 +5,10 @@ repo=$(CDPATH='' cd -- "$(dirname "$0")/../.." && pwd)
 fixture=$(mktemp -d "${TMPDIR:-/tmp}/mister-remote-poc1b-sources.XXXXXX")
 trap 'rm -rf "$fixture"' EXIT INT TERM
 
+grep -Fq 'PACKAGE_SET_SHA256' "$repo/containers/poc1b/Dockerfile"
+grep -Fq 'build_image_id' "$repo/scripts/poc1b-container.sh"
+grep -Fq 'org.mister-remote.poc1b.context-digest' "$repo/scripts/poc1b-container.sh"
+
 make_repo() {
   make_repo_path=$1
   mkdir -p "$make_repo_path"
@@ -63,10 +67,28 @@ POC1B_KERNEL_REPO=$kernel_upstream \
 
 test "$(git -C "$cache/buildroot" rev-parse HEAD)" = "$buildroot_commit"
 test "$(git -C "$cache/image-creator" rev-parse HEAD)" = "$creator_commit"
-test "$(git -C "$cache/linux-kernel" rev-parse HEAD)" = "$kernel_commit"
+test "$(git --git-dir="$cache/linux-kernel.git" rev-parse refs/poc1b/pinned)" = "$kernel_commit"
+test "$(git --git-dir="$cache/linux-kernel.git" rev-parse --is-bare-repository)" = true
 test "$(git -C "$cache/buildroot" symbolic-ref -q HEAD || true)" = ""
 test "$(git -C "$cache/image-creator" symbolic-ref -q HEAD || true)" = ""
-test "$(git -C "$cache/linux-kernel" symbolic-ref -q HEAD || true)" = ""
+test -d "$cache/linux-kernel.git/objects"
+
+sh "$repo/scripts/verify-poc1b-source-cache.sh" "$lock" "$cache"
+printf '%s\n' dirty > "$cache/buildroot/dirty.untracked"
+if sh "$repo/scripts/verify-poc1b-source-cache.sh" "$lock" "$cache" >/dev/null 2>&1; then
+  echo 'source-cache verifier accepted an untracked file' >&2
+  exit 1
+fi
+rm "$cache/buildroot/dirty.untracked"
+git -C "$cache/buildroot" checkout -q -B attached-test
+if sh "$repo/scripts/verify-poc1b-source-cache.sh" "$lock" "$cache" >/dev/null 2>&1; then
+  echo 'source-cache verifier accepted an attached HEAD' >&2
+  exit 1
+fi
+git -C "$cache/buildroot" checkout -q --detach "$buildroot_commit"
+sh "$repo/scripts/verify-poc1b-source-cache.sh" "$lock" "$cache"
+grep -Fq '/work/scripts/verify-poc1b-source-cache.sh' \
+  "$repo/scripts/build-poc1b-image.sh"
 
 bad_lock=$fixture/bad.lock.toml
 sed "s/rootfs_sha256 = '$rootfs_sha'/rootfs_sha256 = 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'/" "$lock" > "$bad_lock"
@@ -84,16 +106,32 @@ fi
 
 docker_log=$fixture/docker.log
 fake_docker=$fixture/docker
-printf '%s\n' \
-  '#!/bin/sh' \
-  'printf "%s\n" "$*" >> "$POC1B_DOCKER_LOG"' \
-  'if [ "$1 $2" = "image inspect" ]; then' \
-  '  case "$3" in' \
-  '    docker.io/*@*) printf "debian@%s\n" "${POC1B_FAKE_BASE_DIGEST:-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}" ;;' \
-  '    mister-remote-poc1b-build:*) printf "%s\n" linux/amd64 ;;' \
-  '  esac' \
-  'fi' \
-  'exit 0' > "$fake_docker"
+cat > "$fake_docker" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$*" >> "$POC1B_DOCKER_LOG"
+if [ "$1 $2" = "image inspect" ]; then
+  case "$3" in
+    docker.io/*@*)
+      printf 'debian@%s\n' "${POC1B_FAKE_BASE_DIGEST:-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}"
+      ;;
+    mister-remote-poc1b-build:*)
+      case "$*" in
+        *org.mister-remote.poc1b.context-digest*)
+          tag=${3#*:}
+          old_ifs=$IFS
+          IFS=-
+          set -- $tag
+          IFS=$old_ifs
+          context=$2
+          if [ "${POC1B_FAKE_BAD_CONTEXT:-0}" = 1 ]; then context=bad; fi
+          printf 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc|linux/amd64|sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|%s|248d70eb37287c1b072092583a5402e76ed4010b57bbcc3f41d722aa6e3d6844|%s|%s\n' "$context" "$3" "$4"
+          ;;
+      esac
+      ;;
+  esac
+fi
+exit 0
+EOF
 chmod 0755 "$fake_docker"
 
 POC1B_CONTAINER_RUNTIME=$fake_docker \
@@ -102,8 +140,10 @@ POC1B_LOCK=$lock \
 MISTER_TOKEN=must-not-cross-container-boundary \
   sh "$repo/scripts/poc1b-container.sh" run true
 grep -q -- '--network none' "$docker_log"
+grep -q -- '--ulimit core=0:0' "$docker_log"
 grep -q -- 'mister-remote-poc1b-output:/poc1b-output' "$docker_log"
 ! grep -q 'must-not-cross-container-boundary' "$docker_log"
+grep -q 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc true' "$docker_log"
 
 : > "$docker_log"
 POC1B_CONTAINER_RUNTIME=$fake_docker \
@@ -118,6 +158,15 @@ if POC1B_CONTAINER_RUNTIME=$fake_docker \
   POC1B_LOCK=$lock \
     sh "$repo/scripts/poc1b-container.sh" fetch true >/dev/null 2>&1; then
   echo 'container wrapper accepted a base image at the wrong digest' >&2
+  exit 1
+fi
+
+if POC1B_CONTAINER_RUNTIME=$fake_docker \
+  POC1B_DOCKER_LOG=$docker_log \
+  POC1B_FAKE_BAD_CONTEXT=1 \
+  POC1B_LOCK=$lock \
+    sh "$repo/scripts/poc1b-container.sh" run true >/dev/null 2>&1; then
+  echo 'container wrapper accepted a retagged build image' >&2
   exit 1
 fi
 

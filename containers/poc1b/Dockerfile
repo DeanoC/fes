@@ -3,6 +3,15 @@ FROM ${BASE_IMAGE}
 
 ARG HOST_UID=1000
 ARG HOST_GID=1000
+ARG BASE_DIGEST
+ARG CONTEXT_DIGEST
+ARG PACKAGE_SET_SHA256
+
+LABEL org.mister-remote.poc1b.base-digest="${BASE_DIGEST}" \
+      org.mister-remote.poc1b.context-digest="${CONTEXT_DIGEST}" \
+      org.mister-remote.poc1b.package-set-sha256="${PACKAGE_SET_SHA256}" \
+      org.mister-remote.poc1b.host-uid="${HOST_UID}" \
+      org.mister-remote.poc1b.host-gid="${HOST_GID}"
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -31,6 +40,9 @@ RUN apt-get update \
       wget \
       xz-utils \
  && rm -rf /var/lib/apt/lists/*
+
+RUN actual="$(dpkg-query -W -f='${binary:Package}=${Version}\n' | LC_ALL=C sort | sha256sum | awk '{print $1}')" \
+ && test "${actual}" = "${PACKAGE_SET_SHA256}"
 
 COPY containers/poc1b/create-builder-user.sh /usr/local/sbin/create-builder-user
 RUN HOST_UID="${HOST_UID}" HOST_GID="${HOST_GID}" /usr/local/sbin/create-builder-user \
