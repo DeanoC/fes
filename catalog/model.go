@@ -16,6 +16,10 @@ type Root struct {
 	Path   string
 }
 
+type ScanReport struct {
+	Roots []RootReport
+}
+
 type SourceKind string
 
 const (
