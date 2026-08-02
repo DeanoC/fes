@@ -391,19 +391,115 @@ func TestPrepareCleansStagingWhenInitialFileSetupFails(t *testing.T) {
 	}
 }
 
+func TestPrepareCreatesPartialStagingFileOnlyInValidatedHeldRoot(t *testing.T) {
+	root, game := rawFixture(t, "game.sfc", []byte("content"))
+	parent := t.TempDir()
+	staging := filepath.Join(parent, "staging")
+	moved := filepath.Join(parent, "validated-staging")
+	if err := os.Mkdir(staging, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	mutationAttempted := false
+	mutationCompleted := false
+	var mutationErr error
+	createdBase := ""
+	preparer := Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}
+	preparer.beforeStagingCreate = func(rootPath string) error {
+		mutationAttempted = true
+		if err := os.Rename(rootPath, moved); err != nil {
+			mutationErr = err
+			return nil
+		}
+		if err := os.Mkdir(rootPath, 0o700); err != nil {
+			mutationErr = err
+			return nil
+		}
+		mutationCompleted = true
+		return nil
+	}
+	preparer.statStagedFile = func(file *os.File) (fs.FileInfo, error) {
+		createdBase = filepath.Base(file.Name())
+		return nil, errors.New("injected initial staging stat failure")
+	}
+
+	_, err := preparer.Prepare(context.Background(), root, game)
+	if !mutationAttempted || !mutationCompleted || mutationErr != nil {
+		t.Fatalf("staging root mutation attempted=%v completed=%v err=%v", mutationAttempted, mutationCompleted, mutationErr)
+	}
+	if createdBase == "" {
+		t.Fatal("staging creation was not observed")
+	}
+	assertPrepareError(t, err, game.ID, protocol.CodeTransferFailed, staging)
+	if _, err := os.Lstat(filepath.Join(moved, createdBase)); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("partial artifact remains in validated root: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(staging, createdBase)); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("partial artifact escaped into replacement root: %v", err)
+	}
+	assertStagingEmpty(t, moved)
+	assertStagingEmpty(t, staging)
+}
+
+func TestPrepareInitialStatFailureRemovesCreatedIdentityNotSameNameReplacement(t *testing.T) {
+	root, game := rawFixture(t, "game.sfc", []byte("content"))
+	staging := t.TempDir()
+	mutationAttempted := false
+	mutationCompleted := false
+	var mutationErr error
+	partialPath := ""
+	decoyPath := ""
+	preparer := Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}
+	preparer.statStagedFile = func(file *os.File) (fs.FileInfo, error) {
+		mutationAttempted = true
+		info, err := file.Stat()
+		if err != nil {
+			mutationErr = err
+			return nil, errors.New("injected initial staging stat failure")
+		}
+		decoyPath = file.Name()
+		partialPath = decoyPath + ".partial"
+		if err := os.Rename(decoyPath, partialPath); err != nil {
+			mutationErr = err
+			return nil, errors.New("injected initial staging stat failure")
+		}
+		if err := os.WriteFile(decoyPath, []byte("same-name-decoy"), 0o600); err != nil {
+			mutationErr = err
+			return nil, errors.New("injected initial staging stat failure")
+		}
+		mutationCompleted = true
+		return info, errors.New("injected initial staging stat failure")
+	}
+
+	_, err := preparer.Prepare(context.Background(), root, game)
+	if !mutationAttempted || !mutationCompleted || mutationErr != nil {
+		t.Fatalf("staging entry mutation attempted=%v completed=%v err=%v", mutationAttempted, mutationCompleted, mutationErr)
+	}
+	assertPrepareError(t, err, game.ID, protocol.CodeTransferFailed, staging)
+	if _, err := os.Lstat(partialPath); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("actual partial artifact remains after failure: %v", err)
+	}
+	decoy, err := os.ReadFile(decoyPath)
+	if err != nil || string(decoy) != "same-name-decoy" {
+		t.Fatalf("same-name replacement = %q, err=%v", decoy, err)
+	}
+}
+
 func TestPrepareRejectsStagingModeChangesBeforeFinalVerification(t *testing.T) {
 	tests := []struct {
-		name   string
-		mutate func(string, string) error
+		name     string
+		wantMode fs.FileMode
+		mutate   func(string, string) error
 	}{
 		{
-			name: "root becomes group accessible",
+			name:     "root becomes group accessible",
+			wantMode: 0o750,
 			mutate: func(rootPath, _ string) error {
 				return os.Chmod(rootPath, 0o750)
 			},
 		},
 		{
-			name: "file becomes group readable",
+			name:     "file becomes group readable",
+			wantMode: 0o640,
 			mutate: func(_, filePath string) error {
 				return os.Chmod(filePath, 0o640)
 			},
@@ -414,14 +510,48 @@ func TestPrepareRejectsStagingModeChangesBeforeFinalVerification(t *testing.T) {
 			root, game := rawFixture(t, "game.sfc", bytes.Repeat([]byte("content"), 1024))
 			staging := t.TempDir()
 			preparer := Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}
-			preparer.beforeStagingFinalVerify = test.mutate
+			mutationAttempted := false
+			mutationCompleted := false
+			var mutationErr error
+			var observedMode fs.FileMode
+			preparer.beforeStagingFinalVerify = func(rootPath, filePath string) error {
+				mutationAttempted = true
+				mutationErr = test.mutate(rootPath, filePath)
+				if mutationErr != nil {
+					return nil
+				}
+				mutatedPath := filePath
+				if test.wantMode == 0o750 {
+					mutatedPath = rootPath
+				}
+				info, err := os.Lstat(mutatedPath)
+				if err != nil {
+					mutationErr = err
+					return nil
+				}
+				observedMode = info.Mode().Perm()
+				mutationCompleted = true
+				return nil
+			}
 
 			prepared, err := preparer.Prepare(context.Background(), root, game)
 			if prepared != nil {
 				t.Cleanup(func() { _ = prepared.Remove() })
 			}
+			if !mutationAttempted || !mutationCompleted || mutationErr != nil {
+				t.Fatalf("mode mutation attempted=%v completed=%v err=%v", mutationAttempted, mutationCompleted, mutationErr)
+			}
+			if observedMode != test.wantMode {
+				t.Fatalf("mutated mode = %#o, want %#o", observedMode, test.wantMode)
+			}
 			assertPrepareError(t, err, game.ID, protocol.CodeTransferFailed, staging)
 			assertStagingEmpty(t, staging)
+			if test.wantMode == 0o750 {
+				info, statErr := os.Stat(staging)
+				if statErr != nil || info.Mode().Perm() != 0o750 {
+					t.Fatalf("final staging root mode = %v, err=%v, want 0750", info, statErr)
+				}
+			}
 		})
 	}
 }
@@ -445,18 +575,35 @@ func TestPrepareChmodsHeldStagingRootWithoutFollowingReplacementSymlink(t *testi
 		t.Fatal(err)
 	}
 	preparer := Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}
+	mutationAttempted := false
+	mutationCompleted := false
+	var mutationErr error
 	preparer.beforeStagingRootChmod = func(rootPath string) error {
+		mutationAttempted = true
 		if err := os.Rename(rootPath, moved); err != nil {
-			return err
+			mutationErr = err
+			return nil
 		}
-		return os.Symlink(external, rootPath)
+		if err := os.Symlink(external, rootPath); err != nil {
+			mutationErr = err
+			return nil
+		}
+		mutationCompleted = true
+		return nil
 	}
 
 	prepared, err := preparer.Prepare(context.Background(), root, game)
 	if prepared != nil {
 		t.Cleanup(func() { _ = prepared.Remove() })
 	}
+	if !mutationAttempted || !mutationCompleted || mutationErr != nil {
+		t.Fatalf("root replacement attempted=%v completed=%v err=%v", mutationAttempted, mutationCompleted, mutationErr)
+	}
 	assertPrepareError(t, err, game.ID, protocol.CodeTransferFailed, staging)
+	stagingInfo, err := os.Lstat(staging)
+	if err != nil || stagingInfo.Mode()&fs.ModeSymlink == 0 {
+		t.Fatalf("configured staging path mode = %v, err=%v, want symlink replacement", stagingInfo, err)
+	}
 	externalInfo, err := os.Stat(external)
 	if err != nil {
 		t.Fatal(err)

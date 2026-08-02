@@ -4,6 +4,7 @@ package romsource
 import (
 	"archive/zip"
 	"context"
+	cryptorand "crypto/rand"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -99,6 +100,7 @@ type Preparer struct {
 	chmodStagedFile          func(*os.File, fs.FileMode) error
 	beforeStagingFinalVerify func(string, string) error
 	beforeStagingRootChmod   func(string) error
+	beforeStagingCreate      func(string) error
 }
 
 type sourceFile interface {
@@ -502,7 +504,12 @@ func newStagedFile(preparer Preparer) (*stagedFile, error) {
 	if err != nil || pathRootInfo.Mode()&fs.ModeSymlink != 0 || !pathRootInfo.IsDir() || !os.SameFile(chmodRootInfo, pathRootInfo) || pathRootInfo.Mode().Perm() != 0o700 {
 		return failRoot(errors.Join(err, errors.New("staging root path mode or identity changed")))
 	}
-	file, err := os.CreateTemp(rootPath, ".fogcast-rom-*")
+	if preparer.beforeStagingCreate != nil {
+		if err := preparer.beforeStagingCreate(rootPath); err != nil {
+			return failRoot(err)
+		}
+	}
+	file, base, err := createTempInRoot(heldRoot)
 	if err != nil {
 		return failRoot(err)
 	}
@@ -512,9 +519,9 @@ func newStagedFile(preparer Preparer) (*stagedFile, error) {
 	}
 	staged := &stagedFile{
 		file: file, root: heldRoot, rootInfo: chmodRootInfo, path: file.Name(),
-		base: filepath.Base(file.Name()), statFile: statFile,
+		base: base, statFile: statFile,
 	}
-	fileInfo, err := statFile(file)
+	fileInfo, err := file.Stat()
 	staged.info = fileInfo
 	if err != nil || fileInfo == nil || !fileInfo.Mode().IsRegular() {
 		staged.cleanup()
@@ -524,6 +531,11 @@ func newStagedFile(preparer Preparer) (*stagedFile, error) {
 	if err != nil || !rootEntry.Mode().IsRegular() || !os.SameFile(fileInfo, rootEntry) {
 		staged.cleanup()
 		return nil, errors.Join(err, errors.New("staging file identity changed after creation"))
+	}
+	checkedFileInfo, err := statFile(file)
+	if err != nil || checkedFileInfo == nil || !checkedFileInfo.Mode().IsRegular() || !os.SameFile(fileInfo, checkedFileInfo) {
+		staged.cleanup()
+		return nil, errors.Join(err, errors.New("staging file descriptor identity changed after creation"))
 	}
 	chmodFile := preparer.chmodStagedFile
 	if chmodFile == nil {
@@ -538,6 +550,18 @@ func newStagedFile(preparer Preparer) (*stagedFile, error) {
 		return nil, err
 	}
 	return staged, nil
+}
+
+func createTempInRoot(root *os.Root) (*os.File, string, error) {
+	for range 10_000 {
+		base := ".fogcast-rom-" + strings.ToLower(cryptorand.Text())
+		file, err := root.OpenFile(base, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o600)
+		if errors.Is(err, fs.ErrExist) {
+			continue
+		}
+		return file, base, err
+	}
+	return nil, "", fs.ErrExist
 }
 
 func (s *stagedFile) verify(fileOpen bool) (fs.FileInfo, error) {
@@ -574,13 +598,16 @@ func (s *stagedFile) cleanup() {
 	entry, err := s.root.Lstat(s.base)
 	if err == nil && (s.info == nil || os.SameFile(s.info, entry)) {
 		_ = s.root.Remove(s.base)
-	} else if s.info != nil {
-		currentRoot, openErr := os.OpenRoot(filepath.Dir(s.path))
-		if openErr == nil {
-			if currentEntry, statErr := currentRoot.Lstat(s.base); statErr == nil && os.SameFile(s.info, currentEntry) {
-				_ = currentRoot.Remove(s.base)
+	}
+	if s.info != nil {
+		entries, readErr := fs.ReadDir(s.root.FS(), ".")
+		if readErr == nil {
+			for _, candidate := range entries {
+				candidateInfo, infoErr := candidate.Info()
+				if infoErr == nil && os.SameFile(s.info, candidateInfo) {
+					_ = s.root.Remove(candidate.Name())
+				}
 			}
-			_ = currentRoot.Close()
 		}
 	}
 	_ = s.root.Close()
