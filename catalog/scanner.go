@@ -35,7 +35,7 @@ type Scanner struct {
 	Registry      core.Registry
 	MaxZIPEntries int
 
-	walkDir  func(string, fs.WalkDirFunc) error
+	walkDir  func(fs.FS, string, fs.WalkDirFunc) error
 	lstat    func(string) (fs.FileInfo, error)
 	openFile func(*os.Root, string) (scannerSourceFile, error)
 }
@@ -50,6 +50,61 @@ type scannerSourceFile interface {
 type scannerRoot struct {
 	directory *os.Root
 	info      fs.FileInfo
+}
+
+type scannerTraversalFS struct {
+	root *os.Root
+}
+
+func (s scannerTraversalFS) Open(name string) (fs.File, error) {
+	checkedInfo, err := validateTraversalPath(s.root, name)
+	if err != nil {
+		return nil, err
+	}
+	file, err := s.root.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	fail := func(err error) (fs.File, error) {
+		_ = file.Close()
+		return nil, err
+	}
+	openedInfo, err := file.Stat()
+	if err != nil || !os.SameFile(checkedInfo, openedInfo) {
+		return fail(errors.Join(err, errors.New("traversal entry identity changed while opening")))
+	}
+	recheckedInfo, err := validateTraversalPath(s.root, name)
+	if err != nil || !os.SameFile(openedInfo, recheckedInfo) {
+		return fail(errors.Join(err, errors.New("traversal entry identity changed after opening")))
+	}
+	return file, nil
+}
+
+func validateTraversalPath(root *os.Root, name string) (fs.FileInfo, error) {
+	if name == "." {
+		return root.Lstat(name)
+	}
+	if !fs.ValidPath(name) {
+		return nil, &fs.PathError{Op: "lstat", Path: name, Err: fs.ErrInvalid}
+	}
+	current := ""
+	components := strings.Split(name, "/")
+	var info fs.FileInfo
+	for index, component := range components {
+		current = pathpkg.Join(current, component)
+		var err error
+		info, err = root.Lstat(current)
+		if err != nil {
+			return nil, err
+		}
+		if info.Mode()&fs.ModeSymlink != 0 {
+			return nil, &fs.PathError{Op: "lstat", Path: current, Err: errors.New("symbolic link traversal is disabled")}
+		}
+		if index < len(components)-1 && !info.IsDir() {
+			return nil, &fs.PathError{Op: "lstat", Path: current, Err: errors.New("traversal component is not a directory")}
+		}
+	}
+	return info, nil
 }
 
 func (s Scanner) Scan(ctx context.Context, roots []Root) (ScanReport, error) {
@@ -120,7 +175,7 @@ func (s Scanner) scanRoot(ctx context.Context, root Root, heldRoot *scannerRoot,
 
 	walk := s.walkDir
 	if walk == nil {
-		walk = filepath.WalkDir
+		walk = fs.WalkDir
 	}
 	lstat := s.lstat
 	if lstat == nil {
@@ -131,7 +186,7 @@ func (s Scanner) scanRoot(ctx context.Context, root Root, heldRoot *scannerRoot,
 		openFile = func(root *os.Root, name string) (scannerSourceFile, error) { return root.Open(name) }
 	}
 
-	err = walk(root.Path, func(path string, entry fs.DirEntry, walkErr error) error {
+	err = walk(scannerTraversalFS{root: heldRoot.directory}, ".", func(fsPath string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -159,21 +214,18 @@ func (s Scanner) scanRoot(ctx context.Context, root Root, heldRoot *scannerRoot,
 			return nil
 		}
 
-		relativePath, err := filepath.Rel(root.Path, path)
-		if err != nil {
-			return fmt.Errorf("make path relative for root %q: %w", root.ID, err)
-		}
-		relativePath, err = NormalizeRelativePath(filepath.ToSlash(relativePath))
+		relativePath, err := NormalizeRelativePath(fsPath)
 		if err != nil {
 			return fmt.Errorf("normalize candidate in root %q: %w", root.ID, err)
 		}
+		sourcePath := filepath.Join(root.Path, filepath.FromSlash(relativePath))
 		title := strings.TrimSuffix(name, filepath.Ext(name))
 		candidate := Candidate{
 			ID: GameID(root.System, root.ID, relativePath, title), Title: title,
 			RelativePath: relativePath, System: root.System, Kind: kind,
 		}
 
-		info, err := lstat(path)
+		info, err := lstat(sourcePath)
 		if err != nil {
 			candidate.State = SourceStateInvalid
 			candidate.Reason = sourceFailureReason(err)
