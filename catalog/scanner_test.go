@@ -402,6 +402,59 @@ func TestScannerDirectorySwapBeforeDescentRollsBackWithoutMissing(t *testing.T) 
 	}
 }
 
+func TestScannerRealDirectorySwapBeforeDescentRollsBackWithoutMissing(t *testing.T) {
+	ctx := context.Background()
+	parent := t.TempDir()
+	rootPath := filepath.Join(parent, "library")
+	nestedPath := filepath.Join(rootPath, "nested")
+	mustWriteScannerFile(t, filepath.Join(nestedPath, "game.sfc"), []byte("game"))
+	replacementPath := filepath.Join(parent, "replacement")
+	if err := os.MkdirAll(replacementPath, 0o755); err != nil {
+		t.Fatalf("MkdirAll(replacement): %v", err)
+	}
+	store := openScannerStore(t)
+	root := Root{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}
+	scanner := Scanner{Store: store, Registry: core.DefaultRegistry()}
+	if _, err := scanner.Scan(ctx, []Root{root}); err != nil {
+		t.Fatalf("seed Scan: %v", err)
+	}
+	seeded := scannerGameByPath(t, store, "nested/game.sfc")
+	content := Content{SHA256: strings.Repeat("e", 64), Size: 4, Extension: "sfc"}
+	if updated, err := store.UpdateContent(ctx, seeded.ID, seeded.Fingerprint, content); err != nil || !updated {
+		t.Fatalf("UpdateContent = %v, %v", updated, err)
+	}
+
+	realNestedPath := filepath.Join(parent, "nested-real")
+	swapped := false
+	scanner.walkDir = func(rootFS fs.FS, walkRoot string, fn fs.WalkDirFunc) error {
+		return fs.WalkDir(rootFS, walkRoot, func(walkPath string, entry fs.DirEntry, walkErr error) error {
+			callbackErr := fn(walkPath, entry, walkErr)
+			if callbackErr != nil || walkErr != nil || swapped || walkPath != "nested" || !entry.IsDir() {
+				return callbackErr
+			}
+			swapped = true
+			if err := os.Rename(nestedPath, realNestedPath); err != nil {
+				return err
+			}
+			if err := os.Rename(replacementPath, nestedPath); err != nil {
+				return err
+			}
+			return nil
+		})
+	}
+	report, err := scanner.Scan(ctx, []Root{root})
+	if err == nil {
+		t.Fatalf("Scan(real directory swap) = %+v, nil, want traversal error", report)
+	}
+	if !swapped {
+		t.Fatal("real directory swap hook did not run")
+	}
+	game := scannerGameByPath(t, store, "nested/game.sfc")
+	if !game.RootOnline || game.State != SourceStateAvailable || game.Content == nil || *game.Content != content {
+		t.Fatalf("real directory swap reconciled prior game/content: %+v", game)
+	}
+}
+
 func TestScannerInternalDirectorySwapBeforeDescentRollsBackWithoutMissing(t *testing.T) {
 	ctx := context.Background()
 	rootPath := t.TempDir()

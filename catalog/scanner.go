@@ -12,6 +12,7 @@ import (
 	pathpkg "path"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/DeanoC/FogCast-POC/internal/core"
 )
@@ -53,11 +54,34 @@ type scannerRoot struct {
 }
 
 type scannerTraversalFS struct {
-	root *os.Root
+	root        *os.Root
+	mu          sync.RWMutex
+	directories map[string]fs.FileInfo
 }
 
-func (s scannerTraversalFS) Open(name string) (fs.File, error) {
-	checkedInfo, err := validateTraversalPath(s.root, name)
+func newScannerTraversalFS(root *os.Root) *scannerTraversalFS {
+	return &scannerTraversalFS{root: root, directories: make(map[string]fs.FileInfo)}
+}
+
+func (s *scannerTraversalFS) rememberDirectory(name string, entry fs.DirEntry) error {
+	info, err := entry.Info()
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.directories[name] = info
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *scannerTraversalFS) expectedDirectory(name string) fs.FileInfo {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.directories[name]
+}
+
+func (s *scannerTraversalFS) Open(name string) (fs.File, error) {
+	checkedInfo, err := s.validateTraversalPath(name)
 	if err != nil {
 		return nil, err
 	}
@@ -73,16 +97,20 @@ func (s scannerTraversalFS) Open(name string) (fs.File, error) {
 	if err != nil || !os.SameFile(checkedInfo, openedInfo) {
 		return fail(errors.Join(err, errors.New("traversal entry identity changed while opening")))
 	}
-	recheckedInfo, err := validateTraversalPath(s.root, name)
+	recheckedInfo, err := s.validateTraversalPath(name)
 	if err != nil || !os.SameFile(openedInfo, recheckedInfo) {
 		return fail(errors.Join(err, errors.New("traversal entry identity changed after opening")))
 	}
 	return file, nil
 }
 
-func validateTraversalPath(root *os.Root, name string) (fs.FileInfo, error) {
+func (s *scannerTraversalFS) validateTraversalPath(name string) (fs.FileInfo, error) {
 	if name == "." {
-		return root.Lstat(name)
+		info, err := s.root.Lstat(name)
+		if err == nil {
+			err = s.validateExpectedDirectory(name, info)
+		}
+		return info, err
 	}
 	if !fs.ValidPath(name) {
 		return nil, &fs.PathError{Op: "lstat", Path: name, Err: fs.ErrInvalid}
@@ -93,8 +121,11 @@ func validateTraversalPath(root *os.Root, name string) (fs.FileInfo, error) {
 	for index, component := range components {
 		current = pathpkg.Join(current, component)
 		var err error
-		info, err = root.Lstat(current)
+		info, err = s.root.Lstat(current)
 		if err != nil {
+			return nil, err
+		}
+		if err := s.validateExpectedDirectory(current, info); err != nil {
 			return nil, err
 		}
 		if info.Mode()&fs.ModeSymlink != 0 {
@@ -105,6 +136,14 @@ func validateTraversalPath(root *os.Root, name string) (fs.FileInfo, error) {
 		}
 	}
 	return info, nil
+}
+
+func (s *scannerTraversalFS) validateExpectedDirectory(name string, info fs.FileInfo) error {
+	expected := s.expectedDirectory(name)
+	if expected != nil && !os.SameFile(expected, info) {
+		return &fs.PathError{Op: "lstat", Path: name, Err: errors.New("directory identity changed after parent enumeration")}
+	}
+	return nil
 }
 
 func (s Scanner) Scan(ctx context.Context, roots []Root) (ScanReport, error) {
@@ -186,7 +225,8 @@ func (s Scanner) scanRoot(ctx context.Context, root Root, heldRoot *scannerRoot,
 		openFile = func(root *os.Root, name string) (scannerSourceFile, error) { return root.Open(name) }
 	}
 
-	err = walk(scannerTraversalFS{root: heldRoot.directory}, ".", func(fsPath string, entry fs.DirEntry, walkErr error) error {
+	traversal := newScannerTraversalFS(heldRoot.directory)
+	err = walk(traversal, ".", func(fsPath string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -200,7 +240,7 @@ func (s Scanner) scanRoot(ctx context.Context, root Root, heldRoot *scannerRoot,
 			return nil
 		}
 		if entry.IsDir() {
-			return nil
+			return traversal.rememberDirectory(fsPath, entry)
 		}
 		name := entry.Name()
 		if name == ".DS_Store" || strings.HasPrefix(name, "._") {
