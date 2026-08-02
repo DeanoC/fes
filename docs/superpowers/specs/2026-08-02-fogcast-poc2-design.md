@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-02
 
-**Status:** Design approved in conversation; written specification awaiting review
+**Status:** Written specification approved on 2026-08-02
 
 ## Summary
 
