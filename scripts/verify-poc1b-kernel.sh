@@ -67,6 +67,70 @@ artifact_value() {
   ' "$manifest"
 }
 
+verify_module_archive() {
+  archive=$1
+  python3 - "$archive" "$kernel_release" <<'PY'
+import sys
+import tarfile
+
+
+def reject(reason):
+    print(
+        f"verify-poc1b-kernel: module archive rejected: {reason}",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
+
+archive_path, release = sys.argv[1:]
+modules_root = f"lib/modules/{release}"
+root_directories = {"lib", "lib/modules", modules_root}
+has_module = False
+
+try:
+    with tarfile.open(archive_path, "r:gz") as module_archive:
+        members = module_archive.getmembers()
+except (OSError, tarfile.TarError) as error:
+    reject(f"invalid gzip tar: {error}")
+
+if not members:
+    reject("archive is empty")
+
+for member in members:
+    name = member.name
+    if name.startswith("/"):
+        reject(f"absolute member path: {name}")
+    while name.startswith("./"):
+        name = name[2:]
+    if name in {"", "."}:
+        if not member.isdir():
+            reject("archive root is not a directory")
+        continue
+
+    normalized = name[:-1] if name.endswith("/") else name
+    parts = normalized.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        reject(f"unsafe member path: {member.name}")
+    if member.issym() or member.islnk():
+        reject(f"link member is not allowed: {member.name}")
+    if normalized in root_directories:
+        if not member.isdir():
+            reject(f"module-tree parent is not a directory: {member.name}")
+        continue
+    if not normalized.startswith(modules_root + "/"):
+        reject(f"member is outside {modules_root}: {member.name}")
+    if member.isdir():
+        continue
+    if not member.isfile():
+        reject(f"special member is not allowed: {member.name}")
+    if normalized.endswith((".ko", ".ko.xz")):
+        has_module = True
+
+if not has_module:
+    reject(f"no kernel module exists beneath {modules_root}")
+PY
+}
+
 verify_kernel() {
   dir=$1
   test -d "$dir"
@@ -87,10 +151,7 @@ verify_kernel() {
     exit 1
   }
   dtc -I dtb -O dts "$dir/MiSTer.dtb" >/dev/null
-  test -n "$(tar -tzf "$dir/modules.tar.gz")" || {
-    printf '%s\n' 'verify-poc1b-kernel: module archive is empty' >&2
-    exit 1
-  }
+  verify_module_archive "$dir/modules.tar.gz"
 
   for symbol in \
     CONFIG_ARCH_INTEL_SOCFPGA \

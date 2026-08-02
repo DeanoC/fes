@@ -107,6 +107,48 @@ if PATH="$fake_bin:$PATH" POC1B_TEST_MODE=1 \
 fi
 cp "$fixture/valid-config" "$output_root/kernel/config"
 
+expect_module_rejection() {
+  if module_output=$(PATH="$fake_bin:$PATH" POC1B_TEST_MODE=1 \
+    sh "$verify_script" --fixture "$output_root/kernel" 2>&1); then
+    echo 'kernel verifier accepted an invalid module archive' >&2
+    exit 1
+  fi
+  printf '%s\n' "$module_output" | \
+    grep -Fq 'verify-poc1b-kernel: module archive rejected:' || {
+      printf '%s\n' 'kernel verifier failed for the wrong reason:' >&2
+      printf '%s\n' "$module_output" >&2
+      exit 1
+    }
+}
+
+cp "$output_root/kernel/modules.tar.gz" "$fixture/valid-modules.tar.gz"
+mkdir -p "$fixture/unrelated"
+printf '%s\n' unrelated > "$fixture/unrelated/readme.txt"
+COPYFILE_DISABLE=1 tar -czf "$output_root/kernel/modules.tar.gz" \
+  -C "$fixture/unrelated" readme.txt
+expect_module_rejection
+
+mkdir -p "$fixture/wrong-release/lib/modules/5.15.0/kernel"
+printf '%s\n' module > \
+  "$fixture/wrong-release/lib/modules/5.15.0/kernel/test.ko"
+COPYFILE_DISABLE=1 tar -czf "$output_root/kernel/modules.tar.gz" \
+  -C "$fixture/wrong-release" .
+expect_module_rejection
+
+python3 - "$output_root/kernel/modules.tar.gz" <<'PY'
+import io
+import sys
+import tarfile
+
+with tarfile.open(sys.argv[1], "w:gz") as archive:
+    member = tarfile.TarInfo("../escape.ko")
+    payload = b"module\n"
+    member.size = len(payload)
+    archive.addfile(member, io.BytesIO(payload))
+PY
+expect_module_rejection
+cp "$fixture/valid-modules.tar.gz" "$output_root/kernel/modules.tar.gz"
+
 printf '%s\n' extra >> "$output_root/kernel/zImage_dtb"
 if PATH="$fake_bin:$PATH" POC1B_TEST_MODE=1 \
   sh "$verify_script" --fixture "$output_root/kernel" >/dev/null 2>&1; then
