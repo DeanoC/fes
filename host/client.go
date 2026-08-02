@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/clawzai2-tech/mister-remote/protocol"
+	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
 const maxResponseBytes = 1 << 20

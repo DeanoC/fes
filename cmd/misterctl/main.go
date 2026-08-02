@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/clawzai2-tech/mister-remote/host"
-	"github.com/clawzai2-tech/mister-remote/internal/cli"
+	"github.com/DeanoC/FogCast-POC/host"
+	"github.com/DeanoC/FogCast-POC/internal/cli"
 )
 
 func main() {

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/clawzai2-tech/mister-remote/internal/agentconfig"
+	"github.com/DeanoC/FogCast-POC/internal/agentconfig"
 )
 
 const validAgentConfig = `listen_address = "0.0.0.0:8182"

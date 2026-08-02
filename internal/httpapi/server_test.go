@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/clawzai2-tech/mister-remote/internal/httpapi"
-	"github.com/clawzai2-tech/mister-remote/protocol"
+	"github.com/DeanoC/FogCast-POC/internal/httpapi"
+	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
 type fakeController struct {

@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/clawzai2-tech/mister-remote/host"
-	"github.com/clawzai2-tech/mister-remote/internal/hil"
-	"github.com/clawzai2-tech/mister-remote/protocol"
+	"github.com/DeanoC/FogCast-POC/host"
+	"github.com/DeanoC/FogCast-POC/internal/hil"
+	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
 type fakeAPI struct {

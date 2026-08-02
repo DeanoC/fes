@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/clawzai2-tech/mister-remote/internal/mister"
+	"github.com/DeanoC/FogCast-POC/internal/mister"
 )
 
 func TestWriteAtomicMGL(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/clawzai2-tech/mister-remote/internal/imagepoc"
+	"github.com/DeanoC/FogCast-POC/internal/imagepoc"
 )
 
 const validPOC1B = `format = 1

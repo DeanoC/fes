@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/clawzai2-tech/mister-remote/protocol"
+	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
 type Controller interface {

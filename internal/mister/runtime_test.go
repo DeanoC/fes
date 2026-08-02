@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/clawzai2-tech/mister-remote/internal/core"
-	"github.com/clawzai2-tech/mister-remote/internal/mister"
-	"github.com/clawzai2-tech/mister-remote/protocol"
+	"github.com/DeanoC/FogCast-POC/internal/core"
+	"github.com/DeanoC/FogCast-POC/internal/mister"
+	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
 type fakeWriter struct {

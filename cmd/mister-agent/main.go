@@ -12,12 +12,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/clawzai2-tech/mister-remote/internal/agent"
-	"github.com/clawzai2-tech/mister-remote/internal/agentconfig"
-	"github.com/clawzai2-tech/mister-remote/internal/core"
-	"github.com/clawzai2-tech/mister-remote/internal/httpapi"
-	"github.com/clawzai2-tech/mister-remote/internal/mister"
-	"github.com/clawzai2-tech/mister-remote/internal/version"
+	"github.com/DeanoC/FogCast-POC/internal/agent"
+	"github.com/DeanoC/FogCast-POC/internal/agentconfig"
+	"github.com/DeanoC/FogCast-POC/internal/core"
+	"github.com/DeanoC/FogCast-POC/internal/httpapi"
+	"github.com/DeanoC/FogCast-POC/internal/mister"
+	"github.com/DeanoC/FogCast-POC/internal/version"
 )
 
 func run(ctx context.Context, configPath string, logger *slog.Logger) error {

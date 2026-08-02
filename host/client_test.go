@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/clawzai2-tech/mister-remote/host"
-	"github.com/clawzai2-tech/mister-remote/protocol"
+	"github.com/DeanoC/FogCast-POC/host"
+	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
 const idleStatusJSON = `{"state":"idle","game_id":null,"system":null,"expected_core":null,"observed_core":null,"last_error":null}`

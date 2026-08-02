@@ -30,6 +30,12 @@ const (
 	CodeCoreTimeout       ErrorCode = "CORE_TIMEOUT"
 	CodeInternal          ErrorCode = "INTERNAL"
 	CodeUnrecognizedCore  ErrorCode = "UNRECOGNIZED_CORE"
+	CodeSourceUnavailable ErrorCode = "SOURCE_UNAVAILABLE"
+	CodeInvalidArchive    ErrorCode = "INVALID_ARCHIVE"
+	CodeTransferFailed    ErrorCode = "TRANSFER_FAILED"
+	CodeDigestMismatch    ErrorCode = "DIGEST_MISMATCH"
+	CodeContentNotCached  ErrorCode = "CONTENT_NOT_CACHED"
+	CodeCacheFull         ErrorCode = "CACHE_FULL"
 )
 
 type APIError struct {

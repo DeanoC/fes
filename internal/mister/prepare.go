@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/clawzai2-tech/mister-remote/internal/core"
-	"github.com/clawzai2-tech/mister-remote/protocol"
+	"github.com/DeanoC/FogCast-POC/internal/core"
+	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
 const fatRoot = "/media/fat"

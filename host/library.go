@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"slices"
 
-	"github.com/clawzai2-tech/mister-remote/protocol"
+	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
 type Library struct {

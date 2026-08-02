@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/clawzai2-tech/mister-remote/protocol"
+	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
 func TestIdleStatusJSONIncludesNullFields(t *testing.T) {

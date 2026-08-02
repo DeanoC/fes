@@ -1,4 +1,4 @@
-module github.com/clawzai2-tech/mister-remote
+module github.com/DeanoC/FogCast-POC
 
 go 1.26.0
 

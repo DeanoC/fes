@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/clawzai2-tech/mister-remote/internal/packagepoc"
+	"github.com/DeanoC/FogCast-POC/internal/packagepoc"
 )
 
 var archiveFiles = map[string]string{

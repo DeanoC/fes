@@ -1,6 +1,6 @@
 package core
 
-import "github.com/clawzai2-tech/mister-remote/protocol"
+import "github.com/DeanoC/FogCast-POC/protocol"
 
 type Spec struct {
 	System       protocol.System

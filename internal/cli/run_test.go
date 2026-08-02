@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/clawzai2-tech/mister-remote/host"
-	"github.com/clawzai2-tech/mister-remote/internal/cli"
-	"github.com/clawzai2-tech/mister-remote/protocol"
+	"github.com/DeanoC/FogCast-POC/host"
+	"github.com/DeanoC/FogCast-POC/internal/cli"
+	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
 type fakeLibrary struct {

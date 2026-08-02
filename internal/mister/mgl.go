@@ -5,7 +5,7 @@ import (
 	"encoding/xml"
 	"fmt"
 
-	"github.com/clawzai2-tech/mister-remote/internal/core"
+	"github.com/DeanoC/FogCast-POC/internal/core"
 )
 
 func RenderMGL(spec core.Spec, relativeROM string) ([]byte, error) {

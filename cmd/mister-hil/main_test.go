@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/clawzai2-tech/mister-remote/internal/hil"
+	"github.com/DeanoC/FogCast-POC/internal/hil"
 )
 
 func TestTerminalPrompterConfirmsOnlyExplicitYes(t *testing.T) {

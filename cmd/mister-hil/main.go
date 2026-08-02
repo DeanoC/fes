@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/clawzai2-tech/mister-remote/host"
-	"github.com/clawzai2-tech/mister-remote/internal/hil"
+	"github.com/DeanoC/FogCast-POC/host"
+	"github.com/DeanoC/FogCast-POC/internal/hil"
 )
 
 func main() {

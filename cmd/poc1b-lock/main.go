@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/clawzai2-tech/mister-remote/internal/imagepoc"
+	"github.com/DeanoC/FogCast-POC/internal/imagepoc"
 )
 
 const containerImage = "docker.io/library/debian:12.11-slim"
