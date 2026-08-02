@@ -275,6 +275,46 @@ func TestContentClientRejectsMismatchedResponses(t *testing.T) {
 				return err
 			},
 		},
+		{
+			name:     "launch missing state",
+			response: `{"status":{"game_id":"snes-synthetic","system":"snes","expected_core":"SNES","observed_core":"SNES","last_error":null},"content":{"sha256":"` + contentDigest + `","size":3,"extension":"sfc"}}`,
+			call: func(client *host.Client) error {
+				_, err := client.LaunchContent(context.Background(), protocol.CachedLaunchRequest{GameID: "snes-synthetic", System: protocol.SystemSNES, Content: valid})
+				return err
+			},
+		},
+		{
+			name:     "launch unknown state",
+			response: `{"status":{"state":"ready","game_id":"snes-synthetic","system":"snes","expected_core":"SNES","observed_core":"SNES","last_error":null},"content":{"sha256":"` + contentDigest + `","size":3,"extension":"sfc"}}`,
+			call: func(client *host.Client) error {
+				_, err := client.LaunchContent(context.Background(), protocol.CachedLaunchRequest{GameID: "snes-synthetic", System: protocol.SystemSNES, Content: valid})
+				return err
+			},
+		},
+		{
+			name:     "launch non-active state",
+			response: `{"status":{"state":"idle","game_id":"snes-synthetic","system":"snes","expected_core":"SNES","observed_core":"SNES","last_error":null},"content":{"sha256":"` + contentDigest + `","size":3,"extension":"sfc"}}`,
+			call: func(client *host.Client) error {
+				_, err := client.LaunchContent(context.Background(), protocol.CachedLaunchRequest{GameID: "snes-synthetic", System: protocol.SystemSNES, Content: valid})
+				return err
+			},
+		},
+		{
+			name:     "launch missing game ID",
+			response: `{"status":{"state":"active","game_id":null,"system":"snes","expected_core":"SNES","observed_core":"SNES","last_error":null},"content":{"sha256":"` + contentDigest + `","size":3,"extension":"sfc"}}`,
+			call: func(client *host.Client) error {
+				_, err := client.LaunchContent(context.Background(), protocol.CachedLaunchRequest{GameID: "snes-synthetic", System: protocol.SystemSNES, Content: valid})
+				return err
+			},
+		},
+		{
+			name:     "launch mismatched game ID",
+			response: `{"status":{"state":"active","game_id":"snes-other","system":"snes","expected_core":"SNES","observed_core":"SNES","last_error":null},"content":{"sha256":"` + contentDigest + `","size":3,"extension":"sfc"}}`,
+			call: func(client *host.Client) error {
+				_, err := client.LaunchContent(context.Background(), protocol.CachedLaunchRequest{GameID: "snes-synthetic", System: protocol.SystemSNES, Content: valid})
+				return err
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

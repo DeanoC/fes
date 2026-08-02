@@ -81,8 +81,11 @@ func (c *Client) LaunchContent(ctx context.Context, request protocol.CachedLaunc
 	if err := c.doJSON(ctx, http.MethodPost, "/v2/launch", request, &response); err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
-	if response.Status.System == nil || *response.Status.System != request.System || response.Content != request.Content {
-		return protocol.CachedLaunchResponse{}, fmt.Errorf("content launch response does not match requested content")
+	if response.Status.State != protocol.StateActive ||
+		response.Status.GameID == nil || *response.Status.GameID != request.GameID ||
+		response.Status.System == nil || *response.Status.System != request.System ||
+		response.Content != request.Content {
+		return protocol.CachedLaunchResponse{}, fmt.Errorf("content launch response does not match requested launch")
 	}
 	return response, nil
 }
