@@ -432,13 +432,13 @@ func TestScannerRealDirectorySwapBeforeDescentRollsBackWithoutMissing(t *testing
 			if callbackErr != nil || walkErr != nil || swapped || walkPath != "nested" || !entry.IsDir() {
 				return callbackErr
 			}
-			swapped = true
 			if err := os.Rename(nestedPath, realNestedPath); err != nil {
 				return err
 			}
 			if err := os.Rename(replacementPath, nestedPath); err != nil {
 				return err
 			}
+			swapped = true
 			return nil
 		})
 	}
