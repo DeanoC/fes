@@ -102,7 +102,7 @@ func normalizeHTTPOrigin(raw string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("base_url: %w", err)
 	}
-	if baseURL.Scheme != "http" || baseURL.Hostname() == "" || baseURL.User != nil || baseURL.RawQuery != "" || baseURL.Fragment != "" || (baseURL.Path != "" && baseURL.Path != "/") {
+	if baseURL.Scheme != "http" || baseURL.Hostname() == "" || baseURL.User != nil || baseURL.RawQuery != "" || baseURL.ForceQuery || baseURL.Fragment != "" || strings.Contains(raw, "#") || (baseURL.Path != "" && baseURL.Path != "/") {
 		return "", fmt.Errorf("base_url must be an HTTP origin without credentials, path, query, or fragment")
 	}
 	baseURL.Path = ""

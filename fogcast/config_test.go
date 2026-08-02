@@ -131,7 +131,9 @@ func TestLoadConfigRejectsInvalidValues(t *testing.T) {
 		"https url":            strings.Replace(valid, "http://", "https://", 1),
 		"url path":             strings.Replace(valid, ":8182\"", ":8182/base\"", 1),
 		"url query":            strings.Replace(valid, ":8182\"", ":8182?x=1\"", 1),
+		"empty url query":      strings.Replace(valid, ":8182\"", ":8182?\"", 1),
 		"url fragment":         strings.Replace(valid, ":8182\"", ":8182#fragment\"", 1),
+		"empty url fragment":   strings.Replace(valid, ":8182\"", ":8182#\"", 1),
 	}
 	for name, content := range tests {
 		t.Run(name, func(t *testing.T) {
