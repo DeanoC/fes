@@ -73,11 +73,7 @@ if find "$target" -type f \( \
   exit 1
 fi
 
-if find "$target" -type f -print0 | xargs -0 -r /usr/bin/strings -a 2>/dev/null | \
-   grep -Eiq '(^|[[:space:]])(token|secret|bearer|api[_-]?key)[[:space:]]*(=|:)'; then
-  printf '%s\n' 'post-build: secret assignment found in root filesystem' >&2
-  exit 1
-fi
+"$repo/scripts/scan-poc1b-secrets.sh" "$target"
 
 library_count=0
 while IFS= read -r library; do

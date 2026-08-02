@@ -139,11 +139,7 @@ EOF
     printf '%s\n' 'verify-poc1b-image: forbidden game, runtime, or debug payload found' >&2
     exit 1
   fi
-  if find "$root" -type f -print0 | xargs -0 -r strings -a 2>/dev/null | \
-     grep -Eiq '(^|[[:space:]])(token|secret|bearer|api[_-]?key)[[:space:]]*(=|:)'; then
-    printf '%s\n' 'verify-poc1b-image: secret assignment found' >&2
-    exit 1
-  fi
+  "$repo/scripts/scan-poc1b-secrets.sh" "$root"
   for forbidden_tool in \
     /usr/bin/cc /usr/bin/gcc /usr/bin/g++ /usr/bin/c++ /usr/bin/make \
     /usr/bin/apk /usr/bin/dpkg /usr/bin/opkg /usr/bin/rpm; do

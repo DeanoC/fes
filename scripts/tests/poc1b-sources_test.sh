@@ -5,6 +5,15 @@ repo=$(CDPATH='' cd -- "$(dirname "$0")/../.." && pwd)
 fixture=$(mktemp -d "${TMPDIR:-/tmp}/mister-remote-poc1b-sources.XXXXXX")
 trap 'rm -rf "$fixture"' EXIT INT TERM
 
+grep -Fq 'snapshot.debian.org/archive/debian/20260801T120000Z' \
+  "$repo/containers/poc1b/Dockerfile"
+grep -Fq 'snapshot.debian.org/archive/debian-security/20260801T120000Z' \
+  "$repo/containers/poc1b/Dockerfile"
+if grep -Fq 'deb.debian.org' "$repo/containers/poc1b/Dockerfile"; then
+  echo 'POC 1B container still uses the mutable Debian mirror' >&2
+  exit 1
+fi
+
 grep -Fq 'PACKAGE_SET_SHA256' "$repo/containers/poc1b/Dockerfile"
 grep -Fq 'build_image_id' "$repo/scripts/poc1b-container.sh"
 grep -Fq 'org.mister-remote.poc1b.context-digest' "$repo/scripts/poc1b-container.sh"

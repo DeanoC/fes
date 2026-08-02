@@ -19,6 +19,8 @@ grep -Fq 'fetch --depth=1 "$kernel_bare" "$source_head"' \
   "$repo/scripts/qemu-smoke-poc1b.sh"
 grep -Fq 'toolchain=/poc1b-output/work-2-prod/host/bin/arm-buildroot-linux-gnueabihf-' \
   "$repo/scripts/qemu-smoke-poc1b.sh"
+grep -Fq 'toolchain_root=/poc1b-output/work-2-prod/host' \
+  "$repo/scripts/qemu-smoke-poc1b.sh"
 if grep -Fq 'readonly=on' "$repo/scripts/qemu-smoke-poc1b.sh"; then
   echo 'QEMU smoke config uses unsupported read-only SD backing' >&2
   exit 1
@@ -178,6 +180,41 @@ test "$(wc -l < "$fixture/prod.libraries" | tr -d ' ')" -eq 14
 grep -Eq '^/lib/libz\.so\.1[[:space:]]+/lib/libz\.so\.1[[:space:]]+[0-9a-f]{64}$' \
   "$fixture/prod.libraries"
 
+unreadable_root=$fixture/unreadable-root
+cp -R "$prod_root" "$unreadable_root"
+printf '%s\n' harmless > "$unreadable_root/etc/unreadable"
+chmod 000 "$unreadable_root/etc/unreadable"
+if verify_fixture prod "$unreadable_root" "$fixture/unreadable.manifest" "$fixture/unreadable.libraries" >/dev/null 2>&1; then
+  echo 'image verifier accepted an unreadable regular file' >&2
+  exit 1
+fi
+chmod 0600 "$unreadable_root/etc/unreadable"
+
+kernel_cache=$fixture/kernel-cache
+mkdir -p "$kernel_cache/arch/arm/boot/dts"
+printf '%s\n' kernel > "$kernel_cache/arch/arm/boot/zImage"
+printf '%s\n' dtb > "$kernel_cache/arch/arm/boot/dts/vexpress-v2p-ca9.dtb"
+kernel_sha=$(shasum -a 256 "$kernel_cache/arch/arm/boot/zImage" | awk '{print $1}')
+dtb_sha=$(shasum -a 256 "$kernel_cache/arch/arm/boot/dts/vexpress-v2p-ca9.dtb" | awk '{print $1}')
+cat > "$kernel_cache/provenance.txt" <<EOF
+format=1
+base_key=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+zimage_sha256=$kernel_sha
+dtb_sha256=$dtb_sha
+EOF
+POC1B_TEST_MODE=1 sh "$repo/scripts/qemu-smoke-poc1b.sh" \
+  --verify-kernel-cache \
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  "$kernel_cache"
+printf '%s\n' altered >> "$kernel_cache/arch/arm/boot/zImage"
+if POC1B_TEST_MODE=1 sh "$repo/scripts/qemu-smoke-poc1b.sh" \
+  --verify-kernel-cache \
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  "$kernel_cache" >/dev/null 2>&1; then
+  echo 'QEMU cache verifier accepted an altered kernel' >&2
+  exit 1
+fi
+
 missing_root=$fixture/missing-root
 cp -R "$prod_root" "$missing_root"
 rm "$missing_root/lib/libz.so.1"
@@ -293,7 +330,9 @@ if POC1B_TEST_MODE=1 \
   echo 'QEMU smoke verifier accepted a missing bounded-wait state' >&2
   exit 1
 fi
-grep -Fq 'provenance_key=$kernel_output/provenance.key' \
+grep -Fq 'provenance=$kernel_output/provenance.txt' \
+  "$repo/scripts/qemu-smoke-poc1b.sh"
+grep -Fq 'kernel_cache_valid "$expected_key" "$kernel_output"' \
   "$repo/scripts/qemu-smoke-poc1b.sh"
 grep -Fq '/work/scripts/verify-poc1b-source-cache.sh' \
   "$repo/scripts/qemu-smoke-poc1b.sh"

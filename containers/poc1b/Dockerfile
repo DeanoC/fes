@@ -15,7 +15,13 @@ LABEL org.mister-remote.poc1b.base-digest="${BASE_DIGEST}" \
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update \
+RUN rm -f /etc/apt/sources.list.d/debian.sources \
+ && printf '%s\n' \
+      'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20260801T120000Z bookworm main' \
+      'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20260801T120000Z bookworm-updates main' \
+      'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/20260801T120000Z bookworm-security main' \
+      > /etc/apt/sources.list \
+ && apt-get update \
  && apt-get install --no-install-recommends -y \
       bc \
       bison \

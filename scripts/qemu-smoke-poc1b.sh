@@ -4,8 +4,33 @@ set -eu
 repo=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 
 usage() {
-  printf 'usage: qemu-smoke-poc1b.sh prod|dev IMAGE | --inside VARIANT IMAGE | --verify-log VARIANT LOG\n' >&2
+  printf 'usage: qemu-smoke-poc1b.sh prod|dev IMAGE | --inside VARIANT IMAGE | --verify-log VARIANT LOG | --verify-kernel-cache KEY OUTPUT\n' >&2
   exit 2
+}
+
+sha256_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    /usr/bin/shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
+kernel_cache_valid() {
+  cache_expected=$1
+  cache_output=$2
+  cache_provenance=$cache_output/provenance.txt
+  cache_kernel=$cache_output/arch/arm/boot/zImage
+  cache_dtb=$cache_output/arch/arm/boot/dts/vexpress-v2p-ca9.dtb
+  [ -f "$cache_provenance" ] && [ -f "$cache_kernel" ] && [ -f "$cache_dtb" ] || return 1
+  [ "$(wc -l < "$cache_provenance" | tr -d ' ')" -eq 4 ] || return 1
+  grep -Fqx 'format=1' "$cache_provenance" || return 1
+  cache_key=$(awk -F= '$1 == "base_key" { print $2 }' "$cache_provenance")
+  cache_kernel_sha=$(awk -F= '$1 == "zimage_sha256" { print $2 }' "$cache_provenance")
+  cache_dtb_sha=$(awk -F= '$1 == "dtb_sha256" { print $2 }' "$cache_provenance")
+  [ "$cache_key" = "$cache_expected" ] || return 1
+  [ "$cache_kernel_sha" = "$(sha256_file "$cache_kernel")" ] || return 1
+  [ "$cache_dtb_sha" = "$(sha256_file "$cache_dtb")" ] || return 1
 }
 
 validate_variant() {
@@ -33,6 +58,16 @@ verify_smoke_log() {
 }
 
 case "${1:-}" in
+  --verify-kernel-cache)
+    [ "$#" -eq 3 ] || usage
+    test "${POC1B_TEST_MODE:-0}" = 1 || {
+      printf '%s\n' 'qemu-smoke-poc1b: kernel cache fixtures require test mode' >&2
+      exit 2
+    }
+    printf '%s\n' "$2" | grep -Eq '^[0-9a-f]{64}$' || usage
+    kernel_cache_valid "$2" "$3"
+    exit
+    ;;
   --verify-log)
     [ "$#" -eq 3 ] || usage
     test "${POC1B_TEST_MODE:-0}" = 1 || {
@@ -89,18 +124,21 @@ case "${1:-}" in
     fi
     test "$(git -C "$kernel_source" rev-parse HEAD)" = "$source_head"
     test -z "$(git -C "$kernel_source" status --porcelain --untracked-files=all -- ':!/.poc1b-commit')"
-    compiler_sha=$(sha256sum "${toolchain}gcc" | awk '{print $1}')
+    toolchain_root=/poc1b-output/work-2-prod/host
+    toolchain_sha=$(
+      cd "$toolchain_root"
+      find . \( -type f -o -type l \) -print | LC_ALL=C sort | while IFS= read -r relative; do
+        if [ -L "$relative" ]; then
+          printf '%s\tsymlink\t%s\n' "$relative" "$(readlink "$relative")"
+        else
+          printf '%s\tfile\t%s\n' "$relative" "$(sha256sum "$relative" | awk '{print $1}')"
+        fi
+      done | sha256sum | awk '{print $1}'
+    )
     script_sha=$(sha256sum "$0" | awk '{print $1}')
-    expected_key=$(printf '%s\n%s\n%s\n' "$source_head" "$compiler_sha" "$script_sha" | sha256sum | awk '{print $1}')
-    provenance_key=$kernel_output/provenance.key
-    actual_key=
-    if [ -f "$provenance_key" ]; then
-      IFS= read -r actual_key < "$provenance_key"
-    fi
+    expected_key=$(printf '%s\n%s\n%s\n' "$source_head" "$toolchain_sha" "$script_sha" | sha256sum | awk '{print $1}')
 
-    if [ "$actual_key" != "$expected_key" ] || \
-       [ ! -f "$kernel_output/arch/arm/boot/zImage" ] || \
-       [ ! -f "$kernel_output/arch/arm/boot/dts/vexpress-v2p-ca9.dtb" ]; then
+    if ! kernel_cache_valid "$expected_key" "$kernel_output"; then
       /bin/rm -rf "$kernel_output"
       /bin/mkdir -p "$kernel_output"
       make -C "$kernel_source" O="$kernel_output" ARCH=arm CROSS_COMPILE="$toolchain" vexpress_defconfig
@@ -116,8 +154,12 @@ case "${1:-}" in
         -e TMPFS
       make -C "$kernel_source" O="$kernel_output" ARCH=arm CROSS_COMPILE="$toolchain" olddefconfig
       make -C "$kernel_source" O="$kernel_output" ARCH=arm CROSS_COMPILE="$toolchain" -j4 zImage dtbs
-      printf '%s\n' "$expected_key" > "$provenance_key.new"
-      /bin/mv "$provenance_key.new" "$provenance_key"
+      provenance=$kernel_output/provenance.txt
+      kernel_sha=$(sha256_file "$kernel_output/arch/arm/boot/zImage")
+      dtb_sha=$(sha256_file "$kernel_output/arch/arm/boot/dts/vexpress-v2p-ca9.dtb")
+      printf 'format=1\nbase_key=%s\nzimage_sha256=%s\ndtb_sha256=%s\n' \
+        "$expected_key" "$kernel_sha" "$dtb_sha" > "$provenance.new"
+      /bin/mv "$provenance.new" "$provenance"
     fi
 
     log=/work/build/output/poc1b/$variant/qemu-smoke.log
