@@ -327,7 +327,7 @@ func (s *Store) MarkRootOffline(ctx context.Context, root Root, reason string) (
 }
 
 const selectGames = `
-	SELECT g.game_id, g.title, g.library_id, g.relative_path, g.reason, g.system,
+	SELECT g.game_id, g.title, g.library_id, l.root, g.relative_path, g.reason, g.system,
 	       g.source_kind, g.source_state, l.online,
 	       g.source_size, g.modified_ns, g.zip_member, g.zip_size, g.zip_crc32, g.zip_entry_count,
 	       g.content_sha256, g.content_size, g.content_extension
@@ -396,7 +396,7 @@ func scanGame(row rowScanner) (Game, error) {
 	var contentSHA256, contentExtension sql.NullString
 	var contentSize sql.NullInt64
 	if err := row.Scan(
-		&game.ID, &game.Title, &game.LibraryID, &game.RelativePath, &game.Reason, &game.System,
+		&game.ID, &game.Title, &game.LibraryID, &game.RootPath, &game.RelativePath, &game.Reason, &game.System,
 		&game.Kind, &game.State, &online,
 		&game.Fingerprint.SourceSize, &game.Fingerprint.ModifiedNS, &game.Fingerprint.ZIPMember,
 		&game.Fingerprint.ZIPSize, &game.Fingerprint.ZIPCRC32, &game.Fingerprint.ZIPEntryCount,
@@ -451,11 +451,16 @@ func (s *Store) CompareAndSetContent(ctx context.Context, game Game, content Con
 		UPDATE games SET content_sha256 = ?, content_size = ?, content_extension = ?
 		WHERE game_id = ? AND library_id = ? AND system = ? AND relative_path = ? AND source_kind = ?
 		  AND source_size = ? AND modified_ns = ? AND zip_member = ?
-		  AND zip_size = ? AND zip_crc32 = ? AND zip_entry_count = ?`,
+		  AND zip_size = ? AND zip_crc32 = ? AND zip_entry_count = ?
+		  AND EXISTS (
+		    SELECT 1 FROM libraries AS l
+		    WHERE l.id = games.library_id AND l.system = ? AND l.root = ?
+		  )`,
 		content.SHA256, content.Size, content.Extension,
 		game.ID, game.LibraryID, game.System, game.RelativePath, game.Kind,
 		game.Fingerprint.SourceSize, game.Fingerprint.ModifiedNS, game.Fingerprint.ZIPMember,
 		game.Fingerprint.ZIPSize, game.Fingerprint.ZIPCRC32, game.Fingerprint.ZIPEntryCount,
+		game.System, game.RootPath,
 	)
 	if err != nil {
 		return false, fmt.Errorf("compare and set content for game %q: %w", game.ID, err)

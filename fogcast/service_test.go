@@ -82,6 +82,61 @@ func TestServiceLaunchRejectsMismatchedCacheHitResponse(t *testing.T) {
 	}
 }
 
+func TestServiceLaunchRejectsHostileCoreAndLastErrorWithoutReflection(t *testing.T) {
+	content := catalog.Content{SHA256: serviceDigest, Size: 3, Extension: "sfc"}
+	game := serviceGame(content)
+	privateToken := "synthetic-private-token"
+	privatePath := "/private/library/game.sfc"
+	tests := []struct {
+		name   string
+		mutate func(*protocol.CachedLaunchResponse)
+	}{
+		{name: "missing expected core", mutate: func(response *protocol.CachedLaunchResponse) { response.Status.ExpectedCore = nil }},
+		{name: "wrong expected core", mutate: func(response *protocol.CachedLaunchResponse) {
+			value := "MegaDrive-" + privateToken + privatePath
+			response.Status.ExpectedCore = &value
+		}},
+		{name: "oversized observed core", mutate: func(response *protocol.CachedLaunchResponse) {
+			value := "SNES-" + privateToken + strings.Repeat("x", 64<<10)
+			response.Status.ObservedCore = &value
+		}},
+		{name: "missing observed core", mutate: func(response *protocol.CachedLaunchResponse) { response.Status.ObservedCore = nil }},
+		{name: "last error", mutate: func(response *protocol.CachedLaunchResponse) {
+			response.Status.LastError = &protocol.APIError{
+				Code: protocol.ErrorCode("PRIVATE_" + privateToken), Message: privatePath,
+			}
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store := &fakeServiceCatalog{games: []catalog.Game{game}}
+			client := &fakeServiceClient{}
+			client.probe = func(_ context.Context, system protocol.System, identity protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
+				return protocol.CacheProbeResponse{Present: true, System: &system, Content: &identity}, nil
+			}
+			client.launch = func(_ context.Context, request protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, error) {
+				gameID, system, coreName := request.GameID, request.System, "SNES"
+				response := protocol.CachedLaunchResponse{
+					Status: protocol.Status{
+						State: protocol.StateActive, GameID: &gameID, System: &system,
+						ExpectedCore: &coreName, ObservedCore: &coreName,
+					},
+					Content: request.Content,
+				}
+				test.mutate(&response)
+				return response, nil
+			}
+			service := newTestService(store, &fakeServicePreparer{}, client)
+
+			_, err := service.Launch(context.Background(), game.ID, nil)
+			assertServiceErrorCode(t, err, protocol.CodeInternal)
+			if strings.Contains(err.Error(), privateToken) || strings.Contains(err.Error(), privatePath) {
+				t.Fatalf("error reflects hostile response fields: %v", err)
+			}
+		})
+	}
+}
+
 func TestServiceLaunchCacheMissRejectsUnavailableSourceBeforeMutation(t *testing.T) {
 	tests := []struct {
 		name string
@@ -200,7 +255,7 @@ func TestServiceLaunchUploadsHeldStagingIdentityAfterVisibleDirectoryReplacement
 	}
 	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: library}
 	game := catalog.Game{
-		ID: "snes-synthetic", Title: "Synthetic", LibraryID: root.ID, RelativePath: "game.sfc",
+		ID: "snes-synthetic", Title: "Synthetic", LibraryID: root.ID, RootPath: root.Path, RelativePath: "game.sfc",
 		System: root.System, Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
 		Fingerprint: catalog.Fingerprint{SourceSize: info.Size(), ModifiedNS: info.ModTime().UnixNano()},
 	}
@@ -232,9 +287,13 @@ func TestServiceLaunchUploadsHeldStagingIdentityAfterVisibleDirectoryReplacement
 		return protocol.CacheUploadResponse{Result: protocol.CacheUploadCreated, System: system, Content: identity}, err
 	}
 	client.launch = func(_ context.Context, request protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, error) {
-		gameID, system := request.GameID, request.System
+		gameID, system, coreName := request.GameID, request.System, "SNES"
 		return protocol.CachedLaunchResponse{
-			Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system}, Content: request.Content,
+			Status: protocol.Status{
+				State: protocol.StateActive, GameID: &gameID, System: &system,
+				ExpectedCore: &coreName, ObservedCore: &coreName,
+			},
+			Content: request.Content,
 		}, nil
 	}
 	service := newService(
@@ -268,7 +327,7 @@ func TestServiceLaunchRejectedRenamedStagingRemovesHeldIdentityAndPreservesDecoy
 	}
 	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: library}
 	game := catalog.Game{
-		ID: "snes-synthetic", Title: "Synthetic", LibraryID: root.ID, RelativePath: "game.sfc",
+		ID: "snes-synthetic", Title: "Synthetic", LibraryID: root.ID, RootPath: root.Path, RelativePath: "game.sfc",
 		System: root.System, Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
 		Fingerprint: catalog.Fingerprint{SourceSize: info.Size(), ModifiedNS: info.ModTime().UnixNano()},
 	}
@@ -819,9 +878,13 @@ func TestServiceOpenUsesOperationContextsInsteadOfCallerHTTPClientTimeout(t *tes
 			if err := json.NewDecoder(request.Body).Decode(&launch); err != nil {
 				return nil, err
 			}
-			gameID, system := launch.GameID, launch.System
+			gameID, system, coreName := launch.GameID, launch.System, "SNES"
 			return serviceJSONResponse(request, protocol.CachedLaunchResponse{
-				Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system}, Content: launch.Content,
+				Status: protocol.Status{
+					State: protocol.StateActive, GameID: &gameID, System: &system,
+					ExpectedCore: &coreName, ObservedCore: &coreName,
+				},
+				Content: launch.Content,
 			})
 		default:
 			return nil, fmt.Errorf("unexpected request: %s %s", request.Method, request.URL.Path)
@@ -850,6 +913,105 @@ func TestServiceOpenUsesOperationContextsInsteadOfCallerHTTPClientTimeout(t *tes
 	}
 	if callerClient.Timeout != 10*time.Millisecond {
 		t.Fatalf("caller HTTP timeout mutated to %s", callerClient.Timeout)
+	}
+}
+
+func TestServiceLaunchRejectsReconfiguredRootBeforeReadingOrTargetMutation(t *testing.T) {
+	bodyA := []byte("root-a-private")
+	bodyB := []byte("root-b-private")
+	dir := t.TempDir()
+	rootA := filepath.Join(dir, "library-a")
+	rootB := filepath.Join(dir, "library-b")
+	for _, root := range []string{rootA, rootB} {
+		if err := os.Mkdir(root, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pathA := filepath.Join(rootA, "game.sfc")
+	pathB := filepath.Join(rootB, "game.sfc")
+	if err := os.WriteFile(pathA, bodyA, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	infoA, err := os.Stat(pathA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(pathB, bodyB, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(pathB, infoA.ModTime(), infoA.ModTime()); err != nil {
+		t.Fatal(err)
+	}
+	infoB, err := os.Stat(pathB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if infoB.Size() != infoA.Size() || infoB.ModTime().UnixNano() != infoA.ModTime().UnixNano() {
+		t.Fatalf("root fixtures differ: A=%d/%d B=%d/%d", infoA.Size(), infoA.ModTime().UnixNano(), infoB.Size(), infoB.ModTime().UnixNano())
+	}
+
+	configPath := filepath.Join(dir, "config.toml")
+	paths := Paths{Config: configPath, Index: filepath.Join(dir, "state", "library.sqlite3"), Staging: filepath.Join(dir, "staging")}
+	writeServiceConfig(t, configPath, "http://fogcast.invalid", "synthetic-token", rootA)
+	seed, err := Open(context.Background(), paths, nil)
+	if err != nil {
+		t.Fatalf("Open(root A): %v", err)
+	}
+	if _, err := seed.Scan(context.Background()); err != nil {
+		t.Fatalf("Scan(root A): %v", err)
+	}
+	games, err := seed.Games(context.Background())
+	if err != nil || len(games) != 1 {
+		t.Fatalf("Games(root A) = %+v, %v", games, err)
+	}
+	gameID := games[0].ID
+	if err := seed.Close(); err != nil {
+		t.Fatalf("Close(root A): %v", err)
+	}
+
+	var requestCount int
+	var uploaded []byte
+	transport := serviceRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		requestCount++
+		switch request.Method {
+		case http.MethodGet:
+			return serviceJSONResponse(request, protocol.CacheProbeResponse{Present: false})
+		case http.MethodPut:
+			uploaded, err = io.ReadAll(request.Body)
+			if err != nil {
+				return nil, err
+			}
+			digest := strings.TrimPrefix(request.URL.Path, "/v2/cache/snes/")
+			identity := protocol.ContentIdentity{SHA256: digest, Size: int64(len(uploaded)), Extension: request.URL.Query().Get("extension")}
+			return serviceJSONResponse(request, protocol.CacheUploadResponse{Result: protocol.CacheUploadCreated, System: protocol.SystemSNES, Content: identity})
+		case http.MethodPost:
+			var launch protocol.CachedLaunchRequest
+			if err := json.NewDecoder(request.Body).Decode(&launch); err != nil {
+				return nil, err
+			}
+			gameID, system, expectedCore := launch.GameID, launch.System, "SNES"
+			return serviceJSONResponse(request, protocol.CachedLaunchResponse{
+				Status: protocol.Status{
+					State: protocol.StateActive, GameID: &gameID, System: &system,
+					ExpectedCore: &expectedCore, ObservedCore: &expectedCore,
+				},
+				Content: launch.Content,
+			})
+		default:
+			return nil, fmt.Errorf("unexpected request: %s", request.Method)
+		}
+	})
+	writeServiceConfig(t, configPath, "http://fogcast.invalid", "synthetic-token", rootB)
+	service, err := Open(context.Background(), paths, &http.Client{Transport: transport})
+	if err != nil {
+		t.Fatalf("Open(root B): %v", err)
+	}
+	defer service.Close()
+
+	_, err = service.Launch(context.Background(), gameID, nil)
+	assertServiceErrorCode(t, err, protocol.CodeSourceUnavailable)
+	if requestCount != 0 || len(uploaded) != 0 {
+		t.Fatalf("reconfigured root reached target: requests=%d uploaded=%q", requestCount, uploaded)
 	}
 }
 
@@ -1081,7 +1243,7 @@ func newTestService(store *fakeServiceCatalog, preparer *fakeServicePreparer, cl
 
 func serviceGame(content catalog.Content) catalog.Game {
 	return catalog.Game{
-		ID: "snes-synthetic", Title: "Synthetic", LibraryID: "snes-main", RelativePath: "game.sfc",
+		ID: "snes-synthetic", Title: "Synthetic", LibraryID: "snes-main", RootPath: "/private/library", RelativePath: "game.sfc",
 		System: protocol.SystemSNES, Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable,
 		RootOnline: true, Fingerprint: catalog.Fingerprint{SourceSize: 3, ModifiedNS: 123}, Content: &content,
 	}
@@ -1101,9 +1263,15 @@ func exactLaunchResponse(t *testing.T, game catalog.Game, content protocol.Conte
 		if request != (protocol.CachedLaunchRequest{GameID: game.ID, System: game.System, Content: content}) {
 			t.Fatalf("launch request = %+v", request)
 		}
-		gameID, system := game.ID, game.System
+		gameID, system, coreName := game.ID, game.System, "SNES"
+		if game.System == protocol.SystemMegaDrive {
+			coreName = "MegaDrive"
+		}
 		return protocol.CachedLaunchResponse{
-			Status:  protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system},
+			Status: protocol.Status{
+				State: protocol.StateActive, GameID: &gameID, System: &system,
+				ExpectedCore: &coreName, ObservedCore: &coreName,
+			},
 			Content: content,
 		}, nil
 	}

@@ -498,6 +498,36 @@ func TestStoreCompareAndSetContentRejectsChangedSourceKind(t *testing.T) {
 	assertContent(t, mustGame(t, store, original.ID).Content, content)
 }
 
+func TestStoreLoadsLibraryRootAndContentCASBindsIt(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/games/private-a"}
+	c := candidate("snes-game", "Game", "game.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA)
+	x, err := store.BeginRootScan(ctx, root)
+	if err != nil {
+		t.Fatalf("BeginRootScan: %v", err)
+	}
+	mustObserve(t, x, c, catalog.ChangeAdded)
+	mustComplete(t, x)
+
+	loaded := mustGame(t, store, c.ID)
+	if loaded.RootPath != root.Path {
+		t.Fatalf("loaded root = %q, want %q", loaded.RootPath, root.Path)
+	}
+	content := catalog.Content{SHA256: strings.Repeat("b", 64), Size: 1024, Extension: "sfc"}
+	staleRoot := loaded
+	staleRoot.RootPath = "/games/private-b"
+	if updated, err := store.CompareAndSetContent(ctx, staleRoot, content); err != nil || updated {
+		t.Fatalf("CompareAndSetContent(stale root) = %v, %v, want false, nil", updated, err)
+	}
+	if got := mustGame(t, store, c.ID).Content; got != nil {
+		t.Fatalf("content after stale-root CAS = %+v, want nil", got)
+	}
+	if updated, err := store.CompareAndSetContent(ctx, loaded, content); err != nil || !updated {
+		t.Fatalf("CompareAndSetContent(current root) = %v, %v, want true, nil", updated, err)
+	}
+}
+
 func TestStoreRejectsPartiallyNullContentTuple(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "partial.sqlite3")

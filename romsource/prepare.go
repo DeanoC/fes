@@ -29,6 +29,8 @@ type Prepared struct {
 	root     *os.Root
 	base     string
 	removed  bool
+
+	beforeRemoveCandidate func(*os.Root, string) error
 }
 
 // Open returns verified staged content. Values created by Preparer are opened
@@ -98,40 +100,126 @@ func validPreparedInfo(info fs.FileInfo) bool {
 	return info != nil && info.Mode().IsRegular() && info.Mode().Perm() == 0o600
 }
 
-func removeHeldIdentity(root *os.Root, expected fs.FileInfo) error {
-	entries, err := fs.ReadDir(root.FS(), ".")
-	if err != nil {
-		return errors.New("inspect prepared ROM staging directory")
-	}
-	for _, candidate := range entries {
+func (p *Prepared) heldIdentityCandidates() ([]string, error) {
+	var candidates []string
+	err := fs.WalkDir(p.root.FS(), ".", func(name string, candidate fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return errors.New("inspect prepared ROM staging directory")
+		}
+		if name == "." || candidate.IsDir() {
+			return nil
+		}
 		candidateInfo, err := candidate.Info()
 		if errors.Is(err, fs.ErrNotExist) {
-			continue
+			return nil
 		}
 		if err != nil {
 			return errors.New("inspect prepared ROM staging file")
 		}
-		if !os.SameFile(expected, candidateInfo) {
-			continue
+		if !os.SameFile(p.fileInfo, candidateInfo) {
+			return nil
 		}
-		rechecked, err := root.Lstat(candidate.Name())
-		if errors.Is(err, fs.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			return errors.New("inspect prepared ROM staging file")
-		}
-		if !os.SameFile(expected, rechecked) {
-			continue
-		}
-		if !rechecked.Mode().IsRegular() {
-			return errors.New("prepared ROM staging path is not a regular file")
-		}
-		if err := root.Remove(candidate.Name()); err != nil {
-			return errors.New("remove prepared ROM staging file")
+		candidates = append(candidates, name)
+		return nil
+	})
+	return candidates, err
+}
+
+func (p *Prepared) captureAndRemoveHeldCandidate(candidate string) (captured, retry bool, err error) {
+	current, err := p.root.Lstat(candidate)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, true, nil
+	}
+	if err != nil {
+		return false, false, errors.New("inspect prepared ROM staging file")
+	}
+	if !os.SameFile(p.fileInfo, current) {
+		return false, true, nil
+	}
+	if !current.Mode().IsRegular() {
+		return false, false, errors.New("prepared ROM staging path is not a regular file")
+	}
+	if p.beforeRemoveCandidate != nil {
+		if err := p.beforeRemoveCandidate(p.root, candidate); err != nil {
+			return false, false, errors.New("prepare staged ROM identity removal")
 		}
 	}
-	return nil
+
+	var quarantine string
+	for range 100 {
+		quarantine = ".fogcast-remove-" + strings.ToLower(cryptorand.Text())
+		_, err := p.root.Lstat(quarantine)
+		if errors.Is(err, fs.ErrNotExist) {
+			break
+		}
+		if err != nil {
+			return false, false, errors.New("inspect prepared ROM removal quarantine")
+		}
+		quarantine = ""
+	}
+	if quarantine == "" {
+		return false, false, errors.New("allocate prepared ROM removal quarantine")
+	}
+	if err := p.root.Rename(candidate, quarantine); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return false, true, nil
+		}
+		return false, false, errors.New("capture prepared ROM staging file")
+	}
+	capturedInfo, err := p.root.Lstat(quarantine)
+	if err != nil {
+		return false, false, errors.New("inspect captured prepared ROM staging file")
+	}
+	if !os.SameFile(p.fileInfo, capturedInfo) {
+		if _, err := p.root.Lstat(candidate); !errors.Is(err, fs.ErrNotExist) {
+			return false, false, errors.New("prepared ROM staging identity changed during removal")
+		}
+		if err := p.root.Rename(quarantine, candidate); err != nil {
+			return false, false, errors.New("restore unrelated staging file")
+		}
+		return false, true, nil
+	}
+	if err := p.root.Remove(quarantine); err != nil {
+		return false, false, errors.New("remove prepared ROM staging file")
+	}
+	return true, false, nil
+}
+
+func (p *Prepared) removeHeldIdentity() (bool, error) {
+	removed := false
+	identityLost := false
+	for range 100 {
+		candidates, err := p.heldIdentityCandidates()
+		if err != nil {
+			return false, err
+		}
+		if len(candidates) == 0 {
+			if removed && !identityLost {
+				return true, nil
+			}
+			return false, nil
+		}
+		retry := false
+		for _, candidate := range candidates {
+			captured, changed, err := p.captureAndRemoveHeldCandidate(candidate)
+			if err != nil {
+				return false, err
+			}
+			if changed {
+				identityLost = true
+				retry = true
+				break
+			}
+			if captured {
+				removed = true
+				identityLost = false
+			}
+		}
+		if retry {
+			continue
+		}
+	}
+	return false, errors.New("prepared ROM staging identity kept changing during removal")
 }
 
 // Remove deletes the staged content. It is safe to call more than once.
@@ -145,29 +233,30 @@ func (p *Prepared) Remove() error {
 		return nil
 	}
 	if p.root != nil {
-		current, err := p.root.Lstat(p.base)
-		if err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return errors.New("inspect prepared ROM staging file")
-		}
-		if err == nil && (p.fileInfo == nil || os.SameFile(p.fileInfo, current)) {
+		if p.fileInfo == nil {
+			current, err := p.root.Lstat(p.base)
+			if errors.Is(err, fs.ErrNotExist) {
+				p.removed = true
+				_ = p.root.Close()
+				p.root = nil
+				return nil
+			}
+			if err != nil {
+				return errors.New("inspect prepared ROM staging file")
+			}
 			if !current.Mode().IsRegular() {
 				return errors.New("prepared ROM staging path is not a regular file")
 			}
 			if err := p.root.Remove(p.base); err != nil {
 				return errors.New("remove prepared ROM staging file")
 			}
-		} else if p.fileInfo == nil {
-			if err == nil {
-				return errors.New("prepared ROM staging file identity changed")
-			}
-			p.removed = true
-			_ = p.root.Close()
-			p.root = nil
-			return nil
-		}
-		if p.fileInfo != nil {
-			if err := removeHeldIdentity(p.root, p.fileInfo); err != nil {
+		} else {
+			removed, err := p.removeHeldIdentity()
+			if err != nil {
 				return err
+			}
+			if !removed {
+				return errors.New("prepared ROM staging identity is outside the held directory")
 			}
 		}
 		p.removed = true

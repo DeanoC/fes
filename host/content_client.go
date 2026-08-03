@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/DeanoC/FogCast-POC/internal/core"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
@@ -81,9 +82,13 @@ func (c *Client) LaunchContent(ctx context.Context, request protocol.CachedLaunc
 	if err := c.doJSON(ctx, http.MethodPost, "/v2/launch", request, &response); err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
+	spec, ok := core.DefaultRegistry().Lookup(request.System)
 	if response.Status.State != protocol.StateActive ||
 		response.Status.GameID == nil || *response.Status.GameID != request.GameID ||
 		response.Status.System == nil || *response.Status.System != request.System ||
+		!ok || response.Status.ExpectedCore == nil || *response.Status.ExpectedCore != spec.ExpectedCore ||
+		response.Status.ObservedCore == nil || *response.Status.ObservedCore != spec.ExpectedCore ||
+		response.Status.LastError != nil ||
 		response.Content != request.Content {
 		return protocol.CachedLaunchResponse{}, fmt.Errorf("content launch response does not match requested launch")
 	}

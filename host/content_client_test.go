@@ -326,6 +326,61 @@ func TestContentClientRejectsMismatchedResponses(t *testing.T) {
 	}
 }
 
+func TestLaunchContentRejectsHostileCoreAndLastErrorWithoutReflection(t *testing.T) {
+	content := protocol.ContentIdentity{SHA256: contentDigest, Size: 3, Extension: "sfc"}
+	request := protocol.CachedLaunchRequest{GameID: "snes-synthetic", System: protocol.SystemSNES, Content: content}
+	privateToken := "synthetic-private-token"
+	privatePath := "/Volumes/private-library/game.sfc"
+	tests := []struct {
+		name   string
+		mutate func(*protocol.CachedLaunchResponse)
+	}{
+		{name: "missing expected core", mutate: func(response *protocol.CachedLaunchResponse) { response.Status.ExpectedCore = nil }},
+		{name: "wrong expected core", mutate: func(response *protocol.CachedLaunchResponse) {
+			value := "MegaDrive-" + privateToken + privatePath
+			response.Status.ExpectedCore = &value
+		}},
+		{name: "oversized expected core", mutate: func(response *protocol.CachedLaunchResponse) {
+			value := "SNES-" + privateToken + strings.Repeat("x", 64<<10)
+			response.Status.ExpectedCore = &value
+		}},
+		{name: "missing observed core", mutate: func(response *protocol.CachedLaunchResponse) { response.Status.ObservedCore = nil }},
+		{name: "wrong observed core", mutate: func(response *protocol.CachedLaunchResponse) {
+			value := "MegaDrive-" + privateToken + privatePath
+			response.Status.ObservedCore = &value
+		}},
+		{name: "last error", mutate: func(response *protocol.CachedLaunchResponse) {
+			response.Status.LastError = &protocol.APIError{
+				Code: protocol.ErrorCode("PRIVATE_" + privateToken), Message: privatePath,
+			}
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			gameID, system, coreName := request.GameID, request.System, "SNES"
+			response := protocol.CachedLaunchResponse{
+				Status: protocol.Status{
+					State: protocol.StateActive, GameID: &gameID, System: &system,
+					ExpectedCore: &coreName, ObservedCore: &coreName,
+				},
+				Content: content,
+			}
+			test.mutate(&response)
+			body, err := json.Marshal(response)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = contentClientWithTransport(&staticResponseTransport{body: string(body)}).LaunchContent(context.Background(), request)
+			if err == nil {
+				t.Fatal("hostile launch success response accepted")
+			}
+			if strings.Contains(err.Error(), privateToken) || strings.Contains(err.Error(), privatePath) {
+				t.Fatalf("error reflects hostile response fields: %v", err)
+			}
+		})
+	}
+}
+
 func TestContentClientBoundsResponsesAndDecodesTypedAPIErrors(t *testing.T) {
 	content := protocol.ContentIdentity{SHA256: contentDigest, Size: 3, Extension: "sfc"}
 	t.Run("oversized", func(t *testing.T) {

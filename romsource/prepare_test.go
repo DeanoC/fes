@@ -120,6 +120,102 @@ func TestPreparedRemoveFindsRenamedHeldIdentityAndPreservesDecoy(t *testing.T) {
 	}
 }
 
+func TestPreparedRemoveFindsIdentityRenamedIntoHeldSubdirectory(t *testing.T) {
+	root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
+	staging := t.TempDir()
+	prepared, err := (Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	subdirectory := filepath.Join(staging, "moved")
+	if err := os.Mkdir(subdirectory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	renamed := filepath.Join(subdirectory, filepath.Base(prepared.Path))
+	if err := os.Rename(prepared.Path, renamed); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := prepared.Remove(); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if _, err := os.Lstat(renamed); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("subdirectory staging identity still exists or cannot be inspected: %v", err)
+	}
+}
+
+func TestPreparedRemoveFailsWhenIdentityMovedOutsideHeldRoot(t *testing.T) {
+	root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
+	staging := t.TempDir()
+	prepared, err := (Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	outside := filepath.Join(t.TempDir(), "moved-outside.rom")
+	if err := os.Rename(prepared.Path, outside); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := prepared.Remove(); err == nil {
+		t.Fatal("Remove reported success after the staged identity moved outside its held root")
+	}
+	data, err := os.ReadFile(outside)
+	if err != nil || string(data) != "synthetic-original" {
+		t.Fatalf("outside identity = %q, err=%v", data, err)
+	}
+	if err := os.Rename(outside, prepared.Path); err != nil {
+		t.Fatalf("restore staged identity: %v", err)
+	}
+	if err := prepared.Remove(); err != nil {
+		t.Fatalf("Remove(restored): %v", err)
+	}
+}
+
+func TestPreparedRemoveDoesNotDeleteDecoySwappedAfterIdentityCheck(t *testing.T) {
+	root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
+	staging := t.TempDir()
+	prepared, err := (Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	renamed := filepath.Join(staging, "renamed.rom")
+	if err := os.Rename(prepared.Path, renamed); err != nil {
+		t.Fatal(err)
+	}
+	var swappedOriginal string
+	hookCalled := false
+	prepared.beforeRemoveCandidate = func(held *os.Root, candidate string) error {
+		if hookCalled {
+			return nil
+		}
+		hookCalled = true
+		swappedOriginal = candidate + ".original"
+		if err := held.Rename(candidate, swappedOriginal); err != nil {
+			return err
+		}
+		decoy, err := held.OpenFile(candidate, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if err != nil {
+			return err
+		}
+		_, writeErr := decoy.Write([]byte("private-decoy"))
+		return errors.Join(writeErr, decoy.Close())
+	}
+
+	if err := prepared.Remove(); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if !hookCalled {
+		t.Fatal("identity-check swap hook was not called")
+	}
+	if _, err := os.Lstat(filepath.Join(staging, filepath.FromSlash(swappedOriginal))); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("swapped original still exists or cannot be inspected: %v", err)
+	}
+	decoy, err := os.ReadFile(renamed)
+	if err != nil || string(decoy) != "private-decoy" {
+		t.Fatalf("decoy = %q, err=%v", decoy, err)
+	}
+}
+
 func TestPrepareRawRejectsInvalidSizesAndCleansStaging(t *testing.T) {
 	tests := []struct {
 		name string

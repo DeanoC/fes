@@ -232,6 +232,10 @@ func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 }
 
 func (s *Service) launchGame(ctx context.Context, game catalog.Game, progress ProgressFunc) (protocol.CachedLaunchResponse, bool, error) {
+	root, ok := s.rootsByID[game.LibraryID]
+	if !ok || game.RootPath == "" || root.System != game.System || root.Path != game.RootPath {
+		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeSourceUnavailable, nil)
+	}
 	if game.Content != nil {
 		identity := contentIdentityFromCatalog(*game.Content)
 		if err := protocol.ValidateContentIdentity(identity); err != nil {
@@ -252,10 +256,6 @@ func (s *Service) launchGame(ctx context.Context, game catalog.Game, progress Pr
 
 	if game.State != catalog.SourceStateAvailable || !game.RootOnline {
 		return protocol.CachedLaunchResponse{}, false, canonicalError(catalog.SourceErrorCode(game), nil)
-	}
-	root, ok := s.rootsByID[game.LibraryID]
-	if !ok {
-		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeSourceUnavailable, nil)
 	}
 	emitProgress(progress, "prepare", "preparing source content")
 	prepared, err := s.preparer.Prepare(ctx, root, game)
@@ -354,12 +354,21 @@ func (s *Service) launchContent(parent context.Context, game catalog.Game, ident
 	if err != nil {
 		return protocol.CachedLaunchResponse{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 	}
-	if response.Content != identity || response.Status.State != protocol.StateActive ||
-		response.Status.GameID == nil || *response.Status.GameID != game.ID ||
-		response.Status.System == nil || *response.Status.System != game.System {
+	if !validServiceLaunch(response, request) {
 		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeInternal, nil)
 	}
 	return response, nil
+}
+
+func validServiceLaunch(response protocol.CachedLaunchResponse, request protocol.CachedLaunchRequest) bool {
+	spec, ok := core.DefaultRegistry().Lookup(request.System)
+	return ok && response.Content == request.Content &&
+		response.Status.State == protocol.StateActive &&
+		response.Status.GameID != nil && *response.Status.GameID == request.GameID &&
+		response.Status.System != nil && *response.Status.System == request.System &&
+		response.Status.ExpectedCore != nil && *response.Status.ExpectedCore == spec.ExpectedCore &&
+		response.Status.ObservedCore != nil && *response.Status.ObservedCore == spec.ExpectedCore &&
+		response.Status.LastError == nil
 }
 
 func validServiceProbe(response protocol.CacheProbeResponse, system protocol.System, identity protocol.ContentIdentity) bool {
