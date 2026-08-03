@@ -432,6 +432,25 @@ func TestUploadContentIsOneShotAndPropagatesBodyReadFailure(t *testing.T) {
 	}
 }
 
+func TestUploadContentRequestBodyCloseReachesOriginalSource(t *testing.T) {
+	source := &closeTrackingReader{
+		Reader: strings.NewReader("rom"),
+		closed: make(chan struct{}),
+	}
+	transport := &closingFailureTransport{failure: errors.New("synthetic transport failure")}
+	content := protocol.ContentIdentity{SHA256: contentDigest, Size: 3, Extension: "sfc"}
+
+	_, err := contentClientWithTransport(transport).UploadContent(context.Background(), protocol.SystemSNES, content, source)
+	if err == nil {
+		t.Fatal("upload succeeded")
+	}
+	select {
+	case <-source.closed:
+	default:
+		t.Fatal("closing the HTTP request body did not close the original upload source")
+	}
+}
+
 func TestContentMethodsUseCallerContextsIndependently(t *testing.T) {
 	type contextKey struct{}
 	transport := &contextResponseTransport{t: t, values: map[string]string{
@@ -514,6 +533,28 @@ func (r *failingCountingReader) Read(p []byte) (int, error) {
 type failingUploadTransport struct {
 	calls      int
 	sawGetBody bool
+}
+
+type closeTrackingReader struct {
+	io.Reader
+	once   sync.Once
+	closed chan struct{}
+}
+
+func (r *closeTrackingReader) Close() error {
+	r.once.Do(func() { close(r.closed) })
+	return nil
+}
+
+type closingFailureTransport struct {
+	failure error
+}
+
+func (t *closingFailureTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	if err := request.Body.Close(); err != nil {
+		return nil, err
+	}
+	return nil, t.failure
 }
 
 func (t *failingUploadTransport) RoundTrip(request *http.Request) (*http.Response, error) {

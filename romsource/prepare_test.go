@@ -145,12 +145,13 @@ func TestPreparedSnapshotReadersRemainStableAcrossRemove(t *testing.T) {
 		if !ok {
 			t.Fatalf("reader %d type = %T, want *snapshotReadCloser", index, reader)
 		}
-		readerSize := int64(-1)
-		if snapshotReader.Reader != nil {
-			readerSize = snapshotReader.Reader.Size()
-		}
-		if snapshotReader.owner != nil || readerSize != 0 {
-			t.Fatalf("reader %d retained snapshot references: owner_set=%t reader_size=%d", index, snapshotReader.owner != nil, readerSize)
+		snapshotReader.mu.Lock()
+		ownerSet := snapshotReader.owner != nil
+		readerSet := snapshotReader.reader != nil
+		closed := snapshotReader.closed
+		snapshotReader.mu.Unlock()
+		if ownerSet || readerSet || !closed {
+			t.Fatalf("reader %d retained snapshot state: owner_set=%t reader_set=%t closed=%t", index, ownerSet, readerSet, closed)
 		}
 	}
 	if err := prepared.Remove(); err != nil {

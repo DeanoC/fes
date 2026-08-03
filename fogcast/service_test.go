@@ -1,6 +1,7 @@
 package fogcast
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -9,14 +10,17 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/DeanoC/FogCast-POC/catalog"
+	"github.com/DeanoC/FogCast-POC/host"
 	"github.com/DeanoC/FogCast-POC/protocol"
 	"github.com/DeanoC/FogCast-POC/romsource"
 )
@@ -307,6 +311,58 @@ func TestServiceLaunchUploadsPreparedSnapshotAfterSourceReplacement(t *testing.T
 		_ = file.Close()
 		t.Fatal("prepared snapshot remained openable after service cleanup")
 	}
+}
+
+func TestServiceLaunchSynchronizesDelayedFailedUploadReadWithCleanup(t *testing.T) {
+	body := bytes.Repeat([]byte("stable-upload-snapshot-"), 1<<15)
+	identity := protocol.ContentIdentity{SHA256: serviceDigest, Size: int64(len(body)), Extension: "sfc"}
+	prepared := preparedServiceFixture(t, body, identity)
+	game := serviceGame(catalog.Content{})
+	game.Content = nil
+	store := &fakeServiceCatalog{games: []catalog.Game{game}}
+	preparer := &fakeServicePreparer{prepared: prepared}
+	failure := errors.New("synthetic delayed transport failure /private/upload-token")
+	transport := &delayedFailingUploadTransport{
+		failure: failure,
+		started: make(chan struct{}),
+		result:  make(chan delayedUploadResult, 1),
+	}
+	baseURL, err := url.Parse("http://fogcast.invalid")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := host.NewClient(baseURL, "private-token", &http.Client{Transport: transport})
+	root := catalog.Root{ID: game.LibraryID, System: game.System, Path: "/private/library"}
+	service := newService(
+		Config{Libraries: []catalog.Root{root}, RequestTimeout: time.Second, UploadTimeout: 2 * time.Second},
+		Paths{Staging: "/private/staging"}, store, &fakeServiceScanner{}, preparer, client,
+	)
+
+	_, err = service.Launch(context.Background(), game.ID, nil)
+	assertServiceErrorCode(t, err, protocol.CodeTransferFailed)
+	if strings.Contains(err.Error(), "upload-token") || strings.Contains(err.Error(), "private-token") {
+		t.Fatalf("error exposed private transport detail: %v", err)
+	}
+
+	var result delayedUploadResult
+	select {
+	case result = <-transport.result:
+	case <-time.After(2 * time.Second):
+		t.Fatal("delayed upload reader did not stop after service cleanup")
+	}
+	if !errors.Is(result.readErr, os.ErrClosed) {
+		t.Fatalf("delayed body read error = %v, want closed source", result.readErr)
+	}
+	if result.closeErr != nil {
+		t.Fatalf("delayed request body Close: %v", result.closeErr)
+	}
+	if len(result.data) == 0 || len(result.data) >= len(body) {
+		t.Fatalf("delayed transport read %d of %d bytes, want a non-empty partial read", len(result.data), len(body))
+	}
+	if !bytes.Equal(result.data, body[:len(result.data)]) {
+		t.Fatal("delayed transport observed corrupted snapshot bytes")
+	}
+	assertPreparedRemoved(t, prepared)
 }
 
 func TestServiceLaunchPreservesPrimaryFailureWhenCleanupRetainsContent(t *testing.T) {
@@ -1142,6 +1198,50 @@ type serviceRoundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f serviceRoundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
 	return f(request)
+}
+
+type delayedUploadResult struct {
+	data     []byte
+	readErr  error
+	closeErr error
+}
+
+type delayedFailingUploadTransport struct {
+	failure error
+	started chan struct{}
+	result  chan delayedUploadResult
+}
+
+func (t *delayedFailingUploadTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	switch request.Method {
+	case http.MethodGet:
+		return serviceJSONResponse(request, protocol.CacheProbeResponse{Present: false})
+	case http.MethodPut:
+		go func() {
+			data := make([]byte, 0, request.ContentLength)
+			buffer := make([]byte, 1)
+			started := false
+			for {
+				n, readErr := request.Body.Read(buffer)
+				if n > 0 {
+					data = append(data, buffer[:n]...)
+				}
+				if !started {
+					close(t.started)
+					started = true
+				}
+				if readErr != nil {
+					t.result <- delayedUploadResult{data: data, readErr: readErr, closeErr: request.Body.Close()}
+					return
+				}
+				runtime.Gosched()
+			}
+		}()
+		<-t.started
+		return nil, t.failure
+	default:
+		return nil, fmt.Errorf("unexpected request: %s %s", request.Method, request.URL.Path)
+	}
 }
 
 func serviceJSONResponse(request *http.Request, payload any) (*http.Response, error) {

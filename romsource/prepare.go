@@ -54,7 +54,7 @@ func (p *Prepared) Open() (io.ReadCloser, error) {
 	}
 	if p.data != nil {
 		p.readers++
-		return &snapshotReadCloser{Reader: bytes.NewReader(p.data), owner: p}, nil
+		return &snapshotReadCloser{reader: bytes.NewReader(p.data), owner: p}, nil
 	}
 	if p.Path == "" {
 		return nil, errors.New("open prepared ROM staging file")
@@ -169,16 +169,31 @@ func (p *Prepared) Remove() error {
 }
 
 type snapshotReadCloser struct {
-	*bytes.Reader
-	owner *Prepared
-	once  sync.Once
+	mu     sync.Mutex
+	reader *bytes.Reader
+	owner  *Prepared
+	closed bool
+	once   sync.Once
+}
+
+func (r *snapshotReadCloser) Read(buffer []byte) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return 0, fs.ErrClosed
+	}
+	return r.reader.Read(buffer)
 }
 
 func (r *snapshotReadCloser) Close() error {
 	r.once.Do(func() {
+		r.mu.Lock()
+		r.closed = true
+		r.reader = nil
 		owner := r.owner
 		r.owner = nil
-		r.Reader = bytes.NewReader(nil)
+		r.mu.Unlock()
+
 		owner.releaseSnapshotReader()
 	})
 	return nil

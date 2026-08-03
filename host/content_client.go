@@ -118,6 +118,14 @@ type readOnlyReader struct {
 	io.Reader
 }
 
+func (r readOnlyReader) Close() error {
+	closer, ok := r.Reader.(io.Closer)
+	if !ok {
+		return nil
+	}
+	return closer.Close()
+}
+
 type transferError struct {
 	api   *protocol.APIError
 	cause error
