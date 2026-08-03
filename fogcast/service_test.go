@@ -620,6 +620,36 @@ func TestServiceLaunchPreparationFailureIsTypedPrivateAndTargetSafe(t *testing.T
 	assertProgressStages(t, progress, []string{"prepare"})
 }
 
+func TestServiceLaunchPreparationFailurePreservesCleanupRetentionAndCancellation(t *testing.T) {
+	game := serviceGame(catalog.Content{})
+	game.Content = nil
+	privateDetail := filepath.Join(t.TempDir(), "private-token-retained.rom")
+	prepareErr := errors.Join(
+		&romsource.Error{GameID: game.ID, Code: protocol.CodeInvalidArchive},
+		context.Canceled,
+		romsource.ErrCleanupRetained,
+		errors.New(privateDetail),
+	)
+	store := &fakeServiceCatalog{games: []catalog.Game{game}}
+	client := &fakeServiceClient{activeGame: "megadrive-current"}
+	service := newTestService(store, &fakeServicePreparer{err: prepareErr}, client)
+
+	_, err := service.Launch(context.Background(), game.ID, nil)
+	assertServiceErrorCode(t, err, protocol.CodeInvalidArchive)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error lost primary cancellation: %v", err)
+	}
+	if !errors.Is(err, romsource.ErrCleanupRetained) {
+		t.Fatalf("error lost cleanup-retained signal: %v", err)
+	}
+	if strings.Contains(err.Error(), privateDetail) || strings.Contains(err.Error(), "private-token") {
+		t.Fatalf("error reflected private preparation detail: %v", err)
+	}
+	if client.probeCalls != 0 || client.uploadCalls != 0 || client.launchCalls != 0 || client.activeGame != "megadrive-current" {
+		t.Fatalf("preparation failure touched target: probe=%d upload=%d launch=%d active=%q", client.probeCalls, client.uploadCalls, client.launchCalls, client.activeGame)
+	}
+}
+
 func TestServiceLaunchHonorsCancellationBeforeCatalogAccess(t *testing.T) {
 	store := &fakeServiceCatalog{games: []catalog.Game{serviceGame(catalog.Content{SHA256: serviceDigest, Size: 3, Extension: "sfc"})}}
 	service := newTestService(store, &fakeServicePreparer{}, &fakeServiceClient{})
@@ -1286,6 +1316,9 @@ func assertPreparedRemoved(t *testing.T, prepared *romsource.Prepared) {
 		if _, err := os.Lstat(prepared.Path); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("staging path still exists or cannot be inspected: %v", err)
 		}
+	}
+	if err := prepared.Remove(); err != nil {
+		t.Fatalf("second Remove = %v, want idempotent success", err)
 	}
 }
 

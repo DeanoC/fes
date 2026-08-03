@@ -77,6 +77,70 @@ func TestPrepareRawReturnsBoundedSnapshotWithoutPathBackedCleanup(t *testing.T) 
 	}
 }
 
+func TestPreparedSnapshotReadersRemainStableAcrossRemove(t *testing.T) {
+	body := bytes.Repeat([]byte("stable-snapshot-"), 4096)
+	prepared, err := NewPreparedSnapshot(body, "sfc")
+	if err != nil {
+		t.Fatalf("NewPreparedSnapshot: %v", err)
+	}
+	const readerCount = 8
+	readers := make([]io.ReadCloser, readerCount)
+	for index := range readers {
+		readers[index], err = prepared.Open()
+		if err != nil {
+			t.Fatalf("Open(%d): %v", index, err)
+		}
+	}
+
+	ready := make(chan struct{}, readerCount)
+	continueReading := make(chan struct{})
+	results := make(chan error, readerCount)
+	for index, reader := range readers {
+		go func(index int, reader io.ReadCloser) {
+			prefix := make([]byte, 1)
+			_, prefixErr := io.ReadFull(reader, prefix)
+			ready <- struct{}{}
+			<-continueReading
+			remainder, readErr := io.ReadAll(reader)
+			closeErr := reader.Close()
+			if prefixErr != nil || readErr != nil || closeErr != nil {
+				results <- fmt.Errorf("reader %d: prefix=%v read=%v close=%v", index, prefixErr, readErr, closeErr)
+				return
+			}
+			data := append(prefix, remainder...)
+			if !bytes.Equal(data, body) {
+				results <- fmt.Errorf("reader %d returned unstable snapshot", index)
+				return
+			}
+			results <- nil
+		}(index, reader)
+	}
+	for range readerCount {
+		<-ready
+	}
+	if err := prepared.Remove(); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if reader, err := prepared.Open(); err == nil {
+		_ = reader.Close()
+		t.Fatal("Open accepted a new reader after Remove")
+	}
+	close(continueReading)
+	for range readerCount {
+		if err := <-results; err != nil {
+			t.Error(err)
+		}
+	}
+	if err := prepared.Remove(); err != nil {
+		t.Fatalf("second Remove: %v", err)
+	}
+	prepared.mu.Lock()
+	defer prepared.mu.Unlock()
+	if prepared.data != nil || prepared.readers != 0 {
+		t.Fatalf("snapshot storage not released: bytes=%d readers=%d", len(prepared.data), prepared.readers)
+	}
+}
+
 func TestPreparedOpenRejectsReplacementAndReadsHeldIdentity(t *testing.T) {
 	root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
 	prepared := preparePathBackedFixture(t, root, game, t.TempDir())

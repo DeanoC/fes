@@ -419,9 +419,17 @@ func canonicalRemoteError(err error, fallback protocol.ErrorCode) error {
 func canonicalPreparationError(err error) error {
 	var prepareErr *romsource.Error
 	if errors.As(err, &prepareErr) {
-		return canonicalError(prepareErr.Code, safeContextError(err))
+		return canonicalError(prepareErr.Code, safePreparationCause(err))
 	}
-	return canonicalError(protocol.CodeSourceUnavailable, safeContextError(err))
+	return canonicalError(protocol.CodeSourceUnavailable, safePreparationCause(err))
+}
+
+func safePreparationCause(err error) error {
+	causes := []error{safeContextError(err)}
+	if errors.Is(err, romsource.ErrCleanupRetained) {
+		causes = append(causes, romsource.ErrCleanupRetained)
+	}
+	return errors.Join(causes...)
 }
 
 func canonicalError(code protocol.ErrorCode, cause error) error {

@@ -32,6 +32,7 @@ type Prepared struct {
 	base     string
 	removed  bool
 	retained bool
+	readers  int
 
 	beforePathUnlink func(*os.Root, string) error
 }
@@ -52,7 +53,8 @@ func (p *Prepared) Open() (io.ReadCloser, error) {
 		return nil, ErrCleanupRetained
 	}
 	if p.data != nil {
-		return io.NopCloser(bytes.NewReader(p.data)), nil
+		p.readers++
+		return &snapshotReadCloser{Reader: bytes.NewReader(p.data), owner: p}, nil
 	}
 	if p.Path == "" {
 		return nil, errors.New("open prepared ROM staging file")
@@ -143,9 +145,11 @@ func (p *Prepared) Remove() error {
 		return ErrCleanupRetained
 	}
 	if p.data != nil {
-		clear(p.data)
-		p.data = nil
 		p.removed = true
+		if p.readers == 0 {
+			clear(p.data)
+			p.data = nil
+		}
 		return nil
 	}
 	if p.Path == "" {
@@ -162,6 +166,29 @@ func (p *Prepared) Remove() error {
 	p.root = nil
 	p.retained = true
 	return ErrCleanupRetained
+}
+
+type snapshotReadCloser struct {
+	*bytes.Reader
+	owner *Prepared
+	once  sync.Once
+}
+
+func (r *snapshotReadCloser) Close() error {
+	r.once.Do(func() {
+		r.owner.releaseSnapshotReader()
+	})
+	return nil
+}
+
+func (p *Prepared) releaseSnapshotReader() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.readers--
+	if p.removed && p.readers == 0 && p.data != nil {
+		clear(p.data)
+		p.data = nil
+	}
 }
 
 type Preparer struct {
