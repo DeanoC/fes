@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/DeanoC/FogCast-POC/internal/core"
 	"github.com/DeanoC/FogCast-POC/protocol"
@@ -37,9 +38,13 @@ type Resolved struct {
 
 type openFileFunc func(string) (*os.File, error)
 
+type SpaceProbe func(string) (int64, error)
+
 type managerOptions struct {
-	openFile openFileFunc
-	logger   *slog.Logger
+	openFile   openFileFunc
+	logger     *slog.Logger
+	spaceProbe SpaceProbe
+	clock      func() time.Time
 }
 
 type Option func(*managerOptions) error
@@ -63,6 +68,29 @@ func WithLogger(logger *slog.Logger) Option {
 			return errors.New("target cache logger cannot be nil")
 		}
 		options.logger = logger
+		return nil
+	}
+}
+
+// WithSpaceProbe replaces the filesystem free-space probe. It is intended for
+// deterministic capacity tests; production callers should use the default.
+func WithSpaceProbe(probe SpaceProbe) Option {
+	return func(options *managerOptions) error {
+		if probe == nil {
+			return errors.New("target cache space probe cannot be nil")
+		}
+		options.spaceProbe = probe
+		return nil
+	}
+}
+
+// WithClock replaces the wall clock used for launch LRU touches.
+func WithClock(clock func() time.Time) Option {
+	return func(options *managerOptions) error {
+		if clock == nil {
+			return errors.New("target cache clock cannot be nil")
+		}
+		options.clock = clock
 		return nil
 	}
 }
@@ -98,11 +126,20 @@ type Manager struct {
 	directories map[protocol.System]systemDirectory
 	openFile    openFileFunc
 	logger      *slog.Logger
+	spaceProbe  SpaceProbe
+	clock       func() time.Time
+	uploadGate  chan struct{}
+	activeStore activeStore
 
-	mu      sync.Mutex
-	entries map[inventoryKey]inventoryEntry
-	memos   map[inventoryKey]verificationMemo
-	usage   int64
+	mu            sync.Mutex
+	entries       map[inventoryKey]inventoryEntry
+	memos         map[inventoryKey]verificationMemo
+	usage         int64
+	uploading     *inventoryKey
+	active        *inventoryKey
+	inFlight      *inventoryKey
+	pendingActive *activeRecord
+	recordPresent bool
 }
 
 func Open(config Config, registry core.Registry, options ...Option) (*Manager, error) {
@@ -114,7 +151,7 @@ func Open(config Config, registry core.Registry, options ...Option) (*Manager, e
 		return nil, err
 	}
 
-	settings := managerOptions{logger: slog.Default()}
+	settings := managerOptions{logger: slog.Default(), spaceProbe: defaultSpaceProbe, clock: time.Now}
 	for _, option := range options {
 		if option == nil {
 			return nil, errors.New("target cache option cannot be nil")
@@ -153,6 +190,9 @@ func Open(config Config, registry core.Registry, options ...Option) (*Manager, e
 		directories: make(map[protocol.System]systemDirectory),
 		openFile:    settings.openFile,
 		logger:      settings.logger,
+		spaceProbe:  settings.spaceProbe,
+		clock:       settings.clock,
+		uploadGate:  make(chan struct{}, 1),
 		entries:     make(map[inventoryKey]inventoryEntry),
 		memos:       make(map[inventoryKey]verificationMemo),
 	}
@@ -161,6 +201,10 @@ func Open(config Config, registry core.Registry, options ...Option) (*Manager, e
 		return nil, errors.New("target cache registry has no supported systems")
 	}
 	if err := manager.inventory(); err != nil {
+		manager.closeDirectoryHandles()
+		return nil, err
+	}
+	if err := manager.prepareActiveStore(); err != nil {
 		manager.closeDirectoryHandles()
 		return nil, err
 	}
@@ -373,6 +417,9 @@ func chmodOpenedRoot(root *os.Root, mode os.FileMode) error {
 func (m *Manager) closeDirectoryHandles() {
 	for _, directory := range m.directories {
 		_ = directory.root.Close()
+	}
+	if m.activeStore.root != nil {
+		_ = m.activeStore.root.Close()
 	}
 	_ = m.rootHandle.Close()
 }
