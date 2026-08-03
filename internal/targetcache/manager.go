@@ -2,9 +2,7 @@ package targetcache
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -316,9 +314,8 @@ func (m *Manager) inventorySystem(system protocol.System, directory systemDirect
 			return errors.New("inspect target cache entry failed")
 		}
 		if info.Mode().IsRegular() && isRecognizedStalePart(name) {
-			if err := m.removeStalePart(system, directory, name, info); err != nil {
-				return err
-			}
+			m.usage += knownSize(info)
+			m.logExcluded(system, "stale-part-retained", info)
 			continue
 		}
 		size := knownSize(info)
@@ -339,72 +336,6 @@ func (m *Manager) inventorySystem(system protocol.System, directory systemDirect
 		m.entries[makeInventoryKey(system, key)] = inventoryEntry{name: name, path: path, accountedSize: size}
 	}
 	return nil
-}
-
-func (m *Manager) removeStalePart(system protocol.System, directory systemDirectory, name string, inspected os.FileInfo) error {
-	if !m.directoriesIntact(system) {
-		return errors.New("target cache directory identity changed before stale cleanup")
-	}
-	current, err := directory.root.Lstat(name)
-	if err != nil {
-		return errors.New("reinspect stale target cache part failed")
-	}
-	if !current.Mode().IsRegular() || !sameFileInfo(inspected, current) {
-		return errors.New("stale target cache part identity changed before cleanup")
-	}
-	if !m.directoriesIntact(system) {
-		return errors.New("target cache directory identity changed before stale cleanup")
-	}
-	quarantineName, err := newStaleQuarantineName()
-	if err != nil {
-		return errors.New("prepare stale target cache quarantine failed")
-	}
-	quarantinePath := filepath.Join(string(system), quarantineName)
-	if _, err := m.rootHandle.Lstat(quarantinePath); err == nil || !os.IsNotExist(err) {
-		return errors.New("prepare stale target cache quarantine failed")
-	}
-	if err := m.rootHandle.Rename(filepath.Join(string(system), name), quarantinePath); err != nil {
-		return errors.New("quarantine stale target cache part failed")
-	}
-	quarantined, err := m.rootHandle.Lstat(quarantinePath)
-	if err != nil || !quarantined.Mode().IsRegular() || !sameFileInfo(inspected, quarantined) {
-		return errors.New("stale target cache part identity changed before cleanup")
-	}
-	m.logger.LogAttrs(
-		context.Background(),
-		slog.LevelInfo,
-		"stale cache part cleanup",
-		slog.String("category", "stale-part-cleanup"),
-		slog.String("system", string(system)),
-		slog.Int64("size", knownSize(inspected)),
-	)
-	if !m.directoriesIntact(system) {
-		return errors.New("target cache directory identity changed before stale cleanup")
-	}
-	if _, err := m.rootHandle.Lstat(filepath.Join(string(system), name)); err == nil {
-		return errors.New("stale target cache part identity changed before cleanup")
-	} else if !os.IsNotExist(err) {
-		return errors.New("reinspect stale target cache part failed")
-	}
-	current, err = m.rootHandle.Lstat(quarantinePath)
-	if err != nil || !current.Mode().IsRegular() || !sameFileInfo(inspected, current) {
-		return errors.New("stale target cache part identity changed before cleanup")
-	}
-	if !m.directoriesIntact(system) {
-		return errors.New("target cache directory identity changed before stale cleanup")
-	}
-	if err := m.rootHandle.Remove(quarantinePath); err != nil {
-		return errors.New("remove stale target cache part failed")
-	}
-	return nil
-}
-
-func newStaleQuarantineName() (string, error) {
-	var token [16]byte
-	if _, err := rand.Read(token[:]); err != nil {
-		return "", err
-	}
-	return stalePartPrefix + "quarantine-" + hex.EncodeToString(token[:]) + stalePartSuffix, nil
 }
 
 func readDirect(root *os.Root) ([]os.DirEntry, error) {
