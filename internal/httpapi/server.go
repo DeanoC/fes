@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 	"time"
@@ -46,22 +47,65 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 	if settings.content != nil {
 		registerContentRoutes(mux, token, settings.content)
 	}
-	return requestLogger(logger, rejectNoncanonicalV2Paths(mux))
+	return requestLogger(logger, rejectInvalidV2RouteShapes(mux))
 }
 
-func rejectNoncanonicalV2Paths(next http.Handler) http.Handler {
+func rejectInvalidV2RouteShapes(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		escapedPath := r.URL.EscapedPath()
-		canonicalPath := path.Clean(escapedPath)
-		if strings.HasSuffix(escapedPath, "/") && canonicalPath != "/" {
-			canonicalPath += "/"
-		}
-		if escapedPath != canonicalPath && (strings.HasPrefix(escapedPath, "/v2/") || strings.HasPrefix(canonicalPath, "/v2/")) {
+		if invalidV2RoutePath(r.URL) {
 			http.NotFound(w, r)
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func invalidV2RoutePath(requestURL *url.URL) bool {
+	escapedPath := requestURL.EscapedPath()
+	if requestURL.RawPath != "" {
+		escapedPath = requestURL.RawPath
+	}
+	decodedPath, err := url.PathUnescape(escapedPath)
+	candidate := v2RouteCandidate(requestURL.Path) || v2RouteCandidate(escapedPath)
+	if err == nil {
+		candidate = candidate || v2RouteCandidate(decodedPath)
+	}
+	if !candidate {
+		return false
+	}
+	if err != nil || decodedPath != requestURL.Path {
+		return true
+	}
+	return !validV2RouteShape(escapedPath, decodedPath)
+}
+
+func v2RouteCandidate(pathValue string) bool {
+	return v2Path(pathValue) || v2Path(path.Clean(pathValue))
+}
+
+func v2Path(pathValue string) bool {
+	return pathValue == "/v2" || strings.HasPrefix(pathValue, "/v2/")
+}
+
+func validV2RouteShape(escapedPath string, decodedPath string) bool {
+	if decodedPath != path.Clean(decodedPath) {
+		return false
+	}
+	escapedSegments := strings.Split(escapedPath, "/")
+	decodedSegments := strings.Split(decodedPath, "/")
+	for _, segment := range escapedSegments {
+		decodedSegment, err := url.PathUnescape(segment)
+		if err != nil || decodedSegment == "." || decodedSegment == ".." || strings.Contains(decodedSegment, "/") || strings.Contains(strings.ToLower(segment), "%5c") {
+			return false
+		}
+	}
+	if len(decodedSegments) == 3 && decodedSegments[0] == "" && decodedSegments[1] == "v2" && decodedSegments[2] == "launch" {
+		return len(escapedSegments) == 3 && escapedSegments[0] == "" && escapedSegments[1] == "v2" && escapedSegments[2] == "launch"
+	}
+	if len(decodedSegments) == 5 && decodedSegments[0] == "" && decodedSegments[1] == "v2" && decodedSegments[2] == "cache" && decodedSegments[3] != "" && decodedSegments[4] != "" {
+		return len(escapedSegments) == 5 && escapedSegments[0] == "" && escapedSegments[1] == "v2" && escapedSegments[2] == "cache"
+	}
+	return false
 }
 
 func authenticate(token string, next http.Handler) http.Handler {

@@ -122,9 +122,10 @@ func TestV2RoutesAreOptionalAndMethodsAreExact(t *testing.T) {
 
 func TestV2NoncanonicalPathsAreExact404BeforeAuthentication(t *testing.T) {
 	tests := []struct {
-		name   string
-		method string
-		path   string
+		name    string
+		method  string
+		path    string
+		rawPath string
 	}{
 		{name: "repeated launch slash", method: http.MethodPost, path: "/v2//launch"},
 		{name: "launch dot segment", method: http.MethodPost, path: "/v2/./launch"},
@@ -133,12 +134,26 @@ func TestV2NoncanonicalPathsAreExact404BeforeAuthentication(t *testing.T) {
 		{name: "repeated cache slash", method: http.MethodGet, path: "/v2/cache//snes/" + v2Digest + "?extension=sfc"},
 		{name: "cache trailing dot", method: http.MethodGet, path: "/v2/cache/snes/" + v2Digest + "/.?extension=sfc"},
 		{name: "non-v2 traversal into launch", method: http.MethodPost, path: "/not-v2/../v2/launch"},
+		{name: "encoded v2 prefix with dot", method: http.MethodPost, path: "/%76%32/./launch"},
+		{name: "encoded v2 prefix", method: http.MethodPost, path: "/%76%32/launch"},
+		{name: "encoded launch literal", method: http.MethodPost, path: "/v2/la%75nch"},
+		{name: "encoded cache literal", method: http.MethodGet, path: "/v2/%63ache/snes/" + v2Digest + "?extension=sfc"},
+		{name: "encoded dot system", method: http.MethodGet, path: "/v2/cache/%2e/" + v2Digest + "?extension=sfc"},
+		{name: "encoded parent system", method: http.MethodGet, path: "/v2/cache/%2e%2e/" + v2Digest + "?extension=sfc"},
+		{name: "encoded slash system", method: http.MethodGet, path: "/v2/cache/snes%2fextra/" + v2Digest + "?extension=sfc"},
+		{name: "encoded backslash system", method: http.MethodGet, path: "/v2/cache/snes%5cextra/" + v2Digest + "?extension=sfc"},
+		{name: "encoded slash digest", method: http.MethodGet, path: "/v2/cache/snes/abc%2fdef?extension=sfc"},
+		{name: "malformed escape", method: http.MethodPost, path: "/v2/launch", rawPath: "/v2/%ZZ/launch"},
+		{name: "inconsistent escaped path", method: http.MethodPost, path: "/v2/launch", rawPath: "/v2/%63ache"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body := &observedReader{data: []byte(validLaunchJSON()), err: io.EOF}
 			content := &fakeContentController{}
 			request := httptest.NewRequest(tt.method, tt.path, body)
+			if tt.rawPath != "" {
+				request.URL.RawPath = tt.rawPath
+			}
 			response := serveContent(newContentHandler(content, discardLogger()), request)
 
 			if response.Code != http.StatusNotFound {
@@ -154,6 +169,19 @@ func TestV2NoncanonicalPathsAreExact404BeforeAuthentication(t *testing.T) {
 				t.Fatalf("noncanonical path reached controller: probe=%d put=%d launch=%d", content.probeCalls, content.putCalls, content.launchCalls)
 			}
 		})
+	}
+}
+
+func TestV2RouteShapeAllowsEncodedVariableAndQueryValues(t *testing.T) {
+	content := &fakeContentController{}
+	path := "/v2/cache/s%6ees/%30" + v2Digest[1:] + "?extension=%73fc"
+	response := serveContent(newContentHandler(content, discardLogger()), newV2Request(http.MethodGet, path, nil, 0, ""))
+
+	if response.Code != http.StatusOK || response.Body.String() != "{\"present\":false}\n" {
+		t.Fatalf("response = status %d, body %q", response.Code, response.Body.String())
+	}
+	if content.probeCalls != 1 || content.probeSystem != protocol.SystemSNES || content.probeKey != (protocol.ContentKey{SHA256: v2Digest, Extension: "sfc"}) {
+		t.Fatalf("probe = calls %d, system %q, key %#v", content.probeCalls, content.probeSystem, content.probeKey)
 	}
 }
 
