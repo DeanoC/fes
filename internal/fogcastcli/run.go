@@ -1,0 +1,450 @@
+// Package fogcastcli implements the FogCast host command-line interface.
+package fogcastcli
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"slices"
+	"strings"
+	"sync"
+	"text/tabwriter"
+
+	"github.com/DeanoC/FogCast-POC/catalog"
+	"github.com/DeanoC/FogCast-POC/fogcast"
+	"github.com/DeanoC/FogCast-POC/protocol"
+)
+
+const usageText = "usage: fogcast [--config path] [--json] {scan|games|search <text>|launch <game-id>|health|status|stop}\n"
+
+// Service is the host operation surface used by the command line.
+type Service interface {
+	Scan(context.Context) (catalog.ScanReport, error)
+	Games(context.Context) ([]catalog.Game, error)
+	Search(context.Context, string) ([]catalog.Game, error)
+	Launch(context.Context, string, fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error)
+	Health(context.Context) (protocol.Health, error)
+	Status(context.Context) (protocol.Status, error)
+	Stop(context.Context) (protocol.Status, error)
+	Close() error
+}
+
+// OpenService opens a service using the selected host paths.
+type OpenService func(context.Context, fogcast.Paths) (Service, error)
+
+type rootResult struct {
+	RootID    string          `json:"root_id"`
+	System    protocol.System `json:"system"`
+	Added     int             `json:"added"`
+	Updated   int             `json:"updated"`
+	Unchanged int             `json:"unchanged"`
+	Invalid   int             `json:"invalid"`
+	Missing   int             `json:"missing"`
+	Offline   bool            `json:"offline"`
+}
+
+type scanResult struct {
+	Roots []rootResult `json:"roots"`
+}
+
+type gameResult struct {
+	ID            string              `json:"id"`
+	Title         string              `json:"title"`
+	System        protocol.System     `json:"system"`
+	LibraryID     string              `json:"library_id"`
+	State         catalog.SourceState `json:"state"`
+	RootOnline    bool                `json:"root_online"`
+	ContentCached bool                `json:"content_cached"`
+}
+
+type gamesResult struct {
+	Games []gameResult `json:"games"`
+}
+
+type commandError struct {
+	Code    protocol.ErrorCode `json:"code"`
+	Message string             `json:"message"`
+}
+
+type errorResult struct {
+	Error commandError `json:"error"`
+}
+
+type commandResult struct {
+	jsonValue any
+	human     func(io.Writer) error
+	exit      int
+	err       error
+}
+
+// Run executes one FogCast command and returns its process exit status.
+func Run(ctx context.Context, args []string, stdout, stderr io.Writer, open OpenService) int {
+	flags := flag.NewFlagSet("fogcast", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	configPath := flags.String("config", "", "host configuration path")
+	jsonOutput := flags.Bool("json", false, "emit JSON")
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			if _, err := io.WriteString(stdout, usageText); err != nil {
+				writeHumanError(stderr, safeCommandError(err))
+				return 1
+			}
+			return 0
+		}
+		_, _ = io.WriteString(stderr, usageText)
+		return 2
+	}
+	commandArgs := flags.Args()
+	if !validCommand(commandArgs) {
+		_, _ = io.WriteString(stderr, usageText)
+		return 2
+	}
+	if err := ctx.Err(); err != nil {
+		return writeFailure(*jsonOutput, stdout, stderr, err)
+	}
+	paths, err := fogcast.DefaultPaths()
+	if err != nil {
+		return writeFailure(*jsonOutput, stdout, stderr, err)
+	}
+	configSpecified := false
+	flags.Visit(func(selected *flag.Flag) {
+		configSpecified = configSpecified || selected.Name == "config"
+	})
+	if configSpecified {
+		paths.Config = *configPath
+	}
+	if open == nil {
+		return writeFailure(*jsonOutput, stdout, stderr, errors.New("FogCast service opener is unavailable"))
+	}
+	service, err := open(ctx, paths)
+	if err != nil || service == nil {
+		if err == nil {
+			err = errors.New("FogCast service opener returned no service")
+		}
+		return writeFailure(*jsonOutput, stdout, stderr, err)
+	}
+
+	operationCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	progress := newProgressWriter(*jsonOutput, stdout, stderr, cancel)
+	result := execute(operationCtx, commandArgs, service, progress.Write)
+	if result.err == nil && operationCtx.Err() != nil {
+		result = commandResult{err: operationCtx.Err(), exit: 1}
+	}
+	if err := progress.Err(); err != nil {
+		result = commandResult{err: err, exit: 1}
+	}
+	if closeErr := service.Close(); result.err == nil && closeErr != nil {
+		result = commandResult{err: closeErr, exit: 1}
+	}
+	if result.err != nil {
+		return writeFailure(*jsonOutput, stdout, stderr, result.err)
+	}
+	if *jsonOutput {
+		if err := json.NewEncoder(stdout).Encode(result.jsonValue); err != nil {
+			writeHumanError(stderr, safeCommandError(err))
+			return 1
+		}
+		return result.exit
+	}
+	if result.human != nil {
+		if err := result.human(stdout); err != nil {
+			writeHumanError(stderr, safeCommandError(err))
+			return 1
+		}
+	}
+	return result.exit
+}
+
+func validCommand(args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+	switch args[0] {
+	case "scan", "games", "health", "status", "stop":
+		return len(args) == 1
+	case "search", "launch":
+		return len(args) == 2
+	default:
+		return false
+	}
+}
+
+func execute(ctx context.Context, args []string, service Service, progress fogcast.ProgressFunc) commandResult {
+	switch args[0] {
+	case "scan":
+		report, err := service.Scan(ctx)
+		if err != nil {
+			return commandResult{err: err, exit: 1}
+		}
+		result := makeScanResult(report)
+		return commandResult{jsonValue: result, human: func(output io.Writer) error { return writeHumanScan(output, result) }}
+	case "games":
+		games, err := service.Games(ctx)
+		if err != nil {
+			return commandResult{err: err, exit: 1}
+		}
+		result := makeGamesResult(games)
+		return commandResult{jsonValue: result, human: func(output io.Writer) error { return writeHumanGames(output, result) }}
+	case "search":
+		games, err := service.Search(ctx, args[1])
+		if err != nil {
+			return commandResult{err: err, exit: 1}
+		}
+		result := makeGamesResult(games)
+		return commandResult{jsonValue: result, human: func(output io.Writer) error { return writeHumanGames(output, result) }}
+	case "launch":
+		response, err := service.Launch(ctx, args[1], progress)
+		if err != nil {
+			return commandResult{err: err, exit: 1}
+		}
+		return commandResult{jsonValue: response, human: func(output io.Writer) error { return writeHumanStatus(output, response.Status, args[1]) }}
+	case "health":
+		health, err := service.Health(ctx)
+		if err != nil {
+			return commandResult{err: err, exit: 1}
+		}
+		exit := 0
+		if !health.Ready {
+			exit = 1
+		}
+		return commandResult{jsonValue: health, exit: exit, human: func(output io.Writer) error {
+			if health.Ready {
+				_, err := io.WriteString(output, "ready\n")
+				return err
+			}
+			_, err := io.WriteString(output, "not ready\n")
+			return err
+		}}
+	case "status":
+		status, err := service.Status(ctx)
+		if err != nil {
+			return commandResult{err: err, exit: 1}
+		}
+		return commandResult{jsonValue: status, human: func(output io.Writer) error { return writeHumanStatus(output, status, "") }}
+	case "stop":
+		status, err := service.Stop(ctx)
+		if err != nil {
+			return commandResult{err: err, exit: 1}
+		}
+		return commandResult{jsonValue: status, human: func(output io.Writer) error { return writeHumanStatus(output, status, "") }}
+	default:
+		return commandResult{err: errors.New("invalid command"), exit: 2}
+	}
+}
+
+func makeScanResult(report catalog.ScanReport) scanResult {
+	result := scanResult{Roots: make([]rootResult, 0, len(report.Roots))}
+	for _, root := range report.Roots {
+		result.Roots = append(result.Roots, rootResult{
+			RootID: root.RootID, System: root.System, Added: root.Added, Updated: root.Updated,
+			Unchanged: root.Unchanged, Invalid: root.Invalid, Missing: root.Missing, Offline: root.Offline,
+		})
+	}
+	return result
+}
+
+func makeGamesResult(games []catalog.Game) gamesResult {
+	games = slices.Clone(games)
+	slices.SortFunc(games, func(left, right catalog.Game) int {
+		if compared := strings.Compare(strings.ToLower(left.Title), strings.ToLower(right.Title)); compared != 0 {
+			return compared
+		}
+		return strings.Compare(left.ID, right.ID)
+	})
+	result := gamesResult{Games: make([]gameResult, 0, len(games))}
+	for _, game := range games {
+		result.Games = append(result.Games, gameResult{
+			ID: game.ID, Title: game.Title, System: game.System, LibraryID: game.LibraryID,
+			State: game.State, RootOnline: game.RootOnline, ContentCached: game.Content != nil,
+		})
+	}
+	return result
+}
+
+func writeHumanScan(output io.Writer, result scanResult) error {
+	writer := tabwriter.NewWriter(output, 0, 0, 2, ' ', 0)
+	for _, root := range result.Roots {
+		availability := "online"
+		if root.Offline {
+			availability = "offline"
+		}
+		if _, err := fmt.Fprintf(writer, "%s\t%s\tadded=%d\tupdated=%d\tunchanged=%d\tinvalid=%d\tmissing=%d\t%s\n",
+			root.RootID, systemLabel(root.System), root.Added, root.Updated, root.Unchanged, root.Invalid, root.Missing, availability); err != nil {
+			return err
+		}
+	}
+	return writer.Flush()
+}
+
+func writeHumanGames(output io.Writer, result gamesResult) error {
+	writer := tabwriter.NewWriter(output, 0, 0, 2, ' ', 0)
+	for _, game := range result.Games {
+		if _, err := fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n", game.ID, systemLabel(game.System), game.State, game.Title); err != nil {
+			return err
+		}
+	}
+	return writer.Flush()
+}
+
+func systemLabel(system protocol.System) string {
+	if system == protocol.SystemMegaDrive {
+		return "Mega Drive"
+	}
+	if system == protocol.SystemSNES {
+		return "SNES"
+	}
+	return string(system)
+}
+
+func writeHumanStatus(output io.Writer, status protocol.Status, fallbackGameID string) error {
+	switch status.State {
+	case protocol.StateIdle:
+		_, err := io.WriteString(output, "idle\n")
+		return err
+	case protocol.StateActive:
+		gameID := fallbackGameID
+		if status.GameID != nil {
+			gameID = *status.GameID
+		}
+		core := statusCore(status)
+		switch {
+		case gameID != "" && core != "":
+			_, err := fmt.Fprintf(output, "active: %s (%s)\n", gameID, core)
+			return err
+		case core != "":
+			_, err := fmt.Fprintf(output, "active core=%s\n", core)
+			return err
+		default:
+			_, err := io.WriteString(output, "active\n")
+			return err
+		}
+	case protocol.StateFailed:
+		if _, err := io.WriteString(output, "failed"); err != nil {
+			return err
+		}
+		if core := statusCore(status); core != "" {
+			if _, err := fmt.Fprintf(output, " core=%s", core); err != nil {
+				return err
+			}
+		}
+		if status.LastError != nil {
+			if _, err := fmt.Fprintf(output, " error=%s", status.LastError.Code); err != nil {
+				return err
+			}
+		}
+		_, err := io.WriteString(output, "\n")
+		return err
+	default:
+		_, err := fmt.Fprintln(output, status.State)
+		return err
+	}
+}
+
+func statusCore(status protocol.Status) string {
+	if status.ObservedCore != nil {
+		return *status.ObservedCore
+	}
+	if status.ExpectedCore != nil {
+		return *status.ExpectedCore
+	}
+	return ""
+}
+
+type progressWriter struct {
+	mu       sync.Mutex
+	json     bool
+	output   io.Writer
+	cancel   context.CancelFunc
+	writeErr error
+}
+
+func newProgressWriter(jsonOutput bool, stdout, stderr io.Writer, cancel context.CancelFunc) *progressWriter {
+	output := stdout
+	if jsonOutput {
+		output = stderr
+	}
+	return &progressWriter{json: jsonOutput, output: output, cancel: cancel}
+}
+
+func (w *progressWriter) Write(progress fogcast.Progress) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.writeErr != nil {
+		return
+	}
+	if w.json {
+		w.writeErr = json.NewEncoder(w.output).Encode(progress)
+	} else {
+		_, w.writeErr = fmt.Fprintf(w.output, "%s: %s\n", progress.Stage, progress.Message)
+	}
+	if w.writeErr != nil {
+		w.cancel()
+	}
+}
+
+func (w *progressWriter) Err() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.writeErr
+}
+
+func writeFailure(jsonOutput bool, stdout, stderr io.Writer, err error) int {
+	safe := safeCommandError(err)
+	if jsonOutput {
+		if encodeErr := json.NewEncoder(stdout).Encode(errorResult{Error: safe}); encodeErr != nil {
+			writeHumanError(stderr, safeCommandError(encodeErr))
+		}
+		return 1
+	}
+	writeHumanError(stderr, safe)
+	return 1
+}
+
+func safeCommandError(err error) commandError {
+	var apiErr *protocol.APIError
+	if errors.As(err, &apiErr) {
+		return publicAPIError(apiErr.Code)
+	}
+	switch {
+	case errors.Is(err, context.Canceled):
+		return commandError{Code: "CANCELED", Message: "FogCast operation was canceled"}
+	case errors.Is(err, context.DeadlineExceeded):
+		return commandError{Code: "DEADLINE_EXCEEDED", Message: "FogCast operation timed out"}
+	default:
+		return commandError{Code: protocol.CodeInternal, Message: "FogCast operation failed internally"}
+	}
+}
+
+func publicAPIError(code protocol.ErrorCode) commandError {
+	messages := map[protocol.ErrorCode]string{
+		protocol.CodeBadRequest:        "FogCast request is invalid",
+		protocol.CodeUnauthorized:      "target authentication failed",
+		protocol.CodeROMNotFound:       "catalog game was not found",
+		protocol.CodeBusy:              "another launch or stop transition is running",
+		protocol.CodeUnsupportedSystem: "game system is unsupported",
+		protocol.CodeInvalidROMPath:    "target ROM path is invalid",
+		protocol.CodeMiSTerUnavailable: "MiSTer is unavailable",
+		protocol.CodeCoreTimeout:       "core transition timed out",
+		protocol.CodeInternal:          "FogCast operation failed internally",
+		protocol.CodeUnrecognizedCore:  "active core is unrecognized",
+		protocol.CodeSourceUnavailable: "game source is unavailable",
+		protocol.CodeInvalidArchive:    "game archive is invalid",
+		protocol.CodeTransferFailed:    "content transfer failed",
+		protocol.CodeDigestMismatch:    "content digest does not match its identity",
+		protocol.CodeContentNotCached:  "content is not present in the verified target cache",
+		protocol.CodeCacheFull:         "target cache has insufficient safe capacity",
+	}
+	message, ok := messages[code]
+	if !ok {
+		return commandError{Code: protocol.CodeInternal, Message: messages[protocol.CodeInternal]}
+	}
+	return commandError{Code: code, Message: message}
+}
+
+func writeHumanError(output io.Writer, err commandError) {
+	_, _ = fmt.Fprintf(output, "%s: %s\n", err.Code, err.Message)
+}
