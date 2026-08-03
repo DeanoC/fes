@@ -254,6 +254,63 @@ func TestServiceLaunchUploadsHeldStagingIdentityAfterVisibleDirectoryReplacement
 	}
 }
 
+func TestServiceLaunchRejectedRenamedStagingRemovesHeldIdentityAndPreservesDecoy(t *testing.T) {
+	original := []byte("synthetic-original")
+	decoy := []byte("private-decoy")
+	library := t.TempDir()
+	sourcePath := filepath.Join(library, "game.sfc")
+	if err := os.WriteFile(sourcePath, original, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(sourcePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: library}
+	game := catalog.Game{
+		ID: "snes-synthetic", Title: "Synthetic", LibraryID: root.ID, RelativePath: "game.sfc",
+		System: root.System, Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
+		Fingerprint: catalog.Fingerprint{SourceSize: info.Size(), ModifiedNS: info.ModTime().UnixNano()},
+	}
+	staging := filepath.Join(t.TempDir(), "staging")
+	var prepared *romsource.Prepared
+	var renamedPath string
+	preparer := &fakeServicePreparer{prepare: func(ctx context.Context, gotRoot catalog.Root, gotGame catalog.Game) (*romsource.Prepared, error) {
+		var prepareErr error
+		prepared, prepareErr = (romsource.Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}).Prepare(ctx, gotRoot, gotGame)
+		if prepareErr != nil {
+			return nil, prepareErr
+		}
+		renamedPath = prepared.Path + ".renamed"
+		if err := os.Rename(prepared.Path, renamedPath); err != nil {
+			t.Fatalf("rename prepared content: %v", err)
+		}
+		if err := os.WriteFile(prepared.Path, decoy, 0o600); err != nil {
+			t.Fatalf("write decoy content: %v", err)
+		}
+		return prepared, nil
+	}}
+	store := &fakeServiceCatalog{games: []catalog.Game{game}}
+	client := &fakeServiceClient{probe: absentProbe}
+	service := newService(
+		Config{Libraries: []catalog.Root{root}, RequestTimeout: time.Second, UploadTimeout: time.Second},
+		Paths{Staging: staging}, store, &fakeServiceScanner{}, preparer, client,
+	)
+
+	_, err = service.Launch(context.Background(), game.ID, nil)
+	assertServiceErrorCode(t, err, protocol.CodeTransferFailed)
+	if client.uploadCalls != 0 || client.launchCalls != 0 {
+		t.Fatalf("rejected staging reached target: upload=%d launch=%d", client.uploadCalls, client.launchCalls)
+	}
+	if _, err := os.Lstat(renamedPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("renamed held identity still exists or cannot be inspected: %v", err)
+	}
+	gotDecoy, err := os.ReadFile(prepared.Path)
+	if err != nil || !reflect.DeepEqual(gotDecoy, decoy) {
+		t.Fatalf("decoy = %q, err=%v", gotDecoy, err)
+	}
+}
+
 func TestServiceLaunchSecondProbeHitSkipsUpload(t *testing.T) {
 	identity := protocol.ContentIdentity{SHA256: serviceDigest, Size: 3, Extension: "sfc"}
 	game := serviceGame(catalog.Content{})

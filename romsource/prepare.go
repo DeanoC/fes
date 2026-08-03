@@ -98,6 +98,42 @@ func validPreparedInfo(info fs.FileInfo) bool {
 	return info != nil && info.Mode().IsRegular() && info.Mode().Perm() == 0o600
 }
 
+func removeHeldIdentity(root *os.Root, expected fs.FileInfo) error {
+	entries, err := fs.ReadDir(root.FS(), ".")
+	if err != nil {
+		return errors.New("inspect prepared ROM staging directory")
+	}
+	for _, candidate := range entries {
+		candidateInfo, err := candidate.Info()
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return errors.New("inspect prepared ROM staging file")
+		}
+		if !os.SameFile(expected, candidateInfo) {
+			continue
+		}
+		rechecked, err := root.Lstat(candidate.Name())
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return errors.New("inspect prepared ROM staging file")
+		}
+		if !os.SameFile(expected, rechecked) {
+			continue
+		}
+		if !rechecked.Mode().IsRegular() {
+			return errors.New("prepared ROM staging path is not a regular file")
+		}
+		if err := root.Remove(candidate.Name()); err != nil {
+			return errors.New("remove prepared ROM staging file")
+		}
+	}
+	return nil
+}
+
 // Remove deletes the staged content. It is safe to call more than once.
 func (p *Prepared) Remove() error {
 	if p == nil {
@@ -110,23 +146,29 @@ func (p *Prepared) Remove() error {
 	}
 	if p.root != nil {
 		current, err := p.root.Lstat(p.base)
-		if errors.Is(err, fs.ErrNotExist) {
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return errors.New("inspect prepared ROM staging file")
+		}
+		if err == nil && (p.fileInfo == nil || os.SameFile(p.fileInfo, current)) {
+			if !current.Mode().IsRegular() {
+				return errors.New("prepared ROM staging path is not a regular file")
+			}
+			if err := p.root.Remove(p.base); err != nil {
+				return errors.New("remove prepared ROM staging file")
+			}
+		} else if p.fileInfo == nil {
+			if err == nil {
+				return errors.New("prepared ROM staging file identity changed")
+			}
 			p.removed = true
 			_ = p.root.Close()
 			p.root = nil
 			return nil
 		}
-		if err != nil {
-			return errors.New("inspect prepared ROM staging file")
-		}
-		if p.fileInfo != nil && !os.SameFile(p.fileInfo, current) {
-			return errors.New("prepared ROM staging file identity changed")
-		}
-		if !current.Mode().IsRegular() {
-			return errors.New("prepared ROM staging path is not a regular file")
-		}
-		if err := p.root.Remove(p.base); err != nil {
-			return errors.New("remove prepared ROM staging file")
+		if p.fileInfo != nil {
+			if err := removeHeldIdentity(p.root, p.fileInfo); err != nil {
+				return err
+			}
 		}
 		p.removed = true
 		closeErr := p.root.Close()

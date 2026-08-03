@@ -80,6 +80,46 @@ func TestPreparedOpenRejectsReplacementAndReadsHeldIdentity(t *testing.T) {
 	}
 }
 
+func TestPreparedRemoveFindsRenamedHeldIdentityAndPreservesDecoy(t *testing.T) {
+	for _, withDecoy := range []bool{false, true} {
+		name := "rename only"
+		if withDecoy {
+			name = "rename with decoy"
+		}
+		t.Run(name, func(t *testing.T) {
+			root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
+			prepared, err := (Preparer{StagingRoot: t.TempDir(), MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
+			if err != nil {
+				t.Fatalf("Prepare: %v", err)
+			}
+			t.Cleanup(func() { _ = prepared.Remove() })
+
+			renamed := prepared.Path + ".renamed"
+			if err := os.Rename(prepared.Path, renamed); err != nil {
+				t.Fatalf("rename prepared file: %v", err)
+			}
+			if withDecoy {
+				if err := os.WriteFile(prepared.Path, []byte("private-decoy"), 0o600); err != nil {
+					t.Fatalf("write decoy: %v", err)
+				}
+			}
+
+			if err := prepared.Remove(); err != nil {
+				t.Fatalf("Remove: %v", err)
+			}
+			if _, err := os.Lstat(renamed); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("renamed held identity still exists or cannot be inspected: %v", err)
+			}
+			if withDecoy {
+				decoy, err := os.ReadFile(prepared.Path)
+				if err != nil || string(decoy) != "private-decoy" {
+					t.Fatalf("decoy = %q, err=%v", decoy, err)
+				}
+			}
+		})
+	}
+}
+
 func TestPrepareRawRejectsInvalidSizesAndCleansStaging(t *testing.T) {
 	tests := []struct {
 		name string
