@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 
@@ -45,7 +46,22 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 	if settings.content != nil {
 		registerContentRoutes(mux, token, settings.content)
 	}
-	return requestLogger(logger, mux)
+	return requestLogger(logger, rejectNoncanonicalV2Paths(mux))
+}
+
+func rejectNoncanonicalV2Paths(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		escapedPath := r.URL.EscapedPath()
+		canonicalPath := path.Clean(escapedPath)
+		if strings.HasSuffix(escapedPath, "/") && canonicalPath != "/" {
+			canonicalPath += "/"
+		}
+		if escapedPath != canonicalPath && (strings.HasPrefix(escapedPath, "/v2/") || strings.HasPrefix(canonicalPath, "/v2/")) {
+			http.NotFound(w, r)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func authenticate(token string, next http.Handler) http.Handler {

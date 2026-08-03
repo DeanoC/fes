@@ -120,6 +120,43 @@ func TestV2RoutesAreOptionalAndMethodsAreExact(t *testing.T) {
 	}
 }
 
+func TestV2NoncanonicalPathsAreExact404BeforeAuthentication(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		path   string
+	}{
+		{name: "repeated launch slash", method: http.MethodPost, path: "/v2//launch"},
+		{name: "launch dot segment", method: http.MethodPost, path: "/v2/./launch"},
+		{name: "launch parent segment", method: http.MethodPost, path: "/v2/cache/../launch"},
+		{name: "launch trailing dot", method: http.MethodPost, path: "/v2/launch/."},
+		{name: "repeated cache slash", method: http.MethodGet, path: "/v2/cache//snes/" + v2Digest + "?extension=sfc"},
+		{name: "cache trailing dot", method: http.MethodGet, path: "/v2/cache/snes/" + v2Digest + "/.?extension=sfc"},
+		{name: "non-v2 traversal into launch", method: http.MethodPost, path: "/not-v2/../v2/launch"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := &observedReader{data: []byte(validLaunchJSON()), err: io.EOF}
+			content := &fakeContentController{}
+			request := httptest.NewRequest(tt.method, tt.path, body)
+			response := serveContent(newContentHandler(content, discardLogger()), request)
+
+			if response.Code != http.StatusNotFound {
+				t.Fatalf("status = %d, want 404; Location=%q", response.Code, response.Header().Get("Location"))
+			}
+			if location := response.Header().Get("Location"); location != "" {
+				t.Fatalf("noncanonical path redirected to %q", location)
+			}
+			if body.reads != 0 {
+				t.Fatalf("body reads = %d, want 0", body.reads)
+			}
+			if content.probeCalls != 0 || content.putCalls != 0 || content.launchCalls != 0 {
+				t.Fatalf("noncanonical path reached controller: probe=%d put=%d launch=%d", content.probeCalls, content.putCalls, content.launchCalls)
+			}
+		})
+	}
+}
+
 func TestV2AuthenticationRejectsEveryEndpointBeforeBodyRead(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -308,7 +345,9 @@ func TestV2LaunchReturnsExactShapeAndRejectsControllerMismatch(t *testing.T) {
 	}{
 		{name: "content", mutate: func(response *protocol.CachedLaunchResponse) { response.Content.Size++ }},
 		{name: "state", mutate: func(response *protocol.CachedLaunchResponse) { response.Status.State = protocol.StateIdle }},
+		{name: "missing game", mutate: func(response *protocol.CachedLaunchResponse) { response.Status.GameID = nil }},
 		{name: "game", mutate: func(response *protocol.CachedLaunchResponse) { other := "snes-other"; response.Status.GameID = &other }},
+		{name: "missing system", mutate: func(response *protocol.CachedLaunchResponse) { response.Status.System = nil }},
 		{name: "system", mutate: func(response *protocol.CachedLaunchResponse) {
 			other := protocol.SystemMegaDrive
 			response.Status.System = &other
@@ -324,7 +363,7 @@ func TestV2LaunchReturnsExactShapeAndRejectsControllerMismatch(t *testing.T) {
 			response.Status.ObservedCore = &other
 		}},
 		{name: "last error", mutate: func(response *protocol.CachedLaunchResponse) {
-			response.Status.LastError = &protocol.APIError{Code: protocol.CodeInternal, Message: "/Volumes/private/controller-error"}
+			response.Status.LastError = &protocol.APIError{Code: protocol.CodeInternal, Message: "/Volumes/private/controller-error-" + strings.Repeat("x", 64<<10)}
 		}},
 		{name: "oversized expected core", mutate: func(response *protocol.CachedLaunchResponse) {
 			other := "SNES/private/" + strings.Repeat("x", 64<<10)
@@ -348,12 +387,12 @@ func TestV2LaunchReturnsExactShapeAndRejectsControllerMismatch(t *testing.T) {
 
 func TestV2LaunchSanitizesControllerStatusAndErrorsBeforeLogging(t *testing.T) {
 	identity := protocol.ContentIdentity{SHA256: v2Digest, Size: 3, Extension: "sfc"}
-	privateGame := "controller-private-game"
-	privateSystem := protocol.System("controller-private-system")
-	privateState := protocol.State("controller-private-state")
-	privateCore := "controller-private-core-" + strings.Repeat("x", 8<<10)
-	privateMessage := "/Volumes/private/controller-message-" + strings.Repeat("x", 8<<10)
-	privateCode := protocol.ErrorCode("CONTROLLER_PRIVATE_CODE")
+	privateGame := "controller-private-game-" + strings.Repeat("g", 64<<10)
+	privateSystem := protocol.System("controller-private-system-" + strings.Repeat("s", 64<<10))
+	privateState := protocol.State("controller-private-state-" + strings.Repeat("t", 64<<10))
+	privateCore := "controller-private-core-" + strings.Repeat("c", 64<<10)
+	privateMessage := "/Volumes/private/controller-message-" + strings.Repeat("m", 64<<10)
+	privateCode := protocol.ErrorCode("CONTROLLER_PRIVATE_CODE_" + strings.Repeat("e", 64<<10))
 	hostile := protocol.CachedLaunchResponse{
 		Status: protocol.Status{
 			State:        privateState,
@@ -409,9 +448,20 @@ func TestV2LaunchSanitizesControllerStatusAndErrorsBeforeLogging(t *testing.T) {
 					t.Errorf("logs missing request-derived field %s", want)
 				}
 			}
-			for _, private := range []string{privateGame, string(privateSystem), string(privateState), privateCore, privateMessage, string(privateCode)} {
-				if strings.Contains(response.Body.String(), private) || strings.Contains(logText, private) {
-					t.Errorf("controller-private field %q reached response or logs", private)
+			privateFields := []struct {
+				name  string
+				value string
+			}{
+				{name: "game", value: privateGame},
+				{name: "system", value: string(privateSystem)},
+				{name: "state", value: string(privateState)},
+				{name: "core", value: privateCore},
+				{name: "message", value: privateMessage},
+				{name: "code", value: string(privateCode)},
+			}
+			for _, private := range privateFields {
+				if strings.Contains(response.Body.String(), private.value) || strings.Contains(logText, private.value) {
+					t.Errorf("oversized controller-private %s reached response or logs", private.name)
 				}
 			}
 			if strings.Contains(logText, `"state":`) {
