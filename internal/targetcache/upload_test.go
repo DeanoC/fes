@@ -635,21 +635,34 @@ func TestPutCancellationWhileQueuedDoesNotReadBody(t *testing.T) {
 	}
 }
 
-func TestPutCancellationAfterPartCreationCleansWithoutPublication(t *testing.T) {
+func TestPutCancellationAfterPartCreationCleansWithoutPublicationOrEviction(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	manager := openUploadManager(t, uploadManagerConfig(root, 64<<20), targetcache.WithSpaceProbe(unlimitedSpace))
+	victimBytes := []byte("verified victim retained after part cancellation")
+	victim := contentIdentity(victimBytes, "sfc")
+	victimPath := writeCacheFile(t, root, protocol.SystemSNES, victim, victimBytes)
 	content := []byte("cancel after upload part exists")
 	identity := contentIdentity(content, "sfc")
-	ctx, cancel := context.WithCancel(context.Background())
-	reader := &cancelAfterReadReader{reader: bytes.NewReader(content), cancel: cancel}
+	maximum := int64(len(victimBytes) + len(content) - 1)
+	manager := openUploadManager(t, uploadManagerConfig(root, maximum), targetcache.WithSpaceProbe(unlimitedSpace))
+	ctx := &cancelWhenUploadPartExistsContext{
+		Context:   context.Background(),
+		directory: filepath.Join(root, string(protocol.SystemSNES)),
+	}
 
-	_, apiErr := manager.Put(ctx, protocol.SystemSNES, identity, reader)
+	_, apiErr := manager.Put(ctx, protocol.SystemSNES, identity, bytes.NewReader(content))
 
 	assertSafeAPIError(t, apiErr, protocol.CodeTransferFailed, root, string(content))
+	if !ctx.observed.Load() {
+		t.Fatal("cancellation hook did not observe an upload part")
+	}
 	assertNoUploadParts(t, root)
 	assertDestinationAbsent(t, root, protocol.SystemSNES, identity)
+	got, err := os.ReadFile(victimPath)
+	if err != nil || !bytes.Equal(got, victimBytes) {
+		t.Fatalf("post-part cancellation changed victim: bytes=%q error=%v", got, err)
+	}
 }
 
 func TestPutConcurrentVerifiedDestinationWinsWithoutOverwrite(t *testing.T) {
@@ -675,6 +688,54 @@ func TestPutConcurrentVerifiedDestinationWinsWithoutOverwrite(t *testing.T) {
 		t.Fatalf("concurrent destination changed: bytes=%q error=%v", got, err)
 	}
 	assertNoUploadParts(t, root)
+}
+
+func TestPutConcurrentVerifiedDestinationWinsBeforeTightCapacityPlanning(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name        string
+		victimBytes []byte
+	}{
+		{name: "no victim"},
+		{name: "verified victim remains", victimBytes: []byte("unrelated verified victim with enough reclaimable bytes")},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			content := []byte("tight concurrent publication")
+			identity := contentIdentity(content, "sfc")
+			var victimPath string
+			if len(tt.victimBytes) > 0 {
+				victim := contentIdentity(tt.victimBytes, "sfc")
+				victimPath = writeCacheFile(t, root, protocol.SystemSNES, victim, tt.victimBytes)
+			}
+			maximum := int64(len(content) + len(tt.victimBytes))
+			manager := openUploadManager(t, uploadManagerConfig(root, maximum), targetcache.WithSpaceProbe(unlimitedSpace))
+			destination := cacheDestination(root, protocol.SystemSNES, identity)
+			reader := &publishOnEOFReader{reader: bytes.NewReader(content), publish: func() error {
+				return os.WriteFile(destination, content, 0o600)
+			}}
+
+			response, apiErr := manager.Put(context.Background(), protocol.SystemSNES, identity, reader)
+
+			if apiErr != nil {
+				t.Fatalf("Put concurrent destination at tight ceiling: %v", apiErr)
+			}
+			assertUploadResponse(t, response, protocol.CacheUploadPresent, protocol.SystemSNES, identity)
+			got, err := os.ReadFile(destination)
+			if err != nil || !bytes.Equal(got, content) {
+				t.Fatalf("concurrent destination changed: bytes=%q error=%v", got, err)
+			}
+			if victimPath != "" {
+				got, err := os.ReadFile(victimPath)
+				if err != nil || !bytes.Equal(got, tt.victimBytes) {
+					t.Fatalf("concurrent destination displaced victim: bytes=%q error=%v", got, err)
+				}
+			}
+			assertNoUploadParts(t, root)
+		})
+	}
 }
 
 func TestPutNeverMutatesRetainedStaleParts(t *testing.T) {
@@ -873,6 +934,25 @@ type cancelAfterReadReader struct {
 type switchCancelContext struct {
 	context.Context
 	canceled atomic.Bool
+}
+
+type cancelWhenUploadPartExistsContext struct {
+	context.Context
+	directory string
+	observed  atomic.Bool
+}
+
+func (c *cancelWhenUploadPartExistsContext) Err() error {
+	entries, err := os.ReadDir(c.directory)
+	if err == nil {
+		for _, entry := range entries {
+			if strings.HasPrefix(entry.Name(), ".fogcast-upload-") && strings.HasSuffix(entry.Name(), ".part") {
+				c.observed.Store(true)
+				return context.Canceled
+			}
+		}
+	}
+	return c.Context.Err()
 }
 
 func (c *switchCancelContext) Err() error {

@@ -87,6 +87,15 @@ func (m *Manager) Put(ctx context.Context, system protocol.System, content proto
 	if fmt.Sprintf("%x", hasher.Sum(nil)) != content.SHA256 {
 		return protocol.CacheUploadResponse{}, &protocol.APIError{Code: protocol.CodeDigestMismatch, Message: "uploaded content digest does not match its identity"}
 	}
+	m.mu.Lock()
+	apiErr = m.refreshAccountingLocked()
+	m.mu.Unlock()
+	if apiErr != nil {
+		return protocol.CacheUploadResponse{}, apiErr
+	}
+	if response, present, apiErr := m.uploadDestinationState(ctx, system, content); apiErr != nil || present {
+		return response, apiErr
+	}
 	plan, apiErr := m.planCapacity(ctx, content.Size)
 	if apiErr != nil {
 		return protocol.CacheUploadResponse{}, apiErr
