@@ -31,6 +31,73 @@ type Prepared struct {
 	removed  bool
 }
 
+// Open returns verified staged content. Values created by Preparer are opened
+// through the held staging directory rather than by resolving Path through the
+// ambient filesystem.
+func (p *Prepared) Open() (*os.File, error) {
+	if p == nil {
+		return nil, errors.New("open prepared ROM staging file")
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.removed || p.Path == "" {
+		return nil, errors.New("open prepared ROM staging file")
+	}
+	if p.root != nil {
+		return p.openFromRoot()
+	}
+	return p.openFromPath()
+}
+
+func (p *Prepared) openFromRoot() (*os.File, error) {
+	current, err := p.root.Lstat(p.base)
+	if err != nil || !validPreparedInfo(current) || (p.fileInfo != nil && !os.SameFile(p.fileInfo, current)) {
+		return nil, errors.New("inspect prepared ROM staging file")
+	}
+	file, err := p.root.Open(p.base)
+	if err != nil {
+		return nil, errors.New("open prepared ROM staging file")
+	}
+	if err := validateOpenedPrepared(p.root.Lstat, p.base, file, current, p.fileInfo); err != nil {
+		_ = file.Close()
+		return nil, err
+	}
+	return file, nil
+}
+
+func (p *Prepared) openFromPath() (*os.File, error) {
+	current, err := os.Lstat(p.Path)
+	if err != nil || !validPreparedInfo(current) || (p.fileInfo != nil && !os.SameFile(p.fileInfo, current)) {
+		return nil, errors.New("inspect prepared ROM staging file")
+	}
+	file, err := os.Open(p.Path)
+	if err != nil {
+		return nil, errors.New("open prepared ROM staging file")
+	}
+	statPath := func(string) (fs.FileInfo, error) { return os.Lstat(p.Path) }
+	if err := validateOpenedPrepared(statPath, p.Path, file, current, p.fileInfo); err != nil {
+		_ = file.Close()
+		return nil, err
+	}
+	return file, nil
+}
+
+func validateOpenedPrepared(lstat func(string) (fs.FileInfo, error), name string, file *os.File, current, expected fs.FileInfo) error {
+	opened, err := file.Stat()
+	if err != nil || !validPreparedInfo(opened) || !os.SameFile(current, opened) || (expected != nil && !os.SameFile(expected, opened)) {
+		return errors.New("prepared ROM staging file identity changed")
+	}
+	rechecked, err := lstat(name)
+	if err != nil || !validPreparedInfo(rechecked) || !os.SameFile(opened, rechecked) {
+		return errors.New("prepared ROM staging file identity changed")
+	}
+	return nil
+}
+
+func validPreparedInfo(info fs.FileInfo) bool {
+	return info != nil && info.Mode().IsRegular() && info.Mode().Perm() == 0o600
+}
+
 // Remove deletes the staged content. It is safe to call more than once.
 func (p *Prepared) Remove() error {
 	if p == nil {

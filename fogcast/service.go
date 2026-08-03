@@ -100,7 +100,12 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 	registry := core.DefaultRegistry()
 	scanner := &catalog.Scanner{Store: store, Registry: registry}
 	preparer := &romsource.Preparer{StagingRoot: paths.Staging, MaxBytes: protocol.MaxContentBytes}
-	client := host.NewClient(baseURL, config.Token, httpClient)
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+	operationClient := *httpClient
+	operationClient.Timeout = 0
+	client := host.NewClient(baseURL, config.Token, &operationClient)
 	return newService(config, paths, store, scanner, preparer, client), nil
 }
 
@@ -303,7 +308,7 @@ func (s *Service) launchPrepared(ctx context.Context, game catalog.Game, prepare
 }
 
 func (s *Service) uploadPrepared(parent context.Context, system protocol.System, prepared *romsource.Prepared, progress ProgressFunc) (resultErr error) {
-	file, err := os.Open(prepared.Path)
+	file, err := prepared.Open()
 	if err != nil {
 		return canonicalError(protocol.CodeTransferFailed, nil)
 	}

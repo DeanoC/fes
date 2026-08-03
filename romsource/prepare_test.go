@@ -43,6 +43,43 @@ func TestPrepareRawContentAndSecureStaging(t *testing.T) {
 	assertSecureStagingPath(t, staging, prepared.Path)
 }
 
+func TestPreparedOpenRejectsReplacementAndReadsHeldIdentity(t *testing.T) {
+	root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
+	prepared, err := (Preparer{StagingRoot: t.TempDir(), MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	t.Cleanup(func() { _ = prepared.Remove() })
+
+	file, err := prepared.Open()
+	if err != nil {
+		t.Fatalf("Open(original): %v", err)
+	}
+	data, readErr := io.ReadAll(file)
+	closeErr := file.Close()
+	if readErr != nil || closeErr != nil || string(data) != "synthetic-original" {
+		t.Fatalf("read original = %q, read=%v close=%v", data, readErr, closeErr)
+	}
+
+	displaced := prepared.Path + ".original"
+	if err := os.Rename(prepared.Path, displaced); err != nil {
+		t.Fatalf("displace prepared path: %v", err)
+	}
+	if err := os.WriteFile(prepared.Path, []byte("private-replacement"), 0o600); err != nil {
+		t.Fatalf("write replacement: %v", err)
+	}
+	if file, err := prepared.Open(); err == nil {
+		_ = file.Close()
+		t.Fatal("Open accepted replacement staging identity")
+	}
+	if err := os.Remove(prepared.Path); err != nil {
+		t.Fatalf("remove replacement: %v", err)
+	}
+	if err := os.Rename(displaced, prepared.Path); err != nil {
+		t.Fatalf("restore prepared path: %v", err)
+	}
+}
+
 func TestPrepareRawRejectsInvalidSizesAndCleansStaging(t *testing.T) {
 	tests := []struct {
 		name string
