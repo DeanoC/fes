@@ -61,7 +61,8 @@ func rejectInvalidV2RouteShapes(next http.Handler) http.Handler {
 }
 
 func invalidV2RoutePath(requestURL *url.URL) bool {
-	escapedPath := requestURL.EscapedPath()
+	acceptedEscapedPath := requestURL.EscapedPath()
+	escapedPath := acceptedEscapedPath
 	if requestURL.RawPath != "" {
 		escapedPath = requestURL.RawPath
 	}
@@ -73,7 +74,7 @@ func invalidV2RoutePath(requestURL *url.URL) bool {
 	if !candidate {
 		return false
 	}
-	if err != nil || decodedPath != requestURL.Path {
+	if (requestURL.RawPath != "" && requestURL.RawPath != acceptedEscapedPath) || err != nil || decodedPath != requestURL.Path {
 		return true
 	}
 	return !validV2RouteShape(escapedPath, decodedPath)
@@ -88,14 +89,14 @@ func v2Path(pathValue string) bool {
 }
 
 func validV2RouteShape(escapedPath string, decodedPath string) bool {
-	if decodedPath != path.Clean(decodedPath) {
+	if strings.Contains(escapedPath, "\\") || strings.Contains(decodedPath, "\\") || decodedPath != path.Clean(decodedPath) {
 		return false
 	}
 	escapedSegments := strings.Split(escapedPath, "/")
 	decodedSegments := strings.Split(decodedPath, "/")
 	for _, segment := range escapedSegments {
 		decodedSegment, err := url.PathUnescape(segment)
-		if err != nil || decodedSegment == "." || decodedSegment == ".." || strings.Contains(decodedSegment, "/") || strings.Contains(strings.ToLower(segment), "%5c") {
+		if err != nil || decodedSegment == "." || decodedSegment == ".." || strings.Contains(decodedSegment, "/") {
 			return false
 		}
 	}

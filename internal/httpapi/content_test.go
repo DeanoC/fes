@@ -143,8 +143,11 @@ func TestV2NoncanonicalPathsAreExact404BeforeAuthentication(t *testing.T) {
 		{name: "encoded slash system", method: http.MethodGet, path: "/v2/cache/snes%2fextra/" + v2Digest + "?extension=sfc"},
 		{name: "encoded backslash system", method: http.MethodGet, path: "/v2/cache/snes%5cextra/" + v2Digest + "?extension=sfc"},
 		{name: "encoded slash digest", method: http.MethodGet, path: "/v2/cache/snes/abc%2fdef?extension=sfc"},
+		{name: "literal backslash system", method: http.MethodGet, path: "/v2/cache/snes\\extra/" + v2Digest + "?extension=sfc"},
+		{name: "literal backslash digest", method: http.MethodGet, path: "/v2/cache/snes/abc\\def?extension=sfc"},
 		{name: "malformed escape", method: http.MethodPost, path: "/v2/launch", rawPath: "/v2/%ZZ/launch"},
 		{name: "inconsistent escaped path", method: http.MethodPost, path: "/v2/launch", rawPath: "/v2/%63ache"},
+		{name: "ignored raw path hint", method: http.MethodGet, path: "/v2/cache/snes%20extra/" + v2Digest + "?extension=sfc", rawPath: "/v2/cache/snes extra/" + v2Digest},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
