@@ -1144,6 +1144,7 @@ func preparePathBackedFixture(t *testing.T, root catalog.Root, game catalog.Game
 	if prepared.Path == "" {
 		t.Fatal("path-backed fixture returned a snapshot")
 	}
+	assertSecureStagingPath(t, staging, prepared.Path)
 	return prepared
 }
 

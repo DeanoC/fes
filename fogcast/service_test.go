@@ -238,7 +238,7 @@ func TestServiceLaunchFirstTransferUsesApprovedOrderAndCleansStaging(t *testing.
 		t.Fatalf("operations = %v, want %v", operations, want)
 	}
 	assertProgressStages(t, progress, []string{"prepare", "cache", "cache", "upload", "launch"})
-	assertPreparedRemoved(t, prepared.Path)
+	assertPreparedRemoved(t, prepared)
 }
 
 func TestServiceLaunchUploadsPreparedSnapshotAfterSourceReplacement(t *testing.T) {
@@ -360,7 +360,7 @@ func TestServiceLaunchSecondProbeHitSkipsUpload(t *testing.T) {
 	if client.probeCalls != 1 || client.uploadCalls != 0 || client.launchCalls != 1 {
 		t.Fatalf("calls = probe:%d upload:%d launch:%d", client.probeCalls, client.uploadCalls, client.launchCalls)
 	}
-	assertPreparedRemoved(t, prepared.Path)
+	assertPreparedRemoved(t, prepared)
 }
 
 func TestServiceLaunchRemovesPreparedStagingOnEveryLaterFailure(t *testing.T) {
@@ -408,7 +408,7 @@ func TestServiceLaunchRemovesPreparedStagingOnEveryLaterFailure(t *testing.T) {
 
 			_, err := service.Launch(context.Background(), game.ID, nil)
 			assertServiceErrorCode(t, err, test.code)
-			assertPreparedRemoved(t, prepared.Path)
+			assertPreparedRemoved(t, prepared)
 		})
 	}
 }
@@ -431,7 +431,7 @@ func TestServiceLaunchRejectsMismatchedUploadConfirmation(t *testing.T) {
 	if client.launchCalls != 0 {
 		t.Fatalf("launch calls = %d, want 0", client.launchCalls)
 	}
-	assertPreparedRemoved(t, prepared.Path)
+	assertPreparedRemoved(t, prepared)
 }
 
 func TestServiceLaunchStaleFingerprintReloadsAndRetriesOnce(t *testing.T) {
@@ -479,8 +479,8 @@ func TestServiceLaunchStaleFingerprintReloadsAndRetriesOnce(t *testing.T) {
 	if store.gameCalls != 2 || store.updateCalls != 2 || preparer.calls != 2 || client.probeCalls != 1 || client.uploadCalls != 1 {
 		t.Fatalf("calls = game:%d update:%d prepare:%d probe:%d upload:%d", store.gameCalls, store.updateCalls, preparer.calls, client.probeCalls, client.uploadCalls)
 	}
-	assertPreparedRemoved(t, oldPrepared.Path)
-	assertPreparedRemoved(t, newPrepared.Path)
+	assertPreparedRemoved(t, oldPrepared)
+	assertPreparedRemoved(t, newPrepared)
 }
 
 func TestServiceLaunchUnknownIdentityRequiresAvailableSource(t *testing.T) {
@@ -565,7 +565,7 @@ func TestServiceLaunchPartialUploadIsNeverBlindlyReplayed(t *testing.T) {
 	if client.uploadCalls != 1 || client.launchCalls != 0 || client.activeGame != "megadrive-current" {
 		t.Fatalf("calls/active = upload:%d launch:%d active:%q", client.uploadCalls, client.launchCalls, client.activeGame)
 	}
-	assertPreparedRemoved(t, prepared.Path)
+	assertPreparedRemoved(t, prepared)
 }
 
 func TestServiceLaunchMapsOnlyUnknownGameToNotFound(t *testing.T) {
@@ -678,7 +678,7 @@ func TestServiceLaunchAppliesRequestAndUploadTimeoutsSeparately(t *testing.T) {
 		if !errors.Is(err, context.DeadlineExceeded) || time.Since(started) > 500*time.Millisecond {
 			t.Fatalf("upload timeout error/duration = %v / %s", err, time.Since(started))
 		}
-		assertPreparedRemoved(t, prepared.Path)
+		assertPreparedRemoved(t, prepared)
 	})
 }
 
@@ -1276,13 +1276,16 @@ func preparedServiceFixture(t *testing.T, body []byte, identity protocol.Content
 	return prepared
 }
 
-func assertPreparedRemoved(t *testing.T, path string) {
+func assertPreparedRemoved(t *testing.T, prepared *romsource.Prepared) {
 	t.Helper()
-	if path == "" {
-		return
+	if file, err := prepared.Open(); err == nil {
+		_ = file.Close()
+		t.Fatal("prepared content remained openable after service cleanup")
 	}
-	if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("staging path still exists or cannot be inspected: %v", err)
+	if prepared.Path != "" {
+		if _, err := os.Lstat(prepared.Path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("staging path still exists or cannot be inspected: %v", err)
+		}
 	}
 }
 
