@@ -453,6 +453,79 @@ func TestActiveCommitRecordFailureRetainsInFlightPinAndSanitizesError(t *testing
 	}
 }
 
+func TestActiveCommitFailurePinAbortPreservesEarlierInFlightSafetyPin(t *testing.T) {
+	t.Parallel()
+
+	t.Run("different second content", func(t *testing.T) {
+		root := t.TempDir()
+		activeBytes := []byte("active-a")
+		secondBytes := []byte("flight-b")
+		newBytes := []byte("new-data")
+		config := uploadManagerConfig(root, int64(len(activeBytes)+len(secondBytes)))
+		manager := openUploadManager(t, config, targetcache.WithSpaceProbe(unlimitedSpace))
+		active := putBytes(t, manager, protocol.SystemSNES, activeBytes, "sfc")
+		second := putBytes(t, manager, protocol.SystemSNES, secondBytes, "sfc")
+		old := time.Unix(10, 0)
+		if err := os.Chtimes(cacheDestination(root, protocol.SystemSNES, active), old, old); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(cacheDestination(root, protocol.SystemSNES, second), old.Add(time.Hour), old.Add(time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+		for _, identity := range []protocol.ContentIdentity{active, second} {
+			if response, apiErr := manager.Probe(context.Background(), protocol.SystemSNES, identity.Key()); apiErr != nil || !response.Present {
+				t.Fatalf("refresh eviction memo: response=%#v error=%v", response, apiErr)
+			}
+		}
+		if err := os.MkdirAll(config.ActiveRecord, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if apiErr := manager.PinForLaunch(protocol.SystemSNES, active); apiErr != nil {
+			t.Fatalf("pin active: %v", apiErr)
+		}
+		assertSafeAPIError(t, manager.CommitLaunch(protocol.SystemSNES, active), protocol.CodeInternal, root, config.ActiveRecord)
+
+		if apiErr := manager.PinForLaunch(protocol.SystemSNES, second); apiErr != nil {
+			t.Fatalf("pin second: %v", apiErr)
+		}
+		manager.AbortLaunch(protocol.SystemSNES, second)
+		putBytes(t, manager, protocol.SystemSNES, newBytes, "sfc")
+
+		if got, err := os.ReadFile(cacheDestination(root, protocol.SystemSNES, active)); err != nil || !bytes.Equal(got, activeBytes) {
+			t.Fatalf("retained active content changed: bytes=%q error=%v", got, err)
+		}
+		if _, err := os.Lstat(cacheDestination(root, protocol.SystemSNES, second)); !os.IsNotExist(err) {
+			t.Fatalf("aborted second content was not evicted: %v", err)
+		}
+	})
+
+	t.Run("same second content", func(t *testing.T) {
+		root := t.TempDir()
+		activeBytes := []byte("active-a")
+		newBytes := []byte("new-data")
+		config := uploadManagerConfig(root, int64(len(activeBytes)+len(newBytes)-1))
+		manager := openUploadManager(t, config, targetcache.WithSpaceProbe(unlimitedSpace))
+		active := putBytes(t, manager, protocol.SystemSNES, activeBytes, "sfc")
+		if err := os.MkdirAll(config.ActiveRecord, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if apiErr := manager.PinForLaunch(protocol.SystemSNES, active); apiErr != nil {
+			t.Fatalf("pin active: %v", apiErr)
+		}
+		assertSafeAPIError(t, manager.CommitLaunch(protocol.SystemSNES, active), protocol.CodeInternal, root, config.ActiveRecord)
+
+		if apiErr := manager.PinForLaunch(protocol.SystemSNES, active); apiErr != nil {
+			t.Fatalf("re-pin active: %v", apiErr)
+		}
+		manager.AbortLaunch(protocol.SystemSNES, active)
+		_, apiErr := manager.Put(context.Background(), protocol.SystemSNES, contentIdentity(newBytes, "sfc"), bytes.NewReader(newBytes))
+		assertSafeAPIError(t, apiErr, protocol.CodeCacheFull, root, config.ActiveRecord)
+		if got, err := os.ReadFile(cacheDestination(root, protocol.SystemSNES, active)); err != nil || !bytes.Equal(got, activeBytes) {
+			t.Fatalf("same-content abort dropped retained pin: bytes=%q error=%v", got, err)
+		}
+	})
+}
+
 func TestActivePinForLaunchRejectsMissingContent(t *testing.T) {
 	t.Parallel()
 

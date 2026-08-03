@@ -552,7 +552,7 @@ func addKnownSize(total int64, info os.FileInfo) int64 {
 func (m *Manager) isPinnedLocked(id inventoryKey) bool {
 	return (m.uploading != nil && *m.uploading == id) ||
 		(m.active != nil && *m.active == id) ||
-		(m.inFlight != nil && *m.inFlight == id)
+		m.inFlight[id] > 0
 }
 
 func defaultSpaceProbe(path string) (int64, error) {

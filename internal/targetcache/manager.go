@@ -137,7 +137,7 @@ type Manager struct {
 	usage         int64
 	uploading     *inventoryKey
 	active        *inventoryKey
-	inFlight      *inventoryKey
+	inFlight      map[inventoryKey]uint64
 	pendingActive *activeRecord
 	recordPresent bool
 }

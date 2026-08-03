@@ -117,6 +117,12 @@ func (f *contentRuntime) snapshot() (prepareCalls, launchCalls, stopCalls int, s
 	return f.prepareCalls, f.launchCalls, f.stopCalls, f.prepareSpec, f.preparePath, f.launched
 }
 
+func (f *contentRuntime) setLaunchObserved(observed string) {
+	f.mu.Lock()
+	f.launchObserved = observed
+	f.mu.Unlock()
+}
+
 type recordingContentStore struct {
 	mu                sync.Mutex
 	probeResponse     protocol.CacheProbeResponse
@@ -152,6 +158,7 @@ type recordingContentStore struct {
 	pinned            bool
 	log               *callLog
 	onCommit          func()
+	onClear           func()
 	onReconcile       func(protocol.Status)
 }
 
@@ -242,12 +249,17 @@ func (s *recordingContentStore) ClearActive() *protocol.APIError {
 		s.log.add("clear")
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.clearCalls++
+	onClear := s.onClear
+	apiErr := s.clearErr
 	if s.clearErr == nil {
 		s.pinned = false
 	}
-	return s.clearErr
+	s.mu.Unlock()
+	if onClear != nil {
+		onClear()
+	}
+	return apiErr
 }
 
 func (s *recordingContentStore) ReconcileActive(status protocol.Status) {
@@ -719,6 +731,157 @@ func TestV1LaunchRemainsPathBasedAndDoesNotCreateContentPin(t *testing.T) {
 	}
 	if snapshot := store.snapshot(); snapshot.resolveCalls != 0 || snapshot.pinCalls != 0 || snapshot.abortCalls != 0 || snapshot.commitCalls != 0 {
 		t.Fatalf("v1 launch touched content launch lifecycle: %#v", snapshot)
+	}
+}
+
+func TestSuccessfulV1LaunchClearsPriorCachedPinAfterActivation(t *testing.T) {
+	identity := protocol.ContentIdentity{SHA256: cachedDigest, Size: 4, Extension: "sfc"}
+	tests := []struct {
+		name        string
+		request     protocol.LaunchRequest
+		observed    string
+		wantROMRoot string
+	}{
+		{
+			name: "same system",
+			request: protocol.LaunchRequest{
+				GameID: "snes-path-b", System: protocol.SystemSNES, ROMPath: "/media/fat/games/SNES/path-b.sfc",
+			},
+			observed: "SNES", wantROMRoot: "/media/fat/games/SNES",
+		},
+		{
+			name: "different system",
+			request: protocol.LaunchRequest{
+				GameID: "megadrive-path-b", System: protocol.SystemMegaDrive, ROMPath: "/media/fat/games/MegaDrive/path-b.md",
+			},
+			observed: "MegaDrive", wantROMRoot: "/media/fat/games/MegaDrive",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			log := &callLog{}
+			store := &recordingContentStore{
+				resolved: targetcache.Resolved{Root: "/target/cache", Path: "/target/cache/snes/cached-a.sfc"}, log: log,
+			}
+			runtime := &contentRuntime{health: protocol.Health{Ready: true}, launchObserved: "SNES", log: log}
+			coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+			controller := agent.NewContentController(coordinator, store)
+			store.onClear = func() {
+				current := coordinator.Status()
+				if current.State != protocol.StateActive || current.GameID == nil || *current.GameID != test.request.GameID || current.System == nil || *current.System != test.request.System {
+					t.Errorf("status during clear = %#v", current)
+				}
+				if _, busyErr := coordinator.Stop(context.Background()); busyErr == nil || busyErr.Code != protocol.CodeBusy {
+					t.Errorf("transition token was released before clear: %#v", busyErr)
+				}
+			}
+			if _, apiErr := controller.LaunchContent(context.Background(), protocol.CachedLaunchRequest{
+				GameID: "snes-cached-a", System: protocol.SystemSNES, Content: identity,
+			}); apiErr != nil {
+				t.Fatalf("cached launch A: %v", apiErr)
+			}
+			runtime.setLaunchObserved(test.observed)
+
+			status, apiErr := coordinator.Launch(context.Background(), test.request)
+			if apiErr != nil || status.State != protocol.StateActive || status.GameID == nil || *status.GameID != test.request.GameID || status.System == nil || *status.System != test.request.System {
+				t.Fatalf("v1 launch B = %#v, %#v", status, apiErr)
+			}
+			_, _, _, spec, path, _ := runtime.snapshot()
+			if spec.ROMRoot != test.wantROMRoot || path != test.request.ROMPath {
+				t.Fatalf("v1 launch inputs = spec %#v path %q", spec, path)
+			}
+			snapshot := store.snapshot()
+			if snapshot.clearCalls != 1 || snapshot.pinned {
+				t.Fatalf("v1 launch did not clear cached A after activation: %#v", snapshot)
+			}
+			wantEvents := []string{"resolve", "pin", "prepare", "launch", "commit", "prepare", "launch", "clear"}
+			if events := log.snapshot(); !reflect.DeepEqual(events, wantEvents) {
+				t.Fatalf("events = %#v, want %#v", events, wantEvents)
+			}
+		})
+	}
+}
+
+func TestFailedV1LaunchRetainsPriorCachedPinWithoutClearing(t *testing.T) {
+	identity := protocol.ContentIdentity{SHA256: cachedDigest, Size: 4, Extension: "sfc"}
+	tests := []struct {
+		name       string
+		prepareErr *protocol.APIError
+		launchErr  *protocol.APIError
+		observed   string
+		wantState  protocol.State
+	}{
+		{
+			name: "prepare failure", prepareErr: &protocol.APIError{Code: protocol.CodeInvalidROMPath, Message: "invalid v1 path"},
+			wantState: protocol.StateActive,
+		},
+		{
+			name: "launch failure", launchErr: &protocol.APIError{Code: protocol.CodeCoreTimeout, Message: "v1 core timeout"},
+			observed: "SNES", wantState: protocol.StateFailed,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store := &recordingContentStore{resolved: targetcache.Resolved{Root: "/target/cache", Path: "/target/cache/snes/cached-a.sfc"}}
+			runtime := &contentRuntime{health: protocol.Health{Ready: true}, launchObserved: "SNES"}
+			coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+			controller := agent.NewContentController(coordinator, store)
+			if _, apiErr := controller.LaunchContent(context.Background(), protocol.CachedLaunchRequest{
+				GameID: "snes-cached-a", System: protocol.SystemSNES, Content: identity,
+			}); apiErr != nil {
+				t.Fatalf("cached launch A: %v", apiErr)
+			}
+			runtime.mu.Lock()
+			runtime.prepareErr = test.prepareErr
+			runtime.launchErr = test.launchErr
+			runtime.launchObserved = test.observed
+			runtime.mu.Unlock()
+
+			status, apiErr := coordinator.Launch(context.Background(), protocol.LaunchRequest{
+				GameID: "snes-path-b", System: protocol.SystemSNES, ROMPath: "/media/fat/games/SNES/path-b.sfc",
+			})
+			if apiErr == nil || status.State != test.wantState {
+				t.Fatalf("failed v1 launch = %#v, %#v", status, apiErr)
+			}
+			if snapshot := store.snapshot(); snapshot.clearCalls != 0 || !snapshot.pinned {
+				t.Fatalf("failed v1 launch changed cached A pin: %#v", snapshot)
+			}
+		})
+	}
+}
+
+func TestV1LaunchClearFailureReturnsActiveStatusAndRetainsCachedPin(t *testing.T) {
+	private := "/private/target/cache/active-record"
+	identity := protocol.ContentIdentity{SHA256: cachedDigest, Size: 4, Extension: "sfc"}
+	log := &callLog{}
+	store := &recordingContentStore{
+		resolved: targetcache.Resolved{Root: "/target/cache", Path: "/target/cache/snes/cached-a.sfc"},
+		clearErr: &protocol.APIError{Code: protocol.CodeInternal, Message: private},
+		log:      log,
+	}
+	runtime := &contentRuntime{health: protocol.Health{Ready: true}, launchObserved: "SNES", log: log}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	controller := agent.NewContentController(coordinator, store)
+	if _, apiErr := controller.LaunchContent(context.Background(), protocol.CachedLaunchRequest{
+		GameID: "snes-cached-a", System: protocol.SystemSNES, Content: identity,
+	}); apiErr != nil {
+		t.Fatalf("cached launch A: %v", apiErr)
+	}
+
+	status, apiErr := coordinator.Launch(context.Background(), protocol.LaunchRequest{
+		GameID: "snes-path-b", System: protocol.SystemSNES, ROMPath: "/media/fat/games/SNES/path-b.sfc",
+	})
+	if apiErr == nil || apiErr.Code != protocol.CodeInternal || apiErr.Message != "active cache record cannot be cleared" || strings.Contains(apiErr.Error(), private) {
+		t.Fatalf("v1 clear error = %#v", apiErr)
+	}
+	if status.State != protocol.StateActive || status.GameID == nil || *status.GameID != "snes-path-b" || status.LastError != nil || !reflect.DeepEqual(status, coordinator.Status()) {
+		t.Fatalf("active v1 status was lost: returned=%#v current=%#v", status, coordinator.Status())
+	}
+	if snapshot := store.snapshot(); snapshot.clearCalls != 1 || !snapshot.pinned {
+		t.Fatalf("clear failure dropped cached A pin: %#v", snapshot)
+	}
+	if events := log.snapshot(); !reflect.DeepEqual(events, []string{"resolve", "pin", "prepare", "launch", "commit", "prepare", "launch", "clear"}) {
+		t.Fatalf("events = %#v", events)
 	}
 }
 

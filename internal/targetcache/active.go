@@ -127,8 +127,10 @@ func (m *Manager) PinForLaunch(system protocol.System, content protocol.ContentI
 	if !m.verifiedContentLocked(id, content.Size) {
 		return contentNotCachedError()
 	}
-	pinned := id
-	m.inFlight = &pinned
+	if m.inFlight == nil {
+		m.inFlight = make(map[inventoryKey]uint64)
+	}
+	m.inFlight[id]++
 	return nil
 }
 
@@ -141,8 +143,10 @@ func (m *Manager) AbortLaunch(system protocol.System, content protocol.ContentId
 		return
 	}
 	m.mu.Lock()
-	if m.inFlight != nil && *m.inFlight == id {
-		m.inFlight = nil
+	if count := m.inFlight[id]; count > 1 {
+		m.inFlight[id] = count - 1
+	} else {
+		delete(m.inFlight, id)
 	}
 	m.mu.Unlock()
 }
@@ -156,7 +160,7 @@ func (m *Manager) CommitLaunch(system protocol.System, content protocol.ContentI
 		return apiErr
 	}
 	m.mu.Lock()
-	ready := m.inFlight != nil && *m.inFlight == id && m.verifiedContentLocked(id, content.Size)
+	ready := m.inFlight[id] > 0 && m.verifiedContentLocked(id, content.Size)
 	m.mu.Unlock()
 	if !ready {
 		return internalAPIError("launch content is not pinned and verified")
@@ -168,7 +172,7 @@ func (m *Manager) CommitLaunch(system protocol.System, content protocol.ContentI
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.inFlight == nil || *m.inFlight != id || !m.verifiedContentLocked(id, content.Size) || !m.directoriesIntact(system) {
+	if m.inFlight[id] == 0 || !m.verifiedContentLocked(id, content.Size) || !m.directoriesIntact(system) {
 		return internalAPIError("launch content changed before commit")
 	}
 	entry := m.entries[id]

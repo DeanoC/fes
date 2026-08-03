@@ -94,7 +94,16 @@ func (c *Coordinator) Launch(parent context.Context, request protocol.LaunchRequ
 	if !ok {
 		return c.Status(), unsupportedSystemError()
 	}
-	return c.launch(parent, request.GameID, spec, request.ROMPath)
+	status, apiErr := c.launch(parent, request.GameID, spec, request.ROMPath)
+	if apiErr != nil {
+		return status, apiErr
+	}
+	if c.content != nil {
+		if apiErr := c.content.ClearActive(); apiErr != nil {
+			return status, &protocol.APIError{Code: protocol.CodeInternal, Message: "active cache record cannot be cleared"}
+		}
+	}
+	return status, nil
 }
 
 func (c *Coordinator) launch(parent context.Context, gameID string, spec core.Spec, romPath string) (protocol.Status, *protocol.APIError) {
