@@ -88,11 +88,16 @@ func TestPreparedRemoveFindsRenamedHeldIdentityAndPreservesDecoy(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
-			prepared, err := (Preparer{StagingRoot: t.TempDir(), MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
+			staging := t.TempDir()
+			prepared, err := (Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
 			if err != nil {
 				t.Fatalf("Prepare: %v", err)
 			}
 			t.Cleanup(func() { _ = prepared.Remove() })
+			originalInfo, err := os.Stat(prepared.Path)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			renamed := prepared.Path + ".renamed"
 			if err := os.Rename(prepared.Path, renamed); err != nil {
@@ -110,6 +115,7 @@ func TestPreparedRemoveFindsRenamedHeldIdentityAndPreservesDecoy(t *testing.T) {
 			if _, err := os.Lstat(renamed); !errors.Is(err, os.ErrNotExist) {
 				t.Fatalf("renamed held identity still exists or cannot be inspected: %v", err)
 			}
+			assertNoPreparedIdentity(t, staging, originalInfo)
 			if withDecoy {
 				decoy, err := os.ReadFile(prepared.Path)
 				if err != nil || string(decoy) != "private-decoy" {
@@ -127,6 +133,10 @@ func TestPreparedRemoveFindsIdentityRenamedIntoHeldSubdirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Prepare: %v", err)
 	}
+	originalInfo, err := os.Stat(prepared.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
 	subdirectory := filepath.Join(staging, "moved")
 	if err := os.Mkdir(subdirectory, 0o700); err != nil {
 		t.Fatal(err)
@@ -142,6 +152,7 @@ func TestPreparedRemoveFindsIdentityRenamedIntoHeldSubdirectory(t *testing.T) {
 	if _, err := os.Lstat(renamed); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("subdirectory staging identity still exists or cannot be inspected: %v", err)
 	}
+	assertNoPreparedIdentity(t, staging, originalInfo)
 }
 
 func TestPreparedRemoveFailsWhenIdentityMovedOutsideHeldRoot(t *testing.T) {
