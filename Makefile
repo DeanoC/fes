@@ -1,6 +1,11 @@
 VERSION ?= 0.1.0
+REVISION ?= $(shell git rev-parse --verify HEAD 2>/dev/null || printf unknown)
 CONTAINER_RUNTIME ?= docker
 LDFLAGS = -s -w -X github.com/DeanoC/FogCast-POC/internal/version.Version=$(VERSION)
+FOGCAST_LDFLAGS = $(LDFLAGS) -X github.com/DeanoC/FogCast-POC/internal/version.Revision=$(REVISION)
+FOGCAST_GOOS ?= darwin
+FOGCAST_GOARCH ?= arm64
+FOGCAST_OUTPUT ?= bin/fogcast
 
 .PHONY: fmt test vet check build build-fogcast build-cli build-hil build-agent build-lock build-lock-container package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-verify-images poc1b-qemu-smoke poc1b-kernel-test poc1b-kernel poc1b-verify-kernel poc1b-deploy-test
 
@@ -9,6 +14,7 @@ fmt:
 
 test:
 	go test -race ./...
+	sh scripts/tests/fogcast-build_test.sh
 	sh scripts/tests/inventory_test.sh
 	sh scripts/tests/start-agent_test.sh
 	sh scripts/tests/poc1b-sources_test.sh
@@ -25,8 +31,8 @@ check: fmt test vet
 build: build-fogcast build-cli build-hil build-agent build-lock build-lock-container
 
 build-fogcast:
-	mkdir -p bin
-	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/fogcast ./cmd/fogcast
+	mkdir -p "$(dir $(FOGCAST_OUTPUT))"
+	CGO_ENABLED=0 GOOS=$(FOGCAST_GOOS) GOARCH=$(FOGCAST_GOARCH) go build -buildvcs=false -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o "$(FOGCAST_OUTPUT)" ./cmd/fogcast
 
 build-cli:
 	mkdir -p bin
