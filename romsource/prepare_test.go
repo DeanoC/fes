@@ -131,6 +131,28 @@ func TestPreparedSnapshotReadersRemainStableAcrossRemove(t *testing.T) {
 			t.Error(err)
 		}
 	}
+	for index, reader := range readers {
+		closeResults := make(chan error, 8)
+		for range cap(closeResults) {
+			go func() { closeResults <- reader.Close() }()
+		}
+		for range cap(closeResults) {
+			if err := <-closeResults; err != nil {
+				t.Errorf("reader %d repeated Close: %v", index, err)
+			}
+		}
+		snapshotReader, ok := reader.(*snapshotReadCloser)
+		if !ok {
+			t.Fatalf("reader %d type = %T, want *snapshotReadCloser", index, reader)
+		}
+		readerSize := int64(-1)
+		if snapshotReader.Reader != nil {
+			readerSize = snapshotReader.Reader.Size()
+		}
+		if snapshotReader.owner != nil || readerSize != 0 {
+			t.Fatalf("reader %d retained snapshot references: owner_set=%t reader_size=%d", index, snapshotReader.owner != nil, readerSize)
+		}
+	}
 	if err := prepared.Remove(); err != nil {
 		t.Fatalf("second Remove: %v", err)
 	}

@@ -176,7 +176,10 @@ type snapshotReadCloser struct {
 
 func (r *snapshotReadCloser) Close() error {
 	r.once.Do(func() {
-		r.owner.releaseSnapshotReader()
+		owner := r.owner
+		r.owner = nil
+		r.Reader = bytes.NewReader(nil)
+		owner.releaseSnapshotReader()
 	})
 	return nil
 }
