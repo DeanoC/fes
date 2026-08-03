@@ -52,6 +52,10 @@ type ScanSession struct {
 }
 
 func Open(path string) (*Store, error) {
+	return OpenContext(context.Background(), path)
+}
+
+func OpenContext(ctx context.Context, path string) (*Store, error) {
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, fmt.Errorf("open catalog database: %w", err)
@@ -59,7 +63,6 @@ func Open(path string) (*Store, error) {
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 
-	ctx := context.Background()
 	connection, err := db.Conn(ctx)
 	if err != nil {
 		_ = db.Close()
@@ -437,6 +440,29 @@ func (s *Store) UpdateContent(ctx context.Context, id string, fingerprint Finger
 	rows, err := result.RowsAffected()
 	if err != nil {
 		return false, fmt.Errorf("count content updates for game %q: %w", id, err)
+	}
+	return rows == 1, nil
+}
+
+// CompareAndSetContent records prepared content only while the complete source
+// identity used by the preparer is still the catalog's current identity.
+func (s *Store) CompareAndSetContent(ctx context.Context, game Game, content Content) (bool, error) {
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE games SET content_sha256 = ?, content_size = ?, content_extension = ?
+		WHERE game_id = ? AND library_id = ? AND system = ? AND relative_path = ? AND source_kind = ?
+		  AND source_size = ? AND modified_ns = ? AND zip_member = ?
+		  AND zip_size = ? AND zip_crc32 = ? AND zip_entry_count = ?`,
+		content.SHA256, content.Size, content.Extension,
+		game.ID, game.LibraryID, game.System, game.RelativePath, game.Kind,
+		game.Fingerprint.SourceSize, game.Fingerprint.ModifiedNS, game.Fingerprint.ZIPMember,
+		game.Fingerprint.ZIPSize, game.Fingerprint.ZIPCRC32, game.Fingerprint.ZIPEntryCount,
+	)
+	if err != nil {
+		return false, fmt.Errorf("compare and set content for game %q: %w", game.ID, err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("count content compare-and-set updates for game %q: %w", game.ID, err)
 	}
 	return rows == 1, nil
 }

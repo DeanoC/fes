@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	"github.com/DeanoC/FogCast-POC/internal/core"
+	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
 const defaultMaxZIPEntries = 4096
@@ -30,6 +31,20 @@ const (
 	reasonZIPNoROM          = "zip_no_rom"
 	reasonZIPTooManyEntries = "zip_too_many_entries"
 )
+
+// SourceErrorCode maps a catalog source state to the public launch error code
+// without exposing scanner diagnostics or host paths.
+func SourceErrorCode(game Game) protocol.ErrorCode {
+	if game.State == SourceStateInvalid && game.Kind == SourceKindZIP {
+		switch game.Reason {
+		case reasonSourceDisappeared, reasonSourceUnreadable:
+			return protocol.CodeSourceUnavailable
+		default:
+			return protocol.CodeInvalidArchive
+		}
+	}
+	return protocol.CodeSourceUnavailable
+}
 
 type Scanner struct {
 	Store         *Store
