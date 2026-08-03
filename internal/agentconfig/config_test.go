@@ -18,7 +18,7 @@ menu_rbf = "/media/fat/menu.rbf"
 mgl_directory = "/tmp/mister-remote"
 `
 
-func TestLoadAgentConfig(t *testing.T) {
+func TestLoadAgentConfigDefaultsCacheMaximum(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "agent.toml")
 	if err := os.WriteFile(path, []byte(validAgentConfig), 0o600); err != nil {
@@ -31,9 +31,28 @@ func TestLoadAgentConfig(t *testing.T) {
 	if got.ListenAddress != "0.0.0.0:8182" || got.Token != "test-token" || got.CommandPipe != "/dev/MiSTer_cmd" {
 		t.Fatalf("config = %#v", got)
 	}
+	if got.CacheMaxBytes != 2<<30 {
+		t.Fatalf("default cache maximum = %d, want %d", got.CacheMaxBytes, int64(2<<30))
+	}
 }
 
-func TestLoadAgentConfigRejectsUnknownAndUnsafeValues(t *testing.T) {
+func TestLoadAgentConfigAcceptsExplicitPositiveCacheMaximum(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "agent.toml")
+	content := validAgentConfig + "cache_max_bytes = 33554432\n"
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := agentconfig.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.CacheMaxBytes != 33554432 {
+		t.Fatalf("cache maximum = %d, want 33554432", got.CacheMaxBytes)
+	}
+}
+
+func TestLoadAgentConfigRejectsUnknownUnsafeAndInvalidCacheValues(t *testing.T) {
 	t.Parallel()
 	tests := map[string]string{
 		"unknown":          validAgentConfig + "extra = true\n",
@@ -45,6 +64,10 @@ func TestLoadAgentConfigRejectsUnknownAndUnsafeValues(t *testing.T) {
 		"relative core":    strings.Replace(validAgentConfig, `core_name_file = "/tmp/CORENAME"`, `core_name_file = "CORENAME"`, 1),
 		"relative menu":    strings.Replace(validAgentConfig, `menu_rbf = "/media/fat/menu.rbf"`, `menu_rbf = "menu.rbf"`, 1),
 		"relative MGL":     strings.Replace(validAgentConfig, `mgl_directory = "/tmp/mister-remote"`, `mgl_directory = "mister-remote"`, 1),
+		"zero cache":       validAgentConfig + "cache_max_bytes = 0\n",
+		"negative cache":   validAgentConfig + "cache_max_bytes = -1\n",
+		"overflow cache":   validAgentConfig + "cache_max_bytes = 9223372036854775808\n",
+		"cache root":       validAgentConfig + "cache_root = \"/private/cache\"\n",
 	}
 	for name, content := range tests {
 		t.Run(name, func(t *testing.T) {

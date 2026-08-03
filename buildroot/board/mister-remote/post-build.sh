@@ -64,16 +64,37 @@ if find "$target/root" -type f -print -quit | grep -q .; then
   exit 1
 fi
 
+if [ -e "$target/media/fat/fogcast/cache" ]; then
+  printf '%s\n' 'post-build: target cache state must not be embedded in the root image' >&2
+  exit 1
+fi
+
 if find "$target" -type f \( \
   -iname '*.rom' -o -iname '*.sfc' -o -iname '*.smc' -o \
   -iname '*.md' -o -iname '*.gen' -o -iname '*.zip' -o -iname '*.bin' -o \
+  -iname '*.sqlite' -o -iname '*.sqlite-*' -o \
+  -iname '*.sqlite3' -o -iname '*.sqlite3-*' -o \
+  -iname '*.db' -o -iname '*.db-*' -o \
+  -name '.fogcast-rom-*' -o -name '.fogcast-*.part' -o \
+  -name '.fogcast-active-*.tmp' -o -name 'fogcast-active.json' -o \
   -name 'agent.toml' \
 \) -print -quit | grep -q .; then
-  printf '%s\n' 'post-build: ROM, archive, or runtime configuration payload found' >&2
+  printf '%s\n' 'post-build: ROM, archive, database, staging, cache, or runtime configuration payload found' >&2
   exit 1
 fi
 
 "$repo/scripts/scan-poc1b-secrets.sh" "$target"
+
+if find "$target" -type f -exec sh -c '
+  for candidate do
+    if /usr/bin/strings -a "$candidate" | grep -Fq "/Volumes/"; then
+      printf "%s\n" found
+    fi
+  done
+' sh {} + | grep -q .; then
+  printf '%s\n' 'post-build: host library path found' >&2
+  exit 1
+fi
 
 library_count=0
 while IFS= read -r library; do

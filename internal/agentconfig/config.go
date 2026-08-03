@@ -10,7 +10,20 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
+const DefaultCacheMaxBytes int64 = 2 << 30
+
 type Config struct {
+	ListenAddress     string
+	Token             string
+	MiSTerProcessComm string
+	CommandPipe       string
+	CoreNameFile      string
+	MenuRBF           string
+	MGLDirectory      string
+	CacheMaxBytes     int64
+}
+
+type fileConfig struct {
 	ListenAddress     string `toml:"listen_address"`
 	Token             string `toml:"token"`
 	MiSTerProcessComm string `toml:"mister_process_comm"`
@@ -18,6 +31,7 @@ type Config struct {
 	CoreNameFile      string `toml:"core_name_file"`
 	MenuRBF           string `toml:"menu_rbf"`
 	MGLDirectory      string `toml:"mgl_directory"`
+	CacheMaxBytes     *int64 `toml:"cache_max_bytes"`
 }
 
 func Load(path string) (Config, error) {
@@ -26,11 +40,28 @@ func Load(path string) (Config, error) {
 		return Config{}, err
 	}
 	defer f.Close()
-	var cfg Config
+	var raw fileConfig
 	decoder := toml.NewDecoder(f)
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&cfg); err != nil {
+	if err := decoder.Decode(&raw); err != nil {
 		return Config{}, fmt.Errorf("decode target config: %w", err)
+	}
+	cacheMaxBytes := DefaultCacheMaxBytes
+	if raw.CacheMaxBytes != nil {
+		cacheMaxBytes = *raw.CacheMaxBytes
+	}
+	cfg := Config{
+		ListenAddress:     raw.ListenAddress,
+		Token:             raw.Token,
+		MiSTerProcessComm: raw.MiSTerProcessComm,
+		CommandPipe:       raw.CommandPipe,
+		CoreNameFile:      raw.CoreNameFile,
+		MenuRBF:           raw.MenuRBF,
+		MGLDirectory:      raw.MGLDirectory,
+		CacheMaxBytes:     cacheMaxBytes,
+	}
+	if cfg.CacheMaxBytes <= 0 {
+		return Config{}, fmt.Errorf("cache_max_bytes must be positive")
 	}
 	_, port, err := net.SplitHostPort(cfg.ListenAddress)
 	if err != nil {

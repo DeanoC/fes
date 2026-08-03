@@ -7,7 +7,7 @@ FOGCAST_GOOS ?= darwin
 FOGCAST_GOARCH ?= arm64
 FOGCAST_OUTPUT ?= bin/fogcast
 
-.PHONY: fmt test vet check build build-fogcast build-cli build-hil build-agent build-lock build-lock-container package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-verify-images poc1b-qemu-smoke poc1b-kernel-test poc1b-kernel poc1b-verify-kernel poc1b-deploy-test
+.PHONY: fmt test vet check build build-fogcast build-cli build-hil build-agent build-lock build-lock-container package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-verify-images poc1b-qemu-smoke poc1b-kernel-test poc1b-kernel poc1b-verify-kernel poc1b-deploy-test poc2-rootfs-test
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
@@ -19,6 +19,7 @@ test:
 	sh scripts/tests/start-agent_test.sh
 	sh scripts/tests/poc1b-sources_test.sh
 	sh scripts/tests/poc1b-rootfs_test.sh
+	sh scripts/tests/poc2-rootfs_test.sh
 	sh scripts/tests/poc1b-image_test.sh
 	sh scripts/tests/poc1b-kernel_test.sh
 	sh scripts/tests/install-poc1b-target_test.sh
@@ -92,6 +93,9 @@ poc1b-verify-kernel: poc1b-kernel
 
 poc1b-deploy-test:
 	sh scripts/tests/install-poc1b-target_test.sh
+
+poc2-rootfs-test:
+	sh scripts/tests/poc2-rootfs_test.sh
 
 package-poc1a:
 	MISTER_TOKEN="$${MISTER_TOKEN:?MISTER_TOKEN is required}" VERSION="$(VERSION)" ./scripts/package-poc1a.sh

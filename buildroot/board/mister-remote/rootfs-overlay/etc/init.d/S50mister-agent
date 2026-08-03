@@ -18,6 +18,18 @@ stop_service() {
 case "${1:-start}" in
   start)
     wait_seconds=30
+    while [ ! -f /media/fat/mister-remote/agent.toml ] && [ "$wait_seconds" -gt 0 ]; do
+      /bin/sleep 1
+      wait_seconds=$((wait_seconds - 1))
+    done
+    if [ ! -f /media/fat/mister-remote/agent.toml ]; then
+      printf '%s\n' 'mister-agent: writable FAT configuration did not appear within 30 seconds' >&2
+      exit 1
+    fi
+    /bin/mkdir -p /media/fat/fogcast/cache/megadrive /media/fat/fogcast/cache/snes
+    /bin/chmod 0700 /media/fat/fogcast/cache /media/fat/fogcast/cache/megadrive /media/fat/fogcast/cache/snes
+
+    wait_seconds=30
     while [ ! -p /dev/MiSTer_cmd ] && [ "$wait_seconds" -gt 0 ]; do
       /bin/sleep 1
       wait_seconds=$((wait_seconds - 1))
