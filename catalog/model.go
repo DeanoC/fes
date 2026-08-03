@@ -51,13 +51,13 @@ type Content struct {
 }
 
 type Game struct {
-	ID, Title, LibraryID, RootPath, RelativePath, Reason string
-	System                                               protocol.System
-	Kind                                                 SourceKind
-	State                                                SourceState
-	RootOnline                                           bool
-	Fingerprint                                          Fingerprint
-	Content                                              *Content
+	ID, Title, LibraryID, RelativePath, Reason string
+	System                                     protocol.System
+	Kind                                       SourceKind
+	State                                      SourceState
+	RootOnline                                 bool
+	Fingerprint                                Fingerprint
+	Content                                    *Content
 }
 
 // NormalizeRelativePath returns a clean, slash-separated path that remains

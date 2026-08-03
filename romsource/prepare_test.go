@@ -21,7 +21,7 @@ import (
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
-func TestPrepareRawContentAndSecureStaging(t *testing.T) {
+func TestPrepareRawContentSnapshot(t *testing.T) {
 	root, game := rawFixture(t, "Games/HERO.SFC", []byte("synthetic-raw-rom"))
 	staging := filepath.Join(t.TempDir(), "nested", "staging")
 
@@ -36,19 +36,50 @@ func TestPrepareRawContentAndSecureStaging(t *testing.T) {
 	if prepared.Content != wantContent {
 		t.Fatalf("content = %+v, want %+v", prepared.Content, wantContent)
 	}
-	data, err := os.ReadFile(prepared.Path)
-	if err != nil || string(data) != "synthetic-raw-rom" {
-		t.Fatalf("staged data = %q, err=%v", data, err)
+	file, err := prepared.Open()
+	if err != nil {
+		t.Fatalf("Open: %v", err)
 	}
-	assertSecureStagingPath(t, staging, prepared.Path)
+	data, readErr := io.ReadAll(file)
+	closeErr := file.Close()
+	if readErr != nil || closeErr != nil || string(data) != "synthetic-raw-rom" {
+		t.Fatalf("snapshot data = %q, read=%v close=%v", data, readErr, closeErr)
+	}
+	if prepared.Path != "" {
+		t.Fatalf("snapshot path = %q, want empty", prepared.Path)
+	}
 }
 
-func TestPreparedOpenRejectsReplacementAndReadsHeldIdentity(t *testing.T) {
+func TestPrepareRawReturnsBoundedSnapshotWithoutPathBackedCleanup(t *testing.T) {
 	root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
 	prepared, err := (Preparer{StagingRoot: t.TempDir(), MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
 	if err != nil {
 		t.Fatalf("Prepare: %v", err)
 	}
+	if prepared.Path != "" {
+		t.Fatalf("prepared snapshot exposes path-backed cleanup: %q", prepared.Path)
+	}
+	file, err := prepared.Open()
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	data, readErr := io.ReadAll(file)
+	closeErr := file.Close()
+	if readErr != nil || closeErr != nil || string(data) != "synthetic-original" {
+		t.Fatalf("snapshot = %q, read=%v close=%v", data, readErr, closeErr)
+	}
+	if err := prepared.Remove(); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if file, err := prepared.Open(); err == nil {
+		_ = file.Close()
+		t.Fatal("Open succeeded after snapshot removal")
+	}
+}
+
+func TestPreparedOpenRejectsReplacementAndReadsHeldIdentity(t *testing.T) {
+	root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
+	prepared := preparePathBackedFixture(t, root, game, t.TempDir())
 	t.Cleanup(func() { _ = prepared.Remove() })
 
 	file, err := prepared.Open()
@@ -80,6 +111,39 @@ func TestPreparedOpenRejectsReplacementAndReadsHeldIdentity(t *testing.T) {
 	}
 }
 
+func TestPreparedRemoveRejectsUnboundValueWithoutFilesystemMutationOrReflection(t *testing.T) {
+	privatePath := filepath.Join(t.TempDir(), "private-token-rom.sfc")
+	if err := os.WriteFile(privatePath, []byte("synthetic-original"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	prepared := &Prepared{
+		Path: privatePath,
+		Content: protocol.ContentIdentity{
+			SHA256: "4f3c2f5cb6638b3e693d5d7af0601a3bd4fdcf740f8f2fb3eb7bf1431bd55af0",
+			Size:   17, Extension: "sfc",
+		},
+	}
+
+	err := prepared.Remove()
+	if err == nil {
+		t.Fatal("Remove accepted an unbound public Prepared value")
+	}
+	if strings.Contains(err.Error(), privatePath) || strings.Contains(err.Error(), "private-token") {
+		t.Fatalf("Remove reflected private value: %v", err)
+	}
+	data, readErr := os.ReadFile(privatePath)
+	if readErr != nil || string(data) != "synthetic-original" {
+		t.Fatalf("unbound path mutated: data=%q err=%v", data, readErr)
+	}
+	if file, openErr := prepared.Open(); openErr == nil {
+		_ = file.Close()
+		t.Fatal("retained unbound value reopened after cleanup failure")
+	}
+	if err := prepared.Remove(); !errors.Is(err, ErrCleanupRetained) {
+		t.Fatalf("second Remove = %v, want cleanup-retained signal", err)
+	}
+}
+
 func TestPreparedRemoveFindsRenamedHeldIdentityAndPreservesDecoy(t *testing.T) {
 	for _, withDecoy := range []bool{false, true} {
 		name := "rename only"
@@ -89,10 +153,7 @@ func TestPreparedRemoveFindsRenamedHeldIdentityAndPreservesDecoy(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
 			staging := t.TempDir()
-			prepared, err := (Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
-			if err != nil {
-				t.Fatalf("Prepare: %v", err)
-			}
+			prepared := preparePathBackedFixture(t, root, game, staging)
 			t.Cleanup(func() { _ = prepared.Remove() })
 			originalInfo, err := os.Stat(prepared.Path)
 			if err != nil {
@@ -109,13 +170,16 @@ func TestPreparedRemoveFindsRenamedHeldIdentityAndPreservesDecoy(t *testing.T) {
 				}
 			}
 
-			if err := prepared.Remove(); err != nil {
-				t.Fatalf("Remove: %v", err)
+			if err := prepared.Remove(); err == nil {
+				t.Fatal("Remove reported success for path-backed identity")
 			}
-			if _, err := os.Lstat(renamed); !errors.Is(err, os.ErrNotExist) {
-				t.Fatalf("renamed held identity still exists or cannot be inspected: %v", err)
+			retained, err := os.ReadFile(renamed)
+			if err != nil || string(retained) != "synthetic-original" {
+				t.Fatalf("retained identity = %q, err=%v", retained, err)
 			}
-			assertNoPreparedIdentity(t, staging, originalInfo)
+			if info, err := os.Stat(renamed); err != nil || !os.SameFile(originalInfo, info) {
+				t.Fatalf("retained inode mismatch: info=%v err=%v", info, err)
+			}
 			if withDecoy {
 				decoy, err := os.ReadFile(prepared.Path)
 				if err != nil || string(decoy) != "private-decoy" {
@@ -129,10 +193,7 @@ func TestPreparedRemoveFindsRenamedHeldIdentityAndPreservesDecoy(t *testing.T) {
 func TestPreparedRemoveFindsIdentityRenamedIntoHeldSubdirectory(t *testing.T) {
 	root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
 	staging := t.TempDir()
-	prepared, err := (Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
-	if err != nil {
-		t.Fatalf("Prepare: %v", err)
-	}
+	prepared := preparePathBackedFixture(t, root, game, staging)
 	originalInfo, err := os.Stat(prepared.Path)
 	if err != nil {
 		t.Fatal(err)
@@ -146,22 +207,18 @@ func TestPreparedRemoveFindsIdentityRenamedIntoHeldSubdirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := prepared.Remove(); err != nil {
-		t.Fatalf("Remove: %v", err)
+	if err := prepared.Remove(); err == nil {
+		t.Fatal("Remove reported success for path-backed subdirectory identity")
 	}
-	if _, err := os.Lstat(renamed); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("subdirectory staging identity still exists or cannot be inspected: %v", err)
+	if info, err := os.Stat(renamed); err != nil || !os.SameFile(originalInfo, info) {
+		t.Fatalf("retained subdirectory inode = %v, err=%v", info, err)
 	}
-	assertNoPreparedIdentity(t, staging, originalInfo)
 }
 
 func TestPreparedRemoveFailsWhenIdentityMovedOutsideHeldRoot(t *testing.T) {
 	root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
 	staging := t.TempDir()
-	prepared, err := (Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
-	if err != nil {
-		t.Fatalf("Prepare: %v", err)
-	}
+	prepared := preparePathBackedFixture(t, root, game, staging)
 	outside := filepath.Join(t.TempDir(), "moved-outside.rom")
 	if err := os.Rename(prepared.Path, outside); err != nil {
 		t.Fatal(err)
@@ -177,17 +234,18 @@ func TestPreparedRemoveFailsWhenIdentityMovedOutsideHeldRoot(t *testing.T) {
 	if err := os.Rename(outside, prepared.Path); err != nil {
 		t.Fatalf("restore staged identity: %v", err)
 	}
-	if err := prepared.Remove(); err != nil {
-		t.Fatalf("Remove(restored): %v", err)
+	if err := prepared.Remove(); err == nil {
+		t.Fatal("Remove(restored) reported success for path-backed identity")
+	}
+	data, err = os.ReadFile(prepared.Path)
+	if err != nil || string(data) != "synthetic-original" {
+		t.Fatalf("restored identity = %q, err=%v", data, err)
 	}
 }
 
 func TestPreparedRemoveFailsWhenIdentityHasHardlinkOutsideHeldRoot(t *testing.T) {
 	root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
-	prepared, err := (Preparer{StagingRoot: t.TempDir(), MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
-	if err != nil {
-		t.Fatalf("Prepare: %v", err)
-	}
+	prepared := preparePathBackedFixture(t, root, game, t.TempDir())
 	outside := filepath.Join(t.TempDir(), "outside-hardlink.rom")
 	if err := os.Link(prepared.Path, outside); err != nil {
 		t.Fatal(err)
@@ -202,13 +260,10 @@ func TestPreparedRemoveFailsWhenIdentityHasHardlinkOutsideHeldRoot(t *testing.T)
 	}
 }
 
-func TestPreparedRemoveDeletesAllHardlinksInsideHeldRoot(t *testing.T) {
+func TestPreparedRemoveRetainsAllHardlinksInsideHeldRoot(t *testing.T) {
 	root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
 	staging := t.TempDir()
-	prepared, err := (Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
-	if err != nil {
-		t.Fatalf("Prepare: %v", err)
-	}
+	prepared := preparePathBackedFixture(t, root, game, staging)
 	inside := filepath.Join(staging, "inside-hardlink.rom")
 	if err := os.Link(prepared.Path, inside); err != nil {
 		t.Fatal(err)
@@ -218,37 +273,27 @@ func TestPreparedRemoveDeletesAllHardlinksInsideHeldRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := prepared.Remove(); err != nil {
-		t.Fatalf("Remove: %v", err)
+	if err := prepared.Remove(); err == nil {
+		t.Fatal("Remove reported success for path-backed hardlinks")
 	}
-	assertNoPreparedIdentity(t, staging, originalInfo)
+	for _, name := range []string{prepared.Path, inside} {
+		info, err := os.Stat(name)
+		if err != nil || !os.SameFile(originalInfo, info) {
+			t.Fatalf("retained hardlink %q = %v, err=%v", name, info, err)
+		}
+	}
 }
 
-func TestPreparedRemoveDoesNotDeleteDecoySwappedAfterIdentityCheck(t *testing.T) {
+func TestPreparedRemoveRetainsExactAndDecoyAtUnlinkBoundary(t *testing.T) {
 	root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
 	staging := t.TempDir()
-	prepared, err := (Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
-	if err != nil {
-		t.Fatalf("Prepare: %v", err)
-	}
-	renamed := filepath.Join(staging, "renamed.rom")
-	if err := os.Rename(prepared.Path, renamed); err != nil {
-		t.Fatal(err)
-	}
-	var swappedOriginal string
-	hookCalled := false
-	const quarantine = ".fogcast-remove-deterministic"
-	prepared.removeQuarantineName = func() string { return quarantine }
-	prepared.beforeRemoveCandidate = func(held *os.Root, candidate string) error {
-		if hookCalled {
-			return nil
-		}
-		hookCalled = true
-		swappedOriginal = candidate + ".original"
-		if err := held.Rename(candidate, swappedOriginal); err != nil {
+	prepared := preparePathBackedFixture(t, root, game, staging)
+	retainedExact := filepath.Base(prepared.Path) + ".exact"
+	prepared.beforePathUnlink = func(held *os.Root, base string) error {
+		if err := held.Rename(base, retainedExact); err != nil {
 			return err
 		}
-		decoy, err := held.OpenFile(candidate, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		decoy, err := held.OpenFile(base, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 		if err != nil {
 			return err
 		}
@@ -257,128 +302,15 @@ func TestPreparedRemoveDoesNotDeleteDecoySwappedAfterIdentityCheck(t *testing.T)
 	}
 
 	if err := prepared.Remove(); err == nil {
-		t.Fatal("Remove reported success after an identity-check swap")
-	}
-	if !hookCalled {
-		t.Fatal("identity-check swap hook was not called")
-	}
-	original, err := os.ReadFile(filepath.Join(staging, filepath.FromSlash(swappedOriginal)))
-	if err != nil || string(original) != "synthetic-original" {
-		t.Fatalf("retained swapped original = %q, err=%v", original, err)
-	}
-	decoy, err := os.ReadFile(renamed)
-	if err != nil || string(decoy) != "private-decoy" {
-		t.Fatalf("decoy = %q, err=%v", decoy, err)
-	}
-}
-
-func TestPreparedRemoveDoesNotOverwriteQuarantineDestination(t *testing.T) {
-	root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
-	staging := t.TempDir()
-	prepared, err := (Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
-	if err != nil {
-		t.Fatalf("Prepare: %v", err)
-	}
-	const quarantine = ".fogcast-remove-deterministic"
-	prepared.removeQuarantineName = func() string { return quarantine }
-	prepared.beforeCaptureCandidate = func(held *os.Root, _, gotQuarantine string) error {
-		if gotQuarantine != quarantine {
-			return errors.New("unexpected quarantine name")
-		}
-		decoy, err := held.OpenFile(gotQuarantine, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-		if err != nil {
-			return err
-		}
-		_, writeErr := decoy.Write([]byte("private-decoy"))
-		return errors.Join(writeErr, decoy.Close())
-	}
-
-	if err := prepared.Remove(); err == nil {
-		t.Fatal("Remove reported success after quarantine destination insertion")
-	}
-	original, err := os.ReadFile(prepared.Path)
-	if err != nil || string(original) != "synthetic-original" {
-		t.Fatalf("staged identity = %q, err=%v", original, err)
-	}
-	decoy, err := os.ReadFile(filepath.Join(staging, quarantine))
-	if err != nil || string(decoy) != "private-decoy" {
-		t.Fatalf("quarantine decoy = %q, err=%v", decoy, err)
-	}
-}
-
-func TestPreparedRemoveFailsWithoutDeletingFinalWindowReplacement(t *testing.T) {
-	root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
-	staging := t.TempDir()
-	prepared, err := (Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
-	if err != nil {
-		t.Fatalf("Prepare: %v", err)
-	}
-	const quarantine = ".fogcast-remove-deterministic"
-	prepared.removeQuarantineName = func() string { return quarantine }
-	var retainedExact string
-	prepared.beforeFinalRemove = func(held *os.Root, gotQuarantine string) error {
-		retainedExact = gotQuarantine + ".exact"
-		if err := held.Rename(gotQuarantine, retainedExact); err != nil {
-			return err
-		}
-		decoy, err := held.OpenFile(gotQuarantine, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-		if err != nil {
-			return err
-		}
-		_, writeErr := decoy.Write([]byte("private-decoy"))
-		return errors.Join(writeErr, decoy.Close())
-	}
-
-	if err := prepared.Remove(); err == nil {
-		t.Fatal("Remove reported success after final-window replacement")
+		t.Fatal("Remove reported success at an unconditioned unlink boundary")
 	}
 	original, err := os.ReadFile(filepath.Join(staging, retainedExact))
 	if err != nil || string(original) != "synthetic-original" {
 		t.Fatalf("retained exact identity = %q, err=%v", original, err)
 	}
-	decoy, err := os.ReadFile(filepath.Join(staging, quarantine))
+	decoy, err := os.ReadFile(prepared.Path)
 	if err != nil || string(decoy) != "private-decoy" {
-		t.Fatalf("final-window decoy = %q, err=%v", decoy, err)
-	}
-}
-
-func TestPreparedRemoveConfinesRenamedCandidateParentToHeldRoot(t *testing.T) {
-	root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
-	staging := t.TempDir()
-	prepared, err := (Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
-	if err != nil {
-		t.Fatalf("Prepare: %v", err)
-	}
-	base := filepath.Base(prepared.Path)
-	insideParent := filepath.Join(staging, "moved")
-	if err := os.Mkdir(insideParent, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Rename(prepared.Path, filepath.Join(insideParent, base)); err != nil {
-		t.Fatal(err)
-	}
-	outside := t.TempDir()
-	outsideDecoy := filepath.Join(outside, base)
-	if err := os.WriteFile(outsideDecoy, []byte("outside-decoy"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	prepared.beforeCaptureCandidate = func(held *os.Root, _, _ string) error {
-		if err := held.Rename("moved", "moved-exact"); err != nil {
-			return err
-		}
-		return held.Symlink(outside, "moved")
-	}
-
-	if err := prepared.Remove(); err == nil {
-		t.Fatal("Remove reported success after candidate parent replacement")
-	}
-	original, err := os.ReadFile(filepath.Join(staging, "moved-exact", base))
-	if err != nil || string(original) != "synthetic-original" {
-		t.Fatalf("retained exact identity = %q, err=%v", original, err)
-	}
-	decoy, err := os.ReadFile(outsideDecoy)
-	if err != nil || string(decoy) != "outside-decoy" {
-		t.Fatalf("outside decoy = %q, err=%v", decoy, err)
+		t.Fatalf("unlink-boundary decoy = %q, err=%v", decoy, err)
 	}
 }
 
@@ -507,15 +439,43 @@ func TestPrepareZIPStreamsOnlyRecordedMember(t *testing.T) {
 	root, game := zipFixture(t, "collection.zip", archive, "Games/HERO.SFC")
 	staging := t.TempDir()
 
-	prepared, err := (Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
-	if err != nil {
-		t.Fatalf("Prepare: %v", err)
-	}
+	prepared := preparePathBackedFixture(t, root, game, staging)
 	t.Cleanup(func() { _ = prepared.Remove() })
 	wantDigest := fmt.Sprintf("%x", sha256.Sum256(rom))
 	want := protocol.ContentIdentity{SHA256: wantDigest, Size: int64(len(rom)), Extension: "sfc"}
 	if prepared.Content != want {
 		t.Fatalf("content = %+v, want %+v", prepared.Content, want)
+	}
+}
+
+func TestPrepareZIPCloseFailurePropagatesRetainedPreparedCleanup(t *testing.T) {
+	archive := zipBytes(t, []zipEntry{{name: "game.sfc", body: []byte("selected-body")}})
+	root, game := zipFixture(t, "game.zip", archive, "game.sfc")
+	staging := t.TempDir()
+	privatePath := ""
+	preparer := Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}
+	preparer.beforeStagingFinalVerify = func(_ string, path string) error {
+		privatePath = path
+		return nil
+	}
+	preparer.openZIPMember = func(member *zip.File) (io.ReadCloser, error) {
+		opened, err := member.Open()
+		if err != nil {
+			return nil, err
+		}
+		return &closeErrorReadCloser{ReadCloser: opened}, nil
+	}
+
+	prepared, err := preparer.Prepare(context.Background(), root, game)
+	if prepared != nil {
+		t.Fatalf("Prepare returned content after member close failure: %+v", prepared)
+	}
+	assertPrepareError(t, err, game.ID, protocol.CodeInvalidArchive, privatePath)
+	if !errors.Is(err, ErrCleanupRetained) {
+		t.Fatalf("error lost cleanup-retained signal: %v", err)
+	}
+	if data, readErr := os.ReadFile(privatePath); readErr != nil || string(data) != "selected-body" {
+		t.Fatalf("retained prepared content = %q, err=%v", data, readErr)
 	}
 }
 
@@ -653,10 +613,7 @@ func TestPreparedRemoveUsesHeldStagingDirectoryAfterPathReplacement(t *testing.T
 	root, game := rawFixture(t, "game.sfc", []byte("content"))
 	parent := t.TempDir()
 	staging := filepath.Join(parent, "staging")
-	prepared, err := (Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
-	if err != nil {
-		t.Fatalf("Prepare: %v", err)
-	}
+	prepared := preparePathBackedFixture(t, root, game, staging)
 	base := filepath.Base(prepared.Path)
 	moved := filepath.Join(parent, "moved-staging")
 	if err := os.Rename(staging, moved); err != nil {
@@ -670,19 +627,47 @@ func TestPreparedRemoveUsesHeldStagingDirectoryAfterPathReplacement(t *testing.T
 		t.Fatal(err)
 	}
 
-	if err := prepared.Remove(); err != nil {
-		t.Fatalf("Remove: %v", err)
+	if err := prepared.Remove(); err == nil {
+		t.Fatal("Remove reported success for path-backed identity")
 	}
-	if _, err := os.Stat(filepath.Join(moved, base)); !errors.Is(err, fs.ErrNotExist) {
-		t.Fatalf("held staging file remains after Remove: %v", err)
+	data, err := os.ReadFile(filepath.Join(moved, base))
+	if err != nil || string(data) != "content" {
+		t.Fatalf("held staging file = %q, err=%v", data, err)
 	}
-	data, err := os.ReadFile(decoy)
+	data, err = os.ReadFile(decoy)
 	if err != nil || string(data) != "do-not-remove" {
 		t.Fatalf("replacement staging file = %q, err=%v", data, err)
 	}
 }
 
-func TestPrepareCleansStagingWhenInitialFileSetupFails(t *testing.T) {
+func TestPrepareFailureReturnsCleanupRetainedAndPreservesPrimaryError(t *testing.T) {
+	root, game := rawFixture(t, "game.sfc", []byte("content"))
+	staging := t.TempDir()
+	privatePath := ""
+	preparer := Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}
+	preparer.beforeStagingFinalVerify = func(_ string, filePath string) error {
+		privatePath = filePath
+		return errors.New("private-token-final-verification")
+	}
+
+	prepared, err := preparer.Prepare(context.Background(), root, game)
+	if prepared != nil {
+		t.Fatalf("Prepare returned content after failure: %+v", prepared)
+	}
+	assertPrepareError(t, err, game.ID, protocol.CodeTransferFailed, privatePath)
+	if !errors.Is(err, ErrCleanupRetained) {
+		t.Fatalf("error lost cleanup-retained signal: %v", err)
+	}
+	if strings.Contains(err.Error(), "private-token") {
+		t.Fatalf("error reflected private cleanup detail: %v", err)
+	}
+	data, readErr := os.ReadFile(privatePath)
+	if readErr != nil || string(data) != "content" {
+		t.Fatalf("retained partial = %q, err=%v", data, readErr)
+	}
+}
+
+func TestPrepareRetainsStagingWhenInitialFileSetupFails(t *testing.T) {
 	tests := []struct {
 		name   string
 		inject func(*Preparer, *string)
@@ -719,13 +704,15 @@ func TestPrepareCleansStagingWhenInitialFileSetupFails(t *testing.T) {
 				t.Cleanup(func() { _ = prepared.Remove() })
 			}
 			assertPrepareError(t, err, game.ID, protocol.CodeTransferFailed, staging)
+			if !errors.Is(err, ErrCleanupRetained) {
+				t.Fatalf("error lost cleanup-retained signal: %v", err)
+			}
 			if createdPath == "" {
 				t.Fatal("fault hook did not observe the created staging file")
 			}
-			if _, err := os.Lstat(createdPath); !errors.Is(err, fs.ErrNotExist) {
-				t.Fatalf("created staging file remains after setup failure: %v", err)
+			if info, err := os.Lstat(createdPath); err != nil || !info.Mode().IsRegular() {
+				t.Fatalf("retained staging file = %v, err=%v", info, err)
 			}
-			assertStagingEmpty(t, staging)
 		})
 	}
 }
@@ -769,17 +756,19 @@ func TestPrepareCreatesPartialStagingFileOnlyInValidatedHeldRoot(t *testing.T) {
 		t.Fatal("staging creation was not observed")
 	}
 	assertPrepareError(t, err, game.ID, protocol.CodeTransferFailed, staging)
-	if _, err := os.Lstat(filepath.Join(moved, createdBase)); !errors.Is(err, fs.ErrNotExist) {
-		t.Fatalf("partial artifact remains in validated root: %v", err)
+	if !errors.Is(err, ErrCleanupRetained) {
+		t.Fatalf("error lost cleanup-retained signal: %v", err)
+	}
+	if info, err := os.Lstat(filepath.Join(moved, createdBase)); err != nil || !info.Mode().IsRegular() {
+		t.Fatalf("retained partial artifact = %v, err=%v", info, err)
 	}
 	if _, err := os.Lstat(filepath.Join(staging, createdBase)); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("partial artifact escaped into replacement root: %v", err)
 	}
-	assertStagingEmpty(t, moved)
 	assertStagingEmpty(t, staging)
 }
 
-func TestPrepareInitialStatFailureRemovesCreatedIdentityNotSameNameReplacement(t *testing.T) {
+func TestPrepareInitialStatFailureRetainsCreatedIdentityAndSameNameReplacement(t *testing.T) {
 	root, game := rawFixture(t, "game.sfc", []byte("content"))
 	staging := t.TempDir()
 	mutationAttempted := false
@@ -814,8 +803,11 @@ func TestPrepareInitialStatFailureRemovesCreatedIdentityNotSameNameReplacement(t
 		t.Fatalf("staging entry mutation attempted=%v completed=%v err=%v", mutationAttempted, mutationCompleted, mutationErr)
 	}
 	assertPrepareError(t, err, game.ID, protocol.CodeTransferFailed, staging)
-	if _, err := os.Lstat(partialPath); !errors.Is(err, fs.ErrNotExist) {
-		t.Fatalf("actual partial artifact remains after failure: %v", err)
+	if !errors.Is(err, ErrCleanupRetained) {
+		t.Fatalf("error lost cleanup-retained signal: %v", err)
+	}
+	if info, err := os.Lstat(partialPath); err != nil || !info.Mode().IsRegular() {
+		t.Fatalf("retained actual partial artifact = %v, err=%v", info, err)
 	}
 	decoy, err := os.ReadFile(decoyPath)
 	if err != nil || string(decoy) != "same-name-decoy" {
@@ -884,7 +876,13 @@ func TestPrepareRejectsStagingModeChangesBeforeFinalVerification(t *testing.T) {
 				t.Fatalf("mutated mode = %#o, want %#o", observedMode, test.wantMode)
 			}
 			assertPrepareError(t, err, game.ID, protocol.CodeTransferFailed, staging)
-			assertStagingEmpty(t, staging)
+			if !errors.Is(err, ErrCleanupRetained) {
+				t.Fatalf("error lost cleanup-retained signal: %v", err)
+			}
+			entries, readErr := os.ReadDir(staging)
+			if readErr != nil || len(entries) != 1 {
+				t.Fatalf("retained staging entries = %v, err=%v", entries, readErr)
+			}
 			if test.wantMode == 0o750 {
 				info, statErr := os.Stat(staging)
 				if statErr != nil || info.Mode().Perm() != 0o750 {
@@ -959,6 +957,14 @@ type mutatingSourceFile struct {
 	path  string
 	mtime time.Time
 	once  sync.Once
+}
+
+type closeErrorReadCloser struct {
+	io.ReadCloser
+}
+
+func (r *closeErrorReadCloser) Close() error {
+	return errors.Join(r.ReadCloser.Close(), errors.New("private-token-close-failure"))
 }
 
 func (f *mutatingSourceFile) Read(buffer []byte) (int, error) {
@@ -1111,12 +1117,34 @@ func assertPrepareError(t *testing.T, err error, gameID string, code protocol.Er
 func assertStagingEmpty(t *testing.T, stagingRoot string) {
 	t.Helper()
 	entries, err := os.ReadDir(stagingRoot)
+	if errors.Is(err, fs.ErrNotExist) {
+		return
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(entries) != 0 {
 		t.Fatalf("staging root contains %d entries after failure: %v", len(entries), entries)
 	}
+}
+
+func preparePathBackedFixture(t *testing.T, root catalog.Root, game catalog.Game, staging string) *Prepared {
+	t.Helper()
+	preparer := Preparer{
+		StagingRoot: staging,
+		MaxBytes:    protocol.MaxContentBytes,
+		beforeStagingFinalVerify: func(string, string) error {
+			return nil
+		},
+	}
+	prepared, err := preparer.Prepare(context.Background(), root, game)
+	if err != nil {
+		t.Fatalf("Prepare path-backed fixture: %v", err)
+	}
+	if prepared.Path == "" {
+		t.Fatal("path-backed fixture returned a snapshot")
+	}
+	return prepared
 }
 
 func assertNoPreparedIdentity(t *testing.T, stagingRoot string, original fs.FileInfo) {

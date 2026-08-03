@@ -327,7 +327,7 @@ func (s *Store) MarkRootOffline(ctx context.Context, root Root, reason string) (
 }
 
 const selectGames = `
-	SELECT g.game_id, g.title, g.library_id, l.root, g.relative_path, g.reason, g.system,
+	SELECT g.game_id, g.title, g.library_id, g.relative_path, g.reason, g.system,
 	       g.source_kind, g.source_state, l.online,
 	       g.source_size, g.modified_ns, g.zip_member, g.zip_size, g.zip_crc32, g.zip_entry_count,
 	       g.content_sha256, g.content_size, g.content_extension
@@ -396,7 +396,7 @@ func scanGame(row rowScanner) (Game, error) {
 	var contentSHA256, contentExtension sql.NullString
 	var contentSize sql.NullInt64
 	if err := row.Scan(
-		&game.ID, &game.Title, &game.LibraryID, &game.RootPath, &game.RelativePath, &game.Reason, &game.System,
+		&game.ID, &game.Title, &game.LibraryID, &game.RelativePath, &game.Reason, &game.System,
 		&game.Kind, &game.State, &online,
 		&game.Fingerprint.SourceSize, &game.Fingerprint.ModifiedNS, &game.Fingerprint.ZIPMember,
 		&game.Fingerprint.ZIPSize, &game.Fingerprint.ZIPCRC32, &game.Fingerprint.ZIPEntryCount,
@@ -425,6 +425,25 @@ func scanGame(row rowScanner) (Game, error) {
 	return game, nil
 }
 
+// GameMatchesRoot reports whether the catalog row represented by game still
+// belongs to the configured root without exposing that root through Game.
+func (s *Store) GameMatchesRoot(ctx context.Context, game Game, root Root) (bool, error) {
+	var matches int
+	err := s.db.QueryRowContext(ctx, `
+		SELECT EXISTS (
+		  SELECT 1 FROM games AS g JOIN libraries AS l ON l.id = g.library_id
+		  WHERE g.game_id = ? AND g.library_id = ? AND g.system = ?
+		    AND l.id = ? AND l.system = ? AND l.root = ?
+		)`,
+		game.ID, game.LibraryID, game.System,
+		root.ID, root.System, root.Path,
+	).Scan(&matches)
+	if err != nil {
+		return false, fmt.Errorf("match catalog game %q to root: %w", game.ID, err)
+	}
+	return matches != 0, nil
+}
+
 func (s *Store) UpdateContent(ctx context.Context, id string, fingerprint Fingerprint, content Content) (bool, error) {
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE games SET content_sha256 = ?, content_size = ?, content_extension = ?
@@ -446,7 +465,7 @@ func (s *Store) UpdateContent(ctx context.Context, id string, fingerprint Finger
 
 // CompareAndSetContent records prepared content only while the complete source
 // identity used by the preparer is still the catalog's current identity.
-func (s *Store) CompareAndSetContent(ctx context.Context, game Game, content Content) (bool, error) {
+func (s *Store) CompareAndSetContent(ctx context.Context, game Game, root Root, content Content) (bool, error) {
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE games SET content_sha256 = ?, content_size = ?, content_extension = ?
 		WHERE game_id = ? AND library_id = ? AND system = ? AND relative_path = ? AND source_kind = ?
@@ -454,13 +473,13 @@ func (s *Store) CompareAndSetContent(ctx context.Context, game Game, content Con
 		  AND zip_size = ? AND zip_crc32 = ? AND zip_entry_count = ?
 		  AND EXISTS (
 		    SELECT 1 FROM libraries AS l
-		    WHERE l.id = games.library_id AND l.system = ? AND l.root = ?
+		    WHERE l.id = games.library_id AND l.id = ? AND l.system = ? AND l.root = ?
 		  )`,
 		content.SHA256, content.Size, content.Extension,
 		game.ID, game.LibraryID, game.System, game.RelativePath, game.Kind,
 		game.Fingerprint.SourceSize, game.Fingerprint.ModifiedNS, game.Fingerprint.ZIPMember,
 		game.Fingerprint.ZIPSize, game.Fingerprint.ZIPCRC32, game.Fingerprint.ZIPEntryCount,
-		game.System, game.RootPath,
+		root.ID, root.System, root.Path,
 	)
 	if err != nil {
 		return false, fmt.Errorf("compare and set content for game %q: %w", game.ID, err)

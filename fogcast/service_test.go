@@ -184,7 +184,7 @@ func TestServiceLaunchFirstTransferUsesApprovedOrderAndCleansStaging(t *testing.
 	prepared := preparedServiceFixture(t, body, identity)
 	var operations []string
 	store := &fakeServiceCatalog{games: []catalog.Game{game}}
-	store.update = func(_ context.Context, gotGame catalog.Game, gotContent catalog.Content) (bool, error) {
+	store.update = func(_ context.Context, gotGame catalog.Game, _ catalog.Root, gotContent catalog.Content) (bool, error) {
 		operations = append(operations, "catalog")
 		if gotGame.ID != game.ID || gotGame.Fingerprint != game.Fingerprint || gotGame.Kind != game.Kind {
 			t.Fatalf("CAS game = %+v", gotGame)
@@ -241,7 +241,7 @@ func TestServiceLaunchFirstTransferUsesApprovedOrderAndCleansStaging(t *testing.
 	assertPreparedRemoved(t, prepared.Path)
 }
 
-func TestServiceLaunchUploadsHeldStagingIdentityAfterVisibleDirectoryReplacement(t *testing.T) {
+func TestServiceLaunchUploadsPreparedSnapshotAfterSourceReplacement(t *testing.T) {
 	original := []byte("synthetic-original")
 	replacement := []byte("private-replacement")
 	library := t.TempDir()
@@ -255,12 +255,11 @@ func TestServiceLaunchUploadsHeldStagingIdentityAfterVisibleDirectoryReplacement
 	}
 	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: library}
 	game := catalog.Game{
-		ID: "snes-synthetic", Title: "Synthetic", LibraryID: root.ID, RootPath: root.Path, RelativePath: "game.sfc",
+		ID: "snes-synthetic", Title: "Synthetic", LibraryID: root.ID, RelativePath: "game.sfc",
 		System: root.System, Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
 		Fingerprint: catalog.Fingerprint{SourceSize: info.Size(), ModifiedNS: info.ModTime().UnixNano()},
 	}
 	staging := filepath.Join(t.TempDir(), "staging")
-	heldStaging := staging + "-held"
 	var prepared *romsource.Prepared
 	preparer := &fakeServicePreparer{prepare: func(ctx context.Context, gotRoot catalog.Root, gotGame catalog.Game) (*romsource.Prepared, error) {
 		var prepareErr error
@@ -268,14 +267,11 @@ func TestServiceLaunchUploadsHeldStagingIdentityAfterVisibleDirectoryReplacement
 		if prepareErr != nil {
 			return nil, prepareErr
 		}
-		if err := os.Rename(staging, heldStaging); err != nil {
-			t.Fatalf("replace staging directory: %v", err)
+		if prepared.Path != "" {
+			t.Fatalf("prepared snapshot exposed path %q", prepared.Path)
 		}
-		if err := os.Mkdir(staging, 0o700); err != nil {
-			t.Fatalf("create replacement staging directory: %v", err)
-		}
-		if err := os.WriteFile(prepared.Path, replacement, 0o600); err != nil {
-			t.Fatalf("write replacement content: %v", err)
+		if err := os.WriteFile(sourcePath, replacement, 0o600); err != nil {
+			t.Fatalf("replace source content: %v", err)
 		}
 		return prepared, nil
 	}}
@@ -307,66 +303,40 @@ func TestServiceLaunchUploadsHeldStagingIdentityAfterVisibleDirectoryReplacement
 	if !reflect.DeepEqual(uploaded, original) {
 		t.Fatalf("uploaded = %q, want held staged identity %q", uploaded, original)
 	}
-	heldPath := filepath.Join(heldStaging, filepath.Base(prepared.Path))
-	if _, err := os.Lstat(heldPath); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("held staging path still exists or cannot be inspected: %v", err)
+	if file, err := prepared.Open(); err == nil {
+		_ = file.Close()
+		t.Fatal("prepared snapshot remained openable after service cleanup")
 	}
 }
 
-func TestServiceLaunchRejectedRenamedStagingRemovesHeldIdentityAndPreservesDecoy(t *testing.T) {
-	original := []byte("synthetic-original")
-	decoy := []byte("private-decoy")
-	library := t.TempDir()
-	sourcePath := filepath.Join(library, "game.sfc")
-	if err := os.WriteFile(sourcePath, original, 0o600); err != nil {
+func TestServiceLaunchPreservesPrimaryFailureWhenCleanupRetainsContent(t *testing.T) {
+	privatePath := filepath.Join(t.TempDir(), "private-token-prepared.rom")
+	if err := os.WriteFile(privatePath, []byte("rom"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	info, err := os.Stat(sourcePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: library}
-	game := catalog.Game{
-		ID: "snes-synthetic", Title: "Synthetic", LibraryID: root.ID, RootPath: root.Path, RelativePath: "game.sfc",
-		System: root.System, Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
-		Fingerprint: catalog.Fingerprint{SourceSize: info.Size(), ModifiedNS: info.ModTime().UnixNano()},
-	}
-	staging := filepath.Join(t.TempDir(), "staging")
-	var prepared *romsource.Prepared
-	var renamedPath string
-	preparer := &fakeServicePreparer{prepare: func(ctx context.Context, gotRoot catalog.Root, gotGame catalog.Game) (*romsource.Prepared, error) {
-		var prepareErr error
-		prepared, prepareErr = (romsource.Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}).Prepare(ctx, gotRoot, gotGame)
-		if prepareErr != nil {
-			return nil, prepareErr
-		}
-		renamedPath = prepared.Path + ".renamed"
-		if err := os.Rename(prepared.Path, renamedPath); err != nil {
-			t.Fatalf("rename prepared content: %v", err)
-		}
-		if err := os.WriteFile(prepared.Path, decoy, 0o600); err != nil {
-			t.Fatalf("write decoy content: %v", err)
-		}
-		return prepared, nil
-	}}
+	identity := protocol.ContentIdentity{SHA256: serviceDigest, Size: 3, Extension: "sfc"}
+	prepared := &romsource.Prepared{Path: privatePath, Content: identity}
+	game := serviceGame(catalog.Content{})
+	game.Content = nil
 	store := &fakeServiceCatalog{games: []catalog.Game{game}}
-	client := &fakeServiceClient{probe: absentProbe}
-	service := newService(
-		Config{Libraries: []catalog.Root{root}, RequestTimeout: time.Second, UploadTimeout: time.Second},
-		Paths{Staging: staging}, store, &fakeServiceScanner{}, preparer, client,
-	)
+	client := &fakeServiceClient{probe: func(context.Context, protocol.System, protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
+		return protocol.CacheProbeResponse{}, context.Canceled
+	}}
+	service := newTestService(store, &fakeServicePreparer{prepared: prepared}, client)
 
-	_, err = service.Launch(context.Background(), game.ID, nil)
-	assertServiceErrorCode(t, err, protocol.CodeTransferFailed)
-	if client.uploadCalls != 0 || client.launchCalls != 0 {
-		t.Fatalf("rejected staging reached target: upload=%d launch=%d", client.uploadCalls, client.launchCalls)
+	_, err := service.Launch(context.Background(), game.ID, nil)
+	assertServiceErrorCode(t, err, protocol.CodeMiSTerUnavailable)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error lost primary cancellation: %v", err)
 	}
-	if _, err := os.Lstat(renamedPath); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("renamed held identity still exists or cannot be inspected: %v", err)
+	if !errors.Is(err, romsource.ErrCleanupRetained) {
+		t.Fatalf("error lost cleanup-retained signal: %v", err)
 	}
-	gotDecoy, err := os.ReadFile(prepared.Path)
-	if err != nil || !reflect.DeepEqual(gotDecoy, decoy) {
-		t.Fatalf("decoy = %q, err=%v", gotDecoy, err)
+	if strings.Contains(err.Error(), privatePath) || strings.Contains(err.Error(), "private-token") {
+		t.Fatalf("error reflected private cleanup detail: %v", err)
+	}
+	if data, readErr := os.ReadFile(privatePath); readErr != nil || string(data) != "rom" {
+		t.Fatalf("retained content = %q, err=%v", data, readErr)
 	}
 }
 
@@ -401,7 +371,7 @@ func TestServiceLaunchRemovesPreparedStagingOnEveryLaterFailure(t *testing.T) {
 		code protocol.ErrorCode
 	}{
 		{name: "catalog update", code: protocol.CodeInternal, wire: func(store *fakeServiceCatalog, _ *fakeServiceClient) {
-			store.update = func(context.Context, catalog.Game, catalog.Content) (bool, error) {
+			store.update = func(context.Context, catalog.Game, catalog.Root, catalog.Content) (bool, error) {
 				return false, errors.New("database failed")
 			}
 		}},
@@ -475,7 +445,7 @@ func TestServiceLaunchStaleFingerprintReloadsAndRetriesOnce(t *testing.T) {
 	oldPrepared := preparedServiceFixture(t, []byte("old"), oldIdentity)
 	newPrepared := preparedServiceFixture(t, []byte("new!"), newIdentity)
 	store := &fakeServiceCatalog{games: []catalog.Game{oldGame, newGame}}
-	store.update = func(_ context.Context, game catalog.Game, content catalog.Content) (bool, error) {
+	store.update = func(_ context.Context, game catalog.Game, _ catalog.Root, content catalog.Content) (bool, error) {
 		if store.updateCalls == 1 {
 			if game.Fingerprint != oldGame.Fingerprint || content.SHA256 != oldIdentity.SHA256 {
 				t.Fatalf("old CAS = fingerprint %+v content %+v", game.Fingerprint, content)
@@ -1083,7 +1053,8 @@ type fakeServiceCatalog struct {
 	updateCalls int
 	closeCalls  int
 	searchQuery string
-	update      func(context.Context, catalog.Game, catalog.Content) (bool, error)
+	rootMatch   func(context.Context, catalog.Game, catalog.Root) (bool, error)
+	update      func(context.Context, catalog.Game, catalog.Root, catalog.Content) (bool, error)
 }
 
 func (f *fakeServiceCatalog) Game(context.Context, string) (catalog.Game, error) {
@@ -1110,10 +1081,17 @@ func (f *fakeServiceCatalog) Search(_ context.Context, query string) ([]catalog.
 	return append([]catalog.Game(nil), f.searchGames...), nil
 }
 
-func (f *fakeServiceCatalog) CompareAndSetContent(ctx context.Context, game catalog.Game, content catalog.Content) (bool, error) {
+func (f *fakeServiceCatalog) GameMatchesRoot(ctx context.Context, game catalog.Game, root catalog.Root) (bool, error) {
+	if f.rootMatch != nil {
+		return f.rootMatch(ctx, game, root)
+	}
+	return game.LibraryID == root.ID && game.System == root.System, nil
+}
+
+func (f *fakeServiceCatalog) CompareAndSetContent(ctx context.Context, game catalog.Game, root catalog.Root, content catalog.Content) (bool, error) {
 	f.updateCalls++
 	if f.update != nil {
-		return f.update(ctx, game, content)
+		return f.update(ctx, game, root, content)
 	}
 	return true, nil
 }
@@ -1243,7 +1221,7 @@ func newTestService(store *fakeServiceCatalog, preparer *fakeServicePreparer, cl
 
 func serviceGame(content catalog.Content) catalog.Game {
 	return catalog.Game{
-		ID: "snes-synthetic", Title: "Synthetic", LibraryID: "snes-main", RootPath: "/private/library", RelativePath: "game.sfc",
+		ID: "snes-synthetic", Title: "Synthetic", LibraryID: "snes-main", RelativePath: "game.sfc",
 		System: protocol.SystemSNES, Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable,
 		RootOnline: true, Fingerprint: catalog.Fingerprint{SourceSize: 3, ModifiedNS: 123}, Content: &content,
 	}
@@ -1290,15 +1268,19 @@ func assertServiceErrorCode(t *testing.T, err error, want protocol.ErrorCode) {
 
 func preparedServiceFixture(t *testing.T, body []byte, identity protocol.ContentIdentity) *romsource.Prepared {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "prepared.rom")
-	if err := os.WriteFile(path, body, 0o600); err != nil {
-		t.Fatal(err)
+	prepared, err := romsource.NewPreparedSnapshot(body, identity.Extension)
+	if err != nil {
+		t.Fatalf("NewPreparedSnapshot: %v", err)
 	}
-	return &romsource.Prepared{Path: path, Content: identity}
+	prepared.Content = identity
+	return prepared
 }
 
 func assertPreparedRemoved(t *testing.T, path string) {
 	t.Helper()
+	if path == "" {
+		return
+	}
 	if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("staging path still exists or cannot be inspected: %v", err)
 	}

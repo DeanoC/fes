@@ -3,6 +3,7 @@ package romsource
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	cryptorand "crypto/rand"
 	"crypto/sha256"
@@ -25,33 +26,57 @@ type Prepared struct {
 	Content protocol.ContentIdentity
 
 	mu       sync.Mutex
+	data     []byte
 	fileInfo fs.FileInfo
 	root     *os.Root
 	base     string
 	removed  bool
+	retained bool
 
-	beforeRemoveCandidate  func(*os.Root, string) error
-	removeQuarantineName   func() string
-	beforeCaptureCandidate func(*os.Root, string, string) error
-	beforeFinalRemove      func(*os.Root, string) error
+	beforePathUnlink func(*os.Root, string) error
 }
 
-// Open returns verified staged content. Values created by Preparer are opened
-// through the held staging directory rather than by resolving Path through the
-// ambient filesystem.
-func (p *Prepared) Open() (*os.File, error) {
+// Open returns prepared content. Normal Preparer values use an owned bounded
+// snapshot; legacy path-backed values are verified against their held staging
+// identity.
+func (p *Prepared) Open() (io.ReadCloser, error) {
 	if p == nil {
 		return nil, errors.New("open prepared ROM staging file")
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.removed || p.Path == "" {
+	if p.removed {
+		return nil, errors.New("open prepared ROM staging file")
+	}
+	if p.retained {
+		return nil, ErrCleanupRetained
+	}
+	if p.data != nil {
+		return io.NopCloser(bytes.NewReader(p.data)), nil
+	}
+	if p.Path == "" {
 		return nil, errors.New("open prepared ROM staging file")
 	}
 	if p.root != nil {
 		return p.openFromRoot()
 	}
 	return p.openFromPath()
+}
+
+// NewPreparedSnapshot creates a path-independent prepared value whose content
+// is bounded by the protocol maximum and owned by the returned value.
+func NewPreparedSnapshot(data []byte, extension string) (*Prepared, error) {
+	if len(data) < 1 || int64(len(data)) > protocol.MaxContentBytes {
+		return nil, errors.New("prepared ROM snapshot size is invalid")
+	}
+	content := protocol.ContentIdentity{
+		SHA256: fmt.Sprintf("%x", sha256.Sum256(data)),
+		Size:   int64(len(data)), Extension: extension,
+	}
+	if err := protocol.ValidateContentIdentity(content); err != nil {
+		return nil, errors.New("prepared ROM snapshot identity is invalid")
+	}
+	return &Prepared{Content: content, data: append([]byte(nil), data...)}, nil
 }
 
 func (p *Prepared) openFromRoot() (*os.File, error) {
@@ -103,232 +128,40 @@ func validPreparedInfo(info fs.FileInfo) bool {
 	return info != nil && info.Mode().IsRegular() && info.Mode().Perm() == 0o600
 }
 
-func (p *Prepared) heldIdentityCandidates() ([]string, error) {
-	var candidates []string
-	err := fs.WalkDir(p.root.FS(), ".", func(name string, candidate fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return errors.New("inspect prepared ROM staging directory")
-		}
-		if name == "." || candidate.IsDir() {
-			return nil
-		}
-		candidateInfo, err := candidate.Info()
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil
-		}
-		if err != nil {
-			return errors.New("inspect prepared ROM staging file")
-		}
-		if !os.SameFile(p.fileInfo, candidateInfo) {
-			return nil
-		}
-		candidates = append(candidates, name)
-		return nil
-	})
-	return candidates, err
-}
-
-func (p *Prepared) captureAndRemoveHeldCandidate(candidate string) (captured, retry, linksRemain bool, err error) {
-	current, err := p.root.Lstat(candidate)
-	if errors.Is(err, fs.ErrNotExist) {
-		return false, true, false, nil
-	}
-	if err != nil {
-		return false, false, false, errors.New("inspect prepared ROM staging file")
-	}
-	if !os.SameFile(p.fileInfo, current) {
-		return false, true, false, nil
-	}
-	if !current.Mode().IsRegular() {
-		return false, false, false, errors.New("prepared ROM staging path is not a regular file")
-	}
-	if p.beforeRemoveCandidate != nil {
-		if err := p.beforeRemoveCandidate(p.root, candidate); err != nil {
-			return false, false, false, errors.New("prepare staged ROM identity removal")
-		}
-	}
-
-	newQuarantineName := p.removeQuarantineName
-	if newQuarantineName == nil {
-		newQuarantineName = func() string {
-			return ".fogcast-remove-" + strings.ToLower(cryptorand.Text())
-		}
-	}
-	var quarantine string
-	for range 100 {
-		quarantine = newQuarantineName()
-		if quarantine == "" || path.Clean(quarantine) != quarantine || path.Dir(quarantine) != "." {
-			return false, false, false, errors.New("allocate prepared ROM removal quarantine")
-		}
-		_, err := p.root.Lstat(quarantine)
-		if errors.Is(err, fs.ErrNotExist) {
-			break
-		}
-		if err != nil {
-			return false, false, false, errors.New("inspect prepared ROM removal quarantine")
-		}
-		quarantine = ""
-	}
-	if quarantine == "" {
-		return false, false, false, errors.New("allocate prepared ROM removal quarantine")
-	}
-	if p.beforeCaptureCandidate != nil {
-		if err := p.beforeCaptureCandidate(p.root, candidate, quarantine); err != nil {
-			return false, false, false, errors.New("prepare staged ROM quarantine capture")
-		}
-	}
-	if err := exclusiveRenamePrepared(p.root, candidate, quarantine, p.fileInfo); err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return false, true, false, nil
-		}
-		return false, false, false, errors.New("capture prepared ROM staging file")
-	}
-	capturedInfo, err := p.root.Lstat(quarantine)
-	if err != nil {
-		return false, false, false, errors.New("inspect captured prepared ROM staging file")
-	}
-	if !os.SameFile(p.fileInfo, capturedInfo) {
-		return false, false, false, errors.New("captured unrelated staging file; retained")
-	}
-	if p.beforeFinalRemove != nil {
-		if err := p.beforeFinalRemove(p.root, quarantine); err != nil {
-			return false, false, false, errors.New("prepare final staged ROM removal")
-		}
-	}
-	finalInfo, err := p.root.Lstat(quarantine)
-	if err != nil || !os.SameFile(p.fileInfo, finalInfo) {
-		return false, false, false, errors.New("captured prepared ROM identity changed; retained")
-	}
-	capturedFile, err := p.root.Open(quarantine)
-	if err != nil {
-		return false, false, false, errors.New("open captured prepared ROM staging file")
-	}
-	openedInfo, err := capturedFile.Stat()
-	if err != nil || !validPreparedInfo(openedInfo) || !os.SameFile(p.fileInfo, openedInfo) {
-		_ = capturedFile.Close()
-		return false, false, false, errors.New("captured prepared ROM identity changed; retained")
-	}
-	recheckedInfo, err := p.root.Lstat(quarantine)
-	if err != nil || !os.SameFile(openedInfo, recheckedInfo) {
-		_ = capturedFile.Close()
-		return false, false, false, errors.New("captured prepared ROM identity changed; retained")
-	}
-	if err := p.root.Remove(quarantine); err != nil {
-		_ = capturedFile.Close()
-		return false, false, false, errors.New("remove prepared ROM staging file")
-	}
-	unlinkedInfo, statErr := capturedFile.Stat()
-	closeErr := capturedFile.Close()
-	if statErr != nil || closeErr != nil {
-		return false, false, false, errors.New("verify removed prepared ROM staging identity")
-	}
-	linkCount, known := preparedLinkCount(unlinkedInfo)
-	return true, false, !known || linkCount != 0, nil
-}
-
-func (p *Prepared) removeHeldIdentity() (bool, error) {
-	removed := false
-	identityLost := false
-	linksRemain := false
-	for range 100 {
-		candidates, err := p.heldIdentityCandidates()
-		if err != nil {
-			return false, err
-		}
-		if len(candidates) == 0 {
-			if removed && !identityLost && !linksRemain {
-				return true, nil
-			}
-			return false, nil
-		}
-		retry := false
-		for _, candidate := range candidates {
-			captured, changed, remaining, err := p.captureAndRemoveHeldCandidate(candidate)
-			if err != nil {
-				return false, err
-			}
-			if changed {
-				identityLost = true
-				retry = true
-				break
-			}
-			if captured {
-				removed = true
-				identityLost = false
-				linksRemain = remaining
-			}
-		}
-		if retry {
-			continue
-		}
-	}
-	return false, errors.New("prepared ROM staging identity kept changing during removal")
-}
-
-// Remove deletes the staged content. It is safe to call more than once.
+// Remove clears owned snapshot content. Path-backed values are retained with a
+// fixed error because Go does not expose an identity-conditioned unlink.
 func (p *Prepared) Remove() error {
 	if p == nil {
 		return nil
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.removed || p.Path == "" {
+	if p.removed {
 		return nil
 	}
-	if p.root != nil {
-		if p.fileInfo == nil {
-			current, err := p.root.Lstat(p.base)
-			if errors.Is(err, fs.ErrNotExist) {
-				p.removed = true
-				_ = p.root.Close()
-				p.root = nil
-				return nil
-			}
-			if err != nil {
-				return errors.New("inspect prepared ROM staging file")
-			}
-			if !current.Mode().IsRegular() {
-				return errors.New("prepared ROM staging path is not a regular file")
-			}
-			if err := p.root.Remove(p.base); err != nil {
-				return errors.New("remove prepared ROM staging file")
-			}
-		} else {
-			removed, err := p.removeHeldIdentity()
-			if err != nil {
-				return err
-			}
-			if !removed {
-				return errors.New("prepared ROM staging identity is outside the held directory")
-			}
-		}
-		p.removed = true
-		closeErr := p.root.Close()
-		p.root = nil
-		if closeErr != nil {
-			return errors.New("close prepared ROM staging directory")
-		}
-		return nil
+	if p.retained {
+		return ErrCleanupRetained
 	}
-	current, err := os.Lstat(p.Path)
-	if errors.Is(err, fs.ErrNotExist) {
+	if p.data != nil {
+		clear(p.data)
+		p.data = nil
 		p.removed = true
 		return nil
 	}
-	if err != nil {
-		return errors.New("inspect prepared ROM staging file")
+	if p.Path == "" {
+		return nil
 	}
-	if p.fileInfo != nil && !os.SameFile(p.fileInfo, current) {
-		return errors.New("prepared ROM staging file identity changed")
+	if p.root == nil {
+		p.retained = true
+		return ErrCleanupRetained
 	}
-	if !current.Mode().IsRegular() {
-		return errors.New("prepared ROM staging path is not a regular file")
+	if p.beforePathUnlink != nil {
+		_ = p.beforePathUnlink(p.root, p.base)
 	}
-	if err := os.Remove(p.Path); err != nil {
-		return errors.New("remove prepared ROM staging file")
-	}
-	p.removed = true
-	return nil
+	_ = p.root.Close()
+	p.root = nil
+	p.retained = true
+	return ErrCleanupRetained
 }
 
 type Preparer struct {
@@ -403,8 +236,11 @@ func (p Preparer) Prepare(ctx context.Context, root catalog.Root, game catalog.G
 		return nil, err
 	}
 	if closeErr != nil {
-		_ = prepared.Remove()
-		return nil, preparationError(game.ID, protocol.CodeSourceUnavailable, nil)
+		cleanupErr := prepared.Remove()
+		return nil, errors.Join(
+			preparationError(game.ID, protocol.CodeSourceUnavailable, nil),
+			safeCleanupCause(cleanupErr),
+		)
 	}
 	return prepared, nil
 }
@@ -480,21 +316,68 @@ func (p Preparer) prepareZIP(ctx context.Context, game catalog.Game, source *ver
 		return nil, streamErr
 	}
 	if closeErr != nil {
-		_ = prepared.Remove()
-		return nil, preparationError(game.ID, protocol.CodeInvalidArchive, safeArchiveCause(closeErr))
+		cleanupErr := prepared.Remove()
+		return nil, errors.Join(
+			preparationError(game.ID, protocol.CodeInvalidArchive, safeArchiveCause(closeErr)),
+			safeCleanupCause(cleanupErr),
+		)
 	}
 	return prepared, nil
 }
 
 func (p Preparer) stream(ctx context.Context, gameID string, source *verifiedSource, reader io.Reader, expectedSize int64, extension string, maximum int64, readCode protocol.ErrorCode) (*Prepared, error) {
+	if p.statStagedFile != nil || p.chmodStagedFile != nil || p.beforeStagingFinalVerify != nil || p.beforeStagingRootChmod != nil || p.beforeStagingCreate != nil {
+		return p.streamStaged(ctx, gameID, source, reader, expectedSize, extension, maximum, readCode)
+	}
+
+	var snapshot bytes.Buffer
+	hash := sha256.New()
+	limited := io.LimitReader(&contextReader{ctx: ctx, reader: reader}, maximum+1)
+	written, copyErr := io.Copy(io.MultiWriter(&snapshot, hash), limited)
+	if written > maximum {
+		return nil, preparationError(gameID, readCode, nil)
+	}
+	if copyErr != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, preparationError(gameID, protocol.CodeSourceUnavailable, ctxErr)
+		}
+		cause := error(nil)
+		if readCode == protocol.CodeInvalidArchive {
+			cause = safeArchiveCause(copyErr)
+		}
+		return nil, preparationError(gameID, readCode, cause)
+	}
+	if written != expectedSize {
+		return nil, preparationError(gameID, readCode, nil)
+	}
+	if err := source.revalidate(); err != nil {
+		return nil, preparationError(gameID, protocol.CodeSourceUnavailable, safeSourceCause(err))
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, preparationError(gameID, protocol.CodeSourceUnavailable, err)
+	}
+	content := protocol.ContentIdentity{SHA256: fmt.Sprintf("%x", hash.Sum(nil)), Size: written, Extension: extension}
+	if err := protocol.ValidateContentIdentity(content); err != nil {
+		return nil, preparationError(gameID, readCode, nil)
+	}
+	return &Prepared{Content: content, data: snapshot.Bytes()}, nil
+}
+
+func (p Preparer) streamStaged(ctx context.Context, gameID string, source *verifiedSource, reader io.Reader, expectedSize int64, extension string, maximum int64, readCode protocol.ErrorCode) (prepared *Prepared, resultErr error) {
 	staged, err := newStagedFile(p)
 	if err != nil {
-		return nil, preparationError(gameID, protocol.CodeTransferFailed, nil)
+		cause := error(nil)
+		if errors.Is(err, ErrCleanupRetained) {
+			cause = ErrCleanupRetained
+		}
+		return nil, preparationError(gameID, protocol.CodeTransferFailed, cause)
 	}
 	succeeded := false
 	defer func() {
 		if !succeeded {
-			staged.cleanup()
+			if cleanupErr := staged.cleanup(); cleanupErr != nil {
+				resultErr = errors.Join(resultErr, cleanupErr)
+			}
 		}
 	}()
 
@@ -765,30 +648,25 @@ func newStagedFile(preparer Preparer) (*stagedFile, error) {
 	fileInfo, err := file.Stat()
 	staged.info = fileInfo
 	if err != nil || fileInfo == nil || !fileInfo.Mode().IsRegular() {
-		staged.cleanup()
-		return nil, errors.Join(err, errors.New("staging file is not regular"))
+		return nil, errors.Join(err, errors.New("staging file is not regular"), staged.cleanup())
 	}
 	rootEntry, err := heldRoot.Lstat(staged.base)
 	if err != nil || !rootEntry.Mode().IsRegular() || !os.SameFile(fileInfo, rootEntry) {
-		staged.cleanup()
-		return nil, errors.Join(err, errors.New("staging file identity changed after creation"))
+		return nil, errors.Join(err, errors.New("staging file identity changed after creation"), staged.cleanup())
 	}
 	checkedFileInfo, err := statFile(file)
 	if err != nil || checkedFileInfo == nil || !checkedFileInfo.Mode().IsRegular() || !os.SameFile(fileInfo, checkedFileInfo) {
-		staged.cleanup()
-		return nil, errors.Join(err, errors.New("staging file descriptor identity changed after creation"))
+		return nil, errors.Join(err, errors.New("staging file descriptor identity changed after creation"), staged.cleanup())
 	}
 	chmodFile := preparer.chmodStagedFile
 	if chmodFile == nil {
 		chmodFile = func(file *os.File, mode fs.FileMode) error { return file.Chmod(mode) }
 	}
 	if err := chmodFile(file, 0o600); err != nil {
-		staged.cleanup()
-		return nil, err
+		return nil, errors.Join(err, staged.cleanup())
 	}
 	if _, err := staged.verify(true); err != nil {
-		staged.cleanup()
-		return nil, err
+		return nil, errors.Join(err, staged.cleanup())
 	}
 	return staged, nil
 }
@@ -831,27 +709,13 @@ func (s *stagedFile) verify(fileOpen bool) (fs.FileInfo, error) {
 	return pathEntry, nil
 }
 
-func (s *stagedFile) cleanup() {
+func (s *stagedFile) cleanup() error {
 	if !s.closed {
 		_ = s.file.Close()
 		s.closed = true
 	}
-	entry, err := s.root.Lstat(s.base)
-	if err == nil && (s.info == nil || os.SameFile(s.info, entry)) {
-		_ = s.root.Remove(s.base)
-	}
-	if s.info != nil {
-		entries, readErr := fs.ReadDir(s.root.FS(), ".")
-		if readErr == nil {
-			for _, candidate := range entries {
-				candidateInfo, infoErr := candidate.Info()
-				if infoErr == nil && os.SameFile(s.info, candidateInfo) {
-					_ = s.root.Remove(candidate.Name())
-				}
-			}
-		}
-	}
 	_ = s.root.Close()
+	return ErrCleanupRetained
 }
 
 func safeSourceCause(err error) error {
@@ -876,4 +740,11 @@ func safeArchiveCause(err error) error {
 	default:
 		return nil
 	}
+}
+
+func safeCleanupCause(err error) error {
+	if err != nil {
+		return ErrCleanupRetained
+	}
+	return nil
 }

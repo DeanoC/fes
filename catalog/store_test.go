@@ -3,7 +3,9 @@ package catalog_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -13,6 +15,39 @@ import (
 	"github.com/DeanoC/FogCast-POC/catalog"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
+
+func TestStoreGamesAndSearchDoNotExposeAbsoluteRootBinding(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	privateRoot := "/games/private-token-library"
+	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: privateRoot}
+	c := candidate("snes-game", "Private Token Game", "game.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA)
+	x, err := store.BeginRootScan(ctx, root)
+	if err != nil {
+		t.Fatalf("BeginRootScan: %v", err)
+	}
+	mustObserve(t, x, c, catalog.ChangeAdded)
+	mustComplete(t, x)
+
+	for name, load := range map[string]func() ([]catalog.Game, error){
+		"games":  func() ([]catalog.Game, error) { return store.Games(ctx) },
+		"search": func() ([]catalog.Game, error) { return store.Search(ctx, "private token") },
+	} {
+		t.Run(name, func(t *testing.T) {
+			games, err := load()
+			if err != nil || len(games) != 1 {
+				t.Fatalf("load = %+v, %v", games, err)
+			}
+			encoded, err := json.Marshal(games)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(encoded), privateRoot) || strings.Contains(fmt.Sprintf("%+v", games), privateRoot) {
+				t.Fatalf("public game value exposed absolute root: json=%s value=%+v", encoded, games)
+			}
+		})
+	}
+}
 
 func TestSchemaMigratesNewDatabaseAndRejectsFutureVersion(t *testing.T) {
 	ctx := context.Background()
@@ -485,14 +520,14 @@ func TestStoreCompareAndSetContentRejectsChangedSourceKind(t *testing.T) {
 	mustComplete(t, x)
 	content := catalog.Content{SHA256: strings.Repeat("f", 64), Size: 300, Extension: "sfc"}
 
-	if updated, err := store.CompareAndSetContent(ctx, loaded, content); err != nil || updated {
+	if updated, err := store.CompareAndSetContent(ctx, loaded, root, content); err != nil || updated {
 		t.Fatalf("CompareAndSetContent(stale kind) = %v, %v, want false, nil", updated, err)
 	}
 	if got := mustGame(t, store, original.ID).Content; got != nil {
 		t.Fatalf("content after stale kind CAS = %+v, want nil", got)
 	}
 	current := mustGame(t, store, original.ID)
-	if updated, err := store.CompareAndSetContent(ctx, current, content); err != nil || !updated {
+	if updated, err := store.CompareAndSetContent(ctx, current, root, content); err != nil || !updated {
 		t.Fatalf("CompareAndSetContent(current) = %v, %v, want true, nil", updated, err)
 	}
 	assertContent(t, mustGame(t, store, original.ID).Content, content)
@@ -511,19 +546,27 @@ func TestStoreLoadsLibraryRootAndContentCASBindsIt(t *testing.T) {
 	mustComplete(t, x)
 
 	loaded := mustGame(t, store, c.ID)
-	if loaded.RootPath != root.Path {
-		t.Fatalf("loaded root = %q, want %q", loaded.RootPath, root.Path)
+	if matches, err := store.GameMatchesRoot(ctx, loaded, root); err != nil || !matches {
+		t.Fatalf("GameMatchesRoot(current) = %v, %v, want true, nil", matches, err)
 	}
 	content := catalog.Content{SHA256: strings.Repeat("b", 64), Size: 1024, Extension: "sfc"}
-	staleRoot := loaded
-	staleRoot.RootPath = "/games/private-b"
-	if updated, err := store.CompareAndSetContent(ctx, staleRoot, content); err != nil || updated {
+	staleID := root
+	staleID.ID = "snes-other"
+	if updated, err := store.CompareAndSetContent(ctx, loaded, staleID, content); err != nil || updated {
+		t.Fatalf("CompareAndSetContent(stale root ID) = %v, %v, want false, nil", updated, err)
+	}
+	staleRoot := root
+	staleRoot.Path = "/games/private-b"
+	if matches, err := store.GameMatchesRoot(ctx, loaded, staleRoot); err != nil || matches {
+		t.Fatalf("GameMatchesRoot(stale) = %v, %v, want false, nil", matches, err)
+	}
+	if updated, err := store.CompareAndSetContent(ctx, loaded, staleRoot, content); err != nil || updated {
 		t.Fatalf("CompareAndSetContent(stale root) = %v, %v, want false, nil", updated, err)
 	}
 	if got := mustGame(t, store, c.ID).Content; got != nil {
 		t.Fatalf("content after stale-root CAS = %+v, want nil", got)
 	}
-	if updated, err := store.CompareAndSetContent(ctx, loaded, content); err != nil || !updated {
+	if updated, err := store.CompareAndSetContent(ctx, loaded, root, content); err != nil || !updated {
 		t.Fatalf("CompareAndSetContent(current root) = %v, %v, want true, nil", updated, err)
 	}
 }

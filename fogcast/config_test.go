@@ -69,15 +69,15 @@ root = "`+megaRoot+`"
 	if len(cfg.Libraries) != 2 {
 		t.Fatalf("Libraries = %#v", cfg.Libraries)
 	}
-	if got := cfg.Libraries[0]; got.ID != "snes-main" || got.System != protocol.SystemSNES || got.Path != resolvedPath(t, snesRoot) {
+	if got := cfg.Libraries[0]; got.ID != "snes-main" || got.System != protocol.SystemSNES || got.Path != filepath.Clean(snesRoot) {
 		t.Fatalf("SNES library = %#v", got)
 	}
-	if got := cfg.Libraries[1]; got.ID != "genesis-main" || got.System != protocol.SystemMegaDrive || got.Path != resolvedPath(t, megaRoot) {
+	if got := cfg.Libraries[1]; got.ID != "genesis-main" || got.System != protocol.SystemMegaDrive || got.Path != filepath.Clean(megaRoot) {
 		t.Fatalf("Mega Drive library = %#v", got)
 	}
 }
 
-func TestLoadConfigResolvesExistingSymlinkAndRetainsOfflineCleanPath(t *testing.T) {
+func TestLoadConfigRejectsSymlinkRootConsistentlyOnlineAndOffline(t *testing.T) {
 	dir := t.TempDir()
 	actual := filepath.Join(dir, "actual")
 	if err := os.Mkdir(actual, 0o700); err != nil {
@@ -90,15 +90,48 @@ func TestLoadConfigResolvesExistingSymlinkAndRetainsOfflineCleanPath(t *testing.
 	offline := filepath.Join(dir, "missing", "..", "offline")
 	path := writeConfig(t, validConfig(link, offline))
 
-	cfg, err := fogcast.LoadConfig(path)
-	if err != nil {
+	if _, err := fogcast.LoadConfig(path); err == nil {
+		t.Fatal("online symlink root was accepted")
+	}
+	moved := filepath.Join(dir, "actual-offline")
+	if err := os.Rename(actual, moved); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Libraries[0].Path != resolvedPath(t, actual) {
-		t.Fatalf("existing symlink path = %q, want %q", cfg.Libraries[0].Path, resolvedPath(t, actual))
+	if _, err := fogcast.LoadConfig(path); err == nil {
+		t.Fatal("offline symlink root was accepted")
 	}
-	if cfg.Libraries[1].Path != filepath.Join(dir, "offline") {
-		t.Fatalf("offline path = %q", cfg.Libraries[1].Path)
+}
+
+func TestLoadConfigKeepsIntermediateSymlinkBindingStableAcrossOfflineReopen(t *testing.T) {
+	dir := t.TempDir()
+	actualParent := filepath.Join(dir, "actual-parent")
+	actualRoot := filepath.Join(actualParent, "library")
+	if err := os.MkdirAll(actualRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	linkedParent := filepath.Join(dir, "linked-parent")
+	if err := os.Symlink(actualParent, linkedParent); err != nil {
+		t.Fatal(err)
+	}
+	configuredRoot := filepath.Join(linkedParent, "library")
+	path := writeConfig(t, validConfig(configuredRoot, filepath.Join(dir, "offline")))
+
+	online, err := fogcast.LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig(online): %v", err)
+	}
+	if err := os.Rename(actualRoot, actualRoot+"-offline"); err != nil {
+		t.Fatal(err)
+	}
+	offline, err := fogcast.LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig(offline): %v", err)
+	}
+	if got, want := online.Libraries[0].Path, filepath.Clean(configuredRoot); got != want {
+		t.Fatalf("online binding = %q, want configured identity %q", got, want)
+	}
+	if online.Libraries[0].Path != offline.Libraries[0].Path {
+		t.Fatalf("binding changed across offline reopen: online=%q offline=%q", online.Libraries[0].Path, offline.Libraries[0].Path)
 	}
 }
 
@@ -169,13 +202,4 @@ func writeConfig(t *testing.T, content string) string {
 		t.Fatal(err)
 	}
 	return path
-}
-
-func resolvedPath(t *testing.T, value string) string {
-	t.Helper()
-	resolved, err := filepath.EvalSymlinks(value)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return filepath.Clean(resolved)
 }

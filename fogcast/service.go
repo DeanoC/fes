@@ -31,7 +31,8 @@ type serviceCatalog interface {
 	Game(context.Context, string) (catalog.Game, error)
 	Games(context.Context) ([]catalog.Game, error)
 	Search(context.Context, string) ([]catalog.Game, error)
-	CompareAndSetContent(context.Context, catalog.Game, catalog.Content) (bool, error)
+	GameMatchesRoot(context.Context, catalog.Game, catalog.Root) (bool, error)
+	CompareAndSetContent(context.Context, catalog.Game, catalog.Root, catalog.Content) (bool, error)
 	Close() error
 }
 
@@ -233,7 +234,14 @@ func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 
 func (s *Service) launchGame(ctx context.Context, game catalog.Game, progress ProgressFunc) (protocol.CachedLaunchResponse, bool, error) {
 	root, ok := s.rootsByID[game.LibraryID]
-	if !ok || game.RootPath == "" || root.System != game.System || root.Path != game.RootPath {
+	if !ok || root.System != game.System {
+		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeSourceUnavailable, nil)
+	}
+	matchesRoot, err := s.catalog.GameMatchesRoot(ctx, game, root)
+	if err != nil {
+		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	if !matchesRoot {
 		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeSourceUnavailable, nil)
 	}
 	if game.Content != nil {
@@ -273,7 +281,11 @@ func (s *Service) launchPrepared(ctx context.Context, game catalog.Game, prepare
 		if err := prepared.Remove(); err != nil {
 			response = protocol.CachedLaunchResponse{}
 			retry = false
-			resultErr = canonicalError(protocol.CodeInternal, nil)
+			if resultErr == nil {
+				resultErr = canonicalError(protocol.CodeInternal, romsource.ErrCleanupRetained)
+			} else {
+				resultErr = errors.Join(resultErr, romsource.ErrCleanupRetained)
+			}
 		}
 	}()
 
@@ -281,7 +293,8 @@ func (s *Service) launchPrepared(ctx context.Context, game catalog.Game, prepare
 		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, nil)
 	}
 	content := catalog.Content{SHA256: prepared.Content.SHA256, Size: prepared.Content.Size, Extension: prepared.Content.Extension}
-	updated, err := s.catalog.CompareAndSetContent(ctx, game, content)
+	root := s.rootsByID[game.LibraryID]
+	updated, err := s.catalog.CompareAndSetContent(ctx, game, root, content)
 	if err != nil {
 		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, safeContextError(err))
 	}

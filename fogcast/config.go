@@ -157,12 +157,8 @@ func normalizeRoot(raw string) (string, error) {
 		return "", err
 	}
 	root = filepath.Clean(root)
-	if _, err := os.Stat(root); err == nil {
-		resolved, err := filepath.EvalSymlinks(root)
-		if err != nil {
-			return "", err
-		}
-		return filepath.Clean(resolved), nil
+	if info, err := os.Lstat(root); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return "", fmt.Errorf("must not be a symbolic link")
 	}
 	return root, nil
 }

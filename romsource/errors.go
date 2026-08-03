@@ -1,10 +1,15 @@
 package romsource
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
+
+// ErrCleanupRetained is returned when prepared content cannot be removed
+// without an identity-conditioned filesystem operation.
+var ErrCleanupRetained = errors.New("prepared ROM cleanup retained content")
 
 // Error reports a preparation failure without exposing a NAS or staging path.
 type Error struct {
