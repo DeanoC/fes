@@ -184,6 +184,8 @@ func TestPreparedRemoveDoesNotDeleteDecoySwappedAfterIdentityCheck(t *testing.T)
 	}
 	var swappedOriginal string
 	hookCalled := false
+	const quarantine = ".fogcast-remove-deterministic"
+	prepared.removeQuarantineName = func() string { return quarantine }
 	prepared.beforeRemoveCandidate = func(held *os.Root, candidate string) error {
 		if hookCalled {
 			return nil
@@ -201,18 +203,129 @@ func TestPreparedRemoveDoesNotDeleteDecoySwappedAfterIdentityCheck(t *testing.T)
 		return errors.Join(writeErr, decoy.Close())
 	}
 
-	if err := prepared.Remove(); err != nil {
-		t.Fatalf("Remove: %v", err)
+	if err := prepared.Remove(); err == nil {
+		t.Fatal("Remove reported success after an identity-check swap")
 	}
 	if !hookCalled {
 		t.Fatal("identity-check swap hook was not called")
 	}
-	if _, err := os.Lstat(filepath.Join(staging, filepath.FromSlash(swappedOriginal))); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("swapped original still exists or cannot be inspected: %v", err)
+	original, err := os.ReadFile(filepath.Join(staging, filepath.FromSlash(swappedOriginal)))
+	if err != nil || string(original) != "synthetic-original" {
+		t.Fatalf("retained swapped original = %q, err=%v", original, err)
 	}
 	decoy, err := os.ReadFile(renamed)
 	if err != nil || string(decoy) != "private-decoy" {
 		t.Fatalf("decoy = %q, err=%v", decoy, err)
+	}
+}
+
+func TestPreparedRemoveDoesNotOverwriteQuarantineDestination(t *testing.T) {
+	root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
+	staging := t.TempDir()
+	prepared, err := (Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	const quarantine = ".fogcast-remove-deterministic"
+	prepared.removeQuarantineName = func() string { return quarantine }
+	prepared.beforeCaptureCandidate = func(held *os.Root, _, gotQuarantine string) error {
+		if gotQuarantine != quarantine {
+			return errors.New("unexpected quarantine name")
+		}
+		decoy, err := held.OpenFile(gotQuarantine, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if err != nil {
+			return err
+		}
+		_, writeErr := decoy.Write([]byte("private-decoy"))
+		return errors.Join(writeErr, decoy.Close())
+	}
+
+	if err := prepared.Remove(); err == nil {
+		t.Fatal("Remove reported success after quarantine destination insertion")
+	}
+	original, err := os.ReadFile(prepared.Path)
+	if err != nil || string(original) != "synthetic-original" {
+		t.Fatalf("staged identity = %q, err=%v", original, err)
+	}
+	decoy, err := os.ReadFile(filepath.Join(staging, quarantine))
+	if err != nil || string(decoy) != "private-decoy" {
+		t.Fatalf("quarantine decoy = %q, err=%v", decoy, err)
+	}
+}
+
+func TestPreparedRemoveFailsWithoutDeletingFinalWindowReplacement(t *testing.T) {
+	root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
+	staging := t.TempDir()
+	prepared, err := (Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	const quarantine = ".fogcast-remove-deterministic"
+	prepared.removeQuarantineName = func() string { return quarantine }
+	var retainedExact string
+	prepared.beforeFinalRemove = func(held *os.Root, gotQuarantine string) error {
+		retainedExact = gotQuarantine + ".exact"
+		if err := held.Rename(gotQuarantine, retainedExact); err != nil {
+			return err
+		}
+		decoy, err := held.OpenFile(gotQuarantine, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if err != nil {
+			return err
+		}
+		_, writeErr := decoy.Write([]byte("private-decoy"))
+		return errors.Join(writeErr, decoy.Close())
+	}
+
+	if err := prepared.Remove(); err == nil {
+		t.Fatal("Remove reported success after final-window replacement")
+	}
+	original, err := os.ReadFile(filepath.Join(staging, retainedExact))
+	if err != nil || string(original) != "synthetic-original" {
+		t.Fatalf("retained exact identity = %q, err=%v", original, err)
+	}
+	decoy, err := os.ReadFile(filepath.Join(staging, quarantine))
+	if err != nil || string(decoy) != "private-decoy" {
+		t.Fatalf("final-window decoy = %q, err=%v", decoy, err)
+	}
+}
+
+func TestPreparedRemoveConfinesRenamedCandidateParentToHeldRoot(t *testing.T) {
+	root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
+	staging := t.TempDir()
+	prepared, err := (Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	base := filepath.Base(prepared.Path)
+	insideParent := filepath.Join(staging, "moved")
+	if err := os.Mkdir(insideParent, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(prepared.Path, filepath.Join(insideParent, base)); err != nil {
+		t.Fatal(err)
+	}
+	outside := t.TempDir()
+	outsideDecoy := filepath.Join(outside, base)
+	if err := os.WriteFile(outsideDecoy, []byte("outside-decoy"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	prepared.beforeCaptureCandidate = func(held *os.Root, _, _ string) error {
+		if err := held.Rename("moved", "moved-exact"); err != nil {
+			return err
+		}
+		return held.Symlink(outside, "moved")
+	}
+
+	if err := prepared.Remove(); err == nil {
+		t.Fatal("Remove reported success after candidate parent replacement")
+	}
+	original, err := os.ReadFile(filepath.Join(staging, "moved-exact", base))
+	if err != nil || string(original) != "synthetic-original" {
+		t.Fatalf("retained exact identity = %q, err=%v", original, err)
+	}
+	decoy, err := os.ReadFile(outsideDecoy)
+	if err != nil || string(decoy) != "outside-decoy" {
+		t.Fatalf("outside decoy = %q, err=%v", decoy, err)
 	}
 }
 

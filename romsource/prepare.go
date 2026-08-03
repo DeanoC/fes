@@ -30,7 +30,10 @@ type Prepared struct {
 	base     string
 	removed  bool
 
-	beforeRemoveCandidate func(*os.Root, string) error
+	beforeRemoveCandidate  func(*os.Root, string) error
+	removeQuarantineName   func() string
+	beforeCaptureCandidate func(*os.Root, string, string) error
+	beforeFinalRemove      func(*os.Root, string) error
 }
 
 // Open returns verified staged content. Values created by Preparer are opened
@@ -145,9 +148,18 @@ func (p *Prepared) captureAndRemoveHeldCandidate(candidate string) (captured, re
 		}
 	}
 
+	newQuarantineName := p.removeQuarantineName
+	if newQuarantineName == nil {
+		newQuarantineName = func() string {
+			return ".fogcast-remove-" + strings.ToLower(cryptorand.Text())
+		}
+	}
 	var quarantine string
 	for range 100 {
-		quarantine = ".fogcast-remove-" + strings.ToLower(cryptorand.Text())
+		quarantine = newQuarantineName()
+		if quarantine == "" || path.Clean(quarantine) != quarantine || path.Dir(quarantine) != "." {
+			return false, false, errors.New("allocate prepared ROM removal quarantine")
+		}
 		_, err := p.root.Lstat(quarantine)
 		if errors.Is(err, fs.ErrNotExist) {
 			break
@@ -160,7 +172,12 @@ func (p *Prepared) captureAndRemoveHeldCandidate(candidate string) (captured, re
 	if quarantine == "" {
 		return false, false, errors.New("allocate prepared ROM removal quarantine")
 	}
-	if err := p.root.Rename(candidate, quarantine); err != nil {
+	if p.beforeCaptureCandidate != nil {
+		if err := p.beforeCaptureCandidate(p.root, candidate, quarantine); err != nil {
+			return false, false, errors.New("prepare staged ROM quarantine capture")
+		}
+	}
+	if err := exclusiveRenamePrepared(p.root, candidate, quarantine, p.fileInfo); err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return false, true, nil
 		}
@@ -171,13 +188,16 @@ func (p *Prepared) captureAndRemoveHeldCandidate(candidate string) (captured, re
 		return false, false, errors.New("inspect captured prepared ROM staging file")
 	}
 	if !os.SameFile(p.fileInfo, capturedInfo) {
-		if _, err := p.root.Lstat(candidate); !errors.Is(err, fs.ErrNotExist) {
-			return false, false, errors.New("prepared ROM staging identity changed during removal")
+		return false, false, errors.New("captured unrelated staging file; retained")
+	}
+	if p.beforeFinalRemove != nil {
+		if err := p.beforeFinalRemove(p.root, quarantine); err != nil {
+			return false, false, errors.New("prepare final staged ROM removal")
 		}
-		if err := p.root.Rename(quarantine, candidate); err != nil {
-			return false, false, errors.New("restore unrelated staging file")
-		}
-		return false, true, nil
+	}
+	finalInfo, err := p.root.Lstat(quarantine)
+	if err != nil || !os.SameFile(p.fileInfo, finalInfo) {
+		return false, false, errors.New("captured prepared ROM identity changed; retained")
 	}
 	if err := p.root.Remove(quarantine); err != nil {
 		return false, false, errors.New("remove prepared ROM staging file")
