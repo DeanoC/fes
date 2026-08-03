@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -140,6 +141,12 @@ func TestAPIErrorStatusMapping(t *testing.T) {
 		protocol.CodeInvalidROMPath:    http.StatusUnprocessableEntity,
 		protocol.CodeMiSTerUnavailable: http.StatusServiceUnavailable,
 		protocol.CodeCoreTimeout:       http.StatusServiceUnavailable,
+		protocol.CodeContentNotCached:  http.StatusNotFound,
+		protocol.CodeSourceUnavailable: http.StatusUnprocessableEntity,
+		protocol.CodeInvalidArchive:    http.StatusUnprocessableEntity,
+		protocol.CodeDigestMismatch:    http.StatusUnprocessableEntity,
+		protocol.CodeTransferFailed:    http.StatusBadRequest,
+		protocol.CodeCacheFull:         http.StatusInsufficientStorage,
 		protocol.CodeInternal:          http.StatusInternalServerError,
 	}
 	for code, wantStatus := range tests {
@@ -154,6 +161,52 @@ func TestAPIErrorStatusMapping(t *testing.T) {
 				t.Fatalf("status = %d, want %d, body=%s", response.Code, wantStatus, response.Body.String())
 			}
 		})
+	}
+}
+
+func TestV1GoldenResponsesRemainUnchangedWithContentOption(t *testing.T) {
+	gameID := "snes-test"
+	system := protocol.SystemSNES
+	expected, observed := "SNES", "SNES"
+	active := protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ExpectedCore: &expected, ObservedCore: &observed}
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		body   string
+		auth   bool
+		want   string
+	}{
+		{name: "health", method: http.MethodGet, path: "/v1/health", want: "{\"api_version\":\"v1\",\"agent_version\":\"0.1.0\",\"ready\":true,\"mister_process\":true,\"command_pipe\":true}\n"},
+		{name: "status", method: http.MethodGet, path: "/v1/status", auth: true, want: "{\"state\":\"active\",\"game_id\":\"snes-test\",\"system\":\"snes\",\"expected_core\":\"SNES\",\"observed_core\":\"SNES\",\"last_error\":null}\n"},
+		{name: "launch", method: http.MethodPost, path: "/v1/launch", auth: true, body: `{"game_id":"snes-test","system":"snes","rom_path":"/media/fat/games/SNES/test.sfc"}`, want: "{\"state\":\"active\",\"game_id\":\"snes-test\",\"system\":\"snes\",\"expected_core\":\"SNES\",\"observed_core\":\"SNES\",\"last_error\":null}\n"},
+		{name: "stop", method: http.MethodPost, path: "/v1/stop", auth: true, want: "{\"state\":\"idle\",\"game_id\":null,\"system\":null,\"expected_core\":null,\"observed_core\":null,\"last_error\":null}\n"},
+		{name: "unauthorized", method: http.MethodGet, path: "/v1/status", want: "{\"error\":{\"code\":\"UNAUTHORIZED\",\"message\":\"missing or incorrect bearer token\"}}\n"},
+	}
+	for _, withContent := range []bool{false, true} {
+		for _, tt := range tests {
+			t.Run(fmt.Sprintf("content=%t/%s", withContent, tt.name), func(t *testing.T) {
+				controller := &fakeController{
+					health: protocol.Health{APIVersion: "v1", AgentVersion: "0.1.0", Ready: true, MiSTerProcess: true, CommandPipe: true},
+					status: active,
+				}
+				var handler http.Handler
+				if withContent {
+					handler = httpapi.New(controller, "test-token", "0.1.0", slog.New(slog.NewJSONHandler(io.Discard, nil)), httpapi.WithContent(&fakeContentController{}))
+				} else {
+					handler = httpapi.New(controller, "test-token", "0.1.0", slog.New(slog.NewJSONHandler(io.Discard, nil)))
+				}
+				request := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
+				if tt.auth {
+					request.Header.Set("Authorization", "Bearer test-token")
+				}
+				response := httptest.NewRecorder()
+				handler.ServeHTTP(response, request)
+				if response.Body.String() != tt.want {
+					t.Fatalf("body = %q, want %q", response.Body.String(), tt.want)
+				}
+			})
+		}
 	}
 }
 

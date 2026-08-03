@@ -21,9 +21,15 @@ type Controller interface {
 	Stop(context.Context) (protocol.Status, *protocol.APIError)
 }
 
-func New(controller Controller, token string, version string, logger *slog.Logger) http.Handler {
+func New(controller Controller, token string, version string, logger *slog.Logger, options ...Option) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
+	}
+	settings := serverOptions{}
+	for _, option := range options {
+		if option != nil {
+			option(&settings)
+		}
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/health", func(w http.ResponseWriter, _ *http.Request) {
@@ -36,6 +42,9 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 	})))
 	mux.Handle("POST /v1/launch", authenticate(token, launchHandler(controller)))
 	mux.Handle("POST /v1/stop", authenticate(token, stopHandler(controller)))
+	if settings.content != nil {
+		registerContentRoutes(mux, token, settings.content)
+	}
 	return requestLogger(logger, mux)
 }
 
@@ -117,10 +126,16 @@ func statusForError(code protocol.ErrorCode) int {
 		return http.StatusUnauthorized
 	case protocol.CodeROMNotFound:
 		return http.StatusNotFound
+	case protocol.CodeContentNotCached:
+		return http.StatusNotFound
 	case protocol.CodeBusy:
 		return http.StatusConflict
-	case protocol.CodeUnsupportedSystem, protocol.CodeInvalidROMPath:
+	case protocol.CodeUnsupportedSystem, protocol.CodeInvalidROMPath, protocol.CodeSourceUnavailable, protocol.CodeInvalidArchive, protocol.CodeDigestMismatch:
 		return http.StatusUnprocessableEntity
+	case protocol.CodeTransferFailed:
+		return http.StatusBadRequest
+	case protocol.CodeCacheFull:
+		return http.StatusInsufficientStorage
 	case protocol.CodeMiSTerUnavailable, protocol.CodeCoreTimeout:
 		return http.StatusServiceUnavailable
 	default:
@@ -142,6 +157,9 @@ type requestMetadata struct {
 	gameID    string
 	system    protocol.System
 	state     protocol.State
+	digest    string
+	size      int64
+	hasSize   bool
 	errorCode protocol.ErrorCode
 }
 
@@ -177,6 +195,15 @@ func setRequestError(r *http.Request, code protocol.ErrorCode) {
 	}
 }
 
+func setRequestContent(r *http.Request, system protocol.System, digest string, size int64, hasSize bool) {
+	if value := metadata(r); value != nil {
+		value.system = system
+		value.digest = digest
+		value.size = size
+		value.hasSize = hasSize
+	}
+}
+
 type statusWriter struct {
 	http.ResponseWriter
 	status int
@@ -203,9 +230,11 @@ func requestLogger(logger *slog.Logger, next http.Handler) http.Handler {
 		r = r.WithContext(context.WithValue(r.Context(), requestMetadataKey{}, meta))
 		wrapped := &statusWriter{ResponseWriter: w}
 		next.ServeHTTP(wrapped, r)
+		route := routePath(r.Pattern)
 		attributes := []slog.Attr{
 			slog.String("method", r.Method),
-			slog.String("path", r.URL.Path),
+			slog.String("path", route),
+			slog.String("route", route),
 			slog.Int("status", wrapped.status),
 			slog.Duration("duration", time.Since(started)),
 		}
@@ -215,6 +244,12 @@ func requestLogger(logger *slog.Logger, next http.Handler) http.Handler {
 		if meta.system != "" {
 			attributes = append(attributes, slog.String("system", string(meta.system)))
 		}
+		if meta.digest != "" {
+			attributes = append(attributes, slog.String("digest", meta.digest))
+		}
+		if meta.hasSize {
+			attributes = append(attributes, slog.Int64("size", meta.size))
+		}
 		if meta.state != "" {
 			attributes = append(attributes, slog.String("state", string(meta.state)))
 		}
@@ -223,4 +258,14 @@ func requestLogger(logger *slog.Logger, next http.Handler) http.Handler {
 		}
 		logger.LogAttrs(r.Context(), slog.LevelInfo, "request", attributes...)
 	})
+}
+
+func routePath(pattern string) string {
+	if _, route, ok := strings.Cut(pattern, " "); ok {
+		return route
+	}
+	if pattern == "" {
+		return "unmatched"
+	}
+	return pattern
 }
