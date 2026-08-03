@@ -171,6 +171,48 @@ func TestPreparedRemoveFailsWhenIdentityMovedOutsideHeldRoot(t *testing.T) {
 	}
 }
 
+func TestPreparedRemoveFailsWhenIdentityHasHardlinkOutsideHeldRoot(t *testing.T) {
+	root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
+	prepared, err := (Preparer{StagingRoot: t.TempDir(), MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	outside := filepath.Join(t.TempDir(), "outside-hardlink.rom")
+	if err := os.Link(prepared.Path, outside); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := prepared.Remove(); err == nil {
+		t.Fatal("Remove reported success while an outside hardlink retained the staged identity")
+	}
+	data, err := os.ReadFile(outside)
+	if err != nil || string(data) != "synthetic-original" {
+		t.Fatalf("outside hardlink = %q, err=%v", data, err)
+	}
+}
+
+func TestPreparedRemoveDeletesAllHardlinksInsideHeldRoot(t *testing.T) {
+	root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
+	staging := t.TempDir()
+	prepared, err := (Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}).Prepare(context.Background(), root, game)
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	inside := filepath.Join(staging, "inside-hardlink.rom")
+	if err := os.Link(prepared.Path, inside); err != nil {
+		t.Fatal(err)
+	}
+	originalInfo, err := os.Stat(prepared.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := prepared.Remove(); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	assertNoPreparedIdentity(t, staging, originalInfo)
+}
+
 func TestPreparedRemoveDoesNotDeleteDecoySwappedAfterIdentityCheck(t *testing.T) {
 	root, game := rawFixture(t, "game.sfc", []byte("synthetic-original"))
 	staging := t.TempDir()
@@ -1063,5 +1105,21 @@ func assertStagingEmpty(t *testing.T, stagingRoot string) {
 	}
 	if len(entries) != 0 {
 		t.Fatalf("staging root contains %d entries after failure: %v", len(entries), entries)
+	}
+}
+
+func assertNoPreparedIdentity(t *testing.T, stagingRoot string, original fs.FileInfo) {
+	t.Helper()
+	err := filepath.Walk(stagingRoot, func(name string, info fs.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if info.Mode().IsRegular() && os.SameFile(original, info) {
+			return fmt.Errorf("prepared identity remains at %s", name)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
