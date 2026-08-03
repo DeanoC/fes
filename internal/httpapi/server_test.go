@@ -23,6 +23,9 @@ type fakeController struct {
 	stopErr       *protocol.APIError
 	launchRequest protocol.LaunchRequest
 	healthVersion string
+	statusCalls   int
+	launchCalls   int
+	stopCalls     int
 }
 
 func (f *fakeController) Health(version string) protocol.Health {
@@ -31,16 +34,104 @@ func (f *fakeController) Health(version string) protocol.Health {
 }
 
 func (f *fakeController) Status() protocol.Status {
+	f.statusCalls++
 	return f.status
 }
 
 func (f *fakeController) Launch(_ context.Context, request protocol.LaunchRequest) (protocol.Status, *protocol.APIError) {
+	f.launchCalls++
 	f.launchRequest = request
 	return f.status, f.launchErr
 }
 
 func (f *fakeController) Stop(context.Context) (protocol.Status, *protocol.APIError) {
+	f.stopCalls++
 	return protocol.Status{State: protocol.StateIdle}, f.stopErr
+}
+
+func TestAuthenticationRequiresExactlyOneAuthorizationHeader(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		body   string
+		media  string
+	}{
+		{name: "v1 status", method: http.MethodGet, path: "/v1/status"},
+		{name: "v1 launch", method: http.MethodPost, path: "/v1/launch", body: `{"game_id":"snes-test","system":"snes","rom_path":"/media/fat/games/SNES/test.sfc"}`},
+		{name: "v1 stop", method: http.MethodPost, path: "/v1/stop"},
+		{name: "v2 probe", method: http.MethodGet, path: "/v2/cache/snes/" + v2Digest + "?extension=sfc"},
+		{name: "v2 upload", method: http.MethodPut, path: "/v2/cache/snes/" + v2Digest + "?extension=sfc", body: "rom", media: "application/octet-stream"},
+		{name: "v2 launch", method: http.MethodPost, path: "/v2/launch", body: validLaunchJSON(), media: "application/json"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v1 := &fakeController{}
+			v2 := &fakeContentController{}
+			handler := httpapi.New(v1, "test-token", "0.1.0", discardLogger(), httpapi.WithContent(v2))
+			body := &observedReader{data: []byte(tt.body), err: io.EOF}
+			request := httptest.NewRequest(tt.method, tt.path, body)
+			request.ContentLength = int64(len(tt.body))
+			if tt.media != "" {
+				request.Header.Set("Content-Type", tt.media)
+			}
+			request.Header.Add("Authorization", "Bearer test-token")
+			request.Header.Add("Authorization", "Bearer wrong")
+
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+
+			assertAPIError(t, response, http.StatusUnauthorized, protocol.CodeUnauthorized)
+			if body.reads != 0 {
+				t.Fatalf("body reads = %d, want 0", body.reads)
+			}
+			if v1.statusCalls != 0 || v1.launchCalls != 0 || v1.stopCalls != 0 {
+				t.Fatalf("duplicate authorization reached v1 controller: status=%d launch=%d stop=%d", v1.statusCalls, v1.launchCalls, v1.stopCalls)
+			}
+			if v2.probeCalls != 0 || v2.putCalls != 0 || v2.launchCalls != 0 {
+				t.Fatalf("duplicate authorization reached v2 controller: probe=%d put=%d launch=%d", v2.probeCalls, v2.putCalls, v2.launchCalls)
+			}
+		})
+	}
+}
+
+func TestAuthenticationRejectsMalformedBearerTokenBeforeComparison(t *testing.T) {
+	tests := []struct {
+		name  string
+		token string
+	}{
+		{name: "empty"},
+		{name: "padding only", token: "="},
+		{name: "embedded space", token: "test token"},
+		{name: "combined values", token: "test-token, Bearer second"},
+		{name: "data after padding", token: "test=token"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := httpapi.New(&fakeController{}, tt.token, "0.1.0", discardLogger())
+			request := httptest.NewRequest(http.MethodGet, "/v1/status", nil)
+			request.Header.Set("Authorization", "Bearer "+tt.token)
+			response := httptest.NewRecorder()
+
+			handler.ServeHTTP(response, request)
+
+			assertAPIError(t, response, http.StatusUnauthorized, protocol.CodeUnauthorized)
+		})
+	}
+}
+
+func TestAuthenticationAcceptsValidPaddedBearerToken(t *testing.T) {
+	controller := &fakeController{}
+	handler := httpapi.New(controller, "test-token==", "0.1.0", discardLogger())
+	request := httptest.NewRequest(http.MethodGet, "/v1/status", nil)
+	request.Header.Set("Authorization", "Bearer test-token==")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK || controller.statusCalls != 1 {
+		t.Fatalf("valid token68 rejected: status=%d controller calls=%d", response.Code, controller.statusCalls)
+	}
 }
 
 func TestAPIContract(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/DeanoC/FogCast-POC/internal/core"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
@@ -153,7 +154,6 @@ func launchContentHandler(controller ContentController) http.Handler {
 		}
 		setRequestLaunchContent(r, request)
 		response, apiErr := controller.LaunchContent(r.Context(), request)
-		setRequestState(r, response.Status)
 		if apiErr != nil {
 			writeContentError(w, r, apiErr)
 			return
@@ -162,6 +162,7 @@ func launchContentHandler(controller ContentController) http.Handler {
 			writeContentError(w, r, internalContentResponseError())
 			return
 		}
+		setRequestState(r, protocol.Status{State: protocol.StateActive})
 		writeJSON(w, http.StatusOK, response)
 	})
 }
@@ -208,10 +209,17 @@ func validUploadResponse(response protocol.CacheUploadResponse, system protocol.
 }
 
 func validLaunchResponse(response protocol.CachedLaunchResponse, request protocol.CachedLaunchRequest) bool {
+	spec, ok := core.DefaultRegistry().Lookup(request.System)
+	if !ok {
+		return false
+	}
 	return response.Content == request.Content &&
 		response.Status.State == protocol.StateActive &&
 		response.Status.GameID != nil && *response.Status.GameID == request.GameID &&
-		response.Status.System != nil && *response.Status.System == request.System
+		response.Status.System != nil && *response.Status.System == request.System &&
+		response.Status.ExpectedCore != nil && *response.Status.ExpectedCore == spec.ExpectedCore &&
+		response.Status.ObservedCore != nil && *response.Status.ObservedCore == spec.ExpectedCore &&
+		response.Status.LastError == nil
 }
 
 func setRequestLaunchContent(r *http.Request, request protocol.CachedLaunchRequest) {

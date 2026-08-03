@@ -51,13 +51,18 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 func authenticate(token string, next http.Handler) http.Handler {
 	expected := sha256.Sum256([]byte(token))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authorization := r.Header.Get("Authorization")
-		if !strings.HasPrefix(authorization, "Bearer ") {
+		authorizations := r.Header.Values("Authorization")
+		if len(authorizations) != 1 {
 			setRequestError(r, protocol.CodeUnauthorized)
 			writeAPIError(w, http.StatusUnauthorized, &protocol.APIError{Code: protocol.CodeUnauthorized, Message: "missing or incorrect bearer token"})
 			return
 		}
-		provided := strings.TrimPrefix(authorization, "Bearer ")
+		provided, ok := parseBearerToken(authorizations[0])
+		if !ok {
+			setRequestError(r, protocol.CodeUnauthorized)
+			writeAPIError(w, http.StatusUnauthorized, &protocol.APIError{Code: protocol.CodeUnauthorized, Message: "missing or incorrect bearer token"})
+			return
+		}
 		actual := sha256.Sum256([]byte(provided))
 		if subtle.ConstantTimeCompare(actual[:], expected[:]) != 1 {
 			setRequestError(r, protocol.CodeUnauthorized)
@@ -66,6 +71,35 @@ func authenticate(token string, next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func parseBearerToken(authorization string) (string, bool) {
+	const bearerPrefix = "Bearer "
+	if !strings.HasPrefix(authorization, bearerPrefix) {
+		return "", false
+	}
+	token := authorization[len(bearerPrefix):]
+	if token == "" {
+		return "", false
+	}
+	hasData := false
+	padding := false
+	for i := 0; i < len(token); i++ {
+		character := token[i]
+		if character == '=' {
+			padding = true
+			continue
+		}
+		valid := character >= 'a' && character <= 'z' ||
+			character >= 'A' && character <= 'Z' ||
+			character >= '0' && character <= '9' ||
+			strings.ContainsRune("-._~+/", rune(character))
+		if padding || !valid {
+			return "", false
+		}
+		hasData = true
+	}
+	return token, hasData
 }
 
 func launchHandler(controller Controller) http.Handler {
