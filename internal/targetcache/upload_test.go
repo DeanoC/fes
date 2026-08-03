@@ -98,6 +98,64 @@ func TestPutRejectsBodyFailuresDigestMismatchAndCleansOwnPart(t *testing.T) {
 	}
 }
 
+func TestPutBodyFailureNeverEvictsExistingVerifiedContent(t *testing.T) {
+	t.Parallel()
+
+	uploadBytes := []byte("incoming-content")
+	uploadIdentity := contentIdentity(uploadBytes, "sfc")
+	tests := []struct {
+		name       string
+		body       func(context.CancelFunc) io.Reader
+		identity   protocol.ContentIdentity
+		wantCode   protocol.ErrorCode
+		useContext bool
+	}{
+		{name: "short body", body: func(context.CancelFunc) io.Reader { return bytes.NewReader(uploadBytes[:len(uploadBytes)-1]) }, identity: uploadIdentity, wantCode: protocol.CodeTransferFailed},
+		{name: "reader error", body: func(context.CancelFunc) io.Reader {
+			return &failingReader{data: uploadBytes[:4], err: errors.New("private body failure")}
+		}, identity: uploadIdentity, wantCode: protocol.CodeTransferFailed},
+		{name: "digest mismatch", body: func(context.CancelFunc) io.Reader { return bytes.NewReader([]byte("wrong-body-bytes")) }, identity: uploadIdentity, wantCode: protocol.CodeDigestMismatch},
+		{name: "cancellation", body: func(cancel context.CancelFunc) io.Reader {
+			return &cancelAfterReadReader{reader: bytes.NewReader(uploadBytes), cancel: cancel}
+		}, identity: uploadIdentity, wantCode: protocol.CodeTransferFailed, useContext: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			victimBytes := []byte("verified-victim")
+			victim := contentIdentity(victimBytes, "sfc")
+			victimPath := writeCacheFile(t, root, protocol.SystemSNES, victim, victimBytes)
+			maxBytes := int64(len(victimBytes)) + tt.identity.Size - 1
+			manager := openUploadManager(t, uploadManagerConfig(root, maxBytes), targetcache.WithSpaceProbe(unlimitedSpace))
+			probe, apiErr := manager.Probe(context.Background(), protocol.SystemSNES, victim.Key())
+			if apiErr != nil || !probe.Present {
+				t.Fatalf("prime verified victim: response=%#v error=%v", probe, apiErr)
+			}
+			ctx := context.Background()
+			cancel := func() {}
+			if tt.useContext {
+				var cancelContext context.CancelFunc
+				ctx, cancelContext = context.WithCancel(ctx)
+				cancel = cancelContext
+				defer cancelContext()
+			}
+
+			_, apiErr = manager.Put(ctx, protocol.SystemSNES, tt.identity, tt.body(cancel))
+
+			assertSafeAPIError(t, apiErr, tt.wantCode, root, victimPath, string(victimBytes), "private body failure")
+			got, err := os.ReadFile(victimPath)
+			if err != nil || !bytes.Equal(got, victimBytes) {
+				t.Fatalf("failed upload changed verified victim: bytes=%q error=%v", got, err)
+			}
+			if gotUsage := manager.Usage(); gotUsage != int64(len(victimBytes)) {
+				t.Fatalf("Usage after failed upload = %d, want retained victim size %d", gotUsage, len(victimBytes))
+			}
+			assertNoUploadParts(t, root)
+		})
+	}
+}
+
 func TestPutPublishesPrivateVerifiedContentAndIsIdempotentAcrossRestart(t *testing.T) {
 	t.Parallel()
 
@@ -368,6 +426,90 @@ func TestPutReturnsCacheFullWhenOnlyUnsafeVictimsRemain(t *testing.T) {
 	}
 }
 
+func TestPutPersistentLowSpaceNeverPartiallyDrainsVerifiedVictims(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	victimBytes := []byte("small-victim")
+	victim := contentIdentity(victimBytes, "sfc")
+	victimPath := writeCacheFile(t, root, protocol.SystemSNES, victim, victimBytes)
+	manager := openUploadManager(t, uploadManagerConfig(root, 64<<20), targetcache.WithSpaceProbe(func(string) (int64, error) {
+		return 0, nil
+	}))
+	probe, apiErr := manager.Probe(context.Background(), protocol.SystemSNES, victim.Key())
+	if apiErr != nil || !probe.Present {
+		t.Fatalf("prime low-space victim: response=%#v error=%v", probe, apiErr)
+	}
+	uploadBytes := []byte("incoming-content-is-larger")
+	upload := contentIdentity(uploadBytes, "sfc")
+	body := &countingReader{reader: bytes.NewReader(uploadBytes)}
+
+	_, apiErr = manager.Put(context.Background(), protocol.SystemSNES, upload, body)
+
+	assertSafeAPIError(t, apiErr, protocol.CodeCacheFull, root, victimPath, string(victimBytes))
+	got, err := os.ReadFile(victimPath)
+	if err != nil || !bytes.Equal(got, victimBytes) {
+		t.Fatalf("inevitable CACHE_FULL changed victim: bytes=%q error=%v", got, err)
+	}
+	if body.reads.Load() != 0 {
+		t.Fatalf("inevitable CACHE_FULL read body %d times", body.reads.Load())
+	}
+}
+
+func TestPutCancellationDuringColdDestinationVerificationIsTransferFailure(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	content := []byte("cold destination cancellation")
+	identity := contentIdentity(content, "sfc")
+	destination := writeCacheFile(t, root, protocol.SystemSNES, identity, content)
+	ctx := &switchCancelContext{Context: context.Background()}
+	manager := openUploadManager(t, uploadManagerConfig(root, 64<<20), targetcache.WithOpenFile(func(candidate string) (*os.File, error) {
+		ctx.canceled.Store(true)
+		return os.Open(candidate)
+	}))
+	body := &countingReader{reader: bytes.NewReader(content)}
+
+	_, apiErr := manager.Put(ctx, protocol.SystemSNES, identity, body)
+
+	assertSafeAPIError(t, apiErr, protocol.CodeTransferFailed, root, destination, string(content))
+	if body.reads.Load() != 0 {
+		t.Fatalf("canceled destination verification read upload body %d times", body.reads.Load())
+	}
+	got, err := os.ReadFile(destination)
+	if err != nil || !bytes.Equal(got, content) {
+		t.Fatalf("canceled destination verification changed content: bytes=%q error=%v", got, err)
+	}
+}
+
+func TestPutCancellationDuringColdVictimVerificationIsTransferFailure(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	victimBytes := []byte("cold eviction victim")
+	victim := contentIdentity(victimBytes, "sfc")
+	victimPath := writeCacheFile(t, root, protocol.SystemSNES, victim, victimBytes)
+	ctx := &switchCancelContext{Context: context.Background()}
+	manager := openUploadManager(t, uploadManagerConfig(root, int64(len(victimBytes))), targetcache.WithOpenFile(func(candidate string) (*os.File, error) {
+		ctx.canceled.Store(true)
+		return os.Open(candidate)
+	}))
+	newBytes := []byte("new")
+	newIdentity := contentIdentity(newBytes, "sfc")
+	body := &countingReader{reader: bytes.NewReader(newBytes)}
+
+	_, apiErr := manager.Put(ctx, protocol.SystemSNES, newIdentity, body)
+
+	assertSafeAPIError(t, apiErr, protocol.CodeTransferFailed, root, victimPath, string(victimBytes))
+	if body.reads.Load() != 0 {
+		t.Fatalf("canceled victim verification read upload body %d times", body.reads.Load())
+	}
+	got, err := os.ReadFile(victimPath)
+	if err != nil || !bytes.Equal(got, victimBytes) {
+		t.Fatalf("canceled victim verification changed content: bytes=%q error=%v", got, err)
+	}
+}
+
 func TestPutEvictsForActualFreeSpaceEvenWhenCeilingHasRoom(t *testing.T) {
 	t.Parallel()
 
@@ -377,10 +519,8 @@ func TestPutEvictsForActualFreeSpaceEvenWhenCeilingHasRoom(t *testing.T) {
 	victimPath := writeCacheFile(t, root, protocol.SystemSNES, victim, victimBytes)
 	var probes atomic.Int64
 	manager := openUploadManager(t, uploadManagerConfig(root, 64<<20), targetcache.WithSpaceProbe(func(string) (int64, error) {
-		if probes.Add(1) == 1 {
-			return 0, nil
-		}
-		return 1 << 40, nil
+		probes.Add(1)
+		return 0, nil
 	}))
 	response, apiErr := manager.Probe(context.Background(), protocol.SystemSNES, victim.Key())
 	if apiErr != nil || !response.Present {
@@ -728,6 +868,18 @@ type cancelAfterReadReader struct {
 	reader io.Reader
 	cancel context.CancelFunc
 	once   sync.Once
+}
+
+type switchCancelContext struct {
+	context.Context
+	canceled atomic.Bool
+}
+
+func (c *switchCancelContext) Err() error {
+	if c.canceled.Load() {
+		return context.Canceled
+	}
+	return c.Context.Err()
 }
 
 func (r *cancelAfterReadReader) Read(p []byte) (int, error) {

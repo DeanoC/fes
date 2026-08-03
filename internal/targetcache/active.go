@@ -78,7 +78,7 @@ func (m *Manager) loadActiveRecord() {
 		return
 	}
 	m.recordPresent = true
-	if err != nil || !info.Mode().IsRegular() || info.Size() < 1 || info.Size() > maxActiveRecordBytes {
+	if err != nil || info.Mode() != privateFileMode || info.Size() < 1 || info.Size() > maxActiveRecordBytes {
 		return
 	}
 	file, err := openRegularAt(store.root, store.name, "active-record")

@@ -1,6 +1,7 @@
 package targetcache
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -24,6 +25,10 @@ type evictionCandidate struct {
 	key      protocol.ContentKey
 	name     string
 	modified time.Time
+}
+
+type capacityPlan struct {
+	victims []inventoryKey
 }
 
 func (m *Manager) Put(ctx context.Context, system protocol.System, content protocol.ContentIdentity, body io.Reader) (protocol.CacheUploadResponse, *protocol.APIError) {
@@ -69,11 +74,22 @@ func (m *Manager) Put(ctx context.Context, system protocol.System, content proto
 		m.mu.Unlock()
 	}()
 
-	if apiErr := m.reserveCapacity(ctx, content.Size); apiErr != nil {
+	if _, apiErr := m.planCapacity(ctx, content.Size); apiErr != nil {
 		return protocol.CacheUploadResponse{}, apiErr
 	}
-	if err := ctx.Err(); err != nil {
-		return protocol.CacheUploadResponse{}, transferAPIError("content upload was canceled")
+
+	var staged bytes.Buffer
+	staged.Grow(int(content.Size))
+	hasher := sha256.New()
+	if apiErr := streamExact(ctx, &staged, hasher, body, content.Size); apiErr != nil {
+		return protocol.CacheUploadResponse{}, apiErr
+	}
+	if fmt.Sprintf("%x", hasher.Sum(nil)) != content.SHA256 {
+		return protocol.CacheUploadResponse{}, &protocol.APIError{Code: protocol.CodeDigestMismatch, Message: "uploaded content digest does not match its identity"}
+	}
+	plan, apiErr := m.planCapacity(ctx, content.Size)
+	if apiErr != nil {
+		return protocol.CacheUploadResponse{}, apiErr
 	}
 
 	directory, ok := m.directories[system]
@@ -108,18 +124,11 @@ func (m *Manager) Put(ctx context.Context, system protocol.System, content proto
 	}
 	defer func() { _ = cleanup() }()
 
-	hasher := sha256.New()
-	if apiErr := streamExact(ctx, part, hasher, body, content.Size); apiErr != nil {
+	if apiErr := writeStagedUpload(part, staged.Bytes()); apiErr != nil {
 		if cleanupErr := cleanup(); cleanupErr != nil {
 			return protocol.CacheUploadResponse{}, cleanupErr
 		}
 		return protocol.CacheUploadResponse{}, apiErr
-	}
-	if fmt.Sprintf("%x", hasher.Sum(nil)) != content.SHA256 {
-		if cleanupErr := cleanup(); cleanupErr != nil {
-			return protocol.CacheUploadResponse{}, cleanupErr
-		}
-		return protocol.CacheUploadResponse{}, &protocol.APIError{Code: protocol.CodeDigestMismatch, Message: "uploaded content digest does not match its identity"}
 	}
 	if err := part.Chmod(privateFileMode); err != nil {
 		if cleanupErr := cleanup(); cleanupErr != nil {
@@ -153,6 +162,12 @@ func (m *Manager) Put(ctx context.Context, system protocol.System, content proto
 			return protocol.CacheUploadResponse{}, cleanupErr
 		}
 		return protocol.CacheUploadResponse{}, transferAPIError("content upload was canceled")
+	}
+	if apiErr := m.applyCapacityPlan(plan); apiErr != nil {
+		if cleanupErr := cleanup(); cleanupErr != nil {
+			return protocol.CacheUploadResponse{}, cleanupErr
+		}
+		return protocol.CacheUploadResponse{}, apiErr
 	}
 	if !m.directoriesIntact(system) {
 		if cleanupErr := cleanup(); cleanupErr != nil {
@@ -204,11 +219,28 @@ func (m *Manager) Put(ctx context.Context, system protocol.System, content proto
 	return uploadResponse(protocol.CacheUploadCreated, system, content), nil
 }
 
+func writeStagedUpload(destination io.Writer, staged []byte) *protocol.APIError {
+	written, err := io.Copy(destination, bytes.NewReader(staged))
+	if err != nil {
+		if errors.Is(err, unix.ENOSPC) {
+			return cacheFullAPIError()
+		}
+		return internalAPIError("cache upload cannot be written")
+	}
+	if written != int64(len(staged)) {
+		return internalAPIError("cache upload cannot be written")
+	}
+	return nil
+}
+
 func (m *Manager) uploadDestinationState(ctx context.Context, system protocol.System, content protocol.ContentIdentity) (protocol.CacheUploadResponse, bool, *protocol.APIError) {
 	resolved, apiErr := m.Resolve(ctx, system, content)
 	if apiErr == nil {
 		_ = resolved
 		return uploadResponse(protocol.CacheUploadPresent, system, content), true, nil
+	}
+	if ctx.Err() != nil {
+		return protocol.CacheUploadResponse{}, false, transferAPIError("content upload was canceled")
 	}
 	if apiErr.Code != protocol.CodeContentNotCached {
 		return protocol.CacheUploadResponse{}, false, apiErr
@@ -286,53 +318,80 @@ func streamExact(ctx context.Context, destination io.Writer, hasher io.Writer, s
 	}
 }
 
-func (m *Manager) reserveCapacity(ctx context.Context, size int64) *protocol.APIError {
-	for {
-		if err := ctx.Err(); err != nil {
-			return transferAPIError("content upload was canceled")
+func (m *Manager) planCapacity(ctx context.Context, size int64) (capacityPlan, *protocol.APIError) {
+	if err := ctx.Err(); err != nil {
+		return capacityPlan{}, transferAPIError("content upload was canceled")
+	}
+	if size > m.config.MaxBytes {
+		return capacityPlan{}, cacheFullAPIError()
+	}
+	m.mu.Lock()
+	apiErr := m.refreshAccountingLocked()
+	usage := m.usage
+	m.mu.Unlock()
+	if apiErr != nil {
+		return capacityPlan{}, apiErr
+	}
+	available, err := m.spaceProbe(m.root)
+	if err != nil || available < 0 {
+		return capacityPlan{}, internalAPIError("cache free space cannot be determined")
+	}
+	if capacityReady(usage, 0, available, size, m.config.MaxBytes) {
+		return capacityPlan{}, nil
+	}
+
+	candidates, apiErr := m.evictionCandidates()
+	if apiErr != nil {
+		return capacityPlan{}, apiErr
+	}
+	plan := capacityPlan{victims: make([]inventoryKey, 0, len(candidates))}
+	var reclaimed int64
+	for _, candidate := range candidates {
+		response, probeErr := m.Probe(ctx, candidate.id.system, candidate.key)
+		if probeErr != nil {
+			if ctx.Err() != nil {
+				return capacityPlan{}, transferAPIError("content upload was canceled")
+			}
+			return capacityPlan{}, probeErr
+		}
+		if !response.Present {
+			continue
 		}
 		m.mu.Lock()
-		apiErr := m.refreshAccountingLocked()
-		usage := m.usage
+		entry, present := m.entries[candidate.id]
+		pinned := m.isPinnedLocked(candidate.id)
 		m.mu.Unlock()
-		if apiErr != nil {
-			return apiErr
+		if !present || pinned {
+			continue
 		}
-		available, err := m.spaceProbe(m.root)
-		if err != nil || available < 0 {
-			return internalAPIError("cache free space cannot be determined")
+		plan.victims = append(plan.victims, candidate.id)
+		if entry.accountedSize > math.MaxInt64-reclaimed {
+			reclaimed = math.MaxInt64
+		} else {
+			reclaimed += entry.accountedSize
 		}
-		ceilingReady := size <= m.config.MaxBytes && usage <= m.config.MaxBytes-size
-		if ceilingReady && available >= size {
-			return nil
-		}
-
-		candidates, apiErr := m.evictionCandidates()
-		if apiErr != nil {
-			return apiErr
-		}
-		evicted := false
-		for _, candidate := range candidates {
-			response, probeErr := m.Probe(ctx, candidate.id.system, candidate.key)
-			if probeErr != nil {
-				return probeErr
-			}
-			if !response.Present {
-				continue
-			}
-			removed, removeErr := m.evict(candidate.id)
-			if removeErr != nil {
-				return removeErr
-			}
-			if removed {
-				evicted = true
-				break
-			}
-		}
-		if !evicted {
-			return cacheFullAPIError()
+		if capacityReady(usage, reclaimed, available, size, m.config.MaxBytes) {
+			return plan, nil
 		}
 	}
+	return capacityPlan{}, cacheFullAPIError()
+}
+
+func capacityReady(usage, reclaimed, available, size, maximum int64) bool {
+	if size > maximum {
+		return false
+	}
+	remaining := int64(0)
+	if reclaimed < usage {
+		remaining = usage - reclaimed
+	}
+	if remaining > maximum-size {
+		return false
+	}
+	if available >= size {
+		return true
+	}
+	return reclaimed >= size-available
 }
 
 func (m *Manager) evictionCandidates() ([]evictionCandidate, *protocol.APIError) {
@@ -367,46 +426,52 @@ func (m *Manager) evictionCandidates() ([]evictionCandidate, *protocol.APIError)
 	return result, nil
 }
 
-func (m *Manager) evict(id inventoryKey) (bool, *protocol.APIError) {
+func (m *Manager) applyCapacityPlan(plan capacityPlan) *protocol.APIError {
+	if len(plan.victims) == 0 {
+		return nil
+	}
+	type verifiedVictim struct {
+		id       inventoryKey
+		entry    inventoryEntry
+		relative string
+	}
+	victims := make([]verifiedVictim, 0, len(plan.victims))
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.isPinnedLocked(id) {
-		return false, nil
-	}
-	entry, ok := m.entries[id]
-	if !ok || !m.directoriesIntact(id.system) {
+	for _, id := range plan.victims {
+		if m.isPinnedLocked(id) {
+			return cacheFullAPIError()
+		}
+		entry, ok := m.entries[id]
 		if !ok {
-			return false, nil
+			return cacheFullAPIError()
 		}
-		return false, internalAPIError("cache directory identity changed")
-	}
-	directory := m.directories[id.system]
-	info, err := directory.root.Lstat(entry.name)
-	if err != nil {
-		if os.IsNotExist(err) {
-			m.removeEntry(id, entry)
-			return false, nil
+		if !m.directoriesIntact(id.system) {
+			return internalAPIError("cache directory identity changed")
 		}
-		return false, internalAPIError("cache eviction candidate cannot be inspected")
-	}
-	memo, ok := m.memos[id]
-	if !ok || !memo.verified || !sameStamp(memo.stamp, fileStamp{info: info}) {
-		return false, nil
-	}
-	relative := filepath.Join(string(id.system), entry.name)
-	rootInfo, err := m.rootHandle.Lstat(relative)
-	if err != nil || !sameStamp(memo.stamp, fileStamp{info: rootInfo}) || !m.directoriesIntact(id.system) {
-		return false, internalAPIError("cache eviction candidate changed")
-	}
-	if err := m.rootHandle.Remove(relative); err != nil {
-		if os.IsNotExist(err) {
-			m.removeEntry(id, entry)
-			return false, nil
+		directory := m.directories[id.system]
+		info, err := directory.root.Lstat(entry.name)
+		if err != nil || !info.Mode().IsRegular() {
+			return internalAPIError("cache eviction candidate cannot be inspected")
 		}
-		return false, internalAPIError("cache eviction could not finish")
+		memo, ok := m.memos[id]
+		if !ok || !memo.verified || !sameStamp(memo.stamp, fileStamp{info: info}) {
+			return cacheFullAPIError()
+		}
+		relative := filepath.Join(string(id.system), entry.name)
+		rootInfo, err := m.rootHandle.Lstat(relative)
+		if err != nil || !sameStamp(memo.stamp, fileStamp{info: rootInfo}) || !m.directoriesIntact(id.system) {
+			return internalAPIError("cache eviction candidate changed")
+		}
+		victims = append(victims, verifiedVictim{id: id, entry: entry, relative: relative})
 	}
-	m.removeEntry(id, entry)
-	return true, nil
+	for _, victim := range victims {
+		if err := m.rootHandle.Remove(victim.relative); err != nil {
+			return internalAPIError("cache eviction could not finish")
+		}
+		m.removeEntry(victim.id, victim.entry)
+	}
+	return nil
 }
 
 func (m *Manager) refreshAccountingLocked() *protocol.APIError {

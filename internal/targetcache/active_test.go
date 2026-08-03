@@ -320,6 +320,45 @@ func TestActiveReconcileRejectsAndRemovesMalformedVolatileRecordWithoutLeak(t *t
 	}
 }
 
+func TestActiveReconcileRejectsAndRemovesWritableVolatileRecord(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	activeBytes := []byte("writable-record-content")
+	active := contentIdentity(activeBytes, "sfc")
+	writeCacheFile(t, root, protocol.SystemSNES, active, activeBytes)
+	newBytes := []byte("new-data")
+	config := uploadManagerConfig(root, int64(len(activeBytes)+len(newBytes)-1))
+	if err := os.MkdirAll(filepath.Dir(config.ActiveRecord), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	record, err := json.Marshal(struct {
+		System  protocol.System          `json:"system"`
+		Content protocol.ContentIdentity `json:"content"`
+	}{System: protocol.SystemSNES, Content: active})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.ActiveRecord, append(record, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(config.ActiveRecord, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	manager := openUploadManager(t, config, targetcache.WithSpaceProbe(unlimitedSpace))
+	system := protocol.SystemSNES
+
+	manager.ReconcileActive(protocol.Status{State: protocol.StateActive, System: &system})
+
+	if _, err := os.Lstat(config.ActiveRecord); !os.IsNotExist(err) {
+		t.Fatalf("writable active record remains: %v", err)
+	}
+	putBytes(t, manager, protocol.SystemSNES, newBytes, "sfc")
+	if _, err := os.Lstat(cacheDestination(root, protocol.SystemSNES, active)); !os.IsNotExist(err) {
+		t.Fatalf("writable active record pinned content: %v", err)
+	}
+}
+
 func TestActiveReconcileRemovesRecordSymlinkWithoutFollowingIt(t *testing.T) {
 	t.Parallel()
 
