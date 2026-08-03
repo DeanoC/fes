@@ -26,6 +26,9 @@ type fakeRuntime struct {
 	prepareCalls   int
 	launchCalls    int
 	stopCalls      int
+	prepareSpec    core.Spec
+	preparePath    string
+	launched       mister.PreparedLaunch
 }
 
 func (f *fakeRuntime) Health(string) protocol.Health {
@@ -36,9 +39,11 @@ func (f *fakeRuntime) Reconcile(context.Context) protocol.Status {
 	return f.reconciled
 }
 
-func (f *fakeRuntime) Prepare(spec core.Spec, _ string) (mister.PreparedLaunch, *protocol.APIError) {
+func (f *fakeRuntime) Prepare(spec core.Spec, path string) (mister.PreparedLaunch, *protocol.APIError) {
 	f.mu.Lock()
 	f.prepareCalls++
+	f.prepareSpec = spec
+	f.preparePath = path
 	f.mu.Unlock()
 	if f.prepareErr != nil {
 		return mister.PreparedLaunch{}, f.prepareErr
@@ -48,9 +53,10 @@ func (f *fakeRuntime) Prepare(spec core.Spec, _ string) (mister.PreparedLaunch, 
 	return result, nil
 }
 
-func (f *fakeRuntime) Launch(context.Context, mister.PreparedLaunch) (string, *protocol.APIError) {
+func (f *fakeRuntime) Launch(_ context.Context, prepared mister.PreparedLaunch) (string, *protocol.APIError) {
 	f.mu.Lock()
 	f.launchCalls++
+	f.launched = prepared
 	f.mu.Unlock()
 	if f.launchGate != nil {
 		<-f.launchGate
@@ -71,6 +77,12 @@ func (f *fakeRuntime) counts() (prepare, launch, stop int) {
 	return f.prepareCalls, f.launchCalls, f.stopCalls
 }
 
+func (f *fakeRuntime) launchInputs() (core.Spec, string, mister.PreparedLaunch) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.prepareSpec, f.preparePath, f.launched
+}
+
 func TestLaunchTransitionsToActive(t *testing.T) {
 	t.Parallel()
 	runtime := &fakeRuntime{health: protocol.Health{Ready: true}, launchObserved: "MegaDrive"}
@@ -85,6 +97,10 @@ func TestLaunchTransitionsToActive(t *testing.T) {
 	prepareCalls, launchCalls, _ := runtime.counts()
 	if prepareCalls != 1 || launchCalls != 1 {
 		t.Fatalf("prepare calls = %d, launch calls = %d", prepareCalls, launchCalls)
+	}
+	spec, path, prepared := runtime.launchInputs()
+	if path != "/media/fat/games/MegaDrive/test.md" || prepared.Spec.ROMRoot != "/media/fat/games/MegaDrive" || spec.ROMRoot != "/media/fat/games/MegaDrive" {
+		t.Fatalf("v1 launch inputs = spec %#v path %q prepared %#v", spec, path, prepared)
 	}
 }
 

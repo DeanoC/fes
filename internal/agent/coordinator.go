@@ -21,6 +21,7 @@ type Runtime interface {
 type Coordinator struct {
 	runtime       Runtime
 	registry      core.Registry
+	content       ContentStore
 	launchTimeout time.Duration
 	stopTimeout   time.Duration
 	transition    chan struct{}
@@ -74,7 +75,11 @@ func (c *Coordinator) Health(version string) protocol.Health {
 }
 
 func (c *Coordinator) Initialize(ctx context.Context) {
-	c.set(c.runtime.Reconcile(ctx))
+	status := c.runtime.Reconcile(ctx)
+	c.set(status)
+	if c.content != nil {
+		c.content.ReconcileActive(status)
+	}
 }
 
 func (c *Coordinator) Launch(parent context.Context, request protocol.LaunchRequest) (protocol.Status, *protocol.APIError) {
@@ -87,16 +92,20 @@ func (c *Coordinator) Launch(parent context.Context, request protocol.LaunchRequ
 	}
 	spec, ok := c.registry.Lookup(request.System)
 	if !ok {
-		return c.Status(), &protocol.APIError{Code: protocol.CodeUnsupportedSystem, Message: "system is not Mega Drive or SNES"}
+		return c.Status(), unsupportedSystemError()
 	}
+	return c.launch(parent, request.GameID, spec, request.ROMPath)
+}
+
+func (c *Coordinator) launch(parent context.Context, gameID string, spec core.Spec, romPath string) (protocol.Status, *protocol.APIError) {
 	if !c.runtime.Health("").Ready {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "Main_MiSTer or command pipe is unavailable"}
 	}
-	prepared, apiErr := c.runtime.Prepare(spec, request.ROMPath)
+	prepared, apiErr := c.runtime.Prepare(spec, romPath)
 	if apiErr != nil {
 		return c.Status(), apiErr
 	}
-	gameID, system, expected := request.GameID, request.System, spec.ExpectedCore
+	system, expected := spec.System, spec.ExpectedCore
 	c.set(protocol.Status{State: protocol.StateLaunching, GameID: &gameID, System: &system, ExpectedCore: &expected})
 	ctx, cancel := context.WithTimeout(parent, c.launchTimeout)
 	defer cancel()
@@ -144,6 +153,20 @@ func (c *Coordinator) Stop(parent context.Context) (protocol.Status, *protocol.A
 		}
 		c.set(failed)
 		return c.Status(), apiErr
+	}
+	if c.content != nil {
+		if apiErr := c.content.ClearActive(); apiErr != nil {
+			failed := cloneStatus(stopping)
+			failed.State = protocol.StateFailed
+			failed.LastError = cloneAPIError(apiErr)
+			if observed == "" {
+				failed.ObservedCore = nil
+			} else {
+				failed.ObservedCore = &observed
+			}
+			c.set(failed)
+			return c.Status(), apiErr
+		}
 	}
 	c.set(protocol.Status{State: protocol.StateIdle})
 	return c.Status(), nil
