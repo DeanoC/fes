@@ -1,0 +1,11 @@
+format = 1
+
+[base]
+poc1a_lock_sha256 = '8ef39d9d603c1a7a7bd20550f8f7c05dfb05d770509065c4f3e3663e81430d99'
+poc1b_lock_sha256 = '8b395f61bdab5c9807ded401279eabfa29df20eaf52c03eb6954b9d7dc2641af'
+accepted_dev_root_sha256 = 'e038679bc82623b2911ef0e3876233ed95c6b3d546e77320cd6db2992647faa7'
+accepted_kernel_sha256 = 'cb66e22edb04a44d883e82f62fa7eeca0d7d2b715b08ab72ad2dc5bc2a3178c5'
+
+[outputs]
+prod_rootfs_sha256 = '35fa654326d2c2722e8c2dae81e463750d5cb0ee1f2fbf0c42ea3909860a1bc6'
+dev_rootfs_sha256 = '3e66d1bba5aeda791b238aa549fbb55c15d06ff30152fdfd29bef5359cd08daa'

@@ -7,7 +7,7 @@ FOGCAST_GOOS ?= darwin
 FOGCAST_GOARCH ?= arm64
 FOGCAST_OUTPUT ?= bin/fogcast
 
-.PHONY: fmt test vet check build build-fogcast build-cli build-hil build-agent build-lock build-lock-container package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-verify-images poc1b-qemu-smoke poc1b-kernel-test poc1b-kernel poc1b-verify-kernel poc1b-deploy-test poc2-rootfs-test
+.PHONY: fmt test vet check build build-fogcast build-cli build-hil build-agent build-lock build-lock-container build-poc2-lock package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-verify-images poc1b-qemu-smoke poc1b-kernel-test poc1b-kernel poc1b-verify-kernel poc1b-deploy-test poc2-rootfs-test poc2-deploy-test
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
@@ -23,13 +23,15 @@ test:
 	sh scripts/tests/poc1b-image_test.sh
 	sh scripts/tests/poc1b-kernel_test.sh
 	sh scripts/tests/install-poc1b-target_test.sh
+	sh scripts/tests/install-poc2-target_test.sh
+	sh scripts/tests/restore-poc1b-sd_test.sh
 
 vet:
 	go vet ./...
 
 check: fmt test vet
 
-build: build-fogcast build-cli build-hil build-agent build-lock build-lock-container
+build: build-fogcast build-cli build-hil build-agent build-lock build-lock-container build-poc2-lock
 
 build-fogcast:
 	mkdir -p "$(dir $(FOGCAST_OUTPUT))"
@@ -54,6 +56,10 @@ build-lock:
 build-lock-container:
 	mkdir -p bin
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/poc1b-lock-linux-amd64 ./cmd/poc1b-lock
+
+build-poc2-lock:
+	mkdir -p bin
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/poc2-lock ./cmd/poc2-lock
 
 poc1b-resolve: build-lock
 	@command -v "$(CONTAINER_RUNTIME)" >/dev/null 2>&1 || { echo 'poc1b-resolve: install a Docker-compatible container runtime first' >&2; exit 2; }
@@ -96,6 +102,10 @@ poc1b-deploy-test:
 
 poc2-rootfs-test:
 	sh scripts/tests/poc2-rootfs_test.sh
+
+poc2-deploy-test:
+	sh scripts/tests/install-poc2-target_test.sh
+	sh scripts/tests/restore-poc1b-sd_test.sh
 
 package-poc1a:
 	MISTER_TOKEN="$${MISTER_TOKEN:?MISTER_TOKEN is required}" VERSION="$(VERSION)" ./scripts/package-poc1a.sh
