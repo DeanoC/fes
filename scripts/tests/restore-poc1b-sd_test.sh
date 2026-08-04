@@ -15,6 +15,13 @@ sha256_file() {
   shasum -a 256 "$1" | awk '{print $1}'
 }
 
+fixture_poc1b_dev_sha=$(printf '%s\n' poc1b-dev-root | shasum -a 256 | awk '{print $1}')
+fixture_poc2_dev_sha=$(printf '%s\n' poc2-dev-root | shasum -a 256 | awk '{print $1}')
+fixture_kernel_sha=$(printf '%s\n' reproduced-kernel | shasum -a 256 | awk '{print $1}')
+fixture_poc1a_lock_sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+fixture_poc1b_lock_sha=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+fixture_poc2_lock_sha=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
 write_file() {
   write_path=$1
   write_value=$2
@@ -47,7 +54,12 @@ restore_fixture() {
   restore_volume=$1
   MISTER_REMOTE_TEST_MODE=1 \
   MISTER_REMOTE_ALLOWED_TEST_VOLUME=$restore_volume \
-  MISTER_REMOTE_EXPECTED_POC2_LOCK_SHA256=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc \
+  MISTER_REMOTE_EXPECTED_POC1B_DEV_ROOT_SHA256=$fixture_poc1b_dev_sha \
+  MISTER_REMOTE_EXPECTED_POC2_DEV_ROOT_SHA256=$fixture_poc2_dev_sha \
+  MISTER_REMOTE_EXPECTED_KERNEL_SHA256=$fixture_kernel_sha \
+  MISTER_REMOTE_EXPECTED_POC1A_LOCK_SHA256=$fixture_poc1a_lock_sha \
+  MISTER_REMOTE_EXPECTED_POC1B_LOCK_SHA256=$fixture_poc1b_lock_sha \
+  MISTER_REMOTE_EXPECTED_POC2_LOCK_SHA256=$fixture_poc2_lock_sha \
     sh "$restore" "$restore_volume"
 }
 
@@ -56,7 +68,12 @@ expect_restore_failure() {
   shift
   if MISTER_REMOTE_TEST_MODE=1 \
     MISTER_REMOTE_ALLOWED_TEST_VOLUME=$failure_volume \
-    MISTER_REMOTE_EXPECTED_POC2_LOCK_SHA256=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc \
+    MISTER_REMOTE_EXPECTED_POC1B_DEV_ROOT_SHA256=$fixture_poc1b_dev_sha \
+    MISTER_REMOTE_EXPECTED_POC2_DEV_ROOT_SHA256=$fixture_poc2_dev_sha \
+    MISTER_REMOTE_EXPECTED_KERNEL_SHA256=$fixture_kernel_sha \
+    MISTER_REMOTE_EXPECTED_POC1A_LOCK_SHA256=$fixture_poc1a_lock_sha \
+    MISTER_REMOTE_EXPECTED_POC1B_LOCK_SHA256=$fixture_poc1b_lock_sha \
+    MISTER_REMOTE_EXPECTED_POC2_LOCK_SHA256=$fixture_poc2_lock_sha \
       "$@" sh "$restore" "$failure_volume" >/dev/null 2>&1; then
     echo 'POC 1B restore unexpectedly succeeded' >&2
     exit 1
@@ -69,6 +86,7 @@ if MISTER_REMOTE_TEST_MODE=1 \
   echo 'restore accepted filesystem root' >&2
   exit 1
 fi
+
 if MISTER_REMOTE_TEST_MODE=1 \
   MISTER_REMOTE_ALLOWED_TEST_VOLUME=$fixture \
     sh "$restore" "$fixture/not-the-volume" >/dev/null 2>&1; then
@@ -92,7 +110,12 @@ interrupted=$fixture/interrupted
 create_volume "$interrupted"
 if MISTER_REMOTE_TEST_MODE=1 \
   MISTER_REMOTE_ALLOWED_TEST_VOLUME=$interrupted \
-  MISTER_REMOTE_EXPECTED_POC2_LOCK_SHA256=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc \
+  MISTER_REMOTE_EXPECTED_POC1B_DEV_ROOT_SHA256=$fixture_poc1b_dev_sha \
+  MISTER_REMOTE_EXPECTED_POC2_DEV_ROOT_SHA256=$fixture_poc2_dev_sha \
+  MISTER_REMOTE_EXPECTED_KERNEL_SHA256=$fixture_kernel_sha \
+  MISTER_REMOTE_EXPECTED_POC1A_LOCK_SHA256=$fixture_poc1a_lock_sha \
+  MISTER_REMOTE_EXPECTED_POC1B_LOCK_SHA256=$fixture_poc1b_lock_sha \
+  MISTER_REMOTE_EXPECTED_POC2_LOCK_SHA256=$fixture_poc2_lock_sha \
   MISTER_REMOTE_TEST_INTERRUPT_BEFORE_RENAME=1 \
     sh "$restore" "$interrupted" >/dev/null 2>&1; then
   echo 'interrupted restore unexpectedly succeeded' >&2
@@ -100,6 +123,29 @@ if MISTER_REMOTE_TEST_MODE=1 \
 fi
 test "$(sha256_file "$interrupted/linux/linux.img")" = \
   "$(printf '%s\n' poc2-dev-root | shasum -a 256 | awk '{print $1}')"
+
+forged_state=$fixture/forged-state
+create_volume "$forged_state"
+write_file "$forged_state/linux/linux.img.pre-poc2" attacker-root
+write_file "$forged_state/linux/zImage_dtb" attacker-kernel
+forged_backup_sha=$(sha256_file "$forged_state/linux/linux.img.pre-poc2")
+forged_kernel_sha=$(sha256_file "$forged_state/linux/zImage_dtb")
+sed \
+  -e "s/^root_backup_sha256=.*/root_backup_sha256=$forged_backup_sha/" \
+  -e "s/^accepted_dev_root_sha256=.*/accepted_dev_root_sha256=$forged_backup_sha/" \
+  -e "s/^accepted_kernel_sha256=.*/accepted_kernel_sha256=$forged_kernel_sha/" \
+  -e 's/^poc1a_lock_sha256=.*/poc1a_lock_sha256=dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/' \
+  -e 's/^poc1b_lock_sha256=.*/poc1b_lock_sha256=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee/' \
+  "$forged_state/linux/poc2-checkpoint.state" > "$forged_state/linux/state.forged"
+mv "$forged_state/linux/state.forged" "$forged_state/linux/poc2-checkpoint.state"
+expect_restore_failure "$forged_state" env
+
+symlink_target=$fixture/symlink-volume-target
+symlink_volume=$fixture/symlink-volume
+create_volume "$symlink_target"
+ln -s "$symlink_target" "$symlink_volume"
+expect_restore_failure "$symlink_volume" env
+expect_restore_failure "$symlink_volume/" env
 
 for kind in missing-backup tampered-backup linked-backup linked-state linked-linux \
   tampered-current-state unexpected-root unexpected-kernel; do

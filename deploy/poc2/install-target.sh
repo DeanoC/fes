@@ -98,6 +98,51 @@ verify_hash() {
     fail "unexpected hash for $verify_label"
 }
 
+verify_storage_chain() {
+  for storage_directory in "$root/media" "$root/media/fat" "$linux"; do
+    [ -d "$storage_directory" ] && [ ! -L "$storage_directory" ] || \
+      fail 'FAT storage path is missing or linked'
+  done
+}
+
+clear_stale_temp() {
+  stale_path=$1
+  stale_label=$2
+  verify_storage_chain
+  [ ! -L "$stale_path" ] || fail "linked temporary path: $stale_label"
+  if [ -e "$stale_path" ]; then
+    [ -f "$stale_path" ] || fail "unsafe temporary path: $stale_label"
+    rm -f "$stale_path"
+  fi
+  [ ! -e "$stale_path" ] && [ ! -L "$stale_path" ] || \
+    fail "cannot clear temporary path: $stale_label"
+}
+
+create_exclusive_copy() {
+  copy_source=$1
+  copy_target=$2
+  copy_label=$3
+  verify_storage_chain
+  [ ! -e "$copy_target" ] && [ ! -L "$copy_target" ] || \
+    fail "temporary path already exists: $copy_label"
+  if ! (
+    umask 077
+    set -C
+    cat "$copy_source" > "$copy_target"
+  ); then
+    fail "cannot create temporary file without following links: $copy_label"
+  fi
+  verify_storage_chain
+  verify_regular "$copy_target" "$copy_label"
+}
+
+cleanup_temp_file() {
+  cleanup_path=$1
+  if [ -f "$cleanup_path" ] && [ ! -L "$cleanup_path" ]; then
+    rm -f "$cleanup_path"
+  fi
+}
+
 verify_accepted_artifact() {
   accepted_name=$1
   accepted_path=$2
@@ -122,8 +167,7 @@ backup_once() {
     return
   fi
   backup_temp=$backup_path.poc2.new
-  rm -f "$backup_temp"
-  cp "$backup_current" "$backup_temp"
+  create_exclusive_copy "$backup_current" "$backup_temp" 'temporary POC 1B root backup'
   sync_storage
   verify_hash "$backup_temp" "$backup_expected" 'temporary POC 1B root backup'
   mv "$backup_temp" "$backup_path"
@@ -135,18 +179,29 @@ write_state() {
   write_checkpoint=$1
   write_current_root=$2
   state_temp=$state.poc2.new
-  {
-    printf '%s\n' 'format=1'
-    printf 'checkpoint=%s\n' "$write_checkpoint"
-    printf 'root_backup_sha256=%s\n' "$accepted_dev_root_sha"
-    printf 'accepted_dev_root_sha256=%s\n' "$accepted_dev_root_sha"
-    printf 'poc2_dev_root_sha256=%s\n' "$poc2_dev_root_sha"
-    printf 'accepted_kernel_sha256=%s\n' "$accepted_kernel_sha"
-    printf 'poc1a_lock_sha256=%s\n' "$poc1a_lock_sha"
-    printf 'poc1b_lock_sha256=%s\n' "$poc1b_lock_sha"
-    printf 'poc2_lock_sha256=%s\n' "$poc2_lock_sha"
-    printf 'current_root_sha256=%s\n' "$write_current_root"
-  } > "$state_temp"
+  verify_storage_chain
+  [ ! -e "$state_temp" ] && [ ! -L "$state_temp" ] || \
+    fail 'checkpoint state temporary path already exists'
+  if ! (
+    umask 077
+    set -C
+    {
+      printf '%s\n' 'format=1'
+      printf 'checkpoint=%s\n' "$write_checkpoint"
+      printf 'root_backup_sha256=%s\n' "$accepted_dev_root_sha"
+      printf 'accepted_dev_root_sha256=%s\n' "$accepted_dev_root_sha"
+      printf 'poc2_dev_root_sha256=%s\n' "$poc2_dev_root_sha"
+      printf 'accepted_kernel_sha256=%s\n' "$accepted_kernel_sha"
+      printf 'poc1a_lock_sha256=%s\n' "$poc1a_lock_sha"
+      printf 'poc1b_lock_sha256=%s\n' "$poc1b_lock_sha"
+      printf 'poc2_lock_sha256=%s\n' "$poc2_lock_sha"
+      printf 'current_root_sha256=%s\n' "$write_current_root"
+    } > "$state_temp"
+  ); then
+    fail 'cannot create checkpoint state without following links'
+  fi
+  verify_storage_chain
+  verify_regular "$state_temp" 'temporary POC 2 checkpoint state'
   sync_storage
   mv -f "$state_temp" "$state"
   sync_storage
@@ -275,7 +330,6 @@ archive_members=$(gzip -dc "$archive" | tar -tf -) || fail 'package is not a rea
 [ "$archive_members" = "$expected_archive" ] || fail 'package does not contain the exact POC 2 allowlist'
 
 linux=$root/media/fat/linux
-[ -d "$linux" ] && [ ! -L "$linux" ] || fail 'FAT linux directory is missing or linked'
 work=$linux/.mister-remote-poc2-install
 payload=$work/poc2
 state=$linux/poc2-checkpoint.state
@@ -285,7 +339,9 @@ root_backup=$linux/linux.img.pre-poc2
 root_temp=$linux/linux.img.poc2.new
 
 cleanup_work() {
-  rm -f "$root_temp" "$root_backup.poc2.new" "$state.poc2.new"
+  cleanup_temp_file "$root_temp"
+  cleanup_temp_file "$root_backup.poc2.new"
+  cleanup_temp_file "$state.poc2.new"
   if [ -n "${payload:-}" ] && [ -d "$payload" ] && [ ! -L "$payload" ]; then
     rm -f "$payload/poc1a.lock.toml" "$payload/poc1b.lock.toml" \
       "$payload/poc2.lock.toml" "$payload/linux.img"
@@ -300,6 +356,11 @@ cleanup() {
   [ "$test_mode" = 1 ] || rm -f "$archive"
 }
 trap cleanup EXIT INT TERM
+
+verify_storage_chain
+clear_stale_temp "$root_temp" 'POC 2 root replacement'
+clear_stale_temp "$root_backup.poc2.new" 'POC 1B root backup'
+clear_stale_temp "$state.poc2.new" 'POC 2 checkpoint state'
 
 if [ -e "$work" ] || [ -L "$work" ]; then
   [ -d "$work" ] && [ ! -L "$work" ] || fail 'POC 2 staging path is not an exact directory'
@@ -364,7 +425,7 @@ fi
 
 if [ "$current_root_sha" != "$poc2_dev_root_sha" ]; then
   stop_runtime
-  mv "$payload/linux.img" "$root_temp"
+  create_exclusive_copy "$payload/linux.img" "$root_temp" 'temporary POC 2 development root'
   sync_storage
   verify_hash "$root_temp" "$poc2_dev_root_sha" 'temporary POC 2 development root'
   if [ "$test_mode" = 1 ] && [ "${MISTER_REMOTE_TEST_INTERRUPT_BEFORE_RENAME:-0}" = 1 ]; then

@@ -12,9 +12,18 @@ fail() {
 }
 
 volume=$1
+while [ "$volume" != / ] && [ "${volume%/}" != "$volume" ]; do
+  volume=${volume%/}
+done
+[ ! -L "$volume" ] || fail 'volume path is linked'
 [ -d "$volume" ] || fail 'volume does not exist'
 volume=$(CDPATH='' cd -- "$volume" && pwd -P)
 test_mode=${MISTER_REMOTE_TEST_MODE:-0}
+accepted_dev_root_sha=e038679bc82623b2911ef0e3876233ed95c6b3d546e77320cd6db2992647faa7
+poc2_dev_root_sha=3e66d1bba5aeda791b238aa549fbb55c15d06ff30152fdfd29bef5359cd08daa
+accepted_kernel_sha=cb66e22edb04a44d883e82f62fa7eeca0d7d2b715b08ab72ad2dc5bc2a3178c5
+accepted_poc1a_lock_sha=8ef39d9d603c1a7a7bd20550f8f7c05dfb05d770509065c4f3e3663e81430d99
+accepted_poc1b_lock_sha=8b395f61bdab5c9807ded401279eabfa29df20eaf52c03eb6954b9d7dc2641af
 accepted_poc2_lock_sha=67727b050a55c024aaad165b982e5679d48d8b6ea8f8e4c1c0766e48ad1723a7
 case "$test_mode" in
   0)
@@ -28,9 +37,12 @@ case "$test_mode" in
     allowed_volume=$(CDPATH='' cd -- "$allowed_volume" && pwd -P)
     [ "$volume" = "$allowed_volume" ] || fail 'test volume is outside fixture'
     case "$volume" in /|/tmp|/private/tmp) fail 'test volume is too broad' ;; esac
+    accepted_dev_root_sha=${MISTER_REMOTE_EXPECTED_POC1B_DEV_ROOT_SHA256:-}
+    poc2_dev_root_sha=${MISTER_REMOTE_EXPECTED_POC2_DEV_ROOT_SHA256:-}
+    accepted_kernel_sha=${MISTER_REMOTE_EXPECTED_KERNEL_SHA256:-}
+    accepted_poc1a_lock_sha=${MISTER_REMOTE_EXPECTED_POC1A_LOCK_SHA256:-}
+    accepted_poc1b_lock_sha=${MISTER_REMOTE_EXPECTED_POC1B_LOCK_SHA256:-}
     accepted_poc2_lock_sha=${MISTER_REMOTE_EXPECTED_POC2_LOCK_SHA256:-}
-    printf '%s\n' "$accepted_poc2_lock_sha" | grep -Eq '^[0-9a-f]{64}$' || \
-      fail 'test POC 2 lock hash is required'
     ;;
   *) fail 'invalid test mode' ;;
 esac
@@ -66,6 +78,12 @@ verify_hash() {
   [ "$(sha256_file "$verify_path")" = "$verify_expected" ] || fail "hash mismatch: $verify_label"
 }
 
+for expected_hash in "$accepted_dev_root_sha" "$poc2_dev_root_sha" \
+  "$accepted_kernel_sha" "$accepted_poc1a_lock_sha" \
+  "$accepted_poc1b_lock_sha" "$accepted_poc2_lock_sha"; do
+  valid_sha256 "$expected_hash" || fail 'accepted provenance contains an invalid hash'
+done
+
 linux=$volume/linux
 [ -d "$linux" ] && [ ! -L "$linux" ] || fail 'volume linux directory is missing or linked'
 state=$linux/poc2-checkpoint.state
@@ -89,44 +107,51 @@ done
 [ "$(state_value format)" = 1 ] || fail 'invalid checkpoint state format'
 case "$(state_value checkpoint)" in prepared|installed) : ;; *) fail 'invalid checkpoint state' ;; esac
 
-backup_sha=$(state_value root_backup_sha256)
-accepted_dev_sha=$(state_value accepted_dev_root_sha256)
-poc2_dev_sha=$(state_value poc2_dev_root_sha256)
-kernel_sha=$(state_value accepted_kernel_sha256)
-poc1a_lock_sha=$(state_value poc1a_lock_sha256)
-poc1b_lock_sha=$(state_value poc1b_lock_sha256)
-poc2_lock_sha=$(state_value poc2_lock_sha256)
-for recorded_hash in "$backup_sha" "$accepted_dev_sha" "$poc2_dev_sha" "$kernel_sha" \
-  "$poc1a_lock_sha" "$poc1b_lock_sha" "$poc2_lock_sha"; do
+recorded_backup_sha=$(state_value root_backup_sha256)
+recorded_accepted_dev_sha=$(state_value accepted_dev_root_sha256)
+recorded_poc2_dev_sha=$(state_value poc2_dev_root_sha256)
+recorded_kernel_sha=$(state_value accepted_kernel_sha256)
+recorded_poc1a_lock_sha=$(state_value poc1a_lock_sha256)
+recorded_poc1b_lock_sha=$(state_value poc1b_lock_sha256)
+recorded_poc2_lock_sha=$(state_value poc2_lock_sha256)
+for recorded_hash in "$recorded_backup_sha" "$recorded_accepted_dev_sha" \
+  "$recorded_poc2_dev_sha" "$recorded_kernel_sha" "$recorded_poc1a_lock_sha" \
+  "$recorded_poc1b_lock_sha" "$recorded_poc2_lock_sha"; do
   valid_sha256 "$recorded_hash" || fail 'checkpoint state contains an invalid hash'
 done
-[ "$backup_sha" = "$accepted_dev_sha" ] || fail 'checkpoint backup is not the accepted POC 1B root'
-[ "$poc2_lock_sha" = "$accepted_poc2_lock_sha" ] || fail 'checkpoint belongs to another POC 2 lock'
+[ "$recorded_backup_sha" = "$accepted_dev_root_sha" ] || fail 'checkpoint backup identity changed'
+[ "$recorded_accepted_dev_sha" = "$accepted_dev_root_sha" ] || fail 'checkpoint POC 1B root identity changed'
+[ "$recorded_poc2_dev_sha" = "$poc2_dev_root_sha" ] || fail 'checkpoint POC 2 root identity changed'
+[ "$recorded_kernel_sha" = "$accepted_kernel_sha" ] || fail 'checkpoint kernel identity changed'
+[ "$recorded_poc1a_lock_sha" = "$accepted_poc1a_lock_sha" ] || fail 'checkpoint POC 1A lock identity changed'
+[ "$recorded_poc1b_lock_sha" = "$accepted_poc1b_lock_sha" ] || fail 'checkpoint POC 1B lock identity changed'
+[ "$recorded_poc2_lock_sha" = "$accepted_poc2_lock_sha" ] || fail 'checkpoint belongs to another POC 2 lock'
 recorded_current_sha=$(state_value current_root_sha256)
 case "$(state_value checkpoint)" in
-  prepared) [ "$recorded_current_sha" = "$accepted_dev_sha" ] || fail 'prepared checkpoint root identity changed' ;;
-  installed) [ "$recorded_current_sha" = "$poc2_dev_sha" ] || fail 'installed checkpoint root identity changed' ;;
+  prepared) [ "$recorded_current_sha" = "$accepted_dev_root_sha" ] || fail 'prepared checkpoint root identity changed' ;;
+  installed) [ "$recorded_current_sha" = "$poc2_dev_root_sha" ] || fail 'installed checkpoint root identity changed' ;;
 esac
-verify_hash "$root_backup" "$backup_sha" 'one-time POC 1B root backup'
-verify_hash "$kernel_target" "$kernel_sha" 'unchanged reproduced kernel'
+verify_hash "$root_backup" "$accepted_dev_root_sha" 'one-time POC 1B root backup'
+verify_hash "$kernel_target" "$accepted_kernel_sha" 'unchanged reproduced kernel'
 verify_regular "$root_target" 'current root image'
 current_root_sha=$(sha256_file "$root_target")
-if [ "$current_root_sha" != "$poc2_dev_sha" ] && [ "$current_root_sha" != "$accepted_dev_sha" ]; then
+if [ "$current_root_sha" != "$poc2_dev_root_sha" ] && \
+  [ "$current_root_sha" != "$accepted_dev_root_sha" ]; then
   fail 'current root is neither the locked POC 2 nor POC 1B development root'
 fi
 
-printf 'POC 1B root backup: %s\n' "$backup_sha"
-printf 'Reproduced kernel:  %s\n' "$kernel_sha"
+printf 'POC 1B root backup: %s\n' "$accepted_dev_root_sha"
+printf 'Reproduced kernel:  %s\n' "$accepted_kernel_sha"
 rm -f "$root_temp"
 cp "$root_backup" "$root_temp"
 sync
-verify_hash "$root_temp" "$backup_sha" 'temporary POC 1B root restore'
+verify_hash "$root_temp" "$accepted_dev_root_sha" 'temporary POC 1B root restore'
 if [ "$test_mode" = 1 ] && [ "${MISTER_REMOTE_TEST_INTERRUPT_BEFORE_RENAME:-0}" = 1 ]; then
   fail 'simulated interruption before POC 1B restore rename'
 fi
 mv -f "$root_temp" "$root_target"
 sync
-verify_hash "$root_target" "$accepted_dev_sha" 'restored POC 1B development root'
-verify_hash "$kernel_target" "$kernel_sha" 'unchanged reproduced kernel'
-verify_hash "$root_backup" "$backup_sha" 'retained one-time POC 1B root backup'
+verify_hash "$root_target" "$accepted_dev_root_sha" 'restored POC 1B development root'
+verify_hash "$kernel_target" "$accepted_kernel_sha" 'unchanged reproduced kernel'
+verify_hash "$root_backup" "$accepted_dev_root_sha" 'retained one-time POC 1B root backup'
 printf '%s\n' 'POC 1B development root restored from the POC 2 checkpoint backup'

@@ -277,6 +277,29 @@ ln -s "$fixture" "$linked_stage_root/media/fat/linux/.mister-remote-poc2-install
 expect_install_failure "$linked_stage_root" "$archive"
 test -L "$linked_stage_root/media/fat/linux/.mister-remote-poc2-install"
 
+for unsafe_temp in \
+  poc2-checkpoint.state.poc2.new \
+  linux.img.pre-poc2.poc2.new \
+  linux.img.poc2.new; do
+  unsafe_name=$(printf '%s' "$unsafe_temp" | tr '.-' '__')
+  unsafe_temp_root=$fixture/unsafe-temp-$unsafe_name
+  unsafe_outside=$fixture/unsafe-outside-$unsafe_name
+  cp -R "$baseline" "$unsafe_temp_root"
+  case "$unsafe_temp" in
+    poc2-checkpoint.state.poc2.new)
+      unsafe_outside=$unsafe_temp_root/media/fat/linux/zImage_dtb
+      unsafe_before=$(sha256_file "$unsafe_outside")
+      ;;
+    *)
+      write_file "$unsafe_outside" must-not-change
+      unsafe_before=$(sha256_file "$unsafe_outside")
+      ;;
+  esac
+  ln -s "$unsafe_outside" "$unsafe_temp_root/media/fat/linux/$unsafe_temp"
+  expect_install_failure "$unsafe_temp_root" "$archive"
+  test "$(sha256_file "$unsafe_outside")" = "$unsafe_before"
+done
+
 interrupted_root=$fixture/interrupted-root
 cp -R "$baseline" "$interrupted_root"
 poc1b_sha=$(sha256_file "$interrupted_root/media/fat/linux/linux.img")
