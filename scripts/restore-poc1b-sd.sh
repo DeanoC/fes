@@ -11,11 +11,43 @@ fail() {
   exit 2
 }
 
+verify_lexical_volume_path() {
+  lexical_volume=$1
+  case "$lexical_volume" in
+    .|..|./*|../*|*/./*|*/.|*/../*|*/..) \
+      fail 'volume path contains an unsafe component' ;;
+  esac
+  case "$lexical_volume" in
+    /*)
+      checked_path=
+      remaining_path=${lexical_volume#/}
+      ;;
+    *)
+      checked_path=.
+      remaining_path=$lexical_volume
+      ;;
+  esac
+  while [ -n "$remaining_path" ]; do
+    case "$remaining_path" in
+      */*)
+        path_component=${remaining_path%%/*}
+        remaining_path=${remaining_path#*/}
+        ;;
+      *)
+        path_component=$remaining_path
+        remaining_path=
+        ;;
+    esac
+    checked_path=$checked_path/$path_component
+    [ ! -L "$checked_path" ] || fail 'volume path contains a linked component'
+  done
+}
+
 volume=$1
 while [ "$volume" != / ] && [ "${volume%/}" != "$volume" ]; do
   volume=${volume%/}
 done
-[ ! -L "$volume" ] || fail 'volume path is linked'
+verify_lexical_volume_path "$volume"
 [ -d "$volume" ] || fail 'volume does not exist'
 volume=$(CDPATH='' cd -- "$volume" && pwd -P)
 test_mode=${MISTER_REMOTE_TEST_MODE:-0}
@@ -78,6 +110,55 @@ verify_hash() {
   [ "$(sha256_file "$verify_path")" = "$verify_expected" ] || fail "hash mismatch: $verify_label"
 }
 
+restore_storage_is_safe() {
+  [ -d "$volume" ] && [ ! -L "$volume" ] || return 1
+  [ -d "$linux" ] && [ ! -L "$linux" ] || return 1
+  if [ -n "${linux_physical:-}" ]; then
+    current_linux=$(CDPATH='' cd -- "$linux" 2>/dev/null && pwd -P) || return 1
+    [ "$current_linux" = "$linux_physical" ] || return 1
+  fi
+}
+
+verify_restore_storage() {
+  restore_storage_is_safe || fail 'restore storage path is missing, linked, or changed'
+}
+
+clear_restore_temp() {
+  verify_restore_storage
+  [ ! -L "$root_temp" ] || fail 'restore temporary path is linked'
+  if [ -e "$root_temp" ]; then
+    [ -f "$root_temp" ] || fail 'restore temporary path is unsafe'
+    (
+      CDPATH='' cd -- "$linux"
+      [ "$(pwd -P)" = "$linux_physical" ]
+      [ -f ./linux.img.poc1b-restore.new ]
+      [ ! -L ./linux.img.poc1b-restore.new ]
+      rm -f ./linux.img.poc1b-restore.new
+    ) || fail 'cannot safely clear restore temporary path'
+  fi
+  [ ! -e "$root_temp" ] && [ ! -L "$root_temp" ] || \
+    fail 'cannot clear restore temporary path'
+}
+
+create_restore_temp() {
+  verify_restore_storage
+  [ ! -e "$root_temp" ] && [ ! -L "$root_temp" ] || \
+    fail 'restore temporary path already exists'
+  if ! (
+    CDPATH='' cd -- "$linux"
+    [ "$(pwd -P)" = "$linux_physical" ]
+    [ ! -e ./linux.img.poc1b-restore.new ]
+    [ ! -L ./linux.img.poc1b-restore.new ]
+    umask 077
+    set -C
+    cat ./linux.img.pre-poc2 > ./linux.img.poc1b-restore.new
+  ); then
+    fail 'cannot create restore temporary file without following links'
+  fi
+  verify_restore_storage
+  verify_regular "$root_temp" 'temporary POC 1B root restore'
+}
+
 for expected_hash in "$accepted_dev_root_sha" "$poc2_dev_root_sha" \
   "$accepted_kernel_sha" "$accepted_poc1a_lock_sha" \
   "$accepted_poc1b_lock_sha" "$accepted_poc2_lock_sha"; do
@@ -86,6 +167,7 @@ done
 
 linux=$volume/linux
 [ -d "$linux" ] && [ ! -L "$linux" ] || fail 'volume linux directory is missing or linked'
+linux_physical=$(CDPATH='' cd -- "$linux" && pwd -P)
 state=$linux/poc2-checkpoint.state
 root_backup=$linux/linux.img.pre-poc2
 root_target=$linux/linux.img
@@ -93,8 +175,19 @@ kernel_target=$linux/zImage_dtb
 root_temp=$linux/linux.img.poc1b-restore.new
 
 cleanup() {
-  rm -f "$root_temp"
+  if restore_storage_is_safe; then
+    (
+      CDPATH='' cd -- "$linux"
+      [ "$(pwd -P)" = "$linux_physical" ] || exit 0
+      if [ -f ./linux.img.poc1b-restore.new ] && \
+        [ ! -L ./linux.img.poc1b-restore.new ]; then
+        rm -f ./linux.img.poc1b-restore.new
+      fi
+    )
+  fi
 }
+verify_restore_storage
+clear_restore_temp
 trap cleanup EXIT INT TERM
 
 verify_regular "$state" 'POC 2 checkpoint state'
@@ -142,8 +235,7 @@ fi
 
 printf 'POC 1B root backup: %s\n' "$accepted_dev_root_sha"
 printf 'Reproduced kernel:  %s\n' "$accepted_kernel_sha"
-rm -f "$root_temp"
-cp "$root_backup" "$root_temp"
+create_restore_temp
 sync
 verify_hash "$root_temp" "$accepted_dev_root_sha" 'temporary POC 1B root restore'
 if [ "$test_mode" = 1 ] && [ "${MISTER_REMOTE_TEST_INTERRUPT_BEFORE_RENAME:-0}" = 1 ]; then

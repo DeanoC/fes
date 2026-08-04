@@ -3,6 +3,7 @@ set -eu
 
 repo=$(CDPATH='' cd -- "$(dirname "$0")/../.." && pwd)
 fixture=$(mktemp -d "${TMPDIR:-/tmp}/mister-remote-poc2-restore.XXXXXX")
+fixture=$(CDPATH='' cd -- "$fixture" && pwd -P)
 cleanup() {
   rm -rf "$fixture"
 }
@@ -146,6 +147,21 @@ create_volume "$symlink_target"
 ln -s "$symlink_target" "$symlink_volume"
 expect_restore_failure "$symlink_volume" env
 expect_restore_failure "$symlink_volume/" env
+expect_restore_failure "$symlink_volume/." env
+
+dot_component_volume=$fixture/dot-component-volume
+create_volume "$dot_component_volume"
+expect_restore_failure "$dot_component_volume/." env
+
+linked_restore_temp=$fixture/linked-restore-temp
+linked_restore_outside=$fixture/linked-restore-outside
+create_volume "$linked_restore_temp"
+write_file "$linked_restore_outside" must-not-change
+linked_restore_before=$(sha256_file "$linked_restore_outside")
+ln -s "$linked_restore_outside" \
+  "$linked_restore_temp/linux/linux.img.poc1b-restore.new"
+expect_restore_failure "$linked_restore_temp" env
+test "$(sha256_file "$linked_restore_outside")" = "$linked_restore_before"
 
 for kind in missing-backup tampered-backup linked-backup linked-state linked-linux \
   tampered-current-state unexpected-root unexpected-kernel; do

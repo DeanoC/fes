@@ -242,7 +242,22 @@ linked_linux=$fixture/linked-linux
 cp -R "$baseline" "$linked_linux"
 mv "$linked_linux/media/fat/linux" "$fixture/linked-linux-outside"
 ln -s "$fixture/linked-linux-outside" "$linked_linux/media/fat/linux"
-expect_install_failure "$linked_linux" "$archive"
+gzip_probe=$fixture/gzip-probe
+gzip_marker=$fixture/gzip-probe-used
+real_gzip=$(command -v gzip)
+mkdir "$gzip_probe"
+cat > "$gzip_probe/gzip" <<'EOF'
+#!/bin/sh
+: > "$GZIP_MARKER"
+exec "$REAL_GZIP" "$@"
+EOF
+chmod 0755 "$gzip_probe/gzip"
+if PATH=$gzip_probe:$PATH GZIP_MARKER=$gzip_marker REAL_GZIP=$real_gzip \
+  install_fixture "$linked_linux" "$archive" >/dev/null 2>&1; then
+  echo 'installer accepted a linked FAT storage ancestor' >&2
+  exit 1
+fi
+test ! -e "$gzip_marker"
 
 extra_stage=$fixture/extra
 cp -R "$fixture/stage" "$extra_stage"

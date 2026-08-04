@@ -98,11 +98,18 @@ verify_hash() {
     fail "unexpected hash for $verify_label"
 }
 
-verify_storage_chain() {
+storage_chain_is_safe() {
   for storage_directory in "$root/media" "$root/media/fat" "$linux"; do
-    [ -d "$storage_directory" ] && [ ! -L "$storage_directory" ] || \
-      fail 'FAT storage path is missing or linked'
+    [ -d "$storage_directory" ] && [ ! -L "$storage_directory" ] || return 1
   done
+  if [ -n "${linux_physical:-}" ]; then
+    current_linux=$(CDPATH='' cd -- "$linux" 2>/dev/null && pwd -P) || return 1
+    [ "$current_linux" = "$linux_physical" ] || return 1
+  fi
+}
+
+verify_storage_chain() {
+  storage_chain_is_safe || fail 'FAT storage path is missing, linked, or changed'
 }
 
 clear_stale_temp() {
@@ -321,6 +328,10 @@ case "$test_mode" in
   *) fail 'invalid test mode' ;;
 esac
 
+linux=$root/media/fat/linux
+verify_storage_chain
+linux_physical=$(CDPATH='' cd -- "$linux" && pwd -P)
+verify_storage_chain
 verify_regular "$archive" 'POC 2 package'
 expected_archive='poc2/poc1a.lock.toml
 poc2/poc1b.lock.toml
@@ -329,7 +340,6 @@ poc2/linux.img'
 archive_members=$(gzip -dc "$archive" | tar -tf -) || fail 'package is not a readable gzip tar'
 [ "$archive_members" = "$expected_archive" ] || fail 'package does not contain the exact POC 2 allowlist'
 
-linux=$root/media/fat/linux
 work=$linux/.mister-remote-poc2-install
 payload=$work/poc2
 state=$linux/poc2-checkpoint.state
@@ -351,9 +361,23 @@ cleanup_work() {
     rmdir "$work" 2>/dev/null || true
   fi
 }
+cleanup_archive() {
+  [ "$test_mode" = 1 ] && return
+  (
+    CDPATH='' cd -- "$linux" 2>/dev/null || exit 0
+    [ "$(pwd -P)" = "$linux_physical" ] || exit 0
+    [ ! -L ./mister-remote-poc2.tar.gz ] || exit 0
+    if [ -e ./mister-remote-poc2.tar.gz ]; then
+      [ -f ./mister-remote-poc2.tar.gz ] || exit 0
+      rm -f ./mister-remote-poc2.tar.gz
+    fi
+  )
+}
 cleanup() {
-  cleanup_work
-  [ "$test_mode" = 1 ] || rm -f "$archive"
+  if storage_chain_is_safe; then
+    cleanup_work
+    cleanup_archive
+  fi
 }
 trap cleanup EXIT INT TERM
 
