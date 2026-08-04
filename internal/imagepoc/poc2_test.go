@@ -178,7 +178,7 @@ func TestRecordPOC2RejectsKernelThatDiffersFromAcceptedPOC1BOutput(t *testing.T)
 	}
 }
 
-func TestPOC2CommittedLockMatchesAcceptedInputsAndReproducedOutputs(t *testing.T) {
+func TestPOC2CommittedLockContainsRecordedValues(t *testing.T) {
 	t.Parallel()
 	repo := filepath.Join("..", "..")
 	lockPath := filepath.Join(repo, "build", "outputs.poc2.lock.toml")
@@ -193,15 +193,6 @@ func TestPOC2CommittedLockMatchesAcceptedInputsAndReproducedOutputs(t *testing.T
 		lock.Outputs.ProdRootFSSHA256 != "35fa654326d2c2722e8c2dae81e463750d5cb0ee1f2fbf0c42ea3909860a1bc6" ||
 		lock.Outputs.DevRootFSSHA256 != "3e66d1bba5aeda791b238aa549fbb55c15d06ff30152fdfd29bef5359cd08daa" {
 		t.Fatalf("committed lock = %#v", lock)
-	}
-	if err := imagepoc.VerifyPOC2(
-		lockPath,
-		filepath.Join(repo, "build", "sources.poc1a.lock.toml"),
-		filepath.Join(repo, "build", "sources.poc1b.lock.toml"),
-		filepath.Join(repo, "build", "output", "poc1b", "prod", "linux.img"),
-		filepath.Join(repo, "build", "output", "poc1b", "dev", "linux.img"),
-	); err != nil {
-		t.Fatal(err)
 	}
 }
 

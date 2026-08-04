@@ -33,6 +33,47 @@ case "$mode" in
     ;;
 esac
 
+if [ "${POC1B_DEV_CONTAINER:-0}" = 1 ]; then
+  dev_platform=linux/arm64
+  dev_image=mister-remote-poc1b-dev-build
+  host_uid=$(id -u)
+  host_gid=$(id -g)
+  dev_context_digest=$(
+    /usr/bin/shasum -a 256 \
+      "$repo_root/containers/poc1b/Dockerfile.dev" \
+      | /usr/bin/awk '{print substr($1, 1, 12)}'
+  )
+  dev_image="$dev_image:$dev_context_digest-$host_uid-$host_gid"
+  if ! "$runtime" image inspect "$dev_image" >/dev/null 2>&1; then
+    "$runtime" build \
+      --platform "$dev_platform" \
+      --build-arg "HOST_UID=$host_uid" \
+      --build-arg "HOST_GID=$host_gid" \
+      --tag "$dev_image" \
+      --file "$repo_root/containers/poc1b/Dockerfile.dev" \
+      "$repo_root"
+  fi
+  if [ "$mode" = run ]; then
+    exec "$runtime" run --rm \
+      --platform "$dev_platform" \
+      --network none \
+      --ulimit core=0:0 \
+      --user "$host_uid:$host_gid" \
+      --volume "$repo_root:/work" \
+      --volume "$output_volume:/poc1b-output" \
+      --workdir /work \
+      "$dev_image" "$@"
+  fi
+  exec "$runtime" run --rm \
+    --platform "$dev_platform" \
+    --ulimit core=0:0 \
+    --user "$host_uid:$host_gid" \
+    --volume "$repo_root:/work" \
+    --volume "$output_volume:/poc1b-output" \
+    --workdir /work \
+    "$dev_image" "$@"
+fi
+
 [ -f "$lock" ] || {
   printf 'poc1b-container: lock does not exist: %s\n' "$lock" >&2
   exit 2

@@ -52,6 +52,25 @@ mise exec go@1.26.5 -- go test ./...
 mise exec go@1.26.5 -- make check build
 ```
 
+For normal Linux development, do not use `poc1b-images` for every iteration.
+That target is the strict provenance path: it builds both production and
+development images twice in the locked `linux/amd64` container. Instead use:
+
+```sh
+# Static ARMv7 agent-only iteration
+CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 \
+  mise exec go@1.26.5 -- make build-agent
+
+# Development rootfs iteration; one persistent Buildroot output and one build
+mise exec go@1.26.5 -- make poc1b-dev-image
+```
+
+The fast development image is intentionally not reproducibility evidence. It
+uses the development Buildroot output directory as a persistent cache and
+publishes `build/output/poc1b/dev/linux.img`. Use `poc1b-images`, the image and
+kernel verifiers, and the QEMU smoke test before recording or publishing a
+new lock. The fast target does not alter the strict release target.
+
 The full suite requires local networking for `httptest` integration tests. If
 the sandbox blocks loopback listeners, run those tests in the normal developer
 environment and report the restriction rather than changing the tests.

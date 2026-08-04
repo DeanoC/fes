@@ -70,6 +70,19 @@ complete provenance chain, keep one POC 1B root backup, and replace only the
 locked development root. They do not alter the kernel, cores, controller map,
 user data, or FogCast cache.
 
+For routine application development, prefer the fast path before using the
+full release build:
+
+```sh
+CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 mise exec go@1.26.5 -- make build-agent
+mise exec go@1.26.5 -- make poc1b-dev-image
+```
+
+The first command only rebuilds the static ARMv7 agent. The second builds only
+the development root once and retains its Buildroot output/toolchain for the
+next iteration. It is not sufficient for provenance recording or publication;
+run the strict `poc1b-images` workflow before updating a lock.
+
 If a full image build is unavailable but the static ARMv7 agent has changed,
 do not copy a host binary into the image. Build with
 `CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7`, verify it with `file`, inject it
