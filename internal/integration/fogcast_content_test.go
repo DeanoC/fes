@@ -127,6 +127,10 @@ func TestFogCastContentEndToEnd(t *testing.T) {
 		t.Fatalf("cache hit uploaded again: requests %d->%d bytes %d->%d", firstRequests, secondRequests, firstBytes, secondBytes)
 	}
 
+	// The interrupt transport waits for the target to consume a partial body
+	// before failing. The assertions below prove partial consumption, transfer
+	// failure, no final publication or .part residue, and a successful retry;
+	// Task 8 covers cancellation after a real .part exists.
 	interrupt.arm()
 	_, err = service.Launch(context.Background(), interruptMega.ID, nil)
 	if apiErrorCode(err) != protocol.CodeTransferFailed {

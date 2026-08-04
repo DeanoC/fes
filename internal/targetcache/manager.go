@@ -20,6 +20,8 @@ import (
 )
 
 const (
+	// This is a requested mode. FAT-backed target paths may synthesize Unix
+	// mode bits; Task 15 validates fmask/dmask and Samba/SSH guest access.
 	privateDirectoryMode = 0o700
 	stalePartPrefix      = ".fogcast-"
 	stalePartSuffix      = ".part"

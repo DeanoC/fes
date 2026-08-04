@@ -26,6 +26,9 @@ case "${1:-start}" in
       printf '%s\n' 'mister-agent: writable FAT configuration did not appear within 30 seconds' >&2
       exit 1
     fi
+    # VFAT may synthesize Unix mode bits; this chmod is a best-effort request,
+    # not an enforced privacy boundary. Task 15 covers target mount masks and
+    # Samba/SSH guest-access assertions.
     /bin/mkdir -p /media/fat/fogcast/cache/megadrive /media/fat/fogcast/cache/snes
     /bin/chmod 0700 /media/fat/fogcast/cache /media/fat/fogcast/cache/megadrive /media/fat/fogcast/cache/snes
 

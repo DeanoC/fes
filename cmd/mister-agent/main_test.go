@@ -184,7 +184,7 @@ func TestProductionCacheDependencyCreatesPrivateInventory(t *testing.T) {
 	for _, directory := range []string{root, filepath.Join(root, "megadrive"), filepath.Join(root, "snes")} {
 		info, err := os.Stat(directory)
 		if err != nil || !info.IsDir() || info.Mode().Perm() != 0o700 {
-			t.Fatalf("cache directory %q = %v, err=%v, want directory 0700", filepath.Base(directory), info, err)
+			t.Fatalf("cache directory %q = %v, err=%v, want requested directory mode 0700 on regular filesystem", filepath.Base(directory), info, err)
 		}
 	}
 }

@@ -18,6 +18,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// This is a requested mode. FAT-backed target paths may synthesize Unix mode
+// bits; it is not an enforced privacy boundary there. Task 15 validates
+// fmask/dmask and Samba/SSH guest access on the real target.
 const privateFileMode = 0o600
 
 type evictionCandidate struct {

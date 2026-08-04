@@ -21,6 +21,8 @@ require_policy() {
   }
 }
 
+# These assertions verify the requested init policy and ordering. FAT mode
+# synthesis and real-target guest access are deferred to Task 15 validation.
 require_policy '[ ! -f /media/fat/mister-remote/agent.toml ]'
 require_policy '/bin/mkdir -p /media/fat/fogcast/cache/megadrive /media/fat/fogcast/cache/snes'
 require_policy '/bin/chmod 0700 /media/fat/fogcast/cache /media/fat/fogcast/cache/megadrive /media/fat/fogcast/cache/snes'

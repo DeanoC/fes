@@ -138,7 +138,7 @@ func TestOpenResolvesConfiguredRootAndCreatesPrivateSystemDirectories(t *testing
 			t.Fatal(err)
 		}
 		if !info.IsDir() || info.Mode().Perm() != 0o700 {
-			t.Fatalf("%s directory mode = %v, want private directory", system, info.Mode())
+			t.Fatalf("%s directory mode = %v, want requested mode 0700 on regular filesystem", system, info.Mode())
 		}
 	}
 }
