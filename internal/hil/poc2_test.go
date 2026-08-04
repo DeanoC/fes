@@ -21,10 +21,11 @@ type poc2FakeService struct {
 	games              []catalog.Game
 	cache              map[string]bool
 	offline            bool
-	failUpload         bool
 	ready              bool
 	scan               catalog.ScanReport
 	wrongUncachedError bool
+	restarted          bool
+	uploadEntered      chan struct{}
 }
 
 func (s *poc2FakeService) Scan(context.Context) (catalog.ScanReport, error) {
@@ -37,7 +38,7 @@ func (s *poc2FakeService) Games(context.Context) ([]catalog.Game, error) {
 }
 func (s *poc2FakeService) Launch(ctx context.Context, gameID string, progress fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error) {
 	s.events = append(s.events, "launch:"+gameID)
-	if gameID == "invalid-poc2-request" {
+	if gameID == "invalid request" {
 		return protocol.CachedLaunchResponse{}, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "invalid request"}
 	}
 	if gameID == "wrong-uncached-error" {
@@ -46,18 +47,13 @@ func (s *poc2FakeService) Launch(ctx context.Context, gameID string, progress fo
 	if s.offline && !s.cache[gameID] {
 		return protocol.CachedLaunchResponse{}, &protocol.APIError{Code: protocol.CodeSourceUnavailable, Message: "source unavailable"}
 	}
-	if s.failUpload {
-		s.failUpload = false
-		if progress != nil {
-			progress(fogcast.Progress{Stage: "upload", Message: "upload interrupted"})
-		}
-		return protocol.CachedLaunchResponse{}, &protocol.APIError{Code: protocol.CodeTransferFailed, Message: "upload interrupted"}
-	}
 	if progress != nil && !s.cache[gameID] {
 		progress(fogcast.Progress{Stage: "upload", Message: "content uploaded"})
 	}
-	if s.failUpload {
-		s.failUpload = false
+	if gameID == "interrupted-test" && s.uploadEntered != nil {
+		s.events = append(s.events, "upload request entered")
+		close(s.uploadEntered)
+		<-ctx.Done()
 		return protocol.CachedLaunchResponse{}, &protocol.APIError{Code: protocol.CodeTransferFailed, Message: "upload interrupted"}
 	}
 	if err := ctx.Err(); err != nil {
@@ -73,6 +69,9 @@ func (s *poc2FakeService) Health(context.Context) (protocol.Health, error) {
 }
 func (s *poc2FakeService) Status(context.Context) (protocol.Status, error) {
 	s.events = append(s.events, "status")
+	if s.restarted {
+		return protocol.Status{State: protocol.StateIdle}, nil
+	}
 	return protocol.Status{State: protocol.StateActive}, nil
 }
 func (s *poc2FakeService) Stop(context.Context) (protocol.Status, error) {
@@ -92,6 +91,9 @@ func (s *poc2FakeSabotage) RebootTarget(context.Context) (bool, error) {
 }
 func (s *poc2FakeSabotage) RestartAgent(context.Context) (bool, error) {
 	s.events = append(s.events, "agent restart")
+	if s.service != nil {
+		s.service.restarted = true
+	}
 	return true, nil
 }
 func (s *poc2FakeSabotage) ToggleNAS(context.Context) (bool, error) {
@@ -111,8 +113,10 @@ func (s *poc2FakeSabotage) RemountNAS(context.Context) (bool, error) {
 func (s *poc2FakeSabotage) InterruptUpload(context.Context) (bool, error) {
 	s.events = append(s.events, "upload interruption")
 	if s.service != nil {
+		if s.service.uploadEntered != nil {
+			<-s.service.uploadEntered
+		}
 		s.service.events = append(s.service.events, "upload interruption")
-		s.service.failUpload = true
 	}
 	return s.interrupt, nil
 }
@@ -127,9 +131,10 @@ func (p *poc2FakePrompter) Confirm(message string) (bool, error) {
 func TestPOC2RunnerFollowsSafeAcceptanceOrder(t *testing.T) {
 	now := time.Date(2026, 8, 4, 0, 0, 0, 0, time.UTC)
 	service := &poc2FakeService{
-		cache: map[string]bool{},
-		ready: true,
-		scan:  catalog.ScanReport{Roots: []catalog.RootReport{{RootID: "mega-root", System: protocol.SystemMegaDrive}, {RootID: "snes-root", System: protocol.SystemSNES}}},
+		cache:         map[string]bool{},
+		ready:         true,
+		uploadEntered: make(chan struct{}),
+		scan:          catalog.ScanReport{Roots: []catalog.RootReport{{RootID: "mega-root", System: protocol.SystemMegaDrive}, {RootID: "snes-root", System: protocol.SystemSNES}}},
 		games: []catalog.Game{
 			{ID: "sonic-test", System: protocol.SystemMegaDrive, Kind: catalog.SourceKindZIP, State: catalog.SourceStateAvailable, RootOnline: true},
 			{ID: "mario-test", System: protocol.SystemSNES, Kind: catalog.SourceKindZIP, State: catalog.SourceStateAvailable, RootOnline: true},
@@ -301,7 +306,8 @@ func TestPOC2RunnerRejectsRawRequestedGame(t *testing.T) {
 func TestPOC2RunnerInterruptsOnlyAfterUploadStarts(t *testing.T) {
 	service := &poc2FakeService{
 		cache: map[string]bool{}, ready: true,
-		scan: catalog.ScanReport{Roots: []catalog.RootReport{{RootID: "mega-root", System: protocol.SystemMegaDrive}, {RootID: "snes-root", System: protocol.SystemSNES}}},
+		uploadEntered: make(chan struct{}),
+		scan:          catalog.ScanReport{Roots: []catalog.RootReport{{RootID: "mega-root", System: protocol.SystemMegaDrive}, {RootID: "snes-root", System: protocol.SystemSNES}}},
 		games: []catalog.Game{
 			{ID: "sonic-test", System: protocol.SystemMegaDrive, Kind: catalog.SourceKindZIP, State: catalog.SourceStateAvailable, RootOnline: true},
 			{ID: "mario-test", System: protocol.SystemSNES, Kind: catalog.SourceKindZIP, State: catalog.SourceStateAvailable, RootOnline: true},
@@ -317,11 +323,12 @@ func TestPOC2RunnerInterruptsOnlyAfterUploadStarts(t *testing.T) {
 		t.Fatalf("report failed: %#v", report)
 	}
 	start := slices.Index(service.events, "launch:interrupted-test")
+	entered := slices.Index(service.events, "upload request entered")
 	interrupt := slices.Index(service.events, "upload interruption")
-	if start < 0 || interrupt < 0 {
+	if start < 0 || entered < 0 || interrupt < 0 {
 		t.Fatalf("interruption order = %v", service.events)
 	}
-	if interrupt <= start {
+	if entered <= start || interrupt <= entered {
 		t.Fatalf("interruption happened before upload started: %v", service.events)
 	}
 }

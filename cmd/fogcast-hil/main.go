@@ -45,8 +45,8 @@ func run(ctx context.Context, args []string, input io.Reader, output, stderr io.
 	reportPath := flags.String("output", filepath.Join("artifacts", "hil", "poc2.json"), "acceptance report path")
 	sonicID := flags.String("sonic-id", "", "explicit Mega Drive game ID")
 	marioID := flags.String("mario-id", "", "explicit SNES game ID")
-	uncachedID := flags.String("uncached-id", "", "optional explicit uncached fixture game ID")
-	interruptedID := flags.String("interrupted-id", "", "optional explicit upload-interruption fixture game ID")
+	uncachedID := flags.String("uncached-id", "", "explicit uncached fixture game ID (required)")
+	interruptedID := flags.String("interrupted-id", "", "explicit upload-interruption fixture game ID (required)")
 	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
 		return 2
 	}

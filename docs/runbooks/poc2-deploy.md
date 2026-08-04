@@ -122,6 +122,10 @@ bin/fogcast-hil --config /path/to/local/fogcast.toml \
   --output artifacts/hil/poc2.json
 ```
 
+Supply IDs from the local catalog: the uncached and interrupted fixtures must
+be distinct ZIP entries that are available while their source roots are online;
+the runner deliberately does not embed or infer these private fixture names.
+
 The runner stops at the first failed check. Confirm these gates in order:
 
 1. Local index and target cache are empty as intentionally prepared.

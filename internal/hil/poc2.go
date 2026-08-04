@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DeanoC/FogCast-POC/catalog"
@@ -212,19 +213,37 @@ func (r POC2Runner) Run(ctx context.Context) (Report, error) {
 	}
 	var uploadStarted bool
 	var interruptAttempted bool
-	var interruptConfirmed bool
-	var interruptErr error
+	type interruptResult struct {
+		confirmed bool
+		err       error
+	}
+	interruptResults := make(chan interruptResult, 1)
 	interruptCtx, cancelInterrupt := context.WithCancel(ctx)
+	var interruptOnce sync.Once
 	_, interruptedErr := r.Service.Launch(interruptCtx, r.InterruptedID, func(progress fogcast.Progress) {
 		if progress.Stage == "upload" {
 			uploadStarted = true
-			if !interruptAttempted {
+			interruptOnce.Do(func() {
 				interruptAttempted = true
-				interruptConfirmed, interruptErr = r.Sabotage.InterruptUpload(interruptCtx)
-				cancelInterrupt()
-			}
+				go func() {
+					confirmed, err := r.Sabotage.InterruptUpload(interruptCtx)
+					interruptResults <- interruptResult{confirmed: confirmed, err: err}
+					cancelInterrupt()
+				}()
+			})
 		}
 	})
+	var interruptConfirmed bool
+	var interruptErr error
+	if interruptAttempted {
+		select {
+		case result := <-interruptResults:
+			interruptConfirmed, interruptErr = result.confirmed, result.err
+		case <-ctx.Done():
+			cancelInterrupt()
+			return finish(ctx.Err())
+		}
+	}
 	cancelInterrupt()
 	if !uploadStarted {
 		return fail("interrupted upload started", "service did not report an in-flight upload")
@@ -249,7 +268,42 @@ func (r POC2Runner) Run(ctx context.Context) (Report, error) {
 	if !sameStatusIdentity(interruptedBefore, interruptedAfter) {
 		return fail("interrupted upload state preserved", "active target identity changed")
 	}
-	record("interrupted upload is not launchable", true, "interrupted transfer failed and preserved active target state")
+	record("interrupted upload state preserved", true, "interrupted transfer failed and preserved active target state")
+	probeOffline, err := r.Sabotage.ToggleNAS(ctx)
+	if err != nil {
+		record("interrupted content offline probe confirmation", false, "operator action failed")
+		return finish(err)
+	}
+	if !probeOffline {
+		return fail("interrupted content offline probe confirmation", "operator declined NAS-root offline probe")
+	}
+	record("interrupted content offline probe confirmation", true, "operator confirmed NAS-root offline probe")
+	probeBefore, err := r.Service.Status(ctx)
+	if err != nil {
+		return fail("interrupted content probe state before launch", "target state could not be checked")
+	}
+	_, probeErr := r.Service.Launch(ctx, r.InterruptedID, nil)
+	var probeAPIError *protocol.APIError
+	if !errors.As(probeErr, &probeAPIError) || probeAPIError.Code != protocol.CodeSourceUnavailable {
+		return fail("interrupted upload is not launchable", "interrupted content was launchable while its source was offline")
+	}
+	probeAfter, statusErr := r.Service.Status(ctx)
+	if statusErr != nil {
+		return fail("interrupted content probe state preserved", "target state could not be checked")
+	}
+	if !sameStatusIdentity(probeBefore, probeAfter) {
+		return fail("interrupted content probe state preserved", "active target identity changed")
+	}
+	record("interrupted upload is not launchable", true, "interrupted content was rejected while source was offline")
+	remounted, err = r.Sabotage.RemountNAS(ctx)
+	if err != nil {
+		record("NAS-root remount after interrupted probe", false, "operator action failed")
+		return finish(err)
+	}
+	if !remounted {
+		return fail("NAS-root remount after interrupted probe", "operator declined NAS-root remount")
+	}
+	record("NAS-root remount after interrupted probe", true, "operator confirmed NAS-root remount")
 
 	for _, game := range []struct{ id, label string }{{r.MarioID, "Mario"}, {r.SonicID, "Sonic"}} {
 		if done := r.repeatLaunch(ctx, record, game.id, "alternating "+game.label+" launch"); done {
@@ -280,12 +334,22 @@ func (r POC2Runner) Run(ctx context.Context) (Report, error) {
 	}
 	record("black HDMI after stop", true, "operator confirmed black HDMI")
 
-	if _, err := r.Service.Launch(ctx, "invalid-poc2-request", nil); err == nil {
-		return fail("invalid request rejected", "invalid launch request was accepted")
+	invalidBefore, err := r.Service.Status(ctx)
+	if err != nil {
+		return fail("state preserved before invalid request", "target state could not be checked")
+	}
+	_, invalidErr := r.Service.Launch(ctx, "invalid request", nil)
+	var invalidAPIError *protocol.APIError
+	if !errors.As(invalidErr, &invalidAPIError) || invalidAPIError.Code != protocol.CodeBadRequest {
+		return fail("invalid request rejected", "invalid launch request did not return BAD_REQUEST")
 	}
 	record("invalid request rejected", true, "invalid launch request rejected")
-	if _, err := r.Service.Status(ctx); err != nil {
+	invalidAfter, statusErr := r.Service.Status(ctx)
+	if statusErr != nil {
 		return fail("state preserved after invalid request", "target state could not be checked")
+	}
+	if !sameStatusIdentity(invalidBefore, invalidAfter) {
+		return fail("state preserved after invalid request", "active target identity changed")
 	}
 	record("state preserved after invalid request", true, "active target state remained queryable")
 
@@ -386,12 +450,13 @@ func (r POC2Runner) waitReady(ctx context.Context, record func(string, bool, str
 func (r POC2Runner) waitStatus(ctx context.Context, record func(string, bool, string)) (bool, error) {
 	deadline := r.Now().Add(10 * time.Second)
 	for {
-		if _, err := r.Service.Status(ctx); err == nil {
-			record("agent restart reconciliation", true, "status available after restart")
+		status, err := r.Service.Status(ctx)
+		if err == nil && status.State == protocol.StateIdle && status.GameID == nil && status.System == nil {
+			record("agent restart reconciliation", true, "idle status reconciled after restart")
 			return true, nil
 		}
 		if !r.Now().Before(deadline) {
-			record("agent restart reconciliation", false, "status unavailable after restart")
+			record("agent restart reconciliation", false, "idle status was not reconciled after restart")
 			return false, nil
 		}
 		if err := r.Sleep(ctx, 250*time.Millisecond); err != nil {

@@ -33,5 +33,6 @@ bin/fogcast-hil --config /path/to/local/fogcast.toml \
 ```
 
 No target address, bearer token, NAS path, ROM bytes, or game filename belongs
-in this repository. Keep the generated report at the ignored default
+in this repository. Use distinct operator-supplied ZIP catalog IDs for the
+uncached and interrupted fixtures. Keep the generated report at the ignored default
 `artifacts/hil/poc2.json` and review it locally only.
