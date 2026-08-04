@@ -120,6 +120,11 @@ func (r POC2Runner) Run(ctx context.Context) (Report, error) {
 		return fail("manifest contains requested games", "requested game IDs were not found for their systems")
 	}
 	record("manifest contains requested games", true, "requested Mega Drive and SNES games found")
+	if !distinctFixtureIDs(r.SonicID, r.MarioID, r.UncachedID, r.InterruptedID) ||
+		!containsAvailableFixture(games, r.UncachedID) || !containsAvailableFixture(games, r.InterruptedID) {
+		return fail("manifest contains requested fixtures", "uncached and interrupted IDs must be distinct online ZIP fixtures")
+	}
+	record("manifest contains requested fixtures", true, "uncached and interrupted ZIP fixtures found")
 
 	ready, err := r.waitReady(ctx, record)
 	if err != nil {
@@ -221,7 +226,7 @@ func (r POC2Runner) Run(ctx context.Context) (Report, error) {
 	interruptCtx, cancelInterrupt := context.WithCancel(ctx)
 	var interruptOnce sync.Once
 	_, interruptedErr := r.Service.Launch(interruptCtx, r.InterruptedID, func(progress fogcast.Progress) {
-		if progress.Stage == "upload" {
+		if progress.Stage == "upload-started" {
 			uploadStarted = true
 			interruptOnce.Do(func() {
 				interruptAttempted = true
@@ -505,6 +510,27 @@ func containsAvailableGame(games []catalog.Game, id string, system protocol.Syst
 		}
 	}
 	return false
+}
+
+func containsAvailableFixture(games []catalog.Game, id string) bool {
+	for _, game := range games {
+		if game.ID == id && game.RootOnline && game.State == catalog.SourceStateAvailable && game.Kind == catalog.SourceKindZIP && (game.System == protocol.SystemMegaDrive || game.System == protocol.SystemSNES) {
+			return true
+		}
+	}
+	return false
+}
+
+func distinctFixtureIDs(sonicID, marioID, uncachedID, interruptedID string) bool {
+	ids := []string{sonicID, marioID, uncachedID, interruptedID}
+	for index, id := range ids {
+		for _, other := range ids[index+1:] {
+			if id == other {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func sameStatusIdentity(left, right protocol.Status) bool {

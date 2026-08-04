@@ -334,7 +334,10 @@ func (s *Service) uploadPrepared(parent context.Context, system protocol.System,
 	emitProgress(progress, "upload", "uploading prepared content")
 	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
 	defer cancel()
-	response, err := s.client.UploadContent(ctx, system, prepared.Content, file)
+	body := &progressReader{Reader: file, onFirstRead: func() {
+		emitProgress(progress, "upload-started", "upload body read")
+	}}
+	response, err := s.client.UploadContent(ctx, system, prepared.Content, body)
 	if err != nil {
 		return canonicalRemoteError(err, protocol.CodeTransferFailed)
 	}
@@ -406,6 +409,17 @@ func emitProgress(progress ProgressFunc, stage, message string) {
 	if progress != nil {
 		progress(Progress{Stage: stage, Message: message})
 	}
+}
+
+type progressReader struct {
+	io.Reader
+	onFirstRead func()
+	once        sync.Once
+}
+
+func (r *progressReader) Read(p []byte) (int, error) {
+	r.once.Do(r.onFirstRead)
+	return r.Reader.Read(p)
 }
 
 func canonicalRemoteError(err error, fallback protocol.ErrorCode) error {

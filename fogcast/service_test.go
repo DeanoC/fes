@@ -241,7 +241,7 @@ func TestServiceLaunchFirstTransferUsesApprovedOrderAndCleansStaging(t *testing.
 	if want := []string{"prepare", "catalog", "probe", "upload", "launch"}; !reflect.DeepEqual(operations, want) {
 		t.Fatalf("operations = %v, want %v", operations, want)
 	}
-	assertProgressStages(t, progress, []string{"prepare", "cache", "cache", "upload", "launch"})
+	assertProgressStages(t, progress, []string{"prepare", "cache", "cache", "upload", "upload-started", "launch"})
 	assertPreparedRemoved(t, prepared)
 }
 

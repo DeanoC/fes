@@ -53,6 +53,10 @@ func (s *poc2FakeService) Launch(ctx context.Context, gameID string, progress fo
 	if gameID == "interrupted-test" && s.uploadEntered != nil {
 		s.events = append(s.events, "upload request entered")
 		close(s.uploadEntered)
+		if progress != nil {
+			s.events = append(s.events, "upload-started")
+			progress(fogcast.Progress{Stage: "upload-started", Message: "upload body read"})
+		}
 		<-ctx.Done()
 		return protocol.CachedLaunchResponse{}, &protocol.APIError{Code: protocol.CodeTransferFailed, Message: "upload interrupted"}
 	}
@@ -123,6 +127,16 @@ func (s *poc2FakeSabotage) InterruptUpload(context.Context) (bool, error) {
 
 type poc2FakePrompter struct{ events []string }
 
+func poc2FixtureGames() []catalog.Game {
+	return []catalog.Game{
+		{ID: "sonic-test", System: protocol.SystemMegaDrive, Kind: catalog.SourceKindZIP, State: catalog.SourceStateAvailable, RootOnline: true},
+		{ID: "mario-test", System: protocol.SystemSNES, Kind: catalog.SourceKindZIP, State: catalog.SourceStateAvailable, RootOnline: true},
+		{ID: "uncached-test", System: protocol.SystemMegaDrive, Kind: catalog.SourceKindZIP, State: catalog.SourceStateAvailable, RootOnline: true},
+		{ID: "interrupted-test", System: protocol.SystemSNES, Kind: catalog.SourceKindZIP, State: catalog.SourceStateAvailable, RootOnline: true},
+		{ID: "wrong-uncached-error", System: protocol.SystemMegaDrive, Kind: catalog.SourceKindZIP, State: catalog.SourceStateAvailable, RootOnline: true},
+	}
+}
+
 func (p *poc2FakePrompter) Confirm(message string) (bool, error) {
 	p.events = append(p.events, message)
 	return true, nil
@@ -135,10 +149,7 @@ func TestPOC2RunnerFollowsSafeAcceptanceOrder(t *testing.T) {
 		ready:         true,
 		uploadEntered: make(chan struct{}),
 		scan:          catalog.ScanReport{Roots: []catalog.RootReport{{RootID: "mega-root", System: protocol.SystemMegaDrive}, {RootID: "snes-root", System: protocol.SystemSNES}}},
-		games: []catalog.Game{
-			{ID: "sonic-test", System: protocol.SystemMegaDrive, Kind: catalog.SourceKindZIP, State: catalog.SourceStateAvailable, RootOnline: true},
-			{ID: "mario-test", System: protocol.SystemSNES, Kind: catalog.SourceKindZIP, State: catalog.SourceStateAvailable, RootOnline: true},
-		},
+		games:         poc2FixtureGames(),
 	}
 	sabotage := &poc2FakeSabotage{interrupt: true, service: service}
 	prompt := &poc2FakePrompter{}
@@ -197,10 +208,7 @@ func TestPOC2RunnerStopsAfterFailedCheck(t *testing.T) {
 
 func TestPOC2RunnerStopsWhenTargetNeverBecomesReady(t *testing.T) {
 	now := time.Date(2026, 8, 4, 0, 0, 0, 0, time.UTC)
-	service := &poc2FakeService{cache: map[string]bool{}, scan: catalog.ScanReport{Roots: []catalog.RootReport{{RootID: "mega-root", System: protocol.SystemMegaDrive}, {RootID: "snes-root", System: protocol.SystemSNES}}}, games: []catalog.Game{
-		{ID: "sonic-test", System: protocol.SystemMegaDrive, Kind: catalog.SourceKindZIP, State: catalog.SourceStateAvailable, RootOnline: true},
-		{ID: "mario-test", System: protocol.SystemSNES, Kind: catalog.SourceKindZIP, State: catalog.SourceStateAvailable, RootOnline: true},
-	}}
+	service := &poc2FakeService{cache: map[string]bool{}, scan: catalog.ScanReport{Roots: []catalog.RootReport{{RootID: "mega-root", System: protocol.SystemMegaDrive}, {RootID: "snes-root", System: protocol.SystemSNES}}}, games: poc2FixtureGames()}
 	runner := hil.POC2Runner{
 		Service: service, Prompt: &poc2FakePrompter{}, Sabotage: &poc2FakeSabotage{}, SonicID: "sonic-test", MarioID: "mario-test", UncachedID: "uncached-test", InterruptedID: "interrupted-test",
 		Now: func() time.Time { return now }, Sleep: func(_ context.Context, d time.Duration) error { now = now.Add(d); return nil },
@@ -235,14 +243,30 @@ func TestPOC2RunnerRequiresExplicitUncachedAndInterruptedIDs(t *testing.T) {
 	}
 }
 
+func TestPOC2RunnerRejectsDuplicateFixtureIDs(t *testing.T) {
+	service := &poc2FakeService{
+		cache: map[string]bool{}, ready: true,
+		scan:  catalog.ScanReport{Roots: []catalog.RootReport{{RootID: "mega-root", System: protocol.SystemMegaDrive}, {RootID: "snes-root", System: protocol.SystemSNES}}},
+		games: poc2FixtureGames(),
+	}
+	runner := hil.POC2Runner{Service: service, Prompt: &poc2FakePrompter{}, Sabotage: &poc2FakeSabotage{}, SonicID: "sonic-test", MarioID: "mario-test", UncachedID: "sonic-test", InterruptedID: "interrupted-test"}
+	report, err := runner.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Passed {
+		t.Fatal("runner accepted duplicate fixture IDs")
+	}
+	if slices.Contains(service.events, "health") {
+		t.Fatalf("health proceeded after duplicate fixture rejection: %v", service.events)
+	}
+}
+
 func TestPOC2RunnerRejectsWrongUncachedErrorAndPreservesStatus(t *testing.T) {
 	service := &poc2FakeService{
 		cache: map[string]bool{}, ready: true, wrongUncachedError: true,
-		scan: catalog.ScanReport{Roots: []catalog.RootReport{{RootID: "mega-root", System: protocol.SystemMegaDrive}, {RootID: "snes-root", System: protocol.SystemSNES}}},
-		games: []catalog.Game{
-			{ID: "sonic-test", System: protocol.SystemMegaDrive, Kind: catalog.SourceKindZIP, State: catalog.SourceStateAvailable, RootOnline: true},
-			{ID: "mario-test", System: protocol.SystemSNES, Kind: catalog.SourceKindZIP, State: catalog.SourceStateAvailable, RootOnline: true},
-		},
+		scan:  catalog.ScanReport{Roots: []catalog.RootReport{{RootID: "mega-root", System: protocol.SystemMegaDrive}, {RootID: "snes-root", System: protocol.SystemSNES}}},
+		games: poc2FixtureGames(),
 	}
 	runner := hil.POC2Runner{Service: service, Prompt: &poc2FakePrompter{}, Sabotage: &poc2FakeSabotage{service: service}, SonicID: "sonic-test", MarioID: "mario-test", UncachedID: "wrong-uncached-error", InterruptedID: "interrupted-test"}
 	report, err := runner.Run(context.Background())
@@ -262,11 +286,8 @@ func TestPOC2RunnerRejectsWrongUncachedErrorAndPreservesStatus(t *testing.T) {
 func TestPOC2RunnerRequiresOnlineAvailableScanRoots(t *testing.T) {
 	service := &poc2FakeService{
 		cache: map[string]bool{}, ready: true,
-		scan: catalog.ScanReport{Roots: []catalog.RootReport{{RootID: "mega-root", System: protocol.SystemMegaDrive, Offline: true}, {RootID: "snes-root", System: protocol.SystemSNES}}},
-		games: []catalog.Game{
-			{ID: "sonic-test", System: protocol.SystemMegaDrive, Kind: catalog.SourceKindZIP, State: catalog.SourceStateAvailable, RootOnline: true},
-			{ID: "mario-test", System: protocol.SystemSNES, Kind: catalog.SourceKindZIP, State: catalog.SourceStateAvailable, RootOnline: true},
-		},
+		scan:  catalog.ScanReport{Roots: []catalog.RootReport{{RootID: "mega-root", System: protocol.SystemMegaDrive, Offline: true}, {RootID: "snes-root", System: protocol.SystemSNES}}},
+		games: poc2FixtureGames(),
 	}
 	runner := hil.POC2Runner{Service: service, Prompt: &poc2FakePrompter{}, Sabotage: &poc2FakeSabotage{}, SonicID: "sonic-test", MarioID: "mario-test", UncachedID: "uncached-test", InterruptedID: "interrupted-test"}
 	report, err := runner.Run(context.Background())
@@ -308,10 +329,7 @@ func TestPOC2RunnerInterruptsOnlyAfterUploadStarts(t *testing.T) {
 		cache: map[string]bool{}, ready: true,
 		uploadEntered: make(chan struct{}),
 		scan:          catalog.ScanReport{Roots: []catalog.RootReport{{RootID: "mega-root", System: protocol.SystemMegaDrive}, {RootID: "snes-root", System: protocol.SystemSNES}}},
-		games: []catalog.Game{
-			{ID: "sonic-test", System: protocol.SystemMegaDrive, Kind: catalog.SourceKindZIP, State: catalog.SourceStateAvailable, RootOnline: true},
-			{ID: "mario-test", System: protocol.SystemSNES, Kind: catalog.SourceKindZIP, State: catalog.SourceStateAvailable, RootOnline: true},
-		},
+		games:         poc2FixtureGames(),
 	}
 	sabotage := &poc2FakeSabotage{service: service, interrupt: true}
 	runner := hil.POC2Runner{Service: service, Prompt: &poc2FakePrompter{}, Sabotage: sabotage, SonicID: "sonic-test", MarioID: "mario-test", UncachedID: "uncached-test", InterruptedID: "interrupted-test"}
@@ -324,11 +342,12 @@ func TestPOC2RunnerInterruptsOnlyAfterUploadStarts(t *testing.T) {
 	}
 	start := slices.Index(service.events, "launch:interrupted-test")
 	entered := slices.Index(service.events, "upload request entered")
+	bodyStarted := slices.Index(service.events, "upload-started")
 	interrupt := slices.Index(service.events, "upload interruption")
-	if start < 0 || entered < 0 || interrupt < 0 {
+	if start < 0 || entered < 0 || bodyStarted < 0 || interrupt < 0 {
 		t.Fatalf("interruption order = %v", service.events)
 	}
-	if entered <= start || interrupt <= entered {
+	if entered <= start || bodyStarted <= entered || interrupt <= bodyStarted {
 		t.Fatalf("interruption happened before upload started: %v", service.events)
 	}
 }
