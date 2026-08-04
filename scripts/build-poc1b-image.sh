@@ -5,7 +5,7 @@ repo=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 epoch=1751459412
 
 usage() {
-  printf 'usage: build-poc1b-image.sh prod|dev|--promote-existing VARIANT|--fetch VARIANT|--inside VARIANT OUTPUT EPOCH EXPORT|--inside-fetch VARIANT OUTPUT EPOCH|--validate-inside-path VARIANT OUTPUT EXPORT\n' >&2
+  printf 'usage: build-poc1b-image.sh prod|dev|--fast-dev|--promote-existing VARIANT|--fetch VARIANT|--inside VARIANT OUTPUT EPOCH EXPORT|--inside-fast-dev OUTPUT EPOCH EXPORT|--inside-fetch VARIANT OUTPUT EPOCH|--validate-inside-path VARIANT OUTPUT EXPORT\n' >&2
   exit 2
 }
 
@@ -98,6 +98,48 @@ inside_build() {
   /bin/cp "$inside_output/images/rootfs.ext4" "$inside_export"
 }
 
+inside_fast_dev_build() {
+  inside_output=$1
+  inside_epoch=$2
+  inside_export=$3
+  test "$inside_output" = /poc1b-output/dev-work-dev || {
+    printf 'build-poc1b-image: unsafe fast-development output path: %s\n' "$inside_output" >&2
+    exit 2
+  }
+  test "$inside_export" = /work/build/output/poc1b/dev/linux.img || {
+    printf 'build-poc1b-image: unsafe fast-development export path: %s\n' "$inside_export" >&2
+    exit 2
+  }
+  test "$inside_epoch" = "$epoch"
+  test "$(/usr/bin/id -u)" -ne 0 || {
+    printf '%s\n' 'build-poc1b-image: refusing to run Buildroot as root' >&2
+    exit 1
+  }
+
+  /work/scripts/verify-poc1b-source-cache.sh \
+    /work/build/sources.poc1b.lock.toml \
+    /work/build/cache/poc1b
+  /work/bin/poc1b-lock-linux-amd64 verify-inputs \
+    --lock /work/build/sources.poc1b.lock.toml \
+    --cache /work/build/cache/poc1b
+
+  export SOURCE_DATE_EPOCH=$inside_epoch
+  export E2FSPROGS_FAKE_TIME=$inside_epoch
+  make -C /work/build/cache/poc1b/buildroot \
+    O="$inside_output" \
+    BR2_EXTERNAL=/work/buildroot \
+    BR2_DL_DIR=/work/build/cache/poc1b/dl \
+    mister_remote_poc1b_dev_defconfig
+  make -C /work/build/cache/poc1b/buildroot \
+    O="$inside_output" \
+    BR2_EXTERNAL=/work/buildroot \
+    BR2_DL_DIR=/work/build/cache/poc1b/dl
+  test -f "$inside_output/images/rootfs.ext4"
+  /bin/mkdir -p "$(dirname "$inside_export")"
+  /bin/cp "$inside_output/images/rootfs.ext4" "$inside_export.new.$$"
+  /bin/mv "$inside_export.new.$$" "$inside_export"
+}
+
 promote_existing=0
 case "${1:-}" in
   --validate-inside-path)
@@ -114,6 +156,11 @@ case "${1:-}" in
     inside_build "$2" "$3" "$4" build "$5"
     exit
     ;;
+  --inside-fast-dev)
+    [ "$#" -eq 4 ] || usage
+    inside_fast_dev_build "$2" "$3" "$4"
+    exit
+    ;;
   --inside-fetch)
     [ "$#" -eq 4 ] || usage
     inside_build "$2" "$3" "$4" fetch
@@ -126,6 +173,38 @@ case "${1:-}" in
     output=/poc1b-output/fetch-$variant
     exec "$repo/scripts/poc1b-container.sh" fetch \
       /work/scripts/build-poc1b-image.sh --inside-fetch "$variant" "$output" "$epoch"
+    ;;
+  --fast-dev)
+    [ "$#" -eq 1 ] || usage
+    output_root=${POC1B_OUTPUT_ROOT:-$repo/build/output/poc1b}
+    if [ "${POC1B_TEST_MODE:-0}" != 1 ]; then
+      test "$output_root" = "$repo/build/output/poc1b" || {
+        printf '%s\n' 'build-poc1b-image: output override requires POC1B_TEST_MODE=1' >&2
+        exit 2
+      }
+    fi
+    case "$output_root" in
+      /*) : ;;
+      *)
+        printf '%s\n' 'build-poc1b-image: output root must be absolute' >&2
+        exit 2
+        ;;
+    esac
+    /bin/mkdir -p "$output_root"
+    if [ -n "${POC1B_BUILD_ONCE:-}" ]; then
+      "$POC1B_BUILD_ONCE" dev "$output_root/dev-work-dev" "$epoch"
+      /bin/mkdir -p "$output_root/dev"
+      /bin/cp "$output_root/dev-work-dev/images/rootfs.ext4" "$output_root/dev/linux.img.new.$$"
+      /bin/mv "$output_root/dev/linux.img.new.$$" "$output_root/dev/linux.img"
+    else
+      exec "$repo/scripts/poc1b-container.sh" run \
+        /work/scripts/build-poc1b-image.sh --inside-fast-dev \
+        /poc1b-output/dev-work-dev "$epoch" \
+        /work/build/output/poc1b/dev/linux.img
+    fi
+    printf 'POC 1B fast development image: %s\n' \
+      "$(/usr/bin/shasum -a 256 "$output_root/dev/linux.img" | /usr/bin/awk '{print $1}')"
+    exit
     ;;
   prod|dev)
     [ "$#" -eq 1 ] || usage

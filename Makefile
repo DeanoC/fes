@@ -7,7 +7,7 @@ FOGCAST_GOOS ?= darwin
 FOGCAST_GOARCH ?= arm64
 FOGCAST_OUTPUT ?= bin/fogcast
 
-.PHONY: fmt test vet check build build-fogcast build-cli build-hil build-fogcast-hil build-agent build-lock build-lock-container build-poc2-lock package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-verify-images poc1b-qemu-smoke poc1b-kernel-test poc1b-kernel poc1b-verify-kernel poc1b-deploy-test poc2-rootfs-test poc2-deploy-test
+.PHONY: fmt test vet check build build-fogcast build-cli build-hil build-fogcast-hil build-agent build-lock build-lock-container build-poc2-lock package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-dev-image poc1b-verify-images poc1b-qemu-smoke poc1b-kernel-test poc1b-kernel poc1b-verify-kernel poc1b-deploy-test poc2-rootfs-test poc2-deploy-test
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
@@ -21,6 +21,8 @@ test:
 	sh scripts/tests/poc1b-rootfs_test.sh
 	sh scripts/tests/poc2-rootfs_test.sh
 	sh scripts/tests/poc1b-image_test.sh
+	sh scripts/tests/poc1b-dev_test.sh
+	sh scripts/tests/poc1b-dev-container_test.sh
 	sh scripts/tests/poc1b-kernel_test.sh
 	sh scripts/tests/install-poc1b-target_test.sh
 	sh scripts/tests/install-poc2-target_test.sh
@@ -83,6 +85,11 @@ poc1b-image-fetch: build-agent
 poc1b-images: build-agent poc1b-image-fetch
 	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-poc1b-image.sh prod
 	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-poc1b-image.sh dev
+
+# Fast development path: only the dev root, one persistent Buildroot output,
+# and no reproducibility comparison. Use poc1b-images for release evidence.
+poc1b-dev-image: build-agent
+	POC1B_DEV_CONTAINER=1 POC1B_OUTPUT_VOLUME=mister-remote-poc1b-dev-output POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-poc1b-image.sh --fast-dev
 
 poc1b-verify-images:
 	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-poc1b-image.sh prod build/output/poc1b/prod/linux.img build/output/poc1b/prod/manifest.tsv build/output/poc1b/prod/library-report.tsv
