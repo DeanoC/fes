@@ -12,11 +12,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/DeanoC/FogCast-POC/fogcast"
 	"github.com/DeanoC/FogCast-POC/internal/hil"
@@ -47,11 +49,16 @@ func run(ctx context.Context, args []string, input io.Reader, output, stderr io.
 	marioID := flags.String("mario-id", "", "explicit SNES game ID")
 	uncachedID := flags.String("uncached-id", "", "explicit uncached fixture game ID (required)")
 	interruptedID := flags.String("interrupted-id", "", "explicit upload-interruption fixture game ID (required)")
+	uploadThrottleMS := flags.Int("upload-throttle-ms", 0, "delay each upload body read by this many milliseconds")
 	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
 		return 2
 	}
 	if strings.TrimSpace(*sonicID) == "" || strings.TrimSpace(*marioID) == "" || strings.TrimSpace(*uncachedID) == "" || strings.TrimSpace(*interruptedID) == "" {
 		fmt.Fprintln(stderr, "fogcast-hil: --sonic-id, --mario-id, --uncached-id, and --interrupted-id are required; source names and paths are never embedded")
+		return 2
+	}
+	if *uploadThrottleMS < 0 {
+		fmt.Fprintln(stderr, "fogcast-hil: --upload-throttle-ms must not be negative")
 		return 2
 	}
 	service, err := fogcast.Open(ctx, fogcast.Paths{Config: *configPath, Index: defaults.Index, Staging: defaults.Staging}, nil)
@@ -60,11 +67,23 @@ func run(ctx context.Context, args []string, input io.Reader, output, stderr io.
 		return 1
 	}
 	defer service.Close()
+	service.SetUploadReadDelay(time.Duration(*uploadThrottleMS) * time.Millisecond)
+	debugLog := log.New(stderr, "fogcast-hil: ", log.LstdFlags)
+	service.SetDebug(func(message string) {
+		if os.Getenv("FOGCAST_DEBUG") == "1" {
+			debugLog.Println(message)
+		}
+	})
 	prompt := newTerminalPrompter(input, output)
 	runner := hil.POC2Runner{
 		Service: service, Prompt: prompt,
 		Sabotage: terminalSabotage{prompt: prompt},
-		SonicID:  *sonicID, MarioID: *marioID,
+		Debug: func(message string) {
+			if os.Getenv("FOGCAST_DEBUG") == "1" {
+				debugLog.Println(message)
+			}
+		},
+		SonicID: *sonicID, MarioID: *marioID,
 		UncachedID: *uncachedID, InterruptedID: *interruptedID,
 	}
 	report, runErr := runner.Run(ctx)
@@ -104,6 +123,23 @@ func (p *terminalPrompter) Confirm(message string) (bool, error) {
 		return false, io.EOF
 	}
 	answer := strings.ToLower(strings.TrimSpace(p.scanner.Text()))
+	return answer == "y" || answer == "yes", nil
+}
+
+func (p *terminalPrompter) ConfirmGate(id, message string) (bool, error) {
+	if _, err := fmt.Fprintf(p.output, "GATE %s: %s [y/N]: ", id, message); err != nil {
+		return false, err
+	}
+	if !p.scanner.Scan() {
+		if err := p.scanner.Err(); err != nil {
+			return false, err
+		}
+		return false, io.EOF
+	}
+	answer := strings.ToLower(strings.TrimSpace(p.scanner.Text()))
+	if answer != "y" && answer != "yes" && answer != "n" && answer != "no" {
+		return false, fmt.Errorf("gate %s requires y, yes, n, or no", id)
+	}
 	return answer == "y" || answer == "yes", nil
 }
 

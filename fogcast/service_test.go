@@ -775,6 +775,18 @@ func TestServiceLaunchHonorsCancellationBeforeCatalogAccess(t *testing.T) {
 	}
 }
 
+func TestThrottledReaderDelaysReads(t *testing.T) {
+	reader := &throttledReader{Reader: strings.NewReader("x"), delay: 20 * time.Millisecond}
+	started := time.Now()
+	buf := make([]byte, 1)
+	if _, err := reader.Read(buf); err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := time.Since(started); elapsed < 15*time.Millisecond {
+		t.Fatalf("read completed too quickly: %s", elapsed)
+	}
+}
+
 func TestServiceLaunchAppliesRequestAndUploadTimeoutsSeparately(t *testing.T) {
 	t.Run("probe uses request timeout", func(t *testing.T) {
 		content := catalog.Content{SHA256: serviceDigest, Size: 3, Extension: "sfc"}

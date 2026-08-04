@@ -7,6 +7,7 @@ type Spec struct {
 	ExpectedCore string
 	RBFSelector  string
 	ROMRoot      string
+	MGLRoot      string
 	Extensions   map[string]struct{}
 	FileDelay    int
 	FileType     string
@@ -16,12 +17,12 @@ type Spec struct {
 var defaults = []Spec{
 	{
 		System: protocol.SystemMegaDrive, ExpectedCore: "MegaDrive", RBFSelector: "_Console/MegaDrive",
-		ROMRoot: "/media/fat/games/MegaDrive", Extensions: extensionSet(".md", ".gen", ".bin"),
+		ROMRoot: "/media/fat/games/MegaDrive", MGLRoot: "/media/fat/games/MegaDrive", Extensions: extensionSet(".md", ".gen", ".bin"),
 		FileDelay: 1, FileType: "f", FileIndex: 1,
 	},
 	{
 		System: protocol.SystemSNES, ExpectedCore: "SNES", RBFSelector: "_Console/SNES",
-		ROMRoot: "/media/fat/games/SNES", Extensions: extensionSet(".sfc", ".smc", ".bin"),
+		ROMRoot: "/media/fat/games/SNES", MGLRoot: "/media/fat/games/SNES", Extensions: extensionSet(".sfc", ".smc", ".bin"),
 		FileDelay: 2, FileType: "f", FileIndex: 0,
 	},
 }

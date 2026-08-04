@@ -40,6 +40,10 @@ type serviceScanner interface {
 	Scan(context.Context, []catalog.Root) (catalog.ScanReport, error)
 }
 
+type debugServiceScanner interface {
+	SetDebug(func(string))
+}
+
 type servicePreparer interface {
 	Prepare(context.Context, catalog.Root, catalog.Game) (*romsource.Prepared, error)
 }
@@ -54,16 +58,17 @@ type serviceClient interface {
 }
 
 type Service struct {
-	catalog        serviceCatalog
-	scanner        serviceScanner
-	preparer       servicePreparer
-	client         serviceClient
-	roots          []catalog.Root
-	rootsByID      map[string]catalog.Root
-	requestTimeout time.Duration
-	uploadTimeout  time.Duration
-	closeOnce      sync.Once
-	closeErr       error
+	catalog         serviceCatalog
+	scanner         serviceScanner
+	preparer        servicePreparer
+	client          serviceClient
+	roots           []catalog.Root
+	rootsByID       map[string]catalog.Root
+	requestTimeout  time.Duration
+	uploadTimeout   time.Duration
+	uploadReadDelay time.Duration
+	closeOnce       sync.Once
+	closeErr        error
 }
 
 func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, error) {
@@ -121,6 +126,21 @@ func newService(config Config, _ Paths, store serviceCatalog, scanner serviceSca
 		roots: roots, rootsByID: rootsByID,
 		requestTimeout: config.RequestTimeout, uploadTimeout: config.UploadTimeout,
 	}
+}
+
+func (s *Service) SetDebug(debug func(string)) {
+	if scanner, ok := s.scanner.(debugServiceScanner); ok {
+		scanner.SetDebug(debug)
+	}
+}
+
+// SetUploadReadDelay adds a delay before each upload body read for deterministic
+// operator-assisted interruption testing.
+func (s *Service) SetUploadReadDelay(delay time.Duration) {
+	if delay < 0 {
+		delay = 0
+	}
+	s.uploadReadDelay = delay
 }
 
 func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFunc) (protocol.CachedLaunchResponse, error) {
@@ -325,7 +345,11 @@ func (s *Service) uploadPrepared(parent context.Context, system protocol.System,
 	if err != nil {
 		return canonicalError(protocol.CodeTransferFailed, nil)
 	}
-	body := &progressReader{Reader: file, onFirstRead: func() {
+	var uploadBody io.Reader = file
+	if s.uploadReadDelay > 0 {
+		uploadBody = &throttledReader{Reader: file, delay: s.uploadReadDelay}
+	}
+	body := &progressReader{Reader: uploadBody, onFirstRead: func() {
 		emitProgress(progress, "upload-started", "upload body read")
 	}}
 	defer func() {
@@ -409,6 +433,26 @@ func emitProgress(progress ProgressFunc, stage, message string) {
 	if progress != nil {
 		progress(Progress{Stage: stage, Message: message})
 	}
+}
+
+type throttledReader struct {
+	io.Reader
+	delay time.Duration
+}
+
+func (r *throttledReader) Read(p []byte) (int, error) {
+	if r.delay > 0 {
+		time.Sleep(r.delay)
+	}
+	return r.Reader.Read(p)
+}
+
+func (r *throttledReader) Close() error {
+	closer, ok := r.Reader.(io.Closer)
+	if !ok {
+		return nil
+	}
+	return closer.Close()
 }
 
 type progressReader struct {

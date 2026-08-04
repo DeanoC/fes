@@ -46,6 +46,30 @@ func TestCLIRequiresExplicitUncachedFixtureID(t *testing.T) {
 	}
 }
 
+func TestTerminalPrompterEmitsGateIDAndRejectsInvalidResponse(t *testing.T) {
+	var out bytes.Buffer
+	prompt := newTerminalPrompter(strings.NewReader("maybe\n"), &out)
+	if _, err := prompt.ConfirmGate("sonic-hdmi-video", "Confirm Sonic HDMI video"); err == nil {
+		t.Fatal("invalid gate response accepted")
+	}
+	if !strings.Contains(out.String(), "GATE sonic-hdmi-video: Confirm Sonic HDMI video") {
+		t.Fatalf("gate prompt = %q", out.String())
+	}
+}
+
+func TestTerminalPrompterBindsResponseToNamedGate(t *testing.T) {
+	var out bytes.Buffer
+	prompt := newTerminalPrompter(strings.NewReader("yes\nno\n"), &out)
+	confirmed, err := prompt.ConfirmGate("first", "First gate")
+	if err != nil || !confirmed {
+		t.Fatalf("first gate = %v, %v", confirmed, err)
+	}
+	confirmed, err = prompt.ConfirmGate("second", "Second gate")
+	if err != nil || confirmed {
+		t.Fatalf("second gate = %v, %v", confirmed, err)
+	}
+}
+
 func TestWritePOC2ReportIsPrivateAndRefusesSymlink(t *testing.T) {
 	dir := t.TempDir()
 	report := hil.Report{StartedAt: time.Unix(1, 0).UTC(), FinishedAt: time.Unix(2, 0).UTC(), Checks: []hil.Check{{Name: "scan", Passed: true, Detail: "ok"}}, Passed: true}

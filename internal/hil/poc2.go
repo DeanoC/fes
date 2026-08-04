@@ -51,6 +51,7 @@ type POC2Runner struct {
 	Service  POC2Service
 	Prompt   Prompter
 	Sabotage POC2Sabotage
+	Debug    func(string)
 	Now      func() time.Time
 	Sleep    func(context.Context, time.Duration) error
 
@@ -58,6 +59,10 @@ type POC2Runner struct {
 	MarioID       string
 	UncachedID    string
 	InterruptedID string
+}
+
+func gateIDFor(message string) string {
+	return strings.ToLower(strings.ReplaceAll(strings.TrimSpace(message), " ", "-"))
 }
 
 func (r POC2Runner) Run(ctx context.Context) (Report, error) {
@@ -77,6 +82,11 @@ func (r POC2Runner) Run(ctx context.Context) (Report, error) {
 	record := func(name string, passed bool, detail string) {
 		report.Checks = append(report.Checks, Check{Name: name, Passed: passed, Detail: sanitizeDetail(detail)})
 	}
+	debug := func(message string) {
+		if r.Debug != nil {
+			r.Debug(message)
+		}
+	}
 	fail := func(name, detail string) (Report, error) {
 		record(name, false, detail)
 		return finish(nil)
@@ -92,7 +102,7 @@ func (r POC2Runner) Run(ctx context.Context) (Report, error) {
 		return finish(ErrInvalidRunner)
 	}
 
-	ok, err := r.Prompt.Confirm("Confirm the local FogCast index and target cache are empty before acceptance")
+	ok, err := ConfirmGate(r.Prompt, "clean-start", "Confirm the local FogCast index and target cache are empty before acceptance")
 	if err != nil {
 		record("empty local index/cache confirmation", false, "operator prompt failed")
 		return finish(err)
@@ -102,7 +112,9 @@ func (r POC2Runner) Run(ctx context.Context) (Report, error) {
 	}
 	record("empty local index/cache confirmation", true, "operator confirmed clean starting state")
 
+	debug("scan start")
 	scanReport, err := r.Service.Scan(ctx)
+	debug("scan returned")
 	if err != nil {
 		record("scan", false, "library scan failed")
 		return finish(err)
@@ -112,6 +124,7 @@ func (r POC2Runner) Run(ctx context.Context) (Report, error) {
 	}
 	record("scan", true, "library scan completed")
 	games, err := r.Service.Games(ctx)
+	debug("games lookup returned")
 	if err != nil {
 		record("manifest contains requested games", false, "game lookup failed")
 		return finish(err)
@@ -329,7 +342,7 @@ func (r POC2Runner) Run(ctx context.Context) (Report, error) {
 		record("black HDMI after stop", false, "blanking wait interrupted")
 		return finish(err)
 	}
-	black, err := r.Prompt.Confirm("Confirm black HDMI output after stop")
+	black, err := ConfirmGate(r.Prompt, "black-hdmi-after-stop", "Confirm black HDMI output after stop")
 	if err != nil {
 		record("black HDMI after stop", false, "operator prompt failed")
 		return finish(err)
@@ -379,7 +392,7 @@ func (r POC2Runner) Run(ctx context.Context) (Report, error) {
 		"Confirm POC 1 regression suite remains passing",
 		"Confirm artifact audit found no private material",
 	} {
-		confirmed, err := r.Prompt.Confirm(prompt)
+		confirmed, err := ConfirmGate(r.Prompt, "final-"+gateIDFor(prompt), prompt)
 		if err != nil {
 			record(prompt, false, "operator prompt failed")
 			return finish(err)
@@ -405,7 +418,7 @@ func (r POC2Runner) firstLaunch(ctx context.Context, record func(string, bool, s
 		return true
 	}
 	for _, check := range []string{label + " HDMI video", label + " HDMI audio", label + " controller operation", label + " playable screen"} {
-		confirmed, promptErr := r.Prompt.Confirm(check)
+		confirmed, promptErr := ConfirmGate(r.Prompt, gateIDFor(check), check)
 		if promptErr != nil {
 			record(check, false, "operator prompt failed")
 			return true

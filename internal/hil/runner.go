@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DeanoC/FogCast-POC/host"
@@ -20,6 +21,20 @@ type API interface {
 
 type Prompter interface {
 	Confirm(string) (bool, error)
+}
+
+// GatePrompter is an optional structured prompt surface. Implementations must
+// bind the operator response to the supplied ID; callers must not accept a
+// bare response when this interface is available.
+type GatePrompter interface {
+	ConfirmGate(string, string) (bool, error)
+}
+
+func ConfirmGate(prompt Prompter, id, message string) (bool, error) {
+	if structured, ok := prompt.(GatePrompter); ok {
+		return structured.ConfirmGate(id, message)
+	}
+	return prompt.Confirm(message)
 }
 
 type Check struct {
@@ -99,7 +114,7 @@ func (r Runner) Run(ctx context.Context) (Report, error) {
 			}
 			if !prompted[game.System] {
 				for _, checkName := range manualChecks(game.System) {
-					confirmed, err := r.Prompt.Confirm(checkName)
+					confirmed, err := ConfirmGate(r.Prompt, strings.ToLower(strings.ReplaceAll(checkName, " ", "-")), checkName)
 					if err != nil {
 						record(checkName, false, "operator prompt failed")
 						return finish(err)
@@ -134,7 +149,7 @@ func (r Runner) Run(ctx context.Context) (Report, error) {
 	}
 
 	restartPrompt := "Restart mister-agent on the target now. From a development SSH shell, run: killall mister-agent"
-	confirmed, err := r.Prompt.Confirm(restartPrompt)
+	confirmed, err := ConfirmGate(r.Prompt, "restart-mister-agent", restartPrompt)
 	if err != nil {
 		record("restart mister-agent", false, "operator prompt failed")
 		return finish(err)
@@ -171,7 +186,7 @@ func (r Runner) Run(ctx context.Context) (Report, error) {
 		record("black HDMI after stop", false, "Menu blanking wait interrupted")
 		return finish(err)
 	}
-	black, err := r.Prompt.Confirm("Confirm black HDMI output after stop")
+	black, err := ConfirmGate(r.Prompt, "black-hdmi-after-stop", "Confirm black HDMI output after stop")
 	if err != nil {
 		record("black HDMI after stop", false, "operator prompt failed")
 		return finish(err)

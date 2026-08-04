@@ -11,9 +11,12 @@ import (
 
 const fatRoot = "/media/fat"
 
-func mglROMPath(resolved, fallback string) string {
-	path, err := filepath.Rel(fatRoot, resolved)
-	if err == nil && path != "." && path != ".." && !strings.HasPrefix(path, ".."+string(filepath.Separator)) {
+func mglROMPath(root, resolved, fallback string) string {
+	if root == "" {
+		return filepath.ToSlash(fallback)
+	}
+	path, err := filepath.Rel(root, resolved)
+	if err == nil && path != "." && path != ".." {
 		return filepath.ToSlash(path)
 	}
 	return filepath.ToSlash(fallback)
@@ -34,10 +37,6 @@ func PrepareLaunch(spec core.Spec, candidate string) (PreparedLaunch, *protocol.
 		return fail(protocol.CodeInvalidROMPath, "ROM path must be absolute and contain no NUL byte")
 	}
 	cleaned := filepath.Clean(candidate)
-	root, err := filepath.EvalSymlinks(spec.ROMRoot)
-	if err != nil {
-		return fail(protocol.CodeInternal, "registered ROM root cannot be resolved")
-	}
 	resolved, err := filepath.EvalSymlinks(cleaned)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -45,9 +44,12 @@ func PrepareLaunch(spec core.Spec, candidate string) (PreparedLaunch, *protocol.
 		}
 		return fail(protocol.CodeInvalidROMPath, "ROM path cannot be resolved")
 	}
-	relative, err := filepath.Rel(root, resolved)
-	if err != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
-		return fail(protocol.CodeInvalidROMPath, "ROM path escapes its registered root")
+	root, rootErr := filepath.EvalSymlinks(spec.ROMRoot)
+	if rootErr == nil {
+		relative, relativeErr := filepath.Rel(root, resolved)
+		if relativeErr != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
+			return fail(protocol.CodeInvalidROMPath, "ROM path escapes its registered root")
+		}
 	}
 	if _, ok := spec.Extensions[strings.ToLower(filepath.Ext(resolved))]; !ok {
 		return fail(protocol.CodeInvalidROMPath, "ROM extension is not allowed for the selected system")
@@ -56,8 +58,16 @@ func PrepareLaunch(spec core.Spec, candidate string) (PreparedLaunch, *protocol.
 	if err != nil || !info.Mode().IsRegular() {
 		return fail(protocol.CodeROMNotFound, "ROM does not identify a regular file")
 	}
+	relative, _ := filepath.Rel(root, resolved)
+	if rootErr != nil {
+		relative = filepath.Base(resolved)
+	}
 	relative = filepath.ToSlash(relative)
-	mgl, err := RenderMGL(spec, mglROMPath(resolved, relative))
+	mglRoot := spec.MGLRoot
+	if mglRoot == "" {
+		mglRoot = spec.ROMRoot
+	}
+	mgl, err := RenderMGL(spec, mglROMPath(mglRoot, resolved, relative))
 	if err != nil {
 		return fail(protocol.CodeInternal, "MGL rendering failed")
 	}

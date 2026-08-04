@@ -50,6 +50,7 @@ type Scanner struct {
 	Store         *Store
 	Registry      core.Registry
 	MaxZIPEntries int
+	Debug         func(string)
 
 	walkDir  func(fs.FS, string, fs.WalkDirFunc) error
 	lstat    func(string) (fs.FileInfo, error)
@@ -175,6 +176,9 @@ func (s Scanner) Scan(ctx context.Context, roots []Root) (ScanReport, error) {
 
 	report := ScanReport{Roots: make([]RootReport, 0, len(roots))}
 	for _, root := range roots {
+		if s.Debug != nil {
+			s.Debug(fmt.Sprintf("scan root start: %s (%s)", root.ID, root.System))
+		}
 		if err := ctx.Err(); err != nil {
 			return report, err
 		}
@@ -189,6 +193,9 @@ func (s Scanner) Scan(ctx context.Context, roots []Root) (ScanReport, error) {
 				return report, err
 			}
 			report.Roots = append(report.Roots, rootReport)
+			if s.Debug != nil {
+				s.Debug(fmt.Sprintf("scan root offline: %s", root.ID))
+			}
 			continue
 		}
 
@@ -199,8 +206,15 @@ func (s Scanner) Scan(ctx context.Context, roots []Root) (ScanReport, error) {
 			return report, err
 		}
 		report.Roots = append(report.Roots, rootReport)
+		if s.Debug != nil {
+			s.Debug(fmt.Sprintf("scan root complete: %s added=%d updated=%d unchanged=%d invalid=%d missing=%d", root.ID, rootReport.Added, rootReport.Updated, rootReport.Unchanged, rootReport.Invalid, rootReport.Missing))
+		}
 	}
 	return report, nil
+}
+
+func (s *Scanner) SetDebug(debug func(string)) {
+	s.Debug = debug
 }
 
 func openScannerRoot(path string) (*scannerRoot, error) {

@@ -11,11 +11,11 @@ func TestRegistry(t *testing.T) {
 	t.Parallel()
 	registry := core.DefaultRegistry()
 	mega, ok := registry.Lookup(protocol.SystemMegaDrive)
-	if !ok || mega.ExpectedCore != "MegaDrive" || mega.RBFSelector != "_Console/MegaDrive" || mega.FileIndex != 1 || mega.FileDelay != 1 || mega.FileType != "f" {
+	if !ok || mega.ExpectedCore != "MegaDrive" || mega.RBFSelector != "_Console/MegaDrive" || mega.ROMRoot != "/media/fat/games/MegaDrive" || mega.MGLRoot != "/media/fat/games/MegaDrive" || mega.FileIndex != 1 || mega.FileDelay != 1 || mega.FileType != "f" {
 		t.Fatalf("unexpected Mega Drive spec: %#v, ok=%v", mega, ok)
 	}
 	snes, ok := registry.Lookup(protocol.SystemSNES)
-	if !ok || snes.ExpectedCore != "SNES" || snes.RBFSelector != "_Console/SNES" || snes.FileIndex != 0 || snes.FileDelay != 2 || snes.FileType != "f" {
+	if !ok || snes.ExpectedCore != "SNES" || snes.RBFSelector != "_Console/SNES" || snes.ROMRoot != "/media/fat/games/SNES" || snes.MGLRoot != "/media/fat/games/SNES" || snes.FileIndex != 0 || snes.FileDelay != 2 || snes.FileType != "f" {
 		t.Fatalf("unexpected SNES spec: %#v, ok=%v", snes, ok)
 	}
 	if _, ok := registry.Lookup("nes"); ok {
