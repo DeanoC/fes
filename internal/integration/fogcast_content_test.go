@@ -443,7 +443,7 @@ func waitForNoUploadParts(t *testing.T, root string) {
 			return
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("interrupted upload part was not cleaned")
+			t.Fatal("interrupted upload left a .part artifact; this fixture expects no artifact or publication")
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
