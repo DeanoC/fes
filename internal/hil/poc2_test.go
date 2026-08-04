@@ -1,0 +1,215 @@
+package hil_test
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"reflect"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/DeanoC/FogCast-POC/catalog"
+	"github.com/DeanoC/FogCast-POC/fogcast"
+	"github.com/DeanoC/FogCast-POC/internal/hil"
+	"github.com/DeanoC/FogCast-POC/protocol"
+)
+
+type poc2FakeService struct {
+	events     []string
+	games      []catalog.Game
+	cache      map[string]bool
+	offline    bool
+	failUpload bool
+	ready      bool
+}
+
+func (s *poc2FakeService) Scan(context.Context) (catalog.ScanReport, error) {
+	s.events = append(s.events, "scan")
+	return catalog.ScanReport{}, nil
+}
+func (s *poc2FakeService) Games(context.Context) ([]catalog.Game, error) {
+	s.events = append(s.events, "games")
+	return append([]catalog.Game(nil), s.games...), nil
+}
+func (s *poc2FakeService) Launch(_ context.Context, gameID string, progress fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error) {
+	s.events = append(s.events, "launch:"+gameID)
+	if gameID == "invalid-poc2-request" {
+		return protocol.CachedLaunchResponse{}, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "invalid request"}
+	}
+	if s.offline && !s.cache[gameID] {
+		return protocol.CachedLaunchResponse{}, &protocol.APIError{Code: protocol.CodeSourceUnavailable, Message: "source unavailable"}
+	}
+	if s.failUpload {
+		s.failUpload = false
+		if progress != nil {
+			progress(fogcast.Progress{Stage: "upload", Message: "upload interrupted"})
+		}
+		return protocol.CachedLaunchResponse{}, &protocol.APIError{Code: protocol.CodeTransferFailed, Message: "upload interrupted"}
+	}
+	if progress != nil && !s.cache[gameID] {
+		progress(fogcast.Progress{Stage: "upload", Message: "content uploaded"})
+	}
+	s.cache[gameID] = true
+	return protocol.CachedLaunchResponse{Content: protocol.ContentIdentity{SHA256: strings.Repeat("a", 64), Size: 1, Extension: "sfc"}, Status: protocol.Status{State: protocol.StateActive}}, nil
+}
+func (s *poc2FakeService) Health(context.Context) (protocol.Health, error) {
+	s.events = append(s.events, "health")
+	return protocol.Health{Ready: s.ready}, nil
+}
+func (s *poc2FakeService) Status(context.Context) (protocol.Status, error) {
+	s.events = append(s.events, "status")
+	return protocol.Status{State: protocol.StateActive}, nil
+}
+func (s *poc2FakeService) Stop(context.Context) (protocol.Status, error) {
+	s.events = append(s.events, "stop")
+	return protocol.Status{State: protocol.StateIdle}, nil
+}
+
+type poc2FakeSabotage struct {
+	events    []string
+	interrupt bool
+	service   *poc2FakeService
+}
+
+func (s *poc2FakeSabotage) RebootTarget(context.Context) (bool, error) {
+	s.events = append(s.events, "target reboot")
+	return true, nil
+}
+func (s *poc2FakeSabotage) RestartAgent(context.Context) (bool, error) {
+	s.events = append(s.events, "agent restart")
+	return true, nil
+}
+func (s *poc2FakeSabotage) ToggleNAS(context.Context) (bool, error) {
+	s.events = append(s.events, "nas offline")
+	if s.service != nil {
+		s.service.offline = true
+	}
+	return true, nil
+}
+func (s *poc2FakeSabotage) RemountNAS(context.Context) (bool, error) {
+	s.events = append(s.events, "nas online")
+	if s.service != nil {
+		s.service.offline = false
+	}
+	return true, nil
+}
+func (s *poc2FakeSabotage) InterruptUpload(context.Context) (bool, error) {
+	s.events = append(s.events, "upload interruption")
+	if s.service != nil {
+		s.service.failUpload = true
+	}
+	return s.interrupt, nil
+}
+
+type poc2FakePrompter struct{ events []string }
+
+func (p *poc2FakePrompter) Confirm(message string) (bool, error) {
+	p.events = append(p.events, message)
+	return true, nil
+}
+
+func TestPOC2RunnerFollowsSafeAcceptanceOrder(t *testing.T) {
+	now := time.Date(2026, 8, 4, 0, 0, 0, 0, time.UTC)
+	service := &poc2FakeService{
+		cache: map[string]bool{},
+		ready: true,
+		games: []catalog.Game{
+			{ID: "sonic-test", System: protocol.SystemMegaDrive, State: catalog.SourceStateAvailable, RootOnline: true},
+			{ID: "mario-test", System: protocol.SystemSNES, State: catalog.SourceStateAvailable, RootOnline: true},
+		},
+	}
+	sabotage := &poc2FakeSabotage{interrupt: true, service: service}
+	prompt := &poc2FakePrompter{}
+	runner := hil.POC2Runner{
+		Service: service, Prompt: prompt, Sabotage: sabotage,
+		SonicID: "sonic-test", MarioID: "mario-test",
+		UncachedID: "uncached-test",
+		Now:        func() time.Time { return now },
+		Sleep:      func(context.Context, time.Duration) error { return nil },
+	}
+	report, err := runner.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !report.Passed {
+		t.Fatalf("report failed: %#v", report)
+	}
+	wantPrefix := []string{"scan", "games", "health", "launch:sonic-test", "launch:mario-test", "launch:sonic-test", "launch:mario-test"}
+	if len(service.events) < len(wantPrefix) || !reflect.DeepEqual(service.events[:len(wantPrefix)], wantPrefix) {
+		t.Fatalf("service events = %v, want prefix %v", service.events, wantPrefix)
+	}
+	if len(sabotage.events) == 0 {
+		t.Fatal("sabotage actions were not requested")
+	}
+	for _, name := range []string{"first-transfer", "repeat", "reboot", "offline", "interrupted", "artifact audit"} {
+		found := false
+		for _, check := range report.Checks {
+			if strings.Contains(check.Name, name) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("missing check containing %q: %#v", name, report.Checks)
+		}
+	}
+}
+
+func TestPOC2RunnerStopsAfterFailedCheck(t *testing.T) {
+	service := &poc2FakeService{cache: map[string]bool{}, ready: true, games: []catalog.Game{{ID: "sonic-test", System: protocol.SystemMegaDrive}}}
+	prompt := &poc2FakePrompter{}
+	sabotage := &poc2FakeSabotage{}
+	runner := hil.POC2Runner{Service: service, Prompt: prompt, Sabotage: sabotage, SonicID: "sonic-test", MarioID: "mario-test"}
+	report, err := runner.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Passed {
+		t.Fatal("runner passed with missing game")
+	}
+	if len(service.events) > 2 {
+		t.Fatalf("unsafe actions after failed setup: %v", service.events)
+	}
+}
+
+func TestPOC2RunnerStopsWhenTargetNeverBecomesReady(t *testing.T) {
+	now := time.Date(2026, 8, 4, 0, 0, 0, 0, time.UTC)
+	service := &poc2FakeService{cache: map[string]bool{}, games: []catalog.Game{
+		{ID: "sonic-test", System: protocol.SystemMegaDrive},
+		{ID: "mario-test", System: protocol.SystemSNES},
+	}}
+	runner := hil.POC2Runner{
+		Service: service, Prompt: &poc2FakePrompter{}, Sabotage: &poc2FakeSabotage{}, SonicID: "sonic-test", MarioID: "mario-test",
+		Now: func() time.Time { return now }, Sleep: func(_ context.Context, d time.Duration) error { now = now.Add(d); return nil },
+	}
+	report, err := runner.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Passed {
+		t.Fatal("runner passed without target readiness")
+	}
+	for _, event := range service.events {
+		if strings.HasPrefix(event, "launch:") {
+			t.Fatalf("launch occurred after failed health gate: %v", service.events)
+		}
+	}
+}
+
+func TestPOC2RunnerRejectsMissingDependencies(t *testing.T) {
+	_, err := (hil.POC2Runner{}).Run(context.Background())
+	if err == nil || !errors.Is(err, hil.ErrInvalidRunner) {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestPOC2ReportContainsNoOperationalSecrets(t *testing.T) {
+	report := hil.Report{StartedAt: time.Unix(1, 0).UTC(), FinishedAt: time.Unix(2, 0).UTC(), Checks: []hil.Check{{Name: "scan", Passed: true, Detail: "ok"}}, Passed: true}
+	encoded := fmt.Sprintf("%+v", report)
+	for _, forbidden := range []string{"Bearer ", "/Volumes/", "sqlite3", ".sfc", ".smc", ".gen", ".md", ".zip"} {
+		if strings.Contains(encoded, forbidden) {
+			t.Fatalf("report leaked %q: %s", forbidden, encoded)
+		}
+	}
+}
