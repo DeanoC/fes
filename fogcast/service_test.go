@@ -267,8 +267,11 @@ func TestProgressReaderStartsAfterBodyBytesAndForwardsClose(t *testing.T) {
 	if err := reader.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
-	if !reader.Reader.(*scriptedReadCloser).closed {
-		t.Fatal("underlying reader was not closed")
+	if err := reader.Close(); err != nil {
+		t.Fatalf("second Close: %v", err)
+	}
+	if got := reader.Reader.(*scriptedReadCloser).closeCount; got != 1 {
+		t.Fatalf("underlying reader close count = %d, want 1", got)
 	}
 }
 
@@ -278,8 +281,8 @@ type scriptedRead struct {
 }
 
 type scriptedReadCloser struct {
-	reads  []scriptedRead
-	closed bool
+	reads      []scriptedRead
+	closeCount int
 }
 
 func (r *scriptedReadCloser) Read([]byte) (int, error) {
@@ -292,7 +295,7 @@ func (r *scriptedReadCloser) Read([]byte) (int, error) {
 }
 
 func (r *scriptedReadCloser) Close() error {
-	r.closed = true
+	r.closeCount++
 	return nil
 }
 

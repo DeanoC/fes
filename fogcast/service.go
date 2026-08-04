@@ -325,8 +325,11 @@ func (s *Service) uploadPrepared(parent context.Context, system protocol.System,
 	if err != nil {
 		return canonicalError(protocol.CodeTransferFailed, nil)
 	}
+	body := &progressReader{Reader: file, onFirstRead: func() {
+		emitProgress(progress, "upload-started", "upload body read")
+	}}
 	defer func() {
-		if err := file.Close(); err != nil && resultErr == nil {
+		if err := body.Close(); err != nil && resultErr == nil {
 			resultErr = canonicalError(protocol.CodeTransferFailed, nil)
 		}
 	}()
@@ -334,9 +337,6 @@ func (s *Service) uploadPrepared(parent context.Context, system protocol.System,
 	emitProgress(progress, "upload", "uploading prepared content")
 	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
 	defer cancel()
-	body := &progressReader{Reader: file, onFirstRead: func() {
-		emitProgress(progress, "upload-started", "upload body read")
-	}}
 	response, err := s.client.UploadContent(ctx, system, prepared.Content, body)
 	if err != nil {
 		return canonicalRemoteError(err, protocol.CodeTransferFailed)
@@ -415,6 +415,8 @@ type progressReader struct {
 	io.Reader
 	onFirstRead func()
 	once        sync.Once
+	closeOnce   sync.Once
+	closeErr    error
 }
 
 func (r *progressReader) Read(p []byte) (int, error) {
@@ -426,11 +428,13 @@ func (r *progressReader) Read(p []byte) (int, error) {
 }
 
 func (r *progressReader) Close() error {
-	closer, ok := r.Reader.(io.Closer)
-	if !ok {
-		return nil
-	}
-	return closer.Close()
+	r.closeOnce.Do(func() {
+		closer, ok := r.Reader.(io.Closer)
+		if ok {
+			r.closeErr = closer.Close()
+		}
+	})
+	return r.closeErr
 }
 
 func canonicalRemoteError(err error, fallback protocol.ErrorCode) error {
