@@ -5,6 +5,11 @@ the SuperStation One or another production target. Every value that identifies
 the target, source roots, game IDs, or bearer token is supplied locally by the
 operator and must stay out of shell history, reports, and Git.
 
+Current target note: the MiSTer Pi SD card is exFAT. Linux `renameat2` with
+`RENAME_NOREPLACE` is unavailable on that filesystem, so the target agent uses
+an existence-checked ordinary rename fallback for cache publication. Do not
+replace that fallback with an unconditional overwrite.
+
 ## Safety boundary
 
 The POC 2 HIL runner is operator-assisted. `bin/fogcast-hil` never invokes SSH,
@@ -65,6 +70,13 @@ complete provenance chain, keep one POC 1B root backup, and replace only the
 locked development root. They do not alter the kernel, cores, controller map,
 user data, or FogCast cache.
 
+If a full image build is unavailable but the static ARMv7 agent has changed,
+do not copy a host binary into the image. Build with
+`CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7`, verify it with `file`, inject it
+only into a disposable copy of the development image, record the resulting
+image hash, and preserve `linux.img.pre-poc2`. This is a development recovery
+technique, not a substitute for updating the reproducible image lock.
+
 After installation, cold-boot the dedicated Pi manually and wait for health.
 If it does not become ready, stop and use the recovery procedure below.
 
@@ -109,7 +121,7 @@ Never use a broad recursive path, delete the accepted root backup, or reset
 cache state as an automatic HIL action. The HIL runner's empty-state check is a
 human confirmation, not authorization to delete anything.
 
-## 4. Fourteen hardware acceptance gates
+## 4. Hardware acceptance gates
 
 Run the HIL command with explicit local IDs and keep its JSON report ignored:
 
@@ -142,12 +154,17 @@ The runner stops at the first failed check. Confirm these gates in order:
 10. An uncached offline request is rejected and the active game state remains
     unchanged.
 11. An operator-confirmed interrupted upload leaves no launchable content and
-    does not replace the current game.
+    does not replace the current game. This gate is currently open in the
+    dedicated run because the available fixtures complete before manual
+    interruption; use a throttled or substantially larger fixture before
+    declaring it passed.
 12. Alternating launches between the two cached games work.
 13. Stop reaches idle and HDMI is black after the configured blanking delay;
     invalid requests are rejected without disturbing state.
 14. Agent restart reconciliation, target power-cycle confirmation, the
-    unchanged POC 1 regression HIL, and the private-artifact audit all pass.
+    unchanged POC 1 regression HIL, and the private-artifact audit are reviewed
+    and recorded. Keep any open gate visible in the handoff; do not convert a
+    partial hardware report into a pass by editing its JSON.
 
 Do not record ROM bytes, source paths, bearer tokens, or live addresses in the
 report. The report is local, mode `0600`, atomically published, and refused when
@@ -169,6 +186,11 @@ lock identities, copies the backup through a same-volume temporary file, and
 renames it atomically. It does not delete FogCast cache data or the backup.
 Eject the card normally, boot the Pi, and manually confirm stock menu, HDMI,
 controller, and both games before any further work.
+
+For an online development deployment, the target's cache and checkpoint files
+may be inspected over SSH, but the SD card remains the rollback authority.
+Never delete `linux.img.pre-poc2`, `linux.img.pre-poc1b`, the accepted kernel,
+or the core/controller artifacts while diagnosing an agent iteration.
 
 ## 6. Final audit
 

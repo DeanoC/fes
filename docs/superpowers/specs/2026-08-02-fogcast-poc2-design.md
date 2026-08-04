@@ -1,5 +1,10 @@
 # FogCast POC 2 Design
 
+> Current implementation handoff: see [`docs/POC2-HANDOFF.md`](../../POC2-HANDOFF.md).
+> The design is historical and remains the behavioral contract; the dedicated
+> MiSTer Pi uses exFAT, so cache publication includes the documented fallback
+> for filesystems without `renameat2(RENAME_NOREPLACE)`.
+
 **Date:** 2026-08-02
 
 **Status:** Written specification approved on 2026-08-02

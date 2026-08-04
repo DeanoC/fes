@@ -5,11 +5,16 @@ dedicated MiSTer Pi development target. The repository contains the POC 1
 control path, the POC 1B reproducible target image, and the POC 2 cache and
 offline acceptance workflow.
 
+Start with [the POC2 handoff](docs/POC2-HANDOFF.md). It is the canonical
+current-state document for a fresh agent; the [POC3 roadmap](docs/POC3-ROADMAP.md)
+defines the next productization stage.
+
 ## Local checks
 
 Use the pinned toolchain for repository checks and builds:
 
 ```sh
+mise exec go@1.26.5 -- go test ./...
 mise exec go@1.26.5 -- make check build
 ```
 
@@ -19,7 +24,7 @@ staging content, and acceptance reports are ignored by Git.
 
 ## POC 2 acceptance
 
-Read [the POC 2 deployment runbook](docs/runbooks/poc2-deploy.md) before
+Read [the POC2 handoff](docs/POC2-HANDOFF.md) and [the POC2 deployment runbook](docs/runbooks/poc2-deploy.md) before
 touching the dedicated target. The HIL command requires operator-supplied game
 IDs and asks for confirmation before every reboot, process restart, share
 change, or upload interruption:
@@ -34,5 +39,6 @@ bin/fogcast-hil --config /path/to/local/fogcast.toml \
 
 No target address, bearer token, NAS path, ROM bytes, or game filename belongs
 in this repository. Use distinct operator-supplied ZIP catalog IDs for the
-uncached and interrupted fixtures. Keep the generated report at the ignored default
-`artifacts/hil/poc2.json` and review it locally only.
+uncached and interrupted fixtures. Keep the generated report ignored and review
+it locally only. POC2's interrupted-upload gate remains open until a fixture is
+slow enough to interrupt deterministically.
