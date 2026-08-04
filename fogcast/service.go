@@ -418,8 +418,19 @@ type progressReader struct {
 }
 
 func (r *progressReader) Read(p []byte) (int, error) {
-	r.once.Do(r.onFirstRead)
-	return r.Reader.Read(p)
+	n, err := r.Reader.Read(p)
+	if n > 0 {
+		r.once.Do(r.onFirstRead)
+	}
+	return n, err
+}
+
+func (r *progressReader) Close() error {
+	closer, ok := r.Reader.(io.Closer)
+	if !ok {
+		return nil
+	}
+	return closer.Close()
 }
 
 func canonicalRemoteError(err error, fallback protocol.ErrorCode) error {

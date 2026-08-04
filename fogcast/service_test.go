@@ -245,6 +245,57 @@ func TestServiceLaunchFirstTransferUsesApprovedOrderAndCleansStaging(t *testing.
 	assertPreparedRemoved(t, prepared)
 }
 
+func TestProgressReaderStartsAfterBodyBytesAndForwardsClose(t *testing.T) {
+	var starts int
+	reader := &progressReader{
+		Reader:      &scriptedReadCloser{reads: []scriptedRead{{n: 0, err: io.ErrUnexpectedEOF}, {n: 1, err: io.EOF}}},
+		onFirstRead: func() { starts++ },
+	}
+	buffer := make([]byte, 1)
+	if _, err := reader.Read(buffer); !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("first read error = %v", err)
+	}
+	if starts != 0 {
+		t.Fatalf("upload-started emitted on empty/error read: %d", starts)
+	}
+	if _, err := reader.Read(buffer); !errors.Is(err, io.EOF) {
+		t.Fatalf("second read error = %v", err)
+	}
+	if starts != 1 {
+		t.Fatalf("upload-started count = %d, want 1", starts)
+	}
+	if err := reader.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if !reader.Reader.(*scriptedReadCloser).closed {
+		t.Fatal("underlying reader was not closed")
+	}
+}
+
+type scriptedRead struct {
+	n   int
+	err error
+}
+
+type scriptedReadCloser struct {
+	reads  []scriptedRead
+	closed bool
+}
+
+func (r *scriptedReadCloser) Read([]byte) (int, error) {
+	if len(r.reads) == 0 {
+		return 0, io.EOF
+	}
+	next := r.reads[0]
+	r.reads = r.reads[1:]
+	return next.n, next.err
+}
+
+func (r *scriptedReadCloser) Close() error {
+	r.closed = true
+	return nil
+}
+
 func TestServiceLaunchUploadsPreparedSnapshotAfterSourceReplacement(t *testing.T) {
 	original := []byte("synthetic-original")
 	replacement := []byte("private-replacement")
