@@ -22,6 +22,8 @@ import (
 	"github.com/DeanoC/FogCast-POC/internal/hil"
 )
 
+var _ hil.POC2Service = (*fogcast.Service)(nil)
+
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -48,8 +50,8 @@ func run(ctx context.Context, args []string, input io.Reader, output, stderr io.
 	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
 		return 2
 	}
-	if strings.TrimSpace(*sonicID) == "" || strings.TrimSpace(*marioID) == "" {
-		fmt.Fprintln(stderr, "fogcast-hil: --sonic-id and --mario-id are required; source names and paths are never embedded")
+	if strings.TrimSpace(*sonicID) == "" || strings.TrimSpace(*marioID) == "" || strings.TrimSpace(*uncachedID) == "" || strings.TrimSpace(*interruptedID) == "" {
+		fmt.Fprintln(stderr, "fogcast-hil: --sonic-id, --mario-id, --uncached-id, and --interrupted-id are required; source names and paths are never embedded")
 		return 2
 	}
 	service, err := fogcast.Open(ctx, fogcast.Paths{Config: *configPath, Index: defaults.Index, Staging: defaults.Staging}, nil)

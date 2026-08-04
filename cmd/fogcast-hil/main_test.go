@@ -8,8 +8,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast-POC/fogcast"
 	"github.com/DeanoC/FogCast-POC/internal/hil"
 )
+
+func TestCLIUsesFogcastServiceAsPOC2Service(t *testing.T) {
+	var service *fogcast.Service
+	if _, ok := any(service).(hil.POC2Service); !ok {
+		t.Fatal("fogcast.Service is not wired to the POC 2 runner service surface")
+	}
+}
 
 func TestCLIRequiresExplicitGameIDs(t *testing.T) {
 	var out, stderr bytes.Buffer
@@ -24,9 +32,17 @@ func TestCLIRequiresExplicitGameIDs(t *testing.T) {
 
 func TestCLIValidatesIDsBeforeLoadingConfiguration(t *testing.T) {
 	var out, stderr bytes.Buffer
-	code := run(nil, []string{"--config", filepath.Join(t.TempDir(), "missing.toml"), "--sonic-id", "sonic-test", "--mario-id", "mario-test"}, strings.NewReader(""), &out, &stderr)
+	code := run(nil, []string{"--config", filepath.Join(t.TempDir(), "missing.toml"), "--sonic-id", "sonic-test", "--mario-id", "mario-test", "--uncached-id", "uncached-test", "--interrupted-id", "interrupted-test"}, strings.NewReader(""), &out, &stderr)
 	if code == 2 {
 		t.Fatalf("explicit IDs unexpectedly rejected as usage: %q", stderr.String())
+	}
+}
+
+func TestCLIRequiresExplicitUncachedFixtureID(t *testing.T) {
+	var out, stderr bytes.Buffer
+	code := run(nil, []string{"--config", filepath.Join(t.TempDir(), "missing.toml"), "--sonic-id", "sonic-test", "--mario-id", "mario-test", "--interrupted-id", "interrupted-test"}, strings.NewReader(""), &out, &stderr)
+	if code != 2 || !strings.Contains(stderr.String(), "--uncached-id") {
+		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
 	}
 }
 

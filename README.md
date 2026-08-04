@@ -27,7 +27,9 @@ change, or upload interruption:
 ```sh
 bin/fogcast-hil --config /path/to/local/fogcast.toml \
   --sonic-id OPERATOR_SUPPLIED_MEGA_ID \
-  --mario-id OPERATOR_SUPPLIED_SNES_ID
+  --mario-id OPERATOR_SUPPLIED_SNES_ID \
+  --uncached-id OPERATOR_SUPPLIED_UNCACHED_ID \
+  --interrupted-id OPERATOR_SUPPLIED_INTERRUPTED_ID
 ```
 
 No target address, bearer token, NAS path, ROM bytes, or game filename belongs

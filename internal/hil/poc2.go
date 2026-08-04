@@ -37,22 +37,15 @@ type POC2Sabotage interface {
 	RebootTarget(context.Context) (bool, error)
 	RestartAgent(context.Context) (bool, error)
 	ToggleNAS(context.Context) (bool, error)
-	InterruptUpload(context.Context) (bool, error)
-}
-
-// POC2NASRemounter is implemented by sabotage controls that also require an
-// explicit confirmation after the offline cache gates to restore the source
-// mounts. It is optional for synthetic fakes; the production terminal control
-// implements it.
-type POC2NASRemounter interface {
 	RemountNAS(context.Context) (bool, error)
+	InterruptUpload(context.Context) (bool, error)
 }
 
 // POC2Runner executes the software-observable portion of POC 2 hardware
 // acceptance. SonicID and MarioID are intentionally supplied by the operator;
 // no source names or paths are embedded in the binary. UncachedID and
-// InterruptedID may be supplied by tests or a manifest with a third fixture;
-// when omitted, the corresponding primary game is used.
+// InterruptedID are explicit operator-supplied fixture IDs so the negative
+// paths cannot silently reuse a cached primary game.
 type POC2Runner struct {
 	Service  POC2Service
 	Prompt   Prompter
@@ -94,7 +87,7 @@ func (r POC2Runner) Run(ctx context.Context) (Report, error) {
 	if r.Service == nil || r.Prompt == nil || r.Sabotage == nil {
 		return finish(ErrInvalidRunner)
 	}
-	if strings.TrimSpace(r.SonicID) == "" || strings.TrimSpace(r.MarioID) == "" {
+	if strings.TrimSpace(r.SonicID) == "" || strings.TrimSpace(r.MarioID) == "" || strings.TrimSpace(r.UncachedID) == "" || strings.TrimSpace(r.InterruptedID) == "" {
 		return finish(ErrInvalidRunner)
 	}
 
@@ -108,9 +101,13 @@ func (r POC2Runner) Run(ctx context.Context) (Report, error) {
 	}
 	record("empty local index/cache confirmation", true, "operator confirmed clean starting state")
 
-	if _, err := r.Service.Scan(ctx); err != nil {
+	scanReport, err := r.Service.Scan(ctx)
+	if err != nil {
 		record("scan", false, "library scan failed")
 		return finish(err)
+	}
+	if !scanRootsReady(scanReport) {
+		return fail("scan roots online", "one or more required source roots are offline")
 	}
 	record("scan", true, "library scan completed")
 	games, err := r.Service.Games(ctx)
@@ -118,7 +115,7 @@ func (r POC2Runner) Run(ctx context.Context) (Report, error) {
 		record("manifest contains requested games", false, "game lookup failed")
 		return finish(err)
 	}
-	if !containsGame(games, r.SonicID, protocol.SystemMegaDrive) || !containsGame(games, r.MarioID, protocol.SystemSNES) {
+	if !containsAvailableGame(games, r.SonicID, protocol.SystemMegaDrive) || !containsAvailableGame(games, r.MarioID, protocol.SystemSNES) {
 		return fail("manifest contains requested games", "requested game IDs were not found for their systems")
 	}
 	record("manifest contains requested games", true, "requested Mega Drive and SNES games found")
@@ -180,51 +177,79 @@ func (r POC2Runner) Run(ctx context.Context) (Report, error) {
 		}
 	}
 
-	uncachedID := r.UncachedID
-	if uncachedID == "" {
-		uncachedID = r.SonicID
+	beforeStatus, err := r.Service.Status(ctx)
+	if err != nil {
+		return fail("state preserved before uncached offline rejection", "target state could not be checked")
 	}
-	_, err = r.Service.Launch(ctx, uncachedID, nil)
+	_, err = r.Service.Launch(ctx, r.UncachedID, nil)
 	var apiErr *protocol.APIError
-	rejected := err != nil && (errors.As(err, &apiErr) || err != nil)
+	rejected := errors.As(err, &apiErr) && apiErr.Code == protocol.CodeSourceUnavailable
 	if !rejected {
 		return fail("uncached offline rejection", "uncached content was unexpectedly accepted")
 	}
 	record("uncached offline rejection", true, "uncached launch rejected while NAS offline")
-	if _, statusErr := r.Service.Status(ctx); statusErr != nil {
+	afterStatus, statusErr := r.Service.Status(ctx)
+	if statusErr != nil {
 		return fail("state preserved after uncached offline rejection", "target state could not be checked")
 	}
-	record("state preserved after uncached offline rejection", true, "active target state remained queryable")
-	if remounter, ok := r.Sabotage.(POC2NASRemounter); ok {
-		remounted, err := remounter.RemountNAS(ctx)
-		if err != nil {
-			record("NAS-root remount confirmation", false, "operator action failed")
-			return finish(err)
-		}
-		if !remounted {
-			return fail("NAS-root remount confirmation", "operator declined NAS-root remount")
-		}
-		record("NAS-root remount confirmation", true, "operator confirmed NAS-root remount")
+	if !sameStatusIdentity(beforeStatus, afterStatus) {
+		return fail("state preserved after uncached offline rejection", "active target identity changed")
 	}
-
-	confirmed, err = r.Sabotage.InterruptUpload(ctx)
+	record("state preserved after uncached offline rejection", true, "active target identity remained unchanged")
+	remounted, err := r.Sabotage.RemountNAS(ctx)
 	if err != nil {
-		record("interrupted upload confirmation", false, "operator action failed")
+		record("NAS-root remount confirmation", false, "operator action failed")
 		return finish(err)
 	}
-	if !confirmed {
+	if !remounted {
+		return fail("NAS-root remount confirmation", "operator declined NAS-root remount")
+	}
+	record("NAS-root remount confirmation", true, "operator confirmed NAS-root remount")
+
+	interruptedBefore, err := r.Service.Status(ctx)
+	if err != nil {
+		return fail("interrupted upload state before transfer", "target state could not be checked")
+	}
+	var uploadStarted bool
+	var interruptAttempted bool
+	var interruptConfirmed bool
+	var interruptErr error
+	interruptCtx, cancelInterrupt := context.WithCancel(ctx)
+	_, interruptedErr := r.Service.Launch(interruptCtx, r.InterruptedID, func(progress fogcast.Progress) {
+		if progress.Stage == "upload" {
+			uploadStarted = true
+			if !interruptAttempted {
+				interruptAttempted = true
+				interruptConfirmed, interruptErr = r.Sabotage.InterruptUpload(interruptCtx)
+				cancelInterrupt()
+			}
+		}
+	})
+	cancelInterrupt()
+	if !uploadStarted {
+		return fail("interrupted upload started", "service did not report an in-flight upload")
+	}
+	if interruptErr != nil {
+		return fail("interrupted upload confirmation", "operator action failed")
+	}
+	if !interruptConfirmed {
 		return fail("interrupted upload confirmation", "operator declined upload interruption")
 	}
-	record("interrupted upload confirmation", true, "operator confirmed upload interruption")
-	interruptedID := r.InterruptedID
-	if interruptedID == "" {
-		interruptedID = r.MarioID
-	}
-	_, interruptedErr := r.Service.Launch(ctx, interruptedID, nil)
 	if interruptedErr == nil {
-		return fail("interrupted upload is not launchable", "interrupted content unexpectedly launched")
+		return fail("interrupted upload transfer failure", "interrupted content unexpectedly completed transfer")
 	}
-	record("interrupted upload is not launchable", true, "interrupted transfer was rejected")
+	var interruptedAPIError *protocol.APIError
+	if !errors.As(interruptedErr, &interruptedAPIError) || interruptedAPIError.Code != protocol.CodeTransferFailed {
+		return fail("interrupted upload transfer failure", "interrupted content did not report transfer failure")
+	}
+	interruptedAfter, statusErr := r.Service.Status(ctx)
+	if statusErr != nil {
+		return fail("interrupted upload state preserved", "target state could not be checked")
+	}
+	if !sameStatusIdentity(interruptedBefore, interruptedAfter) {
+		return fail("interrupted upload state preserved", "active target identity changed")
+	}
+	record("interrupted upload is not launchable", true, "interrupted transfer failed and preserved active target state")
 
 	for _, game := range []struct{ id, label string }{{r.MarioID, "Mario"}, {r.SonicID, "Sonic"}} {
 		if done := r.repeatLaunch(ctx, record, game.id, "alternating "+game.label+" launch"); done {
@@ -395,13 +420,47 @@ func (r POC2Runner) withDefaults() POC2Runner {
 	return r
 }
 
-func containsGame(games []catalog.Game, id string, system protocol.System) bool {
+func scanRootsReady(report catalog.ScanReport) bool {
+	ready := map[protocol.System]bool{}
+	for _, root := range report.Roots {
+		if root.Offline {
+			return false
+		}
+		if root.System == protocol.SystemMegaDrive || root.System == protocol.SystemSNES {
+			ready[root.System] = true
+		}
+	}
+	return ready[protocol.SystemMegaDrive] && ready[protocol.SystemSNES]
+}
+
+func containsAvailableGame(games []catalog.Game, id string, system protocol.System) bool {
 	for _, game := range games {
-		if game.ID == id && game.System == system {
+		if game.ID == id && game.System == system && game.RootOnline && game.State == catalog.SourceStateAvailable && game.Kind == catalog.SourceKindZIP {
 			return true
 		}
 	}
 	return false
+}
+
+func sameStatusIdentity(left, right protocol.Status) bool {
+	if left.State != right.State || !sameString(left.GameID, right.GameID) || !sameSystem(left.System, right.System) || !sameString(left.ExpectedCore, right.ExpectedCore) || !sameString(left.ObservedCore, right.ObservedCore) {
+		return false
+	}
+	return (left.LastError == nil) == (right.LastError == nil) && (left.LastError == nil || (left.LastError.Code == right.LastError.Code))
+}
+
+func sameString(left, right *string) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return *left == *right
+}
+
+func sameSystem(left, right *protocol.System) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return *left == *right
 }
 
 func sanitizeDetail(detail string) string {
