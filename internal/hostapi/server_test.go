@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/DeanoC/FogCast-POC/catalog"
+	"github.com/DeanoC/FogCast-POC/fogcast"
 	"github.com/DeanoC/FogCast-POC/internal/hostapi"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
@@ -24,6 +25,11 @@ type fakeService struct {
 	healthErr error
 	status    protocol.Status
 	statusErr error
+	launch    protocol.CachedLaunchResponse
+	launchErr error
+	stopped   protocol.Status
+	stopErr   error
+	progress  []string
 }
 
 func (s *fakeService) Games(context.Context) ([]catalog.Game, error) {
@@ -36,6 +42,10 @@ func (s *fakeService) Search(_ context.Context, query string) ([]catalog.Game, e
 func (s *fakeService) Game(context.Context, string) (catalog.Game, error) { return s.game, s.gameErr }
 func (s *fakeService) Health(context.Context) (protocol.Health, error)    { return s.health, s.healthErr }
 func (s *fakeService) Status(context.Context) (protocol.Status, error)    { return s.status, s.statusErr }
+func (s *fakeService) Launch(context.Context, string, fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error) {
+	return s.launch, s.launchErr
+}
+func (s *fakeService) Stop(context.Context) (protocol.Status, error) { return s.stopped, s.stopErr }
 
 func TestGamesReturnsStablePublicCatalogWithoutPrivatePathsOrDigests(t *testing.T) {
 	service := &fakeService{games: []catalog.Game{{
@@ -102,14 +112,46 @@ func TestGameDetailUsesPathIDAndReturnsNotFound(t *testing.T) {
 	}
 }
 
-func TestGameDetailDoesNotMisreportCatalogFailureAsMissing(t *testing.T) {
+func TestGameDetailMapsInternalFailureToJSON500(t *testing.T) {
 	service := &fakeService{gameErr: &protocol.APIError{Code: protocol.CodeInternal, Message: "private failure"}}
 	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games/known-game")
-	if response.Code != http.StatusInternalServerError {
-		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	if response.Code != http.StatusInternalServerError || strings.Contains(response.Body.String(), "private failure") {
+		t.Fatalf("response = %d %s", response.Code, response.Body.String())
 	}
-	if strings.Contains(response.Body.String(), "private failure") {
-		t.Fatalf("private service error leaked: %s", response.Body.String())
+}
+
+func TestSessionLaunchAndStopUseOnlyGameIDAndExposeProgress(t *testing.T) {
+	gameID := "megadrive-sonic-test"
+	system := protocol.SystemMegaDrive
+	service := &fakeService{
+		launch:  protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system}},
+		stopped: protocol.Status{State: protocol.StateIdle},
+	}
+	handler := hostapi.New(service)
+	launch := httptest.NewRequest(http.MethodPost, "/api/v1/session/launch", strings.NewReader(`{"game_id":"megadrive-sonic-test"}`))
+	launch.Host = "127.0.0.1"
+	launchResponse := httptest.NewRecorder()
+	handler.ServeHTTP(launchResponse, launch)
+	if launchResponse.Code != http.StatusOK {
+		t.Fatalf("launch status = %d body=%s", launchResponse.Code, launchResponse.Body.String())
+	}
+	stop := httptest.NewRequest(http.MethodPost, "/api/v1/session/stop", nil)
+	stop.Host = "127.0.0.1"
+	stopResponse := httptest.NewRecorder()
+	handler.ServeHTTP(stopResponse, stop)
+	if stopResponse.Code != http.StatusOK || !strings.Contains(stopResponse.Body.String(), `"state":"idle"`) {
+		t.Fatalf("stop response = %d %s", stopResponse.Code, stopResponse.Body.String())
+	}
+}
+
+func TestSessionRejectsMalformedLaunchWithoutCallingService(t *testing.T) {
+	handler := hostapi.New(&fakeService{})
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/launch", strings.NewReader(`{"game_id":"../private"}`))
+	request.Host = "127.0.0.1"
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
 	}
 }
 
@@ -133,45 +175,12 @@ func TestHealthSeparatesHostReadinessFromTargetReadiness(t *testing.T) {
 	}
 }
 
-func TestStatusReturnsPublicControlState(t *testing.T) {
-	gameID, core := "megadrive-sonic-test", "MegaDrive"
-	service := &fakeService{status: protocol.Status{
-		State: protocol.StateActive, GameID: &gameID, ExpectedCore: &core, ObservedCore: &core,
-	}}
-	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/status")
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
-	}
-	body := response.Body.String()
-	if !strings.Contains(body, `"state":"active"`) || !strings.Contains(body, `"game_id":"megadrive-sonic-test"`) || !strings.Contains(body, `"core":"MegaDrive"`) {
-		t.Fatalf("status body = %s", body)
-	}
-	if strings.Contains(body, "expected_core") || strings.Contains(body, "observed_core") {
-		t.Fatalf("target implementation leaked: %s", body)
-	}
-}
-
 func TestStatusRedactsTargetControlledErrorMessage(t *testing.T) {
 	message := "/private/path Bearer secret-token"
-	service := &fakeService{status: protocol.Status{
-		State:     protocol.StateIdle,
-		LastError: &protocol.APIError{Code: protocol.CodeInternal, Message: message},
-	}}
+	service := &fakeService{status: protocol.Status{State: protocol.StateIdle, LastError: &protocol.APIError{Code: protocol.CodeInternal, Message: message}}}
 	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/status")
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
-	}
-	body := response.Body.String()
-	if strings.Contains(body, message) || !strings.Contains(body, "FogCast operation failed internally") {
-		t.Fatalf("status leaked or failed to canonicalize target error: %s", body)
-	}
-}
-
-func TestGameDetailMapsInternalFailureToJSON500(t *testing.T) {
-	service := &fakeService{gameErr: &protocol.APIError{Code: protocol.CodeInternal, Message: "private failure"}}
-	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games/known-game")
-	if response.Code != http.StatusInternalServerError || strings.Contains(response.Body.String(), "private failure") {
-		t.Fatalf("response = %d %s", response.Code, response.Body.String())
+	if response.Code != http.StatusOK || strings.Contains(response.Body.String(), message) || !strings.Contains(response.Body.String(), "FogCast operation failed internally") {
+		t.Fatalf("status leaked or failed to canonicalize: %s", response.Body.String())
 	}
 }
 

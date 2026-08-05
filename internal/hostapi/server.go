@@ -5,23 +5,26 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"sort"
 	"strings"
 
 	"github.com/DeanoC/FogCast-POC/catalog"
+	"github.com/DeanoC/FogCast-POC/fogcast"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
-// Service is the read-only host operation surface required by the first POC3
-// API slice. It deliberately does not expose source paths or target credentials.
+// Service is the host operation surface used by the privacy-safe application API.
 type Service interface {
 	Games(context.Context) ([]catalog.Game, error)
 	Search(context.Context, string) ([]catalog.Game, error)
 	Game(context.Context, string) (catalog.Game, error)
 	Health(context.Context) (protocol.Health, error)
 	Status(context.Context) (protocol.Status, error)
+	Launch(context.Context, string, fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error)
+	Stop(context.Context) (protocol.Status, error)
 }
 
 type gameResult struct {
@@ -67,7 +70,50 @@ type apiError struct {
 }
 
 func New(service Service) http.Handler {
+	if service == nil {
+		panic("hostapi: nil service")
+	}
 	mux := http.NewServeMux()
+	session := newSessionCoordinator(service)
+	mux.HandleFunc("GET /api/v1/session", func(w http.ResponseWriter, r *http.Request) {
+		result, err := session.status(r.Context())
+		if err != nil {
+			writeError(w, http.StatusServiceUnavailable, "TARGET_UNAVAILABLE", "target status is unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+	})
+	mux.HandleFunc("POST /api/v1/session/launch", func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			GameID string `json:"game_id"`
+		}
+		if err := decodeSingleJSON(w, r, &request); err != nil {
+			return
+		}
+		if protocol.ValidateGameID(request.GameID) != nil {
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "game ID is invalid")
+			return
+		}
+		result, err := session.launch(r.Context(), request.GameID)
+		if err != nil {
+			writeSessionError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+	})
+	mux.HandleFunc("POST /api/v1/session/stop", func(w http.ResponseWriter, r *http.Request) {
+		if err := rejectBody(w, r); err != nil {
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "stop request body must be empty")
+			return
+		}
+		result, err := session.stop(r.Context())
+		if err != nil {
+			writeSessionError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+	})
+
 	mux.HandleFunc("GET /api/v1/health", func(w http.ResponseWriter, r *http.Request) {
 		target, err := service.Health(r.Context())
 		result := healthResult{Ready: true, Target: targetHealth{Reachable: err == nil, Ready: err == nil && target.Ready}}
@@ -207,4 +253,44 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(value)
+}
+
+func decodeSingleJSON(w http.ResponseWriter, r *http.Request, value any) error {
+	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(value); err != nil {
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "request body must contain one valid JSON object")
+		return err
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "request body must contain exactly one JSON object")
+		return errors.New("trailing JSON")
+	}
+	return nil
+}
+
+func rejectBody(w http.ResponseWriter, r *http.Request) error {
+	r.Body = http.MaxBytesReader(w, r.Body, 1)
+	body, err := io.ReadAll(r.Body)
+	if err != nil || len(body) != 0 {
+		return errors.New("non-empty body")
+	}
+	return nil
+}
+
+func writeSessionError(w http.ResponseWriter, err error) {
+	var apiErr *protocol.APIError
+	if errors.As(err, &apiErr) {
+		status := http.StatusInternalServerError
+		if apiErr.Code == protocol.CodeBusy {
+			status = http.StatusConflict
+		}
+		if apiErr.Code == protocol.CodeROMNotFound {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, string(apiErr.Code), publicErrorMessage(apiErr.Code))
+		return
+	}
+	writeError(w, http.StatusServiceUnavailable, "TARGET_UNAVAILABLE", "session operation failed")
 }

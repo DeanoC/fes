@@ -32,9 +32,13 @@ bin/fogcast-api --config /path/to/local/fogcast.toml --listen 127.0.0.1:8787
 ```
 
 Initial endpoints are `GET /api/v1/health`, `GET /api/v1/status`,
-`GET /api/v1/games?q=<optional query>`, and `GET /api/v1/games/{id}`. Game
-responses include the current `fpga_native` execution capability and intentionally omit
-NAS paths, library IDs, target credentials, cache digests, and ROM filenames.
+`GET /api/v1/games?q=<optional query>`, `GET /api/v1/games/{id}`,
+`GET /api/v1/session`, `POST /api/v1/session/launch`, and
+`POST /api/v1/session/stop`. Launch requests contain only a `game_id`; the host
+resolves catalog and target details internally. Game and session responses include
+only public models and the current `fpga_native` execution capability; they
+intentionally omit NAS paths, library IDs, target credentials, cache digests,
+and ROM filenames.
 
 ## POC 2 acceptance
 
