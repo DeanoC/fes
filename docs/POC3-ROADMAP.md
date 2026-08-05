@@ -44,3 +44,13 @@ Choose the host API boundary before building UI: a local HTTP/JSON service
 backed by the existing Go packages is the recommended default because it keeps
 CLI, browser, and future native clients aligned without coupling UI code to
 the MiSTer protocol.
+
+## Decision: local host API
+
+POC3 uses a versioned HTTP/JSON application API served only on loopback. The
+first read-only slice is implemented by `fogcast-api` and exposes host health,
+public target status, the normalized game list, and deterministic game details.
+Public models intentionally omit NAS paths, library IDs, target credentials,
+cache digests, and ROM filenames. Write operations and event streaming remain
+future vertical slices; they should be added behind this host boundary rather
+than exposing the MiSTer API to UI clients.

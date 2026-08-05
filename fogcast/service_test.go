@@ -855,6 +855,9 @@ func TestServiceCatalogAndV1ControlDelegation(t *testing.T) {
 	if got, err := service.Games(ctx); err != nil || !reflect.DeepEqual(got, []catalog.Game{game}) {
 		t.Fatalf("Games = %+v, %v", got, err)
 	}
+	if got, err := service.Game(ctx, game.ID); err != nil || !reflect.DeepEqual(got, game) {
+		t.Fatalf("Game = %+v, %v", got, err)
+	}
 	if got, err := service.Search(ctx, "synthetic"); err != nil || !reflect.DeepEqual(got, []catalog.Game{game}) {
 		t.Fatalf("Search = %+v, %v", got, err)
 	}

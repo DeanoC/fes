@@ -208,6 +208,26 @@ func (s *Service) Games(ctx context.Context) ([]catalog.Game, error) {
 	return games, nil
 }
 
+func (s *Service) Game(ctx context.Context, gameID string) (catalog.Game, error) {
+	if err := ctx.Err(); err != nil {
+		return catalog.Game{}, err
+	}
+	if err := protocol.ValidateGameID(gameID); err != nil {
+		return catalog.Game{}, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	game, err := s.catalog.Game(ctx, gameID)
+	if err != nil {
+		if ctx.Err() != nil {
+			return catalog.Game{}, ctx.Err()
+		}
+		if errors.Is(err, sql.ErrNoRows) {
+			return catalog.Game{}, canonicalError(protocol.CodeROMNotFound, nil)
+		}
+		return catalog.Game{}, canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	return game, nil
+}
+
 func (s *Service) Search(ctx context.Context, query string) ([]catalog.Game, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

@@ -18,9 +18,22 @@ mise exec go@1.26.5 -- go test ./...
 mise exec go@1.26.5 -- make check build
 ```
 
-The build produces `bin/fogcast`, `bin/misterctl`, `bin/mister-hil`,
+The build produces `bin/fogcast`, `bin/fogcast-api`, `bin/misterctl`, `bin/mister-hil`,
 `bin/fogcast-hil`, and the target ARMv7 agent. Build output, local catalogs,
 staging content, and acceptance reports are ignored by Git.
+
+## POC 3 local host API
+
+The first POC3 slice exposes a privacy-safe, read-only application API for
+future CLI, browser, and native clients. It binds to loopback only:
+
+```sh
+bin/fogcast-api --config /path/to/local/fogcast.toml --listen 127.0.0.1:8787
+```
+
+Initial endpoints are `GET /api/v1/health`, `GET /api/v1/status`,
+`GET /api/v1/games`, and `GET /api/v1/games/{id}`. Responses intentionally omit
+NAS paths, library IDs, target credentials, cache digests, and ROM filenames.
 
 ## POC 2 acceptance
 
