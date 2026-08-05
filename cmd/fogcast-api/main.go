@@ -74,8 +74,11 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, open open
 	}
 	defer listener.Close()
 
+	mux := http.NewServeMux()
+	mux.Handle("/", hostapi.UIHandler())
+	mux.Handle("/api/", hostapi.New(fogcastService))
 	server := &http.Server{
-		Handler:           hostapi.New(fogcastService),
+		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       30 * time.Second,

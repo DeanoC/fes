@@ -48,10 +48,11 @@ the MiSTer protocol.
 ## Decision: local host API
 
 POC3 uses a versioned HTTP/JSON application API served only on loopback. The
-first application slice is implemented by `fogcast-api` and exposes host health,
+POC3 application slice is implemented by `fogcast-api` and now exposes host health,
 public target status, the normalized game list, deterministic search, explicit
-`fpga_native` execution capability, deterministic game details, and a serialized
-launch/stop session boundary with bounded polling events.
+`fpga_native` execution capability, deterministic game details, a serialized
+launch/stop session boundary with bounded polling events, a self-contained
+browser shell, and the initial `host_only` RetroArch adapter contract.
 Public models intentionally omit NAS paths, library IDs, target credentials,
 cache digests, and ROM filenames. Write operations and event streaming remain
 future vertical slices; they should be added behind this host boundary rather
