@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -82,6 +83,16 @@ func New(service Service) http.Handler {
 			return
 		}
 		writeJSON(w, http.StatusOK, result)
+	})
+	mux.HandleFunc("GET /api/v1/session/events", func(w http.ResponseWriter, r *http.Request) {
+		var after uint64
+		if raw := r.URL.Query().Get("after"); raw != "" {
+			if _, err := fmt.Sscanf(raw, "%d", &after); err != nil {
+				writeError(w, http.StatusBadRequest, "BAD_REQUEST", "after must be a non-negative sequence")
+				return
+			}
+		}
+		writeJSON(w, http.StatusOK, sessionEventsResult{Events: publicEvents(session.eventsAfter(after))})
 	})
 	mux.HandleFunc("POST /api/v1/session/launch", func(w http.ResponseWriter, r *http.Request) {
 		var request struct {

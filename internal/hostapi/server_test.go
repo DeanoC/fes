@@ -42,7 +42,10 @@ func (s *fakeService) Search(_ context.Context, query string) ([]catalog.Game, e
 func (s *fakeService) Game(context.Context, string) (catalog.Game, error) { return s.game, s.gameErr }
 func (s *fakeService) Health(context.Context) (protocol.Health, error)    { return s.health, s.healthErr }
 func (s *fakeService) Status(context.Context) (protocol.Status, error)    { return s.status, s.statusErr }
-func (s *fakeService) Launch(context.Context, string, fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error) {
+func (s *fakeService) Launch(_ context.Context, _ string, progress fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error) {
+	if progress != nil {
+		progress(fogcast.Progress{Stage: "launch", Message: "launching"})
+	}
 	return s.launch, s.launchErr
 }
 func (s *fakeService) Stop(context.Context) (protocol.Status, error) { return s.stopped, s.stopErr }
@@ -121,6 +124,7 @@ func TestGameDetailMapsInternalFailureToJSON500(t *testing.T) {
 }
 
 func TestSessionLaunchAndStopUseOnlyGameIDAndExposeProgress(t *testing.T) {
+	// The launch response should contain the latest host-side progress and the event endpoint should expose it.
 	gameID := "megadrive-sonic-test"
 	system := protocol.SystemMegaDrive
 	service := &fakeService{
