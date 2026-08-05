@@ -49,6 +49,12 @@ test is software evidence only; it is not a MiSTer hardware acceptance.
 
 ## 2. Build and deploy the development root
 
+For routine development access, use `scripts/dev-target-tunnel.sh`. It is
+explicitly scoped to the disposable target, ignores regenerated SSH host keys,
+uses keepalives, and reconnects after the target agent or tunnel restarts. It
+prompts for the local operator password and never writes it to the repository.
+
+
 Build both POC 2 roots from the locked POC 1B inputs, verify them, and retain
 the accepted kernel, Main/Menu, core, and controller hashes. Deploy only the
 development root through the existing hash-gated wrapper:

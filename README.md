@@ -43,6 +43,18 @@ Game and session responses include only public models and the current `fpga_nati
 execution capability; they intentionally omit NAS paths, library IDs, target
 credentials, cache digests, and ROM filenames.
 
+For the disposable development Pi, keep its SSH tunnel running with the
+repository helper. It intentionally accepts regenerated target host keys and
+prompts for the password without storing it:
+
+```sh
+scripts/dev-target-tunnel.sh
+```
+
+The helper reconnects after target or tunnel restarts and forwards
+`127.0.0.1:18182` to the target API. Override `MISTER_TARGET_HOST` locally if
+the development target address changes; do not commit that value.
+
 ## POC 2 acceptance
 
 Read [the POC2 handoff](docs/POC2-HANDOFF.md) and [the POC2 deployment runbook](docs/runbooks/poc2-deploy.md) before
