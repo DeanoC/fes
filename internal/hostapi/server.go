@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/DeanoC/FogCast-POC/catalog"
@@ -17,6 +18,7 @@ import (
 // API slice. It deliberately does not expose source paths or target credentials.
 type Service interface {
 	Games(context.Context) ([]catalog.Game, error)
+	Search(context.Context, string) ([]catalog.Game, error)
 	Game(context.Context, string) (catalog.Game, error)
 	Health(context.Context) (protocol.Health, error)
 	Status(context.Context) (protocol.Status, error)
@@ -30,6 +32,7 @@ type gameResult struct {
 	State           catalog.SourceState `json:"state"`
 	RootOnline      bool                `json:"root_online"`
 	ContentPrepared bool                `json:"content_prepared"`
+	Execution       string              `json:"execution"`
 }
 
 type gamesResult struct {
@@ -88,11 +91,24 @@ func New(service Service) http.Handler {
 		writeJSON(w, http.StatusOK, result)
 	})
 	mux.HandleFunc("GET /api/v1/games", func(w http.ResponseWriter, r *http.Request) {
-		games, err := service.Games(r.Context())
+		query := strings.TrimSpace(r.URL.Query().Get("q"))
+		var games []catalog.Game
+		var err error
+		if query == "" {
+			games, err = service.Games(r.Context())
+		} else {
+			games, err = service.Search(r.Context(), query)
+		}
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "INTERNAL", "catalog is unavailable")
 			return
 		}
+		sort.SliceStable(games, func(i, j int) bool {
+			if strings.EqualFold(games[i].Title, games[j].Title) {
+				return games[i].ID < games[j].ID
+			}
+			return strings.ToLower(games[i].Title) < strings.ToLower(games[j].Title)
+		})
 		result := gamesResult{Games: make([]gameResult, 0, len(games))}
 		for _, game := range games {
 			result.Games = append(result.Games, publicGame(game))
@@ -172,6 +188,7 @@ func publicGame(game catalog.Game) gameResult {
 	return gameResult{
 		ID: game.ID, Title: game.Title, System: game.System, Kind: game.Kind,
 		State: game.State, RootOnline: game.RootOnline, ContentPrepared: game.Content != nil,
+		Execution: "fpga_native",
 	}
 }
 

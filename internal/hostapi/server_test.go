@@ -15,6 +15,8 @@ import (
 
 type fakeService struct {
 	games     []catalog.Game
+	search    []catalog.Game
+	query     string
 	game      catalog.Game
 	gamesErr  error
 	gameErr   error
@@ -26,6 +28,10 @@ type fakeService struct {
 
 func (s *fakeService) Games(context.Context) ([]catalog.Game, error) {
 	return append([]catalog.Game(nil), s.games...), s.gamesErr
+}
+func (s *fakeService) Search(_ context.Context, query string) ([]catalog.Game, error) {
+	s.query = query
+	return append([]catalog.Game(nil), s.search...), s.gamesErr
 }
 func (s *fakeService) Game(context.Context, string) (catalog.Game, error) { return s.game, s.gameErr }
 func (s *fakeService) Health(context.Context) (protocol.Health, error)    { return s.health, s.healthErr }
@@ -64,6 +70,17 @@ func TestGamesReturnsStablePublicCatalogWithoutPrivatePathsOrDigests(t *testing.
 		t.Fatalf("games = %#v", result.Games)
 	}
 	assertJSONHeaders(t, response)
+}
+
+func TestGamesSupportsSearchAndExecutionCapability(t *testing.T) {
+	service := &fakeService{search: []catalog.Game{{ID: "snes-mario", Title: "Mario", System: protocol.SystemSNES, Kind: catalog.SourceKindZIP, State: catalog.SourceStateAvailable}}}
+	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games?q=mario")
+	if response.Code != http.StatusOK || service.query != "mario" {
+		t.Fatalf("status=%d query=%q body=%s", response.Code, service.query, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), `"execution":"fpga_native"`) {
+		t.Fatalf("execution capability missing: %s", response.Body.String())
+	}
 }
 
 func TestGameDetailUsesPathIDAndReturnsNotFound(t *testing.T) {
