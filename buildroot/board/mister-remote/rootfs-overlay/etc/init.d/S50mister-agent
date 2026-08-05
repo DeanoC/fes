@@ -41,7 +41,12 @@ case "${1:-start}" in
       printf '%s\n' 'mister-agent: /dev/MiSTer_cmd did not appear within 30 seconds' >&2
       exit 1
     fi
-    /usr/sbin/mister-supervise mister-agent /usr/sbin/mister-agent --config /media/fat/mister-remote/agent.toml &
+    agent_binary=/media/fat/mister-remote/mister-agent
+    if [ ! -x "$agent_binary" ]; then
+      printf '%s\n' 'mister-agent: FAT-side agent binary is missing or not executable' >&2
+      exit 1
+    fi
+    /usr/sbin/mister-supervise mister-agent "$agent_binary" --config /media/fat/mister-remote/agent.toml &
     printf '%s\n' "$!" > "$supervisor_pid"
     ;;
   stop)

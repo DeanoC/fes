@@ -26,12 +26,13 @@ require_policy() {
 require_policy '[ ! -f /media/fat/mister-remote/agent.toml ]'
 require_policy '/bin/mkdir -p /media/fat/fogcast/cache/megadrive /media/fat/fogcast/cache/snes'
 require_policy '/bin/chmod 0700 /media/fat/fogcast/cache /media/fat/fogcast/cache/megadrive /media/fat/fogcast/cache/snes'
-require_policy '/usr/sbin/mister-supervise mister-agent /usr/sbin/mister-agent --config /media/fat/mister-remote/agent.toml &'
+require_policy 'agent_binary=/media/fat/mister-remote/mister-agent'
+require_policy '/usr/sbin/mister-supervise mister-agent "$agent_binary" --config /media/fat/mister-remote/agent.toml &'
 
 fat_ready_line=$(grep -nF '[ ! -f /media/fat/mister-remote/agent.toml ]' "$agent" | head -n 1 | cut -d: -f1)
 cache_root_line=$(grep -nF '/bin/mkdir -p /media/fat/fogcast/cache/megadrive /media/fat/fogcast/cache/snes' "$agent" | head -n 1 | cut -d: -f1)
 cache_mode_line=$(grep -nF '/bin/chmod 0700 /media/fat/fogcast/cache /media/fat/fogcast/cache/megadrive /media/fat/fogcast/cache/snes' "$agent" | head -n 1 | cut -d: -f1)
-supervisor_line=$(grep -nF '/usr/sbin/mister-supervise mister-agent /usr/sbin/mister-agent --config /media/fat/mister-remote/agent.toml &' "$agent" | head -n 1 | cut -d: -f1)
+supervisor_line=$(grep -nF '/usr/sbin/mister-supervise mister-agent "$agent_binary" --config /media/fat/mister-remote/agent.toml &' "$agent" | head -n 1 | cut -d: -f1)
 test "$fat_ready_line" -lt "$cache_root_line"
 test "$cache_root_line" -lt "$cache_mode_line"
 test "$cache_mode_line" -lt "$supervisor_line"
