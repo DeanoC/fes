@@ -7,7 +7,7 @@ FOGCAST_GOOS ?= darwin
 FOGCAST_GOARCH ?= arm64
 FOGCAST_OUTPUT ?= bin/fogcast
 
-.PHONY: fmt test vet check build build-fogcast build-fogcast-api build-cli build-hil build-fogcast-hil build-agent build-lock build-lock-container build-poc2-lock package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-dev-image poc1b-verify-images poc1b-qemu-smoke poc1b-kernel-test poc1b-kernel poc1b-verify-kernel poc1b-deploy-test poc2-rootfs-test poc2-deploy-test
+.PHONY: fmt test vet check build build-fogcast build-fogcast-api build-cli build-hil build-fogcast-hil build-agent build-bridge build-lock build-lock-container build-poc2-lock package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-dev-image poc1b-verify-images poc1b-qemu-smoke poc1b-kernel-test poc1b-kernel poc1b-verify-kernel poc1b-deploy-test poc2-rootfs-test poc2-deploy-test
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
@@ -33,7 +33,7 @@ vet:
 
 check: fmt test vet
 
-build: build-fogcast build-fogcast-api build-cli build-hil build-fogcast-hil build-agent build-lock build-lock-container build-poc2-lock
+build: build-fogcast build-fogcast-api build-cli build-hil build-fogcast-hil build-agent build-bridge build-lock build-lock-container build-poc2-lock
 
 build-fogcast:
 	mkdir -p "$(dir $(FOGCAST_OUTPUT))"
@@ -58,6 +58,10 @@ build-fogcast-hil:
 build-agent:
 	mkdir -p bin
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/mister-agent-linux-armv7 ./cmd/mister-agent
+
+build-bridge:
+	mkdir -p bin
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/mister-bridge-linux-armv7 ./cmd/mister-bridge
 
 build-lock:
 	mkdir -p bin
