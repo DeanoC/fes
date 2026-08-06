@@ -41,15 +41,30 @@ func (c *managedFakeConn) LocalAddr() net.Addr {
 func (c *managedFakeConn) closeCount() int { c.mu.Lock(); defer c.mu.Unlock(); return c.closed }
 
 type managedFakeReceiver struct {
-	mu     sync.Mutex
-	closed int
+	mu      sync.Mutex
+	closed  int
+	control []ControlMessage
 }
 
+func (r *managedFakeReceiver) AcceptControl(message ControlMessage) error {
+	if err := ValidateControlMessage(message, "session", 7, "secret-token"); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.control = append(r.control, message)
+	return nil
+}
 func (r *managedFakeReceiver) Ingest([]byte) ([]AccessUnit, error) {
 	return nil, errors.New("malformed packet token=secret /private")
 }
 func (r *managedFakeReceiver) Close() error    { r.mu.Lock(); r.closed++; r.mu.Unlock(); return nil }
 func (r *managedFakeReceiver) closeCount() int { r.mu.Lock(); defer r.mu.Unlock(); return r.closed }
+func (r *managedFakeReceiver) controls() []ControlMessage {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]ControlMessage(nil), r.control...)
+}
 
 type managedFakeDecoder struct {
 	mu       sync.Mutex
@@ -111,6 +126,7 @@ func (d *managedBlockingDecoder) Kill() error {
 
 type managedUnitReceiver struct{}
 
+func (managedUnitReceiver) AcceptControl(ControlMessage) error { return nil }
 func (managedUnitReceiver) Ingest([]byte) ([]AccessUnit, error) {
 	return []AccessUnit{{NALs: [][]byte{{1}}}}, nil
 }
@@ -134,6 +150,89 @@ func (d *managedFakeDecoder) counts() (int, int, int) {
 
 func managedConfig() ManagedReceiverConfig {
 	return ManagedReceiverConfig{Session: "session", Generation: 7, Token: "secret-token", RTPAddress: "127.0.0.1:5004"}
+}
+
+func TestManagedReceiverAcceptsAuthenticatedMediaHelloOnControlListener(t *testing.T) {
+	controlListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn := newManagedFakeConn()
+	receiver := &managedFakeReceiver{}
+	config := managedConfig()
+	config.ControlAddress = controlListener.Addr().String()
+	component, err := NewManagedReceiver(config,
+		WithManagedReceiverControlListen(func(string, string) (net.Listener, error) { return controlListener, nil }),
+		WithManagedReceiverBind(func(string, *net.UDPAddr) (ManagedPacketConn, error) { return conn, nil }),
+		WithManagedReceiverFactory(func(ReceiverConfig) (ManagedReceiverTransport, error) { return receiver, nil }),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle, err := component.Start(context.Background(), "game")
+	if err != nil {
+		t.Fatal(err)
+	}
+	control, err := net.Dial("tcp", controlListener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer control.Close()
+	if err := WriteControlMessage(control, ControlMessage{Type: ControlMediaHello, Session: "session", Generation: 7, Token: "secret-token", Body: []byte(`{"ssrc":42}`)}); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for {
+		if len(receiver.controls()) == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("MEDIA_HELLO was not accepted")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if got := receiver.controls()[0]; got.Type != ControlMediaHello {
+		t.Fatalf("control = %#v", got)
+	}
+	if err := handle.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestManagedReceiverRejectsUnauthenticatedMediaHello(t *testing.T) {
+	controlListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn := newManagedFakeConn()
+	receiver := &managedFakeReceiver{}
+	config := managedConfig()
+	config.ControlAddress = controlListener.Addr().String()
+	component, err := NewManagedReceiver(config,
+		WithManagedReceiverControlListen(func(string, string) (net.Listener, error) { return controlListener, nil }),
+		WithManagedReceiverBind(func(string, *net.UDPAddr) (ManagedPacketConn, error) { return conn, nil }),
+		WithManagedReceiverFactory(func(ReceiverConfig) (ManagedReceiverTransport, error) { return receiver, nil }),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle, err := component.Start(context.Background(), "game")
+	if err != nil {
+		t.Fatal(err)
+	}
+	control, err := net.Dial("tcp", controlListener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = WriteControlMessage(control, ControlMessage{Type: ControlMediaHello, Session: "session", Generation: 7, Token: "wrong", Body: []byte(`{"ssrc":42}`)})
+	_ = control.Close()
+	time.Sleep(25 * time.Millisecond)
+	if len(receiver.controls()) != 0 {
+		t.Fatal("unauthenticated MEDIA_HELLO accepted")
+	}
+	if err := handle.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestManagedReceiverStartIsReadyOnlyAfterBindAndDecoderStartup(t *testing.T) {
@@ -262,7 +361,7 @@ func TestManagedReceiverStopHonorsExpiredContextAndCanRetryCleanup(t *testing.T)
 	conn := newManagedFakeConn()
 	decoder := newManagedBlockingDecoder()
 	conn.readCh <- nil
-	h := newManagedReceiverHandle(context.Background(), conn, managedUnitReceiver{}, decoder, time.Second)
+	h := newManagedReceiverHandle(context.Background(), conn, nil, managedUnitReceiver{}, decoder, time.Second)
 	<-decoder.writeStarted
 
 	expired, cancel := context.WithCancel(context.Background())
@@ -304,7 +403,7 @@ func TestManagedReceiverStopSerializesDecoderWriteAndClose(t *testing.T) {
 	conn := newManagedFakeConn()
 	decoder := newManagedBlockingDecoder()
 	conn.readCh <- nil
-	h := newManagedReceiverHandle(context.Background(), conn, managedUnitReceiver{}, decoder, 50*time.Millisecond)
+	h := newManagedReceiverHandle(context.Background(), conn, nil, managedUnitReceiver{}, decoder, 50*time.Millisecond)
 	<-decoder.writeStarted
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)

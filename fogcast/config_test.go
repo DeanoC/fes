@@ -102,6 +102,60 @@ func TestLoadConfigRejectsInvalidHostEmulatorSystems(t *testing.T) {
 	}
 }
 
+func TestLoadConfigDefaultsMediaDisabled(t *testing.T) {
+	dir := t.TempDir()
+	config, err := fogcast.LoadConfig(writeConfig(t, validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Media.Enabled {
+		t.Fatalf("media unexpectedly enabled: %#v", config.Media)
+	}
+}
+
+func TestLoadConfigLoadsAndValidatesMediaConfiguration(t *testing.T) {
+	dir := t.TempDir()
+	path := writeConfig(t, validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))+`
+[media]
+enabled = true
+session = "session-1"
+generation = 7
+ssrc = 42
+rtp_listen = "127.0.0.1:5000"
+rtp_destination = "127.0.0.1:5001"
+control_address = "127.0.0.1:5002"
+decoder = "none"
+capture_device = "device-1"
+bitrate = 4000000
+gop = 60
+mtu = 1200
+`)
+	config, err := fogcast.LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := config.Media; !got.Enabled || got.Session != "session-1" || got.Generation != 7 || got.SSRC != 42 || got.RTPListen != "127.0.0.1:5000" || got.RTPDestination != "127.0.0.1:5001" || got.ControlAddress != "127.0.0.1:5002" || got.CaptureDevice != "device-1" || got.Bitrate != 4000000 || got.GOP != 60 || got.MTU != 1200 {
+		t.Fatalf("media config = %#v", got)
+	}
+}
+
+func TestLoadConfigRejectsInvalidEnabledMediaWithoutLeakingValues(t *testing.T) {
+	dir := t.TempDir()
+	base := validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))
+	for name, media := range map[string]string{
+		"missing capture": `enabled = true\nsession = "secret-session"\nssrc = 1\nrtp_listen = "127.0.0.1:5000"\nrtp_destination = "127.0.0.1:5001"`,
+		"bad decoder":     `enabled = true\nsession = "secret-session"\nssrc = 1\nrtp_listen = "127.0.0.1:5000"\nrtp_destination = "127.0.0.1:5001"\ncapture_device = "device"\ndecoder = "secret-decoder"`,
+		"bad address":     `enabled = true\nsession = "secret-session"\nssrc = 1\nrtp_listen = "not-an-address"\nrtp_destination = "127.0.0.1:5001"\ncapture_device = "device"`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := fogcast.LoadConfig(writeConfig(t, base+"\n[media]\n"+strings.ReplaceAll(media, `\n`, "\n")+"\n"))
+			if err == nil || strings.Contains(err.Error(), "secret-session") || strings.Contains(err.Error(), "secret-decoder") {
+				t.Fatalf("error = %v", err)
+			}
+		})
+	}
+}
+
 func TestLoadConfigLoadsRemoteInputEnablement(t *testing.T) {
 	dir := t.TempDir()
 	firstRoot := filepath.Join(dir, "SNES")

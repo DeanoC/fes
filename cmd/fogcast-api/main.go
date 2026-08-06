@@ -12,13 +12,17 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/DeanoC/FogCast-POC/fogcast"
 	"github.com/DeanoC/FogCast-POC/host"
 	"github.com/DeanoC/FogCast-POC/internal/hostapi"
+	"github.com/DeanoC/FogCast-POC/internal/mediasession"
+	"github.com/DeanoC/FogCast-POC/internal/remotemedia"
 )
 
 type service interface {
@@ -30,6 +34,37 @@ type openService func(context.Context, fogcast.Paths) (service, error)
 
 type bridgeStarterFactory func(fogcast.Config) (host.BridgeStarter, error)
 
+type captureSourceFactory func(fogcast.MediaConfig) (remotemedia.CaptureSource, error)
+type compositionOption func(*compositionDeps)
+
+type compositionDeps struct {
+	newCapture      captureSourceFactory
+	receiverOptions []remotemedia.ManagedReceiverOption
+	senderOptions   []remotemedia.ManagedSenderOption
+}
+
+func withCaptureSourceFactory(factory captureSourceFactory) compositionOption {
+	return func(deps *compositionDeps) { deps.newCapture = factory }
+}
+
+func withManagedReceiverOptions(options ...remotemedia.ManagedReceiverOption) compositionOption {
+	return func(deps *compositionDeps) { deps.receiverOptions = options }
+}
+
+func withManagedSenderOptions(options ...remotemedia.ManagedSenderOption) compositionOption {
+	return func(deps *compositionDeps) { deps.senderOptions = options }
+}
+
+func defaultCaptureSource(config fogcast.MediaConfig) (remotemedia.CaptureSource, error) {
+	if runtime.GOOS != "darwin" {
+		return nil, errors.New("physical capture is unavailable on this platform")
+	}
+	capture, err := remotemedia.OpenNativeCapture(remotemedia.CaptureConfig{
+		Device: config.CaptureDevice, Bitrate: config.Bitrate, GOP: config.GOP,
+	})
+	return capture, err
+}
+
 func defaultBridgeStarter(config fogcast.Config) (host.BridgeStarter, error) {
 	baseURL, err := url.Parse(config.BaseURL)
 	if err != nil {
@@ -38,25 +73,133 @@ func defaultBridgeStarter(config fogcast.Config) (host.BridgeStarter, error) {
 	return host.NewHTTPBridgeStarter(host.HTTPBridgeStarterConfig{BaseURL: baseURL, Token: config.Token})
 }
 
-func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarterFactory) (http.Handler, func() error, error) {
+func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarterFactory, options ...compositionOption) (http.Handler, func() error, error) {
 	if service == nil {
 		return nil, nil, errors.New("fogcast-api: composition dependency is unavailable")
 	}
+	deps := compositionDeps{newCapture: defaultCaptureSource}
+	for _, option := range options {
+		if option != nil {
+			option(&deps)
+		}
+	}
+	var serverOptions []hostapi.ServerOption
+	var cleanup []func() error
+	if config.Media.Enabled {
+		if deps.newCapture == nil {
+			return nil, nil, errors.New("fogcast-api: media capture source is unavailable")
+		}
+		source, err := deps.newCapture(config.Media)
+		if err != nil || source == nil {
+			return nil, nil, errors.New("fogcast-api: media configuration failed")
+		}
+		receiver, err := remotemedia.NewManagedReceiver(remotemedia.ManagedReceiverConfig{
+			Session: config.Media.Session, Generation: config.Media.Generation, Token: config.Token,
+			SSRC: config.Media.SSRC, RTPAddress: config.Media.RTPListen, ControlAddress: config.Media.ControlAddress, Decoder: config.Media.Decoder,
+		}, deps.receiverOptions...)
+		if err != nil {
+			_ = source.Close()
+			return nil, nil, errors.New("fogcast-api: media configuration failed")
+		}
+		sender, err := remotemedia.NewManagedSender(remotemedia.ManagedSenderConfig{
+			Session: config.Media.Session, Generation: config.Media.Generation, Token: config.Token,
+			SSRC: config.Media.SSRC, RTPAddress: config.Media.RTPDestination, ControlAddress: config.Media.ControlAddress,
+			Bitrate: config.Media.Bitrate, GOP: config.Media.GOP, MTU: config.Media.MTU,
+		}, source, deps.senderOptions...)
+		if err != nil {
+			_ = source.Close()
+			return nil, nil, errors.New("fogcast-api: media configuration failed")
+		}
+		mediaOwner := newCompositionMediaSession(hostapi.NewMediaSessionAdapter(mediasession.New(sender, receiver)))
+		cleanup = append(cleanup, mediaOwner.Close)
+		serverOptions = append(serverOptions, hostapi.WithMediaSession(mediaOwner))
+	}
 	if !config.RemoteInput.Enabled {
-		return hostapi.New(service), func() error { return nil }, nil
+		return hostapi.New(service, serverOptions...), func() error { return closeComposition(cleanup) }, nil
 	}
 	if makeStarter == nil {
+		_ = closeComposition(cleanup)
 		return nil, nil, errors.New("fogcast-api: bridge starter is unavailable")
 	}
 	starter, err := makeStarter(config)
 	if err != nil {
-		return nil, nil, err
+		_ = closeComposition(cleanup)
+		return nil, nil, errors.New("fogcast-api: remote input configuration failed")
 	}
 	remoteInput, err := host.NewRemoteInput(host.RemoteInputConfig{Starter: starter})
 	if err != nil {
-		return nil, nil, err
+		_ = closeComposition(cleanup)
+		return nil, nil, errors.New("fogcast-api: remote input configuration failed")
 	}
-	return hostapi.New(service, hostapi.WithRemoteInput(remoteInput)), remoteInput.Close, nil
+	serverOptions = append(serverOptions, hostapi.WithRemoteInput(remoteInput))
+	return hostapi.New(service, serverOptions...), func() error {
+		if err := remoteInput.Close(); err != nil {
+			return err
+		}
+		return closeComposition(cleanup)
+	}, nil
+}
+
+type compositionMediaSession struct {
+	mu     sync.Mutex
+	media  hostapi.MediaSession
+	handle hostapi.MediaHandle
+}
+
+func newCompositionMediaSession(media hostapi.MediaSession) *compositionMediaSession {
+	return &compositionMediaSession{media: media}
+}
+
+func (s *compositionMediaSession) Start(ctx context.Context, gameID string) (hostapi.MediaHandle, error) {
+	handle, err := s.media.Start(ctx, gameID)
+	if err != nil || handle == nil {
+		return handle, err
+	}
+	owned := &compositionMediaHandle{owner: s, handle: handle}
+	s.mu.Lock()
+	s.handle = owned
+	s.mu.Unlock()
+	return owned, nil
+}
+
+func (s *compositionMediaSession) Close() error {
+	s.mu.Lock()
+	handle := s.handle
+	s.handle = nil
+	s.mu.Unlock()
+	if handle == nil {
+		return nil
+	}
+	return handle.Stop(context.Background())
+}
+
+type compositionMediaHandle struct {
+	owner  *compositionMediaSession
+	handle hostapi.MediaHandle
+	once   sync.Once
+}
+
+func (h *compositionMediaHandle) Stop(ctx context.Context) error {
+	var err error
+	h.once.Do(func() {
+		err = h.handle.Stop(ctx)
+		h.owner.mu.Lock()
+		if h.owner.handle == h {
+			h.owner.handle = nil
+		}
+		h.owner.mu.Unlock()
+	})
+	return err
+}
+
+func closeComposition(cleanup []func() error) error {
+	var first error
+	for i := len(cleanup) - 1; i >= 0; i-- {
+		if err := cleanup[i](); err != nil && first == nil {
+			first = err
+		}
+	}
+	return first
 }
 
 func main() {

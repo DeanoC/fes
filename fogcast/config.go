@@ -3,6 +3,7 @@ package fogcast
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -40,6 +41,7 @@ type Config struct {
 	Libraries      []catalog.Root
 	RemoteInput    RemoteInputConfig
 	HostEmulator   HostEmulatorConfig
+	Media          MediaConfig
 }
 
 type HostEmulatorConfig struct {
@@ -55,6 +57,23 @@ type RemoteInputConfig struct {
 	Enabled bool
 }
 
+// MediaConfig contains the opt-in host media transport. Zero values keep
+// physical capture and all media sockets disabled.
+type MediaConfig struct {
+	Enabled        bool
+	Session        string
+	Generation     uint64
+	SSRC           uint32
+	RTPListen      string
+	RTPDestination string
+	ControlAddress string
+	Decoder        string
+	CaptureDevice  string
+	Bitrate        int
+	GOP            int
+	MTU            int
+}
+
 type fileConfig struct {
 	BaseURL               string           `toml:"base_url"`
 	Token                 string           `toml:"token"`
@@ -63,6 +82,7 @@ type fileConfig struct {
 	Libraries             []fileLibrary    `toml:"libraries"`
 	RemoteInput           fileRemoteInput  `toml:"remote_input"`
 	HostEmulator          fileHostEmulator `toml:"host_emulator"`
+	Media                 fileMedia        `toml:"media"`
 }
 
 type fileLibrary struct {
@@ -79,6 +99,21 @@ type fileHostEmulator struct {
 	Binary  string            `toml:"binary"`
 	Core    string            `toml:"core"`
 	Systems []protocol.System `toml:"systems"`
+}
+
+type fileMedia struct {
+	Enabled        bool   `toml:"enabled"`
+	Session        string `toml:"session"`
+	Generation     uint64 `toml:"generation"`
+	SSRC           uint32 `toml:"ssrc"`
+	RTPListen      string `toml:"rtp_listen"`
+	RTPDestination string `toml:"rtp_destination"`
+	ControlAddress string `toml:"control_address"`
+	Decoder        string `toml:"decoder"`
+	CaptureDevice  string `toml:"capture_device"`
+	Bitrate        int    `toml:"bitrate"`
+	GOP            int    `toml:"gop"`
+	MTU            int    `toml:"mtu"`
 }
 
 func LoadConfig(path string) (Config, error) {
@@ -118,6 +153,10 @@ func LoadConfig(path string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	media, err := normalizeMedia(raw.Media)
+	if err != nil {
+		return Config{}, err
+	}
 
 	return Config{
 		BaseURL:        baseURL,
@@ -129,7 +168,40 @@ func LoadConfig(path string) (Config, error) {
 			Enabled: raw.RemoteInput.Enabled,
 		},
 		HostEmulator: hostEmulator,
+		Media:        media,
 	}, nil
+}
+
+func normalizeMedia(raw fileMedia) (MediaConfig, error) {
+	if !raw.Enabled {
+		return MediaConfig{}, nil
+	}
+	if strings.TrimSpace(raw.Session) == "" || raw.SSRC == 0 || strings.TrimSpace(raw.CaptureDevice) == "" {
+		return MediaConfig{}, fmt.Errorf("media configuration is invalid")
+	}
+	for name, address := range map[string]string{"rtp_listen": raw.RTPListen, "rtp_destination": raw.RTPDestination} {
+		if _, _, err := net.SplitHostPort(address); err != nil {
+			return MediaConfig{}, fmt.Errorf("media %s must be a host:port address", name)
+		}
+	}
+	if strings.TrimSpace(raw.ControlAddress) != "" {
+		if _, _, err := net.SplitHostPort(raw.ControlAddress); err != nil {
+			return MediaConfig{}, fmt.Errorf("media control_address must be a host:port address")
+		}
+	}
+	decoder := strings.ToLower(strings.TrimSpace(raw.Decoder))
+	if decoder == "" {
+		decoder = "none"
+	}
+	if decoder != "none" && decoder != "ffplay" {
+		return MediaConfig{}, fmt.Errorf("media decoder must be none or ffplay")
+	}
+	if raw.Bitrate < 0 || raw.GOP < 0 || raw.MTU < 0 {
+		return MediaConfig{}, fmt.Errorf("media bitrate, gop, and mtu must not be negative")
+	}
+	return MediaConfig{Enabled: true, Session: raw.Session, Generation: raw.Generation, SSRC: raw.SSRC,
+		RTPListen: raw.RTPListen, RTPDestination: raw.RTPDestination, ControlAddress: raw.ControlAddress,
+		Decoder: decoder, CaptureDevice: raw.CaptureDevice, Bitrate: raw.Bitrate, GOP: raw.GOP, MTU: raw.MTU}, nil
 }
 
 func normalizeHostEmulator(raw fileHostEmulator) (HostEmulatorConfig, error) {

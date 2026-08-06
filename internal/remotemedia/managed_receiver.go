@@ -30,6 +30,7 @@ type ManagedPacketConn interface {
 // with Ingest.
 type ManagedReceiverTransport interface {
 	Ingest([]byte) ([]AccessUnit, error)
+	AcceptControl(ControlMessage) error
 	Close() error
 }
 
@@ -44,17 +45,19 @@ type ManagedDecoder interface {
 }
 
 type ManagedReceiverConfig struct {
-	Session    string
-	Generation uint64
-	Token      string
-	SSRC       uint32
-	RTPAddress string
-	Decoder    string // "none" or "ffplay"
+	Session        string
+	Generation     uint64
+	Token          string
+	SSRC           uint32
+	RTPAddress     string
+	ControlAddress string
+	Decoder        string // "none" or "ffplay"
 }
 
 type ManagedReceiverOption func(*ManagedReceiver)
 
 type managedReceiverBind func(string, *net.UDPAddr) (ManagedPacketConn, error)
+type managedReceiverControlListen func(string, string) (net.Listener, error)
 type managedReceiverFactory func(ReceiverConfig) (ManagedReceiverTransport, error)
 type managedDecoderFactory func(context.Context) (ManagedDecoder, error)
 
@@ -68,6 +71,15 @@ func WithManagedReceiverBind(bind func(string, *net.UDPAddr) (ManagedPacketConn,
 }
 
 // WithManagedReceiverFactory injects authenticated receiver construction.
+// WithManagedReceiverControlListen injects TCP control listener construction.
+func WithManagedReceiverControlListen(listen func(string, string) (net.Listener, error)) ManagedReceiverOption {
+	return func(r *ManagedReceiver) {
+		if listen != nil {
+			r.controlListen = listen
+		}
+	}
+}
+
 func WithManagedReceiverFactory(factory func(ReceiverConfig) (ManagedReceiverTransport, error)) ManagedReceiverOption {
 	return func(r *ManagedReceiver) {
 		if factory != nil {
@@ -91,11 +103,12 @@ func WithManagedReceiverStopTimeout(timeout time.Duration) ManagedReceiverOption
 }
 
 type ManagedReceiver struct {
-	config      ManagedReceiverConfig
-	bind        managedReceiverBind
-	newReceiver managedReceiverFactory
-	newDecoder  managedDecoderFactory
-	stopTimeout time.Duration
+	config        ManagedReceiverConfig
+	bind          managedReceiverBind
+	controlListen managedReceiverControlListen
+	newReceiver   managedReceiverFactory
+	newDecoder    managedDecoderFactory
+	stopTimeout   time.Duration
 }
 
 func NewManagedReceiver(config ManagedReceiverConfig, options ...ManagedReceiverOption) (*ManagedReceiver, error) {
@@ -106,7 +119,7 @@ func NewManagedReceiver(config ManagedReceiverConfig, options ...ManagedReceiver
 		return nil, errors.New("managed receiver configuration is invalid")
 	}
 	r := &ManagedReceiver{
-		config: config, bind: defaultManagedReceiverBind, newReceiver: defaultManagedReceiverFactory,
+		config: config, bind: defaultManagedReceiverBind, controlListen: defaultManagedReceiverControlListen, newReceiver: defaultManagedReceiverFactory,
 		stopTimeout: defaultManagedReceiverStopTimeout,
 	}
 	if config.Decoder == "ffplay" {
@@ -144,18 +157,30 @@ func (r *ManagedReceiver) Start(ctx context.Context, _ string) (mediasession.Com
 		_ = transport.Close()
 		return nil, ErrManagedReceiverStart
 	}
+	var control net.Listener
+	if r.config.ControlAddress != "" {
+		control, err = r.controlListen("tcp", r.config.ControlAddress)
+		if err != nil || control == nil {
+			_ = conn.Close()
+			_ = transport.Close()
+			return nil, ErrManagedReceiverStart
+		}
+	}
 	decoder, err := r.startDecoder(ctx)
 	if err != nil {
+		if control != nil {
+			_ = control.Close()
+		}
 		_ = conn.Close()
 		_ = transport.Close()
 		return nil, ErrManagedReceiverStart
 	}
 	if err := ctx.Err(); err != nil {
-		h := newManagedReceiverHandle(ctx, conn, transport, decoder, r.stopTimeout)
+		h := newManagedReceiverHandle(ctx, conn, control, transport, decoder, r.stopTimeout)
 		_ = h.Stop(context.Background())
 		return nil, ErrManagedReceiverStart
 	}
-	h := newManagedReceiverHandle(ctx, conn, transport, decoder, r.stopTimeout)
+	h := newManagedReceiverHandle(ctx, conn, control, transport, decoder, r.stopTimeout)
 	return h, nil
 }
 
@@ -176,28 +201,70 @@ func (r *ManagedReceiver) startDecoder(ctx context.Context) (ManagedDecoder, err
 
 type managedReceiverHandle struct {
 	conn     ManagedPacketConn
+	control  net.Listener
 	receiver ManagedReceiverTransport
 	decoder  ManagedDecoder
 	cancel   context.CancelFunc
 	loopDone chan struct{}
 	timeout  time.Duration
 
-	decoderMu   sync.Mutex // serializes decoder Write and Close
-	cleanupOnce sync.Once
-	cleanupDone chan struct{}
-	cleanupMu   sync.Mutex
-	cleanupErr  error
+	decoderMu    sync.Mutex // serializes decoder Write and Close
+	cleanupOnce  sync.Once
+	cleanupDone  chan struct{}
+	cleanupMu    sync.Mutex
+	cleanupErr   error
+	controlWG    sync.WaitGroup
+	controlMu    sync.Mutex
+	controlConns map[net.Conn]struct{}
 }
 
-func newManagedReceiverHandle(parent context.Context, conn ManagedPacketConn, receiver ManagedReceiverTransport, decoder ManagedDecoder, timeout time.Duration) *managedReceiverHandle {
+func newManagedReceiverHandle(parent context.Context, conn ManagedPacketConn, control net.Listener, receiver ManagedReceiverTransport, decoder ManagedDecoder, timeout time.Duration) *managedReceiverHandle {
 	ctx, cancel := context.WithCancel(parent)
-	h := &managedReceiverHandle{conn: conn, receiver: receiver, decoder: decoder, cancel: cancel, loopDone: make(chan struct{}), cleanupDone: make(chan struct{}), timeout: timeout}
+	h := &managedReceiverHandle{conn: conn, control: control, receiver: receiver, decoder: decoder, cancel: cancel, loopDone: make(chan struct{}), cleanupDone: make(chan struct{}), timeout: timeout, controlConns: make(map[net.Conn]struct{})}
 	go h.run(ctx)
+	if control != nil {
+		h.controlWG.Add(1)
+		go h.acceptControl(ctx)
+	}
 	go func() {
 		<-ctx.Done()
 		_ = h.Stop(context.Background())
 	}()
 	return h
+}
+
+func (h *managedReceiverHandle) acceptControl(ctx context.Context) {
+	defer h.controlWG.Done()
+	for {
+		conn, err := h.control.Accept()
+		if err != nil {
+			return
+		}
+		h.controlMu.Lock()
+		h.controlConns[conn] = struct{}{}
+		h.controlMu.Unlock()
+		h.controlWG.Add(1)
+		go h.readControl(ctx, conn)
+	}
+}
+
+func (h *managedReceiverHandle) readControl(ctx context.Context, conn net.Conn) {
+	defer h.controlWG.Done()
+	defer func() { h.controlMu.Lock(); delete(h.controlConns, conn); h.controlMu.Unlock(); _ = conn.Close() }()
+	for {
+		message, err := ReadControlMessage(conn)
+		if err != nil {
+			return
+		}
+		if err := h.receiver.AcceptControl(message); err != nil {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+	}
 }
 
 func (h *managedReceiverHandle) run(ctx context.Context) {
@@ -262,7 +329,16 @@ func (h *managedReceiverHandle) cleanup() {
 	defer close(h.cleanupDone)
 	h.cancel()
 	_ = h.conn.Close()
+	if h.control != nil {
+		_ = h.control.Close()
+	}
+	h.controlMu.Lock()
+	for conn := range h.controlConns {
+		_ = conn.Close()
+	}
+	h.controlMu.Unlock()
 	_ = h.receiver.Close()
+	h.controlWG.Wait()
 
 	deadline := time.Now().Add(h.timeout)
 	if h.decoder != nil {
@@ -322,6 +398,9 @@ func waitUntil(done <-chan struct{}, deadline time.Time) bool {
 
 func defaultManagedReceiverBind(network string, address *net.UDPAddr) (ManagedPacketConn, error) {
 	return net.ListenUDP(network, address)
+}
+func defaultManagedReceiverControlListen(network, address string) (net.Listener, error) {
+	return net.Listen(network, address)
 }
 func defaultManagedReceiverFactory(config ReceiverConfig) (ManagedReceiverTransport, error) {
 	return NewReceiver(config)
