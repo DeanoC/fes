@@ -413,6 +413,37 @@ func TestSessionStatusPreservesHostOnlyExecutionAndMediaState(t *testing.T) {
 	}
 }
 
+func TestUnexpectedHostExitStopsMediaAndRecordsSanitizedSessionExit(t *testing.T) {
+	gameID := "host-game"
+	service := &fakeService{
+		execution: "host_only",
+		// Launch succeeded, but the next service status observes the host process as idle.
+		launch: protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID}},
+		status: protocol.Status{State: protocol.StateIdle},
+	}
+	media := &fakeMediaSession{}
+	handler := hostapi.New(service, hostapi.WithMediaSession(media))
+	launchSession(t, handler, gameID)
+
+	status := serve(t, handler, http.MethodGet, "/api/v1/session")
+	if status.Code != http.StatusOK || !strings.Contains(status.Body.String(), `"state":"idle"`) || !strings.Contains(status.Body.String(), `"media":"stopped"`) {
+		t.Fatalf("unexpected-exit status = %d %s", status.Code, status.Body.String())
+	}
+	if len(media.stop) != 1 {
+		t.Fatalf("media stops = %#v, want one teardown", media.stop)
+	}
+	events := serve(t, handler, http.MethodGet, "/api/v1/session/events")
+	body := events.Body.String()
+	if !strings.Contains(body, `"event":"session.exit"`) || !strings.Contains(body, `"state":"idle"`) || !strings.Contains(body, `"media":"stopped"`) {
+		t.Fatalf("exit event missing: %s", body)
+	}
+	for _, secret := range []string{"/private", "Bearer", "sha256", "path"} {
+		if strings.Contains(body, secret) {
+			t.Fatalf("exit event leaked %q: %s", secret, body)
+		}
+	}
+}
+
 func TestNilMediaHandleDoesNotPanicOrClaimActive(t *testing.T) {
 	service := &fakeService{execution: "host_only", launch: protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive}}}
 	media := &fakeMediaSession{nilHandle: true}

@@ -64,10 +64,11 @@ type sessionCoordinator struct {
 	mediaHandle MediaHandle
 	execution   string
 	mediaState  string
-	mu          sync.Mutex
-	busy        bool
-	sequence    uint64
-	events      []sessionEvent
+	mu             sync.Mutex
+	observationMu  sync.Mutex
+	busy           bool
+	sequence       uint64
+	events         []sessionEvent
 }
 
 func newSessionCoordinator(service sessionService, remoteInput host.RemoteInputController, media MediaSession) *sessionCoordinator {
@@ -107,6 +108,43 @@ func (s *sessionCoordinator) eventsAfter(after uint64) []sessionEvent {
 
 func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) {
 	st, err := s.service.Status(ctx)
+	if err != nil {
+		result := s.publicSession(st, nil)
+		s.mu.Lock()
+		if s.execution != "" {
+			result.Execution = s.execution
+		}
+		if s.mediaState != "" {
+			result.Media = s.mediaState
+		}
+		s.mu.Unlock()
+		return result, err
+	}
+
+	// Service.Status is also the observation point for host-only processes:
+	// the host adapter can reap a process between requests and report idle
+	// without knowing about this coordinator's media handle. Serialize this
+	// transition so concurrent status requests cannot stop the same handle or
+	// emit duplicate exit events.
+	s.observationMu.Lock()
+	defer s.observationMu.Unlock()
+	s.mu.Lock()
+	execution, mediaHandle, mediaState := s.execution, s.mediaHandle, s.mediaState
+	s.mu.Unlock()
+	if st.State == protocol.StateIdle && execution == "host_only" && mediaHandle != nil && mediaState == "active" {
+		if err := s.stopMedia(ctx, execution); err != nil {
+			result := s.publicSession(st, nil)
+			result.Execution = execution
+			result.Media = s.currentMediaState()
+			return result, err
+		}
+		result := s.publicSession(st, nil)
+		result.Execution = execution
+		result.Media = "stopped"
+		s.record("session.exit", result, nil)
+		return result, nil
+	}
+
 	result := s.publicSession(st, nil)
 	s.mu.Lock()
 	if s.execution != "" {
@@ -116,10 +154,8 @@ func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) 
 		result.Media = s.mediaState
 	}
 	s.mu.Unlock()
-	if err == nil {
-		s.record("session.status", result, nil)
-	}
-	return result, err
+	s.record("session.status", result, nil)
+	return result, nil
 }
 
 func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResult, error) {
