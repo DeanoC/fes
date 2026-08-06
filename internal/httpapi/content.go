@@ -24,6 +24,7 @@ type ContentController interface {
 
 type serverOptions struct {
 	content ContentController
+	input   InputController
 }
 
 type Option func(*serverOptions)
@@ -31,6 +32,12 @@ type Option func(*serverOptions)
 func WithContent(controller ContentController) Option {
 	return func(options *serverOptions) {
 		options.content = controller
+	}
+}
+
+func WithInput(controller InputController) Option {
+	return func(options *serverOptions) {
+		options.input = controller
 	}
 }
 

@@ -77,6 +77,29 @@ root = "`+megaRoot+`"
 	}
 }
 
+func TestLoadConfigLoadsRemoteInputEnablement(t *testing.T) {
+	dir := t.TempDir()
+	firstRoot := filepath.Join(dir, "SNES")
+	secondRoot := filepath.Join(dir, "Genesis")
+	if err := os.MkdirAll(firstRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(secondRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	path := writeConfig(t, validConfig(firstRoot, secondRoot)+`
+[remote_input]
+enabled = true
+`)
+	config, err := fogcast.LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !config.RemoteInput.Enabled {
+		t.Fatalf("remote input config = %#v", config.RemoteInput)
+	}
+}
+
 func TestLoadConfigRejectsSymlinkRootConsistentlyOnlineAndOffline(t *testing.T) {
 	dir := t.TempDir()
 	actual := filepath.Join(dir, "actual")

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,6 +16,8 @@ import (
 	"github.com/DeanoC/FogCast-POC/internal/agent"
 	"github.com/DeanoC/FogCast-POC/internal/agentconfig"
 	"github.com/DeanoC/FogCast-POC/internal/core"
+	"github.com/DeanoC/FogCast-POC/internal/httpapi"
+	"github.com/DeanoC/FogCast-POC/internal/input"
 	"github.com/DeanoC/FogCast-POC/internal/mister"
 	"github.com/DeanoC/FogCast-POC/internal/targetcache"
 	"github.com/DeanoC/FogCast-POC/protocol"
@@ -64,6 +67,15 @@ func (*compositionRuntime) Stop(context.Context) (string, *protocol.APIError) {
 type compositionStore struct {
 	reconciled bool
 }
+
+type compositionInput struct{}
+
+func (*compositionInput) Attach(context.Context, input.Spec) error { return nil }
+func (*compositionInput) Detach(context.Context, uint64) error     { return nil }
+func (*compositionInput) OpenStream(context.Context, uint64) (net.Conn, error) {
+	return nil, errors.New("unused")
+}
+func (*compositionInput) Close() error { return nil }
 
 func (*compositionStore) Probe(context.Context, protocol.System, protocol.ContentKey) (protocol.CacheProbeResponse, *protocol.APIError) {
 	return protocol.CacheProbeResponse{Present: false}, nil
@@ -136,6 +148,30 @@ func TestRunComposesFixedCacheContentHandlerAndUploadTimeouts(t *testing.T) {
 	}
 	if !runtime.reconciled || !store.reconciled || !listened {
 		t.Fatalf("startup runtime=%v store=%v listened=%v", runtime.reconciled, store.reconciled, listened)
+	}
+}
+
+func TestRunComposesTargetInputController(t *testing.T) {
+	configPath := writeCompositionConfig(t, "")
+	runtime := &compositionRuntime{}
+	store := &compositionStore{}
+	inputController := &compositionInput{}
+	seenInput := false
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	deps := runDependencies{
+		openCache: func(targetcache.Config, core.Registry, ...targetcache.Option) (agent.ContentStore, error) {
+			return store, nil
+		},
+		newRuntime: func(agentconfig.Config, core.Registry) agent.Runtime { return runtime },
+		newInput:   func(agentconfig.Config) httpapi.InputController { seenInput = true; return inputController },
+		serve:      func(*http.Server) error { cancel(); return http.ErrServerClosed },
+	}
+	if err := runWithDependencies(ctx, configPath, slog.New(slog.NewJSONHandler(io.Discard, nil)), deps); err != nil {
+		t.Fatal(err)
+	}
+	if !seenInput {
+		t.Fatal("target input controller was not composed")
 	}
 }
 

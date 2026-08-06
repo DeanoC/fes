@@ -1,18 +1,25 @@
 package httpapi
 
 import (
+	"bufio"
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/DeanoC/FogCast-POC/internal/input"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
@@ -21,6 +28,13 @@ type Controller interface {
 	Status() protocol.Status
 	Launch(context.Context, protocol.LaunchRequest) (protocol.Status, *protocol.APIError)
 	Stop(context.Context) (protocol.Status, *protocol.APIError)
+}
+
+type InputController interface {
+	Attach(context.Context, input.Spec) error
+	Detach(context.Context, uint64) error
+	OpenStream(context.Context, uint64) (net.Conn, error)
+	Close() error
 }
 
 func New(controller Controller, token string, version string, logger *slog.Logger, options ...Option) http.Handler {
@@ -47,7 +61,116 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 	if settings.content != nil {
 		registerContentRoutes(mux, token, settings.content)
 	}
+	if settings.input != nil {
+		registerInputRoutes(mux, token, settings.input)
+	}
 	return requestLogger(logger, rejectInvalidV2RouteShapes(mux))
+}
+
+func registerInputRoutes(mux *http.ServeMux, token string, controller InputController) {
+	mux.Handle("/v1/input/attach", authenticate(token, exactMethod(http.MethodPost, inputAttachHandler(controller))))
+	mux.Handle("/v1/input/detach", authenticate(token, exactMethod(http.MethodPost, inputDetachHandler(controller))))
+	mux.Handle("/v1/input/stream", authenticate(token, inputStreamHandler(controller)))
+}
+
+func inputAttachHandler(controller InputController) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 8<<10)
+		decoder := json.NewDecoder(r.Body)
+		decoder.DisallowUnknownFields()
+		var request struct {
+			Session uint64 `json:"session"`
+			Token   string `json:"token"`
+			Core    string `json:"core"`
+		}
+		if err := decoder.Decode(&request); err != nil || decoder.Decode(&struct{}{}) != io.EOF {
+			writeBadRequest(w, r, "input attach requires one valid lease object")
+			return
+		}
+		leaseToken, err := hex.DecodeString(request.Token)
+		if err != nil || request.Session == 0 || len(leaseToken) < 16 {
+			writeBadRequest(w, r, "input lease is invalid")
+			return
+		}
+		if err := controller.Attach(r.Context(), input.Spec{Session: request.Session, Token: leaseToken, Core: request.Core}); err != nil {
+			writeInputError(w, r)
+			return
+		}
+		writeJSON(w, http.StatusOK, struct {
+			Ready bool `json:"ready"`
+		}{Ready: true})
+	})
+}
+
+func inputDetachHandler(controller InputController) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
+		decoder := json.NewDecoder(r.Body)
+		decoder.DisallowUnknownFields()
+		var request struct {
+			Session uint64 `json:"session"`
+			Reason  string `json:"reason"`
+		}
+		if err := decoder.Decode(&request); err != nil || decoder.Decode(&struct{}{}) != io.EOF || request.Session == 0 {
+			writeBadRequest(w, r, "input detach requires one valid session object")
+			return
+		}
+		if err := controller.Detach(r.Context(), request.Session); err != nil {
+			writeInputError(w, r)
+			return
+		}
+		writeJSON(w, http.StatusOK, struct {
+			Ready bool `json:"ready"`
+		}{Ready: false})
+	})
+}
+
+func inputStreamHandler(controller InputController) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodConnect {
+			w.Header().Set("Allow", http.MethodConnect)
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		session, err := strconv.ParseUint(r.Header.Get("X-FogCast-Input-Session"), 10, 64)
+		if err != nil || session == 0 {
+			writeError(w, http.StatusBadRequest, string(protocol.CodeBadRequest), "input stream session is invalid")
+			return
+		}
+		backend, err := controller.OpenStream(r.Context(), session)
+		if err != nil {
+			writeInputError(w, r)
+			return
+		}
+		hijacker, ok := w.(http.Hijacker)
+		if !ok {
+			_ = backend.Close()
+			writeInputError(w, r)
+			return
+		}
+		client, buffered, err := hijacker.Hijack()
+		if err != nil {
+			_ = backend.Close()
+			return
+		}
+		if _, err := buffered.WriteString("HTTP/1.1 200 Connection Established\r\n\r\n"); err != nil || buffered.Flush() != nil {
+			_ = client.Close()
+			_ = backend.Close()
+			return
+		}
+		var wait sync.WaitGroup
+		wait.Add(2)
+		go func() { defer wait.Done(); _, _ = io.Copy(backend, client) }()
+		go func() { defer wait.Done(); _, _ = io.Copy(client, backend) }()
+		wait.Wait()
+		_ = client.Close()
+		_ = backend.Close()
+	})
+}
+
+func writeInputError(w http.ResponseWriter, r *http.Request) {
+	setRequestError(r, protocol.CodeMiSTerUnavailable)
+	writeError(w, http.StatusServiceUnavailable, string(protocol.CodeMiSTerUnavailable), "remote input is unavailable")
 }
 
 func rejectInvalidV2RouteShapes(next http.Handler) http.Handler {
@@ -213,6 +336,10 @@ func writeBadRequest(w http.ResponseWriter, r *http.Request, message string) {
 	writeAPIError(w, http.StatusBadRequest, &protocol.APIError{Code: protocol.CodeBadRequest, Message: message})
 }
 
+func writeError(w http.ResponseWriter, status int, code, message string) {
+	writeAPIError(w, status, &protocol.APIError{Code: protocol.ErrorCode(code), Message: message})
+}
+
 func statusForError(code protocol.ErrorCode) int {
 	switch code {
 	case protocol.CodeBadRequest:
@@ -316,6 +443,23 @@ func (w *statusWriter) Write(body []byte) (int, error) {
 		w.status = http.StatusOK
 	}
 	return w.ResponseWriter.Write(body)
+}
+
+func (w *statusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hijacker, ok := w.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("HTTP server does not support connection hijacking")
+	}
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	return hijacker.Hijack()
+}
+
+func (w *statusWriter) Flush() {
+	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
 }
 
 func requestLogger(logger *slog.Logger, next http.Handler) http.Handler {

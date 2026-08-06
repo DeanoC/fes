@@ -23,6 +23,18 @@ func TestRemoteInputRoundTripAndBounds(t *testing.T) {
 	}
 }
 
+func TestRemoteInputControlFrameRoundTrip(t *testing.T) {
+	frame := InputFrame{Header: InputHeader{Type: InputTypePing, Session: 42}, Seq: 8}
+	wire, err := EncodeInputFrame(frame)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := DecodeInputFrame(bytes.NewReader(wire), 1024)
+	if err != nil || got != frame {
+		t.Fatalf("got %#v err=%v", got, err)
+	}
+}
+
 func TestRemoteInputRejectsHeaderAndValues(t *testing.T) {
 	frame := InputFrame{Header: InputHeader{Type: InputTypeInput, Session: 1}, Seq: 1, Device: 9}
 	if _, err := EncodeInputFrame(frame); err == nil {

@@ -34,8 +34,9 @@ adapter and control session are reliable.
 
 - POC2 cache publication works on the MiSTer exFAT filesystem.
 - Reboot and NAS-offline cache behavior remain green.
-- A deterministic interrupted-upload fixture is added or the gate is formally
-  redesigned and documented.
+- The POC2 interrupted-upload gate is tracked separately in
+  `docs/POC2-HANDOFF.md`; it is not a POC3 host-control gate. POC3 does not
+  claim that POC2's separate acceptance gate passed.
 - POC1 rollback remains tested and the target provenance locks are unchanged.
 
 ## First POC3 design question
@@ -57,3 +58,16 @@ Public models intentionally omit NAS paths, library IDs, target credentials,
 cache digests, and ROM filenames. Write operations and event streaming remain
 future vertical slices; they should be added behind this host boundary rather
 than exposing the MiSTer API to UI clients.
+
+## Completion disposition
+
+The POC3 implementation is complete for its defined host-control scope. The
+authoritative checkout contains the local versioned HTTP/JSON API, normalized
+catalog and session workflow, host-only execution boundary, authenticated
+target-owned MiSTer remote input, reconnect-safe state handling, and verified
+managed-target HIL. The remote-input evidence is recorded in
+`docs/remote-input-evidence.md`.
+
+Video streaming, receiver/display integration, wired-network measurement, and
+physical glass-to-glass latency are explicitly post-POC3 work. They must not be
+used to block this POC3 completion decision.

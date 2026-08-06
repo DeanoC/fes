@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast-POC/fogcast"
+	"github.com/DeanoC/FogCast-POC/host"
 	"github.com/DeanoC/FogCast-POC/internal/hostapi"
 )
 
@@ -25,6 +27,37 @@ type service interface {
 }
 
 type openService func(context.Context, fogcast.Paths) (service, error)
+
+type bridgeStarterFactory func(fogcast.Config) (host.BridgeStarter, error)
+
+func defaultBridgeStarter(config fogcast.Config) (host.BridgeStarter, error) {
+	baseURL, err := url.Parse(config.BaseURL)
+	if err != nil {
+		return nil, host.ErrRemoteInputInvalid
+	}
+	return host.NewHTTPBridgeStarter(host.HTTPBridgeStarterConfig{BaseURL: baseURL, Token: config.Token})
+}
+
+func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarterFactory) (http.Handler, func() error, error) {
+	if service == nil {
+		return nil, nil, errors.New("fogcast-api: composition dependency is unavailable")
+	}
+	if !config.RemoteInput.Enabled {
+		return hostapi.New(service), func() error { return nil }, nil
+	}
+	if makeStarter == nil {
+		return nil, nil, errors.New("fogcast-api: bridge starter is unavailable")
+	}
+	starter, err := makeStarter(config)
+	if err != nil {
+		return nil, nil, err
+	}
+	remoteInput, err := host.NewRemoteInput(host.RemoteInputConfig{Starter: starter})
+	if err != nil {
+		return nil, nil, err
+	}
+	return hostapi.New(service, hostapi.WithRemoteInput(remoteInput)), remoteInput.Close, nil
+}
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -60,12 +93,23 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, open open
 	if strings.TrimSpace(*configPath) != "" {
 		paths.Config = *configPath
 	}
+	config, err := fogcast.LoadConfig(paths.Config)
+	if err != nil {
+		fmt.Fprintln(stderr, "fogcast-api: configuration load failed")
+		return 1
+	}
 	fogcastService, err := open(ctx, paths)
 	if err != nil || fogcastService == nil {
 		fmt.Fprintln(stderr, "fogcast-api: service load failed")
 		return 1
 	}
 	defer fogcastService.Close()
+	handler, closeRemoteInput, err := composeAPI(fogcastService, config, defaultBridgeStarter)
+	if err != nil {
+		fmt.Fprintln(stderr, "fogcast-api: remote input configuration failed")
+		return 1
+	}
+	defer closeRemoteInput()
 
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
@@ -76,7 +120,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, open open
 
 	mux := http.NewServeMux()
 	mux.Handle("/", hostapi.UIHandler())
-	mux.Handle("/api/", hostapi.New(fogcastService))
+	mux.Handle("/api/", handler)
 	server := &http.Server{
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,

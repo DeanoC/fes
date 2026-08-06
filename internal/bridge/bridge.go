@@ -38,6 +38,7 @@ type Config struct {
 	Core             string
 	HeartbeatTimeout time.Duration
 	Logger           *slog.Logger
+	OnDisconnect     func()
 }
 type Metrics struct{ Accepted, Applied, Rejected, SequenceGaps, Releases atomic.Uint64 }
 
@@ -163,6 +164,9 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 		s.activeMu.Unlock()
 		_ = s.sink.ReleaseAll()
 		s.metrics.Releases.Add(1)
+		if s.cfg.OnDisconnect != nil {
+			s.cfg.OnDisconnect()
+		}
 	}()
 	_ = conn.SetReadDeadline(time.Time{})
 	_, _ = io.WriteString(conn, "{\"ok\":true}\n")
@@ -189,6 +193,18 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 			return
 		}
 		last = time.Now()
+		if f.Header.Type == protocol.InputTypePing {
+			f.Header.Type = protocol.InputTypePong
+			f.ServerMonoNS = uint64(time.Now().UnixNano())
+			wire, err := protocol.EncodeInputFrame(f)
+			if err != nil {
+				return
+			}
+			if _, err := conn.Write(wire); err != nil {
+				return
+			}
+			continue
+		}
 		accepted, gap := tracker.Observe(f.Seq)
 		if gap {
 			s.metrics.SequenceGaps.Add(1)

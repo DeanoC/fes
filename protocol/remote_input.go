@@ -10,6 +10,8 @@ import (
 const (
 	InputVersion     uint8 = 1
 	InputTypeInput   uint8 = 1
+	InputTypePing    uint8 = 2
+	InputTypePong    uint8 = 3
 	inputMagic             = "MSTR"
 	inputHeaderSize        = 16
 	inputPayloadSize       = 32
@@ -35,7 +37,7 @@ type InputFrame struct {
 }
 
 func EncodeInputFrame(f InputFrame) ([]byte, error) {
-	if f.Header.Type != InputTypeInput || f.Header.Session == 0 || f.Header.Flags != 0 || f.Player > 3 || f.Device > 1 || f.Kind > 2 || f.Action > 2 || f.Reserved != 0 {
+	if !validInputFrame(f) {
 		return nil, fmt.Errorf("invalid input frame")
 	}
 	b := make([]byte, 4+inputHeaderSize+inputPayloadSize)
@@ -58,6 +60,7 @@ func EncodeInputFrame(f InputFrame) ([]byte, error) {
 	binary.LittleEndian.PutUint32(p[28:], uint32(f.Value))
 	return b, nil
 }
+
 func DecodeInputFrame(r io.Reader, max uint32) (InputFrame, error) {
 	var n uint32
 	if err := binary.Read(r, binary.LittleEndian, &n); err != nil {
@@ -85,10 +88,27 @@ func DecodeInputFrame(r io.Reader, max uint32) (InputFrame, error) {
 	f.Code = binary.LittleEndian.Uint16(p[24:])
 	f.Reserved = binary.LittleEndian.Uint16(p[26:])
 	f.Value = int32(binary.LittleEndian.Uint32(p[28:]))
-	if f.Header.Type != InputTypeInput || f.Header.Session == 0 || f.Header.Flags != 0 || f.Player > 3 || f.Device > 1 || f.Kind > 2 || f.Action > 2 || f.Reserved != 0 {
+	if !validInputFrame(f) {
 		return InputFrame{}, fmt.Errorf("invalid input fields")
 	}
 	return f, nil
+}
+
+func validInputFrame(f InputFrame) bool {
+	if (f.Header.Type != InputTypeInput && f.Header.Type != InputTypePing && f.Header.Type != InputTypePong) ||
+		f.Header.Session == 0 || f.Header.Flags != 0 || f.Player > 3 || f.Device > 1 || f.Kind > 2 || f.Action > 2 || f.Reserved != 0 {
+		return false
+	}
+	if f.Header.Type != InputTypeInput {
+		if f.Player != 0 || f.Device != 0 || f.Kind != 0 || f.Action != 0 || f.Code != 0 || f.Reserved != 0 || f.Value != 0 {
+			return false
+		}
+		if f.Header.Type == InputTypePing {
+			return f.ServerMonoNS == 0
+		}
+		return f.ServerMonoNS != 0
+	}
+	return true
 }
 
 type SequenceTracker struct {
@@ -145,6 +165,15 @@ func NewInputState() *InputState {
 	return &InputState{pressed: map[uint16]bool{}, axes: map[uint16]int16{}}
 }
 func (s *InputState) Apply(f InputFrame) error {
+	if f.Header.Type != InputTypeInput {
+		return fmt.Errorf("unsupported control frame")
+	}
+	if s.pressed == nil {
+		s.pressed = make(map[uint16]bool)
+	}
+	if s.axes == nil {
+		s.axes = make(map[uint16]int16)
+	}
 	if f.Kind == 0 {
 		if f.Action == 1 {
 			s.pressed[f.Code] = true

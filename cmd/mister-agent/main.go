@@ -16,6 +16,7 @@ import (
 	"github.com/DeanoC/FogCast-POC/internal/agentconfig"
 	"github.com/DeanoC/FogCast-POC/internal/core"
 	"github.com/DeanoC/FogCast-POC/internal/httpapi"
+	"github.com/DeanoC/FogCast-POC/internal/input"
 	"github.com/DeanoC/FogCast-POC/internal/mister"
 	"github.com/DeanoC/FogCast-POC/internal/targetcache"
 	"github.com/DeanoC/FogCast-POC/internal/version"
@@ -29,6 +30,7 @@ const (
 type runDependencies struct {
 	openCache  func(targetcache.Config, core.Registry, ...targetcache.Option) (agent.ContentStore, error)
 	newRuntime func(agentconfig.Config, core.Registry) agent.Runtime
+	newInput   func(agentconfig.Config) httpapi.InputController
 	serve      func(*http.Server) error
 }
 
@@ -50,6 +52,9 @@ func productionRunDependencies() runDependencies {
 				MGLDirectory:      cfg.MGLDirectory,
 			}
 			return mister.NewRuntime(paths, registry, mister.FileCommandWriter{Path: cfg.CommandPipe}, mister.ProcProcessChecker{Root: "/proc"}, 25*time.Millisecond)
+		},
+		newInput: func(cfg agentconfig.Config) httpapi.InputController {
+			return input.NewTargetControllerWithConfig(cfg.InputListenAddress, cfg.InputUInputPath)
 		},
 		serve: func(server *http.Server) error { return server.ListenAndServe() },
 	}
@@ -75,7 +80,16 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	startup, cancel := context.WithTimeout(ctx, 40*time.Second)
 	coordinator.Initialize(startup)
 	cancel()
-	handler := httpapi.New(coordinator, cfg.Token, version.Version, logger, httpapi.WithContent(content))
+	options := []httpapi.Option{httpapi.WithContent(content)}
+	var inputController httpapi.InputController
+	if dependencies.newInput != nil {
+		inputController = dependencies.newInput(cfg)
+		if inputController != nil {
+			options = append(options, httpapi.WithInput(inputController))
+			defer inputController.Close()
+		}
+	}
+	handler := httpapi.New(coordinator, cfg.Token, version.Version, logger, options...)
 	server := &http.Server{
 		Addr:              cfg.ListenAddress,
 		Handler:           handler,

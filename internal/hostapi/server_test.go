@@ -10,6 +10,7 @@ import (
 
 	"github.com/DeanoC/FogCast-POC/catalog"
 	"github.com/DeanoC/FogCast-POC/fogcast"
+	"github.com/DeanoC/FogCast-POC/host"
 	"github.com/DeanoC/FogCast-POC/internal/hostapi"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
@@ -49,6 +50,26 @@ func (s *fakeService) Launch(_ context.Context, _ string, progress fogcast.Progr
 	return s.launch, s.launchErr
 }
 func (s *fakeService) Stop(context.Context) (protocol.Status, error) { return s.stopped, s.stopErr }
+
+type fakeRemoteInput struct {
+	status host.RemoteInputStatus
+	attach []string
+	detach []string
+}
+
+func (r *fakeRemoteInput) Attach(_ context.Context, core string) error {
+	r.attach = append(r.attach, core)
+	r.status = host.RemoteInputStatus{State: host.RemoteInputAttached, Ready: true}
+	return nil
+}
+func (r *fakeRemoteInput) Detach(_ context.Context, reason string) error {
+	if r.status.State == host.RemoteInputAttached {
+		r.detach = append(r.detach, reason)
+	}
+	r.status = host.RemoteInputStatus{State: host.RemoteInputDetached, Metrics: host.RemoteInputMetrics{ShutdownReason: reason}}
+	return nil
+}
+func (r *fakeRemoteInput) Status() host.RemoteInputStatus { return r.status }
 
 func TestGamesReturnsStablePublicCatalogWithoutPrivatePathsOrDigests(t *testing.T) {
 	service := &fakeService{games: []catalog.Game{{
@@ -156,6 +177,42 @@ func TestSessionRejectsMalformedLaunchWithoutCallingService(t *testing.T) {
 	handler.ServeHTTP(response, request)
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestSessionOwnsRemoteInputAttachDetachAndStatusLifecycle(t *testing.T) {
+	gameID := "snes-test"
+	system := protocol.SystemSNES
+	core := "SNES"
+	service := &fakeService{
+		launch:  protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core}},
+		stopped: protocol.Status{State: protocol.StateIdle},
+	}
+	input := &fakeRemoteInput{}
+	handler := hostapi.New(service, hostapi.WithRemoteInput(input))
+
+	launch := httptest.NewRequest(http.MethodPost, "/api/v1/session/launch", strings.NewReader(`{"game_id":"snes-test"}`))
+	launch.Host = "127.0.0.1"
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, launch)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"input":{"state":"attached"`) {
+		t.Fatalf("launch = %d %s", response.Code, response.Body.String())
+	}
+	if len(input.attach) != 1 || input.attach[0] != core {
+		t.Fatalf("attach calls = %#v", input.attach)
+	}
+
+	status := serve(t, handler, http.MethodGet, "/api/v1/session/input")
+	if status.Code != http.StatusOK || !strings.Contains(status.Body.String(), `"state":"attached"`) {
+		t.Fatalf("input status = %d %s", status.Code, status.Body.String())
+	}
+
+	detach := httptest.NewRequest(http.MethodPost, "/api/v1/session/input/detach", nil)
+	detach.Host = "127.0.0.1"
+	detachResponse := httptest.NewRecorder()
+	handler.ServeHTTP(detachResponse, detach)
+	if detachResponse.Code != http.StatusOK || len(input.detach) != 1 {
+		t.Fatalf("detach = %d %s calls=%#v", detachResponse.Code, detachResponse.Body.String(), input.detach)
 	}
 }
 

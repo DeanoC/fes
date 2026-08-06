@@ -13,25 +13,29 @@ import (
 const DefaultCacheMaxBytes int64 = 2 << 30
 
 type Config struct {
-	ListenAddress     string
-	Token             string
-	MiSTerProcessComm string
-	CommandPipe       string
-	CoreNameFile      string
-	MenuRBF           string
-	MGLDirectory      string
-	CacheMaxBytes     int64
+	ListenAddress      string
+	Token              string
+	MiSTerProcessComm  string
+	CommandPipe        string
+	CoreNameFile       string
+	MenuRBF            string
+	MGLDirectory       string
+	CacheMaxBytes      int64
+	InputListenAddress string
+	InputUInputPath    string
 }
 
 type fileConfig struct {
-	ListenAddress     string `toml:"listen_address"`
-	Token             string `toml:"token"`
-	MiSTerProcessComm string `toml:"mister_process_comm"`
-	CommandPipe       string `toml:"command_pipe"`
-	CoreNameFile      string `toml:"core_name_file"`
-	MenuRBF           string `toml:"menu_rbf"`
-	MGLDirectory      string `toml:"mgl_directory"`
-	CacheMaxBytes     *int64 `toml:"cache_max_bytes"`
+	ListenAddress      string `toml:"listen_address"`
+	Token              string `toml:"token"`
+	MiSTerProcessComm  string `toml:"mister_process_comm"`
+	CommandPipe        string `toml:"command_pipe"`
+	CoreNameFile       string `toml:"core_name_file"`
+	MenuRBF            string `toml:"menu_rbf"`
+	MGLDirectory       string `toml:"mgl_directory"`
+	CacheMaxBytes      *int64 `toml:"cache_max_bytes"`
+	InputListenAddress string `toml:"input_listen_address"`
+	InputUInputPath    string `toml:"input_uinput_path"`
 }
 
 func Load(path string) (Config, error) {
@@ -51,14 +55,28 @@ func Load(path string) (Config, error) {
 		cacheMaxBytes = *raw.CacheMaxBytes
 	}
 	cfg := Config{
-		ListenAddress:     raw.ListenAddress,
-		Token:             raw.Token,
-		MiSTerProcessComm: raw.MiSTerProcessComm,
-		CommandPipe:       raw.CommandPipe,
-		CoreNameFile:      raw.CoreNameFile,
-		MenuRBF:           raw.MenuRBF,
-		MGLDirectory:      raw.MGLDirectory,
-		CacheMaxBytes:     cacheMaxBytes,
+		ListenAddress:      raw.ListenAddress,
+		Token:              raw.Token,
+		MiSTerProcessComm:  raw.MiSTerProcessComm,
+		CommandPipe:        raw.CommandPipe,
+		CoreNameFile:       raw.CoreNameFile,
+		MenuRBF:            raw.MenuRBF,
+		MGLDirectory:       raw.MGLDirectory,
+		CacheMaxBytes:      cacheMaxBytes,
+		InputListenAddress: raw.InputListenAddress,
+		InputUInputPath:    raw.InputUInputPath,
+	}
+	if cfg.InputListenAddress == "" {
+		cfg.InputListenAddress = "127.0.0.1:18183"
+	}
+	if cfg.InputUInputPath == "" {
+		cfg.InputUInputPath = "/dev/uinput"
+	}
+	if _, _, err := net.SplitHostPort(cfg.InputListenAddress); err != nil {
+		return Config{}, fmt.Errorf("input_listen_address: %w", err)
+	}
+	if !filepath.IsAbs(cfg.InputUInputPath) {
+		return Config{}, fmt.Errorf("input_uinput_path must be absolute")
 	}
 	if cfg.CacheMaxBytes <= 0 {
 		return Config{}, fmt.Errorf("cache_max_bytes must be positive")

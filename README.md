@@ -43,6 +43,25 @@ Game and session responses include only public models and the current `fpga_nati
 execution capability; they intentionally omit NAS paths, library IDs, target
 credentials, cache digests, and ROM filenames.
 
+The input-only bridge is opt-in in the untracked FogCast config:
+
+```toml
+[remote_input]
+enabled = true
+```
+
+When enabled, `fogcast-api` requests a per-session target-owned input lease
+through the authenticated MiSTer API and opens the input stream through that
+API. The target agent owns the bridge and `/dev/uinput`; the macOS host does not
+execute a target path locally. Session tokens and target credentials remain
+private; public input status
+contains only lifecycle, bounded counters, timing summaries, measurability, and
+canonical shutdown reason. The target bridge binary must be deployed through an
+authorized target workflow before enabling this option; local tests do not prove
+target `/dev/uinput` or physical input.
+
+Evidence is recorded separately in `docs/remote-input-evidence.md`.
+
 For the disposable development Pi, keep its SSH tunnel running with the
 repository helper. It intentionally accepts regenerated target host keys and
 prompts for the password without storing it:

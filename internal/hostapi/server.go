@@ -14,6 +14,7 @@ import (
 
 	"github.com/DeanoC/FogCast-POC/catalog"
 	"github.com/DeanoC/FogCast-POC/fogcast"
+	"github.com/DeanoC/FogCast-POC/host"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
@@ -70,12 +71,28 @@ type apiError struct {
 	Message string `json:"message"`
 }
 
-func New(service Service) http.Handler {
+type serverOptions struct {
+	remoteInput host.RemoteInputController
+}
+
+type ServerOption func(*serverOptions)
+
+func WithRemoteInput(remoteInput host.RemoteInputController) ServerOption {
+	return func(options *serverOptions) { options.remoteInput = remoteInput }
+}
+
+func New(service Service, options ...ServerOption) http.Handler {
 	if service == nil {
 		panic("hostapi: nil service")
 	}
+	var config serverOptions
+	for _, option := range options {
+		if option != nil {
+			option(&config)
+		}
+	}
 	mux := http.NewServeMux()
-	session := newSessionCoordinator(service)
+	session := newSessionCoordinator(service, config.remoteInput)
 	mux.HandleFunc("GET /api/v1/session", func(w http.ResponseWriter, r *http.Request) {
 		result, err := session.status(r.Context())
 		if err != nil {
@@ -118,6 +135,38 @@ func New(service Service) http.Handler {
 			return
 		}
 		result, err := session.stop(r.Context())
+		if err != nil {
+			writeSessionError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+	})
+	mux.HandleFunc("GET /api/v1/session/input", func(w http.ResponseWriter, r *http.Request) {
+		status, ok := session.inputStatus()
+		if !ok {
+			writeError(w, http.StatusNotFound, "INPUT_UNAVAILABLE", "remote input is unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, status)
+	})
+	mux.HandleFunc("POST /api/v1/session/input/attach", func(w http.ResponseWriter, r *http.Request) {
+		if err := rejectBody(w, r); err != nil {
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "attach request body must be empty")
+			return
+		}
+		result, err := session.attachInput(r.Context())
+		if err != nil {
+			writeSessionError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+	})
+	mux.HandleFunc("POST /api/v1/session/input/detach", func(w http.ResponseWriter, r *http.Request) {
+		if err := rejectBody(w, r); err != nil {
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "detach request body must be empty")
+			return
+		}
+		result, err := session.detachInput(r.Context())
 		if err != nil {
 			writeSessionError(w, err)
 			return

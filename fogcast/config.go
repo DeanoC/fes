@@ -38,20 +38,33 @@ type Config struct {
 	RequestTimeout time.Duration
 	UploadTimeout  time.Duration
 	Libraries      []catalog.Root
+	RemoteInput    RemoteInputConfig
+}
+
+// RemoteInputConfig contains private remote-input composition settings. The
+// target bridge is owned by mister-agent; its listen and device paths are
+// target configuration, not host configuration.
+type RemoteInputConfig struct {
+	Enabled bool
 }
 
 type fileConfig struct {
-	BaseURL               string        `toml:"base_url"`
-	Token                 string        `toml:"token"`
-	RequestTimeoutSeconds int64         `toml:"request_timeout_seconds"`
-	UploadTimeoutSeconds  int64         `toml:"upload_timeout_seconds"`
-	Libraries             []fileLibrary `toml:"libraries"`
+	BaseURL               string          `toml:"base_url"`
+	Token                 string          `toml:"token"`
+	RequestTimeoutSeconds int64           `toml:"request_timeout_seconds"`
+	UploadTimeoutSeconds  int64           `toml:"upload_timeout_seconds"`
+	Libraries             []fileLibrary   `toml:"libraries"`
+	RemoteInput           fileRemoteInput `toml:"remote_input"`
 }
 
 type fileLibrary struct {
 	ID     string          `toml:"id"`
 	System protocol.System `toml:"system"`
 	Root   string          `toml:"root"`
+}
+
+type fileRemoteInput struct {
+	Enabled bool `toml:"enabled"`
 }
 
 func LoadConfig(path string) (Config, error) {
@@ -94,6 +107,9 @@ func LoadConfig(path string) (Config, error) {
 		RequestTimeout: requestTimeout,
 		UploadTimeout:  uploadTimeout,
 		Libraries:      libraries,
+		RemoteInput: RemoteInputConfig{
+			Enabled: raw.RemoteInput.Enabled,
+		},
 	}, nil
 }
 
