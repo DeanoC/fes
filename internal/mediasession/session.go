@@ -34,16 +34,19 @@ type ComponentHandle interface {
 	Stop(context.Context) error
 }
 
-// Handle is returned by Session.Start and is compatible with hostapi's
-// MediaHandle without importing the host API package.
+// Handle is the lifecycle handle returned by Session.Start. Callers that
+// expose this through another package's interface should use an explicit
+// adapter at that package boundary; Go does not support covariant interface
+// return types.
 type Handle interface {
 	Stop(context.Context) error
 }
 
 type Option func(*Session)
 
-// WithStopTimeout bounds each component stop operation. The default is two
-// seconds. A caller context deadline, when earlier, remains authoritative.
+// WithStopTimeout bounds the complete reverse-order component cleanup. The
+// default is two seconds. A caller context deadline, when earlier, remains
+// authoritative.
 func WithStopTimeout(timeout time.Duration) Option {
 	return func(s *Session) {
 		if timeout > 0 {
