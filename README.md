@@ -34,9 +34,17 @@ local `ffplay` display backend. The deterministic impairment harness is
 
 Read [`docs/POC4-RESULTS.md`](docs/POC4-RESULTS.md) for gate evidence and the
 remaining deferred glass-to-glass latency issue. Do not treat a receiver UDP
-bind or sender timing as physical latency evidence. The next stage must decide
-whether to integrate this plane behind the POC3 session boundary or defer video
-while productizing library/control UX.
+bind or sender timing as physical latency evidence.
+
+## POC5 unified play session
+
+POC5 resolves the POC4 transition decision: the measured video plane is
+integrated behind the POC3 session boundary so host-only games become playable
+through one launch/session flow, and the deferred G7 glass-to-glass latency
+measurement runs on the integrated fixture. The roadmap and scope are in
+[`docs/POC5-ROADMAP.md`](docs/POC5-ROADMAP.md). The follow-on POC6 stage
+([`docs/POC6-ROADMAP.md`](docs/POC6-ROADMAP.md)) casts host-emulated games to
+the MiSTer-attached TV for the full "GoogleCast for games" appliance behavior.
 
 ## POC 3 local host API
 
