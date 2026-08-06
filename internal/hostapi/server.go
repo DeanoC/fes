@@ -73,12 +73,17 @@ type apiError struct {
 
 type serverOptions struct {
 	remoteInput host.RemoteInputController
+	media       MediaSession
 }
 
 type ServerOption func(*serverOptions)
 
 func WithRemoteInput(remoteInput host.RemoteInputController) ServerOption {
 	return func(options *serverOptions) { options.remoteInput = remoteInput }
+}
+
+func WithMediaSession(media MediaSession) ServerOption {
+	return func(options *serverOptions) { options.media = media }
 }
 
 func New(service Service, options ...ServerOption) http.Handler {
@@ -92,7 +97,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 		}
 	}
 	mux := http.NewServeMux()
-	session := newSessionCoordinator(service, config.remoteInput)
+	session := newSessionCoordinator(service, config.remoteInput, config.media)
 	mux.HandleFunc("GET /api/v1/session", func(w http.ResponseWriter, r *http.Request) {
 		result, err := session.status(r.Context())
 		if err != nil {

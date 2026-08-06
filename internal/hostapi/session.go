@@ -3,6 +3,7 @@ package hostapi
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/DeanoC/FogCast-POC/catalog"
 	"github.com/DeanoC/FogCast-POC/fogcast"
@@ -17,6 +18,19 @@ type sessionService interface {
 	Status(context.Context) (protocol.Status, error)
 }
 
+// MediaSession is the session-owned seam for host-only media transport.
+type MediaSession interface {
+	Start(context.Context, string) (MediaHandle, error)
+}
+
+type MediaHandle interface {
+	Stop(context.Context) error
+}
+
+type sessionExecutionService interface {
+	SessionExecution(context.Context, string) (string, error)
+}
+
 type sessionProgress struct {
 	Stage   string `json:"stage"`
 	Message string `json:"message"`
@@ -27,6 +41,7 @@ type sessionResult struct {
 	GameID    *string                 `json:"game_id,omitempty"`
 	System    *protocol.System        `json:"system,omitempty"`
 	Execution string                  `json:"execution,omitempty"`
+	Media     string                  `json:"media,omitempty"`
 	Progress  *sessionProgress        `json:"progress,omitempty"`
 	Input     *host.RemoteInputStatus `json:"input,omitempty"`
 }
@@ -37,6 +52,7 @@ type sessionEvent struct {
 	State    protocol.State          `json:"state"`
 	GameID   *string                 `json:"game_id,omitempty"`
 	System   *protocol.System        `json:"system,omitempty"`
+	Media    string                  `json:"media,omitempty"`
 	Progress *sessionProgress        `json:"progress,omitempty"`
 	Input    *host.RemoteInputStatus `json:"input,omitempty"`
 }
@@ -44,14 +60,18 @@ type sessionEvent struct {
 type sessionCoordinator struct {
 	service     sessionService
 	remoteInput host.RemoteInputController
+	media       MediaSession
+	mediaHandle MediaHandle
+	execution   string
+	mediaState  string
 	mu          sync.Mutex
 	busy        bool
 	sequence    uint64
 	events      []sessionEvent
 }
 
-func newSessionCoordinator(service sessionService, remoteInput host.RemoteInputController) *sessionCoordinator {
-	return &sessionCoordinator{service: service, remoteInput: remoteInput}
+func newSessionCoordinator(service sessionService, remoteInput host.RemoteInputController, media MediaSession) *sessionCoordinator {
+	return &sessionCoordinator{service: service, remoteInput: remoteInput, media: media}
 }
 
 func (s *sessionCoordinator) record(event string, result sessionResult, progress *sessionProgress) {
@@ -64,6 +84,7 @@ func (s *sessionCoordinator) record(event string, result sessionResult, progress
 		State:    result.State,
 		GameID:   result.GameID,
 		System:   result.System,
+		Media:    result.Media,
 		Progress: progress,
 		Input:    cloneRemoteInputStatus(result.Input),
 	})
@@ -87,6 +108,14 @@ func (s *sessionCoordinator) eventsAfter(after uint64) []sessionEvent {
 func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) {
 	st, err := s.service.Status(ctx)
 	result := s.publicSession(st, nil)
+	s.mu.Lock()
+	if s.execution != "" {
+		result.Execution = s.execution
+	}
+	if s.mediaState != "" {
+		result.Media = s.mediaState
+	}
+	s.mu.Unlock()
 	if err == nil {
 		s.record("session.status", result, nil)
 	}
@@ -100,11 +129,43 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 	defer s.end()
 
 	if s.remoteInput != nil {
-		// A new target session must never inherit the prior session's bridge
-		// identity or virtual-device state.
 		if err := s.remoteInput.Detach(ctx, "session_replace"); err != nil {
 			return sessionResult{}, remoteInputError()
 		}
+	}
+	if err := s.stopMedia(ctx, "host_only"); err != nil {
+		return sessionResult{}, err
+	}
+
+	execution := "fpga_native"
+	if resolver, ok := s.service.(sessionExecutionService); ok {
+		resolved, err := resolver.SessionExecution(ctx, id)
+		if err != nil {
+			return sessionResult{}, err
+		}
+		if resolved != "" {
+			execution = resolved
+		}
+	}
+	s.mu.Lock()
+	s.execution = execution
+	if execution != "host_only" {
+		s.mediaHandle = nil
+		s.mediaState = ""
+	}
+	s.mu.Unlock()
+	if execution == "host_only" && s.media != nil {
+		handle, err := s.media.Start(ctx, id)
+		if err != nil {
+			s.record("session.media.failed", sessionResult{State: protocol.StateIdle, Execution: execution, Media: "failed"}, nil)
+			return sessionResult{}, err
+		}
+		s.mu.Lock()
+		s.execution = execution
+		s.mediaHandle = handle
+		s.mediaState = mediaState(handle)
+		s.mu.Unlock()
+		s.record("session.media.start", sessionResult{State: protocol.StateActive, Execution: execution, Media: mediaState(handle)}, nil)
 	}
 
 	var progress sessionProgress
@@ -112,23 +173,67 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 		progress = sessionProgress{Stage: value.Stage, Message: value.Message}
 	})
 	if err != nil {
+		_ = s.stopMedia(ctx, execution)
 		return sessionResult{}, err
 	}
 	result := s.publicSession(resp.Status, &progress)
+	result.Execution = execution
+	if execution == "host_only" {
+		if resp.Status.State != protocol.StateActive {
+			if err := s.stopMedia(ctx, execution); err != nil {
+				return sessionResult{}, err
+			}
+		}
+		result.Media = s.currentMediaState()
+	}
 	if s.remoteInput != nil && resp.Status.State == protocol.StateActive {
 		core := sessionCore(resp.Status)
 		if core == "" {
 			_, _ = s.service.Stop(ctx)
+			s.stopMedia(ctx, execution)
 			return sessionResult{}, remoteInputError()
 		}
 		if err := s.remoteInput.Attach(ctx, core); err != nil {
 			_, _ = s.service.Stop(ctx)
+			s.stopMedia(ctx, execution)
 			return sessionResult{}, remoteInputError()
 		}
 		result = s.publicSession(resp.Status, &progress)
+		result.Execution = execution
+		if execution == "host_only" {
+			result.Media = s.currentMediaState()
+		}
 	}
 	s.record("session.launch", result, &progress)
 	return result, nil
+}
+
+func (s *sessionCoordinator) stopMedia(ctx context.Context, execution string) error {
+	s.mu.Lock()
+	handle := s.mediaHandle
+	s.mu.Unlock()
+	if execution != "host_only" || handle == nil {
+		return nil
+	}
+	cleanupCtx := ctx
+	if ctx.Err() != nil {
+		var cancel context.CancelFunc
+		cleanupCtx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+	}
+	if err := handle.Stop(cleanupCtx); err != nil {
+		s.mu.Lock()
+		s.mediaState = "active"
+		s.mu.Unlock()
+		s.record("session.media.stop_failed", sessionResult{State: protocol.StateActive, Execution: execution, Media: "active"}, nil)
+		return &protocol.APIError{Code: protocol.CodeInternal, Message: "media session could not be stopped"}
+	}
+	s.mu.Lock()
+	s.mediaHandle = nil
+	s.mediaState = "stopped"
+	s.mu.Unlock()
+	s.record("session.media.stop", sessionResult{State: protocol.StateIdle, Execution: execution, Media: "stopped"}, nil)
+	return nil
 }
 
 func (s *sessionCoordinator) stop(ctx context.Context) (sessionResult, error) {
@@ -141,6 +246,14 @@ func (s *sessionCoordinator) stop(ctx context.Context) (sessionResult, error) {
 	if s.remoteInput != nil {
 		inputErr = s.remoteInput.Detach(ctx, "session_stop")
 	}
+	s.mu.Lock()
+	hadMedia := s.mediaHandle != nil
+	s.mu.Unlock()
+	if hadMedia {
+		if mediaErr := s.stopMedia(ctx, "host_only"); mediaErr != nil {
+			return sessionResult{}, mediaErr
+		}
+	}
 	st, err := s.service.Stop(ctx)
 	if err != nil {
 		return sessionResult{}, err
@@ -149,6 +262,10 @@ func (s *sessionCoordinator) stop(ctx context.Context) (sessionResult, error) {
 		return sessionResult{}, remoteInputError()
 	}
 	result := s.publicSession(st, nil)
+	if hadMedia {
+		result.Execution = "host_only"
+		result.Media = "stopped"
+	}
 	s.record("session.stop", result, nil)
 	return result, nil
 }
@@ -272,6 +389,19 @@ func publicSession(st protocol.Status, progress *sessionProgress) sessionResult 
 		result.Execution = "fpga_native"
 	}
 	return result
+}
+
+func (s *sessionCoordinator) currentMediaState() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.mediaState
+}
+
+func mediaState(handle MediaHandle) string {
+	if handle == nil {
+		return "inactive"
+	}
+	return "active"
 }
 
 func publicEvents(events []sessionEvent) []sessionEvent {
