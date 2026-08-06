@@ -24,11 +24,18 @@ Mario World. The target is on an exFAT SD filesystem; the Linux agent includes
 an exFAT-compatible publication fallback for filesystems without
 `renameat2(RENAME_NOREPLACE)`.
 
-The only unclosed HIL gate is deterministic interrupted-upload testing. The
-available ROM fixtures complete too quickly on the local wired link for the
-manual interruption window to observe an in-flight transfer. Do not describe
-POC2 as having passed that gate until a throttled or substantially larger test
-fixture proves it.
+POC2 implementation and the primary managed-target acceptance path are ready.
+The HIL runner now allows 120 seconds for post-reboot readiness because the
+development kit's exFAT remount, init ordering, command-pipe creation,
+supervisor startup, and tunnel re-establishment can exceed the former
+45-second budget. The latest authoritative run still predates that runner fix
+and must not be treated as the final report.
+
+The remaining formal POC2 gate is deterministic interrupted-upload testing.
+Run the authoritative HIL workflow with its throttled upload option and retain
+the generated report locally; do not claim the gate passed until the report
+records transfer failure, no launchable partial content, and active-state
+preservation.
 
 ## Repository map
 
@@ -114,6 +121,6 @@ new image hash. Never overwrite the accepted backup or kernel.
 - [ ] Confirm the target is the dedicated MiSTer Pi, not the SuperStation One.
 - [ ] Verify the local config is untracked and contains no repository path.
 - [ ] Run targeted cache/API tests before hardware work.
-- [ ] Treat the interrupted-upload HIL gate as open until a slower fixture is
-      available.
+- [ ] Run the authoritative HIL workflow with the throttled interruption
+      fixture and retain a passing local report.
 - [ ] Keep POC3 work separate from POC2 acceptance and rollback changes.
