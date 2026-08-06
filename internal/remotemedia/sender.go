@@ -77,9 +77,26 @@ func NewSender(config SenderConfig, source CaptureSource, metrics *Metrics) (*Se
 }
 
 func (s *Sender) Run(ctx context.Context) error {
+	return s.run(ctx, nil)
+}
+
+// RunReady is Run with a startup callback. The callback fires only after the
+// capture source has started and all initial network setup has succeeded.
+func (s *Sender) RunReady(ctx context.Context, ready func(error)) error {
+	return s.run(ctx, ready)
+}
+
+func (s *Sender) run(ctx context.Context, ready func(error)) (err error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	readyOnce := sync.Once{}
+	reportReady := func(startErr error) {
+		if ready != nil {
+			readyOnce.Do(func() { ready(startErr) })
+		}
+	}
+	defer func() { reportReady(err) }()
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	s.mu.Lock()
@@ -163,6 +180,7 @@ func (s *Sender) Run(ctx context.Context) error {
 		return fmt.Errorf("dial RTP destination: %w", err)
 	}
 	defer conn.Close()
+	reportReady(nil)
 
 	packetizer := NewRTPPacketizer(s.config.MTU, s.config.SSRC, s.config.InitialSequence)
 	for {
