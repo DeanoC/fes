@@ -84,3 +84,15 @@ Implementation tracking and the current receiver/evidence plan are in
 `.hermes/plans/2026-08-06_121559-poc4-remote-play.md`. The physical
 glass-to-glass latency gate is deliberately deferred and tracked in GitHub
 issue #1; receiver ingest is not equivalent to decoded/displayed playback.
+
+## POC4 completion disposition
+
+POC4 is accepted for its defined transport scope on commit `92fca47`:
+software/protocol validation, real ShadowCast 3 capture, receiver decode and
+display, clean Wi-Fi operation, impairment/recovery telemetry, and lifecycle /
+security behavior are evidenced in `docs/POC4-RESULTS.md`. This acceptance does
+not claim physical glass-to-glass latency; that remains deferred under GitHub
+issue #1. The next stage should make an explicit decision about integrating the
+measured video plane behind the POC3 session boundary versus productizing the
+library/control experience first. Do not redesign MiSTer video transport or
+require wired Ethernet without a new scope decision.

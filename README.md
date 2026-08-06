@@ -22,6 +22,22 @@ The build produces `bin/fogcast`, `bin/fogcast-api`, `bin/misterctl`, `bin/miste
 `bin/fogcast-hil`, and the target ARMv7 agent. Build output, local catalogs,
 staging content, and acceptance reports are ignored by Git.
 
+## POC4 remote-play plane
+
+POC4 is accepted for the defined host-side transport scope. The measured path
+is `MiSTer HDMI -> ShadowCast 3 UVC capture -> macOS AVFoundation /
+VideoToolbox -> RTP/H.264 -> independent receiver`. Wi-Fi is an accepted
+transport; wired Ethernet is not required for this POC. The receiver supports
+authenticated control, RTP/H.264 validation, FU-A reassembly, telemetry, and a
+local `ffplay` display backend. The deterministic impairment harness is
+`bin/remote-play-impair`.
+
+Read [`docs/POC4-RESULTS.md`](docs/POC4-RESULTS.md) for gate evidence and the
+remaining deferred glass-to-glass latency issue. Do not treat a receiver UDP
+bind or sender timing as physical latency evidence. The next stage must decide
+whether to integrate this plane behind the POC3 session boundary or defer video
+while productizing library/control UX.
+
 ## POC 3 local host API
 
 The first POC3 slice exposes a privacy-safe, read-only application API for

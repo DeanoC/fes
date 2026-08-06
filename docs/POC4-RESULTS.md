@@ -1,6 +1,6 @@
 # FogCast POC4 results
 
-Status: **blocked at physical acceptance**
+Status: **accepted for defined POC4 transport scope; G7 deferred**
 
 This document records POC4 evidence separately from the POC2 acceptance and
 POC3 host-control decisions. A gate is `passed`, `failed`, or `untested`; no
@@ -73,7 +73,8 @@ impairment/recovery evidence gate, while not claiming normal-play quality under
 that deliberately destructive impairment rate.
 
 The final clean Wi-Fi run `poc4-clean-wifi10` ran for approximately 9m45s
-before the controlled stop. It captured 1920x1080 at 25 fps, encoded 14,652
+of active media time (over ten minutes including setup/teardown) before the
+controlled stop. It captured 1920x1080 at 25 fps, encoded 14,652
 frames with p95 encode time 6.99 ms, zero sender errors/drops, and the receiver
 observed 95,471 packets and 14,652 access units with zero sequence gaps,
 malformed packets, or decoder-queue drops. The run exceeded the ten-minute
