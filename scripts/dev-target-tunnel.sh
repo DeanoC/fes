@@ -76,7 +76,8 @@ while :; do
   fi
 
   export TARGET TARGET_USER LOCAL_PORT TARGET_PORT PASSWORD_FILE
-  expect <<'EXPECT'
+  # ssh exits normally when the target reboots; keep the supervisor loop alive.
+  expect <<'EXPECT' || true
 set timeout 30
 log_user 0
 set target $env(TARGET)

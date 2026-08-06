@@ -24,18 +24,22 @@ Mario World. The target is on an exFAT SD filesystem; the Linux agent includes
 an exFAT-compatible publication fallback for filesystems without
 `renameat2(RENAME_NOREPLACE)`.
 
-POC2 implementation and the primary managed-target acceptance path are ready.
-The HIL runner now allows 120 seconds for post-reboot readiness because the
+## POC2 acceptance: passed
+
+POC2 is formally accepted. The authoritative managed-target HIL report
+`/tmp/fogcast-poc2-acceptance-green.json` completed with `"passed": true` on
+2026-08-06. It covers first uploads and physical playability for Sonic and
+Super Mario World, zero-upload cache hits, reboot recovery, NAS-offline cached
+launches, safe uncached rejection, deterministic interrupted upload, rejection
+of the partial interrupted artifact, state preservation, post-interruption
+catalog reconciliation, stop/black HDMI, invalid-request rejection, and agent
+restart reconciliation.
+
+The HIL runner allows 120 seconds for post-reboot readiness because the
 development kit's exFAT remount, init ordering, command-pipe creation,
 supervisor startup, and tunnel re-establishment can exceed the former
-45-second budget. The latest authoritative run still predates that runner fix
-and must not be treated as the final report.
-
-The remaining formal POC2 gate is deterministic interrupted-upload testing.
-Run the authoritative HIL workflow with its throttled upload option and retain
-the generated report locally; do not claim the gate passed until the report
-records transfer failure, no launchable partial content, and active-state
-preservation.
+45-second budget. The supervised development tunnel reconnects automatically
+when the target reboots.
 
 ## Repository map
 
@@ -121,6 +125,6 @@ new image hash. Never overwrite the accepted backup or kernel.
 - [ ] Confirm the target is the dedicated MiSTer Pi, not the SuperStation One.
 - [ ] Verify the local config is untracked and contains no repository path.
 - [ ] Run targeted cache/API tests before hardware work.
-- [ ] Run the authoritative HIL workflow with the throttled interruption
+- [x] Run the authoritative HIL workflow with the throttled interruption
       fixture and retain a passing local report.
 - [ ] Keep POC3 work separate from POC2 acceptance and rollback changes.

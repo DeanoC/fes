@@ -245,12 +245,27 @@ func (r POC2Runner) Run(ctx context.Context) (Report, error) {
 				interruptAttempted = true
 				go func() {
 					confirmed, err := r.Sabotage.InterruptUpload(interruptCtx)
-					interruptResults <- interruptResult{confirmed: confirmed, err: err}
+					// Cancel the active upload before publishing the operator result;
+					// otherwise the receiver can observe confirmation first and let
+					// the throttled transfer complete before cancellation runs.
 					cancelInterrupt()
+					interruptResults <- interruptResult{confirmed: confirmed, err: err}
 				}()
 			})
 		}
 	})
+	// A fast source can finish before the sabotage callback has a chance to
+	// observe upload-started. Give the throttled transfer a short grace window
+	// while preserving the fail-closed behavior when no upload ever begins.
+	if !uploadStarted {
+		deadline := r.Now().Add(30 * time.Second)
+		for !uploadStarted && r.Now().Before(deadline) {
+			if err := r.Sleep(ctx, 250*time.Millisecond); err != nil {
+				cancelInterrupt()
+				return finish(err)
+			}
+		}
+	}
 	var interruptConfirmed bool
 	var interruptErr error
 	if interruptAttempted {
@@ -323,7 +338,16 @@ func (r POC2Runner) Run(ctx context.Context) (Report, error) {
 	}
 	record("NAS-root remount after interrupted probe", true, "operator confirmed NAS-root remount")
 
-	for _, game := range []struct{ id, label string }{{r.MarioID, "Mario"}, {r.SonicID, "Sonic"}} {
+	// Re-scan after the interrupted fixture has been cleaned up. This refreshes
+	// the catalog's source/content identity before the final cache-hit checks.
+	// Without this boundary, a cancelled ZIP preparation can leave the service's
+	// in-memory game snapshot stale even though the primary target entries are
+	// still valid.
+	if scanReport, scanErr := r.Service.Scan(ctx); scanErr != nil || !scanRootsReady(scanReport) {
+		return fail("post-interruption catalog reconciliation", "source catalog could not be refreshed")
+	}
+	record("post-interruption catalog reconciliation", true, "source catalog refreshed after interrupted transfer")
+	for _, game := range []struct{ id, label string }{{r.SonicID, "Sonic"}, {r.MarioID, "Mario"}} {
 		if done := r.repeatLaunch(ctx, record, game.id, "alternating "+game.label+" launch"); done {
 			return finish(nil)
 		}
