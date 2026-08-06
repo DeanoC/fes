@@ -39,6 +39,13 @@ type Config struct {
 	UploadTimeout  time.Duration
 	Libraries      []catalog.Root
 	RemoteInput    RemoteInputConfig
+	HostEmulator   HostEmulatorConfig
+}
+
+type HostEmulatorConfig struct {
+	Binary  string
+	Core    string
+	Systems []protocol.System
 }
 
 // RemoteInputConfig contains private remote-input composition settings. The
@@ -49,12 +56,13 @@ type RemoteInputConfig struct {
 }
 
 type fileConfig struct {
-	BaseURL               string          `toml:"base_url"`
-	Token                 string          `toml:"token"`
-	RequestTimeoutSeconds int64           `toml:"request_timeout_seconds"`
-	UploadTimeoutSeconds  int64           `toml:"upload_timeout_seconds"`
-	Libraries             []fileLibrary   `toml:"libraries"`
-	RemoteInput           fileRemoteInput `toml:"remote_input"`
+	BaseURL               string           `toml:"base_url"`
+	Token                 string           `toml:"token"`
+	RequestTimeoutSeconds int64            `toml:"request_timeout_seconds"`
+	UploadTimeoutSeconds  int64            `toml:"upload_timeout_seconds"`
+	Libraries             []fileLibrary    `toml:"libraries"`
+	RemoteInput           fileRemoteInput  `toml:"remote_input"`
+	HostEmulator          fileHostEmulator `toml:"host_emulator"`
 }
 
 type fileLibrary struct {
@@ -65,6 +73,12 @@ type fileLibrary struct {
 
 type fileRemoteInput struct {
 	Enabled bool `toml:"enabled"`
+}
+
+type fileHostEmulator struct {
+	Binary  string            `toml:"binary"`
+	Core    string            `toml:"core"`
+	Systems []protocol.System `toml:"systems"`
 }
 
 func LoadConfig(path string) (Config, error) {
@@ -100,6 +114,10 @@ func LoadConfig(path string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	hostEmulator, err := normalizeHostEmulator(raw.HostEmulator)
+	if err != nil {
+		return Config{}, err
+	}
 
 	return Config{
 		BaseURL:        baseURL,
@@ -110,7 +128,35 @@ func LoadConfig(path string) (Config, error) {
 		RemoteInput: RemoteInputConfig{
 			Enabled: raw.RemoteInput.Enabled,
 		},
+		HostEmulator: hostEmulator,
 	}, nil
+}
+
+func normalizeHostEmulator(raw fileHostEmulator) (HostEmulatorConfig, error) {
+	systems := append([]protocol.System(nil), raw.Systems...)
+	seen := make(map[protocol.System]struct{}, len(systems))
+	for _, system := range systems {
+		if err := protocol.ValidateSystem(system); err != nil {
+			return HostEmulatorConfig{}, fmt.Errorf("host_emulator systems: %w", err)
+		}
+		if _, ok := seen[system]; ok {
+			return HostEmulatorConfig{}, fmt.Errorf("host_emulator systems contains duplicate %q", system)
+		}
+		seen[system] = struct{}{}
+	}
+	if strings.TrimSpace(raw.Binary) == "" && strings.TrimSpace(raw.Core) == "" {
+		if len(systems) != 0 {
+			return HostEmulatorConfig{}, fmt.Errorf("host_emulator systems require binary and core")
+		}
+		return HostEmulatorConfig{}, nil
+	}
+	if strings.TrimSpace(raw.Binary) == "" || strings.TrimSpace(raw.Core) == "" {
+		return HostEmulatorConfig{}, fmt.Errorf("host_emulator requires binary and core")
+	}
+	if !filepath.IsAbs(raw.Binary) || filepath.Clean(raw.Binary) != raw.Binary {
+		return HostEmulatorConfig{}, fmt.Errorf("host_emulator binary must be a clean absolute path")
+	}
+	return HostEmulatorConfig{Binary: raw.Binary, Core: raw.Core, Systems: systems}, nil
 }
 
 func normalizeHTTPOrigin(raw string) (string, error) {

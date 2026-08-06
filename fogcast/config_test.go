@@ -45,6 +45,11 @@ token = "  exact token  "
 request_timeout_seconds = 12
 upload_timeout_seconds = 60
 
+[host_emulator]
+binary = "/Applications/RetroArch"
+core = "/cores/snes.dylib"
+systems = ["snes"]
+
 [[libraries]]
 id = "snes-main"
 system = "snes"
@@ -74,6 +79,26 @@ root = "`+megaRoot+`"
 	}
 	if got := cfg.Libraries[1]; got.ID != "genesis-main" || got.System != protocol.SystemMegaDrive || got.Path != filepath.Clean(megaRoot) {
 		t.Fatalf("Mega Drive library = %#v", got)
+	}
+	if got := cfg.HostEmulator; got.Binary != "/Applications/RetroArch" || got.Core != "/cores/snes.dylib" || len(got.Systems) != 1 || got.Systems[0] != protocol.SystemSNES {
+		t.Fatalf("host emulator = %#v", got)
+	}
+}
+
+func TestLoadConfigRejectsInvalidHostEmulatorSystems(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "games")
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	base := validConfig(root, filepath.Join(dir, "other"))
+	for name, systems := range map[string]string{"unknown": `["nes"]`, "duplicate": `["snes", "snes"]`} {
+		t.Run(name, func(t *testing.T) {
+			content := base + "\n[host_emulator]\nbinary = \"/Applications/RetroArch\"\ncore = \"/cores/snes.dylib\"\nsystems = " + systems + "\n"
+			if _, err := fogcast.LoadConfig(writeConfig(t, content)); err == nil {
+				t.Fatal("invalid systems accepted")
+			}
+		})
 	}
 }
 

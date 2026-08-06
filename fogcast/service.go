@@ -16,6 +16,7 @@ import (
 	"github.com/DeanoC/FogCast-POC/catalog"
 	"github.com/DeanoC/FogCast-POC/host"
 	"github.com/DeanoC/FogCast-POC/internal/core"
+	"github.com/DeanoC/FogCast-POC/internal/hostexec"
 	"github.com/DeanoC/FogCast-POC/protocol"
 	"github.com/DeanoC/FogCast-POC/romsource"
 )
@@ -57,18 +58,89 @@ type serviceClient interface {
 	Stop(context.Context) (protocol.Status, error)
 }
 
+const (
+	ExecutionFPGANative = "fpga_native"
+	ExecutionHostOnly   = "host_only"
+)
+
+// ExecutionResolver is intentionally a service-level policy seam for POC5.
+// Catalog schema v1 remains unchanged; persistence of execution metadata is
+// deferred until it becomes catalog-owned product data.
+type ExecutionResolver interface {
+	Resolve(context.Context, catalog.Game) (string, error)
+}
+
+type ExecutionResolverFunc func(context.Context, catalog.Game) (string, error)
+
+func (f ExecutionResolverFunc) Resolve(ctx context.Context, game catalog.Game) (string, error) {
+	return f(ctx, game)
+}
+
+type defaultExecutionResolver struct{}
+
+func (defaultExecutionResolver) Resolve(context.Context, catalog.Game) (string, error) {
+	return ExecutionFPGANative, nil
+}
+
+type configuredExecutionResolver struct {
+	systems map[protocol.System]struct{}
+	host    hostexec.Adapter
+}
+
+// NewConfiguredExecutionResolver selects host execution only for configured
+// systems and only when a host adapter is available. Otherwise it falls back
+// to the native MiSTer execution path.
+func NewConfiguredExecutionResolver(systems []protocol.System, host hostexec.Adapter) ExecutionResolver {
+	configured := make(map[protocol.System]struct{}, len(systems))
+	for _, system := range systems {
+		configured[system] = struct{}{}
+	}
+	return configuredExecutionResolver{systems: configured, host: host}
+}
+
+func (r configuredExecutionResolver) Resolve(_ context.Context, game catalog.Game) (string, error) {
+	if r.host != nil {
+		if _, ok := r.systems[game.System]; ok {
+			return ExecutionHostOnly, nil
+		}
+	}
+	return ExecutionFPGANative, nil
+}
+
+type ExecutionPolicy struct {
+	Resolver ExecutionResolver
+	Host     hostexec.Adapter
+}
+
+type ServiceOption func(*Service)
+
+func WithExecutionPolicy(policy ExecutionPolicy) ServiceOption {
+	return func(service *Service) {
+		if policy.Resolver != nil {
+			service.executionResolver = policy.Resolver
+		}
+		service.hostExecutor = policy.Host
+	}
+}
+
 type Service struct {
-	catalog         serviceCatalog
-	scanner         serviceScanner
-	preparer        servicePreparer
-	client          serviceClient
-	roots           []catalog.Root
-	rootsByID       map[string]catalog.Root
-	requestTimeout  time.Duration
-	uploadTimeout   time.Duration
-	uploadReadDelay time.Duration
-	closeOnce       sync.Once
-	closeErr        error
+	catalog           serviceCatalog
+	scanner           serviceScanner
+	preparer          servicePreparer
+	client            serviceClient
+	roots             []catalog.Root
+	rootsByID         map[string]catalog.Root
+	requestTimeout    time.Duration
+	uploadTimeout     time.Duration
+	uploadReadDelay   time.Duration
+	executionResolver ExecutionResolver
+	hostExecutor      hostexec.Adapter
+	activeExecution   string
+	activeGameID      string
+	activeSystem      protocol.System
+	executionMu       sync.Mutex
+	closeOnce         sync.Once
+	closeErr          error
 }
 
 func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, error) {
@@ -112,20 +184,71 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 	operationClient := *httpClient
 	operationClient.Timeout = 0
 	client := host.NewClient(baseURL, config.Token, &operationClient)
-	return newService(config, paths, store, scanner, preparer, client), nil
+	options := make([]ServiceOption, 0, 1)
+	if config.HostEmulator.Binary != "" && config.HostEmulator.Core != "" {
+		host := hostexec.NewRetroArchAdapter(config.HostEmulator.Binary, config.HostEmulator.Core, nil)
+		options = append(options, WithExecutionPolicy(ExecutionPolicy{Resolver: NewConfiguredExecutionResolver(config.HostEmulator.Systems, host), Host: host}))
+	}
+	return newService(config, paths, store, scanner, preparer, client, options...), nil
 }
 
-func newService(config Config, _ Paths, store serviceCatalog, scanner serviceScanner, preparer servicePreparer, client serviceClient) *Service {
+func newService(config Config, _ Paths, store serviceCatalog, scanner serviceScanner, preparer servicePreparer, client serviceClient, options ...ServiceOption) *Service {
 	roots := append([]catalog.Root(nil), config.Libraries...)
 	rootsByID := make(map[string]catalog.Root, len(roots))
 	for _, root := range roots {
 		rootsByID[root.ID] = root
 	}
-	return &Service{
+	service := &Service{
 		catalog: store, scanner: scanner, preparer: preparer, client: client,
 		roots: roots, rootsByID: rootsByID,
 		requestTimeout: config.RequestTimeout, uploadTimeout: config.UploadTimeout,
+		executionResolver: defaultExecutionResolver{},
 	}
+	for _, option := range options {
+		if option != nil {
+			option(service)
+		}
+	}
+	return service
+}
+
+// SessionExecution resolves the service-owned execution policy for one catalog game.
+func (s *Service) SessionExecution(ctx context.Context, gameID string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if err := protocol.ValidateGameID(gameID); err != nil {
+		return "", canonicalError(protocol.CodeBadRequest, nil)
+	}
+	game, err := s.catalog.Game(ctx, gameID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", canonicalError(protocol.CodeROMNotFound, nil)
+		}
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+		return "", canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	execution, err := s.resolveExecution(ctx, game)
+	if err != nil {
+		return "", err
+	}
+	return execution, nil
+}
+
+func (s *Service) resolveExecution(ctx context.Context, game catalog.Game) (string, error) {
+	execution, err := s.executionResolver.Resolve(ctx, game)
+	if err != nil {
+		return "", canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	if execution != ExecutionFPGANative && execution != ExecutionHostOnly {
+		return "", canonicalError(protocol.CodeInternal, nil)
+	}
+	if execution == ExecutionHostOnly && s.hostExecutor == nil {
+		return ExecutionFPGANative, nil
+	}
+	return execution, nil
 }
 
 func (s *Service) SetDebug(debug func(string)) {
@@ -255,6 +378,26 @@ func (s *Service) Health(parent context.Context) (protocol.Health, error) {
 func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 	defer cancel()
+	s.executionMu.Lock()
+	hostOnly := s.activeExecution == ExecutionHostOnly
+	gameID, system := s.activeGameID, s.activeSystem
+	s.executionMu.Unlock()
+	if hostOnly {
+		if s.hostExecutor == nil {
+			return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
+		}
+		status, err := s.hostExecutor.Status(ctx)
+		if err != nil {
+			return protocol.Status{}, canonicalError(protocol.CodeInternal, safeContextError(err))
+		}
+		if status.State == hostexec.Idle {
+			s.executionMu.Lock()
+			s.activeExecution, s.activeGameID, s.activeSystem = "", "", ""
+			s.executionMu.Unlock()
+			return protocol.Status{State: protocol.StateIdle}, nil
+		}
+		return protocol.Status{State: protocol.StateActive, GameID: stringPtr(gameID), System: systemPtr(system)}, nil
+	}
 	status, err := s.client.Status(ctx)
 	if err != nil {
 		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
@@ -265,6 +408,21 @@ func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 	defer cancel()
+	s.executionMu.Lock()
+	hostOnly := s.activeExecution == ExecutionHostOnly
+	s.executionMu.Unlock()
+	if hostOnly {
+		if s.hostExecutor == nil {
+			return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
+		}
+		if err := s.hostExecutor.Stop(ctx); err != nil {
+			return protocol.Status{}, canonicalError(protocol.CodeInternal, safeContextError(err))
+		}
+		s.executionMu.Lock()
+		s.activeExecution, s.activeGameID, s.activeSystem = "", "", ""
+		s.executionMu.Unlock()
+		return protocol.Status{State: protocol.StateIdle}, nil
+	}
 	status, err := s.client.Stop(ctx)
 	if err != nil {
 		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
@@ -283,6 +441,13 @@ func (s *Service) launchGame(ctx context.Context, game catalog.Game, progress Pr
 	}
 	if !matchesRoot {
 		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeSourceUnavailable, nil)
+	}
+	execution, err := s.resolveExecution(ctx, game)
+	if err != nil {
+		return protocol.CachedLaunchResponse{}, false, err
+	}
+	if execution == ExecutionHostOnly {
+		return s.launchHostOnly(ctx, game, root, progress)
 	}
 	if game.Content != nil {
 		identity := contentIdentityFromCatalog(*game.Content)
@@ -314,6 +479,64 @@ func (s *Service) launchGame(ctx context.Context, game catalog.Game, progress Pr
 		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, nil)
 	}
 	return s.launchPrepared(ctx, game, prepared, progress)
+}
+
+func (s *Service) launchHostOnly(ctx context.Context, game catalog.Game, root catalog.Root, progress ProgressFunc) (response protocol.CachedLaunchResponse, retry bool, resultErr error) {
+	if s.hostExecutor == nil {
+		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, nil)
+	}
+	if game.State != catalog.SourceStateAvailable || !game.RootOnline {
+		return protocol.CachedLaunchResponse{}, false, canonicalError(catalog.SourceErrorCode(game), nil)
+	}
+	emitProgress(progress, "prepare", "preparing source content")
+	prepared, err := s.preparer.Prepare(ctx, root, game)
+	if err != nil {
+		return protocol.CachedLaunchResponse{}, false, canonicalPreparationError(err)
+	}
+	if prepared == nil {
+		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, nil)
+	}
+	if err := protocol.ValidateContentIdentity(prepared.Content); err != nil {
+		_ = prepared.Remove()
+		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, nil)
+	}
+	emitProgress(progress, "launch", "launching host content")
+	content, err := prepared.Open()
+	if err != nil {
+		_ = prepared.Remove()
+		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, nil)
+	}
+	launchStatus, err := s.hostExecutor.Launch(ctx, content, prepared.Content)
+	_ = content.Close()
+	if err != nil {
+		_ = prepared.Remove()
+		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	// The adapter owns the process as soon as Launch succeeds. Record that
+	// ownership before cleanup so a degraded cleanup error cannot orphan it.
+	s.executionMu.Lock()
+	s.activeExecution = ExecutionHostOnly
+	s.activeGameID, s.activeSystem = game.ID, game.System
+	s.executionMu.Unlock()
+	if err := prepared.Remove(); err != nil {
+		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, romsource.ErrCleanupRetained)
+	}
+	gameID, system := game.ID, game.System
+	_ = launchStatus
+	return protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system}, Content: prepared.Content}, false, nil
+}
+
+func stringPtr(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+func systemPtr(value protocol.System) *protocol.System {
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 func (s *Service) launchPrepared(ctx context.Context, game catalog.Game, prepared *romsource.Prepared, progress ProgressFunc) (response protocol.CachedLaunchResponse, retry bool, resultErr error) {
