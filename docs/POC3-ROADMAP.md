@@ -79,3 +79,8 @@ play: either complete the integrated capture/encode/transport/receiver/display
 vertical slice, or deliberately defer video and focus on productizing the
 library and control experience. POC4 must not repeat broad overlapping
 worktrees; keep one authoritative integration checkout and measure each gate.
+
+Implementation tracking and the current receiver/evidence plan are in
+`.hermes/plans/2026-08-06_121559-poc4-remote-play.md`. The physical
+glass-to-glass latency gate is deliberately deferred and tracked in GitHub
+issue #1; receiver ingest is not equivalent to decoded/displayed playback.

@@ -13,3 +13,4 @@
 *.sqlite3-wal
 /artifacts/hil/poc2*.json
 /local-fogcast/
+/artifacts/remote-play/

@@ -42,7 +42,43 @@ Do not commit reports containing device serials, private paths, target addresses
 
 ## Run the sender
 
-Start an independent receiver first. Then run:
+Build and start the independent receiver first. The receiver validates the
+authenticated control session, RTP packet structure, SSRC/generation, sequence
+continuity, FU-A reassembly, and marker-delimited access units. It reports
+decoded/display state as explicitly unavailable until a native decoder/display
+backend is configured; binding a UDP socket is not treated as playback evidence.
+
+```sh
+mise exec go@1.26.5 -- go build -trimpath -o bin/remote-play-receiver ./cmd/remote-play-receiver
+bin/remote-play-receiver \
+  --rtp 0.0.0.0:5004 \
+  --control 0.0.0.0:5005 \
+  --session operator-run-20260805 \
+  --generation 1 \
+  --token 'LOCAL_RUNTIME_SECRET' \
+  --metrics artifacts/remote-play/<run-id>/receiver.json
+```
+
+The receiver also supports an optional local `ffplay` display backend:
+
+```sh
+bin/remote-play-receiver \
+  --rtp 0.0.0.0:5004 \
+  --control 0.0.0.0:5005 \
+  --session operator-run-20260805 \
+  --generation 1 \
+  --token 'LOCAL_RUNTIME_SECRET' \
+  --decode ffplay \
+  --metrics artifacts/remote-play/<run-id>/receiver.json
+```
+
+It consumes validated Annex-B access units after the authenticated
+`MEDIA_HELLO`. The receiver report marks the decoder as configured, but G3
+still requires operator-confirmed displayed SPS/PPS + IDR and steady playback.
+
+The token is a local runtime secret and must not be placed in repository files
+or committed reports. Start the sender only after the receiver's control and
+RTP endpoints are ready. Then run:
 
 ```sh
 bin/remote-play-spike sender \
@@ -85,6 +121,20 @@ The sender exits clearly when `--capture-device` is missing, the device cannot b
 
 Target values from the architecture plan are targets, not assumed results: host encode p95 <=8 ms, clean wired media drop rate <0.5%, and initial glass-to-glass p95 <=120 ms (stretch <=80 ms). Mark each as pass, fail, or untested using the raw measurements.
 
+For deterministic local impairment, build `remote-play-impair` and place it
+between the sender and receiver:
+
+```sh
+mise exec go@1.26.5 -- go build -trimpath -o bin/remote-play-impair ./cmd/remote-play-impair
+bin/remote-play-impair --listen 127.0.0.1:5604 --forward 127.0.0.1:5504 \
+  --drop-every 20 --reorder-window 4
+```
+
+The harness validates minimum RTP packet length, drops every Nth valid packet,
+and reverses bounded packet windows. Its JSON report is supporting evidence;
+the receiver report remains authoritative for sequence gaps and incomplete
+access units.
+
 ## Focused verification
 
 ```sh
@@ -98,7 +148,10 @@ The native files are built under the normal macOS cgo path. The temporary native
 
 ## Known limitations
 
-- The current card implements the sender only. There is no target-side video sink, decoder, renderer, audio, WebRTC/WAN transport, TLS, or public API integration.
+- The current card implements a host-side sender and an independent receiver
+  ingest/report boundary. A native H.264 decoder/display backend is still not
+  configured by default; receiver ingest success must not be reported as
+  decoded/displayed video.
 - The native adapter uses an AVFoundation capture source and a VideoToolbox compression session, but the source's active capture mode should be confirmed by an operator before claiming a 60 fps result.
 - Keyframe request signaling is part of the transport/control package, but this adapter reports runtime force-IDR as unsupported and relies on its periodic GOP.
 - No current run in this repository proves physical HDMI, receiver decode, wired-LAN loss/recovery, target-side decode, or glass-to-glass latency.

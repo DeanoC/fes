@@ -8,6 +8,8 @@ trap 'rm -rf "$fixture"' EXIT INT TERM
 (
   cd "$repo"
   mise exec go@1.26.5 -- go build -trimpath -o "$fixture/remote-play-spike" ./cmd/remote-play-spike
+  mise exec go@1.26.5 -- go build -trimpath -o "$fixture/remote-play-receiver" ./cmd/remote-play-receiver
+  mise exec go@1.26.5 -- go build -trimpath -o "$fixture/remote-play-impair" ./cmd/remote-play-impair
 )
 
 probe=$($fixture/remote-play-spike probe)
@@ -20,5 +22,15 @@ if "$fixture/remote-play-spike" sender >/tmp/remote-play-sender.out 2>"$fixture/
 fi
 grep -q 'physical HDMI capture device' "$fixture/sender.err"
 
-sh -n "$repo/scripts/remote-play/capture-sender.sh" "$repo/scripts/remote-play/receiver.sh"
+sh -n "$repo/scripts/remote-play/capture-sender.sh" "$repo/scripts/remote-play/receiver.sh" "$repo/scripts/remote-play/impair.sh"
+if "$fixture/remote-play-receiver" >/dev/null 2>"$fixture/receiver.err"; then
+  printf '%s\n' 'receiver unexpectedly accepted missing required session configuration' >&2
+  exit 1
+fi
+grep -q -- '--session' "$fixture/receiver.err"
+if "$fixture/remote-play-impair" --drop-every 1 >/dev/null 2>"$fixture/impair.err"; then
+  printf '%s\n' 'impairment harness unexpectedly accepted --drop-every 1' >&2
+  exit 1
+fi
+grep -q -- '--drop-every' "$fixture/impair.err"
 printf '%s\n' 'remote-play command checks passed'
