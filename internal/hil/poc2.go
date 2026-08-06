@@ -447,15 +447,19 @@ func (r POC2Runner) repeatLaunch(ctx context.Context, record func(string, bool, 
 }
 
 func (r POC2Runner) waitReady(ctx context.Context, record func(string, bool, string)) (bool, error) {
-	deadline := r.Now().Add(45 * time.Second)
+	// A target reboot includes SD/exFAT remount, init ordering, command-pipe
+	// creation, supervisor startup, and SSH tunnel re-establishment. The old
+	// 45-second budget was shorter than the observed development-kit boot path
+	// and caused false-negative acceptance reports after the agent was healthy.
+	deadline := r.Now().Add(120 * time.Second)
 	for {
 		health, err := r.Service.Health(ctx)
 		if err == nil && health.Ready {
-			record("agent health ready", true, "target reported ready")
+			record("agent health ready", true, "target reported ready before 120 second deadline")
 			return true, nil
 		}
 		if !r.Now().Before(deadline) {
-			record("agent health ready", false, "target did not report ready before deadline")
+			record("agent health ready", false, "target did not report ready before 120 second deadline")
 			return false, nil
 		}
 		if err := r.Sleep(ctx, time.Second); err != nil {
