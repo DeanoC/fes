@@ -190,29 +190,31 @@ func run(ctx context.Context, args []string) error {
 		}
 	}()
 	defer func() {
+		const shutdownTimeout = 2 * time.Second
 		cancel()
+		if decoder.Process != nil {
+			_ = decoder.Process.Kill()
+		}
 		_ = in.Close()
 		_ = out.Close()
-		<-writeDone
-		<-done
+		deadline := time.Now().Add(shutdownTimeout)
+		if !waitBridgeWorker(writeDone, deadline) {
+			fmt.Fprintln(os.Stderr, "fbbridge_write_wait_timeout")
+		}
+		if !waitBridgeWorker(done, deadline) {
+			fmt.Fprintln(os.Stderr, "fbbridge_decode_wait_timeout")
+		}
 		waitDone := make(chan struct{})
 		go func() {
 			_ = decoder.Wait()
 			close(waitDone)
 		}()
-		select {
-		case <-waitDone:
-		case <-time.After(2 * time.Second):
-			if decoder.Process != nil {
-				_ = decoder.Process.Kill()
-			}
-			select {
-			case <-waitDone:
-			case <-time.After(2 * time.Second):
-				fmt.Fprintln(os.Stderr, "fbbridge_decoder_wait_timeout")
-			}
+		if !waitBridgeWorker(waitDone, deadline) {
+			fmt.Fprintln(os.Stderr, "fbbridge_decoder_wait_timeout")
 		}
-		statsWG.Wait()
+		if !waitBridgeWorker(statsDone(&statsWG), deadline) {
+			fmt.Fprintln(os.Stderr, "fbbridge_stats_wait_timeout")
+		}
 	}()
 	var r *remotemedia.Receiver
 	if *noAuth {
@@ -397,6 +399,35 @@ func run(ctx context.Context, args []string) error {
 		}
 	}
 }
+func waitBridgeWorker(done <-chan struct{}, deadline time.Time) bool {
+	remaining := time.Until(deadline)
+	if remaining <= 0 {
+		select {
+		case <-done:
+			return true
+		default:
+			return false
+		}
+	}
+	timer := time.NewTimer(remaining)
+	defer timer.Stop()
+	select {
+	case <-done:
+		return true
+	case <-timer.C:
+		return false
+	}
+}
+
+func statsDone(statsWG *sync.WaitGroup) <-chan struct{} {
+	done := make(chan struct{})
+	go func() {
+		statsWG.Wait()
+		close(done)
+	}()
+	return done
+}
+
 func accessUnitAnnexB(u remotemedia.AccessUnit) []byte {
 	var b []byte
 	for _, n := range u.NALs {
