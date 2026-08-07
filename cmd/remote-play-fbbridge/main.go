@@ -93,6 +93,7 @@ func run(ctx context.Context, args []string) error {
 	var seenPPS atomic.Bool
 	var droppedOnGap atomic.Uint64
 	var unitsLogged atomic.Uint64
+	var statsWG sync.WaitGroup
 
 	logUnit := func(u remotemedia.AccessUnit) {
 		if unitsLogged.Load() >= 8 {
@@ -105,11 +106,18 @@ func run(ctx context.Context, args []string) error {
 			}
 		}
 	}
+	statsWG.Add(1)
 	go func() {
+		defer statsWG.Done()
 		t := time.NewTicker(time.Second)
 		defer t.Stop()
-		for range t.C {
-			fmt.Fprintf(os.Stderr, "fbbridge_stats packets=%d units=%d decoder_writes=%d decoded_frames=%d fb_writes=%d packet_errors=%d dump_bytes=%d\n", packets.Load(), accessUnits.Load(), decoderWrites.Load(), decodeFrames.Load(), fbWrites.Load(), packetErrors.Load(), dumpBytes.Load())
+		for {
+			select {
+			case <-runCtx.Done():
+				return
+			case <-t.C:
+				fmt.Fprintf(os.Stderr, "fbbridge_stats packets=%d units=%d decoder_writes=%d decoded_frames=%d fb_writes=%d packet_errors=%d dump_bytes=%d\n", packets.Load(), accessUnits.Load(), decoderWrites.Load(), decodeFrames.Load(), fbWrites.Load(), packetErrors.Load(), dumpBytes.Load())
+			}
 		}
 	}()
 	unitCh := make(chan []byte, 8)
@@ -198,8 +206,13 @@ func run(ctx context.Context, args []string) error {
 			if decoder.Process != nil {
 				_ = decoder.Process.Kill()
 			}
-			<-waitDone
+			select {
+			case <-waitDone:
+			case <-time.After(2 * time.Second):
+				fmt.Fprintln(os.Stderr, "fbbridge_decoder_wait_timeout")
+			}
 		}
+		statsWG.Wait()
 	}()
 	var r *remotemedia.Receiver
 	if *noAuth {
