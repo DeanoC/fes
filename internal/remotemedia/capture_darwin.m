@@ -4,6 +4,7 @@
 #import <CoreGraphics/CoreGraphics.h>
 #import <VideoToolbox/VideoToolbox.h>
 #include <mach/mach_time.h>
+#include <math.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
@@ -431,9 +432,18 @@ void *mr_capture_open(const char *device_identifier, int width, int height,
         BOOL selected_mode = !requested_mode;
         if (is_screen) {
             size_t display_width = CGDisplayPixelsWide(CGMainDisplayID());
+            size_t display_height = CGDisplayPixelsHigh(CGMainDisplayID());
+            CGFloat scale = 1.0;
             if (width > 0 && display_width > 0) {
-                screen_input.scaleFactor = (CGFloat)width / (CGFloat)display_width;
+                scale = (CGFloat)width / (CGFloat)display_width;
+            } else if (height > 0 && display_height > 0) {
+                scale = (CGFloat)height / (CGFloat)display_height;
             }
+            if (scale <= 0.0) {
+                if (error_out != NULL) *error_out = mr_error(@"screen capture scale is invalid");
+                mr_release_capture(capture); return NULL;
+            }
+            screen_input.scaleFactor = scale;
             if (fps_numerator > 0 && fps_denominator > 0) {
                 screen_input.minFrameDuration = CMTimeMake(fps_denominator, fps_numerator);
             }
@@ -476,10 +486,16 @@ void *mr_capture_open(const char *device_identifier, int width, int height,
         }
         CMVideoDimensions source_dimensions;
         if (is_screen) {
-            source_dimensions = (CMVideoDimensions){
-                (int32_t)(width > 0 ? width : CGDisplayPixelsWide(CGMainDisplayID())),
-                (int32_t)(height > 0 ? height : CGDisplayPixelsHigh(CGMainDisplayID()))
-            };
+            size_t display_width = CGDisplayPixelsWide(CGMainDisplayID());
+            size_t display_height = CGDisplayPixelsHigh(CGMainDisplayID());
+            CGFloat scale = screen_input.scaleFactor;
+            int32_t scaled_width = (int32_t)llround((CGFloat)display_width * scale);
+            int32_t scaled_height = (int32_t)llround((CGFloat)display_height * scale);
+            if (width > 0 && height > 0 && (scaled_width != width || scaled_height != height)) {
+                if (error_out != NULL) *error_out = mr_error(@"screen capture dimensions must preserve the display aspect ratio");
+                mr_release_capture(capture); return NULL;
+            }
+            source_dimensions = (CMVideoDimensions){scaled_width, scaled_height};
         } else {
             source_dimensions = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription);
         }

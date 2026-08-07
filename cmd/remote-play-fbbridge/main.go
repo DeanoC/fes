@@ -5,15 +5,18 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/DeanoC/FogCast-POC/internal/remotemedia"
 	"io"
 	"net"
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/DeanoC/FogCast-POC/internal/remotemedia"
 )
 
 func main() {
@@ -34,12 +37,20 @@ func run(ctx context.Context, args []string) error {
 	session := f.String("session", "", "")
 	token := f.String("token", "", "")
 	noAuth := f.Bool("no-auth", false, "skip control authentication (disposable test only)")
+	allowUnauth := f.Bool("allow-unauthenticated", false, "required safety override for disposable unauthenticated mode")
+	control := f.String("control", "", "authenticated media-control TCP listen address")
 	dumpPath := f.String("dump-annexb", "", "optional Annex-B dump path for decoder-input diagnostics")
 	if err := f.Parse(args); err != nil {
 		return err
 	}
 	if *session == "" || *token == "" {
 		return errors.New("session and token required")
+	}
+	if *noAuth && !*allowUnauth {
+		return errors.New("--no-auth requires explicit --allow-unauthenticated")
+	}
+	if !*noAuth && strings.TrimSpace(*control) == "" {
+		return errors.New("--control is required unless authenticated control is explicitly disabled")
 	}
 	if err := activateNativeFramebuffer(*nativeCmd, *nativeMode); err != nil {
 		return err
@@ -59,7 +70,9 @@ func run(ctx context.Context, args []string) error {
 		defer dump.Close()
 		fmt.Fprintf(os.Stderr, "fbbridge_dump path=%s\n", *dumpPath)
 	}
-	decoder := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-loglevel", "warning", "-f", "h264", "-i", "pipe:0", "-vf", fmt.Sprintf("scale=%d:%d", fb.Width(), fb.Height()), "-f", "rawvideo", "-pix_fmt", "rgba", "pipe:1")
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	decoder := exec.CommandContext(runCtx, "ffmpeg", "-hide_banner", "-loglevel", "warning", "-f", "h264", "-i", "pipe:0", "-vf", fmt.Sprintf("scale=%d:%d", fb.Width(), fb.Height()), "-f", "rawvideo", "-pix_fmt", "rgba", "pipe:1")
 	decoder.Stderr = os.Stderr
 	in, err := decoder.StdinPipe()
 	if err != nil {
@@ -80,10 +93,9 @@ func run(ctx context.Context, args []string) error {
 	var seenPPS atomic.Bool
 	var droppedOnGap atomic.Uint64
 	var unitsLogged atomic.Uint64
-	var nalLogged atomic.Bool
 
 	logUnit := func(u remotemedia.AccessUnit) {
-		if unitsLogged.Load() >= 8 || nalLogged.Swap(true) {
+		if unitsLogged.Load() >= 8 {
 			return
 		}
 		unitsLogged.Add(1)
@@ -101,12 +113,25 @@ func run(ctx context.Context, args []string) error {
 		}
 	}()
 	unitCh := make(chan []byte, 8)
+	errCh := make(chan error, 4)
+	reportErr := func(err error) {
+		if err != nil {
+			select {
+			case errCh <- err:
+			default:
+			}
+			cancel()
+		}
+	}
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
 		buf := make([]byte, fb.Width()*fb.Height()*4)
 		for {
 			if _, e := io.ReadFull(out, buf); e != nil {
+				if runCtx.Err() == nil {
+					reportErr(fmt.Errorf("decoder output: %w", e))
+				}
 				return
 			}
 			decodeFrames.Add(1)
@@ -118,6 +143,7 @@ func run(ctx context.Context, args []string) error {
 				fmt.Fprintf(os.Stderr, "fbbridge_frame first_frame_bytes=%d sampled_sum=%d first=%02x%02x%02x%02x\n", len(buf), sum, buf[0], buf[1], buf[2], buf[3])
 			}
 			if e := fb.Write(buf); e != nil {
+				reportErr(fmt.Errorf("framebuffer write: %w", e))
 				return
 			}
 			fbWrites.Add(1)
@@ -126,16 +152,27 @@ func run(ctx context.Context, args []string) error {
 	writeDone := make(chan struct{})
 	go func() {
 		defer close(writeDone)
-		for payload := range unitCh {
+		for {
+			var payload []byte
+			select {
+			case <-runCtx.Done():
+				return
+			case payload = <-unitCh:
+				if payload == nil {
+					return
+				}
+			}
 			if dump != nil {
 				n, err := dump.Write(payload)
 				if err != nil {
+					reportErr(fmt.Errorf("Annex-B dump: %w", err))
 					fmt.Fprintf(os.Stderr, "fbbridge_dump_error err=%v\n", err)
 					return
 				}
 				dumpBytes.Add(uint64(n))
 			}
 			if _, err := in.Write(payload); err != nil {
+				reportErr(fmt.Errorf("decoder input: %w", err))
 				return
 			}
 			decoderWrites.Add(1)
@@ -143,21 +180,26 @@ func run(ctx context.Context, args []string) error {
 				_ = dump.Sync()
 			}
 		}
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(250 * time.Millisecond):
-			}
-		}
 	}()
 	defer func() {
-		close(unitCh)
+		cancel()
+		_ = in.Close()
+		_ = out.Close()
 		<-writeDone
-		in.Close()
-		out.Close()
 		<-done
-		decoder.Wait()
+		waitDone := make(chan struct{})
+		go func() {
+			_ = decoder.Wait()
+			close(waitDone)
+		}()
+		select {
+		case <-waitDone:
+		case <-time.After(2 * time.Second):
+			if decoder.Process != nil {
+				_ = decoder.Process.Kill()
+			}
+			<-waitDone
+		}
 	}()
 	var r *remotemedia.Receiver
 	if *noAuth {
@@ -170,6 +212,75 @@ func run(ctx context.Context, args []string) error {
 		}
 	}
 	defer r.Close()
+	var controlListener net.Listener
+	var controlWG sync.WaitGroup
+	var controlMu sync.Mutex
+	controlConns := make(map[net.Conn]struct{})
+	closeControl := func() {
+		controlMu.Lock()
+		defer controlMu.Unlock()
+		for conn := range controlConns {
+			_ = conn.Close()
+		}
+	}
+	if !*noAuth {
+		controlListener, err = net.Listen("tcp", *control)
+		if err != nil {
+			return fmt.Errorf("listen media control: %w", err)
+		}
+		defer controlListener.Close()
+		controlWG.Add(1)
+		go func() {
+			defer controlWG.Done()
+			for {
+				conn, e := controlListener.Accept()
+				if e != nil {
+					if runCtx.Err() == nil {
+						reportErr(fmt.Errorf("accept media control: %w", e))
+					}
+					return
+				}
+				controlMu.Lock()
+				controlConns[conn] = struct{}{}
+				controlMu.Unlock()
+				controlWG.Add(1)
+				go func(conn net.Conn) {
+					defer controlWG.Done()
+					defer func() {
+						controlMu.Lock()
+						delete(controlConns, conn)
+						controlMu.Unlock()
+						_ = conn.Close()
+					}()
+					_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+					message, e := remotemedia.ReadControlMessage(conn)
+					if e != nil || message.Type != remotemedia.ControlMediaHello {
+						return
+					}
+					if e := r.AcceptControl(message); e != nil {
+						return
+					}
+					_ = conn.SetReadDeadline(time.Time{})
+					for {
+						message, e := remotemedia.ReadControlMessage(conn)
+						if e != nil {
+							return
+						}
+						if e := r.AcceptControl(message); e != nil {
+							return
+						}
+					}
+				}(conn)
+			}
+		}()
+	}
+	defer func() {
+		if controlListener != nil {
+			_ = controlListener.Close()
+		}
+		closeControl()
+		controlWG.Wait()
+	}()
 	a, err := net.ResolveUDPAddr("udp", *rtp)
 	if err != nil {
 		return err
@@ -189,11 +300,21 @@ func run(ctx context.Context, args []string) error {
 	var lastSSRC uint32
 	var haveSSRC bool
 	for {
+		select {
+		case e := <-errCh:
+			return e
+		default:
+		}
 		conn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
 		n, _, e := conn.ReadFromUDP(packet)
 		if e != nil {
 			if ne, ok := e.(net.Error); ok && ne.Timeout() {
-				if ctx.Err() != nil {
+				select {
+				case e := <-errCh:
+					return e
+				default:
+				}
+				if runCtx.Err() != nil {
 					return nil
 				}
 				continue
@@ -205,6 +326,9 @@ func run(ctx context.Context, args []string) error {
 			ssrc := uint32(packet[8])<<24 | uint32(packet[9])<<16 | uint32(packet[10])<<8 | uint32(packet[11])
 			if haveSSRC && ssrc != lastSSRC {
 				fmt.Fprintf(os.Stderr, "fbbridge_stream_reset old_ssrc=%08x new_ssrc=%08x\n", lastSSRC, ssrc)
+				started.Store(false)
+				seenSPS.Store(false)
+				seenPPS.Store(false)
 			}
 			lastSSRC, haveSSRC = ssrc, true
 		}
@@ -254,7 +378,7 @@ func run(ctx context.Context, args []string) error {
 			payload := accessUnitAnnexB(u)
 			select {
 			case unitCh <- payload:
-			case <-ctx.Done():
+			case <-runCtx.Done():
 				return nil
 			}
 		}
