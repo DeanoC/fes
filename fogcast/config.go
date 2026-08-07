@@ -69,6 +69,10 @@ type MediaConfig struct {
 	ControlAddress string
 	Decoder        string
 	CaptureDevice  string
+	Width          int
+	Height         int
+	FPSNumerator   int
+	FPSDenominator int
 	Bitrate        int
 	GOP            int
 	MTU            int
@@ -111,6 +115,10 @@ type fileMedia struct {
 	ControlAddress string `toml:"control_address"`
 	Decoder        string `toml:"decoder"`
 	CaptureDevice  string `toml:"capture_device"`
+	Width          int    `toml:"width"`
+	Height         int    `toml:"height"`
+	FPSNumerator   int    `toml:"fps_numerator"`
+	FPSDenominator int    `toml:"fps_denominator"`
 	Bitrate        int    `toml:"bitrate"`
 	GOP            int    `toml:"gop"`
 	MTU            int    `toml:"mtu"`
@@ -196,12 +204,17 @@ func normalizeMedia(raw fileMedia) (MediaConfig, error) {
 	if decoder != "none" && decoder != "ffplay" {
 		return MediaConfig{}, fmt.Errorf("media decoder must be none or ffplay")
 	}
-	if raw.Bitrate < 0 || raw.GOP < 0 || raw.MTU < 0 {
-		return MediaConfig{}, fmt.Errorf("media bitrate, gop, and mtu must not be negative")
+	if raw.Width < 0 || raw.Height < 0 || raw.FPSNumerator < 0 || raw.FPSDenominator < 0 || raw.Bitrate < 0 || raw.GOP < 0 || raw.MTU < 0 {
+		return MediaConfig{}, fmt.Errorf("media dimensions, frame rate, bitrate, gop, and mtu must not be negative")
+	}
+	if (raw.FPSNumerator == 0) != (raw.FPSDenominator == 0) {
+		return MediaConfig{}, fmt.Errorf("media frame rate numerator and denominator must both be set or unset")
 	}
 	return MediaConfig{Enabled: true, Session: raw.Session, Generation: raw.Generation, SSRC: raw.SSRC,
 		RTPListen: raw.RTPListen, RTPDestination: raw.RTPDestination, ControlAddress: raw.ControlAddress,
-		Decoder: decoder, CaptureDevice: raw.CaptureDevice, Bitrate: raw.Bitrate, GOP: raw.GOP, MTU: raw.MTU}, nil
+		Decoder: decoder, CaptureDevice: raw.CaptureDevice, Width: raw.Width, Height: raw.Height,
+		FPSNumerator: raw.FPSNumerator, FPSDenominator: raw.FPSDenominator,
+		Bitrate: raw.Bitrate, GOP: raw.GOP, MTU: raw.MTU}, nil
 }
 
 func normalizeHostEmulator(raw fileHostEmulator) (HostEmulatorConfig, error) {

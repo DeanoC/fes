@@ -410,7 +410,7 @@ func resolveManagedReceiverAddress(address string) (*net.UDPAddr, error) {
 }
 
 func defaultFFPlayDecoder(ctx context.Context) (ManagedDecoder, error) {
-	cmd := exec.CommandContext(ctx, "ffplay", "-loglevel", "warning", "-fflags", "nobuffer", "-flags", "low_delay", "-f", "h264", "-i", "pipe:0")
+	cmd := exec.CommandContext(ctx, "ffplay", "-loglevel", "warning", "-f", "h264", "-i", "pipe:0")
 	input, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err

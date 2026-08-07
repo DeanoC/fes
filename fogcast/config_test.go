@@ -126,6 +126,10 @@ rtp_destination = "127.0.0.1:5001"
 control_address = "127.0.0.1:5002"
 decoder = "none"
 capture_device = "device-1"
+width = 1280
+height = 720
+fps_numerator = 30
+fps_denominator = 1
 bitrate = 4000000
 gop = 60
 mtu = 1200
@@ -134,7 +138,7 @@ mtu = 1200
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := config.Media; !got.Enabled || got.Session != "session-1" || got.Generation != 7 || got.SSRC != 42 || got.RTPListen != "127.0.0.1:5000" || got.RTPDestination != "127.0.0.1:5001" || got.ControlAddress != "127.0.0.1:5002" || got.CaptureDevice != "device-1" || got.Bitrate != 4000000 || got.GOP != 60 || got.MTU != 1200 {
+	if got := config.Media; !got.Enabled || got.Session != "session-1" || got.Generation != 7 || got.SSRC != 42 || got.RTPListen != "127.0.0.1:5000" || got.RTPDestination != "127.0.0.1:5001" || got.ControlAddress != "127.0.0.1:5002" || got.CaptureDevice != "device-1" || got.Width != 1280 || got.Height != 720 || got.FPSNumerator != 30 || got.FPSDenominator != 1 || got.Bitrate != 4000000 || got.GOP != 60 || got.MTU != 1200 {
 		t.Fatalf("media config = %#v", got)
 	}
 }
@@ -146,6 +150,7 @@ func TestLoadConfigRejectsInvalidEnabledMediaWithoutLeakingValues(t *testing.T) 
 		"missing capture": `enabled = true\nsession = "secret-session"\nssrc = 1\nrtp_listen = "127.0.0.1:5000"\nrtp_destination = "127.0.0.1:5001"`,
 		"bad decoder":     `enabled = true\nsession = "secret-session"\nssrc = 1\nrtp_listen = "127.0.0.1:5000"\nrtp_destination = "127.0.0.1:5001"\ncapture_device = "device"\ndecoder = "secret-decoder"`,
 		"bad address":     `enabled = true\nsession = "secret-session"\nssrc = 1\nrtp_listen = "not-an-address"\nrtp_destination = "127.0.0.1:5001"\ncapture_device = "device"`,
+		"partial fps":     `enabled = true\nsession = "secret-session"\nssrc = 1\nrtp_listen = "127.0.0.1:5000"\nrtp_destination = "127.0.0.1:5001"\ncapture_device = "device"\nfps_numerator = 30`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := fogcast.LoadConfig(writeConfig(t, base+"\n[media]\n"+strings.ReplaceAll(media, `\n`, "\n")+"\n"))

@@ -168,3 +168,30 @@ func TestComposeAPIInjectsEnabledMedia(t *testing.T) {
 		t.Fatalf("capture close count = %d, want 1", capture.closed)
 	}
 }
+
+func TestConfiguredCaptureSourceFactoryIsUsedByMediaComposition(t *testing.T) {
+	service := &hostOnlyCompositionService{}
+	called := false
+	capture := &compositionCapture{}
+	config := fogcast.Config{Token: "token", Media: fogcast.MediaConfig{Enabled: true, Session: "session", SSRC: 7, RTPListen: "127.0.0.1:5000", RTPDestination: "127.0.0.1:5001", CaptureDevice: "screen"}}
+	_, cleanup, err := composeAPI(service, config, nil,
+		withCaptureSourceFactory(func(got fogcast.MediaConfig) (remotemedia.CaptureSource, error) {
+			called = got.CaptureDevice == "screen"
+			return capture, nil
+		}),
+		withManagedReceiverOptions(
+			remotemedia.WithManagedReceiverBind(func(string, *net.UDPAddr) (remotemedia.ManagedPacketConn, error) {
+				return &compositionPacketConn{closed: make(chan struct{})}, nil
+			}),
+			remotemedia.WithManagedReceiverFactory(func(remotemedia.ReceiverConfig) (remotemedia.ManagedReceiverTransport, error) {
+				return &compositionTransport{}, nil
+			}),
+		),
+	)
+	if err != nil || cleanup == nil || !called {
+		t.Fatalf("composition err=%v cleanup=%v called=%v", err, cleanup != nil, called)
+	}
+	if err := cleanup(); err != nil {
+		t.Fatal(err)
+	}
+}
