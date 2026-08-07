@@ -117,7 +117,7 @@ func runSender(ctx context.Context, args []string, stdout, stderr io.Writer) err
 	if err != nil {
 		return fmt.Errorf("enumerate physical HDMI capture devices: %w", err)
 	}
-	if err := requireCaptureDevices(devices); err != nil {
+	if err := requireCaptureDevices(devices); err != nil && !remotemedia.IsScreenCaptureDevice(*captureDevice) {
 		return err
 	}
 	capture, err := remotemedia.OpenNativeCapture(config)
@@ -151,6 +151,7 @@ func runSender(ctx context.Context, args []string, stdout, stderr io.Writer) err
 		Session         string                      `json:"session"`
 		Generation      uint64                      `json:"generation"`
 		PhysicalCapture bool                        `json:"physical_capture"`
+		ScreenCapture   bool                        `json:"screen_capture"`
 		Metrics         remotemedia.MetricsSnapshot `json:"metrics"`
 		Capture         remotemedia.CaptureStats    `json:"capture"`
 		ShutdownReason  string                      `json:"shutdown_reason,omitempty"`
@@ -158,7 +159,8 @@ func runSender(ctx context.Context, args []string, stdout, stderr io.Writer) err
 		Mode:            "sender",
 		Session:         *session,
 		Generation:      *generation,
-		PhysicalCapture: true,
+		PhysicalCapture: !remotemedia.IsScreenCaptureDevice(*captureDevice),
+		ScreenCapture:   remotemedia.IsScreenCaptureDevice(*captureDevice),
 		Metrics:         metrics.Snapshot(time.Now(), stats.QueueDepth, stats.QueueHighWater),
 		Capture:         stats,
 	}

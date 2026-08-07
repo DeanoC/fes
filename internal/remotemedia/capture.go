@@ -3,6 +3,7 @@ package remotemedia
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -61,6 +62,12 @@ type CaptureSource interface {
 	Next(context.Context) (EncodedSample, error)
 	Stats() CaptureStats
 	Close() error
+}
+
+// IsScreenCaptureDevice reports whether the Darwin backend should capture the
+// host's main display rather than an external UVC device.
+func IsScreenCaptureDevice(device string) bool {
+	return strings.HasPrefix(strings.TrimSpace(device), "screen")
 }
 
 type KeyframeRequester interface {

@@ -38,6 +38,7 @@ type ReceiverReport struct {
 type Receiver struct {
 	mu               sync.Mutex
 	config           ReceiverConfig
+	noAuth           bool
 	authenticated    bool
 	closed           bool
 	report           ReceiverReport
@@ -45,6 +46,10 @@ type Receiver struct {
 	nextSequence     uint16
 	currentTimestamp uint32
 	nals             [][]byte
+	sps              []byte
+	pps              []byte
+	lastSSRC         uint32
+	haveSSRC         bool
 	fu               []byte
 	fuTimestamp      uint32
 	fuActive         bool
@@ -58,6 +63,12 @@ func NewReceiver(config ReceiverConfig) (*Receiver, error) {
 		return nil, errors.New("receiver token is required")
 	}
 	return &Receiver{config: config}, nil
+}
+
+// NewUnauthenticatedReceiver creates a receiver that skips control-plane authentication.
+// This is intended for disposable testing only and should not be used in production.
+func NewUnauthenticatedReceiver(config ReceiverConfig) *Receiver {
+	return &Receiver{config: config, noAuth: true, authenticated: true}
 }
 
 func (r *Receiver) AcceptControl(message ControlMessage) error {
@@ -101,7 +112,7 @@ func (r *Receiver) Ingest(wire []byte) ([]AccessUnit, error) {
 	if r.closed {
 		return nil, ErrReceiverClosed
 	}
-	if !r.authenticated {
+	if !r.noAuth && !r.authenticated {
 		return nil, errors.New("receiver control session is not authenticated")
 	}
 	packet, err := parseReceiverRTP(wire)
@@ -113,10 +124,20 @@ func (r *Receiver) Ingest(wire []byte) ([]AccessUnit, error) {
 		r.report.Malformed++
 		return nil, fmt.Errorf("unexpected RTP payload type %d", packet.PayloadType)
 	}
-	if packet.SSRC != r.config.SSRC {
+	if r.config.SSRC != 0 && packet.SSRC != r.config.SSRC {
 		r.report.Malformed++
 		return nil, errors.New("RTP SSRC mismatch")
 	}
+	if r.config.SSRC == 0 && r.haveSSRC && packet.SSRC != r.lastSSRC {
+		r.haveSequence = false
+		r.nals = nil
+		r.fu = nil
+		r.fuActive = false
+		r.sps = nil
+		r.pps = nil
+	}
+	r.lastSSRC = packet.SSRC
+	r.haveSSRC = true
 	if r.haveSequence && packet.Sequence != r.nextSequence {
 		gap := uint16(packet.Sequence - r.nextSequence)
 		if gap > 0 && gap < 0x8000 {
@@ -145,13 +166,13 @@ func (r *Receiver) Ingest(wire []byte) ([]AccessUnit, error) {
 		r.fuActive = false
 	}
 	r.currentTimestamp = packet.Timestamp
-	nal, err := r.consumePayload(packet.Payload, packet.Timestamp)
+	nals, err := r.consumePayload(packet.Payload, packet.Timestamp)
 	if err != nil {
 		r.report.Malformed++
 		return nil, err
 	}
-	if nal != nil {
-		r.nals = append(r.nals, nal)
+	if len(nals) > 0 {
+		r.nals = append(r.nals, nals...)
 	}
 	if !packet.Marker {
 		return nil, nil
@@ -174,21 +195,69 @@ func (r *Receiver) Ingest(wire []byte) ([]AccessUnit, error) {
 		}
 		switch n[0] & 0x1f {
 		case 7:
+			r.sps = append([]byte(nil), n...)
 			r.report.SPS++
 		case 8:
+			r.pps = append([]byte(nil), n...)
 			r.report.PPS++
 		case 5:
 			r.report.IDR++
 			unit.Keyframe = true
 		}
 	}
+	hasSPS, hasPPS := false, false
+	for _, n := range unit.NALs {
+		if len(n) == 0 {
+			continue
+		}
+		if n[0]&0x1f == 7 {
+			hasSPS = true
+		}
+		if n[0]&0x1f == 8 {
+			hasPPS = true
+		}
+	}
+	if unit.Keyframe && len(r.sps) > 0 && len(r.pps) > 0 && (!hasSPS || !hasPPS) {
+		withConfig := make([][]byte, 0, len(unit.NALs)+2)
+		withConfig = append(withConfig, append([]byte(nil), r.sps...), append([]byte(nil), r.pps...))
+		withConfig = append(withConfig, unit.NALs...)
+		unit.NALs = withConfig
+	}
+	if unit.Keyframe {
+		filtered := make([][]byte, 0, len(unit.NALs))
+		for _, n := range unit.NALs {
+			if len(n) == 0 || n[0]&0x1f != 6 {
+				filtered = append(filtered, n)
+			}
+		}
+		unit.NALs = filtered
+	}
 	r.report.AccessUnits++
 	r.nals = nil
 	return []AccessUnit{unit}, nil
 }
 
-func (r *Receiver) consumePayload(payload []byte, timestamp uint32) ([]byte, error) {
+func (r *Receiver) consumePayload(payload []byte, timestamp uint32) ([][]byte, error) {
 	typ := payload[0] & 0x1f
+	if typ == 24 {
+		var nals [][]byte
+		for pos := 1; pos < len(payload); {
+			if pos+2 > len(payload) {
+				return nil, errors.New("STAP-A length is truncated")
+			}
+			length := int(payload[pos])<<8 | int(payload[pos+1])
+			pos += 2
+			if length == 0 || pos+length > len(payload) {
+				return nil, errors.New("STAP-A NAL is truncated")
+			}
+			nals = append(nals, append([]byte(nil), payload[pos:pos+length]...))
+			pos += length
+		}
+		if len(nals) == 0 {
+			return nil, errors.New("STAP-A contains no NALs")
+		}
+		return nals, nil
+	}
 	if typ != 28 {
 		if typ == 0 || typ > 23 {
 			return nil, fmt.Errorf("unsupported H264 RTP NAL type %d", typ)
@@ -198,7 +267,7 @@ func (r *Receiver) consumePayload(payload []byte, timestamp uint32) ([]byte, err
 			r.fuActive = false
 			return nil, errors.New("single NAL interrupted FU-A")
 		}
-		return append([]byte(nil), payload...), nil
+		return [][]byte{append([]byte(nil), payload...)}, nil
 	}
 	if len(payload) < 3 {
 		return nil, errors.New("FU-A payload is too short")
@@ -223,7 +292,7 @@ func (r *Receiver) consumePayload(payload []byte, timestamp uint32) ([]byte, err
 			r.fuActive = false
 			out := r.fu
 			r.fu = nil
-			return out, nil
+			return [][]byte{out}, nil
 		}
 		return nil, nil
 	}
@@ -235,7 +304,7 @@ func (r *Receiver) consumePayload(payload []byte, timestamp uint32) ([]byte, err
 		out := r.fu
 		r.fu = nil
 		r.fuActive = false
-		return out, nil
+		return [][]byte{out}, nil
 	}
 	return nil, nil
 }

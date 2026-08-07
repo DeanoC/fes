@@ -1,6 +1,7 @@
 #import <AVFoundation/AVFoundation.h>
 #import <CoreMedia/CoreMedia.h>
 #import <CoreVideo/CoreVideo.h>
+#import <CoreGraphics/CoreGraphics.h>
 #import <VideoToolbox/VideoToolbox.h>
 #include <mach/mach_time.h>
 #include <pthread.h>
@@ -388,23 +389,31 @@ void *mr_capture_open(const char *device_identifier, int width, int height,
         pthread_cond_init(&capture->condition, NULL);
         NSString *device_identifier_string = [NSString stringWithUTF8String:device_identifier];
         AVCaptureDevice *device = nil;
-        NSArray<AVCaptureDevice *> *devices = mr_video_devices();
-        for (AVCaptureDevice *candidate in devices) {
-            if ([candidate.uniqueID isEqualToString:device_identifier_string] ||
-                [candidate.localizedName isEqualToString:device_identifier_string]) {
-                device = candidate;
-                break;
+        AVCaptureInput *input = nil;
+        AVCaptureScreenInput *screen_input = nil;
+        BOOL is_screen = [device_identifier_string hasPrefix:@"screen"];
+        if (is_screen) {
+            screen_input = [[AVCaptureScreenInput alloc] initWithDisplayID:CGMainDisplayID()];
+            input = screen_input;
+        } else {
+            NSArray<AVCaptureDevice *> *devices = mr_video_devices();
+            for (AVCaptureDevice *candidate in devices) {
+                if ([candidate.uniqueID isEqualToString:device_identifier_string] ||
+                    [candidate.localizedName isEqualToString:device_identifier_string]) {
+                    device = candidate;
+                    break;
+                }
             }
-        }
-        if (device == nil) {
-            if (error_out != NULL) *error_out = mr_error([NSString stringWithFormat:@"physical HDMI capture device %s was not found", device_identifier]);
-            mr_release_capture(capture); return NULL;
-        }
-        NSError *input_error = nil;
-        AVCaptureDeviceInput *input = [AVCaptureDeviceInput deviceInputWithDevice:device error:&input_error];
-        if (input == nil) {
-            if (error_out != NULL) *error_out = mr_error(input_error.localizedDescription ?: @"cannot open capture device");
-            mr_release_capture(capture); return NULL;
+            if (device == nil) {
+                if (error_out != NULL) *error_out = mr_error([NSString stringWithFormat:@"physical HDMI capture device %s was not found", device_identifier]);
+                mr_release_capture(capture); return NULL;
+            }
+            NSError *input_error = nil;
+            input = [AVCaptureDeviceInput deviceInputWithDevice:device error:&input_error];
+            if (input == nil) {
+                if (error_out != NULL) *error_out = mr_error(input_error.localizedDescription ?: @"cannot open capture device");
+                mr_release_capture(capture); return NULL;
+            }
         }
         capture->session = (__bridge_retained CFTypeRef)[[AVCaptureSession alloc] init];
         AVCaptureSession *session = (__bridge AVCaptureSession *)capture->session;
@@ -420,7 +429,16 @@ void *mr_capture_open(const char *device_identifier, int width, int height,
         }
         BOOL requested_mode = width > 0 || height > 0 || fps_numerator > 0;
         BOOL selected_mode = !requested_mode;
-        if (requested_mode) {
+        if (is_screen) {
+            size_t display_width = CGDisplayPixelsWide(CGMainDisplayID());
+            if (width > 0 && display_width > 0) {
+                screen_input.scaleFactor = (CGFloat)width / (CGFloat)display_width;
+            }
+            if (fps_numerator > 0 && fps_denominator > 0) {
+                screen_input.minFrameDuration = CMTimeMake(fps_denominator, fps_numerator);
+            }
+            selected_mode = YES;
+        } else if (requested_mode) {
             for (AVCaptureDeviceFormat *format in device.formats) {
                 CMVideoDimensions dimensions = CMVideoFormatDescriptionGetDimensions(format.formatDescription);
                 if (width > 0 && dimensions.width != width) continue;
@@ -456,16 +474,24 @@ void *mr_capture_open(const char *device_identifier, int width, int height,
             if (error_out != NULL) *error_out = mr_error(@"capture device does not support the requested resolution/frame rate");
             mr_release_capture(capture); return NULL;
         }
-        CMVideoDimensions source_dimensions = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription);
+        CMVideoDimensions source_dimensions;
+        if (is_screen) {
+            source_dimensions = (CMVideoDimensions){
+                (int32_t)(width > 0 ? width : CGDisplayPixelsWide(CGMainDisplayID())),
+                (int32_t)(height > 0 ? height : CGDisplayPixelsHigh(CGMainDisplayID()))
+            };
+        } else {
+            source_dimensions = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription);
+        }
         if (source_dimensions.width <= 0 || source_dimensions.height <= 0) {
             if (error_out != NULL) *error_out = mr_error(@"capture device has no active video dimensions");
             mr_release_capture(capture); return NULL;
         }
         capture->width = source_dimensions.width;
         capture->height = source_dimensions.height;
-        CMTime source_duration = device.activeVideoMinFrameDuration;
+        CMTime source_duration = is_screen ? screen_input.minFrameDuration : device.activeVideoMinFrameDuration;
         if (!CMTIME_IS_VALID(source_duration) || source_duration.value <= 0 || source_duration.timescale <= 0) {
-            source_duration = device.activeVideoMaxFrameDuration;
+            source_duration = is_screen ? CMTimeMake(1, 30) : device.activeVideoMaxFrameDuration;
         }
         if (CMTIME_IS_VALID(source_duration) && source_duration.value > 0 && source_duration.timescale > 0) {
             capture->fps_numerator = source_duration.timescale;

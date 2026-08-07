@@ -23,6 +23,10 @@ BR2_PACKAGE_BZIP2=y
 BR2_PACKAGE_ZLIB=y
 BR2_PACKAGE_BLUEZ5_UTILS=y
 BR2_PACKAGE_DROPBEAR=y
+# POC6 M1 disposable development-only decoder/display probe. This is not
+# enabled by the production defconfig or included in the accepted image.
+BR2_PACKAGE_FFMPEG=y
+BR2_PACKAGE_FFMPEG_FFPLAY=y
 BR2_TARGET_ROOTFS_EXT2=y
 BR2_TARGET_ROOTFS_EXT2_4=y
 BR2_TARGET_ROOTFS_EXT2_SIZE="64M"

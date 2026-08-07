@@ -106,3 +106,12 @@ MiSTer-attached TV, played with the local controller, and stopped through the
 single session API, with recorded cast-path latency and teardown evidence in
 `docs/POC6-RESULTS.md`. The next-stage decision after POC6 is expected to be
 library/control productization versus broadening target or source coverage.
+
+## Checkpoint disposition
+
+The 2026-08-07 checkpoint recorded in `docs/POC6-RESULTS.md` passes the
+disposable M1 target decode/display spike and the M3 host-emulator video path,
+including fresh RetroArch ActRaiser content visible through ShadowCast 3 on
+MiSTer HDMI. It does not close full POC6: M2 managed target ownership, M4
+session/API ownership, M5 controller symmetry, latency measurement, and clean
+teardown remain outstanding.

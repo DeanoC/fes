@@ -4,7 +4,7 @@ package remotemedia
 
 /*
 #cgo darwin CFLAGS: -x objective-c -fobjc-arc
-#cgo darwin LDFLAGS: -framework AVFoundation -framework CoreMedia -framework CoreVideo -framework VideoToolbox -framework Foundation
+#cgo darwin LDFLAGS: -framework AVFoundation -framework CoreMedia -framework CoreVideo -framework VideoToolbox -framework Foundation -framework CoreGraphics
 #include "capture_darwin.h"
 #include <stdlib.h>
 */
@@ -48,7 +48,11 @@ func OpenNativeCapture(config CaptureConfig) (*NativeCapture, error) {
 	var errorOut *C.char
 	handle := C.mr_capture_open(device, C.int(config.Width), C.int(config.Height), C.int(config.FPS.Numerator), C.int(config.FPS.Denominator), C.int(config.Bitrate), C.int(config.GOP), &errorOut)
 	if handle == nil {
-		return nil, nativeError(errorOut, "open physical HDMI capture")
+		operation := "open physical HDMI capture"
+		if IsScreenCaptureDevice(config.Device) {
+			operation = "open host screen capture"
+		}
+		return nil, nativeError(errorOut, operation)
 	}
 	return &NativeCapture{handle: handle}, nil
 }
