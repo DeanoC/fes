@@ -62,7 +62,7 @@ post-POC3 experiment.
 ## Acceptance boundary
 
 This evidence closes the POC3 remote-input transport and target-lifecycle gate.
-It intentionally does not close the separate POC2 interrupted-upload gate, and
-it does not claim physical game-screen input observation or latency. Those
-remain separately identified acceptance work rather than hidden assumptions in
-the POC3 completion decision.
+It did not itself establish the separate POC2 interrupted-upload evidence; that
+gate subsequently passed through the deterministic acceptance recorded in
+`docs/POC2-HANDOFF.md`. This report does not claim physical game-screen input
+observation or latency, which remain separate from the POC3 completion decision.

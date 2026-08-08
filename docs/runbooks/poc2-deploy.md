@@ -52,7 +52,22 @@ test is software evidence only; it is not a MiSTer hardware acceptance.
 For routine development access, use `scripts/dev-target-tunnel.sh`. It is
 explicitly scoped to the disposable target, ignores regenerated SSH host keys,
 uses keepalives, and reconnects after the target agent or tunnel restarts. It
-prompts for the local operator password and never writes it to the repository.
+requires the private target address in the local environment and never writes
+it to the repository:
+
+```sh
+export MISTER_TARGET_HOST=PRIVATE_TARGET_HOST
+# Optional: absolute-path, regular, current-user-owned file with mode 0600.
+export MISTER_SSH_PASSWORD_FILE=/absolute/private/password-file
+scripts/dev-target-tunnel.sh
+```
+
+Without a configured password file, the helper prompts once and uses a
+mode-`0600` temporary file that is removed on normal or trapped exit. The
+password is not placed in argv. `SIGKILL`, host failure, or power loss cannot
+run the cleanup trap; after such an event, confirm no helper is active and
+remove only confirmed current-user-owned residual
+`${TMPDIR:-/tmp}/fogcast-ssh-password.*` non-symlink regular files.
 
 
 Build both POC 2 roots from the locked POC 1B inputs, verify them, and retain
@@ -172,11 +187,11 @@ The runner stops at the first failed check. Confirm these gates in order:
    work without the source roots.
 10. An uncached offline request is rejected and the active game state remains
     unchanged.
-11. An operator-confirmed interrupted upload leaves no launchable content and
-    does not replace the current game. This gate is currently open in the
-    dedicated run because the available fixtures complete before manual
-    interruption; use a throttled or substantially larger fixture before
-    declaring it passed.
+11. A deterministically throttled interrupted upload leaves no launchable
+    content, does not replace the current game, and reconciles the catalog after
+    interruption. Formal POC2 acceptance passed this gate. The earlier manual
+    attempt completed before interruption and is historical, not the current
+    disposition.
 12. Alternating launches between the two cached games work.
 13. Stop reaches idle and HDMI is black after the configured blanking delay;
     invalid requests are rejected without disturbing state.

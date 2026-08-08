@@ -88,7 +88,7 @@ Preserve these rules during follow-on work:
 
   ```sh
   export MISTER_TARGET_HOST=PRIVATE_TARGET_HOST
-  # Optional for unattended use; this existing private file must be mode 0600.
+  # Optional: absolute-path, regular, current-user-owned file with mode 0600.
   export MISTER_SSH_PASSWORD_FILE=/absolute/private/password-file
   scripts/dev-target-tunnel.sh
   ```
@@ -96,7 +96,15 @@ Preserve these rules during follow-on work:
   Keep the resolved address in the local environment; the tracked helper has no
   target-address default. If no password file is configured, the helper prompts
   once, stores the password in a mode-`0600` temporary file for its process
-  lifetime, and removes that file on exit. It never places the password in argv.
+  lifetime, and removes that file on normal or trapped exit. It never places the
+  password in argv. A configured password file must be an absolute-path regular
+  file owned by the current user with exact mode `0600`; symlinks are rejected.
+
+  `SIGKILL`, host failure, or power loss cannot run shell traps. After such an
+  event, confirm no tunnel helper is active before inspecting
+  `${TMPDIR:-/tmp}/fogcast-ssh-password.*`. Remove only current-user-owned,
+  non-symlink regular files with that exact prefix after confirming they are
+  residual helper files. Never remove an active helper's password file.
 
 - Retained target image, exact deployed agent/bridge, and disposable
   `/media/fat/MiSTer` presentation hook.
@@ -279,7 +287,19 @@ done
 
 The probe runs each filesystem access in a separately supervised child. If it
 times out, do not scan or repeatedly force-unmount; inspect the mount/helper
-state and follow the macOS SMB recovery procedure first.
+state and recover it as follows:
+
+1. Stop FogCast sessions, `fogcast-api`, scans, and other processes using the
+   affected mount.
+2. Confirm the mount is still registered with `mount` and try one normal eject
+   from Finder or one normal `umount /absolute/mount/path` from the developer's
+   interactive terminal context.
+3. If the unmount does not return promptly or the mount remains wedged, do not
+   loop force-unmounts or kill unrelated filesystem helpers. Reboot the Mac to
+   clear the blocked kernel/filesystem state.
+4. Remount through the authorized private SMB workflow, rerun the supervised
+   probe above, and proceed to catalog scan only after every required root
+   returns successfully.
 
 ```sh
 bin/fogcast \
@@ -457,5 +477,6 @@ Choose one scope explicitly:
    fixture is available; record real glass-to-glass distributions.
 
 For every change, test normal stop, startup rollback, sender death, bridge death,
-target-agent shutdown, host-API shutdown, repeated launch, and stale-generation
-replacement. A clean current-tree independent review remains the shipping gate.
+graceful target-agent shutdown, ungraceful target-agent death and reconciliation,
+host-API shutdown, repeated launch, and stale-generation replacement. A clean
+current-tree independent review remains the shipping gate.

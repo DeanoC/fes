@@ -114,7 +114,8 @@ repository helper. Supply the private target address through the local
 environment; no target address is embedded in the tracked script. The helper
 intentionally accepts regenerated target host keys. Without a configured
 password file, it prompts once, stores the password in a mode-`0600` temporary
-file for the tunnel process lifetime, and removes that file on exit:
+file for the tunnel process lifetime, and removes that file on normal or
+trapped exit:
 
 ```sh
 export MISTER_TARGET_HOST=PRIVATE_TARGET_HOST
@@ -122,8 +123,16 @@ scripts/dev-target-tunnel.sh
 ```
 
 For unattended development, set `MISTER_SSH_PASSWORD_FILE` to an existing
-owner-only (`0600`) private file outside Git. The helper reads that file inside
-its Expect process; it does not put the password in argv.
+absolute-path, owner-only (`0600`) regular file outside Git. Symlinks and files
+owned by another user or accessible to a group or other users are rejected. The
+helper reads that file inside its Expect process; it does not put the password
+in argv.
+
+`SIGKILL`, host failure, or power loss cannot run shell traps. After such an
+event, first confirm no tunnel helper is active, then inspect
+`${TMPDIR:-/tmp}/fogcast-ssh-password.*`. Remove only owner-matching,
+non-symlink regular files with that exact prefix after confirming they are
+residual helper files; never delete an active helper's password file.
 
 The helper reconnects after target or tunnel restarts and forwards
 `127.0.0.1:18182` to the target API. Keep `MISTER_TARGET_HOST` local and do not
@@ -147,5 +156,7 @@ bin/fogcast-hil --config /path/to/local/fogcast.toml \
 No target address, bearer token, NAS path, ROM bytes, or game filename belongs
 in this repository. Use distinct operator-supplied ZIP catalog IDs for the
 uncached and interrupted fixtures. Keep the generated report ignored and review
-it locally only. POC2's interrupted-upload gate remains open until a fixture is
-slow enough to interrupt deterministically.
+it locally only. An early manual-interruption attempt completed too quickly to
+exercise the gate; the later formal POC2 acceptance used deterministic
+throttling and passed interrupted-upload cleanup and reconciliation. See
+`docs/POC2-HANDOFF.md` for the authoritative disposition.

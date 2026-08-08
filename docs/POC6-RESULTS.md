@@ -227,7 +227,7 @@ Focused regressions cover:
 - media terminal-state propagation and session reaping;
 - host-only exclusion of the target input bridge;
 - fresh capture ownership for each repeated host-media session;
-- target-agent shutdown cleanup;
+- graceful target-agent shutdown cleanup;
 - retryable capture-source close after an initial failure;
 - partial local and target-start cleanup ownership across rollback;
 - session/generation-conditioned target stop and stale replacement safety;

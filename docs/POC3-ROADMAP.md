@@ -34,8 +34,8 @@ adapter and control session are reliable.
 
 - POC2 cache publication works on the MiSTer exFAT filesystem.
 - Reboot and NAS-offline cache behavior remain green.
-- The POC2 interrupted-upload gate is tracked separately in
-  `docs/POC2-HANDOFF.md`; it is not a POC3 host-control gate.
+- The POC2 deterministic interrupted-upload gate passed separately as recorded
+  in `docs/POC2-HANDOFF.md`; it is not a POC3 host-control gate.
 - POC1 rollback remains tested and the target provenance locks are unchanged.
 
 ## First POC3 design question
@@ -73,12 +73,12 @@ used to block this POC3 completion decision.
 
 ## Transition to POC4
 
-POC4 is the next product phase after the final POC2 interrupted-upload report
-is green. It should begin with a single evidence-driven decision about remote
-play: either complete the integrated capture/encode/transport/receiver/display
-vertical slice, or deliberately defer video and focus on productizing the
-library and control experience. POC4 must not repeat broad overlapping
-worktrees; keep one authoritative integration checkout and measure each gate.
+POC4 began after the final deterministic POC2 interrupted-upload report passed.
+Its evidence-driven remote-play decision was to complete the integrated
+capture/encode/transport/receiver/display vertical slice, whose accepted
+disposition is recorded below. The stage used one authoritative integration
+checkout and measured each gate rather than repeating broad overlapping
+worktrees.
 
 Implementation tracking and the current receiver/evidence plan are in
 `.hermes/plans/2026-08-06_121559-poc4-remote-play.md`. The physical

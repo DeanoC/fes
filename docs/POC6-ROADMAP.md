@@ -6,10 +6,11 @@ cannot run on the MiSTer FPGA is launched on the host and **cast to the
 MiSTer-attached TV**, with the same catalog, launch flow, and local controller
 as an FPGA-native game.
 
-POC5 established the host-side direction (`MiSTer HDMI -> host`) and made
-host-only games playable on the host display through one session. POC6 adds
-the reverse direction: `host emulator framebuffer -> encode -> RTP/H.264 ->
-decode + display on the MiSTer ARM Linux side`.
+POC5 established the unified session boundary and integrated the host-side
+launch/display direction (`MiSTer HDMI -> host`). It did not close the original
+controller-symmetry or physical-latency criteria. POC6 adds the reverse video
+direction: `host emulator framebuffer -> encode -> RTP/H.264 -> decode +
+display on the MiSTer ARM Linux side`.
 
 ## Why a separate stage
 
@@ -45,10 +46,11 @@ MiSTer TV, one UI, one controller"* — with measured latency on the cast path.
 
 2. **M2 — Target cast agent (accepted for managed ownership).** The target
    agent owns authenticated bridge start/status/stop, session/generation
-   identity, bounded cleanup, and agent-shutdown teardown. Process and socket
-   cleanup passed. Return to stock FPGA presentation without reboot was not an
-   acceptance gate: the non-stock presentation hook remains intentionally
-   installed as the development testbed.
+   identity, bounded cleanup, and graceful agent-shutdown teardown. Process and
+   socket cleanup passed for normal stop and managed replacement. Return to
+   stock FPGA presentation without reboot was not an acceptance gate: the
+   non-stock presentation hook remains intentionally installed as the
+   development testbed.
 
 3. **M3 — Host encode path (accepted)**: capture and encode the host emulator
    framebuffer (reusing the POC4 encode/transport stack where possible),
@@ -74,8 +76,10 @@ Same evidence discipline as POC4/POC5:
   the cast path requires observed decoded output on the MiSTer TV.
 - Failure-path coverage via the deterministic impairment harness; real
   capture runs cover the happy path.
-- Cast-mode process teardown is verified by inspection after each run: no
-  orphaned target bridge or media socket may remain. Return to stock FPGA
+- Cast-mode process teardown for normal stop and graceful shutdown is verified
+  by inspection: no orphaned target bridge or media socket may remain. An
+  ungraceful target-agent crash or `SIGKILL` can orphan the bridge and requires
+  the reconciliation procedure in the development guide. Return to stock FPGA
   presentation without reboot is unclaimed while the non-stock hook is
   intentionally retained. After target reboots, the supervised tunnel's live
   readiness signal remains authoritative.
@@ -126,8 +130,8 @@ The 2026-08-08 acceptance recorded in `docs/POC6-RESULTS.md` passes the M1
 target decode/display path, M2 managed target ownership, M3 host-emulator video
 path, and M4 session/API lifecycle. Fresh RetroArch ActRaiser content was
 observed through ShadowCast 3 on MiSTer HDMI, and repeated launch, normal stop,
-unexpected media exit, target-agent shutdown, and host-API shutdown were
-verified without orphaned media resources.
+unexpected media exit, graceful target-agent shutdown, and host-API shutdown
+were verified without orphaned media resources.
 
 The disposable native presentation hook remains intentionally installed at the
 canonical `/media/fat/MiSTer` path as the next-stage video-plane testbed. This
