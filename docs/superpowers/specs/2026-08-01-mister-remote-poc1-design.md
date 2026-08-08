@@ -1,3 +1,9 @@
+> **Historical POC record — 2026-08-08:** This document preserves its original
+> POC scope and evidence; it is not current architecture or an active plan. See
+> the [canonical architecture](../../ARCHITECTURE.md) and
+> [active migration roadmap](../../ROADMAP.md). Do not execute its checklists
+> unless a current approved plan explicitly adopts them.
+
 # MiSTer Remote POC 1 Design
 
 **Date:** 2026-08-01

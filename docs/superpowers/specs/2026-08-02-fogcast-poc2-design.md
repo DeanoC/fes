@@ -1,3 +1,9 @@
+> **Historical POC record — 2026-08-08:** This document preserves its original
+> POC scope and evidence; it is not current architecture or an active plan. See
+> the [canonical architecture](../../ARCHITECTURE.md) and
+> [active migration roadmap](../../ROADMAP.md). Do not execute its checklists
+> unless a current approved plan explicitly adopts them.
+
 # FogCast POC 2 Design
 
 > Current implementation handoff: see [`docs/POC2-HANDOFF.md`](../../POC2-HANDOFF.md).

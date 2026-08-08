@@ -1,16 +1,26 @@
 # FogCast POC
 
-FogCast is a host-side library, launch, and media system for the dedicated
-MiSTer Pi development target. POC6 is accepted and shipped for its real-game
-host-to-MiSTer HDMI and managed-lifecycle scope. A host-only catalog game can
-run under RetroArch, cross the authenticated RTP/H.264 cast path, and appear on
-the MiSTer-attached display through the single session API.
+FogCast is evolving from a host-side library, launch, and media system into a
+portable target appliance with a library-shaped native runtime. The current
+product vision is in [IDEA.md](IDEA.md); direction, ownership boundaries, and
+migration gates are in the canonical [architecture](docs/ARCHITECTURE.md) and
+[active roadmap](docs/ROADMAP.md).
 
-Start with the [POC6 results](docs/POC6-RESULTS.md) for the accepted claims and
-evidence boundaries. Use the [POC6 development guide](docs/POC6-DEVELOPMENT.md)
-to operate and extend the retained testbed. The
-[POC6 roadmap](docs/POC6-ROADMAP.md) records the original scope and disposition;
-earlier POC handoffs remain historical references.
+POC6 is accepted historical evidence for its real-game host-to-MiSTer HDMI and
+managed-lifecycle scope. A host-only catalog game ran under RetroArch, crossed
+the authenticated RTP/H.264 cast path, and appeared on the MiSTer-attached
+display through the single session API. It does not establish the destination
+runtime, controller symmetry, physical latency, or the current state of any
+development device.
+
+Start with the [POC6 results](docs/POC6-RESULTS.md) for the accepted claims,
+artifact hashes, and evidence boundaries. The
+[POC6 roadmap](docs/POC6-ROADMAP.md) is completed historical scope; the
+[POC6 development guide](docs/POC6-DEVELOPMENT.md) retains operations,
+reconciliation, and evidence-baseline guidance for the testbed. External
+FFmpeg, SSH development access, `/dev/fb0`, and the disposable `Main_MiSTer`
+presentation hook are retained testbed mechanisms, not public contracts or
+destination-appliance commitments.
 
 ## Local checks
 
@@ -56,9 +66,11 @@ plane behind the POC3 session boundary. Its roadmap and scope are in
 POC6 is complete for the accepted video and lifecycle scope. The proven path is
 `host RetroArch -> screen capture -> VideoToolbox H.264 -> authenticated
 RTP/control -> target-owned decode bridge -> /dev/fb0 -> native presentation
-hook -> MiSTer HDMI`. The disposable presentation hook is intentionally
-retained at the canonical `/media/fat/MiSTer` path for follow-on video-plane
-development; this is not stock MiSTer presentation behavior.
+hook -> MiSTer HDMI`. The accepted run used a disposable presentation hook at
+the canonical `/media/fat/MiSTer` path; this was not stock MiSTer presentation
+behavior. Do not infer that the hook remains installed or recoverable. To
+reproduce the accepted path, obtain the accepted artifact, verify its recorded
+hash, and run the current evidence gates.
 
 Controller capture/injection into host RetroArch remains
 [issue #3](https://github.com/DeanoC/FogCast-POC/issues/3). Physical

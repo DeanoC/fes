@@ -19,6 +19,28 @@ through the single session API and presented on MiSTer HDMI, with deterministic
 resource ownership and teardown. This report does **not** claim complete
 controller symmetry or measured physical latency.
 
+## Post-acceptance disposition (2026-08-08)
+
+This report is retained **Accepted** historical POC6 evidence, not a statement
+of the current installation, image, configuration, credentials, recoverability,
+or physical state of any target. Every measurement, command, observation, and
+hash below identifies the accepted run and its artifacts only. A rebuilt or
+replaced artifact needs its own hash, validation, and evidence classification;
+the hashes below must not be relabeled as current-artifact hashes.
+
+Under [ADR 0002](adr/0002-disposable-local-development-target.md), the exact
+privately designated local MiSTer Pi is disposable project development
+hardware. It may be accessed, deployed to, rebooted, wiped, rebuilt, or have
+software, image, configuration, and credentials replaced under standing
+authorization. Before a destructive operation, the actor must resolve the
+designation through operator-controlled private configuration and verify the
+exact target identity; missing, ambiguous, or mismatched verification fails
+closed. This standing grant does not relax the lifecycle, reconciliation,
+provenance, or evidence requirements recorded below. Other and production
+targets remain subject to explicit authorization and their applicable rollback
+and security gates. See the current [architecture](ARCHITECTURE.md) and
+[active roadmap](ROADMAP.md).
+
 ## Accepted end-to-end video path
 
 The final accepted path was:
@@ -257,6 +279,10 @@ The validated POC4 RTP/H.264 transport remains the baseline. Product work
 should next choose between library/control UX productization and closing the
 controller-injection follow-up in issue #3; the video transport should not be
 redesigned without new evidence or a new scope decision.
+
+That recommendation is the historical POC6 disposition. Current work is
+selected and gated by the [active migration roadmap](ROADMAP.md), under the
+current [architecture](ARCHITECTURE.md), rather than by this accepted report.
 
 The [POC6 development guide](POC6-DEVELOPMENT.md) is the operating and
 extension handoff for the intentionally retained target testbed. It records the

@@ -1,5 +1,20 @@
 # FogCast POC6 roadmap
 
+## Historical status and current direction
+
+This is the completed historical POC6 scope and acceptance disposition. It
+remains authoritative for the milestones, limits, and evidence it records, but
+it is not the active migration plan. The current destination is the portable
+target appliance and library-shaped runtime in [ARCHITECTURE.md](ARCHITECTURE.md);
+its future gates are in the [active roadmap](ROADMAP.md). The accepted POC6
+evidence is in [POC6 results](POC6-RESULTS.md), and retained-testbed operations
+and reconciliation are in the [development guide](POC6-DEVELOPMENT.md).
+
+The following language describes the original POC6 intent. Its statement that
+all intelligence stays on the host is historical scope, not current
+architecture: the host owns catalog, policy, and user intent, while the target
+appliance owns local mechanisms, arbitration, observed state, and recovery.
+
 POC6 is the stage after the POC5 unified play session. It delivers the
 flagship "GoogleCast for games" appliance behavior from IDEA.md: a game that
 cannot run on the MiSTer FPGA is launched on the host and **cast to the
@@ -124,6 +139,10 @@ host-emulator controller path in
 [issue #3](https://github.com/DeanoC/FogCast-POC/issues/3); do not redesign the
 accepted POC4 transport without a new evidence-backed scope decision.
 
+That next-stage recommendation is historical POC6 disposition, not current
+planning. Current work is selected and gated by the [active roadmap](ROADMAP.md)
+under the current [architecture](ARCHITECTURE.md).
+
 ## Acceptance disposition
 
 The 2026-08-08 acceptance recorded in `docs/POC6-RESULTS.md` passes the M1
@@ -144,3 +163,23 @@ is deferred to GitHub issue #3. Physical glass-to-glass latency is deferred to
 issues #1 and #2 until the required measurement fixture is available. The
 results therefore do not claim the roadmap's complete "one controller" or
 latency target.
+
+## Post-acceptance disposable-kit disposition (2026-08-08)
+
+The retained-hook and rollback wording above records the accepted POC6 testbed
+state; it is not an assertion that the previously retained image, binaries, or
+stock presentation are still present or recoverable. Under
+[ADR 0002](adr/0002-disposable-local-development-target.md), the exact
+privately designated local MiSTer Pi may be accessed, deployed to, rebooted,
+wiped, rebuilt, or have software, image, configuration, and credentials
+replaced under standing authorization. The prior retained image/binaries and
+stock restoration are therefore not unconditional requirements for that kit.
+
+Before a destructive operation, tooling must resolve that designation only from
+operator-controlled private configuration and verify the exact target identity;
+if either check is missing, ambiguous, or mismatched, it must fail closed. The
+standing grant preserves lifecycle cleanup, reconciliation, provenance, and
+evidence requirements, and it does not apply to another or production target:
+those remain subject to explicit authorization plus the applicable rollback and
+security gates. Historical accepted hashes identify accepted artifacts only;
+rebuilt artifacts need new hashes and validation.
