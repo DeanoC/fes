@@ -12,7 +12,7 @@ FOGCAST_OUTPUT ?= bin/fogcast
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
 
-test:
+test: build-agent
 	go test -race ./...
 	sh scripts/tests/fogcast-build_test.sh
 	sh scripts/tests/inventory_test.sh

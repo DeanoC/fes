@@ -33,32 +33,33 @@ all intelligence stays on the host.
 The flagship acceptance claim: *"any game in the catalog, playable on the
 MiSTer TV, one UI, one controller"* — with measured latency on the cast path.
 
-## Proposed milestones
+## Milestone disposition
 
-1. **M1 — On-target decode/display spike (throwaway).** Prove a minimal
-   H.264 decode-and-display component on the MiSTer target (fbdev/V4L2 or
-   equivalent) driven by the existing POC4 RTP stream shape. Verdict records:
-   achievable resolution/framerate, decode CPU cost, coexistence with the
-   main MiSTer binary, and the mechanism for entering/exiting cast mode.
-   POC6 session integration does not begin until this spike returns a
-   positive verdict; a negative verdict sends the stage back to design
-   (e.g. reduced resolution/framerate targets or a hardware decode path).
+1. **M1 — On-target decode/display spike (accepted for feasibility).** The
+   target decoded the existing POC4 H.264/RTP stream, wrote `/dev/fb0`, and
+   presented recognizable game content on physical MiSTer HDMI through the
+   disposable native hook. Receiver/framebuffer counters and the 1920x1080
+   presentation geometry were recorded. Decode CPU cost, a quantified achieved
+   frame rate, and stock-`Main_MiSTer` coexistence were not measured and are not
+   part of the accepted claim.
 
-2. **M2 — Target cast agent**: productize the spike into a managed on-target
-   component under the existing agent/config boundary, with deterministic
-   start/stop, error reporting, and clean exit back to FPGA mode without a
-   target reboot.
+2. **M2 — Target cast agent (accepted for managed ownership).** The target
+   agent owns authenticated bridge start/status/stop, session/generation
+   identity, bounded cleanup, and agent-shutdown teardown. Process and socket
+   cleanup passed. Return to stock FPGA presentation without reboot was not an
+   acceptance gate: the non-stock presentation hook remains intentionally
+   installed as the development testbed.
 
-3. **M3 — Host encode path**: capture and encode the host emulator
+3. **M3 — Host encode path (accepted)**: capture and encode the host emulator
    framebuffer (reusing the POC4 encode/transport stack where possible),
    paired with the emulator lifecycle from the POC3 host execution boundary.
 
-4. **M4 — Session integration**: extend the POC5 session boundary so a
+4. **M4 — Session integration (accepted)**: extend the POC5 session boundary so a
    host-only launch selects display target (host display or MiSTer TV), owns
    the cast stream lifecycle, and reports cast state through the session
    event feed. FPGA-native launches remain unchanged.
 
-5. **M5 — Input symmetry + latency + acceptance**: local controller works on
+5. **M5 — Input symmetry + latency (deferred)**: local controller works on
    the cast path identically to FPGA-native; glass-to-glass latency measured
    on the cast path against the same target (p95 <= 120 ms, stretch
    <= 80 ms); full acceptance report in `docs/POC6-RESULTS.md`.
@@ -73,9 +74,11 @@ Same evidence discipline as POC4/POC5:
   the cast path requires observed decoded output on the MiSTer TV.
 - Failure-path coverage via the deterministic impairment harness; real
   capture runs cover the happy path.
-- Cast-mode teardown (return to FPGA mode, no orphaned on-target processes)
-  is verified by inspection after each run, including across target reboots
-  with the supervised tunnel's readiness signal as the authority.
+- Cast-mode process teardown is verified by inspection after each run: no
+  orphaned target bridge or media socket may remain. Return to stock FPGA
+  presentation without reboot is unclaimed while the non-stock hook is
+  intentionally retained. After target reboots, the supervised tunnel's live
+  readiness signal remains authoritative.
 
 ## Explicit exclusions
 
@@ -90,10 +93,11 @@ Same evidence discipline as POC4/POC5:
   very-long-term IDEA.md expansion).
 - Library/catalog UX productization remains its own later stage.
 
-## Entry criteria
+## Historical entry criteria
 
-- POC5 accepted: unified play session with host-side display, closed G7
-  latency evidence, and input symmetry on the host display path.
+- POC5 supplied the unified host-only play-session boundary. Its roadmap's
+  controller-symmetry and physical-latency criteria were not closed and are not
+  treated as inherited evidence for POC6.
 - POC4 transport acceptance (`92fca47`) remains the baseline.
 - POC1 rollback and target provenance locks unchanged.
 - Managed MiSTer target reachable via the supervised tunnel; live
@@ -101,11 +105,20 @@ Same evidence discipline as POC4/POC5:
 
 ## Completion disposition
 
-POC6 is complete when a host-only catalog game can be launched, viewed on the
-MiSTer-attached TV, played with the local controller, and stopped through the
-single session API, with recorded cast-path latency and teardown evidence in
-`docs/POC6-RESULTS.md`. The next-stage decision after POC6 is expected to be
-library/control productization versus broadening target or source coverage.
+The original full completion sentence combined video presentation, controller
+symmetry, and physical latency into one gate. Acceptance split that sentence at
+the available evidence boundary. POC6 is complete and shipped for M1-M4: a
+host-only catalog game launches through the single session API, appears on the
+MiSTer-attached TV, stops cleanly, and has deterministic target/host lifecycle
+ownership. M5 controller symmetry and physical latency remain explicitly
+deferred rather than being inferred or fabricated.
+
+Use the [POC6 development guide](POC6-DEVELOPMENT.md) to operate and extend the
+retained POC6 testbed.
+The next-stage decision is library/control productization versus closing the
+host-emulator controller path in
+[issue #3](https://github.com/DeanoC/FogCast-POC/issues/3); do not redesign the
+accepted POC4 transport without a new evidence-backed scope decision.
 
 ## Acceptance disposition
 

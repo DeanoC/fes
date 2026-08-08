@@ -175,8 +175,10 @@ session, terminated the tracked host API, and then verified:
 - no host control/RTP socket remained;
 - no target bridge process or control/RTP socket remained.
 
-Target-agent shutdown also explicitly stops its cast controller, preventing a
-bridge from surviving agent replacement or termination. Startup rejects a
+Graceful target-agent shutdown explicitly stops its cast controller, preventing
+a bridge from surviving a managed replacement that allows shutdown cleanup to
+run. An ungraceful crash or SIGKILL can still orphan the bridge and requires the
+manual reconciliation documented in the development guide. Startup rejects a
 bridge child that exits during the startup grace period.
 
 The final exact-tree HIL used these binaries:
@@ -187,7 +189,18 @@ host fogcast-api sha256
 
 deployed ARMv7 mister-agent sha256
 0d0c660e4899d095bb6f2c96323a9bd83adb68aec4ce9783edd1e2008a519704
+
+retained ARMv7 decode bridge sha256
+86ac553a5427ebfe1ed506295106426b82c2fdf8f313a8e6aa4a705c80825b58
+
+retained native presentation hook sha256
+138e6f0471fbedd94b4c76fce3ce20a2ec61b459b04657a367c77256a3a347b2
 ```
+
+The bridge and hook hashes above were re-verified directly on the retained
+authorized target before the final documentation shipment. No target path,
+address, credential source, or token is recorded in this report beyond the
+canonical public testbed path `/media/fat/MiSTer`.
 
 After deploying that agent, the bridge-death gate again recorded
 `AUTONOMOUS_HOST_REAP=passed`; the later API observation was
@@ -244,3 +257,8 @@ The validated POC4 RTP/H.264 transport remains the baseline. Product work
 should next choose between library/control UX productization and closing the
 controller-injection follow-up in issue #3; the video transport should not be
 redesigned without new evidence or a new scope decision.
+
+The [POC6 development guide](POC6-DEVELOPMENT.md) is the operating and
+extension handoff for the intentionally retained target testbed. It records the
+private configuration boundaries, normal launch/status/stop workflow, recovery
+rules, code map, and the evidence required for future changes.

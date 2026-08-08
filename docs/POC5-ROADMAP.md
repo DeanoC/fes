@@ -114,12 +114,14 @@ Follow POC4's evidence discipline:
 - Managed MiSTer target reachable via the supervised tunnel; live
   `GET http://127.0.0.1:18182/v1/health` is the readiness signal.
 
-## Completion disposition
+## Historical completion criterion
 
-POC5 is complete when a host-only catalog game can be launched, viewed,
-played, and stopped through the single session API with recorded
-glass-to-glass latency and input symmetry evidence, and `docs/POC5-RESULTS.md`
-records every gate. The next stage is POC6 (`docs/POC6-ROADMAP.md`): casting
-host-emulated games to the MiSTer-attached TV for the full "GoogleCast for
-games" appliance behavior. Library/control productization remains a parallel
-later-stage option after POC6.
+The original roadmap would have considered POC5 complete only when a host-only
+catalog game could be launched, viewed, played, and stopped through the single
+session API with recorded glass-to-glass latency and input-symmetry evidence.
+That full criterion was not closed, and no `docs/POC5-RESULTS.md` acceptance
+report exists. POC5 nevertheless supplied the unified host-only session
+boundary used by the subsequent POC6 stage. POC6 is now accepted for its
+host-to-MiSTer HDMI and managed-lifecycle scope; see
+`docs/POC6-RESULTS.md`. Library/control productization remains a follow-on
+option alongside the explicitly deferred POC6 controller and latency work.

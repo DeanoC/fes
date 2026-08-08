@@ -1,13 +1,16 @@
 # FogCast POC
 
-FogCast is a host-side library scanner and cache-aware launcher for the
-dedicated MiSTer Pi development target. The repository contains the POC 1
-control path, the POC 1B reproducible target image, and the POC 2 cache and
-offline acceptance workflow.
+FogCast is a host-side library, launch, and media system for the dedicated
+MiSTer Pi development target. POC6 is accepted and shipped for its real-game
+host-to-MiSTer HDMI and managed-lifecycle scope. A host-only catalog game can
+run under RetroArch, cross the authenticated RTP/H.264 cast path, and appear on
+the MiSTer-attached display through the single session API.
 
-Start with [the POC2 handoff](docs/POC2-HANDOFF.md). It is the canonical
-current-state document for a fresh agent; the [POC3 roadmap](docs/POC3-ROADMAP.md)
-defines the next productization stage.
+Start with the [POC6 results](docs/POC6-RESULTS.md) for the accepted claims and
+evidence boundaries. Use the [POC6 development guide](docs/POC6-DEVELOPMENT.md)
+to operate and extend the retained testbed. The
+[POC6 roadmap](docs/POC6-ROADMAP.md) records the original scope and disposition;
+earlier POC handoffs remain historical references.
 
 ## Local checks
 
@@ -21,6 +24,12 @@ mise exec go@1.26.5 -- make check build
 The build produces `bin/fogcast`, `bin/fogcast-api`, `bin/misterctl`, `bin/mister-hil`,
 `bin/fogcast-hil`, and the target ARMv7 agent. Build output, local catalogs,
 staging content, and acceptance reports are ignored by Git.
+
+The generic Makefile builds `fogcast-api` with `CGO_ENABLED=0`. That binary is
+for non-hardware checks and cannot use the Darwin AVFoundation/VideoToolbox
+capture backend. For POC6 physical development, follow the explicit
+CGO-enabled build in [`docs/POC6-DEVELOPMENT.md`](docs/POC6-DEVELOPMENT.md)
+after running the generic build.
 
 ## POC4 remote-play plane
 
@@ -38,13 +47,27 @@ bind or sender timing as physical latency evidence.
 
 ## POC5 unified play session
 
-POC5 resolves the POC4 transition decision: the measured video plane is
-integrated behind the POC3 session boundary so host-only games become playable
-through one launch/session flow, and the deferred G7 glass-to-glass latency
-measurement runs on the integrated fixture. The roadmap and scope are in
-[`docs/POC5-ROADMAP.md`](docs/POC5-ROADMAP.md). The follow-on POC6 stage
-([`docs/POC6-ROADMAP.md`](docs/POC6-ROADMAP.md)) casts host-emulated games to
-the MiSTer-attached TV for the full "GoogleCast for games" appliance behavior.
+POC5 resolved the POC4 transition decision by integrating the measured video
+plane behind the POC3 session boundary. Its roadmap and scope are in
+[`docs/POC5-ROADMAP.md`](docs/POC5-ROADMAP.md).
+
+## POC6 cast-to-TV session
+
+POC6 is complete for the accepted video and lifecycle scope. The proven path is
+`host RetroArch -> screen capture -> VideoToolbox H.264 -> authenticated
+RTP/control -> target-owned decode bridge -> /dev/fb0 -> native presentation
+hook -> MiSTer HDMI`. The disposable presentation hook is intentionally
+retained at the canonical `/media/fat/MiSTer` path for follow-on video-plane
+development; this is not stock MiSTer presentation behavior.
+
+Controller capture/injection into host RetroArch remains
+[issue #3](https://github.com/DeanoC/FogCast-POC/issues/3). Physical
+glass-to-glass latency remains [issue #1](https://github.com/DeanoC/FogCast-POC/issues/1)
+and [issue #2](https://github.com/DeanoC/FogCast-POC/issues/2). These deferrals
+do not reopen the accepted POC6 video/lifecycle result, but the broader "one
+controller" and latency claims remain unmade. See the [results](docs/POC6-RESULTS.md),
+[roadmap disposition](docs/POC6-ROADMAP.md), and
+[development guide](docs/POC6-DEVELOPMENT.md).
 
 ## POC 3 local host API
 
@@ -87,16 +110,24 @@ target `/dev/uinput` or physical input.
 Evidence is recorded separately in `docs/remote-input-evidence.md`.
 
 For the disposable development Pi, keep its SSH tunnel running with the
-repository helper. It intentionally accepts regenerated target host keys and
-prompts for the password without storing it:
+repository helper. Supply the private target address through the local
+environment; no target address is embedded in the tracked script. The helper
+intentionally accepts regenerated target host keys. Without a configured
+password file, it prompts once, stores the password in a mode-`0600` temporary
+file for the tunnel process lifetime, and removes that file on exit:
 
 ```sh
+export MISTER_TARGET_HOST=PRIVATE_TARGET_HOST
 scripts/dev-target-tunnel.sh
 ```
 
+For unattended development, set `MISTER_SSH_PASSWORD_FILE` to an existing
+owner-only (`0600`) private file outside Git. The helper reads that file inside
+its Expect process; it does not put the password in argv.
+
 The helper reconnects after target or tunnel restarts and forwards
-`127.0.0.1:18182` to the target API. Override `MISTER_TARGET_HOST` locally if
-the development target address changes; do not commit that value.
+`127.0.0.1:18182` to the target API. Keep `MISTER_TARGET_HOST` local and do not
+commit its resolved value.
 
 ## POC 2 acceptance
 

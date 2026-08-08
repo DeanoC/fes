@@ -2,7 +2,7 @@
 # Keep the disposable MiSTer development tunnel alive. Never use this for production.
 set -eu
 
-TARGET=${MISTER_TARGET_HOST:-192.168.10.245}
+TARGET=${MISTER_TARGET_HOST:-}
 TARGET_USER=${MISTER_TARGET_USER:-root}
 LOCAL_PORT=${MISTER_LOCAL_TUNNEL_PORT:-18182}
 TARGET_PORT=${MISTER_TARGET_API_PORT:-8182}
