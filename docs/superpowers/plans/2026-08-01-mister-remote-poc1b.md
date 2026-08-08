@@ -1,3 +1,9 @@
+> **Historical POC record — 2026-08-08:** This document preserves its original
+> POC scope and evidence; it is not current architecture or an active plan. See
+> the [canonical architecture](../../ARCHITECTURE.md) and
+> [active migration roadmap](../../ROADMAP.md). Do not execute its checklists
+> unless a current approved plan explicitly adopts them.
+
 # MiSTer Remote POC 1B Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

@@ -21,15 +21,43 @@ host-only catalog game
 -> MiSTer HDMI
 ```
 
-The disposable presentation hook remains intentionally installed at the
-canonical target path `/media/fat/MiSTer`. It is required for this testbed;
-stock `Main_MiSTer` did not present arbitrary `/dev/fb0` writes on HDMI. Run
-exactly one presentation owner from that path.
+The accepted run used a disposable presentation hook at the canonical target
+path `/media/fat/MiSTer`; stock `Main_MiSTer` did not present arbitrary
+`/dev/fb0` writes on HDMI. This is accepted-path evidence, not an assertion
+that the hook remains installed, recoverable, or usable. To reproduce that
+path, obtain the accepted artifact, verify its recorded hash, and run exactly
+one presentation owner from that path under the current evidence gates.
 
 The accepted artifact hashes and physical evidence are in
 `POC6-RESULTS.md`. Rebuilding after a source change necessarily creates new
 hashes and requires new validation; do not silently relabel a new binary with
 an old acceptance hash.
+
+## Evidence baseline versus current physical state
+
+The POC6 results are an **Accepted historical evidence baseline**. Their
+measurements, commands, hashes, and observations identify the accepted path;
+they do not assert that a target currently contains the recorded image,
+binaries, hook, configuration, credentials, or recoverable physical state.
+Use an accepted hash only when reproducing that accepted path. A rebuilt or
+replaced artifact must receive a new hash and the validation/evidence status
+appropriate to its change; never relabel it with an accepted hash.
+
+As of 2026-08-08, [ADR 0002](adr/0002-disposable-local-development-target.md)
+allows the exact privately designated local MiSTer Pi to be accessed, deployed
+to, rebooted, wiped, rebuilt, or to have software, image, configuration, and
+credentials replaced under standing authorization. Its former physical state,
+retained image/binaries, and stock restoration are not unconditional
+prerequisites. Before any destructive operation, resolve the designation only
+through operator-controlled private configuration and verify the exact target
+identity. If either check is missing, ambiguous, or mismatched, fail closed.
+
+This exception applies to that exact kit only. It does not relax secret
+handling, finite-deadline lifecycle cleanup, reconciliation, provenance, or
+evidence classification. Other and production targets still require explicit
+authorization and their applicable rollback and security controls. Read the
+current [architecture](ARCHITECTURE.md) and [active roadmap](ROADMAP.md) before
+new architecture or migration work.
 
 ## Known deferrals
 
@@ -108,6 +136,10 @@ Preserve these rules during follow-on work:
 
 - Retained target image, exact deployed agent/bridge, and disposable
   `/media/fat/MiSTer` presentation hook.
+- The preceding accepted-testbed prerequisite is historical evidence-baseline
+  context. To reproduce the accepted POC6 path, obtain the recorded evidence
+  artifacts and verify their accepted hashes before use; it is not a claim that
+  they remain installed or recoverable on the designated kit.
 - For physical evidence, ShadowCast 3 configured for the accepted 1920x1080,
   30 FPS, UYVY mode.
 
@@ -158,13 +190,14 @@ this disposable testbed.
 
 That FFmpeg-capable ARMv7 bridge build and the disposable native-hook build are
 not yet reproducible from a fresh checkout of this repository. Their accepted
-binaries are retained on the authorized testbed and identified by hash in
-`POC6-RESULTS.md`; the native-hook source/build checkout also remains external
-to this repository. The current testbed is therefore usable for host,
-session-lifecycle, API, and controller development without rebuilding either
-artifact. Any work that changes the bridge or hook must first add or separately
-approve a reproducible cross-build and deployment workflow rather than relying
-on deleted `/tmp` scripts or undocumented local state.
+artifacts are identified by hash in `POC6-RESULTS.md`, and the native-hook
+source/build checkout was external to this repository. The accepted record does
+not assert that either binary remains retained, installed, recoverable, or
+usable on a current testbed. To reproduce the accepted path, obtain the
+artifacts, verify the recorded hashes, and run the required current validation.
+Any work that changes the bridge or hook must first add or separately approve a
+reproducible cross-build and deployment workflow rather than relying on deleted
+`/tmp` scripts or undocumented local state.
 
 ## Private host configuration
 
@@ -253,6 +286,11 @@ Target deployment remains an authorized hardware operation: stop the old agent
 with a finite deadline, atomically replace and hash-verify the new ARMv7 binary,
 restart supervision, and re-query `/v1/health`. Never use a temporary HTTP file
 server unless it is explicitly authorized and verified stopped afterward.
+
+Post-acceptance, the exact ADR 0002 kit is covered by standing authorization
+only after the private designation and exact-target verification succeed;
+otherwise fail closed. For every other target, deployment still requires
+explicit authorization and applicable rollback/security controls.
 
 ## Normal development session
 
@@ -440,6 +478,16 @@ canonical presentation binary from the known stock backup, restore the intended
 target image if required, restart supervision, and revalidate health and normal
 FPGA presentation. Do not guess a stock binary or overwrite the retained hook
 without a verified rollback source.
+
+Post-acceptance, that restoration instruction remains mandatory for non-exempt
+targets. For the exact ADR 0002 disposable kit, a prior retained image, binary,
+or stock presentation need not be preserved or restored. It may instead be
+replaced or rebuilt under the standing grant after private exact-target
+verification. That does not excuse recovery work: stop or reconcile known
+session/bridge owners with finite deadlines where they exist, verify the
+resulting observed state, and record new artifact hashes and the validation
+actually performed. Do not claim that a replacement is equivalent to the
+accepted path without a valid known-good comparator and recorded provenance.
 
 ## Code map for further development
 
