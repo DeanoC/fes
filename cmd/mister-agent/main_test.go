@@ -15,6 +15,7 @@ import (
 
 	"github.com/DeanoC/FogCast-POC/internal/agent"
 	"github.com/DeanoC/FogCast-POC/internal/agentconfig"
+	"github.com/DeanoC/FogCast-POC/internal/cast"
 	"github.com/DeanoC/FogCast-POC/internal/core"
 	"github.com/DeanoC/FogCast-POC/internal/httpapi"
 	"github.com/DeanoC/FogCast-POC/internal/input"
@@ -69,6 +70,27 @@ type compositionStore struct {
 }
 
 type compositionInput struct{}
+
+type compositionCast struct {
+	stopped      bool
+	stopErrors   []error
+	stopContexts []context.Context
+}
+
+func (*compositionCast) Start(context.Context, string, string, uint64) error { return nil }
+func (c *compositionCast) Stop(ctx context.Context, _ string, _ uint64) error {
+	c.stopped = true
+	c.stopContexts = append(c.stopContexts, ctx)
+	if len(c.stopErrors) != 0 {
+		err := c.stopErrors[0]
+		c.stopErrors = c.stopErrors[1:]
+		return err
+	}
+	return nil
+}
+func (*compositionCast) Status(context.Context) cast.Status {
+	return cast.Status{State: cast.Active, Session: "session", Generation: 9}
+}
 
 func (*compositionInput) Attach(context.Context, input.Spec) error { return nil }
 func (*compositionInput) Detach(context.Context, uint64) error     { return nil }
@@ -172,6 +194,68 @@ func TestRunComposesTargetInputController(t *testing.T) {
 	}
 	if !seenInput {
 		t.Fatal("target input controller was not composed")
+	}
+}
+
+func TestRunStopsCastControllerOnShutdown(t *testing.T) {
+	configPath := writeCompositionConfig(t, "cast_binary = \"/tmp/fbbridge\"\ncast_rtp_address = \":5534\"\ncast_control_address = \":5535\"\ncast_framebuffer = \"/dev/fb0\"\ncast_native_cmd = \"/dev/MiSTer_cmd\"\ncast_native_mode = \"8888 1 1920 1080\"\ncast_token_file = \"/tmp/cast-token\"\ncast_generation = 9\n")
+	runtime := &compositionRuntime{}
+	store := &compositionStore{}
+	castController := &compositionCast{}
+	ctx, cancel := context.WithCancel(context.Background())
+	deps := runDependencies{
+		openCache: func(targetcache.Config, core.Registry, ...targetcache.Option) (agent.ContentStore, error) {
+			return store, nil
+		},
+		newRuntime: func(agentconfig.Config, core.Registry) agent.Runtime { return runtime },
+		newCast: func(agentconfig.Config) (httpapi.CastController, error) {
+			return castController, nil
+		},
+		serve: func(*http.Server) error {
+			cancel()
+			return http.ErrServerClosed
+		},
+	}
+	if err := runWithDependencies(ctx, configPath, slog.New(slog.NewJSONHandler(io.Discard, nil)), deps); err != nil {
+		t.Fatal(err)
+	}
+	if !castController.stopped {
+		t.Fatal("cast controller was not stopped on agent shutdown")
+	}
+}
+
+func TestRunRetriesCastShutdownAndReturnsStableFailure(t *testing.T) {
+	configPath := writeCompositionConfig(t, "cast_binary = \"/tmp/fbbridge\"\ncast_rtp_address = \":5534\"\ncast_control_address = \":5535\"\ncast_framebuffer = \"/dev/fb0\"\ncast_native_cmd = \"/dev/MiSTer_cmd\"\ncast_native_mode = \"8888 1 1920 1080\"\ncast_token_file = \"/tmp/cast-token\"\ncast_generation = 9\n")
+	castController := &compositionCast{stopErrors: []error{errors.New("private-token first failure"), nil}}
+	ctx, cancel := context.WithCancel(context.Background())
+	deps := runDependencies{
+		openCache: func(targetcache.Config, core.Registry, ...targetcache.Option) (agent.ContentStore, error) {
+			return &compositionStore{}, nil
+		},
+		newRuntime: func(agentconfig.Config, core.Registry) agent.Runtime { return &compositionRuntime{} },
+		newCast:    func(agentconfig.Config) (httpapi.CastController, error) { return castController, nil },
+		serve: func(*http.Server) error {
+			cancel()
+			return http.ErrServerClosed
+		},
+	}
+	err := runWithDependencies(ctx, configPath, slog.New(slog.NewJSONHandler(io.Discard, nil)), deps)
+	if err == nil || err.Error() != "cast controller could not be stopped" {
+		t.Fatalf("shutdown error = %v, want stable cast shutdown failure", err)
+	}
+	if strings.Contains(err.Error(), "private-token") {
+		t.Fatalf("shutdown detail leaked: %v", err)
+	}
+	if len(castController.stopContexts) != 2 {
+		t.Fatalf("stop calls = %d, want 2", len(castController.stopContexts))
+	}
+	for i, stopCtx := range castController.stopContexts {
+		if _, ok := stopCtx.Deadline(); !ok {
+			t.Fatalf("stop context %d has no bounded deadline", i)
+		}
+	}
+	if castController.stopContexts[0] == castController.stopContexts[1] {
+		t.Fatal("cast shutdown retry reused the original cleanup context")
 	}
 }
 

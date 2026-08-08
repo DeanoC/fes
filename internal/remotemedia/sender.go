@@ -27,17 +27,17 @@ type SenderConfig struct {
 }
 
 type Sender struct {
-	config     SenderConfig
-	source     CaptureSource
-	metrics    *Metrics
-	clock      *RTPClock
-	mu         sync.Mutex
-	closed     bool
-	runCancel  context.CancelFunc
-	stats      CaptureStats
-	statsReady bool
-	closeOnce  sync.Once
-	closeErr   error
+	config       SenderConfig
+	source       CaptureSource
+	metrics      *Metrics
+	clock        *RTPClock
+	mu           sync.Mutex
+	closed       bool
+	runCancel    context.CancelFunc
+	stats        CaptureStats
+	statsReady   bool
+	closeMu      sync.Mutex
+	sourceClosed bool
 }
 
 func NewSender(config SenderConfig, source CaptureSource, metrics *Metrics) (*Sender, error) {
@@ -183,17 +183,70 @@ func (s *Sender) run(ctx context.Context, ready func(error)) (err error) {
 	reportReady(nil)
 
 	packetizer := NewRTPPacketizer(s.config.MTU, s.config.SSRC, s.config.InitialSequence)
+	type captureResult struct {
+		sample EncodedSample
+		err    error
+	}
+	captureResults := make(chan captureResult, 1)
+	captureAck := make(chan struct{})
+	workers.Add(1)
+	go func() {
+		defer workers.Done()
+		for {
+			sample, err := s.source.Next(runCtx)
+			select {
+			case captureResults <- captureResult{sample: sample, err: err}:
+			case <-runCtx.Done():
+				return
+			}
+			if err != nil {
+				return
+			}
+			select {
+			case <-captureAck:
+			case <-runCtx.Done():
+				return
+			}
+		}
+	}()
+	var lastIDRSample EncodedSample
+	var lastRTPMonoNS int64
+	haveDecoderSafeIDR := false
 	for {
+		var sample EncodedSample
+		var err error
+		repeated := false
+		repeatTimer := time.NewTimer(s.config.KeyframeInterval)
 		select {
+		case result := <-captureResults:
+			if !repeatTimer.Stop() {
+				select {
+				case <-repeatTimer.C:
+				default:
+				}
+			}
+			sample, err = result.sample, result.err
+		case <-repeatTimer.C:
+			if !haveDecoderSafeIDR {
+				continue
+			}
+			sample = cloneEncodedSample(lastIDRSample)
+			sample.CaptureMonoNS = lastRTPMonoNS + s.config.KeyframeInterval.Nanoseconds()
+			sample.EncodeDuration = 0
+			repeated = true
 		case <-runCtx.Done():
+			if !repeatTimer.Stop() {
+				select {
+				case <-repeatTimer.C:
+				default:
+				}
+			}
 			controlFailure := getControlErr()
 			if controlFailure != nil && !errors.Is(controlFailure, context.Canceled) {
 				return controlFailure
 			}
 			return runCtx.Err()
-		default:
 		}
-		sample, err := s.source.Next(runCtx)
 		if err != nil {
 			if runCtx.Err() != nil {
 				if controlFailure := getControlErr(); controlFailure != nil && !errors.Is(controlFailure, context.Canceled) {
@@ -209,12 +262,19 @@ func (s *Sender) run(ctx context.Context, ready func(error)) (err error) {
 			}
 			return fmt.Errorf("capture source: %w", err)
 		}
-		s.metrics.RecordCapture(sample.CaptureMonoNS)
+		if !repeated {
+			s.metrics.RecordCapture(sample.CaptureMonoNS)
+		}
 		stats := s.source.Stats()
 		if sample.Width > 0 && sample.Height > 0 {
 			s.metrics.SetSourceFormat(sample.Width, sample.Height, stats.FPS)
 		}
-		timestamp, err := s.clock.Timestamp(sample.CaptureMonoNS)
+		rtpMonoNS := sample.CaptureMonoNS
+		if rtpMonoNS <= lastRTPMonoNS {
+			rtpMonoNS = lastRTPMonoNS + 1
+		}
+		lastRTPMonoNS = rtpMonoNS
+		timestamp, err := s.clock.Timestamp(rtpMonoNS)
 		if err != nil {
 			s.metrics.RecordCaptureError()
 			return fmt.Errorf("capture timestamp: %w", err)
@@ -235,6 +295,10 @@ func (s *Sender) run(ctx context.Context, ready func(error)) (err error) {
 			s.metrics.RecordPacketizationError()
 			return fmt.Errorf("parse encoded access unit: %w", err)
 		}
+		if !repeated && sample.Keyframe && containsNALType(nals, 5) && containsNALType(nals, 7) && containsNALType(nals, 8) {
+			lastIDRSample = decoderSafeIDRSample(sample, nals)
+			haveDecoderSafeIDR = true
+		}
 		packets, err := packetizer.Packetize(AccessUnit{NALs: nals, Timestamp: timestamp, Keyframe: sample.Keyframe})
 		if err != nil {
 			s.metrics.RecordPacketizationError()
@@ -246,13 +310,60 @@ func (s *Sender) run(ctx context.Context, ready func(error)) (err error) {
 				return fmt.Errorf("send RTP packet: %w", err)
 			}
 		}
-		s.metrics.RecordEncodedFrame(len(sample.AVCC))
+		if !repeated {
+			s.metrics.RecordEncodedFrame(len(sample.AVCC))
+		}
 		s.metrics.RecordPacket(len(packets))
-		s.metrics.RecordEncodeDuration(sample.EncodeDuration)
-		if sample.Keyframe {
+		if !repeated {
+			s.metrics.RecordEncodeDuration(sample.EncodeDuration)
+		}
+		if !repeated && sample.Keyframe {
 			s.metrics.RecordKeyframe()
 		}
+		if !repeated {
+			select {
+			case captureAck <- struct{}{}:
+			case <-runCtx.Done():
+				return runCtx.Err()
+			}
+		}
 	}
+}
+
+func cloneEncodedSample(sample EncodedSample) EncodedSample {
+	sample.AVCC = append([]byte(nil), sample.AVCC...)
+	sample.SPS = append([]byte(nil), sample.SPS...)
+	sample.PPS = append([]byte(nil), sample.PPS...)
+	return sample
+}
+
+func decoderSafeIDRSample(sample EncodedSample, nals [][]byte) EncodedSample {
+	filtered := sample
+	filtered.AVCC = nil
+	filtered.SPS = nil
+	filtered.PPS = nil
+	filtered.NALLengthSize = 4
+	filtered.Keyframe = true
+	for _, nal := range nals {
+		if len(nal) == 0 {
+			continue
+		}
+		switch nal[0] & 0x1f {
+		case 7:
+			if filtered.SPS == nil {
+				filtered.SPS = append([]byte(nil), nal...)
+			}
+		case 8:
+			if filtered.PPS == nil {
+				filtered.PPS = append([]byte(nil), nal...)
+			}
+		case 5:
+			length := len(nal)
+			filtered.AVCC = append(filtered.AVCC, byte(length>>24), byte(length>>16), byte(length>>8), byte(length))
+			filtered.AVCC = append(filtered.AVCC, nal...)
+		}
+	}
+	return filtered
 }
 
 func (s *Sender) finalizeCapture() {
@@ -266,8 +377,16 @@ func (s *Sender) finalizeCapture() {
 }
 
 func (s *Sender) closeSource() error {
-	s.closeOnce.Do(func() { s.closeErr = s.source.Close() })
-	return s.closeErr
+	s.closeMu.Lock()
+	defer s.closeMu.Unlock()
+	if s.sourceClosed {
+		return nil
+	}
+	if err := s.source.Close(); err != nil {
+		return err
+	}
+	s.sourceClosed = true
+	return nil
 }
 
 func (s *Sender) Close() error {

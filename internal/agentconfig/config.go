@@ -23,6 +23,14 @@ type Config struct {
 	CacheMaxBytes      int64
 	InputListenAddress string
 	InputUInputPath    string
+	CastBinary         string
+	CastRTPAddress     string
+	CastControlAddress string
+	CastFramebuffer    string
+	CastNativeCmd      string
+	CastNativeMode     string
+	CastTokenFile      string
+	CastGeneration     uint64
 }
 
 type fileConfig struct {
@@ -36,6 +44,14 @@ type fileConfig struct {
 	CacheMaxBytes      *int64 `toml:"cache_max_bytes"`
 	InputListenAddress string `toml:"input_listen_address"`
 	InputUInputPath    string `toml:"input_uinput_path"`
+	CastBinary         string `toml:"cast_binary"`
+	CastRTPAddress     string `toml:"cast_rtp_address"`
+	CastControlAddress string `toml:"cast_control_address"`
+	CastFramebuffer    string `toml:"cast_framebuffer"`
+	CastNativeCmd      string `toml:"cast_native_cmd"`
+	CastNativeMode     string `toml:"cast_native_mode"`
+	CastTokenFile      string `toml:"cast_token_file"`
+	CastGeneration     uint64 `toml:"cast_generation"`
 }
 
 func Load(path string) (Config, error) {
@@ -65,12 +81,34 @@ func Load(path string) (Config, error) {
 		CacheMaxBytes:      cacheMaxBytes,
 		InputListenAddress: raw.InputListenAddress,
 		InputUInputPath:    raw.InputUInputPath,
+		CastBinary:         raw.CastBinary,
+		CastRTPAddress:     raw.CastRTPAddress,
+		CastControlAddress: raw.CastControlAddress,
+		CastFramebuffer:    raw.CastFramebuffer,
+		CastNativeCmd:      raw.CastNativeCmd,
+		CastNativeMode:     raw.CastNativeMode,
+		CastTokenFile:      raw.CastTokenFile,
+		CastGeneration:     raw.CastGeneration,
 	}
 	if cfg.InputListenAddress == "" {
 		cfg.InputListenAddress = "127.0.0.1:18183"
 	}
 	if cfg.InputUInputPath == "" {
 		cfg.InputUInputPath = "/dev/uinput"
+	}
+	if cfg.CastBinary != "" {
+		if cfg.CastRTPAddress == "" || cfg.CastControlAddress == "" || cfg.CastFramebuffer == "" || cfg.CastNativeCmd == "" || cfg.CastNativeMode == "" {
+			return Config{}, fmt.Errorf("cast configuration is incomplete")
+		}
+		if !filepath.IsAbs(cfg.CastBinary) || !filepath.IsAbs(cfg.CastFramebuffer) || !filepath.IsAbs(cfg.CastNativeCmd) || (cfg.CastTokenFile != "" && !filepath.IsAbs(cfg.CastTokenFile)) {
+			return Config{}, fmt.Errorf("cast paths must be absolute")
+		}
+		if _, _, err := net.SplitHostPort(cfg.CastRTPAddress); err != nil {
+			return Config{}, fmt.Errorf("cast_rtp_address: %w", err)
+		}
+		if _, _, err := net.SplitHostPort(cfg.CastControlAddress); err != nil {
+			return Config{}, fmt.Errorf("cast_control_address: %w", err)
+		}
 	}
 	if _, _, err := net.SplitHostPort(cfg.InputListenAddress); err != nil {
 		return Config{}, fmt.Errorf("input_listen_address: %w", err)

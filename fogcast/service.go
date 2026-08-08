@@ -58,6 +58,11 @@ type serviceClient interface {
 	Stop(context.Context) (protocol.Status, error)
 }
 
+type castClient interface {
+	CastStart(context.Context, string, string, uint64) (host.CastStatus, error)
+	CastStop(context.Context, string, uint64) (host.CastStatus, error)
+}
+
 const (
 	ExecutionFPGANative = "fpga_native"
 	ExecutionHostOnly   = "host_only"
@@ -301,6 +306,22 @@ func (s *Service) Close() error {
 		return canonicalError(protocol.CodeInternal, nil)
 	}
 	return nil
+}
+
+func (s *Service) CastStart(ctx context.Context, session, token string, generation uint64) (host.CastStatus, error) {
+	client, ok := s.client.(castClient)
+	if !ok {
+		return host.CastStatus{}, errors.New("target cast control is unavailable")
+	}
+	return client.CastStart(ctx, session, token, generation)
+}
+
+func (s *Service) CastStop(ctx context.Context, session string, generation uint64) (host.CastStatus, error) {
+	client, ok := s.client.(castClient)
+	if !ok {
+		return host.CastStatus{}, errors.New("target cast control is unavailable")
+	}
+	return client.CastStop(ctx, session, generation)
 }
 
 func (s *Service) Scan(ctx context.Context) (catalog.ScanReport, error) {

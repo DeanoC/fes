@@ -34,14 +34,23 @@ func run(ctx context.Context, args []string) error {
 	fbpath := f.String("framebuffer", "/dev/fb0", "")
 	nativeCmd := f.String("native-cmd", "/dev/MiSTer_cmd", "native Main_MiSTer command FIFO")
 	nativeMode := f.String("native-mode", "8888 1 1920 1080", "native framebuffer mode arguments")
+	generation := f.Uint64("generation", 0, "authenticated media generation")
 	session := f.String("session", "", "")
 	token := f.String("token", "", "")
+	tokenFile := f.String("token-file", "", "read authentication token from a protected file")
 	noAuth := f.Bool("no-auth", false, "skip control authentication (disposable test only)")
 	allowUnauth := f.Bool("allow-unauthenticated", false, "required safety override for disposable unauthenticated mode")
 	control := f.String("control", "", "authenticated media-control TCP listen address")
 	dumpPath := f.String("dump-annexb", "", "optional Annex-B dump path for decoder-input diagnostics")
 	if err := f.Parse(args); err != nil {
 		return err
+	}
+	if *tokenFile != "" {
+		data, err := os.ReadFile(*tokenFile)
+		if err != nil {
+			return errors.New("token file could not be read")
+		}
+		*token = strings.TrimSpace(string(data))
 	}
 	if *session == "" || *token == "" {
 		return errors.New("session and token required")
@@ -218,10 +227,10 @@ func run(ctx context.Context, args []string) error {
 	}()
 	var r *remotemedia.Receiver
 	if *noAuth {
-		r = remotemedia.NewUnauthenticatedReceiver(remotemedia.ReceiverConfig{Session: *session, Token: *token, Generation: 1})
+		r = remotemedia.NewUnauthenticatedReceiver(remotemedia.ReceiverConfig{Session: *session, Token: *token, Generation: *generation})
 	} else {
 		var err error
-		r, err = remotemedia.NewReceiver(remotemedia.ReceiverConfig{Session: *session, Token: *token, Generation: 1})
+		r, err = remotemedia.NewReceiver(remotemedia.ReceiverConfig{Session: *session, Token: *token, Generation: *generation})
 		if err != nil {
 			return err
 		}
@@ -273,6 +282,12 @@ func run(ctx context.Context, args []string) error {
 						return
 					}
 					if e := r.AcceptControl(message); e != nil {
+						return
+					}
+					if e := remotemedia.WriteControlMessage(conn, remotemedia.ControlMessage{
+						Type: remotemedia.ControlMediaWelcome, Session: message.Session,
+						Generation: message.Generation, Token: message.Token, Body: message.Body,
+					}); e != nil {
 						return
 					}
 					_ = conn.SetReadDeadline(time.Time{})

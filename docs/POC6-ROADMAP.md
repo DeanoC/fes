@@ -107,11 +107,23 @@ single session API, with recorded cast-path latency and teardown evidence in
 `docs/POC6-RESULTS.md`. The next-stage decision after POC6 is expected to be
 library/control productization versus broadening target or source coverage.
 
-## Checkpoint disposition
+## Acceptance disposition
 
-The 2026-08-07 checkpoint recorded in `docs/POC6-RESULTS.md` passes the
-disposable M1 target decode/display spike and the M3 host-emulator video path,
-including fresh RetroArch ActRaiser content visible through ShadowCast 3 on
-MiSTer HDMI. It does not close full POC6: M2 managed target ownership, M4
-session/API ownership, M5 controller symmetry, latency measurement, and clean
-teardown remain outstanding.
+The 2026-08-08 acceptance recorded in `docs/POC6-RESULTS.md` passes the M1
+target decode/display path, M2 managed target ownership, M3 host-emulator video
+path, and M4 session/API lifecycle. Fresh RetroArch ActRaiser content was
+observed through ShadowCast 3 on MiSTer HDMI, and repeated launch, normal stop,
+unexpected media exit, target-agent shutdown, and host-API shutdown were
+verified without orphaned media resources.
+
+The disposable native presentation hook remains intentionally installed at the
+canonical `/media/fat/MiSTer` path as the next-stage video-plane testbed. This
+is a deliberate retained development state, not an unverified claim that stock
+presentation supports `/dev/fb0`; stock restoration remains the rollback path.
+
+M5 remains explicitly split at its evidence boundary. Native host keyboard
+input works, but unified local/remote controller injection into host RetroArch
+is deferred to GitHub issue #3. Physical glass-to-glass latency is deferred to
+issues #1 and #2 until the required measurement fixture is available. The
+results therefore do not claim the roadmap's complete "one controller" or
+latency target.

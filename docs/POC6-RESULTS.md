@@ -2,124 +2,245 @@
 
 ## Status
 
-POC6 is **not fully complete**. This checkpoint closes the target-side video
-feasibility spike and the host-emulator video path. Session/API ownership,
-controller symmetry, latency acceptance, and productized teardown remain open.
+POC6's host-to-MiSTer video, authenticated session ownership, and lifecycle
+acceptance passed on 2026-08-08. Two gates remain explicitly deferred rather
+than inferred from incomplete evidence:
 
-## Accepted checkpoint: host-emulator video path
+- unified local/remote controller injection into host RetroArch is tracked by
+  [issue #3](https://github.com/DeanoC/FogCast-POC/issues/3);
+- physical glass-to-glass latency remains tracked by
+  [issue #1](https://github.com/DeanoC/FogCast-POC/issues/1) and
+  [issue #2](https://github.com/DeanoC/FogCast-POC/issues/2), because the
+  required physical measurement fixture is not currently available.
 
-Fresh acceptance run on 2026-08-07:
+The accepted claim is therefore narrower than the roadmap's flagship "one
+controller" sentence: a host-only catalog game can be launched and stopped
+through the single session API and presented on MiSTer HDMI, with deterministic
+resource ownership and teardown. This report does **not** claim complete
+controller symmetry or measured physical latency.
+
+## Accepted end-to-end video path
+
+The final accepted path was:
 
 ```text
-NAS ActRaiser.zip
-→ extracted ActRaiser.smc
+NAS ActRaiser.smc
 → arm64 RetroArch + arm64 Snes9x
 → macOS screen capture
 → VideoToolbox H.264
-→ RTP
-→ target FFmpeg decode
-→ native Main_MiSTer framebuffer
+→ authenticated RTP/control transport
+→ target-owned ARMv7 bridge
+→ FFmpeg H.264 decode
+→ /dev/fb0
+→ disposable native Main_MiSTer presentation hook
 → MiSTer HDMI
-→ ShadowCast 3 capture
+→ ShadowCast 3 physical verification
 ```
 
-The source ROM was read from the authorized NAS-backed SNES library:
+The source ROM was read from the authorized NAS-backed SNES library. The
+archive contained `ActRaiser.smc`, 1,049,088 bytes. RetroArch identified the
+loaded content as `ACTRAISER-USA` and reported `Checksum OK`.
+
+Fresh paired acceptance captures showed the same recognizable ActRaiser title
+content at the host and on physical MiSTer HDMI:
+
+These captures are **local-only evidence artifacts** under the ignored
+`artifacts/` tree. They are not tracked by Git and are not included in this
+change; the paths and hashes below identify the retained local copies only.
 
 ```text
-/Users/clawzai/FogCastMounts/SNES/ActRaiser.zip
+artifacts/poc6/capture/poc6-actraiser-fullscreen-host.png
+sha256 d3f2ac31c536a43ce051a489d09d188e1873e8b5290ca052e030f095c39fd98c
+
+artifacts/poc6/capture/poc6-actraiser-fullscreen-hdmi.png
+sha256 f08beb3e51029caa2a71d5a2f618dde41c5a2d5d87c4067676a60659fd55c189
 ```
 
-The archive contained `ActRaiser.smc`, 1,049,088 bytes. RetroArch's verbose
-log identified the loaded content as `ACTRAISER-USA` and reported `Checksum OK`.
-The arm64 RetroArch/Snes9x run produced a fresh ShadowCast capture showing the
-ActRaiser title screen, not the synthetic test pattern:
+The physical ShadowCast frame showed the ActRaiser logo, `START`, and copyright
+text. It was not a synthetic gradient, black output, the MiSTer menu, a pause
+overlay, host wallpaper, or stale content.
 
-- capture: `artifacts/poc6/capture/retroarch-ActRaiser-hdmi.png`;
-- evidence: `artifacts/poc6/retroarch-ActRaiser-hdmi-evidence.json`;
-- sender report: `artifacts/poc6/retroarch-final-sender.json`.
-
-Host sender observations:
+The accepted receiver run recorded sustained clean transport and presentation:
 
 ```text
-encoded_frames:       5,989
-captured_frames:      5,989
-capture_drops:        0
-encode_errors:        0
-packetization_errors: 0
-udp_errors:           0
-p95 encode:           7.55 ms
+packets:             15,115+
+access units:        674+
+decoder writes:      445+
+decoded frames:      436+
+framebuffer writes:  435+
+packet_errors:       0
 ```
 
-Target bridge observations from the same run:
+An earlier historical capture with `packet_errors=117` is retained only as
+diagnostic history and is not used for final acceptance.
+
+## Target decode and native presentation
+
+The target decoded H.264 with FFmpeg, converted frames to RGBA, and wrote a
+1920x1080, 32-bpp framebuffer with stride 7680. Target SDL/`ffplay` was not a
+usable display path.
+
+Stock `Main_MiSTer` did not expose arbitrary `/dev/fb0` writes on HDMI. A
+disposable native presentation hook was therefore used during acceptance. Its
+`fb_cmd_fogcast` command enables the native framebuffer and translates to the
+parser's required `fb_cmd1` form. Synthetic gradient captures proved only the
+presentation path; the paired ActRaiser captures above prove the real-game
+video gate.
+
+Exactly one presentation owner ran from the canonical `/media/fat/MiSTer`
+path during HIL. The disposable hook remained installed through all acceptance
+gates. It is intentionally retained after shipping as the immediate next-stage
+video-plane testbed; stock restoration remains an available rollback action,
+not a POC6 acceptance condition.
+
+## Managed target and session ownership
+
+The target agent exposes authenticated cast lifecycle endpoints:
 
 ```text
-decoded_frames:       100
-framebuffer_writes:   100
-packet_errors:        117
+POST /v1/cast/start
+POST /v1/cast/stop
+GET  /v1/cast/status
 ```
 
-The non-zero packet-error count is recorded rather than hidden. The receiver
-recovered enough of the stream to decode and present the observed title screen,
-but this run is not a clean production transport-quality result and does not
-establish the POC6 latency target.
+Cast identity is explicit: status reports session and generation, and stop
+requires both. A stale generation cannot terminate a replacement cast. Invalid
+or generation-zero starts are rejected, while ambiguous starts are rolled back
+against the requested identity and retain retryable ownership if cleanup fails.
 
-## M1 — target-side decode/display spike
+The target owns bridge process creation and termination. The host session owns
+RetroArch, capture, sender, and target cast composition. Successful sender
+runtime is owned by the managed media handle rather than by the short-lived
+HTTP launch request context.
 
-**Passed as a disposable feasibility result.** The target decoded H.264 with
-FFmpeg, converted frames to raw RGBA, and wrote them through the native
-framebuffer presentation route while stock `Main_MiSTer` was restored after the
-experiment. The target framebuffer was verified as 1920x1080, 32 bpp, stride
-7680. ShadowCast 3 visibly captured the resulting output.
+Media terminal state propagates through the managed sender, media component,
+media session, host API adapter, composition handle, and session coordinator.
+Unexpected bridge or sender termination therefore reaps the whole session
+instead of leaving stale `active` state.
 
-SDL/`ffplay` was not used as the display path: target SDL had no usable video
-device. The disposable bridge instead uses the native `Main_MiSTer` command
-FIFO plus `/dev/fb0`.
+The final bridge-death HIL killed only the target bridge and then waited on the
+host RetroArch process directly. RetroArch exited before any session-status
+request was issued; a later status query only confirmed the already-completed
+`idle` / `media=stopped` transition. Target inspection found no bridge process
+or control/RTP socket owner, and sender logging exposed only a stable sanitized
+termination label.
 
-## M3 — host encode path
+## Input boundary
 
-**Passed as a video-path checkpoint.** The Darwin capture backend now accepts a
-`screen` selector and uses `AVCaptureScreenInput` for the host display. The
-existing VideoToolbox/RTP sender then carries those frames to the verified
-target bridge. The checkpoint was exercised with both a synthetic host window
-and actual RetroArch ActRaiser content.
+The input result is intentionally split by execution direction:
 
-## Not yet accepted
+- A physical native-keyboard Return changed the running ActRaiser state. This
+  proves RetroArch's native host keyboard path works.
+- Controlled CUA Return and newline events were reported as delivered by macOS,
+  but the ActRaiser content pixels remained byte-identical. Those sends are
+  **not** counted as emulator-input success.
+- The existing `host/remote_input.go` path sends host-originated input toward
+  the MiSTer target. It is not a host-RetroArch input injector.
+- Host-only composition now leaves that target input bridge detached, so a
+  host-only launch does not fail merely because target remote input is enabled.
+  FPGA-native launches retain the established target-input behavior.
 
-The roadmap's full POC6 completion disposition still requires:
+Consequently, POC6 does not claim unified controller symmetry. A supported
+host-emulator controller capture/injection path, press/release lifecycle, and
+HIL state-change proof are tracked by issue #3.
 
-- M2: a productized managed target cast agent with deterministic start/stop;
-- M4: session/API ownership of the host emulator, sender, and target cast
-  lifecycle;
-- M5: local-controller symmetry on the cast path;
-- measured cast-path glass-to-glass latency (target p95 <= 120 ms, stretch <=
-  80 ms);
-- clean teardown evidence, including no orphaned target processes and return
-  to FPGA mode;
-- a catalog launch driven through the single session API rather than the
-  disposable command-line spike.
+## Repeated launch and teardown
 
-Those items remain the next implementation stage. This document deliberately
-does not claim that POC6 is complete.
+A single API process completed two consecutive full launch/stop cycles. Both
+launch responses reached:
+
+```text
+state:     active
+execution: host_only
+media:     active
+```
+
+Both stops returned:
+
+```text
+state:     idle
+execution: host_only
+media:     stopped
+```
+
+Each host media session created a fresh capture source. This fixes the earlier
+second-launch failure caused by reusing a stopped capture handle.
+
+After the second stop, inspection found no RetroArch process, target bridge, or
+control/RTP socket owner. A separate live shutdown gate launched an active
+session, terminated the tracked host API, and then verified:
+
+- no listener remained on the host API port;
+- no RetroArch process remained;
+- no host control/RTP socket remained;
+- no target bridge process or control/RTP socket remained.
+
+Target-agent shutdown also explicitly stops its cast controller, preventing a
+bridge from surviving agent replacement or termination. Startup rejects a
+bridge child that exits during the startup grace period.
+
+The final exact-tree HIL used these binaries:
+
+```text
+host fogcast-api sha256
+3c45d235ded9268b378aeb2b7e3ad435454e53c42f75566704094451cca70ea0
+
+deployed ARMv7 mister-agent sha256
+0d0c660e4899d095bb6f2c96323a9bd83adb68aec4ce9783edd1e2008a519704
+```
+
+After deploying that agent, the bridge-death gate again recorded
+`AUTONOMOUS_HOST_REAP=passed`; the later API observation was
+`state=idle, media=stopped`, target inspection found no bridge or media socket,
+and host teardown left no API listener or RetroArch process.
+
+## Latency boundary
+
+Physical glass-to-glass latency was not measured. The required physical
+flash/timestamp fixture and measurement setup are unavailable. Encode timing,
+RTP timing, decoder counts, and framebuffer writes are not substitutes for a
+source-to-display measurement.
+
+The existing physical-latency follow-ups remain open in issues #1 and #2. No
+p50, p95, `<=120 ms`, or stretch-target claim is made for POC6.
 
 ## Verification
 
-The repository verification run for this checkpoint passed:
+Focused regressions cover:
+
+- immediate target bridge child exit;
+- sender liveness while screen capture is idle;
+- managed sender lifetime beyond the HTTP start context;
+- media terminal-state propagation and session reaping;
+- host-only exclusion of the target input bridge;
+- fresh capture ownership for each repeated host-media session;
+- target-agent shutdown cleanup;
+- retryable capture-source close after an initial failure;
+- partial local and target-start cleanup ownership across rollback;
+- session/generation-conditioned target stop and stale replacement safety;
+- generation-zero rejection at both HTTP and controller boundaries;
+- serialized status/replacement observation and first-error-preserving cleanup
+  retries.
+
+Final repository-wide validation passed:
 
 ```sh
+env -u PYTHONHOME -u PYTHONPATH mise exec go@1.26.5 -- make fmt
 env -u PYTHONHOME -u PYTHONPATH mise exec go@1.26.5 -- make test
+env -u PYTHONHOME -u PYTHONPATH mise exec go@1.26.5 -- make check
+env -u PYTHONHOME -u PYTHONPATH mise exec go@1.26.5 -- make build
+env -u PYTHONHOME -u PYTHONPATH mise exec go@1.26.5 -- go test -race ./...
+env -u PYTHONHOME -u PYTHONPATH mise exec go@1.26.5 -- go vet ./...
 git diff --check
 ```
 
-The test command includes the race-enabled Go suite and the repository's
-FogCast, POC1B, installer, restore, and target checks.
+`make test` is itself race-enabled; the explicit race run provides a second
+repository-wide confirmation.
 
-Stock `Main_MiSTer` was restored after the hardware experiments and verified
-unchanged. No production Buildroot configuration was modified; the decoder
-options are confined to the disposable development defconfig.
+## Disposition
 
-## Next decision
-
-Continue with session-owned cast lifecycle integration before attempting to
-close M2/M4/M5. Keep the validated POC4 RTP/H.264 transport as the baseline;
-do not redesign transport until clean lifecycle and latency measurements show
-that it is the bottleneck.
+POC6 accepts the real-game host-to-MiSTer HDMI path and its managed lifecycle.
+The validated POC4 RTP/H.264 transport remains the baseline. Product work
+should next choose between library/control UX productization and closing the
+controller-injection follow-up in issue #3; the video transport should not be
+redesigned without new evidence or a new scope decision.

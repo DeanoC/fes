@@ -10,12 +10,14 @@ import (
 )
 
 type fakeComponent struct {
-	name            string
-	order           *[]string
-	startErr        error
+	name     string
+	order    *[]string
+	startErr error
+
 	stopErr         error
 	stopBlock       <-chan struct{}
 	stopCtxCanceled bool
+	stopRemaining   time.Duration
 	mu              sync.Mutex
 	starts          int
 	stops           int
@@ -38,6 +40,9 @@ func (f *fakeComponent) stop(ctx context.Context) error {
 	f.mu.Lock()
 	f.stops++
 	f.stopCtxCanceled = ctx.Err() != nil
+	if deadline, ok := ctx.Deadline(); ok {
+		f.stopRemaining = time.Until(deadline)
+	}
 	if f.order != nil {
 		*f.order = append(*f.order, "stop:"+f.name)
 	}
@@ -95,7 +100,7 @@ func TestStartFailureStopsAlreadyStartedComponentAndSanitizesError(t *testing.T)
 	}
 }
 
-func TestHandleStopIsIdempotentAndBounded(t *testing.T) {
+func TestHandleStopRetriesOnlyFailedComponentsAndRemainsBounded(t *testing.T) {
 	never := make(chan struct{})
 	receiver := &fakeComponent{name: "receiver", stopBlock: never}
 	sender := &fakeComponent{name: "sender", stopBlock: never}
@@ -113,8 +118,8 @@ func TestHandleStopIsIdempotentAndBounded(t *testing.T) {
 	if elapsed := time.Since(started); elapsed > 200*time.Millisecond {
 		t.Fatalf("Stop was not bounded: %s", elapsed)
 	}
-	if secondErr := handle.Stop(context.Background()); !errors.Is(secondErr, err) {
-		t.Fatalf("second Stop = %v, want the same result as first Stop (%v)", secondErr, err)
+	if secondErr := handle.Stop(context.Background()); !errors.Is(secondErr, ErrComponentStop) {
+		t.Fatalf("second Stop = %v, want retryable component stop error", secondErr)
 	}
 	sender.mu.Lock()
 	senderStops := sender.stops
@@ -122,8 +127,30 @@ func TestHandleStopIsIdempotentAndBounded(t *testing.T) {
 	receiver.mu.Lock()
 	receiverStops := receiver.stops
 	receiver.mu.Unlock()
-	if senderStops != 1 || receiverStops != 1 {
-		t.Fatalf("stop counts sender=%d receiver=%d, want one each", senderStops, receiverStops)
+	if senderStops != 2 || receiverStops != 2 {
+		t.Fatalf("stop counts sender=%d receiver=%d, want two retries each", senderStops, receiverStops)
+	}
+}
+
+func TestStartCleanupFailureReturnsRetryablePartialHandle(t *testing.T) {
+	receiver := &fakeComponent{name: "receiver", stopErr: errors.New("cleanup failed")}
+	sender := &fakeComponent{name: "sender", startErr: errors.New("start failed")}
+	session := New(sender, receiver, WithStopTimeout(100*time.Millisecond))
+	handle, err := session.Start(context.Background(), "game-1")
+	if !errors.Is(err, ErrComponentStart) || handle == nil {
+		t.Fatalf("Start = handle %v err %v, want retryable partial handle", handle, err)
+	}
+	receiver.mu.Lock()
+	receiver.stopErr = nil
+	receiver.mu.Unlock()
+	if err := handle.Stop(context.Background()); err != nil {
+		t.Fatalf("retry partial cleanup = %v", err)
+	}
+	receiver.mu.Lock()
+	stops := receiver.stops
+	receiver.mu.Unlock()
+	if stops != 2 {
+		t.Fatalf("receiver stops = %d, want initial cleanup plus retry", stops)
 	}
 }
 
@@ -169,5 +196,23 @@ func TestStartRejectsNilComponents(t *testing.T) {
 	}
 	if _, err := New(&fakeComponent{name: "sender"}, nil).Start(context.Background(), "game"); err == nil {
 		t.Fatal("nil receiver accepted")
+	}
+}
+
+func TestStopGivesEachComponentAFreshCleanupDeadline(t *testing.T) {
+	never := make(chan struct{})
+	receiver := &fakeComponent{name: "receiver"}
+	sender := &fakeComponent{name: "sender", stopBlock: never}
+	handle, err := New(sender, receiver, WithStopTimeout(30*time.Millisecond)).Start(context.Background(), "game-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := handle.Stop(context.Background()); err == nil {
+		t.Fatal("Stop returned nil for timed-out sender")
+	}
+	receiver.mu.Lock()
+	defer receiver.mu.Unlock()
+	if receiver.stopCtxCanceled || receiver.stopRemaining < 15*time.Millisecond {
+		t.Fatalf("receiver cleanup context canceled=%v remaining=%v, want a fresh deadline", receiver.stopCtxCanceled, receiver.stopRemaining)
 	}
 }

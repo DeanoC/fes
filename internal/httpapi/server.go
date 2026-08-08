@@ -58,6 +58,9 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 	})))
 	mux.Handle("POST /v1/launch", authenticate(token, launchHandler(controller)))
 	mux.Handle("POST /v1/stop", authenticate(token, stopHandler(controller)))
+	if settings.cast != nil {
+		registerCastRoutes(mux, token, settings.cast)
+	}
 	if settings.content != nil {
 		registerContentRoutes(mux, token, settings.content)
 	}

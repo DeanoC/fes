@@ -1,8 +1,10 @@
 package remotemedia
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log"
 	"strings"
 	"sync"
 	"testing"
@@ -42,6 +44,56 @@ func newManagedSenderFake() *managedSenderFake {
 type managedSenderReadyFake struct {
 	*managedSenderFake
 	readyErr error
+}
+
+type managedSenderRuntimeErrorFake struct {
+	release chan struct{}
+	closed  chan struct{}
+}
+
+func (s *managedSenderRuntimeErrorFake) Run(context.Context) error {
+	<-s.release
+	return errors.New("token=hostile-secret /Users/private/capture.sock")
+}
+
+func (s *managedSenderRuntimeErrorFake) RunReady(ctx context.Context, ready func(error)) error {
+	ready(nil)
+	return s.Run(ctx)
+}
+
+func (s *managedSenderRuntimeErrorFake) Close() error {
+	select {
+	case <-s.closed:
+	default:
+		close(s.closed)
+	}
+	return nil
+}
+
+type managedSenderRunOnly struct{ *managedSenderRuntimeErrorFake }
+
+func (s managedSenderRunOnly) Run(ctx context.Context) error {
+	return s.managedSenderRuntimeErrorFake.Run(ctx)
+}
+
+type managedSenderFlakyClose struct {
+	mu         sync.Mutex
+	closeCalls int
+}
+
+func (*managedSenderFlakyClose) Run(ctx context.Context) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (s *managedSenderFlakyClose) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.closeCalls++
+	if s.closeCalls == 1 {
+		return errors.New("first close failed")
+	}
+	return nil
 }
 
 func (s *managedSenderReadyFake) RunReady(ctx context.Context, ready func(error)) error {
@@ -91,6 +143,76 @@ func TestManagedSenderStartReturnsAfterRunOwnershipIsEstablished(t *testing.T) {
 	}
 	if err := handle.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop: %v", err)
+	}
+}
+
+func TestManagedSenderRuntimeOutlivesSuccessfulStartContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	fake, source := newManagedSenderFake(), &managedSenderFakeSource{}
+	component := newManagedSenderForTest(t, fake, source)
+	handle, err := component.Start(ctx, "game")
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	cancel()
+	select {
+	case <-fake.runDone:
+		t.Fatal("successful startup context cancellation stopped owned runtime")
+	case <-time.After(50 * time.Millisecond):
+	}
+	if err := handle.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+}
+
+func TestManagedSenderRuntimeLogsUseSanitizedStableLabel(t *testing.T) {
+	var logs bytes.Buffer
+	previousOutput := log.Writer()
+	previousFlags := log.Flags()
+	previousPrefix := log.Prefix()
+	log.SetOutput(&logs)
+	log.SetFlags(0)
+	log.SetPrefix("")
+	t.Cleanup(func() {
+		log.SetOutput(previousOutput)
+		log.SetFlags(previousFlags)
+		log.SetPrefix(previousPrefix)
+	})
+
+	for _, readyRunner := range []bool{false, true} {
+		logs.Reset()
+		fake := &managedSenderRuntimeErrorFake{release: make(chan struct{}), closed: make(chan struct{})}
+		component, err := NewManagedSender(managedSenderConfig(), &managedSenderFakeSource{},
+			WithManagedSenderFactory(func(SenderConfig, CaptureSource) (ManagedSenderRunner, error) {
+				if readyRunner {
+					return fake, nil
+				}
+				return managedSenderRunOnly{fake}, nil
+			}),
+			WithManagedSenderStopTimeout(time.Second),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		handle, err := component.Start(context.Background(), "game")
+		if err != nil {
+			t.Fatalf("Start(ready=%v): %v", readyRunner, err)
+		}
+		close(fake.release)
+		select {
+		case <-handle.(*managedSenderHandle).Done():
+		case <-time.After(time.Second):
+			t.Fatalf("runtime did not stop (ready=%v)", readyRunner)
+		}
+		got := logs.String()
+		if !strings.Contains(got, "managed media sender stopped unexpectedly") {
+			t.Fatalf("log missing stable label (ready=%v): %q", readyRunner, got)
+		}
+		for _, hostile := range []string{"hostile-secret", "/Users/private", "capture.sock"} {
+			if strings.Contains(got, hostile) {
+				t.Fatalf("log leaked %q (ready=%v): %q", hostile, readyRunner, got)
+			}
+		}
 	}
 }
 
@@ -274,5 +396,59 @@ func TestManagedSenderStartValidatesConfigurationWithoutLeakingSecretsOrPaths(t 
 	_, err = component.Start(context.Background(), "game")
 	if err == nil || !errors.Is(err, ErrManagedSenderStart) || strings.Contains(err.Error(), "secret") || strings.Contains(err.Error(), "/Users/private") {
 		t.Fatalf("unsafe validation error: %v", err)
+	}
+}
+
+func TestManagedSenderStopRetriesOnlyFailedCleanup(t *testing.T) {
+	runner := &managedSenderFlakyClose{}
+	runDone := make(chan struct{})
+	close(runDone)
+	_, cancel := context.WithCancel(context.Background())
+	handle := &managedSenderHandle{
+		runner:  runner,
+		cancel:  cancel,
+		runDone: runDone,
+		timeout: 100 * time.Millisecond,
+		done:    make(chan struct{}),
+	}
+	if err := handle.Stop(context.Background()); !errors.Is(err, ErrManagedSenderStop) {
+		t.Fatalf("first Stop = %v, want cleanup failure", err)
+	}
+	if err := handle.Stop(context.Background()); err != nil {
+		t.Fatalf("retry Stop = %v", err)
+	}
+	runner.mu.Lock()
+	closeCalls := runner.closeCalls
+	runner.mu.Unlock()
+	if closeCalls != 2 {
+		t.Fatalf("runner Close calls = %d, want failed attempt plus retry", closeCalls)
+	}
+}
+
+func TestManagedSenderStartReturnsPartialHandleWhenRunnerCleanupFails(t *testing.T) {
+	runner := &managedSenderFlakyClose{}
+	component, err := NewManagedSender(
+		managedSenderConfig(),
+		&managedSenderFakeSource{},
+		WithManagedSenderFactory(func(SenderConfig, CaptureSource) (ManagedSenderRunner, error) {
+			return runner, errors.New("factory returned partial runner")
+		}),
+		WithManagedSenderStopTimeout(100*time.Millisecond),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle, startErr := component.Start(context.Background(), "game")
+	if !errors.Is(startErr, ErrManagedSenderStart) || handle == nil {
+		t.Fatalf("Start = handle %v err %v, want retryable partial runner", handle, startErr)
+	}
+	if err := handle.Stop(context.Background()); err != nil {
+		t.Fatalf("partial runner cleanup retry = %v", err)
+	}
+	runner.mu.Lock()
+	closeCalls := runner.closeCalls
+	runner.mu.Unlock()
+	if closeCalls != 2 {
+		t.Fatalf("runner Close calls = %d, want failed startup cleanup plus retry", closeCalls)
 	}
 }

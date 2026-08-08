@@ -14,12 +14,14 @@ import (
 )
 
 type senderTestSource struct {
-	mu       sync.Mutex
-	started  bool
-	closed   bool
-	startErr error
-	frames   []EncodedSample
-	stats    CaptureStats
+	mu         sync.Mutex
+	started    bool
+	closed     bool
+	startErr   error
+	closeErrs  []error
+	closeCalls int
+	frames     []EncodedSample
+	stats      CaptureStats
 }
 
 func (s *senderTestSource) Start() error {
@@ -51,7 +53,44 @@ func (s *senderTestSource) Next(ctx context.Context) (EncodedSample, error) {
 	}
 }
 func (s *senderTestSource) Stats() CaptureStats { s.mu.Lock(); defer s.mu.Unlock(); return s.stats }
-func (s *senderTestSource) Close() error        { s.mu.Lock(); s.closed = true; s.mu.Unlock(); return nil }
+func (s *senderTestSource) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.closeCalls++
+	if len(s.closeErrs) != 0 {
+		err := s.closeErrs[0]
+		s.closeErrs = s.closeErrs[1:]
+		if err != nil {
+			return err
+		}
+	}
+	s.closed = true
+	return nil
+}
+
+func TestSenderCloseRetriesCaptureSourceUntilSuccess(t *testing.T) {
+	first := errors.New("capture close failed")
+	source := &senderTestSource{closeErrs: []error{first, nil}}
+	sender, err := NewSender(SenderConfig{RTPAddress: "127.0.0.1:1", Session: "session", Token: "token", SSRC: 1}, source, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sender.Close(); !errors.Is(err, first) {
+		t.Fatalf("first close = %v, want %v", err, first)
+	}
+	if err := sender.Close(); err != nil {
+		t.Fatalf("retry close = %v", err)
+	}
+	if err := sender.Close(); err != nil {
+		t.Fatalf("idempotent close = %v", err)
+	}
+	source.mu.Lock()
+	closeCalls := source.closeCalls
+	source.mu.Unlock()
+	if closeCalls != 2 {
+		t.Fatalf("capture close calls = %d, want failed attempt plus successful retry", closeCalls)
+	}
+}
 
 func TestSenderWritesMediaHelloWithCodecContract(t *testing.T) {
 	source := &senderTestSource{}
@@ -119,6 +158,86 @@ func TestSenderSendsRTPWithCaptureTimestampAndStopsCleanly(t *testing.T) {
 	}
 	if !source.closed {
 		t.Fatal("sender did not close capture source")
+	}
+}
+
+func TestSenderIdleRepeatsOnlyDecoderSafeIDRWithTruthfulMetrics(t *testing.T) {
+	udp, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
+	if err != nil {
+		t.Fatalf("listen UDP: %v", err)
+	}
+	defer udp.Close()
+	idr := EncodedSample{CaptureMonoNS: 1_000_000_000, AVCC: []byte{0, 0, 0, 2, 0x06, 0x05, 0, 0, 0, 2, 0x65, 0x01}, SPS: []byte{0x67, 0x42}, PPS: []byte{0x68, 0xce}, NALLengthSize: 4, Keyframe: true, EncodeDuration: 2 * time.Millisecond}
+	pFrame := EncodedSample{CaptureMonoNS: 1_100_000_000, AVCC: []byte{0, 0, 0, 2, 0x41, 0x02}, NALLengthSize: 4, EncodeDuration: 3 * time.Millisecond}
+	source := &senderTestSource{frames: []EncodedSample{idr, pFrame}}
+	metrics := NewMetrics(time.Now())
+	sender, err := NewSender(SenderConfig{RTPAddress: udp.LocalAddr().String(), Session: "session", Generation: 1, Token: "token", SSRC: 7, KeyframeInterval: 20 * time.Millisecond}, source, metrics)
+	if err != nil {
+		t.Fatalf("new sender: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- sender.Run(ctx) }()
+	defer func() {
+		cancel()
+		if err := <-done; !errors.Is(err, context.Canceled) {
+			t.Fatalf("sender result = %v", err)
+		}
+	}()
+
+	var accessUnits []struct {
+		timestamp uint32
+		nalTypes  []byte
+	}
+	var current struct {
+		timestamp uint32
+		nalTypes  []byte
+	}
+	packetCount := 0
+	wire := make([]byte, 1500)
+	if err := udp.SetReadDeadline(time.Now().Add(250 * time.Millisecond)); err != nil {
+		t.Fatal(err)
+	}
+	for len(accessUnits) < 3 {
+		n, _, err := udp.ReadFromUDP(wire)
+		if err != nil {
+			t.Fatalf("read repeated RTP access unit: %v", err)
+		}
+		if n < RTPHeaderSize+1 {
+			t.Fatalf("short RTP packet: %x", wire[:n])
+		}
+		packetCount++
+		current.timestamp = binary.BigEndian.Uint32(wire[4:8])
+		current.nalTypes = append(current.nalTypes, wire[RTPHeaderSize]&0x1f)
+		if wire[1]&0x80 != 0 {
+			accessUnits = append(accessUnits, current)
+			current = struct {
+				timestamp uint32
+				nalTypes  []byte
+			}{}
+		}
+	}
+	if got := accessUnits[1].nalTypes; len(got) != 1 || got[0] != 1 {
+		t.Fatalf("second access unit = %v, want final P-frame", got)
+	}
+	if got := accessUnits[2].nalTypes; len(got) != 3 || got[0] != 7 || got[1] != 8 || got[2] != 5 {
+		t.Fatalf("idle access unit = %v, want SPS/PPS/IDR", got)
+	}
+	if accessUnits[2].timestamp <= accessUnits[1].timestamp {
+		t.Fatalf("idle RTP timestamp = %d, want after %d", accessUnits[2].timestamp, accessUnits[1].timestamp)
+	}
+	snapshot := metrics.Snapshot(time.Now(), 0, 0)
+	if snapshot.EncodedFrames != 2 || snapshot.EncodedBytes != uint64(len(idr.AVCC)+len(pFrame.AVCC)) {
+		t.Fatalf("encoded evidence = %d frames/%d bytes, want 2/%d", snapshot.EncodedFrames, snapshot.EncodedBytes, len(idr.AVCC)+len(pFrame.AVCC))
+	}
+	if snapshot.Keyframes != 1 || snapshot.EncodeTiming.Count != 2 {
+		t.Fatalf("keyframe/encode evidence = %d/%d, want 1/2", snapshot.Keyframes, snapshot.EncodeTiming.Count)
+	}
+	if snapshot.Packets != uint64(packetCount) {
+		t.Fatalf("packet metric = %d, want transmitted %d", snapshot.Packets, packetCount)
+	}
+	if snapshot.SourceFPS != 10 {
+		t.Fatalf("source FPS = %v, want capture-only 10", snapshot.SourceFPS)
 	}
 }
 

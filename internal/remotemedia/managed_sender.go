@@ -3,6 +3,7 @@ package remotemedia
 import (
 	"context"
 	"errors"
+	"log"
 	"sync"
 	"time"
 
@@ -137,43 +138,57 @@ func (s *ManagedSender) Start(ctx context.Context, _ string) (mediasession.Compo
 	runner, err := s.newSender(s.senderConfig(), s.source)
 	if err != nil || runner == nil {
 		if runner != nil {
-			_ = runner.Close()
+			return cleanupManagedSenderStart(newManagedSenderPartialHandle(runner, s.stopTimeout))
 		}
 		return nil, ErrManagedSenderStart
 	}
 	if ctx.Err() != nil {
-		_ = runner.Close()
-		return nil, ErrManagedSenderStart
+		return cleanupManagedSenderStart(newManagedSenderPartialHandle(runner, s.stopTimeout))
 	}
 	if readyRunner, ok := runner.(ManagedSenderReadyRunner); ok {
 		ready := make(chan error, 1)
 		runDone := make(chan struct{})
-		runCtx, cancel := context.WithCancel(ctx)
+		runCtx, cancel := context.WithCancel(context.Background())
 		go func() {
 			defer close(runDone)
-			_ = readyRunner.RunReady(runCtx, func(err error) { ready <- err })
+			if runErr := readyRunner.RunReady(runCtx, func(err error) { ready <- err }); runErr != nil && !errors.Is(runErr, context.Canceled) {
+				log.Print("managed media sender stopped unexpectedly")
+			}
 		}()
+		h := newManagedSenderHandleWithDone(runCtx, cancel, runner, runDone, s.stopTimeout)
 		select {
 		case err := <-ready:
 			if err != nil {
-				cancel()
-				_ = runner.Close()
-				return nil, ErrManagedSenderStart
+				return cleanupManagedSenderStart(h)
 			}
-			h := newManagedSenderHandleWithDone(runCtx, cancel, runner, runDone, s.stopTimeout)
 			return h, nil
 		case <-runDone:
-			cancel()
-			_ = runner.Close()
-			return nil, ErrManagedSenderStart
+			return cleanupManagedSenderStart(h)
 		case <-ctx.Done():
-			cancel()
-			_ = runner.Close()
-			return nil, ErrManagedSenderStart
+			return cleanupManagedSenderStart(h)
 		}
 	}
-	h := newManagedSenderHandle(ctx, runner, s.stopTimeout)
+	h := newManagedSenderHandle(context.Background(), runner, s.stopTimeout)
 	return h, nil
+}
+
+func newManagedSenderPartialHandle(runner ManagedSenderRunner, timeout time.Duration) *managedSenderHandle {
+	_, cancel := context.WithCancel(context.Background())
+	runDone := make(chan struct{})
+	close(runDone)
+	done := make(chan struct{})
+	close(done)
+	return &managedSenderHandle{
+		runner: runner, cancel: cancel, runDone: runDone, timeout: timeout,
+		done: done, runReaped: true,
+	}
+}
+
+func cleanupManagedSenderStart(handle *managedSenderHandle) (mediasession.ComponentHandle, error) {
+	if err := handle.Stop(context.Background()); err != nil {
+		return handle, ErrManagedSenderStart
+	}
+	return nil, ErrManagedSenderStart
 }
 
 type managedSenderHandle struct {
@@ -182,10 +197,13 @@ type managedSenderHandle struct {
 	runDone chan struct{}
 	timeout time.Duration
 
-	once sync.Once
-	done chan struct{}
-	mu   sync.Mutex
-	err  error
+	cancelOnce   sync.Once
+	doneOnce     sync.Once
+	done         chan struct{}
+	attemptMu    sync.Mutex
+	mu           sync.Mutex
+	runnerClosed bool
+	runReaped    bool
 }
 
 func newManagedSenderHandle(parent context.Context, runner ManagedSenderRunner, timeout time.Duration) *managedSenderHandle {
@@ -193,7 +211,9 @@ func newManagedSenderHandle(parent context.Context, runner ManagedSenderRunner, 
 	runDone := make(chan struct{})
 	go func() {
 		defer close(runDone)
-		_ = runner.Run(ctx)
+		if runErr := runner.Run(ctx); runErr != nil && !errors.Is(runErr, context.Canceled) {
+			log.Print("managed media sender stopped unexpectedly")
+		}
 	}()
 	return newManagedSenderHandleWithDone(ctx, cancel, runner, runDone, timeout)
 }
@@ -201,10 +221,21 @@ func newManagedSenderHandle(parent context.Context, runner ManagedSenderRunner, 
 func newManagedSenderHandleWithDone(ctx context.Context, cancel context.CancelFunc, runner ManagedSenderRunner, runDone chan struct{}, timeout time.Duration) *managedSenderHandle {
 	h := &managedSenderHandle{runner: runner, cancel: cancel, runDone: runDone, done: make(chan struct{}), timeout: timeout}
 	go func() {
-		<-ctx.Done()
+		select {
+		case <-ctx.Done():
+		case <-runDone:
+		}
+		h.doneOnce.Do(func() { close(h.done) })
 		_ = h.Stop(context.Background())
 	}()
 	return h
+}
+
+func (h *managedSenderHandle) Done() <-chan struct{} {
+	if h == nil {
+		return nil
+	}
+	return h.done
 }
 
 func (h *managedSenderHandle) Stop(ctx context.Context) error {
@@ -214,14 +245,13 @@ func (h *managedSenderHandle) Stop(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	h.once.Do(func() { go h.cleanup() })
+	h.cancelOnce.Do(h.cancel)
+	attemptDone := make(chan error, 1)
+	go func() { attemptDone <- h.cleanupAttempt() }()
 	timer := time.NewTimer(h.timeout)
 	defer timer.Stop()
 	select {
-	case <-h.done:
-		h.mu.Lock()
-		err := h.err
-		h.mu.Unlock()
+	case err := <-attemptDone:
 		return err
 	case <-ctx.Done():
 		return ErrManagedSenderStop
@@ -230,23 +260,35 @@ func (h *managedSenderHandle) Stop(ctx context.Context) error {
 	}
 }
 
-func (h *managedSenderHandle) cleanup() {
-	defer close(h.done)
-	h.cancel()
-	if err := h.runner.Close(); err != nil {
-		h.setError(ErrManagedSenderStop)
-	}
-	if !waitManagedSender(h.runDone, h.timeout) {
-		h.setError(ErrManagedSenderStop)
-	}
-}
-
-func (h *managedSenderHandle) setError(err error) {
+func (h *managedSenderHandle) cleanupAttempt() error {
+	h.attemptMu.Lock()
+	defer h.attemptMu.Unlock()
 	h.mu.Lock()
-	if h.err == nil {
-		h.err = err
-	}
+	runnerClosed, runReaped := h.runnerClosed, h.runReaped
 	h.mu.Unlock()
+	failed := false
+	if !runnerClosed {
+		if err := h.runner.Close(); err != nil {
+			failed = true
+		} else {
+			h.mu.Lock()
+			h.runnerClosed = true
+			h.mu.Unlock()
+		}
+	}
+	if !runReaped {
+		if !waitManagedSender(h.runDone, h.timeout) {
+			failed = true
+		} else {
+			h.mu.Lock()
+			h.runReaped = true
+			h.mu.Unlock()
+		}
+	}
+	if failed {
+		return ErrManagedSenderStop
+	}
+	return nil
 }
 func waitManagedSender(done <-chan struct{}, timeout time.Duration) bool {
 	t := time.NewTimer(timeout)

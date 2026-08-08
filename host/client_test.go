@@ -137,3 +137,35 @@ func TestClientStopSendsEmptyPOST(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestClientCastLifecycleUsesAuthenticatedEndpoints(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer test-token" {
+			t.Errorf("authorization = %q", r.Header.Get("Authorization"))
+		}
+		switch r.URL.Path {
+		case "/v1/cast/start":
+			if r.Method != http.MethodPost {
+				t.Errorf("start method = %s", r.Method)
+			}
+			_, _ = io.WriteString(w, `{"state":"active"}`)
+		case "/v1/cast/stop":
+			if r.Method != http.MethodPost {
+				t.Errorf("stop method = %s", r.Method)
+			}
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	baseURL, _ := url.Parse(server.URL)
+	client := host.NewClient(baseURL, "test-token", server.Client())
+	if status, err := client.CastStart(context.Background(), "session", "bridge-token", 9); err != nil || status.State != "active" {
+		t.Fatalf("cast start = %#v, %v", status, err)
+	}
+	if status, err := client.CastStop(context.Background(), "session", 9); err != nil || status.State != "idle" {
+		t.Fatalf("cast stop = %#v, %v", status, err)
+	}
+}

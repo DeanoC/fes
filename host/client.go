@@ -8,11 +8,15 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
-const maxResponseBytes = 1 << 20
+const (
+	maxResponseBytes         = 1 << 20
+	defaultHTTPClientTimeout = 5 * time.Second
+)
 
 type Client struct {
 	baseURL    *url.URL
@@ -23,7 +27,7 @@ type Client struct {
 func NewClient(baseURL *url.URL, token string, httpClient *http.Client) *Client {
 	baseCopy := *baseURL
 	if httpClient == nil {
-		httpClient = http.DefaultClient
+		httpClient = &http.Client{Timeout: defaultHTTPClientTimeout}
 	}
 	return &Client{baseURL: &baseCopy, token: token, httpClient: httpClient}
 }
@@ -49,6 +53,37 @@ func (c *Client) Launch(ctx context.Context, request protocol.LaunchRequest) (pr
 func (c *Client) Stop(ctx context.Context) (protocol.Status, error) {
 	var status protocol.Status
 	err := c.doJSON(ctx, http.MethodPost, "/v1/stop", nil, &status)
+	return status, err
+}
+
+type CastStatus struct {
+	State      string `json:"state"`
+	Session    string `json:"session,omitempty"`
+	Generation uint64 `json:"generation,omitempty"`
+}
+
+func (c *Client) CastStart(ctx context.Context, session, token string, generation uint64) (CastStatus, error) {
+	var status CastStatus
+	err := c.doJSON(ctx, http.MethodPost, "/v1/cast/start", struct {
+		Session    string `json:"session"`
+		Token      string `json:"token"`
+		Generation uint64 `json:"generation"`
+	}{Session: session, Token: token, Generation: generation}, &status)
+	return status, err
+}
+
+func (c *Client) CastStop(ctx context.Context, session string, generation uint64) (CastStatus, error) {
+	var status CastStatus
+	err := c.doJSON(ctx, http.MethodPost, "/v1/cast/stop", struct {
+		Session    string `json:"session"`
+		Generation uint64 `json:"generation"`
+	}{Session: session, Generation: generation}, &status)
+	return status, err
+}
+
+func (c *Client) CastStatus(ctx context.Context) (CastStatus, error) {
+	var status CastStatus
+	err := c.doJSON(ctx, http.MethodGet, "/v1/cast/status", nil, &status)
 	return status, err
 }
 

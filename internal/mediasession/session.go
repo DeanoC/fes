@@ -44,9 +44,9 @@ type Handle interface {
 
 type Option func(*Session)
 
-// WithStopTimeout bounds the complete reverse-order component cleanup. The
-// default is two seconds. A caller context deadline, when earlier, remains
-// authoritative.
+// WithStopTimeout bounds each reverse-order component cleanup. The default is
+// two seconds per component. Each component receives a fresh cleanup budget so
+// one blocked component cannot consume the next component's deadline.
 func WithStopTimeout(timeout time.Duration) Option {
 	return func(s *Session) {
 		if timeout > 0 {
@@ -78,7 +78,9 @@ func New(sender, receiver Component, options ...Option) *Session {
 type sessionHandle struct {
 	components []ComponentHandle
 	timeout    time.Duration
-	once       sync.Once
+	mu         sync.Mutex
+	doneOnce   sync.Once
+	done       chan struct{}
 	err        error
 }
 
@@ -94,61 +96,94 @@ func (s *Session) Start(ctx context.Context, gameID string) (Handle, error) {
 	}
 
 	started := make([]ComponentHandle, 0, 2)
-	start := func(role string, component Component) error {
+	start := func(role string, component Component) (Handle, error) {
 		handle, err := component.Start(ctx, gameID)
 		if handle != nil {
 			started = append(started, handle)
 		}
 		if err != nil {
-			s.cleanup(ctx, started)
-			return fmt.Errorf("%w: %s", ErrComponentStart, role)
+			remaining := s.cleanup(ctx, started)
+			return newSessionHandle(remaining, s.stopTimeout), fmt.Errorf("%w: %s", ErrComponentStart, role)
 		}
 		if handle == nil {
-			s.cleanup(ctx, started)
-			return fmt.Errorf("%w: %s", ErrComponentStart, role)
+			remaining := s.cleanup(ctx, started)
+			return newSessionHandle(remaining, s.stopTimeout), fmt.Errorf("%w: %s", ErrComponentStart, role)
 		}
+		return nil, nil
+	}
+
+	if partial, err := start("receiver", s.receiver); err != nil {
+		return partial, err
+	}
+	if partial, err := start("sender", s.sender); err != nil {
+		return partial, err
+	}
+	handle := newSessionHandle(started, s.stopTimeout)
+	for _, component := range started {
+		if terminal, ok := component.(interface{ Done() <-chan struct{} }); ok && terminal.Done() != nil {
+			go func(done <-chan struct{}) {
+				<-done
+				handle.doneOnce.Do(func() { close(handle.done) })
+			}(terminal.Done())
+		}
+	}
+	return handle, nil
+}
+
+func boundedContext(_ context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), timeout)
+}
+
+func (s *Session) cleanup(parent context.Context, components []ComponentHandle) []ComponentHandle {
+	remaining := make([]ComponentHandle, 0, len(components))
+	for i := len(components) - 1; i >= 0; i-- {
+		cleanupCtx, cancel := boundedContext(parent, s.stopTimeout)
+		err := components[i].Stop(cleanupCtx)
+		cancel()
+		if err != nil {
+			remaining = append([]ComponentHandle{components[i]}, remaining...)
+		}
+	}
+	return remaining
+}
+
+func newSessionHandle(components []ComponentHandle, timeout time.Duration) *sessionHandle {
+	if len(components) == 0 {
 		return nil
 	}
-
-	if err := start("receiver", s.receiver); err != nil {
-		return nil, err
-	}
-	if err := start("sender", s.sender); err != nil {
-		return nil, err
-	}
-	return &sessionHandle{components: started, timeout: s.stopTimeout}, nil
-}
-
-func boundedContext(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
-	if parent == nil || parent.Err() != nil {
-		parent = context.Background()
-	}
-	return context.WithTimeout(parent, timeout)
-}
-
-func (s *Session) cleanup(parent context.Context, components []ComponentHandle) {
-	cleanupCtx, cancel := boundedContext(parent, s.stopTimeout)
-	defer cancel()
-	for i := len(components) - 1; i >= 0; i-- {
-		_ = components[i].Stop(cleanupCtx)
-	}
+	return &sessionHandle{components: components, timeout: timeout, done: make(chan struct{})}
 }
 
 func (h *sessionHandle) Stop(ctx context.Context) error {
 	if h == nil {
 		return nil
 	}
-	h.once.Do(func() {
-		if ctx == nil {
-			ctx = context.Background()
-		}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	remaining := make([]ComponentHandle, 0, len(h.components))
+	var first error
+	for i := len(h.components) - 1; i >= 0; i-- {
 		stopCtx, cancel := boundedContext(ctx, h.timeout)
-		defer cancel()
-		for i := len(h.components) - 1; i >= 0; i-- {
-			if err := h.components[i].Stop(stopCtx); err != nil && h.err == nil {
-				h.err = fmt.Errorf("%w: component %d", ErrComponentStop, i)
+		err := h.components[i].Stop(stopCtx)
+		cancel()
+		if err != nil {
+			remaining = append([]ComponentHandle{h.components[i]}, remaining...)
+			if first == nil {
+				first = fmt.Errorf("%w: component %d", ErrComponentStop, i)
 			}
 		}
-	})
-	return h.err
+	}
+	h.components = remaining
+	h.err = first
+	if len(remaining) == 0 {
+		h.doneOnce.Do(func() { close(h.done) })
+	}
+	return first
+}
+
+func (h *sessionHandle) Done() <-chan struct{} {
+	if h == nil {
+		return nil
+	}
+	return h.done
 }

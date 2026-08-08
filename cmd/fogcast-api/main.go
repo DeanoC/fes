@@ -37,10 +37,23 @@ type bridgeStarterFactory func(fogcast.Config) (host.BridgeStarter, error)
 type captureSourceFactory func(fogcast.MediaConfig) (remotemedia.CaptureSource, error)
 type compositionOption func(*compositionDeps)
 
+type targetCast interface {
+	CastStart(context.Context, string, string, uint64) (host.CastStatus, error)
+	CastStop(context.Context, string, uint64) (host.CastStatus, error)
+	CastStatus(context.Context) (host.CastStatus, error)
+}
+
+const (
+	targetCleanupTimeout = 2 * time.Second
+	targetStatusInterval = 100 * time.Millisecond
+	targetStatusFailures = 3
+)
+
 type compositionDeps struct {
 	newCapture      captureSourceFactory
 	receiverOptions []remotemedia.ManagedReceiverOption
 	senderOptions   []remotemedia.ManagedSenderOption
+	targetCast      targetCast
 }
 
 func withCaptureSourceFactory(factory captureSourceFactory) compositionOption {
@@ -53,6 +66,10 @@ func withManagedReceiverOptions(options ...remotemedia.ManagedReceiverOption) co
 
 func withManagedSenderOptions(options ...remotemedia.ManagedSenderOption) compositionOption {
 	return func(deps *compositionDeps) { deps.senderOptions = options }
+}
+
+func withTargetCast(controller targetCast) compositionOption {
+	return func(deps *compositionDeps) { deps.targetCast = controller }
 }
 
 func defaultCaptureSource(config fogcast.MediaConfig) (remotemedia.CaptureSource, error) {
@@ -73,6 +90,17 @@ func defaultBridgeStarter(config fogcast.Config) (host.BridgeStarter, error) {
 	return host.NewHTTPBridgeStarter(host.HTTPBridgeStarterConfig{BaseURL: baseURL, Token: config.Token})
 }
 
+func newTargetCast(config fogcast.Config) (targetCast, error) {
+	if strings.TrimSpace(config.BaseURL) == "" {
+		return nil, nil
+	}
+	baseURL, err := url.Parse(config.BaseURL)
+	if err != nil {
+		return nil, err
+	}
+	return host.NewClient(baseURL, config.Token, nil), nil
+}
+
 func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarterFactory, options ...compositionOption) (http.Handler, func() error, error) {
 	if service == nil {
 		return nil, nil, errors.New("fogcast-api: composition dependency is unavailable")
@@ -86,31 +114,40 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 	var serverOptions []hostapi.ServerOption
 	var cleanup []func() error
 	if config.Media.Enabled {
+		var err error
 		if deps.newCapture == nil {
 			return nil, nil, errors.New("fogcast-api: media capture source is unavailable")
 		}
-		source, err := deps.newCapture(config.Media)
-		if err != nil || source == nil {
-			return nil, nil, errors.New("fogcast-api: media configuration failed")
+		sender := &managedSenderComponent{
+			media:      config.Media,
+			token:      config.Token,
+			newCapture: deps.newCapture,
+			options:    deps.senderOptions,
 		}
-		receiver, err := remotemedia.NewManagedReceiver(remotemedia.ManagedReceiverConfig{
-			Session: config.Media.Session, Generation: config.Media.Generation, Token: config.Token,
-			SSRC: config.Media.SSRC, RTPAddress: config.Media.RTPListen, ControlAddress: config.Media.ControlAddress, Decoder: config.Media.Decoder,
-		}, deps.receiverOptions...)
-		if err != nil {
-			_ = source.Close()
-			return nil, nil, errors.New("fogcast-api: media configuration failed")
+		target := deps.targetCast
+		if target == nil {
+			if castService, ok := service.(targetCast); ok {
+				target = castService
+			} else {
+				target, err = newTargetCast(config)
+			}
+			if err != nil {
+				return nil, nil, errors.New("fogcast-api: target cast configuration failed")
+			}
 		}
-		sender, err := remotemedia.NewManagedSender(remotemedia.ManagedSenderConfig{
-			Session: config.Media.Session, Generation: config.Media.Generation, Token: config.Token,
-			SSRC: config.Media.SSRC, RTPAddress: config.Media.RTPDestination, ControlAddress: config.Media.ControlAddress,
-			Bitrate: config.Media.Bitrate, GOP: config.Media.GOP, MTU: config.Media.MTU,
-		}, source, deps.senderOptions...)
-		if err != nil {
-			_ = source.Close()
-			return nil, nil, errors.New("fogcast-api: media configuration failed")
+		var receiver mediasession.Component
+		if target != nil {
+			receiver = noopMediaComponent{}
+		} else {
+			receiver, err = remotemedia.NewManagedReceiver(remotemedia.ManagedReceiverConfig{
+				Session: config.Media.Session, Generation: config.Media.Generation, Token: config.Token,
+				SSRC: config.Media.SSRC, RTPAddress: config.Media.RTPListen, ControlAddress: config.Media.ControlAddress, Decoder: config.Media.Decoder,
+			}, deps.receiverOptions...)
+			if err != nil {
+				return nil, nil, errors.New("fogcast-api: media configuration failed")
+			}
 		}
-		mediaOwner := newCompositionMediaSession(hostapi.NewMediaSessionAdapter(mediasession.New(sender, receiver)))
+		mediaOwner := newCompositionMediaSession(hostapi.NewMediaSessionAdapter(mediasession.New(sender, receiver)), target, config.Media.Session, config.Token, config.Media.Generation)
 		cleanup = append(cleanup, mediaOwner.Close)
 		serverOptions = append(serverOptions, hostapi.WithMediaSession(mediaOwner))
 	}
@@ -133,63 +170,316 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 	}
 	serverOptions = append(serverOptions, hostapi.WithRemoteInput(remoteInput))
 	return hostapi.New(service, serverOptions...), func() error {
-		if err := remoteInput.Close(); err != nil {
-			return err
-		}
-		return closeComposition(cleanup)
+		return closeAPIComposition(remoteInput.Close, cleanup)
 	}, nil
 }
 
-type compositionMediaSession struct {
-	mu     sync.Mutex
-	media  hostapi.MediaSession
-	handle hostapi.MediaHandle
+type managedSenderComponent struct {
+	media      fogcast.MediaConfig
+	token      string
+	newCapture captureSourceFactory
+	options    []remotemedia.ManagedSenderOption
 }
 
-func newCompositionMediaSession(media hostapi.MediaSession) *compositionMediaSession {
-	return &compositionMediaSession{media: media}
+func (s *managedSenderComponent) Start(ctx context.Context, gameID string) (mediasession.ComponentHandle, error) {
+	source, err := s.newCapture(s.media)
+	if err != nil || source == nil {
+		if source != nil {
+			return cleanupUnownedCapture(source, "media capture could not be started")
+		}
+		return nil, errors.New("media capture could not be started")
+	}
+	sender, err := remotemedia.NewManagedSender(remotemedia.ManagedSenderConfig{
+		Session: s.media.Session, Generation: s.media.Generation, Token: s.token,
+		SSRC: s.media.SSRC, RTPAddress: s.media.RTPDestination, ControlAddress: s.media.ControlAddress,
+		Bitrate: s.media.Bitrate, GOP: s.media.GOP, MTU: s.media.MTU,
+	}, source, s.options...)
+	if err != nil {
+		return cleanupUnownedCapture(source, "media sender could not be configured")
+	}
+	handle, err := sender.Start(ctx, gameID)
+	if err != nil || handle == nil {
+		if handle == nil {
+			return cleanupUnownedCapture(source, "media sender could not be started")
+		}
+		return handle, errors.New("media sender could not be started")
+	}
+	return handle, nil
+}
+
+type captureCleanupHandle struct {
+	mu     sync.Mutex
+	source remotemedia.CaptureSource
+	closed bool
+}
+
+func (h *captureCleanupHandle) Stop(context.Context) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.closed {
+		return nil
+	}
+	if err := h.source.Close(); err != nil {
+		return errors.New("media capture could not be stopped")
+	}
+	h.closed = true
+	return nil
+}
+
+func cleanupUnownedCapture(source remotemedia.CaptureSource, message string) (mediasession.ComponentHandle, error) {
+	handle := &captureCleanupHandle{source: source}
+	if err := handle.Stop(context.Background()); err != nil {
+		return handle, errors.New(message)
+	}
+	return nil, errors.New(message)
+}
+
+type noopMediaComponent struct{}
+
+func (noopMediaComponent) Start(context.Context, string) (mediasession.ComponentHandle, error) {
+	return noopMediaHandle{}, nil
+}
+
+type noopMediaHandle struct{}
+
+func (noopMediaHandle) Stop(context.Context) error { return nil }
+
+type compositionMediaSession struct {
+	mu           sync.Mutex
+	media        hostapi.MediaSession
+	target       targetCast
+	session      string
+	token        string
+	generation   uint64
+	targetActive bool
+	handle       hostapi.MediaHandle
+}
+
+func newCompositionMediaSession(media hostapi.MediaSession, target targetCast, session, token string, generation uint64) *compositionMediaSession {
+	return &compositionMediaSession{media: media, target: target, session: session, token: token, generation: generation}
 }
 
 func (s *compositionMediaSession) Start(ctx context.Context, gameID string) (hostapi.MediaHandle, error) {
+	if s.target != nil {
+		status, err := s.target.CastStart(ctx, s.session, s.token, s.generation)
+		if err != nil || status.State != "active" || status.Session != s.session || status.Generation != s.generation {
+			s.mu.Lock()
+			s.targetActive = true
+			s.mu.Unlock()
+			cleanupCtx, cancel := boundedTargetContext(context.Background())
+			_, cleanupErr := s.target.CastStop(cleanupCtx, s.session, s.generation)
+			cancel()
+			if cleanupErr == nil {
+				s.mu.Lock()
+				s.targetActive = false
+				s.mu.Unlock()
+				return nil, errors.New("target cast could not be started")
+			}
+			_, monitorCancel := context.WithCancel(context.Background())
+			owned := &compositionMediaHandle{
+				owner: s, localStopped: true, done: make(chan struct{}), monitorCancel: monitorCancel,
+			}
+			s.mu.Lock()
+			s.handle = owned
+			s.mu.Unlock()
+			return owned, errors.New("target cast could not be started")
+		}
+		s.mu.Lock()
+		s.targetActive = true
+		s.mu.Unlock()
+	}
 	handle, err := s.media.Start(ctx, gameID)
 	if err != nil || handle == nil {
-		return handle, err
+		targetStopped := s.target == nil
+		var targetErr error
+		if s.target != nil {
+			cleanupCtx, cancel := boundedTargetContext(context.Background())
+			_, targetErr = s.target.CastStop(cleanupCtx, s.session, s.generation)
+			cancel()
+			if targetErr == nil {
+				targetStopped = true
+				s.mu.Lock()
+				s.targetActive = false
+				s.mu.Unlock()
+			}
+		}
+		if err == nil {
+			err = errors.New("media sender could not be started")
+		}
+		if handle == nil && targetErr != nil {
+			err = errors.Join(err, targetErr)
+		}
+		if handle != nil || !targetStopped {
+			_, monitorCancel := context.WithCancel(context.Background())
+			owned := &compositionMediaHandle{
+				owner: s, handle: handle, localStopped: handle == nil,
+				targetStopped: targetStopped, done: make(chan struct{}), monitorCancel: monitorCancel,
+			}
+			s.mu.Lock()
+			s.handle = owned
+			s.mu.Unlock()
+			return owned, err
+		}
+		return nil, err
 	}
-	owned := &compositionMediaHandle{owner: s, handle: handle}
+	monitorCtx, monitorCancel := context.WithCancel(context.Background())
+	owned := &compositionMediaHandle{
+		owner: s, handle: handle, done: make(chan struct{}), monitorCancel: monitorCancel,
+		targetStopped: s.target == nil,
+	}
 	s.mu.Lock()
 	s.handle = owned
 	s.mu.Unlock()
+	go owned.monitor(monitorCtx)
 	return owned, nil
 }
 
 func (s *compositionMediaSession) Close() error {
 	s.mu.Lock()
 	handle := s.handle
-	s.handle = nil
+	targetActive := s.targetActive
 	s.mu.Unlock()
-	if handle == nil {
-		return nil
+	var first error
+	if handle != nil {
+		if err := handle.Stop(context.Background()); err != nil {
+			first = err
+			_ = handle.Stop(context.Background())
+		}
+	} else if targetActive && s.target != nil {
+		cleanupCtx, cancel := boundedTargetContext(context.Background())
+		_, err := s.target.CastStop(cleanupCtx, s.session, s.generation)
+		cancel()
+		if err != nil {
+			first = err
+			retryCtx, retryCancel := boundedTargetContext(context.Background())
+			_, _ = s.target.CastStop(retryCtx, s.session, s.generation)
+			retryCancel()
+		} else {
+			s.mu.Lock()
+			s.targetActive = false
+			s.mu.Unlock()
+		}
 	}
-	return handle.Stop(context.Background())
+	return first
 }
 
 type compositionMediaHandle struct {
-	owner  *compositionMediaSession
-	handle hostapi.MediaHandle
-	once   sync.Once
+	owner         *compositionMediaSession
+	handle        hostapi.MediaHandle
+	mu            sync.Mutex
+	localStopped  bool
+	targetStopped bool
+	done          chan struct{}
+	doneOnce      sync.Once
+	monitorCancel context.CancelFunc
 }
 
 func (h *compositionMediaHandle) Stop(ctx context.Context) error {
-	var err error
-	h.once.Do(func() {
-		err = h.handle.Stop(ctx)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	var first error
+	if !h.localStopped {
+		localCtx, cancel := boundedTargetContext(ctx)
+		err := h.handle.Stop(localCtx)
+		cancel()
+		if err != nil {
+			first = err
+		} else {
+			h.localStopped = true
+		}
+	}
+	h.owner.mu.Lock()
+	targetActive := h.owner.targetActive
+	target := h.owner.target
+	h.owner.mu.Unlock()
+	if !h.targetStopped && targetActive && target != nil {
+		targetCtx, cancel := boundedTargetContext(context.Background())
+		_, err := target.CastStop(targetCtx, h.owner.session, h.owner.generation)
+		cancel()
+		if err != nil {
+			if first == nil {
+				first = err
+			}
+		} else {
+			h.targetStopped = true
+			h.owner.mu.Lock()
+			h.owner.targetActive = false
+			h.owner.mu.Unlock()
+		}
+	}
+	if !targetActive || target == nil {
+		h.targetStopped = true
+	}
+	if h.localStopped && h.targetStopped {
+		h.monitorCancel()
+		h.doneOnce.Do(func() { close(h.done) })
 		h.owner.mu.Lock()
 		if h.owner.handle == h {
 			h.owner.handle = nil
 		}
 		h.owner.mu.Unlock()
-	})
-	return err
+	}
+	return first
+}
+
+func (h *compositionMediaHandle) Done() <-chan struct{} {
+	return h.done
+}
+
+func (h *compositionMediaHandle) monitor(ctx context.Context) {
+	var localDone <-chan struct{}
+	if terminal, ok := h.handle.(interface{ Done() <-chan struct{} }); ok {
+		localDone = terminal.Done()
+	}
+	ticker := time.NewTicker(targetStatusInterval)
+	defer ticker.Stop()
+	consecutiveFailures := 0
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-localDone:
+			h.doneOnce.Do(func() { close(h.done) })
+			return
+		case <-ticker.C:
+			h.owner.mu.Lock()
+			targetActive := h.owner.targetActive
+			target := h.owner.target
+			h.owner.mu.Unlock()
+			if !targetActive || target == nil {
+				continue
+			}
+			statusCtx, cancel := boundedTargetContext(ctx)
+			status, err := target.CastStatus(statusCtx)
+			cancel()
+			if err != nil {
+				consecutiveFailures++
+				if consecutiveFailures >= targetStatusFailures {
+					h.doneOnce.Do(func() { close(h.done) })
+					return
+				}
+				continue
+			}
+			consecutiveFailures = 0
+			if status.State != "active" || status.Session != h.owner.session || status.Generation != h.owner.generation {
+				h.mu.Lock()
+				h.targetStopped = true
+				h.owner.mu.Lock()
+				h.owner.targetActive = false
+				h.owner.mu.Unlock()
+				h.mu.Unlock()
+				h.doneOnce.Do(func() { close(h.done) })
+				return
+			}
+		}
+	}
+}
+
+func boundedTargetContext(parent context.Context) (context.Context, context.CancelFunc) {
+	if parent == nil {
+		parent = context.Background()
+	}
+	return context.WithTimeout(parent, targetCleanupTimeout)
 }
 
 func closeComposition(cleanup []func() error) error {
@@ -198,6 +488,17 @@ func closeComposition(cleanup []func() error) error {
 		if err := cleanup[i](); err != nil && first == nil {
 			first = err
 		}
+	}
+	return first
+}
+
+func closeAPIComposition(closeRemoteInput func() error, cleanup []func() error) error {
+	var first error
+	if err := closeRemoteInput(); err != nil {
+		first = err
+	}
+	if err := closeComposition(cleanup); err != nil && first == nil {
+		first = err
 	}
 	return first
 }
@@ -211,7 +512,40 @@ func main() {
 	os.Exit(run(ctx, os.Args[1:], os.Stdout, os.Stderr, open))
 }
 
-func run(ctx context.Context, args []string, stdout, stderr io.Writer, open openService) int {
+type runCloser struct {
+	label string
+	close func() error
+}
+
+func finishRun(code int, stderr io.Writer, closers ...runCloser) int {
+	for i := len(closers) - 1; i >= 0; i-- {
+		if closers[i].close != nil && closers[i].close() != nil {
+			fmt.Fprintf(stderr, "fogcast-api: %s failed\n", closers[i].label)
+			code = 1
+		}
+	}
+	return code
+}
+
+func stopServiceForShutdown(service service) error {
+	var first error
+	for attempt := 0; attempt < 2; attempt++ {
+		stopCtx, cancel := context.WithTimeout(context.Background(), targetCleanupTimeout)
+		_, err := service.Stop(stopCtx)
+		cancel()
+		if err == nil {
+			return first
+		}
+		if first == nil {
+			first = err
+		}
+	}
+	return first
+}
+
+func run(ctx context.Context, args []string, stdout, stderr io.Writer, open openService) (exitCode int) {
+	var closers []runCloser
+	defer func() { exitCode = finishRun(exitCode, stderr, closers...) }()
 	flags := flag.NewFlagSet("fogcast-api", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	listen := flags.String("listen", "127.0.0.1:8787", "loopback HTTP listen address")
@@ -246,13 +580,16 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, open open
 		fmt.Fprintln(stderr, "fogcast-api: service load failed")
 		return 1
 	}
-	defer fogcastService.Close()
+	closers = append(closers, runCloser{label: "service cleanup", close: fogcastService.Close})
 	handler, closeRemoteInput, err := composeAPI(fogcastService, config, defaultBridgeStarter)
 	if err != nil {
 		fmt.Fprintln(stderr, "fogcast-api: remote input configuration failed")
 		return 1
 	}
-	defer closeRemoteInput()
+	closers = append(closers,
+		runCloser{label: "session cleanup", close: func() error { return stopServiceForShutdown(fogcastService) }},
+		runCloser{label: "API cleanup", close: closeRemoteInput},
+	)
 
 	listener, err := net.Listen("tcp", address)
 	if err != nil {

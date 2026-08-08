@@ -14,6 +14,7 @@ import (
 
 	"github.com/DeanoC/FogCast-POC/internal/agent"
 	"github.com/DeanoC/FogCast-POC/internal/agentconfig"
+	"github.com/DeanoC/FogCast-POC/internal/cast"
 	"github.com/DeanoC/FogCast-POC/internal/core"
 	"github.com/DeanoC/FogCast-POC/internal/httpapi"
 	"github.com/DeanoC/FogCast-POC/internal/input"
@@ -25,12 +26,16 @@ import (
 const (
 	targetCacheRoot         = "/media/fat/fogcast/cache"
 	targetCacheActiveRecord = "/run/fogcast-active.json"
+	castShutdownTimeout     = 2 * time.Second
 )
+
+var errCastShutdown = errors.New("cast controller could not be stopped")
 
 type runDependencies struct {
 	openCache  func(targetcache.Config, core.Registry, ...targetcache.Option) (agent.ContentStore, error)
 	newRuntime func(agentconfig.Config, core.Registry) agent.Runtime
 	newInput   func(agentconfig.Config) httpapi.InputController
+	newCast    func(agentconfig.Config) (httpapi.CastController, error)
 	serve      func(*http.Server) error
 }
 
@@ -56,11 +61,20 @@ func productionRunDependencies() runDependencies {
 		newInput: func(cfg agentconfig.Config) httpapi.InputController {
 			return input.NewTargetControllerWithConfig(cfg.InputListenAddress, cfg.InputUInputPath)
 		},
+		newCast: func(cfg agentconfig.Config) (httpapi.CastController, error) {
+			return cast.New(cast.Config{
+				Binary: cfg.CastBinary, RTPAddress: cfg.CastRTPAddress, Control: cfg.CastControlAddress,
+				Framebuffer: cfg.CastFramebuffer, NativeCmd: cfg.CastNativeCmd, NativeMode: cfg.CastNativeMode,
+				TokenFile:   cfg.CastTokenFile,
+				Generation:  cfg.CastGeneration,
+				StopTimeout: 2 * time.Second,
+			}, nil)
+		},
 		serve: func(server *http.Server) error { return server.ListenAndServe() },
 	}
 }
 
-func runWithDependencies(ctx context.Context, configPath string, logger *slog.Logger, dependencies runDependencies) error {
+func runWithDependencies(ctx context.Context, configPath string, logger *slog.Logger, dependencies runDependencies) (resultErr error) {
 	cfg, err := agentconfig.Load(configPath)
 	if err != nil {
 		return errors.New("target configuration could not be loaded")
@@ -81,6 +95,33 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	coordinator.Initialize(startup)
 	cancel()
 	options := []httpapi.Option{httpapi.WithContent(content)}
+	if cfg.CastBinary != "" {
+		if dependencies.newCast == nil {
+			return errors.New("cast controller could not be configured")
+		}
+		castController, castErr := dependencies.newCast(cfg)
+		if castErr != nil {
+			return errors.New("cast controller could not be configured")
+		}
+		options = append(options, httpapi.WithCast(castController))
+		defer func() {
+			status := castController.Status(context.Background())
+			if status.State != cast.Active {
+				return
+			}
+			shutdown, cancel := context.WithTimeout(context.Background(), castShutdownTimeout)
+			stopErr := castController.Stop(shutdown, status.Session, status.Generation)
+			cancel()
+			if stopErr == nil {
+				return
+			}
+
+			retry, retryCancel := context.WithTimeout(context.Background(), castShutdownTimeout)
+			_ = castController.Stop(retry, status.Session, status.Generation)
+			retryCancel()
+			resultErr = errCastShutdown
+		}()
+	}
 	var inputController httpapi.InputController
 	if dependencies.newInput != nil {
 		inputController = dependencies.newInput(cfg)

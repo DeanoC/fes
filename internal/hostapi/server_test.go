@@ -6,7 +6,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,25 +20,30 @@ import (
 )
 
 type fakeService struct {
-	games        []catalog.Game
-	search       []catalog.Game
-	query        string
-	game         catalog.Game
-	gamesErr     error
-	gameErr      error
-	health       protocol.Health
-	healthErr    error
-	status       protocol.Status
-	statusErr    error
-	launch       protocol.CachedLaunchResponse
-	launchErr    error
-	launchHook   func(context.Context)
-	stopped      protocol.Status
-	stopErr      error
-	progress     []string
-	execution    string
-	executionErr error
-	order        *[]string
+	games         []catalog.Game
+	search        []catalog.Game
+	query         string
+	game          catalog.Game
+	gamesErr      error
+	gameErr       error
+	health        protocol.Health
+	healthErr     error
+	status        protocol.Status
+	statusErr     error
+	statusStarted chan struct{}
+	statusRelease chan struct{}
+	statusOnce    sync.Once
+	launch        protocol.CachedLaunchResponse
+	launchErr     error
+	launchHook    func(context.Context)
+	stopped       protocol.Status
+	stopErr       error
+	stopResults   []error
+	stopCalled    chan struct{}
+	progress      []string
+	execution     string
+	executionErr  error
+	order         *[]string
 }
 
 func (s *fakeService) Games(context.Context) ([]catalog.Game, error) {
@@ -51,7 +58,19 @@ func (s *fakeService) SessionExecution(context.Context, string) (string, error) 
 }
 func (s *fakeService) Game(context.Context, string) (catalog.Game, error) { return s.game, s.gameErr }
 func (s *fakeService) Health(context.Context) (protocol.Health, error)    { return s.health, s.healthErr }
-func (s *fakeService) Status(context.Context) (protocol.Status, error)    { return s.status, s.statusErr }
+func (s *fakeService) Status(ctx context.Context) (protocol.Status, error) {
+	if s.statusStarted != nil {
+		s.statusOnce.Do(func() { close(s.statusStarted) })
+	}
+	if s.statusRelease != nil {
+		select {
+		case <-s.statusRelease:
+		case <-ctx.Done():
+			return protocol.Status{}, ctx.Err()
+		}
+	}
+	return s.status, s.statusErr
+}
 func (s *fakeService) Launch(ctx context.Context, _ string, progress fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error) {
 	if s.launchHook != nil {
 		s.launchHook(ctx)
@@ -64,6 +83,18 @@ func (s *fakeService) Launch(ctx context.Context, _ string, progress fogcast.Pro
 func (s *fakeService) Stop(context.Context) (protocol.Status, error) {
 	if s.order != nil {
 		*s.order = append(*s.order, "service.stop")
+	}
+	if s.stopCalled != nil {
+		select {
+		case <-s.stopCalled:
+		default:
+			close(s.stopCalled)
+		}
+	}
+	if len(s.stopResults) > 0 {
+		err := s.stopResults[0]
+		s.stopResults = s.stopResults[1:]
+		return s.stopped, err
 	}
 	return s.stopped, s.stopErr
 }
@@ -89,19 +120,47 @@ func (r *fakeRemoteInput) Detach(_ context.Context, reason string) error {
 func (r *fakeRemoteInput) Status() host.RemoteInputStatus { return r.status }
 
 type fakeMediaSession struct {
-	start         []string
-	stop          []string
-	order         *[]string
-	err           error
-	stopErr       error
-	nilHandle     bool
-	stopCtx       []context.Context
-	stopErrs      []error
-	stopDeadlines []time.Time
-	startCtx      []context.Context
+	start          []string
+	stop           []string
+	order          *[]string
+	err            error
+	partialOnError bool
+	stopErr        error
+	stopResults    []error
+	nilHandle      bool
+	stopCtx        []context.Context
+	stopErrs       []error
+	stopDeadlines  []time.Time
+	startCtx       []context.Context
+	done           chan struct{}
 }
 
 type fakeMediaHandle struct{ owner *fakeMediaSession }
+
+type generationMediaSession struct {
+	mu      sync.Mutex
+	handles []*generationMediaHandle
+}
+
+type generationMediaHandle struct {
+	mu    sync.Mutex
+	stops int
+}
+
+func (m *generationMediaSession) Start(context.Context, string) (hostapi.MediaHandle, error) {
+	handle := &generationMediaHandle{}
+	m.mu.Lock()
+	m.handles = append(m.handles, handle)
+	m.mu.Unlock()
+	return handle, nil
+}
+
+func (h *generationMediaHandle) Stop(context.Context) error {
+	h.mu.Lock()
+	h.stops++
+	h.mu.Unlock()
+	return nil
+}
 
 func (m *fakeMediaSession) Start(ctx context.Context, gameID string) (hostapi.MediaHandle, error) {
 	m.start = append(m.start, gameID)
@@ -110,7 +169,10 @@ func (m *fakeMediaSession) Start(ctx context.Context, gameID string) (hostapi.Me
 		*m.order = append(*m.order, "start:"+gameID)
 	}
 	if m.err != nil {
-		return nil, m.err
+		if !m.partialOnError {
+			return nil, m.err
+		}
+		return &fakeMediaHandle{owner: m}, m.err
 	}
 	if m.nilHandle {
 		return nil, nil
@@ -127,8 +189,15 @@ func (h *fakeMediaHandle) Stop(ctx context.Context) error {
 	if h.owner.order != nil {
 		*h.owner.order = append(*h.owner.order, "stop")
 	}
+	if len(h.owner.stopResults) > 0 {
+		err := h.owner.stopResults[0]
+		h.owner.stopResults = h.owner.stopResults[1:]
+		return err
+	}
 	return h.owner.stopErr
 }
+
+func (h *fakeMediaHandle) Done() <-chan struct{} { return h.owner.done }
 
 func TestGamesReturnsStablePublicCatalogWithoutPrivatePathsOrDigests(t *testing.T) {
 	service := &fakeService{games: []catalog.Game{{
@@ -284,7 +353,8 @@ func TestHostOnlySessionOwnsMediaLifecycleAndPublishesSafeEvents(t *testing.T) {
 		stopped:   protocol.Status{State: protocol.StateIdle},
 	}
 	media := &fakeMediaSession{}
-	handler := hostapi.New(service, hostapi.WithMediaSession(media))
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
+	handler := hostapi.New(service, hostapi.WithMediaSession(media), hostapi.WithRemoteInput(input))
 
 	launch := httptest.NewRequest(http.MethodPost, "/api/v1/session/launch", strings.NewReader(`{"game_id":"host-game"}`))
 	launch.Host = "127.0.0.1"
@@ -295,6 +365,9 @@ func TestHostOnlySessionOwnsMediaLifecycleAndPublishesSafeEvents(t *testing.T) {
 	}
 	if !strings.Contains(launchResponse.Body.String(), `"execution":"host_only"`) || !strings.Contains(launchResponse.Body.String(), `"media":"active"`) {
 		t.Fatalf("launch omitted public media state: %s", launchResponse.Body.String())
+	}
+	if len(input.attach) != 0 {
+		t.Fatalf("host-only launch attached target remote input: %#v", input.attach)
 	}
 
 	stop := httptest.NewRequest(http.MethodPost, "/api/v1/session/stop", nil)
@@ -334,6 +407,30 @@ func TestHostOnlyStopTearsDownMediaBeforeSessionService(t *testing.T) {
 
 	if got, want := strings.Join(order, ","), "start:host-game,stop,service.stop"; got != want {
 		t.Fatalf("stop order = %q, want %q", got, want)
+	}
+}
+
+func TestHostOnlyStatusReapsUnexpectedMediaExit(t *testing.T) {
+	gameID := "host-game"
+	order := []string{}
+	service := &fakeService{
+		execution: "host_only",
+		launch:    protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID}},
+		stopped:   protocol.Status{State: protocol.StateIdle},
+		order:     &order,
+	}
+	done := make(chan struct{})
+	media := &fakeMediaSession{order: &order, done: done}
+	handler := hostapi.New(service, hostapi.WithMediaSession(media))
+	launchSession(t, handler, gameID)
+	close(done)
+
+	status := serve(t, handler, http.MethodGet, "/api/v1/session")
+	if status.Code != http.StatusOK || !strings.Contains(status.Body.String(), `"state":"idle"`) || !strings.Contains(status.Body.String(), `"media":"stopped"`) {
+		t.Fatalf("status after media exit = %d %s", status.Code, status.Body.String())
+	}
+	if got, want := strings.Join(order, ","), "start:host-game,stop,service.stop"; got != want {
+		t.Fatalf("reap order = %q, want %q", got, want)
 	}
 }
 
@@ -444,6 +541,29 @@ func TestUnexpectedHostExitStopsMediaAndRecordsSanitizedSessionExit(t *testing.T
 	}
 }
 
+func TestMediaTerminationAutonomouslyStopsHostSessionWithoutStatusRequest(t *testing.T) {
+	gameID := "host-game"
+	stopCalled := make(chan struct{})
+	service := &fakeService{
+		execution:  "host_only",
+		launch:     protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID}},
+		stopped:    protocol.Status{State: protocol.StateIdle},
+		stopCalled: stopCalled,
+	}
+	media := &fakeMediaSession{done: make(chan struct{})}
+	handler := hostapi.New(service, hostapi.WithMediaSession(media))
+	launchSession(t, handler, gameID)
+	close(media.done)
+	select {
+	case <-stopCalled:
+	case <-time.After(time.Second):
+		t.Fatal("media termination did not autonomously stop the host session")
+	}
+	if len(media.stop) != 1 {
+		t.Fatalf("media stops = %#v, want one autonomous teardown", media.stop)
+	}
+}
+
 func TestNilMediaHandleDoesNotPanicOrClaimActive(t *testing.T) {
 	service := &fakeService{execution: "host_only", launch: protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive}}}
 	media := &fakeMediaSession{nilHandle: true}
@@ -455,7 +575,8 @@ func TestNilMediaHandleDoesNotPanicOrClaimActive(t *testing.T) {
 }
 
 func TestMediaStopFailureDoesNotClaimStopped(t *testing.T) {
-	service := &fakeService{execution: "host_only", launch: protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive}}}
+	order := []string{}
+	service := &fakeService{execution: "host_only", launch: protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive}}, order: &order}
 	media := &fakeMediaSession{stopErr: errors.New("stop failed")}
 	handler := hostapi.New(service, hostapi.WithMediaSession(media))
 	launchSession(t, handler, "host-game")
@@ -466,6 +587,210 @@ func TestMediaStopFailureDoesNotClaimStopped(t *testing.T) {
 	status := serve(t, handler, http.MethodGet, "/api/v1/session")
 	if !strings.Contains(status.Body.String(), `"media":"active"`) {
 		t.Fatalf("status lost active media after failed stop: %s", status.Body.String())
+	}
+	if !slices.Contains(order, "service.stop") {
+		t.Fatalf("media failure short-circuited host stop: %#v", order)
+	}
+}
+
+func TestTransientMediaStopFailureRetriesBeforeReturning(t *testing.T) {
+	order := []string{}
+	service := &fakeService{
+		execution: "host_only",
+		launch:    protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive}},
+		stopped:   protocol.Status{State: protocol.StateIdle},
+		order:     &order,
+	}
+	media := &fakeMediaSession{stopResults: []error{errors.New("transient media stop failure"), nil}, order: &order}
+	handler := hostapi.New(service, hostapi.WithMediaSession(media))
+	launchSession(t, handler, "host-game")
+	response := serve(t, handler, http.MethodPost, "/api/v1/session/stop")
+	if response.Code == http.StatusOK {
+		t.Fatalf("stop hid first cleanup failure: %s", response.Body.String())
+	}
+	if len(media.stop) != 2 {
+		t.Fatalf("media stop attempts = %d, want failed attempt plus retry", len(media.stop))
+	}
+	if !slices.Contains(order, "service.stop") {
+		t.Fatalf("media retry prevented independent service stop: %#v", order)
+	}
+}
+
+func TestStatusObservedMediaExitRetriesHostServiceStop(t *testing.T) {
+	order := []string{}
+	service := &fakeService{
+		execution:   "host_only",
+		status:      protocol.Status{State: protocol.StateActive},
+		launch:      protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive}},
+		stopped:     protocol.Status{State: protocol.StateIdle},
+		stopResults: []error{errors.New("transient host stop failure"), nil},
+		order:       &order,
+	}
+	media := &fakeMediaSession{}
+	handler := hostapi.New(service, hostapi.WithMediaSession(media))
+	launchSession(t, handler, "host-game")
+	media.done = make(chan struct{})
+	close(media.done)
+	response := serve(t, handler, http.MethodGet, "/api/v1/session")
+	if response.Code == http.StatusOK {
+		t.Fatalf("status hid first host-stop failure: %s", response.Body.String())
+	}
+	serviceStops := 0
+	for _, entry := range order {
+		if entry == "service.stop" {
+			serviceStops++
+		}
+	}
+	if serviceStops != 2 {
+		t.Fatalf("service stop attempts = %d, want failed attempt plus retry; order=%#v", serviceStops, order)
+	}
+}
+
+func TestExplicitStopRetriesServiceButPreservesFirstFailure(t *testing.T) {
+	service := &fakeService{
+		execution:   "host_only",
+		launch:      protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive}},
+		stopped:     protocol.Status{State: protocol.StateIdle},
+		stopResults: []error{errors.New("transient host stop failure"), nil},
+	}
+	media := &fakeMediaSession{}
+	handler := hostapi.New(service, hostapi.WithMediaSession(media))
+	launchSession(t, handler, "host-game")
+	response := serve(t, handler, http.MethodPost, "/api/v1/session/stop")
+	if response.Code == http.StatusOK {
+		t.Fatalf("explicit stop hid first host-stop failure: %s", response.Body.String())
+	}
+	if len(service.stopResults) != 0 {
+		t.Fatalf("service retry did not consume both results: %#v", service.stopResults)
+	}
+}
+
+func TestBlockedStatusCannotApplyStaleIdleToReplacementMedia(t *testing.T) {
+	statusStarted := make(chan struct{})
+	statusRelease := make(chan struct{})
+	service := &fakeService{
+		execution:     "host_only",
+		status:        protocol.Status{State: protocol.StateIdle},
+		statusStarted: statusStarted,
+		statusRelease: statusRelease,
+		launch:        protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive}},
+		stopped:       protocol.Status{State: protocol.StateIdle},
+	}
+	media := &generationMediaSession{}
+	handler := hostapi.New(service, hostapi.WithMediaSession(media))
+	launchSession(t, handler, "first")
+
+	statusDone := make(chan struct{})
+	go func() {
+		defer close(statusDone)
+		_ = serve(t, handler, http.MethodGet, "/api/v1/session")
+	}()
+	select {
+	case <-statusStarted:
+	case <-time.After(time.Second):
+		t.Fatal("status did not reach blocked service observation")
+	}
+
+	launchEntered := make(chan struct{})
+	var launchEnteredOnce sync.Once
+	service.launchHook = func(context.Context) { launchEnteredOnce.Do(func() { close(launchEntered) }) }
+	launchDone := make(chan struct{})
+	go func() {
+		defer close(launchDone)
+		launchSession(t, handler, "replacement")
+	}()
+	select {
+	case <-launchEntered:
+		t.Fatal("replacement launch entered service while stale status was still in flight")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(statusRelease)
+	select {
+	case <-statusDone:
+	case <-time.After(time.Second):
+		t.Fatal("status did not complete")
+	}
+	select {
+	case <-launchDone:
+	case <-time.After(time.Second):
+		t.Fatal("replacement launch did not complete")
+	}
+
+	media.mu.Lock()
+	handles := append([]*generationMediaHandle(nil), media.handles...)
+	media.mu.Unlock()
+	if len(handles) != 2 {
+		t.Fatalf("media generations = %d, want 2", len(handles))
+	}
+	handles[0].mu.Lock()
+	firstStops := handles[0].stops
+	handles[0].mu.Unlock()
+	handles[1].mu.Lock()
+	replacementStops := handles[1].stops
+	handles[1].mu.Unlock()
+	if firstStops != 1 || replacementStops != 0 {
+		t.Fatalf("media stops = first %d replacement %d, want 1 and 0", firstStops, replacementStops)
+	}
+}
+
+func TestAutonomousMediaCleanupFailureStillStopsHostService(t *testing.T) {
+	stopCalled := make(chan struct{})
+	service := &fakeService{
+		execution:  "host_only",
+		launch:     protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive}},
+		stopCalled: stopCalled,
+	}
+	media := &fakeMediaSession{stopErr: errors.New("media cleanup failed"), done: make(chan struct{})}
+	handler := hostapi.New(service, hostapi.WithMediaSession(media))
+	launchSession(t, handler, "host-game")
+	close(media.done)
+	select {
+	case <-stopCalled:
+	case <-time.After(time.Second):
+		t.Fatal("media cleanup failure prevented autonomous host stop")
+	}
+}
+
+func TestAutonomousServiceRetryPreservesFirstFailureEvent(t *testing.T) {
+	service := &fakeService{
+		execution:   "host_only",
+		launch:      protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive}},
+		stopped:     protocol.Status{State: protocol.StateIdle},
+		stopResults: []error{errors.New("transient host stop failure"), nil},
+	}
+	media := &fakeMediaSession{done: make(chan struct{})}
+	handler := hostapi.New(service, hostapi.WithMediaSession(media))
+	launchSession(t, handler, "host-game")
+	close(media.done)
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		events := serve(t, handler, http.MethodGet, "/api/v1/session/events")
+		if strings.Contains(events.Body.String(), `"event":"session.media.exit_failed"`) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("autonomous retry hid the first host-stop failure event")
+}
+
+func TestFailedMediaStartRetainsPartialHandleForNormalSessionStop(t *testing.T) {
+	service := &fakeService{
+		execution: "host_only",
+		stopped:   protocol.Status{State: protocol.StateIdle},
+	}
+	media := &fakeMediaSession{err: errors.New("partial start failed"), partialOnError: true}
+	handler := hostapi.New(service, hostapi.WithMediaSession(media))
+	launch := launchSession(t, handler, "host-game")
+	if launch.Code == http.StatusOK {
+		t.Fatalf("partial start unexpectedly succeeded: %s", launch.Body.String())
+	}
+	stop := serve(t, handler, http.MethodPost, "/api/v1/session/stop")
+	if stop.Code != http.StatusOK || !strings.Contains(stop.Body.String(), `"media":"stopped"`) {
+		t.Fatalf("normal stop did not reap partial media: %d %s", stop.Code, stop.Body.String())
+	}
+	if len(media.stop) != 1 {
+		t.Fatalf("partial media stop count = %d, want 1", len(media.stop))
 	}
 }
 

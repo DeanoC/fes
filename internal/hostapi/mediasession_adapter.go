@@ -18,10 +18,10 @@ type mediaSessionAdapter struct {
 
 func (a mediaSessionAdapter) Start(ctx context.Context, gameID string) (MediaHandle, error) {
 	handle, err := a.session.Start(ctx, gameID)
-	if err != nil {
+	if handle == nil {
 		return nil, err
 	}
-	return mediaHandleAdapter{handle: handle}, nil
+	return mediaHandleAdapter{handle: handle}, err
 }
 
 type mediaHandleAdapter struct {
@@ -30,6 +30,13 @@ type mediaHandleAdapter struct {
 
 func (h mediaHandleAdapter) Stop(ctx context.Context) error {
 	return h.handle.Stop(ctx)
+}
+
+func (h mediaHandleAdapter) Done() <-chan struct{} {
+	if terminal, ok := h.handle.(interface{ Done() <-chan struct{} }); ok {
+		return terminal.Done()
+	}
+	return nil
 }
 
 var _ MediaSession = mediaSessionAdapter{}

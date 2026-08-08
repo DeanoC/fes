@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/DeanoC/FogCast-POC/internal/cast"
 	"github.com/DeanoC/FogCast-POC/internal/core"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
@@ -25,6 +26,7 @@ type ContentController interface {
 type serverOptions struct {
 	content ContentController
 	input   InputController
+	cast    CastController
 }
 
 type Option func(*serverOptions)
@@ -39,6 +41,16 @@ func WithInput(controller InputController) Option {
 	return func(options *serverOptions) {
 		options.input = controller
 	}
+}
+
+type CastController interface {
+	Start(context.Context, string, string, uint64) error
+	Stop(context.Context, string, uint64) error
+	Status(context.Context) cast.Status
+}
+
+func WithCast(controller CastController) Option {
+	return func(options *serverOptions) { options.cast = controller }
 }
 
 func registerContentRoutes(mux *http.ServeMux, token string, controller ContentController) {
