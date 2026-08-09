@@ -71,10 +71,13 @@ review record only after all blockers below are resolved.
 6. **Build utility closure:** hashes/versions for observed utilities are not
    yet tied to immutable image layers or package records. The required
    nproc-shim is absent from the measured run.
-7. **Configuration and policies:** the six required policy files (source-set,
-   compile-link, ELF/dependency, generated-input, intermediate-path, and
-   upstream-fork-delta) do not exist as separately tracked UTF-8 LF artifacts.
-   Their config/policy hashes are therefore intentionally empty in the draft.
+7. **Configuration and policies:** the strict six-policy schema, lock-bound
+   promotion validator, and Git-backed source-set/fork-delta candidate
+   observer now exist and are tested. No six policy files have yet been
+   generated as separately tracked UTF-8 LF artifacts; the four build-derived
+   candidates (compile/link, ELF/dependency, generated-input, and
+   intermediate-path) and all policy hashes therefore remain intentionally
+   unresolved in the draft.
 8. **Licenses:** Main, bundled libraries, the Arm archive, container packages,
    and policy/config materials lack reviewed SPDX expressions, notice
    locators, corresponding-source locators, and redistribution dispositions.
