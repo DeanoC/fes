@@ -42,7 +42,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: build/stage-a0/image-context
-          file: artifacts/stage-a0/first-build/Dockerfile
+          file: build/stage-a0/container/Dockerfile
           push: true
           tags: ghcr.io/deanoc/fogcast-stage-a0-firstbuild:stage-a0-${{ github.sha }}
           provenance: false
