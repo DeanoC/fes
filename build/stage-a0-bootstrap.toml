@@ -1,0 +1,34 @@
+format = 1
+schema = "fogcast.stage-a0-bootstrap"
+fogcast_base_revision = "4f2346d1ec776ed6a81d396af2e003a4d76da2c1"
+
+[main_upstream]
+repository_id = "mister-devel-main-mister"
+fetch_url = "https://github.com/MiSTer-devel/Main_MiSTer.git"
+commit = "7b5c8de5d3fb16f9cccc1f274a2ff1b481637e42"
+tree = "04337bd664f5daa09b347fb2e4e991c66d84c89f"
+
+[branch]
+name = "fogcast/stage-a-baseline"
+parent_commit = "7b5c8de5d3fb16f9cccc1f274a2ff1b481637e42"
+
+[vdate]
+source_path = "Makefile"
+source_evidence_sha256 = "58e51fd732b66ed6cc799a664651b6ad63253410a9774b128d46c61dca9ed246"
+official_expression = "%y%m%d"
+format = "YYMMDD"
+timezone = "UTC"
+ascii_digits = 6
+
+[patch]
+recipe_version = "vdate-recipe-v1"
+
+[initial_commit]
+author_name = "FogCast"
+author_email = "fogcast@example.invalid"
+committer_name = "FogCast"
+committer_email = "fogcast@example.invalid"
+author_timestamp = 1786215171
+committer_timestamp = 1786215171
+commit_message = "stage-a0: make VDATE reproducible\n"
+signing = false
