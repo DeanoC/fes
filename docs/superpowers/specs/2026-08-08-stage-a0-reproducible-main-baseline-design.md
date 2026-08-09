@@ -504,6 +504,109 @@ parser-defined trailing-slash policy. Physical roots map only after containment
 checks to `/stage-a0/src`, `/stage-a0/build`, `/stage-a0/build-utils`,
 `/stage-a0/toolchain`, or `/stage-a0/sysroot`.
 
+### Final-lock V1 closed-schema clarifications
+
+The V1 pure validator uses the following closed interpretations. They remove
+wire ambiguities before any real candidate lock is authored; a future need
+outside them requires a reviewed schema revision rather than parser guesswork.
+
+- `environment.locale` is exactly `C`, `umask` is exactly `022`, and
+  `path_policy` is exactly the ordered pair shown in the schema. ID-bearing
+  arrays sort by ID; material `license_ids` sort lexically; toolchain
+  components and build utilities sort by `(role, material_id, logical_path)`.
+  `patch_commits` and `entrypoint` retain semantic order.
+- A toolchain has exactly one record for each baseline executable role
+  `compiler`, `linker`, `assembler`, `archiver`, `objcopy`, `objdump`, `strip`,
+  and `readelf`, plus exactly one non-executable root record for each of
+  `binutils`, `libc`, and `sysroot`. Source-authority review may add an
+  executable role discovered by command tracing when its role is canonical
+  lowercase kebab case. Every executable role requires `executable_sha256` and
+  `version`; the three non-executable root roles forbid them. Executable paths
+  are below `/stage-a0/toolchain/bin/`; roots are contained by the applicable
+  `/stage-a0/toolchain` or `/stage-a0/sysroot` logical root.
+- Build utilities have unique canonical lowercase-kebab roles, always require
+  executable SHA-256/version, and live below `/stage-a0/build-utils/bin/`.
+  Exactly one each of `bash`, `make`, `git`, `sed`, `cp`, `mkdir`, `rm`, and
+  `nproc-shim` is required; command tracing may add locked executable roles.
+- OCI `reference` is
+  `<registry>/<component>[/<component>...]@sha256:<64-lowercase-hex>` with no
+  tag or port. `registry` is `localhost` or dot-separated lowercase DNS labels;
+  a label starts/ends alphanumeric, contains only lowercase alphanumeric or
+  hyphen, and is at most 63 bytes. A repository component is lowercase
+  alphanumeric followed by zero or more groups of one separator (`.`, `_`, or
+  `-`) and lowercase alphanumeric text. The entire reference is ASCII. Its
+  digest equals `manifest_digest`; both manifest and config digests use exact
+  `sha256:<64-lowercase-hex>` form. V1 `os` and `architecture` are exactly
+  `linux` and `amd64`.
+- Every V1 policy references a `material-file`. Its path and SHA-256 must equal
+  that material-file variant. The unspecified policy-parent alternative is
+  deferred to a later schema version.
+- License locators are either normalized HTTPS URLs or safe relative paths
+  within the referenced material. `spdx_expression` uses this exact
+  dependency-free grammar, with `AND` binding more tightly than `OR` and
+  `WITH` binding to the immediately preceding primary:
+
+  ```text
+  expression   = or-expression
+  or-expression = and-expression *( " OR " and-expression )
+  and-expression = with-expression *( " AND " with-expression )
+  with-expression = license-id [ " WITH " spdx-id ] | "(" expression ")"
+  license-id   = spdx-id | "LicenseRef-" ref-id |
+                 "DocumentRef-" ref-id ":LicenseRef-" ref-id
+  spdx-id      = ALNUM *( ALNUM | "." | "-" )
+  ref-id       = ALNUM *( ALNUM | "." | "-" )
+  ALNUM        = ASCII letter | ASCII digit
+  ```
+
+  This validates canonical syntax only. It does not validate official SPDX
+  catalog membership, license accuracy/compatibility, or legal status.
+  Redistribution status is exactly one of
+  `redistributable`, `redistributable-with-corresponding-source`,
+  `local-use-only`, or `review-required`. This field records review disposition;
+  the parser does not make a legal conclusion.
+- Raw lock bytes are valid UTF-8, contain no BOM, CR, NUL, DEL, or control byte
+  other than LF/TAB, and end in LF. TOML comments and insignificant spacing are
+  allowed because the external promotion record hashes raw bytes and V1 has no
+  writer.
+- Strict fields and type-specific locator grammars are the pure validator's
+  secret boundary. V1 defines no heuristic secret/hostname scanner; leak
+  scanning and human review remain promotion gates.
+- `build.entrypoint` is nonempty. Its first element is a canonical absolute
+  executable path below `/stage-a0/build-utils/bin/`. Other arguments are
+  nonempty valid UTF-8 without control bytes; an absolute argument is allowed
+  only when it is a canonical path within one of the five logical roots.
+- A V1 safe relative path is nonempty ASCII, has no leading/trailing/repeated
+  slash, and consists of slash-separated components containing only ASCII
+  letters, digits, `.`, `_`, `-`, or `~`; a component is nonempty and is not
+  exactly `.` or `..`. Backslash, control bytes, DEL, percent escapes, and every
+  non-ASCII byte are forbidden. A canonical absolute logical path is exactly
+  one of the five declared roots or that root plus `/` and a safe relative
+  suffix; prefix lookalikes do not match. Executable toolchain and utility
+  paths require a nonempty suffix below their respective `bin` root. The
+  non-executable `binutils` root is exactly `/stage-a0/toolchain`; `libc` and
+  `sysroot` roots are exactly `/stage-a0/sysroot`.
+- V1 normalized HTTPS URLs use lowercase `https` and a lowercase DNS host with
+  no port, userinfo, query, fragment, percent encoding, backslash, empty path
+  component, `.`/`..` component, duplicate slash, or trailing slash. The path
+  begins with `/`; each component contains only ASCII letters, digits, `.`,
+  `_`, `-`, or `~`. URL parsing must round-trip to the exact input.
+
+Cross-reference rules are also closed. `fork_parent_commit` equals
+`upstream_commit`; `patch_commits` is nonempty and unique, and its last entry
+equals `fork_commit`. The upstream material is consumed `git-https` and matches
+the recorded upstream commit/tree. The fork material is consumed `git-local`
+or `git-https` and matches the fork commit/tree. `local-only` forbids a durable
+retrieval ID. `durably-retrievable` requires a consumed `git-https` material
+with the same fork repository identity, commit, and tree; it may equal the fork
+material. The environment container is a consumed OCI material. Every
+component, utility, config, policy, and license material reference resolves.
+Every material has nonempty sorted unique license IDs, and every referenced
+license points back to that material. V1 requires nonempty materials,
+toolchains/components, build utilities, configs, policies, and licenses.
+Components, build utilities, configs, and policies reference only
+`consumed-build-input` materials. There is exactly one policy for each of the
+six V1 policy kinds; duplicate or missing kinds fail.
+
 The deterministic fork-patch SHA-256 is calculated from stdout bytes of the
 isolated command `env -i GIT_CONFIG_NOSYSTEM=1 HOME=<empty> LC_ALL=C TZ=UTC
 /stage-a0/build-utils/bin/git -c core.pager=cat -c color.ui=false diff
