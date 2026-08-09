@@ -1,0 +1,298 @@
+# Stage A0 Main lock — candidate, blocked, not build-ready.
+#
+# This file intentionally records only facts observed during the local
+# Software-tested first-build slice. Empty values and BLOCKED_* identifiers are
+# explicit unresolved inputs, not substitutes for provenance. The strict V1
+# parser must reject this candidate until the handoff blockers are resolved.
+# It has no self-hash; promotion hashes the reviewed raw bytes externally.
+
+format = 1
+schema = "fogcast.stage-a0-main-lock"
+fogcast_base_revision = "26994d5581d5d7c651b58ddb85faaa70b03a64be"
+source_date_epoch = 1786215171
+
+[environment]
+locale = "C"
+timezone = "UTC"
+# BLOCKER: the measured Docker build inherited the host/container umask;
+# record and enforce the final adapter's exact 022 value before promotion.
+umask = ""
+# BLOCKER: the capture observed Docker nproc behavior but did not lock the
+# adapter's job-count/shim contract.
+job_count = 0
+network = "disabled-during-build"
+path_policy = ["/stage-a0/build-utils/bin", "/stage-a0/toolchain/bin"]
+container_material_id = "container"
+
+[main]
+upstream_material_id = "main-upstream"
+fork_material_id = "main-fork"
+upstream_commit = "7b5c8de5d3fb16f9cccc1f274a2ff1b481637e42"
+upstream_tree = "04337bd664f5daa09b347fb2e4e991c66d84c89f"
+fork_commit = "d1a3a4e65c2dbee1f23eb5a890d8f29e6448c30d"
+fork_tree = "efb9c24e8e27945a75d8c497b4b99ec249129075"
+fork_parent_commit = "7b5c8de5d3fb16f9cccc1f274a2ff1b481637e42"
+patch_commits = ["d1a3a4e65c2dbee1f23eb5a890d8f29e6448c30d"]
+publication_status = "local-only"
+
+[build]
+entrypoint = ["/stage-a0/build-utils/bin/bash", "-lc", "make clean VDATE=260808; make V=1 VDATE=260808"]
+working_directory = "/stage-a0/src"
+vdate_format = "YYMMDD"
+vdate_expression = "%y%m%d"
+allowed_final_artifacts = ["bin/MiSTer", "bin/MiSTer.elf"]
+
+[[materials]]
+id = "container"
+role = "consumed-build-input"
+kind = "oci"
+license_ids = ["BLOCKED_LICENSE_CONTAINER"]
+[materials.oci]
+# BLOCKER: the prepared image is local-only. Its observed Docker image ID is
+# sha256:24045e0e800b0ce7df88076ccab628387b149f1bd0786fab46fffae07a859d0c,
+# but no durable manifest/config provenance is locked yet.
+reference = ""
+manifest_digest = ""
+config_digest = ""
+os = "linux"
+architecture = "amd64"
+
+[[materials]]
+id = "main-fork"
+role = "consumed-build-input"
+kind = "git-local"
+license_ids = ["BLOCKED_LICENSE_MAIN_FORK"]
+[materials.git_local]
+repository_id = "mister-devel-main-mister"
+commit = "d1a3a4e65c2dbee1f23eb5a890d8f29e6448c30d"
+tree = "efb9c24e8e27945a75d8c497b4b99ec249129075"
+
+[[materials]]
+id = "main-upstream"
+role = "consumed-build-input"
+kind = "git-https"
+license_ids = ["BLOCKED_LICENSE_MAIN_UPSTREAM"]
+[materials.git_https]
+repository_id = "mister-devel-main-mister"
+url = "https://github.com/MiSTer-devel/Main_MiSTer.git"
+commit = "7b5c8de5d3fb16f9cccc1f274a2ff1b481637e42"
+tree = "04337bd664f5daa09b347fb2e4e991c66d84c89f"
+
+[[materials]]
+id = "policy"
+role = "consumed-build-input"
+kind = "material-file"
+license_ids = ["BLOCKED_LICENSE_POLICY"]
+[materials.material_file]
+parent_id = "main-fork"
+# BLOCKER: six separately tracked policy files do not yet exist.
+path = ""
+size = 0
+sha256 = ""
+
+[[materials]]
+id = "toolchain"
+role = "consumed-build-input"
+kind = "archive-https"
+license_ids = ["BLOCKED_LICENSE_TOOLCHAIN"]
+[materials.archive_https]
+url = "https://developer.arm.com/-/media/Files/downloads/gnu-a/10.2-2020.11/binrel/gcc-arm-10.2-2020.11-x86_64-arm-none-linux-gnueabihf.tar.xz"
+size = 104607124
+sha256 = "102825ae56c9e00142d06f35d2bdd3299edb6060e84a275a25b095e66fd3fc2a"
+
+[[toolchains]]
+id = "arm-none-linux-gnueabihf"
+target_triple = "arm-none-linux-gnueabihf"
+
+[[toolchains.components]]
+role = "archiver"
+material_id = "toolchain"
+logical_path = "/stage-a0/toolchain/bin/arm-none-linux-gnueabihf-ar"
+executable_sha256 = "c36a1131794093fb627951178f2b8fd26cc414a899c3262c30895d5c610a95a0"
+version = "GNU ar (GNU Toolchain for the A-profile Architecture 10.2-2020.11 (arm-10.16)) 2.35.1.20201028"
+[[toolchains.components]]
+role = "assembler"
+material_id = "toolchain"
+logical_path = "/stage-a0/toolchain/bin/arm-none-linux-gnueabihf-as"
+executable_sha256 = "4a6f2ca2037d307919d1487e0395f72e526b6fdd6f8f60faf46008028c1df7a9"
+version = "GNU assembler (GNU Toolchain for the A-profile Architecture 10.2-2020.11 (arm-10.16)) 2.35.1.20201028"
+[[toolchains.components]]
+role = "binutils"
+material_id = "toolchain"
+logical_path = "/stage-a0/toolchain"
+[[toolchains.components]]
+role = "compiler"
+material_id = "toolchain"
+logical_path = "/stage-a0/toolchain/bin/arm-none-linux-gnueabihf-gcc"
+executable_sha256 = "45d4e60f0ab8a7ead11d3ce28b1ec3438e15031b0a3fdefdda60b3cdecb295d9"
+version = "arm-none-linux-gnueabihf-gcc (GNU Toolchain for the A-profile Architecture 10.2-2020.11 (arm-10.16)) 10.2.1 20201103"
+[[toolchains.components]]
+role = "libc"
+material_id = "toolchain"
+logical_path = "/stage-a0/sysroot"
+[[toolchains.components]]
+role = "linker"
+material_id = "toolchain"
+logical_path = "/stage-a0/toolchain/bin/arm-none-linux-gnueabihf-ld"
+executable_sha256 = "788345c3d11cffae5f50f1e74d87575afbeaa8b2824cfe518d7e5f4cb23b55f7"
+version = "GNU ld (GNU Toolchain for the A-profile Architecture 10.2-2020.11 (arm-10.16)) 2.35.1.20201028"
+[[toolchains.components]]
+role = "objcopy"
+material_id = "toolchain"
+logical_path = "/stage-a0/toolchain/bin/arm-none-linux-gnueabihf-objcopy"
+executable_sha256 = "6e9365b4c478c2edd4cd074e2c7dc9def8723d450e1187dc6dc86ff38d5bbd7b"
+version = "GNU objcopy (GNU Toolchain for the A-profile Architecture 10.2-2020.11 (arm-10.16)) 2.35.1.20201028"
+[[toolchains.components]]
+role = "objdump"
+material_id = "toolchain"
+logical_path = "/stage-a0/toolchain/bin/arm-none-linux-gnueabihf-objdump"
+executable_sha256 = "84d0b0ed74b48512bb7d44de208c709026e702707f24947dc29a50d0902f150d"
+version = "GNU objdump (GNU Toolchain for the A-profile Architecture 10.2-2020.11 (arm-10.16)) 2.35.1.20201028"
+[[toolchains.components]]
+role = "readelf"
+material_id = "toolchain"
+logical_path = "/stage-a0/toolchain/bin/arm-none-linux-gnueabihf-readelf"
+executable_sha256 = "f171d318b434e072f6abe7b085ba34fb65ab76eba0c71db5394510926f153cc3"
+version = "GNU readelf (GNU Toolchain for the A-profile Architecture 10.2-2020.11 (arm-10.16)) 2.35.1.20201028"
+[[toolchains.components]]
+role = "strip"
+material_id = "toolchain"
+logical_path = "/stage-a0/toolchain/bin/arm-none-linux-gnueabihf-strip"
+executable_sha256 = "891c04c6aeaa2f5c1d007cd6bd66a424b31fb914285509c655f9b2484a7d08f1"
+version = "GNU strip (GNU Toolchain for the A-profile Architecture 10.2-2020.11 (arm-10.16)) 2.35.1.20201028"
+[[toolchains.components]]
+role = "sysroot"
+material_id = "toolchain"
+logical_path = "/stage-a0/sysroot"
+
+[[build_utilities]]
+role = "bash"
+material_id = "container"
+logical_path = "/stage-a0/build-utils/bin/bash"
+executable_sha256 = "55b89ab22bee4792a210f493a53fb066accd5d30b69837c28d98be5ff863efcf"
+version = "GNU bash, version 5.2.15(1)-release (x86_64-pc-linux-gnu)"
+[[build_utilities]]
+role = "cp"
+material_id = "container"
+logical_path = "/stage-a0/build-utils/bin/cp"
+executable_sha256 = "e296487a3a8f10a1c55e56056ba4bbb2d3ca22ae625af9f0d5cebaed28e55fa4"
+version = "cp (GNU coreutils) 9.1"
+[[build_utilities]]
+role = "git"
+material_id = "container"
+logical_path = "/stage-a0/build-utils/bin/git"
+executable_sha256 = "2540879925a6881e3877ff7e3330746ba3027b04edf16a3a12dccd1644c4f32d"
+version = "git version 2.39.5"
+[[build_utilities]]
+role = "make"
+material_id = "container"
+logical_path = "/stage-a0/build-utils/bin/make"
+executable_sha256 = "00b2c2071bf57aa52559a91bf8a4ddcd0fcfd4718da2f83100593a45896c1fec"
+version = "GNU Make 4.3"
+[[build_utilities]]
+role = "mkdir"
+material_id = "container"
+logical_path = "/stage-a0/build-utils/bin/mkdir"
+executable_sha256 = "ba74b1a15a5b9b7929a595f45103d7fbe722840b7211d313dd4872893f031fb9"
+version = "mkdir (GNU coreutils) 9.1"
+[[build_utilities]]
+role = "nproc-shim"
+material_id = "container"
+logical_path = "/stage-a0/build-utils/bin/nproc"
+# BLOCKER: the measured build used ambient /usr/bin/nproc; no locked shim.
+executable_sha256 = ""
+version = ""
+[[build_utilities]]
+role = "rm"
+material_id = "container"
+logical_path = "/stage-a0/build-utils/bin/rm"
+executable_sha256 = "58e8be37049deaaacaf56196d507584b94e87a35a524db0c0459eb5ee6ae4b8c"
+version = "rm (GNU coreutils) 9.1"
+[[build_utilities]]
+role = "sed"
+material_id = "container"
+logical_path = "/stage-a0/build-utils/bin/sed"
+executable_sha256 = "72dcf1ad8560de658e925dfee171565e0c3f3be38236cf725846bc44971cf4b0"
+version = "/usr/bin/sed (GNU sed) 4.9"
+
+[[configs]]
+id = "main-makefile"
+material_id = "main-fork"
+path = "Makefile"
+sha256 = "28683c9d859353bc89880d5fcc6db520181cce7b38ed7b05f4a2bb601f125c42"
+purpose = "deterministic VDATE build input"
+# BLOCKER: all compiler/link, source-set, generated-input, ELF, dependency,
+# and intermediate policy files are not yet available.
+
+[[policies]]
+id = "compile-link"
+material_id = "policy"
+path = ""
+sha256 = ""
+kind = "compile-link"
+[[policies]]
+id = "delta"
+material_id = "policy"
+path = ""
+sha256 = ""
+kind = "upstream-fork-delta"
+[[policies]]
+id = "elf"
+material_id = "policy"
+path = ""
+sha256 = ""
+kind = "elf-dependency"
+[[policies]]
+id = "generated"
+material_id = "policy"
+path = ""
+sha256 = ""
+kind = "generated-input"
+[[policies]]
+id = "intermediate"
+material_id = "policy"
+path = ""
+sha256 = ""
+kind = "intermediate-path"
+[[policies]]
+id = "source"
+material_id = "policy"
+path = ""
+sha256 = ""
+kind = "source-set"
+
+[[licenses]]
+id = "BLOCKED_LICENSE_CONTAINER"
+material_id = "container"
+spdx_expression = ""
+notice_locator = ""
+corresponding_source_locator = ""
+redistribution_status = "review-required"
+[[licenses]]
+id = "BLOCKED_LICENSE_MAIN_FORK"
+material_id = "main-fork"
+spdx_expression = ""
+notice_locator = ""
+corresponding_source_locator = ""
+redistribution_status = "review-required"
+[[licenses]]
+id = "BLOCKED_LICENSE_MAIN_UPSTREAM"
+material_id = "main-upstream"
+spdx_expression = ""
+notice_locator = ""
+corresponding_source_locator = ""
+redistribution_status = "review-required"
+[[licenses]]
+id = "BLOCKED_LICENSE_POLICY"
+material_id = "policy"
+spdx_expression = ""
+notice_locator = ""
+corresponding_source_locator = ""
+redistribution_status = "review-required"
+[[licenses]]
+id = "BLOCKED_LICENSE_TOOLCHAIN"
+material_id = "toolchain"
+spdx_expression = ""
+notice_locator = ""
+corresponding_source_locator = ""
+redistribution_status = "review-required"
