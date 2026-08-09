@@ -16,6 +16,8 @@ establish durable retrieval, **Reproducible**, HIL, or Accepted status.
 
 - Candidate worktree base: `26994d5581d5d7c651b58ddb85faaa70b03a64be`.
 - Candidate file: [`build/stage-a0-main.lock.toml`](../../build/stage-a0-main.lock.toml).
+- Current candidate raw SHA-256: `415445d1871a25b6f6f9f30d52deec640147beea6a23d8527ddc5741f4ae789a`.
+- Hash-named review: [`main-lock-reviews/415445d1871a25b6f6f9f30d52deec640147beea6a23d8527ddc5741f4ae789a.md`](main-lock-reviews/415445d1871a25b6f6f9f30d52deec640147beea6a23d8527ddc5741f4ae789a.md).
 - Governing schema: [Stage A0 reproducible Main baseline design](../superpowers/specs/2026-08-08-stage-a0-reproducible-main-baseline-design.md).
 - Parser: `internal/stagea0.ParseMainLock` / `ValidateMainLock`.
 - Probe: a temporary host-only parser test read the candidate and rejected it
@@ -105,6 +107,18 @@ review record only after all blockers below are resolved.
     record now exist, but there is no content-addressed source/toolchain/image
     cache with revalidation, signed material metadata, or independent durable
     retrieval evidence. Local ignored artifacts are not a lock substitute.
+11. **Promotion decision:** `bin/stage-a0-promotion-report` now emits a
+    canonical blocked-only candidate decision. Against the current candidate it reports
+    `LOCK_SCHEMA_INVALID`, `MATERIAL_CATALOG_NOT_PROMOTED`,
+    `POLICY_PROMOTION_BLOCKED`, and `SOURCE_NOT_DURABLY_RETRIEVABLE`; the
+    preliminary two-build byte comparison itself passes. Material authority
+    and comparison source/toolchain/container/build-date fields are bound to
+    the lock before any later promoted-evidence schema can consume them.
+12. **Overlord slice:** the pinned external checkouts are recorded in
+    [`stage-a0-overlord.lock.toml`](../../build/stage-a0-overlord.lock.toml) and
+    the capability probe reports all required DE10-Nano/Cyclone V resources
+    missing. No generated memory map, register map, toolchain configuration,
+    or software closure is being claimed.
 
 ## Verification run
 
@@ -119,15 +133,15 @@ go vet ./internal/stagea0/firstbuild ./cmd/stage-a0-firstbuild
 go test ./internal/stagea0/materialobserve ./cmd/stage-a0-policy-candidate
 ```
 
-The candidate probe described above confirmed strict rejection. No target,
-network fetch, credential, hardware, or deployment operation was performed by
-this candidate-lock task.
+The candidate probe described above confirmed strict rejection. The promotion
+report and Overlord capability probe are separate fail-closed handoff tools.
+No target, network fetch, credential, hardware, or deployment operation was
+performed by this candidate-lock task.
 
 ## Next safe action
 
 Keep this file and the candidate lock in review-only state. The next owner
-should create the immutable material catalog and six policy artifacts from
-verified source/cache observations, resolve the image and license provenance,
-add the nproc-shim/job-count adapter, then rerun the strict parser and an
-independent two-build comparison. Only a reviewed valid lock may feed the
-canonical Stage A0 fetch/build tools.
+should resolve the promotion report's material/license and durable-retrieval
+blockers, add the missing Overlord resources, and rerun the strict parser,
+independent two-build comparison, and Overlord output comparison. Only a
+reviewed valid lock may feed the canonical Stage A0 fetch/build tools.

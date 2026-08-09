@@ -55,6 +55,13 @@ type Comparison struct {
 	Status                 string               `json:"status"`
 	SourceAvailability     string               `json:"source_availability"`
 	TwoBuildsByteIdentical bool                 `json:"two_builds_byte_identical"`
+	SourceCommit           string               `json:"source_commit"`
+	SourceTree             string               `json:"source_tree"`
+	ForkParentCommit       string               `json:"fork_parent_commit"`
+	ToolchainArchiveSHA256 string               `json:"toolchain_archive_sha256"`
+	ContainerImageID       string               `json:"container_image_id"`
+	SourceDateEpoch        int64                `json:"source_date_epoch"`
+	VDate                  string               `json:"vdate"`
 	LeftReportSHA256       string               `json:"left_report_sha256"`
 	RightReportSHA256      string               `json:"right_report_sha256"`
 	LeftBuildLogSHA256     string               `json:"left_build_log_sha256"`
@@ -130,6 +137,13 @@ func Compare(leftDir, rightDir string) (Comparison, error) {
 		Status:                 firstbuild.EvidenceStatusSoftwareTested,
 		SourceAvailability:     SourceAvailabilityLocal,
 		TwoBuildsByteIdentical: true,
+		SourceCommit:           left.evidence.Source.Commit,
+		SourceTree:             left.evidence.Source.Tree,
+		ForkParentCommit:       left.evidence.Source.Parent,
+		ToolchainArchiveSHA256: left.evidence.Toolchain.ArchiveSHA256,
+		ContainerImageID:       left.evidence.Container.ImageID,
+		SourceDateEpoch:        left.evidence.Build.SourceDateEpoch,
+		VDate:                  left.evidence.Build.VDate,
 		LeftReportSHA256:       digest(left.raw),
 		RightReportSHA256:      digest(right.raw),
 		LeftBuildLogSHA256:     digest(left.buildLog),
@@ -177,6 +191,9 @@ func DecodeComparison(raw []byte) (Comparison, error) {
 func ValidateComparison(comparison Comparison) error {
 	if comparison.Format != FormatV1 || comparison.Schema != SchemaV1 || comparison.Status != firstbuild.EvidenceStatusSoftwareTested || comparison.SourceAvailability != SourceAvailabilityLocal || !comparison.TwoBuildsByteIdentical {
 		return &Failure{Code: CodeReportInvalid, Detail: "comparison schema or status is invalid"}
+	}
+	if comparison.SourceCommit != firstbuild.ExpectedMainCommit || comparison.SourceTree != firstbuild.ExpectedMainTree || comparison.ForkParentCommit != firstbuild.ExpectedMainParent || comparison.ToolchainArchiveSHA256 != firstbuild.ExpectedToolchainArchiveSHA256 || comparison.ContainerImageID != firstbuild.ExpectedContainerImageID || comparison.SourceDateEpoch != firstbuild.ExpectedSourceDateEpoch || comparison.VDate != firstbuild.ExpectedVDate {
+		return &Failure{Code: CodeReportInvalid, Detail: "comparison input binding differs from reviewed baseline"}
 	}
 	if !isLowerHexDigest(comparison.LeftReportSHA256) || !isLowerHexDigest(comparison.RightReportSHA256) || !isLowerHexDigest(comparison.LeftBuildLogSHA256) || !isLowerHexDigest(comparison.RightBuildLogSHA256) {
 		return &Failure{Code: CodeReportInvalid, Detail: "comparison receipt digest is invalid"}

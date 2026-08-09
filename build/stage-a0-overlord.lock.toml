@@ -1,0 +1,50 @@
+# Stage A0 Overlord vertical-slice input lock. This is a blocked handoff, not
+# a generated board image or an accepted hardware configuration.
+format = 1
+schema = "fogcast.stage-a0.overlord-slice-lock"
+status = "blocked"
+source_availability = "local-only"
+generation_status = "not-run"
+main_lock_sha256 = "415445d1871a25b6f6f9f30d52deec640147beea6a23d8527ddc5741f4ae789a"
+
+[overlord]
+repository_id = "deanoc-overlord"
+url = "https://github.com/DeanoC/overlord.git"
+commit = "9b5a2fb375b7078589c0c245588d7533a2e34227"
+tree = "1159c9fa6a0222a6756c2aa124147e27f1250d3d"
+
+[resources]
+repository_id = "deanoc-ikuy-std-resources"
+url = "https://github.com/DeanoC/ikuy_std_resources.git"
+commit = "1cdfbda8f1bb3ca4df37f955ce39c8c850a946f9"
+tree = "358a2b1e1588b48c1a8c3b44dceb76774c5e9aa7"
+
+[[requirements]]
+id = "board-de10-nano"
+kind = "board-definition"
+status = "missing"
+blocker = "OVERLORD_BOARD_DE10_NANO_MISSING"
+
+[[requirements]]
+id = "soc-cyclone-v"
+kind = "soc-definition"
+status = "missing"
+blocker = "OVERLORD_SOC_CYCLONE_V_MISSING"
+
+[[requirements]]
+id = "registers-cyclone-v"
+kind = "register-map"
+status = "missing"
+blocker = "OVERLORD_REGISTERS_CYCLONE_V_MISSING"
+
+[[requirements]]
+id = "toolchain-arm-none-linux-gnueabihf"
+kind = "toolchain-configuration"
+status = "missing"
+blocker = "OVERLORD_TOOLCHAIN_ARM_NONE_LINUX_GNUEABIHF_MISSING"
+
+[[requirements]]
+id = "software-main-mister"
+kind = "software-dependency-closure"
+status = "missing"
+blocker = "OVERLORD_SOFTWARE_MAIN_MISTER_MISSING"

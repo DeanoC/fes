@@ -12,6 +12,8 @@ On success the tool writes `comparison.json` containing:
 - canonical build-log SHA-256 values, with the fixed adapter job-count marker
   required on both logs;
 - equality of the locked source, toolchain, container, and build observations;
+- explicit source commit/tree, fork parent, toolchain archive, container image,
+  source-date, and VDATE binding fields for the comparison input set;
 - equality of the complete 227-entry `bin/` inventory; and
 - byte equality of the retained `MiSTer` and `MiSTer.elf` payloads.
 

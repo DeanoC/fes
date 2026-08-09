@@ -79,12 +79,17 @@ fresh adapter-backed capture also fixes the build job count at one and records
 the shim identity. Two fresh adapter-backed captures compare with different
 build-log digests and byte-identical final artifacts, while remaining
 explicitly local-only.
-remaining work is to replace that candidate with an immutable material/license
-catalog (including reviewed build-log identity), complete durable
-container/toolchain provenance (a local OCI manifest/config digest is now
-recorded, but not published), and promote two independent clean builds, then
-the
-narrow Overlord DE10-Nano/Cyclone V and HIL comparison slice.
+The canonical v1 promotion report is deliberately a blocked-only candidate
+decision, with stable lock/material/policy/retrieval blockers; it does not
+provide an eligible path or rewrite the lock. The pinned Overlord and
+`ikuy_std_resources` checkouts are also probed: the required DE10-Nano/Cyclone
+V board, register, toolchain, and Main software resources are not present, so
+generation has not run. Remaining work is to replace that candidate with an
+immutable material/license catalog (including reviewed build-log identity),
+complete durable container/toolchain provenance (a local OCI manifest/config
+digest is now recorded, but not published), promote two independent clean
+builds, add the missing Overlord resources, and then run the HIL comparison
+slice.
 
 Use Overlord to add the minimum DE10-Nano and Cyclone V resources and generate
 the memory map, register definitions, toolchain configuration, and software
