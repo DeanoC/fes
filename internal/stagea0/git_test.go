@@ -81,6 +81,86 @@ func TestExistingForkRejectsUnsafeConfigBeforeGit(t *testing.T) {
 	}
 }
 
+// This catches a validator that broadens the one permitted official
+// .gitattributes result, normalizes raw attribute output, or materializes a
+// source whose bytes could change during checkout.
+func TestVerifyCheckoutAttributesUsesClosedOfficialPolicy(t *testing.T) {
+	source := []byte("SHELL = /bin/bash\nDFLAGS = x\n")
+	exact := []byte("Makefile: text: set\nMakefile: eol: lf\n")
+	for _, tc := range []struct {
+		name   string
+		source []byte
+		output []byte
+		admit  bool
+	}{
+		{name: "no attributes", source: source, admit: true},
+		{name: "exact official attributes", source: source, output: exact, admit: true},
+		{name: "reversed records", source: source, output: []byte("Makefile: eol: lf\nMakefile: text: set\n")},
+		{name: "duplicate record", source: source, output: []byte("Makefile: text: set\nMakefile: eol: lf\nMakefile: eol: lf\n")},
+		{name: "extra attribute", source: source, output: []byte("Makefile: text: set\nMakefile: eol: lf\nMakefile: binary: unset\n")},
+		{name: "text auto", source: source, output: []byte("Makefile: text: auto\nMakefile: eol: lf\n")},
+		{name: "eol crlf", source: source, output: []byte("Makefile: text: set\nMakefile: eol: crlf\n")},
+		{name: "different path", source: source, output: []byte("other: text: set\nother: eol: lf\n")},
+		{name: "malformed output", source: source, output: []byte("Makefile: text: set\nMakefile: eol: lf")},
+		{name: "crlf source", source: []byte("SHELL = /bin/bash\r\nDFLAGS = x\r\n"), output: exact},
+		{name: "cr inside line", source: []byte("SHELL = /bin/bash\rDFLAGS = x\n"), output: exact},
+		{name: "source missing terminal lf", source: []byte("SHELL = /bin/bash\nDFLAGS = x"), output: exact},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := verifyCheckoutAttributes("Makefile", tc.source, tc.output)
+			if tc.admit {
+				if err != nil {
+					t.Fatalf("verifyCheckoutAttributes() error = %v", err)
+				}
+				return
+			}
+			if !hasCode(err, CodeRepositoryPolicyMismatch) {
+				t.Fatalf("verifyCheckoutAttributes() error = %v, want repository policy mismatch", err)
+			}
+		})
+	}
+}
+
+// This catches an initializer that rejects the exact official Makefile
+// attributes, or that permits checkout-altering attributes to reach
+// materialization or publication.
+func TestExecRunnerAdmitsOfficialMakefileAttributes(t *testing.T) {
+	t.Run("admitted exact official attributes", func(t *testing.T) {
+		fixture, bootstrap := checkoutAttributesFixture(t, "* text=auto eol=lf\nMakefile text eol=lf\n")
+		destination := filepath.Join(t.TempDir(), "fork")
+		runner := &HybridFixtureRunner{GitPath: mustGit(t), OfficialHTTPSURL: bootstrap.MainUpstream.FetchURL, LockedCommit: bootstrap.MainUpstream.Commit, LocalBareFixture: fixture}
+		if _, err := InitializeFork(context.Background(), runner, InitRequest{Bootstrap: bootstrap, Destination: destination}); err != nil {
+			t.Fatal(err)
+		}
+		if attrs := runGit(t, destination, "check-attr", "--cached", "--all", "--", "Makefile"); attrs != "Makefile: text: set\nMakefile: eol: lf\n" {
+			t.Fatalf("cached Makefile attributes = %q", attrs)
+		}
+		materialized := mustReadFile(t, filepath.Join(destination, "Makefile"))
+		committed := []byte(runGit(t, destination, "cat-file", "blob", "HEAD:Makefile"))
+		if sha256.Sum256(materialized) != sha256.Sum256(committed) {
+			t.Fatal("materialized Makefile differs from HEAD:Makefile")
+		}
+	})
+
+	t.Run("rejects crlf attributes before checkout", func(t *testing.T) {
+		fixture, bootstrap := checkoutAttributesFixture(t, "Makefile text eol=crlf\n")
+		destination := filepath.Join(t.TempDir(), "fork")
+		runner := &HybridFixtureRunner{GitPath: mustGit(t), OfficialHTTPSURL: bootstrap.MainUpstream.FetchURL, LockedCommit: bootstrap.MainUpstream.Commit, LocalBareFixture: fixture}
+		_, err := InitializeFork(context.Background(), runner, InitRequest{Bootstrap: bootstrap, Destination: destination})
+		if !hasCode(err, CodeRepositoryPolicyMismatch) {
+			t.Fatalf("InitializeFork() error = %v, want repository policy mismatch", err)
+		}
+		if _, statErr := os.Lstat(destination); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("rejected attributes published destination: %v", statErr)
+		}
+		for _, command := range runner.commands {
+			if slicesContain(command.Args, "checkout-index") {
+				t.Fatalf("rejected attributes reached checkout: %#v", command)
+			}
+		}
+	})
+}
+
 func TestExecRunnerSupportsEpochZeroAndCanonicalCommitBytes(t *testing.T) {
 	fixture, bootstrap := localUpstreamFixture(t)
 	for _, epoch := range []int64{0, 1722470400} {
@@ -203,6 +283,36 @@ func localUpstreamFixture(t *testing.T) (string, Bootstrap) {
 		t.Fatal(err)
 	}
 	runGit(t, work, "add", "Makefile")
+	runGit(t, work, "commit", "-m", "upstream")
+	commit := strings.TrimSpace(runGit(t, work, "rev-parse", "HEAD"))
+	tree := strings.TrimSpace(runGit(t, work, "rev-parse", "HEAD^{tree}"))
+	runGit(t, root, "clone", "--bare", work, bare)
+	bootstrap, err := ParseBootstrap(validBootstrapTOML())
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256(source)
+	bootstrap.MainUpstream.FetchURL = "https://example.invalid/Main_MiSTer.git"
+	bootstrap.MainUpstream.Commit, bootstrap.MainUpstream.Tree, bootstrap.Branch.ParentCommit = commit, tree, commit
+	bootstrap.VDate.SourceEvidenceSHA256 = fmt.Sprintf("%x", digest)
+	return bare, bootstrap
+}
+
+func checkoutAttributesFixture(t *testing.T, attributes string) (string, Bootstrap) {
+	t.Helper()
+	root := t.TempDir()
+	work, bare := filepath.Join(root, "work"), filepath.Join(root, "upstream.git")
+	runGit(t, root, "init", work)
+	runGit(t, work, "config", "user.name", "Fixture")
+	runGit(t, work, "config", "user.email", "fixture@example.invalid")
+	source := validRecipeSource()
+	if err := os.WriteFile(filepath.Join(work, "Makefile"), source, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(work, ".gitattributes"), []byte(attributes), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, work, "add", "Makefile", ".gitattributes")
 	runGit(t, work, "commit", "-m", "upstream")
 	commit := strings.TrimSpace(runGit(t, work, "rev-parse", "HEAD"))
 	tree := strings.TrimSpace(runGit(t, work, "rev-parse", "HEAD^{tree}"))

@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"unicode/utf8"
 )
 
 // Run executes exactly the supplied command. In particular, Env is a complete
@@ -211,8 +212,11 @@ func initializeTemporaryFork(ctx context.Context, runner Runner, gitPath, root s
 		return ForkIdentity{}, err
 	}
 	attrs, err := run("check-attr", "--cached", "--all", "--", bootstrap.VDate.SourcePath)
-	if err != nil || strings.TrimSpace(attrs) != "" {
+	if err != nil {
 		return ForkIdentity{}, repositoryMismatch("source has checkout-altering attributes")
+	}
+	if err := verifyCheckoutAttributes(bootstrap.VDate.SourcePath, patched, []byte(attrs)); err != nil {
+		return ForkIdentity{}, err
 	}
 	if _, err := run("checkout-index", "--all"); err != nil {
 		return ForkIdentity{}, err
@@ -235,6 +239,17 @@ func initializeTemporaryFork(ctx context.Context, runner Runner, gitPath, root s
 		return ForkIdentity{}, err
 	}
 	return identity, nil
+}
+
+func verifyCheckoutAttributes(sourcePath string, source, output []byte) error {
+	if len(output) == 0 {
+		return nil
+	}
+	want := []byte(sourcePath + ": text: set\n" + sourcePath + ": eol: lf\n")
+	if !bytes.Equal(output, want) || !utf8.Valid(source) || bytes.IndexByte(source, '\r') >= 0 || !bytes.HasSuffix(source, []byte("\n")) {
+		return repositoryMismatch("source has checkout-altering attributes")
+	}
+	return nil
 }
 
 func verifyExistingFork(ctx context.Context, runner Runner, gitPath, root string, bootstrap Bootstrap) (ForkIdentity, error) {
