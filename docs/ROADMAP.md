@@ -72,7 +72,11 @@ ELF/dependency, generated-input, and intermediate-path documents from the
 reviewed verbose build receipt; all six policy candidates are emitted as
 canonical JSON, but remain explicitly non-promotable. The final Stage A gate
 remains open. The current evidence is therefore **Software-tested /
-local-only**, not Reproducible, HIL-observed, or Accepted. The generator also
+local-only**, not Reproducible, HIL-observed, or Accepted. A durable GHCR
+container publication is available from workflow run
+[31312562553](https://github.com/DeanoC/FogCast-POC/actions/runs/31312562553),
+but it has not yet replaced the disposable local capture image in a promoted
+lock. The generator also
 emits a candidate `materials.json` catalog bound to the reviewed receipt,
 build-log digest, toolchain archive hash/root, and extracted-tree digest. The
 fresh adapter-backed capture fixes the build job count at one and records the
@@ -92,10 +96,13 @@ produced hash-bound outputs. The full aperture/core topology and native Main
 compilation boundary are still explicitly partial.
 
 Remaining work is to replace the candidate with an immutable material/license
-catalog (including reviewed build-log identity), complete durable
-container/toolchain provenance (the OCI image is still local-only), run the
-independent-build gate against a valid final lock, complete the resource
-aperture/topology, and then run the HIL comparison slice.
+catalog (including reviewed build-log identity), bind the durable container in
+a final lock, run the independent-build gate against that lock, complete the
+resource aperture/topology, and then run the HIL comparison slice.
+
+The bounded exit decision is recorded in
+[the Stage A0 exit decision](stage-a0/exit-decision-2026-08-09.md); unchanged
+verification runs do not advance this status.
 
 Use the pinned Overlord slice to extend the DE10-Nano/Cyclone V memory map,
 register definitions, toolchain configuration, and explicit Main_MiSTer

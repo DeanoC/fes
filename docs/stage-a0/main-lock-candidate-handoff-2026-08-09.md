@@ -39,7 +39,7 @@ review record only after all blockers below are resolved.
 | VDATE | `SOURCE_DATE_EPOCH=1786215171`, UTC `VDATE=260808` | Two clean engineering runs and prepared-image capture. |
 | Arm archive | 104607124 bytes; SHA-256 `102825ae56c9e00142d06f35d2bdd3299edb6060e84a275a25b095e66fd3fc2a`; official locator recorded in candidate | Archive hash observation; license/corresponding-source record is open. |
 | Cross compiler | GCC `10.2.1 20201103`; executable and binutils hashes are recorded in the draft | Extracted archive observation; complete toolchain/sysroot material closure is open. |
-| Prepared image | local tag `stage-a0-firstbuild:debian12-arm102-v1`, local OCI manifest `sha256:24045e0e800b0ce7df88076ccab628387b149f1bd0786fab46fffae07a859d0c`, config `sha256:6a2a0fcb598a0a890355847900575e99a1cc7801f68d616edc85d449b9ae7548`, Linux/amd64, network disabled during run | Disposable-kit OCI export observation; no durable registry publication or package/license record. |
+| Prepared image | Retained local tag `stage-a0-firstbuild:debian12-arm102-v1`, local OCI manifest `sha256:24045e0e800b0ce7df88076ccab628387b149f1bd0786fab46fffae07a859d0c`, config `sha256:6a2a0fcb598a0a890355847900575e99a1cc7801f68d616edc85d449b9ae7548`, Linux/amd64, network disabled during run; durable GHCR publication `ghcr.io/deanoc/fogcast-stage-a0-firstbuild@sha256:ed821006efd42153736b57caf44a4ed571b8949ac6ec47db42fd3fec9cccc1c5`, config `sha256:8e94815d34cd5522f5aba74ce5fc47ab3004f79ab27702c2d13b96766a703338` | Workflow publication is durable, but the retained local capture and candidate lock still use the disposable image; package/license closure remains open. |
 | Build utilities | bash 5.2.15, make 4.3, git 2.39.5, sed 4.9, coreutils 9.1 hashes recorded; adapter nproc shim prints one job | Fresh adapter capture; utility package/material and license closure remains open. |
 | Outputs | `MiSTer` 1157996 bytes SHA-256 `f9e6fd646740449186b74821a3684686d5dbc7b33e28052e9de28b8f4c751f2e`; `MiSTer.elf` 1380136 bytes SHA-256 `51a9864bb12ebdf8961b30ac0a45d533fd2a2885a96d81fc29f8363d1804706d` | Software-tested artifact observation only. |
 | Output inventory | 227 regular `bin/` files; digest `7a2e77ffa919e504a4baa638d6b820085a4464a15281449f1abc2f4d66419cd5` | Capture inventory; complete canonical artifact/ELF/dependency/intermediate manifests are open. |
@@ -53,10 +53,11 @@ review record only after all blockers below are resolved.
    records `STAGE_A0_JOB_COUNT=1`. The candidate lock now records `umask =
    022`, `job_count = 1`, and the shim hash, but the final report still needs
    utility/material review before promotion.
-2. **Container material:** the prepared image now has a local digest-only OCI
-   reference plus manifest/config digests in the candidate lock. It remains
-   local-only: no durable registry publication, layer source record, or
-   package/license manifest exists, so the candidate is not yet retrievable.
+2. **Container material:** the prepared image has a local digest-only OCI
+   reference plus manifest/config digests in the candidate lock, and the
+   tracked workflow now publishes a durable digest-pinned GHCR image. The
+   candidate still remains local-only because the retained capture was not run
+   against that durable image and its layer/package/license record is open.
 3. **Fork retrieval:** the fork is now available from the public
    `DeanoC/Main_MiSTer` HTTPS authority. The overall candidate remains
    `local-only` because the container, toolchain, bundled inputs, and license

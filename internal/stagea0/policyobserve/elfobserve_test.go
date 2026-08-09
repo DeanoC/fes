@@ -38,6 +38,12 @@ func TestELFObserverAssignsBundledLibrariesToSeparateMaterials(t *testing.T) {
 	}
 }
 
+func TestELFObserverUsesCanonicalToolchainMaterialID(t *testing.T) {
+	if toolchainMaterialID != "toolchain" {
+		t.Fatalf("toolchain material ID = %q, want lock material ID toolchain", toolchainMaterialID)
+	}
+}
+
 func TestELFObserverSymlinkContainment(t *testing.T) {
 	for _, test := range []struct {
 		root, candidate string

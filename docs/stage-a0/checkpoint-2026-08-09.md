@@ -3,9 +3,10 @@
 ## Current classification
 
 Stage A0 is **Software-tested**, not Reproducible, HIL-observed, or Accepted.
-The build-repeatability gate now passes; promotion remains blocked by material
-and license closure, and the full hardware/shared-memory topology is not yet
-modeled.
+The build-repeatability gate now passes. A durable GHCR build image has been
+published and exported by workflow, but the retained local captures still use
+the disposable local image; promotion remains blocked by material/license
+closure, the final lock, and the full hardware/shared-memory topology.
 
 ## Closed in this checkpoint
 
@@ -32,13 +33,19 @@ modeled.
 - ELF policy observation now separates the six bundled shared-library inputs
   from Main source material and uses a reversible logical name for
   `libstdc++.so.6`.
+- The tracked container workflow completed successfully in run
+  [31312562553](https://github.com/DeanoC/FogCast-POC/actions/runs/31312562553),
+  publishing the digest-pinned image
+  `ghcr.io/deanoc/fogcast-stage-a0-firstbuild@sha256:ed821006efd42153736b57caf44a4ed571b8949ac6ec47db42fd3fec9cccc1c5`
+  with config digest
+  `sha256:8e94815d34cd5522f5aba74ce5fc47ab3004f79ab27702c2d13b96766a703338`.
 
 ## Open gates
 
 1. **Component material/license closure:** bundled libraries, copied headers,
-   the logo, prebuilt `.so` files, toolchain packages, and the mutable local
-   container still need exact corresponding-source and license records. No
-   blanket GPL/MIT assignment is accepted.
+   the logo, prebuilt `.so` files, toolchain packages, and the build utilities
+   still need exact corresponding-source and license records. No blanket
+   GPL/MIT assignment is accepted.
 2. **Final lock/material catalog:** the current policy output is still a
    candidate observer result. The promoted-lock scratch file is not a release
    lock and is deliberately not part of the checkpoint.
@@ -47,6 +54,11 @@ modeled.
    HPS-to-FPGA/core graph when that core definition exists.
 4. **HIL:** no hardware equivalence claim has been made. HIL follows a valid
    final lock and durable artifact/material retrieval.
+
+The durable-image publication is therefore a closed infrastructure step, not
+yet a promoted build input. See the [exit decision](exit-decision-2026-08-09.md)
+for the bounded next sequence and the reason to stop rerunning unchanged
+verification.
 
 The next promotion attempt must regenerate the policy/material catalog from a
 fresh capture, add component-level records, and validate every dependency hash

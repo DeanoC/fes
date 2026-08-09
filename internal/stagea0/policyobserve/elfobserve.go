@@ -18,6 +18,8 @@ import (
 	"github.com/DeanoC/FogCast-POC/internal/stagea0/policy"
 )
 
+const toolchainMaterialID = "toolchain"
+
 // ObserveELFDependency parses the two captured Main ELF artifacts and walks
 // their DT_NEEDED closure against the fork's bundled libraries and the pinned
 // Arm sysroot.  It is a candidate observer: material IDs are source hints,
@@ -40,7 +42,10 @@ func ObserveELFDependency(evidence firstbuild.Evidence, artifactDir, repository,
 	}
 	roots := []dependencyRoot{
 		{physical: repository, materialID: "main-fork", sourcePackage: "main-fork"},
-		{physical: toolchainRoot, materialID: "arm-toolchain", sourcePackage: "arm-toolchain"},
+		// The archive is the single locked toolchain material.  Keep the
+		// package label descriptive, but bind every sysroot dependency to the
+		// lock's canonical material ID so promotion can close the ELF graph.
+		{physical: toolchainRoot, materialID: toolchainMaterialID, sourcePackage: "arm-toolchain"},
 	}
 	index, err := indexELFDependencies(roots)
 	if err != nil {
