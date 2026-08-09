@@ -34,3 +34,19 @@ func TestELFObserverSymlinkContainment(t *testing.T) {
 		}
 	}
 }
+
+func TestELFObserverRequiresARM32LittleEndian(t *testing.T) {
+	want := elf.FileHeader{Class: elf.ELFCLASS32, Data: elf.ELFDATA2LSB, Machine: elf.EM_ARM}
+	if err := validateARM32(want); err != nil {
+		t.Fatalf("valid ARM32 header rejected: %v", err)
+	}
+	for _, header := range []elf.FileHeader{
+		{Class: elf.ELFCLASS64, Data: elf.ELFDATA2LSB, Machine: elf.EM_ARM},
+		{Class: elf.ELFCLASS32, Data: elf.ELFDATA2MSB, Machine: elf.EM_ARM},
+		{Class: elf.ELFCLASS32, Data: elf.ELFDATA2LSB, Machine: elf.EM_X86_64},
+	} {
+		if err := validateARM32(header); err == nil {
+			t.Fatalf("unsupported header %#v was accepted", header)
+		}
+	}
+}

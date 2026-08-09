@@ -72,11 +72,14 @@ ELF/dependency, generated-input, and intermediate-path documents from the
 reviewed verbose build receipt; all six policy candidates are emitted as
 canonical JSON, but remain explicitly non-promotable. The final Stage A gate
 remains open. The current evidence is therefore **Software-tested /
-local-only**, not Reproducible, HIL-observed, or Accepted. The remaining work
-is the immutable material/license catalog (including reviewed build-log
-identity), a fixed job-count and build-utils adapter, durable
-container/toolchain provenance, two independent clean builds, then the narrow
-Overlord DE10-Nano/Cyclone V and HIL comparison slice.
+local-only**, not Reproducible, HIL-observed, or Accepted. The generator now
+also emits a candidate `materials.json` catalog bound to the reviewed receipt,
+build-log digest, toolchain archive hash/root, and extracted-tree digest. The
+remaining work is to replace that candidate with an immutable material/license
+catalog (including reviewed build-log identity), add a fixed job-count and
+build-utils adapter,
+durable container/toolchain provenance, two independent clean builds, then the
+narrow Overlord DE10-Nano/Cyclone V and HIL comparison slice.
 
 Use Overlord to add the minimum DE10-Nano and Cyclone V resources and generate
 the memory map, register definitions, toolchain configuration, and software

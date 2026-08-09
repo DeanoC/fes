@@ -76,36 +76,44 @@ review record only after all blockers below are resolved.
    and candidate generator now exist and are tested. The generator emits
    canonical local candidates for source-set, fork-delta, compile/link,
    ELF/dependency, generated-input, and intermediate-path from the pinned fork
-   and reviewed build receipt. They are deliberately marked `candidate-*`; no
-   policy has been promoted. The ELF observer uses deterministic Go ELF
-   projections for candidate hashes and observed source/toolchain material
-   hints; those are not final tool-output or license/material records. The
-   local generator requires the capture artifact directory and extracted
-   toolchain root explicitly, so a receipt cannot silently select a different
-   ELF tree.
+   and reviewed build receipt. It also emits `materials.json`, a
+   `candidate-observed` catalog with receipt/build-log digests, the pinned
+   archive hash/root and extracted-tree digest, and six policy material-file
+   hashes. They are deliberately marked `candidate-*`; no policy has been
+   promoted. The ELF observer uses deterministic Go ELF projections for
+   candidate hashes and observed source/toolchain material hints; those are not
+   final tool-output or license/material records. The local generator requires
+   the capture artifact directory, pinned archive, and extracted toolchain root
+   explicitly, so a receipt cannot silently select a different ELF tree or
+   archive.
 8. **Licenses:** Main, bundled libraries, the Arm archive, container packages,
    and policy/config materials lack reviewed SPDX expressions, notice
    locators, corresponding-source locators, and redistribution dispositions.
    `BLOCKED_LICENSE_*` IDs are markers only and must not be treated as legal
    conclusions.
-9. **Canonical manifests/comparator:** all six policy candidate observers now
-   exist, including the ELF/dynamic-dependency closure. The final-lock
-   comparator and independent build-log identity are still open. A preliminary
-   comparator now exists for two retained local captures, but it only reports
-   `Software-tested`/`local-only` and does not close this gate. Matching
-   preliminary binaries do not close the final lock.
+9. **Canonical manifests/comparator:** all six policy candidate observers and a
+   candidate material catalog now exist, including the ELF/dynamic-dependency
+   closure. The material catalog binds the candidate to the reviewed archive
+   bytes and records the build-log digest, but its local container, licenses,
+   and reviewed log identity remain unresolved. The final-lock comparator is
+   still open. A preliminary comparator now exists for two retained local
+   captures, but it only reports `Software-tested`/`local-only` and does not
+   close this gate. Matching preliminary binaries do not close the final lock.
 10. **Image/cache retrieval:** there is no content-addressed source/toolchain/
     image cache with revalidation, signed material metadata, or independent
     retrieval evidence. Local ignored artifacts are not a lock substitute.
 
 ## Verification run
 
-The parser and focused implementation suites passed independently:
+The parser and focused implementation suites passed independently. A real
+candidate run against the reviewed capture emitted all six policy files plus
+`materials.json` with `status=candidate-observed`:
 
 ```text
 go test ./internal/stagea0
 go test -race ./internal/stagea0/firstbuild ./cmd/stage-a0-firstbuild
 go vet ./internal/stagea0/firstbuild ./cmd/stage-a0-firstbuild
+go test ./internal/stagea0/materialobserve ./cmd/stage-a0-policy-candidate
 ```
 
 The candidate probe described above confirmed strict rejection. No target,

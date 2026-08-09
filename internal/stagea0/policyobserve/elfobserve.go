@@ -110,6 +110,7 @@ type dependencyCandidate struct {
 	realLogical   string
 	symlinkChain  []string
 	absTargetPath string
+	contentSHA256 string
 }
 
 func absoluteDirectory(value string) (string, error) {
@@ -239,7 +240,14 @@ func inspectDependencyCandidate(filename string, root dependencyRoot) (dependenc
 	if err != nil {
 		return dependencyCandidate{}, false, err
 	}
-	return dependencyCandidate{physical: filename, root: root, soname: soname, alias: filepath.Base(filename) == soname, logical: logical, realLogical: realLogical, symlinkChain: chain, absTargetPath: target}, true, nil
+	if err := validateARM32(file.FileHeader); err != nil {
+		return dependencyCandidate{}, false, nil
+	}
+	hash, err := fileSHA256(target)
+	if err != nil {
+		return dependencyCandidate{}, false, &Failure{Code: CodeCommandFailed, Detail: "dependency ELF cannot be hashed: " + logical}
+	}
+	return dependencyCandidate{physical: filename, root: root, soname: soname, alias: filepath.Base(filename) == soname, logical: logical, realLogical: realLogical, symlinkChain: chain, absTargetPath: target, contentSHA256: hash}, true, nil
 }
 
 func logicalDependencyPath(root dependencyRoot, filename, soname string) (string, error) {
@@ -323,8 +331,13 @@ func resolveDependencyClosure(queue []string, index map[string][]dependencyCandi
 		if len(candidates) == 0 {
 			return nil, gitInvalid("dynamic dependency is not present in observed roots: " + name)
 		}
-		if len(candidates) > 1 && candidates[0].alias && candidates[1].alias && (candidates[0].root.materialID != candidates[1].root.materialID || candidates[0].logical != candidates[1].logical) {
-			return nil, gitInvalid("dynamic dependency has ambiguous observed providers: " + name)
+		if len(candidates) > 1 {
+			first := candidates[0]
+			for _, candidate := range candidates[1:] {
+				if candidate.root.materialID != first.root.materialID || candidate.contentSHA256 != first.contentSHA256 {
+					return nil, gitInvalid(fmt.Sprintf("dynamic dependency has ambiguous observed providers: %s (%s/%s/%s/%s vs %s/%s/%s/%s)", name, first.root.materialID, first.logical, first.realLogical, first.physical, candidate.root.materialID, candidate.logical, candidate.realLogical, candidate.physical))
+				}
+			}
 		}
 		candidate := candidates[0]
 		record, needed, err := dependencyRecord(candidate)
@@ -379,6 +392,9 @@ func parseELFRecord(filename, logical, role string) (policy.ELFRecord, []string,
 		return policy.ELFRecord{}, nil, &Failure{Code: CodeCommandFailed, Detail: "captured artifact is not a readable ELF: " + logical}
 	}
 	defer file.Close()
+	if err := validateARM32(file.FileHeader); err != nil {
+		return policy.ELFRecord{}, nil, gitInvalid("captured ELF header is unsupported: " + logical)
+	}
 	needed, err := file.ImportedLibraries()
 	if err != nil {
 		return policy.ELFRecord{}, nil, &Failure{Code: CodeCommandFailed, Detail: "captured ELF dynamic section cannot be read: " + logical}
@@ -484,6 +500,13 @@ func elfABI(header elf.FileHeader, flags uint32) string {
 		return fmt.Sprintf("ARM-flags-0x%x", flags)
 	}
 	return header.Machine.String()
+}
+
+func validateARM32(header elf.FileHeader) error {
+	if header.Class != elf.ELFCLASS32 || header.Data != elf.ELFDATA2LSB || header.Machine != elf.EM_ARM {
+		return fmt.Errorf("expected ARM ELF32 little-endian")
+	}
+	return nil
 }
 
 func elfFlags(filename string, order binary.ByteOrder) (uint32, error) {

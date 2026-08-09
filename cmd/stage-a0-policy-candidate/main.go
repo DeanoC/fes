@@ -14,21 +14,23 @@ import (
 	"strings"
 
 	"github.com/DeanoC/FogCast-POC/internal/stagea0/firstbuild"
+	"github.com/DeanoC/FogCast-POC/internal/stagea0/materialobserve"
 	"github.com/DeanoC/FogCast-POC/internal/stagea0/policy"
 	"github.com/DeanoC/FogCast-POC/internal/stagea0/policyobserve"
 )
 
-const usage = "usage: stage-a0-policy-candidate --repository DIR --source-material ID --authority FILE --build-log FILE --receipt FILE --artifact-dir DIR --toolchain-root DIR --output-dir DIR\n"
+const usage = "usage: stage-a0-policy-candidate --repository DIR --source-material ID --authority FILE --build-log FILE --receipt FILE --artifact-dir DIR --toolchain-archive FILE --toolchain-root DIR --output-dir DIR\n"
 
 type request struct {
-	repository     string
-	sourceMaterial string
-	authority      string
-	buildLog       string
-	receipt        string
-	artifactDir    string
-	toolchainRoot  string
-	outputDir      string
+	repository       string
+	sourceMaterial   string
+	authority        string
+	buildLog         string
+	receipt          string
+	artifactDir      string
+	toolchainArchive string
+	toolchainRoot    string
+	outputDir        string
 }
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
@@ -48,7 +50,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 		if errors.As(err, &failure) {
 			_, _ = fmt.Fprintf(stderr, "%s\n", failure)
 		} else {
-			_, _ = fmt.Fprintf(stderr, "POLICY_OBSERVE_COMMAND_FAILED: %v\n", err)
+			var materialFailure *materialobserve.Failure
+			if errors.As(err, &materialFailure) {
+				_, _ = fmt.Fprintf(stderr, "%s\n", materialFailure)
+			} else {
+				_, _ = fmt.Fprintf(stderr, "POLICY_OBSERVE_COMMAND_FAILED: %v\n", err)
+			}
 		}
 		return 1
 	}
@@ -78,6 +85,8 @@ func parseArgs(args []string) (request, bool) {
 			req.receipt = value
 		case "--artifact-dir":
 			req.artifactDir = value
+		case "--toolchain-archive":
+			req.toolchainArchive = value
 		case "--toolchain-root":
 			req.toolchainRoot = value
 		case "--output-dir":
@@ -86,7 +95,7 @@ func parseArgs(args []string) (request, bool) {
 			return request{}, false
 		}
 	}
-	return req, seen["--repository"] && seen["--source-material"] && seen["--authority"] && seen["--build-log"] && seen["--receipt"] && seen["--artifact-dir"] && seen["--toolchain-root"] && seen["--output-dir"]
+	return req, seen["--repository"] && seen["--source-material"] && seen["--authority"] && seen["--build-log"] && seen["--receipt"] && seen["--artifact-dir"] && seen["--toolchain-archive"] && seen["--toolchain-root"] && seen["--output-dir"]
 }
 
 func readAuthority(filename string) (policy.Authority, error) {
@@ -161,6 +170,27 @@ func generate(req request, authority policy.Authority) error {
 		"generated-input.json":     generated,
 		"intermediate-path.json":   intermediate,
 	}
+	policyFiles := make(map[string][]byte, len(documents))
+	for name, document := range documents {
+		raw, err := policy.Encode(document)
+		if err != nil {
+			return err
+		}
+		policyFiles[name] = raw
+	}
+	materials, err := materialobserve.Observe(materialobserve.Request{
+		Evidence: evidence, Authority: authority, Receipt: receiptRaw, BuildLog: log,
+		SourceMaterialID: req.sourceMaterial, Repository: req.repository,
+		ToolchainArchive: req.toolchainArchive, ToolchainRoot: req.toolchainRoot,
+		PolicyFiles: policyFiles,
+	})
+	if err != nil {
+		return err
+	}
+	materialRaw, err := materialobserve.Encode(materials)
+	if err != nil {
+		return err
+	}
 	if _, err := os.Lstat(req.outputDir); err == nil {
 		return fmt.Errorf("output directory already exists")
 	} else if !os.IsNotExist(err) {
@@ -174,14 +204,13 @@ func generate(req request, authority policy.Authority) error {
 		return fmt.Errorf("output staging directory cannot be created: %w", err)
 	}
 	defer os.RemoveAll(staging)
-	for name, document := range documents {
-		raw, err := policy.Encode(document)
-		if err != nil {
-			return err
-		}
+	for name, raw := range policyFiles {
 		if err := os.WriteFile(filepath.Join(staging, name), raw, 0o600); err != nil {
 			return fmt.Errorf("candidate policy cannot be written: %w", err)
 		}
+	}
+	if err := os.WriteFile(filepath.Join(staging, "materials.json"), materialRaw, 0o600); err != nil {
+		return fmt.Errorf("material catalog cannot be written: %w", err)
 	}
 	if err := os.Rename(staging, req.outputDir); err != nil {
 		return fmt.Errorf("candidate output cannot be published: %w", err)

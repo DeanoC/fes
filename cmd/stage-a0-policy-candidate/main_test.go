@@ -17,6 +17,7 @@ func TestParseArgsRequiresExactlyOneValueForEachFlag(t *testing.T) {
 		"--build-log", "/build.log",
 		"--receipt", "/receipt.json",
 		"--artifact-dir", "/capture",
+		"--toolchain-archive", "/toolchain.tar.xz",
 		"--toolchain-root", "/toolchain",
 		"--output-dir", "/out",
 	}
@@ -29,8 +30,8 @@ func TestParseArgsRequiresExactlyOneValueForEachFlag(t *testing.T) {
 		{},
 		{"--repository"},
 		{"--repository", "/fork", "--repository", "/other"},
-		{"--repository", "/fork", "--source-material", "main-fork", "--authority", "/authority.json", "--build-log", "/build.log", "--receipt", "/receipt.json", "--artifact-dir", "/capture", "--toolchain-root", "/toolchain", "--output-dir", "/out", "--unknown", "x"},
-		{"--repository", "/fork", "--source-material", "main-fork", "--authority", "/authority.json", "--build-log", "/build.log", "--receipt", "", "--artifact-dir", "/capture", "--toolchain-root", "/toolchain", "--output-dir", "/out"},
+		{"--repository", "/fork", "--source-material", "main-fork", "--authority", "/authority.json", "--build-log", "/build.log", "--receipt", "/receipt.json", "--artifact-dir", "/capture", "--toolchain-archive", "/toolchain.tar.xz", "--toolchain-root", "/toolchain", "--output-dir", "/out", "--unknown", "x"},
+		{"--repository", "/fork", "--source-material", "main-fork", "--authority", "/authority.json", "--build-log", "/build.log", "--receipt", "", "--artifact-dir", "/capture", "--toolchain-archive", "/toolchain.tar.xz", "--toolchain-root", "/toolchain", "--output-dir", "/out"},
 	}
 	for _, args := range cases {
 		if _, ok := parseArgs(args); ok {
