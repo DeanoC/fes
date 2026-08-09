@@ -277,19 +277,36 @@ func TestVerifySHA1ObjectFormatRejectsNonSHA1(t *testing.T) {
 func TestExistingForkRawAttributePolicy(t *testing.T) {
 	fixture, bootstrap, _ := rawAttributedCRLFFixture(t)
 	destination := filepath.Join(t.TempDir(), "fork")
-	initializeFixtureFork(t, fixture, bootstrap, destination)
+	identity := initializeFixtureFork(t, fixture, bootstrap, destination)
 	runner := &HybridFixtureRunner{GitPath: mustGit(t), OfficialHTTPSURL: bootstrap.MainUpstream.FetchURL, LockedCommit: bootstrap.MainUpstream.Commit, LocalBareFixture: fixture}
-	if _, err := InitializeFork(context.Background(), runner, InitRequest{Bootstrap: bootstrap, Destination: destination}); err != nil {
+	got, err := InitializeFork(context.Background(), runner, InitRequest{Bootstrap: bootstrap, Destination: destination})
+	if err != nil {
 		t.Fatal(err)
 	}
+	if got.PatchTree != identity.PatchTree {
+		t.Fatalf("existing fork patch tree = %q, want %q", got.PatchTree, identity.PatchTree)
+	}
+	wantAuditSource := "GIT_ATTR_SOURCE=" + identity.PatchTree
+	wantAuditEnv := auditGitEnv(readOnlyGitEnv(), identity.PatchTree)
+	auditCommands := 0
 	for _, command := range runner.commands {
 		hasAuditSource := false
 		for _, value := range command.Env {
-			hasAuditSource = strings.HasPrefix(value, "GIT_ATTR_SOURCE=")
+			if strings.HasPrefix(value, "GIT_ATTR_SOURCE=") && value != wantAuditSource {
+				t.Fatalf("wrong locked-tree audit source: %#v", command)
+			}
+			hasAuditSource = hasAuditSource || value == wantAuditSource
 		}
-		if hasAuditSource && !reflect.DeepEqual(command.Args, []string{"check-attr", "--all", "--", bootstrap.VDate.SourcePath}) {
-			t.Fatalf("audit source leaked into ordinary command: %#v", command)
+		if !hasAuditSource {
+			continue
 		}
+		auditCommands++
+		if !reflect.DeepEqual(command.Args, []string{"check-attr", "--all", "--", bootstrap.VDate.SourcePath}) || !reflect.DeepEqual(command.Env, wantAuditEnv) {
+			t.Fatalf("locked-tree audit command is not exact: %#v", command)
+		}
+	}
+	if auditCommands != 1 {
+		t.Fatalf("locked-tree audit commands = %d, want 1", auditCommands)
 	}
 }
 
