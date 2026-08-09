@@ -13,6 +13,9 @@ const (
 	CodeVDateInputInvalid        Code = "VDATE_INPUT_INVALID"
 	CodeRepositoryPolicyMismatch Code = "REPOSITORY_POLICY_MISMATCH"
 	CodeCommandFailed            Code = "COMMAND_FAILED"
+	CodeLockSchemaInvalid        Code = "LOCK_SCHEMA_INVALID"
+	CodeLockMutableIdentity      Code = "LOCK_MUTABLE_IDENTITY"
+	CodeLicenseRecordIncomplete  Code = "LICENSE_RECORD_INCOMPLETE"
 )
 
 const (
