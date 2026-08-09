@@ -6,7 +6,7 @@ import (
 )
 
 func TestELFObserverNormalizesLogicalPathsAndABI(t *testing.T) {
-	if got := logicalComponent("libstdc++.so.6"); got != "libstdc__.so.6" {
+	if got := logicalComponent("libstdc++.so.6"); got != "libstdc_plus_plus.so.6" {
 		t.Fatalf("logicalComponent() = %q", got)
 	}
 	if got := logicalInterpreterPath("/lib/ld-linux-armhf.so.3"); got != "/stage-a0/sysroot/lib/ld-linux-armhf.so.3" {
@@ -17,6 +17,24 @@ func TestELFObserverNormalizesLogicalPathsAndABI(t *testing.T) {
 	}
 	if got := elfABI(elf.FileHeader{Machine: elf.EM_ARM}, 0x05000000); got != "EABI5" {
 		t.Fatalf("soft-float ABI = %q", got)
+	}
+}
+
+func TestELFObserverAssignsBundledLibrariesToSeparateMaterials(t *testing.T) {
+	root := dependencyRoot{physical: "/capture/main", materialID: "main-fork", sourcePackage: "main-fork"}
+	tests := []struct {
+		path string
+		want string
+	}{
+		{path: "/capture/main/lib/imlib2/libImlib2.so", want: "main-fork-libimlib2"},
+		{path: "/capture/main/lib/imlib2/libfreetype.so", want: "main-fork-libfreetype"},
+		{path: "/capture/main/lib/bluetooth/libbluetooth.so", want: "main-fork-libbluetooth"},
+		{path: "/capture/main/lib/miniz/miniz.c", want: "main-fork"},
+	}
+	for _, test := range tests {
+		if got := materialIDFor(root, test.path); got != test.want {
+			t.Errorf("materialIDFor(%q) = %q, want %q", test.path, got, test.want)
+		}
 	}
 }
 

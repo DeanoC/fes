@@ -220,6 +220,11 @@ func indexELFDependencies(roots []dependencyRoot) (map[string][]dependencyCandid
 }
 
 func inspectDependencyCandidate(filename string, root dependencyRoot) (dependencyCandidate, bool, error) {
+	observedRoot := root
+	observedRoot.materialID = materialIDFor(root, filename)
+	if observedRoot.materialID != root.materialID {
+		observedRoot.sourcePackage = observedRoot.materialID
+	}
 	file, err := elf.Open(filename)
 	if err != nil {
 		return dependencyCandidate{}, false, nil
@@ -232,11 +237,11 @@ func inspectDependencyCandidate(filename string, root dependencyRoot) (dependenc
 	if soname == "" {
 		return dependencyCandidate{}, false, nil
 	}
-	logical, err := logicalDependencyPath(root, filename, soname)
+	logical, err := logicalDependencyPath(observedRoot, filename, soname)
 	if err != nil {
 		return dependencyCandidate{}, false, err
 	}
-	chain, realLogical, target, err := dependencySymlinkChain(root, filename, logical)
+	chain, realLogical, target, err := dependencySymlinkChain(observedRoot, filename, logical)
 	if err != nil {
 		return dependencyCandidate{}, false, err
 	}
@@ -247,11 +252,40 @@ func inspectDependencyCandidate(filename string, root dependencyRoot) (dependenc
 	if err != nil {
 		return dependencyCandidate{}, false, &Failure{Code: CodeCommandFailed, Detail: "dependency ELF cannot be hashed: " + logical}
 	}
-	return dependencyCandidate{physical: filename, root: root, soname: soname, alias: filepath.Base(filename) == soname, logical: logical, realLogical: realLogical, symlinkChain: chain, absTargetPath: target, contentSHA256: hash}, true, nil
+	return dependencyCandidate{physical: filename, root: observedRoot, soname: soname, alias: filepath.Base(filename) == soname, logical: logical, realLogical: realLogical, symlinkChain: chain, absTargetPath: target, contentSHA256: hash}, true, nil
+}
+
+// materialIDFor keeps bundled binary inputs separate from the Main_MiSTer
+// source material. They are copied into the fork tree, but their licensing and
+// corresponding-source obligations are independent of Main's own code.
+func materialIDFor(root dependencyRoot, filename string) string {
+	if root.materialID != "main-fork" {
+		return root.materialID
+	}
+	relative, err := filepath.Rel(root.physical, filename)
+	if err != nil {
+		return root.materialID
+	}
+	switch filepath.ToSlash(relative) {
+	case "lib/imlib2/libImlib2.so":
+		return "main-fork-libimlib2"
+	case "lib/imlib2/libbz2.so":
+		return "main-fork-libbz2"
+	case "lib/imlib2/libfreetype.so":
+		return "main-fork-libfreetype"
+	case "lib/imlib2/libpng16.so":
+		return "main-fork-libpng16"
+	case "lib/imlib2/libz.so":
+		return "main-fork-libz"
+	case "lib/bluetooth/libbluetooth.so":
+		return "main-fork-libbluetooth"
+	default:
+		return root.materialID
+	}
 }
 
 func logicalDependencyPath(root dependencyRoot, filename, soname string) (string, error) {
-	if root.materialID == "main-fork" {
+	if strings.HasPrefix(root.materialID, "main-fork") {
 		return "/stage-a0/sysroot/usr/lib/" + logicalComponent(path.Base(soname)), nil
 	}
 	relative, err := filepath.Rel(root.physical, filename)
@@ -274,7 +308,10 @@ func logicalDependencyPath(root dependencyRoot, filename, soname string) (string
 }
 
 func logicalComponent(value string) string {
-	return strings.NewReplacer("+", "_", "@", "_", ":", "_").Replace(value)
+	// Logical paths use the policy's portable relative-path alphabet. Keep
+	// punctuation reversible instead of collapsing libstdc++ into a name that
+	// does not identify the source file.
+	return strings.NewReplacer("+", "_plus", "@", "_at", ":", "_colon").Replace(value)
 }
 
 func dependencySymlinkChain(root dependencyRoot, filename, logical string) ([]string, string, string, error) {

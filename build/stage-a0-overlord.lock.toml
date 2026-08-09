@@ -3,7 +3,7 @@
 format = 1
 schema = "fogcast.stage-a0.overlord-slice-lock"
 status = "blocked"
-source_availability = "local-only"
+source_availability = "durably-retrievable"
 generation_status = "run"
 main_lock_sha256 = "415445d1871a25b6f6f9f30d52deec640147beea6a23d8527ddc5741f4ae789a"
 
@@ -16,8 +16,8 @@ tree = "1cb0c14f581822e3606a35f631c7f56337405bba"
 [resources]
 repository_id = "deanoc-ikuy-std-resources"
 url = "https://github.com/DeanoC/ikuy_std_resources.git"
-commit = "fd653052fbaffbaced17e46a4e6af9c633942bb3"
-tree = "9b8e7b433af9f8b5e7111fe703566c0d1d231d4e"
+commit = "cfa6b1ecbbbaac0ae0da0ed1686795eb2f0792b3"
+tree = "f187c36eaec69240a15f6e46cae9c0ee9cfafb69"
 
 [[requirements]]
 id = "board-de10-nano"
@@ -35,7 +35,7 @@ source = "catalog/fogcast/cyclone_v.yaml"
 id = "registers-cyclone-v"
 kind = "register-map"
 status = "partial"
-blocker = "OVERLORD_REGISTERS_CYCLONE_V_SLICE_INCOMPLETE"
+blocker = "OVERLORD_REGISTERS_CYCLONE_V_APERTURE_INCOMPLETE"
 source = "catalog/fogcast/registers/cyclone_v"
 
 [[requirements]]
@@ -48,5 +48,5 @@ source = "catalog/fogcast/toolchains/arm-none-linux-gnueabihf.yaml"
 id = "software-main-mister"
 kind = "software-dependency-closure"
 status = "partial"
-blocker = "OVERLORD_SOFTWARE_MAIN_MISTER_CLOSURE_INCOMPLETE"
+blocker = "OVERLORD_SOFTWARE_MAIN_MISTER_NATIVE_BUILD_ADAPTER_REQUIRED"
 source = "catalog/fogcast/software/main_mister.yaml"

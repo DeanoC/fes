@@ -231,8 +231,8 @@ func validateELFClosure(document policy.Document, lock stagea0.MainLock, materia
 
 func validateIntermediate(document policy.Document, lock stagea0.MainLock) error {
 	value := document.IntermediatePath
-	if value == nil || len(value.Records) != len(lock.Build.AllowedFinalArtifacts) {
-		return invalid("intermediate-path closure does not contain exactly the locked finals")
+	if value == nil || len(value.Records) < len(lock.Build.AllowedFinalArtifacts) {
+		return invalid("intermediate-path closure does not contain the complete build manifest")
 	}
 	byPath := make(map[string]policy.IntermediateRecord, len(value.Records))
 	for _, record := range value.Records {
@@ -241,12 +241,17 @@ func validateIntermediate(document policy.Document, lock stagea0.MainLock) error
 		}
 		byPath[record.Path] = record
 	}
-	if byPath["bin/MiSTer"].Class != "final-stripped" || byPath["bin/MiSTer.elf"].Class != "final-unstripped" {
-		return invalid("intermediate final-artifact classes are invalid")
-	}
 	for _, path := range lock.Build.AllowedFinalArtifacts {
-		if _, ok := byPath[path]; !ok {
+		record, ok := byPath[path]
+		if !ok {
 			return invalid("locked final artifact is missing from intermediate paths")
+		}
+		expectedClass, ok := map[string]string{
+			"bin/MiSTer":     "final-stripped",
+			"bin/MiSTer.elf": "final-unstripped",
+		}[path]
+		if !ok || record.Class != expectedClass || record.ExpectedMode != "0755" || record.ProducerKey == "" {
+			return invalid("intermediate final-artifact record is invalid")
 		}
 	}
 	return nil

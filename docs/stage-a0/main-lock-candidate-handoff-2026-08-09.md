@@ -32,10 +32,10 @@ review record only after all blockers below are resolved.
 
 | Area | Observed value | Evidence boundary |
 | --- | --- | --- |
-| Main fork | commit `d1a3a4e65c2dbee1f23eb5a890d8f29e6448c30d`, tree `efb9c24e8e27945a75d8c497b4b99ec249129075`, parent `7b5c8de5d3fb16f9cccc1f274a2ff1b481637e42`, clean branch `fogcast/stage-a-baseline` | Local Git observation; publication status remains local-only. |
+| Main fork | commit `d1a3a4e65c2dbee1f23eb5a890d8f29e6448c30d`, tree `efb9c24e8e27945a75d8c497b4b99ec249129075`, parent `7b5c8de5d3fb16f9cccc1f274a2ff1b481637e42`, clean branch `fogcast/stage-a-baseline` | Public `DeanoC/Main_MiSTer` fork is retrievable; complete material/license closure remains open. |
 | Main upstream | HTTPS `https://github.com/MiSTer-devel/Main_MiSTer.git`, commit `7b5c8de5d3fb16f9cccc1f274a2ff1b481637e42`, tree `04337bd664f5daa09b347fb2e4e991c66d84c89f` | Bootstrap-pinned source identity; retrieval and license review remain open. |
 | Fork patch | one direct VDATE patch; isolated binary diff SHA-256 `15d56622e0e591d0dd61ebb4d9215175e42ce20bde9ecc1f1f1cfe6c34abb684` | Machine observation; exact policy file is not yet tracked. |
-| Source inventory | 420 tracked paths and 113 direct Makefile source/image inputs | First-build report; complete source-set policy is not yet generated. |
+| Source inventory | 420 tracked paths and 113 direct Makefile source/image inputs | First-build report plus a candidate source-set policy; promotion remains open. |
 | VDATE | `SOURCE_DATE_EPOCH=1786215171`, UTC `VDATE=260808` | Two clean engineering runs and prepared-image capture. |
 | Arm archive | 104607124 bytes; SHA-256 `102825ae56c9e00142d06f35d2bdd3299edb6060e84a275a25b095e66fd3fc2a`; official locator recorded in candidate | Archive hash observation; license/corresponding-source record is open. |
 | Cross compiler | GCC `10.2.1 20201103`; executable and binutils hashes are recorded in the draft | Extracted archive observation; complete toolchain/sysroot material closure is open. |
@@ -57,10 +57,10 @@ review record only after all blockers below are resolved.
    reference plus manifest/config digests in the candidate lock. It remains
    local-only: no durable registry publication, layer source record, or
    package/license manifest exists, so the candidate is not yet retrievable.
-3. **Fork retrieval:** the fork is available only from the operator's local
-   checkout. No durable HTTPS fork locator or corresponding-source publication
-   record exists; `local-only` is retained and no durable material ID is
-   invented.
+3. **Fork retrieval:** the fork is now available from the public
+   `DeanoC/Main_MiSTer` HTTPS authority. The overall candidate remains
+   `local-only` because the container, toolchain, bundled inputs, and license
+   catalog are not yet durably bound.
 4. **Bundled Main inputs:** the 420-path tree includes third-party and bundled
    directories. Their canonical subtree IDs, source authorities, configured
    features, license notices, and corresponding-source records have not been
@@ -115,10 +115,11 @@ review record only after all blockers below are resolved.
     and comparison source/toolchain/container/build-date fields are bound to
     the lock before any later promoted-evidence schema can consume them.
 12. **Overlord slice:** the pinned external checkouts are recorded in
-    [`stage-a0-overlord.lock.toml`](../../build/stage-a0-overlord.lock.toml) and
-    the capability probe reports all required DE10-Nano/Cyclone V resources
-    missing. No generated memory map, register map, toolchain configuration,
-    or software closure is being claimed.
+    [`stage-a0-overlord.lock.toml`](../../build/stage-a0-overlord.lock.toml),
+    the capability probe is ready-for-generation, and a real generation run
+    produced hash-bound board, SoC, register, bridge, toolchain, and adapter
+    outputs. Full `/dev/mem` aperture/core topology and native software
+    compilation remain deliberately unclaimed.
 
 ## Verification run
 
@@ -141,7 +142,7 @@ performed by this candidate-lock task.
 ## Next safe action
 
 Keep this file and the candidate lock in review-only state. The next owner
-should resolve the promotion report's material/license and durable-retrieval
-blockers, add the missing Overlord resources, and rerun the strict parser,
-independent two-build comparison, and Overlord output comparison. Only a
+should resolve the promotion report's material/license and container/toolchain
+retrieval blockers, extend the Overlord topology, and rerun the strict parser,
+independent two-build comparison, and generated-output comparison. Only a
 reviewed valid lock may feed the canonical Stage A0 fetch/build tools.

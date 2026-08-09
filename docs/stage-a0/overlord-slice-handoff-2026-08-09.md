@@ -2,8 +2,8 @@
 
 ## Evidence class
 
-This is a **Software-tested / local-only** Stage A handoff. It records the
-exact external repository observations, a pinned local resource-slice fork,
+This is a **Software-tested / durably-retrievable** Stage A handoff. It records the
+exact external repository observations, a pinned resource-slice fork,
 and an actual Overlord generation run. It is not a complete Main_MiSTer
 dependency closure, a reproducibility result, HIL evidence, or an Accepted
 hardware comparison.
@@ -17,14 +17,14 @@ is recorded by the hash-named [candidate review](main-lock-reviews/415445d1871a2
 | Input | Repository | Commit | Tree |
 | --- | --- | --- | --- |
 | Overlord generator | `deanoc-overlord` | `1a358e5222d9b4cecfcbf9d18dca0d3db2a4b41a` | `1cb0c14f581822e3606a35f631c7f56337405bba` |
-| Standard resources | `deanoc-ikuy-std-resources` | `fd653052fbaffbaced17e46a4e6af9c633942bb3` | `9b8e7b433af9f8b5e7111fe703566c0d1d231d4e` |
+| Standard resources | `deanoc-ikuy-std-resources` | `cfa6b1ecbbbaac0ae0da0ed1686795eb2f0792b3` | `f187c36eaec69240a15f6e46cae9c0ee9cfafb69` |
 
 The repository locators are the public HTTPS authorities recorded in
 [stage-a0-overlord.lock.toml](../../build/stage-a0-overlord.lock.toml). The
 local checkouts are ignored development evidence; their physical paths do not
-enter this handoff. Both commits are local fork commits based on the public
-repositories and remain `source_availability = local-only` until published to
-a durable HTTPS or content-addressed authority.
+enter this handoff. Both commits are published on the pinned public fork
+branches and are durably retrievable. Main_MiSTer remains a separate
+local-only candidate until its material and license catalog is closed.
 
 ## Probe result
 
@@ -47,17 +47,17 @@ the local slice, the observed result is `status=ready-for-generation`,
 | --- | --- | --- |
 | DE10-Nano board definition | Present | — |
 | Cyclone V SoC definition | Present | — |
-| Cyclone V register map | Present (minimum slice) | `OVERLORD_REGISTERS_CYCLONE_V_SLICE_INCOMPLETE` |
+| Cyclone V register map | Present (direct Main register slice; aperture/shared-memory topology remains open) | `OVERLORD_REGISTERS_CYCLONE_V_APERTURE_INCOMPLETE` |
 | `arm-none-linux-gnueabihf` toolchain configuration | Present (convention) | — |
-| Main_MiSTer software dependency closure | Present (generator adapter only) | `OVERLORD_SOFTWARE_MAIN_MISTER_CLOSURE_INCOMPLETE` |
+| Main_MiSTer software dependency closure | Present (explicit adapter and manifest; native Overlord compilation remains unsupported) | `OVERLORD_SOFTWARE_MAIN_MISTER_NATIVE_BUILD_ADAPTER_REQUIRED` |
 
 The probe includes a synthetic complete-catalog fixture in its shell test; that
 fixture only proves the probe's capability classification and is not a claim
 about the real resources.
 
-The local-slice probe report is
-`artifacts/stage-a0/observed/overlord-probe-slice-fd65305-b.json` with
-SHA-256 `b5a6864af00bf14b45412e00ff3935023a2f0e6ba3856f8e1d7d269a4c2fcc76`.
+The updated slice probe report is
+`artifacts/stage-a0/observed/overlord-probe-slice-cfa6b1e.json` with
+SHA-256 `424b1709e24ae1a2e12ea7d6400e30111ad136cfc527b18883b44a7a672e5eec`.
 
 ## Generation result
 
@@ -70,39 +70,46 @@ target/universal/stage/bin/overlord generate report \
   --board de10_nano
 ```
 
-The generated report is retained under the ignored
-`artifacts/stage-a0/observed/overlord-run/slice/`; generated headers remain in
-the ignored resource checkout output. Stable hashes from this run are:
+The generated report and selected headers are retained under the ignored
+`artifacts/stage-a0/observed/overlord-run/slice-v5/`; generated headers remain
+in the ignored resource checkout output. Stable hashes from this run are:
 
 | Output | SHA-256 |
 | --- | --- |
-| Overlord `report.txt` | `c8e03be173c49ec1dc1ab65b9571fec75604ef01f9ba5b10ae02022700b605b2` |
-| generated Main memory map | `686ad243bec1d7a48ae0d9d35e359585b604eaba613f3764d31514f93cafb66f` |
-| generated system-manager header | `d44d9a5ca6cc52f8087315db2fdaa88ea3f97c6e5972767d2c994362bfa163d5` |
-| generated bridge-window header | `165d930d8e7e4d542c3b73128c06895b05bee63b828b139b106537d753790988` |
+| Overlord `report.txt` | `27ac6a5bfd6343e6704140a7aab92346780647d34f3149ef8d93e903e92e15d8` |
+| generated Main memory map | `784c6b5769192a93ea681831674d3db929805c98501636ef8ff647b05fd90b37` |
+| generated system-manager header | `126768b5e84612c2c21123c76ee342be80c9b6d6eb465092f68fdc804475b625` |
+| generated bridge-window header | `c9002f7fcb99b07a8bb4f4db45742e5700cb6fbcfb601ae415ed41e82113478e` |
+| generated FPGA-manager header | `04a54d73844dd0c5d1ec222d6d54e76379b6edbd0a9256b9342810414e1609f1` |
+| generated reset-manager header | `6315956c181b1d27f2e9b03726272f6a73d4732abd826067a697ac165ef9b65a` |
+| generated NIC301 header | `18f4792f191a314501832c486b97d0016e8c36ebf7518b29d316079a4ded1542` |
+| generated SDR header | `bb3a172459486519122e2be9702ba380dc4cb0f39e02ea69e360a53802fb0edb` |
+| generated FPGA-manager data header | `ab54a912cbaf4d4c4c7779e8123d1a39431dad69ae247b7db6f10febbab99b4a` |
+| copied Main build manifest | `dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91` |
 
-The slice contains a DE10-Nano board definition, Cyclone V SoC/CPU metadata,
-the observed HPS-to-FPGA bridge windows from Main's Cyclone V headers, an ARM
-hard-float toolchain convention, and a software action that emits a
-Main-shaped memory-map header. The register list and software action are
-deliberately partial: they demonstrate generation and address binding, not a
-claim that every HPS peripheral or Main dependency is modeled.
+The slice contains a DE10-Nano board definition, a Cyclone V SoC instance,
+the directly used HPS register banks and bridge-window contracts from Main's
+Cyclone V headers, an ARM hard-float Linux toolchain declaration matching
+`gcc`/`ld`/`strip`, and software actions that emit the memory-map/register
+headers plus a copied, provenance-bound Main build adapter and dependency
+manifest. The register list remains partial for the full 16 MiB `/dev/mem`
+aperture and core/shared-memory windows. The adapter is intentional: Overlord's
+native software actions copy/link/render files but do not compile/link Main.
 
 ## Required next work
 
-The next work is to promote this local slice into a durable, reviewed catalog
-and extend it against the Stage A0 Main inputs:
+The next work is to extend this published slice against the remaining Stage A0
+Main inputs:
 
-- DE10-Nano board and Cyclone V HPS/FPGA topology;
-- the memory/register map needed by `Main_MiSTer`, including the existing
-  Cyclone V address constants;
-- the ARM hard-float Linux toolchain configuration;
-- the software dependency closure for the current Main build; and
+- the full DE10-Nano HPS/FPGA and shared-memory topology;
+- component-level source/license closure for Main's bundled and prebuilt
+  libraries;
 - generated output hashes and configuration provenance.
 
 Unexpected resource additions, address changes, privilege changes, compiler or
 linker changes, or dependency-closure differences remain gate failures. The
-independent-build runner is now implemented, but cannot run against the
-candidate lock until final-lock/material/license closure is valid. Do not mark
-this handoff Reproducible or HIL-observed until those checks and the separate
-physical comparison have been run.
+independent-build runner has now completed two fresh byte-identical captures,
+but the result remains Software-tested because the candidate lock's
+material/license catalog is not promotable. Do not mark this handoff
+Reproducible or HIL-observed until component-level material closure, a valid
+final lock, and the separate physical comparison have been run.

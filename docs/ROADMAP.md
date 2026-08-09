@@ -64,38 +64,38 @@ non-exempt.
 
 ### Current Stage A0 checkpoint (2026-08-09)
 
-The local Main fork, preliminary first-build captures, software-only
-two-capture comparator, strict six-policy schema, lock-bound promotion
-validator, and Git-backed source-set/fork-delta candidate observer are
-implemented and tested. A local candidate command now derives compile/link,
+The public `DeanoC/Main_MiSTer` fork, fresh adapter-backed captures,
+software-only two-capture comparator, strict six-policy schema, lock-bound
+promotion validator, and Git-backed source-set/fork-delta candidate observer
+are implemented and tested. A candidate command derives compile/link,
 ELF/dependency, generated-input, and intermediate-path documents from the
 reviewed verbose build receipt; all six policy candidates are emitted as
 canonical JSON, but remain explicitly non-promotable. The final Stage A gate
 remains open. The current evidence is therefore **Software-tested /
-local-only**, not Reproducible, HIL-observed, or Accepted. The generator now
-also emits a candidate `materials.json` catalog bound to the reviewed receipt,
+local-only**, not Reproducible, HIL-observed, or Accepted. The generator also
+emits a candidate `materials.json` catalog bound to the reviewed receipt,
 build-log digest, toolchain archive hash/root, and extracted-tree digest. The
-fresh adapter-backed capture also fixes the build job count at one and records
-the shim identity. Two fresh adapter-backed captures compare with different
-build-log digests and byte-identical final artifacts, while remaining
-explicitly local-only.
+fresh adapter-backed capture fixes the build job count at one and records the
+shim identity. Two fresh adapter-backed captures from distinct roots compare
+with different build-log digests and byte-identical final artifacts, while the
+overall evidence remains local-only until the full material/license catalog is
+promoted.
 The canonical v1 promotion report is deliberately a blocked-only candidate
 decision, with stable lock/material/policy/retrieval blockers; it does not
-provide an eligible path or rewrite the lock. A local long-lived Overlord fork
+provide an eligible path or rewrite the lock. A long-lived public Overlord fork
 now fixes board selection/catalog path initialization and prefab registration.
-Its pinned resource fork contains a generated DE10-Nano/Cyclone V slice: board,
-SoC/CPU, observed bridge windows, ARM hard-float toolchain convention, and a
-Main-shaped memory-map/register-header action. The probe is
-`ready-for-generation`, and an actual Java/SBT generation run produced
-hash-bound local outputs. The register map and Main software closure are still
-explicitly partial.
+Its pinned public resource fork contains a generated DE10-Nano/Cyclone V slice:
+board, SoC/CPU, directly used register banks, observed bridge windows,
+ARM hard-float toolchain metadata, and a provenance-bound Main build adapter.
+The probe is `ready-for-generation`, and an actual Java/SBT generation run
+produced hash-bound outputs. The full aperture/core topology and native Main
+compilation boundary are still explicitly partial.
 
 Remaining work is to replace the candidate with an immutable material/license
 catalog (including reviewed build-log identity), complete durable
-container/toolchain provenance (a local OCI manifest/config digest is now
-recorded, but not published), run the new independent-build gate against a
-valid final lock, complete the resource closure, and then run the HIL comparison
-slice.
+container/toolchain provenance (the OCI image is still local-only), run the
+independent-build gate against a valid final lock, complete the resource
+aperture/topology, and then run the HIL comparison slice.
 
 Use the pinned Overlord slice to extend the DE10-Nano/Cyclone V memory map,
 register definitions, toolchain configuration, and explicit Main_MiSTer

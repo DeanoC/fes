@@ -30,4 +30,33 @@ func TestDependencyClosureIncludesInterpreterSymlink(t *testing.T) {
 	}
 }
 
+func TestIntermediateClosureAllowsFullBuildManifest(t *testing.T) {
+	lock := stagea0.MainLock{Build: stagea0.MainLockBuild{AllowedFinalArtifacts: []string{"bin/MiSTer", "bin/MiSTer.elf"}}}
+	document := policy.Document{IntermediatePath: &policy.IntermediatePathPolicy{
+		Completeness: policy.CompletenessComplete,
+		Records: []policy.IntermediateRecord{
+			{Path: "bin/MiSTer", Class: "final-stripped", ProducerKey: "final-mister", ExpectedMode: "0755"},
+			{Path: "bin/MiSTer.elf", Class: "final-unstripped", ProducerKey: "final-mister-elf", ExpectedMode: "0755"},
+			{Path: "bin/extra.o", Class: "object", ProducerKey: "extra-object", ExpectedMode: "0644"},
+		},
+	}}
+	if err := validateIntermediate(document, lock); err != nil {
+		t.Fatalf("validateIntermediate(full manifest) = %v", err)
+	}
+}
+
+func TestIntermediateClosureRejectsInvalidLockedFinalRecord(t *testing.T) {
+	lock := stagea0.MainLock{Build: stagea0.MainLockBuild{AllowedFinalArtifacts: []string{"bin/MiSTer", "bin/MiSTer.elf"}}}
+	document := policy.Document{IntermediatePath: &policy.IntermediatePathPolicy{
+		Completeness: policy.CompletenessComplete,
+		Records: []policy.IntermediateRecord{
+			{Path: "bin/MiSTer", Class: "object", ProducerKey: "final-mister", ExpectedMode: "0755"},
+			{Path: "bin/MiSTer.elf", Class: "final-unstripped", ProducerKey: "final-mister-elf", ExpectedMode: "0755"},
+		},
+	}}
+	if err := validateIntermediate(document, lock); err == nil {
+		t.Fatal("validateIntermediate() accepted an invalid locked final record")
+	}
+}
+
 func structuredEmptyLock() (lock stagea0.MainLock) { return lock }
