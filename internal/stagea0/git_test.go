@@ -161,6 +161,138 @@ func TestExecRunnerAdmitsOfficialMakefileAttributes(t *testing.T) {
 	})
 }
 
+// This catches an initializer that lets the selected tree's .gitattributes
+// rewrite a CRLF blob while materializing the otherwise byte-exact fork.
+func TestExecRunnerPreservesRawAttributedCRLF(t *testing.T) {
+	fixture, bootstrap, changeLog := rawAttributedCRLFFixture(t)
+	destination := filepath.Join(t.TempDir(), "fork")
+	runner := &HybridFixtureRunner{GitPath: mustGit(t), OfficialHTTPSURL: bootstrap.MainUpstream.FetchURL, LockedCommit: bootstrap.MainUpstream.Commit, LocalBareFixture: fixture}
+	identity, err := InitializeFork(context.Background(), runner, InitRequest{Bootstrap: bootstrap, Destination: destination})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := sha256.Sum256(changeLog)
+	if got := sha256.Sum256(mustReadFile(t, filepath.Join(destination, "lib", "miniz", "ChangeLog.md"))); got != want {
+		t.Fatalf("materialized ChangeLog SHA-256 = %x, want %x", got, want)
+	}
+	if attrs := runGit(t, destination, "check-attr", "--all", "--", "Makefile"); attrs != "" {
+		t.Fatalf("ordinary attributes = %q, want empty", attrs)
+	}
+	patchTree := runGitTrim(t, destination, "rev-parse", "HEAD^{tree}")
+	if attrs := runGitWithEnv(t, destination, []string{"GIT_ATTR_SOURCE=" + patchTree}, "check-attr", "--all", "--", "Makefile"); attrs != "Makefile: text: set\nMakefile: eol: lf\n" {
+		t.Fatalf("scoped Makefile attributes = %q", attrs)
+	}
+	runGit(t, destination, "update-index", "--really-refresh")
+	if status := runGit(t, destination, "status", "--porcelain=v1", "--untracked-files=all"); status != "" {
+		t.Fatalf("status after restat = %q", status)
+	}
+	runGit(t, destination, "checkout-index", "--all")
+	if status := runGit(t, destination, "status", "--porcelain=v1", "--untracked-files=all"); status != "" {
+		t.Fatalf("status after checkout-index = %q", status)
+	}
+	if got := sha256.Sum256(mustReadFile(t, filepath.Join(destination, "lib", "miniz", "ChangeLog.md"))); got != want {
+		t.Fatalf("ChangeLog SHA-256 after checkout-index = %x, want %x", got, want)
+	}
+	before := completeSnapshot(t, destination)
+	got, err := InitializeFork(context.Background(), &HybridFixtureRunner{GitPath: mustGit(t), OfficialHTTPSURL: bootstrap.MainUpstream.FetchURL, LockedCommit: bootstrap.MainUpstream.Commit, LocalBareFixture: fixture}, InitRequest{Bootstrap: bootstrap, Destination: destination})
+	if err != nil || got != identity {
+		t.Fatalf("rerun = %#v, %v", got, err)
+	}
+	if after := completeSnapshot(t, destination); after != before {
+		t.Fatal("raw-attributed destination changed on matching rerun")
+	}
+}
+
+// This catches a managed attr.tree policy that accepts a missing, noncanonical,
+// or nonempty tree, or that leaves an auxiliary attributes file in the fork.
+func TestRawAttributeIsolation(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		mutate func(t *testing.T, destination string)
+	}{
+		{"missing attr tree", func(t *testing.T, d string) { runGit(t, d, "config", "--local", "--unset", "attr.tree") }},
+		{"noncanonical attr tree", func(t *testing.T, d string) { runGit(t, d, "config", "--local", "attr.tree", strings.Repeat("0", 40)) }},
+		{"nonempty attr tree", func(t *testing.T, d string) { runGit(t, d, "config", "--local", "attr.tree", "HEAD^{tree}") }},
+		{"info attributes file", func(t *testing.T, d string) {
+			if err := os.WriteFile(filepath.Join(d, ".git", "info", "attributes"), []byte("* text\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"info attributes directory", func(t *testing.T, d string) {
+			if err := os.Mkdir(filepath.Join(d, ".git", "info", "attributes"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"info attributes symlink", func(t *testing.T, d string) {
+			info := filepath.Join(d, ".git", "info")
+			target := filepath.Join(info, "attributes-target")
+			if err := os.WriteFile(target, []byte("* text\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink("attributes-target", filepath.Join(info, "attributes")); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"info parent symlink", func(t *testing.T, d string) {
+			info := filepath.Join(d, ".git", "info")
+			if err := os.Rename(info, filepath.Join(d, ".git", "info-original")); err != nil {
+				t.Fatal(err)
+			}
+			external := t.TempDir()
+			if err := os.Symlink(external, info); err != nil {
+				t.Fatal(err)
+			}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fixture, bootstrap, _ := rawAttributedCRLFFixture(t)
+			destination := filepath.Join(t.TempDir(), "fork")
+			initializeFixtureFork(t, fixture, bootstrap, destination)
+			tc.mutate(t, destination)
+			before := completeSnapshot(t, destination)
+			_, err := InitializeFork(context.Background(), &HybridFixtureRunner{GitPath: mustGit(t), OfficialHTTPSURL: bootstrap.MainUpstream.FetchURL, LockedCommit: bootstrap.MainUpstream.Commit, LocalBareFixture: fixture}, InitRequest{Bootstrap: bootstrap, Destination: destination})
+			if !hasCode(err, CodeRepositoryPolicyMismatch) {
+				t.Fatalf("InitializeFork() error = %v, want repository policy mismatch", err)
+			}
+			if after := completeSnapshot(t, destination); after != before {
+				t.Fatal("mismatched attribute policy changed existing destination")
+			}
+		})
+	}
+}
+
+func TestVerifySHA1ObjectFormatRejectsNonSHA1(t *testing.T) {
+	runner := &recordingRunner{results: []CommandResult{{Stdout: []byte("sha256\n")}}}
+	err := verifySHA1ObjectFormat(context.Background(), runner, mustGit(t), t.TempDir(), readOnlyGitEnv())
+	if !hasCode(err, CodeRepositoryPolicyMismatch) {
+		t.Fatalf("verifySHA1ObjectFormat() error = %v, want repository policy mismatch", err)
+	}
+	if len(runner.commands) != 1 || !reflect.DeepEqual(runner.commands[0].Args, []string{"rev-parse", "--show-object-format"}) {
+		t.Fatalf("commands = %#v", runner.commands)
+	}
+}
+
+// This catches an existing-fork verifier which scopes GIT_ATTR_SOURCE too
+// broadly or otherwise leaks the locked-tree policy into ordinary commands.
+func TestExistingForkRawAttributePolicy(t *testing.T) {
+	fixture, bootstrap, _ := rawAttributedCRLFFixture(t)
+	destination := filepath.Join(t.TempDir(), "fork")
+	initializeFixtureFork(t, fixture, bootstrap, destination)
+	runner := &HybridFixtureRunner{GitPath: mustGit(t), OfficialHTTPSURL: bootstrap.MainUpstream.FetchURL, LockedCommit: bootstrap.MainUpstream.Commit, LocalBareFixture: fixture}
+	if _, err := InitializeFork(context.Background(), runner, InitRequest{Bootstrap: bootstrap, Destination: destination}); err != nil {
+		t.Fatal(err)
+	}
+	for _, command := range runner.commands {
+		hasAuditSource := false
+		for _, value := range command.Env {
+			hasAuditSource = strings.HasPrefix(value, "GIT_ATTR_SOURCE=")
+		}
+		if hasAuditSource && !reflect.DeepEqual(command.Args, []string{"check-attr", "--all", "--", bootstrap.VDate.SourcePath}) {
+			t.Fatalf("audit source leaked into ordinary command: %#v", command)
+		}
+	}
+}
+
 func TestExecRunnerSupportsEpochZeroAndCanonicalCommitBytes(t *testing.T) {
 	fixture, bootstrap := localUpstreamFixture(t)
 	for _, epoch := range []int64{0, 1722470400} {
@@ -328,6 +460,45 @@ func checkoutAttributesFixture(t *testing.T, attributes string) (string, Bootstr
 	return bare, bootstrap
 }
 
+func rawAttributedCRLFFixture(t *testing.T) (string, Bootstrap, []byte) {
+	t.Helper()
+	root := t.TempDir()
+	work, bare := filepath.Join(root, "work"), filepath.Join(root, "upstream.git")
+	runGit(t, root, "init", work)
+	runGit(t, work, "config", "user.name", "Fixture")
+	runGit(t, work, "config", "user.email", "fixture@example.invalid")
+	if err := os.MkdirAll(filepath.Join(work, "lib", "miniz"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	source := validRecipeSource()
+	changeLog := []byte("miniz change log\r\n\r\n- preserved upstream CRLF\r\n")
+	if err := os.WriteFile(filepath.Join(work, "Makefile"), source, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(work, ".gitattributes"), []byte("*.md text eol=lf\nMakefile text eol=lf\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(work, "lib", "miniz", "ChangeLog.md"), changeLog, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, work, "add", "Makefile", ".gitattributes")
+	changeLogBlob := writeGitBlob(t, work, changeLog)
+	runGit(t, work, "update-index", "--add", "--cacheinfo", "100644,"+changeLogBlob+",lib/miniz/ChangeLog.md")
+	runGit(t, work, "commit", "-m", "upstream")
+	commit := runGitTrim(t, work, "rev-parse", "HEAD")
+	tree := runGitTrim(t, work, "rev-parse", "HEAD^{tree}")
+	runGit(t, root, "clone", "--bare", work, bare)
+	bootstrap, err := ParseBootstrap(validBootstrapTOML())
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256(source)
+	bootstrap.MainUpstream.FetchURL = "https://example.invalid/Main_MiSTer.git"
+	bootstrap.MainUpstream.Commit, bootstrap.MainUpstream.Tree, bootstrap.Branch.ParentCommit = commit, tree, commit
+	bootstrap.VDate.SourceEvidenceSHA256 = fmt.Sprintf("%x", digest)
+	return bare, bootstrap, changeLog
+}
+
 func completeSnapshot(t *testing.T, root string) string {
 	t.Helper()
 	var entries []string
@@ -341,6 +512,14 @@ func completeSnapshot(t *testing.T, root string) string {
 		}
 		rel, _ := filepath.Rel(root, path)
 		entries = append(entries, rel+"|"+info.Mode().String()+"|"+fmt.Sprint(info.ModTime().UnixNano()))
+		if entry.Type()&os.ModeSymlink != 0 {
+			target, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			entries = append(entries, "symlink|"+target)
+			return nil
+		}
 		if !entry.IsDir() {
 			raw, err := os.ReadFile(path)
 			if err != nil {
@@ -377,6 +556,30 @@ func runGit(t *testing.T, dir string, args ...string) string {
 	return string(out)
 }
 
+func runGitWithEnv(t *testing.T, dir string, extra []string, args ...string) string {
+	t.Helper()
+	command := exec.Command(mustGit(t), args...)
+	command.Dir = dir
+	command.Env = append(append(os.Environ(), "LC_ALL=C", "LANG=C", "TZ=UTC"), extra...)
+	out, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %q: %v: %s", args, err, out)
+	}
+	return string(out)
+}
+
+func writeGitBlob(t *testing.T, dir string, raw []byte) string {
+	t.Helper()
+	command := exec.Command(mustGit(t), "hash-object", "-w", "--stdin")
+	command.Dir = dir
+	command.Stdin = strings.NewReader(string(raw))
+	out, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git hash-object raw blob: %v: %s", err, out)
+	}
+	return strings.TrimSpace(string(out))
+}
+
 func slicesContain(values []string, want string) bool {
 	for _, value := range values {
 		if value == want {
@@ -406,8 +609,14 @@ func assertClosedGitTranscript(t *testing.T, commands []Command, spec CommitSpec
 		if len(command.Env) == 9 && slicesContain(command.Env, "GIT_OPTIONAL_LOCKS=0") {
 			continue
 		}
-		if len(command.Env) != 15 || !slicesContain(command.Env, "GIT_AUTHOR_NAME="+spec.AuthorName) || !slicesContain(command.Env, "GIT_COMMITTER_EMAIL="+spec.CommitterEmail) {
+		if len(command.Env) == 10 && slicesContain(command.Env, "GIT_OPTIONAL_LOCKS=0") && reflect.DeepEqual(command.Args, []string{"check-attr", "--all", "--", "Makefile"}) && strings.HasPrefix(command.Env[9], "GIT_ATTR_SOURCE=") {
+			continue
+		}
+		if len(command.Env) != 15 && len(command.Env) != 16 || !slicesContain(command.Env, "GIT_AUTHOR_NAME="+spec.AuthorName) || !slicesContain(command.Env, "GIT_COMMITTER_EMAIL="+spec.CommitterEmail) {
 			t.Fatalf("non-deterministic Git environment: %#v", command.Env)
+		}
+		if len(command.Env) == 16 && (!reflect.DeepEqual(command.Args, []string{"check-attr", "--all", "--", "Makefile"}) || !strings.HasPrefix(command.Env[15], "GIT_ATTR_SOURCE=")) {
+			t.Fatalf("scoped attribute audit is not isolated: %#v", command)
 		}
 	}
 }
@@ -459,7 +668,7 @@ func TestInitializeForkRejectsUnsafeSourceTreeEntriesBeforeMaterialization(t *te
 				t.Fatalf("unsafe source published destination: %v", statErr)
 			}
 			for _, command := range runner.commands {
-				if slicesContain(command.Args, "checkout-index") || slicesContain(command.Args, "hash-object") || slicesContain(command.Args, "update-index") {
+				if slicesContain(command.Args, "checkout-index") || (slicesContain(command.Args, "hash-object") && !isCanonicalEmptyTreeWrite(command)) || slicesContain(command.Args, "update-index") {
 					t.Fatalf("unsafe source reached materialization/mutation: %#v", command)
 				}
 			}
@@ -744,11 +953,24 @@ func assertExactGitEnvironments(t *testing.T, commands []Command, spec CommitSpe
 		if reflect.DeepEqual(command.Env, readonly) {
 			continue
 		}
+		if isScopedAttributeAudit(command, readonly) {
+			continue
+		}
 		write := gitEnv(spec, filepath.Join(command.Dir, ".git", "index"))
 		if !reflect.DeepEqual(command.Env, write) {
-			t.Fatalf("command %q env = %#v, want exact write or read-only environment", command.Args, command.Env)
+			if !isScopedAttributeAudit(command, write) {
+				t.Fatalf("command %q env = %#v, want exact write, read-only, or scoped audit environment", command.Args, command.Env)
+			}
 		}
 	}
+}
+
+func isScopedAttributeAudit(command Command, base []string) bool {
+	return reflect.DeepEqual(command.Args, []string{"check-attr", "--all", "--", "Makefile"}) && len(command.Env) == len(base)+1 && reflect.DeepEqual(command.Env[:len(base)], base) && strings.HasPrefix(command.Env[len(base)], "GIT_ATTR_SOURCE=")
+}
+
+func isCanonicalEmptyTreeWrite(command Command) bool {
+	return reflect.DeepEqual(command.Args, []string{"hash-object", "-w", "-t", "tree", "--stdin"}) && len(command.Stdin) == 0
 }
 
 func initializeFixtureFork(t *testing.T, fixture string, bootstrap Bootstrap, destination string) ForkIdentity {
@@ -908,7 +1130,7 @@ func TestInitializeForkRejectsInjectedLeftoverRefBeforeMaterialization(t *testin
 		t.Fatalf("destination exists after leftover-ref rejection: %v", statErr)
 	}
 	for _, command := range runner.commands {
-		if slicesContain(command.Args, "hash-object") || slicesContain(command.Args, "update-index") || slicesContain(command.Args, "checkout-index") {
+		if (slicesContain(command.Args, "hash-object") && !isCanonicalEmptyTreeWrite(command)) || slicesContain(command.Args, "update-index") || slicesContain(command.Args, "checkout-index") {
 			t.Fatalf("leftover ref reached materialization: %#v", command)
 		}
 	}
@@ -946,61 +1168,24 @@ func TestInitializeForkAbsentDestinationUsesExactOrderedTranscript(t *testing.T)
 	}
 	got := normalizeAbsentTranscript(t, runner.commands, bootstrap, identity)
 	want := [][]string{
-		{"init"},
-		{"remote", "add", "stage-a0-fetch", "$URL"},
-		{"fetch", "--no-tags", "--no-write-fetch-head", "--no-recurse-submodules", "stage-a0-fetch", "$PARENT"},
-		{"rev-parse", "$PARENT^{tree}"},
-		{"remote", "remove", "stage-a0-fetch"},
-		{"for-each-ref", "--format=%(refname)"},
-		{"ls-tree", "$UPSTREAM_TREE", "--", "Makefile"},
-		{"cat-file", "blob", "$SOURCE_BLOB"},
-		{"remote", "add", "upstream", "$URL"},
-		{"config", "--local", "core.autocrlf", "false"},
-		{"config", "--local", "core.eol", "lf"},
-		{"config", "--local", "core.attributesfile", "/dev/null"},
-		{"config", "--local", "remote.upstream.url", "$URL"},
-		{"config", "--local", "remote.upstream.fetch", "+refs/heads/*:refs/remotes/upstream/*"},
-		{"config", "--local", "remote.upstream.pushurl", DisabledPushURL},
-		{"read-tree", "$PARENT"},
-		{"hash-object", "-w", "--stdin"},
-		{"update-index", "--add", "--cacheinfo", "100644,$PATCHED_BLOB,Makefile"},
-		{"write-tree"},
-		{"diff-tree", "--no-commit-id", "--name-status", "-r", "$PARENT", "$PATCH_TREE"},
-		{"-c", "commit.gpgSign=false", "commit-tree", "$PATCH_TREE", "-p", "$PARENT", "-F", "-"},
-		{"update-ref", "refs/heads/fogcast/stage-a-baseline", "$PATCH_COMMIT", "$ZERO"},
-		{"symbolic-ref", "HEAD", "refs/heads/fogcast/stage-a-baseline"},
-		{"read-tree", "$PATCH_TREE"},
-		{"check-attr", "--cached", "--all", "--", "Makefile"},
-		{"checkout-index", "--all"},
-		{"cat-file", "blob", "$PATCH_TREE:Makefile"},
-		{"status", "--porcelain=v1", "--untracked-files=all"},
-		{"symbolic-ref", "-q", "HEAD"},
-		{"rev-parse", "HEAD^"},
-		{"rev-parse", "$PARENT^{tree}"},
-		{"rev-parse", "HEAD^{tree}"},
-		{"cat-file", "commit", "HEAD"},
-		{"diff-tree", "--no-commit-id", "--name-status", "-r", "$PARENT", "$PATCH_TREE"},
-		{"ls-tree", "$UPSTREAM_TREE", "--", "Makefile"},
-		{"cat-file", "blob", "$SOURCE_BLOB"},
-		{"cat-file", "blob", "HEAD:Makefile"},
-		{"remote"},
-		{"remote", "get-url", "upstream"},
-		{"remote", "get-url", "--push", "upstream"},
-		{"status", "--porcelain=v1", "--untracked-files=all"},
-		{"symbolic-ref", "-q", "HEAD"},
-		{"rev-parse", "HEAD^"},
-		{"rev-parse", "$PARENT^{tree}"},
-		{"rev-parse", "HEAD^{tree}"},
-		{"cat-file", "commit", "HEAD"},
-		{"diff-tree", "--no-commit-id", "--name-status", "-r", "$PARENT", "$PATCH_TREE"},
-		{"ls-tree", "$UPSTREAM_TREE", "--", "Makefile"},
-		{"cat-file", "blob", "$SOURCE_BLOB"},
-		{"cat-file", "blob", "HEAD:Makefile"},
-		{"remote"},
-		{"remote", "get-url", "upstream"},
-		{"remote", "get-url", "--push", "upstream"},
-		{"rev-parse", "HEAD^{commit}"},
-		{"rev-parse", "HEAD^{tree}"},
+		{"init"}, {"rev-parse", "--show-object-format"}, {"hash-object", "-w", "-t", "tree", "--stdin"},
+		{"cat-file", "-e", canonicalEmptyTree + "^{tree}"}, {"cat-file", "-t", canonicalEmptyTree}, {"ls-tree", "-z", canonicalEmptyTree},
+		{"remote", "add", "stage-a0-fetch", "$URL"}, {"fetch", "--no-tags", "--no-write-fetch-head", "--no-recurse-submodules", "stage-a0-fetch", "$PARENT"},
+		{"rev-parse", "$PARENT^{tree}"}, {"remote", "remove", "stage-a0-fetch"}, {"for-each-ref", "--format=%(refname)"},
+		{"ls-tree", "$UPSTREAM_TREE", "--", "Makefile"}, {"cat-file", "blob", "$SOURCE_BLOB"}, {"remote", "add", "upstream", "$URL"},
+		{"config", "--local", "core.autocrlf", "false"}, {"config", "--local", "core.eol", "lf"}, {"config", "--local", "core.attributesfile", "/dev/null"}, {"config", "--local", "attr.tree", canonicalEmptyTree},
+		{"config", "--local", "remote.upstream.url", "$URL"}, {"config", "--local", "remote.upstream.fetch", "+refs/heads/*:refs/remotes/upstream/*"}, {"config", "--local", "remote.upstream.pushurl", DisabledPushURL},
+		{"read-tree", "$PARENT"}, {"hash-object", "-w", "--stdin"}, {"update-index", "--add", "--cacheinfo", "100644,$PATCHED_BLOB,Makefile"}, {"write-tree"},
+		{"diff-tree", "--no-commit-id", "--name-status", "-r", "$PARENT", "$PATCH_TREE"}, {"-c", "commit.gpgSign=false", "commit-tree", "$PATCH_TREE", "-p", "$PARENT", "-F", "-"},
+		{"update-ref", "refs/heads/fogcast/stage-a-baseline", "$PATCH_COMMIT", "$ZERO"}, {"symbolic-ref", "HEAD", "refs/heads/fogcast/stage-a-baseline"}, {"read-tree", "$PATCH_TREE"},
+		{"check-attr", "--all", "--", "Makefile"}, {"check-attr", "--all", "--", "Makefile"}, {"checkout-index", "--all"}, {"cat-file", "blob", "$PATCH_TREE:Makefile"}, {"check-attr", "--all", "--", "Makefile"},
+		{"check-attr", "--all", "--", "Makefile"}, {"status", "--porcelain=v1", "--untracked-files=all"}, {"symbolic-ref", "-q", "HEAD"}, {"rev-parse", "HEAD^"}, {"rev-parse", "$PARENT^{tree}"}, {"rev-parse", "HEAD^{tree}"},
+		{"cat-file", "commit", "HEAD"}, {"diff-tree", "--no-commit-id", "--name-status", "-r", "$PARENT", "$PATCH_TREE"}, {"ls-tree", "$UPSTREAM_TREE", "--", "Makefile"}, {"cat-file", "blob", "$SOURCE_BLOB"}, {"cat-file", "blob", "HEAD:Makefile"},
+		{"check-attr", "--all", "--", "Makefile"}, {"remote"}, {"remote", "get-url", "upstream"}, {"remote", "get-url", "--push", "upstream"},
+		{"rev-parse", "--show-object-format"}, {"cat-file", "-e", canonicalEmptyTree + "^{tree}"}, {"cat-file", "-t", canonicalEmptyTree}, {"ls-tree", "-z", canonicalEmptyTree},
+		{"check-attr", "--all", "--", "Makefile"}, {"status", "--porcelain=v1", "--untracked-files=all"}, {"symbolic-ref", "-q", "HEAD"}, {"rev-parse", "HEAD^"}, {"rev-parse", "$PARENT^{tree}"}, {"rev-parse", "HEAD^{tree}"},
+		{"cat-file", "commit", "HEAD"}, {"diff-tree", "--no-commit-id", "--name-status", "-r", "$PARENT", "$PATCH_TREE"}, {"ls-tree", "$UPSTREAM_TREE", "--", "Makefile"}, {"cat-file", "blob", "$SOURCE_BLOB"}, {"cat-file", "blob", "HEAD:Makefile"},
+		{"check-attr", "--all", "--", "Makefile"}, {"remote"}, {"remote", "get-url", "upstream"}, {"remote", "get-url", "--push", "upstream"}, {"rev-parse", "HEAD^{commit}"}, {"rev-parse", "HEAD^{tree}"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("ordered transcript = %#v\nwant %#v", got, want)

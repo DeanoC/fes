@@ -161,6 +161,16 @@ type cliRecipeFailureRunner struct{}
 
 func (r *cliRecipeFailureRunner) Run(_ context.Context, command stagea0.Command) (stagea0.CommandResult, error) {
 	switch strings.Join(command.Args, "\x00") {
+	case "rev-parse\x00--show-object-format":
+		return stagea0.CommandResult{Stdout: []byte("sha1\n")}, nil
+	case "hash-object\x00-w\x00-t\x00tree\x00--stdin":
+		return stagea0.CommandResult{Stdout: []byte("4b825dc642cb6eb9a060e54bf8d69288fbee4904\n")}, nil
+	case "cat-file\x00-e\x004b825dc642cb6eb9a060e54bf8d69288fbee4904^{tree}":
+		return stagea0.CommandResult{}, nil
+	case "cat-file\x00-t\x004b825dc642cb6eb9a060e54bf8d69288fbee4904":
+		return stagea0.CommandResult{Stdout: []byte("tree\n")}, nil
+	case "ls-tree\x00-z\x004b825dc642cb6eb9a060e54bf8d69288fbee4904":
+		return stagea0.CommandResult{}, nil
 	case "rev-parse\x00HEAD^{commit}":
 		return stagea0.CommandResult{Stdout: []byte("0123456789abcdef0123456789abcdef01234567\n")}, nil
 	case "symbolic-ref\x00-q\x00HEAD":

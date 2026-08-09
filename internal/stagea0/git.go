@@ -17,6 +17,8 @@ import (
 	"unicode/utf8"
 )
 
+const canonicalEmptyTree = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
 // Run executes exactly the supplied command. In particular, Env is a complete
 // environment rather than an addition to the caller's environment.
 func (ExecRunner) Run(ctx context.Context, command Command) (CommandResult, error) {
@@ -133,6 +135,12 @@ func initializeTemporaryFork(ctx context.Context, runner Runner, gitPath, root s
 	if _, err := run("init"); err != nil {
 		return ForkIdentity{}, err
 	}
+	if err := verifySHA1ObjectFormat(ctx, runner, gitPath, root, env); err != nil {
+		return ForkIdentity{}, err
+	}
+	if err := writeCanonicalEmptyTree(ctx, runner, gitPath, root, env); err != nil {
+		return ForkIdentity{}, err
+	}
 	if _, err := run("remote", "add", "stage-a0-fetch", bootstrap.MainUpstream.FetchURL); err != nil {
 		return ForkIdentity{}, err
 	}
@@ -168,12 +176,15 @@ func initializeTemporaryFork(ctx context.Context, runner Runner, gitPath, root s
 	if _, err := run("remote", "add", "upstream", bootstrap.MainUpstream.FetchURL); err != nil {
 		return ForkIdentity{}, err
 	}
-	for _, pair := range [][2]string{{"core.autocrlf", "false"}, {"core.eol", "lf"}, {"core.attributesfile", "/dev/null"}, {"remote.upstream.url", bootstrap.MainUpstream.FetchURL}, {"remote.upstream.fetch", "+refs/heads/*:refs/remotes/upstream/*"}, {"remote.upstream.pushurl", DisabledPushURL}} {
+	for _, pair := range [][2]string{{"core.autocrlf", "false"}, {"core.eol", "lf"}, {"core.attributesfile", "/dev/null"}, {"attr.tree", canonicalEmptyTree}, {"remote.upstream.url", bootstrap.MainUpstream.FetchURL}, {"remote.upstream.fetch", "+refs/heads/*:refs/remotes/upstream/*"}, {"remote.upstream.pushurl", DisabledPushURL}} {
 		if _, err := run("config", "--local", pair[0], pair[1]); err != nil {
 			return ForkIdentity{}, err
 		}
 	}
 	if err := verifyClosedConfig(root, bootstrap); err != nil {
+		return ForkIdentity{}, err
+	}
+	if err := rejectInfoAttributes(root); err != nil {
 		return ForkIdentity{}, err
 	}
 	if _, err := run("read-tree", bootstrap.Branch.ParentCommit); err != nil {
@@ -211,11 +222,18 @@ func initializeTemporaryFork(ctx context.Context, runner Runner, gitPath, root s
 	if _, err := run("read-tree", patchTree); err != nil {
 		return ForkIdentity{}, err
 	}
-	attrs, err := run("check-attr", "--cached", "--all", "--", bootstrap.VDate.SourcePath)
+	attrs, err := run("check-attr", "--all", "--", bootstrap.VDate.SourcePath)
 	if err != nil {
 		return ForkIdentity{}, repositoryMismatch("source has checkout-altering attributes")
 	}
-	if err := verifyCheckoutAttributes(bootstrap.VDate.SourcePath, patched, []byte(attrs)); err != nil {
+	if attrs != "" {
+		return ForkIdentity{}, repositoryMismatch("persistent attributes are not isolated")
+	}
+	auditAttrs, err := gitOutput(ctx, runner, Command{Path: gitPath, Args: []string{"check-attr", "--all", "--", bootstrap.VDate.SourcePath}, Env: auditGitEnv(env, patchTree), Dir: root})
+	if err != nil {
+		return ForkIdentity{}, repositoryMismatch("locked source attributes cannot be inspected")
+	}
+	if err := verifyCheckoutAttributes(bootstrap.VDate.SourcePath, patched, []byte(auditAttrs)); err != nil {
 		return ForkIdentity{}, err
 	}
 	if _, err := run("checkout-index", "--all"); err != nil {
@@ -233,6 +251,10 @@ func initializeTemporaryFork(ctx context.Context, runner Runner, gitPath, root s
 	committedDigest := sha256.Sum256([]byte(committed))
 	if digest != committedDigest {
 		return ForkIdentity{}, repositoryMismatch("materialized source differs from committed blob")
+	}
+	attrs, err = run("check-attr", "--all", "--", bootstrap.VDate.SourcePath)
+	if err != nil || attrs != "" {
+		return ForkIdentity{}, repositoryMismatch("persistent attributes are not isolated")
 	}
 	identity := ForkIdentity{UpstreamCommit: bootstrap.MainUpstream.Commit, UpstreamTree: bootstrap.MainUpstream.Tree, Branch: bootstrap.Branch.Name, PatchCommit: patchCommit, PatchTree: patchTree}
 	if _, err := verifyFork(ctx, runner, gitPath, root, bootstrap, identity, env); err != nil {
@@ -256,6 +278,15 @@ func verifyExistingFork(ctx context.Context, runner Runner, gitPath, root string
 	if err := verifyClosedConfig(root, bootstrap); err != nil {
 		return ForkIdentity{}, err
 	}
+	if err := rejectInfoAttributes(root); err != nil {
+		return ForkIdentity{}, err
+	}
+	if err := verifySHA1ObjectFormat(ctx, runner, gitPath, root, readOnlyGitEnv()); err != nil {
+		return ForkIdentity{}, err
+	}
+	if err := verifyCanonicalEmptyTree(ctx, runner, gitPath, root, readOnlyGitEnv()); err != nil {
+		return ForkIdentity{}, err
+	}
 	identity := ForkIdentity{UpstreamCommit: bootstrap.MainUpstream.Commit, UpstreamTree: bootstrap.MainUpstream.Tree, Branch: bootstrap.Branch.Name}
 	if _, err := verifyFork(ctx, runner, gitPath, root, bootstrap, identity, readOnlyGitEnv()); err != nil {
 		return ForkIdentity{}, err
@@ -276,6 +307,10 @@ func verifyExistingFork(ctx context.Context, runner Runner, gitPath, root string
 func verifyFork(ctx context.Context, runner Runner, gitPath, root string, bootstrap Bootstrap, identity ForkIdentity, env []string) (ForkIdentity, error) {
 	run := func(args ...string) (string, error) {
 		return gitOutput(ctx, runner, Command{Path: gitPath, Args: args, Env: env, Dir: root})
+	}
+	attrs, err := run("check-attr", "--all", "--", bootstrap.VDate.SourcePath)
+	if err != nil || attrs != "" {
+		return ForkIdentity{}, repositoryMismatch("persistent attributes are not isolated")
 	}
 	status, err := run("status", "--porcelain=v1", "--untracked-files=all")
 	if err != nil || status != "" {
@@ -321,6 +356,10 @@ func verifyFork(ctx context.Context, runner Runner, gitPath, root string, bootst
 	actual, err := run("cat-file", "blob", "HEAD:"+bootstrap.VDate.SourcePath)
 	if err != nil || !bytes.Equal([]byte(actual), expected) {
 		return ForkIdentity{}, repositoryMismatch("fork patched source differs")
+	}
+	auditAttrs, err := gitOutput(ctx, runner, Command{Path: gitPath, Args: []string{"check-attr", "--all", "--", bootstrap.VDate.SourcePath}, Env: auditGitEnv(env, headTree), Dir: root})
+	if err != nil || verifyCheckoutAttributes(bootstrap.VDate.SourcePath, []byte(actual), []byte(auditAttrs)) != nil {
+		return ForkIdentity{}, repositoryMismatch("locked source attributes are invalid")
 	}
 	remote, err := run("remote")
 	if err != nil || strings.TrimSpace(remote) != "upstream" {
@@ -416,13 +455,49 @@ func readOnlyGitEnv() []string {
 	return []string{"GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_TERMINAL_PROMPT=0", "GIT_ATTR_NOSYSTEM=1", "GIT_NO_REPLACE_OBJECTS=1", "LC_ALL=C", "LANG=C", "TZ=UTC", "GIT_OPTIONAL_LOCKS=0"}
 }
 
+func auditGitEnv(base []string, tree string) []string {
+	env := append([]string(nil), base...)
+	return append(env, "GIT_ATTR_SOURCE="+tree)
+}
+
+func verifySHA1ObjectFormat(ctx context.Context, runner Runner, gitPath, root string, env []string) error {
+	format, err := gitOutput(ctx, runner, Command{Path: gitPath, Args: []string{"rev-parse", "--show-object-format"}, Env: env, Dir: root})
+	if err != nil || format != "sha1\n" {
+		return repositoryMismatch("repository object format is not SHA-1")
+	}
+	return nil
+}
+
+func writeCanonicalEmptyTree(ctx context.Context, runner Runner, gitPath, root string, env []string) error {
+	written, err := runWithInput(ctx, runner, Command{Path: gitPath, Args: []string{"hash-object", "-w", "-t", "tree", "--stdin"}, Env: env, Dir: root, Stdin: []byte{}})
+	if err != nil || written != canonicalEmptyTree+"\n" {
+		return repositoryMismatch("canonical empty tree could not be written")
+	}
+	return verifyCanonicalEmptyTree(ctx, runner, gitPath, root, env)
+}
+
+func verifyCanonicalEmptyTree(ctx context.Context, runner Runner, gitPath, root string, env []string) error {
+	if _, err := gitOutput(ctx, runner, Command{Path: gitPath, Args: []string{"cat-file", "-e", canonicalEmptyTree + "^{tree}"}, Env: env, Dir: root}); err != nil {
+		return repositoryMismatch("canonical empty tree is unavailable")
+	}
+	kind, err := gitOutput(ctx, runner, Command{Path: gitPath, Args: []string{"cat-file", "-t", canonicalEmptyTree}, Env: env, Dir: root})
+	if err != nil || kind != "tree\n" {
+		return repositoryMismatch("canonical empty tree has an invalid type")
+	}
+	entries, err := gitOutput(ctx, runner, Command{Path: gitPath, Args: []string{"ls-tree", "-z", canonicalEmptyTree}, Env: env, Dir: root})
+	if err != nil || entries != "" {
+		return repositoryMismatch("canonical empty tree is not empty")
+	}
+	return nil
+}
+
 func verifyClosedConfig(root string, bootstrap Bootstrap) error {
 	values, err := rawGitConfig(root)
 	if err != nil {
 		return repositoryMismatch("local Git configuration cannot be verified")
 	}
 	allowed := map[string]string{
-		"core.autocrlf": "false", "core.eol": "lf", "core.attributesfile": "/dev/null",
+		"core.autocrlf": "false", "core.eol": "lf", "core.attributesfile": "/dev/null", "attr.tree": canonicalEmptyTree,
 		"remote.upstream.url": bootstrap.MainUpstream.FetchURL, "remote.upstream.fetch": "+refs/heads/*:refs/remotes/upstream/*", "remote.upstream.pushurl": DisabledPushURL,
 	}
 	for key, value := range values {
@@ -443,27 +518,57 @@ func verifyClosedConfig(root string, bootstrap Bootstrap) error {
 	return nil
 }
 
-// rawGitConfig reads config without asking Git to interpret includes.
-func resolvedGitConfig(root string) (string, error) {
+func rejectInfoAttributes(root string) error {
+	gitDir, commonDir, err := resolvedGitDirectories(root)
+	if err != nil {
+		return repositoryMismatch("Git directory cannot be safely inspected")
+	}
+	seen := make(map[string]struct{}, 2)
+	for _, directory := range []string{gitDir, commonDir} {
+		directory = filepath.Clean(directory)
+		if _, duplicate := seen[directory]; duplicate {
+			continue
+		}
+		seen[directory] = struct{}{}
+		infoDirectory := filepath.Join(directory, "info")
+		parent, err := os.Lstat(infoDirectory)
+		if err != nil || !parent.IsDir() || parent.Mode()&os.ModeSymlink != 0 {
+			return repositoryMismatch("Git info directory is unsafe")
+		}
+		info, err := os.Lstat(filepath.Join(infoDirectory, "attributes"))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil || info.Mode()&os.ModeSymlink != 0 || info.IsDir() || !info.Mode().IsRegular() {
+			return repositoryMismatch("Git info attributes are unsafe")
+		}
+		return repositoryMismatch("Git info attributes are not permitted")
+	}
+	return nil
+}
+
+// resolvedGitDirectories resolves the worktree and common Git directories
+// without allowing Git to interpret config or paths.
+func resolvedGitDirectories(root string) (string, string, error) {
 	dotGit := filepath.Join(root, ".git")
 	info, err := os.Lstat(dotGit)
 	if err != nil || info.Mode()&os.ModeSymlink != 0 {
-		return "", errors.New("unsafe gitdir")
+		return "", "", errors.New("unsafe gitdir")
 	}
 	if info.IsDir() {
-		return filepath.Join(dotGit, "config"), nil
+		return dotGit, dotGit, nil
 	}
 	if !info.Mode().IsRegular() {
-		return "", errors.New("unsafe gitdir")
+		return "", "", errors.New("unsafe gitdir")
 	}
 	raw, err := os.ReadFile(dotGit)
 	if err != nil || bytes.IndexByte(raw, 0) >= 0 {
-		return "", errors.New("unsafe gitdir")
+		return "", "", errors.New("unsafe gitdir")
 	}
 	line := strings.TrimSuffix(string(raw), "\n")
 	path, ok := strings.CutPrefix(line, "gitdir: ")
 	if !ok || path == "" || strings.ContainsAny(path, "\r\n") {
-		return "", errors.New("unsafe gitdir")
+		return "", "", errors.New("unsafe gitdir")
 	}
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(root, path)
@@ -471,20 +576,20 @@ func resolvedGitConfig(root string) (string, error) {
 	path = filepath.Clean(path)
 	info, err = os.Lstat(path)
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return "", errors.New("unsafe gitdir")
+		return "", "", errors.New("unsafe gitdir")
 	}
 	commonFile := filepath.Join(path, "commondir")
 	info, err = os.Lstat(commonFile)
 	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
-		return "", errors.New("unsafe commondir")
+		return "", "", errors.New("unsafe commondir")
 	}
 	raw, err = os.ReadFile(commonFile)
 	if err != nil || bytes.IndexByte(raw, 0) >= 0 {
-		return "", errors.New("unsafe commondir")
+		return "", "", errors.New("unsafe commondir")
 	}
 	common := strings.TrimSuffix(string(raw), "\n")
 	if common == "" || strings.ContainsAny(common, "\r\n") {
-		return "", errors.New("unsafe commondir")
+		return "", "", errors.New("unsafe commondir")
 	}
 	if !filepath.IsAbs(common) {
 		common = filepath.Join(path, common)
@@ -492,7 +597,16 @@ func resolvedGitConfig(root string) (string, error) {
 	common = filepath.Clean(common)
 	info, err = os.Lstat(common)
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return "", errors.New("unsafe commondir")
+		return "", "", errors.New("unsafe commondir")
+	}
+	return path, common, nil
+}
+
+// rawGitConfig reads config without asking Git to interpret includes.
+func resolvedGitConfig(root string) (string, error) {
+	_, common, err := resolvedGitDirectories(root)
+	if err != nil {
+		return "", err
 	}
 	return filepath.Join(common, "config"), nil
 }
