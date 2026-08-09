@@ -177,14 +177,14 @@ func ValidateLock(lock stagea0.MainLock) error {
 		if material.ArchiveHTTPS == nil || material.ArchiveHTTPS.SHA256 != firstbuild.ExpectedToolchainArchiveSHA256 {
 			continue
 		}
+		archiveCount++
 		if material.Role != "consumed-build-input" {
-			continue
+			return &Failure{Code: CodeLockMismatch, Detail: "matching toolchain archive has an invalid material role"}
 		}
 		if material.ArchiveHTTPS.Size != firstbuild.ExpectedToolchainArchiveSize {
 			return &Failure{Code: CodeLockMismatch, Detail: "lock toolchain archive size differs from the reviewed baseline"}
 		}
 		toolchainArchiveIDs[material.ID] = true
-		archiveCount++
 	}
 	if archiveCount != 1 || !toolchainArchiveReferenced(lock.Toolchains, toolchainArchiveIDs) {
 		return &Failure{Code: CodeLockMismatch, Detail: "lock does not identify exactly one reviewed toolchain archive"}

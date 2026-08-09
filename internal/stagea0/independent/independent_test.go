@@ -161,6 +161,21 @@ func TestValidateLockBindsFullBuildEntrypoint(t *testing.T) {
 	}
 }
 
+func TestValidateLockRejectsDuplicateToolchainArchiveRole(t *testing.T) {
+	lock := reviewedLockFixture()
+	lock.Materials = append(lock.Materials, stagea0.Material{
+		ID:   "toolchain-context",
+		Role: "context-only",
+		ArchiveHTTPS: &stagea0.ArchiveHTTPSMaterial{
+			Size:   firstbuild.ExpectedToolchainArchiveSize,
+			SHA256: firstbuild.ExpectedToolchainArchiveSHA256,
+		},
+	})
+	if err := ValidateLock(lock); !hasCode(err, CodeLockMismatch) {
+		t.Fatalf("ValidateLock(duplicate archive role) = %v, want %s", err, CodeLockMismatch)
+	}
+}
+
 func TestValidateLockAcceptsReviewedBindingShape(t *testing.T) {
 	if err := ValidateLock(reviewedLockFixture()); err != nil {
 		t.Fatalf("ValidateLock(reviewed shape) = %v", err)
