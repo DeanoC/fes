@@ -55,3 +55,19 @@ jobs:
           set -eu
           test -n "$IMAGE_DIGEST"
           printf 'Published image: ghcr.io/deanoc/fogcast-stage-a0-firstbuild@%s\n' "$IMAGE_DIGEST" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Export the published image for local validation
+        env:
+          IMAGE_REF: ghcr.io/deanoc/fogcast-stage-a0-firstbuild@${{ steps.build.outputs.digest }}
+        run: |
+          set -eu
+          docker pull "$IMAGE_REF"
+          docker save "$IMAGE_REF" --output "$RUNNER_TEMP/stage-a0-container.tar"
+
+      - name: Upload the validation transport artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage-a0-container-${{ github.sha }}
+          path: ${{ runner.temp }}/stage-a0-container.tar
+          if-no-files-found: error
+          retention-days: 30
