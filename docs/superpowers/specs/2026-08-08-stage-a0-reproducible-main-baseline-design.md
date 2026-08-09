@@ -567,7 +567,12 @@ outside them requires a reviewed schema revision rather than parser guesswork.
 - Raw lock bytes are valid UTF-8, contain no BOM, CR, NUL, DEL, or control byte
   other than LF/TAB, and end in LF. TOML comments and insignificant spacing are
   allowed because the external promotion record hashes raw bytes and V1 has no
-  writer.
+  writer. A V1 lock is at most 8 MiB. Every decoded string is independently
+  valid UTF-8 and contains no BOM rune, control rune, or DEL, including values
+  created through TOML escapes. Required strings are nonempty; optional
+  `purpose`, when present, is nonempty. An SPDX expression is at most 4096 bytes
+  and its parenthesis/recursive nesting depth is at most 64; exceeding either
+  bound is a license-record failure rather than a parser crash.
 - Strict fields and type-specific locator grammars are the pure validator's
   secret boundary. V1 defines no heuristic secret/hostname scanner; leak
   scanning and human review remain promotion gates.
