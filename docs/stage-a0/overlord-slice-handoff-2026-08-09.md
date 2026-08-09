@@ -3,9 +3,10 @@
 ## Evidence class
 
 This is a **Software-tested / local-only** Stage A handoff. It records the
-exact external repository observations and the capability probe result. It is
-not an Overlord-generated image, a reproducibility result, HIL evidence, or an
-Accepted hardware comparison.
+exact external repository observations, a pinned local resource-slice fork,
+and an actual Overlord generation run. It is not a complete Main_MiSTer
+dependency closure, a reproducibility result, HIL evidence, or an Accepted
+hardware comparison.
 
 The governing Stage A requirement is in [ROADMAP.md](../ROADMAP.md). The
 Stage A0 Main candidate lock remains the input contract; its current decision
@@ -15,13 +16,15 @@ is recorded by the hash-named [candidate review](main-lock-reviews/415445d1871a2
 
 | Input | Repository | Commit | Tree |
 | --- | --- | --- | --- |
-| Overlord generator | `deanoc-overlord` | `9b5a2fb375b7078589c0c245588d7533a2e34227` | `1159c9fa6a0222a6756c2aa124147e27f1250d3d` |
-| Standard resources | `deanoc-ikuy-std-resources` | `1cdfbda8f1bb3ca4df37f955ce39c8c850a946f9` | `358a2b1e1588b48c1a8c3b44dceb76774c5e9aa7` |
+| Overlord generator | `deanoc-overlord` | `1a358e5222d9b4cecfcbf9d18dca0d3db2a4b41a` | `1cb0c14f581822e3606a35f631c7f56337405bba` |
+| Standard resources | `deanoc-ikuy-std-resources` | `fd653052fbaffbaced17e46a4e6af9c633942bb3` | `9b8e7b433af9f8b5e7111fe703566c0d1d231d4e` |
 
 The repository locators are the public HTTPS authorities recorded in
 [stage-a0-overlord.lock.toml](../../build/stage-a0-overlord.lock.toml). The
 local checkouts are ignored development evidence; their physical paths do not
-enter this handoff.
+enter this handoff. Both commits are local fork commits based on the public
+repositories and remain `source_availability = local-only` until published to
+a durable HTTPS or content-addressed authority.
 
 ## Probe result
 
@@ -37,29 +40,58 @@ scripts/stage-a0-overlord-probe.sh \
 
 It runs without network access, requires clean checkouts whose commit/tree
 match the pinned lock, and emits `fogcast.stage-a0.overlord-probe.v1`. Against
-the pinned resource checkout, the observed result is `status=blocked`,
-`generation=not-run`.
+the local slice, the observed result is `status=ready-for-generation`,
+`generation=not-run` (the probe classifies inputs; it does not run Scala).
 
 | Required capability | Result | Blocker |
 | --- | --- | --- |
-| DE10-Nano board definition | Missing | `OVERLORD_BOARD_DE10_NANO_MISSING` |
-| Cyclone V SoC definition | Missing | `OVERLORD_SOC_CYCLONE_V_MISSING` |
-| Cyclone V register map | Missing | `OVERLORD_REGISTERS_CYCLONE_V_MISSING` |
-| `arm-none-linux-gnueabihf` toolchain configuration | Missing | `OVERLORD_TOOLCHAIN_ARM_NONE_LINUX_GNUEABIHF_MISSING` |
-| Main_MiSTer software dependency closure | Missing | `OVERLORD_SOFTWARE_MAIN_MISTER_MISSING` |
+| DE10-Nano board definition | Present | — |
+| Cyclone V SoC definition | Present | — |
+| Cyclone V register map | Present (minimum slice) | `OVERLORD_REGISTERS_CYCLONE_V_SLICE_INCOMPLETE` |
+| `arm-none-linux-gnueabihf` toolchain configuration | Present (convention) | — |
+| Main_MiSTer software dependency closure | Present (generator adapter only) | `OVERLORD_SOFTWARE_MAIN_MISTER_CLOSURE_INCOMPLETE` |
 
 The probe includes a synthetic complete-catalog fixture in its shell test; that
 fixture only proves the probe's capability classification and is not a claim
 about the real resources.
 
-The pinned real-checkout probe report SHA-256 is
-`47cc82ee5bb3786442c24e3e04db7f5ecefd30256a084dd2cb456d8a59024803`.
+The local-slice probe report is
+`artifacts/stage-a0/observed/overlord-probe-slice-fd65305-b.json` with
+SHA-256 `b5a6864af00bf14b45412e00ff3935023a2f0e6ba3856f8e1d7d269a4c2fcc76`.
+
+## Generation result
+
+The pinned Overlord binary was built from the pinned fork with Java 21/SBT and
+run without network access:
+
+```sh
+target/universal/stage/bin/overlord generate report \
+  <resource-checkout>/fogcast-stage-a0-de10-nano.yaml \
+  --board de10_nano
+```
+
+The generated report is retained under the ignored
+`artifacts/stage-a0/observed/overlord-run/slice/`; generated headers remain in
+the ignored resource checkout output. Stable hashes from this run are:
+
+| Output | SHA-256 |
+| --- | --- |
+| Overlord `report.txt` | `c8e03be173c49ec1dc1ab65b9571fec75604ef01f9ba5b10ae02022700b605b2` |
+| generated Main memory map | `686ad243bec1d7a48ae0d9d35e359585b604eaba613f3764d31514f93cafb66f` |
+| generated system-manager header | `d44d9a5ca6cc52f8087315db2fdaa88ea3f97c6e5972767d2c994362bfa163d5` |
+| generated bridge-window header | `165d930d8e7e4d542c3b73128c06895b05bee63b828b139b106537d753790988` |
+
+The slice contains a DE10-Nano board definition, Cyclone V SoC/CPU metadata,
+the observed HPS-to-FPGA bridge windows from Main's Cyclone V headers, an ARM
+hard-float toolchain convention, and a software action that emits a
+Main-shaped memory-map header. The register list and software action are
+deliberately partial: they demonstrate generation and address binding, not a
+claim that every HPS peripheral or Main dependency is modeled.
 
 ## Required next work
 
-Add the minimum resource definitions to the selected canonical catalog and
-then run the actual pinned Overlord generator. The generated output must be
-captured as a new, hash-bound report and compared to the Stage A0 Main inputs:
+The next work is to promote this local slice into a durable, reviewed catalog
+and extend it against the Stage A0 Main inputs:
 
 - DE10-Nano board and Cyclone V HPS/FPGA topology;
 - the memory/register map needed by `Main_MiSTer`, including the existing
@@ -69,6 +101,8 @@ captured as a new, hash-bound report and compared to the Stage A0 Main inputs:
 - generated output hashes and configuration provenance.
 
 Unexpected resource additions, address changes, privilege changes, compiler or
-linker changes, or dependency-closure differences remain gate failures. Do not
-mark this handoff Reproducible or HIL-observed until those checks and the
-separate physical comparison have been run.
+linker changes, or dependency-closure differences remain gate failures. The
+independent-build runner is now implemented, but cannot run against the
+candidate lock until final-lock/material/license closure is valid. Do not mark
+this handoff Reproducible or HIL-observed until those checks and the separate
+physical comparison have been run.

@@ -168,11 +168,27 @@ def capability(identifier, path):
     else:
         capabilities.append({"id": identifier, "status": "missing", "path": ""})
 
-board = first_match(resources, resource_files, ["boards/de10_nano.yaml"], ["board", "de10_nano"])
-soc = first_match(resources, resource_files, ["socs/cyclone_v.yaml"], ["soc", "cyclone_v"])
-registers = first_match(resources, resource_files, ["registers/cyclone_v.yaml"], ["register"])
-toolchain = first_match(resources, resource_files, ["toolchains/arm-none-linux-gnueabihf.yaml"], ["target", "arm-none-linux-gnueabihf"])
-software = first_match(resources, resource_files, ["software/main_mister.yaml"], ["program", "main_mister"])
+board = first_match(resources, resource_files, [
+    "catalog/fogcast/de10_nano.yaml",
+    "boards/de10_nano.yaml",
+], ["board", "de10_nano"])
+soc = first_match(resources, resource_files, [
+    "catalog/fogcast/cyclone_v.yaml",
+    "socs/cyclone_v.yaml",
+], ["soc", "cyclone_v"])
+registers = first_match(resources, resource_files, [
+    "catalog/fogcast/registers/cyclone_v/system_manager.yaml",
+    "catalog/fogcast/registers/cyclone_v/bridges.yaml",
+    "registers/cyclone_v.yaml",
+], ["register"])
+toolchain = first_match(resources, resource_files, [
+    "catalog/fogcast/toolchains/arm-none-linux-gnueabihf.yaml",
+    "toolchains/arm-none-linux-gnueabihf.yaml",
+], ["target", "arm-none-linux-gnueabihf"])
+software = first_match(resources, resource_files, [
+    "catalog/fogcast/software/main_mister.yaml",
+    "software/main_mister.yaml",
+], ["program", "main_mister"])
 
 capability("board-de10-nano", board)
 capability("soc-cyclone-v", soc)

@@ -106,3 +106,18 @@
 ## Completion audit
 
 This plan intentionally does not mark Stage A complete by itself. Completion still requires a promoted lock, durable source/material retrieval, two independent clean builds from that lock, the Overlord-generated DE10-Nano/Cyclone V slice, and the separately recorded HIL/compatibility evidence required by `docs/ROADMAP.md`.
+
+## Progress addendum (2026-08-09)
+
+The previously missing Overlord generation gate has now advanced: the local
+Overlord fork is pinned at `1a358e5222d9b4cecfcbf9d18dca0d3db2a4b41a`, the
+resource fork is pinned at `fd653052fbaffbaced17e46a4e6af9c633942bb3`, and the
+YAML-only DE10-Nano/Cyclone V fixture generated a memory-map and register-header
+slice. The probe is `ready-for-generation`; the handoff records the output
+hashes and the deliberate partial-closure blockers.
+
+The independent-build gate is also implemented in
+`internal/stagea0/independent` and `cmd/stage-a0-independent-build`. It
+requires the final lock/material closure, runs two fresh captures in distinct
+roots, and remains Software-tested/local-only. These are substantive
+implementation checkpoints, not promotion or HIL completion.

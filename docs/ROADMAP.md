@@ -81,20 +81,26 @@ build-log digests and byte-identical final artifacts, while remaining
 explicitly local-only.
 The canonical v1 promotion report is deliberately a blocked-only candidate
 decision, with stable lock/material/policy/retrieval blockers; it does not
-provide an eligible path or rewrite the lock. The pinned Overlord and
-`ikuy_std_resources` checkouts are also probed: the required DE10-Nano/Cyclone
-V board, register, toolchain, and Main software resources are not present, so
-generation has not run. Remaining work is to replace that candidate with an
-immutable material/license catalog (including reviewed build-log identity),
-complete durable container/toolchain provenance (a local OCI manifest/config
-digest is now recorded, but not published), promote two independent clean
-builds, add the missing Overlord resources, and then run the HIL comparison
+provide an eligible path or rewrite the lock. A local long-lived Overlord fork
+now fixes board selection/catalog path initialization and prefab registration.
+Its pinned resource fork contains a generated DE10-Nano/Cyclone V slice: board,
+SoC/CPU, observed bridge windows, ARM hard-float toolchain convention, and a
+Main-shaped memory-map/register-header action. The probe is
+`ready-for-generation`, and an actual Java/SBT generation run produced
+hash-bound local outputs. The register map and Main software closure are still
+explicitly partial.
+
+Remaining work is to replace the candidate with an immutable material/license
+catalog (including reviewed build-log identity), complete durable
+container/toolchain provenance (a local OCI manifest/config digest is now
+recorded, but not published), run the new independent-build gate against a
+valid final lock, complete the resource closure, and then run the HIL comparison
 slice.
 
-Use Overlord to add the minimum DE10-Nano and Cyclone V resources and generate
-the memory map, register definitions, toolchain configuration, and software
-dependency closure needed for the current Linux Main build. Build an
-upstream-style `Main_MiSTer` artifact without intentional behavior changes.
+Use the pinned Overlord slice to extend the DE10-Nano/Cyclone V memory map,
+register definitions, toolchain configuration, and explicit Main_MiSTer
+software adapter needed for the current Linux build. Build an upstream-style
+`Main_MiSTer` artifact without intentional behavior changes.
 
 **Gate:** after the applicable rollback prerequisite, produce two independent clean builds
 from the same pinned source, toolchain, environment, locale, timezone, and
