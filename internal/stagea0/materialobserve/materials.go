@@ -22,17 +22,21 @@ import (
 )
 
 const (
-	FormatV1                = 1
-	SchemaV1                = "fogcast.stage-a0.materials.v1"
-	StatusCandidateObserved = "candidate-observed"
-	SourceAvailabilityLocal = "local-only"
-	licenseUnreviewed       = "unreviewed"
+	FormatV1                  = 1
+	SchemaV1                  = "fogcast.stage-a0.materials.v1"
+	SchemaReviewedV1          = "fogcast.stage-a0.materials.reviewed.v1"
+	StatusCandidateObserved   = "candidate-observed"
+	StatusReviewed            = "reviewed"
+	SourceAvailabilityLocal   = "local-only"
+	SourceAvailabilityDurable = "durably-retrievable"
+	licenseUnreviewed         = "unreviewed"
+	licenseReviewRequired     = "review-required"
 
 	toolchainURL      = "https://developer.arm.com/-/media/Files/downloads/gnu-a/10.2-2020.11/binrel/gcc-arm-10.2-2020.11-x86_64-arm-none-linux-gnueabihf.tar.xz"
 	upstreamURL       = "https://github.com/MiSTer-devel/Main_MiSTer.git"
-	containerRef      = "localhost/stage-a0-firstbuild@sha256:24045e0e800b0ce7df88076ccab628387b149f1bd0786fab46fffae07a859d0c"
-	containerManifest = "sha256:24045e0e800b0ce7df88076ccab628387b149f1bd0786fab46fffae07a859d0c"
-	containerConfig   = "sha256:6a2a0fcb598a0a890355847900575e99a1cc7801f68d616edc85d449b9ae7548"
+	containerRef      = "ghcr.io/deanoc/fogcast-stage-a0-firstbuild@sha256:ed821006efd42153736b57caf44a4ed571b8949ac6ec47db42fd3fec9cccc1c5"
+	containerManifest = "sha256:ed821006efd42153736b57caf44a4ed571b8949ac6ec47db42fd3fec9cccc1c5"
+	containerConfig   = "sha256:8e94815d34cd5522f5aba74ce5fc47ab3004f79ab27702c2d13b96766a703338"
 )
 
 type Code string
@@ -225,6 +229,31 @@ func Encode(manifest Manifest) ([]byte, error) {
 }
 
 func Decode(raw []byte) (Manifest, error) {
+	return decode(raw, Validate, Encode)
+}
+
+// EncodeReviewed emits the reviewed material catalog.  Reviewed means that
+// immutable identities and retrieval authorities have been checked; it does
+// not mean that redistribution approval has been granted.  A catalog with
+// review-required license dispositions is intentionally still blocked by the
+// promotion report.
+func EncodeReviewed(manifest Manifest) ([]byte, error) {
+	if err := ValidateReviewed(manifest); err != nil {
+		return nil, err
+	}
+	raw, err := json.Marshal(manifest)
+	if err != nil {
+		return nil, &Failure{Code: CodeSchemaInvalid, Detail: "reviewed material manifest cannot be encoded"}
+	}
+	return append(raw, '\n'), nil
+}
+
+// DecodeReviewed accepts only canonical reviewed material catalogs.
+func DecodeReviewed(raw []byte) (Manifest, error) {
+	return decode(raw, ValidateReviewed, EncodeReviewed)
+}
+
+func decode(raw []byte, validate func(Manifest) error, encode func(Manifest) ([]byte, error)) (Manifest, error) {
 	var manifest Manifest
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
@@ -235,7 +264,7 @@ func Decode(raw []byte) (Manifest, error) {
 	if err := decoder.Decode(&extra); err != io.EOF {
 		return Manifest{}, &Failure{Code: CodeSchemaInvalid, Detail: "material manifest JSON has trailing data"}
 	}
-	canonical, err := Encode(manifest)
+	canonical, err := encode(manifest)
 	if err != nil || !bytes.Equal(canonical, raw) {
 		return Manifest{}, &Failure{Code: CodeSchemaInvalid, Detail: "material manifest JSON is not canonical"}
 	}
@@ -276,6 +305,92 @@ func Validate(manifest Manifest) error {
 		}
 	}
 	return nil
+}
+
+// ValidateReviewed checks the stronger post-observation catalog envelope.
+// It is deliberately separate from Validate so a candidate file cannot be
+// relabeled by changing only a status string.
+func ValidateReviewed(manifest Manifest) error {
+	if manifest.Format != FormatV1 || manifest.Schema != SchemaReviewedV1 || manifest.Status != StatusReviewed || manifest.SourceAvailability != SourceAvailabilityDurable || len(manifest.Records) < 4 || len(manifest.Unresolved) == 0 {
+		return &Failure{Code: CodeSchemaInvalid, Detail: "reviewed material manifest envelope is invalid"}
+	}
+	if !lowerHex(manifest.ReceiptSHA256) || !lowerHex(manifest.BuildLogSHA256) {
+		return &Failure{Code: CodeHashInvalid, Detail: "reviewed material observation digest is invalid"}
+	}
+	if err := validateAuthority(manifest.Authority); err != nil {
+		return err
+	}
+	previous := ""
+	seen := make(map[string]struct{}, len(manifest.Records))
+	reviewRequired := false
+	for _, record := range manifest.Records {
+		if record.ID == "" || record.ID <= previous || strings.ContainsAny(record.ID, "/\\") {
+			return &Failure{Code: CodeSchemaInvalid, Detail: "reviewed material records are not strictly ordered"}
+		}
+		previous = record.ID
+		if _, ok := seen[record.ID]; ok {
+			return &Failure{Code: CodeSchemaInvalid, Detail: "reviewed material record is duplicated"}
+		}
+		seen[record.ID] = struct{}{}
+		if record.Role == "" || record.Kind == "" || len(record.LicenseIDs) == 0 || !sortedUniqueIDs(record.LicenseIDs) || record.Size < 0 || (record.SHA256 != "" && !lowerHex(record.SHA256)) || (record.TreeSHA256 != "" && !lowerHex(record.TreeSHA256)) {
+			return &Failure{Code: CodeSchemaInvalid, Detail: "reviewed material record is invalid: " + record.ID}
+		}
+		if record.LicenseState != licenseReviewRequired && record.LicenseState != "reviewed" {
+			return &Failure{Code: CodeSchemaInvalid, Detail: "reviewed material license state is invalid: " + record.ID}
+		}
+		if record.LicenseState == licenseReviewRequired {
+			reviewRequired = true
+		}
+		switch record.Kind {
+		case "git-local":
+			return &Failure{Code: CodeSchemaInvalid, Detail: "reviewed material cannot rely on a local git authority: " + record.ID}
+		case "git-https":
+			if record.URL == "" || record.Commit == "" || record.Tree == "" || !lowerHexLength(record.Commit, 40) || !lowerHexLength(record.Tree, 40) {
+				return &Failure{Code: CodeSchemaInvalid, Detail: "reviewed git material is incomplete: " + record.ID}
+			}
+		case "archive-https":
+			if record.URL == "" || record.Size <= 0 || !lowerHex(record.SHA256) {
+				return &Failure{Code: CodeSchemaInvalid, Detail: "reviewed archive material is incomplete: " + record.ID}
+			}
+		case "oci":
+			if record.Reference == "" || !strings.Contains(record.Reference, "@sha256:") || !lowerHex(strings.TrimPrefix(record.ManifestDigest, "sha256:")) || !lowerHex(strings.TrimPrefix(record.ConfigDigest, "sha256:")) {
+				return &Failure{Code: CodeSchemaInvalid, Detail: "reviewed OCI material is incomplete: " + record.ID}
+			}
+		case "material-file":
+			if record.ParentID == "" || record.Path == "" || record.Size == 0 || !lowerHex(record.SHA256) {
+				return &Failure{Code: CodeSchemaInvalid, Detail: "reviewed material-file record is incomplete: " + record.ID}
+			}
+		default:
+			return &Failure{Code: CodeSchemaInvalid, Detail: "reviewed material kind is unsupported: " + record.ID}
+		}
+	}
+	for i := 1; i < len(manifest.Unresolved); i++ {
+		if manifest.Unresolved[i-1] >= manifest.Unresolved[i] {
+			return &Failure{Code: CodeSchemaInvalid, Detail: "reviewed unresolved entries are not sorted"}
+		}
+	}
+	if reviewRequired && !containsID(manifest.Unresolved, "material-license-review") {
+		return &Failure{Code: CodeSchemaInvalid, Detail: "review-required materials must retain the legal review gate"}
+	}
+	return nil
+}
+
+func sortedUniqueIDs(xs []string) bool {
+	for i, x := range xs {
+		if x == "" || strings.ContainsAny(x, "/\\") || (i > 0 && xs[i-1] >= x) {
+			return false
+		}
+	}
+	return true
+}
+
+func containsID(xs []string, want string) bool {
+	for _, x := range xs {
+		if x == want {
+			return true
+		}
+	}
+	return false
 }
 
 func validateAuthority(authority policy.Authority) error {

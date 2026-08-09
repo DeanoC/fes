@@ -3,33 +3,37 @@
 ## Current classification
 
 Stage A0 is **Software-tested**, not Reproducible, HIL-observed, or Accepted.
-The build-repeatability gate now passes. A durable GHCR build image has been
-published and exported by workflow, but the retained local captures still use
-the disposable local image; promotion remains blocked by material/license
-closure, the final lock, and the full hardware/shared-memory topology.
+The final-lock schema, reviewed material identities, six complete policy
+documents, and two fresh independent builds now pass. Promotion remains
+blocked only by explicit license review and the fact that the retained
+comparison is local-only; no physical/HIL claim has been made.
 
 ## Closed in this checkpoint
 
 - The public `DeanoC/Main_MiSTer` fork is pinned at commit
   `d1a3a4e65c2dbee1f23eb5a890d8f29e6448c30d` and its HTTPS commit is
   retrievable.
-- Two fresh captures from distinct workspace roots completed in the pinned
-  network-disabled container and toolchain. The retained comparison is
-  `artifacts/stage-a0/independent.Ta6PwW/independent.json`; it reports
+- Two fresh captures from distinct roots completed in the pinned
+  network-disabled durable-image transport and toolchain. The retained
+  comparison is `artifacts/stage-a0/independent-durable-20260809/comparison.json`;
+  it reports
   `two_builds_byte_identical = true` with final hashes:
 
   - `bin/MiSTer`: `f9e6fd646740449186b74821a3684686d5dbc7b33e28052e9de28b8f4c751f2e`
   - `bin/MiSTer.elf`: `51a9864bb12ebdf8961b30ac0a45d533fd2a2885a96d81fc29f8363d1804706d`
 
 - The published Overlord/resource fork inputs are pinned at Overlord
-  `1a358e5222d9b4cecfcbf9d18dca0d3db2a4b41a` and resources
-  `cfa6b1ecbbbaac0ae0da0ed1686795eb2f0792b3`. The resource slice now has a
+  `a9fe9106dcc06db6d80eb22af0cd11facc8f7851` and resources
+  `e13a97d8324baff83dd1cb8d4531e8648284fad7`. The resource slice now has a
   Cyclone V SoC instance, directly used register banks, corrected system
   manager offsets, Makefile-matched `gcc`/`ld`/`strip` metadata, and an
-  explicit Main build adapter plus dependency manifest.
+  explicit Main build adapter plus dependency manifest, and declares the HPS
+  16 MiB aperture, 512 MiB core-memory window, and two address-level bus
+  connections. This is a resource graph contract, not a claim of completed
+  FPGA gateware.
 - The generated slice is retained under
-  `artifacts/stage-a0/observed/overlord-run/slice-v5/`; the updated capability
-  probe is `artifacts/stage-a0/observed/overlord-probe-slice-cfa6b1e.json`.
+  `artifacts/stage-a0/observed/overlord-run/slice-v7-*`; the updated capability
+  probe is `artifacts/stage-a0/observed/overlord-probe-slice-v7.json`.
 - ELF policy observation now separates the six bundled shared-library inputs
   from Main source material and uses a reversible logical name for
   `libstdc++.so.6`.
@@ -39,28 +43,26 @@ closure, the final lock, and the full hardware/shared-memory topology.
   `ghcr.io/deanoc/fogcast-stage-a0-firstbuild@sha256:ed821006efd42153736b57caf44a4ed571b8949ac6ec47db42fd3fec9cccc1c5`
   with config digest
   `sha256:8e94815d34cd5522f5aba74ce5fc47ab3004f79ab27702c2d13b96766a703338`.
+- `build/stage-a0-main.lock.toml` is now a schema-valid durable software-test
+  lock. `artifacts/stage-a0/materials-reviewed-final.json` names all 17
+  consumed materials, including the six prebuilt shared libraries and the
+  six policy files. The six reviewed policy copies are under
+  `artifacts/stage-a0/policy-reviewed-final/`.
 
 ## Open gates
 
-1. **Component material/license closure:** bundled libraries, copied headers,
-   the logo, prebuilt `.so` files, toolchain packages, and the build utilities
-   still need exact corresponding-source and license records. No blanket
-   GPL/MIT assignment is accepted.
-2. **Final lock/material catalog:** the current policy output is still a
-   candidate observer result. The promoted-lock scratch file is not a release
-   lock and is deliberately not part of the checkpoint.
-3. **Topology closure:** the resource slice still needs the full 16 MiB
-   `/dev/mem` aperture and Main's core/shared-memory windows, plus a real
-   HPS-to-FPGA/core graph when that core definition exists.
-4. **HIL:** no hardware equivalence claim has been made. HIL follows a valid
-   final lock and durable artifact/material retrieval.
+1. **License disposition:** every material has an SPDX review reference,
+   notice locator, corresponding-source locator, and `review-required`
+   redistribution status. A legal/redistribution review must replace those
+   placeholders before publishing a redistributable image or binary.
+2. **Durable comparison authority:** the independent report is produced from
+   the durable lock but its capture/source availability remains local-only;
+   a CI or separately retrieved run must establish the durable comparison
+   authority if the stage requires it.
+3. **HIL:** no hardware equivalence claim has been made. HIL follows the
+   durable lock and a known-good comparator on the disposable `misterpi` kit.
 
-The durable-image publication is therefore a closed infrastructure step, not
-yet a promoted build input. See the [exit decision](exit-decision-2026-08-09.md)
-for the bounded next sequence and the reason to stop rerunning unchanged
-verification.
-
-The next promotion attempt must regenerate the policy/material catalog from a
-fresh capture, add component-level records, and validate every dependency hash
-against those records. Passing syntax or another byte comparison alone does not
-change this classification.
+The durable-image publication and software lock are therefore closed
+infrastructure steps, not a redistribution approval. See the [exit
+decision](exit-decision-2026-08-09.md) for the remaining bounded legal and HIL
+work; another unchanged byte-comparison run is not an advancement.

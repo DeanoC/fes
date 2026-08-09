@@ -168,7 +168,7 @@ func ValidateLock(lock stagea0.MainLock) error {
 	}
 
 	container, ok := materialByID(lock.Materials, env.ContainerMaterialID)
-	if !ok || container.OCI == nil || container.OCI.ManifestDigest != firstbuild.ExpectedContainerImageID || container.OCI.OS != firstbuild.ExpectedContainerOS || container.OCI.Architecture != firstbuild.ExpectedContainerArchitecture {
+	if !ok || container.OCI == nil || container.OCI.ManifestDigest != firstbuild.ExpectedContainerManifestDigest || container.OCI.ConfigDigest != firstbuild.ExpectedContainerConfigDigest || container.OCI.OS != firstbuild.ExpectedContainerOS || container.OCI.Architecture != firstbuild.ExpectedContainerArchitecture {
 		return &Failure{Code: CodeLockMismatch, Detail: "lock container material differs from the reviewed baseline"}
 	}
 	archiveCount := 0

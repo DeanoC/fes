@@ -158,10 +158,12 @@ func validEvidence() Evidence {
 			CompilerVersion: ExpectedCompilerVersion,
 		},
 		Container: ContainerEvidence{
-			Reference:    ExpectedContainerReference,
-			ImageID:      ExpectedContainerImageID,
-			OS:           ExpectedContainerOS,
-			Architecture: ExpectedContainerArchitecture,
+			Reference:      ExpectedContainerReference,
+			ImageID:        ExpectedContainerImageID,
+			ManifestDigest: ExpectedContainerManifestDigest,
+			ConfigDigest:   ExpectedContainerConfigDigest,
+			OS:             ExpectedContainerOS,
+			Architecture:   ExpectedContainerArchitecture,
 		},
 		Build: BuildEvidence{
 			VDate:           ExpectedVDate,

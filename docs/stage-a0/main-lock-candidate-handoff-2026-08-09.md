@@ -2,6 +2,13 @@
 
 ## Status
 
+**Superseded historical handoff.** The current durable software-test lock is
+[`build/stage-a0-main.lock.toml`](../../build/stage-a0-main.lock.toml), with
+the reviewed identity catalog at
+`artifacts/stage-a0/materials-reviewed-final.json`. This document preserves
+the earlier candidate review and its blockers; it is not the current lock
+authority.
+
 **Candidate / blocked.** `build/stage-a0-main.lock.toml` is a review draft,
 not a build-ready lock and not an authorization to fetch, build, publish, or
 touch a target. It intentionally contains empty values and `BLOCKED_*` license

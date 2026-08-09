@@ -1,10 +1,8 @@
-# Stage A0 Main lock — candidate, blocked, not build-ready.
+# Stage A0 Main lock — durable software-test baseline.
 #
-# This file intentionally records only facts observed during the local
-# Software-tested first-build slice. Empty values and BLOCKED_* identifiers are
-# explicit unresolved inputs, not substitutes for provenance. The strict V1
-# parser must reject this candidate until the handoff blockers are resolved.
-# It has no self-hash; promotion hashes the reviewed raw bytes externally.
+# Every build input and policy file is now identity-complete and retrievable.
+# License records deliberately remain review-required: this lock is suitable
+# for reproducibility work, not a redistribution approval.
 
 format = 1
 schema = "fogcast.stage-a0-main-lock"
@@ -14,11 +12,9 @@ source_date_epoch = 1786215171
 [environment]
 locale = "C"
 timezone = "UTC"
-# The adapter capture enforces this value for both clean builds; final
-# promotion still requires the utility/container provenance review.
+# The adapter capture enforces this value for both clean builds.
 umask = "022"
-# The adapter capture observed the fixed one-job shim. The lock remains
-# blocked by the unresolved umask/material/container/license fields below.
+# The adapter capture observes the fixed one-job shim.
 job_count = 1
 network = "disabled-during-build"
 path_policy = ["/stage-a0/build-utils/bin", "/stage-a0/toolchain/bin"]
@@ -33,7 +29,8 @@ fork_commit = "d1a3a4e65c2dbee1f23eb5a890d8f29e6448c30d"
 fork_tree = "efb9c24e8e27945a75d8c497b4b99ec249129075"
 fork_parent_commit = "7b5c8de5d3fb16f9cccc1f274a2ff1b481637e42"
 patch_commits = ["d1a3a4e65c2dbee1f23eb5a890d8f29e6448c30d"]
-publication_status = "local-only"
+publication_status = "durably-retrievable"
+durable_retrieval_material_id = "main-fork-public"
 
 [build]
 entrypoint = ["/stage-a0/build-utils/bin/bash", "-lc", "make clean VDATE=260808; make V=1 VDATE=260808"]
@@ -46,13 +43,11 @@ allowed_final_artifacts = ["bin/MiSTer", "bin/MiSTer.elf"]
 id = "container"
 role = "consumed-build-input"
 kind = "oci"
-license_ids = ["BLOCKED_LICENSE_CONTAINER"]
+license_ids = ["review-container"]
 [materials.oci]
-# Local OCI export observation. It is immutable within the disposable
-# development kit but has not been published to a durable registry.
-reference = "localhost/stage-a0-firstbuild@sha256:24045e0e800b0ce7df88076ccab628387b149f1bd0786fab46fffae07a859d0c"
-manifest_digest = "sha256:24045e0e800b0ce7df88076ccab628387b149f1bd0786fab46fffae07a859d0c"
-config_digest = "sha256:6a2a0fcb598a0a890355847900575e99a1cc7801f68d616edc85d449b9ae7548"
+reference = "ghcr.io/deanoc/fogcast-stage-a0-firstbuild@sha256:ed821006efd42153736b57caf44a4ed571b8949ac6ec47db42fd3fec9cccc1c5"
+manifest_digest = "sha256:ed821006efd42153736b57caf44a4ed571b8949ac6ec47db42fd3fec9cccc1c5"
+config_digest = "sha256:8e94815d34cd5522f5aba74ce5fc47ab3004f79ab27702c2d13b96766a703338"
 os = "linux"
 architecture = "amd64"
 
@@ -60,9 +55,86 @@ architecture = "amd64"
 id = "main-fork"
 role = "consumed-build-input"
 kind = "git-local"
-license_ids = ["BLOCKED_LICENSE_MAIN_FORK"]
+license_ids = ["review-main-fork"]
 [materials.git_local]
 repository_id = "mister-devel-main-mister"
+commit = "d1a3a4e65c2dbee1f23eb5a890d8f29e6448c30d"
+tree = "efb9c24e8e27945a75d8c497b4b99ec249129075"
+
+[[materials]]
+id = "main-fork-libbluetooth"
+role = "consumed-build-input"
+kind = "material-file"
+license_ids = ["review-main-fork-libbluetooth"]
+[materials.material_file]
+parent_id = "main-fork"
+path = "lib/bluetooth/libbluetooth.so"
+size = 150312
+sha256 = "9cc252960ae8606d3d77249718126d33cddbad4ff1a82116b2929b88f22ba06a"
+
+[[materials]]
+id = "main-fork-libbz2"
+role = "consumed-build-input"
+kind = "material-file"
+license_ids = ["review-main-fork-libbz2"]
+[materials.material_file]
+parent_id = "main-fork"
+path = "lib/imlib2/libbz2.so"
+size = 78616
+sha256 = "b630fc09d1e2f2072650419d37444b2fd90401cd63c0aac21e27422bf7ee122a"
+
+[[materials]]
+id = "main-fork-libfreetype"
+role = "consumed-build-input"
+kind = "material-file"
+license_ids = ["review-main-fork-libfreetype"]
+[materials.material_file]
+parent_id = "main-fork"
+path = "lib/imlib2/libfreetype.so"
+size = 602356
+sha256 = "e9237dd7ebc50df8c17d474da9846c414fdacab2dd2f811f8ebcc0765dad0aaa"
+
+[[materials]]
+id = "main-fork-libimlib2"
+role = "consumed-build-input"
+kind = "material-file"
+license_ids = ["review-main-fork-libimlib2"]
+[materials.material_file]
+parent_id = "main-fork"
+path = "lib/imlib2/libImlib2.so"
+size = 200172
+sha256 = "8745821f6936b3ccd75c7e3b546600edc0576093a9b14c7c17d1a322f40e8ae7"
+
+[[materials]]
+id = "main-fork-libpng16"
+role = "consumed-build-input"
+kind = "material-file"
+license_ids = ["review-main-fork-libpng16"]
+[materials.material_file]
+parent_id = "main-fork"
+path = "lib/imlib2/libpng16.so"
+size = 196964
+sha256 = "927e7f4d91b00e59fcf4cfa9802c75cb3a5186d5efdbdea3bebaeb1743aba951"
+
+[[materials]]
+id = "main-fork-libz"
+role = "consumed-build-input"
+kind = "material-file"
+license_ids = ["review-main-fork-libz"]
+[materials.material_file]
+parent_id = "main-fork"
+path = "lib/imlib2/libz.so"
+size = 98072
+sha256 = "0f1286438b87d7449d67f7d056ea7da83fbb41818f0e5178c39090ce44ed2694"
+
+[[materials]]
+id = "main-fork-public"
+role = "consumed-build-input"
+kind = "git-https"
+license_ids = ["review-main-fork-public"]
+[materials.git_https]
+repository_id = "mister-devel-main-mister"
+url = "https://github.com/DeanoC/Main_MiSTer.git"
 commit = "d1a3a4e65c2dbee1f23eb5a890d8f29e6448c30d"
 tree = "efb9c24e8e27945a75d8c497b4b99ec249129075"
 
@@ -70,7 +142,7 @@ tree = "efb9c24e8e27945a75d8c497b4b99ec249129075"
 id = "main-upstream"
 role = "consumed-build-input"
 kind = "git-https"
-license_ids = ["BLOCKED_LICENSE_MAIN_UPSTREAM"]
+license_ids = ["review-main-upstream"]
 [materials.git_https]
 repository_id = "mister-devel-main-mister"
 url = "https://github.com/MiSTer-devel/Main_MiSTer.git"
@@ -78,22 +150,76 @@ commit = "7b5c8de5d3fb16f9cccc1f274a2ff1b481637e42"
 tree = "04337bd664f5daa09b347fb2e4e991c66d84c89f"
 
 [[materials]]
-id = "policy"
+id = "policy-compile-link"
 role = "consumed-build-input"
 kind = "material-file"
-license_ids = ["BLOCKED_LICENSE_POLICY"]
+license_ids = ["review-policy-compile-link"]
 [materials.material_file]
 parent_id = "main-fork"
-# BLOCKER: six separately tracked policy files do not yet exist.
-path = ""
-size = 0
-sha256 = ""
+path = "compile-link.json"
+size = 211014
+sha256 = "b0c49eac89e07254b74f6a716d61380fd86c5c9162838eddf81d2605bef25cd6"
+
+[[materials]]
+id = "policy-elf-dependency"
+role = "consumed-build-input"
+kind = "material-file"
+license_ids = ["review-policy-elf-dependency"]
+[materials.material_file]
+parent_id = "main-fork"
+path = "elf-dependency.json"
+size = 22986
+sha256 = "97421e3c9e535928d011a48a7d0b37f1897f0ab0fce0ebbafadc507b90e209d1"
+
+[[materials]]
+id = "policy-generated-input"
+role = "consumed-build-input"
+kind = "material-file"
+license_ids = ["review-policy-generated-input"]
+[materials.material_file]
+parent_id = "main-fork"
+path = "generated-input.json"
+size = 32355
+sha256 = "5f40f08e6d699ed322502c213af14f6cfbe048f3265fb4fe13423c566622dfce"
+
+[[materials]]
+id = "policy-intermediate-path"
+role = "consumed-build-input"
+kind = "material-file"
+license_ids = ["review-policy-intermediate-path"]
+[materials.material_file]
+parent_id = "main-fork"
+path = "intermediate-path.json"
+size = 31572
+sha256 = "fca0faca0ef3d621725e48ca43524e1bbf18a114dc7bb84f7afc92f790ae7d63"
+
+[[materials]]
+id = "policy-source-set"
+role = "consumed-build-input"
+kind = "material-file"
+license_ids = ["review-policy-source-set"]
+[materials.material_file]
+parent_id = "main-fork"
+path = "source-set.json"
+size = 104585
+sha256 = "a243589417f32a64301c79ff53e4df88849105b77fe76be7fdc1ea6c76825226"
+
+[[materials]]
+id = "policy-upstream-fork-delta"
+role = "consumed-build-input"
+kind = "material-file"
+license_ids = ["review-policy-upstream-fork-delta"]
+[materials.material_file]
+parent_id = "main-fork"
+path = "upstream-fork-delta.json"
+size = 1118
+sha256 = "d0a70f21c3cb5b82296b7bc951c0bcea12244bab6ceeecc54109b0b2d04b77a3"
 
 [[materials]]
 id = "toolchain"
 role = "consumed-build-input"
 kind = "archive-https"
-license_ids = ["BLOCKED_LICENSE_TOOLCHAIN"]
+license_ids = ["review-toolchain"]
 [materials.archive_https]
 url = "https://developer.arm.com/-/media/Files/downloads/gnu-a/10.2-2020.11/binrel/gcc-arm-10.2-2020.11-x86_64-arm-none-linux-gnueabihf.tar.xz"
 size = 104607124
@@ -219,78 +345,160 @@ material_id = "main-fork"
 path = "Makefile"
 sha256 = "28683c9d859353bc89880d5fcc6db520181cce7b38ed7b05f4a2bb601f125c42"
 purpose = "deterministic VDATE build input"
-# BLOCKER: all compiler/link, source-set, generated-input, ELF, dependency,
-# and intermediate policy files are not yet available.
 
 [[policies]]
 id = "compile-link"
-material_id = "policy"
-path = ""
-sha256 = ""
+material_id = "policy-compile-link"
+path = "compile-link.json"
+sha256 = "b0c49eac89e07254b74f6a716d61380fd86c5c9162838eddf81d2605bef25cd6"
 kind = "compile-link"
 [[policies]]
 id = "delta"
-material_id = "policy"
-path = ""
-sha256 = ""
+material_id = "policy-upstream-fork-delta"
+path = "upstream-fork-delta.json"
+sha256 = "d0a70f21c3cb5b82296b7bc951c0bcea12244bab6ceeecc54109b0b2d04b77a3"
 kind = "upstream-fork-delta"
 [[policies]]
 id = "elf"
-material_id = "policy"
-path = ""
-sha256 = ""
+material_id = "policy-elf-dependency"
+path = "elf-dependency.json"
+sha256 = "97421e3c9e535928d011a48a7d0b37f1897f0ab0fce0ebbafadc507b90e209d1"
 kind = "elf-dependency"
 [[policies]]
 id = "generated"
-material_id = "policy"
-path = ""
-sha256 = ""
+material_id = "policy-generated-input"
+path = "generated-input.json"
+sha256 = "5f40f08e6d699ed322502c213af14f6cfbe048f3265fb4fe13423c566622dfce"
 kind = "generated-input"
 [[policies]]
 id = "intermediate"
-material_id = "policy"
-path = ""
-sha256 = ""
+material_id = "policy-intermediate-path"
+path = "intermediate-path.json"
+sha256 = "fca0faca0ef3d621725e48ca43524e1bbf18a114dc7bb84f7afc92f790ae7d63"
 kind = "intermediate-path"
 [[policies]]
 id = "source"
-material_id = "policy"
-path = ""
-sha256 = ""
+material_id = "policy-source-set"
+path = "source-set.json"
+sha256 = "a243589417f32a64301c79ff53e4df88849105b77fe76be7fdc1ea6c76825226"
 kind = "source-set"
 
 [[licenses]]
-id = "BLOCKED_LICENSE_CONTAINER"
+id = "review-container"
 material_id = "container"
-spdx_expression = ""
-notice_locator = ""
-corresponding_source_locator = ""
+spdx_expression = "LicenseRef-StageA0-ReviewRequired"
+notice_locator = "docs/stage-a0/material-license-audit-2026-08-09.md"
+corresponding_source_locator = "https://github.com/DeanoC/FogCast-POC/tree/ea8d38a1c16169f4caa2218e1e967332272933c2/build/stage-a0/container"
 redistribution_status = "review-required"
 [[licenses]]
-id = "BLOCKED_LICENSE_MAIN_FORK"
+id = "review-main-fork"
 material_id = "main-fork"
-spdx_expression = ""
-notice_locator = ""
-corresponding_source_locator = ""
+spdx_expression = "LicenseRef-StageA0-ReviewRequired"
+notice_locator = "docs/stage-a0/material-license-audit-2026-08-09.md"
+corresponding_source_locator = "https://github.com/DeanoC/Main_MiSTer/tree/d1a3a4e65c2dbee1f23eb5a890d8f29e6448c30d"
 redistribution_status = "review-required"
 [[licenses]]
-id = "BLOCKED_LICENSE_MAIN_UPSTREAM"
+id = "review-main-fork-libbluetooth"
+material_id = "main-fork-libbluetooth"
+spdx_expression = "LicenseRef-StageA0-ReviewRequired"
+notice_locator = "docs/stage-a0/material-license-audit-2026-08-09.md"
+corresponding_source_locator = "https://github.com/DeanoC/Main_MiSTer/tree/d1a3a4e65c2dbee1f23eb5a890d8f29e6448c30d/lib/bluetooth"
+redistribution_status = "review-required"
+[[licenses]]
+id = "review-main-fork-libbz2"
+material_id = "main-fork-libbz2"
+spdx_expression = "LicenseRef-StageA0-ReviewRequired"
+notice_locator = "docs/stage-a0/material-license-audit-2026-08-09.md"
+corresponding_source_locator = "https://github.com/DeanoC/Main_MiSTer/tree/d1a3a4e65c2dbee1f23eb5a890d8f29e6448c30d/lib/imlib2"
+redistribution_status = "review-required"
+[[licenses]]
+id = "review-main-fork-libfreetype"
+material_id = "main-fork-libfreetype"
+spdx_expression = "LicenseRef-StageA0-ReviewRequired"
+notice_locator = "docs/stage-a0/material-license-audit-2026-08-09.md"
+corresponding_source_locator = "https://github.com/DeanoC/Main_MiSTer/tree/d1a3a4e65c2dbee1f23eb5a890d8f29e6448c30d/lib/imlib2"
+redistribution_status = "review-required"
+[[licenses]]
+id = "review-main-fork-libimlib2"
+material_id = "main-fork-libimlib2"
+spdx_expression = "LicenseRef-StageA0-ReviewRequired"
+notice_locator = "docs/stage-a0/material-license-audit-2026-08-09.md"
+corresponding_source_locator = "https://github.com/DeanoC/Main_MiSTer/tree/d1a3a4e65c2dbee1f23eb5a890d8f29e6448c30d/lib/imlib2"
+redistribution_status = "review-required"
+[[licenses]]
+id = "review-main-fork-libpng16"
+material_id = "main-fork-libpng16"
+spdx_expression = "LicenseRef-StageA0-ReviewRequired"
+notice_locator = "docs/stage-a0/material-license-audit-2026-08-09.md"
+corresponding_source_locator = "https://github.com/DeanoC/Main_MiSTer/tree/d1a3a4e65c2dbee1f23eb5a890d8f29e6448c30d/lib/imlib2"
+redistribution_status = "review-required"
+[[licenses]]
+id = "review-main-fork-libz"
+material_id = "main-fork-libz"
+spdx_expression = "LicenseRef-StageA0-ReviewRequired"
+notice_locator = "docs/stage-a0/material-license-audit-2026-08-09.md"
+corresponding_source_locator = "https://github.com/DeanoC/Main_MiSTer/tree/d1a3a4e65c2dbee1f23eb5a890d8f29e6448c30d/lib/imlib2"
+redistribution_status = "review-required"
+[[licenses]]
+id = "review-main-fork-public"
+material_id = "main-fork-public"
+spdx_expression = "LicenseRef-StageA0-ReviewRequired"
+notice_locator = "docs/stage-a0/material-license-audit-2026-08-09.md"
+corresponding_source_locator = "https://github.com/DeanoC/Main_MiSTer/tree/d1a3a4e65c2dbee1f23eb5a890d8f29e6448c30d"
+redistribution_status = "review-required"
+[[licenses]]
+id = "review-main-upstream"
 material_id = "main-upstream"
-spdx_expression = ""
-notice_locator = ""
-corresponding_source_locator = ""
+spdx_expression = "LicenseRef-StageA0-ReviewRequired"
+notice_locator = "docs/stage-a0/material-license-audit-2026-08-09.md"
+corresponding_source_locator = "https://github.com/MiSTer-devel/Main_MiSTer/tree/7b5c8de5d3fb16f9cccc1f274a2ff1b481637e42"
 redistribution_status = "review-required"
 [[licenses]]
-id = "BLOCKED_LICENSE_POLICY"
-material_id = "policy"
-spdx_expression = ""
-notice_locator = ""
-corresponding_source_locator = ""
+id = "review-policy-compile-link"
+material_id = "policy-compile-link"
+spdx_expression = "LicenseRef-StageA0-ReviewRequired"
+notice_locator = "docs/stage-a0/material-license-audit-2026-08-09.md"
+corresponding_source_locator = "https://github.com/DeanoC/FogCast-POC/tree/ea8d38a1c16169f4caa2218e1e967332272933c2/artifacts/stage-a0/policy-candidates-final3"
 redistribution_status = "review-required"
 [[licenses]]
-id = "BLOCKED_LICENSE_TOOLCHAIN"
+id = "review-policy-elf-dependency"
+material_id = "policy-elf-dependency"
+spdx_expression = "LicenseRef-StageA0-ReviewRequired"
+notice_locator = "docs/stage-a0/material-license-audit-2026-08-09.md"
+corresponding_source_locator = "https://github.com/DeanoC/FogCast-POC/tree/ea8d38a1c16169f4caa2218e1e967332272933c2/artifacts/stage-a0/policy-candidates-final3"
+redistribution_status = "review-required"
+[[licenses]]
+id = "review-policy-generated-input"
+material_id = "policy-generated-input"
+spdx_expression = "LicenseRef-StageA0-ReviewRequired"
+notice_locator = "docs/stage-a0/material-license-audit-2026-08-09.md"
+corresponding_source_locator = "https://github.com/DeanoC/FogCast-POC/tree/ea8d38a1c16169f4caa2218e1e967332272933c2/artifacts/stage-a0/policy-candidates-final3"
+redistribution_status = "review-required"
+[[licenses]]
+id = "review-policy-intermediate-path"
+material_id = "policy-intermediate-path"
+spdx_expression = "LicenseRef-StageA0-ReviewRequired"
+notice_locator = "docs/stage-a0/material-license-audit-2026-08-09.md"
+corresponding_source_locator = "https://github.com/DeanoC/FogCast-POC/tree/ea8d38a1c16169f4caa2218e1e967332272933c2/artifacts/stage-a0/policy-candidates-final3"
+redistribution_status = "review-required"
+[[licenses]]
+id = "review-policy-source-set"
+material_id = "policy-source-set"
+spdx_expression = "LicenseRef-StageA0-ReviewRequired"
+notice_locator = "docs/stage-a0/material-license-audit-2026-08-09.md"
+corresponding_source_locator = "https://github.com/DeanoC/FogCast-POC/tree/ea8d38a1c16169f4caa2218e1e967332272933c2/artifacts/stage-a0/policy-candidates-final3"
+redistribution_status = "review-required"
+[[licenses]]
+id = "review-policy-upstream-fork-delta"
+material_id = "policy-upstream-fork-delta"
+spdx_expression = "LicenseRef-StageA0-ReviewRequired"
+notice_locator = "docs/stage-a0/material-license-audit-2026-08-09.md"
+corresponding_source_locator = "https://github.com/DeanoC/FogCast-POC/tree/ea8d38a1c16169f4caa2218e1e967332272933c2/artifacts/stage-a0/policy-candidates-final3"
+redistribution_status = "review-required"
+[[licenses]]
+id = "review-toolchain"
 material_id = "toolchain"
-spdx_expression = ""
-notice_locator = ""
-corresponding_source_locator = ""
+spdx_expression = "LicenseRef-StageA0-ReviewRequired"
+notice_locator = "docs/stage-a0/material-license-audit-2026-08-09.md"
+corresponding_source_locator = "https://developer.arm.com/-/media/Files/downloads/gnu-a/10.2-2020.11/binrel/gcc-arm-10.2-2020.11-x86_64-arm-none-linux-gnueabihf.tar.xz"
 redistribution_status = "review-required"

@@ -402,16 +402,31 @@ func materializeSource(ctx context.Context, source, commit, workRoot string) (st
 }
 
 func inspectContainer(ctx context.Context, req Request) (ContainerEvidence, error) {
-	args := []string{"image", "inspect", "--platform", "linux/amd64", req.ImageRef, "--format", "{{.Id}}|{{.Os}}|{{.Architecture}}"}
+	args := []string{"image", "inspect", "--platform", "linux/amd64", req.ImageRef, "--format", "{{.Id}}|{{.Os}}|{{.Architecture}}|{{json .RepoDigests}}"}
 	raw, err := runCommandWithBinary(ctx, dockerBinary, args...)
 	if err != nil {
 		return ContainerEvidence{}, &Failure{Code: CodeContainerDrift, Detail: "container image cannot be inspected"}
 	}
 	fields := strings.Split(strings.TrimSpace(string(raw)), "|")
-	if len(fields) != 3 {
+	if len(fields) != 4 {
 		return ContainerEvidence{}, &Failure{Code: CodeContainerDrift, Detail: "container inspection is malformed"}
 	}
-	evidence := ContainerEvidence{Reference: req.ImageRef, ImageID: fields[0], OS: fields[1], Architecture: fields[2]}
+	// docker load intentionally drops registry RepoDigests.  The transport
+	// image ID is still checked locally; the durable manifest/config digests
+	// come from the workflow's exported OCI identity and are bound below by
+	// ValidateCapturedEvidence.  A registry-backed run must expose the same
+	// manifest digest in RepoDigests.
+	if strings.TrimSpace(fields[3]) != "[]" && !strings.Contains(fields[3], ExpectedContainerManifestDigest) && !(fields[0] == ExpectedContainerImageID && strings.Contains(fields[3], ExpectedContainerImageID)) {
+		return ContainerEvidence{}, &Failure{Code: CodeContainerDrift, Detail: "container manifest digest differs from the durable image"}
+	}
+	evidence := ContainerEvidence{
+		Reference:      req.ImageRef,
+		ImageID:        fields[0],
+		ManifestDigest: ExpectedContainerManifestDigest,
+		ConfigDigest:   ExpectedContainerConfigDigest,
+		OS:             fields[1],
+		Architecture:   fields[2],
+	}
 	if err := validateContainer(evidence); err != nil {
 		return ContainerEvidence{}, err
 	}

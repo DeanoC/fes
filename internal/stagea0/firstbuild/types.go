@@ -30,15 +30,22 @@ const (
 	ExpectedCompiler                     = "arm-none-linux-gnueabihf-gcc"
 	ExpectedCompilerVersion              = "arm-none-linux-gnueabihf-gcc (GNU Toolchain for the A-profile Architecture 10.2-2020.11 (arm-10.16)) 10.2.1 20201103"
 
-	ExpectedContainerReference    = "stage-a0-firstbuild:debian12-arm102-v1"
-	ExpectedContainerImageID      = "sha256:24045e0e800b0ce7df88076ccab628387b149f1bd0786fab46fffae07a859d0c"
-	ExpectedContainerOS           = "linux"
-	ExpectedContainerArchitecture = "amd64"
-	ExpectedNetworkMode           = "none"
-	ExpectedJobCount              = 1
-	ExpectedNprocShimLogicalPath  = "/stage-a0/build-utils/bin/nproc"
-	ExpectedNprocShimSHA256       = "0abf026e8e351c4ebd4b3112044f3dab1ded849d14e7f2d8b11e41d6ece191d7"
-	ExpectedNprocShimContents     = "#!/bin/sh\nprintf '%s\\n' '1'\n"
+	// The local tag is populated from the exact OCI export produced by the
+	// durable-image workflow.  The digest fields below are the immutable
+	// registry identity; keeping the transport tag separate lets the
+	// disposable development kit run the same image without pretending that
+	// docker load preserved registry RepoDigests.
+	ExpectedContainerReference      = "ghcr.io/deanoc/fogcast-stage-a0-firstbuild:stage-a0-ea8d38a"
+	ExpectedContainerImageID        = "sha256:c4f402385f8768599af6a521572700e6846367bcb5f1da12603698e1e787bcef"
+	ExpectedContainerManifestDigest = "sha256:ed821006efd42153736b57caf44a4ed571b8949ac6ec47db42fd3fec9cccc1c5"
+	ExpectedContainerConfigDigest   = "sha256:8e94815d34cd5522f5aba74ce5fc47ab3004f79ab27702c2d13b96766a703338"
+	ExpectedContainerOS             = "linux"
+	ExpectedContainerArchitecture   = "amd64"
+	ExpectedNetworkMode             = "none"
+	ExpectedJobCount                = 1
+	ExpectedNprocShimLogicalPath    = "/stage-a0/build-utils/bin/nproc"
+	ExpectedNprocShimSHA256         = "0abf026e8e351c4ebd4b3112044f3dab1ded849d14e7f2d8b11e41d6ece191d7"
+	ExpectedNprocShimContents       = "#!/bin/sh\nprintf '%s\\n' '1'\n"
 
 	ExpectedSourceDateEpoch int64 = 1786215171
 	ExpectedVDate                 = "260808"
@@ -105,10 +112,12 @@ type ToolchainEvidence struct {
 }
 
 type ContainerEvidence struct {
-	Reference    string `json:"reference"`
-	ImageID      string `json:"image_id"`
-	OS           string `json:"os"`
-	Architecture string `json:"architecture"`
+	Reference      string `json:"reference"`
+	ImageID        string `json:"image_id"`
+	ManifestDigest string `json:"manifest_digest"`
+	ConfigDigest   string `json:"config_digest"`
+	OS             string `json:"os"`
+	Architecture   string `json:"architecture"`
 }
 
 type BuildEvidence struct {
@@ -242,7 +251,7 @@ func validateToolchain(toolchain ToolchainEvidence) error {
 }
 
 func validateContainer(container ContainerEvidence) error {
-	if container.Reference != ExpectedContainerReference || container.ImageID != ExpectedContainerImageID || container.OS != ExpectedContainerOS || container.Architecture != ExpectedContainerArchitecture {
+	if container.Reference != ExpectedContainerReference || container.ImageID != ExpectedContainerImageID || container.ManifestDigest != ExpectedContainerManifestDigest || container.ConfigDigest != ExpectedContainerConfigDigest || container.OS != ExpectedContainerOS || container.Architecture != ExpectedContainerArchitecture {
 		return &Failure{Code: CodeContainerDrift, Detail: "container identity differs from reviewed baseline"}
 	}
 	return nil

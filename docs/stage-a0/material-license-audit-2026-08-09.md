@@ -4,10 +4,17 @@
 
 This is a provenance research record, not a redistribution approval. It
 narrows the remaining lock work to named materials and preserves the rule that
-an upstream resemblance is not enough to assign a license. Every row still
-needs an independently reviewed notice, corresponding-source locator, and
-redistribution disposition before it can replace a `BLOCKED_LICENSE_*` entry
-in the Stage A0 lock.
+an upstream resemblance is not enough to assign a license. The reviewed
+identity catalog now records an immutable authority, notice locator,
+corresponding-source locator, and explicit `review-required` disposition for
+each consumed material. Legal review is still required before any
+`review-required` entry becomes redistributable.
+
+The current catalog is the ignored evidence artifact
+`artifacts/stage-a0/materials-reviewed-final.json`; the schema-valid durable
+lock that references it is `build/stage-a0-main.lock.toml`. It contains 17
+records: the container, Main source authorities, six policy files, six
+prebuilt shared libraries, and the Arm toolchain.
 
 ## Main and bundled source
 
@@ -57,9 +64,9 @@ not be copied into a public lock as if it were an accessible source path.
   Debian package manifests, licenses, and the relationship between the
   retained local capture image and this published image remain open.
 
-## Required closure artifact
+## Remaining legal closure
 
-The next material review should add one immutable record per material with:
+The remaining legal review must retain one immutable record per material with:
 
 1. exact source/archive/OCI identity and hash;
 2. SPDX expression and notice locator;
@@ -67,5 +74,6 @@ The next material review should add one immutable record per material with:
 4. redistribution status and reviewer/date; and
 5. a backlink from each policy dependency and lock material ID.
 
-Until those records exist, the correct status is **Software-tested** and the
-candidate lock must remain blocked.
+Until those dispositions are approved, the correct status is
+**Software-tested** and the promotion report must retain
+`MATERIAL_LICENSE_REVIEW_REQUIRED`.

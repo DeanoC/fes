@@ -23,11 +23,12 @@ presentation hook are retained testbed mechanisms, not public contracts or
 destination-appliance commitments.
 
 The current migration is at a bounded Stage A0 **Software-tested** checkpoint:
-the Main fork builds byte-identically twice and the first Overlord Cyclone V
-slice generates successfully, but Stage A is not yet Reproducible or
-HIL-observed. See the [Stage A0 exit decision](docs/stage-a0/exit-decision-2026-08-09.md)
-for the exact remaining material/license, final-lock, topology, and hardware
-gates.
+the durable Main lock and reviewed material/policy catalog produce two fresh
+byte-identical builds, and the Overlord Cyclone V slice generates the declared
+HPS/core address graph. Stage A is not yet HIL-observed or Accepted because
+redistribution licenses remain review-required and no physical comparison has
+been claimed. See the [Stage A0 exit decision](docs/stage-a0/exit-decision-2026-08-09.md)
+for the two remaining substantive gates.
 
 ## Local checks
 

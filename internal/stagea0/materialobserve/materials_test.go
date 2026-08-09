@@ -53,6 +53,29 @@ func TestValidateManifestRejectsOrderingAndLicenseClaims(t *testing.T) {
 	}
 }
 
+func TestReviewedManifestHasAnExplicitLegalBoundary(t *testing.T) {
+	candidate := validManifest()
+	candidate.Schema = SchemaReviewedV1
+	candidate.Status = StatusReviewed
+	candidate.SourceAvailability = SourceAvailabilityDurable
+	if err := ValidateReviewed(candidate); !hasCode(err, CodeSchemaInvalid) {
+		t.Fatalf("candidate relabel was accepted: %v", err)
+	}
+
+	reviewed := reviewedManifest()
+	raw, err := EncodeReviewed(reviewed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := DecodeReviewed(raw)
+	if err != nil {
+		t.Fatalf("DecodeReviewed() = %v", err)
+	}
+	if decoded.Status != StatusReviewed || decoded.SourceAvailability != SourceAvailabilityDurable || len(decoded.Unresolved) != 1 || decoded.Unresolved[0] != "material-license-review" {
+		t.Fatalf("reviewed boundary was not retained: %#v", decoded)
+	}
+}
+
 func TestTreeDigestIsContentAndSymlinkBound(t *testing.T) {
 	left := t.TempDir()
 	right := t.TempDir()
@@ -134,6 +157,28 @@ func validManifest() Manifest {
 		},
 		Unresolved: []string{"build-log-review-identity", "container-durable-provenance"},
 	}
+}
+
+func reviewedManifest() Manifest {
+	m := validManifest()
+	m.Schema = SchemaReviewedV1
+	m.Status = StatusReviewed
+	m.SourceAvailability = SourceAvailabilityDurable
+	m.Unresolved = []string{"material-license-review"}
+	for i := range m.Records {
+		m.Records[i].LicenseState = licenseReviewRequired
+		m.Records[i].LicenseIDs = []string{"review-" + m.Records[i].ID}
+		switch m.Records[i].Kind {
+		case "git-local":
+			m.Records[i].Kind = "git-https"
+			m.Records[i].URL = "https://github.com/DeanoC/Main_MiSTer.git"
+		case "git-https":
+			m.Records[i].URL = "https://github.com/MiSTer-devel/Main_MiSTer.git"
+		case "archive-https":
+			m.Records[i].URL = "https://example.com/toolchain.tar.xz"
+		}
+	}
+	return m
 }
 
 func hasCode(err error, want Code) bool {

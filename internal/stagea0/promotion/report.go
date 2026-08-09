@@ -94,13 +94,20 @@ func Evaluate(inputs Inputs) Report {
 	if len(inputs.Materials) == 0 {
 		report.addBlocked("material-catalog", "material catalog is missing", "MATERIAL_CATALOG_MISSING")
 	} else {
-		decoded, err := materialobserve.Decode(inputs.Materials)
-		if err != nil {
-			report.addBlocked("material-catalog", "material catalog is not canonical candidate evidence", "MATERIAL_CATALOG_INVALID")
-		} else {
-			report.addBlocked("material-catalog", "material catalog is candidate-observed or has unresolved review inputs", "MATERIAL_CATALOG_NOT_PROMOTED")
+		decoded, err := materialobserve.DecodeReviewed(inputs.Materials)
+		if err == nil {
+			report.addPass("material-catalog", "reviewed material identities and durable retrieval authorities are canonical")
 			materials = decoded
 			materialsValid = true
+			if len(decoded.Unresolved) > 0 {
+				report.addBlocked("material-license-review", "material identities are reviewed but redistribution dispositions remain review-required", "MATERIAL_LICENSE_REVIEW_REQUIRED")
+			}
+		} else if candidate, candidateErr := materialobserve.Decode(inputs.Materials); candidateErr == nil {
+			report.addBlocked("material-catalog", "material catalog is candidate-observed or has unresolved review inputs", "MATERIAL_CATALOG_NOT_PROMOTED")
+			materials = candidate
+			materialsValid = true
+		} else {
+			report.addBlocked("material-catalog", "material catalog is not canonical reviewed or candidate evidence", "MATERIAL_CATALOG_INVALID")
 		}
 	}
 	if materialsValid && lockErr == nil && (!authorityMatchesLock(materials.Authority, lock) || !materialsMatchLock(materials, lock)) {
@@ -157,7 +164,7 @@ func comparisonMatchesLock(comparison precompare.Comparison, lock stagea0.MainLo
 	containerSeen, toolchainSeen := false, false
 	for _, material := range lock.Materials {
 		if material.ID == lock.Environment.ContainerMaterialID {
-			if material.OCI == nil || comparison.ContainerImageID != material.OCI.ManifestDigest {
+			if material.OCI == nil || comparison.ContainerManifestDigest != material.OCI.ManifestDigest || comparison.ContainerConfigDigest != material.OCI.ConfigDigest {
 				return false
 			}
 			containerSeen = true
@@ -173,40 +180,44 @@ func comparisonMatchesLock(comparison precompare.Comparison, lock stagea0.MainLo
 }
 
 func materialsMatchLock(manifest materialobserve.Manifest, lock stagea0.MainLock) bool {
-	seen := map[string]bool{"fork": false, "upstream": false, "toolchain": false, "container": false}
+	byID := make(map[string]materialobserve.Record, len(manifest.Records))
 	for _, record := range manifest.Records {
-		switch record.ID {
-		case lock.Main.ForkMaterialID:
-			if record.Commit != lock.Main.ForkCommit || record.Tree != lock.Main.ForkTree {
+		byID[record.ID] = record
+	}
+	for _, material := range lock.Materials {
+		if material.Role != "consumed-build-input" {
+			continue
+		}
+		record, ok := byID[material.ID]
+		if !ok || len(record.LicenseIDs) == 0 {
+			return false
+		}
+		switch {
+		case material.GitLocal != nil:
+			if record.Commit != material.GitLocal.Commit || record.Tree != material.GitLocal.Tree {
 				return false
 			}
-			seen["fork"] = true
-		case lock.Main.UpstreamMaterialID:
-			if record.Commit != lock.Main.UpstreamCommit || record.Tree != lock.Main.UpstreamTree {
+		case material.GitHTTPS != nil:
+			if record.Commit != material.GitHTTPS.Commit || record.Tree != material.GitHTTPS.Tree || record.URL != material.GitHTTPS.URL {
 				return false
 			}
-			seen["upstream"] = true
-		case "toolchain":
-			for _, material := range lock.Materials {
-				if material.ID == record.ID && material.ArchiveHTTPS != nil {
-					if record.SHA256 != material.ArchiveHTTPS.SHA256 || record.Size != material.ArchiveHTTPS.Size {
-						return false
-					}
-					seen["toolchain"] = true
-				}
+		case material.ArchiveHTTPS != nil:
+			if record.SHA256 != material.ArchiveHTTPS.SHA256 || record.Size != material.ArchiveHTTPS.Size {
+				return false
 			}
-		case "container":
-			for _, material := range lock.Materials {
-				if material.ID == record.ID && material.OCI != nil {
-					if record.ManifestDigest != material.OCI.ManifestDigest || record.ConfigDigest != material.OCI.ConfigDigest {
-						return false
-					}
-					seen["container"] = true
-				}
+		case material.OCI != nil:
+			if record.ManifestDigest != material.OCI.ManifestDigest || record.ConfigDigest != material.OCI.ConfigDigest {
+				return false
 			}
+		case material.MaterialFile != nil:
+			if record.ParentID != material.MaterialFile.ParentID || record.Path != material.MaterialFile.Path || record.Size != material.MaterialFile.Size || record.SHA256 != material.MaterialFile.SHA256 {
+				return false
+			}
+		default:
+			return false
 		}
 	}
-	return seen["fork"] && seen["upstream"] && seen["toolchain"] && seen["container"]
+	return true
 }
 
 func decodePolicies(files map[string][]byte) ([]policy.Document, map[string][]byte, string) {
@@ -282,7 +293,8 @@ func ValidateReport(report Report) error {
 	}
 	knownChecks := map[string]struct{}{
 		"comparison-lock-binding": {}, "lock-schema": {}, "material-catalog": {},
-		"material-lock-binding": {}, "policy-inventory": {}, "policy-promotion": {},
+		"material-license-review": {},
+		"material-lock-binding":   {}, "policy-inventory": {}, "policy-promotion": {},
 		"source-availability": {}, "two-build-comparison": {},
 	}
 	seenChecks := make(map[string]struct{}, len(report.Checks))

@@ -65,40 +65,26 @@ non-exempt.
 ### Current Stage A0 checkpoint (2026-08-09)
 
 The public `DeanoC/Main_MiSTer` fork, fresh adapter-backed captures,
-software-only two-capture comparator, strict six-policy schema, lock-bound
-promotion validator, and Git-backed source-set/fork-delta candidate observer
-are implemented and tested. A candidate command derives compile/link,
-ELF/dependency, generated-input, and intermediate-path documents from the
-reviewed verbose build receipt; all six policy candidates are emitted as
-canonical JSON, but remain explicitly non-promotable. The final Stage A gate
-remains open. The current evidence is therefore **Software-tested /
-local-only**, not Reproducible, HIL-observed, or Accepted. A durable GHCR
-container publication is available from workflow run
-[31312562553](https://github.com/DeanoC/FogCast-POC/actions/runs/31312562553),
-but it has not yet replaced the disposable local capture image in a promoted
-lock. The generator also
-emits a candidate `materials.json` catalog bound to the reviewed receipt,
-build-log digest, toolchain archive hash/root, and extracted-tree digest. The
-fresh adapter-backed capture fixes the build job count at one and records the
-shim identity. Two fresh adapter-backed captures from distinct roots compare
-with different build-log digests and byte-identical final artifacts, while the
-overall evidence remains local-only until the full material/license catalog is
-promoted.
-The canonical v1 promotion report is deliberately a blocked-only candidate
-decision, with stable lock/material/policy/retrieval blockers; it does not
-provide an eligible path or rewrite the lock. A long-lived public Overlord fork
-now fixes board selection/catalog path initialization and prefab registration.
-Its pinned public resource fork contains a generated DE10-Nano/Cyclone V slice:
-board, SoC/CPU, directly used register banks, observed bridge windows,
-ARM hard-float toolchain metadata, and a provenance-bound Main build adapter.
-The probe is `ready-for-generation`, and an actual Java/SBT generation run
-produced hash-bound outputs. The full aperture/core topology and native Main
-compilation boundary are still explicitly partial.
+software-only two-capture comparator, strict six-policy schema, durable final
+lock, reviewed 17-record material catalog, and lock-bound promotion validator
+are implemented and tested. Two fresh independent builds from the durable
+software lock are byte-identical. The current evidence is therefore
+**Software-tested**, not Reproducible, HIL-observed, or Accepted: every
+material has an explicit `review-required` redistribution disposition, and the
+comparison remains local-only.
 
-Remaining work is to replace the candidate with an immutable material/license
-catalog (including reviewed build-log identity), bind the durable container in
-a final lock, run the independent-build gate against that lock, complete the
-resource aperture/topology, and then run the HIL comparison slice.
+A durable GHCR container is published by workflow run
+[31312562553](https://github.com/DeanoC/FogCast-POC/actions/runs/31312562553).
+The pinned public Overlord/resource forks now generate a DE10-Nano/Cyclone V
+slice with the directly used register banks, a declared 16 MiB HPS aperture,
+512 MiB core-memory window, and two address-level bus links. This is a resource
+graph contract, not a claim that the complete FPGA gateware core or HPS
+interconnect has been implemented. The native Main compilation boundary
+remains an explicit adapter.
+
+Remaining work is the legal license/redistribution review and the bounded HIL
+comparison slice. The promotion report now identifies those gates directly;
+unchanged verification runs do not advance this status.
 
 The bounded exit decision is recorded in
 [the Stage A0 exit decision](stage-a0/exit-decision-2026-08-09.md); unchanged

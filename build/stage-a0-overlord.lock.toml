@@ -10,14 +10,14 @@ main_lock_sha256 = "415445d1871a25b6f6f9f30d52deec640147beea6a23d8527ddc5741f4ae
 [overlord]
 repository_id = "deanoc-overlord"
 url = "https://github.com/DeanoC/overlord.git"
-commit = "1a358e5222d9b4cecfcbf9d18dca0d3db2a4b41a"
-tree = "1cb0c14f581822e3606a35f631c7f56337405bba"
+commit = "a9fe9106dcc06db6d80eb22af0cd11facc8f7851"
+tree = "80793cfea3504edbac540ea2dd4c92ef58ac994d"
 
 [resources]
 repository_id = "deanoc-ikuy-std-resources"
 url = "https://github.com/DeanoC/ikuy_std_resources.git"
-commit = "cfa6b1ecbbbaac0ae0da0ed1686795eb2f0792b3"
-tree = "f187c36eaec69240a15f6e46cae9c0ee9cfafb69"
+commit = "e13a97d8324baff83dd1cb8d4531e8648284fad7"
+tree = "3a284fd066f0b719c3a7e65901d3d4efe26cdf4c"
 
 [[requirements]]
 id = "board-de10-nano"
@@ -34,8 +34,7 @@ source = "catalog/fogcast/cyclone_v.yaml"
 [[requirements]]
 id = "registers-cyclone-v"
 kind = "register-map"
-status = "partial"
-blocker = "OVERLORD_REGISTERS_CYCLONE_V_APERTURE_INCOMPLETE"
+status = "present"
 source = "catalog/fogcast/registers/cyclone_v"
 
 [[requirements]]
