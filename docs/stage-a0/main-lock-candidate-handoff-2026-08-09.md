@@ -72,23 +72,24 @@ review record only after all blockers below are resolved.
    yet tied to immutable image layers or package records. The required
    nproc-shim is absent from the measured run.
 7. **Configuration and policies:** the strict six-policy schema, lock-bound
-   promotion validator, and Git-backed source-set/fork-delta candidate
-   observer now exist and are tested. No six policy files have yet been
-   generated as separately tracked UTF-8 LF artifacts; the four build-derived
-   candidates (compile/link, ELF/dependency, generated-input, and
-   intermediate-path) and all policy hashes therefore remain intentionally
-   unresolved in the draft.
+   promotion validator, Git-backed source-set/fork-delta candidate observer,
+   and candidate generator now exist and are tested. The generator emits
+   canonical local candidates for source-set, fork-delta, compile/link,
+   generated-input, and intermediate-path from the pinned fork and reviewed
+   build receipt. They are deliberately marked `candidate-*`; no policy has
+   been promoted, and the ELF/dependency candidate plus all policy hashes
+   remain unresolved in the draft.
 8. **Licenses:** Main, bundled libraries, the Arm archive, container packages,
    and policy/config materials lack reviewed SPDX expressions, notice
    locators, corresponding-source locators, and redistribution dispositions.
    `BLOCKED_LICENSE_*` IDs are markers only and must not be treated as legal
    conclusions.
-9. **Canonical manifests/comparator:** source-set, compile/link, ELF,
-   dynamic-dependency, generated-input, and intermediate-path manifests are
-   not implemented as the final-lock gate. A preliminary comparator now exists
-   for two retained local captures, but it only reports
-   `Software-tested`/`local-only` and does not close this gate. Matching
-   preliminary binaries do not close the final lock.
+9. **Canonical manifests/comparator:** source-set, compile/link,
+   generated-input, and intermediate-path candidate observers now exist; the
+   ELF/dynamic-dependency observer and final-lock comparator are still open. A
+   preliminary comparator now exists for two retained local captures, but it
+   only reports `Software-tested`/`local-only` and does not close this gate.
+   Matching preliminary binaries do not close the final lock.
 10. **Image/cache retrieval:** there is no content-addressed source/toolchain/
     image cache with revalidation, signed material metadata, or independent
     retrieval evidence. Local ignored artifacts are not a lock substitute.

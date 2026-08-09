@@ -65,15 +65,18 @@ non-exempt.
 ### Current Stage A0 checkpoint (2026-08-09)
 
 The local Main fork, preliminary first-build captures, software-only
-two-capture comparator, and Git-backed source-set/fork-delta candidate
-observer are implemented and tested. The policy schema and its lock-bound
-promotion validator are now implemented, but no policy document has been
-promoted and the final Stage A gate remains open. The current evidence is
-therefore **Software-tested / local-only**, not Reproducible, HIL-observed, or
-Accepted. The remaining work is the material catalog and four build-derived
-policy candidates, a fixed job-count and build-utils adapter, durable
-container/toolchain/license provenance, two independent clean builds, then the
-narrow Overlord DE10-Nano/Cyclone V and HIL comparison slice.
+two-capture comparator, strict six-policy schema, lock-bound promotion
+validator, and Git-backed source-set/fork-delta candidate observer are
+implemented and tested. A local candidate command now derives compile/link,
+generated-input, and intermediate-path documents from the reviewed verbose
+build receipt; all five currently observable policy candidates are emitted as
+canonical JSON, but remain explicitly non-promotable. The final Stage A gate
+remains open. The current evidence is therefore **Software-tested /
+local-only**, not Reproducible, HIL-observed, or Accepted. The remaining work
+is the immutable material catalog and ELF/dependency observer, a fixed
+job-count and build-utils adapter, durable container/toolchain/license
+provenance, two independent clean builds, then the narrow Overlord DE10-Nano/
+Cyclone V and HIL comparison slice.
 
 Use Overlord to add the minimum DE10-Nano and Cyclone V resources and generate
 the memory map, register definitions, toolchain configuration, and software
