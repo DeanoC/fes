@@ -7,7 +7,7 @@ FOGCAST_GOOS ?= darwin
 FOGCAST_GOARCH ?= arm64
 FOGCAST_OUTPUT ?= bin/fogcast
 
-.PHONY: fmt test vet check build build-fogcast build-fogcast-api build-cli build-hil build-fogcast-hil build-remote-play-receiver build-remote-play-impair build-agent build-bridge build-lock build-lock-container build-poc2-lock package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-dev-image poc1b-verify-images poc1b-qemu-smoke poc1b-kernel-test poc1b-kernel poc1b-verify-kernel poc1b-deploy-test poc2-rootfs-test poc2-deploy-test build-stage-a0 build-stage-a0-firstbuild build-stage-a0-firstbuild-precompare stage-a0-test stage-a0-firstbuild-test stage-a0-precompare-test stage-a0-check
+.PHONY: fmt test vet check build build-fogcast build-fogcast-api build-cli build-hil build-fogcast-hil build-remote-play-receiver build-remote-play-impair build-agent build-bridge build-lock build-lock-container build-poc2-lock package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-dev-image poc1b-verify-images poc1b-qemu-smoke poc1b-kernel-test poc1b-kernel poc1b-verify-kernel poc1b-deploy-test poc2-rootfs-test poc2-deploy-test build-stage-a0 build-stage-a0-firstbuild build-stage-a0-firstbuild-precompare stage-a0-test stage-a0-firstbuild-test stage-a0-precompare-test stage-a0-policy-test stage-a0-promotion-test stage-a0-check
 
 build-stage-a0:
 	mkdir -p bin
@@ -31,13 +31,23 @@ stage-a0-firstbuild-test:
 stage-a0-precompare-test:
 	mise exec go@1.26.5 -- go test ./internal/stagea0/precompare ./cmd/stage-a0-firstbuild-precompare
 
-stage-a0-check: build-stage-a0 build-stage-a0-firstbuild build-stage-a0-firstbuild-precompare stage-a0-test stage-a0-firstbuild-test stage-a0-precompare-test
+stage-a0-policy-test:
+	mise exec go@1.26.5 -- go test ./internal/stagea0/policy
+
+stage-a0-promotion-test:
+	mise exec go@1.26.5 -- go test ./internal/stagea0/promotion
+
+stage-a0-check: build-stage-a0 build-stage-a0-firstbuild build-stage-a0-firstbuild-precompare stage-a0-test stage-a0-firstbuild-test stage-a0-precompare-test stage-a0-policy-test stage-a0-promotion-test
 	mise exec go@1.26.5 -- go test -race ./internal/stagea0 ./cmd/stage-a0
 	mise exec go@1.26.5 -- go test -race ./internal/stagea0/firstbuild ./cmd/stage-a0-firstbuild
 	mise exec go@1.26.5 -- go test -race ./internal/stagea0/precompare ./cmd/stage-a0-firstbuild-precompare
 	mise exec go@1.26.5 -- go vet ./internal/stagea0 ./cmd/stage-a0
 	mise exec go@1.26.5 -- go vet ./internal/stagea0/firstbuild ./cmd/stage-a0-firstbuild
 	mise exec go@1.26.5 -- go vet ./internal/stagea0/precompare ./cmd/stage-a0-firstbuild-precompare
+	mise exec go@1.26.5 -- go test -race ./internal/stagea0/policy
+	mise exec go@1.26.5 -- go vet ./internal/stagea0/policy
+	mise exec go@1.26.5 -- go test -race ./internal/stagea0/promotion
+	mise exec go@1.26.5 -- go vet ./internal/stagea0/promotion
 	test -z "$$(gofmt -l internal/stagea0 cmd/stage-a0 cmd/stage-a0-firstbuild cmd/stage-a0-firstbuild-precompare)"
 	sh -n scripts/stage-a0-init-main.sh scripts/tests/stage-a0-init_test.sh
 	shellcheck -x scripts/stage-a0-init-main.sh scripts/tests/stage-a0-init_test.sh

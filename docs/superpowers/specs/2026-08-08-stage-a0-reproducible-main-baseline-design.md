@@ -720,7 +720,7 @@ lock field defines a canonical source locator.
 | `source-set.json` | Sorted logical source path, mode, SHA-256, material ID, and inclusion reason; untracked input is invalid. |
 | `compile.json` | Records sorted by semantic `(output, source, tool)`; normalized argv/cwd/paths, tool identity, flags, and exact linker library order. |
 | `artifacts.json` | Sorted logical original path, immutable report-payload path, type, mode, size, SHA-256, role, and final/intermediate classification. Exactly `bin/MiSTer` (stripped) and `bin/MiSTer.elf` (unstripped) are final. |
-| `elf.json` | For each ELF output: class, endianness, machine, ABI, program headers, sections, build ID, interpreter, `DT_NEEDED`, RPATH/RUNPATH, symbols where policy requires, and normalized `readelf`/`objdump` hashes. |
+| `elf.json` | For each ELF output: class, endianness, machine, ABI, program headers, sections, build ID, the literal ELF interpreter plus its mapped logical sysroot path, `DT_NEEDED`, RPATH/RUNPATH, symbols where policy requires, and normalized `readelf`/`objdump` hashes. |
 | `dependencies.json` | Dynamic-library closure, symlink resolution, ABI/SONAME, SHA-256, size, source package/material, and search-path provenance. |
 | `image-inputs.json` | Consumed/context/future material IDs and config hashes; explicitly records that no Overlord output is consumed in Stage A0. |
 | `result.json` | Deterministic verdict, source availability, canonical evidence status, and detached inventory reference; it never hashes itself. |
