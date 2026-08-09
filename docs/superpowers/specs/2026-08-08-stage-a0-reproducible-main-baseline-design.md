@@ -296,22 +296,47 @@ Stage A gates are satisfied.
 
 ### Official checkout-attribute compatibility boundary
 
-The selected official Main tree applies exactly `text=set` and `eol=lf` to
-the root `Makefile`. Those attributes are conversion-capable in general, but
-are byte-preserving for the locked source because its raw blob is valid UTF-8,
-contains no CR byte, is LF-only, and ends with LF. The Stage A0 initializer may
-therefore admit only that exact ordered effective attribute set for the locked
-VDATE source, under its closed `core.autocrlf=false`, `core.eol=lf`, and
-`core.attributesfile=/dev/null` configuration. An empty effective set remains
-valid for synthetic and future locked sources. Every other attribute name,
-value, duplicate, ordering, malformed record, CR-containing source, or
-non-terminal-LF source fails before checkout.
+The selected official Main tree applies `text=set` and `eol=lf` to both the
+root `Makefile` and Markdown files. The Makefile blob is already LF-only, but
+the locked `lib/miniz/ChangeLog.md` blob contains 176 CRLF endings. Git 2.55
+materializes that blob unchanged, but the normal attribute-driven clean/index
+comparison normalizes it and therefore reports the otherwise unmodified
+worktree dirty. Normalizing the
+blob in the fork would add a second source change and violate the approved
+VDATE-only patch contract.
 
-Admission does not replace output verification. After `checkout-index`
-materializes the tree, the initializer must still require the materialized
-VDATE source SHA-256 to equal the committed patched blob SHA-256. This makes
-the policy both compatible with the selected official tree and closed against
-unreviewed checkout filters or EOL transformations.
+Stage A0 separates two concerns. Persistent worktree operations use raw Git
+blob semantics by setting the closed local configuration
+`attr.tree=4b825dc642cb6eb9a060e54bf8d69288fbee4904`, the canonical empty SHA-1 tree,
+in addition to `core.autocrlf=false`, `core.eol=lf`, and
+`core.attributesfile=/dev/null`. In a new repository, the initializer writes an
+empty tree object deterministically and requires its OID to equal the canonical
+value. It then verifies SHA-1 object format, object existence and tree type,
+zero entries, empty effective persistent attributes after checkout, and
+absence of `.git/info/attributes`. Checkout, status, and idempotence commands
+never receive `GIT_ATTR_SOURCE`.
+
+The locked patch tree's attributes are still security-relevant evidence. A
+single command-scoped audit uses `GIT_ATTR_SOURCE=<full-patch-tree>` with
+`check-attr --all -- <source_path>` and admits only an empty result or the exact
+ordered LF-terminated `text=set`, `eol=lf` pair for the VDATE source. The pair
+is admitted only when the patched source is valid UTF-8, contains no CR, and
+ends in LF. This command-scoped source must not leak into materialization or
+status. The functional audit is also the compatibility gate for Git's
+`attr.tree`/`GIT_ATTR_SOURCE` support; an implementation that ignores either
+fails closed.
+
+After `checkout-index` materializes raw blobs, the initializer still requires
+the materialized VDATE source SHA-256 to equal the committed patched blob
+SHA-256, requires ordinary attribute resolution for that attributed source to
+remain empty, and requires a clean tracked worktree. An existing destination
+is verification-only and must already satisfy the exact `attr.tree` config,
+object-format, empty-tree object/type/content, absent-info-attributes,
+persistent-empty-attributes, and scoped locked-tree-audit gates. Regression fixtures include a
+tracked CRLF file covered by `text eol=lf`, raw blob/worktree identity, clean
+status after restat and a second checkout, exact locked-tree attribute recovery,
+and rejection of wrong/nonempty attribute trees or repository-local attribute
+overrides.
 
 ## Final build lock and canonical encodings
 

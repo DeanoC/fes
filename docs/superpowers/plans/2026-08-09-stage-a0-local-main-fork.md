@@ -621,11 +621,17 @@ transport and verifies no temporary ref or `FETCH_HEAD` remains, then validates
 the locked source tree component/mode/blob and adds the sole `upstream` remote
 with the locked URL and `DisabledPushURL` and verifies
 the effective fetch/push URLs. It sets only `core.autocrlf=false`, `core.eol=lf`,
-`core.attributesfile=/dev/null`, `remote.upstream.url=<locked-url>`,
+`core.attributesfile=/dev/null`,
+`attr.tree=4b825dc642cb6eb9a060e54bf8d69288fbee4904`,
+`remote.upstream.url=<locked-url>`,
 `remote.upstream.fetch=+refs/heads/*:refs/remotes/upstream/*`, and
 `remote.upstream.pushurl=disabled://stage-a0/upstream` in local configuration.
 It parses `git config --local --null --list` and rejects every key/value outside
-the Git init repository-format keys plus those six exact key/value entries.
+the Git init repository-format keys plus those seven exact key/value entries.
+It also requires SHA-1 object format, writes an empty tree with deterministic
+empty stdin, requires the resulting OID to equal the configured canonical
+value, verifies that object exists as a zero-entry tree, and rejects any
+`.git/info/attributes` entry.
 
 Set `GIT_INDEX_FILE` from the start to the exact canonical path
 `<temporary-repository>/.git/index`, so it is the repository index that survives
@@ -641,27 +647,37 @@ message in stdin. Publish the ref only through
 `git update-ref refs/heads/<branch> <patch-commit> <zero-oid>`, attach `HEAD`
 with `git symbolic-ref HEAD refs/heads/<branch>`, read the patch tree into the
 canonical index, and materialize it with valid `git checkout-index --all` after
-the closed attributes policy above. Before checkout/materialization, run
-`git check-attr --cached --all -- <source_path>`;
+the closed attributes policy above. Persistent attribute resolution must be
+empty under the configured canonical empty tree. Before
+checkout/materialization, run a command-scoped locked-tree audit equivalent to
+`GIT_ATTR_SOURCE=<full-patch-tree> git check-attr --all -- <source_path>`;
 accept an empty result or exactly the two LF-terminated records
 `<source_path>: text: set` and `<source_path>: eol: lf`, in that order, only
 when the locked raw source is CR-free LF text with a terminal LF. Any other
 attribute name, value, order, duplicate, malformed output, or incompatible
 source bytes fails closed. This exact pair is the selected official tree's
-reviewed byte-preserving policy under `core.autocrlf=false` and `core.eol=lf`;
-it is not a general attribute allowlist. Verify the
+reviewed VDATE-source policy; it is not a general attribute allowlist.
+`GIT_ATTR_SOURCE` is present only on that audit command and is absent from
+checkout, status, and every other persistent-worktree operation. Verify the
 materialized source raw SHA-256 equals the committed patched blob SHA-256, and
+after checkout require ordinary `check-attr --all -- <source_path>` to remain
+empty; this post-materialization gate proves `attr.tree` is effective even
+though the tree now contains `.gitattributes`. Then
 verify a clean worktree plus final index, tree, config, remotes, effective URLs,
 and attached HEAD before atomically renaming the complete temporary root to the
 still-absent requested destination. If the destination appears before
 publication, stop and remove only the temporary root. The committed blob is
 protected by the raw `hash-object` input and canonical index before materialization.
 Tests assert no worktree write occurs before the source-tree/mode/blob gate,
-cached-attribute check, patch-tree diff gate, and commit/ref construction all
+locked-tree attribute audit, patch-tree diff gate, and commit/ref construction all
 pass; `checkout-index --all` is the sole worktree materialization operation.
-Add regression cases for the exact admitted pair, reversed or duplicate
+Add regression cases for a CRLF tracked file covered by `text eol=lf`, raw
+blob/worktree equality, clean status after stat invalidation and repeated
+checkout, exact command-scoped attribute recovery, and rejection of a wrong or
+nonempty attribute tree and any `.git/info/attributes` entry. Also retain cases
+for the exact admitted pair, reversed or duplicate
 records, additional attributes, different `text`/`eol` values, malformed
-records, and CRLF source bytes. The admitted-pair fixture must reach checkout
+records, and CRLF VDATE source bytes. The admitted-pair fixture must reach checkout
 and prove the post-checkout raw SHA-256 equality gate; every rejected case must
 stop before checkout.
 
@@ -669,7 +685,11 @@ It never uses checkout/reset/rebase/clean force options. For an existing
 destination it creates a before/after snapshot of complete filesystem content,
 refs, index, config, and timestamps; runs only read-only commands with
 `GIT_OPTIONAL_LOCKS=0`; and returns `CodeRepositoryPolicyMismatch` unchanged on
-any mismatch.
+any mismatch. Under that snapshot it reruns the SHA-1 object-format gate, exact
+`attr.tree` config gate, empty-tree object existence/type/content checks,
+`.git/info/attributes` absence check, post-materialization persistent-empty
+attribute check, and command-scoped locked-tree audit. It never creates a
+missing empty-tree object or repairs configuration in an existing destination.
 
 ```go
 func gitEnv(spec CommitSpec, canonicalIndexPath string) []string {
