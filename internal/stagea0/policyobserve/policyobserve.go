@@ -126,7 +126,7 @@ func ObserveForkDelta(repository string, authority policy.Authority) (policy.Doc
 	if changed != "M\tMakefile\n" {
 		return policy.Document{}, gitInvalid("fork delta contains a path other than the approved Makefile patch")
 	}
-	patch, err := runGitOutput(root, "diff", "--no-ext-diff", "--binary", authority.UpstreamCommit, authority.ForkCommit, "--", "Makefile")
+	patch, err := runGitOutput(root, "diff", "--no-ext-diff", "--no-textconv", "--no-renames", "--full-index", "--binary", authority.UpstreamCommit, authority.ForkCommit, "--", "Makefile")
 	if err != nil {
 		return policy.Document{}, err
 	}
@@ -189,6 +189,10 @@ func verifyAuthority(root string, authority policy.Authority) error {
 	tree, err := runGitOutput(root, "rev-parse", authority.ForkCommit+"^{tree}")
 	if err != nil || strings.TrimSpace(tree) != authority.ForkTree {
 		return gitInvalid("repository tree does not match fork authority")
+	}
+	upstreamTree, err := runGitOutput(root, "rev-parse", authority.UpstreamCommit+"^{tree}")
+	if err != nil || strings.TrimSpace(upstreamTree) != authority.UpstreamTree {
+		return gitInvalid("upstream tree does not match authority")
 	}
 	parent, err := runGitOutput(root, "rev-parse", authority.ForkCommit+"^1")
 	if err != nil || strings.TrimSpace(parent) != authority.ForkParentCommit {
@@ -266,8 +270,13 @@ func runGitOutput(root string, args ...string) (string, error) {
 
 func runGitOutputBytes(root string, args ...string) ([]byte, error) {
 	ctx := context.Background()
-	command := exec.CommandContext(ctx, "git", append([]string{"-C", root}, args...)...)
-	command.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null", "GIT_TERMINAL_PROMPT=0", "GIT_ATTR_NOSYSTEM=1", "GIT_NO_REPLACE_OBJECTS=1", "GIT_OPTIONAL_LOCKS=0", "LC_ALL=C", "LANG=C", "TZ=UTC")
+	gitPath, err := exec.LookPath("git")
+	if err != nil || !filepath.IsAbs(gitPath) {
+		return nil, &Failure{Code: CodeCommandFailed, Detail: "Git executable is unavailable"}
+	}
+	gitArgs := append([]string{"-C", root, "-c", "core.pager=cat", "-c", "color.ui=false"}, args...)
+	command := exec.CommandContext(ctx, gitPath, gitArgs...)
+	command.Env = []string{"GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null", "GIT_TERMINAL_PROMPT=0", "GIT_ATTR_NOSYSTEM=1", "GIT_NO_REPLACE_OBJECTS=1", "GIT_OPTIONAL_LOCKS=0", "GIT_EXTERNAL_DIFF=", "GIT_DIFF_OPTS=", "GIT_PAGER=cat", "PAGER=cat", "LC_ALL=C", "LANG=C", "TZ=UTC"}
 	var stdout, stderr bytes.Buffer
 	command.Stdout, command.Stderr = &stdout, &stderr
 	if err := command.Run(); err != nil {

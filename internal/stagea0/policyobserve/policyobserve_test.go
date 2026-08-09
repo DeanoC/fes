@@ -91,6 +91,19 @@ func TestObserveRejectsSymlinkRepositoryAndAuthorityMismatch(t *testing.T) {
 	if _, err := ObserveForkDelta(repo, authority); !hasCode(err, CodeGitObservationInvalid) {
 		t.Fatalf("tree mismatch error = %v, want %s", err, CodeGitObservationInvalid)
 	}
+	authority = policy.Authority{
+		UpstreamCommit:   authority.UpstreamCommit,
+		UpstreamTree:     strings.Repeat("e", 40),
+		ForkCommit:       authority.ForkCommit,
+		ForkTree:         gitOutput(t, repo, "rev-parse", "HEAD^{tree}"),
+		ForkParentCommit: authority.UpstreamCommit,
+		PatchCommits:     []string{authority.ForkCommit},
+		SourceDateEpoch:  0,
+		VDate:            "700101",
+	}
+	if _, err := ObserveSourceSet(repo, authority, "main-fork"); !hasCode(err, CodeGitObservationInvalid) {
+		t.Fatalf("upstream tree mismatch error = %v, want %s", err, CodeGitObservationInvalid)
+	}
 }
 
 func TestObserveRejectsUnsupportedGitMode(t *testing.T) {

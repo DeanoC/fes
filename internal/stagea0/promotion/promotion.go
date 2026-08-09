@@ -59,7 +59,7 @@ func Validate(lock stagea0.MainLock, documents []policy.Document, files map[stri
 		return err
 	}
 	materials := consumedMaterials(lock)
-	if err := validateSourceSet(byKind[policy.KindSourceSet], materials); err != nil {
+	if err := validateSourceSet(byKind[policy.KindSourceSet], materials, lock.Main.ForkMaterialID); err != nil {
 		return err
 	}
 	if err := validateCompileLink(byKind[policy.KindCompileLink], lock); err != nil {
@@ -136,13 +136,13 @@ func validatePolicyFiles(lock stagea0.MainLock, documents map[policy.Kind]policy
 	return nil
 }
 
-func validateSourceSet(document policy.Document, materials map[string]struct{}) error {
+func validateSourceSet(document policy.Document, materials map[string]struct{}, forkMaterialID string) error {
 	value := document.SourceSet
 	if value == nil || value.ForkSourceSetChange != "none" || value.Makefile.Path != "Makefile" {
 		return invalid("source-set closure is invalid")
 	}
 	for _, record := range append([]policy.SourceRecord{value.Makefile}, value.Records...) {
-		if _, ok := materials[record.MaterialID]; !ok {
+		if _, ok := materials[record.MaterialID]; !ok || record.MaterialID != forkMaterialID {
 			return invalid("source-set material is unresolved")
 		}
 	}
