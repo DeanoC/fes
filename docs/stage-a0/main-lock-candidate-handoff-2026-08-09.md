@@ -37,8 +37,8 @@ review record only after all blockers below are resolved.
 | VDATE | `SOURCE_DATE_EPOCH=1786215171`, UTC `VDATE=260808` | Two clean engineering runs and prepared-image capture. |
 | Arm archive | 104607124 bytes; SHA-256 `102825ae56c9e00142d06f35d2bdd3299edb6060e84a275a25b095e66fd3fc2a`; official locator recorded in candidate | Archive hash observation; license/corresponding-source record is open. |
 | Cross compiler | GCC `10.2.1 20201103`; executable and binutils hashes are recorded in the draft | Extracted archive observation; complete toolchain/sysroot material closure is open. |
-| Prepared image | local tag `stage-a0-firstbuild:debian12-arm102-v1`, ID `sha256:24045e0e800b0ce7df88076ccab628387b149f1bd0786fab46fffae07a859d0c`, Linux/amd64, network disabled during run | Local disposable image observation; no durable OCI manifest/config/source record. |
-| Build utilities | bash 5.2.15, make 4.3, git 2.39.5, sed 4.9, coreutils 9.1 hashes recorded | Prepared-image observation; no locked utility package/material inventory or nproc shim. |
+| Prepared image | local tag `stage-a0-firstbuild:debian12-arm102-v1`, local OCI manifest `sha256:24045e0e800b0ce7df88076ccab628387b149f1bd0786fab46fffae07a859d0c`, config `sha256:6a2a0fcb598a0a890355847900575e99a1cc7801f68d616edc85d449b9ae7548`, Linux/amd64, network disabled during run | Disposable-kit OCI export observation; no durable registry publication or package/license record. |
+| Build utilities | bash 5.2.15, make 4.3, git 2.39.5, sed 4.9, coreutils 9.1 hashes recorded; adapter nproc shim prints one job | Fresh adapter capture; utility package/material and license closure remains open. |
 | Outputs | `MiSTer` 1157996 bytes SHA-256 `f9e6fd646740449186b74821a3684686d5dbc7b33e28052e9de28b8f4c751f2e`; `MiSTer.elf` 1380136 bytes SHA-256 `51a9864bb12ebdf8961b30ac0a45d533fd2a2885a96d81fc29f8363d1804706d` | Software-tested artifact observation only. |
 | Output inventory | 227 regular `bin/` files; digest `7a2e77ffa919e504a4baa638d6b820085a4464a15281449f1abc2f4d66419cd5` | Capture inventory; complete canonical artifact/ELF/dependency/intermediate manifests are open. |
 
@@ -48,14 +48,13 @@ review record only after all blockers below are resolved.
    022`, clears ambient `MAKEFLAGS`, mounts the fixed
    `/stage-a0/build-utils/bin/nproc` shim (SHA-256
    `0abf026e8e351c4ebd4b3112044f3dab1ded849d14e7f2d8b11e41d6ece191d7`), and
-   records `STAGE_A0_JOB_COUNT=1`. The candidate lock records `job_count = 1`
-   and the shim hash, but the final report still needs independent umask and
+   records `STAGE_A0_JOB_COUNT=1`. The candidate lock now records `umask =
+   022`, `job_count = 1`, and the shim hash, but the final report still needs
    utility/material review before promotion.
-2. **Container material:** the prepared image is a local Docker commit. Its
-   image ID and parent Debian base identity were observed, but no durable OCI
-   registry/reference, manifest digest, config digest, layer source record, or
-   package/license manifest exists. The candidate's empty OCI fields are an
-   intentional parser blocker.
+2. **Container material:** the prepared image now has a local digest-only OCI
+   reference plus manifest/config digests in the candidate lock. It remains
+   local-only: no durable registry publication, layer source record, or
+   package/license manifest exists, so the candidate is not yet retrievable.
 3. **Fork retrieval:** the fork is available only from the operator's local
    checkout. No durable HTTPS fork locator or corresponding-source publication
    record exists; `local-only` is retained and no durable material ID is
@@ -102,8 +101,9 @@ review record only after all blockers below are resolved.
    bytes; the comparator still reports `Software-tested`/`local-only` and does
    not close this gate. Matching preliminary binaries do not close the final
    lock.
-10. **Image/cache retrieval:** there is no content-addressed source/toolchain/
-    image cache with revalidation, signed material metadata, or independent
+10. **Image/cache retrieval:** a local OCI export and digest-bound candidate
+    record now exist, but there is no content-addressed source/toolchain/image
+    cache with revalidation, signed material metadata, or independent durable
     retrieval evidence. Local ignored artifacts are not a lock substitute.
 
 ## Verification run

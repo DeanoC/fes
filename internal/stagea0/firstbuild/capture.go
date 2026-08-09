@@ -431,7 +431,7 @@ func runBuild(ctx context.Context, req Request, sourceRoot, toolchainRoot, image
 		"--workdir", "/work/main",
 		imageID,
 		"bash", "-lc",
-		"set -euxo pipefail; umask 022; export LC_ALL=C TZ=UTC SOURCE_DATE_EPOCH=1786215171 PATH=/stage-a0/build-utils/bin:/opt/toolchain/bin:$PATH; export MAKEFLAGS=; STAGE_A0_JOB_COUNT=$(nproc); printf 'STAGE_A0_JOB_COUNT=%s\\n' \"$STAGE_A0_JOB_COUNT\"; test \"$STAGE_A0_JOB_COUNT\" = 1; arm-none-linux-gnueabihf-gcc --version | sed -n '1p'; make clean VDATE=260808 'SHELL=/bin/bash -o pipefail' BUILDDIR=bin; make V=1 VDATE=260808 'SHELL=/bin/bash -o pipefail' BUILDDIR=bin",
+		"set -euxo pipefail; umask 022; export LC_ALL=C TZ=UTC SOURCE_DATE_EPOCH=1786215171 PATH=/stage-a0/build-utils/bin:/opt/toolchain/bin:$PATH; export MAKEFLAGS=; STAGE_A0_JOB_COUNT=$(nproc); printf 'STAGE_A0_JOB_COUNT=%s\\n' \"$STAGE_A0_JOB_COUNT\"; test \"$STAGE_A0_JOB_COUNT\" = 1; arm-none-linux-gnueabihf-gcc --version | sed -n '1p'; make clean VDATE=260808 'SHELL=/stage-a0/build-utils/bin/bash -o pipefail' BUILDDIR=bin; make V=1 VDATE=260808 'SHELL=/stage-a0/build-utils/bin/bash -o pipefail' BUILDDIR=bin",
 	}
 	raw, exitCode, err := runCommandWithBinaryExit(ctx, dockerBinary, args...)
 	if err != nil {
@@ -462,6 +462,12 @@ func prepareBuildAdapter(sourceRoot string) (string, error) {
 	}
 	if err := os.Chmod(shim, 0o755); err != nil {
 		return "", &Failure{Code: CodeBuildFailed, Detail: "nproc shim mode cannot be set"}
+	}
+	for _, utility := range []string{"bash", "cp", "git", "make", "mkdir", "rm", "sed"} {
+		link := filepath.Join(binRoot, utility)
+		if err := os.Symlink("/usr/bin/"+utility, link); err != nil {
+			return "", &Failure{Code: CodeBuildFailed, Detail: "build utility link cannot be created"}
+		}
 	}
 	hash, _, err := hashFile(shim)
 	if err != nil || hash != ExpectedNprocShimSHA256 {

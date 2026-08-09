@@ -15,9 +15,10 @@ On success the tool writes `comparison.json` containing:
 - equality of the complete 227-entry `bin/` inventory; and
 - byte equality of the retained `MiSTer` and `MiSTer.elf` payloads.
 
-The adapter-backed 2026-08-09 pair produced distinct build-log digests
-(`1c8fd57ab29fc313a3a1d0ea133641e8a95384533c5cdbb06dbe8224162f8d62` and
-`ab1f540e75ee344184f65aa16621da5f2373e8ad3ae75399e20ac0034a2b4505`) while
+The final logical-path adapter pair from 2026-08-09 produced distinct
+build-log digests
+(`179d2f2036e82549b5bf5e5bf5ed35e782e0fae9d2a55ea43609519d029a7297` and
+`d123f062cb79cf6b90e41b93e88242f9c8f459315686b215dc13aae823eb8b34`) while
 retaining identical receipts, inventories, and final artifact bytes. This is
 stronger than comparing two copied payload directories, but remains a
 Software-tested/local-only observation rather than a completed lock gate.

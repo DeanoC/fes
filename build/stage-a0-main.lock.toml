@@ -14,9 +14,9 @@ source_date_epoch = 1786215171
 [environment]
 locale = "C"
 timezone = "UTC"
-# BLOCKER: the candidate capture now enforces umask 022, but the final adapter
-# report and lock review still need to bind that value independently.
-umask = ""
+# The adapter capture enforces this value for both clean builds; final
+# promotion still requires the utility/container provenance review.
+umask = "022"
 # The adapter capture observed the fixed one-job shim. The lock remains
 # blocked by the unresolved umask/material/container/license fields below.
 job_count = 1
@@ -48,12 +48,11 @@ role = "consumed-build-input"
 kind = "oci"
 license_ids = ["BLOCKED_LICENSE_CONTAINER"]
 [materials.oci]
-# BLOCKER: the prepared image is local-only. Its observed Docker image ID is
-# sha256:24045e0e800b0ce7df88076ccab628387b149f1bd0786fab46fffae07a859d0c,
-# but no durable manifest/config provenance is locked yet.
-reference = ""
-manifest_digest = ""
-config_digest = ""
+# Local OCI export observation. It is immutable within the disposable
+# development kit but has not been published to a durable registry.
+reference = "localhost/stage-a0-firstbuild@sha256:24045e0e800b0ce7df88076ccab628387b149f1bd0786fab46fffae07a859d0c"
+manifest_digest = "sha256:24045e0e800b0ce7df88076ccab628387b149f1bd0786fab46fffae07a859d0c"
+config_digest = "sha256:6a2a0fcb598a0a890355847900575e99a1cc7801f68d616edc85d449b9ae7548"
 os = "linux"
 architecture = "amd64"
 

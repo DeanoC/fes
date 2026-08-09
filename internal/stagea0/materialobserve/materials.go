@@ -28,8 +28,11 @@ const (
 	SourceAvailabilityLocal = "local-only"
 	licenseUnreviewed       = "unreviewed"
 
-	toolchainURL = "https://developer.arm.com/-/media/Files/downloads/gnu-a/10.2-2020.11/binrel/gcc-arm-10.2-2020.11-x86_64-arm-none-linux-gnueabihf.tar.xz"
-	upstreamURL  = "https://github.com/MiSTer-devel/Main_MiSTer.git"
+	toolchainURL      = "https://developer.arm.com/-/media/Files/downloads/gnu-a/10.2-2020.11/binrel/gcc-arm-10.2-2020.11-x86_64-arm-none-linux-gnueabihf.tar.xz"
+	upstreamURL       = "https://github.com/MiSTer-devel/Main_MiSTer.git"
+	containerRef      = "localhost/stage-a0-firstbuild@sha256:24045e0e800b0ce7df88076ccab628387b149f1bd0786fab46fffae07a859d0c"
+	containerManifest = "sha256:24045e0e800b0ce7df88076ccab628387b149f1bd0786fab46fffae07a859d0c"
+	containerConfig   = "sha256:6a2a0fcb598a0a890355847900575e99a1cc7801f68d616edc85d449b9ae7548"
 )
 
 type Code string
@@ -154,7 +157,7 @@ func Observe(request Request) (Manifest, error) {
 		return Manifest{}, err
 	}
 	records := []Record{
-		{ID: "container", Role: "consumed-build-input", Kind: "oci", Reference: request.Evidence.Container.Reference, ManifestDigest: "", ConfigDigest: "", LicenseState: licenseUnreviewed, LicenseIDs: []string{}},
+		{ID: "container", Role: "consumed-build-input", Kind: "oci", Reference: containerRef, ManifestDigest: containerManifest, ConfigDigest: containerConfig, LicenseState: licenseUnreviewed, LicenseIDs: []string{}},
 		{ID: request.SourceMaterialID, Role: "consumed-build-input", Kind: "git-local", Commit: request.Evidence.Source.Commit, Tree: request.Evidence.Source.Tree, LicenseState: licenseUnreviewed, LicenseIDs: []string{}},
 		{ID: "main-upstream", Role: "consumed-build-input", Kind: "git-https", URL: upstreamURL, Commit: request.Authority.UpstreamCommit, Tree: request.Authority.UpstreamTree, LicenseState: licenseUnreviewed, LicenseIDs: []string{}},
 		{ID: "toolchain", Role: "consumed-build-input", Kind: "archive-https", URL: toolchainURL, Root: firstbuild.ExpectedToolchainArchiveRoot, TreeSHA256: treeHash, Size: archiveInfo.Size(), SHA256: archiveHash, LicenseState: licenseUnreviewed, LicenseIDs: []string{}},

@@ -104,6 +104,12 @@ func TestBuildAdapterWritesLockedNprocShim(t *testing.T) {
 	if err != nil || info.Mode().Perm() != 0o755 {
 		t.Fatalf("shim mode = %v, %v", info.Mode(), err)
 	}
+	for _, utility := range []string{"bash", "cp", "git", "make", "mkdir", "rm", "sed"} {
+		link, err := os.Readlink(filepath.Join(adapter, "bin", utility))
+		if err != nil || link != "/usr/bin/"+utility {
+			t.Fatalf("utility %s link = %q, %v", utility, link, err)
+		}
+	}
 	if err := ValidateBuildAdapterLog([]byte("STAGE_A0_JOB_COUNT=1\n")); err != nil {
 		t.Fatalf("valid adapter log rejected: %v", err)
 	}
