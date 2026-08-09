@@ -232,6 +232,19 @@ func bindBuildLog(log string, authority policy.Authority) error {
 	if !strings.Contains(log, "SOURCE_DATE_EPOCH="+strconv.FormatInt(authority.SourceDateEpoch, 10)) || !strings.Contains(log, "make clean VDATE="+authority.VDate) || !strings.Contains(log, "make V=1 VDATE="+authority.VDate) {
 		return fmt.Errorf("build log does not contain the reviewed build recipe")
 	}
+	jobMarker := "STAGE_A0_JOB_COUNT=" + strconv.Itoa(firstbuild.ExpectedJobCount)
+	jobSeen := 0
+	for _, line := range strings.Split(log, "\n") {
+		if strings.HasPrefix(line, "STAGE_A0_JOB_COUNT=") {
+			if line != jobMarker {
+				return fmt.Errorf("build log job count does not match the adapter contract")
+			}
+			jobSeen++
+		}
+	}
+	if jobSeen != 1 {
+		return fmt.Errorf("build log does not contain one adapter job-count observation")
+	}
 	seen := false
 	remaining := log
 	for {

@@ -94,6 +94,22 @@ func TestTreeDigestIsContentAndSymlinkBound(t *testing.T) {
 	}
 }
 
+func TestValidateBuildLogRequiresLockedAdapterObservation(t *testing.T) {
+	authority := validManifest().Authority
+	valid := []byte("STAGE_A0_JOB_COUNT=1\nSOURCE_DATE_EPOCH=1786215171 make clean VDATE=260808 make V=1 VDATE=260808\n")
+	if err := validateBuildLog(valid, authority); err != nil {
+		t.Fatalf("valid build log rejected: %v", err)
+	}
+	for _, raw := range [][]byte{
+		[]byte("SOURCE_DATE_EPOCH=1786215171 make clean VDATE=260808 make V=1 VDATE=260808\n"),
+		[]byte("STAGE_A0_JOB_COUNT=2\nSOURCE_DATE_EPOCH=1786215171 make clean VDATE=260808 make V=1 VDATE=260808\n"),
+	} {
+		if err := validateBuildLog(raw, authority); !hasCode(err, CodeInputInvalid) {
+			t.Fatalf("invalid build log %q = %v, want %s", raw, err, CodeInputInvalid)
+		}
+	}
+}
+
 func validManifest() Manifest {
 	authority := policy.Authority{
 		UpstreamCommit:   "1111111111111111111111111111111111111111",

@@ -9,9 +9,18 @@ Software-tested milestone, not the final reproducibility claim.
 On success the tool writes `comparison.json` containing:
 
 - canonical receipt SHA-256 values (without physical paths or timestamps);
+- canonical build-log SHA-256 values, with the fixed adapter job-count marker
+  required on both logs;
 - equality of the locked source, toolchain, container, and build observations;
 - equality of the complete 227-entry `bin/` inventory; and
 - byte equality of the retained `MiSTer` and `MiSTer.elf` payloads.
+
+The adapter-backed 2026-08-09 pair produced distinct build-log digests
+(`1c8fd57ab29fc313a3a1d0ea133641e8a95384533c5cdbb06dbe8224162f8d62` and
+`ab1f540e75ee344184f65aa16621da5f2373e8ad3ae75399e20ac0034a2b4505`) while
+retaining identical receipts, inventories, and final artifact bytes. This is
+stronger than comparing two copied payload directories, but remains a
+Software-tested/local-only observation rather than a completed lock gate.
 
 The report is explicitly `Software-tested`, `source_availability=local-only`,
 and `two_builds_byte_identical=true`. The last field means the retained final
@@ -35,7 +44,8 @@ The report directory must not already exist, and the two capture roots must be
 distinct directories. The command never fetches, uses a target, contacts
 hardware, or serializes the supplied paths. It rejects non-canonical receipts,
 symlinked capture roots or payload files, unsafe modes, missing payloads,
-receipt drift, and byte mismatches with stable `PRECOMPARE_*` error codes.
+adapter-unbound logs, receipt drift, and byte mismatches with stable
+`PRECOMPARE_*` error codes.
 
 The implementation is in `internal/stagea0/precompare` and is covered by
 `make stage-a0-check`. The final Stage A0 gate still requires the valid material

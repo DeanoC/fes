@@ -35,6 +35,10 @@ const (
 	ExpectedContainerOS           = "linux"
 	ExpectedContainerArchitecture = "amd64"
 	ExpectedNetworkMode           = "none"
+	ExpectedJobCount              = 1
+	ExpectedNprocShimLogicalPath  = "/stage-a0/build-utils/bin/nproc"
+	ExpectedNprocShimSHA256       = "0abf026e8e351c4ebd4b3112044f3dab1ded849d14e7f2d8b11e41d6ece191d7"
+	ExpectedNprocShimContents     = "#!/bin/sh\nprintf '%s\\n' '1'\n"
 
 	ExpectedSourceDateEpoch int64 = 1786215171
 	ExpectedVDate                 = "260808"

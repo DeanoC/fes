@@ -144,6 +144,9 @@ func Observe(request Request) (Manifest, error) {
 	if len(request.BuildLog) == 0 {
 		return Manifest{}, &Failure{Code: CodeInputInvalid, Detail: "build log is empty"}
 	}
+	if err := validateBuildLog(request.BuildLog, request.Authority); err != nil {
+		return Manifest{}, err
+	}
 	receiptHash := digest(request.Receipt)
 	logHash := digest(request.BuildLog)
 	policies, err := policyRecords(request.PolicyFiles, request.SourceMaterialID)
@@ -161,7 +164,7 @@ func Observe(request Request) (Manifest, error) {
 	manifest := Manifest{
 		Format: FormatV1, Schema: SchemaV1, Status: StatusCandidateObserved, SourceAvailability: SourceAvailabilityLocal,
 		Authority: request.Authority, ReceiptSHA256: receiptHash, BuildLogSHA256: logHash, Records: records,
-		Unresolved: []string{"build-log-review-identity", "container-durable-provenance", "fork-durable-retrieval", "material-license-review", "nproc-job-count-adapter"},
+		Unresolved: []string{"build-log-review-identity", "build-utility-license-review", "container-durable-provenance", "fork-durable-retrieval", "material-license-review"},
 	}
 	if err := Validate(manifest); err != nil {
 		return Manifest{}, err
@@ -184,6 +187,27 @@ func policyRecords(files map[string][]byte, parent string) ([]Record, error) {
 		records = append(records, Record{ID: "policy-" + stem, Role: "consumed-build-input", Kind: "material-file", ParentID: parent, Path: name, Size: int64(len(raw)), SHA256: digest(raw), LicenseState: licenseUnreviewed, LicenseIDs: []string{}})
 	}
 	return records, nil
+}
+
+func validateBuildLog(raw []byte, authority policy.Authority) error {
+	log := string(raw)
+	if !strings.Contains(log, "SOURCE_DATE_EPOCH="+strconv.FormatInt(authority.SourceDateEpoch, 10)) || !strings.Contains(log, "make clean VDATE="+authority.VDate) || !strings.Contains(log, "make V=1 VDATE="+authority.VDate) {
+		return &Failure{Code: CodeInputInvalid, Detail: "build log does not contain the reviewed build recipe"}
+	}
+	want := "STAGE_A0_JOB_COUNT=" + strconv.Itoa(firstbuild.ExpectedJobCount)
+	seen := 0
+	for _, line := range strings.Split(log, "\n") {
+		if strings.HasPrefix(line, "STAGE_A0_JOB_COUNT=") {
+			if line != want {
+				return &Failure{Code: CodeInputInvalid, Detail: "build log job count differs from the adapter contract"}
+			}
+			seen++
+		}
+	}
+	if seen != 1 {
+		return &Failure{Code: CodeInputInvalid, Detail: "build log has no unique adapter job-count observation"}
+	}
+	return nil
 }
 
 func Encode(manifest Manifest) ([]byte, error) {

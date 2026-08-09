@@ -85,3 +85,31 @@ func TestOutputAndMaterializedTreeGuards(t *testing.T) {
 		t.Fatalf("outside-bin change error = %v, want %s", err, CodeOutputInvalid)
 	}
 }
+
+func TestBuildAdapterWritesLockedNprocShim(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "main")
+	if err := os.Mkdir(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	adapter, err := prepareBuildAdapter(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	shim := filepath.Join(adapter, "bin", "nproc")
+	raw, err := os.ReadFile(shim)
+	if err != nil || string(raw) != ExpectedNprocShimContents {
+		t.Fatalf("shim contents = %q, %v", raw, err)
+	}
+	info, err := os.Stat(shim)
+	if err != nil || info.Mode().Perm() != 0o755 {
+		t.Fatalf("shim mode = %v, %v", info.Mode(), err)
+	}
+	if err := ValidateBuildAdapterLog([]byte("STAGE_A0_JOB_COUNT=1\n")); err != nil {
+		t.Fatalf("valid adapter log rejected: %v", err)
+	}
+	for _, log := range [][]byte{[]byte("STAGE_A0_JOB_COUNT=2\n"), []byte("STAGE_A0_JOB_COUNT=1\nSTAGE_A0_JOB_COUNT=1\n"), []byte("no marker\n")} {
+		if err := ValidateBuildAdapterLog(log); !hasCode(err, CodeBuildFailed) {
+			t.Fatalf("adapter log %q error = %v, want %s", log, err, CodeBuildFailed)
+		}
+	}
+}

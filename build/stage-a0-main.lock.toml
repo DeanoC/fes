@@ -14,12 +14,12 @@ source_date_epoch = 1786215171
 [environment]
 locale = "C"
 timezone = "UTC"
-# BLOCKER: the measured Docker build inherited the host/container umask;
-# record and enforce the final adapter's exact 022 value before promotion.
+# BLOCKER: the candidate capture now enforces umask 022, but the final adapter
+# report and lock review still need to bind that value independently.
 umask = ""
-# BLOCKER: the capture observed Docker nproc behavior but did not lock the
-# adapter's job-count/shim contract.
-job_count = 0
+# The adapter capture observed the fixed one-job shim. The lock remains
+# blocked by the unresolved umask/material/container/license fields below.
+job_count = 1
 network = "disabled-during-build"
 path_policy = ["/stage-a0/build-utils/bin", "/stage-a0/toolchain/bin"]
 container_material_id = "container"
@@ -199,9 +199,8 @@ version = "mkdir (GNU coreutils) 9.1"
 role = "nproc-shim"
 material_id = "container"
 logical_path = "/stage-a0/build-utils/bin/nproc"
-# BLOCKER: the measured build used ambient /usr/bin/nproc; no locked shim.
-executable_sha256 = ""
-version = ""
+executable_sha256 = "0abf026e8e351c4ebd4b3112044f3dab1ded849d14e7f2d8b11e41d6ece191d7"
+version = "fogcast-stage-a0-nproc-shim-v1"
 [[build_utilities]]
 role = "rm"
 material_id = "container"

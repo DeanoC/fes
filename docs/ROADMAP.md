@@ -75,6 +75,10 @@ remains open. The current evidence is therefore **Software-tested /
 local-only**, not Reproducible, HIL-observed, or Accepted. The generator now
 also emits a candidate `materials.json` catalog bound to the reviewed receipt,
 build-log digest, toolchain archive hash/root, and extracted-tree digest. The
+fresh adapter-backed capture also fixes the build job count at one and records
+the shim identity. The
+two fresh adapter-backed captures compare with different build-log digests and
+byte-identical final artifacts, while remaining explicitly local-only.
 remaining work is to replace that candidate with an immutable material/license
 catalog (including reviewed build-log identity), add a fixed job-count and
 build-utils adapter,

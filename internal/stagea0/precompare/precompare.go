@@ -57,6 +57,8 @@ type Comparison struct {
 	TwoBuildsByteIdentical bool                 `json:"two_builds_byte_identical"`
 	LeftReportSHA256       string               `json:"left_report_sha256"`
 	RightReportSHA256      string               `json:"right_report_sha256"`
+	LeftBuildLogSHA256     string               `json:"left_build_log_sha256"`
+	RightBuildLogSHA256    string               `json:"right_build_log_sha256"`
 	Artifacts              []ArtifactComparison `json:"artifacts"`
 }
 
@@ -130,6 +132,8 @@ func Compare(leftDir, rightDir string) (Comparison, error) {
 		TwoBuildsByteIdentical: true,
 		LeftReportSHA256:       digest(left.raw),
 		RightReportSHA256:      digest(right.raw),
+		LeftBuildLogSHA256:     digest(left.buildLog),
+		RightBuildLogSHA256:    digest(right.buildLog),
 		Artifacts:              artifacts,
 	}
 	if err := ValidateComparison(comparison); err != nil {
@@ -174,7 +178,7 @@ func ValidateComparison(comparison Comparison) error {
 	if comparison.Format != FormatV1 || comparison.Schema != SchemaV1 || comparison.Status != firstbuild.EvidenceStatusSoftwareTested || comparison.SourceAvailability != SourceAvailabilityLocal || !comparison.TwoBuildsByteIdentical {
 		return &Failure{Code: CodeReportInvalid, Detail: "comparison schema or status is invalid"}
 	}
-	if !isLowerHexDigest(comparison.LeftReportSHA256) || !isLowerHexDigest(comparison.RightReportSHA256) {
+	if !isLowerHexDigest(comparison.LeftReportSHA256) || !isLowerHexDigest(comparison.RightReportSHA256) || !isLowerHexDigest(comparison.LeftBuildLogSHA256) || !isLowerHexDigest(comparison.RightBuildLogSHA256) {
 		return &Failure{Code: CodeReportInvalid, Detail: "comparison receipt digest is invalid"}
 	}
 	if len(comparison.Artifacts) != 2 {
@@ -230,12 +234,25 @@ func WriteReport(outputDir string, comparison Comparison) error {
 type capture struct {
 	evidence firstbuild.Evidence
 	raw      []byte
+	buildLog []byte
 }
 
 func readCapture(directory string) (capture, error) {
 	rootInfo, err := os.Lstat(directory)
 	if err != nil || !rootInfo.IsDir() || rootInfo.Mode()&os.ModeSymlink != 0 {
 		return capture{}, &Failure{Code: CodeReceiptInvalid, Detail: "capture root is missing or unsafe"}
+	}
+	buildLogPath := filepath.Join(directory, "build.log")
+	buildLogInfo, err := os.Lstat(buildLogPath)
+	if err != nil || !buildLogInfo.Mode().IsRegular() || buildLogInfo.Mode().Perm() != 0o600 {
+		return capture{}, &Failure{Code: CodeReceiptInvalid, Detail: "build log is missing or unsafe"}
+	}
+	buildLog, err := os.ReadFile(buildLogPath)
+	if err != nil {
+		return capture{}, &Failure{Code: CodeReceiptInvalid, Detail: "build log cannot be read"}
+	}
+	if err := firstbuild.ValidateBuildAdapterLog(buildLog); err != nil {
+		return capture{}, &Failure{Code: CodeReceiptInvalid, Detail: "build log is not adapter-bound"}
 	}
 	reportPath := filepath.Join(directory, "first-build.json")
 	info, err := os.Lstat(reportPath)
@@ -253,7 +270,7 @@ func readCapture(directory string) (capture, error) {
 	if err := firstbuild.ValidateCapturedEvidence(evidence); err != nil {
 		return capture{}, &Failure{Code: CodeReceiptInvalid, Detail: "first-build receipt is not a reviewed capture"}
 	}
-	return capture{evidence: evidence, raw: raw}, nil
+	return capture{evidence: evidence, raw: raw, buildLog: buildLog}, nil
 }
 
 func sameExistingRoot(leftDir, rightDir string) (bool, bool) {

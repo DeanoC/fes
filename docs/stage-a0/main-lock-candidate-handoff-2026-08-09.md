@@ -44,12 +44,13 @@ review record only after all blockers below are resolved.
 
 ## Explicit blockers
 
-1. **Environment adapter:** the measured capture explicitly set `umask 022`,
-   but did not record or verify the final adapter contract, and it did not lock
-   a fixed job count. The Makefile still discovers host `nproc`; no reviewed
-   `/stage-a0/build-utils/bin/nproc` shim was used. The candidate therefore
-   leaves both values unresolved. The `/stage-a0/*` paths in the draft are
-   planned logical adapter roots, not paths observed in that capture.
+1. **Environment adapter:** a fresh adapter-backed capture now sets `umask
+   022`, clears ambient `MAKEFLAGS`, mounts the fixed
+   `/stage-a0/build-utils/bin/nproc` shim (SHA-256
+   `0abf026e8e351c4ebd4b3112044f3dab1ded849d14e7f2d8b11e41d6ece191d7`), and
+   records `STAGE_A0_JOB_COUNT=1`. The candidate lock records `job_count = 1`
+   and the shim hash, but the final report still needs independent umask and
+   utility/material review before promotion.
 2. **Container material:** the prepared image is a local Docker commit. Its
    image ID and parent Debian base identity were observed, but no durable OCI
    registry/reference, manifest digest, config digest, layer source record, or
@@ -68,9 +69,9 @@ review record only after all blockers below are resolved.
    principal compiler/binutils commands, but the archive's libc/sysroot roots,
    symlink/hard-link closure, package provenance, and license records are not
    represented as materials and policies.
-6. **Build utility closure:** hashes/versions for observed utilities are not
-   yet tied to immutable image layers or package records. The required
-   nproc-shim is absent from the measured run.
+6. **Build utility closure:** the fixed nproc-shim is now observed and hashed,
+   but the utility set is not yet tied to immutable image layers or package and
+   license records.
 7. **Configuration and policies:** the strict six-policy schema, lock-bound
    promotion validator, Git-backed source-set/fork-delta candidate observer,
    and candidate generator now exist and are tested. The generator emits
@@ -96,9 +97,11 @@ review record only after all blockers below are resolved.
    closure. The material catalog binds the candidate to the reviewed archive
    bytes and records the build-log digest, but its local container, licenses,
    and reviewed log identity remain unresolved. The final-lock comparator is
-   still open. A preliminary comparator now exists for two retained local
-   captures, but it only reports `Software-tested`/`local-only` and does not
-   close this gate. Matching preliminary binaries do not close the final lock.
+   still open. Two fresh adapter-backed captures now compare with distinct
+   build-log digests and identical receipts, inventories, and final artifact
+   bytes; the comparator still reports `Software-tested`/`local-only` and does
+   not close this gate. Matching preliminary binaries do not close the final
+   lock.
 10. **Image/cache retrieval:** there is no content-addressed source/toolchain/
     image cache with revalidation, signed material metadata, or independent
     retrieval evidence. Local ignored artifacts are not a lock substitute.

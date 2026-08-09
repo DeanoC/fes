@@ -68,11 +68,12 @@ func TestBindEvidenceAuthorityRejectsMismatchedReceipt(t *testing.T) {
 func TestBindBuildLogRejectsMixedOrMissingVDATE(t *testing.T) {
 	authority := policy.Authority{VDate: "260808"}
 	authority.SourceDateEpoch = 1786215171
-	validLog := `SOURCE_DATE_EPOCH=1786215171 make clean VDATE=260808 make V=1 VDATE=260808 -DVDATE=\"260808\"`
+	validLog := `STAGE_A0_JOB_COUNT=1
+SOURCE_DATE_EPOCH=1786215171 make clean VDATE=260808 make V=1 VDATE=260808 -DVDATE=\"260808\"`
 	if err := bindBuildLog(validLog, authority); err != nil {
 		t.Fatalf("matching VDATE rejected: %v", err)
 	}
-	for _, log := range []string{"make", "make VDATE=260807", "make VDATE=260808 VDATE=260807", "SOURCE_DATE_EPOCH=1786215171 make VDATE=260808"} {
+	for _, log := range []string{"make", "make VDATE=260807", "make VDATE=260808 VDATE=260807", "SOURCE_DATE_EPOCH=1786215171 make VDATE=260808", "STAGE_A0_JOB_COUNT=2\nSOURCE_DATE_EPOCH=1786215171 make clean VDATE=260808 make V=1 VDATE=260808", "STAGE_A0_JOB_COUNT=1\nSTAGE_A0_JOB_COUNT=1\nSOURCE_DATE_EPOCH=1786215171 make clean VDATE=260808 make V=1 VDATE=260808"} {
 		if err := bindBuildLog(log, authority); err == nil {
 			t.Errorf("log %q unexpectedly accepted", log)
 		}

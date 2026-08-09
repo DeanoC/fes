@@ -89,6 +89,9 @@ func Capture(ctx context.Context, request Request) (Evidence, error) {
 	if err != nil {
 		return Evidence{}, err
 	}
+	if err := ValidateBuildAdapterLog(logBytes); err != nil {
+		return Evidence{}, err
+	}
 	if compilerVersion != ExpectedCompilerVersion {
 		return Evidence{}, &Failure{Code: CodeToolchainDrift, Detail: "compiler version differs from reviewed baseline"}
 	}
@@ -416,14 +419,19 @@ func inspectContainer(ctx context.Context, req Request) (ContainerEvidence, erro
 }
 
 func runBuild(ctx context.Context, req Request, sourceRoot, toolchainRoot, imageID string) ([]byte, string, int, error) {
+	adapterRoot, err := prepareBuildAdapter(sourceRoot)
+	if err != nil {
+		return nil, "", -1, err
+	}
 	args := []string{
 		"run", "--rm", "--pull=never", "--platform", "linux/amd64", "--network", "none", "--user", "0:0",
 		"--volume", sourceRoot + ":/work/main",
 		"--volume", toolchainRoot + ":/opt/toolchain:ro",
+		"--volume", adapterRoot + ":/stage-a0/build-utils:ro",
 		"--workdir", "/work/main",
 		imageID,
 		"bash", "-lc",
-		"set -euxo pipefail; umask 022; export LC_ALL=C TZ=UTC SOURCE_DATE_EPOCH=1786215171 PATH=/opt/toolchain/bin:$PATH; arm-none-linux-gnueabihf-gcc --version | sed -n '1p'; make clean VDATE=260808; make V=1 VDATE=260808",
+		"set -euxo pipefail; umask 022; export LC_ALL=C TZ=UTC SOURCE_DATE_EPOCH=1786215171 PATH=/stage-a0/build-utils/bin:/opt/toolchain/bin:$PATH; export MAKEFLAGS=; STAGE_A0_JOB_COUNT=$(nproc); printf 'STAGE_A0_JOB_COUNT=%s\\n' \"$STAGE_A0_JOB_COUNT\"; test \"$STAGE_A0_JOB_COUNT\" = 1; arm-none-linux-gnueabihf-gcc --version | sed -n '1p'; make clean VDATE=260808 'SHELL=/bin/bash -o pipefail' BUILDDIR=bin; make V=1 VDATE=260808 'SHELL=/bin/bash -o pipefail' BUILDDIR=bin",
 	}
 	raw, exitCode, err := runCommandWithBinaryExit(ctx, dockerBinary, args...)
 	if err != nil {
@@ -440,6 +448,45 @@ func runBuild(ctx context.Context, req Request, sourceRoot, toolchainRoot, image
 		return raw, "", exitCode, &Failure{Code: CodeToolchainDrift, Detail: "compiler version was not observed"}
 	}
 	return raw, compilerVersion, exitCode, nil
+}
+
+func prepareBuildAdapter(sourceRoot string) (string, error) {
+	adapterRoot := filepath.Join(filepath.Dir(sourceRoot), "build-utils")
+	binRoot := filepath.Join(adapterRoot, "bin")
+	if err := os.MkdirAll(binRoot, 0o755); err != nil {
+		return "", &Failure{Code: CodeBuildFailed, Detail: "build adapter root cannot be created"}
+	}
+	shim := filepath.Join(binRoot, "nproc")
+	if err := os.WriteFile(shim, []byte(ExpectedNprocShimContents), 0o755); err != nil {
+		return "", &Failure{Code: CodeBuildFailed, Detail: "nproc shim cannot be written"}
+	}
+	if err := os.Chmod(shim, 0o755); err != nil {
+		return "", &Failure{Code: CodeBuildFailed, Detail: "nproc shim mode cannot be set"}
+	}
+	hash, _, err := hashFile(shim)
+	if err != nil || hash != ExpectedNprocShimSHA256 {
+		return "", &Failure{Code: CodeBuildFailed, Detail: "nproc shim hash differs from the adapter contract"}
+	}
+	return adapterRoot, nil
+}
+
+// ValidateBuildAdapterLog checks the fixed job-count observation emitted by
+// the Stage A0 build adapter. It is shared by capture and comparison tools.
+func ValidateBuildAdapterLog(raw []byte) error {
+	want := fmt.Sprintf("STAGE_A0_JOB_COUNT=%d", ExpectedJobCount)
+	seen := false
+	for _, line := range splitLines(string(raw)) {
+		if strings.HasPrefix(line, "STAGE_A0_JOB_COUNT=") {
+			if line != want || seen {
+				return &Failure{Code: CodeBuildFailed, Detail: "build adapter job count differs from the locked contract"}
+			}
+			seen = true
+		}
+	}
+	if !seen {
+		return &Failure{Code: CodeBuildFailed, Detail: "build adapter job count was not observed"}
+	}
+	return nil
 }
 
 func collectInventory(binRoot, sourceRoot string) ([]InventoryEntry, error) {
