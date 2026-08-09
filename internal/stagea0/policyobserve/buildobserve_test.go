@@ -50,6 +50,48 @@ func TestObserveIntermediateMapsCapturedInventory(t *testing.T) {
 	}
 }
 
+func TestObserveCompileLinkRejectsTraversalBeforeCleaning(t *testing.T) {
+	_, err := ObserveCompileLink([]byte(`arm-none-linux-gnueabihf-gcc -c -o bin/obj/../main.o main.cpp`), testAuthority())
+	if err == nil || !strings.Contains(err.Error(), "unsafe path") {
+		t.Fatalf("traversal command error = %v", err)
+	}
+}
+
+func TestObserveCompileLinkAllowsLogicalAbsolutePathWithoutTraversal(t *testing.T) {
+	document, err := ObserveCompileLink([]byte(`arm-none-linux-gnueabihf-gcc -I/stage-a0/sysroot/usr/include -c -o bin/main.o main.cpp`), testAuthority())
+	if err != nil {
+		t.Fatalf("logical path command rejected: %v", err)
+	}
+	if got := document.CompileLink.Records[0].Argv[1]; got != "-I/stage-a0/sysroot/usr/include" {
+		t.Fatalf("logical path changed to %q", got)
+	}
+	if _, err := ObserveCompileLink([]byte(`arm-none-linux-gnueabihf-gcc -I/stage-a0/src/../sysroot -c -o bin/main.o main.cpp`), testAuthority()); err == nil {
+		t.Fatal("logical path traversal was accepted")
+	}
+}
+
+func TestObserveCompileLinkDoesNotTreatOutputFlagValueAsLinkInput(t *testing.T) {
+	document, err := ObserveCompileLink([]byte(`arm-none-linux-gnueabihf-gcc -o bin/output.o bin/input.o`), testAuthority())
+	if err != nil {
+		t.Fatalf("ObserveCompileLink() = %v", err)
+	}
+	record := document.CompileLink.Records[0]
+	if len(record.OrderedInputs) != 1 || record.OrderedInputs[0] != "bin/input.o" {
+		t.Fatalf("ordered inputs = %#v", record.OrderedInputs)
+	}
+}
+
+func TestObserveCompileLinkPreservesBinaryLinkInput(t *testing.T) {
+	document, err := ObserveCompileLink([]byte(`arm-none-linux-gnueabihf-ld -r -b binary -o bin/logo.png.o logo.png`), testAuthority())
+	if err != nil {
+		t.Fatalf("ObserveCompileLink() = %v", err)
+	}
+	record := document.CompileLink.Records[0]
+	if len(record.OrderedInputs) != 1 || record.OrderedInputs[0] != "logo.png" {
+		t.Fatalf("ordered inputs = %#v", record.OrderedInputs)
+	}
+}
+
 func testAuthority() policy.Authority {
 	return policy.Authority{UpstreamCommit: strings.Repeat("1", 40), UpstreamTree: strings.Repeat("2", 40), ForkCommit: strings.Repeat("3", 40), ForkTree: strings.Repeat("4", 40), ForkParentCommit: strings.Repeat("1", 40), PatchCommits: []string{strings.Repeat("3", 40)}, SourceDateEpoch: 0, VDate: "700101"}
 }

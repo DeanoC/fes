@@ -75,21 +75,25 @@ review record only after all blockers below are resolved.
    promotion validator, Git-backed source-set/fork-delta candidate observer,
    and candidate generator now exist and are tested. The generator emits
    canonical local candidates for source-set, fork-delta, compile/link,
-   generated-input, and intermediate-path from the pinned fork and reviewed
-   build receipt. They are deliberately marked `candidate-*`; no policy has
-   been promoted, and the ELF/dependency candidate plus all policy hashes
-   remain unresolved in the draft.
+   ELF/dependency, generated-input, and intermediate-path from the pinned fork
+   and reviewed build receipt. They are deliberately marked `candidate-*`; no
+   policy has been promoted. The ELF observer uses deterministic Go ELF
+   projections for candidate hashes and observed source/toolchain material
+   hints; those are not final tool-output or license/material records. The
+   local generator requires the capture artifact directory and extracted
+   toolchain root explicitly, so a receipt cannot silently select a different
+   ELF tree.
 8. **Licenses:** Main, bundled libraries, the Arm archive, container packages,
    and policy/config materials lack reviewed SPDX expressions, notice
    locators, corresponding-source locators, and redistribution dispositions.
    `BLOCKED_LICENSE_*` IDs are markers only and must not be treated as legal
    conclusions.
-9. **Canonical manifests/comparator:** source-set, compile/link,
-   generated-input, and intermediate-path candidate observers now exist; the
-   ELF/dynamic-dependency observer and final-lock comparator are still open. A
-   preliminary comparator now exists for two retained local captures, but it
-   only reports `Software-tested`/`local-only` and does not close this gate.
-   Matching preliminary binaries do not close the final lock.
+9. **Canonical manifests/comparator:** all six policy candidate observers now
+   exist, including the ELF/dynamic-dependency closure. The final-lock
+   comparator and independent build-log identity are still open. A preliminary
+   comparator now exists for two retained local captures, but it only reports
+   `Software-tested`/`local-only` and does not close this gate. Matching
+   preliminary binaries do not close the final lock.
 10. **Image/cache retrieval:** there is no content-addressed source/toolchain/
     image cache with revalidation, signed material metadata, or independent
     retrieval evidence. Local ignored artifacts are not a lock substitute.

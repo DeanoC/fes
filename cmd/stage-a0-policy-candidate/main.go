@@ -10,13 +10,15 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/DeanoC/FogCast-POC/internal/stagea0/firstbuild"
 	"github.com/DeanoC/FogCast-POC/internal/stagea0/policy"
 	"github.com/DeanoC/FogCast-POC/internal/stagea0/policyobserve"
 )
 
-const usage = "usage: stage-a0-policy-candidate --repository DIR --source-material ID --authority FILE --build-log FILE --receipt FILE --output-dir DIR\n"
+const usage = "usage: stage-a0-policy-candidate --repository DIR --source-material ID --authority FILE --build-log FILE --receipt FILE --artifact-dir DIR --toolchain-root DIR --output-dir DIR\n"
 
 type request struct {
 	repository     string
@@ -24,6 +26,8 @@ type request struct {
 	authority      string
 	buildLog       string
 	receipt        string
+	artifactDir    string
+	toolchainRoot  string
 	outputDir      string
 }
 
@@ -72,13 +76,17 @@ func parseArgs(args []string) (request, bool) {
 			req.buildLog = value
 		case "--receipt":
 			req.receipt = value
+		case "--artifact-dir":
+			req.artifactDir = value
+		case "--toolchain-root":
+			req.toolchainRoot = value
 		case "--output-dir":
 			req.outputDir = value
 		default:
 			return request{}, false
 		}
 	}
-	return req, seen["--repository"] && seen["--source-material"] && seen["--authority"] && seen["--build-log"] && seen["--receipt"] && seen["--output-dir"]
+	return req, seen["--repository"] && seen["--source-material"] && seen["--authority"] && seen["--build-log"] && seen["--receipt"] && seen["--artifact-dir"] && seen["--toolchain-root"] && seen["--output-dir"]
 }
 
 func readAuthority(filename string) (policy.Authority, error) {
@@ -112,6 +120,15 @@ func generate(req request, authority policy.Authority) error {
 	if err != nil {
 		return err
 	}
+	if err := firstbuild.ValidateCapturedEvidence(evidence); err != nil {
+		return err
+	}
+	if err := bindEvidenceAuthority(evidence, authority); err != nil {
+		return err
+	}
+	if err := bindBuildLog(string(log), authority); err != nil {
+		return err
+	}
 	sourceSet, err := policyobserve.ObserveSourceSet(req.repository, authority, req.sourceMaterial)
 	if err != nil {
 		return err
@@ -132,10 +149,15 @@ func generate(req request, authority policy.Authority) error {
 	if err != nil {
 		return err
 	}
+	elfDependency, err := policyobserve.ObserveELFDependency(evidence, req.artifactDir, req.repository, req.toolchainRoot, authority)
+	if err != nil {
+		return err
+	}
 	documents := map[string]policy.Document{
 		"source-set.json":          sourceSet,
 		"upstream-fork-delta.json": forkDelta,
 		"compile-link.json":        compileLink,
+		"elf-dependency.json":      elfDependency,
 		"generated-input.json":     generated,
 		"intermediate-path.json":   intermediate,
 	}
@@ -163,6 +185,45 @@ func generate(req request, authority policy.Authority) error {
 	}
 	if err := os.Rename(staging, req.outputDir); err != nil {
 		return fmt.Errorf("candidate output cannot be published: %w", err)
+	}
+	return nil
+}
+
+func bindEvidenceAuthority(evidence firstbuild.Evidence, authority policy.Authority) error {
+	if evidence.Source.Commit != authority.ForkCommit || evidence.Source.Tree != authority.ForkTree || evidence.Source.Parent != authority.ForkParentCommit {
+		return fmt.Errorf("receipt source identity does not match authority")
+	}
+	if evidence.Build.SourceDateEpoch != authority.SourceDateEpoch || evidence.Build.VDate != authority.VDate {
+		return fmt.Errorf("receipt date identity does not match authority")
+	}
+	return nil
+}
+
+func bindBuildLog(log string, authority policy.Authority) error {
+	if !strings.Contains(log, "SOURCE_DATE_EPOCH="+strconv.FormatInt(authority.SourceDateEpoch, 10)) || !strings.Contains(log, "make clean VDATE="+authority.VDate) || !strings.Contains(log, "make V=1 VDATE="+authority.VDate) {
+		return fmt.Errorf("build log does not contain the reviewed build recipe")
+	}
+	seen := false
+	remaining := log
+	for {
+		index := strings.Index(remaining, "VDATE=")
+		if index < 0 {
+			break
+		}
+		remaining = remaining[index+len("VDATE="):]
+		remaining = strings.TrimLeft(remaining, `\"`)
+		end := 0
+		for end < len(remaining) && remaining[end] >= '0' && remaining[end] <= '9' {
+			end++
+		}
+		if end != len(authority.VDate) || remaining[:end] != authority.VDate {
+			return fmt.Errorf("build log VDATE does not match authority")
+		}
+		seen = true
+		remaining = remaining[end:]
+	}
+	if !seen {
+		return fmt.Errorf("build log has no VDATE binding")
 	}
 	return nil
 }

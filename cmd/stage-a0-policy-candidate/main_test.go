@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/DeanoC/FogCast-POC/internal/stagea0/firstbuild"
+	"github.com/DeanoC/FogCast-POC/internal/stagea0/policy"
 )
 
 func TestParseArgsRequiresExactlyOneValueForEachFlag(t *testing.T) {
@@ -13,6 +16,8 @@ func TestParseArgsRequiresExactlyOneValueForEachFlag(t *testing.T) {
 		"--authority", "/authority.json",
 		"--build-log", "/build.log",
 		"--receipt", "/receipt.json",
+		"--artifact-dir", "/capture",
+		"--toolchain-root", "/toolchain",
 		"--output-dir", "/out",
 	}
 	req, ok := parseArgs(valid)
@@ -24,8 +29,8 @@ func TestParseArgsRequiresExactlyOneValueForEachFlag(t *testing.T) {
 		{},
 		{"--repository"},
 		{"--repository", "/fork", "--repository", "/other"},
-		{"--repository", "/fork", "--source-material", "main-fork", "--authority", "/authority.json", "--build-log", "/build.log", "--receipt", "/receipt.json", "--output-dir", "/out", "--unknown", "x"},
-		{"--repository", "/fork", "--source-material", "main-fork", "--authority", "/authority.json", "--build-log", "/build.log", "--receipt", "", "--output-dir", "/out"},
+		{"--repository", "/fork", "--source-material", "main-fork", "--authority", "/authority.json", "--build-log", "/build.log", "--receipt", "/receipt.json", "--artifact-dir", "/capture", "--toolchain-root", "/toolchain", "--output-dir", "/out", "--unknown", "x"},
+		{"--repository", "/fork", "--source-material", "main-fork", "--authority", "/authority.json", "--build-log", "/build.log", "--receipt", "", "--artifact-dir", "/capture", "--toolchain-root", "/toolchain", "--output-dir", "/out"},
 	}
 	for _, args := range cases {
 		if _, ok := parseArgs(args); ok {
@@ -41,5 +46,34 @@ func TestRunPrintsUsageForMalformedArguments(t *testing.T) {
 	}
 	if stdout.Len() != 0 || !strings.Contains(stderr.String(), "usage: stage-a0-policy-candidate") {
 		t.Fatalf("run() output = stdout %q stderr %q", stdout.String(), stderr.String())
+	}
+}
+
+func TestBindEvidenceAuthorityRejectsMismatchedReceipt(t *testing.T) {
+	evidence := firstbuild.Evidence{
+		Source: firstbuild.SourceEvidence{Commit: "fork", Tree: "tree", Parent: "parent"},
+		Build:  firstbuild.BuildEvidence{SourceDateEpoch: 10, VDate: "700101"},
+	}
+	authority := policy.Authority{ForkCommit: "fork", ForkTree: "tree", ForkParentCommit: "parent", SourceDateEpoch: 10, VDate: "700101"}
+	if err := bindEvidenceAuthority(evidence, authority); err != nil {
+		t.Fatalf("matching authority rejected: %v", err)
+	}
+	evidence.Source.Tree = "wrong"
+	if err := bindEvidenceAuthority(evidence, authority); err == nil {
+		t.Fatal("mismatched tree was accepted")
+	}
+}
+
+func TestBindBuildLogRejectsMixedOrMissingVDATE(t *testing.T) {
+	authority := policy.Authority{VDate: "260808"}
+	authority.SourceDateEpoch = 1786215171
+	validLog := `SOURCE_DATE_EPOCH=1786215171 make clean VDATE=260808 make V=1 VDATE=260808 -DVDATE=\"260808\"`
+	if err := bindBuildLog(validLog, authority); err != nil {
+		t.Fatalf("matching VDATE rejected: %v", err)
+	}
+	for _, log := range []string{"make", "make VDATE=260807", "make VDATE=260808 VDATE=260807", "SOURCE_DATE_EPOCH=1786215171 make VDATE=260808"} {
+		if err := bindBuildLog(log, authority); err == nil {
+			t.Errorf("log %q unexpectedly accepted", log)
+		}
 	}
 }

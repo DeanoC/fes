@@ -167,6 +167,9 @@ func compileRecord(argv []string) (policy.CompileRecord, bool, error) {
 		return policy.CompileRecord{}, false, nil
 	}
 	for i := range argv {
+		if unsafeArgumentPath(argv[i]) {
+			return policy.CompileRecord{}, false, gitInvalid("build command contains an unsafe path: " + argv[i])
+		}
 		argv[i] = normalizeArgument(argv[i])
 	}
 	tool, role, ok := commandTool(argv[0])
@@ -276,9 +279,18 @@ func orderedInputs(argv []string, phase, source string) []string {
 	}
 	seen := map[string]struct{}{}
 	var result []string
+	skipNext := false
 	for _, value := range argv {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+		if value == "-o" || value == "-MF" || value == "-MT" || value == "-MQ" {
+			skipNext = true
+			continue
+		}
 		value = normalizePath(value)
-		if strings.HasSuffix(value, ".o") || strings.HasSuffix(value, ".a") {
+		if isLinkInput(value) {
 			if _, ok := seen[value]; !ok {
 				seen[value] = struct{}{}
 				result = append(result, value)
@@ -289,6 +301,21 @@ func orderedInputs(argv []string, phase, source string) []string {
 		result = []string{normalizePath(source)}
 	}
 	return result
+}
+
+func isLinkInput(value string) bool {
+	if strings.HasPrefix(value, "-") || value == "" {
+		return false
+	}
+	if strings.HasSuffix(value, ".o") || strings.HasSuffix(value, ".a") {
+		return true
+	}
+	for _, suffix := range []string{".c", ".cc", ".cpp", ".cxx", ".png", ".bin", ".dat", ".img", ".rom"} {
+		if strings.HasSuffix(strings.ToLower(value), suffix) {
+			return true
+		}
+	}
+	return strings.Contains(value, "/")
 }
 
 func argumentAfter(argv []string, flag string) string {
@@ -327,6 +354,28 @@ func normalizeArgument(value string) string {
 		return path.Clean(value)
 	}
 	return value
+}
+
+func unsafeArgumentPath(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, prefix := range []string{"-I", "-L", "-include", "-imacros", "-isystem", "-o", "-MF", "-MT", "-MQ"} {
+		if strings.HasPrefix(value, prefix) && len(value) > len(prefix) {
+			value = value[len(prefix):]
+			break
+		}
+	}
+	parts := strings.FieldsFunc(value, func(r rune) bool { return r == '/' || r == '\\' })
+	for _, part := range parts {
+		if part == ".." {
+			return true
+		}
+	}
+	if strings.HasPrefix(value, "/") {
+		return value != "/stage-a0" && !strings.HasPrefix(value, "/stage-a0/")
+	}
+	return false
 }
 
 func normalizePathArgument(value string) string {
