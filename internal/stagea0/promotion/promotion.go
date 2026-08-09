@@ -118,6 +118,10 @@ func validatePolicyFiles(lock stagea0.MainLock, documents map[policy.Kind]policy
 		if !ok || sha256Hex(raw) != record.SHA256 {
 			return invalid("policy bytes do not match the lock hash")
 		}
+		decoded, err := policy.Decode(raw)
+		if err != nil || decoded.Kind != kind || !reflect.DeepEqual(decoded, documents[kind]) {
+			return invalid("policy bytes do not match the supplied canonical document")
+		}
 		material, ok := materialByID(lock.Materials, record.MaterialID)
 		if !ok || material.MaterialFile == nil || material.MaterialFile.Path != record.Path || material.MaterialFile.Size != int64(len(raw)) || material.MaterialFile.SHA256 != record.SHA256 {
 			return invalid("policy material-file reference is unresolved")
@@ -179,16 +183,28 @@ func validateELFClosure(document policy.Document, lock stagea0.MainLock, materia
 		allowed[path] = struct{}{}
 	}
 	needed := make(map[string]struct{})
+	seenELFs := make(map[string]struct{}, len(value.ELFs))
 	for _, elf := range value.ELFs {
 		if _, ok := allowed[elf.Path]; !ok {
 			return invalid("ELF path is not a locked final artifact")
 		}
-		if elf.Role != "final-stripped" && elf.Role != "final-unstripped" {
+		if _, exists := seenELFs[elf.Path]; exists {
+			return invalid("ELF final-artifact path is duplicated")
+		}
+		seenELFs[elf.Path] = struct{}{}
+		wantRole := "final-unstripped"
+		if elf.Path == "bin/MiSTer" {
+			wantRole = "final-stripped"
+		}
+		if elf.Role != wantRole {
 			return invalid("ELF final-artifact role is invalid")
 		}
 		for _, name := range elf.Needed {
 			needed[name] = struct{}{}
 		}
+	}
+	if len(seenELFs) != len(allowed) {
+		return invalid("a locked final artifact is missing from ELF closure")
 	}
 	dependencies := make(map[string]policy.DependencyRecord, len(value.Dependencies))
 	for _, dependency := range value.Dependencies {
