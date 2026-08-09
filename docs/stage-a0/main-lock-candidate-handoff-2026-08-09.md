@@ -44,10 +44,12 @@ review record only after all blockers below are resolved.
 
 ## Explicit blockers
 
-1. **Environment adapter:** the measured capture did not lock the final
-   `umask = "022"` or a fixed job count. The Makefile still discovers `nproc`;
-   no reviewed `/stage-a0/build-utils/bin/nproc` shim was used. The candidate
-   therefore leaves both values unresolved.
+1. **Environment adapter:** the measured capture explicitly set `umask 022`,
+   but did not record or verify the final adapter contract, and it did not lock
+   a fixed job count. The Makefile still discovers host `nproc`; no reviewed
+   `/stage-a0/build-utils/bin/nproc` shim was used. The candidate therefore
+   leaves both values unresolved. The `/stage-a0/*` paths in the draft are
+   planned logical adapter roots, not paths observed in that capture.
 2. **Container material:** the prepared image is a local Docker commit. Its
    image ID and parent Debian base identity were observed, but no durable OCI
    registry/reference, manifest digest, config digest, layer source record, or
@@ -79,9 +81,11 @@ review record only after all blockers below are resolved.
    `BLOCKED_LICENSE_*` IDs are markers only and must not be treated as legal
    conclusions.
 9. **Canonical manifests/comparator:** source-set, compile/link, ELF,
-   dynamic-dependency, generated-input, and intermediate-path manifests and
-   the two-fresh-build comparator are not implemented as the final-lock gate.
-   Matching preliminary binaries do not close that gate.
+   dynamic-dependency, generated-input, and intermediate-path manifests are
+   not implemented as the final-lock gate. A preliminary comparator now exists
+   for two retained local captures, but it only reports
+   `Software-tested`/`local-only` and does not close this gate. Matching
+   preliminary binaries do not close the final lock.
 10. **Image/cache retrieval:** there is no content-addressed source/toolchain/
     image cache with revalidation, signed material metadata, or independent
     retrieval evidence. Local ignored artifacts are not a lock substitute.

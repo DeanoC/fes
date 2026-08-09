@@ -11,7 +11,8 @@ Accepted Stage A0 result.
 - Base commit: `bf7143f7a0cb2e4fdef24c8abdd4fec476dec27e`
 - Branch: `codex/stage-a0-main-baseline-design`
 - Implementation: `internal/stagea0/firstbuild`,
-  `cmd/stage-a0-firstbuild`, and the Stage A Makefile targets.
+  `internal/stagea0/precompare`, the two Stage A first-build commands, and the
+  Stage A Makefile targets.
 - Related test hardening: `internal/stagea0/git_test.go`.
 - Durable design and result records: [first-build evidence design](../superpowers/specs/2026-08-09-stage-a0-first-build-evidence-design.md)
   and [Software-tested result](first-build-software-tested-2026-08-09.md).
@@ -33,9 +34,13 @@ lock or release artifact.
 | `MiSTer.elf` | 1380136 bytes, SHA-256 `51a9864bb12ebdf8961b30ac0a45d533fd2a2885a96d81fc29f8363d1804706d` |
 
 The final hardened capture and the prepared-image run-3 outputs were
-byte-identical for both binaries. The receipt deliberately keeps
-`two_builds_byte_identical=false`: the capture package is a one-build
-Software-tested receipt, not the independent two-build gate.
+byte-identical for both binaries. Each capture receipt deliberately keeps
+`two_builds_byte_identical=false`. The preliminary comparator can compare two
+retained captures and emit a separate `comparison.json`; that report remains
+Software-tested/local-only and does not promote either capture to the final
+reproducibility gate. In the recorded comparison the two receipt hashes are
+identical, so it demonstrates receipt/payload equality—not independent-build
+provenance. See [preliminary comparison](first-build-precompare-2026-08-09.md).
 
 ## Verification
 
@@ -72,7 +77,7 @@ was byte-identical across repeated captures.
 The final Stage A0 lock still needs durable source/material retrieval, host
 tool/runtime provenance, all Main prebuilt-library and license records,
 network-off build adapters, complete source/compile/ELF/generated/intermediate
-manifests, the independent two-build comparator, and the narrow Overlord
+manifests, the final-lock two-build gate, and the narrow Overlord
 DE10-Nano/Cyclone V slice. No target or HIL operation was performed.
 
 Next safe action: promote the measured inputs into the reviewed lock/cache

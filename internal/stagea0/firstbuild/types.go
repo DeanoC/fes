@@ -1,10 +1,12 @@
 package firstbuild
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"path"
 	"sort"
 	"strings"
@@ -145,6 +147,27 @@ func EncodeEvidence(evidence Evidence) ([]byte, error) {
 		return nil, &Failure{Code: CodeSchemaInvalid, Detail: "evidence cannot be encoded"}
 	}
 	return append(raw, '\n'), nil
+}
+
+// DecodeEvidence accepts only the canonical JSON emitted by EncodeEvidence.
+// Run-only metadata and physical locations therefore cannot be smuggled into a
+// comparison receipt through an otherwise valid JSON object.
+func DecodeEvidence(raw []byte) (Evidence, error) {
+	var evidence Evidence
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&evidence); err != nil {
+		return Evidence{}, &Failure{Code: CodeSchemaInvalid, Detail: "evidence JSON cannot be decoded"}
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		return Evidence{}, &Failure{Code: CodeSchemaInvalid, Detail: "evidence JSON has trailing data"}
+	}
+	canonical, err := EncodeEvidence(evidence)
+	if err != nil || !bytes.Equal(canonical, raw) {
+		return Evidence{}, &Failure{Code: CodeSchemaInvalid, Detail: "evidence JSON is not canonical"}
+	}
+	return evidence, nil
 }
 
 func InventoryDigest(entries []InventoryEntry) (string, error) {

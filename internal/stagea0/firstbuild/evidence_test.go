@@ -39,6 +39,29 @@ func TestEncodeEvidenceIsCanonicalAndExcludesRunMetadata(t *testing.T) {
 	}
 }
 
+func TestDecodeEvidenceRequiresCanonicalJSON(t *testing.T) {
+	raw, err := EncodeEvidence(validEvidence())
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := DecodeEvidence(raw)
+	if err != nil {
+		t.Fatalf("DecodeEvidence(valid) = %v", err)
+	}
+	if got, err := EncodeEvidence(decoded); err != nil || string(got) != string(raw) {
+		t.Fatalf("decode/re-encode changed canonical bytes: err=%v", err)
+	}
+	for _, hostile := range [][]byte{
+		append([]byte(" "), raw...),
+		append(append([]byte(nil), raw...), []byte("{}")...),
+		[]byte(`{"format":1,"schema":"fogcast.stage-a0.first-build.v1","unknown":true}` + "\n"),
+	} {
+		if _, err := DecodeEvidence(hostile); !hasCode(err, CodeSchemaInvalid) {
+			t.Fatalf("DecodeEvidence(%q) = %v, want %s", hostile, err, CodeSchemaInvalid)
+		}
+	}
+}
+
 func TestInventoryDigestSortsLogicalEntriesAndRejectsPhysicalPaths(t *testing.T) {
 	entries := []InventoryEntry{
 		{Path: "bin/z", Mode: "0755", Size: 3, SHA256: strings.Repeat("b", 64)},
