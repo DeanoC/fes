@@ -294,6 +294,25 @@ Any date-representation change or other alteration requires a separate approved
 fork decision. The later library extraction begins only after its applicable
 Stage A gates are satisfied.
 
+### Official checkout-attribute compatibility boundary
+
+The selected official Main tree applies exactly `text=set` and `eol=lf` to
+the root `Makefile`. Those attributes are conversion-capable in general, but
+are byte-preserving for the locked source because its raw blob is valid UTF-8,
+contains no CR byte, is LF-only, and ends with LF. The Stage A0 initializer may
+therefore admit only that exact ordered effective attribute set for the locked
+VDATE source, under its closed `core.autocrlf=false`, `core.eol=lf`, and
+`core.attributesfile=/dev/null` configuration. An empty effective set remains
+valid for synthetic and future locked sources. Every other attribute name,
+value, duplicate, ordering, malformed record, CR-containing source, or
+non-terminal-LF source fails before checkout.
+
+Admission does not replace output verification. After `checkout-index`
+materializes the tree, the initializer must still require the materialized
+VDATE source SHA-256 to equal the committed patched blob SHA-256. This makes
+the policy both compatible with the selected official tree and closed against
+unreviewed checkout filters or EOL transformations.
+
 ## Final build lock and canonical encodings
 
 The candidate `build/stage-a0-main.lock.toml` is tracked UTF-8 LF TOML. It has
