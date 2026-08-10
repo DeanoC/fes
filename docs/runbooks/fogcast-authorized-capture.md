@@ -41,6 +41,7 @@ bundle. Inspect the result without recording the identity string:
 
 ```sh
 codesign --display --verbose=4 bin/FogCastHost.app
+codesign --display --entitlements :- bin/FogCastHost.app
 plutil -p bin/FogCastHost.app/Contents/Info.plist
 ```
 

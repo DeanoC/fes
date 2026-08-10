@@ -9,6 +9,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "capture_darwin.h"
 
@@ -643,15 +644,20 @@ int mr_capture_wait_for_frame(void *handle, int timeout_ms, char **error_out) {
     }
     pthread_mutex_lock(&capture->mutex);
     if (!capture->has_sample && capture->runtime_error == NULL && timeout_ms > 0) {
-        struct timespec timeout = {
-            .tv_sec = timeout_ms / 1000,
-            .tv_nsec = (timeout_ms % 1000) * 1000000,
-        };
-        int wait_result = pthread_cond_timedwait_relative_np(&capture->condition, &capture->mutex, &timeout);
-        if (wait_result != 0 && wait_result != ETIMEDOUT) {
-            if (error_out != NULL) *error_out = mr_error(@"waiting for the first encoded video frame failed");
-            pthread_mutex_unlock(&capture->mutex);
-            return -1;
+        int64_t deadline_ns = mr_monotonic_ns(capture) + (int64_t)timeout_ms * 1000000;
+        while (!capture->has_sample && capture->runtime_error == NULL) {
+            int64_t remaining_ns = deadline_ns - mr_monotonic_ns(capture);
+            if (remaining_ns <= 0) break;
+            struct timespec timeout = {
+                .tv_sec = (time_t)(remaining_ns / 1000000000),
+                .tv_nsec = (long)(remaining_ns % 1000000000),
+            };
+            int wait_result = pthread_cond_timedwait_relative_np(&capture->condition, &capture->mutex, &timeout);
+            if (wait_result != 0 && wait_result != ETIMEDOUT) {
+                if (error_out != NULL) *error_out = mr_error(@"waiting for the first encoded video frame failed");
+                pthread_mutex_unlock(&capture->mutex);
+                return -1;
+            }
         }
     }
     if (capture->runtime_error != NULL) {
