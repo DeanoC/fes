@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FogCast launcher</title>
+  {{FOGCAST_STYLES}}
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="FogCast home">FOG<span>CAST</span></a>
+    <p id="health" class="host-status" role="status">Local host ready</p>
+  </header>
+  <main class="launcher" id="launcher">
+    <section class="catalog-panel" aria-labelledby="catalog-heading">
+      <div class="intro-row">
+        <div>
+          <p class="eyebrow">Local library</p>
+          <h1 id="catalog-heading">Choose your next signal</h1>
+        </div>
+        <span class="demo-badge">DEMO ART</span>
+      </div>
+      <div class="toolbar">
+        <label class="search-label" for="game-search">Search the live catalog</label>
+        <div class="search-controls">
+          <input id="game-search" type="search" placeholder="Search games" autocomplete="off">
+          <button id="refresh-catalog" class="button secondary" type="button">Refresh</button>
+        </div>
+      </div>
+      <div id="catalog" class="catalog-region" aria-busy="true">
+        <p id="catalog-status" class="sr-only" aria-live="polite">loading</p>
+        <div id="catalog-list" class="game-grid"></div>
+        <div id="catalog-actions" class="retry-container"></div>
+      </div>
+    </section>
+    <aside id="detail" class="detail-panel" aria-labelledby="detail-heading">
+      <div id="detail-content"></div>
+      <div id="launch-actions" class="launch-actions"></div>
+      <p id="launch-status" class="sr-only" role="status" aria-live="polite"></p>
+    </aside>
+  </main>
+  {{FOGCAST_METADATA}}
+  {{FOGCAST_APP}}
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "games": [
+    {
+      "id": "megadrive-sonic-test",
+      "title": "Sonic the Hedgehog (refreshed)",
+      "system": "megadrive",
+      "kind": "zip",
+      "state": "available",
+      "root_online": true,
+      "content_prepared": false,
+      "execution": "fpga_native"
+    }
+  ]
+}

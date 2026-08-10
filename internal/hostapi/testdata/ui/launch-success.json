@@ -1,0 +1,6 @@
+{
+  "state": "active",
+  "game_id": "megadrive-sonic-test",
+  "system": "megadrive",
+  "execution": "fpga_native"
+}

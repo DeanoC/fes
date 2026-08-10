@@ -7,7 +7,7 @@ FOGCAST_GOOS ?= darwin
 FOGCAST_GOARCH ?= arm64
 FOGCAST_OUTPUT ?= bin/fogcast
 
-.PHONY: fmt test vet check build build-fogcast build-fogcast-api build-cli build-hil build-fogcast-hil build-remote-play-receiver build-remote-play-impair build-agent build-bridge build-lock build-lock-container build-poc2-lock package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-dev-image poc1b-verify-images poc1b-qemu-smoke poc1b-kernel-test poc1b-kernel poc1b-verify-kernel poc1b-deploy-test poc2-rootfs-test poc2-deploy-test build-stage-a0 build-stage-a0-firstbuild build-stage-a0-firstbuild-precompare build-stage-a0-policy-candidate build-stage-a0-promotion-report build-stage-a0-independent-build stage-a0-test stage-a0-firstbuild-test stage-a0-precompare-test stage-a0-policy-test stage-a0-policyobserve-test stage-a0-materialobserve-test stage-a0-policy-candidate-test stage-a0-promotion-test stage-a0-promotion-report-test stage-a0-independent-test stage-a0-overlord-probe-test stage-a0-check
+.PHONY: fmt test test-ui test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-cli build-hil build-fogcast-hil build-remote-play-receiver build-remote-play-impair build-agent build-bridge build-lock build-lock-container build-poc2-lock package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-dev-image poc1b-verify-images poc1b-qemu-smoke poc1b-kernel-test poc1b-kernel poc1b-verify-kernel poc1b-deploy-test poc2-rootfs-test poc2-deploy-test build-stage-a0 build-stage-a0-firstbuild build-stage-a0-firstbuild-precompare build-stage-a0-policy-candidate build-stage-a0-promotion-report build-stage-a0-independent-build stage-a0-test stage-a0-firstbuild-test stage-a0-precompare-test stage-a0-policy-test stage-a0-policyobserve-test stage-a0-materialobserve-test stage-a0-policy-candidate-test stage-a0-promotion-test stage-a0-promotion-report-test stage-a0-independent-test stage-a0-overlord-probe-test stage-a0-check
 
 build-stage-a0:
 	mkdir -p bin
@@ -95,7 +95,7 @@ stage-a0-check: build-stage-a0 build-stage-a0-firstbuild build-stage-a0-firstbui
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
 
-test: build-agent
+test: build-agent test-ui
 	go test -race ./...
 	sh scripts/tests/fogcast-build_test.sh
 	sh scripts/tests/inventory_test.sh
@@ -110,6 +110,16 @@ test: build-agent
 	sh scripts/tests/install-poc1b-target_test.sh
 	sh scripts/tests/install-poc2-target_test.sh
 	sh scripts/tests/restore-poc1b-sd_test.sh
+
+test-ui:
+	node --test internal/hostapi/ui_metadata_test.js internal/hostapi/ui_app_test.js
+	node --test internal/hostapi/ui_browser_test.js
+
+test-ui-browser:
+	node --test internal/hostapi/ui_browser_test.js
+
+test-ui-browser-required:
+	FOGCAST_BROWSER_REQUIRED=1 node --test internal/hostapi/ui_browser_test.js
 
 vet:
 	go vet ./...

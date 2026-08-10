@@ -1,0 +1,10 @@
+{
+  "id": "snes-unknown-test",
+  "title": "Unknown <Game> detail",
+  "system": "snes",
+  "kind": "raw",
+  "state": "available",
+  "root_online": true,
+  "content_prepared": false,
+  "execution": "fpga_native"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "different-live-record",
+  "title": "Unexpected detail",
+  "system": "megadrive",
+  "kind": "zip",
+  "state": "available",
+  "root_online": true,
+  "content_prepared": true,
+  "execution": "fpga_native"
+}

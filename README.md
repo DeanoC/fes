@@ -39,6 +39,22 @@ mise exec go@1.26.5 -- go test ./...
 mise exec go@1.26.5 -- make check build
 ```
 
+The launcher unit suites require Node.js 26 or newer. `make test-ui` runs the
+unit suites and the dependency-free Chrome/CDP integration suite. The default
+`make test-ui-browser` path uses an installed Chrome executable, a loopback
+fixture server, and an isolated temporary profile; it skips only when Chrome
+cannot reach CDP before readiness. It never downloads a browser or uses a
+personal profile. To require a runnable browser gate with zero skips, run:
+
+```sh
+make test-ui-browser-required
+```
+
+The required command must be run in a managed context with an installed Chrome
+that reaches CDP readiness. A passing browser loop is **Software-tested**
+evidence for the production UI assets and local HTTP routes only; it is not
+MiSTer hardware, target transport, HIL, latency, or acceptance evidence.
+
 The build produces `bin/fogcast`, `bin/fogcast-api`, `bin/misterctl`, `bin/mister-hil`,
 `bin/fogcast-hil`, and the target ARMv7 agent. Build output, local catalogs,
 staging content, and acceptance reports are ignored by Git.
