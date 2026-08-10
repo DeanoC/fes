@@ -41,10 +41,33 @@ func nativeCaptureAuthorizationStatus() (CaptureAuthorizationStatus, error) {
 	}
 }
 
+func nativeCaptureRequestAuthorization() (CaptureAuthorizationStatus, error) {
+	var errorOut *C.char
+	status := CaptureAuthorizationStatus(C.mr_capture_request_video_authorization(&errorOut))
+	if errorOut != nil {
+		return status, nativeError(errorOut, "request Camera authorization")
+	}
+	switch status {
+	case captureAuthorizationNotDetermined,
+		captureAuthorizationRestricted,
+		captureAuthorizationDenied,
+		captureAuthorizationAuthorized:
+		return status, nil
+	default:
+		return status, fmt.Errorf("AVFoundation returned unknown Camera authorization status %d after request", status)
+	}
+}
+
 func requireNativeCaptureAuthorization() error {
 	status, err := nativeCaptureAuthorizationStatus()
 	if err != nil {
 		return err
+	}
+	if captureAuthorizationNeedsPrompt(status) {
+		status, err = nativeCaptureRequestAuthorization()
+		if err != nil {
+			return err
+		}
 	}
 	return captureAuthorizationError(status)
 }

@@ -54,5 +54,6 @@ void mr_capture_close(void *handle);
 char *mr_capture_list_devices(void);
 void mr_capture_free_string(char *value);
 int mr_capture_video_authorization_status(void);
+int mr_capture_request_video_authorization(char **error_out);
 
 #endif

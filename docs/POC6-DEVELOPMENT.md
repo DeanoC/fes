@@ -181,7 +181,9 @@ For a physical host run, use the signed helper workflow in
 The helper is a cgo-enabled `com.fogcast.host` bundle with explicit Camera and
 Microphone usage descriptions. Genki's consent does not transfer to FogCast or
 to an ad-hoc child binary; grant the helper in System Settings and launch the
-bundle executable. The Darwin adapter reports authorization failures before
+bundle executable. Its hardened-runtime signature includes the camera device
+entitlement; the microphone entitlement remains deferred until an audio worker
+exists. The Darwin adapter reports authorization failures before
 opening the UVC device and stops with an actionable first-frame timeout instead
 of leaving a zero-frame worker running indefinitely.
 

@@ -34,3 +34,7 @@ func captureAuthorizationError(status CaptureAuthorizationStatus) error {
 	}
 	return fmt.Errorf("AVFoundation Camera authorization is %s; grant Camera access to the FogCast helper in System Settings > Privacy & Security > Camera", captureAuthorizationStatusName(status))
 }
+
+func captureAuthorizationNeedsPrompt(status CaptureAuthorizationStatus) bool {
+	return status == captureAuthorizationNotDetermined
+}

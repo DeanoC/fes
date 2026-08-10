@@ -37,10 +37,14 @@ video-only media path.
 The Darwin capture adapter will query
 `+[AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo]` before
 device enumeration/open. A new small C bridge returns the status as a stable
-integer. Go maps `authorized` to success and returns a typed actionable error
-for `notDetermined`, `denied`, and `restricted`, including the helper bundle's
-Camera permission requirement. Screen capture keeps its existing path and does
-not require the external-device camera check.
+integer. For `notDetermined`, the signed helper calls
+`requestAccessForMediaType:completionHandler:` with a bounded wait so macOS can
+present the first-run Camera consent dialog; a raw executable without the
+helper usage-description plist fails with an actionable error. Go maps
+`authorized` to success and returns a typed actionable error for unresolved,
+denied, and restricted states, including the helper bundle's Camera permission
+requirement. Screen capture keeps its existing path and does not require the
+external-device camera check.
 
 The adapter will not attempt to manufacture permissions or bypass TCC. The
 helper bundle is responsible for the user-visible grant. The command will
@@ -55,6 +59,9 @@ The repository will provide a Darwin-only build script and template bundle:
 - place the binary at `FogCastHost.app/Contents/MacOS/fogcast-api`;
 - embed `NSCameraUsageDescription` and `NSMicrophoneUsageDescription` in the
   bundle `Info.plist`; and
+- sign the hardened-runtime bundle with
+  `com.apple.security.device.camera`; the microphone entitlement is deferred
+  until FogCast has a product audio-input worker; and
 - sign the bundle with `FOGCAST_SIGNING_IDENTITY`, supplied only in the local
   environment. The script fails if no identity is supplied, so an ephemeral
   ad-hoc binary is not presented as a durable authorization identity.

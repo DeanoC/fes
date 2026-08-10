@@ -26,3 +26,18 @@ func TestCaptureAuthorizationErrorAcceptsAuthorized(t *testing.T) {
 		t.Fatalf("authorized status error = %v", err)
 	}
 }
+
+func TestCaptureAuthorizationPromptPolicy(t *testing.T) {
+	if !captureAuthorizationNeedsPrompt(captureAuthorizationNotDetermined) {
+		t.Fatal("not-determined status should request authorization")
+	}
+	for _, status := range []CaptureAuthorizationStatus{
+		captureAuthorizationRestricted,
+		captureAuthorizationDenied,
+		captureAuthorizationAuthorized,
+	} {
+		if captureAuthorizationNeedsPrompt(status) {
+			t.Fatalf("status %v unexpectedly requests authorization", status)
+		}
+	}
+}

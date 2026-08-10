@@ -31,6 +31,9 @@ make build-fogcast-host \
   FOGCAST_HOST_OUTPUT="$PWD/bin/FogCastHost.app"
 ```
 
+The build refuses to replace an existing bundle unless
+`FOGCAST_HOST_REPLACE=1` is set explicitly.
+
 The build fails if `FOGCAST_SIGNING_IDENTITY` is empty or the host is not
 Darwin. It builds `cmd/fogcast-api` with `CGO_ENABLED=1`, embeds
 `NSCameraUsageDescription` and `NSMicrophoneUsageDescription`, and signs the
@@ -43,13 +46,19 @@ plutil -p bin/FogCastHost.app/Contents/Info.plist
 
 The plist must report bundle identifier `com.fogcast.host`, executable
 `fogcast-api`, and both usage descriptions.
+The hardened-runtime signature must also carry
+`com.apple.security.device.camera`; the microphone entitlement is intentionally
+not included until FogCast has a product audio-input worker.
 
 ## Grant and launch
 
-1. Open System Settings → Privacy & Security → Camera and enable **FogCast
-   Host Capture**. Repeat under Microphone. Grant Screen Recording only when
-   using the separate screen-capture path; ShadowCast UVC capture is a camera
-   device.
+1. On the first helper launch, the AVFoundation preflight calls
+   `requestAccessForMediaType` and macOS presents the Camera consent dialog.
+   Accept it for **FogCast Host Capture**. If the prompt is unavailable or a
+   prior denial is cached, open System Settings → Privacy & Security → Camera
+   and enable **FogCast Host Capture**. Repeat under Microphone when an audio
+   worker is enabled. Grant Screen Recording only when using the separate
+   screen-capture path; ShadowCast UVC capture is a camera device.
 2. Quit stale FogCast/Genki capture owners before the run.
 3. Launch the executable inside the signed bundle, not a separately rebuilt
    binary from the Codex shell:

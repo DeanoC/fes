@@ -53,3 +53,12 @@ func TestRequireCaptureDevicesAcceptsDetectedDevice(t *testing.T) {
 		t.Fatalf("detected capture device rejected: %v", err)
 	}
 }
+
+func TestCaptureDeviceInventoryIsSkippedForScreenCapture(t *testing.T) {
+	if shouldEnumerateCaptureDevices("screen") {
+		t.Fatal("screen capture should not require an external UVC inventory")
+	}
+	if !shouldEnumerateCaptureDevices("ShadowCast 3") {
+		t.Fatal("physical capture should require an external UVC inventory")
+	}
+}

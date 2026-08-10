@@ -36,10 +36,16 @@ CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 mise exec go@1.26.5 -- go build \
 	-o "$app/Contents/MacOS/fogcast-api" \
 	"$repo/cmd/fogcast-api"
 
-codesign --force --deep --options runtime --sign "$signing_identity" "$app"
+codesign --force --deep --options runtime \
+	--entitlements "$repo/resources/fogcast-host/Entitlements.plist" \
+	--sign "$signing_identity" "$app"
 
 mkdir -p "$(dirname "$output")"
 if [ -e "$output" ]; then
+	if [ "${FOGCAST_HOST_REPLACE:-0}" != 1 ]; then
+		printf '%s\n' "fogcast-host-build: output already exists; set FOGCAST_HOST_REPLACE=1 to replace $output" >&2
+		exit 2
+	fi
 	rm -rf "$output"
 fi
 mv "$app" "$output"

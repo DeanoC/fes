@@ -113,12 +113,14 @@ func runSender(ctx context.Context, args []string, stdout, stderr io.Writer) err
 	if runtime.GOOS != "darwin" {
 		return fmt.Errorf("physical AVFoundation HDMI capture requires macOS; current OS is %s", runtime.GOOS)
 	}
-	devices, err := remotemedia.ListCaptureDevices()
-	if err != nil {
-		return fmt.Errorf("enumerate physical HDMI capture devices: %w", err)
-	}
-	if err := requireCaptureDevices(devices); err != nil && !remotemedia.IsScreenCaptureDevice(*captureDevice) {
-		return err
+	if shouldEnumerateCaptureDevices(*captureDevice) {
+		devices, err := remotemedia.ListCaptureDevices()
+		if err != nil {
+			return fmt.Errorf("enumerate physical HDMI capture devices: %w", err)
+		}
+		if err := requireCaptureDevices(devices); err != nil {
+			return err
+		}
 	}
 	capture, err := remotemedia.OpenNativeCapture(config)
 	if err != nil {
@@ -260,6 +262,10 @@ func requireCaptureDevices(devices []remotemedia.CaptureDevice) error {
 		return errors.New("no physical HDMI capture devices detected; connect a UVC HDMI capture device (synthetic frames are not supported)")
 	}
 	return nil
+}
+
+func shouldEnumerateCaptureDevices(device string) bool {
+	return !remotemedia.IsScreenCaptureDevice(device)
 }
 
 func parseFrameRate(value string) (remotemedia.FrameRate, error) {

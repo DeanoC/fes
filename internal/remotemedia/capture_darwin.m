@@ -97,6 +97,8 @@ static void mr_release_object_fields(MRNativeCapture *capture) {
     if (capture->delegate != NULL) { CFRelease(capture->delegate); capture->delegate = NULL; }
 }
 
+static char *mr_error(NSString *message);
+
 static NSArray<AVCaptureDevice *> *mr_video_devices(void) {
     AVCaptureDeviceDiscoverySession *discovery =
         [AVCaptureDeviceDiscoverySession discoverySessionWithDeviceTypes:@[AVCaptureDeviceTypeExternal]
@@ -105,7 +107,7 @@ static NSArray<AVCaptureDevice *> *mr_video_devices(void) {
     return discovery.devices;
 }
 
-int mr_capture_video_authorization_status(void) {
+static int mr_normalized_video_authorization_status(void) {
     switch ([AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo]) {
         case AVAuthorizationStatusRestricted:
             return MR_CAPTURE_AUTHORIZATION_RESTRICTED;
@@ -117,6 +119,34 @@ int mr_capture_video_authorization_status(void) {
         default:
             return MR_CAPTURE_AUTHORIZATION_NOT_DETERMINED;
     }
+}
+
+int mr_capture_video_authorization_status(void) {
+    return mr_normalized_video_authorization_status();
+}
+
+int mr_capture_request_video_authorization(char **error_out) {
+    if (error_out != NULL) *error_out = NULL;
+    int status = mr_normalized_video_authorization_status();
+    if (status != MR_CAPTURE_AUTHORIZATION_NOT_DETERMINED) return status;
+    NSString *usage_description = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"NSCameraUsageDescription"];
+    if (usage_description.length == 0) {
+        if (error_out != NULL) *error_out = mr_error(@"the FogCast helper bundle is missing NSCameraUsageDescription; use the signed FogCastHost.app");
+        return MR_CAPTURE_AUTHORIZATION_NOT_DETERMINED;
+    }
+    dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
+    __block BOOL granted = NO;
+    [AVCaptureDevice requestAccessForMediaType:AVMediaTypeVideo completionHandler:^(BOOL access_granted) {
+        granted = access_granted;
+        dispatch_semaphore_signal(semaphore);
+    }];
+    dispatch_time_t deadline = dispatch_time(DISPATCH_TIME_NOW, 30 * NSEC_PER_SEC);
+    if (dispatch_semaphore_wait(semaphore, deadline) != 0) {
+        if (error_out != NULL) *error_out = mr_error(@"the Camera authorization prompt timed out; open System Settings > Privacy & Security > Camera for FogCast Host Capture");
+        return MR_CAPTURE_AUTHORIZATION_NOT_DETERMINED;
+    }
+    if (!granted) return MR_CAPTURE_AUTHORIZATION_DENIED;
+    return mr_normalized_video_authorization_status();
 }
 
 static char *mr_error(NSString *message) {
@@ -613,19 +643,15 @@ int mr_capture_wait_for_frame(void *handle, int timeout_ms, char **error_out) {
     }
     pthread_mutex_lock(&capture->mutex);
     if (!capture->has_sample && capture->runtime_error == NULL && timeout_ms > 0) {
-        struct timespec deadline;
-        clock_gettime(CLOCK_REALTIME, &deadline);
-        deadline.tv_sec += timeout_ms / 1000;
-        deadline.tv_nsec += (timeout_ms % 1000) * 1000000;
-        if (deadline.tv_nsec >= 1000000000) { deadline.tv_sec++; deadline.tv_nsec -= 1000000000; }
-        while (!capture->has_sample && capture->runtime_error == NULL) {
-            int wait_result = pthread_cond_timedwait(&capture->condition, &capture->mutex, &deadline);
-            if (wait_result == ETIMEDOUT) break;
-            if (wait_result != 0) {
-                if (error_out != NULL) *error_out = mr_error(@"waiting for the first encoded video frame failed");
-                pthread_mutex_unlock(&capture->mutex);
-                return -1;
-            }
+        struct timespec timeout = {
+            .tv_sec = timeout_ms / 1000,
+            .tv_nsec = (timeout_ms % 1000) * 1000000,
+        };
+        int wait_result = pthread_cond_timedwait_relative_np(&capture->condition, &capture->mutex, &timeout);
+        if (wait_result != 0 && wait_result != ETIMEDOUT) {
+            if (error_out != NULL) *error_out = mr_error(@"waiting for the first encoded video frame failed");
+            pthread_mutex_unlock(&capture->mutex);
+            return -1;
         }
     }
     if (capture->runtime_error != NULL) {
@@ -649,12 +675,11 @@ int mr_capture_next(void *handle, MRNativeSample *sample, int timeout_ms, char *
     memset(sample, 0, sizeof(*sample));
     pthread_mutex_lock(&capture->mutex);
     if (!capture->has_sample && timeout_ms > 0) {
-        struct timespec deadline;
-        clock_gettime(CLOCK_REALTIME, &deadline);
-        deadline.tv_sec += timeout_ms / 1000;
-        deadline.tv_nsec += (timeout_ms % 1000) * 1000000;
-        if (deadline.tv_nsec >= 1000000000) { deadline.tv_sec++; deadline.tv_nsec -= 1000000000; }
-        pthread_cond_timedwait(&capture->condition, &capture->mutex, &deadline);
+        struct timespec timeout = {
+            .tv_sec = timeout_ms / 1000,
+            .tv_nsec = (timeout_ms % 1000) * 1000000,
+        };
+        pthread_cond_timedwait_relative_np(&capture->condition, &capture->mutex, &timeout);
     }
     if (!capture->has_sample) {
         if (capture->runtime_error != NULL && error_out != NULL) *error_out = strdup(capture->runtime_error);
