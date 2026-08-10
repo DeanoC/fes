@@ -9,6 +9,15 @@ hash-bound AVFoundation video+audio graph and the exact named FFmpeg UAC
 endpoint while Sonic was active. The same endpoint remains exact-zero when
 launched by the Codex app-server shell, so the FogCast launcher authorization
 or responsible-process context remains the outstanding host integration issue.
+The final signed-worker discriminator below completed the previously stated
+integration experiment: after Genki released the UVC interface, the same
+worker still received zero frames from the Codex app-server shell but received
+and encoded live frames when launched from signed Terminal. Named FFmpeg,
+AudioQueue, and AudioDeviceIOProc captures were non-zero both concurrently
+with that Terminal worker and after its release during an active Sonic 2 run.
+This isolates the remaining FogCast issue to launcher/responsible-process
+authorization; it does not require composite-device ownership or source
+silence to explain the Codex result.
 A bounded overlap with the repository's real host video worker also returned
 exact-zero UAC in both start orders; that worker captured no video frames while
 Genki remained present, so composite-device ownership is a second host
@@ -460,6 +469,129 @@ responsible-process/TCC difference. It does not contradict the repeated
 non-zero Terminal-only raw captures, does not prove that the MiSTer source was
 silent, and does not satisfy a target-active paired-evidence claim.
 
+## Final signed-worker integration discriminator — 2026-08-10
+
+The exact next experiment was completed after the disposable target was
+restored and the cache-launched Sonic 2 run was active. The target status
+command was:
+
+```text
+HOME=/tmp/fogcast-home bin/fogcast --json --config /tmp/fogcast-config.nJPeWA status
+```
+
+It returned `state=active`, `system=megadrive`, `core=MegaDrive`, and the
+Sonic 2 catalog entry. AVFoundation inventory still resolved one external
+video device named `ShadowCast 3` and CoreAudio still resolved the one named
+48 kHz, two-channel GENKI input bound by the stable-UID digest above. Genki
+was fully quit before the worker tests; no Genki process remained in the
+process inventory. The Mac mini output route was not used as a capture source.
+
+### Codex-shell worker after Genki release
+
+The repository worker was run from the Codex app-server shell with the named
+endpoint and a local UDP sink. It opened the device at 1920x1080 with source
+FPS `60.00024`, but after ten seconds its report had
+`captured_frames=0`, `encoded_frames=0`, and zero capture/encode/runtime
+errors. The report SHA-256 is
+`5ea8f7f323b1328692d055d15820787380dc4ec238e2c65ee63deeb6f8b08758` at
+`artifacts/stage-a0/observed/audio-probe/20260810T144947Z-codex-worker-after-genki.json`.
+This reproduces the launcher-side video failure with Genki no longer owning
+the UVC interface; it is not an audio result. To control for the Terminal run
+negotiating a 25 fps mode, the worker was repeated from the Codex shell after
+the successful Terminal capture. It then opened the same 1920x1080/25 fps mode
+and again reported `captured_frames=0` and `encoded_frames=0` with no errors.
+That second report is
+`artifacts/stage-a0/observed/audio-probe/20260810T150605Z-codex-worker-after-terminal.json`
+(SHA-256
+`7652543e7256764c9d19f6ce06a94d6e090ac611508590ad62a18001b8b9789d`).
+
+### Signed-Terminal worker and concurrent named audio
+
+The same ad-hoc `remote-play-spike` binary (SHA-256
+`c687582dc6b6bf7283cc80028753a3b0f0c369af07f0d6e51e37df2d3d952424`,
+worker code-signature CDHash `3a66f0e135b1f3d82e700b7a750fb35004256ce6`) was launched
+from signed macOS Terminal (`com.apple.Terminal`, CDHash recorded in the
+host-binding table) using the exact-name AVFoundation video device `ShadowCast
+3`, which was the sole external video device in the inventory. The stable-UID
+digest above binds the separate CoreAudio/UAC endpoint used by the raw audio
+probes; the worker report does not publish a video unique ID. With a local UDP
+listener present, the 15-second worker report
+recorded:
+
+| Field | Result |
+| --- | --- |
+| Capture mode | 1920x1080, source FPS 25 |
+| Captured/encoded frames | 367 / 367 |
+| Packets/keyframes | 10,492 / 15 |
+| Capture/encode errors | 0 / 0 |
+| Drops | capture 0, queue 0, packet queue 0 |
+| Encode timing | p50 6.747459 ms, p95 6.995042 ms, max 7.495541 ms |
+
+The worker report SHA-256 is
+`fd080181181ffc3e623b1969af7cf2117628552fcdc8fb7e7c4e33e48fdba69c` at
+`artifacts/stage-a0/observed/audio-probe/20260810T145550Z-terminal-worker.json`.
+The endpoint therefore produces live video to the real repository worker
+when the responsible launcher is signed and authorized, while the identical
+worker launched by the Codex shell receives no frames.
+
+While that Terminal worker was active, three separate Terminal-launched
+captures ran concurrently against the named endpoint:
+
+```text
+ffmpeg -nostdin -hide_banner -loglevel error -f avfoundation \
+  -i 'none:ShadowCast 3' -t 8 -ar 48000 -ac 2 -c:a pcm_s16le <worker-overlap.wav>
+xcrun swift coreaudio-capture.swift 'ShadowCast 3' <worker-overlap.raw>
+xcrun swift coreaudio-io-proc-capture.swift 'ShadowCast 3' <worker-overlap.raw>
+```
+
+The exact ignored source hashes are `coreaudio-capture.swift`
+`10b2cae25bd1350f3189b417ad5a3896aed6622f6517e467c3bf20de2f4eb0a4` and
+`coreaudio-io-proc-capture.swift`
+`5a207dddd52ffbcf281076fb590feb947a1cbc79304c033002e402fda83e6f64`.
+The concurrent outputs are retained in the ignored files
+`20260810T145553Z-terminal-concurrent-ffmpeg.wav`,
+`20260810T145553Z-terminal-concurrent-audioqueue.raw`, and
+`20260810T145553Z-terminal-concurrent-ioproc.raw` under
+`artifacts/stage-a0/observed/audio-probe/`. The concurrent results were:
+
+| Capture | Non-zero result | Artifact SHA-256 |
+| --- | --- | --- |
+| Named FFmpeg UAC | 6.197333 s, 48 kHz stereo PCM; overall peak `-7.124009 dBFS`, RMS `-21.798886 dBFS` | `894a52471deddd27c1fc8133f06c26246f8c0497667dbcac31b74ba343fa202f` |
+| AudioQueue | 576,512 samples; 568,564 non-zero; min/max `-12408`/`13966` | `b14755e62b8a99527f199a0f396f644786c21851646cd92a1f7ba64bc82e3941` |
+| AudioDeviceIOProc | 3,076,096 bytes; 2,051,199 non-zero; 751 callbacks | `cf10dfc7ae19afced2ae03d7034b2692b13d3da503413c219639e81db7fc6214` |
+
+The concurrent AudioQueue and IOProc logs are bound by SHA-256
+`bf704dd3735b4e566ead6b00b626b43a986d739fc8c372afe9f8d5610e105ec1` and
+`c42de9fddbb632479a47e2b46bf8a3f2f8d6904c7425d5d0f6b1a1bdc51dc87e`.
+
+After the video worker was released, the same Terminal identity repeated all
+three named captures without source or permission changes. The outputs are
+retained as `20260810T145610Z-terminal-after-worker-ffmpeg.wav`,
+`20260810T145610Z-terminal-after-worker-audioqueue.raw`, and
+`20260810T145610Z-terminal-after-worker-ioproc.raw` under the same ignored
+directory. FFmpeg produced
+6.272000 seconds with overall peak `-7.960656 dBFS` and RMS `-25.331561 dBFS`; its
+WAV SHA-256 is
+`a7a865d015df64ab3ee78ddffd424c2314fd8fa3866326274a9735d62f692db4`.
+AudioQueue reported 576,512 samples with 431,634 non-zero and raw SHA-256
+`8f4aa7c41a9a89748fea9d3a58eb79a524367387618740a8152b66bebe226afe`.
+AudioDeviceIOProc reported 3,076,096 bytes with 1,639,774 non-zero and raw
+SHA-256
+`a2e3c8c867aba0b08ad4679443a3172bb81938c01c61f516da34d7ab3622be32`.
+The post-release logs are bound by SHA-256
+`1916b72bd6273df02375bff6aa8c8c7f1f8ab56a66686c33923104c9f28eadfa` and
+`420c4250b5cfbe447579a89e473c8aa61ea4458e00a79c107a6eecfe34abaf29`.
+
+This is Software-tested, named, hash-bound non-zero PCM from the raw
+ShadowCast endpoint while a real signed-Terminal FogCast video worker was
+receiving frames, with the target status recorded active for Sonic 2
+immediately before the capture sequence. It also repeats after worker
+release. The controlled discriminator removes composite
+UVC/UAC ownership as the necessary explanation: the decisive difference is
+the responsible launcher context. The Codex-shell FogCast path still needs a
+signed/authorized application or helper with equivalent camera/microphone
+authorization; no target-code or Stage A change is indicated.
+
 ## Evidence classification and provenance
 
 | Evidence class | Observation and provenance |
@@ -473,6 +605,7 @@ silent, and does not satisfy a target-active paired-evidence claim.
 | Speaker-muted discriminator | With Mac mini Speakers explicitly muted, the Codex-shell FFmpeg capture remained exact-zero while the authorized named AVFoundation graph and later Terminal-launched raw endpoint remained non-zero. This separates host output mute from launcher context. |
 | Terminal-launcher raw UAC | Two Terminal-launched FFmpeg captures and one Terminal-launched AudioQueue capture from exact-name `ShadowCast 3` produced non-zero PCM with target `state=active`; this is Software-tested named, hash-bound raw UAC evidence. |
 | FogCast video-worker overlap | The real repository video worker and named UAC comparator were run concurrently in both start orders; both UAC outputs were exact-zero while the worker reported zero captured video frames. This is Software-tested host-ownership diagnostic evidence only, not source-silence or target-active evidence. |
+| Signed-worker discriminator | After Genki released UVC, the Codex-shell worker still captured zero frames, while the identical exact-name worker bound to the sole-inventory AVFoundation video device and launched from signed Terminal captured 367/367 frames; concurrent and post-release named FFmpeg, AudioQueue, and AudioDeviceIOProc captures were non-zero with target status recorded active for Sonic 2 immediately before the sequence. The stable-UID digest applies to the separate CoreAudio/UAC endpoint. This is Software-tested launcher-context evidence and completes the stated integration experiment. |
 | Genki binary path | The installed OBS `mac-avcapture` plugin's imports and strings identify an AVFoundation camera-session audio-output path. This is Machine-observed application-binary provenance and supports, but does not prove, a path difference. |
 | Software-tested | FFmpeg `ffprobe`/`astats` and separate native probes counted and hashed exact-zero samples in the synchronized ignored artifacts `artifacts/stage-a0/observed/audio-probe/audible-sonic-ffmpeg-named-s16.wav` (SHA-256 `fb1706c47cc8fe8638cbdcf77043e2dfa71a2ae8f63642baf22480048ba4cdc3`), `artifacts/stage-a0/observed/audio-probe/audible-sonic-coreaudio-named-s16le.raw` (SHA-256 `d29d8adcc1060cbf994094e65915066467079630cef3c3961d6a0464b5b90d8e`), and the post-click direct-IOProc pair documented above. Earlier `active-sonic-*` artifacts above belong to the prior active-target run and are retained separately. |
 | Software-tested comparator | Genki's built-in recordings decoded to non-zero PCM in `GenkiArcade-20260810-102521-audio-s16.wav`, `GenkiArcade-20260810-112459-audio-s16.wav`, and `GenkiArcade-20260810-112804-audio-s16.wav`; the corrected explicit named AVFoundation graph also produced non-zero PCM as detailed above. These are application-path comparators, not raw-gate acceptance. |
@@ -498,6 +631,15 @@ These artifacts remain local and ignored, consistent with the existing Stage
 A0 evidence handling; their published hashes bind this receipt without
 publishing private target or device identity.
 
+The final signed-worker integration receipt is retained locally as the ignored
+`artifacts/stage-a0/observed/audio-probe/diagnostic-session-receipt-20260810-final.txt`
+with SHA-256
+`2a84f42be2d0e391f5ff0a8b8d61ea20a1975996df24b2b0b3fbd0f04c9abe09`.
+It is hash-chained to the earlier receipt and records the post-Genki
+Codex/Terminal worker reports, both mode-controlled zero-frame results, the
+concurrent and post-release non-zero PCM artifacts, endpoint binding, launcher
+CDHashes, active target context, and the resulting authorization hypothesis.
+
 ## Conclusion and strongest remaining hypothesis
 
 The exercised raw host endpoint is conclusively `ShadowCast 3`, not an
@@ -518,46 +660,42 @@ audio. The Mac mini speaker-muted runs further show that host output mute is
 not required for capture. The real FogCast video worker is video-only; both
 overlap orders recorded zero PCM while that worker was configured but received
 zero video frames with Genki present. Composite UVC/UAC ownership is therefore
-an additional unresolved host hypothesis, not a MiSTer source-silence
-conclusion.
+an historical hypothesis, not a MiSTer source-silence conclusion. The final
+post-release discriminator shows that composite ownership is not required to
+explain the zero: the same worker receives frames and the same raw endpoint
+returns non-zero PCM from signed Terminal, while the Codex-shell worker still
+receives no frames.
 
-## Exact next experiment for FogCast launcher integration
+## Exact next experiment for FogCast launcher integration — completed
 
-The named raw UAC criterion is now satisfied for Terminal. The repository has
-no raw-audio worker to integrate: `fogcast-api` and `remote-play-spike` expose
-video-only capture. The remaining task is to run the actual video worker only
-after Genki has released the UVC interface, prove that it receives video
-frames, and then compare named UAC/AudioQueue results under that same stable
-launcher without changing target code or Stage A scope.
+The named raw UAC criterion was already satisfied for Terminal. The remaining
+experiment was to release Genki, run the real video worker, and compare named
+audio captures under the same stable launcher. The final discriminator above
+completed all three steps without target-code or Stage A changes:
 
-1. Preserve the two Terminal FFmpeg receipts and the Terminal AudioQueue
-   receipt as the current deterministic host evidence. Their target state,
-   endpoint binding, launcher/CDHashes, output mute state, hashes, and PCM
-   statistics are recorded above and in the ignored receipt.
-2. Fully release Genki's UVC video owner, then run the actual
-   `fogcast-api`/`remote-play-spike` video worker with named `ShadowCast 3`
-   until `captured_frames>0`; record the complete parent/launcher chain,
-   bundle/code-signature identity, endpoint binding, and target status. A
-   worker that opens a mode but captures zero frames is an unresolved video
-   availability/ownership result, not an audio-permission result.
-3. With that video worker receiving frames, run the exact named FFmpeg and
-   native AudioQueue/IOProc probes concurrently and after worker release from
-   the same signed identity (or an explicitly authorized helper with a stable
-   bundle identity). A non-zero result closes the worker integration
-   diagnosis; an exact-zero result isolates either composite ownership or
-   worker-specific authorization while Terminal remains the comparator.
-4. If the worker cannot be granted a stable authorized identity, document
-   Terminal (or a dedicated signed helper) as the required host capture
-   context and keep the target-independent raw evidence accepted only for that
-   explicitly named context. Do not reopen or downgrade Stage A.
-5. Use a known-good HDMI audio analyzer only if an authorized worker with
-   non-zero video and Terminal both regress to zero; another unchanged
-   Codex-shell capture is not new evidence.
+1. Genki was fully released and the cache-launched Sonic 2 target status was
+   recorded as active.
+2. The real `remote-play-spike` worker received zero frames from the Codex
+   app-server shell but 367/367 frames from signed Terminal at the same
+   exact-name, sole-inventory AVFoundation video device; the concurrently
+   measured raw audio endpoint is separately bound by its CoreAudio stable-UID
+   digest.
+3. Named FFmpeg, AudioQueue, and AudioDeviceIOProc captures were non-zero both
+   concurrently with the signed worker and after its release.
+
+The remaining host integration action is therefore authorization, not another
+capture permutation: run the FogCast worker from a signed/authorized
+application or dedicated helper with the Terminal-equivalent responsible
+process context. Keep the raw-evidence acceptance explicitly bound to that
+launcher until FogCast has such a context. A known-good HDMI audio analyzer is
+not warranted by the current results; it becomes relevant only if an
+authorized worker with non-zero video and the signed Terminal comparator both
+regress to zero. Do not reopen or downgrade Stage A.
 
 The application path is named by the Genki and diagnostic bundles, and the raw
-endpoint is now also named and hash-bound to the Terminal launcher, FFmpeg
-binary, native probe source, output artifacts, and target-active context. The
-remaining risks are launcher authorization and composite-device ownership, not
+endpoint is named and hash-bound to the Terminal launcher, FFmpeg binary,
+native probe sources, output artifacts, and target-active context. The Codex
+shell remains an exact-zero negative context; it is not evidence of MiSTer
 source silence.
 
 ## Historical independent review record — prior diagnostic revision
