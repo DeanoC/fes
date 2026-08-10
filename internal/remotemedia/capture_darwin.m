@@ -101,11 +101,17 @@ static void mr_release_object_fields(MRNativeCapture *capture) {
 static char *mr_error(NSString *message);
 
 static NSArray<AVCaptureDevice *> *mr_video_devices(void) {
-    AVCaptureDeviceDiscoverySession *discovery =
-        [AVCaptureDeviceDiscoverySession discoverySessionWithDeviceTypes:@[AVCaptureDeviceTypeExternal]
-                                                                  mediaType:AVMediaTypeVideo
-                                                                   position:AVCaptureDevicePositionUnspecified];
-    return discovery.devices;
+    if (@available(macOS 14.0, *)) {
+        AVCaptureDeviceDiscoverySession *discovery =
+            [AVCaptureDeviceDiscoverySession discoverySessionWithDeviceTypes:@[AVCaptureDeviceTypeExternal]
+                                                                      mediaType:AVMediaTypeVideo
+                                                                       position:AVCaptureDevicePositionUnspecified];
+        return discovery.devices;
+    }
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    return [AVCaptureDevice devicesWithMediaType:AVMediaTypeVideo];
+#pragma clang diagnostic pop
 }
 
 static int mr_normalized_video_authorization_status(void) {
@@ -578,10 +584,12 @@ void *mr_capture_open(const char *device_identifier, int width, int height,
         } else if (fps_numerator > 0 && fps_denominator > 0) {
             encode_fps = (double)fps_numerator / (double)fps_denominator;
         }
-        NSDictionary *encoder_specification = @{
+        NSMutableDictionary *encoder_specification = [@{
             (__bridge NSString *)kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder: @YES,
-            (__bridge NSString *)kVTVideoEncoderSpecification_EnableLowLatencyRateControl: @YES,
-        };
+        } mutableCopy];
+        if (@available(macOS 11.3, *)) {
+            encoder_specification[(__bridge NSString *)kVTVideoEncoderSpecification_EnableLowLatencyRateControl] = @YES;
+        }
         OSStatus status = VTCompressionSessionCreate(NULL, encode_width, encode_height, kCMVideoCodecType_H264,
                                                       (__bridge CFDictionaryRef)encoder_specification, NULL, NULL,
                                                       mr_compression_output, capture, &capture->encoder);

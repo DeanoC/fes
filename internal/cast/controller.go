@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
 var (
@@ -42,9 +44,10 @@ type Process interface {
 type StartProcess func(context.Context, string, ...string) (Process, error)
 
 type Status struct {
-	State      string `json:"state"`
-	Session    string `json:"session,omitempty"`
-	Generation uint64 `json:"generation,omitempty"`
+	State      string                    `json:"state"`
+	Session    string                    `json:"session,omitempty"`
+	Generation uint64                    `json:"generation,omitempty"`
+	Media      *protocol.CastStatusMedia `json:"media,omitempty"`
 }
 
 const (
@@ -67,6 +70,7 @@ type session struct {
 	tokenFile       string
 	removeTokenFile bool
 	cleanupErr      error
+	media           *protocol.CastStatusMedia
 }
 
 type tokenInstallError struct {
@@ -102,6 +106,28 @@ func New(config Config, start StartProcess) (*Controller, error) {
 }
 
 func (c *Controller) Start(ctx context.Context, sessionID, token string, generation uint64) error {
+	return c.startSession(ctx, sessionID, token, generation, nil)
+}
+
+// StartWithMedia accepts the public media extension. This compatibility
+// controller does not own a coordinator-managed sink and therefore refuses
+// audio admission until that capability exists.
+func (c *Controller) StartWithMedia(ctx context.Context, sessionID, token string, generation uint64, media protocol.CastMediaSet) error {
+	if err := protocol.ValidateCastMediaSet(media); err != nil {
+		return ErrInvalid
+	}
+	capabilities := c.CastMediaCapabilities(ctx)
+	if capabilities.Version != protocol.CastMediaSetVersion || !capabilities.Video || !capabilities.Audio {
+		return ErrInvalid
+	}
+	return c.startSession(ctx, sessionID, token, generation, &protocol.CastStatusMedia{Version: media.Version, Video: media.Video, Audio: media.Audio, Ready: true, Capabilities: capabilities})
+}
+
+func (*Controller) CastMediaCapabilities(context.Context) protocol.CastMediaCapabilities {
+	return protocol.CastMediaCapabilities{Version: protocol.CastMediaSetVersion, Video: true, Audio: false}
+}
+
+func (c *Controller) startSession(ctx context.Context, sessionID, token string, generation uint64, media *protocol.CastStatusMedia) error {
 	if c == nil || sessionID == "" || token == "" || generation == 0 {
 		return ErrInvalid
 	}
@@ -148,7 +174,7 @@ func (c *Controller) Start(ctx context.Context, sessionID, token string, generat
 		if cleanupErr != nil {
 			done := make(chan struct{})
 			close(done)
-			c.sess = &session{done: done, session: sessionID, generation: generation, tokenFile: cleanupPath, removeTokenFile: remove, cleanupErr: cleanupErr}
+			c.sess = &session{done: done, session: sessionID, generation: generation, tokenFile: cleanupPath, removeTokenFile: remove, cleanupErr: cleanupErr, media: media}
 		}
 		c.mu.Unlock()
 		return ErrStart
@@ -156,7 +182,7 @@ func (c *Controller) Start(ctx context.Context, sessionID, token string, generat
 	args = append(args, "-token-file", tokenFile)
 	process, err := c.start(ctx, c.config.Binary, args...)
 	if err != nil && process != nil {
-		s := &session{process: process, done: make(chan struct{}), session: sessionID, generation: generation, tokenFile: tokenFile, removeTokenFile: controllerOwnedTokenFile}
+		s := &session{process: process, done: make(chan struct{}), session: sessionID, generation: generation, tokenFile: tokenFile, removeTokenFile: controllerOwnedTokenFile, media: media}
 		c.sess = s
 		c.mu.Unlock()
 		go c.reap(s)
@@ -183,7 +209,7 @@ func (c *Controller) Start(ctx context.Context, sessionID, token string, generat
 		c.mu.Unlock()
 		return ErrStart
 	}
-	s := &session{process: process, done: make(chan struct{}), session: sessionID, generation: generation, tokenFile: tokenFile, removeTokenFile: controllerOwnedTokenFile}
+	s := &session{process: process, done: make(chan struct{}), session: sessionID, generation: generation, tokenFile: tokenFile, removeTokenFile: controllerOwnedTokenFile, media: media}
 	c.sess = s
 	c.mu.Unlock()
 	go c.reap(s)
@@ -322,7 +348,7 @@ func (c *Controller) Status(context.Context) Status {
 	if c.sess == nil {
 		return Status{State: Idle}
 	}
-	return Status{State: Active, Session: c.sess.session, Generation: c.sess.generation}
+	return Status{State: Active, Session: c.sess.session, Generation: c.sess.generation, Media: c.sess.media}
 }
 
 type commandProcess struct{ cmd *exec.Cmd }

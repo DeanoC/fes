@@ -52,12 +52,27 @@ type ManagedSenderConfig struct {
 
 type ManagedSenderOption func(*ManagedSender)
 type managedSenderFactory func(SenderConfig, CaptureSource) (ManagedSenderRunner, error)
+type managedSenderFactoryWithOwnership func(SenderConfig, CaptureSource) (ManagedSenderRunner, bool, error)
 
 // WithManagedSenderFactory injects sender construction for deterministic tests.
 func WithManagedSenderFactory(factory func(SenderConfig, CaptureSource) (ManagedSenderRunner, error)) ManagedSenderOption {
 	return func(s *ManagedSender) {
 		if factory != nil {
 			s.newSender = factory
+			s.newSenderWithOwnership = nil
+		}
+	}
+}
+
+// WithManagedSenderFactoryOwnership is the explicit factory seam for a
+// runner that can take capture-source ownership even when construction also
+// returns an error. Legacy factories remain caller-owned on error, which
+// keeps rollback deterministic and prevents ambiguous double Close calls.
+func WithManagedSenderFactoryOwnership(factory func(SenderConfig, CaptureSource) (ManagedSenderRunner, bool, error)) ManagedSenderOption {
+	return func(s *ManagedSender) {
+		if factory != nil {
+			s.newSenderWithOwnership = factory
+			s.newSender = nil
 		}
 	}
 }
@@ -72,10 +87,13 @@ func WithManagedSenderStopTimeout(timeout time.Duration) ManagedSenderOption {
 }
 
 type ManagedSender struct {
-	config      ManagedSenderConfig
-	source      CaptureSource
-	newSender   managedSenderFactory
-	stopTimeout time.Duration
+	config                 ManagedSenderConfig
+	source                 CaptureSource
+	newSender              managedSenderFactory
+	newSenderWithOwnership managedSenderFactoryWithOwnership
+	stopTimeout            time.Duration
+	sourceMu               sync.Mutex
+	sourceOwned            bool
 }
 
 // NewManagedSender creates a sender component without opening capture hardware
@@ -85,7 +103,7 @@ func NewManagedSender(config ManagedSenderConfig, source CaptureSource, options 
 	if source == nil {
 		return nil, errors.New("capture source is required")
 	}
-	s := &ManagedSender{config: config, source: source, newSender: defaultManagedSenderFactory, stopTimeout: defaultManagedSenderStopTimeout}
+	s := &ManagedSender{config: config, source: source, newSender: defaultManagedSenderFactory, newSenderWithOwnership: defaultManagedSenderFactoryWithOwnership, stopTimeout: defaultManagedSenderStopTimeout, sourceOwned: true}
 	for _, option := range options {
 		if option != nil {
 			option(s)
@@ -114,7 +132,7 @@ func (s *ManagedSender) senderConfig() SenderConfig {
 }
 
 func (s *ManagedSender) validate() error {
-	if s == nil || s.source == nil || s.newSender == nil || s.config.Session == "" || s.config.Token == "" || s.config.RTPAddress == "" || s.config.SSRC == 0 {
+	if s == nil || s.source == nil || (s.newSender == nil && s.newSenderWithOwnership == nil) || s.config.Session == "" || s.config.Token == "" || s.config.RTPAddress == "" || s.config.SSRC == 0 {
 		return ErrManagedSenderStart
 	}
 	if s.config.MTU != 0 && s.config.MTU < RTPHeaderSize+3 {
@@ -135,8 +153,45 @@ func (s *ManagedSender) Start(ctx context.Context, _ string) (mediasession.Compo
 	if ctx.Err() != nil || s.validate() != nil {
 		return nil, ErrManagedSenderStart
 	}
-	runner, err := s.newSender(s.senderConfig(), s.source)
+	var runner ManagedSenderRunner
+	var err error
+	ownsSource := false
+	if s.newSenderWithOwnership != nil {
+		runner, ownsSource, err = s.newSenderWithOwnership(s.senderConfig(), s.source)
+	} else {
+		runner, err = s.newSender(s.senderConfig(), s.source)
+		ownsSource = runner != nil && err == nil
+	}
+	// A factory can only transfer source ownership with a concrete runner. An
+	// ownership bit without a runner is malformed and must not suppress the
+	// caller-owned cleanup path. Likewise, a successful runner that declines
+	// ownership cannot be returned as a live handle because no component would
+	// then own the source lifetime.
+	if runner == nil {
+		ownsSource = false
+	} else if err == nil && !ownsSource {
+		err = errors.New("managed sender factory did not transfer source ownership")
+	}
+	if runner != nil && ownsSource {
+		s.sourceMu.Lock()
+		s.sourceOwned = false
+		s.sourceMu.Unlock()
+	}
 	if err != nil || runner == nil {
+		if !ownsSource {
+			source := s.takeSourceCleanup(s.stopTimeout)
+			if runner != nil {
+				runnerHandle := newManagedSenderPartialHandle(runner, s.stopTimeout)
+				if source != nil {
+					return cleanupManagedRunnerAndSource(runnerHandle, source, s.stopTimeout, ErrManagedSenderStart, ErrManagedSenderStop)
+				}
+				return cleanupManagedStartChildrenWithStopError([]mediasession.ComponentHandle{runnerHandle}, s.stopTimeout, ErrManagedSenderStart, ErrManagedSenderStop)
+			}
+			if source != nil {
+				return cleanupManagedStartChildrenWithStopError([]mediasession.ComponentHandle{source}, s.stopTimeout, ErrManagedSenderStart, ErrManagedSenderStop)
+			}
+			return nil, ErrManagedSenderStart
+		}
 		if runner != nil {
 			return cleanupManagedSenderStart(newManagedSenderPartialHandle(runner, s.stopTimeout))
 		}
@@ -170,6 +225,30 @@ func (s *ManagedSender) Start(ctx context.Context, _ string) (mediasession.Compo
 	}
 	h := newManagedSenderHandle(context.Background(), runner, s.stopTimeout)
 	return h, nil
+}
+
+func defaultManagedSenderFactoryWithOwnership(config SenderConfig, source CaptureSource) (ManagedSenderRunner, bool, error) {
+	runner, err := defaultManagedSenderFactory(config, source)
+	return runner, runner != nil && err == nil, err
+}
+
+// takeSourceCleanup transfers an unstarted capture source to a retryable
+// cleanup handle. A successfully constructed runner has already taken source
+// ownership, so this returns nil in that case and prevents a second Close.
+func (s *ManagedSender) takeSourceCleanup(timeout time.Duration) mediasession.ComponentHandle {
+	if s == nil {
+		return nil
+	}
+	s.sourceMu.Lock()
+	if !s.sourceOwned || s.source == nil {
+		s.sourceMu.Unlock()
+		return nil
+	}
+	source := s.source
+	s.source = nil
+	s.sourceOwned = false
+	s.sourceMu.Unlock()
+	return newManagedSourceCleanupHandle(source, timeout)
 }
 
 func newManagedSenderPartialHandle(runner ManagedSenderRunner, timeout time.Duration) *managedSenderHandle {

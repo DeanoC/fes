@@ -49,6 +49,13 @@ type CastController interface {
 	Status(context.Context) cast.Status
 }
 
+// MediaCastController is an optional extension. Legacy cast controllers keep
+// receiving video-only requests through CastController.Start.
+type MediaCastController interface {
+	StartWithMedia(context.Context, string, string, uint64, protocol.CastMediaSet) error
+	CastMediaCapabilities(context.Context) protocol.CastMediaCapabilities
+}
+
 func WithCast(controller CastController) Option {
 	return func(options *serverOptions) { options.cast = controller }
 }

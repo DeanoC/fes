@@ -203,6 +203,14 @@ func (c *compositionTargetCast) CastStart(_ context.Context, session, _ string, 
 	}
 	return host.CastStatus{State: "active", Session: reportSession, Generation: reportGeneration}, nil
 }
+
+func (c *compositionTargetCast) CastStartWithMedia(ctx context.Context, session, token string, generation uint64, media protocol.CastMediaSet) (host.CastStatus, error) {
+	status, err := c.CastStart(ctx, session, token, generation)
+	if err == nil {
+		status.Media = &protocol.CastStatusMedia{Version: media.Version, Video: media.Video, Audio: media.Audio, Ready: true, Capabilities: protocol.CastMediaCapabilities{Version: protocol.CastMediaSetVersion, Video: true, Audio: true}}
+	}
+	return status, err
+}
 func (c *compositionTargetCast) CastStop(ctx context.Context, session string, generation uint64) (host.CastStatus, error) {
 	c.mu.Lock()
 	if c.state == "active" && (c.session != session || c.generation != generation) {
@@ -335,6 +343,253 @@ func TestComposeAPIInjectsEnabledMedia(t *testing.T) {
 	}
 	if got := capture.closeCount(); got != 1 {
 		t.Fatalf("capture close count = %d, want 1", got)
+	}
+}
+
+func TestComposeAPIDoesNotOpenAudioWhenDisabled(t *testing.T) {
+	called := false
+	config := fogcast.Config{Token: "token", Media: fogcast.MediaConfig{Enabled: true, Session: "session", SSRC: 7, RTPListen: "127.0.0.1:5000", RTPDestination: "127.0.0.1:5001", CaptureDevice: "injected", Decoder: "none"}}
+	_, cleanup, err := composeAPI(&hostOnlyCompositionService{}, config, nil,
+		withAudioSourceFactory(func(remotemedia.AudioSourceConfig) (remotemedia.AudioSource, error) {
+			called = true
+			return nil, errors.New("must not be called")
+		}),
+	)
+	if err != nil || cleanup == nil || called {
+		t.Fatalf("composition err=%v cleanup=%v audio=%v", err, cleanup != nil, called)
+	}
+	if err := cleanup(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestComposeAPIOpensConfiguredAudioSourceOnlyAtLaunch(t *testing.T) {
+	called := false
+	config := fogcast.Config{Token: "token", Media: fogcast.MediaConfig{Enabled: true, Session: "session", Generation: 3, SSRC: 7, RTPListen: "127.0.0.1:5000", RTPDestination: "127.0.0.1:5001", CaptureDevice: "injected", Decoder: "none", Audio: compositionAudioConfig()}}
+	handler, cleanup, err := composeAPI(&hostOnlyCompositionService{}, config, nil,
+		withTargetCast(&compositionTargetCast{}),
+		withCaptureSourceFactory(func(fogcast.MediaConfig) (remotemedia.CaptureSource, error) { return &compositionCapture{}, nil }),
+		withAudioSourceFactory(func(remotemedia.AudioSourceConfig) (remotemedia.AudioSource, error) {
+			called = true
+			return &compositionAudioSource{}, nil
+		}),
+		withManagedSenderOptions(remotemedia.WithManagedSenderFactory(func(_ remotemedia.SenderConfig, source remotemedia.CaptureSource) (remotemedia.ManagedSenderRunner, error) {
+			return &compositionRunner{done: make(chan struct{}), source: source}, nil
+		})),
+		withManagedAudioSenderOptions(remotemedia.WithManagedAudioSenderFactory(func(_ remotemedia.AudioSenderConfig, source remotemedia.AudioSource) (remotemedia.ManagedAudioSenderRunner, error) {
+			return &compositionAudioRunner{source: source}, nil
+		})),
+	)
+	if err != nil || cleanup == nil {
+		t.Fatalf("composition err=%v cleanup=%v", err, cleanup != nil)
+	}
+	defer cleanup()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/launch", strings.NewReader(`{"game_id":"game-1"}`))
+	request.Host = "127.0.0.1"
+	response := httptest.NewRecorder()
+	if called {
+		t.Fatal("audio source opened before session launch")
+	}
+	handler.ServeHTTP(response, request)
+	if response.Code >= 500 || !called {
+		t.Fatalf("audio composition = %d %s called=%v", response.Code, response.Body.String(), called)
+	}
+}
+
+func TestComposeAPICreatesFreshAudioSourceForEachLaunch(t *testing.T) {
+	var audioSources []*compositionAudioSource
+	config := fogcast.Config{Token: "token", Media: fogcast.MediaConfig{Enabled: true, Session: "session", Generation: 3, SSRC: 7, RTPListen: "127.0.0.1:5000", RTPDestination: "127.0.0.1:5001", CaptureDevice: "injected", Decoder: "none", Audio: compositionAudioConfig()}}
+	handler, cleanup, err := composeAPI(&hostOnlyCompositionService{}, config, nil,
+		withTargetCast(&compositionTargetCast{}),
+		withCaptureSourceFactory(func(fogcast.MediaConfig) (remotemedia.CaptureSource, error) { return &compositionCapture{}, nil }),
+		withAudioSourceFactory(func(remotemedia.AudioSourceConfig) (remotemedia.AudioSource, error) {
+			source := &compositionAudioSource{}
+			audioSources = append(audioSources, source)
+			return source, nil
+		}),
+		withManagedSenderOptions(remotemedia.WithManagedSenderFactory(func(_ remotemedia.SenderConfig, source remotemedia.CaptureSource) (remotemedia.ManagedSenderRunner, error) {
+			return &compositionRunner{done: make(chan struct{}), source: source}, nil
+		})),
+		withManagedAudioSenderOptions(remotemedia.WithManagedAudioSenderFactory(func(_ remotemedia.AudioSenderConfig, source remotemedia.AudioSource) (remotemedia.ManagedAudioSenderRunner, error) {
+			return &compositionAudioRunner{source: source}, nil
+		})),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	for index := 0; index < 2; index++ {
+		request := httptest.NewRequest(http.MethodPost, "/api/v1/session/launch", strings.NewReader(`{"game_id":"game-1"}`))
+		request.Host = "127.0.0.1"
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code >= 500 {
+			t.Fatalf("launch %d = %d %s", index+1, response.Code, response.Body.String())
+		}
+	}
+	if len(audioSources) != 2 || audioSources[0] == audioSources[1] {
+		t.Fatalf("audio sources = %#v, want two distinct sources", audioSources)
+	}
+	audioSources[0].mu.Lock()
+	firstClosed := audioSources[0].closed
+	audioSources[0].mu.Unlock()
+	if firstClosed != 1 {
+		t.Fatalf("first audio source close count = %d, want 1", firstClosed)
+	}
+}
+
+func compositionAudioConfig() remotemedia.AudioConfig {
+	return remotemedia.AudioConfig{
+		Enabled:   true,
+		Source:    remotemedia.AudioSourceConfig{Enabled: true, Kind: remotemedia.AudioSourceShadowCastUAC, SampleRate: remotemedia.AudioSampleRate, Channels: 1, FrameSamples: remotemedia.DefaultAudioFrameSamples},
+		Transport: remotemedia.AudioTransportConfig{RTPDestination: "127.0.0.1:5004", ControlAddress: "127.0.0.1:5005", SSRC: 8, MTU: 1200, FormatCapabilityVersion: 1},
+	}
+}
+
+type compositionAudioSource struct {
+	mu     sync.Mutex
+	closed int
+}
+
+func (*compositionAudioSource) Start() error { return nil }
+func (*compositionAudioSource) Next(context.Context) (remotemedia.AudioSample, error) {
+	return remotemedia.AudioSample{}, errors.New("not used by composition")
+}
+func (*compositionAudioSource) Stats() remotemedia.AudioStats { return remotemedia.AudioStats{} }
+func (s *compositionAudioSource) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.closed++
+	return nil
+}
+
+type compositionAudioRunner struct{ source remotemedia.AudioSource }
+
+func (r *compositionAudioRunner) Run(ctx context.Context) error { <-ctx.Done(); return ctx.Err() }
+func (r *compositionAudioRunner) Close() error                  { return r.source.Close() }
+
+func TestManagedSenderComponentDoesNotDoubleCloseTransferredSources(t *testing.T) {
+	capture := &compositionCapture{}
+	audio := &compositionAudioSource{}
+	component := &managedSenderComponent{
+		media: fogcast.MediaConfig{
+			Enabled: true, Session: "session", Generation: 3, SSRC: 7,
+			RTPDestination: "127.0.0.1:5001", ControlAddress: "127.0.0.1:5002",
+			Audio: compositionAudioConfig(),
+		},
+		token: "token",
+		newSources: func(fogcast.MediaConfig) (remotemedia.CaptureSource, remotemedia.AudioSource, error) {
+			return capture, audio, nil
+		},
+		options: []remotemedia.ManagedSenderOption{
+			remotemedia.WithManagedSenderFactory(func(_ remotemedia.SenderConfig, source remotemedia.CaptureSource) (remotemedia.ManagedSenderRunner, error) {
+				return &compositionRunner{done: make(chan struct{}), source: source}, nil
+			}),
+		},
+		audioOptions: []remotemedia.ManagedAudioSenderOption{
+			remotemedia.WithManagedAudioSenderFactory(func(remotemedia.AudioSenderConfig, remotemedia.AudioSource) (remotemedia.ManagedAudioSenderRunner, error) {
+				return nil, errors.New("audio startup failed")
+			}),
+		},
+	}
+	handle, err := component.Start(context.Background(), "game")
+	if err == nil || handle != nil {
+		t.Fatalf("Start = handle:%v err:%v, want fully rolled back failure", handle != nil, err)
+	}
+	if got := capture.closeCount(); got != 1 {
+		t.Fatalf("capture close count = %d, want 1", got)
+	}
+	audio.mu.Lock()
+	got := audio.closed
+	audio.mu.Unlock()
+	if got != 1 {
+		t.Fatalf("audio close count = %d, want 1", got)
+	}
+}
+
+type blockingCompositionAudioSource struct {
+	release chan struct{}
+	closed  chan struct{}
+}
+
+func (*blockingCompositionAudioSource) Start() error { return nil }
+func (*blockingCompositionAudioSource) Next(context.Context) (remotemedia.AudioSample, error) {
+	return remotemedia.AudioSample{}, context.Canceled
+}
+func (*blockingCompositionAudioSource) Stats() remotemedia.AudioStats {
+	return remotemedia.AudioStats{}
+}
+func (s *blockingCompositionAudioSource) Close() error {
+	<-s.release
+	close(s.closed)
+	return nil
+}
+
+func TestMediaSourcesCleanupClosesCaptureWhileAudioCloseBlocks(t *testing.T) {
+	audio := &blockingCompositionAudioSource{release: make(chan struct{}), closed: make(chan struct{})}
+	capture := &compositionCapture{}
+	handle := &mediaSourcesCleanupHandle{
+		audio:   &mediaSourceCleanupSlot{source: audio},
+		capture: &mediaSourceCleanupSlot{source: capture},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if err := handle.Stop(ctx); err == nil {
+		t.Fatal("blocked audio cleanup unexpectedly succeeded")
+	}
+	if got := capture.closeCount(); got != 1 {
+		t.Fatalf("capture close count = %d, want 1 despite blocked audio", got)
+	}
+	close(audio.release)
+	select {
+	case <-audio.closed:
+	case <-time.After(time.Second):
+		t.Fatal("blocked audio close did not finish after release")
+	}
+}
+
+type legacyCompositionTarget struct{ target compositionTargetCast }
+
+func (t *legacyCompositionTarget) CastStart(ctx context.Context, session, token string, generation uint64) (host.CastStatus, error) {
+	return t.target.CastStart(ctx, session, token, generation)
+}
+func (t *legacyCompositionTarget) CastStop(ctx context.Context, session string, generation uint64) (host.CastStatus, error) {
+	return t.target.CastStop(ctx, session, generation)
+}
+func (t *legacyCompositionTarget) CastStatus(ctx context.Context) (host.CastStatus, error) {
+	return t.target.CastStatus(ctx)
+}
+
+func TestComposeAPIRejectsAudioAdmissionBeforeOpeningSourcesOnLegacyTarget(t *testing.T) {
+	opened := false
+	config := fogcast.Config{Token: "token", Media: fogcast.MediaConfig{
+		Enabled: true, Session: "session", Generation: 3, SSRC: 7,
+		RTPListen: "127.0.0.1:5000", RTPDestination: "127.0.0.1:5001", Audio: compositionAudioConfig(),
+	}}
+	handler, cleanup, err := composeAPI(&hostOnlyCompositionService{}, config, nil,
+		withTargetCast(&legacyCompositionTarget{}),
+		withCaptureSourceFactory(func(fogcast.MediaConfig) (remotemedia.CaptureSource, error) {
+			opened = true
+			return &compositionCapture{}, nil
+		}),
+		withAudioSourceFactory(func(remotemedia.AudioSourceConfig) (remotemedia.AudioSource, error) {
+			opened = true
+			return &compositionAudioSource{}, nil
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/launch", strings.NewReader(`{"game_id":"game-1"}`))
+	request.Host = "127.0.0.1"
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code < 400 {
+		t.Fatalf("legacy audio admission response = %d %s, want failure", response.Code, response.Body.String())
+	}
+	if opened {
+		t.Fatal("source factory opened before legacy target admission rejection")
 	}
 }
 
@@ -645,8 +900,8 @@ func TestManagedSenderComponentRetainsFailedCallerOwnedCaptureCleanup(t *testing
 			Bitrate: 1_000_000, GOP: 30, MTU: 1200,
 		},
 		token: "token",
-		newCapture: func(fogcast.MediaConfig) (remotemedia.CaptureSource, error) {
-			return capture, nil
+		newSources: func(fogcast.MediaConfig) (remotemedia.CaptureSource, remotemedia.AudioSource, error) {
+			return capture, nil, nil
 		},
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -671,13 +926,20 @@ func TestManagedSenderComponentPreservesCaptureAuthorizationError(t *testing.T) 
 	component := &managedSenderComponent{
 		media: fogcast.MediaConfig{Session: "session", Generation: 1, SSRC: 7},
 		token: "token",
-		newCapture: func(fogcast.MediaConfig) (remotemedia.CaptureSource, error) {
-			return nil, captureErr
+		newSources: func(fogcast.MediaConfig) (remotemedia.CaptureSource, remotemedia.AudioSource, error) {
+			return nil, nil, captureErr
 		},
 	}
 	_, err := component.Start(context.Background(), "game")
 	if err == nil || !errors.Is(err, captureErr) || !strings.Contains(err.Error(), "Camera authorization") {
 		t.Fatalf("Start error = %v, want wrapped authorization error", err)
+	}
+}
+
+func TestManagedSenderComponentRejectsMissingSourceFactory(t *testing.T) {
+	component := &managedSenderComponent{}
+	if _, err := component.Start(context.Background(), "game"); err == nil {
+		t.Fatal("missing media source factory was accepted")
 	}
 }
 

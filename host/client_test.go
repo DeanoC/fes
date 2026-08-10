@@ -149,6 +149,13 @@ func TestClientCastLifecycleUsesAuthenticatedEndpoints(t *testing.T) {
 			if r.Method != http.MethodPost {
 				t.Errorf("start method = %s", r.Method)
 			}
+			var request map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Errorf("decode start: %v", err)
+			}
+			if _, ok := request["media"]; ok {
+				t.Error("legacy CastStart unexpectedly sent media")
+			}
 			_, _ = io.WriteString(w, `{"state":"active"}`)
 		case "/v1/cast/stop":
 			if r.Method != http.MethodPost {
@@ -167,5 +174,49 @@ func TestClientCastLifecycleUsesAuthenticatedEndpoints(t *testing.T) {
 	}
 	if status, err := client.CastStop(context.Background(), "session", 9); err != nil || status.State != "idle" {
 		t.Fatalf("cast stop = %#v, %v", status, err)
+	}
+}
+
+func TestClientCastStartWithMediaSendsCanonicalDescriptor(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			Media protocol.CastMediaSet `json:"media"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatal(err)
+		}
+		if request.Media != (protocol.CastMediaSet{Version: protocol.CastMediaSetVersion, Video: true, Audio: true}) {
+			t.Fatalf("media = %#v", request.Media)
+		}
+		_, _ = io.WriteString(w, `{"state":"active","media":{"version":1,"video":true,"audio":true,"ready":true,"capabilities":{"version":1,"video":true,"audio":true}}}`)
+	}))
+	defer server.Close()
+	baseURL, _ := url.Parse(server.URL)
+	status, err := host.NewClient(baseURL, "test-token", server.Client()).CastStartWithMedia(context.Background(), "session", "bridge-token", 9, protocol.CastMediaSet{Version: protocol.CastMediaSetVersion, Video: true, Audio: true})
+	if err != nil || status.Media == nil || !status.Media.Audio || !status.Media.Ready {
+		t.Fatalf("status = %#v, err = %v", status, err)
+	}
+}
+
+func TestClientCastStartWithMediaStopsUnacknowledgedTarget(t *testing.T) {
+	t.Parallel()
+	stops := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/cast/start":
+			_, _ = io.WriteString(w, `{"state":"active"}`)
+		case "/v1/cast/stop":
+			stops++
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	baseURL, _ := url.Parse(server.URL)
+	_, err := host.NewClient(baseURL, "test-token", server.Client()).CastStartWithMedia(context.Background(), "session", "bridge-token", 9, protocol.CastMediaSet{Version: protocol.CastMediaSetVersion, Video: true, Audio: true})
+	if err == nil || stops != 1 {
+		t.Fatalf("err=%v stops=%d", err, stops)
 	}
 }

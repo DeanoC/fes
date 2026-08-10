@@ -257,8 +257,8 @@ func TestManagedSenderStartFailureIsSanitizedAndCleansSource(t *testing.T) {
 	if err == nil || !errors.Is(err, ErrManagedSenderStart) || strings.Contains(err.Error(), "top-secret") || strings.Contains(err.Error(), "/Users/private") {
 		t.Fatalf("unsafe startup error: %v", err)
 	}
-	if got := source.closeCount(); got != 0 {
-		t.Fatalf("source close count = %d, want 0", got)
+	if got := source.closeCount(); got != 1 {
+		t.Fatalf("source close count = %d, want 1", got)
 	}
 }
 
@@ -319,8 +319,152 @@ func TestManagedSenderStartClosesPartialRunnerButNotSourceOnFactoryError(t *test
 	case <-time.After(time.Second):
 		t.Fatal("partial runner was not closed")
 	}
+	if got := source.closeCount(); got != 1 {
+		t.Fatalf("source close count = %d, want 1", got)
+	}
+}
+
+type managedOrderedCaptureSource struct {
+	mu     sync.Mutex
+	events *managedMediaEventLog
+	closed bool
+	closes int
+}
+
+func (*managedOrderedCaptureSource) Start() error { return nil }
+func (*managedOrderedCaptureSource) Next(context.Context) (EncodedSample, error) {
+	return EncodedSample{}, context.Canceled
+}
+func (*managedOrderedCaptureSource) Stats() CaptureStats { return CaptureStats{} }
+func (s *managedOrderedCaptureSource) Close() error {
+	s.mu.Lock()
+	s.closes++
+	s.closed = true
+	s.mu.Unlock()
+	s.events.add("source:close")
+	return nil
+}
+
+func (s *managedOrderedCaptureSource) closeCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.closes
+}
+
+func (s *managedOrderedCaptureSource) isClosed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.closed
+}
+
+type managedOrderedRunner struct {
+	events *managedMediaEventLog
+}
+
+func (*managedOrderedRunner) Run(ctx context.Context) error { <-ctx.Done(); return ctx.Err() }
+func (r *managedOrderedRunner) Close() error {
+	r.events.add("runner:close")
+	return nil
+}
+
+func TestManagedSenderLegacyFactoryFailureStopsRunnerBeforeSource(t *testing.T) {
+	events := &managedMediaEventLog{}
+	component, err := NewManagedSender(managedSenderConfig(), &managedOrderedCaptureSource{events: events},
+		WithManagedSenderFactory(func(SenderConfig, CaptureSource) (ManagedSenderRunner, error) {
+			return &managedOrderedRunner{events: events}, errors.New("partial construction")
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if handle, startErr := component.Start(context.Background(), "game"); startErr == nil || handle != nil {
+		t.Fatalf("Start = %v, %v; want fully cleaned failure", handle, startErr)
+	}
+	events.mu.Lock()
+	got := append([]string(nil), events.events...)
+	events.mu.Unlock()
+	want := []string{"runner:close", "source:close"}
+	if len(got) != len(want) {
+		t.Fatalf("cleanup events = %v, want %v", got, want)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("cleanup events = %v, want %v", got, want)
+		}
+	}
+}
+
+func TestManagedSenderOwnershipFactoryNormalizesMalformedResults(t *testing.T) {
+	for name, factory := range map[string]managedSenderFactoryWithOwnership{
+		"nil runner claims ownership": func(SenderConfig, CaptureSource) (ManagedSenderRunner, bool, error) {
+			return nil, true, errors.New("construction failed")
+		},
+		"successful runner declines ownership": func(SenderConfig, CaptureSource) (ManagedSenderRunner, bool, error) {
+			return &managedOrderedRunner{}, false, nil
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			source := &managedSenderFakeSource{}
+			component, err := NewManagedSender(managedSenderConfig(), source, WithManagedSenderFactoryOwnership(factory))
+			if err != nil {
+				t.Fatal(err)
+			}
+			handle, startErr := component.Start(context.Background(), "game")
+			if startErr == nil || !errors.Is(startErr, ErrManagedSenderStart) {
+				t.Fatalf("Start = %v, %v; want managed startup failure", handle, startErr)
+			}
+			if handle != nil {
+				if err := handle.Stop(context.Background()); err != nil {
+					t.Fatalf("partial cleanup: %v", err)
+				}
+			}
+			if got := source.closeCount(); got != 1 {
+				t.Fatalf("source close count = %d, want 1", got)
+			}
+		})
+	}
+}
+
+type managedSourceDependentRunner struct {
+	source   *managedOrderedCaptureSource
+	failures int
+}
+
+func (*managedSourceDependentRunner) Run(ctx context.Context) error { <-ctx.Done(); return ctx.Err() }
+func (r *managedSourceDependentRunner) Close() error {
+	if r.source.isClosed() {
+		return errors.New("source was closed before runner cleanup")
+	}
+	if r.failures > 0 {
+		r.failures--
+		return errors.New("runner cleanup failed")
+	}
+	return nil
+}
+
+func TestManagedSenderPartialRunnerFailureRetainsSourceForRetry(t *testing.T) {
+	source := &managedOrderedCaptureSource{}
+	runner := &managedSourceDependentRunner{source: source, failures: 1}
+	component, err := NewManagedSender(managedSenderConfig(), source,
+		WithManagedSenderFactory(func(SenderConfig, CaptureSource) (ManagedSenderRunner, error) {
+			return runner, errors.New("partial construction")
+		}), WithManagedSenderStopTimeout(100*time.Millisecond),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle, startErr := component.Start(context.Background(), "game")
+	if startErr == nil || handle == nil {
+		t.Fatalf("Start = %v, %v; want retryable cleanup", handle, startErr)
+	}
 	if got := source.closeCount(); got != 0 {
-		t.Fatalf("source close count = %d, want 0", got)
+		t.Fatalf("source close count after failed runner cleanup = %d, want 0", got)
+	}
+	if err := handle.Stop(context.Background()); err != nil {
+		t.Fatalf("retry cleanup: %v", err)
+	}
+	if got := source.closeCount(); got != 1 {
+		t.Fatalf("source close count after retry = %d, want 1", got)
 	}
 }
 
