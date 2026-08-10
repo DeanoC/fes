@@ -9,6 +9,7 @@ const {
   BrowserPage,
   FixtureServer,
   fixture,
+  waitForProcessGroupQuiescence,
 } = require('./ui_browser_harness.js');
 
 const REQUIRED = process.env.FOGCAST_BROWSER_REQUIRED === '1';
@@ -128,6 +129,43 @@ function requestWillBeSent(page, requestId, url) {
 
 function responseExtraInfo(page, requestId, statusCode) {
   networkEvent(page, 'Network.responseReceivedExtraInfo', { requestId, statusCode });
+}
+
+if (process.env.FOGCAST_BROWSER_TEARDOWN_TESTS === '1') {
+test('Chrome teardown waits for detached helpers after the root child exits', { timeout: 5_000 }, async () => {
+  const helper = require('node:child_process').spawn(
+    process.env.SHELL || '/bin/sh',
+    ['-c', 'sleep 0.25 & exit 0'],
+    { detached: true, stdio: 'ignore' },
+  );
+  await new Promise(resolve => helper.once('exit', resolve));
+  assert.equal(await waitForProcessGroupQuiescence(helper.pid, 2_000), true);
+});
+
+test('harness.close removes only the profile root it created after root exit', { timeout: 30_000 }, async t => {
+  const harness = new BrowserHarness();
+  let profileRoot = null;
+  try {
+    try {
+      await harness.start();
+    } catch (error) {
+      if (!REQUIRED && error && error.preReadiness === true) {
+        t.skip(error.reason);
+        return;
+      }
+      throw error;
+    }
+    profileRoot = harness.chrome.tempRoot;
+    harness.chrome.child.kill('SIGTERM');
+    await harness.chrome.exitPromise;
+    harness.page = null;
+    harness.targetId = null;
+  } finally {
+    await harness.close();
+  }
+  assert.ok(profileRoot);
+  assert.equal(require('node:fs').existsSync(profileRoot), false);
+});
 }
 
 if (process.env.FOGCAST_BROWSER_EVENT_ORDER_TESTS === '1') {

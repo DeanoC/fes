@@ -143,6 +143,25 @@ function wait(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function waitForProcessGroupQuiescence(pid, timeoutMs) {
+  if (process.platform === 'win32' || !pid) return true;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      process.kill(-pid, 0);
+    } catch (error) {
+      if (error.code === 'ESRCH') return true;
+    }
+    await wait(SUITE_POLL_MS);
+  }
+  try {
+    process.kill(-pid, 0);
+    return false;
+  } catch (error) {
+    return error.code === 'ESRCH';
+  }
+}
+
 function withTimeout(promise, timeoutMs, message, code = 'TIMEOUT') {
   let timer;
   const timeout = new Promise((_, reject) => {
@@ -677,6 +696,7 @@ class ChromeProcess {
 
   async terminate() {
     const child = this.child;
+    const childPid = child?.pid;
     if (child && child.exitCode === null && child.signalCode === null) {
       const closePromise = this.exitPromise;
       if (this.ready && this.connection && !this.connection.closed) {
@@ -703,6 +723,19 @@ class ChromeProcess {
         }
         await withTimeout(closePromise, 2_000, 'Chrome KILL cleanup timed out', 'CHROME_KILL_TIMEOUT');
       });
+    }
+    if (childPid && process.platform !== 'win32') {
+      const quiesced = await waitForProcessGroupQuiescence(childPid, 2_000);
+      if (!quiesced) {
+        try {
+          process.kill(-childPid, 'SIGKILL');
+        } catch (_) {
+          // The process group may have exited between the probe and the signal.
+        }
+        if (!await waitForProcessGroupQuiescence(childPid, 2_000)) {
+          throw new Error('Chrome process group remained alive after bounded cleanup');
+        }
+      }
     }
     this.connection?.close();
     this.connection = null;
@@ -1327,4 +1360,5 @@ module.exports = {
   FixtureServer,
   fixture,
   resolveChrome,
+  waitForProcessGroupQuiescence,
 };
