@@ -34,10 +34,18 @@ typedef struct {
     char *runtime_error;
 } MRNativeStats;
 
+enum {
+    MR_CAPTURE_AUTHORIZATION_NOT_DETERMINED = 0,
+    MR_CAPTURE_AUTHORIZATION_RESTRICTED = 1,
+    MR_CAPTURE_AUTHORIZATION_DENIED = 2,
+    MR_CAPTURE_AUTHORIZATION_AUTHORIZED = 3,
+};
+
 void *mr_capture_open(const char *device_identifier, int width, int height,
                       int fps_numerator, int fps_denominator, int bitrate,
                       int gop, char **error_out);
 int mr_capture_start(void *handle, char **error_out);
+int mr_capture_wait_for_frame(void *handle, int timeout_ms, char **error_out);
 int mr_capture_next(void *handle, MRNativeSample *sample, int timeout_ms,
                     char **error_out);
 void mr_capture_sample_free(MRNativeSample *sample);
@@ -45,5 +53,6 @@ void mr_capture_stats(void *handle, MRNativeStats *stats);
 void mr_capture_close(void *handle);
 char *mr_capture_list_devices(void);
 void mr_capture_free_string(char *value);
+int mr_capture_video_authorization_status(void);
 
 #endif

@@ -5,6 +5,7 @@
 #import <VideoToolbox/VideoToolbox.h>
 #include <mach/mach_time.h>
 #include <math.h>
+#include <errno.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
@@ -102,6 +103,20 @@ static NSArray<AVCaptureDevice *> *mr_video_devices(void) {
                                                                   mediaType:AVMediaTypeVideo
                                                                    position:AVCaptureDevicePositionUnspecified];
     return discovery.devices;
+}
+
+int mr_capture_video_authorization_status(void) {
+    switch ([AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo]) {
+        case AVAuthorizationStatusRestricted:
+            return MR_CAPTURE_AUTHORIZATION_RESTRICTED;
+        case AVAuthorizationStatusDenied:
+            return MR_CAPTURE_AUTHORIZATION_DENIED;
+        case AVAuthorizationStatusAuthorized:
+            return MR_CAPTURE_AUTHORIZATION_AUTHORIZED;
+        case AVAuthorizationStatusNotDetermined:
+        default:
+            return MR_CAPTURE_AUTHORIZATION_NOT_DETERMINED;
+    }
 }
 
 static char *mr_error(NSString *message) {
@@ -587,6 +602,44 @@ int mr_capture_start(void *handle, char **error_out) {
     pthread_mutex_unlock(&capture->mutex);
     if (!session.isRunning && error_out != NULL) *error_out = mr_error(@"capture session did not start");
     return session.isRunning ? 0 : -1;
+}
+
+int mr_capture_wait_for_frame(void *handle, int timeout_ms, char **error_out) {
+    if (error_out != NULL) *error_out = NULL;
+    MRNativeCapture *capture = (MRNativeCapture *)handle;
+    if (capture == NULL) {
+        if (error_out != NULL) *error_out = mr_error(@"capture handle is not initialized");
+        return -1;
+    }
+    pthread_mutex_lock(&capture->mutex);
+    if (!capture->has_sample && capture->runtime_error == NULL && timeout_ms > 0) {
+        struct timespec deadline;
+        clock_gettime(CLOCK_REALTIME, &deadline);
+        deadline.tv_sec += timeout_ms / 1000;
+        deadline.tv_nsec += (timeout_ms % 1000) * 1000000;
+        if (deadline.tv_nsec >= 1000000000) { deadline.tv_sec++; deadline.tv_nsec -= 1000000000; }
+        while (!capture->has_sample && capture->runtime_error == NULL) {
+            int wait_result = pthread_cond_timedwait(&capture->condition, &capture->mutex, &deadline);
+            if (wait_result == ETIMEDOUT) break;
+            if (wait_result != 0) {
+                if (error_out != NULL) *error_out = mr_error(@"waiting for the first encoded video frame failed");
+                pthread_mutex_unlock(&capture->mutex);
+                return -1;
+            }
+        }
+    }
+    if (capture->runtime_error != NULL) {
+        if (error_out != NULL) *error_out = strdup(capture->runtime_error);
+        pthread_mutex_unlock(&capture->mutex);
+        return -1;
+    }
+    if (!capture->has_sample) {
+        if (error_out != NULL) *error_out = mr_error(@"no encoded video frame arrived before the startup timeout; verify the authorized FogCast helper and UVC ownership");
+        pthread_mutex_unlock(&capture->mutex);
+        return -1;
+    }
+    pthread_mutex_unlock(&capture->mutex);
+    return 0;
 }
 
 int mr_capture_next(void *handle, MRNativeSample *sample, int timeout_ms, char **error_out) {

@@ -26,7 +26,33 @@ type NativeCapture struct {
 	closed bool
 }
 
+const nativeCaptureStartupTimeout = 2 * time.Second
+
+func nativeCaptureAuthorizationStatus() (CaptureAuthorizationStatus, error) {
+	status := CaptureAuthorizationStatus(C.mr_capture_video_authorization_status())
+	switch status {
+	case captureAuthorizationNotDetermined,
+		captureAuthorizationRestricted,
+		captureAuthorizationDenied,
+		captureAuthorizationAuthorized:
+		return status, nil
+	default:
+		return status, fmt.Errorf("AVFoundation returned unknown Camera authorization status %d", status)
+	}
+}
+
+func requireNativeCaptureAuthorization() error {
+	status, err := nativeCaptureAuthorizationStatus()
+	if err != nil {
+		return err
+	}
+	return captureAuthorizationError(status)
+}
+
 func ListCaptureDevices() ([]CaptureDevice, error) {
+	if err := requireNativeCaptureAuthorization(); err != nil {
+		return nil, err
+	}
 	value := C.mr_capture_list_devices()
 	if value == nil {
 		return nil, errors.New("AVFoundation did not return a capture-device list")
@@ -42,6 +68,11 @@ func ListCaptureDevices() ([]CaptureDevice, error) {
 func OpenNativeCapture(config CaptureConfig) (*NativeCapture, error) {
 	if err := validateCaptureConfig(config); err != nil {
 		return nil, err
+	}
+	if !IsScreenCaptureDevice(config.Device) {
+		if err := requireNativeCaptureAuthorization(); err != nil {
+			return nil, err
+		}
 	}
 	device := C.CString(config.Device)
 	defer C.free(unsafe.Pointer(device))
@@ -68,6 +99,9 @@ func (c *NativeCapture) Start() error {
 	}
 	var errorOut *C.char
 	if C.mr_capture_start(c.handle, &errorOut) != 0 {
+		return nativeError(errorOut, "start physical HDMI capture")
+	}
+	if C.mr_capture_wait_for_frame(c.handle, C.int(nativeCaptureStartupTimeout/time.Millisecond), &errorOut) != 0 {
 		return nativeError(errorOut, "start physical HDMI capture")
 	}
 	return nil
