@@ -666,6 +666,21 @@ func TestManagedSenderComponentRetainsFailedCallerOwnedCaptureCleanup(t *testing
 	}
 }
 
+func TestManagedSenderComponentPreservesCaptureAuthorizationError(t *testing.T) {
+	captureErr := errors.New("AVFoundation Camera authorization is not determined; grant Camera access to the FogCast helper")
+	component := &managedSenderComponent{
+		media: fogcast.MediaConfig{Session: "session", Generation: 1, SSRC: 7},
+		token: "token",
+		newCapture: func(fogcast.MediaConfig) (remotemedia.CaptureSource, error) {
+			return nil, captureErr
+		},
+	}
+	_, err := component.Start(context.Background(), "game")
+	if err == nil || !errors.Is(err, captureErr) || !strings.Contains(err.Error(), "Camera authorization") {
+		t.Fatalf("Start error = %v, want wrapped authorization error", err)
+	}
+}
+
 func TestCompositionPartialLocalHandleSurvivesSuccessfulTargetRollback(t *testing.T) {
 	local := &compositionDirectMediaHandle{done: make(chan struct{})}
 	target := &compositionTargetCast{}

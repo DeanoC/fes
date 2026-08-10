@@ -187,6 +187,9 @@ func (s *managedSenderComponent) Start(ctx context.Context, gameID string) (medi
 		if source != nil {
 			return cleanupUnownedCapture(source, "media capture could not be started")
 		}
+		if err != nil {
+			return nil, fmt.Errorf("media capture could not be started: %w", err)
+		}
 		return nil, errors.New("media capture could not be started")
 	}
 	sender, err := remotemedia.NewManagedSender(remotemedia.ManagedSenderConfig{

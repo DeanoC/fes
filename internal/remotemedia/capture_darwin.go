@@ -102,7 +102,11 @@ func (c *NativeCapture) Start() error {
 		return nativeError(errorOut, "start physical HDMI capture")
 	}
 	if C.mr_capture_wait_for_frame(c.handle, C.int(nativeCaptureStartupTimeout/time.Millisecond), &errorOut) != 0 {
-		return nativeError(errorOut, "start physical HDMI capture")
+		err := nativeError(errorOut, "start physical HDMI capture")
+		C.mr_capture_close(c.handle)
+		c.handle = nil
+		c.closed = true
+		return err
 	}
 	return nil
 }
