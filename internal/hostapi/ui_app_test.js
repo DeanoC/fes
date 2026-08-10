@@ -9,6 +9,10 @@ const {
   gamesPath,
   gameDetailPath,
   launchRequest,
+  sessionRequest,
+  stopRequest,
+  parseSession,
+  sessionViewState,
   launchStatus,
   isSelectedGame,
   detailHeading,
@@ -50,6 +54,8 @@ class BrowserTestElement {
     this.textContent = '';
     this.value = '';
     this.disabled = false;
+    this.hidden = false;
+    this.focused = false;
   }
 
   appendChild(child) {
@@ -65,6 +71,10 @@ class BrowserTestElement {
     this.attributes.set(name, String(value));
   }
 
+  removeAttribute(name) {
+    this.attributes.delete(name);
+  }
+
   addEventListener(name, listener) {
     this.listeners.set(name, listener);
   }
@@ -73,13 +83,18 @@ class BrowserTestElement {
     const listener = this.listeners.get('click');
     return listener ? listener({ currentTarget: this }) : undefined;
   }
+
+  focus() {
+    this.focused = true;
+  }
 }
 
 function browserDocument() {
   const ids = [
     'health', 'game-search', 'refresh-catalog', 'catalog', 'catalog-status',
     'catalog-list', 'catalog-actions', 'detail', 'detail-content',
-    'launch-actions', 'launch-status',
+    'launch-actions', 'launch-status', 'session-panel', 'session-status',
+    'session-details', 'session-actions', 'session-message',
   ];
   const nodes = new Map(ids.map(id => [id, new BrowserTestElement('div', id)]));
   return {
@@ -98,16 +113,25 @@ function browserText(node) {
 }
 
 async function settleBrowser() {
-  await new Promise(resolve => setImmediate(resolve));
-  await Promise.resolve();
+  for (let index = 0; index < 4; index += 1) {
+    await new Promise(resolve => setImmediate(resolve));
+    await Promise.resolve();
+  }
 }
 
-async function runBrowserApp({ adapter, responses }) {
+async function runBrowserApp({ adapter, responses, sessionResponses }) {
   const document = browserDocument();
   const calls = [];
+  const sessionCalls = [];
+  const queuedSessionResponses = (sessionResponses || [
+    jsonResponse({ state: 'idle' }),
+    jsonResponse({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' }),
+  ]).slice();
   const fetch = async (requestPath, options) => {
-    calls.push({ path: requestPath, options });
-    const response = responses.shift();
+    const isSession = requestPath === '/api/v1/session';
+    const destination = isSession ? sessionCalls : calls;
+    destination.push({ path: requestPath, options });
+    const response = (isSession ? queuedSessionResponses : responses).shift();
     if (!response) throw new Error(`missing browser fixture response for ${requestPath}`);
     return response;
   };
@@ -115,7 +139,7 @@ async function runBrowserApp({ adapter, responses }) {
   if (adapter !== undefined) context.FogCastMetadata = adapter;
   vm.runInNewContext(readAsset('ui_app.js'), context, { filename: 'ui_app.js' });
   await settleBrowser();
-  return { document, calls };
+  return { document, calls, sessionCalls };
 }
 
 function malformedJSONResponse(status = 200) {
@@ -613,6 +637,7 @@ test('browser render paths keep cards, detail, and launch usable across metadata
       ],
     });
     const catalogList = document.nodes.get('catalog-list');
+    assert.equal(document.nodes.get('session-status').textContent, 'No active session.', `${testCase.name} session startup should settle before interaction`);
     assert.equal(catalogList.children.length, 3, `${testCase.name} should render all cards`);
     const firstCard = catalogList.children[0];
     assert.equal(firstCard.tagName, 'BUTTON', `${testCase.name} card should be actionable`);
@@ -716,4 +741,328 @@ test('metadataFor receives one detached immutable projection and feeds one store
 
 test('toLauncherGame fallback receives one detached immutable projection and feeds one stored catalog/detail view', async () => {
   await runImmutableAdapterCase('toLauncherGame');
+});
+
+function sessionFixture(overrides = {}) {
+  return {
+    state: 'idle',
+    ...overrides,
+  };
+}
+
+function inputFixture() {
+  return {
+    state: 'attached',
+    ready: true,
+    metrics: {
+      frames_sent: 4,
+      state_resyncs: 1,
+      sequence_gaps: 0,
+      releases: 2,
+      capture_to_bridge_p95_ms: 1.25,
+      bridge_to_uinput_p95_ms: 2.5,
+      rtt_ms: 3.75,
+      bridge_to_uinput_measurable: false,
+      shutdown_reason: 'operator_stop',
+    },
+  };
+}
+
+function routedFetch(routes) {
+  const calls = [];
+  const fetchImpl = async (requestPath, options) => {
+    calls.push({ path: requestPath, options });
+    const queue = routes[requestPath];
+    if (!queue || queue.length === 0) throw new Error(`missing routed response for ${requestPath}`);
+    const next = queue.shift();
+    return typeof next === 'function' ? next() : next;
+  };
+  return { calls, fetchImpl };
+}
+
+test('session and stop requests preserve the host wire contract', () => {
+  assert.deepEqual(sessionRequest(), {
+    path: '/api/v1/session',
+    options: { method: 'GET' },
+  });
+  assert.deepEqual(stopRequest(), {
+    path: '/api/v1/session/stop',
+    options: { method: 'POST' },
+  });
+  assert.equal(stopRequest().options.body, undefined);
+  assert.equal(stopRequest().options.headers, undefined);
+});
+
+test('session parser accepts privacy-safe optional fields and rejects malformed identity or metrics', () => {
+  const accepted = parseSession(sessionFixture({
+    state: 'active',
+    game_id: 'megadrive-sonic-test',
+    system: 'megadrive',
+    execution: 'fpga_native',
+    media: 'active',
+    progress: { stage: 'ready', message: 'session is ready' },
+    input: inputFixture(),
+  }));
+  assert.equal(Object.isFrozen(accepted), true);
+  assert.equal(Object.isFrozen(accepted.progress), true);
+  assert.equal(Object.isFrozen(accepted.input.metrics), true);
+  assert.equal(accepted.game_id, 'megadrive-sonic-test');
+  assert.equal(sessionViewState(accepted), 'active');
+
+  for (const malformed of [
+    sessionFixture({ state: 'unknown' }),
+    sessionFixture({ state: 'idle', game_id: 'must-not-be-public-on-idle' }),
+    sessionFixture({ state: 'active', game_id: 42 }),
+    sessionFixture({ state: 'active', system: 'atari' }),
+    sessionFixture({ state: 'launching', progress: { stage: 'only-stage' } }),
+    sessionFixture({ state: 'active', input: { state: 'attached', ready: true, metrics: {} } }),
+    sessionFixture({ state: 'active', input: { ...inputFixture(), ready: 'yes' } }),
+    sessionFixture({ state: 'active', input: { ...inputFixture(), metrics: { ...inputFixture().metrics, rtt_ms: -1 } } }),
+  ]) {
+    assert.throws(() => parseSession(malformed), error => error.code === 'MALFORMED_RESPONSE');
+  }
+});
+
+test('startup reconstructs active session without changing catalog selection and resolves only a matching live title', async () => {
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/session': [jsonResponse(sessionFixture({
+      state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive', execution: 'fpga_native', media: 'active',
+    }))],
+    '/api/v1/games': [jsonResponse(readFixture('catalog-populated.json'))],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadSession();
+  await controller.loadCatalog('');
+  const state = controller.getState();
+  assert.equal(state.sessionPhase, 'active');
+  assert.equal(state.sessionGameTitle, 'Sonic the Hedgehog');
+  assert.equal(state.selectedLiveGame, null);
+  assert.deepEqual(calls.map(call => call.path), ['/api/v1/session', '/api/v1/games']);
+});
+
+test('newer session status wins over a held stale startup response', async () => {
+  let releaseOld;
+  const { fetchImpl } = routedFetch({
+    '/api/v1/session': [
+      () => new Promise(resolve => { releaseOld = resolve; }),
+      jsonResponse(sessionFixture({ state: 'idle' })),
+    ],
+  });
+  const controller = createAppController({ fetchImpl });
+  const oldRequest = controller.loadSession();
+  const newerRequest = controller.loadSession();
+  await newerRequest;
+  releaseOld(jsonResponse(sessionFixture({ state: 'active', game_id: 'stale', system: 'megadrive' })));
+  await oldRequest;
+  assert.equal(controller.getState().sessionPhase, 'idle');
+  assert.equal(controller.getState().session.state, 'idle');
+});
+
+test('launch reconciles with one authoritative GET and keeps the captured ID across selection changes', async () => {
+  let releaseLaunchResponse;
+  let releaseReconcile;
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/session': [
+      jsonResponse(sessionFixture({ state: 'idle' })),
+      () => new Promise(resolve => { releaseReconcile = resolve; }),
+      jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
+    ],
+    '/api/v1/games': [jsonResponse(readFixture('catalog-populated.json'))],
+    '/api/v1/games/megadrive-sonic-test': [jsonResponse(readFixture('detail-refreshed.json'))],
+    '/api/v1/games/snes-unknown-test': [jsonResponse(readFixture('detail-unknown.json'))],
+    '/api/v1/session/launch': [() => new Promise(resolve => { releaseLaunchResponse = resolve; })],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadSession();
+  await controller.loadCatalog('');
+  await controller.selectGame('megadrive-sonic-test');
+  const launch = controller.launchSelected();
+  assert.equal(controller.getState().activeMutation, 'launch');
+  await controller.selectGame('snes-unknown-test');
+  releaseLaunchResponse(jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })));
+  while (!releaseReconcile) await new Promise(resolve => setImmediate(resolve));
+  releaseReconcile(jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })));
+  await launch;
+  const state = controller.getState();
+  assert.equal(state.sessionPhase, 'active');
+  assert.equal(state.session.game_id, 'megadrive-sonic-test');
+  assert.equal(state.selectedLiveGame.id, 'snes-unknown-test');
+  assert.equal(state.launchState, 'idle');
+  assert.equal(state.launchMessage, '');
+  assert.equal(state.launchError, null);
+  assert.equal(calls.find(call => call.path === '/api/v1/session/launch').options.body, '{"game_id":"megadrive-sonic-test"}');
+  assert.equal(calls.filter(call => call.path === '/api/v1/session').length, 2);
+});
+
+test('stop requires valid stop response plus authoritative idle GET before presenting stopped', async () => {
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/session': [
+      jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
+      jsonResponse(sessionFixture({ state: 'idle' })),
+      jsonResponse(sessionFixture({ state: 'idle' })),
+    ],
+    '/api/v1/session/stop': [jsonResponse(sessionFixture({ state: 'idle', media: 'stopped' }))],
+  });
+  const controller = createAppController({ fetchImpl });
+  await controller.loadSession();
+  await controller.stopSession();
+  assert.equal(controller.getState().sessionPhase, 'stopped');
+  assert.equal(calls.find(call => call.path === '/api/v1/session/stop').options.body, undefined);
+  await controller.loadSession();
+  assert.equal(controller.getState().sessionPhase, 'idle');
+});
+
+test('stop failure still reconciles once and retains the active snapshot as a safe retry state', async () => {
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/session': [
+      jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
+      jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
+    ],
+    '/api/v1/session/stop': [jsonResponse({ error: { code: 'BUSY', message: 'another launch or stop transition is running' } }, 409)],
+  });
+  const controller = createAppController({ fetchImpl });
+  await controller.loadSession();
+  await controller.stopSession();
+  const state = controller.getState();
+  assert.equal(state.sessionPhase, 'error');
+  assert.equal(state.session.game_id, 'megadrive-sonic-test');
+  assert.equal(state.sessionError.code, 'BUSY');
+  assert.deepEqual(calls.map(call => call.path), ['/api/v1/session', '/api/v1/session/stop', '/api/v1/session']);
+});
+
+test('failed or malformed status refresh marks retained active details last-known and blocks stop until a fresh GET', async () => {
+  for (const testCase of [
+    {
+      name: 'unavailable',
+      response: jsonResponse({ error: { code: 'TARGET_UNAVAILABLE', message: 'target status is unavailable' } }, 503),
+      phase: 'unavailable',
+    },
+    {
+      name: 'malformed',
+      response: malformedJSONResponse(),
+      phase: 'malformed',
+    },
+  ]) {
+    const { calls, fetchImpl } = routedFetch({
+      '/api/v1/session': [
+        jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
+        testCase.response,
+        jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
+        jsonResponse(sessionFixture({ state: 'idle' })),
+      ],
+      '/api/v1/session/stop': [jsonResponse(sessionFixture({ state: 'idle' }))],
+    });
+    const controller = createAppController({ fetchImpl });
+    await controller.loadSession();
+    await controller.loadSession();
+    let state = controller.getState();
+    assert.equal(state.sessionPhase, testCase.phase, testCase.name);
+    assert.equal(state.sessionAuthority, 'last-known', testCase.name);
+    assert.equal(state.session.state, 'active', testCase.name);
+
+    await controller.stopSession();
+    assert.equal(
+      calls.filter(call => call.path === '/api/v1/session/stop').length,
+      0,
+      `${testCase.name} status loss must not issue a stop POST`,
+    );
+
+    await controller.loadSession();
+    state = controller.getState();
+    assert.equal(state.sessionAuthority, 'authoritative', testCase.name);
+    await controller.stopSession();
+    assert.equal(calls.filter(call => call.path === '/api/v1/session/stop').length, 1, testCase.name);
+    assert.equal(controller.getState().sessionPhase, 'stopped', testCase.name);
+  }
+});
+
+test('malformed stop response never becomes a false stopped announcement after idle reconciliation', async () => {
+  const { fetchImpl } = routedFetch({
+    '/api/v1/session': [
+      jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
+      jsonResponse(sessionFixture({ state: 'idle' })),
+    ],
+    '/api/v1/session/stop': [jsonResponse({ state: 'idle', game_id: 'private-field-on-idle' })],
+  });
+  const controller = createAppController({ fetchImpl });
+  await controller.loadSession();
+  await controller.stopSession();
+  assert.equal(controller.getState().sessionPhase, 'malformed');
+  assert.equal(controller.getState().session.state, 'idle');
+});
+
+test('rapid and conflicting mutations issue at most one request and expose the conflict', async () => {
+  let releaseReconcile;
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/session': [
+      jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
+      () => new Promise(resolve => { releaseReconcile = resolve; }),
+    ],
+    '/api/v1/session/stop': [jsonResponse(sessionFixture({ state: 'idle' }))],
+    '/api/v1/session/launch': [],
+  });
+  const controller = createAppController({ fetchImpl });
+  await controller.loadSession();
+  const firstStop = controller.stopSession();
+  const duplicateStop = controller.stopSession();
+  const conflictingLaunch = controller.launchSelected();
+  assert.equal(controller.getState().activeMutation, 'stop');
+  assert.equal(controller.getState().mutationMessage, 'A session transition is already in progress.');
+  assert.equal(calls.filter(call => call.path === '/api/v1/session/stop').length, 1);
+  assert.equal(calls.filter(call => call.path === '/api/v1/session/launch').length, 0);
+  assert.equal(await duplicateStop.then(state => state.activeMutation), 'stop');
+  assert.equal(await conflictingLaunch.then(state => state.activeMutation), 'stop');
+  while (!releaseReconcile) await new Promise(resolve => setImmediate(resolve));
+  releaseReconcile(jsonResponse(sessionFixture({ state: 'idle' })));
+  await firstStop;
+});
+
+test('session panel renders only accepted fields, reconstructs active title, and stops with exact empty POST', async () => {
+  const active = sessionFixture({
+    state: 'active',
+    game_id: 'megadrive-sonic-test',
+    system: 'megadrive',
+    execution: 'fpga_native',
+    media: 'active',
+    progress: { stage: 'ready', message: 'session is ready' },
+    input: inputFixture(),
+    secret: 'must not render',
+    target_path: '/private/path',
+  });
+  const { document, calls, sessionCalls } = await runBrowserApp({
+    responses: [jsonResponse(readFixture('catalog-populated.json')), jsonResponse(readFixture('stop-success.json'))],
+    sessionResponses: [jsonResponse(active), jsonResponse(sessionFixture({ state: 'idle' }))],
+  });
+  const panel = document.nodes.get('session-panel');
+  assert.equal(panel.attributes.get('aria-busy'), 'false');
+  assert.equal(document.nodes.get('session-status').textContent, 'Active session');
+  const details = browserText(document.nodes.get('session-details'));
+  assert.match(details, /Sonic the Hedgehog/);
+  assert.match(details, /megadrive-sonic-test/);
+  assert.match(details, /session is ready/);
+  assert.doesNotMatch(details, /must not render|private\/path/);
+  assert.equal(sessionCalls[0].options.method, 'GET');
+  assert.equal(sessionCalls[0].options.body, undefined);
+  assert.equal(document.nodes.get('session-actions').children.find(node => node.id === 'stop-session').hidden, false);
+
+  await document.nodes.get('session-actions').children.find(node => node.id === 'stop-session').click();
+  assert.equal(document.nodes.get('session-status').textContent, 'Session stopped.');
+  assert.equal(document.nodes.get('session-actions').children.find(node => node.id === 'stop-session').hidden, true);
+  assert.equal(document.nodes.get('session-actions').children.find(node => node.id === 'refresh-session').focused, true);
+  const stopCall = calls.find(call => call.path === '/api/v1/session/stop');
+  assert.ok(stopCall);
+  assert.equal(stopCall.options.method, 'POST');
+  assert.equal(stopCall.options.body, undefined);
+  assert.equal(stopCall.options.headers, undefined);
+});
+
+test('session malformed state exposes a safe retry without leaking response fields', async () => {
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse(readFixture('catalog-populated.json'))],
+    sessionResponses: [malformedJSONResponse(), jsonResponse(sessionFixture({ state: 'idle' }))],
+  });
+  assert.equal(document.nodes.get('session-status').textContent, 'The local host returned an invalid session response. Retry.');
+  assert.match(document.nodes.get('session-message').textContent, /invalid session response/i);
+  await document.nodes.get('session-actions').children.find(node => node.id === 'refresh-session').click();
+  assert.equal(document.nodes.get('session-status').textContent, 'No active session.');
 });

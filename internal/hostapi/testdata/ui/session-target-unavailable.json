@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "TARGET_UNAVAILABLE",
+    "message": "target status is unavailable"
+  }
+}

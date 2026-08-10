@@ -1,0 +1,9 @@
+{
+  "state": "failed",
+  "execution": "fpga_native",
+  "media": "failed",
+  "progress": {
+    "stage": "failed",
+    "message": "the session could not be reconciled"
+  }
+}

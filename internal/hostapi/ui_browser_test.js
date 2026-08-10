@@ -31,7 +31,9 @@ function basePlan(overrides = {}) {
   return {
     catalog: { '': populatedCatalog() },
     details: defaultDetails(),
+    sessions: [fixture('session-idle.json'), fixture('session-active.json')],
     launches: [fixture('launch-success.json')],
+    stops: [fixture('stop-success.json')],
     ...overrides,
   };
 }
@@ -57,12 +59,18 @@ async function launchSelected(harness) {
 
 function apiEvidence(harness) {
   return harness.fixtureEvidence()
-    .filter(record => record.path.startsWith('/api/'));
+    .filter(record => record.path.startsWith('/api/')
+      && !(record.method === 'GET' && record.path === '/api/v1/session'));
 }
 
 function detailEvidence(harness) {
   return apiEvidence(harness)
     .filter(record => record.path.startsWith('/api/v1/games/'));
+}
+
+function sessionEvidence(harness) {
+  return harness.fixtureEvidence()
+    .filter(record => record.path === '/api/v1/session');
 }
 
 function apiSummary(harness) {
@@ -81,6 +89,8 @@ function assertNoPrivateErrorText(snapshot) {
   assert.doesNotMatch(snapshot.catalogText, /catalog is unavailable|private|secret|password/i);
   assert.doesNotMatch(snapshot.detailText, /detail is unavailable|private|secret|password/i);
   assert.doesNotMatch(snapshot.launchText, /session operation failed|private|secret|password/i);
+  assert.doesNotMatch(snapshot.sessionText, /private|secret|password|target_path|token/i);
+  assert.doesNotMatch(snapshot.sessionMessage, /private|secret|password|target_path|token/i);
 }
 
 function getDocument(origin) {
@@ -300,7 +310,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
     await harness.waitForSettled();
     harness.assertClean();
     const preflightRequests = harness.fixtureEvidence()
-      .filter(record => record.path === '/' || record.path === '/api/v1/games')
+      .filter(record => record.path === '/' || record.path === '/api/v1/session' || record.path === '/api/v1/games')
       .map(record => ({
         method: record.method,
         path: record.path,
@@ -308,6 +318,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
       }));
     assert.deepEqual(preflightRequests, [
       { method: 'GET', path: '/', status: 200 },
+      { method: 'GET', path: '/api/v1/session', status: 200 },
       { method: 'GET', path: '/api/v1/games', status: 200 },
     ]);
 
@@ -539,10 +550,282 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
           const snapshot = await harness.snapshot();
           assert.equal(snapshot.detailHeading, 'Unknown <Game> detail');
           assert.doesNotMatch(snapshot.launchText, /launch_success|launch_error/);
+          assert.doesNotMatch(snapshot.launchText, /launching/);
           assert.equal(oldLaunch.requestBody, '{"game_id":"megadrive-sonic-test"}');
         });
       });
     }
+
+    await t.test('session startup idle has one GET and an explicit safe stop state', async () => {
+      await runScenario(harness, 'session-idle', basePlan({
+        sessions: [fixture('session-idle.json')],
+      }), async () => {
+        const snapshot = await harness.waitForText('#session-status', 'No active session.');
+        assert.equal(sessionEvidence(harness).length, 1);
+        assert.equal(snapshot.sessionBusy, 'false');
+        assert.equal(snapshot.sessionStopHidden, true);
+        assert.equal(snapshot.sessionStopDisabled, true);
+        assertNoPrivateErrorText(snapshot);
+      });
+    });
+
+    await t.test('active session reconstructs across reload without selecting a catalog card', async () => {
+      await runScenario(harness, 'session-active-reload', basePlan({
+        sessions: [fixture('session-active.json')],
+      }), async () => {
+        await harness.waitForText('#session-details', 'Sonic the Hedgehog');
+        let snapshot = await harness.snapshot();
+        assert.match(snapshot.sessionText, /Sonic the Hedgehog/);
+        assert.match(snapshot.sessionText, /Input stateattached.*Input readinessReady/);
+        assert.equal(snapshot.detailHeading, 'Select a game');
+        assert.equal(snapshot.cards.filter(card => card.pressed).length, 0);
+        await harness.reload();
+        await harness.waitForText('#session-details', 'Sonic the Hedgehog');
+        snapshot = await harness.snapshot();
+        assert.equal(sessionEvidence(harness).length, 2);
+        assert.match(snapshot.sessionText, /Sonic the Hedgehog/);
+        assert.equal(snapshot.detailHeading, 'Select a game');
+        assert.equal(snapshot.cards.filter(card => card.pressed).length, 0);
+      });
+    });
+
+    await t.test('session unavailable and malformed states provide manual retry', async () => {
+      await runScenario(harness, 'session-unavailable-retry', basePlan({
+        sessions: [
+          fixture('session-target-unavailable.json', 503),
+          fixture('session-idle.json'),
+        ],
+      }), async () => {
+        let snapshot = await harness.waitForText('#session-status', 'unavailable');
+        assert.match(snapshot.sessionMessage, /local target is unavailable|could not be checked/i);
+        assert.equal(snapshot.sessionRefreshDisabled, false);
+        assertNoPrivateErrorText(snapshot);
+        await harness.click('#refresh-session');
+        snapshot = await harness.waitForText('#session-status', 'No active session.');
+        assert.deepEqual(sessionEvidence(harness).map(record => record.status), [503, 200]);
+        assertNoPrivateErrorText(snapshot);
+      });
+
+      await runScenario(harness, 'session-malformed-retry', basePlan({
+        sessions: [fixture('session-malformed.json'), fixture('session-idle.json')],
+      }), async () => {
+        let snapshot = await harness.waitForText('#session-status', 'invalid session response');
+        assert.match(snapshot.sessionMessage, /invalid session response/i);
+        assert.equal(snapshot.sessionRefreshDisabled, false);
+        await harness.click('#refresh-session');
+        snapshot = await harness.waitForText('#session-status', 'No active session.');
+        assert.deepEqual(sessionEvidence(harness).map(record => record.status), [200, 200]);
+      });
+    });
+
+    await t.test('host-reported stopping and failed states stay visible and safe', async () => {
+      await runScenario(harness, 'session-stopping', basePlan({
+        sessions: [fixture('session-stopping.json')],
+      }), async () => {
+        const snapshot = await harness.waitForText('#session-status', 'Stopping session');
+        assert.equal(snapshot.sessionStopHidden, true);
+        assertNoPrivateErrorText(snapshot);
+      });
+
+      await runScenario(harness, 'session-failed', basePlan({
+        sessions: [fixture('session-failed.json')],
+      }), async () => {
+        const snapshot = await harness.waitForText('#session-status', 'failed session');
+        assert.match(snapshot.sessionMessage, /failed session/i);
+        assertNoPrivateErrorText(snapshot);
+      });
+    });
+
+    await t.test('newer manual status wins over a held startup response', async () => {
+      await runScenario(harness, 'stale-session-status', basePlan({
+        sessions: [
+          fixture('session-idle.json', 200, { hold: true }),
+          fixture('session-active.json'),
+        ],
+      }), async () => {
+        const oldStatus = await harness.waitForRequest({ method: 'GET', path: '/api/v1/session' });
+        await harness.click('#refresh-session');
+        let snapshot = await harness.waitForText('#session-status', 'Active session');
+        assert.match(snapshot.sessionText, /Sonic the Hedgehog/);
+        await harness.release(oldStatus.id);
+        await harness.waitForSettled();
+        snapshot = await harness.snapshot();
+        assert.equal(snapshot.sessionStatus, 'Active session');
+        assert.equal(sessionEvidence(harness)[0].responseOrder > sessionEvidence(harness)[1].responseOrder, true);
+      });
+    });
+
+    await t.test('active status loss labels retained details last-known and suppresses Stop until a fresh GET', async () => {
+      for (const [name, unavailableResponse, expectedStatus] of [
+        ['unavailable', fixture('session-target-unavailable.json', 503), 'unavailable'],
+        ['malformed', fixture('session-malformed.json'), 'invalid session response'],
+      ]) {
+        await runScenario(harness, `session-active-${name}-refresh`, basePlan({
+          sessions: [
+            fixture('session-active.json'),
+            unavailableResponse,
+            fixture('session-active.json'),
+          ],
+        }), async () => {
+          await harness.waitForText('#session-status', 'Active session');
+          await harness.click('#refresh-session');
+          const unavailable = await harness.waitForText('#session-status', expectedStatus);
+          assert.match(unavailable.sessionText, /last-known/i);
+          assert.equal(unavailable.sessionStopHidden, true);
+          assert.equal(unavailable.sessionStopDisabled, true);
+          assert.equal(apiEvidence(harness).filter(record => record.path === '/api/v1/session/stop').length, 0);
+          await harness.click('#refresh-session');
+          const restored = await harness.waitForText('#session-status', 'Active session');
+          assert.doesNotMatch(restored.sessionText, /last-known/i);
+          assert.equal(restored.sessionStopHidden, false);
+          assert.equal(restored.sessionStopDisabled, false);
+          assert.equal(apiEvidence(harness).filter(record => record.path === '/api/v1/session/stop').length, 0);
+        });
+      }
+    });
+
+    await t.test('launch replacement disables duplicate and opposite mutation controls until GET reconciliation', async () => {
+      await runScenario(harness, 'session-launch-replacement', basePlan({
+        sessions: [fixture('session-active-other.json'), fixture('session-active.json')],
+        launches: [fixture('launch-success.json', 200, { hold: true })],
+      }), async () => {
+        await selectSonic(harness);
+        let snapshot = await harness.snapshot();
+        assert.equal(snapshot.launchButtonLabel, 'Replace active session');
+        await harness.click('#launch-actions button');
+        const launch = await harness.waitForRequest({ method: 'POST', path: '/api/v1/session/launch' });
+        snapshot = await harness.waitForText('#session-status', 'Launching session');
+        assert.equal(snapshot.launchButtonDisabled, true);
+        assert.equal(snapshot.sessionStopHidden, false);
+        assert.equal(snapshot.sessionStopDisabled, true);
+        assert.match(snapshot.launchButtonDescribedBy, /launch-reason/);
+        assert.match(snapshot.sessionStopDescribedBy, /session-action-reason/);
+        await harness.click('#launch-actions button');
+        await harness.click('#stop-session');
+        assert.equal(apiEvidence(harness).filter(record => record.path === '/api/v1/session/launch').length, 1);
+        await harness.release(launch.id);
+        snapshot = await harness.waitForText('#launch-status', 'launch_success');
+        assert.match(snapshot.sessionText, /Sonic the Hedgehog/);
+        assert.deepEqual(sessionEvidence(harness).map(record => record.status), [200, 200]);
+        assert.equal(launch.requestBody, '{"game_id":"megadrive-sonic-test"}');
+      });
+    });
+
+    await t.test('stop success sends one empty POST, reconciles idle, and moves focus to Refresh', async () => {
+      await runScenario(harness, 'session-stop-success', basePlan({
+        sessions: [fixture('session-active.json'), fixture('session-idle.json')],
+        stops: [fixture('stop-success.json', 200, { hold: true })],
+      }), async () => {
+        await harness.waitForText('#session-status', 'Active session');
+        await harness.click('#stop-session');
+        const stop = await harness.waitForRequest({ method: 'POST', path: '/api/v1/session/stop' });
+        let snapshot = await harness.waitForText('#session-status', 'Stopping session');
+        assert.equal(snapshot.sessionStopDisabled, true);
+        assert.equal(snapshot.sessionRefreshDisabled, true);
+        await harness.click('#stop-session');
+        assert.equal(apiEvidence(harness).filter(record => record.path === '/api/v1/session/stop').length, 1);
+        await harness.release(stop.id);
+        snapshot = await harness.waitForText('#session-status', 'Session stopped.');
+        assert.equal(snapshot.sessionStopHidden, true);
+        assert.equal(snapshot.activeElementID, 'refresh-session');
+        assert.deepEqual(sessionEvidence(harness).map(record => record.status), [200, 200]);
+        assert.equal(stop.requestBody, '');
+        assert.equal(stop.requestContentType, '');
+      });
+    });
+
+    await t.test('stop HTTP failure reconciles active state and leaves a safe retry control', async () => {
+      await runScenario(harness, 'session-stop-error', basePlan({
+        sessions: [fixture('session-active.json'), fixture('session-active.json')],
+        stops: [fixture('stop-error.json', 500)],
+      }), async () => {
+        await harness.click('#stop-session');
+        const snapshot = await harness.waitForText('#session-status', 'could not be confirmed');
+        assert.equal(snapshot.sessionStopHidden, false);
+        assert.equal(snapshot.sessionStopDisabled, false);
+        assert.match(snapshot.sessionMessage, /another launch|could not be stopped|error/i);
+        const stop = apiEvidence(harness).find(record => record.path === '/api/v1/session/stop');
+        assert.equal(stop.status, 500);
+        assert.equal(stop.requestBody, '');
+        assert.equal(stop.requestContentType, '');
+        assert.deepEqual(sessionEvidence(harness).map(record => record.status), [200, 200]);
+        assertNoPrivateErrorText(snapshot);
+      });
+    });
+
+    await t.test('malformed stop response is warned, not announced as stopped, after idle reconciliation', async () => {
+      await runScenario(harness, 'session-stop-malformed', basePlan({
+        sessions: [fixture('session-active.json'), fixture('session-idle.json')],
+        stops: [fixture('stop-malformed.json')],
+      }), async () => {
+        await harness.waitForText('#session-status', 'Active session');
+        await harness.click('#stop-session');
+        const snapshot = await harness.waitForText('#session-status', 'invalid session response');
+        assert.doesNotMatch(snapshot.sessionStatus, /Session stopped/);
+        assert.match(snapshot.sessionMessage, /invalid stop response/i);
+        assert.equal(snapshot.sessionStopHidden, true);
+        const stop = apiEvidence(harness).find(record => record.path === '/api/v1/session/stop');
+        assert.equal(stop.status, 200);
+        assert.equal(stop.requestBody, '');
+        assert.equal(stop.requestContentType, '');
+        assertNoPrivateErrorText(snapshot);
+      });
+    });
+
+    await t.test('held stop completion does not change a replacement selection or issue launch', async () => {
+      await runScenario(harness, 'stale-stop-selection', basePlan({
+        sessions: [fixture('session-active-other.json'), fixture('session-idle.json')],
+        stops: [fixture('stop-success.json', 200, { hold: true })],
+      }), async () => {
+        await selectSonic(harness);
+        await harness.click('#stop-session');
+        const stop = await harness.waitForRequest({ method: 'POST', path: '/api/v1/session/stop' });
+        await harness.click('#catalog-list .game-card:nth-child(2)');
+        await harness.waitForDetailHeading('Unknown <Game> detail');
+        const during = await harness.snapshot();
+        assert.equal(during.launchButtonDisabled, true);
+        assert.equal(apiEvidence(harness).filter(record => record.method === 'POST' && record.path.endsWith('/launch')).length, 0);
+        await harness.click('#launch-actions button');
+        assert.equal(apiEvidence(harness).filter(record => record.method === 'POST' && record.path.endsWith('/launch')).length, 0);
+        await harness.release(stop.id);
+        const snapshot = await harness.waitForText('#session-status', 'Session stopped.');
+        assert.equal(snapshot.detailHeading, 'Unknown <Game> detail');
+        assert.equal(snapshot.cards[1].pressed, true);
+      });
+    });
+
+    await t.test('narrow viewport keeps controls readable and reduced motion disables transitions', async () => {
+      await runScenario(harness, 'session-narrow-reduced-motion', basePlan({
+        sessions: [fixture('session-active.json')],
+      }), async () => {
+        await harness.setViewport(360, 800);
+        await harness.setReducedMotion(true);
+        await harness.waitForSettled();
+        const layout = await harness.evaluate(`(() => {
+          const ids = ['session-panel', 'refresh-session', 'stop-session'];
+          const elements = ids.map(id => document.getElementById(id)).filter(Boolean);
+          const bounds = elements.map(node => {
+            const rect = node.getBoundingClientRect();
+            return { id: node.id, left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, hidden: node.hidden };
+          });
+          const styles = Array.from(document.querySelectorAll('*')).map(node => getComputedStyle(node));
+          return {
+            viewport: document.documentElement.clientWidth,
+            scrollWidth: document.documentElement.scrollWidth,
+            bounds,
+            transitions: styles.filter(style => style.transitionDuration !== '0s' && style.transitionDuration !== '0ms').length,
+            animations: styles.filter(style => style.animationDuration !== '0s' && style.animationDuration !== '0ms').length,
+          };
+        })()`);
+        assert.equal(layout.scrollWidth <= layout.viewport, true, JSON.stringify(layout));
+        assert.equal(layout.transitions, 0, JSON.stringify(layout));
+        assert.equal(layout.animations, 0, JSON.stringify(layout));
+        assert.ok(layout.bounds.every(bound => bound.hidden || (bound.left >= 0 && bound.right <= layout.viewport)), JSON.stringify(layout));
+        const snapshot = await harness.snapshot();
+        assert.equal(snapshot.sessionBusy, 'false');
+        assert.match(snapshot.sessionStopDescribedBy, /session-action-reason|^$/);
+      });
+    });
   } finally {
     const report = harness.report();
     process.stdout.write(`FOGCAST_BROWSER_EVIDENCE ${JSON.stringify(report)}\n`);

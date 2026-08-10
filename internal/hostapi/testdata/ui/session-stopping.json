@@ -1,0 +1,9 @@
+{
+  "state": "stopping",
+  "execution": "fpga_native",
+  "media": "active",
+  "progress": {
+    "stage": "stopping",
+    "message": "releasing the active session"
+  }
+}

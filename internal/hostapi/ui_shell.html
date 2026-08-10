@@ -9,7 +9,7 @@
 <body>
   <header class="site-header">
     <a class="brand" href="/" aria-label="FogCast home">FOG<span>CAST</span></a>
-    <p id="health" class="host-status" role="status">Local host ready</p>
+    <p id="health" class="host-status" role="status">Checking local host…</p>
   </header>
   <main class="launcher" id="launcher">
     <section class="catalog-panel" aria-labelledby="catalog-heading">
@@ -38,6 +38,18 @@
       <div id="launch-actions" class="launch-actions"></div>
       <p id="launch-status" class="sr-only" role="status" aria-live="polite"></p>
     </aside>
+    <section id="session-panel" class="session-panel" aria-labelledby="session-heading" aria-busy="true" tabindex="-1">
+      <div class="session-header">
+        <div>
+          <p class="eyebrow">Host session</p>
+          <h2 id="session-heading">Session lifecycle</h2>
+        </div>
+        <p id="session-status" class="session-status" role="status" aria-live="polite" aria-atomic="true">Checking session status…</p>
+      </div>
+      <div id="session-details" class="session-details"></div>
+      <div id="session-actions" class="session-actions"></div>
+      <p id="session-message" class="session-message" role="alert" aria-live="assertive"></p>
+    </section>
   </main>
   {{FOGCAST_METADATA}}
   {{FOGCAST_APP}}

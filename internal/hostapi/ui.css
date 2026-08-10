@@ -71,6 +71,21 @@ input { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding:
 .detail-fact strong { display: block; font-size: .82rem; }
 .detail-fact span { color: var(--muted); font-size: .75rem; }
 .launch-actions { display: grid; gap: 8px; }
+.session-panel { grid-column: 1 / -1; min-width: 0; border: 1px solid var(--line); border-radius: 16px; padding: 22px; background: rgba(21, 27, 37, .92); box-shadow: var(--shadow); }
+.session-panel[aria-busy="true"] { border-color: var(--accent-cool); }
+.session-header { display: flex; align-items: start; justify-content: space-between; gap: 20px; }
+.session-header h2 { margin-bottom: 0; }
+.session-status { max-width: 34rem; margin: 8px 0 0; color: var(--accent-cool); text-align: right; overflow-wrap: anywhere; }
+.session-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin: 18px 0; }
+.session-detail { min-width: 0; border-top: 1px solid var(--line); padding-top: 7px; }
+.session-detail strong { display: block; font-size: .82rem; }
+.session-detail span { display: block; color: var(--muted); font-size: .75rem; overflow-wrap: anywhere; }
+.session-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.session-actions .button { min-width: 150px; }
+.session-message { min-height: 1.5em; margin: 14px 0 0; color: var(--danger); overflow-wrap: anywhere; }
+.session-message:empty { display: none; }
+.launch-reason { margin: 0; color: var(--muted); font-size: .78rem; overflow-wrap: anywhere; }
+.session-id { overflow-wrap: anywhere; }
 .status-message { padding: 18px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); }
 .status-message.error { border-color: var(--danger); color: var(--danger); }
 .status-message.success { border-color: var(--success); color: var(--success); }
@@ -80,7 +95,15 @@ input { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding:
   .site-header { padding: 18px 20px; }
   .launcher { grid-template-columns: 1fr; padding-top: 34px; }
   .detail-panel { position: static; }
+  .session-panel { grid-column: 1; }
+  .session-header { align-items: stretch; flex-direction: column; gap: 8px; }
+  .session-status { max-width: none; text-align: left; }
   h1 { margin-bottom: 24px; }
+}
+@media (max-width: 420px) {
+  .search-controls, .session-actions { display: grid; grid-template-columns: 1fr; }
+  .search-controls .button, .session-actions .button { width: 100%; }
+  .session-panel, .detail-panel { padding: 18px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }

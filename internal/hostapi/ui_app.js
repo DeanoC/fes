@@ -154,44 +154,155 @@
       || typeof payload[field] === 'string';
   }
 
+  const SESSION_STATE_ALLOWLIST = Object.freeze(['idle', 'launching', 'active', 'stopping', 'failed']);
+  const SESSION_SYSTEM_ALLOWLIST = Object.freeze(['megadrive', 'snes']);
+  const INPUT_STATE_ALLOWLIST = Object.freeze(['detached', 'starting', 'attached', 'reconnecting', 'failed']);
+  const INPUT_METRIC_FIELDS = Object.freeze([
+    'frames_sent',
+    'state_resyncs',
+    'sequence_gaps',
+    'releases',
+    'capture_to_bridge_p95_ms',
+    'bridge_to_uinput_p95_ms',
+    'rtt_ms',
+  ]);
+
+  function malformedSession(message) {
+    throw createError('MALFORMED_RESPONSE', message);
+  }
+
+  function own(payload, field) {
+    return Object.prototype.hasOwnProperty.call(payload, field);
+  }
+
+  function requiredString(payload, field, message) {
+    if (typeof payload[field] !== 'string' || !payload[field].trim()) malformedSession(message);
+    return payload[field];
+  }
+
+  function optionalSessionString(payload, field, message) {
+    if (!own(payload, field)) return undefined;
+    if (typeof payload[field] !== 'string') malformedSession(message);
+    return payload[field];
+  }
+
+  function parseSessionProgress(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      malformedSession('The local host returned an invalid session progress summary.');
+    }
+    return Object.freeze({
+      stage: requiredString(value, 'stage', 'The local host returned an invalid session progress stage.'),
+      message: requiredString(value, 'message', 'The local host returned an invalid session progress message.'),
+    });
+  }
+
+  function parseSessionInput(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      malformedSession('The local host returned an invalid input summary.');
+    }
+    if (!INPUT_STATE_ALLOWLIST.includes(value.state)) malformedSession('The local host returned an invalid input state.');
+    if (typeof value.ready !== 'boolean') malformedSession('The local host returned an invalid input readiness value.');
+    const metrics = value.metrics;
+    if (!metrics || typeof metrics !== 'object' || Array.isArray(metrics)) {
+      malformedSession('The local host returned invalid input metrics.');
+    }
+    const normalizedMetrics = {};
+    for (const field of INPUT_METRIC_FIELDS) {
+      const metric = metrics[field];
+      if (typeof metric !== 'number' || !Number.isFinite(metric) || metric < 0) {
+        malformedSession('The local host returned invalid input metrics.');
+      }
+      normalizedMetrics[field] = metric;
+    }
+    if (typeof metrics.bridge_to_uinput_measurable !== 'boolean') {
+      malformedSession('The local host returned invalid input measurement state.');
+    }
+    normalizedMetrics.bridge_to_uinput_measurable = metrics.bridge_to_uinput_measurable;
+    if (own(metrics, 'shutdown_reason')) {
+      if (typeof metrics.shutdown_reason !== 'string') malformedSession('The local host returned an invalid input shutdown reason.');
+      normalizedMetrics.shutdown_reason = metrics.shutdown_reason;
+    }
+    return Object.freeze({
+      state: value.state,
+      ready: value.ready,
+      metrics: Object.freeze(normalizedMetrics),
+    });
+  }
+
+  function parseSession(payload) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      malformedSession('The local host returned an invalid session response.');
+    }
+    if (!SESSION_STATE_ALLOWLIST.includes(payload.state)) {
+      malformedSession('The local host returned an invalid session state.');
+    }
+    const active = payload.state === 'active';
+    if (!active && (own(payload, 'game_id') || own(payload, 'system'))) {
+      malformedSession('The local host returned private session identity for a non-active state.');
+    }
+    const gameID = active && own(payload, 'game_id')
+      ? requiredString(payload, 'game_id', 'The local host returned an invalid session game ID.')
+      : undefined;
+    const system = active && own(payload, 'system')
+      ? payload.system
+      : undefined;
+    if (system !== undefined && !SESSION_SYSTEM_ALLOWLIST.includes(system)) {
+      malformedSession('The local host returned an invalid session system.');
+    }
+    const execution = optionalSessionString(payload, 'execution', 'The local host returned an invalid session execution.');
+    const media = optionalSessionString(payload, 'media', 'The local host returned an invalid session media state.');
+    const progress = own(payload, 'progress') ? parseSessionProgress(payload.progress) : undefined;
+    const input = own(payload, 'input') ? parseSessionInput(payload.input) : undefined;
+    const result = { state: payload.state };
+    if (gameID !== undefined) result.game_id = gameID;
+    if (system !== undefined) result.system = system;
+    if (execution !== undefined) result.execution = execution;
+    if (media !== undefined) result.media = media;
+    if (progress !== undefined) result.progress = progress;
+    if (input !== undefined) result.input = input;
+    return Object.freeze(result);
+  }
+
+  function sessionViewState(session) {
+    if (!session) return 'idle';
+    if (session.state === 'launching') return 'loading';
+    if (session.state === 'stopping') return 'stopping';
+    if (session.state === 'failed') return 'error';
+    return session.state;
+  }
+
+  function sessionRequest() {
+    return { path: '/api/v1/session', options: { method: 'GET' } };
+  }
+
+  function stopRequest() {
+    return { path: '/api/v1/session/stop', options: { method: 'POST' } };
+  }
+
   function validateLaunchSuccess(payload, requestedID) {
-    if (!payload || typeof payload !== 'object' || Array.isArray(payload) || payload.state !== 'active') {
+    let session;
+    try {
+      session = parseSession(payload);
+    } catch (_) {
       throw createError('MALFORMED_RESPONSE', 'The local host returned an invalid launch response.');
     }
-    if (
-      Object.prototype.hasOwnProperty.call(payload, 'game_id')
-      && (typeof payload.game_id !== 'string' || payload.game_id !== requestedID)
-    ) {
+    if (session.state !== 'active' || (session.game_id !== undefined && session.game_id !== requestedID)) {
       throw createError('MALFORMED_RESPONSE', 'The local host returned an invalid launch response.');
     }
-    if (!['execution', 'media'].every(field => validOptionalString(payload, field))) {
-      throw createError('MALFORMED_RESPONSE', 'The local host returned an invalid launch response.');
+    return session;
+  }
+
+  function validateStopSuccess(payload) {
+    let session;
+    try {
+      session = parseSession(payload);
+    } catch (_) {
+      throw createError('MALFORMED_RESPONSE', 'The local host returned an invalid stop response.');
     }
-    if (
-      Object.prototype.hasOwnProperty.call(payload, 'system')
-      && payload.system !== undefined
-      && payload.system !== null
-      && typeof payload.system !== 'string'
-    ) {
-      throw createError('MALFORMED_RESPONSE', 'The local host returned an invalid launch response.');
+    if (session.state !== 'idle') {
+      throw createError('MALFORMED_RESPONSE', 'The local host returned an invalid stop response.');
     }
-    if (
-      Object.prototype.hasOwnProperty.call(payload, 'progress')
-      && payload.progress !== undefined
-      && payload.progress !== null
-      && (typeof payload.progress !== 'object' || Array.isArray(payload.progress))
-    ) {
-      throw createError('MALFORMED_RESPONSE', 'The local host returned an invalid launch response.');
-    }
-    if (
-      Object.prototype.hasOwnProperty.call(payload, 'input')
-      && payload.input !== undefined
-      && payload.input !== null
-      && (typeof payload.input !== 'object' || Array.isArray(payload.input))
-    ) {
-      throw createError('MALFORMED_RESPONSE', 'The local host returned an invalid launch response.');
-    }
-    return payload;
+    return session;
   }
 
   async function request(fetchImpl, path, options) {
@@ -355,8 +466,20 @@
       selectedGameView: null,
       requestSequence: 0,
       detailSequence: 0,
-      launchSequence: 0,
       selectionRevision: 0,
+      statusSequence: 0,
+      launchSequence: 0,
+      stopSequence: 0,
+      sessionStarted: false,
+      sessionAuthority: 'indeterminate',
+      session: null,
+      sessionPhase: 'idle',
+      sessionError: null,
+      sessionWarning: null,
+      sessionMessage: '',
+      sessionGameTitle: '',
+      activeMutation: null,
+      mutationMessage: '',
       catalogState: 'loading',
       catalogError: null,
       metadataFallbackCount: 0,
@@ -369,6 +492,12 @@
       hostState: 'unknown',
     };
 
+    function sessionTitle() {
+      if (!state.session || state.session.state !== 'active' || !state.session.game_id) return '';
+      const game = state.games.find(candidate => candidate.id === state.session.game_id);
+      return game ? game.title : '';
+    }
+
     function snapshot() {
       return {
         ...state,
@@ -376,6 +505,7 @@
         gameViews: state.gameViews.slice(),
         selectedLiveGame: state.selectedLiveGame,
         selectedGameView: state.selectedGameView,
+        sessionGameTitle: sessionTitle(),
       };
     }
 
@@ -398,20 +528,273 @@
     function resetSelectionState() {
       state.selectionRevision += 1;
       state.detailSequence += 1;
-      state.launchSequence += 1;
-      state.launchState = 'idle';
-      state.launchError = null;
-      state.launchMessage = '';
       state.detailState = 'idle';
       state.detailError = null;
+      if (!state.activeMutation) {
+        state.launchState = 'idle';
+        state.launchError = null;
+        state.launchMessage = '';
+      }
     }
 
     function reconcileSelection() {
       if (!state.selectedLiveGame) return;
       const index = state.games.findIndex(game => game.id === state.selectedLiveGame.id);
+      const wasMutating = Boolean(state.activeMutation);
       resetSelectionState();
       state.selectedLiveGame = index >= 0 ? state.games[index] : null;
       state.selectedGameView = index >= 0 ? state.gameViews[index] : null;
+      if (wasMutating && !state.selectedLiveGame) state.selectedGameView = null;
+    }
+
+    function acceptSession(session) {
+      state.session = session;
+      state.sessionAuthority = 'authoritative';
+      state.sessionPhase = sessionViewState(session);
+      state.sessionError = session.state === 'failed'
+        ? { code: 'SESSION_FAILED', message: 'The local host reports a failed session.', status: 200 }
+        : null;
+      state.sessionWarning = null;
+      state.sessionMessage = session.state === 'failed'
+        ? 'The local host reports a failed session.'
+        : '';
+    }
+
+    function sessionFailure(error, phase = 'unavailable') {
+      state.sessionAuthority = state.session ? 'last-known' : 'indeterminate';
+      state.sessionPhase = phase;
+      const fallback = phase === 'malformed'
+        ? 'The local host returned an invalid session response.'
+        : 'The local host session could not be checked.';
+      state.sessionError = errorSnapshot(error, fallback);
+      if (phase === 'malformed') {
+        state.sessionError.code = 'MALFORMED_RESPONSE';
+        state.sessionError.message = fallback;
+      }
+      state.sessionWarning = phase === 'malformed' ? state.sessionError : null;
+      state.sessionMessage = privacyMessage(error, state.sessionError.message);
+      if (phase === 'malformed') state.sessionMessage = fallback;
+    }
+
+    function mutationIsCurrent(mutation) {
+      return state.activeMutation === mutation.kind
+        && (mutation.kind === 'launch'
+          ? state.launchSequence === mutation.sequence
+          : state.stopSequence === mutation.sequence);
+    }
+
+    async function loadSession() {
+      if (state.activeMutation) {
+        state.mutationMessage = 'A session transition is already in progress.';
+        return emit();
+      }
+      const sequence = ++state.statusSequence;
+      state.sessionStarted = true;
+      state.sessionAuthority = 'indeterminate';
+      state.sessionPhase = 'loading';
+      state.sessionError = null;
+      state.sessionWarning = null;
+      state.sessionMessage = '';
+      emit();
+      try {
+        const spec = sessionRequest();
+        const payload = await request(fetchImpl, spec.path, spec.options);
+        if (sequence !== state.statusSequence || state.activeMutation) return snapshot();
+        acceptSession(parseSession(payload));
+        return emit();
+      } catch (error) {
+        if (sequence !== state.statusSequence || state.activeMutation) return snapshot();
+        sessionFailure(error, error && error.code === 'MALFORMED_RESPONSE' ? 'malformed' : 'unavailable');
+        return emit();
+      }
+    }
+
+    async function reconcileMutation(mutation) {
+      const sequence = ++state.statusSequence;
+      try {
+        const spec = sessionRequest();
+        const payload = await request(fetchImpl, spec.path, spec.options);
+        const session = parseSession(payload);
+        if (sequence !== state.statusSequence || !mutationIsCurrent(mutation)) return { stale: true };
+        acceptSession(session);
+        return { session };
+      } catch (error) {
+        if (sequence !== state.statusSequence || !mutationIsCurrent(mutation)) return { stale: true };
+        return { error };
+      }
+    }
+
+    function finishMutation(mutation, result, operationError) {
+      if (!mutationIsCurrent(mutation)) return snapshot();
+      if (result.stale) return snapshot();
+      const selectionChanged = mutation.kind === 'launch'
+        && state.selectionRevision !== mutation.selectionRevision;
+      if (selectionChanged) {
+        state.launchState = 'idle';
+        state.launchError = null;
+        state.launchMessage = '';
+      }
+      if (result.error) {
+        if (mutation.kind === 'launch' && !selectionChanged) {
+          state.launchState = 'launch_error';
+          state.launchError = errorSnapshot(result.error, 'The launch could not be confirmed by the local host.');
+          state.launchMessage = privacyMessage(result.error, 'The launch could not be confirmed by the local host.');
+        }
+        sessionFailure(result.error, result.error.code === 'MALFORMED_RESPONSE' ? 'malformed' : 'unavailable');
+        state.sessionMessage = privacyMessage(result.error, 'The local host session could not be reconciled.');
+      } else if (mutation.kind === 'launch' && !selectionChanged) {
+        const reconciled = result.session;
+        if (!operationError && reconciled.state === 'active' && reconciled.game_id === mutation.requestedID) {
+          state.sessionPhase = 'active';
+          state.launchState = 'launch_success';
+          state.launchError = null;
+          state.launchMessage = 'launch_success: session accepted by the local host.';
+          state.sessionMessage = '';
+        } else {
+          state.sessionPhase = reconciled.state === 'failed' ? 'error' : sessionViewState(reconciled);
+          state.launchState = 'launch_error';
+          state.launchError = errorSnapshot(
+            operationError || createError('SESSION_POSTCONDITION_FAILED', 'The local host did not confirm the requested active session.'),
+            'The launch could not be confirmed by the local host.',
+          );
+          state.launchMessage = privacyMessage(state.launchError, 'The launch could not be confirmed by the local host.');
+          state.sessionMessage = state.launchMessage;
+        }
+      } else if (mutation.kind === 'launch') {
+        state.sessionPhase = sessionViewState(result.session);
+        if (operationError) {
+          state.sessionError = errorSnapshot(operationError, 'The launch could not be confirmed by the local host.');
+          state.sessionMessage = privacyMessage(operationError, 'The launch could not be confirmed by the local host.');
+        } else {
+          state.sessionError = null;
+          state.sessionMessage = '';
+        }
+      } else {
+        const reconciled = result.session;
+        if (!operationError && mutation.stopResponseValid && reconciled.state === 'idle') {
+          state.sessionPhase = 'stopped';
+          state.sessionMessage = 'Session stopped.';
+        } else {
+          if (operationError && operationError.code === 'MALFORMED_RESPONSE' && reconciled.state === 'idle') {
+            state.sessionPhase = 'malformed';
+            state.sessionWarning = errorSnapshot(operationError, 'The local host returned an invalid stop response.');
+          } else {
+            state.sessionPhase = 'error';
+          }
+          state.sessionError = errorSnapshot(
+            operationError || createError('SESSION_POSTCONDITION_FAILED', 'The local host did not confirm that the session stopped.'),
+            'The session could not be stopped.',
+          );
+          state.sessionMessage = privacyMessage(state.sessionError, 'The session could not be stopped.');
+        }
+      }
+      state.activeMutation = null;
+      state.mutationMessage = '';
+      return emit();
+    }
+
+    async function runMutation(mutation, operation) {
+      state.activeMutation = mutation.kind;
+      state.mutationMessage = '';
+      state.sessionError = null;
+      state.sessionWarning = null;
+      state.sessionMessage = '';
+      state.sessionPhase = mutation.kind === 'stop' ? 'stopping' : 'loading';
+      if (mutation.kind === 'launch') {
+        state.launchState = 'launching';
+        state.launchError = null;
+        state.launchMessage = '';
+      }
+      emit();
+      let operationError = null;
+      try {
+        const payload = await operation();
+        mutation.stopResponseValid = mutation.kind === 'stop';
+        if (mutation.kind === 'launch') mutation.launchResponse = validateLaunchSuccess(payload, mutation.requestedID);
+        else mutation.stopResponseValid = Boolean(validateStopSuccess(payload));
+      } catch (error) {
+        operationError = error;
+      }
+      const reconciled = await reconcileMutation(mutation);
+      return finishMutation(mutation, reconciled, operationError);
+    }
+
+    function mutationConflict() {
+      state.mutationMessage = 'A session transition is already in progress.';
+      state.sessionMessage = state.mutationMessage;
+      return emit();
+    }
+
+    function launchAllowed(selected) {
+      if (!selected || selected.state !== 'available' || !selected.content_prepared) return false;
+      if (!state.sessionStarted) return true;
+      if (state.sessionAuthority !== 'authoritative') return false;
+      if (!state.session || !['idle', 'stopped', 'active'].includes(state.sessionPhase)) return false;
+      return !(state.session.state === 'active' && state.session.game_id === selected.id);
+    }
+
+    async function launchLegacy(selected) {
+      const selectionRevision = state.selectionRevision;
+      const sequence = ++state.launchSequence;
+      state.launchState = 'launching';
+      state.launchError = null;
+      state.launchMessage = '';
+      emit();
+      try {
+        const requestSpec = launchRequest(selected);
+        const response = await request(fetchImpl, requestSpec.path, requestSpec.options);
+        validateLaunchSuccess(response, selected.id);
+        if (sequence !== state.launchSequence || selectionRevision !== state.selectionRevision) return snapshot();
+        state.launchState = 'launch_success';
+        state.launchMessage = '';
+        return emit();
+      } catch (error) {
+        if (sequence !== state.launchSequence || selectionRevision !== state.selectionRevision) return snapshot();
+        state.launchState = 'launch_error';
+        state.launchError = errorSnapshot(error, 'The launch could not be completed.');
+        state.launchMessage = privacyMessage(error, 'The launch could not be completed.');
+        return emit();
+      }
+    }
+
+    async function launchSelected() {
+      const selected = state.selectedLiveGame;
+      if (state.activeMutation) return mutationConflict();
+      if (!selected) return snapshot();
+      if (!launchAllowed(selected)) return emit();
+      if (!state.sessionStarted) return launchLegacy(selected);
+      const mutation = {
+        kind: 'launch',
+        sequence: ++state.launchSequence,
+        selectionRevision: state.selectionRevision,
+        requestedID: selected.id,
+        launchResponse: null,
+      };
+      state.statusSequence += 1;
+      return runMutation(mutation, async () => {
+        const requestSpec = launchRequest(selected);
+        return request(fetchImpl, requestSpec.path, requestSpec.options);
+      });
+    }
+
+    async function stopSession() {
+      if (state.activeMutation) return mutationConflict();
+      if (
+        state.sessionAuthority !== 'authoritative'
+        || !state.sessionStarted
+        || !state.session
+        || state.session.state !== 'active'
+      ) return emit();
+      const mutation = {
+        kind: 'stop',
+        sequence: ++state.stopSequence,
+        stopResponseValid: false,
+      };
+      state.statusSequence += 1;
+      return runMutation(mutation, async () => {
+        const spec = stopRequest();
+        return request(fetchImpl, spec.path, spec.options);
+      });
     }
 
     async function loadCatalog(query) {
@@ -498,39 +881,14 @@
       return refreshDetail(id);
     }
 
-    async function launchSelected() {
-      const selected = state.selectedLiveGame;
-      if (!selected) return snapshot();
-      const selectionRevision = state.selectionRevision;
-      const sequence = ++state.launchSequence;
-      state.launchState = 'launching';
-      state.launchError = null;
-      state.launchMessage = '';
-      emit();
-      try {
-        const requestSpec = launchRequest(selected);
-        const response = await request(fetchImpl, requestSpec.path, requestSpec.options);
-        validateLaunchSuccess(response, selected.id);
-        if (sequence !== state.launchSequence || selectionRevision !== state.selectionRevision) return snapshot();
-        state.launchState = 'launch_success';
-        state.launchError = null;
-        state.launchMessage = '';
-        return emit();
-      } catch (error) {
-        if (sequence !== state.launchSequence || selectionRevision !== state.selectionRevision) return snapshot();
-        state.launchState = 'launch_error';
-        state.launchError = errorSnapshot(error, 'The launch could not be completed.');
-        state.launchMessage = privacyMessage(error, 'The launch could not be completed.');
-        return emit();
-      }
-    }
-
     return Object.freeze({
       getState: snapshot,
       loadCatalog,
+      loadSession,
       selectGame,
       refreshDetail,
       launchSelected,
+      stopSession,
     });
   }
 
@@ -538,6 +896,10 @@
     gamesPath,
     gameDetailPath,
     launchRequest,
+    sessionRequest,
+    stopRequest,
+    parseSession,
+    sessionViewState,
     launchStatus,
     isSelectedGame,
     detailHeading,
@@ -564,6 +926,11 @@
     detailContent: document.getElementById('detail-content'),
     launchActions: document.getElementById('launch-actions'),
     launchStatus: document.getElementById('launch-status'),
+    sessionPanel: document.getElementById('session-panel'),
+    sessionStatus: document.getElementById('session-status'),
+    sessionDetails: document.getElementById('session-details'),
+    sessionActions: document.getElementById('session-actions'),
+    sessionMessage: document.getElementById('session-message'),
   };
 
   function element(tag, className, text) {
@@ -590,6 +957,124 @@
     const presentation = launchStatus(state.launchState, state.launchMessage);
     nodes.launchStatus.textContent = presentation.text;
     nodes.launchStatus.setAttribute('role', presentation.role);
+  }
+
+  let refreshSessionButton;
+  let stopSessionButton;
+  let sessionActionReason;
+
+  function sessionStatusText() {
+    if (state.activeMutation === 'launch') return 'Launching session…';
+    if (state.activeMutation === 'stop') return 'Stopping session…';
+    switch (state.sessionPhase) {
+      case 'loading': return 'Checking session status…';
+      case 'active': return 'Active session';
+      case 'stopping': return 'Stopping session…';
+      case 'stopped': return 'Session stopped.';
+      case 'unavailable': return 'Session status unavailable. Retry to check the local host.';
+      case 'malformed': return 'The local host returned an invalid session response. Retry.';
+      case 'error': return state.session && state.session.state === 'failed'
+        ? 'The local host reports a failed session.'
+        : 'The session operation could not be confirmed.';
+      default: return 'No active session.';
+    }
+  }
+
+  function sessionFact(label, value) {
+    const fact = element('div', 'session-detail');
+    fact.appendChild(element('strong', '', label));
+    fact.appendChild(element('span', 'session-id', value));
+    return fact;
+  }
+
+  function renderSessionDetails() {
+    nodes.sessionDetails.replaceChildren();
+    const session = state.session;
+    if (!session) {
+      nodes.sessionDetails.appendChild(sessionFact('State', state.sessionPhase === 'loading' ? 'checking' : state.sessionPhase));
+      return;
+    }
+    nodes.sessionDetails.appendChild(sessionFact('State', session.state));
+    if (state.sessionAuthority !== 'authoritative') {
+      const authorityText = state.sessionAuthority === 'last-known'
+        ? state.sessionPhase === 'malformed'
+          ? 'Last-known session details; current status response was malformed.'
+          : 'Last-known session details; current status is unavailable.'
+        : 'Last-known session details; current status is still being checked.';
+      nodes.sessionDetails.appendChild(sessionFact('Authority', authorityText));
+    }
+    if (session.state !== 'active') return;
+    if (session.game_id !== undefined) {
+      nodes.sessionDetails.appendChild(sessionFact('Game ID', session.game_id));
+      nodes.sessionDetails.appendChild(sessionFact(
+        'Title',
+        state.sessionGameTitle || 'Title unavailable in the current live catalog.',
+      ));
+    }
+    if (session.system !== undefined) nodes.sessionDetails.appendChild(sessionFact('System', session.system));
+    if (session.execution !== undefined) nodes.sessionDetails.appendChild(sessionFact('Execution', session.execution));
+    if (session.media !== undefined) nodes.sessionDetails.appendChild(sessionFact('Media', session.media));
+    if (session.progress) {
+      nodes.sessionDetails.appendChild(sessionFact('Progress stage', boundedMessage(session.progress.stage, '—', 120)));
+      nodes.sessionDetails.appendChild(sessionFact('Progress message', boundedMessage(session.progress.message, '—', 240)));
+    }
+    if (session.input) {
+      nodes.sessionDetails.appendChild(sessionFact('Input state', session.input.state));
+      nodes.sessionDetails.appendChild(sessionFact('Input readiness', session.input.ready ? 'Ready' : 'Not ready'));
+    }
+  }
+
+  function ensureSessionActions() {
+    if (!refreshSessionButton) {
+      refreshSessionButton = element('button', 'button secondary', 'Refresh session');
+      refreshSessionButton.id = 'refresh-session';
+      refreshSessionButton.type = 'button';
+      refreshSessionButton.addEventListener('click', loadSession);
+      nodes.sessionActions.appendChild(refreshSessionButton);
+    }
+    if (!stopSessionButton) {
+      stopSessionButton = element('button', 'button', 'Stop session');
+      stopSessionButton.id = 'stop-session';
+      stopSessionButton.type = 'button';
+      stopSessionButton.addEventListener('click', stopSession);
+      nodes.sessionActions.appendChild(stopSessionButton);
+    }
+    if (!sessionActionReason) {
+      sessionActionReason = element('p', 'launch-reason');
+      sessionActionReason.id = 'session-action-reason';
+      nodes.sessionActions.appendChild(sessionActionReason);
+    }
+  }
+
+  function renderSession() {
+    ensureSessionActions();
+    const busy = Boolean(state.activeMutation) || state.sessionPhase === 'loading';
+    nodes.sessionPanel.setAttribute('aria-busy', String(busy));
+    nodes.sessionStatus.textContent = sessionStatusText();
+    nodes.sessionMessage.textContent = state.sessionMessage || '';
+    renderSessionDetails();
+    const conflictReason = state.activeMutation ? 'A session transition is already in progress.' : '';
+    const hasActiveSession = Boolean(
+      state.sessionAuthority === 'authoritative'
+      && state.session
+      && state.session.state === 'active',
+    );
+    const stopReason = conflictReason || (hasActiveSession
+      ? ''
+      : state.sessionAuthority === 'last-known'
+        ? 'Current session status is not authoritative; retry before stopping.'
+        : 'No current authoritative active session is available to stop.');
+    refreshSessionButton.disabled = Boolean(state.activeMutation);
+    stopSessionButton.disabled = Boolean(stopReason);
+    stopSessionButton.hidden = !hasActiveSession && !state.activeMutation;
+    sessionActionReason.textContent = conflictReason || (!hasActiveSession ? stopReason : '');
+    if (conflictReason || !hasActiveSession) {
+      refreshSessionButton.setAttribute('aria-describedby', 'session-action-reason');
+      stopSessionButton.setAttribute('aria-describedby', 'session-action-reason');
+    } else {
+      refreshSessionButton.removeAttribute?.('aria-describedby');
+      stopSessionButton.removeAttribute?.('aria-describedby');
+    }
   }
 
   function renderCatalog() {
@@ -632,6 +1117,30 @@
     nodes.list.appendChild(card);
   }
 
+  function launchControl(game) {
+    let label = 'Launch live game';
+    let reason = '';
+    if (!game) return { label, reason: 'Select a live catalog game first.', enabled: false };
+    if (game.state !== 'available' || !game.content_prepared) {
+      reason = 'The selected live game is not ready to launch.';
+    } else if (state.activeMutation) {
+      reason = 'A session transition is already in progress.';
+    } else if (state.sessionStarted && !state.session) {
+      reason = state.sessionPhase === 'unavailable'
+        ? 'Session status is unavailable; retry before launching.'
+        : 'Session status is not ready; wait for the host check to finish.';
+    } else if (state.sessionStarted && !['idle', 'stopped', 'active'].includes(state.sessionPhase)) {
+      reason = state.sessionPhase === 'malformed'
+        ? 'Session status was malformed; retry before launching.'
+        : 'The current session transition must finish before launching.';
+    } else if (state.session && state.session.state === 'active' && state.session.game_id === game.id) {
+      reason = 'Already active.';
+    } else if (state.session && state.session.state === 'active') {
+      label = 'Replace active session';
+    }
+    return { label, reason, enabled: reason === '' };
+  }
+
   function renderDetail(gameView, liveGame) {
     const game = gameView ? gameView.live : null;
     const presentation = gameView ? gameView.presentation : null;
@@ -668,9 +1177,7 @@
       return;
     }
     if (state.launchState === 'launching') {
-      const progress = element('p', 'status-message', 'launching: preparing the selected live game…');
-      nodes.launchActions.appendChild(progress);
-      return;
+      nodes.launchActions.appendChild(element('p', 'status-message', 'launching: preparing the selected live game…'));
     }
     if (state.launchState === 'launch_success') {
       nodes.launchActions.appendChild(element('p', 'status-message success', 'launch_success: session accepted by the local host.'));
@@ -681,15 +1188,24 @@
       nodes.launchActions.appendChild(failure);
       nodes.launchActions.appendChild(retryButton('Retry launch', launchSelected));
     }
-    const launch = element('button', 'button', 'Launch live game');
+    const control = launchControl(liveGame);
+    const reason = element('p', 'launch-reason', control.reason);
+    reason.id = 'launch-reason';
+    const launch = element('button', 'button', control.label);
     launch.type = 'button';
-    launch.disabled = !canLaunch(liveGame);
+    launch.disabled = !control.enabled;
+    if (control.reason) launch.setAttribute('aria-describedby', reason.id);
     launch.addEventListener('click', launchSelected);
     nodes.launchActions.appendChild(launch);
+    nodes.launchActions.appendChild(reason);
   }
 
   function loadCatalog() {
     return controller.loadCatalog(nodes.search.value);
+  }
+
+  function loadSession() {
+    return controller.loadSession();
   }
 
   function refreshDetail(game) {
@@ -704,16 +1220,28 @@
     return controller.launchSelected();
   }
 
-  function canLaunch(game) {
-    return game.state === 'available' && game.content_prepared;
+  function stopSession() {
+    return controller.stopSession();
+  }
+
+  function focusWithoutScroll(node) {
+    if (node && typeof node.focus === 'function') node.focus({ preventScroll: true });
   }
 
   function handleStateChange(next) {
+    const previous = state;
     state = next;
     if (next.hostState === 'ready') setHealth('Local host ready', 'host-status');
     if (next.hostState === 'unavailable') setHealth('Catalog unavailable', 'host-status');
     renderCatalog();
     renderDetail(state.selectedGameView, state.selectedLiveGame);
+    renderSession();
+    if (previous && previous.activeMutation !== 'launch' && next.activeMutation === 'launch') {
+      focusWithoutScroll(nodes.sessionPanel);
+    }
+    if (previous && previous.activeMutation === 'stop' && next.sessionPhase === 'stopped') {
+      focusWithoutScroll(refreshSessionButton);
+    }
   }
 
   controller = createAppController({
@@ -725,5 +1253,7 @@
   nodes.search.addEventListener('input', loadCatalog);
   renderCatalog();
   renderDetail(null);
+  renderSession();
+  void loadSession();
   void loadCatalog();
 })(globalThis);

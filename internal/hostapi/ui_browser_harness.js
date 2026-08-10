@@ -18,6 +18,8 @@ const SUITE_POLL_MS = 25;
 const EVIDENCE_SETTLE_QUIET_MS = 100;
 const MAX_CAPTURE_BYTES = 64 * 1024;
 const MAX_EVIDENCE_TEXT = 240;
+const MAX_PENDING_RESPONSE_EXTRA_INFO = 64;
+const MAX_RETIRED_NETWORK_REQUEST_IDS = 4_096;
 const CHROME_FAILED_RESOURCE_PATTERN = /^Failed to load resource: the server responded with a status of ([45]\d\d) \([^()\r\n]*\)$/;
 
 function boundedText(value, fallback = '', limit = MAX_EVIDENCE_TEXT) {
@@ -109,7 +111,9 @@ function normalizeQueue(value, label) {
 function normalizePlan(plan = {}) {
   const catalog = plan.catalog || { '': fixture('catalog-populated.json') };
   const details = plan.details || {};
+  const sessions = plan.sessions || [fixture('session-idle.json')];
   const launches = plan.launches || [fixture('launch-success.json')];
+  const stops = plan.stops || [fixture('stop-success.json')];
   const catalogQueues = new Map();
   for (const [query, value] of Object.entries(catalog)) {
     catalogQueues.set(String(query), normalizeQueue(value, `catalog[${query}]`));
@@ -123,7 +127,9 @@ function normalizePlan(plan = {}) {
     html: assembleProductionHTML(plan.metadataMode || 'normal'),
     catalogQueues,
     detailQueues,
+    sessionQueue: normalizeQueue(sessions, 'sessions'),
     launchQueue: normalizeQueue(launches, 'launches'),
+    stopQueue: normalizeQueue(stops, 'stops'),
   };
 }
 
@@ -256,7 +262,8 @@ class FixtureServer extends EventEmitter {
       requestBody: '',
       responseOrder: null,
       unexpected: false,
-      receivedOrder: this.records.length,
+        headersSent: false,
+        receivedOrder: this.records.length,
     };
     this.records.push(record);
     this.emit('request', record);
@@ -329,12 +336,27 @@ class FixtureServer extends EventEmitter {
       await this.deliver(record, response, selected || this.unexpectedResponse(record, 500, `detail ID not configured: ${boundedText(id)}`));
       return;
     }
+    if (url.pathname === '/api/v1/session' && request.method === 'GET') {
+      const selected = this.plan.sessionQueue.length === 1
+        ? this.plan.sessionQueue[0]
+        : this.plan.sessionQueue.shift();
+      await this.deliver(record, response, selected || this.unexpectedResponse(record, 500, 'session response queue exhausted'));
+      return;
+    }
     if (url.pathname === '/api/v1/session/launch' && request.method === 'POST') {
       record.requestBody = await this.readRequestBody(request);
       const selected = this.plan.launchQueue.length === 1
         ? this.plan.launchQueue[0]
         : this.plan.launchQueue.shift();
       await this.deliver(record, response, selected || this.unexpectedResponse(record, 500, 'launch response queue exhausted'));
+      return;
+    }
+    if (url.pathname === '/api/v1/session/stop' && request.method === 'POST') {
+      record.requestBody = await this.readRequestBody(request);
+      const selected = this.plan.stopQueue.length === 1
+        ? this.plan.stopQueue[0]
+        : this.plan.stopQueue.shift();
+      await this.deliver(record, response, selected || this.unexpectedResponse(record, 500, 'stop response queue exhausted'));
       return;
     }
     await this.deliver(record, response, this.unexpectedResponse(record, 404, 'unexpected fixture route'));
@@ -345,6 +367,18 @@ class FixtureServer extends EventEmitter {
     if (plan.fixture === 'ui-assets') plan.html = selected.html || this.plan.html;
     if (plan.fixture === 'favicon') plan.body = Buffer.alloc(0);
     if (plan.hold) {
+      const contentType = plan.fixture === 'favicon'
+        ? 'image/x-icon'
+        : plan.fixture === 'ui-assets'
+          ? 'text/html; charset=utf-8'
+          : 'application/json';
+      response.writeHead(plan.status, {
+        'Cache-Control': 'no-store',
+        Connection: 'close',
+        'Content-Type': contentType,
+      });
+      response.flushHeaders?.();
+      record.headersSent = true;
       await new Promise((resolve, reject) => {
         this.held.set(record.id, { record, response, plan, resolve, reject });
       });
@@ -377,11 +411,13 @@ class FixtureServer extends EventEmitter {
         ? 'text/html; charset=utf-8'
         : 'application/json';
     try {
-      response.writeHead(plan.status, {
-        'Cache-Control': 'no-store',
-        'Content-Type': contentType,
-        'Content-Length': body.length,
-      });
+      if (!record.headersSent) {
+        response.writeHead(plan.status, {
+          'Cache-Control': 'no-store',
+          'Content-Type': contentType,
+          'Content-Length': body.length,
+        });
+      }
       response.end(body);
     } catch (_) {
       response.destroy();
@@ -416,15 +452,20 @@ class FixtureServer extends EventEmitter {
       existing._claimed = true;
       return Promise.resolve(existing);
     }
-    return withTimeout(new Promise(resolve => {
-      const onRequest = record => {
+    let onRequest;
+    const promise = new Promise(resolve => {
+      onRequest = record => {
         if (!matches(record)) return;
         record._claimed = true;
         this.off('request', onRequest);
         resolve(record);
       };
       this.on('request', onRequest);
-    }), timeoutMs, `timed out waiting for fixture request ${JSON.stringify(matcher)}`);
+    });
+    return withTimeout(promise, timeoutMs, `timed out waiting for fixture request ${JSON.stringify(matcher)}`)
+      .finally(() => {
+        if (onRequest) this.off('request', onRequest);
+      });
   }
 
   evidence() {
@@ -436,7 +477,7 @@ class FixtureServer extends EventEmitter {
       status: record.status,
       fixture: record.fixture,
       requestContentType: boundedText(record.requestContentType, '', 120),
-      requestBody: record.path === '/api/v1/session/launch'
+      requestBody: record.path === '/api/v1/session/launch' || record.path === '/api/v1/session/stop'
         ? boundedText(record.requestBody, '', 512)
         : undefined,
       responseOrder: record.responseOrder,
@@ -768,17 +809,46 @@ class BrowserPage {
     this.networkFailures = [];
     this.externalRequests = [];
     this.targetFailures = [];
-    this.connection.on('event', event => this.handleEvent(event));
+    this.pendingResponseExtraInfo = new Map();
+    this.retiredNetworkRequestIDs = new Set();
+    this.eventListenerBaseline = typeof this.connection.listenerCount === 'function'
+      ? this.connection.listenerCount('event')
+      : 0;
+    this.boundEventListener = event => this.handleEvent(event);
+    this.connection.on('event', this.boundEventListener);
+    this.disposed = false;
   }
 
-  recordNetworkFailure(reason, requestId = '', detail = '') {
+  recordNetworkFailure(reason, requestId = '', detail = '', provisional = false) {
     if (this.networkFailures.length >= 64) return;
-    this.networkFailures.push({
+    const failure = {
       kind: 'network-evidence',
       reason,
       requestId: boundedText(requestId, '', 80),
       detail: boundedText(detail, '', 120),
-    });
+    };
+    if (provisional) failure.provisional = true;
+    this.networkFailures.push(failure);
+  }
+
+  clearOneNetworkFailure(reason, requestId) {
+    const normalizedRequestId = boundedText(requestId, '', 80);
+    for (let index = this.networkFailures.length - 1; index >= 0; index -= 1) {
+      const failure = this.networkFailures[index];
+      if (failure.reason === reason && failure.requestId === normalizedRequestId) {
+        this.networkFailures.splice(index, 1);
+        return;
+      }
+    }
+  }
+
+  rememberRetiredNetworkRequestID(requestId) {
+    if (!validNetworkRequestID(requestId)) return;
+    this.retiredNetworkRequestIDs.add(requestId);
+    while (this.retiredNetworkRequestIDs.size > MAX_RETIRED_NETWORK_REQUEST_IDS) {
+      const oldest = this.retiredNetworkRequestIDs.values().next().value;
+      this.retiredNetworkRequestIDs.delete(oldest);
+    }
   }
 
   setNetworkStatus(requestRecord, status, source) {
@@ -844,6 +914,8 @@ class BrowserPage {
       return;
     }
     if (event.method === 'Network.requestWillBeSent') {
+      if (this.retiredNetworkRequestIDs.has(params.requestId)) return;
+      this.retiredNetworkRequestIDs.delete(params.requestId);
       const request = params.request || {};
       const url = boundedText(request.url, '', 1_024);
       const requestRecord = {
@@ -864,6 +936,19 @@ class BrowserPage {
       }
       if (parsed && parsed.origin !== this.origin && parsed.protocol !== 'about:') {
         this.externalRequests.push({ origin: boundedText(parsed.origin, '', 120), path: boundedText(parsed.pathname, '', 240) });
+      }
+      const pendingExtraInfoStatus = this.pendingResponseExtraInfo.get(params.requestId);
+      if (pendingExtraInfoStatus !== undefined) {
+        this.pendingResponseExtraInfo.delete(params.requestId);
+        if (parsed && parsed.origin === this.origin) {
+          this.clearOneNetworkFailure('unmatched-response-extra-info', params.requestId);
+          requestRecord.extraInfoStatus = pendingExtraInfoStatus;
+          this.setNetworkStatus(requestRecord, pendingExtraInfoStatus, 'response-extra-info');
+        } else if (!parsed) {
+          this.recordNetworkFailure('malformed-response-extra-info', params.requestId);
+        } else {
+          this.recordNetworkFailure('foreign-origin-response-extra-info', params.requestId);
+        }
       }
       return;
     }
@@ -892,7 +977,11 @@ class BrowserPage {
       }
       const requestRecord = this.networkRequests.get(requestId);
       if (!requestRecord) {
-        this.recordNetworkFailure('unmatched-response-extra-info', requestId);
+        if (this.retiredNetworkRequestIDs.has(requestId)) return;
+        this.recordNetworkFailure('unmatched-response-extra-info', requestId, '', true);
+        if (this.pendingResponseExtraInfo.size < MAX_PENDING_RESPONSE_EXTRA_INFO) {
+          this.pendingResponseExtraInfo.set(requestId, statusCode);
+        }
         return;
       }
       let parsed;
@@ -948,8 +1037,9 @@ class BrowserPage {
   async waitForEvent(predicate, timeoutMs, startSequence = 0) {
     const existing = this.history.find(entry => entry.sequence > startSequence && predicate(entry.event));
     if (existing) return existing.event;
-    return withTimeout(new Promise(resolve => {
-      const onEvent = event => {
+    let onEvent;
+    const promise = new Promise(resolve => {
+      onEvent = event => {
         const entry = { sequence: ++this.eventSequence, event };
         this.history.push(entry);
         if (predicate(event)) {
@@ -958,7 +1048,23 @@ class BrowserPage {
         }
       };
       this.connection.on('event', onEvent);
-    }), timeoutMs, 'timed out waiting for browser CDP event', 'PAGE_EVENT_TIMEOUT');
+    });
+    return withTimeout(promise, timeoutMs, 'timed out waiting for browser CDP event', 'PAGE_EVENT_TIMEOUT')
+      .finally(() => {
+        if (onEvent) this.connection.off('event', onEvent);
+      });
+  }
+
+  dispose() {
+    if (this.disposed) return;
+    this.connection.off('event', this.boundEventListener);
+    this.disposed = true;
+    const remaining = typeof this.connection.listenerCount === 'function'
+      ? this.connection.listenerCount('event')
+      : this.eventListenerBaseline;
+    if (remaining !== this.eventListenerBaseline) {
+      throw new Error(`browser page event listeners leaked: baseline=${this.eventListenerBaseline} remaining=${remaining}`);
+    }
   }
 
   async navigate(url) {
@@ -1021,9 +1127,31 @@ class BrowserPage {
     await this.evaluate(`(() => { const node = document.querySelector('#game-search'); if (!node) throw new Error('missing search control'); node.value = ${source}; node.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
   }
 
+  async setViewport(width, height) {
+    await this.connection.send('Emulation.setDeviceMetricsOverride', {
+      width,
+      height,
+      deviceScaleFactor: 1,
+      mobile: false,
+    }, this.sessionId);
+  }
+
+  async clearViewport() {
+    await this.connection.send('Emulation.clearDeviceMetricsOverride', {}, this.sessionId);
+  }
+
+  async setReducedMotion(reduced = true) {
+    await this.connection.send('Emulation.setEmulatedMedia', {
+      features: reduced
+        ? [{ name: 'prefers-reduced-motion', value: 'reduce' }]
+        : [],
+    }, this.sessionId);
+  }
+
   async snapshot() {
     return this.evaluate(`(() => {
       const text = selector => document.querySelector(selector)?.textContent || '';
+      const button = selector => document.querySelector(selector);
       return {
         catalogStatus: text('#catalog-status'),
         catalogText: text('#catalog'),
@@ -1032,6 +1160,18 @@ class BrowserPage {
         detailText: text('#detail-content'),
         detailActions: text('#launch-actions'),
         launchText: text('#launch-status') + ' ' + text('#launch-actions'),
+        sessionStatus: text('#session-status'),
+        sessionText: text('#session-details'),
+        sessionMessage: text('#session-message'),
+        sessionBusy: document.querySelector('#session-panel')?.getAttribute('aria-busy') || '',
+        sessionRefreshDisabled: button('#refresh-session')?.disabled === true,
+        sessionStopDisabled: button('#stop-session')?.disabled === true,
+        sessionStopHidden: button('#stop-session')?.hidden === true,
+        sessionStopDescribedBy: button('#stop-session')?.getAttribute('aria-describedby') || '',
+        launchButtonDisabled: button('#launch-actions button.button')?.disabled === true,
+        launchButtonLabel: button('#launch-actions button.button')?.textContent || '',
+        launchButtonDescribedBy: button('#launch-actions button.button')?.getAttribute('aria-describedby') || '',
+        activeElementID: document.activeElement?.id || '',
         cards: Array.from(document.querySelectorAll('#catalog-list .game-card')).map(card => ({
           title: card.querySelector('h3')?.textContent || '',
           system: card.querySelector('.game-meta')?.textContent?.split(' · ')[0] || '',
@@ -1068,8 +1208,14 @@ class BrowserPage {
         ? snapshot.launchText
         : selector === '#launch-actions'
           ? snapshot.detailActions
-          : selector === '#catalog-actions'
-            ? snapshot.catalogActions
+            : selector === '#catalog-actions'
+              ? snapshot.catalogActions
+              : selector === '#session-status'
+                ? snapshot.sessionStatus
+                : selector === '#session-details'
+                  ? snapshot.sessionText
+                  : selector === '#session-message'
+                    ? snapshot.sessionMessage
             : snapshot.detailText;
       return value.includes(text);
     });
@@ -1078,10 +1224,13 @@ class BrowserPage {
   resetEvidence() {
     this.runtimeFailures = [];
     this.browserLogFailures = [];
+    for (const requestId of this.networkRequests.keys()) this.rememberRetiredNetworkRequestID(requestId);
+    for (const requestId of this.pendingResponseExtraInfo.keys()) this.rememberRetiredNetworkRequestID(requestId);
     this.networkRequests.clear();
     this.networkFailures = [];
     this.externalRequests = [];
     this.targetFailures = [];
+    this.pendingResponseExtraInfo.clear();
   }
 
   evidence() {
@@ -1209,6 +1358,22 @@ class BrowserHarness {
     return this.page.setSearch(value);
   }
 
+  async setViewport(width, height) {
+    return this.page.setViewport(width, height);
+  }
+
+  async clearViewport() {
+    return this.page.clearViewport();
+  }
+
+  async setReducedMotion(reduced = true) {
+    return this.page.setReducedMotion(reduced);
+  }
+
+  async evaluate(expression) {
+    return this.page.evaluate(expression);
+  }
+
   async waitForSettled() {
     const deadline = Date.now() + REQUEST_TIMEOUT_MS;
     let pendingFixture;
@@ -1217,8 +1382,9 @@ class BrowserHarness {
     let quietFixtureCount = null;
     while (true) {
       const networkFailures = this.page.evidence().networkFailures;
-      if (networkFailures.length > 0) {
-        throw new Error(`browser network evidence failed: ${JSON.stringify(networkFailures)}`);
+      const blockingNetworkFailures = networkFailures.filter(failure => failure.provisional !== true);
+      if (blockingNetworkFailures.length > 0) {
+        throw new Error(`browser network evidence failed: ${JSON.stringify(blockingNetworkFailures)}`);
       }
       pendingFixture = this.fixtureEvidence().filter(record => record.status === null);
       pendingBrowser = this.page.evidence().networkRequests.filter(request => {
@@ -1229,6 +1395,13 @@ class BrowserHarness {
           return false;
         }
       });
+      if (this.page.pendingResponseExtraInfo.size > 0) {
+        pendingBrowser = pendingBrowser.concat([...this.page.pendingResponseExtraInfo.keys()].map(requestId => ({
+          requestId,
+          status: null,
+          reason: 'awaiting-request-record',
+        })));
+      }
       if (pendingFixture.length === 0 && pendingBrowser.length === 0) {
         if (Date.now() >= deadline) {
           throw new Error(`timed out waiting for browser evidence to settle: ${JSON.stringify({ pendingFixture, pendingBrowser })}`);
@@ -1329,6 +1502,13 @@ class BrowserHarness {
 
   async close() {
     let firstError = null;
+    if (this.page) {
+      try {
+        this.page.dispose();
+      } catch (error) {
+        firstError ||= error;
+      }
+    }
     if (this.page && this.chrome.connection && !this.chrome.connection.closed) {
       try {
         await this.chrome.connection.send('Target.closeTarget', { targetId: this.targetId });
