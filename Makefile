@@ -6,8 +6,9 @@ FOGCAST_LDFLAGS = $(LDFLAGS) -X github.com/DeanoC/FogCast-POC/internal/version.R
 FOGCAST_GOOS ?= darwin
 FOGCAST_GOARCH ?= arm64
 FOGCAST_OUTPUT ?= bin/fogcast
+FOGCAST_HOST_OUTPUT ?= bin/FogCastHost.app
 
-.PHONY: fmt test test-ui test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-cli build-hil build-fogcast-hil build-remote-play-receiver build-remote-play-impair build-agent build-bridge build-lock build-lock-container build-poc2-lock package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-dev-image poc1b-verify-images poc1b-qemu-smoke poc1b-kernel-test poc1b-kernel poc1b-verify-kernel poc1b-deploy-test poc2-rootfs-test poc2-deploy-test build-stage-a0 build-stage-a0-firstbuild build-stage-a0-firstbuild-precompare build-stage-a0-policy-candidate build-stage-a0-promotion-report build-stage-a0-independent-build stage-a0-test stage-a0-firstbuild-test stage-a0-precompare-test stage-a0-policy-test stage-a0-policyobserve-test stage-a0-materialobserve-test stage-a0-policy-candidate-test stage-a0-promotion-test stage-a0-promotion-report-test stage-a0-independent-test stage-a0-overlord-probe-test stage-a0-check
+.PHONY: fmt test test-ui test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-cli build-hil build-fogcast-hil build-remote-play-receiver build-remote-play-impair build-agent build-bridge build-lock build-lock-container build-poc2-lock package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-dev-image poc1b-verify-images poc1b-qemu-smoke poc1b-kernel-test poc1b-kernel poc1b-verify-kernel poc1b-deploy-test poc2-rootfs-test poc2-deploy-test build-stage-a0 build-stage-a0-firstbuild build-stage-a0-firstbuild-precompare build-stage-a0-policy-candidate build-stage-a0-promotion-report build-stage-a0-independent-build stage-a0-test stage-a0-firstbuild-test stage-a0-precompare-test stage-a0-policy-test stage-a0-policyobserve-test stage-a0-materialobserve-test stage-a0-policy-candidate-test stage-a0-promotion-test stage-a0-promotion-report-test stage-a0-independent-test stage-a0-overlord-probe-test stage-a0-check
 
 build-stage-a0:
 	mkdir -p bin
@@ -135,6 +136,9 @@ build-fogcast:
 build-fogcast-api:
 	mkdir -p bin
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -buildvcs=false -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/fogcast-api ./cmd/fogcast-api
+
+build-fogcast-host:
+	FOGCAST_SIGNING_IDENTITY="$(FOGCAST_SIGNING_IDENTITY)" VERSION="$(VERSION)" REVISION="$(REVISION)" scripts/build-fogcast-host.sh "$(FOGCAST_HOST_OUTPUT)"
 
 build-cli:
 	mkdir -p bin

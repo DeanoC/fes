@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>FogCast Host Capture</string>
+	<key>CFBundleExecutable</key>
+	<string>fogcast-api</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.fogcast.host</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>FogCast Host Capture</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>0.1.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>FogCast uses the connected HDMI capture device to receive the MiSTer video stream.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>FogCast uses the connected HDMI capture device audio input when an audio capture path is enabled.</string>
+</dict>
+</plist>
