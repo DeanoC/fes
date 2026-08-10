@@ -82,7 +82,9 @@ git commit -m "feat: model Darwin capture authorization states"
 - Modify: `internal/remotemedia/capture_darwin.h`
 - Modify: `internal/remotemedia/capture_darwin.m`
 - Modify: `internal/remotemedia/capture_darwin.go`
+- Modify: `cmd/remote-play-spike/main.go`
 - Test: `internal/remotemedia/capture_unavailable_darwin_test.go`
+- Test: `cmd/remote-play-spike/main_test.go`
 
 **Interfaces:**
 - C produces `int mr_capture_video_authorization_status(void)` with values matching the Go constants and `int mr_capture_wait_for_frame(void *handle, int timeout_ms, char **error_out)`.
@@ -100,11 +102,17 @@ Expected: FAIL because the C bridge and adapter gate do not exist.
 
 - [ ] **Step 3: Implement the Objective-C status bridge**
 
-Map `AVAuthorizationStatus` to the four stable integer constants in C. Add a condition-variable wait helper that returns after the first captured frame, or returns a timeout/runtime error without blocking cleanup.
+Map `AVAuthorizationStatus` to the four stable integer constants in C. For a
+`notDetermined` status, call `requestAccessForMediaType:completionHandler:`
+only when the signed helper has `NSCameraUsageDescription`, with a bounded
+prompt wait; a raw executable without the bundle usage description returns an
+actionable error. Add a condition-variable wait helper that returns after the
+first captured frame, or returns a timeout/runtime error without blocking
+cleanup.
 
 - [ ] **Step 4: Integrate the gate into Go**
 
-Call the C status function in `ListCaptureDevices` and `OpenNativeCapture` for physical UVC capture. Call the wait helper from `NativeCapture.Start` with a bounded two-second timeout. Preserve screen-capture behavior and existing close/error ownership.
+Call the C status/request functions in `ListCaptureDevices` and `OpenNativeCapture` for physical UVC capture. Call the wait helper from `NativeCapture.Start` with a bounded two-second timeout. Skip physical inventory for the existing `screen` source, and preserve screen-capture behavior and existing close/error ownership.
 
 - [ ] **Step 5: Run focused Darwin tests and the package tests**
 
@@ -123,6 +131,7 @@ git commit -m "feat: fail Darwin capture on missing authorization"
 
 **Files:**
 - Create: `resources/fogcast-host/Info.plist`
+- Create: `resources/fogcast-host/Entitlements.plist`
 - Create: `scripts/build-fogcast-host.sh`
 - Create: `scripts/tests/fogcast-host-build_test.sh`
 - Modify: `Makefile`
@@ -143,11 +152,11 @@ Expected: FAIL because the helper script and template do not exist.
 
 - [ ] **Step 3: Add the bundle template and build script**
 
-Use bundle identifier `com.fogcast.host`, executable `fogcast-api`, and explicit usage strings. Build with `CGO_ENABLED=1 GOOS=darwin GOARCH=arm64`, copy the plist, require `FOGCAST_SIGNING_IDENTITY`, and run `codesign --force --deep --options runtime --sign "$FOGCAST_SIGNING_IDENTITY"`. Do not write certificates or identities to disk.
+Use bundle identifier `com.fogcast.host`, executable `fogcast-api`, and explicit usage strings. Build with `CGO_ENABLED=1 GOOS=darwin GOARCH=arm64`, copy the plist and camera entitlement, require `FOGCAST_SIGNING_IDENTITY`, and run `codesign --force --deep --options runtime --entitlements resources/fogcast-host/Entitlements.plist --sign "$FOGCAST_SIGNING_IDENTITY"`. Do not write certificates or identities to disk.
 
 - [ ] **Step 4: Add the Make target and shell test**
 
-Declare `build-fogcast-host` phony, invoke the script, and validate the missing-identity path, shell syntax, and static plist fields. Keep generated app output under ignored `bin/` by default.
+Declare `build-fogcast-host` phony, invoke the script, and validate the missing/ad-hoc identity paths, shell syntax, static plist/entitlement fields, and (on Darwin) a successful fake-sign bundle layout. Keep generated app output under ignored `bin/` by default.
 
 - [ ] **Step 5: Run the shell checks**
 
