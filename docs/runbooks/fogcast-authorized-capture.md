@@ -11,7 +11,8 @@ macOS Camera and Microphone consent belongs to the responsible application and
 its code-signing identity through the TCC privacy boundary. Genki's permission does not grant access to
 FogCast, FFmpeg, or an ad-hoc child binary. The FogCast worker must therefore
 run from the signed `com.fogcast.host` helper after the operator grants that
-helper Camera and Microphone access.
+helper Camera access. Microphone consent is only needed when the separate
+FogCast audio-input worker is enabled.
 
 The ordinary `make build` target deliberately produces a cgo-disabled
 `bin/fogcast-api` for non-hardware checks. It cannot open the AVFoundation /
