@@ -23,6 +23,7 @@ import (
 	"github.com/DeanoC/FogCast-POC/internal/hostapi"
 	"github.com/DeanoC/FogCast-POC/internal/mediasession"
 	"github.com/DeanoC/FogCast-POC/internal/remotemedia"
+	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
 type service interface {
@@ -35,12 +36,19 @@ type openService func(context.Context, fogcast.Paths) (service, error)
 type bridgeStarterFactory func(fogcast.Config) (host.BridgeStarter, error)
 
 type captureSourceFactory func(fogcast.MediaConfig) (remotemedia.CaptureSource, error)
+type audioSourceFactory func(remotemedia.AudioSourceConfig) (remotemedia.AudioSource, error)
+type mediaSourcesFactory func(fogcast.MediaConfig) (remotemedia.CaptureSource, remotemedia.AudioSource, error)
 type compositionOption func(*compositionDeps)
 
 type targetCast interface {
 	CastStart(context.Context, string, string, uint64) (host.CastStatus, error)
 	CastStop(context.Context, string, uint64) (host.CastStatus, error)
 	CastStatus(context.Context) (host.CastStatus, error)
+}
+
+type targetMediaCast interface {
+	targetCast
+	CastStartWithMedia(context.Context, string, string, uint64, protocol.CastMediaSet) (host.CastStatus, error)
 }
 
 const (
@@ -51,13 +59,19 @@ const (
 
 type compositionDeps struct {
 	newCapture      captureSourceFactory
+	newAudio        audioSourceFactory
 	receiverOptions []remotemedia.ManagedReceiverOption
 	senderOptions   []remotemedia.ManagedSenderOption
+	audioOptions    []remotemedia.ManagedAudioSenderOption
 	targetCast      targetCast
 }
 
 func withCaptureSourceFactory(factory captureSourceFactory) compositionOption {
 	return func(deps *compositionDeps) { deps.newCapture = factory }
+}
+
+func withAudioSourceFactory(factory audioSourceFactory) compositionOption {
+	return func(deps *compositionDeps) { deps.newAudio = factory }
 }
 
 func withManagedReceiverOptions(options ...remotemedia.ManagedReceiverOption) compositionOption {
@@ -66,6 +80,10 @@ func withManagedReceiverOptions(options ...remotemedia.ManagedReceiverOption) co
 
 func withManagedSenderOptions(options ...remotemedia.ManagedSenderOption) compositionOption {
 	return func(deps *compositionDeps) { deps.senderOptions = options }
+}
+
+func withManagedAudioSenderOptions(options ...remotemedia.ManagedAudioSenderOption) compositionOption {
+	return func(deps *compositionDeps) { deps.audioOptions = options }
 }
 
 func withTargetCast(controller targetCast) compositionOption {
@@ -80,6 +98,45 @@ func defaultCaptureSource(config fogcast.MediaConfig) (remotemedia.CaptureSource
 		Device: config.CaptureDevice, Width: config.Width, Height: config.Height, FPS: remotemedia.FrameRate{Numerator: config.FPSNumerator, Denominator: config.FPSDenominator}, Bitrate: config.Bitrate, GOP: config.GOP,
 	})
 	return capture, err
+}
+
+func defaultAudioSource(config remotemedia.AudioSourceConfig) (remotemedia.AudioSource, error) {
+	return remotemedia.OpenNativeAudioSource(config)
+}
+
+// newMediaSources is the default launch-time source seam. Composition tests
+// replace it through makeMediaSourcesFactory without opening either source.
+func newMediaSources(config fogcast.MediaConfig) (remotemedia.CaptureSource, remotemedia.AudioSource, error) {
+	return makeMediaSourcesFactory(defaultCaptureSource, defaultAudioSource)(config)
+}
+
+func makeMediaSourcesFactory(newCapture captureSourceFactory, newAudio audioSourceFactory) mediaSourcesFactory {
+	return func(config fogcast.MediaConfig) (remotemedia.CaptureSource, remotemedia.AudioSource, error) {
+		if newCapture == nil {
+			return nil, nil, errors.New("media capture source is unavailable")
+		}
+		capture, err := newCapture(config)
+		if err != nil || capture == nil {
+			if err != nil {
+				return capture, nil, err
+			}
+			return capture, nil, errors.New("media capture source is unavailable")
+		}
+		if !config.Audio.Enabled {
+			return capture, nil, nil
+		}
+		if newAudio == nil {
+			return capture, nil, errors.New("audio source is unavailable")
+		}
+		audio, err := newAudio(config.Audio.Source)
+		if err != nil || audio == nil {
+			if err != nil {
+				return capture, audio, err
+			}
+			return capture, audio, errors.New("audio source is unavailable")
+		}
+		return capture, audio, nil
+	}
 }
 
 func defaultBridgeStarter(config fogcast.Config) (host.BridgeStarter, error) {
@@ -105,7 +162,7 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 	if service == nil {
 		return nil, nil, errors.New("fogcast-api: composition dependency is unavailable")
 	}
-	deps := compositionDeps{newCapture: defaultCaptureSource}
+	deps := compositionDeps{newCapture: defaultCaptureSource, newAudio: defaultAudioSource}
 	for _, option := range options {
 		if option != nil {
 			option(&deps)
@@ -119,10 +176,11 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 			return nil, nil, errors.New("fogcast-api: media capture source is unavailable")
 		}
 		sender := &managedSenderComponent{
-			media:      config.Media,
-			token:      config.Token,
-			newCapture: deps.newCapture,
-			options:    deps.senderOptions,
+			media:        config.Media,
+			token:        config.Token,
+			newSources:   makeMediaSourcesFactory(deps.newCapture, deps.newAudio),
+			options:      deps.senderOptions,
+			audioOptions: deps.audioOptions,
 		}
 		target := deps.targetCast
 		if target == nil {
@@ -148,6 +206,9 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 			}
 		}
 		mediaOwner := newCompositionMediaSession(hostapi.NewMediaSessionAdapter(mediasession.New(sender, receiver)), target, config.Media.Session, config.Token, config.Media.Generation)
+		if config.Media.Audio.Enabled {
+			mediaOwner.mediaSet = &protocol.CastMediaSet{Version: protocol.CastMediaSetVersion, Video: true, Audio: true}
+		}
 		cleanup = append(cleanup, mediaOwner.Close)
 		serverOptions = append(serverOptions, hostapi.WithMediaSession(mediaOwner))
 	}
@@ -175,62 +236,160 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 }
 
 type managedSenderComponent struct {
-	media      fogcast.MediaConfig
-	token      string
-	newCapture captureSourceFactory
-	options    []remotemedia.ManagedSenderOption
+	media        fogcast.MediaConfig
+	token        string
+	newSources   mediaSourcesFactory
+	options      []remotemedia.ManagedSenderOption
+	audioOptions []remotemedia.ManagedAudioSenderOption
 }
 
 func (s *managedSenderComponent) Start(ctx context.Context, gameID string) (mediasession.ComponentHandle, error) {
-	source, err := s.newCapture(s.media)
-	if err != nil || source == nil {
-		if source != nil {
-			return cleanupUnownedCapture(source, "media capture could not be started")
+	if s == nil || s.newSources == nil {
+		return nil, errors.New("media sources could not be started")
+	}
+	capture, audio, err := s.newSources(s.media)
+	if err != nil || capture == nil {
+		if capture != nil || audio != nil {
+			return cleanupUnownedMediaSources(capture, audio, "media sources could not be started")
 		}
 		if err != nil {
-			return nil, fmt.Errorf("media capture could not be started: %w", err)
+			return nil, fmt.Errorf("media sources could not be started: %w", err)
 		}
-		return nil, errors.New("media capture could not be started")
+		return nil, errors.New("media sources could not be started")
 	}
-	sender, err := remotemedia.NewManagedSender(remotemedia.ManagedSenderConfig{
+	video, err := remotemedia.NewManagedSender(remotemedia.ManagedSenderConfig{
 		Session: s.media.Session, Generation: s.media.Generation, Token: s.token,
 		SSRC: s.media.SSRC, RTPAddress: s.media.RTPDestination, ControlAddress: s.media.ControlAddress,
 		Bitrate: s.media.Bitrate, GOP: s.media.GOP, MTU: s.media.MTU,
-	}, source, s.options...)
+	}, capture, s.options...)
 	if err != nil {
-		return cleanupUnownedCapture(source, "media sender could not be configured")
+		return cleanupUnownedMediaSources(capture, audio, "media sender could not be configured")
 	}
+	var managedAudio *remotemedia.ManagedAudioSender
+	if audio != nil {
+		config := s.media.Audio
+		managedAudio, err = remotemedia.NewManagedAudioSender(remotemedia.AudioSenderConfig{
+			RTPAddress: config.Transport.RTPDestination, ControlAddress: config.Transport.ControlAddress,
+			Session: s.media.Session, Generation: s.media.Generation, Token: s.token, SSRC: config.Transport.SSRC,
+			MTU: config.Transport.MTU, SampleRate: config.Source.SampleRate, Channels: config.Source.Channels,
+			FrameSamples: config.Source.FrameSamples, FormatCapabilityVersion: config.Transport.FormatCapabilityVersion,
+		}, audio, s.audioOptions...)
+		if err != nil {
+			return cleanupUnownedMediaSources(capture, audio, "audio sender could not be configured")
+		}
+	}
+	sender, err := remotemedia.NewManagedMediaSender(video, managedAudio)
+	if err != nil {
+		return cleanupUnownedMediaSources(capture, audio, "media sender could not be configured")
+	}
+	// Ownership transfers to the managed sender before Start. From this point
+	// onward its startup rollback owns every source, including an unstarted
+	// sibling, so the caller must never close the raw sources a second time.
+	capture, audio = nil, nil
 	handle, err := sender.Start(ctx, gameID)
 	if err != nil || handle == nil {
 		if handle == nil {
-			return cleanupUnownedCapture(source, "media sender could not be started")
+			return nil, errors.New("media sender could not be started")
 		}
 		return handle, errors.New("media sender could not be started")
 	}
 	return handle, nil
 }
 
-type captureCleanupHandle struct {
-	mu     sync.Mutex
-	source remotemedia.CaptureSource
-	closed bool
+type mediaSourcesCleanupHandle struct {
+	capture *mediaSourceCleanupSlot
+	audio   *mediaSourceCleanupSlot
 }
 
-func (h *captureCleanupHandle) Stop(context.Context) error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.closed {
+type mediaSourceCleanupSlot struct {
+	source interface{ Close() error }
+
+	mu       sync.Mutex
+	closed   bool
+	inFlight bool
+}
+
+func (s *mediaSourceCleanupSlot) closeWithin(ctx context.Context, timeout time.Duration) error {
+	if s == nil || s.source == nil {
 		return nil
 	}
-	if err := h.source.Close(); err != nil {
-		return errors.New("media capture could not be stopped")
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	h.closed = true
-	return nil
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return nil
+	}
+	if s.inFlight {
+		s.mu.Unlock()
+		return errors.New("media source cleanup is already in progress")
+	}
+	s.inFlight = true
+	s.mu.Unlock()
+
+	result := make(chan error, 1)
+	go func() {
+		err := s.source.Close()
+		s.mu.Lock()
+		s.inFlight = false
+		if err == nil {
+			s.closed = true
+		}
+		s.mu.Unlock()
+		result <- err
+	}()
+
+	if timeout <= 0 {
+		timeout = targetCleanupTimeout
+	}
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case err := <-result:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return errors.New("media source cleanup timed out")
+	}
 }
 
-func cleanupUnownedCapture(source remotemedia.CaptureSource, message string) (mediasession.ComponentHandle, error) {
-	handle := &captureCleanupHandle{source: source}
+func (h *mediaSourcesCleanupHandle) Stop(ctx context.Context) error {
+	if h == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	type cleanupResult struct{ err error }
+	results := make(chan cleanupResult, 2)
+	count := 0
+	if h.audio != nil {
+		count++
+		go func() { results <- cleanupResult{err: h.audio.closeWithin(ctx, targetCleanupTimeout)} }()
+	}
+	if h.capture != nil {
+		count++
+		go func() { results <- cleanupResult{err: h.capture.closeWithin(ctx, targetCleanupTimeout)} }()
+	}
+	var first error
+	for index := 0; index < count; index++ {
+		if result := <-results; result.err != nil && first == nil {
+			first = result.err
+		}
+	}
+	return first
+}
+
+func cleanupUnownedMediaSources(capture remotemedia.CaptureSource, audio remotemedia.AudioSource, message string) (mediasession.ComponentHandle, error) {
+	handle := &mediaSourcesCleanupHandle{}
+	if capture != nil {
+		handle.capture = &mediaSourceCleanupSlot{source: capture}
+	}
+	if audio != nil {
+		handle.audio = &mediaSourceCleanupSlot{source: audio}
+	}
 	if err := handle.Stop(context.Background()); err != nil {
 		return handle, errors.New(message)
 	}
@@ -254,6 +413,7 @@ type compositionMediaSession struct {
 	session      string
 	token        string
 	generation   uint64
+	mediaSet     *protocol.CastMediaSet
 	targetActive bool
 	handle       hostapi.MediaHandle
 }
@@ -264,7 +424,20 @@ func newCompositionMediaSession(media hostapi.MediaSession, target targetCast, s
 
 func (s *compositionMediaSession) Start(ctx context.Context, gameID string) (hostapi.MediaHandle, error) {
 	if s.target != nil {
-		status, err := s.target.CastStart(ctx, s.session, s.token, s.generation)
+		var status host.CastStatus
+		var err error
+		if s.mediaSet == nil {
+			status, err = s.target.CastStart(ctx, s.session, s.token, s.generation)
+		} else {
+			mediaTarget, ok := s.target.(targetMediaCast)
+			if !ok {
+				return nil, errors.New("target does not support media admission")
+			}
+			status, err = mediaTarget.CastStartWithMedia(ctx, s.session, s.token, s.generation, *s.mediaSet)
+			if err == nil {
+				err = protocol.ValidateCastMediaAcknowledgement(*s.mediaSet, status.Media)
+			}
+		}
 		if err != nil || status.State != "active" || status.Session != s.session || status.Generation != s.generation {
 			s.mu.Lock()
 			s.targetActive = true

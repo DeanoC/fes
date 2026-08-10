@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
 type fakeProcess struct {
@@ -88,6 +90,20 @@ func TestControllerStartsWithAuthenticatedSessionArgumentsAndStops(t *testing.T)
 	}
 	if got := controller.Status(context.Background()).State; got != Idle {
 		t.Fatalf("status after stop = %q", got)
+	}
+}
+
+func TestControllerMediaAdmissionFailsClosedForAudio(t *testing.T) {
+	process := &fakeProcess{waitCh: make(chan struct{})}
+	controller, err := New(testConfig(), func(context.Context, string, ...string) (Process, error) { return process, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := controller.StartWithMedia(context.Background(), "session", "token", 9, protocol.CastMediaSet{Version: protocol.CastMediaSetVersion, Video: true, Audio: true}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("audio start = %v, want %v", err, ErrInvalid)
+	}
+	if got := controller.Status(context.Background()); got.State != Idle || got.Media != nil {
+		t.Fatalf("status after rejected audio = %#v", got)
 	}
 }
 

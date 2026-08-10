@@ -143,6 +143,88 @@ mtu = 1200
 	}
 }
 
+func TestLoadConfigLoadsNestedAudioConfiguration(t *testing.T) {
+	dir := t.TempDir()
+	path := writeConfig(t, validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))+`
+[media]
+enabled = true
+session = "session-1"
+ssrc = 42
+rtp_listen = "127.0.0.1:5000"
+rtp_destination = "127.0.0.1:5001"
+capture_device = "screen"
+
+[media.audio]
+enabled = true
+source = "shadowcast_uac"
+device = "ShadowCast 3"
+device_uid = "uid-redacted-in-test"
+device_hash = "sha256:be0109cefaf140745eb4824851b296d5fd2ba5443e8e775d8c9fa5b7763f039a"
+rtp_destination = "127.0.0.1:5101"
+control_address = "127.0.0.1:5102"
+ssrc = 43
+sample_rate = 48000
+channels = 2
+frame_samples = 240
+mtu = 1200
+`)
+	config, err := fogcast.LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := config.Media.Audio
+	if !got.Enabled || got.Source.Kind != "shadowcast_uac" || got.Source.EndpointName != "ShadowCast 3" || got.Source.EndpointUID != "uid-redacted-in-test" || got.Source.EndpointDigest == "" || got.Transport.SSRC != 43 || got.Transport.RTPDestination != "127.0.0.1:5101" || got.Transport.ControlAddress != "127.0.0.1:5102" {
+		t.Fatalf("audio config = %#v", got)
+	}
+}
+
+func TestLoadConfigRejectsInvalidAudioConfiguration(t *testing.T) {
+	dir := t.TempDir()
+	base := validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis")) + `
+[media]
+enabled = true
+session = "session-1"
+ssrc = 42
+rtp_listen = "127.0.0.1:5000"
+rtp_destination = "127.0.0.1:5001"
+capture_device = "screen"
+
+[media.audio]
+enabled = true
+source = "shadowcast_uac"
+device = "ShadowCast 3"
+device_uid = "uid-redacted-in-test"
+device_hash = "sha256:be0109cefaf140745eb4824851b296d5fd2ba5443e8e775d8c9fa5b7763f039a"
+rtp_destination = "127.0.0.1:5101"
+control_address = "127.0.0.1:5102"
+ssrc = 43
+sample_rate = 48000
+channels = 2
+frame_samples = 240
+mtu = 1200
+`
+	for name, mutate := range map[string]func(string) string{
+		"unknown field":   func(value string) string { return value + "unexpected = true\n" },
+		"duplicate SSRC":  func(value string) string { return strings.Replace(value, "ssrc = 43", "ssrc = 42", 1) },
+		"zero SSRC":       func(value string) string { return strings.Replace(value, "ssrc = 43", "ssrc = 0", 1) },
+		"invalid address": func(value string) string { return strings.Replace(value, "127.0.0.1:5101", "not-an-address", 1) },
+		"invalid port":    func(value string) string { return strings.Replace(value, "127.0.0.1:5101", "127.0.0.1:not-a-port", 1) },
+		"invalid source":  func(value string) string { return strings.Replace(value, "shadowcast_uac", "unknown", 1) },
+		"missing endpoint identity": func(value string) string {
+			return strings.Replace(value, "device_uid = \"uid-redacted-in-test\"\n", "", 1)
+		},
+		"mismatched endpoint digest": func(value string) string {
+			return strings.Replace(value, "be0109cefaf140745eb4824851b296d5fd2ba5443e8e775d8c9fa5b7763f039a", "0000000000000000000000000000000000000000000000000000000000000000", 1)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := fogcast.LoadConfig(writeConfig(t, mutate(base))); err == nil {
+				t.Fatal("invalid audio configuration accepted")
+			}
+		})
+	}
+}
+
 func TestLoadConfigRejectsInvalidEnabledMediaWithoutLeakingValues(t *testing.T) {
 	dir := t.TempDir()
 	base := validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))

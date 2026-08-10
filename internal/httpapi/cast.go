@@ -1,12 +1,14 @@
 package httpapi
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 
 	"github.com/DeanoC/FogCast-POC/internal/cast"
+	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
 func registerCastRoutes(mux *http.ServeMux, token string, controller CastController) {
@@ -19,9 +21,10 @@ func castStartHandler(controller CastController) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 8<<10)
 		var request struct {
-			Session    string `json:"session"`
-			Token      string `json:"token"`
-			Generation uint64 `json:"generation"`
+			Session    string          `json:"session"`
+			Token      string          `json:"token"`
+			Generation uint64          `json:"generation"`
+			Media      json.RawMessage `json:"media"`
 		}
 		decoder := json.NewDecoder(r.Body)
 		decoder.DisallowUnknownFields()
@@ -29,11 +32,44 @@ func castStartHandler(controller CastController) http.Handler {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "cast start requires one valid session object")
 			return
 		}
-		if err := controller.Start(r.Context(), request.Session, request.Token, request.Generation); err != nil {
+		var startErr error
+		var requestedMedia *protocol.CastMediaSet
+		if request.Media == nil {
+			startErr = controller.Start(r.Context(), request.Session, request.Token, request.Generation)
+		} else {
+			if bytes.Equal(bytes.TrimSpace(request.Media), []byte("null")) {
+				writeError(w, http.StatusBadRequest, "BAD_REQUEST", "cast start media is invalid")
+				return
+			}
+			var media protocol.CastMediaSet
+			if err := json.Unmarshal(request.Media, &media); err != nil {
+				writeError(w, http.StatusBadRequest, "BAD_REQUEST", "cast start media is invalid")
+				return
+			}
+			requestedMedia = &media
+			mediaController, ok := controller.(MediaCastController)
+			if !ok {
+				writeError(w, http.StatusServiceUnavailable, "CAST_UNAVAILABLE", "cast audio is unavailable")
+				return
+			}
+			capabilities := mediaController.CastMediaCapabilities(r.Context())
+			if capabilities.Version != protocol.CastMediaSetVersion || !capabilities.Video || !capabilities.Audio {
+				writeError(w, http.StatusServiceUnavailable, "CAST_UNAVAILABLE", "cast audio is unavailable")
+				return
+			}
+			startErr = mediaController.StartWithMedia(r.Context(), request.Session, request.Token, request.Generation, media)
+		}
+		if startErr != nil {
 			writeError(w, http.StatusServiceUnavailable, "CAST_UNAVAILABLE", "cast session could not be started")
 			return
 		}
-		writeJSON(w, http.StatusOK, controller.Status(r.Context()))
+		status := controller.Status(r.Context())
+		if requestedMedia != nil && protocol.ValidateCastMediaAcknowledgement(*requestedMedia, status.Media) != nil {
+			_ = controller.Stop(r.Context(), request.Session, request.Generation)
+			writeError(w, http.StatusServiceUnavailable, "CAST_UNAVAILABLE", "cast media acknowledgement is unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, status)
 	})
 }
 

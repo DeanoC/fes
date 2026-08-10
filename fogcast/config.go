@@ -4,6 +4,7 @@ package fogcast
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast-POC/catalog"
+	"github.com/DeanoC/FogCast-POC/internal/remotemedia"
 	"github.com/DeanoC/FogCast-POC/protocol"
 	"github.com/pelletier/go-toml/v2"
 )
@@ -76,6 +78,7 @@ type MediaConfig struct {
 	Bitrate        int
 	GOP            int
 	MTU            int
+	Audio          remotemedia.AudioConfig
 }
 
 type fileConfig struct {
@@ -106,22 +109,45 @@ type fileHostEmulator struct {
 }
 
 type fileMedia struct {
-	Enabled        bool   `toml:"enabled"`
-	Session        string `toml:"session"`
-	Generation     uint64 `toml:"generation"`
-	SSRC           uint32 `toml:"ssrc"`
-	RTPListen      string `toml:"rtp_listen"`
-	RTPDestination string `toml:"rtp_destination"`
-	ControlAddress string `toml:"control_address"`
-	Decoder        string `toml:"decoder"`
-	CaptureDevice  string `toml:"capture_device"`
-	Width          int    `toml:"width"`
-	Height         int    `toml:"height"`
-	FPSNumerator   int    `toml:"fps_numerator"`
-	FPSDenominator int    `toml:"fps_denominator"`
-	Bitrate        int    `toml:"bitrate"`
-	GOP            int    `toml:"gop"`
-	MTU            int    `toml:"mtu"`
+	Enabled        bool      `toml:"enabled"`
+	Session        string    `toml:"session"`
+	Generation     uint64    `toml:"generation"`
+	SSRC           uint32    `toml:"ssrc"`
+	RTPListen      string    `toml:"rtp_listen"`
+	RTPDestination string    `toml:"rtp_destination"`
+	ControlAddress string    `toml:"control_address"`
+	Decoder        string    `toml:"decoder"`
+	CaptureDevice  string    `toml:"capture_device"`
+	Width          int       `toml:"width"`
+	Height         int       `toml:"height"`
+	FPSNumerator   int       `toml:"fps_numerator"`
+	FPSDenominator int       `toml:"fps_denominator"`
+	Bitrate        int       `toml:"bitrate"`
+	GOP            int       `toml:"gop"`
+	MTU            int       `toml:"mtu"`
+	Audio          fileAudio `toml:"audio"`
+}
+
+type fileAudio struct {
+	Enabled                  bool   `toml:"enabled"`
+	Source                   string `toml:"source"`
+	Device                   string `toml:"device"`
+	DeviceUID                string `toml:"device_uid"`
+	DeviceHash               string `toml:"device_hash"`
+	DisplayDigest            string `toml:"display_digest"`
+	DisplayHardwareUUID      string `toml:"display_hardware_uuid"`
+	DisplayEDIDVendor        string `toml:"display_edid_vendor"`
+	DisplayEDIDModel         string `toml:"display_edid_model"`
+	DisplayEDIDSerial        string `toml:"display_edid_serial"`
+	DisplayExplicitSelection bool   `toml:"display_explicit_selection"`
+	DisplaySelectionContext  string `toml:"display_selection_context"`
+	RTPDestination           string `toml:"rtp_destination"`
+	ControlAddress           string `toml:"control_address"`
+	SSRC                     uint32 `toml:"ssrc"`
+	SampleRate               int    `toml:"sample_rate"`
+	Channels                 int    `toml:"channels"`
+	FrameSamples             int    `toml:"frame_samples"`
+	MTU                      int    `toml:"mtu"`
 }
 
 func LoadConfig(path string) (Config, error) {
@@ -210,11 +236,126 @@ func normalizeMedia(raw fileMedia) (MediaConfig, error) {
 	if (raw.FPSNumerator == 0) != (raw.FPSDenominator == 0) {
 		return MediaConfig{}, fmt.Errorf("media frame rate numerator and denominator must both be set or unset")
 	}
+	audio, err := normalizeAudio(raw.Audio, raw)
+	if err != nil {
+		return MediaConfig{}, err
+	}
 	return MediaConfig{Enabled: true, Session: raw.Session, Generation: raw.Generation, SSRC: raw.SSRC,
 		RTPListen: raw.RTPListen, RTPDestination: raw.RTPDestination, ControlAddress: raw.ControlAddress,
 		Decoder: decoder, CaptureDevice: raw.CaptureDevice, Width: raw.Width, Height: raw.Height,
 		FPSNumerator: raw.FPSNumerator, FPSDenominator: raw.FPSDenominator,
-		Bitrate: raw.Bitrate, GOP: raw.GOP, MTU: raw.MTU}, nil
+		Bitrate: raw.Bitrate, GOP: raw.GOP, MTU: raw.MTU, Audio: audio}, nil
+}
+
+func normalizeAudio(raw fileAudio, video fileMedia) (remotemedia.AudioConfig, error) {
+	if !raw.Enabled {
+		return remotemedia.AudioConfig{}, nil
+	}
+	if raw.SSRC == 0 || raw.SSRC == video.SSRC {
+		return remotemedia.AudioConfig{}, fmt.Errorf("audio ssrc must be non-zero and differ from video")
+	}
+	rtpDestination, err := parsePrivateEndpoint("audio rtp_destination", raw.RTPDestination)
+	if err != nil {
+		return remotemedia.AudioConfig{}, err
+	}
+	controlAddress, err := parsePrivateEndpoint("audio control_address", raw.ControlAddress)
+	if err != nil {
+		return remotemedia.AudioConfig{}, err
+	}
+	if rtpDestination == controlAddress {
+		return remotemedia.AudioConfig{}, fmt.Errorf("audio RTP and control addresses must differ")
+	}
+	for _, videoAddress := range []string{video.RTPListen, video.RTPDestination, video.ControlAddress} {
+		if videoAddress == "" {
+			continue
+		}
+		videoEndpoint, err := parseEndpoint(videoAddress)
+		if err != nil {
+			return remotemedia.AudioConfig{}, fmt.Errorf("video transport address is invalid")
+		}
+		if rtpDestination == videoEndpoint || controlAddress == videoEndpoint {
+			return remotemedia.AudioConfig{}, fmt.Errorf("audio transport addresses must differ from video")
+		}
+	}
+	source := remotemedia.AudioSourceConfig{
+		Kind: remotemedia.AudioSourceKind(strings.ToLower(strings.TrimSpace(raw.Source))), Enabled: true,
+		EndpointName: strings.TrimSpace(raw.Device), EndpointUID: raw.DeviceUID, EndpointDigest: strings.TrimSpace(raw.DeviceHash),
+		Display:       remotemedia.AudioDisplayIdentity{HardwareUUID: raw.DisplayHardwareUUID, EDIDVendor: raw.DisplayEDIDVendor, EDIDModel: raw.DisplayEDIDModel, EDIDSerial: raw.DisplayEDIDSerial, ExplicitSelection: raw.DisplayExplicitSelection, SelectionContext: raw.DisplaySelectionContext},
+		DisplayDigest: strings.TrimSpace(raw.DisplayDigest), SampleRate: raw.SampleRate, Channels: raw.Channels, FrameSamples: raw.FrameSamples,
+	}
+	if err := remotemedia.ValidateAudioFormat(remotemedia.AudioFormat{SampleRate: source.SampleRate, Channels: source.Channels, Encoding: remotemedia.AudioEncodingPCM16LE, FrameSamples: source.FrameSamples}); err != nil {
+		return remotemedia.AudioConfig{}, fmt.Errorf("audio format: %w", err)
+	}
+	switch source.Kind {
+	case remotemedia.AudioSourceShadowCastUAC:
+		digest, err := remotemedia.CanonicalAudioEndpointDigest(remotemedia.AudioEndpoint{UID: source.EndpointUID, DisplayName: source.EndpointName, SampleRate: source.SampleRate, Channels: source.Channels})
+		if err != nil || source.EndpointDigest == "" || source.EndpointDigest != digest {
+			return remotemedia.AudioConfig{}, fmt.Errorf("audio shadowcast endpoint identity is invalid")
+		}
+	case remotemedia.AudioSourceHostOutput:
+		if strings.HasPrefix(source.EndpointName, "screen:") {
+			selection := strings.TrimSpace(strings.TrimPrefix(source.EndpointName, "screen:"))
+			if selection == "" {
+				return remotemedia.AudioConfig{}, fmt.Errorf("audio host output requires screen selection or display identity")
+			}
+			source.Display.ExplicitSelection = true
+			source.Display.SelectionContext = selection
+			digest, err := remotemedia.CanonicalAudioDisplayDigest(source.Display)
+			if err != nil {
+				return remotemedia.AudioConfig{}, fmt.Errorf("audio host output requires screen selection or display identity")
+			}
+			if source.DisplayDigest != "" && source.DisplayDigest != digest {
+				return remotemedia.AudioConfig{}, fmt.Errorf("audio host output display identity is invalid")
+			}
+			source.DisplayDigest = digest
+		} else {
+			if source.Display.HardwareUUID == "" && source.Display.EDIDSerial == "" {
+				return remotemedia.AudioConfig{}, fmt.Errorf("audio host output requires screen selection or display identity")
+			}
+			digest, err := remotemedia.CanonicalAudioDisplayDigest(source.Display)
+			if err != nil || source.DisplayDigest == "" || source.DisplayDigest != digest {
+				return remotemedia.AudioConfig{}, fmt.Errorf("audio host output display identity is invalid")
+			}
+		}
+	default:
+		return remotemedia.AudioConfig{}, fmt.Errorf("audio source is invalid")
+	}
+	if raw.MTU <= 0 {
+		return remotemedia.AudioConfig{}, fmt.Errorf("audio mtu must be positive")
+	}
+	config := remotemedia.AudioConfig{Enabled: true, Source: source, Transport: remotemedia.AudioTransportConfig{RTPDestination: rtpDestination, ControlAddress: controlAddress, SSRC: raw.SSRC, MTU: raw.MTU, FormatCapabilityVersion: 1}}
+	if err := remotemedia.ValidateAudioConfig(config); err != nil {
+		return remotemedia.AudioConfig{}, fmt.Errorf("audio configuration is invalid")
+	}
+	return config, nil
+}
+
+func parsePrivateEndpoint(name, address string) (string, error) {
+	endpoint, err := netip.ParseAddrPort(address)
+	if err != nil || !endpoint.IsValid() || endpoint.Port() == 0 {
+		return "", fmt.Errorf("%s must be a private host:port address", name)
+	}
+	endpoint = netip.AddrPortFrom(endpoint.Addr().Unmap(), endpoint.Port())
+	if !endpoint.Addr().IsPrivate() && !endpoint.Addr().IsLoopback() {
+		return "", fmt.Errorf("%s must be a private host:port address", name)
+	}
+	return endpoint.String(), nil
+}
+
+func parseEndpoint(address string) (string, error) {
+	endpoint, err := netip.ParseAddrPort(address)
+	if err != nil || !endpoint.IsValid() || endpoint.Port() == 0 {
+		return "", fmt.Errorf("invalid endpoint")
+	}
+	endpoint = netip.AddrPortFrom(endpoint.Addr().Unmap(), endpoint.Port())
+	return endpoint.String(), nil
+}
+
+func validatePrivateAddress(name, address string) error {
+	if _, err := parsePrivateEndpoint(name, address); err != nil {
+		return fmt.Errorf("%s must be a private host:port address", name)
+	}
+	return nil
 }
 
 func normalizeHostEmulator(raw fileHostEmulator) (HostEmulatorConfig, error) {

@@ -63,6 +63,11 @@ type castClient interface {
 	CastStop(context.Context, string, uint64) (host.CastStatus, error)
 }
 
+type mediaCastClient interface {
+	castClient
+	CastStartWithMedia(context.Context, string, string, uint64, protocol.CastMediaSet) (host.CastStatus, error)
+}
+
 const (
 	ExecutionFPGANative = "fpga_native"
 	ExecutionHostOnly   = "host_only"
@@ -314,6 +319,14 @@ func (s *Service) CastStart(ctx context.Context, session, token string, generati
 		return host.CastStatus{}, errors.New("target cast control is unavailable")
 	}
 	return client.CastStart(ctx, session, token, generation)
+}
+
+func (s *Service) CastStartWithMedia(ctx context.Context, session, token string, generation uint64, media protocol.CastMediaSet) (host.CastStatus, error) {
+	client, ok := s.client.(mediaCastClient)
+	if !ok {
+		return host.CastStatus{}, errors.New("target cast control is unavailable")
+	}
+	return client.CastStartWithMedia(ctx, session, token, generation, media)
 }
 
 func (s *Service) CastStop(ctx context.Context, session string, generation uint64) (host.CastStatus, error) {

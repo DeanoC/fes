@@ -8,7 +8,17 @@ FOGCAST_GOARCH ?= arm64
 FOGCAST_OUTPUT ?= bin/fogcast
 FOGCAST_HOST_OUTPUT ?= bin/FogCastHost.app
 
-.PHONY: fmt test test-ui test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-cli build-hil build-fogcast-hil build-remote-play-receiver build-remote-play-impair build-agent build-bridge build-lock build-lock-container build-poc2-lock package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-dev-image poc1b-verify-images poc1b-qemu-smoke poc1b-kernel-test poc1b-kernel poc1b-verify-kernel poc1b-deploy-test poc2-rootfs-test poc2-deploy-test build-stage-a0 build-stage-a0-firstbuild build-stage-a0-firstbuild-precompare build-stage-a0-policy-candidate build-stage-a0-promotion-report build-stage-a0-independent-build stage-a0-test stage-a0-firstbuild-test stage-a0-precompare-test stage-a0-policy-test stage-a0-policyobserve-test stage-a0-materialobserve-test stage-a0-policy-candidate-test stage-a0-promotion-test stage-a0-promotion-report-test stage-a0-independent-test stage-a0-overlord-probe-test stage-a0-check
+# The Darwin capture helper weak-links AVFoundation/CoreAudio. Keep the
+# generic repository checks cgo-enabled on Darwin with the same deployment
+# target and linker allow-list used by the signed host build, while leaving
+# non-Darwin contributors on the ordinary Go toolchain defaults.
+ifeq ($(shell uname -s),Darwin)
+NATIVE_GO_ENV = MACOSX_DEPLOYMENT_TARGET=11.0 CGO_CFLAGS=-mmacosx-version-min=11.0 CGO_CXXFLAGS=-mmacosx-version-min=11.0 CGO_LDFLAGS=-mmacosx-version-min=11.0 CGO_LDFLAGS_ALLOW=-Wl,-weak_framework,.*
+else
+NATIVE_GO_ENV =
+endif
+
+.PHONY: fmt test test-ui test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-cli build-hil build-fogcast-hil build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-agent build-bridge build-lock build-lock-container build-poc2-lock package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-dev-image poc1b-verify-images poc1b-qemu-smoke poc1b-kernel-test poc1b-kernel poc1b-verify-kernel poc1b-deploy-test poc2-rootfs-test poc2-deploy-test build-stage-a0 build-stage-a0-firstbuild build-stage-a0-firstbuild-precompare build-stage-a0-policy-candidate build-stage-a0-promotion-report build-stage-a0-independent-build stage-a0-test stage-a0-firstbuild-test stage-a0-precompare-test stage-a0-policy-test stage-a0-policyobserve-test stage-a0-materialobserve-test stage-a0-policy-candidate-test stage-a0-promotion-test stage-a0-promotion-report-test stage-a0-independent-test stage-a0-overlord-probe-test stage-a0-check
 
 build-stage-a0:
 	mkdir -p bin
@@ -97,7 +107,7 @@ fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
 
 test: build-agent test-ui
-	go test -race ./...
+	$(NATIVE_GO_ENV) go test -race ./...
 	sh scripts/tests/fogcast-build_test.sh
 	sh scripts/tests/inventory_test.sh
 	sh scripts/tests/start-agent_test.sh
@@ -123,7 +133,7 @@ test-ui-browser-required:
 	FOGCAST_BROWSER_REQUIRED=1 node --test internal/hostapi/ui_browser_test.js
 
 vet:
-	go vet ./...
+	$(NATIVE_GO_ENV) go vet ./...
 
 check: fmt test vet
 
@@ -159,6 +169,10 @@ build-remote-play-receiver:
 build-remote-play-impair:
 	mkdir -p bin
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/remote-play-impair ./cmd/remote-play-impair
+
+build-remote-play-audiobridge:
+	mkdir -p bin
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/remote-play-audiobridge ./cmd/remote-play-audiobridge
 
 build-agent:
 	mkdir -p bin

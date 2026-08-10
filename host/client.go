@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -57,9 +58,10 @@ func (c *Client) Stop(ctx context.Context) (protocol.Status, error) {
 }
 
 type CastStatus struct {
-	State      string `json:"state"`
-	Session    string `json:"session,omitempty"`
-	Generation uint64 `json:"generation,omitempty"`
+	State      string                    `json:"state"`
+	Session    string                    `json:"session,omitempty"`
+	Generation uint64                    `json:"generation,omitempty"`
+	Media      *protocol.CastStatusMedia `json:"media,omitempty"`
 }
 
 func (c *Client) CastStart(ctx context.Context, session, token string, generation uint64) (CastStatus, error) {
@@ -69,6 +71,30 @@ func (c *Client) CastStart(ctx context.Context, session, token string, generatio
 		Token      string `json:"token"`
 		Generation uint64 `json:"generation"`
 	}{Session: session, Token: token, Generation: generation}, &status)
+	return status, err
+}
+
+// CastStartWithMedia uses the versioned media admission extension. Callers
+// needing compatibility with legacy peers should continue to use CastStart.
+func (c *Client) CastStartWithMedia(ctx context.Context, session, token string, generation uint64, media protocol.CastMediaSet) (CastStatus, error) {
+	if err := protocol.ValidateCastMediaSet(media); err != nil {
+		return CastStatus{}, err
+	}
+	var status CastStatus
+	err := c.doJSON(ctx, http.MethodPost, "/v1/cast/start", struct {
+		Session    string                `json:"session"`
+		Token      string                `json:"token"`
+		Generation uint64                `json:"generation"`
+		Media      protocol.CastMediaSet `json:"media"`
+	}{Session: session, Token: token, Generation: generation, Media: media}, &status)
+	if err == nil {
+		if acknowledgementErr := protocol.ValidateCastMediaAcknowledgement(media, status.Media); acknowledgementErr != nil {
+			stopCtx, cancel := context.WithTimeout(context.Background(), defaultHTTPClientTimeout)
+			_, stopErr := c.CastStop(stopCtx, session, generation)
+			cancel()
+			return CastStatus{}, errors.Join(acknowledgementErr, stopErr)
+		}
+	}
 	return status, err
 }
 

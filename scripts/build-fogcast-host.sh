@@ -6,6 +6,18 @@ output=${1:-$repo/bin/FogCastHost.app}
 signing_identity=${FOGCAST_SIGNING_IDENTITY:-}
 version=${VERSION:-0.1.0}
 revision=${REVISION:-$(git -C "$repo" rev-parse --verify HEAD 2>/dev/null || printf unknown)}
+deployment_target=${MACOSX_DEPLOYMENT_TARGET:-11.0}
+ldflags_allow=${CGO_LDFLAGS_ALLOW:--Wl,-weak_framework,.*}
+cgo_cflags=${CGO_CFLAGS:-}
+cgo_cxxflags=${CGO_CXXFLAGS:-}
+cgo_ldflags=${CGO_LDFLAGS:-}
+
+# Keep every native object at the same floor as the final arm64 helper. The
+# deployment target environment controls the linker, while these explicit
+# compiler/linker flags also cover cgo's generated objects.
+cgo_cflags="$cgo_cflags -mmacosx-version-min=$deployment_target"
+cgo_cxxflags="$cgo_cxxflags -mmacosx-version-min=$deployment_target"
+cgo_ldflags="$cgo_ldflags -mmacosx-version-min=$deployment_target"
 
 if [ -z "$signing_identity" ] || [ "$signing_identity" = "-" ]; then
 	printf '%s\n' 'fogcast-host-build: FOGCAST_SIGNING_IDENTITY must name a stable local macOS signing identity' >&2
@@ -30,7 +42,7 @@ app=$fixture/FogCastHost.app
 mkdir -p "$app/Contents/MacOS"
 cp "$repo/resources/fogcast-host/Info.plist" "$app/Contents/Info.plist"
 
-CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 mise exec go@1.26.5 -- go build \
+MACOSX_DEPLOYMENT_TARGET="$deployment_target" CGO_CFLAGS="$cgo_cflags" CGO_CXXFLAGS="$cgo_cxxflags" CGO_LDFLAGS="$cgo_ldflags" CGO_LDFLAGS_ALLOW="$ldflags_allow" CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 mise exec go@1.26.5 -- go build \
 	-buildvcs=false -trimpath \
 	-ldflags "-s -w -X github.com/DeanoC/FogCast-POC/internal/version.Version=$version -X github.com/DeanoC/FogCast-POC/internal/version.Revision=$revision" \
 	-o "$app/Contents/MacOS/fogcast-api" \
