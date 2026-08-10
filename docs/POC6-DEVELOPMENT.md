@@ -176,6 +176,15 @@ stub and cannot run the POC6 AVFoundation/VideoToolbox path. A hardware-capable
 binary links the macOS AVFoundation, CoreMedia, CoreVideo, VideoToolbox,
 Foundation, and CoreGraphics frameworks.
 
+For a physical host run, use the signed helper workflow in
+[`docs/runbooks/fogcast-authorized-capture.md`](runbooks/fogcast-authorized-capture.md).
+The helper is a cgo-enabled `com.fogcast.host` bundle with explicit Camera and
+Microphone usage descriptions. Genki's consent does not transfer to FogCast or
+to an ad-hoc child binary; grant the helper in System Settings and launch the
+bundle executable. The Darwin adapter reports authorization failures before
+opening the UVC device and stops with an actionable first-frame timeout instead
+of leaving a zero-frame worker running indefinitely.
+
 Relevant outputs are:
 
 ```text

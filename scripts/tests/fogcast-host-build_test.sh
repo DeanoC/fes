@@ -27,5 +27,6 @@ grep -q 'NSCameraUsageDescription' "$runbook"
 grep -q 'System Settings' "$runbook"
 grep -q 'codesign' "$runbook"
 grep -q 'captured_frames' "$runbook"
+grep -q 'TCC' "$runbook"
 
 printf '%s\n' 'fogcast host build checks passed'
