@@ -110,7 +110,9 @@ implemented boundaries:
   secret, and validates the already-opened config source as a non-symlink regular
   file with exact mode `0600`.
 - `cmd/fogcast-api/main.go` composes and closes metadata before the newer media
-  and remote-input owners, preserving reverse-order teardown.
+  and remote-input owners, preserving reverse-order teardown, but the current
+  `metadata.Runtime` has no post-composition activation method. The replacement
+  contract below adds that seam rather than permitting `Open` to start work.
 - `internal/hostapi/server.go` resolves presentation only after authoritative
   catalog lookup, serves only opaque same-origin artwork handles, and accepts an
   exact one-field launch body containing `game_id`.
@@ -242,18 +244,103 @@ dialing a validated address while preserving the fixed hostname for Host and
 TLS server-name validation. TLS requires normal chain and hostname validation
 and TLS 1.2 or newer. No generic URL-fetch endpoint is added.
 
-A current index filename is eligible only if it is one bounded single segment,
-contains no slash, backslash, dot segment, query, fragment, control, or encoded
-separator, and has an image extension admitted by fixtures. The filename may
-never teach the adapter a host or scheme.
+A current index filename is eligible only if its UTF-8 bytes and Unicode scalar
+values both match this immutable ASCII grammar:
+
+```text
+[A-Za-z0-9][A-Za-z0-9_-]{0,38}\.(jpg|jpeg|png|gif|webp)
+```
+
+The extension is lower-case and the complete filename is therefore at most 44
+bytes and 44 runes. The allowlist is syntactic; a response still has to pass the
+existing MIME agreement and full-decoder policy, so an installed decoder is not
+inferred from an extension. Empty names, a 40-character stem, uppercase or
+unknown extensions, non-ASCII, invalid UTF-8, slash, backslash, dot segments,
+percent (including `%2f` in either case), `?`, `#`, control, space, colon, and
+userinfo delimiters are rejected as `invalid_response` while building the new
+generation. No rejected filename is persisted or reaches a transport.
+
+For an eligible filename, construct `url.URL` from constants with `Path` equal
+to `/` plus that filename and serialize it as exactly one escaped path segment;
+do not concatenate a raw URL string and do not accept a pre-escaped filename.
+Parse the serialized result again immediately before request construction and
+require: non-opaque `https`; no userinfo; hostname exactly
+`images.launchbox-app.com`; effective port exactly 443 with no other explicit
+port; `EscapedPath()` exactly `/` plus `url.PathEscape(filename)` and no other
+path prefix or segment; empty `RawQuery`, `ForceQuery`, and `Fragment`; and the
+same filename grammar after path unescape. Any mismatch is `policy_blocked` and
+causes zero network requests. The filename can never teach the adapter a host,
+scheme, port, path prefix, query, or fragment.
+
+#### Test-only transport seam
+
+Production `Open` and `newLaunchBoxProvider` accept no endpoint, URL, host, port,
+resolver, dialer, root-CA, HTTP-client, private-address, or allowlist override.
+They construct an unexported `launchBoxTransportPolicy` only through
+`newProductionLaunchBoxTransportPolicy()`, which seals the two compiled HTTPS
+origins, port 443, exact archive/image paths, public-address requirement, normal
+system roots, and no-proxy/no-cookie/no-redirect behavior described above. No
+config field, option, interface implementation, environment variable, CLI flag,
+or package export can replace that production policy.
+
+Loopback tests use a helper compiled only from a same-package `_test.go` file:
+`newLoopbackLaunchBoxTransportForTest(t, tlsServer)`. The helper creates a
+separate unexported policy object bound to that one `httptest` TLS certificate,
+exact loopback host, exact ephemeral port, and the same fixed archive/image path
+shapes. It may replace only public-global-unicast admission with that exact
+loopback peer and normal roots with the one test CA. It still requires HTTPS,
+rejects redirects/proxies/cookies/userinfo/query/fragment, applies the filename
+grammar and one-segment/final-URL checks, and cannot be passed to `Open` or the
+production provider constructor. Tests exercise the internal transport directly
+through that object and separately prove the production constructor rejects the
+same loopback address, non-443 port, test root, and private DNS answer. Shipping
+files contain no loopback exception or mutable production allowlist.
 
 ### Refresh lifecycle
 
-- Open the last validated generation immediately and perform no network access
-  while disabled or unconfigured.
-- If enabled and no generation exists, start one provider-owned asynchronous
-  bootstrap after composition. Lookups remain explicit `syncing`/offline until
-  promotion; a request handler never downloads a 100 MiB archive synchronously.
+- `metadata.Open` is an inert constructor. It may acquire and validate the
+  provider root, open the last validated generation, build in-memory limiters,
+  and register cleanup ownership, but it starts zero goroutines, timers, refresh
+  jobs, or image jobs and performs zero network requests. Disabled or
+  unconfigured configurations retain their current nil-runtime/purge behavior.
+- Enabled non-nil runtimes use an internal composition-only interface:
+  `type ActivatableRuntime interface { Runtime; Activate() error }`. `Open` and
+  the `metadataOpener` seam return `ActivatableRuntime`; `hostapi.WithMetadata`
+  receives it only as the existing `Runtime` lookup/artwork/close view. This
+  avoids adding activation to the handler dependency surface. `Activate` is
+  concurrency-safe and idempotent: the first call performs a bounded local
+  activation transition. Successful concurrent or later calls return nil
+  without another worker or request, and
+  a call after `Close` returns `canceled`. It does not wait for a snapshot body.
+  An activation failure is terminal for that runtime and is returned as
+  `storage_failure` unless closure won the race and returns `canceled`; repeated
+  calls return the same result without retrying.
+- Activation has an internal commit gate. All local preflight and worker
+  registration that can fail completes before the worker is released to use a
+  transport. If activation fails after allocating partial worker state, it
+  releases no request gate, cancels that state, and joins it within the same
+  2-second ownership bound as `Close`. A join timeout transfers the still-inert
+  state and root ownership to the reaper and returns `storage_failure`; it does
+  not make the worker request-capable or permit a new startup. Thus failed
+  activation produces zero requests and no unowned worker.
+- `composeAPI` owns the runtime returned by `Open`, appends `Close` immediately,
+  and supplies it to the handler as a non-owning dependency. It constructs every
+  later media, target-cast, receiver, remote-input, and final handler dependency
+  first. Only after the final handler exists does composition call `Activate`.
+  The no-remote-input return path follows the same ordering; there is no early
+  return before activation.
+- If a later dependency or `Activate` fails, composition returns no handler and
+  closes every acquired owner in reverse order. Activation failure closes
+  remote input first when present, then media, then metadata. Cleanup failure is
+  joined/redacted under the existing generic composition error and never turns
+  a failed composition into success. No caller other than composition may
+  activate or close the runtime.
+- After successful activation, if no generation exists, exactly one
+  provider-owned asynchronous bootstrap worker is admitted. Lookups remain
+  explicit `syncing`/offline until promotion; a request handler never downloads
+  a 100 MiB archive synchronously. If a validated generation is due, activation
+  may admit the single normal conditional refresh instead. Success does not
+  admit both jobs.
 - If a generation exists and is due, continue serving it while exactly one
   refresh runs. Use both `If-None-Match` and `If-Modified-Since` when available.
 - Automatic or manual sync may issue at most one conditional snapshot request
@@ -279,14 +366,76 @@ Enforce all limits while streaming, not only from headers:
   aggregate compression ratio;
 - require `Metadata.xml` and `Platforms.xml`; ignore `Mame.xml` and `Files.xml`
   only after validating their archive entries and limits;
-- keep `encoding/xml` strict, reject directives/DTD, processing instructions,
-  entities, malformed UTF-8, duplicate required fields, oversized tokens,
-  strings, lists, and numeric values, and never resolve a network or filesystem
-  entity;
-- require unique exact supported platform names, positive decimal database IDs,
-  bounded record counts, and valid referential links from image to game; and
+- parse only `Metadata.xml` and `Platforms.xml` as UTF-8. Each must begin at byte
+  zero, with no BOM or leading whitespace, with exactly one XML declaration.
+  Its version is exactly `1.0`; its effective encoding is UTF-8, expressed
+  either by an ASCII-case-insensitive `encoding="utf-8"` pseudo-attribute or by
+  omission of `encoding` (which is accepted only as the XML UTF-8 default in the
+  absence of a BOM); and `standalone`, if present, is exactly `yes`. Reject
+  another version or encoding, `standalone="no"`, a second/misplaced XML
+  declaration, and every other processing instruction anywhere in the member;
+- keep `encoding/xml` strict and reject directives/DTD, entities, malformed
+  UTF-8, duplicate required fields, oversized tokens, strings, lists, and
+  numeric values. Never resolve a network or filesystem entity. Count limits
+  before allocating or persisting the next item;
+- cap aggregate parsed start elements across the two consumed members at
+  16,000,000; nesting depth at 8; attributes at 8 per start element and 4,096
+  aggregate; element and attribute names at 64 bytes and 64 runes; each
+  attribute value at 1,024 bytes and 256 runes; and each decoder token at 128
+  KiB. Unknown fields are streamed past without concatenation or persistence,
+  but still consume those depth, attribute, element, token, and member-byte
+  budgets;
+- cap records at 250,000 `Game`, 2,000,000 `GameImage`, and 512 `Platform`
+  records, with at most 512 image records referring to one game. Require unique
+  exact supported platform names, positive decimal database IDs, and valid
+  referential links from image to game; and
 - stream selected fields into a new provider-owned SQLite index. Never expand
   XML into the ROM root or an ambient temporary directory.
+
+Every selected XML value is accumulated through one shared byte-and-rune
+limiter before trimming, parsing, list splitting, hashing, or SQLite binding.
+The following are the complete selected/persisted input limits; no generic map
+may retain an unlisted XML field:
+
+| XML value | Maximum bytes / runes | Additional syntax or list limit |
+| --- | ---: | --- |
+| `Game.DatabaseID`, `GameImage.DatabaseID` | 19 / 19 | ASCII decimal `1..9223372036854775807`; no sign, zero value, or leading zero |
+| `Game.Name` | 1,024 / 256 | required and non-empty after trim |
+| `Game.Platform`, `Platform.Name` | 256 / 128 | required and non-empty; normalized index admits only the two exact mapped platform values |
+| `Game.Overview` | 65,536 / 16,384 | optional; trim only |
+| `Game.ReleaseYear` | 4 / 4 | optional; exactly four ASCII decimal digits when used |
+| `Game.ReleaseDate` | 64 / 64 | optional; only the already specified strict date parser may derive a year |
+| raw `Game.Genres` | 4,096 / 1,024 | at most 64 semicolon-delimited entries; each trimmed entry at most 256 / 128; dedupe preserves order |
+| `Game.Developer`, `Game.Publisher` | 1,024 / 256 each | at most the two ordered, distinct, non-empty studio entries are persisted |
+| raw `Game.MaxPlayers` | 32 / 32 | optional; persist only ASCII decimal `1..999`, otherwise leave absent |
+| `GameImage.FileName` | 44 / 44 | exact immutable filename grammar and extension allowlist above |
+| `GameImage.Type` | 128 / 64 | must equal one of the closed ordered still-image types in this decision to be eligible |
+| `GameImage.Region` | 128 / 64 | optional label used only for the closed region ordering |
+| `GameImage.CRC32` | 10 / 10 | ASCII decimal `0..4294967295`; required before an image is eligible |
+
+Generated source-generation IDs, record checksums, archive digests, and object
+digests are lower-case 64-byte/64-rune SHA-256 hex values; an upstream value is
+never copied into those fields. Normalized genre and studio lists, image rows,
+and lookup DTOs retain the same per-entry and count limits after detaching from
+the parser.
+
+All maxima are inclusive. A syntactically valid value or structure exactly at a
+maximum is accepted if every other invariant passes. The next byte, rune,
+attribute, element, depth level, list entry, per-game image, or record is
+detected before append/bind and fails the candidate generation as
+`invalid_response`; the temporary generation is removed and the prior validated
+generation remains current. A required field with invalid syntax has the same
+generation-failing result. An optional year/date/player value that is within
+its byte/rune cap but fails its optional value grammar remains absent, as
+specified above; exceeding a resource cap is never downgraded to absence.
+
+The limits intentionally exceed both the retained report fixture counts and the
+later reviewed snapshot's 1,373,559 `GameImage` records. Fixture tests must
+recompute observed depth, attribute, element, record, per-game image, field, and
+filename maxima from the retained archive and prove they remain below these
+constants; the fixture does not change the constants. Any future snapshot over
+a constant fails closed and requires a new reviewed decision rather than an
+operator-configurable override.
 
 Record archive SHA-256, response validators, schema fingerprint, parser version,
 record counts, and generation ID. Do not log XML, game names, image filenames,
@@ -358,15 +507,23 @@ LaunchBox with no index is `syncing` then either ready or offline. All states
 leave catalog, search, detail, selection, availability, session, and launch
 usable.
 
-`Open` owns a root context, refresh worker, image limiter, generation leases,
-cache, and artwork store. Composition order remains metadata first so reverse
-teardown stops media/remote-input dependants before metadata. `Close` is
-idempotent: mark closed and increment epoch, cancel provider work, close network
-transports to unblock I/O, join refresh and lookup leaders, close generation and
-artwork readers, close SQLite/VFS, then release the physical root. The caller
-waits at most 2 seconds; on timeout a reaper retains ownership until cleanup
-really completes and `Close` returns `storage_failure`. No new startup may race
-that retained owner.
+Inert `Open` owns the root context, image limiter, generation leases, cache, and
+artwork store but no running worker. Successful `Activate` may add exactly one
+refresh/bootstrap worker. Composition order remains metadata first so reverse
+teardown stops remote input and media dependants before metadata. `Close` works
+before, during, or after activation and is idempotent: atomically mark closed and
+increment epoch, prevent/revoke the activation request gate, cancel provider
+work, close network transports to unblock I/O, join activation, refresh,
+bootstrap, image, and lookup leaders, close generation and artwork readers,
+close SQLite/VFS, then release the physical root. `Activate` and `Close` racing
+must linearize to either one active owned worker followed by cancellation or no
+worker; they can never publish after close.
+
+The caller waits at most 2 seconds for all cancellation and joins. On timeout a
+reaper retains every root/transport/worker ownership token until cleanup really
+completes and `Close` returns `storage_failure`; no new startup may race that
+retained owner. `Close` before activation completes without starting a worker,
+and a second `Close` returns the first safe result without repeating cleanup.
 
 Refresh failure preserves the last validated generation only within its 7-day
 stale ceiling. Invalid archive/image data never replaces a validated object.
@@ -547,19 +704,19 @@ and green focused plus full checks.
 | IGDB removal | Source/docs/production fixtures contain no active IGDB/Twitch symbols, hosts, tokens, attribution, config fields, or network routes; historical docs are excluded from this scan. |
 | Snapshot request | Exact HTTPS host/path/port, no proxy/cookie/credential, conditional headers, no redirects, all-DNS-answer validation, TLS minimum, timeout, 24-hour ceiling, 304 and bounded 200. |
 | Archive | Compressed/member/uncompressed/ratio limits; duplicate, absolute, traversal, separator, symlink, special, encrypted, unknown-shape, truncated, trailing, and oversized entries rejected before promotion. |
-| XML | Strict streaming parse; DTD/directive/entity/network input, malformed UTF-8, oversized fields/lists/counts, duplicate IDs/platforms, invalid references/numbers rejected; four-member current fixture accepted without assuming historical member count. |
+| XML | Strict streaming parse; every accepted UTF-8 declaration-policy variant and exactly one initial declaration; every other processing instruction, DTD/directive/entity/network input, malformed UTF-8, duplicate IDs/platforms, invalid references/numbers rejected. Table-drive every field's exact byte/rune max and max+1, depth 8/9, attributes 8/9 and aggregate 4,096/4,097, elements 16,000,000/16,000,001, `Game` 250,000/250,001, `GameImage` 2,000,000/2,000,001, `Platform` 512/513, per-game images 512/513, and list boundaries. The retained four-member fixture must be accepted and its recomputed maxima recorded without assuming historical counts. |
 | Index | Exact SNES/Genesis mapping; observed field mapping; archive/schema/parser hashes; SQLite integrity; deterministic byte-bounded generation; crash before/after fsync/rename/pointer swap preserves old or new complete generation, never partial. |
 | Matching | Exact platform first; canonical, documented alternate, decorated tiers; duplicate same-ID conflict; equal best tie ambiguous; no-match; no fuzzy auto-attach; provider input detached. |
-| Region/media selection | Type and region order fixed; lexical tie determinism; role ambiguity affects only role; filename single-segment policy; CRC32 checked before decode. |
+| Region/media selection | Type and region order fixed; lexical tie determinism; role ambiguity affects only role; exact filename grammar/extensions and 44-byte/rune max accepted. Table-reject 40-character stem/max+1, `../`, slash, backslash, `%2f` and `%2F`, `?`, `#`, colon, space, controls, invalid UTF-8, non-ASCII, uppercase/unknown extensions, and extension/MIME disagreement. Prove one escaped segment plus final scheme/host/effective-port/path/query/fragment/userinfo revalidation and zero requests on every rejection; CRC32 checked before decode. |
 | Cache migration | Schema v1/IGDB settings, rows, platform map, credential scope, SQLite sidecars, artwork refs/objects/files all purged; no old handle can open; schema v2 provider/generation keys do not collide; purge failure blocks startup. |
 | Root safety | Existing ancestor/create/chmod/open/use/delete swap tests extended to provider generations, manifest, archive, index, temps, and artwork; aliases share one physical lease; no symlink/hard-link/special-file escape. |
 | Artwork | Fixed LaunchBox host; no arbitrary URL; redirect/DNS/MIME/byte/dimension/pixel/decode/trailing-content/CRC failure rejected; sanitized bytes atomically published; per-object and 512 MiB LRU retained. |
-| Concurrency | One refresh, two image requests, 500 ms starts, independent waiter cancellation, provider-global rate limit, old epoch cannot publish, reader lease delays old-generation deletion, close cancels and joins/reaps. Run lifecycle/security cases with `-count=20`. |
+| Concurrency | Inert open creates zero workers/requests. Concurrent repeated activation admits exactly one bootstrap worker and, on a successful recording transport, exactly one initial snapshot request. Activation failure releases no request gate and synchronously rolls back partial worker state. Activate/Close races, close-before-activate, blocked transport cancellation, bounded 2-second join/reaper ownership, one refresh, two image requests, 500 ms starts, independent waiter cancellation, provider-global rate limit, old epoch cannot publish, and reader lease delays old-generation deletion. Run lifecycle/security cases with `-count=20`. |
 | Failure/fallback | Unconfigured, disabled, syncing, no-match, ambiguous, offline, malformed, stale-over-7-days, provider-removed, storage, and artwork-only failure preserve catalog/detail/launch. No raw cause reaches API/UI/log. |
 | API | Catalog lookup precedes presentation; opaque same-origin handles only; host rejection and no-store/nosniff/CSP retained; no generic fetch/proxy/media route; exact launch body unchanged. |
 | UI | LaunchBox attribution; independent empty fields remain empty; fallback is explicitly demo/offline; artwork failure is role-local; same-ID title/system and selection sequence reject stale presentation. All user strings use text APIs. |
 | CLI, if included | Status/sync/purge fixed commands; no secret/provider/URL/path args; safe aggregate output; cancellation and complete close; sync ceiling and purge fail-closed. |
-| Composition | Metadata opens without credentials, later composition failure closes it, close order preserves current media/audio/remote-input behavior, generic composition errors remain redacted. |
+| Composition | Metadata opens inert without credentials. A recording transport/worker probe table covers every failure return after metadata open (missing capture dependency, target-cast construction, receiver construction, missing bridge starter, bridge-starter error, remote-input construction, and any future post-metadata branch): zero requests/workers and metadata closes exactly once. Full handler composition calls idempotent activation once and records exactly one bootstrap; activation failure returns no handler and closes remote input, media/audio, then metadata in reverse order. Normal close and activation-failure close preserve generic redacted errors and bounded cancellation/join. |
 
 ## Deterministic implementation checks
 
@@ -688,7 +845,9 @@ access/transport/rights facts. The limits, strict parsing, ambiguity behavior,
 provider epochs, and release gates contain those risks; they do not prove them
 resolved.
 
-Next safe action: Vega independently reviews the exact imported report plus this
-decision. If accepted, the coordinator may create one Luna TDD milestone for
-the LaunchBox-only replacement within the file contract above. It must not
-create EmuMovies implementation or Phase 3 work until their explicit gates pass.
+Next safe action: Vega performs a fresh exact-tree review of the byte-identical
+imported report plus this repaired decision, explicitly closing the two prior
+Important findings. If accepted, the coordinator may create one Luna TDD
+milestone for the LaunchBox-only replacement within the file contract above. It
+must not create EmuMovies implementation or Phase 3 work until their explicit
+gates pass.
