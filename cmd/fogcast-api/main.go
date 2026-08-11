@@ -33,6 +33,7 @@ type service interface {
 }
 
 type openService func(context.Context, fogcast.Paths) (service, error)
+type composeAPIFunc func(service, fogcast.Config, bridgeStarterFactory) (http.Handler, func() error, error)
 
 type bridgeStarterFactory func(fogcast.Config) (host.BridgeStarter, error)
 
@@ -747,7 +748,13 @@ func stopServiceForShutdown(service service) error {
 	return first
 }
 
-func run(ctx context.Context, args []string, stdout, stderr io.Writer, open openService) (exitCode int) {
+func run(ctx context.Context, args []string, stdout, stderr io.Writer, open openService) int {
+	return runWithComposer(ctx, args, stdout, stderr, open, func(service service, config fogcast.Config, makeStarter bridgeStarterFactory) (http.Handler, func() error, error) {
+		return composeAPI(service, config, makeStarter)
+	})
+}
+
+func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Writer, open openService, compose composeAPIFunc) (exitCode int) {
 	var closers []runCloser
 	defer func() { exitCode = finishRun(exitCode, stderr, closers...) }()
 	flags := flag.NewFlagSet("fogcast-api", flag.ContinueOnError)
@@ -786,9 +793,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, open open
 		return 1
 	}
 	closers = append(closers, runCloser{label: "service cleanup", close: fogcastService.Close})
-	handler, closeRemoteInput, err := composeAPI(fogcastService, config, defaultBridgeStarter)
+	handler, closeRemoteInput, err := compose(fogcastService, config, defaultBridgeStarter)
 	if err != nil {
-		fmt.Fprintln(stderr, "fogcast-api: remote input configuration failed")
+		fmt.Fprintln(stderr, "fogcast-api: API composition failed")
 		return 1
 	}
 	closers = append(closers,

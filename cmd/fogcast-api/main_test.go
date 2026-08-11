@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -29,6 +31,40 @@ func TestRunRejectsNonLoopbackListenAddress(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "loopback") {
 		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestRunReportsGenericCompositionFailureWithoutLeakingError(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+	config := `base_url = "http://127.0.0.1:8182"
+token = "test-token"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+
+[[libraries]]
+id = "test"
+system = "snes"
+root = "` + dir + `"
+`
+	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var stderr bytes.Buffer
+	wantErr := errors.New("metadata opener secret=must-not-leak")
+	code := runWithComposer(context.Background(), []string{"--config", configPath}, &stderr, &stderr,
+		func(context.Context, fogcast.Paths) (service, error) { return &compositionService{}, nil },
+		func(service service, config fogcast.Config, makeStarter bridgeStarterFactory) (http.Handler, func() error, error) {
+			return composeAPI(service, config, makeStarter, withMetadataOpener(func(context.Context, metadata.RuntimeConfig) (metadata.Runtime, error) {
+				return nil, wantErr
+			}))
+		},
+	)
+	if code != 1 {
+		t.Fatalf("exit = %d, want 1; stderr=%q", code, stderr.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "fogcast-api: API composition failed") || strings.Contains(got, wantErr.Error()) {
+		t.Fatalf("stderr = %q", got)
 	}
 }
 
