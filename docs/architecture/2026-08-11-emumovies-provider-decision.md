@@ -1,0 +1,694 @@
+# Provider composition decision: LaunchBox metadata and gated EmuMovies media
+
+Date: 2026-08-11
+Status: Designed; independent Vega review pending
+Disposition: **CONDITIONAL-GO**
+
+This decision is the executable architecture and security contract for replacing
+the active IGDB/Twitch integration. It is subordinate to
+[`docs/ARCHITECTURE.md`](../ARCHITECTURE.md),
+[ADR 0001](../adr/0001-portable-target-runtime.md), and accepted evidence. It
+does not change the public host/target protocol, target runtime, hardware
+ownership, launch semantics, or the current audio worker.
+
+The sole disposition applies to the provider-composition direction as a whole:
+
+- implementation may replace IGDB with the documented LaunchBox anonymous HTTPS
+  snapshot and fixed-host still-image path, using fixtures first and remaining
+  disabled by default;
+- no EmuMovies network adapter, downloader, FTP-family client, local-media-pack
+  importer, or browser media route is authorized by this disposition; and
+- release enablement, live EmuMovies work, and Phase 3 remain gated below.
+
+## Grounding and authority
+
+Every external-provider premise in this decision comes from the imported,
+verified [provider evidence report](../research/2026-08-11-emumovies-provider-evidence.md).
+The report is research plus bounded machine observation only. In particular:
+
+- the LaunchBox founder-directed daily XML snapshot, intended third-party use,
+  current anonymous HTTPS archive, current XML shape, exact supported platform
+  names, and direct-image construction are grounded in the report's
+  “LaunchBox evidence and authority weighting,” “Current LaunchBox capability
+  matrix,” and machine-observed artifact manifest;
+- the absence of current public LaunchBox retention, attribution, rate,
+  mirroring, redistribution, and CDN policy is grounded in “Release gates and
+  unresolved risks”;
+- EmuMovies membership, Sync, FTP, API, platform/media, naming, reposting, and
+  transport uncertainty are grounded in “EmuMovies evidence” and its route
+  matrix; and
+- the user-observed TLS indication on the authenticated FTP details page is only
+  an operator observation. It is not accepted protocol evidence.
+
+No endpoint, authentication flow, schema, right, platform identifier, or
+transport feature may be inferred beyond that report. A later contradictory
+first-party term or instruction supersedes the corresponding provider premise
+and must fail closed.
+
+| Provenance item | Exact value |
+| --- | --- |
+| Decision role | Sol architecture/security owner |
+| Actual model / provider | `gpt-5.6-sol` / `openai-codex` |
+| Fallback | none |
+| Worktree branch | `wt/t_36b32cb5` |
+| Authoritative base and origin/main at start | `701eb53cac0400deb772dfa4b1417bfd52df6516`; drift `0/0` |
+| Imported parent commit | `b19b421bae9a5892079b24a9468bbcd6054b7d24` |
+| Imported parent tree | `6999bab556e980bbef0e6f95eaed86136e07abca` |
+| Imported report SHA-256 | `90c8b8a508b6ec3f755b311ff8da3e1188d4b0326f24578ec9285f1e7618bf9b` |
+
+## Why this disposition is conservative and implementable
+
+The LaunchBox path is adequately specified for a bounded adapter without
+endpoint, authentication, or archive-schema guessing: the first-party founder
+identifies the downloadable local-processing path and image filename contract,
+and the current anonymous archive and image path were retrieved and inspected.
+The implementation must inspect and version the live archive rather than assume
+the historical file count.
+
+The condition remains because no current public LaunchBox policy was located
+for cache retention, attribution, request rate, CDN use, mirroring, or
+redistribution. Code and fixture validation may proceed, but default enablement
+and release require the live-validation gate in this decision.
+
+EmuMovies cannot yet be implemented safely. Public material does not establish
+a current independent-frontend API contract or the exact FTP-family protocol,
+TLS mode, encrypted data-channel behavior, server identity, listing/resume
+semantics, quotas, retention, or custom-client permission. The Windows Sync
+application proves a user workflow, not a reusable protocol. Website scraping,
+private-endpoint probing, historical client emulation, and guessed FTP behavior
+are not substitutes.
+
+The smallest compliant product is therefore LaunchBox metadata/still artwork
+plus the existing truthful disabled/offline fallback, with the EmuMovies media
+capability absent until separately unlocked. This supersedes retaining IGDB as
+an active rollback provider: rollback is the disabled provider-neutral fallback
+and the pre-change Git revision, not dormant Twitch/IGDB network code.
+
+## Current source truth
+
+The source at base `701eb53cac0400deb772dfa4b1417bfd52df6516` has these
+implemented boundaries:
+
+- `internal/metadata/types.go` defines a provider-neutral candidate/result
+  surface, but has a single `ProviderIGDB` identity and an artwork reference
+  containing only role plus IGDB image ID.
+- `internal/metadata/provider_igdb.go` owns Twitch token exchange, IGDB queries,
+  platform mapping, limits, retries, and wire translation.
+- `internal/metadata/runtime.go` is materially IGDB-specific in admission,
+  cache keys, attribution, provider removal, artwork suppression, and counters.
+- `internal/metadata/artwork.go` hard-codes IGDB transforms and
+  `images.igdb.com`, while already enforcing bounded bytes, MIME agreement,
+  dimensions, pixel count, full decode, sanitizing re-encode, atomic publication,
+  descriptor-relative storage, and digest verification.
+- `internal/metadata/transport.go` denies ambient proxies, cookies, redirects,
+  private/reserved DNS answers, non-443 ports, and non-allowlisted IGDB/Twitch
+  hosts.
+- `internal/metadata/cache.go` uses schema v1 and provider/versioned cache keys,
+  but reads only IGDB rows, binds the cache to an IGDB credential digest, and
+  owns complete descriptor-confined purge and artwork garbage collection.
+- `fogcast/config.go` accepts only `provider = "igdb"`, requires client ID and
+  secret, and validates the already-opened config source as a non-symlink regular
+  file with exact mode `0600`.
+- `cmd/fogcast-api/main.go` composes and closes metadata before the newer media
+  and remote-input owners, preserving reverse-order teardown.
+- `internal/hostapi/server.go` resolves presentation only after authoritative
+  catalog lookup, serves only opaque same-origin artwork handles, and accepts an
+  exact one-field launch body containing `game_id`.
+- `internal/hostapi/ui_app.js` keeps catalog/search/detail/selection/session and
+  launch authority in the live API, rejects stale same-ID title/system
+  presentation, and currently accepts only IGDB attribution.
+- the current tests cover matching ambiguity, cache provenance and purge,
+  descriptor and symlink attacks, lifecycle cancellation/reaping, safe errors,
+  browser fallback, same-origin artwork, stale selection, and exact launch body.
+
+This decision preserves those accepted boundaries while replacing their
+provider-specific assumptions.
+
+## Capability ownership and precedence
+
+Provider composition is per capability, never per game authority.
+
+| Capability | Sole authority after this change | Precedence and failure rule |
+| --- | --- | --- |
+| Catalog membership, ID, title, system, source state, availability, search, selection, detail | Existing FogCast catalog/service | Provider data cannot add, remove, rename, reorder, or make a game launchable. |
+| Session, generation, target selection, launch, stop | Existing FogCast service/session composition | Unchanged; launch request remains exactly `{ "game_id": "<live catalog ID>" }`. |
+| Summary, year, genres, studios, players | LaunchBox normalized snapshot | Empty remains empty. No EmuMovies or demo value may be labelled provider data. |
+| Cover and backdrop still images | LaunchBox image records and fixed image host | Lazy, scored, integrity-checked; failure affects only that artwork role. |
+| Video snaps, manuals, logos, special media | Future EmuMovies media provider | Capability is absent now. A future adapter may supplement only these fields. |
+| Disabled, unconfigured, syncing, no-match, ambiguous, offline fallback | FogCast presentation layer | Explicit fallback state; it never changes live catalog or launch authority. |
+| Audio worker and current host-cast media transport | Existing composition | Untouched. Library video assets are presentation media, not cast transport. |
+
+LaunchBox does not become a catalog. EmuMovies never supplies descriptive text
+unless later first-party evidence documents such a field and a new reviewed
+decision assigns that capability. Provider precedence cannot be configured by
+arbitrary operator strings.
+
+## Truthful internal DTOs
+
+Do not force a media-only provider through the current full-metadata
+`Candidate` contract. Refactor internal types into two closed capabilities:
+
+### Metadata capability
+
+`MetadataCandidate` retains only:
+
+- provider-scoped game ID;
+- canonical name and documented alternate names;
+- exact provider-local platform identities;
+- optional summary, release year, genres, studios, and players;
+- typed still-artwork candidates;
+- source generation, provider update marker, and record checksum.
+
+For the current LaunchBox archive, alternate names are empty because none were
+observed. `Overview`, year, genres, developer then publisher, players, and
+still-image records map only as specified in the evidence report. Missing or
+malformed optional fields remain absent.
+
+### Media capability
+
+A future `MediaCandidate` is separate and contains only:
+
+- `Provider`, provider-scoped match ID, and exact platform identity;
+- `Kind` from a closed set (`video_snap`, `manual`, `logo`, or a newly reviewed
+  addition);
+- documented region and variant labels;
+- an opaque provider asset ID, never a URL or local path;
+- source generation and available integrity metadata; and
+- optional technical facts actually inspected after download: MIME, byte size,
+  dimensions, duration, and content digest.
+
+It has no summary, year, genre, studio, players, catalog ID, availability, or
+launch fields. Before an EmuMovies contract is accepted, this interface may
+exist only as a tested provider-neutral type; no EmuMovies implementation or
+public media projection may exist.
+
+### Browser projection
+
+The current public presentation DTO remains text plus opaque cover/backdrop
+handles and attribution. A future accepted media milestone may add a closed
+`media` array with only `kind`, opaque same-origin `handle`, safe MIME, region,
+and attribution. It must not include an upstream URL, provider path, filename,
+credential, host, query, remote response, or local cache path.
+
+## Deterministic matching and stale safety
+
+Matching is always constrained to the exact protocol system before title
+comparison:
+
+1. Map `protocol.SystemSNES` only to `Super Nintendo Entertainment System` and
+   `protocol.SystemMegaDrive` only to `Sega Genesis` for the current snapshot.
+2. Compare the normalized live catalog title to a provider canonical title.
+3. Compare documented alternate titles, if the provider actually supplies
+   them.
+4. Apply only the existing reviewed decorated-title normalization for approved
+   terminal decorations.
+5. If no unique candidate wins the highest tier, return `ambiguous` or
+   `no_match`. XML order, image order, recency, and provider ID are only stable
+   tie ordering; they cannot break a semantic tie.
+
+Fuzzy/edit-distance matching cannot auto-attach metadata or media. A later fuzzy
+feature requires its own reviewed threshold, fixture corpus, false-positive
+measurement, and explicit ambiguous path.
+
+Deduplication remains provider-scoped. Two records with the same provider ID but
+different canonical name, platform, source generation, or identity checksum are
+an invalid response, not “first wins.” Cache publication carries a provider
+epoch and source generation. A provider switch, generation replacement,
+disable, purge, or removal increments the epoch before cancellation; an
+in-flight old epoch cannot publish into the replacement. The UI continues to
+bind presentation to exact live `(id, title, system)` and discards a late
+response after any same-ID title/system refresh or selection revision.
+
+Region affects media selection, not catalog identity. Still-artwork order is:
+requested region, `World`, empty region, then lexical region/file-name order,
+within the type order fixed in the evidence report. Equal top candidates are
+ambiguous for that media role; they do not change metadata match outcome.
+
+## LaunchBox acquisition and normalized index
+
+### Fixed transport
+
+The adapter may request only:
+
+- anonymous HTTPS `gamesdb.launchbox-app.com/Metadata.zip`; and
+- anonymous HTTPS image assets on `images.launchbox-app.com`, constructed from
+  a current indexed image filename as one escaped path segment.
+
+Origins are compiled constants, not config. HTTPS port is 443. Ambient proxies,
+cookies, credentials, authentication headers, alternate schemes, userinfo,
+fragments, queries, redirects, and arbitrary paths are forbidden. DNS is
+resolved per new connection; every answer must be public global unicast before
+dialing a validated address while preserving the fixed hostname for Host and
+TLS server-name validation. TLS requires normal chain and hostname validation
+and TLS 1.2 or newer. No generic URL-fetch endpoint is added.
+
+A current index filename is eligible only if it is one bounded single segment,
+contains no slash, backslash, dot segment, query, fragment, control, or encoded
+separator, and has an image extension admitted by fixtures. The filename may
+never teach the adapter a host or scheme.
+
+### Refresh lifecycle
+
+- Open the last validated generation immediately and perform no network access
+  while disabled or unconfigured.
+- If enabled and no generation exists, start one provider-owned asynchronous
+  bootstrap after composition. Lookups remain explicit `syncing`/offline until
+  promotion; a request handler never downloads a 100 MiB archive synchronously.
+- If a generation exists and is due, continue serving it while exactly one
+  refresh runs. Use both `If-None-Match` and `If-Modified-Since` when available.
+- Automatic or manual sync may issue at most one conditional snapshot request
+  per 24-hour window. A manual request inside the window reports `not_due`; it
+  does not bypass the ceiling.
+- There is one archive transfer and one parser/index builder globally. Lazy
+  image starts are limited to two concurrent requests and no more than one new
+  request per 500 ms. Respect bounded `Retry-After`; retry a transient
+  connection or 502/503/504 at most once.
+- Snapshot connect/TLS/header deadlines are 5 seconds; body idle deadline is 30
+  seconds and whole refresh deadline is 20 minutes. Image requests retain the
+  current 8-second whole-request deadline.
+
+### Archive and XML defenses
+
+Enforce all limits while streaming, not only from headers:
+
+- 256 MiB compressed archive maximum;
+- at most 8 members;
+- exactly bounded regular-file member names, with no absolute path, directory,
+  link, encryption, duplicate, `..`, separator, or unknown path structure;
+- 1 GiB total uncompressed, 768 MiB per member, and 25:1 maximum member and
+  aggregate compression ratio;
+- require `Metadata.xml` and `Platforms.xml`; ignore `Mame.xml` and `Files.xml`
+  only after validating their archive entries and limits;
+- keep `encoding/xml` strict, reject directives/DTD, processing instructions,
+  entities, malformed UTF-8, duplicate required fields, oversized tokens,
+  strings, lists, and numeric values, and never resolve a network or filesystem
+  entity;
+- require unique exact supported platform names, positive decimal database IDs,
+  bounded record counts, and valid referential links from image to game; and
+- stream selected fields into a new provider-owned SQLite index. Never expand
+  XML into the ROM root or an ambient temporary directory.
+
+Record archive SHA-256, response validators, schema fingerprint, parser version,
+record counts, and generation ID. Do not log XML, game names, image filenames,
+or URLs.
+
+### Generation promotion, rollback, and retention
+
+The descriptor-confined metadata root owns a `providers/launchbox` subtree.
+Every directory is `0700`; every regular file is `0600`; no symlink, hard-link
+escape, special file, or changed ancestor/child identity is accepted.
+
+Build each generation in a random bounded temporary child. Validate schema,
+counts, SQLite integrity, expected platform mapping, source/archive hashes, and
+all size ceilings, then fsync files/directories as supported. Promote by atomic
+rename and atomically replace a regular-file current-generation manifest; never
+use a symlink as the pointer.
+
+Retain at most current plus one previous validated generation. The previous
+generation is rollback-only and is removed after 24 hours and after all reader
+leases close. Remove the downloaded archive immediately after successful index
+promotion. Failed temporary generations are deleted at startup only after full
+preflight. Each normalized index is capped at 1 GiB; total LaunchBox generation
+storage is capped at 2 GiB. A successfully conditionally validated current
+index may be served for at most 7 days without another successful 200/304.
+After that it remains on disk for rollback/policy purge but presentation reports
+offline rather than serving unvalidated provider facts.
+
+Still artwork retains the existing 8 MiB compressed object, 4096-by-4096,
+16,777,216-pixel, full-decode, termination, sanitizing re-encode, digest,
+atomic-publication, and 512 MiB aggregate LRU limits. Verify the archive CRC32
+against downloaded source bytes before decode. CRC32 is source-integrity
+metadata, not a security signature; the sanitized local object remains keyed by
+SHA-256.
+
+## Cache migration and purge ownership
+
+This is a destructive migration of disposable derived state, not an in-place
+reinterpretation:
+
+1. Increment cache schema and adapter versions before any LaunchBox lookup.
+2. Acquire the existing physical root lease and descriptor identities.
+3. Preflight every known SQLite sidecar, artwork object, and new provider child.
+   Any symlink, special file, unexpected owned-child shape, or identity change
+   fails startup with `storage_failure` without following or deleting it.
+4. If schema v1, IGDB settings, IGDB credential scope, IGDB rows, IGDB artwork
+   refs, or IGDB provider files are present, close database/VFS owners and purge
+   the complete known derived root before creating schema v2. Do not copy old
+   rows or artwork into LaunchBox keys.
+5. Schema v2 keys include provider, cache schema, adapter, normalizer, platform
+   map policy, exact platform, normalized title, region policy, source
+   generation, provider game ID/checksum where positive, and artwork selection
+   policy. Negative rows also include source generation.
+6. Provider switch, disable, config-table removal, explicit purge, and
+   `provider_removed` cancel refresh/image work, increment epoch, close all
+   generation/database/artwork readers, and purge cache rows, generation
+   directories, manifests, temporary files, archives, and unreferenced artwork.
+7. Purge failure is fail-closed. The physical-root lease remains held by the
+   reaper until all descriptors and VFS registrations retire; a new owner cannot
+   reopen or reuse the root prematurely.
+
+The metadata root is never shared with ROM, library, staging, target cache, or
+user-authored media. Purge removes only preflighted provider-owned names. It
+must not use ambient path traversal or recursive deletion after a parent swap.
+
+## Disabled, offline, startup, and close behavior
+
+Absent `[metadata]` is `unconfigured`; `enabled = false` is `disabled`; enabled
+LaunchBox with no index is `syncing` then either ready or offline. All states
+leave catalog, search, detail, selection, availability, session, and launch
+usable.
+
+`Open` owns a root context, refresh worker, image limiter, generation leases,
+cache, and artwork store. Composition order remains metadata first so reverse
+teardown stops media/remote-input dependants before metadata. `Close` is
+idempotent: mark closed and increment epoch, cancel provider work, close network
+transports to unblock I/O, join refresh and lookup leaders, close generation and
+artwork readers, close SQLite/VFS, then release the physical root. The caller
+waits at most 2 seconds; on timeout a reaper retains ownership until cleanup
+really completes and `Close` returns `storage_failure`. No new startup may race
+that retained owner.
+
+Refresh failure preserves the last validated generation only within its 7-day
+stale ceiling. Invalid archive/image data never replaces a validated object.
+Unauthorized, policy-blocked, provider-removed, storage, canceled, deadline,
+rate-limited, and invalid-response conditions remain separate safe error codes.
+Raw causes and response bodies never reach the browser or logs.
+
+## EmuMovies candidate transports and stop rule
+
+The following comparison is architecture only. It authorizes no EmuMovies code.
+
+| Candidate | Required evidence before implementation | Current action |
+| --- | --- | --- |
+| Official API | Current first-party endpoint, authentication, schema, stable IDs, SNES/Genesis mapping, quotas, cache/retention/attribution, production permission, and revocation behavior | Withhold adapter. Do not guess or use historical clients. |
+| Explicit FTPS | Current official host/port, AUTH TLS behavior, PBSZ/`PROT P`, passive/EPSV, certificate identity, TLS minimum, listing/resume/checksum semantics, limits, and custom-client automation permission | Withhold downloader until all facts are documented and verified without secrets. |
+| Implicit FTPS | Same facts plus official implicit-TLS port and data-channel contract | Withhold; do not infer from a “TLS” label. |
+| SFTP | Current official SSH host key/algorithm policy, port, path, listing/resume semantics, limits, and automation permission | Withhold; public evidence does not establish SFTP. |
+| Plain FTP | None can provide confidentiality or authenticated content integrity | Forbidden in this decision. No silent downgrade. A separate explicit security decision would be required even if the vendor documents it. |
+| Operator-managed local pack/mirror | Current first-party permission for custom local ingestion, allowed media/types, retention/deletion, naming/manifest/integrity rules, and no redistribution | Withhold importer. Manual download availability alone is insufficient authority. |
+| Website scraping or generic URL import | Not an accepted provider contract | Permanently forbidden for this scope. |
+
+Plain FTP exposes username/password, commands, listings, and media to network
+observers and permits on-path tampering and credential/session theft across the
+LAN and Internet. It cannot meet the normal secret and content-integrity
+boundary merely because the operator opts in.
+
+If a later gate accepts explicit FTPS, the smallest client is an internal,
+closed-purpose protocol implementation or a separately reviewed pinned library,
+not a shell call to an optional system `ftp` binary. It must use the one fixed
+official hostname, validated DNS and certificate identity, encrypted control
+and data channels, `AUTH TLS` plus `PBSZ 0` and `PROT P` when explicit FTPS is
+documented, passive mode with EPSV preferred, and no cleartext fallback. Ignore
+or reject a PASV-advertised host; data connections must use the already
+validated control peer unless official documentation names a separate fixed
+allowlist. Start with one control and one data connection, one sync job, finite
+connect/command/idle/whole-file deadlines, atomic `.part` files, bounded resume,
+size/MIME/decode/media validation, and provider-scoped promotion. Those values
+must be finalized against the obtained official limits before code is allowed.
+
+## Credential contract
+
+LaunchBox uses no credential, cookie, or operator-configurable origin.
+
+A future credentialed EmuMovies provider, if separately accepted, uses the
+existing already-opened config source design: an operator-owned, non-symlink
+regular file with exact mode `0600`, validated by descriptor identity after
+open. The first cross-platform implementation must use that mechanism rather
+than add an OS-specific keychain. A keychain abstraction would require a
+separate cross-platform ownership, unlock, rotation, headless-service, and test
+decision.
+
+Username/password/token values are never accepted in argv, environment,
+browser forms, URLs, logs, metrics, errors, reports, fixtures, source, generated
+manifests, shared writable paths, or the target. Config examples may name fields
+but contain no plausible secret. Secrets remain in the shortest-lived provider
+memory, are not copied into cache keys or persistence, and are zeroed where the
+language/runtime permits. Authentication failure returns only
+`unauthorized`; formatting and wrapping cannot reveal raw causes, headers,
+commands, paths, host-private details, or response bodies.
+
+## Operator UX
+
+The implementation milestone adds no browser-side provider mutation and no
+browser credential flow. Browser behavior remains readonly and same-origin.
+
+The host CLI may add exactly these local operations, with credentials loaded
+only from the selected private config:
+
+- `fogcast metadata status`
+- `fogcast metadata sync`
+- `fogcast metadata purge`
+
+`status` reports only provider identity, enabled/disabled/syncing/offline state,
+last successful validation age, current generation prefix, aggregate counts,
+and categorized error. `sync` respects the 24-hour conditional-request ceiling
+and reports `started`, `already_running`, or `not_due`. `purge` performs the
+same complete owned purge as disable and fails closed. Provider, URL, host,
+path, credential, and retention limits are not arbitrary CLI arguments.
+
+Disable remains an operator edit to the private config followed by restart.
+Removing `[metadata]` produces `unconfigured`; `enabled = false` produces
+`disabled`; both purge derived state during composition. A later accepted
+EmuMovies provider uses a separate `[presentation_media]` table so it cannot be
+mistaken for the existing `[media]` cast transport or the LaunchBox metadata
+provider. No such table is accepted by production config in this milestone.
+
+## Observability and redaction
+
+Allowed counters and status are coarse: provider, generation prefix, snapshot
+age, 200/304, bytes, duration, parse counts, sync state, cache hit/miss,
+exact/confident/ambiguous/no-match, artwork accepted/rejected, rate-limited,
+offline, invalid-response, and purge result.
+
+Never log or expose ROM title, normalized query, catalog ID, ROM path/content or
+hash, provider game/image/file ID, upstream URL, remote IP, response body/XML,
+image/media bytes, username, password, token, cookie, authorization header,
+FTP command/reply, local cache path, or target identity. Error strings remain a
+closed code such as `metadata: invalid_response`; composition labels remain the
+current privacy-safe generic labels.
+
+## IGDB/Twitch removal
+
+The implementation must remove, not merely disable:
+
+- `ProviderIGDB`, `IGDBConfig`, `IGDBProvider`, Twitch token constants and token
+  lifecycle, IGDB query/wire structs, IGDB platform slugs, IGDB artwork URL and
+  transforms, and IGDB/Twitch host allowlist entries;
+- `client_id`/`client_secret` semantics from `[metadata]`, IGDB-only credential
+  scope, IGDB attribution checks, and IGDB-specific cache read/purge branches;
+- IGDB provider/config/runtime/cache/artwork/API/UI/browser tests and fixtures,
+  replacing provider-neutral coverage and LaunchBox fixture coverage rather
+  than deleting the security assertions; and
+- active README/config/privacy/attribution instructions for Twitch and IGDB.
+
+Historical research/results documents remain historical and are not rewritten.
+No dormant IGDB network path, hidden config alias, compatibility flag, generic
+provider URL, or fallback token flow remains. Rollback is Git plus complete
+derived-state purge; it is not dual live-provider support.
+
+## Future writable file contract
+
+One Luna implementation worktree may write only the following existing files or
+new siblings in the named directories. A narrower task may use fewer files.
+
+### LaunchBox replacement milestone
+
+- `internal/metadata/types.go`
+- `internal/metadata/normalize.go`
+- `internal/metadata/match.go`
+- `internal/metadata/runtime.go`
+- `internal/metadata/cache.go`
+- `internal/metadata/storage_root.go`
+- `internal/metadata/sqlite_vfs.go`
+- `internal/metadata/artwork.go`
+- `internal/metadata/transport.go`
+- delete `internal/metadata/provider_igdb.go`
+- new `internal/metadata/provider_launchbox.go`
+- new `internal/metadata/launchbox_snapshot.go`
+- new `internal/metadata/launchbox_index.go`
+- matching `internal/metadata/*_test.go` files, including new LaunchBox fixture
+  files only under `internal/metadata/testdata/launchbox/`
+- `fogcast/config.go`, `fogcast/metadata_config_test.go`, and only if descriptor
+  behavior changes, `fogcast/config_source_unix.go`,
+  `fogcast/config_source_other.go`, and their tests
+- `cmd/fogcast-api/main.go` and `cmd/fogcast-api/main_test.go`
+- `internal/hostapi/server.go`, `internal/hostapi/ui_app.js`,
+  `internal/hostapi/ui_app_test.js`, `internal/hostapi/ui_browser_test.js`, and
+  provider presentation fixtures under `internal/hostapi/testdata/ui/`
+- only if the CLI status/sync/purge operations are included in this milestone:
+  `internal/fogcastcli/run.go`, `internal/fogcastcli/run_test.go`,
+  `cmd/fogcast/main.go`, and `cmd/fogcast/main_test.go`
+- `README.md`
+- `go.mod` and `go.sum` only if an unavoidable dependency is separately
+  approved; the LaunchBox path must prefer Go standard `archive/zip`,
+  `encoding/xml`, `net/http`, and existing SQLite dependencies.
+
+### Explicitly forbidden in this milestone
+
+- `protocol/`, `host/` session/launch/target code, `internal/remotemedia/`,
+  `internal/mediasession/`, `mister/`, `cmd/mister-*`, `buildroot/`, `deploy/`,
+  target scripts/images/config, existing ADRs/architecture/roadmap, historical
+  results/research, protected local docs, and generated release artifacts;
+- EmuMovies API/FTP/SFTP/Sync/local-import implementation or tests that encode a
+  guessed protocol;
+- target access, launch, stop, deployment, reboot, HIL, or physical observation;
+  and
+- staging, committing, pushing, or publishing outside the separately authorized
+  implementation/review/integration gate.
+
+## TDD acceptance matrix
+
+Implementation is test-first. Each row needs a red test, the smallest change,
+and green focused plus full checks.
+
+| Area | Required deterministic acceptance |
+| --- | --- |
+| Config | Absent/disabled/enabled LaunchBox states; enabled requires exact provider; credentials and unknown origin fields rejected; disabled needs no `0600`, enabled credentialless LaunchBox does not falsely require a secret; unsafe opened source still rejected where secrets exist. |
+| IGDB removal | Source/docs/production fixtures contain no active IGDB/Twitch symbols, hosts, tokens, attribution, config fields, or network routes; historical docs are excluded from this scan. |
+| Snapshot request | Exact HTTPS host/path/port, no proxy/cookie/credential, conditional headers, no redirects, all-DNS-answer validation, TLS minimum, timeout, 24-hour ceiling, 304 and bounded 200. |
+| Archive | Compressed/member/uncompressed/ratio limits; duplicate, absolute, traversal, separator, symlink, special, encrypted, unknown-shape, truncated, trailing, and oversized entries rejected before promotion. |
+| XML | Strict streaming parse; DTD/directive/entity/network input, malformed UTF-8, oversized fields/lists/counts, duplicate IDs/platforms, invalid references/numbers rejected; four-member current fixture accepted without assuming historical member count. |
+| Index | Exact SNES/Genesis mapping; observed field mapping; archive/schema/parser hashes; SQLite integrity; deterministic byte-bounded generation; crash before/after fsync/rename/pointer swap preserves old or new complete generation, never partial. |
+| Matching | Exact platform first; canonical, documented alternate, decorated tiers; duplicate same-ID conflict; equal best tie ambiguous; no-match; no fuzzy auto-attach; provider input detached. |
+| Region/media selection | Type and region order fixed; lexical tie determinism; role ambiguity affects only role; filename single-segment policy; CRC32 checked before decode. |
+| Cache migration | Schema v1/IGDB settings, rows, platform map, credential scope, SQLite sidecars, artwork refs/objects/files all purged; no old handle can open; schema v2 provider/generation keys do not collide; purge failure blocks startup. |
+| Root safety | Existing ancestor/create/chmod/open/use/delete swap tests extended to provider generations, manifest, archive, index, temps, and artwork; aliases share one physical lease; no symlink/hard-link/special-file escape. |
+| Artwork | Fixed LaunchBox host; no arbitrary URL; redirect/DNS/MIME/byte/dimension/pixel/decode/trailing-content/CRC failure rejected; sanitized bytes atomically published; per-object and 512 MiB LRU retained. |
+| Concurrency | One refresh, two image requests, 500 ms starts, independent waiter cancellation, provider-global rate limit, old epoch cannot publish, reader lease delays old-generation deletion, close cancels and joins/reaps. Run lifecycle/security cases with `-count=20`. |
+| Failure/fallback | Unconfigured, disabled, syncing, no-match, ambiguous, offline, malformed, stale-over-7-days, provider-removed, storage, and artwork-only failure preserve catalog/detail/launch. No raw cause reaches API/UI/log. |
+| API | Catalog lookup precedes presentation; opaque same-origin handles only; host rejection and no-store/nosniff/CSP retained; no generic fetch/proxy/media route; exact launch body unchanged. |
+| UI | LaunchBox attribution; independent empty fields remain empty; fallback is explicitly demo/offline; artwork failure is role-local; same-ID title/system and selection sequence reject stale presentation. All user strings use text APIs. |
+| CLI, if included | Status/sync/purge fixed commands; no secret/provider/URL/path args; safe aggregate output; cancellation and complete close; sync ceiling and purge fail-closed. |
+| Composition | Metadata opens without credentials, later composition failure closes it, close order preserves current media/audio/remote-input behavior, generic composition errors remain redacted. |
+
+## Deterministic implementation checks
+
+Run from a fresh implementation worktree, with no real provider credentials and
+no non-loopback browser traffic:
+
+```sh
+go test -count=1 ./internal/metadata ./fogcast ./internal/hostapi ./cmd/fogcast-api
+go test -race -count=20 ./internal/metadata
+go test -race -count=20 ./cmd/fogcast-api -run 'Metadata|Composition|Cleanup'
+node --test internal/hostapi/ui_metadata_test.js internal/hostapi/ui_app_test.js
+FOGCAST_BROWSER_REQUIRED=1 node --test internal/hostapi/ui_browser_test.js
+go test -race -count=1 ./...
+go vet ./...
+test -z "$(gofmt -l internal/metadata fogcast internal/hostapi cmd/fogcast-api internal/fogcastcli cmd/fogcast)"
+go mod verify
+make fmt
+make test
+make check
+make build
+git diff --check
+```
+
+Also run deterministic scans over active source/config/README (excluding
+historical `docs/research`, results, Git data, test attack strings, and this
+decision) for IGDB/Twitch hosts/symbols, credential-shaped values, generic
+provider URLs, cleartext FTP, browser external URLs, demo text labelled as
+provider data, unexpected generated files, and forbidden target scope. Record
+all exclusion rules and inspect every match.
+
+Before handoff, freeze the exact recursive tree manifest and hashes, run
+`git diff --check`, and run `git diff --no-index --check /dev/null <file>` plus
+SHA-256 for every untracked deliverable. Any edit invalidates the frozen review
+input.
+
+## Required Chrome/CDP scenarios
+
+The required browser run uses the assembled production UI with a deterministic
+loopback fixture. Every case must execute with zero fail/cancel/skip/todo:
+
+1. desktop and narrow/reflow catalog load, keyboard focus, selected-card state,
+   detail refresh, and reduced motion;
+2. LaunchBox ready full fields, each independently empty optional field, cover,
+   backdrop, and attribution;
+3. unconfigured, disabled, syncing, no-match, ambiguous, offline,
+   stale-expired, malformed, and artwork-role failure with retry;
+4. stale search, stale detail, stale presentation after selection replacement,
+   and same-ID title/system replacement;
+5. launch success/failure/retry after every presentation state, preserving the
+   exact selected live ID and exact one-field JSON body;
+6. artwork requests only to the same loopback origin and opaque handle route,
+   with no upstream filename or URL in DOM, attributes, console, or evidence;
+7. zero unexpected/external browser requests, zero console errors, exact
+   request/response-extra-info correlation, and complete profile/helper
+   teardown.
+
+This is developer browser observation, not live-provider, target, HIL, physical,
+or acceptance evidence.
+
+## Live-validation and release gate
+
+After fixture implementation and independent exact-tree review, a bounded
+LaunchBox live validation may run only when the coordinator records one of:
+
+- current first-party policy or direct vendor confirmation covering independent
+  application use, local normalized indexing, lazy image fetch, attribution,
+  request limits, cache retention/deletion, and no redistribution; or
+- an explicit user product-risk override that names the still-open policy facts
+  and accepts the conservative limits in this decision.
+
+The live check is host-only and no-target: one conditional snapshot retrieval,
+stream parse/index, exact SNES/Genesis sample matches, one bounded cover and one
+bounded backdrop, CRC/decode/cache/restart/offline/7-day-expiry/purge checks,
+loopback browser projection, and a residue/secret/log scan. Disable and purge
+afterward. Record source/archive/index/image hashes and separate fixture-tested,
+live-provider, browser, and unrun target/HIL evidence.
+
+EmuMovies requires a different prerequisite. The user must personally either:
+
+1. use the official support path identified in the evidence report to request
+   current independent-frontend API or downloader permission and documentation,
+   including auth, endpoints/host, schema/listing, identifiers, limits,
+   retention/deletion/attribution, automation, and SNES/Genesis media rights; or
+2. inspect the authenticated FTP details page and provide only non-secret,
+   first-party protocol facts and documentation: explicit versus implicit FTPS
+   or SFTP, public host/port classification, encrypted data-channel requirement,
+   certificate identity, passive/EPSV, resume/listing/checksum, connection/rate
+   limits, and custom-client permission.
+
+The user must not paste a username, password, token, cookie, private connection
+string, or credential-bearing screenshot. An agent must not register, pay,
+accept clickwrap, submit support, authenticate, or probe the service on the
+user's behalf. After evidence arrives, Sol issues a new reviewed transport and
+retention decision before any EmuMovies implementation card is created.
+
+## Phase ordering, no-op rule, and rollback
+
+Phase 3 **may not proceed now**. It may proceed only after accepted bounded live
+provider evidence, or a later explicit user override that acknowledges the
+precise remaining provider blocker. Fixture success, this Designed decision,
+or the current machine-observed archive is insufficient.
+
+Downstream work must no-op and stop if it is asked to implement EmuMovies,
+plaintext FTP, local-pack ingestion, browser external access, a generic proxy,
+or Phase 3 before the corresponding gate. It should report this decision and
+the exact prerequisite rather than add a stub, guessed schema, dormant client,
+or synthetic success.
+
+Rollback for the LaunchBox milestone is: disable/remove `[metadata]`, complete
+the descriptor-confined derived-state purge, and return to the last accepted Git
+revision. No target rollback is involved. Provider failure never rolls back the
+catalog, session, audio-worker, or launch path because those are never delegated
+to provider data.
+
+## Evidence boundary, risks, and next safe action
+
+This document is **Designed** only. Source inspection and the imported research
+support the contract; no production code was changed, no LaunchBox adapter was
+software-tested, no EmuMovies transport was authenticated, no provider terms
+were accepted, no target was contacted, and no HIL, physical, teardown, latency,
+reproducibility, or acceptance claim is made.
+
+Unresolved risks are the LaunchBox policy gap, live archive schema drift,
+archive/index resource pressure, false title attachment, and all EmuMovies
+access/transport/rights facts. The limits, strict parsing, ambiguity behavior,
+provider epochs, and release gates contain those risks; they do not prove them
+resolved.
+
+Next safe action: Vega independently reviews the exact imported report plus this
+decision. If accepted, the coordinator may create one Luna TDD milestone for
+the LaunchBox-only replacement within the file contract above. It must not
+create EmuMovies implementation or Phase 3 work until their explicit gates pass.
