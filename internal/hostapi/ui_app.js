@@ -19,7 +19,12 @@
     studio: 'FogCast demo',
     players: 'Unknown players',
     isFallback: true,
+    metadataState: 'fallback_offline',
   });
+  const PRESENTATION_STATE_ALLOWLIST = Object.freeze([
+    'ready', 'fallback_disabled', 'fallback_unconfigured', 'fallback_no_match',
+    'fallback_ambiguous', 'fallback_offline', 'fallback_malformed', 'ready_artwork_error',
+  ]);
 
   function gamesPath(query) {
     const value = String(query || '').trim();
@@ -28,6 +33,21 @@
 
   function gameDetailPath(id) {
     return `/api/v1/games/${encodeURIComponent(String(id))}`;
+  }
+
+  const GAME_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+  const ARTWORK_HANDLE_PATTERN = /^[a-f0-9]{64}$/;
+
+  function presentationPath(id) {
+    const value = String(id || '').trim();
+    if (!GAME_ID_PATTERN.test(value)) throw createError('BAD_REQUEST', 'The live game ID is invalid.');
+    return `/api/v1/presentation/games/${encodeURIComponent(value)}`;
+  }
+
+  function artworkPath(handle) {
+    const value = String(handle || '').trim();
+    if (!ARTWORK_HANDLE_PATTERN.test(value)) throw createError('BAD_REQUEST', 'The artwork handle is invalid.');
+    return `/api/v1/presentation/artwork/${value}`;
   }
 
   function launchRequest(game) {
@@ -56,6 +76,22 @@
 
   function isSelectedGame(selectedLiveGame, game) {
     return Boolean(selectedLiveGame && game && selectedLiveGame.id === game.id);
+  }
+
+  function presentationIdentity(game) {
+    if (!game || typeof game !== 'object') return null;
+    return Object.freeze({
+      id: game.id,
+      title: game.title,
+      system: game.system,
+    });
+  }
+
+  function samePresentationIdentity(left, right) {
+    return Boolean(left && right)
+      && left.id === right.id
+      && left.title === right.title
+      && left.system === right.system;
   }
 
   function detailHeading(game) {
@@ -341,30 +377,45 @@
   function boundedPresentationText(value, limit) {
     if (typeof value !== 'string' && typeof value !== 'number') return null;
     const text = String(value).trim();
-    return text && text.length <= limit ? text : null;
+    return text.length <= limit ? text : null;
+  }
+
+  function presentationField(value, fallback, limit) {
+    const text = boundedPresentationText(value, limit);
+    if (text === null) return null;
+    return text || fallback;
   }
 
   function freezePresentation(value) {
-    return Object.freeze({
-      cover: Object.freeze({
-        palette: value.cover.palette,
-        treatment: value.cover.treatment,
-      }),
-      backdrop: Object.freeze({
-        palette: value.backdrop.palette,
-        treatment: value.backdrop.treatment,
-      }),
+    const result = {
       summary: value.summary,
       year: value.year,
       genre: value.genre,
       studio: value.studio,
       players: value.players,
       isFallback: value.isFallback,
-    });
+      metadataState: value.metadataState || (value.isFallback ? 'fallback_offline' : 'ready'),
+    };
+    if (value.cover !== undefined) {
+      result.cover = Object.freeze({
+        palette: value.cover.palette,
+        treatment: value.cover.treatment,
+      });
+    }
+    if (value.backdrop !== undefined) {
+      result.backdrop = Object.freeze({
+        palette: value.backdrop.palette,
+        treatment: value.backdrop.treatment,
+      });
+    }
+    if (value.coverArtworkHandle !== undefined) result.coverArtworkHandle = value.coverArtworkHandle;
+    if (value.backdropArtworkHandle !== undefined) result.backdropArtworkHandle = value.backdropArtworkHandle;
+    if (value.attribution !== undefined) result.attribution = value.attribution;
+    return Object.freeze(result);
   }
 
-  function fallbackPresentation() {
-    return freezePresentation(PRESENTATION_FALLBACK);
+  function fallbackPresentation(metadataState = 'fallback_offline') {
+    return freezePresentation({ ...PRESENTATION_FALLBACK, metadataState });
   }
 
   function trustedPresentation(value) {
@@ -382,38 +433,108 @@
       const studio = value.studio;
       const players = value.players;
       const isFallback = value.isFallback;
+      const coverArtworkHandle = value.coverArtworkHandle;
+      const backdropArtworkHandle = value.backdropArtworkHandle;
+      const attribution = value.attribution;
+      const metadataState = value.metadataState || (isFallback ? 'fallback_offline' : 'ready');
+      const artworkStyleRequired = isFallback;
       if (
-        !cover || typeof cover !== 'object' || Array.isArray(cover)
-        || !backdrop || typeof backdrop !== 'object' || Array.isArray(backdrop)
-        || typeof coverPalette !== 'string'
-        || typeof coverTreatment !== 'string'
-        || typeof backdropPalette !== 'string'
-        || typeof backdropTreatment !== 'string'
-        || typeof isFallback !== 'boolean'
-        || !PALETTE_ALLOWLIST.includes(coverPalette)
-        || !PALETTE_ALLOWLIST.includes(backdropPalette)
-        || !TREATMENT_ALLOWLIST.includes(coverTreatment)
-        || !TREATMENT_ALLOWLIST.includes(backdropTreatment)
+        typeof isFallback !== 'boolean'
+        || !PRESENTATION_STATE_ALLOWLIST.includes(metadataState)
+        || (artworkStyleRequired && (
+          !cover || typeof cover !== 'object' || Array.isArray(cover)
+          || !backdrop || typeof backdrop !== 'object' || Array.isArray(backdrop)
+          || typeof coverPalette !== 'string'
+          || typeof coverTreatment !== 'string'
+          || typeof backdropPalette !== 'string'
+          || typeof backdropTreatment !== 'string'
+          || !PALETTE_ALLOWLIST.includes(coverPalette)
+          || !PALETTE_ALLOWLIST.includes(backdropPalette)
+          || !TREATMENT_ALLOWLIST.includes(coverTreatment)
+          || !TREATMENT_ALLOWLIST.includes(backdropTreatment)
+        ))
+        || (!artworkStyleRequired && (cover !== undefined || backdrop !== undefined))
+        || (!isFallback && !['ready', 'ready_artwork_error'].includes(metadataState))
+        || (isFallback && !metadataState.startsWith('fallback_'))
+        || (coverArtworkHandle !== undefined && (typeof coverArtworkHandle !== 'string' || !ARTWORK_HANDLE_PATTERN.test(coverArtworkHandle)))
+        || (backdropArtworkHandle !== undefined && (typeof backdropArtworkHandle !== 'string' || !ARTWORK_HANDLE_PATTERN.test(backdropArtworkHandle)))
+        || (attribution !== undefined && (typeof attribution !== 'string' || !boundedPresentationText(attribution, 120)))
       ) return fallbackPresentation();
       if ([summary, year, genre, studio, players].some(item => typeof item !== 'string')) {
         return fallbackPresentation();
       }
       const text = {
-        summary: boundedPresentationText(summary, PRESENTATION_TEXT_LIMITS.summary),
-        year: boundedPresentationText(year, PRESENTATION_TEXT_LIMITS.year),
-        genre: boundedPresentationText(genre, PRESENTATION_TEXT_LIMITS.genre),
-        studio: boundedPresentationText(studio, PRESENTATION_TEXT_LIMITS.studio),
-        players: boundedPresentationText(players, PRESENTATION_TEXT_LIMITS.players),
+        summary: isFallback
+          ? presentationField(summary, PRESENTATION_FALLBACK.summary, PRESENTATION_TEXT_LIMITS.summary)
+          : boundedPresentationText(summary, PRESENTATION_TEXT_LIMITS.summary),
+        year: isFallback
+          ? presentationField(year, PRESENTATION_FALLBACK.year, PRESENTATION_TEXT_LIMITS.year)
+          : boundedPresentationText(year, PRESENTATION_TEXT_LIMITS.year),
+        genre: isFallback
+          ? presentationField(genre, PRESENTATION_FALLBACK.genre, PRESENTATION_TEXT_LIMITS.genre)
+          : boundedPresentationText(genre, PRESENTATION_TEXT_LIMITS.genre),
+        studio: isFallback
+          ? presentationField(studio, PRESENTATION_FALLBACK.studio, PRESENTATION_TEXT_LIMITS.studio)
+          : boundedPresentationText(studio, PRESENTATION_TEXT_LIMITS.studio),
+        players: isFallback
+          ? presentationField(players, PRESENTATION_FALLBACK.players, PRESENTATION_TEXT_LIMITS.players)
+          : boundedPresentationText(players, PRESENTATION_TEXT_LIMITS.players),
       };
       if (Object.values(text).some(item => item === null)) return fallbackPresentation();
       return freezePresentation({
-        cover: { palette: coverPalette, treatment: coverTreatment },
-        backdrop: { palette: backdropPalette, treatment: backdropTreatment },
+        ...(artworkStyleRequired ? {
+          cover: { palette: coverPalette, treatment: coverTreatment },
+          backdrop: { palette: backdropPalette, treatment: backdropTreatment },
+        } : {}),
         ...text,
         isFallback,
+        metadataState,
+        coverArtworkHandle,
+        backdropArtworkHandle,
+        attribution,
       });
     } catch (_) {
       return fallbackPresentation();
+    }
+  }
+
+  function optionalArtworkHandle(value) {
+    if (value === undefined || value === null || value === '') return undefined;
+    return value;
+  }
+
+  function parsePresentation(payload, game) {
+    const fallback = state => fallbackPresentation(state);
+    try {
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return fallback();
+      if (!game || typeof game.id !== 'string' || !GAME_ID_PATTERN.test(game.id) || payload.game_id !== game.id) return fallback('fallback_malformed');
+      const stateMap = {
+        disabled: 'fallback_disabled',
+        unconfigured: 'fallback_unconfigured',
+        no_match: 'fallback_no_match',
+        ambiguous: 'fallback_ambiguous',
+        offline: 'fallback_offline',
+      };
+      if (Object.prototype.hasOwnProperty.call(stateMap, payload.state)) return fallback(stateMap[payload.state]);
+      if (payload.state !== 'ready') return fallback('fallback_malformed');
+      if (!payload.presentation || typeof payload.presentation !== 'object' || Array.isArray(payload.presentation)) return fallback('fallback_malformed');
+      if (!payload.attribution || typeof payload.attribution !== 'object' || Array.isArray(payload.attribution)
+        || payload.attribution.provider !== 'igdb' || payload.attribution.label !== 'Data from IGDB.com') return fallback('fallback_malformed');
+      const value = {
+        summary: payload.presentation.summary,
+        year: payload.presentation.year,
+        genre: payload.presentation.genre,
+        studio: payload.presentation.studio,
+        players: payload.presentation.players,
+        isFallback: false,
+        metadataState: 'ready',
+        coverArtworkHandle: optionalArtworkHandle(payload.presentation.cover_artwork_id),
+        backdropArtworkHandle: optionalArtworkHandle(payload.presentation.backdrop_artwork_id),
+        attribution: payload.attribution.label,
+      };
+      return trustedPresentation(value);
+    } catch (_) {
+      return fallback('fallback_malformed');
     }
   }
 
@@ -457,6 +578,7 @@
     const fetchImpl = options.fetchImpl
       || (typeof root.fetch === 'function' ? root.fetch.bind(root) : null);
     const metadataAdapter = options.metadataAdapter || root.FogCastMetadata;
+    const presentationEnabled = options.presentationEnabled === true || root.FogCastPresentationEnabled === true;
     const notify = typeof options.onStateChange === 'function' ? options.onStateChange : null;
     const state = {
       query: '',
@@ -464,8 +586,10 @@
       gameViews: [],
       selectedLiveGame: null,
       selectedGameView: null,
+      selectedPresentation: null,
       requestSequence: 0,
       detailSequence: 0,
+      presentationSequence: 0,
       selectionRevision: 0,
       statusSequence: 0,
       launchSequence: 0,
@@ -483,7 +607,8 @@
       catalogState: 'loading',
       catalogError: null,
       metadataFallbackCount: 0,
-      metadataState: 'metadata_fallback',
+      metadataState: presentationEnabled ? 'metadata_idle' : 'metadata_fallback',
+      metadataError: null,
       launchState: 'idle',
       launchError: null,
       launchMessage: '',
@@ -518,7 +643,7 @@
     }
 
     function enrich(game) {
-      return launcherGame(game, metadataAdapter);
+      return launcherGame(game, presentationEnabled ? null : metadataAdapter);
     }
 
     function metadataFallbackCount(views) {
@@ -528,6 +653,10 @@
     function resetSelectionState() {
       state.selectionRevision += 1;
       state.detailSequence += 1;
+      state.presentationSequence += 1;
+      state.selectedPresentation = null;
+      state.metadataError = null;
+      state.metadataState = presentationEnabled ? 'metadata_idle' : 'metadata_fallback';
       state.detailState = 'idle';
       state.detailError = null;
       if (!state.activeMutation) {
@@ -811,7 +940,9 @@
         state.games = games;
         state.gameViews = gameViews;
         state.metadataFallbackCount = metadataFallbackCount(gameViews);
-        state.metadataState = state.metadataFallbackCount ? 'metadata_fallback' : 'curated';
+        state.metadataState = presentationEnabled
+          ? 'metadata_idle'
+          : (state.metadataFallbackCount ? 'metadata_fallback' : 'curated');
         state.catalogState = 'populated';
         state.catalogError = null;
         state.hostState = 'ready';
@@ -829,6 +960,7 @@
     async function refreshDetail(gameOrID) {
       const id = typeof gameOrID === 'object' ? gameOrID && gameOrID.id : gameOrID;
       if (!state.selectedLiveGame || state.selectedLiveGame.id !== id) return snapshot();
+      const previousIdentity = presentationIdentity(state.selectedLiveGame);
       const selectionRevision = state.selectionRevision;
       const sequence = ++state.detailSequence;
       state.detailState = 'loading';
@@ -843,7 +975,17 @@
           || state.selectedLiveGame.id !== id
         ) return snapshot();
         const detail = parseDetail(result, id);
-        const view = enrich(detail);
+        const identityChanged = !samePresentationIdentity(previousIdentity, presentationIdentity(detail));
+        if (identityChanged) {
+          state.presentationSequence += 1;
+          state.selectedPresentation = null;
+          state.metadataError = null;
+          state.metadataState = presentationEnabled ? 'metadata_loading' : 'metadata_fallback';
+        }
+        const view = Object.freeze({
+          live: detail,
+          presentation: state.selectedPresentation || enrich(detail).presentation,
+        });
         if (
           sequence !== state.detailSequence
           || selectionRevision !== state.selectionRevision
@@ -854,7 +996,9 @@
         state.selectedGameView = view;
         state.detailState = 'populated';
         state.detailError = null;
-        return emit();
+        const next = emit();
+        if (identityChanged && presentationEnabled) return refreshPresentation(detail);
+        return next;
       } catch (error) {
         if (
           sequence !== state.detailSequence
@@ -864,6 +1008,49 @@
         ) return snapshot();
         state.detailState = 'detail_error';
         state.detailError = errorSnapshot(error, 'The live detail could not be refreshed.');
+        return emit();
+      }
+    }
+
+    async function refreshPresentation(gameOrID) {
+      const id = typeof gameOrID === 'object' ? gameOrID && gameOrID.id : gameOrID;
+      if (!presentationEnabled || !state.selectedLiveGame || state.selectedLiveGame.id !== id) return snapshot();
+      const requestedIdentity = presentationIdentity(state.selectedLiveGame);
+      const selectionRevision = state.selectionRevision;
+      const sequence = ++state.presentationSequence;
+      state.metadataState = 'metadata_loading';
+      state.metadataError = null;
+      emit();
+      try {
+        const payload = await request(fetchImpl, presentationPath(id));
+        if (
+          sequence !== state.presentationSequence
+          || selectionRevision !== state.selectionRevision
+          || !state.selectedLiveGame
+          || state.selectedLiveGame.id !== id
+          || !samePresentationIdentity(requestedIdentity, presentationIdentity(state.selectedLiveGame))
+        ) return snapshot();
+        const presentation = parsePresentation(payload, state.selectedLiveGame);
+        state.selectedPresentation = presentation;
+        state.selectedGameView = Object.freeze({ live: state.selectedLiveGame, presentation });
+        state.metadataState = presentation.metadataState;
+        state.metadataError = presentation.isFallback && presentation.metadataState === 'fallback_malformed'
+          ? { code: 'MALFORMED_RESPONSE', message: 'The local host returned unavailable presentation metadata.', status: 200 }
+          : null;
+        return emit();
+      } catch (error) {
+        if (
+          sequence !== state.presentationSequence
+          || selectionRevision !== state.selectionRevision
+          || !state.selectedLiveGame
+          || state.selectedLiveGame.id !== id
+          || !samePresentationIdentity(requestedIdentity, presentationIdentity(state.selectedLiveGame))
+        ) return snapshot();
+        const presentation = fallbackPresentation();
+        state.selectedPresentation = presentation;
+        state.selectedGameView = Object.freeze({ live: state.selectedLiveGame, presentation });
+        state.metadataState = 'metadata_fallback';
+        state.metadataError = errorSnapshot(error, 'Presentation metadata is unavailable.');
         return emit();
       }
     }
@@ -878,7 +1065,9 @@
       state.selectedGameView = state.gameViews[index] || null;
       state.detailState = 'loading';
       emit();
-      return refreshDetail(id);
+      if (!presentationEnabled) return refreshDetail(id);
+      await Promise.all([refreshDetail(id), refreshPresentation(id)]);
+      return snapshot();
     }
 
     return Object.freeze({
@@ -887,6 +1076,7 @@
       loadSession,
       selectGame,
       refreshDetail,
+      refreshPresentation,
       launchSelected,
       stopSession,
     });
@@ -895,6 +1085,9 @@
   const api = Object.freeze({
     gamesPath,
     gameDetailPath,
+    presentationPath,
+    artworkPath,
+    parsePresentation,
     launchRequest,
     sessionRequest,
     stopRequest,
@@ -1101,6 +1294,39 @@
     state.gameViews.forEach((view, index) => renderCard(view, state.games[index]));
   }
 
+  function neutralArtwork(role) {
+    const tagName = role === 'cover' ? 'span' : 'div';
+    return element(tagName, `${role}-art artwork-empty`);
+  }
+
+  function replaceWithNeutralArtwork(image, role) {
+    const replacement = neutralArtwork(role);
+    if (typeof image.replaceWith === 'function') {
+      image.replaceWith(replacement);
+      return;
+    }
+    image.tagName = replacement.tagName;
+    image.className = replacement.className;
+    image.textContent = replacement.textContent;
+    if (image.attributes && typeof image.attributes.clear === 'function') image.attributes.clear();
+  }
+
+  function artworkElement(role, style, handle, loading) {
+    if (!handle) {
+      if (!style) return neutralArtwork(role);
+      return element(
+        role === 'cover' ? 'span' : 'div',
+        `${role}-art palette-${style.palette} treatment-${style.treatment}`,
+      );
+    }
+    const image = element('img', `${role}-art image-art`);
+    image.setAttribute('src', artworkPath(handle));
+    image.setAttribute('alt', '');
+    image.setAttribute('loading', loading);
+    image.addEventListener('error', () => replaceWithNeutralArtwork(image, role));
+    return image;
+  }
+
   function renderCard(view, liveGame) {
     const game = view.live;
     const presentation = view.presentation;
@@ -1108,7 +1334,7 @@
     const card = element('button', 'game-card' + (selected ? ' selected' : ''));
     card.type = 'button';
     card.setAttribute('aria-pressed', String(selected));
-    const cover = element('span', `cover-art palette-${presentation.cover.palette} treatment-${presentation.cover.treatment}`);
+    const cover = artworkElement('cover', presentation.cover, presentation.coverArtworkHandle, 'lazy');
     card.appendChild(cover);
     card.appendChild(element('h3', '', game.title));
     card.appendChild(element('p', 'game-meta', `${game.system} · ${game.state}`));
@@ -1150,7 +1376,7 @@
     if (!game) {
       nodes.detailContent.appendChild(element('p', 'eyebrow', 'Now viewing'));
     } else {
-      const backdrop = element('div', `backdrop-art palette-${presentation.backdrop.palette} treatment-${presentation.backdrop.treatment}`);
+      const backdrop = artworkElement('backdrop', presentation.backdrop, presentation.backdropArtworkHandle, 'eager');
       nodes.detailContent.appendChild(backdrop);
       nodes.detailContent.appendChild(element('p', 'eyebrow', 'Live catalog detail'));
     }
@@ -1161,14 +1387,17 @@
       nodes.detailContent.appendChild(element('p', 'muted', 'Choose a live catalog entry to inspect its launch readiness.'));
       return;
     }
-    nodes.detailContent.appendChild(element('p', 'detail-summary', presentation.summary));
+    if (presentation.summary) nodes.detailContent.appendChild(element('p', 'detail-summary', presentation.summary));
+    if (presentation.attribution) nodes.detailContent.appendChild(element('p', 'attribution', presentation.attribution));
     const facts = element('div', 'detail-facts');
-    [[game.system, 'System'], [game.state, 'Source state'], [presentation.year, 'Year'], [presentation.players, 'Players']].forEach(([value, label]) => {
+    [[game.system, 'System'], [game.state, 'Source state'], [presentation.year, 'Year'], [presentation.players, 'Players']]
+      .filter(([value]) => value)
+      .forEach(([value, label]) => {
       const fact = element('div', 'detail-fact');
       fact.appendChild(element('strong', '', value));
       fact.appendChild(element('span', '', label));
       facts.appendChild(fact);
-    });
+      });
     nodes.detailContent.appendChild(facts);
     if (presentation.isFallback) nodes.detailContent.appendChild(element('p', 'fallback-note', 'metadata_fallback: using deterministic demo presentation'));
     if (state.detailState === 'detail_error') {

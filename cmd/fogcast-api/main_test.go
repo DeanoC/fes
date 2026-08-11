@@ -16,6 +16,7 @@ import (
 	"github.com/DeanoC/FogCast-POC/fogcast"
 	"github.com/DeanoC/FogCast-POC/host"
 	"github.com/DeanoC/FogCast-POC/internal/hostapi"
+	"github.com/DeanoC/FogCast-POC/internal/metadata"
 	"github.com/DeanoC/FogCast-POC/internal/remotemedia"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
@@ -1058,5 +1059,139 @@ func TestCloseAPICompositionAttemptsCompositionAfterRemoteInputFailure(t *testin
 	}
 	if !compositionCalled {
 		t.Fatal("remote-input failure skipped composition cleanup")
+	}
+}
+
+type compositionMetadataRuntime struct {
+	mu     sync.Mutex
+	closes int
+}
+
+func (r *compositionMetadataRuntime) Lookup(context.Context, metadata.LookupInput) (metadata.Result, error) {
+	return metadata.Result{}, nil
+}
+func (r *compositionMetadataRuntime) OpenArtwork(context.Context, string) (metadata.Artwork, error) {
+	return metadata.Artwork{}, errors.New("unused metadata artwork")
+}
+func (r *compositionMetadataRuntime) Close() error {
+	r.mu.Lock()
+	r.closes++
+	r.mu.Unlock()
+	return nil
+}
+func (r *compositionMetadataRuntime) closeCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.closes
+}
+
+func TestComposeAPIMetadataCleanupCoversPostOpenFailureBranches(t *testing.T) {
+	base := fogcast.Config{MetadataRoot: t.TempDir(), Metadata: fogcast.MetadataConfig{Configured: true, Enabled: true, Provider: "igdb"}}
+	tests := []struct {
+		name   string
+		config fogcast.Config
+		start  bridgeStarterFactory
+		setup  []compositionOption
+	}{
+		{
+			name:   "nil capture factory",
+			config: fogcast.Config{MetadataRoot: base.MetadataRoot, Metadata: base.Metadata, Media: fogcast.MediaConfig{Enabled: true}},
+			setup:  []compositionOption{withCaptureSourceFactory(nil)},
+		},
+		{
+			name:   "malformed target",
+			config: fogcast.Config{MetadataRoot: base.MetadataRoot, Metadata: base.Metadata, BaseURL: "://bad", Media: fogcast.MediaConfig{Enabled: true}},
+			setup: []compositionOption{withCaptureSourceFactory(func(fogcast.MediaConfig) (remotemedia.CaptureSource, error) {
+				return &compositionCapture{}, nil
+			})},
+		},
+		{
+			name:   "direct receiver construction",
+			config: fogcast.Config{MetadataRoot: base.MetadataRoot, Metadata: base.Metadata, Token: "token", Media: fogcast.MediaConfig{Enabled: true, RTPListen: "127.0.0.1:5000"}},
+			setup: []compositionOption{withCaptureSourceFactory(func(fogcast.MediaConfig) (remotemedia.CaptureSource, error) {
+				return &compositionCapture{}, nil
+			})},
+		},
+		{
+			name:   "nil bridge factory",
+			config: fogcast.Config{MetadataRoot: base.MetadataRoot, Metadata: base.Metadata, RemoteInput: fogcast.RemoteInputConfig{Enabled: true}},
+		},
+		{
+			name:   "bridge factory error",
+			config: fogcast.Config{MetadataRoot: base.MetadataRoot, Metadata: base.Metadata, RemoteInput: fogcast.RemoteInputConfig{Enabled: true}},
+			start: func(fogcast.Config) (host.BridgeStarter, error) {
+				return nil, errors.New("bridge construction failed")
+			},
+		},
+		{
+			name:   "nil bridge starter",
+			config: fogcast.Config{MetadataRoot: base.MetadataRoot, Metadata: base.Metadata, RemoteInput: fogcast.RemoteInputConfig{Enabled: true}},
+			start:  func(fogcast.Config) (host.BridgeStarter, error) { return nil, nil },
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			opened := &compositionMetadataRuntime{}
+			options := append([]compositionOption{withMetadataOpener(func(context.Context, metadata.RuntimeConfig) (metadata.Runtime, error) {
+				return opened, nil
+			})}, test.setup...)
+			handler, cleanup, err := composeAPI(&compositionService{}, test.config, test.start, options...)
+			if err == nil || handler != nil || cleanup != nil {
+				t.Fatalf("failure composition = handler:%v cleanup:%v err:%v", handler != nil, cleanup != nil, err)
+			}
+			if got := opened.closeCount(); got != 1 {
+				t.Fatalf("metadata close count = %d, want 1", got)
+			}
+		})
+	}
+}
+
+func TestComposeAPIMetadataCleanupOnSuccessIsExplicitAndIdempotent(t *testing.T) {
+	opened := &compositionMetadataRuntime{}
+	config := fogcast.Config{MetadataRoot: t.TempDir(), Metadata: fogcast.MetadataConfig{Configured: true, Enabled: true, Provider: "igdb"}}
+	handler, cleanup, err := composeAPI(&compositionService{}, config, nil, withMetadataOpener(func(context.Context, metadata.RuntimeConfig) (metadata.Runtime, error) {
+		return opened, nil
+	}))
+	if err != nil || handler == nil || cleanup == nil {
+		t.Fatalf("success composition = handler:%v cleanup:%v err:%v", handler != nil, cleanup != nil, err)
+	}
+	if err := cleanup(); err != nil {
+		t.Fatal(err)
+	}
+	if err := cleanup(); err != nil {
+		t.Fatal(err)
+	}
+	if got := opened.closeCount(); got != 2 {
+		t.Fatalf("cleanup should invoke runtime Close once per explicit call, got %d", got)
+	}
+}
+
+func TestComposeAPIMetadataCleanupOnRemoteInputSuccess(t *testing.T) {
+	opened := &compositionMetadataRuntime{}
+	config := fogcast.Config{
+		MetadataRoot: t.TempDir(),
+		Metadata:     fogcast.MetadataConfig{Configured: true, Enabled: true, Provider: "igdb", ClientID: "client", ClientSecret: "secret"},
+		RemoteInput:  fogcast.RemoteInputConfig{Enabled: true},
+	}
+	var gotConfig metadata.RuntimeConfig
+	handler, cleanup, err := composeAPI(&compositionService{}, config, func(fogcast.Config) (host.BridgeStarter, error) {
+		return host.BridgeStarterFunc(func(context.Context, host.BridgeSpec) (host.BridgeHandle, error) {
+			return nil, errors.New("unused bridge")
+		}), nil
+	}, withMetadataOpener(func(_ context.Context, received metadata.RuntimeConfig) (metadata.Runtime, error) {
+		gotConfig = received
+		return opened, nil
+	}))
+	if err != nil || handler == nil || cleanup == nil {
+		t.Fatalf("remote-input success composition = handler:%v cleanup:%v err:%v", handler != nil, cleanup != nil, err)
+	}
+	if err := cleanup(); err != nil {
+		t.Fatal(err)
+	}
+	if got := opened.closeCount(); got != 1 {
+		t.Fatalf("metadata close count = %d, want 1", got)
+	}
+	if gotConfig.Root != config.MetadataRoot || !gotConfig.Configured || !gotConfig.Enabled || gotConfig.ProviderName != metadata.ProviderIGDB || gotConfig.ClientID != "client" || gotConfig.ClientSecret != "secret" {
+		t.Fatalf("metadata opener config = %#v", gotConfig)
 	}
 }

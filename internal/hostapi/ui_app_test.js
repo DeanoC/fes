@@ -18,6 +18,8 @@ const {
   detailHeading,
   createAppController,
   catalogViewState,
+  presentationPath,
+  parsePresentation,
 } = require('./ui_app.js');
 const FogCastMetadata = require('./ui_metadata.js');
 
@@ -119,6 +121,14 @@ async function settleBrowser() {
   }
 }
 
+async function waitForCondition(condition, message) {
+  for (let index = 0; index < 40; index += 1) {
+    if (condition()) return;
+    await new Promise(resolve => setImmediate(resolve));
+  }
+  throw new Error(message);
+}
+
 async function runBrowserApp({ adapter, responses, sessionResponses }) {
   const document = browserDocument();
   const calls = [];
@@ -189,9 +199,206 @@ function validAdapterPresentation() {
     genre: 'Platformer',
     studio: 'SEGA',
     players: '1 player',
-    isFallback: false,
+    isFallback: true,
   };
 }
+
+test('presentation route is a host-local path and parser bounds provider fields', () => {
+  assert.equal(presentationPath('megadrive-sonic-test'), '/api/v1/presentation/games/megadrive-sonic-test');
+  assert.throws(() => presentationPath('../secret'), error => error.code === 'BAD_REQUEST');
+  const parsed = parsePresentation({
+    game_id: 'megadrive-sonic-test',
+    state: 'ready',
+    presentation: {
+      summary: 'Host metadata summary', year: '1991', genre: 'Platformer', studio: 'SEGA', players: '1',
+      cover_artwork_id: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+    },
+    attribution: { provider: 'igdb', label: 'Data from IGDB.com' },
+  }, immutableBoundaryGame());
+  assert.equal(parsed.isFallback, false);
+  assert.equal(parsed.summary, 'Host metadata summary');
+  assert.equal(parsed.coverArtworkHandle.length, 64);
+  assert.equal(parsed.attribution, 'Data from IGDB.com');
+  assert.equal(parsePresentation({ game_id: 'megadrive-sonic-test', state: 'ready', presentation: { summary: 'x'.repeat(241) }, attribution: { provider: 'igdb', label: 'Data from IGDB.com' } }, immutableBoundaryGame()).isFallback, true);
+});
+
+test('ready provider response preserves empty fields and renders no demo artwork', () => {
+  const parsed = parsePresentation(readFixture('presentation-ready-empty.json'), immutableBoundaryGame());
+  assert.equal(parsed.isFallback, false);
+  assert.equal(parsed.metadataState, 'ready');
+  for (const field of ['summary', 'year', 'genre', 'studio', 'players']) assert.equal(parsed[field], '');
+  assert.equal(parsed.cover, undefined);
+  assert.equal(parsed.backdrop, undefined);
+  assert.equal(parsed.coverArtworkHandle, undefined);
+  assert.equal(parsed.backdropArtworkHandle, undefined);
+  assert.equal(parsed.attribution, 'Data from IGDB.com');
+});
+
+test('enabled controller requests presentation only after selecting a live game', async () => {
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/games': [jsonResponse(readFixture('catalog-populated.json'))],
+    '/api/v1/games/megadrive-sonic-test': [jsonResponse(readFixture('detail-refreshed.json'))],
+    '/api/v1/presentation/games/megadrive-sonic-test': [jsonResponse({
+      game_id: 'megadrive-sonic-test', state: 'ready',
+      presentation: { summary: 'Host summary', year: '1991', genre: 'Platformer', studio: 'SEGA', players: '1' },
+      attribution: { provider: 'igdb', label: 'Data from IGDB.com' },
+    }), jsonResponse({
+      game_id: 'megadrive-sonic-test', state: 'ready',
+      presentation: { summary: 'Host summary', year: '1991', genre: 'Platformer', studio: 'SEGA', players: '1' },
+      attribution: { provider: 'igdb', label: 'Data from IGDB.com' },
+    })],
+  });
+  const controller = createAppController({ fetchImpl, presentationEnabled: true });
+  await controller.loadCatalog('');
+  assert.deepEqual(calls.map(call => call.path), ['/api/v1/games']);
+  await controller.selectGame('megadrive-sonic-test');
+  assert.deepEqual(calls.map(call => call.path), ['/api/v1/games', '/api/v1/games/megadrive-sonic-test', '/api/v1/presentation/games/megadrive-sonic-test', '/api/v1/presentation/games/megadrive-sonic-test']);
+  const state = controller.getState();
+  assert.equal(state.metadataState, 'ready');
+  assert.equal(state.selectedGameView.presentation.summary, 'Host summary');
+  assert.equal(state.selectedGameView.presentation.isFallback, false);
+});
+
+test('same-ID detail identity replacement invalidates stale presentation and refreshes once', async () => {
+  const calls = [];
+  let resolveDetail;
+  let resolveOldPresentation;
+  let resolveNewPresentation;
+  let presentationCalls = 0;
+  const gameID = 'megadrive-sonic-test';
+  const fetchImpl = async (requestPath, options) => {
+    calls.push({ path: requestPath, options });
+    if (requestPath === '/api/v1/games') return jsonResponse(readFixture('catalog-populated.json'));
+    if (requestPath === `/api/v1/games/${gameID}`) {
+      return new Promise(resolve => { resolveDetail = resolve; });
+    }
+    if (requestPath === `/api/v1/presentation/games/${gameID}`) {
+      presentationCalls += 1;
+      if (presentationCalls === 1) return new Promise(resolve => { resolveOldPresentation = resolve; });
+      if (presentationCalls === 2) return new Promise(resolve => { resolveNewPresentation = resolve; });
+      throw new Error('same-ID identity replacement issued more than one replacement request');
+    }
+    if (requestPath === '/api/v1/session/launch') return jsonResponse({ state: 'active', game_id: gameID });
+    throw new Error(`unexpected request ${requestPath}`);
+  };
+  const controller = createAppController({ fetchImpl, presentationEnabled: true });
+
+  await controller.loadCatalog('');
+  const selecting = controller.selectGame(gameID);
+  await waitForCondition(() => resolveDetail && resolveOldPresentation, 'initial detail/presentation requests did not start');
+  resolveDetail(jsonResponse(immutableBoundaryGame({ title: 'Sonic the Hedgehog (new)', system: 'snes' })));
+  await waitForCondition(() => presentationCalls === 2, 'detail identity replacement did not start exactly one presentation refresh');
+
+  resolveOldPresentation(jsonResponse({
+    game_id: gameID,
+    state: 'ready',
+    presentation: { summary: 'old presentation', year: '1991', genre: 'Platformer', studio: 'SEGA', players: '1' },
+    attribution: { provider: 'igdb', label: 'Data from IGDB.com' },
+  }));
+  await settleBrowser();
+  let state = controller.getState();
+  assert.equal(state.selectedLiveGame.title, 'Sonic the Hedgehog (new)');
+  assert.equal(state.selectedLiveGame.system, 'snes');
+  assert.notEqual(state.selectedGameView.presentation.summary, 'old presentation');
+
+  resolveNewPresentation(jsonResponse({
+    game_id: gameID,
+    state: 'ready',
+    presentation: { summary: 'new presentation', year: '1991', genre: 'Platformer', studio: 'SEGA', players: '1' },
+    attribution: { provider: 'igdb', label: 'Data from IGDB.com' },
+  }));
+  await selecting;
+  state = controller.getState();
+  assert.equal(state.selectedGameView.presentation.summary, 'new presentation');
+  assert.equal(state.metadataState, 'ready');
+
+  await controller.launchSelected();
+  state = controller.getState();
+  assert.equal(state.launchState, 'launch_success');
+  assert.deepEqual(calls.filter(call => call.path === `/api/v1/presentation/games/${gameID}`).map(call => call.path), [
+    `/api/v1/presentation/games/${gameID}`,
+    `/api/v1/presentation/games/${gameID}`,
+  ]);
+  assert.equal(calls.at(-1).path, '/api/v1/session/launch');
+  assert.equal(calls.at(-1).options.body, JSON.stringify({ game_id: gameID }));
+});
+
+test('presentation parser accepts the nested host DTO and preserves safe provider states', () => {
+  const handle = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  const ready = parsePresentation({
+    game_id: 'megadrive-sonic-test',
+    state: 'ready',
+    presentation: {
+      summary: 'Nested host summary', year: '1991', genre: 'Platformer', studio: 'SEGA', players: '1',
+      cover_artwork_id: handle,
+    },
+    attribution: { provider: 'igdb', label: 'Data from IGDB.com' },
+  }, immutableBoundaryGame());
+  assert.equal(ready.isFallback, false);
+  assert.equal(ready.summary, 'Nested host summary');
+  assert.equal(ready.coverArtworkHandle, handle);
+  assert.equal(ready.attribution, 'Data from IGDB.com');
+  for (const state of ['disabled', 'unconfigured', 'no_match', 'ambiguous', 'offline']) {
+    const fallback = parsePresentation({ game_id: 'megadrive-sonic-test', state }, immutableBoundaryGame());
+    assert.equal(fallback.isFallback, true, state);
+    assert.equal(fallback.metadataState, state === 'no_match' ? 'fallback_no_match' : state === 'ambiguous' ? 'fallback_ambiguous' : state === 'disabled' ? 'fallback_disabled' : state === 'unconfigured' ? 'fallback_unconfigured' : 'fallback_offline');
+  }
+});
+
+test('valid provider-ready empty fields stay empty and carry no demo artwork style', () => {
+  const parsed = parsePresentation(readFixture('presentation-ready-empty.json'), immutableBoundaryGame());
+
+  assert.equal(parsed.isFallback, false);
+  assert.equal(parsed.metadataState, 'ready');
+  for (const field of ['summary', 'year', 'genre', 'studio', 'players']) {
+    assert.equal(parsed[field], '', field);
+  }
+  assert.equal(parsed.cover, undefined);
+  assert.equal(parsed.backdrop, undefined);
+  assert.equal(parsed.coverArtworkHandle, undefined);
+  assert.equal(parsed.backdropArtworkHandle, undefined);
+  assert.equal(parsed.attribution, 'Data from IGDB.com');
+});
+
+test('presentation parser preserves nonempty fields when one optional text field is empty', () => {
+  const fields = [
+    ['summary', ''],
+    ['year', ''],
+    ['genre', ''],
+    ['studio', ''],
+    ['players', ''],
+  ];
+  for (const [field, fallback] of fields) {
+    const payload = {
+      game_id: 'megadrive-sonic-test',
+      state: 'ready',
+      presentation: { summary: 'Summary', year: '1991', genre: 'Platformer', studio: 'SEGA', players: '1 player' },
+      attribution: { provider: 'igdb', label: 'Data from IGDB.com' },
+    };
+    payload.presentation[field] = '';
+    const parsed = parsePresentation(payload, immutableBoundaryGame());
+    assert.equal(parsed.isFallback, false, field);
+    assert.equal(parsed.metadataState, 'ready', field);
+    assert.equal(parsed[field], fallback, field);
+    for (const otherField of ['summary', 'year', 'genre', 'studio', 'players']) {
+      if (otherField !== field) assert.notEqual(parsed[otherField], '', `${field} erased ${otherField}`);
+    }
+  }
+});
+
+test('presentation parser rejects malformed and non-positive optional text values', () => {
+  for (const value of [null, false, -1, {}, []]) {
+    const payload = {
+      game_id: 'megadrive-sonic-test',
+      state: 'ready',
+      presentation: { summary: 'Summary', year: '1991', genre: 'Platformer', studio: 'SEGA', players: value },
+      attribution: { provider: 'igdb', label: 'Data from IGDB.com' },
+    };
+    const parsed = parsePresentation(payload, immutableBoundaryGame());
+    assert.equal(parsed.isFallback, true, `players=${String(value)}`);
+    assert.notEqual(parsed.metadataState, 'ready', `players=${String(value)}`);
+  }
+});
 
 function mutateEveryReachableAdapterField(input) {
   for (const key of Object.keys(input)) {
@@ -283,8 +490,8 @@ async function runImmutableAdapterCase(kind) {
   assert.equal(state.gameViews[0].live, state.games[0]);
   assert.equal(state.gameViews[0].live.id, accepted.id);
   assert.equal(state.gameViews[0].live.title, accepted.title);
-  assert.equal(state.gameViews[0].presentation.isFallback, false);
-  assert.equal(state.metadataFallbackCount, 0);
+  assert.equal(state.gameViews[0].presentation.isFallback, true);
+  assert.equal(state.metadataFallbackCount, 1);
 
   await controller.selectGame(accepted.id);
   state = controller.getState();
@@ -399,7 +606,7 @@ test('controller loads fixture catalog, keeps unmatched metadata non-fatal, and 
   let state = controller.getState();
   assert.equal(catalogViewState(state), 'populated');
   assert.equal(state.games.length, 3);
-  assert.equal(state.metadataFallbackCount, 2);
+  assert.equal(state.metadataFallbackCount, 3);
   assert.equal(state.selectedLiveGame, null);
 
   await controller.selectGame('megadrive-sonic-test');
@@ -656,6 +863,66 @@ test('browser render paths keep cards, detail, and launch usable across metadata
     assert.equal(calls[2].options.body, '{"game_id":"megadrive-sonic-test"}');
   }
   assert.equal(metadataForCalls, 4, 'metadataFor must run only for the accepted catalog records and detail');
+});
+
+test('browser provider-ready partial presentation keeps empty fields and neutral artwork roles', async () => {
+  const handle = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  const adapter = {
+    metadataFor() {
+      return {
+        summary: '', year: '', genre: '', studio: '', players: '',
+        coverArtworkHandle: handle,
+        isFallback: false,
+        metadataState: 'ready',
+      };
+    },
+  };
+  const { document } = await runBrowserApp({
+    adapter,
+    responses: [
+      jsonResponse(readFixture('catalog-populated.json')),
+      jsonResponse(readFixture('detail-refreshed.json')),
+      jsonResponse(readFixture('launch-success.json')),
+    ],
+  });
+
+  const card = document.nodes.get('catalog-list').children[0];
+  assert.equal(card.children[0].className, 'cover-art image-art');
+  assert.equal(card.children[0].attributes.get('src'), `/api/v1/presentation/artwork/${handle}`);
+  await card.click();
+  const detailContent = document.nodes.get('detail-content');
+  assert.equal(detailContent.children[0].className, 'backdrop-art artwork-empty');
+  assert.equal(detailContent.children.filter(child => child.className === 'detail-summary').length, 0);
+  assert.doesNotMatch(browserText(detailContent), /FogCast demo|Unknown|palette-|treatment-|—/);
+});
+
+test('browser artwork load errors replace only the failed provider image with neutral artwork', async () => {
+  const handle = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  const adapter = {
+    metadataFor() {
+      return {
+        summary: 'Provider summary', year: '', genre: '', studio: '', players: '',
+        coverArtworkHandle: handle,
+        isFallback: false,
+        metadataState: 'ready',
+      };
+    },
+  };
+  const { document } = await runBrowserApp({
+    adapter,
+    responses: [
+      jsonResponse(readFixture('catalog-populated.json')),
+      jsonResponse(readFixture('detail-refreshed.json')),
+      jsonResponse(readFixture('launch-success.json')),
+    ],
+  });
+  const cardImage = document.nodes.get('catalog-list').children[0].children[0];
+  const imageError = cardImage.listeners.get('error');
+  assert.equal(typeof imageError, 'function');
+  imageError();
+  assert.equal(cardImage.className, 'cover-art artwork-empty');
+  assert.equal(cardImage.tagName, 'SPAN');
+  assert.equal(cardImage.attributes.size, 0);
 });
 
 test('browser rendering falls back for shape-complete invalid presentation values', async () => {

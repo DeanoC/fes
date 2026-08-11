@@ -1,0 +1,15 @@
+{
+  "game_id": "megadrive-sonic-test",
+  "state": "ready",
+  "presentation": {
+    "summary": "Host-local presentation with malformed attribution.",
+    "year": "1991",
+    "genre": "Platformer",
+    "studio": "SEGA",
+    "players": "1 player"
+  },
+  "attribution": {
+    "provider": "unexpected-provider",
+    "label": "untrusted label"
+  }
+}

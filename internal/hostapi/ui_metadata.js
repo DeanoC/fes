@@ -17,25 +17,25 @@
       cover: Object.freeze({ palette: 'lagoon', treatment: 'rings' }),
       backdrop: Object.freeze({ palette: 'sunset', treatment: 'waves' }),
       summary: 'A high-speed demo adventure through bright zones and loop-filled stages.',
-      year: '1991', genre: 'Platformer', studio: 'SEGA', players: '1 player', isFallback: false,
+      year: '1991', genre: 'Platformer', studio: 'SEGA', players: '1 player', isFallback: true,
     }),
     'snes\0super mario world': Object.freeze({
       cover: Object.freeze({ palette: 'forest', treatment: 'grid' }),
       backdrop: Object.freeze({ palette: 'sunset', treatment: 'starlight' }),
       summary: 'A classic platforming demo packed with secrets, power-ups, and bright worlds.',
-      year: '1990', genre: 'Platformer', studio: 'Nintendo', players: '1–2 players', isFallback: false,
+      year: '1990', genre: 'Platformer', studio: 'Nintendo', players: '1–2 players', isFallback: true,
     }),
     'snes\0the legend of zelda: a link to the past': Object.freeze({
       cover: Object.freeze({ palette: 'violet', treatment: 'rings' }),
       backdrop: Object.freeze({ palette: 'forest', treatment: 'waves' }),
       summary: 'A legendary demo quest across a mysterious world of dungeons and discovery.',
-      year: '1991', genre: 'Adventure', studio: 'Nintendo', players: '1 player', isFallback: false,
+      year: '1991', genre: 'Adventure', studio: 'Nintendo', players: '1 player', isFallback: true,
     }),
     'megadrive\0streets of rage 2': Object.freeze({
       cover: Object.freeze({ palette: 'ember', treatment: 'stripes' }),
       backdrop: Object.freeze({ palette: 'violet', treatment: 'grid' }),
       summary: 'A kinetic demo brawler where every street hides a new showdown.',
-      year: '1992', genre: 'Action', studio: 'SEGA', players: '1–2 players', isFallback: false,
+      year: '1992', genre: 'Action', studio: 'SEGA', players: '1–2 players', isFallback: true,
     }),
   });
 

@@ -55,6 +55,27 @@ function fixture(name, status = 200, options = {}) {
   });
 }
 
+function artworkFixture(status = 200, options = {}) {
+  if (!Number.isInteger(status) || status < 100 || status > 599) {
+    throw new TypeError(`invalid UI artwork status: ${status}`);
+  }
+  const delayMs = options.delayMs === undefined ? 0 : Number(options.delayMs);
+  if (!Number.isInteger(delayMs) || delayMs < 0 || delayMs > REQUEST_TIMEOUT_MS) {
+    throw new TypeError(`invalid UI artwork delay: ${options.delayMs}`);
+  }
+  const body = options.body === undefined
+    ? Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
+    : Buffer.from(options.body);
+  if (body.length > MAX_CAPTURE_BYTES) throw new TypeError('UI artwork fixture is too large');
+  return Object.freeze({
+    fixture: 'artwork',
+    status,
+    body,
+    hold: options.hold === true,
+    delayMs,
+  });
+}
+
 function readFixturePayload(name) {
   const fixturePath = path.join(FIXTURE_ROOT, name);
   if (path.dirname(fixturePath) !== FIXTURE_ROOT) {
@@ -77,7 +98,7 @@ function assembleProductionHTML(metadataMode = 'normal') {
   const metadata = readAsset('ui_metadata.js');
   const replacements = {
     '{{FOGCAST_STYLES}}': `<style>${styles}</style>`,
-    '{{FOGCAST_APP}}': `<script>${app}</script>`,
+    '{{FOGCAST_APP}}': `<script>globalThis.FogCastPresentationEnabled = true;</script><script>${app}</script>`,
   };
   if (metadataMode === 'normal') {
     replacements['{{FOGCAST_METADATA}}'] = `<script>${metadata}</script>`;
@@ -111,6 +132,8 @@ function normalizeQueue(value, label) {
 function normalizePlan(plan = {}) {
   const catalog = plan.catalog || { '': fixture('catalog-populated.json') };
   const details = plan.details || {};
+  const presentations = plan.presentations || {};
+  const artworks = plan.artworks || {};
   const sessions = plan.sessions || [fixture('session-idle.json')];
   const launches = plan.launches || [fixture('launch-success.json')];
   const stops = plan.stops || [fixture('stop-success.json')];
@@ -122,11 +145,21 @@ function normalizePlan(plan = {}) {
   for (const [id, value] of Object.entries(details)) {
     detailQueues.set(String(id), normalizeQueue(value, `details[${id}]`));
   }
+  const presentationQueues = new Map();
+  for (const [id, value] of Object.entries(presentations)) {
+    presentationQueues.set(String(id), normalizeQueue(value, `presentations[${id}]`));
+  }
+  const artworkQueues = new Map();
+  for (const [handle, value] of Object.entries(artworks)) {
+    artworkQueues.set(String(handle), normalizeQueue(value, `artworks[${handle}]`));
+  }
   return {
     metadataMode: plan.metadataMode || 'normal',
     html: assembleProductionHTML(plan.metadataMode || 'normal'),
     catalogQueues,
     detailQueues,
+    presentationQueues,
+    artworkQueues,
     sessionQueue: normalizeQueue(sessions, 'sessions'),
     launchQueue: normalizeQueue(launches, 'launches'),
     stopQueue: normalizeQueue(stops, 'stops'),
@@ -142,6 +175,7 @@ function takeQueue(queueMap, key) {
 
 function responseBody(response, html) {
   if (response.fixture === 'ui-assets') return Buffer.from(html, 'utf8');
+  if (response.fixture === 'artwork') return Buffer.from(response.body);
   return Buffer.from(JSON.stringify(readFixturePayload(response.fixture)), 'utf8');
 }
 
@@ -336,6 +370,36 @@ class FixtureServer extends EventEmitter {
       await this.deliver(record, response, selected || this.unexpectedResponse(record, 500, `detail ID not configured: ${boundedText(id)}`));
       return;
     }
+    const presentationMatch = url.pathname.match(/^\/api\/v1\/presentation\/games\/([^/]+)$/);
+    if (presentationMatch && request.method === 'GET') {
+      if (url.search) {
+        await this.deliver(record, response, this.unexpectedResponse(record, 400, 'unexpected presentation query'));
+        return;
+      }
+      let id;
+      try {
+        id = decodeURIComponent(presentationMatch[1]);
+      } catch (_) {
+        await this.deliver(record, response, this.unexpectedResponse(record, 400, 'invalid presentation ID encoding'));
+        return;
+      }
+      record.query = id;
+      const selected = takeQueue(this.plan.presentationQueues, id);
+      await this.deliver(record, response, selected || this.unexpectedResponse(record, 500, `presentation ID not configured: ${boundedText(id)}`));
+      return;
+    }
+    const artworkMatch = url.pathname.match(/^\/api\/v1\/presentation\/artwork\/([0-9a-f]{64})$/);
+    if (artworkMatch && request.method === 'GET') {
+      if (url.search) {
+        await this.deliver(record, response, this.unexpectedResponse(record, 400, 'unexpected artwork query'));
+        return;
+      }
+      const handle = artworkMatch[1];
+      record.query = handle;
+      const selected = takeQueue(this.plan.artworkQueues, handle);
+      await this.deliver(record, response, selected || this.unexpectedResponse(record, 500, `artwork handle not configured: ${boundedText(handle)}`));
+      return;
+    }
     if (url.pathname === '/api/v1/session' && request.method === 'GET') {
       const selected = this.plan.sessionQueue.length === 1
         ? this.plan.sessionQueue[0]
@@ -369,9 +433,11 @@ class FixtureServer extends EventEmitter {
     if (plan.hold) {
       const contentType = plan.fixture === 'favicon'
         ? 'image/x-icon'
-        : plan.fixture === 'ui-assets'
-          ? 'text/html; charset=utf-8'
-          : 'application/json';
+        : plan.fixture === 'artwork'
+          ? 'image/png'
+          : plan.fixture === 'ui-assets'
+            ? 'text/html; charset=utf-8'
+            : 'application/json';
       response.writeHead(plan.status, {
         'Cache-Control': 'no-store',
         Connection: 'close',
@@ -407,9 +473,11 @@ class FixtureServer extends EventEmitter {
     record.responseBytes = body.length;
     const contentType = plan.fixture === 'favicon'
       ? 'image/x-icon'
-      : plan.fixture === 'ui-assets'
-        ? 'text/html; charset=utf-8'
-        : 'application/json';
+      : plan.fixture === 'artwork'
+        ? 'image/png'
+        : plan.fixture === 'ui-assets'
+          ? 'text/html; charset=utf-8'
+          : 'application/json';
     try {
       if (!record.headersSent) {
         response.writeHead(plan.status, {
@@ -1539,6 +1607,7 @@ module.exports = {
   BrowserNotReadyError,
   FixtureServer,
   fixture,
+  artworkFixture,
   resolveChrome,
   waitForProcessGroupQuiescence,
 };

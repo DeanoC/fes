@@ -9,12 +9,14 @@ const {
   BrowserPage,
   FixtureServer,
   fixture,
+  artworkFixture,
   waitForProcessGroupQuiescence,
 } = require('./ui_browser_harness.js');
 
 const REQUIRED = process.env.FOGCAST_BROWSER_REQUIRED === '1';
 const SONIC_ID = 'megadrive-sonic-test';
 const UNKNOWN_ID = 'snes-unknown-test';
+const ARTWORK_HANDLE = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
 function populatedCatalog() {
   return fixture('catalog-populated.json');
@@ -27,6 +29,13 @@ function defaultDetails() {
   };
 }
 
+function defaultPresentations() {
+  return {
+    [SONIC_ID]: fixture('presentation-ready.json'),
+    [UNKNOWN_ID]: fixture('presentation-no-match.json'),
+  };
+}
+
 function basePlan(overrides = {}) {
   return {
     catalog: { '': populatedCatalog() },
@@ -35,6 +44,8 @@ function basePlan(overrides = {}) {
     launches: [fixture('launch-success.json')],
     stops: [fixture('stop-success.json')],
     ...overrides,
+    artworks: { [ARTWORK_HANDLE]: artworkFixture(), ...(overrides.artworks || {}) },
+    presentations: { ...defaultPresentations(), ...(overrides.presentations || {}) },
   };
 }
 
@@ -66,6 +77,16 @@ function apiEvidence(harness) {
 function detailEvidence(harness) {
   return apiEvidence(harness)
     .filter(record => record.path.startsWith('/api/v1/games/'));
+}
+
+function presentationEvidence(harness) {
+  return apiEvidence(harness)
+    .filter(record => record.path.startsWith('/api/v1/presentation/games/'));
+}
+
+function artworkEvidence(harness) {
+  return apiEvidence(harness)
+    .filter(record => record.path.startsWith('/api/v1/presentation/artwork/'));
 }
 
 function sessionEvidence(harness) {
@@ -279,6 +300,7 @@ test('fixture server serves the assembled production document with production he
       '<title>FogCast launcher</title>',
       '<input id="game-search"',
       'root.FogCastMetadata',
+      '<script>globalThis.FogCastPresentationEnabled = true;</script><script>',
       'installFogCastApp',
     ]) {
       assert.ok(html.includes(marker), `production HTML marker missing: ${marker}`);
@@ -337,7 +359,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         ]);
         assert.equal(snapshot.cards[0].system, 'megadrive');
         assert.equal(snapshot.cards[0].state, 'available');
-        assert.equal(snapshot.cards[0].fallback, false);
+        assert.equal(snapshot.cards[0].fallback, true);
         assert.equal(snapshot.cards[1].fallback, true);
 
         await harness.click('#refresh-catalog');
@@ -423,6 +445,112 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
       });
     });
 
+    await t.test('production-enabled presentation stays host-local and feeds detail before launch', async () => {
+      await runScenario(harness, 'presentation-ready', basePlan(), async () => {
+        await selectSonic(harness);
+        let snapshot = await harness.waitForText('#detail-content', 'Host-local presentation metadata for Sonic.');
+        assert.match(snapshot.detailText, /Data from IGDB\.com/);
+        assert.deepEqual(presentationEvidence(harness).map(record => ({
+          method: record.method,
+          path: record.path,
+          query: record.query,
+          status: record.status,
+          fixture: record.fixture,
+        })), [{
+          method: 'GET',
+          path: `/api/v1/presentation/games/${SONIC_ID}`,
+          query: SONIC_ID,
+          status: 200,
+          fixture: 'presentation-ready.json',
+        }, {
+          method: 'GET',
+          path: `/api/v1/presentation/games/${SONIC_ID}`,
+          query: SONIC_ID,
+          status: 200,
+          fixture: 'presentation-ready.json',
+        }]);
+        const browserPaths = harness.page.evidence().networkRequests
+          .map(request => {
+            const url = new URL(request.url);
+            return url.origin === harness.fixtureServer.origin ? `${request.method} ${url.pathname}` : '';
+          })
+          .filter(Boolean)
+          .filter(path => path.includes('/api/v1/presentation/'));
+        assert.deepEqual(browserPaths, [
+          `GET /api/v1/presentation/games/${SONIC_ID}`,
+          `GET /api/v1/presentation/games/${SONIC_ID}`,
+        ]);
+
+        await launchSelected(harness);
+        snapshot = await harness.waitForText('#launch-status', 'launch_success');
+        assert.equal(snapshot.detailHeading, 'Sonic the Hedgehog (detail refresh)');
+        assert.match(snapshot.launchText, /session accepted/i);
+        assert.equal(apiEvidence(harness).find(record => record.method === 'POST').path, '/api/v1/session/launch');
+      });
+    });
+
+    await t.test('production Chrome preserves independent optional text fields and rejects malformed values', async () => {
+      await runScenario(harness, 'presentation-partial-field-matrix', basePlan(), async () => {
+        const partial = await harness.evaluate(`(() => {
+          const fields = ['summary', 'year', 'genre', 'studio', 'players'];
+          const source = { summary: 'Summary', year: '1991', genre: 'Platformer', studio: 'SEGA', players: '1 player' };
+          const game = { id: 'megadrive-sonic-test', title: 'Sonic', system: 'megadrive' };
+          return fields.map(field => {
+            const presentation = { ...source, [field]: '' };
+            const parsed = globalThis.FogCastApp.parsePresentation({
+              game_id: game.id,
+              state: 'ready',
+              presentation,
+              attribution: { provider: 'igdb', label: 'Data from IGDB.com' },
+            }, game);
+            return { field, isFallback: parsed.isFallback, metadataState: parsed.metadataState, value: parsed[field], summary: parsed.summary };
+          });
+        })()`);
+        assert.deepEqual(partial.map(result => result.field), ['summary', 'year', 'genre', 'studio', 'players']);
+        for (const result of partial) {
+          assert.equal(result.isFallback, false, result.field);
+          assert.equal(result.metadataState, 'ready', result.field);
+          assert.equal(result.value, '', result.field);
+          if (result.field !== 'summary') assert.equal(result.summary, 'Summary', result.field);
+        }
+
+        const malformed = await harness.evaluate(`(() => [null, false, -1, {}, []].map(value => {
+          const parsed = globalThis.FogCastApp.parsePresentation({
+            game_id: 'megadrive-sonic-test',
+            state: 'ready',
+            presentation: { summary: 'Summary', year: '1991', genre: 'Platformer', studio: 'SEGA', players: value },
+            attribution: { provider: 'igdb', label: 'Data from IGDB.com' },
+          }, { id: 'megadrive-sonic-test', title: 'Sonic', system: 'megadrive' });
+          return { isFallback: parsed.isFallback, metadataState: parsed.metadataState };
+        }))()`);
+        assert.equal(malformed.length, 5);
+        assert.ok(malformed.every(result => result.isFallback && result.metadataState !== 'ready'), JSON.stringify(malformed));
+      });
+    });
+
+    await t.test('bounded presentation artwork stays on the host route', async () => {
+      await runScenario(harness, 'presentation-artwork', basePlan({
+        presentations: { [SONIC_ID]: fixture('presentation-artwork-ready.json') },
+      }), async () => {
+        await selectSonic(harness);
+        await harness.waitForSettled();
+        const artworks = artworkEvidence(harness);
+        assert.ok(artworks.length >= 1);
+        assert.ok(artworks.every(record => record.query === ARTWORK_HANDLE
+          && record.path === `/api/v1/presentation/artwork/${ARTWORK_HANDLE}`
+          && record.status === 200
+          && record.fixture === 'artwork'));
+        const browserArtworkPaths = harness.page.evidence().networkRequests
+          .map(request => {
+            const url = new URL(request.url);
+            return url.origin === harness.fixtureServer.origin ? `${request.method} ${url.pathname}` : '';
+          })
+          .filter(path => path.includes('/api/v1/presentation/artwork/'));
+        assert.ok(browserArtworkPaths.length >= 1);
+        assert.ok(browserArtworkPaths.every(path => path === `GET /api/v1/presentation/artwork/${ARTWORK_HANDLE}`));
+      });
+    });
+
     await t.test('launch success preserves exact current live catalog ID body', async () => {
       await runScenario(harness, 'launch-success', basePlan(), async () => {
         await selectSonic(harness);
@@ -463,19 +591,47 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
     }
 
     for (const metadataMode of ['missing', 'malformed']) {
-      await t.test(`metadata ${metadataMode} fallback leaves browse, detail, and launch usable`, async () => {
+      await t.test(`metadata ${metadataMode} fallback leaves browse and host presentation usable`, async () => {
         await runScenario(harness, `metadata-${metadataMode}`, basePlan({ metadataMode }), async () => {
           let snapshot = await harness.waitForCatalog('populated metadata_fallback');
           assert.equal(snapshot.cards.length, 3);
           assert.ok(snapshot.cards.every(card => card.fallback));
           await harness.click('#catalog-list .game-card');
           await harness.waitForDetailHeading('Sonic the Hedgehog (detail refresh)');
+          snapshot = await harness.waitForText('#detail-content', 'Host-local presentation metadata for Sonic.');
+          assert.match(snapshot.detailText, /Data from IGDB\.com/);
           await launchSelected(harness);
           snapshot = await harness.waitForText('#launch-status', 'launch_success');
-          assert.match(snapshot.detailText, /metadata_fallback/);
           assert.equal(snapshot.launchText.includes('launch_success'), true);
           const launch = apiEvidence(harness).find(record => record.method === 'POST');
           assert.equal(launch.requestBody, '{"game_id":"megadrive-sonic-test"}');
+        });
+      });
+    }
+
+    for (const [name, response] of [
+      ['presentation-error', fixture('presentation-error.json', 500)],
+      ['presentation-malformed', fixture('presentation-malformed.json')],
+    ]) {
+      await t.test(`${name} fallback leaves browse, detail, and launch usable`, async () => {
+        await runScenario(harness, name, basePlan({
+          presentations: { [SONIC_ID]: response },
+        }), async () => {
+          let snapshot = await harness.waitForCatalog('populated metadata_fallback');
+          assert.equal(snapshot.cards.length, 3);
+          assert.ok(snapshot.cards.every(card => card.fallback));
+          await harness.click('#catalog-list .game-card');
+          await harness.waitForDetailHeading('Sonic the Hedgehog (detail refresh)');
+          snapshot = await harness.waitForText('#detail-content', 'metadata_fallback');
+          assert.match(snapshot.detailText, /metadata_fallback/);
+          await launchSelected(harness);
+          snapshot = await harness.waitForText('#launch-status', 'launch_success');
+          assert.equal(snapshot.launchText.includes('launch_success'), true);
+          const launch = apiEvidence(harness).find(record => record.method === 'POST');
+          assert.equal(launch.requestBody, '{"game_id":"megadrive-sonic-test"}');
+          const presentation = presentationEvidence(harness)[0];
+          assert.equal(presentation.path, `/api/v1/presentation/games/${SONIC_ID}`);
+          assert.equal(presentation.status, response.status);
         });
       });
     }
@@ -531,6 +687,57 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
           `/api/v1/games/${SONIC_ID}`,
           `/api/v1/games/${UNKNOWN_ID}`,
         ]);
+      });
+    });
+
+    await t.test('stale presentation response cannot replace a newer selection or block a later launch', async () => {
+      await runScenario(harness, 'stale-presentation', basePlan({
+        presentations: {
+          [UNKNOWN_ID]: [
+            fixture('presentation-no-match.json', 200, { hold: true }),
+            fixture('presentation-no-match.json'),
+          ],
+        },
+      }), async () => {
+        await selectSonic(harness);
+        await harness.waitForRequest({
+          method: 'GET',
+          path: `/api/v1/presentation/games/${SONIC_ID}`,
+        });
+        await harness.click('#catalog-list .game-card:nth-child(2)');
+        await harness.waitForDetailHeading('Unknown <Game> detail');
+        const oldPresentation = await harness.waitForRequest({
+          method: 'GET',
+          path: `/api/v1/presentation/games/${UNKNOWN_ID}`,
+          query: UNKNOWN_ID,
+        });
+        let snapshot = await harness.waitForText('#detail-content', 'metadata_fallback');
+        assert.equal(snapshot.detailHeading, 'Unknown <Game> detail');
+        await harness.click('#catalog-list .game-card');
+        await harness.waitForRequest({
+          method: 'GET',
+          path: `/api/v1/presentation/games/${SONIC_ID}`,
+        });
+        snapshot = await harness.waitForText('#detail-content', 'Host-local presentation metadata for Sonic.');
+        assert.equal(snapshot.detailHeading, 'Sonic the Hedgehog (detail refresh)');
+        await harness.release(oldPresentation.id);
+        await harness.waitForSettled();
+        snapshot = await harness.snapshot();
+        assert.equal(snapshot.detailHeading, 'Sonic the Hedgehog (detail refresh)');
+        assert.doesNotMatch(snapshot.detailText, /Unknown <Game> detail/);
+        await launchSelected(harness);
+        snapshot = await harness.waitForText('#launch-status', 'launch_success');
+        assert.match(snapshot.launchText, /session accepted/i);
+        assert.deepEqual(presentationEvidence(harness).map(record => record.path), [
+          `/api/v1/presentation/games/${SONIC_ID}`,
+          `/api/v1/presentation/games/${SONIC_ID}`,
+          `/api/v1/presentation/games/${UNKNOWN_ID}`,
+          `/api/v1/presentation/games/${UNKNOWN_ID}`,
+          `/api/v1/presentation/games/${SONIC_ID}`,
+          `/api/v1/presentation/games/${SONIC_ID}`,
+        ]);
+        const records = presentationEvidence(harness);
+        assert.equal(records[2].responseOrder > records[4].responseOrder, true);
       });
     });
 

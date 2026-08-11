@@ -53,7 +53,7 @@ systems = ["snes"]
 [[libraries]]
 id = "snes-main"
 system = "snes"
-root = "`+snesRoot+`/."
+root = "`+snesRoot+`"
 
 [[libraries]]
 id = "genesis-main"

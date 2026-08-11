@@ -18,9 +18,10 @@ import (
 )
 
 type Paths struct {
-	Config  string
-	Index   string
-	Staging string
+	Config       string
+	Index        string
+	Staging      string
+	MetadataRoot string
 }
 
 func DefaultPaths() (Paths, error) {
@@ -29,21 +30,34 @@ func DefaultPaths() (Paths, error) {
 		return Paths{}, fmt.Errorf("find home directory: %w", err)
 	}
 	return Paths{
-		Config:  filepath.Join(home, ".config", "fogcast", "config.toml"),
-		Index:   filepath.Join(home, ".local", "share", "fogcast", "library.sqlite3"),
-		Staging: filepath.Join(home, ".cache", "fogcast", "staging"),
+		Config:       filepath.Join(home, ".config", "fogcast", "config.toml"),
+		Index:        filepath.Join(home, ".local", "share", "fogcast", "library.sqlite3"),
+		Staging:      filepath.Join(home, ".cache", "fogcast", "staging"),
+		MetadataRoot: filepath.Join(home, ".cache", "fogcast", "metadata"),
 	}, nil
 }
 
 type Config struct {
 	BaseURL        string
 	Token          string
+	MetadataRoot   string
 	RequestTimeout time.Duration
 	UploadTimeout  time.Duration
 	Libraries      []catalog.Root
 	RemoteInput    RemoteInputConfig
 	HostEmulator   HostEmulatorConfig
 	Media          MediaConfig
+	Metadata       MetadataConfig
+}
+
+// MetadataConfig contains opt-in provider-scoped presentation enrichment.
+// ClientSecret is retained only in memory after loading the private config.
+type MetadataConfig struct {
+	Configured   bool
+	Enabled      bool
+	Provider     string
+	ClientID     string
+	ClientSecret string
 }
 
 type HostEmulatorConfig struct {
@@ -90,6 +104,14 @@ type fileConfig struct {
 	RemoteInput           fileRemoteInput  `toml:"remote_input"`
 	HostEmulator          fileHostEmulator `toml:"host_emulator"`
 	Media                 fileMedia        `toml:"media"`
+	Metadata              *fileMetadata    `toml:"metadata"`
+}
+
+type fileMetadata struct {
+	Enabled      bool   `toml:"enabled"`
+	Provider     string `toml:"provider"`
+	ClientID     string `toml:"client_id"`
+	ClientSecret string `toml:"client_secret"`
 }
 
 type fileLibrary struct {
@@ -191,6 +213,10 @@ func LoadConfig(path string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	metadata, err := normalizeMetadata(raw.Metadata, path)
+	if err != nil {
+		return Config{}, err
+	}
 
 	return Config{
 		BaseURL:        baseURL,
@@ -203,7 +229,45 @@ func LoadConfig(path string) (Config, error) {
 		},
 		HostEmulator: hostEmulator,
 		Media:        media,
+		Metadata:     metadata,
 	}, nil
+}
+
+func normalizeMetadata(raw *fileMetadata, configPath string) (MetadataConfig, error) {
+	if raw == nil {
+		return MetadataConfig{}, nil
+	}
+	provider := strings.ToLower(strings.TrimSpace(raw.Provider))
+	if provider != "" && provider != "igdb" {
+		return MetadataConfig{}, fmt.Errorf("metadata provider must be igdb")
+	}
+	if raw.Enabled && provider != "igdb" {
+		return MetadataConfig{}, fmt.Errorf("metadata provider must be explicitly set to igdb when enabled")
+	}
+	if provider == "" {
+		provider = "igdb"
+	}
+	if !raw.Enabled {
+		return MetadataConfig{Configured: true, Provider: provider}, nil
+	}
+	if strings.TrimSpace(raw.ClientID) == "" || strings.TrimSpace(raw.ClientSecret) == "" {
+		return MetadataConfig{}, fmt.Errorf("metadata credentials are required when enabled")
+	}
+	if err := validatePrivateConfigFile(configPath); err != nil {
+		return MetadataConfig{}, fmt.Errorf("metadata config file: %w", err)
+	}
+	return MetadataConfig{Configured: true, Enabled: true, Provider: provider, ClientID: raw.ClientID, ClientSecret: raw.ClientSecret}, nil
+}
+
+func validatePrivateConfigFile(path string) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Mode().Perm() != 0o600 {
+		return fmt.Errorf("must be a regular file with mode 0600")
+	}
+	return nil
 }
 
 func normalizeMedia(raw fileMedia) (MediaConfig, error) {
@@ -439,6 +503,9 @@ func normalizeRoot(raw string) (string, error) {
 	}
 	if !filepath.IsAbs(raw) {
 		return "", fmt.Errorf("must be absolute")
+	}
+	if filepath.Clean(raw) != raw {
+		return "", fmt.Errorf("must be a clean absolute path")
 	}
 	root, err := filepath.Abs(raw)
 	if err != nil {

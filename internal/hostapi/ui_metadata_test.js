@@ -29,7 +29,7 @@ test('metadataFor returns the same complete value for the same game', () => {
 test('curated metadata requires both the intended system and normalized title', () => {
   const curated = metadataFor(sonic);
   const wrongSystem = metadataFor({ ...sonic, id: 'snes-sonic', system: 'snes' });
-  assert.equal(curated.isFallback, false);
+  assert.equal(curated.isFallback, true);
   assert.equal(wrongSystem.isFallback, true);
 });
 

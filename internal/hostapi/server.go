@@ -9,12 +9,16 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/DeanoC/FogCast-POC/catalog"
 	"github.com/DeanoC/FogCast-POC/fogcast"
 	"github.com/DeanoC/FogCast-POC/host"
+	"github.com/DeanoC/FogCast-POC/internal/metadata"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
@@ -66,14 +70,38 @@ type errorResult struct {
 	Error apiError `json:"error"`
 }
 
+type presentationResult struct {
+	GameID       string                   `json:"game_id"`
+	State        string                   `json:"state"`
+	Presentation *presentationPayload     `json:"presentation,omitempty"`
+	Attribution  *presentationAttribution `json:"attribution,omitempty"`
+}
+
+type presentationPayload struct {
+	Summary               string `json:"summary"`
+	Year                  string `json:"year"`
+	Genre                 string `json:"genre"`
+	Studio                string `json:"studio"`
+	Players               string `json:"players"`
+	CoverArtworkHandle    string `json:"cover_artwork_id,omitempty"`
+	BackdropArtworkHandle string `json:"backdrop_artwork_id,omitempty"`
+}
+
+type presentationAttribution struct {
+	Provider string `json:"provider"`
+	Label    string `json:"label"`
+}
+
 type apiError struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }
 
 type serverOptions struct {
-	remoteInput host.RemoteInputController
-	media       MediaSession
+	remoteInput   host.RemoteInputController
+	media         MediaSession
+	metadata      metadata.Runtime
+	metadataState metadata.ConfigState
 }
 
 type ServerOption func(*serverOptions)
@@ -84,6 +112,19 @@ func WithRemoteInput(remoteInput host.RemoteInputController) ServerOption {
 
 func WithMediaSession(media MediaSession) ServerOption {
 	return func(options *serverOptions) { options.media = media }
+}
+
+func WithMetadata(runtime metadata.Runtime, states ...metadata.ConfigState) ServerOption {
+	return func(options *serverOptions) {
+		options.metadata = runtime
+		if len(states) != 0 {
+			options.metadataState = states[0]
+		} else if runtime != nil {
+			options.metadataState = metadata.StateReady
+		} else {
+			options.metadataState = metadata.StateUnconfigured
+		}
+	}
 }
 
 func New(service Service, options ...ServerOption) http.Handler {
@@ -244,11 +285,107 @@ func New(service Service, options ...ServerOption) http.Handler {
 		}
 		writeJSON(w, http.StatusOK, publicGame(game))
 	})
+	mux.HandleFunc("GET /api/v1/presentation/games/{id}", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.RawQuery != "" || r.Body != nil && r.Body != http.NoBody {
+			if err := rejectBody(w, r); err != nil || r.URL.RawQuery != "" {
+				writeError(w, http.StatusBadRequest, "BAD_REQUEST", "presentation requests do not accept query parameters or bodies")
+				return
+			}
+		}
+		id := r.PathValue("id")
+		if id == "" || strings.Contains(id, "/") || protocol.ValidateGameID(id) != nil {
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "game ID is invalid")
+			return
+		}
+		game, err := service.Game(r.Context(), id)
+		if err != nil {
+			var apiErr *protocol.APIError
+			if errors.As(err, &apiErr) && apiErr.Code == protocol.CodeROMNotFound {
+				writeError(w, http.StatusNotFound, "GAME_NOT_FOUND", "game was not found")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "INTERNAL", "catalog is unavailable")
+			return
+		}
+		if config.metadataState == metadata.StateDisabled {
+			writeJSON(w, http.StatusOK, presentationResult{GameID: game.ID, State: string(metadata.StateDisabled)})
+			return
+		}
+		if config.metadataState == metadata.StateUnconfigured || config.metadata == nil {
+			writeJSON(w, http.StatusOK, presentationResult{GameID: game.ID, State: string(metadata.StateUnconfigured)})
+			return
+		}
+		result, err := config.metadata.Lookup(r.Context(), metadata.LookupInput{Title: game.Title, System: game.System})
+		if err != nil {
+			writeJSON(w, http.StatusOK, presentationResult{GameID: game.ID, State: "offline"})
+			return
+		}
+		switch result.Outcome {
+		case metadata.OutcomeExact, metadata.OutcomeConfident:
+			presentation, attribution, ok := safePresentation(result)
+			if !ok {
+				writeJSON(w, http.StatusOK, presentationResult{GameID: game.ID, State: "offline"})
+				return
+			}
+			writeJSON(w, http.StatusOK, presentationResult{GameID: game.ID, State: "ready", Presentation: &presentation, Attribution: &attribution})
+		case metadata.OutcomeNoMatch:
+			writeJSON(w, http.StatusOK, presentationResult{GameID: game.ID, State: string(metadata.OutcomeNoMatch)})
+		case metadata.OutcomeAmbiguous:
+			writeJSON(w, http.StatusOK, presentationResult{GameID: game.ID, State: string(metadata.OutcomeAmbiguous)})
+		default:
+			writeJSON(w, http.StatusOK, presentationResult{GameID: game.ID, State: "offline"})
+		}
+	})
+	mux.HandleFunc("GET /api/v1/presentation/artwork/{handle}", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.RawQuery != "" || r.Body != nil && r.Body != http.NoBody {
+			_ = rejectBody(w, r)
+			writeError(w, http.StatusNotFound, "ARTWORK_UNAVAILABLE", "artwork is unavailable")
+			return
+		}
+		handle := r.PathValue("handle")
+		if !presentationHandlePattern.MatchString(handle) {
+			writeError(w, http.StatusNotFound, "ARTWORK_UNAVAILABLE", "artwork is unavailable")
+			return
+		}
+		if config.metadataState != metadata.StateReady || config.metadata == nil {
+			writeError(w, http.StatusNotFound, "ARTWORK_UNAVAILABLE", "artwork is unavailable")
+			return
+		}
+		artwork, err := config.metadata.OpenArtwork(r.Context(), handle)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "ARTWORK_UNAVAILABLE", "artwork is unavailable")
+			return
+		}
+		if artwork.Reader == nil || (artwork.MIME != "image/jpeg" && artwork.MIME != "image/png") || artwork.Size < 1 || artwork.Size > 8<<20 {
+			if artwork.Reader != nil {
+				_ = artwork.Reader.Close()
+			}
+			writeError(w, http.StatusNotFound, "ARTWORK_UNAVAILABLE", "artwork is unavailable")
+			return
+		}
+		defer artwork.Reader.Close()
+		w.Header().Set("Content-Type", artwork.MIME)
+		w.Header().Set("Content-Length", strconv.FormatInt(artwork.Size, 10))
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
+		if _, err := io.CopyN(w, artwork.Reader, artwork.Size); err != nil {
+			return
+		}
+	})
 	return noStore(rejectUnexpectedHost(mux))
 }
 
 func rejectUnexpectedHost(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestPath := r.URL.Path
+		if strings.HasPrefix(r.RequestURI, "/") {
+			requestPath = strings.SplitN(r.RequestURI, "?", 2)[0]
+		}
+		if strings.HasPrefix(requestPath, "/api/v1/presentation/") && (strings.Contains(requestPath, "/../") || strings.Contains(requestPath, "/./") || strings.HasSuffix(requestPath, "/..") || strings.HasSuffix(requestPath, "/.")) {
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "presentation path is invalid")
+			return
+		}
 		host := r.Host
 		if host == "" {
 			host = r.URL.Host
@@ -264,6 +401,96 @@ func rejectUnexpectedHost(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+var presentationHandlePattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
+
+func safePresentation(result metadata.Result) (presentationPayload, presentationAttribution, bool) {
+	if result.Attribution.Provider != metadata.ProviderIGDB || result.Attribution.Label != "Data from IGDB.com" {
+		return presentationPayload{}, presentationAttribution{}, false
+	}
+	values := []struct {
+		value string
+		limit int
+	}{
+		{result.Presentation.Summary, 240},
+		{result.Presentation.Year, 20},
+		{result.Presentation.Genre, 40},
+		{result.Presentation.Studio, 60},
+		{result.Presentation.Players, 40},
+	}
+	for _, value := range values {
+		if !utf8.ValidString(value.value) {
+			return presentationPayload{}, presentationAttribution{}, false
+		}
+	}
+	return presentationPayload{
+		Summary:               boundedPresentationText(result.Presentation.Summary, 240),
+		Year:                  boundedPresentationText(result.Presentation.Year, 20),
+		Genre:                 boundedPresentationText(result.Presentation.Genre, 40),
+		Studio:                boundedPresentationText(result.Presentation.Studio, 60),
+		Players:               boundedPresentationText(result.Presentation.Players, 40),
+		CoverArtworkHandle:    safePresentationHandle(result.Presentation.CoverArtworkID),
+		BackdropArtworkHandle: safePresentationHandle(result.Presentation.BackdropArtworkID),
+	}, presentationAttribution{Provider: string(metadata.ProviderIGDB), Label: "Data from IGDB.com"}, true
+}
+
+func boundedPresentationText(value string, limit int) string {
+	value = strings.TrimSpace(value)
+	if !utf8.ValidString(value) {
+		return ""
+	}
+	runes := []rune(value)
+	if len(runes) > limit {
+		runes = runes[:limit]
+	}
+	return string(runes)
+}
+
+func safePresentationHandle(value string) string {
+	if presentationHandlePattern.MatchString(value) {
+		return value
+	}
+	return ""
+}
+
+func requireMetadata(w http.ResponseWriter, state metadata.ConfigState) error {
+	switch state {
+	case metadata.StateReady:
+		return nil
+	case metadata.StateDisabled:
+		writeError(w, http.StatusNotFound, "METADATA_DISABLED", "presentation metadata is disabled")
+	default:
+		writeError(w, http.StatusServiceUnavailable, "METADATA_UNCONFIGURED", "presentation metadata is not configured")
+	}
+	return errors.New("metadata is not ready")
+}
+
+func metadataCode(err error) metadata.ErrorCode {
+	var operation *metadata.OpError
+	if errors.As(err, &operation) && operation != nil {
+		return operation.Code
+	}
+	return ""
+}
+
+func writeMetadataError(w http.ResponseWriter, err error) {
+	switch metadataCode(err) {
+	case metadata.ErrRateLimited:
+		writeError(w, http.StatusTooManyRequests, "RATE_LIMITED", "metadata provider is rate limited")
+	case metadata.ErrDeadline:
+		writeError(w, http.StatusGatewayTimeout, "UPSTREAM_TIMEOUT", "metadata provider timed out")
+	case metadata.ErrCanceled:
+		writeError(w, http.StatusServiceUnavailable, "CANCELED", "metadata request was canceled")
+	case metadata.ErrUpstreamUnavailable, metadata.ErrUnauthorized, metadata.ErrInvalidResponse:
+		writeError(w, http.StatusBadGateway, "UPSTREAM_UNAVAILABLE", "metadata provider is unavailable")
+	case metadata.ErrStorage:
+		writeError(w, http.StatusServiceUnavailable, "STORAGE_UNAVAILABLE", "metadata storage is unavailable")
+	case metadata.ErrPolicyBlocked:
+		writeError(w, http.StatusServiceUnavailable, "POLICY_BLOCKED", "metadata request was blocked")
+	default:
+		writeError(w, http.StatusServiceUnavailable, "METADATA_UNAVAILABLE", "metadata is unavailable")
+	}
 }
 
 func publicErrorMessage(code protocol.ErrorCode) string {

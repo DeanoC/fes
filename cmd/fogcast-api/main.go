@@ -22,6 +22,7 @@ import (
 	"github.com/DeanoC/FogCast-POC/host"
 	"github.com/DeanoC/FogCast-POC/internal/hostapi"
 	"github.com/DeanoC/FogCast-POC/internal/mediasession"
+	"github.com/DeanoC/FogCast-POC/internal/metadata"
 	"github.com/DeanoC/FogCast-POC/internal/remotemedia"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
@@ -38,6 +39,7 @@ type bridgeStarterFactory func(fogcast.Config) (host.BridgeStarter, error)
 type captureSourceFactory func(fogcast.MediaConfig) (remotemedia.CaptureSource, error)
 type audioSourceFactory func(remotemedia.AudioSourceConfig) (remotemedia.AudioSource, error)
 type mediaSourcesFactory func(fogcast.MediaConfig) (remotemedia.CaptureSource, remotemedia.AudioSource, error)
+type metadataOpener func(context.Context, metadata.RuntimeConfig) (metadata.Runtime, error)
 type compositionOption func(*compositionDeps)
 
 type targetCast interface {
@@ -60,6 +62,7 @@ const (
 type compositionDeps struct {
 	newCapture      captureSourceFactory
 	newAudio        audioSourceFactory
+	openMetadata    metadataOpener
 	receiverOptions []remotemedia.ManagedReceiverOption
 	senderOptions   []remotemedia.ManagedSenderOption
 	audioOptions    []remotemedia.ManagedAudioSenderOption
@@ -72,6 +75,10 @@ func withCaptureSourceFactory(factory captureSourceFactory) compositionOption {
 
 func withAudioSourceFactory(factory audioSourceFactory) compositionOption {
 	return func(deps *compositionDeps) { deps.newAudio = factory }
+}
+
+func withMetadataOpener(opener metadataOpener) compositionOption {
+	return func(deps *compositionDeps) { deps.openMetadata = opener }
 }
 
 func withManagedReceiverOptions(options ...remotemedia.ManagedReceiverOption) compositionOption {
@@ -162,7 +169,7 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 	if service == nil {
 		return nil, nil, errors.New("fogcast-api: composition dependency is unavailable")
 	}
-	deps := compositionDeps{newCapture: defaultCaptureSource, newAudio: defaultAudioSource}
+	deps := compositionDeps{newCapture: defaultCaptureSource, newAudio: defaultAudioSource, openMetadata: metadata.Open}
 	for _, option := range options {
 		if option != nil {
 			option(&deps)
@@ -170,9 +177,28 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 	}
 	var serverOptions []hostapi.ServerOption
 	var cleanup []func() error
+	metadataConfig := metadata.RuntimeConfig{
+		Root: config.MetadataRoot, Configured: config.Metadata.Configured, Enabled: config.Metadata.Enabled,
+		ProviderName: metadata.ProviderName(config.Metadata.Provider), ClientID: config.Metadata.ClientID,
+		ClientSecret: config.Metadata.ClientSecret,
+	}
+	if deps.openMetadata == nil {
+		return nil, nil, errors.New("fogcast-api: metadata opener is unavailable")
+	}
+	metadataRuntime, err := deps.openMetadata(context.Background(), metadataConfig)
+	if err != nil {
+		return nil, nil, errors.New("fogcast-api: metadata configuration failed")
+	}
+	serverOptions = append(serverOptions, hostapi.WithMetadata(metadataRuntime, metadata.StateForConfig(metadata.RuntimeConfig{Configured: config.Metadata.Configured, Enabled: config.Metadata.Enabled})))
+	if metadataRuntime != nil {
+		// Metadata is appended before later media/input cleanup so the reverse
+		// composition order stops those dependants before closing metadata.
+		cleanup = append(cleanup, metadataRuntime.Close)
+	}
 	if config.Media.Enabled {
 		var err error
 		if deps.newCapture == nil {
+			_ = closeComposition(cleanup)
 			return nil, nil, errors.New("fogcast-api: media capture source is unavailable")
 		}
 		sender := &managedSenderComponent{
@@ -190,6 +216,7 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 				target, err = newTargetCast(config)
 			}
 			if err != nil {
+				_ = closeComposition(cleanup)
 				return nil, nil, errors.New("fogcast-api: target cast configuration failed")
 			}
 		}
@@ -202,6 +229,7 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 				SSRC: config.Media.SSRC, RTPAddress: config.Media.RTPListen, ControlAddress: config.Media.ControlAddress, Decoder: config.Media.Decoder,
 			}, deps.receiverOptions...)
 			if err != nil {
+				_ = closeComposition(cleanup)
 				return nil, nil, errors.New("fogcast-api: media configuration failed")
 			}
 		}
@@ -751,6 +779,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, open open
 		fmt.Fprintln(stderr, "fogcast-api: configuration load failed")
 		return 1
 	}
+	config.MetadataRoot = paths.MetadataRoot
 	fogcastService, err := open(ctx, paths)
 	if err != nil || fogcastService == nil {
 		fmt.Fprintln(stderr, "fogcast-api: service load failed")

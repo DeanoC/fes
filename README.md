@@ -126,6 +126,64 @@ Game and session responses include only public models and the current `fpga_nati
 execution capability; they intentionally omit NAS paths, library IDs, target
 credentials, cache digests, and ROM filenames.
 
+## Host metadata (disabled by default)
+
+Host metadata is absent or disabled by default. The disabled sample contains no
+credentials:
+
+```toml
+[metadata]
+enabled = false
+provider = "igdb"
+# client_id and client_secret are intentionally absent while disabled
+```
+
+Opt in only through the untracked default private config or an explicit
+`--config` file with the exact mode `0600` on a non-symlink regular file:
+
+```toml
+[metadata]
+enabled = true
+provider = "igdb"
+client_id = "REPLACE_IN_PRIVATE_CONFIG"
+client_secret = "REPLACE_IN_PRIVATE_CONFIG"
+```
+
+Enabling sends host-side outbound HTTPS only to the fixed Twitch token, IGDB
+API, and approved IGDB image origins. The browser remains loopback and
+same-origin. Credentials never belong in argv, environment examples, logs,
+source, artifacts, browser code, or the target; after load, the runtime keeps
+the credential values in memory only. The default derived root is
+`~/.cache/fogcast/metadata` (`cache.sqlite3*` plus `artwork/`), with private
+`0700` directories and `0600` files. The cache is disposable and bounded by
+the provider/artwork retention policy; disabling or removing the table on the
+next composition purges the derived host metadata cache and artwork, while a
+purge failure is fail-closed startup rather than silent cache reuse.
+
+Provider requests disclose only normalized title search text and mapped
+platform identity. They do not disclose ROM bytes, paths, hashes, catalog IDs,
+target identity, or the launch body. The local cache contains provider
+responses, artwork, and bounded digests. The strict supported Game fields are
+`id`, `name`, `alternative_names.name`, `platforms`, `summary`,
+`first_release_date`, `genres.name`, `involved_companies.company.name`,
+`involved_companies.developer`, `involved_companies.publisher`,
+`cover.image_id`, `artworks.image_id`, `checksum`, and `updated_at`;
+platform resolution uses documented platform name/slug/checksum/update fields.
+There is no `player_count` request or fabricated player value. Absent summary,
+year, studio, genre, and artwork remain absent in provider-ready UI.
+
+Only exact/unambiguous or threshold-confident matches are shown. No-match,
+ambiguous, offline, and malformed responses retain an explicit demo fallback;
+cached positive entries may be served stale under the approved bounded refresh
+policy. Provider-ready data visibly carries `Data from IGDB.com`. Operators
+must verify current IGDB/Twitch terms, credentials, and permitted use before
+opt in.
+
+Repository tests use synthetic provider responses and isolated loopback
+Chrome. They do not establish live credentials, current provider availability
+or rate behavior, title coverage, terms acceptance, target behavior, HIL, or
+physical acceptance.
+
 The input-only bridge is opt-in in the untracked FogCast config:
 
 ```toml

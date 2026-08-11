@@ -7,6 +7,7 @@ toolchain go1.26.5
 require (
 	github.com/pelletier/go-toml/v2 v2.4.3
 	golang.org/x/text v0.40.0
+	gosqlite.org v0.14.0
 	modernc.org/sqlite v1.55.0
 )
 
