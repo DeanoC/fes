@@ -173,7 +173,7 @@ type fileAudio struct {
 }
 
 func LoadConfig(path string) (Config, error) {
-	file, err := os.Open(path)
+	file, err := openConfigSource(path)
 	if err != nil {
 		return Config{}, err
 	}
@@ -213,7 +213,11 @@ func LoadConfig(path string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	metadata, err := normalizeMetadata(raw.Metadata, path)
+	sourceInfo, err := file.Stat()
+	if err != nil {
+		return Config{}, fmt.Errorf("inspect FogCast config: %w", err)
+	}
+	metadata, err := normalizeMetadata(raw.Metadata, sourceInfo)
 	if err != nil {
 		return Config{}, err
 	}
@@ -233,7 +237,7 @@ func LoadConfig(path string) (Config, error) {
 	}, nil
 }
 
-func normalizeMetadata(raw *fileMetadata, configPath string) (MetadataConfig, error) {
+func normalizeMetadata(raw *fileMetadata, sourceInfo os.FileInfo) (MetadataConfig, error) {
 	if raw == nil {
 		return MetadataConfig{}, nil
 	}
@@ -253,18 +257,14 @@ func normalizeMetadata(raw *fileMetadata, configPath string) (MetadataConfig, er
 	if strings.TrimSpace(raw.ClientID) == "" || strings.TrimSpace(raw.ClientSecret) == "" {
 		return MetadataConfig{}, fmt.Errorf("metadata credentials are required when enabled")
 	}
-	if err := validatePrivateConfigFile(configPath); err != nil {
+	if err := validatePrivateConfigFile(sourceInfo); err != nil {
 		return MetadataConfig{}, fmt.Errorf("metadata config file: %w", err)
 	}
 	return MetadataConfig{Configured: true, Enabled: true, Provider: provider, ClientID: raw.ClientID, ClientSecret: raw.ClientSecret}, nil
 }
 
-func validatePrivateConfigFile(path string) error {
-	info, err := os.Lstat(path)
-	if err != nil {
-		return err
-	}
-	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Mode().Perm() != 0o600 {
+func validatePrivateConfigFile(info os.FileInfo) error {
+	if info == nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Mode().Perm() != 0o600 {
 		return fmt.Errorf("must be a regular file with mode 0600")
 	}
 	return nil
