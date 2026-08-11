@@ -66,6 +66,21 @@ member authority and reconciliation rules below supersede the report's
 “no observed alternate-name field” observation without rewriting that
 historical research artifact.
 
+A third complete streaming pass over that same retained archive established
+the source-compatibility facts needed by this repair. Across both consumed
+members it found exactly one XML attribute: lexical `xml:space="preserve"`,
+expanded as namespace URI `http://www.w3.org/XML/1998/namespace` plus local name
+`space`, on `Metadata.xml/LaunchBox/GameAlternateName/AlternateName`. It is on
+the one whitespace-only alias that is counted and then ignored. The pass also
+found exactly seven two-record alias groups that become equal only after the
+boundary trim defined below: six pair an exact value with the same value plus
+one trailing U+0020, and one pairs a value with two leading U+0020 characters
+with its exact form. The 69,311 raw rows therefore contain one ignored blank,
+69,310 nonblank rows, 69,304 distinct boundary-trimmed tuple keys including the
+blank, seven duplicate excess rows, and 69,303 persisted canonical alias tuples
+after blank exclusion. These are retained-public-artifact observations, not
+provider-policy or live-integration evidence.
+
 ## Why this disposition is conservative and implementable
 
 The LaunchBox path is adequately specified for a bounded adapter without
@@ -399,11 +414,37 @@ Enforce all limits while streaming, not only from headers:
   past without persistence, but still consume depth, attribute, element,
   lexical-frame, and member-byte budgets;
 - require exactly one zero-attribute `LaunchBox` root in each consumed member.
-  A recognized top-level record contains only zero-attribute leaf child fields;
-  nested grandchildren, attributes on schema elements, mixed-content schema
-  records, and unknown top-level record families are `invalid_response`; and
+  Every recognized top-level record is also zero-attribute and contains only
+  leaf child fields. Every leaf is zero-attribute except for the single closed
+  exception below. Nested grandchildren, mixed-content schema records, and
+  unknown top-level record families are `invalid_response`; and
 - stream selected fields into a new provider-owned SQLite index. Never expand
   XML into the ROM root or an ambient temporary directory.
+
+The only schema-level attribute exception is optional `xml:space="preserve"`
+on the exact path
+`Metadata.xml/LaunchBox/GameAlternateName/AlternateName`. Its cardinality is
+zero or one on that leaf. When present, all of these checks are mandatory:
+
+1. the lexical qualified name is exactly the ASCII bytes `xml:space`;
+2. `encoding/xml` reports `Name.Space` exactly
+   `http://www.w3.org/XML/1998/namespace` and `Name.Local` exactly `space`;
+3. the decoded value is exactly the eight lower-case ASCII bytes `preserve`;
+4. it is the leaf's only attribute; and
+5. it consumed the ordinary per-element, aggregate, name, value, start-tag, and
+   lexical-frame budgets before the semantic exception was considered.
+
+The predefined `xml` prefix needs and permits no declaration. Namespace
+declaration attributes are outside the accepted grammar everywhere, including
+on this leaf. Therefore unprefixed `space`, another prefix (whether unbound or
+bound to the XML namespace), `xmlns`, `xmlns:*`, an attempted `xmlns:xml`
+rebind, a wrong namespace URI/local name/value/case, duplicate `xml:space`, a
+second attribute, or `xml:space` on any other element is `invalid_response`.
+The framer retains each raw attribute qualified name for the schema check while
+`encoding/xml` independently supplies the expanded namespace name; both views
+must agree before the row can be reconciled. XML-declaration
+pseudo-attributes are governed only by the declaration rule above and are not
+schema attributes.
 
 #### Pre-decoder lexical framing
 
@@ -508,15 +549,63 @@ platform alternate never changes protocol identity.
 Each `Game.DatabaseID` is unique and positive. Every `GameAlternateName` and
 `GameImage.DatabaseID` must reference exactly one parsed `Game`; forward links
 are held in a bounded provider-owned table and are validated before promotion.
-For aliases, the exact tuple
-`(DatabaseID, trimmed AlternateName, trimmed Region)` must
-be unique. A whitespace-only alternate consumes record and per-game budgets but
-is intentionally ignored; a non-empty alternate is persisted. Multiple exact
-aliases that normalize to the same matcher key for one game collapse after a
-stable sort by normalized key, exact UTF-8 alternate, then region. The same
-normalized alias on different games remains on each candidate and therefore
-produces normal matcher ambiguity rather than “first wins.” Region is retained
-for checksum/provenance only and never changes catalog or match identity.
+
+Alias reconciliation is a two-stage canonical-set operation, not
+reject-after-trim and not first/last-source-row wins:
+
+1. Every raw `GameAlternateName` consumes the family, aggregate-element,
+   per-game 64-row, selected-field byte/rune, attribute, and lexical-frame
+   budgets before blank handling or deduplication. Once its exact positive
+   `DatabaseID` is parsed, increment that game's raw-row count before any trim.
+   Thus blanks and duplicates can never be used to weaken a bound.
+2. For `AlternateName` and `Region`, canonical boundary trim removes only a
+   maximal leading and trailing run of the XML 1.0 `S` scalar values U+0020,
+   U+0009, U+000D, and U+000A after XML character/reference decoding. It does
+   not case-fold, normalize Unicode, collapse internal whitespace, or remove
+   any other code point. `DatabaseID` is never trimmed and must already satisfy
+   its exact decimal grammar.
+3. Before trimming, require the complete raw tuple
+   `(parsed DatabaseID, exact decoded AlternateName, exact decoded Region)` to
+   be unique. An exact raw repetition is `invalid_response`; it is not silently
+   accepted as source replay and cannot consume the duplicate allowance needed
+   for the retained boundary-whitespace variants.
+4. Form the complete normalized tuple key
+   `(parsed DatabaseID, canonical UTF-8 AlternateName, canonical UTF-8 Region)`,
+   including a key whose alternate becomes empty. Repetition of this normalized
+   key is accepted exactly once only when the already unique raw keys differ and
+   boundary trim makes their complete authoritative payload identical. The
+   canonical strings, never a first, last, shortest, or raw source spelling, are
+   the retained values. Duplicate selected children within one record, invalid
+   child structure, or any attribute outside the exact `xml:space` exception
+   fails before reconciliation. Because the three key components are the
+   complete authoritative alias payload, a well-formed normalized collision has
+   no hidden value on which to conflict; an unreviewed future authoritative
+   field must fail schema review rather than be resolved by source order.
+5. After normalized-key reconciliation, a whitespace-only canonical alternate
+   is recorded in the blank count and ignored. Every nonblank normalized tuple
+   becomes a persisted canonical provenance tuple. Distinct canonical regions
+   for the same game and canonical alternate are
+   distinct provenance tuples, because the retained archive legitimately has
+   such rows; region still has no matching authority. Distinct canonical
+   alternates that later map to one matcher spelling are likewise not source
+   conflicts.
+6. After the persisted canonical set is complete, sort it by numeric
+   `DatabaseID`, then bytewise UTF-8 `AlternateName`, then bytewise UTF-8
+   `Region`. Build the matcher projection as a set keyed by
+   `(DatabaseID, existing reviewed title-normalizer output)`; repeated
+   projections contribute one matcher alias while every canonical provenance
+   tuple remains in the normalized provenance rows.
+7. The normalized tuple set, persisted canonical tuple set, and matcher
+   projection are each capped at 250,000 total and 64 per game and are checked
+   before append/bind even though they cannot exceed the already checked raw-row
+   caps. Record raw, blank, duplicate-excess, normalized-tuple,
+   persisted-canonical-tuple, and matcher-projection counts. Reordering source
+   records must produce byte-identical sorted alias rows and the same match
+   outcomes. The archive digest and source generation still bind the exact
+   source bytes and are not claimed to be order-independent.
+
+The same canonical alias on different games remains on each candidate and
+therefore produces normal matcher ambiguity rather than “first wins.”
 
 Every selected XML value is accumulated through one shared byte-and-rune
 limiter before trimming, parsing, list splitting, hashing, or SQLite binding.
@@ -565,18 +654,22 @@ its byte/rune cap but fails its optional value grammar remains absent, as
 specified above; exceeding a resource cap is never downgraded to absence.
 
 The retained archive reinspection observed 10,391,773 aggregate start elements;
-186,580 `Game`; 69,311 `GameAlternateName` with at most 30 per game, one
-whitespace-only ignored alias, and a 151-byte/123-rune longest alternate;
-1,316,025 `GameImage` with at most 249 per game; 189 `Platform` and 431
+186,580 `Game`; 69,311 raw `GameAlternateName` with at most 30 raw rows per game,
+one whitespace-only ignored alias, seven two-row trim-collapsed groups, 69,304
+normalized tuple keys including the blank, 69,303 persisted canonical tuples,
+and a 151-byte/123-rune longest raw alternate; 1,316,025
+`GameImage` with at most 249 per game; 189 `Platform` and 431
 `PlatformAlternateName` in each consumed member with equal key sets; 35
-`Emulator`; and 98 `EmulatorPlatform`. The limits also exceed the later
-reviewed snapshot's 1,373,559 `GameImage` records. Fixture tests must recompute
-every top-level family count, aggregate depth/attribute/element count,
-per-game alias/image count, selected-field maximum, filename maximum,
-referential link, uniqueness property, and cross-member mirror equality. The
-fixture does not change the constants. Any future snapshot over a constant or
-outside the accepted member grammar fails closed and requires a new reviewed
-decision rather than an operator-configurable override.
+`Emulator`; and 98 `EmulatorPlatform`. Exactly one attribute exists across the
+consumed members, at the permitted alias leaf with the exact lexical name,
+expanded namespace name, and value specified above. The limits also exceed the
+later reviewed snapshot's 1,373,559 `GameImage` records. Fixture tests must
+recompute every top-level family count, aggregate depth/attribute/element count,
+raw/canonical/per-game alias and image counts, selected-field maximum, filename
+maximum, referential link, canonical-set property, and cross-member mirror
+equality. The fixture does not change the constants. Any future snapshot over a
+constant or outside the accepted member grammar fails closed and requires a new
+reviewed decision rather than an operator-configurable override.
 
 Record archive SHA-256, response validators, schema fingerprint, parser version,
 record counts, and generation ID. Do not log XML, game names, image filenames,
@@ -845,10 +938,10 @@ and green focused plus full checks.
 | IGDB removal | Source/docs/production fixtures contain no active IGDB/Twitch symbols, hosts, tokens, attribution, config fields, or network routes; historical docs are excluded from this scan. |
 | Snapshot request | Exact HTTPS host/path/port, no proxy/cookie/credential, conditional headers, no redirects, all-DNS-answer validation, TLS minimum, timeout, 24-hour ceiling, 304 and bounded 200. |
 | Archive | Compressed/member/uncompressed/ratio limits; duplicate, absolute, traversal, separator, symlink, special, encrypted, unknown-shape, truncated, trailing, and oversized entries rejected before promotion. |
-| XML framing | Exercise `framedXMLReader` before `encoding/xml`: exact max/max+1 ordinary text for known ignored and unknown leaf fields, CDATA, comment, 256/257-byte declaration, 1,024/1,025-byte attribute, 64/65-byte names, 16,384/16,385-byte start tags, entities, malformed/unterminated boundaries, and adversarial alternating shapes under one-byte, delimiter-split, and 32 KiB input. Exercise framer-only depth 8/9, attributes 8/9 and aggregate 4,096/4,097. Instrument zero offending-frame bytes delivered to the decoder and a 131,084-byte frame-buffer high-water ceiling plus fixed scratch; caller-side post-`Token()` length checks alone fail acceptance. |
-| XML schema | Strict streaming parse; every accepted UTF-8 declaration-policy variant and exactly one initial declaration; every other processing instruction, DTD/directive/entity/network input, malformed UTF-8, duplicate IDs/keys, invalid references/numbers rejected. Schema root/record/field attributes are zero/one rejection cases even though the framer has defense-in-depth attribute budgets. Table-drive every selected field's exact byte/rune max and max+1, depth 8/9, and elements 16,000,000/16,000,001. Exercise `Metadata.xml` family caps/max+1 for `Game` 250,000/250,001, `GameAlternateName` 250,000/250,001 and per-game 64/65, `GameImage` 2,000,000/2,000,001 and per-game 512/513, `Platform` 512/513, `PlatformAlternateName` 1,024/1,025, `Emulator` 128/129, and `EmulatorPlatform` 1,024/1,025; exercise its 2,502,688/2,502,689 aggregate. Exercise `Platforms.xml` 512/513, 1,024/1,025, and 1,536/1,537 plus the 2,504,224/2,504,225 combined aggregate. Reject unknown top-level families, cross-member missing/extra/conflicting platform keys, alias duplicates/bad links, and nested schema fields. The retained fixture must assert 69,311 aliases, both 189/431 platform copies and equality, every ignored family, one ignored blank alias, max 30 aliases/game, and all recomputed maxima. `ReleaseDate` never supplies a year; valid-looking, malformed, timezone-bearing, and overlong cases prove ignore-versus-resource-failure behavior. |
+| XML framing | Exercise `framedXMLReader` before `encoding/xml`: exact max/max+1 ordinary text for known ignored and unknown leaf fields, CDATA, comment, 256/257-byte declaration, 1,024/1,025-byte attribute, 64/65-byte names, 16,384/16,385-byte start tags, entities, malformed/unterminated boundaries, and adversarial alternating shapes under one-byte, delimiter-split, and 32 KiB input. Exercise framer-only depth 8/9, attributes 8/9 and aggregate 4,096/4,097. The 4,096 case uses otherwise valid `xml:space="preserve"` attributes on permitted leaves distributed within family/per-game caps and succeeds; the 4,097th attribute fails before its frame reaches the decoder. Instrument zero offending-frame bytes delivered to the decoder and a 131,084-byte frame-buffer high-water ceiling plus fixed scratch; caller-side post-`Token()` length checks alone fail acceptance. |
+| XML schema | Strict streaming parse; every accepted UTF-8 declaration-policy variant and exactly one initial declaration; every other processing instruction, DTD/directive/entity/network input, malformed UTF-8, duplicate IDs/keys, invalid references/numbers rejected. Root, top-level record, and ordinary leaf attributes are zero/one rejection cases even though the framer has defense-in-depth attribute budgets. Accept zero or one exact lexical and namespace-expanded `xml:space="preserve"` only at `Metadata.xml/LaunchBox/GameAlternateName/AlternateName`. Table-reject unprefixed/other-prefix/wrong-binding/wrong-URI/wrong-local-name/wrong-value/wrong-case, duplicate or second attributes, every `xmlns` declaration, and the valid attribute at every wrong root/record/leaf/member placement. Table-drive every selected field's exact byte/rune max and max+1, depth 8/9, and elements 16,000,000/16,000,001. Exercise `Metadata.xml` family caps/max+1 for `Game` 250,000/250,001, `GameAlternateName` 250,000/250,001 and per-game 64/65, `GameImage` 2,000,000/2,000,001 and per-game 512/513, `Platform` 512/513, `PlatformAlternateName` 1,024/1,025, `Emulator` 128/129, and `EmulatorPlatform` 1,024/1,025; exercise its 2,502,688/2,502,689 aggregate. Exercise `Platforms.xml` 512/513, 1,024/1,025, and 1,536/1,537 plus the 2,504,224/2,504,225 combined aggregate. Reject unknown top-level families, cross-member missing/extra/conflicting platform keys, structurally invalid aliases/bad links, and nested schema fields. The retained fixture must assert 69,311 raw aliases, 69,304 normalized tuple keys including one ignored blank, seven two-row trim-collapsed groups, 69,303 persisted canonical tuples, source-order-independent reconciliation, the sole namespace-correct attribute, both 189/431 platform copies and equality, every ignored family, max 30 raw aliases/game, and all recomputed maxima. `ReleaseDate` never supplies a year; valid-looking, malformed, timezone-bearing, and overlong cases prove ignore-versus-resource-failure behavior. |
 | Index | Exact SNES/Genesis mapping; observed field mapping; archive/schema/parser hashes; SQLite integrity; deterministic byte-bounded generation; crash before/after fsync/rename/pointer swap preserves old or new complete generation, never partial. |
-| Matching | Exact platform first; canonical, accepted `GameAlternateName`, decorated tiers; stable same-game normalized-alias collapse; same alias across games remains ambiguous; duplicate same-ID/alias conflict; equal best tie ambiguous; no-match; no fuzzy auto-attach; provider input detached. |
+| Matching | Exact platform first; canonical, accepted `GameAlternateName`, decorated tiers. Prove exact XML-`S` boundary trim; exact raw tuple repetition rejects; distinct raw boundary-whitespace variants with one normalized full tuple deduplicate; byte-identical sorted alias rows after reversed and randomized source order; distinct-region provenance projecting to one matcher alias; distinct canonical spellings projecting to one matcher alias; same alias across games remaining ambiguous; duplicate selected-child/schema conflict; duplicate provider-game identity conflict; equal best tie ambiguous; no-match; no fuzzy auto-attach; provider input detached. Raw and post-reconciliation total/per-game max/max+1 tests must show no bound is weakened by blanks or duplicates. |
 | Region/media selection | Type and region order fixed; lexical tie determinism; role ambiguity affects only role; exact filename grammar/extensions and 44-byte/rune max accepted. Table-reject 40-character stem/max+1, `../`, slash, backslash, `%2f` and `%2F`, `?`, `#`, colon, space, controls, invalid UTF-8, non-ASCII, uppercase/unknown extensions, and extension/MIME disagreement. Prove one escaped segment plus final scheme/host/effective-port/path/query/fragment/userinfo revalidation and zero requests on every rejection; CRC32 checked before decode. |
 | Cache migration | Schema v1/IGDB settings, rows, platform map, credential scope, SQLite sidecars, artwork refs/objects/files all purged; no old handle can open; schema v2 provider/generation keys do not collide; purge failure blocks startup. |
 | Root safety | Existing ancestor/create/chmod/open/use/delete swap tests extended to provider generations, manifest, archive, index, temps, and artwork; aliases share one physical lease; no symlink/hard-link/special-file escape. |
@@ -989,8 +1082,9 @@ provider epochs, and release gates contain those risks; they do not prove them
 resolved.
 
 Next safe action: Vega performs a fresh exact-tree review of the byte-identical
-imported report plus this repaired decision, explicitly closing the two prior
-Important findings. If accepted, the coordinator may create one Luna TDD
+imported report plus this repaired decision, explicitly closing the retained
+attribute and alias findings while confirming every prior Important remains
+closed. If accepted, the coordinator may create one Luna TDD
 milestone for the LaunchBox-only replacement within the file contract above. It
 must not create EmuMovies implementation or Phase 3 work until their explicit
 gates pass.
