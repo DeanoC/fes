@@ -54,6 +54,12 @@ func Open(ctx context.Context, config RuntimeConfig) (Runtime, error) {
 		}
 		return nil, nil
 	}
+	if config.ProviderName == ProviderLaunchBox {
+		if config.Provider != nil || config.HTTPClient != nil || strings.TrimSpace(config.ClientID) != "" || strings.TrimSpace(config.ClientSecret) != "" {
+			return nil, newOpError(ErrPolicyBlocked, nil)
+		}
+		return openLaunchBoxRuntime(config)
+	}
 	if config.ProviderName != ProviderIGDB || config.Provider == nil && (strings.TrimSpace(config.ClientID) == "" || strings.TrimSpace(config.ClientSecret) == "") {
 		return nil, newOpError(ErrUnconfigured, nil)
 	}
