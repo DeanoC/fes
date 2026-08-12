@@ -100,21 +100,22 @@ type launchBoxRuntime struct {
 	rootCtx    context.Context
 	rootCancel context.CancelFunc
 
-	mu             sync.Mutex
-	state          launchBoxRuntimeState
-	activationDone chan struct{}
-	activationErr  error
-	activationCtx  context.Context
-	activationStop context.CancelFunc
-	worker         *launchBoxOwnedWorker
-	workerCtx      context.Context
-	workerStop     context.CancelFunc
-	workerDone     chan struct{}
-	cleanupDone    chan struct{}
-	cleanupErr     error
-	closeOnce      sync.Once
-	closeErr       error
-	reaper         *launchBoxReaper
+	mu                   sync.Mutex
+	state                launchBoxRuntimeState
+	activationDone       chan struct{}
+	activationErr        error
+	activationCtx        context.Context
+	activationStop       context.CancelFunc
+	worker               *launchBoxOwnedWorker
+	gateRegistrationDone chan struct{}
+	workerCtx            context.Context
+	workerStop           context.CancelFunc
+	workerDone           chan struct{}
+	cleanupDone          chan struct{}
+	cleanupErr           error
+	closeOnce            sync.Once
+	closeErr             error
+	reaper               *launchBoxReaper
 }
 
 // newLaunchBoxRuntime constructs an inert production runtime. It intentionally
@@ -222,6 +223,35 @@ func (r *launchBoxRuntime) activateLeader(ctx context.Context, cancel context.Ca
 		}
 	}
 
+	var requestGate *launchBoxRequestGate
+	if err == nil && worker != nil && ctx.Err() == nil {
+		// Registration is a pre-commit operation. The gate is deliberately
+		// revoked until the registration returns and activation commits, so a
+		// worker cannot issue a request while its registration is in flight.
+		requestGate = newLaunchBoxRequestGate()
+		registrationDone := make(chan struct{})
+		r.mu.Lock()
+		r.requestGate = requestGate
+		r.gateRegistrationDone = registrationDone
+		r.mu.Unlock()
+
+		if attacher, ok := worker.(launchBoxWorkerRequestGateAttacher); ok {
+			go func() {
+				attacher.AttachLaunchBoxRequestGate(requestGate)
+				close(registrationDone)
+			}()
+			select {
+			case <-registrationDone:
+			case <-ctx.Done():
+				// The cleanup reaper waits for registrationDone before releasing
+				// worker-owned resources. This keeps a blocked registration from
+				// extending Close while retaining ownership until it returns.
+			}
+		} else {
+			close(registrationDone)
+		}
+	}
+
 	r.mu.Lock()
 	closed := r.state == launchBoxRuntimeClosed
 	activationCanceled := ctx.Err() != nil
@@ -260,17 +290,9 @@ func (r *launchBoxRuntime) activateLeader(ctx context.Context, cancel context.Ca
 	r.workerStop = workerCancel
 	r.workerDone = make(chan struct{})
 	workerDone := r.workerDone
-	// Allocate a private request capability only at the commit point. The
-	// factory and preflight paths receive no request-capable object.
-	requestGate := newLaunchBoxRequestGate()
-	r.requestGate = requestGate
-	// Commit active ownership before attaching the private request gate. Keep
-	// the state lock through both operations so Close cannot revoke the gate
-	// and then be followed by a stale attach.
+	// Commit active ownership and attach the private request capability only
+	// after registration has returned and this final state check has passed.
 	r.state = launchBoxRuntimeActive
-	if attacher, ok := worker.(launchBoxWorkerRequestGateAttacher); ok {
-		attacher.AttachLaunchBoxRequestGate(requestGate)
-	}
 	requestGate.attach(r.policy)
 	done := r.activationDone
 	r.mu.Unlock()
@@ -409,6 +431,7 @@ func (r *launchBoxRuntime) runCleanup(reaper *launchBoxReaper) {
 	activationDone := r.activationDone
 	worker := r.worker
 	workerDone := r.workerDone
+	gateRegistrationDone := r.gateRegistrationDone
 	resources := append([]launchBoxResource(nil), r.resources...)
 	workerStop := r.workerStop
 	requestGate := r.requestGate
@@ -420,11 +443,15 @@ func (r *launchBoxRuntime) runCleanup(reaper *launchBoxReaper) {
 		r.mu.Lock()
 		worker = r.worker
 		workerDone = r.workerDone
+		gateRegistrationDone = r.gateRegistrationDone
 		resources = append([]launchBoxResource(nil), r.resources...)
 		workerStop = r.workerStop
 		requestGate = r.requestGate
 		policy = r.policy
 		r.mu.Unlock()
+	}
+	if gateRegistrationDone != nil {
+		<-gateRegistrationDone
 	}
 
 	if requestGate != nil {

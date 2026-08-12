@@ -29,6 +29,29 @@ type launchBoxGateWorker struct {
 	startOnce sync.Once
 }
 
+type launchBoxBlockingGateWorker struct {
+	attachEntered chan struct{}
+	releaseAttach chan struct{}
+	attachOnce    sync.Once
+	runCount      atomic.Int32
+}
+
+func (w *launchBoxBlockingGateWorker) AttachLaunchBoxRequestGate(*launchBoxRequestGate) {
+	if w.attachEntered != nil {
+		w.attachOnce.Do(func() { close(w.attachEntered) })
+	}
+	if w.releaseAttach != nil {
+		<-w.releaseAttach
+	}
+}
+
+func (w *launchBoxBlockingGateWorker) Run(context.Context) error {
+	w.runCount.Add(1)
+	return nil
+}
+
+func (*launchBoxBlockingGateWorker) Close() error { return nil }
+
 type launchBoxRecordingRoundTripper struct {
 	requests    atomic.Int32
 	requestSeen chan struct{}
@@ -588,6 +611,88 @@ func TestLaunchBoxRuntimeCloseDuringActivationRetainsOwnershipUntilFactoryReturn
 	}
 	if got := worker.runs.Load(); got != 0 {
 		t.Fatalf("worker started after Close won activation race: %d", got)
+	}
+}
+
+func TestLaunchBoxRuntimeCloseBoundDuringGateRegistration(t *testing.T) {
+	policy, recorder := newLaunchBoxRecordingPolicy(false)
+	worker := &launchBoxBlockingGateWorker{
+		attachEntered: make(chan struct{}),
+		releaseAttach: make(chan struct{}),
+	}
+	runtime := newLaunchBoxRuntimeWithDependencies(policy, func(context.Context) (launchBoxWorker, error) {
+		return worker, nil
+	})
+
+	activationDone := make(chan error, 1)
+	go func() { activationDone <- runtime.Activate() }()
+	select {
+	case <-worker.attachEntered:
+	case <-time.After(time.Second):
+		t.Fatal("request-gate registration did not start")
+	}
+
+	closeDone := make(chan error, 1)
+	started := time.Now()
+	go func() { closeDone <- runtime.Close() }()
+	var firstCloseErr error
+	select {
+	case firstCloseErr = <-closeDone:
+	case <-time.After(2500 * time.Millisecond):
+		close(worker.releaseAttach)
+		<-activationDone
+		t.Fatal("Close exceeded its two-second caller bound during request-gate registration")
+	}
+	if elapsed := time.Since(started); elapsed > 2500*time.Millisecond {
+		t.Fatalf("Close took %s, exceeding its two-second caller bound", elapsed)
+	}
+	if opCode(firstCloseErr) != ErrStorage {
+		t.Fatalf("Close result = %v, want storage timeout", firstCloseErr)
+	}
+	if secondCloseErr := runtime.Close(); secondCloseErr != firstCloseErr {
+		t.Fatalf("repeated Close changed the first result: first=%v second=%v", firstCloseErr, secondCloseErr)
+	}
+	if got := recorder.requests.Load(); got != 0 {
+		t.Fatalf("blocked registration issued %d requests", got)
+	}
+	var reaper *launchBoxReaper
+	runtime.mu.Lock()
+	reaper = runtime.reaper
+	runtime.mu.Unlock()
+	if reaper == nil {
+		t.Fatal("timed out Close did not retain a reaper")
+	}
+	select {
+	case <-reaper.done:
+		t.Fatal("retained reaper finished before request-gate registration released")
+	default:
+	}
+	if got := worker.runCount.Load(); got != 0 {
+		t.Fatalf("worker Run count = %d while request-gate registration was blocked, want zero", got)
+	}
+
+	close(worker.releaseAttach)
+	select {
+	case err := <-activationDone:
+		if opCode(err) != ErrCanceled {
+			t.Fatalf("activation after Close = %v, want canceled", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("activation did not finish after request-gate registration released")
+	}
+	runtime.mu.Lock()
+	reaper = runtime.reaper
+	runtime.mu.Unlock()
+	if reaper == nil {
+		t.Fatal("timed out Close did not retain a reaper")
+	}
+	select {
+	case <-reaper.done:
+	case <-time.After(time.Second):
+		t.Fatal("retained reaper did not finish after request-gate registration released")
+	}
+	if got := worker.runCount.Load(); got != 0 {
+		t.Fatalf("worker Run count = %d, want zero", got)
 	}
 }
 
