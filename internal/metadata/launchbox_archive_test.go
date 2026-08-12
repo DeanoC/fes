@@ -14,6 +14,7 @@ import (
 type launchBoxFixtureEntry struct {
 	name   string
 	body   []byte
+	extra  []byte
 	method uint16
 	mode   os.FileMode
 	flags  uint16
@@ -48,6 +49,7 @@ func buildLaunchBoxArchiveWithComment(t *testing.T, fixture launchBoxCommentArch
 	writer := zip.NewWriter(&output)
 	for _, entry := range fixture.entries {
 		header := &zip.FileHeader{Name: entry.name, Method: entry.method, Flags: entry.flags}
+		header.Extra = entry.extra
 		if entry.mode != 0 {
 			header.SetMode(entry.mode)
 		}
@@ -147,6 +149,64 @@ func patchLaunchBoxLocalSignature(t *testing.T, archive []byte, name string, sig
 		return
 	}
 	t.Fatalf("local-header member %q not found", name)
+}
+
+func patchLaunchBoxDecoyLocalHeader(t *testing.T, archive []byte, name string) {
+	t.Helper()
+	localOffset := -1
+	for offset := 0; offset+30 <= len(archive); offset++ {
+		if !bytes.Equal(archive[offset:offset+4], []byte{'P', 'K', 3, 4}) {
+			continue
+		}
+		nameLength := int(binary.LittleEndian.Uint16(archive[offset+26 : offset+28]))
+		extraLength := int(binary.LittleEndian.Uint16(archive[offset+28 : offset+30]))
+		end := offset + 30 + nameLength + extraLength
+		if end <= len(archive) && string(archive[offset+30:offset+30+nameLength]) == name {
+			if extraLength != 30+nameLength {
+				t.Fatalf("unexpected extra length for %q: %d", name, extraLength)
+			}
+			localOffset = offset
+			break
+		}
+	}
+	if localOffset < 0 {
+		t.Fatalf("local-header member %q not found", name)
+	}
+
+	centralOffset := -1
+	for offset := 0; offset+46 <= len(archive); offset++ {
+		if !bytes.Equal(archive[offset:offset+4], []byte{'P', 'K', 1, 2}) {
+			continue
+		}
+		nameLength := int(binary.LittleEndian.Uint16(archive[offset+28 : offset+30]))
+		extraLength := int(binary.LittleEndian.Uint16(archive[offset+30 : offset+32]))
+		commentLength := int(binary.LittleEndian.Uint16(archive[offset+32 : offset+34]))
+		end := offset + 46 + nameLength + extraLength + commentLength
+		if end <= len(archive) && string(archive[offset+46:offset+46+nameLength]) == name {
+			centralOffset = offset
+			break
+		}
+	}
+	if centralOffset < 0 {
+		t.Fatalf("central-directory member %q not found", name)
+	}
+
+	nameLength := int(binary.LittleEndian.Uint16(archive[localOffset+26 : localOffset+28]))
+	fakeOffset := localOffset + 30 + nameLength
+	copy(archive[fakeOffset:fakeOffset+4], []byte{'P', 'K', 3, 4})
+	copy(archive[fakeOffset+6:fakeOffset+8], archive[centralOffset+8:centralOffset+10])
+	copy(archive[fakeOffset+8:fakeOffset+10], archive[centralOffset+10:centralOffset+12])
+	copy(archive[fakeOffset+10:fakeOffset+12], archive[centralOffset+12:centralOffset+14])
+	copy(archive[fakeOffset+12:fakeOffset+14], archive[centralOffset+14:centralOffset+16])
+	copy(archive[fakeOffset+14:fakeOffset+18], archive[centralOffset+16:centralOffset+20])
+	copy(archive[fakeOffset+18:fakeOffset+22], archive[centralOffset+20:centralOffset+24])
+	copy(archive[fakeOffset+22:fakeOffset+26], archive[centralOffset+24:centralOffset+28])
+	binary.LittleEndian.PutUint16(archive[fakeOffset+26:fakeOffset+28], uint16(nameLength))
+	binary.LittleEndian.PutUint16(archive[fakeOffset+28:fakeOffset+30], 0)
+	copy(archive[fakeOffset+30:fakeOffset+30+nameLength], name)
+
+	// The real local method is malformed while the central entry remains valid.
+	binary.LittleEndian.PutUint16(archive[localOffset+8:localOffset+10], 99)
 }
 
 func patchLaunchBoxMemberWithoutDataDescriptor(t *testing.T, archive []byte, name string, crc uint32) {
@@ -531,6 +591,22 @@ func TestLaunchBoxArchiveRejectsNonEmptyArchiveComment(t *testing.T) {
 		comment: "unvalidated comment",
 	})
 	assertLaunchBoxArchiveInvalid(t, archive)
+}
+
+func TestLaunchBoxArchiveRejectsDecoyLocalHeadersBeforeExposure(t *testing.T) {
+	for _, name := range []string{"Metadata.xml", "Mame.xml"} {
+		t.Run(name, func(t *testing.T) {
+			entries := validLaunchBoxFixtureEntries()
+			for index := range entries {
+				if entries[index].name == name {
+					entries[index].extra = make([]byte, 30+len(name))
+				}
+			}
+			archive := buildLaunchBoxArchive(t, entries)
+			patchLaunchBoxDecoyLocalHeader(t, archive, name)
+			assertLaunchBoxArchiveInvalid(t, archive)
+		})
+	}
 }
 
 func TestLaunchBoxArchiveCRCAndTruncatedMemberFailuresAreClosed(t *testing.T) {

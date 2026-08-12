@@ -39,8 +39,11 @@ func openLaunchBoxArchive(source io.ReaderAt, sourceSize int64) (*launchBoxArchi
 		return nil, launchBoxArchiveInvalid()
 	}
 	centralDirectoryStart, centralDirectoryEnd, declaredMembers, ok := validLaunchBoxArchiveEnvelope(source, sourceSize)
-	if !ok || declaredMembers == 0 || declaredMembers > launchBoxArchiveMaxMembers ||
-		!validLaunchBoxArchiveCentralDirectory(source, centralDirectoryStart, centralDirectoryEnd, declaredMembers) {
+	if !ok || declaredMembers == 0 || declaredMembers > launchBoxArchiveMaxMembers {
+		return nil, launchBoxArchiveInvalid()
+	}
+	centralEntries, ok := launchBoxArchiveCentralDirectoryEntries(source, centralDirectoryStart, centralDirectoryEnd, declaredMembers)
+	if !ok {
 		return nil, launchBoxArchiveInvalid()
 	}
 
@@ -52,8 +55,12 @@ func openLaunchBoxArchive(source io.ReaderAt, sourceSize int64) (*launchBoxArchi
 	seen := make(map[string]struct{}, len(reader.File))
 	members := make(map[string]*zip.File, 2)
 	var compressedTotal, expandedTotal uint64
-	for _, member := range reader.File {
+	for index, member := range reader.File {
+		centralEntry := centralEntries[index]
 		if member == nil || !validLaunchBoxArchiveMemberName(member.Name) {
+			return nil, launchBoxArchiveInvalid()
+		}
+		if !validLaunchBoxArchiveCentralEntry(centralEntry, member) {
 			return nil, launchBoxArchiveInvalid()
 		}
 		if _, exists := seen[member.Name]; exists {
@@ -68,7 +75,7 @@ func openLaunchBoxArchive(source io.ReaderAt, sourceSize int64) (*launchBoxArchi
 		default:
 			return nil, launchBoxArchiveInvalid()
 		}
-		if !validLaunchBoxArchiveLocalEntry(source, sourceSize, centralDirectoryStart, member) {
+		if !validLaunchBoxArchiveLocalEntry(source, sourceSize, centralDirectoryStart, centralEntry, member) {
 			return nil, launchBoxArchiveInvalid()
 		}
 
@@ -281,28 +288,161 @@ func launchBoxArchiveZIP64CentralDirectoryStart(source io.ReaderAt, sourceSize, 
 	return int64(directoryStart), int64(zip64Offset), entriesTotal, true
 }
 
-func validLaunchBoxArchiveCentralDirectory(source io.ReaderAt, start, end int64, declaredMembers uint64) bool {
+type launchBoxArchiveCentralEntry struct {
+	name              string
+	flags             uint16
+	method            uint16
+	crc               uint32
+	compressedSize    uint64
+	uncompressedSize  uint64
+	localHeaderOffset uint64
+}
+
+func launchBoxArchiveCentralDirectoryEntries(source io.ReaderAt, start, end int64, declaredMembers uint64) ([]launchBoxArchiveCentralEntry, bool) {
 	const fixedHeaderBytes = 46
-	if source == nil || start < 0 || end < start || declaredMembers == 0 {
-		return false
+	if source == nil || start < 0 || end < start || declaredMembers == 0 || declaredMembers > launchBoxArchiveMaxMembers {
+		return nil, false
 	}
+	entries := make([]launchBoxArchiveCentralEntry, int(declaredMembers))
 	position := start
 	var header [fixedHeaderBytes]byte
 	for index := uint64(0); index < declaredMembers; index++ {
 		if end-position < fixedHeaderBytes {
-			return false
+			return nil, false
 		}
 		if _, err := source.ReadAt(header[:], position); err != nil || !bytes.Equal(header[:4], []byte{'P', 'K', 1, 2}) {
-			return false
+			return nil, false
 		}
-		recordBytes := uint64(fixedHeaderBytes) + uint64(binary.LittleEndian.Uint16(header[28:30])) +
-			uint64(binary.LittleEndian.Uint16(header[30:32])) + uint64(binary.LittleEndian.Uint16(header[32:34]))
+		nameLength := uint64(binary.LittleEndian.Uint16(header[28:30]))
+		extraLength := uint64(binary.LittleEndian.Uint16(header[30:32]))
+		commentLength := uint64(binary.LittleEndian.Uint16(header[32:34]))
+		recordBytes := uint64(fixedHeaderBytes) + nameLength + extraLength + commentLength
 		if recordBytes > uint64(end-position) {
-			return false
+			return nil, false
 		}
+		if nameLength+extraLength+commentLength > uint64(^uint(0)>>1) {
+			return nil, false
+		}
+		body := make([]byte, int(nameLength+extraLength+commentLength))
+		if _, err := source.ReadAt(body, position+fixedHeaderBytes); err != nil {
+			return nil, false
+		}
+		entry, ok := parseLaunchBoxArchiveCentralEntry(header[:], body)
+		if !ok {
+			return nil, false
+		}
+		entries[index] = entry
 		position += int64(recordBytes)
 	}
-	return position == end
+	if position != end {
+		return nil, false
+	}
+	return entries, true
+}
+
+func parseLaunchBoxArchiveCentralEntry(header, body []byte) (launchBoxArchiveCentralEntry, bool) {
+	const (
+		fixedHeaderBytes = 46
+		zip64ExtraID     = 0x0001
+	)
+	if len(header) != fixedHeaderBytes || len(body) < int(binary.LittleEndian.Uint16(header[28:30]))+
+		int(binary.LittleEndian.Uint16(header[30:32]))+int(binary.LittleEndian.Uint16(header[32:34])) {
+		return launchBoxArchiveCentralEntry{}, false
+	}
+	nameLength := int(binary.LittleEndian.Uint16(header[28:30]))
+	extraLength := int(binary.LittleEndian.Uint16(header[30:32]))
+	commentLength := int(binary.LittleEndian.Uint16(header[32:34]))
+	if len(body) != nameLength+extraLength+commentLength {
+		return launchBoxArchiveCentralEntry{}, false
+	}
+	entry := launchBoxArchiveCentralEntry{
+		name:              string(body[:nameLength]),
+		flags:             binary.LittleEndian.Uint16(header[8:10]),
+		method:            binary.LittleEndian.Uint16(header[10:12]),
+		crc:               binary.LittleEndian.Uint32(header[16:20]),
+		compressedSize:    uint64(binary.LittleEndian.Uint32(header[20:24])),
+		uncompressedSize:  uint64(binary.LittleEndian.Uint32(header[24:28])),
+		localHeaderOffset: uint64(binary.LittleEndian.Uint32(header[42:46])),
+	}
+	diskNumber := uint32(binary.LittleEndian.Uint16(header[34:36]))
+	needUncompressed, needCompressed := entry.uncompressedSize == uint64(^uint32(0)), entry.compressedSize == uint64(^uint32(0))
+	needOffset, needDiskNumber := entry.localHeaderOffset == uint64(^uint32(0)), diskNumber == uint32(^uint16(0))
+	if needUncompressed || needCompressed || needOffset || needDiskNumber {
+		extra := body[nameLength : nameLength+extraLength]
+		found := false
+		resolvedUncompressed, resolvedCompressed := !needUncompressed, !needCompressed
+		resolvedOffset, resolvedDiskNumber := !needOffset, !needDiskNumber
+		for len(extra) >= 4 {
+			fieldID := binary.LittleEndian.Uint16(extra[:2])
+			fieldLength := int(binary.LittleEndian.Uint16(extra[2:4]))
+			extra = extra[4:]
+			if fieldLength > len(extra) {
+				return launchBoxArchiveCentralEntry{}, false
+			}
+			field := extra[:fieldLength]
+			extra = extra[fieldLength:]
+			if fieldID != zip64ExtraID {
+				continue
+			}
+			if found {
+				return launchBoxArchiveCentralEntry{}, false
+			}
+			found = true
+			read := 0
+			readUint64 := func() (uint64, bool) {
+				if len(field)-read < 8 {
+					return 0, false
+				}
+				value := binary.LittleEndian.Uint64(field[read : read+8])
+				read += 8
+				return value, true
+			}
+			if needUncompressed {
+				value, ok := readUint64()
+				if !ok {
+					return launchBoxArchiveCentralEntry{}, false
+				}
+				entry.uncompressedSize = value
+				resolvedUncompressed = true
+			}
+			if needCompressed {
+				value, ok := readUint64()
+				if !ok {
+					return launchBoxArchiveCentralEntry{}, false
+				}
+				entry.compressedSize = value
+				resolvedCompressed = true
+			}
+			if needOffset {
+				value, ok := readUint64()
+				if !ok {
+					return launchBoxArchiveCentralEntry{}, false
+				}
+				entry.localHeaderOffset = value
+				resolvedOffset = true
+			}
+			if needDiskNumber {
+				if len(field)-read < 4 {
+					return launchBoxArchiveCentralEntry{}, false
+				}
+				diskNumber = binary.LittleEndian.Uint32(field[read : read+4])
+				read += 4
+				resolvedDiskNumber = true
+			}
+		}
+		if !found || !resolvedUncompressed || !resolvedCompressed || !resolvedOffset || !resolvedDiskNumber {
+			return launchBoxArchiveCentralEntry{}, false
+		}
+	}
+	if diskNumber != 0 {
+		return launchBoxArchiveCentralEntry{}, false
+	}
+	return entry, true
+}
+
+func validLaunchBoxArchiveCentralEntry(entry launchBoxArchiveCentralEntry, member *zip.File) bool {
+	return member != nil && entry.name == member.Name && entry.flags == member.Flags && entry.method == member.Method &&
+		entry.crc == member.CRC32 && entry.compressedSize == member.CompressedSize64 && entry.uncompressedSize == member.UncompressedSize64
 }
 
 func validLaunchBoxArchiveRequiredMemberName(name string) bool {
@@ -321,56 +461,53 @@ func validLaunchBoxArchiveMemberSizes(compressed, expanded uint64) bool {
 	return validLaunchBoxArchiveRatio(expanded, compressed)
 }
 
-func validLaunchBoxArchiveLocalEntry(source io.ReaderAt, sourceSize, centralDirectoryStart int64, member *zip.File) bool {
+func validLaunchBoxArchiveLocalEntry(source io.ReaderAt, sourceSize, centralDirectoryStart int64, centralEntry launchBoxArchiveCentralEntry, member *zip.File) bool {
 	const localHeaderFixedBytes = 30
-	const localHeaderMaximumBytes = localHeaderFixedBytes + 2*(1<<16-1)
-	if source == nil || member == nil || sourceSize < 0 || centralDirectoryStart < 0 || centralDirectoryStart > sourceSize {
+	if source == nil || member == nil || sourceSize < 0 || centralDirectoryStart < 0 || centralDirectoryStart > sourceSize ||
+		centralEntry.localHeaderOffset > uint64(^uint64(0)>>1) {
 		return false
 	}
-	bodyOffset, err := member.DataOffset()
-	if err != nil || bodyOffset < 0 || bodyOffset > centralDirectoryStart {
+	localHeaderOffset := int64(centralEntry.localHeaderOffset)
+	if localHeaderOffset < 0 || localHeaderOffset >= centralDirectoryStart || centralDirectoryStart-localHeaderOffset < localHeaderFixedBytes {
 		return false
 	}
-	if member.CompressedSize64 > uint64(centralDirectoryStart-bodyOffset) {
+	var header [localHeaderFixedBytes]byte
+	if _, err := source.ReadAt(header[:], localHeaderOffset); err != nil || !bytes.Equal(header[:4], []byte{'P', 'K', 3, 4}) {
 		return false
 	}
-
-	windowStart := bodyOffset - localHeaderMaximumBytes
-	if windowStart < 0 {
-		windowStart = 0
-	}
-	window := make([]byte, int(bodyOffset-windowStart))
-	if _, err := source.ReadAt(window, windowStart); err != nil {
+	nameLength := int64(binary.LittleEndian.Uint16(header[26:28]))
+	extraLength := int64(binary.LittleEndian.Uint16(header[28:30]))
+	if nameLength > centralDirectoryStart-localHeaderOffset-localHeaderFixedBytes ||
+		extraLength > centralDirectoryStart-localHeaderOffset-localHeaderFixedBytes-nameLength {
 		return false
 	}
-	for offset := len(window) - localHeaderFixedBytes; offset >= 0; offset-- {
-		if !bytes.Equal(window[offset:offset+4], []byte{'P', 'K', 3, 4}) {
-			continue
-		}
-		nameLength := int(binary.LittleEndian.Uint16(window[offset+26 : offset+28]))
-		extraLength := int(binary.LittleEndian.Uint16(window[offset+28 : offset+30]))
-		if offset+localHeaderFixedBytes+nameLength+extraLength != len(window) {
-			continue
-		}
-		if !bytes.Equal(window[offset+localHeaderFixedBytes:offset+localHeaderFixedBytes+nameLength], []byte(member.Name)) {
-			continue
-		}
-		localFlags := binary.LittleEndian.Uint16(window[offset+6 : offset+8])
-		localMethod := binary.LittleEndian.Uint16(window[offset+8 : offset+10])
-		if localFlags != member.Flags || localMethod != member.Method {
+	name := make([]byte, int(nameLength))
+	if _, err := source.ReadAt(name, localHeaderOffset+localHeaderFixedBytes); err != nil || !bytes.Equal(name, []byte(member.Name)) {
+		return false
+	}
+	localFlags := binary.LittleEndian.Uint16(header[6:8])
+	localMethod := binary.LittleEndian.Uint16(header[8:10])
+	if localFlags != centralEntry.flags || localMethod != centralEntry.method {
+		return false
+	}
+	localCompressed := binary.LittleEndian.Uint32(header[18:22])
+	localExpanded := binary.LittleEndian.Uint32(header[22:26])
+	localCRC := binary.LittleEndian.Uint32(header[14:18])
+	if localFlags&8 == 0 {
+		if uint64(localCompressed) != centralEntry.compressedSize || uint64(localExpanded) != centralEntry.uncompressedSize || localCRC != centralEntry.crc {
 			return false
 		}
-		localCompressed := binary.LittleEndian.Uint32(window[offset+18 : offset+22])
-		localExpanded := binary.LittleEndian.Uint32(window[offset+22 : offset+26])
-		localCRC := binary.LittleEndian.Uint32(window[offset+14 : offset+18])
-		if localFlags&8 == 0 {
-			return uint64(localCompressed) == member.CompressedSize64 &&
-				uint64(localExpanded) == member.UncompressedSize64 && localCRC == member.CRC32
-		}
-		return (localCompressed == 0 && localExpanded == 0 && localCRC == 0) ||
-			(uint64(localCompressed) == member.CompressedSize64 && uint64(localExpanded) == member.UncompressedSize64 && localCRC == member.CRC32)
+	} else if !((localCompressed == 0 && localExpanded == 0 && localCRC == 0) ||
+		(uint64(localCompressed) == centralEntry.compressedSize && uint64(localExpanded) == centralEntry.uncompressedSize && localCRC == centralEntry.crc)) {
+		return false
 	}
-	return false
+	bodyOffset := localHeaderOffset + localHeaderFixedBytes + nameLength + extraLength
+	memberBodyOffset, err := member.DataOffset()
+	if err != nil || memberBodyOffset != bodyOffset {
+		return false
+	}
+	return centralEntry.compressedSize <= uint64(centralDirectoryStart-bodyOffset) &&
+		centralEntry.compressedSize <= uint64(sourceSize-bodyOffset)
 }
 
 // validLaunchBoxArchiveRatio implements expanded <= 32*compressed without
