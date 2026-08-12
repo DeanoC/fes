@@ -209,6 +209,73 @@ func patchLaunchBoxDecoyLocalHeader(t *testing.T, archive []byte, name string) {
 	binary.LittleEndian.PutUint16(archive[localOffset+8:localOffset+10], 99)
 }
 
+func launchBoxArchiveLocalHeaderOffset(t *testing.T, archive []byte, name string) int {
+	t.Helper()
+	for offset := 0; offset+30 <= len(archive); offset++ {
+		if !bytes.Equal(archive[offset:offset+4], []byte{'P', 'K', 3, 4}) {
+			continue
+		}
+		nameLength := int(binary.LittleEndian.Uint16(archive[offset+26 : offset+28]))
+		extraLength := int(binary.LittleEndian.Uint16(archive[offset+28 : offset+30]))
+		end := offset + 30 + nameLength + extraLength
+		if end <= len(archive) && string(archive[offset+30:offset+30+nameLength]) == name {
+			return offset
+		}
+	}
+	t.Fatalf("local-header member %q not found", name)
+	return -1
+}
+
+func launchBoxArchiveCentralEntryOffset(t *testing.T, archive []byte, name string) int {
+	t.Helper()
+	for offset := 0; offset+46 <= len(archive); offset++ {
+		if !bytes.Equal(archive[offset:offset+4], []byte{'P', 'K', 1, 2}) {
+			continue
+		}
+		nameLength := int(binary.LittleEndian.Uint16(archive[offset+28 : offset+30]))
+		extraLength := int(binary.LittleEndian.Uint16(archive[offset+30 : offset+32]))
+		commentLength := int(binary.LittleEndian.Uint16(archive[offset+32 : offset+34]))
+		end := offset + 46 + nameLength + extraLength + commentLength
+		if end <= len(archive) && string(archive[offset+46:offset+46+nameLength]) == name {
+			return offset
+		}
+	}
+	t.Fatalf("central-directory member %q not found", name)
+	return -1
+}
+
+func patchLaunchBoxCentralOffsetToNestedDecoy(t *testing.T, archive []byte, name string) {
+	t.Helper()
+	patchLaunchBoxDecoyLocalHeader(t, archive, name)
+	localOffset := launchBoxArchiveLocalHeaderOffset(t, archive, name)
+	nameLength := int(binary.LittleEndian.Uint16(archive[localOffset+26 : localOffset+28]))
+	fakeOffset := localOffset + 30 + nameLength
+	centralOffset := launchBoxArchiveCentralEntryOffset(t, archive, name)
+	if uint64(fakeOffset) > math.MaxUint32 {
+		t.Fatalf("nested decoy offset exceeds non-ZIP64 fixture: %d", fakeOffset)
+	}
+	binary.LittleEndian.PutUint32(archive[centralOffset+42:centralOffset+46], uint32(fakeOffset))
+}
+
+func patchLaunchBoxCentralCompressedSizeToOverlapNextLocalRecord(t *testing.T, archive []byte, name string) {
+	t.Helper()
+	localOffset := launchBoxArchiveLocalHeaderOffset(t, archive, name)
+	nameLength := int(binary.LittleEndian.Uint16(archive[localOffset+26 : localOffset+28]))
+	extraLength := int(binary.LittleEndian.Uint16(archive[localOffset+28 : localOffset+30]))
+	dataOffset := localOffset + 30 + nameLength + extraLength
+	nextLocalOffset := -1
+	for offset := dataOffset; offset+4 <= len(archive); offset++ {
+		if bytes.Equal(archive[offset:offset+4], []byte{'P', 'K', 3, 4}) {
+			nextLocalOffset = offset
+			break
+		}
+	}
+	if nextLocalOffset < 0 || nextLocalOffset <= dataOffset {
+		t.Fatalf("next local-header record after %q not found", name)
+	}
+	patchLaunchBoxCentralEntry(t, archive, name, uint64(nextLocalOffset-dataOffset+1), 0, nil)
+}
+
 func patchLaunchBoxMemberWithoutDataDescriptor(t *testing.T, archive []byte, name string, crc uint32) {
 	t.Helper()
 	var compressed, expanded uint32
@@ -605,6 +672,81 @@ func TestLaunchBoxArchiveRejectsDecoyLocalHeadersBeforeExposure(t *testing.T) {
 			archive := buildLaunchBoxArchive(t, entries)
 			patchLaunchBoxDecoyLocalHeader(t, archive, name)
 			assertLaunchBoxArchiveInvalid(t, archive)
+		})
+	}
+}
+
+func TestLaunchBoxArchiveRejectsOverlappingLocalRecordDataBeforeExposure(t *testing.T) {
+	for _, name := range []string{"Metadata.xml", "Mame.xml"} {
+		t.Run(name, func(t *testing.T) {
+			archive := buildLaunchBoxArchive(t, validLaunchBoxFixtureEntries())
+			patchLaunchBoxCentralCompressedSizeToOverlapNextLocalRecord(t, archive, name)
+			assertLaunchBoxArchiveInvalid(t, archive)
+		})
+	}
+}
+
+func TestLaunchBoxArchiveRejectsCentralOffsetIntoNestedDecoyBeforeExposure(t *testing.T) {
+	for _, name := range []string{"Metadata.xml", "Mame.xml"} {
+		t.Run(name, func(t *testing.T) {
+			entries := validLaunchBoxFixtureEntries()
+			for index := range entries {
+				if entries[index].name == name {
+					entries[index].extra = make([]byte, 30+len(name))
+				}
+			}
+			archive := buildLaunchBoxArchive(t, entries)
+			patchLaunchBoxCentralOffsetToNestedDecoy(t, archive, name)
+			assertLaunchBoxArchiveInvalid(t, archive)
+		})
+	}
+}
+
+func TestLaunchBoxArchiveDataDescriptorForms(t *testing.T) {
+	const (
+		crc        = uint32(0x10203040)
+		compressed = uint64(0x50607080)
+		expanded   = uint64(0x90a0b0c0)
+	)
+	tests := []struct {
+		name      string
+		zip64     bool
+		signature bool
+		wantBytes uint64
+	}{
+		{name: "32-bit without signature", wantBytes: 12},
+		{name: "32-bit with signature", signature: true, wantBytes: 16},
+		{name: "ZIP64 without signature", zip64: true, wantBytes: 20},
+		{name: "ZIP64 with signature", zip64: true, signature: true, wantBytes: 24},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			archive := make([]byte, test.wantBytes)
+			offset := 0
+			if test.signature {
+				binary.LittleEndian.PutUint32(archive[:4], 0x08074b50)
+				offset = 4
+			}
+			binary.LittleEndian.PutUint32(archive[offset:offset+4], crc)
+			offset += 4
+			if test.zip64 {
+				binary.LittleEndian.PutUint64(archive[offset:offset+8], compressed)
+				offset += 8
+				binary.LittleEndian.PutUint64(archive[offset:offset+8], expanded)
+			} else {
+				binary.LittleEndian.PutUint32(archive[offset:offset+4], uint32(compressed))
+				offset += 4
+				binary.LittleEndian.PutUint32(archive[offset:offset+4], uint32(expanded))
+			}
+			got, ok := launchBoxArchiveDataDescriptorBytes(bytes.NewReader(archive), int64(len(archive)), int64(len(archive)), 0, launchBoxArchiveCentralEntry{
+				crc:              crc,
+				compressedSize:   compressed,
+				uncompressedSize: expanded,
+				zip64Sizes:       test.zip64,
+			})
+			if !ok || got != test.wantBytes {
+				t.Fatalf("descriptor extent = %d, %v; want %d, true", got, ok, test.wantBytes)
+			}
 		})
 	}
 }
