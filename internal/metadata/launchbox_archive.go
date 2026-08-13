@@ -639,7 +639,7 @@ func launchBoxArchiveLocalRecordAt(source io.ReaderAt, sourceSize, centralDirect
 			return launchBoxArchiveLocalRecord{}, false
 		}
 	}
-	if localFlags&8 != 0 && end != recordBoundary {
+	if end != recordBoundary {
 		return launchBoxArchiveLocalRecord{}, false
 	}
 	memberBodyOffset, err := member.DataOffset()

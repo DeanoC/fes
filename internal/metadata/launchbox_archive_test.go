@@ -81,6 +81,37 @@ func validLaunchBoxFixtureEntries() []launchBoxFixtureEntry {
 	}
 }
 
+func buildLaunchBoxArchiveWithoutDataDescriptors(t *testing.T, entries []launchBoxFixtureEntry) []byte {
+	t.Helper()
+	var output bytes.Buffer
+	writer := zip.NewWriter(&output)
+	for _, entry := range entries {
+		header := &zip.FileHeader{
+			Name:               entry.name,
+			Method:             entry.method,
+			Flags:              entry.flags,
+			CRC32:              crc32.ChecksumIEEE(entry.body),
+			CompressedSize64:   uint64(len(entry.body)),
+			UncompressedSize64: uint64(len(entry.body)),
+			Extra:              entry.extra,
+		}
+		if entry.mode != 0 {
+			header.SetMode(entry.mode)
+		}
+		member, err := writer.CreateRaw(header)
+		if err != nil {
+			t.Fatalf("create raw ZIP member %q: %v", entry.name, err)
+		}
+		if _, err := member.Write(entry.body); err != nil {
+			t.Fatalf("write raw ZIP member %q: %v", entry.name, err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close raw ZIP writer: %v", err)
+	}
+	return output.Bytes()
+}
+
 func buildLaunchBoxDataDescriptorArchive(t *testing.T, target string, zip64, signed bool) []byte {
 	t.Helper()
 	type record struct {
@@ -1034,7 +1065,7 @@ func TestLaunchBoxArchiveCorruptAndTruncatedMemberFailuresAreClosed(t *testing.T
 }
 
 func TestLaunchBoxArchiveDetectsCorruptMemberWithZeroCentralCRC(t *testing.T) {
-	archive := buildLaunchBoxArchive(t, validLaunchBoxFixtureEntries())
+	archive := buildLaunchBoxArchiveWithoutDataDescriptors(t, validLaunchBoxFixtureEntries())
 	patchLaunchBoxMemberWithoutDataDescriptor(t, archive, "Metadata.xml", 0)
 	admitted, err := openLaunchBoxArchive(bytes.NewReader(archive), int64(len(archive)))
 	if err != nil {
@@ -1133,5 +1164,35 @@ func TestLaunchBoxArchiveAcceptsUnsignedDescriptorWithSignatureValuedCRCAtRecord
 				}
 			})
 		}
+	}
+}
+
+func TestLaunchBoxArchiveRejectsNoDescriptorRecordGapsBeforeExposure(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		member string
+	}{
+		{name: "required member before next local header", member: "Metadata.xml"},
+		{name: "ignored member before next local header", member: "Mame.xml"},
+		{name: "ignored final member before central directory", member: "Files.xml"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			archive := buildLaunchBoxDataDescriptorArchive(t, test.member, false, true)
+			body := map[string][]byte{
+				"Metadata.xml": []byte("metadata"),
+				"Mame.xml":     []byte("mame"),
+				"Files.xml":    []byte("files"),
+			}[test.member]
+			patchLaunchBoxMemberWithoutDataDescriptor(t, archive, test.member, crc32.ChecksumIEEE(body))
+			assertLaunchBoxArchiveInvalid(t, archive)
+		})
+	}
+}
+
+func TestLaunchBoxArchiveAcceptsContiguousNoDescriptorRecords(t *testing.T) {
+	archive := buildLaunchBoxArchiveWithoutDataDescriptors(t, validLaunchBoxFixtureEntries())
+	opened, err := openLaunchBoxArchive(bytes.NewReader(archive), int64(len(archive)))
+	if opened == nil || err != nil {
+		t.Fatalf("contiguous no-descriptor records rejected: archive=%v err=%v", opened, err)
 	}
 }
