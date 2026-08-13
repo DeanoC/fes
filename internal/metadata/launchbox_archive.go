@@ -453,12 +453,29 @@ func validLaunchBoxArchiveLocalRecords(source io.ReaderAt, sourceSize, centralDi
 	if source == nil || sourceSize < 0 || centralDirectoryStart < 0 || centralDirectoryStart > sourceSize || len(entries) == 0 || len(entries) != len(members) {
 		return false
 	}
+	ordered := make([]int, len(entries))
+	for index := range ordered {
+		ordered[index] = index
+	}
+	sort.Slice(ordered, func(left, right int) bool {
+		leftOffset := entries[ordered[left]].localHeaderOffset
+		rightOffset := entries[ordered[right]].localHeaderOffset
+		if leftOffset == rightOffset {
+			return ordered[left] < ordered[right]
+		}
+		return leftOffset < rightOffset
+	})
 	records := make([]launchBoxArchiveLocalRecord, len(entries))
-	for index, entry := range entries {
+	for orderIndex, index := range ordered {
+		entry := entries[index]
 		if !validLaunchBoxArchiveCentralEntry(entry, members[index]) {
 			return false
 		}
-		record, ok := launchBoxArchiveLocalRecordAt(source, sourceSize, centralDirectoryStart, entry, members[index])
+		recordBoundary := uint64(centralDirectoryStart)
+		if orderIndex+1 < len(ordered) {
+			recordBoundary = entries[ordered[orderIndex+1]].localHeaderOffset
+		}
+		record, ok := launchBoxArchiveLocalRecordAt(source, sourceSize, centralDirectoryStart, recordBoundary, entry, members[index])
 		if !ok {
 			return false
 		}
@@ -548,7 +565,7 @@ func launchBoxArchiveContainsLocalHeader(source io.ReaderAt, sourceSize int64, s
 	return false
 }
 
-func launchBoxArchiveLocalRecordAt(source io.ReaderAt, sourceSize, centralDirectoryStart int64, entry launchBoxArchiveCentralEntry, member *zip.File) (launchBoxArchiveLocalRecord, bool) {
+func launchBoxArchiveLocalRecordAt(source io.ReaderAt, sourceSize, centralDirectoryStart int64, recordBoundary uint64, entry launchBoxArchiveCentralEntry, member *zip.File) (launchBoxArchiveLocalRecord, bool) {
 	const localHeaderFixedBytes = 30
 	if source == nil || member == nil || sourceSize < 0 || centralDirectoryStart < 0 || centralDirectoryStart > sourceSize ||
 		entry.localHeaderOffset > uint64(^uint64(0)>>1) {
@@ -557,7 +574,8 @@ func launchBoxArchiveLocalRecordAt(source io.ReaderAt, sourceSize, centralDirect
 	start := entry.localHeaderOffset
 	centralLimit := uint64(centralDirectoryStart)
 	sourceLimit := uint64(sourceSize)
-	if start >= centralLimit || uint64(localHeaderFixedBytes) > centralLimit-start || uint64(localHeaderFixedBytes) > sourceLimit-start {
+	if recordBoundary > centralLimit || recordBoundary > sourceLimit || recordBoundary <= start ||
+		start >= centralLimit || uint64(localHeaderFixedBytes) > centralLimit-start || uint64(localHeaderFixedBytes) > sourceLimit-start {
 		return launchBoxArchiveLocalRecord{}, false
 	}
 
@@ -612,7 +630,7 @@ func launchBoxArchiveLocalRecordAt(source io.ReaderAt, sourceSize, centralDirect
 	}
 	end := dataEnd
 	if localFlags&8 != 0 {
-		descriptorBytes, ok := launchBoxArchiveDataDescriptorBytes(source, sourceSize, centralDirectoryStart, dataEnd, entry)
+		descriptorBytes, ok := launchBoxArchiveDataDescriptorBytesAtBoundary(source, sourceSize, centralDirectoryStart, dataEnd, recordBoundary, entry)
 		if !ok {
 			return launchBoxArchiveLocalRecord{}, false
 		}
@@ -620,6 +638,9 @@ func launchBoxArchiveLocalRecordAt(source io.ReaderAt, sourceSize, centralDirect
 		if !ok || end > centralLimit || end > sourceLimit {
 			return launchBoxArchiveLocalRecord{}, false
 		}
+	}
+	if localFlags&8 != 0 && end != recordBoundary {
+		return launchBoxArchiveLocalRecord{}, false
 	}
 	memberBodyOffset, err := member.DataOffset()
 	if err != nil || memberBodyOffset < 0 || uint64(memberBodyOffset) != bodyOffset {
@@ -667,6 +688,13 @@ func resolveLaunchBoxArchiveLocalSizes(extra []byte, compressedRaw, expandedRaw 
 }
 
 func launchBoxArchiveDataDescriptorBytes(source io.ReaderAt, sourceSize, centralDirectoryStart int64, dataEnd uint64, entry launchBoxArchiveCentralEntry) (uint64, bool) {
+	if centralDirectoryStart < 0 {
+		return 0, false
+	}
+	return launchBoxArchiveDataDescriptorBytesAtBoundary(source, sourceSize, centralDirectoryStart, dataEnd, uint64(centralDirectoryStart), entry)
+}
+
+func launchBoxArchiveDataDescriptorBytesAtBoundary(source io.ReaderAt, sourceSize, centralDirectoryStart int64, dataEnd, recordBoundary uint64, entry launchBoxArchiveCentralEntry) (uint64, bool) {
 	if source == nil || sourceSize < 0 || centralDirectoryStart < 0 || centralDirectoryStart > sourceSize || dataEnd > uint64(centralDirectoryStart) || dataEnd > uint64(sourceSize) {
 		return 0, false
 	}
@@ -683,22 +711,19 @@ func launchBoxArchiveDataDescriptorBytes(source io.ReaderAt, sourceSize, central
 	if entry.zip64Sizes {
 		payloadBytes = descriptor64Bytes
 	}
-	if uint64(centralDirectoryStart)-dataEnd < payloadBytes || uint64(sourceSize)-dataEnd < payloadBytes {
+	if recordBoundary > uint64(centralDirectoryStart) || recordBoundary > uint64(sourceSize) || recordBoundary <= dataEnd {
 		return 0, false
 	}
-
-	var prefix [signatureBytes]byte
-	if _, err := source.ReadAt(prefix[:], int64(dataEnd)); err != nil {
+	if dataEnd > uint64(^uint64(0)>>1) || recordBoundary-dataEnd < payloadBytes {
 		return 0, false
 	}
-	readOffset, ok := checkedLaunchBoxArchiveAdd(dataEnd, signatureBytes)
-	if !ok {
+	availableBytes := recordBoundary - dataEnd
+	if availableBytes != payloadBytes && availableBytes != payloadBytes+signatureBytes {
 		return 0, false
 	}
-	if readOffset > uint64(^uint64(0)>>1) || payloadBytes > uint64(^uint(0)>>1) {
+	if payloadBytes > uint64(^uint(0)>>1) {
 		return 0, false
 	}
-
 	descriptorMatchesEntry := func(payload []byte) bool {
 		if binary.LittleEndian.Uint32(payload[:crcBytes]) != entry.crc {
 			return false
@@ -714,23 +739,27 @@ func launchBoxArchiveDataDescriptorBytes(source io.ReaderAt, sourceSize, central
 		return compressed == entry.compressedSize && expanded == entry.uncompressedSize
 	}
 
-	if binary.LittleEndian.Uint32(prefix[:]) == signature {
-		descriptorBytes, ok := checkedLaunchBoxArchiveAdd(payloadBytes, signatureBytes)
-		if ok && descriptorBytes <= uint64(centralDirectoryStart)-dataEnd && descriptorBytes <= uint64(sourceSize)-dataEnd {
-			payload := make([]byte, int(payloadBytes))
-			if _, err := source.ReadAt(payload, int64(readOffset)); err == nil && descriptorMatchesEntry(payload) {
-				return descriptorBytes, true
-			}
+	if availableBytes == payloadBytes {
+		payload := make([]byte, int(payloadBytes))
+		if _, err := source.ReadAt(payload, int64(dataEnd)); err != nil || !descriptorMatchesEntry(payload) {
+			return 0, false
 		}
+		return payloadBytes, true
 	}
-
+	var prefix [signatureBytes]byte
+	if _, err := source.ReadAt(prefix[:], int64(dataEnd)); err != nil || binary.LittleEndian.Uint32(prefix[:]) != signature {
+		return 0, false
+	}
+	readOffset, ok := checkedLaunchBoxArchiveAdd(dataEnd, signatureBytes)
+	if !ok || readOffset > uint64(^uint64(0)>>1) {
+		return 0, false
+	}
 	payload := make([]byte, int(payloadBytes))
-	copy(payload[:signatureBytes], prefix[:])
-	if _, err := source.ReadAt(payload[signatureBytes:], int64(readOffset)); err != nil {
+	if _, err := source.ReadAt(payload, int64(readOffset)); err != nil {
 		return 0, false
 	}
 	if descriptorMatchesEntry(payload) {
-		return payloadBytes, true
+		return payloadBytes + signatureBytes, true
 	}
 	return 0, false
 }

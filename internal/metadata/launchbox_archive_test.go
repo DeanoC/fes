@@ -1078,3 +1078,60 @@ func TestLaunchBoxArchiveCheckedAdditionRejectsOverflow(t *testing.T) {
 		t.Fatalf("boundary addition = %d, %v", sum, ok)
 	}
 }
+
+func TestLaunchBoxArchiveRejectsMalformedSignedDescriptorUnsignedFallback(t *testing.T) {
+	const descriptorSignature = uint32(0x08074b50)
+	for _, zip64 := range []bool{false, true} {
+		for _, member := range []string{"Metadata.xml", "Mame.xml"} {
+			formName := map[bool]string{false: "32-bit", true: "ZIP64"}[zip64]
+			t.Run(formName+"/"+member, func(t *testing.T) {
+				archive := buildLaunchBoxDataDescriptorArchive(t, member, zip64, true)
+				localOffset := launchBoxArchiveLocalHeaderOffset(t, archive, member)
+				nameLength := int(binary.LittleEndian.Uint16(archive[localOffset+26 : localOffset+28]))
+				extraLength := int(binary.LittleEndian.Uint16(archive[localOffset+28 : localOffset+30]))
+				bodyLength := map[string]int{"Metadata.xml": 8, "Mame.xml": 4}[member]
+				descriptorOffset := localOffset + 30 + nameLength + extraLength + bodyLength
+				if binary.LittleEndian.Uint32(archive[descriptorOffset:descriptorOffset+4]) != descriptorSignature {
+					t.Fatalf("signed descriptor missing at %d", descriptorOffset)
+				}
+				centralOffset := launchBoxArchiveCentralEntryOffset(t, archive, member)
+				binary.LittleEndian.PutUint32(archive[centralOffset+16:centralOffset+20], descriptorSignature)
+				binary.LittleEndian.PutUint32(archive[descriptorOffset+4:descriptorOffset+8], uint32(bodyLength))
+				if zip64 {
+					binary.LittleEndian.PutUint32(archive[descriptorOffset+8:descriptorOffset+12], 0)
+					binary.LittleEndian.PutUint32(archive[descriptorOffset+12:descriptorOffset+16], uint32(bodyLength))
+					binary.LittleEndian.PutUint32(archive[descriptorOffset+16:descriptorOffset+20], 0)
+					binary.LittleEndian.PutUint32(archive[descriptorOffset+20:descriptorOffset+24], uint32(bodyLength+1))
+				} else {
+					binary.LittleEndian.PutUint32(archive[descriptorOffset+8:descriptorOffset+12], uint32(bodyLength))
+					binary.LittleEndian.PutUint32(archive[descriptorOffset+12:descriptorOffset+16], uint32(bodyLength+1))
+				}
+				assertLaunchBoxArchiveInvalid(t, archive)
+			})
+		}
+	}
+}
+
+func TestLaunchBoxArchiveAcceptsUnsignedDescriptorWithSignatureValuedCRCAtRecordBoundary(t *testing.T) {
+	const descriptorSignature = uint32(0x08074b50)
+	for _, zip64 := range []bool{false, true} {
+		for _, member := range []string{"Metadata.xml", "Mame.xml"} {
+			formName := map[bool]string{false: "32-bit", true: "ZIP64"}[zip64]
+			t.Run(formName+"/"+member, func(t *testing.T) {
+				archive := buildLaunchBoxDataDescriptorArchive(t, member, zip64, false)
+				localOffset := launchBoxArchiveLocalHeaderOffset(t, archive, member)
+				nameLength := int(binary.LittleEndian.Uint16(archive[localOffset+26 : localOffset+28]))
+				extraLength := int(binary.LittleEndian.Uint16(archive[localOffset+28 : localOffset+30]))
+				bodyLength := map[string]int{"Metadata.xml": 8, "Mame.xml": 4}[member]
+				descriptorOffset := localOffset + 30 + nameLength + extraLength + bodyLength
+				binary.LittleEndian.PutUint32(archive[descriptorOffset:descriptorOffset+4], descriptorSignature)
+				centralOffset := launchBoxArchiveCentralEntryOffset(t, archive, member)
+				binary.LittleEndian.PutUint32(archive[centralOffset+16:centralOffset+20], descriptorSignature)
+				opened, err := openLaunchBoxArchive(bytes.NewReader(archive), int64(len(archive)))
+				if opened == nil || err != nil {
+					t.Fatalf("unsigned signature-valued descriptor rejected: archive=%v err=%v", opened, err)
+				}
+			})
+		}
+	}
+}
