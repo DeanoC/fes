@@ -3,6 +3,8 @@ package metadata
 import (
 	"errors"
 	"io"
+	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -29,8 +31,8 @@ func TestFramedXMLReaderTracksRejectedFrameWithoutEmittingItsPrefix(t *testing.T
 	if reader.offendingFrameBytes != launchBoxXMLMaxTextBytes+1 {
 		t.Fatalf("unexpected offending frame size: %d", reader.offendingFrameBytes)
 	}
-	if reader.frameHighWater != launchBoxXMLMaxTextBytes+1 {
-		t.Fatalf("rejected frame was omitted from high-water accounting: %d", reader.frameHighWater)
+	if reader.frameHighWater != launchBoxXMLMaxTextBytes {
+		t.Fatalf("unexpected actual buffered high-water: %d", reader.frameHighWater)
 	}
 }
 
@@ -125,20 +127,30 @@ func (t *testLaunchBoxRecordTable) beginLaunchBoxBatch() (launchBoxRecordBatch, 
 }
 
 type testLaunchBoxRecordBatch struct {
-	observed  []launchBoxRecord
-	staged    []launchBoxRecord
-	committed []launchBoxRecord
-	events    []string
-	failures  map[string]error
-	completed map[string]bool
-	validated bool
-	aborted   bool
+	observed       []launchBoxRecord
+	staged         []launchBoxRecord
+	committed      []launchBoxRecord
+	events         []string
+	failures       map[string]error
+	completed      map[string]bool
+	validated      bool
+	flushed        bool
+	committedState bool
+	aborted        bool
+
+	rawAliasCount        int
+	normalizedAliasCount int
+	canonicalAliasCount  int
+	blankAliasCount      int
+	duplicateAliasCount  int
+	matcherAliases       map[string][]string
 }
 
 func newTestLaunchBoxRecordBatch() *testLaunchBoxRecordBatch {
 	return &testLaunchBoxRecordBatch{
-		failures:  make(map[string]error),
-		completed: make(map[string]bool),
+		failures:       make(map[string]error),
+		completed:      make(map[string]bool),
+		matcherAliases: make(map[string][]string),
 	}
 }
 
@@ -151,6 +163,12 @@ func (b *testLaunchBoxRecordBatch) putLaunchBoxRecord(record launchBoxRecord) er
 	if err := b.failure("put"); err != nil {
 		return err
 	}
+	if b.aborted || b.committedState {
+		return errors.New("test batch is closed")
+	}
+	if b.completed[record.member] {
+		return errors.New("test batch member is already complete")
+	}
 	b.observed = append(b.observed, record)
 	return nil
 }
@@ -159,6 +177,12 @@ func (b *testLaunchBoxRecordBatch) completeLaunchBoxMember(member string) error 
 	b.events = append(b.events, "complete:"+member)
 	if err := b.failure("complete:" + member); err != nil {
 		return err
+	}
+	if member != "Metadata.xml" && member != "Platforms.xml" {
+		return errors.New("test batch member is invalid")
+	}
+	if b.aborted || b.committedState {
+		return errors.New("test batch is closed")
 	}
 	if b.completed[member] {
 		return errors.New("test batch member completed twice")
@@ -172,6 +196,9 @@ func (b *testLaunchBoxRecordBatch) validateLaunchBoxBatch() error {
 	if err := b.failure("validate"); err != nil {
 		return err
 	}
+	if b.aborted || b.committedState || b.validated {
+		return errors.New("test batch validation state is invalid")
+	}
 	if !b.completed["Metadata.xml"] || !b.completed["Platforms.xml"] {
 		return errors.New("test batch requires both members")
 	}
@@ -184,7 +211,8 @@ func (b *testLaunchBoxRecordBatch) validateLaunchBoxBatch() error {
 		"Platforms.xml": {platforms: make(map[string]struct{}), aliases: make(map[string]struct{})},
 	}
 	games := make(map[string]launchBoxRecord)
-	aliases := make(map[string]struct{})
+	rawAliases := make(map[string]struct{})
+	normalizedAliases := make(map[string]struct{})
 	images := make(map[string]struct{})
 	aliasPerGame := make(map[string]int)
 	imagePerGame := make(map[string]int)
@@ -201,11 +229,19 @@ func (b *testLaunchBoxRecordBatch) validateLaunchBoxBatch() error {
 			if aliasPerGame[record.alias.databaseID] > launchBoxXMLMaxAliasesPerGame {
 				return errors.New("test batch alias per-game limit exceeded")
 			}
-			key := record.alias.databaseID + "\x00" + record.alias.alternateName + "\x00" + record.alias.region
-			if _, exists := aliases[key]; exists {
+			b.rawAliasCount++
+			rawKey := record.alias.databaseID + "\x00" + record.alias.alternateName + "\x00" + record.alias.region
+			if _, exists := rawAliases[rawKey]; exists {
 				return errors.New("test batch duplicate alias tuple")
 			}
-			aliases[key] = struct{}{}
+			rawAliases[rawKey] = struct{}{}
+			canonicalKey := record.alias.databaseID + "\x00" + xmlBoundaryTrim(record.alias.alternateName) + "\x00" + xmlBoundaryTrim(record.alias.region)
+			if _, exists := normalizedAliases[canonicalKey]; exists {
+				b.duplicateAliasCount++
+			} else {
+				normalizedAliases[canonicalKey] = struct{}{}
+			}
+			b.normalizedAliasCount = len(normalizedAliases)
 		case "GameImage":
 			imagePerGame[record.image.databaseID]++
 			if imagePerGame[record.image.databaseID] > launchBoxXMLMaxImagesPerGame {
@@ -237,7 +273,7 @@ func (b *testLaunchBoxRecordBatch) validateLaunchBoxBatch() error {
 			sets[record.member].aliases[key] = struct{}{}
 		}
 	}
-	for key := range aliases {
+	for key := range rawAliases {
 		databaseID := strings.SplitN(key, "\x00", 2)[0]
 		if _, exists := games[databaseID]; !exists {
 			return errors.New("test batch alias references unknown Game")
@@ -281,28 +317,59 @@ func (b *testLaunchBoxRecordBatch) flushLaunchBoxBatch() error {
 	if err := b.failure("flush"); err != nil {
 		return err
 	}
+	if b.aborted || b.committedState || b.flushed {
+		return errors.New("test batch flush state is invalid")
+	}
 	if !b.validated {
 		return errors.New("test batch was not validated")
 	}
 	games := make(map[string]string)
-	seenAliases := make(map[string]struct{})
 	for _, record := range b.observed {
 		if record.family == "Game" {
 			games[record.game.databaseID] = xmlBoundaryTrim(record.game.platform)
 		}
 	}
+	type canonicalAlias struct {
+		databaseID    string
+		numericID     uint64
+		alternateName string
+		region        string
+	}
+	canonicalAliases := make(map[string]canonicalAlias)
+	blankAliases := make(map[string]struct{})
+	aliasInsertAt := -1
 	for _, record := range b.observed {
 		flush := false
 		switch record.family {
 		case "Game":
 			flush = supportedTestLaunchBoxPlatform(record.game.platform)
 		case "GameAlternateName":
-			canonical := record.alias.databaseID + "\x00" + xmlBoundaryTrim(record.alias.alternateName) + "\x00" + xmlBoundaryTrim(record.alias.region)
-			if _, exists := seenAliases[canonical]; exists {
+			if aliasInsertAt < 0 {
+				aliasInsertAt = len(b.staged)
+			}
+			alternateName := xmlBoundaryTrim(record.alias.alternateName)
+			region := xmlBoundaryTrim(record.alias.region)
+			if alternateName == "" {
+				blankKey := record.alias.databaseID + "\x00" + region
+				if _, exists := blankAliases[blankKey]; !exists {
+					blankAliases[blankKey] = struct{}{}
+					b.blankAliasCount++
+				}
 				continue
 			}
-			seenAliases[canonical] = struct{}{}
-			flush = supportedTestLaunchBoxPlatform(games[record.alias.databaseID]) && xmlBoundaryTrim(record.alias.alternateName) != ""
+			if !supportedTestLaunchBoxPlatform(games[record.alias.databaseID]) {
+				continue
+			}
+			numericID, err := strconv.ParseUint(record.alias.databaseID, 10, 64)
+			if err != nil {
+				return errors.New("test batch alias DatabaseID is not numeric")
+			}
+			canonical := record.alias.databaseID + "\x00" + alternateName + "\x00" + region
+			if _, exists := canonicalAliases[canonical]; exists {
+				continue
+			}
+			canonicalAliases[canonical] = canonicalAlias{databaseID: record.alias.databaseID, numericID: numericID, alternateName: alternateName, region: region}
+			continue
 		case "GameImage":
 			flush = supportedTestLaunchBoxPlatform(games[record.image.databaseID])
 		case "Platform", "PlatformAlternateName":
@@ -312,6 +379,53 @@ func (b *testLaunchBoxRecordBatch) flushLaunchBoxBatch() error {
 			b.staged = append(b.staged, record)
 		}
 	}
+	rows := make([]canonicalAlias, 0, len(canonicalAliases))
+	for _, row := range canonicalAliases {
+		rows = append(rows, row)
+	}
+	sort.Slice(rows, func(left, right int) bool {
+		if rows[left].numericID != rows[right].numericID {
+			return rows[left].numericID < rows[right].numericID
+		}
+		if rows[left].alternateName != rows[right].alternateName {
+			return rows[left].alternateName < rows[right].alternateName
+		}
+		return rows[left].region < rows[right].region
+	})
+	b.canonicalAliasCount = len(rows)
+	canonicalRows := make([]launchBoxRecord, 0, len(rows))
+	matcherSeen := make(map[string]map[string]struct{})
+	for _, row := range rows {
+		matcherName, err := NormalizeTitle(row.alternateName)
+		if err != nil {
+			return errors.New("test batch alias cannot be normalized for matching")
+		}
+		canonicalRows = append(canonicalRows, launchBoxRecord{
+			member: "Metadata.xml",
+			family: "GameAlternateName",
+			alias:  launchBoxAliasRecord{databaseID: row.databaseID, alternateName: row.alternateName, region: row.region},
+		})
+		seenGames := matcherSeen[matcherName]
+		if seenGames == nil {
+			seenGames = make(map[string]struct{})
+			matcherSeen[matcherName] = seenGames
+		}
+		if _, exists := seenGames[row.databaseID]; !exists {
+			seenGames[row.databaseID] = struct{}{}
+			b.matcherAliases[matcherName] = append(b.matcherAliases[matcherName], row.databaseID)
+		}
+	}
+	if len(canonicalRows) > 0 {
+		if aliasInsertAt < 0 || aliasInsertAt > len(b.staged) {
+			aliasInsertAt = len(b.staged)
+		}
+		staged := make([]launchBoxRecord, 0, len(b.staged)+len(canonicalRows))
+		staged = append(staged, b.staged[:aliasInsertAt]...)
+		staged = append(staged, canonicalRows...)
+		staged = append(staged, b.staged[aliasInsertAt:]...)
+		b.staged = staged
+	}
+	b.flushed = true
 	return nil
 }
 
@@ -325,11 +439,18 @@ func (b *testLaunchBoxRecordBatch) commitLaunchBoxBatch() error {
 	if err := b.failure("commit"); err != nil {
 		return err
 	}
+	if b.aborted || b.committedState || !b.flushed {
+		return errors.New("test batch commit state is invalid")
+	}
 	b.committed = append([]launchBoxRecord(nil), b.staged...)
+	b.committedState = true
 	return nil
 }
 
 func (b *testLaunchBoxRecordBatch) abortLaunchBoxBatch() error {
+	if b.aborted {
+		return errors.New("test batch already aborted")
+	}
 	b.events = append(b.events, "abort")
 	b.aborted = true
 	b.staged = nil
@@ -367,6 +488,93 @@ func TestParseLaunchBoxXMLMembersRunsOneAtomicLifecycle(t *testing.T) {
 	}
 	if table.batch.committed[0].family != "Game" || table.batch.committed[1].family != "GameAlternateName" || table.batch.committed[2].family != "GameImage" || table.batch.committed[3].family != "Platform" || table.batch.committed[3].member != "Platforms.xml" {
 		t.Fatalf("mirror rows or unsupported authority were published: %+v", table.batch.committed)
+	}
+}
+
+func TestParseLaunchBoxXMLMembersFlushesCanonicalAliasesInStableOrder(t *testing.T) {
+	const platform = "Super Nintendo Entertainment System"
+	platforms := `<?xml version="1.0" standalone="yes"?><LaunchBox><Platform><Name>` + platform + `</Name></Platform></LaunchBox>`
+	type aliasInput struct{ databaseID, name, region string }
+	metadataFor := func(aliases []aliasInput) string {
+		var builder strings.Builder
+		builder.WriteString(`<?xml version="1.0" standalone="yes"?><LaunchBox><Platform><Name>` + platform + `</Name></Platform>`)
+		builder.WriteString(`<Game><DatabaseID>10</DatabaseID><Name>Ten</Name><Platform>` + platform + `</Platform></Game>`)
+		builder.WriteString(`<Game><DatabaseID>2</DatabaseID><Name>Two</Name><Platform>` + platform + `</Platform></Game>`)
+		for _, alias := range aliases {
+			builder.WriteString(`<GameAlternateName><DatabaseID>` + alias.databaseID + `</DatabaseID><AlternateName xml:space="preserve">` + alias.name + `</AlternateName><Region>` + alias.region + `</Region></GameAlternateName>`)
+		}
+		builder.WriteString(`</LaunchBox>`)
+		return builder.String()
+	}
+	parseAliases := func(metadata string) ([]string, *testLaunchBoxRecordBatch) {
+		t.Helper()
+		batch := newTestLaunchBoxRecordBatch()
+		table := &testLaunchBoxRecordTable{batch: batch}
+		if _, err := parseLaunchBoxXMLMembers(strings.NewReader(metadata), strings.NewReader(platforms), table); err != nil {
+			t.Fatalf("parse snapshot: %v", err)
+		}
+		var got []string
+		for _, record := range batch.committed {
+			if record.family == "GameAlternateName" {
+				got = append(got, record.alias.databaseID+"\x00"+record.alias.alternateName+"\x00"+record.alias.region)
+			}
+		}
+		return got, batch
+	}
+	forward, forwardBatch := parseAliases(metadataFor([]aliasInput{
+		{databaseID: "10", name: " Zulu ", region: " World "},
+		{databaseID: "2", name: " Alpha ", region: " World "},
+		{databaseID: "2", name: "Alpha", region: "World"},
+		{databaseID: "2", name: "", region: "Japan"},
+		{databaseID: "10", name: "Same", region: "US"},
+		{databaseID: "2", name: "Same", region: "US"},
+		{databaseID: "2", name: "Same", region: "Japan"},
+		{databaseID: "2", name: " SAME ", region: "EU"},
+	}))
+	reverse, _ := parseAliases(metadataFor([]aliasInput{
+		{databaseID: "2", name: "Same", region: "US"},
+		{databaseID: "10", name: "Same", region: "US"},
+		{databaseID: "2", name: "Alpha", region: "World"},
+		{databaseID: "2", name: " Alpha ", region: " World "},
+		{databaseID: "10", name: " Zulu ", region: " World "},
+		{databaseID: "2", name: "", region: "Japan"},
+		{databaseID: "2", name: "Same", region: "Japan"},
+		{databaseID: "2", name: " SAME ", region: "EU"},
+	}))
+	want := []string{"2\x00Alpha\x00World", "2\x00SAME\x00EU", "2\x00Same\x00Japan", "2\x00Same\x00US", "10\x00Same\x00US", "10\x00Zulu\x00World"}
+	if !reflect.DeepEqual(forward, want) {
+		t.Fatalf("unexpected canonical aliases: got=%q want=%q", forward, want)
+	}
+	if !reflect.DeepEqual(reverse, want) || !reflect.DeepEqual(forward, reverse) {
+		t.Fatalf("alias output changed with source order: forward=%q reverse=%q", forward, reverse)
+	}
+	if forwardBatch.rawAliasCount != 8 || forwardBatch.normalizedAliasCount != 7 || forwardBatch.canonicalAliasCount != 6 || forwardBatch.blankAliasCount != 1 || forwardBatch.duplicateAliasCount != 1 {
+		t.Fatalf("unexpected alias reconciliation counts: raw=%d normalized=%d canonical=%d blank=%d duplicate=%d", forwardBatch.rawAliasCount, forwardBatch.normalizedAliasCount, forwardBatch.canonicalAliasCount, forwardBatch.blankAliasCount, forwardBatch.duplicateAliasCount)
+	}
+	if got := forwardBatch.matcherAliases["same"]; !reflect.DeepEqual(got, []string{"2", "10"}) {
+		t.Fatalf("normalized same alias did not preserve ambiguity/provenance across games and regions: %q", got)
+	}
+	decision, err := MatchCandidates(LookupInput{Title: "same", System: "megadrive"}, "megadrive", []Candidate{
+		{ProviderID: "2", Name: "Two", AlternativeNames: []string{"Same"}, PlatformIDs: []string{"megadrive"}},
+		{ProviderID: "10", Name: "Ten", AlternativeNames: []string{"Same"}, PlatformIDs: []string{"megadrive"}},
+	})
+	if err != nil || decision.Outcome != OutcomeAmbiguous {
+		t.Fatalf("same alias across games was not ambiguous: decision=%+v err=%v", decision, err)
+	}
+}
+
+func TestParseLaunchBoxXMLMembersRejectsExactRawAliasRepetitionBeforeTrim(t *testing.T) {
+	metadata := `<?xml version="1.0" standalone="yes"?><LaunchBox><Game><DatabaseID>1</DatabaseID><Name>One</Name><Platform>Super Nintendo Entertainment System</Platform></Game>` +
+		`<GameAlternateName><DatabaseID>1</DatabaseID><AlternateName xml:space="preserve">Alias</AlternateName><Region>US</Region></GameAlternateName>` +
+		`<GameAlternateName><DatabaseID>1</DatabaseID><AlternateName xml:space="preserve">Alias</AlternateName><Region>US</Region></GameAlternateName></LaunchBox>`
+	platforms := `<?xml version="1.0" standalone="yes"?><LaunchBox><Platform><Name>Super Nintendo Entertainment System</Name></Platform></LaunchBox>`
+	batch := newTestLaunchBoxRecordBatch()
+	table := &testLaunchBoxRecordTable{batch: batch}
+	if _, err := parseLaunchBoxXMLMembers(strings.NewReader(metadata), strings.NewReader(platforms), table); err == nil {
+		t.Fatal("exact raw alias repetition was accepted")
+	}
+	if countTestLaunchBoxEvent(batch.events, "abort") != 1 || len(batch.committed) != 0 {
+		t.Fatalf("raw alias repetition was not atomic: events=%v committed=%d", batch.events, len(batch.committed))
 	}
 }
 
@@ -448,6 +656,41 @@ func TestParseLaunchBoxXMLMembersFailureAbortsExactlyOnce(t *testing.T) {
 			t.Fatal("begin failure attempted an abort without a batch")
 		}
 	})
+}
+
+func TestTestLaunchBoxBatchRejectsInvalidLifecycleState(t *testing.T) {
+	batch := newTestLaunchBoxRecordBatch()
+	if err := batch.completeLaunchBoxMember("Metadata.xml"); err != nil {
+		t.Fatalf("first member completion rejected: %v", err)
+	}
+	if err := batch.completeLaunchBoxMember("Metadata.xml"); err == nil {
+		t.Fatal("duplicate member completion accepted")
+	}
+	if err := batch.completeLaunchBoxMember("invalid.xml"); err == nil {
+		t.Fatal("invalid member completion accepted")
+	}
+	if err := batch.putLaunchBoxRecord(launchBoxRecord{member: "Metadata.xml", family: "Game"}); err == nil {
+		t.Fatal("Put-after-complete accepted")
+	}
+	if err := batch.abortLaunchBoxBatch(); err != nil {
+		t.Fatalf("first abort rejected: %v", err)
+	}
+	if err := batch.abortLaunchBoxBatch(); err == nil {
+		t.Fatal("duplicate abort accepted")
+	}
+}
+
+func TestParseLaunchBoxXMLMembersSecondMemberErrorAbortsWithoutPartialCommit(t *testing.T) {
+	metadata := `<?xml version="1.0" standalone="yes"?><LaunchBox><Platform><Name>Super Nintendo Entertainment System</Name></Platform></LaunchBox>`
+	platforms := `<?xml version="1.0" standalone="yes"?><LaunchBox><Platform><Name>`
+	batch := newTestLaunchBoxRecordBatch()
+	table := &testLaunchBoxRecordTable{batch: batch}
+	if _, err := parseLaunchBoxXMLMembers(strings.NewReader(metadata), strings.NewReader(platforms), table); err == nil {
+		t.Fatal("truncated second member accepted")
+	}
+	if countTestLaunchBoxEvent(batch.events, "complete:Metadata.xml") != 1 || countTestLaunchBoxEvent(batch.events, "abort") != 1 || len(batch.committed) != 0 {
+		t.Fatalf("second-member error published partial state: events=%v committed=%d", batch.events, len(batch.committed))
+	}
 }
 
 func TestParseLaunchBoxXMLMembersJoinsAbortFailureWithoutSourceData(t *testing.T) {

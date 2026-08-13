@@ -119,7 +119,8 @@ func (r *framedXMLReader) Read(dst []byte) (int, error) {
 		r.pending = frame
 	}
 	if int64(len(r.pending)) > int64(launchBoxXMLMaxMemberBytes)-r.memberBytes {
-		r.rejectFrame(len(r.pending))
+		r.offendingFrameBytes = len(r.pending)
+		r.noteFrameHighWater(len(r.pending))
 		return 0, errors.New("launchbox XML member bytes exceed bound")
 	}
 	n := copy(dst, r.pending)
@@ -567,10 +568,20 @@ func (r *framedXMLReader) finishFrame(frame []byte) []byte {
 	return frame
 }
 
-func (r *framedXMLReader) rejectFrame(size int) {
-	r.offendingFrameBytes = size
+func (r *framedXMLReader) noteFrameHighWater(size int) {
 	if size > r.frameHighWater {
 		r.frameHighWater = size
+	}
+}
+
+func (r *framedXMLReader) rejectFrame(size int) {
+	r.offendingFrameBytes = size
+	// Lexical callers pass the attempted size (the buffered frame plus the
+	// rejected next byte). Keep the actual buffer high-water separate from
+	// that observation; the member-byte caller records its complete frame
+	// directly because it has no attempted extra byte.
+	if size > 0 {
+		r.noteFrameHighWater(size - 1)
 	}
 }
 
