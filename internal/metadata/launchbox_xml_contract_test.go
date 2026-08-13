@@ -282,6 +282,12 @@ func TestFramedXMLReaderRejectsNameAndAttributeMaximumPlusOneBeforeEmission(t *t
 			if overReader.emittedBytes != int64(len(prefix)) {
 				t.Fatalf("offending frame prefix was emitted: got=%d want=%d", overReader.emittedBytes, len(prefix))
 			}
+			if overReader.frameHighWater < len(testCase.over) {
+				t.Fatalf("semantic failure under-reported actual frame bytes: got=%d want-at-least=%d", overReader.frameHighWater, len(testCase.over))
+			}
+			if overReader.offendingFrameBytes != 0 {
+				t.Fatalf("semantic failure conflated an attempted unbuffered byte: %d", overReader.offendingFrameBytes)
+			}
 		})
 	}
 }
@@ -302,6 +308,12 @@ func TestFramedXMLReaderAcceptsAndRejectsEntityReferenceMaximum(t *testing.T) {
 	}
 	if reader.emittedBytes != int64(len(prefix)) {
 		t.Fatalf("offending entity frame prefix was emitted: got=%d want=%d", reader.emittedBytes, len(prefix))
+	}
+	if reader.frameHighWater < len(overEntity) {
+		t.Fatalf("entity semantic failure under-reported actual frame bytes: got=%d want-at-least=%d", reader.frameHighWater, len(overEntity))
+	}
+	if reader.offendingFrameBytes != 0 {
+		t.Fatalf("entity semantic failure conflated an attempted unbuffered byte: %d", reader.offendingFrameBytes)
 	}
 }
 
@@ -325,6 +337,117 @@ func TestFramedXMLReaderRejectsMalformedAndTruncatedHostileFrames(t *testing.T) 
 		t.Run(name, func(t *testing.T) {
 			if _, err := launchBoxReadFramed([]byte(input), 1); err == nil {
 				t.Fatal("hostile malformed or truncated frame was accepted")
+			}
+		})
+	}
+}
+
+func TestFramedXMLReaderTracksRejectedSemanticAndTruncatedFrameBytes(t *testing.T) {
+	declaration := launchBoxFramingDeclaration()
+	cases := []struct {
+		name        string
+		prefix      string
+		frame       string
+		suffix      string
+		wantAtLeast int
+	}{
+		{
+			name:        "attribute maximum plus one",
+			prefix:      declaration + `<LaunchBox>`,
+			frame:       `<N a="` + strings.Repeat("x", launchBoxXMLMaxAttributeBytes+1) + `"/>`,
+			suffix:      `</LaunchBox>`,
+			wantAtLeast: len(`<N a="`) + launchBoxXMLMaxAttributeBytes + 1 + len(`"/>`),
+		},
+		{
+			name:        "name maximum plus one",
+			prefix:      declaration + `<LaunchBox>`,
+			frame:       `<` + strings.Repeat("N", launchBoxXMLMaxNameBytes+1) + `/>`,
+			suffix:      `</LaunchBox>`,
+			wantAtLeast: 1 + launchBoxXMLMaxNameBytes + 1 + len(`/>`),
+		},
+		{
+			name:        "entity maximum plus one",
+			prefix:      declaration + `<LaunchBox><N>`,
+			frame:       launchBoxValidMaxEntity(launchBoxXMLMaxEntityBytes + 1),
+			suffix:      `</N></LaunchBox>`,
+			wantAtLeast: len(launchBoxValidMaxEntity(launchBoxXMLMaxEntityBytes + 1)),
+		},
+		{
+			name:        "unterminated entity",
+			prefix:      declaration + `<LaunchBox><N>`,
+			frame:       `&amp`,
+			suffix:      `</N></LaunchBox>`,
+			wantAtLeast: len(`&amp`),
+		},
+		{
+			name:        "malformed comment payload",
+			prefix:      declaration + `<LaunchBox>`,
+			frame:       `<!--a--b-->`,
+			suffix:      `</LaunchBox>`,
+			wantAtLeast: len(`<!--a--b-->`),
+		},
+		{
+			name:        "truncated comment",
+			prefix:      declaration + `<LaunchBox>`,
+			frame:       `<!--` + strings.Repeat("x", 4096),
+			wantAtLeast: 4100,
+		},
+		{
+			name:        "truncated start tag",
+			prefix:      declaration + `<LaunchBox>`,
+			frame:       `<N a="` + strings.Repeat("x", 128),
+			wantAtLeast: len(`<N a="`) + 128,
+		},
+		{
+			name:        "truncated end tag",
+			prefix:      declaration + `<LaunchBox>`,
+			frame:       `</LaunchBox`,
+			wantAtLeast: len(`</LaunchBox`),
+		},
+	}
+
+	for _, testCase := range cases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			for _, mode := range []struct {
+				name  string
+				chunk int
+			}{
+				{name: "one-byte", chunk: 1},
+				{name: "32KiB", chunk: 32 * 1024},
+			} {
+				t.Run(mode.name, func(t *testing.T) {
+					input := []byte(testCase.prefix + testCase.frame + testCase.suffix)
+					reader, err := launchBoxReadFramed(input, mode.chunk)
+					if err == nil {
+						t.Fatal("hostile frame was accepted")
+					}
+					if reader.emittedBytes != int64(len(testCase.prefix)) {
+						t.Fatalf("offending frame bytes were emitted: got=%d want=%d", reader.emittedBytes, len(testCase.prefix))
+					}
+					if reader.frameHighWater < testCase.wantAtLeast {
+						t.Fatalf("frame high-water under-reports actual buffered bytes: got=%d want-at-least=%d", reader.frameHighWater, testCase.wantAtLeast)
+					}
+					if reader.offendingFrameBytes != 0 {
+						t.Fatalf("semantic/truncation failure conflated an attempted unbuffered byte: %d", reader.offendingFrameBytes)
+					}
+				})
+			}
+
+			for _, split := range launchBoxDelimiterSplits(testCase.prefix, testCase.frame) {
+				reader, err := launchBoxReadFramedAtSplit([]byte(testCase.prefix+testCase.frame+testCase.suffix), split)
+				if err == nil {
+					t.Fatalf("delimiter split %d accepted hostile frame", split)
+				}
+				if reader.emittedBytes != int64(len(testCase.prefix)) {
+					t.Fatalf("delimiter split %d emitted offending frame bytes: got=%d want=%d", split, reader.emittedBytes, len(testCase.prefix))
+				}
+				if reader.frameHighWater < testCase.wantAtLeast {
+					t.Fatalf("delimiter split %d under-reported actual buffered bytes: got=%d want-at-least=%d", split, reader.frameHighWater, testCase.wantAtLeast)
+				}
+				if reader.offendingFrameBytes != 0 {
+					t.Fatalf("delimiter split %d conflated an attempted unbuffered byte: %d", split, reader.offendingFrameBytes)
+				}
 			}
 		})
 	}

@@ -158,6 +158,7 @@ func (r *framedXMLReader) nextFrame() ([]byte, error) {
 
 func (r *framedXMLReader) readText(first byte) ([]byte, error) {
 	frame := []byte{first}
+	defer func() { r.noteFrameHighWater(len(frame)) }()
 	for {
 		b, err := r.reader.ReadByte()
 		if err == io.EOF {
@@ -203,11 +204,13 @@ func (r *framedXMLReader) validateTextFrame(frame []byte) error {
 }
 
 func (r *framedXMLReader) readMarkup(first byte) ([]byte, error) {
+	frame := []byte{first}
+	defer func() { r.noteFrameHighWater(len(frame)) }()
 	second, err := r.reader.ReadByte()
 	if err != nil {
 		return nil, errors.New("launchbox XML has an unterminated markup frame")
 	}
-	frame := []byte{first, second}
+	frame = append(frame, second)
 	if !r.declarationSeen && second != '?' {
 		return nil, errors.New("launchbox XML has bytes before its declaration")
 	}
@@ -238,6 +241,7 @@ func (r *framedXMLReader) readMarkup(first byte) ([]byte, error) {
 }
 
 func (r *framedXMLReader) readProcessingInstruction(frame []byte) ([]byte, error) {
+	defer func() { r.noteFrameHighWater(len(frame)) }()
 	for {
 		b, err := r.reader.ReadByte()
 		if err != nil {
@@ -263,6 +267,7 @@ func (r *framedXMLReader) readProcessingInstruction(frame []byte) ([]byte, error
 }
 
 func (r *framedXMLReader) readBang(frame []byte) ([]byte, error) {
+	defer func() { r.noteFrameHighWater(len(frame)) }()
 	if r.rootComplete {
 		return r.readTrailingComment(frame)
 	}
@@ -298,7 +303,7 @@ func (r *framedXMLReader) readBang(frame []byte) ([]byte, error) {
 	}
 	if third == '-' {
 		fourth, err := r.reader.ReadByte()
-		if err != nil || fourth != '-' {
+		if err != nil {
 			return nil, errors.New("launchbox XML comment opener is invalid")
 		}
 		if len(frame) >= launchBoxXMLMaxCommentFrameBytes {
@@ -306,25 +311,37 @@ func (r *framedXMLReader) readBang(frame []byte) ([]byte, error) {
 			return nil, errors.New("launchbox XML comment frame exceeds bound")
 		}
 		frame = append(frame, fourth)
+		if fourth != '-' {
+			return nil, errors.New("launchbox XML comment opener is invalid")
+		}
 		return r.readComment(frame)
 	}
 	return nil, errors.New("launchbox XML directives and DTD are not allowed")
 }
 
 func (r *framedXMLReader) readTrailingComment(frame []byte) ([]byte, error) {
+	defer func() { r.noteFrameHighWater(len(frame)) }()
 	third, err := r.reader.ReadByte()
-	if err != nil || third != '-' {
+	if err != nil {
+		return nil, errors.New("launchbox XML trailing markup is not a comment")
+	}
+	frame = append(frame, third)
+	if third != '-' {
 		return nil, errors.New("launchbox XML trailing markup is not a comment")
 	}
 	fourth, err := r.reader.ReadByte()
-	if err != nil || fourth != '-' {
+	if err != nil {
 		return nil, errors.New("launchbox XML trailing comment opener is invalid")
 	}
-	frame = append(frame, third, fourth)
+	frame = append(frame, fourth)
+	if fourth != '-' {
+		return nil, errors.New("launchbox XML trailing comment opener is invalid")
+	}
 	return r.readComment(frame)
 }
 
 func (r *framedXMLReader) readCDATA(frame []byte) ([]byte, error) {
+	defer func() { r.noteFrameHighWater(len(frame)) }()
 	for {
 		b, err := r.reader.ReadByte()
 		if err != nil {
@@ -346,6 +363,7 @@ func (r *framedXMLReader) readCDATA(frame []byte) ([]byte, error) {
 }
 
 func (r *framedXMLReader) readComment(frame []byte) ([]byte, error) {
+	defer func() { r.noteFrameHighWater(len(frame)) }()
 	for {
 		b, err := r.reader.ReadByte()
 		if err != nil {
@@ -367,6 +385,7 @@ func (r *framedXMLReader) readComment(frame []byte) ([]byte, error) {
 }
 
 func (r *framedXMLReader) readEndTag(frame []byte) ([]byte, error) {
+	defer func() { r.noteFrameHighWater(len(frame)) }()
 	for {
 		b, err := r.reader.ReadByte()
 		if err != nil {
@@ -404,6 +423,7 @@ func (r *framedXMLReader) readEndTag(frame []byte) ([]byte, error) {
 }
 
 func (r *framedXMLReader) readStartTag(frame []byte) ([]byte, error) {
+	defer func() { r.noteFrameHighWater(len(frame)) }()
 	quote := byte(0)
 	for {
 		b, err := r.reader.ReadByte()

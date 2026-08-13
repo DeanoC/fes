@@ -144,6 +144,8 @@ type testLaunchBoxRecordBatch struct {
 	blankAliasCount      int
 	duplicateAliasCount  int
 	matcherAliases       map[string][]string
+	aliasPerGame         map[string]int
+	imagePerGame         map[string]int
 }
 
 func newTestLaunchBoxRecordBatch() *testLaunchBoxRecordBatch {
@@ -151,6 +153,51 @@ func newTestLaunchBoxRecordBatch() *testLaunchBoxRecordBatch {
 		failures:       make(map[string]error),
 		completed:      make(map[string]bool),
 		matcherAliases: make(map[string][]string),
+		aliasPerGame:   make(map[string]int),
+		imagePerGame:   make(map[string]int),
+	}
+}
+
+func TestTestLaunchBoxBatchRejectsPerGameCapsBeforeAppend(t *testing.T) {
+	for _, testCase := range []struct {
+		name   string
+		limit  int
+		record func(int) launchBoxRecord
+	}{
+		{name: "aliases", limit: launchBoxXMLMaxAliasesPerGame, record: func(index int) launchBoxRecord {
+			return launchBoxRecord{
+				member: "Metadata.xml",
+				family: "GameAlternateName",
+				alias:  launchBoxAliasRecord{databaseID: "1", alternateName: "Alias" + strconv.Itoa(index)},
+			}
+		}},
+		{name: "images", limit: launchBoxXMLMaxImagesPerGame, record: func(index int) launchBoxRecord {
+			return launchBoxRecord{
+				member: "Metadata.xml",
+				family: "GameImage",
+				image: launchBoxImageRecord{
+					databaseID: "1",
+					fileName:   "cover_" + strconv.Itoa(index) + ".jpg",
+					typeName:   "Box - Front",
+					crc32:      strconv.Itoa(index),
+				},
+			}
+		}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			batch := newTestLaunchBoxRecordBatch()
+			for index := 0; index < testCase.limit; index++ {
+				if err := batch.putLaunchBoxRecord(testCase.record(index)); err != nil {
+					t.Fatalf("record %d within per-game cap rejected: %v", index+1, err)
+				}
+			}
+			if err := batch.putLaunchBoxRecord(testCase.record(testCase.limit)); err == nil {
+				t.Fatal("per-game cap plus one was retained instead of rejected before append")
+			}
+			if len(batch.observed) != testCase.limit {
+				t.Fatalf("offending record was retained: got=%d want=%d", len(batch.observed), testCase.limit)
+			}
+		})
 	}
 }
 
@@ -169,7 +216,29 @@ func (b *testLaunchBoxRecordBatch) putLaunchBoxRecord(record launchBoxRecord) er
 	if b.completed[record.member] {
 		return errors.New("test batch member is already complete")
 	}
+	if b.aliasPerGame == nil {
+		b.aliasPerGame = make(map[string]int)
+	}
+	if b.imagePerGame == nil {
+		b.imagePerGame = make(map[string]int)
+	}
+	switch record.family {
+	case "GameAlternateName":
+		if b.aliasPerGame[record.alias.databaseID] >= launchBoxXMLMaxAliasesPerGame {
+			return errors.New("test batch alias per-game limit exceeded")
+		}
+	case "GameImage":
+		if b.imagePerGame[record.image.databaseID] >= launchBoxXMLMaxImagesPerGame {
+			return errors.New("test batch image per-game limit exceeded")
+		}
+	}
 	b.observed = append(b.observed, record)
+	switch record.family {
+	case "GameAlternateName":
+		b.aliasPerGame[record.alias.databaseID]++
+	case "GameImage":
+		b.imagePerGame[record.image.databaseID]++
+	}
 	return nil
 }
 
@@ -214,8 +283,6 @@ func (b *testLaunchBoxRecordBatch) validateLaunchBoxBatch() error {
 	rawAliases := make(map[string]struct{})
 	normalizedAliases := make(map[string]struct{})
 	images := make(map[string]struct{})
-	aliasPerGame := make(map[string]int)
-	imagePerGame := make(map[string]int)
 	imageIdentities := make(map[string]string)
 	for _, record := range b.observed {
 		switch record.family {
@@ -225,10 +292,6 @@ func (b *testLaunchBoxRecordBatch) validateLaunchBoxBatch() error {
 			}
 			games[record.game.databaseID] = record
 		case "GameAlternateName":
-			aliasPerGame[record.alias.databaseID]++
-			if aliasPerGame[record.alias.databaseID] > launchBoxXMLMaxAliasesPerGame {
-				return errors.New("test batch alias per-game limit exceeded")
-			}
 			b.rawAliasCount++
 			rawKey := record.alias.databaseID + "\x00" + record.alias.alternateName + "\x00" + record.alias.region
 			if _, exists := rawAliases[rawKey]; exists {
@@ -243,10 +306,6 @@ func (b *testLaunchBoxRecordBatch) validateLaunchBoxBatch() error {
 			}
 			b.normalizedAliasCount = len(normalizedAliases)
 		case "GameImage":
-			imagePerGame[record.image.databaseID]++
-			if imagePerGame[record.image.databaseID] > launchBoxXMLMaxImagesPerGame {
-				return errors.New("test batch image per-game limit exceeded")
-			}
 			identity := record.image.databaseID + "\x00" + record.image.fileName + "\x00" + record.image.typeName + "\x00" + xmlBoundaryTrim(record.image.region)
 			if previousCRC, exists := imageIdentities[identity]; exists {
 				if previousCRC != record.image.crc32 {
