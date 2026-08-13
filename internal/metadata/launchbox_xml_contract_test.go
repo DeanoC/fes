@@ -12,27 +12,64 @@ func TestParseLaunchBoxXMLMemberRejectsDuplicateImageTuple(t *testing.T) {
 		`<GameImage><DatabaseID>42</DatabaseID><FileName>cover_42.jpg</FileName><Type>Box - Front</Type><Region>World</Region><CRC32>1</CRC32></GameImage>` +
 		`<GameImage><DatabaseID>42</DatabaseID><FileName>cover_42.jpg</FileName><Type>Box - Front</Type><Region>World</Region><CRC32>1</CRC32></GameImage>` +
 		`</LaunchBox>`
-	_, err := parseLaunchBoxXMLMember(strings.NewReader(input), "Metadata.xml", nil, &recordSliceSink{})
-	if err == nil {
+	table := &testLaunchBoxRecordTable{batch: newTestLaunchBoxRecordBatch()}
+	if _, err := parseLaunchBoxXMLMembers(strings.NewReader(input), strings.NewReader(`<?xml version="1.0" standalone="yes"?><LaunchBox/>`), table); err == nil {
 		t.Fatal("duplicate image tuple accepted")
 	}
 }
 
 func TestFramedXMLReaderRejectsNonXMLSpaceLexicalAttributes(t *testing.T) {
 	for _, input := range []string{
-		`<?xml version="1.0" standalone="yes"?><LaunchBox><N space="preserve"/></LaunchBox>`,
-		`<?xml version="1.0" standalone="yes"?><LaunchBox><N p:space="preserve"/></LaunchBox>`,
-		`<?xml version="1.0" standalone="yes"?><LaunchBox><N xmlns:xml="http://www.w3.org/XML/1998/namespace"/></LaunchBox>`,
+		`<?xml version="1.0" standalone="yes"?><LaunchBox><Game><DatabaseID>1</DatabaseID><Name space="preserve">Title</Name><Platform>Super Nintendo Entertainment System</Platform></Game></LaunchBox>`,
+		`<?xml version="1.0" standalone="yes"?><LaunchBox><Game><DatabaseID>1</DatabaseID><Name p:space="preserve">Title</Name><Platform>Super Nintendo Entertainment System</Platform></Game></LaunchBox>`,
+		`<?xml version="1.0" standalone="yes"?><LaunchBox><Game><DatabaseID>1</DatabaseID><Name xmlns:xml="http://www.w3.org/XML/1998/namespace">Title</Name><Platform>Super Nintendo Entertainment System</Platform></Game></LaunchBox>`,
 	} {
-		if _, err := io.Copy(io.Discard, newFramedXMLReader(strings.NewReader(input))); err == nil {
+		if _, err := parseLaunchBoxXMLMember(strings.NewReader(input), "Metadata.xml", nil, newTestLaunchBoxRecordBatch()); err == nil {
 			t.Fatalf("non-lexical XML-space attribute accepted: %q", input)
 		}
 	}
 }
 
+func TestFramedXMLReaderRejectsMissingDeclarationPseudoAttributeSeparator(t *testing.T) {
+	input := `<?xml version="1.0"encoding="utf-8"?><LaunchBox/>`
+	if _, err := io.Copy(io.Discard, newFramedXMLReader(strings.NewReader(input))); err == nil {
+		t.Fatal("declaration pseudo-attributes without XML whitespace were accepted")
+	}
+}
+
+func TestLaunchBoxXMLBudgetReserveIsOverflowSafeAndInclusive(t *testing.T) {
+	budget := &launchBoxXMLBudget{}
+	if err := budget.reserve(launchBoxXMLMaxAggregateStartElements, launchBoxXMLMaxAggregateAttributes); err != nil {
+		t.Fatalf("inclusive aggregate maximum rejected: %v", err)
+	}
+	if err := budget.reserve(1, 0); err == nil {
+		t.Fatal("aggregate start-element maximum plus one accepted")
+	}
+	if err := budget.reserve(0, 1); err == nil {
+		t.Fatal("aggregate attribute maximum plus one accepted")
+	}
+	if budget.startElements != launchBoxXMLMaxAggregateStartElements || budget.attributes != launchBoxXMLMaxAggregateAttributes {
+		t.Fatalf("failed reserve mutated budget: %+v", budget)
+	}
+	for name, budget := range map[string]*launchBoxXMLBudget{
+		"start elements": {startElements: launchBoxXMLMaxAggregateStartElements + 1},
+		"attributes":     {attributes: launchBoxXMLMaxAggregateAttributes + 1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			before := *budget
+			if err := budget.reserve(1, 1); err == nil {
+				t.Fatal("reserve accepted an already-over-limit budget")
+			}
+			if *budget != before {
+				t.Fatalf("failed reserve mutated over-limit budget: before=%+v after=%+v", before, *budget)
+			}
+		})
+	}
+}
+
 func TestFramedXMLReaderAcceptsEightSyntacticAttributesBeforeSchemaValidation(t *testing.T) {
 	input := `<?xml version="1.0" standalone="yes"?><LaunchBox>` +
-		strings.Repeat(`<AlternateName xml:space="preserve"/>`, 8) +
+		`<N a0="x" a1="x" a2="x" a3="x" a4="x" a5="x" a6="x" a7="x"/>` +
 		`</LaunchBox>`
 	budget := &launchBoxXMLBudget{}
 	if _, err := io.Copy(io.Discard, newFramedXMLReaderWithBudget(strings.NewReader(input), budget)); err != nil {

@@ -48,6 +48,19 @@ type launchBoxXMLBudget struct {
 	attributes    uint64
 }
 
+func (b *launchBoxXMLBudget) reserve(startElements, attributes uint64) error {
+	if b == nil {
+		return errors.New("launchbox XML budget is unavailable")
+	}
+	if b.startElements > launchBoxXMLMaxAggregateStartElements || b.attributes > launchBoxXMLMaxAggregateAttributes ||
+		startElements > launchBoxXMLMaxAggregateStartElements-b.startElements || attributes > launchBoxXMLMaxAggregateAttributes-b.attributes {
+		return errors.New("launchbox XML aggregate structure exceeds bound")
+	}
+	b.startElements += startElements
+	b.attributes += attributes
+	return nil
+}
+
 type launchBoxXMLAttribute struct {
 	name  string
 	value string
@@ -106,6 +119,7 @@ func (r *framedXMLReader) Read(dst []byte) (int, error) {
 		r.pending = frame
 	}
 	if int64(len(r.pending)) > int64(launchBoxXMLMaxMemberBytes)-r.memberBytes {
+		r.rejectFrame(len(r.pending))
 		return 0, errors.New("launchbox XML member bytes exceed bound")
 	}
 	n := copy(dst, r.pending)
@@ -167,7 +181,7 @@ func (r *framedXMLReader) readText(first byte) ([]byte, error) {
 			return r.finishFrame(frame), nil
 		}
 		if len(frame) >= launchBoxXMLMaxTextBytes {
-			r.offendingFrameBytes = 0
+			r.rejectFrame(len(frame) + 1)
 			return nil, errors.New("launchbox XML text frame exceeds bound")
 		}
 		frame = append(frame, b)
@@ -229,6 +243,7 @@ func (r *framedXMLReader) readProcessingInstruction(frame []byte) ([]byte, error
 			return nil, errors.New("launchbox XML processing instruction is unterminated")
 		}
 		if len(frame) >= launchBoxXMLMaxDeclarationBytes {
+			r.rejectFrame(len(frame) + 1)
 			return nil, errors.New("launchbox XML processing instruction exceeds bound")
 		}
 		frame = append(frame, b)
@@ -255,6 +270,7 @@ func (r *framedXMLReader) readBang(frame []byte) ([]byte, error) {
 		return nil, errors.New("launchbox XML bang frame is unterminated")
 	}
 	if len(frame) >= launchBoxXMLMaxStartTagBytes {
+		r.rejectFrame(len(frame) + 1)
 		return nil, errors.New("launchbox XML bang frame exceeds bound")
 	}
 	frame = append(frame, third)
@@ -269,6 +285,7 @@ func (r *framedXMLReader) readBang(frame []byte) ([]byte, error) {
 				return nil, errors.New("launchbox XML CDATA opener is unterminated")
 			}
 			if len(frame) >= launchBoxXMLMaxCDATAFrameBytes {
+				r.rejectFrame(len(frame) + 1)
 				return nil, errors.New("launchbox XML CDATA frame exceeds bound")
 			}
 			frame = append(frame, b)
@@ -284,6 +301,7 @@ func (r *framedXMLReader) readBang(frame []byte) ([]byte, error) {
 			return nil, errors.New("launchbox XML comment opener is invalid")
 		}
 		if len(frame) >= launchBoxXMLMaxCommentFrameBytes {
+			r.rejectFrame(len(frame) + 1)
 			return nil, errors.New("launchbox XML comment frame exceeds bound")
 		}
 		frame = append(frame, fourth)
@@ -312,6 +330,7 @@ func (r *framedXMLReader) readCDATA(frame []byte) ([]byte, error) {
 			return nil, errors.New("launchbox XML CDATA is unterminated")
 		}
 		if len(frame) >= launchBoxXMLMaxCDATAFrameBytes {
+			r.rejectFrame(len(frame) + 1)
 			return nil, errors.New("launchbox XML CDATA frame exceeds bound")
 		}
 		frame = append(frame, b)
@@ -332,6 +351,7 @@ func (r *framedXMLReader) readComment(frame []byte) ([]byte, error) {
 			return nil, errors.New("launchbox XML comment is unterminated")
 		}
 		if len(frame) >= launchBoxXMLMaxCommentFrameBytes {
+			r.rejectFrame(len(frame) + 1)
 			return nil, errors.New("launchbox XML comment frame exceeds bound")
 		}
 		frame = append(frame, b)
@@ -352,6 +372,7 @@ func (r *framedXMLReader) readEndTag(frame []byte) ([]byte, error) {
 			return nil, errors.New("launchbox XML end tag is unterminated")
 		}
 		if len(frame) >= launchBoxXMLMaxEndTagBytes {
+			r.rejectFrame(len(frame) + 1)
 			return nil, errors.New("launchbox XML end tag exceeds bound")
 		}
 		frame = append(frame, b)
@@ -389,6 +410,7 @@ func (r *framedXMLReader) readStartTag(frame []byte) ([]byte, error) {
 			return nil, errors.New("launchbox XML start tag is unterminated")
 		}
 		if len(frame) >= launchBoxXMLMaxStartTagBytes {
+			r.rejectFrame(len(frame) + 1)
 			return nil, errors.New("launchbox XML start tag exceeds bound")
 		}
 		frame = append(frame, b)
@@ -410,10 +432,8 @@ func (r *framedXMLReader) readStartTag(frame []byte) ([]byte, error) {
 			return nil, err
 		}
 		if r.budget != nil {
-			r.budget.startElements++
-			r.budget.attributes += uint64(len(start.attributes))
-			if r.budget.startElements > launchBoxXMLMaxAggregateStartElements || r.budget.attributes > launchBoxXMLMaxAggregateAttributes {
-				return nil, errors.New("launchbox XML aggregate structure exceeds bound")
+			if err := r.budget.reserve(1, uint64(len(start.attributes))); err != nil {
+				return nil, err
 			}
 		}
 		if r.rootComplete {
@@ -498,12 +518,6 @@ func parseXMLStartTag(frame []byte) (launchBoxXMLStart, bool, error) {
 		if err := validateXMLNameToken(attrName); err != nil {
 			return launchBoxXMLStart{}, false, err
 		}
-		if string(attrName) != "xml:space" {
-			return launchBoxXMLStart{}, false, errors.New("launchbox XML attribute is not the permitted xml:space exception")
-		}
-		if len(attributes) != 0 {
-			return launchBoxXMLStart{}, false, errors.New("launchbox XML attribute is duplicated")
-		}
 		if pos < len(body) && !xmlSpace(body[pos]) && body[pos] != '=' {
 			return launchBoxXMLStart{}, false, errors.New("launchbox XML attribute has malformed equals separation")
 		}
@@ -537,9 +551,6 @@ func parseXMLStartTag(frame []byte) (launchBoxXMLStart, bool, error) {
 		if err != nil || utf8.RuneCountInString(decoded) > launchBoxXMLMaxAttributeRunes || !xmlCharactersValid([]byte(decoded)) {
 			return launchBoxXMLStart{}, false, errors.New("launchbox XML attribute value is invalid")
 		}
-		if string(attrName) == "xml:space" && decoded != "preserve" {
-			return launchBoxXMLStart{}, false, errors.New("launchbox XML xml:space value is invalid")
-		}
 		pos++
 		attributes = append(attributes, launchBoxXMLAttribute{name: string(attrName), value: decoded})
 		if len(attributes) > launchBoxXMLMaxAttributes {
@@ -554,6 +565,13 @@ func (r *framedXMLReader) finishFrame(frame []byte) []byte {
 		r.frameHighWater = len(frame)
 	}
 	return frame
+}
+
+func (r *framedXMLReader) rejectFrame(size int) {
+	r.offendingFrameBytes = size
+	if size > r.frameHighWater {
+		r.frameHighWater = size
+	}
 }
 
 func validateXMLNameFrame(name []byte) error {
@@ -674,6 +692,9 @@ func validateXMLDeclaration(frame []byte) error {
 		}
 		value := string(body[valueStart:position])
 		position++
+		if position < len(body) && !xmlSpace(body[position]) {
+			return errors.New("launchbox XML declaration pseudo-attributes lack separating whitespace")
+		}
 
 		switch name {
 		case "version":
@@ -844,14 +865,22 @@ func asciiEqualFold(left, right string) bool {
 	return true
 }
 
-type launchBoxRecordSink interface {
+type launchBoxRecordTable interface {
+	beginLaunchBoxBatch() (launchBoxRecordBatch, error)
+}
+
+type launchBoxRecordBatch interface {
 	putLaunchBoxRecord(launchBoxRecord) error
+	completeLaunchBoxMember(string) error
+	validateLaunchBoxBatch() error
+	flushLaunchBoxBatch() error
+	commitLaunchBoxBatch() error
+	abortLaunchBoxBatch() error
 }
 
 type launchBoxRecord struct {
 	member        string
 	family        string
-	persist       bool
 	game          launchBoxGameRecord
 	alias         launchBoxAliasRecord
 	image         launchBoxImageRecord
@@ -888,234 +917,9 @@ type launchBoxImageRecord struct {
 type launchBoxPlatformRecord struct{ name string }
 type launchBoxPlatformAliasRecord struct{ name, alternate string }
 
-type launchBoxAliasKey struct {
-	databaseID    string
-	alternateName string
-	region        string
-}
-
-type launchBoxImageKey struct {
-	databaseID string
-	fileName   string
-	typeName   string
-	region     string
-	crc32      string
-}
-
-// launchBoxImageIdentity is the schema identity of an image row. CRC32 is
-// integrity metadata, not part of the row identity: a repeated identity with
-// a different CRC is a deterministic conflict rather than a second candidate.
-type launchBoxImageIdentity struct {
-	databaseID string
-	fileName   string
-	typeName   string
-	region     string
-}
-
 type launchBoxMemberCounts struct {
 	games, aliases, images, platforms, platformAliases, emulators, emulatorPlatforms int
-	platformKeys                                                                     map[string]struct{}
-	platformAliasKeys                                                                map[string]struct{}
-
-	records              int
-	gameIDs              map[string]struct{}
-	aliasRawKeys         map[launchBoxAliasKey]struct{}
-	aliasNormalizedKeys  map[launchBoxAliasKey]struct{}
-	aliasPerGame         map[string]int
-	imagePerGame         map[string]int
-	platformAliasNames   map[string]struct{}
-	imageKeys            map[launchBoxImageKey]struct{}
-	imageIdentities      map[launchBoxImageIdentity]string
-	blankAliases         int
-	normalizedAliasDupes int
-	persistedAliases     int
-	persistedImages      int
-}
-
-func (c *launchBoxMemberCounts) initialize() {
-	if c.platformKeys == nil {
-		c.platformKeys = make(map[string]struct{}, 8)
-	}
-	if c.platformAliasKeys == nil {
-		c.platformAliasKeys = make(map[string]struct{}, 8)
-	}
-	if c.gameIDs == nil {
-		c.gameIDs = make(map[string]struct{}, 8)
-	}
-	if c.aliasRawKeys == nil {
-		c.aliasRawKeys = make(map[launchBoxAliasKey]struct{}, 8)
-	}
-	if c.aliasNormalizedKeys == nil {
-		c.aliasNormalizedKeys = make(map[launchBoxAliasKey]struct{}, 8)
-	}
-	if c.aliasPerGame == nil {
-		c.aliasPerGame = make(map[string]int)
-	}
-	if c.imagePerGame == nil {
-		c.imagePerGame = make(map[string]int)
-	}
-	if c.platformAliasNames == nil {
-		c.platformAliasNames = make(map[string]struct{}, 8)
-	}
-	if c.imageKeys == nil {
-		c.imageKeys = make(map[launchBoxImageKey]struct{}, 8)
-	}
-	if c.imageIdentities == nil {
-		c.imageIdentities = make(map[launchBoxImageIdentity]string, 8)
-	}
-}
-
-func (c *launchBoxMemberCounts) validateRecord(record *launchBoxRecord) error {
-	c.initialize()
-	record.persist = false
-	switch record.family {
-	case "Game":
-		if !validLaunchBoxID(record.game.databaseID) {
-			return errors.New("launchbox Game.DatabaseID is invalid")
-		}
-		if xmlBoundaryTrim(record.game.name) == "" || xmlBoundaryTrim(record.game.platform) == "" {
-			return errors.New("launchbox Game required field is empty")
-		}
-		if _, exists := c.gameIDs[record.game.databaseID]; exists {
-			return errors.New("launchbox Game.DatabaseID is duplicated")
-		}
-		c.gameIDs[record.game.databaseID] = struct{}{}
-		if record.game.releaseYear != "" && !validLaunchBoxYear(record.game.releaseYear) {
-			record.game.releaseYear = ""
-		}
-		if record.game.maxPlayers != "" && !validLaunchBoxMaxPlayers(record.game.maxPlayers) {
-			record.game.maxPlayers = ""
-		}
-		if record.game.genres != "" {
-			genres, ok := normalizeLaunchBoxGenres(record.game.genres)
-			if !ok {
-				return errors.New("launchbox Game.Genres is invalid")
-			}
-			record.game.genres = genres
-		}
-		if record.game.developer != "" && utf8.RuneCountInString(record.game.developer) > 256 {
-			return errors.New("launchbox Game.Developer is invalid")
-		}
-		if record.game.publisher != "" && utf8.RuneCountInString(record.game.publisher) > 256 {
-			return errors.New("launchbox Game.Publisher is invalid")
-		}
-		record.persist = true
-	case "GameAlternateName":
-		if !validLaunchBoxID(record.alias.databaseID) {
-			return errors.New("launchbox alias DatabaseID is invalid")
-		}
-		if c.aliasPerGame[record.alias.databaseID] >= launchBoxXMLMaxAliasesPerGame {
-			return errors.New("launchbox alias per-game limit exceeded")
-		}
-		c.aliasPerGame[record.alias.databaseID]++
-		rawKey := launchBoxAliasKey{record.alias.databaseID, record.alias.alternateName, record.alias.region}
-		if _, exists := c.aliasRawKeys[rawKey]; exists {
-			return errors.New("launchbox alias raw tuple is duplicated")
-		}
-		c.aliasRawKeys[rawKey] = struct{}{}
-		canonicalKey := launchBoxAliasKey{
-			databaseID:    record.alias.databaseID,
-			alternateName: xmlBoundaryTrim(record.alias.alternateName),
-			region:        xmlBoundaryTrim(record.alias.region),
-		}
-		record.alias.alternateName = canonicalKey.alternateName
-		record.alias.region = canonicalKey.region
-		if _, exists := c.aliasNormalizedKeys[canonicalKey]; exists {
-			c.normalizedAliasDupes++
-			record.persist = false
-		} else {
-			c.aliasNormalizedKeys[canonicalKey] = struct{}{}
-			if canonicalKey.alternateName == "" {
-				c.blankAliases++
-			}
-			record.persist = canonicalKey.alternateName != ""
-		}
-		if record.persist {
-			c.persistedAliases++
-		}
-	case "GameImage":
-		if !validLaunchBoxID(record.image.databaseID) {
-			return errors.New("launchbox image DatabaseID is invalid")
-		}
-		if c.imagePerGame[record.image.databaseID] >= launchBoxXMLMaxImagesPerGame {
-			return errors.New("launchbox image per-game limit exceeded")
-		}
-		if !validLaunchBoxImageFileName(record.image.fileName) || !validLaunchBoxImageType(record.image.typeName) || !validLaunchBoxCRC32(record.image.crc32) {
-			return errors.New("launchbox image field is invalid")
-		}
-		c.imagePerGame[record.image.databaseID]++
-		identity := launchBoxImageIdentity{
-			databaseID: record.image.databaseID,
-			fileName:   record.image.fileName,
-			typeName:   record.image.typeName,
-			region:     xmlBoundaryTrim(record.image.region),
-		}
-		record.image.region = identity.region
-		if previousCRC, exists := c.imageIdentities[identity]; exists {
-			if previousCRC != record.image.crc32 {
-				return errors.New("launchbox image tuple has conflicting CRC32")
-			}
-			return errors.New("launchbox image tuple is duplicated")
-		}
-		c.imageIdentities[identity] = record.image.crc32
-		c.imageKeys[launchBoxImageKey{
-			databaseID: record.image.databaseID,
-			fileName:   record.image.fileName,
-			typeName:   record.image.typeName,
-			region:     record.image.region,
-			crc32:      record.image.crc32,
-		}] = struct{}{}
-		record.persist = true
-		c.persistedImages++
-	case "Platform":
-		key := xmlBoundaryTrim(record.platform.name)
-		if key == "" {
-			return errors.New("launchbox platform name is empty")
-		}
-		if _, exists := c.platformKeys[key]; exists {
-			return errors.New("launchbox platform key is duplicated")
-		}
-		c.platformKeys[key] = struct{}{}
-		record.persist = record.member == "Platforms.xml"
-	case "PlatformAlternateName":
-		name := xmlBoundaryTrim(record.platformAlias.name)
-		alternate := xmlBoundaryTrim(record.platformAlias.alternate)
-		if name == "" || alternate == "" {
-			return errors.New("launchbox platform alternate is empty")
-		}
-		key := name + "\x00" + alternate
-		if _, exists := c.platformAliasKeys[key]; exists {
-			return errors.New("launchbox platform alternate key is duplicated")
-		}
-		c.platformAliasKeys[key] = struct{}{}
-		c.platformAliasNames[name] = struct{}{}
-		record.persist = record.member == "Platforms.xml"
-	case "Emulator", "EmulatorPlatform":
-		// Intentionally unsupported families have no selected fields. Their
-		// bounded leaf stream is still parsed and their record cap is enforced.
-	default:
-		return errors.New("launchbox XML record family is unsupported")
-	}
-	return nil
-}
-
-func (c *launchBoxMemberCounts) validateReferences(member string) error {
-	for databaseID := range c.aliasPerGame {
-		if _, exists := c.gameIDs[databaseID]; !exists && member == "Metadata.xml" {
-			return errors.New("launchbox alias references an unknown Game")
-		}
-	}
-	for databaseID := range c.imagePerGame {
-		if _, exists := c.gameIDs[databaseID]; !exists && member == "Metadata.xml" {
-			return errors.New("launchbox image references an unknown Game")
-		}
-	}
-	for name := range c.platformAliasNames {
-		if _, exists := c.platformKeys[name]; !exists {
-			return errors.New("launchbox platform alternate references an unknown Platform")
-		}
-	}
-	return nil
+	records                                                                          int
 }
 
 func normalizeLaunchBoxGenres(value string) (string, bool) {
@@ -1257,8 +1061,8 @@ func validLaunchBoxImageTypeRank(role, value string) int {
 	return -1
 }
 
-func parseLaunchBoxXMLMember(reader io.Reader, member string, budget *launchBoxXMLBudget, sink launchBoxRecordSink) (launchBoxMemberCounts, error) {
-	if reader == nil || sink == nil || (member != "Metadata.xml" && member != "Platforms.xml") {
+func parseLaunchBoxXMLMember(reader io.Reader, member string, budget *launchBoxXMLBudget, batch launchBoxRecordBatch) (launchBoxMemberCounts, error) {
+	if reader == nil || batch == nil || (member != "Metadata.xml" && member != "Platforms.xml") {
 		return launchBoxMemberCounts{}, errors.New("launchbox XML member is unavailable")
 	}
 	if budget == nil {
@@ -1274,9 +1078,6 @@ func parseLaunchBoxXMLMember(reader io.Reader, member string, budget *launchBoxX
 		token, err := decoder.Token()
 		if err != nil {
 			if errors.Is(err, io.EOF) && rootComplete {
-				if err := counts.validateReferences(member); err != nil {
-					return counts, err
-				}
 				return counts, nil
 			}
 			return counts, fmt.Errorf("launchbox XML member is invalid: %w", err)
@@ -1323,10 +1124,10 @@ func parseLaunchBoxXMLMember(reader io.Reader, member string, budget *launchBoxX
 				return counts, err
 			}
 			record.member = member
-			if err := counts.validateRecord(&record); err != nil {
+			if err := validateLaunchBoxRecord(&record); err != nil {
 				return counts, err
 			}
-			if err := sink.putLaunchBoxRecord(record); err != nil {
+			if err := batch.putLaunchBoxRecord(record); err != nil {
 				return counts, err
 			}
 		case xml.EndElement:
@@ -1338,6 +1139,114 @@ func parseLaunchBoxXMLMember(reader io.Reader, member string, budget *launchBoxX
 			return counts, errors.New("launchbox XML member contains unsupported token")
 		}
 	}
+}
+
+func validateLaunchBoxRecord(record *launchBoxRecord) error {
+	if record == nil {
+		return errors.New("launchbox XML record is unavailable")
+	}
+	switch record.family {
+	case "Game":
+		if !validLaunchBoxID(record.game.databaseID) {
+			return errors.New("launchbox Game.DatabaseID is invalid")
+		}
+		if xmlBoundaryTrim(record.game.name) == "" || xmlBoundaryTrim(record.game.platform) == "" {
+			return errors.New("launchbox Game required field is empty")
+		}
+		if record.game.releaseYear != "" && !validLaunchBoxYear(record.game.releaseYear) {
+			record.game.releaseYear = ""
+		}
+		if record.game.maxPlayers != "" && !validLaunchBoxMaxPlayers(record.game.maxPlayers) {
+			record.game.maxPlayers = ""
+		}
+		if record.game.genres != "" {
+			genres, ok := normalizeLaunchBoxGenres(record.game.genres)
+			if !ok {
+				return errors.New("launchbox Game.Genres is invalid")
+			}
+			record.game.genres = genres
+		}
+		if record.game.developer != "" && utf8.RuneCountInString(record.game.developer) > 256 {
+			return errors.New("launchbox Game.Developer is invalid")
+		}
+		if record.game.publisher != "" && utf8.RuneCountInString(record.game.publisher) > 256 {
+			return errors.New("launchbox Game.Publisher is invalid")
+		}
+	case "GameAlternateName":
+		if !validLaunchBoxID(record.alias.databaseID) {
+			return errors.New("launchbox alias DatabaseID is invalid")
+		}
+	case "GameImage":
+		if !validLaunchBoxID(record.image.databaseID) {
+			return errors.New("launchbox image DatabaseID is invalid")
+		}
+		if !validLaunchBoxImageFileName(record.image.fileName) || !validLaunchBoxImageType(record.image.typeName) || !validLaunchBoxCRC32(record.image.crc32) {
+			return errors.New("launchbox image field is invalid")
+		}
+	case "Platform":
+		if xmlBoundaryTrim(record.platform.name) == "" {
+			return errors.New("launchbox platform name is empty")
+		}
+	case "PlatformAlternateName":
+		if xmlBoundaryTrim(record.platformAlias.name) == "" || xmlBoundaryTrim(record.platformAlias.alternate) == "" {
+			return errors.New("launchbox platform alternate is empty")
+		}
+	case "Emulator", "EmulatorPlatform":
+		// Unsupported configuration families are still fully framed and counted.
+	default:
+		return errors.New("launchbox XML record family is unsupported")
+	}
+	return nil
+}
+
+type launchBoxSnapshotCounts struct {
+	metadata  launchBoxMemberCounts
+	platforms launchBoxMemberCounts
+}
+
+func parseLaunchBoxXMLMembers(metadataReader io.Reader, platformsReader io.Reader, table launchBoxRecordTable) (launchBoxSnapshotCounts, error) {
+	var counts launchBoxSnapshotCounts
+	if metadataReader == nil || platformsReader == nil || table == nil {
+		return counts, errors.New("launchbox XML snapshot is unavailable")
+	}
+	batch, err := table.beginLaunchBoxBatch()
+	if err != nil {
+		return counts, err
+	}
+	if batch == nil {
+		return counts, errors.New("launchbox XML batch is unavailable")
+	}
+	abort := func(primary error) (launchBoxSnapshotCounts, error) {
+		if abortErr := batch.abortLaunchBoxBatch(); abortErr != nil {
+			return counts, errors.Join(primary, abortErr)
+		}
+		return counts, primary
+	}
+	budget := &launchBoxXMLBudget{}
+	counts.metadata, err = parseLaunchBoxXMLMember(metadataReader, "Metadata.xml", budget, batch)
+	if err != nil {
+		return abort(err)
+	}
+	if err := batch.completeLaunchBoxMember("Metadata.xml"); err != nil {
+		return abort(err)
+	}
+	counts.platforms, err = parseLaunchBoxXMLMember(platformsReader, "Platforms.xml", budget, batch)
+	if err != nil {
+		return abort(err)
+	}
+	if err := batch.completeLaunchBoxMember("Platforms.xml"); err != nil {
+		return abort(err)
+	}
+	if err := batch.validateLaunchBoxBatch(); err != nil {
+		return abort(err)
+	}
+	if err := batch.flushLaunchBoxBatch(); err != nil {
+		return abort(err)
+	}
+	if err := batch.commitLaunchBoxBatch(); err != nil {
+		return abort(err)
+	}
+	return counts, nil
 }
 
 func (c *launchBoxMemberCounts) allow(family, member string) error {
