@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/binary"
+	"hash/crc32"
 	"io"
 	"math"
 	"os"
@@ -29,10 +30,11 @@ type launchBoxArchiveReadGuard struct {
 	source        io.ReaderAt
 	blockedOffset int64
 	blockedReads  int
+	block         bool
 }
 
 func (r *launchBoxArchiveReadGuard) ReadAt(dst []byte, offset int64) (int, error) {
-	if offset == r.blockedOffset {
+	if r.block && offset == r.blockedOffset {
 		r.blockedReads++
 		return 0, io.ErrUnexpectedEOF
 	}
@@ -76,6 +78,139 @@ func validLaunchBoxFixtureEntries() []launchBoxFixtureEntry {
 		{name: "Platforms.xml", body: []byte("platforms"), method: zip.Store},
 		{name: "Mame.xml", body: []byte("mame"), method: zip.Store},
 		{name: "Files.xml", body: []byte("files"), method: zip.Store},
+	}
+}
+
+func buildLaunchBoxDataDescriptorArchive(t *testing.T, target string, zip64, signed bool) []byte {
+	t.Helper()
+	type record struct {
+		entry       launchBoxFixtureEntry
+		localOffset uint32
+		crc         uint32
+	}
+	entries := validLaunchBoxFixtureEntries()
+	records := make([]record, 0, len(entries))
+	archive := make([]byte, 0, 1024)
+	for _, entry := range entries {
+		if len(archive) > math.MaxUint32 {
+			t.Fatal("descriptor fixture local offset exceeds ZIP32")
+		}
+		record := record{entry: entry, localOffset: uint32(len(archive)), crc: crc32.ChecksumIEEE(entry.body)}
+		header := make([]byte, 30)
+		binary.LittleEndian.PutUint32(header[:4], 0x04034b50)
+		binary.LittleEndian.PutUint16(header[4:6], 20)
+		binary.LittleEndian.PutUint16(header[6:8], 8)
+		binary.LittleEndian.PutUint16(header[8:10], entry.method)
+		binary.LittleEndian.PutUint16(header[26:28], uint16(len(entry.name)))
+		binary.LittleEndian.PutUint16(header[28:30], uint16(len(entry.extra)))
+		archive = append(archive, header...)
+		archive = append(archive, entry.name...)
+		archive = append(archive, entry.extra...)
+		archive = append(archive, entry.body...)
+		useZIP64Descriptor := entry.name == target && zip64
+		useSignature := entry.name != target || signed
+		if useSignature {
+			signature := make([]byte, 4)
+			binary.LittleEndian.PutUint32(signature, 0x08074b50)
+			archive = append(archive, signature...)
+		}
+		crcBytes := make([]byte, 4)
+		binary.LittleEndian.PutUint32(crcBytes, record.crc)
+		archive = append(archive, crcBytes...)
+		if useZIP64Descriptor {
+			sizes := make([]byte, 16)
+			binary.LittleEndian.PutUint64(sizes[:8], uint64(len(entry.body)))
+			binary.LittleEndian.PutUint64(sizes[8:], uint64(len(entry.body)))
+			archive = append(archive, sizes...)
+		} else {
+			sizes := make([]byte, 8)
+			binary.LittleEndian.PutUint32(sizes[:4], uint32(len(entry.body)))
+			binary.LittleEndian.PutUint32(sizes[4:], uint32(len(entry.body)))
+			archive = append(archive, sizes...)
+		}
+		records = append(records, record)
+	}
+	centralStart := len(archive)
+	for _, record := range records {
+		entry := record.entry
+		central := make([]byte, 46)
+		binary.LittleEndian.PutUint32(central[:4], 0x02014b50)
+		binary.LittleEndian.PutUint16(central[4:6], 20)
+		binary.LittleEndian.PutUint16(central[6:8], 20)
+		binary.LittleEndian.PutUint16(central[8:10], 8)
+		binary.LittleEndian.PutUint16(central[10:12], entry.method)
+		binary.LittleEndian.PutUint32(central[16:20], record.crc)
+		isZIP64 := entry.name == target && zip64
+		if isZIP64 {
+			binary.LittleEndian.PutUint32(central[20:24], math.MaxUint32)
+			binary.LittleEndian.PutUint32(central[24:28], math.MaxUint32)
+		} else {
+			binary.LittleEndian.PutUint32(central[20:24], uint32(len(entry.body)))
+			binary.LittleEndian.PutUint32(central[24:28], uint32(len(entry.body)))
+		}
+		binary.LittleEndian.PutUint16(central[28:30], uint16(len(entry.name)))
+		extra := entry.extra
+		if isZIP64 {
+			extra = make([]byte, 20)
+			binary.LittleEndian.PutUint16(extra[:2], 1)
+			binary.LittleEndian.PutUint16(extra[2:4], 16)
+			binary.LittleEndian.PutUint64(extra[4:12], uint64(len(entry.body)))
+			binary.LittleEndian.PutUint64(extra[12:20], uint64(len(entry.body)))
+		}
+		binary.LittleEndian.PutUint16(central[30:32], uint16(len(extra)))
+		binary.LittleEndian.PutUint32(central[42:46], record.localOffset)
+		archive = append(archive, central...)
+		archive = append(archive, entry.name...)
+		archive = append(archive, extra...)
+	}
+	centralSize := len(archive) - centralStart
+	eocd := make([]byte, 22)
+	binary.LittleEndian.PutUint32(eocd[:4], 0x06054b50)
+	binary.LittleEndian.PutUint16(eocd[8:10], uint16(len(records)))
+	binary.LittleEndian.PutUint16(eocd[10:12], uint16(len(records)))
+	binary.LittleEndian.PutUint32(eocd[12:16], uint32(centralSize))
+	binary.LittleEndian.PutUint32(eocd[16:20], uint32(centralStart))
+	archive = append(archive, eocd...)
+	return archive
+}
+
+func patchLaunchBoxDataDescriptorValueForForm(t *testing.T, archive []byte, name string, zip64, signed bool, field string) {
+	t.Helper()
+	localOffset := launchBoxArchiveLocalHeaderOffset(t, archive, name)
+	nameLength := int(binary.LittleEndian.Uint16(archive[localOffset+26 : localOffset+28]))
+	extraLength := int(binary.LittleEndian.Uint16(archive[localOffset+28 : localOffset+30]))
+	dataOffset := localOffset + 30 + nameLength + extraLength
+	bodyLength := map[string]int{"Metadata.xml": 8, "Platforms.xml": 8, "Mame.xml": 4, "Files.xml": 5}[name]
+	width := 4
+	if zip64 {
+		width = 8
+	}
+	descriptorOffset := dataOffset + bodyLength
+	if signed {
+		if descriptorOffset+4 > len(archive) || binary.LittleEndian.Uint32(archive[descriptorOffset:descriptorOffset+4]) != 0x08074b50 {
+			t.Fatalf("signed data descriptor for %q not found at %d", name, descriptorOffset)
+		}
+		descriptorOffset += 4
+	}
+	if descriptorOffset+4+2*width > len(archive) {
+		t.Fatalf("truncated data descriptor for %q", name)
+	}
+	fieldOffset := descriptorOffset
+	switch field {
+	case "compressed":
+		fieldOffset += 4
+	case "expanded":
+		fieldOffset += 4 + width
+	case "crc":
+	default:
+		t.Fatalf("unknown data descriptor field %q", field)
+	}
+	if field == "crc" {
+		binary.LittleEndian.PutUint32(archive[fieldOffset:fieldOffset+4], ^binary.LittleEndian.Uint32(archive[fieldOffset:fieldOffset+4]))
+	} else if width == 4 {
+		binary.LittleEndian.PutUint32(archive[fieldOffset:fieldOffset+4], binary.LittleEndian.Uint32(archive[fieldOffset:fieldOffset+4])+1)
+	} else {
+		binary.LittleEndian.PutUint64(archive[fieldOffset:fieldOffset+8], binary.LittleEndian.Uint64(archive[fieldOffset:fieldOffset+8])+1)
 	}
 }
 
@@ -334,6 +469,14 @@ func assertLaunchBoxArchiveInvalid(t *testing.T, archive []byte) {
 	}
 }
 
+func launchBoxArchiveDataOffset(t *testing.T, archive []byte, name string) int {
+	t.Helper()
+	localOffset := launchBoxArchiveLocalHeaderOffset(t, archive, name)
+	nameLength := int(binary.LittleEndian.Uint16(archive[localOffset+26 : localOffset+28]))
+	extraLength := int(binary.LittleEndian.Uint16(archive[localOffset+28 : localOffset+30]))
+	return localOffset + 30 + nameLength + extraLength
+}
+
 func TestLaunchBoxArchivePreflightAdmitsRequiredMembersAndStreamsAfterAdmission(t *testing.T) {
 	archiveBytes := buildLaunchBoxArchive(t, []launchBoxFixtureEntry{
 		{name: "Metadata.xml", body: []byte("metadata"), method: zip.Store},
@@ -399,19 +542,22 @@ func TestLaunchBoxArchiveRatioUsesInclusiveOverflowSafeIntegerRule(t *testing.T)
 
 func TestLaunchBoxArchiveCentralDirectoryRatioBoundaries(t *testing.T) {
 	tests := []struct {
-		name       string
-		compressed uint64
-		expanded   uint64
-		want       bool
+		name              string
+		fixtureCompressed uint64
+		fixtureExpanded   uint64
+		want              bool
 	}{
-		{name: "exact maximum", compressed: 1, expanded: 32, want: true},
-		{name: "maximum plus one", compressed: 1, expanded: 33},
-		{name: "zero compressed nonempty", compressed: 0, expanded: 1},
+		{name: "exact maximum", fixtureCompressed: 8, fixtureExpanded: 256, want: true},
+		{name: "maximum plus one", fixtureCompressed: 8, fixtureExpanded: 264},
+		{name: "zero compressed nonempty", fixtureCompressed: 0, fixtureExpanded: 1},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			archive := buildLaunchBoxArchive(t, validLaunchBoxFixtureEntries())
-			patchLaunchBoxCentralEntry(t, archive, "Metadata.xml", test.compressed, test.expanded, nil)
+			patchLaunchBoxCentralEntry(t, archive, "Metadata.xml", test.fixtureCompressed, test.fixtureExpanded, nil)
+			if test.fixtureCompressed != 0 {
+				patchLaunchBoxDataDescriptorSizes(t, archive, "Metadata.xml", test.fixtureCompressed, test.fixtureExpanded)
+			}
 			opened, err := openLaunchBoxArchive(bytes.NewReader(archive), int64(len(archive)))
 			if test.want {
 				if err != nil || opened == nil {
@@ -422,6 +568,20 @@ func TestLaunchBoxArchiveCentralDirectoryRatioBoundaries(t *testing.T) {
 			assertLaunchBoxArchiveInvalid(t, archive)
 		})
 	}
+}
+
+func patchLaunchBoxDataDescriptorSizes(t *testing.T, archive []byte, name string, compressed, expanded uint64) {
+	t.Helper()
+	if compressed > math.MaxUint32 || expanded > math.MaxUint32 {
+		t.Fatalf("fixture data descriptor exceeds 32-bit form: compressed=%d expanded=%d", compressed, expanded)
+	}
+	dataOffset := launchBoxArchiveDataOffset(t, archive, name)
+	descriptorOffset := dataOffset + int(compressed)
+	if descriptorOffset+16 > len(archive) || binary.LittleEndian.Uint32(archive[descriptorOffset:descriptorOffset+4]) != 0x08074b50 {
+		t.Fatalf("signed data descriptor for %q not found at %d", name, descriptorOffset)
+	}
+	binary.LittleEndian.PutUint32(archive[descriptorOffset+8:descriptorOffset+12], uint32(compressed))
+	binary.LittleEndian.PutUint32(archive[descriptorOffset+12:descriptorOffset+16], uint32(expanded))
 }
 
 func TestLaunchBoxArchiveAggregateRatioBoundaries(t *testing.T) {
@@ -542,7 +702,7 @@ func TestLaunchBoxArchiveRejectsDeclaredEntryCountBeforeCentralDirectoryPrefligh
 	if !eocdFound {
 		t.Fatal("end of central directory not found")
 	}
-	guard := &launchBoxArchiveReadGuard{source: bytes.NewReader(archive), blockedOffset: centralDirectoryOffset}
+	guard := &launchBoxArchiveReadGuard{source: bytes.NewReader(archive), blockedOffset: centralDirectoryOffset, block: true}
 	opened, err := openLaunchBoxArchive(guard, int64(len(archive)))
 	if opened != nil || opCode(err) != ErrInvalidResponse {
 		t.Fatalf("openLaunchBoxArchive = archive:%v err:%v, want invalid_response and nil archive", opened, err)
@@ -747,17 +907,100 @@ func TestLaunchBoxArchiveDataDescriptorForms(t *testing.T) {
 			if !ok || got != test.wantBytes {
 				t.Fatalf("descriptor extent = %d, %v; want %d, true", got, ok, test.wantBytes)
 			}
+
+			truncated := archive[:len(archive)-1]
+			if got, ok := launchBoxArchiveDataDescriptorBytes(bytes.NewReader(truncated), int64(len(truncated)), int64(len(truncated)), 0, launchBoxArchiveCentralEntry{
+				crc:              crc,
+				compressedSize:   compressed,
+				uncompressedSize: expanded,
+				zip64Sizes:       test.zip64,
+			}); ok {
+				t.Fatalf("truncated descriptor extent = %d, want rejection", got)
+			}
+
+			if got, ok := launchBoxArchiveDataDescriptorBytes(bytes.NewReader(archive), int64(len(archive)), int64(len(archive)), 0, launchBoxArchiveCentralEntry{
+				crc:              crc,
+				compressedSize:   compressed,
+				uncompressedSize: expanded,
+				zip64Sizes:       !test.zip64,
+			}); ok {
+				t.Fatalf("wrong-width descriptor extent = %d, want rejection", got)
+			}
 		})
 	}
 }
 
-func TestLaunchBoxArchiveCRCAndTruncatedMemberFailuresAreClosed(t *testing.T) {
+func TestLaunchBoxArchiveUnsignedDescriptorWithSignatureValuedCRC(t *testing.T) {
+	const signature = uint32(0x08074b50)
+	archive := make([]byte, 12)
+	binary.LittleEndian.PutUint32(archive[0:4], signature)
+	binary.LittleEndian.PutUint32(archive[4:8], 8)
+	binary.LittleEndian.PutUint32(archive[8:12], 8)
+	got, ok := launchBoxArchiveDataDescriptorBytes(bytes.NewReader(archive), int64(len(archive)), int64(len(archive)), 0, launchBoxArchiveCentralEntry{
+		crc:              signature,
+		compressedSize:   8,
+		uncompressedSize: 8,
+	})
+	if !ok || got != 12 {
+		t.Fatalf("unsigned descriptor with signature-valued CRC = %d, %v; want 12, true", got, ok)
+	}
+}
+
+func TestLaunchBoxArchiveSignedDescriptorWithSignatureValuedFieldsPrefersSignedForm(t *testing.T) {
+	const signature = uint32(0x08074b50)
+	archive := make([]byte, 16)
+	for offset := 0; offset < len(archive); offset += 4 {
+		binary.LittleEndian.PutUint32(archive[offset:offset+4], signature)
+	}
+	got, ok := launchBoxArchiveDataDescriptorBytes(bytes.NewReader(archive), int64(len(archive)), int64(len(archive)), 0, launchBoxArchiveCentralEntry{
+		crc:              signature,
+		compressedSize:   uint64(signature),
+		uncompressedSize: uint64(signature),
+	})
+	if !ok || got != 16 {
+		t.Fatalf("signed descriptor with signature-valued fields = %d, %v; want 16, true", got, ok)
+	}
+}
+
+func TestLaunchBoxArchiveDataDescriptorValuesFormsBeforeExposure(t *testing.T) {
+	forms := []struct {
+		name   string
+		zip64  bool
+		signed bool
+	}{
+		{name: "32-bit without signature"},
+		{name: "32-bit with signature", signed: true},
+		{name: "ZIP64 without signature", zip64: true},
+		{name: "ZIP64 with signature", zip64: true, signed: true},
+	}
+	for _, form := range forms {
+		for _, member := range []string{"Metadata.xml", "Mame.xml"} {
+			form, member := form, member
+			t.Run(form.name+"/"+member+"/valid", func(t *testing.T) {
+				archive := buildLaunchBoxDataDescriptorArchive(t, member, form.zip64, form.signed)
+				opened, err := openLaunchBoxArchive(bytes.NewReader(archive), int64(len(archive)))
+				if opened == nil || err != nil {
+					t.Fatalf("valid descriptor form rejected: archive=%v err=%v", opened, err)
+				}
+			})
+			for _, field := range []string{"crc", "compressed", "expanded"} {
+				field := field
+				t.Run(form.name+"/"+member+"/"+field, func(t *testing.T) {
+					archive := buildLaunchBoxDataDescriptorArchive(t, member, form.zip64, form.signed)
+					patchLaunchBoxDataDescriptorValueForForm(t, archive, member, form.zip64, form.signed, field)
+					assertLaunchBoxArchiveInvalid(t, archive)
+				})
+			}
+		}
+	}
+}
+
+func TestLaunchBoxArchiveCorruptAndTruncatedMemberFailuresAreClosed(t *testing.T) {
 	archive := buildLaunchBoxArchive(t, validLaunchBoxFixtureEntries())
-	wrongCRC := ^uint32(0)
-	patchLaunchBoxCentralEntry(t, archive, "Metadata.xml", 8, 8, &wrongCRC)
+	archive[launchBoxArchiveDataOffset(t, archive, "Metadata.xml")] ^= 0xff
 	admitted, err := openLaunchBoxArchive(bytes.NewReader(archive), int64(len(archive)))
 	if err != nil {
-		t.Fatalf("CRC-corrupt central directory was rejected before stream: %v", err)
+		t.Fatalf("corrupt member was rejected before stream: %v", err)
 	}
 	reader, err := admitted.OpenMember("Metadata.xml")
 	if err != nil {
@@ -770,11 +1013,15 @@ func TestLaunchBoxArchiveCRCAndTruncatedMemberFailuresAreClosed(t *testing.T) {
 	}
 
 	truncated := buildLaunchBoxArchive(t, validLaunchBoxFixtureEntries())
-	patchLaunchBoxCentralEntry(t, truncated, "Metadata.xml", 9, 9, nil)
-	admitted, err = openLaunchBoxArchive(bytes.NewReader(truncated), int64(len(truncated)))
+	guard := &launchBoxArchiveReadGuard{
+		source:        bytes.NewReader(truncated),
+		blockedOffset: int64(launchBoxArchiveDataOffset(t, truncated, "Metadata.xml")),
+	}
+	admitted, err = openLaunchBoxArchive(guard, int64(len(truncated)))
 	if err != nil {
 		t.Fatalf("truncated member was rejected before stream: %v", err)
 	}
+	guard.block = true
 	reader, err = admitted.OpenMember("Metadata.xml")
 	if err != nil {
 		t.Fatalf("OpenMember truncated entry: %v", err)

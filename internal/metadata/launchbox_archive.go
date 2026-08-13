@@ -671,29 +671,68 @@ func launchBoxArchiveDataDescriptorBytes(source io.ReaderAt, sourceSize, central
 		return 0, false
 	}
 	const (
-		descriptor32Bytes = 12
-		descriptor64Bytes = 20
+		crcBytes          = 4
+		size32Bytes       = 4
+		size64Bytes       = 8
 		signatureBytes    = 4
+		descriptor32Bytes = crcBytes + size32Bytes + size32Bytes
+		descriptor64Bytes = crcBytes + size64Bytes + size64Bytes
+		signature         = uint32(0x08074b50)
 	)
-	descriptorBytes := uint64(descriptor32Bytes)
+	payloadBytes := uint64(descriptor32Bytes)
 	if entry.zip64Sizes {
-		descriptorBytes = descriptor64Bytes
+		payloadBytes = descriptor64Bytes
 	}
-	var signature [signatureBytes]byte
-	if uint64(centralDirectoryStart)-dataEnd < descriptorBytes || uint64(sourceSize)-dataEnd < descriptorBytes ||
-		int64(dataEnd) < 0 {
+	if uint64(centralDirectoryStart)-dataEnd < payloadBytes || uint64(sourceSize)-dataEnd < payloadBytes {
 		return 0, false
 	}
-	if _, err := source.ReadAt(signature[:], int64(dataEnd)); err != nil {
+
+	var prefix [signatureBytes]byte
+	if _, err := source.ReadAt(prefix[:], int64(dataEnd)); err != nil {
 		return 0, false
 	}
-	if bytes.Equal(signature[:], []byte{'P', 'K', 7, 8}) {
-		descriptorBytes += signatureBytes
-	}
-	if uint64(centralDirectoryStart)-dataEnd < descriptorBytes || uint64(sourceSize)-dataEnd < descriptorBytes {
+	readOffset, ok := checkedLaunchBoxArchiveAdd(dataEnd, signatureBytes)
+	if !ok {
 		return 0, false
 	}
-	return descriptorBytes, true
+	if readOffset > uint64(^uint64(0)>>1) || payloadBytes > uint64(^uint(0)>>1) {
+		return 0, false
+	}
+
+	descriptorMatchesEntry := func(payload []byte) bool {
+		if binary.LittleEndian.Uint32(payload[:crcBytes]) != entry.crc {
+			return false
+		}
+		var compressed, expanded uint64
+		if entry.zip64Sizes {
+			compressed = binary.LittleEndian.Uint64(payload[crcBytes : crcBytes+size64Bytes])
+			expanded = binary.LittleEndian.Uint64(payload[crcBytes+size64Bytes : crcBytes+size64Bytes+size64Bytes])
+		} else {
+			compressed = uint64(binary.LittleEndian.Uint32(payload[crcBytes : crcBytes+size32Bytes]))
+			expanded = uint64(binary.LittleEndian.Uint32(payload[crcBytes+size32Bytes : crcBytes+size32Bytes+size32Bytes]))
+		}
+		return compressed == entry.compressedSize && expanded == entry.uncompressedSize
+	}
+
+	if binary.LittleEndian.Uint32(prefix[:]) == signature {
+		descriptorBytes, ok := checkedLaunchBoxArchiveAdd(payloadBytes, signatureBytes)
+		if ok && descriptorBytes <= uint64(centralDirectoryStart)-dataEnd && descriptorBytes <= uint64(sourceSize)-dataEnd {
+			payload := make([]byte, int(payloadBytes))
+			if _, err := source.ReadAt(payload, int64(readOffset)); err == nil && descriptorMatchesEntry(payload) {
+				return descriptorBytes, true
+			}
+		}
+	}
+
+	payload := make([]byte, int(payloadBytes))
+	copy(payload[:signatureBytes], prefix[:])
+	if _, err := source.ReadAt(payload[signatureBytes:], int64(readOffset)); err != nil {
+		return 0, false
+	}
+	if descriptorMatchesEntry(payload) {
+		return payloadBytes, true
+	}
+	return 0, false
 }
 
 func validLaunchBoxArchiveRequiredMemberName(name string) bool {
