@@ -42,6 +42,7 @@ type gameResult struct {
 	RootOnline      bool                `json:"root_online"`
 	ContentPrepared bool                `json:"content_prepared"`
 	Execution       string              `json:"execution"`
+	Genre           string              `json:"genre,omitempty"`
 }
 
 type gamesResult struct {
@@ -263,7 +264,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 		})
 		result := gamesResult{Games: make([]gameResult, 0, len(games))}
 		for _, game := range games {
-			result.Games = append(result.Games, publicGame(game))
+			result.Games = append(result.Games, publicGameWithGenre(r.Context(), config, game))
 		}
 		writeJSON(w, http.StatusOK, result)
 	})
@@ -540,6 +541,19 @@ func publicGame(game catalog.Game) gameResult {
 		State: game.State, RootOnline: game.RootOnline, ContentPrepared: game.Content != nil,
 		Execution: "fpga_native",
 	}
+}
+
+func publicGameWithGenre(ctx context.Context, config serverOptions, game catalog.Game) gameResult {
+	result := publicGame(game)
+	if config.metadata == nil || config.metadataState != metadata.StateReady {
+		return result
+	}
+	lookup, err := config.metadata.Lookup(ctx, metadata.LookupInput{Title: game.Title, System: game.System})
+	if err != nil || (lookup.Outcome != metadata.OutcomeExact && lookup.Outcome != metadata.OutcomeConfident) {
+		return result
+	}
+	result.Genre = strings.TrimSpace(lookup.Presentation.Genre)
+	return result
 }
 
 func noStore(next http.Handler) http.Handler {

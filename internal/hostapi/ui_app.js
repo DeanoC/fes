@@ -156,7 +156,7 @@
       || !id.trim()
       || !title.trim()
     ) throw createError('MALFORMED_RESPONSE', 'The local host returned an invalid game record.');
-    return Object.freeze({
+    const record = {
       id,
       title,
       system,
@@ -165,6 +165,61 @@
       root_online: rootOnline,
       content_prepared: contentPrepared,
       execution,
+    };
+    const genre = optionalCatalogText(source.genre);
+    if (genre) record.genre = genre;
+    return Object.freeze(record);
+  }
+
+  function optionalCatalogText(value) {
+    if (value === undefined || value === null || value === '') return undefined;
+    return typeof value === 'string' ? value.trim() || undefined : undefined;
+  }
+
+  const CATALOG_REGIONS = Object.freeze({
+    usa: 'usa', us: 'usa', europe: 'europe', japan: 'japan', world: 'world',
+    brazil: 'brazil', korea: 'korea', asia: 'asia', australia: 'australia',
+    france: 'france', germany: 'germany', spain: 'spain', italy: 'italy', canada: 'canada',
+  });
+
+  function catalogRegion(title) {
+    const tags = [];
+    let current = String(title || '').trim();
+    while (current) {
+      const close = current[current.length - 1];
+      const open = close === ')' ? '(' : close === ']' ? '[' : '';
+      if (!open) break;
+      const index = current.lastIndexOf(open);
+      if (index <= 0) break;
+      tags.push(current.slice(index + 1, -1).trim().toLowerCase());
+      current = current.slice(0, index).trim();
+    }
+    for (const tag of tags) {
+      const first = tag.split(',')[0].trim();
+      if (CATALOG_REGIONS[first]) return CATALOG_REGIONS[first];
+    }
+    return 'other';
+  }
+
+  function catalogGenre(view) {
+    const presentation = view && view.presentation;
+    if (presentation && !presentation.isFallback && presentation.genre && presentation.genre !== 'Unknown') {
+      return presentation.genre;
+    }
+    const live = view && view.live;
+    return live && live.genre ? live.genre : '';
+  }
+
+  function filterCatalogViews(views, filters) {
+    const system = filters && filters.system || '';
+    const region = filters && filters.region || '';
+    const genre = filters && filters.genre || '';
+    return (views || []).filter(view => {
+      const live = view && view.live || {};
+      if (system && live.system !== system) return false;
+      if (region && catalogRegion(live.title) !== region) return false;
+      if (genre && catalogGenre(view) !== genre) return false;
+      return true;
     });
   }
 
@@ -576,6 +631,7 @@
     if (state.catalogState === 'loading') return 'loading';
     if (state.catalogState === 'catalog_error') return 'catalog_error';
     if (state.games.length === 0) return state.query ? 'no_matches' : 'empty';
+    if (filterCatalogViews(state.gameViews, state.filters).length === 0) return 'no_matches';
     return 'populated';
   }
 
@@ -592,6 +648,7 @@
       query: '',
       games: [],
       gameViews: [],
+      filters: Object.freeze({ system: '', region: '', genre: '' }),
       selectedLiveGame: null,
       selectedGameView: null,
       selectedPresentation: null,
@@ -1144,6 +1201,17 @@
       return snapshot();
     }
 
+    function setCatalogFilter(name, value) {
+      if (name !== 'system' && name !== 'region' && name !== 'genre') return snapshot();
+      state.filters = Object.freeze({
+        system: state.filters.system,
+        region: state.filters.region,
+        genre: state.filters.genre,
+        [name]: String(value || '').trim(),
+      });
+      return emit();
+    }
+
     return Object.freeze({
       getState: snapshot,
       loadCatalog,
@@ -1154,6 +1222,7 @@
       launchSelected,
       stopSession,
       observeVisibleCovers,
+      setCatalogFilter,
     });
   }
 
@@ -1173,6 +1242,9 @@
     detailHeading,
     catalogViewState,
     createAppController,
+    catalogRegion,
+    catalogGenre,
+    filterCatalogViews,
   });
   root.FogCastApp = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -1186,6 +1258,9 @@
     health: document.getElementById('health'),
     search: document.getElementById('game-search'),
     refresh: document.getElementById('refresh-catalog'),
+    systemFilter: document.getElementById('filter-system'),
+    regionFilter: document.getElementById('filter-region'),
+    genreFilter: document.getElementById('filter-genre'),
     catalog: document.getElementById('catalog'),
     status: document.getElementById('catalog-status'),
     list: document.getElementById('catalog-list'),
@@ -1366,7 +1441,35 @@
       return;
     }
     nodes.status.textContent = state.metadataFallbackCount ? 'populated metadata_fallback' : 'populated';
-    state.gameViews.forEach((view, index) => renderCard(view, state.games[index]));
+    syncCatalogFilters();
+    const visible = filterCatalogViews(state.gameViews, state.filters);
+    visible.forEach(view => renderCard(view, view.live));
+  }
+
+  function syncCatalogFilters() {
+    if (nodes.systemFilter) nodes.systemFilter.value = state.filters && state.filters.system || '';
+    if (nodes.regionFilter) nodes.regionFilter.value = state.filters && state.filters.region || '';
+    if (!nodes.genreFilter) return;
+    const selected = state.filters && state.filters.genre || '';
+    const seen = Object.create(null);
+    const genres = [];
+    (state.gameViews || []).forEach(view => {
+      const genre = catalogGenre(view);
+      if (!genre || seen[genre]) return;
+      seen[genre] = true;
+      genres.push(genre);
+    });
+    genres.sort((left, right) => left.localeCompare(right));
+    nodes.genreFilter.replaceChildren();
+    const all = element('option', '', 'All genres');
+    all.value = '';
+    nodes.genreFilter.appendChild(all);
+    genres.forEach(genre => {
+      const option = element('option', '', genre);
+      option.value = genre;
+      nodes.genreFilter.appendChild(option);
+    });
+    nodes.genreFilter.value = selected;
   }
 
   function neutralArtwork(role) {
@@ -1557,6 +1660,9 @@
   state = controller.getState();
   nodes.refresh.addEventListener('click', loadCatalog);
   nodes.search.addEventListener('input', loadCatalog);
+  if (nodes.systemFilter) nodes.systemFilter.addEventListener('change', () => controller.setCatalogFilter('system', nodes.systemFilter.value));
+  if (nodes.regionFilter) nodes.regionFilter.addEventListener('change', () => controller.setCatalogFilter('region', nodes.regionFilter.value));
+  if (nodes.genreFilter) nodes.genreFilter.addEventListener('change', () => controller.setCatalogFilter('genre', nodes.genreFilter.value));
   renderCatalog();
   renderDetail(null);
   renderSession();

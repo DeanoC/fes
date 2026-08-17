@@ -20,6 +20,9 @@ const {
   catalogViewState,
   presentationPath,
   parsePresentation,
+  catalogRegion,
+  catalogGenre,
+  filterCatalogViews,
 } = require('./ui_app.js');
 const FogCastMetadata = require('./ui_metadata.js');
 
@@ -202,6 +205,24 @@ function validAdapterPresentation() {
     isFallback: true,
   };
 }
+
+test('catalog filters keep search on the host and hide unmatched platforms, regions, and genres', () => {
+  assert.equal(gamesPath('sonic'), '/api/v1/games?q=sonic');
+  assert.equal(catalogRegion('007 Shitou - The Duel (Japan)'), 'japan');
+  assert.equal(catalogRegion('Streets of Rage 2 (USA)'), 'usa');
+  assert.equal(catalogRegion('Sonic & Knuckles (World)'), 'world');
+  assert.equal(catalogRegion('Bare Knuckle ~ Streets of Rage (World) (Rev A)'), 'world');
+  assert.equal(catalogRegion('Sonic the Hedgehog'), 'other');
+  const views = [
+    { live: { id: 'megadrive-a', title: 'Streets of Rage 2 (USA)', system: 'megadrive', genre: 'Beat \'em Up' }, presentation: { genre: 'Beat \'em Up' } },
+    { live: { id: 'snes-b', title: 'Super Mario World (USA)', system: 'snes', genre: 'Platform' }, presentation: { genre: 'Platform' } },
+    { live: { id: 'megadrive-c', title: '007 Shitou - The Duel (Japan)', system: 'megadrive' }, presentation: { genre: 'Unknown' } },
+  ];
+  assert.deepEqual(filterCatalogViews(views, { system: 'snes' }).map(view => view.live.id), ['snes-b']);
+  assert.deepEqual(filterCatalogViews(views, { region: 'japan' }).map(view => view.live.id), ['megadrive-c']);
+  assert.deepEqual(filterCatalogViews(views, { genre: 'Platform' }).map(view => view.live.id), ['snes-b']);
+  assert.equal(catalogGenre(views[0]), 'Beat \'em Up');
+});
 
 test('presentation route is a host-local path and parser bounds provider fields', () => {
   assert.equal(presentationPath('megadrive-sonic-test'), '/api/v1/presentation/games/megadrive-sonic-test');

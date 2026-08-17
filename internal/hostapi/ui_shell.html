@@ -26,6 +26,31 @@
           <input id="game-search" type="search" placeholder="Search games" autocomplete="off">
           <button id="refresh-catalog" class="button secondary" type="button">Refresh</button>
         </div>
+        <div class="catalog-filters" role="group" aria-label="Catalog filters">
+          <label class="filter-label">Platform
+            <select id="filter-system">
+              <option value="">All platforms</option>
+              <option value="megadrive">Mega Drive</option>
+              <option value="snes">SNES</option>
+            </select>
+          </label>
+          <label class="filter-label">Region
+            <select id="filter-region">
+              <option value="">All regions</option>
+              <option value="usa">USA</option>
+              <option value="japan">Japan</option>
+              <option value="europe">Europe</option>
+              <option value="world">World</option>
+              <option value="brazil">Brazil</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label class="filter-label">Genre
+            <select id="filter-genre">
+              <option value="">All genres</option>
+            </select>
+          </label>
+        </div>
       </div>
       <div id="catalog" class="catalog-region" aria-busy="true">
         <p id="catalog-status" class="sr-only" aria-live="polite">loading</p>
