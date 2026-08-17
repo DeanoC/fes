@@ -136,7 +136,7 @@ func isAllowedProviderIP(ip net.IP) bool {
 func isAllowedProviderHost(host string) bool {
 	host = strings.ToLower(host)
 	switch host {
-	case "id.twitch.tv", "api.igdb.com", "images.igdb.com":
+	case "id.twitch.tv", "api.igdb.com", "images.igdb.com", "images.launchbox-app.com":
 		return true
 	default:
 		return false

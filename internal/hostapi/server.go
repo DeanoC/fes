@@ -406,7 +406,8 @@ func rejectUnexpectedHost(next http.Handler) http.Handler {
 var presentationHandlePattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
 func safePresentation(result metadata.Result) (presentationPayload, presentationAttribution, bool) {
-	if result.Attribution.Provider != metadata.ProviderIGDB || result.Attribution.Label != "Data from IGDB.com" {
+	label, ok := presentationLabel(result.Attribution)
+	if !ok {
 		return presentationPayload{}, presentationAttribution{}, false
 	}
 	values := []struct {
@@ -432,7 +433,18 @@ func safePresentation(result metadata.Result) (presentationPayload, presentation
 		Players:               boundedPresentationText(result.Presentation.Players, 40),
 		CoverArtworkHandle:    safePresentationHandle(result.Presentation.CoverArtworkID),
 		BackdropArtworkHandle: safePresentationHandle(result.Presentation.BackdropArtworkID),
-	}, presentationAttribution{Provider: string(metadata.ProviderIGDB), Label: "Data from IGDB.com"}, true
+	}, presentationAttribution{Provider: string(result.Attribution.Provider), Label: label}, true
+}
+
+func presentationLabel(attribution metadata.Attribution) (string, bool) {
+	switch {
+	case attribution.Provider == metadata.ProviderIGDB && attribution.Label == "Data from IGDB.com":
+		return attribution.Label, true
+	case attribution.Provider == metadata.ProviderLaunchBox && attribution.Label == "Data from LaunchBox Games Database":
+		return attribution.Label, true
+	default:
+		return "", false
+	}
 }
 
 func boundedPresentationText(value string, limit int) string {

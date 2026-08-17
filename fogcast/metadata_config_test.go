@@ -86,6 +86,27 @@ client_secret = "secret"`,
 	}
 }
 
+func TestLoadConfigAcceptsLaunchBoxArchiveWithoutCredentials(t *testing.T) {
+	dir := t.TempDir()
+	archive := filepath.Join(dir, "Metadata.zip")
+	if err := os.WriteFile(archive, []byte("zip"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	content := validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis")) + `
+[metadata]
+provider = "launchbox"
+enabled = true
+archive = "` + archive + `"
+`
+	config, err := fogcast.LoadConfig(writeConfig(t, content))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !config.Metadata.Enabled || config.Metadata.Provider != "launchbox" || config.Metadata.Archive != archive || config.Metadata.ClientSecret != "" {
+		t.Fatalf("metadata = %#v", config.Metadata)
+	}
+}
+
 func TestLoadConfigRequiresExplicitIGDBProviderWhenEnabled(t *testing.T) {
 	dir := t.TempDir()
 	base := validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))
