@@ -26,6 +26,10 @@ const {
   sortCatalogViews,
   formatCatalogCount,
   fallbackPresentation,
+  displayTitle,
+  systemLabel,
+  sourceLabel,
+  launchBlockReason,
 } = require('./ui_app.js');
 const FogCastMetadata = require('./ui_metadata.js');
 
@@ -239,6 +243,19 @@ test('unmatched catalog cards stay quiet and sort/count the visible library', ()
   assert.deepEqual(sortCatalogViews(views, 'system').map(view => view.live.id), ['megadrive-b', 'megadrive-c', 'snes-a']);
   assert.equal(formatCatalogCount(3, 2138), '3 of 2,138 games');
   assert.equal(formatCatalogCount(2138, 2138), '2,138 games');
+});
+
+test('library wording shows clean titles and honest launch blocks', () => {
+  assert.equal(displayTitle('ActRaiser 2 (USA)'), 'ActRaiser 2');
+  assert.equal(displayTitle('007 Shitou - The Duel (Japan)'), '007 Shitou - The Duel');
+  assert.equal(displayTitle('Bare Knuckle ~ Streets of Rage (World) (Rev A)'), 'Bare Knuckle ~ Streets of Rage');
+  assert.equal(systemLabel('megadrive'), 'Mega Drive');
+  assert.equal(systemLabel('snes'), 'SNES');
+  assert.equal(sourceLabel('available'), 'Ready');
+  assert.equal(sourceLabel('missing'), 'Offline');
+  assert.equal(launchBlockReason({ state: 'available', content_prepared: true, root_online: true }), '');
+  assert.equal(launchBlockReason({ state: 'available', content_prepared: false, root_online: true }), 'This ROM isn’t staged yet.');
+  assert.equal(launchBlockReason({ state: 'missing', content_prepared: false, root_online: false }), 'This game’s source is offline.');
 });
 
 test('presentation route is a host-local path and parser bounds provider fields', () => {
@@ -677,7 +694,7 @@ test('selected catalog cards expose pressed state while retaining live IDs', () 
 test('card labels remain text descendants rather than dynamic user-string attributes', () => {
   const app = readAsset('ui_app.js');
   assert.doesNotMatch(app, /setAttribute\('aria-label', `Select \$\{game\.title\}`\)/);
-  assert.match(app, /card\.appendChild\(element\('h3', '', game\.title\)\);/);
+  assert.match(app, /card\.appendChild\(element\('h3', '', displayTitle\(game\.title\)\)\);/);
 });
 
 test('catalog cards defer unreliable execution compatibility data', () => {
@@ -941,12 +958,12 @@ test('browser render paths keep cards, detail, and launch usable across metadata
     const firstCard = catalogList.children[0];
     assert.equal(firstCard.tagName, 'BUTTON', `${testCase.name} card should be actionable`);
     assert.equal(firstCard.children[1].textContent, 'Sonic the Hedgehog', `${testCase.name} card title must stay live`);
-    assert.match(firstCard.children[2].textContent, /megadrive · available/, `${testCase.name} card state must stay live`);
+    assert.match(firstCard.children[2].textContent, /Mega Drive · Ready/, `${testCase.name} card state must stay live`);
 
     await firstCard.click();
     assert.match(browserText(document.nodes.get('detail-content')), /Sonic the Hedgehog/);
     const launchButton = document.nodes.get('launch-actions').children
-      .find(child => child.tagName === 'BUTTON' && child.textContent === 'Launch live game');
+      .find(child => child.tagName === 'BUTTON' && child.textContent === 'Launch');
     assert.ok(launchButton, `${testCase.name} should retain launch action after detail refresh`);
     assert.equal(launchButton.disabled, false, `${testCase.name} eligibility must stay live`);
 
@@ -1058,7 +1075,7 @@ test('browser rendering falls back for shape-complete invalid presentation value
   assert.equal(detailContent.children[0].className, 'backdrop-art artwork-empty');
 
   const launchButton = document.nodes.get('launch-actions').children
-    .find(child => child.tagName === 'BUTTON' && child.textContent === 'Launch live game');
+    .find(child => child.tagName === 'BUTTON' && child.textContent === 'Launch');
   assert.ok(launchButton);
   await launchButton.click();
   assert.match(browserText(document.nodes.get('launch-actions')), /launch_success/);

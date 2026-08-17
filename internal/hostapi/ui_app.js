@@ -93,7 +93,7 @@
   }
 
   function detailHeading(game) {
-    return game ? String(game.title) : 'Select a game';
+    return game ? displayTitle(game.title) : 'Select a game';
   }
 
   function boundedMessage(value, fallback, limit) {
@@ -199,6 +199,50 @@
       if (CATALOG_REGIONS[first]) return CATALOG_REGIONS[first];
     }
     return 'other';
+  }
+
+  function dumpSuffix(value) {
+    const first = String(value || '').split(',')[0].trim();
+    if (CATALOG_REGIONS[first]) return true;
+    if (/^rev(\s+\S+)?$/.test(first)) return true;
+    return first === 'beta' || first === 'proto' || first === 'sample' || first === 'demo' || first === 'unl';
+  }
+
+  function displayTitle(title) {
+    let current = String(title || '').trim();
+    while (current) {
+      const close = current[current.length - 1];
+      const open = close === ')' ? '(' : close === ']' ? '[' : '';
+      if (!open) break;
+      const index = current.lastIndexOf(open);
+      if (index <= 0) break;
+      const inside = current.slice(index + 1, -1).trim().toLowerCase();
+      if (!dumpSuffix(inside)) break;
+      current = current.slice(0, index).trim();
+    }
+    return current || String(title || '').trim();
+  }
+
+  function systemLabel(system) {
+    if (system === 'megadrive') return 'Mega Drive';
+    if (system === 'snes') return 'SNES';
+    return String(system || '');
+  }
+
+  function sourceLabel(state) {
+    if (state === 'available') return 'Ready';
+    if (state === 'missing') return 'Offline';
+    if (state === 'invalid') return 'Unreadable';
+    return String(state || '');
+  }
+
+  function launchBlockReason(game) {
+    if (!game) return 'Select a game first.';
+    if (game.state === 'missing' || game.root_online === false) return 'This game’s source is offline.';
+    if (game.state === 'invalid') return 'This ROM can’t be read.';
+    if (!game.content_prepared) return 'This ROM isn’t staged yet.';
+    if (game.state !== 'available') return 'This game isn’t ready to launch.';
+    return '';
   }
 
   function catalogGenre(view) {
@@ -1290,6 +1334,10 @@
     sortCatalogViews,
     formatCatalogCount,
     fallbackPresentation,
+    displayTitle,
+    systemLabel,
+    sourceLabel,
+    launchBlockReason,
   });
   root.FogCastApp = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -1474,7 +1522,7 @@
     nodes.actions.replaceChildren();
     nodes.status.textContent = view;
     if (view === 'loading') {
-      nodes.list.appendChild(element('p', 'status-message', 'Loading the live catalog…'));
+      nodes.list.appendChild(element('p', 'status-message', 'Loading games…'));
       return;
     }
     if (view === 'catalog_error') {
@@ -1483,7 +1531,7 @@
       return;
     }
     if (view === 'empty' || view === 'no_matches') {
-      nodes.list.appendChild(element('p', 'status-message', state.query ? 'No matches in the live catalog.' : 'The live catalog is empty.'));
+      nodes.list.appendChild(element('p', 'status-message', state.query ? 'No matching games.' : 'The library is empty.'));
       nodes.actions.appendChild(retryButton('Refresh catalog', loadCatalog));
       return;
     }
@@ -1564,34 +1612,46 @@
     card.setAttribute('data-game-id', game.id);
     const cover = artworkElement('cover', presentation.cover, presentation.coverArtworkHandle, 'lazy');
     card.appendChild(cover);
-    card.appendChild(element('h3', '', game.title));
-    card.appendChild(element('p', 'game-meta', `${game.system} · ${game.state}`));
+    card.appendChild(element('h3', '', displayTitle(game.title)));
+    card.appendChild(element('p', 'game-meta', `${systemLabel(game.system)} · ${sourceLabel(game.state)}`));
+    if (game.title && displayTitle(game.title) !== game.title) card.setAttribute('title', game.title);
     card.addEventListener('click', () => selectGame(liveGame.id));
     nodes.list.appendChild(card);
   }
 
   function launchControl(game) {
-    let label = 'Launch live game';
-    let reason = '';
-    if (!game) return { label, reason: 'Select a live catalog game first.', enabled: false };
-    if (game.state !== 'available' || !game.content_prepared) {
-      reason = 'The selected live game is not ready to launch.';
-    } else if (state.activeMutation) {
-      reason = 'A session transition is already in progress.';
-    } else if (state.sessionStarted && !state.session) {
-      reason = state.sessionPhase === 'unavailable'
-        ? 'Session status is unavailable; retry before launching.'
-        : 'Session status is not ready; wait for the host check to finish.';
-    } else if (state.sessionStarted && !['idle', 'stopped', 'active'].includes(state.sessionPhase)) {
-      reason = state.sessionPhase === 'malformed'
-        ? 'Session status was malformed; retry before launching.'
-        : 'The current session transition must finish before launching.';
-    } else if (state.session && state.session.state === 'active' && state.session.game_id === game.id) {
-      reason = 'Already active.';
-    } else if (state.session && state.session.state === 'active') {
-      label = 'Replace active session';
+    const label = 'Launch';
+    if (!game) return { label, reason: launchBlockReason(game), enabled: false };
+    const blocked = launchBlockReason(game);
+    if (blocked) return { label, reason: blocked, enabled: false };
+    if (state.activeMutation) {
+      return { label, reason: 'A session transition is already in progress.', enabled: false };
     }
-    return { label, reason, enabled: reason === '' };
+    if (state.sessionStarted && !state.session) {
+      return {
+        label,
+        reason: state.sessionPhase === 'unavailable'
+          ? 'Session status is unavailable; retry before launching.'
+          : 'Session status is not ready; wait for the host check to finish.',
+        enabled: false,
+      };
+    }
+    if (state.sessionStarted && !['idle', 'stopped', 'active'].includes(state.sessionPhase)) {
+      return {
+        label,
+        reason: state.sessionPhase === 'malformed'
+          ? 'Session status was malformed; retry before launching.'
+          : 'The current session transition must finish before launching.',
+        enabled: false,
+      };
+    }
+    if (state.session && state.session.state === 'active' && state.session.game_id === game.id) {
+      return { label, reason: 'Already active.', enabled: false };
+    }
+    if (state.session && state.session.state === 'active') {
+      return { label: 'Replace session', reason: '', enabled: true };
+    }
+    return { label, reason: '', enabled: true };
   }
 
   function renderDetail(gameView, liveGame) {
@@ -1605,19 +1665,19 @@
     } else {
       const backdrop = artworkElement('backdrop', presentation.backdrop, presentation.backdropArtworkHandle, 'eager');
       nodes.detailContent.appendChild(backdrop);
-      nodes.detailContent.appendChild(element('p', 'eyebrow', 'Live catalog detail'));
+      nodes.detailContent.appendChild(element('p', 'eyebrow', 'Game'));
     }
     const heading = element('h2', '', detailHeading(game));
     heading.id = 'detail-heading';
     nodes.detailContent.appendChild(heading);
     if (!game) {
-      nodes.detailContent.appendChild(element('p', 'muted', 'Choose a live catalog entry to inspect its launch readiness.'));
+      nodes.detailContent.appendChild(element('p', 'muted', 'Choose a game.'));
       return;
     }
     if (presentation.summary) nodes.detailContent.appendChild(element('p', 'detail-summary', presentation.summary));
     if (presentation.attribution) nodes.detailContent.appendChild(element('p', 'attribution', presentation.attribution));
     const facts = element('div', 'detail-facts');
-    [[game.system, 'System'], [game.state, 'Source state'], [presentation.year, 'Year'], [presentation.players, 'Players']]
+    [[systemLabel(game.system), 'System'], [sourceLabel(game.state), 'Status'], [presentation.year !== '—' ? presentation.year : '', 'Year'], [presentation.players, 'Players']]
       .filter(([value]) => value)
       .forEach(([value, label]) => {
       const fact = element('div', 'detail-fact');

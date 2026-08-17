@@ -381,10 +381,10 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         },
       }), async () => {
         let snapshot = await harness.waitForCatalog('empty');
-        assert.match(snapshot.catalogText, /live catalog is empty/i);
+        assert.match(snapshot.catalogText, /library is empty/i);
         await harness.setSearch('sonic & tails');
         snapshot = await harness.waitForCatalog('no_matches');
-        assert.match(snapshot.catalogText, /no matches/i);
+        assert.match(snapshot.catalogText, /no matching games/i);
         const search = apiEvidence(harness).find(record => record.query === 'sonic & tails');
         assert.ok(search, `missing decoded query evidence: ${JSON.stringify(apiSummary(harness))}`);
         assert.equal(search.path, '/api/v1/games');
