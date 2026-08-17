@@ -32,6 +32,7 @@ type RuntimeConfig struct {
 	HTTPClient   *http.Client
 	Provider     Provider
 	Now          func() time.Time
+	Archive      string
 }
 
 func StateForConfig(config RuntimeConfig) ConfigState {
@@ -53,6 +54,18 @@ func Open(ctx context.Context, config RuntimeConfig) (Runtime, error) {
 			return nil, newOpError(ErrStorage, nil)
 		}
 		return nil, nil
+	}
+	if config.ProviderName == ProviderLaunchBox {
+		if config.Provider != nil || strings.TrimSpace(config.ClientID) != "" || strings.TrimSpace(config.ClientSecret) != "" {
+			return nil, newOpError(ErrPolicyBlocked, nil)
+		}
+		if archive := strings.TrimSpace(config.Archive); archive != "" {
+			return OpenLaunchBoxArchive(archive, config.HTTPClient)
+		}
+		if config.HTTPClient != nil {
+			return nil, newOpError(ErrPolicyBlocked, nil)
+		}
+		return openLaunchBoxRuntime(config)
 	}
 	if config.ProviderName != ProviderIGDB || config.Provider == nil && (strings.TrimSpace(config.ClientID) == "" || strings.TrimSpace(config.ClientSecret) == "") {
 		return nil, newOpError(ErrUnconfigured, nil)

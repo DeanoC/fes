@@ -58,6 +58,7 @@ type MetadataConfig struct {
 	Provider     string
 	ClientID     string
 	ClientSecret string
+	Archive      string
 }
 
 type HostEmulatorConfig struct {
@@ -112,6 +113,7 @@ type fileMetadata struct {
 	Provider     string `toml:"provider"`
 	ClientID     string `toml:"client_id"`
 	ClientSecret string `toml:"client_secret"`
+	Archive      string `toml:"archive"`
 }
 
 type fileLibrary struct {
@@ -242,11 +244,11 @@ func normalizeMetadata(raw *fileMetadata, sourceInfo os.FileInfo) (MetadataConfi
 		return MetadataConfig{}, nil
 	}
 	provider := strings.ToLower(strings.TrimSpace(raw.Provider))
-	if provider != "" && provider != "igdb" {
-		return MetadataConfig{}, fmt.Errorf("metadata provider must be igdb")
+	if provider != "" && provider != "igdb" && provider != "launchbox" {
+		return MetadataConfig{}, fmt.Errorf("metadata provider must be igdb or launchbox")
 	}
-	if raw.Enabled && provider != "igdb" {
-		return MetadataConfig{}, fmt.Errorf("metadata provider must be explicitly set to igdb when enabled")
+	if raw.Enabled && provider != "igdb" && provider != "launchbox" {
+		return MetadataConfig{}, fmt.Errorf("metadata provider must be explicitly set when enabled")
 	}
 	if provider == "" {
 		provider = "igdb"
@@ -254,11 +256,18 @@ func normalizeMetadata(raw *fileMetadata, sourceInfo os.FileInfo) (MetadataConfi
 	if !raw.Enabled {
 		return MetadataConfig{Configured: true, Provider: provider}, nil
 	}
-	if strings.TrimSpace(raw.ClientID) == "" || strings.TrimSpace(raw.ClientSecret) == "" {
-		return MetadataConfig{}, fmt.Errorf("metadata credentials are required when enabled")
-	}
 	if err := validatePrivateConfigFile(sourceInfo); err != nil {
 		return MetadataConfig{}, fmt.Errorf("metadata config file: %w", err)
+	}
+	if provider == "launchbox" {
+		archive := strings.TrimSpace(raw.Archive)
+		if archive == "" || strings.TrimSpace(raw.ClientID) != "" || strings.TrimSpace(raw.ClientSecret) != "" {
+			return MetadataConfig{}, fmt.Errorf("launchbox metadata requires an archive path and no credentials")
+		}
+		return MetadataConfig{Configured: true, Enabled: true, Provider: provider, Archive: archive}, nil
+	}
+	if strings.TrimSpace(raw.ClientID) == "" || strings.TrimSpace(raw.ClientSecret) == "" {
+		return MetadataConfig{}, fmt.Errorf("metadata credentials are required when enabled")
 	}
 	return MetadataConfig{Configured: true, Enabled: true, Provider: provider, ClientID: raw.ClientID, ClientSecret: raw.ClientSecret}, nil
 }

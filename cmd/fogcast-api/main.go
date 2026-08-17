@@ -181,7 +181,7 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 	metadataConfig := metadata.RuntimeConfig{
 		Root: config.MetadataRoot, Configured: config.Metadata.Configured, Enabled: config.Metadata.Enabled,
 		ProviderName: metadata.ProviderName(config.Metadata.Provider), ClientID: config.Metadata.ClientID,
-		ClientSecret: config.Metadata.ClientSecret,
+		ClientSecret: config.Metadata.ClientSecret, Archive: config.Metadata.Archive,
 	}
 	if deps.openMetadata == nil {
 		return nil, nil, errors.New("fogcast-api: metadata opener is unavailable")

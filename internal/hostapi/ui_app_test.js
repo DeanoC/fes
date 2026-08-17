@@ -222,6 +222,23 @@ test('presentation route is a host-local path and parser bounds provider fields'
   assert.equal(parsePresentation({ game_id: 'megadrive-sonic-test', state: 'ready', presentation: { summary: 'x'.repeat(241) }, attribution: { provider: 'igdb', label: 'Data from IGDB.com' } }, immutableBoundaryGame()).isFallback, true);
 });
 
+test('parser accepts LaunchBox ready attribution and rejects unknown providers', () => {
+  const parsed = parsePresentation({
+    game_id: 'megadrive-sonic-test',
+    state: 'ready',
+    presentation: { summary: 'Blue hedgehog.', year: '1991', genre: 'Platform', studio: 'Sonic Team', players: '1' },
+    attribution: { provider: 'launchbox', label: 'Data from LaunchBox Games Database' },
+  }, immutableBoundaryGame());
+  assert.equal(parsed.isFallback, false);
+  assert.equal(parsed.attribution, 'Data from LaunchBox Games Database');
+  assert.equal(parsePresentation({
+    game_id: 'megadrive-sonic-test',
+    state: 'ready',
+    presentation: { summary: 'x' },
+    attribution: { provider: 'steam', label: 'Steam' },
+  }, immutableBoundaryGame()).isFallback, true);
+});
+
 test('ready provider response preserves empty fields and renders no demo artwork', () => {
   const parsed = parsePresentation(readFixture('presentation-ready-empty.json'), immutableBoundaryGame());
   assert.equal(parsed.isFallback, false);

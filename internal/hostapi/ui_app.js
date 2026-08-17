@@ -503,6 +503,11 @@
     return value;
   }
 
+  function acceptedAttribution(value) {
+    return (value.provider === 'igdb' && value.label === 'Data from IGDB.com')
+      || (value.provider === 'launchbox' && value.label === 'Data from LaunchBox Games Database');
+  }
+
   function parsePresentation(payload, game) {
     const fallback = state => fallbackPresentation(state);
     try {
@@ -519,7 +524,7 @@
       if (payload.state !== 'ready') return fallback('fallback_malformed');
       if (!payload.presentation || typeof payload.presentation !== 'object' || Array.isArray(payload.presentation)) return fallback('fallback_malformed');
       if (!payload.attribution || typeof payload.attribution !== 'object' || Array.isArray(payload.attribution)
-        || payload.attribution.provider !== 'igdb' || payload.attribution.label !== 'Data from IGDB.com') return fallback('fallback_malformed');
+        || !acceptedAttribution(payload.attribution)) return fallback('fallback_malformed');
       const value = {
         summary: payload.presentation.summary,
         year: payload.presentation.year,
@@ -1033,6 +1038,12 @@
         const presentation = parsePresentation(payload, state.selectedLiveGame);
         state.selectedPresentation = presentation;
         state.selectedGameView = Object.freeze({ live: state.selectedLiveGame, presentation });
+        const catalogIndex = state.games.findIndex(game => game.id === id);
+        if (catalogIndex >= 0) {
+          const nextViews = state.gameViews.slice();
+          nextViews[catalogIndex] = state.selectedGameView;
+          state.gameViews = nextViews;
+        }
         state.metadataState = presentation.metadataState;
         state.metadataError = presentation.isFallback && presentation.metadataState === 'fallback_malformed'
           ? { code: 'MALFORMED_RESPONSE', message: 'The local host returned unavailable presentation metadata.', status: 200 }
