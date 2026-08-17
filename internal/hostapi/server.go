@@ -43,6 +43,7 @@ type gameResult struct {
 	ContentPrepared bool                `json:"content_prepared"`
 	Execution       string              `json:"execution"`
 	Genre           string              `json:"genre,omitempty"`
+	Year            string              `json:"year,omitempty"`
 }
 
 type gamesResult struct {
@@ -553,6 +554,7 @@ func publicGameWithGenre(ctx context.Context, config serverOptions, game catalog
 		return result
 	}
 	result.Genre = strings.TrimSpace(lookup.Presentation.Genre)
+	result.Year = strings.TrimSpace(lookup.Presentation.Year)
 	return result
 }
 

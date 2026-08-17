@@ -11,13 +11,11 @@
     players: 40,
   });
   const PRESENTATION_FALLBACK = Object.freeze({
-    cover: Object.freeze({ palette: 'ember', treatment: 'grid' }),
-    backdrop: Object.freeze({ palette: 'ember', treatment: 'grid' }),
-    summary: 'Presentation metadata is unavailable; using deterministic demo artwork.',
+    summary: '',
     year: '—',
-    genre: 'Unknown',
-    studio: 'FogCast demo',
-    players: 'Unknown players',
+    genre: '',
+    studio: '',
+    players: '',
     isFallback: true,
     metadataState: 'fallback_offline',
   });
@@ -168,6 +166,8 @@
     };
     const genre = optionalCatalogText(source.genre);
     if (genre) record.genre = genre;
+    const year = optionalCatalogText(source.year);
+    if (year) record.year = year;
     return Object.freeze(record);
   }
 
@@ -221,6 +221,40 @@
       if (genre && catalogGenre(view) !== genre) return false;
       return true;
     });
+  }
+
+  function catalogYear(view) {
+    const presentation = view && view.presentation;
+    if (presentation && !presentation.isFallback && /^\d{4}$/.test(presentation.year || '')) {
+      return presentation.year;
+    }
+    const live = view && view.live;
+    return live && /^\d{4}$/.test(live.year || '') ? live.year : '';
+  }
+
+  function sortCatalogViews(views, sort) {
+    const copy = (views || []).slice();
+    if (sort !== 'year' && sort !== 'system') return copy;
+    copy.sort((left, right) => {
+      if (sort === 'year') {
+        const yearDelta = (catalogYear(right) || '').localeCompare(catalogYear(left) || '');
+        if (yearDelta) return yearDelta;
+      }
+      if (sort === 'system') {
+        const systemDelta = String(left.live && left.live.system || '').localeCompare(String(right.live && right.live.system || ''));
+        if (systemDelta) return systemDelta;
+      }
+      return String(left.live && left.live.title || '').localeCompare(String(right.live && right.live.title || ''));
+    });
+    return copy;
+  }
+
+  function formatCatalogCount(visible, total) {
+    const shown = Number(visible) || 0;
+    const all = Number(total) || 0;
+    const shownText = shown.toLocaleString('en-US');
+    const allText = all.toLocaleString('en-US');
+    return shown === all ? `${allText} games` : `${shownText} of ${allText} games`;
   }
 
   function parseCatalog(payload) {
@@ -492,13 +526,13 @@
       const backdropArtworkHandle = value.backdropArtworkHandle;
       const attribution = value.attribution;
       const metadataState = value.metadataState || (isFallback ? 'fallback_offline' : 'ready');
-      const artworkStyleRequired = isFallback;
+      const artworkStyleRequired = Boolean(isFallback && cover && backdrop);
       if (
         typeof isFallback !== 'boolean'
         || !PRESENTATION_STATE_ALLOWLIST.includes(metadataState)
         || (artworkStyleRequired && (
-          !cover || typeof cover !== 'object' || Array.isArray(cover)
-          || !backdrop || typeof backdrop !== 'object' || Array.isArray(backdrop)
+          typeof cover !== 'object' || Array.isArray(cover)
+          || typeof backdrop !== 'object' || Array.isArray(backdrop)
           || typeof coverPalette !== 'string'
           || typeof coverTreatment !== 'string'
           || typeof backdropPalette !== 'string'
@@ -508,7 +542,8 @@
           || !TREATMENT_ALLOWLIST.includes(coverTreatment)
           || !TREATMENT_ALLOWLIST.includes(backdropTreatment)
         ))
-        || (!artworkStyleRequired && (cover !== undefined || backdrop !== undefined))
+        || (!isFallback && (cover !== undefined || backdrop !== undefined))
+        || (isFallback && !artworkStyleRequired && (cover !== undefined || backdrop !== undefined))
         || (!isFallback && !['ready', 'ready_artwork_error'].includes(metadataState))
         || (isFallback && !metadataState.startsWith('fallback_'))
         || (coverArtworkHandle !== undefined && (typeof coverArtworkHandle !== 'string' || !ARTWORK_HANDLE_PATTERN.test(coverArtworkHandle)))
@@ -649,6 +684,7 @@
       games: [],
       gameViews: [],
       filters: Object.freeze({ system: '', region: '', genre: '' }),
+      sort: 'title',
       selectedLiveGame: null,
       selectedGameView: null,
       selectedPresentation: null,
@@ -1212,6 +1248,11 @@
       return emit();
     }
 
+    function setCatalogSort(value) {
+      state.sort = value === 'year' || value === 'system' ? value : 'title';
+      return emit();
+    }
+
     return Object.freeze({
       getState: snapshot,
       loadCatalog,
@@ -1223,6 +1264,7 @@
       stopSession,
       observeVisibleCovers,
       setCatalogFilter,
+      setCatalogSort,
     });
   }
 
@@ -1245,6 +1287,9 @@
     catalogRegion,
     catalogGenre,
     filterCatalogViews,
+    sortCatalogViews,
+    formatCatalogCount,
+    fallbackPresentation,
   });
   root.FogCastApp = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -1261,6 +1306,8 @@
     systemFilter: document.getElementById('filter-system'),
     regionFilter: document.getElementById('filter-region'),
     genreFilter: document.getElementById('filter-genre'),
+    sortFilter: document.getElementById('catalog-sort'),
+    count: document.getElementById('catalog-count'),
     catalog: document.getElementById('catalog'),
     status: document.getElementById('catalog-status'),
     list: document.getElementById('catalog-list'),
@@ -1442,13 +1489,15 @@
     }
     nodes.status.textContent = state.metadataFallbackCount ? 'populated metadata_fallback' : 'populated';
     syncCatalogFilters();
-    const visible = filterCatalogViews(state.gameViews, state.filters);
+    const visible = sortCatalogViews(filterCatalogViews(state.gameViews, state.filters), state.sort);
+    if (nodes.count) nodes.count.textContent = formatCatalogCount(visible.length, state.games.length);
     visible.forEach(view => renderCard(view, view.live));
   }
 
   function syncCatalogFilters() {
     if (nodes.systemFilter) nodes.systemFilter.value = state.filters && state.filters.system || '';
     if (nodes.regionFilter) nodes.regionFilter.value = state.filters && state.filters.region || '';
+    if (nodes.sortFilter) nodes.sortFilter.value = state.sort || 'title';
     if (!nodes.genreFilter) return;
     const selected = state.filters && state.filters.genre || '';
     const seen = Object.create(null);
@@ -1517,7 +1566,6 @@
     card.appendChild(cover);
     card.appendChild(element('h3', '', game.title));
     card.appendChild(element('p', 'game-meta', `${game.system} · ${game.state}`));
-    if (presentation.isFallback) card.appendChild(element('p', 'fallback-note', 'Demo presentation fallback'));
     card.addEventListener('click', () => selectGame(liveGame.id));
     nodes.list.appendChild(card);
   }
@@ -1578,7 +1626,6 @@
       facts.appendChild(fact);
       });
     nodes.detailContent.appendChild(facts);
-    if (presentation.isFallback) nodes.detailContent.appendChild(element('p', 'fallback-note', 'metadata_fallback: using deterministic demo presentation'));
     if (state.detailState === 'detail_error') {
       nodes.launchActions.appendChild(element('p', 'status-message error', 'The live detail could not be refreshed.'));
       nodes.launchActions.appendChild(retryButton('Retry detail', () => refreshDetail(liveGame)));
@@ -1663,6 +1710,7 @@
   if (nodes.systemFilter) nodes.systemFilter.addEventListener('change', () => controller.setCatalogFilter('system', nodes.systemFilter.value));
   if (nodes.regionFilter) nodes.regionFilter.addEventListener('change', () => controller.setCatalogFilter('region', nodes.regionFilter.value));
   if (nodes.genreFilter) nodes.genreFilter.addEventListener('change', () => controller.setCatalogFilter('genre', nodes.genreFilter.value));
+  if (nodes.sortFilter) nodes.sortFilter.addEventListener('change', () => controller.setCatalogSort(nodes.sortFilter.value));
   renderCatalog();
   renderDetail(null);
   renderSession();

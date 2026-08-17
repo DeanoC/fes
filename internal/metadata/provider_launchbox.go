@@ -345,6 +345,10 @@ func launchBoxLookupTitles(title string) []string {
 	if index := strings.LastIndex(title, "~"); index >= 0 {
 		add(stripROMDumpTags(title[index+1:]))
 	}
+	for _, current := range append([]string(nil), titles...) {
+		add(strings.ReplaceAll(current, " - ", ": "))
+		add(strings.ReplaceAll(current, ": ", " - "))
+	}
 	return titles
 }
 

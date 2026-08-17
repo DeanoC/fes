@@ -23,6 +23,9 @@ const {
   catalogRegion,
   catalogGenre,
   filterCatalogViews,
+  sortCatalogViews,
+  formatCatalogCount,
+  fallbackPresentation,
 } = require('./ui_app.js');
 const FogCastMetadata = require('./ui_metadata.js');
 
@@ -222,6 +225,20 @@ test('catalog filters keep search on the host and hide unmatched platforms, regi
   assert.deepEqual(filterCatalogViews(views, { region: 'japan' }).map(view => view.live.id), ['megadrive-c']);
   assert.deepEqual(filterCatalogViews(views, { genre: 'Platform' }).map(view => view.live.id), ['snes-b']);
   assert.equal(catalogGenre(views[0]), 'Beat \'em Up');
+});
+
+test('unmatched catalog cards stay quiet and sort/count the visible library', () => {
+  const views = [
+    { live: { id: 'megadrive-b', title: 'Streets of Rage 2 (USA)', system: 'megadrive', year: '1993' }, presentation: { isFallback: false, year: '1993' } },
+    { live: { id: 'snes-a', title: 'ActRaiser (USA)', system: 'snes', year: '1991' }, presentation: { isFallback: false, year: '1991' } },
+    { live: { id: 'megadrive-c', title: 'Unmatched Dump (Japan)', system: 'megadrive' }, presentation: fallbackPresentation() },
+  ];
+  assert.equal(fallbackPresentation().cover, undefined);
+  assert.equal(fallbackPresentation().summary, '');
+  assert.deepEqual(sortCatalogViews(views, 'year').map(view => view.live.id), ['megadrive-b', 'snes-a', 'megadrive-c']);
+  assert.deepEqual(sortCatalogViews(views, 'system').map(view => view.live.id), ['megadrive-b', 'megadrive-c', 'snes-a']);
+  assert.equal(formatCatalogCount(3, 2138), '3 of 2,138 games');
+  assert.equal(formatCatalogCount(2138, 2138), '2,138 games');
 });
 
 test('presentation route is a host-local path and parser bounds provider fields', () => {
@@ -1029,24 +1046,16 @@ test('browser rendering falls back for shape-complete invalid presentation value
   assert.equal(catalogList.children.length, 3);
   assert.equal(document.nodes.get('catalog-status').textContent, 'populated metadata_fallback');
   for (const card of catalogList.children) {
-    const artworkClasses = card.children[0].className.split(/\s+/);
-    assert.equal(artworkClasses.length, 3);
-    assert.match(artworkClasses[1], /^palette-(ember|lagoon|violet|sunset|forest)$/);
-    assert.match(artworkClasses[2], /^treatment-(grid|rings|stripes|starlight|waves)$/);
-    assert.doesNotMatch(card.children[0].className, /evil|sr-only|status-message/);
-    assert.equal(card.children.filter(child => child.className === 'fallback-note').length, 1);
+    assert.equal(card.children[0].className, 'cover-art artwork-empty');
+    assert.doesNotMatch(card.children[0].className, /evil|sr-only|status-message|palette-|treatment-/);
+    assert.equal(card.children.filter(child => child.className === 'fallback-note').length, 0);
   }
 
   await catalogList.children[0].click();
   const detailContent = document.nodes.get('detail-content');
   const summary = detailContent.children.find(child => child.className === 'detail-summary');
-  assert.ok(summary);
-  assert.ok(summary.textContent.length <= 240);
-  assert.notEqual(summary.textContent, invalidPresentation.summary);
-  const backdropClasses = detailContent.children[0].className.split(/\s+/);
-  assert.equal(backdropClasses.length, 3);
-  assert.match(backdropClasses[1], /^palette-(ember|lagoon|violet|sunset|forest)$/);
-  assert.match(backdropClasses[2], /^treatment-(grid|rings|stripes|starlight|waves)$/);
+  assert.equal(summary, undefined);
+  assert.equal(detailContent.children[0].className, 'backdrop-art artwork-empty');
 
   const launchButton = document.nodes.get('launch-actions').children
     .find(child => child.tagName === 'BUTTON' && child.textContent === 'Launch live game');

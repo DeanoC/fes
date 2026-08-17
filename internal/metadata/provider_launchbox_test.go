@@ -150,6 +150,25 @@ func TestLaunchBoxCatalogMatchesDumpTagsAndEnglishAlias(t *testing.T) {
 	}
 }
 
+func TestLaunchBoxCatalogMatchesHyphenAndColonAliases(t *testing.T) {
+	xml := `<?xml version="1.0" standalone="yes"?><LaunchBox>` +
+		`<Game><DatabaseID>11</DatabaseID><Name>James Bond 007: The Duel</Name>` +
+		`<Platform>Sega Genesis</Platform><Overview>Bond.</Overview>` +
+		`<ReleaseYear>1993</ReleaseYear></Game>` +
+		`<GameAlternateName><DatabaseID>11</DatabaseID><AlternateName>007 Shitou: The Duel</AlternateName></GameAlternateName>` +
+		`</LaunchBox>`
+	catalog, err := LoadLaunchBoxCatalog(strings.NewReader(xml))
+	if err != nil {
+		t.Fatalf("LoadLaunchBoxCatalog: %v", err)
+	}
+	runtime := NewLaunchBoxRuntime(catalog, nil)
+	t.Cleanup(func() { _ = runtime.Close() })
+	result, err := runtime.Lookup(context.Background(), LookupInput{Title: "007 Shitou - The Duel (Japan)", System: protocol.SystemMegaDrive})
+	if err != nil || result.Outcome != OutcomeExact || result.Presentation.Summary != "Bond." {
+		t.Fatalf("colon alias lookup = %+v err=%v", result, err)
+	}
+}
+
 func rewriteLaunchBoxHost(base string) http.RoundTripper {
 	return roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		target, err := http.NewRequestWithContext(request.Context(), request.Method, strings.TrimRight(base, "/")+request.URL.RequestURI(), request.Body)

@@ -16,9 +16,9 @@
       <div class="intro-row">
         <div>
           <p class="eyebrow">Local library</p>
-          <h1 id="catalog-heading">Choose your next signal</h1>
+          <h1 id="catalog-heading">Games</h1>
         </div>
-        <span class="demo-badge">DEMO ART</span>
+        <p id="catalog-count" class="catalog-count" aria-live="polite"></p>
       </div>
       <div class="toolbar">
         <label class="search-label" for="game-search">Search the live catalog</label>
@@ -48,6 +48,13 @@
           <label class="filter-label">Genre
             <select id="filter-genre">
               <option value="">All genres</option>
+            </select>
+          </label>
+          <label class="filter-label">Sort
+            <select id="catalog-sort">
+              <option value="title">Title</option>
+              <option value="year">Year</option>
+              <option value="system">Platform</option>
             </select>
           </label>
         </div>
