@@ -93,6 +93,40 @@ func TestLaunchBoxCoverFetchesOfficialJPEGOnce(t *testing.T) {
 	}
 }
 
+func TestLaunchBoxCoverDiskCacheSurvivesNewRuntime(t *testing.T) {
+	hits := 0
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		hits++
+		writer.Header().Set("Content-Type", "image/jpeg")
+		_, _ = writer.Write(minimalJPEG)
+	}))
+	t.Cleanup(server.Close)
+	catalog, err := LoadLaunchBoxCatalog(strings.NewReader(launchBoxSampleXML))
+	if err != nil {
+		t.Fatalf("LoadLaunchBoxCatalog: %v", err)
+	}
+	dir := t.TempDir()
+	client := &http.Client{Transport: rewriteLaunchBoxHost(server.URL)}
+	first := newLaunchBoxCatalogRuntime(catalog, client, dir)
+	t.Cleanup(func() { _ = first.Close() })
+	handle := launchBoxArtworkHandle("cover_42.jpg")
+	art, err := first.OpenArtwork(context.Background(), handle)
+	if err != nil {
+		t.Fatalf("first OpenArtwork: %v", err)
+	}
+	_ = art.Reader.Close()
+	second := newLaunchBoxCatalogRuntime(catalog, client, dir)
+	t.Cleanup(func() { _ = second.Close() })
+	art, err = second.OpenArtwork(context.Background(), handle)
+	if err != nil {
+		t.Fatalf("second OpenArtwork: %v", err)
+	}
+	_ = art.Reader.Close()
+	if hits != 1 {
+		t.Fatalf("disk cache still fetched %d times", hits)
+	}
+}
+
 func TestLaunchBoxCatalogMatchesDumpTagsAndEnglishAlias(t *testing.T) {
 	xml := `<?xml version="1.0" standalone="yes"?><LaunchBox>` +
 		`<Game><DatabaseID>9</DatabaseID><Name>Streets of Rage</Name>` +

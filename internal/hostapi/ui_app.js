@@ -584,7 +584,10 @@
       || (typeof root.fetch === 'function' ? root.fetch.bind(root) : null);
     const metadataAdapter = options.metadataAdapter || root.FogCastMetadata;
     const presentationEnabled = options.presentationEnabled === true || root.FogCastPresentationEnabled === true;
+    const prefetchVisibleCovers = options.prefetchVisibleCovers === true || root.FogCastPrefetchVisibleCovers === true;
     const notify = typeof options.onStateChange === 'function' ? options.onStateChange : null;
+    const coverRequests = Object.create(null);
+    let coverObserver = null;
     const state = {
       query: '',
       games: [],
@@ -645,6 +648,66 @@
         try { notify(next); } catch (_) { /* rendering must not change request state */ }
       }
       return next;
+    }
+
+    function applyCatalogPresentation(id, presentation) {
+      const index = state.games.findIndex(game => game.id === id);
+      if (index < 0) return;
+      const nextViews = state.gameViews.slice();
+      nextViews[index] = Object.freeze({ live: state.games[index], presentation });
+      state.gameViews = Object.freeze(nextViews);
+      state.metadataFallbackCount = metadataFallbackCount(nextViews);
+      if (state.selectedLiveGame && state.selectedLiveGame.id === id) {
+        state.selectedPresentation = presentation;
+        state.selectedGameView = nextViews[index];
+        if (state.metadataState === 'metadata_idle' || state.metadataState === 'metadata_loading') {
+          state.metadataState = presentation.metadataState;
+        }
+      }
+    }
+
+    function queueVisiblePresentation(id) {
+      if (!prefetchVisibleCovers || !presentationEnabled || !id || coverRequests[id]) return;
+      const index = state.games.findIndex(game => game.id === id);
+      if (index < 0) return;
+      const current = state.gameViews[index] && state.gameViews[index].presentation;
+      if (current && (current.coverArtworkHandle || current.metadataState === 'ready')) return;
+      coverRequests[id] = true;
+      request(fetchImpl, presentationPath(id)).then(payload => {
+        const game = state.games.find(item => item.id === id);
+        if (!game) return;
+        applyCatalogPresentation(id, parsePresentation(payload, game));
+        emit();
+      }).catch(() => {
+        delete coverRequests[id];
+      });
+    }
+
+    function observeVisibleCovers() {
+      if (!prefetchVisibleCovers || !presentationEnabled) return;
+      const Observer = options.IntersectionObserver || root.IntersectionObserver;
+      let cards = [];
+      if (typeof document !== 'undefined' && document && typeof document.getElementById === 'function') {
+        const list = document.getElementById('catalog-list');
+        if (list && typeof list.querySelectorAll === 'function') {
+          cards = list.querySelectorAll('.game-card[data-game-id]');
+        }
+      }
+      if (typeof Observer !== 'function' || !cards.length) {
+        state.games.forEach(game => queueVisiblePresentation(game.id));
+        return;
+      }
+      if (coverObserver) coverObserver.disconnect();
+      coverObserver = new Observer(entries => {
+        entries.forEach(entry => {
+          if (!entry.isIntersecting) return;
+          const id = entry.target.getAttribute('data-game-id');
+          if (id) queueVisiblePresentation(id);
+        });
+      }, { root: null, rootMargin: '200px', threshold: 0.01 });
+      Array.prototype.forEach.call(cards, card => {
+        coverObserver.observe(card);
+      });
     }
 
     function enrich(game) {
@@ -1090,6 +1153,7 @@
       refreshPresentation,
       launchSelected,
       stopSession,
+      observeVisibleCovers,
     });
   }
 
@@ -1345,6 +1409,7 @@
     const card = element('button', 'game-card' + (selected ? ' selected' : ''));
     card.type = 'button';
     card.setAttribute('aria-pressed', String(selected));
+    card.setAttribute('data-game-id', game.id);
     const cover = artworkElement('cover', presentation.cover, presentation.coverArtworkHandle, 'lazy');
     card.appendChild(cover);
     card.appendChild(element('h3', '', game.title));
@@ -1474,6 +1539,7 @@
     if (next.hostState === 'ready') setHealth('Local host ready', 'host-status');
     if (next.hostState === 'unavailable') setHealth('Catalog unavailable', 'host-status');
     renderCatalog();
+    if (controller && typeof controller.observeVisibleCovers === 'function') controller.observeVisibleCovers();
     renderDetail(state.selectedGameView, state.selectedLiveGame);
     renderSession();
     if (previous && previous.activeMutation !== 'launch' && next.activeMutation === 'launch') {

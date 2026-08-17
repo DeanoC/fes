@@ -24,7 +24,7 @@ func assembleUI() string {
 	assets := map[string]string{
 		"{{FOGCAST_STYLES}}":   "<style>" + uiStyles + "</style>",
 		"{{FOGCAST_METADATA}}": "<script>" + uiMetadata + "</script>",
-		"{{FOGCAST_APP}}":      "<script>globalThis.FogCastPresentationEnabled = true;</script><script>" + uiApp + "</script>",
+		"{{FOGCAST_APP}}":      "<script>globalThis.FogCastPresentationEnabled = true;globalThis.FogCastPrefetchVisibleCovers = true;</script><script>" + uiApp + "</script>",
 	}
 	result := uiShell
 	for placeholder, asset := range assets {

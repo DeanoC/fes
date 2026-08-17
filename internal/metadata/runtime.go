@@ -60,7 +60,7 @@ func Open(ctx context.Context, config RuntimeConfig) (Runtime, error) {
 			return nil, newOpError(ErrPolicyBlocked, nil)
 		}
 		if archive := strings.TrimSpace(config.Archive); archive != "" {
-			return OpenLaunchBoxArchive(archive, config.HTTPClient)
+			return OpenLaunchBoxArchiveWithCache(archive, config.HTTPClient, config.Root)
 		}
 		if config.HTTPClient != nil {
 			return nil, newOpError(ErrPolicyBlocked, nil)

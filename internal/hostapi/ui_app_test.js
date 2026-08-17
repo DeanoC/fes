@@ -222,6 +222,43 @@ test('presentation route is a host-local path and parser bounds provider fields'
   assert.equal(parsePresentation({ game_id: 'megadrive-sonic-test', state: 'ready', presentation: { summary: 'x'.repeat(241) }, attribution: { provider: 'igdb', label: 'Data from IGDB.com' } }, immutableBoundaryGame()).isFallback, true);
 });
 
+test('prefetchVisibleCovers loads presentation for intersecting cards', async () => {
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/games': [jsonResponse(readFixture('catalog-populated.json'))],
+    '/api/v1/presentation/games/megadrive-sonic-test': [jsonResponse({
+      game_id: 'megadrive-sonic-test', state: 'ready',
+      presentation: { summary: 'Visible cover', year: '1991', genre: 'Platformer', studio: 'SEGA', players: '1' },
+      attribution: { provider: 'launchbox', label: 'Data from LaunchBox Games Database' },
+    })],
+    '/api/v1/presentation/games/snes-unknown-test': [jsonResponse({
+      game_id: 'snes-unknown-test', state: 'no_match',
+    })],
+    '/api/v1/presentation/games/snes-offline-test': [jsonResponse({
+      game_id: 'snes-offline-test', state: 'no_match',
+    })],
+  });
+  const observers = [];
+  const controller = createAppController({
+    fetchImpl,
+    presentationEnabled: true,
+    prefetchVisibleCovers: true,
+    IntersectionObserver: class {
+      constructor(callback) { this.callback = callback; observers.push(this); }
+      observe(node) { this.callback([{ isIntersecting: true, target: node }]); }
+      disconnect() {}
+    },
+  });
+  await controller.loadCatalog('');
+  controller.observeVisibleCovers();
+  await waitForCondition(() => {
+    const sonic = controller.getState().gameViews.find(view => view.live.id === 'megadrive-sonic-test');
+    return sonic && sonic.presentation.summary === 'Visible cover';
+  }, 'visible presentation did not apply');
+  assert.ok(calls.some(call => call.path === '/api/v1/presentation/games/megadrive-sonic-test'));
+  const sonic = controller.getState().gameViews.find(view => view.live.id === 'megadrive-sonic-test');
+  assert.equal(sonic.presentation.isFallback, false);
+});
+
 test('parser accepts LaunchBox ready attribution and rejects unknown providers', () => {
   const parsed = parsePresentation({
     game_id: 'megadrive-sonic-test',

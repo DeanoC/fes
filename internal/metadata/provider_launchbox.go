@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -251,6 +252,7 @@ type launchBoxCatalogRuntime struct {
 
 	mu     sync.Mutex
 	covers map[string]cachedLaunchBoxCover
+	cache  string
 }
 
 type cachedLaunchBoxCover struct {
@@ -258,8 +260,12 @@ type cachedLaunchBoxCover struct {
 	body []byte
 }
 
-// NewLaunchBoxRuntime serves catalog text and session-memory official covers.
+// NewLaunchBoxRuntime serves catalog text and official covers.
 func NewLaunchBoxRuntime(catalog *LaunchBoxCatalog, client *http.Client) Runtime {
+	return newLaunchBoxCatalogRuntime(catalog, client, "")
+}
+
+func newLaunchBoxCatalogRuntime(catalog *LaunchBoxCatalog, client *http.Client, cacheDir string) Runtime {
 	if client == nil {
 		client = NewHardenedHTTPClient()
 	} else {
@@ -270,7 +276,7 @@ func NewLaunchBoxRuntime(catalog *LaunchBoxCatalog, client *http.Client) Runtime
 		copy.Jar = nil
 		client = &copy
 	}
-	return &launchBoxCatalogRuntime{catalog: catalog, client: client, covers: make(map[string]cachedLaunchBoxCover)}
+	return &launchBoxCatalogRuntime{catalog: catalog, client: client, covers: make(map[string]cachedLaunchBoxCover), cache: strings.TrimSpace(cacheDir)}
 }
 
 func (r *launchBoxCatalogRuntime) Lookup(_ context.Context, input LookupInput) (Result, error) {
@@ -438,17 +444,16 @@ func (r *launchBoxCatalogRuntime) OpenArtwork(ctx context.Context, handle string
 		return Artwork{}, newOpError(ErrUnconfigured, nil)
 	}
 	fileName, ok := r.catalog.covers[handle]
-	if !ok || !validLaunchBoxImageFileName(fileName) {
+	if !ok || !validLaunchBoxImageFileName(fileName) || !launchBoxCoverHandleOK(handle) {
 		return Artwork{}, newOpError(ErrPolicyBlocked, nil)
 	}
-	r.mu.Lock()
-	if cached, exists := r.covers[handle]; exists {
-		body := append([]byte(nil), cached.body...)
-		mime := cached.mime
-		r.mu.Unlock()
-		return Artwork{MIME: mime, Size: int64(len(body)), Reader: io.NopCloser(bytes.NewReader(body))}, nil
+	if art, ok := r.cachedCover(handle); ok {
+		return art, nil
 	}
-	r.mu.Unlock()
+	if mime, body, ok := r.readDiskCover(handle); ok {
+		r.storeMemoryCover(handle, mime, body)
+		return coverArtwork(mime, body), nil
+	}
 
 	parsed := url.URL{Scheme: "https", Host: launchBoxImageHost, Path: "/" + fileName}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
@@ -467,16 +472,31 @@ func (r *launchBoxCatalogRuntime) OpenArtwork(ctx context.Context, handle string
 	if err != nil || len(body) < 3 {
 		return Artwork{}, newOpError(ErrInvalidResponse, err)
 	}
-	mime := "image/jpeg"
-	switch {
-	case bytes.HasPrefix(body, []byte{0xff, 0xd8}):
-		mime = "image/jpeg"
-	case bytes.HasPrefix(body, []byte{0x89, 0x50, 0x4e, 0x47}):
-		mime = "image/png"
-	default:
+	mime := launchBoxCoverMIME(body)
+	if mime == "" {
 		return Artwork{}, newOpError(ErrInvalidResponse, nil)
 	}
+	r.storeMemoryCover(handle, mime, body)
+	r.writeDiskCover(handle, mime, body)
+	return coverArtwork(mime, body), nil
+}
+
+func (r *launchBoxCatalogRuntime) cachedCover(handle string) (Artwork, bool) {
 	r.mu.Lock()
+	defer r.mu.Unlock()
+	cached, ok := r.covers[handle]
+	if !ok {
+		return Artwork{}, false
+	}
+	return coverArtwork(cached.mime, cached.body), true
+}
+
+func (r *launchBoxCatalogRuntime) storeMemoryCover(handle, mime string, body []byte) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.covers == nil {
+		r.covers = make(map[string]cachedLaunchBoxCover)
+	}
 	if len(r.covers) >= launchBoxCoverCacheLimit {
 		for key := range r.covers {
 			delete(r.covers, key)
@@ -484,14 +504,92 @@ func (r *launchBoxCatalogRuntime) OpenArtwork(ctx context.Context, handle string
 		}
 	}
 	r.covers[handle] = cachedLaunchBoxCover{mime: mime, body: append([]byte(nil), body...)}
-	r.mu.Unlock()
-	return Artwork{MIME: mime, Size: int64(len(body)), Reader: io.NopCloser(bytes.NewReader(body))}, nil
+}
+
+func (r *launchBoxCatalogRuntime) coverPath(handle, mime string) string {
+	if r == nil || r.cache == "" || !launchBoxCoverHandleOK(handle) {
+		return ""
+	}
+	ext := ".jpg"
+	if mime == "image/png" {
+		ext = ".png"
+	}
+	return filepath.Join(r.cache, "launchbox-covers", handle+ext)
+}
+
+func (r *launchBoxCatalogRuntime) readDiskCover(handle string) (string, []byte, bool) {
+	for _, mime := range []string{"image/jpeg", "image/png"} {
+		path := r.coverPath(handle, mime)
+		if path == "" {
+			return "", nil, false
+		}
+		body, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		if launchBoxCoverMIME(body) != mime {
+			continue
+		}
+		return mime, body, true
+	}
+	return "", nil, false
+}
+
+func (r *launchBoxCatalogRuntime) writeDiskCover(handle, mime string, body []byte) {
+	path := r.coverPath(handle, mime)
+	if path == "" {
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, body, 0o600); err != nil {
+		_ = os.Remove(tmp)
+		return
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+	}
+}
+
+func coverArtwork(mime string, body []byte) Artwork {
+	return Artwork{MIME: mime, Size: int64(len(body)), Reader: io.NopCloser(bytes.NewReader(append([]byte(nil), body...)))}
+}
+
+func launchBoxCoverMIME(body []byte) string {
+	switch {
+	case bytes.HasPrefix(body, []byte{0xff, 0xd8}):
+		return "image/jpeg"
+	case bytes.HasPrefix(body, []byte{0x89, 0x50, 0x4e, 0x47}):
+		return "image/png"
+	default:
+		return ""
+	}
+}
+
+func launchBoxCoverHandleOK(handle string) bool {
+	if len(handle) != 64 {
+		return false
+	}
+	for i := 0; i < len(handle); i++ {
+		c := handle[i]
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 func (r *launchBoxCatalogRuntime) Close() error { return nil }
 
 // OpenLaunchBoxArchive loads official Metadata.xml from a local LaunchBox zip.
 func OpenLaunchBoxArchive(path string, client *http.Client) (Runtime, error) {
+	return OpenLaunchBoxArchiveWithCache(path, client, "")
+}
+
+// OpenLaunchBoxArchiveWithCache loads the zip and stores covers under cacheDir.
+func OpenLaunchBoxArchiveWithCache(path string, client *http.Client, cacheDir string) (Runtime, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, newOpError(ErrStorage, err)
@@ -514,7 +612,7 @@ func OpenLaunchBoxArchive(path string, client *http.Client) (Runtime, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewLaunchBoxRuntime(catalog, client), nil
+	return newLaunchBoxCatalogRuntime(catalog, client, cacheDir), nil
 }
 
 func launchBoxArtworkHandle(fileName string) string {
