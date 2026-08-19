@@ -52,6 +52,7 @@ function fixture(name, status = 200, options = {}) {
     status,
     hold: options.hold === true,
     delayMs,
+    ...(options.override ? { override: options.override } : {}),
   });
 }
 
@@ -88,21 +89,29 @@ function readAsset(name) {
   return fs.readFileSync(path.join(ROOT, name), 'utf8');
 }
 
-function assembleProductionHTML(metadataMode = 'normal') {
-  if (!['normal', 'missing', 'malformed'].includes(metadataMode)) {
-    throw new TypeError(`invalid metadata mode: ${metadataMode}`);
+function assembleProductionHTML(metadataMode = 'normal', options = {}) {
+  const mode = metadataMode || 'normal';
+  if (!['normal', 'missing', 'malformed'].includes(mode)) {
+    throw new TypeError(`invalid metadata mode: ${mode}`);
   }
   const shell = readAsset('ui_shell.html');
   const styles = readAsset('ui.css');
   const app = readAsset('ui_app.js');
   const metadata = readAsset('ui_metadata.js');
+  const attractDisabled = options.attractDisabled !== false;
+  const attractIdle = Number(options.attractIdleMs) > 0
+    ? `globalThis.FogCastAttractIdleMs = ${Number(options.attractIdleMs)};`
+    : '';
+  const prefetch = options.prefetchVisibleCovers === true
+    ? 'globalThis.FogCastPrefetchVisibleCovers = true;'
+    : '';
   const replacements = {
     '{{FOGCAST_STYLES}}': `<style>${styles}</style>`,
-    '{{FOGCAST_APP}}': `<script>globalThis.FogCastPresentationEnabled = true;</script><script>${app}</script>`,
+    '{{FOGCAST_APP}}': `<script>globalThis.FogCastPresentationEnabled = true;${prefetch}globalThis.FogCastAttractDisabled = ${attractDisabled};${attractIdle}</script><script>${app}</script>`,
   };
-  if (metadataMode === 'normal') {
+  if (mode === 'normal') {
     replacements['{{FOGCAST_METADATA}}'] = `<script>${metadata}</script>`;
-  } else if (metadataMode === 'missing') {
+  } else if (mode === 'missing') {
     replacements['{{FOGCAST_METADATA}}'] = '<script>globalThis.FogCastMetadata = undefined;</script>';
   } else {
     const malformed = JSON.stringify(readFixturePayload('metadata-malformed.json'));
@@ -155,7 +164,13 @@ function normalizePlan(plan = {}) {
   }
   return {
     metadataMode: plan.metadataMode || 'normal',
-    html: assembleProductionHTML(plan.metadataMode || 'normal'),
+    html: assembleProductionHTML(plan.metadataMode || 'normal', {
+      attractDisabled: plan.attractDisabled,
+      attractIdleMs: plan.attractIdleMs,
+      prefetchVisibleCovers: plan.prefetchVisibleCovers === true,
+    }),
+    attract: plan.attract || { items: [], idle_seconds: 60 },
+    platforms: plan.platforms || { platforms: [] },
     catalogQueues,
     detailQueues,
     presentationQueues,
@@ -348,11 +363,19 @@ class FixtureServer extends EventEmitter {
       return;
     }
     if (url.pathname === '/api/v1/games' && request.method === 'GET') {
-      if (url.searchParams.getAll('q').length > 1 || [...url.searchParams.keys()].some(key => key !== 'q')) {
+      const allowed = new Set(['q', 'platform', 'collection', 'sort', 'cursor', 'limit']);
+      if (url.searchParams.getAll('q').length > 1 || [...url.searchParams.keys()].some(key => !allowed.has(key))) {
         await this.deliver(record, response, this.unexpectedResponse(record, 400, 'unexpected catalog query'));
         return;
       }
-      const selected = takeQueue(this.plan.catalogQueues, record.query);
+      const q = url.searchParams.get('q') || '';
+      const platform = url.searchParams.get('platform') || '';
+      const collection = url.searchParams.get('collection') || '';
+      record.query = q;
+      if (platform) record.query = q ? `${q}&platform=${platform}` : `platform=${platform}`;
+      else if (collection) record.query = q ? `${q}&collection=${collection}` : `collection=${collection}`;
+      const catalogKey = platform ? `platform=${platform}` : collection ? `collection=${collection}` : q;
+      const selected = takeQueue(this.plan.catalogQueues, catalogKey);
       await this.deliver(record, response, selected || this.unexpectedResponse(record, 500, `catalog query not configured: ${boundedText(record.query)}`));
       return;
     }
@@ -398,6 +421,33 @@ class FixtureServer extends EventEmitter {
       record.query = handle;
       const selected = takeQueue(this.plan.artworkQueues, handle);
       await this.deliver(record, response, selected || this.unexpectedResponse(record, 500, `artwork handle not configured: ${boundedText(handle)}`));
+      return;
+    }
+    if (url.pathname === '/api/v1/platforms' && request.method === 'GET') {
+      await this.deliver(record, response, {
+        fixture: 'platforms.json', status: 200, hold: false, delayMs: 0,
+        override: this.plan.platforms || { platforms: [] },
+      });
+      return;
+    }
+    if (url.pathname === '/api/v1/library/attract' && request.method === 'GET') {
+      await this.deliver(record, response, {
+        fixture: 'attract.json', status: 200, hold: false, delayMs: 0,
+        override: this.plan.attract || { items: [], idle_seconds: 60 },
+      });
+      return;
+    }
+    const favoriteMatch = url.pathname.match(/^\/api\/v1\/library\/favorites\/([^/]+)$/);
+    if (favoriteMatch && (request.method === 'PUT' || request.method === 'DELETE')) {
+      await this.deliver(record, response, {
+        fixture: 'favorite.json', status: 200, hold: false, delayMs: 0,
+        override: { id: decodeURIComponent(favoriteMatch[1]), favorite: request.method === 'PUT' },
+      });
+      return;
+    }
+    const mediaMatch = url.pathname.match(/^\/api\/v1\/presentation\/media\/([0-9a-f]{64})$/);
+    if (mediaMatch && request.method === 'GET') {
+      await this.deliver(record, response, this.unexpectedResponse(record, 404, 'media handle was not configured'));
       return;
     }
     if (url.pathname === '/api/v1/session' && request.method === 'GET') {
@@ -1236,14 +1286,17 @@ class BrowserPage {
         sessionStopDisabled: button('#stop-session')?.disabled === true,
         sessionStopHidden: button('#stop-session')?.hidden === true,
         sessionStopDescribedBy: button('#stop-session')?.getAttribute('aria-describedby') || '',
-        launchButtonDisabled: button('#launch-actions button.button')?.disabled === true,
-        launchButtonLabel: button('#launch-actions button.button')?.textContent || '',
-        launchButtonDescribedBy: button('#launch-actions button.button')?.getAttribute('aria-describedby') || '',
+        launchButtonDisabled: button('#launch-game')?.disabled === true || button('#launch-actions button.button')?.disabled === true,
+        launchButtonLabel: button('#launch-game')?.textContent || button('#launch-actions button.button')?.textContent || '',
+        launchButtonDescribedBy: button('#launch-game')?.getAttribute('aria-describedby') || button('#launch-actions button.button')?.getAttribute('aria-describedby') || '',
+        favoriteLabel: button('#favorite-game')?.textContent || '',
+        attractHidden: document.querySelector('#attract')?.hidden !== false,
+        attractTitle: text('#attract-title'),
         activeElementID: document.activeElement?.id || '',
         cards: Array.from(document.querySelectorAll('#catalog-list .game-card')).map(card => ({
           title: card.querySelector('h3')?.textContent || '',
-          system: card.querySelector('.game-meta')?.textContent?.split(' · ')[0] || '',
-          state: card.querySelector('.game-meta')?.textContent?.split(' · ')[1] || '',
+          system: card.getAttribute('data-system') || card.querySelector('.game-meta')?.textContent?.split(' · ')[0] || '',
+          state: card.getAttribute('data-state') || card.querySelector('.game-meta')?.textContent?.split(' · ')[1] || '',
           fallback: Boolean(card.querySelector('.fallback-note')),
           pressed: card.getAttribute('aria-pressed') === 'true',
         })),
@@ -1406,6 +1459,10 @@ class BrowserHarness {
     return this.page.snapshot();
   }
 
+  async waitForSnapshot(predicate, timeoutMs) {
+    return this.page.waitForSnapshot(predicate, timeoutMs);
+  }
+
   async waitForCatalog(status) {
     return this.page.waitForCatalog(status);
   }
@@ -1510,6 +1567,15 @@ class BrowserHarness {
     const serverRecords = this.fixtureEvidence().filter(record => record.status !== null);
     const used = new Set();
     const mismatches = [];
+    const gamesQuery = (pathname, searchParams) => {
+      if (pathname !== '/api/v1/games') return '';
+      const q = searchParams.get('q') || '';
+      const platform = searchParams.get('platform') || '';
+      const collection = searchParams.get('collection') || '';
+      if (platform) return q ? `${q}&platform=${platform}` : `platform=${platform}`;
+      if (collection) return q ? `${q}&collection=${collection}` : `collection=${collection}`;
+      return q;
+    };
     const keyForServer = record => `${record.method} ${record.path} ${record.path === '/api/v1/games' ? record.query : ''}`;
     for (const request of this.page.evidence().networkRequests) {
       let parsed;
@@ -1519,7 +1585,7 @@ class BrowserHarness {
         continue;
       }
       if (parsed.origin !== this.fixtureServer.origin) continue;
-      const query = parsed.pathname === '/api/v1/games' ? parsed.searchParams.get('q') || '' : '';
+      const query = gamesQuery(parsed.pathname, parsed.searchParams);
       const key = `${request.method} ${parsed.pathname} ${query}`;
       const index = serverRecords.findIndex((record, candidateIndex) => (
         !used.has(candidateIndex)

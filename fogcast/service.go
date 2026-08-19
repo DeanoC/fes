@@ -17,6 +17,8 @@ import (
 	"github.com/DeanoC/FogCast-POC/host"
 	"github.com/DeanoC/FogCast-POC/internal/core"
 	"github.com/DeanoC/FogCast-POC/internal/hostexec"
+	"github.com/DeanoC/FogCast-POC/librarymedia"
+	"github.com/DeanoC/FogCast-POC/libraryuser"
 	"github.com/DeanoC/FogCast-POC/protocol"
 	"github.com/DeanoC/FogCast-POC/romsource"
 )
@@ -32,6 +34,9 @@ type serviceCatalog interface {
 	Game(context.Context, string) (catalog.Game, error)
 	Games(context.Context) ([]catalog.Game, error)
 	Search(context.Context, string) ([]catalog.Game, error)
+	QueryGames(context.Context, catalog.Query) (catalog.Page, error)
+	Platforms(context.Context) ([]catalog.PlatformInfo, error)
+	GamesByIDs(context.Context, []string) ([]catalog.Game, error)
 	GameMatchesRoot(context.Context, catalog.Game, catalog.Root) (bool, error)
 	CompareAndSetContent(context.Context, catalog.Game, catalog.Root, catalog.Content) (bool, error)
 	Close() error
@@ -124,6 +129,14 @@ type ExecutionPolicy struct {
 
 type ServiceOption func(*Service)
 
+func WithUserLibrary(store *libraryuser.Store) ServiceOption {
+	return func(service *Service) { service.users = store }
+}
+
+func WithLibraryMedia(index *librarymedia.Index) ServiceOption {
+	return func(service *Service) { service.media = index }
+}
+
 func WithExecutionPolicy(policy ExecutionPolicy) ServiceOption {
 	return func(service *Service) {
 		if policy.Resolver != nil {
@@ -145,6 +158,9 @@ type Service struct {
 	uploadReadDelay   time.Duration
 	executionResolver ExecutionResolver
 	hostExecutor      hostexec.Adapter
+	users             *libraryuser.Store
+	media             *librarymedia.Index
+	attractIdle       int
 	activeExecution   string
 	activeGameID      string
 	activeSystem      protocol.System
@@ -171,7 +187,17 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 	if err != nil {
 		return nil, safeOpenError("open FogCast catalog", err)
 	}
+	var users *libraryuser.Store
+	var media *librarymedia.Index
 	fail := func(message string, cause error) (*Service, error) {
+		if media != nil {
+			_ = media.Close()
+			media = nil
+		}
+		if users != nil {
+			_ = users.Close()
+			users = nil
+		}
 		_ = store.Close()
 		return nil, safeOpenError(message, cause)
 	}
@@ -186,7 +212,7 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 		return fail("configure FogCast target", err)
 	}
 	registry := core.DefaultRegistry()
-	scanner := &catalog.Scanner{Store: store, Registry: registry}
+	scanner := &catalog.Scanner{Store: store, Registry: registry, Platforms: catalog.DefaultPlatforms()}
 	preparer := &romsource.Preparer{StagingRoot: paths.Staging, MaxBytes: protocol.MaxContentBytes}
 	if httpClient == nil {
 		httpClient = http.DefaultClient
@@ -198,6 +224,42 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 	if config.HostEmulator.Binary != "" && config.HostEmulator.Core != "" {
 		host := hostexec.NewRetroArchAdapter(config.HostEmulator.Binary, config.HostEmulator.Core, nil)
 		options = append(options, WithExecutionPolicy(ExecutionPolicy{Resolver: NewConfiguredExecutionResolver(config.HostEmulator.Systems, host), Host: host}))
+	}
+	if paths.UserLibrary != "" {
+		if err := validatePrivateFilePath(paths.UserLibrary); err != nil {
+			return fail("prepare FogCast user library location", err)
+		}
+		if err := ensurePrivateDirectory(filepath.Dir(paths.UserLibrary)); err != nil {
+			return fail("prepare FogCast user library location", err)
+		}
+		openedUsers, err := libraryuser.OpenContext(ctx, paths.UserLibrary)
+		if err != nil {
+			return fail("open FogCast user library", err)
+		}
+		users = openedUsers
+		if err := ensurePrivateRegularFile(paths.UserLibrary); err != nil {
+			return fail("secure FogCast user library", err)
+		}
+		options = append(options, WithUserLibrary(users))
+	}
+	if paths.MediaIndex != "" && len(config.LibraryMedia) > 0 {
+		if err := validatePrivateFilePath(paths.MediaIndex); err != nil {
+			return fail("prepare FogCast media index location", err)
+		}
+		if err := ensurePrivateDirectory(filepath.Dir(paths.MediaIndex)); err != nil {
+			return fail("prepare FogCast media index location", err)
+		}
+		if paths.MediaCache != "" {
+			if err := ensurePrivateDirectory(paths.MediaCache); err != nil {
+				return fail("prepare FogCast media cache", err)
+			}
+		}
+		openedMedia, err := librarymedia.Open(ctx, paths.MediaIndex, paths.MediaCache, config.LibraryMedia)
+		if err != nil {
+			return fail("open FogCast media index", err)
+		}
+		media = openedMedia
+		options = append(options, WithLibraryMedia(media))
 	}
 	return newService(config, paths, store, scanner, preparer, client, options...), nil
 }
@@ -213,6 +275,7 @@ func newService(config Config, _ Paths, store serviceCatalog, scanner serviceSca
 		roots: roots, rootsByID: rootsByID,
 		requestTimeout: config.RequestTimeout, uploadTimeout: config.UploadTimeout,
 		executionResolver: defaultExecutionResolver{},
+		attractIdle:       config.Library.AttractIdleSeconds,
 	}
 	for _, option := range options {
 		if option != nil {
@@ -305,7 +368,19 @@ func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFu
 
 func (s *Service) Close() error {
 	s.closeOnce.Do(func() {
-		s.closeErr = s.catalog.Close()
+		var first error
+		if s.media != nil {
+			first = s.media.Close()
+		}
+		if s.users != nil {
+			if err := s.users.Close(); first == nil {
+				first = err
+			}
+		}
+		if err := s.catalog.Close(); first == nil {
+			first = err
+		}
+		s.closeErr = first
 	})
 	if s.closeErr != nil {
 		return canonicalError(protocol.CodeInternal, nil)
@@ -348,6 +423,7 @@ func (s *Service) Scan(ctx context.Context) (catalog.ScanReport, error) {
 		}
 		return catalog.ScanReport{}, canonicalError(protocol.CodeInternal, safeContextError(err))
 	}
+	_ = s.ScanMedia(ctx)
 	return report, nil
 }
 
@@ -397,6 +473,66 @@ func (s *Service) Search(ctx context.Context, query string) ([]catalog.Game, err
 		return nil, canonicalError(protocol.CodeInternal, safeContextError(err))
 	}
 	return games, nil
+}
+
+func (s *Service) QueryGames(ctx context.Context, query catalog.Query) (catalog.Page, error) {
+	if err := ctx.Err(); err != nil {
+		return catalog.Page{}, err
+	}
+	switch query.Collection {
+	case "favorites":
+		ids, err := s.favoriteIDs(ctx)
+		if err != nil {
+			return catalog.Page{}, err
+		}
+		query.Restrict = true
+		query.RestrictIDs = ids
+	case "recents":
+		return s.queryRecents(ctx, query)
+	case "":
+	default:
+		return catalog.Page{}, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	page, err := s.catalog.QueryGames(ctx, query)
+	if err != nil {
+		if ctx.Err() != nil {
+			return catalog.Page{}, ctx.Err()
+		}
+		if errors.Is(err, catalog.ErrInvalidQuery) {
+			return catalog.Page{}, canonicalError(protocol.CodeBadRequest, nil)
+		}
+		return catalog.Page{}, canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	return page, nil
+}
+
+func (s *Service) PlatformLaunchable(system protocol.System) bool {
+	return catalog.Launchable(system) || s.hostLaunchable(system)
+}
+
+func (s *Service) Platforms(ctx context.Context) ([]catalog.PlatformInfo, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	platforms, err := s.catalog.Platforms(ctx)
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	for index := range platforms {
+		platforms[index].Launchable = s.PlatformLaunchable(platforms[index].ID)
+	}
+	return platforms, nil
+}
+
+func (s *Service) hostLaunchable(system protocol.System) bool {
+	if s.hostExecutor == nil {
+		return false
+	}
+	execution, err := s.executionResolver.Resolve(context.Background(), catalog.Game{System: system})
+	return err == nil && execution == ExecutionHostOnly
 }
 
 func (s *Service) Health(parent context.Context) (protocol.Health, error) {
@@ -465,6 +601,9 @@ func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 }
 
 func (s *Service) launchGame(ctx context.Context, game catalog.Game, progress ProgressFunc) (protocol.CachedLaunchResponse, bool, error) {
+	if !s.PlatformLaunchable(game.System) {
+		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeUnsupportedSystem, nil)
+	}
 	root, ok := s.rootsByID[game.LibraryID]
 	if !ok || root.System != game.System {
 		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeSourceUnavailable, nil)

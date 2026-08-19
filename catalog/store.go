@@ -177,13 +177,15 @@ func (x *ScanSession) Observe(ctx context.Context, candidate Candidate) (Change,
 		_, err = x.tx.ExecContext(ctx, `
 			INSERT INTO games (
 				game_id, library_id, system, relative_path, title, source_kind, source_state, reason,
-				source_size, modified_ns, zip_member, zip_size, zip_crc32, zip_entry_count, seen_generation
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				source_size, modified_ns, zip_member, zip_size, zip_crc32, zip_entry_count, seen_generation,
+				search_text
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			candidate.ID, x.root.ID, candidate.System, candidate.RelativePath, candidate.Title,
 			candidate.Kind, candidate.State, candidate.Reason,
 			candidate.Fingerprint.SourceSize, candidate.Fingerprint.ModifiedNS,
 			candidate.Fingerprint.ZIPMember, candidate.Fingerprint.ZIPSize,
 			candidate.Fingerprint.ZIPCRC32, candidate.Fingerprint.ZIPEntryCount, x.generation,
+			searchDocument(candidate.ID, candidate.Title, candidate.System),
 		)
 		if err != nil {
 			return "", fmt.Errorf("insert candidate %q: %w", candidate.ID, err)
@@ -211,13 +213,13 @@ func (x *ScanSession) Observe(ctx context.Context, candidate Candidate) (Change,
 		_, err = x.tx.ExecContext(ctx, `
 			UPDATE games SET title = ?, source_kind = ?, source_state = ?, reason = ?,
 				source_size = ?, modified_ns = ?, zip_member = ?, zip_size = ?, zip_crc32 = ?,
-				zip_entry_count = ?, seen_generation = ?`+contentUpdate+`
+				zip_entry_count = ?, seen_generation = ?, search_text = ?`+contentUpdate+`
 			WHERE game_id = ?`,
 			candidate.Title, candidate.Kind, candidate.State, candidate.Reason,
 			candidate.Fingerprint.SourceSize, candidate.Fingerprint.ModifiedNS,
 			candidate.Fingerprint.ZIPMember, candidate.Fingerprint.ZIPSize,
 			candidate.Fingerprint.ZIPCRC32, candidate.Fingerprint.ZIPEntryCount,
-			x.generation, candidate.ID,
+			x.generation, searchDocument(candidate.ID, candidate.Title, candidate.System), candidate.ID,
 		)
 		if err != nil {
 			return "", fmt.Errorf("update candidate %q: %w", candidate.ID, err)
@@ -338,20 +340,11 @@ func (s *Store) Games(ctx context.Context) ([]Game, error) {
 }
 
 func (s *Store) Search(ctx context.Context, query string) ([]Game, error) {
-	games, err := s.queryGames(ctx, selectGames+" ORDER BY lower(g.title), g.game_id")
-	if err != nil {
-		return nil, err
-	}
 	foldedQuery := foldSearchText(query)
-	matches := make([]Game, 0)
-	for _, game := range games {
-		if strings.Contains(foldSearchText(game.Title), foldedQuery) ||
-			strings.Contains(foldSearchText(game.ID), foldedQuery) ||
-			strings.Contains(foldSearchText(string(game.System)), foldedQuery) {
-			matches = append(matches, game)
-		}
+	if foldedQuery == "" {
+		return s.Games(ctx)
 	}
-	return matches, nil
+	return s.queryGames(ctx, selectGames+` WHERE g.search_text LIKE '%' || ? || '%' ESCAPE '\' ORDER BY lower(g.title), g.game_id`, escapeLIKE(foldedQuery))
 }
 
 func foldSearchText(value string) string {
@@ -364,6 +357,142 @@ func (s *Store) Game(ctx context.Context, id string) (Game, error) {
 		return Game{}, fmt.Errorf("read catalog game %q: %w", id, err)
 	}
 	return game, nil
+}
+
+func (s *Store) Platforms(ctx context.Context) ([]PlatformInfo, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT l.system,
+		       COUNT(g.game_id),
+		       MAX(l.online)
+		FROM libraries AS l
+		LEFT JOIN games AS g ON g.library_id = l.id
+		GROUP BY l.system
+		ORDER BY lower(l.system)`)
+	if err != nil {
+		return nil, fmt.Errorf("query catalog platforms: %w", err)
+	}
+	defer rows.Close()
+	platforms := make([]PlatformInfo, 0)
+	for rows.Next() {
+		var info PlatformInfo
+		var online int
+		if err := rows.Scan(&info.ID, &info.GameCount, &online); err != nil {
+			return nil, fmt.Errorf("scan catalog platform: %w", err)
+		}
+		info.Label = PlatformLabel(info.ID)
+		info.Online = online != 0
+		info.Launchable = Launchable(info.ID)
+		platforms = append(platforms, info)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate catalog platforms: %w", err)
+	}
+	return platforms, nil
+}
+
+func (s *Store) QueryGames(ctx context.Context, query Query) (Page, error) {
+	normalized, err := normalizeQuery(query)
+	if err != nil {
+		return Page{}, err
+	}
+	if normalized.Restrict && len(normalized.RestrictIDs) == 0 {
+		return Page{}, nil
+	}
+	builder := strings.Builder{}
+	builder.WriteString(selectGames)
+	builder.WriteString(" WHERE 1 = 1")
+	args := make([]any, 0, 8)
+	if normalized.Platform != "" {
+		builder.WriteString(" AND g.system = ?")
+		args = append(args, normalized.Platform)
+	}
+	if normalized.Restrict {
+		builder.WriteString(" AND g.game_id IN (")
+		for index, id := range normalized.RestrictIDs {
+			if index > 0 {
+				builder.WriteString(", ")
+			}
+			builder.WriteString("?")
+			args = append(args, id)
+		}
+		builder.WriteString(")")
+	}
+	if folded := foldSearchText(normalized.Text); folded != "" {
+		like := escapeLIKE(folded)
+		if match := ftsMatchQuery(folded); match != "" {
+			builder.WriteString(" AND (g.rowid IN (SELECT rowid FROM games_fts WHERE games_fts MATCH ?) OR g.search_text LIKE '%' || ? || '%' ESCAPE '\\')")
+			args = append(args, match, like)
+		} else {
+			builder.WriteString(" AND g.search_text LIKE '%' || ? || '%' ESCAPE '\\'")
+			args = append(args, like)
+		}
+	}
+	if normalized.Cursor != "" {
+		key, err := decodeCursor(normalized.Cursor)
+		if err != nil {
+			return Page{}, err
+		}
+		if normalized.Sort == SortPlatform {
+			builder.WriteString(" AND (g.system > ? OR (g.system = ? AND (lower(g.title) > ? OR (lower(g.title) = ? AND g.game_id > ?))))")
+			args = append(args, key.platform, key.platform, key.title, key.title, key.id)
+		} else {
+			builder.WriteString(" AND (lower(g.title) > ? OR (lower(g.title) = ? AND g.game_id > ?))")
+			args = append(args, key.title, key.title, key.id)
+		}
+	}
+	if normalized.Sort == SortPlatform {
+		builder.WriteString(" ORDER BY g.system, lower(g.title), g.game_id")
+	} else {
+		builder.WriteString(" ORDER BY lower(g.title), g.game_id")
+	}
+	builder.WriteString(" LIMIT ?")
+	args = append(args, normalized.Limit+1)
+	games, err := s.queryGames(ctx, builder.String(), args...)
+	if err != nil {
+		return Page{}, err
+	}
+	page := Page{Games: games}
+	if len(page.Games) > normalized.Limit {
+		page.Games = page.Games[:normalized.Limit]
+		page.NextCursor = gameCursor(page.Games[len(page.Games)-1], normalized.Sort)
+	}
+	return page, nil
+}
+
+func (s *Store) GamesByIDs(ctx context.Context, ids []string) ([]Game, error) {
+	if len(ids) == 0 {
+		return []Game{}, nil
+	}
+	games, err := s.queryGames(ctx, selectGames+" WHERE g.game_id IN ("+placeholders(len(ids))+")", anyStrings(ids)...)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[string]Game, len(games))
+	for _, game := range games {
+		byID[game.ID] = game
+	}
+	ordered := make([]Game, 0, len(ids))
+	for _, id := range ids {
+		if game, ok := byID[id]; ok {
+			ordered = append(ordered, game)
+		}
+	}
+	return ordered, nil
+}
+
+func placeholders(count int) string {
+	if count <= 0 {
+		return ""
+	}
+	return strings.Repeat("?,", count-1) + "?"
+}
+
+func anyStrings(values []string) []any {
+	args := make([]any, len(values))
+	for index, value := range values {
+		args[index] = value
+	}
+	return args
 }
 
 func (s *Store) queryGames(ctx context.Context, query string, args ...any) ([]Game, error) {

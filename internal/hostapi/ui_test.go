@@ -64,7 +64,14 @@ func TestUIIsSelfContainedAndHasLauncherStates(t *testing.T) {
 
 func TestUIUsesOnlyExistingAPIEndpointFamilies(t *testing.T) {
 	html := hostapi.UIHTMLForTest()
-	for _, token := range []string{"/api/v1/games", "/api/v1/session/launch"} {
+	for _, token := range []string{
+		"/api/v1/games",
+		"/api/v1/session/launch",
+		"/api/v1/platforms",
+		"/api/v1/library/favorites/",
+		"/api/v1/library/attract",
+		"/api/v1/presentation/media/",
+	} {
 		if !strings.Contains(html, token) {
 			t.Fatalf("assembled UI is missing API endpoint family %q", token)
 		}

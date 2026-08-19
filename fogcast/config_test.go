@@ -92,13 +92,34 @@ func TestLoadConfigRejectsInvalidHostEmulatorSystems(t *testing.T) {
 		t.Fatal(err)
 	}
 	base := validConfig(root, filepath.Join(dir, "other"))
-	for name, systems := range map[string]string{"unknown": `["nes"]`, "duplicate": `["snes", "snes"]`} {
+	for name, systems := range map[string]string{"unknown": `["not-a-platform"]`, "duplicate": `["snes", "snes"]`} {
 		t.Run(name, func(t *testing.T) {
 			content := base + "\n[host_emulator]\nbinary = \"/Applications/RetroArch\"\ncore = \"/cores/snes.dylib\"\nsystems = " + systems + "\n"
 			if _, err := fogcast.LoadConfig(writeConfig(t, content)); err == nil {
 				t.Fatal("invalid systems accepted")
 			}
 		})
+	}
+}
+
+func TestLoadConfigAcceptsHostEmulatorCatalogPlatforms(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "games")
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	content := validConfig(root, filepath.Join(dir, "other")) + `
+[host_emulator]
+binary = "/Applications/RetroArch"
+core = "/cores/nes.dylib"
+systems = ["nes"]
+`
+	config, err := fogcast.LoadConfig(writeConfig(t, content))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(config.HostEmulator.Systems) != 1 || config.HostEmulator.Systems[0] != "nes" {
+		t.Fatalf("host emulator systems = %#v", config.HostEmulator.Systems)
 	}
 }
 
@@ -341,7 +362,7 @@ func TestLoadConfigRejectsInvalidValues(t *testing.T) {
 		"duplicate library id": strings.Replace(valid, `id = "genesis-main"`, `id = "snes-main"`, 1),
 		"invalid library id":   strings.Replace(valid, `id = "snes-main"`, `id = "SNES Main"`, 1),
 		"duplicate root":       strings.Replace(valid, secondRoot, firstRoot, 1),
-		"unknown system":       strings.Replace(valid, `system = "snes"`, `system = "nes"`, 1),
+		"unknown system":       strings.Replace(valid, `system = "snes"`, `system = "mystery"`, 1),
 		"empty root":           strings.Replace(valid, firstRoot, "", 1),
 		"relative root":        strings.Replace(valid, firstRoot, "relative/games", 1),
 		"empty token":          strings.Replace(valid, `token = "test-token"`, `token = " \t "`, 1),

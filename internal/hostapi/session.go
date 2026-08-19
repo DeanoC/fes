@@ -336,6 +336,13 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 		}
 	}
 	s.record("session.launch", result, &progress)
+	if resp.Status.State == protocol.StateActive {
+		if recorder, ok := s.service.(interface {
+			RecordPlay(context.Context, string) error
+		}); ok {
+			_ = recorder.RecordPlay(ctx, id)
+		}
+	}
 	return result, nil
 }
 

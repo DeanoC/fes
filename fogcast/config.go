@@ -13,6 +13,7 @@ import (
 
 	"github.com/DeanoC/FogCast-POC/catalog"
 	"github.com/DeanoC/FogCast-POC/internal/remotemedia"
+	"github.com/DeanoC/FogCast-POC/librarymedia"
 	"github.com/DeanoC/FogCast-POC/protocol"
 	"github.com/pelletier/go-toml/v2"
 )
@@ -22,6 +23,9 @@ type Paths struct {
 	Index        string
 	Staging      string
 	MetadataRoot string
+	UserLibrary  string
+	MediaIndex   string
+	MediaCache   string
 }
 
 func DefaultPaths() (Paths, error) {
@@ -29,11 +33,16 @@ func DefaultPaths() (Paths, error) {
 	if err != nil {
 		return Paths{}, fmt.Errorf("find home directory: %w", err)
 	}
+	share := filepath.Join(home, ".local", "share", "fogcast")
+	cache := filepath.Join(home, ".cache", "fogcast")
 	return Paths{
 		Config:       filepath.Join(home, ".config", "fogcast", "config.toml"),
-		Index:        filepath.Join(home, ".local", "share", "fogcast", "library.sqlite3"),
-		Staging:      filepath.Join(home, ".cache", "fogcast", "staging"),
-		MetadataRoot: filepath.Join(home, ".cache", "fogcast", "metadata"),
+		Index:        filepath.Join(share, "library.sqlite3"),
+		Staging:      filepath.Join(cache, "staging"),
+		MetadataRoot: filepath.Join(cache, "metadata"),
+		UserLibrary:  filepath.Join(share, "library-user.sqlite3"),
+		MediaIndex:   filepath.Join(share, "library-media.sqlite3"),
+		MediaCache:   filepath.Join(cache, "library-media"),
 	}, nil
 }
 
@@ -48,6 +57,12 @@ type Config struct {
 	HostEmulator   HostEmulatorConfig
 	Media          MediaConfig
 	Metadata       MetadataConfig
+	LibraryMedia   []librarymedia.Root
+	Library        LibraryConfig
+}
+
+type LibraryConfig struct {
+	AttractIdleSeconds int
 }
 
 // MetadataConfig contains opt-in provider-scoped presentation enrichment.
@@ -97,15 +112,26 @@ type MediaConfig struct {
 }
 
 type fileConfig struct {
-	BaseURL               string           `toml:"base_url"`
-	Token                 string           `toml:"token"`
-	RequestTimeoutSeconds int64            `toml:"request_timeout_seconds"`
-	UploadTimeoutSeconds  int64            `toml:"upload_timeout_seconds"`
-	Libraries             []fileLibrary    `toml:"libraries"`
-	RemoteInput           fileRemoteInput  `toml:"remote_input"`
-	HostEmulator          fileHostEmulator `toml:"host_emulator"`
-	Media                 fileMedia        `toml:"media"`
-	Metadata              *fileMetadata    `toml:"metadata"`
+	BaseURL               string               `toml:"base_url"`
+	Token                 string               `toml:"token"`
+	RequestTimeoutSeconds int64                `toml:"request_timeout_seconds"`
+	UploadTimeoutSeconds  int64                `toml:"upload_timeout_seconds"`
+	Libraries             []fileLibrary        `toml:"libraries"`
+	RemoteInput           fileRemoteInput      `toml:"remote_input"`
+	HostEmulator          fileHostEmulator     `toml:"host_emulator"`
+	Media                 fileMedia            `toml:"media"`
+	Metadata              *fileMetadata        `toml:"metadata"`
+	LibraryMedia          []fileLibraryMedia   `toml:"library_media"`
+	Library               *fileLibrarySettings `toml:"library"`
+}
+
+type fileLibraryMedia struct {
+	ID   string `toml:"id"`
+	Root string `toml:"root"`
+}
+
+type fileLibrarySettings struct {
+	AttractIdleSeconds int64 `toml:"attract_idle_seconds"`
 }
 
 type fileMetadata struct {
@@ -223,6 +249,14 @@ func LoadConfig(path string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	libraryMedia, err := normalizeLibraryMedia(raw.LibraryMedia)
+	if err != nil {
+		return Config{}, err
+	}
+	library, err := normalizeLibrarySettings(raw.Library)
+	if err != nil {
+		return Config{}, err
+	}
 
 	return Config{
 		BaseURL:        baseURL,
@@ -236,6 +270,8 @@ func LoadConfig(path string) (Config, error) {
 		HostEmulator: hostEmulator,
 		Media:        media,
 		Metadata:     metadata,
+		LibraryMedia: libraryMedia,
+		Library:      library,
 	}, nil
 }
 
@@ -435,7 +471,7 @@ func normalizeHostEmulator(raw fileHostEmulator) (HostEmulatorConfig, error) {
 	systems := append([]protocol.System(nil), raw.Systems...)
 	seen := make(map[protocol.System]struct{}, len(systems))
 	for _, system := range systems {
-		if err := protocol.ValidateSystem(system); err != nil {
+		if err := catalog.ValidatePlatform(system); err != nil {
 			return HostEmulatorConfig{}, fmt.Errorf("host_emulator systems: %w", err)
 		}
 		if _, ok := seen[system]; ok {
@@ -489,7 +525,7 @@ func normalizeLibraries(raw []fileLibrary) ([]catalog.Root, error) {
 		if _, duplicate := ids[library.ID]; duplicate {
 			return nil, fmt.Errorf("duplicate library id %q", library.ID)
 		}
-		if err := protocol.ValidateSystem(library.System); err != nil {
+		if err := catalog.ValidatePlatform(library.System); err != nil {
 			return nil, fmt.Errorf("library %q: %w", library.ID, err)
 		}
 		root, err := normalizeRoot(library.Root)
@@ -504,6 +540,45 @@ func normalizeLibraries(raw []fileLibrary) ([]catalog.Root, error) {
 		libraries = append(libraries, catalog.Root{ID: library.ID, System: library.System, Path: root})
 	}
 	return libraries, nil
+}
+
+func normalizeLibraryMedia(raw []fileLibraryMedia) ([]librarymedia.Root, error) {
+	roots := make([]librarymedia.Root, 0, len(raw))
+	ids := make(map[string]struct{}, len(raw))
+	paths := make(map[string]struct{}, len(raw))
+	for _, entry := range raw {
+		if err := protocol.ValidateGameID(entry.ID); err != nil {
+			return nil, fmt.Errorf("library_media id: %w", err)
+		}
+		if _, duplicate := ids[entry.ID]; duplicate {
+			return nil, fmt.Errorf("duplicate library_media id %q", entry.ID)
+		}
+		root, err := normalizeRoot(entry.Root)
+		if err != nil {
+			return nil, fmt.Errorf("library_media %q root: %w", entry.ID, err)
+		}
+		if _, duplicate := paths[root]; duplicate {
+			return nil, fmt.Errorf("duplicate library_media root %q", root)
+		}
+		ids[entry.ID] = struct{}{}
+		paths[root] = struct{}{}
+		roots = append(roots, librarymedia.Root{ID: entry.ID, Path: root})
+	}
+	return roots, nil
+}
+
+func normalizeLibrarySettings(raw *fileLibrarySettings) (LibraryConfig, error) {
+	if raw == nil {
+		return LibraryConfig{AttractIdleSeconds: 60}, nil
+	}
+	if raw.AttractIdleSeconds < 0 {
+		return LibraryConfig{}, fmt.Errorf("library attract_idle_seconds must not be negative")
+	}
+	seconds := raw.AttractIdleSeconds
+	if seconds == 0 {
+		seconds = 60
+	}
+	return LibraryConfig{AttractIdleSeconds: int(seconds)}, nil
 }
 
 func normalizeRoot(raw string) (string, error) {

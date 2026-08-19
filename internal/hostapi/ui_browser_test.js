@@ -33,6 +33,7 @@ function defaultPresentations() {
   return {
     [SONIC_ID]: fixture('presentation-ready.json'),
     [UNKNOWN_ID]: fixture('presentation-no-match.json'),
+    'snes-offline-test': fixture('presentation-no-match.json'),
   };
 }
 
@@ -65,7 +66,7 @@ async function selectSonic(harness) {
 }
 
 async function launchSelected(harness) {
-  await harness.click('#launch-actions button');
+  await harness.click('#launch-game');
 }
 
 function apiEvidence(harness) {
@@ -300,7 +301,7 @@ test('fixture server serves the assembled production document with production he
       '<title>FogCast launcher</title>',
       '<input id="game-search"',
       'root.FogCastMetadata',
-      '<script>globalThis.FogCastPresentationEnabled = true;</script><script>',
+      '<script>globalThis.FogCastPresentationEnabled = true;globalThis.FogCastAttractDisabled = true;</script><script>',
       'installFogCastApp',
     ]) {
       assert.ok(html.includes(marker), `production HTML marker missing: ${marker}`);
@@ -366,7 +367,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         snapshot = await harness.waitForCatalog('populated metadata_fallback');
         assert.deepEqual(snapshot.cards.map(card => card.title), ['Sonic the Hedgehog (refreshed)']);
         assert.equal(snapshot.cards[0].pressed, false);
-        assert.deepEqual(apiEvidence(harness).map(record => ({ method: record.method, path: record.path })), [
+        assert.deepEqual(apiEvidence(harness).filter(record => record.path === '/api/v1/games').map(record => ({ method: record.method, path: record.path })), [
           { method: 'GET', path: '/api/v1/games' },
           { method: 'GET', path: '/api/v1/games' },
         ]);
@@ -405,7 +406,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         snapshot = await harness.waitForCatalog('catalog_error');
         assert.match(snapshot.catalogActions, /Retry catalog/i);
         assertNoPrivateErrorText(snapshot);
-        assert.deepEqual(apiEvidence(harness).map(record => record.status), [500, 200]);
+        assert.deepEqual(apiEvidence(harness).filter(record => record.path === '/api/v1/games').map(record => record.status), [500, 200]);
       });
     });
 
@@ -525,6 +526,93 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         }))()`);
         assert.equal(malformed.length, 5);
         assert.ok(malformed.every(result => result.isFallback && result.metadataState !== 'ready'), JSON.stringify(malformed));
+      });
+    });
+
+    await t.test('visible wall cards prefetch covers without selection', async () => {
+      await runScenario(harness, 'visible-cover-prefetch', basePlan({
+        presentations: { [SONIC_ID]: fixture('presentation-artwork-ready.json') },
+        prefetchVisibleCovers: true,
+      }), async () => {
+        await harness.waitForCatalog('populated metadata_fallback');
+        await harness.waitForRequest({ method: 'GET', path: `/api/v1/presentation/games/${SONIC_ID}` });
+        await harness.waitForRequest({ method: 'GET', path: `/api/v1/presentation/artwork/${ARTWORK_HANDLE}` });
+        const artworks = artworkEvidence(harness);
+        assert.ok(artworks.length >= 1);
+        assert.ok(artworks.every(record => record.path === `/api/v1/presentation/artwork/${ARTWORK_HANDLE}`));
+      });
+    });
+
+    await t.test('platform shortcuts filter the wall without refetching covers', async () => {
+      const megadriveCatalog = fixture('catalog-populated.json', 200, {
+        override: {
+          games: [{
+            id: SONIC_ID,
+            title: 'Sonic the Hedgehog',
+            system: 'megadrive',
+            kind: 'zip',
+            state: 'available',
+            root_online: true,
+            content_prepared: true,
+            execution: 'fpga_native',
+          }],
+        },
+      });
+      const snesCatalog = fixture('catalog-populated.json', 200, {
+        override: {
+          games: [{
+            id: UNKNOWN_ID,
+            title: 'Unknown <Game>',
+            system: 'snes',
+            kind: 'raw',
+            state: 'available',
+            root_online: true,
+            content_prepared: false,
+            execution: 'fpga_native',
+          }, {
+            id: 'snes-offline-test',
+            title: 'Offline Source',
+            system: 'snes',
+            kind: 'zip',
+            state: 'missing',
+            root_online: false,
+            content_prepared: false,
+            execution: 'fpga_native',
+          }],
+        },
+      });
+      await runScenario(harness, 'platform-shortcuts', basePlan({
+        prefetchVisibleCovers: true,
+        platforms: {
+          platforms: [
+            { id: 'megadrive', label: 'Mega Drive', game_count: 1, online: true, launchable: true },
+            { id: 'snes', label: 'SNES', game_count: 2, online: true, launchable: true },
+          ],
+        },
+        catalog: {
+          '': populatedCatalog(),
+          'platform=megadrive': megadriveCatalog,
+          'platform=snes': snesCatalog,
+        },
+      }), async () => {
+        await harness.waitForCatalog('populated metadata_fallback');
+        await harness.page.waitForValue('Boolean(document.querySelector(\'#platform-list [data-platform="snes"]\'))');
+        await harness.waitForRequest({ method: 'GET', path: `/api/v1/presentation/games/${SONIC_ID}` });
+        await harness.waitForRequest({ method: 'GET', path: `/api/v1/presentation/games/${UNKNOWN_ID}` });
+        await harness.waitForRequest({ method: 'GET', path: '/api/v1/presentation/games/snes-offline-test' });
+        const before = presentationEvidence(harness).length;
+        assert.equal(before, 3);
+        await harness.click('#platform-list [data-platform="snes"]');
+        let snapshot = await harness.waitForSnapshot(next => (
+          next.cards.length === 2 && next.cards.every(card => card.system === 'snes')
+        ));
+        assert.equal(snapshot.cards.length, 2);
+        await harness.click('#platform-list [data-platform="megadrive"]');
+        snapshot = await harness.waitForSnapshot(next => (
+          next.cards.length === 1 && next.cards[0].system === 'megadrive'
+        ));
+        assert.equal(snapshot.cards[0].title, 'Sonic the Hedgehog');
+        assert.equal(presentationEvidence(harness).length, 3);
       });
     });
 
@@ -899,7 +987,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         await selectSonic(harness);
         let snapshot = await harness.snapshot();
         assert.equal(snapshot.launchButtonLabel, 'Replace active session');
-        await harness.click('#launch-actions button');
+        await harness.click('#launch-game');
         const launch = await harness.waitForRequest({ method: 'POST', path: '/api/v1/session/launch' });
         snapshot = await harness.waitForText('#session-status', 'Launching session');
         assert.equal(snapshot.launchButtonDisabled, true);
@@ -907,7 +995,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         assert.equal(snapshot.sessionStopDisabled, true);
         assert.match(snapshot.launchButtonDescribedBy, /launch-reason/);
         assert.match(snapshot.sessionStopDescribedBy, /session-action-reason/);
-        await harness.click('#launch-actions button');
+        await harness.click('#launch-game');
         await harness.click('#stop-session');
         assert.equal(apiEvidence(harness).filter(record => record.path === '/api/v1/session/launch').length, 1);
         await harness.release(launch.id);
@@ -992,7 +1080,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         const during = await harness.snapshot();
         assert.equal(during.launchButtonDisabled, true);
         assert.equal(apiEvidence(harness).filter(record => record.method === 'POST' && record.path.endsWith('/launch')).length, 0);
-        await harness.click('#launch-actions button');
+        await harness.click('#launch-game');
         assert.equal(apiEvidence(harness).filter(record => record.method === 'POST' && record.path.endsWith('/launch')).length, 0);
         await harness.release(stop.id);
         const snapshot = await harness.waitForText('#session-status', 'Session stopped.');
@@ -1031,6 +1119,34 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         const snapshot = await harness.snapshot();
         assert.equal(snapshot.sessionBusy, 'false');
         assert.match(snapshot.sessionStopDescribedBy, /session-action-reason|^$/);
+      });
+    });
+
+    await t.test('favorite toggle writes PUT without changing launch body', async () => {
+      await runScenario(harness, 'favorite-toggle', basePlan(), async () => {
+        await selectSonic(harness);
+        await harness.click('#favorite-game');
+        await harness.waitForRequest({ method: 'PUT', path: `/api/v1/library/favorites/${SONIC_ID}` });
+        const snapshot = await harness.waitForSnapshot(item => item.favoriteLabel === 'Favorited');
+        assert.equal(snapshot.favoriteLabel, 'Favorited');
+      });
+    });
+
+    await t.test('idle attract overlay enters from a bounded playlist and exits on Escape', async () => {
+      await runScenario(harness, 'attract-idle', basePlan({
+        attractDisabled: false,
+        attractIdleMs: 80,
+        attract: {
+          items: [{ game_id: SONIC_ID, title: 'Sonic the Hedgehog', cover: ARTWORK_HANDLE }],
+          idle_seconds: 1,
+        },
+      }), async () => {
+        await harness.waitForCatalog('populated metadata_fallback');
+        const snapshot = await harness.waitForSnapshot(item => item.attractHidden === false);
+        assert.equal(snapshot.attractTitle, 'Sonic the Hedgehog');
+        await harness.evaluate('document.dispatchEvent(new KeyboardEvent(\'keydown\', { key: \'Escape\', bubbles: true }))');
+        const exited = await harness.waitForSnapshot(item => item.attractHidden === true);
+        assert.equal(exited.attractHidden, true);
       });
     });
   } finally {

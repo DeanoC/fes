@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
+	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
-const schemaVersion = 1
+const schemaVersion = 3
 
 const schemaV1 = `
 CREATE TABLE libraries (
@@ -41,6 +43,36 @@ CREATE TABLE games (
 PRAGMA user_version = 1;
 `
 
+const schemaV2 = `
+ALTER TABLE games ADD COLUMN search_text TEXT NOT NULL DEFAULT '';
+UPDATE games SET search_text = lower(title) || ' ' || lower(game_id) || ' ' || lower(system);
+CREATE INDEX games_system_title_id ON games(system, lower(title), game_id);
+CREATE VIRTUAL TABLE games_fts USING fts5(
+  search_text,
+  content='games',
+  content_rowid='rowid',
+  tokenize='unicode61'
+);
+INSERT INTO games_fts(rowid, search_text) SELECT rowid, search_text FROM games;
+CREATE TRIGGER games_ai AFTER INSERT ON games BEGIN
+  INSERT INTO games_fts(rowid, search_text) VALUES (new.rowid, new.search_text);
+END;
+CREATE TRIGGER games_ad AFTER DELETE ON games BEGIN
+  INSERT INTO games_fts(games_fts, rowid, search_text) VALUES('delete', old.rowid, old.search_text);
+END;
+CREATE TRIGGER games_au AFTER UPDATE ON games BEGIN
+  INSERT INTO games_fts(games_fts, rowid, search_text) VALUES('delete', old.rowid, old.search_text);
+  INSERT INTO games_fts(rowid, search_text) VALUES (new.rowid, new.search_text);
+END;
+PRAGMA user_version = 2;
+`
+
+const schemaV3 = `
+DROP INDEX IF EXISTS games_system_title_id;
+CREATE INDEX games_system_title_id ON games(system, lower(title), game_id);
+PRAGMA user_version = 3;
+`
+
 func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if _, err := connection.ExecContext(ctx, "BEGIN EXCLUSIVE"); err != nil {
 		return fmt.Errorf("begin catalog migration: %w", err)
@@ -62,9 +94,57 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 		if _, err := connection.ExecContext(ctx, schemaV1); err != nil {
 			return fmt.Errorf("apply catalog schema version 1: %w", err)
 		}
+		version = 1
+	}
+	if version == 1 {
+		if _, err := connection.ExecContext(ctx, schemaV2); err != nil {
+			return fmt.Errorf("apply catalog schema version 2: %w", err)
+		}
+		version = 2
+	}
+	if version == 2 {
+		if _, err := connection.ExecContext(ctx, schemaV3); err != nil {
+			return fmt.Errorf("apply catalog schema version 3: %w", err)
+		}
+		if err := rewriteSearchText(ctx, connection); err != nil {
+			return fmt.Errorf("fold catalog search text: %w", err)
+		}
+		version = 3
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {
 		return fmt.Errorf("commit catalog migration: %w", err)
+	}
+	return nil
+}
+
+func rewriteSearchText(ctx context.Context, connection *sql.Conn) error {
+	rows, err := connection.QueryContext(ctx, `SELECT game_id, title, system FROM games`)
+	if err != nil {
+		return err
+	}
+	type row struct {
+		id, title, system string
+	}
+	games := make([]row, 0)
+	for rows.Next() {
+		var item row
+		if err := rows.Scan(&item.id, &item.title, &item.system); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		games = append(games, item)
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, game := range games {
+		if _, err := connection.ExecContext(ctx, `UPDATE games SET search_text = ? WHERE game_id = ?`,
+			searchDocument(game.id, game.title, protocol.System(game.system)), game.id); err != nil {
+			return err
+		}
 	}
 	return nil
 }

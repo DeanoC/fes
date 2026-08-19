@@ -68,15 +68,21 @@ class BrowserTestElement {
     this.disabled = false;
     this.hidden = false;
     this.focused = false;
+    this.style = {};
+    this.clientWidth = 0;
+    this.parentNode = null;
   }
 
   appendChild(child) {
+    child.parentNode = this;
     this.children.push(child);
     return child;
   }
 
   replaceChildren(...children) {
+    this.children.forEach(child => { child.parentNode = null; });
     this.children = children;
+    children.forEach(child => { child.parentNode = this; });
   }
 
   setAttribute(name, value) {
@@ -107,15 +113,23 @@ function browserDocument() {
     'catalog-list', 'catalog-actions', 'detail', 'detail-content',
     'launch-actions', 'launch-status', 'session-panel', 'session-status',
     'session-details', 'session-actions', 'session-message',
+    'nav-all', 'nav-favorites', 'nav-recents', 'platform-list',
+    'attract', 'attract-title', 'attract-stage',
   ];
   const nodes = new Map(ids.map(id => [id, new BrowserTestElement('div', id)]));
+  nodes.get('attract').hidden = true;
+  const listeners = new Map();
   return {
     nodes,
+    listeners,
     createElement(tagName) {
       return new BrowserTestElement(tagName);
     },
     getElementById(id) {
       return nodes.get(id) || null;
+    },
+    addEventListener(name, listener) {
+      listeners.set(name, listener);
     },
   };
 }
@@ -139,7 +153,20 @@ async function waitForCondition(condition, message) {
   throw new Error(message);
 }
 
-async function runBrowserApp({ adapter, responses, sessionResponses }) {
+async function waitForAttractTitle(document, title, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const attract = document.nodes.get('attract');
+    if (attract && attract.hidden === false && document.nodes.get('attract-title').textContent === title) {
+      return;
+    }
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  const attract = document.nodes.get('attract');
+  throw new Error(`attract title was ${JSON.stringify(document.nodes.get('attract-title') && document.nodes.get('attract-title').textContent)} hidden=${attract && attract.hidden}, want ${title}`);
+}
+
+async function runBrowserApp({ adapter, responses, sessionResponses, globals, attractItems }) {
   const document = browserDocument();
   const calls = [];
   const sessionCalls = [];
@@ -148,18 +175,35 @@ async function runBrowserApp({ adapter, responses, sessionResponses }) {
     jsonResponse({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' }),
   ]).slice();
   const fetch = async (requestPath, options) => {
-    const isSession = requestPath === '/api/v1/session';
+    const pathOnly = String(requestPath || '').split('?')[0];
+    if (pathOnly === '/api/v1/platforms') {
+      return jsonResponse({ platforms: [] });
+    }
+    if (pathOnly === '/api/v1/library/attract') {
+      return jsonResponse({ items: attractItems || [], idle_seconds: 60 });
+    }
+    if (pathOnly.startsWith('/api/v1/library/favorites/')) {
+      return jsonResponse({ favorite: (options && options.method) === 'PUT' });
+    }
+    const isSession = pathOnly === '/api/v1/session';
     const destination = isSession ? sessionCalls : calls;
     destination.push({ path: requestPath, options });
     const response = (isSession ? queuedSessionResponses : responses).shift();
     if (!response) throw new Error(`missing browser fixture response for ${requestPath}`);
     return response;
   };
-  const context = { document, fetch };
+  const context = {
+    document,
+    fetch,
+    FogCastAttractDisabled: true,
+    setTimeout,
+    clearTimeout,
+    ...(globals || {}),
+  };
   if (adapter !== undefined) context.FogCastMetadata = adapter;
   vm.runInNewContext(readAsset('ui_app.js'), context, { filename: 'ui_app.js' });
   await settleBrowser();
-  return { document, calls, sessionCalls };
+  return { document, calls, sessionCalls, globals: context };
 }
 
 function malformedJSONResponse(status = 200) {
@@ -212,6 +256,28 @@ function validAdapterPresentation() {
     isFallback: true,
   };
 }
+
+test('paginated catalog stays populated when client filters hide the loaded page', () => {
+  const views = [
+    { live: { id: 'megadrive-a', title: 'Streets of Rage 2 (USA)', system: 'megadrive' }, presentation: { genre: 'Beat \'em Up' } },
+  ];
+  assert.equal(catalogViewState({
+    catalogState: 'populated',
+    query: '',
+    games: views.map(view => view.live),
+    gameViews: views,
+    filters: { system: '', region: 'japan', genre: '' },
+    nextCursor: 'cursor-2',
+  }), 'populated');
+  assert.equal(catalogViewState({
+    catalogState: 'populated',
+    query: '',
+    games: views.map(view => view.live),
+    gameViews: views,
+    filters: { system: '', region: 'japan', genre: '' },
+    nextCursor: '',
+  }), 'no_matches');
+});
 
 test('catalog filters keep search on the host and hide unmatched platforms, regions, and genres', () => {
   assert.equal(gamesPath('sonic'), '/api/v1/games?q=sonic');
@@ -312,6 +378,146 @@ test('prefetchVisibleCovers loads presentation for intersecting cards', async ()
   assert.ok(calls.some(call => call.path === '/api/v1/presentation/games/megadrive-sonic-test'));
   const sonic = controller.getState().gameViews.find(view => view.live.id === 'megadrive-sonic-test');
   assert.equal(sonic.presentation.isFallback, false);
+});
+
+test('catalog refresh keeps already-fetched covers', async () => {
+  const handle = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  const presentation = jsonResponse({
+    game_id: 'megadrive-sonic-test',
+    state: 'ready',
+    presentation: {
+      summary: 'Cached summary', year: '1991', genre: 'Platformer', studio: 'SEGA', players: '1',
+      cover_artwork_id: handle,
+    },
+    attribution: { provider: 'launchbox', label: 'Data from LaunchBox Games Database' },
+  });
+  const { fetchImpl } = routedFetch({
+    '/api/v1/games': [jsonResponse(readFixture('catalog-populated.json')), jsonResponse(readFixture('catalog-populated.json'))],
+    '/api/v1/presentation/games/megadrive-sonic-test': [presentation],
+    '/api/v1/presentation/games/snes-unknown-test': [jsonResponse({ game_id: 'snes-unknown-test', state: 'no_match' })],
+    '/api/v1/presentation/games/snes-offline-test': [jsonResponse({ game_id: 'snes-offline-test', state: 'no_match' })],
+  });
+  const controller = createAppController({
+    fetchImpl,
+    presentationEnabled: true,
+    prefetchVisibleCovers: true,
+    IntersectionObserver: class {
+      constructor(callback) { this.callback = callback; }
+      observe(node) { this.callback([{ isIntersecting: true, target: node }]); }
+      disconnect() {}
+    },
+  });
+  await controller.loadCatalog('');
+  controller.observeVisibleCovers();
+  await waitForCondition(() => {
+    const sonic = controller.getState().gameViews.find(view => view.live.id === 'megadrive-sonic-test');
+    return sonic && sonic.presentation.coverArtworkHandle === handle;
+  }, 'cover did not apply before refresh');
+  await controller.loadCatalog('');
+  const refreshed = controller.getState().gameViews.find(view => view.live.id === 'megadrive-sonic-test');
+  assert.equal(refreshed.presentation.coverArtworkHandle, handle);
+  assert.equal(refreshed.presentation.summary, 'Cached summary');
+});
+
+test('platform navigation restores covers after switching away and back', async () => {
+  const handle = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  const sonic = {
+    id: 'megadrive-sonic-test',
+    title: 'Sonic the Hedgehog',
+    system: 'megadrive',
+    kind: 'zip',
+    state: 'available',
+    root_online: true,
+    content_prepared: true,
+    execution: 'fpga_native',
+  };
+  const mario = {
+    id: 'snes-mario-test',
+    title: 'Mario',
+    system: 'snes',
+    kind: 'raw',
+    state: 'available',
+    root_online: true,
+    content_prepared: true,
+    execution: 'fpga_native',
+  };
+  const presentation = jsonResponse({
+    game_id: 'megadrive-sonic-test',
+    state: 'ready',
+    presentation: {
+      summary: 'Cached summary', year: '1991', genre: 'Platformer', studio: 'SEGA', players: '1',
+      cover_artwork_id: handle,
+    },
+    attribution: { provider: 'launchbox', label: 'Data from LaunchBox Games Database' },
+  });
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/games': [jsonResponse({ games: [sonic, mario] })],
+    '/api/v1/games?platform=snes': [jsonResponse({ games: [mario] })],
+    '/api/v1/games?platform=megadrive': [jsonResponse({ games: [sonic] })],
+    '/api/v1/presentation/games/megadrive-sonic-test': [presentation],
+    '/api/v1/presentation/games/snes-mario-test': [jsonResponse({ game_id: 'snes-mario-test', state: 'no_match' })],
+  });
+  const controller = createAppController({
+    fetchImpl,
+    presentationEnabled: true,
+    prefetchVisibleCovers: true,
+    IntersectionObserver: class {
+      constructor(callback) { this.callback = callback; }
+      observe(node) { this.callback([{ isIntersecting: true, target: node }]); }
+      disconnect() {}
+    },
+  });
+  await controller.loadCatalog('');
+  controller.observeVisibleCovers();
+  await waitForCondition(() => {
+    const view = controller.getState().gameViews.find(item => item.live.id === 'megadrive-sonic-test');
+    return view && view.presentation.coverArtworkHandle === handle;
+  }, 'cover did not apply before platform change');
+  await controller.setLibraryNav('', 'snes');
+  assert.equal(controller.getState().gameViews.some(item => item.live.id === 'megadrive-sonic-test'), false);
+  await controller.setLibraryNav('', 'megadrive');
+  const restored = controller.getState().gameViews.find(item => item.live.id === 'megadrive-sonic-test');
+  assert.equal(restored.presentation.coverArtworkHandle, handle);
+  assert.equal(
+    calls.filter(call => call.path === '/api/v1/presentation/games/megadrive-sonic-test').length,
+    1,
+  );
+});
+
+test('prefetchVisibleCovers does not refetch after fallback presentation', async () => {
+  let controller;
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/games': [jsonResponse(readFixture('catalog-populated.json'))],
+    '/api/v1/presentation/games/megadrive-sonic-test': [jsonResponse({
+      game_id: 'megadrive-sonic-test', state: 'ready',
+      presentation: { summary: 'Visible cover', year: '1991', genre: 'Platformer', studio: 'SEGA', players: '1' },
+      attribution: { provider: 'launchbox', label: 'Data from LaunchBox Games Database' },
+    })],
+    '/api/v1/presentation/games/snes-unknown-test': [jsonResponse({ game_id: 'snes-unknown-test', state: 'no_match' })],
+    '/api/v1/presentation/games/snes-offline-test': [jsonResponse({ game_id: 'snes-offline-test', state: 'no_match' })],
+  });
+  controller = createAppController({
+    fetchImpl,
+    presentationEnabled: true,
+    prefetchVisibleCovers: true,
+    onStateChange() {
+      controller.observeVisibleCovers();
+    },
+    IntersectionObserver: class {
+      constructor(callback) { this.callback = callback; }
+      observe(node) { this.callback([{ isIntersecting: true, target: node }]); }
+      disconnect() {}
+    },
+  });
+  await controller.loadCatalog('');
+  await waitForCondition(() => {
+    return calls.filter(call => call.path.startsWith('/api/v1/presentation/games/')).length >= 3;
+  }, 'visible presentations were not fetched');
+  const fetched = calls.filter(call => call.path.startsWith('/api/v1/presentation/games/')).length;
+  controller.observeVisibleCovers();
+  controller.observeVisibleCovers();
+  assert.equal(fetched, 3);
+  assert.equal(calls.filter(call => call.path.startsWith('/api/v1/presentation/games/')).length, 3);
 });
 
 test('parser accepts LaunchBox ready attribution and rejects unknown providers', () => {
@@ -632,6 +838,8 @@ async function runImmutableAdapterCase(kind) {
 test('gamesPath delegates search membership to the live API', () => {
   assert.equal(gamesPath(''), '/api/v1/games');
   assert.equal(gamesPath('sonic & tails'), '/api/v1/games?q=sonic%20%26%20tails');
+  assert.equal(gamesPath('', { collection: 'favorites' }), '/api/v1/games?collection=favorites');
+  assert.equal(gamesPath('sonic', { platform: 'snes' }), '/api/v1/games?q=sonic&platform=snes');
 });
 
 test('gameDetailPath safely encodes the live catalog ID', () => {
@@ -1065,7 +1273,8 @@ test('browser rendering falls back for shape-complete invalid presentation value
   for (const card of catalogList.children) {
     assert.equal(card.children[0].className, 'cover-art artwork-empty');
     assert.doesNotMatch(card.children[0].className, /evil|sr-only|status-message|palette-|treatment-/);
-    assert.equal(card.children.filter(child => child.className === 'fallback-note').length, 0);
+    const notes = card.children.filter(child => child.className === 'fallback-note');
+    notes.forEach(note => assert.doesNotMatch(note.textContent, /evil|sr-only|status-message/));
   }
 
   await catalogList.children[0].click();
@@ -1176,6 +1385,14 @@ test('session parser accepts privacy-safe optional fields and rejects malformed 
   assert.equal(Object.isFrozen(accepted.input.metrics), true);
   assert.equal(accepted.game_id, 'megadrive-sonic-test');
   assert.equal(sessionViewState(accepted), 'active');
+
+  const nesSession = parseSession(sessionFixture({
+    state: 'active',
+    game_id: 'nes-mario-test',
+    system: 'nes',
+  }));
+  assert.equal(nesSession.system, 'nes');
+  assert.equal(nesSession.game_id, 'nes-mario-test');
 
   for (const malformed of [
     sessionFixture({ state: 'unknown' }),
@@ -1433,4 +1650,123 @@ test('session malformed state exposes a safe retry without leaking response fiel
   assert.match(document.nodes.get('session-message').textContent, /invalid session response/i);
   await document.nodes.get('session-actions').children.find(node => node.id === 'refresh-session').click();
   assert.equal(document.nodes.get('session-status').textContent, 'No active session.');
+});
+
+test('launchBlockReason disables unmapped platforms only when launchable is false', () => {
+  const ready = {
+    id: 'snes-mario-test', title: 'Mario', system: 'snes', kind: 'raw',
+    state: 'available', root_online: true, content_prepared: true, execution: 'fpga_native',
+  };
+  assert.equal(launchBlockReason(ready), '');
+  assert.equal(launchBlockReason({ ...ready, launchable: false }), 'This platform is browse-only on this host.');
+});
+
+test('loadMoreCatalog appends the next cursor page', async () => {
+  const game = {
+    title: 'Alpha', system: 'snes', kind: 'raw', state: 'available',
+    root_online: true, content_prepared: true, execution: 'fpga_native',
+  };
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/games': [jsonResponse({
+      games: [{ ...game, id: 'snes-alpha-test' }],
+      next_cursor: 'cursor-1',
+    })],
+    '/api/v1/games?cursor=cursor-1': [jsonResponse({
+      games: [{ ...game, id: 'snes-bravo-test', title: 'Bravo' }],
+    })],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadCatalog('');
+  assert.equal(controller.getState().games.length, 1);
+  await controller.loadMoreCatalog();
+  assert.equal(controller.getState().games.length, 2);
+  assert.equal(controller.getState().games[1].id, 'snes-bravo-test');
+  assert.deepEqual(calls.map(call => call.path), ['/api/v1/games', '/api/v1/games?cursor=cursor-1']);
+});
+
+test('toggleFavorite writes PUT and DELETE without changing launch body', async () => {
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/games': [jsonResponse(readFixture('catalog-populated.json'))],
+    '/api/v1/library/favorites/megadrive-sonic-test': [
+      jsonResponse({ id: 'megadrive-sonic-test', favorite: true }),
+      jsonResponse({ id: 'megadrive-sonic-test', favorite: false }),
+    ],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadCatalog('');
+  await controller.toggleFavorite('megadrive-sonic-test');
+  assert.equal(controller.getState().games[0].favorite, true);
+  await controller.toggleFavorite('megadrive-sonic-test');
+  assert.equal(controller.getState().games[0].favorite, false);
+  const favoriteCalls = calls.filter(call => String(call.path).includes('/library/favorites/'));
+  assert.equal(favoriteCalls[0].options.method, 'PUT');
+  assert.equal(favoriteCalls[1].options.method, 'DELETE');
+});
+
+test('virtualized wall recycles a bounded window of cards', async () => {
+  const games = [];
+  for (let index = 0; index < 90; index += 1) {
+    games.push({
+      id: `snes-game-${index}`,
+      title: `Title ${index}`,
+      system: 'snes',
+      kind: 'raw',
+      state: 'available',
+      root_online: true,
+      content_prepared: true,
+      execution: 'fpga_native',
+    });
+  }
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse({ games })],
+  });
+  assert.equal(document.nodes.get('catalog-list').children.filter(child => String(child.className).includes('game-card')).length, 80);
+  assert.ok(document.nodes.get('catalog-list').children.some(child => String(child.className).includes('wall-spacer')));
+});
+
+test('attract overlay enters from a bounded playlist and exits immediately', async () => {
+  const handle = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse(readFixture('catalog-populated.json'))],
+    globals: { FogCastAttractDisabled: false, FogCastAttractIdleMs: 20 },
+    attractItems: [{ game_id: 'megadrive-sonic-test', title: 'Sonic the Hedgehog', cover: handle }],
+  });
+  await new Promise(resolve => setTimeout(resolve, 50));
+  const attract = document.nodes.get('attract');
+  assert.equal(attract.hidden, false);
+  assert.equal(document.nodes.get('attract-title').textContent, 'Sonic the Hedgehog');
+  const keydown = document.listeners.get('keydown');
+  assert.ok(keydown);
+  keydown({ key: 'Escape', preventDefault() {} });
+  assert.equal(attract.hidden, true);
+});
+
+test('attract overlay cycles a multi-item playlist', async () => {
+  const handle = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  const { document, globals } = await runBrowserApp({
+    responses: [jsonResponse(readFixture('catalog-populated.json'))],
+    globals: { FogCastAttractDisabled: false, FogCastAttractIdleMs: 20, FogCastAttractCycleMs: 25 },
+    attractItems: [
+      { game_id: 'megadrive-sonic-test', title: 'Sonic the Hedgehog', cover: handle },
+      { game_id: 'snes-mario-test', title: 'Super Mario World', cover: handle },
+    ],
+  });
+  await waitForAttractTitle(document, 'Sonic the Hedgehog', 400);
+  await waitForAttractTitle(document, 'Super Mario World', 400);
+  globals.FogCastAttractDisabled = true;
+  const keydown = document.listeners.get('keydown');
+  assert.ok(keydown);
+  keydown({ key: 'Escape', preventDefault() {} });
+  assert.equal(document.nodes.get('attract').hidden, true);
+});
+
+test('attract idle seconds follow the host API when no override is set', async () => {
+  const { calls, fetchImpl } = queuedFetch([
+    jsonResponse({ platforms: [] }),
+    jsonResponse({ items: [], idle_seconds: 12 }),
+  ]);
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadPlatforms();
+  assert.equal(controller.getState().attractIdleSeconds, 12);
+  assert.equal(calls[1].path, '/api/v1/library/attract?limit=1');
 });

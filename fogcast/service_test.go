@@ -22,6 +22,7 @@ import (
 	"github.com/DeanoC/FogCast-POC/catalog"
 	"github.com/DeanoC/FogCast-POC/host"
 	"github.com/DeanoC/FogCast-POC/internal/hostexec"
+	"github.com/DeanoC/FogCast-POC/libraryuser"
 	"github.com/DeanoC/FogCast-POC/protocol"
 	"github.com/DeanoC/FogCast-POC/romsource"
 )
@@ -1286,6 +1287,65 @@ root = %q
 	}
 }
 
+func TestServiceOpenClosesUserLibraryWhenMediaIndexPathIsInvalid(t *testing.T) {
+	dir := t.TempDir()
+	library := filepath.Join(dir, "library")
+	mediaRoot := filepath.Join(dir, "covers")
+	if err := os.Mkdir(library, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(mediaRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(dir, "config.toml")
+	content := fmt.Sprintf(`base_url = "http://127.0.0.1:9"
+token = "synthetic-token"
+request_timeout_seconds = 1
+upload_timeout_seconds = 2
+
+[[libraries]]
+id = "snes-main"
+system = "snes"
+root = %q
+
+[[library_media]]
+id = "covers-main"
+root = %q
+`, library, mediaRoot)
+	if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	indexParent := filepath.Join(dir, "state")
+	if err := os.Mkdir(indexParent, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	userLibrary := filepath.Join(indexParent, "library-user.sqlite3")
+	mediaIndex := filepath.Join(indexParent, "media-index")
+	if err := os.Mkdir(mediaIndex, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Open(context.Background(), Paths{
+		Config:      configPath,
+		Index:       filepath.Join(indexParent, "library.sqlite3"),
+		Staging:     filepath.Join(dir, "staging"),
+		UserLibrary: userLibrary,
+		MediaIndex:  mediaIndex,
+	}, nil)
+	if err == nil {
+		t.Fatal("Open succeeded with a directory media index")
+	}
+
+	users, err := libraryuser.OpenContext(context.Background(), userLibrary)
+	if err != nil {
+		t.Fatalf("reopen user library after failed Open: %v", err)
+	}
+	defer users.Close()
+	if err := users.SetFavorite(context.Background(), "megadrive-sonic-test", true); err != nil {
+		t.Fatalf("user library write after failed Open: %v", err)
+	}
+}
+
 func TestServiceOpenHonorsPreCanceledContextWithoutCreatingState(t *testing.T) {
 	dir := t.TempDir()
 	paths := Paths{Config: filepath.Join(dir, "missing.toml"), Index: filepath.Join(dir, "state", "library.sqlite3"), Staging: filepath.Join(dir, "staging")}
@@ -1317,6 +1377,7 @@ type fakeServiceCatalog struct {
 	gameCalls   int
 	updateCalls int
 	closeCalls  int
+	queryErr    error
 	searchQuery string
 	rootMatch   func(context.Context, catalog.Game, catalog.Root) (bool, error)
 	update      func(context.Context, catalog.Game, catalog.Root, catalog.Content) (bool, error)
@@ -1344,6 +1405,39 @@ func (f *fakeServiceCatalog) Games(context.Context) ([]catalog.Game, error) {
 func (f *fakeServiceCatalog) Search(_ context.Context, query string) ([]catalog.Game, error) {
 	f.searchQuery = query
 	return append([]catalog.Game(nil), f.searchGames...), nil
+}
+
+func (f *fakeServiceCatalog) QueryGames(_ context.Context, query catalog.Query) (catalog.Page, error) {
+	if f.queryErr != nil {
+		return catalog.Page{}, f.queryErr
+	}
+	games := f.games
+	if query.Text != "" {
+		games = f.searchGames
+	}
+	limit := query.Limit
+	if limit <= 0 || limit > len(games) {
+		limit = len(games)
+	}
+	return catalog.Page{Games: append([]catalog.Game(nil), games[:limit]...)}, nil
+}
+
+func (f *fakeServiceCatalog) Platforms(context.Context) ([]catalog.PlatformInfo, error) {
+	return nil, nil
+}
+
+func (f *fakeServiceCatalog) GamesByIDs(_ context.Context, ids []string) ([]catalog.Game, error) {
+	byID := make(map[string]catalog.Game, len(f.games))
+	for _, game := range f.games {
+		byID[game.ID] = game
+	}
+	games := make([]catalog.Game, 0, len(ids))
+	for _, id := range ids {
+		if game, ok := byID[id]; ok {
+			games = append(games, game)
+		}
+	}
+	return games, nil
 }
 
 func (f *fakeServiceCatalog) GameMatchesRoot(ctx context.Context, game catalog.Game, root catalog.Root) (bool, error) {
@@ -1593,6 +1687,31 @@ func exactLaunchResponse(t *testing.T, game catalog.Game, content protocol.Conte
 			},
 			Content: content,
 		}, nil
+	}
+}
+
+func TestServiceLaunchRejectsUnmappedPlatformWithoutProbe(t *testing.T) {
+	content := catalog.Content{SHA256: serviceDigest, Size: 3, Extension: "nes"}
+	game := catalog.Game{
+		ID: "nes-mario-test", Title: "Mario", LibraryID: "nes-main", RelativePath: "game.nes",
+		System: "nes", Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable,
+		RootOnline: true, Fingerprint: catalog.Fingerprint{SourceSize: 3, ModifiedNS: 123}, Content: &content,
+	}
+	store := &fakeServiceCatalog{games: []catalog.Game{game}}
+	client := &fakeServiceClient{}
+	client.probe = func(context.Context, protocol.System, protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
+		t.Fatal("unmapped platform probed the target")
+		return protocol.CacheProbeResponse{}, nil
+	}
+	root := catalog.Root{ID: "nes-main", System: "nes", Path: "/private/library"}
+	service := newService(
+		Config{Libraries: []catalog.Root{root}, RequestTimeout: time.Second, UploadTimeout: 2 * time.Second},
+		Paths{Staging: "/private/staging"}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client,
+	)
+	_, err := service.Launch(context.Background(), game.ID, nil)
+	assertServiceErrorCode(t, err, protocol.CodeUnsupportedSystem)
+	if client.probeCalls != 0 || client.launchCalls != 0 || client.uploadCalls != 0 {
+		t.Fatalf("target calls = probe:%d upload:%d launch:%d", client.probeCalls, client.uploadCalls, client.launchCalls)
 	}
 }
 

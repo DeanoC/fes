@@ -12,6 +12,14 @@
     <p id="health" class="host-status" role="status">Checking local host…</p>
   </header>
   <main class="launcher" id="launcher">
+    <nav class="library-nav" id="library-nav" aria-label="Library collections">
+      <p class="eyebrow">Library</p>
+      <button id="nav-all" class="nav-item selected" type="button">All games</button>
+      <button id="nav-favorites" class="nav-item" type="button">Favorites</button>
+      <button id="nav-recents" class="nav-item" type="button">Recent</button>
+      <p class="eyebrow platform-heading">Platforms</p>
+      <div id="platform-list" class="platform-list"></div>
+    </nav>
     <section class="catalog-panel" aria-labelledby="catalog-heading">
       <div class="intro-row">
         <div>
@@ -30,8 +38,6 @@
           <label class="filter-label">Platform
             <select id="filter-system">
               <option value="">All platforms</option>
-              <option value="megadrive">Mega Drive</option>
-              <option value="snes">SNES</option>
             </select>
           </label>
           <label class="filter-label">Region
@@ -83,6 +89,10 @@
       <p id="session-message" class="session-message" role="alert" aria-live="assertive"></p>
     </section>
   </main>
+  <div id="attract" class="attract" hidden>
+    <p id="attract-title" class="attract-title"></p>
+    <div id="attract-stage" class="attract-stage"></div>
+  </div>
   {{FOGCAST_METADATA}}
   {{FOGCAST_APP}}
 </body>

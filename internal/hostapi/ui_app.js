@@ -24,9 +24,17 @@
     'fallback_ambiguous', 'fallback_offline', 'fallback_malformed', 'ready_artwork_error',
   ]);
 
-  function gamesPath(query) {
+  function gamesPath(query, extras) {
     const value = String(query || '').trim();
-    return value ? `/api/v1/games?q=${encodeURIComponent(value)}` : '/api/v1/games';
+    const params = [];
+    if (value) params.push(`q=${encodeURIComponent(value)}`);
+    if (extras && typeof extras === 'object') {
+      if (extras.platform) params.push(`platform=${encodeURIComponent(String(extras.platform))}`);
+      if (extras.collection) params.push(`collection=${encodeURIComponent(String(extras.collection))}`);
+      if (extras.cursor) params.push(`cursor=${encodeURIComponent(String(extras.cursor))}`);
+      if (Number(extras.limit) > 0) params.push(`limit=${encodeURIComponent(String(extras.limit))}`);
+    }
+    return params.length ? `/api/v1/games?${params.join('&')}` : '/api/v1/games';
   }
 
   function gameDetailPath(id) {
@@ -35,6 +43,7 @@
 
   const GAME_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
   const ARTWORK_HANDLE_PATTERN = /^[a-f0-9]{64}$/;
+  const WALL_WINDOW = 80;
 
   function presentationPath(id) {
     const value = String(id || '').trim();
@@ -46,6 +55,12 @@
     const value = String(handle || '').trim();
     if (!ARTWORK_HANDLE_PATTERN.test(value)) throw createError('BAD_REQUEST', 'The artwork handle is invalid.');
     return `/api/v1/presentation/artwork/${value}`;
+  }
+
+  function mediaPath(handle) {
+    const value = String(handle || '').trim();
+    if (!ARTWORK_HANDLE_PATTERN.test(value)) throw createError('BAD_REQUEST', 'The artwork handle is invalid.');
+    return `/api/v1/presentation/media/${value}`;
   }
 
   function launchRequest(game) {
@@ -168,6 +183,12 @@
     if (genre) record.genre = genre;
     const year = optionalCatalogText(source.year);
     if (year) record.year = year;
+    if (source.favorite === true || source.favorite === false) record.favorite = source.favorite;
+    if (source.launchable === true || source.launchable === false) record.launchable = source.launchable;
+    const cover = primitiveSnapshotValue(source.cover);
+    if (typeof cover === 'string' && ARTWORK_HANDLE_PATTERN.test(cover)) record.cover = cover;
+    const platform = optionalCatalogText(source.platform);
+    if (platform) record.platform = platform;
     return Object.freeze(record);
   }
 
@@ -223,10 +244,32 @@
     return current || String(title || '').trim();
   }
 
+  const CATALOG_PLATFORM_LABELS = Object.freeze({
+    megadrive: 'Mega Drive',
+    snes: 'SNES',
+    nes: 'NES',
+    gb: 'Game Boy',
+    gbc: 'Game Boy Color',
+    gba: 'Game Boy Advance',
+    n64: 'Nintendo 64',
+    psx: 'PlayStation',
+    sms: 'Master System',
+    gg: 'Game Gear',
+    pce: 'PC Engine',
+    '32x': '32X',
+    saturn: 'Saturn',
+    dc: 'Dreamcast',
+    psp: 'PSP',
+    nds: 'Nintendo DS',
+    arcade: 'Arcade',
+    a2600: 'Atari 2600',
+    lynx: 'Lynx',
+    ngp: 'Neo Geo Pocket',
+    ws: 'WonderSwan',
+  });
+
   function systemLabel(system) {
-    if (system === 'megadrive') return 'Mega Drive';
-    if (system === 'snes') return 'SNES';
-    return String(system || '');
+    return CATALOG_PLATFORM_LABELS[system] || String(system || '');
   }
 
   function sourceLabel(state) {
@@ -238,6 +281,7 @@
 
   function launchBlockReason(game) {
     if (!game) return 'Select a game first.';
+    if (game.launchable === false) return 'This platform is browse-only on this host.';
     if (game.state === 'missing' || game.root_online === false) return 'This game’s source is offline.';
     if (game.state === 'invalid') return 'This ROM can’t be read.';
     if (!game.content_prepared) return 'This ROM isn’t staged yet.';
@@ -324,7 +368,8 @@
   }
 
   const SESSION_STATE_ALLOWLIST = Object.freeze(['idle', 'launching', 'active', 'stopping', 'failed']);
-  const SESSION_SYSTEM_ALLOWLIST = Object.freeze(['megadrive', 'snes']);
+  // Host catalog platforms (catalog.DefaultPlatforms), not protocol.System.
+  const SESSION_SYSTEM_ALLOWLIST = Object.freeze(Object.keys(CATALOG_PLATFORM_LABELS));
   const INPUT_STATE_ALLOWLIST = Object.freeze(['detached', 'starting', 'attached', 'reconnecting', 'failed']);
   const INPUT_METRIC_FIELDS = Object.freeze([
     'frames_sent',
@@ -415,7 +460,7 @@
     const system = active && own(payload, 'system')
       ? payload.system
       : undefined;
-    if (system !== undefined && !SESSION_SYSTEM_ALLOWLIST.includes(system)) {
+    if (system !== undefined && (typeof system !== 'string' || !SESSION_SYSTEM_ALLOWLIST.includes(system))) {
       malformedSession('The local host returned an invalid session system.');
     }
     const execution = optionalSessionString(payload, 'execution', 'The local host returned an invalid session execution.');
@@ -543,6 +588,10 @@
     }
     if (value.coverArtworkHandle !== undefined) result.coverArtworkHandle = value.coverArtworkHandle;
     if (value.backdropArtworkHandle !== undefined) result.backdropArtworkHandle = value.backdropArtworkHandle;
+    if (value.logoHandle !== undefined) result.logoHandle = value.logoHandle;
+    if (value.marqueeHandle !== undefined) result.marqueeHandle = value.marqueeHandle;
+    if (value.videoHandle !== undefined) result.videoHandle = value.videoHandle;
+    if (value.screenshotHandles !== undefined) result.screenshotHandles = value.screenshotHandles;
     if (value.attribution !== undefined) result.attribution = value.attribution;
     return Object.freeze(result);
   }
@@ -568,9 +617,15 @@
       const isFallback = value.isFallback;
       const coverArtworkHandle = value.coverArtworkHandle;
       const backdropArtworkHandle = value.backdropArtworkHandle;
+      const logoHandle = value.logoHandle;
+      const marqueeHandle = value.marqueeHandle;
+      const videoHandle = value.videoHandle;
+      const screenshotHandles = value.screenshotHandles;
       const attribution = value.attribution;
       const metadataState = value.metadataState || (isFallback ? 'fallback_offline' : 'ready');
       const artworkStyleRequired = Boolean(isFallback && cover && backdrop);
+      const validHandle = handle => handle === undefined || (typeof handle === 'string' && ARTWORK_HANDLE_PATTERN.test(handle));
+      const validHandleList = list => list === undefined || (Array.isArray(list) && list.every(item => typeof item === 'string' && ARTWORK_HANDLE_PATTERN.test(item)));
       if (
         typeof isFallback !== 'boolean'
         || !PRESENTATION_STATE_ALLOWLIST.includes(metadataState)
@@ -590,8 +645,12 @@
         || (isFallback && !artworkStyleRequired && (cover !== undefined || backdrop !== undefined))
         || (!isFallback && !['ready', 'ready_artwork_error'].includes(metadataState))
         || (isFallback && !metadataState.startsWith('fallback_'))
-        || (coverArtworkHandle !== undefined && (typeof coverArtworkHandle !== 'string' || !ARTWORK_HANDLE_PATTERN.test(coverArtworkHandle)))
-        || (backdropArtworkHandle !== undefined && (typeof backdropArtworkHandle !== 'string' || !ARTWORK_HANDLE_PATTERN.test(backdropArtworkHandle)))
+        || !validHandle(coverArtworkHandle)
+        || !validHandle(backdropArtworkHandle)
+        || !validHandle(logoHandle)
+        || !validHandle(marqueeHandle)
+        || !validHandle(videoHandle)
+        || !validHandleList(screenshotHandles)
         || (attribution !== undefined && (typeof attribution !== 'string' || !boundedPresentationText(attribution, 120)))
       ) return fallbackPresentation();
       if ([summary, year, genre, studio, players].some(item => typeof item !== 'string')) {
@@ -625,6 +684,10 @@
         metadataState,
         coverArtworkHandle,
         backdropArtworkHandle,
+        logoHandle,
+        marqueeHandle,
+        videoHandle,
+        screenshotHandles: screenshotHandles ? Object.freeze(screenshotHandles.slice()) : undefined,
         attribution,
       });
     } catch (_) {
@@ -634,7 +697,32 @@
 
   function optionalArtworkHandle(value) {
     if (value === undefined || value === null || value === '') return undefined;
-    return value;
+    return typeof value === 'string' && ARTWORK_HANDLE_PATTERN.test(value) ? value : undefined;
+  }
+
+  function localMediaFrom(payload) {
+    const presentation = payload && payload.presentation;
+    if (!presentation || typeof presentation !== 'object' || Array.isArray(presentation)) return {};
+    const extra = {};
+    const coverArtworkHandle = optionalArtworkHandle(presentation.cover_artwork_id);
+    const backdropArtworkHandle = optionalArtworkHandle(presentation.backdrop_artwork_id);
+    const logoHandle = optionalArtworkHandle(presentation.logo_id);
+    const marqueeHandle = optionalArtworkHandle(presentation.marquee_id);
+    const videoHandle = optionalArtworkHandle(presentation.video_id);
+    const screenshots = Array.isArray(presentation.screenshot_ids)
+      ? presentation.screenshot_ids.map(optionalArtworkHandle).filter(Boolean).slice(0, 8)
+      : [];
+    if (coverArtworkHandle) extra.coverArtworkHandle = coverArtworkHandle;
+    if (backdropArtworkHandle) extra.backdropArtworkHandle = backdropArtworkHandle;
+    if (logoHandle) extra.logoHandle = logoHandle;
+    if (marqueeHandle) extra.marqueeHandle = marqueeHandle;
+    if (videoHandle) extra.videoHandle = videoHandle;
+    if (screenshots.length) extra.screenshotHandles = Object.freeze(screenshots);
+    return extra;
+  }
+
+  function withLocalMedia(base, payload) {
+    return freezePresentation({ ...base, ...localMediaFrom(payload) });
   }
 
   function acceptedAttribution(value) {
@@ -654,11 +742,24 @@
         ambiguous: 'fallback_ambiguous',
         offline: 'fallback_offline',
       };
-      if (Object.prototype.hasOwnProperty.call(stateMap, payload.state)) return fallback(stateMap[payload.state]);
-      if (payload.state !== 'ready') return fallback('fallback_malformed');
-      if (!payload.presentation || typeof payload.presentation !== 'object' || Array.isArray(payload.presentation)) return fallback('fallback_malformed');
+      if (Object.prototype.hasOwnProperty.call(stateMap, payload.state)) {
+        return withLocalMedia(fallback(stateMap[payload.state]), payload);
+      }
+      if (payload.state !== 'ready') return withLocalMedia(fallback('fallback_malformed'), payload);
+      if (!payload.presentation || typeof payload.presentation !== 'object' || Array.isArray(payload.presentation)) {
+        return fallback('fallback_malformed');
+      }
+      const local = localMediaFrom(payload);
       if (!payload.attribution || typeof payload.attribution !== 'object' || Array.isArray(payload.attribution)
-        || !acceptedAttribution(payload.attribution)) return fallback('fallback_malformed');
+        || !acceptedAttribution(payload.attribution)) {
+        if (local.coverArtworkHandle || local.backdropArtworkHandle || local.videoHandle || local.logoHandle || local.marqueeHandle) {
+          return freezePresentation({
+            ...fallback('fallback_offline'),
+            ...local,
+          });
+        }
+        return fallback('fallback_malformed');
+      }
       const value = {
         summary: payload.presentation.summary,
         year: payload.presentation.year,
@@ -669,6 +770,10 @@
         metadataState: 'ready',
         coverArtworkHandle: optionalArtworkHandle(payload.presentation.cover_artwork_id),
         backdropArtworkHandle: optionalArtworkHandle(payload.presentation.backdrop_artwork_id),
+        logoHandle: local.logoHandle,
+        marqueeHandle: local.marqueeHandle,
+        videoHandle: local.videoHandle,
+        screenshotHandles: local.screenshotHandles,
         attribution: payload.attribution.label,
       };
       return trustedPresentation(value);
@@ -702,15 +807,21 @@
     }
     return Object.freeze({
       live: game,
-      presentation: trustedPresentation(presentation),
+      presentation: overlayLiveCover(game, trustedPresentation(presentation)),
     });
+  }
+
+  function overlayLiveCover(game, presentation) {
+    if (!game || !game.cover || (presentation && presentation.coverArtworkHandle)) return presentation;
+    if (!ARTWORK_HANDLE_PATTERN.test(game.cover)) return presentation;
+    return freezePresentation({ ...presentation, coverArtworkHandle: game.cover });
   }
 
   function catalogViewState(state) {
     if (state.catalogState === 'loading') return 'loading';
     if (state.catalogState === 'catalog_error') return 'catalog_error';
     if (state.games.length === 0) return state.query ? 'no_matches' : 'empty';
-    if (filterCatalogViews(state.gameViews, state.filters).length === 0) return 'no_matches';
+    if (filterCatalogViews(state.gameViews, state.filters).length === 0 && !state.nextCursor) return 'no_matches';
     return 'populated';
   }
 
@@ -722,9 +833,16 @@
     const prefetchVisibleCovers = options.prefetchVisibleCovers === true || root.FogCastPrefetchVisibleCovers === true;
     const notify = typeof options.onStateChange === 'function' ? options.onStateChange : null;
     const coverRequests = Object.create(null);
+    const presentationByID = Object.create(null);
     let coverObserver = null;
     const state = {
       query: '',
+      collection: '',
+      platformQuery: '',
+      nextCursor: '',
+      loadingMore: false,
+      platforms: [],
+      attractIdleSeconds: 60,
       games: [],
       gameViews: [],
       filters: Object.freeze({ system: '', region: '', genre: '' }),
@@ -787,7 +905,20 @@
       return next;
     }
 
+    function hasFetchedPresentation(id) {
+      return Object.prototype.hasOwnProperty.call(presentationByID, id);
+    }
+
+    function presentationHasCover(presentation) {
+      return Boolean(presentation && (
+        presentation.coverArtworkHandle
+        || presentation.backdropArtworkHandle
+        || presentation.metadataState === 'ready'
+      ));
+    }
+
     function applyCatalogPresentation(id, presentation) {
+      presentationByID[id] = presentation;
       const index = state.games.findIndex(game => game.id === id);
       if (index < 0) return;
       const nextViews = state.gameViews.slice();
@@ -804,18 +935,20 @@
     }
 
     function queueVisiblePresentation(id) {
-      if (!prefetchVisibleCovers || !presentationEnabled || !id || coverRequests[id]) return;
+      if (!prefetchVisibleCovers || !presentationEnabled || !id || coverRequests[id] || hasFetchedPresentation(id)) return;
       const index = state.games.findIndex(game => game.id === id);
       if (index < 0) return;
       const current = state.gameViews[index] && state.gameViews[index].presentation;
-      if (current && (current.coverArtworkHandle || current.metadataState === 'ready')) return;
+      if (presentationHasCover(current)) return;
       coverRequests[id] = true;
       request(fetchImpl, presentationPath(id)).then(payload => {
         const game = state.games.find(item => item.id === id);
+        applyCatalogPresentation(id, parsePresentation(payload, game || { id }));
         if (!game) return;
-        applyCatalogPresentation(id, parsePresentation(payload, game));
         emit();
       }).catch(() => {
+        if (!hasFetchedPresentation(id)) presentationByID[id] = fallbackPresentation();
+      }).finally(() => {
         delete coverRequests[id];
       });
     }
@@ -823,17 +956,25 @@
     function observeVisibleCovers() {
       if (!prefetchVisibleCovers || !presentationEnabled) return;
       const Observer = options.IntersectionObserver || root.IntersectionObserver;
+      let list = null;
       let cards = [];
       if (typeof document !== 'undefined' && document && typeof document.getElementById === 'function') {
-        const list = document.getElementById('catalog-list');
+        list = document.getElementById('catalog-list');
         if (list && typeof list.querySelectorAll === 'function') {
           cards = list.querySelectorAll('.game-card[data-game-id]');
         }
       }
-      if (typeof Observer !== 'function' || !cards.length) {
-        state.games.forEach(game => queueVisiblePresentation(game.id));
+      Array.prototype.forEach.call(cards, card => {
+        const id = typeof card.getAttribute === 'function' ? card.getAttribute('data-game-id') : '';
+        if (id) queueVisiblePresentation(id);
+      });
+      if (!cards.length) {
+        if (state.catalogState !== 'loading') {
+          state.games.forEach(game => queueVisiblePresentation(game.id));
+        }
         return;
       }
+      if (typeof Observer !== 'function') return;
       if (coverObserver) coverObserver.disconnect();
       coverObserver = new Observer(entries => {
         entries.forEach(entry => {
@@ -841,7 +982,7 @@
           const id = entry.target.getAttribute('data-game-id');
           if (id) queueVisiblePresentation(id);
         });
-      }, { root: null, rootMargin: '200px', threshold: 0.01 });
+      }, { root: list, rootMargin: '240px', threshold: 0.01 });
       Array.prototype.forEach.call(cards, card => {
         coverObserver.observe(card);
       });
@@ -849,6 +990,14 @@
 
     function enrich(game) {
       return launcherGame(game, presentationEnabled ? null : metadataAdapter);
+    }
+
+    function retainPresentation(game, previous) {
+      const next = enrich(game);
+      const kept = presentationHasCover(previous) ? previous : presentationByID[game.id];
+      if (!kept) return next;
+      presentationByID[game.id] = overlayLiveCover(game, kept);
+      return Object.freeze({ live: game, presentation: presentationByID[game.id] });
     }
 
     function metadataFallbackCount(views) {
@@ -1060,7 +1209,7 @@
     }
 
     function launchAllowed(selected) {
-      if (!selected || selected.state !== 'available' || !selected.content_prepared) return false;
+      if (!selected || selected.launchable === false || selected.state !== 'available' || !selected.content_prepared) return false;
       if (!state.sessionStarted) return true;
       if (state.sessionAuthority !== 'authoritative') return false;
       if (!state.session || !['idle', 'stopped', 'active'].includes(state.sessionPhase)) return false;
@@ -1131,19 +1280,59 @@
       });
     }
 
+    function catalogExtras(cursor) {
+      const extras = {};
+      if (state.collection) extras.collection = state.collection;
+      if (state.platformQuery) extras.platform = state.platformQuery;
+      if (cursor) extras.cursor = cursor;
+      return extras;
+    }
+
+    function hasCatalogExtras(extras) {
+      return Boolean(extras && (extras.collection || extras.platform || extras.cursor || extras.limit));
+    }
+
+    function replaceGame(updated) {
+      const index = state.games.findIndex(game => game.id === updated.id);
+      if (index >= 0) {
+        const games = state.games.slice();
+        const views = state.gameViews.slice();
+        games[index] = updated;
+        views[index] = Object.freeze({
+          live: updated,
+          presentation: views[index] ? views[index].presentation : enrich(updated).presentation,
+        });
+        state.games = Object.freeze(games);
+        state.gameViews = Object.freeze(views);
+        if (state.selectedLiveGame && state.selectedLiveGame.id === updated.id) {
+          state.selectedLiveGame = updated;
+          state.selectedGameView = views[index];
+        }
+      } else if (state.selectedLiveGame && state.selectedLiveGame.id === updated.id) {
+        state.selectedLiveGame = updated;
+        if (state.selectedGameView) {
+          state.selectedGameView = Object.freeze({ live: updated, presentation: state.selectedGameView.presentation });
+        }
+      }
+    }
+
     async function loadCatalog(query) {
       const sequence = ++state.requestSequence;
       state.query = String(query || '').trim();
+      state.nextCursor = '';
       state.catalogState = 'loading';
       state.catalogError = null;
       emit();
       try {
-        const result = await request(fetchImpl, gamesPath(state.query));
+        const extras = catalogExtras();
+        const result = await request(fetchImpl, gamesPath(state.query, hasCatalogExtras(extras) ? extras : undefined));
         if (sequence !== state.requestSequence) return snapshot();
+        const previousByID = new Map(state.gameViews.map(view => [view.live.id, view.presentation]));
         const games = parseCatalog(result);
-        const gameViews = Object.freeze(games.map(game => enrich(game)));
+        const gameViews = Object.freeze(games.map(game => retainPresentation(game, previousByID.get(game.id))));
         state.games = games;
         state.gameViews = gameViews;
+        state.nextCursor = typeof result.next_cursor === 'string' ? result.next_cursor : '';
         state.metadataFallbackCount = metadataFallbackCount(gameViews);
         state.metadataState = presentationEnabled
           ? 'metadata_idle'
@@ -1160,6 +1349,97 @@
         state.hostState = 'unavailable';
         return emit();
       }
+    }
+
+    async function loadMoreCatalog() {
+      if (!state.nextCursor || state.catalogState === 'loading' || state.loadingMore) return snapshot();
+      state.loadingMore = true;
+      const sequence = ++state.requestSequence;
+      try {
+        const extras = catalogExtras(state.nextCursor);
+        const result = await request(fetchImpl, gamesPath(state.query, extras));
+        if (sequence !== state.requestSequence) return snapshot();
+        const more = parseCatalog(result);
+        const games = Object.freeze(state.games.concat(more));
+        const gameViews = Object.freeze(state.gameViews.concat(more.map(game => enrich(game))));
+        state.games = games;
+        state.gameViews = gameViews;
+        state.nextCursor = typeof result.next_cursor === 'string' ? result.next_cursor : '';
+        state.metadataFallbackCount = metadataFallbackCount(gameViews);
+        return emit();
+      } catch (error) {
+        if (sequence !== state.requestSequence) return snapshot();
+        return emit();
+      } finally {
+        state.loadingMore = false;
+      }
+    }
+
+    async function setLibraryNav(collection, platform) {
+      state.collection = collection === 'favorites' || collection === 'recents' ? collection : '';
+      state.platformQuery = String(platform || '').trim();
+      return loadCatalog(state.query);
+    }
+
+    async function loadPlatforms() {
+      try {
+        const payload = await request(fetchImpl, '/api/v1/platforms');
+        const list = payload && Array.isArray(payload.platforms) ? payload.platforms : [];
+        state.platforms = Object.freeze(list.filter(item => item && typeof item.id === 'string' && item.id.trim()).map(item => Object.freeze({
+          id: item.id,
+          label: typeof item.label === 'string' && item.label.trim() ? item.label : systemLabel(item.id),
+          game_count: Number.isFinite(item.game_count) ? item.game_count : 0,
+          online: item.online === true,
+          launchable: item.launchable === true,
+        })));
+      } catch (_) {
+        if (!state.platforms.length) state.platforms = Object.freeze([]);
+      }
+      try {
+        const attract = await request(fetchImpl, '/api/v1/library/attract?limit=1');
+        if (Number.isFinite(attract && attract.idle_seconds) && attract.idle_seconds > 0) {
+          state.attractIdleSeconds = attract.idle_seconds;
+        }
+      } catch (_) {
+        /* attract idle stays at the last known value */
+      }
+      return emit();
+    }
+
+    async function toggleFavorite(gameOrID) {
+      const id = typeof gameOrID === 'object' ? gameOrID && gameOrID.id : gameOrID;
+      const game = (id && state.games.find(item => item.id === id)) || state.selectedLiveGame;
+      if (!game) return snapshot();
+      const next = game.favorite !== true;
+      try {
+        await request(fetchImpl, `/api/v1/library/favorites/${encodeURIComponent(game.id)}`, {
+          method: next ? 'PUT' : 'DELETE',
+        });
+        replaceGame(Object.freeze({ ...game, favorite: next }));
+        return emit();
+      } catch (error) {
+        return emit();
+      }
+    }
+
+    async function loadAttract(limit) {
+      const size = Number(limit) > 0 ? Number(limit) : 24;
+      const payload = await request(fetchImpl, `/api/v1/library/attract?limit=${encodeURIComponent(String(size))}`);
+      const items = payload && Array.isArray(payload.items) ? payload.items : [];
+      const idle = Number.isFinite(payload && payload.idle_seconds) ? payload.idle_seconds : 60;
+      if (idle > 0) state.attractIdleSeconds = idle;
+      return Object.freeze({
+        idle_seconds: idle,
+        items: Object.freeze(items.filter(item => item && typeof item.game_id === 'string').map(item => Object.freeze({
+          game_id: item.game_id,
+          title: typeof item.title === 'string' ? item.title : '',
+          video: optionalArtworkHandle(item.video),
+          cover: optionalArtworkHandle(item.cover),
+          backdrop: optionalArtworkHandle(item.backdrop),
+          marquee: optionalArtworkHandle(item.marquee),
+          launchable: item.launchable === true,
+        }))),
+      });
     }
 
     async function refreshDetail(gameOrID) {
@@ -1236,6 +1516,7 @@
           || !samePresentationIdentity(requestedIdentity, presentationIdentity(state.selectedLiveGame))
         ) return snapshot();
         const presentation = parsePresentation(payload, state.selectedLiveGame);
+        presentationByID[id] = presentation;
         state.selectedPresentation = presentation;
         state.selectedGameView = Object.freeze({ live: state.selectedLiveGame, presentation });
         const catalogIndex = state.games.findIndex(game => game.id === id);
@@ -1300,6 +1581,9 @@
     return Object.freeze({
       getState: snapshot,
       loadCatalog,
+      loadMoreCatalog,
+      loadPlatforms,
+      loadAttract,
       loadSession,
       selectGame,
       refreshDetail,
@@ -1309,6 +1593,8 @@
       observeVisibleCovers,
       setCatalogFilter,
       setCatalogSort,
+      setLibraryNav,
+      toggleFavorite,
     });
   }
 
@@ -1317,6 +1603,7 @@
     gameDetailPath,
     presentationPath,
     artworkPath,
+    mediaPath,
     parsePresentation,
     launchRequest,
     sessionRequest,
@@ -1369,6 +1656,13 @@
     sessionDetails: document.getElementById('session-details'),
     sessionActions: document.getElementById('session-actions'),
     sessionMessage: document.getElementById('session-message'),
+    navAll: document.getElementById('nav-all'),
+    navFavorites: document.getElementById('nav-favorites'),
+    navRecents: document.getElementById('nav-recents'),
+    platformList: document.getElementById('platform-list'),
+    attract: document.getElementById('attract'),
+    attractTitle: document.getElementById('attract-title'),
+    attractStage: document.getElementById('attract-stage'),
   };
 
   function element(tag, className, text) {
@@ -1515,6 +1809,92 @@
     }
   }
 
+  function navSelected(kind, platform) {
+    if (kind === 'favorites') return state.collection === 'favorites' && !state.platformQuery;
+    if (kind === 'recents') return state.collection === 'recents' && !state.platformQuery;
+    if (kind === 'platform') return Boolean(platform) && state.platformQuery === platform;
+    return !state.collection && !state.platformQuery;
+  }
+
+  function renderLibraryNav() {
+    if (nodes.navAll) nodes.navAll.className = 'nav-item' + (navSelected('all') ? ' selected' : '');
+    if (nodes.navFavorites) nodes.navFavorites.className = 'nav-item' + (navSelected('favorites') ? ' selected' : '');
+    if (nodes.navRecents) nodes.navRecents.className = 'nav-item' + (navSelected('recents') ? ' selected' : '');
+    if (!nodes.platformList) return;
+    nodes.platformList.replaceChildren();
+    (state.platforms || []).forEach(platform => {
+      const button = element('button', 'nav-item' + (navSelected('platform', platform.id) ? ' selected' : ''));
+      button.type = 'button';
+      button.setAttribute('data-platform', platform.id);
+      button.appendChild(element('span', '', platform.label || systemLabel(platform.id)));
+      button.appendChild(element('span', 'platform-count', String(platform.game_count || 0)));
+      button.addEventListener('click', () => controller.setLibraryNav('', platform.id));
+      nodes.platformList.appendChild(button);
+    });
+  }
+
+  let wallObserver = null;
+  let wallStartObserver = null;
+  let wallStart = 0;
+
+  function wallColumns() {
+    const width = Number(nodes.list && nodes.list.clientWidth) || 210;
+    return Math.max(1, Math.floor((width + 14) / 224));
+  }
+
+  function disconnectWallObservers() {
+    if (wallObserver) {
+      wallObserver.disconnect();
+      wallObserver = null;
+    }
+    if (wallStartObserver) {
+      wallStartObserver.disconnect();
+      wallStartObserver = null;
+    }
+  }
+
+  function appendWallSpacer(count, edge) {
+    if (count <= 0) return null;
+    const spacer = element('div', 'wall-spacer');
+    spacer.setAttribute('data-wall-spacer', edge);
+    const rows = Math.ceil(count / wallColumns());
+    spacer.style.height = `${rows * 264}px`;
+    nodes.list.appendChild(spacer);
+    return spacer;
+  }
+
+  function observeWallSentinel(sentinel, loadedCount) {
+    const Observer = root.IntersectionObserver;
+    if (typeof Observer !== 'function') return;
+    if (wallObserver) wallObserver.disconnect();
+    wallObserver = new Observer(entries => {
+      if (!entries.some(entry => entry.isIntersecting)) return;
+      if (state.nextCursor) {
+        controller.loadMoreCatalog();
+        return;
+      }
+      if (loadedCount > wallStart + WALL_WINDOW) {
+        wallStart = Math.min(loadedCount - WALL_WINDOW, wallStart + Math.floor(WALL_WINDOW / 2));
+        renderCatalog();
+      }
+    }, { root: null, rootMargin: '240px', threshold: 0.01 });
+    wallObserver.observe(sentinel);
+  }
+
+  function observeWallShift(sentinel, delta) {
+    const Observer = root.IntersectionObserver;
+    if (typeof Observer !== 'function') return;
+    if (wallStartObserver) wallStartObserver.disconnect();
+    wallStartObserver = new Observer(entries => {
+      if (!entries.some(entry => entry.isIntersecting)) return;
+      const next = Math.max(0, wallStart + delta);
+      if (next === wallStart) return;
+      wallStart = next;
+      renderCatalog();
+    }, { root: null, rootMargin: '80px', threshold: 0.01 });
+    wallStartObserver.observe(sentinel);
+  }
+
   function renderCatalog() {
     const view = catalogViewState(state);
     nodes.catalog.setAttribute('aria-busy', view === 'loading' ? 'true' : 'false');
@@ -1522,6 +1902,8 @@
     nodes.actions.replaceChildren();
     nodes.status.textContent = view;
     if (view === 'loading') {
+      wallStart = 0;
+      disconnectWallObservers();
       nodes.list.appendChild(element('p', 'status-message', 'Loading games…'));
       return;
     }
@@ -1538,14 +1920,78 @@
     nodes.status.textContent = state.metadataFallbackCount ? 'populated metadata_fallback' : 'populated';
     syncCatalogFilters();
     const visible = sortCatalogViews(filterCatalogViews(state.gameViews, state.filters), state.sort);
-    if (nodes.count) nodes.count.textContent = formatCatalogCount(visible.length, state.games.length);
-    visible.forEach(view => renderCard(view, view.live));
+    if (visible.length === 0 && state.nextCursor) {
+      nodes.list.appendChild(element('p', 'status-message', 'Looking for matching games…'));
+      const sentinel = element('div', 'wall-sentinel');
+      sentinel.setAttribute('data-wall-sentinel', 'true');
+      nodes.list.appendChild(sentinel);
+      observeWallSentinel(sentinel, 0);
+      if (typeof root.IntersectionObserver !== 'function') {
+        controller.loadMoreCatalog();
+      }
+      return;
+    }
+    if (nodes.count) {
+      const extra = state.nextCursor ? '+' : '';
+      nodes.count.textContent = extra
+        ? `${formatCatalogCount(visible.length, state.games.length)} and more`
+        : formatCatalogCount(visible.length, state.games.length);
+    }
+    const selectedIndex = visible.findIndex(item => isSelectedGame(state.selectedLiveGame, item.live));
+    if (visible.length <= WALL_WINDOW) {
+      wallStart = 0;
+    } else if (selectedIndex >= 0 && (selectedIndex < wallStart || selectedIndex >= wallStart + WALL_WINDOW)) {
+      wallStart = Math.max(0, Math.min(selectedIndex - Math.floor(WALL_WINDOW / 2), visible.length - WALL_WINDOW));
+    } else {
+      wallStart = Math.max(0, Math.min(wallStart, visible.length - WALL_WINDOW));
+    }
+    const remaining = Math.max(0, visible.length - wallStart - WALL_WINDOW);
+    if (wallStart > 0) {
+      const startSentinel = appendWallSpacer(wallStart, 'start');
+      if (startSentinel) observeWallShift(startSentinel, -Math.floor(WALL_WINDOW / 2));
+    }
+    visible.slice(wallStart, wallStart + WALL_WINDOW).forEach(item => renderCard(item, item.live));
+    if (remaining > 0 || state.nextCursor) {
+      const sentinel = appendWallSpacer(remaining, 'end') || element('div', 'wall-sentinel');
+      if (!sentinel.parentNode) {
+        sentinel.setAttribute('data-wall-sentinel', 'true');
+        nodes.list.appendChild(sentinel);
+      } else {
+        sentinel.setAttribute('data-wall-sentinel', 'true');
+      }
+      observeWallSentinel(sentinel, visible.length);
+    }
   }
 
   function syncCatalogFilters() {
-    if (nodes.systemFilter) nodes.systemFilter.value = state.filters && state.filters.system || '';
     if (nodes.regionFilter) nodes.regionFilter.value = state.filters && state.filters.region || '';
     if (nodes.sortFilter) nodes.sortFilter.value = state.sort || 'title';
+    if (nodes.systemFilter) {
+      const selected = state.filters && state.filters.system || '';
+      const seen = Object.create(null);
+      const systems = [];
+      (state.platforms || []).forEach(platform => {
+        if (!platform.id || seen[platform.id]) return;
+        seen[platform.id] = true;
+        systems.push({ id: platform.id, label: platform.label || systemLabel(platform.id) });
+      });
+      (state.games || []).forEach(game => {
+        if (!game.system || seen[game.system]) return;
+        seen[game.system] = true;
+        systems.push({ id: game.system, label: systemLabel(game.system) });
+      });
+      systems.sort((left, right) => left.label.localeCompare(right.label));
+      nodes.systemFilter.replaceChildren();
+      const all = element('option', '', 'All platforms');
+      all.value = '';
+      nodes.systemFilter.appendChild(all);
+      systems.forEach(system => {
+        const option = element('option', '', system.label);
+        option.value = system.id;
+        nodes.systemFilter.appendChild(option);
+      });
+      nodes.systemFilter.value = selected;
+    }
     if (!nodes.genreFilter) return;
     const selected = state.filters && state.filters.genre || '';
     const seen = Object.create(null);
@@ -1610,10 +2056,16 @@
     card.type = 'button';
     card.setAttribute('aria-pressed', String(selected));
     card.setAttribute('data-game-id', game.id);
-    const cover = artworkElement('cover', presentation.cover, presentation.coverArtworkHandle, 'lazy');
+    card.setAttribute('data-system', game.system);
+    card.setAttribute('data-state', game.state || '');
+    const coverHandle = presentation.coverArtworkHandle || game.cover;
+    const cover = artworkElement('cover', presentation.cover, coverHandle, 'eager');
     card.appendChild(cover);
     card.appendChild(element('h3', '', displayTitle(game.title)));
     card.appendChild(element('p', 'game-meta', `${systemLabel(game.system)} · ${sourceLabel(game.state)}`));
+    if (presentation.isFallback) {
+      card.appendChild(element('p', 'fallback-note', 'Using local catalog data'));
+    }
     if (game.title && displayTitle(game.title) !== game.title) card.setAttribute('title', game.title);
     card.addEventListener('click', () => selectGame(liveGame.id));
     nodes.list.appendChild(card);
@@ -1649,7 +2101,7 @@
       return { label, reason: 'Already active.', enabled: false };
     }
     if (state.session && state.session.state === 'active') {
-      return { label: 'Replace session', reason: '', enabled: true };
+      return { label: 'Replace active session', reason: '', enabled: true };
     }
     return { label, reason: '', enabled: true };
   }
@@ -1675,6 +2127,10 @@
       return;
     }
     if (presentation.summary) nodes.detailContent.appendChild(element('p', 'detail-summary', presentation.summary));
+    if (presentation.isFallback) {
+      nodes.detailContent.appendChild(element('p', 'fallback-note', 'Using local catalog data'));
+      nodes.detailContent.appendChild(element('p', 'sr-only', 'metadata_fallback'));
+    }
     if (presentation.attribution) nodes.detailContent.appendChild(element('p', 'attribution', presentation.attribution));
     const facts = element('div', 'detail-facts');
     [[systemLabel(game.system), 'System'], [sourceLabel(game.state), 'Status'], [presentation.year !== '—' ? presentation.year : '', 'Year'], [presentation.players, 'Players']]
@@ -1686,6 +2142,27 @@
       facts.appendChild(fact);
       });
     nodes.detailContent.appendChild(facts);
+    const favorite = element('button', 'button secondary favorite-button', game.favorite ? 'Favorited' : 'Favorite');
+    favorite.type = 'button';
+    favorite.id = 'favorite-game';
+    favorite.addEventListener('click', () => controller.toggleFavorite(game.id));
+    nodes.detailContent.appendChild(favorite);
+    if (presentation.logoHandle) nodes.detailContent.appendChild(artworkElement('logo', null, presentation.logoHandle, 'lazy'));
+    if (presentation.marqueeHandle) {
+      nodes.detailContent.appendChild(artworkElement('marquee', null, presentation.marqueeHandle, 'lazy'));
+    }
+    if (presentation.screenshotHandles && presentation.screenshotHandles.length) {
+      const stills = element('div', 'extra-stills');
+      presentation.screenshotHandles.forEach(handle => stills.appendChild(artworkElement('screenshot', null, handle, 'lazy')));
+      nodes.detailContent.appendChild(stills);
+    }
+    if (presentation.videoHandle) {
+      const video = element('video', 'detail-video');
+      video.setAttribute('src', mediaPath(presentation.videoHandle));
+      video.setAttribute('controls', '');
+      video.muted = true;
+      nodes.detailContent.appendChild(video);
+    }
     if (state.detailState === 'detail_error') {
       nodes.launchActions.appendChild(element('p', 'status-message error', 'The live detail could not be refreshed.'));
       nodes.launchActions.appendChild(retryButton('Retry detail', () => refreshDetail(liveGame)));
@@ -1708,6 +2185,7 @@
     reason.id = 'launch-reason';
     const launch = element('button', 'button', control.label);
     launch.type = 'button';
+    launch.id = 'launch-game';
     launch.disabled = !control.enabled;
     if (control.reason) launch.setAttribute('aria-describedby', reason.id);
     launch.addEventListener('click', launchSelected);
@@ -1743,15 +2221,24 @@
     if (node && typeof node.focus === 'function') node.focus({ preventScroll: true });
   }
 
+  function libraryNavChanged(previous, next) {
+    if (!previous) return true;
+    return previous.collection !== next.collection
+      || previous.platformQuery !== next.platformQuery
+      || previous.platforms !== next.platforms;
+  }
+
   function handleStateChange(next) {
     const previous = state;
     state = next;
     if (next.hostState === 'ready') setHealth('Local host ready', 'host-status');
     if (next.hostState === 'unavailable') setHealth('Catalog unavailable', 'host-status');
     renderCatalog();
+    if (libraryNavChanged(previous, next)) renderLibraryNav();
     if (controller && typeof controller.observeVisibleCovers === 'function') controller.observeVisibleCovers();
     renderDetail(state.selectedGameView, state.selectedLiveGame);
     renderSession();
+    if (!attractActive) resetAttractTimer();
     if (previous && previous.activeMutation !== 'launch' && next.activeMutation === 'launch') {
       focusWithoutScroll(nodes.sessionPanel);
     }
@@ -1760,20 +2247,199 @@
     }
   }
 
+  function attractIsDisabled() {
+    return root.FogCastAttractDisabled === true;
+  }
+
+  let attractTimer = null;
+  let attractCycleTimer = null;
+  let attractItems = [];
+  let attractIndex = 0;
+  let attractActive = false;
+
+  function currentAttractIdleMs() {
+    if (Number(root.FogCastAttractIdleMs) > 0) return Number(root.FogCastAttractIdleMs);
+    const seconds = Number(state && state.attractIdleSeconds);
+    return seconds > 0 ? seconds * 1000 : 60000;
+  }
+
+  function currentAttractCycleMs() {
+    if (Number(root.FogCastAttractCycleMs) > 0) return Number(root.FogCastAttractCycleMs);
+    return reducedMotion() ? 8000 : 12000;
+  }
+
+  function reducedMotion() {
+    return Boolean(root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+
+  function clearAttractCycle() {
+    if (attractCycleTimer && typeof root.clearTimeout === 'function') {
+      root.clearTimeout(attractCycleTimer);
+      attractCycleTimer = null;
+    }
+  }
+
+  function hideAttract() {
+    attractActive = false;
+    clearAttractCycle();
+    if (!nodes.attract) return;
+    nodes.attract.hidden = true;
+    if (nodes.attractStage) nodes.attractStage.replaceChildren();
+    if (nodes.attractTitle) nodes.attractTitle.textContent = '';
+  }
+
+  function scheduleAttractAdvance() {
+    clearAttractCycle();
+    if (!attractActive || attractItems.length < 2 || typeof root.setTimeout !== 'function') return;
+    attractCycleTimer = root.setTimeout(() => {
+      attractCycleTimer = null;
+      if (!attractActive || attractItems.length < 2) return;
+      attractIndex = (attractIndex + 1) % attractItems.length;
+      showAttractItem();
+    }, currentAttractCycleMs());
+  }
+
+  function showAttractItem() {
+    if (!nodes.attract || !nodes.attractStage || !attractItems.length) return;
+    const item = attractItems[attractIndex % attractItems.length];
+    nodes.attract.hidden = false;
+    nodes.attractTitle.textContent = item.title || '';
+    nodes.attractStage.replaceChildren();
+    if (item.video && !reducedMotion()) {
+      const video = element('video', 'attract-video');
+      video.setAttribute('src', mediaPath(item.video));
+      video.muted = true;
+      video.autoplay = true;
+      video.loop = attractItems.length < 2;
+      video.setAttribute('playsinline', '');
+      nodes.attractStage.appendChild(video);
+      if (typeof video.play === 'function') video.play().catch(() => {});
+      scheduleAttractAdvance();
+      return;
+    }
+    const handle = item.cover || item.backdrop || item.marquee;
+    if (handle) nodes.attractStage.appendChild(artworkElement('cover', null, handle, 'eager'));
+    scheduleAttractAdvance();
+  }
+
+  async function enterAttract() {
+    if (attractIsDisabled() || attractActive || !nodes.attract) return;
+    try {
+      const playlist = await controller.loadAttract(24);
+      attractItems = playlist.items || [];
+      if (!attractItems.length) return;
+      attractIndex = 0;
+      attractActive = true;
+      showAttractItem();
+    } catch (_) {
+      attractActive = false;
+    }
+  }
+
+  function resetAttractTimer() {
+    if (attractTimer && typeof root.clearTimeout === 'function') {
+      root.clearTimeout(attractTimer);
+      attractTimer = null;
+    }
+    if (attractActive) hideAttract();
+    if (attractIsDisabled() || !nodes.attract) return;
+    if (typeof root.setTimeout !== 'function') return;
+    attractTimer = root.setTimeout(enterAttract, currentAttractIdleMs());
+  }
+
+  function exitAttract() {
+    if (!attractActive) {
+      resetAttractTimer();
+      return;
+    }
+    hideAttract();
+    resetAttractTimer();
+  }
+
+  function typingTarget(target) {
+    const tag = String(target && target.tagName || '').toUpperCase();
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+  }
+
+  function visibleGames() {
+    return sortCatalogViews(filterCatalogViews(state.gameViews, state.filters), state.sort);
+  }
+
+  function moveWall(delta) {
+    const visible = visibleGames();
+    if (!visible.length) return;
+    const current = visible.findIndex(item => isSelectedGame(state.selectedLiveGame, item.live));
+    const next = current < 0 ? 0 : Math.max(0, Math.min(visible.length - 1, current + delta));
+    controller.selectGame(visible[next].live.id);
+  }
+
   controller = createAppController({
     metadataAdapter: root.FogCastMetadata,
     onStateChange: handleStateChange,
   });
   state = controller.getState();
   nodes.refresh.addEventListener('click', loadCatalog);
-  nodes.search.addEventListener('input', loadCatalog);
+  let searchTimer = null;
+  nodes.search.addEventListener('input', () => {
+    if (searchTimer) root.clearTimeout(searchTimer);
+    searchTimer = root.setTimeout(loadCatalog, 180);
+  });
   if (nodes.systemFilter) nodes.systemFilter.addEventListener('change', () => controller.setCatalogFilter('system', nodes.systemFilter.value));
   if (nodes.regionFilter) nodes.regionFilter.addEventListener('change', () => controller.setCatalogFilter('region', nodes.regionFilter.value));
   if (nodes.genreFilter) nodes.genreFilter.addEventListener('change', () => controller.setCatalogFilter('genre', nodes.genreFilter.value));
   if (nodes.sortFilter) nodes.sortFilter.addEventListener('change', () => controller.setCatalogSort(nodes.sortFilter.value));
+  if (nodes.navAll) nodes.navAll.addEventListener('click', () => controller.setLibraryNav('', ''));
+  if (nodes.navFavorites) nodes.navFavorites.addEventListener('click', () => controller.setLibraryNav('favorites', ''));
+  if (nodes.navRecents) nodes.navRecents.addEventListener('click', () => controller.setLibraryNav('recents', ''));
+  if (typeof document.addEventListener === 'function') {
+    document.addEventListener('keydown', event => {
+      if (attractActive) {
+        event.preventDefault?.();
+        exitAttract();
+        return;
+      }
+      if (typingTarget(event.target)) return;
+      if (event.key === 'Escape') {
+        exitAttract();
+        return;
+      }
+      if (event.key === 'f' || event.key === 'F') {
+        controller.toggleFavorite();
+        return;
+      }
+      if (event.key === 'Enter') {
+        launchSelected();
+        return;
+      }
+      if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+        event.preventDefault?.();
+        moveWall(1);
+        return;
+      }
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+        event.preventDefault?.();
+        moveWall(-1);
+      }
+    });
+    document.addEventListener('pointerdown', exitAttract);
+    if (!(Number(root.FogCastAttractIdleMs) > 0)) {
+      document.addEventListener('mousemove', resetAttractTimer);
+    }
+    document.addEventListener('focusin', () => {
+      if (attractActive) exitAttract();
+      else resetAttractTimer();
+    });
+  }
+  if (nodes.attract) {
+    nodes.attract.hidden = true;
+    nodes.attract.addEventListener('click', exitAttract);
+  }
   renderCatalog();
+  renderLibraryNav();
   renderDetail(null);
   renderSession();
   void loadSession();
   void loadCatalog();
+  void controller.loadPlatforms();
+  resetAttractTimer();
 })(globalThis);

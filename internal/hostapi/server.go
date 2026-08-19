@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/http"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -44,10 +43,15 @@ type gameResult struct {
 	Execution       string              `json:"execution"`
 	Genre           string              `json:"genre,omitempty"`
 	Year            string              `json:"year,omitempty"`
+	Platform        protocol.System     `json:"platform,omitempty"`
+	Favorite        bool                `json:"favorite,omitempty"`
+	Cover           string              `json:"cover,omitempty"`
+	Launchable      bool                `json:"launchable"`
 }
 
 type gamesResult struct {
-	Games []gameResult `json:"games"`
+	Games      []gameResult `json:"games"`
+	NextCursor string       `json:"next_cursor,omitempty"`
 }
 
 type healthResult struct {
@@ -80,13 +84,17 @@ type presentationResult struct {
 }
 
 type presentationPayload struct {
-	Summary               string `json:"summary"`
-	Year                  string `json:"year"`
-	Genre                 string `json:"genre"`
-	Studio                string `json:"studio"`
-	Players               string `json:"players"`
-	CoverArtworkHandle    string `json:"cover_artwork_id,omitempty"`
-	BackdropArtworkHandle string `json:"backdrop_artwork_id,omitempty"`
+	Summary               string   `json:"summary"`
+	Year                  string   `json:"year"`
+	Genre                 string   `json:"genre"`
+	Studio                string   `json:"studio"`
+	Players               string   `json:"players"`
+	CoverArtworkHandle    string   `json:"cover_artwork_id,omitempty"`
+	BackdropArtworkHandle string   `json:"backdrop_artwork_id,omitempty"`
+	LogoHandle            string   `json:"logo_id,omitempty"`
+	MarqueeHandle         string   `json:"marquee_id,omitempty"`
+	VideoHandle           string   `json:"video_id,omitempty"`
+	ScreenshotHandles     []string `json:"screenshot_ids,omitempty"`
 }
 
 type presentationAttribution struct {
@@ -245,29 +253,19 @@ func New(service Service, options ...ServerOption) http.Handler {
 		writeJSON(w, http.StatusOK, result)
 	})
 	mux.HandleFunc("GET /api/v1/games", func(w http.ResponseWriter, r *http.Request) {
-		query := strings.TrimSpace(r.URL.Query().Get("q"))
-		var games []catalog.Game
-		var err error
-		if query == "" {
-			games, err = service.Games(r.Context())
-		} else {
-			games, err = service.Search(r.Context(), query)
-		}
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "INTERNAL", "catalog is unavailable")
-			return
-		}
-		sort.SliceStable(games, func(i, j int) bool {
-			if strings.EqualFold(games[i].Title, games[j].Title) {
-				return games[i].ID < games[j].ID
-			}
-			return strings.ToLower(games[i].Title) < strings.ToLower(games[j].Title)
-		})
-		result := gamesResult{Games: make([]gameResult, 0, len(games))}
-		for _, game := range games {
-			result.Games = append(result.Games, publicGameWithGenre(r.Context(), config, game))
-		}
-		writeJSON(w, http.StatusOK, result)
+		handleGamesList(w, r, service)
+	})
+	mux.HandleFunc("GET /api/v1/platforms", func(w http.ResponseWriter, r *http.Request) {
+		handlePlatforms(w, r, service)
+	})
+	mux.HandleFunc("PUT /api/v1/library/favorites/{id}", func(w http.ResponseWriter, r *http.Request) {
+		handleFavorite(w, r, service, true)
+	})
+	mux.HandleFunc("DELETE /api/v1/library/favorites/{id}", func(w http.ResponseWriter, r *http.Request) {
+		handleFavorite(w, r, service, false)
+	})
+	mux.HandleFunc("GET /api/v1/library/attract", func(w http.ResponseWriter, r *http.Request) {
+		handleAttract(w, r, service)
 	})
 	mux.HandleFunc("GET /api/v1/games/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
@@ -285,7 +283,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 			writeError(w, http.StatusInternalServerError, "INTERNAL", "catalog is unavailable")
 			return
 		}
-		writeJSON(w, http.StatusOK, publicGame(game))
+		writeJSON(w, http.StatusOK, enrichGameResult(r.Context(), service, publicGame(game)))
 	})
 	mux.HandleFunc("GET /api/v1/presentation/games/{id}", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.RawQuery != "" || r.Body != nil && r.Body != http.NoBody {
@@ -310,32 +308,32 @@ func New(service Service, options ...ServerOption) http.Handler {
 			return
 		}
 		if config.metadataState == metadata.StateDisabled {
-			writeJSON(w, http.StatusOK, presentationResult{GameID: game.ID, State: string(metadata.StateDisabled)})
+			writeJSON(w, http.StatusOK, overlayPresentation(r.Context(), service, game, presentationResult{GameID: game.ID, State: string(metadata.StateDisabled)}))
 			return
 		}
 		if config.metadataState == metadata.StateUnconfigured || config.metadata == nil {
-			writeJSON(w, http.StatusOK, presentationResult{GameID: game.ID, State: string(metadata.StateUnconfigured)})
+			writeJSON(w, http.StatusOK, overlayPresentation(r.Context(), service, game, presentationResult{GameID: game.ID, State: string(metadata.StateUnconfigured)}))
 			return
 		}
 		result, err := config.metadata.Lookup(r.Context(), metadata.LookupInput{Title: game.Title, System: game.System})
 		if err != nil {
-			writeJSON(w, http.StatusOK, presentationResult{GameID: game.ID, State: "offline"})
+			writeJSON(w, http.StatusOK, overlayPresentation(r.Context(), service, game, presentationResult{GameID: game.ID, State: "offline"}))
 			return
 		}
 		switch result.Outcome {
 		case metadata.OutcomeExact, metadata.OutcomeConfident:
 			presentation, attribution, ok := safePresentation(result)
 			if !ok {
-				writeJSON(w, http.StatusOK, presentationResult{GameID: game.ID, State: "offline"})
+				writeJSON(w, http.StatusOK, overlayPresentation(r.Context(), service, game, presentationResult{GameID: game.ID, State: "offline"}))
 				return
 			}
-			writeJSON(w, http.StatusOK, presentationResult{GameID: game.ID, State: "ready", Presentation: &presentation, Attribution: &attribution})
+			writeJSON(w, http.StatusOK, overlayPresentation(r.Context(), service, game, presentationResult{GameID: game.ID, State: "ready", Presentation: &presentation, Attribution: &attribution}))
 		case metadata.OutcomeNoMatch:
-			writeJSON(w, http.StatusOK, presentationResult{GameID: game.ID, State: string(metadata.OutcomeNoMatch)})
+			writeJSON(w, http.StatusOK, overlayPresentation(r.Context(), service, game, presentationResult{GameID: game.ID, State: string(metadata.OutcomeNoMatch)}))
 		case metadata.OutcomeAmbiguous:
-			writeJSON(w, http.StatusOK, presentationResult{GameID: game.ID, State: string(metadata.OutcomeAmbiguous)})
+			writeJSON(w, http.StatusOK, overlayPresentation(r.Context(), service, game, presentationResult{GameID: game.ID, State: string(metadata.OutcomeAmbiguous)}))
 		default:
-			writeJSON(w, http.StatusOK, presentationResult{GameID: game.ID, State: "offline"})
+			writeJSON(w, http.StatusOK, overlayPresentation(r.Context(), service, game, presentationResult{GameID: game.ID, State: "offline"}))
 		}
 	})
 	mux.HandleFunc("GET /api/v1/presentation/artwork/{handle}", func(w http.ResponseWriter, r *http.Request) {
@@ -350,11 +348,27 @@ func New(service Service, options ...ServerOption) http.Handler {
 			return
 		}
 		if config.metadataState != metadata.StateReady || config.metadata == nil {
+			if opener, ok := service.(mediaOpenService); ok {
+				opened, openErr := opener.OpenMedia(r.Context(), handle)
+				if openErr == nil && opened.Reader != nil {
+					defer opened.Reader.Close()
+					librarymediaServe(w, r, opened)
+					return
+				}
+			}
 			writeError(w, http.StatusNotFound, "ARTWORK_UNAVAILABLE", "artwork is unavailable")
 			return
 		}
 		artwork, err := config.metadata.OpenArtwork(r.Context(), handle)
 		if err != nil {
+			if opener, ok := service.(mediaOpenService); ok {
+				opened, openErr := opener.OpenMedia(r.Context(), handle)
+				if openErr == nil && opened.Reader != nil {
+					defer opened.Reader.Close()
+					librarymediaServe(w, r, opened)
+					return
+				}
+			}
 			writeError(w, http.StatusNotFound, "ARTWORK_UNAVAILABLE", "artwork is unavailable")
 			return
 		}
@@ -374,6 +388,25 @@ func New(service Service, options ...ServerOption) http.Handler {
 		if _, err := io.CopyN(w, artwork.Reader, artwork.Size); err != nil {
 			return
 		}
+	})
+	mux.HandleFunc("GET /api/v1/presentation/media/{handle}", func(w http.ResponseWriter, r *http.Request) {
+		handle := r.PathValue("handle")
+		if !presentationHandlePattern.MatchString(handle) {
+			writeError(w, http.StatusNotFound, "ARTWORK_UNAVAILABLE", "artwork is unavailable")
+			return
+		}
+		opener, ok := service.(mediaOpenService)
+		if !ok {
+			writeError(w, http.StatusNotFound, "ARTWORK_UNAVAILABLE", "artwork is unavailable")
+			return
+		}
+		opened, err := opener.OpenMedia(r.Context(), handle)
+		if err != nil || opened.Reader == nil {
+			writeError(w, http.StatusNotFound, "ARTWORK_UNAVAILABLE", "artwork is unavailable")
+			return
+		}
+		defer opened.Reader.Close()
+		librarymediaServe(w, r, opened)
 	})
 	return noStore(rejectUnexpectedHost(mux))
 }
@@ -540,7 +573,7 @@ func publicGame(game catalog.Game) gameResult {
 	return gameResult{
 		ID: game.ID, Title: game.Title, System: game.System, Kind: game.Kind,
 		State: game.State, RootOnline: game.RootOnline, ContentPrepared: game.Content != nil,
-		Execution: "fpga_native",
+		Execution: "fpga_native", Platform: game.System, Launchable: catalog.Launchable(game.System),
 	}
 }
 
@@ -608,6 +641,9 @@ func writeSessionError(w http.ResponseWriter, err error) {
 		}
 		if apiErr.Code == protocol.CodeROMNotFound {
 			status = http.StatusNotFound
+		}
+		if apiErr.Code == protocol.CodeBadRequest || apiErr.Code == protocol.CodeUnsupportedSystem {
+			status = http.StatusBadRequest
 		}
 		writeError(w, status, string(apiErr.Code), publicErrorMessage(apiErr.Code))
 		return

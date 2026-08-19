@@ -20,7 +20,7 @@ import (
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
-const usageText = "usage: fogcast [--config path] [--json] {scan|games|search <text>|launch <game-id>|health|status|stop}\n       fogcast --version [--json]\n"
+const usageText = "usage: fogcast [--config path] [--json] {scan|games|search <text>|launch <game-id>|favorite <game-id>|unfavorite <game-id>|recents|media-scan|health|status|stop}\n       fogcast --version [--json]\n"
 
 const maxPublicGameIDBytes = 128
 
@@ -201,9 +201,9 @@ func validCommand(args []string) bool {
 		return false
 	}
 	switch args[0] {
-	case "scan", "games", "health", "status", "stop":
+	case "scan", "games", "health", "status", "stop", "recents", "media-scan":
 		return len(args) == 1
-	case "search", "launch":
+	case "search", "launch", "favorite", "unfavorite":
 		return len(args) == 2
 	default:
 		return false
@@ -239,6 +239,41 @@ func execute(ctx context.Context, args []string, service Service, progress fogca
 			return commandResult{err: err, exit: 1}
 		}
 		return commandResult{jsonValue: response, human: func(output io.Writer) error { return writeHumanStatus(output, response.Status, args[1]) }}
+	case "favorite", "unfavorite":
+		fav, ok := service.(interface {
+			SetFavorite(context.Context, string, bool) error
+		})
+		if !ok {
+			return commandResult{err: errors.New("user library is unavailable"), exit: 1}
+		}
+		if err := fav.SetFavorite(ctx, args[1], args[0] == "favorite"); err != nil {
+			return commandResult{err: err, exit: 1}
+		}
+		return commandResult{jsonValue: map[string]any{"id": args[1], "favorite": args[0] == "favorite"}}
+	case "recents":
+		lister, ok := service.(interface {
+			QueryGames(context.Context, catalog.Query) (catalog.Page, error)
+		})
+		if !ok {
+			return commandResult{err: errors.New("user library is unavailable"), exit: 1}
+		}
+		page, err := lister.QueryGames(ctx, catalog.Query{Collection: "recents", Limit: 50})
+		if err != nil {
+			return commandResult{err: err, exit: 1}
+		}
+		result := makeGamesResult(page.Games)
+		return commandResult{jsonValue: result, human: func(output io.Writer) error { return writeHumanGames(output, result) }}
+	case "media-scan":
+		scanner, ok := service.(interface {
+			ScanMedia(context.Context) error
+		})
+		if !ok {
+			return commandResult{err: errors.New("library media is unavailable"), exit: 1}
+		}
+		if err := scanner.ScanMedia(ctx); err != nil {
+			return commandResult{err: err, exit: 1}
+		}
+		return commandResult{jsonValue: map[string]any{"result": "ok"}}
 	case "health":
 		health, err := service.Health(ctx)
 		if err != nil {

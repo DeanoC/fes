@@ -70,30 +70,30 @@ func TestSchemaMigratesNewDatabaseAndRejectsFutureVersion(t *testing.T) {
 	if err := db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 1 {
-		t.Fatalf("user_version = %d, want 1", version)
+	if version != 3 {
+		t.Fatalf("user_version = %d, want 3", version)
 	}
-	rows, err := db.QueryContext(ctx, "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
+	rows, err := db.QueryContext(ctx, "SELECT name FROM sqlite_master WHERE type IN ('table', 'index') AND name IN ('games', 'libraries', 'games_fts', 'games_system_title_id') ORDER BY name")
 	if err != nil {
 		t.Fatalf("list tables: %v", err)
 	}
 	defer rows.Close()
-	var tables []string
+	var names []string
 	for rows.Next() {
-		var table string
-		if err := rows.Scan(&table); err != nil {
+		var name string
+		if err := rows.Scan(&name); err != nil {
 			t.Fatalf("scan table: %v", err)
 		}
-		tables = append(tables, table)
+		names = append(names, name)
 	}
 	if err := rows.Err(); err != nil {
 		t.Fatalf("iterate tables: %v", err)
 	}
-	if want := []string{"games", "libraries"}; !reflect.DeepEqual(tables, want) {
-		t.Fatalf("tables = %v, want %v", tables, want)
+	if want := []string{"games", "games_fts", "games_system_title_id", "libraries"}; !reflect.DeepEqual(names, want) {
+		t.Fatalf("schema objects = %v, want %v", names, want)
 	}
 
-	if _, err := db.ExecContext(ctx, "PRAGMA user_version = 2"); err != nil {
+	if _, err := db.ExecContext(ctx, "PRAGMA user_version = 4"); err != nil {
 		t.Fatalf("set future user_version: %v", err)
 	}
 	if err := db.Close(); err != nil {
@@ -101,6 +101,100 @@ func TestSchemaMigratesNewDatabaseAndRejectsFutureVersion(t *testing.T) {
 	}
 	if _, err := catalog.Open(path); err == nil || !strings.Contains(err.Error(), "newer") {
 		t.Fatalf("Open(future database) error = %v, want newer-schema error", err)
+	}
+}
+
+func TestSchemaIndexMatchesLowerTitleOrder(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "catalog.sqlite3")
+	store, err := catalog.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var indexSQL string
+	if err := db.QueryRowContext(ctx, "SELECT sql FROM sqlite_master WHERE name = 'games_system_title_id'").Scan(&indexSQL); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(indexSQL, "lower(title)") {
+		t.Fatalf("index sql = %q, want lower(title) expression", indexSQL)
+	}
+}
+
+func TestMigrateFoldsSearchTextForUnicodeQuery(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "catalog.sqlite3")
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `
+CREATE TABLE libraries (
+  id TEXT PRIMARY KEY,
+  system TEXT NOT NULL,
+  root TEXT NOT NULL UNIQUE,
+  online INTEGER NOT NULL,
+  generation INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE games (
+  game_id TEXT PRIMARY KEY,
+  library_id TEXT NOT NULL REFERENCES libraries(id),
+  system TEXT NOT NULL,
+  relative_path TEXT NOT NULL,
+  title TEXT NOT NULL,
+  source_kind TEXT NOT NULL,
+  source_state TEXT NOT NULL,
+  reason TEXT NOT NULL DEFAULT '',
+  source_size INTEGER NOT NULL,
+  modified_ns INTEGER NOT NULL,
+  zip_member TEXT NOT NULL DEFAULT '',
+  zip_size INTEGER NOT NULL DEFAULT 0,
+  zip_crc32 INTEGER NOT NULL DEFAULT 0,
+  zip_entry_count INTEGER NOT NULL DEFAULT 0,
+  seen_generation INTEGER NOT NULL,
+  content_sha256 TEXT,
+  content_size INTEGER,
+  content_extension TEXT,
+  UNIQUE(library_id, relative_path)
+);
+PRAGMA user_version = 1;
+INSERT INTO libraries(id, system, root, online, generation) VALUES('snes-main', 'snes', '/games/snes', 1, 1);
+INSERT INTO games(game_id, library_id, system, relative_path, title, source_kind, source_state, source_size, modified_ns, seen_generation)
+VALUES('snes-strasse-test', 'snes-main', 'snes', 'strasse.sfc', 'Straße', 'raw', 'available', 1, 1, 1);
+`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err := catalog.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	page, err := store.QueryGames(ctx, catalog.Query{Text: "STRASSE", Limit: 10})
+	if err != nil || len(page.Games) != 1 || page.Games[0].ID != "snes-strasse-test" {
+		t.Fatalf("folded search = %+v, %v", page, err)
+	}
+	db, err = sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var searchText string
+	if err := db.QueryRowContext(ctx, "SELECT search_text FROM games WHERE game_id = 'snes-strasse-test'").Scan(&searchText); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(searchText, "strasse") {
+		t.Fatalf("search_text = %q, want Go-folded strasse", searchText)
 	}
 }
 

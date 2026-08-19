@@ -49,6 +49,7 @@ func SourceErrorCode(game Game) protocol.ErrorCode {
 type Scanner struct {
 	Store         *Store
 	Registry      core.Registry
+	Platforms     PlatformRegistry
 	MaxZIPEntries int
 	Debug         func(string)
 
@@ -182,7 +183,7 @@ func (s Scanner) Scan(ctx context.Context, roots []Root) (ScanReport, error) {
 		if err := ctx.Err(); err != nil {
 			return report, err
 		}
-		spec, ok := s.Registry.Lookup(root.System)
+		extensions, ok := s.extensions(root.System)
 		if !ok {
 			return report, fmt.Errorf("scan root %q: system %q is not registered", root.ID, root.System)
 		}
@@ -199,7 +200,7 @@ func (s Scanner) Scan(ctx context.Context, roots []Root) (ScanReport, error) {
 			continue
 		}
 
-		rootReport, scanErr := s.scanRoot(ctx, root, heldRoot, spec.Extensions, maximumZIPEntries)
+		rootReport, scanErr := s.scanRoot(ctx, root, heldRoot, extensions, maximumZIPEntries)
 		closeErr := heldRoot.directory.Close()
 		if scanErr != nil || closeErr != nil {
 			err := errors.Join(scanErr, closeErr)
@@ -215,6 +216,17 @@ func (s Scanner) Scan(ctx context.Context, roots []Root) (ScanReport, error) {
 
 func (s *Scanner) SetDebug(debug func(string)) {
 	s.Debug = debug
+}
+
+func (s *Scanner) extensions(system protocol.System) (map[string]struct{}, bool) {
+	if platform, ok := s.Platforms.Lookup(system); ok {
+		return platform.Extensions, true
+	}
+	spec, ok := s.Registry.Lookup(system)
+	if !ok {
+		return nil, false
+	}
+	return spec.Extensions, true
 }
 
 func openScannerRoot(path string) (*scannerRoot, error) {
