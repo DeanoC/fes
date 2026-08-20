@@ -363,7 +363,10 @@ class FixtureServer extends EventEmitter {
       return;
     }
     if (url.pathname === '/api/v1/games' && request.method === 'GET') {
-      const allowed = new Set(['q', 'platform', 'collection', 'sort', 'cursor', 'limit']);
+      const allowed = new Set([
+        'q', 'platform', 'collection', 'sort', 'cursor', 'limit',
+        'region', 'genre', 'year', 'availability', 'hide_prerelease', 'hide_hacks', 'grouped',
+      ]);
       if (url.searchParams.getAll('q').length > 1 || [...url.searchParams.keys()].some(key => !allowed.has(key))) {
         await this.deliver(record, response, this.unexpectedResponse(record, 400, 'unexpected catalog query'));
         return;
@@ -434,6 +437,13 @@ class FixtureServer extends EventEmitter {
       await this.deliver(record, response, {
         fixture: 'attract.json', status: 200, hold: false, delayMs: 0,
         override: this.plan.attract || { items: [], idle_seconds: 60 },
+      });
+      return;
+    }
+    if (url.pathname === '/api/v1/library/facets' && request.method === 'GET') {
+      await this.deliver(record, response, {
+        fixture: 'facets.json', status: 200, hold: false, delayMs: 0,
+        override: this.plan.facets || { genres: [], years: [] },
       });
       return;
     }

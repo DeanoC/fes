@@ -27,6 +27,7 @@ const {
   formatCatalogCount,
   fallbackPresentation,
   displayTitle,
+  cardTitle,
   systemLabel,
   sourceLabel,
   launchBlockReason,
@@ -182,6 +183,9 @@ async function runBrowserApp({ adapter, responses, sessionResponses, globals, at
     if (pathOnly === '/api/v1/library/attract') {
       return jsonResponse({ items: attractItems || [], idle_seconds: 60 });
     }
+    if (pathOnly === '/api/v1/library/facets') {
+      return jsonResponse({ genres: [], years: [] });
+    }
     if (pathOnly.startsWith('/api/v1/library/favorites/')) {
       return jsonResponse({ favorite: (options && options.method) === 'PUT' });
     }
@@ -257,7 +261,7 @@ function validAdapterPresentation() {
   };
 }
 
-test('paginated catalog stays populated when client filters hide the loaded page', () => {
+test('paginated catalog stays populated until the host returns no rows', () => {
   const views = [
     { live: { id: 'megadrive-a', title: 'Streets of Rage 2 (USA)', system: 'megadrive' }, presentation: { genre: 'Beat \'em Up' } },
   ];
@@ -266,21 +270,20 @@ test('paginated catalog stays populated when client filters hide the loaded page
     query: '',
     games: views.map(view => view.live),
     gameViews: views,
-    filters: { system: '', region: 'japan', genre: '' },
     nextCursor: 'cursor-2',
   }), 'populated');
   assert.equal(catalogViewState({
     catalogState: 'populated',
     query: '',
-    games: views.map(view => view.live),
-    gameViews: views,
-    filters: { system: '', region: 'japan', genre: '' },
+    games: [],
+    gameViews: [],
     nextCursor: '',
-  }), 'no_matches');
+  }), 'empty');
 });
 
-test('catalog filters keep search on the host and hide unmatched platforms, regions, and genres', () => {
-  assert.equal(gamesPath('sonic'), '/api/v1/games?q=sonic');
+test('catalog filters keep search, platform, region, and genre on the host query', () => {
+  assert.equal(gamesPath('sonic'), '/api/v1/games?q=sonic&grouped=1');
+  assert.equal(gamesPath('', { platform: 'snes', region: 'japan', genre: 'Platform', grouped: 1 }), '/api/v1/games?platform=snes&region=japan&genre=Platform&grouped=1');
   assert.equal(catalogRegion('007 Shitou - The Duel (Japan)'), 'japan');
   assert.equal(catalogRegion('Streets of Rage 2 (USA)'), 'usa');
   assert.equal(catalogRegion('Sonic & Knuckles (World)'), 'world');
@@ -291,9 +294,7 @@ test('catalog filters keep search on the host and hide unmatched platforms, regi
     { live: { id: 'snes-b', title: 'Super Mario World (USA)', system: 'snes', genre: 'Platform' }, presentation: { genre: 'Platform' } },
     { live: { id: 'megadrive-c', title: '007 Shitou - The Duel (Japan)', system: 'megadrive' }, presentation: { genre: 'Unknown' } },
   ];
-  assert.deepEqual(filterCatalogViews(views, { system: 'snes' }).map(view => view.live.id), ['snes-b']);
-  assert.deepEqual(filterCatalogViews(views, { region: 'japan' }).map(view => view.live.id), ['megadrive-c']);
-  assert.deepEqual(filterCatalogViews(views, { genre: 'Platform' }).map(view => view.live.id), ['snes-b']);
+  assert.deepEqual(filterCatalogViews(views, { system: 'snes', region: 'japan' }).map(view => view.live.id), ['megadrive-a', 'snes-b', 'megadrive-c']);
   assert.equal(catalogGenre(views[0]), 'Beat \'em Up');
 });
 
@@ -320,7 +321,7 @@ test('library wording shows clean titles and honest launch blocks', () => {
   assert.equal(sourceLabel('available'), 'Ready');
   assert.equal(sourceLabel('missing'), 'Offline');
   assert.equal(launchBlockReason({ state: 'available', content_prepared: true, root_online: true }), '');
-  assert.equal(launchBlockReason({ state: 'available', content_prepared: false, root_online: true }), 'This ROM isn’t staged yet.');
+  assert.equal(launchBlockReason({ state: 'available', content_prepared: false, root_online: true }), '');
   assert.equal(launchBlockReason({ state: 'missing', content_prepared: false, root_online: false }), 'This game’s source is offline.');
 });
 
@@ -565,9 +566,9 @@ test('enabled controller requests presentation only after selecting a live game'
   });
   const controller = createAppController({ fetchImpl, presentationEnabled: true });
   await controller.loadCatalog('');
-  assert.deepEqual(calls.map(call => call.path), ['/api/v1/games']);
+  assert.deepEqual(calls.map(call => call.path), ['/api/v1/games?grouped=1']);
   await controller.selectGame('megadrive-sonic-test');
-  assert.deepEqual(calls.map(call => call.path), ['/api/v1/games', '/api/v1/games/megadrive-sonic-test', '/api/v1/presentation/games/megadrive-sonic-test', '/api/v1/presentation/games/megadrive-sonic-test']);
+  assert.deepEqual(calls.map(call => call.path), ['/api/v1/games?grouped=1', '/api/v1/games/megadrive-sonic-test', '/api/v1/presentation/games/megadrive-sonic-test', '/api/v1/presentation/games/megadrive-sonic-test']);
   const state = controller.getState();
   assert.equal(state.metadataState, 'ready');
   assert.equal(state.selectedGameView.presentation.summary, 'Host summary');
@@ -583,7 +584,7 @@ test('same-ID detail identity replacement invalidates stale presentation and ref
   const gameID = 'megadrive-sonic-test';
   const fetchImpl = async (requestPath, options) => {
     calls.push({ path: requestPath, options });
-    if (requestPath === '/api/v1/games') return jsonResponse(readFixture('catalog-populated.json'));
+    if (gamesRequestKey(requestPath) === '/api/v1/games') return jsonResponse(readFixture('catalog-populated.json'));
     if (requestPath === `/api/v1/games/${gameID}`) {
       return new Promise(resolve => { resolveDetail = resolve; });
     }
@@ -828,7 +829,7 @@ async function runImmutableAdapterCase(kind) {
   assert.equal(adapterCalls, 2, `${kind} must not rerun during launch or state inspection`);
   assert.equal(state.launchState, 'launch_success');
   assert.deepEqual(calls.map(call => call.path), [
-    '/api/v1/games',
+    '/api/v1/games?grouped=1',
     '/api/v1/games/megadrive-sonic-test',
     '/api/v1/session/launch',
   ]);
@@ -836,10 +837,10 @@ async function runImmutableAdapterCase(kind) {
 }
 
 test('gamesPath delegates search membership to the live API', () => {
-  assert.equal(gamesPath(''), '/api/v1/games');
-  assert.equal(gamesPath('sonic & tails'), '/api/v1/games?q=sonic%20%26%20tails');
-  assert.equal(gamesPath('', { collection: 'favorites' }), '/api/v1/games?collection=favorites');
-  assert.equal(gamesPath('sonic', { platform: 'snes' }), '/api/v1/games?q=sonic&platform=snes');
+  assert.equal(gamesPath(''), '/api/v1/games?grouped=1');
+  assert.equal(gamesPath('sonic & tails'), '/api/v1/games?q=sonic%20%26%20tails&grouped=1');
+  assert.equal(gamesPath('', { collection: 'favorites' }), '/api/v1/games?collection=favorites&grouped=1');
+  assert.equal(gamesPath('sonic', { platform: 'snes' }), '/api/v1/games?q=sonic&platform=snes&grouped=1');
 });
 
 test('gameDetailPath safely encodes the live catalog ID', () => {
@@ -902,7 +903,7 @@ test('selected catalog cards expose pressed state while retaining live IDs', () 
 test('card labels remain text descendants rather than dynamic user-string attributes', () => {
   const app = readAsset('ui_app.js');
   assert.doesNotMatch(app, /setAttribute\('aria-label', `Select \$\{game\.title\}`\)/);
-  assert.match(app, /card\.appendChild\(element\('h3', '', displayTitle\(game\.title\)\)\);/);
+  assert.match(app, /card\.appendChild\(element\('h3', '', cardTitle\(game\)\)\);/);
 });
 
 test('catalog cards defer unreliable execution compatibility data', () => {
@@ -932,7 +933,7 @@ test('controller loads fixture catalog, keeps unmatched metadata non-fatal, and 
   assert.equal(state.selectedLiveGame.id, 'megadrive-sonic-test');
   assert.equal(state.selectedLiveGame.title, 'Sonic the Hedgehog (detail refresh)');
   assert.deepEqual(calls.map(call => call.path), [
-    '/api/v1/games',
+    '/api/v1/games?grouped=1',
     '/api/v1/games/megadrive-sonic-test',
   ]);
 });
@@ -984,8 +985,8 @@ test('slow stale search responses cannot replace a newer fixture response', asyn
   let resolveOld;
   let resolveNew;
   const fetchImpl = requestPath => {
-    if (requestPath.endsWith('old')) return new Promise(resolve => { resolveOld = resolve; });
-    if (requestPath.endsWith('new')) return new Promise(resolve => { resolveNew = resolve; });
+    if (String(requestPath).includes('q=old')) return new Promise(resolve => { resolveOld = resolve; });
+    if (String(requestPath).includes('q=new')) return new Promise(resolve => { resolveNew = resolve; });
     throw new Error(`unexpected request ${requestPath}`);
   };
   const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
@@ -1096,7 +1097,7 @@ test('stale detail response cannot overwrite a replacement selection', async () 
   let resolveSonic;
   let resolveUnknown;
   const fetchImpl = requestPath => {
-    if (requestPath === '/api/v1/games') return Promise.resolve(jsonResponse(readFixture('catalog-populated.json')));
+    if (gamesRequestKey(requestPath) === '/api/v1/games') return Promise.resolve(jsonResponse(readFixture('catalog-populated.json')));
     if (requestPath.endsWith('/megadrive-sonic-test')) {
       return new Promise(resolve => { resolveSonic = resolve; });
     }
@@ -1345,11 +1346,29 @@ function inputFixture() {
   };
 }
 
+function gamesRequestKey(requestPath) {
+  const raw = String(requestPath || '');
+  const qIndex = raw.indexOf('?');
+  const pathOnly = qIndex < 0 ? raw : raw.slice(0, qIndex);
+  if (pathOnly !== '/api/v1/games') return raw;
+  const params = new URLSearchParams(qIndex < 0 ? '' : raw.slice(qIndex + 1));
+  const q = params.get('q') || '';
+  const platform = params.get('platform') || '';
+  const collection = params.get('collection') || '';
+  const cursor = params.get('cursor') || '';
+  if (cursor) return `/api/v1/games?cursor=${cursor}`;
+  if (platform) return q ? `/api/v1/games?q=${q}&platform=${platform}` : `/api/v1/games?platform=${platform}`;
+  if (collection) return `/api/v1/games?collection=${collection}`;
+  if (q) return `/api/v1/games?q=${q}`;
+  return '/api/v1/games';
+}
+
 function routedFetch(routes) {
   const calls = [];
   const fetchImpl = async (requestPath, options) => {
     calls.push({ path: requestPath, options });
-    const queue = routes[requestPath];
+    const key = gamesRequestKey(requestPath);
+    const queue = routes[requestPath] && routes[requestPath].length ? routes[requestPath] : routes[key];
     if (!queue || queue.length === 0) throw new Error(`missing routed response for ${requestPath}`);
     const next = queue.shift();
     return typeof next === 'function' ? next() : next;
@@ -1422,7 +1441,7 @@ test('startup reconstructs active session without changing catalog selection and
   assert.equal(state.sessionPhase, 'active');
   assert.equal(state.sessionGameTitle, 'Sonic the Hedgehog');
   assert.equal(state.selectedLiveGame, null);
-  assert.deepEqual(calls.map(call => call.path), ['/api/v1/session', '/api/v1/games']);
+  assert.deepEqual(calls.map(call => call.path), ['/api/v1/session', '/api/v1/games?grouped=1']);
 });
 
 test('newer session status wins over a held stale startup response', async () => {
@@ -1681,7 +1700,7 @@ test('loadMoreCatalog appends the next cursor page', async () => {
   await controller.loadMoreCatalog();
   assert.equal(controller.getState().games.length, 2);
   assert.equal(controller.getState().games[1].id, 'snes-bravo-test');
-  assert.deepEqual(calls.map(call => call.path), ['/api/v1/games', '/api/v1/games?cursor=cursor-1']);
+  assert.deepEqual(calls.map(call => call.path), ['/api/v1/games?grouped=1', '/api/v1/games?grouped=1&cursor=cursor-1']);
 });
 
 test('toggleFavorite writes PUT and DELETE without changing launch body', async () => {

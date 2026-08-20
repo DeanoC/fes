@@ -168,6 +168,18 @@ func (s *Store) RecordPlay(ctx context.Context, gameID string) error {
 	return err
 }
 
+func (s *Store) PlayedIDs(ctx context.Context) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT game_id FROM game_state
+		WHERE last_played_at IS NOT NULL
+		ORDER BY game_id`)
+	if err != nil {
+		return nil, fmt.Errorf("list played games: %w", err)
+	}
+	defer rows.Close()
+	return scanIDs(rows)
+}
+
 func (s *Store) FavoriteIDs(ctx context.Context) ([]string, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT game_id FROM game_state

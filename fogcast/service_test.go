@@ -1715,6 +1715,240 @@ func TestServiceLaunchRejectsUnmappedPlatformWithoutProbe(t *testing.T) {
 	}
 }
 
+type fakePathHostExecutor struct {
+	fakeHostExecutor
+	pathCalls  int
+	lastPath   string
+	lastSystem protocol.System
+	cleanup    func()
+}
+
+func (f *fakePathHostExecutor) LaunchPath(_ context.Context, system protocol.System, sourcePath string) (hostexec.Status, error) {
+	return f.LaunchOwnedPath(context.Background(), system, sourcePath, nil)
+}
+
+func (f *fakePathHostExecutor) LaunchOwnedPath(_ context.Context, system protocol.System, sourcePath string, cleanup func()) (hostexec.Status, error) {
+	f.pathCalls++
+	f.lastSystem = system
+	f.lastPath = sourcePath
+	f.cleanup = cleanup
+	return hostexec.Status{State: hostexec.Active}, nil
+}
+
+func TestServiceFPGALaunchRejectsCueWithoutTargetUpload(t *testing.T) {
+	game := serviceGame(catalog.Content{})
+	game.RelativePath = "game.cue"
+	game.Content = nil
+	store := &fakeServiceCatalog{games: []catalog.Game{game}}
+	client := &fakeServiceClient{}
+	client.probe = func(context.Context, protocol.System, protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
+		t.Fatal("cue set probed the target")
+		return protocol.CacheProbeResponse{}, nil
+	}
+	service := newTestService(store, &fakeServicePreparer{}, client)
+	_, err := service.Launch(context.Background(), game.ID, nil)
+	assertServiceErrorCode(t, err, protocol.CodeInvalidArchive)
+	if client.probeCalls != 0 || client.uploadCalls != 0 || client.launchCalls != 0 {
+		t.Fatalf("target calls = probe:%d upload:%d launch:%d", client.probeCalls, client.uploadCalls, client.launchCalls)
+	}
+}
+
+func TestServiceHostOnlyCueLaunchUsesConfinedPath(t *testing.T) {
+	dir := t.TempDir()
+	cuePath := filepath.Join(dir, "game.cue")
+	binPath := filepath.Join(dir, "game.bin")
+	if err := os.WriteFile(cuePath, []byte("FILE \"game.bin\" BINARY\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(binPath, []byte("track-bytes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	game := serviceGame(catalog.Content{})
+	game.RelativePath = "game.cue"
+	game.Content = nil
+	game.Fingerprint = fileServiceFingerprint(t, cuePath)
+	store := &fakeServiceCatalog{games: []catalog.Game{game}}
+	client := &fakeServiceClient{}
+	client.upload = func(context.Context, protocol.System, protocol.ContentIdentity, io.Reader) (protocol.CacheUploadResponse, error) {
+		t.Fatal("host cue launch uploaded to the target")
+		return protocol.CacheUploadResponse{}, nil
+	}
+	adapter := &fakePathHostExecutor{}
+	service := newService(
+		Config{Libraries: []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: dir}}, RequestTimeout: time.Second, UploadTimeout: 2 * time.Second},
+		Paths{Staging: filepath.Join(t.TempDir(), "staging")}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client,
+		WithExecutionPolicy(ExecutionPolicy{
+			Resolver: ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) { return ExecutionHostOnly, nil }),
+			Host:     adapter,
+		}),
+	)
+	response, err := service.Launch(context.Background(), game.ID, nil)
+	if err != nil {
+		t.Fatalf("Launch: %v", err)
+	}
+	t.Cleanup(func() {
+		if adapter.cleanup != nil {
+			adapter.cleanup()
+		}
+	})
+	if response.Status.State != protocol.StateActive || adapter.pathCalls != 1 || adapter.lastSystem != protocol.SystemSNES {
+		t.Fatalf("path launch response=%+v adapter=%#v", response, adapter)
+	}
+	if adapter.lastPath == "" || adapter.lastPath == cuePath || filepath.Base(adapter.lastPath) != "game.cue" || !strings.Contains(adapter.lastPath, "fogcast-host-launch-") {
+		t.Fatalf("launched path = %q, want private copy of game.cue", adapter.lastPath)
+	}
+	copiedBin, err := os.ReadFile(filepath.Join(filepath.Dir(adapter.lastPath), "game.bin"))
+	if err != nil || string(copiedBin) != "track-bytes" {
+		t.Fatalf("copied companion = %q, %v", copiedBin, err)
+	}
+	if _, err := os.Stat(cuePath); err != nil {
+		t.Fatalf("library cue removed: %v", err)
+	}
+	if client.uploadCalls != 0 || adapter.launchCalls != 0 {
+		t.Fatalf("unexpected snapshot/upload launch=%d upload=%d", adapter.launchCalls, client.uploadCalls)
+	}
+}
+
+func TestServiceHostOnlyCueLaunchRejectsEscapingReference(t *testing.T) {
+	parent := t.TempDir()
+	dir := filepath.Join(parent, "library")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(parent, "secret.bin")
+	if err := os.WriteFile(outside, []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "game.cue"), []byte("FILE \"../secret.bin\" BINARY\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	game := serviceGame(catalog.Content{})
+	game.RelativePath = "game.cue"
+	game.Content = nil
+	game.Fingerprint = fileServiceFingerprint(t, filepath.Join(dir, "game.cue"))
+	store := &fakeServiceCatalog{games: []catalog.Game{game}}
+	client := &fakeServiceClient{}
+	client.probe = func(context.Context, protocol.System, protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
+		t.Fatal("escaping cue probed the target")
+		return protocol.CacheProbeResponse{}, nil
+	}
+	adapter := &fakePathHostExecutor{}
+	service := newService(
+		Config{Libraries: []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: dir}}, RequestTimeout: time.Second, UploadTimeout: 2 * time.Second},
+		Paths{Staging: filepath.Join(t.TempDir(), "staging")}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client,
+		WithExecutionPolicy(ExecutionPolicy{
+			Resolver: ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) { return ExecutionHostOnly, nil }),
+			Host:     adapter,
+		}),
+	)
+	_, err := service.Launch(context.Background(), game.ID, nil)
+	assertServiceErrorCode(t, err, protocol.CodeInvalidArchive)
+	if adapter.pathCalls != 0 || client.probeCalls != 0 || client.uploadCalls != 0 {
+		t.Fatalf("escaping cue caused I/O adapter=%d probe=%d upload=%d", adapter.pathCalls, client.probeCalls, client.uploadCalls)
+	}
+}
+
+func TestServiceHostOnlyCueLaunchRejectsOversizedSheet(t *testing.T) {
+	dir := t.TempDir()
+	body := strings.Repeat("A", 1<<20+32) + "\nFILE \"../outside.bin\" BINARY\n"
+	if err := os.WriteFile(filepath.Join(dir, "game.cue"), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	game := serviceGame(catalog.Content{})
+	game.RelativePath = "game.cue"
+	game.Content = nil
+	game.Fingerprint = fileServiceFingerprint(t, filepath.Join(dir, "game.cue"))
+	store := &fakeServiceCatalog{games: []catalog.Game{game}}
+	adapter := &fakePathHostExecutor{}
+	service := newService(
+		Config{Libraries: []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: dir}}, RequestTimeout: time.Second, UploadTimeout: 2 * time.Second},
+		Paths{Staging: filepath.Join(t.TempDir(), "staging")}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{},
+		WithExecutionPolicy(ExecutionPolicy{
+			Resolver: ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) { return ExecutionHostOnly, nil }),
+			Host:     adapter,
+		}),
+	)
+	_, err := service.Launch(context.Background(), game.ID, nil)
+	assertServiceErrorCode(t, err, protocol.CodeInvalidArchive)
+	if adapter.pathCalls != 0 {
+		t.Fatalf("oversized cue launched %q", adapter.lastPath)
+	}
+}
+
+func TestServiceHostOnlyCueLaunchRejectsMissingCompanion(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "game.cue"), []byte("FILE \"game.bin\" BINARY\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	game := serviceGame(catalog.Content{})
+	game.RelativePath = "game.cue"
+	game.Content = nil
+	game.Fingerprint = fileServiceFingerprint(t, filepath.Join(dir, "game.cue"))
+	store := &fakeServiceCatalog{games: []catalog.Game{game}}
+	adapter := &fakePathHostExecutor{}
+	service := newService(
+		Config{Libraries: []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: dir}}, RequestTimeout: time.Second, UploadTimeout: 2 * time.Second},
+		Paths{Staging: filepath.Join(t.TempDir(), "staging")}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{},
+		WithExecutionPolicy(ExecutionPolicy{
+			Resolver: ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) { return ExecutionHostOnly, nil }),
+			Host:     adapter,
+		}),
+	)
+	_, err := service.Launch(context.Background(), game.ID, nil)
+	assertServiceErrorCode(t, err, protocol.CodeSourceUnavailable)
+	if adapter.pathCalls != 0 {
+		t.Fatalf("missing companion launched %q", adapter.lastPath)
+	}
+}
+
+func TestServiceHostOnlyLaunchRejectsReplacedSymlinkRoot(t *testing.T) {
+	parent := t.TempDir()
+	realRoot := filepath.Join(parent, "library")
+	if err := os.Mkdir(realRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	rom := filepath.Join(realRoot, "game.chd")
+	if err := os.WriteFile(rom, []byte("original"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "game.chd"), []byte("external"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(realRoot); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, realRoot); err != nil {
+		t.Fatal(err)
+	}
+	game := serviceGame(catalog.Content{})
+	game.RelativePath = "game.chd"
+	game.Content = nil
+	game.Fingerprint = fileServiceFingerprint(t, filepath.Join(outside, "game.chd"))
+	store := &fakeServiceCatalog{games: []catalog.Game{game}}
+	adapter := &fakePathHostExecutor{}
+	service := newService(
+		Config{Libraries: []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: realRoot}}, RequestTimeout: time.Second, UploadTimeout: 2 * time.Second},
+		Paths{Staging: filepath.Join(t.TempDir(), "staging")}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{},
+		WithExecutionPolicy(ExecutionPolicy{
+			Resolver: ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) { return ExecutionHostOnly, nil }),
+			Host:     adapter,
+		}),
+	)
+	_, err := service.Launch(context.Background(), game.ID, nil)
+	assertServiceErrorCode(t, err, protocol.CodeSourceUnavailable)
+	if adapter.pathCalls != 0 {
+		t.Fatalf("symlink root launched %q", adapter.lastPath)
+	}
+}
+func fileServiceFingerprint(t *testing.T, path string) catalog.Fingerprint {
+	t.Helper()
+	info, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return catalog.Fingerprint{SourceSize: info.Size(), ModifiedNS: info.ModTime().UnixNano()}
+}
 func assertServiceErrorCode(t *testing.T, err error, want protocol.ErrorCode) {
 	t.Helper()
 	var apiErr *protocol.APIError

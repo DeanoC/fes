@@ -26,15 +26,28 @@
 
   function gamesPath(query, extras) {
     const value = String(query || '').trim();
+    const extra = extras && typeof extras === 'object' ? extras : {};
     const params = [];
-    if (value) params.push(`q=${encodeURIComponent(value)}`);
-    if (extras && typeof extras === 'object') {
-      if (extras.platform) params.push(`platform=${encodeURIComponent(String(extras.platform))}`);
-      if (extras.collection) params.push(`collection=${encodeURIComponent(String(extras.collection))}`);
-      if (extras.cursor) params.push(`cursor=${encodeURIComponent(String(extras.cursor))}`);
-      if (Number(extras.limit) > 0) params.push(`limit=${encodeURIComponent(String(extras.limit))}`);
+    const push = (key, raw) => {
+      if (raw === undefined || raw === null || raw === '' || raw === false) return;
+      params.push(`${key}=${encodeURIComponent(String(raw))}`);
+    };
+    push('q', value);
+    push('platform', extra.platform);
+    push('collection', extra.collection);
+    push('region', extra.region);
+    push('genre', extra.genre);
+    push('year', extra.year);
+    if (extra.sort && extra.sort !== 'title') {
+      push('sort', extra.sort === 'system' ? 'platform' : extra.sort);
     }
-    return params.length ? `/api/v1/games?${params.join('&')}` : '/api/v1/games';
+    if (extra.hide_prerelease) params.push('hide_prerelease=1');
+    if (extra.hide_hacks) params.push('hide_hacks=1');
+    push('availability', extra.availability && extra.availability !== 'all' ? extra.availability : '');
+    params.push(extra.grouped === 0 || extra.grouped === '0' || extra.grouped === false ? 'grouped=0' : 'grouped=1');
+    push('cursor', extra.cursor);
+    if (Number(extra.limit) > 0) push('limit', extra.limit);
+    return `/api/v1/games?${params.join('&')}`;
   }
 
   function gameDetailPath(id) {
@@ -88,7 +101,9 @@
   }
 
   function isSelectedGame(selectedLiveGame, game) {
-    return Boolean(selectedLiveGame && game && selectedLiveGame.id === game.id);
+    if (!selectedLiveGame || !game) return false;
+    if (selectedLiveGame.id === game.id) return true;
+    return Boolean(selectedLiveGame.group_key && game.group_key && selectedLiveGame.group_key === game.group_key);
   }
 
   function presentationIdentity(game) {
@@ -108,7 +123,7 @@
   }
 
   function detailHeading(game) {
-    return game ? displayTitle(game.title) : 'Select a game';
+    return game ? cardTitle(game) : 'Select a game';
   }
 
   function boundedMessage(value, fallback, limit) {
@@ -147,7 +162,7 @@
       : undefined;
   }
 
-  function snapshotLiveGame(game) {
+  function snapshotLiveGame(game, includeVariants) {
     const source = game && typeof game === 'object' ? game : {};
     const id = primitiveSnapshotValue(source.id);
     const title = primitiveSnapshotValue(source.title);
@@ -189,6 +204,23 @@
     if (typeof cover === 'string' && ARTWORK_HANDLE_PATTERN.test(cover)) record.cover = cover;
     const platform = optionalCatalogText(source.platform);
     if (platform) record.platform = platform;
+    const canonicalTitle = optionalCatalogText(source.canonical_title);
+    if (canonicalTitle) record.canonical_title = canonicalTitle;
+    const region = optionalCatalogText(source.region);
+    if (region) record.region = region;
+    const revision = optionalCatalogText(source.revision);
+    if (revision) record.revision = revision;
+    const dumpFlags = optionalCatalogText(source.dump_flags);
+    if (dumpFlags) record.dump_flags = dumpFlags;
+    const groupKey = optionalCatalogText(source.group_key);
+    if (groupKey) record.group_key = groupKey;
+    const variantCount = primitiveSnapshotValue(source.variant_count);
+    if (typeof variantCount === 'number' && Number.isFinite(variantCount) && variantCount > 0) {
+      record.variant_count = variantCount;
+    }
+    if (Array.isArray(source.variants) && includeVariants !== false) {
+      record.variants = Object.freeze(source.variants.slice(0, 50).map(item => snapshotLiveGame(item, false)));
+    }
     return Object.freeze(record);
   }
 
@@ -279,12 +311,25 @@
     return String(state || '');
   }
 
+  function cardTitle(game) {
+    if (!game) return '';
+    if (game.canonical_title) return game.canonical_title;
+    return displayTitle(game.title);
+  }
+
+  function variantLabel(game) {
+    const parts = [];
+    if (game && game.region) parts.push(game.region);
+    if (game && game.revision) parts.push(`rev ${game.revision}`);
+    if (game && game.dump_flags) parts.push(game.dump_flags.replace(/,/g, ', '));
+    return parts.join(' · ') || game.title || 'Dump';
+  }
+
   function launchBlockReason(game) {
     if (!game) return 'Select a game first.';
     if (game.launchable === false) return 'This platform is browse-only on this host.';
     if (game.state === 'missing' || game.root_online === false) return 'This game’s source is offline.';
     if (game.state === 'invalid') return 'This ROM can’t be read.';
-    if (!game.content_prepared) return 'This ROM isn’t staged yet.';
     if (game.state !== 'available') return 'This game isn’t ready to launch.';
     return '';
   }
@@ -298,17 +343,8 @@
     return live && live.genre ? live.genre : '';
   }
 
-  function filterCatalogViews(views, filters) {
-    const system = filters && filters.system || '';
-    const region = filters && filters.region || '';
-    const genre = filters && filters.genre || '';
-    return (views || []).filter(view => {
-      const live = view && view.live || {};
-      if (system && live.system !== system) return false;
-      if (region && catalogRegion(live.title) !== region) return false;
-      if (genre && catalogGenre(view) !== genre) return false;
-      return true;
-    });
+  function filterCatalogViews(views) {
+    return (views || []).slice();
   }
 
   function catalogYear(view) {
@@ -821,7 +857,6 @@
     if (state.catalogState === 'loading') return 'loading';
     if (state.catalogState === 'catalog_error') return 'catalog_error';
     if (state.games.length === 0) return state.query ? 'no_matches' : 'empty';
-    if (filterCatalogViews(state.gameViews, state.filters).length === 0 && !state.nextCursor) return 'no_matches';
     return 'populated';
   }
 
@@ -845,7 +880,11 @@
       attractIdleSeconds: 60,
       games: [],
       gameViews: [],
-      filters: Object.freeze({ system: '', region: '', genre: '' }),
+      filters: Object.freeze({
+        system: '', region: '', genre: '', year: '', availability: '',
+        hide_prerelease: false, hide_hacks: false,
+      }),
+      facets: Object.freeze({ genres: [], years: [] }),
       sort: 'title',
       selectedLiveGame: null,
       selectedGameView: null,
@@ -1022,7 +1061,10 @@
 
     function reconcileSelection() {
       if (!state.selectedLiveGame) return;
-      const index = state.games.findIndex(game => game.id === state.selectedLiveGame.id);
+      let index = state.games.findIndex(game => game.id === state.selectedLiveGame.id);
+      if (index < 0 && state.selectedLiveGame.group_key) {
+        index = state.games.findIndex(game => game.group_key === state.selectedLiveGame.group_key);
+      }
       const wasMutating = Boolean(state.activeMutation);
       resetSelectionState();
       state.selectedLiveGame = index >= 0 ? state.games[index] : null;
@@ -1209,7 +1251,7 @@
     }
 
     function launchAllowed(selected) {
-      if (!selected || selected.launchable === false || selected.state !== 'available' || !selected.content_prepared) return false;
+      if (!selected || selected.launchable === false || selected.state !== 'available') return false;
       if (!state.sessionStarted) return true;
       if (state.sessionAuthority !== 'authoritative') return false;
       if (!state.session || !['idle', 'stopped', 'active'].includes(state.sessionPhase)) return false;
@@ -1281,15 +1323,18 @@
     }
 
     function catalogExtras(cursor) {
-      const extras = {};
+      const extras = { grouped: 1 };
       if (state.collection) extras.collection = state.collection;
       if (state.platformQuery) extras.platform = state.platformQuery;
+      if (state.filters.region) extras.region = state.filters.region;
+      if (state.filters.genre) extras.genre = state.filters.genre;
+      if (state.filters.year) extras.year = state.filters.year;
+      if (state.filters.hide_prerelease) extras.hide_prerelease = 1;
+      if (state.filters.hide_hacks) extras.hide_hacks = 1;
+      if (state.filters.availability) extras.availability = state.filters.availability;
+      if (state.sort && state.sort !== 'title') extras.sort = state.sort;
       if (cursor) extras.cursor = cursor;
       return extras;
-    }
-
-    function hasCatalogExtras(extras) {
-      return Boolean(extras && (extras.collection || extras.platform || extras.cursor || extras.limit));
     }
 
     function replaceGame(updated) {
@@ -1325,7 +1370,7 @@
       emit();
       try {
         const extras = catalogExtras();
-        const result = await request(fetchImpl, gamesPath(state.query, hasCatalogExtras(extras) ? extras : undefined));
+        const result = await request(fetchImpl, gamesPath(state.query, extras));
         if (sequence !== state.requestSequence) return snapshot();
         const previousByID = new Map(state.gameViews.map(view => [view.live.id, view.presentation]));
         const games = parseCatalog(result);
@@ -1376,8 +1421,15 @@
     }
 
     async function setLibraryNav(collection, platform) {
-      state.collection = collection === 'favorites' || collection === 'recents' ? collection : '';
+      const allowed = {
+        favorites: true, recents: true, continue: true, unplayed: true, recently_added: true,
+      };
+      state.collection = allowed[collection] ? collection : '';
       state.platformQuery = String(platform || '').trim();
+      state.filters = Object.freeze({
+        ...state.filters,
+        system: state.platformQuery,
+      });
       return loadCatalog(state.query);
     }
 
@@ -1402,6 +1454,18 @@
         }
       } catch (_) {
         /* attract idle stays at the last known value */
+      }
+      try {
+        const facets = await request(fetchImpl, '/api/v1/library/facets');
+        const genres = facets && Array.isArray(facets.genres)
+          ? facets.genres.filter(item => typeof item === 'string' && item.trim()).map(item => item.trim())
+          : [];
+        const years = facets && Array.isArray(facets.years)
+          ? facets.years.filter(item => typeof item === 'string' && item.trim()).map(item => item.trim())
+          : [];
+        state.facets = Object.freeze({ genres: Object.freeze(genres), years: Object.freeze(years) });
+      } catch (_) {
+        if (!state.facets) state.facets = Object.freeze({ genres: [], years: [] });
       }
       return emit();
     }
@@ -1549,12 +1613,15 @@
 
     async function selectGame(gameOrID) {
       const id = typeof gameOrID === 'object' ? gameOrID && gameOrID.id : gameOrID;
-      const fresh = state.games.find(game => game.id === id);
+      const fresh = state.games.find(game => game.id === id)
+        || (state.selectedLiveGame && Array.isArray(state.selectedLiveGame.variants)
+          ? state.selectedLiveGame.variants.find(game => game.id === id)
+          : null);
       if (!fresh) return snapshot();
-      const index = state.games.indexOf(fresh);
+      const index = state.games.findIndex(game => game.id === fresh.id || (fresh.group_key && game.group_key === fresh.group_key));
       resetSelectionState();
       state.selectedLiveGame = fresh;
-      state.selectedGameView = state.gameViews[index] || null;
+      state.selectedGameView = index >= 0 ? state.gameViews[index] : Object.freeze({ live: fresh, presentation: enrich(fresh).presentation });
       state.detailState = 'loading';
       emit();
       if (!presentationEnabled) return refreshDetail(id);
@@ -1563,19 +1630,27 @@
     }
 
     function setCatalogFilter(name, value) {
-      if (name !== 'system' && name !== 'region' && name !== 'genre') return snapshot();
-      state.filters = Object.freeze({
-        system: state.filters.system,
-        region: state.filters.region,
-        genre: state.filters.genre,
-        [name]: String(value || '').trim(),
-      });
-      return emit();
+      if (name === 'system') {
+        const next = String(value || '').trim();
+        state.filters = Object.freeze({ ...state.filters, system: next });
+        state.platformQuery = next;
+        return loadCatalog(state.query);
+      }
+      if (name === 'region' || name === 'genre' || name === 'year' || name === 'availability') {
+        state.filters = Object.freeze({ ...state.filters, [name]: String(value || '').trim() });
+        return loadCatalog(state.query);
+      }
+      if (name === 'hide_prerelease' || name === 'hide_hacks') {
+        const enabled = value === true || value === '1' || value === 'true';
+        state.filters = Object.freeze({ ...state.filters, [name]: enabled });
+        return loadCatalog(state.query);
+      }
+      return snapshot();
     }
 
     function setCatalogSort(value) {
-      state.sort = value === 'year' || value === 'system' ? value : 'title';
-      return emit();
+      state.sort = value === 'year' || value === 'system' || value === 'recently_added' ? value : 'title';
+      return loadCatalog(state.query);
     }
 
     return Object.freeze({
@@ -1622,6 +1697,8 @@
     formatCatalogCount,
     fallbackPresentation,
     displayTitle,
+    cardTitle,
+    variantLabel,
     systemLabel,
     sourceLabel,
     launchBlockReason,
@@ -1641,7 +1718,11 @@
     systemFilter: document.getElementById('filter-system'),
     regionFilter: document.getElementById('filter-region'),
     genreFilter: document.getElementById('filter-genre'),
+    yearFilter: document.getElementById('filter-year'),
     sortFilter: document.getElementById('catalog-sort'),
+    hidePrerelease: document.getElementById('filter-hide-prerelease'),
+    hideHacks: document.getElementById('filter-hide-hacks'),
+    availabilityFilter: document.getElementById('filter-availability'),
     count: document.getElementById('catalog-count'),
     catalog: document.getElementById('catalog'),
     status: document.getElementById('catalog-status'),
@@ -1659,6 +1740,9 @@
     navAll: document.getElementById('nav-all'),
     navFavorites: document.getElementById('nav-favorites'),
     navRecents: document.getElementById('nav-recents'),
+    navContinue: document.getElementById('nav-continue'),
+    navUnplayed: document.getElementById('nav-unplayed'),
+    navRecentlyAdded: document.getElementById('nav-recently-added'),
     platformList: document.getElementById('platform-list'),
     attract: document.getElementById('attract'),
     attractTitle: document.getElementById('attract-title'),
@@ -1812,14 +1896,20 @@
   function navSelected(kind, platform) {
     if (kind === 'favorites') return state.collection === 'favorites' && !state.platformQuery;
     if (kind === 'recents') return state.collection === 'recents' && !state.platformQuery;
+    if (kind === 'continue') return state.collection === 'continue' && !state.platformQuery;
+    if (kind === 'unplayed') return state.collection === 'unplayed' && !state.platformQuery;
+    if (kind === 'recently_added') return state.collection === 'recently_added' && !state.platformQuery;
     if (kind === 'platform') return Boolean(platform) && state.platformQuery === platform;
     return !state.collection && !state.platformQuery;
   }
 
   function renderLibraryNav() {
     if (nodes.navAll) nodes.navAll.className = 'nav-item' + (navSelected('all') ? ' selected' : '');
+    if (nodes.navContinue) nodes.navContinue.className = 'nav-item' + (navSelected('continue') ? ' selected' : '');
     if (nodes.navFavorites) nodes.navFavorites.className = 'nav-item' + (navSelected('favorites') ? ' selected' : '');
     if (nodes.navRecents) nodes.navRecents.className = 'nav-item' + (navSelected('recents') ? ' selected' : '');
+    if (nodes.navUnplayed) nodes.navUnplayed.className = 'nav-item' + (navSelected('unplayed') ? ' selected' : '');
+    if (nodes.navRecentlyAdded) nodes.navRecentlyAdded.className = 'nav-item' + (navSelected('recently_added') ? ' selected' : '');
     if (!nodes.platformList) return;
     nodes.platformList.replaceChildren();
     (state.platforms || []).forEach(platform => {
@@ -1919,7 +2009,7 @@
     }
     nodes.status.textContent = state.metadataFallbackCount ? 'populated metadata_fallback' : 'populated';
     syncCatalogFilters();
-    const visible = sortCatalogViews(filterCatalogViews(state.gameViews, state.filters), state.sort);
+    const visible = state.gameViews;
     if (visible.length === 0 && state.nextCursor) {
       nodes.list.appendChild(element('p', 'status-message', 'Looking for matching games…'));
       const sentinel = element('div', 'wall-sentinel');
@@ -1966,8 +2056,11 @@
   function syncCatalogFilters() {
     if (nodes.regionFilter) nodes.regionFilter.value = state.filters && state.filters.region || '';
     if (nodes.sortFilter) nodes.sortFilter.value = state.sort || 'title';
+    if (nodes.availabilityFilter) nodes.availabilityFilter.value = state.filters && state.filters.availability || '';
+    if (nodes.hidePrerelease) nodes.hidePrerelease.checked = Boolean(state.filters && state.filters.hide_prerelease);
+    if (nodes.hideHacks) nodes.hideHacks.checked = Boolean(state.filters && state.filters.hide_hacks);
     if (nodes.systemFilter) {
-      const selected = state.filters && state.filters.system || '';
+      const selected = state.platformQuery || (state.filters && state.filters.system) || '';
       const seen = Object.create(null);
       const systems = [];
       (state.platforms || []).forEach(platform => {
@@ -1993,26 +2086,31 @@
       nodes.systemFilter.value = selected;
     }
     if (!nodes.genreFilter) return;
-    const selected = state.filters && state.filters.genre || '';
-    const seen = Object.create(null);
-    const genres = [];
-    (state.gameViews || []).forEach(view => {
-      const genre = catalogGenre(view);
-      if (!genre || seen[genre]) return;
-      seen[genre] = true;
-      genres.push(genre);
-    });
-    genres.sort((left, right) => left.localeCompare(right));
+    const selectedGenre = state.filters && state.filters.genre || '';
+    const genres = (state.facets && state.facets.genres || []).slice();
     nodes.genreFilter.replaceChildren();
-    const all = element('option', '', 'All genres');
-    all.value = '';
-    nodes.genreFilter.appendChild(all);
+    const allGenres = element('option', '', 'All genres');
+    allGenres.value = '';
+    nodes.genreFilter.appendChild(allGenres);
     genres.forEach(genre => {
       const option = element('option', '', genre);
       option.value = genre;
       nodes.genreFilter.appendChild(option);
     });
-    nodes.genreFilter.value = selected;
+    nodes.genreFilter.value = selectedGenre;
+    if (!nodes.yearFilter) return;
+    const selectedYear = state.filters && state.filters.year || '';
+    const years = (state.facets && state.facets.years || []).slice();
+    nodes.yearFilter.replaceChildren();
+    const allYears = element('option', '', 'All years');
+    allYears.value = '';
+    nodes.yearFilter.appendChild(allYears);
+    years.forEach(year => {
+      const option = element('option', '', year);
+      option.value = year;
+      nodes.yearFilter.appendChild(option);
+    });
+    nodes.yearFilter.value = selectedYear;
   }
 
   function neutralArtwork(role) {
@@ -2061,12 +2159,15 @@
     const coverHandle = presentation.coverArtworkHandle || game.cover;
     const cover = artworkElement('cover', presentation.cover, coverHandle, 'eager');
     card.appendChild(cover);
-    card.appendChild(element('h3', '', displayTitle(game.title)));
+    card.appendChild(element('h3', '', cardTitle(game)));
     card.appendChild(element('p', 'game-meta', `${systemLabel(game.system)} · ${sourceLabel(game.state)}`));
     if (presentation.isFallback) {
       card.appendChild(element('p', 'fallback-note', 'Using local catalog data'));
     }
-    if (game.title && displayTitle(game.title) !== game.title) card.setAttribute('title', game.title);
+    if (game.variant_count > 1) {
+      card.appendChild(element('p', 'game-meta', `${game.variant_count} versions`));
+    }
+    if (game.title && cardTitle(game) !== game.title) card.setAttribute('title', game.title);
     card.addEventListener('click', () => selectGame(liveGame.id));
     nodes.list.appendChild(card);
   }
@@ -2133,7 +2234,7 @@
     }
     if (presentation.attribution) nodes.detailContent.appendChild(element('p', 'attribution', presentation.attribution));
     const facts = element('div', 'detail-facts');
-    [[systemLabel(game.system), 'System'], [sourceLabel(game.state), 'Status'], [presentation.year !== '—' ? presentation.year : '', 'Year'], [presentation.players, 'Players']]
+    [[systemLabel(game.system), 'System'], [sourceLabel(game.state), 'Status'], [game.content_prepared ? 'Prepared' : 'On demand', 'Staging'], [presentation.year !== '—' ? presentation.year : '', 'Year'], [presentation.players, 'Players']]
       .filter(([value]) => value)
       .forEach(([value, label]) => {
       const fact = element('div', 'detail-fact');
@@ -2147,6 +2248,21 @@
     favorite.id = 'favorite-game';
     favorite.addEventListener('click', () => controller.toggleFavorite(game.id));
     nodes.detailContent.appendChild(favorite);
+    const variants = Array.isArray(game.variants) ? game.variants : [];
+    if (variants.length > 1) {
+      const label = element('label', 'filter-label', 'Version');
+      const select = element('select');
+      select.id = 'game-version';
+      variants.forEach(variant => {
+        const option = element('option', '', variantLabel(variant));
+        option.value = variant.id;
+        if (variant.id === game.id) option.selected = true;
+        select.appendChild(option);
+      });
+      select.addEventListener('change', () => selectGame(select.value));
+      label.appendChild(select);
+      nodes.detailContent.appendChild(label);
+    }
     if (presentation.logoHandle) nodes.detailContent.appendChild(artworkElement('logo', null, presentation.logoHandle, 'lazy'));
     if (presentation.marqueeHandle) {
       nodes.detailContent.appendChild(artworkElement('marquee', null, presentation.marqueeHandle, 'lazy'));
@@ -2362,7 +2478,7 @@
   }
 
   function visibleGames() {
-    return sortCatalogViews(filterCatalogViews(state.gameViews, state.filters), state.sort);
+    return state.gameViews || [];
   }
 
   function moveWall(delta) {
@@ -2387,10 +2503,17 @@
   if (nodes.systemFilter) nodes.systemFilter.addEventListener('change', () => controller.setCatalogFilter('system', nodes.systemFilter.value));
   if (nodes.regionFilter) nodes.regionFilter.addEventListener('change', () => controller.setCatalogFilter('region', nodes.regionFilter.value));
   if (nodes.genreFilter) nodes.genreFilter.addEventListener('change', () => controller.setCatalogFilter('genre', nodes.genreFilter.value));
+  if (nodes.yearFilter) nodes.yearFilter.addEventListener('change', () => controller.setCatalogFilter('year', nodes.yearFilter.value));
   if (nodes.sortFilter) nodes.sortFilter.addEventListener('change', () => controller.setCatalogSort(nodes.sortFilter.value));
+  if (nodes.hidePrerelease) nodes.hidePrerelease.addEventListener('change', () => controller.setCatalogFilter('hide_prerelease', nodes.hidePrerelease.checked));
+  if (nodes.hideHacks) nodes.hideHacks.addEventListener('change', () => controller.setCatalogFilter('hide_hacks', nodes.hideHacks.checked));
+  if (nodes.availabilityFilter) nodes.availabilityFilter.addEventListener('change', () => controller.setCatalogFilter('availability', nodes.availabilityFilter.value));
   if (nodes.navAll) nodes.navAll.addEventListener('click', () => controller.setLibraryNav('', ''));
+  if (nodes.navContinue) nodes.navContinue.addEventListener('click', () => controller.setLibraryNav('continue', ''));
   if (nodes.navFavorites) nodes.navFavorites.addEventListener('click', () => controller.setLibraryNav('favorites', ''));
   if (nodes.navRecents) nodes.navRecents.addEventListener('click', () => controller.setLibraryNav('recents', ''));
+  if (nodes.navUnplayed) nodes.navUnplayed.addEventListener('click', () => controller.setLibraryNav('unplayed', ''));
+  if (nodes.navRecentlyAdded) nodes.navRecentlyAdded.addEventListener('click', () => controller.setLibraryNav('recently_added', ''));
   if (typeof document.addEventListener === 'function') {
     document.addEventListener('keydown', event => {
       if (attractActive) {

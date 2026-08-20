@@ -267,6 +267,11 @@ func (s Scanner) scanRoot(ctx context.Context, root Root, heldRoot *scannerRoot,
 	}
 
 	traversal := newScannerTraversalFS(heldRoot.directory)
+	skipped, err := s.collectSkippedCompanions(ctx, walk, traversal, heldRoot, extensions)
+	if err != nil {
+		_ = session.Rollback()
+		return RootReport{}, err
+	}
 	err = walk(traversal, ".", func(fsPath string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -308,12 +313,18 @@ func (s Scanner) scanRoot(ctx context.Context, root Root, heldRoot *scannerRoot,
 
 		info, err := lstat(sourcePath)
 		if err != nil {
+			if skipped.contains(relativePath, nil) {
+				return nil
+			}
 			candidate.State = SourceStateInvalid
 			candidate.Reason = sourceFailureReason(err)
 			_, err = session.Observe(ctx, candidate)
 			return err
 		}
 		if info.Mode()&fs.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return nil
+		}
+		if skipped.contains(relativePath, info) {
 			return nil
 		}
 		candidate.State = SourceStateAvailable
@@ -348,6 +359,83 @@ func (s Scanner) scanRoot(ctx context.Context, root Root, heldRoot *scannerRoot,
 		return s.rollbackAndMarkOffline(ctx, root, session)
 	}
 	return session.Complete(ctx)
+}
+
+type skippedCompanions struct {
+	paths map[string]struct{}
+	infos []os.FileInfo
+}
+
+func (s skippedCompanions) contains(relativePath string, info os.FileInfo) bool {
+	if _, ok := s.paths[relativePath]; ok {
+		return true
+	}
+	if info == nil {
+		return false
+	}
+	for _, skipped := range s.infos {
+		if os.SameFile(skipped, info) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s Scanner) collectSkippedCompanions(ctx context.Context, walk func(fs.FS, string, fs.WalkDirFunc) error, traversal *scannerTraversalFS, heldRoot *scannerRoot, extensions map[string]struct{}) (skippedCompanions, error) {
+	skipped := skippedCompanions{paths: make(map[string]struct{})}
+	err := walk(traversal, ".", func(fsPath string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if entry.Type()&fs.ModeSymlink != 0 {
+			if entry.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if entry.IsDir() {
+			return traversal.rememberDirectory(fsPath, entry)
+		}
+		extension := strings.ToLower(filepath.Ext(entry.Name()))
+		if extension != ".cue" && extension != ".gdi" {
+			return nil
+		}
+		if _, ok := extensions[extension]; !ok {
+			return nil
+		}
+		relativePath, err := NormalizeRelativePath(fsPath)
+		if err != nil {
+			return nil
+		}
+		source, err := heldRoot.directory.Open(relativePath)
+		if err != nil {
+			return nil
+		}
+		names := ReferencedMediaNames(entry.Name(), source)
+		_ = source.Close()
+		directory := pathpkg.Dir(relativePath)
+		for _, name := range names {
+			companion := name
+			if directory != "." {
+				companion = pathpkg.Join(directory, name)
+			}
+			normalized, err := NormalizeRelativePath(companion)
+			if err != nil {
+				continue
+			}
+			skipped.paths[normalized] = struct{}{}
+			info, err := heldRoot.directory.Lstat(normalized)
+			if err != nil || info.Mode()&fs.ModeSymlink != 0 || !info.Mode().IsRegular() {
+				continue
+			}
+			skipped.infos = append(skipped.infos, info)
+		}
+		return nil
+	})
+	return skipped, err
 }
 
 func (r *scannerRoot) matchesConfiguredPath(path string) bool {

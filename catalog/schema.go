@@ -8,7 +8,7 @@ import (
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
-const schemaVersion = 3
+const schemaVersion = 4
 
 const schemaV1 = `
 CREATE TABLE libraries (
@@ -73,6 +73,24 @@ CREATE INDEX games_system_title_id ON games(system, lower(title), game_id);
 PRAGMA user_version = 3;
 `
 
+const schemaV4 = `
+ALTER TABLE games ADD COLUMN canonical_title TEXT NOT NULL DEFAULT '';
+ALTER TABLE games ADD COLUMN region TEXT NOT NULL DEFAULT '';
+ALTER TABLE games ADD COLUMN revision TEXT NOT NULL DEFAULT '';
+ALTER TABLE games ADD COLUMN dump_flags TEXT NOT NULL DEFAULT '';
+ALTER TABLE games ADD COLUMN group_key TEXT NOT NULL DEFAULT '';
+ALTER TABLE games ADD COLUMN first_seen_ns INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE games ADD COLUMN genre TEXT NOT NULL DEFAULT '';
+ALTER TABLE games ADD COLUMN year TEXT NOT NULL DEFAULT '';
+ALTER TABLE games ADD COLUMN search_aliases TEXT NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS games_group_key ON games(group_key, game_id);
+CREATE INDEX IF NOT EXISTS games_region ON games(region, group_key);
+CREATE INDEX IF NOT EXISTS games_first_seen ON games(first_seen_ns DESC, game_id);
+CREATE INDEX IF NOT EXISTS games_genre ON games(genre);
+CREATE INDEX IF NOT EXISTS games_year ON games(year);
+PRAGMA user_version = 4;
+`
+
 func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if _, err := connection.ExecContext(ctx, "BEGIN EXCLUSIVE"); err != nil {
 		return fmt.Errorf("begin catalog migration: %w", err)
@@ -111,6 +129,15 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 		}
 		version = 3
 	}
+	if version == 3 {
+		if _, err := connection.ExecContext(ctx, schemaV4); err != nil {
+			return fmt.Errorf("apply catalog schema version 4: %w", err)
+		}
+		if err := rewriteDumpFields(ctx, connection); err != nil {
+			return fmt.Errorf("backfill catalog dump fields: %w", err)
+		}
+		version = 4
+	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {
 		return fmt.Errorf("commit catalog migration: %w", err)
 	}
@@ -143,6 +170,47 @@ func rewriteSearchText(ctx context.Context, connection *sql.Conn) error {
 	for _, game := range games {
 		if _, err := connection.ExecContext(ctx, `UPDATE games SET search_text = ? WHERE game_id = ?`,
 			searchDocument(game.id, game.title, protocol.System(game.system)), game.id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func rewriteDumpFields(ctx context.Context, connection *sql.Conn) error {
+	rows, err := connection.QueryContext(ctx, `SELECT game_id, title, system, search_aliases, modified_ns FROM games`)
+	if err != nil {
+		return err
+	}
+	type row struct {
+		id, title, system, aliases string
+		modified                   int64
+	}
+	games := make([]row, 0)
+	for rows.Next() {
+		var item row
+		if err := rows.Scan(&item.id, &item.title, &item.system, &item.aliases, &item.modified); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		games = append(games, item)
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, game := range games {
+		dump := ParseDump(game.title)
+		system := protocol.System(game.system)
+		if _, err := connection.ExecContext(ctx, `
+			UPDATE games SET canonical_title = ?, region = ?, revision = ?, dump_flags = ?, group_key = ?,
+			  first_seen_ns = CASE WHEN first_seen_ns = 0 THEN ? ELSE first_seen_ns END,
+			  search_text = ?
+			WHERE game_id = ?`,
+			dump.CanonicalTitle, dump.Region, dump.Revision, dump.FlagString(), GroupKey(system, dump.CanonicalTitle),
+			game.modified, dumpSearchDocument(game.id, game.title, dump.CanonicalTitle, game.aliases, system), game.id,
+		); err != nil {
 			return err
 		}
 	}

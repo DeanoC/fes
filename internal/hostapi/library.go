@@ -90,10 +90,25 @@ func handleGamesList(w http.ResponseWriter, r *http.Request, service Service) {
 func parseGameQuery(r *http.Request) (catalog.Query, error) {
 	values := r.URL.Query()
 	query := catalog.Query{
-		Text:       strings.TrimSpace(values.Get("q")),
-		Platform:   protocol.System(strings.TrimSpace(values.Get("platform"))),
-		Collection: strings.TrimSpace(values.Get("collection")),
-		Cursor:     strings.TrimSpace(values.Get("cursor")),
+		Text:           strings.TrimSpace(values.Get("q")),
+		Platform:       protocol.System(strings.TrimSpace(values.Get("platform"))),
+		Collection:     strings.TrimSpace(values.Get("collection")),
+		Region:         strings.TrimSpace(values.Get("region")),
+		Genre:          strings.TrimSpace(values.Get("genre")),
+		Year:           strings.TrimSpace(values.Get("year")),
+		Availability:   strings.TrimSpace(values.Get("availability")),
+		HidePrerelease: queryFlag(values.Get("hide_prerelease")),
+		HideHacks:      queryFlag(values.Get("hide_hacks")),
+		Grouped:        true,
+		Cursor:         strings.TrimSpace(values.Get("cursor")),
+	}
+	switch strings.TrimSpace(values.Get("grouped")) {
+	case "", "1", "true":
+		query.Grouped = true
+	case "0", "false":
+		query.Grouped = false
+	default:
+		return catalog.Query{}, fmt.Errorf("unsupported grouped flag")
 	}
 	switch strings.TrimSpace(values.Get("sort")) {
 	case "":
@@ -101,6 +116,10 @@ func parseGameQuery(r *http.Request) (catalog.Query, error) {
 		query.Sort = catalog.SortTitle
 	case "system", "platform":
 		query.Sort = catalog.SortPlatform
+	case "year":
+		query.Sort = catalog.SortYear
+	case "recently_added":
+		query.Sort = catalog.SortAdded
 	default:
 		return catalog.Query{}, fmt.Errorf("unsupported catalog sort")
 	}
@@ -112,6 +131,15 @@ func parseGameQuery(r *http.Request) (catalog.Query, error) {
 		query.Limit = limit
 	}
 	return query, nil
+}
+
+func queryFlag(raw string) bool {
+	switch strings.TrimSpace(strings.ToLower(raw)) {
+	case "1", "true", "yes":
+		return true
+	default:
+		return false
+	}
 }
 
 func fallbackGamePage(ctx context.Context, service Service, query catalog.Query) (catalog.Page, error) {
@@ -127,7 +155,7 @@ func fallbackGamePage(ctx context.Context, service Service, query catalog.Query)
 	}
 	filtered := make([]catalog.Game, 0, len(games))
 	for _, game := range games {
-		if query.Platform != "" && game.System != query.Platform {
+		if !catalog.MatchesQueryFilters(game, query) {
 			continue
 		}
 		filtered = append(filtered, game)
@@ -223,6 +251,53 @@ func enrichLaunchable(service Service, result gameResult) gameResult {
 		return result
 	}
 	result.Launchable = catalog.Launchable(result.System)
+	return result
+}
+
+func handleFacets(w http.ResponseWriter, r *http.Request, service Service) {
+	faceted, ok := service.(interface {
+		Facets(context.Context) (catalog.FacetValues, error)
+	})
+	if !ok {
+		writeJSON(w, http.StatusOK, catalog.FacetValues{Genres: []string{}, Years: []string{}})
+		return
+	}
+	values, err := faceted.Facets(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "INTERNAL", "catalog is unavailable")
+		return
+	}
+	if values.Genres == nil {
+		values.Genres = []string{}
+	}
+	if values.Years == nil {
+		values.Years = []string{}
+	}
+	writeJSON(w, http.StatusOK, values)
+}
+
+func publicGameWithVariants(ctx context.Context, service Service, game catalog.Game) gameResult {
+	result := publicGame(game)
+	grouped, ok := service.(interface {
+		GamesInGroup(context.Context, string) ([]catalog.Game, error)
+	})
+	if !ok || game.GroupKey == "" {
+		return result
+	}
+	variants, err := grouped.GamesInGroup(ctx, game.GroupKey)
+	if err != nil || len(variants) == 0 {
+		return result
+	}
+	result.VariantCount = len(variants)
+	if len(variants) > catalog.MaxVariantLimit {
+		variants = variants[:catalog.MaxVariantLimit]
+	}
+	result.Variants = make([]gameResult, 0, len(variants))
+	for _, variant := range variants {
+		item := publicGame(variant)
+		item.VariantCount = 1
+		result.Variants = append(result.Variants, item)
+	}
 	return result
 }
 

@@ -20,7 +20,7 @@ import (
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
-const usageText = "usage: fogcast [--config path] [--json] {scan|games|search <text>|launch <game-id>|favorite <game-id>|unfavorite <game-id>|recents|media-scan|health|status|stop}\n       fogcast --version [--json]\n"
+const usageText = "usage: fogcast [--config path] [--json] {scan|games|search <text>|launch <game-id>|favorite <game-id>|unfavorite <game-id>|recents|media-scan|facets-sync|health|status|stop}\n       fogcast --version [--json]\n"
 
 const maxPublicGameIDBytes = 128
 
@@ -201,7 +201,7 @@ func validCommand(args []string) bool {
 		return false
 	}
 	switch args[0] {
-	case "scan", "games", "health", "status", "stop", "recents", "media-scan":
+	case "scan", "games", "health", "status", "stop", "recents", "media-scan", "facets-sync":
 		return len(args) == 1
 	case "search", "launch", "favorite", "unfavorite":
 		return len(args) == 2
@@ -274,6 +274,21 @@ func execute(ctx context.Context, args []string, service Service, progress fogca
 			return commandResult{err: err, exit: 1}
 		}
 		return commandResult{jsonValue: map[string]any{"result": "ok"}}
+	case "facets-sync":
+		syncer, ok := service.(interface {
+			SyncFacets(context.Context) (int, error)
+		})
+		if !ok {
+			return commandResult{err: errors.New("catalog facets are unavailable"), exit: 1}
+		}
+		updated, err := syncer.SyncFacets(ctx)
+		if err != nil {
+			return commandResult{err: err, exit: 1}
+		}
+		return commandResult{jsonValue: map[string]any{"updated": updated}, human: func(output io.Writer) error {
+			_, err := fmt.Fprintf(output, "updated %d\n", updated)
+			return err
+		}}
 	case "health":
 		health, err := service.Health(ctx)
 		if err != nil {

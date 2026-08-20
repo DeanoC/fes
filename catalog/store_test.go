@@ -70,8 +70,8 @@ func TestSchemaMigratesNewDatabaseAndRejectsFutureVersion(t *testing.T) {
 	if err := db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 3 {
-		t.Fatalf("user_version = %d, want 3", version)
+	if version != 4 {
+		t.Fatalf("user_version = %d, want 4", version)
 	}
 	rows, err := db.QueryContext(ctx, "SELECT name FROM sqlite_master WHERE type IN ('table', 'index') AND name IN ('games', 'libraries', 'games_fts', 'games_system_title_id') ORDER BY name")
 	if err != nil {
@@ -93,7 +93,7 @@ func TestSchemaMigratesNewDatabaseAndRejectsFutureVersion(t *testing.T) {
 		t.Fatalf("schema objects = %v, want %v", names, want)
 	}
 
-	if _, err := db.ExecContext(ctx, "PRAGMA user_version = 4"); err != nil {
+	if _, err := db.ExecContext(ctx, "PRAGMA user_version = 5"); err != nil {
 		t.Fatalf("set future user_version: %v", err)
 	}
 	if err := db.Close(); err != nil {

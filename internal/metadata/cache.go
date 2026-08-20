@@ -411,6 +411,53 @@ func (c *Cache) Get(key []byte) (Result, bool, error) {
 	return entry.result, true, nil
 }
 
+type CachedPresentation struct {
+	PlatformID      string
+	NormalizedTitle string
+	Region          string
+	Outcome         Outcome
+	Genre           string
+	Year            string
+}
+
+func (c *Cache) CachedPresentations(ctx context.Context) ([]CachedPresentation, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	c.operationMu.Lock()
+	defer c.operationMu.Unlock()
+	release, err := c.begin()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	now := c.now().UnixNano()
+	rows, err := c.db.QueryContext(ctx, `
+		SELECT platform_id, normalized_title, region, outcome, genre, year
+		FROM metadata_records
+		WHERE outcome IN ('exact', 'confident')
+		  AND (genre <> '' OR year <> '')
+		  AND expires_at > ?
+		ORDER BY normalized_title, platform_id
+		LIMIT ?`, now, maxMetadataRecords)
+	if err != nil {
+		return nil, newOpError(ErrStorage, err)
+	}
+	defer rows.Close()
+	records := make([]CachedPresentation, 0)
+	for rows.Next() {
+		var record CachedPresentation
+		if err := rows.Scan(&record.PlatformID, &record.NormalizedTitle, &record.Region, &record.Outcome, &record.Genre, &record.Year); err != nil {
+			return nil, newOpError(ErrStorage, err)
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, newOpError(ErrStorage, err)
+	}
+	return records, nil
+}
+
 func (c *Cache) getState(key []byte) (cacheEntry, cacheState, error) {
 	c.operationMu.Lock()
 	defer c.operationMu.Unlock()

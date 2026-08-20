@@ -3,7 +3,10 @@ package hostexec_test
 import (
 	"bytes"
 	"context"
+	"errors"
+	"io"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -158,3 +161,141 @@ type waitProcess struct{ done <-chan struct{} }
 
 func (p *waitProcess) Wait() error { <-p.done; return nil }
 func (p *waitProcess) Kill() error { return nil }
+
+func TestRetroArchAdapterLaunchPathUsesPlatformCoreAndKeepsLibraryFile(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "game.cue")
+	if err := os.WriteFile(source, []byte("FILE"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	adapter := hostexec.NewRetroArchAdapterWithCores("retroarch", "", map[protocol.System]string{"psx": "/cores/psx.dylib"}, func(_ context.Context, name string, args ...string) (hostexec.Process, error) {
+		got = append([]string{name}, args...)
+		return hostexec.NoopProcess{}, nil
+	})
+	if _, err := adapter.LaunchPath(context.Background(), "psx", source); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"retroarch", "-L", "/cores/psx.dylib", source}
+	if len(got) != len(want) {
+		t.Fatalf("args = %#v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("args = %#v, want %#v", got, want)
+		}
+	}
+	if _, err := os.Stat(source); err != nil {
+		t.Fatalf("library file removed: %v", err)
+	}
+}
+
+func TestRetroArchAdapterLaunchOwnedPathCleansCopyAndKeepsLibraryFile(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "game.cue")
+	if err := os.WriteFile(source, []byte("FILE"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	owned := filepath.Join(t.TempDir(), "owned")
+	if err := os.Mkdir(owned, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	copyPath := filepath.Join(owned, "game.cue")
+	if err := os.WriteFile(copyPath, []byte("FILE"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cleaned := false
+	proc := &fakeProcess{done: make(chan struct{})}
+	adapter := hostexec.NewRetroArchAdapterWithCores("retroarch", "", map[protocol.System]string{"psx": "/cores/psx.dylib"}, func(context.Context, string, ...string) (hostexec.Process, error) {
+		return proc, nil
+	})
+	if _, err := adapter.LaunchOwnedPath(context.Background(), "psx", copyPath, func() {
+		cleaned = true
+		_ = os.RemoveAll(owned)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := adapter.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !cleaned {
+		t.Fatal("owned copy was not cleaned")
+	}
+	if _, err := os.Stat(copyPath); !os.IsNotExist(err) {
+		t.Fatalf("owned copy after Stop err=%v", err)
+	}
+	if _, err := os.Stat(source); err != nil {
+		t.Fatalf("library file removed: %v", err)
+	}
+}
+
+func TestRetroArchAdapterLaunchForSelectsConfiguredCore(t *testing.T) {
+	var core string
+	adapter := hostexec.NewRetroArchAdapterWithCores("retroarch", "/cores/default.dylib", map[protocol.System]string{"nes": "/cores/nes.dylib"}, func(_ context.Context, _ string, args ...string) (hostexec.Process, error) {
+		core = args[1]
+		return hostexec.NoopProcess{}, nil
+	})
+	if _, err := adapter.LaunchFor(context.Background(), "nes", bytes.NewReader([]byte("rom")), testIdentity()); err != nil {
+		t.Fatal(err)
+	}
+	if core != "/cores/nes.dylib" {
+		t.Fatalf("core = %q", core)
+	}
+}
+
+func TestRetroArchAdapterHonorsCanceledPrepareContext(t *testing.T) {
+	adapter := hostexec.NewRetroArchAdapter("retroarch", "core", func(context.Context, string, ...string) (hostexec.Process, error) {
+		t.Fatal("start after canceled prepare")
+		return hostexec.NoopProcess{}, nil
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := adapter.Launch(ctx, bytes.NewReader([]byte("rom")), testIdentity())
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled prepare = %v", err)
+	}
+}
+
+func TestRetroArchAdapterHonorsCancelDuringPrepareCopy(t *testing.T) {
+	gate := make(chan struct{})
+	adapter := hostexec.NewRetroArchAdapter("retroarch", "core", func(context.Context, string, ...string) (hostexec.Process, error) {
+		t.Fatal("start after canceled copy")
+		return hostexec.NoopProcess{}, nil
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	reader := &gatedByteReader{data: []byte("rom"), gate: gate}
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := adapter.Launch(ctx, reader, testIdentity())
+		errCh <- err
+	}()
+	gate <- struct{}{}
+	cancel()
+	close(gate)
+	err := <-errCh
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled copy = %v", err)
+	}
+}
+
+type gatedByteReader struct {
+	data []byte
+	n    int
+	gate <-chan struct{}
+}
+
+func (r *gatedByteReader) Read(p []byte) (int, error) {
+	if r.n >= len(r.data) {
+		return 0, io.EOF
+	}
+	_, ok := <-r.gate
+	if !ok && r.n > 0 {
+		return 0, context.Canceled
+	}
+	if len(p) == 0 {
+		return 0, nil
+	}
+	p[0] = r.data[r.n]
+	r.n++
+	return 1, nil
+}

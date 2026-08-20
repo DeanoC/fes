@@ -788,6 +788,101 @@ func assertScannerGameState(t *testing.T, games []Game, relativePath string, sta
 	t.Fatalf("game %q not found", relativePath)
 }
 
+func TestScannerSkipsCueReferencedCompanions(t *testing.T) {
+	ctx := context.Background()
+	rootPath := t.TempDir()
+	mustWriteScannerFile(t, filepath.Join(rootPath, "other.img"), []byte("standalone"))
+	mustWriteScannerFile(t, filepath.Join(rootPath, "game.cue"), []byte("FILE \"game.img\" BINARY\nTRACK 01 MODE1/2352\nINDEX 01 00:00:00\n"))
+	mustWriteScannerFile(t, filepath.Join(rootPath, "game.img"), []byte("track"))
+	store := openScannerStore(t)
+	root := Root{ID: "psx-main", System: "psx", Path: rootPath}
+	scanner := Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}
+	report, err := scanner.Scan(ctx, []Root{root})
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(report.Roots) != 1 || report.Roots[0].Added != 2 {
+		t.Fatalf("report = %+v", report)
+	}
+	paths := scannerGamePaths(scannerGames(t, store))
+	sort.Strings(paths)
+	if !reflect.DeepEqual(paths, []string{"game.cue", "other.img"}) {
+		t.Fatalf("paths = %#v", paths)
+	}
+}
+
+func TestScannerKeepsUnrelatedBasenameWhenCueNamesSubdirectory(t *testing.T) {
+	ctx := context.Background()
+	rootPath := t.TempDir()
+	mustWriteScannerFile(t, filepath.Join(rootPath, "tracks", "track.img"), []byte("referenced"))
+	mustWriteScannerFile(t, filepath.Join(rootPath, "track.img"), []byte("standalone"))
+	mustWriteScannerFile(t, filepath.Join(rootPath, "game.cue"), []byte("FILE \"tracks/track.img\" BINARY\nTRACK 01 MODE1/2352\nINDEX 01 00:00:00\n"))
+	store := openScannerStore(t)
+	root := Root{ID: "psx-main", System: "psx", Path: rootPath}
+	scanner := Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}
+	report, err := scanner.Scan(ctx, []Root{root})
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(report.Roots) != 1 || report.Roots[0].Added != 2 {
+		t.Fatalf("report = %+v", report)
+	}
+	paths := scannerGamePaths(scannerGames(t, store))
+	sort.Strings(paths)
+	if !reflect.DeepEqual(paths, []string{"game.cue", "track.img"}) {
+		t.Fatalf("paths = %#v", paths)
+	}
+}
+
+func TestScannerDoesNotSkipROMsReferencedByUnsupportedCue(t *testing.T) {
+	ctx := context.Background()
+	rootPath := t.TempDir()
+	mustWriteScannerFile(t, filepath.Join(rootPath, "game.sfc"), []byte("rom"))
+	mustWriteScannerFile(t, filepath.Join(rootPath, "other.sfc"), []byte("other"))
+	mustWriteScannerFile(t, filepath.Join(rootPath, "game.cue"), []byte("FILE \"game.sfc\" BINARY\nTRACK 01 MODE1/2352\nINDEX 01 00:00:00\n"))
+	store := openScannerStore(t)
+	root := Root{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}
+	scanner := Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}
+	report, err := scanner.Scan(ctx, []Root{root})
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(report.Roots) != 1 || report.Roots[0].Added != 2 {
+		t.Fatalf("report = %+v", report)
+	}
+	paths := scannerGamePaths(scannerGames(t, store))
+	sort.Strings(paths)
+	if !reflect.DeepEqual(paths, []string{"game.sfc", "other.sfc"}) {
+		t.Fatalf("paths = %#v", paths)
+	}
+}
+
+func TestScannerSkipsCaseMismatchedCueCompanions(t *testing.T) {
+	ctx := context.Background()
+	rootPath := t.TempDir()
+	mustWriteScannerFile(t, filepath.Join(rootPath, "game.img"), []byte("track"))
+	mustWriteScannerFile(t, filepath.Join(rootPath, "other.img"), []byte("standalone"))
+	if _, err := os.Lstat(filepath.Join(rootPath, "GAME.IMG")); err != nil {
+		t.Skip("filesystem is case-sensitive")
+	}
+	mustWriteScannerFile(t, filepath.Join(rootPath, "game.cue"), []byte("FILE \"GAME.IMG\" BINARY\nTRACK 01 MODE1/2352\nINDEX 01 00:00:00\n"))
+	store := openScannerStore(t)
+	root := Root{ID: "psx-main", System: "psx", Path: rootPath}
+	scanner := Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}
+	report, err := scanner.Scan(ctx, []Root{root})
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(report.Roots) != 1 || report.Roots[0].Added != 2 {
+		t.Fatalf("report = %+v", report)
+	}
+	paths := scannerGamePaths(scannerGames(t, store))
+	sort.Strings(paths)
+	if !reflect.DeepEqual(paths, []string{"game.cue", "other.img"}) {
+		t.Fatalf("paths = %#v", paths)
+	}
+}
+
 func assertReasonsPathFree(t *testing.T, rootPath string, games []Game) {
 	t.Helper()
 	for _, game := range games {

@@ -106,7 +106,11 @@ func TestQueryGamesTenThousandFixtureStaysBounded(t *testing.T) {
 	for index := 0; index < total; index++ {
 		id := fmt.Sprintf("snes-game-%05d", index)
 		title := fmt.Sprintf("Title %05d", index)
-		if index == 4321 {
+		if index < 20 {
+			title = "Shared Hedgehog (USA)"
+		} else if index < 40 {
+			title = "Shared Hedgehog (Japan)"
+		} else if index == 4321 {
 			title = "Unique Hedgehog"
 		}
 		c := candidate(id, title, fmt.Sprintf("game-%05d.sfc", index), catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA)
@@ -144,5 +148,220 @@ func TestQueryGamesTenThousandFixtureStaysBounded(t *testing.T) {
 	}
 	if walked != total {
 		t.Fatalf("walked %d, want %d", walked, total)
+	}
+
+	grouped, err := store.QueryGames(ctx, catalog.Query{Grouped: true, Limit: 100, Sort: catalog.SortTitle})
+	if err != nil || len(grouped.Games) != 100 {
+		t.Fatalf("grouped page = %+v, %v", grouped, err)
+	}
+	walkedGroups := 0
+	cursor = ""
+	for {
+		chunk, err := store.QueryGames(ctx, catalog.Query{Grouped: true, Limit: 200, Cursor: cursor, Sort: catalog.SortTitle})
+		if err != nil {
+			t.Fatal(err)
+		}
+		walkedGroups += len(chunk.Games)
+		if chunk.NextCursor == "" {
+			break
+		}
+		cursor = chunk.NextCursor
+	}
+	if walkedGroups != total-39 {
+		t.Fatalf("grouped walk %d, want %d", walkedGroups, total-39)
+	}
+	japan, err := store.QueryGames(ctx, catalog.Query{Grouped: true, Region: "japan", Limit: 100})
+	if err != nil || len(japan.Games) != 1 || japan.Games[0].CanonicalTitle != "Shared Hedgehog" || japan.Games[0].Region != "japan" {
+		t.Fatalf("grouped japan = %+v, %v", japan, err)
+	}
+}
+
+func TestQueryGamesGroupsPreferredDumpAndFiltersRegion(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/games/snes"}
+	session, err := store.BeginRootScan(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustObserve(t, session, candidate("snes-sonic-japan", "Sonic (Japan)", "sonic-jp.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA), catalog.ChangeAdded)
+	mustObserve(t, session, candidate("snes-sonic-usa", "Sonic (USA)", "sonic-us.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA), catalog.ChangeAdded)
+	mustObserve(t, session, candidate("snes-sonic-beta", "Sonic (USA) (Beta)", "sonic-beta.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA), catalog.ChangeAdded)
+	mustObserve(t, session, candidate("snes-alpha", "Alpha", "alpha.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA), catalog.ChangeAdded)
+	mustComplete(t, session)
+
+	grouped, err := store.QueryGames(ctx, catalog.Query{Grouped: true, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertGameIDs(t, grouped.Games, []string{"snes-alpha", "snes-sonic-usa"})
+	if grouped.Games[1].VariantCount != 3 || grouped.Games[1].CanonicalTitle != "Sonic" || grouped.Games[1].Region != "usa" {
+		t.Fatalf("preferred = %#v", grouped.Games[1])
+	}
+
+	japan, err := store.QueryGames(ctx, catalog.Query{Grouped: true, Region: "japan", Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertGameIDs(t, japan.Games, []string{"snes-sonic-japan"})
+
+	hidden, err := store.QueryGames(ctx, catalog.Query{Grouped: false, HidePrerelease: true, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertGameIDs(t, hidden.Games, []string{"snes-alpha", "snes-sonic-japan", "snes-sonic-usa"})
+
+	variants, err := store.GamesInGroup(ctx, grouped.Games[1].GroupKey, 10)
+	if err != nil || len(variants) != 3 {
+		t.Fatalf("variants = %+v, %v", variants, err)
+	}
+}
+
+func TestQueryGamesGroupedPreferredDumpStableAcrossRescan(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/games/snes"}
+	session, err := store.BeginRootScan(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustObserve(t, session, candidate("snes-sonic-japan", "Sonic (Japan)", "sonic-jp.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA), catalog.ChangeAdded)
+	mustObserve(t, session, candidate("snes-sonic-usa", "Sonic (USA)", "sonic-us.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA), catalog.ChangeAdded)
+	mustComplete(t, session)
+	first, err := store.QueryGames(ctx, catalog.Query{Grouped: true, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertGameIDs(t, first.Games, []string{"snes-sonic-usa"})
+	seen := first.Games[0].FirstSeenNS
+	if seen == 0 {
+		t.Fatal("first_seen_ns missing")
+	}
+
+	rescan, err := store.BeginRootScan(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustObserve(t, rescan, candidate("snes-sonic-japan", "Sonic (Japan)", "sonic-jp.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA), catalog.ChangeUnchanged)
+	mustObserve(t, rescan, candidate("snes-sonic-usa", "Sonic (USA)", "sonic-us.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA), catalog.ChangeUnchanged)
+	mustComplete(t, rescan)
+	second, err := store.QueryGames(ctx, catalog.Query{Grouped: true, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertGameIDs(t, second.Games, []string{"snes-sonic-usa"})
+	if second.Games[0].FirstSeenNS != seen || second.Games[0].CanonicalTitle != "Sonic" {
+		t.Fatalf("rescan preferred = %#v", second.Games[0])
+	}
+}
+
+func TestQueryGamesExcludeIDsScalesPastSQLiteVariableLimit(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/games/snes"}
+	session, err := store.BeginRootScan(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustObserve(t, session, candidate("snes-keep", "Keep", "keep.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA), catalog.ChangeAdded)
+	mustObserve(t, session, candidate("snes-drop", "Drop", "drop.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA), catalog.ChangeAdded)
+	mustComplete(t, session)
+	ids := make([]string, 40000)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("snes-played-%d", i)
+	}
+	ids[0] = "snes-drop"
+	page, err := store.QueryGames(ctx, catalog.Query{ExcludeIDs: ids, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertGameIDs(t, page.Games, []string{"snes-keep"})
+}
+
+func TestGroupedCursorRoundTripsGroupKey(t *testing.T) {
+	game := catalog.Game{
+		ID: "snes-sonic-usa", Title: "Sonic (USA)", CanonicalTitle: "Sonic",
+		System: protocol.SystemSNES, GroupKey: catalog.GroupKey(protocol.SystemSNES, "Sonic"),
+	}
+	raw := catalog.CursorForGrouped(game, catalog.SortTitle)
+	id, err := catalog.CursorGameID(raw)
+	if err != nil || id != game.GroupKey {
+		t.Fatalf("cursor id = %q %v, want %q", id, err, game.GroupKey)
+	}
+}
+
+func TestMatchesQueryFiltersAlignsRegionOtherAndOffline(t *testing.T) {
+	undecorated := catalog.Game{Region: "", State: catalog.SourceStateAvailable, RootOnline: true}
+	other := catalog.Game{Region: "other", State: catalog.SourceStateAvailable, RootOnline: true}
+	japan := catalog.Game{Region: "japan", State: catalog.SourceStateAvailable, RootOnline: true}
+	if !catalog.MatchesQueryFilters(undecorated, catalog.Query{Region: "other"}) || !catalog.MatchesQueryFilters(other, catalog.Query{Region: "other"}) {
+		t.Fatal("empty and other should match region=other")
+	}
+	if catalog.MatchesQueryFilters(japan, catalog.Query{Region: "other"}) {
+		t.Fatal("japan matched region=other")
+	}
+	invalidOnline := catalog.Game{State: catalog.SourceStateInvalid, RootOnline: true}
+	missing := catalog.Game{State: catalog.SourceStateMissing, RootOnline: true}
+	offlineRoot := catalog.Game{State: catalog.SourceStateAvailable, RootOnline: false}
+	if catalog.MatchesQueryFilters(invalidOnline, catalog.Query{Availability: catalog.AvailabilityOffline}) {
+		t.Fatal("invalid online row matched availability=offline")
+	}
+	if !catalog.MatchesQueryFilters(missing, catalog.Query{Availability: catalog.AvailabilityOffline}) {
+		t.Fatal("missing row should match availability=offline")
+	}
+	if !catalog.MatchesQueryFilters(offlineRoot, catalog.Query{Availability: catalog.AvailabilityOffline}) {
+		t.Fatal("offline root should match availability=offline")
+	}
+	invalidOffline := catalog.Game{State: catalog.SourceStateInvalid, RootOnline: false}
+	if catalog.MatchesQueryFilters(invalidOffline, catalog.Query{Availability: catalog.AvailabilityOffline}) {
+		t.Fatal("invalid offline row matched availability=offline")
+	}
+}
+
+func TestQueryGamesOfflineExcludesInvalidRows(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	online := catalog.Root{ID: "snes-online", System: protocol.SystemSNES, Path: "/games/online"}
+	offline := catalog.Root{ID: "snes-offline", System: protocol.SystemSNES, Path: "/games/offline"}
+	onlineScan, err := store.BeginRootScan(ctx, online)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustObserve(t, onlineScan, candidate("snes-ready", "Ready", "ready.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA), catalog.ChangeAdded)
+	missing := candidate("snes-gone", "Gone", "gone.sfc", catalog.SourceKindRaw, catalog.SourceStateMissing, fingerprintA)
+	mustObserve(t, onlineScan, missing, catalog.ChangeAdded)
+	mustComplete(t, onlineScan)
+	offlineScan, err := store.BeginRootScan(ctx, offline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustObserve(t, offlineScan, candidate("snes-away", "Away", "away.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA), catalog.ChangeAdded)
+	corrupt := candidate("snes-corrupt", "Corrupt", "corrupt.sfc", catalog.SourceKindRaw, catalog.SourceStateInvalid, fingerprintA)
+	corrupt.Reason = "unreadable"
+	mustObserve(t, offlineScan, corrupt, catalog.ChangeAdded)
+	mustComplete(t, offlineScan)
+	if _, err := store.MarkRootOffline(ctx, offline, "root offline"); err != nil {
+		t.Fatal(err)
+	}
+	page, err := store.QueryGames(ctx, catalog.Query{Availability: catalog.AvailabilityOffline, Grouped: false, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertGameIDs(t, page.Games, []string{"snes-away", "snes-gone"})
+}
+
+func TestCursorRoundTripsTitleWithRecordSeparator(t *testing.T) {
+	game := catalog.Game{
+		ID: "snes-split", Title: "Alpha\x1eZulu", CanonicalTitle: "Alpha\x1eZulu",
+		System: protocol.SystemSNES, GroupKey: "snes\x1fsplit",
+	}
+	raw := catalog.CursorForGrouped(game, catalog.SortTitle)
+	id, err := catalog.CursorGameID(raw)
+	if err != nil || id != game.GroupKey {
+		t.Fatalf("cursor id = %q %v, want %q", id, err, game.GroupKey)
+	}
+	next, err := catalog.NormalizeQuery(catalog.Query{Sort: catalog.SortTitle, Cursor: raw, Limit: 10})
+	if err != nil || next.Cursor != raw {
+		t.Fatalf("normalize cursor = %#v %v", next, err)
 	}
 }

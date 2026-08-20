@@ -15,8 +15,11 @@
     <nav class="library-nav" id="library-nav" aria-label="Library collections">
       <p class="eyebrow">Library</p>
       <button id="nav-all" class="nav-item selected" type="button">All games</button>
+      <button id="nav-continue" class="nav-item" type="button">Continue</button>
       <button id="nav-favorites" class="nav-item" type="button">Favorites</button>
       <button id="nav-recents" class="nav-item" type="button">Recent</button>
+      <button id="nav-unplayed" class="nav-item" type="button">Unplayed</button>
+      <button id="nav-recently-added" class="nav-item" type="button">Recently added</button>
       <p class="eyebrow platform-heading">Platforms</p>
       <div id="platform-list" class="platform-list"></div>
     </nav>
@@ -56,13 +59,28 @@
               <option value="">All genres</option>
             </select>
           </label>
+          <label class="filter-label">Year
+            <select id="filter-year">
+              <option value="">All years</option>
+            </select>
+          </label>
+          <label class="filter-label">Availability
+            <select id="filter-availability">
+              <option value="">All</option>
+              <option value="ready">Ready</option>
+              <option value="offline">Offline</option>
+            </select>
+          </label>
           <label class="filter-label">Sort
             <select id="catalog-sort">
               <option value="title">Title</option>
               <option value="year">Year</option>
               <option value="system">Platform</option>
+              <option value="recently_added">Recently added</option>
             </select>
           </label>
+          <label class="filter-label"><input id="filter-hide-prerelease" type="checkbox"> Hide betas</label>
+          <label class="filter-label"><input id="filter-hide-hacks" type="checkbox"> Hide hacks</label>
         </div>
       </div>
       <div id="catalog" class="catalog-region" aria-busy="true">

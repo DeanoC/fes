@@ -86,3 +86,37 @@ func fileMode(t *testing.T, path string) os.FileMode {
 	}
 	return info.Mode().Perm()
 }
+
+func TestCachedPresentationsOmitsExpiredRecords(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "metadata")
+	now := time.Unix(1_700_000_000, 0)
+	cache, err := OpenCache(context.Background(), CacheConfig{Root: root, CredentialScope: "client-id", Now: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cache.Close()
+	freshKey, err := BuildCacheKey(ProviderIGDB, "58", "sonic", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expiredKey, err := BuildCacheKey(ProviderIGDB, "58", "streets", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fresh := Result{Outcome: OutcomeExact, Presentation: Presentation{Genre: "Action", Year: "1991"}}
+	expired := Result{Outcome: OutcomeConfident, Presentation: Presentation{Genre: "Racing", Year: "1993"}}
+	if err := cache.PutWithMetadata(freshKey, CacheRecordMetadata{Provider: ProviderIGDB, PlatformID: "snes", NormalizedTitle: "sonic"}, fresh, now.Add(time.Hour), nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := cache.PutWithMetadata(expiredKey, CacheRecordMetadata{Provider: ProviderIGDB, PlatformID: "snes", NormalizedTitle: "streets"}, expired, now.Add(time.Minute), nil); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(2 * time.Minute)
+	got, err := cache.CachedPresentations(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].NormalizedTitle != "sonic" || got[0].Genre != "Action" || got[0].Year != "1991" {
+		t.Fatalf("presentations = %#v", got)
+	}
+}

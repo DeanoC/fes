@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -161,6 +162,10 @@ type Service struct {
 	users             *libraryuser.Store
 	media             *librarymedia.Index
 	attractIdle       int
+	preferredRegions  []string
+	hostEmulator      HostEmulatorConfig
+	metadataRoot      string
+	metadataScope     string
 	activeExecution   string
 	activeGameID      string
 	activeSystem      protocol.System
@@ -221,9 +226,13 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 	operationClient.Timeout = 0
 	client := host.NewClient(baseURL, config.Token, &operationClient)
 	options := make([]ServiceOption, 0, 1)
-	if config.HostEmulator.Binary != "" && config.HostEmulator.Core != "" {
-		host := hostexec.NewRetroArchAdapter(config.HostEmulator.Binary, config.HostEmulator.Core, nil)
-		options = append(options, WithExecutionPolicy(ExecutionPolicy{Resolver: NewConfiguredExecutionResolver(config.HostEmulator.Systems, host), Host: host}))
+	if config.HostEmulator.Binary != "" {
+		cores := make(map[protocol.System]string, len(config.HostEmulator.Cores))
+		for _, entry := range config.HostEmulator.Cores {
+			cores[entry.Platform] = entry.Core
+		}
+		host := hostexec.NewRetroArchAdapterWithCores(config.HostEmulator.Binary, config.HostEmulator.Core, cores, nil)
+		options = append(options, WithExecutionPolicy(ExecutionPolicy{Resolver: NewConfiguredExecutionResolver(config.HostEmulator.LaunchPlatforms(), host), Host: host}))
 	}
 	if paths.UserLibrary != "" {
 		if err := validatePrivateFilePath(paths.UserLibrary); err != nil {
@@ -264,7 +273,7 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 	return newService(config, paths, store, scanner, preparer, client, options...), nil
 }
 
-func newService(config Config, _ Paths, store serviceCatalog, scanner serviceScanner, preparer servicePreparer, client serviceClient, options ...ServiceOption) *Service {
+func newService(config Config, paths Paths, store serviceCatalog, scanner serviceScanner, preparer servicePreparer, client serviceClient, options ...ServiceOption) *Service {
 	roots := append([]catalog.Root(nil), config.Libraries...)
 	rootsByID := make(map[string]catalog.Root, len(roots))
 	for _, root := range roots {
@@ -276,6 +285,10 @@ func newService(config Config, _ Paths, store serviceCatalog, scanner serviceSca
 		requestTimeout: config.RequestTimeout, uploadTimeout: config.UploadTimeout,
 		executionResolver: defaultExecutionResolver{},
 		attractIdle:       config.Library.AttractIdleSeconds,
+		preferredRegions:  append([]string(nil), config.Library.PreferredRegions...),
+		hostEmulator:      config.HostEmulator,
+		metadataRoot:      paths.MetadataRoot,
+		metadataScope:     config.Metadata.ClientID,
 	}
 	for _, option := range options {
 		if option != nil {
@@ -479,6 +492,9 @@ func (s *Service) QueryGames(ctx context.Context, query catalog.Query) (catalog.
 	if err := ctx.Err(); err != nil {
 		return catalog.Page{}, err
 	}
+	if len(query.PreferredRegions) == 0 {
+		query.PreferredRegions = append([]string(nil), s.preferredRegions...)
+	}
 	switch query.Collection {
 	case "favorites":
 		ids, err := s.favoriteIDs(ctx)
@@ -489,6 +505,18 @@ func (s *Service) QueryGames(ctx context.Context, query catalog.Query) (catalog.
 		query.RestrictIDs = ids
 	case "recents":
 		return s.queryRecents(ctx, query)
+	case "continue":
+		return s.queryContinue(ctx, query)
+	case "unplayed":
+		ids, err := s.playedIDs(ctx)
+		if err != nil {
+			return catalog.Page{}, err
+		}
+		query.ExcludeIDs = ids
+	case "recently_added":
+		if query.Sort == "" || query.Sort == catalog.SortTitle {
+			query.Sort = catalog.SortAdded
+		}
 	case "":
 	default:
 		return catalog.Page{}, canonicalError(protocol.CodeBadRequest, nil)
@@ -530,6 +558,9 @@ func (s *Service) Platforms(ctx context.Context) ([]catalog.PlatformInfo, error)
 func (s *Service) hostLaunchable(system protocol.System) bool {
 	if s.hostExecutor == nil {
 		return false
+	}
+	if s.hostEmulator.CoreFor(system) != "" {
+		return true
 	}
 	execution, err := s.executionResolver.Resolve(context.Background(), catalog.Game{System: system})
 	return err == nil && execution == ExecutionHostOnly
@@ -622,6 +653,9 @@ func (s *Service) launchGame(ctx context.Context, game catalog.Game, progress Pr
 	if execution == ExecutionHostOnly {
 		return s.launchHostOnly(ctx, game, root, progress)
 	}
+	if hostPathLaunch(game) {
+		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInvalidArchive, nil)
+	}
 	if game.Content != nil {
 		identity := contentIdentityFromCatalog(*game.Content)
 		if err := protocol.ValidateContentIdentity(identity); err != nil {
@@ -661,6 +695,9 @@ func (s *Service) launchHostOnly(ctx context.Context, game catalog.Game, root ca
 	if game.State != catalog.SourceStateAvailable || !game.RootOnline {
 		return protocol.CachedLaunchResponse{}, false, canonicalError(catalog.SourceErrorCode(game), nil)
 	}
+	if hostPathLaunch(game) {
+		return s.launchHostPath(ctx, game, root, progress)
+	}
 	emitProgress(progress, "prepare", "preparing source content")
 	prepared, err := s.preparer.Prepare(ctx, root, game)
 	if err != nil {
@@ -679,7 +716,7 @@ func (s *Service) launchHostOnly(ctx context.Context, game catalog.Game, root ca
 		_ = prepared.Remove()
 		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, nil)
 	}
-	launchStatus, err := s.hostExecutor.Launch(ctx, content, prepared.Content)
+	launchStatus, err := s.launchHostPrepared(ctx, game.System, content, prepared.Content)
 	_ = content.Close()
 	if err != nil {
 		_ = prepared.Remove()
@@ -697,6 +734,74 @@ func (s *Service) launchHostOnly(ctx context.Context, game catalog.Game, root ca
 	gameID, system := game.ID, game.System
 	_ = launchStatus
 	return protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system}, Content: prepared.Content}, false, nil
+}
+
+func hostPathLaunch(game catalog.Game) bool {
+	extension := strings.ToLower(filepath.Ext(game.RelativePath))
+	switch extension {
+	case ".cue", ".gdi", ".chd":
+		return true
+	}
+	return game.Fingerprint.SourceSize > protocol.MaxContentBytes
+}
+
+type hostPlatformLauncher interface {
+	LaunchFor(context.Context, protocol.System, io.Reader, protocol.ContentIdentity) (hostexec.Status, error)
+}
+
+type hostPathLauncher interface {
+	LaunchPath(context.Context, protocol.System, string) (hostexec.Status, error)
+}
+
+type hostOwnedPathLauncher interface {
+	LaunchOwnedPath(context.Context, protocol.System, string, func()) (hostexec.Status, error)
+}
+
+func (s *Service) launchHostPrepared(ctx context.Context, system protocol.System, content io.Reader, identity protocol.ContentIdentity) (hostexec.Status, error) {
+	if launcher, ok := s.hostExecutor.(hostPlatformLauncher); ok {
+		return launcher.LaunchFor(ctx, system, content, identity)
+	}
+	return s.hostExecutor.Launch(ctx, content, identity)
+}
+
+func (s *Service) launchHostPath(ctx context.Context, game catalog.Game, root catalog.Root, progress ProgressFunc) (protocol.CachedLaunchResponse, bool, error) {
+	launcher, ok := s.hostExecutor.(hostPathLauncher)
+	if !ok {
+		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInvalidArchive, nil)
+	}
+	launchPath, cleanup, err := materializeConfinedLibrary(ctx, root.Path, game.RelativePath, game.Fingerprint)
+	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return protocol.CachedLaunchResponse{}, false, err
+		}
+		if errors.Is(err, catalog.ErrEscapingMediaReference) || errors.Is(err, catalog.ErrUnvalidatedMediaSheet) {
+			return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInvalidArchive, nil)
+		}
+		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeSourceUnavailable, nil)
+	}
+	handedOff := false
+	defer func() {
+		if !handedOff && cleanup != nil {
+			cleanup()
+		}
+	}()
+	emitProgress(progress, "launch", "launching host content")
+	if owned, ok := s.hostExecutor.(hostOwnedPathLauncher); ok {
+		if _, err := owned.LaunchOwnedPath(ctx, game.System, launchPath, cleanup); err != nil {
+			return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, safeContextError(err))
+		}
+		handedOff = true
+	} else {
+		if _, err := launcher.LaunchPath(ctx, game.System, launchPath); err != nil {
+			return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, safeContextError(err))
+		}
+	}
+	s.executionMu.Lock()
+	s.activeExecution = ExecutionHostOnly
+	s.activeGameID, s.activeSystem = game.ID, game.System
+	s.executionMu.Unlock()
+	gameID, system := game.ID, game.System
+	return protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system}}, false, nil
 }
 
 func stringPtr(value string) *string {

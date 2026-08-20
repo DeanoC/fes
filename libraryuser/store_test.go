@@ -44,6 +44,10 @@ func TestFavoritesSurviveIndependentOfCatalogRescan(t *testing.T) {
 	if err != nil || len(capped) != 1 || capped[0] != "megadrive-sonic-test" {
 		t.Fatalf("capped recents = %v, %v", capped, err)
 	}
+	played, err := store.PlayedIDs(ctx)
+	if err != nil || len(played) != 2 {
+		t.Fatalf("played = %v, %v", played, err)
+	}
 	missing, err := store.State(ctx, "nes-missing-test")
 	if err != nil || missing.Favorite || missing.PlayCount != 0 {
 		t.Fatalf("missing = %+v, %v", missing, err)

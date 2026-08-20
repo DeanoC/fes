@@ -47,6 +47,13 @@ type gameResult struct {
 	Favorite        bool                `json:"favorite,omitempty"`
 	Cover           string              `json:"cover,omitempty"`
 	Launchable      bool                `json:"launchable"`
+	CanonicalTitle  string              `json:"canonical_title,omitempty"`
+	Region          string              `json:"region,omitempty"`
+	Revision        string              `json:"revision,omitempty"`
+	DumpFlags       string              `json:"dump_flags,omitempty"`
+	GroupKey        string              `json:"group_key,omitempty"`
+	VariantCount    int                 `json:"variant_count,omitempty"`
+	Variants        []gameResult        `json:"variants,omitempty"`
 }
 
 type gamesResult struct {
@@ -267,6 +274,9 @@ func New(service Service, options ...ServerOption) http.Handler {
 	mux.HandleFunc("GET /api/v1/library/attract", func(w http.ResponseWriter, r *http.Request) {
 		handleAttract(w, r, service)
 	})
+	mux.HandleFunc("GET /api/v1/library/facets", func(w http.ResponseWriter, r *http.Request) {
+		handleFacets(w, r, service)
+	})
 	mux.HandleFunc("GET /api/v1/games/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		if id == "" || strings.Contains(id, "/") || protocol.ValidateGameID(id) != nil {
@@ -283,7 +293,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 			writeError(w, http.StatusInternalServerError, "INTERNAL", "catalog is unavailable")
 			return
 		}
-		writeJSON(w, http.StatusOK, enrichGameResult(r.Context(), service, publicGame(game)))
+		writeJSON(w, http.StatusOK, enrichGameResult(r.Context(), service, publicGameWithVariants(r.Context(), service, game)))
 	})
 	mux.HandleFunc("GET /api/v1/presentation/games/{id}", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.RawQuery != "" || r.Body != nil && r.Body != http.NoBody {
@@ -326,6 +336,13 @@ func New(service Service, options ...ServerOption) http.Handler {
 			if !ok {
 				writeJSON(w, http.StatusOK, overlayPresentation(r.Context(), service, game, presentationResult{GameID: game.ID, State: "offline"}))
 				return
+			}
+			if strings.TrimSpace(presentation.Genre) != "" || strings.TrimSpace(presentation.Year) != "" {
+				if writer, ok := service.(interface {
+					SetFacets(context.Context, string, string, string, string) error
+				}); ok {
+					_ = writer.SetFacets(r.Context(), game.ID, presentation.Genre, presentation.Year, "")
+				}
 			}
 			writeJSON(w, http.StatusOK, overlayPresentation(r.Context(), service, game, presentationResult{GameID: game.ID, State: "ready", Presentation: &presentation, Attribution: &attribution}))
 		case metadata.OutcomeNoMatch:
@@ -570,11 +587,21 @@ func publicErrorMessage(code protocol.ErrorCode) string {
 }
 
 func publicGame(game catalog.Game) gameResult {
-	return gameResult{
+	canonical := game.CanonicalTitle
+	if canonical == "" {
+		canonical = catalog.ParseDump(game.Title).CanonicalTitle
+	}
+	result := gameResult{
 		ID: game.ID, Title: game.Title, System: game.System, Kind: game.Kind,
 		State: game.State, RootOnline: game.RootOnline, ContentPrepared: game.Content != nil,
 		Execution: "fpga_native", Platform: game.System, Launchable: catalog.Launchable(game.System),
+		CanonicalTitle: canonical, Region: game.Region, Revision: game.Revision, DumpFlags: game.DumpFlags,
+		GroupKey: game.GroupKey, VariantCount: game.VariantCount, Genre: game.Genre, Year: game.Year,
 	}
+	if result.VariantCount <= 0 {
+		result.VariantCount = 1
+	}
+	return result
 }
 
 func publicGameWithGenre(ctx context.Context, config serverOptions, game catalog.Game) gameResult {

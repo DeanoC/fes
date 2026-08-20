@@ -123,6 +123,60 @@ systems = ["nes"]
 	}
 }
 
+func TestLoadConfigAcceptsPerPlatformHostEmulatorCores(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "games")
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	content := validConfig(root, filepath.Join(dir, "other")) + `
+[host_emulator]
+binary = "/Applications/RetroArch"
+
+[[host_emulator.cores]]
+platform = "nes"
+core = "/cores/nestopia_libretro.dylib"
+
+[[host_emulator.cores]]
+platform = "gba"
+core = "/cores/mgba_libretro.dylib"
+`
+	config, err := fogcast.LoadConfig(writeConfig(t, content))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.HostEmulator.CoreFor("nes") != "/cores/nestopia_libretro.dylib" {
+		t.Fatalf("nes core = %#v", config.HostEmulator)
+	}
+	if config.HostEmulator.CoreFor("gba") != "/cores/mgba_libretro.dylib" {
+		t.Fatalf("gba core = %#v", config.HostEmulator)
+	}
+	if got := config.HostEmulator.LaunchPlatforms(); len(got) != 2 || got[0] != "nes" || got[1] != "gba" {
+		t.Fatalf("launch platforms = %#v", got)
+	}
+}
+
+func TestLoadConfigRejectsMixingLegacyCoreWithPerPlatformCores(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "games")
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	content := validConfig(root, filepath.Join(dir, "other")) + `
+[host_emulator]
+binary = "/Applications/RetroArch"
+core = "/cores/snes.dylib"
+systems = ["snes"]
+
+[[host_emulator.cores]]
+platform = "nes"
+core = "/cores/nestopia_libretro.dylib"
+`
+	if _, err := fogcast.LoadConfig(writeConfig(t, content)); err == nil {
+		t.Fatal("mixed host emulator config accepted")
+	}
+}
+
 func TestLoadConfigDefaultsMediaDisabled(t *testing.T) {
 	dir := t.TempDir()
 	config, err := fogcast.LoadConfig(writeConfig(t, validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))))

@@ -63,6 +63,7 @@ type Config struct {
 
 type LibraryConfig struct {
 	AttractIdleSeconds int
+	PreferredRegions   []string
 }
 
 // MetadataConfig contains opt-in provider-scoped presentation enrichment.
@@ -80,6 +81,40 @@ type HostEmulatorConfig struct {
 	Binary  string
 	Core    string
 	Systems []protocol.System
+	Cores   []HostEmulatorCore
+}
+
+type HostEmulatorCore struct {
+	Platform protocol.System
+	Core     string
+}
+
+func (c HostEmulatorConfig) CoreFor(system protocol.System) string {
+	for _, entry := range c.Cores {
+		if entry.Platform == system {
+			return entry.Core
+		}
+	}
+	if c.Core == "" {
+		return ""
+	}
+	for _, candidate := range c.Systems {
+		if candidate == system {
+			return c.Core
+		}
+	}
+	return ""
+}
+
+func (c HostEmulatorConfig) LaunchPlatforms() []protocol.System {
+	if len(c.Cores) > 0 {
+		platforms := make([]protocol.System, 0, len(c.Cores))
+		for _, entry := range c.Cores {
+			platforms = append(platforms, entry.Platform)
+		}
+		return platforms
+	}
+	return append([]protocol.System(nil), c.Systems...)
 }
 
 // RemoteInputConfig contains private remote-input composition settings. The
@@ -131,7 +166,8 @@ type fileLibraryMedia struct {
 }
 
 type fileLibrarySettings struct {
-	AttractIdleSeconds int64 `toml:"attract_idle_seconds"`
+	AttractIdleSeconds int64    `toml:"attract_idle_seconds"`
+	PreferredRegions   []string `toml:"preferred_regions"`
 }
 
 type fileMetadata struct {
@@ -153,9 +189,15 @@ type fileRemoteInput struct {
 }
 
 type fileHostEmulator struct {
-	Binary  string            `toml:"binary"`
-	Core    string            `toml:"core"`
-	Systems []protocol.System `toml:"systems"`
+	Binary  string                 `toml:"binary"`
+	Core    string                 `toml:"core"`
+	Systems []protocol.System      `toml:"systems"`
+	Cores   []fileHostEmulatorCore `toml:"cores"`
+}
+
+type fileHostEmulatorCore struct {
+	Platform protocol.System `toml:"platform"`
+	Core     string          `toml:"core"`
 }
 
 type fileMedia struct {
@@ -468,7 +510,37 @@ func validatePrivateAddress(name, address string) error {
 }
 
 func normalizeHostEmulator(raw fileHostEmulator) (HostEmulatorConfig, error) {
+	binary := strings.TrimSpace(raw.Binary)
+	legacyCore := strings.TrimSpace(raw.Core)
 	systems := append([]protocol.System(nil), raw.Systems...)
+	if len(raw.Cores) > 0 && (legacyCore != "" || len(systems) > 0) {
+		return HostEmulatorConfig{}, fmt.Errorf("host_emulator cores cannot mix with core and systems")
+	}
+	if len(raw.Cores) > 0 {
+		if binary == "" {
+			return HostEmulatorConfig{}, fmt.Errorf("host_emulator cores require binary")
+		}
+		if !filepath.IsAbs(binary) || filepath.Clean(binary) != binary {
+			return HostEmulatorConfig{}, fmt.Errorf("host_emulator binary must be a clean absolute path")
+		}
+		cores := make([]HostEmulatorCore, 0, len(raw.Cores))
+		seen := make(map[protocol.System]struct{}, len(raw.Cores))
+		for _, entry := range raw.Cores {
+			if err := catalog.ValidatePlatform(entry.Platform); err != nil {
+				return HostEmulatorConfig{}, fmt.Errorf("host_emulator cores: %w", err)
+			}
+			if _, ok := seen[entry.Platform]; ok {
+				return HostEmulatorConfig{}, fmt.Errorf("host_emulator cores contains duplicate %q", entry.Platform)
+			}
+			core := strings.TrimSpace(entry.Core)
+			if core == "" || !filepath.IsAbs(core) || filepath.Clean(core) != core {
+				return HostEmulatorConfig{}, fmt.Errorf("host_emulator core for %q must be a clean absolute path", entry.Platform)
+			}
+			seen[entry.Platform] = struct{}{}
+			cores = append(cores, HostEmulatorCore{Platform: entry.Platform, Core: core})
+		}
+		return HostEmulatorConfig{Binary: binary, Cores: cores}, nil
+	}
 	seen := make(map[protocol.System]struct{}, len(systems))
 	for _, system := range systems {
 		if err := catalog.ValidatePlatform(system); err != nil {
@@ -479,19 +551,22 @@ func normalizeHostEmulator(raw fileHostEmulator) (HostEmulatorConfig, error) {
 		}
 		seen[system] = struct{}{}
 	}
-	if strings.TrimSpace(raw.Binary) == "" && strings.TrimSpace(raw.Core) == "" {
+	if binary == "" && legacyCore == "" {
 		if len(systems) != 0 {
 			return HostEmulatorConfig{}, fmt.Errorf("host_emulator systems require binary and core")
 		}
 		return HostEmulatorConfig{}, nil
 	}
-	if strings.TrimSpace(raw.Binary) == "" || strings.TrimSpace(raw.Core) == "" {
+	if binary == "" || legacyCore == "" {
 		return HostEmulatorConfig{}, fmt.Errorf("host_emulator requires binary and core")
 	}
-	if !filepath.IsAbs(raw.Binary) || filepath.Clean(raw.Binary) != raw.Binary {
+	if !filepath.IsAbs(binary) || filepath.Clean(binary) != binary {
 		return HostEmulatorConfig{}, fmt.Errorf("host_emulator binary must be a clean absolute path")
 	}
-	return HostEmulatorConfig{Binary: raw.Binary, Core: raw.Core, Systems: systems}, nil
+	if !filepath.IsAbs(legacyCore) || filepath.Clean(legacyCore) != legacyCore {
+		return HostEmulatorConfig{}, fmt.Errorf("host_emulator core must be a clean absolute path")
+	}
+	return HostEmulatorConfig{Binary: binary, Core: legacyCore, Systems: systems}, nil
 }
 
 func normalizeHTTPOrigin(raw string) (string, error) {
@@ -569,7 +644,7 @@ func normalizeLibraryMedia(raw []fileLibraryMedia) ([]librarymedia.Root, error) 
 
 func normalizeLibrarySettings(raw *fileLibrarySettings) (LibraryConfig, error) {
 	if raw == nil {
-		return LibraryConfig{AttractIdleSeconds: 60}, nil
+		return LibraryConfig{AttractIdleSeconds: 60, PreferredRegions: append([]string(nil), catalog.DefaultPreferredRegions...)}, nil
 	}
 	if raw.AttractIdleSeconds < 0 {
 		return LibraryConfig{}, fmt.Errorf("library attract_idle_seconds must not be negative")
@@ -578,7 +653,24 @@ func normalizeLibrarySettings(raw *fileLibrarySettings) (LibraryConfig, error) {
 	if seconds == 0 {
 		seconds = 60
 	}
-	return LibraryConfig{AttractIdleSeconds: int(seconds)}, nil
+	preferred := append([]string(nil), raw.PreferredRegions...)
+	if len(preferred) == 0 {
+		preferred = append([]string(nil), catalog.DefaultPreferredRegions...)
+	}
+	seen := make(map[string]struct{}, len(preferred))
+	normalized := make([]string, 0, len(preferred))
+	for _, region := range preferred {
+		mapped := strings.TrimSpace(strings.ToLower(region))
+		if mapped == "" {
+			return LibraryConfig{}, fmt.Errorf("library preferred_regions must not contain empty values")
+		}
+		if _, ok := seen[mapped]; ok {
+			return LibraryConfig{}, fmt.Errorf("library preferred_regions contains duplicate %q", mapped)
+		}
+		seen[mapped] = struct{}{}
+		normalized = append(normalized, mapped)
+	}
+	return LibraryConfig{AttractIdleSeconds: int(seconds), PreferredRegions: normalized}, nil
 }
 
 func normalizeRoot(raw string) (string, error) {

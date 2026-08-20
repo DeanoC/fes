@@ -79,10 +79,15 @@ func (f *fakeService) Close() error {
 	return f.closeErr
 }
 
+func (f *fakeService) SyncFacets(ctx context.Context) (int, error) {
+	f.operationCtx = ctx
+	return 0, f.err
+}
+
 func TestRunAcceptsEveryCommandAndRejectsEveryWrongArityBeforeOpen(t *testing.T) {
 	valid := [][]string{
 		{"scan"}, {"games"}, {"search", "literal"}, {"launch", "snes-game-123456789abc"},
-		{"health"}, {"status"}, {"stop"},
+		{"health"}, {"status"}, {"stop"}, {"facets-sync"},
 	}
 	for _, args := range valid {
 		t.Run(strings.Join(args, "_"), func(t *testing.T) {
