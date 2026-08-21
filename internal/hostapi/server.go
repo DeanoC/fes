@@ -299,6 +299,15 @@ func New(service Service, options ...ServerOption) http.Handler {
 	mux.HandleFunc("GET /api/v1/library/facets", func(w http.ResponseWriter, r *http.Request) {
 		handleFacets(w, r, service)
 	})
+	mux.HandleFunc("GET /api/v1/library/settings", func(w http.ResponseWriter, r *http.Request) {
+		handleLibrarySettings(w, r, service)
+	})
+	mux.HandleFunc("PUT /api/v1/library/settings", func(w http.ResponseWriter, r *http.Request) {
+		handleLibrarySettings(w, r, service)
+	})
+	mux.HandleFunc("PATCH /api/v1/library/settings", func(w http.ResponseWriter, r *http.Request) {
+		handleLibrarySettings(w, r, service)
+	})
 	mux.HandleFunc("GET /api/v1/games/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		if id == "" || strings.Contains(id, "/") || protocol.ValidateGameID(id) != nil {

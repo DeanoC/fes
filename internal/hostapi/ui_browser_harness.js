@@ -170,6 +170,7 @@ function normalizePlan(plan = {}) {
       prefetchVisibleCovers: plan.prefetchVisibleCovers === true,
     }),
     attract: plan.attract || { items: [], idle_seconds: 60 },
+    settings: plan.settings || { attract_idle_seconds: 60, preferred_regions: ['usa', 'world', 'europe', 'japan'] },
     platforms: plan.platforms || { platforms: [] },
     collections: Array.isArray(plan.collections) ? plan.collections.slice() : [],
     catalogQueues,
@@ -431,6 +432,33 @@ class FixtureServer extends EventEmitter {
       await this.deliver(record, response, {
         fixture: 'platforms.json', status: 200, hold: false, delayMs: 0,
         override: this.plan.platforms || { platforms: [] },
+      });
+      return;
+    }
+    if (url.pathname === '/api/v1/library/settings' && (request.method === 'GET' || request.method === 'PUT' || request.method === 'PATCH')) {
+      if (request.method === 'GET') {
+        await this.deliver(record, response, {
+          fixture: 'settings.json', status: 200, hold: false, delayMs: 0,
+          override: this.plan.settings || { attract_idle_seconds: 60, preferred_regions: ['usa', 'world', 'europe', 'japan'] },
+        });
+        return;
+      }
+      record.requestBody = await this.readRequestBody(request);
+      let written = {};
+      try {
+        written = record.requestBody ? JSON.parse(record.requestBody) : {};
+      } catch (_) {
+        await this.deliver(record, response, this.unexpectedResponse(record, 400, 'settings body was not JSON'));
+        return;
+      }
+      const current = this.plan.settings || { attract_idle_seconds: 60, preferred_regions: ['usa', 'world', 'europe', 'japan'] };
+      this.plan.settings = {
+        attract_idle_seconds: Number.isFinite(written.attract_idle_seconds) ? written.attract_idle_seconds : current.attract_idle_seconds,
+        preferred_regions: Array.isArray(written.preferred_regions) ? written.preferred_regions : current.preferred_regions,
+      };
+      await this.deliver(record, response, {
+        fixture: 'settings.json', status: 200, hold: false, delayMs: 0,
+        override: this.plan.settings,
       });
       return;
     }
@@ -1339,6 +1367,10 @@ class BrowserPage {
         collectionMemberLabel: Array.from(document.querySelectorAll('.collection-member-button')).map(item => item.textContent || ''),
         attractHidden: document.querySelector('#attract')?.hidden !== false,
         attractTitle: text('#attract-title'),
+        settingsHidden: document.querySelector('#settings')?.hidden !== false,
+        settingsAttract: document.querySelector('#settings-attract-idle')?.value || '',
+        settingsRegions: document.querySelector('#settings-preferred-regions')?.value || '',
+        keyboardPane: document.querySelector('#launcher')?.getAttribute('data-keyboard-pane') || '',
         activeElementID: document.activeElement?.id || '',
         cards: Array.from(document.querySelectorAll('#catalog-list .game-card')).map(card => ({
           title: card.querySelector('h3')?.textContent || '',

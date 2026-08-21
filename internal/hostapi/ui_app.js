@@ -57,6 +57,8 @@
   const GAME_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
   const ARTWORK_HANDLE_PATTERN = /^[a-f0-9]{64}$/;
   const WALL_WINDOW = 80;
+  const MAX_ATTRACT_IDLE_SECONDS = 2147483;
+  const MAX_ATTRACT_IDLE_MS = 2147483647;
   const RESERVED_COLLECTION_IDS = Object.freeze({
     all: true,
     favorites: true,
@@ -928,6 +930,7 @@
       platforms: [],
       collections: [],
       attractIdleSeconds: 60,
+      librarySettings: null,
       games: [],
       gameViews: [],
       filters: Object.freeze({
@@ -940,6 +943,7 @@
       selectedGameView: null,
       selectedPresentation: null,
       requestSequence: 0,
+      settingsSequence: 0,
       collectionListSequence: 0,
       detailSequence: 0,
       presentationSequence: 0,
@@ -1500,9 +1504,11 @@
         if (!state.platforms.length) state.platforms = Object.freeze([]);
       }
       try {
+        const settingsSequence = state.settingsSequence;
         const attract = await request(fetchImpl, '/api/v1/library/attract?limit=1');
-        if (Number.isFinite(attract && attract.idle_seconds) && attract.idle_seconds > 0) {
-          state.attractIdleSeconds = attract.idle_seconds;
+        const idle = boundedAttractIdleSeconds(attract && attract.idle_seconds);
+        if (settingsSequence === state.settingsSequence && idle > 0) {
+          state.attractIdleSeconds = idle;
         }
       } catch (_) {
         /* attract idle stays at the last known value */
@@ -1640,12 +1646,76 @@
       }
     }
 
+    function boundedAttractIdleSeconds(value) {
+      const idle = Number(value);
+      if (!Number.isFinite(idle) || idle <= 0) return 0;
+      return idle > MAX_ATTRACT_IDLE_SECONDS ? MAX_ATTRACT_IDLE_SECONDS : Math.floor(idle);
+    }
+
+    function parseLibrarySettings(payload) {
+      const idle = boundedAttractIdleSeconds(payload && payload.attract_idle_seconds);
+      const regions = payload && Array.isArray(payload.preferred_regions)
+        ? payload.preferred_regions.filter(item => typeof item === 'string' && item.trim()).map(item => item.trim().toLowerCase())
+        : [];
+      return Object.freeze({
+        attract_idle_seconds: idle > 0 ? idle : 60,
+        preferred_regions: Object.freeze(regions),
+      });
+    }
+
+    function applyLibrarySettings(parsed, sequence) {
+      if (sequence !== state.settingsSequence) return false;
+      if (parsed.attract_idle_seconds > 0) state.attractIdleSeconds = parsed.attract_idle_seconds;
+      state.librarySettings = parsed;
+      return true;
+    }
+
+    async function loadSettings() {
+      const sequence = state.settingsSequence;
+      const payload = await request(fetchImpl, '/api/v1/library/settings');
+      const parsed = parseLibrarySettings(payload);
+      if (!applyLibrarySettings(parsed, sequence)) return snapshot();
+      return emit();
+    }
+
+    let settingsWriteChain = Promise.resolve();
+
+    async function writeLibrarySettings(next) {
+      const sequence = state.settingsSequence;
+      const payload = await request(fetchImpl, '/api/v1/library/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          attract_idle_seconds: next && next.attract_idle_seconds,
+          preferred_regions: next && next.preferred_regions,
+        }),
+      });
+      const parsed = parseLibrarySettings(payload);
+      if (!applyLibrarySettings(parsed, sequence)) return snapshot();
+      if (sequence === state.settingsSequence) state.settingsSequence += 1;
+      emit();
+      return loadCatalog(state.query);
+    }
+
+    async function saveSettings(next) {
+      const previous = settingsWriteChain;
+      let release;
+      settingsWriteChain = new Promise(resolve => { release = resolve; });
+      try {
+        await previous;
+        return await writeLibrarySettings(next);
+      } finally {
+        release();
+      }
+    }
+
     async function loadAttract(limit) {
       const size = Number(limit) > 0 ? Number(limit) : 24;
+      const settingsSequence = state.settingsSequence;
       const payload = await request(fetchImpl, `/api/v1/library/attract?limit=${encodeURIComponent(String(size))}`);
       const items = payload && Array.isArray(payload.items) ? payload.items : [];
-      const idle = Number.isFinite(payload && payload.idle_seconds) ? payload.idle_seconds : 60;
-      if (idle > 0) state.attractIdleSeconds = idle;
+      const idle = boundedAttractIdleSeconds(payload && payload.idle_seconds) || 60;
+      if (settingsSequence === state.settingsSequence && idle > 0) state.attractIdleSeconds = idle;
       return Object.freeze({
         idle_seconds: idle,
         items: Object.freeze(items.filter(item => item && typeof item.game_id === 'string').map(item => Object.freeze({
@@ -1813,6 +1883,8 @@
       loadMoreCatalog,
       loadPlatforms,
       loadAttract,
+      loadSettings,
+      saveSettings,
       loadSession,
       selectGame,
       refreshDetail,
@@ -1873,8 +1945,11 @@
   let state;
   let controller;
   let keyboardPane = 'rail';
+  let settingsReturnPane = 'rail';
   let collectionEditor = null;
   let forceKeyboardRestore = false;
+  let settingsGeneration = 0;
+  let attractIdleHydrated = false;
 
   const nodes = {
     health: document.getElementById('health'),
@@ -1919,6 +1994,14 @@
     attract: document.getElementById('attract'),
     attractTitle: document.getElementById('attract-title'),
     attractStage: document.getElementById('attract-stage'),
+    openSettings: document.getElementById('open-settings'),
+    settings: document.getElementById('settings'),
+    settingsAttractIdle: document.getElementById('settings-attract-idle'),
+    settingsPreferredRegions: document.getElementById('settings-preferred-regions'),
+    settingsHostHealth: document.getElementById('settings-host-health'),
+    settingsMessage: document.getElementById('settings-message'),
+    saveSettings: document.getElementById('save-settings'),
+    closeSettings: document.getElementById('close-settings'),
   };
 
   function element(tag, className, text) {
@@ -2709,9 +2792,13 @@
   let attractActive = false;
 
   function currentAttractIdleMs() {
-    if (Number(root.FogCastAttractIdleMs) > 0) return Number(root.FogCastAttractIdleMs);
+    if (Number(root.FogCastAttractIdleMs) > 0) {
+      return Math.min(Number(root.FogCastAttractIdleMs), MAX_ATTRACT_IDLE_MS);
+    }
     const seconds = Number(state && state.attractIdleSeconds);
-    return seconds > 0 ? seconds * 1000 : 60000;
+    const ms = seconds > 0 ? seconds * 1000 : 60000;
+    if (!Number.isFinite(ms) || ms < 1) return 60000;
+    return ms > MAX_ATTRACT_IDLE_MS ? MAX_ATTRACT_IDLE_MS : ms;
   }
 
   function currentAttractCycleMs() {
@@ -2774,9 +2861,10 @@
   }
 
   async function enterAttract() {
-    if (attractIsDisabled() || attractActive || !nodes.attract) return;
+    if (attractIsDisabled() || attractActive || settingsIsOpen() || !nodes.attract) return;
     try {
       const playlist = await controller.loadAttract(24);
+      if (attractIsDisabled() || attractActive || settingsIsOpen() || !nodes.attract) return;
       attractItems = playlist.items || [];
       if (!attractItems.length) return;
       attractIndex = 0;
@@ -2793,9 +2881,19 @@
       attractTimer = null;
     }
     if (attractActive) hideAttract();
-    if (attractIsDisabled() || !nodes.attract) return;
+    if (attractIsDisabled() || settingsIsOpen() || !nodes.attract || !attractIdleHydrated) return;
     if (typeof root.setTimeout !== 'function') return;
     attractTimer = root.setTimeout(enterAttract, currentAttractIdleMs());
+  }
+
+  async function hydrateAttractIdle() {
+    try {
+      await controller.loadSettings();
+    } catch (_) {
+      /* keep the last known idle */
+    }
+    attractIdleHydrated = true;
+    resetAttractTimer();
   }
 
   function exitAttract() {
@@ -2805,6 +2903,136 @@
     }
     hideAttract();
     resetAttractTimer();
+  }
+
+  function settingsIsOpen() {
+    return Boolean(nodes.settings && nodes.settings.hidden === false);
+  }
+
+  function isSettingsTarget(target) {
+    let node = target;
+    while (node) {
+      const id = node.id;
+      if (node === nodes.settings
+        || id === 'settings'
+        || id === 'close-settings'
+        || id === 'save-settings'
+        || id === 'settings-attract-idle'
+        || id === 'settings-preferred-regions') {
+        return true;
+      }
+      node = node.parentNode;
+    }
+    return false;
+  }
+
+  function settingsFocusables() {
+    return [
+      nodes.settingsAttractIdle,
+      nodes.settingsPreferredRegions,
+      nodes.saveSettings,
+      nodes.closeSettings,
+    ].filter(node => node && !node.disabled && node.hidden !== true);
+  }
+
+  function setSettingsChromeInert(inert) {
+    const launcher = typeof document.getElementById === 'function' ? document.getElementById('launcher') : null;
+    if (launcher) launcher.inert = Boolean(inert);
+    if (nodes.attract) nodes.attract.inert = Boolean(inert);
+  }
+
+  function wrapSettingsFocus(event) {
+    const focusables = settingsFocusables();
+    event.preventDefault?.();
+    if (!focusables.length) return;
+    const active = typeof document !== 'undefined' ? document.activeElement : null;
+    const index = focusables.indexOf(active);
+    if (event.shiftKey) {
+      focusWithoutScroll(index <= 0 ? focusables[focusables.length - 1] : focusables[index - 1]);
+      return;
+    }
+    focusWithoutScroll(index < 0 || index >= focusables.length - 1 ? focusables[0] : focusables[index + 1]);
+  }
+
+  function bumpSettingsGeneration() {
+    settingsGeneration += 1;
+    return settingsGeneration;
+  }
+
+  function settingsRequestExpired(generation) {
+    return generation !== settingsGeneration || !settingsIsOpen();
+  }
+
+  function fillSettingsForm(settings) {
+    if (nodes.settingsAttractIdle) {
+      nodes.settingsAttractIdle.value = String((settings && settings.attract_idle_seconds) || state.attractIdleSeconds || 60);
+    }
+    if (nodes.settingsPreferredRegions) {
+      const regions = settings && Array.isArray(settings.preferred_regions) ? settings.preferred_regions : [];
+      nodes.settingsPreferredRegions.value = regions.join(', ');
+    }
+    if (nodes.settingsHostHealth) {
+      nodes.settingsHostHealth.textContent = nodes.health ? nodes.health.textContent : '';
+    }
+    if (nodes.settingsMessage) nodes.settingsMessage.textContent = '';
+  }
+
+  async function openSettings() {
+    if (keyboardPane !== 'settings') settingsReturnPane = keyboardPane;
+    if (nodes.settings) nodes.settings.hidden = false;
+    setSettingsChromeInert(true);
+    keyboardPane = 'settings';
+    writePaneAttribute();
+    const generation = bumpSettingsGeneration();
+    resetAttractTimer();
+    try {
+      await controller.loadSettings();
+      if (settingsRequestExpired(generation)) return;
+      fillSettingsForm(controller.getState().librarySettings);
+    } catch (error) {
+      if (settingsRequestExpired(generation)) return;
+      fillSettingsForm(null);
+      if (nodes.settingsMessage) {
+        nodes.settingsMessage.textContent = privacyMessage(error, 'Library settings could not be loaded.');
+      }
+    }
+    if (settingsRequestExpired(generation)) return;
+    forceKeyboardRestore = true;
+    restoreKeyboardFocus();
+  }
+
+  function closeSettings() {
+    bumpSettingsGeneration();
+    if (nodes.settings) nodes.settings.hidden = true;
+    setSettingsChromeInert(false);
+    setKeyboardPane(settingsReturnPane || 'rail');
+    resetAttractTimer();
+  }
+
+  function parseRegionsInput(value) {
+    return String(value || '')
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean);
+  }
+
+  async function saveSettingsFromForm() {
+    const generation = settingsGeneration;
+    const idle = Number(nodes.settingsAttractIdle && nodes.settingsAttractIdle.value);
+    const regions = parseRegionsInput(nodes.settingsPreferredRegions && nodes.settingsPreferredRegions.value);
+    try {
+      await controller.saveSettings({
+        attract_idle_seconds: idle,
+        preferred_regions: regions,
+      });
+      if (settingsRequestExpired(generation)) return;
+      fillSettingsForm(controller.getState().librarySettings);
+    } catch (error) {
+      if (settingsRequestExpired(generation)) return;
+      if (nodes.settingsMessage) {
+        nodes.settingsMessage.textContent = privacyMessage(error, 'Library settings could not be saved.');
+      }
+    }
   }
 
   function typingTarget(target) {
@@ -2917,7 +3145,9 @@
 
   function syncPaneFromTarget(target) {
     if (!target) return;
-    if (nodes.search && (target === nodes.search || target.id === 'game-search')) {
+    if (settingsIsOpen() || isSettingsTarget(target)) {
+      keyboardPane = 'settings';
+    } else if (nodes.search && (target === nodes.search || target.id === 'game-search')) {
       keyboardPane = 'search';
     } else if (railItems().includes(target) || (nodes.platformList && target.parentNode === nodes.platformList)) {
       keyboardPane = 'rail';
@@ -2934,6 +3164,17 @@
   function restoreKeyboardFocus() {
     if (attractActive) return;
     const active = typeof document !== 'undefined' ? document.activeElement : null;
+    if (settingsIsOpen() || keyboardPane === 'settings') {
+      keyboardPane = 'settings';
+      if (!forceKeyboardRestore && active && nodeIsConnected(active) && isSettingsTarget(active)) {
+        writePaneAttribute();
+        return;
+      }
+      forceKeyboardRestore = false;
+      focusWithoutScroll(nodes.settingsAttractIdle || nodes.openSettings);
+      writePaneAttribute();
+      return;
+    }
     if (!forceKeyboardRestore && active && nodeIsConnected(active)) {
       syncPaneFromTarget(active);
       writePaneAttribute();
@@ -3115,11 +3356,35 @@
   if (nodes.renameCollection) nodes.renameCollection.addEventListener('click', () => beginCollectionEditor('rename'));
   if (nodes.saveCollection) nodes.saveCollection.addEventListener('click', () => { void saveCollectionEditor(); });
   if (nodes.deleteCollection) nodes.deleteCollection.addEventListener('click', () => { void controller.deleteCollection(state.collection); });
+  if (nodes.openSettings) nodes.openSettings.addEventListener('click', () => { void openSettings(); });
+  if (nodes.closeSettings) nodes.closeSettings.addEventListener('click', closeSettings);
+  if (nodes.saveSettings) nodes.saveSettings.addEventListener('click', () => { void saveSettingsFromForm(); });
+  if (nodes.settingsAttractIdle) nodes.settingsAttractIdle.addEventListener('input', bumpSettingsGeneration);
+  if (nodes.settingsPreferredRegions) nodes.settingsPreferredRegions.addEventListener('input', bumpSettingsGeneration);
   if (typeof document.addEventListener === 'function') {
     document.addEventListener('keydown', event => {
       if (attractActive) {
         event.preventDefault?.();
         exitAttract();
+        return;
+      }
+      if (settingsIsOpen()) {
+        if (event.key === 'Escape') {
+          event.preventDefault?.();
+          closeSettings();
+          return;
+        }
+        if (event.key === 'Tab') {
+          wrapSettingsFocus(event);
+          return;
+        }
+        if (typingTarget(event.target) && isSettingsTarget(event.target)) return;
+        if (!isSettingsTarget(event.target)) {
+          event.preventDefault?.();
+          forceKeyboardRestore = true;
+          restoreKeyboardFocus();
+          return;
+        }
         return;
       }
       if (typingTarget(event.target)) {
@@ -3213,6 +3478,14 @@
       document.addEventListener('mousemove', resetAttractTimer);
     }
     document.addEventListener('focusin', event => {
+      if (settingsIsOpen()) {
+        if (event && event.target && !isSettingsTarget(event.target)) {
+          forceKeyboardRestore = true;
+          restoreKeyboardFocus();
+        }
+        resetAttractTimer();
+        return;
+      }
       if (attractActive) exitAttract();
       else resetAttractTimer();
       syncPaneFromTarget(event && event.target);
@@ -3222,6 +3495,7 @@
     nodes.attract.hidden = true;
     nodes.attract.addEventListener('click', exitAttract);
   }
+  if (nodes.settings) nodes.settings.hidden = true;
   renderCatalog();
   renderLibraryNav();
   renderDetail(null);
@@ -3230,5 +3504,5 @@
   void loadSession();
   void loadCatalog();
   void controller.loadPlatforms();
-  resetAttractTimer();
+  void hydrateAttractIdle();
 })(globalThis);

@@ -507,10 +507,87 @@ func (s *Service) OpenMedia(ctx context.Context, handle string) (librarymedia.Op
 }
 
 func (s *Service) AttractIdleSeconds() int {
-	if s.attractIdle <= 0 {
-		return 60
+	return s.LibrarySettings().AttractIdleSeconds
+}
+
+func (s *Service) LibrarySettings() LibraryConfig {
+	s.libraryMu.RLock()
+	defer s.libraryMu.RUnlock()
+	return s.librarySettingsSnapshot()
+}
+
+func (s *Service) librarySettingsSnapshot() LibraryConfig {
+	seconds := s.attractIdle
+	if seconds <= 0 {
+		seconds = 60
 	}
-	return s.attractIdle
+	regions := append([]string(nil), s.preferredRegions...)
+	if len(regions) == 0 {
+		regions = append([]string(nil), catalog.DefaultPreferredRegions...)
+	}
+	return LibraryConfig{AttractIdleSeconds: seconds, PreferredRegions: regions}
+}
+
+func (s *Service) currentPreferredRegions() []string {
+	return append([]string(nil), s.LibrarySettings().PreferredRegions...)
+}
+
+func (s *Service) applyPersistedLibraryOverlay() {
+	overlay, ok, err := loadLibraryOverlay(s.libraryOverlayPath)
+	if err != nil || !ok {
+		return
+	}
+	s.attractIdle = overlay.AttractIdleSeconds
+	s.preferredRegions = append([]string(nil), overlay.PreferredRegions...)
+}
+
+func (s *Service) SetLibrarySettings(ctx context.Context, next LibraryConfig) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	normalized, err := NormalizeLibraryConfig(next)
+	if err != nil {
+		return canonicalError(protocol.CodeBadRequest, nil)
+	}
+	s.libraryMu.Lock()
+	defer s.libraryMu.Unlock()
+	return s.persistAndPublishLibrarySettingsLocked(normalized)
+}
+
+var librarySettingsPatchStartHook func()
+
+func (s *Service) PatchLibrarySettings(ctx context.Context, patch LibraryConfigPatch) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if librarySettingsPatchStartHook != nil {
+		librarySettingsPatchStartHook()
+	}
+	s.libraryMu.Lock()
+	defer s.libraryMu.Unlock()
+	next := s.librarySettingsSnapshot()
+	if patch.AttractIdleSeconds != nil {
+		next.AttractIdleSeconds = *patch.AttractIdleSeconds
+	}
+	if patch.PreferredRegions != nil {
+		next.PreferredRegions = append([]string(nil), *patch.PreferredRegions...)
+	}
+	normalized, err := NormalizeLibraryConfig(next)
+	if err != nil {
+		return canonicalError(protocol.CodeBadRequest, nil)
+	}
+	return s.persistAndPublishLibrarySettingsLocked(normalized)
+}
+
+func (s *Service) persistAndPublishLibrarySettingsLocked(normalized LibraryConfig) error {
+	if s.libraryOverlayPath != "" {
+		if err := saveLibraryOverlay(s.libraryOverlayPath, normalized); err != nil {
+			return canonicalError(protocol.CodeInternal, safeContextError(err))
+		}
+	}
+	s.attractIdle = normalized.AttractIdleSeconds
+	s.preferredRegions = append([]string(nil), normalized.PreferredRegions...)
+	return nil
 }
 
 func (s *Service) AttractPlaylist(ctx context.Context, limit int) ([]AttractItem, error) {

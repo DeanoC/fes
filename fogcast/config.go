@@ -19,13 +19,14 @@ import (
 )
 
 type Paths struct {
-	Config       string
-	Index        string
-	Staging      string
-	MetadataRoot string
-	UserLibrary  string
-	MediaIndex   string
-	MediaCache   string
+	Config          string
+	Index           string
+	Staging         string
+	MetadataRoot    string
+	UserLibrary     string
+	LibrarySettings string
+	MediaIndex      string
+	MediaCache      string
 }
 
 func DefaultPaths() (Paths, error) {
@@ -36,13 +37,14 @@ func DefaultPaths() (Paths, error) {
 	share := filepath.Join(home, ".local", "share", "fogcast")
 	cache := filepath.Join(home, ".cache", "fogcast")
 	return Paths{
-		Config:       filepath.Join(home, ".config", "fogcast", "config.toml"),
-		Index:        filepath.Join(share, "library.sqlite3"),
-		Staging:      filepath.Join(cache, "staging"),
-		MetadataRoot: filepath.Join(cache, "metadata"),
-		UserLibrary:  filepath.Join(share, "library-user.sqlite3"),
-		MediaIndex:   filepath.Join(share, "library-media.sqlite3"),
-		MediaCache:   filepath.Join(cache, "library-media"),
+		Config:          filepath.Join(home, ".config", "fogcast", "config.toml"),
+		Index:           filepath.Join(share, "library.sqlite3"),
+		Staging:         filepath.Join(cache, "staging"),
+		MetadataRoot:    filepath.Join(cache, "metadata"),
+		UserLibrary:     filepath.Join(share, "library-user.sqlite3"),
+		LibrarySettings: filepath.Join(share, "library-settings.json"),
+		MediaIndex:      filepath.Join(share, "library-media.sqlite3"),
+		MediaCache:      filepath.Join(cache, "library-media"),
 	}, nil
 }
 
@@ -64,6 +66,11 @@ type Config struct {
 type LibraryConfig struct {
 	AttractIdleSeconds int
 	PreferredRegions   []string
+}
+
+type LibraryConfigPatch struct {
+	AttractIdleSeconds *int
+	PreferredRegions   *[]string
 }
 
 // MetadataConfig contains opt-in provider-scoped presentation enrichment.
@@ -644,14 +651,33 @@ func normalizeLibraryMedia(raw []fileLibraryMedia) ([]librarymedia.Root, error) 
 
 func normalizeLibrarySettings(raw *fileLibrarySettings) (LibraryConfig, error) {
 	if raw == nil {
-		return LibraryConfig{AttractIdleSeconds: 60, PreferredRegions: append([]string(nil), catalog.DefaultPreferredRegions...)}, nil
+		return NormalizeLibraryConfig(LibraryConfig{})
 	}
+	if raw.AttractIdleSeconds < 0 {
+		return LibraryConfig{}, fmt.Errorf("library attract_idle_seconds must not be negative")
+	}
+	return NormalizeLibraryConfig(LibraryConfig{
+		AttractIdleSeconds: int(raw.AttractIdleSeconds),
+		PreferredRegions:   raw.PreferredRegions,
+	})
+}
+
+// MaxAttractIdleSeconds is the largest idle that converts to a millisecond
+// timer delay without overflowing a signed 32-bit setTimeout argument.
+const MaxAttractIdleSeconds = 2147483
+
+// NormalizeLibraryConfig applies the same attract-idle and preferred-region
+// rules as config.toml [library], without reading or writing that file.
+func NormalizeLibraryConfig(raw LibraryConfig) (LibraryConfig, error) {
 	if raw.AttractIdleSeconds < 0 {
 		return LibraryConfig{}, fmt.Errorf("library attract_idle_seconds must not be negative")
 	}
 	seconds := raw.AttractIdleSeconds
 	if seconds == 0 {
 		seconds = 60
+	}
+	if seconds > MaxAttractIdleSeconds {
+		seconds = MaxAttractIdleSeconds
 	}
 	preferred := append([]string(nil), raw.PreferredRegions...)
 	if len(preferred) == 0 {
@@ -670,7 +696,7 @@ func normalizeLibrarySettings(raw *fileLibrarySettings) (LibraryConfig, error) {
 		seen[mapped] = struct{}{}
 		normalized = append(normalized, mapped)
 	}
-	return LibraryConfig{AttractIdleSeconds: int(seconds), PreferredRegions: normalized}, nil
+	return LibraryConfig{AttractIdleSeconds: seconds, PreferredRegions: normalized}, nil
 }
 
 func normalizeRoot(raw string) (string, error) {

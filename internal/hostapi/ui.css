@@ -21,6 +21,7 @@ button { cursor: pointer; }
 button:disabled { cursor: wait; opacity: .58; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .site-header { display: flex; align-items: center; justify-content: space-between; padding: 18px clamp(20px, 5vw, 72px); border-bottom: 1px solid var(--line); }
+.header-tools { display: flex; align-items: center; gap: 12px; }
 .brand { color: var(--ink); font-size: 1.15rem; font-weight: 800; letter-spacing: .18em; text-decoration: none; }
 .brand span { color: var(--accent); }
 .host-status { margin: 0; color: var(--accent-cool); font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; }
@@ -241,6 +242,22 @@ img.cover-art { width: 100%; object-fit: contain; object-position: center; backg
 .detail-video { display: block; width: 100%; border-radius: 8px; background: #000; }
 .attract { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: #05070b; }
 .attract[hidden] { display: none; }
+.settings { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(5, 7, 11, .72); }
+.settings[hidden] { display: none; }
+.settings-panel {
+  width: min(520px, calc(100vw - 32px));
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 22px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow);
+}
+.settings-status { margin: 0; color: var(--muted); font-size: .82rem; }
+.settings-message { min-height: 1.2em; margin: 0; color: var(--danger); }
+.settings-message:empty { display: none; }
+.settings-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .attract-title { position: absolute; left: 32px; bottom: 28px; margin: 0; font-size: 1.6rem; }
 .attract-stage { width: min(90vw, 1280px); height: min(80vh, 720px); }
 .attract-stage img, .attract-stage video { width: 100%; height: 100%; object-fit: contain; }

@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/DeanoC/FogCast-POC/catalog"
+	"github.com/DeanoC/FogCast-POC/fogcast"
 	"github.com/DeanoC/FogCast-POC/internal/hostapi"
 	"github.com/DeanoC/FogCast-POC/libraryuser"
 	"github.com/DeanoC/FogCast-POC/protocol"
@@ -413,4 +415,101 @@ func TestCollectionMemberRejectsInvalidGameID(t *testing.T) {
 	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), `"BAD_REQUEST"`) {
 		t.Fatalf("status = %d %s", response.Code, response.Body.String())
 	}
+}
+
+type settingsFake struct {
+	fakeService
+	settings fogcast.LibraryConfig
+}
+
+func (s *settingsFake) LibrarySettings() fogcast.LibraryConfig {
+	return s.settings
+}
+
+func (s *settingsFake) SetLibrarySettings(_ context.Context, next fogcast.LibraryConfig) error {
+	s.settings = next
+	return nil
+}
+
+func (s *settingsFake) PatchLibrarySettings(_ context.Context, patch fogcast.LibraryConfigPatch) error {
+	next := s.settings
+	if patch.AttractIdleSeconds != nil {
+		next.AttractIdleSeconds = *patch.AttractIdleSeconds
+	}
+	if patch.PreferredRegions != nil {
+		next.PreferredRegions = append([]string(nil), *patch.PreferredRegions...)
+	}
+	normalized, err := fogcast.NormalizeLibraryConfig(next)
+	if err != nil {
+		return &protocol.APIError{Code: protocol.CodeBadRequest, Message: "library settings request is invalid"}
+	}
+	s.settings = normalized
+	return nil
+}
+
+func TestLibrarySettingsGetPutPatchEmptyOrJSON(t *testing.T) {
+	service := &settingsFake{settings: fogcast.LibraryConfig{
+		AttractIdleSeconds: 60,
+		PreferredRegions:   []string{"usa", "world"},
+	}}
+	handler := hostapi.New(service)
+	got := serve(t, handler, http.MethodGet, "/api/v1/library/settings")
+	if got.Code != http.StatusOK || !strings.Contains(got.Body.String(), `"attract_idle_seconds":60`) || !strings.Contains(got.Body.String(), `"usa"`) {
+		t.Fatalf("get = %d %s", got.Code, got.Body.String())
+	}
+	if strings.Contains(got.Body.String(), "token") || strings.Contains(got.Body.String(), "client_secret") || strings.Contains(got.Body.String(), "/api/v1/health") {
+		t.Fatalf("get leaked secrets or health: %s", got.Body.String())
+	}
+
+	emptyPut := serveBody(t, handler, http.MethodPut, "/api/v1/library/settings", "")
+	if emptyPut.Code != http.StatusOK || service.settings.AttractIdleSeconds != 60 {
+		t.Fatalf("empty put = %d %s settings=%+v", emptyPut.Code, emptyPut.Body.String(), service.settings)
+	}
+
+	replaced := serveBody(t, handler, http.MethodPut, "/api/v1/library/settings", `{"attract_idle_seconds":12,"preferred_regions":["japan","europe"]}`)
+	if replaced.Code != http.StatusOK || service.settings.AttractIdleSeconds != 12 || strings.Join(service.settings.PreferredRegions, ",") != "japan,europe" {
+		t.Fatalf("put = %d %s settings=%+v", replaced.Code, replaced.Body.String(), service.settings)
+	}
+
+	patched := serveBody(t, handler, http.MethodPatch, "/api/v1/library/settings", `{"attract_idle_seconds":8}`)
+	if patched.Code != http.StatusOK || service.settings.AttractIdleSeconds != 8 || strings.Join(service.settings.PreferredRegions, ",") != "japan,europe" {
+		t.Fatalf("patch = %d %s settings=%+v", patched.Code, patched.Body.String(), service.settings)
+	}
+	patchedRegions := serveBody(t, handler, http.MethodPatch, "/api/v1/library/settings", `{"preferred_regions":["usa"]}`)
+	if patchedRegions.Code != http.StatusOK || service.settings.AttractIdleSeconds != 8 || strings.Join(service.settings.PreferredRegions, ",") != "usa" {
+		t.Fatalf("regions patch = %d %s settings=%+v", patchedRegions.Code, patchedRegions.Body.String(), service.settings)
+	}
+	overflow := serveBody(t, handler, http.MethodPut, "/api/v1/library/settings", fmt.Sprintf(`{"attract_idle_seconds":%d,"preferred_regions":["usa"]}`, fogcast.MaxAttractIdleSeconds+1000))
+	if overflow.Code != http.StatusOK || service.settings.AttractIdleSeconds != fogcast.MaxAttractIdleSeconds {
+		t.Fatalf("overflow put = %d %s settings=%+v", overflow.Code, overflow.Body.String(), service.settings)
+	}
+
+	unknown := serveBody(t, handler, http.MethodPut, "/api/v1/library/settings", `{"attract_idle_seconds":12,"preferred_regions":["usa"],"token":"nope"}`)
+	if unknown.Code != http.StatusBadRequest || !strings.Contains(unknown.Body.String(), `"BAD_REQUEST"`) {
+		t.Fatalf("unknown field = %d %s", unknown.Code, unknown.Body.String())
+	}
+	negative := serveBody(t, handler, http.MethodPatch, "/api/v1/library/settings", `{"attract_idle_seconds":-1}`)
+	if negative.Code != http.StatusBadRequest {
+		t.Fatalf("negative = %d %s", negative.Code, negative.Body.String())
+	}
+	missing := serve(t, hostapi.New(&fakeService{}), http.MethodPut, "/api/v1/library/settings")
+	if missing.Code != http.StatusNotFound || !strings.Contains(missing.Body.String(), `"SETTINGS_UNAVAILABLE"`) {
+		t.Fatalf("missing writer = %d %s", missing.Code, missing.Body.String())
+	}
+	defaults := serve(t, hostapi.New(&fakeService{}), http.MethodGet, "/api/v1/library/settings")
+	if defaults.Code != http.StatusOK || !strings.Contains(defaults.Body.String(), `"attract_idle_seconds":60`) {
+		t.Fatalf("defaults = %d %s", defaults.Code, defaults.Body.String())
+	}
+}
+
+func serveBody(t *testing.T, handler http.Handler, method, path, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	request := httptest.NewRequest(method, path, strings.NewReader(body))
+	request.Host = "127.0.0.1"
+	if body != "" {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	return response
 }

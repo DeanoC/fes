@@ -71,6 +71,7 @@ func TestUIUsesOnlyExistingAPIEndpointFamilies(t *testing.T) {
 		"/api/v1/library/favorites/",
 		"/api/v1/library/collections",
 		"/api/v1/library/attract",
+		"/api/v1/library/settings",
 		"/api/v1/presentation/media/",
 	} {
 		if !strings.Contains(html, token) {

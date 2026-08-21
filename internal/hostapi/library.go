@@ -2,8 +2,10 @@ package hostapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -47,6 +49,125 @@ type mediaOpenService interface {
 type attractService interface {
 	AttractPlaylist(context.Context, int) ([]fogcast.AttractItem, error)
 	AttractIdleSeconds() int
+}
+
+type librarySettingsService interface {
+	LibrarySettings() fogcast.LibraryConfig
+	SetLibrarySettings(context.Context, fogcast.LibraryConfig) error
+	PatchLibrarySettings(context.Context, fogcast.LibraryConfigPatch) error
+}
+
+type settingsWrite struct {
+	AttractIdleSeconds *int      `json:"attract_idle_seconds"`
+	PreferredRegions   *[]string `json:"preferred_regions"`
+}
+
+func handleLibrarySettings(w http.ResponseWriter, r *http.Request, service Service) {
+	current := defaultLibrarySettings(service)
+	if r.Method == http.MethodGet {
+		if err := rejectBody(w, r); err != nil {
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "settings request body must be empty")
+			return
+		}
+		writeJSON(w, http.StatusOK, publicLibrarySettings(current))
+		return
+	}
+	writer, ok := service.(librarySettingsService)
+	if !ok {
+		writeError(w, http.StatusNotFound, "SETTINGS_UNAVAILABLE", "library settings are unavailable")
+		return
+	}
+	empty, patch, err := decodeOptionalSettings(w, r)
+	if err != nil {
+		return
+	}
+	if !empty {
+		if err := applyLibrarySettingsWrite(r, writer, patch); err != nil {
+			var apiErr *protocol.APIError
+			if errors.As(err, &apiErr) && apiErr.Code == protocol.CodeBadRequest {
+				writeError(w, http.StatusBadRequest, "BAD_REQUEST", "library settings request is invalid")
+				return
+			}
+			if errors.Is(err, errInvalidLibrarySettings) {
+				writeError(w, http.StatusBadRequest, "BAD_REQUEST", "library settings request is invalid")
+				return
+			}
+			writeSessionError(w, err)
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, publicLibrarySettings(writer.LibrarySettings()))
+}
+
+var errInvalidLibrarySettings = errors.New("library settings request is invalid")
+
+func applyLibrarySettingsWrite(r *http.Request, writer librarySettingsService, patch settingsWrite) error {
+	if r.Method == http.MethodPatch {
+		return writer.PatchLibrarySettings(r.Context(), fogcast.LibraryConfigPatch{
+			AttractIdleSeconds: patch.AttractIdleSeconds,
+			PreferredRegions:   patch.PreferredRegions,
+		})
+	}
+	if patch.AttractIdleSeconds == nil || patch.PreferredRegions == nil {
+		return errInvalidLibrarySettings
+	}
+	normalized, err := fogcast.NormalizeLibraryConfig(fogcast.LibraryConfig{
+		AttractIdleSeconds: *patch.AttractIdleSeconds,
+		PreferredRegions:   append([]string(nil), *patch.PreferredRegions...),
+	})
+	if err != nil {
+		return errInvalidLibrarySettings
+	}
+	return writer.SetLibrarySettings(r.Context(), normalized)
+}
+
+func defaultLibrarySettings(service Service) fogcast.LibraryConfig {
+	if settings, ok := service.(librarySettingsService); ok {
+		return settings.LibrarySettings()
+	}
+	if attractor, ok := service.(attractService); ok {
+		return fogcast.LibraryConfig{
+			AttractIdleSeconds: attractor.AttractIdleSeconds(),
+			PreferredRegions:   append([]string(nil), catalog.DefaultPreferredRegions...),
+		}
+	}
+	normalized, _ := fogcast.NormalizeLibraryConfig(fogcast.LibraryConfig{})
+	return normalized
+}
+
+func publicLibrarySettings(settings fogcast.LibraryConfig) map[string]any {
+	regions := settings.PreferredRegions
+	if regions == nil {
+		regions = []string{}
+	}
+	return map[string]any{
+		"attract_idle_seconds": settings.AttractIdleSeconds,
+		"preferred_regions":    regions,
+	}
+}
+
+func decodeOptionalSettings(w http.ResponseWriter, r *http.Request) (bool, settingsWrite, error) {
+	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "request body must contain one valid JSON object")
+		return false, settingsWrite{}, err
+	}
+	if strings.TrimSpace(string(body)) == "" {
+		return true, settingsWrite{}, nil
+	}
+	decoder := json.NewDecoder(strings.NewReader(string(body)))
+	decoder.DisallowUnknownFields()
+	var patch settingsWrite
+	if err := decoder.Decode(&patch); err != nil {
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "request body must contain one valid JSON object")
+		return false, settingsWrite{}, err
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "request body must contain exactly one JSON object")
+		return false, settingsWrite{}, errors.New("trailing JSON")
+	}
+	return false, patch, nil
 }
 
 func handleGamesList(w http.ResponseWriter, r *http.Request, service Service) {

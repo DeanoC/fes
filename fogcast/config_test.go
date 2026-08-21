@@ -28,6 +28,9 @@ func TestDefaultPathsUsesHomeDirectory(t *testing.T) {
 	if paths.Staging != filepath.Join(home, ".cache", "fogcast", "staging") {
 		t.Fatalf("Staging = %q", paths.Staging)
 	}
+	if paths.LibrarySettings != filepath.Join(home, ".local", "share", "fogcast", "library-settings.json") {
+		t.Fatalf("LibrarySettings = %q", paths.LibrarySettings)
+	}
 }
 
 func TestLoadConfigLoadsApprovedTOML(t *testing.T) {
@@ -457,6 +460,19 @@ id = "genesis-main"
 system = "megadrive"
 root = "` + secondRoot + `"
 `
+}
+
+func TestNormalizeLibraryConfigClampsOverflowingAttractIdle(t *testing.T) {
+	normalized, err := fogcast.NormalizeLibraryConfig(fogcast.LibraryConfig{
+		AttractIdleSeconds: fogcast.MaxAttractIdleSeconds + 1000,
+		PreferredRegions:   []string{"usa"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if normalized.AttractIdleSeconds != fogcast.MaxAttractIdleSeconds {
+		t.Fatalf("idle = %d want %d", normalized.AttractIdleSeconds, fogcast.MaxAttractIdleSeconds)
+	}
 }
 
 func writeConfig(t *testing.T, content string) string {

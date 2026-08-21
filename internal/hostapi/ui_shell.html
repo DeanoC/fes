@@ -9,7 +9,10 @@
 <body>
   <header class="site-header">
     <a class="brand" href="/" aria-label="FogCast home">FOG<span>CAST</span></a>
-    <p id="health" class="host-status" role="status">Checking local host…</p>
+    <div class="header-tools">
+      <p id="health" class="host-status" role="status">Checking local host…</p>
+      <button id="open-settings" class="button secondary" type="button">Settings</button>
+    </div>
   </header>
   <main class="launcher" id="launcher" data-keyboard-pane="rail">
     <p class="sr-only" id="keyboard-help">Use Arrow, Home, and End to move the library rail and cover wall. Enter opens detail or launches. Escape moves back. Type to search.</p>
@@ -121,6 +124,24 @@
   <div id="attract" class="attract" hidden>
     <p id="attract-title" class="attract-title"></p>
     <div id="attract-stage" class="attract-stage"></div>
+  </div>
+  <div id="settings" class="settings" hidden>
+    <div class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-heading">
+      <p class="eyebrow">Host</p>
+      <h2 id="settings-heading">Settings</h2>
+      <label class="filter-label" for="settings-attract-idle">Attract idle seconds
+        <input id="settings-attract-idle" type="number" min="1" step="1" autocomplete="off">
+      </label>
+      <label class="filter-label" for="settings-preferred-regions">Preferred regions
+        <input id="settings-preferred-regions" type="text" autocomplete="off" spellcheck="false">
+      </label>
+      <p id="settings-host-health" class="settings-status" role="status"></p>
+      <p id="settings-message" class="settings-message" role="alert"></p>
+      <div class="settings-actions">
+        <button id="save-settings" class="button" type="button">Save settings</button>
+        <button id="close-settings" class="button secondary" type="button">Close</button>
+      </div>
+    </div>
   </div>
   {{FOGCAST_METADATA}}
   {{FOGCAST_APP}}
