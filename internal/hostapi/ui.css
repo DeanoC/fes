@@ -340,6 +340,37 @@ img.cover-art { width: 100%; object-fit: contain; object-position: center; backg
 .attract[hidden] { display: none; }
 .settings { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(5, 7, 11, .72); }
 .settings[hidden] { display: none; }
+.game-actions-menu {
+  position: fixed;
+  z-index: 20;
+  min-width: 196px;
+  max-width: min(280px, calc(100vw - 16px));
+  max-height: min(70vh, calc(100vh - 16px));
+  overflow: auto;
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow);
+}
+.game-actions-menu[hidden] { display: none; }
+.game-actions-item {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+.game-actions-item:hover,
+.game-actions-item:focus {
+  background: var(--surface);
+  color: var(--accent);
+}
 .settings-panel {
   width: min(520px, calc(100vw - 32px));
   display: grid;

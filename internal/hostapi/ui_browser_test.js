@@ -1800,6 +1800,57 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
       });
     });
 
+    await t.test('game card actions menu favorites from the cover wall', async () => {
+      await runScenario(harness, 'game-card-actions-menu', basePlan({
+        collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }],
+      }), async () => {
+        await selectSonic(harness);
+        await harness.evaluate(`(() => {
+          const card = document.querySelector('#catalog-list .game-card');
+          if (!card) throw new Error('missing cover card');
+          card.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 24, clientY: 36 }));
+          return true;
+        })()`);
+        const opened = await harness.waitForSnapshot(item => (
+          item.gameActionsHidden === false
+          && item.gameActionsItems.includes('Favorite')
+          && item.gameActionsItems.some(label => label.includes('Weekend Queue'))
+        ));
+        assert.equal(opened.gameActionsHidden, false);
+        assert.equal(opened.favoriteLabel === 'Favorite' || opened.favoriteLabel === '', true);
+        await harness.click('#game-action-favorite');
+        await harness.waitForRequest({ method: 'PUT', path: `/api/v1/library/favorites/${SONIC_ID}` });
+        const favorited = await harness.waitForSnapshot(item => (
+          item.gameActionsHidden === true && item.favoriteLabel === 'Favorited'
+        ));
+        assert.equal(favorited.gameActionsHidden, true);
+        assert.equal(favorited.favoriteLabel, 'Favorited');
+        await harness.evaluate(`(() => {
+          const card = document.querySelector('#catalog-list .game-card');
+          if (!card) throw new Error('missing cover card');
+          card.focus();
+          card.dispatchEvent(new KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true, cancelable: true }));
+          return true;
+        })()`);
+        const reopened = await harness.waitForSnapshot(item => (
+          item.gameActionsHidden === false && item.gameActionsItems.includes('Unfavorite')
+        ));
+        assert.equal(reopened.gameActionsHidden, false);
+        await harness.evaluate(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))`);
+        const closed = await harness.waitForSnapshot(item => item.gameActionsHidden === true);
+        assert.equal(closed.gameActionsHidden, true);
+        await harness.evaluate(`(() => {
+          const card = document.querySelector('#catalog-list .game-card');
+          card.focus();
+          card.dispatchEvent(new KeyboardEvent('keydown', { key: 'F', bubbles: true, cancelable: true }));
+          return document.querySelector('#game-search')?.value || '';
+        })()`);
+        const typed = await harness.waitForSnapshot(item => item.keyboardPane === 'search');
+        assert.equal(typed.keyboardPane, 'search');
+        assert.equal(typed.gameActionsHidden, true);
+      });
+    });
+
     await t.test('idle attract overlay enters from a bounded playlist and exits on Escape', async () => {
       await runScenario(harness, 'attract-idle', basePlan({
         attractDisabled: false,

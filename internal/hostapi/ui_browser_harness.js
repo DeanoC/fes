@@ -1400,6 +1400,8 @@ class BrowserPage {
         catalogLayoutHidden: document.getElementById('catalog-layout')?.hidden === true,
         layoutCoverPressed: document.getElementById('layout-cover')?.getAttribute('aria-pressed') === 'true',
         layoutListPressed: document.getElementById('layout-list')?.getAttribute('aria-pressed') === 'true',
+        gameActionsHidden: document.getElementById('game-actions-menu')?.hidden !== false,
+        gameActionsItems: Array.from(document.querySelectorAll('#game-actions-menu .game-actions-item')).map(item => item.textContent || ''),
       };
     })()`);
   }

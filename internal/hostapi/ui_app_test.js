@@ -76,6 +76,11 @@ class BrowserTestElement {
     this.inert = false;
     this.style = {};
     this.clientWidth = 896;
+    this.clientHeight = 0;
+    this.offsetWidth = 0;
+    this.offsetHeight = 0;
+    this.offsetTop = 0;
+    this.scrollTop = 0;
     this.parentNode = null;
     this.scrollIntoViewCalls = [];
     if (owner && id) owner.nodes.set(id, this);
@@ -150,6 +155,23 @@ class BrowserTestElement {
     this.scrollIntoViewCalls.push(options === undefined ? true : options);
   }
 
+  getBoundingClientRect() {
+    const left = Number.parseFloat(this.style && this.style.left) || 0;
+    const top = Number.parseFloat(this.style && this.style.top) || 0;
+    const width = Number(this.offsetWidth) || 0;
+    const height = Number(this.offsetHeight) || 0;
+    return {
+      x: left,
+      y: top,
+      left,
+      top,
+      right: left + width,
+      bottom: top + height,
+      width,
+      height,
+    };
+  }
+
   focus() {
     if (this.ownerDocument && this.ownerDocument.activeElement && this.ownerDocument.activeElement !== this) {
       this.ownerDocument.activeElement.focused = false;
@@ -191,6 +213,7 @@ function browserDocument() {
     'settings-preferred-regions': 'input',
     'save-settings': 'button',
     'close-settings': 'button',
+    'game-actions-menu': 'div',
   };
   const ids = [
     'launcher', 'health', 'game-search', 'refresh-catalog', 'filter-system', 'catalog', 'catalog-status',
@@ -204,6 +227,7 @@ function browserDocument() {
     'attract', 'attract-title', 'attract-stage',
     'open-settings', 'settings', 'settings-attract-idle', 'settings-preferred-regions',
     'settings-host-health', 'settings-message', 'save-settings', 'close-settings',
+    'game-actions-menu',
   ];
   const document = {
     nodes: new Map(),
@@ -225,6 +249,7 @@ function browserDocument() {
   });
   document.nodes.get('attract').hidden = true;
   document.nodes.get('settings').hidden = true;
+  document.nodes.get('game-actions-menu').hidden = true;
   document.nodes.get('catalog-list').clientWidth = 896;
   return document;
 }
@@ -2494,7 +2519,7 @@ async function openAllGamesGrid(document) {
   await pressKey(document, 'Enter', navAll);
 }
 
-async function runKeyboardApp({ pages, railPages, platforms, launchResponse, globals, collections, onSettings } = {}) {
+async function runKeyboardApp({ pages, railPages, platforms, launchResponse, globals, collections, onSettings, attractItems } = {}) {
   const catalogPages = pages || [{
     games: readFixture('catalog-populated.json').games,
     next_cursor: '',
@@ -2509,7 +2534,7 @@ async function runKeyboardApp({ pages, railPages, platforms, launchResponse, glo
       return jsonResponse({ platforms: platforms || [] });
     }
     if (pathOnly === '/api/v1/library/attract') {
-      return jsonResponse({ items: [], idle_seconds: 60 });
+      return jsonResponse({ items: attractItems || [], idle_seconds: 60 });
     }
     if (pathOnly === '/api/v1/library/settings') {
       calls.push({ path: requestPath, options });
@@ -3903,4 +3928,415 @@ test('list layout CSS keeps rows compact without overlaying cover-card titles', 
   assert.match(css, /\.game-card\.game-row/);
   assert.match(css, /\.game-row-favorite/);
   assert.match(css, /--list-row-stride:\s*78px/);
+});
+
+function gameActionsMenu(document) {
+  return document.getElementById('game-actions-menu') || document.nodes.get('game-actions-menu');
+}
+
+function gameActionsItems(document) {
+  const menu = gameActionsMenu(document);
+  return menu && menu.children ? Array.from(menu.children) : [];
+}
+
+async function openCardActions(document, card, via = 'contextmenu') {
+  card.focus();
+  if (via === 'contextmenu') {
+    const event = {
+      type: 'contextmenu',
+      target: card,
+      clientX: 24,
+      clientY: 36,
+      preventDefault() { event.defaultPrevented = true; },
+    };
+    card.dispatchEvent(event);
+    await settleBrowser();
+    return event;
+  }
+  if (via === 'ContextMenu') return pressKey(document, 'ContextMenu', card);
+  return pressKey(document, 'F10', card, { shiftKey: true });
+}
+
+test('right-click ContextMenu and Shift+F10 open game actions on cover list and Home cards', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic the Hedgehog', {
+    system: 'megadrive',
+    favorite: false,
+    collections: [],
+  });
+  const { document } = await runKeyboardApp({
+    pages: [{ games: [sonic] }],
+    railPages: {
+      continue: [sonic],
+      favorites: [],
+      recents: [],
+    },
+    collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }],
+  });
+  await settleBrowser();
+  await waitForCondition(
+    () => document.nodes.get('collection-list').children.length === 1,
+    'collection rail did not render',
+  );
+  await openAllGamesGrid(document);
+  const cover = gameCards(document)[0];
+  assert.ok(cover);
+  const rightClick = await openCardActions(document, cover, 'contextmenu');
+  assert.equal(rightClick.defaultPrevented, true);
+  const menu = gameActionsMenu(document);
+  assert.equal(menu.hidden, false);
+  assert.deepEqual(gameActionsItems(document).map(item => item.textContent), [
+    'Favorite',
+    'Add to Weekend Queue',
+  ]);
+  assert.equal(document.activeElement.id, 'game-action-favorite');
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'grid');
+
+  document.nodes.get('layout-list').click();
+  await settleBrowser();
+  const row = gameCards(document)[0];
+  assert.ok(row.className.includes('game-row'));
+  await openCardActions(document, row, 'ContextMenu');
+  assert.equal(gameActionsMenu(document).hidden, false);
+  assert.equal(document.activeElement.id, 'game-action-favorite');
+
+  document.nodes.get('nav-home').click();
+  await settleBrowser();
+  document.nodes.get('nav-home').focus();
+  await pressKey(document, 'Enter');
+  const homeCard = gameCards(document)[0];
+  assert.ok(homeCard);
+  await openCardActions(document, homeCard, 'Shift+F10');
+  assert.equal(gameActionsMenu(document).hidden, false);
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'home');
+  assert.deepEqual(gameActionsItems(document).map(item => item.textContent), [
+    'Favorite',
+    'Add to Weekend Queue',
+  ]);
+});
+
+test('game actions Favorite and collection rows call existing controller methods', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic the Hedgehog', {
+    system: 'megadrive',
+    favorite: false,
+    collections: [],
+  });
+  const { document, calls } = await runKeyboardApp({
+    pages: [{ games: [sonic] }],
+    collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }],
+  });
+  await settleBrowser();
+  await waitForCondition(
+    () => document.nodes.get('collection-list').children.length === 1,
+    'collection rail did not render',
+  );
+  await openAllGamesGrid(document);
+  await openCardActions(document, gameCards(document)[0]);
+  const beforeLaunch = calls.filter(call => call.path === '/api/v1/session/launch').length;
+  document.getElementById('game-action-favorite').click();
+  await settleBrowser();
+  const favoriteWrites = calls.filter(call => String(call.path).startsWith('/api/v1/library/favorites/'));
+  assert.equal(favoriteWrites.length, 1);
+  assert.equal(favoriteWrites[0].path, '/api/v1/library/favorites/megadrive-sonic-test');
+  assert.equal(favoriteWrites[0].options.method, 'PUT');
+  assert.equal(calls.filter(call => call.path === '/api/v1/session/launch').length, beforeLaunch);
+  assert.equal(gameActionsMenu(document).hidden, true);
+
+  const favorited = availableGame('megadrive-sonic-test', 'Sonic the Hedgehog', {
+    system: 'megadrive',
+    favorite: true,
+    collections: ['weekend-queue'],
+  });
+  const second = await runKeyboardApp({
+    pages: [{ games: [favorited] }],
+    collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }],
+  });
+  await settleBrowser();
+  await openAllGamesGrid(second.document);
+  await openCardActions(second.document, gameCards(second.document)[0]);
+  assert.deepEqual(gameActionsItems(second.document).map(item => item.textContent), [
+    'Unfavorite',
+    'Remove from Weekend Queue',
+  ]);
+  second.document.getElementById('game-action-favorite').click();
+  await settleBrowser();
+  const unfavorite = second.calls.filter(call => String(call.path).startsWith('/api/v1/library/favorites/'));
+  assert.equal(unfavorite[0].options.method, 'DELETE');
+
+  await openCardActions(second.document, gameCards(second.document)[0]);
+  second.document.getElementById('game-action-collection-weekend-queue').click();
+  await settleBrowser();
+  const membership = second.calls.filter(call => String(call.path).includes('/api/v1/library/collections/weekend-queue/'));
+  assert.equal(membership.length, 1);
+  assert.equal(membership[0].path, '/api/v1/library/collections/weekend-queue/megadrive-sonic-test');
+  assert.equal(membership[0].options.method, 'DELETE');
+});
+
+test('Enter on a focused game action commits and does not launch or change nav', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic the Hedgehog', {
+    system: 'megadrive',
+    favorite: false,
+    collections: [],
+  });
+  const { document, calls } = await runKeyboardApp({
+    pages: [{ games: [sonic] }],
+    collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }],
+  });
+  await settleBrowser();
+  await waitForCondition(
+    () => document.nodes.get('collection-list').children.length === 1,
+    'collection rail did not render',
+  );
+  await openAllGamesGrid(document);
+  await openCardActions(document, gameCards(document)[0]);
+  const collectionItem = document.getElementById('game-action-collection-weekend-queue');
+  collectionItem.focus();
+  const beforeLaunch = calls.filter(call => call.path === '/api/v1/session/launch').length;
+  const enter = await pressKey(document, 'Enter', collectionItem);
+  assert.equal(enter.defaultPrevented, true);
+  const membership = calls.filter(call => String(call.path).includes('/api/v1/library/collections/weekend-queue/'));
+  assert.equal(membership.length, 1);
+  assert.equal(membership[0].options.method, 'PUT');
+  assert.equal(calls.filter(call => call.path === '/api/v1/session/launch').length, beforeLaunch);
+  assert.equal(document.nodes.get('nav-all').className.includes('selected'), true);
+  assert.equal(document.nodes.get('collection-list').children[0].className.includes('selected'), false);
+  assert.equal(document.getElementById('favorite-game').textContent, 'Favorite');
+});
+
+test('Escape closes game actions and returns focus to the card', async () => {
+  const { document } = await runKeyboardApp();
+  await settleBrowser();
+  await openAllGamesGrid(document);
+  const card = selectedCard(document) || gameCards(document)[0];
+  await openCardActions(document, card);
+  assert.equal(gameActionsMenu(document).hidden, false);
+  const escape = await pressKey(document, 'Escape', document.activeElement);
+  assert.equal(escape.defaultPrevented, true);
+  assert.equal(gameActionsMenu(document).hidden, true);
+  assert.equal(document.activeElement.getAttribute('data-game-id'), card.getAttribute('data-game-id'));
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'grid');
+});
+
+test('opening game actions selects that card so Escape arrows and Enter stay on it', async () => {
+  const games = [
+    availableGame('snes-grid-0', 'Grid 0'),
+    availableGame('snes-grid-1', 'Grid 1'),
+    availableGame('snes-grid-2', 'Grid 2'),
+  ];
+  const { document } = await runKeyboardApp({ pages: [{ games }] });
+  await settleBrowser();
+  await openAllGamesGrid(document);
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'snes-grid-0');
+  const second = gameCards(document)[1];
+  await openCardActions(document, second);
+  assert.equal(gameActionsMenu(document).hidden, false);
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'snes-grid-1');
+  await pressKey(document, 'Escape');
+  assert.equal(gameActionsMenu(document).hidden, true);
+  assert.equal(document.activeElement.getAttribute('data-game-id'), 'snes-grid-1');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'snes-grid-1');
+  await pressKey(document, 'ArrowRight');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'snes-grid-2');
+  await pressKey(document, 'ArrowLeft');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'snes-grid-1');
+  await pressKey(document, 'Enter');
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'detail');
+  assert.match(browserText(document.nodes.get('detail-content')), /Grid 1/);
+});
+
+test('Escape restores the originating Home card when the same game is on two rails', async () => {
+  const shared = availableGame('megadrive-sonic-test', 'Sonic the Hedgehog', { system: 'megadrive' });
+  const { document } = await runKeyboardApp({
+    pages: [{ games: [shared] }],
+    railPages: {
+      continue: [shared],
+      favorites: [shared],
+      recents: [],
+    },
+    collections: [],
+  });
+  await settleBrowser();
+  document.nodes.get('nav-home').focus();
+  await pressKey(document, 'Enter');
+  await pressKey(document, 'ArrowDown');
+  assert.equal(document.activeElement.getAttribute('data-game-id'), 'megadrive-sonic-test');
+  assert.equal(document.activeElement.parentNode.getAttribute('data-home-track'), 'favorites');
+  await openCardActions(document, document.activeElement);
+  assert.equal(gameActionsMenu(document).hidden, false);
+  await pressKey(document, 'Escape');
+  assert.equal(gameActionsMenu(document).hidden, true);
+  assert.equal(document.activeElement.getAttribute('data-game-id'), 'megadrive-sonic-test');
+  assert.equal(document.activeElement.parentNode.getAttribute('data-home-track'), 'favorites');
+  const selectedOnHome = gameCards(document).filter(card => String(card.className || '').includes('selected'));
+  assert.equal(selectedOnHome.length, 1);
+  assert.equal(selectedOnHome[0].parentNode.getAttribute('data-home-track'), 'favorites');
+});
+
+test('game actions menu is clamped to the viewport', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic the Hedgehog', { system: 'megadrive' });
+  const { document } = await runKeyboardApp({
+    pages: [{ games: [sonic] }],
+    globals: { window: { innerWidth: 400, innerHeight: 240 } },
+  });
+  await settleBrowser();
+  await openAllGamesGrid(document);
+  const menu = gameActionsMenu(document);
+  menu.offsetWidth = 220;
+  menu.offsetHeight = 180;
+  const card = gameCards(document)[0];
+  const event = {
+    type: 'contextmenu',
+    target: card,
+    clientX: 360,
+    clientY: 210,
+    preventDefault() { event.defaultPrevented = true; },
+  };
+  card.dispatchEvent(event);
+  await settleBrowser();
+  assert.equal(menu.hidden, false);
+  assert.equal(menu.style.left, '172px');
+  assert.equal(menu.style.top, '52px');
+});
+
+test('Arrow Home and End keep the focused game action visible inside the menu', async () => {
+  const collections = [];
+  for (let index = 0; index < 12; index += 1) {
+    collections.push({ id: `queue-${index}`, name: `Queue ${index}` });
+  }
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic the Hedgehog', { system: 'megadrive' });
+  const { document } = await runKeyboardApp({
+    pages: [{ games: [sonic] }],
+    collections,
+  });
+  await settleBrowser();
+  await waitForCondition(
+    () => document.nodes.get('collection-list').children.length === 12,
+    'collection rail did not render',
+  );
+  await openAllGamesGrid(document);
+  await openCardActions(document, gameCards(document)[0]);
+  const menu = gameActionsMenu(document);
+  const items = gameActionsItems(document);
+  assert.equal(items.length, 13);
+  menu.clientHeight = 80;
+  menu.scrollTop = 0;
+  items.forEach((item, index) => {
+    item.offsetHeight = 40;
+    item.offsetTop = index * 40;
+  });
+  const catalogScrolls = gameCards(document).map(card => (card.scrollIntoViewCalls || []).length);
+  await pressKey(document, 'End');
+  assert.equal(document.activeElement, items[12]);
+  assert.equal(menu.scrollTop, 440);
+  await pressKey(document, 'Home');
+  assert.equal(document.activeElement, items[0]);
+  assert.equal(menu.scrollTop, 0);
+  await pressKey(document, 'ArrowDown');
+  await pressKey(document, 'ArrowDown');
+  assert.equal(document.activeElement, items[2]);
+  assert.equal(menu.scrollTop, 40);
+  assert.deepEqual(
+    gameCards(document).map(card => (card.scrollIntoViewCalls || []).length),
+    catalogScrolls,
+  );
+});
+
+test('printable keys still type-to-search while game actions are open', async () => {
+  const { document } = await runKeyboardApp();
+  await settleBrowser();
+  await openAllGamesGrid(document);
+  await openCardActions(document, gameCards(document)[0]);
+  assert.equal(gameActionsMenu(document).hidden, false);
+  const typed = await pressKey(document, 'F', document.activeElement);
+  assert.equal(typed.defaultPrevented, true);
+  assert.equal(gameActionsMenu(document).hidden, true);
+  assert.equal(document.nodes.get('game-search').value, 'F');
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'search');
+});
+
+test('one game actions menu closes on Settings Attract and nav change', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic the Hedgehog', { system: 'megadrive' });
+  const mario = availableGame('snes-mario-test', 'Mario', { system: 'snes' });
+  const { document } = await runKeyboardApp({
+    pages: [{ games: [sonic, mario] }],
+    collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }],
+  });
+  await settleBrowser();
+  await openAllGamesGrid(document);
+  const cards = gameCards(document);
+  await openCardActions(document, cards[0]);
+  assert.equal(gameActionsMenu(document).hidden, false);
+  await openCardActions(document, cards[1]);
+  assert.equal(gameActionsMenu(document).hidden, false);
+  assert.equal(gameActionsItems(document).length >= 1, true);
+  assert.equal(document.getElementById('game-actions-menu').id, 'game-actions-menu');
+
+  document.nodes.get('nav-favorites').click();
+  await settleBrowser();
+  assert.equal(gameActionsMenu(document).hidden, true);
+
+  await openAllGamesGrid(document);
+  await openCardActions(document, gameCards(document)[0]);
+  await document.nodes.get('open-settings').click();
+  await waitForCondition(() => document.nodes.get('settings').hidden === false, 'settings overlay did not open');
+  assert.equal(gameActionsMenu(document).hidden, true);
+  document.listeners.get('keydown')({ key: 'Escape', preventDefault() {} });
+  await settleBrowser();
+
+  const handle = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  const attractApp = await runKeyboardApp({
+    pages: [{ games: [sonic] }],
+    globals: { FogCastAttractDisabled: false, FogCastAttractIdleMs: 250 },
+    attractItems: [{ game_id: 'megadrive-sonic-test', title: 'Sonic the Hedgehog', cover: handle }],
+  });
+  await settleBrowser();
+  await openAllGamesGrid(attractApp.document);
+  await openCardActions(attractApp.document, gameCards(attractApp.document)[0]);
+  assert.equal(gameActionsMenu(attractApp.document).hidden, false);
+  await waitForAttractTitle(attractApp.document, 'Sonic the Hedgehog', 800);
+  assert.equal(gameActionsMenu(attractApp.document).hidden, true);
+});
+
+test('detail Favorite and collection buttons still work after the wall menu', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic the Hedgehog', {
+    system: 'megadrive',
+    favorite: false,
+    collections: [],
+  });
+  const { document, calls } = await runKeyboardApp({
+    pages: [{ games: [sonic] }],
+    collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }],
+  });
+  await settleBrowser();
+  await waitForCondition(
+    () => document.nodes.get('collection-list').children.length === 1,
+    'collection rail did not render',
+  );
+  await openAllGamesGrid(document);
+  await openCardActions(document, gameCards(document)[0]);
+  document.getElementById('game-action-favorite').click();
+  await settleBrowser();
+  const favorite = document.getElementById('favorite-game');
+  assert.ok(favorite);
+  favorite.click();
+  await settleBrowser();
+  const favoriteWrites = calls.filter(call => String(call.path).startsWith('/api/v1/library/favorites/'));
+  assert.equal(favoriteWrites.length, 2);
+  assert.equal(favoriteWrites[1].options.method, 'DELETE');
+  const member = document.getElementById('collection-member-weekend-queue');
+  assert.ok(member);
+  member.click();
+  await settleBrowser();
+  const membership = calls.filter(call => String(call.path).includes('/api/v1/library/collections/weekend-queue/'));
+  assert.equal(membership.length, 1);
+  assert.equal(membership[0].options.method, 'PUT');
+});
+
+test('game actions menu CSS stays a compact overlay', () => {
+  const css = readAsset('ui.css');
+  assert.match(css, /\.game-actions-menu/);
+  assert.match(css, /\.game-actions-item/);
+  assert.match(css, /max-height:\s*min\(70vh,\s*calc\(100vh - 16px\)\)/);
+  assert.match(css, /\.game-actions-menu[\s\S]*overflow:\s*auto/);
+  const html = readAsset('ui_shell.html');
+  assert.match(html, /id="game-actions-menu"/);
 });
