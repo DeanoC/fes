@@ -941,6 +941,7 @@
       selectedGameView: null,
       selectedPresentation: null,
       requestSequence: 0,
+      settingsSequence: 0,
       collectionListSequence: 0,
       detailSequence: 0,
       presentationSequence: 0,
@@ -1501,8 +1502,10 @@
         if (!state.platforms.length) state.platforms = Object.freeze([]);
       }
       try {
+        const settingsSequence = state.settingsSequence;
         const attract = await request(fetchImpl, '/api/v1/library/attract?limit=1');
-        if (Number.isFinite(attract && attract.idle_seconds) && attract.idle_seconds > 0) {
+        if (settingsSequence === state.settingsSequence
+          && Number.isFinite(attract && attract.idle_seconds) && attract.idle_seconds > 0) {
           state.attractIdleSeconds = attract.idle_seconds;
         }
       } catch (_) {
@@ -1652,15 +1655,23 @@
       });
     }
 
-    async function loadSettings() {
-      const payload = await request(fetchImpl, '/api/v1/library/settings');
-      const parsed = parseLibrarySettings(payload);
+    function applyLibrarySettings(parsed, sequence) {
+      if (sequence !== state.settingsSequence) return false;
       if (parsed.attract_idle_seconds > 0) state.attractIdleSeconds = parsed.attract_idle_seconds;
       state.librarySettings = parsed;
+      return true;
+    }
+
+    async function loadSettings() {
+      const sequence = state.settingsSequence;
+      const payload = await request(fetchImpl, '/api/v1/library/settings');
+      const parsed = parseLibrarySettings(payload);
+      if (!applyLibrarySettings(parsed, sequence)) return snapshot();
       return emit();
     }
 
     async function saveSettings(next) {
+      const sequence = ++state.settingsSequence;
       const payload = await request(fetchImpl, '/api/v1/library/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -1670,18 +1681,19 @@
         }),
       });
       const parsed = parseLibrarySettings(payload);
-      if (parsed.attract_idle_seconds > 0) state.attractIdleSeconds = parsed.attract_idle_seconds;
-      state.librarySettings = parsed;
+      if (!applyLibrarySettings(parsed, sequence)) return snapshot();
+      if (sequence === state.settingsSequence) state.settingsSequence += 1;
       emit();
       return loadCatalog(state.query);
     }
 
     async function loadAttract(limit) {
       const size = Number(limit) > 0 ? Number(limit) : 24;
+      const settingsSequence = state.settingsSequence;
       const payload = await request(fetchImpl, `/api/v1/library/attract?limit=${encodeURIComponent(String(size))}`);
       const items = payload && Array.isArray(payload.items) ? payload.items : [];
       const idle = Number.isFinite(payload && payload.idle_seconds) ? payload.idle_seconds : 60;
-      if (idle > 0) state.attractIdleSeconds = idle;
+      if (settingsSequence === state.settingsSequence && idle > 0) state.attractIdleSeconds = idle;
       return Object.freeze({
         idle_seconds: idle,
         items: Object.freeze(items.filter(item => item && typeof item.game_id === 'string').map(item => Object.freeze({
