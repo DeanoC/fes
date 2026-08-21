@@ -519,7 +519,7 @@ func (s *Service) QueryGames(ctx context.Context, query catalog.Query) (catalog.
 		}
 	case "":
 	default:
-		return catalog.Page{}, canonicalError(protocol.CodeBadRequest, nil)
+		return s.queryCustomCollection(ctx, query)
 	}
 	page, err := s.catalog.QueryGames(ctx, query)
 	if err != nil {

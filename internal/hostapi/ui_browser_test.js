@@ -11,6 +11,7 @@ const {
   fixture,
   artworkFixture,
   waitForProcessGroupQuiescence,
+  normalizePlan,
 } = require('./ui_browser_harness.js');
 
 const REQUIRED = process.env.FOGCAST_BROWSER_REQUIRED === '1';
@@ -310,6 +311,14 @@ test('fixture server serves the assembled production document with production he
     await server.close();
     assert.equal(server.origin, null);
   }
+});
+
+test('normalizePlan copies collections into the browser fixture plan', () => {
+  const collections = [{ id: 'weekend-queue', name: 'Weekend Queue' }];
+  const plan = normalizePlan({ collections });
+  assert.deepEqual(plan.collections, collections);
+  assert.notEqual(plan.collections, collections);
+  assert.deepEqual(normalizePlan({}).collections, []);
 });
 
 test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async t => {
@@ -1230,6 +1239,160 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         await harness.waitForRequest({ method: 'PUT', path: `/api/v1/library/favorites/${SONIC_ID}` });
         const snapshot = await harness.waitForSnapshot(item => item.favoriteLabel === 'Favorited');
         assert.equal(snapshot.favoriteLabel, 'Favorited');
+      });
+    });
+
+    await t.test('custom collection fixture appears on the rail', async () => {
+      await runScenario(harness, 'custom-collection-rail', basePlan({
+        collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }],
+      }), async () => {
+        const snapshot = await harness.waitForSnapshot(item => item.collectionItems.some(entry => entry.id === 'weekend-queue'));
+        assert.deepEqual(snapshot.collectionItems, [{
+          id: 'weekend-queue',
+          label: 'Weekend Queue',
+          selected: false,
+        }]);
+      });
+    });
+
+    await t.test('removing a member while browsing a custom collection reloads the wall', async () => {
+      const collectionGame = {
+        id: SONIC_ID,
+        title: 'Sonic the Hedgehog',
+        system: 'megadrive',
+        kind: 'zip',
+        state: 'available',
+        root_online: true,
+        content_prepared: true,
+        execution: 'fpga_native',
+        collections: ['weekend-queue'],
+      };
+      await runScenario(harness, 'custom-collection-member-reload', basePlan({
+        collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }],
+        catalog: {
+          '': populatedCatalog(),
+          'collection=weekend-queue': [
+            fixture('catalog-populated.json', 200, { override: { games: [collectionGame] } }),
+            fixture('catalog-populated.json', 200, { override: { games: [] } }),
+          ],
+        },
+        details: {
+          ...defaultDetails(),
+          [SONIC_ID]: fixture('detail-refreshed.json', 200, {
+            override: {
+              id: SONIC_ID,
+              title: 'Sonic the Hedgehog (detail refresh)',
+              system: 'megadrive',
+              kind: 'zip',
+              state: 'available',
+              root_online: true,
+              content_prepared: true,
+              execution: 'fpga_native',
+              collections: ['weekend-queue'],
+            },
+          }),
+        },
+      }), async () => {
+        await harness.waitForSnapshot(item => item.collectionItems.some(entry => entry.id === 'weekend-queue'));
+        await harness.click('[data-collection="weekend-queue"]');
+        await harness.waitForSnapshot(item => (
+          item.collectionItems.some(entry => entry.id === 'weekend-queue' && entry.selected)
+          && item.cards.length === 1
+          && item.cards[0].title === 'Sonic the Hedgehog'
+        ));
+        await selectSonic(harness);
+        await harness.waitForSnapshot(item => item.collectionMemberLabel.some(label => label === 'Remove from Weekend Queue'));
+        await harness.click('#collection-member-weekend-queue');
+        await harness.waitForRequest({ method: 'DELETE', path: `/api/v1/library/collections/weekend-queue/${SONIC_ID}` });
+        const snapshot = await harness.waitForSnapshot(item => item.catalogStatus === 'empty' && item.cards.length === 0);
+        assert.equal(snapshot.catalogStatus, 'empty');
+        assert.match(snapshot.catalogText, /This collection is empty/);
+        const collectionReads = harness.fixtureEvidence().filter(record => (
+          record.method === 'GET' && record.path === '/api/v1/games' && record.query === 'collection=weekend-queue'
+        ));
+        assert.equal(collectionReads.length, 2, JSON.stringify(collectionReads));
+      });
+    });
+
+    await t.test('new collection uses a unique slug instead of renaming an existing list', async () => {
+      await runScenario(harness, 'custom-collection-unique-slug', basePlan({
+        collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }],
+        catalog: {
+          '': populatedCatalog(),
+          'collection=weekend-queue-2': fixture('catalog-empty.json'),
+        },
+      }), async () => {
+        await harness.waitForSnapshot(item => item.collectionItems.some(entry => entry.id === 'weekend-queue'));
+        await harness.click('#create-collection');
+        await harness.evaluate(`(() => {
+          const node = document.getElementById('collection-name');
+          if (!node) throw new Error('missing collection name');
+          node.value = 'Weekend Queue!';
+        })()`);
+        await harness.click('#save-collection');
+        await harness.waitForRequest({ method: 'PUT', path: '/api/v1/library/collections/weekend-queue-2' });
+        const writes = harness.fixtureEvidence().filter(record => (
+          record.method === 'PUT' && record.path.startsWith('/api/v1/library/collections/')
+        ));
+        assert.equal(writes.some(record => record.path === '/api/v1/library/collections/weekend-queue'), false, JSON.stringify(writes));
+        assert.equal(writes.some(record => record.path === '/api/v1/library/collections/weekend-queue-2'), true, JSON.stringify(writes));
+      });
+    });
+
+    await t.test('rename keeps the original collection when the rail changes', async () => {
+      await runScenario(harness, 'custom-collection-rename-keeps-target', basePlan({
+        collections: [
+          { id: 'weekend-queue', name: 'Weekend Queue' },
+          { id: 'saturday', name: 'Saturday' },
+        ],
+        catalog: {
+          '': populatedCatalog(),
+          'collection=weekend-queue': fixture('catalog-empty.json'),
+          'collection=saturday': fixture('catalog-empty.json'),
+        },
+      }), async () => {
+        await harness.waitForSnapshot(item => item.collectionItems.length === 2);
+        await harness.click('[data-collection="weekend-queue"]');
+        await harness.waitForSnapshot(item => item.collectionItems.some(entry => entry.id === 'weekend-queue' && entry.selected));
+        await harness.click('#rename-collection');
+        await harness.evaluate(`(() => {
+          const node = document.getElementById('collection-name');
+          if (!node) throw new Error('missing collection name');
+          node.value = 'Friday';
+        })()`);
+        await harness.click('[data-collection="saturday"]');
+        await harness.waitForSnapshot(item => item.collectionItems.some(entry => entry.id === 'saturday' && entry.selected));
+        await harness.click('#save-collection');
+        await harness.waitForRequest({ method: 'PUT', path: '/api/v1/library/collections/weekend-queue' });
+        const writes = harness.fixtureEvidence().filter(record => (
+          record.method === 'PUT' && record.path.startsWith('/api/v1/library/collections/')
+        ));
+        assert.equal(writes.some(record => record.path === '/api/v1/library/collections/saturday'), false, JSON.stringify(writes));
+        assert.equal(writes.some(record => record.path === '/api/v1/library/collections/weekend-queue'), true, JSON.stringify(writes));
+      });
+    });
+
+    await t.test('Recently Added is reserved and uses a hyphenated list slug', async () => {
+      await runScenario(harness, 'custom-collection-reserved-recently-added', basePlan({
+        catalog: {
+          '': populatedCatalog(),
+          'collection=recently-added-list': fixture('catalog-empty.json'),
+        },
+      }), async () => {
+        await harness.waitForCatalog('populated metadata_fallback');
+        await harness.click('#create-collection');
+        await harness.evaluate(`(() => {
+          const node = document.getElementById('collection-name');
+          if (!node) throw new Error('missing collection name');
+          node.value = 'Recently Added';
+        })()`);
+        await harness.click('#save-collection');
+        await harness.waitForRequest({ method: 'PUT', path: '/api/v1/library/collections/recently-added-list' });
+        const writes = harness.fixtureEvidence().filter(record => (
+          record.method === 'PUT' && record.path.startsWith('/api/v1/library/collections/')
+        ));
+        assert.equal(writes.some(record => record.path === '/api/v1/library/collections/recently-added'), false, JSON.stringify(writes));
+        assert.equal(writes.some(record => record.path === '/api/v1/library/collections/recently-added-list'), true, JSON.stringify(writes));
       });
     });
 

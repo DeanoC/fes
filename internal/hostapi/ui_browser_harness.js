@@ -171,6 +171,7 @@ function normalizePlan(plan = {}) {
     }),
     attract: plan.attract || { items: [], idle_seconds: 60 },
     platforms: plan.platforms || { platforms: [] },
+    collections: Array.isArray(plan.collections) ? plan.collections.slice() : [],
     catalogQueues,
     detailQueues,
     presentationQueues,
@@ -452,6 +453,36 @@ class FixtureServer extends EventEmitter {
       await this.deliver(record, response, {
         fixture: 'favorite.json', status: 200, hold: false, delayMs: 0,
         override: { id: decodeURIComponent(favoriteMatch[1]), favorite: request.method === 'PUT' },
+      });
+      return;
+    }
+    if (url.pathname === '/api/v1/library/collections' && request.method === 'GET') {
+      await this.deliver(record, response, {
+        fixture: 'collections.json', status: 200, hold: false, delayMs: 0,
+        override: { collections: this.plan.collections || [] },
+      });
+      return;
+    }
+    const collectionMemberMatch = url.pathname.match(/^\/api\/v1\/library\/collections\/([^/]+)\/([^/]+)$/);
+    if (collectionMemberMatch && (request.method === 'PUT' || request.method === 'DELETE')) {
+      await this.deliver(record, response, {
+        fixture: 'collection-member.json', status: 200, hold: false, delayMs: 0,
+        override: {
+          id: decodeURIComponent(collectionMemberMatch[2]),
+          collection: decodeURIComponent(collectionMemberMatch[1]),
+          member: request.method === 'PUT',
+        },
+      });
+      return;
+    }
+    const collectionMatch = url.pathname.match(/^\/api\/v1\/library\/collections\/([^/]+)$/);
+    if (collectionMatch && (request.method === 'PUT' || request.method === 'DELETE')) {
+      const id = decodeURIComponent(collectionMatch[1]);
+      await this.deliver(record, response, {
+        fixture: 'collection.json', status: 200, hold: false, delayMs: 0,
+        override: request.method === 'DELETE'
+          ? { id }
+          : { id, name: url.searchParams.get('name') || id },
       });
       return;
     }
@@ -1300,6 +1331,12 @@ class BrowserPage {
         launchButtonLabel: button('#launch-game')?.textContent || button('#launch-actions button.button')?.textContent || '',
         launchButtonDescribedBy: button('#launch-game')?.getAttribute('aria-describedby') || button('#launch-actions button.button')?.getAttribute('aria-describedby') || '',
         favoriteLabel: button('#favorite-game')?.textContent || '',
+        collectionItems: Array.from(document.querySelectorAll('#collection-list .nav-item')).map(item => ({
+          id: item.getAttribute('data-collection') || '',
+          label: item.textContent || '',
+          selected: String(item.className || '').includes('selected'),
+        })),
+        collectionMemberLabel: Array.from(document.querySelectorAll('.collection-member-button')).map(item => item.textContent || ''),
         attractHidden: document.querySelector('#attract')?.hidden !== false,
         attractTitle: text('#attract-title'),
         activeElementID: document.activeElement?.id || '',
@@ -1686,4 +1723,5 @@ module.exports = {
   artworkFixture,
   resolveChrome,
   waitForProcessGroupQuiescence,
+  normalizePlan,
 };

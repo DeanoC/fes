@@ -11,7 +11,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const schemaVersion = 1
+const schemaVersion = 2
 
 const schemaV1 = `
 CREATE TABLE game_state (
@@ -24,6 +24,25 @@ CREATE TABLE game_state (
 CREATE INDEX game_state_favorites ON game_state(favorite, favorited_at DESC, game_id);
 CREATE INDEX game_state_recents ON game_state(last_played_at DESC, game_id);
 PRAGMA user_version = 1;
+`
+
+const schemaV2 = `
+CREATE TABLE collections (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE collection_membership (
+  collection_id TEXT NOT NULL,
+  game_id TEXT NOT NULL,
+  added_at INTEGER NOT NULL,
+  PRIMARY KEY (collection_id, game_id),
+  FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE
+);
+CREATE INDEX collections_created ON collections(created_at, id);
+CREATE INDEX collection_membership_game ON collection_membership(game_id);
+CREATE INDEX collection_membership_added ON collection_membership(collection_id, added_at DESC, game_id);
+PRAGMA user_version = 2;
 `
 
 type State struct {
@@ -91,6 +110,12 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if version == 0 {
 		if _, err := connection.ExecContext(ctx, schemaV1); err != nil {
 			return fmt.Errorf("apply user library schema: %w", err)
+		}
+		version = 1
+	}
+	if version == 1 {
+		if _, err := connection.ExecContext(ctx, schemaV2); err != nil {
+			return fmt.Errorf("apply user library schema v2: %w", err)
 		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {

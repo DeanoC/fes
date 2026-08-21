@@ -472,3 +472,49 @@ func TestGamesInGroupReturnsEverySibling(t *testing.T) {
 		t.Fatalf("variants = %d, %v", len(variants), err)
 	}
 }
+
+func TestQueryGamesCustomCollectionRestrictsMembership(t *testing.T) {
+	ctx := context.Background()
+	users, err := libraryuser.Open(filepath.Join(t.TempDir(), "user.sqlite3"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = users.Close() })
+	alpha := catalog.Game{
+		ID: "snes-alpha-test", Title: "Alpha", System: protocol.SystemSNES,
+		Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
+	}
+	sonic := catalog.Game{
+		ID: "snes-sonic-test", Title: "Sonic", System: protocol.SystemSNES,
+		Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
+	}
+	store := &fakeServiceCatalog{games: []catalog.Game{alpha, sonic}}
+	service := newService(
+		Config{Libraries: []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: "/private/library"}}, RequestTimeout: time.Second, UploadTimeout: 2 * time.Second},
+		Paths{Staging: "/private/staging"}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{},
+		WithUserLibrary(users),
+	)
+	created, err := users.UpsertCollection(ctx, "weekend-queue", "Weekend Queue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	empty, err := service.QueryGames(ctx, catalog.Query{Collection: created.ID, Limit: 10})
+	if err != nil || len(empty.Games) != 0 {
+		t.Fatalf("empty custom collection = %+v, %v", empty, err)
+	}
+	if err := users.SetCollectionMember(ctx, created.ID, sonic.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	page, err := service.QueryGames(ctx, catalog.Query{Collection: created.ID, Limit: 10})
+	if err != nil || len(page.Games) != 1 || page.Games[0].ID != sonic.ID {
+		t.Fatalf("custom collection = %+v, %v", page, err)
+	}
+	favorites, err := service.QueryGames(ctx, catalog.Query{Collection: "favorites", Limit: 10})
+	if err != nil || len(favorites.Games) != 0 {
+		t.Fatalf("favorites still empty = %+v, %v", favorites, err)
+	}
+	_, err = service.QueryGames(ctx, catalog.Query{Collection: "missing-list"})
+	assertServiceErrorCode(t, err, protocol.CodeBadRequest)
+	_, err = service.QueryGames(ctx, catalog.Query{Collection: "not a slug"})
+	assertServiceErrorCode(t, err, protocol.CodeBadRequest)
+}

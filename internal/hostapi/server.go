@@ -45,6 +45,7 @@ type gameResult struct {
 	Year            string              `json:"year,omitempty"`
 	Platform        protocol.System     `json:"platform,omitempty"`
 	Favorite        bool                `json:"favorite,omitempty"`
+	Collections     []string            `json:"collections,omitempty"`
 	Cover           string              `json:"cover,omitempty"`
 	Launchable      bool                `json:"launchable"`
 	CanonicalTitle  string              `json:"canonical_title,omitempty"`
@@ -59,6 +60,12 @@ type gameResult struct {
 type gamesResult struct {
 	Games      []gameResult `json:"games"`
 	NextCursor string       `json:"next_cursor,omitempty"`
+}
+
+type collectionResult struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	CreatedAt int64  `json:"created_at,omitempty"`
 }
 
 type healthResult struct {
@@ -270,6 +277,21 @@ func New(service Service, options ...ServerOption) http.Handler {
 	})
 	mux.HandleFunc("DELETE /api/v1/library/favorites/{id}", func(w http.ResponseWriter, r *http.Request) {
 		handleFavorite(w, r, service, false)
+	})
+	mux.HandleFunc("GET /api/v1/library/collections", func(w http.ResponseWriter, r *http.Request) {
+		handleCollections(w, r, service)
+	})
+	mux.HandleFunc("PUT /api/v1/library/collections/{id}/{gameId}", func(w http.ResponseWriter, r *http.Request) {
+		handleCollectionMember(w, r, service, true)
+	})
+	mux.HandleFunc("DELETE /api/v1/library/collections/{id}/{gameId}", func(w http.ResponseWriter, r *http.Request) {
+		handleCollectionMember(w, r, service, false)
+	})
+	mux.HandleFunc("PUT /api/v1/library/collections/{id}", func(w http.ResponseWriter, r *http.Request) {
+		handleCollection(w, r, service, true)
+	})
+	mux.HandleFunc("DELETE /api/v1/library/collections/{id}", func(w http.ResponseWriter, r *http.Request) {
+		handleCollection(w, r, service, false)
 	})
 	mux.HandleFunc("GET /api/v1/library/attract", func(w http.ResponseWriter, r *http.Request) {
 		handleAttract(w, r, service)

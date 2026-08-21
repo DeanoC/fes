@@ -21,6 +21,16 @@
       <button id="nav-recents" class="nav-item" type="button">Recent</button>
       <button id="nav-unplayed" class="nav-item" type="button">Unplayed</button>
       <button id="nav-recently-added" class="nav-item" type="button">Recently added</button>
+      <div id="collection-list" class="collection-list"></div>
+      <div id="collection-controls" class="collection-controls">
+        <button id="create-collection" class="button secondary" type="button">New collection</button>
+        <label id="collection-name-label" class="filter-label" hidden>Collection name
+          <input id="collection-name" type="text" maxlength="80" autocomplete="off">
+        </label>
+        <button id="save-collection" class="button secondary" type="button" hidden>Save collection</button>
+        <button id="rename-collection" class="button secondary" type="button" hidden>Rename</button>
+        <button id="delete-collection" class="button secondary" type="button" hidden>Delete</button>
+      </div>
       <p class="eyebrow platform-heading">Platforms</p>
       <div id="platform-list" class="platform-list"></div>
     </nav>

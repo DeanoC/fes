@@ -31,6 +31,8 @@ const {
   systemLabel,
   sourceLabel,
   launchBlockReason,
+  collectionIDFromName,
+  uniqueCollectionID,
 } = require('./ui_app.js');
 const FogCastMetadata = require('./ui_metadata.js');
 
@@ -152,6 +154,11 @@ function browserDocument() {
     'nav-recents': 'button',
     'nav-unplayed': 'button',
     'nav-recently-added': 'button',
+    'create-collection': 'button',
+    'collection-name': 'input',
+    'save-collection': 'button',
+    'rename-collection': 'button',
+    'delete-collection': 'button',
     'refresh-catalog': 'button',
     'filter-system': 'select',
     'launcher': 'main',
@@ -162,7 +169,9 @@ function browserDocument() {
     'launch-actions', 'launch-status', 'session-panel', 'session-status',
     'session-details', 'session-actions', 'session-message',
     'nav-all', 'nav-continue', 'nav-favorites', 'nav-recents', 'nav-unplayed',
-    'nav-recently-added', 'platform-list',
+    'nav-recently-added', 'collection-list', 'create-collection', 'collection-name-label',
+    'collection-name', 'save-collection', 'rename-collection', 'delete-collection',
+    'platform-list',
     'attract', 'attract-title', 'attract-stage',
   ];
   const document = {
@@ -220,7 +229,7 @@ async function waitForAttractTitle(document, title, timeoutMs) {
   throw new Error(`attract title was ${JSON.stringify(document.nodes.get('attract-title') && document.nodes.get('attract-title').textContent)} hidden=${attract && attract.hidden}, want ${title}`);
 }
 
-async function runBrowserApp({ adapter, responses, sessionResponses, globals, attractItems }) {
+async function runBrowserApp({ adapter, responses, sessionResponses, globals, attractItems, collections }) {
   const document = browserDocument();
   const calls = [];
   const sessionCalls = [];
@@ -238,6 +247,12 @@ async function runBrowserApp({ adapter, responses, sessionResponses, globals, at
     }
     if (pathOnly === '/api/v1/library/facets') {
       return jsonResponse({ genres: [], years: [] });
+    }
+    if (pathOnly === '/api/v1/library/collections') {
+      return jsonResponse({ collections: collections || [] });
+    }
+    if (pathOnly.startsWith('/api/v1/library/collections/')) {
+      return jsonResponse({ id: 'weekend-queue', name: 'Weekend Queue', member: (options && options.method) === 'PUT' });
     }
     if (pathOnly.startsWith('/api/v1/library/favorites/')) {
       return jsonResponse({ favorite: (options && options.method) === 'PUT' });
@@ -261,6 +276,52 @@ async function runBrowserApp({ adapter, responses, sessionResponses, globals, at
   vm.runInNewContext(readAsset('ui_app.js'), context, { filename: 'ui_app.js' });
   await settleBrowser();
   return { document, calls, sessionCalls, globals: context };
+}
+
+async function runCollectionEditorApp({ collections = [], writeResponses = [], onWrite } = {}) {
+  const document = browserDocument();
+  const writes = [];
+  const pendingWrites = writeResponses.slice();
+  const fetch = async (requestPath, options) => {
+    const pathOnly = String(requestPath || '').split('?')[0];
+    if (pathOnly === '/api/v1/platforms') return jsonResponse({ platforms: [] });
+    if (pathOnly === '/api/v1/library/attract') return jsonResponse({ items: [], idle_seconds: 60 });
+    if (pathOnly === '/api/v1/library/facets') return jsonResponse({ genres: [], years: [] });
+    if (pathOnly === '/api/v1/library/collections') return jsonResponse({ collections });
+    if (pathOnly.startsWith('/api/v1/library/collections/')) {
+      const method = options && options.method;
+      if (method === 'PUT' || method === 'DELETE') {
+        const record = { path: requestPath, options };
+        writes.push(record);
+        if (onWrite) await onWrite(record);
+        if (pendingWrites.length) return pendingWrites.shift();
+        const id = decodeURIComponent(pathOnly.slice('/api/v1/library/collections/'.length).split('/')[0]);
+        const query = String(requestPath).includes('?') ? String(requestPath).slice(String(requestPath).indexOf('?') + 1) : '';
+        const name = new URLSearchParams(query).get('name') || id;
+        return jsonResponse({ id, name, member: method === 'PUT' && pathOnly.split('/').length > 6 });
+      }
+    }
+    if (pathOnly.startsWith('/api/v1/library/favorites/')) {
+      return jsonResponse({ favorite: (options && options.method) === 'PUT' });
+    }
+    if (pathOnly === '/api/v1/session') return jsonResponse({ state: 'idle' });
+    if (pathOnly === '/api/v1/games') return jsonResponse(readFixture('catalog-populated.json'));
+    throw new Error(`unexpected collection editor fixture ${requestPath}`);
+  };
+  const context = {
+    document,
+    fetch,
+    FogCastAttractDisabled: true,
+    setTimeout,
+    clearTimeout,
+  };
+  vm.runInNewContext(readAsset('ui_app.js'), context, { filename: 'ui_app.js' });
+  await settleBrowser();
+  await waitForCondition(
+    () => (collections.length === 0 ? true : document.nodes.get('collection-list').children.length === collections.length),
+    'collection rail did not render',
+  );
+  return { document, writes };
 }
 
 function malformedJSONResponse(status = 200) {
@@ -1777,6 +1838,308 @@ test('toggleFavorite writes PUT and DELETE without changing launch body', async 
   assert.equal(favoriteCalls[1].options.method, 'DELETE');
 });
 
+test('custom collections use empty-body PUT/DELETE and collection= browse', async () => {
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/games': [
+      jsonResponse(readFixture('catalog-populated.json')),
+      jsonResponse(readFixture('catalog-populated.json')),
+    ],
+    '/api/v1/games?collection=weekend-queue': [
+      jsonResponse(readFixture('catalog-populated.json')),
+      jsonResponse({ games: [] }),
+    ],
+    '/api/v1/library/collections': [
+      jsonResponse({ collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }] }),
+      jsonResponse({ collections: [{ id: 'weekend-queue', name: 'Saturday' }] }),
+      jsonResponse({ collections: [] }),
+    ],
+    '/api/v1/library/collections/weekend-queue?name=Weekend%20Queue': [jsonResponse({ id: 'weekend-queue', name: 'Weekend Queue' })],
+    '/api/v1/library/collections/weekend-queue?name=Saturday': [jsonResponse({ id: 'weekend-queue', name: 'Saturday' })],
+    '/api/v1/library/collections/weekend-queue': [jsonResponse({ id: 'weekend-queue' })],
+    '/api/v1/library/collections/weekend-queue/megadrive-sonic-test': [
+      jsonResponse({ id: 'megadrive-sonic-test', collection: 'weekend-queue', member: true }),
+      jsonResponse({ id: 'megadrive-sonic-test', collection: 'weekend-queue', member: false }),
+    ],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadCatalog('');
+  await controller.createCollection('Weekend Queue');
+  assert.equal(controller.getState().collection, 'weekend-queue');
+  assert.equal(controller.getState().collections[0].name, 'Weekend Queue');
+  assert.equal(calls.some(call => call.path === '/api/v1/games?collection=weekend-queue&grouped=1'), true);
+  await controller.toggleCollectionMember('weekend-queue', 'megadrive-sonic-test');
+  assert.deepEqual(controller.getState().games[0].collections, ['weekend-queue']);
+  await controller.toggleCollectionMember('weekend-queue', 'megadrive-sonic-test');
+  assert.equal(controller.getState().games.length, 0);
+  assert.equal(
+    calls.filter(call => call.path === '/api/v1/games?collection=weekend-queue&grouped=1').length,
+    2,
+  );
+  await controller.renameCollection('weekend-queue', 'Saturday');
+  assert.equal(controller.getState().collections[0].name, 'Saturday');
+  await controller.deleteCollection('weekend-queue');
+  assert.equal(controller.getState().collection, '');
+  const writes = calls.filter(call => String(call.path).includes('/library/collections/'));
+  assert.equal(writes[0].options.method, 'PUT');
+  assert.equal(writes[0].options.body, undefined);
+  assert.equal(writes[1].options.method, 'PUT');
+  assert.equal(writes[2].options.method, 'DELETE');
+  assert.equal(writes[3].options.method, 'PUT');
+  assert.equal(writes[4].options.method, 'DELETE');
+});
+
+test('uniqueCollectionID avoids reserved slugs and existing collisions', () => {
+  assert.equal(collectionIDFromName('Weekend Queue!'), 'weekend-queue');
+  assert.equal(collectionIDFromName('日本語'), 'collection');
+  assert.equal(collectionIDFromName('Recently Added'), 'recently-added-list');
+  assert.equal(collectionIDFromName('recently_added'), 'recently-added-list');
+  assert.equal(uniqueCollectionID('Weekend Queue!', []), 'weekend-queue');
+  assert.equal(uniqueCollectionID('Weekend Queue!!', ['weekend-queue']), 'weekend-queue-2');
+  assert.equal(uniqueCollectionID('日本語', ['collection']), 'collection-2');
+  assert.equal(uniqueCollectionID('Favorites', []), 'favorites-list');
+  assert.equal(uniqueCollectionID('Recently Added', []), 'recently-added-list');
+  assert.equal(uniqueCollectionID('Recently Added', ['recently-added-list']), 'recently-added-list-2');
+  assert.equal(uniqueCollectionID('All', []), 'all-list');
+  assert.equal(uniqueCollectionID('Continue', []), 'continue-list');
+  assert.equal(uniqueCollectionID('Unplayed', []), 'unplayed-list');
+});
+
+test('createCollection uses a unique id instead of upsert-renaming', async () => {
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/games': [jsonResponse(readFixture('catalog-populated.json'))],
+    '/api/v1/games?collection=weekend-queue-2': [jsonResponse({ games: [] })],
+    '/api/v1/platforms': [jsonResponse({ platforms: [] })],
+    '/api/v1/library/attract?limit=1': [jsonResponse({ items: [], idle_seconds: 60 })],
+    '/api/v1/library/facets': [jsonResponse({ genres: [], years: [] })],
+    '/api/v1/library/collections': [
+      jsonResponse({ collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }] }),
+      jsonResponse({ collections: [
+        { id: 'weekend-queue', name: 'Weekend Queue' },
+        { id: 'weekend-queue-2', name: 'Weekend Queue!' },
+      ] }),
+    ],
+    '/api/v1/library/collections/weekend-queue-2?name=Weekend%20Queue!': [jsonResponse({ id: 'weekend-queue-2', name: 'Weekend Queue!' })],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadPlatforms();
+  await controller.createCollection('Weekend Queue!');
+  assert.equal(controller.getState().collection, 'weekend-queue-2');
+  assert.deepEqual(controller.getState().collections.map(item => item.id), ['weekend-queue', 'weekend-queue-2']);
+  assert.equal(calls.some(call => String(call.path).startsWith('/api/v1/library/collections/weekend-queue-2?')), true);
+  assert.equal(calls.some(call => call.path === '/api/v1/library/collections/weekend-queue?name=Weekend%20Queue!'), false);
+});
+
+test('create and delete keep rail state when list GET fails', async () => {
+  const listError = jsonResponse({ error: { code: 'INTERNAL', message: 'unavailable' } }, 500);
+  const { fetchImpl } = routedFetch({
+    '/api/v1/games': [
+      jsonResponse(readFixture('catalog-populated.json')),
+      jsonResponse(readFixture('catalog-populated.json')),
+    ],
+    '/api/v1/games?collection=weekend-queue': [jsonResponse({ games: [] })],
+    '/api/v1/library/collections': [listError, listError],
+    '/api/v1/library/collections/weekend-queue?name=Weekend%20Queue': [jsonResponse({ id: 'weekend-queue', name: 'Weekend Queue', created_at: 11 })],
+    '/api/v1/library/collections/weekend-queue': [jsonResponse({ id: 'weekend-queue' })],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.createCollection('Weekend Queue');
+  assert.equal(controller.getState().collection, 'weekend-queue');
+  assert.equal(controller.getState().collections.length, 1);
+  assert.equal(controller.getState().collections[0].id, 'weekend-queue');
+  assert.equal(controller.getState().collections[0].name, 'Weekend Queue');
+  await controller.deleteCollection('weekend-queue');
+  assert.equal(controller.getState().collection, '');
+  assert.deepEqual(controller.getState().collections, []);
+});
+
+test('removing a member while browsing that collection reloads the wall', async () => {
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/games': [jsonResponse({
+      games: [{
+        ...readFixture('catalog-populated.json').games[0],
+        collections: ['weekend-queue'],
+        group_key: 'megadrive\u001fsonic',
+      }],
+    })],
+    '/api/v1/games?collection=weekend-queue': [
+      jsonResponse({
+        games: [{
+          ...readFixture('catalog-populated.json').games[0],
+          collections: ['weekend-queue'],
+          group_key: 'megadrive\u001fsonic',
+        }],
+      }),
+      jsonResponse({ games: [{
+        id: 'megadrive-sonic-jp', title: 'Sonic (Japan)', system: 'megadrive',
+        kind: 'zip', state: 'available', root_online: true, content_prepared: true,
+        execution: 'fpga_native', collections: ['weekend-queue'], group_key: 'megadrive\u001fsonic',
+      }] }),
+    ],
+    '/api/v1/library/collections': [jsonResponse({ collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }] })],
+    '/api/v1/library/collections/weekend-queue/megadrive-sonic-test': [
+      jsonResponse({ id: 'megadrive-sonic-test', collection: 'weekend-queue', member: false }),
+    ],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadPlatforms();
+  await controller.setLibraryNav('weekend-queue', '');
+  assert.equal(controller.getState().games[0].id, 'megadrive-sonic-test');
+  await controller.toggleCollectionMember('weekend-queue', 'megadrive-sonic-test');
+  assert.equal(controller.getState().games[0].id, 'megadrive-sonic-jp');
+  assert.equal(
+    calls.filter(call => call.path === '/api/v1/games?collection=weekend-queue&grouped=1').length,
+    2,
+  );
+});
+
+test('double-save and failed rename retry stay on the original rename', async () => {
+  const collections = [{ id: 'weekend-queue', name: 'Weekend Queue' }];
+  let releaseWrite;
+  const writeStarted = [];
+  const gate = new Promise(resolve => { releaseWrite = resolve; });
+  const { document, writes } = await runCollectionEditorApp({
+    collections,
+    writeResponses: [jsonResponse({ error: { code: 'INTERNAL', message: 'unavailable' } }, 500)],
+    onWrite: async () => {
+      writeStarted.push(true);
+      if (writeStarted.length === 1) await gate;
+    },
+  });
+  document.nodes.get('collection-list').children[0].click();
+  await settleBrowser();
+  document.nodes.get('rename-collection').click();
+  document.nodes.get('collection-name').value = 'Saturday';
+  document.nodes.get('save-collection').click();
+  await waitForCondition(() => writeStarted.length === 1, 'rename PUT did not start');
+  document.nodes.get('save-collection').click();
+  releaseWrite();
+  await settleBrowser();
+  await waitForCondition(() => writes.length === 1, 'double-save issued extra writes');
+  assert.equal(writes.length, 1);
+  assert.match(writes[0].path, /\/library\/collections\/weekend-queue\?name=Saturday/);
+  assert.equal(document.nodes.get('save-collection').hidden, false);
+  document.nodes.get('save-collection').click();
+  await settleBrowser();
+  await waitForCondition(() => writes.length === 2, 'failed rename retry did not PUT again');
+  assert.equal(writes.length, 2);
+  assert.match(writes[1].path, /\/library\/collections\/weekend-queue\?name=Saturday/);
+  assert.equal(writes.some(write => String(write.path).includes('/weekend-queue-2') || String(write.path).includes('/saturday')), false);
+  assert.equal(document.nodes.get('save-collection').hidden, true);
+});
+
+test('rename keeps the original collection when the rail changes', async () => {
+  const collections = [
+    { id: 'weekend-queue', name: 'Weekend Queue' },
+    { id: 'saturday', name: 'Saturday' },
+  ];
+  const { document, writes } = await runCollectionEditorApp({ collections });
+  document.nodes.get('collection-list').children[0].click();
+  await settleBrowser();
+  document.nodes.get('rename-collection').click();
+  document.nodes.get('collection-name').value = 'Friday';
+  document.nodes.get('collection-list').children[1].click();
+  await settleBrowser();
+  document.nodes.get('save-collection').click();
+  await settleBrowser();
+  await waitForCondition(() => writes.length === 1, 'rename PUT was not issued');
+  assert.equal(writes.length, 1);
+  assert.match(writes[0].path, /\/library\/collections\/weekend-queue\?name=Friday/);
+  assert.equal(writes.some(write => String(write.path).includes('/saturday')), false);
+});
+
+test('Escape and reopen during in-flight save keep the new editor and typed name', async () => {
+  let releaseWrite;
+  const writeStarted = [];
+  const gate = new Promise(resolve => { releaseWrite = resolve; });
+  const { document, writes } = await runCollectionEditorApp({
+    onWrite: async () => {
+      writeStarted.push(true);
+      if (writeStarted.length === 1) await gate;
+    },
+  });
+  document.nodes.get('create-collection').click();
+  document.nodes.get('collection-name').value = 'Weekend Queue';
+  document.nodes.get('save-collection').click();
+  await waitForCondition(() => writeStarted.length === 1, 'create PUT did not start');
+  document.nodes.get('collection-name').focus();
+  await pressKey(document, 'Escape', document.nodes.get('collection-name'));
+  document.nodes.get('create-collection').click();
+  document.nodes.get('collection-name').value = 'Saturday Night';
+  assert.equal(document.nodes.get('save-collection').hidden, false);
+  releaseWrite();
+  await settleBrowser();
+  await waitForCondition(() => writes.length === 1, 'in-flight create did not finish');
+  assert.equal(document.nodes.get('save-collection').hidden, false);
+  assert.equal(document.nodes.get('collection-name').value, 'Saturday Night');
+  assert.equal(document.nodes.get('collection-name-label').hidden, false);
+});
+
+test('older collection-list GET cannot overwrite a newer create or delete', async () => {
+  let listGets = 0;
+  let releaseStartup;
+  let releaseStaleDelete;
+  const startupList = new Promise(resolve => { releaseStartup = resolve; });
+  const staleDeleteList = new Promise(resolve => { releaseStaleDelete = resolve; });
+  const fetchImpl = async (requestPath, options) => {
+    const pathOnly = String(requestPath || '').split('?')[0];
+    if (pathOnly === '/api/v1/platforms') return jsonResponse({ platforms: [] });
+    if (pathOnly === '/api/v1/library/attract') return jsonResponse({ items: [], idle_seconds: 60 });
+    if (pathOnly === '/api/v1/library/facets') return jsonResponse({ genres: [], years: [] });
+    if (pathOnly === '/api/v1/games') return jsonResponse({ games: [] });
+    if (pathOnly === '/api/v1/library/collections') {
+      listGets += 1;
+      if (listGets === 1) {
+        await startupList;
+        return jsonResponse({ collections: [] });
+      }
+      if (listGets === 3) {
+        await staleDeleteList;
+        return jsonResponse({ collections: [{ id: 'weekend-queue', name: 'Weekend Queue', created_at: 11 }] });
+      }
+      if (listGets === 2) {
+        return jsonResponse({ collections: [{ id: 'weekend-queue', name: 'Weekend Queue', created_at: 11 }] });
+      }
+      return jsonResponse({ collections: [] });
+    }
+    if (pathOnly === '/api/v1/library/collections/weekend-queue') {
+      const method = options && options.method;
+      if (method === 'DELETE') return jsonResponse({ id: 'weekend-queue' });
+      return jsonResponse({ id: 'weekend-queue', name: 'Weekend Queue', created_at: 11 });
+    }
+    throw new Error(`unexpected collection list fixture ${requestPath}`);
+  };
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  const boot = controller.loadPlatforms();
+  await waitForCondition(() => listGets >= 1, 'startup collection list GET did not start');
+  await controller.createCollection('Weekend Queue');
+  assert.equal(controller.getState().collections.length, 1);
+  assert.equal(controller.getState().collections[0].id, 'weekend-queue');
+  releaseStartup();
+  await boot;
+  assert.equal(controller.getState().collections.length, 1);
+  assert.equal(controller.getState().collections[0].id, 'weekend-queue');
+
+  const bootAgain = controller.loadPlatforms();
+  await waitForCondition(() => listGets >= 3, 'overlapping collection list GET did not start');
+  await controller.deleteCollection('weekend-queue');
+  assert.deepEqual(controller.getState().collections, []);
+  releaseStaleDelete();
+  await bootAgain;
+  assert.deepEqual(controller.getState().collections, []);
+});
+
+test('custom collection rail items sit after smart collections', async () => {
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse(readFixture('catalog-populated.json'))],
+    collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }],
+  });
+  const nav = document.nodes.get('collection-list');
+  assert.equal(nav.children.length, 1);
+  assert.equal(nav.children[0].className.includes('nav-item'), true);
+  assert.equal(nav.children[0].attributes.get('data-collection'), 'weekend-queue');
+  assert.equal(browserText(nav.children[0]), 'Weekend Queue');
+});
+
 test('virtualized wall recycles a bounded window of cards', async () => {
   const games = [];
   for (let index = 0; index < 90; index += 1) {
@@ -1838,6 +2201,8 @@ test('attract idle seconds follow the host API when no override is set', async (
   const { calls, fetchImpl } = queuedFetch([
     jsonResponse({ platforms: [] }),
     jsonResponse({ items: [], idle_seconds: 12 }),
+    jsonResponse({ collections: [] }),
+    jsonResponse({ genres: [], years: [] }),
   ]);
   const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
   await controller.loadPlatforms();
@@ -1874,7 +2239,7 @@ async function pressKey(document, key, target = document.activeElement) {
   return event;
 }
 
-async function runKeyboardApp({ pages, platforms, launchResponse, globals } = {}) {
+async function runKeyboardApp({ pages, platforms, launchResponse, globals, collections } = {}) {
   const catalogPages = pages || [{
     games: readFixture('catalog-populated.json').games,
     next_cursor: '',
@@ -1900,6 +2265,13 @@ async function runKeyboardApp({ pages, platforms, launchResponse, globals } = {}
     if (pathOnly === '/api/v1/session/launch') {
       calls.push({ path: requestPath, options });
       return jsonResponse(launchResponse || { state: 'active', game_id: allGames[0].id });
+    }
+    if (pathOnly === '/api/v1/library/collections') {
+      return jsonResponse({ collections: collections || [] });
+    }
+    if (pathOnly.startsWith('/api/v1/library/collections/')) {
+      calls.push({ path: requestPath, options });
+      return jsonResponse({ id: 'weekend-queue', member: (options && options.method) === 'PUT' });
     }
     if (pathOnly.startsWith('/api/v1/library/favorites/')) {
       calls.push({ path: requestPath, options });
@@ -2094,6 +2466,22 @@ test('Enter on favorite or session controls does not launch', async () => {
   const launchEnter = await pressKey(document, 'Enter', launch);
   assert.equal(launchEnter.defaultPrevented, true);
   assert.equal(calls.filter(call => call.path === '/api/v1/session/launch').length, before + 1);
+});
+
+test('Enter on collection member control does not launch', async () => {
+  const { document, calls } = await runKeyboardApp({
+    collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }],
+  });
+  await settleBrowser();
+  await pressKey(document, 'Enter');
+  await pressKey(document, 'Enter');
+  const member = document.getElementById('collection-member-weekend-queue');
+  assert.ok(member);
+  member.focus();
+  const before = calls.filter(call => call.path === '/api/v1/session/launch').length;
+  const memberEnter = await pressKey(document, 'Enter', member);
+  assert.equal(memberEnter.defaultPrevented, undefined);
+  assert.equal(calls.filter(call => call.path === '/api/v1/session/launch').length, before);
 });
 
 test('catalog filter and version selects keep native ArrowDown and Enter', async () => {
