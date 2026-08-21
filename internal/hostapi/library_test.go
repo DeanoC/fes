@@ -479,6 +479,10 @@ func TestLibrarySettingsGetPutPatchEmptyOrJSON(t *testing.T) {
 	if patchedRegions.Code != http.StatusOK || service.settings.AttractIdleSeconds != 8 || strings.Join(service.settings.PreferredRegions, ",") != "usa" {
 		t.Fatalf("regions patch = %d %s settings=%+v", patchedRegions.Code, patchedRegions.Body.String(), service.settings)
 	}
+	overflow := serveBody(t, handler, http.MethodPut, "/api/v1/library/settings", fmt.Sprintf(`{"attract_idle_seconds":%d,"preferred_regions":["usa"]}`, fogcast.MaxAttractIdleSeconds+1000))
+	if overflow.Code != http.StatusOK || service.settings.AttractIdleSeconds != fogcast.MaxAttractIdleSeconds {
+		t.Fatalf("overflow put = %d %s settings=%+v", overflow.Code, overflow.Body.String(), service.settings)
+	}
 
 	unknown := serveBody(t, handler, http.MethodPut, "/api/v1/library/settings", `{"attract_idle_seconds":12,"preferred_regions":["usa"],"token":"nope"}`)
 	if unknown.Code != http.StatusBadRequest || !strings.Contains(unknown.Body.String(), `"BAD_REQUEST"`) {

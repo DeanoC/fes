@@ -57,6 +57,8 @@
   const GAME_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
   const ARTWORK_HANDLE_PATTERN = /^[a-f0-9]{64}$/;
   const WALL_WINDOW = 80;
+  const MAX_ATTRACT_IDLE_SECONDS = 2147483;
+  const MAX_ATTRACT_IDLE_MS = 2147483647;
   const RESERVED_COLLECTION_IDS = Object.freeze({
     all: true,
     favorites: true,
@@ -1504,9 +1506,9 @@
       try {
         const settingsSequence = state.settingsSequence;
         const attract = await request(fetchImpl, '/api/v1/library/attract?limit=1');
-        if (settingsSequence === state.settingsSequence
-          && Number.isFinite(attract && attract.idle_seconds) && attract.idle_seconds > 0) {
-          state.attractIdleSeconds = attract.idle_seconds;
+        const idle = boundedAttractIdleSeconds(attract && attract.idle_seconds);
+        if (settingsSequence === state.settingsSequence && idle > 0) {
+          state.attractIdleSeconds = idle;
         }
       } catch (_) {
         /* attract idle stays at the last known value */
@@ -1644,8 +1646,14 @@
       }
     }
 
+    function boundedAttractIdleSeconds(value) {
+      const idle = Number(value);
+      if (!Number.isFinite(idle) || idle <= 0) return 0;
+      return idle > MAX_ATTRACT_IDLE_SECONDS ? MAX_ATTRACT_IDLE_SECONDS : Math.floor(idle);
+    }
+
     function parseLibrarySettings(payload) {
-      const idle = Number(payload && payload.attract_idle_seconds);
+      const idle = boundedAttractIdleSeconds(payload && payload.attract_idle_seconds);
       const regions = payload && Array.isArray(payload.preferred_regions)
         ? payload.preferred_regions.filter(item => typeof item === 'string' && item.trim()).map(item => item.trim().toLowerCase())
         : [];
@@ -1670,8 +1678,10 @@
       return emit();
     }
 
-    async function saveSettings(next) {
-      const sequence = ++state.settingsSequence;
+    let settingsWriteChain = Promise.resolve();
+
+    async function writeLibrarySettings(next) {
+      const sequence = state.settingsSequence;
       const payload = await request(fetchImpl, '/api/v1/library/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -1687,12 +1697,24 @@
       return loadCatalog(state.query);
     }
 
+    async function saveSettings(next) {
+      const previous = settingsWriteChain;
+      let release;
+      settingsWriteChain = new Promise(resolve => { release = resolve; });
+      try {
+        await previous;
+        return await writeLibrarySettings(next);
+      } finally {
+        release();
+      }
+    }
+
     async function loadAttract(limit) {
       const size = Number(limit) > 0 ? Number(limit) : 24;
       const settingsSequence = state.settingsSequence;
       const payload = await request(fetchImpl, `/api/v1/library/attract?limit=${encodeURIComponent(String(size))}`);
       const items = payload && Array.isArray(payload.items) ? payload.items : [];
-      const idle = Number.isFinite(payload && payload.idle_seconds) ? payload.idle_seconds : 60;
+      const idle = boundedAttractIdleSeconds(payload && payload.idle_seconds) || 60;
       if (settingsSequence === state.settingsSequence && idle > 0) state.attractIdleSeconds = idle;
       return Object.freeze({
         idle_seconds: idle,
@@ -2770,9 +2792,13 @@
   let attractActive = false;
 
   function currentAttractIdleMs() {
-    if (Number(root.FogCastAttractIdleMs) > 0) return Number(root.FogCastAttractIdleMs);
+    if (Number(root.FogCastAttractIdleMs) > 0) {
+      return Math.min(Number(root.FogCastAttractIdleMs), MAX_ATTRACT_IDLE_MS);
+    }
     const seconds = Number(state && state.attractIdleSeconds);
-    return seconds > 0 ? seconds * 1000 : 60000;
+    const ms = seconds > 0 ? seconds * 1000 : 60000;
+    if (!Number.isFinite(ms) || ms < 1) return 60000;
+    return ms > MAX_ATTRACT_IDLE_MS ? MAX_ATTRACT_IDLE_MS : ms;
   }
 
   function currentAttractCycleMs() {

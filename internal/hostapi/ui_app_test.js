@@ -2241,16 +2241,16 @@ test('library settings PUT updates attract idle and reloads the catalog', async 
   assert.ok(String(calls[2].path).startsWith('/api/v1/games'));
 });
 
-test('stale settings PUT does not roll back a newer save', async () => {
+test('overlapping settings saves persist in start order', async () => {
   let releaseFirst;
   const held = new Promise(resolve => { releaseFirst = resolve; });
-  let puts = 0;
+  const putBodies = [];
   const fetchImpl = async (requestPath, options) => {
     const pathOnly = String(requestPath || '').split('?')[0];
     if (pathOnly === '/api/v1/library/settings' && options && options.method === 'PUT') {
-      puts += 1;
       const body = JSON.parse(options.body);
-      if (puts === 1) await held;
+      putBodies.push(body);
+      if (putBodies.length === 1) await held;
       return jsonResponse({
         attract_idle_seconds: body.attract_idle_seconds,
         preferred_regions: body.preferred_regions,
@@ -2262,11 +2262,101 @@ test('stale settings PUT does not roll back a newer save', async () => {
   const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
   const first = controller.saveSettings({ attract_idle_seconds: 12, preferred_regions: ['japan'] });
   const second = controller.saveSettings({ attract_idle_seconds: 8, preferred_regions: ['europe'] });
-  await second;
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(putBodies.length, 1);
+  assert.equal(putBodies[0].attract_idle_seconds, 12);
   releaseFirst();
   await first;
+  await second;
+  assert.equal(putBodies.length, 2);
+  assert.equal(putBodies[1].attract_idle_seconds, 8);
   assert.equal(controller.getState().attractIdleSeconds, 8);
   assert.deepEqual(controller.getState().librarySettings.preferred_regions, ['europe']);
+});
+
+test('failed later settings save does not drop an earlier successful save', async () => {
+  let releaseFirst;
+  const held = new Promise(resolve => { releaseFirst = resolve; });
+  let puts = 0;
+  const fetchImpl = async (requestPath, options) => {
+    const pathOnly = String(requestPath || '').split('?')[0];
+    if (pathOnly === '/api/v1/library/settings' && options && options.method === 'PUT') {
+      puts += 1;
+      const body = JSON.parse(options.body);
+      if (puts === 1) await held;
+      if (puts === 2) throw new Error('second save failed');
+      return jsonResponse({
+        attract_idle_seconds: body.attract_idle_seconds,
+        preferred_regions: body.preferred_regions,
+      });
+    }
+    if (pathOnly === '/api/v1/games') return jsonResponse({ games: [] });
+    throw new Error(`unexpected settings race path ${requestPath}`);
+  };
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  const first = controller.saveSettings({ attract_idle_seconds: 12, preferred_regions: ['japan'] });
+  const second = controller.saveSettings({ attract_idle_seconds: 8, preferred_regions: ['europe'] });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(puts, 1);
+  releaseFirst();
+  await first;
+  await assert.rejects(() => second);
+  assert.equal(controller.getState().attractIdleSeconds, 12);
+  assert.deepEqual(controller.getState().librarySettings.preferred_regions, ['japan']);
+});
+
+test('failed settings save does not discard an earlier settings GET', async () => {
+  let releaseGet;
+  const held = new Promise(resolve => { releaseGet = resolve; });
+  const fetchImpl = async (requestPath, options) => {
+    const pathOnly = String(requestPath || '').split('?')[0];
+    if (pathOnly === '/api/v1/library/settings' && !(options && options.method && options.method !== 'GET')) {
+      await held;
+      return jsonResponse({ attract_idle_seconds: 12, preferred_regions: ['japan'] });
+    }
+    if (pathOnly === '/api/v1/library/settings') {
+      throw new Error('save failed');
+    }
+    throw new Error(`unexpected settings race path ${requestPath}`);
+  };
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  const loading = controller.loadSettings();
+  await assert.rejects(() => controller.saveSettings({ attract_idle_seconds: 8, preferred_regions: ['europe'] }));
+  releaseGet();
+  await loading;
+  assert.equal(controller.getState().attractIdleSeconds, 12);
+  assert.deepEqual(controller.getState().librarySettings.preferred_regions, ['japan']);
+});
+
+test('library settings idle above the timer limit is clamped', async () => {
+  const { fetchImpl } = queuedFetch([
+    jsonResponse({ attract_idle_seconds: 3000000000, preferred_regions: ['usa'] }),
+  ]);
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadSettings();
+  assert.equal(controller.getState().attractIdleSeconds, 2147483);
+  assert.equal(controller.getState().librarySettings.attract_idle_seconds, 2147483);
+});
+
+test('attract idle is clamped before the timer is armed', async () => {
+  const idleDelays = [];
+  await runBrowserApp({
+    responses: [jsonResponse(readFixture('catalog-populated.json'))],
+    settings: { attract_idle_seconds: 3000000000, preferred_regions: ['usa'] },
+    globals: {
+      FogCastAttractDisabled: false,
+      setTimeout(fn, ms) {
+        if (ms >= 1000) {
+          idleDelays.push(ms);
+          return 0;
+        }
+        return setTimeout(fn, ms);
+      },
+    },
+  });
+  await waitForCondition(() => idleDelays.length > 0, 'attract timer was not armed');
+  assert.ok(idleDelays.every(ms => ms > 1 && ms <= 2147483647), JSON.stringify(idleDelays));
+  assert.equal(idleDelays[0], 2147483000);
 });
 
 test('stale settings GET does not roll back a newer save', async () => {

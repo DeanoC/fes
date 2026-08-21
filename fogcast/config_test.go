@@ -462,6 +462,19 @@ root = "` + secondRoot + `"
 `
 }
 
+func TestNormalizeLibraryConfigClampsOverflowingAttractIdle(t *testing.T) {
+	normalized, err := fogcast.NormalizeLibraryConfig(fogcast.LibraryConfig{
+		AttractIdleSeconds: fogcast.MaxAttractIdleSeconds + 1000,
+		PreferredRegions:   []string{"usa"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if normalized.AttractIdleSeconds != fogcast.MaxAttractIdleSeconds {
+		t.Fatalf("idle = %d want %d", normalized.AttractIdleSeconds, fogcast.MaxAttractIdleSeconds)
+	}
+}
+
 func writeConfig(t *testing.T, content string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.toml")

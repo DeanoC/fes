@@ -662,6 +662,10 @@ func normalizeLibrarySettings(raw *fileLibrarySettings) (LibraryConfig, error) {
 	})
 }
 
+// MaxAttractIdleSeconds is the largest idle that converts to a millisecond
+// timer delay without overflowing a signed 32-bit setTimeout argument.
+const MaxAttractIdleSeconds = 2147483
+
 // NormalizeLibraryConfig applies the same attract-idle and preferred-region
 // rules as config.toml [library], without reading or writing that file.
 func NormalizeLibraryConfig(raw LibraryConfig) (LibraryConfig, error) {
@@ -671,6 +675,9 @@ func NormalizeLibraryConfig(raw LibraryConfig) (LibraryConfig, error) {
 	seconds := raw.AttractIdleSeconds
 	if seconds == 0 {
 		seconds = 60
+	}
+	if seconds > MaxAttractIdleSeconds {
+		seconds = MaxAttractIdleSeconds
 	}
 	preferred := append([]string(nil), raw.PreferredRegions...)
 	if len(preferred) == 0 {
