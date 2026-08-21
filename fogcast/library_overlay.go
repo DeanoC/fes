@@ -64,6 +64,8 @@ func loadLibraryOverlay(path string) (LibraryConfig, bool, error) {
 	return normalized, true, nil
 }
 
+var libraryOverlaySaveHook func()
+
 func saveLibraryOverlay(path string, settings LibraryConfig) error {
 	if path == "" {
 		return errors.New("library settings overlay path is empty")
@@ -100,5 +102,11 @@ func saveLibraryOverlay(path string, settings LibraryConfig) error {
 		_ = os.Remove(tmpName)
 		return err
 	}
-	return ensurePrivateRegularFile(path)
+	if err := ensurePrivateRegularFile(path); err != nil {
+		return err
+	}
+	if libraryOverlaySaveHook != nil {
+		libraryOverlaySaveHook()
+	}
+	return nil
 }

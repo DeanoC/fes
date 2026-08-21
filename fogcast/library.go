@@ -545,15 +545,15 @@ func (s *Service) SetLibrarySettings(ctx context.Context, next LibraryConfig) er
 	if err != nil {
 		return canonicalError(protocol.CodeBadRequest, nil)
 	}
+	s.libraryMu.Lock()
+	defer s.libraryMu.Unlock()
 	if s.libraryOverlayPath != "" {
 		if err := saveLibraryOverlay(s.libraryOverlayPath, normalized); err != nil {
 			return canonicalError(protocol.CodeInternal, safeContextError(err))
 		}
 	}
-	s.libraryMu.Lock()
 	s.attractIdle = normalized.AttractIdleSeconds
 	s.preferredRegions = append([]string(nil), normalized.PreferredRegions...)
-	s.libraryMu.Unlock()
 	return nil
 }
 

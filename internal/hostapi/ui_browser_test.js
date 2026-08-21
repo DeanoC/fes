@@ -1524,6 +1524,58 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
       });
     });
 
+    await t.test('settings overlay suspends attract and traps focus away from the launcher', async () => {
+      await runScenario(harness, 'settings-suspends-attract', basePlan({
+        attractDisabled: false,
+        attractIdleMs: 80,
+        attract: {
+          items: [{ game_id: SONIC_ID, title: 'Sonic the Hedgehog', cover: ARTWORK_HANDLE }],
+          idle_seconds: 1,
+        },
+      }), async () => {
+        await harness.waitForCatalog('populated metadata_fallback');
+        const before = await harness.snapshot();
+        if (before.attractHidden === false) {
+          await harness.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+          await harness.waitForSnapshot(item => item.attractHidden === true);
+        }
+        await harness.click('#open-settings');
+        const opened = await harness.waitForSnapshot(item => item.settingsHidden === false);
+        assert.equal(opened.settingsHidden, false);
+        assert.equal(opened.attractHidden, true);
+        assert.equal(opened.keyboardPane, 'settings');
+        await new Promise(resolve => setTimeout(resolve, 200));
+        const held = await harness.snapshot();
+        assert.equal(held.settingsHidden, false);
+        assert.equal(held.attractHidden, true);
+        const trap = await harness.evaluate(`(() => {
+          const close = document.getElementById('close-settings');
+          close.focus();
+          const tab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+          document.dispatchEvent(tab);
+          const afterTab = document.activeElement?.id || '';
+          const search = document.getElementById('game-search');
+          if (search) search.focus();
+          const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+          document.dispatchEvent(enter);
+          return {
+            afterTab,
+            afterEnter: document.activeElement?.id || '',
+            pane: document.getElementById('launcher')?.getAttribute('data-keyboard-pane') || '',
+            launcherInert: document.getElementById('launcher')?.inert === true,
+          };
+        })()`);
+        assert.equal(trap.afterTab, 'settings-attract-idle');
+        assert.notEqual(trap.afterEnter, 'game-search');
+        assert.equal(trap.pane, 'settings');
+        assert.equal(trap.launcherInert, true);
+        await harness.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+        await harness.waitForSnapshot(item => item.settingsHidden === true);
+        const returned = await harness.waitForSnapshot(item => item.attractHidden === false);
+        assert.equal(returned.attractTitle, 'Sonic the Hedgehog');
+      });
+    });
+
     await t.test('settings overlay persists attract idle and preferred regions across reload', async () => {
       await runScenario(harness, 'library-settings', basePlan(), async () => {
         await harness.waitForCatalog('populated metadata_fallback');

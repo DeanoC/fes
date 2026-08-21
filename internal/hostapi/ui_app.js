@@ -2821,9 +2821,10 @@
   }
 
   async function enterAttract() {
-    if (attractIsDisabled() || attractActive || !nodes.attract) return;
+    if (attractIsDisabled() || attractActive || settingsIsOpen() || !nodes.attract) return;
     try {
       const playlist = await controller.loadAttract(24);
+      if (attractIsDisabled() || attractActive || settingsIsOpen() || !nodes.attract) return;
       attractItems = playlist.items || [];
       if (!attractItems.length) return;
       attractIndex = 0;
@@ -2840,7 +2841,7 @@
       attractTimer = null;
     }
     if (attractActive) hideAttract();
-    if (attractIsDisabled() || !nodes.attract) return;
+    if (attractIsDisabled() || settingsIsOpen() || !nodes.attract) return;
     if (typeof root.setTimeout !== 'function') return;
     attractTimer = root.setTimeout(enterAttract, currentAttractIdleMs());
   }
@@ -2859,16 +2860,47 @@
   }
 
   function isSettingsTarget(target) {
-    if (!target) return false;
-    const id = target.id;
-    return id === 'close-settings'
-      || id === 'save-settings'
-      || id === 'settings-attract-idle'
-      || id === 'settings-preferred-regions'
-      || id === 'settings'
-      || Boolean(nodes.settings && (target === nodes.settings
-        || target.parentNode === nodes.settings
-        || (target.parentNode && target.parentNode.parentNode === nodes.settings)));
+    let node = target;
+    while (node) {
+      const id = node.id;
+      if (node === nodes.settings
+        || id === 'settings'
+        || id === 'close-settings'
+        || id === 'save-settings'
+        || id === 'settings-attract-idle'
+        || id === 'settings-preferred-regions') {
+        return true;
+      }
+      node = node.parentNode;
+    }
+    return false;
+  }
+
+  function settingsFocusables() {
+    return [
+      nodes.settingsAttractIdle,
+      nodes.settingsPreferredRegions,
+      nodes.saveSettings,
+      nodes.closeSettings,
+    ].filter(node => node && !node.disabled && node.hidden !== true);
+  }
+
+  function setSettingsChromeInert(inert) {
+    if (nodes.launcher) nodes.launcher.inert = Boolean(inert);
+    if (nodes.attract) nodes.attract.inert = Boolean(inert);
+  }
+
+  function wrapSettingsFocus(event) {
+    const focusables = settingsFocusables();
+    event.preventDefault?.();
+    if (!focusables.length) return;
+    const active = typeof document !== 'undefined' ? document.activeElement : null;
+    const index = focusables.indexOf(active);
+    if (event.shiftKey) {
+      focusWithoutScroll(index <= 0 ? focusables[focusables.length - 1] : focusables[index - 1]);
+      return;
+    }
+    focusWithoutScroll(index < 0 || index >= focusables.length - 1 ? focusables[0] : focusables[index + 1]);
   }
 
   function fillSettingsForm(settings) {
@@ -2888,8 +2920,10 @@
   async function openSettings() {
     if (keyboardPane !== 'settings') settingsReturnPane = keyboardPane;
     if (nodes.settings) nodes.settings.hidden = false;
+    setSettingsChromeInert(true);
     keyboardPane = 'settings';
     writePaneAttribute();
+    resetAttractTimer();
     try {
       await controller.loadSettings();
       fillSettingsForm(controller.getState().librarySettings);
@@ -2905,7 +2939,9 @@
 
   function closeSettings() {
     if (nodes.settings) nodes.settings.hidden = true;
+    setSettingsChromeInert(false);
     setKeyboardPane(settingsReturnPane || 'rail');
+    resetAttractTimer();
   }
 
   function parseRegionsInput(value) {
@@ -3268,8 +3304,17 @@
           closeSettings();
           return;
         }
-        if (typingTarget(event.target)) return;
-        if (isTypeToSearchKey(event)) event.preventDefault?.();
+        if (event.key === 'Tab') {
+          wrapSettingsFocus(event);
+          return;
+        }
+        if (typingTarget(event.target) && isSettingsTarget(event.target)) return;
+        if (!isSettingsTarget(event.target)) {
+          event.preventDefault?.();
+          forceKeyboardRestore = true;
+          restoreKeyboardFocus();
+          return;
+        }
         return;
       }
       if (typingTarget(event.target)) {
@@ -3363,6 +3408,14 @@
       document.addEventListener('mousemove', resetAttractTimer);
     }
     document.addEventListener('focusin', event => {
+      if (settingsIsOpen()) {
+        if (event && event.target && !isSettingsTarget(event.target)) {
+          forceKeyboardRestore = true;
+          restoreKeyboardFocus();
+        }
+        resetAttractTimer();
+        return;
+      }
       if (attractActive) exitAttract();
       else resetAttractTimer();
       syncPaneFromTarget(event && event.target);

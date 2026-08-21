@@ -73,6 +73,7 @@ class BrowserTestElement {
     this.hidden = false;
     this.focused = false;
     this.tabIndex = 0;
+    this.inert = false;
     this.style = {};
     this.clientWidth = 896;
     this.parentNode = null;
@@ -2261,8 +2262,13 @@ function selectedCard(document) {
   return gameCards(document).find(card => card.attributes.get('aria-pressed') === 'true') || null;
 }
 
-async function pressKey(document, key, target = document.activeElement) {
-  const event = { key, target, preventDefault() { event.defaultPrevented = true; } };
+async function pressKey(document, key, target = document.activeElement, extras) {
+  const event = {
+    key,
+    target,
+    shiftKey: Boolean(extras && extras.shiftKey),
+    preventDefault() { event.defaultPrevented = true; },
+  };
   await document.listeners.get('keydown')(event);
   await settleBrowser();
   return event;
@@ -2565,6 +2571,78 @@ test('ArrowDown and Enter on search still move to the cover wall', async () => {
   const enter = await pressKey(document, 'Enter', document.nodes.get('game-search'));
   assert.equal(enter.defaultPrevented, true);
   assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'grid');
+});
+
+test('settings overlay cancels attract and enterAttract no-ops until close', async () => {
+  const handle = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse(readFixture('catalog-populated.json'))],
+    globals: { FogCastAttractDisabled: false, FogCastAttractIdleMs: 30 },
+    attractItems: [{ game_id: 'megadrive-sonic-test', title: 'Sonic the Hedgehog', cover: handle }],
+  });
+  await document.nodes.get('open-settings').click();
+  await waitForCondition(() => document.nodes.get('settings').hidden === false, 'settings overlay did not open');
+  assert.equal(document.nodes.get('attract').hidden, true);
+  await new Promise(resolve => setTimeout(resolve, 80));
+  assert.equal(document.nodes.get('attract').hidden, true);
+  assert.equal(document.nodes.get('settings').hidden, false);
+  const keydown = document.listeners.get('keydown');
+  keydown({ key: 'Escape', preventDefault() {} });
+  assert.equal(document.nodes.get('settings').hidden, true);
+  await waitForAttractTitle(document, 'Sonic the Hedgehog', 400);
+  await document.nodes.get('open-settings').click();
+  await waitForCondition(() => document.nodes.get('settings').hidden === false, 'settings overlay did not reopen');
+  assert.equal(document.nodes.get('attract').hidden, true);
+  await new Promise(resolve => setTimeout(resolve, 80));
+  assert.equal(document.nodes.get('attract').hidden, true);
+});
+
+test('settings overlay traps Tab and blocks launcher Enter', async () => {
+  const { document, calls } = await runKeyboardApp();
+  await settleBrowser();
+  await pressKey(document, 'Enter');
+  await pressKey(document, 'Enter');
+  assert.ok(document.getElementById('launch-game'));
+  await document.nodes.get('open-settings').click();
+  await waitForCondition(() => (
+    document.nodes.get('settings').hidden === false
+    && document.activeElement === document.nodes.get('settings-attract-idle')
+  ), 'settings overlay did not open');
+  assert.equal(document.nodes.get('launcher').inert, true);
+
+  document.nodes.get('close-settings').focus();
+  const tab = await pressKey(document, 'Tab', document.nodes.get('close-settings'));
+  assert.equal(tab.defaultPrevented, true);
+  assert.equal(document.activeElement, document.nodes.get('settings-attract-idle'));
+
+  const shiftTab = await pressKey(document, 'Tab', document.nodes.get('settings-attract-idle'), { shiftKey: true });
+  assert.equal(shiftTab.defaultPrevented, true);
+  assert.equal(document.activeElement, document.nodes.get('close-settings'));
+
+  const allowed = new Set(['settings-attract-idle', 'settings-preferred-regions', 'save-settings', 'close-settings']);
+  for (let index = 0; index < 6; index += 1) {
+    await pressKey(document, 'Tab');
+    assert.ok(allowed.has(document.activeElement && document.activeElement.id), document.activeElement && document.activeElement.id);
+  }
+
+  const launch = document.getElementById('launch-game');
+  launch.focus();
+  const leaked = await pressKey(document, 'Enter', launch);
+  assert.equal(leaked.defaultPrevented, true);
+  assert.equal(document.activeElement, document.nodes.get('settings-attract-idle'));
+  assert.equal(calls.some(call => call.path === '/api/v1/session/launch'), false);
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'settings');
+
+  document.nodes.get('game-search').focus();
+  const searchEnter = await pressKey(document, 'Enter', document.nodes.get('game-search'));
+  assert.equal(searchEnter.defaultPrevented, true);
+  assert.notEqual(document.activeElement, document.nodes.get('game-search'));
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'settings');
+
+  await pressKey(document, 'Escape', document.nodes.get('settings-attract-idle'));
+  assert.equal(document.nodes.get('settings').hidden, true);
+  assert.equal(document.nodes.get('launcher').inert, false);
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'detail');
 });
 
 test('settings overlay opens from the header and Escape returns to the previous pane', async () => {
