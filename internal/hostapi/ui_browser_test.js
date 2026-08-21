@@ -543,14 +543,12 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
           const panel = document.getElementById('detail');
           const backdrop = detail && detail.querySelector('.backdrop-art');
           if (!detail || !panel) return { missing: true };
-          const marquee = document.createElement('img');
+          const marquee = document.createElement('div');
           marquee.className = 'marquee-art';
-          marquee.alt = '';
-          const video = document.createElement('video');
+          marquee.style.height = '48px';
+          const video = document.createElement('div');
           video.className = 'detail-video';
-          video.muted = true;
-          video.setAttribute('controls', '');
-          video.setAttribute('playsinline', '');
+          video.style.height = '80px';
           detail.appendChild(marquee);
           detail.appendChild(video);
           const detailBox = detail.getBoundingClientRect();
