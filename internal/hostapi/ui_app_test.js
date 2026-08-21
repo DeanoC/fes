@@ -31,6 +31,8 @@ const {
   systemLabel,
   sourceLabel,
   launchBlockReason,
+  collectionIDFromName,
+  uniqueCollectionID,
 } = require('./ui_app.js');
 const FogCastMetadata = require('./ui_metadata.js');
 
@@ -1796,7 +1798,10 @@ test('custom collections use empty-body PUT/DELETE and collection= browse', asyn
       jsonResponse(readFixture('catalog-populated.json')),
       jsonResponse(readFixture('catalog-populated.json')),
     ],
-    '/api/v1/games?collection=weekend-queue': [jsonResponse(readFixture('catalog-populated.json'))],
+    '/api/v1/games?collection=weekend-queue': [
+      jsonResponse(readFixture('catalog-populated.json')),
+      jsonResponse({ games: [] }),
+    ],
     '/api/v1/library/collections': [
       jsonResponse({ collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }] }),
       jsonResponse({ collections: [{ id: 'weekend-queue', name: 'Saturday' }] }),
@@ -1819,7 +1824,11 @@ test('custom collections use empty-body PUT/DELETE and collection= browse', asyn
   await controller.toggleCollectionMember('weekend-queue', 'megadrive-sonic-test');
   assert.deepEqual(controller.getState().games[0].collections, ['weekend-queue']);
   await controller.toggleCollectionMember('weekend-queue', 'megadrive-sonic-test');
-  assert.deepEqual(controller.getState().games[0].collections || [], []);
+  assert.equal(controller.getState().games.length, 0);
+  assert.equal(
+    calls.filter(call => call.path === '/api/v1/games?collection=weekend-queue&grouped=1').length,
+    2,
+  );
   await controller.renameCollection('weekend-queue', 'Saturday');
   assert.equal(controller.getState().collections[0].name, 'Saturday');
   await controller.deleteCollection('weekend-queue');
@@ -1831,6 +1840,103 @@ test('custom collections use empty-body PUT/DELETE and collection= browse', asyn
   assert.equal(writes[2].options.method, 'DELETE');
   assert.equal(writes[3].options.method, 'PUT');
   assert.equal(writes[4].options.method, 'DELETE');
+});
+
+test('uniqueCollectionID avoids reserved slugs and existing collisions', () => {
+  assert.equal(collectionIDFromName('Weekend Queue!'), 'weekend-queue');
+  assert.equal(collectionIDFromName('日本語'), 'collection');
+  assert.equal(uniqueCollectionID('Weekend Queue!', []), 'weekend-queue');
+  assert.equal(uniqueCollectionID('Weekend Queue!!', ['weekend-queue']), 'weekend-queue-2');
+  assert.equal(uniqueCollectionID('日本語', ['collection']), 'collection-2');
+  assert.equal(uniqueCollectionID('Favorites', []), 'favorites-list');
+});
+
+test('createCollection uses a unique id instead of upsert-renaming', async () => {
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/games': [jsonResponse(readFixture('catalog-populated.json'))],
+    '/api/v1/games?collection=weekend-queue-2': [jsonResponse({ games: [] })],
+    '/api/v1/platforms': [jsonResponse({ platforms: [] })],
+    '/api/v1/library/attract?limit=1': [jsonResponse({ items: [], idle_seconds: 60 })],
+    '/api/v1/library/facets': [jsonResponse({ genres: [], years: [] })],
+    '/api/v1/library/collections': [
+      jsonResponse({ collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }] }),
+      jsonResponse({ collections: [
+        { id: 'weekend-queue', name: 'Weekend Queue' },
+        { id: 'weekend-queue-2', name: 'Weekend Queue!' },
+      ] }),
+    ],
+    '/api/v1/library/collections/weekend-queue-2?name=Weekend%20Queue!': [jsonResponse({ id: 'weekend-queue-2', name: 'Weekend Queue!' })],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadPlatforms();
+  await controller.createCollection('Weekend Queue!');
+  assert.equal(controller.getState().collection, 'weekend-queue-2');
+  assert.deepEqual(controller.getState().collections.map(item => item.id), ['weekend-queue', 'weekend-queue-2']);
+  assert.equal(calls.some(call => String(call.path).startsWith('/api/v1/library/collections/weekend-queue-2?')), true);
+  assert.equal(calls.some(call => call.path === '/api/v1/library/collections/weekend-queue?name=Weekend%20Queue!'), false);
+});
+
+test('create and delete keep rail state when list GET fails', async () => {
+  const listError = jsonResponse({ error: { code: 'INTERNAL', message: 'unavailable' } }, 500);
+  const { fetchImpl } = routedFetch({
+    '/api/v1/games': [
+      jsonResponse(readFixture('catalog-populated.json')),
+      jsonResponse(readFixture('catalog-populated.json')),
+    ],
+    '/api/v1/games?collection=weekend-queue': [jsonResponse({ games: [] })],
+    '/api/v1/library/collections': [listError, listError],
+    '/api/v1/library/collections/weekend-queue?name=Weekend%20Queue': [jsonResponse({ id: 'weekend-queue', name: 'Weekend Queue', created_at: 11 })],
+    '/api/v1/library/collections/weekend-queue': [jsonResponse({ id: 'weekend-queue' })],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.createCollection('Weekend Queue');
+  assert.equal(controller.getState().collection, 'weekend-queue');
+  assert.equal(controller.getState().collections.length, 1);
+  assert.equal(controller.getState().collections[0].id, 'weekend-queue');
+  assert.equal(controller.getState().collections[0].name, 'Weekend Queue');
+  await controller.deleteCollection('weekend-queue');
+  assert.equal(controller.getState().collection, '');
+  assert.deepEqual(controller.getState().collections, []);
+});
+
+test('removing a member while browsing that collection reloads the wall', async () => {
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/games': [jsonResponse({
+      games: [{
+        ...readFixture('catalog-populated.json').games[0],
+        collections: ['weekend-queue'],
+        group_key: 'megadrive\u001fsonic',
+      }],
+    })],
+    '/api/v1/games?collection=weekend-queue': [
+      jsonResponse({
+        games: [{
+          ...readFixture('catalog-populated.json').games[0],
+          collections: ['weekend-queue'],
+          group_key: 'megadrive\u001fsonic',
+        }],
+      }),
+      jsonResponse({ games: [{
+        id: 'megadrive-sonic-jp', title: 'Sonic (Japan)', system: 'megadrive',
+        kind: 'zip', state: 'available', root_online: true, content_prepared: true,
+        execution: 'fpga_native', collections: ['weekend-queue'], group_key: 'megadrive\u001fsonic',
+      }] }),
+    ],
+    '/api/v1/library/collections': [jsonResponse({ collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }] })],
+    '/api/v1/library/collections/weekend-queue/megadrive-sonic-test': [
+      jsonResponse({ id: 'megadrive-sonic-test', collection: 'weekend-queue', member: false }),
+    ],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadPlatforms();
+  await controller.setLibraryNav('weekend-queue', '');
+  assert.equal(controller.getState().games[0].id, 'megadrive-sonic-test');
+  await controller.toggleCollectionMember('weekend-queue', 'megadrive-sonic-test');
+  assert.equal(controller.getState().games[0].id, 'megadrive-sonic-jp');
+  assert.equal(
+    calls.filter(call => call.path === '/api/v1/games?collection=weekend-queue&grouped=1').length,
+    2,
+  );
 });
 
 test('custom collection rail items sit after smart collections', async () => {

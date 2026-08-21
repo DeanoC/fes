@@ -57,6 +57,43 @@
   const GAME_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
   const ARTWORK_HANDLE_PATTERN = /^[a-f0-9]{64}$/;
   const WALL_WINDOW = 80;
+  const RESERVED_COLLECTION_IDS = Object.freeze({
+    all: true, favorites: true, recents: true, continue: true, unplayed: true, recently_added: true,
+  });
+
+  function collectionIDFromName(name) {
+    let id = String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64);
+    if (!id) id = 'collection';
+    if (RESERVED_COLLECTION_IDS[id]) id = `${id}-list`.slice(0, 64);
+    return id;
+  }
+
+  function uniqueCollectionID(name, existing) {
+    const used = new Set((Array.isArray(existing) ? existing : []).filter(id => typeof id === 'string' && id));
+    const base = collectionIDFromName(name);
+    if (!used.has(base)) return base;
+    for (let n = 2; n < 1000; n += 1) {
+      const suffix = `-${n}`;
+      const id = `${base.slice(0, Math.max(1, 64 - suffix.length))}${suffix}`;
+      if (!used.has(id) && !RESERVED_COLLECTION_IDS[id]) return id;
+    }
+    return `${base.slice(0, 55)}-${Date.now().toString(36)}`.slice(0, 64);
+  }
+
+  function parseCollection(item) {
+    if (!item || typeof item.id !== 'string' || !item.id.trim()) return null;
+    const id = item.id.trim();
+    return Object.freeze({
+      id,
+      name: typeof item.name === 'string' && item.name.trim() ? item.name.trim() : id,
+      created_at: Number.isFinite(item.created_at) ? item.created_at : 0,
+    });
+  }
+
+  function parseCollectionList(payload) {
+    const list = payload && Array.isArray(payload.collections) ? payload.collections : [];
+    return Object.freeze(list.map(parseCollection).filter(Boolean));
+  }
 
   function presentationPath(id) {
     const value = String(id || '').trim();
@@ -1463,7 +1500,7 @@
       } catch (_) {
         /* attract idle stays at the last known value */
       }
-      await reloadCollections();
+      await refreshCollections();
       try {
         const facets = await request(fetchImpl, '/api/v1/library/facets');
         const genres = facets && Array.isArray(facets.genres)
@@ -1495,24 +1532,27 @@
       }
     }
 
-    function collectionIDFromName(name) {
-      let id = String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64);
-      if (!id) id = 'collection';
-      if (id === 'all' || id === 'favorites' || id === 'recents' || id === 'continue' || id === 'unplayed' || id === 'recently_added') {
-        id = `${id}-list`.slice(0, 64);
-      }
-      return id;
+    function applyCollection(item) {
+      const parsed = parseCollection(item);
+      if (!parsed) return;
+      const next = (state.collections || []).filter(existing => existing.id !== parsed.id);
+      next.push(parsed);
+      next.sort((a, b) => (a.created_at - b.created_at) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+      state.collections = Object.freeze(next);
+    }
+
+    function dropCollection(id) {
+      state.collections = Object.freeze((state.collections || []).filter(item => item.id !== id));
     }
 
     async function reloadCollections() {
+      const payload = await request(fetchImpl, '/api/v1/library/collections');
+      state.collections = parseCollectionList(payload);
+    }
+
+    async function refreshCollections() {
       try {
-        const payload = await request(fetchImpl, '/api/v1/library/collections');
-        const list = payload && Array.isArray(payload.collections) ? payload.collections : [];
-        state.collections = Object.freeze(list.filter(item => item && typeof item.id === 'string' && item.id.trim()).map(item => Object.freeze({
-          id: item.id.trim(),
-          name: typeof item.name === 'string' && item.name.trim() ? item.name.trim() : item.id.trim(),
-          created_at: Number.isFinite(item.created_at) ? item.created_at : 0,
-        })));
+        await reloadCollections();
       } catch (_) {
         if (!state.collections) state.collections = Object.freeze([]);
       }
@@ -1520,12 +1560,13 @@
 
     async function createCollection(name) {
       const trimmed = String(name || '').trim();
-      const id = collectionIDFromName(trimmed);
+      const id = uniqueCollectionID(trimmed, (state.collections || []).map(item => item.id));
       try {
-        await request(fetchImpl, `/api/v1/library/collections/${encodeURIComponent(id)}?name=${encodeURIComponent(trimmed || id)}`, {
+        const result = await request(fetchImpl, `/api/v1/library/collections/${encodeURIComponent(id)}?name=${encodeURIComponent(trimmed || id)}`, {
           method: 'PUT',
         });
-        await reloadCollections();
+        applyCollection(result && result.id ? result : { id, name: trimmed || id });
+        await refreshCollections();
         return setLibraryNav(id, '');
       } catch (error) {
         return emit();
@@ -1537,10 +1578,11 @@
       const trimmed = String(name || '').trim();
       if (!collectionID) return snapshot();
       try {
-        await request(fetchImpl, `/api/v1/library/collections/${encodeURIComponent(collectionID)}?name=${encodeURIComponent(trimmed || collectionID)}`, {
+        const result = await request(fetchImpl, `/api/v1/library/collections/${encodeURIComponent(collectionID)}?name=${encodeURIComponent(trimmed || collectionID)}`, {
           method: 'PUT',
         });
-        await reloadCollections();
+        applyCollection(result && result.id ? result : { id: collectionID, name: trimmed || collectionID });
+        await refreshCollections();
         return emit();
       } catch (error) {
         return emit();
@@ -1554,7 +1596,8 @@
         await request(fetchImpl, `/api/v1/library/collections/${encodeURIComponent(collectionID)}`, {
           method: 'DELETE',
         });
-        await reloadCollections();
+        dropCollection(collectionID);
+        await refreshCollections();
         if (state.collection === collectionID) return setLibraryNav('', '');
         return emit();
       } catch (error) {
@@ -1577,6 +1620,7 @@
           ? Object.freeze(current.concat(collection))
           : Object.freeze(current.filter(item => item !== collection));
         replaceGame(Object.freeze({ ...game, collections }));
+        if (!next && state.collection === collection) return loadCatalog(state.query);
         return emit();
       } catch (error) {
         return emit();
@@ -1803,6 +1847,10 @@
     systemLabel,
     sourceLabel,
     launchBlockReason,
+    collectionIDFromName,
+    uniqueCollectionID,
+    parseCollection,
+    parseCollectionList,
   });
   root.FogCastApp = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

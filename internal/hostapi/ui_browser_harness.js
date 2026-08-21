@@ -171,6 +171,7 @@ function normalizePlan(plan = {}) {
     }),
     attract: plan.attract || { items: [], idle_seconds: 60 },
     platforms: plan.platforms || { platforms: [] },
+    collections: Array.isArray(plan.collections) ? plan.collections.slice() : [],
     catalogQueues,
     detailQueues,
     presentationQueues,
@@ -1330,6 +1331,12 @@ class BrowserPage {
         launchButtonLabel: button('#launch-game')?.textContent || button('#launch-actions button.button')?.textContent || '',
         launchButtonDescribedBy: button('#launch-game')?.getAttribute('aria-describedby') || button('#launch-actions button.button')?.getAttribute('aria-describedby') || '',
         favoriteLabel: button('#favorite-game')?.textContent || '',
+        collectionItems: Array.from(document.querySelectorAll('#collection-list .nav-item')).map(item => ({
+          id: item.getAttribute('data-collection') || '',
+          label: item.textContent || '',
+          selected: String(item.className || '').includes('selected'),
+        })),
+        collectionMemberLabel: Array.from(document.querySelectorAll('.collection-member-button')).map(item => item.textContent || ''),
         attractHidden: document.querySelector('#attract')?.hidden !== false,
         attractTitle: text('#attract-title'),
         activeElementID: document.activeElement?.id || '',
@@ -1716,4 +1723,5 @@ module.exports = {
   artworkFixture,
   resolveChrome,
   waitForProcessGroupQuiescence,
+  normalizePlan,
 };
