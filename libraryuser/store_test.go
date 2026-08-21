@@ -151,6 +151,9 @@ func TestCollectionsRejectReservedAndInvalidIDs(t *testing.T) {
 	if _, err := store.UpsertCollection(ctx, "favorites", "Favorites"); !errors.Is(err, libraryuser.ErrReservedID) {
 		t.Fatalf("reserved = %v", err)
 	}
+	if _, err := store.UpsertCollection(ctx, "recently-added", "Recently Added"); !errors.Is(err, libraryuser.ErrReservedID) {
+		t.Fatalf("hyphen reserved = %v", err)
+	}
 	if _, err := store.UpsertCollection(ctx, "Not A Slug", "Nope"); !errors.Is(err, libraryuser.ErrInvalid) {
 		t.Fatalf("invalid id = %v", err)
 	}

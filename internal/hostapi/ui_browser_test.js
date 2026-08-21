@@ -1339,6 +1339,63 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
       });
     });
 
+    await t.test('rename keeps the original collection when the rail changes', async () => {
+      await runScenario(harness, 'custom-collection-rename-keeps-target', basePlan({
+        collections: [
+          { id: 'weekend-queue', name: 'Weekend Queue' },
+          { id: 'saturday', name: 'Saturday' },
+        ],
+        catalog: {
+          '': populatedCatalog(),
+          'collection=weekend-queue': fixture('catalog-empty.json'),
+          'collection=saturday': fixture('catalog-empty.json'),
+        },
+      }), async () => {
+        await harness.waitForSnapshot(item => item.collectionItems.length === 2);
+        await harness.click('[data-collection="weekend-queue"]');
+        await harness.waitForSnapshot(item => item.collectionItems.some(entry => entry.id === 'weekend-queue' && entry.selected));
+        await harness.click('#rename-collection');
+        await harness.evaluate(`(() => {
+          const node = document.getElementById('collection-name');
+          if (!node) throw new Error('missing collection name');
+          node.value = 'Friday';
+        })()`);
+        await harness.click('[data-collection="saturday"]');
+        await harness.waitForSnapshot(item => item.collectionItems.some(entry => entry.id === 'saturday' && entry.selected));
+        await harness.click('#save-collection');
+        await harness.waitForRequest({ method: 'PUT', path: '/api/v1/library/collections/weekend-queue' });
+        const writes = harness.fixtureEvidence().filter(record => (
+          record.method === 'PUT' && record.path.startsWith('/api/v1/library/collections/')
+        ));
+        assert.equal(writes.some(record => record.path === '/api/v1/library/collections/saturday'), false, JSON.stringify(writes));
+        assert.equal(writes.some(record => record.path === '/api/v1/library/collections/weekend-queue'), true, JSON.stringify(writes));
+      });
+    });
+
+    await t.test('Recently Added is reserved and uses a hyphenated list slug', async () => {
+      await runScenario(harness, 'custom-collection-reserved-recently-added', basePlan({
+        catalog: {
+          '': populatedCatalog(),
+          'collection=recently-added-list': fixture('catalog-empty.json'),
+        },
+      }), async () => {
+        await harness.waitForCatalog('populated metadata_fallback');
+        await harness.click('#create-collection');
+        await harness.evaluate(`(() => {
+          const node = document.getElementById('collection-name');
+          if (!node) throw new Error('missing collection name');
+          node.value = 'Recently Added';
+        })()`);
+        await harness.click('#save-collection');
+        await harness.waitForRequest({ method: 'PUT', path: '/api/v1/library/collections/recently-added-list' });
+        const writes = harness.fixtureEvidence().filter(record => (
+          record.method === 'PUT' && record.path.startsWith('/api/v1/library/collections/')
+        ));
+        assert.equal(writes.some(record => record.path === '/api/v1/library/collections/recently-added'), false, JSON.stringify(writes));
+        assert.equal(writes.some(record => record.path === '/api/v1/library/collections/recently-added-list'), true, JSON.stringify(writes));
+      });
+    });
+
     await t.test('Enter on favorite does not launch and filter selects keep native keys', async () => {
       await runScenario(harness, 'keyboard-enter-controls', basePlan({
         details: {

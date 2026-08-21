@@ -58,7 +58,13 @@
   const ARTWORK_HANDLE_PATTERN = /^[a-f0-9]{64}$/;
   const WALL_WINDOW = 80;
   const RESERVED_COLLECTION_IDS = Object.freeze({
-    all: true, favorites: true, recents: true, continue: true, unplayed: true, recently_added: true,
+    all: true,
+    favorites: true,
+    recents: true,
+    continue: true,
+    unplayed: true,
+    recently_added: true,
+    'recently-added': true,
   });
 
   function collectionIDFromName(name) {
@@ -1569,7 +1575,8 @@
         await refreshCollections();
         return setLibraryNav(id, '');
       } catch (error) {
-        return emit();
+        emit();
+        throw error;
       }
     }
 
@@ -1585,7 +1592,8 @@
         await refreshCollections();
         return emit();
       } catch (error) {
-        return emit();
+        emit();
+        throw error;
       }
     }
 
@@ -2133,11 +2141,16 @@
   }
 
   function beginCollectionEditor(mode) {
-    collectionEditor = { mode };
+    const selected = (state.collections || []).find(item => item.id === state.collection);
+    collectionEditor = {
+      mode,
+      collectionID: mode === 'rename' && selected ? selected.id : '',
+      busy: false,
+    };
     if (nodes.collectionName) {
-      const selected = (state.collections || []).find(item => item.id === state.collection);
       nodes.collectionName.value = mode === 'rename' && selected ? selected.name : '';
     }
+    if (nodes.saveCollection) nodes.saveCollection.disabled = false;
     renderLibraryNav();
     if (nodes.collectionName) focusWithoutScroll(nodes.collectionName);
   }
@@ -2145,18 +2158,32 @@
   function cancelCollectionEditor() {
     collectionEditor = null;
     if (nodes.collectionName) nodes.collectionName.value = '';
+    if (nodes.saveCollection) nodes.saveCollection.disabled = false;
     renderLibraryNav();
   }
 
   async function saveCollectionEditor() {
+    const editor = collectionEditor;
+    if (!editor || editor.busy) return;
     const name = nodes.collectionName ? nodes.collectionName.value : '';
-    const mode = collectionEditor && collectionEditor.mode;
-    collectionEditor = null;
-    if (mode === 'rename') {
-      await controller.renameCollection(state.collection, name);
-      return;
+    editor.busy = true;
+    if (nodes.saveCollection) nodes.saveCollection.disabled = true;
+    try {
+      if (editor.mode === 'rename') {
+        if (!editor.collectionID) return;
+        await controller.renameCollection(editor.collectionID, name);
+      } else {
+        await controller.createCollection(name);
+      }
+      collectionEditor = null;
+      if (nodes.collectionName) nodes.collectionName.value = '';
+    } catch (_) {
+      /* keep the same editor so retry stays on the original create/rename */
+    } finally {
+      if (collectionEditor) collectionEditor.busy = false;
+      if (nodes.saveCollection) nodes.saveCollection.disabled = false;
+      renderLibraryNav();
     }
-    await controller.createCollection(name);
   }
 
   let wallObserver = null;

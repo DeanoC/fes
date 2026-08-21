@@ -32,6 +32,7 @@ var (
 		"continue":       {},
 		"unplayed":       {},
 		"recently_added": {},
+		"recently-added": {},
 	}
 )
 

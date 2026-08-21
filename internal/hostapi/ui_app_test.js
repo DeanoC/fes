@@ -278,6 +278,52 @@ async function runBrowserApp({ adapter, responses, sessionResponses, globals, at
   return { document, calls, sessionCalls, globals: context };
 }
 
+async function runCollectionEditorApp({ collections = [], writeResponses = [], onWrite } = {}) {
+  const document = browserDocument();
+  const writes = [];
+  const pendingWrites = writeResponses.slice();
+  const fetch = async (requestPath, options) => {
+    const pathOnly = String(requestPath || '').split('?')[0];
+    if (pathOnly === '/api/v1/platforms') return jsonResponse({ platforms: [] });
+    if (pathOnly === '/api/v1/library/attract') return jsonResponse({ items: [], idle_seconds: 60 });
+    if (pathOnly === '/api/v1/library/facets') return jsonResponse({ genres: [], years: [] });
+    if (pathOnly === '/api/v1/library/collections') return jsonResponse({ collections });
+    if (pathOnly.startsWith('/api/v1/library/collections/')) {
+      const method = options && options.method;
+      if (method === 'PUT' || method === 'DELETE') {
+        const record = { path: requestPath, options };
+        writes.push(record);
+        if (onWrite) await onWrite(record);
+        if (pendingWrites.length) return pendingWrites.shift();
+        const id = decodeURIComponent(pathOnly.slice('/api/v1/library/collections/'.length).split('/')[0]);
+        const query = String(requestPath).includes('?') ? String(requestPath).slice(String(requestPath).indexOf('?') + 1) : '';
+        const name = new URLSearchParams(query).get('name') || id;
+        return jsonResponse({ id, name, member: method === 'PUT' && pathOnly.split('/').length > 6 });
+      }
+    }
+    if (pathOnly.startsWith('/api/v1/library/favorites/')) {
+      return jsonResponse({ favorite: (options && options.method) === 'PUT' });
+    }
+    if (pathOnly === '/api/v1/session') return jsonResponse({ state: 'idle' });
+    if (pathOnly === '/api/v1/games') return jsonResponse(readFixture('catalog-populated.json'));
+    throw new Error(`unexpected collection editor fixture ${requestPath}`);
+  };
+  const context = {
+    document,
+    fetch,
+    FogCastAttractDisabled: true,
+    setTimeout,
+    clearTimeout,
+  };
+  vm.runInNewContext(readAsset('ui_app.js'), context, { filename: 'ui_app.js' });
+  await settleBrowser();
+  await waitForCondition(
+    () => (collections.length === 0 ? true : document.nodes.get('collection-list').children.length === collections.length),
+    'collection rail did not render',
+  );
+  return { document, writes };
+}
+
 function malformedJSONResponse(status = 200) {
   return {
     ok: status >= 200 && status < 300,
@@ -1845,10 +1891,17 @@ test('custom collections use empty-body PUT/DELETE and collection= browse', asyn
 test('uniqueCollectionID avoids reserved slugs and existing collisions', () => {
   assert.equal(collectionIDFromName('Weekend Queue!'), 'weekend-queue');
   assert.equal(collectionIDFromName('日本語'), 'collection');
+  assert.equal(collectionIDFromName('Recently Added'), 'recently-added-list');
+  assert.equal(collectionIDFromName('recently_added'), 'recently-added-list');
   assert.equal(uniqueCollectionID('Weekend Queue!', []), 'weekend-queue');
   assert.equal(uniqueCollectionID('Weekend Queue!!', ['weekend-queue']), 'weekend-queue-2');
   assert.equal(uniqueCollectionID('日本語', ['collection']), 'collection-2');
   assert.equal(uniqueCollectionID('Favorites', []), 'favorites-list');
+  assert.equal(uniqueCollectionID('Recently Added', []), 'recently-added-list');
+  assert.equal(uniqueCollectionID('Recently Added', ['recently-added-list']), 'recently-added-list-2');
+  assert.equal(uniqueCollectionID('All', []), 'all-list');
+  assert.equal(uniqueCollectionID('Continue', []), 'continue-list');
+  assert.equal(uniqueCollectionID('Unplayed', []), 'unplayed-list');
 });
 
 test('createCollection uses a unique id instead of upsert-renaming', async () => {
@@ -1937,6 +1990,61 @@ test('removing a member while browsing that collection reloads the wall', async 
     calls.filter(call => call.path === '/api/v1/games?collection=weekend-queue&grouped=1').length,
     2,
   );
+});
+
+test('double-save and failed rename retry stay on the original rename', async () => {
+  const collections = [{ id: 'weekend-queue', name: 'Weekend Queue' }];
+  let releaseWrite;
+  const writeStarted = [];
+  const gate = new Promise(resolve => { releaseWrite = resolve; });
+  const { document, writes } = await runCollectionEditorApp({
+    collections,
+    writeResponses: [jsonResponse({ error: { code: 'INTERNAL', message: 'unavailable' } }, 500)],
+    onWrite: async () => {
+      writeStarted.push(true);
+      if (writeStarted.length === 1) await gate;
+    },
+  });
+  document.nodes.get('collection-list').children[0].click();
+  await settleBrowser();
+  document.nodes.get('rename-collection').click();
+  document.nodes.get('collection-name').value = 'Saturday';
+  document.nodes.get('save-collection').click();
+  await waitForCondition(() => writeStarted.length === 1, 'rename PUT did not start');
+  document.nodes.get('save-collection').click();
+  releaseWrite();
+  await settleBrowser();
+  await waitForCondition(() => writes.length === 1, 'double-save issued extra writes');
+  assert.equal(writes.length, 1);
+  assert.match(writes[0].path, /\/library\/collections\/weekend-queue\?name=Saturday/);
+  assert.equal(document.nodes.get('save-collection').hidden, false);
+  document.nodes.get('save-collection').click();
+  await settleBrowser();
+  await waitForCondition(() => writes.length === 2, 'failed rename retry did not PUT again');
+  assert.equal(writes.length, 2);
+  assert.match(writes[1].path, /\/library\/collections\/weekend-queue\?name=Saturday/);
+  assert.equal(writes.some(write => String(write.path).includes('/weekend-queue-2') || String(write.path).includes('/saturday')), false);
+  assert.equal(document.nodes.get('save-collection').hidden, true);
+});
+
+test('rename keeps the original collection when the rail changes', async () => {
+  const collections = [
+    { id: 'weekend-queue', name: 'Weekend Queue' },
+    { id: 'saturday', name: 'Saturday' },
+  ];
+  const { document, writes } = await runCollectionEditorApp({ collections });
+  document.nodes.get('collection-list').children[0].click();
+  await settleBrowser();
+  document.nodes.get('rename-collection').click();
+  document.nodes.get('collection-name').value = 'Friday';
+  document.nodes.get('collection-list').children[1].click();
+  await settleBrowser();
+  document.nodes.get('save-collection').click();
+  await settleBrowser();
+  await waitForCondition(() => writes.length === 1, 'rename PUT was not issued');
+  assert.equal(writes.length, 1);
+  assert.match(writes[0].path, /\/library\/collections\/weekend-queue\?name=Friday/);
+  assert.equal(writes.some(write => String(write.path).includes('/saturday')), false);
 });
 
 test('custom collection rail items sit after smart collections', async () => {
