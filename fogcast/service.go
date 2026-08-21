@@ -134,6 +134,10 @@ func WithUserLibrary(store *libraryuser.Store) ServiceOption {
 	return func(service *Service) { service.users = store }
 }
 
+func WithLibraryOverlayPath(path string) ServiceOption {
+	return func(service *Service) { service.libraryOverlayPath = path }
+}
+
 func WithLibraryMedia(index *librarymedia.Index) ServiceOption {
 	return func(service *Service) { service.media = index }
 }
@@ -148,30 +152,32 @@ func WithExecutionPolicy(policy ExecutionPolicy) ServiceOption {
 }
 
 type Service struct {
-	catalog           serviceCatalog
-	scanner           serviceScanner
-	preparer          servicePreparer
-	client            serviceClient
-	roots             []catalog.Root
-	rootsByID         map[string]catalog.Root
-	requestTimeout    time.Duration
-	uploadTimeout     time.Duration
-	uploadReadDelay   time.Duration
-	executionResolver ExecutionResolver
-	hostExecutor      hostexec.Adapter
-	users             *libraryuser.Store
-	media             *librarymedia.Index
-	attractIdle       int
-	preferredRegions  []string
-	hostEmulator      HostEmulatorConfig
-	metadataRoot      string
-	metadataScope     string
-	activeExecution   string
-	activeGameID      string
-	activeSystem      protocol.System
-	executionMu       sync.Mutex
-	closeOnce         sync.Once
-	closeErr          error
+	catalog            serviceCatalog
+	scanner            serviceScanner
+	preparer           servicePreparer
+	client             serviceClient
+	roots              []catalog.Root
+	rootsByID          map[string]catalog.Root
+	requestTimeout     time.Duration
+	uploadTimeout      time.Duration
+	uploadReadDelay    time.Duration
+	executionResolver  ExecutionResolver
+	hostExecutor       hostexec.Adapter
+	users              *libraryuser.Store
+	media              *librarymedia.Index
+	libraryOverlayPath string
+	libraryMu          sync.RWMutex
+	attractIdle        int
+	preferredRegions   []string
+	hostEmulator       HostEmulatorConfig
+	metadataRoot       string
+	metadataScope      string
+	activeExecution    string
+	activeGameID       string
+	activeSystem       protocol.System
+	executionMu        sync.Mutex
+	closeOnce          sync.Once
+	closeErr           error
 }
 
 func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, error) {
@@ -251,6 +257,22 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 		}
 		options = append(options, WithUserLibrary(users))
 	}
+	if overlayPath := libraryOverlayPath(paths); overlayPath != "" {
+		if err := validatePrivateFilePath(overlayPath); err != nil {
+			return fail("prepare FogCast library settings location", err)
+		}
+		if err := ensurePrivateDirectory(filepath.Dir(overlayPath)); err != nil {
+			return fail("prepare FogCast library settings location", err)
+		}
+		if _, err := os.Lstat(overlayPath); err == nil {
+			if err := ensurePrivateRegularFile(overlayPath); err != nil {
+				return fail("secure FogCast library settings", err)
+			}
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return fail("prepare FogCast library settings location", err)
+		}
+		options = append(options, WithLibraryOverlayPath(overlayPath))
+	}
 	if paths.MediaIndex != "" && len(config.LibraryMedia) > 0 {
 		if err := validatePrivateFilePath(paths.MediaIndex); err != nil {
 			return fail("prepare FogCast media index location", err)
@@ -295,6 +317,7 @@ func newService(config Config, paths Paths, store serviceCatalog, scanner servic
 			option(service)
 		}
 	}
+	service.applyPersistedLibraryOverlay()
 	return service
 }
 
@@ -493,7 +516,7 @@ func (s *Service) QueryGames(ctx context.Context, query catalog.Query) (catalog.
 		return catalog.Page{}, err
 	}
 	if len(query.PreferredRegions) == 0 {
-		query.PreferredRegions = append([]string(nil), s.preferredRegions...)
+		query.PreferredRegions = s.currentPreferredRegions()
 	}
 	switch query.Collection {
 	case "favorites":

@@ -928,6 +928,7 @@
       platforms: [],
       collections: [],
       attractIdleSeconds: 60,
+      librarySettings: null,
       games: [],
       gameViews: [],
       filters: Object.freeze({
@@ -1640,6 +1641,41 @@
       }
     }
 
+    function parseLibrarySettings(payload) {
+      const idle = Number(payload && payload.attract_idle_seconds);
+      const regions = payload && Array.isArray(payload.preferred_regions)
+        ? payload.preferred_regions.filter(item => typeof item === 'string' && item.trim()).map(item => item.trim().toLowerCase())
+        : [];
+      return Object.freeze({
+        attract_idle_seconds: idle > 0 ? idle : 60,
+        preferred_regions: Object.freeze(regions),
+      });
+    }
+
+    async function loadSettings() {
+      const payload = await request(fetchImpl, '/api/v1/library/settings');
+      const parsed = parseLibrarySettings(payload);
+      if (parsed.attract_idle_seconds > 0) state.attractIdleSeconds = parsed.attract_idle_seconds;
+      state.librarySettings = parsed;
+      return emit();
+    }
+
+    async function saveSettings(next) {
+      const payload = await request(fetchImpl, '/api/v1/library/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          attract_idle_seconds: next && next.attract_idle_seconds,
+          preferred_regions: next && next.preferred_regions,
+        }),
+      });
+      const parsed = parseLibrarySettings(payload);
+      if (parsed.attract_idle_seconds > 0) state.attractIdleSeconds = parsed.attract_idle_seconds;
+      state.librarySettings = parsed;
+      emit();
+      return loadCatalog(state.query);
+    }
+
     async function loadAttract(limit) {
       const size = Number(limit) > 0 ? Number(limit) : 24;
       const payload = await request(fetchImpl, `/api/v1/library/attract?limit=${encodeURIComponent(String(size))}`);
@@ -1813,6 +1849,8 @@
       loadMoreCatalog,
       loadPlatforms,
       loadAttract,
+      loadSettings,
+      saveSettings,
       loadSession,
       selectGame,
       refreshDetail,
@@ -1873,6 +1911,7 @@
   let state;
   let controller;
   let keyboardPane = 'rail';
+  let settingsReturnPane = 'rail';
   let collectionEditor = null;
   let forceKeyboardRestore = false;
 
@@ -1919,6 +1958,14 @@
     attract: document.getElementById('attract'),
     attractTitle: document.getElementById('attract-title'),
     attractStage: document.getElementById('attract-stage'),
+    openSettings: document.getElementById('open-settings'),
+    settings: document.getElementById('settings'),
+    settingsAttractIdle: document.getElementById('settings-attract-idle'),
+    settingsPreferredRegions: document.getElementById('settings-preferred-regions'),
+    settingsHostHealth: document.getElementById('settings-host-health'),
+    settingsMessage: document.getElementById('settings-message'),
+    saveSettings: document.getElementById('save-settings'),
+    closeSettings: document.getElementById('close-settings'),
   };
 
   function element(tag, className, text) {
@@ -2807,6 +2854,83 @@
     resetAttractTimer();
   }
 
+  function settingsIsOpen() {
+    return Boolean(nodes.settings && nodes.settings.hidden === false);
+  }
+
+  function isSettingsTarget(target) {
+    if (!target) return false;
+    const id = target.id;
+    return id === 'close-settings'
+      || id === 'save-settings'
+      || id === 'settings-attract-idle'
+      || id === 'settings-preferred-regions'
+      || id === 'settings'
+      || Boolean(nodes.settings && (target === nodes.settings
+        || target.parentNode === nodes.settings
+        || (target.parentNode && target.parentNode.parentNode === nodes.settings)));
+  }
+
+  function fillSettingsForm(settings) {
+    if (nodes.settingsAttractIdle) {
+      nodes.settingsAttractIdle.value = String((settings && settings.attract_idle_seconds) || state.attractIdleSeconds || 60);
+    }
+    if (nodes.settingsPreferredRegions) {
+      const regions = settings && Array.isArray(settings.preferred_regions) ? settings.preferred_regions : [];
+      nodes.settingsPreferredRegions.value = regions.join(', ');
+    }
+    if (nodes.settingsHostHealth) {
+      nodes.settingsHostHealth.textContent = nodes.health ? nodes.health.textContent : '';
+    }
+    if (nodes.settingsMessage) nodes.settingsMessage.textContent = '';
+  }
+
+  async function openSettings() {
+    if (keyboardPane !== 'settings') settingsReturnPane = keyboardPane;
+    if (nodes.settings) nodes.settings.hidden = false;
+    keyboardPane = 'settings';
+    writePaneAttribute();
+    try {
+      await controller.loadSettings();
+      fillSettingsForm(controller.getState().librarySettings);
+    } catch (error) {
+      fillSettingsForm(null);
+      if (nodes.settingsMessage) {
+        nodes.settingsMessage.textContent = privacyMessage(error, 'Library settings could not be loaded.');
+      }
+    }
+    forceKeyboardRestore = true;
+    restoreKeyboardFocus();
+  }
+
+  function closeSettings() {
+    if (nodes.settings) nodes.settings.hidden = true;
+    setKeyboardPane(settingsReturnPane || 'rail');
+  }
+
+  function parseRegionsInput(value) {
+    return String(value || '')
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean);
+  }
+
+  async function saveSettingsFromForm() {
+    const idle = Number(nodes.settingsAttractIdle && nodes.settingsAttractIdle.value);
+    const regions = parseRegionsInput(nodes.settingsPreferredRegions && nodes.settingsPreferredRegions.value);
+    try {
+      await controller.saveSettings({
+        attract_idle_seconds: idle,
+        preferred_regions: regions,
+      });
+      fillSettingsForm(controller.getState().librarySettings);
+    } catch (error) {
+      if (nodes.settingsMessage) {
+        nodes.settingsMessage.textContent = privacyMessage(error, 'Library settings could not be saved.');
+      }
+    }
+  }
+
   function typingTarget(target) {
     if (!target) return false;
     if (nodes.search && target === nodes.search) return true;
@@ -2917,7 +3041,9 @@
 
   function syncPaneFromTarget(target) {
     if (!target) return;
-    if (nodes.search && (target === nodes.search || target.id === 'game-search')) {
+    if (settingsIsOpen() || isSettingsTarget(target)) {
+      keyboardPane = 'settings';
+    } else if (nodes.search && (target === nodes.search || target.id === 'game-search')) {
       keyboardPane = 'search';
     } else if (railItems().includes(target) || (nodes.platformList && target.parentNode === nodes.platformList)) {
       keyboardPane = 'rail';
@@ -2940,7 +3066,9 @@
       return;
     }
     forceKeyboardRestore = false;
-    if (keyboardPane === 'search') {
+    if (keyboardPane === 'settings') {
+      focusWithoutScroll(nodes.settingsAttractIdle || nodes.openSettings);
+    } else if (keyboardPane === 'search') {
       focusWithoutScroll(nodes.search);
     } else if (keyboardPane === 'rail') {
       focusWithoutScroll(selectedRailItem());
@@ -3115,11 +3243,24 @@
   if (nodes.renameCollection) nodes.renameCollection.addEventListener('click', () => beginCollectionEditor('rename'));
   if (nodes.saveCollection) nodes.saveCollection.addEventListener('click', () => { void saveCollectionEditor(); });
   if (nodes.deleteCollection) nodes.deleteCollection.addEventListener('click', () => { void controller.deleteCollection(state.collection); });
+  if (nodes.openSettings) nodes.openSettings.addEventListener('click', () => { void openSettings(); });
+  if (nodes.closeSettings) nodes.closeSettings.addEventListener('click', closeSettings);
+  if (nodes.saveSettings) nodes.saveSettings.addEventListener('click', () => { void saveSettingsFromForm(); });
   if (typeof document.addEventListener === 'function') {
     document.addEventListener('keydown', event => {
       if (attractActive) {
         event.preventDefault?.();
         exitAttract();
+        return;
+      }
+      if (settingsIsOpen()) {
+        if (event.key === 'Escape') {
+          event.preventDefault?.();
+          closeSettings();
+          return;
+        }
+        if (typingTarget(event.target)) return;
+        if (isTypeToSearchKey(event)) event.preventDefault?.();
         return;
       }
       if (typingTarget(event.target)) {
@@ -3222,6 +3363,7 @@
     nodes.attract.hidden = true;
     nodes.attract.addEventListener('click', exitAttract);
   }
+  if (nodes.settings) nodes.settings.hidden = true;
   renderCatalog();
   renderLibraryNav();
   renderDetail(null);

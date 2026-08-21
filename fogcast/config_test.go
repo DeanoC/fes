@@ -28,6 +28,9 @@ func TestDefaultPathsUsesHomeDirectory(t *testing.T) {
 	if paths.Staging != filepath.Join(home, ".cache", "fogcast", "staging") {
 		t.Fatalf("Staging = %q", paths.Staging)
 	}
+	if paths.LibrarySettings != filepath.Join(home, ".local", "share", "fogcast", "library-settings.json") {
+		t.Fatalf("LibrarySettings = %q", paths.LibrarySettings)
+	}
 }
 
 func TestLoadConfigLoadsApprovedTOML(t *testing.T) {

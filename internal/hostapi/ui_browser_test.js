@@ -1524,6 +1524,50 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
       });
     });
 
+    await t.test('settings overlay persists attract idle and preferred regions across reload', async () => {
+      await runScenario(harness, 'library-settings', basePlan(), async () => {
+        await harness.waitForCatalog('populated metadata_fallback');
+        await harness.click('#open-settings');
+        const opened = await harness.waitForSnapshot(item => item.settingsHidden === false);
+        assert.equal(opened.keyboardPane, 'settings');
+        assert.equal(opened.settingsAttract, '60');
+        await harness.evaluate(`(() => {
+          const idle = document.getElementById('settings-attract-idle');
+          const regions = document.getElementById('settings-preferred-regions');
+          idle.value = '12';
+          regions.value = 'japan, europe';
+          idle.focus();
+          const down = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
+          const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+          const typedF = new KeyboardEvent('keydown', { key: 'f', bubbles: true, cancelable: true });
+          return {
+            downStolen: !idle.dispatchEvent(down) || down.defaultPrevented,
+            enterStolen: !idle.dispatchEvent(enter) || enter.defaultPrevented,
+            fStolen: !idle.dispatchEvent(typedF) || typedF.defaultPrevented,
+            search: document.getElementById('game-search')?.value || '',
+          };
+        })()`).then(result => {
+          assert.equal(result.downStolen, false, JSON.stringify(result));
+          assert.equal(result.enterStolen, false, JSON.stringify(result));
+          assert.equal(result.fStolen, false, JSON.stringify(result));
+          assert.equal(result.search, '');
+        });
+        await harness.click('#save-settings');
+        await harness.waitForRequest({ method: 'PUT', path: '/api/v1/library/settings' });
+        await harness.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+        const closed = await harness.waitForSnapshot(item => item.settingsHidden === true);
+        assert.equal(closed.keyboardPane, 'rail');
+        await harness.reload();
+        await harness.waitForCatalog('populated metadata_fallback');
+        await harness.click('#open-settings');
+        const reopened = await harness.waitForSnapshot(item => item.settingsHidden === false && item.settingsAttract === '12');
+        assert.equal(reopened.settingsAttract, '12');
+        assert.equal(reopened.settingsRegions, 'japan, europe');
+        await harness.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+        await harness.waitForSnapshot(item => item.settingsHidden === true);
+      });
+    });
+
     await t.test('narrow wall arrows follow visible columns and card meta does not overlap', async () => {
       const narrowGames = [];
       for (let index = 0; index < 8; index += 1) {
