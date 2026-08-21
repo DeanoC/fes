@@ -488,6 +488,103 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         assert.match(snapshot.launchText, /session accepted/i);
         assert.equal(apiEvidence(harness).find(record => record.method === 'POST').path, '/api/v1/session/launch');
       });
+
+      await runScenario(harness, 'rich-detail-hero', basePlan({
+        presentations: {
+          [SONIC_ID]: fixture('presentation-artwork-ready.json'),
+          [UNKNOWN_ID]: fixture('presentation-no-match.json'),
+          'snes-offline-test': fixture('presentation-no-match.json'),
+        },
+      }), async () => {
+        await selectSonic(harness);
+        const layout = await harness.evaluate(`(() => {
+          const detail = document.getElementById('detail-content');
+          const panel = document.getElementById('detail');
+          const hero = detail && detail.querySelector('.detail-hero');
+          const backdrop = detail && detail.querySelector('.backdrop-art');
+          const card = document.querySelector('#catalog-list .game-card.selected');
+          const panelBox = panel ? panel.getBoundingClientRect() : null;
+          const backBox = backdrop ? backdrop.getBoundingClientRect() : null;
+          return {
+            backdrop: detail && detail.children[0] ? detail.children[0].className : '',
+            hero: hero ? hero.className : '',
+            cover: hero && hero.querySelector('.cover-art') ? hero.querySelector('.cover-art').className : '',
+            heading: document.getElementById('detail-heading')?.textContent || '',
+            cardCover: card && card.querySelector('.cover-art') ? card.querySelector('.cover-art').className : '',
+            cardPressed: card ? card.getAttribute('aria-pressed') : '',
+            cardTabIndex: card ? card.tabIndex : null,
+            leftDelta: panelBox && backBox ? Math.abs(backBox.left - panelBox.left) : 99,
+            widthDelta: detail && backBox ? Math.abs(backBox.width - detail.clientWidth) : 99,
+            overflowX: detail ? detail.scrollWidth - detail.clientWidth : 99,
+          };
+        })()`);
+        assert.match(layout.backdrop, /backdrop-art/);
+        assert.equal(layout.hero, 'detail-hero');
+        assert.match(layout.cover, /cover-art/);
+        assert.match(layout.heading, /Sonic/);
+        assert.match(layout.cardCover, /cover-art/);
+        assert.equal(layout.cardPressed, 'true');
+        assert.equal(layout.cardTabIndex, 0);
+        assert.ok(layout.leftDelta <= 2, JSON.stringify(layout));
+        assert.ok(layout.widthDelta <= 2, JSON.stringify(layout));
+        assert.ok(layout.overflowX <= 1, JSON.stringify(layout));
+      });
+
+      await runScenario(harness, 'rich-detail-inset-media', basePlan({
+        presentations: {
+          [SONIC_ID]: fixture('presentation-artwork-ready.json'),
+          [UNKNOWN_ID]: fixture('presentation-no-match.json'),
+          'snes-offline-test': fixture('presentation-no-match.json'),
+        },
+      }), async () => {
+        await selectSonic(harness);
+        const layout = await harness.evaluate(`(() => {
+          const detail = document.getElementById('detail-content');
+          const panel = document.getElementById('detail');
+          const backdrop = detail && detail.querySelector('.backdrop-art');
+          if (!detail || !panel) return { missing: true };
+          const marquee = document.createElement('div');
+          marquee.className = 'marquee-art';
+          marquee.style.height = '48px';
+          const video = document.createElement('div');
+          video.className = 'detail-video';
+          video.style.height = '80px';
+          detail.appendChild(marquee);
+          detail.appendChild(video);
+          const detailBox = detail.getBoundingClientRect();
+          const contentLeft = detailBox.left;
+          const contentRight = detailBox.left + detail.clientWidth;
+          const inset = parseFloat(getComputedStyle(panel).getPropertyValue('--detail-inset')) || 0;
+          const backBox = backdrop ? backdrop.getBoundingClientRect() : null;
+          const measure = (el) => {
+            const box = el.getBoundingClientRect();
+            return {
+              width: box.width,
+              left: box.left - contentLeft,
+              rightOverflow: box.right - contentRight,
+            };
+          };
+          return {
+            overflowX: detail.scrollWidth - detail.clientWidth,
+            clientWidth: detail.clientWidth,
+            inset,
+            marquee: measure(marquee),
+            video: measure(video),
+            leftDelta: backBox ? Math.abs(backBox.left - panel.getBoundingClientRect().left) : 99,
+            widthDelta: backBox ? Math.abs(backBox.width - detail.clientWidth) : 99,
+          };
+        })()`);
+        assert.equal(layout.missing, undefined, JSON.stringify(layout));
+        assert.ok(layout.overflowX <= 1, JSON.stringify(layout));
+        assert.ok(layout.marquee.rightOverflow <= 1, JSON.stringify(layout));
+        assert.ok(layout.video.rightOverflow <= 1, JSON.stringify(layout));
+        assert.ok(layout.marquee.left + 1 >= layout.inset, JSON.stringify(layout));
+        assert.ok(layout.video.left + 1 >= layout.inset, JSON.stringify(layout));
+        assert.ok(Math.abs(layout.marquee.width - (layout.clientWidth - (2 * layout.inset))) <= 2, JSON.stringify(layout));
+        assert.ok(Math.abs(layout.video.width - (layout.clientWidth - (2 * layout.inset))) <= 2, JSON.stringify(layout));
+        assert.ok(layout.leftDelta <= 2, JSON.stringify(layout));
+        assert.ok(layout.widthDelta <= 2, JSON.stringify(layout));
+      });
     });
 
     await t.test('production Chrome preserves independent optional text fields and rejects malformed values', async () => {
@@ -860,6 +957,8 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         assert.equal(snapshot.sessionBusy, 'false');
         assert.equal(snapshot.sessionStopHidden, true);
         assert.equal(snapshot.sessionStopDisabled, true);
+        const chrome = await harness.evaluate('document.getElementById("session-panel")?.className || ""');
+        assert.match(chrome, /session-quiet/);
         assertNoPrivateErrorText(snapshot);
       });
     });
@@ -870,6 +969,8 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
       }), async () => {
         await harness.waitForText('#session-details', 'Sonic the Hedgehog');
         let snapshot = await harness.snapshot();
+        const activeChrome = await harness.evaluate('document.getElementById("session-panel")?.className || ""');
+        assert.doesNotMatch(activeChrome, /session-quiet/);
         assert.match(snapshot.sessionText, /Sonic the Hedgehog/);
         assert.match(snapshot.sessionText, /Input stateattached.*Input readinessReady/);
         assert.equal(snapshot.detailHeading, 'Select a game');
@@ -1257,6 +1358,81 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         assert.equal(searching.activeElementID, 'game-search');
         const typed = await harness.evaluate('document.getElementById("game-search")?.value || ""');
         assert.equal(typed, 's');
+      });
+    });
+
+    await t.test('narrow wall arrows follow visible columns and card meta does not overlap', async () => {
+      const narrowGames = [];
+      for (let index = 0; index < 8; index += 1) {
+        narrowGames.push({
+          id: `snes-grid-${index}`,
+          title: `Grid ${index}`,
+          system: 'snes',
+          kind: 'raw',
+          state: 'available',
+          root_online: true,
+          content_prepared: true,
+          execution: 'fpga_native',
+          variant_count: index === 1 ? 3 : 1,
+        });
+      }
+      const narrowPresentations = Object.fromEntries(narrowGames.map(game => [
+        game.id,
+        fixture('presentation-no-match.json', 200, { override: { game_id: game.id, state: 'no_match' } }),
+      ]));
+      const narrowDetails = Object.fromEntries(narrowGames.map(game => [
+        game.id,
+        fixture('detail-unknown.json', 200, { override: game }),
+      ]));
+      await runScenario(harness, 'keyboard-narrow-wall-and-card-meta', basePlan({
+        catalog: { '': fixture('catalog-populated.json', 200, { override: { games: narrowGames } }) },
+        details: narrowDetails,
+        presentations: narrowPresentations,
+      }), async () => {
+        await harness.setViewport(420, 800);
+        await harness.reload();
+        await harness.waitForCatalog('populated metadata_fallback');
+        const metrics = await harness.evaluate(`(() => {
+          const list = document.getElementById('catalog-list');
+          const style = getComputedStyle(list);
+          const cards = Array.from(list.querySelectorAll('.game-card'));
+          const firstTop = cards[0] ? cards[0].getBoundingClientRect().top : 0;
+          return {
+            clientWidth: list.clientWidth,
+            minTrack: style.getPropertyValue('--wall-min-track').trim(),
+            gap: style.columnGap,
+            visibleCols: cards.filter(card => Math.abs(card.getBoundingClientRect().top - firstTop) < 2).length,
+          };
+        })()`);
+        assert.equal(metrics.minTrack, '140px', JSON.stringify(metrics));
+        assert.ok(metrics.visibleCols >= 2, JSON.stringify(metrics));
+        await harness.click('#catalog-list .game-card');
+        await harness.waitForSnapshot(item => item.cards.some(card => card.pressed));
+        await harness.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))`);
+        const expectedTitle = `Grid ${metrics.visibleCols}`;
+        const jumped = await harness.waitForSnapshot(item => item.cards.some(card => card.pressed && card.title === expectedTitle));
+        assert.equal(jumped.cards.find(card => card.pressed).title, expectedTitle);
+
+        await harness.click('#catalog-list .game-card:nth-child(2)');
+        const meta = await harness.evaluate(`(() => {
+          const card = document.querySelector('#catalog-list .game-card.selected');
+          if (!card) return { missing: true };
+          const system = Array.from(card.querySelectorAll('.game-meta')).find(node => !node.classList.contains('game-meta-variant'));
+          const variant = card.querySelector('.game-meta-variant');
+          const note = card.querySelector('.fallback-note');
+          if (!system || !variant || !note) return { missing: true, className: card.className };
+          const sys = system.getBoundingClientRect();
+          const ver = variant.getBoundingClientRect();
+          return {
+            variantClass: variant.className,
+            noteTop: note.getBoundingClientRect().top < sys.top,
+            overlap: Math.max(0, Math.min(sys.bottom, ver.bottom) - Math.max(sys.top, ver.top)),
+          };
+        })()`);
+        assert.equal(meta.variantClass, 'game-meta game-meta-variant');
+        assert.equal(meta.noteTop, true);
+        assert.ok(meta.overlap < 1, JSON.stringify(meta));
+        await harness.clearViewport();
       });
     });
 

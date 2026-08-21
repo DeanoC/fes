@@ -1692,6 +1692,7 @@ test('session panel renders only accepted fields, reconstructs active title, and
   });
   const panel = document.nodes.get('session-panel');
   assert.equal(panel.attributes.get('aria-busy'), 'false');
+  assert.equal(panel.className, 'session-panel');
   assert.equal(document.nodes.get('session-status').textContent, 'Active session');
   const details = browserText(document.nodes.get('session-details'));
   assert.match(details, /Sonic the Hedgehog/);
@@ -1719,6 +1720,7 @@ test('session malformed state exposes a safe retry without leaking response fiel
     sessionResponses: [malformedJSONResponse(), jsonResponse(sessionFixture({ state: 'idle' }))],
   });
   assert.equal(document.nodes.get('session-status').textContent, 'The local host returned an invalid session response. Retry.');
+  assert.equal(document.nodes.get('session-panel').className, 'session-panel');
   assert.match(document.nodes.get('session-message').textContent, /invalid session response/i);
   await document.nodes.get('session-actions').children.find(node => node.id === 'refresh-session').click();
   assert.equal(document.nodes.get('session-status').textContent, 'No active session.');
@@ -1872,7 +1874,7 @@ async function pressKey(document, key, target = document.activeElement) {
   return event;
 }
 
-async function runKeyboardApp({ pages, platforms, launchResponse } = {}) {
+async function runKeyboardApp({ pages, platforms, launchResponse, globals } = {}) {
   const catalogPages = pages || [{
     games: readFixture('catalog-populated.json').games,
     next_cursor: '',
@@ -1925,6 +1927,7 @@ async function runKeyboardApp({ pages, platforms, launchResponse } = {}) {
     FogCastAttractDisabled: true,
     setTimeout,
     clearTimeout,
+    ...(globals || {}),
   };
   vm.runInNewContext(readAsset('ui_app.js'), context, { filename: 'ui_app.js' });
   await settleBrowser();
@@ -2032,6 +2035,40 @@ test('grid arrows move by cover-wall columns and left edge returns to the rail',
   assert.equal(document.activeElement.className.includes('nav-item'), true);
 });
 
+test('narrow cover wall uses padded 140px tracks for arrow jumps', async () => {
+  const games = [];
+  for (let index = 0; index < 8; index += 1) {
+    games.push(availableGame(`snes-grid-${index}`, `Grid ${index}`));
+  }
+  const { document } = await runKeyboardApp({
+    pages: [{ games }],
+    globals: {
+      getComputedStyle() {
+        return {
+          paddingLeft: '4px',
+          paddingRight: '4px',
+          columnGap: '14px',
+          gap: '14px',
+          getPropertyValue(name) {
+            if (name === '--wall-min-track') return '140px';
+            if (name === 'padding-left') return '4px';
+            if (name === 'padding-right') return '4px';
+            if (name === 'column-gap' || name === 'gap') return '14px';
+            return '';
+          },
+        };
+      },
+    },
+  });
+  await settleBrowser();
+  document.nodes.get('catalog-list').clientWidth = 360;
+  await pressKey(document, 'Enter');
+  await pressKey(document, 'ArrowDown');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'snes-grid-2');
+  await pressKey(document, 'ArrowUp');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'snes-grid-0');
+});
+
 test('Enter on favorite or session controls does not launch', async () => {
   const { document, calls } = await runKeyboardApp();
   await settleBrowser();
@@ -2100,6 +2137,117 @@ test('ArrowDown and Enter on search still move to the cover wall', async () => {
   const enter = await pressKey(document, 'Enter', document.nodes.get('game-search'));
   assert.equal(enter.defaultPrevented, true);
   assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'grid');
+});
+
+test('idle session chrome stays quiet while controls remain available', async () => {
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse(readFixture('catalog-populated.json'))],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  const panel = document.nodes.get('session-panel');
+  assert.equal(document.nodes.get('session-status').textContent, 'No active session.');
+  assert.equal(panel.className, 'session-panel session-quiet');
+  assert.ok(document.nodes.get('session-actions').children.find(node => node.id === 'refresh-session'));
+  assert.ok(document.nodes.get('session-actions').children.find(node => node.id === 'stop-session'));
+});
+
+test('rich detail stacks hero cover with backdrop and skips video under reduced motion', async () => {
+  const handle = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  const adapter = {
+    metadataFor() {
+      return {
+        summary: 'Provider summary',
+        year: '1991',
+        genre: 'Platformer',
+        studio: 'SEGA',
+        players: '1 player',
+        coverArtworkHandle: handle,
+        backdropArtworkHandle: handle,
+        logoHandle: handle,
+        marqueeHandle: handle,
+        screenshotHandles: [handle],
+        videoHandle: handle,
+        isFallback: false,
+        metadataState: 'ready',
+      };
+    },
+  };
+  const reduced = await runBrowserApp({
+    adapter,
+    globals: { matchMedia: () => ({ matches: true }) },
+    responses: [
+      jsonResponse(readFixture('catalog-populated.json')),
+      jsonResponse(readFixture('detail-refreshed.json')),
+    ],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await reduced.document.nodes.get('catalog-list').children[0].click();
+  const reducedDetail = reduced.document.nodes.get('detail-content');
+  assert.equal(reducedDetail.children[0].className, 'backdrop-art image-art');
+  assert.equal(reducedDetail.children[1].className, 'detail-hero');
+  assert.equal(reducedDetail.children[1].children[0].className, 'cover-art image-art');
+  assert.ok(reducedDetail.children[1].children[1].children.some(child => String(child.className).includes('logo-art')));
+  assert.ok(reducedDetail.children.some(child => child.className === 'extra-stills'));
+  assert.ok(reducedDetail.children.some(child => String(child.className).includes('marquee-art')));
+  assert.equal(reducedDetail.children.some(child => child.className === 'detail-video'), false);
+
+  const motion = await runBrowserApp({
+    adapter,
+    globals: { matchMedia: () => ({ matches: false }) },
+    responses: [
+      jsonResponse(readFixture('catalog-populated.json')),
+      jsonResponse(readFixture('detail-refreshed.json')),
+    ],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await motion.document.nodes.get('catalog-list').children[0].click();
+  const motionDetail = motion.document.nodes.get('detail-content');
+  const marquee = motionDetail.children.find(child => String(child.className).includes('marquee-art'));
+  const video = motionDetail.children.find(child => child.className === 'detail-video');
+  assert.ok(marquee);
+  assert.ok(video);
+  assert.equal(video.attributes.get('src'), `/api/v1/presentation/media/${handle}`);
+  assert.equal(video.muted, true);
+  assert.equal(video.attributes.get('muted'), '');
+  assert.equal(video.attributes.get('controls'), '');
+  assert.equal(video.attributes.get('playsinline'), '');
+  assert.match(readAsset('ui_app.js'), /video\.setAttribute\('controls', ''\);/);
+});
+
+test('cover-card variant meta is independently classed so fallback cannot overlap it', async () => {
+  const css = readAsset('ui.css');
+  assert.doesNotMatch(css, /\.game-meta\s*\+\s*\.game-meta/);
+  assert.match(css, /\.game-card \.game-meta-variant/);
+  assert.match(css, /\.game-card \.fallback-note/);
+  const games = [{
+    ...readFixture('catalog-populated.json').games[1],
+    variant_count: 3,
+  }];
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse({ games })],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  const card = document.nodes.get('catalog-list').children[0];
+  const metas = card.children.filter(child => String(child.className).includes('game-meta'));
+  const notes = card.children.filter(child => child.className === 'fallback-note');
+  assert.equal(notes.length, 1);
+  assert.equal(metas.length, 2);
+  assert.equal(metas[0].className, 'game-meta');
+  assert.equal(metas[1].className, 'game-meta game-meta-variant');
+  assert.ok(card.children.indexOf(notes[0]) > card.children.indexOf(metas[0]));
+  assert.ok(card.children.indexOf(notes[0]) < card.children.indexOf(metas[1]));
+});
+
+test('detail CSS meets the panel edge without negative-margin backdrop bleed', () => {
+  const css = readAsset('ui.css');
+  assert.doesNotMatch(css, /\.backdrop-art[^{]*\{[^}]*margin:\s*-/);
+  assert.doesNotMatch(css, /width:\s*calc\(100% \+/);
+  assert.match(css, /#detail-content[^{]*\{[^}]*overflow-x:\s*hidden/);
+  assert.match(css, /--detail-inset/);
+  assert.match(css, /#detail-content\s*>\s*:not\(\.backdrop-art\):not\(\.detail-hero\)\s*\{[^}]*max-width:\s*calc\(100%\s*-\s*\(\s*2\s*\*\s*var\(--detail-inset\)\s*\)\s*\)/);
+  assert.match(css, /\.backdrop-art\s*\{[^}]*margin:\s*0;[^}]*width:\s*100%/);
+  assert.match(css, /\.marquee-art[^{]*\{[^}]*width:\s*100%/);
+  assert.match(css, /\.detail-video[^{]*\{[^}]*width:\s*100%/);
 });
 
 test('selected cards keep a visible selected and focus contract', async () => {

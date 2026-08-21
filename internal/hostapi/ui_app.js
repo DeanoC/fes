@@ -1864,10 +1864,19 @@
     }
   }
 
+  function sessionNeedsAttention() {
+    if (state.activeMutation) return true;
+    if (state.sessionMessage) return true;
+    if (state.launchState === 'launching' || state.launchState === 'launch_error') return true;
+    if (state.session && state.session.state === 'active') return true;
+    return ['active', 'stopping', 'error', 'unavailable', 'malformed'].includes(state.sessionPhase);
+  }
+
   function renderSession() {
     ensureSessionActions();
     const busy = Boolean(state.activeMutation) || state.sessionPhase === 'loading';
     nodes.sessionPanel.setAttribute('aria-busy', String(busy));
+    nodes.sessionPanel.className = sessionNeedsAttention() ? 'session-panel' : 'session-panel session-quiet';
     nodes.sessionStatus.textContent = sessionStatusText();
     nodes.sessionMessage.textContent = state.sessionMessage || '';
     renderSessionDetails();
@@ -1945,9 +1954,38 @@
   let wallStartObserver = null;
   let wallStart = 0;
 
+  function readStylePx(styles, names, fallback) {
+    if (!styles) return fallback;
+    const keys = Array.isArray(names) ? names : [names];
+    for (const name of keys) {
+      const raw = (String(name).startsWith('--') || String(name).includes('-'))
+        && typeof styles.getPropertyValue === 'function'
+        ? styles.getPropertyValue(name)
+        : styles[name];
+      const value = parseFloat(raw);
+      if (Number.isFinite(value)) return value;
+    }
+    return fallback;
+  }
+
+  function wallMetrics() {
+    const list = nodes.list;
+    const width = Number(list && list.clientWidth) || 210;
+    const styles = typeof root.getComputedStyle === 'function' && list
+      ? root.getComputedStyle(list)
+      : null;
+    const padding = readStylePx(styles, ['padding-left', 'paddingLeft'], 0)
+      + readStylePx(styles, ['padding-right', 'paddingRight'], 0);
+    const gap = readStylePx(styles, ['column-gap', 'columnGap', 'gap'], 14);
+    const minTrack = readStylePx(styles, ['--wall-min-track'], 210);
+    const inner = Math.max(minTrack, width - padding);
+    const cols = Math.max(1, Math.floor((inner + gap) / (minTrack + gap)));
+    const cardWidth = Math.max(1, (inner - gap * Math.max(0, cols - 1)) / cols);
+    return { cols, cardWidth, gap };
+  }
+
   function wallColumns() {
-    const width = Number(nodes.list && nodes.list.clientWidth) || 210;
-    return Math.max(1, Math.floor((width + 14) / 224));
+    return wallMetrics().cols;
   }
 
   function disconnectWallObservers() {
@@ -1965,8 +2003,9 @@
     if (count <= 0) return null;
     const spacer = element('div', 'wall-spacer');
     spacer.setAttribute('data-wall-spacer', edge);
-    const rows = Math.ceil(count / wallColumns());
-    spacer.style.height = `${rows * 264}px`;
+    const metrics = wallMetrics();
+    const rows = Math.ceil(count / metrics.cols);
+    spacer.style.height = `${rows * Math.round(metrics.cardWidth * 1.5 + metrics.gap)}px`;
     nodes.list.appendChild(spacer);
     return spacer;
   }
@@ -2183,7 +2222,7 @@
       card.appendChild(element('p', 'fallback-note', 'Using local catalog data'));
     }
     if (game.variant_count > 1) {
-      card.appendChild(element('p', 'game-meta', `${game.variant_count} versions`));
+      card.appendChild(element('p', 'game-meta game-meta-variant', `${game.variant_count} versions`));
     }
     if (game.title && cardTitle(game) !== game.title) card.setAttribute('title', game.title);
     card.tabIndex = selected || (!state.selectedLiveGame && !gameCardNodes().length) ? 0 : -1;
@@ -2240,6 +2279,13 @@
     } else {
       const backdrop = artworkElement('backdrop', presentation.backdrop, presentation.backdropArtworkHandle, 'eager');
       nodes.detailContent.appendChild(backdrop);
+      const hero = element('div', 'detail-hero');
+      const coverHandle = presentation.coverArtworkHandle || game.cover;
+      hero.appendChild(artworkElement('cover', presentation.cover, coverHandle, 'eager'));
+      const heroCopy = element('div', 'detail-hero-copy');
+      if (presentation.logoHandle) heroCopy.appendChild(artworkElement('logo', null, presentation.logoHandle, 'lazy'));
+      hero.appendChild(heroCopy);
+      nodes.detailContent.appendChild(hero);
       nodes.detailContent.appendChild(element('p', 'eyebrow', 'Game'));
     }
     const heading = element('h2', '', detailHeading(game));
@@ -2256,7 +2302,7 @@
     }
     if (presentation.attribution) nodes.detailContent.appendChild(element('p', 'attribution', presentation.attribution));
     const facts = element('div', 'detail-facts');
-    [[systemLabel(game.system), 'System'], [sourceLabel(game.state), 'Status'], [game.content_prepared ? 'Prepared' : 'On demand', 'Staging'], [presentation.year !== '—' ? presentation.year : '', 'Year'], [presentation.players, 'Players']]
+    [[systemLabel(game.system), 'System'], [sourceLabel(game.state), 'Status'], [game.content_prepared ? 'Prepared' : 'On demand', 'Staging'], [presentation.year !== '—' ? presentation.year : '', 'Year'], [presentation.genre, 'Genre'], [presentation.studio, 'Studio'], [presentation.players, 'Players']]
       .filter(([value]) => value)
       .forEach(([value, label]) => {
       const fact = element('div', 'detail-fact');
@@ -2285,7 +2331,6 @@
       label.appendChild(select);
       nodes.detailContent.appendChild(label);
     }
-    if (presentation.logoHandle) nodes.detailContent.appendChild(artworkElement('logo', null, presentation.logoHandle, 'lazy'));
     if (presentation.marqueeHandle) {
       nodes.detailContent.appendChild(artworkElement('marquee', null, presentation.marqueeHandle, 'lazy'));
     }
@@ -2294,11 +2339,15 @@
       presentation.screenshotHandles.forEach(handle => stills.appendChild(artworkElement('screenshot', null, handle, 'lazy')));
       nodes.detailContent.appendChild(stills);
     }
-    if (presentation.videoHandle) {
+    if (presentation.videoHandle && !reducedMotion()) {
       const video = element('video', 'detail-video');
       video.setAttribute('src', mediaPath(presentation.videoHandle));
-      video.setAttribute('controls', '');
       video.muted = true;
+      video.autoplay = true;
+      video.loop = true;
+      video.setAttribute('controls', '');
+      video.setAttribute('muted', '');
+      video.setAttribute('playsinline', '');
       nodes.detailContent.appendChild(video);
     }
     if (state.detailState === 'detail_error') {
