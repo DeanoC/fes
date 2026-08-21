@@ -2886,7 +2886,8 @@
   }
 
   function setSettingsChromeInert(inert) {
-    if (nodes.launcher) nodes.launcher.inert = Boolean(inert);
+    const launcher = typeof document.getElementById === 'function' ? document.getElementById('launcher') : null;
+    if (launcher) launcher.inert = Boolean(inert);
     if (nodes.attract) nodes.attract.inert = Boolean(inert);
   }
 
