@@ -1528,7 +1528,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
       await runScenario(harness, 'library-settings', basePlan(), async () => {
         await harness.waitForCatalog('populated metadata_fallback');
         await harness.click('#open-settings');
-        const opened = await harness.waitForSnapshot(item => item.settingsHidden === false);
+        const opened = await harness.waitForSnapshot(item => item.settingsHidden === false && item.settingsAttract === '60');
         assert.equal(opened.keyboardPane, 'settings');
         assert.equal(opened.settingsAttract, '60');
         await harness.evaluate(`(() => {

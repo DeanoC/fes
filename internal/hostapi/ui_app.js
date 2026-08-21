@@ -3060,15 +3060,24 @@
   function restoreKeyboardFocus() {
     if (attractActive) return;
     const active = typeof document !== 'undefined' ? document.activeElement : null;
+    if (settingsIsOpen() || keyboardPane === 'settings') {
+      keyboardPane = 'settings';
+      if (!forceKeyboardRestore && active && nodeIsConnected(active) && isSettingsTarget(active)) {
+        writePaneAttribute();
+        return;
+      }
+      forceKeyboardRestore = false;
+      focusWithoutScroll(nodes.settingsAttractIdle || nodes.openSettings);
+      writePaneAttribute();
+      return;
+    }
     if (!forceKeyboardRestore && active && nodeIsConnected(active)) {
       syncPaneFromTarget(active);
       writePaneAttribute();
       return;
     }
     forceKeyboardRestore = false;
-    if (keyboardPane === 'settings') {
-      focusWithoutScroll(nodes.settingsAttractIdle || nodes.openSettings);
-    } else if (keyboardPane === 'search') {
+    if (keyboardPane === 'search') {
       focusWithoutScroll(nodes.search);
     } else if (keyboardPane === 'rail') {
       focusWithoutScroll(selectedRailItem());

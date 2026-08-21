@@ -2572,7 +2572,12 @@ test('settings overlay opens from the header and Escape returns to the previous 
   await settleBrowser();
   assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'rail');
   await document.nodes.get('open-settings').click();
-  await waitForCondition(() => document.nodes.get('settings').hidden === false, 'settings overlay did not open');
+  await waitForCondition(() => (
+    document.nodes.get('settings').hidden === false
+    && document.nodes.get('launcher').attributes.get('data-keyboard-pane') === 'settings'
+    && document.activeElement === document.nodes.get('settings-attract-idle')
+    && document.nodes.get('settings-attract-idle').value === '60'
+  ), 'settings overlay did not open');
   assert.equal(document.nodes.get('settings').hidden, false);
   assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'settings');
   assert.equal(document.activeElement, document.nodes.get('settings-attract-idle'));
