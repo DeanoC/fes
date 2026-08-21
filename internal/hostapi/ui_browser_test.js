@@ -529,6 +529,64 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         assert.ok(layout.widthDelta <= 2, JSON.stringify(layout));
         assert.ok(layout.overflowX <= 1, JSON.stringify(layout));
       });
+
+      await runScenario(harness, 'rich-detail-inset-media', basePlan({
+        presentations: {
+          [SONIC_ID]: fixture('presentation-artwork-ready.json'),
+          [UNKNOWN_ID]: fixture('presentation-no-match.json'),
+          'snes-offline-test': fixture('presentation-no-match.json'),
+        },
+      }), async () => {
+        await selectSonic(harness);
+        const layout = await harness.evaluate(`(() => {
+          const detail = document.getElementById('detail-content');
+          const panel = document.getElementById('detail');
+          const backdrop = detail && detail.querySelector('.backdrop-art');
+          if (!detail || !panel) return { missing: true };
+          const marquee = document.createElement('img');
+          marquee.className = 'marquee-art';
+          marquee.alt = '';
+          const video = document.createElement('video');
+          video.className = 'detail-video';
+          video.muted = true;
+          video.setAttribute('controls', '');
+          video.setAttribute('playsinline', '');
+          detail.appendChild(marquee);
+          detail.appendChild(video);
+          const detailBox = detail.getBoundingClientRect();
+          const contentLeft = detailBox.left;
+          const contentRight = detailBox.left + detail.clientWidth;
+          const inset = parseFloat(getComputedStyle(panel).getPropertyValue('--detail-inset')) || 0;
+          const backBox = backdrop ? backdrop.getBoundingClientRect() : null;
+          const measure = (el) => {
+            const box = el.getBoundingClientRect();
+            return {
+              width: box.width,
+              left: box.left - contentLeft,
+              rightOverflow: box.right - contentRight,
+            };
+          };
+          return {
+            overflowX: detail.scrollWidth - detail.clientWidth,
+            clientWidth: detail.clientWidth,
+            inset,
+            marquee: measure(marquee),
+            video: measure(video),
+            leftDelta: backBox ? Math.abs(backBox.left - panel.getBoundingClientRect().left) : 99,
+            widthDelta: backBox ? Math.abs(backBox.width - detail.clientWidth) : 99,
+          };
+        })()`);
+        assert.equal(layout.missing, undefined, JSON.stringify(layout));
+        assert.ok(layout.overflowX <= 1, JSON.stringify(layout));
+        assert.ok(layout.marquee.rightOverflow <= 1, JSON.stringify(layout));
+        assert.ok(layout.video.rightOverflow <= 1, JSON.stringify(layout));
+        assert.ok(layout.marquee.left + 1 >= layout.inset, JSON.stringify(layout));
+        assert.ok(layout.video.left + 1 >= layout.inset, JSON.stringify(layout));
+        assert.ok(Math.abs(layout.marquee.width - (layout.clientWidth - (2 * layout.inset))) <= 2, JSON.stringify(layout));
+        assert.ok(Math.abs(layout.video.width - (layout.clientWidth - (2 * layout.inset))) <= 2, JSON.stringify(layout));
+        assert.ok(layout.leftDelta <= 2, JSON.stringify(layout));
+        assert.ok(layout.widthDelta <= 2, JSON.stringify(layout));
+      });
     });
 
     await t.test('production Chrome preserves independent optional text fields and rejects malformed values', async () => {

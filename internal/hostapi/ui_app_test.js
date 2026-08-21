@@ -2164,6 +2164,7 @@ test('rich detail stacks hero cover with backdrop and skips video under reduced 
         coverArtworkHandle: handle,
         backdropArtworkHandle: handle,
         logoHandle: handle,
+        marqueeHandle: handle,
         screenshotHandles: [handle],
         videoHandle: handle,
         isFallback: false,
@@ -2187,6 +2188,7 @@ test('rich detail stacks hero cover with backdrop and skips video under reduced 
   assert.equal(reducedDetail.children[1].children[0].className, 'cover-art image-art');
   assert.ok(reducedDetail.children[1].children[1].children.some(child => String(child.className).includes('logo-art')));
   assert.ok(reducedDetail.children.some(child => child.className === 'extra-stills'));
+  assert.ok(reducedDetail.children.some(child => String(child.className).includes('marquee-art')));
   assert.equal(reducedDetail.children.some(child => child.className === 'detail-video'), false);
 
   const motion = await runBrowserApp({
@@ -2200,7 +2202,9 @@ test('rich detail stacks hero cover with backdrop and skips video under reduced 
   });
   await motion.document.nodes.get('catalog-list').children[0].click();
   const motionDetail = motion.document.nodes.get('detail-content');
+  const marquee = motionDetail.children.find(child => String(child.className).includes('marquee-art'));
   const video = motionDetail.children.find(child => child.className === 'detail-video');
+  assert.ok(marquee);
   assert.ok(video);
   assert.equal(video.attributes.get('src'), `/api/v1/presentation/media/${handle}`);
   assert.equal(video.muted, true);
@@ -2240,6 +2244,10 @@ test('detail CSS meets the panel edge without negative-margin backdrop bleed', (
   assert.doesNotMatch(css, /width:\s*calc\(100% \+/);
   assert.match(css, /#detail-content[^{]*\{[^}]*overflow-x:\s*hidden/);
   assert.match(css, /--detail-inset/);
+  assert.match(css, /#detail-content\s*>\s*:not\(\.backdrop-art\):not\(\.detail-hero\)\s*\{[^}]*max-width:\s*calc\(100%\s*-\s*\(\s*2\s*\*\s*var\(--detail-inset\)\s*\)\s*\)/);
+  assert.match(css, /\.backdrop-art\s*\{[^}]*margin:\s*0;[^}]*width:\s*100%/);
+  assert.match(css, /\.marquee-art[^{]*\{[^}]*width:\s*100%/);
+  assert.match(css, /\.detail-video[^{]*\{[^}]*width:\s*100%/);
 });
 
 test('selected cards keep a visible selected and focus contract', async () => {

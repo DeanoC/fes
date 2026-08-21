@@ -173,7 +173,12 @@ img.cover-art { width: 100%; object-fit: contain; object-position: center; backg
   box-shadow: var(--shadow);
 }
 #detail-content { flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; }
-#detail-content > :not(.backdrop-art):not(.detail-hero) { margin-left: var(--detail-inset); margin-right: var(--detail-inset); }
+#detail-content > :not(.backdrop-art):not(.detail-hero) {
+  box-sizing: border-box;
+  margin-left: var(--detail-inset);
+  margin-right: var(--detail-inset);
+  max-width: calc(100% - (2 * var(--detail-inset)));
+}
 #detail-content > .eyebrow:first-child { margin-top: var(--detail-inset); }
 .launch-actions { display: grid; gap: 8px; padding: 10px var(--detail-inset) var(--detail-inset); }
 .backdrop-art {
@@ -204,7 +209,7 @@ img.cover-art { width: 100%; object-fit: contain; object-position: center; backg
 .detail-hero img.cover-art { object-fit: cover; }
 .detail-hero-copy { display: grid; gap: 8px; min-width: 0; padding-bottom: 2px; }
 .logo-art { max-width: 100%; max-height: 48px; object-fit: contain; background: transparent; }
-.marquee-art { width: 100%; max-height: 72px; object-fit: contain; border-radius: 8px; margin: 10px 0 0; }
+.marquee-art { display: block; width: 100%; max-height: 72px; object-fit: contain; border-radius: 8px; margin: 10px 0 0; }
 .detail-summary { color: var(--muted); }
 .detail-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 18px 0; }
 .detail-fact { border-top: 1px solid var(--line); padding-top: 7px; }
@@ -228,9 +233,9 @@ img.cover-art { width: 100%; object-fit: contain; object-position: center; backg
 .session-panel.session-quiet .session-actions { margin-top: 8px; }
 .favorite-button { margin-bottom: 8px; }
 .extra-stills { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
-.extra-stills img, .screenshot-art, .detail-video { width: 100%; border-radius: 8px; }
+.extra-stills img, .screenshot-art { width: 100%; border-radius: 8px; }
 .screenshot-art { aspect-ratio: 16 / 9; object-fit: cover; background: #000; }
-.detail-video { background: #000; }
+.detail-video { display: block; width: 100%; border-radius: 8px; background: #000; }
 .attract { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: #05070b; }
 .attract[hidden] { display: none; }
 .attract-title { position: absolute; left: 32px; bottom: 28px; margin: 0; font-size: 1.6rem; }
