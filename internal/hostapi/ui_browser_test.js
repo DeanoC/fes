@@ -1757,6 +1757,49 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
       }, { openAllGames: false });
     });
 
+    await t.test('catalog Cover List toggles without refetch and Home hides the control', async () => {
+      await runScenario(harness, 'catalog-cover-list', basePlan({
+        catalog: {
+          '': populatedCatalog(),
+          'collection=continue': fixture('catalog-populated.json'),
+        },
+      }), async () => {
+        const cover = await harness.waitForSnapshot(item => (
+          item.catalogListClass.includes('game-grid')
+          && item.catalogLayoutHidden === false
+          && item.layoutCoverPressed === true
+          && item.cards.length >= 1
+        ));
+        assert.equal(cover.layoutListPressed, false);
+        assert.equal(cover.cards.every(card => card.row !== true), true);
+        const gamesBefore = apiEvidence(harness).filter(record => record.path.startsWith('/api/v1/games')).length;
+        await harness.click('#layout-list');
+        const list = await harness.waitForSnapshot(item => (
+          item.catalogListClass.includes('game-list')
+          && item.layoutListPressed === true
+          && item.cards.some(card => card.row === true)
+        ));
+        assert.equal(list.layoutCoverPressed, false);
+        const gamesAfter = apiEvidence(harness).filter(record => record.path.startsWith('/api/v1/games')).length;
+        assert.equal(gamesAfter, gamesBefore);
+        await harness.click('#nav-home');
+        const home = await harness.waitForSnapshot(item => (
+          item.navHomeSelected === true
+          && item.catalogListClass.includes('home-rails')
+          && item.catalogLayoutHidden === true
+        ));
+        assert.equal(home.catalogLayoutHidden, true);
+        await harness.click('#nav-continue');
+        const continueView = await harness.waitForSnapshot(item => (
+          item.catalogListClass.includes('game-list')
+          && item.catalogLayoutHidden === false
+          && item.layoutListPressed === true
+          && item.cards.some(card => card.row === true)
+        ));
+        assert.equal(continueView.layoutCoverPressed, false);
+      });
+    });
+
     await t.test('idle attract overlay enters from a bounded playlist and exits on Escape', async () => {
       await runScenario(harness, 'attract-idle', basePlan({
         attractDisabled: false,

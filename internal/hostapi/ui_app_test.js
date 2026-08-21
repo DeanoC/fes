@@ -181,6 +181,8 @@ function browserDocument() {
     'save-collection': 'button',
     'rename-collection': 'button',
     'delete-collection': 'button',
+    'layout-cover': 'button',
+    'layout-list': 'button',
     'refresh-catalog': 'button',
     'filter-system': 'select',
     'launcher': 'main',
@@ -198,7 +200,7 @@ function browserDocument() {
     'nav-home', 'nav-all', 'nav-continue', 'nav-favorites', 'nav-recents', 'nav-unplayed',
     'nav-recently-added', 'collection-list', 'create-collection', 'collection-name-label',
     'collection-name', 'save-collection', 'rename-collection', 'delete-collection',
-    'platform-list',
+    'platform-list', 'catalog-layout', 'layout-cover', 'layout-list',
     'attract', 'attract-title', 'attract-stage',
     'open-settings', 'settings', 'settings-attract-idle', 'settings-preferred-regions',
     'settings-host-health', 'settings-message', 'save-settings', 'close-settings',
@@ -259,7 +261,7 @@ async function waitForAttractTitle(document, title, timeoutMs) {
   throw new Error(`attract title was ${JSON.stringify(document.nodes.get('attract-title') && document.nodes.get('attract-title').textContent)} hidden=${attract && attract.hidden}, want ${title}`);
 }
 
-async function runBrowserApp({ adapter, responses, sessionResponses, globals, attractItems, collections, settings, keepHome, homeRails }) {
+async function runBrowserApp({ adapter, responses, sessionResponses, globals, attractItems, collections, settings, keepHome, homeRails, platforms }) {
   const document = browserDocument();
   const calls = [];
   const sessionCalls = [];
@@ -270,7 +272,7 @@ async function runBrowserApp({ adapter, responses, sessionResponses, globals, at
   const fetch = async (requestPath, options) => {
     const pathOnly = String(requestPath || '').split('?')[0];
     if (pathOnly === '/api/v1/platforms') {
-      return jsonResponse({ platforms: [] });
+      return jsonResponse({ platforms: platforms || [] });
     }
     const librarySettings = settings || { attract_idle_seconds: 60, preferred_regions: ['usa', 'world', 'europe', 'japan'] };
     if (pathOnly === '/api/v1/library/attract') {
@@ -3642,4 +3644,263 @@ test('empty home uses home-specific copy instead of claiming the library is empt
   assert.ok(message);
   assert.equal(message.textContent, 'Home has no Continue, Favorites, Recent, or collection titles yet.');
   assert.notEqual(message.textContent, 'The library is empty.');
+});
+
+test('catalog layout defaults to Cover and toggles to List without a new GET', async () => {
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/games?collection=continue': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=favorites': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=recents': [jsonResponse({ games: [] })],
+    '/api/v1/games': [jsonResponse(readFixture('catalog-populated.json'))],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  assert.equal(controller.getState().catalogLayout, 'cover');
+  await controller.setLibraryNav('', '');
+  const before = calls.length;
+  const next = controller.setCatalogLayout('list');
+  assert.equal(next.catalogLayout, 'list');
+  assert.equal(next.libraryView, 'grid');
+  assert.equal(calls.length, before);
+  await controller.openHome();
+  assert.equal(controller.getState().libraryView, 'home');
+  assert.equal(controller.getState().catalogLayout, 'list');
+  await controller.setLibraryNav('continue', '');
+  assert.equal(controller.getState().libraryView, 'grid');
+  assert.equal(controller.getState().catalogLayout, 'list');
+  const fresh = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  assert.equal(fresh.getState().catalogLayout, 'cover');
+});
+
+test('Cover is the default wall and List restyles the same game-card window', async () => {
+  const game = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    year: '1991',
+    genre: 'Action',
+    favorite: true,
+    variant_count: 3,
+  });
+  const { document, calls } = await runBrowserApp({
+    responses: [jsonResponse({ games: [game] })],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-layout').hidden, false);
+  assert.equal(document.nodes.get('layout-cover').attributes.get('aria-pressed'), 'true');
+  assert.equal(document.nodes.get('layout-list').attributes.get('aria-pressed'), 'false');
+  assert.equal(document.nodes.get('catalog-list').className, 'game-grid');
+  const coverCard = gameCards(document)[0];
+  assert.equal(coverCard.className.includes('game-card'), true);
+  assert.equal(coverCard.className.includes('game-row'), false);
+  const before = calls.filter(call => String(call.path).startsWith('/api/v1/games')).length;
+  document.nodes.get('layout-list').click();
+  await settleBrowser();
+  assert.equal(calls.filter(call => String(call.path).startsWith('/api/v1/games')).length, before);
+  assert.equal(document.nodes.get('catalog-list').className, 'game-list');
+  assert.equal(document.nodes.get('layout-cover').attributes.get('aria-pressed'), 'false');
+  assert.equal(document.nodes.get('layout-list').attributes.get('aria-pressed'), 'true');
+  const row = gameCards(document)[0];
+  assert.ok(row.className.includes('game-card'));
+  assert.ok(row.className.includes('game-row'));
+  assert.equal(row.attributes.get('data-game-id'), 'snes-actraiser-test');
+  assert.equal(row.tagName, 'BUTTON');
+  const body = row.children.find(child => String(child.className).includes('game-row-body'));
+  assert.ok(body);
+  assert.equal(body.children[0].textContent, 'ActRaiser');
+  assert.equal(body.children[1].textContent, 'SNES · 1991 · Action · Ready');
+  assert.equal(body.children[2].className, 'game-row-favorite');
+  assert.equal(body.children[2].textContent, 'Favorite');
+  assert.equal(body.children[3].className, 'game-meta game-meta-variant');
+  assert.equal(body.children[3].textContent, '3 versions');
+});
+
+test('Home hides Cover List and keeps rails while remembering the layout', async () => {
+  const continueGame = availableGame('megadrive-sonic-test', 'Sonic the Hedgehog', { system: 'megadrive' });
+  const { document } = await runBrowserApp({
+    keepHome: true,
+    responses: [jsonResponse(readFixture('catalog-populated.json'))],
+    homeRails: {
+      continue: jsonResponse({ games: [continueGame] }),
+      favorites: jsonResponse({ games: [] }),
+      recents: jsonResponse({ games: [] }),
+    },
+  });
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-list').className, 'home-rails');
+  assert.equal(document.nodes.get('catalog-layout').hidden, true);
+  assert.equal(homeRails(document).length, 1);
+  document.nodes.get('nav-all').click();
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-layout').hidden, false);
+  document.nodes.get('layout-list').click();
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-list').className, 'game-list');
+  document.nodes.get('nav-home').click();
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-list').className, 'home-rails');
+  assert.equal(document.nodes.get('catalog-layout').hidden, true);
+  assert.ok(gameCards(document).every(card => !String(card.className).includes('game-row')));
+  document.nodes.get('nav-all').click();
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-list').className, 'game-list');
+  assert.equal(document.nodes.get('layout-list').attributes.get('aria-pressed'), 'true');
+});
+
+test('All Continue custom and platform views honor the remembered Cover List layout', async () => {
+  const game = availableGame('snes-unknown-test', 'Unknown Game', { system: 'snes' });
+  const { document } = await runBrowserApp({
+    responses: [
+      jsonResponse({ games: [game] }),
+      jsonResponse({ games: [game] }),
+    ],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+    collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }],
+    platforms: [{ id: 'snes', label: 'Super NES', game_count: 1, online: true, launchable: true }],
+    homeRails: {
+      continue: jsonResponse({ games: [game] }),
+      'weekend-queue': jsonResponse({ games: [game] }),
+    },
+  });
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-list').className, 'game-grid');
+  document.nodes.get('layout-list').click();
+  await settleBrowser();
+  assert.equal(document.nodes.get('nav-all').className.includes('selected'), true);
+  assert.equal(document.nodes.get('catalog-list').className, 'game-list');
+  document.nodes.get('nav-continue').click();
+  await settleBrowser();
+  assert.equal(document.nodes.get('nav-continue').className.includes('selected'), true);
+  assert.equal(document.nodes.get('catalog-list').className, 'game-list');
+  document.nodes.get('collection-list').children[0].click();
+  await settleBrowser();
+  assert.equal(document.nodes.get('collection-list').children[0].className.includes('selected'), true);
+  assert.equal(document.nodes.get('catalog-list').className, 'game-list');
+  document.nodes.get('platform-list').children[0].click();
+  await settleBrowser();
+  assert.equal(document.nodes.get('platform-list').children[0].className.includes('selected'), true);
+  assert.equal(document.nodes.get('catalog-list').className, 'game-list');
+  document.nodes.get('layout-cover').click();
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-list').className, 'game-grid');
+});
+
+test('list arrows move one row, Left returns to the rail, and Enter opens detail', async () => {
+  const games = [];
+  for (let index = 0; index < 8; index += 1) {
+    games.push(availableGame(`snes-grid-${index}`, `Grid ${index}`));
+  }
+  const { document, calls } = await runKeyboardApp({ pages: [{ games }] });
+  await settleBrowser();
+  document.nodes.get('catalog-list').clientWidth = 896;
+  await openAllGamesGrid(document);
+  document.nodes.get('layout-list').click();
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-list').className, 'game-list');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'snes-grid-0');
+  await pressKey(document, 'ArrowDown');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'snes-grid-1');
+  assert.ok((document.activeElement.scrollIntoViewCalls || []).some(options => (
+    options && options.block === 'nearest'
+  )));
+  await pressKey(document, 'ArrowUp');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'snes-grid-0');
+  await pressKey(document, 'ArrowRight');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'snes-grid-0');
+  await pressKey(document, 'ArrowLeft');
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'rail');
+  assert.equal(document.activeElement.className.includes('nav-item'), true);
+  await pressKey(document, 'Enter');
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'grid');
+  const beforeLaunch = calls.filter(call => call.path === '/api/v1/session/launch').length;
+  await pressKey(document, 'Enter');
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'detail');
+  assert.equal(document.activeElement.id, 'launch-game');
+  assert.equal(calls.filter(call => call.path === '/api/v1/session/launch').length, beforeLaunch);
+});
+
+test('reloading the bound app resets Cover List to Cover', async () => {
+  const game = availableGame('snes-unknown-test', 'Unknown Game');
+  const first = await runBrowserApp({
+    responses: [jsonResponse({ games: [game] })],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  first.document.nodes.get('layout-list').click();
+  await settleBrowser();
+  assert.equal(first.document.nodes.get('catalog-list').className, 'game-list');
+  const second = await runBrowserApp({
+    responses: [jsonResponse({ games: [game] })],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  assert.equal(second.document.nodes.get('catalog-list').className, 'game-grid');
+  assert.equal(second.document.nodes.get('layout-cover').attributes.get('aria-pressed'), 'true');
+});
+
+test('list wall spacers use the CSS row-stride token', async () => {
+  const games = [];
+  for (let index = 0; index < 90; index += 1) {
+    games.push(availableGame(`snes-game-${index}`, `Title ${index}`));
+  }
+  const css = readAsset('ui.css');
+  assert.match(css, /--list-row-stride:\s*78px/);
+  assert.match(css, /--list-row-height:\s*72px/);
+  assert.match(css, /height:\s*var\(--list-row-height/);
+  const fallback = await runBrowserApp({
+    responses: [jsonResponse({ games })],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  fallback.document.nodes.get('layout-list').click();
+  await settleBrowser();
+  const fallbackSpacer = fallback.document.nodes.get('catalog-list').children
+    .find(child => child.attributes.get('data-wall-spacer') === 'end');
+  assert.ok(fallbackSpacer);
+  assert.equal(fallbackSpacer.style.height, '780px');
+
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse({ games })],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+    globals: {
+      getComputedStyle() {
+        return {
+          getPropertyValue(name) {
+            if (name === '--list-row-stride') return '90px';
+            return '';
+          },
+        };
+      },
+    },
+  });
+  document.nodes.get('layout-list').click();
+  await settleBrowser();
+  const spacer = document.nodes.get('catalog-list').children
+    .find(child => child.attributes.get('data-wall-spacer') === 'end');
+  assert.ok(spacer);
+  assert.equal(spacer.style.height, '900px');
+});
+
+test('Enter on Cover List activates the focused toggle instead of the rail', async () => {
+  const { document, calls } = await runKeyboardApp();
+  await settleBrowser();
+  await openAllGamesGrid(document);
+  await pressKey(document, 'Escape');
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'rail');
+  assert.equal(document.nodes.get('catalog-list').className, 'game-grid');
+  const layoutList = document.nodes.get('layout-list');
+  layoutList.focus();
+  const before = calls.filter(call => String(call.path).startsWith('/api/v1/games')).length;
+  const enter = await pressKey(document, 'Enter', layoutList);
+  assert.equal(enter.defaultPrevented, undefined);
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'rail');
+  assert.equal(document.nodes.get('nav-all').className.includes('selected'), true);
+  assert.equal(calls.filter(call => String(call.path).startsWith('/api/v1/games')).length, before);
+  layoutList.click();
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-list').className, 'game-list');
+  assert.equal(document.nodes.get('layout-list').attributes.get('aria-pressed'), 'true');
+});
+
+test('list layout CSS keeps rows compact without overlaying cover-card titles', () => {
+  const css = readAsset('ui.css');
+  assert.match(css, /\.game-list/);
+  assert.match(css, /\.game-card\.game-row/);
+  assert.match(css, /\.game-row-favorite/);
+  assert.match(css, /--list-row-stride:\s*78px/);
 });

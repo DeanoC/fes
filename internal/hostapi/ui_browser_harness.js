@@ -1387,6 +1387,7 @@ class BrowserPage {
           state: card.getAttribute('data-state') || card.querySelector('.game-meta')?.textContent?.split(' · ')[1] || '',
           fallback: Boolean(card.querySelector('.fallback-note')),
           pressed: card.getAttribute('aria-pressed') === 'true',
+          row: String(card.className || '').includes('game-row'),
         })),
         homeRails: Array.from(document.querySelectorAll('#catalog-list .home-rail')).map(rail => ({
           id: rail.getAttribute('data-home-rail') || '',
@@ -1396,6 +1397,9 @@ class BrowserPage {
         })),
         navHomeSelected: String(document.getElementById('nav-home')?.className || '').includes('selected'),
         catalogListClass: document.getElementById('catalog-list')?.className || '',
+        catalogLayoutHidden: document.getElementById('catalog-layout')?.hidden === true,
+        layoutCoverPressed: document.getElementById('layout-cover')?.getAttribute('aria-pressed') === 'true',
+        layoutListPressed: document.getElementById('layout-list')?.getAttribute('aria-pressed') === 'true',
       };
     })()`);
   }

@@ -937,6 +937,7 @@
       collection: '',
       platformQuery: '',
       libraryView: 'home',
+      catalogLayout: 'cover',
       homeRails: [],
       homeRailFailures: 0,
       nextCursor: '',
@@ -2138,6 +2139,13 @@
       return reloadVisibleCatalog(state.query);
     }
 
+    function setCatalogLayout(layout) {
+      if (layout !== 'cover' && layout !== 'list') return snapshot();
+      if (state.catalogLayout === layout) return snapshot();
+      state.catalogLayout = layout;
+      return emit();
+    }
+
     return Object.freeze({
       getState: snapshot,
       loadCatalog,
@@ -2156,6 +2164,7 @@
       observeVisibleCovers,
       setCatalogFilter,
       setCatalogSort,
+      setCatalogLayout,
       setLibraryNav,
       openHome,
       toggleFavorite,
@@ -2228,6 +2237,9 @@
     hideHacks: document.getElementById('filter-hide-hacks'),
     availabilityFilter: document.getElementById('filter-availability'),
     count: document.getElementById('catalog-count'),
+    layoutGroup: document.getElementById('catalog-layout'),
+    layoutCover: document.getElementById('layout-cover'),
+    layoutList: document.getElementById('layout-list'),
     catalog: document.getElementById('catalog'),
     status: document.getElementById('catalog-status'),
     list: document.getElementById('catalog-list'),
@@ -2426,8 +2438,24 @@
     return state.libraryView === 'home';
   }
 
+  function isListLayout() {
+    return !isHomeView() && state.catalogLayout === 'list';
+  }
+
   function catalogPane() {
     return isHomeView() ? 'home' : 'grid';
+  }
+
+  function catalogColumns() {
+    return isListLayout() ? 1 : wallColumns();
+  }
+
+  function syncCatalogLayoutControls() {
+    const home = isHomeView();
+    const list = state.catalogLayout === 'list';
+    if (nodes.layoutGroup) nodes.layoutGroup.hidden = home;
+    if (nodes.layoutCover) nodes.layoutCover.setAttribute('aria-pressed', String(!list));
+    if (nodes.layoutList) nodes.layoutList.setAttribute('aria-pressed', String(list));
   }
 
   function navSelected(kind, platform) {
@@ -2592,6 +2620,14 @@
     return wallMetrics().cols;
   }
 
+  function listRowStride() {
+    const list = nodes.list;
+    const styles = typeof root.getComputedStyle === 'function' && list
+      ? root.getComputedStyle(list)
+      : null;
+    return Math.max(1, readStylePx(styles, ['--list-row-stride'], 78));
+  }
+
   function disconnectWallObservers() {
     if (wallObserver) {
       wallObserver.disconnect();
@@ -2607,9 +2643,13 @@
     if (count <= 0) return null;
     const spacer = element('div', 'wall-spacer');
     spacer.setAttribute('data-wall-spacer', edge);
-    const metrics = wallMetrics();
-    const rows = Math.ceil(count / metrics.cols);
-    spacer.style.height = `${rows * Math.round(metrics.cardWidth * 1.5 + metrics.gap)}px`;
+    if (isListLayout()) {
+      spacer.style.height = `${count * listRowStride()}px`;
+    } else {
+      const metrics = wallMetrics();
+      const rows = Math.ceil(count / metrics.cols);
+      spacer.style.height = `${rows * Math.round(metrics.cardWidth * 1.5 + metrics.gap)}px`;
+    }
     nodes.list.appendChild(spacer);
     return spacer;
   }
@@ -2649,6 +2689,7 @@
   function renderHomeRails() {
     const view = catalogViewState(state);
     nodes.catalog.setAttribute('aria-busy', view === 'loading' ? 'true' : 'false');
+    syncCatalogLayoutControls();
     if (nodes.list) nodes.list.className = 'home-rails';
     nodes.list.replaceChildren();
     nodes.actions.replaceChildren();
@@ -2708,7 +2749,8 @@
     }
     const view = catalogViewState(state);
     nodes.catalog.setAttribute('aria-busy', view === 'loading' ? 'true' : 'false');
-    if (nodes.list) nodes.list.className = 'game-grid';
+    syncCatalogLayoutControls();
+    if (nodes.list) nodes.list.className = isListLayout() ? 'game-list' : 'game-grid';
     nodes.list.replaceChildren();
     nodes.actions.replaceChildren();
     nodes.status.textContent = view;
@@ -2874,7 +2916,8 @@
     const homeSelected = pane !== 'home' || !homeCoord
       || (homeFocus.rail === homeCoord.rail && homeFocus.card === homeCoord.card);
     const showSelected = selected && homeSelected;
-    const card = element('button', 'game-card' + (showSelected ? ' selected' : ''));
+    const listRow = isListLayout() && pane !== 'home';
+    const card = element('button', 'game-card' + (listRow ? ' game-row' : '') + (showSelected ? ' selected' : ''));
     card.type = 'button';
     card.setAttribute('aria-pressed', String(selected));
     card.setAttribute('data-game-id', game.id);
@@ -2883,13 +2926,28 @@
     const coverHandle = presentation.coverArtworkHandle || game.cover;
     const cover = artworkElement('cover', presentation.cover, coverHandle, 'eager');
     card.appendChild(cover);
-    card.appendChild(element('h3', '', cardTitle(game)));
-    card.appendChild(element('p', 'game-meta', `${systemLabel(game.system)} · ${sourceLabel(game.state)}`));
-    if (presentation.isFallback) {
-      card.appendChild(element('p', 'fallback-note', 'Using local catalog data'));
-    }
-    if (game.variant_count > 1) {
-      card.appendChild(element('p', 'game-meta game-meta-variant', `${game.variant_count} versions`));
+    if (listRow) {
+      const body = element('span', 'game-row-body');
+      body.appendChild(element('h3', '', cardTitle(game)));
+      const bits = [systemLabel(game.system)];
+      if (game.year) bits.push(game.year);
+      if (game.genre) bits.push(game.genre);
+      bits.push(sourceLabel(game.state));
+      body.appendChild(element('p', 'game-meta', bits.join(' · ')));
+      if (game.favorite === true) body.appendChild(element('p', 'game-row-favorite', 'Favorite'));
+      if (game.variant_count > 1) {
+        body.appendChild(element('p', 'game-meta game-meta-variant', `${game.variant_count} versions`));
+      }
+      card.appendChild(body);
+    } else {
+      card.appendChild(element('h3', '', cardTitle(game)));
+      card.appendChild(element('p', 'game-meta', `${systemLabel(game.system)} · ${sourceLabel(game.state)}`));
+      if (presentation.isFallback) {
+        card.appendChild(element('p', 'fallback-note', 'Using local catalog data'));
+      }
+      if (game.variant_count > 1) {
+        card.appendChild(element('p', 'game-meta game-meta-variant', `${game.variant_count} versions`));
+      }
     }
     if (game.title && cardTitle(game) !== game.title) card.setAttribute('title', game.title);
     card.tabIndex = showSelected || (!state.selectedLiveGame && !gameCardNodes().length && !(parent && parent.children && parent.children.length)) ? 0 : -1;
@@ -3438,6 +3496,15 @@
     ));
   }
 
+  function isLayoutToggle(target) {
+    return Boolean(target && (
+      target === nodes.layoutCover
+      || target === nodes.layoutList
+      || target.id === 'layout-cover'
+      || target.id === 'layout-list'
+    ));
+  }
+
   function isCoverWallTarget(target) {
     if (!target) return false;
     if (String(target.className || '').includes('game-card')) return true;
@@ -3616,7 +3683,9 @@
       scrollHomeCardIntoView(card);
     } else {
       keyboardPane = 'grid';
-      focusWithoutScroll(selectedCardNode() || nodes.list);
+      const card = selectedCardNode() || nodes.list;
+      focusWithoutScroll(card);
+      if (isListLayout()) scrollHomeCardIntoView(card);
     }
     writePaneAttribute();
   }
@@ -3768,7 +3837,7 @@
   async function ensureMoreCatalog(index) {
     if (!state.nextCursor) return;
     const visible = visibleGames();
-    const cols = wallColumns();
+    const cols = catalogColumns();
     if (index < visible.length - Math.max(1, cols)) return;
     await controller.loadMoreCatalog();
   }
@@ -3799,14 +3868,17 @@
   }
 
   function moveGrid(key) {
-    const cols = wallColumns();
+    const cols = catalogColumns();
     const visible = visibleGames();
     const current = visible.findIndex(item => isSelectedGame(state.selectedLiveGame, item.live));
     if (key === 'ArrowLeft' && (current <= 0 || current % cols === 0)) {
       setKeyboardPane('rail');
       return;
     }
-    if (key === 'ArrowRight') return moveWall(1);
+    if (key === 'ArrowRight') {
+      if (isListLayout()) return;
+      return moveWall(1);
+    }
     if (key === 'ArrowLeft') return moveWall(-1);
     if (key === 'ArrowDown') return moveWall(cols);
     if (key === 'ArrowUp') return moveWall(current >= 0 && current < cols ? -current : -cols);
@@ -3838,6 +3910,8 @@
   if (nodes.navRecents) nodes.navRecents.addEventListener('click', () => { keyboardPane = 'rail'; return controller.setLibraryNav('recents', ''); });
   if (nodes.navUnplayed) nodes.navUnplayed.addEventListener('click', () => { keyboardPane = 'rail'; return controller.setLibraryNav('unplayed', ''); });
   if (nodes.navRecentlyAdded) nodes.navRecentlyAdded.addEventListener('click', () => { keyboardPane = 'rail'; return controller.setLibraryNav('recently_added', ''); });
+  if (nodes.layoutCover) nodes.layoutCover.addEventListener('click', () => controller.setCatalogLayout('cover'));
+  if (nodes.layoutList) nodes.layoutList.addEventListener('click', () => controller.setCatalogLayout('list'));
   if (nodes.createCollection) nodes.createCollection.addEventListener('click', () => beginCollectionEditor('create'));
   if (nodes.renameCollection) nodes.renameCollection.addEventListener('click', () => beginCollectionEditor('rename'));
   if (nodes.saveCollection) nodes.saveCollection.addEventListener('click', () => { void saveCollectionEditor(); });
@@ -3902,7 +3976,7 @@
         typeToSearch(event.key);
         return;
       }
-      if (isCollectionEditor(event.target)) return;
+      if (isCollectionEditor(event.target) || isLayoutToggle(event.target)) return;
       syncPaneFromTarget(event.target);
       if (event.key === 'Escape') {
         event.preventDefault?.();

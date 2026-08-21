@@ -15,7 +15,7 @@
     </div>
   </header>
   <main class="launcher" id="launcher" data-keyboard-pane="rail">
-    <p class="sr-only" id="keyboard-help">Use Arrow, Home, and End to move the library rail, Home cover rows, and cover wall. Enter opens detail or launches. Escape moves back. Type to search.</p>
+    <p class="sr-only" id="keyboard-help">Use Arrow, Home, and End to move the library rail, Home cover rows, and the cover or list wall. Enter opens detail or launches. Escape moves back. Type to search.</p>
     <nav class="library-nav" id="library-nav" aria-label="Library collections">
       <p class="eyebrow">Library</p>
       <button id="nav-home" class="nav-item selected" type="button">Home</button>
@@ -44,7 +44,13 @@
           <p class="eyebrow">Local library</p>
           <h1 id="catalog-heading">Games</h1>
         </div>
-        <p id="catalog-count" class="catalog-count" aria-live="polite"></p>
+        <div class="catalog-intro-tools">
+          <div id="catalog-layout" class="catalog-layout" role="group" aria-label="Catalog layout">
+            <button id="layout-cover" class="layout-toggle" type="button" aria-pressed="true">Cover</button>
+            <button id="layout-list" class="layout-toggle" type="button" aria-pressed="false">List</button>
+          </div>
+          <p id="catalog-count" class="catalog-count" aria-live="polite"></p>
+        </div>
       </div>
       <div class="toolbar">
         <label class="search-label" for="game-search">Search games</label>
