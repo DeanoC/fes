@@ -182,6 +182,78 @@ func TestSetLibrarySettingsSerializesPersistAndPublish(t *testing.T) {
 	}
 }
 
+func TestPatchLibrarySettingsMergesConcurrentFieldUpdates(t *testing.T) {
+	ctx := context.Background()
+	overlay := filepath.Join(t.TempDir(), "library-settings.json")
+	service := newService(
+		Config{
+			Libraries:      []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: "/private/library"}},
+			Library:        LibraryConfig{AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}},
+			RequestTimeout: time.Second, UploadTimeout: 2 * time.Second,
+		},
+		Paths{Staging: "/private/staging"},
+		&fakeServiceCatalog{games: []catalog.Game{{
+			ID: "snes-mario-test", Title: "Mario", System: protocol.SystemSNES,
+			Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
+		}}},
+		&fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{},
+		WithLibraryOverlayPath(overlay),
+	)
+
+	entered := make(chan struct{}, 2)
+	release := make(chan struct{})
+	librarySettingsPatchStartHook = func() {
+		entered <- struct{}{}
+		<-release
+	}
+	t.Cleanup(func() { librarySettingsPatchStartHook = nil })
+
+	idle := 8
+	regions := []string{"japan"}
+	idleDone := make(chan error, 1)
+	regionDone := make(chan error, 1)
+	go func() {
+		idleDone <- service.PatchLibrarySettings(ctx, LibraryConfigPatch{AttractIdleSeconds: &idle})
+	}()
+	go func() {
+		regionDone <- service.PatchLibrarySettings(ctx, LibraryConfigPatch{PreferredRegions: &regions})
+	}()
+	for i := 0; i < 2; i++ {
+		select {
+		case <-entered:
+		case <-time.After(2 * time.Second):
+			t.Fatal("patch did not reach the start hook")
+		}
+	}
+	close(release)
+	if err := <-idleDone; err != nil {
+		t.Fatalf("idle patch: %v", err)
+	}
+	if err := <-regionDone; err != nil {
+		t.Fatalf("regions patch: %v", err)
+	}
+
+	settings := service.LibrarySettings()
+	body, err := os.ReadFile(overlay)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var file libraryOverlayFile
+	if err := json.Unmarshal(body, &file); err != nil {
+		t.Fatal(err)
+	}
+	fileIdle := 0
+	if file.AttractIdleSeconds != nil {
+		fileIdle = *file.AttractIdleSeconds
+	}
+	if settings.AttractIdleSeconds != 8 || strings.Join(settings.PreferredRegions, ",") != "japan" {
+		t.Fatalf("merged settings = %+v", settings)
+	}
+	if fileIdle != settings.AttractIdleSeconds || strings.Join(file.PreferredRegions, ",") != strings.Join(settings.PreferredRegions, ",") {
+		t.Fatalf("memory %+v != file idle=%d regions=%v", settings, fileIdle, file.PreferredRegions)
+	}
+}
+
 func TestLibrarySettingsRejectInvalidOverlay(t *testing.T) {
 	ctx := context.Background()
 	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, &fakeServiceClient{})

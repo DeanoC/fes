@@ -431,6 +431,22 @@ func (s *settingsFake) SetLibrarySettings(_ context.Context, next fogcast.Librar
 	return nil
 }
 
+func (s *settingsFake) PatchLibrarySettings(_ context.Context, patch fogcast.LibraryConfigPatch) error {
+	next := s.settings
+	if patch.AttractIdleSeconds != nil {
+		next.AttractIdleSeconds = *patch.AttractIdleSeconds
+	}
+	if patch.PreferredRegions != nil {
+		next.PreferredRegions = append([]string(nil), *patch.PreferredRegions...)
+	}
+	normalized, err := fogcast.NormalizeLibraryConfig(next)
+	if err != nil {
+		return &protocol.APIError{Code: protocol.CodeBadRequest, Message: "library settings request is invalid"}
+	}
+	s.settings = normalized
+	return nil
+}
+
 func TestLibrarySettingsGetPutPatchEmptyOrJSON(t *testing.T) {
 	service := &settingsFake{settings: fogcast.LibraryConfig{
 		AttractIdleSeconds: 60,
@@ -458,6 +474,10 @@ func TestLibrarySettingsGetPutPatchEmptyOrJSON(t *testing.T) {
 	patched := serveBody(t, handler, http.MethodPatch, "/api/v1/library/settings", `{"attract_idle_seconds":8}`)
 	if patched.Code != http.StatusOK || service.settings.AttractIdleSeconds != 8 || strings.Join(service.settings.PreferredRegions, ",") != "japan,europe" {
 		t.Fatalf("patch = %d %s settings=%+v", patched.Code, patched.Body.String(), service.settings)
+	}
+	patchedRegions := serveBody(t, handler, http.MethodPatch, "/api/v1/library/settings", `{"preferred_regions":["usa"]}`)
+	if patchedRegions.Code != http.StatusOK || service.settings.AttractIdleSeconds != 8 || strings.Join(service.settings.PreferredRegions, ",") != "usa" {
+		t.Fatalf("regions patch = %d %s settings=%+v", patchedRegions.Code, patchedRegions.Body.String(), service.settings)
 	}
 
 	unknown := serveBody(t, handler, http.MethodPut, "/api/v1/library/settings", `{"attract_idle_seconds":12,"preferred_regions":["usa"],"token":"nope"}`)

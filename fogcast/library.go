@@ -513,6 +513,10 @@ func (s *Service) AttractIdleSeconds() int {
 func (s *Service) LibrarySettings() LibraryConfig {
 	s.libraryMu.RLock()
 	defer s.libraryMu.RUnlock()
+	return s.librarySettingsSnapshot()
+}
+
+func (s *Service) librarySettingsSnapshot() LibraryConfig {
 	seconds := s.attractIdle
 	if seconds <= 0 {
 		seconds = 60
@@ -547,6 +551,35 @@ func (s *Service) SetLibrarySettings(ctx context.Context, next LibraryConfig) er
 	}
 	s.libraryMu.Lock()
 	defer s.libraryMu.Unlock()
+	return s.persistAndPublishLibrarySettingsLocked(normalized)
+}
+
+var librarySettingsPatchStartHook func()
+
+func (s *Service) PatchLibrarySettings(ctx context.Context, patch LibraryConfigPatch) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if librarySettingsPatchStartHook != nil {
+		librarySettingsPatchStartHook()
+	}
+	s.libraryMu.Lock()
+	defer s.libraryMu.Unlock()
+	next := s.librarySettingsSnapshot()
+	if patch.AttractIdleSeconds != nil {
+		next.AttractIdleSeconds = *patch.AttractIdleSeconds
+	}
+	if patch.PreferredRegions != nil {
+		next.PreferredRegions = append([]string(nil), *patch.PreferredRegions...)
+	}
+	normalized, err := NormalizeLibraryConfig(next)
+	if err != nil {
+		return canonicalError(protocol.CodeBadRequest, nil)
+	}
+	return s.persistAndPublishLibrarySettingsLocked(normalized)
+}
+
+func (s *Service) persistAndPublishLibrarySettingsLocked(normalized LibraryConfig) error {
 	if s.libraryOverlayPath != "" {
 		if err := saveLibraryOverlay(s.libraryOverlayPath, normalized); err != nil {
 			return canonicalError(protocol.CodeInternal, safeContextError(err))

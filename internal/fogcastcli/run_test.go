@@ -124,13 +124,14 @@ func TestRunUsesDefaultPathsAndOverridesOnlyConfig(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	wantDefault := fogcast.Paths{
-		Config:       filepath.Join(home, ".config", "fogcast", "config.toml"),
-		Index:        filepath.Join(home, ".local", "share", "fogcast", "library.sqlite3"),
-		Staging:      filepath.Join(home, ".cache", "fogcast", "staging"),
-		MetadataRoot: filepath.Join(home, ".cache", "fogcast", "metadata"),
-		UserLibrary:  filepath.Join(home, ".local", "share", "fogcast", "library-user.sqlite3"),
-		MediaIndex:   filepath.Join(home, ".local", "share", "fogcast", "library-media.sqlite3"),
-		MediaCache:   filepath.Join(home, ".cache", "fogcast", "library-media"),
+		Config:          filepath.Join(home, ".config", "fogcast", "config.toml"),
+		Index:           filepath.Join(home, ".local", "share", "fogcast", "library.sqlite3"),
+		Staging:         filepath.Join(home, ".cache", "fogcast", "staging"),
+		MetadataRoot:    filepath.Join(home, ".cache", "fogcast", "metadata"),
+		UserLibrary:     filepath.Join(home, ".local", "share", "fogcast", "library-user.sqlite3"),
+		LibrarySettings: filepath.Join(home, ".local", "share", "fogcast", "library-settings.json"),
+		MediaIndex:      filepath.Join(home, ".local", "share", "fogcast", "library-media.sqlite3"),
+		MediaCache:      filepath.Join(home, ".cache", "fogcast", "library-media"),
 	}
 
 	for _, test := range []struct {
@@ -139,8 +140,8 @@ func TestRunUsesDefaultPathsAndOverridesOnlyConfig(t *testing.T) {
 		want fogcast.Paths
 	}{
 		{name: "default", args: []string{"games"}, want: wantDefault},
-		{name: "explicit config", args: []string{"--config", "relative/private.toml", "games"}, want: fogcast.Paths{Config: "relative/private.toml", Index: wantDefault.Index, Staging: wantDefault.Staging, MetadataRoot: wantDefault.MetadataRoot, UserLibrary: wantDefault.UserLibrary, MediaIndex: wantDefault.MediaIndex, MediaCache: wantDefault.MediaCache}},
-		{name: "explicit empty config", args: []string{"--config", "", "games"}, want: fogcast.Paths{Config: "", Index: wantDefault.Index, Staging: wantDefault.Staging, MetadataRoot: wantDefault.MetadataRoot, UserLibrary: wantDefault.UserLibrary, MediaIndex: wantDefault.MediaIndex, MediaCache: wantDefault.MediaCache}},
+		{name: "explicit config", args: []string{"--config", "relative/private.toml", "games"}, want: fogcast.Paths{Config: "relative/private.toml", Index: wantDefault.Index, Staging: wantDefault.Staging, MetadataRoot: wantDefault.MetadataRoot, UserLibrary: wantDefault.UserLibrary, LibrarySettings: wantDefault.LibrarySettings, MediaIndex: wantDefault.MediaIndex, MediaCache: wantDefault.MediaCache}},
+		{name: "explicit empty config", args: []string{"--config", "", "games"}, want: fogcast.Paths{Config: "", Index: wantDefault.Index, Staging: wantDefault.Staging, MetadataRoot: wantDefault.MetadataRoot, UserLibrary: wantDefault.UserLibrary, LibrarySettings: wantDefault.LibrarySettings, MediaIndex: wantDefault.MediaIndex, MediaCache: wantDefault.MediaCache}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var opened fogcast.Paths

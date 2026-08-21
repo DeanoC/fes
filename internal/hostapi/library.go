@@ -54,6 +54,7 @@ type attractService interface {
 type librarySettingsService interface {
 	LibrarySettings() fogcast.LibraryConfig
 	SetLibrarySettings(context.Context, fogcast.LibraryConfig) error
+	PatchLibrarySettings(context.Context, fogcast.LibraryConfigPatch) error
 }
 
 type settingsWrite struct {
@@ -80,27 +81,14 @@ func handleLibrarySettings(w http.ResponseWriter, r *http.Request, service Servi
 	if err != nil {
 		return
 	}
-	next := current
 	if !empty {
-		if r.Method == http.MethodPut && (patch.AttractIdleSeconds == nil || patch.PreferredRegions == nil) {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "library settings request is invalid")
-			return
-		}
-		if patch.AttractIdleSeconds != nil {
-			next.AttractIdleSeconds = *patch.AttractIdleSeconds
-		}
-		if patch.PreferredRegions != nil {
-			next.PreferredRegions = append([]string(nil), *patch.PreferredRegions...)
-		}
-		normalized, err := fogcast.NormalizeLibraryConfig(next)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "library settings request is invalid")
-			return
-		}
-		next = normalized
-		if err := writer.SetLibrarySettings(r.Context(), next); err != nil {
+		if err := applyLibrarySettingsWrite(r, writer, patch); err != nil {
 			var apiErr *protocol.APIError
 			if errors.As(err, &apiErr) && apiErr.Code == protocol.CodeBadRequest {
+				writeError(w, http.StatusBadRequest, "BAD_REQUEST", "library settings request is invalid")
+				return
+			}
+			if errors.Is(err, errInvalidLibrarySettings) {
 				writeError(w, http.StatusBadRequest, "BAD_REQUEST", "library settings request is invalid")
 				return
 			}
@@ -109,6 +97,28 @@ func handleLibrarySettings(w http.ResponseWriter, r *http.Request, service Servi
 		}
 	}
 	writeJSON(w, http.StatusOK, publicLibrarySettings(writer.LibrarySettings()))
+}
+
+var errInvalidLibrarySettings = errors.New("library settings request is invalid")
+
+func applyLibrarySettingsWrite(r *http.Request, writer librarySettingsService, patch settingsWrite) error {
+	if r.Method == http.MethodPatch {
+		return writer.PatchLibrarySettings(r.Context(), fogcast.LibraryConfigPatch{
+			AttractIdleSeconds: patch.AttractIdleSeconds,
+			PreferredRegions:   patch.PreferredRegions,
+		})
+	}
+	if patch.AttractIdleSeconds == nil || patch.PreferredRegions == nil {
+		return errInvalidLibrarySettings
+	}
+	normalized, err := fogcast.NormalizeLibraryConfig(fogcast.LibraryConfig{
+		AttractIdleSeconds: *patch.AttractIdleSeconds,
+		PreferredRegions:   append([]string(nil), *patch.PreferredRegions...),
+	})
+	if err != nil {
+		return errInvalidLibrarySettings
+	}
+	return writer.SetLibrarySettings(r.Context(), normalized)
 }
 
 func defaultLibrarySettings(service Service) fogcast.LibraryConfig {

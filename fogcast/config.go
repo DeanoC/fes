@@ -68,6 +68,11 @@ type LibraryConfig struct {
 	PreferredRegions   []string
 }
 
+type LibraryConfigPatch struct {
+	AttractIdleSeconds *int
+	PreferredRegions   *[]string
+}
+
 // MetadataConfig contains opt-in provider-scoped presentation enrichment.
 // ClientSecret is retained only in memory after loading the private config.
 type MetadataConfig struct {
