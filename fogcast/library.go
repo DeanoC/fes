@@ -73,6 +73,100 @@ func (s *Service) RecordPlay(ctx context.Context, gameID string) error {
 	return nil
 }
 
+func (s *Service) Collections(ctx context.Context) ([]libraryuser.Collection, error) {
+	if s.users == nil {
+		return []libraryuser.Collection{}, nil
+	}
+	collections, err := s.users.Collections(ctx)
+	if err != nil {
+		return nil, canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	return collections, nil
+}
+
+func (s *Service) UpsertCollection(ctx context.Context, id, name string) (libraryuser.Collection, error) {
+	if s.users == nil {
+		return libraryuser.Collection{}, canonicalError(protocol.CodeInternal, nil)
+	}
+	collection, err := s.users.UpsertCollection(ctx, id, name)
+	if err != nil {
+		if errors.Is(err, libraryuser.ErrReservedID) || errors.Is(err, libraryuser.ErrInvalid) {
+			return libraryuser.Collection{}, canonicalError(protocol.CodeBadRequest, nil)
+		}
+		return libraryuser.Collection{}, canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	return collection, nil
+}
+
+func (s *Service) DeleteCollection(ctx context.Context, id string) error {
+	if s.users == nil {
+		return canonicalError(protocol.CodeInternal, nil)
+	}
+	if err := s.users.DeleteCollection(ctx, id); err != nil {
+		if errors.Is(err, libraryuser.ErrNotFound) {
+			return libraryuser.ErrNotFound
+		}
+		if errors.Is(err, libraryuser.ErrReservedID) || errors.Is(err, libraryuser.ErrInvalid) {
+			return canonicalError(protocol.CodeBadRequest, nil)
+		}
+		return canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	return nil
+}
+
+func (s *Service) SetCollectionMember(ctx context.Context, collectionID, gameID string, member bool) error {
+	if s.users == nil {
+		return canonicalError(protocol.CodeInternal, nil)
+	}
+	if _, err := s.users.Collection(ctx, collectionID); err != nil {
+		if errors.Is(err, libraryuser.ErrNotFound) {
+			return libraryuser.ErrNotFound
+		}
+		if errors.Is(err, libraryuser.ErrReservedID) || errors.Is(err, libraryuser.ErrInvalid) {
+			return canonicalError(protocol.CodeBadRequest, nil)
+		}
+		return canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	if _, err := s.Game(ctx, gameID); err != nil {
+		return err
+	}
+	if err := s.users.SetCollectionMember(ctx, collectionID, gameID, member); err != nil {
+		if errors.Is(err, libraryuser.ErrNotFound) {
+			return libraryuser.ErrNotFound
+		}
+		if errors.Is(err, libraryuser.ErrReservedID) || errors.Is(err, libraryuser.ErrInvalid) {
+			return canonicalError(protocol.CodeBadRequest, nil)
+		}
+		return canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	return nil
+}
+
+func (s *Service) GameCollectionIDs(ctx context.Context, gameID string) ([]string, error) {
+	if s.users == nil {
+		return []string{}, nil
+	}
+	ids, err := s.users.GameCollectionIDs(ctx, gameID)
+	if err != nil {
+		if errors.Is(err, libraryuser.ErrInvalid) {
+			return nil, canonicalError(protocol.CodeBadRequest, nil)
+		}
+		return nil, canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	return ids, nil
+}
+
+func (s *Service) CollectionIDsByGame(ctx context.Context, ids []string) (map[string][]string, error) {
+	if s.users == nil {
+		return map[string][]string{}, nil
+	}
+	result, err := s.users.CollectionIDsByGame(ctx, ids)
+	if err != nil {
+		return nil, canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	return result, nil
+}
+
 func (s *Service) favoriteIDs(ctx context.Context) ([]string, error) {
 	if s.users == nil {
 		return []string{}, nil
@@ -93,6 +187,39 @@ func (s *Service) playedIDs(ctx context.Context) ([]string, error) {
 		return nil, canonicalError(protocol.CodeInternal, safeContextError(err))
 	}
 	return ids, nil
+}
+
+func (s *Service) queryCustomCollection(ctx context.Context, query catalog.Query) (catalog.Page, error) {
+	if s.users == nil {
+		return catalog.Page{}, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	if err := libraryuser.ValidateCollectionID(query.Collection); err != nil {
+		return catalog.Page{}, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	if _, err := s.users.Collection(ctx, query.Collection); err != nil {
+		if errors.Is(err, libraryuser.ErrNotFound) || errors.Is(err, libraryuser.ErrInvalid) || errors.Is(err, libraryuser.ErrReservedID) {
+			return catalog.Page{}, canonicalError(protocol.CodeBadRequest, nil)
+		}
+		return catalog.Page{}, canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	ids, err := s.users.CollectionGameIDs(ctx, query.Collection)
+	if err != nil {
+		return catalog.Page{}, canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	query.Restrict = true
+	query.RestrictIDs = ids
+	query.Collection = ""
+	page, err := s.catalog.QueryGames(ctx, query)
+	if err != nil {
+		if ctx.Err() != nil {
+			return catalog.Page{}, ctx.Err()
+		}
+		if errors.Is(err, catalog.ErrInvalidQuery) {
+			return catalog.Page{}, canonicalError(protocol.CodeBadRequest, nil)
+		}
+		return catalog.Page{}, canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	return page, nil
 }
 
 func (s *Service) queryContinue(ctx context.Context, query catalog.Query) (catalog.Page, error) {

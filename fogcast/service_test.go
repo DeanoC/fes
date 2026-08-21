@@ -1415,6 +1415,19 @@ func (f *fakeServiceCatalog) QueryGames(_ context.Context, query catalog.Query) 
 	if query.Text != "" {
 		games = f.searchGames
 	}
+	if query.Restrict {
+		allowed := make(map[string]struct{}, len(query.RestrictIDs))
+		for _, id := range query.RestrictIDs {
+			allowed[id] = struct{}{}
+		}
+		filtered := make([]catalog.Game, 0, len(games))
+		for _, game := range games {
+			if _, ok := allowed[game.ID]; ok {
+				filtered = append(filtered, game)
+			}
+		}
+		games = filtered
+	}
 	limit := query.Limit
 	if limit <= 0 || limit > len(games) {
 		limit = len(games)

@@ -29,6 +29,9 @@ button:disabled { cursor: wait; opacity: .58; }
 .nav-item { border: 1px solid transparent; border-radius: 8px; padding: 9px 12px; background: transparent; color: var(--ink); text-align: left; }
 .nav-item:hover { background: var(--surface); }
 .nav-item.selected { border-color: var(--accent); background: var(--surface); color: var(--accent); }
+.collection-list { display: grid; gap: 4px; }
+.collection-controls { display: grid; gap: 6px; margin: 8px 0 4px; }
+.collection-member-button { display: block; margin-bottom: 6px; }
 .platform-heading { margin-top: 12px; }
 .platform-list { display: grid; gap: 4px; }
 .platform-list .nav-item { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }

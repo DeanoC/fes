@@ -26,6 +26,15 @@ type favoriteService interface {
 	LibraryStates(context.Context, []string) (map[string]libraryuser.State, error)
 }
 
+type collectionService interface {
+	Collections(context.Context) ([]libraryuser.Collection, error)
+	UpsertCollection(context.Context, string, string) (libraryuser.Collection, error)
+	DeleteCollection(context.Context, string) error
+	SetCollectionMember(context.Context, string, string, bool) error
+	GameCollectionIDs(context.Context, string) ([]string, error)
+	CollectionIDsByGame(context.Context, []string) (map[string][]string, error)
+}
+
 type coverService interface {
 	CoverHandle(context.Context, string) string
 	GameMedia(context.Context, string) (librarymedia.GameMedia, error)
@@ -75,9 +84,16 @@ func handleGamesList(w http.ResponseWriter, r *http.Request, service Service) {
 	if users, ok := service.(favoriteService); ok {
 		states, _ = users.LibraryStates(r.Context(), ids)
 	}
+	membership := map[string][]string{}
+	if collections, ok := service.(collectionService); ok {
+		membership, _ = collections.CollectionIDsByGame(r.Context(), ids)
+	}
 	for index, game := range result.Games {
 		if state, ok := states[game.ID]; ok {
 			result.Games[index].Favorite = state.Favorite
+		}
+		if owned, ok := membership[game.ID]; ok {
+			result.Games[index].Collections = owned
 		}
 		if covers, ok := service.(coverService); ok {
 			result.Games[index].Cover = covers.CoverHandle(r.Context(), game.ID)
@@ -187,6 +203,95 @@ func handlePlatforms(w http.ResponseWriter, r *http.Request, service Service) {
 	writeJSON(w, http.StatusOK, map[string]any{"platforms": platforms})
 }
 
+func handleCollections(w http.ResponseWriter, r *http.Request, service Service) {
+	collections, ok := service.(collectionService)
+	if !ok {
+		writeJSON(w, http.StatusOK, map[string]any{"collections": []collectionResult{}})
+		return
+	}
+	listed, err := collections.Collections(r.Context())
+	if err != nil {
+		writeCollectionError(w, err)
+		return
+	}
+	result := make([]collectionResult, 0, len(listed))
+	for _, item := range listed {
+		result = append(result, publicCollection(item))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"collections": result})
+}
+
+func handleCollection(w http.ResponseWriter, r *http.Request, service Service, create bool) {
+	id := r.PathValue("id")
+	if err := libraryuser.ValidateCollectionID(id); err != nil {
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "collection ID is invalid")
+		return
+	}
+	collections, ok := service.(collectionService)
+	if !ok {
+		writeError(w, http.StatusNotFound, "COLLECTION_NOT_FOUND", "collection was not found")
+		return
+	}
+	if !create {
+		if err := collections.DeleteCollection(r.Context(), id); err != nil {
+			writeCollectionError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"id": id})
+		return
+	}
+	name := strings.TrimSpace(r.URL.Query().Get("name"))
+	collection, err := collections.UpsertCollection(r.Context(), id, name)
+	if err != nil {
+		writeCollectionError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, publicCollection(collection))
+}
+
+func handleCollectionMember(w http.ResponseWriter, r *http.Request, service Service, member bool) {
+	collectionID := r.PathValue("id")
+	gameID := r.PathValue("gameId")
+	if err := libraryuser.ValidateCollectionID(collectionID); err != nil {
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "collection ID is invalid")
+		return
+	}
+	if gameID == "" || protocol.ValidateGameID(gameID) != nil {
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "game ID is invalid")
+		return
+	}
+	collections, ok := service.(collectionService)
+	if !ok {
+		writeError(w, http.StatusNotFound, "COLLECTION_NOT_FOUND", "collection was not found")
+		return
+	}
+	if err := collections.SetCollectionMember(r.Context(), collectionID, gameID, member); err != nil {
+		if errors.Is(err, libraryuser.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "COLLECTION_NOT_FOUND", "collection was not found")
+			return
+		}
+		writeCollectionError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": gameID, "collection": collectionID, "member": member})
+}
+
+func publicCollection(collection libraryuser.Collection) collectionResult {
+	return collectionResult{ID: collection.ID, Name: collection.Name, CreatedAt: collection.CreatedAt}
+}
+
+func writeCollectionError(w http.ResponseWriter, err error) {
+	if errors.Is(err, libraryuser.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "COLLECTION_NOT_FOUND", "collection was not found")
+		return
+	}
+	if errors.Is(err, libraryuser.ErrReservedID) || errors.Is(err, libraryuser.ErrInvalid) {
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "collection request is invalid")
+		return
+	}
+	writeSessionError(w, err)
+}
+
 func handleFavorite(w http.ResponseWriter, r *http.Request, service Service, favorite bool) {
 	id := r.PathValue("id")
 	if id == "" || protocol.ValidateGameID(id) != nil {
@@ -233,6 +338,11 @@ func enrichGameResult(ctx context.Context, service Service, result gameResult) g
 	if users, ok := service.(favoriteService); ok {
 		if state, err := users.LibraryState(ctx, result.ID); err == nil {
 			result.Favorite = state.Favorite
+		}
+	}
+	if collections, ok := service.(collectionService); ok {
+		if ids, err := collections.GameCollectionIDs(ctx, result.ID); err == nil && len(ids) > 0 {
+			result.Collections = ids
 		}
 	}
 	if covers, ok := service.(coverService); ok {

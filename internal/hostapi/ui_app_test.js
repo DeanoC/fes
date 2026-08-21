@@ -152,6 +152,11 @@ function browserDocument() {
     'nav-recents': 'button',
     'nav-unplayed': 'button',
     'nav-recently-added': 'button',
+    'create-collection': 'button',
+    'collection-name': 'input',
+    'save-collection': 'button',
+    'rename-collection': 'button',
+    'delete-collection': 'button',
     'refresh-catalog': 'button',
     'filter-system': 'select',
     'launcher': 'main',
@@ -162,7 +167,9 @@ function browserDocument() {
     'launch-actions', 'launch-status', 'session-panel', 'session-status',
     'session-details', 'session-actions', 'session-message',
     'nav-all', 'nav-continue', 'nav-favorites', 'nav-recents', 'nav-unplayed',
-    'nav-recently-added', 'platform-list',
+    'nav-recently-added', 'collection-list', 'create-collection', 'collection-name-label',
+    'collection-name', 'save-collection', 'rename-collection', 'delete-collection',
+    'platform-list',
     'attract', 'attract-title', 'attract-stage',
   ];
   const document = {
@@ -220,7 +227,7 @@ async function waitForAttractTitle(document, title, timeoutMs) {
   throw new Error(`attract title was ${JSON.stringify(document.nodes.get('attract-title') && document.nodes.get('attract-title').textContent)} hidden=${attract && attract.hidden}, want ${title}`);
 }
 
-async function runBrowserApp({ adapter, responses, sessionResponses, globals, attractItems }) {
+async function runBrowserApp({ adapter, responses, sessionResponses, globals, attractItems, collections }) {
   const document = browserDocument();
   const calls = [];
   const sessionCalls = [];
@@ -238,6 +245,12 @@ async function runBrowserApp({ adapter, responses, sessionResponses, globals, at
     }
     if (pathOnly === '/api/v1/library/facets') {
       return jsonResponse({ genres: [], years: [] });
+    }
+    if (pathOnly === '/api/v1/library/collections') {
+      return jsonResponse({ collections: collections || [] });
+    }
+    if (pathOnly.startsWith('/api/v1/library/collections/')) {
+      return jsonResponse({ id: 'weekend-queue', name: 'Weekend Queue', member: (options && options.method) === 'PUT' });
     }
     if (pathOnly.startsWith('/api/v1/library/favorites/')) {
       return jsonResponse({ favorite: (options && options.method) === 'PUT' });
@@ -1777,6 +1790,61 @@ test('toggleFavorite writes PUT and DELETE without changing launch body', async 
   assert.equal(favoriteCalls[1].options.method, 'DELETE');
 });
 
+test('custom collections use empty-body PUT/DELETE and collection= browse', async () => {
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/games': [
+      jsonResponse(readFixture('catalog-populated.json')),
+      jsonResponse(readFixture('catalog-populated.json')),
+    ],
+    '/api/v1/games?collection=weekend-queue': [jsonResponse(readFixture('catalog-populated.json'))],
+    '/api/v1/library/collections': [
+      jsonResponse({ collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }] }),
+      jsonResponse({ collections: [{ id: 'weekend-queue', name: 'Saturday' }] }),
+      jsonResponse({ collections: [] }),
+    ],
+    '/api/v1/library/collections/weekend-queue?name=Weekend%20Queue': [jsonResponse({ id: 'weekend-queue', name: 'Weekend Queue' })],
+    '/api/v1/library/collections/weekend-queue?name=Saturday': [jsonResponse({ id: 'weekend-queue', name: 'Saturday' })],
+    '/api/v1/library/collections/weekend-queue': [jsonResponse({ id: 'weekend-queue' })],
+    '/api/v1/library/collections/weekend-queue/megadrive-sonic-test': [
+      jsonResponse({ id: 'megadrive-sonic-test', collection: 'weekend-queue', member: true }),
+      jsonResponse({ id: 'megadrive-sonic-test', collection: 'weekend-queue', member: false }),
+    ],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadCatalog('');
+  await controller.createCollection('Weekend Queue');
+  assert.equal(controller.getState().collection, 'weekend-queue');
+  assert.equal(controller.getState().collections[0].name, 'Weekend Queue');
+  assert.equal(calls.some(call => call.path === '/api/v1/games?collection=weekend-queue&grouped=1'), true);
+  await controller.toggleCollectionMember('weekend-queue', 'megadrive-sonic-test');
+  assert.deepEqual(controller.getState().games[0].collections, ['weekend-queue']);
+  await controller.toggleCollectionMember('weekend-queue', 'megadrive-sonic-test');
+  assert.deepEqual(controller.getState().games[0].collections || [], []);
+  await controller.renameCollection('weekend-queue', 'Saturday');
+  assert.equal(controller.getState().collections[0].name, 'Saturday');
+  await controller.deleteCollection('weekend-queue');
+  assert.equal(controller.getState().collection, '');
+  const writes = calls.filter(call => String(call.path).includes('/library/collections/'));
+  assert.equal(writes[0].options.method, 'PUT');
+  assert.equal(writes[0].options.body, undefined);
+  assert.equal(writes[1].options.method, 'PUT');
+  assert.equal(writes[2].options.method, 'DELETE');
+  assert.equal(writes[3].options.method, 'PUT');
+  assert.equal(writes[4].options.method, 'DELETE');
+});
+
+test('custom collection rail items sit after smart collections', async () => {
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse(readFixture('catalog-populated.json'))],
+    collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }],
+  });
+  const nav = document.nodes.get('collection-list');
+  assert.equal(nav.children.length, 1);
+  assert.equal(nav.children[0].className.includes('nav-item'), true);
+  assert.equal(nav.children[0].attributes.get('data-collection'), 'weekend-queue');
+  assert.equal(browserText(nav.children[0]), 'Weekend Queue');
+});
+
 test('virtualized wall recycles a bounded window of cards', async () => {
   const games = [];
   for (let index = 0; index < 90; index += 1) {
@@ -1838,6 +1906,8 @@ test('attract idle seconds follow the host API when no override is set', async (
   const { calls, fetchImpl } = queuedFetch([
     jsonResponse({ platforms: [] }),
     jsonResponse({ items: [], idle_seconds: 12 }),
+    jsonResponse({ collections: [] }),
+    jsonResponse({ genres: [], years: [] }),
   ]);
   const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
   await controller.loadPlatforms();
@@ -1874,7 +1944,7 @@ async function pressKey(document, key, target = document.activeElement) {
   return event;
 }
 
-async function runKeyboardApp({ pages, platforms, launchResponse, globals } = {}) {
+async function runKeyboardApp({ pages, platforms, launchResponse, globals, collections } = {}) {
   const catalogPages = pages || [{
     games: readFixture('catalog-populated.json').games,
     next_cursor: '',
@@ -1900,6 +1970,13 @@ async function runKeyboardApp({ pages, platforms, launchResponse, globals } = {}
     if (pathOnly === '/api/v1/session/launch') {
       calls.push({ path: requestPath, options });
       return jsonResponse(launchResponse || { state: 'active', game_id: allGames[0].id });
+    }
+    if (pathOnly === '/api/v1/library/collections') {
+      return jsonResponse({ collections: collections || [] });
+    }
+    if (pathOnly.startsWith('/api/v1/library/collections/')) {
+      calls.push({ path: requestPath, options });
+      return jsonResponse({ id: 'weekend-queue', member: (options && options.method) === 'PUT' });
     }
     if (pathOnly.startsWith('/api/v1/library/favorites/')) {
       calls.push({ path: requestPath, options });
@@ -2094,6 +2171,22 @@ test('Enter on favorite or session controls does not launch', async () => {
   const launchEnter = await pressKey(document, 'Enter', launch);
   assert.equal(launchEnter.defaultPrevented, true);
   assert.equal(calls.filter(call => call.path === '/api/v1/session/launch').length, before + 1);
+});
+
+test('Enter on collection member control does not launch', async () => {
+  const { document, calls } = await runKeyboardApp({
+    collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }],
+  });
+  await settleBrowser();
+  await pressKey(document, 'Enter');
+  await pressKey(document, 'Enter');
+  const member = document.getElementById('collection-member-weekend-queue');
+  assert.ok(member);
+  member.focus();
+  const before = calls.filter(call => call.path === '/api/v1/session/launch').length;
+  const memberEnter = await pressKey(document, 'Enter', member);
+  assert.equal(memberEnter.defaultPrevented, undefined);
+  assert.equal(calls.filter(call => call.path === '/api/v1/session/launch').length, before);
 });
 
 test('catalog filter and version selects keep native ArrowDown and Enter', async () => {

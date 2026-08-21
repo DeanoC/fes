@@ -199,6 +199,12 @@
     const year = optionalCatalogText(source.year);
     if (year) record.year = year;
     if (source.favorite === true || source.favorite === false) record.favorite = source.favorite;
+    if (Array.isArray(source.collections)) {
+      const collections = source.collections
+        .filter(item => typeof item === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(item.trim()))
+        .map(item => item.trim());
+      if (collections.length) record.collections = Object.freeze(collections);
+    }
     if (source.launchable === true || source.launchable === false) record.launchable = source.launchable;
     const cover = primitiveSnapshotValue(source.cover);
     if (typeof cover === 'string' && ARTWORK_HANDLE_PATTERN.test(cover)) record.cover = cover;
@@ -877,6 +883,7 @@
       nextCursor: '',
       loadingMore: false,
       platforms: [],
+      collections: [],
       attractIdleSeconds: 60,
       games: [],
       gameViews: [],
@@ -1424,7 +1431,8 @@
       const allowed = {
         favorites: true, recents: true, continue: true, unplayed: true, recently_added: true,
       };
-      state.collection = allowed[collection] ? collection : '';
+      const custom = (state.collections || []).some(item => item && item.id === collection);
+      state.collection = allowed[collection] || custom ? collection : '';
       state.platformQuery = String(platform || '').trim();
       state.filters = Object.freeze({
         ...state.filters,
@@ -1455,6 +1463,7 @@
       } catch (_) {
         /* attract idle stays at the last known value */
       }
+      await reloadCollections();
       try {
         const facets = await request(fetchImpl, '/api/v1/library/facets');
         const genres = facets && Array.isArray(facets.genres)
@@ -1480,6 +1489,94 @@
           method: next ? 'PUT' : 'DELETE',
         });
         replaceGame(Object.freeze({ ...game, favorite: next }));
+        return emit();
+      } catch (error) {
+        return emit();
+      }
+    }
+
+    function collectionIDFromName(name) {
+      let id = String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64);
+      if (!id) id = 'collection';
+      if (id === 'all' || id === 'favorites' || id === 'recents' || id === 'continue' || id === 'unplayed' || id === 'recently_added') {
+        id = `${id}-list`.slice(0, 64);
+      }
+      return id;
+    }
+
+    async function reloadCollections() {
+      try {
+        const payload = await request(fetchImpl, '/api/v1/library/collections');
+        const list = payload && Array.isArray(payload.collections) ? payload.collections : [];
+        state.collections = Object.freeze(list.filter(item => item && typeof item.id === 'string' && item.id.trim()).map(item => Object.freeze({
+          id: item.id.trim(),
+          name: typeof item.name === 'string' && item.name.trim() ? item.name.trim() : item.id.trim(),
+          created_at: Number.isFinite(item.created_at) ? item.created_at : 0,
+        })));
+      } catch (_) {
+        if (!state.collections) state.collections = Object.freeze([]);
+      }
+    }
+
+    async function createCollection(name) {
+      const trimmed = String(name || '').trim();
+      const id = collectionIDFromName(trimmed);
+      try {
+        await request(fetchImpl, `/api/v1/library/collections/${encodeURIComponent(id)}?name=${encodeURIComponent(trimmed || id)}`, {
+          method: 'PUT',
+        });
+        await reloadCollections();
+        return setLibraryNav(id, '');
+      } catch (error) {
+        return emit();
+      }
+    }
+
+    async function renameCollection(id, name) {
+      const collectionID = String(id || '').trim();
+      const trimmed = String(name || '').trim();
+      if (!collectionID) return snapshot();
+      try {
+        await request(fetchImpl, `/api/v1/library/collections/${encodeURIComponent(collectionID)}?name=${encodeURIComponent(trimmed || collectionID)}`, {
+          method: 'PUT',
+        });
+        await reloadCollections();
+        return emit();
+      } catch (error) {
+        return emit();
+      }
+    }
+
+    async function deleteCollection(id) {
+      const collectionID = String(id || '').trim();
+      if (!collectionID) return snapshot();
+      try {
+        await request(fetchImpl, `/api/v1/library/collections/${encodeURIComponent(collectionID)}`, {
+          method: 'DELETE',
+        });
+        await reloadCollections();
+        if (state.collection === collectionID) return setLibraryNav('', '');
+        return emit();
+      } catch (error) {
+        return emit();
+      }
+    }
+
+    async function toggleCollectionMember(collectionID, gameOrID) {
+      const id = typeof gameOrID === 'object' ? gameOrID && gameOrID.id : gameOrID;
+      const game = (id && state.games.find(item => item.id === id)) || state.selectedLiveGame;
+      const collection = String(collectionID || '').trim();
+      if (!game || !collection) return snapshot();
+      const current = Array.isArray(game.collections) ? game.collections : [];
+      const next = !current.includes(collection);
+      try {
+        await request(fetchImpl, `/api/v1/library/collections/${encodeURIComponent(collection)}/${encodeURIComponent(game.id)}`, {
+          method: next ? 'PUT' : 'DELETE',
+        });
+        const collections = next
+          ? Object.freeze(current.concat(collection))
+          : Object.freeze(current.filter(item => item !== collection));
+        replaceGame(Object.freeze({ ...game, collections }));
         return emit();
       } catch (error) {
         return emit();
@@ -1670,6 +1767,10 @@
       setCatalogSort,
       setLibraryNav,
       toggleFavorite,
+      createCollection,
+      renameCollection,
+      deleteCollection,
+      toggleCollectionMember,
     });
   }
 
@@ -1711,6 +1812,7 @@
   let state;
   let controller;
   let keyboardPane = 'rail';
+  let collectionEditor = null;
   let forceKeyboardRestore = false;
 
   const nodes = {
@@ -1745,6 +1847,13 @@
     navContinue: document.getElementById('nav-continue'),
     navUnplayed: document.getElementById('nav-unplayed'),
     navRecentlyAdded: document.getElementById('nav-recently-added'),
+    collectionList: document.getElementById('collection-list'),
+    createCollection: document.getElementById('create-collection'),
+    collectionNameLabel: document.getElementById('collection-name-label'),
+    collectionName: document.getElementById('collection-name'),
+    saveCollection: document.getElementById('save-collection'),
+    renameCollection: document.getElementById('rename-collection'),
+    deleteCollection: document.getElementById('delete-collection'),
     platformList: document.getElementById('platform-list'),
     attract: document.getElementById('attract'),
     attractTitle: document.getElementById('attract-title'),
@@ -1910,6 +2019,7 @@
     if (kind === 'continue') return state.collection === 'continue' && !state.platformQuery;
     if (kind === 'unplayed') return state.collection === 'unplayed' && !state.platformQuery;
     if (kind === 'recently_added') return state.collection === 'recently_added' && !state.platformQuery;
+    if (kind === 'collection') return Boolean(platform) && state.collection === platform && !state.platformQuery;
     if (kind === 'platform') return Boolean(platform) && state.platformQuery === platform;
     return !state.collection && !state.platformQuery;
   }
@@ -1932,6 +2042,30 @@
     setRovingTab(nodes.navRecents, navSelected('recents'));
     setRovingTab(nodes.navUnplayed, navSelected('unplayed'));
     setRovingTab(nodes.navRecentlyAdded, navSelected('recently_added'));
+    if (nodes.collectionList) {
+      nodes.collectionList.replaceChildren();
+      (state.collections || []).forEach(collection => {
+        const selected = navSelected('collection', collection.id);
+        const button = element('button', 'nav-item' + (selected ? ' selected' : ''));
+        button.type = 'button';
+        button.id = `nav-collection-${collection.id}`;
+        button.setAttribute('data-collection', collection.id);
+        setRovingTab(button, selected);
+        button.appendChild(element('span', '', collection.name || collection.id));
+        button.addEventListener('click', () => {
+          keyboardPane = 'rail';
+          controller.setLibraryNav(collection.id, '');
+        });
+        nodes.collectionList.appendChild(button);
+      });
+    }
+    const customSelected = (state.collections || []).some(item => navSelected('collection', item.id));
+    const editing = collectionEditor !== null;
+    if (nodes.createCollection) nodes.createCollection.hidden = editing;
+    if (nodes.collectionNameLabel) nodes.collectionNameLabel.hidden = !editing;
+    if (nodes.saveCollection) nodes.saveCollection.hidden = !editing;
+    if (nodes.renameCollection) nodes.renameCollection.hidden = !customSelected || editing;
+    if (nodes.deleteCollection) nodes.deleteCollection.hidden = !customSelected || editing;
     if (!nodes.platformList) return;
     nodes.platformList.replaceChildren();
     (state.platforms || []).forEach(platform => {
@@ -1948,6 +2082,33 @@
       });
       nodes.platformList.appendChild(button);
     });
+  }
+
+  function beginCollectionEditor(mode) {
+    collectionEditor = { mode };
+    if (nodes.collectionName) {
+      const selected = (state.collections || []).find(item => item.id === state.collection);
+      nodes.collectionName.value = mode === 'rename' && selected ? selected.name : '';
+    }
+    renderLibraryNav();
+    if (nodes.collectionName) focusWithoutScroll(nodes.collectionName);
+  }
+
+  function cancelCollectionEditor() {
+    collectionEditor = null;
+    if (nodes.collectionName) nodes.collectionName.value = '';
+    renderLibraryNav();
+  }
+
+  async function saveCollectionEditor() {
+    const name = nodes.collectionName ? nodes.collectionName.value : '';
+    const mode = collectionEditor && collectionEditor.mode;
+    collectionEditor = null;
+    if (mode === 'rename') {
+      await controller.renameCollection(state.collection, name);
+      return;
+    }
+    await controller.createCollection(name);
   }
 
   let wallObserver = null;
@@ -2060,7 +2221,7 @@
       return;
     }
     if (view === 'empty' || view === 'no_matches') {
-      nodes.list.appendChild(element('p', 'status-message', state.query ? 'No matching games.' : 'The library is empty.'));
+      nodes.list.appendChild(element('p', 'status-message', state.query ? 'No matching games.' : (state.collection ? 'This collection is empty.' : 'The library is empty.')));
       nodes.actions.appendChild(retryButton('Refresh catalog', loadCatalog));
       return;
     }
@@ -2316,6 +2477,16 @@
     favorite.id = 'favorite-game';
     favorite.addEventListener('click', () => controller.toggleFavorite(game.id));
     nodes.detailContent.appendChild(favorite);
+    const membership = Array.isArray(game.collections) ? game.collections : [];
+    (state.collections || []).forEach(collection => {
+      const member = membership.includes(collection.id);
+      const toggle = element('button', 'button secondary collection-member-button', member ? `Remove from ${collection.name}` : `Add to ${collection.name}`);
+      toggle.type = 'button';
+      toggle.id = `collection-member-${collection.id}`;
+      toggle.setAttribute('data-collection', collection.id);
+      toggle.addEventListener('click', () => controller.toggleCollectionMember(collection.id, game.id));
+      nodes.detailContent.appendChild(toggle);
+    });
     const variants = Array.isArray(game.variants) ? game.variants : [];
     if (variants.length > 1) {
       const label = element('label', 'filter-label', 'Version');
@@ -2415,7 +2586,8 @@
     if (!previous) return true;
     return previous.collection !== next.collection
       || previous.platformQuery !== next.platformQuery
-      || previous.platforms !== next.platforms;
+      || previous.platforms !== next.platforms
+      || previous.collections !== next.collections;
   }
 
   function handleStateChange(next) {
@@ -2567,6 +2739,16 @@
     return Boolean(target && target.id === 'launch-game');
   }
 
+  function isCollectionEditor(target) {
+    return Boolean(target && (
+      target.id === 'create-collection'
+      || target.id === 'save-collection'
+      || target.id === 'rename-collection'
+      || target.id === 'delete-collection'
+      || target.id === 'collection-name'
+    ));
+  }
+
   function isCoverWallTarget(target) {
     if (!target) return false;
     if (String(target.className || '').includes('game-card')) return true;
@@ -2608,6 +2790,10 @@
       nodes.navUnplayed,
       nodes.navRecentlyAdded,
     ].filter(Boolean);
+    const collections = nodes.collectionList && nodes.collectionList.children ? Array.from(nodes.collectionList.children) : [];
+    collections.forEach(item => {
+      if (item && String(item.className || '').includes('nav-item')) items.push(item);
+    });
     const platforms = nodes.platformList && nodes.platformList.children ? Array.from(nodes.platformList.children) : [];
     platforms.forEach(item => {
       if (item && String(item.className || '').includes('nav-item')) items.push(item);
@@ -2842,6 +3028,10 @@
   if (nodes.navRecents) nodes.navRecents.addEventListener('click', () => { keyboardPane = 'rail'; return controller.setLibraryNav('recents', ''); });
   if (nodes.navUnplayed) nodes.navUnplayed.addEventListener('click', () => { keyboardPane = 'rail'; return controller.setLibraryNav('unplayed', ''); });
   if (nodes.navRecentlyAdded) nodes.navRecentlyAdded.addEventListener('click', () => { keyboardPane = 'rail'; return controller.setLibraryNav('recently_added', ''); });
+  if (nodes.createCollection) nodes.createCollection.addEventListener('click', () => beginCollectionEditor('create'));
+  if (nodes.renameCollection) nodes.renameCollection.addEventListener('click', () => beginCollectionEditor('rename'));
+  if (nodes.saveCollection) nodes.saveCollection.addEventListener('click', () => { void saveCollectionEditor(); });
+  if (nodes.deleteCollection) nodes.deleteCollection.addEventListener('click', () => { void controller.deleteCollection(state.collection); });
   if (typeof document.addEventListener === 'function') {
     document.addEventListener('keydown', event => {
       if (attractActive) {
@@ -2862,6 +3052,14 @@
               void controller.selectGame(visibleGames()[0].live.id);
             }
           }
+        } else if (event.target && event.target.id === 'collection-name') {
+          if (event.key === 'Escape') {
+            event.preventDefault?.();
+            cancelCollectionEditor();
+          } else if (event.key === 'Enter') {
+            event.preventDefault?.();
+            void saveCollectionEditor();
+          }
         }
         return;
       }
@@ -2870,6 +3068,7 @@
         typeToSearch(event.key);
         return;
       }
+      if (isCollectionEditor(event.target)) return;
       syncPaneFromTarget(event.target);
       if (event.key === 'Escape') {
         event.preventDefault?.();

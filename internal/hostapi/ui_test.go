@@ -69,6 +69,7 @@ func TestUIUsesOnlyExistingAPIEndpointFamilies(t *testing.T) {
 		"/api/v1/session/launch",
 		"/api/v1/platforms",
 		"/api/v1/library/favorites/",
+		"/api/v1/library/collections",
 		"/api/v1/library/attract",
 		"/api/v1/presentation/media/",
 	} {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/DeanoC/FogCast-POC/catalog"
 	"github.com/DeanoC/FogCast-POC/internal/hostapi"
+	"github.com/DeanoC/FogCast-POC/libraryuser"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
@@ -232,4 +233,184 @@ type launchableFake struct {
 
 func (s *launchableFake) PlatformLaunchable(system protocol.System) bool {
 	return s.launchable[system]
+}
+
+type collectionFake struct {
+	fakeService
+	last        catalog.Query
+	page        catalog.Page
+	collections map[string]libraryuser.Collection
+	members     map[string]map[string]bool
+}
+
+func (s *collectionFake) QueryGames(_ context.Context, query catalog.Query) (catalog.Page, error) {
+	s.last = query
+	if s.page.Games != nil || s.page.NextCursor != "" {
+		return s.page, nil
+	}
+	return catalog.Page{Games: append([]catalog.Game(nil), s.games...)}, nil
+}
+
+func (s *collectionFake) Platforms(context.Context) ([]catalog.PlatformInfo, error) {
+	return nil, nil
+}
+
+func (s *collectionFake) Collections(context.Context) ([]libraryuser.Collection, error) {
+	listed := make([]libraryuser.Collection, 0, len(s.collections))
+	for _, item := range s.collections {
+		listed = append(listed, item)
+	}
+	return listed, nil
+}
+
+func (s *collectionFake) UpsertCollection(_ context.Context, id, name string) (libraryuser.Collection, error) {
+	if err := libraryuser.ValidateCollectionID(id); err != nil {
+		return libraryuser.Collection{}, err
+	}
+	if name == "" {
+		name = id
+	}
+	if err := libraryuser.ValidateCollectionName(name); err != nil {
+		return libraryuser.Collection{}, err
+	}
+	if s.collections == nil {
+		s.collections = map[string]libraryuser.Collection{}
+	}
+	item := s.collections[id]
+	if item.CreatedAt == 0 {
+		item.CreatedAt = 1
+	}
+	item.ID = id
+	item.Name = name
+	s.collections[id] = item
+	return item, nil
+}
+
+func (s *collectionFake) DeleteCollection(_ context.Context, id string) error {
+	if s.collections == nil {
+		return libraryuser.ErrNotFound
+	}
+	if _, ok := s.collections[id]; !ok {
+		return libraryuser.ErrNotFound
+	}
+	delete(s.collections, id)
+	delete(s.members, id)
+	return nil
+}
+
+func (s *collectionFake) SetCollectionMember(_ context.Context, collectionID, gameID string, member bool) error {
+	if _, ok := s.collections[collectionID]; !ok {
+		return libraryuser.ErrNotFound
+	}
+	if protocol.ValidateGameID(gameID) != nil {
+		return libraryuser.ErrInvalid
+	}
+	if s.members == nil {
+		s.members = map[string]map[string]bool{}
+	}
+	if s.members[collectionID] == nil {
+		s.members[collectionID] = map[string]bool{}
+	}
+	if member {
+		s.members[collectionID][gameID] = true
+		return nil
+	}
+	delete(s.members[collectionID], gameID)
+	return nil
+}
+
+func (s *collectionFake) GameCollectionIDs(_ context.Context, gameID string) ([]string, error) {
+	ids := make([]string, 0)
+	for collectionID, members := range s.members {
+		if members[gameID] {
+			ids = append(ids, collectionID)
+		}
+	}
+	return ids, nil
+}
+
+func (s *collectionFake) CollectionIDsByGame(ctx context.Context, ids []string) (map[string][]string, error) {
+	result := map[string][]string{}
+	for _, id := range ids {
+		owned, err := s.GameCollectionIDs(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if len(owned) > 0 {
+			result[id] = owned
+		}
+	}
+	return result, nil
+}
+
+func TestCollectionsCRUDMirrorsFavoritesEmptyBody(t *testing.T) {
+	service := &collectionFake{}
+	handler := hostapi.New(service)
+	created := serve(t, handler, http.MethodPut, "/api/v1/library/collections/weekend-queue?name=Weekend%20Queue")
+	if created.Code != http.StatusOK || !strings.Contains(created.Body.String(), `"id":"weekend-queue"`) || !strings.Contains(created.Body.String(), `"name":"Weekend Queue"`) {
+		t.Fatalf("create = %d %s", created.Code, created.Body.String())
+	}
+	listed := serve(t, handler, http.MethodGet, "/api/v1/library/collections")
+	if listed.Code != http.StatusOK || !strings.Contains(listed.Body.String(), `"weekend-queue"`) {
+		t.Fatalf("list = %d %s", listed.Code, listed.Body.String())
+	}
+	added := serve(t, handler, http.MethodPut, "/api/v1/library/collections/weekend-queue/snes-mario-test")
+	if added.Code != http.StatusOK || !strings.Contains(added.Body.String(), `"member":true`) || !strings.Contains(added.Body.String(), `"id":"snes-mario-test"`) {
+		t.Fatalf("add = %d %s", added.Code, added.Body.String())
+	}
+	removed := serve(t, handler, http.MethodDelete, "/api/v1/library/collections/weekend-queue/snes-mario-test")
+	if removed.Code != http.StatusOK || !strings.Contains(removed.Body.String(), `"member":false`) {
+		t.Fatalf("remove = %d %s", removed.Code, removed.Body.String())
+	}
+	renamed := serve(t, handler, http.MethodPut, "/api/v1/library/collections/weekend-queue?name=Saturday")
+	if renamed.Code != http.StatusOK || !strings.Contains(renamed.Body.String(), `"name":"Saturday"`) {
+		t.Fatalf("rename = %d %s", renamed.Code, renamed.Body.String())
+	}
+	deleted := serve(t, handler, http.MethodDelete, "/api/v1/library/collections/weekend-queue")
+	if deleted.Code != http.StatusOK || !strings.Contains(deleted.Body.String(), `"id":"weekend-queue"`) {
+		t.Fatalf("delete = %d %s", deleted.Code, deleted.Body.String())
+	}
+	missing := serve(t, handler, http.MethodDelete, "/api/v1/library/collections/weekend-queue")
+	if missing.Code != http.StatusNotFound || !strings.Contains(missing.Body.String(), `"COLLECTION_NOT_FOUND"`) {
+		t.Fatalf("missing = %d %s", missing.Code, missing.Body.String())
+	}
+	reserved := serve(t, handler, http.MethodPut, "/api/v1/library/collections/favorites")
+	if reserved.Code != http.StatusBadRequest || !strings.Contains(reserved.Body.String(), `"BAD_REQUEST"`) {
+		t.Fatalf("reserved = %d %s", reserved.Code, reserved.Body.String())
+	}
+}
+
+func TestGamesListPassesCustomCollectionAndSmartKeys(t *testing.T) {
+	service := &collectionFake{
+		fakeService: fakeService{games: []catalog.Game{{
+			ID: "snes-mario-test", Title: "Mario", System: protocol.SystemSNES,
+			Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
+		}}},
+		collections: map[string]libraryuser.Collection{"weekend-queue": {ID: "weekend-queue", Name: "Weekend Queue", CreatedAt: 1}},
+		members:     map[string]map[string]bool{"weekend-queue": {"snes-mario-test": true}},
+	}
+	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games?collection=weekend-queue")
+	if response.Code != http.StatusOK {
+		t.Fatal(response.Body.String())
+	}
+	if service.last.Collection != "weekend-queue" {
+		t.Fatalf("query = %#v", service.last)
+	}
+	if !strings.Contains(response.Body.String(), `"collections":["weekend-queue"]`) {
+		t.Fatalf("membership missing: %s", response.Body.String())
+	}
+	response = serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games?collection=favorites")
+	if response.Code != http.StatusOK || service.last.Collection != "favorites" {
+		t.Fatalf("favorites query = %#v status=%d %s", service.last, response.Code, response.Body.String())
+	}
+}
+
+func TestCollectionMemberRejectsInvalidGameID(t *testing.T) {
+	service := &collectionFake{
+		collections: map[string]libraryuser.Collection{"weekend-queue": {ID: "weekend-queue", Name: "Weekend Queue", CreatedAt: 1}},
+	}
+	response := serve(t, hostapi.New(service), http.MethodPut, "/api/v1/library/collections/weekend-queue/NotAGame")
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), `"BAD_REQUEST"`) {
+		t.Fatalf("status = %d %s", response.Code, response.Body.String())
+	}
 }

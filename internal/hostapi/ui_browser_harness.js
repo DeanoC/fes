@@ -455,6 +455,36 @@ class FixtureServer extends EventEmitter {
       });
       return;
     }
+    if (url.pathname === '/api/v1/library/collections' && request.method === 'GET') {
+      await this.deliver(record, response, {
+        fixture: 'collections.json', status: 200, hold: false, delayMs: 0,
+        override: { collections: this.plan.collections || [] },
+      });
+      return;
+    }
+    const collectionMemberMatch = url.pathname.match(/^\/api\/v1\/library\/collections\/([^/]+)\/([^/]+)$/);
+    if (collectionMemberMatch && (request.method === 'PUT' || request.method === 'DELETE')) {
+      await this.deliver(record, response, {
+        fixture: 'collection-member.json', status: 200, hold: false, delayMs: 0,
+        override: {
+          id: decodeURIComponent(collectionMemberMatch[2]),
+          collection: decodeURIComponent(collectionMemberMatch[1]),
+          member: request.method === 'PUT',
+        },
+      });
+      return;
+    }
+    const collectionMatch = url.pathname.match(/^\/api\/v1\/library\/collections\/([^/]+)$/);
+    if (collectionMatch && (request.method === 'PUT' || request.method === 'DELETE')) {
+      const id = decodeURIComponent(collectionMatch[1]);
+      await this.deliver(record, response, {
+        fixture: 'collection.json', status: 200, hold: false, delayMs: 0,
+        override: request.method === 'DELETE'
+          ? { id }
+          : { id, name: url.searchParams.get('name') || id },
+      });
+      return;
+    }
     const mediaMatch = url.pathname.match(/^\/api\/v1\/presentation\/media\/([0-9a-f]{64})$/);
     if (mediaMatch && request.method === 'GET') {
       await this.deliver(record, response, this.unexpectedResponse(record, 404, 'media handle was not configured'));
