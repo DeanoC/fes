@@ -149,7 +149,10 @@ img.cover-art { width: 100%; object-fit: contain; object-position: center; backg
   align-self: start;
   position: sticky;
   top: 18px;
+  display: flex;
+  flex-direction: column;
   min-height: 390px;
+  max-height: calc(100vh - 48px);
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: 22px;
@@ -157,6 +160,7 @@ img.cover-art { width: 100%; object-fit: contain; object-position: center; backg
   background: rgba(21, 27, 37, .92);
   box-shadow: var(--shadow);
 }
+#detail-content { flex: 1 1 auto; min-height: 0; overflow: auto; }
 .backdrop-art {
   min-height: 196px;
   margin: -22px -22px 0;
