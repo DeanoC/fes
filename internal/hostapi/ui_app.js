@@ -1954,9 +1954,38 @@
   let wallStartObserver = null;
   let wallStart = 0;
 
+  function readStylePx(styles, names, fallback) {
+    if (!styles) return fallback;
+    const keys = Array.isArray(names) ? names : [names];
+    for (const name of keys) {
+      const raw = (String(name).startsWith('--') || String(name).includes('-'))
+        && typeof styles.getPropertyValue === 'function'
+        ? styles.getPropertyValue(name)
+        : styles[name];
+      const value = parseFloat(raw);
+      if (Number.isFinite(value)) return value;
+    }
+    return fallback;
+  }
+
+  function wallMetrics() {
+    const list = nodes.list;
+    const width = Number(list && list.clientWidth) || 210;
+    const styles = typeof root.getComputedStyle === 'function' && list
+      ? root.getComputedStyle(list)
+      : null;
+    const padding = readStylePx(styles, ['padding-left', 'paddingLeft'], 0)
+      + readStylePx(styles, ['padding-right', 'paddingRight'], 0);
+    const gap = readStylePx(styles, ['column-gap', 'columnGap', 'gap'], 14);
+    const minTrack = readStylePx(styles, ['--wall-min-track'], 210);
+    const inner = Math.max(minTrack, width - padding);
+    const cols = Math.max(1, Math.floor((inner + gap) / (minTrack + gap)));
+    const cardWidth = Math.max(1, (inner - gap * Math.max(0, cols - 1)) / cols);
+    return { cols, cardWidth, gap };
+  }
+
   function wallColumns() {
-    const width = Number(nodes.list && nodes.list.clientWidth) || 210;
-    return Math.max(1, Math.floor((width + 14) / 224));
+    return wallMetrics().cols;
   }
 
   function disconnectWallObservers() {
@@ -1974,11 +2003,9 @@
     if (count <= 0) return null;
     const spacer = element('div', 'wall-spacer');
     spacer.setAttribute('data-wall-spacer', edge);
-    const rows = Math.ceil(count / wallColumns());
-    const width = Number(nodes.list && nodes.list.clientWidth) || 210;
-    const cols = wallColumns();
-    const cardWidth = Math.max(1, (width - 14 * Math.max(0, cols - 1)) / cols);
-    spacer.style.height = `${rows * Math.round(cardWidth * 1.5 + 14)}px`;
+    const metrics = wallMetrics();
+    const rows = Math.ceil(count / metrics.cols);
+    spacer.style.height = `${rows * Math.round(metrics.cardWidth * 1.5 + metrics.gap)}px`;
     nodes.list.appendChild(spacer);
     return spacer;
   }
@@ -2195,7 +2222,7 @@
       card.appendChild(element('p', 'fallback-note', 'Using local catalog data'));
     }
     if (game.variant_count > 1) {
-      card.appendChild(element('p', 'game-meta', `${game.variant_count} versions`));
+      card.appendChild(element('p', 'game-meta game-meta-variant', `${game.variant_count} versions`));
     }
     if (game.title && cardTitle(game) !== game.title) card.setAttribute('title', game.title);
     card.tabIndex = selected || (!state.selectedLiveGame && !gameCardNodes().length) ? 0 : -1;
@@ -2318,6 +2345,7 @@
       video.muted = true;
       video.autoplay = true;
       video.loop = true;
+      video.setAttribute('controls', '');
       video.setAttribute('muted', '');
       video.setAttribute('playsinline', '');
       nodes.detailContent.appendChild(video);

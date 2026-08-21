@@ -1874,7 +1874,7 @@ async function pressKey(document, key, target = document.activeElement) {
   return event;
 }
 
-async function runKeyboardApp({ pages, platforms, launchResponse } = {}) {
+async function runKeyboardApp({ pages, platforms, launchResponse, globals } = {}) {
   const catalogPages = pages || [{
     games: readFixture('catalog-populated.json').games,
     next_cursor: '',
@@ -1927,6 +1927,7 @@ async function runKeyboardApp({ pages, platforms, launchResponse } = {}) {
     FogCastAttractDisabled: true,
     setTimeout,
     clearTimeout,
+    ...(globals || {}),
   };
   vm.runInNewContext(readAsset('ui_app.js'), context, { filename: 'ui_app.js' });
   await settleBrowser();
@@ -2032,6 +2033,40 @@ test('grid arrows move by cover-wall columns and left edge returns to the rail',
   await pressKey(document, 'ArrowLeft');
   assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'rail');
   assert.equal(document.activeElement.className.includes('nav-item'), true);
+});
+
+test('narrow cover wall uses padded 140px tracks for arrow jumps', async () => {
+  const games = [];
+  for (let index = 0; index < 8; index += 1) {
+    games.push(availableGame(`snes-grid-${index}`, `Grid ${index}`));
+  }
+  const { document } = await runKeyboardApp({
+    pages: [{ games }],
+    globals: {
+      getComputedStyle() {
+        return {
+          paddingLeft: '4px',
+          paddingRight: '4px',
+          columnGap: '14px',
+          gap: '14px',
+          getPropertyValue(name) {
+            if (name === '--wall-min-track') return '140px';
+            if (name === 'padding-left') return '4px';
+            if (name === 'padding-right') return '4px';
+            if (name === 'column-gap' || name === 'gap') return '14px';
+            return '';
+          },
+        };
+      },
+    },
+  });
+  await settleBrowser();
+  document.nodes.get('catalog-list').clientWidth = 360;
+  await pressKey(document, 'Enter');
+  await pressKey(document, 'ArrowDown');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'snes-grid-2');
+  await pressKey(document, 'ArrowUp');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'snes-grid-0');
 });
 
 test('Enter on favorite or session controls does not launch', async () => {
@@ -2170,6 +2205,41 @@ test('rich detail stacks hero cover with backdrop and skips video under reduced 
   assert.equal(video.attributes.get('src'), `/api/v1/presentation/media/${handle}`);
   assert.equal(video.muted, true);
   assert.equal(video.attributes.get('muted'), '');
+  assert.equal(video.attributes.get('controls'), '');
+  assert.equal(video.attributes.get('playsinline'), '');
+  assert.match(readAsset('ui_app.js'), /video\.setAttribute\('controls', ''\);/);
+});
+
+test('cover-card variant meta is independently classed so fallback cannot overlap it', async () => {
+  const css = readAsset('ui.css');
+  assert.doesNotMatch(css, /\.game-meta\s*\+\s*\.game-meta/);
+  assert.match(css, /\.game-card \.game-meta-variant/);
+  assert.match(css, /\.game-card \.fallback-note/);
+  const games = [{
+    ...readFixture('catalog-populated.json').games[1],
+    variant_count: 3,
+  }];
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse({ games })],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  const card = document.nodes.get('catalog-list').children[0];
+  const metas = card.children.filter(child => String(child.className).includes('game-meta'));
+  const notes = card.children.filter(child => child.className === 'fallback-note');
+  assert.equal(notes.length, 1);
+  assert.equal(metas.length, 2);
+  assert.equal(metas[0].className, 'game-meta');
+  assert.equal(metas[1].className, 'game-meta game-meta-variant');
+  assert.ok(card.children.indexOf(notes[0]) > card.children.indexOf(metas[0]));
+  assert.ok(card.children.indexOf(notes[0]) < card.children.indexOf(metas[1]));
+});
+
+test('detail CSS meets the panel edge without negative-margin backdrop bleed', () => {
+  const css = readAsset('ui.css');
+  assert.doesNotMatch(css, /\.backdrop-art[^{]*\{[^}]*margin:\s*-/);
+  assert.doesNotMatch(css, /width:\s*calc\(100% \+/);
+  assert.match(css, /#detail-content[^{]*\{[^}]*overflow-x:\s*hidden/);
+  assert.match(css, /--detail-inset/);
 });
 
 test('selected cards keep a visible selected and focus contract', async () => {

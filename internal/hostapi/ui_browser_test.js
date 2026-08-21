@@ -499,8 +499,12 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         await selectSonic(harness);
         const layout = await harness.evaluate(`(() => {
           const detail = document.getElementById('detail-content');
+          const panel = document.getElementById('detail');
           const hero = detail && detail.querySelector('.detail-hero');
+          const backdrop = detail && detail.querySelector('.backdrop-art');
           const card = document.querySelector('#catalog-list .game-card.selected');
+          const panelBox = panel ? panel.getBoundingClientRect() : null;
+          const backBox = backdrop ? backdrop.getBoundingClientRect() : null;
           return {
             backdrop: detail && detail.children[0] ? detail.children[0].className : '',
             hero: hero ? hero.className : '',
@@ -509,6 +513,9 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
             cardCover: card && card.querySelector('.cover-art') ? card.querySelector('.cover-art').className : '',
             cardPressed: card ? card.getAttribute('aria-pressed') : '',
             cardTabIndex: card ? card.tabIndex : null,
+            leftDelta: panelBox && backBox ? Math.abs(backBox.left - panelBox.left) : 99,
+            rightDelta: panelBox && backBox ? Math.abs(backBox.right - panelBox.right) : 99,
+            overflowX: detail ? detail.scrollWidth - detail.clientWidth : 99,
           };
         })()`);
         assert.match(layout.backdrop, /backdrop-art/);
@@ -518,6 +525,9 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         assert.match(layout.cardCover, /cover-art/);
         assert.equal(layout.cardPressed, 'true');
         assert.equal(layout.cardTabIndex, 0);
+        assert.ok(layout.leftDelta <= 2, JSON.stringify(layout));
+        assert.ok(layout.rightDelta <= 2, JSON.stringify(layout));
+        assert.ok(layout.overflowX <= 1, JSON.stringify(layout));
       });
     });
 
@@ -1292,6 +1302,67 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         assert.equal(searching.activeElementID, 'game-search');
         const typed = await harness.evaluate('document.getElementById("game-search")?.value || ""');
         assert.equal(typed, 's');
+      });
+
+      const narrowGames = [];
+      for (let index = 0; index < 8; index += 1) {
+        narrowGames.push({
+          id: `snes-grid-${index}`,
+          title: `Grid ${index}`,
+          system: 'snes',
+          kind: 'raw',
+          state: 'available',
+          root_online: true,
+          content_prepared: true,
+          execution: 'fpga_native',
+          variant_count: index === 1 ? 3 : 1,
+        });
+      }
+      const narrowPresentations = Object.fromEntries(narrowGames.map(game => [
+        game.id,
+        fixture('presentation-no-match.json', 200, { override: { game_id: game.id, state: 'no_match' } }),
+      ]));
+      const narrowDetails = Object.fromEntries(narrowGames.map(game => [
+        game.id,
+        fixture('detail-unknown.json', 200, { override: game }),
+      ]));
+      await runScenario(harness, 'keyboard-narrow-wall-and-card-meta', basePlan({
+        catalog: { '': fixture('catalog-populated.json', 200, { override: { games: narrowGames } }) },
+        details: narrowDetails,
+        presentations: narrowPresentations,
+      }), async () => {
+        await harness.setViewport(360, 800);
+        await harness.waitForCatalog('populated metadata_fallback');
+        await harness.evaluate(`(() => {
+          const nav = document.getElementById('nav-all');
+          if (nav) nav.focus();
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        })()`);
+        await harness.waitForSnapshot(item => item.cards.some(card => card.pressed));
+        await harness.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))`);
+        const jumped = await harness.waitForSnapshot(item => item.cards.some(card => card.pressed && card.title.includes('Grid 2')));
+        assert.equal(jumped.cards.find(card => card.pressed).title, 'Grid 2');
+
+        await harness.click('#catalog-list .game-card:nth-child(2)');
+        const meta = await harness.evaluate(`(() => {
+          const card = document.querySelector('#catalog-list .game-card.selected');
+          if (!card) return { missing: true };
+          const system = Array.from(card.querySelectorAll('.game-meta')).find(node => !node.classList.contains('game-meta-variant'));
+          const variant = card.querySelector('.game-meta-variant');
+          const note = card.querySelector('.fallback-note');
+          if (!system || !variant || !note) return { missing: true, className: card.className };
+          const sys = system.getBoundingClientRect();
+          const ver = variant.getBoundingClientRect();
+          return {
+            variantClass: variant.className,
+            noteTop: note.getBoundingClientRect().top < sys.top,
+            overlap: Math.max(0, Math.min(sys.bottom, ver.bottom) - Math.max(sys.top, ver.top)),
+          };
+        })()`);
+        assert.equal(meta.variantClass, 'game-meta game-meta-variant');
+        assert.equal(meta.noteTop, true);
+        assert.ok(meta.overlap < 1, JSON.stringify(meta));
+        await harness.clearViewport();
       });
     });
 
