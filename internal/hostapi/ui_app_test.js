@@ -2047,6 +2047,87 @@ test('rename keeps the original collection when the rail changes', async () => {
   assert.equal(writes.some(write => String(write.path).includes('/saturday')), false);
 });
 
+test('Escape and reopen during in-flight save keep the new editor and typed name', async () => {
+  let releaseWrite;
+  const writeStarted = [];
+  const gate = new Promise(resolve => { releaseWrite = resolve; });
+  const { document, writes } = await runCollectionEditorApp({
+    onWrite: async () => {
+      writeStarted.push(true);
+      if (writeStarted.length === 1) await gate;
+    },
+  });
+  document.nodes.get('create-collection').click();
+  document.nodes.get('collection-name').value = 'Weekend Queue';
+  document.nodes.get('save-collection').click();
+  await waitForCondition(() => writeStarted.length === 1, 'create PUT did not start');
+  document.nodes.get('collection-name').focus();
+  await pressKey(document, 'Escape', document.nodes.get('collection-name'));
+  document.nodes.get('create-collection').click();
+  document.nodes.get('collection-name').value = 'Saturday Night';
+  assert.equal(document.nodes.get('save-collection').hidden, false);
+  releaseWrite();
+  await settleBrowser();
+  await waitForCondition(() => writes.length === 1, 'in-flight create did not finish');
+  assert.equal(document.nodes.get('save-collection').hidden, false);
+  assert.equal(document.nodes.get('collection-name').value, 'Saturday Night');
+  assert.equal(document.nodes.get('collection-name-label').hidden, false);
+});
+
+test('older collection-list GET cannot overwrite a newer create or delete', async () => {
+  let listGets = 0;
+  let releaseStartup;
+  let releaseStaleDelete;
+  const startupList = new Promise(resolve => { releaseStartup = resolve; });
+  const staleDeleteList = new Promise(resolve => { releaseStaleDelete = resolve; });
+  const fetchImpl = async (requestPath, options) => {
+    const pathOnly = String(requestPath || '').split('?')[0];
+    if (pathOnly === '/api/v1/platforms') return jsonResponse({ platforms: [] });
+    if (pathOnly === '/api/v1/library/attract') return jsonResponse({ items: [], idle_seconds: 60 });
+    if (pathOnly === '/api/v1/library/facets') return jsonResponse({ genres: [], years: [] });
+    if (pathOnly === '/api/v1/games') return jsonResponse({ games: [] });
+    if (pathOnly === '/api/v1/library/collections') {
+      listGets += 1;
+      if (listGets === 1) {
+        await startupList;
+        return jsonResponse({ collections: [] });
+      }
+      if (listGets === 3) {
+        await staleDeleteList;
+        return jsonResponse({ collections: [{ id: 'weekend-queue', name: 'Weekend Queue', created_at: 11 }] });
+      }
+      if (listGets === 2) {
+        return jsonResponse({ collections: [{ id: 'weekend-queue', name: 'Weekend Queue', created_at: 11 }] });
+      }
+      return jsonResponse({ collections: [] });
+    }
+    if (pathOnly === '/api/v1/library/collections/weekend-queue') {
+      const method = options && options.method;
+      if (method === 'DELETE') return jsonResponse({ id: 'weekend-queue' });
+      return jsonResponse({ id: 'weekend-queue', name: 'Weekend Queue', created_at: 11 });
+    }
+    throw new Error(`unexpected collection list fixture ${requestPath}`);
+  };
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  const boot = controller.loadPlatforms();
+  await waitForCondition(() => listGets >= 1, 'startup collection list GET did not start');
+  await controller.createCollection('Weekend Queue');
+  assert.equal(controller.getState().collections.length, 1);
+  assert.equal(controller.getState().collections[0].id, 'weekend-queue');
+  releaseStartup();
+  await boot;
+  assert.equal(controller.getState().collections.length, 1);
+  assert.equal(controller.getState().collections[0].id, 'weekend-queue');
+
+  const bootAgain = controller.loadPlatforms();
+  await waitForCondition(() => listGets >= 3, 'overlapping collection list GET did not start');
+  await controller.deleteCollection('weekend-queue');
+  assert.deepEqual(controller.getState().collections, []);
+  releaseStaleDelete();
+  await bootAgain;
+  assert.deepEqual(controller.getState().collections, []);
+});
+
 test('custom collection rail items sit after smart collections', async () => {
   const { document } = await runBrowserApp({
     responses: [jsonResponse(readFixture('catalog-populated.json'))],

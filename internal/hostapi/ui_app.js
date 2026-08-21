@@ -940,6 +940,7 @@
       selectedGameView: null,
       selectedPresentation: null,
       requestSequence: 0,
+      collectionListSequence: 0,
       detailSequence: 0,
       presentationSequence: 0,
       selectionRevision: 0,
@@ -1545,14 +1546,18 @@
       next.push(parsed);
       next.sort((a, b) => (a.created_at - b.created_at) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
       state.collections = Object.freeze(next);
+      state.collectionListSequence += 1;
     }
 
     function dropCollection(id) {
       state.collections = Object.freeze((state.collections || []).filter(item => item.id !== id));
+      state.collectionListSequence += 1;
     }
 
     async function reloadCollections() {
+      const sequence = ++state.collectionListSequence;
       const payload = await request(fetchImpl, '/api/v1/library/collections');
+      if (sequence !== state.collectionListSequence) return;
       state.collections = parseCollectionList(payload);
     }
 
@@ -2175,13 +2180,16 @@
       } else {
         await controller.createCollection(name);
       }
+      if (collectionEditor !== editor) return;
       collectionEditor = null;
       if (nodes.collectionName) nodes.collectionName.value = '';
     } catch (_) {
       /* keep the same editor so retry stays on the original create/rename */
     } finally {
-      if (collectionEditor) collectionEditor.busy = false;
-      if (nodes.saveCollection) nodes.saveCollection.disabled = false;
+      if (collectionEditor === editor) {
+        editor.busy = false;
+        if (nodes.saveCollection) nodes.saveCollection.disabled = false;
+      }
       renderLibraryNav();
     }
   }
