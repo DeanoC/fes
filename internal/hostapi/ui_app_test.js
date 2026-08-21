@@ -1692,6 +1692,7 @@ test('session panel renders only accepted fields, reconstructs active title, and
   });
   const panel = document.nodes.get('session-panel');
   assert.equal(panel.attributes.get('aria-busy'), 'false');
+  assert.equal(panel.className, 'session-panel');
   assert.equal(document.nodes.get('session-status').textContent, 'Active session');
   const details = browserText(document.nodes.get('session-details'));
   assert.match(details, /Sonic the Hedgehog/);
@@ -1719,6 +1720,7 @@ test('session malformed state exposes a safe retry without leaking response fiel
     sessionResponses: [malformedJSONResponse(), jsonResponse(sessionFixture({ state: 'idle' }))],
   });
   assert.equal(document.nodes.get('session-status').textContent, 'The local host returned an invalid session response. Retry.');
+  assert.equal(document.nodes.get('session-panel').className, 'session-panel');
   assert.match(document.nodes.get('session-message').textContent, /invalid session response/i);
   await document.nodes.get('session-actions').children.find(node => node.id === 'refresh-session').click();
   assert.equal(document.nodes.get('session-status').textContent, 'No active session.');
@@ -2100,6 +2102,74 @@ test('ArrowDown and Enter on search still move to the cover wall', async () => {
   const enter = await pressKey(document, 'Enter', document.nodes.get('game-search'));
   assert.equal(enter.defaultPrevented, true);
   assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'grid');
+});
+
+test('idle session chrome stays quiet while controls remain available', async () => {
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse(readFixture('catalog-populated.json'))],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  const panel = document.nodes.get('session-panel');
+  assert.equal(document.nodes.get('session-status').textContent, 'No active session.');
+  assert.equal(panel.className, 'session-panel session-quiet');
+  assert.ok(document.nodes.get('session-actions').children.find(node => node.id === 'refresh-session'));
+  assert.ok(document.nodes.get('session-actions').children.find(node => node.id === 'stop-session'));
+});
+
+test('rich detail stacks hero cover with backdrop and skips video under reduced motion', async () => {
+  const handle = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  const adapter = {
+    metadataFor() {
+      return {
+        summary: 'Provider summary',
+        year: '1991',
+        genre: 'Platformer',
+        studio: 'SEGA',
+        players: '1 player',
+        coverArtworkHandle: handle,
+        backdropArtworkHandle: handle,
+        logoHandle: handle,
+        screenshotHandles: [handle],
+        videoHandle: handle,
+        isFallback: false,
+        metadataState: 'ready',
+      };
+    },
+  };
+  const reduced = await runBrowserApp({
+    adapter,
+    globals: { matchMedia: () => ({ matches: true }) },
+    responses: [
+      jsonResponse(readFixture('catalog-populated.json')),
+      jsonResponse(readFixture('detail-refreshed.json')),
+    ],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await reduced.document.nodes.get('catalog-list').children[0].click();
+  const reducedDetail = reduced.document.nodes.get('detail-content');
+  assert.equal(reducedDetail.children[0].className, 'backdrop-art image-art');
+  assert.equal(reducedDetail.children[1].className, 'detail-hero');
+  assert.equal(reducedDetail.children[1].children[0].className, 'cover-art image-art');
+  assert.ok(reducedDetail.children[1].children[1].children.some(child => String(child.className).includes('logo-art')));
+  assert.ok(reducedDetail.children.some(child => child.className === 'extra-stills'));
+  assert.equal(reducedDetail.children.some(child => child.className === 'detail-video'), false);
+
+  const motion = await runBrowserApp({
+    adapter,
+    globals: { matchMedia: () => ({ matches: false }) },
+    responses: [
+      jsonResponse(readFixture('catalog-populated.json')),
+      jsonResponse(readFixture('detail-refreshed.json')),
+    ],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await motion.document.nodes.get('catalog-list').children[0].click();
+  const motionDetail = motion.document.nodes.get('detail-content');
+  const video = motionDetail.children.find(child => child.className === 'detail-video');
+  assert.ok(video);
+  assert.equal(video.attributes.get('src'), `/api/v1/presentation/media/${handle}`);
+  assert.equal(video.muted, true);
+  assert.equal(video.attributes.get('muted'), '');
 });
 
 test('selected cards keep a visible selected and focus contract', async () => {

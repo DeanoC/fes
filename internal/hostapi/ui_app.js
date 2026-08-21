@@ -1864,10 +1864,19 @@
     }
   }
 
+  function sessionNeedsAttention() {
+    if (state.activeMutation) return true;
+    if (state.sessionMessage) return true;
+    if (state.launchState === 'launching' || state.launchState === 'launch_error') return true;
+    if (state.session && state.session.state === 'active') return true;
+    return ['active', 'stopping', 'error', 'unavailable', 'malformed'].includes(state.sessionPhase);
+  }
+
   function renderSession() {
     ensureSessionActions();
     const busy = Boolean(state.activeMutation) || state.sessionPhase === 'loading';
     nodes.sessionPanel.setAttribute('aria-busy', String(busy));
+    nodes.sessionPanel.className = sessionNeedsAttention() ? 'session-panel' : 'session-panel session-quiet';
     nodes.sessionStatus.textContent = sessionStatusText();
     nodes.sessionMessage.textContent = state.sessionMessage || '';
     renderSessionDetails();
@@ -1966,7 +1975,10 @@
     const spacer = element('div', 'wall-spacer');
     spacer.setAttribute('data-wall-spacer', edge);
     const rows = Math.ceil(count / wallColumns());
-    spacer.style.height = `${rows * 264}px`;
+    const width = Number(nodes.list && nodes.list.clientWidth) || 210;
+    const cols = wallColumns();
+    const cardWidth = Math.max(1, (width - 14 * Math.max(0, cols - 1)) / cols);
+    spacer.style.height = `${rows * Math.round(cardWidth * 1.5 + 14)}px`;
     nodes.list.appendChild(spacer);
     return spacer;
   }
@@ -2240,6 +2252,13 @@
     } else {
       const backdrop = artworkElement('backdrop', presentation.backdrop, presentation.backdropArtworkHandle, 'eager');
       nodes.detailContent.appendChild(backdrop);
+      const hero = element('div', 'detail-hero');
+      const coverHandle = presentation.coverArtworkHandle || game.cover;
+      hero.appendChild(artworkElement('cover', presentation.cover, coverHandle, 'eager'));
+      const heroCopy = element('div', 'detail-hero-copy');
+      if (presentation.logoHandle) heroCopy.appendChild(artworkElement('logo', null, presentation.logoHandle, 'lazy'));
+      hero.appendChild(heroCopy);
+      nodes.detailContent.appendChild(hero);
       nodes.detailContent.appendChild(element('p', 'eyebrow', 'Game'));
     }
     const heading = element('h2', '', detailHeading(game));
@@ -2256,7 +2275,7 @@
     }
     if (presentation.attribution) nodes.detailContent.appendChild(element('p', 'attribution', presentation.attribution));
     const facts = element('div', 'detail-facts');
-    [[systemLabel(game.system), 'System'], [sourceLabel(game.state), 'Status'], [game.content_prepared ? 'Prepared' : 'On demand', 'Staging'], [presentation.year !== '—' ? presentation.year : '', 'Year'], [presentation.players, 'Players']]
+    [[systemLabel(game.system), 'System'], [sourceLabel(game.state), 'Status'], [game.content_prepared ? 'Prepared' : 'On demand', 'Staging'], [presentation.year !== '—' ? presentation.year : '', 'Year'], [presentation.genre, 'Genre'], [presentation.studio, 'Studio'], [presentation.players, 'Players']]
       .filter(([value]) => value)
       .forEach(([value, label]) => {
       const fact = element('div', 'detail-fact');
@@ -2285,7 +2304,6 @@
       label.appendChild(select);
       nodes.detailContent.appendChild(label);
     }
-    if (presentation.logoHandle) nodes.detailContent.appendChild(artworkElement('logo', null, presentation.logoHandle, 'lazy'));
     if (presentation.marqueeHandle) {
       nodes.detailContent.appendChild(artworkElement('marquee', null, presentation.marqueeHandle, 'lazy'));
     }
@@ -2294,11 +2312,14 @@
       presentation.screenshotHandles.forEach(handle => stills.appendChild(artworkElement('screenshot', null, handle, 'lazy')));
       nodes.detailContent.appendChild(stills);
     }
-    if (presentation.videoHandle) {
+    if (presentation.videoHandle && !reducedMotion()) {
       const video = element('video', 'detail-video');
       video.setAttribute('src', mediaPath(presentation.videoHandle));
-      video.setAttribute('controls', '');
       video.muted = true;
+      video.autoplay = true;
+      video.loop = true;
+      video.setAttribute('muted', '');
+      video.setAttribute('playsinline', '');
       nodes.detailContent.appendChild(video);
     }
     if (state.detailState === 'detail_error') {

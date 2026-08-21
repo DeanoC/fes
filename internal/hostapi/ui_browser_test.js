@@ -488,6 +488,37 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         assert.match(snapshot.launchText, /session accepted/i);
         assert.equal(apiEvidence(harness).find(record => record.method === 'POST').path, '/api/v1/session/launch');
       });
+
+      await runScenario(harness, 'rich-detail-hero', basePlan({
+        presentations: {
+          [SONIC_ID]: fixture('presentation-artwork-ready.json'),
+          [UNKNOWN_ID]: fixture('presentation-no-match.json'),
+          'snes-offline-test': fixture('presentation-no-match.json'),
+        },
+      }), async () => {
+        await selectSonic(harness);
+        const layout = await harness.evaluate(`(() => {
+          const detail = document.getElementById('detail-content');
+          const hero = detail && detail.querySelector('.detail-hero');
+          const card = document.querySelector('#catalog-list .game-card.selected');
+          return {
+            backdrop: detail && detail.children[0] ? detail.children[0].className : '',
+            hero: hero ? hero.className : '',
+            cover: hero && hero.querySelector('.cover-art') ? hero.querySelector('.cover-art').className : '',
+            heading: document.getElementById('detail-heading')?.textContent || '',
+            cardCover: card && card.querySelector('.cover-art') ? card.querySelector('.cover-art').className : '',
+            cardPressed: card ? card.getAttribute('aria-pressed') : '',
+            cardTabIndex: card ? card.tabIndex : null,
+          };
+        })()`);
+        assert.match(layout.backdrop, /backdrop-art/);
+        assert.equal(layout.hero, 'detail-hero');
+        assert.match(layout.cover, /cover-art/);
+        assert.match(layout.heading, /Sonic/);
+        assert.match(layout.cardCover, /cover-art/);
+        assert.equal(layout.cardPressed, 'true');
+        assert.equal(layout.cardTabIndex, 0);
+      });
     });
 
     await t.test('production Chrome preserves independent optional text fields and rejects malformed values', async () => {
@@ -860,6 +891,8 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         assert.equal(snapshot.sessionBusy, 'false');
         assert.equal(snapshot.sessionStopHidden, true);
         assert.equal(snapshot.sessionStopDisabled, true);
+        const chrome = await harness.evaluate('document.getElementById("session-panel")?.className || ""');
+        assert.match(chrome, /session-quiet/);
         assertNoPrivateErrorText(snapshot);
       });
     });
@@ -870,6 +903,8 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
       }), async () => {
         await harness.waitForText('#session-details', 'Sonic the Hedgehog');
         let snapshot = await harness.snapshot();
+        const activeChrome = await harness.evaluate('document.getElementById("session-panel")?.className || ""');
+        assert.doesNotMatch(activeChrome, /session-quiet/);
         assert.match(snapshot.sessionText, /Sonic the Hedgehog/);
         assert.match(snapshot.sessionText, /Input stateattached.*Input readinessReady/);
         assert.equal(snapshot.detailHeading, 'Select a game');
