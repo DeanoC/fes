@@ -137,15 +137,16 @@ img.cover-art { width: 100%; object-fit: contain; object-position: center; backg
   transition: opacity .18s;
 }
 .game-card h3 {
-  bottom: 34px;
+  bottom: 46px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: .92rem;
+  line-height: 1.15;
   text-shadow: 0 1px 8px rgba(0, 0, 0, .7);
 }
-.game-card .game-meta { bottom: 14px; }
-.game-card .game-meta-variant { bottom: 2px; }
+.game-card .game-meta { bottom: 26px; line-height: 1.15; }
+.game-card .game-meta-variant { bottom: 6px; }
 .game-card .fallback-note { top: 10px; bottom: auto; }
 .game-card:hover h3, .game-card.selected h3, .game-card:focus-visible h3,
 .game-card:hover .game-meta, .game-card.selected .game-meta, .game-card:focus-visible .game-meta,

@@ -514,7 +514,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
             cardPressed: card ? card.getAttribute('aria-pressed') : '',
             cardTabIndex: card ? card.tabIndex : null,
             leftDelta: panelBox && backBox ? Math.abs(backBox.left - panelBox.left) : 99,
-            rightDelta: panelBox && backBox ? Math.abs(backBox.right - panelBox.right) : 99,
+            widthDelta: detail && backBox ? Math.abs(backBox.width - detail.clientWidth) : 99,
             overflowX: detail ? detail.scrollWidth - detail.clientWidth : 99,
           };
         })()`);
@@ -526,7 +526,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         assert.equal(layout.cardPressed, 'true');
         assert.equal(layout.cardTabIndex, 0);
         assert.ok(layout.leftDelta <= 2, JSON.stringify(layout));
-        assert.ok(layout.rightDelta <= 2, JSON.stringify(layout));
+        assert.ok(layout.widthDelta <= 2, JSON.stringify(layout));
         assert.ok(layout.overflowX <= 1, JSON.stringify(layout));
       });
     });
@@ -1303,7 +1303,9 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         const typed = await harness.evaluate('document.getElementById("game-search")?.value || ""');
         assert.equal(typed, 's');
       });
+    });
 
+    await t.test('narrow wall arrows follow visible columns and card meta does not overlap', async () => {
       const narrowGames = [];
       for (let index = 0; index < 8; index += 1) {
         narrowGames.push({
@@ -1331,17 +1333,29 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         details: narrowDetails,
         presentations: narrowPresentations,
       }), async () => {
-        await harness.setViewport(360, 800);
+        await harness.setViewport(420, 800);
+        await harness.reload();
         await harness.waitForCatalog('populated metadata_fallback');
-        await harness.evaluate(`(() => {
-          const nav = document.getElementById('nav-all');
-          if (nav) nav.focus();
-          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        const metrics = await harness.evaluate(`(() => {
+          const list = document.getElementById('catalog-list');
+          const style = getComputedStyle(list);
+          const cards = Array.from(list.querySelectorAll('.game-card'));
+          const firstTop = cards[0] ? cards[0].getBoundingClientRect().top : 0;
+          return {
+            clientWidth: list.clientWidth,
+            minTrack: style.getPropertyValue('--wall-min-track').trim(),
+            gap: style.columnGap,
+            visibleCols: cards.filter(card => Math.abs(card.getBoundingClientRect().top - firstTop) < 2).length,
+          };
         })()`);
+        assert.equal(metrics.minTrack, '140px', JSON.stringify(metrics));
+        assert.ok(metrics.visibleCols >= 2, JSON.stringify(metrics));
+        await harness.click('#catalog-list .game-card');
         await harness.waitForSnapshot(item => item.cards.some(card => card.pressed));
         await harness.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))`);
-        const jumped = await harness.waitForSnapshot(item => item.cards.some(card => card.pressed && card.title.includes('Grid 2')));
-        assert.equal(jumped.cards.find(card => card.pressed).title, 'Grid 2');
+        const expectedTitle = `Grid ${metrics.visibleCols}`;
+        const jumped = await harness.waitForSnapshot(item => item.cards.some(card => card.pressed && card.title === expectedTitle));
+        assert.equal(jumped.cards.find(card => card.pressed).title, expectedTitle);
 
         await harness.click('#catalog-list .game-card:nth-child(2)');
         const meta = await harness.evaluate(`(() => {
