@@ -1132,6 +1132,134 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
       });
     });
 
+    await t.test('Enter on favorite does not launch and filter selects keep native keys', async () => {
+      await runScenario(harness, 'keyboard-enter-controls', basePlan({
+        details: {
+          ...defaultDetails(),
+          [SONIC_ID]: {
+            ...fixture('detail-refreshed.json'),
+            variants: [
+              { ...fixture('detail-refreshed.json'), id: SONIC_ID },
+              { ...fixture('detail-refreshed.json'), id: 'megadrive-sonic-jp', title: 'Sonic (Japan)' },
+            ],
+          },
+        },
+      }), async () => {
+        await harness.waitForCatalog('populated metadata_fallback');
+        await harness.evaluate(`(() => {
+          document.getElementById('nav-all')?.focus();
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+        })()`);
+        await harness.waitForSnapshot(item => item.cards.some(card => card.pressed));
+        await harness.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))`);
+        await harness.waitForSnapshot(item => item.favoriteLabel === 'Favorite' || item.activeElementID === 'launch-game');
+        const favorite = await harness.evaluate(`(() => {
+          const node = document.getElementById('favorite-game');
+          if (!node) throw new Error('missing favorite control');
+          node.focus();
+          const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+          const stolen = !node.dispatchEvent(event) || event.defaultPrevented;
+          return {
+            stolen,
+            pane: document.getElementById('launcher')?.getAttribute('data-keyboard-pane'),
+            active: document.activeElement?.id || '',
+          };
+        })()`);
+        assert.equal(favorite.stolen, false, JSON.stringify(favorite));
+        assert.equal(
+          apiEvidence(harness).filter(record => record.method === 'POST' && record.path === '/api/v1/session/launch').length,
+          0,
+        );
+        const session = await harness.evaluate(`(() => {
+          const node = document.getElementById('refresh-session');
+          if (!node) throw new Error('missing session refresh control');
+          node.focus();
+          const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+          const stolen = !node.dispatchEvent(event) || event.defaultPrevented;
+          return { stolen, active: document.activeElement?.id || '' };
+        })()`);
+        assert.equal(session.stolen, false, JSON.stringify(session));
+        assert.equal(
+          apiEvidence(harness).filter(record => record.method === 'POST' && record.path === '/api/v1/session/launch').length,
+          0,
+        );
+        const filter = await harness.evaluate(`(() => {
+          const node = document.getElementById('filter-system');
+          if (!node) throw new Error('missing platform filter');
+          node.focus();
+          const down = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
+          const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+          const downStolen = !node.dispatchEvent(down) || down.defaultPrevented;
+          const enterStolen = !node.dispatchEvent(enter) || enter.defaultPrevented;
+          return {
+            downStolen,
+            enterStolen,
+            pane: document.getElementById('launcher')?.getAttribute('data-keyboard-pane'),
+          };
+        })()`);
+        assert.equal(filter.downStolen, false, JSON.stringify(filter));
+        assert.equal(filter.enterStolen, false, JSON.stringify(filter));
+        assert.notEqual(filter.pane, 'grid');
+        const version = await harness.evaluate(`(() => {
+          const node = document.getElementById('game-version');
+          if (!node) return { present: false };
+          node.focus();
+          const down = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
+          const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+          return {
+            present: true,
+            downStolen: !node.dispatchEvent(down) || down.defaultPrevented,
+            enterStolen: !node.dispatchEvent(enter) || enter.defaultPrevented,
+            pane: document.getElementById('launcher')?.getAttribute('data-keyboard-pane'),
+          };
+        })()`);
+        if (version.present) {
+          assert.equal(version.downStolen, false, JSON.stringify(version));
+          assert.equal(version.enterStolen, false, JSON.stringify(version));
+        }
+        const search = await harness.evaluate(`(() => {
+          const node = document.getElementById('game-search');
+          node.focus();
+          const down = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
+          const stolen = !node.dispatchEvent(down) || down.defaultPrevented;
+          return {
+            stolen,
+            pane: document.getElementById('launcher')?.getAttribute('data-keyboard-pane'),
+          };
+        })()`);
+        assert.equal(search.stolen, true, JSON.stringify(search));
+        assert.equal(search.pane, 'grid');
+        await harness.evaluate(`(() => {
+          const node = document.getElementById('launch-game');
+          if (!node) throw new Error('missing launch control');
+          node.focus();
+          node.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+        })()`);
+        await harness.waitForRequest({ method: 'POST', path: '/api/v1/session/launch' });
+      });
+    });
+
+    await t.test('keyboard path moves rail to grid to detail and type-to-search focuses search', async () => {
+      await runScenario(harness, 'keyboard-cover-wall', basePlan(), async () => {
+        await harness.waitForCatalog('populated metadata_fallback');
+        await harness.evaluate(`(() => {
+          const nav = document.getElementById('nav-all');
+          if (nav) nav.focus();
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+          return document.getElementById('launcher')?.getAttribute('data-keyboard-pane');
+        })()`);
+        await harness.waitForSnapshot(item => item.cards.some(card => card.pressed));
+        await harness.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`);
+        const detail = await harness.waitForSnapshot(item => item.activeElementID === 'launch-game' || item.detailHeading.includes('Sonic'));
+        assert.match(detail.detailHeading, /Sonic/);
+        await harness.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', bubbles: true }))`);
+        const searching = await harness.waitForSnapshot(item => item.activeElementID === 'game-search');
+        assert.equal(searching.activeElementID, 'game-search');
+        const typed = await harness.evaluate('document.getElementById("game-search")?.value || ""');
+        assert.equal(typed, 's');
+      });
+    });
+
     await t.test('idle attract overlay enters from a bounded playlist and exits on Escape', async () => {
       await runScenario(harness, 'attract-idle', basePlan({
         attractDisabled: false,

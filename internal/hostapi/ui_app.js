@@ -1710,6 +1710,8 @@
 
   let state;
   let controller;
+  let keyboardPane = 'rail';
+  let forceKeyboardRestore = false;
 
   const nodes = {
     health: document.getElementById('health'),
@@ -1903,6 +1905,11 @@
     return !state.collection && !state.platformQuery;
   }
 
+  function setRovingTab(node, selected) {
+    if (!node) return;
+    node.tabIndex = selected ? 0 : -1;
+  }
+
   function renderLibraryNav() {
     if (nodes.navAll) nodes.navAll.className = 'nav-item' + (navSelected('all') ? ' selected' : '');
     if (nodes.navContinue) nodes.navContinue.className = 'nav-item' + (navSelected('continue') ? ' selected' : '');
@@ -1910,15 +1917,26 @@
     if (nodes.navRecents) nodes.navRecents.className = 'nav-item' + (navSelected('recents') ? ' selected' : '');
     if (nodes.navUnplayed) nodes.navUnplayed.className = 'nav-item' + (navSelected('unplayed') ? ' selected' : '');
     if (nodes.navRecentlyAdded) nodes.navRecentlyAdded.className = 'nav-item' + (navSelected('recently_added') ? ' selected' : '');
+    setRovingTab(nodes.navAll, navSelected('all'));
+    setRovingTab(nodes.navContinue, navSelected('continue'));
+    setRovingTab(nodes.navFavorites, navSelected('favorites'));
+    setRovingTab(nodes.navRecents, navSelected('recents'));
+    setRovingTab(nodes.navUnplayed, navSelected('unplayed'));
+    setRovingTab(nodes.navRecentlyAdded, navSelected('recently_added'));
     if (!nodes.platformList) return;
     nodes.platformList.replaceChildren();
     (state.platforms || []).forEach(platform => {
-      const button = element('button', 'nav-item' + (navSelected('platform', platform.id) ? ' selected' : ''));
+      const selected = navSelected('platform', platform.id);
+      const button = element('button', 'nav-item' + (selected ? ' selected' : ''));
       button.type = 'button';
       button.setAttribute('data-platform', platform.id);
+      setRovingTab(button, selected);
       button.appendChild(element('span', '', platform.label || systemLabel(platform.id)));
       button.appendChild(element('span', 'platform-count', String(platform.game_count || 0)));
-      button.addEventListener('click', () => controller.setLibraryNav('', platform.id));
+      button.addEventListener('click', () => {
+        keyboardPane = 'rail';
+        controller.setLibraryNav('', platform.id);
+      });
       nodes.platformList.appendChild(button);
     });
   }
@@ -2168,7 +2186,11 @@
       card.appendChild(element('p', 'game-meta', `${game.variant_count} versions`));
     }
     if (game.title && cardTitle(game) !== game.title) card.setAttribute('title', game.title);
-    card.addEventListener('click', () => selectGame(liveGame.id));
+    card.tabIndex = selected || (!state.selectedLiveGame && !gameCardNodes().length) ? 0 : -1;
+    card.addEventListener('click', () => {
+      keyboardPane = 'grid';
+      return selectGame(liveGame.id);
+    });
     nodes.list.appendChild(card);
   }
 
@@ -2304,7 +2326,10 @@
     launch.id = 'launch-game';
     launch.disabled = !control.enabled;
     if (control.reason) launch.setAttribute('aria-describedby', reason.id);
-    launch.addEventListener('click', launchSelected);
+    launch.addEventListener('click', () => {
+      keyboardPane = 'detail';
+      return launchSelected();
+    });
     nodes.launchActions.appendChild(launch);
     nodes.launchActions.appendChild(reason);
   }
@@ -2361,6 +2386,12 @@
     if (previous && previous.activeMutation === 'stop' && next.sessionPhase === 'stopped') {
       focusWithoutScroll(refreshSessionButton);
     }
+    if (keyboardPane === 'grid' && !next.selectedLiveGame && next.catalogState === 'populated' && next.gameViews && next.gameViews.length) {
+      forceKeyboardRestore = true;
+      controller.selectGame(next.gameViews[0].live.id);
+      return;
+    }
+    restoreKeyboardFocus();
   }
 
   function attractIsDisabled() {
@@ -2473,20 +2504,268 @@
   }
 
   function typingTarget(target) {
-    const tag = String(target && target.tagName || '').toUpperCase();
+    if (!target) return false;
+    if (nodes.search && target === nodes.search) return true;
+    const tag = String(target.tagName || '').toUpperCase();
     return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+  }
+
+  function isSearchInput(target) {
+    return Boolean(target && (target === nodes.search || target.id === 'game-search'));
+  }
+
+  function isLaunchTarget(target) {
+    return Boolean(target && target.id === 'launch-game');
+  }
+
+  function isCoverWallTarget(target) {
+    if (!target) return false;
+    if (String(target.className || '').includes('game-card')) return true;
+    return Boolean(nodes.list && (target === nodes.list || target.parentNode === nodes.list));
   }
 
   function visibleGames() {
     return state.gameViews || [];
   }
 
-  function moveWall(delta) {
+  function nodeIsConnected(node) {
+    if (!node) return false;
+    if (typeof node.isConnected === 'boolean') return node.isConnected;
+    let current = node;
+    const seen = new Set();
+    while (current && !seen.has(current)) {
+      seen.add(current);
+      if (current.id && typeof document.getElementById === 'function' && document.getElementById(current.id) === current) {
+        return true;
+      }
+      current = current.parentNode;
+    }
+    return false;
+  }
+
+  function writePaneAttribute() {
+    const launcher = typeof document.getElementById === 'function' ? document.getElementById('launcher') : null;
+    if (launcher && typeof launcher.setAttribute === 'function') {
+      launcher.setAttribute('data-keyboard-pane', keyboardPane);
+    }
+  }
+
+  function railItems() {
+    const items = [
+      nodes.navAll,
+      nodes.navContinue,
+      nodes.navFavorites,
+      nodes.navRecents,
+      nodes.navUnplayed,
+      nodes.navRecentlyAdded,
+    ].filter(Boolean);
+    const platforms = nodes.platformList && nodes.platformList.children ? Array.from(nodes.platformList.children) : [];
+    platforms.forEach(item => {
+      if (item && String(item.className || '').includes('nav-item')) items.push(item);
+    });
+    return items;
+  }
+
+  function gameCardNodes() {
+    if (nodes.list && typeof nodes.list.querySelectorAll === 'function') {
+      try {
+        return Array.from(nodes.list.querySelectorAll('.game-card'));
+      } catch (_) {
+        /* fall through to children */
+      }
+    }
+    const children = nodes.list && nodes.list.children ? Array.from(nodes.list.children) : [];
+    return children.filter(child => String(child.className || '').includes('game-card'));
+  }
+
+  function detailLaunchButton() {
+    const byId = typeof document.getElementById === 'function' ? document.getElementById('launch-game') : null;
+    if (byId) return byId;
+    const children = nodes.launchActions && nodes.launchActions.children ? Array.from(nodes.launchActions.children) : [];
+    return children.find(child => child.id === 'launch-game') || null;
+  }
+
+  function selectedRailItem() {
+    const items = railItems();
+    return items.find(item => String(item.className || '').includes('selected')) || items[0] || null;
+  }
+
+  function selectedCardNode() {
+    const cards = gameCardNodes();
+    return cards.find(card => String(card.className || '').includes('selected') || card.getAttribute('aria-pressed') === 'true')
+      || cards[0]
+      || null;
+  }
+
+  function syncPaneFromTarget(target) {
+    if (!target) return;
+    if (nodes.search && (target === nodes.search || target.id === 'game-search')) {
+      keyboardPane = 'search';
+    } else if (railItems().includes(target) || (nodes.platformList && target.parentNode === nodes.platformList)) {
+      keyboardPane = 'rail';
+    } else if (String(target.className || '').includes('game-card') || (nodes.list && target.parentNode === nodes.list)) {
+      keyboardPane = 'grid';
+    } else if (target.id === 'launch-game' || target.id === 'favorite-game' || target.id === 'game-version'
+      || (nodes.detail && (target === nodes.detail || target.parentNode === nodes.detail
+        || target.parentNode === nodes.detailContent || target.parentNode === nodes.launchActions))) {
+      keyboardPane = 'detail';
+    }
+    writePaneAttribute();
+  }
+
+  function restoreKeyboardFocus() {
+    if (attractActive) return;
+    const active = typeof document !== 'undefined' ? document.activeElement : null;
+    if (!forceKeyboardRestore && active && nodeIsConnected(active)) {
+      syncPaneFromTarget(active);
+      writePaneAttribute();
+      return;
+    }
+    forceKeyboardRestore = false;
+    if (keyboardPane === 'search') {
+      focusWithoutScroll(nodes.search);
+    } else if (keyboardPane === 'rail') {
+      focusWithoutScroll(selectedRailItem());
+    } else if (keyboardPane === 'detail') {
+      focusWithoutScroll(detailLaunchButton() || nodes.detail);
+    } else {
+      keyboardPane = 'grid';
+      focusWithoutScroll(selectedCardNode() || nodes.list);
+    }
+    writePaneAttribute();
+  }
+
+  function setKeyboardPane(pane) {
+    keyboardPane = pane;
+    forceKeyboardRestore = true;
+    writePaneAttribute();
+    restoreKeyboardFocus();
+  }
+
+  function notifySearchInput() {
+    if (!nodes.search) return;
+    if (typeof Event === 'function' && typeof nodes.search.dispatchEvent === 'function') {
+      try {
+        nodes.search.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      } catch (_) {
+        /* fall through to stored listener */
+      }
+    }
+    const listener = nodes.search.listeners && typeof nodes.search.listeners.get === 'function'
+      ? nodes.search.listeners.get('input')
+      : null;
+    if (typeof listener === 'function') listener({ target: nodes.search });
+  }
+
+  function typeToSearch(key) {
+    if (!nodes.search) return;
+    keyboardPane = 'search';
+    if (key && key !== '/') nodes.search.value = String(key);
+    forceKeyboardRestore = true;
+    focusWithoutScroll(nodes.search);
+    writePaneAttribute();
+    if (key && key !== '/') notifySearchInput();
+  }
+
+  function isTypeToSearchKey(event) {
+    if (!event || event.ctrlKey || event.metaKey || event.altKey) return false;
+    const key = event.key;
+    if (key === '/') return true;
+    if (!key || key.length !== 1 || key === ' ') return false;
+    return key !== '\u0000' && !/[\u0000-\u001f]/.test(key);
+  }
+
+  function focusedRailIndex() {
+    const items = railItems();
+    const active = typeof document !== 'undefined' ? document.activeElement : null;
+    const fromFocus = items.findIndex(item => item === active);
+    if (fromFocus >= 0) return fromFocus;
+    const fromSelected = items.findIndex(item => String(item.className || '').includes('selected'));
+    return fromSelected >= 0 ? fromSelected : 0;
+  }
+
+  function moveRail(delta) {
+    const items = railItems();
+    if (!items.length) return;
+    const current = focusedRailIndex();
+    const next = Math.max(0, Math.min(items.length - 1, current + delta));
+    keyboardPane = 'rail';
+    forceKeyboardRestore = true;
+    focusWithoutScroll(items[next]);
+    writePaneAttribute();
+  }
+
+  async function commitRail(item) {
+    const target = item || railItems()[focusedRailIndex()] || selectedRailItem();
+    if (target && typeof target.click === 'function') await target.click();
+    keyboardPane = 'grid';
+    forceKeyboardRestore = true;
+    writePaneAttribute();
+    if (!state.selectedLiveGame && visibleGames().length) {
+      await controller.selectGame(visibleGames()[0].live.id);
+      return;
+    }
+    restoreKeyboardFocus();
+  }
+
+  function enterDetail() {
     const visible = visibleGames();
-    if (!visible.length) return;
+    keyboardPane = 'detail';
+    forceKeyboardRestore = true;
+    writePaneAttribute();
+    if (!state.selectedLiveGame && visible.length) {
+      controller.selectGame(visible[0].live.id);
+      return;
+    }
+    restoreKeyboardFocus();
+  }
+
+  async function ensureMoreCatalog(index) {
+    if (!state.nextCursor) return;
+    const visible = visibleGames();
+    const cols = wallColumns();
+    if (index < visible.length - Math.max(1, cols)) return;
+    await controller.loadMoreCatalog();
+  }
+
+  async function moveWall(delta) {
+    const visible = visibleGames();
+    if (!visible.length) {
+      if (state.nextCursor) await controller.loadMoreCatalog();
+      return;
+    }
     const current = visible.findIndex(item => isSelectedGame(state.selectedLiveGame, item.live));
     const next = current < 0 ? 0 : Math.max(0, Math.min(visible.length - 1, current + delta));
-    controller.selectGame(visible[next].live.id);
+    keyboardPane = 'grid';
+    forceKeyboardRestore = true;
+    await controller.selectGame(visible[next].live.id);
+    await ensureMoreCatalog(next);
+  }
+
+  async function jumpWall(edge) {
+    keyboardPane = 'grid';
+    forceKeyboardRestore = true;
+    if (edge === 'end' && state.nextCursor) await controller.loadMoreCatalog();
+    const visible = visibleGames();
+    if (!visible.length) return;
+    const index = edge === 'end' ? visible.length - 1 : 0;
+    await controller.selectGame(visible[index].live.id);
+    if (edge === 'end') await ensureMoreCatalog(index);
+  }
+
+  function moveGrid(key) {
+    const cols = wallColumns();
+    const visible = visibleGames();
+    const current = visible.findIndex(item => isSelectedGame(state.selectedLiveGame, item.live));
+    if (key === 'ArrowLeft' && (current <= 0 || current % cols === 0)) {
+      setKeyboardPane('rail');
+      return;
+    }
+    if (key === 'ArrowRight') return moveWall(1);
+    if (key === 'ArrowLeft') return moveWall(-1);
+    if (key === 'ArrowDown') return moveWall(cols);
+    if (key === 'ArrowUp') return moveWall(current >= 0 && current < cols ? -current : -cols);
   }
 
   controller = createAppController({
@@ -2508,12 +2787,12 @@
   if (nodes.hidePrerelease) nodes.hidePrerelease.addEventListener('change', () => controller.setCatalogFilter('hide_prerelease', nodes.hidePrerelease.checked));
   if (nodes.hideHacks) nodes.hideHacks.addEventListener('change', () => controller.setCatalogFilter('hide_hacks', nodes.hideHacks.checked));
   if (nodes.availabilityFilter) nodes.availabilityFilter.addEventListener('change', () => controller.setCatalogFilter('availability', nodes.availabilityFilter.value));
-  if (nodes.navAll) nodes.navAll.addEventListener('click', () => controller.setLibraryNav('', ''));
-  if (nodes.navContinue) nodes.navContinue.addEventListener('click', () => controller.setLibraryNav('continue', ''));
-  if (nodes.navFavorites) nodes.navFavorites.addEventListener('click', () => controller.setLibraryNav('favorites', ''));
-  if (nodes.navRecents) nodes.navRecents.addEventListener('click', () => controller.setLibraryNav('recents', ''));
-  if (nodes.navUnplayed) nodes.navUnplayed.addEventListener('click', () => controller.setLibraryNav('unplayed', ''));
-  if (nodes.navRecentlyAdded) nodes.navRecentlyAdded.addEventListener('click', () => controller.setLibraryNav('recently_added', ''));
+  if (nodes.navAll) nodes.navAll.addEventListener('click', () => { keyboardPane = 'rail'; return controller.setLibraryNav('', ''); });
+  if (nodes.navContinue) nodes.navContinue.addEventListener('click', () => { keyboardPane = 'rail'; return controller.setLibraryNav('continue', ''); });
+  if (nodes.navFavorites) nodes.navFavorites.addEventListener('click', () => { keyboardPane = 'rail'; return controller.setLibraryNav('favorites', ''); });
+  if (nodes.navRecents) nodes.navRecents.addEventListener('click', () => { keyboardPane = 'rail'; return controller.setLibraryNav('recents', ''); });
+  if (nodes.navUnplayed) nodes.navUnplayed.addEventListener('click', () => { keyboardPane = 'rail'; return controller.setLibraryNav('unplayed', ''); });
+  if (nodes.navRecentlyAdded) nodes.navRecentlyAdded.addEventListener('click', () => { keyboardPane = 'rail'; return controller.setLibraryNav('recently_added', ''); });
   if (typeof document.addEventListener === 'function') {
     document.addEventListener('keydown', event => {
       if (attractActive) {
@@ -2521,36 +2800,91 @@
         exitAttract();
         return;
       }
-      if (typingTarget(event.target)) return;
-      if (event.key === 'Escape') {
-        exitAttract();
+      if (typingTarget(event.target)) {
+        if (isSearchInput(event.target)) {
+          if (event.key === 'Escape') {
+            event.preventDefault?.();
+            if (nodes.search) nodes.search.blur?.();
+            setKeyboardPane(state.selectedLiveGame ? 'grid' : 'rail');
+          } else if (event.key === 'ArrowDown' || event.key === 'Enter') {
+            event.preventDefault?.();
+            setKeyboardPane('grid');
+            if (!state.selectedLiveGame && visibleGames().length) {
+              void controller.selectGame(visibleGames()[0].live.id);
+            }
+          }
+        }
         return;
       }
-      if (event.key === 'f' || event.key === 'F') {
-        controller.toggleFavorite();
+      if (isTypeToSearchKey(event)) {
+        event.preventDefault?.();
+        typeToSearch(event.key);
+        return;
+      }
+      syncPaneFromTarget(event.target);
+      if (event.key === 'Escape') {
+        event.preventDefault?.();
+        if (keyboardPane === 'detail') setKeyboardPane('grid');
+        else if (keyboardPane === 'grid') setKeyboardPane('rail');
+        else if (keyboardPane === 'search') setKeyboardPane(state.selectedLiveGame ? 'grid' : 'rail');
         return;
       }
       if (event.key === 'Enter') {
-        launchSelected();
+        if (keyboardPane === 'rail') {
+          event.preventDefault?.();
+          return commitRail();
+        }
+        if (keyboardPane === 'grid' && isCoverWallTarget(event.target)) {
+          event.preventDefault?.();
+          return enterDetail();
+        }
+        if (keyboardPane === 'detail' && isLaunchTarget(event.target)) {
+          event.preventDefault?.();
+          return launchSelected();
+        }
+        if (keyboardPane === 'search' && isSearchInput(event.target)) {
+          event.preventDefault?.();
+          setKeyboardPane('grid');
+        }
         return;
       }
-      if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      if (event.key === 'Home' || event.key === 'End') {
         event.preventDefault?.();
-        moveWall(1);
-        return;
+        if (keyboardPane === 'rail') {
+          const items = railItems();
+          if (!items.length) return;
+          keyboardPane = 'rail';
+          forceKeyboardRestore = true;
+          focusWithoutScroll(event.key === 'Home' ? items[0] : items[items.length - 1]);
+          writePaneAttribute();
+          return;
+        }
+        return jumpWall(event.key === 'Home' ? 'start' : 'end');
       }
-      if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      if (event.key === 'ArrowRight' || event.key === 'ArrowLeft' || event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault?.();
-        moveWall(-1);
+        if (keyboardPane === 'rail') {
+          if (event.key === 'ArrowRight') return commitRail();
+          if (event.key === 'ArrowDown') moveRail(1);
+          else if (event.key === 'ArrowUp') moveRail(-1);
+          return;
+        }
+        if (keyboardPane === 'detail') {
+          if (event.key === 'ArrowLeft') setKeyboardPane('grid');
+          return;
+        }
+        if (keyboardPane !== 'grid') setKeyboardPane('grid');
+        return moveGrid(event.key);
       }
     });
     document.addEventListener('pointerdown', exitAttract);
     if (!(Number(root.FogCastAttractIdleMs) > 0)) {
       document.addEventListener('mousemove', resetAttractTimer);
     }
-    document.addEventListener('focusin', () => {
+    document.addEventListener('focusin', event => {
       if (attractActive) exitAttract();
       else resetAttractTimer();
+      syncPaneFromTarget(event && event.target);
     });
   }
   if (nodes.attract) {
@@ -2561,6 +2895,7 @@
   renderLibraryNav();
   renderDetail(null);
   renderSession();
+  writePaneAttribute();
   void loadSession();
   void loadCatalog();
   void controller.loadPlatforms();

@@ -56,6 +56,10 @@ input { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding:
 .wall-spacer, .wall-sentinel { grid-column: 1 / -1; pointer-events: none; }
 .game-card { min-height: 250px; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 12px; padding: 14px; overflow: hidden; background: var(--surface); box-shadow: var(--shadow); text-align: left; transition: border-color .18s, transform .18s; }
 .game-card:hover, .game-card.selected { border-color: var(--accent); transform: translateY(-2px); }
+.game-card:focus, .nav-item:focus { z-index: 1; }
+.game-card.selected:focus-visible, .nav-item.selected:focus-visible {
+  outline-color: var(--accent-cool);
+}
 .cover-art, .backdrop-art { position: relative; overflow: hidden; border-radius: 9px; }
 .cover-art { height: 230px; min-height: 230px; margin-bottom: 12px; background: var(--palette, rgba(255,255,255,.03)); }
 img.cover-art { width: 100%; object-fit: contain; object-position: center; background: transparent; }
@@ -131,4 +135,5 @@ img.cover-art { width: 100%; object-fit: contain; object-position: center; backg
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+  .game-card:hover, .game-card.selected { transform: none; }
 }

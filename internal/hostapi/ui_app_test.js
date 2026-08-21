@@ -57,9 +57,10 @@ function queuedFetch(responses) {
 }
 
 class BrowserTestElement {
-  constructor(tagName, id = '') {
+  constructor(tagName, id = '', owner = null) {
     this.tagName = tagName.toUpperCase();
-    this.id = id;
+    this._id = id;
+    this.ownerDocument = owner;
     this.children = [];
     this.attributes = new Map();
     this.listeners = new Map();
@@ -69,9 +70,20 @@ class BrowserTestElement {
     this.disabled = false;
     this.hidden = false;
     this.focused = false;
+    this.tabIndex = 0;
     this.style = {};
-    this.clientWidth = 0;
+    this.clientWidth = 896;
     this.parentNode = null;
+    if (owner && id) owner.nodes.set(id, this);
+  }
+
+  get id() {
+    return this._id;
+  }
+
+  set id(value) {
+    this._id = String(value || '');
+    if (this.ownerDocument && this._id) this.ownerDocument.nodes.set(this._id, this);
   }
 
   appendChild(child) {
@@ -88,6 +100,13 @@ class BrowserTestElement {
 
   setAttribute(name, value) {
     this.attributes.set(name, String(value));
+    if (name === 'data-keyboard-pane' && this.ownerDocument) {
+      this.ownerDocument.keyboardPane = String(value);
+    }
+  }
+
+  getAttribute(name) {
+    return this.attributes.has(name) ? this.attributes.get(name) : null;
   }
 
   removeAttribute(name) {
@@ -98,41 +117,75 @@ class BrowserTestElement {
     this.listeners.set(name, listener);
   }
 
+  dispatchEvent(event) {
+    const listener = this.listeners.get(event && event.type);
+    return listener ? listener(event) : undefined;
+  }
+
   click() {
     const listener = this.listeners.get('click');
     return listener ? listener({ currentTarget: this }) : undefined;
   }
 
   focus() {
+    if (this.ownerDocument && this.ownerDocument.activeElement && this.ownerDocument.activeElement !== this) {
+      this.ownerDocument.activeElement.focused = false;
+    }
     this.focused = true;
+    if (this.ownerDocument) this.ownerDocument.activeElement = this;
+  }
+
+  blur() {
+    this.focused = false;
+    if (this.ownerDocument && this.ownerDocument.activeElement === this) {
+      this.ownerDocument.activeElement = null;
+    }
   }
 }
 
 function browserDocument() {
+  const tagById = {
+    'game-search': 'input',
+    'nav-all': 'button',
+    'nav-continue': 'button',
+    'nav-favorites': 'button',
+    'nav-recents': 'button',
+    'nav-unplayed': 'button',
+    'nav-recently-added': 'button',
+    'refresh-catalog': 'button',
+    'filter-system': 'select',
+    'launcher': 'main',
+  };
   const ids = [
-    'health', 'game-search', 'refresh-catalog', 'catalog', 'catalog-status',
+    'launcher', 'health', 'game-search', 'refresh-catalog', 'filter-system', 'catalog', 'catalog-status',
     'catalog-list', 'catalog-actions', 'detail', 'detail-content',
     'launch-actions', 'launch-status', 'session-panel', 'session-status',
     'session-details', 'session-actions', 'session-message',
-    'nav-all', 'nav-favorites', 'nav-recents', 'platform-list',
+    'nav-all', 'nav-continue', 'nav-favorites', 'nav-recents', 'nav-unplayed',
+    'nav-recently-added', 'platform-list',
     'attract', 'attract-title', 'attract-stage',
   ];
-  const nodes = new Map(ids.map(id => [id, new BrowserTestElement('div', id)]));
-  nodes.get('attract').hidden = true;
-  const listeners = new Map();
-  return {
-    nodes,
-    listeners,
+  const document = {
+    nodes: new Map(),
+    listeners: new Map(),
+    activeElement: null,
+    keyboardPane: 'rail',
     createElement(tagName) {
-      return new BrowserTestElement(tagName);
+      return new BrowserTestElement(tagName, '', document);
     },
     getElementById(id) {
-      return nodes.get(id) || null;
+      return document.nodes.get(id) || null;
     },
     addEventListener(name, listener) {
-      listeners.set(name, listener);
+      document.listeners.set(name, listener);
     },
   };
+  ids.forEach(id => {
+    document.nodes.set(id, new BrowserTestElement(tagById[id] || 'div', id, document));
+  });
+  document.nodes.get('attract').hidden = true;
+  document.nodes.get('catalog-list').clientWidth = 896;
+  return document;
 }
 
 function browserText(node) {
@@ -1788,4 +1841,275 @@ test('attract idle seconds follow the host API when no override is set', async (
   await controller.loadPlatforms();
   assert.equal(controller.getState().attractIdleSeconds, 12);
   assert.equal(calls[1].path, '/api/v1/library/attract?limit=1');
+});
+
+function availableGame(id, title, overrides = {}) {
+  return {
+    id,
+    title,
+    system: 'snes',
+    kind: 'raw',
+    state: 'available',
+    root_online: true,
+    content_prepared: true,
+    execution: 'fpga_native',
+    ...overrides,
+  };
+}
+
+function gameCards(document) {
+  return document.nodes.get('catalog-list').children.filter(child => String(child.className).includes('game-card'));
+}
+
+function selectedCard(document) {
+  return gameCards(document).find(card => card.attributes.get('aria-pressed') === 'true') || null;
+}
+
+async function pressKey(document, key, target = document.activeElement) {
+  const event = { key, target, preventDefault() { event.defaultPrevented = true; } };
+  await document.listeners.get('keydown')(event);
+  await settleBrowser();
+  return event;
+}
+
+async function runKeyboardApp({ pages, platforms, launchResponse } = {}) {
+  const catalogPages = pages || [{
+    games: readFixture('catalog-populated.json').games,
+    next_cursor: '',
+  }];
+  const allGames = catalogPages.flatMap(page => page.games);
+  const document = browserDocument();
+  const calls = [];
+  const fetch = async (requestPath, options) => {
+    const [pathOnly, query = ''] = String(requestPath || '').split('?');
+    const params = new URLSearchParams(query);
+    if (pathOnly === '/api/v1/platforms') {
+      return jsonResponse({ platforms: platforms || [] });
+    }
+    if (pathOnly === '/api/v1/library/attract') {
+      return jsonResponse({ items: [], idle_seconds: 60 });
+    }
+    if (pathOnly === '/api/v1/library/facets') {
+      return jsonResponse({ genres: [], years: [] });
+    }
+    if (pathOnly === '/api/v1/session') {
+      return jsonResponse({ state: 'idle' });
+    }
+    if (pathOnly === '/api/v1/session/launch') {
+      calls.push({ path: requestPath, options });
+      return jsonResponse(launchResponse || { state: 'active', game_id: allGames[0].id });
+    }
+    if (pathOnly.startsWith('/api/v1/library/favorites/')) {
+      calls.push({ path: requestPath, options });
+      return jsonResponse({ favorite: (options && options.method) === 'PUT' });
+    }
+    if (pathOnly === '/api/v1/games') {
+      calls.push({ path: requestPath, options });
+      const cursor = params.get('cursor') || '';
+      const page = catalogPages.find(item => (item.cursor || '') === cursor) || catalogPages[0];
+      return jsonResponse({
+        games: page.games,
+        next_cursor: page.next_cursor || '',
+      });
+    }
+    if (pathOnly.startsWith('/api/v1/games/')) {
+      const id = decodeURIComponent(pathOnly.slice('/api/v1/games/'.length));
+      const game = allGames.find(item => item.id === id) || availableGame(id, id);
+      return jsonResponse(game);
+    }
+    throw new Error(`unexpected keyboard fixture path ${requestPath}`);
+  };
+  const context = {
+    document,
+    fetch,
+    FogCastAttractDisabled: true,
+    setTimeout,
+    clearTimeout,
+  };
+  vm.runInNewContext(readAsset('ui_app.js'), context, { filename: 'ui_app.js' });
+  await settleBrowser();
+  return { document, calls };
+}
+
+test('keyboard path moves rail to grid to detail to launch', async () => {
+  const { document, calls } = await runKeyboardApp();
+  await settleBrowser();
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'rail');
+  assert.equal(document.activeElement, document.nodes.get('nav-all'));
+
+  await pressKey(document, 'ArrowDown');
+  assert.equal(document.activeElement, document.nodes.get('nav-continue'));
+  await pressKey(document, 'Home');
+  assert.equal(document.activeElement, document.nodes.get('nav-all'));
+  await pressKey(document, 'End');
+  assert.equal(document.activeElement, document.nodes.get('nav-recently-added'));
+  await pressKey(document, 'Home');
+  await pressKey(document, 'Enter');
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'grid');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'megadrive-sonic-test');
+  assert.equal(document.activeElement.attributes.get('data-game-id'), 'megadrive-sonic-test');
+
+  await pressKey(document, 'ArrowRight');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'snes-unknown-test');
+
+  await pressKey(document, 'Home');
+  await pressKey(document, 'Enter');
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'detail');
+  assert.equal(document.activeElement.id, 'launch-game');
+  assert.match(document.nodes.get('detail-content').children.map(node => node.textContent).join(' '), /Sonic/);
+
+  await pressKey(document, 'Enter');
+  assert.equal(calls.some(call => call.path === '/api/v1/session/launch'), true);
+  const launch = calls.find(call => call.path === '/api/v1/session/launch');
+  assert.equal(launch.options.method, 'POST');
+  assert.equal(JSON.parse(launch.options.body).game_id, 'megadrive-sonic-test');
+
+  await pressKey(document, 'Escape');
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'grid');
+  await pressKey(document, 'Escape');
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'rail');
+  assert.equal(document.activeElement, document.nodes.get('nav-all'));
+});
+
+test('type-to-search focuses the search field from the cover wall', async () => {
+  const { document, calls } = await runKeyboardApp();
+  await settleBrowser();
+  await pressKey(document, 'Enter');
+  const before = calls.filter(call => String(call.path).startsWith('/api/v1/games')).length;
+  await pressKey(document, 's');
+  assert.equal(document.activeElement, document.nodes.get('game-search'));
+  assert.equal(document.nodes.get('game-search').value, 's');
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'search');
+  await new Promise(resolve => setTimeout(resolve, 200));
+  await settleBrowser();
+  assert.ok(calls.filter(call => String(call.path).startsWith('/api/v1/games')).length > before);
+  assert.match(calls.at(-1).path, /[?&]q=s/);
+  await pressKey(document, 'Escape', document.nodes.get('game-search'));
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'grid');
+});
+
+test('grid Home/End and end-of-page arrows keep the games cursor', async () => {
+  const pageOne = [];
+  const pageTwo = [];
+  for (let index = 0; index < 4; index += 1) {
+    pageOne.push(availableGame(`snes-page1-${index}`, `Alpha ${index}`));
+    pageTwo.push(availableGame(`snes-page2-${index}`, `Bravo ${index}`));
+  }
+  const { document, calls } = await runKeyboardApp({
+    pages: [
+      { games: pageOne, next_cursor: 'cursor-1' },
+      { cursor: 'cursor-1', games: pageTwo, next_cursor: '' },
+    ],
+  });
+  await settleBrowser();
+  await pressKey(document, 'Enter');
+  assert.equal(gameCards(document).length, 4);
+  await pressKey(document, 'End');
+  assert.ok(calls.some(call => String(call.path).includes('cursor=cursor-1')));
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'snes-page2-3');
+  await pressKey(document, 'Home');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'snes-page1-0');
+  await pressKey(document, 'End');
+  await pressKey(document, 'ArrowRight');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'snes-page2-3');
+});
+
+test('grid arrows move by cover-wall columns and left edge returns to the rail', async () => {
+  const games = [];
+  for (let index = 0; index < 8; index += 1) {
+    games.push(availableGame(`snes-grid-${index}`, `Grid ${index}`));
+  }
+  const { document } = await runKeyboardApp({ pages: [{ games }] });
+  await settleBrowser();
+  document.nodes.get('catalog-list').clientWidth = 896;
+  await pressKey(document, 'Enter');
+  await pressKey(document, 'ArrowDown');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'snes-grid-4');
+  await pressKey(document, 'ArrowUp');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'snes-grid-0');
+  await pressKey(document, 'ArrowLeft');
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'rail');
+  assert.equal(document.activeElement.className.includes('nav-item'), true);
+});
+
+test('Enter on favorite or session controls does not launch', async () => {
+  const { document, calls } = await runKeyboardApp();
+  await settleBrowser();
+  await pressKey(document, 'Enter');
+  await pressKey(document, 'Enter');
+  assert.equal(document.activeElement.id, 'launch-game');
+  const before = calls.filter(call => call.path === '/api/v1/session/launch').length;
+
+  const favorite = document.getElementById('favorite-game');
+  favorite.focus();
+  const favoriteEnter = await pressKey(document, 'Enter', favorite);
+  assert.equal(favoriteEnter.defaultPrevented, undefined);
+  assert.equal(calls.filter(call => call.path === '/api/v1/session/launch').length, before);
+
+  const refresh = document.getElementById('refresh-session');
+  refresh.focus();
+  const refreshEnter = await pressKey(document, 'Enter', refresh);
+  assert.equal(refreshEnter.defaultPrevented, undefined);
+  assert.equal(calls.filter(call => call.path === '/api/v1/session/launch').length, before);
+
+  const launch = document.getElementById('launch-game');
+  launch.focus();
+  const launchEnter = await pressKey(document, 'Enter', launch);
+  assert.equal(launchEnter.defaultPrevented, true);
+  assert.equal(calls.filter(call => call.path === '/api/v1/session/launch').length, before + 1);
+});
+
+test('catalog filter and version selects keep native ArrowDown and Enter', async () => {
+  const sonic = {
+    ...readFixture('catalog-populated.json').games[0],
+    variants: [
+      availableGame('megadrive-sonic-test', 'Sonic the Hedgehog', { system: 'megadrive' }),
+      availableGame('megadrive-sonic-jp', 'Sonic the Hedgehog (Japan)', { system: 'megadrive' }),
+    ],
+  };
+  const { document } = await runKeyboardApp({ pages: [{ games: [sonic] }] });
+  await settleBrowser();
+  const filter = document.getElementById('filter-system');
+  filter.focus();
+  const filterArrow = await pressKey(document, 'ArrowDown', filter);
+  const filterEnter = await pressKey(document, 'Enter', filter);
+  assert.equal(filterArrow.defaultPrevented, undefined);
+  assert.equal(filterEnter.defaultPrevented, undefined);
+  assert.notEqual(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'grid');
+
+  await pressKey(document, 'Enter', document.nodes.get('nav-all'));
+  await pressKey(document, 'Enter');
+  const version = document.getElementById('game-version');
+  assert.ok(version);
+  version.focus();
+  const versionArrow = await pressKey(document, 'ArrowDown', version);
+  const versionEnter = await pressKey(document, 'Enter', version);
+  assert.equal(versionArrow.defaultPrevented, undefined);
+  assert.equal(versionEnter.defaultPrevented, undefined);
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'detail');
+});
+
+test('ArrowDown and Enter on search still move to the cover wall', async () => {
+  const { document } = await runKeyboardApp();
+  await settleBrowser();
+  document.nodes.get('game-search').focus();
+  const down = await pressKey(document, 'ArrowDown', document.nodes.get('game-search'));
+  assert.equal(down.defaultPrevented, true);
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'grid');
+  document.nodes.get('game-search').focus();
+  const enter = await pressKey(document, 'Enter', document.nodes.get('game-search'));
+  assert.equal(enter.defaultPrevented, true);
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'grid');
+});
+
+test('selected cards keep a visible selected and focus contract', async () => {
+  const { document } = await runKeyboardApp();
+  await settleBrowser();
+  await pressKey(document, 'Enter');
+  const card = selectedCard(document);
+  assert.ok(card.className.includes('selected'));
+  assert.equal(card.tabIndex, 0);
+  assert.equal(card.focused, true);
+  const others = gameCards(document).filter(item => item !== card);
+  assert.ok(others.every(item => item.tabIndex === -1));
 });

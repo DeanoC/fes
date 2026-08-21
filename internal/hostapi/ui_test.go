@@ -86,6 +86,7 @@ func TestUISemanticAccessibilityAndResponsiveShell(t *testing.T) {
 	for _, token := range []string{
 		"viewport", "<main", "<h1", "aria-label", "aria-live=\"polite\"", "aria-busy",
 		"<button", "<input", ":focus-visible", "@media",
+		`id="keyboard-help"`, "Type to search", "data-keyboard-pane",
 	} {
 		if !strings.Contains(html, token) {
 			t.Fatalf("assembled UI is missing accessibility/responsive token %q", token)
