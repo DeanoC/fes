@@ -150,6 +150,15 @@ function normalizePlan(plan = {}) {
   for (const [query, value] of Object.entries(catalog)) {
     catalogQueues.set(String(query), normalizeQueue(value, `catalog[${query}]`));
   }
+  const homeKeys = ['collection=continue', 'collection=favorites', 'collection=recents'];
+  (Array.isArray(plan.collections) ? plan.collections : []).forEach(item => {
+    if (item && item.id) homeKeys.push(`collection=${item.id}`);
+  });
+  homeKeys.forEach(key => {
+    if (!catalogQueues.has(key)) {
+      catalogQueues.set(key, normalizeQueue(fixture('catalog-empty.json'), `catalog[${key}]`));
+    }
+  });
   const detailQueues = new Map();
   for (const [id, value] of Object.entries(details)) {
     detailQueues.set(String(id), normalizeQueue(value, `details[${id}]`));
@@ -1379,6 +1388,14 @@ class BrowserPage {
           fallback: Boolean(card.querySelector('.fallback-note')),
           pressed: card.getAttribute('aria-pressed') === 'true',
         })),
+        homeRails: Array.from(document.querySelectorAll('#catalog-list .home-rail')).map(rail => ({
+          id: rail.getAttribute('data-home-rail') || '',
+          title: rail.querySelector('.home-rail-title')?.textContent || '',
+          seeAll: Boolean(rail.querySelector('.home-rail-see-all')),
+          cards: Array.from(rail.querySelectorAll('.game-card')).map(card => card.getAttribute('data-game-id') || ''),
+        })),
+        navHomeSelected: String(document.getElementById('nav-home')?.className || '').includes('selected'),
+        catalogListClass: document.getElementById('catalog-list')?.className || '',
       };
     })()`);
   }

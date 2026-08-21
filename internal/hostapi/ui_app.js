@@ -57,10 +57,18 @@
   const GAME_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
   const ARTWORK_HANDLE_PATTERN = /^[a-f0-9]{64}$/;
   const WALL_WINDOW = 80;
+  const HOME_RAIL_LIMIT = 12;
+  const HOME_CUSTOM_RAIL_CAP = 6;
+  const HOME_SMART_RAILS = Object.freeze([
+    Object.freeze({ id: 'continue', name: 'Continue' }),
+    Object.freeze({ id: 'favorites', name: 'Favorites' }),
+    Object.freeze({ id: 'recents', name: 'Recent' }),
+  ]);
   const MAX_ATTRACT_IDLE_SECONDS = 2147483;
   const MAX_ATTRACT_IDLE_MS = 2147483647;
   const RESERVED_COLLECTION_IDS = Object.freeze({
     all: true,
+    home: true,
     favorites: true,
     recents: true,
     continue: true,
@@ -907,6 +915,9 @@
   function catalogViewState(state) {
     if (state.catalogState === 'loading') return 'loading';
     if (state.catalogState === 'catalog_error') return 'catalog_error';
+    if (state.libraryView === 'home' && Number(state.homeRailFailures) > 0 && !(state.homeRails && state.homeRails.length)) {
+      return 'catalog_error';
+    }
     if (state.games.length === 0) return state.query ? 'no_matches' : 'empty';
     return 'populated';
   }
@@ -925,6 +936,9 @@
       query: '',
       collection: '',
       platformQuery: '',
+      libraryView: 'home',
+      homeRails: [],
+      homeRailFailures: 0,
       nextCursor: '',
       loadingMore: false,
       platforms: [],
@@ -985,6 +999,7 @@
         ...state,
         games: state.games.slice(),
         gameViews: state.gameViews.slice(),
+        homeRails: (state.homeRails || []).slice(),
         selectedLiveGame: state.selectedLiveGame,
         selectedGameView: state.selectedGameView,
         sessionGameTitle: sessionTitle(),
@@ -1011,6 +1026,16 @@
       ));
     }
 
+    function applyHomeRailPresentation(id, presentation) {
+      if (!state.homeRails || !state.homeRails.length) return;
+      state.homeRails = Object.freeze(state.homeRails.map(rail => {
+        const views = rail.gameViews.map(view => (
+          view.live.id === id ? Object.freeze({ live: view.live, presentation }) : view
+        ));
+        return Object.freeze({ ...rail, gameViews: Object.freeze(views) });
+      }));
+    }
+
     function applyCatalogPresentation(id, presentation) {
       presentationByID[id] = presentation;
       const index = state.games.findIndex(game => game.id === id);
@@ -1018,6 +1043,7 @@
       const nextViews = state.gameViews.slice();
       nextViews[index] = Object.freeze({ live: state.games[index], presentation });
       state.gameViews = Object.freeze(nextViews);
+      applyHomeRailPresentation(id, presentation);
       state.metadataFallbackCount = metadataFallbackCount(nextViews);
       if (state.selectedLiveGame && state.selectedLiveGame.id === id) {
         state.selectedPresentation = presentation;
@@ -1377,9 +1403,11 @@
       });
     }
 
-    function catalogExtras(cursor) {
+    function catalogExtras(cursor, overrides) {
+      const extra = overrides && typeof overrides === 'object' ? overrides : {};
       const extras = { grouped: 1 };
-      if (state.collection) extras.collection = state.collection;
+      const collection = extra.collection !== undefined ? extra.collection : state.collection;
+      if (collection) extras.collection = collection;
       if (state.platformQuery) extras.platform = state.platformQuery;
       if (state.filters.region) extras.region = state.filters.region;
       if (state.filters.genre) extras.genre = state.filters.genre;
@@ -1389,7 +1417,37 @@
       if (state.filters.availability) extras.availability = state.filters.availability;
       if (state.sort && state.sort !== 'title') extras.sort = state.sort;
       if (cursor) extras.cursor = cursor;
+      if (Number(extra.limit) > 0) extras.limit = extra.limit;
       return extras;
+    }
+
+    function flattenHomeGames(rails) {
+      const seen = new Set();
+      const games = [];
+      const views = [];
+      (rails || []).forEach(rail => {
+        (rail.gameViews || []).forEach(view => {
+          if (!view || !view.live || seen.has(view.live.id)) return;
+          seen.add(view.live.id);
+          games.push(view.live);
+          views.push(view);
+        });
+      });
+      state.games = Object.freeze(games);
+      state.gameViews = Object.freeze(views);
+      state.metadataFallbackCount = metadataFallbackCount(views);
+    }
+
+    function replaceHomeRailGame(updated) {
+      if (!state.homeRails || !state.homeRails.length) return;
+      state.homeRails = Object.freeze(state.homeRails.map(rail => {
+        const views = rail.gameViews.map(view => (
+          view.live.id === updated.id
+            ? Object.freeze({ live: updated, presentation: view.presentation })
+            : view
+        ));
+        return Object.freeze({ ...rail, gameViews: Object.freeze(views) });
+      }));
     }
 
     function replaceGame(updated) {
@@ -1404,6 +1462,7 @@
         });
         state.games = Object.freeze(games);
         state.gameViews = Object.freeze(views);
+        replaceHomeRailGame(updated);
         if (state.selectedLiveGame && state.selectedLiveGame.id === updated.id) {
           state.selectedLiveGame = updated;
           state.selectedGameView = views[index];
@@ -1413,7 +1472,187 @@
         if (state.selectedGameView) {
           state.selectedGameView = Object.freeze({ live: updated, presentation: state.selectedGameView.presentation });
         }
+        replaceHomeRailGame(updated);
       }
+    }
+
+    function clearHomePlatformFilter() {
+      state.platformQuery = '';
+      state.filters = Object.freeze({
+        ...state.filters,
+        system: '',
+      });
+    }
+
+    function homeRailSpecByID(id) {
+      const smart = HOME_SMART_RAILS.find(rail => rail.id === id);
+      if (smart) return { id: smart.id, name: smart.name, kind: 'smart' };
+      const collection = (state.collections || []).find(item => item && item.id === id);
+      if (collection) return { id: collection.id, name: collection.name || collection.id, kind: 'custom' };
+      return null;
+    }
+
+    async function fetchHomeRailSpec(spec) {
+      try {
+        const result = await request(fetchImpl, gamesPath(state.query, catalogExtras('', {
+          collection: spec.id,
+          limit: HOME_RAIL_LIMIT,
+        })));
+        return { spec, result, error: null };
+      } catch (error) {
+        return { spec, result: null, error };
+      }
+    }
+
+    function materializeHomeRail(item, previousByID) {
+      if (item.error) return { rail: null, error: true };
+      const games = parseCatalog(item.result);
+      if (!games.length) return { rail: null, error: false };
+      return {
+        rail: Object.freeze({
+          id: item.spec.id,
+          name: item.spec.name,
+          gameViews: Object.freeze(games.map(game => retainPresentation(game, previousByID.get(game.id)))),
+        }),
+        error: false,
+      };
+    }
+
+    function capCustomHomeRails(rails) {
+      const smartIDs = HOME_SMART_RAILS.map(item => item.id);
+      const customIDs = (state.collections || []).map(item => item.id);
+      const smart = HOME_SMART_RAILS.map(item => rails.find(rail => rail.id === item.id)).filter(Boolean);
+      const custom = rails
+        .filter(rail => !smartIDs.includes(rail.id))
+        .sort((left, right) => {
+          const leftIndex = customIDs.indexOf(left.id);
+          const rightIndex = customIDs.indexOf(right.id);
+          return (leftIndex < 0 ? Number.MAX_SAFE_INTEGER : leftIndex)
+            - (rightIndex < 0 ? Number.MAX_SAFE_INTEGER : rightIndex);
+        })
+        .slice(0, HOME_CUSTOM_RAIL_CAP);
+      return smart.concat(custom);
+    }
+
+    function insertHomeRail(rails, rail, spec) {
+      const next = rails.filter(item => item.id !== spec.id);
+      if (rail) {
+        const smartIDs = HOME_SMART_RAILS.map(item => item.id);
+        if (spec.kind === 'smart') {
+          const desired = smartIDs.indexOf(spec.id);
+          let index = next.findIndex(item => {
+            const other = smartIDs.indexOf(item.id);
+            return other === -1 || other > desired;
+          });
+          if (index < 0) index = next.length;
+          next.splice(index, 0, rail);
+        } else {
+          const customIDs = (state.collections || []).map(item => item.id);
+          const desired = customIDs.indexOf(spec.id);
+          let index = next.findIndex(item => {
+            if (smartIDs.includes(item.id)) return false;
+            const other = customIDs.indexOf(item.id);
+            return other === -1 || other > desired;
+          });
+          if (index < 0) index = next.length;
+          next.splice(index, 0, rail);
+        }
+      }
+      return capCustomHomeRails(next);
+    }
+
+    function applyHomeRails(rails, failed, firstError) {
+      state.homeRails = Object.freeze(rails);
+      state.homeRailFailures = failed;
+      flattenHomeGames(rails);
+      if (!rails.length && failed > 0) {
+        state.catalogState = 'catalog_error';
+        state.catalogError = errorSnapshot(firstError, 'The catalog could not be loaded.');
+        state.hostState = 'unavailable';
+        return emit();
+      }
+      state.catalogState = 'populated';
+      state.catalogError = null;
+      state.hostState = 'ready';
+      state.metadataState = presentationEnabled
+        ? 'metadata_idle'
+        : (state.metadataFallbackCount ? 'metadata_fallback' : 'curated');
+      reconcileSelection();
+      return emit();
+    }
+
+    async function loadHomeRails() {
+      const sequence = ++state.requestSequence;
+      state.libraryView = 'home';
+      state.collection = '';
+      clearHomePlatformFilter();
+      state.nextCursor = '';
+      state.loadingMore = false;
+      state.catalogState = 'loading';
+      state.catalogError = null;
+      state.homeRails = Object.freeze([]);
+      emit();
+      const previousByID = new Map(state.gameViews.map(view => [view.live.id, view.presentation]));
+      const smartSpecs = HOME_SMART_RAILS.map(rail => ({ id: rail.id, name: rail.name, kind: 'smart' }));
+      const smartItems = await Promise.all(smartSpecs.map(fetchHomeRailSpec));
+      if (sequence !== state.requestSequence) return snapshot();
+      const rails = [];
+      let failed = 0;
+      let firstError = null;
+      smartItems.forEach(item => {
+        const materialized = materializeHomeRail(item, previousByID);
+        if (materialized.error) {
+          failed += 1;
+          if (!firstError) firstError = item.error;
+          return;
+        }
+        if (materialized.rail) rails.push(materialized.rail);
+      });
+      const collections = state.collections || [];
+      const smartIDs = HOME_SMART_RAILS.map(item => item.id);
+      for (let index = 0; index < collections.length; index += 1) {
+        const customKept = rails.filter(rail => !smartIDs.includes(rail.id)).length;
+        if (customKept >= HOME_CUSTOM_RAIL_CAP) break;
+        const collection = collections[index];
+        if (!collection || !collection.id) continue;
+        const item = await fetchHomeRailSpec({
+          id: collection.id,
+          name: collection.name || collection.id,
+          kind: 'custom',
+        });
+        if (sequence !== state.requestSequence) return snapshot();
+        const materialized = materializeHomeRail(item, previousByID);
+        if (materialized.error) {
+          failed += 1;
+          if (!firstError) firstError = item.error;
+          continue;
+        }
+        if (materialized.rail) rails.push(materialized.rail);
+      }
+      return applyHomeRails(rails, failed, firstError);
+    }
+
+    async function reconcileHomeRail(railID) {
+      if (state.libraryView !== 'home') return emit();
+      const spec = homeRailSpecByID(railID);
+      if (!spec) return emit();
+      const sequence = state.requestSequence;
+      const item = await fetchHomeRailSpec(spec);
+      if (sequence !== state.requestSequence || state.libraryView !== 'home') return snapshot();
+      const previousByID = new Map(state.gameViews.map(view => [view.live.id, view.presentation]));
+      const materialized = materializeHomeRail(item, previousByID);
+      if (materialized.error) return emit();
+      const rails = insertHomeRail((state.homeRails || []).slice(), materialized.rail, spec);
+      state.homeRails = Object.freeze(rails);
+      flattenHomeGames(rails);
+      reconcileSelection();
+      return emit();
+    }
+
+    async function reloadVisibleCatalog(query) {
+      state.query = String(query || '').trim();
+      if (state.libraryView === 'home') return loadHomeRails();
+      return loadCatalog(state.query);
     }
 
     async function loadCatalog(query) {
@@ -1475,11 +1714,24 @@
       }
     }
 
+    async function openHome() {
+      state.libraryView = 'home';
+      state.collection = '';
+      clearHomePlatformFilter();
+      state.homeRails = Object.freeze([]);
+      return loadHomeRails();
+    }
+
     async function setLibraryNav(collection, platform) {
+      const custom = (state.collections || []).some(item => item && item.id === collection);
+      if (collection === 'home' && !custom) {
+        return openHome();
+      }
       const allowed = {
         favorites: true, recents: true, continue: true, unplayed: true, recently_added: true,
       };
-      const custom = (state.collections || []).some(item => item && item.id === collection);
+      state.libraryView = 'grid';
+      state.homeRails = Object.freeze([]);
       state.collection = allowed[collection] || custom ? collection : '';
       state.platformQuery = String(platform || '').trim();
       state.filters = Object.freeze({
@@ -1526,6 +1778,7 @@
       } catch (_) {
         if (!state.facets) state.facets = Object.freeze({ genres: [], years: [] });
       }
+      if (state.libraryView === 'home') return loadHomeRails();
       return emit();
     }
 
@@ -1539,7 +1792,9 @@
           method: next ? 'PUT' : 'DELETE',
         });
         replaceGame(Object.freeze({ ...game, favorite: next }));
-        return emit();
+        emit();
+        if (state.libraryView === 'home') return reconcileHomeRail('favorites');
+        return snapshot();
       } catch (error) {
         return emit();
       }
@@ -1639,8 +1894,10 @@
           ? Object.freeze(current.concat(collection))
           : Object.freeze(current.filter(item => item !== collection));
         replaceGame(Object.freeze({ ...game, collections }));
+        emit();
+        if (state.libraryView === 'home') return reconcileHomeRail(collection);
         if (!next && state.collection === collection) return loadCatalog(state.query);
-        return emit();
+        return snapshot();
       } catch (error) {
         return emit();
       }
@@ -1694,7 +1951,7 @@
       if (!applyLibrarySettings(parsed, sequence)) return snapshot();
       if (sequence === state.settingsSequence) state.settingsSequence += 1;
       emit();
-      return loadCatalog(state.query);
+      return reloadVisibleCatalog(state.query);
     }
 
     async function saveSettings(next) {
@@ -1855,31 +2112,36 @@
 
     function setCatalogFilter(name, value) {
       if (name === 'system') {
+        if (state.libraryView === 'home') {
+          clearHomePlatformFilter();
+          return emit();
+        }
         const next = String(value || '').trim();
         state.filters = Object.freeze({ ...state.filters, system: next });
         state.platformQuery = next;
-        return loadCatalog(state.query);
+        return reloadVisibleCatalog(state.query);
       }
       if (name === 'region' || name === 'genre' || name === 'year' || name === 'availability') {
         state.filters = Object.freeze({ ...state.filters, [name]: String(value || '').trim() });
-        return loadCatalog(state.query);
+        return reloadVisibleCatalog(state.query);
       }
       if (name === 'hide_prerelease' || name === 'hide_hacks') {
         const enabled = value === true || value === '1' || value === 'true';
         state.filters = Object.freeze({ ...state.filters, [name]: enabled });
-        return loadCatalog(state.query);
+        return reloadVisibleCatalog(state.query);
       }
       return snapshot();
     }
 
     function setCatalogSort(value) {
       state.sort = value === 'year' || value === 'system' || value === 'recently_added' ? value : 'title';
-      return loadCatalog(state.query);
+      return reloadVisibleCatalog(state.query);
     }
 
     return Object.freeze({
       getState: snapshot,
       loadCatalog,
+      reloadVisibleCatalog,
       loadMoreCatalog,
       loadPlatforms,
       loadAttract,
@@ -1895,6 +2157,7 @@
       setCatalogFilter,
       setCatalogSort,
       setLibraryNav,
+      openHome,
       toggleFavorite,
       createCollection,
       renameCollection,
@@ -1945,6 +2208,7 @@
   let state;
   let controller;
   let keyboardPane = 'rail';
+  let homeFocus = { rail: 0, card: 0 };
   let settingsReturnPane = 'rail';
   let collectionEditor = null;
   let forceKeyboardRestore = false;
@@ -1977,6 +2241,7 @@
     sessionDetails: document.getElementById('session-details'),
     sessionActions: document.getElementById('session-actions'),
     sessionMessage: document.getElementById('session-message'),
+    navHome: document.getElementById('nav-home'),
     navAll: document.getElementById('nav-all'),
     navFavorites: document.getElementById('nav-favorites'),
     navRecents: document.getElementById('nav-recents'),
@@ -2157,7 +2422,17 @@
     }
   }
 
+  function isHomeView() {
+    return state.libraryView === 'home';
+  }
+
+  function catalogPane() {
+    return isHomeView() ? 'home' : 'grid';
+  }
+
   function navSelected(kind, platform) {
+    if (kind === 'home') return isHomeView();
+    if (isHomeView()) return false;
     if (kind === 'favorites') return state.collection === 'favorites' && !state.platformQuery;
     if (kind === 'recents') return state.collection === 'recents' && !state.platformQuery;
     if (kind === 'continue') return state.collection === 'continue' && !state.platformQuery;
@@ -2174,12 +2449,14 @@
   }
 
   function renderLibraryNav() {
+    if (nodes.navHome) nodes.navHome.className = 'nav-item' + (navSelected('home') ? ' selected' : '');
     if (nodes.navAll) nodes.navAll.className = 'nav-item' + (navSelected('all') ? ' selected' : '');
     if (nodes.navContinue) nodes.navContinue.className = 'nav-item' + (navSelected('continue') ? ' selected' : '');
     if (nodes.navFavorites) nodes.navFavorites.className = 'nav-item' + (navSelected('favorites') ? ' selected' : '');
     if (nodes.navRecents) nodes.navRecents.className = 'nav-item' + (navSelected('recents') ? ' selected' : '');
     if (nodes.navUnplayed) nodes.navUnplayed.className = 'nav-item' + (navSelected('unplayed') ? ' selected' : '');
     if (nodes.navRecentlyAdded) nodes.navRecentlyAdded.className = 'nav-item' + (navSelected('recently_added') ? ' selected' : '');
+    setRovingTab(nodes.navHome, navSelected('home'));
     setRovingTab(nodes.navAll, navSelected('all'));
     setRovingTab(nodes.navContinue, navSelected('continue'));
     setRovingTab(nodes.navFavorites, navSelected('favorites'));
@@ -2369,9 +2646,69 @@
     wallStartObserver.observe(sentinel);
   }
 
-  function renderCatalog() {
+  function renderHomeRails() {
     const view = catalogViewState(state);
     nodes.catalog.setAttribute('aria-busy', view === 'loading' ? 'true' : 'false');
+    if (nodes.list) nodes.list.className = 'home-rails';
+    nodes.list.replaceChildren();
+    nodes.actions.replaceChildren();
+    nodes.status.textContent = view;
+    wallStart = 0;
+    disconnectWallObservers();
+    if (view === 'loading') {
+      nodes.list.appendChild(element('p', 'status-message', 'Loading games…'));
+      return;
+    }
+    if (view === 'catalog_error') {
+      nodes.list.appendChild(element('p', 'status-message error', 'The catalog could not be loaded.'));
+      nodes.actions.appendChild(retryButton('Retry catalog', loadCatalog));
+      return;
+    }
+    if (view === 'empty' || view === 'no_matches') {
+      syncCatalogFilters();
+      nodes.list.appendChild(element('p', 'status-message', state.query ? 'No matching games.' : 'Home has no Continue, Favorites, Recent, or collection titles yet.'));
+      nodes.actions.appendChild(retryButton('Refresh catalog', loadCatalog));
+      return;
+    }
+    nodes.status.textContent = state.metadataFallbackCount ? 'populated metadata_fallback' : 'populated';
+    syncCatalogFilters();
+    const rails = state.homeRails || [];
+    if (nodes.count) {
+      const total = rails.reduce((sum, rail) => sum + ((rail.gameViews && rail.gameViews.length) || 0), 0);
+      nodes.count.textContent = formatCatalogCount(total, total);
+    }
+    rails.forEach((rail, railIndex) => {
+      const section = element('section', 'home-rail');
+      section.setAttribute('data-home-rail', rail.id);
+      const header = element('div', 'home-rail-header');
+      header.appendChild(element('h2', 'home-rail-title', rail.name));
+      const seeAll = element('button', 'home-rail-see-all', 'See all');
+      seeAll.type = 'button';
+      seeAll.setAttribute('data-see-all', rail.id);
+      seeAll.addEventListener('click', () => {
+        keyboardPane = 'rail';
+        return controller.setLibraryNav(rail.id, '');
+      });
+      header.appendChild(seeAll);
+      section.appendChild(header);
+      const track = element('div', 'home-rail-track');
+      track.setAttribute('data-home-track', rail.id);
+      (rail.gameViews || []).forEach((item, cardIndex) => {
+        renderCard(item, item.live, track, 'home', { rail: railIndex, card: cardIndex });
+      });
+      section.appendChild(track);
+      nodes.list.appendChild(section);
+    });
+  }
+
+  function renderCatalog() {
+    if (isHomeView()) {
+      renderHomeRails();
+      return;
+    }
+    const view = catalogViewState(state);
+    nodes.catalog.setAttribute('aria-busy', view === 'loading' ? 'true' : 'false');
+    if (nodes.list) nodes.list.className = 'game-grid';
     nodes.list.replaceChildren();
     nodes.actions.replaceChildren();
     nodes.status.textContent = view;
@@ -2530,11 +2867,14 @@
     return image;
   }
 
-  function renderCard(view, liveGame) {
+  function renderCard(view, liveGame, parent, pane, homeCoord) {
     const game = view.live;
     const presentation = view.presentation;
     const selected = isSelectedGame(state.selectedLiveGame, game);
-    const card = element('button', 'game-card' + (selected ? ' selected' : ''));
+    const homeSelected = pane !== 'home' || !homeCoord
+      || (homeFocus.rail === homeCoord.rail && homeFocus.card === homeCoord.card);
+    const showSelected = selected && homeSelected;
+    const card = element('button', 'game-card' + (showSelected ? ' selected' : ''));
     card.type = 'button';
     card.setAttribute('aria-pressed', String(selected));
     card.setAttribute('data-game-id', game.id);
@@ -2552,12 +2892,13 @@
       card.appendChild(element('p', 'game-meta game-meta-variant', `${game.variant_count} versions`));
     }
     if (game.title && cardTitle(game) !== game.title) card.setAttribute('title', game.title);
-    card.tabIndex = selected || (!state.selectedLiveGame && !gameCardNodes().length) ? 0 : -1;
+    card.tabIndex = showSelected || (!state.selectedLiveGame && !gameCardNodes().length && !(parent && parent.children && parent.children.length)) ? 0 : -1;
     card.addEventListener('click', () => {
-      keyboardPane = 'grid';
+      keyboardPane = pane || 'grid';
+      if (pane === 'home' && homeCoord) homeFocus = { rail: homeCoord.rail, card: homeCoord.card };
       return selectGame(liveGame.id);
     });
-    nodes.list.appendChild(card);
+    (parent || nodes.list).appendChild(card);
   }
 
   function launchControl(game) {
@@ -2721,7 +3062,7 @@
   }
 
   function loadCatalog() {
-    return controller.loadCatalog(nodes.search.value);
+    return controller.reloadVisibleCatalog(nodes.search.value);
   }
 
   function loadSession() {
@@ -2748,12 +3089,48 @@
     if (node && typeof node.focus === 'function') node.focus({ preventScroll: true });
   }
 
+  function scrollHomeCardIntoView(node) {
+    if (!node || typeof node.scrollIntoView !== 'function') return;
+    if (!String(node.className || '').includes('game-card')) return;
+    try {
+      node.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    } catch (_) {
+      try { node.scrollIntoView(); } catch (__) { /* ignore */ }
+    }
+  }
+
   function libraryNavChanged(previous, next) {
     if (!previous) return true;
     return previous.collection !== next.collection
       || previous.platformQuery !== next.platformQuery
+      || previous.libraryView !== next.libraryView
       || previous.platforms !== next.platforms
       || previous.collections !== next.collections;
+  }
+
+  function homeFocusFromRails(rails, selectedGame, previousFocus) {
+    const rows = Array.isArray(rails) ? rails : [];
+    if (selectedGame) {
+      const prevRail = Math.max(0, Number(previousFocus && previousFocus.rail) || 0);
+      const prevCard = Math.max(0, Number(previousFocus && previousFocus.card) || 0);
+      const prevViews = rows[prevRail] && rows[prevRail].gameViews ? rows[prevRail].gameViews : [];
+      const prevLive = prevViews[prevCard] && prevViews[prevCard].live;
+      if (prevLive && isSelectedGame(selectedGame, prevLive)) {
+        return { rail: prevRail, card: prevCard };
+      }
+      for (let rail = 0; rail < rows.length; rail += 1) {
+        const views = rows[rail] && rows[rail].gameViews ? rows[rail].gameViews : [];
+        const card = views.findIndex(view => view && view.live && isSelectedGame(selectedGame, view.live));
+        if (card >= 0) return { rail, card };
+      }
+    }
+    return { rail: 0, card: 0 };
+  }
+
+  function syncHomeFocus(next) {
+    if (!next || next.libraryView !== 'home' || next.catalogState !== 'populated') return;
+    if (!next.homeRails || !next.homeRails.length) return;
+    homeFocus = homeFocusFromRails(next.homeRails, next.selectedLiveGame, homeFocus);
   }
 
   function handleStateChange(next) {
@@ -2761,6 +3138,7 @@
     state = next;
     if (next.hostState === 'ready') setHealth('Local host ready', 'host-status');
     if (next.hostState === 'unavailable') setHealth('Catalog unavailable', 'host-status');
+    syncHomeFocus(next);
     renderCatalog();
     if (libraryNavChanged(previous, next)) renderLibraryNav();
     if (controller && typeof controller.observeVisibleCovers === 'function') controller.observeVisibleCovers();
@@ -2773,7 +3151,7 @@
     if (previous && previous.activeMutation === 'stop' && next.sessionPhase === 'stopped') {
       focusWithoutScroll(refreshSessionButton);
     }
-    if (keyboardPane === 'grid' && !next.selectedLiveGame && next.catalogState === 'populated' && next.gameViews && next.gameViews.length) {
+    if ((keyboardPane === 'grid' || keyboardPane === 'home') && !next.selectedLiveGame && next.catalogState === 'populated' && next.gameViews && next.gameViews.length) {
       forceKeyboardRestore = true;
       controller.selectGame(next.gameViews[0].live.id);
       return;
@@ -3094,6 +3472,7 @@
 
   function railItems() {
     const items = [
+      nodes.navHome,
       nodes.navAll,
       nodes.navContinue,
       nodes.navFavorites,
@@ -3112,15 +3491,46 @@
     return items;
   }
 
+  function collectClassNodes(root, className, found) {
+    if (!root) return found;
+    if (String(root.className || '').includes(className)) found.push(root);
+    const children = root.children ? Array.from(root.children) : [];
+    children.forEach(child => collectClassNodes(child, className, found));
+    return found;
+  }
+
   function gameCardNodes() {
     if (nodes.list && typeof nodes.list.querySelectorAll === 'function') {
       try {
         return Array.from(nodes.list.querySelectorAll('.game-card'));
       } catch (_) {
-        /* fall through to children */
+        /* fall through to a descendant walk */
       }
     }
-    const children = nodes.list && nodes.list.children ? Array.from(nodes.list.children) : [];
+    return collectClassNodes(nodes.list, 'game-card', []).filter(node => node !== nodes.list);
+  }
+
+  function homeRailTracks() {
+    if (nodes.list && typeof nodes.list.querySelectorAll === 'function') {
+      try {
+        return Array.from(nodes.list.querySelectorAll('.home-rail-track'));
+      } catch (_) {
+        /* fall through to a descendant walk */
+      }
+    }
+    return collectClassNodes(nodes.list, 'home-rail-track', []).filter(node => node !== nodes.list);
+  }
+
+  function cardsInTrack(track) {
+    if (!track) return [];
+    if (typeof track.querySelectorAll === 'function') {
+      try {
+        return Array.from(track.querySelectorAll('.game-card'));
+      } catch (_) {
+        /* fall through */
+      }
+    }
+    const children = track.children ? Array.from(track.children) : [];
     return children.filter(child => String(child.className || '').includes('game-card'));
   }
 
@@ -3136,7 +3546,20 @@
     return items.find(item => String(item.className || '').includes('selected')) || items[0] || null;
   }
 
+  function selectedHomeCardNode() {
+    const tracks = homeRailTracks();
+    if (!tracks.length) return null;
+    const rail = Math.max(0, Math.min(tracks.length - 1, Number(homeFocus.rail) || 0));
+    const cards = cardsInTrack(tracks[rail]);
+    if (!cards.length) return null;
+    const card = Math.max(0, Math.min(cards.length - 1, Number(homeFocus.card) || 0));
+    return cards[card] || null;
+  }
+
   function selectedCardNode() {
+    if (keyboardPane === 'home' || (isHomeView() && keyboardPane !== 'grid')) {
+      return selectedHomeCardNode() || null;
+    }
     const cards = gameCardNodes();
     return cards.find(card => String(card.className || '').includes('selected') || card.getAttribute('aria-pressed') === 'true')
       || cards[0]
@@ -3152,7 +3575,7 @@
     } else if (railItems().includes(target) || (nodes.platformList && target.parentNode === nodes.platformList)) {
       keyboardPane = 'rail';
     } else if (String(target.className || '').includes('game-card') || (nodes.list && target.parentNode === nodes.list)) {
-      keyboardPane = 'grid';
+      keyboardPane = catalogPane();
     } else if (target.id === 'launch-game' || target.id === 'favorite-game' || target.id === 'game-version'
       || (nodes.detail && (target === nodes.detail || target.parentNode === nodes.detail
         || target.parentNode === nodes.detailContent || target.parentNode === nodes.launchActions))) {
@@ -3187,6 +3610,10 @@
       focusWithoutScroll(selectedRailItem());
     } else if (keyboardPane === 'detail') {
       focusWithoutScroll(detailLaunchButton() || nodes.detail);
+    } else if (keyboardPane === 'home') {
+      const card = selectedCardNode() || nodes.list;
+      focusWithoutScroll(card);
+      scrollHomeCardIntoView(card);
     } else {
       keyboardPane = 'grid';
       focusWithoutScroll(selectedCardNode() || nodes.list);
@@ -3258,6 +3685,16 @@
   async function commitRail(item) {
     const target = item || railItems()[focusedRailIndex()] || selectedRailItem();
     if (target && typeof target.click === 'function') await target.click();
+    if (isHomeView()) {
+      keyboardPane = 'home';
+      writePaneAttribute();
+      if (!homeRailTracks().length) {
+        forceKeyboardRestore = true;
+        restoreKeyboardFocus();
+        return;
+      }
+      return focusHomeCard(homeFocus.rail, homeFocus.card);
+    }
     keyboardPane = 'grid';
     forceKeyboardRestore = true;
     writePaneAttribute();
@@ -3266,6 +3703,54 @@
       return;
     }
     restoreKeyboardFocus();
+  }
+
+  function focusedHomePosition() {
+    const tracks = homeRailTracks();
+    const active = typeof document !== 'undefined' ? document.activeElement : null;
+    for (let rail = 0; rail < tracks.length; rail += 1) {
+      const cards = cardsInTrack(tracks[rail]);
+      const card = cards.findIndex(node => node === active);
+      if (card >= 0) return { rail, card, tracks, cards };
+    }
+    const storedRail = Math.max(0, Math.min(Math.max(0, tracks.length - 1), Number(homeFocus.rail) || 0));
+    const storedCards = tracks.length ? cardsInTrack(tracks[storedRail]) : [];
+    if (storedCards.length) {
+      const storedCard = Math.max(0, Math.min(storedCards.length - 1, Number(homeFocus.card) || 0));
+      return { rail: storedRail, card: storedCard, tracks, cards: storedCards };
+    }
+    const firstCards = tracks.length ? cardsInTrack(tracks[0]) : [];
+    return { rail: 0, card: 0, tracks, cards: firstCards };
+  }
+
+  async function focusHomeCard(rail, card) {
+    const tracks = homeRailTracks();
+    if (!tracks.length) return;
+    const nextRail = Math.max(0, Math.min(tracks.length - 1, rail));
+    const cards = cardsInTrack(tracks[nextRail]);
+    if (!cards.length) return;
+    const nextCard = Math.max(0, Math.min(cards.length - 1, card));
+    homeFocus = { rail: nextRail, card: nextCard };
+    keyboardPane = 'home';
+    forceKeyboardRestore = true;
+    const node = cards[nextCard];
+    const id = node && typeof node.getAttribute === 'function' ? node.getAttribute('data-game-id') : '';
+    if (id) await controller.selectGame(id);
+    const focused = selectedHomeCardNode() || node;
+    focusWithoutScroll(focused);
+    scrollHomeCardIntoView(focused);
+    writePaneAttribute();
+  }
+
+  async function moveHome(dRail, dCard, edge) {
+    const position = focusedHomePosition();
+    if (!position.tracks.length) return;
+    if (edge === 'start') return focusHomeCard(position.rail, 0);
+    if (edge === 'end') {
+      const cards = cardsInTrack(position.tracks[position.rail]);
+      return focusHomeCard(position.rail, Math.max(0, cards.length - 1));
+    }
+    return focusHomeCard(position.rail + dRail, position.card + dCard);
   }
 
   function enterDetail() {
@@ -3346,6 +3831,7 @@
   if (nodes.hidePrerelease) nodes.hidePrerelease.addEventListener('change', () => controller.setCatalogFilter('hide_prerelease', nodes.hidePrerelease.checked));
   if (nodes.hideHacks) nodes.hideHacks.addEventListener('change', () => controller.setCatalogFilter('hide_hacks', nodes.hideHacks.checked));
   if (nodes.availabilityFilter) nodes.availabilityFilter.addEventListener('change', () => controller.setCatalogFilter('availability', nodes.availabilityFilter.value));
+  if (nodes.navHome) nodes.navHome.addEventListener('click', () => { keyboardPane = 'rail'; return controller.openHome(); });
   if (nodes.navAll) nodes.navAll.addEventListener('click', () => { keyboardPane = 'rail'; return controller.setLibraryNav('', ''); });
   if (nodes.navContinue) nodes.navContinue.addEventListener('click', () => { keyboardPane = 'rail'; return controller.setLibraryNav('continue', ''); });
   if (nodes.navFavorites) nodes.navFavorites.addEventListener('click', () => { keyboardPane = 'rail'; return controller.setLibraryNav('favorites', ''); });
@@ -3392,10 +3878,10 @@
           if (event.key === 'Escape') {
             event.preventDefault?.();
             if (nodes.search) nodes.search.blur?.();
-            setKeyboardPane(state.selectedLiveGame ? 'grid' : 'rail');
+            setKeyboardPane(state.selectedLiveGame ? catalogPane() : 'rail');
           } else if (event.key === 'ArrowDown' || event.key === 'Enter') {
             event.preventDefault?.();
-            setKeyboardPane('grid');
+            setKeyboardPane(catalogPane());
             if (!state.selectedLiveGame && visibleGames().length) {
               void controller.selectGame(visibleGames()[0].live.id);
             }
@@ -3420,9 +3906,9 @@
       syncPaneFromTarget(event.target);
       if (event.key === 'Escape') {
         event.preventDefault?.();
-        if (keyboardPane === 'detail') setKeyboardPane('grid');
-        else if (keyboardPane === 'grid') setKeyboardPane('rail');
-        else if (keyboardPane === 'search') setKeyboardPane(state.selectedLiveGame ? 'grid' : 'rail');
+        if (keyboardPane === 'detail') setKeyboardPane(catalogPane());
+        else if (keyboardPane === 'grid' || keyboardPane === 'home') setKeyboardPane('rail');
+        else if (keyboardPane === 'search') setKeyboardPane(state.selectedLiveGame ? catalogPane() : 'rail');
         return;
       }
       if (event.key === 'Enter') {
@@ -3430,7 +3916,7 @@
           event.preventDefault?.();
           return commitRail();
         }
-        if (keyboardPane === 'grid' && isCoverWallTarget(event.target)) {
+        if ((keyboardPane === 'grid' || keyboardPane === 'home') && isCoverWallTarget(event.target)) {
           event.preventDefault?.();
           return enterDetail();
         }
@@ -3440,7 +3926,7 @@
         }
         if (keyboardPane === 'search' && isSearchInput(event.target)) {
           event.preventDefault?.();
-          setKeyboardPane('grid');
+          setKeyboardPane(catalogPane());
         }
         return;
       }
@@ -3455,6 +3941,9 @@
           writePaneAttribute();
           return;
         }
+        if (keyboardPane === 'home') {
+          return moveHome(0, 0, event.key === 'Home' ? 'start' : 'end');
+        }
         return jumpWall(event.key === 'Home' ? 'start' : 'end');
       }
       if (event.key === 'ArrowRight' || event.key === 'ArrowLeft' || event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -3466,7 +3955,15 @@
           return;
         }
         if (keyboardPane === 'detail') {
-          if (event.key === 'ArrowLeft') setKeyboardPane('grid');
+          if (event.key === 'ArrowLeft') setKeyboardPane(catalogPane());
+          return;
+        }
+        if (keyboardPane === 'home' || (isHomeView() && keyboardPane !== 'grid')) {
+          keyboardPane = 'home';
+          if (event.key === 'ArrowRight') return moveHome(0, 1);
+          if (event.key === 'ArrowLeft') return moveHome(0, -1);
+          if (event.key === 'ArrowDown') return moveHome(1, 0);
+          if (event.key === 'ArrowUp') return moveHome(-1, 0);
           return;
         }
         if (keyboardPane !== 'grid') setKeyboardPane('grid');
@@ -3502,7 +3999,7 @@
   renderSession();
   writePaneAttribute();
   void loadSession();
-  void loadCatalog();
+  void controller.openHome();
   void controller.loadPlatforms();
   void hydrateAttractIdle();
 })(globalThis);

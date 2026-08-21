@@ -51,13 +51,20 @@ function basePlan(overrides = {}) {
   };
 }
 
-async function runScenario(harness, name, plan, body) {
+async function runScenario(harness, name, plan, body, options = {}) {
   harness.configure(plan);
   await harness.reload();
+  if (options.openAllGames !== false) {
+    await harness.click('#nav-all');
+  }
   await body();
   await harness.waitForSettled();
   harness.assertClean();
   harness.recordScenario(name);
+}
+
+async function openAllGames(harness) {
+  await harness.click('#nav-all');
 }
 
 async function selectSonic(harness) {
@@ -336,6 +343,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
 
     harness.configure(basePlan());
     await harness.reload();
+    await harness.click('#nav-all');
     await harness.waitForCatalog('populated metadata_fallback');
     assert.ok(harness.page.mainFrameId, 'navigation preflight must establish a main frame');
     assert.match(harness.page.defaultContext, /\S+/, 'navigation preflight must establish a default execution context');
@@ -347,12 +355,15 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         method: record.method,
         path: record.path,
         status: record.status,
+        query: record.query || '',
       }));
-    assert.deepEqual(preflightRequests, [
-      { method: 'GET', path: '/', status: 200 },
-      { method: 'GET', path: '/api/v1/session', status: 200 },
-      { method: 'GET', path: '/api/v1/games', status: 200 },
-    ]);
+    assert.deepEqual(preflightRequests[0], { method: 'GET', path: '/', status: 200, query: '' });
+    assert.equal(preflightRequests.some(record => record.path === '/api/v1/session' && record.status === 200), true);
+    const gameReads = preflightRequests.filter(record => record.path === '/api/v1/games');
+    assert.ok(gameReads.some(record => record.query === 'collection=continue' && record.status === 200));
+    assert.ok(gameReads.some(record => record.query === 'collection=favorites' && record.status === 200));
+    assert.ok(gameReads.some(record => record.query === 'collection=recents' && record.status === 200));
+    assert.ok(gameReads.some(record => record.query === '' && record.status === 200));
 
     await t.test('catalog load, refresh, and live selection reconciliation', async () => {
       await runScenario(harness, 'catalog-load-refresh', basePlan({
@@ -376,7 +387,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         snapshot = await harness.waitForCatalog('populated metadata_fallback');
         assert.deepEqual(snapshot.cards.map(card => card.title), ['Sonic the Hedgehog (refreshed)']);
         assert.equal(snapshot.cards[0].pressed, false);
-        assert.deepEqual(apiEvidence(harness).filter(record => record.path === '/api/v1/games').map(record => ({ method: record.method, path: record.path })), [
+        assert.deepEqual(apiEvidence(harness).filter(record => record.path === '/api/v1/games' && !record.query).map(record => ({ method: record.method, path: record.path })), [
           { method: 'GET', path: '/api/v1/games' },
           { method: 'GET', path: '/api/v1/games' },
         ]);
@@ -415,7 +426,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         snapshot = await harness.waitForCatalog('catalog_error');
         assert.match(snapshot.catalogActions, /Retry catalog/i);
         assertNoPrivateErrorText(snapshot);
-        assert.deepEqual(apiEvidence(harness).filter(record => record.path === '/api/v1/games').map(record => record.status), [500, 200]);
+        assert.deepEqual(apiEvidence(harness).filter(record => record.path === '/api/v1/games' && !record.query).map(record => record.status), [500, 200]);
       });
     });
 
@@ -985,6 +996,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         assert.equal(snapshot.detailHeading, 'Select a game');
         assert.equal(snapshot.cards.filter(card => card.pressed).length, 0);
         await harness.reload();
+        await openAllGames(harness);
         await harness.waitForText('#session-details', 'Sonic the Hedgehog');
         snapshot = await harness.snapshot();
         assert.equal(sessionEvidence(harness).length, 2);
@@ -1273,6 +1285,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
           '': populatedCatalog(),
           'collection=weekend-queue': [
             fixture('catalog-populated.json', 200, { override: { games: [collectionGame] } }),
+            fixture('catalog-populated.json', 200, { override: { games: [collectionGame] } }),
             fixture('catalog-populated.json', 200, { override: { games: [] } }),
           ],
         },
@@ -1310,7 +1323,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         const collectionReads = harness.fixtureEvidence().filter(record => (
           record.method === 'GET' && record.path === '/api/v1/games' && record.query === 'collection=weekend-queue'
         ));
-        assert.equal(collectionReads.length, 2, JSON.stringify(collectionReads));
+        assert.equal(collectionReads.length, 3, JSON.stringify(collectionReads));
       });
     });
 
@@ -1610,6 +1623,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         const closed = await harness.waitForSnapshot(item => item.settingsHidden === true);
         assert.equal(closed.keyboardPane, 'rail');
         await harness.reload();
+        await openAllGames(harness);
         await harness.waitForCatalog('populated metadata_fallback');
         await harness.click('#open-settings');
         const reopened = await harness.waitForSnapshot(item => item.settingsHidden === false && item.settingsAttract === '12');
@@ -1650,6 +1664,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
       }), async () => {
         await harness.setViewport(420, 800);
         await harness.reload();
+        await openAllGames(harness);
         await harness.waitForCatalog('populated metadata_fallback');
         const metrics = await harness.evaluate(`(() => {
           const list = document.getElementById('catalog-list');
@@ -1693,6 +1708,53 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         assert.ok(meta.overlap < 1, JSON.stringify(meta));
         await harness.clearViewport();
       });
+    });
+
+    await t.test('home renders stacked rails, hides empty rows, and See all opens the grid', async () => {
+      await runScenario(harness, 'home-collection-rails', basePlan({
+        collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }],
+        catalog: {
+          '': populatedCatalog(),
+          'collection=continue': fixture('catalog-populated.json', 200, {
+            override: { games: [{
+              id: SONIC_ID, title: 'Sonic the Hedgehog', system: 'megadrive', kind: 'zip',
+              state: 'available', root_online: true, content_prepared: true, execution: 'fpga_native',
+            }] },
+          }),
+          'collection=favorites': fixture('catalog-empty.json'),
+          'collection=recents': fixture('catalog-populated.json', 200, {
+            override: { games: [{
+              id: UNKNOWN_ID, title: 'Unknown <Game>', system: 'snes', kind: 'raw',
+              state: 'available', root_online: true, content_prepared: false, execution: 'fpga_native',
+            }] },
+          }),
+          'collection=weekend-queue': fixture('catalog-populated.json', 200, {
+            override: { games: [{
+              id: 'snes-offline-test', title: 'Offline Source', system: 'snes', kind: 'zip',
+              state: 'missing', root_online: false, content_prepared: false, execution: 'fpga_native',
+            }] },
+          }),
+        },
+      }), async () => {
+        const home = await harness.waitForSnapshot(item => (
+          item.navHomeSelected === true
+          && item.catalogListClass.includes('home-rails')
+          && item.homeRails.some(rail => rail.id === 'continue')
+          && item.homeRails.some(rail => rail.id === 'weekend-queue')
+        ));
+        assert.deepEqual(home.homeRails.map(rail => rail.id), ['continue', 'recents', 'weekend-queue']);
+        assert.deepEqual(home.homeRails.map(rail => rail.title), ['Continue', 'Recent', 'Weekend Queue']);
+        assert.equal(home.homeRails.every(rail => rail.seeAll), true);
+        assert.equal(home.homeRails.some(rail => rail.id === 'favorites'), false);
+        await harness.evaluate(`document.querySelector('[data-see-all="continue"]')?.click()`);
+        const wall = await harness.waitForSnapshot(item => (
+          item.catalogListClass.includes('game-grid')
+          && item.navHomeSelected === false
+          && item.cards.length >= 1
+        ));
+        assert.equal(wall.catalogListClass.includes('game-grid'), true);
+        assert.equal(wall.homeRails.length, 0);
+      }, { openAllGames: false });
     });
 
     await t.test('idle attract overlay enters from a bounded playlist and exits on Escape', async () => {

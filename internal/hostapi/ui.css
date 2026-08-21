@@ -68,6 +68,40 @@ input { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding:
   overflow: auto;
   padding: var(--wall-pad);
 }
+.home-rails {
+  display: grid;
+  gap: 28px;
+  max-height: min(72vh, 920px);
+  overflow: auto;
+  padding: 4px;
+}
+.home-rail { min-width: 0; }
+.home-rail-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.home-rail-title { margin: 0; font-size: 1.15rem; }
+.home-rail-see-all {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: .82rem;
+  padding: 4px 0;
+}
+.home-rail-track {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding: 4px;
+}
+.home-rail-track .game-card {
+  flex: 0 0 148px;
+  width: 148px;
+}
 .wall-spacer, .wall-sentinel { grid-column: 1 / -1; pointer-events: none; }
 .game-card {
   position: relative;

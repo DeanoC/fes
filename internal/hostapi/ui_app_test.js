@@ -77,6 +77,7 @@ class BrowserTestElement {
     this.style = {};
     this.clientWidth = 896;
     this.parentNode = null;
+    this.scrollIntoViewCalls = [];
     if (owner && id) owner.nodes.set(id, this);
   }
 
@@ -125,9 +126,28 @@ class BrowserTestElement {
     return listener ? listener(event) : undefined;
   }
 
+  querySelectorAll(selector) {
+    const className = String(selector || '').replace(/^\./, '');
+    const found = [];
+    const visit = node => {
+      (node.children || []).forEach(child => {
+        if (className && String(child.className || '').split(/\s+/).includes(className)) {
+          found.push(child);
+        }
+        visit(child);
+      });
+    };
+    visit(this);
+    return found;
+  }
+
   click() {
     const listener = this.listeners.get('click');
     return listener ? listener({ currentTarget: this }) : undefined;
+  }
+
+  scrollIntoView(options) {
+    this.scrollIntoViewCalls.push(options === undefined ? true : options);
   }
 
   focus() {
@@ -149,6 +169,7 @@ class BrowserTestElement {
 function browserDocument() {
   const tagById = {
     'game-search': 'input',
+    'nav-home': 'button',
     'nav-all': 'button',
     'nav-continue': 'button',
     'nav-favorites': 'button',
@@ -174,7 +195,7 @@ function browserDocument() {
     'catalog-list', 'catalog-actions', 'detail', 'detail-content',
     'launch-actions', 'launch-status', 'session-panel', 'session-status',
     'session-details', 'session-actions', 'session-message',
-    'nav-all', 'nav-continue', 'nav-favorites', 'nav-recents', 'nav-unplayed',
+    'nav-home', 'nav-all', 'nav-continue', 'nav-favorites', 'nav-recents', 'nav-unplayed',
     'nav-recently-added', 'collection-list', 'create-collection', 'collection-name-label',
     'collection-name', 'save-collection', 'rename-collection', 'delete-collection',
     'platform-list',
@@ -238,7 +259,7 @@ async function waitForAttractTitle(document, title, timeoutMs) {
   throw new Error(`attract title was ${JSON.stringify(document.nodes.get('attract-title') && document.nodes.get('attract-title').textContent)} hidden=${attract && attract.hidden}, want ${title}`);
 }
 
-async function runBrowserApp({ adapter, responses, sessionResponses, globals, attractItems, collections, settings }) {
+async function runBrowserApp({ adapter, responses, sessionResponses, globals, attractItems, collections, settings, keepHome, homeRails }) {
   const document = browserDocument();
   const calls = [];
   const sessionCalls = [];
@@ -271,6 +292,14 @@ async function runBrowserApp({ adapter, responses, sessionResponses, globals, at
       return jsonResponse(librarySettings);
     }
     const isSession = pathOnly === '/api/v1/session';
+    if (!isSession && pathOnly === '/api/v1/games') {
+      const collection = new URLSearchParams(String(requestPath).split('?')[1] || '').get('collection') || '';
+      if (collection) {
+        if (keepHome) calls.push({ path: requestPath, options });
+        const rail = homeRails && homeRails[collection];
+        return rail || jsonResponse({ games: [] });
+      }
+    }
     const destination = isSession ? sessionCalls : calls;
     destination.push({ path: requestPath, options });
     const response = (isSession ? queuedSessionResponses : responses).shift();
@@ -288,6 +317,10 @@ async function runBrowserApp({ adapter, responses, sessionResponses, globals, at
   if (adapter !== undefined) context.FogCastMetadata = adapter;
   vm.runInNewContext(readAsset('ui_app.js'), context, { filename: 'ui_app.js' });
   await settleBrowser();
+  if (!keepHome && document.nodes.get('nav-all')) {
+    document.nodes.get('nav-all').click();
+    await settleBrowser();
+  }
   return { document, calls, sessionCalls, globals: context };
 }
 
@@ -1907,6 +1940,8 @@ test('uniqueCollectionID avoids reserved slugs and existing collisions', () => {
   assert.equal(collectionIDFromName('日本語'), 'collection');
   assert.equal(collectionIDFromName('Recently Added'), 'recently-added-list');
   assert.equal(collectionIDFromName('recently_added'), 'recently-added-list');
+  assert.equal(collectionIDFromName('Home'), 'home-list');
+  assert.equal(uniqueCollectionID('Home', []), 'home-list');
   assert.equal(uniqueCollectionID('Weekend Queue!', []), 'weekend-queue');
   assert.equal(uniqueCollectionID('Weekend Queue!!', ['weekend-queue']), 'weekend-queue-2');
   assert.equal(uniqueCollectionID('日本語', ['collection']), 'collection-2');
@@ -1976,6 +2011,7 @@ test('removing a member while browsing that collection reloads the wall', async 
       }],
     })],
     '/api/v1/games?collection=weekend-queue': [
+      jsonResponse({ games: [] }),
       jsonResponse({
         games: [{
           ...readFixture('catalog-populated.json').games[0],
@@ -2422,7 +2458,12 @@ function availableGame(id, title, overrides = {}) {
 }
 
 function gameCards(document) {
-  return document.nodes.get('catalog-list').children.filter(child => String(child.className).includes('game-card'));
+  const list = document.nodes.get('catalog-list');
+  if (list && typeof list.querySelectorAll === 'function') {
+    return Array.from(list.querySelectorAll('.game-card'));
+  }
+  return (list && list.children ? Array.from(list.children) : [])
+    .filter(child => String(child.className).includes('game-card'));
 }
 
 function selectedCard(document) {
@@ -2441,7 +2482,17 @@ async function pressKey(document, key, target = document.activeElement, extras) 
   return event;
 }
 
-async function runKeyboardApp({ pages, platforms, launchResponse, globals, collections, onSettings } = {}) {
+async function openAllGamesGrid(document) {
+  const navAll = document.nodes.get('nav-all');
+  if (navAll) {
+    navAll.click();
+    navAll.focus();
+  }
+  await settleBrowser();
+  await pressKey(document, 'Enter', navAll);
+}
+
+async function runKeyboardApp({ pages, railPages, platforms, launchResponse, globals, collections, onSettings } = {}) {
   const catalogPages = pages || [{
     games: readFixture('catalog-populated.json').games,
     next_cursor: '',
@@ -2493,6 +2544,10 @@ async function runKeyboardApp({ pages, platforms, launchResponse, globals, colle
     }
     if (pathOnly === '/api/v1/games') {
       calls.push({ path: requestPath, options });
+      const collection = params.get('collection') || '';
+      if (collection && railPages && railPages[collection]) {
+        return jsonResponse({ games: railPages[collection], next_cursor: '' });
+      }
       const cursor = params.get('cursor') || '';
       const page = catalogPages.find(item => (item.cursor || '') === cursor) || catalogPages[0];
       return jsonResponse({
@@ -2524,15 +2579,16 @@ test('keyboard path moves rail to grid to detail to launch', async () => {
   const { document, calls } = await runKeyboardApp();
   await settleBrowser();
   assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'rail');
-  assert.equal(document.activeElement, document.nodes.get('nav-all'));
+  assert.equal(document.activeElement, document.nodes.get('nav-home'));
 
   await pressKey(document, 'ArrowDown');
-  assert.equal(document.activeElement, document.nodes.get('nav-continue'));
-  await pressKey(document, 'Home');
   assert.equal(document.activeElement, document.nodes.get('nav-all'));
+  await pressKey(document, 'Home');
+  assert.equal(document.activeElement, document.nodes.get('nav-home'));
   await pressKey(document, 'End');
   assert.equal(document.activeElement, document.nodes.get('nav-recently-added'));
   await pressKey(document, 'Home');
+  await pressKey(document, 'ArrowDown');
   await pressKey(document, 'Enter');
   assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'grid');
   assert.equal(selectedCard(document).attributes.get('data-game-id'), 'megadrive-sonic-test');
@@ -2563,7 +2619,7 @@ test('keyboard path moves rail to grid to detail to launch', async () => {
 test('type-to-search focuses the search field from the cover wall', async () => {
   const { document, calls } = await runKeyboardApp();
   await settleBrowser();
-  await pressKey(document, 'Enter');
+  await openAllGamesGrid(document);
   const before = calls.filter(call => String(call.path).startsWith('/api/v1/games')).length;
   await pressKey(document, 's');
   assert.equal(document.activeElement, document.nodes.get('game-search'));
@@ -2591,7 +2647,7 @@ test('grid Home/End and end-of-page arrows keep the games cursor', async () => {
     ],
   });
   await settleBrowser();
-  await pressKey(document, 'Enter');
+  await openAllGamesGrid(document);
   assert.equal(gameCards(document).length, 4);
   await pressKey(document, 'End');
   assert.ok(calls.some(call => String(call.path).includes('cursor=cursor-1')));
@@ -2611,7 +2667,7 @@ test('grid arrows move by cover-wall columns and left edge returns to the rail',
   const { document } = await runKeyboardApp({ pages: [{ games }] });
   await settleBrowser();
   document.nodes.get('catalog-list').clientWidth = 896;
-  await pressKey(document, 'Enter');
+  await openAllGamesGrid(document);
   await pressKey(document, 'ArrowDown');
   assert.equal(selectedCard(document).attributes.get('data-game-id'), 'snes-grid-4');
   await pressKey(document, 'ArrowUp');
@@ -2648,7 +2704,7 @@ test('narrow cover wall uses padded 140px tracks for arrow jumps', async () => {
   });
   await settleBrowser();
   document.nodes.get('catalog-list').clientWidth = 360;
-  await pressKey(document, 'Enter');
+  await openAllGamesGrid(document);
   await pressKey(document, 'ArrowDown');
   assert.equal(selectedCard(document).attributes.get('data-game-id'), 'snes-grid-2');
   await pressKey(document, 'ArrowUp');
@@ -2658,7 +2714,7 @@ test('narrow cover wall uses padded 140px tracks for arrow jumps', async () => {
 test('Enter on favorite or session controls does not launch', async () => {
   const { document, calls } = await runKeyboardApp();
   await settleBrowser();
-  await pressKey(document, 'Enter');
+  await openAllGamesGrid(document);
   await pressKey(document, 'Enter');
   assert.equal(document.activeElement.id, 'launch-game');
   const before = calls.filter(call => call.path === '/api/v1/session/launch').length;
@@ -2687,7 +2743,7 @@ test('Enter on collection member control does not launch', async () => {
     collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }],
   });
   await settleBrowser();
-  await pressKey(document, 'Enter');
+  await openAllGamesGrid(document);
   await pressKey(document, 'Enter');
   const member = document.getElementById('collection-member-weekend-queue');
   assert.ok(member);
@@ -2716,7 +2772,7 @@ test('catalog filter and version selects keep native ArrowDown and Enter', async
   assert.equal(filterEnter.defaultPrevented, undefined);
   assert.notEqual(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'grid');
 
-  await pressKey(document, 'Enter', document.nodes.get('nav-all'));
+  await openAllGamesGrid(document);
   await pressKey(document, 'Enter');
   const version = document.getElementById('game-version');
   assert.ok(version);
@@ -2731,6 +2787,7 @@ test('catalog filter and version selects keep native ArrowDown and Enter', async
 test('ArrowDown and Enter on search still move to the cover wall', async () => {
   const { document } = await runKeyboardApp();
   await settleBrowser();
+  await openAllGamesGrid(document);
   document.nodes.get('game-search').focus();
   const down = await pressKey(document, 'ArrowDown', document.nodes.get('game-search'));
   assert.equal(down.defaultPrevented, true);
@@ -2768,7 +2825,7 @@ test('settings overlay cancels attract and enterAttract no-ops until close', asy
 test('settings overlay traps Tab and blocks launcher Enter', async () => {
   const { document, calls } = await runKeyboardApp();
   await settleBrowser();
-  await pressKey(document, 'Enter');
+  await openAllGamesGrid(document);
   await pressKey(document, 'Enter');
   assert.ok(document.getElementById('launch-game'));
   await document.nodes.get('open-settings').click();
@@ -3041,11 +3098,548 @@ test('detail CSS meets the panel edge without negative-margin backdrop bleed', (
 test('selected cards keep a visible selected and focus contract', async () => {
   const { document } = await runKeyboardApp();
   await settleBrowser();
-  await pressKey(document, 'Enter');
+  await openAllGamesGrid(document);
   const card = selectedCard(document);
   assert.ok(card.className.includes('selected'));
   assert.equal(card.tabIndex, 0);
   assert.equal(card.focused, true);
   const others = gameCards(document).filter(item => item !== card);
   assert.ok(others.every(item => item.tabIndex === -1));
+});
+
+function homeRails(document) {
+  const list = document.nodes.get('catalog-list');
+  return list && typeof list.querySelectorAll === 'function'
+    ? Array.from(list.querySelectorAll('.home-rail'))
+    : [];
+}
+
+test('home is the default view and fetches each rail from the games API', async () => {
+  const continueGame = availableGame('megadrive-sonic-test', 'Sonic the Hedgehog', { system: 'megadrive' });
+  const favoriteGame = availableGame('snes-mario-test', 'Mario', { system: 'snes' });
+  const recentGame = availableGame('snes-unknown-test', 'Unknown Game', { system: 'snes' });
+  const weekendGame = availableGame('megadrive-streets-test', 'Streets', { system: 'megadrive' });
+  const { document, calls } = await runBrowserApp({
+    keepHome: true,
+    responses: [],
+    collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }],
+    homeRails: {
+      continue: jsonResponse({ games: [continueGame] }),
+      favorites: jsonResponse({ games: [favoriteGame] }),
+      recents: jsonResponse({ games: [recentGame] }),
+      'weekend-queue': jsonResponse({ games: [weekendGame] }),
+    },
+  });
+  await settleBrowser();
+  const rails = homeRails(document);
+  assert.deepEqual(rails.map(rail => rail.attributes.get('data-home-rail')), [
+    'continue', 'favorites', 'recents', 'weekend-queue',
+  ]);
+  assert.deepEqual(rails.map(rail => rail.querySelectorAll('.home-rail-title')[0]?.textContent || rail.children[0].children[0].textContent), [
+    'Continue', 'Favorites', 'Recent', 'Weekend Queue',
+  ]);
+  assert.equal(document.nodes.get('nav-home').className.includes('selected'), true);
+  assert.equal(document.nodes.get('nav-all').className.includes('selected'), false);
+  assert.equal(document.nodes.get('catalog-list').className, 'home-rails');
+  const homeCalls = calls.filter(call => String(call.path).startsWith('/api/v1/games'));
+  assert.ok(homeCalls.some(call => call.path.includes('collection=continue') && call.path.includes('limit=12')));
+  assert.ok(homeCalls.some(call => call.path.includes('collection=favorites') && call.path.includes('limit=12')));
+  assert.ok(homeCalls.some(call => call.path.includes('collection=recents') && call.path.includes('limit=12')));
+  assert.ok(homeCalls.some(call => call.path.includes('collection=weekend-queue') && call.path.includes('limit=12')));
+  assert.equal(homeCalls.some(call => /[?&]collection=home\b/.test(call.path)), false);
+});
+
+test('home omits empty rails and See all opens the existing cover wall', async () => {
+  const continueGame = availableGame('megadrive-sonic-test', 'Sonic the Hedgehog', { system: 'megadrive' });
+  const { document } = await runBrowserApp({
+    keepHome: true,
+    responses: [jsonResponse(readFixture('catalog-populated.json'))],
+    collections: [
+      { id: 'empty-shelf', name: 'Empty Shelf' },
+      { id: 'weekend-queue', name: 'Weekend Queue' },
+    ],
+    homeRails: {
+      continue: jsonResponse({ games: [continueGame] }),
+      favorites: jsonResponse({ games: [] }),
+      recents: jsonResponse({ games: [] }),
+      'empty-shelf': jsonResponse({ games: [] }),
+      'weekend-queue': jsonResponse({ games: [] }),
+    },
+  });
+  await settleBrowser();
+  const rails = homeRails(document);
+  assert.deepEqual(rails.map(rail => rail.attributes.get('data-home-rail')), ['continue']);
+  const seeAll = rails[0].querySelectorAll('.home-rail-see-all')[0] || rails[0].children[0].children[1];
+  seeAll.click();
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-list').className, 'game-grid');
+  assert.equal(document.nodes.get('nav-continue').className.includes('selected'), true);
+  assert.equal(document.nodes.get('nav-home').className.includes('selected'), false);
+  assert.ok(gameCards(document).length > 0);
+});
+
+test('home keyboard moves along and between rails and Enter opens detail not launch', async () => {
+  const continueGames = [
+    availableGame('megadrive-sonic-test', 'Sonic the Hedgehog', { system: 'megadrive' }),
+    availableGame('megadrive-streets-test', 'Streets', { system: 'megadrive' }),
+  ];
+  const favoriteGames = [
+    availableGame('snes-mario-test', 'Mario', { system: 'snes' }),
+  ];
+  const { document, calls } = await runKeyboardApp({
+    pages: [{ games: continueGames }],
+    railPages: {
+      continue: continueGames,
+      favorites: favoriteGames,
+      recents: [],
+    },
+    collections: [],
+  });
+  await settleBrowser();
+  const originalFetch = calls.slice();
+  void originalFetch;
+  document.nodes.get('nav-home').focus();
+  await pressKey(document, 'Enter');
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'home');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'megadrive-sonic-test');
+
+  await pressKey(document, 'ArrowRight');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'megadrive-streets-test');
+  assert.ok((document.activeElement.scrollIntoViewCalls || []).some(options => (
+    options && options.block === 'nearest' && options.inline === 'nearest'
+  )));
+  await pressKey(document, 'Home');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'megadrive-sonic-test');
+  await pressKey(document, 'End');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'megadrive-streets-test');
+  await pressKey(document, 'ArrowLeft');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'megadrive-sonic-test');
+
+  await pressKey(document, 'ArrowDown');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'snes-mario-test');
+  await pressKey(document, 'ArrowUp');
+  assert.equal(selectedCard(document).attributes.get('data-game-id'), 'megadrive-sonic-test');
+
+  const beforeLaunch = calls.filter(call => call.path === '/api/v1/session/launch').length;
+  await pressKey(document, 'Enter');
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'detail');
+  assert.equal(document.activeElement.id, 'launch-game');
+  assert.equal(calls.filter(call => call.path === '/api/v1/session/launch').length, beforeLaunch);
+  await pressKey(document, 'Escape');
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'home');
+  await pressKey(document, 'Escape');
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'rail');
+});
+
+test('setLibraryNav home loads rails and never invents a /home API', async () => {
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/games?collection=continue': [jsonResponse({ games: [availableGame('megadrive-sonic-test', 'Sonic')] })],
+    '/api/v1/games?collection=favorites': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=recents': [jsonResponse({ games: [availableGame('snes-mario-test', 'Mario')] })],
+    '/api/v1/games': [jsonResponse(readFixture('catalog-populated.json'))],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.setLibraryNav('home', '');
+  const state = controller.getState();
+  assert.equal(state.libraryView, 'home');
+  assert.deepEqual(state.homeRails.map(rail => rail.id), ['continue', 'recents']);
+  assert.equal(state.homeRails[0].gameViews.length, 1);
+  assert.equal(calls.some(call => String(call.path).includes('/home')), false);
+  assert.ok(calls.some(call => call.path === '/api/v1/games?collection=continue&grouped=1&limit=12'));
+  await controller.setLibraryNav('', '');
+  assert.equal(controller.getState().libraryView, 'grid');
+  assert.equal(controller.getState().collection, '');
+});
+
+test('home platform filter stays unapplied and clears the platform chrome', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic', { system: 'megadrive' });
+  const { document, calls } = await runBrowserApp({
+    keepHome: true,
+    responses: [],
+    homeRails: {
+      continue: jsonResponse({ games: [sonic] }),
+      favorites: jsonResponse({ games: [] }),
+      recents: jsonResponse({ games: [] }),
+    },
+  });
+  await settleBrowser();
+  const filter = document.nodes.get('filter-system');
+  filter.value = 'snes';
+  const change = filter.listeners.get('change');
+  assert.equal(typeof change, 'function');
+  const before = calls.length;
+  await change();
+  await settleBrowser();
+  assert.equal(filter.value, '');
+  assert.equal(calls.slice(before).some(call => String(call.path).includes('platform=')), false);
+  const homeCalls = calls.filter(call => String(call.path).startsWith('/api/v1/games'));
+  assert.ok(homeCalls.length > 0);
+  assert.equal(homeCalls.every(call => !String(call.path).includes('platform=')), true);
+});
+
+test('home keyboard keeps focus on the target rail when the same game appears twice', async () => {
+  const shared = availableGame('megadrive-sonic-test', 'Sonic the Hedgehog', { system: 'megadrive' });
+  const { document } = await runKeyboardApp({
+    pages: [{ games: [shared] }],
+    railPages: {
+      continue: [shared],
+      favorites: [shared],
+      recents: [],
+    },
+    collections: [],
+  });
+  await settleBrowser();
+  document.nodes.get('nav-home').focus();
+  await pressKey(document, 'Enter');
+  assert.equal(document.activeElement.attributes.get('data-game-id'), 'megadrive-sonic-test');
+  assert.equal(document.activeElement.parentNode.getAttribute('data-home-track'), 'continue');
+
+  await pressKey(document, 'ArrowDown');
+  assert.equal(document.activeElement.attributes.get('data-game-id'), 'megadrive-sonic-test');
+  assert.equal(document.activeElement.parentNode.getAttribute('data-home-track'), 'favorites');
+  const selectedOnHome = gameCards(document).filter(card => String(card.className || '').includes('selected'));
+  assert.equal(selectedOnHome.length, 1);
+  assert.equal(selectedOnHome[0].parentNode.getAttribute('data-home-track'), 'favorites');
+
+  await pressKey(document, 'ArrowUp');
+  assert.equal(document.activeElement.parentNode.getAttribute('data-home-track'), 'continue');
+});
+
+test('reopening home keeps the focused cover and detail target on the same game', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic the Hedgehog', { system: 'megadrive' });
+  const mario = availableGame('snes-mario-test', 'Mario', { system: 'snes' });
+  const streets = availableGame('megadrive-streets-test', 'Streets', { system: 'megadrive' });
+  const { document } = await runKeyboardApp({
+    pages: [{ games: [sonic, mario, streets] }],
+    railPages: {
+      continue: [sonic],
+      favorites: [mario],
+      recents: [],
+    },
+    collections: [],
+  });
+  await settleBrowser();
+  document.nodes.get('nav-home').focus();
+  await pressKey(document, 'Enter');
+  await pressKey(document, 'ArrowDown');
+  assert.equal(document.activeElement.attributes.get('data-game-id'), 'snes-mario-test');
+  assert.equal(document.activeElement.parentNode.getAttribute('data-home-track'), 'favorites');
+
+  await openAllGamesGrid(document);
+  const sonicCard = gameCards(document).find(card => card.attributes.get('data-game-id') === 'megadrive-sonic-test');
+  assert.ok(sonicCard);
+  sonicCard.click();
+  await settleBrowser();
+
+  document.nodes.get('nav-home').focus();
+  await pressKey(document, 'Enter');
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'home');
+  assert.equal(document.activeElement.attributes.get('data-game-id'), 'megadrive-sonic-test');
+  assert.equal(document.activeElement.parentNode.getAttribute('data-home-track'), 'continue');
+  const selectedOnHome = gameCards(document).filter(card => String(card.className || '').includes('selected'));
+  assert.equal(selectedOnHome.length, 1);
+  assert.equal(selectedOnHome[0].attributes.get('data-game-id'), 'megadrive-sonic-test');
+
+  await pressKey(document, 'Enter');
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'detail');
+  assert.match(document.nodes.get('detail-content').children.map(node => node.textContent).join(' '), /Sonic/);
+
+  await pressKey(document, 'Escape');
+  await openAllGamesGrid(document);
+  const streetsCard = gameCards(document).find(card => card.attributes.get('data-game-id') === 'megadrive-streets-test');
+  assert.ok(streetsCard);
+  streetsCard.click();
+  await settleBrowser();
+  document.nodes.get('nav-home').focus();
+  await pressKey(document, 'Enter');
+  assert.equal(document.activeElement.attributes.get('data-game-id'), 'megadrive-sonic-test');
+  await pressKey(document, 'Enter');
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'detail');
+  assert.match(document.nodes.get('detail-content').children.map(node => node.textContent).join(' '), /Sonic/);
+});
+
+test('custom collection id home opens the grid while Home chrome stays the aggregate view', async () => {
+  const shelfGame = availableGame('megadrive-sonic-test', 'Sonic', { system: 'megadrive' });
+  const { document, calls } = await runBrowserApp({
+    keepHome: true,
+    responses: [jsonResponse({ games: [shelfGame] })],
+    collections: [{ id: 'home', name: 'Home Shelf' }],
+    homeRails: {
+      continue: jsonResponse({ games: [] }),
+      favorites: jsonResponse({ games: [] }),
+      recents: jsonResponse({ games: [] }),
+      home: jsonResponse({ games: [shelfGame] }),
+    },
+  });
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-list').className, 'home-rails');
+  assert.deepEqual(homeRails(document).map(rail => rail.attributes.get('data-home-rail')), ['home']);
+  const shelf = document.nodes.get('nav-collection-home');
+  assert.ok(shelf);
+  shelf.click();
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-list').className, 'game-grid');
+  assert.equal(document.nodes.get('nav-home').className.includes('selected'), false);
+  assert.equal(document.nodes.get('nav-collection-home').className.includes('selected'), true);
+  assert.ok(calls.some(call => /[?&]collection=home\b/.test(String(call.path))));
+
+  document.nodes.get('nav-home').click();
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-list').className, 'home-rails');
+  assert.equal(document.nodes.get('nav-home').className.includes('selected'), true);
+  assert.equal(document.nodes.get('nav-collection-home').className.includes('selected'), false);
+});
+
+test('setLibraryNav home opens a custom collection id home as the grid', async () => {
+  const shelfGame = availableGame('megadrive-sonic-test', 'Sonic');
+  const { fetchImpl } = routedFetch({
+    '/api/v1/library/collections': [jsonResponse({ collections: [{ id: 'home', name: 'Home Shelf' }] })],
+    '/api/v1/platforms': [jsonResponse({ platforms: [] })],
+    '/api/v1/library/attract?limit=1': [jsonResponse({ items: [], idle_seconds: 60 })],
+    '/api/v1/library/facets': [jsonResponse({ genres: [], years: [] })],
+    '/api/v1/games?collection=continue': [jsonResponse({ games: [] }), jsonResponse({ games: [] })],
+    '/api/v1/games?collection=favorites': [jsonResponse({ games: [] }), jsonResponse({ games: [] })],
+    '/api/v1/games?collection=recents': [jsonResponse({ games: [] }), jsonResponse({ games: [] })],
+    '/api/v1/games?collection=home': [
+      jsonResponse({ games: [shelfGame] }),
+      jsonResponse({ games: [shelfGame] }),
+      jsonResponse({ games: [shelfGame] }),
+    ],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadPlatforms();
+  assert.equal(controller.getState().libraryView, 'home');
+  assert.equal(controller.getState().collection, '');
+  assert.deepEqual(controller.getState().homeRails.map(rail => rail.id), ['home']);
+  await controller.setLibraryNav('home', '');
+  assert.equal(controller.getState().libraryView, 'grid');
+  assert.equal(controller.getState().collection, 'home');
+  await controller.openHome();
+  assert.equal(controller.getState().libraryView, 'home');
+  assert.equal(controller.getState().collection, '');
+});
+
+test('home custom rails skip empty collections before applying the cap of 6', async () => {
+  const weekendGame = availableGame('megadrive-streets-test', 'Streets', { system: 'megadrive' });
+  const collections = [];
+  const homeRailsByID = {
+    continue: jsonResponse({ games: [] }),
+    favorites: jsonResponse({ games: [] }),
+    recents: jsonResponse({ games: [] }),
+  };
+  for (let index = 1; index <= 6; index += 1) {
+    const id = `empty-${index}`;
+    collections.push({ id, name: `Empty ${index}` });
+    homeRailsByID[id] = jsonResponse({ games: [] });
+  }
+  collections.push({ id: 'weekend-queue', name: 'Weekend Queue' });
+  homeRailsByID['weekend-queue'] = jsonResponse({ games: [weekendGame] });
+  const { document, calls } = await runBrowserApp({
+    keepHome: true,
+    responses: [],
+    collections,
+    homeRails: homeRailsByID,
+  });
+  await settleBrowser();
+  assert.deepEqual(homeRails(document).map(rail => rail.attributes.get('data-home-rail')), ['weekend-queue']);
+  assert.ok(calls.some(call => String(call.path).includes('collection=weekend-queue')));
+  assert.ok(calls.some(call => String(call.path).includes('collection=empty-1')));
+});
+
+test('home keeps at most 6 nonempty custom rails', async () => {
+  const collections = [];
+  const homeRailsByID = {
+    continue: jsonResponse({ games: [] }),
+    favorites: jsonResponse({ games: [] }),
+    recents: jsonResponse({ games: [] }),
+  };
+  for (let index = 1; index <= 7; index += 1) {
+    const id = `shelf-${index}`;
+    collections.push({ id, name: `Shelf ${index}` });
+    homeRailsByID[id] = jsonResponse({
+      games: [availableGame(`megadrive-game-${index}`, `Game ${index}`, { system: 'megadrive' })],
+    });
+  }
+  const { document, calls } = await runBrowserApp({
+    keepHome: true,
+    responses: [],
+    collections,
+    homeRails: homeRailsByID,
+  });
+  await settleBrowser();
+  assert.deepEqual(homeRails(document).map(rail => rail.attributes.get('data-home-rail')), [
+    'shelf-1', 'shelf-2', 'shelf-3', 'shelf-4', 'shelf-5', 'shelf-6',
+  ]);
+  assert.equal(calls.some(call => String(call.path).includes('collection=shelf-7')), false);
+});
+
+test('home favorite toggle refetches the favorites rail', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic', { favorite: true });
+  const { fetchImpl } = routedFetch({
+    '/api/v1/games?collection=continue': [jsonResponse({ games: [sonic] })],
+    '/api/v1/games?collection=favorites': [
+      jsonResponse({ games: [sonic] }),
+      jsonResponse({ games: [] }),
+      jsonResponse({ games: [sonic] }),
+    ],
+    '/api/v1/games?collection=recents': [jsonResponse({ games: [] })],
+    '/api/v1/library/favorites/megadrive-sonic-test': [
+      jsonResponse({ favorite: false }),
+      jsonResponse({ favorite: true }),
+    ],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.openHome();
+  assert.deepEqual(controller.getState().homeRails.map(rail => rail.id), ['continue', 'favorites']);
+  await controller.toggleFavorite('megadrive-sonic-test');
+  assert.equal(controller.getState().games[0].favorite, false);
+  assert.deepEqual(controller.getState().homeRails.map(rail => rail.id), ['continue']);
+  await controller.toggleFavorite('megadrive-sonic-test');
+  assert.equal(controller.getState().games[0].favorite, true);
+  assert.deepEqual(controller.getState().homeRails.map(rail => rail.id), ['continue', 'favorites']);
+  assert.equal(controller.getState().homeRails[1].gameViews[0].live.id, 'megadrive-sonic-test');
+});
+
+test('home collection toggle refetches the affected custom rail', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic', { collections: ['weekend-queue'] });
+  const { fetchImpl } = routedFetch({
+    '/api/v1/platforms': [jsonResponse({ platforms: [] })],
+    '/api/v1/library/attract?limit=1': [jsonResponse({ items: [], idle_seconds: 60 })],
+    '/api/v1/library/facets': [jsonResponse({ genres: [], years: [] })],
+    '/api/v1/library/collections': [jsonResponse({ collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }] })],
+    '/api/v1/games?collection=continue': [jsonResponse({ games: [sonic] })],
+    '/api/v1/games?collection=favorites': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=recents': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=weekend-queue': [
+      jsonResponse({ games: [sonic] }),
+      jsonResponse({ games: [] }),
+      jsonResponse({ games: [sonic] }),
+    ],
+    '/api/v1/library/collections/weekend-queue/megadrive-sonic-test': [
+      jsonResponse({ member: false }),
+      jsonResponse({ member: true }),
+    ],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadPlatforms();
+  assert.deepEqual(controller.getState().homeRails.map(rail => rail.id), ['continue', 'weekend-queue']);
+  await controller.toggleCollectionMember('weekend-queue', 'megadrive-sonic-test');
+  assert.equal(controller.getState().homeRails.some(rail => rail.id === 'weekend-queue'), false);
+  await controller.toggleCollectionMember('weekend-queue', 'megadrive-sonic-test');
+  const weekend = controller.getState().homeRails.find(rail => rail.id === 'weekend-queue');
+  assert.ok(weekend);
+  assert.equal(weekend.gameViews[0].live.id, 'megadrive-sonic-test');
+});
+
+test('home membership toggles emit the game update before the rail refetch', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic');
+  let releaseFavorites;
+  const holdFavorites = new Promise(resolve => { releaseFavorites = resolve; });
+  const seen = [];
+  const { fetchImpl } = routedFetch({
+    '/api/v1/games?collection=continue': [jsonResponse({ games: [sonic] })],
+    '/api/v1/games?collection=favorites': [
+      jsonResponse({ games: [] }),
+      () => holdFavorites.then(() => jsonResponse({ games: [sonic] })),
+    ],
+    '/api/v1/games?collection=recents': [jsonResponse({ games: [] })],
+    '/api/v1/library/favorites/megadrive-sonic-test': [jsonResponse({ favorite: true })],
+  });
+  const controller = createAppController({
+    fetchImpl,
+    metadataAdapter: FogCastMetadata,
+    onStateChange(next) { seen.push(next); },
+  });
+  await controller.openHome();
+  const afterOpen = seen.length;
+  const pending = controller.toggleFavorite('megadrive-sonic-test');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(controller.getState().games[0].favorite, true);
+  assert.ok(seen.slice(afterOpen).some(item => item.games[0] && item.games[0].favorite === true));
+  assert.equal(controller.getState().homeRails.some(rail => rail.id === 'favorites'), false);
+  releaseFavorites();
+  await pending;
+  assert.equal(controller.getState().homeRails.some(rail => rail.id === 'favorites'), true);
+});
+
+test('home inserts an earlier nonempty custom rail and trims to 6', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic');
+  const collections = [{ id: 'early-shelf', name: 'Early Shelf' }];
+  const routes = {
+    '/api/v1/platforms': [jsonResponse({ platforms: [] })],
+    '/api/v1/library/attract?limit=1': [jsonResponse({ items: [], idle_seconds: 60 })],
+    '/api/v1/library/facets': [jsonResponse({ genres: [], years: [] })],
+    '/api/v1/library/collections': [jsonResponse({ collections })],
+    '/api/v1/games?collection=continue': [jsonResponse({ games: [sonic] })],
+    '/api/v1/games?collection=favorites': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=recents': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=early-shelf': [
+      jsonResponse({ games: [] }),
+      jsonResponse({ games: [sonic] }),
+    ],
+    '/api/v1/library/collections/early-shelf/megadrive-sonic-test': [jsonResponse({ member: true })],
+  };
+  for (let index = 1; index <= 6; index += 1) {
+    const id = `shelf-${index}`;
+    collections.push({ id, name: `Shelf ${index}` });
+    routes[`/api/v1/games?collection=${id}`] = [jsonResponse({
+      games: [availableGame(`megadrive-game-${index}`, `Game ${index}`)],
+    })];
+  }
+  routes['/api/v1/library/collections'] = [jsonResponse({ collections })];
+  const { fetchImpl } = routedFetch(routes);
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadPlatforms();
+  assert.deepEqual(controller.getState().homeRails.map(rail => rail.id), [
+    'continue', 'shelf-1', 'shelf-2', 'shelf-3', 'shelf-4', 'shelf-5', 'shelf-6',
+  ]);
+  await controller.toggleCollectionMember('early-shelf', 'megadrive-sonic-test');
+  assert.deepEqual(controller.getState().homeRails.map(rail => rail.id), [
+    'continue', 'early-shelf', 'shelf-1', 'shelf-2', 'shelf-3', 'shelf-4', 'shelf-5',
+  ]);
+});
+
+test('home partial rail failures do not use the empty-home copy', async () => {
+  const { document } = await runBrowserApp({
+    keepHome: true,
+    responses: [],
+    homeRails: {
+      continue: jsonResponse({ games: [] }),
+      favorites: jsonResponse({ error: { message: 'unavailable' } }, 500),
+      recents: jsonResponse({ error: { message: 'unavailable' } }, 500),
+    },
+  });
+  await settleBrowser();
+  const message = document.nodes.get('catalog-list').children[0];
+  assert.ok(message);
+  assert.equal(message.textContent, 'The catalog could not be loaded.');
+  assert.notEqual(message.textContent, 'Home has no Continue, Favorites, Recent, or collection titles yet.');
+  const { fetchImpl } = routedFetch({
+    '/api/v1/games?collection=continue': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=favorites': [jsonResponse({ error: { message: 'unavailable' } }, 500)],
+    '/api/v1/games?collection=recents': [jsonResponse({ error: { message: 'unavailable' } }, 500)],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.openHome();
+  const state = controller.getState();
+  assert.equal(state.catalogState, 'catalog_error');
+  assert.equal(catalogViewState(state), 'catalog_error');
+  assert.ok(state.homeRailFailures > 0);
+});
+
+test('empty home uses home-specific copy instead of claiming the library is empty', async () => {
+  const { document } = await runBrowserApp({
+    keepHome: true,
+    responses: [jsonResponse(readFixture('catalog-populated.json'))],
+    homeRails: {
+      continue: jsonResponse({ games: [] }),
+      favorites: jsonResponse({ games: [] }),
+      recents: jsonResponse({ games: [] }),
+    },
+  });
+  await settleBrowser();
+  const message = document.nodes.get('catalog-list').children[0];
+  assert.ok(message);
+  assert.equal(message.textContent, 'Home has no Continue, Favorites, Recent, or collection titles yet.');
+  assert.notEqual(message.textContent, 'The library is empty.');
 });
