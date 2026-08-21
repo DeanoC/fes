@@ -238,7 +238,7 @@ async function waitForAttractTitle(document, title, timeoutMs) {
   throw new Error(`attract title was ${JSON.stringify(document.nodes.get('attract-title') && document.nodes.get('attract-title').textContent)} hidden=${attract && attract.hidden}, want ${title}`);
 }
 
-async function runBrowserApp({ adapter, responses, sessionResponses, globals, attractItems, collections }) {
+async function runBrowserApp({ adapter, responses, sessionResponses, globals, attractItems, collections, settings }) {
   const document = browserDocument();
   const calls = [];
   const sessionCalls = [];
@@ -251,8 +251,9 @@ async function runBrowserApp({ adapter, responses, sessionResponses, globals, at
     if (pathOnly === '/api/v1/platforms') {
       return jsonResponse({ platforms: [] });
     }
+    const librarySettings = settings || { attract_idle_seconds: 60, preferred_regions: ['usa', 'world', 'europe', 'japan'] };
     if (pathOnly === '/api/v1/library/attract') {
-      return jsonResponse({ items: attractItems || [], idle_seconds: 60 });
+      return jsonResponse({ items: attractItems || [], idle_seconds: librarySettings.attract_idle_seconds });
     }
     if (pathOnly === '/api/v1/library/facets') {
       return jsonResponse({ genres: [], years: [] });
@@ -267,7 +268,7 @@ async function runBrowserApp({ adapter, responses, sessionResponses, globals, at
       return jsonResponse({ favorite: (options && options.method) === 'PUT' });
     }
     if (pathOnly === '/api/v1/library/settings') {
-      return jsonResponse({ attract_idle_seconds: 60, preferred_regions: ['usa', 'world', 'europe', 'japan'] });
+      return jsonResponse(librarySettings);
     }
     const isSession = pathOnly === '/api/v1/session';
     const destination = isSession ? sessionCalls : calls;
@@ -2274,7 +2275,7 @@ async function pressKey(document, key, target = document.activeElement, extras) 
   return event;
 }
 
-async function runKeyboardApp({ pages, platforms, launchResponse, globals, collections } = {}) {
+async function runKeyboardApp({ pages, platforms, launchResponse, globals, collections, onSettings } = {}) {
   const catalogPages = pages || [{
     games: readFixture('catalog-populated.json').games,
     next_cursor: '',
@@ -2293,6 +2294,7 @@ async function runKeyboardApp({ pages, platforms, launchResponse, globals, colle
     }
     if (pathOnly === '/api/v1/library/settings') {
       calls.push({ path: requestPath, options });
+      if (onSettings) await onSettings({ path: requestPath, options });
       if (options && (options.method === 'PUT' || options.method === 'PATCH') && options.body) {
         const written = JSON.parse(options.body);
         return jsonResponse({
@@ -2643,6 +2645,83 @@ test('settings overlay traps Tab and blocks launcher Enter', async () => {
   assert.equal(document.nodes.get('settings').hidden, true);
   assert.equal(document.nodes.get('launcher').inert, false);
   assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'detail');
+});
+
+test('attract idle hydrates from settings before the first timer is armed', async () => {
+  const idleDelays = [];
+  await runBrowserApp({
+    responses: [jsonResponse(readFixture('catalog-populated.json'))],
+    settings: { attract_idle_seconds: 12, preferred_regions: ['usa'] },
+    globals: {
+      FogCastAttractDisabled: false,
+      setTimeout(fn, ms) {
+        if (ms >= 1000) {
+          idleDelays.push(ms);
+          return 0;
+        }
+        return setTimeout(fn, ms);
+      },
+    },
+  });
+  await settleBrowser();
+  assert.equal(idleDelays.includes(60000), false, JSON.stringify(idleDelays));
+  assert.equal(idleDelays.includes(12000), true, JSON.stringify(idleDelays));
+});
+
+test('stale settings GET does not overwrite typed fields', async () => {
+  let releaseGet;
+  const held = new Promise(resolve => { releaseGet = resolve; });
+  let settingsGets = 0;
+  const { document } = await runKeyboardApp({
+    onSettings: async ({ options }) => {
+      if (options && options.method && options.method !== 'GET') return;
+      settingsGets += 1;
+      if (settingsGets > 1) await held;
+    },
+  });
+  await settleBrowser();
+  const opening = document.nodes.get('open-settings').click();
+  await waitForCondition(() => document.nodes.get('settings').hidden === false, 'settings overlay did not open');
+  document.nodes.get('settings-attract-idle').value = '12';
+  document.nodes.get('settings-preferred-regions').value = 'japan';
+  document.nodes.get('settings-attract-idle').dispatchEvent({ type: 'input' });
+  releaseGet();
+  await opening;
+  await settleBrowser();
+  assert.equal(document.nodes.get('settings-attract-idle').value, '12');
+  assert.equal(document.nodes.get('settings-preferred-regions').value, 'japan');
+});
+
+test('stale settings save does not refill a reopened form', async () => {
+  let releaseSave;
+  const held = new Promise(resolve => { releaseSave = resolve; });
+  const { document } = await runKeyboardApp({
+    onSettings: async ({ options }) => {
+      if (options && options.method === 'PUT') await held;
+    },
+  });
+  await settleBrowser();
+  await document.nodes.get('open-settings').click();
+  await waitForCondition(() => (
+    document.nodes.get('settings').hidden === false
+    && document.nodes.get('settings-attract-idle').value === '60'
+  ), 'settings overlay did not open');
+  document.nodes.get('settings-attract-idle').value = '12';
+  document.nodes.get('settings-preferred-regions').value = 'japan';
+  const saving = document.nodes.get('save-settings').click();
+  await pressKey(document, 'Escape', document.nodes.get('settings-attract-idle'));
+  assert.equal(document.nodes.get('settings').hidden, true);
+  await document.nodes.get('open-settings').click();
+  await waitForCondition(() => (
+    document.nodes.get('settings').hidden === false
+    && document.nodes.get('settings-attract-idle').value === '60'
+  ), 'settings overlay did not reopen');
+  document.nodes.get('settings-attract-idle').value = '8';
+  document.nodes.get('settings-attract-idle').dispatchEvent({ type: 'input' });
+  releaseSave();
+  await saving;
+  await settleBrowser();
+  assert.equal(document.nodes.get('settings-attract-idle').value, '8');
 });
 
 test('settings overlay opens from the header and Escape returns to the previous pane', async () => {

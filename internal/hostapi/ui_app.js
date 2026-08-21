@@ -1914,6 +1914,8 @@
   let settingsReturnPane = 'rail';
   let collectionEditor = null;
   let forceKeyboardRestore = false;
+  let settingsGeneration = 0;
+  let attractIdleHydrated = false;
 
   const nodes = {
     health: document.getElementById('health'),
@@ -2841,9 +2843,19 @@
       attractTimer = null;
     }
     if (attractActive) hideAttract();
-    if (attractIsDisabled() || settingsIsOpen() || !nodes.attract) return;
+    if (attractIsDisabled() || settingsIsOpen() || !nodes.attract || !attractIdleHydrated) return;
     if (typeof root.setTimeout !== 'function') return;
     attractTimer = root.setTimeout(enterAttract, currentAttractIdleMs());
+  }
+
+  async function hydrateAttractIdle() {
+    try {
+      await controller.loadSettings();
+    } catch (_) {
+      /* keep the last known idle */
+    }
+    attractIdleHydrated = true;
+    resetAttractTimer();
   }
 
   function exitAttract() {
@@ -2904,6 +2916,15 @@
     focusWithoutScroll(index < 0 || index >= focusables.length - 1 ? focusables[0] : focusables[index + 1]);
   }
 
+  function bumpSettingsGeneration() {
+    settingsGeneration += 1;
+    return settingsGeneration;
+  }
+
+  function settingsRequestExpired(generation) {
+    return generation !== settingsGeneration || !settingsIsOpen();
+  }
+
   function fillSettingsForm(settings) {
     if (nodes.settingsAttractIdle) {
       nodes.settingsAttractIdle.value = String((settings && settings.attract_idle_seconds) || state.attractIdleSeconds || 60);
@@ -2924,21 +2945,26 @@
     setSettingsChromeInert(true);
     keyboardPane = 'settings';
     writePaneAttribute();
+    const generation = bumpSettingsGeneration();
     resetAttractTimer();
     try {
       await controller.loadSettings();
+      if (settingsRequestExpired(generation)) return;
       fillSettingsForm(controller.getState().librarySettings);
     } catch (error) {
+      if (settingsRequestExpired(generation)) return;
       fillSettingsForm(null);
       if (nodes.settingsMessage) {
         nodes.settingsMessage.textContent = privacyMessage(error, 'Library settings could not be loaded.');
       }
     }
+    if (settingsRequestExpired(generation)) return;
     forceKeyboardRestore = true;
     restoreKeyboardFocus();
   }
 
   function closeSettings() {
+    bumpSettingsGeneration();
     if (nodes.settings) nodes.settings.hidden = true;
     setSettingsChromeInert(false);
     setKeyboardPane(settingsReturnPane || 'rail');
@@ -2953,6 +2979,7 @@
   }
 
   async function saveSettingsFromForm() {
+    const generation = settingsGeneration;
     const idle = Number(nodes.settingsAttractIdle && nodes.settingsAttractIdle.value);
     const regions = parseRegionsInput(nodes.settingsPreferredRegions && nodes.settingsPreferredRegions.value);
     try {
@@ -2960,8 +2987,10 @@
         attract_idle_seconds: idle,
         preferred_regions: regions,
       });
+      if (settingsRequestExpired(generation)) return;
       fillSettingsForm(controller.getState().librarySettings);
     } catch (error) {
+      if (settingsRequestExpired(generation)) return;
       if (nodes.settingsMessage) {
         nodes.settingsMessage.textContent = privacyMessage(error, 'Library settings could not be saved.');
       }
@@ -3292,6 +3321,8 @@
   if (nodes.openSettings) nodes.openSettings.addEventListener('click', () => { void openSettings(); });
   if (nodes.closeSettings) nodes.closeSettings.addEventListener('click', closeSettings);
   if (nodes.saveSettings) nodes.saveSettings.addEventListener('click', () => { void saveSettingsFromForm(); });
+  if (nodes.settingsAttractIdle) nodes.settingsAttractIdle.addEventListener('input', bumpSettingsGeneration);
+  if (nodes.settingsPreferredRegions) nodes.settingsPreferredRegions.addEventListener('input', bumpSettingsGeneration);
   if (typeof document.addEventListener === 'function') {
     document.addEventListener('keydown', event => {
       if (attractActive) {
@@ -3435,5 +3466,5 @@
   void loadSession();
   void loadCatalog();
   void controller.loadPlatforms();
-  resetAttractTimer();
+  void hydrateAttractIdle();
 })(globalThis);

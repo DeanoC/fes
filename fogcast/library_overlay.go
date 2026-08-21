@@ -41,10 +41,14 @@ func loadLibraryOverlay(path string) (LibraryConfig, bool, error) {
 	if err != nil {
 		return LibraryConfig{}, false, err
 	}
-	if strings.TrimSpace(string(body)) == "" {
+	trimmed := strings.TrimSpace(string(body))
+	if trimmed == "" {
 		return LibraryConfig{}, false, nil
 	}
-	decoder := json.NewDecoder(strings.NewReader(string(body)))
+	if !strings.HasPrefix(trimmed, "{") {
+		return LibraryConfig{}, false, errors.New("library settings overlay must contain one JSON object")
+	}
+	decoder := json.NewDecoder(strings.NewReader(trimmed))
 	decoder.DisallowUnknownFields()
 	var raw libraryOverlayFile
 	if err := decoder.Decode(&raw); err != nil {

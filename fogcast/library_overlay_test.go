@@ -268,6 +268,45 @@ func TestLibrarySettingsRejectInvalidOverlay(t *testing.T) {
 	}
 }
 
+func TestLoadLibraryOverlayRejectsNonObjectJSON(t *testing.T) {
+	dir := t.TempDir()
+	for _, body := range []string{"null\n", "[]\n", "true\n", "12\n", "\"idle\"\n"} {
+		path := filepath.Join(dir, "overlay.json")
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		_, ok, err := loadLibraryOverlay(path)
+		if err == nil || ok {
+			t.Fatalf("body %q = ok=%v err=%v", body, ok, err)
+		}
+	}
+}
+
+func TestNullLibraryOverlayDoesNotOverrideConfigLibrary(t *testing.T) {
+	overlay := filepath.Join(t.TempDir(), "library-settings.json")
+	if err := os.WriteFile(overlay, []byte("null\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	service := newService(
+		Config{
+			Libraries:      []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: "/private/library"}},
+			Library:        LibraryConfig{AttractIdleSeconds: 12, PreferredRegions: []string{"japan"}},
+			RequestTimeout: time.Second, UploadTimeout: 2 * time.Second,
+		},
+		Paths{Staging: "/private/staging"},
+		&fakeServiceCatalog{games: []catalog.Game{{
+			ID: "snes-mario-test", Title: "Mario", System: protocol.SystemSNES,
+			Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
+		}}},
+		&fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{},
+		WithLibraryOverlayPath(overlay),
+	)
+	settings := service.LibrarySettings()
+	if settings.AttractIdleSeconds != 12 || strings.Join(settings.PreferredRegions, ",") != "japan" {
+		t.Fatalf("null overlay overrode config library: %+v", settings)
+	}
+}
+
 func TestLoadLibraryOverlayTreatsEmptyFileAsMissing(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "library-settings.json")
 	if err := os.WriteFile(path, []byte(" \n"), 0o600); err != nil {
