@@ -34,6 +34,7 @@ const {
   cardTitle,
   variantLabel,
   dumpIdentityFacts,
+  sourceKindLabel,
   dumpFlagLabels,
   collectionLabels,
   coverHoverMeta,
@@ -625,7 +626,26 @@ test('collectionLabels resolves rail-order names and skips unknown ids', () => {
     genre: 'Action',
     dump_flags: 'beta',
     collections: ['weekend-queue'],
+    kind: 'zip',
   }), 'SNES · USA · 1991 · Ready');
+});
+
+test('sourceKindLabel maps zip to ZIP and raw to ROM', () => {
+  assert.equal(sourceKindLabel({ kind: 'zip' }), 'ZIP');
+  assert.equal(sourceKindLabel({ kind: 'raw' }), 'ROM');
+  assert.equal(sourceKindLabel({}), '');
+  assert.equal(sourceKindLabel(null), '');
+  assert.equal(sourceKindLabel({ kind: 'unknown' }), '');
+  assert.equal(sourceKindLabel({ kind: 'iso' }), '');
+  assert.equal(sourceKindLabel({ kind: 'ZIP' }), '');
+  assert.equal(sourceKindLabel({ kind: '  ' }), '');
+  assert.equal(sourceKindLabel({ kind: ' zip ' }), 'ZIP');
+  assert.equal(sourceKindLabel({ kind: ' raw ' }), 'ROM');
+  assert.equal(dumpIdentityFacts({ kind: 'zip', region: 'usa' }).some(fact => fact.label === 'Source'), false);
+  assert.equal(variantLabel({ kind: 'zip', title: 'Mystery Dump' }), 'Mystery Dump');
+  assert.doesNotMatch(coverHoverMeta({
+    system: 'snes', state: 'available', kind: 'zip', region: 'usa', year: '1991',
+  }), /ZIP|ROM|zip|raw/);
 });
 
 test('variantLabel and dump facts share region revision and flags', () => {
@@ -9744,5 +9764,315 @@ test('WALL_WINDOW spacer math and marks clearance stay unchanged with idle title
   assert.match(css, /\.game-card::after\s*\{[^}]*opacity:\s*1/);
   assert.doesNotMatch(css, /\.card-mark-title/);
   assert.doesNotMatch(app, /\.card-mark-title/);
+  assert.doesNotMatch(css, /\.game-studio[^{]*\{[^}]*filter:/);
+});
+
+test('detail facts show Source ZIP or ROM and omit unknown kind', async () => {
+  const css = readAsset('ui.css');
+  const app = readAsset('ui_app.js');
+  assert.match(app, /function sourceKindLabel\(game\)/);
+  assert.match(app, /\[sourceKindLabel\(liveGame \|\| game\), 'Source'\]/);
+  assert.match(app, /\[game\.content_prepared \? 'Prepared' : 'On demand', 'Staging'\]/);
+  assert.match(app, /coverHoverMeta\(game, view\)/);
+  assert.doesNotMatch(app, /bits\.push\(sourceKindLabel/);
+  assert.match(css, /--list-row-height:\s*72px/);
+  assert.match(css, /--list-row-stride:\s*78px/);
+  assert.match(css, /\.card-mark-favorite\s*\{[^}]*margin-left:\s*auto/);
+  assert.match(app, /const WALL_WINDOW = 80/);
+  assert.match(app, /rows \* Math\.round\(metrics\.cardWidth \* 1\.5 \+ metrics\.gap\)/);
+  assert.match(app, /--card-marks-clearance/);
+  assert.match(app, /root\.ResizeObserver/);
+  assert.match(css, /\.game-card h3\s*\{[^}]*opacity:\s*1/);
+  assert.match(css, /\.game-card::after\s*\{[^}]*opacity:\s*1/);
+  assert.match(css, /\.game-card::before\s*\{[^}]*opacity:\s*0/);
+  assert.match(css, /\.game-card:hover::before, \.game-card\.selected::before, \.game-card:focus-visible::before\s*\{[^}]*opacity:\s*1/);
+  assert.doesNotMatch(css, /\.card-mark-kind/);
+  assert.doesNotMatch(app, /\.card-mark-kind/);
+
+  const zip = availableGame('megadrive-sonic-test', 'Sonic the Hedgehog (USA)', {
+    system: 'megadrive',
+    kind: 'zip',
+    canonical_title: 'Sonic the Hedgehog',
+    year: '1991',
+    genre: 'Platform',
+    region: 'usa',
+    revision: 'a',
+    dump_flags: 'beta',
+    favorite: true,
+    collections: ['weekend-queue'],
+    variant_count: 2,
+    group_key: 'megadrive\u001fsonic',
+  });
+  const raw = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    kind: 'raw',
+    year: '1991',
+    genre: 'Action',
+    region: 'usa',
+    collections: ['weekend-queue'],
+  });
+  const unknown = availableGame('snes-unknown-kind-test', 'Unknown Kind', {
+    kind: 'iso',
+    year: '1992',
+    region: 'usa',
+  });
+  const onDemand = availableGame('snes-ondemand-test', 'On Demand Dump', {
+    kind: 'raw',
+    content_prepared: false,
+    region: 'usa',
+  });
+  const { document } = await runBrowserApp({
+    adapter: readyGenreAdapter(),
+    responses: [
+      jsonResponse({ games: [zip, raw, unknown, onDemand] }),
+      jsonResponse(zip),
+    ],
+    collections: [WEEKEND_QUEUE],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  const byID = Object.fromEntries(gameCards(document).map(card => [card.attributes.get('data-game-id'), card]));
+  const cover = byID[zip.id];
+  assert.equal(cover.children.find(child => child.tagName === 'H3').textContent, 'Sonic the Hedgehog');
+  assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, 'Mega Drive · USA · 1991 · Ready');
+  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /ZIP|ROM|zip|raw/);
+  assert.equal(cardMark(cover, 'favorite').textContent, 'Favorite');
+  assert.equal(cardMark(cover, 'beta').textContent, 'Beta');
+  assert.equal(cardCollectionChip(cover).textContent, 'Weekend Queue');
+  assert.equal(cover.children.some(child => /card-mark-kind/.test(String(child.className))), false);
+
+  await cover.click();
+  await settleBrowser();
+  const zipFacts = detailFactsFrom(document);
+  assert.ok(zipFacts.some(fact => fact.label === 'Source' && fact.value === 'ZIP'));
+  assert.equal(zipFacts.filter(fact => fact.label === 'Source').length, 1);
+  assert.ok(zipFacts.some(fact => fact.label === 'Status' && fact.value === 'Ready'));
+  assert.ok(zipFacts.some(fact => fact.label === 'Staging' && fact.value === 'Prepared'));
+  assert.ok(zipFacts.some(fact => fact.label === 'Region' && fact.value === 'USA'));
+  assert.ok(zipFacts.some(fact => fact.label === 'Revision' && fact.value === 'rev a'));
+  assert.ok(zipFacts.some(fact => fact.label === 'Flags' && fact.value === 'Beta'));
+  assert.doesNotMatch(zipFacts.map(fact => fact.value).join(' '), /\bzip\b/);
+
+  const rawApp = await runBrowserApp({
+    adapter: readyGenreAdapter(),
+    responses: [jsonResponse({ games: [raw] }), jsonResponse(raw)],
+    collections: [WEEKEND_QUEUE],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await gameCards(rawApp.document)[0].click();
+  await settleBrowser();
+  const rawFacts = detailFactsFrom(rawApp.document);
+  assert.ok(rawFacts.some(fact => fact.label === 'Source' && fact.value === 'ROM'));
+  assert.ok(rawFacts.some(fact => fact.label === 'Staging' && fact.value === 'Prepared'));
+  assert.equal(rawFacts.some(fact => fact.value === 'zip' || fact.value === 'raw'), false);
+
+  const unknownApp = await runBrowserApp({
+    adapter: readyGenreAdapter(),
+    responses: [jsonResponse({ games: [unknown] }), jsonResponse(unknown)],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await gameCards(unknownApp.document)[0].click();
+  await settleBrowser();
+  const unknownFacts = detailFactsFrom(unknownApp.document);
+  assert.equal(unknownFacts.some(fact => fact.label === 'Source'), false);
+  assert.equal(unknownFacts.some(fact => /ZIP|ROM|iso|zip|raw/.test(fact.value)), false);
+  assert.ok(unknownFacts.some(fact => fact.label === 'Staging' && fact.value === 'Prepared'));
+
+  const demandApp = await runBrowserApp({
+    responses: [jsonResponse({ games: [onDemand] }), jsonResponse(onDemand)],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await gameCards(demandApp.document)[0].click();
+  await settleBrowser();
+  const demandFacts = detailFactsFrom(demandApp.document);
+  assert.ok(demandFacts.some(fact => fact.label === 'Source' && fact.value === 'ROM'));
+  assert.ok(demandFacts.some(fact => fact.label === 'Staging' && fact.value === 'On demand'));
+});
+
+test('grouped ZIP+raw version select shows the selected variant Source before detail hydrate', async () => {
+  const zip = availableGame('megadrive-sonic-usa', 'Sonic the Hedgehog (USA)', {
+    system: 'megadrive',
+    kind: 'zip',
+    canonical_title: 'Sonic the Hedgehog',
+    group_key: 'megadrive\u001fsonic',
+    variant_count: 2,
+    region: 'usa',
+    year: '1991',
+  });
+  const raw = availableGame('megadrive-sonic-japan', 'Sonic the Hedgehog (Japan)', {
+    system: 'megadrive',
+    kind: 'raw',
+    canonical_title: 'Sonic the Hedgehog',
+    group_key: 'megadrive\u001fsonic',
+    region: 'japan',
+    year: '1991',
+  });
+  const grouped = { ...zip };
+  assert.equal(Object.prototype.hasOwnProperty.call(grouped, 'variants'), false);
+  assert.equal(sourceKindLabel(zip), 'ZIP');
+  assert.equal(sourceKindLabel(raw), 'ROM');
+  assert.equal(sourceKindLabel({ kind: 'iso' }), '');
+
+  let releaseVariantDetail;
+  const heldVariantDetail = new Promise(resolve => {
+    releaseVariantDetail = () => resolve(jsonResponse({
+      code: 'INTERNAL',
+      message: 'detail is unavailable',
+    }, 500));
+  });
+  const { document } = await runBrowserApp({
+    responses: [
+      jsonResponse({ games: [grouped] }),
+      jsonResponse({ ...zip, variants: [zip, raw] }),
+      heldVariantDetail,
+    ],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  const cover = gameCards(document)[0];
+  assert.equal(cover.children.find(child => child.tagName === 'H3').textContent, 'Sonic the Hedgehog');
+  assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, 'Mega Drive · USA · 1991 · Ready');
+  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /ZIP|ROM|zip|raw/);
+  assert.equal(cover.children.some(child => /card-mark-kind/.test(String(child.className))), false);
+
+  await cover.click();
+  await settleBrowser();
+  const zipFacts = detailFactsFrom(document);
+  assert.ok(zipFacts.some(fact => fact.label === 'Source' && fact.value === 'ZIP'));
+  assert.ok(zipFacts.some(fact => fact.label === 'Staging' && fact.value === 'Prepared'));
+  const select = document.getElementById('game-version');
+  assert.ok(select);
+  select.value = raw.id;
+  const selecting = select.dispatchEvent({ type: 'change' });
+  await settleBrowser();
+  const pendingFacts = detailFactsFrom(document);
+  assert.ok(pendingFacts.some(fact => fact.label === 'Source' && fact.value === 'ROM'));
+  assert.equal(pendingFacts.filter(fact => fact.label === 'Source').length, 1);
+  assert.ok(pendingFacts.some(fact => fact.label === 'Staging' && fact.value === 'Prepared'));
+  assert.equal(pendingFacts.some(fact => fact.value === 'zip' || fact.value === 'raw'), false);
+  releaseVariantDetail();
+  await selecting;
+  await settleBrowser();
+  const failedFacts = detailFactsFrom(document);
+  assert.ok(failedFacts.some(fact => fact.label === 'Source' && fact.value === 'ROM'));
+  assert.ok(failedFacts.some(fact => fact.label === 'Staging' && fact.value === 'Prepared'));
+  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /ZIP|ROM|zip|raw/);
+});
+
+test('Cover hover Home rails and List omit source kind', async () => {
+  const css = readAsset('ui.css');
+  assert.match(css, /--list-row-height:\s*72px/);
+  assert.match(css, /--list-row-stride:\s*78px/);
+  assert.match(css, /\.game-card h3\s*\{[^}]*opacity:\s*1/);
+  assert.match(css, /\.game-card::after\s*\{[^}]*opacity:\s*1/);
+  assert.match(css, /\.home-rail-track \.game-card\s*\{[^}]*width:\s*148px/);
+
+  const queued = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    kind: 'zip',
+    year: '1991',
+    genre: 'Action',
+    dump_flags: 'beta',
+    region: 'usa',
+    favorite: true,
+    collections: ['weekend-queue', 'speedruns'],
+    variant_count: 3,
+  });
+  const plain = availableGame('snes-zelda-test', 'Zelda', {
+    kind: 'raw',
+    year: '1992',
+  });
+  const grouped = availableGame('megadrive-sonic-usa', 'Sonic the Hedgehog (USA)', {
+    canonical_title: 'Sonic the Hedgehog',
+    system: 'megadrive',
+    kind: 'zip',
+    group_key: 'megadrive\u001fsonic',
+    variant_count: 2,
+    region: 'usa',
+    year: '1991',
+    genre: 'Platform',
+  });
+  const coverApp = await runBrowserApp({
+    adapter: readyStudioAdapter(),
+    responses: [jsonResponse({ games: [queued, plain, grouped] })],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  const byID = Object.fromEntries(gameCards(coverApp.document).map(card => [card.attributes.get('data-game-id'), card]));
+  assert.equal(byID[queued.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
+  assert.doesNotMatch(byID[queued.id].children.find(child => child.className === 'game-meta').textContent, /ZIP|ROM|zip|raw|SEGA|Action|Beta/);
+  assert.equal(byID[grouped.id].children.find(child => child.tagName === 'H3').textContent, 'Sonic the Hedgehog');
+  assert.equal(byID[grouped.id].children.find(child => child.className === 'game-meta').textContent, 'Mega Drive · USA · 1991 · Ready');
+  assert.doesNotMatch(byID[grouped.id].children.find(child => child.className === 'game-meta').textContent, /ZIP|ROM|zip|raw/);
+
+  const homeApp = await runBrowserApp({
+    keepHome: true,
+    adapter: readyStudioAdapter(),
+    responses: [jsonResponse({ games: [queued] })],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+    homeRails: {
+      continue: jsonResponse({ games: [queued] }),
+      favorites: jsonResponse({ games: [] }),
+      recents: jsonResponse({ games: [] }),
+    },
+  });
+  await settleBrowser();
+  const rail = homeRails(homeApp.document).find(item => item.attributes.get('data-home-rail') === 'continue');
+  const homeCard = rail.querySelectorAll('.game-card')[0];
+  assert.equal(homeCard.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
+  assert.doesNotMatch(homeCard.children.find(child => child.className === 'game-meta').textContent, /ZIP|ROM|zip|raw/);
+  assert.equal(homeCard.children.find(child => child.tagName === 'H3').textContent, 'ActRaiser');
+  assert.equal(cardMark(homeCard, 'favorite').textContent, 'Favorite');
+  assert.equal(cardCollectionChip(homeCard).textContent, 'Weekend Queue');
+
+  const listApp = await runBrowserApp({
+    adapter: readyStudioAdapter(),
+    responses: [jsonResponse({ games: [queued, plain, grouped] })],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  listApp.document.nodes.get('layout-list').click();
+  await settleBrowser();
+  const listByID = Object.fromEntries(gameCards(listApp.document).map(card => [card.attributes.get('data-game-id'), card]));
+  const queuedBody = listByID[queued.id].children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(queuedBody.children[1].className, 'game-meta');
+  assert.equal(queuedBody.children[1].textContent, 'SNES · 1991 · Action · SEGA · 1 player · Beta · Weekend Queue · +1 · Ready');
+  assert.doesNotMatch(queuedBody.children[1].textContent, /USA|ZIP|ROM|zip|raw/);
+  assert.equal(queuedBody.children[2].className, 'game-row-favorite');
+  assert.equal(queuedBody.children[3].className, 'game-meta game-meta-variant');
+  assert.equal(queuedBody.children.length, 4);
+  assert.equal(queuedBody.children.filter(child => String(child.className).includes('game-meta')).length, 2);
+  const groupedBody = listByID[grouped.id].children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(groupedBody.children[0].textContent, 'Sonic the Hedgehog');
+  assert.equal(groupedBody.children[1].textContent, 'Mega Drive · 1991 · Action · SEGA · 1 player · Ready');
+  assert.doesNotMatch(groupedBody.children[1].textContent, /ZIP|ROM|zip|raw|USA/);
+  assert.equal(groupedBody.children[2].className, 'game-meta game-meta-variant');
+  assert.equal(groupedBody.children.length, 3);
+  const plainBody = listByID[plain.id].children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(plainBody.children[1].textContent, 'SNES · 1992 · Action · SEGA · 1 player · Ready');
+  assert.doesNotMatch(plainBody.children[1].textContent, /ZIP|ROM|zip|raw/);
+  assert.equal(plainBody.children.length, 2);
+});
+
+test('WALL_WINDOW spacer math and marks clearance stay unchanged with source kind', () => {
+  const css = readAsset('ui.css');
+  const app = readAsset('ui_app.js');
+  assert.match(app, /const WALL_WINDOW = 80/);
+  assert.match(app, /rows \* Math\.round\(metrics\.cardWidth \* 1\.5 \+ metrics\.gap\)/);
+  assert.match(css, /\.card-mark-favorite\s*\{[^}]*margin-left:\s*auto/);
+  assert.match(css, /--list-row-height:\s*72px/);
+  assert.match(css, /--list-row-stride:\s*78px/);
+  assert.match(app, /--card-marks-clearance/);
+  assert.match(app, /marks\.offsetHeight/);
+  assert.match(app, /root\.ResizeObserver/);
+  assert.match(app, /disconnectCardMarksObservers/);
+  assert.match(css, /\.game-card h3\s*\{[^}]*opacity:\s*1/);
+  assert.match(css, /\.game-card::after\s*\{[^}]*opacity:\s*1/);
+  assert.match(css, /\.game-card::before\s*\{[^}]*opacity:\s*0/);
+  assert.doesNotMatch(css, /\.card-mark-kind/);
+  assert.doesNotMatch(app, /\.card-mark-kind/);
   assert.doesNotMatch(css, /\.game-studio[^{]*\{[^}]*filter:/);
 });

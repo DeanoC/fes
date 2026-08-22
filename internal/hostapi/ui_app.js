@@ -526,6 +526,13 @@
     return labels;
   }
 
+  function sourceKindLabel(game) {
+    const kind = game && typeof game.kind === 'string' ? game.kind.trim() : '';
+    if (kind === 'zip') return 'ZIP';
+    if (kind === 'raw') return 'ROM';
+    return '';
+  }
+
   function dumpIdentityFacts(game) {
     const facts = [];
     if (game && game.region) facts.push({ label: 'Region', value: regionLabel(game.region) });
@@ -2672,6 +2679,7 @@
     cardTitle,
     variantLabel,
     dumpIdentityFacts,
+    sourceKindLabel,
     dumpFlagLabels,
     collectionLabels,
     coverHoverMeta,
@@ -4024,6 +4032,7 @@
       [systemLabel(game.system), 'System'],
       [coverStatusLabel(game), 'Status'],
       [game.content_prepared ? 'Prepared' : 'On demand', 'Staging'],
+      [sourceKindLabel(liveGame || game), 'Source'],
       [catalogYear(gameView), 'Year'],
       [catalogGenre(gameView), 'Genre'],
       [catalogStudio(gameView), 'Studio'],
