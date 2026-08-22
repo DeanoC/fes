@@ -159,12 +159,24 @@ input { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding:
   position: absolute;
   inset: auto 0 0;
   height: 46%;
+  background: linear-gradient(transparent, rgba(8, 10, 14, .68));
+  opacity: 1;
+  pointer-events: none;
+}
+.game-card::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 46%;
+  z-index: 1;
   background: linear-gradient(transparent, rgba(8, 10, 14, .92));
   opacity: 0;
   pointer-events: none;
   transition: opacity .18s;
 }
-.game-card:hover::after, .game-card.selected::after, .game-card:focus-visible::after { opacity: 1; }
+.game-card:hover::before, .game-card.selected::before, .game-card:focus-visible::before {
+  opacity: 1;
+}
 .cover-art, .backdrop-art { position: relative; overflow: hidden; border-radius: 9px; }
 .cover-art { height: 230px; min-height: 230px; margin-bottom: 12px; background: var(--palette, rgba(255,255,255,.03)); }
 .game-card .cover-art {
@@ -198,7 +210,6 @@ img.cover-art { width: 100%; object-fit: contain; object-position: center; backg
   right: 10px;
   z-index: 2;
   margin: 0;
-  opacity: 0;
   transition: opacity .18s;
 }
 .game-card h3 {
@@ -209,6 +220,10 @@ img.cover-art { width: 100%; object-fit: contain; object-position: center; backg
   font-size: .92rem;
   line-height: 1.15;
   text-shadow: 0 1px 8px rgba(0, 0, 0, .7);
+  opacity: 1;
+}
+.game-card .game-meta, .game-card .fallback-note, .game-card .game-studio {
+  opacity: 0;
 }
 .game-card .game-meta {
   bottom: 26px;
@@ -232,7 +247,6 @@ img.cover-art { width: 100%; object-fit: contain; object-position: center; backg
   white-space: nowrap;
   line-height: 1.15;
 }
-.game-card:hover h3, .game-card.selected h3, .game-card:focus-visible h3,
 .game-card:hover .game-meta, .game-card.selected .game-meta, .game-card:focus-visible .game-meta,
 .game-card:hover .fallback-note, .game-card.selected .fallback-note, .game-card:focus-visible .fallback-note,
 .game-card:hover .game-studio, .game-card.selected .game-studio, .game-card:focus-visible .game-studio {
@@ -314,7 +328,7 @@ img.cover-art { width: 100%; object-fit: contain; object-position: center; backg
   padding: 6px 10px;
   overflow: hidden;
 }
-.game-card.game-row::after { content: none; }
+.game-card.game-row::before, .game-card.game-row::after { content: none; }
 .game-card.game-row:hover, .game-card.game-row.selected { transform: none; }
 .game-card.game-row .cover-art {
   position: relative;

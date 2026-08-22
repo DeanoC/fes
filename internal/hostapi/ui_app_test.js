@@ -9413,3 +9413,336 @@ test('WALL_WINDOW spacer math and marks clearance stay unchanged with catalogSum
   assert.doesNotMatch(app, /\.card-mark-summary/);
   assert.doesNotMatch(css, /\.game-studio[^{]*\{[^}]*filter:/);
 });
+
+test('Cover and Home idle titles stay visible with a persistent scrim', async () => {
+  const css = readAsset('ui.css');
+  const app = readAsset('ui_app.js');
+  assert.match(app, /card\.appendChild\(element\('h3', '', cardTitle\(game\)\)\);/);
+  assert.match(css, /\.game-card h3\s*\{[^}]*opacity:\s*1/);
+  assert.match(css, /\.game-card h3\s*\{[^}]*white-space:\s*nowrap/);
+  assert.match(css, /\.game-card h3\s*\{[^}]*text-overflow:\s*ellipsis/);
+  assert.match(css, /\.game-card::after\s*\{[^}]*opacity:\s*1/);
+  assert.doesNotMatch(css, /\.game-card::after\s*\{[^}]*opacity:\s*0/);
+  assert.doesNotMatch(css, /\.game-card::after\s*\{[^}]*transition:\s*background/);
+  assert.doesNotMatch(css, /\.game-card:hover::after/);
+  assert.match(css, /\.game-card::before\s*\{[^}]*opacity:\s*0/);
+  assert.match(css, /\.game-card::before\s*\{[^}]*transition:\s*opacity/);
+  assert.match(css, /\.game-card:hover::before, \.game-card\.selected::before, \.game-card:focus-visible::before\s*\{[^}]*opacity:\s*1/);
+  assert.doesNotMatch(css, /\.game-card:hover h3/);
+  assert.doesNotMatch(css, /\.game-card\.selected h3,/);
+  assert.doesNotMatch(css, /\.game-card:focus-visible h3/);
+  assert.match(css, /\.game-card \.game-meta, \.game-card \.fallback-note, \.game-card \.game-studio\s*\{[^}]*opacity:\s*0/);
+  assert.match(css, /\.game-card:hover \.game-meta/);
+  assert.match(css, /\.game-card:hover \.fallback-note/);
+  assert.match(css, /\.game-card:hover \.game-studio/);
+  assert.doesNotMatch(css, /\.card-mark-title/);
+  assert.match(css, /\.card-mark\s*\{[^}]*opacity:\s*1/);
+  assert.match(css, /\.card-mark-favorite\s*\{[^}]*margin-left:\s*auto/);
+  assert.match(css, /--list-row-height:\s*72px/);
+  assert.match(css, /--list-row-stride:\s*78px/);
+  assert.match(css, /\.home-rail-track \.game-card\s*\{[^}]*width:\s*148px/);
+  assert.match(app, /const WALL_WINDOW = 80/);
+  assert.match(app, /rows \* Math\.round\(metrics\.cardWidth \* 1\.5 \+ metrics\.gap\)/);
+
+  const ready = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    year: '1991',
+    genre: 'Action',
+    dump_flags: 'beta',
+    region: 'usa',
+    favorite: true,
+    collections: ['weekend-queue'],
+  });
+  const fallback = availableGame('snes-fallback-test', 'Fallback Game (USA)', {
+    year: '1992',
+    region: 'usa',
+  });
+  const { document } = await runBrowserApp({
+    adapter: {
+      metadataFor(game) {
+        if (game && game.id === fallback.id) {
+          return {
+            summary: 'Fallback summary',
+            year: '—',
+            genre: 'Platformer',
+            studio: 'SEGA',
+            players: '1 player',
+            isFallback: true,
+            metadataState: 'fallback_offline',
+            cover: { palette: 'lagoon', treatment: 'rings' },
+            backdrop: { palette: 'sunset', treatment: 'waves' },
+          };
+        }
+        return readyStudioAdapter().metadataFor(game);
+      },
+    },
+    responses: [jsonResponse({ games: [ready, fallback] })],
+    collections: [WEEKEND_QUEUE],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  const byID = Object.fromEntries(gameCards(document).map(card => [card.attributes.get('data-game-id'), card]));
+  const cover = byID[ready.id];
+  const fallbackCard = byID[fallback.id];
+  assert.equal(cover.className.includes('selected'), false);
+  assert.equal(cardTitle(ready), 'ActRaiser');
+  assert.equal(cover.children.find(child => child.tagName === 'H3').textContent, 'ActRaiser');
+  assert.doesNotMatch(cover.children.find(child => child.tagName === 'H3').textContent, /\(USA\)/);
+  assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
+  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /SEGA|Action|Beta|Weekend Queue|1 player|Fallback summary/);
+  assert.equal(cardStudio(cover).textContent, 'SEGA · 1 player');
+  assert.doesNotMatch(cardStudio(cover).textContent, /Action|Platformer|Fallback summary/);
+  assert.equal(cover.children.filter(child => child.className === 'fallback-note').length, 0);
+  assert.equal(cover.children.some(child => /card-mark-title/.test(String(child.className))), false);
+  assert.equal(cardMark(cover, 'favorite').textContent, 'Favorite');
+  assert.equal(cardMark(cover, 'beta').textContent, 'Beta');
+  assert.equal(cardCollectionChip(cover).textContent, 'Weekend Queue');
+  assert.equal(fallbackCard.children.find(child => child.tagName === 'H3').textContent, cardTitle(fallback));
+  assert.equal(cardStudio(fallbackCard), null);
+  assert.equal(fallbackCard.children.filter(child => child.className === 'fallback-note').length, 1);
+  assert.equal(fallbackCard.children.find(child => child.className === 'fallback-note').textContent, 'Using local catalog data');
+  assert.equal(fallbackCard.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1992 · Ready');
+});
+
+test('Cover hover deepen eases via opacity not a gradient swap', () => {
+  const css = readAsset('ui.css');
+  assert.match(css, /\.game-card::after\s*\{[^}]*opacity:\s*1/);
+  assert.match(css, /\.game-card::after\s*\{[^}]*rgba\(8, 10, 14, \.68\)/);
+  assert.doesNotMatch(css, /\.game-card::after\s*\{[^}]*opacity:\s*0/);
+  assert.doesNotMatch(css, /\.game-card::after\s*\{[^}]*transition:\s*background/);
+  assert.doesNotMatch(css, /\.game-card:hover::after/);
+  assert.doesNotMatch(css, /\.game-card\.selected::after/);
+  assert.doesNotMatch(css, /\.game-card:focus-visible::after/);
+  assert.match(css, /\.game-card::before\s*\{[^}]*opacity:\s*0/);
+  assert.match(css, /\.game-card::before\s*\{[^}]*transition:\s*opacity\s*\.18s/);
+  assert.match(css, /\.game-card::before\s*\{[^}]*rgba\(8, 10, 14, \.92\)/);
+  assert.match(css, /\.game-card:hover::before, \.game-card\.selected::before, \.game-card:focus-visible::before\s*\{[^}]*opacity:\s*1/);
+  assert.match(css, /\.game-card\.game-row::before, \.game-card\.game-row::after\s*\{[^}]*content:\s*none/);
+  assert.match(css, /--list-row-height:\s*72px/);
+  assert.match(css, /\.game-card h3\s*\{[^}]*opacity:\s*1/);
+  assert.match(css, /\.game-card \.game-meta, \.game-card \.fallback-note, \.game-card \.game-studio\s*\{[^}]*opacity:\s*0/);
+  assert.match(css, /\.game-card:hover \.game-meta/);
+  assert.match(css, /\.game-card:hover \.fallback-note/);
+  assert.match(css, /\.game-card:hover \.game-studio/);
+});
+
+test('Cover hover XOR stays system region year status with studio XOR fallback-note', async () => {
+  const css = readAsset('ui.css');
+  assert.match(css, /\.game-card:hover \.game-meta/);
+  assert.match(css, /\.game-card\.selected \.game-meta/);
+  assert.match(css, /\.game-card:focus-visible \.game-meta/);
+  assert.match(css, /\.game-card:hover \.fallback-note/);
+  assert.match(css, /\.game-card\.selected \.fallback-note/);
+  assert.match(css, /\.game-card:focus-visible \.fallback-note/);
+  assert.match(css, /\.game-card:hover \.game-studio/);
+  assert.match(css, /\.game-card\.selected \.game-studio/);
+  assert.match(css, /\.game-card:focus-visible \.game-studio/);
+  assert.match(css, /\.game-card \.game-meta, \.game-card \.fallback-note, \.game-card \.game-studio\s*\{[^}]*opacity:\s*0/);
+  assert.doesNotMatch(css, /\.card-mark-title/);
+  assert.doesNotMatch(css, /\.game-card:hover h3/);
+
+  const ready = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    year: '1991',
+    genre: 'Action',
+    dump_flags: 'beta',
+    region: 'usa',
+    favorite: true,
+    variant_count: 3,
+    collections: ['weekend-queue'],
+  });
+  const fallback = availableGame('snes-fallback-test', 'Fallback Game', {
+    year: '1992',
+    region: 'usa',
+  });
+  const { document, calls } = await runBrowserApp({
+    adapter: {
+      metadataFor(game) {
+        if (game && game.id === fallback.id) {
+          return {
+            summary: 'Fallback Game is a deterministic demo presentation for SNES.',
+            year: '—',
+            genre: 'Platformer',
+            studio: 'SEGA',
+            players: '1 player',
+            isFallback: true,
+            metadataState: 'fallback_offline',
+            cover: { palette: 'lagoon', treatment: 'rings' },
+            backdrop: { palette: 'sunset', treatment: 'waves' },
+          };
+        }
+        return readyGenreAdapter().metadataFor(game);
+      },
+    },
+    responses: [jsonResponse({ games: [ready, fallback] }), jsonResponse(ready)],
+    collections: [WEEKEND_QUEUE],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  const byID = Object.fromEntries(gameCards(document).map(card => [card.attributes.get('data-game-id'), card]));
+  const cover = byID[ready.id];
+  const fallbackCard = byID[fallback.id];
+  assert.equal(cover.children.find(child => child.tagName === 'H3').textContent, 'ActRaiser');
+  assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
+  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /SEGA|Action|Beat 'em Up|Beta|Weekend Queue|1 player|Provider summary|deterministic demo/);
+  assert.equal(cardStudio(cover).textContent, 'SEGA · 1 player');
+  assert.doesNotMatch(cardStudio(cover).textContent, /Action|Beat 'em Up|Platformer|Provider summary/);
+  assert.equal(cover.children.filter(child => child.className === 'fallback-note').length, 0);
+  assert.equal(cover.children.find(child => child.className === 'game-meta game-meta-variant').textContent, '3 versions');
+  assert.equal(cover.children.some(child => /card-mark-title/.test(String(child.className))), false);
+  assert.equal(cardStudio(fallbackCard), null);
+  assert.equal(fallbackCard.children.filter(child => child.className === 'fallback-note').length, 1);
+  assert.equal(fallbackCard.children.find(child => child.className === 'fallback-note').textContent, 'Using local catalog data');
+  assert.doesNotMatch(fallbackCard.children.find(child => child.className === 'fallback-note').textContent, /deterministic demo|Platformer/);
+  await cover.click();
+  await settleBrowser();
+  assert.ok(gameCards(document)[0].className.includes('selected'));
+  assert.equal(gameCards(document)[0].children.find(child => child.tagName === 'H3').textContent, 'ActRaiser');
+  assert.equal(cardStudio(gameCards(document)[0]).textContent, 'SEGA · 1 player');
+  assert.equal(calls.some(call => String(call.path).includes('/api/v1/presentation/')), false);
+});
+
+test('Home rails keep idle titles at 148px with nowrap ellipsis', async () => {
+  const css = readAsset('ui.css');
+  assert.match(css, /\.home-rail-track \.game-card\s*\{[^}]*width:\s*148px/);
+  assert.match(css, /\.game-card h3\s*\{[^}]*white-space:\s*nowrap/);
+  assert.match(css, /\.game-card h3\s*\{[^}]*text-overflow:\s*ellipsis/);
+  assert.match(css, /\.game-card h3\s*\{[^}]*opacity:\s*1/);
+  assert.match(css, /\.game-card::after\s*\{[^}]*opacity:\s*1/);
+  const queued = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    year: '1991',
+    genre: 'Action',
+    dump_flags: 'beta',
+    region: 'usa',
+    favorite: true,
+    collections: ['weekend-queue'],
+  });
+  const { document } = await runBrowserApp({
+    keepHome: true,
+    adapter: readyStudioAdapter(),
+    responses: [jsonResponse({ games: [queued] })],
+    collections: [WEEKEND_QUEUE],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+    homeRails: {
+      continue: jsonResponse({ games: [queued] }),
+      favorites: jsonResponse({ games: [] }),
+      recents: jsonResponse({ games: [] }),
+    },
+  });
+  await settleBrowser();
+  const rail = homeRails(document).find(item => item.attributes.get('data-home-rail') === 'continue');
+  const card = rail.querySelectorAll('.game-card')[0];
+  assert.equal(card.offsetWidth, 148);
+  assert.equal(card.children.find(child => child.tagName === 'H3').textContent, 'ActRaiser');
+  assert.doesNotMatch(card.children.find(child => child.tagName === 'H3').textContent, /\(USA\)/);
+  assert.equal(card.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
+  assert.doesNotMatch(card.children.find(child => child.className === 'game-meta').textContent, /SEGA|Action|Weekend Queue|1 player/);
+  assert.equal(cardStudio(card).textContent, 'SEGA · 1 player');
+  assert.equal(card.children.filter(child => child.className === 'fallback-note').length, 0);
+  assert.equal(cardMark(card, 'favorite').textContent, 'Favorite');
+  assert.equal(cardCollectionChip(card).textContent, 'Weekend Queue');
+  const homeMarks = card.children.find(child => child.className === 'card-marks');
+  const homeClearance = parseFloat(card.style['--card-marks-clearance']);
+  const oneRow = 22;
+  assert.ok(homeMarks.offsetHeight > oneRow, `148px Home marks should wrap, height=${homeMarks.offsetHeight}`);
+  assert.ok(homeClearance > oneRow, `148px Home clearance should exceed one row, --card-marks-clearance=${homeClearance}`);
+  assert.equal(homeClearance, homeMarks.offsetHeight);
+});
+
+test('List titles stay visible at 72px without a region line', async () => {
+  const css = readAsset('ui.css');
+  assert.match(css, /--list-row-height:\s*72px/);
+  assert.match(css, /--list-row-stride:\s*78px/);
+  assert.match(css, /\.game-card\.game-row h3,\s*\.game-card\.game-row \.game-meta,\s*\.game-card\.game-row \.game-row-favorite\s*\{[^}]*opacity:\s*1/);
+  const queued = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    year: '1991',
+    genre: 'Action',
+    dump_flags: 'beta',
+    region: 'usa',
+    collections: ['weekend-queue', 'speedruns'],
+    favorite: true,
+    variant_count: 3,
+  });
+  const plain = availableGame('snes-zelda-test', 'Zelda', { year: '1992' });
+  const { document } = await runBrowserApp({
+    adapter: readyStudioAdapter(),
+    responses: [jsonResponse({ games: [queued, plain] })],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  document.nodes.get('layout-list').click();
+  await settleBrowser();
+  const byID = Object.fromEntries(gameCards(document).map(card => [card.attributes.get('data-game-id'), card]));
+  const row = byID[queued.id];
+  const body = row.children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(body.children[0].tagName, 'H3');
+  assert.equal(body.children[0].textContent, 'ActRaiser');
+  assert.equal(body.children[1].className, 'game-meta');
+  assert.equal(body.children[1].textContent, 'SNES · 1991 · Action · SEGA · 1 player · Beta · Weekend Queue · +1 · Ready');
+  assert.doesNotMatch(body.children[1].textContent, /USA/);
+  assert.equal(body.children[2].className, 'game-row-favorite');
+  assert.equal(body.children[3].className, 'game-meta game-meta-variant');
+  assert.equal(body.children.length, 4);
+  assert.equal(body.children.filter(child => String(child.className).includes('game-meta')).length, 2);
+  assert.equal(cardStudio(row), null);
+  assert.equal(row.children.some(child => String(child.className).includes('card-marks')), false);
+  const plainBody = byID[plain.id].children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(plainBody.children[0].textContent, 'Zelda');
+  assert.equal(plainBody.children[1].textContent, 'SNES · 1992 · Action · SEGA · 1 player · Ready');
+  assert.equal(plainBody.children.length, 2);
+});
+
+test('grouped wall cards use the representative cardTitle only', async () => {
+  const grouped = availableGame('megadrive-sonic-usa', 'Sonic the Hedgehog (USA)', {
+    canonical_title: 'Sonic the Hedgehog',
+    system: 'megadrive',
+    group_key: 'megadrive\u001fsonic',
+    variant_count: 2,
+    region: 'usa',
+    year: '1991',
+    genre: 'Platform',
+  });
+  assert.equal(Object.prototype.hasOwnProperty.call(grouped, 'variants'), false);
+  assert.equal(cardTitle(grouped), 'Sonic the Hedgehog');
+  const { document } = await runBrowserApp({
+    adapter: readyGenreAdapter(),
+    responses: [jsonResponse({ games: [grouped] })],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  const cover = gameCards(document)[0];
+  assert.equal(cover.children.find(child => child.tagName === 'H3').textContent, 'Sonic the Hedgehog');
+  assert.doesNotMatch(cover.children.find(child => child.tagName === 'H3').textContent, /USA|Japan|\(USA\)/);
+  assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, 'Mega Drive · USA · 1991 · Ready');
+  document.nodes.get('layout-list').click();
+  await settleBrowser();
+  const row = gameCards(document)[0];
+  const body = row.children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(body.children[0].textContent, 'Sonic the Hedgehog');
+  assert.doesNotMatch(body.children[0].textContent, /USA|Japan/);
+  assert.equal(body.children[1].textContent, 'Mega Drive · 1991 · Beat \'em Up · SEGA · 1 player · Ready');
+  assert.equal(body.children[2].className, 'game-meta game-meta-variant');
+  assert.equal(body.children.length, 3);
+});
+
+test('WALL_WINDOW spacer math and marks clearance stay unchanged with idle titles', () => {
+  const css = readAsset('ui.css');
+  const app = readAsset('ui_app.js');
+  assert.match(app, /const WALL_WINDOW = 80/);
+  assert.match(app, /rows \* Math\.round\(metrics\.cardWidth \* 1\.5 \+ metrics\.gap\)/);
+  assert.match(css, /\.card-mark-favorite\s*\{[^}]*margin-left:\s*auto/);
+  assert.match(css, /--list-row-height:\s*72px/);
+  assert.match(css, /--list-row-stride:\s*78px/);
+  assert.match(app, /--card-marks-clearance/);
+  assert.match(app, /marks\.offsetHeight/);
+  assert.match(app, /root\.ResizeObserver/);
+  assert.match(app, /disconnectCardMarksObservers/);
+  assert.match(css, /\.game-card h3\s*\{[^}]*opacity:\s*1/);
+  assert.match(css, /\.game-card::after\s*\{[^}]*opacity:\s*1/);
+  assert.doesNotMatch(css, /\.card-mark-title/);
+  assert.doesNotMatch(app, /\.card-mark-title/);
+  assert.doesNotMatch(css, /\.game-studio[^{]*\{[^}]*filter:/);
+});

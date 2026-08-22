@@ -1672,6 +1672,62 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         await harness.reload();
         await openAllGames(harness);
         await harness.waitForCatalog('populated metadata_fallback');
+        const idle = await harness.evaluate(`(() => {
+          const authored = selector => {
+            for (const sheet of document.styleSheets) {
+              let rules;
+              try { rules = sheet.cssRules; } catch (error) { continue; }
+              for (const rule of rules) {
+                if (!rule.selectorText) continue;
+                const parts = rule.selectorText.split(',').map(part => part.trim());
+                if (parts.includes(selector)) {
+                  return rule.style.transition || rule.style.transitionProperty || '';
+                }
+              }
+            }
+            return '';
+          };
+          const effectiveTransition = (computed, selector) => (
+            computed === 'none' || computed === 'all' ? authored(selector) : computed
+          );
+          const cards = Array.from(document.querySelectorAll('#catalog-list .game-card'));
+          const card = cards.find(item => !item.classList.contains('selected') && item !== document.activeElement) || cards[0];
+          if (!card) return { missing: true };
+          const title = card.querySelector('h3');
+          const meta = card.querySelector('.game-meta');
+          const note = card.querySelector('.fallback-note');
+          const after = getComputedStyle(card, '::after');
+          const before = getComputedStyle(card, '::before');
+          return {
+            title: title ? title.textContent.trim() : '',
+            titleOpacity: title ? getComputedStyle(title).opacity : '',
+            titleWhiteSpace: title ? getComputedStyle(title).whiteSpace : '',
+            metaOpacity: meta ? getComputedStyle(meta).opacity : '',
+            noteOpacity: note ? getComputedStyle(note).opacity : '',
+            scrimOpacity: after.opacity,
+            scrimContent: after.content,
+            scrimBackground: after.backgroundImage,
+            scrimTransition: effectiveTransition(after.transitionProperty, '.game-card::after'),
+            deepenOpacity: before.opacity,
+            deepenContent: before.content,
+            deepenBackground: before.backgroundImage,
+            deepenTransition: effectiveTransition(before.transitionProperty, '.game-card::before'),
+            selected: card.classList.contains('selected'),
+          };
+        })()`);
+        assert.ok(idle.title, JSON.stringify(idle));
+        assert.equal(idle.selected, false, JSON.stringify(idle));
+        assert.equal(idle.titleOpacity, '1', JSON.stringify(idle));
+        assert.equal(idle.titleWhiteSpace, 'nowrap');
+        assert.equal(idle.metaOpacity, '0', JSON.stringify(idle));
+        assert.equal(idle.scrimOpacity, '1', JSON.stringify(idle));
+        assert.notEqual(idle.scrimContent, 'none', JSON.stringify(idle));
+        assert.equal(idle.deepenOpacity, '0', JSON.stringify(idle));
+        assert.notEqual(idle.deepenContent, 'none', JSON.stringify(idle));
+        assert.match(String(idle.deepenTransition), /opacity/, JSON.stringify(idle));
+        assert.doesNotMatch(String(idle.scrimTransition), /background/, JSON.stringify(idle));
+        assert.doesNotMatch(String(idle.deepenTransition), /background/, JSON.stringify(idle));
+        if (idle.noteOpacity !== '') assert.equal(idle.noteOpacity, '0', JSON.stringify(idle));
         const metrics = await harness.evaluate(`(() => {
           const list = document.getElementById('catalog-list');
           const style = getComputedStyle(list);
@@ -1705,6 +1761,25 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
           const sys = system.getBoundingClientRect();
           const ver = variant.getBoundingClientRect();
           const titleBox = title ? title.getBoundingClientRect() : { top: 0, bottom: 0 };
+          const authored = selector => {
+            for (const sheet of document.styleSheets) {
+              let rules;
+              try { rules = sheet.cssRules; } catch (error) { continue; }
+              for (const rule of rules) {
+                if (!rule.selectorText) continue;
+                const parts = rule.selectorText.split(',').map(part => part.trim());
+                if (parts.includes(selector)) {
+                  return rule.style.transition || rule.style.transitionProperty || '';
+                }
+              }
+            }
+            return '';
+          };
+          const effectiveTransition = (computed, selector) => (
+            computed === 'none' || computed === 'all' ? authored(selector) : computed
+          );
+          const after = getComputedStyle(card, '::after');
+          const before = getComputedStyle(card, '::before');
           return {
             variantClass: variant.className,
             metaText: system.textContent,
@@ -1714,6 +1789,12 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
             titleOverlap: title
               ? Math.max(0, Math.min(sys.bottom, titleBox.bottom) - Math.max(sys.top, titleBox.top))
               : 1,
+            scrimOpacity: after.opacity,
+            scrimBackground: after.backgroundImage,
+            deepenOpacity: before.opacity,
+            deepenBackground: before.backgroundImage,
+            deepenTransition: effectiveTransition(before.transitionProperty, '.game-card::before'),
+            scrimTransition: effectiveTransition(after.transitionProperty, '.game-card::after'),
           };
         })()`);
         assert.equal(meta.variantClass, 'game-meta game-meta-variant');
@@ -1722,6 +1803,13 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         assert.ok(meta.titleOverlap < 1, JSON.stringify(meta));
         assert.equal(meta.noteTop, true);
         assert.ok(meta.overlap < 1, JSON.stringify(meta));
+        assert.equal(meta.scrimOpacity, '1', JSON.stringify(meta));
+        assert.equal(meta.deepenOpacity, '1', JSON.stringify(meta));
+        assert.match(String(meta.deepenTransition), /opacity/, JSON.stringify(meta));
+        assert.doesNotMatch(String(meta.scrimTransition), /background/, JSON.stringify(meta));
+        assert.doesNotMatch(String(meta.deepenTransition), /background/, JSON.stringify(meta));
+        assert.equal(meta.scrimBackground, idle.scrimBackground, JSON.stringify({ idle, meta }));
+        assert.equal(meta.deepenBackground, idle.deepenBackground, JSON.stringify({ idle, meta }));
         await harness.clearViewport();
       });
     });
