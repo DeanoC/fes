@@ -570,11 +570,14 @@
 
   function catalogGenre(view) {
     const presentation = view && view.presentation;
-    if (presentation && !presentation.isFallback && presentation.genre && presentation.genre !== 'Unknown') {
-      return presentation.genre;
+    if (presentation && !presentation.isFallback) {
+      const genre = typeof presentation.genre === 'string' ? presentation.genre.trim() : '';
+      if (genre && genre !== '—' && genre !== 'Unknown') return genre;
     }
     const live = view && view.live;
-    return live && live.genre ? live.genre : '';
+    const liveGenre = live && typeof live.genre === 'string' ? live.genre.trim() : '';
+    if (!liveGenre || liveGenre === '—' || liveGenre === 'Unknown') return '';
+    return liveGenre;
   }
 
   function catalogStudio(view) {
@@ -3889,7 +3892,8 @@
       body.appendChild(element('h3', '', cardTitle(game)));
       const bits = [systemLabel(game.system)];
       if (game.year) bits.push(game.year);
-      if (game.genre) bits.push(game.genre);
+      const genre = catalogGenre(view);
+      if (genre) bits.push(genre);
       const studio = catalogStudio(view);
       if (studio) bits.push(studio);
       const players = catalogPlayers(view);
@@ -4009,7 +4013,7 @@
       [coverStatusLabel(game), 'Status'],
       [game.content_prepared ? 'Prepared' : 'On demand', 'Staging'],
       [presentation.year !== '—' ? presentation.year : '', 'Year'],
-      [presentation.genre, 'Genre'],
+      [catalogGenre(gameView), 'Genre'],
       [catalogStudio(gameView), 'Studio'],
       [catalogPlayers(gameView), 'Players'],
     ];
