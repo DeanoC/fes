@@ -92,12 +92,13 @@
               <option value="offline">Offline</option>
             </select>
           </label>
-          <label class="filter-label">Sort
-            <select id="catalog-sort">
+          <label class="filter-label"><span id="catalog-sort-label">Sort</span>
+            <select id="catalog-sort" aria-label="Sort">
               <option value="title">Title</option>
               <option value="year">Year</option>
               <option value="system">Platform</option>
               <option value="recently_added">Recently added</option>
+              <option value="recents" hidden disabled>Recent</option>
             </select>
           </label>
           <label class="filter-label"><input id="filter-hide-prerelease" type="checkbox"> Hide betas</label>

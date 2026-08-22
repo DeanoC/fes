@@ -38,7 +38,7 @@
     push('region', extra.region);
     push('genre', extra.genre);
     push('year', extra.year);
-    if (extra.sort && extra.sort !== 'title') {
+    if (extra.sort && extra.sort !== 'title' && extra.sort !== 'recents') {
       push('sort', extra.sort === 'system' ? 'platform' : extra.sort);
     }
     if (extra.hide_prerelease) params.push('hide_prerelease=1');
@@ -62,10 +62,32 @@
   const HOME_SMART_RAILS = Object.freeze([
     Object.freeze({ id: 'continue', name: 'Continue', sort: 'title' }),
     Object.freeze({ id: 'favorites', name: 'Favorites', sort: 'title' }),
-    Object.freeze({ id: 'recents', name: 'Recent', sort: 'title' }),
+    Object.freeze({ id: 'recents', name: 'Recent', sort: 'recents' }),
     Object.freeze({ id: 'unplayed', name: 'Unplayed', sort: 'title' }),
     Object.freeze({ id: 'recently_added', name: 'Recently added', sort: 'recently_added' }),
   ]);
+
+  function collectionFetchSort(collection) {
+    const smart = HOME_SMART_RAILS.find(rail => rail && rail.id === collection);
+    if (smart && smart.sort) return smart.sort;
+    return 'title';
+  }
+
+  function catalogSortOverridden(state) {
+    return Boolean(state) && (state.libraryView === 'home' || Boolean(state.collection));
+  }
+
+  function catalogEffectiveSort(state) {
+    if (catalogSortOverridden(state)) return collectionFetchSort(state && state.collection);
+    return (state && state.sort) || 'title';
+  }
+
+  function catalogSortOverrideLabel(sort) {
+    if (sort === 'recently_added') return 'Sort (Recently added)';
+    if (sort === 'recents') return 'Sort (Recent)';
+    return 'Sort (Title)';
+  }
+
   const HOME_LAUNCH_RECONCILE_RAILS = Object.freeze(['unplayed', 'continue', 'recents']);
   const MAX_ATTRACT_IDLE_SECONDS = 2147483;
   const MAX_ATTRACT_IDLE_MS = 2147483647;
@@ -1456,9 +1478,11 @@
 
     function catalogViewSort(collection, extraSort) {
       if (extraSort !== undefined) return extraSort;
-      if (collection === 'recently_added') return 'recently_added';
-      if (state.libraryView === 'home') return 'title';
-      return state.sort;
+      return catalogEffectiveSort({
+        libraryView: state.libraryView,
+        collection,
+        sort: state.sort,
+      });
     }
 
     function catalogExtras(cursor, overrides) {
@@ -1474,7 +1498,7 @@
       if (state.filters.hide_hacks) extras.hide_hacks = 1;
       if (state.filters.availability) extras.availability = state.filters.availability;
       const sort = catalogViewSort(collection, extra.sort);
-      if (sort && sort !== 'title') extras.sort = sort;
+      if (sort && sort !== 'title' && sort !== 'recents') extras.sort = sort;
       if (cursor) extras.cursor = cursor;
       if (Number(extra.limit) > 0) extras.limit = extra.limit;
       return extras;
@@ -1545,7 +1569,7 @@
 
     function homeRailSort(spec) {
       if (spec && spec.sort !== undefined && spec.sort !== '') return spec.sort;
-      return spec && spec.id === 'recently_added' ? 'recently_added' : 'title';
+      return collectionFetchSort(spec && spec.id);
     }
 
     function homeRailSpecByID(id) {
@@ -2297,6 +2321,7 @@
     }
 
     function setCatalogSort(value) {
+      if (value === 'recents') return emit();
       state.sort = value === 'year' || value === 'system' || value === 'recently_added' ? value : 'title';
       return reloadVisibleCatalog(state.query);
     }
@@ -2370,6 +2395,10 @@
     uniqueCollectionID,
     parseCollection,
     parseCollectionList,
+    collectionFetchSort,
+    catalogSortOverridden,
+    catalogEffectiveSort,
+    catalogSortOverrideLabel,
   });
   root.FogCastApp = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -2396,6 +2425,7 @@
     genreFilter: document.getElementById('filter-genre'),
     yearFilter: document.getElementById('filter-year'),
     sortFilter: document.getElementById('catalog-sort'),
+    sortFilterLabel: document.getElementById('catalog-sort-label'),
     hidePrerelease: document.getElementById('filter-hide-prerelease'),
     hideHacks: document.getElementById('filter-hide-hacks'),
     availabilityFilter: document.getElementById('filter-availability'),
@@ -3175,6 +3205,7 @@
     nodes.status.textContent = view;
     wallStart = 0;
     disconnectWallObservers();
+    syncCatalogFilters();
     if (view === 'loading') {
       nodes.list.appendChild(element('p', 'status-message', 'Loading games…'));
       return;
@@ -3185,13 +3216,11 @@
       return;
     }
     if (view === 'empty' || view === 'no_matches') {
-      syncCatalogFilters();
       nodes.list.appendChild(element('p', 'status-message', state.query ? 'No matching games.' : 'Home has no Continue, Favorites, Recent, or collection titles yet.'));
       nodes.actions.appendChild(retryButton('Refresh catalog', loadCatalog));
       return;
     }
     nodes.status.textContent = state.metadataFallbackCount ? 'populated metadata_fallback' : 'populated';
-    syncCatalogFilters();
     const rails = state.homeRails || [];
     if (nodes.count) {
       const total = rails.reduce((sum, rail) => sum + ((rail.gameViews && rail.gameViews.length) || 0), 0);
@@ -3233,6 +3262,7 @@
     nodes.list.replaceChildren();
     nodes.actions.replaceChildren();
     nodes.status.textContent = view;
+    syncCatalogFilters();
     if (view === 'loading') {
       wallStart = 0;
       disconnectWallObservers();
@@ -3250,7 +3280,6 @@
       return;
     }
     nodes.status.textContent = state.metadataFallbackCount ? 'populated metadata_fallback' : 'populated';
-    syncCatalogFilters();
     const visible = state.gameViews;
     if (visible.length === 0 && state.nextCursor) {
       nodes.list.appendChild(element('p', 'status-message', 'Looking for matching games…'));
@@ -3295,9 +3324,54 @@
     }
   }
 
+  function catalogSortRecentsOption() {
+    const select = nodes.sortFilter;
+    if (!select) return null;
+    const kids = select.options || select.children || [];
+    for (let index = 0; index < kids.length; index += 1) {
+      if (kids[index] && kids[index].value === 'recents') return kids[index];
+    }
+    return null;
+  }
+
+  function syncCatalogSortRecentsOption(show) {
+    const option = catalogSortRecentsOption();
+    if (!option) return;
+    option.hidden = !show;
+    option.disabled = !show;
+  }
+
+  function syncCatalogSortControl() {
+    if (!nodes.sortFilter) return;
+    const overridden = catalogSortOverridden(state);
+    const effective = catalogEffectiveSort(state);
+    syncCatalogSortRecentsOption(effective === 'recents');
+    nodes.sortFilter.value = effective;
+    nodes.sortFilter.disabled = overridden;
+    if (overridden) {
+      nodes.sortFilter.setAttribute('data-sort-override', effective);
+      nodes.sortFilter.setAttribute(
+        'title',
+        effective === 'recently_added'
+          ? 'This view uses recently added order. Year and Platform apply to All games.'
+          : effective === 'recents'
+            ? 'This view uses recent play order. Year and Platform apply to All games.'
+            : 'This view uses title order. Year and Platform apply to All games.',
+      );
+      nodes.sortFilter.setAttribute('aria-label', catalogSortOverrideLabel(effective));
+    } else {
+      nodes.sortFilter.removeAttribute('data-sort-override');
+      nodes.sortFilter.removeAttribute('title');
+      nodes.sortFilter.setAttribute('aria-label', 'Sort');
+    }
+    if (nodes.sortFilterLabel) {
+      nodes.sortFilterLabel.textContent = overridden ? catalogSortOverrideLabel(effective) : 'Sort';
+    }
+  }
+
   function syncCatalogFilters() {
     if (nodes.regionFilter) nodes.regionFilter.value = state.filters && state.filters.region || '';
-    if (nodes.sortFilter) nodes.sortFilter.value = state.sort || 'title';
+    syncCatalogSortControl();
     if (nodes.availabilityFilter) nodes.availabilityFilter.value = state.filters && state.filters.availability || '';
     if (nodes.hidePrerelease) nodes.hidePrerelease.checked = Boolean(state.filters && state.filters.hide_prerelease);
     if (nodes.hideHacks) nodes.hideHacks.checked = Boolean(state.filters && state.filters.hide_hacks);
@@ -4401,7 +4475,12 @@
   if (nodes.regionFilter) nodes.regionFilter.addEventListener('change', () => controller.setCatalogFilter('region', nodes.regionFilter.value));
   if (nodes.genreFilter) nodes.genreFilter.addEventListener('change', () => controller.setCatalogFilter('genre', nodes.genreFilter.value));
   if (nodes.yearFilter) nodes.yearFilter.addEventListener('change', () => controller.setCatalogFilter('year', nodes.yearFilter.value));
-  if (nodes.sortFilter) nodes.sortFilter.addEventListener('change', () => controller.setCatalogSort(nodes.sortFilter.value));
+  if (nodes.sortFilter) {
+    nodes.sortFilter.addEventListener('change', () => {
+      if (nodes.sortFilter.disabled) return;
+      return controller.setCatalogSort(nodes.sortFilter.value);
+    });
+  }
   if (nodes.hidePrerelease) nodes.hidePrerelease.addEventListener('change', () => controller.setCatalogFilter('hide_prerelease', nodes.hidePrerelease.checked));
   if (nodes.hideHacks) nodes.hideHacks.addEventListener('change', () => controller.setCatalogFilter('hide_hacks', nodes.hideHacks.checked));
   if (nodes.availabilityFilter) nodes.availabilityFilter.addEventListener('change', () => controller.setCatalogFilter('availability', nodes.availabilityFilter.value));

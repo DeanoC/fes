@@ -33,6 +33,10 @@ const {
   launchBlockReason,
   collectionIDFromName,
   uniqueCollectionID,
+  collectionFetchSort,
+  catalogSortOverridden,
+  catalogEffectiveSort,
+  catalogSortOverrideLabel,
 } = require('./ui_app.js');
 const FogCastMetadata = require('./ui_metadata.js');
 
@@ -205,6 +209,8 @@ function browserDocument() {
     'delete-collection': 'button',
     'layout-cover': 'button',
     'layout-list': 'button',
+    'catalog-sort': 'select',
+    'catalog-sort-label': 'span',
     'refresh-catalog': 'button',
     'filter-system': 'select',
     'launcher': 'main',
@@ -224,6 +230,7 @@ function browserDocument() {
     'nav-recently-added', 'collection-list', 'create-collection', 'collection-name-label',
     'collection-name', 'save-collection', 'rename-collection', 'delete-collection',
     'platform-list', 'catalog-layout', 'layout-cover', 'layout-list',
+    'catalog-sort', 'catalog-sort-label',
     'attract', 'attract-title', 'attract-stage',
     'open-settings', 'settings', 'settings-attract-idle', 'settings-preferred-regions',
     'settings-host-health', 'settings-message', 'save-settings', 'close-settings',
@@ -251,7 +258,29 @@ function browserDocument() {
   document.nodes.get('settings').hidden = true;
   document.nodes.get('game-actions-menu').hidden = true;
   document.nodes.get('catalog-list').clientWidth = 896;
+  const sortSelect = document.nodes.get('catalog-sort');
+  [
+    ['title', 'Title'],
+    ['year', 'Year'],
+    ['system', 'Platform'],
+    ['recently_added', 'Recently added'],
+    ['recents', 'Recent'],
+  ].forEach(([value, label]) => {
+    const option = new BrowserTestElement('option', '', document);
+    option.value = value;
+    option.textContent = label;
+    if (value === 'recents') {
+      option.hidden = true;
+      option.disabled = true;
+    }
+    sortSelect.appendChild(option);
+  });
   return document;
+}
+
+function catalogSortOption(document, value) {
+  const select = document.nodes.get('catalog-sort');
+  return ((select && select.children) || []).find(option => option.value === value) || null;
 }
 
 function browserText(node) {
@@ -1029,6 +1058,46 @@ test('gamesPath delegates search membership to the live API', () => {
   assert.equal(gamesPath('sonic & tails'), '/api/v1/games?q=sonic%20%26%20tails&grouped=1');
   assert.equal(gamesPath('', { collection: 'favorites' }), '/api/v1/games?collection=favorites&grouped=1');
   assert.equal(gamesPath('sonic', { platform: 'snes' }), '/api/v1/games?q=sonic&platform=snes&grouped=1');
+  assert.equal(gamesPath('', { collection: 'recents', sort: 'recents' }), '/api/v1/games?collection=recents&grouped=1');
+  assert.equal(gamesPath('', { collection: 'recents', sort: 'title' }), '/api/v1/games?collection=recents&grouped=1');
+});
+
+test('collection See-alls and Home override Year/System without mutating stored sort', () => {
+  assert.equal(collectionFetchSort('continue'), 'title');
+  assert.equal(collectionFetchSort('favorites'), 'title');
+  assert.equal(collectionFetchSort('recents'), 'recents');
+  assert.equal(collectionFetchSort('unplayed'), 'title');
+  assert.equal(collectionFetchSort('weekend-queue'), 'title');
+  assert.equal(collectionFetchSort('recently_added'), 'recently_added');
+  assert.equal(catalogSortOverridden({ libraryView: 'home', collection: '', sort: 'year' }), true);
+  assert.equal(catalogSortOverridden({ libraryView: 'grid', collection: 'continue', sort: 'year' }), true);
+  assert.equal(catalogSortOverridden({ libraryView: 'grid', collection: 'weekend-queue', sort: 'system' }), true);
+  assert.equal(catalogSortOverridden({ libraryView: 'grid', collection: '', sort: 'year' }), false);
+  assert.equal(catalogEffectiveSort({ libraryView: 'home', collection: '', sort: 'year' }), 'title');
+  assert.equal(catalogEffectiveSort({ libraryView: 'grid', collection: 'favorites', sort: 'year' }), 'title');
+  assert.equal(catalogEffectiveSort({ libraryView: 'grid', collection: 'recents', sort: 'year' }), 'recents');
+  assert.equal(catalogEffectiveSort({ libraryView: 'grid', collection: 'recently_added', sort: 'year' }), 'recently_added');
+  assert.equal(catalogEffectiveSort({ libraryView: 'grid', collection: '', sort: 'year' }), 'year');
+  assert.equal(catalogSortOverrideLabel('title'), 'Sort (Title)');
+  assert.equal(catalogSortOverrideLabel('recents'), 'Sort (Recent)');
+  assert.equal(catalogSortOverrideLabel('recently_added'), 'Sort (Recently added)');
+});
+
+test('setCatalogSort ignores recents so All-games Year does not become Title', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic');
+  const populated = jsonResponse({ games: [sonic] });
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/games': [populated, populated],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.setLibraryNav('', '');
+  await controller.setCatalogSort('year');
+  assert.equal(controller.getState().sort, 'year');
+  const before = calls.length;
+  await controller.setCatalogSort('recents');
+  assert.equal(controller.getState().sort, 'year');
+  assert.equal(calls.length, before);
+  assert.equal(calls.filter(call => call.path === '/api/v1/games?sort=year&grouped=1').length, 1);
 });
 
 test('gameDetailPath safely encodes the live catalog ID', () => {
@@ -3219,6 +3288,265 @@ test('home omits empty rails and See all opens the existing cover wall', async (
   assert.ok(gameCards(document).length > 0);
 });
 
+test('catalog sort dropdown locks on Home and collection See-alls without changing stored sort', async () => {
+  const continueGame = availableGame('megadrive-sonic-test', 'Sonic the Hedgehog', { system: 'megadrive' });
+  const recentlyAddedGame = availableGame('snes-actraiser-test', 'ActRaiser', { system: 'snes' });
+  const weekendGame = availableGame('megadrive-streets-test', 'Streets', { system: 'megadrive' });
+  const populated = jsonResponse(readFixture('catalog-populated.json'));
+  const { document, calls } = await runBrowserApp({
+    keepHome: true,
+    responses: [populated, populated, populated],
+    collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }],
+    homeRails: {
+      continue: jsonResponse({ games: [continueGame] }),
+      favorites: jsonResponse({ games: [] }),
+      recents: jsonResponse({ games: [] }),
+      recently_added: jsonResponse({ games: [recentlyAddedGame] }),
+      'weekend-queue': jsonResponse({ games: [weekendGame] }),
+    },
+  });
+  await settleBrowser();
+  const sort = document.nodes.get('catalog-sort');
+  const label = document.nodes.get('catalog-sort-label');
+  assert.equal(sort.disabled, true);
+  assert.equal(sort.value, 'title');
+  assert.equal(sort.getAttribute('data-sort-override'), 'title');
+  assert.equal(sort.getAttribute('aria-label'), 'Sort (Title)');
+  assert.equal(label.textContent, 'Sort (Title)');
+
+  document.nodes.get('nav-all').click();
+  await settleBrowser();
+  assert.equal(sort.disabled, false);
+  assert.equal(sort.getAttribute('data-sort-override'), null);
+  assert.equal(sort.getAttribute('aria-label'), 'Sort');
+  assert.equal(label.textContent, 'Sort');
+
+  sort.value = 'year';
+  sort.dispatchEvent({ type: 'change' });
+  await settleBrowser();
+  assert.equal(sort.disabled, false);
+  assert.equal(sort.value, 'year');
+  assert.ok(calls.some(call => call.path === '/api/v1/games?sort=year&grouped=1'));
+
+  document.nodes.get('nav-continue').click();
+  await settleBrowser();
+  assert.equal(sort.disabled, true);
+  assert.equal(sort.value, 'title');
+  assert.equal(sort.getAttribute('data-sort-override'), 'title');
+  assert.equal(label.textContent, 'Sort (Title)');
+  sort.value = 'system';
+  sort.dispatchEvent({ type: 'change' });
+  await settleBrowser();
+  assert.equal(sort.disabled, true);
+  assert.equal(sort.getAttribute('data-sort-override'), 'title');
+  assert.equal(calls.some(call => String(call.path).includes('collection=continue') && String(call.path).includes('sort=platform')), false);
+
+  document.nodes.get('nav-recently-added').click();
+  await settleBrowser();
+  assert.equal(sort.disabled, true);
+  assert.equal(sort.value, 'recently_added');
+  assert.equal(sort.getAttribute('data-sort-override'), 'recently_added');
+  assert.equal(label.textContent, 'Sort (Recently added)');
+  assert.equal(sort.getAttribute('aria-label'), 'Sort (Recently added)');
+
+  const custom = document.nodes.get('nav-collection-weekend-queue');
+  assert.ok(custom);
+  custom.click();
+  await settleBrowser();
+  assert.equal(sort.disabled, true);
+  assert.equal(sort.value, 'title');
+  assert.equal(sort.getAttribute('data-sort-override'), 'title');
+  assert.equal(label.textContent, 'Sort (Title)');
+
+  document.nodes.get('nav-all').click();
+  await settleBrowser();
+  assert.equal(sort.disabled, false);
+  assert.equal(sort.value, 'year');
+  assert.equal(sort.getAttribute('data-sort-override'), null);
+  assert.equal(label.textContent, 'Sort');
+  assert.ok(calls.filter(call => call.path === '/api/v1/games?sort=year&grouped=1').length >= 2);
+});
+
+test('empty collection See-alls lock the sort dropdown and empty All-games unlocks it', async () => {
+  const populated = jsonResponse(readFixture('catalog-populated.json'));
+  const emptyCatalog = jsonResponse(readFixture('catalog-empty.json'));
+  const empty = jsonResponse({ games: [] });
+  const { document, calls } = await runBrowserApp({
+    keepHome: true,
+    responses: [populated, populated, emptyCatalog],
+    collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }],
+    homeRails: {
+      continue: empty,
+      favorites: empty,
+      recents: empty,
+      'weekend-queue': empty,
+    },
+  });
+  await settleBrowser();
+  const sort = document.nodes.get('catalog-sort');
+  const label = document.nodes.get('catalog-sort-label');
+
+  document.nodes.get('nav-all').click();
+  await settleBrowser();
+  sort.value = 'year';
+  sort.dispatchEvent({ type: 'change' });
+  await settleBrowser();
+  assert.equal(sort.disabled, false);
+  assert.equal(sort.value, 'year');
+  assert.ok(calls.some(call => call.path === '/api/v1/games?sort=year&grouped=1'));
+
+  for (const nav of ['nav-continue', 'nav-favorites']) {
+    document.nodes.get(nav).click();
+    await settleBrowser();
+    assert.equal(document.nodes.get('catalog-status').textContent, 'empty', nav);
+    assert.equal(sort.disabled, true, nav);
+    assert.equal(sort.value, 'title', nav);
+    assert.equal(sort.getAttribute('data-sort-override'), 'title', nav);
+    assert.equal(label.textContent, 'Sort (Title)', nav);
+    assert.equal(sort.getAttribute('aria-label'), 'Sort (Title)', nav);
+    sort.value = 'system';
+    sort.dispatchEvent({ type: 'change' });
+    await settleBrowser();
+    assert.equal(sort.disabled, true, nav);
+    assert.equal(sort.getAttribute('data-sort-override'), 'title', nav);
+    assert.equal(label.textContent, 'Sort (Title)', nav);
+  }
+
+  const custom = document.nodes.get('nav-collection-weekend-queue');
+  assert.ok(custom);
+  custom.click();
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-status').textContent, 'empty');
+  assert.equal(sort.disabled, true);
+  assert.equal(sort.value, 'title');
+  assert.equal(sort.getAttribute('data-sort-override'), 'title');
+  assert.equal(label.textContent, 'Sort (Title)');
+  sort.value = 'system';
+  sort.dispatchEvent({ type: 'change' });
+  await settleBrowser();
+  assert.equal(calls.some(call => String(call.path).includes('sort=platform')), false);
+
+  document.nodes.get('nav-all').click();
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-status').textContent, 'empty');
+  assert.equal(sort.disabled, false);
+  assert.equal(sort.value, 'year');
+  assert.equal(sort.getAttribute('data-sort-override'), null);
+  assert.equal(label.textContent, 'Sort');
+  assert.equal(sort.getAttribute('aria-label'), 'Sort');
+  assert.ok(calls.filter(call => call.path === '/api/v1/games?sort=year&grouped=1').length >= 2);
+});
+
+test('Recents See-all keeps play order and does not claim Title', async () => {
+  const zelda = availableGame('nes-zelda-test', 'Zelda', { system: 'nes' });
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic', { system: 'megadrive' });
+  const populated = jsonResponse(readFixture('catalog-populated.json'));
+  const recents = jsonResponse({ games: [zelda, sonic] });
+  const empty = jsonResponse({ games: [] });
+  const { document, calls } = await runBrowserApp({
+    keepHome: true,
+    responses: [populated, populated, populated],
+    homeRails: {
+      continue: empty,
+      favorites: empty,
+      recents,
+    },
+  });
+  await settleBrowser();
+  const sort = document.nodes.get('catalog-sort');
+  const label = document.nodes.get('catalog-sort-label');
+  document.nodes.get('nav-all').click();
+  await settleBrowser();
+  sort.value = 'year';
+  sort.dispatchEvent({ type: 'change' });
+  await settleBrowser();
+  assert.equal(sort.value, 'year');
+
+  document.nodes.get('nav-recents').click();
+  await settleBrowser();
+  const seeAll = calls.filter(call => String(call.path).includes('collection=recents') && !String(call.path).includes('limit=12')).at(-1);
+  assert.ok(seeAll);
+  assert.equal(seeAll.path, '/api/v1/games?collection=recents&grouped=1');
+  assert.equal(seeAll.path.includes('sort='), false);
+  assert.deepEqual(gameCards(document).map(card => card.getAttribute('data-game-id')), [
+    'nes-zelda-test',
+    'megadrive-sonic-test',
+  ]);
+  assert.equal(sort.disabled, true);
+  assert.equal(sort.value, 'recents');
+  assert.equal(sort.getAttribute('data-sort-override'), 'recents');
+  assert.equal(label.textContent, 'Sort (Recent)');
+  assert.equal(sort.getAttribute('aria-label'), 'Sort (Recent)');
+  sort.value = 'title';
+  sort.dispatchEvent({ type: 'change' });
+  await settleBrowser();
+  assert.equal(sort.disabled, true);
+  assert.equal(sort.getAttribute('data-sort-override'), 'recents');
+  assert.equal(calls.some(call => String(call.path).includes('collection=recents') && String(call.path).includes('sort=title')), false);
+  assert.equal(calls.some(call => String(call.path).includes('collection=recents') && String(call.path).includes('sort=year')), false);
+
+  document.nodes.get('nav-all').click();
+  await settleBrowser();
+  assert.equal(sort.disabled, false);
+  assert.equal(sort.value, 'year');
+  assert.ok(calls.filter(call => call.path === '/api/v1/games?sort=year&grouped=1').length >= 2);
+});
+
+test('All-games cannot select Recent and silently get Title', async () => {
+  const zelda = availableGame('nes-zelda-test', 'Zelda', { system: 'nes' });
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic', { system: 'megadrive' });
+  const populated = jsonResponse(readFixture('catalog-populated.json'));
+  const recents = jsonResponse({ games: [zelda, sonic] });
+  const empty = jsonResponse({ games: [] });
+  const { document, calls } = await runBrowserApp({
+    keepHome: true,
+    responses: [populated, populated, populated],
+    homeRails: {
+      continue: empty,
+      favorites: empty,
+      recents,
+    },
+  });
+  await settleBrowser();
+  const sort = document.nodes.get('catalog-sort');
+  document.nodes.get('nav-all').click();
+  await settleBrowser();
+  sort.value = 'year';
+  sort.dispatchEvent({ type: 'change' });
+  await settleBrowser();
+  assert.equal(sort.value, 'year');
+  const recentsOption = catalogSortOption(document, 'recents');
+  assert.ok(recentsOption);
+  assert.equal(recentsOption.hidden, true);
+  assert.equal(recentsOption.disabled, true);
+  const yearFetches = calls.filter(call => call.path === '/api/v1/games?sort=year&grouped=1').length;
+  const titleFetches = calls.filter(call => call.path === '/api/v1/games?grouped=1').length;
+  sort.value = 'recents';
+  sort.dispatchEvent({ type: 'change' });
+  await settleBrowser();
+  assert.equal(sort.disabled, false);
+  assert.equal(sort.value, 'year');
+  assert.equal(recentsOption.hidden, true);
+  assert.equal(recentsOption.disabled, true);
+  assert.equal(calls.filter(call => call.path === '/api/v1/games?sort=year&grouped=1').length, yearFetches);
+  assert.equal(calls.filter(call => call.path === '/api/v1/games?grouped=1').length, titleFetches);
+
+  document.nodes.get('nav-recents').click();
+  await settleBrowser();
+  assert.equal(sort.disabled, true);
+  assert.equal(sort.value, 'recents');
+  assert.equal(recentsOption.hidden, false);
+  assert.equal(recentsOption.disabled, false);
+  assert.equal(document.nodes.get('catalog-sort-label').textContent, 'Sort (Recent)');
+
+  document.nodes.get('nav-all').click();
+  await settleBrowser();
+  assert.equal(sort.disabled, false);
+  assert.equal(sort.value, 'year');
+  assert.equal(recentsOption.hidden, true);
+  assert.equal(recentsOption.disabled, true);
+});
+
 test('home omits empty Unplayed and Recently added rails and See all opens those walls', async () => {
   const continueGame = availableGame('megadrive-sonic-test', 'Sonic the Hedgehog', { system: 'megadrive' });
   const unplayedGame = availableGame('nes-zelda-test', 'Zelda', { system: 'nes' });
@@ -4494,7 +4822,7 @@ test('recently added Home rail ignores year and system catalog sort', async () =
   assert.equal(afterSystem.path.includes('sort=platform'), false);
 });
 
-test('Home rails and Recently added ignore Year/System while All-games keeps the preference', async () => {
+test('Home rails and collection See-alls ignore Year/System while All-games keeps the preference', async () => {
   const sonic = availableGame('megadrive-sonic-test', 'Sonic');
   const recent = availableGame('snes-actraiser-test', 'ActRaiser');
   const empty = jsonResponse({ games: [] });
@@ -4506,12 +4834,12 @@ test('Home rails and Recently added ignore Year/System while All-games keeps the
     '/api/v1/library/facets': [jsonResponse({ genres: [], years: [] })],
     '/api/v1/library/collections': [jsonResponse({ collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }] })],
     '/api/v1/games': [populated, populated, populated, populated, populated],
-    '/api/v1/games?collection=continue': [empty, empty, empty],
-    '/api/v1/games?collection=favorites': [empty, empty],
-    '/api/v1/games?collection=recents': [empty, empty],
-    '/api/v1/games?collection=unplayed': [empty, empty],
+    '/api/v1/games?collection=continue': [empty, empty, empty, empty],
+    '/api/v1/games?collection=favorites': [empty, empty, empty, empty],
+    '/api/v1/games?collection=recents': [empty, empty, empty, empty],
+    '/api/v1/games?collection=unplayed': [empty, empty, empty, empty],
     '/api/v1/games?collection=recently_added': [added, added, added, added],
-    '/api/v1/games?collection=weekend-queue': [populated, populated],
+    '/api/v1/games?collection=weekend-queue': [populated, populated, populated, populated],
   });
   const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
   await controller.setLibraryNav('', '');
@@ -4543,11 +4871,24 @@ test('Home rails and Recently added ignore Year/System while All-games keeps the
   assert.equal(controller.getState().collection, 'recently_added');
   assert.equal(controller.getState().libraryView, 'grid');
 
-  await controller.setLibraryNav('continue', '');
-  const continueSeeAll = calls.filter(call => String(call.path).includes('collection=continue') && !String(call.path).includes('limit=12')).at(-1);
-  assert.ok(continueSeeAll);
-  assert.equal(continueSeeAll.path, '/api/v1/games?collection=continue&sort=year&grouped=1');
-  assert.equal(controller.getState().sort, 'year');
+  const seeAllYearPaths = {
+    continue: '/api/v1/games?collection=continue&grouped=1',
+    favorites: '/api/v1/games?collection=favorites&grouped=1',
+    recents: '/api/v1/games?collection=recents&grouped=1',
+    unplayed: '/api/v1/games?collection=unplayed&grouped=1',
+    'weekend-queue': '/api/v1/games?collection=weekend-queue&grouped=1',
+  };
+  for (const [collection, path] of Object.entries(seeAllYearPaths)) {
+    await controller.setLibraryNav(collection, '');
+    const seeAllCall = calls.filter(call => String(call.path).includes(`collection=${collection}`) && !String(call.path).includes('limit=12')).at(-1);
+    assert.ok(seeAllCall, collection);
+    assert.equal(seeAllCall.path, path);
+    assert.equal(seeAllCall.path.includes('sort=year'), false);
+    assert.equal(seeAllCall.path.includes('sort=platform'), false);
+    assert.equal(controller.getState().sort, 'year', collection);
+    assert.equal(controller.getState().collection, collection);
+    assert.equal(controller.getState().libraryView, 'grid');
+  }
 
   await controller.setLibraryNav('', '');
   const allAgain = calls.filter(call => !String(call.path).includes('collection=')).at(-1);
@@ -4568,6 +4909,18 @@ test('Home rails and Recently added ignore Year/System while All-games keeps the
   const seeAllSystem = calls.filter(call => String(call.path).includes('collection=recently_added') && !String(call.path).includes('limit=12')).at(-1);
   assert.equal(seeAllSystem.path, '/api/v1/games?collection=recently_added&sort=recently_added&grouped=1');
   assert.equal(seeAllSystem.path.includes('sort=platform'), false);
+  assert.equal(controller.getState().sort, 'system');
+
+  await controller.setLibraryNav('favorites', '');
+  const favoritesSeeAllSystem = calls.filter(call => String(call.path).includes('collection=favorites') && !String(call.path).includes('limit=12')).at(-1);
+  assert.equal(favoritesSeeAllSystem.path, '/api/v1/games?collection=favorites&grouped=1');
+  assert.equal(favoritesSeeAllSystem.path.includes('sort=platform'), false);
+  assert.equal(controller.getState().sort, 'system');
+
+  await controller.setLibraryNav('weekend-queue', '');
+  const customSeeAllSystem = calls.filter(call => String(call.path).includes('collection=weekend-queue') && !String(call.path).includes('limit=12')).at(-1);
+  assert.equal(customSeeAllSystem.path, '/api/v1/games?collection=weekend-queue&grouped=1');
+  assert.equal(customSeeAllSystem.path.includes('sort=platform'), false);
   assert.equal(controller.getState().sort, 'system');
 
   await controller.setLibraryNav('', '');
