@@ -1394,7 +1394,8 @@ test('catalog cards defer unreliable execution compatibility data', () => {
   const app = readAsset('ui_app.js');
   assert.doesNotMatch(app, /game\.execution/);
   assert.match(app, /game\.state/);
-  assert.match(app, /game\.content_prepared/);
+  assert.match(app, /source\.content_prepared/);
+  assert.match(app, /content_prepared: contentPrepared/);
 });
 
 test('controller loads fixture catalog, keeps unmatched metadata non-fatal, and refreshes detail', async () => {
@@ -6564,6 +6565,13 @@ function detailFactsFrom(document) {
     : [];
 }
 
+function assertOmitsStagingAndExecution(facts) {
+  assert.equal(facts.some(fact => fact.label === 'Staging'), false);
+  assert.equal(facts.some(fact => fact.label === 'Content'), false);
+  assert.equal(facts.some(fact => fact.value === 'Prepared' || fact.value === 'On demand'), false);
+  assert.equal(facts.some(fact => fact.label === 'Execution' || /fpga_native/.test(String(fact.value))), false);
+}
+
 test('detail facts show dump identity and hide Version unless multiple variants', async () => {
   const dump = availableGame('megadrive-sonic-test', 'Sonic the Hedgehog (USA) (Rev A) (Beta)', {
     system: 'megadrive',
@@ -9772,7 +9780,15 @@ test('detail facts show Source ZIP or ROM and omit unknown kind', async () => {
   const app = readAsset('ui_app.js');
   assert.match(app, /function sourceKindLabel\(game\)/);
   assert.match(app, /\[sourceKindLabel\(liveGame \|\| game\), 'Source'\]/);
-  assert.match(app, /\[game\.content_prepared \? 'Prepared' : 'On demand', 'Staging'\]/);
+  assert.match(app, /\[coverStatusLabel\(game\), 'Status'\]/);
+  assert.doesNotMatch(app, /'Staging'/);
+  assert.doesNotMatch(app, /'Prepared'/);
+  assert.doesNotMatch(app, /'On demand'/);
+  assert.doesNotMatch(app, /, 'Content'\]/);
+  assert.match(app, /source\.content_prepared/);
+  assert.match(app, /content_prepared: contentPrepared/);
+  assert.doesNotMatch(app, /game\.content_prepared/);
+  assert.doesNotMatch(app, /game\.execution/);
   assert.match(app, /coverHoverMeta\(game, view\)/);
   assert.doesNotMatch(app, /bits\.push\(sourceKindLabel/);
   assert.match(css, /--list-row-height:\s*72px/);
@@ -9821,7 +9837,7 @@ test('detail facts show Source ZIP or ROM and omit unknown kind', async () => {
     content_prepared: false,
     region: 'usa',
   });
-  const { document } = await runBrowserApp({
+  const { document, calls } = await runBrowserApp({
     adapter: readyGenreAdapter(),
     responses: [
       jsonResponse({ games: [zip, raw, unknown, onDemand] }),
@@ -9835,7 +9851,7 @@ test('detail facts show Source ZIP or ROM and omit unknown kind', async () => {
   const cover = byID[zip.id];
   assert.equal(cover.children.find(child => child.tagName === 'H3').textContent, 'Sonic the Hedgehog');
   assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, 'Mega Drive · USA · 1991 · Ready');
-  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /ZIP|ROM|zip|raw/);
+  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /ZIP|ROM|zip|raw|Staging|Prepared|On demand/);
   assert.equal(cardMark(cover, 'favorite').textContent, 'Favorite');
   assert.equal(cardMark(cover, 'beta').textContent, 'Beta');
   assert.equal(cardCollectionChip(cover).textContent, 'Weekend Queue');
@@ -9843,11 +9859,17 @@ test('detail facts show Source ZIP or ROM and omit unknown kind', async () => {
 
   await cover.click();
   await settleBrowser();
+  const requestRoots = [...new Set(calls.map(call => call.path.split('?')[0]))];
+  assert.equal(requestRoots.every(path => (
+    path === '/api/v1/games'
+    || path.startsWith('/api/v1/games/')
+    || path.startsWith('/api/v1/presentation/games/')
+  )), true);
   const zipFacts = detailFactsFrom(document);
   assert.ok(zipFacts.some(fact => fact.label === 'Source' && fact.value === 'ZIP'));
   assert.equal(zipFacts.filter(fact => fact.label === 'Source').length, 1);
   assert.ok(zipFacts.some(fact => fact.label === 'Status' && fact.value === 'Ready'));
-  assert.ok(zipFacts.some(fact => fact.label === 'Staging' && fact.value === 'Prepared'));
+  assertOmitsStagingAndExecution(zipFacts);
   assert.ok(zipFacts.some(fact => fact.label === 'Region' && fact.value === 'USA'));
   assert.ok(zipFacts.some(fact => fact.label === 'Revision' && fact.value === 'rev a'));
   assert.ok(zipFacts.some(fact => fact.label === 'Flags' && fact.value === 'Beta'));
@@ -9863,7 +9885,8 @@ test('detail facts show Source ZIP or ROM and omit unknown kind', async () => {
   await settleBrowser();
   const rawFacts = detailFactsFrom(rawApp.document);
   assert.ok(rawFacts.some(fact => fact.label === 'Source' && fact.value === 'ROM'));
-  assert.ok(rawFacts.some(fact => fact.label === 'Staging' && fact.value === 'Prepared'));
+  assert.ok(rawFacts.some(fact => fact.label === 'Status' && fact.value === 'Ready'));
+  assertOmitsStagingAndExecution(rawFacts);
   assert.equal(rawFacts.some(fact => fact.value === 'zip' || fact.value === 'raw'), false);
 
   const unknownApp = await runBrowserApp({
@@ -9876,7 +9899,8 @@ test('detail facts show Source ZIP or ROM and omit unknown kind', async () => {
   const unknownFacts = detailFactsFrom(unknownApp.document);
   assert.equal(unknownFacts.some(fact => fact.label === 'Source'), false);
   assert.equal(unknownFacts.some(fact => /ZIP|ROM|iso|zip|raw/.test(fact.value)), false);
-  assert.ok(unknownFacts.some(fact => fact.label === 'Staging' && fact.value === 'Prepared'));
+  assert.ok(unknownFacts.some(fact => fact.label === 'Status' && fact.value === 'Ready'));
+  assertOmitsStagingAndExecution(unknownFacts);
 
   const demandApp = await runBrowserApp({
     responses: [jsonResponse({ games: [onDemand] }), jsonResponse(onDemand)],
@@ -9886,7 +9910,43 @@ test('detail facts show Source ZIP or ROM and omit unknown kind', async () => {
   await settleBrowser();
   const demandFacts = detailFactsFrom(demandApp.document);
   assert.ok(demandFacts.some(fact => fact.label === 'Source' && fact.value === 'ROM'));
-  assert.ok(demandFacts.some(fact => fact.label === 'Staging' && fact.value === 'On demand'));
+  assert.ok(demandFacts.some(fact => fact.label === 'Status' && fact.value === 'Ready'));
+  assertOmitsStagingAndExecution(demandFacts);
+
+  const offline = availableGame('snes-offline-staging-test', 'Offline Dump', {
+    kind: 'zip',
+    state: 'available',
+    root_online: false,
+  });
+  const offlineApp = await runBrowserApp({
+    responses: [jsonResponse({ games: [offline] }), jsonResponse(offline)],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await gameCards(offlineApp.document)[0].click();
+  await settleBrowser();
+  const offlineFacts = detailFactsFrom(offlineApp.document);
+  assert.ok(offlineFacts.some(fact => fact.label === 'Status' && fact.value === 'Offline'));
+  assert.ok(offlineFacts.some(fact => fact.label === 'Source' && fact.value === 'ZIP'));
+  assertOmitsStagingAndExecution(offlineFacts);
+
+  const playing = availableGame('snes-playing-staging-test', 'Playing Dump', { kind: 'raw' });
+  const playingApp = await runBrowserApp({
+    responses: [jsonResponse({ games: [playing] }), jsonResponse(playing)],
+    sessionResponses: [jsonResponse(sessionFixture({
+      state: 'active',
+      game_id: playing.id,
+      system: 'snes',
+    }))],
+  });
+  await settleBrowser();
+  assert.equal(cardMark(gameCards(playingApp.document)[0], 'playing').textContent, 'Playing');
+  await gameCards(playingApp.document)[0].click();
+  await settleBrowser();
+  const playingFacts = detailFactsFrom(playingApp.document);
+  assert.ok(playingFacts.some(fact => fact.label === 'Status' && fact.value === 'Ready'));
+  assert.equal(playingFacts.some(fact => fact.label === 'Status' && /Playing/.test(fact.value)), false);
+  assert.ok(playingFacts.some(fact => fact.label === 'Source' && fact.value === 'ROM'));
+  assertOmitsStagingAndExecution(playingFacts);
 });
 
 test('grouped ZIP+raw version select shows the selected variant Source before detail hydrate', async () => {
@@ -9932,14 +9992,15 @@ test('grouped ZIP+raw version select shows the selected variant Source before de
   const cover = gameCards(document)[0];
   assert.equal(cover.children.find(child => child.tagName === 'H3').textContent, 'Sonic the Hedgehog');
   assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, 'Mega Drive · USA · 1991 · Ready');
-  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /ZIP|ROM|zip|raw/);
+  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /ZIP|ROM|zip|raw|Staging|Prepared|On demand/);
   assert.equal(cover.children.some(child => /card-mark-kind/.test(String(child.className))), false);
 
   await cover.click();
   await settleBrowser();
   const zipFacts = detailFactsFrom(document);
   assert.ok(zipFacts.some(fact => fact.label === 'Source' && fact.value === 'ZIP'));
-  assert.ok(zipFacts.some(fact => fact.label === 'Staging' && fact.value === 'Prepared'));
+  assert.ok(zipFacts.some(fact => fact.label === 'Status' && fact.value === 'Ready'));
+  assertOmitsStagingAndExecution(zipFacts);
   const select = document.getElementById('game-version');
   assert.ok(select);
   select.value = raw.id;
@@ -9948,14 +10009,16 @@ test('grouped ZIP+raw version select shows the selected variant Source before de
   const pendingFacts = detailFactsFrom(document);
   assert.ok(pendingFacts.some(fact => fact.label === 'Source' && fact.value === 'ROM'));
   assert.equal(pendingFacts.filter(fact => fact.label === 'Source').length, 1);
-  assert.ok(pendingFacts.some(fact => fact.label === 'Staging' && fact.value === 'Prepared'));
+  assert.ok(pendingFacts.some(fact => fact.label === 'Status' && fact.value === 'Ready'));
+  assertOmitsStagingAndExecution(pendingFacts);
   assert.equal(pendingFacts.some(fact => fact.value === 'zip' || fact.value === 'raw'), false);
   releaseVariantDetail();
   await selecting;
   await settleBrowser();
   const failedFacts = detailFactsFrom(document);
   assert.ok(failedFacts.some(fact => fact.label === 'Source' && fact.value === 'ROM'));
-  assert.ok(failedFacts.some(fact => fact.label === 'Staging' && fact.value === 'Prepared'));
+  assert.ok(failedFacts.some(fact => fact.label === 'Status' && fact.value === 'Ready'));
+  assertOmitsStagingAndExecution(failedFacts);
   assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /ZIP|ROM|zip|raw/);
 });
 
@@ -10001,10 +10064,10 @@ test('Cover hover Home rails and List omit source kind', async () => {
   await settleBrowser();
   const byID = Object.fromEntries(gameCards(coverApp.document).map(card => [card.attributes.get('data-game-id'), card]));
   assert.equal(byID[queued.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
-  assert.doesNotMatch(byID[queued.id].children.find(child => child.className === 'game-meta').textContent, /ZIP|ROM|zip|raw|SEGA|Action|Beta/);
+  assert.doesNotMatch(byID[queued.id].children.find(child => child.className === 'game-meta').textContent, /ZIP|ROM|zip|raw|SEGA|Action|Beta|Staging|Prepared|On demand/);
   assert.equal(byID[grouped.id].children.find(child => child.tagName === 'H3').textContent, 'Sonic the Hedgehog');
   assert.equal(byID[grouped.id].children.find(child => child.className === 'game-meta').textContent, 'Mega Drive · USA · 1991 · Ready');
-  assert.doesNotMatch(byID[grouped.id].children.find(child => child.className === 'game-meta').textContent, /ZIP|ROM|zip|raw/);
+  assert.doesNotMatch(byID[grouped.id].children.find(child => child.className === 'game-meta').textContent, /ZIP|ROM|zip|raw|Staging|Prepared|On demand/);
 
   const homeApp = await runBrowserApp({
     keepHome: true,
@@ -10022,7 +10085,7 @@ test('Cover hover Home rails and List omit source kind', async () => {
   const rail = homeRails(homeApp.document).find(item => item.attributes.get('data-home-rail') === 'continue');
   const homeCard = rail.querySelectorAll('.game-card')[0];
   assert.equal(homeCard.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
-  assert.doesNotMatch(homeCard.children.find(child => child.className === 'game-meta').textContent, /ZIP|ROM|zip|raw/);
+  assert.doesNotMatch(homeCard.children.find(child => child.className === 'game-meta').textContent, /ZIP|ROM|zip|raw|Staging|Prepared|On demand/);
   assert.equal(homeCard.children.find(child => child.tagName === 'H3').textContent, 'ActRaiser');
   assert.equal(cardMark(homeCard, 'favorite').textContent, 'Favorite');
   assert.equal(cardCollectionChip(homeCard).textContent, 'Weekend Queue');
@@ -10040,7 +10103,7 @@ test('Cover hover Home rails and List omit source kind', async () => {
   const queuedBody = listByID[queued.id].children.find(child => String(child.className).includes('game-row-body'));
   assert.equal(queuedBody.children[1].className, 'game-meta');
   assert.equal(queuedBody.children[1].textContent, 'SNES · 1991 · Action · SEGA · 1 player · Beta · Weekend Queue · +1 · Ready');
-  assert.doesNotMatch(queuedBody.children[1].textContent, /USA|ZIP|ROM|zip|raw/);
+  assert.doesNotMatch(queuedBody.children[1].textContent, /USA|ZIP|ROM|zip|raw|Staging|Prepared|On demand/);
   assert.equal(queuedBody.children[2].className, 'game-row-favorite');
   assert.equal(queuedBody.children[3].className, 'game-meta game-meta-variant');
   assert.equal(queuedBody.children.length, 4);
@@ -10048,12 +10111,12 @@ test('Cover hover Home rails and List omit source kind', async () => {
   const groupedBody = listByID[grouped.id].children.find(child => String(child.className).includes('game-row-body'));
   assert.equal(groupedBody.children[0].textContent, 'Sonic the Hedgehog');
   assert.equal(groupedBody.children[1].textContent, 'Mega Drive · 1991 · Action · SEGA · 1 player · Ready');
-  assert.doesNotMatch(groupedBody.children[1].textContent, /ZIP|ROM|zip|raw|USA/);
+  assert.doesNotMatch(groupedBody.children[1].textContent, /ZIP|ROM|zip|raw|USA|Staging|Prepared|On demand/);
   assert.equal(groupedBody.children[2].className, 'game-meta game-meta-variant');
   assert.equal(groupedBody.children.length, 3);
   const plainBody = listByID[plain.id].children.find(child => String(child.className).includes('game-row-body'));
   assert.equal(plainBody.children[1].textContent, 'SNES · 1992 · Action · SEGA · 1 player · Ready');
-  assert.doesNotMatch(plainBody.children[1].textContent, /ZIP|ROM|zip|raw/);
+  assert.doesNotMatch(plainBody.children[1].textContent, /ZIP|ROM|zip|raw|Staging|Prepared|On demand/);
   assert.equal(plainBody.children.length, 2);
 });
 
@@ -10075,4 +10138,20 @@ test('WALL_WINDOW spacer math and marks clearance stay unchanged with source kin
   assert.doesNotMatch(css, /\.card-mark-kind/);
   assert.doesNotMatch(app, /\.card-mark-kind/);
   assert.doesNotMatch(css, /\.game-studio[^{]*\{[^}]*filter:/);
+  assert.doesNotMatch(app, /'Staging'/);
+});
+
+test('snapshotLiveGame still copies content_prepared without painting Staging', async () => {
+  const prepared = availableGame('snes-prepared-snap', 'Prepared Snap', { content_prepared: true });
+  const demand = availableGame('snes-demand-snap', 'Demand Snap', { content_prepared: false });
+  const { calls, fetchImpl } = queuedFetch([
+    jsonResponse({ games: [prepared, demand] }),
+  ]);
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadCatalog('');
+  const state = controller.getState();
+  assert.equal(state.games.find(game => game.id === prepared.id).content_prepared, true);
+  assert.equal(state.games.find(game => game.id === demand.id).content_prepared, false);
+  assert.equal(state.games.find(game => game.id === prepared.id).execution, 'fpga_native');
+  assert.deepEqual(calls.map(call => call.path), ['/api/v1/games?grouped=1']);
 });

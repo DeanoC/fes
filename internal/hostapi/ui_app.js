@@ -4031,7 +4031,6 @@
     const factRows = [
       [systemLabel(game.system), 'System'],
       [coverStatusLabel(game), 'Status'],
-      [game.content_prepared ? 'Prepared' : 'On demand', 'Staging'],
       [sourceKindLabel(liveGame || game), 'Source'],
       [catalogYear(gameView), 'Year'],
       [catalogGenre(gameView), 'Genre'],
