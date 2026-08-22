@@ -319,6 +319,41 @@
     france: 'france', germany: 'germany', spain: 'spain', italy: 'italy', canada: 'canada',
   });
 
+  // Canonical dump-region tokens from catalog.mapDumpRegion. `other` is the
+  // empty/other token, not a catch-all for unlisted regions.
+  const DUMP_REGION_TOKENS = Object.freeze([
+    'usa', 'japan', 'europe', 'world', 'brazil',
+    'korea', 'asia', 'australia',
+    'france', 'germany', 'spain', 'italy', 'canada',
+    'other',
+  ]);
+
+  const DUMP_REGION_LABELS = Object.freeze({
+    usa: 'USA',
+    japan: 'Japan',
+    europe: 'Europe',
+    world: 'World',
+    brazil: 'Brazil',
+    korea: 'Korea',
+    asia: 'Asia',
+    australia: 'Australia',
+    france: 'France',
+    germany: 'Germany',
+    spain: 'Spain',
+    italy: 'Italy',
+    canada: 'Canada',
+    other: 'Other',
+  });
+
+  function catalogDumpRegions() {
+    return DUMP_REGION_TOKENS.slice();
+  }
+
+  function regionLabel(region) {
+    const token = String(region || '').trim();
+    return DUMP_REGION_LABELS[token] || token;
+  }
+
   function catalogRegion(title) {
     const tags = [];
     let current = String(title || '').trim();
@@ -401,12 +436,24 @@
     return displayTitle(game.title);
   }
 
+  function dumpIdentityFacts(game) {
+    const facts = [];
+    if (game && game.region) facts.push({ label: 'Region', value: regionLabel(game.region) });
+    if (game && game.revision) facts.push({ label: 'Revision', value: `rev ${game.revision}` });
+    if (game && game.dump_flags) facts.push({ label: 'Flags', value: game.dump_flags.replace(/,/g, ', ') });
+    return facts;
+  }
+
   function variantLabel(game) {
-    const parts = [];
-    if (game && game.region) parts.push(game.region);
-    if (game && game.revision) parts.push(`rev ${game.revision}`);
-    if (game && game.dump_flags) parts.push(game.dump_flags.replace(/,/g, ', '));
-    return parts.join(' · ') || game.title || 'Dump';
+    const parts = dumpIdentityFacts(game).map(fact => fact.value);
+    return parts.join(' · ') || (game && game.title) || 'Dump';
+  }
+
+  function coverHoverMeta(game) {
+    const bits = [systemLabel(game.system)];
+    if (game && game.region) bits.push(regionLabel(game.region));
+    bits.push(sourceLabel(game.state));
+    return bits.join(' · ');
   }
 
   function launchBlockReason(game) {
@@ -2412,6 +2459,10 @@
     displayTitle,
     cardTitle,
     variantLabel,
+    dumpIdentityFacts,
+    coverHoverMeta,
+    regionLabel,
+    catalogDumpRegions,
     systemLabel,
     sourceLabel,
     launchBlockReason,
@@ -3394,7 +3445,31 @@
     }
   }
 
+  function syncRegionFilterOptions() {
+    if (!nodes.regionFilter) return;
+    const wanted = catalogDumpRegions();
+    const kids = nodes.regionFilter.options || nodes.regionFilter.children || [];
+    const existing = [];
+    for (let index = 0; index < kids.length; index += 1) {
+      if (kids[index] && kids[index].value) existing.push(kids[index].value);
+    }
+    const missing = wanted.filter(token => !existing.includes(token));
+    if (!missing.length && existing.length) return;
+    const selected = state.filters && state.filters.region || '';
+    nodes.regionFilter.replaceChildren();
+    const all = element('option', '', 'All regions');
+    all.value = '';
+    nodes.regionFilter.appendChild(all);
+    wanted.forEach(token => {
+      const option = element('option', '', regionLabel(token));
+      option.value = token;
+      nodes.regionFilter.appendChild(option);
+    });
+    nodes.regionFilter.value = selected;
+  }
+
   function syncCatalogFilters() {
+    syncRegionFilterOptions();
     if (nodes.regionFilter) nodes.regionFilter.value = state.filters && state.filters.region || '';
     syncCatalogSortControl();
     if (nodes.availabilityFilter) nodes.availabilityFilter.value = state.filters && state.filters.availability || '';
@@ -3519,7 +3594,7 @@
       card.appendChild(body);
     } else {
       card.appendChild(element('h3', '', cardTitle(game)));
-      card.appendChild(element('p', 'game-meta', `${systemLabel(game.system)} · ${sourceLabel(game.state)}`));
+      card.appendChild(element('p', 'game-meta', coverHoverMeta(game)));
       if (presentation.isFallback) {
         card.appendChild(element('p', 'fallback-note', 'Using local catalog data'));
       }
@@ -3611,7 +3686,17 @@
     }
     if (presentation.attribution) nodes.detailContent.appendChild(element('p', 'attribution', presentation.attribution));
     const facts = element('div', 'detail-facts');
-    [[systemLabel(game.system), 'System'], [sourceLabel(game.state), 'Status'], [game.content_prepared ? 'Prepared' : 'On demand', 'Staging'], [presentation.year !== '—' ? presentation.year : '', 'Year'], [presentation.genre, 'Genre'], [presentation.studio, 'Studio'], [presentation.players, 'Players']]
+    const factRows = [
+      [systemLabel(game.system), 'System'],
+      [sourceLabel(game.state), 'Status'],
+      [game.content_prepared ? 'Prepared' : 'On demand', 'Staging'],
+      [presentation.year !== '—' ? presentation.year : '', 'Year'],
+      [presentation.genre, 'Genre'],
+      [presentation.studio, 'Studio'],
+      [presentation.players, 'Players'],
+    ];
+    dumpIdentityFacts(game).forEach(fact => factRows.push([fact.value, fact.label]));
+    factRows
       .filter(([value]) => value)
       .forEach(([value, label]) => {
       const fact = element('div', 'detail-fact');

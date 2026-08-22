@@ -1652,6 +1652,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
           content_prepared: true,
           execution: 'fpga_native',
           variant_count: index === 1 ? 3 : 1,
+          ...(index === 1 ? { region: 'usa' } : {}),
         });
       }
       const narrowPresentations = Object.fromEntries(narrowGames.map(game => [
@@ -1700,15 +1701,25 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
           const variant = card.querySelector('.game-meta-variant');
           const note = card.querySelector('.fallback-note');
           if (!system || !variant || !note) return { missing: true, className: card.className };
+          const title = card.querySelector('h3');
           const sys = system.getBoundingClientRect();
           const ver = variant.getBoundingClientRect();
+          const titleBox = title ? title.getBoundingClientRect() : { top: 0, bottom: 0 };
           return {
             variantClass: variant.className,
+            metaText: system.textContent,
+            metaWhiteSpace: getComputedStyle(system).whiteSpace,
             noteTop: note.getBoundingClientRect().top < sys.top,
             overlap: Math.max(0, Math.min(sys.bottom, ver.bottom) - Math.max(sys.top, ver.top)),
+            titleOverlap: title
+              ? Math.max(0, Math.min(sys.bottom, titleBox.bottom) - Math.max(sys.top, titleBox.top))
+              : 1,
           };
         })()`);
         assert.equal(meta.variantClass, 'game-meta game-meta-variant');
+        assert.match(meta.metaText, /usa/i);
+        assert.equal(meta.metaWhiteSpace, 'nowrap');
+        assert.ok(meta.titleOverlap < 1, JSON.stringify(meta));
         assert.equal(meta.noteTop, true);
         assert.ok(meta.overlap < 1, JSON.stringify(meta));
         await harness.clearViewport();

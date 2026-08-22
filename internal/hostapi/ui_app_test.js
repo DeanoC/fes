@@ -28,6 +28,11 @@ const {
   fallbackPresentation,
   displayTitle,
   cardTitle,
+  variantLabel,
+  dumpIdentityFacts,
+  coverHoverMeta,
+  regionLabel,
+  catalogDumpRegions,
   systemLabel,
   sourceLabel,
   launchBlockReason,
@@ -213,6 +218,7 @@ function browserDocument() {
     'catalog-sort-label': 'span',
     'refresh-catalog': 'button',
     'filter-system': 'select',
+    'filter-region': 'select',
     'launcher': 'main',
     'open-settings': 'button',
     'settings-attract-idle': 'input',
@@ -222,7 +228,7 @@ function browserDocument() {
     'game-actions-menu': 'div',
   };
   const ids = [
-    'launcher', 'health', 'game-search', 'refresh-catalog', 'filter-system', 'catalog', 'catalog-status',
+    'launcher', 'health', 'game-search', 'refresh-catalog', 'filter-system', 'filter-region', 'catalog', 'catalog-status',
     'catalog-list', 'catalog-actions', 'detail', 'detail-content',
     'launch-actions', 'launch-status', 'session-panel', 'session-status',
     'session-details', 'session-actions', 'session-message',
@@ -520,7 +526,22 @@ test('catalog filters keep search, platform, region, and genre on the host query
   assert.equal(catalogRegion('Streets of Rage 2 (USA)'), 'usa');
   assert.equal(catalogRegion('Sonic & Knuckles (World)'), 'world');
   assert.equal(catalogRegion('Bare Knuckle ~ Streets of Rage (World) (Rev A)'), 'world');
+  assert.equal(catalogRegion('The King of Fighters (Korea)'), 'korea');
+  assert.equal(catalogRegion('Street Fighter (Asia)'), 'asia');
+  assert.equal(catalogRegion('Sonic the Hedgehog (Australia)'), 'australia');
+  assert.equal(catalogRegion('Another World (France)'), 'france');
   assert.equal(catalogRegion('Sonic the Hedgehog'), 'other');
+  assert.ok(catalogDumpRegions().includes('korea'));
+  assert.ok(catalogDumpRegions().includes('asia'));
+  assert.ok(catalogDumpRegions().includes('australia'));
+  assert.ok(catalogDumpRegions().includes('france'));
+  assert.ok(catalogDumpRegions().includes('germany'));
+  assert.ok(catalogDumpRegions().includes('spain'));
+  assert.ok(catalogDumpRegions().includes('italy'));
+  assert.ok(catalogDumpRegions().includes('canada'));
+  assert.equal(catalogDumpRegions().at(-1), 'other');
+  assert.equal(regionLabel('usa'), 'USA');
+  assert.equal(regionLabel('korea'), 'Korea');
   const views = [
     { live: { id: 'megadrive-a', title: 'Streets of Rage 2 (USA)', system: 'megadrive', genre: 'Beat \'em Up' }, presentation: { genre: 'Beat \'em Up' } },
     { live: { id: 'snes-b', title: 'Super Mario World (USA)', system: 'snes', genre: 'Platform' }, presentation: { genre: 'Platform' } },
@@ -528,6 +549,24 @@ test('catalog filters keep search, platform, region, and genre on the host query
   ];
   assert.deepEqual(filterCatalogViews(views, { system: 'snes', region: 'japan' }).map(view => view.live.id), ['megadrive-a', 'snes-b', 'megadrive-c']);
   assert.equal(catalogGenre(views[0]), 'Beat \'em Up');
+});
+
+test('variantLabel and dump facts share region revision and flags', () => {
+  const dump = {
+    title: 'Sonic the Hedgehog (USA) (Rev A) (Beta)',
+    region: 'usa',
+    revision: 'a',
+    dump_flags: 'beta',
+  };
+  assert.deepEqual(dumpIdentityFacts(dump), [
+    { label: 'Region', value: 'USA' },
+    { label: 'Revision', value: 'rev a' },
+    { label: 'Flags', value: 'beta' },
+  ]);
+  assert.equal(variantLabel(dump), 'USA · rev a · beta');
+  assert.equal(variantLabel({ title: 'Mystery Dump' }), 'Mystery Dump');
+  assert.equal(coverHoverMeta({ system: 'megadrive', state: 'available', region: 'usa' }), 'Mega Drive · USA · Ready');
+  assert.equal(coverHoverMeta({ system: 'megadrive', state: 'available' }), 'Mega Drive · Ready');
 });
 
 test('unmatched catalog cards stay quiet and sort/count the visible library', () => {
@@ -3190,6 +3229,7 @@ test('cover-card variant meta is independently classed so fallback cannot overla
   const games = [{
     ...readFixture('catalog-populated.json').games[1],
     variant_count: 3,
+    region: 'usa',
   }];
   const { document } = await runBrowserApp({
     responses: [jsonResponse({ games })],
@@ -3201,6 +3241,7 @@ test('cover-card variant meta is independently classed so fallback cannot overla
   assert.equal(notes.length, 1);
   assert.equal(metas.length, 2);
   assert.equal(metas[0].className, 'game-meta');
+  assert.match(metas[0].textContent, /usa/i);
   assert.equal(metas[1].className, 'game-meta game-meta-variant');
   assert.ok(card.children.indexOf(notes[0]) > card.children.indexOf(metas[0]));
   assert.ok(card.children.indexOf(notes[0]) < card.children.indexOf(metas[1]));
@@ -6084,4 +6125,182 @@ test('game actions menu CSS stays a compact overlay', () => {
   assert.match(css, /\.game-actions-menu[\s\S]*overflow:\s*auto/);
   const html = readAsset('ui_shell.html');
   assert.match(html, /id="game-actions-menu"/);
+});
+
+function detailFactsFrom(document) {
+  const content = document.nodes.get('detail-content');
+  const facts = (content.children || []).find(child => child.className === 'detail-facts');
+  return facts
+    ? facts.children.map(fact => ({
+      value: fact.children[0] && fact.children[0].textContent,
+      label: fact.children[1] && fact.children[1].textContent,
+    }))
+    : [];
+}
+
+test('detail facts show dump identity and hide Version unless multiple variants', async () => {
+  const dump = availableGame('megadrive-sonic-test', 'Sonic the Hedgehog (USA) (Rev A) (Beta)', {
+    system: 'megadrive',
+    region: 'usa',
+    revision: 'a',
+    dump_flags: 'beta',
+  });
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse({ games: [dump] }), jsonResponse(dump)],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await gameCards(document)[0].click();
+  await settleBrowser();
+  const facts = detailFactsFrom(document);
+  assert.deepEqual(facts.filter(fact => ['Region', 'Revision', 'Flags'].includes(fact.label)), [
+    { value: 'USA', label: 'Region' },
+    { value: 'rev a', label: 'Revision' },
+    { value: 'beta', label: 'Flags' },
+  ]);
+  assert.equal(document.getElementById('game-version'), null);
+
+  const single = {
+    ...dump,
+    variants: [dump],
+  };
+  const again = await runBrowserApp({
+    responses: [jsonResponse({ games: [dump] }), jsonResponse(single)],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await gameCards(again.document)[0].click();
+  await settleBrowser();
+  assert.equal(again.document.getElementById('game-version'), null);
+});
+
+test('multi-variant detail still labels #game-version with variantLabel', async () => {
+  const usa = availableGame('megadrive-sonic-usa', 'Sonic the Hedgehog (USA)', {
+    system: 'megadrive',
+    region: 'usa',
+    revision: 'a',
+    dump_flags: 'beta',
+  });
+  const japan = availableGame('megadrive-sonic-japan', 'Sonic the Hedgehog (Japan)', {
+    system: 'megadrive',
+    region: 'japan',
+  });
+  const grouped = { ...usa, id: 'megadrive-sonic-usa', variant_count: 2 };
+  const detail = { ...usa, variants: [usa, japan] };
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse({ games: [grouped] }), jsonResponse(detail)],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await gameCards(document)[0].click();
+  await settleBrowser();
+  const select = document.getElementById('game-version');
+  assert.ok(select);
+  assert.equal(select.children[0].textContent, variantLabel(usa));
+  assert.equal(select.children[1].textContent, variantLabel(japan));
+  assert.equal(select.children[0].value, usa.id);
+  assert.equal(select.children[1].value, japan.id);
+  const facts = detailFactsFrom(document);
+  assert.ok(facts.some(fact => fact.label === 'Region' && fact.value === 'USA'));
+  assert.ok(facts.some(fact => fact.label === 'Revision' && fact.value === 'rev a'));
+  assert.ok(facts.some(fact => fact.label === 'Flags' && fact.value === 'beta'));
+});
+
+test('cover hover includes region and list rows do not add a dump line', async () => {
+  const css = readAsset('ui.css');
+  assert.match(css, /\.game-card \.game-meta\s*\{[^}]*overflow:\s*hidden/);
+  assert.match(css, /\.game-card \.game-meta\s*\{[^}]*text-overflow:\s*ellipsis/);
+  assert.match(css, /\.game-card \.game-meta\s*\{[^}]*white-space:\s*nowrap/);
+  const game = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    year: '1991',
+    genre: 'Action',
+    favorite: true,
+    variant_count: 3,
+    region: 'usa',
+    revision: 'a',
+    dump_flags: 'beta',
+  });
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse({ games: [game] })],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  const cover = gameCards(document)[0];
+  const coverMeta = cover.children.find(child => child.className === 'game-meta');
+  assert.match(coverMeta.textContent, /usa/i);
+  assert.equal(coverMeta.textContent, 'SNES · USA · Ready');
+  assert.equal(cover.children.filter(child => String(child.className).includes('game-meta')).length, 2);
+  document.nodes.get('layout-list').click();
+  await settleBrowser();
+  const row = gameCards(document)[0];
+  const body = row.children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(body.children.length, 4);
+  assert.equal(body.children[0].textContent, 'ActRaiser');
+  assert.equal(body.children[1].className, 'game-meta');
+  assert.equal(body.children[1].textContent, 'SNES · 1991 · Action · Ready');
+  assert.equal(body.children[2].className, 'game-row-favorite');
+  assert.equal(body.children[2].textContent, 'Favorite');
+  assert.equal(body.children[3].className, 'game-meta game-meta-variant');
+  assert.equal(body.children[3].textContent, '3 versions');
+  assert.equal(body.children.filter(child => String(child.className).includes('game-meta')).length, 2);
+});
+
+test('Region select includes mapDumpRegion tokens and catalogExtras sends korea', async () => {
+  const html = readAsset('ui_shell.html');
+  assert.match(html, /<option value="korea">Korea<\/option>/);
+  assert.match(html, /<option value="asia">Asia<\/option>/);
+  assert.match(html, /<option value="australia">Australia<\/option>/);
+  assert.match(html, /<option value="france">France<\/option>/);
+  assert.match(html, /<option value="other">Other<\/option>/);
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic', { region: 'korea' });
+  const populated = jsonResponse({ games: [sonic] });
+  const empty = jsonResponse({ games: [] });
+  const { document, calls } = await runBrowserApp({
+    keepHome: true,
+    responses: [populated],
+    homeRails: {
+      continue: populated,
+      favorites: empty,
+      recents: empty,
+    },
+  });
+  await settleBrowser();
+  const select = document.nodes.get('filter-region');
+  const values = select.children.map(option => option.value);
+  assert.deepEqual(values.filter(Boolean), catalogDumpRegions());
+  assert.ok(values.includes('korea'));
+  assert.equal(values.at(-1), 'other');
+  assert.equal(document.nodes.get('catalog-list').className, 'home-rails');
+  select.value = 'korea';
+  await select.dispatchEvent({ type: 'change' });
+  await settleBrowser();
+  assert.equal(document.nodes.get('nav-all').className.includes('selected'), true);
+  assert.equal(document.nodes.get('nav-home').className.includes('selected'), false);
+  assert.equal(document.nodes.get('catalog-list').className, 'game-grid');
+  const jump = calls.filter(call => String(call.path).startsWith('/api/v1/games')).at(-1);
+  assert.ok(jump);
+  assert.equal(jump.path.includes('region=korea'), true);
+  assert.equal(jump.path.includes('collection='), false);
+});
+
+test('Home Region=korea jumps to All games and does not filter rails', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic', { region: 'korea' });
+  const empty = jsonResponse({ games: [] });
+  const populated = jsonResponse({ games: [sonic] });
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/games': [populated, populated],
+    '/api/v1/games?collection=continue': [populated, populated],
+    '/api/v1/games?collection=favorites': [empty, empty],
+    '/api/v1/games?collection=recents': [empty, empty],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.openHome();
+  assert.equal(controller.getState().libraryView, 'home');
+  const before = calls.length;
+  await controller.setCatalogFilter('region', 'korea');
+  assert.equal(controller.getState().libraryView, 'grid');
+  assert.equal(controller.getState().collection, '');
+  assert.equal(controller.getState().filters.region, 'korea');
+  const after = calls.slice(before);
+  assert.equal(after.some(call => String(call.path).includes('collection=') && String(call.path).includes('limit=12')), false);
+  const jump = after.filter(call => String(call.path).startsWith('/api/v1/games')).at(-1);
+  assert.equal(jump.path, '/api/v1/games?region=korea&grouped=1');
 });
