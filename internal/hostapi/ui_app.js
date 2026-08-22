@@ -4027,18 +4027,19 @@
       nodes.detailContent.appendChild(element('p', 'sr-only', 'metadata_fallback'));
     }
     if (presentation.attribution) nodes.detailContent.appendChild(element('p', 'attribution', presentation.attribution));
+    const detailGame = liveGame || game;
     const facts = element('div', 'detail-facts');
     const factRows = [
       [systemLabel(game.system), 'System'],
-      [coverStatusLabel(game), 'Status'],
+      [coverStatusLabel(detailGame), 'Status'],
       [sourceKindLabel(liveGame || game), 'Source'],
       [catalogYear(gameView), 'Year'],
       [catalogGenre(gameView), 'Genre'],
       [catalogStudio(gameView), 'Studio'],
       [catalogPlayers(gameView), 'Players'],
     ];
-    dumpIdentityFacts(game).forEach(fact => factRows.push([fact.value, fact.label]));
-    const labels = collectionLabels(game, state.collections);
+    dumpIdentityFacts(detailGame).forEach(fact => factRows.push([fact.value, fact.label]));
+    const labels = collectionLabels(detailGame, state.collections);
     if (labels.length) factRows.push([labels.join(', '), 'Collections']);
     factRows
       .filter(([value]) => value)
@@ -4054,14 +4055,37 @@
     favorite.id = 'favorite-game';
     favorite.addEventListener('click', () => controller.toggleFavorite(game.id));
     nodes.detailContent.appendChild(favorite);
-    const membership = Array.isArray(game.collections) ? game.collections : [];
+    const membershipReady = Boolean(
+      game
+      && detailGame
+      && game.id === detailGame.id
+      && (
+        state.detailState === 'populated'
+        || (state.games || []).some(item => item && item.id === detailGame.id)
+      )
+    );
+    const membership = membershipReady
+      ? (Array.isArray(detailGame.collections) ? detailGame.collections : [])
+      : null;
     (state.collections || []).forEach(collection => {
-      const member = membership.includes(collection.id);
-      const toggle = element('button', 'button secondary collection-member-button', member ? `Remove from ${collection.name}` : `Add to ${collection.name}`);
+      const member = Boolean(membership && membership.includes(collection.id));
+      const toggle = element(
+        'button',
+        'button secondary collection-member-button',
+        membership
+          ? (member ? `Remove from ${collection.name}` : `Add to ${collection.name}`)
+          : collection.name,
+      );
       toggle.type = 'button';
       toggle.id = `collection-member-${collection.id}`;
       toggle.setAttribute('data-collection', collection.id);
-      toggle.addEventListener('click', () => controller.toggleCollectionMember(collection.id, game.id));
+      if (!membershipReady) {
+        toggle.disabled = true;
+        nodes.detailContent.appendChild(toggle);
+        return;
+      }
+      toggle.setAttribute('data-game-id', detailGame.id);
+      toggle.addEventListener('click', () => controller.toggleCollectionMember(collection.id, detailGame.id));
       nodes.detailContent.appendChild(toggle);
     });
     const variants = Array.isArray(game.variants) ? game.variants : [];

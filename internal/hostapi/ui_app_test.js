@@ -6760,7 +6760,7 @@ test('Cover and Home show non-hover favorite offline and playing marks', async (
   assert.match(css, /--list-row-height:\s*72px/);
   assert.match(css, /--list-row-stride:\s*78px/);
   assert.match(app, /bits\.push\(coverStatusLabel\(game\)\)/);
-  assert.match(app, /\[coverStatusLabel\(game\), 'Status'\]/);
+  assert.match(app, /\[coverStatusLabel\(detailGame\), 'Status'\]/);
   assert.match(app, /coverHoverMeta\(game, view\)/);
   assert.match(app, /\(game && game\.year\) \|\| catalogYear\(view\)/);
   assert.match(app, /dumpFlagLabels\(game\)/);
@@ -9780,7 +9780,7 @@ test('detail facts show Source ZIP or ROM and omit unknown kind', async () => {
   const app = readAsset('ui_app.js');
   assert.match(app, /function sourceKindLabel\(game\)/);
   assert.match(app, /\[sourceKindLabel\(liveGame \|\| game\), 'Source'\]/);
-  assert.match(app, /\[coverStatusLabel\(game\), 'Status'\]/);
+  assert.match(app, /\[coverStatusLabel\(detailGame\), 'Status'\]/);
   assert.doesNotMatch(app, /'Staging'/);
   assert.doesNotMatch(app, /'Prepared'/);
   assert.doesNotMatch(app, /'On demand'/);
@@ -10154,4 +10154,415 @@ test('snapshotLiveGame still copies content_prepared without painting Staging', 
   assert.equal(state.games.find(game => game.id === demand.id).content_prepared, false);
   assert.equal(state.games.find(game => game.id === prepared.id).execution, 'fpga_native');
   assert.deepEqual(calls.map(call => call.path), ['/api/v1/games?grouped=1']);
+});
+
+function assertDetailDumpIdentity(facts, expected) {
+  assert.deepEqual(facts.filter(fact => ['Region', 'Revision', 'Flags'].includes(fact.label)), [
+    { value: expected.region, label: 'Region' },
+    { value: expected.revision, label: 'Revision' },
+    { value: expected.flags, label: 'Flags' },
+  ]);
+  assert.ok(facts.some(fact => fact.label === 'Status' && fact.value === expected.status));
+  assert.equal(facts.some(fact => fact.label === 'Status' && /Playing/.test(fact.value)), false);
+  if (expected.source) {
+    assert.ok(facts.some(fact => fact.label === 'Source' && fact.value === expected.source));
+    assert.equal(facts.filter(fact => fact.label === 'Source').length, 1);
+  }
+  if (expected.collections) {
+    assert.ok(facts.some(fact => fact.label === 'Collections' && fact.value === expected.collections));
+  } else {
+    assert.equal(facts.some(fact => fact.label === 'Collections'), false);
+  }
+  assertOmitsStagingAndExecution(facts);
+}
+
+function assertDetailCollectionMembership(document, game, collections, ready = true) {
+  const facts = detailFactsFrom(document);
+  if (ready) {
+    const labels = collectionLabels(game, collections);
+    if (labels.length) {
+      assert.ok(facts.some(fact => fact.label === 'Collections' && fact.value === labels.join(', ')));
+    } else {
+      assert.equal(facts.some(fact => fact.label === 'Collections'), false);
+    }
+  }
+  (collections || []).forEach(collection => {
+    const toggle = document.getElementById(`collection-member-${collection.id}`);
+    assert.ok(toggle);
+    assert.equal(toggle.getAttribute('data-collection'), collection.id);
+    if (!ready) {
+      assert.equal(toggle.disabled, true);
+      assert.doesNotMatch(toggle.textContent, /^(Add to|Remove from)\b/);
+      assert.equal(toggle.getAttribute('data-game-id'), null);
+      return;
+    }
+    const member = Array.isArray(game.collections) && game.collections.includes(collection.id);
+    assert.equal(toggle.textContent, member ? `Remove from ${collection.name}` : `Add to ${collection.name}`);
+    assert.equal(toggle.getAttribute('data-game-id'), game.id);
+    assert.equal(toggle.disabled, false);
+  });
+}
+
+test('detail dump identity Status and Collections follow the selected variant before and after hydrate', async () => {
+  const css = readAsset('ui.css');
+  const app = readAsset('ui_app.js');
+  assert.match(app, /const detailGame = liveGame \|\| game/);
+  assert.match(app, /dumpIdentityFacts\(detailGame\)/);
+  assert.match(app, /\[coverStatusLabel\(detailGame\), 'Status'\]/);
+  assert.match(app, /collectionLabels\(detailGame, state\.collections\)/);
+  assert.match(app, /const membershipReady = Boolean\(/);
+  assert.match(app, /game\.id === detailGame\.id/);
+  assert.match(app, /state\.detailState === 'populated'/);
+  assert.match(app, /item\.id === detailGame\.id/);
+  assert.match(app, /const membership = membershipReady/);
+  assert.match(app, /Array\.isArray\(detailGame\.collections\) \? detailGame\.collections : \[\]/);
+  assert.match(app, /toggle\.disabled = true/);
+  assert.match(app, /toggle\.setAttribute\('data-game-id', detailGame\.id\)/);
+  assert.match(app, /controller\.toggleCollectionMember\(collection\.id, detailGame\.id\)/);
+  assert.match(app, /\[sourceKindLabel\(liveGame \|\| game\), 'Source'\]/);
+  assert.doesNotMatch(app, /\[coverStatusLabel\(game\), 'Status'\]/);
+  assert.doesNotMatch(app, /dumpIdentityFacts\(game\)\.forEach/);
+  assert.doesNotMatch(app, /const membership = Array\.isArray\(detailGame\.collections\) \? detailGame\.collections : \[\]/);
+  assert.doesNotMatch(app, /const membership = Array\.isArray\(game\.collections\) \? game\.collections : \[\]/);
+  assert.doesNotMatch(app, /'Staging'/);
+  assert.doesNotMatch(app, /'Prepared'/);
+  assert.doesNotMatch(app, /'On demand'/);
+  assert.match(app, /bits\.push\(coverStatusLabel\(game\)\)/);
+  assert.match(app, /coverHoverMeta\(game, view\)/);
+  assert.match(app, /function collectionLabels\(game/);
+  assert.match(css, /--list-row-height:\s*72px/);
+  assert.match(css, /--list-row-stride:\s*78px/);
+  assert.match(css, /\.card-mark-favorite\s*\{[^}]*margin-left:\s*auto/);
+  assert.match(app, /const WALL_WINDOW = 80/);
+  assert.match(app, /--card-marks-clearance/);
+  assert.match(app, /root\.ResizeObserver/);
+  assert.match(css, /\.game-card h3\s*\{[^}]*opacity:\s*1/);
+  assert.match(css, /\.game-card::after\s*\{[^}]*opacity:\s*1/);
+  assert.doesNotMatch(css, /\.card-mark-revision/);
+  assert.doesNotMatch(app, /\.card-mark-revision/);
+
+  const groupKey = 'megadrive\u001fsonic';
+  const usa = availableGame('megadrive-sonic-usa', 'Sonic the Hedgehog (USA)', {
+    system: 'megadrive',
+    kind: 'zip',
+    canonical_title: 'Sonic the Hedgehog',
+    group_key: groupKey,
+    variant_count: 3,
+    region: 'usa',
+    revision: 'a',
+    dump_flags: 'beta',
+    year: '1991',
+    collections: ['weekend-queue'],
+  });
+  const japan = availableGame('megadrive-sonic-japan', 'Sonic the Hedgehog (Japan)', {
+    system: 'megadrive',
+    kind: 'raw',
+    canonical_title: 'Sonic the Hedgehog',
+    group_key: groupKey,
+    region: 'japan',
+    revision: 'c',
+    dump_flags: 'hack',
+    year: '1991',
+    state: 'available',
+    root_online: false,
+    collections: ['speedruns'],
+  });
+  const europe = availableGame('megadrive-sonic-europe', 'Sonic the Hedgehog (Europe)', {
+    system: 'megadrive',
+    kind: 'zip',
+    canonical_title: 'Sonic the Hedgehog',
+    group_key: groupKey,
+    region: 'europe',
+    revision: '00',
+    dump_flags: 'proto',
+    year: '1991',
+    state: 'invalid',
+    root_online: true,
+    collections: [],
+  });
+  const grouped = { ...usa };
+  assert.equal(Object.prototype.hasOwnProperty.call(grouped, 'variants'), false);
+  assert.equal(coverStatusLabel(usa), 'Ready');
+  assert.equal(coverStatusLabel(japan), 'Offline');
+  assert.equal(coverStatusLabel(europe), 'Unreadable');
+  assert.deepEqual(collectionLabels(usa, [WEEKEND_QUEUE, SPEEDRUNS]), ['Weekend Queue']);
+  assert.deepEqual(collectionLabels(japan, [WEEKEND_QUEUE, SPEEDRUNS]), ['Speedruns']);
+  assert.deepEqual(collectionLabels(europe, [WEEKEND_QUEUE, SPEEDRUNS]), []);
+  assert.equal(sourceKindLabel(usa), 'ZIP');
+  assert.equal(sourceKindLabel(japan), 'ROM');
+
+  const representativeHover = 'Mega Drive · USA · 1991 · Ready';
+  const usaFacts = {
+    region: 'USA', revision: 'rev a', flags: 'Beta', status: 'Ready', source: 'ZIP', collections: 'Weekend Queue',
+  };
+  const japanFacts = {
+    region: 'Japan', revision: 'rev c', flags: 'Hack', status: 'Offline', source: 'ROM', collections: 'Speedruns',
+  };
+  const japanPendingFacts = {
+    region: 'Japan', revision: 'rev c', flags: 'Hack', status: 'Offline', source: 'ROM',
+  };
+  const europeFacts = {
+    region: 'Europe', revision: 'rev 00', flags: 'Proto', status: 'Unreadable', source: 'ZIP',
+  };
+  const publicVariant = game => {
+    const next = { ...game };
+    delete next.collections;
+    delete next.favorite;
+    return next;
+  };
+  const nestedVariants = [usa, japan, europe].map(publicVariant);
+
+  let releaseJapanDetail;
+  const heldJapanDetail = new Promise(resolve => {
+    releaseJapanDetail = () => resolve(jsonResponse({
+      code: 'INTERNAL',
+      message: 'detail is unavailable',
+    }, 500));
+  });
+  const pendingApp = await runBrowserApp({
+    responses: [
+      jsonResponse({ games: [grouped] }),
+      jsonResponse({ ...usa, variants: nestedVariants }),
+      heldJapanDetail,
+    ],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  const pendingCover = gameCards(pendingApp.document)[0];
+  assert.equal(pendingCover.children.find(child => child.tagName === 'H3').textContent, 'Sonic the Hedgehog');
+  assert.equal(pendingCover.children.find(child => child.className === 'game-meta').textContent, representativeHover);
+  assert.doesNotMatch(pendingCover.children.find(child => child.className === 'game-meta').textContent, /Japan|Europe|Hack|Proto|Offline|Unreadable|ZIP|ROM|Weekend Queue|Speedruns/);
+
+  await pendingCover.click();
+  await settleBrowser();
+  assertDetailDumpIdentity(detailFactsFrom(pendingApp.document), usaFacts);
+  assertDetailCollectionMembership(pendingApp.document, usa, [WEEKEND_QUEUE, SPEEDRUNS]);
+  const pendingSelect = pendingApp.document.getElementById('game-version');
+  assert.ok(pendingSelect);
+  pendingSelect.value = japan.id;
+  const selectingJapan = pendingSelect.dispatchEvent({ type: 'change' });
+  await settleBrowser();
+  assertDetailDumpIdentity(detailFactsFrom(pendingApp.document), japanPendingFacts);
+  assertDetailCollectionMembership(pendingApp.document, japan, [WEEKEND_QUEUE, SPEEDRUNS], false);
+  pendingApp.document.getElementById('collection-member-speedruns').click();
+  await settleBrowser();
+  assertDetailCollectionMembership(pendingApp.document, japan, [WEEKEND_QUEUE, SPEEDRUNS], false);
+  assert.equal(pendingCover.children.find(child => child.className === 'game-meta').textContent, representativeHover);
+  assert.equal(cardCollectionChip(pendingCover).textContent, 'Weekend Queue');
+  releaseJapanDetail();
+  await selectingJapan;
+  await settleBrowser();
+  assertDetailDumpIdentity(detailFactsFrom(pendingApp.document), japanPendingFacts);
+  assertDetailCollectionMembership(pendingApp.document, japan, [WEEKEND_QUEUE, SPEEDRUNS], false);
+  pendingApp.document.getElementById('collection-member-speedruns').click();
+  await settleBrowser();
+  assertDetailCollectionMembership(pendingApp.document, japan, [WEEKEND_QUEUE, SPEEDRUNS], false);
+  assert.equal(pendingCover.children.find(child => child.className === 'game-meta').textContent, representativeHover);
+  assert.equal(cardCollectionChip(pendingCover).textContent, 'Weekend Queue');
+  assert.equal(cardCollectionMore(pendingCover), null);
+
+  const hydratedJapan = {
+    ...japan,
+    revision: '01',
+    dump_flags: 'hack',
+  };
+  const hydratedApp = await runBrowserApp({
+    responses: [
+      jsonResponse({ games: [grouped] }),
+      jsonResponse({ ...usa, variants: nestedVariants }),
+      jsonResponse(hydratedJapan),
+    ],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  await gameCards(hydratedApp.document)[0].click();
+  await settleBrowser();
+  const hydrateSelect = hydratedApp.document.getElementById('game-version');
+  hydrateSelect.value = japan.id;
+  hydrateSelect.dispatchEvent({ type: 'change' });
+  await settleBrowser();
+  assertDetailDumpIdentity(detailFactsFrom(hydratedApp.document), {
+    ...japanFacts,
+    revision: 'rev 01',
+  });
+  assertDetailCollectionMembership(hydratedApp.document, {
+    ...hydratedJapan,
+    collections: japan.collections,
+  }, [WEEKEND_QUEUE, SPEEDRUNS]);
+  hydratedApp.document.getElementById('collection-member-speedruns').click();
+  await settleBrowser();
+  assertDetailCollectionMembership(hydratedApp.document, {
+    ...hydratedJapan,
+    collections: [],
+  }, [WEEKEND_QUEUE, SPEEDRUNS]);
+  assert.equal(
+    hydratedApp.document.getElementById('collection-member-speedruns').getAttribute('data-game-id'),
+    japan.id,
+  );
+  assert.equal(
+    gameCards(hydratedApp.document)[0].children.find(child => child.className === 'game-meta').textContent,
+    representativeHover,
+  );
+  assert.equal(cardCollectionChip(gameCards(hydratedApp.document)[0]).textContent, 'Weekend Queue');
+
+  const europeApp = await runBrowserApp({
+    responses: [
+      jsonResponse({ games: [grouped] }),
+      jsonResponse({ ...usa, variants: nestedVariants }),
+      jsonResponse(europe),
+    ],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  await gameCards(europeApp.document)[0].click();
+  await settleBrowser();
+  const europeSelect = europeApp.document.getElementById('game-version');
+  europeSelect.value = europe.id;
+  europeSelect.dispatchEvent({ type: 'change' });
+  await settleBrowser();
+  assertDetailDumpIdentity(detailFactsFrom(europeApp.document), europeFacts);
+  assertDetailCollectionMembership(europeApp.document, europe, [WEEKEND_QUEUE, SPEEDRUNS]);
+
+  const playingApp = await runBrowserApp({
+    responses: [
+      jsonResponse({ games: [grouped] }),
+      jsonResponse({ ...usa, variants: nestedVariants }),
+      jsonResponse(japan),
+    ],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse(sessionFixture({
+      state: 'active',
+      game_id: usa.id,
+      system: 'megadrive',
+    }))],
+  });
+  await settleBrowser();
+  const playingCover = gameCards(playingApp.document)[0];
+  assert.equal(cardMark(playingCover, 'playing').textContent, 'Playing');
+  await playingCover.click();
+  await settleBrowser();
+  assertDetailDumpIdentity(detailFactsFrom(playingApp.document), usaFacts);
+  assertDetailCollectionMembership(playingApp.document, usa, [WEEKEND_QUEUE, SPEEDRUNS]);
+  const playingSelect = playingApp.document.getElementById('game-version');
+  playingSelect.value = japan.id;
+  playingSelect.dispatchEvent({ type: 'change' });
+  await settleBrowser();
+  assertDetailDumpIdentity(detailFactsFrom(playingApp.document), japanFacts);
+  assertDetailCollectionMembership(playingApp.document, japan, [WEEKEND_QUEUE, SPEEDRUNS]);
+  assert.equal(cardMark(playingCover, 'playing').textContent, 'Playing');
+  assert.equal(cardCollectionChip(playingCover).textContent, 'Weekend Queue');
+});
+
+test('Cover hover Home rails and List keep representative dump identity', async () => {
+  const css = readAsset('ui.css');
+  assert.match(css, /--list-row-height:\s*72px/);
+  assert.match(css, /--list-row-stride:\s*78px/);
+  assert.match(css, /\.game-card h3\s*\{[^}]*opacity:\s*1/);
+  assert.match(css, /\.game-card::after\s*\{[^}]*opacity:\s*1/);
+  assert.match(css, /\.home-rail-track \.game-card\s*\{[^}]*width:\s*148px/);
+
+  const groupKey = 'megadrive\u001fsonic';
+  const usa = availableGame('megadrive-sonic-usa', 'Sonic the Hedgehog (USA)', {
+    system: 'megadrive',
+    kind: 'zip',
+    canonical_title: 'Sonic the Hedgehog',
+    group_key: groupKey,
+    variant_count: 2,
+    region: 'usa',
+    revision: 'a',
+    dump_flags: 'beta',
+    year: '1991',
+    genre: 'Platform',
+    collections: ['weekend-queue'],
+  });
+  const japan = availableGame('megadrive-sonic-japan', 'Sonic the Hedgehog (Japan)', {
+    system: 'megadrive',
+    kind: 'raw',
+    canonical_title: 'Sonic the Hedgehog',
+    group_key: groupKey,
+    region: 'japan',
+    revision: 'c',
+    dump_flags: 'hack',
+    year: '1991',
+    state: 'available',
+    root_online: false,
+    collections: ['speedruns'],
+  });
+  const grouped = { ...usa };
+  const representativeHover = 'Mega Drive · USA · 1991 · Ready';
+
+  const coverApp = await runBrowserApp({
+    adapter: readyStudioAdapter(),
+    responses: [
+      jsonResponse({ games: [grouped] }),
+      jsonResponse({ ...usa, variants: [usa, japan] }),
+      jsonResponse(japan),
+    ],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  const cover = gameCards(coverApp.document)[0];
+  assert.equal(cover.children.find(child => child.tagName === 'H3').textContent, 'Sonic the Hedgehog');
+  assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, representativeHover);
+  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /Japan|Hack|Offline|ZIP|ROM|rev|Speedruns/);
+  assert.equal(cardMark(cover, 'beta').textContent, 'Beta');
+  assert.equal(cardCollectionChip(cover).textContent, 'Weekend Queue');
+  await cover.click();
+  await settleBrowser();
+  const select = coverApp.document.getElementById('game-version');
+  select.value = japan.id;
+  select.dispatchEvent({ type: 'change' });
+  await settleBrowser();
+  assertDetailDumpIdentity(detailFactsFrom(coverApp.document), {
+    region: 'Japan', revision: 'rev c', flags: 'Hack', status: 'Offline', source: 'ROM', collections: 'Speedruns',
+  });
+  assertDetailCollectionMembership(coverApp.document, japan, [WEEKEND_QUEUE, SPEEDRUNS]);
+  assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, representativeHover);
+  assert.equal(cardMark(cover, 'beta').textContent, 'Beta');
+  assert.equal(cardCollectionChip(cover).textContent, 'Weekend Queue');
+  assert.equal(cardMark(cover, 'hack'), null);
+  assert.equal(cardMark(cover, 'offline'), null);
+
+  const homeApp = await runBrowserApp({
+    keepHome: true,
+    adapter: readyStudioAdapter(),
+    responses: [jsonResponse({ games: [grouped] })],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+    homeRails: {
+      continue: jsonResponse({ games: [grouped] }),
+      favorites: jsonResponse({ games: [] }),
+      recents: jsonResponse({ games: [] }),
+    },
+  });
+  await settleBrowser();
+  const rail = homeRails(homeApp.document).find(item => item.attributes.get('data-home-rail') === 'continue');
+  const homeCard = rail.querySelectorAll('.game-card')[0];
+  assert.equal(homeCard.children.find(child => child.className === 'game-meta').textContent, representativeHover);
+  assert.doesNotMatch(homeCard.children.find(child => child.className === 'game-meta').textContent, /Japan|Hack|Offline|ZIP|ROM|rev|Speedruns/);
+  assert.equal(homeCard.children.find(child => child.tagName === 'H3').textContent, 'Sonic the Hedgehog');
+  assert.equal(cardMark(homeCard, 'beta').textContent, 'Beta');
+  assert.equal(cardCollectionChip(homeCard).textContent, 'Weekend Queue');
+
+  const listApp = await runBrowserApp({
+    adapter: readyStudioAdapter(),
+    responses: [jsonResponse({ games: [grouped] })],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  listApp.document.nodes.get('layout-list').click();
+  await settleBrowser();
+  const row = gameCards(listApp.document)[0];
+  const body = row.children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(body.children[0].textContent, 'Sonic the Hedgehog');
+  assert.equal(body.children[1].className, 'game-meta');
+  assert.equal(body.children[1].textContent, 'Mega Drive · 1991 · Action · SEGA · 1 player · Beta · Weekend Queue · Ready');
+  assert.doesNotMatch(body.children[1].textContent, /USA|Japan|Hack|Offline|ZIP|ROM|rev|Speedruns/);
+  assert.equal(body.children[2].className, 'game-meta game-meta-variant');
+  assert.equal(body.children.length, 3);
 });
