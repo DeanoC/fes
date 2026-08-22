@@ -3645,9 +3645,9 @@ test('home launch confirmed active removes the title from the Unplayed rail', as
       jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
     ],
     '/api/v1/games/megadrive-sonic-test': [jsonResponse(sonic)],
-    '/api/v1/games?collection=continue': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=continue': [jsonResponse({ games: [] }), jsonResponse({ games: [] })],
     '/api/v1/games?collection=favorites': [jsonResponse({ games: [] })],
-    '/api/v1/games?collection=recents': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=recents': [jsonResponse({ games: [] }), jsonResponse({ games: [] })],
     '/api/v1/games?collection=unplayed': [
       jsonResponse({ games: [sonic, zelda] }),
       jsonResponse({ games: [zelda] }),
@@ -3691,9 +3691,9 @@ test('home launch confirmed active keeps selection when the title remains on ano
       jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
     ],
     '/api/v1/games/megadrive-sonic-test': [jsonResponse(sonic)],
-    '/api/v1/games?collection=continue': [jsonResponse({ games: [sonic] })],
+    '/api/v1/games?collection=continue': [jsonResponse({ games: [sonic] }), jsonResponse({ games: [sonic] })],
     '/api/v1/games?collection=favorites': [jsonResponse({ games: [] })],
-    '/api/v1/games?collection=recents': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=recents': [jsonResponse({ games: [] }), jsonResponse({ games: [] })],
     '/api/v1/games?collection=unplayed': [
       jsonResponse({ games: [sonic] }),
       jsonResponse({ games: [] }),
@@ -3732,9 +3732,9 @@ test('home launch confirmed active keeps the launched variant when an unplayed s
       jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
     ],
     '/api/v1/games/megadrive-sonic-test': [jsonResponse(sonicUsa)],
-    '/api/v1/games?collection=continue': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=continue': [jsonResponse({ games: [] }), jsonResponse({ games: [] })],
     '/api/v1/games?collection=favorites': [jsonResponse({ games: [] })],
-    '/api/v1/games?collection=recents': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=recents': [jsonResponse({ games: [] }), jsonResponse({ games: [] })],
     '/api/v1/games?collection=unplayed': [
       jsonResponse({ games: [sonicUsa, sonicJp] }),
       jsonResponse({ games: [sonicJp] }),
@@ -3778,9 +3778,17 @@ test('older Unplayed reconcile does not overwrite a newer overlapping refetch', 
     ],
     '/api/v1/games/megadrive-sonic-test': [jsonResponse(sonic)],
     '/api/v1/games/nes-zelda-test': [jsonResponse(zelda)],
-    '/api/v1/games?collection=continue': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=continue': [
+      jsonResponse({ games: [] }),
+      jsonResponse({ games: [] }),
+      jsonResponse({ games: [] }),
+    ],
     '/api/v1/games?collection=favorites': [jsonResponse({ games: [] })],
-    '/api/v1/games?collection=recents': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=recents': [
+      jsonResponse({ games: [] }),
+      jsonResponse({ games: [] }),
+      jsonResponse({ games: [] }),
+    ],
     '/api/v1/games?collection=unplayed': [
       jsonResponse({ games: [sonic, zelda] }),
       () => {
@@ -3835,9 +3843,9 @@ test('in-flight Home load does not restore a title after a newer Unplayed reconc
     '/api/v1/library/collections': [jsonResponse({ collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }] })],
     '/api/v1/games': [jsonResponse({ games: [sonic] })],
     '/api/v1/games/megadrive-sonic-test': [jsonResponse(sonic)],
-    '/api/v1/games?collection=continue': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=continue': [jsonResponse({ games: [] }), jsonResponse({ games: [] })],
     '/api/v1/games?collection=favorites': [jsonResponse({ games: [] })],
-    '/api/v1/games?collection=recents': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=recents': [jsonResponse({ games: [] }), jsonResponse({ games: [] })],
     '/api/v1/games?collection=unplayed': [
       jsonResponse({ games: [sonic] }),
       jsonResponse({ games: [] }),
@@ -3890,9 +3898,13 @@ test('user-initiated Home reload after launch_success drops an absent title', as
       jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
     ],
     '/api/v1/games/megadrive-sonic-test': [jsonResponse(sonic)],
-    '/api/v1/games?collection=continue': [jsonResponse({ games: [zelda] }), jsonResponse({ games: [zelda] })],
+    '/api/v1/games?collection=continue': [
+      jsonResponse({ games: [zelda] }),
+      jsonResponse({ games: [zelda] }),
+      jsonResponse({ games: [zelda] }),
+    ],
     '/api/v1/games?collection=favorites': [empty, empty],
-    '/api/v1/games?collection=recents': [empty, empty],
+    '/api/v1/games?collection=recents': [empty, empty, empty],
     '/api/v1/games?collection=unplayed': [
       jsonResponse({ games: [sonic] }),
       jsonResponse({ games: [] }),
@@ -3928,9 +3940,13 @@ test('mid-launch Home filter reload still keeps the session title', async () => 
     ],
     '/api/v1/session/launch': [() => new Promise(resolve => { releaseLaunchResponse = resolve; })],
     '/api/v1/games/megadrive-sonic-test': [jsonResponse(sonic)],
-    '/api/v1/games?collection=continue': [jsonResponse({ games: [zelda] }), jsonResponse({ games: [zelda] })],
+    '/api/v1/games?collection=continue': [
+      jsonResponse({ games: [zelda] }),
+      jsonResponse({ games: [zelda] }),
+      jsonResponse({ games: [zelda] }),
+    ],
     '/api/v1/games?collection=favorites': [empty, empty],
-    '/api/v1/games?collection=recents': [empty, empty],
+    '/api/v1/games?collection=recents': [empty, empty, empty],
     '/api/v1/games?collection=unplayed': [
       jsonResponse({ games: [sonic] }),
       jsonResponse({ games: [] }),
@@ -3969,9 +3985,9 @@ test('home launch confirmed active keeps the session title after Unplayed-only r
       jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
     ],
     '/api/v1/games/megadrive-sonic-test': [jsonResponse(sonic)],
-    '/api/v1/games?collection=continue': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=continue': [jsonResponse({ games: [] }), jsonResponse({ games: [] })],
     '/api/v1/games?collection=favorites': [jsonResponse({ games: [] })],
-    '/api/v1/games?collection=recents': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=recents': [jsonResponse({ games: [] }), jsonResponse({ games: [] })],
     '/api/v1/games?collection=unplayed': [
       jsonResponse({ games: [sonic] }),
       jsonResponse({ games: [] }),
@@ -4004,9 +4020,9 @@ test('home launch confirmed active drops Unplayed after mid-launch selection cha
     '/api/v1/session/launch': [() => new Promise(resolve => { releaseLaunchResponse = resolve; })],
     '/api/v1/games/megadrive-sonic-test': [jsonResponse(sonic)],
     '/api/v1/games/nes-zelda-test': [jsonResponse(zelda)],
-    '/api/v1/games?collection=continue': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=continue': [jsonResponse({ games: [] }), jsonResponse({ games: [] })],
     '/api/v1/games?collection=favorites': [jsonResponse({ games: [] })],
-    '/api/v1/games?collection=recents': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=recents': [jsonResponse({ games: [] }), jsonResponse({ games: [] })],
     '/api/v1/games?collection=unplayed': [
       jsonResponse({ games: [sonic, zelda] }),
       jsonResponse({ games: [zelda] }),
@@ -4051,9 +4067,9 @@ test('active session title survives selecting another Home card after Unplayed-o
     ],
     '/api/v1/games/megadrive-sonic-test': [jsonResponse(sonic)],
     '/api/v1/games/nes-zelda-test': [jsonResponse(zelda)],
-    '/api/v1/games?collection=continue': [jsonResponse({ games: [zelda] })],
+    '/api/v1/games?collection=continue': [jsonResponse({ games: [zelda] }), jsonResponse({ games: [zelda] })],
     '/api/v1/games?collection=favorites': [jsonResponse({ games: [] })],
-    '/api/v1/games?collection=recents': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=recents': [jsonResponse({ games: [] }), jsonResponse({ games: [] })],
     '/api/v1/games?collection=unplayed': [
       jsonResponse({ games: [sonic] }),
       jsonResponse({ games: [] }),
@@ -4084,9 +4100,9 @@ test('authoritative active session still drops Unplayed after a malformed launch
     ],
     '/api/v1/session/launch': [jsonResponse({})],
     '/api/v1/games/megadrive-sonic-test': [jsonResponse(sonic)],
-    '/api/v1/games?collection=continue': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=continue': [jsonResponse({ games: [] }), jsonResponse({ games: [] })],
     '/api/v1/games?collection=favorites': [jsonResponse({ games: [] })],
-    '/api/v1/games?collection=recents': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=recents': [jsonResponse({ games: [] }), jsonResponse({ games: [] })],
     '/api/v1/games?collection=unplayed': [
       jsonResponse({ games: [sonic, zelda] }),
       jsonResponse({ games: [zelda] }),
@@ -4108,6 +4124,343 @@ test('authoritative active session still drops Unplayed after a malformed launch
   assert.deepEqual(unplayed.gameViews.map(view => view.live.id), ['nes-zelda-test']);
   assert.equal(
     calls.filter(call => call.path === '/api/v1/games?collection=unplayed&grouped=1&limit=12').length,
+    2,
+  );
+});
+
+test('home launch confirmed active adds the title to Continue and Recent', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic', { system: 'megadrive' });
+  const zelda = availableGame('nes-zelda-test', 'Zelda', { system: 'nes' });
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/session': [
+      jsonResponse(sessionFixture({ state: 'idle' })),
+      jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
+    ],
+    '/api/v1/session/launch': [
+      jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
+    ],
+    '/api/v1/games/megadrive-sonic-test': [jsonResponse(sonic)],
+    '/api/v1/games?collection=continue': [
+      jsonResponse({ games: [] }),
+      jsonResponse({ games: [sonic] }),
+    ],
+    '/api/v1/games?collection=favorites': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=recents': [
+      jsonResponse({ games: [] }),
+      jsonResponse({ games: [sonic] }),
+    ],
+    '/api/v1/games?collection=unplayed': [
+      jsonResponse({ games: [sonic, zelda] }),
+      jsonResponse({ games: [zelda] }),
+    ],
+    '/api/v1/games?collection=recently_added': [jsonResponse({ games: [] })],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadSession();
+  await controller.openHome();
+  assert.deepEqual(controller.getState().homeRails.map(rail => rail.id), ['unplayed']);
+  await controller.selectGame('megadrive-sonic-test');
+  await controller.launchSelected();
+  const state = controller.getState();
+  assert.equal(state.sessionPhase, 'active');
+  assert.equal(state.launchState, 'launch_success');
+  assert.equal(state.selectedLiveGame && state.selectedLiveGame.id, 'megadrive-sonic-test');
+  assert.deepEqual(state.homeRails.map(rail => rail.id), ['continue', 'recents', 'unplayed']);
+  assert.deepEqual(state.homeRails.find(rail => rail.id === 'continue').gameViews.map(view => view.live.id), [
+    'megadrive-sonic-test',
+  ]);
+  assert.deepEqual(state.homeRails.find(rail => rail.id === 'recents').gameViews.map(view => view.live.id), [
+    'megadrive-sonic-test',
+  ]);
+  assert.deepEqual(state.homeRails.find(rail => rail.id === 'unplayed').gameViews.map(view => view.live.id), [
+    'nes-zelda-test',
+  ]);
+  assert.equal(
+    calls.filter(call => call.path === '/api/v1/games?collection=continue&grouped=1&limit=12').length,
+    2,
+  );
+  assert.equal(
+    calls.filter(call => call.path === '/api/v1/games?collection=recents&grouped=1&limit=12').length,
+    2,
+  );
+  assert.equal(
+    calls.filter(call => call.path === '/api/v1/games?collection=unplayed&grouped=1&limit=12').length,
+    2,
+  );
+  assert.equal(
+    calls.filter(call => call.path === '/api/v1/games?collection=favorites&grouped=1&limit=12').length,
+    1,
+  );
+  assert.equal(
+    calls.filter(call => call.path === '/api/v1/games?collection=recently_added&grouped=1&limit=12').length,
+    1,
+  );
+});
+
+test('home launch confirmed active updates Continue and Recent after mid-launch selection change', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic', { system: 'megadrive' });
+  const zelda = availableGame('nes-zelda-test', 'Zelda', { system: 'nes' });
+  let releaseLaunchResponse;
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/session': [
+      jsonResponse(sessionFixture({ state: 'idle' })),
+      jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
+    ],
+    '/api/v1/session/launch': [() => new Promise(resolve => { releaseLaunchResponse = resolve; })],
+    '/api/v1/games/megadrive-sonic-test': [jsonResponse(sonic)],
+    '/api/v1/games/nes-zelda-test': [jsonResponse(zelda)],
+    '/api/v1/games?collection=continue': [
+      jsonResponse({ games: [] }),
+      jsonResponse({ games: [sonic] }),
+    ],
+    '/api/v1/games?collection=favorites': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=recents': [
+      jsonResponse({ games: [] }),
+      jsonResponse({ games: [sonic] }),
+    ],
+    '/api/v1/games?collection=unplayed': [
+      jsonResponse({ games: [sonic, zelda] }),
+      jsonResponse({ games: [zelda] }),
+    ],
+    '/api/v1/games?collection=recently_added': [jsonResponse({ games: [] })],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadSession();
+  await controller.openHome();
+  await controller.selectGame('megadrive-sonic-test');
+  const launch = controller.launchSelected();
+  assert.equal(controller.getState().activeMutation, 'launch');
+  await controller.selectGame('nes-zelda-test');
+  releaseLaunchResponse(jsonResponse(sessionFixture({
+    state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive',
+  })));
+  await launch;
+  const state = controller.getState();
+  assert.equal(state.sessionPhase, 'active');
+  assert.equal(state.session.game_id, 'megadrive-sonic-test');
+  assert.equal(state.selectedLiveGame && state.selectedLiveGame.id, 'nes-zelda-test');
+  assert.equal(state.launchState, 'idle');
+  assert.deepEqual(state.homeRails.map(rail => rail.id), ['continue', 'recents', 'unplayed']);
+  assert.deepEqual(state.homeRails.find(rail => rail.id === 'continue').gameViews.map(view => view.live.id), [
+    'megadrive-sonic-test',
+  ]);
+  assert.deepEqual(state.homeRails.find(rail => rail.id === 'recents').gameViews.map(view => view.live.id), [
+    'megadrive-sonic-test',
+  ]);
+  assert.deepEqual(state.homeRails.find(rail => rail.id === 'unplayed').gameViews.map(view => view.live.id), [
+    'nes-zelda-test',
+  ]);
+  assert.equal(
+    calls.filter(call => call.path === '/api/v1/games?collection=continue&grouped=1&limit=12').length,
+    2,
+  );
+  assert.equal(
+    calls.filter(call => call.path === '/api/v1/games?collection=recents&grouped=1&limit=12').length,
+    2,
+  );
+});
+
+test('home launch confirmed active leaves Favorites and custom rails unreconciled', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic', { system: 'megadrive', favorite: true });
+  const queued = availableGame('snes-actraiser-test', 'ActRaiser');
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/session': [
+      jsonResponse(sessionFixture({ state: 'idle' })),
+      jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
+    ],
+    '/api/v1/session/launch': [
+      jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
+    ],
+    '/api/v1/platforms': [jsonResponse({ platforms: [] })],
+    '/api/v1/library/attract?limit=1': [jsonResponse({ items: [], idle_seconds: 60 })],
+    '/api/v1/library/facets': [jsonResponse({ genres: [], years: [] })],
+    '/api/v1/library/collections': [jsonResponse({ collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }] })],
+    '/api/v1/games/megadrive-sonic-test': [jsonResponse(sonic)],
+    '/api/v1/games?collection=continue': [
+      jsonResponse({ games: [] }),
+      jsonResponse({ games: [sonic] }),
+    ],
+    '/api/v1/games?collection=favorites': [jsonResponse({ games: [sonic] })],
+    '/api/v1/games?collection=recents': [
+      jsonResponse({ games: [] }),
+      jsonResponse({ games: [sonic] }),
+    ],
+    '/api/v1/games?collection=unplayed': [jsonResponse({ games: [] }), jsonResponse({ games: [] })],
+    '/api/v1/games?collection=recently_added': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=weekend-queue': [jsonResponse({ games: [queued] })],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadSession();
+  await controller.loadPlatforms();
+  assert.deepEqual(controller.getState().homeRails.map(rail => rail.id), [
+    'favorites', 'weekend-queue',
+  ]);
+  await controller.selectGame('megadrive-sonic-test');
+  await controller.launchSelected();
+  const state = controller.getState();
+  assert.equal(state.launchState, 'launch_success');
+  assert.deepEqual(state.homeRails.map(rail => rail.id), [
+    'continue', 'favorites', 'recents', 'weekend-queue',
+  ]);
+  assert.equal(state.homeRails.find(rail => rail.id === 'favorites').gameViews[0].live.id, 'megadrive-sonic-test');
+  assert.equal(state.homeRails.find(rail => rail.id === 'weekend-queue').gameViews[0].live.id, 'snes-actraiser-test');
+  assert.equal(
+    calls.filter(call => call.path === '/api/v1/games?collection=favorites&grouped=1&limit=12').length,
+    1,
+  );
+  assert.equal(
+    calls.filter(call => call.path === '/api/v1/games?collection=weekend-queue&grouped=1&limit=12').length,
+    1,
+  );
+  assert.equal(
+    calls.filter(call => call.path === '/api/v1/games?collection=recently_added&grouped=1&limit=12').length,
+    1,
+  );
+});
+
+test('older Continue reconcile does not overwrite a newer overlapping refetch', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic', { system: 'megadrive' });
+  const zelda = availableGame('nes-zelda-test', 'Zelda', { system: 'nes' });
+  let releaseFirstContinue;
+  let firstContinueStarted;
+  const holdFirstContinue = new Promise(resolve => { releaseFirstContinue = resolve; });
+  const firstContinueFetch = new Promise(resolve => { firstContinueStarted = resolve; });
+  const { fetchImpl } = routedFetch({
+    '/api/v1/session': [
+      jsonResponse(sessionFixture({ state: 'idle' })),
+      jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
+      jsonResponse(sessionFixture({ state: 'active', game_id: 'nes-zelda-test', system: 'nes' })),
+    ],
+    '/api/v1/session/launch': [
+      jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
+      jsonResponse(sessionFixture({ state: 'active', game_id: 'nes-zelda-test', system: 'nes' })),
+    ],
+    '/api/v1/games/megadrive-sonic-test': [jsonResponse(sonic)],
+    '/api/v1/games/nes-zelda-test': [jsonResponse(zelda)],
+    '/api/v1/games?collection=continue': [
+      jsonResponse({ games: [] }),
+      () => {
+        firstContinueStarted();
+        return holdFirstContinue.then(() => jsonResponse({ games: [sonic] }));
+      },
+      jsonResponse({ games: [zelda] }),
+    ],
+    '/api/v1/games?collection=favorites': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=recents': [
+      jsonResponse({ games: [] }),
+      jsonResponse({ games: [zelda] }),
+      jsonResponse({ games: [zelda] }),
+    ],
+    '/api/v1/games?collection=unplayed': [
+      jsonResponse({ games: [sonic, zelda] }),
+      jsonResponse({ games: [zelda] }),
+      jsonResponse({ games: [] }),
+    ],
+    '/api/v1/games?collection=recently_added': [jsonResponse({ games: [] })],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadSession();
+  await controller.openHome();
+  await controller.selectGame('megadrive-sonic-test');
+  const firstLaunch = controller.launchSelected();
+  await firstContinueFetch;
+  await controller.selectGame('nes-zelda-test');
+  await controller.launchSelected();
+  const afterNewer = controller.getState();
+  assert.equal(afterNewer.session.game_id, 'nes-zelda-test');
+  assert.deepEqual(
+    afterNewer.homeRails.find(rail => rail.id === 'continue').gameViews.map(view => view.live.id),
+    ['nes-zelda-test'],
+  );
+  releaseFirstContinue();
+  await firstLaunch;
+  const state = controller.getState();
+  assert.deepEqual(
+    state.homeRails.find(rail => rail.id === 'continue').gameViews.map(view => view.live.id),
+    ['nes-zelda-test'],
+  );
+  assert.deepEqual(
+    state.homeRails.find(rail => rail.id === 'recents').gameViews.map(view => view.live.id),
+    ['nes-zelda-test'],
+  );
+});
+
+test('older Home launch rail batch cannot overwrite newer Continue and Recent', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic', { system: 'megadrive' });
+  const zelda = availableGame('nes-zelda-test', 'Zelda', { system: 'nes' });
+  let releaseFirstUnplayed;
+  let firstUnplayedStarted;
+  const holdFirstUnplayed = new Promise(resolve => { releaseFirstUnplayed = resolve; });
+  const firstUnplayedFetch = new Promise(resolve => { firstUnplayedStarted = resolve; });
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/session': [
+      jsonResponse(sessionFixture({ state: 'idle' })),
+      jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
+      jsonResponse(sessionFixture({ state: 'active', game_id: 'nes-zelda-test', system: 'nes' })),
+    ],
+    '/api/v1/session/launch': [
+      jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
+      jsonResponse(sessionFixture({ state: 'active', game_id: 'nes-zelda-test', system: 'nes' })),
+    ],
+    '/api/v1/games/megadrive-sonic-test': [jsonResponse(sonic)],
+    '/api/v1/games/nes-zelda-test': [jsonResponse(zelda)],
+    '/api/v1/games?collection=continue': [
+      jsonResponse({ games: [] }),
+      jsonResponse({ games: [zelda] }),
+      jsonResponse({ games: [sonic] }),
+    ],
+    '/api/v1/games?collection=favorites': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=recents': [
+      jsonResponse({ games: [] }),
+      jsonResponse({ games: [zelda] }),
+      jsonResponse({ games: [sonic] }),
+    ],
+    '/api/v1/games?collection=unplayed': [
+      jsonResponse({ games: [sonic, zelda] }),
+      () => {
+        firstUnplayedStarted();
+        return holdFirstUnplayed.then(() => jsonResponse({ games: [zelda] }));
+      },
+      jsonResponse({ games: [] }),
+    ],
+    '/api/v1/games?collection=recently_added': [jsonResponse({ games: [] })],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadSession();
+  await controller.openHome();
+  await controller.selectGame('megadrive-sonic-test');
+  const firstLaunch = controller.launchSelected();
+  await firstUnplayedFetch;
+  await controller.selectGame('nes-zelda-test');
+  await controller.launchSelected();
+  const afterNewer = controller.getState();
+  assert.equal(afterNewer.session.game_id, 'nes-zelda-test');
+  assert.deepEqual(
+    afterNewer.homeRails.find(rail => rail.id === 'continue').gameViews.map(view => view.live.id),
+    ['nes-zelda-test'],
+  );
+  assert.deepEqual(
+    afterNewer.homeRails.find(rail => rail.id === 'recents').gameViews.map(view => view.live.id),
+    ['nes-zelda-test'],
+  );
+  releaseFirstUnplayed();
+  await firstLaunch;
+  const state = controller.getState();
+  assert.equal(state.session.game_id, 'nes-zelda-test');
+  assert.deepEqual(
+    state.homeRails.find(rail => rail.id === 'continue').gameViews.map(view => view.live.id),
+    ['nes-zelda-test'],
+  );
+  assert.deepEqual(
+    state.homeRails.find(rail => rail.id === 'recents').gameViews.map(view => view.live.id),
+    ['nes-zelda-test'],
+  );
+  assert.equal(
+    calls.filter(call => call.path === '/api/v1/games?collection=continue&grouped=1&limit=12').length,
+    2,
+  );
+  assert.equal(
+    calls.filter(call => call.path === '/api/v1/games?collection=recents&grouped=1&limit=12').length,
     2,
   );
 });

@@ -66,6 +66,7 @@
     Object.freeze({ id: 'unplayed', name: 'Unplayed' }),
     Object.freeze({ id: 'recently_added', name: 'Recently added', sort: 'title' }),
   ]);
+  const HOME_LAUNCH_RECONCILE_RAILS = Object.freeze(['unplayed', 'continue', 'recents']);
   const MAX_ATTRACT_IDLE_SECONDS = 2147483;
   const MAX_ATTRACT_IDLE_MS = 2147483647;
   const RESERVED_COLLECTION_IDS = Object.freeze({
@@ -1343,7 +1344,7 @@
       }
       const next = emit();
       if (sessionConfirmed && state.libraryView === 'home') {
-        return reconcileHomeRail('unplayed', { preserveLaunch: true });
+        return reconcileHomeLaunchRails({ preserveLaunch: true });
       }
       return next;
     }
@@ -1636,6 +1637,7 @@
     }
 
     const homeRailSequences = Object.create(null);
+    let homeLaunchReconcileSequence = 0;
 
     function bumpHomeRailSequence(railID) {
       const generation = (homeRailSequences[railID] || 0) + 1;
@@ -1777,6 +1779,24 @@
       if (options && options.preserveLaunch) rebindSelectedHomeGame();
       else reconcileSelection();
       return emit();
+    }
+
+    function homeLaunchRailBatchIsStale(batch, requestGeneration) {
+      return batch !== homeLaunchReconcileSequence
+        || requestGeneration !== state.requestSequence
+        || state.libraryView !== 'home';
+    }
+
+    async function reconcileHomeLaunchRails(options) {
+      const batch = ++homeLaunchReconcileSequence;
+      const requestGeneration = state.requestSequence;
+      let next = emit();
+      for (const railID of HOME_LAUNCH_RECONCILE_RAILS) {
+        if (homeLaunchRailBatchIsStale(batch, requestGeneration)) return snapshot();
+        next = await reconcileHomeRail(railID, options);
+        if (homeLaunchRailBatchIsStale(batch, requestGeneration)) return snapshot();
+      }
+      return next;
     }
 
     async function reloadVisibleCatalog(query) {
