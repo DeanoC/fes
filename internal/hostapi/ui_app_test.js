@@ -24,6 +24,7 @@ const {
   catalogGenre,
   catalogStudio,
   catalogPlayers,
+  catalogYear,
   filterCatalogViews,
   sortCatalogViews,
   formatCatalogCount,
@@ -8602,5 +8603,403 @@ test('WALL_WINDOW spacer math and marks clearance stay unchanged with catalogGen
   assert.match(app, /disconnectCardMarksObservers/);
   assert.doesNotMatch(css, /\.card-mark-genre/);
   assert.doesNotMatch(app, /\.card-mark-genre/);
+  assert.doesNotMatch(css, /\.game-studio[^{]*\{[^}]*filter:/);
+});
+
+test('catalogYear omits empty em-dash and curated fallback years', () => {
+  assert.equal(catalogYear(), '');
+  assert.equal(catalogYear({}), '');
+  assert.equal(catalogYear({ live: { year: '1991' } }), '1991');
+  assert.equal(catalogYear({ presentation: { isFallback: false, year: '' } }), '');
+  assert.equal(catalogYear({ presentation: { isFallback: false, year: '—' } }), '');
+  assert.equal(catalogYear({ presentation: { isFallback: true, year: '1991' } }), '');
+  assert.equal(catalogYear({
+    live: { year: '1991' },
+    presentation: { isFallback: true, year: '1991' },
+  }), '1991');
+  assert.equal(catalogYear({
+    live: { year: '1991' },
+    presentation: { isFallback: true, year: '1990' },
+  }), '1991');
+  assert.equal(catalogYear({
+    live: { year: '1991' },
+    presentation: { isFallback: false, year: '—' },
+  }), '1991');
+  assert.equal(catalogYear({
+    live: { year: '1991' },
+    presentation: { isFallback: false, year: '' },
+  }), '1991');
+  assert.equal(catalogYear({
+    live: { year: '—' },
+    presentation: { isFallback: true, year: '1991' },
+  }), '');
+  assert.equal(catalogYear({
+    live: { year: 'demo' },
+    presentation: { isFallback: false, year: '1991' },
+  }), '1991');
+  assert.equal(catalogYear({
+    presentation: { isFallback: false, year: '1991' },
+  }), '1991');
+});
+
+test('Cover hover stays system region year status and omits year from studio', async () => {
+  const css = readAsset('ui.css');
+  const app = readAsset('ui_app.js');
+  assert.match(app, /function catalogYear\(view\)/);
+  assert.match(app, /\(game && game\.year\) \|\| catalogYear\(view\)/);
+  assert.match(app, /\[catalogYear\(gameView\), 'Year'\]/);
+  assert.doesNotMatch(app, /presentation\.year !== '—' \? presentation\.year : ''/);
+  assert.doesNotMatch(app, /if \(game\.year\) bits\.push\(game\.year\)/);
+  assert.match(css, /\.card-mark-favorite\s*\{[^}]*margin-left:\s*auto/);
+  assert.match(css, /--list-row-height:\s*72px/);
+  assert.match(css, /--list-row-stride:\s*78px/);
+  assert.match(app, /rows \* Math\.round\(metrics\.cardWidth \* 1\.5 \+ metrics\.gap\)/);
+  assert.doesNotMatch(css, /\.card-mark-year/);
+  assert.doesNotMatch(app, /\.card-mark-year/);
+  assert.doesNotMatch(css, /\.game-studio[^{]*\{[^}]*filter:/);
+
+  const ready = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    year: '1991',
+    genre: 'Action',
+    dump_flags: 'beta',
+    region: 'usa',
+    favorite: true,
+    collections: ['weekend-queue'],
+  });
+  const fallback = availableGame('snes-fallback-test', 'Fallback Game', {
+    region: 'usa',
+  });
+  const { document, calls } = await runBrowserApp({
+    adapter: {
+      metadataFor(game) {
+        if (game && game.id === fallback.id) {
+          return {
+            summary: 'Fallback summary',
+            year: '1991',
+            genre: 'Platformer',
+            studio: 'SEGA',
+            players: '1 player',
+            isFallback: true,
+            metadataState: 'fallback_offline',
+            cover: { palette: 'lagoon', treatment: 'rings' },
+            backdrop: { palette: 'sunset', treatment: 'waves' },
+          };
+        }
+        return readyGenreAdapter().metadataFor(game);
+      },
+    },
+    responses: [jsonResponse({ games: [ready, fallback] }), jsonResponse(ready)],
+    collections: [WEEKEND_QUEUE],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  const byID = Object.fromEntries(gameCards(document).map(card => [card.attributes.get('data-game-id'), card]));
+  const cover = byID[ready.id];
+  const fallbackCard = byID[fallback.id];
+  assert.equal(cardStudio(cover).textContent, 'SEGA · 1 player');
+  assert.equal(cardStudio(cover).className, 'game-studio');
+  assert.equal(cover.children.filter(child => child.className === 'fallback-note').length, 0);
+  assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
+  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /SEGA|Action|Beat 'em Up|Beta|Weekend Queue|1 player/);
+  assert.doesNotMatch(cardStudio(cover).textContent, /1991|1990|1992/);
+  assert.equal(cardMark(cover, 'favorite').textContent, 'Favorite');
+  assert.equal(cardMark(cover, 'beta').textContent, 'Beta');
+  assert.equal(cardCollectionChip(cover).textContent, 'Weekend Queue');
+  assert.equal(cover.children.some(child => /card-mark-year/.test(String(child.className))), false);
+  assert.equal(cardStudio(fallbackCard), null);
+  assert.equal(fallbackCard.children.filter(child => child.className === 'fallback-note').length, 1);
+  assert.equal(fallbackCard.children.find(child => child.className === 'fallback-note').textContent, 'Using local catalog data');
+  assert.equal(fallbackCard.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · Ready');
+  assert.doesNotMatch(fallbackCard.children.find(child => child.className === 'game-meta').textContent, /1991|1990|1992/);
+  await cover.click();
+  await settleBrowser();
+  assert.ok(gameCards(document)[0].className.includes('selected'));
+  assert.equal(cardStudio(gameCards(document)[0]).textContent, 'SEGA · 1 player');
+  assert.doesNotMatch(cardStudio(gameCards(document)[0]).textContent, /1991|1990|1992/);
+  assert.equal(calls.some(call => String(call.path).includes('/api/v1/presentation/')), false);
+});
+
+test('Home rails keep Cover hover year without studio year', async () => {
+  const queued = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    year: '1991',
+    genre: 'Action',
+    region: 'usa',
+    collections: ['weekend-queue'],
+  });
+  const { document } = await runBrowserApp({
+    keepHome: true,
+    adapter: readyGenreAdapter(),
+    responses: [jsonResponse({ games: [queued] })],
+    collections: [WEEKEND_QUEUE],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+    homeRails: {
+      continue: jsonResponse({ games: [queued] }),
+      favorites: jsonResponse({ games: [] }),
+      recents: jsonResponse({ games: [] }),
+    },
+  });
+  await settleBrowser();
+  const rail = homeRails(document).find(item => item.attributes.get('data-home-rail') === 'continue');
+  const card = rail.querySelectorAll('.game-card')[0];
+  assert.equal(cardStudio(card).textContent, 'SEGA · 1 player');
+  assert.equal(card.children.filter(child => child.className === 'fallback-note').length, 0);
+  assert.equal(card.children.filter(child => child.className === 'game-studio').length, 1);
+  assert.equal(card.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
+  assert.doesNotMatch(card.children.find(child => child.className === 'game-meta').textContent, /SEGA|Action|Beat 'em Up|Weekend Queue|1 player/);
+  assert.doesNotMatch(cardStudio(card).textContent, /1991|1990|1992/);
+  assert.equal(cardCollectionChip(card).textContent, 'Weekend Queue');
+});
+
+test('List puts catalogYear on game-meta after system before genre', async () => {
+  const css = readAsset('ui.css');
+  assert.match(css, /--list-row-height:\s*72px/);
+  assert.match(css, /--list-row-stride:\s*78px/);
+  const queued = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    year: '1991',
+    genre: 'Action',
+    dump_flags: 'beta',
+    region: 'usa',
+    collections: ['weekend-queue', 'speedruns'],
+    favorite: true,
+    variant_count: 3,
+  });
+  const empty = availableGame('snes-empty-year-test', 'Empty Year', {});
+  const { document } = await runBrowserApp({
+    adapter: {
+      metadataFor(game) {
+        if (game && game.id === empty.id) {
+          return {
+            summary: 'Fallback summary',
+            year: '1991',
+            genre: 'Platformer',
+            studio: 'SEGA',
+            players: '1 player',
+            isFallback: true,
+            metadataState: 'fallback_offline',
+            cover: { palette: 'lagoon', treatment: 'rings' },
+            backdrop: { palette: 'sunset', treatment: 'waves' },
+          };
+        }
+        return readyGenreAdapter().metadataFor(game);
+      },
+    },
+    responses: [jsonResponse({ games: [queued, empty] })],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  document.nodes.get('layout-list').click();
+  await settleBrowser();
+  const byID = Object.fromEntries(gameCards(document).map(card => [card.attributes.get('data-game-id'), card]));
+  const row = byID[queued.id];
+  const body = row.children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(body.children[1].className, 'game-meta');
+  assert.equal(body.children[1].textContent, 'SNES · 1991 · Beat \'em Up · SEGA · 1 player · Beta · Weekend Queue · +1 · Ready');
+  assert.doesNotMatch(body.children[1].textContent, /USA/);
+  assert.equal(body.children[2].className, 'game-row-favorite');
+  assert.equal(body.children[3].className, 'game-meta game-meta-variant');
+  assert.equal(body.children.length, 4);
+  assert.equal(body.children.filter(child => String(child.className).includes('game-meta')).length, 2);
+  assert.equal(cardStudio(row), null);
+  assert.equal(row.children.some(child => String(child.className).includes('card-marks')), false);
+  assert.equal(cardCollectionChip(row), null);
+  const emptyBody = byID[empty.id].children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(emptyBody.children[1].textContent, 'SNES · Ready');
+  assert.doesNotMatch(emptyBody.children[1].textContent, /1991|1990|1992|Platformer|Action|Beat 'em Up|SEGA|1 player/);
+  assert.equal(emptyBody.children.length, 2);
+});
+
+test('detail Year uses catalogYear and fallback omits curated year', async () => {
+  const game = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    collections: ['weekend-queue', 'speedruns'],
+    region: 'usa',
+    year: '1991',
+    genre: 'Action',
+  });
+  const ready = await runBrowserApp({
+    adapter: readyGenreAdapter(),
+    responses: [jsonResponse({ games: [game] }), jsonResponse(game)],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await gameCards(ready.document)[0].click();
+  await settleBrowser();
+  const facts = detailFactsFrom(ready.document);
+  assert.ok(facts.some(fact => fact.label === 'Year' && fact.value === '1991'));
+  assert.ok(facts.some(fact => fact.label === 'Genre' && fact.value === 'Beat \'em Up'));
+  assert.ok(facts.some(fact => fact.label === 'Studio' && fact.value === 'SEGA'));
+  assert.ok(facts.some(fact => fact.label === 'Players' && fact.value === '1 player'));
+  assert.ok(facts.some(fact => fact.label === 'Status' && fact.value === 'Ready'));
+  assert.equal(facts.some(fact => fact.label === 'Status' && /Playing/.test(fact.value)), false);
+  assert.ok(ready.document.getElementById('favorite-game'));
+  assert.equal(ready.document.getElementById('collection-member-weekend-queue').textContent, 'Remove from Weekend Queue');
+  assert.equal(ready.document.getElementById('collection-member-speedruns').textContent, 'Remove from Speedruns');
+
+  const fallbackEmpty = await runBrowserApp({
+    adapter: {
+      metadataFor() {
+        return {
+          summary: 'Fallback summary',
+          year: '1991',
+          genre: 'Platformer',
+          studio: 'FogCast demo',
+          players: 'Unknown players',
+          isFallback: true,
+          metadataState: 'fallback_offline',
+          cover: { palette: 'lagoon', treatment: 'rings' },
+          backdrop: { palette: 'sunset', treatment: 'waves' },
+        };
+      },
+    },
+    responses: [jsonResponse({ games: [availableGame('snes-empty-year-test', 'Empty Year')] }), jsonResponse(availableGame('snes-empty-year-test', 'Empty Year'))],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await gameCards(fallbackEmpty.document)[0].click();
+  await settleBrowser();
+  const omitted = detailFactsFrom(fallbackEmpty.document);
+  assert.equal(omitted.some(fact => fact.label === 'Year'), false);
+  assert.equal(omitted.some(fact => fact.label === 'Genre'), false);
+  assert.equal(omitted.some(fact => fact.label === 'Studio'), false);
+  assert.equal(omitted.some(fact => fact.label === 'Players'), false);
+  assert.doesNotMatch(omitted.map(fact => fact.value).join(' '), /1991|1990|1992|Platformer|Action|Beat 'em Up|FogCast demo/);
+  assert.ok(fallbackEmpty.document.getElementById('favorite-game'));
+
+  const fallbackLive = await runBrowserApp({
+    adapter: {
+      metadataFor() {
+        return {
+          summary: 'Fallback summary',
+          year: '—',
+          genre: 'Platformer',
+          studio: 'FogCast demo',
+          players: 'Unknown players',
+          isFallback: true,
+          metadataState: 'fallback_offline',
+          cover: { palette: 'lagoon', treatment: 'rings' },
+          backdrop: { palette: 'sunset', treatment: 'waves' },
+        };
+      },
+    },
+    responses: [jsonResponse({ games: [game] }), jsonResponse(game)],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await gameCards(fallbackLive.document)[0].click();
+  await settleBrowser();
+  const liveFacts = detailFactsFrom(fallbackLive.document);
+  assert.ok(liveFacts.some(fact => fact.label === 'Year' && fact.value === '1991'));
+  assert.equal(liveFacts.some(fact => fact.label === 'Year' && fact.value === '—'), false);
+  assert.ok(fallbackLive.document.getElementById('favorite-game'));
+});
+
+test('grouped wall cards use the representative view presentation year only', async () => {
+  const grouped = availableGame('megadrive-sonic-usa', 'Sonic the Hedgehog (USA)', {
+    system: 'megadrive',
+    group_key: 'megadrive\u001fsonic',
+    variant_count: 2,
+    region: 'usa',
+    year: '1991',
+    genre: 'Platform',
+  });
+  assert.equal(Object.prototype.hasOwnProperty.call(grouped, 'variants'), false);
+  const { document } = await runBrowserApp({
+    adapter: readyGenreAdapter(),
+    responses: [jsonResponse({ games: [grouped] })],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  const cover = gameCards(document)[0];
+  assert.equal(cardStudio(cover).textContent, 'SEGA · 1 player');
+  assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, 'Mega Drive · USA · 1991 · Ready');
+  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /Beat 'em Up|Platform|Action/);
+  assert.doesNotMatch(cardStudio(cover).textContent, /1991|Beat 'em Up|Platform/);
+  document.nodes.get('layout-list').click();
+  await settleBrowser();
+  const row = gameCards(document)[0];
+  const body = row.children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(body.children[1].textContent, 'Mega Drive · 1991 · Beat \'em Up · SEGA · 1 player · Ready');
+  assert.equal(body.children[2].className, 'game-meta game-meta-variant');
+  assert.equal(body.children.length, 3);
+  assert.equal(cardStudio(row), null);
+  assert.equal(row.children.some(child => String(child.className).includes('card-marks')), false);
+});
+
+test('prefetch applyCatalogPresentation emit shows List year without a catalog reload', async () => {
+  const game = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    genre: 'Action',
+    dump_flags: 'beta',
+    region: 'usa',
+    collections: ['weekend-queue'],
+  });
+  const catalogListGets = listed => listed.filter(call => String(call.path).split('?')[0] === '/api/v1/games').length;
+  const { document, calls } = await runBrowserApp({
+    globals: {
+      FogCastPresentationEnabled: true,
+      FogCastPrefetchVisibleCovers: true,
+    },
+    responses: [jsonResponse({ games: [game] })],
+    presentations: {
+      [game.id]: jsonResponse({
+        game_id: game.id,
+        state: 'ready',
+        presentation: {
+          summary: 'Visible cover',
+          year: '1991',
+          genre: 'Beat \'em Up',
+          studio: 'SEGA',
+          players: '1 player',
+        },
+        attribution: { provider: 'launchbox', label: 'Data from LaunchBox Games Database' },
+      }),
+    },
+    collections: [WEEKEND_QUEUE],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  const beforeYear = catalogListGets(calls);
+  await waitForCondition(
+    () => {
+      const card = gameCards(document)[0];
+      const meta = card && card.children.find(child => child.className === 'game-meta');
+      return meta && meta.textContent === 'SNES · USA · 1991 · Ready';
+    },
+    'prefetch did not apply year to the Cover hover',
+  );
+  const cover = gameCards(document)[0];
+  assert.equal(cardStudio(cover).textContent, 'SEGA · 1 player');
+  assert.equal(cover.children.filter(child => child.className === 'fallback-note').length, 0);
+  assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
+  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /SEGA|1 player|Beat 'em Up|Action/);
+  assert.doesNotMatch(cardStudio(cover).textContent, /1991|Beat 'em Up|Action/);
+  assert.equal(catalogListGets(calls), beforeYear);
+  assert.equal(calls.filter(call => String(call.path).includes('/api/v1/presentation/games/')).length, 1);
+  document.nodes.get('layout-list').click();
+  await settleBrowser();
+  const row = gameCards(document)[0];
+  const body = row.children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(body.children[1].textContent, 'SNES · 1991 · Beat \'em Up · SEGA · 1 player · Beta · Weekend Queue · Ready');
+  assert.equal(catalogListGets(calls), beforeYear);
+});
+
+test('WALL_WINDOW spacer math and marks clearance stay unchanged with catalogYear', () => {
+  const css = readAsset('ui.css');
+  const app = readAsset('ui_app.js');
+  assert.match(app, /const WALL_WINDOW = 80/);
+  assert.match(app, /rows \* Math\.round\(metrics\.cardWidth \* 1\.5 \+ metrics\.gap\)/);
+  assert.match(css, /\.card-mark-favorite\s*\{[^}]*margin-left:\s*auto/);
+  assert.match(css, /--list-row-height:\s*72px/);
+  assert.match(css, /--list-row-stride:\s*78px/);
+  assert.match(app, /--card-marks-clearance/);
+  assert.match(app, /marks\.offsetHeight/);
+  assert.match(app, /root\.ResizeObserver/);
+  assert.match(app, /disconnectCardMarksObservers/);
+  assert.doesNotMatch(css, /\.card-mark-year/);
+  assert.doesNotMatch(app, /\.card-mark-year/);
   assert.doesNotMatch(css, /\.game-studio[^{]*\{[^}]*filter:/);
 });

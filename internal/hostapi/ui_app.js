@@ -2654,6 +2654,7 @@
     catalogGenre,
     catalogStudio,
     catalogPlayers,
+    catalogYear,
     filterCatalogViews,
     sortCatalogViews,
     formatCatalogCount,
@@ -3891,7 +3892,8 @@
       const body = element('span', 'game-row-body');
       body.appendChild(element('h3', '', cardTitle(game)));
       const bits = [systemLabel(game.system)];
-      if (game.year) bits.push(game.year);
+      const year = (game && game.year) || catalogYear(view);
+      if (year && year !== '—') bits.push(year);
       const genre = catalogGenre(view);
       if (genre) bits.push(genre);
       const studio = catalogStudio(view);
@@ -4012,7 +4014,7 @@
       [systemLabel(game.system), 'System'],
       [coverStatusLabel(game), 'Status'],
       [game.content_prepared ? 'Prepared' : 'On demand', 'Staging'],
-      [presentation.year !== '—' ? presentation.year : '', 'Year'],
+      [catalogYear(gameView), 'Year'],
       [catalogGenre(gameView), 'Genre'],
       [catalogStudio(gameView), 'Studio'],
       [catalogPlayers(gameView), 'Players'],
