@@ -513,6 +513,19 @@
     return selectedDumpFlagTokens(game).map(token => DUMP_FLAG_LABELS[token]);
   }
 
+  function collectionLabels(game, collections) {
+    const membership = Array.isArray(game && game.collections) ? game.collections : [];
+    if (!membership.length) return [];
+    const labels = [];
+    for (const collection of Array.isArray(collections) ? collections : []) {
+      if (!collection || !collection.id || !membership.includes(collection.id)) continue;
+      const name = typeof collection.name === 'string' ? collection.name.trim() : '';
+      if (!name) continue;
+      labels.push(name);
+    }
+    return labels;
+  }
+
   function dumpIdentityFacts(game) {
     const facts = [];
     if (game && game.region) facts.push({ label: 'Region', value: regionLabel(game.region) });
@@ -2623,6 +2636,7 @@
     variantLabel,
     dumpIdentityFacts,
     dumpFlagLabels,
+    collectionLabels,
     coverHoverMeta,
     coverStatusLabel,
     cardSourceOffline,
@@ -3769,11 +3783,12 @@
     const unreadable = cardSourceUnreadable(game);
     const playing = cardSessionPlaying(game);
     const dumpLabels = dumpFlagLabels(game);
+    const labels = collectionLabels(game, state.collections);
     if (favorite) card.setAttribute('data-favorite', 'true');
     if (offline) card.setAttribute('data-unavailable', 'true');
     if (unreadable) card.setAttribute('data-invalid', 'true');
     if (playing) card.setAttribute('data-playing', 'true');
-    if (!favorite && !offline && !unreadable && !playing && !dumpLabels.length) return;
+    if (!favorite && !offline && !unreadable && !playing && !dumpLabels.length && !labels.length) return;
     const marks = element('span', 'card-marks');
     if (offline) marks.appendChild(element('span', 'card-mark card-mark-offline', 'Offline'));
     if (unreadable) marks.appendChild(element('span', 'card-mark card-mark-invalid', 'Unreadable'));
@@ -3781,6 +3796,12 @@
     dumpLabels.forEach(label => {
       marks.appendChild(element('span', `card-mark card-mark-dump card-mark-${label.toLowerCase()}`, label));
     });
+    if (labels.length) {
+      marks.appendChild(element('span', 'card-mark card-mark-collection', labels[0]));
+      if (labels.length > 1) {
+        marks.appendChild(element('span', 'card-mark card-mark-collection-more', `+${labels.length - 1}`));
+      }
+    }
     if (favorite) marks.appendChild(element('span', 'card-mark card-mark-favorite', 'Favorite'));
     card.appendChild(marks);
   }
@@ -3809,6 +3830,9 @@
       if (game.year) bits.push(game.year);
       if (game.genre) bits.push(game.genre);
       dumpFlagLabels(game).forEach(label => bits.push(label));
+      const labels = collectionLabels(game, state.collections);
+      if (labels.length) bits.push(labels[0]);
+      if (labels.length > 1) bits.push(`+${labels.length - 1}`);
       bits.push(coverStatusLabel(game));
       body.appendChild(element('p', 'game-meta', bits.join(' · ')));
       if (game.favorite === true) body.appendChild(element('p', 'game-row-favorite', 'Favorite'));
@@ -3921,6 +3945,8 @@
       [presentation.players, 'Players'],
     ];
     dumpIdentityFacts(game).forEach(fact => factRows.push([fact.value, fact.label]));
+    const labels = collectionLabels(game, state.collections);
+    if (labels.length) factRows.push([labels.join(', '), 'Collections']);
     factRows
       .filter(([value]) => value)
       .forEach(([value, label]) => {

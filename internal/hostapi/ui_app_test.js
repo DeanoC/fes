@@ -31,6 +31,7 @@ const {
   variantLabel,
   dumpIdentityFacts,
   dumpFlagLabels,
+  collectionLabels,
   coverHoverMeta,
   coverStatusLabel,
   cardSourceOffline,
@@ -554,6 +555,37 @@ test('catalog filters keep search, platform, region, and genre on the host query
   ];
   assert.deepEqual(filterCatalogViews(views, { system: 'snes', region: 'japan' }).map(view => view.live.id), ['megadrive-a', 'snes-b', 'megadrive-c']);
   assert.equal(catalogGenre(views[0]), 'Beat \'em Up');
+});
+
+test('collectionLabels resolves rail-order names and skips unknown ids', () => {
+  const catalog = [
+    { id: 'weekend-queue', name: 'Weekend Queue' },
+    { id: 'speedruns', name: 'Speedruns' },
+    { id: 'blank-shelf', name: '   ' },
+  ];
+  assert.deepEqual(collectionLabels({}, catalog), []);
+  assert.deepEqual(collectionLabels({ collections: [] }, catalog), []);
+  assert.deepEqual(collectionLabels({ collections: ['weekend-queue'] }, []), []);
+  assert.deepEqual(collectionLabels({ collections: ['weekend-queue'] }), []);
+  assert.deepEqual(collectionLabels({ collections: ['weekend-queue'] }, catalog), ['Weekend Queue']);
+  assert.deepEqual(collectionLabels({
+    collections: ['speedruns', 'weekend-queue'],
+  }, catalog), ['Weekend Queue', 'Speedruns']);
+  assert.deepEqual(collectionLabels({
+    collections: ['missing-shelf', 'weekend-queue', 'blank-shelf'],
+  }, catalog), ['Weekend Queue']);
+  assert.deepEqual(collectionLabels({
+    collections: ['weekend-queue'],
+  }, [{ id: 'weekend-queue' }]), []);
+  assert.equal(coverHoverMeta({
+    system: 'snes',
+    state: 'available',
+    region: 'usa',
+    year: '1991',
+    genre: 'Action',
+    dump_flags: 'beta',
+    collections: ['weekend-queue'],
+  }), 'SNES · USA · 1991 · Ready');
 });
 
 test('variantLabel and dump facts share region revision and flags', () => {
@@ -2920,6 +2952,18 @@ function cardMark(card, kind) {
     return null;
   };
   return visit(card && card.children);
+}
+
+function cardCollectionChip(card) {
+  return card && typeof card.querySelectorAll === 'function'
+    ? card.querySelectorAll('.card-mark-collection')[0] || null
+    : null;
+}
+
+function cardCollectionMore(card) {
+  return card && typeof card.querySelectorAll === 'function'
+    ? card.querySelectorAll('.card-mark-collection-more')[0] || null
+    : null;
 }
 
 async function pressKey(document, key, target = document.activeElement, extras) {
@@ -7014,4 +7058,246 @@ test('Home Region=korea jumps to All games and does not filter rails', async () 
   assert.equal(after.some(call => String(call.path).includes('collection=') && String(call.path).includes('limit=12')), false);
   const jump = after.filter(call => String(call.path).startsWith('/api/v1/games')).at(-1);
   assert.equal(jump.path, '/api/v1/games?region=korea&grouped=1');
+});
+
+const WEEKEND_QUEUE = { id: 'weekend-queue', name: 'Weekend Queue' };
+const SPEEDRUNS = { id: 'speedruns', name: 'Speedruns' };
+
+test('Cover shows one collection chip and optional +N without changing hover', async () => {
+  const css = readAsset('ui.css');
+  const app = readAsset('ui_app.js');
+  assert.match(css, /\.card-mark-collection\s*\{[^}]*color:\s*var\(--accent-cool\)/);
+  assert.match(css, /\.card-mark-collection\s*\{[^}]*max-width:/);
+  assert.match(css, /\.card-mark-collection\s*\{[^}]*text-overflow:\s*ellipsis/);
+  assert.match(css, /\.card-mark-collection-more\s*\{/);
+  assert.match(css, /\.card-mark-favorite\s*\{[^}]*margin-left:\s*auto/);
+  assert.match(css, /--list-row-height:\s*72px/);
+  assert.match(css, /--list-row-stride:\s*78px/);
+  assert.match(app, /function collectionLabels\(game/);
+  assert.match(app, /rows \* Math\.round\(metrics\.cardWidth \* 1\.5 \+ metrics\.gap\)/);
+  assert.doesNotMatch(app, /card-mark-\$\{.*collection/);
+  assert.doesNotMatch(css, /card-mark-collection[^{]*\{[^}]*filter:/);
+  assert.doesNotMatch(css, /\.card-mark[^{]*\{[^}]*opacity:\s*0/);
+
+  const listed = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    year: '1991',
+    genre: 'Action',
+    region: 'usa',
+    collections: ['speedruns', 'weekend-queue'],
+  });
+  const one = availableGame('snes-mario-test', 'Mario', {
+    collections: ['weekend-queue'],
+  });
+  const unlisted = availableGame('snes-zelda-test', 'Zelda');
+  const { document, calls } = await runBrowserApp({
+    responses: [jsonResponse({ games: [listed, one, unlisted] })],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  const byID = Object.fromEntries(gameCards(document).map(card => [card.attributes.get('data-game-id'), card]));
+  const listedCard = byID[listed.id];
+  const named = cardCollectionChip(listedCard);
+  const more = cardCollectionMore(listedCard);
+  assert.equal(listedCard.querySelectorAll('.card-mark-collection').length, 1);
+  assert.equal(named.textContent, 'Weekend Queue');
+  assert.equal(named.className, 'card-mark card-mark-collection');
+  assert.doesNotMatch(named.className, /weekend|queue|speed/i);
+  assert.equal(more.textContent, '+1');
+  assert.equal(more.className, 'card-mark card-mark-collection-more');
+  assert.equal(listedCard.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
+  assert.doesNotMatch(listedCard.children.find(child => child.className === 'game-meta').textContent, /Weekend Queue|Speedruns|Action|Beta/);
+  assert.equal(cardCollectionChip(byID[one.id]).textContent, 'Weekend Queue');
+  assert.equal(cardCollectionMore(byID[one.id]), null);
+  assert.equal(cardCollectionChip(byID[unlisted.id]), null);
+  assert.equal(cardCollectionMore(byID[unlisted.id]), null);
+  assert.equal(byID[unlisted.id].children.some(child => String(child.className).includes('card-marks')), false);
+  assert.equal(calls.some(call => String(call.path).includes('/api/v1/presentation/')), false);
+});
+
+test('Home rails reuse collection chips without hover', async () => {
+  const queued = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    collections: ['weekend-queue', 'speedruns'],
+    region: 'usa',
+    year: '1991',
+  });
+  const favorite = availableGame('snes-mario-test', 'Mario', { favorite: true });
+  const { document } = await runBrowserApp({
+    keepHome: true,
+    responses: [jsonResponse({ games: [queued, favorite] })],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+    homeRails: {
+      continue: jsonResponse({ games: [queued] }),
+      favorites: jsonResponse({ games: [favorite] }),
+      recents: jsonResponse({ games: [] }),
+    },
+  });
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-list').className, 'home-rails');
+  const byRail = Object.fromEntries(homeRails(document).map(rail => [
+    rail.attributes.get('data-home-rail'),
+    rail.querySelectorAll('.game-card')[0],
+  ]));
+  assert.equal(cardCollectionChip(byRail.continue).textContent, 'Weekend Queue');
+  assert.equal(cardCollectionMore(byRail.continue).textContent, '+1');
+  assert.equal(byRail.continue.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
+  assert.doesNotMatch(byRail.continue.children.find(child => child.className === 'game-meta').textContent, /Weekend Queue|Speedruns/);
+  assert.equal(cardCollectionChip(byRail.favorites), null);
+  assert.equal(cardMark(byRail.favorites, 'favorite').textContent, 'Favorite');
+});
+
+test('List puts collection names on game-meta without card-marks or a third line', async () => {
+  const queued = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    year: '1991',
+    genre: 'Action',
+    dump_flags: 'beta',
+    region: 'usa',
+    collections: ['weekend-queue', 'speedruns'],
+    favorite: true,
+    variant_count: 3,
+  });
+  const unlisted = availableGame('snes-zelda-test', 'Zelda', { year: '1992' });
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse({ games: [queued, unlisted] })],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  document.nodes.get('layout-list').click();
+  await settleBrowser();
+  const byID = Object.fromEntries(gameCards(document).map(card => [card.attributes.get('data-game-id'), card]));
+  const row = byID[queued.id];
+  const body = row.children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(body.children[1].className, 'game-meta');
+  assert.equal(body.children[1].textContent, 'SNES · 1991 · Action · Beta · Weekend Queue · +1 · Ready');
+  assert.doesNotMatch(body.children[1].textContent, /USA/);
+  assert.equal(body.children[2].className, 'game-row-favorite');
+  assert.equal(body.children[3].className, 'game-meta game-meta-variant');
+  assert.equal(body.children.length, 4);
+  assert.equal(body.children.filter(child => String(child.className).includes('game-meta')).length, 2);
+  assert.equal(row.children.some(child => String(child.className).includes('card-marks')), false);
+  assert.equal(cardCollectionChip(row), null);
+  const readyBody = byID[unlisted.id].children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(readyBody.children[1].textContent, 'SNES · 1992 · Ready');
+  assert.doesNotMatch(readyBody.children[1].textContent, /Weekend Queue|\+1/);
+  assert.equal(readyBody.children.length, 2);
+});
+
+test('detail Collections fact lists resolved names and keeps membership buttons', async () => {
+  const game = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    collections: ['missing-shelf', 'weekend-queue', 'speedruns'],
+    region: 'usa',
+  });
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse({ games: [game] }), jsonResponse(game)],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await gameCards(document)[0].click();
+  await settleBrowser();
+  const facts = detailFactsFrom(document);
+  assert.ok(facts.some(fact => fact.label === 'Collections' && fact.value === 'Weekend Queue, Speedruns'));
+  assert.ok(facts.some(fact => fact.label === 'Status' && fact.value === 'Ready'));
+  assert.equal(facts.some(fact => fact.label === 'Status' && /Playing/.test(fact.value)), false);
+  assert.ok(document.getElementById('favorite-game'));
+  assert.equal(document.getElementById('collection-member-weekend-queue').textContent, 'Remove from Weekend Queue');
+  assert.equal(document.getElementById('collection-member-speedruns').textContent, 'Remove from Speedruns');
+});
+
+test('dump-flag collection and Favorite marks coexist on Cover', async () => {
+  const game = availableGame('snes-actraiser-test', 'ActRaiser (USA) (Beta)', {
+    canonical_title: 'ActRaiser',
+    dump_flags: 'beta',
+    favorite: true,
+    collections: ['weekend-queue'],
+    region: 'usa',
+    year: '1991',
+  });
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse({ games: [game] })],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  const cover = gameCards(document)[0];
+  assert.equal(cardMark(cover, 'beta').textContent, 'Beta');
+  assert.equal(cardCollectionChip(cover).textContent, 'Weekend Queue');
+  assert.equal(cardCollectionMore(cover), null);
+  assert.equal(cardMark(cover, 'favorite').textContent, 'Favorite');
+  assert.equal(cover.getAttribute('data-favorite'), 'true');
+  assert.equal(cover.getAttribute('data-unavailable'), null);
+  assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
+});
+
+test('grouped wall cards use the representative dump collections only', async () => {
+  const grouped = availableGame('megadrive-sonic-usa', 'Sonic the Hedgehog (USA)', {
+    system: 'megadrive',
+    group_key: 'megadrive\u001fsonic',
+    variant_count: 2,
+    collections: ['weekend-queue'],
+    region: 'usa',
+    year: '1991',
+  });
+  assert.equal(Object.prototype.hasOwnProperty.call(grouped, 'variants'), false);
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse({ games: [grouped] })],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  const cover = gameCards(document)[0];
+  assert.equal(cardCollectionChip(cover).textContent, 'Weekend Queue');
+  assert.equal(cardCollectionMore(cover), null);
+  document.nodes.get('layout-list').click();
+  await settleBrowser();
+  const row = gameCards(document)[0];
+  const body = row.children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(body.children[1].textContent, 'Mega Drive · 1991 · Weekend Queue · Ready');
+  assert.equal(body.children[2].className, 'game-meta game-meta-variant');
+  assert.equal(body.children.length, 3);
+  assert.equal(row.children.some(child => String(child.className).includes('card-marks')), false);
+});
+
+test('toggleCollectionMember flips Cover chips and List meta without a catalog reload', async () => {
+  const game = availableGame('snes-actraiser-test', 'ActRaiser', { collections: [] });
+  const catalogListGets = calls => calls.filter(call => String(call.path).split('?')[0] === '/api/v1/games').length;
+  const { document, calls } = await runBrowserApp({
+    responses: [jsonResponse({ games: [game] }), jsonResponse(game)],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  const before = gameCards(document)[0];
+  assert.equal(cardCollectionChip(before), null);
+  const catalogGets = catalogListGets(calls);
+  await openCardActions(document, before);
+  document.getElementById('game-action-collection-weekend-queue').click();
+  await settleBrowser();
+  const after = gameCards(document)[0];
+  assert.equal(cardCollectionChip(after).textContent, 'Weekend Queue');
+  assert.equal(cardCollectionMore(after), null);
+  assert.equal(catalogListGets(calls), catalogGets);
+  document.nodes.get('layout-list').click();
+  await settleBrowser();
+  const row = gameCards(document)[0];
+  const body = row.children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(body.children[1].textContent, 'SNES · Weekend Queue · Ready');
+  assert.equal(catalogListGets(calls), catalogGets);
+  await openCardActions(document, row);
+  document.getElementById('game-action-collection-speedruns').click();
+  await settleBrowser();
+  const two = gameCards(document)[0];
+  const twoBody = two.children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(twoBody.children[1].textContent, 'SNES · Weekend Queue · +1 · Ready');
+  document.nodes.get('layout-cover').click();
+  await settleBrowser();
+  const coverAgain = gameCards(document)[0];
+  assert.equal(cardCollectionChip(coverAgain).textContent, 'Weekend Queue');
+  assert.equal(cardCollectionMore(coverAgain).textContent, '+1');
+  assert.equal(catalogListGets(calls), catalogGets);
 });

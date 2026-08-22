@@ -269,6 +269,21 @@ img.cover-art { width: 100%; object-fit: contain; object-position: center; backg
   color: #f3d27a;
   border: 1px solid rgba(243, 210, 122, .45);
 }
+.card-mark-collection {
+  max-width: 9em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: rgba(12, 16, 23, .82);
+  color: var(--accent-cool);
+  border: 1px solid rgba(112, 212, 200, .45);
+}
+.card-mark-collection-more {
+  background: rgba(12, 16, 23, .82);
+  color: var(--accent-cool);
+  border: 1px solid rgba(112, 212, 200, .45);
+}
 .game-card:not(.game-row)[data-state]:not([data-state="available"]) .cover-art,
 .game-card:not(.game-row)[data-unavailable="true"] .cover-art {
   filter: grayscale(.28) brightness(.72);
