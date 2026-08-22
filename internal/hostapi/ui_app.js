@@ -615,6 +615,14 @@
     return live && /^\d{4}$/.test(live.year || '') ? live.year : '';
   }
 
+  function catalogSummary(view) {
+    const presentation = view && view.presentation;
+    if (!presentation || presentation.isFallback) return '';
+    const summary = typeof presentation.summary === 'string' ? presentation.summary.trim() : '';
+    if (!summary || summary === '—') return '';
+    return summary;
+  }
+
   function sortCatalogViews(views, sort) {
     const copy = (views || []).slice();
     if (sort !== 'year' && sort !== 'system') return copy;
@@ -2655,6 +2663,7 @@
     catalogStudio,
     catalogPlayers,
     catalogYear,
+    catalogSummary,
     filterCatalogViews,
     sortCatalogViews,
     formatCatalogCount,
@@ -4003,7 +4012,8 @@
       nodes.detailContent.appendChild(element('p', 'muted', 'Choose a game.'));
       return;
     }
-    if (presentation.summary) nodes.detailContent.appendChild(element('p', 'detail-summary', presentation.summary));
+    const summary = catalogSummary(gameView);
+    if (summary) nodes.detailContent.appendChild(element('p', 'detail-summary', summary));
     if (presentation.isFallback) {
       nodes.detailContent.appendChild(element('p', 'fallback-note', 'Using local catalog data'));
       nodes.detailContent.appendChild(element('p', 'sr-only', 'metadata_fallback'));
