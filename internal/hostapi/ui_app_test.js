@@ -574,6 +574,21 @@ test('variantLabel and dump facts share region revision and flags', () => {
   assert.equal(coverHoverMeta({
     system: 'megadrive', state: 'available', region: 'usa', root_online: false,
   }), 'Mega Drive · USA · Offline');
+  assert.equal(coverHoverMeta({
+    system: 'megadrive', state: 'available', region: 'usa', root_online: false, year: '1992',
+  }), 'Mega Drive · USA · 1992 · Offline');
+  assert.equal(coverHoverMeta({
+    system: 'megadrive', state: 'available', region: 'usa', root_online: false, year: '1992',
+  }, { presentation: { isFallback: false, year: '1991' } }), 'Mega Drive · USA · 1992 · Offline');
+  assert.equal(coverHoverMeta({
+    system: 'megadrive', state: 'available', region: 'usa', root_online: false,
+  }, { presentation: { isFallback: false, year: '1991' } }), 'Mega Drive · USA · 1991 · Offline');
+  assert.equal(coverHoverMeta({
+    system: 'megadrive', state: 'available', region: 'usa', root_online: false,
+  }, { presentation: { isFallback: false, year: '' } }), 'Mega Drive · USA · Offline');
+  assert.equal(coverHoverMeta({
+    system: 'megadrive', state: 'available', region: 'usa', root_online: false,
+  }, { presentation: { isFallback: false, year: '—' } }), 'Mega Drive · USA · Offline');
   assert.equal(coverHoverMeta({ system: 'snes', state: 'invalid', root_online: true }), 'SNES · Unreadable');
   assert.equal(coverStatusLabel({ state: 'available', root_online: false }), 'Offline');
   assert.equal(coverStatusLabel({ state: 'invalid', root_online: true }), 'Unreadable');
@@ -692,6 +707,9 @@ test('prefetchVisibleCovers loads presentation for intersecting cards', async ()
   assert.ok(calls.some(call => call.path === '/api/v1/presentation/games/megadrive-sonic-test'));
   const sonic = controller.getState().gameViews.find(view => view.live.id === 'megadrive-sonic-test');
   assert.equal(sonic.presentation.isFallback, false);
+  assert.equal(sonic.live.year, undefined);
+  assert.equal(sonic.presentation.year, '1991');
+  assert.equal(coverHoverMeta(sonic.live, sonic), 'Mega Drive · 1991 · Ready');
 });
 
 test('catalog refresh keeps already-fetched covers', async () => {
@@ -6528,7 +6546,7 @@ test('cover hover includes region and list rows do not add a dump line', async (
   const cover = gameCards(document)[0];
   const coverMeta = cover.children.find(child => child.className === 'game-meta');
   assert.match(coverMeta.textContent, /usa/i);
-  assert.equal(coverMeta.textContent, 'SNES · USA · Ready');
+  assert.equal(coverMeta.textContent, 'SNES · USA · 1991 · Ready');
   assert.equal(cover.children.filter(child => String(child.className).includes('game-meta')).length, 2);
   document.nodes.get('layout-list').click();
   await settleBrowser();
@@ -6556,6 +6574,8 @@ test('Cover and Home show non-hover favorite offline and playing marks', async (
   assert.match(css, /--list-row-stride:\s*78px/);
   assert.match(app, /bits\.push\(coverStatusLabel\(game\)\)/);
   assert.match(app, /\[coverStatusLabel\(game\), 'Status'\]/);
+  assert.match(app, /coverHoverMeta\(game, view\)/);
+  assert.match(app, /\(game && game\.year\) \|\| catalogYear\(view\)/);
   assert.doesNotMatch(app, /bits\.push\(sourceLabel\(game\.state\)\)/);
   assert.match(app, /rows \* Math\.round\(metrics\.cardWidth \* 1\.5 \+ metrics\.gap\)/);
 
@@ -6607,7 +6627,7 @@ test('Cover and Home show non-hover favorite offline and playing marks', async (
   assert.equal(byID[ready.id].getAttribute('data-unavailable'), null);
   assert.equal(byID[favorite.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · Ready');
   assert.equal(byID[offlineRoot.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · Offline');
-  assert.equal(byID[offlineMega.id].children.find(child => child.className === 'game-meta').textContent, 'Mega Drive · USA · Offline');
+  assert.equal(byID[offlineMega.id].children.find(child => child.className === 'game-meta').textContent, 'Mega Drive · USA · 1992 · Offline');
   assert.equal(byID[unreadable.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · Unreadable');
   assert.equal(cardMark(byID[offlineMega.id], 'offline').textContent, 'Offline');
 
@@ -6634,6 +6654,7 @@ test('Cover and Home show non-hover favorite offline and playing marks', async (
   assert.doesNotMatch(megaBody.children[1].textContent, /Ready/);
   assert.doesNotMatch(megaBody.children[1].textContent, /USA/);
   assert.equal(cardMark(listByID[offlineMega.id]), null);
+  assert.equal(listByID[offlineMega.id].children.some(child => String(child.className).includes('card-marks')), false);
 
   const unreadableBody = listByID[unreadable.id].children.find(child => String(child.className).includes('game-row-body'));
   assert.equal(unreadableBody.children[1].textContent, 'SNES · Unreadable');

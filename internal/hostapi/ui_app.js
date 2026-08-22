@@ -494,9 +494,11 @@
     return parts.join(' · ') || (game && game.title) || 'Dump';
   }
 
-  function coverHoverMeta(game) {
+  function coverHoverMeta(game, view) {
     const bits = [systemLabel(game.system)];
     if (game && game.region) bits.push(regionLabel(game.region));
+    const year = (game && game.year) || catalogYear(view);
+    if (year && year !== '—') bits.push(year);
     bits.push(coverStatusLabel(game));
     return bits.join(' · ');
   }
@@ -3767,7 +3769,7 @@
       card.appendChild(body);
     } else {
       card.appendChild(element('h3', '', cardTitle(game)));
-      card.appendChild(element('p', 'game-meta', coverHoverMeta(game)));
+      card.appendChild(element('p', 'game-meta', coverHoverMeta(game, view)));
       if (presentation.isFallback) {
         card.appendChild(element('p', 'fallback-note', 'Using local catalog data'));
       }
