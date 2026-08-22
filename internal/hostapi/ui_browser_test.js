@@ -363,6 +363,8 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
     assert.ok(gameReads.some(record => record.query === 'collection=continue' && record.status === 200));
     assert.ok(gameReads.some(record => record.query === 'collection=favorites' && record.status === 200));
     assert.ok(gameReads.some(record => record.query === 'collection=recents' && record.status === 200));
+    assert.ok(gameReads.some(record => record.query === 'collection=unplayed' && record.status === 200));
+    assert.ok(gameReads.some(record => record.query === 'collection=recently_added' && record.status === 200));
     assert.ok(gameReads.some(record => record.query === '' && record.status === 200));
 
     await t.test('catalog load, refresh, and live selection reconciliation', async () => {
@@ -1306,7 +1308,10 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
           }),
         },
       }), async () => {
-        await harness.waitForSnapshot(item => item.collectionItems.some(entry => entry.id === 'weekend-queue'));
+        await harness.waitForSnapshot(item => (
+          item.collectionItems.some(entry => entry.id === 'weekend-queue')
+          && item.homeRails.some(rail => rail.id === 'weekend-queue')
+        ));
         await harness.click('[data-collection="weekend-queue"]');
         await harness.waitForSnapshot(item => (
           item.collectionItems.some(entry => entry.id === 'weekend-queue' && entry.selected)
@@ -1324,7 +1329,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
           record.method === 'GET' && record.path === '/api/v1/games' && record.query === 'collection=weekend-queue'
         ));
         assert.equal(collectionReads.length, 3, JSON.stringify(collectionReads));
-      });
+      }, { openAllGames: false });
     });
 
     await t.test('new collection uses a unique slug instead of renaming an existing list', async () => {
@@ -1728,6 +1733,18 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
               state: 'available', root_online: true, content_prepared: false, execution: 'fpga_native',
             }] },
           }),
+          'collection=unplayed': fixture('catalog-populated.json', 200, {
+            override: { games: [{
+              id: 'snes-offline-test', title: 'Offline Source', system: 'snes', kind: 'zip',
+              state: 'missing', root_online: false, content_prepared: false, execution: 'fpga_native',
+            }] },
+          }),
+          'collection=recently_added': fixture('catalog-populated.json', 200, {
+            override: { games: [{
+              id: SONIC_ID, title: 'Sonic the Hedgehog', system: 'megadrive', kind: 'zip',
+              state: 'available', root_online: true, content_prepared: true, execution: 'fpga_native',
+            }] },
+          }),
           'collection=weekend-queue': fixture('catalog-populated.json', 200, {
             override: { games: [{
               id: 'snes-offline-test', title: 'Offline Source', system: 'snes', kind: 'zip',
@@ -1740,13 +1757,33 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
           item.navHomeSelected === true
           && item.catalogListClass.includes('home-rails')
           && item.homeRails.some(rail => rail.id === 'continue')
+          && item.homeRails.some(rail => rail.id === 'unplayed')
+          && item.homeRails.some(rail => rail.id === 'recently_added')
           && item.homeRails.some(rail => rail.id === 'weekend-queue')
         ));
-        assert.deepEqual(home.homeRails.map(rail => rail.id), ['continue', 'recents', 'weekend-queue']);
-        assert.deepEqual(home.homeRails.map(rail => rail.title), ['Continue', 'Recent', 'Weekend Queue']);
+        assert.deepEqual(home.homeRails.map(rail => rail.id), [
+          'continue', 'recents', 'unplayed', 'recently_added', 'weekend-queue',
+        ]);
+        assert.deepEqual(home.homeRails.map(rail => rail.title), [
+          'Continue', 'Recent', 'Unplayed', 'Recently added', 'Weekend Queue',
+        ]);
         assert.equal(home.homeRails.every(rail => rail.seeAll), true);
         assert.equal(home.homeRails.some(rail => rail.id === 'favorites'), false);
-        await harness.evaluate(`document.querySelector('[data-see-all="continue"]')?.click()`);
+        await harness.evaluate(`document.querySelector('[data-see-all="unplayed"]')?.click()`);
+        const unplayedWall = await harness.waitForSnapshot(item => (
+          item.catalogListClass.includes('game-grid')
+          && item.navHomeSelected === false
+          && item.cards.length >= 1
+        ));
+        assert.equal(unplayedWall.catalogListClass.includes('game-grid'), true);
+        assert.equal(unplayedWall.homeRails.length, 0);
+        await harness.click('#nav-home');
+        await harness.waitForSnapshot(item => (
+          item.navHomeSelected === true
+          && item.catalogListClass.includes('home-rails')
+          && item.homeRails.some(rail => rail.id === 'recently_added')
+        ));
+        await harness.evaluate(`document.querySelector('[data-see-all="recently_added"]')?.click()`);
         const wall = await harness.waitForSnapshot(item => (
           item.catalogListClass.includes('game-grid')
           && item.navHomeSelected === false

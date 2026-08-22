@@ -150,7 +150,13 @@ function normalizePlan(plan = {}) {
   for (const [query, value] of Object.entries(catalog)) {
     catalogQueues.set(String(query), normalizeQueue(value, `catalog[${query}]`));
   }
-  const homeKeys = ['collection=continue', 'collection=favorites', 'collection=recents'];
+  const homeKeys = [
+    'collection=continue',
+    'collection=favorites',
+    'collection=recents',
+    'collection=unplayed',
+    'collection=recently_added',
+  ];
   (Array.isArray(plan.collections) ? plan.collections : []).forEach(item => {
     if (item && item.id) homeKeys.push(`collection=${item.id}`);
   });

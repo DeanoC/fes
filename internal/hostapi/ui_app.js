@@ -63,6 +63,8 @@
     Object.freeze({ id: 'continue', name: 'Continue' }),
     Object.freeze({ id: 'favorites', name: 'Favorites' }),
     Object.freeze({ id: 'recents', name: 'Recent' }),
+    Object.freeze({ id: 'unplayed', name: 'Unplayed' }),
+    Object.freeze({ id: 'recently_added', name: 'Recently added', sort: 'title' }),
   ]);
   const MAX_ATTRACT_IDLE_SECONDS = 2147483;
   const MAX_ATTRACT_IDLE_MS = 2147483647;
@@ -989,10 +991,42 @@
       hostState: 'unknown',
     };
 
+    let retainedSessionTitleID = '';
+    let retainedSessionTitle = '';
+
+    function liveSessionTitle(id) {
+      const selected = state.selectedLiveGame && state.selectedLiveGame.id === id
+        ? state.selectedLiveGame
+        : (state.selectedGameView && state.selectedGameView.live && state.selectedGameView.live.id === id
+          ? state.selectedGameView.live
+          : null);
+      const game = state.games.find(candidate => candidate.id === id) || selected;
+      return game && game.title ? game.title : '';
+    }
+
+    function retainActiveSessionTitle() {
+      if (!state.session || state.session.state !== 'active' || !state.session.game_id) {
+        retainedSessionTitleID = '';
+        retainedSessionTitle = '';
+        return;
+      }
+      const id = state.session.game_id;
+      const title = liveSessionTitle(id);
+      if (title) {
+        retainedSessionTitleID = id;
+        retainedSessionTitle = title;
+        return;
+      }
+      if (retainedSessionTitleID !== id) {
+        retainedSessionTitleID = id;
+        retainedSessionTitle = '';
+      }
+    }
+
     function sessionTitle() {
       if (!state.session || state.session.state !== 'active' || !state.session.game_id) return '';
-      const game = state.games.find(candidate => candidate.id === state.session.game_id);
-      return game ? game.title : '';
+      const id = state.session.game_id;
+      return liveSessionTitle(id) || (retainedSessionTitleID === id ? retainedSessionTitle : '');
     }
 
     function snapshot() {
@@ -1008,6 +1042,7 @@
     }
 
     function emit() {
+      retainActiveSessionTitle();
       const next = snapshot();
       if (notify) {
         try { notify(next); } catch (_) { /* rendering must not change request state */ }
@@ -1241,6 +1276,11 @@
         state.launchError = null;
         state.launchMessage = '';
       }
+      const sessionConfirmed = mutation.kind === 'launch'
+        && !result.error
+        && result.session
+        && result.session.state === 'active'
+        && result.session.game_id === mutation.requestedID;
       if (result.error) {
         if (mutation.kind === 'launch' && !selectionChanged) {
           state.launchState = 'launch_error';
@@ -1251,7 +1291,7 @@
         state.sessionMessage = privacyMessage(result.error, 'The local host session could not be reconciled.');
       } else if (mutation.kind === 'launch' && !selectionChanged) {
         const reconciled = result.session;
-        if (!operationError && reconciled.state === 'active' && reconciled.game_id === mutation.requestedID) {
+        if (sessionConfirmed && !operationError) {
           state.sessionPhase = 'active';
           state.launchState = 'launch_success';
           state.launchError = null;
@@ -1297,7 +1337,15 @@
       }
       state.activeMutation = null;
       state.mutationMessage = '';
-      return emit();
+      if (sessionConfirmed && mutation.requestedID && mutation.requestedTitle) {
+        retainedSessionTitleID = mutation.requestedID;
+        retainedSessionTitle = mutation.requestedTitle;
+      }
+      const next = emit();
+      if (sessionConfirmed && state.libraryView === 'home') {
+        return reconcileHomeRail('unplayed', { preserveLaunch: true });
+      }
+      return next;
     }
 
     async function runMutation(mutation, operation) {
@@ -1375,6 +1423,7 @@
         sequence: ++state.launchSequence,
         selectionRevision: state.selectionRevision,
         requestedID: selected.id,
+        requestedTitle: selected.title || '',
         launchResponse: null,
       };
       state.statusSequence += 1;
@@ -1416,7 +1465,8 @@
       if (state.filters.hide_prerelease) extras.hide_prerelease = 1;
       if (state.filters.hide_hacks) extras.hide_hacks = 1;
       if (state.filters.availability) extras.availability = state.filters.availability;
-      if (state.sort && state.sort !== 'title') extras.sort = state.sort;
+      const sort = extra.sort !== undefined ? extra.sort : state.sort;
+      if (sort && sort !== 'title') extras.sort = sort;
       if (cursor) extras.cursor = cursor;
       if (Number(extra.limit) > 0) extras.limit = extra.limit;
       return extras;
@@ -1487,7 +1537,7 @@
 
     function homeRailSpecByID(id) {
       const smart = HOME_SMART_RAILS.find(rail => rail.id === id);
-      if (smart) return { id: smart.id, name: smart.name, kind: 'smart' };
+      if (smart) return { id: smart.id, name: smart.name, kind: 'smart', sort: smart.sort };
       const collection = (state.collections || []).find(item => item && item.id === id);
       if (collection) return { id: collection.id, name: collection.name || collection.id, kind: 'custom' };
       return null;
@@ -1495,10 +1545,12 @@
 
     async function fetchHomeRailSpec(spec) {
       try {
-        const result = await request(fetchImpl, gamesPath(state.query, catalogExtras('', {
+        const extras = {
           collection: spec.id,
           limit: HOME_RAIL_LIMIT,
-        })));
+        };
+        if (spec.sort !== undefined) extras.sort = spec.sort;
+        const result = await request(fetchImpl, gamesPath(state.query, catalogExtras('', extras)));
         return { spec, result, error: null };
       } catch (error) {
         return { spec, result: null, error };
@@ -1562,7 +1614,7 @@
       return capCustomHomeRails(next);
     }
 
-    function applyHomeRails(rails, failed, firstError) {
+    function applyHomeRails(rails, failed, firstError, options) {
       state.homeRails = Object.freeze(rails);
       state.homeRailFailures = failed;
       flattenHomeGames(rails);
@@ -1578,8 +1630,42 @@
       state.metadataState = presentationEnabled
         ? 'metadata_idle'
         : (state.metadataFallbackCount ? 'metadata_fallback' : 'curated');
-      reconcileSelection();
+      if (options && options.preserveLaunch) rebindSelectedHomeGame();
+      else reconcileSelection();
       return emit();
+    }
+
+    const homeRailSequences = Object.create(null);
+
+    function bumpHomeRailSequence(railID) {
+      const generation = (homeRailSequences[railID] || 0) + 1;
+      homeRailSequences[railID] = generation;
+      return generation;
+    }
+
+    function currentHomeRail(railID) {
+      return (state.homeRails || []).find(rail => rail.id === railID) || null;
+    }
+
+    function pushHomeRailIfCurrent(rails, railID, generation, nextRail) {
+      if (homeRailSequences[railID] === generation) {
+        if (nextRail) rails.push(nextRail);
+        return;
+      }
+      const current = currentHomeRail(railID);
+      if (current) rails.push(current);
+    }
+
+    function replaceStaleBuiltHomeRails(rails, generations) {
+      return rails.reduce((next, rail) => {
+        if (generations[rail.id] === undefined || homeRailSequences[rail.id] === generations[rail.id]) {
+          next.push(rail);
+          return next;
+        }
+        const current = currentHomeRail(rail.id);
+        if (current) next.push(current);
+        return next;
+      }, []);
     }
 
     async function loadHomeRails() {
@@ -1594,20 +1680,34 @@
       state.homeRails = Object.freeze([]);
       emit();
       const previousByID = new Map(state.gameViews.map(view => [view.live.id, view.presentation]));
-      const smartSpecs = HOME_SMART_RAILS.map(rail => ({ id: rail.id, name: rail.name, kind: 'smart' }));
+      const smartSpecs = HOME_SMART_RAILS.map(rail => ({
+        id: rail.id,
+        name: rail.name,
+        kind: 'smart',
+        sort: rail.sort,
+      }));
+      const railGenerations = Object.create(null);
+      smartSpecs.forEach(spec => {
+        railGenerations[spec.id] = bumpHomeRailSequence(spec.id);
+      });
       const smartItems = await Promise.all(smartSpecs.map(fetchHomeRailSpec));
       if (sequence !== state.requestSequence) return snapshot();
       const rails = [];
       let failed = 0;
       let firstError = null;
       smartItems.forEach(item => {
+        const railID = item.spec.id;
+        if (homeRailSequences[railID] !== railGenerations[railID]) {
+          pushHomeRailIfCurrent(rails, railID, railGenerations[railID], null);
+          return;
+        }
         const materialized = materializeHomeRail(item, previousByID);
         if (materialized.error) {
           failed += 1;
           if (!firstError) firstError = item.error;
           return;
         }
-        if (materialized.rail) rails.push(materialized.rail);
+        pushHomeRailIfCurrent(rails, railID, railGenerations[railID], materialized.rail);
       });
       const collections = state.collections || [];
       const smartIDs = HOME_SMART_RAILS.map(item => item.id);
@@ -1616,37 +1716,66 @@
         if (customKept >= HOME_CUSTOM_RAIL_CAP) break;
         const collection = collections[index];
         if (!collection || !collection.id) continue;
+        railGenerations[collection.id] = bumpHomeRailSequence(collection.id);
         const item = await fetchHomeRailSpec({
           id: collection.id,
           name: collection.name || collection.id,
           kind: 'custom',
         });
         if (sequence !== state.requestSequence) return snapshot();
+        if (homeRailSequences[collection.id] !== railGenerations[collection.id]) {
+          pushHomeRailIfCurrent(rails, collection.id, railGenerations[collection.id], null);
+          continue;
+        }
         const materialized = materializeHomeRail(item, previousByID);
         if (materialized.error) {
           failed += 1;
           if (!firstError) firstError = item.error;
           continue;
         }
-        if (materialized.rail) rails.push(materialized.rail);
+        pushHomeRailIfCurrent(rails, collection.id, railGenerations[collection.id], materialized.rail);
       }
-      return applyHomeRails(rails, failed, firstError);
+      const overlappedReconcile = Object.keys(railGenerations).some(
+        id => homeRailSequences[id] !== railGenerations[id],
+      );
+      return applyHomeRails(
+        replaceStaleBuiltHomeRails(rails, railGenerations),
+        failed,
+        firstError,
+        {
+          preserveLaunch: state.launchState === 'launch_success' && overlappedReconcile,
+        },
+      );
     }
 
-    async function reconcileHomeRail(railID) {
+    function rebindSelectedHomeGame() {
+      if (!state.selectedLiveGame) return;
+      const index = state.games.findIndex(game => game.id === state.selectedLiveGame.id);
+      if (index < 0) return;
+      state.selectedLiveGame = state.games[index];
+      state.selectedGameView = state.gameViews[index];
+    }
+
+    async function reconcileHomeRail(railID, options) {
       if (state.libraryView !== 'home') return emit();
       const spec = homeRailSpecByID(railID);
       if (!spec) return emit();
-      const sequence = state.requestSequence;
+      const requestGeneration = state.requestSequence;
+      const sequence = bumpHomeRailSequence(railID);
       const item = await fetchHomeRailSpec(spec);
-      if (sequence !== state.requestSequence || state.libraryView !== 'home') return snapshot();
+      if (
+        requestGeneration !== state.requestSequence
+        || homeRailSequences[railID] !== sequence
+        || state.libraryView !== 'home'
+      ) return snapshot();
       const previousByID = new Map(state.gameViews.map(view => [view.live.id, view.presentation]));
       const materialized = materializeHomeRail(item, previousByID);
       if (materialized.error) return emit();
       const rails = insertHomeRail((state.homeRails || []).slice(), materialized.rail, spec);
       state.homeRails = Object.freeze(rails);
       flattenHomeGames(rails);
-      reconcileSelection();
+      if (options && options.preserveLaunch) rebindSelectedHomeGame();
+      else reconcileSelection();
       return emit();
     }
 
