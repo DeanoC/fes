@@ -496,6 +496,21 @@ test('paginated catalog stays populated until the host returns no rows', () => {
     gameViews: [],
     nextCursor: '',
   }), 'empty');
+  assert.equal(catalogViewState({
+    catalogState: 'populated',
+    libraryView: 'home',
+    query: 'sonic',
+    games: [],
+    gameViews: [],
+    homeRails: [],
+  }), 'empty');
+  assert.equal(catalogViewState({
+    catalogState: 'populated',
+    libraryView: 'grid',
+    query: 'sonic',
+    games: [],
+    gameViews: [],
+  }), 'no_matches');
 });
 
 test('catalog filters keep search, platform, region, and genre on the host query', () => {
@@ -1227,11 +1242,12 @@ test('accepted catalog refresh clears a selection that disappeared from the live
   ]);
   const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
 
-  await controller.loadCatalog('');
+  await controller.setLibraryNav('', '');
   await controller.selectGame('megadrive-sonic-test');
   await controller.launchSelected();
   await controller.loadCatalog('missing');
   const state = controller.getState();
+  assert.equal(state.libraryView, 'grid');
   assert.equal(catalogViewState(state), 'no_matches');
   assert.equal(state.selectedLiveGame, null);
   assert.equal(state.launchState, 'idle');
@@ -1290,11 +1306,14 @@ test('empty, malformed, and backend-error fixture responses become distinct safe
   ];
   for (const testCase of cases) {
     const { fetchImpl } = queuedFetch([
+      jsonResponse(readFixture('catalog-populated.json')),
       jsonResponse(readFixture(testCase.fixture), testCase.responseStatus || 200),
     ]);
     const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+    await controller.setLibraryNav('', '');
     await controller.loadCatalog(testCase.query);
     const state = controller.getState();
+    assert.equal(state.libraryView, 'grid');
     assert.equal(catalogViewState(state), testCase.state, testCase.fixture);
     assert.equal(state.catalogError ? state.catalogError.code : '', testCase.errorCode, testCase.fixture);
   }
@@ -4256,31 +4275,29 @@ test('user-initiated Home reload after launch_success drops an absent title', as
   assert.equal(state.homeRails.find(rail => rail.id === 'continue').gameViews[0].live.id, 'nes-zelda-test');
 });
 
-test('mid-launch Home filter reload still keeps the session title', async () => {
+test('mid-launch Home year filter jumps to All games and still keeps the session title', async () => {
   const sonic = availableGame('megadrive-sonic-test', 'Sonic', { system: 'megadrive' });
   const zelda = availableGame('nes-zelda-test', 'Zelda', { system: 'nes' });
   const empty = jsonResponse({ games: [] });
   let releaseLaunchResponse;
-  const { fetchImpl } = routedFetch({
+  const { calls, fetchImpl } = routedFetch({
     '/api/v1/session': [
       jsonResponse(sessionFixture({ state: 'idle' })),
       jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive' })),
     ],
     '/api/v1/session/launch': [() => new Promise(resolve => { releaseLaunchResponse = resolve; })],
     '/api/v1/games/megadrive-sonic-test': [jsonResponse(sonic)],
+    '/api/v1/games': [jsonResponse({ games: [zelda] })],
     '/api/v1/games?collection=continue': [
       jsonResponse({ games: [zelda] }),
-      jsonResponse({ games: [zelda] }),
-      jsonResponse({ games: [zelda] }),
     ],
-    '/api/v1/games?collection=favorites': [empty, empty],
-    '/api/v1/games?collection=recents': [empty, empty, empty],
+    '/api/v1/games?collection=favorites': [empty],
+    '/api/v1/games?collection=recents': [empty, empty],
     '/api/v1/games?collection=unplayed': [
       jsonResponse({ games: [sonic] }),
       jsonResponse({ games: [] }),
-      jsonResponse({ games: [] }),
     ],
-    '/api/v1/games?collection=recently_added': [empty, empty],
+    '/api/v1/games?collection=recently_added': [empty],
   });
   const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
   await controller.loadSession();
@@ -4289,8 +4306,13 @@ test('mid-launch Home filter reload still keeps the session title', async () => 
   const launch = controller.launchSelected();
   assert.equal(controller.getState().activeMutation, 'launch');
   await controller.setCatalogFilter('year', '1991');
+  assert.equal(controller.getState().libraryView, 'grid');
+  assert.equal(controller.getState().collection, '');
   assert.equal(controller.getState().selectedLiveGame, null);
   assert.equal(controller.getState().games.some(game => game.id === 'megadrive-sonic-test'), false);
+  const allGames = calls.filter(call => String(call.path).startsWith('/api/v1/games') && !String(call.path).includes('collection=')).at(-1);
+  assert.ok(allGames);
+  assert.equal(allGames.path.includes('year=1991'), true);
   releaseLaunchResponse(jsonResponse(sessionFixture({
     state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive',
   })));
@@ -4929,6 +4951,300 @@ test('Home rails and collection See-alls ignore Year/System while All-games keep
   assert.equal(controller.getState().sort, 'system');
 });
 
+test('Home rails omit stored search and browse extras while keeping hide-betas', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic');
+  const empty = jsonResponse({ games: [] });
+  const populated = jsonResponse({ games: [sonic] });
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/games': [populated, populated, populated],
+    '/api/v1/games?q=sonic': [populated, populated, populated, populated],
+    '/api/v1/games?collection=continue': [populated, populated, populated, populated],
+    '/api/v1/games?collection=favorites': [populated, populated, populated, populated, populated],
+    '/api/v1/games?collection=recents': [empty, empty, empty, empty],
+    '/api/v1/library/favorites/megadrive-sonic-test': [jsonResponse({ favorite: false })],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.setLibraryNav('', '');
+  await controller.reloadVisibleCatalog('sonic');
+  await controller.setCatalogFilter('region', 'japan');
+  await controller.setCatalogFilter('year', '1991');
+  await controller.setCatalogFilter('availability', 'online');
+  assert.equal(controller.getState().query, 'sonic');
+  assert.equal(controller.getState().filters.region, 'japan');
+  assert.equal(controller.getState().filters.year, '1991');
+  assert.equal(controller.getState().filters.availability, 'online');
+
+  await controller.openHome();
+  const homeAfterStored = calls.filter(call => String(call.path).includes('collection=') && String(call.path).includes('limit=12')).slice(-5);
+  assert.ok(homeAfterStored.some(call => call.path === '/api/v1/games?collection=continue&grouped=1&limit=12'));
+  assert.ok(homeAfterStored.some(call => call.path === '/api/v1/games?collection=favorites&grouped=1&limit=12'));
+  assert.equal(homeAfterStored.every(call => !call.path.includes('q=') && !call.path.includes('region=') && !call.path.includes('year=') && !call.path.includes('availability=') && !call.path.includes('genre=') && !call.path.includes('platform=')), true);
+  assert.equal(controller.getState().query, 'sonic');
+  assert.equal(controller.getState().filters.region, 'japan');
+  assert.equal(controller.getState().filters.year, '1991');
+  assert.equal(controller.getState().libraryView, 'home');
+
+  await controller.toggleFavorite('megadrive-sonic-test');
+  const favoritesReconcile = calls.filter(call => String(call.path).includes('collection=favorites') && String(call.path).includes('limit=12')).at(-1);
+  assert.ok(favoritesReconcile);
+  assert.equal(favoritesReconcile.path, '/api/v1/games?collection=favorites&grouped=1&limit=12');
+  assert.equal(favoritesReconcile.path.includes('q='), false);
+  assert.equal(favoritesReconcile.path.includes('region='), false);
+
+  await controller.setCatalogFilter('hide_prerelease', true);
+  assert.equal(controller.getState().libraryView, 'home');
+  const hiddenHome = calls.filter(call => String(call.path).includes('collection=') && String(call.path).includes('limit=12')).slice(-5);
+  assert.ok(hiddenHome.some(call => call.path === '/api/v1/games?collection=continue&hide_prerelease=1&grouped=1&limit=12'));
+  assert.ok(hiddenHome.some(call => call.path === '/api/v1/games?collection=favorites&hide_prerelease=1&grouped=1&limit=12'));
+  assert.equal(hiddenHome.every(call => call.path.includes('hide_prerelease=1') && !call.path.includes('q=') && !call.path.includes('region=') && !call.path.includes('year=')), true);
+});
+
+test('Home search and browse filters jump to All games and do not filter rails in place', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic');
+  const empty = jsonResponse({ games: [] });
+  const populated = jsonResponse({ games: [sonic] });
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/games': [populated, populated, populated],
+    '/api/v1/games?q=sonic': [populated, populated],
+    '/api/v1/games?collection=continue': [populated, populated, populated, populated],
+    '/api/v1/games?collection=favorites': [empty, empty, empty],
+    '/api/v1/games?collection=recents': [empty, empty, empty],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.openHome();
+  assert.equal(controller.getState().libraryView, 'home');
+
+  await controller.searchVisibleCatalog('sonic');
+  assert.equal(controller.getState().libraryView, 'grid');
+  assert.equal(controller.getState().collection, '');
+  assert.equal(controller.getState().query, 'sonic');
+  const searchCall = calls.filter(call => String(call.path).startsWith('/api/v1/games')).at(-1);
+  assert.equal(searchCall.path, '/api/v1/games?q=sonic&grouped=1');
+  assert.equal(searchCall.path.includes('collection='), false);
+
+  await controller.openHome();
+  assert.equal(controller.getState().libraryView, 'home');
+  const homeAfterSearch = calls.filter(call => String(call.path).includes('collection=') && String(call.path).includes('limit=12')).slice(-5);
+  assert.equal(homeAfterSearch.every(call => !call.path.includes('q=')), true);
+
+  await controller.setCatalogFilter('genre', 'Platformer');
+  assert.equal(controller.getState().libraryView, 'grid');
+  assert.equal(controller.getState().collection, '');
+  assert.equal(controller.getState().filters.genre, 'Platformer');
+  const genreCall = calls.filter(call => String(call.path).startsWith('/api/v1/games') && !String(call.path).includes('collection=')).at(-1);
+  assert.equal(genreCall.path, '/api/v1/games?q=sonic&genre=Platformer&grouped=1');
+
+  await controller.setLibraryNav('continue', '');
+  const seeAll = calls.filter(call => String(call.path).includes('collection=continue') && !String(call.path).includes('limit=12')).at(-1);
+  assert.ok(seeAll);
+  assert.equal(seeAll.path.includes('q=sonic'), true);
+  assert.equal(seeAll.path.includes('genre=Platformer'), true);
+
+  await controller.openHome();
+  assert.equal(controller.getState().libraryView, 'home');
+  assert.equal(controller.getState().filters.genre, 'Platformer');
+  const homeAfterGenre = calls.filter(call => String(call.path).includes('collection=') && String(call.path).includes('limit=12')).slice(-5);
+  assert.ok(homeAfterGenre.some(call => call.path === '/api/v1/games?collection=continue&grouped=1&limit=12'));
+  assert.equal(homeAfterGenre.every(call => !call.path.includes('genre=') && !call.path.includes('q=')), true);
+});
+
+test('settings-save on Home with leftover query stays on Home rails', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic');
+  const empty = jsonResponse({ games: [] });
+  const populated = jsonResponse({ games: [sonic] });
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/library/settings': [
+      jsonResponse({ attract_idle_seconds: 60, preferred_regions: ['usa'] }),
+      jsonResponse({ attract_idle_seconds: 12, preferred_regions: ['japan'] }),
+    ],
+    '/api/v1/games': [populated],
+    '/api/v1/games?q=sonic': [populated],
+    '/api/v1/games?collection=continue': [populated, populated, populated],
+    '/api/v1/games?collection=favorites': [empty, empty, empty],
+    '/api/v1/games?collection=recents': [empty, empty, empty],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.setLibraryNav('', '');
+  await controller.reloadVisibleCatalog('sonic');
+  await controller.openHome();
+  assert.equal(controller.getState().libraryView, 'home');
+  assert.equal(controller.getState().query, 'sonic');
+
+  const before = calls.length;
+  await controller.saveSettings({ attract_idle_seconds: 12, preferred_regions: ['japan'] });
+  assert.equal(controller.getState().libraryView, 'home');
+  assert.equal(controller.getState().collection, '');
+  assert.equal(controller.getState().query, 'sonic');
+  const after = calls.slice(before);
+  assert.equal(after.some(call => String(call.path).startsWith('/api/v1/games') && String(call.path).includes('q=')), false);
+  assert.equal(after.some(call => String(call.path).startsWith('/api/v1/games') && !String(call.path).includes('collection=')), false);
+  assert.ok(after.some(call => call.path === '/api/v1/games?collection=continue&grouped=1&limit=12'));
+
+  await controller.reloadVisibleCatalog(controller.getState().query);
+  assert.equal(controller.getState().libraryView, 'home');
+  const leftoverReload = calls.filter(call => String(call.path).startsWith('/api/v1/games')).at(-1);
+  assert.equal(leftoverReload.path.includes('collection='), true);
+  assert.equal(leftoverReload.path.includes('q='), false);
+});
+
+test('empty Home after a retained search query is empty not no_matches', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic');
+  const empty = jsonResponse({ games: [] });
+  const populated = jsonResponse({ games: [sonic] });
+  const { fetchImpl } = routedFetch({
+    '/api/v1/games': [populated],
+    '/api/v1/games?q=sonic': [empty],
+    '/api/v1/games?collection=continue': [empty, empty],
+    '/api/v1/games?collection=favorites': [empty, empty],
+    '/api/v1/games?collection=recents': [empty, empty],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.setLibraryNav('', '');
+  await controller.searchVisibleCatalog('sonic');
+  assert.equal(controller.getState().libraryView, 'grid');
+  assert.equal(catalogViewState(controller.getState()), 'no_matches');
+  await controller.openHome();
+  const state = controller.getState();
+  assert.equal(state.libraryView, 'home');
+  assert.equal(state.query, 'sonic');
+  assert.equal(catalogViewState(state), 'empty');
+});
+
+test('pending search debounce does not jump back after navigating to Home', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic');
+  const empty = jsonResponse({ games: [] });
+  const { document, calls } = await runBrowserApp({
+    keepHome: true,
+    responses: [jsonResponse({ games: [sonic] })],
+    homeRails: {
+      continue: jsonResponse({ games: [sonic] }),
+      favorites: empty,
+      recents: empty,
+    },
+  });
+  await settleBrowser();
+  document.nodes.get('nav-all').click();
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-list').className, 'game-grid');
+  const beforeSearch = calls.filter(call => String(call.path).includes('q=')).length;
+  document.nodes.get('game-search').value = 'sonic';
+  document.nodes.get('game-search').dispatchEvent({ type: 'input', bubbles: true });
+  document.nodes.get('nav-home').click();
+  await settleBrowser();
+  await new Promise(resolve => setTimeout(resolve, 200));
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-list').className, 'home-rails');
+  assert.equal(document.nodes.get('nav-home').className.includes('selected'), true);
+  assert.equal(document.nodes.get('nav-all').className.includes('selected'), false);
+  assert.equal(calls.filter(call => String(call.path).includes('q=')).length, beforeSearch);
+});
+
+test('mid-edit search then All uses the current input not stale state.query', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic');
+  const empty = jsonResponse({ games: [] });
+  const populated = jsonResponse({ games: [sonic] });
+  const { document, calls } = await runBrowserApp({
+    keepHome: true,
+    responses: [populated, populated, populated],
+    homeRails: {
+      continue: jsonResponse({ games: [sonic] }),
+      favorites: empty,
+      recents: empty,
+    },
+  });
+  await settleBrowser();
+  document.nodes.get('nav-all').click();
+  await settleBrowser();
+  document.nodes.get('game-search').value = 'sonic';
+  document.nodes.get('game-search').dispatchEvent({ type: 'input', bubbles: true });
+  await new Promise(resolve => setTimeout(resolve, 200));
+  await settleBrowser();
+  const committed = calls.filter(call => String(call.path).includes('q=sonic')).at(-1);
+  assert.ok(committed);
+  document.nodes.get('game-search').value = '';
+  document.nodes.get('game-search').dispatchEvent({ type: 'input', bubbles: true });
+  document.nodes.get('nav-all').click();
+  await settleBrowser();
+  await new Promise(resolve => setTimeout(resolve, 200));
+  await settleBrowser();
+  const afterClear = calls.filter(call => String(call.path).startsWith('/api/v1/games') && !String(call.path).includes('collection=')).at(-1);
+  assert.ok(afterClear);
+  assert.equal(afterClear.path.includes('q='), false);
+  assert.equal(document.nodes.get('game-search').value, '');
+  assert.equal(document.nodes.get('nav-all').className.includes('selected'), true);
+});
+
+test('mid-edit search then Home restores the stored query and stays on unfiltered rails', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic');
+  const empty = jsonResponse({ games: [] });
+  const populated = jsonResponse({ games: [sonic] });
+  const { document, calls } = await runBrowserApp({
+    keepHome: true,
+    responses: [populated, populated],
+    homeRails: {
+      continue: jsonResponse({ games: [sonic] }),
+      favorites: empty,
+      recents: empty,
+    },
+  });
+  await settleBrowser();
+  document.nodes.get('nav-all').click();
+  await settleBrowser();
+  document.nodes.get('game-search').value = 'sonic';
+  document.nodes.get('game-search').dispatchEvent({ type: 'input', bubbles: true });
+  await new Promise(resolve => setTimeout(resolve, 200));
+  await settleBrowser();
+  document.nodes.get('game-search').value = 'tails';
+  document.nodes.get('game-search').dispatchEvent({ type: 'input', bubbles: true });
+  document.nodes.get('nav-home').click();
+  await settleBrowser();
+  await new Promise(resolve => setTimeout(resolve, 200));
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-list').className, 'home-rails');
+  assert.equal(document.nodes.get('nav-home').className.includes('selected'), true);
+  assert.equal(document.nodes.get('game-search').value, 'sonic');
+  assert.equal(calls.some(call => String(call.path).includes('q=tails')), false);
+  const homeAfter = calls.filter(call => String(call.path).includes('collection=') && String(call.path).includes('limit=12')).slice(-3);
+  assert.equal(homeAfter.every(call => !call.path.includes('q=')), true);
+});
+
+test('type-to-search from a focused Home card jumps to All games', async () => {
+  const continueGame = availableGame('megadrive-sonic-test', 'Sonic the Hedgehog', { system: 'megadrive' });
+  const { document, calls } = await runKeyboardApp({
+    pages: [{ games: [continueGame] }],
+    railPages: {
+      continue: [continueGame],
+      favorites: [],
+      recents: [],
+    },
+    collections: [],
+  });
+  await settleBrowser();
+  document.nodes.get('nav-home').focus();
+  await pressKey(document, 'Enter');
+  assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'home');
+  assert.equal(document.nodes.get('catalog-list').className, 'home-rails');
+  assert.equal(document.activeElement.parentNode.getAttribute('data-home-track'), 'continue');
+  const beforeRails = calls.filter(call => String(call.path).includes('collection=') && String(call.path).includes('q=')).length;
+
+  await pressKey(document, 's');
+  assert.equal(document.activeElement, document.nodes.get('game-search'));
+  assert.equal(document.nodes.get('game-search').value, 's');
+  await new Promise(resolve => setTimeout(resolve, 200));
+  await settleBrowser();
+  assert.equal(document.nodes.get('nav-all').className.includes('selected'), true);
+  assert.equal(document.nodes.get('nav-home').className.includes('selected'), false);
+  assert.equal(document.nodes.get('catalog-list').className, 'game-grid');
+  const searchCall = calls.filter(call => String(call.path).startsWith('/api/v1/games') && !String(call.path).includes('collection=')).at(-1);
+  assert.ok(searchCall);
+  assert.match(searchCall.path, /[?&]q=s/);
+  assert.equal(searchCall.path.includes('collection='), false);
+  assert.equal(
+    calls.filter(call => String(call.path).includes('collection=') && String(call.path).includes('q=')).length,
+    beforeRails,
+  );
+});
+
 test('home collection toggle refetches the affected custom rail', async () => {
   const sonic = availableGame('megadrive-sonic-test', 'Sonic', { collections: ['weekend-queue'] });
   const { fetchImpl } = routedFetch({
@@ -5071,6 +5387,33 @@ test('empty home uses home-specific copy instead of claiming the library is empt
   assert.ok(message);
   assert.equal(message.textContent, 'Home has no Continue, Favorites, Recent, or collection titles yet.');
   assert.notEqual(message.textContent, 'The library is empty.');
+});
+
+test('empty Home after a prior search shows Home empty copy not no-matches', async () => {
+  const empty = jsonResponse({ games: [] });
+  const { document } = await runBrowserApp({
+    keepHome: true,
+    responses: [empty, empty],
+    homeRails: {
+      continue: empty,
+      favorites: empty,
+      recents: empty,
+    },
+  });
+  await settleBrowser();
+  document.nodes.get('nav-all').click();
+  await settleBrowser();
+  document.nodes.get('game-search').value = 'sonic';
+  document.nodes.get('game-search').dispatchEvent({ type: 'input', bubbles: true });
+  await new Promise(resolve => setTimeout(resolve, 200));
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-list').children[0].textContent, 'No matching games.');
+  document.nodes.get('nav-home').click();
+  await settleBrowser();
+  const message = document.nodes.get('catalog-list').children[0];
+  assert.ok(message);
+  assert.equal(message.textContent, 'Home has no Continue, Favorites, Recent, or collection titles yet.');
+  assert.notEqual(message.textContent, 'No matching games.');
 });
 
 test('catalog layout defaults to Cover and toggles to List without a new GET', async () => {

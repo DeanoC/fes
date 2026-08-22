@@ -943,7 +943,10 @@
     if (state.libraryView === 'home' && Number(state.homeRailFailures) > 0 && !(state.homeRails && state.homeRails.length)) {
       return 'catalog_error';
     }
-    if (state.games.length === 0) return state.query ? 'no_matches' : 'empty';
+    if (state.games.length === 0) {
+      if (state.libraryView === 'home') return 'empty';
+      return state.query ? 'no_matches' : 'empty';
+    }
     return 'populated';
   }
 
@@ -1490,13 +1493,15 @@
       const extras = { grouped: 1 };
       const collection = extra.collection !== undefined ? extra.collection : state.collection;
       if (collection) extras.collection = collection;
-      if (state.platformQuery) extras.platform = state.platformQuery;
-      if (state.filters.region) extras.region = state.filters.region;
-      if (state.filters.genre) extras.genre = state.filters.genre;
-      if (state.filters.year) extras.year = state.filters.year;
+      if (state.libraryView !== 'home') {
+        if (state.platformQuery) extras.platform = state.platformQuery;
+        if (state.filters.region) extras.region = state.filters.region;
+        if (state.filters.genre) extras.genre = state.filters.genre;
+        if (state.filters.year) extras.year = state.filters.year;
+        if (state.filters.availability) extras.availability = state.filters.availability;
+      }
       if (state.filters.hide_prerelease) extras.hide_prerelease = 1;
       if (state.filters.hide_hacks) extras.hide_hacks = 1;
-      if (state.filters.availability) extras.availability = state.filters.availability;
       const sort = catalogViewSort(collection, extra.sort);
       if (sort && sort !== 'title' && sort !== 'recents') extras.sort = sort;
       if (cursor) extras.cursor = cursor;
@@ -1587,7 +1592,7 @@
           limit: HOME_RAIL_LIMIT,
           sort: homeRailSort(spec),
         };
-        const result = await request(fetchImpl, gamesPath(state.query, catalogExtras('', extras)));
+        const result = await request(fetchImpl, gamesPath('', catalogExtras('', extras)));
         return { spec, result, error: null };
       } catch (error) {
         return { spec, result: null, error };
@@ -1840,6 +1845,20 @@
       state.query = String(query || '').trim();
       if (state.libraryView === 'home') return loadHomeRails();
       return loadCatalog(state.query);
+    }
+
+    async function searchVisibleCatalog(query) {
+      state.query = String(query || '').trim();
+      if (state.libraryView === 'home') {
+        if (state.query) return setLibraryNav('', '');
+        return loadHomeRails();
+      }
+      return loadCatalog(state.query);
+    }
+
+    function adoptSearchQuery(query) {
+      state.query = String(query || '').trim();
+      return snapshot();
     }
 
     async function loadCatalog(query) {
@@ -2310,12 +2329,14 @@
       }
       if (name === 'region' || name === 'genre' || name === 'year' || name === 'availability') {
         state.filters = Object.freeze({ ...state.filters, [name]: String(value || '').trim() });
+        if (state.libraryView === 'home') return setLibraryNav('', '');
         return reloadVisibleCatalog(state.query);
       }
       if (name === 'hide_prerelease' || name === 'hide_hacks') {
         const enabled = value === true || value === '1' || value === 'true';
         state.filters = Object.freeze({ ...state.filters, [name]: enabled });
-        return reloadVisibleCatalog(state.query);
+        if (state.libraryView === 'home') return loadHomeRails();
+        return loadCatalog(state.query);
       }
       return snapshot();
     }
@@ -2323,7 +2344,8 @@
     function setCatalogSort(value) {
       if (value === 'recents') return emit();
       state.sort = value === 'year' || value === 'system' || value === 'recently_added' ? value : 'title';
-      return reloadVisibleCatalog(state.query);
+      if (state.libraryView === 'home') return loadHomeRails();
+      return loadCatalog(state.query);
     }
 
     function setCatalogLayout(layout) {
@@ -2337,6 +2359,8 @@
       getState: snapshot,
       loadCatalog,
       reloadVisibleCatalog,
+      searchVisibleCatalog,
+      adoptSearchQuery,
       loadMoreCatalog,
       loadPlatforms,
       loadAttract,
@@ -2413,6 +2437,7 @@
   let collectionEditor = null;
   let forceKeyboardRestore = false;
   let settingsGeneration = 0;
+  let searchTimer = null;
   let attractIdleHydrated = false;
   let gameActionsMenu = { open: false, gameId: '', pane: 'grid', home: null };
 
@@ -3012,7 +3037,7 @@
         button.appendChild(element('span', '', collection.name || collection.id));
         button.addEventListener('click', () => {
           keyboardPane = 'rail';
-          controller.setLibraryNav(collection.id, '');
+          navigateLibrary(() => controller.setLibraryNav(collection.id, ''), true);
         });
         nodes.collectionList.appendChild(button);
       });
@@ -3036,7 +3061,7 @@
       button.appendChild(element('span', 'platform-count', String(platform.game_count || 0)));
       button.addEventListener('click', () => {
         keyboardPane = 'rail';
-        controller.setLibraryNav('', platform.id);
+        navigateLibrary(() => controller.setLibraryNav('', platform.id), true);
       });
       nodes.platformList.appendChild(button);
     });
@@ -3216,7 +3241,7 @@
       return;
     }
     if (view === 'empty' || view === 'no_matches') {
-      nodes.list.appendChild(element('p', 'status-message', state.query ? 'No matching games.' : 'Home has no Continue, Favorites, Recent, or collection titles yet.'));
+      nodes.list.appendChild(element('p', 'status-message', 'Home has no Continue, Favorites, Recent, or collection titles yet.'));
       nodes.actions.appendChild(retryButton('Refresh catalog', loadCatalog));
       return;
     }
@@ -3236,7 +3261,7 @@
       seeAll.setAttribute('data-see-all', rail.id);
       seeAll.addEventListener('click', () => {
         keyboardPane = 'rail';
-        return controller.setLibraryNav(rail.id, '');
+        return navigateLibrary(() => controller.setLibraryNav(rail.id, ''), true);
       });
       header.appendChild(seeAll);
       section.appendChild(header);
@@ -3679,6 +3704,26 @@
 
   function loadCatalog() {
     return controller.reloadVisibleCatalog(nodes.search.value);
+  }
+
+  function cancelPendingSearch() {
+    if (!searchTimer) return;
+    root.clearTimeout(searchTimer);
+    searchTimer = null;
+  }
+
+  function navigateLibrary(action, commitSearch) {
+    cancelPendingSearch();
+    if (commitSearch) {
+      controller.adoptSearchQuery(nodes.search && nodes.search.value);
+    } else if (nodes.search) {
+      nodes.search.value = controller.getState().query || '';
+    }
+    return action();
+  }
+
+  function searchFromInput() {
+    return controller.searchVisibleCatalog(nodes.search.value);
   }
 
   function loadSession() {
@@ -4466,10 +4511,9 @@
   });
   state = controller.getState();
   nodes.refresh.addEventListener('click', loadCatalog);
-  let searchTimer = null;
   nodes.search.addEventListener('input', () => {
     if (searchTimer) root.clearTimeout(searchTimer);
-    searchTimer = root.setTimeout(loadCatalog, 180);
+    searchTimer = root.setTimeout(searchFromInput, 180);
   });
   if (nodes.systemFilter) nodes.systemFilter.addEventListener('change', () => controller.setCatalogFilter('system', nodes.systemFilter.value));
   if (nodes.regionFilter) nodes.regionFilter.addEventListener('change', () => controller.setCatalogFilter('region', nodes.regionFilter.value));
@@ -4484,13 +4528,13 @@
   if (nodes.hidePrerelease) nodes.hidePrerelease.addEventListener('change', () => controller.setCatalogFilter('hide_prerelease', nodes.hidePrerelease.checked));
   if (nodes.hideHacks) nodes.hideHacks.addEventListener('change', () => controller.setCatalogFilter('hide_hacks', nodes.hideHacks.checked));
   if (nodes.availabilityFilter) nodes.availabilityFilter.addEventListener('change', () => controller.setCatalogFilter('availability', nodes.availabilityFilter.value));
-  if (nodes.navHome) nodes.navHome.addEventListener('click', () => { keyboardPane = 'rail'; return controller.openHome(); });
-  if (nodes.navAll) nodes.navAll.addEventListener('click', () => { keyboardPane = 'rail'; return controller.setLibraryNav('', ''); });
-  if (nodes.navContinue) nodes.navContinue.addEventListener('click', () => { keyboardPane = 'rail'; return controller.setLibraryNav('continue', ''); });
-  if (nodes.navFavorites) nodes.navFavorites.addEventListener('click', () => { keyboardPane = 'rail'; return controller.setLibraryNav('favorites', ''); });
-  if (nodes.navRecents) nodes.navRecents.addEventListener('click', () => { keyboardPane = 'rail'; return controller.setLibraryNav('recents', ''); });
-  if (nodes.navUnplayed) nodes.navUnplayed.addEventListener('click', () => { keyboardPane = 'rail'; return controller.setLibraryNav('unplayed', ''); });
-  if (nodes.navRecentlyAdded) nodes.navRecentlyAdded.addEventListener('click', () => { keyboardPane = 'rail'; return controller.setLibraryNav('recently_added', ''); });
+  if (nodes.navHome) nodes.navHome.addEventListener('click', () => { keyboardPane = 'rail'; return navigateLibrary(() => controller.openHome()); });
+  if (nodes.navAll) nodes.navAll.addEventListener('click', () => { keyboardPane = 'rail'; return navigateLibrary(() => controller.setLibraryNav('', ''), true); });
+  if (nodes.navContinue) nodes.navContinue.addEventListener('click', () => { keyboardPane = 'rail'; return navigateLibrary(() => controller.setLibraryNav('continue', ''), true); });
+  if (nodes.navFavorites) nodes.navFavorites.addEventListener('click', () => { keyboardPane = 'rail'; return navigateLibrary(() => controller.setLibraryNav('favorites', ''), true); });
+  if (nodes.navRecents) nodes.navRecents.addEventListener('click', () => { keyboardPane = 'rail'; return navigateLibrary(() => controller.setLibraryNav('recents', ''), true); });
+  if (nodes.navUnplayed) nodes.navUnplayed.addEventListener('click', () => { keyboardPane = 'rail'; return navigateLibrary(() => controller.setLibraryNav('unplayed', ''), true); });
+  if (nodes.navRecentlyAdded) nodes.navRecentlyAdded.addEventListener('click', () => { keyboardPane = 'rail'; return navigateLibrary(() => controller.setLibraryNav('recently_added', ''), true); });
   if (nodes.layoutCover) nodes.layoutCover.addEventListener('click', () => controller.setCatalogLayout('cover'));
   if (nodes.layoutList) nodes.layoutList.addEventListener('click', () => controller.setCatalogLayout('list'));
   if (nodes.createCollection) nodes.createCollection.addEventListener('click', () => beginCollectionEditor('create'));
