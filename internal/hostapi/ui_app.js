@@ -577,6 +577,14 @@
     return live && live.genre ? live.genre : '';
   }
 
+  function catalogStudio(view) {
+    const presentation = view && view.presentation;
+    if (!presentation || presentation.isFallback) return '';
+    const studio = typeof presentation.studio === 'string' ? presentation.studio.trim() : '';
+    if (!studio || studio === '—' || studio === 'FogCast demo') return '';
+    return studio;
+  }
+
   function filterCatalogViews(views) {
     return (views || []).slice();
   }
@@ -2627,6 +2635,7 @@
     createAppController,
     catalogRegion,
     catalogGenre,
+    catalogStudio,
     filterCatalogViews,
     sortCatalogViews,
     formatCatalogCount,
@@ -3352,6 +3361,7 @@
   let wallObserver = null;
   let wallStartObserver = null;
   let wallStart = 0;
+  let cardMarksObservers = [];
 
   function readStylePx(styles, names, fallback) {
     if (!styles) return fallback;
@@ -3395,6 +3405,13 @@
     return Math.max(1, readStylePx(styles, ['--list-row-stride'], 78));
   }
 
+  function disconnectCardMarksObservers() {
+    cardMarksObservers.forEach(observer => {
+      if (observer && typeof observer.disconnect === 'function') observer.disconnect();
+    });
+    cardMarksObservers = [];
+  }
+
   function disconnectWallObservers() {
     if (wallObserver) {
       wallObserver.disconnect();
@@ -3404,6 +3421,7 @@
       wallStartObserver.disconnect();
       wallStartObserver = null;
     }
+    disconnectCardMarksObservers();
   }
 
   function appendWallSpacer(count, edge) {
@@ -3458,6 +3476,7 @@
     nodes.catalog.setAttribute('aria-busy', view === 'loading' ? 'true' : 'false');
     syncCatalogLayoutControls();
     if (nodes.list) nodes.list.className = 'home-rails';
+    disconnectCardMarksObservers();
     nodes.list.replaceChildren();
     nodes.actions.replaceChildren();
     nodes.status.textContent = view;
@@ -3517,6 +3536,7 @@
     nodes.catalog.setAttribute('aria-busy', view === 'loading' ? 'true' : 'false');
     syncCatalogLayoutControls();
     if (nodes.list) nodes.list.className = isListLayout() ? 'game-list' : 'game-grid';
+    disconnectCardMarksObservers();
     nodes.list.replaceChildren();
     nodes.actions.replaceChildren();
     nodes.status.textContent = view;
@@ -3804,6 +3824,31 @@
     }
     if (favorite) marks.appendChild(element('span', 'card-mark card-mark-favorite', 'Favorite'));
     card.appendChild(marks);
+    return marks;
+  }
+
+  function setCardMarksClearance(card, marks) {
+    if (!card || !marks || String(card.className || '').includes('game-row')) return;
+    const height = Number(marks.offsetHeight) || 0;
+    if (!(height > 0) || !card.style) return;
+    if (typeof card.style.setProperty === 'function') {
+      card.style.setProperty('--card-marks-clearance', `${height}px`);
+      return;
+    }
+    card.style['--card-marks-clearance'] = `${height}px`;
+  }
+
+  function scheduleCardMarksClearance(card, marks) {
+    setCardMarksClearance(card, marks);
+    const afterLayout = typeof root.requestAnimationFrame === 'function'
+      ? root.requestAnimationFrame.bind(root)
+      : (typeof root.setTimeout === 'function' ? fn => root.setTimeout(fn, 0) : null);
+    if (afterLayout) afterLayout(() => setCardMarksClearance(card, marks));
+    const Observer = root.ResizeObserver;
+    if (typeof Observer !== 'function') return;
+    const observer = new Observer(() => setCardMarksClearance(card, marks));
+    observer.observe(card);
+    cardMarksObservers.push(observer);
   }
 
   function renderCard(view, liveGame, parent, pane, homeCoord) {
@@ -3823,12 +3868,15 @@
     const coverHandle = presentation.coverArtworkHandle || game.cover;
     const cover = artworkElement('cover', presentation.cover, coverHandle, 'eager');
     card.appendChild(cover);
+    let coverMarks = null;
     if (listRow) {
       const body = element('span', 'game-row-body');
       body.appendChild(element('h3', '', cardTitle(game)));
       const bits = [systemLabel(game.system)];
       if (game.year) bits.push(game.year);
       if (game.genre) bits.push(game.genre);
+      const studio = catalogStudio(view);
+      if (studio) bits.push(studio);
       dumpFlagLabels(game).forEach(label => bits.push(label));
       const labels = collectionLabels(game, state.collections);
       if (labels.length) bits.push(labels[0]);
@@ -3845,11 +3893,14 @@
       card.appendChild(element('p', 'game-meta', coverHoverMeta(game, view)));
       if (presentation.isFallback) {
         card.appendChild(element('p', 'fallback-note', 'Using local catalog data'));
+      } else {
+        const studio = catalogStudio(view);
+        if (studio) card.appendChild(element('p', 'game-studio', studio));
       }
       if (game.variant_count > 1) {
         card.appendChild(element('p', 'game-meta game-meta-variant', `${game.variant_count} versions`));
       }
-      appendCoverMarks(card, game);
+      coverMarks = appendCoverMarks(card, game);
     }
     if (game.title && cardTitle(game) !== game.title) card.setAttribute('title', game.title);
     card.tabIndex = showSelected || (!state.selectedLiveGame && !gameCardNodes().length && !(parent && parent.children && parent.children.length)) ? 0 : -1;
@@ -3864,6 +3915,7 @@
       openGameActionsMenu(card, event);
     });
     (parent || nodes.list).appendChild(card);
+    if (coverMarks) scheduleCardMarksClearance(card, coverMarks);
   }
 
   function launchControl(game) {
@@ -3941,7 +3993,7 @@
       [game.content_prepared ? 'Prepared' : 'On demand', 'Staging'],
       [presentation.year !== '—' ? presentation.year : '', 'Year'],
       [presentation.genre, 'Genre'],
-      [presentation.studio, 'Studio'],
+      [catalogStudio(gameView), 'Studio'],
       [presentation.players, 'Players'],
     ];
     dumpIdentityFacts(game).forEach(fact => factRows.push([fact.value, fact.label]));

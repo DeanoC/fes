@@ -192,7 +192,7 @@ img.cover-art { width: 100%; object-fit: contain; object-position: center; backg
 .treatment-stripes::after { height: 14%; box-shadow: 0 -28px rgba(255,255,255,.08), 0 28px rgba(255,255,255,.08); }
 .treatment-starlight::before { border-radius: 50%; box-shadow: 22px 18px rgba(255,255,255,.35), 70px 55px rgba(255,255,255,.25), 140px 32px rgba(255,255,255,.35); }
 .treatment-waves::after { border-radius: 50%; }
-.game-card h3, .game-card .game-meta, .game-card .fallback-note {
+.game-card h3, .game-card .game-meta, .game-card .fallback-note, .game-card .game-studio {
   position: absolute;
   left: 10px;
   right: 10px;
@@ -218,10 +218,24 @@ img.cover-art { width: 100%; object-fit: contain; object-position: center; backg
   line-height: 1.15;
 }
 .game-card .game-meta-variant { bottom: 6px; }
-.game-card .fallback-note { top: 10px; bottom: auto; }
+.game-card .fallback-note, .game-card .game-studio { top: 10px; bottom: auto; }
+.game-card:not(.game-row):has(.card-marks) {
+  --card-marks-row: calc(0.62rem * 1.15 + 14px);
+}
+.game-card:not(.game-row):has(.card-marks) .fallback-note,
+.game-card:not(.game-row):has(.card-marks) .game-studio {
+  top: calc(8px + var(--card-marks-clearance, calc(var(--card-marks-row) * 2)) + 8px);
+}
+.game-card .game-studio {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.15;
+}
 .game-card:hover h3, .game-card.selected h3, .game-card:focus-visible h3,
 .game-card:hover .game-meta, .game-card.selected .game-meta, .game-card:focus-visible .game-meta,
-.game-card:hover .fallback-note, .game-card.selected .fallback-note, .game-card:focus-visible .fallback-note {
+.game-card:hover .fallback-note, .game-card.selected .fallback-note, .game-card:focus-visible .fallback-note,
+.game-card:hover .game-studio, .game-card.selected .game-studio, .game-card:focus-visible .game-studio {
   opacity: 1;
 }
 .card-marks {
