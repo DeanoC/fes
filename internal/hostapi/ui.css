@@ -264,6 +264,11 @@ img.cover-art { width: 100%; object-fit: contain; object-position: center; backg
   background: var(--success);
   color: #15120d;
 }
+.card-mark-dump {
+  background: rgba(12, 16, 23, .82);
+  color: #f3d27a;
+  border: 1px solid rgba(243, 210, 122, .45);
+}
 .game-card:not(.game-row)[data-state]:not([data-state="available"]) .cover-art,
 .game-card:not(.game-row)[data-unavailable="true"] .cover-art {
   filter: grayscale(.28) brightness(.72);

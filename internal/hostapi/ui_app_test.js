@@ -30,6 +30,7 @@ const {
   cardTitle,
   variantLabel,
   dumpIdentityFacts,
+  dumpFlagLabels,
   coverHoverMeta,
   coverStatusLabel,
   cardSourceOffline,
@@ -562,12 +563,32 @@ test('variantLabel and dump facts share region revision and flags', () => {
     revision: 'a',
     dump_flags: 'beta',
   };
+  assert.deepEqual(dumpFlagLabels({}), []);
+  assert.deepEqual(dumpFlagLabels({ dump_flags: '' }), []);
+  assert.deepEqual(dumpFlagLabels({ dump_flags: 'beta' }), ['Beta']);
+  assert.deepEqual(dumpFlagLabels({ dump_flags: 'hack,unl' }), ['Hack']);
+  assert.deepEqual(dumpFlagLabels({ dump_flags: 'beta,hack' }), ['Beta', 'Hack']);
+  assert.deepEqual(dumpFlagLabels({ dump_flags: 'unl,proto,sample' }), ['Proto', 'Unl']);
+  assert.deepEqual(dumpFlagLabels({ dump_flags: 'unknown,beta' }), ['Beta']);
+  assert.deepEqual(dumpFlagLabels({ dump_flags: 'unknown' }), []);
   assert.deepEqual(dumpIdentityFacts(dump), [
     { label: 'Region', value: 'USA' },
     { label: 'Revision', value: 'rev a' },
-    { label: 'Flags', value: 'beta' },
+    { label: 'Flags', value: 'Beta' },
   ]);
-  assert.equal(variantLabel(dump), 'USA · rev a · beta');
+  assert.deepEqual(dumpIdentityFacts({ dump_flags: 'beta,hack' }), [
+    { label: 'Flags', value: 'Beta, Hack' },
+  ]);
+  assert.deepEqual(dumpIdentityFacts({ dump_flags: 'hack,unl' }), [
+    { label: 'Flags', value: 'Hack' },
+  ]);
+  assert.deepEqual(dumpIdentityFacts({ dump_flags: 'beta,unknown' }), [
+    { label: 'Flags', value: 'Beta, unknown' },
+  ]);
+  assert.equal(variantLabel(dump), 'USA · rev a · Beta');
+  assert.equal(coverHoverMeta({
+    system: 'snes', state: 'available', region: 'usa', year: '1991', dump_flags: 'beta',
+  }), 'SNES · USA · 1991 · Ready');
   assert.equal(variantLabel({ title: 'Mystery Dump' }), 'Mystery Dump');
   assert.equal(coverHoverMeta({ system: 'megadrive', state: 'available', region: 'usa' }), 'Mega Drive · USA · Ready');
   assert.equal(coverHoverMeta({ system: 'megadrive', state: 'available' }), 'Mega Drive · Ready');
@@ -6425,7 +6446,7 @@ test('detail facts show dump identity and hide Version unless multiple variants'
   assert.deepEqual(facts.filter(fact => ['Region', 'Revision', 'Flags'].includes(fact.label)), [
     { value: 'USA', label: 'Region' },
     { value: 'rev a', label: 'Revision' },
-    { value: 'beta', label: 'Flags' },
+    { value: 'Beta', label: 'Flags' },
   ]);
   assert.ok(facts.some(fact => fact.label === 'Status' && fact.value === 'Ready'));
   assert.equal(document.getElementById('game-version'), null);
@@ -6490,6 +6511,21 @@ test('detail facts show dump identity and hide Version unless multiple variants'
   await unreadableRow.click();
   await settleBrowser();
   assert.ok(detailFactsFrom(unreadableApp.document).some(fact => fact.label === 'Status' && fact.value === 'Unreadable'));
+
+  const flagged = availableGame('snes-beta-hack-test', 'ActRaiser (USA) (Beta) (Hack)', {
+    dump_flags: 'beta,hack',
+    region: 'usa',
+  });
+  const flaggedApp = await runBrowserApp({
+    responses: [jsonResponse({ games: [flagged] }), jsonResponse(flagged)],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await gameCards(flaggedApp.document)[0].click();
+  await settleBrowser();
+  const flaggedFacts = detailFactsFrom(flaggedApp.document);
+  assert.ok(flaggedFacts.some(fact => fact.label === 'Flags' && fact.value === 'Beta, Hack'));
+  assert.ok(flaggedFacts.some(fact => fact.label === 'Status' && fact.value === 'Ready'));
+  assert.ok(flaggedFacts.some(fact => fact.label === 'Region' && fact.value === 'USA'));
 });
 
 test('multi-variant detail still labels #game-version with variantLabel', async () => {
@@ -6520,7 +6556,7 @@ test('multi-variant detail still labels #game-version with variantLabel', async 
   const facts = detailFactsFrom(document);
   assert.ok(facts.some(fact => fact.label === 'Region' && fact.value === 'USA'));
   assert.ok(facts.some(fact => fact.label === 'Revision' && fact.value === 'rev a'));
-  assert.ok(facts.some(fact => fact.label === 'Flags' && fact.value === 'beta'));
+  assert.ok(facts.some(fact => fact.label === 'Flags' && fact.value === 'Beta'));
 });
 
 test('cover hover includes region and list rows do not add a dump line', async () => {
@@ -6547,6 +6583,11 @@ test('cover hover includes region and list rows do not add a dump line', async (
   const coverMeta = cover.children.find(child => child.className === 'game-meta');
   assert.match(coverMeta.textContent, /usa/i);
   assert.equal(coverMeta.textContent, 'SNES · USA · 1991 · Ready');
+  assert.doesNotMatch(coverMeta.textContent, /Beta|Hack|Action/);
+  assert.equal(cardMark(cover, 'beta').textContent, 'Beta');
+  assert.equal(cardMark(cover, 'favorite').textContent, 'Favorite');
+  assert.equal(cover.getAttribute('data-unavailable'), null);
+  assert.equal(cover.getAttribute('data-state'), 'available');
   assert.equal(cover.children.filter(child => String(child.className).includes('game-meta')).length, 2);
   document.nodes.get('layout-list').click();
   await settleBrowser();
@@ -6555,12 +6596,15 @@ test('cover hover includes region and list rows do not add a dump line', async (
   assert.equal(body.children.length, 4);
   assert.equal(body.children[0].textContent, 'ActRaiser');
   assert.equal(body.children[1].className, 'game-meta');
-  assert.equal(body.children[1].textContent, 'SNES · 1991 · Action · Ready');
+  assert.equal(body.children[1].textContent, 'SNES · 1991 · Action · Beta · Ready');
+  assert.doesNotMatch(body.children[1].textContent, /USA/);
   assert.equal(body.children[2].className, 'game-row-favorite');
   assert.equal(body.children[2].textContent, 'Favorite');
   assert.equal(body.children[3].className, 'game-meta game-meta-variant');
   assert.equal(body.children[3].textContent, '3 versions');
   assert.equal(body.children.filter(child => String(child.className).includes('game-meta')).length, 2);
+  assert.equal(row.children.some(child => String(child.className).includes('card-marks')), false);
+  assert.equal(cardMark(row), null);
 });
 
 test('Cover and Home show non-hover favorite offline and playing marks', async () => {
@@ -6576,7 +6620,13 @@ test('Cover and Home show non-hover favorite offline and playing marks', async (
   assert.match(app, /\[coverStatusLabel\(game\), 'Status'\]/);
   assert.match(app, /coverHoverMeta\(game, view\)/);
   assert.match(app, /\(game && game\.year\) \|\| catalogYear\(view\)/);
+  assert.match(app, /dumpFlagLabels\(game\)/);
+  assert.match(app, /function dumpFlagLabels\(game\)/);
+  assert.match(app, /dumpLabels\.forEach/);
   assert.doesNotMatch(app, /bits\.push\(sourceLabel\(game\.state\)\)/);
+  assert.doesNotMatch(css, /\[data-dump/);
+  assert.doesNotMatch(css, /card-mark-dump[^{]*\{[^}]*filter:/);
+  assert.match(css, /\.card-mark-dump\s*\{/);
   assert.match(app, /rows \* Math\.round\(metrics\.cardWidth \* 1\.5 \+ metrics\.gap\)/);
 
   const favorite = availableGame('snes-mario-test', 'Mario', { favorite: true });
@@ -6600,8 +6650,28 @@ test('Cover and Home show non-hover favorite offline and playing marks', async (
     favorite: true,
     variant_count: 2,
   });
+  const beta = availableGame('snes-actraiser-beta', 'ActRaiser (USA) (Beta)', {
+    canonical_title: 'ActRaiser',
+    dump_flags: 'beta',
+    region: 'usa',
+    year: '1991',
+  });
+  const favoriteBeta = availableGame('snes-mario-beta', 'Mario (USA) (Beta)', {
+    canonical_title: 'Mario',
+    dump_flags: 'beta',
+    favorite: true,
+  });
+  const grouped = availableGame('megadrive-sonic-usa', 'Sonic the Hedgehog (USA) (Beta) (Hack)', {
+    system: 'megadrive',
+    dump_flags: 'beta,hack',
+    group_key: 'megadrive\u001fsonic',
+    variant_count: 2,
+    region: 'usa',
+    year: '1991',
+  });
+  assert.equal(Object.prototype.hasOwnProperty.call(grouped, 'variants'), false);
   const { document } = await runBrowserApp({
-    responses: [jsonResponse({ games: [favorite, ready, missing, offlineRoot, offlineMega, unreadable] })],
+    responses: [jsonResponse({ games: [favorite, ready, missing, offlineRoot, offlineMega, unreadable, beta, favoriteBeta, grouped] })],
     sessionResponses: [jsonResponse(sessionFixture({
       state: 'active',
       game_id: ready.id,
@@ -6630,6 +6700,22 @@ test('Cover and Home show non-hover favorite offline and playing marks', async (
   assert.equal(byID[offlineMega.id].children.find(child => child.className === 'game-meta').textContent, 'Mega Drive · USA · 1992 · Offline');
   assert.equal(byID[unreadable.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · Unreadable');
   assert.equal(cardMark(byID[offlineMega.id], 'offline').textContent, 'Offline');
+  assert.equal(cardMark(byID[favorite.id], 'beta'), null);
+  assert.equal(cardMark(byID[ready.id], 'beta'), null);
+  assert.equal(cardMark(byID[ready.id], 'hack'), null);
+  assert.equal(cardMark(byID[beta.id], 'beta').textContent, 'Beta');
+  assert.equal(cardMark(byID[beta.id], 'hack'), null);
+  assert.equal(cardMark(byID[beta.id], 'favorite'), null);
+  assert.equal(byID[beta.id].getAttribute('data-unavailable'), null);
+  assert.equal(byID[beta.id].getAttribute('data-state'), 'available');
+  assert.equal(byID[beta.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
+  assert.doesNotMatch(byID[beta.id].children.find(child => child.className === 'game-meta').textContent, /Beta|Hack/);
+  assert.equal(cardMark(byID[favoriteBeta.id], 'beta').textContent, 'Beta');
+  assert.equal(cardMark(byID[favoriteBeta.id], 'favorite').textContent, 'Favorite');
+  assert.equal(cardMark(byID[grouped.id], 'beta').textContent, 'Beta');
+  assert.equal(cardMark(byID[grouped.id], 'hack').textContent, 'Hack');
+  assert.equal(byID[grouped.id].children.find(child => child.className === 'game-meta').textContent, 'Mega Drive · USA · 1991 · Ready');
+  assert.doesNotMatch(byID[grouped.id].children.find(child => child.className === 'game-meta').textContent, /Beta|Hack/);
 
   document.nodes.get('layout-list').click();
   await settleBrowser();
@@ -6666,6 +6752,20 @@ test('Cover and Home show non-hover favorite offline and playing marks', async (
   assert.equal(unreadableBody.children[3].className, 'game-meta game-meta-variant');
   assert.equal(unreadableBody.children[3].textContent, '2 versions');
   assert.equal(unreadableBody.children.length, 4);
+
+  const retailBody = listByID[favorite.id].children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(retailBody.children[1].textContent, 'SNES · Ready');
+  assert.doesNotMatch(retailBody.children[1].textContent, /Beta|Hack|Unl|Proto/);
+  const betaBody = listByID[beta.id].children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(betaBody.children[1].textContent, 'SNES · 1991 · Beta · Ready');
+  assert.equal(betaBody.children.length, 2);
+  assert.equal(listByID[beta.id].children.some(child => String(child.className).includes('card-marks')), false);
+  const groupedBody = listByID[grouped.id].children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(groupedBody.children[1].textContent, 'Mega Drive · 1991 · Beta · Hack · Ready');
+  assert.equal(groupedBody.children[2].className, 'game-meta game-meta-variant');
+  assert.equal(groupedBody.children[2].textContent, '2 versions');
+  assert.equal(groupedBody.children.length, 3);
+  assert.equal(listByID[grouped.id].children.some(child => String(child.className).includes('card-marks')), false);
 });
 
 test('Home rails reuse the same cover marks without hover', async () => {
@@ -6675,9 +6775,16 @@ test('Home rails reuse the same cover marks without hover', async () => {
     root_online: false,
   });
   const playing = availableGame('snes-zelda-test', 'Zelda', { favorite: false });
+  const beta = availableGame('snes-actraiser-beta', 'ActRaiser (USA) (Beta)', {
+    canonical_title: 'ActRaiser',
+    dump_flags: 'beta',
+    favorite: true,
+    region: 'usa',
+    year: '1991',
+  });
   const { document } = await runBrowserApp({
     keepHome: true,
-    responses: [jsonResponse({ games: [favorite, offline, playing] })],
+    responses: [jsonResponse({ games: [favorite, offline, playing, beta] })],
     sessionResponses: [jsonResponse(sessionFixture({
       state: 'active',
       game_id: playing.id,
@@ -6685,7 +6792,7 @@ test('Home rails reuse the same cover marks without hover', async () => {
     }))],
     homeRails: {
       continue: jsonResponse({ games: [playing] }),
-      favorites: jsonResponse({ games: [favorite] }),
+      favorites: jsonResponse({ games: [beta] }),
       recents: jsonResponse({ games: [offline] }),
     },
   });
@@ -6696,10 +6803,16 @@ test('Home rails reuse the same cover marks without hover', async () => {
     rail.querySelectorAll('.game-card')[0],
   ]));
   assert.equal(cardMark(byRail.favorites, 'favorite').textContent, 'Favorite');
+  assert.equal(cardMark(byRail.favorites, 'beta').textContent, 'Beta');
+  assert.equal(byRail.favorites.getAttribute('data-unavailable'), null);
+  assert.equal(byRail.favorites.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
+  assert.doesNotMatch(byRail.favorites.children.find(child => child.className === 'game-meta').textContent, /Beta/);
   assert.equal(cardMark(byRail.recents, 'offline').textContent, 'Offline');
   assert.equal(cardMark(byRail.continue, 'playing').textContent, 'Playing');
   assert.equal(cardMark(byRail.continue, 'favorite'), null);
   assert.equal(cardMark(byRail.favorites, 'offline'), null);
+  assert.equal(cardMark(byRail.continue, 'beta'), null);
+  assert.equal(cardMark(byRail.recents, 'beta'), null);
 });
 
 test('toggleFavorite flips the Cover mark without a catalog reload', async () => {

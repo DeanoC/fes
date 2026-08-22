@@ -481,11 +481,54 @@
     return displayTitle(game.title);
   }
 
+  const DUMP_PRERELEASE_FLAGS = Object.freeze(['beta', 'proto', 'sample', 'demo']);
+  const DUMP_HACK_FLAGS = Object.freeze(['hack', 'unl']);
+  const DUMP_FLAG_LABELS = Object.freeze({
+    beta: 'Beta',
+    proto: 'Proto',
+    sample: 'Sample',
+    demo: 'Demo',
+    hack: 'Hack',
+    unl: 'Unl',
+  });
+
+  function dumpFlagTokens(game) {
+    return String((game && game.dump_flags) || '')
+      .split(',')
+      .map(token => token.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  function selectedDumpFlagTokens(game) {
+    const tokens = new Set(dumpFlagTokens(game));
+    const selected = [];
+    const prerelease = DUMP_PRERELEASE_FLAGS.find(flag => tokens.has(flag));
+    if (prerelease) selected.push(prerelease);
+    const hack = DUMP_HACK_FLAGS.find(flag => tokens.has(flag));
+    if (hack) selected.push(hack);
+    return selected;
+  }
+
+  function dumpFlagLabels(game) {
+    return selectedDumpFlagTokens(game).map(token => DUMP_FLAG_LABELS[token]);
+  }
+
   function dumpIdentityFacts(game) {
     const facts = [];
     if (game && game.region) facts.push({ label: 'Region', value: regionLabel(game.region) });
     if (game && game.revision) facts.push({ label: 'Revision', value: `rev ${game.revision}` });
-    if (game && game.dump_flags) facts.push({ label: 'Flags', value: game.dump_flags.replace(/,/g, ', ') });
+    if (game && game.dump_flags) {
+      const known = new Set(Object.keys(DUMP_FLAG_LABELS));
+      const extras = [];
+      const seen = new Set();
+      for (const token of dumpFlagTokens(game)) {
+        if (known.has(token) || seen.has(token)) continue;
+        seen.add(token);
+        extras.push(token);
+      }
+      const value = [...dumpFlagLabels(game), ...extras].join(', ');
+      if (value) facts.push({ label: 'Flags', value });
+    }
     return facts;
   }
 
@@ -2579,6 +2622,7 @@
     cardTitle,
     variantLabel,
     dumpIdentityFacts,
+    dumpFlagLabels,
     coverHoverMeta,
     coverStatusLabel,
     cardSourceOffline,
@@ -3724,15 +3768,19 @@
     const offline = cardSourceOffline(game);
     const unreadable = cardSourceUnreadable(game);
     const playing = cardSessionPlaying(game);
+    const dumpLabels = dumpFlagLabels(game);
     if (favorite) card.setAttribute('data-favorite', 'true');
     if (offline) card.setAttribute('data-unavailable', 'true');
     if (unreadable) card.setAttribute('data-invalid', 'true');
     if (playing) card.setAttribute('data-playing', 'true');
-    if (!favorite && !offline && !unreadable && !playing) return;
+    if (!favorite && !offline && !unreadable && !playing && !dumpLabels.length) return;
     const marks = element('span', 'card-marks');
     if (offline) marks.appendChild(element('span', 'card-mark card-mark-offline', 'Offline'));
     if (unreadable) marks.appendChild(element('span', 'card-mark card-mark-invalid', 'Unreadable'));
     if (playing) marks.appendChild(element('span', 'card-mark card-mark-playing', 'Playing'));
+    dumpLabels.forEach(label => {
+      marks.appendChild(element('span', `card-mark card-mark-dump card-mark-${label.toLowerCase()}`, label));
+    });
     if (favorite) marks.appendChild(element('span', 'card-mark card-mark-favorite', 'Favorite'));
     card.appendChild(marks);
   }
@@ -3760,6 +3808,7 @@
       const bits = [systemLabel(game.system)];
       if (game.year) bits.push(game.year);
       if (game.genre) bits.push(game.genre);
+      dumpFlagLabels(game).forEach(label => bits.push(label));
       bits.push(coverStatusLabel(game));
       body.appendChild(element('p', 'game-meta', bits.join(' · ')));
       if (game.favorite === true) body.appendChild(element('p', 'game-row-favorite', 'Favorite'));
