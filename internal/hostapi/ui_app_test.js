@@ -23,6 +23,7 @@ const {
   catalogRegion,
   catalogGenre,
   catalogStudio,
+  catalogPlayers,
   filterCatalogViews,
   sortCatalogViews,
   formatCatalogCount,
@@ -3024,6 +3025,10 @@ function readyStudioAdapter(studio = 'SEGA', extras = {}) {
       };
     },
   };
+}
+
+function readyPlayersAdapter(studio = 'SEGA', players = '1–2 players', extras = {}) {
+  return readyStudioAdapter(studio, { players, ...extras });
 }
 
 async function pressKey(document, key, target = document.activeElement, extras) {
@@ -7444,11 +7449,11 @@ test('Cover shows hover studio in the fallback-note slot and never both', async 
   const byID = Object.fromEntries(gameCards(document).map(card => [card.attributes.get('data-game-id'), card]));
   const cover = byID[ready.id];
   const fallbackCard = byID[fallback.id];
-  assert.equal(cardStudio(cover).textContent, 'SEGA');
+  assert.equal(cardStudio(cover).textContent, 'SEGA · 1 player');
   assert.equal(cardStudio(cover).className, 'game-studio');
   assert.equal(cover.children.filter(child => child.className === 'fallback-note').length, 0);
   assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
-  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /SEGA|Action|Beta|Weekend Queue/);
+  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /SEGA|Action|Beta|Weekend Queue|1 player/);
   assert.equal(cardMark(cover, 'favorite').textContent, 'Favorite');
   assert.equal(cardMark(cover, 'beta').textContent, 'Beta');
   assert.equal(cardCollectionChip(cover).textContent, 'Weekend Queue');
@@ -7459,7 +7464,7 @@ test('Cover shows hover studio in the fallback-note slot and never both', async 
   await cover.click();
   await settleBrowser();
   assert.ok(gameCards(document)[0].className.includes('selected'));
-  assert.equal(cardStudio(gameCards(document)[0]).textContent, 'SEGA');
+  assert.equal(cardStudio(gameCards(document)[0]).textContent, 'SEGA · 1 player');
   assert.equal(calls.some(call => String(call.path).includes('/api/v1/presentation/')), false);
 });
 
@@ -7486,10 +7491,10 @@ test('Home rails reuse Cover studio in the top slot', async () => {
   await settleBrowser();
   const rail = homeRails(document).find(item => item.attributes.get('data-home-rail') === 'continue');
   const card = rail.querySelectorAll('.game-card')[0];
-  assert.equal(cardStudio(card).textContent, 'SEGA');
+  assert.equal(cardStudio(card).textContent, 'SEGA · 1 player');
   assert.equal(card.children.filter(child => child.className === 'fallback-note').length, 0);
   assert.equal(card.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
-  assert.doesNotMatch(card.children.find(child => child.className === 'game-meta').textContent, /SEGA|Action|Weekend Queue/);
+  assert.doesNotMatch(card.children.find(child => child.className === 'game-meta').textContent, /SEGA|Action|Weekend Queue|1 player/);
   assert.equal(cardCollectionChip(card).textContent, 'Weekend Queue');
 });
 
@@ -7518,7 +7523,7 @@ test('List puts catalogStudio on game-meta after genre before flags', async () =
   const row = byID[queued.id];
   const body = row.children.find(child => String(child.className).includes('game-row-body'));
   assert.equal(body.children[1].className, 'game-meta');
-  assert.equal(body.children[1].textContent, 'SNES · 1991 · Action · SEGA · Beta · Weekend Queue · +1 · Ready');
+  assert.equal(body.children[1].textContent, 'SNES · 1991 · Action · SEGA · 1 player · Beta · Weekend Queue · +1 · Ready');
   assert.doesNotMatch(body.children[1].textContent, /USA/);
   assert.equal(body.children[2].className, 'game-row-favorite');
   assert.equal(body.children[3].className, 'game-meta game-meta-variant');
@@ -7528,7 +7533,7 @@ test('List puts catalogStudio on game-meta after genre before flags', async () =
   assert.equal(row.children.some(child => String(child.className).includes('card-marks')), false);
   assert.equal(cardCollectionChip(row), null);
   const plainBody = byID[plain.id].children.find(child => String(child.className).includes('game-row-body'));
-  assert.equal(plainBody.children[1].textContent, 'SNES · 1992 · SEGA · Ready');
+  assert.equal(plainBody.children[1].textContent, 'SNES · 1992 · SEGA · 1 player · Ready');
   assert.equal(plainBody.children.length, 2);
 });
 
@@ -7601,13 +7606,13 @@ test('grouped wall cards use the representative view presentation studio only', 
   });
   await settleBrowser();
   const cover = gameCards(document)[0];
-  assert.equal(cardStudio(cover).textContent, 'SEGA');
+  assert.equal(cardStudio(cover).textContent, 'SEGA · 1 player');
   assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, 'Mega Drive · USA · 1991 · Ready');
   document.nodes.get('layout-list').click();
   await settleBrowser();
   const row = gameCards(document)[0];
   const body = row.children.find(child => String(child.className).includes('game-row-body'));
-  assert.equal(body.children[1].textContent, 'Mega Drive · 1991 · Platform · SEGA · Ready');
+  assert.equal(body.children[1].textContent, 'Mega Drive · 1991 · Platform · SEGA · 1 player · Ready');
   assert.equal(body.children[2].className, 'game-meta game-meta-variant');
   assert.equal(body.children.length, 3);
   assert.equal(cardStudio(row), null);
@@ -7654,17 +7659,17 @@ test('prefetch applyCatalogPresentation emit shows studio without a catalog relo
     'prefetch did not apply studio to the Cover card',
   );
   const cover = gameCards(document)[0];
-  assert.equal(cardStudio(cover).textContent, 'SEGA');
+  assert.equal(cardStudio(cover).textContent, 'SEGA · 1 player');
   assert.equal(cover.children.filter(child => child.className === 'fallback-note').length, 0);
   assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
-  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /SEGA/);
+  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /SEGA|1 player/);
   assert.equal(catalogListGets(calls), beforeStudio);
   assert.equal(calls.filter(call => String(call.path).includes('/api/v1/presentation/games/')).length, 1);
   document.nodes.get('layout-list').click();
   await settleBrowser();
   const row = gameCards(document)[0];
   const body = row.children.find(child => String(child.className).includes('game-row-body'));
-  assert.equal(body.children[1].textContent, 'SNES · 1991 · Action · SEGA · Beta · Weekend Queue · Ready');
+  assert.equal(body.children[1].textContent, 'SNES · 1991 · Action · SEGA · 1 player · Beta · Weekend Queue · Ready');
   assert.equal(catalogListGets(calls), beforeStudio);
 });
 
@@ -7708,14 +7713,14 @@ test('Cover and Home keep studio below card-marks', async () => {
   });
   await settleBrowser();
   const cover = gameCards(coverApp.document)[0];
-  assert.equal(cardStudio(cover).textContent, 'SEGA');
+  assert.equal(cardStudio(cover).textContent, 'SEGA · 1 player');
   assert.equal(cardStudio(cover).className, 'game-studio');
   assert.ok(cover.children.some(child => String(child.className).includes('card-marks')));
   assert.equal(cardMark(cover, 'favorite').textContent, 'Favorite');
   assert.equal(cardMark(cover, 'beta').textContent, 'Beta');
   assert.equal(cardCollectionChip(cover).textContent, 'Weekend Queue');
   assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
-  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /SEGA|Action|Beta|Weekend Queue/);
+  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /SEGA|Action|Beta|Weekend Queue|1 player/);
   assert.equal(cover.children.some(child => /card-mark-studio/.test(String(child.className))), false);
   assert.equal(parseFloat(cover.style['--card-marks-clearance']), cover.children.find(child => child.className === 'card-marks').offsetHeight);
 
@@ -7735,13 +7740,13 @@ test('Cover and Home keep studio below card-marks', async () => {
   const rail = homeRails(homeApp.document).find(item => item.attributes.get('data-home-rail') === 'continue');
   const homeCard = rail.querySelectorAll('.game-card')[0];
   assert.equal(homeCard.offsetWidth, 148);
-  assert.equal(cardStudio(homeCard).textContent, 'SEGA');
+  assert.equal(cardStudio(homeCard).textContent, 'SEGA · 1 player');
   assert.ok(homeCard.children.some(child => String(child.className).includes('card-marks')));
   assert.equal(cardMark(homeCard, 'favorite').textContent, 'Favorite');
   assert.equal(cardMark(homeCard, 'beta').textContent, 'Beta');
   assert.equal(cardCollectionChip(homeCard).textContent, 'Weekend Queue');
   assert.equal(homeCard.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
-  assert.doesNotMatch(homeCard.children.find(child => child.className === 'game-meta').textContent, /SEGA/);
+  assert.doesNotMatch(homeCard.children.find(child => child.className === 'game-meta').textContent, /SEGA|1 player/);
   const homeMarks = homeCard.children.find(child => child.className === 'card-marks');
   const homeClearance = parseFloat(homeCard.style['--card-marks-clearance']);
   const oneRow = 22;
@@ -7784,7 +7789,7 @@ test('Cover recomputes marks clearance after the card shrinks', async () => {
   const marks = cover.children.find(child => child.className === 'card-marks');
   const oneRow = 22;
   cover.offsetWidth = 320;
-  assert.equal(cardStudio(cover).textContent, 'SEGA');
+  assert.equal(cardStudio(cover).textContent, 'SEGA · 1 player');
   assert.equal(marks.offsetHeight, oneRow);
   assert.equal(parseFloat(cover.style['--card-marks-clearance']), oneRow);
   const observer = observers.find(item => item.targets.includes(cover));
@@ -7797,4 +7802,405 @@ test('Cover recomputes marks clearance after the card shrinks', async () => {
   document.nodes.get('layout-list').click();
   await settleBrowser();
   assert.equal(observer.disconnected, true);
+});
+
+test('catalogPlayers omits empty fallback em-dash Unknown and Unknown players', () => {
+  assert.equal(catalogPlayers(), '');
+  assert.equal(catalogPlayers({}), '');
+  assert.equal(catalogPlayers({ live: { players: '4 players' } }), '');
+  assert.equal(catalogPlayers({ presentation: { isFallback: false, players: '' } }), '');
+  assert.equal(catalogPlayers({ presentation: { isFallback: false, players: '   ' } }), '');
+  assert.equal(catalogPlayers({ presentation: { isFallback: false, players: '—' } }), '');
+  assert.equal(catalogPlayers({ presentation: { isFallback: false, players: 'Unknown' } }), '');
+  assert.equal(catalogPlayers({ presentation: { isFallback: false, players: 'Unknown players' } }), '');
+  assert.equal(catalogPlayers({
+    live: { players: '4 players' },
+    presentation: { isFallback: true, players: '1–2 players' },
+  }), '');
+  assert.equal(catalogPlayers({
+    live: { players: '4 players' },
+    presentation: { isFallback: false, players: '  1–2 players  ' },
+  }), '1–2 players');
+  assert.equal(catalogPlayers({
+    presentation: { isFallback: false, players: '1–2 players' },
+  }), '1–2 players');
+  assert.equal(catalogPlayers({ presentation: { isFallback: false, players: '1' } }), '1 player');
+  assert.equal(catalogPlayers({ presentation: { isFallback: false, players: '  2  ' } }), '2 players');
+  assert.equal(catalogPlayers({ presentation: { isFallback: false, players: '1-2' } }), '1–2 players');
+  assert.equal(catalogPlayers({ presentation: { isFallback: false, players: '1–2' } }), '1–2 players');
+  assert.equal(catalogPlayers({ presentation: { isFallback: false, players: '1 player' } }), '1 player');
+  assert.equal(catalogPlayers({ presentation: { isFallback: false, players: '1-2 players' } }), '1-2 players');
+  assert.equal(catalogPlayers({ presentation: { isFallback: false, players: 'up to 4' } }), 'up to 4');
+});
+
+test('Cover shows studio and players in one game-studio slot and never both with fallback-note', async () => {
+  const css = readAsset('ui.css');
+  const app = readAsset('ui_app.js');
+  assert.match(app, /function catalogPlayers\(view\)/);
+  assert.match(app, /\[catalogStudio\(view\), catalogPlayers\(view\)\]\.filter\(Boolean\)\.join\(' · '\)/);
+  assert.match(app, /\[catalogPlayers\(gameView\), 'Players'\]/);
+  assert.doesNotMatch(app, /\[presentation\.players, 'Players'\]/);
+  assert.doesNotMatch(app, /game\.players/);
+  assert.match(css, /\.game-card \.fallback-note, \.game-card \.game-studio \{[^}]*top:\s*10px/);
+  assert.match(css, /\.game-card:not\(\.game-row\):has\(\.card-marks\) \.game-studio\s*\{[^}]*top:\s*calc\(8px \+ var\(--card-marks-clearance, calc\(var\(--card-marks-row\) \* 2\)\) \+ 8px\)/);
+  assert.match(css, /\.game-card \.game-studio\s*\{[^}]*white-space:\s*nowrap/);
+  assert.match(css, /\.game-card \.game-studio\s*\{[^}]*text-overflow:\s*ellipsis/);
+  assert.match(css, /\.game-card:hover \.game-studio/);
+  assert.match(css, /\.game-card\.selected \.game-studio/);
+  assert.match(css, /\.game-card:focus-visible \.game-studio/);
+  assert.match(css, /\.card-mark-favorite\s*\{[^}]*margin-left:\s*auto/);
+  assert.match(css, /--list-row-height:\s*72px/);
+  assert.match(css, /--list-row-stride:\s*78px/);
+  assert.match(app, /rows \* Math\.round\(metrics\.cardWidth \* 1\.5 \+ metrics\.gap\)/);
+  assert.doesNotMatch(css, /\.card-mark-players/);
+  assert.doesNotMatch(css, /\.game-studio[^{]*\{[^}]*filter:/);
+
+  const ready = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    year: '1991',
+    genre: 'Action',
+    dump_flags: 'beta',
+    region: 'usa',
+    favorite: true,
+    collections: ['weekend-queue'],
+  });
+  const playersOnly = availableGame('snes-players-only-test', 'Players Only', {
+    year: '1993',
+    genre: 'Action',
+    region: 'usa',
+  });
+  const fallback = availableGame('snes-fallback-test', 'Fallback Game', {
+    year: '1992',
+    region: 'usa',
+  });
+  const { document, calls } = await runBrowserApp({
+    adapter: {
+      metadataFor(game) {
+        if (game && game.id === fallback.id) {
+          return {
+            summary: 'Fallback summary',
+            year: '—',
+            genre: 'Action',
+            studio: 'SEGA',
+            players: '1–2 players',
+            isFallback: true,
+            metadataState: 'fallback_offline',
+            cover: { palette: 'lagoon', treatment: 'rings' },
+            backdrop: { palette: 'sunset', treatment: 'waves' },
+          };
+        }
+        if (game && game.id === playersOnly.id) {
+          return readyPlayersAdapter('', '1–2 players').metadataFor(game);
+        }
+        return readyPlayersAdapter().metadataFor(game);
+      },
+    },
+    responses: [jsonResponse({ games: [ready, playersOnly, fallback] }), jsonResponse(ready)],
+    collections: [WEEKEND_QUEUE],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  const byID = Object.fromEntries(gameCards(document).map(card => [card.attributes.get('data-game-id'), card]));
+  const cover = byID[ready.id];
+  const playersCard = byID[playersOnly.id];
+  const fallbackCard = byID[fallback.id];
+  assert.equal(cardStudio(cover).textContent, 'SEGA · 1–2 players');
+  assert.equal(cardStudio(cover).className, 'game-studio');
+  assert.equal(cover.children.filter(child => child.className === 'game-studio').length, 1);
+  assert.equal(cover.children.filter(child => child.className === 'fallback-note').length, 0);
+  assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
+  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /SEGA|1–2 players|Action|Beta|Weekend Queue/);
+  assert.equal(cardMark(cover, 'favorite').textContent, 'Favorite');
+  assert.equal(cardMark(cover, 'beta').textContent, 'Beta');
+  assert.equal(cardCollectionChip(cover).textContent, 'Weekend Queue');
+  assert.equal(cover.children.some(child => /card-mark-players/.test(String(child.className))), false);
+  assert.equal(cardStudio(playersCard).textContent, '1–2 players');
+  assert.equal(cardStudio(playersCard).className, 'game-studio');
+  assert.equal(playersCard.children.filter(child => child.className === 'fallback-note').length, 0);
+  assert.equal(cardStudio(fallbackCard), null);
+  assert.equal(fallbackCard.children.filter(child => child.className === 'fallback-note').length, 1);
+  assert.equal(fallbackCard.children.find(child => child.className === 'fallback-note').textContent, 'Using local catalog data');
+  await cover.click();
+  await settleBrowser();
+  assert.ok(gameCards(document)[0].className.includes('selected'));
+  assert.equal(cardStudio(gameCards(document)[0]).textContent, 'SEGA · 1–2 players');
+  assert.equal(calls.some(call => String(call.path).includes('/api/v1/presentation/')), false);
+});
+
+test('Home rails reuse Cover studio-players subtitle in the top slot', async () => {
+  const queued = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    year: '1991',
+    genre: 'Action',
+    region: 'usa',
+    collections: ['weekend-queue'],
+  });
+  const { document } = await runBrowserApp({
+    keepHome: true,
+    adapter: readyPlayersAdapter(),
+    responses: [jsonResponse({ games: [queued] })],
+    collections: [WEEKEND_QUEUE],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+    homeRails: {
+      continue: jsonResponse({ games: [queued] }),
+      favorites: jsonResponse({ games: [] }),
+      recents: jsonResponse({ games: [] }),
+    },
+  });
+  await settleBrowser();
+  const rail = homeRails(document).find(item => item.attributes.get('data-home-rail') === 'continue');
+  const card = rail.querySelectorAll('.game-card')[0];
+  assert.equal(cardStudio(card).textContent, 'SEGA · 1–2 players');
+  assert.equal(card.children.filter(child => child.className === 'fallback-note').length, 0);
+  assert.equal(card.children.filter(child => child.className === 'game-studio').length, 1);
+  assert.equal(card.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
+  assert.doesNotMatch(card.children.find(child => child.className === 'game-meta').textContent, /SEGA|1–2 players|Action|Weekend Queue/);
+  assert.equal(cardCollectionChip(card).textContent, 'Weekend Queue');
+});
+
+test('List puts catalogPlayers on game-meta after studio before flags', async () => {
+  const css = readAsset('ui.css');
+  assert.match(css, /--list-row-height:\s*72px/);
+  assert.match(css, /--list-row-stride:\s*78px/);
+  const queued = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    year: '1991',
+    genre: 'Action',
+    dump_flags: 'beta',
+    region: 'usa',
+    collections: ['weekend-queue', 'speedruns'],
+    favorite: true,
+    variant_count: 3,
+  });
+  const plain = availableGame('snes-zelda-test', 'Zelda', { year: '1992' });
+  const { document } = await runBrowserApp({
+    adapter: readyPlayersAdapter(),
+    responses: [jsonResponse({ games: [queued, plain] })],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  document.nodes.get('layout-list').click();
+  await settleBrowser();
+  const byID = Object.fromEntries(gameCards(document).map(card => [card.attributes.get('data-game-id'), card]));
+  const row = byID[queued.id];
+  const body = row.children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(body.children[1].className, 'game-meta');
+  assert.equal(body.children[1].textContent, 'SNES · 1991 · Action · SEGA · 1–2 players · Beta · Weekend Queue · +1 · Ready');
+  assert.doesNotMatch(body.children[1].textContent, /USA/);
+  assert.equal(body.children[2].className, 'game-row-favorite');
+  assert.equal(body.children[3].className, 'game-meta game-meta-variant');
+  assert.equal(body.children.length, 4);
+  assert.equal(body.children.filter(child => String(child.className).includes('game-meta')).length, 2);
+  assert.equal(cardStudio(row), null);
+  assert.equal(row.children.some(child => String(child.className).includes('card-marks')), false);
+  assert.equal(cardCollectionChip(row), null);
+  const plainBody = byID[plain.id].children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(plainBody.children[1].textContent, 'SNES · 1992 · SEGA · 1–2 players · Ready');
+  assert.equal(plainBody.children.length, 2);
+});
+
+test('detail Players uses catalogPlayers and fallback omits Unknown players', async () => {
+  const game = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    collections: ['weekend-queue', 'speedruns'],
+    region: 'usa',
+    year: '1991',
+    genre: 'Action',
+  });
+  const ready = await runBrowserApp({
+    adapter: readyPlayersAdapter(),
+    responses: [jsonResponse({ games: [game] }), jsonResponse(game)],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await gameCards(ready.document)[0].click();
+  await settleBrowser();
+  const facts = detailFactsFrom(ready.document);
+  assert.ok(facts.some(fact => fact.label === 'Players' && fact.value === '1–2 players'));
+  assert.ok(facts.some(fact => fact.label === 'Studio' && fact.value === 'SEGA'));
+  assert.ok(facts.some(fact => fact.label === 'Status' && fact.value === 'Ready'));
+  assert.equal(facts.some(fact => fact.label === 'Status' && /Playing/.test(fact.value)), false);
+  assert.ok(ready.document.getElementById('favorite-game'));
+  assert.equal(ready.document.getElementById('collection-member-weekend-queue').textContent, 'Remove from Weekend Queue');
+  assert.equal(ready.document.getElementById('collection-member-speedruns').textContent, 'Remove from Speedruns');
+
+  const fallback = await runBrowserApp({
+    adapter: {
+      metadataFor() {
+        return {
+          summary: 'Fallback summary',
+          year: '—',
+          genre: 'Action',
+          studio: 'FogCast demo',
+          players: 'Unknown players',
+          isFallback: true,
+          metadataState: 'fallback_offline',
+          cover: { palette: 'lagoon', treatment: 'rings' },
+          backdrop: { palette: 'sunset', treatment: 'waves' },
+        };
+      },
+    },
+    responses: [jsonResponse({ games: [game] }), jsonResponse(game)],
+    collections: [WEEKEND_QUEUE, SPEEDRUNS],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await gameCards(fallback.document)[0].click();
+  await settleBrowser();
+  const omitted = detailFactsFrom(fallback.document);
+  assert.equal(omitted.some(fact => fact.label === 'Players'), false);
+  assert.equal(omitted.some(fact => fact.label === 'Studio'), false);
+  assert.doesNotMatch(omitted.map(fact => fact.value).join(' '), /Unknown players|1–2 players|1 player|FogCast demo/);
+  assert.ok(fallback.document.getElementById('favorite-game'));
+});
+
+test('grouped wall cards use the representative view presentation players only', async () => {
+  const grouped = availableGame('megadrive-sonic-usa', 'Sonic the Hedgehog (USA)', {
+    system: 'megadrive',
+    group_key: 'megadrive\u001fsonic',
+    variant_count: 2,
+    region: 'usa',
+    year: '1991',
+    genre: 'Platform',
+  });
+  assert.equal(Object.prototype.hasOwnProperty.call(grouped, 'variants'), false);
+  const { document } = await runBrowserApp({
+    adapter: readyPlayersAdapter('SEGA', '1–2 players'),
+    responses: [jsonResponse({ games: [grouped] })],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  const cover = gameCards(document)[0];
+  assert.equal(cardStudio(cover).textContent, 'SEGA · 1–2 players');
+  assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, 'Mega Drive · USA · 1991 · Ready');
+  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /1–2 players|Platform/);
+  document.nodes.get('layout-list').click();
+  await settleBrowser();
+  const row = gameCards(document)[0];
+  const body = row.children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(body.children[1].textContent, 'Mega Drive · 1991 · Platform · SEGA · 1–2 players · Ready');
+  assert.equal(body.children[2].className, 'game-meta game-meta-variant');
+  assert.equal(body.children.length, 3);
+  assert.equal(cardStudio(row), null);
+  assert.equal(row.children.some(child => String(child.className).includes('card-marks')), false);
+});
+
+test('prefetch applyCatalogPresentation emit shows players without a catalog reload', async () => {
+  const game = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    year: '1991',
+    genre: 'Action',
+    dump_flags: 'beta',
+    region: 'usa',
+    collections: ['weekend-queue'],
+  });
+  const catalogListGets = listed => listed.filter(call => String(call.path).split('?')[0] === '/api/v1/games').length;
+  const { document, calls } = await runBrowserApp({
+    globals: {
+      FogCastPresentationEnabled: true,
+      FogCastPrefetchVisibleCovers: true,
+    },
+    responses: [jsonResponse({ games: [game] })],
+    presentations: {
+      [game.id]: jsonResponse({
+        game_id: game.id,
+        state: 'ready',
+        presentation: {
+          summary: 'Visible cover',
+          year: '1991',
+          genre: 'Action',
+          studio: 'SEGA',
+          players: '1–2 players',
+        },
+        attribution: { provider: 'launchbox', label: 'Data from LaunchBox Games Database' },
+      }),
+    },
+    collections: [WEEKEND_QUEUE],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  const beforePlayers = catalogListGets(calls);
+  await waitForCondition(
+    () => {
+      const card = gameCards(document)[0];
+      return cardStudio(card) && cardStudio(card).textContent === 'SEGA · 1–2 players';
+    },
+    'prefetch did not apply players to the Cover card',
+  );
+  const cover = gameCards(document)[0];
+  assert.equal(cardStudio(cover).textContent, 'SEGA · 1–2 players');
+  assert.equal(cover.children.filter(child => child.className === 'fallback-note').length, 0);
+  assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
+  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /SEGA|1–2 players/);
+  assert.equal(catalogListGets(calls), beforePlayers);
+  assert.equal(calls.filter(call => String(call.path).includes('/api/v1/presentation/games/')).length, 1);
+  document.nodes.get('layout-list').click();
+  await settleBrowser();
+  const row = gameCards(document)[0];
+  const body = row.children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(body.children[1].textContent, 'SNES · 1991 · Action · SEGA · 1–2 players · Beta · Weekend Queue · Ready');
+  assert.equal(catalogListGets(calls), beforePlayers);
+});
+
+test('Cover List and detail format numeric catalogPlayers', async () => {
+  const one = availableGame('snes-actraiser-test', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    year: '1991',
+    genre: 'Action',
+    dump_flags: 'beta',
+    region: 'usa',
+    collections: ['weekend-queue'],
+  });
+  const ranged = availableGame('snes-range-test', 'Range Game', {
+    year: '1992',
+    genre: 'Action',
+    region: 'japan',
+  });
+  const { document } = await runBrowserApp({
+    adapter: {
+      metadataFor(game) {
+        if (game && game.id === ranged.id) return readyPlayersAdapter('SEGA', '1-2').metadataFor(game);
+        return readyPlayersAdapter('SEGA', '1').metadataFor(game);
+      },
+    },
+    responses: [jsonResponse({ games: [one, ranged] }), jsonResponse(one)],
+    collections: [WEEKEND_QUEUE],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  const byID = Object.fromEntries(gameCards(document).map(card => [card.attributes.get('data-game-id'), card]));
+  const cover = byID[one.id];
+  assert.equal(cardStudio(cover).textContent, 'SEGA · 1 player');
+  assert.equal(cover.children.find(child => child.className === 'game-meta').textContent, 'SNES · USA · 1991 · Ready');
+  assert.doesNotMatch(cover.children.find(child => child.className === 'game-meta').textContent, /1 player|1–2 players|Action|Beta|Weekend Queue/);
+  assert.equal(cardStudio(byID[ranged.id]).textContent, 'SEGA · 1–2 players');
+  await cover.click();
+  await settleBrowser();
+  const facts = detailFactsFrom(document);
+  assert.ok(facts.some(fact => fact.label === 'Players' && fact.value === '1 player'));
+  assert.ok(facts.some(fact => fact.label === 'Studio' && fact.value === 'SEGA'));
+  document.nodes.get('layout-list').click();
+  await settleBrowser();
+  const listByID = Object.fromEntries(gameCards(document).map(card => [card.attributes.get('data-game-id'), card]));
+  const body = listByID[one.id].children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(body.children[1].textContent, 'SNES · 1991 · Action · SEGA · 1 player · Beta · Weekend Queue · Ready');
+  const rangeBody = listByID[ranged.id].children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(rangeBody.children[1].textContent, 'SNES · 1992 · Action · SEGA · 1–2 players · Ready');
+  assert.equal(cardStudio(listByID[one.id]), null);
+});
+
+test('WALL_WINDOW spacer math and marks clearance stay unchanged with players subtitle', () => {
+  const css = readAsset('ui.css');
+  const app = readAsset('ui_app.js');
+  assert.match(app, /const WALL_WINDOW = 80/);
+  assert.match(app, /rows \* Math\.round\(metrics\.cardWidth \* 1\.5 \+ metrics\.gap\)/);
+  assert.match(css, /\.card-mark-favorite\s*\{[^}]*margin-left:\s*auto/);
+  assert.match(css, /--list-row-height:\s*72px/);
+  assert.match(css, /--list-row-stride:\s*78px/);
+  assert.match(app, /--card-marks-clearance/);
+  assert.match(app, /marks\.offsetHeight/);
+  assert.match(app, /root\.ResizeObserver/);
+  assert.match(app, /disconnectCardMarksObservers/);
+  assert.doesNotMatch(css, /\.card-mark-players/);
+  assert.doesNotMatch(css, /\.game-studio[^{]*\{[^}]*filter:/);
 });

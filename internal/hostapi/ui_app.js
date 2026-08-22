@@ -585,6 +585,20 @@
     return studio;
   }
 
+  function catalogPlayers(view) {
+    const presentation = view && view.presentation;
+    if (!presentation || presentation.isFallback) return '';
+    const players = typeof presentation.players === 'string' ? presentation.players.trim() : '';
+    if (!players || players === '—' || players === 'Unknown' || players === 'Unknown players') return '';
+    if (/^\d+$/.test(players)) {
+      const count = Number(players);
+      return count === 1 ? '1 player' : `${count} players`;
+    }
+    const range = /^(\d+)[-–](\d+)$/.exec(players);
+    if (range) return `${range[1]}–${range[2]} players`;
+    return players;
+  }
+
   function filterCatalogViews(views) {
     return (views || []).slice();
   }
@@ -2636,6 +2650,7 @@
     catalogRegion,
     catalogGenre,
     catalogStudio,
+    catalogPlayers,
     filterCatalogViews,
     sortCatalogViews,
     formatCatalogCount,
@@ -3877,6 +3892,8 @@
       if (game.genre) bits.push(game.genre);
       const studio = catalogStudio(view);
       if (studio) bits.push(studio);
+      const players = catalogPlayers(view);
+      if (players) bits.push(players);
       dumpFlagLabels(game).forEach(label => bits.push(label));
       const labels = collectionLabels(game, state.collections);
       if (labels.length) bits.push(labels[0]);
@@ -3894,8 +3911,8 @@
       if (presentation.isFallback) {
         card.appendChild(element('p', 'fallback-note', 'Using local catalog data'));
       } else {
-        const studio = catalogStudio(view);
-        if (studio) card.appendChild(element('p', 'game-studio', studio));
+        const subtitle = [catalogStudio(view), catalogPlayers(view)].filter(Boolean).join(' · ');
+        if (subtitle) card.appendChild(element('p', 'game-studio', subtitle));
       }
       if (game.variant_count > 1) {
         card.appendChild(element('p', 'game-meta game-meta-variant', `${game.variant_count} versions`));
@@ -3994,7 +4011,7 @@
       [presentation.year !== '—' ? presentation.year : '', 'Year'],
       [presentation.genre, 'Genre'],
       [catalogStudio(gameView), 'Studio'],
-      [presentation.players, 'Players'],
+      [catalogPlayers(gameView), 'Players'],
     ];
     dumpIdentityFacts(game).forEach(fact => factRows.push([fact.value, fact.label]));
     const labels = collectionLabels(game, state.collections);
