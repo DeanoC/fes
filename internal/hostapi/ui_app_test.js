@@ -3378,7 +3378,7 @@ test('setLibraryNav home loads rails and never invents a /home API', async () =>
   assert.equal(calls.some(call => String(call.path).includes('/home')), false);
   assert.ok(calls.some(call => call.path === '/api/v1/games?collection=continue&grouped=1&limit=12'));
   assert.ok(calls.some(call => call.path === '/api/v1/games?collection=unplayed&grouped=1&limit=12'));
-  assert.ok(calls.some(call => call.path === '/api/v1/games?collection=recently_added&grouped=1&limit=12'));
+  assert.ok(calls.some(call => call.path === '/api/v1/games?collection=recently_added&sort=recently_added&grouped=1&limit=12'));
   await controller.setLibraryNav('', '');
   assert.equal(controller.getState().libraryView, 'grid');
   assert.equal(controller.getState().collection, '');
@@ -4192,7 +4192,7 @@ test('home launch confirmed active adds the title to Continue and Recent', async
     1,
   );
   assert.equal(
-    calls.filter(call => call.path === '/api/v1/games?collection=recently_added&grouped=1&limit=12').length,
+    calls.filter(call => call.path === '/api/v1/games?collection=recently_added&sort=recently_added&grouped=1&limit=12').length,
     1,
   );
 });
@@ -4313,7 +4313,7 @@ test('home launch confirmed active leaves Favorites and custom rails unreconcile
     1,
   );
   assert.equal(
-    calls.filter(call => call.path === '/api/v1/games?collection=recently_added&grouped=1&limit=12').length,
+    calls.filter(call => call.path === '/api/v1/games?collection=recently_added&sort=recently_added&grouped=1&limit=12').length,
     1,
   );
 });
@@ -4482,17 +4482,98 @@ test('recently added Home rail ignores year and system catalog sort', async () =
   await controller.openHome();
   const afterYear = calls.filter(call => String(call.path).includes('collection=recently_added')).at(-1);
   assert.ok(afterYear);
-  assert.equal(afterYear.path, '/api/v1/games?collection=recently_added&grouped=1&limit=12');
-  assert.equal(afterYear.path.includes('sort='), false);
+  assert.equal(afterYear.path, '/api/v1/games?collection=recently_added&sort=recently_added&grouped=1&limit=12');
+  assert.equal(afterYear.path.includes('sort=year'), false);
 
   await controller.setLibraryNav('', '');
   await controller.setCatalogSort('system');
   await controller.openHome();
   const afterSystem = calls.filter(call => String(call.path).includes('collection=recently_added')).at(-1);
   assert.ok(afterSystem);
-  assert.equal(afterSystem.path, '/api/v1/games?collection=recently_added&grouped=1&limit=12');
-  assert.equal(afterSystem.path.includes('sort='), false);
+  assert.equal(afterSystem.path, '/api/v1/games?collection=recently_added&sort=recently_added&grouped=1&limit=12');
   assert.equal(afterSystem.path.includes('sort=platform'), false);
+});
+
+test('Home rails and Recently added ignore Year/System while All-games keeps the preference', async () => {
+  const sonic = availableGame('megadrive-sonic-test', 'Sonic');
+  const recent = availableGame('snes-actraiser-test', 'ActRaiser');
+  const empty = jsonResponse({ games: [] });
+  const populated = jsonResponse({ games: [sonic] });
+  const added = jsonResponse({ games: [recent] });
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/platforms': [jsonResponse({ platforms: [] })],
+    '/api/v1/library/attract?limit=1': [jsonResponse({ items: [], idle_seconds: 60 })],
+    '/api/v1/library/facets': [jsonResponse({ genres: [], years: [] })],
+    '/api/v1/library/collections': [jsonResponse({ collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }] })],
+    '/api/v1/games': [populated, populated, populated, populated, populated],
+    '/api/v1/games?collection=continue': [empty, empty, empty],
+    '/api/v1/games?collection=favorites': [empty, empty],
+    '/api/v1/games?collection=recents': [empty, empty],
+    '/api/v1/games?collection=unplayed': [empty, empty],
+    '/api/v1/games?collection=recently_added': [added, added, added, added],
+    '/api/v1/games?collection=weekend-queue': [populated, populated],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.setLibraryNav('', '');
+  await controller.loadPlatforms();
+  await controller.setCatalogSort('year');
+  assert.equal(controller.getState().sort, 'year');
+  const allYear = calls.filter(call => !String(call.path).includes('collection=')).at(-1);
+  assert.ok(allYear);
+  assert.equal(allYear.path, '/api/v1/games?sort=year&grouped=1');
+
+  await controller.openHome();
+  const homeAfterYear = calls.filter(call => String(call.path).includes('collection=') && String(call.path).includes('limit=12'));
+  const homeAfterYearSlice = homeAfterYear.slice(-6);
+  assert.ok(homeAfterYearSlice.some(call => call.path === '/api/v1/games?collection=continue&grouped=1&limit=12'));
+  assert.ok(homeAfterYearSlice.some(call => call.path === '/api/v1/games?collection=favorites&grouped=1&limit=12'));
+  assert.ok(homeAfterYearSlice.some(call => call.path === '/api/v1/games?collection=recents&grouped=1&limit=12'));
+  assert.ok(homeAfterYearSlice.some(call => call.path === '/api/v1/games?collection=unplayed&grouped=1&limit=12'));
+  assert.ok(homeAfterYearSlice.some(call => call.path === '/api/v1/games?collection=recently_added&sort=recently_added&grouped=1&limit=12'));
+  assert.ok(homeAfterYearSlice.some(call => call.path === '/api/v1/games?collection=weekend-queue&grouped=1&limit=12'));
+  assert.equal(homeAfterYearSlice.every(call => !call.path.includes('sort=year') && !call.path.includes('sort=platform')), true);
+  assert.equal(controller.getState().sort, 'year');
+
+  await controller.setLibraryNav('recently_added', '');
+  const seeAll = calls.filter(call => String(call.path).includes('collection=recently_added') && !String(call.path).includes('limit=12')).at(-1);
+  assert.ok(seeAll);
+  assert.equal(seeAll.path, '/api/v1/games?collection=recently_added&sort=recently_added&grouped=1');
+  assert.equal(seeAll.path.includes('sort=year'), false);
+  assert.equal(controller.getState().sort, 'year');
+  assert.equal(controller.getState().collection, 'recently_added');
+  assert.equal(controller.getState().libraryView, 'grid');
+
+  await controller.setLibraryNav('continue', '');
+  const continueSeeAll = calls.filter(call => String(call.path).includes('collection=continue') && !String(call.path).includes('limit=12')).at(-1);
+  assert.ok(continueSeeAll);
+  assert.equal(continueSeeAll.path, '/api/v1/games?collection=continue&sort=year&grouped=1');
+  assert.equal(controller.getState().sort, 'year');
+
+  await controller.setLibraryNav('', '');
+  const allAgain = calls.filter(call => !String(call.path).includes('collection=')).at(-1);
+  assert.ok(allAgain);
+  assert.equal(allAgain.path, '/api/v1/games?sort=year&grouped=1');
+  assert.equal(controller.getState().sort, 'year');
+
+  await controller.setCatalogSort('system');
+  await controller.openHome();
+  const homeAfterSystem = calls.filter(call => String(call.path).includes('collection=') && String(call.path).includes('limit=12')).slice(-6);
+  assert.ok(homeAfterSystem.some(call => call.path === '/api/v1/games?collection=continue&grouped=1&limit=12'));
+  assert.ok(homeAfterSystem.some(call => call.path === '/api/v1/games?collection=recently_added&sort=recently_added&grouped=1&limit=12'));
+  assert.ok(homeAfterSystem.some(call => call.path === '/api/v1/games?collection=weekend-queue&grouped=1&limit=12'));
+  assert.equal(homeAfterSystem.every(call => !call.path.includes('sort=platform') && !call.path.includes('sort=year')), true);
+  assert.equal(controller.getState().sort, 'system');
+
+  await controller.setLibraryNav('recently_added', '');
+  const seeAllSystem = calls.filter(call => String(call.path).includes('collection=recently_added') && !String(call.path).includes('limit=12')).at(-1);
+  assert.equal(seeAllSystem.path, '/api/v1/games?collection=recently_added&sort=recently_added&grouped=1');
+  assert.equal(seeAllSystem.path.includes('sort=platform'), false);
+  assert.equal(controller.getState().sort, 'system');
+
+  await controller.setLibraryNav('', '');
+  const allSystem = calls.filter(call => !String(call.path).includes('collection=')).at(-1);
+  assert.equal(allSystem.path, '/api/v1/games?sort=platform&grouped=1');
+  assert.equal(controller.getState().sort, 'system');
 });
 
 test('home collection toggle refetches the affected custom rail', async () => {

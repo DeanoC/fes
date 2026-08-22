@@ -60,11 +60,11 @@
   const HOME_RAIL_LIMIT = 12;
   const HOME_CUSTOM_RAIL_CAP = 6;
   const HOME_SMART_RAILS = Object.freeze([
-    Object.freeze({ id: 'continue', name: 'Continue' }),
-    Object.freeze({ id: 'favorites', name: 'Favorites' }),
-    Object.freeze({ id: 'recents', name: 'Recent' }),
-    Object.freeze({ id: 'unplayed', name: 'Unplayed' }),
-    Object.freeze({ id: 'recently_added', name: 'Recently added', sort: 'title' }),
+    Object.freeze({ id: 'continue', name: 'Continue', sort: 'title' }),
+    Object.freeze({ id: 'favorites', name: 'Favorites', sort: 'title' }),
+    Object.freeze({ id: 'recents', name: 'Recent', sort: 'title' }),
+    Object.freeze({ id: 'unplayed', name: 'Unplayed', sort: 'title' }),
+    Object.freeze({ id: 'recently_added', name: 'Recently added', sort: 'recently_added' }),
   ]);
   const HOME_LAUNCH_RECONCILE_RAILS = Object.freeze(['unplayed', 'continue', 'recents']);
   const MAX_ATTRACT_IDLE_SECONDS = 2147483;
@@ -1454,6 +1454,13 @@
       });
     }
 
+    function catalogViewSort(collection, extraSort) {
+      if (extraSort !== undefined) return extraSort;
+      if (collection === 'recently_added') return 'recently_added';
+      if (state.libraryView === 'home') return 'title';
+      return state.sort;
+    }
+
     function catalogExtras(cursor, overrides) {
       const extra = overrides && typeof overrides === 'object' ? overrides : {};
       const extras = { grouped: 1 };
@@ -1466,7 +1473,7 @@
       if (state.filters.hide_prerelease) extras.hide_prerelease = 1;
       if (state.filters.hide_hacks) extras.hide_hacks = 1;
       if (state.filters.availability) extras.availability = state.filters.availability;
-      const sort = extra.sort !== undefined ? extra.sort : state.sort;
+      const sort = catalogViewSort(collection, extra.sort);
       if (sort && sort !== 'title') extras.sort = sort;
       if (cursor) extras.cursor = cursor;
       if (Number(extra.limit) > 0) extras.limit = extra.limit;
@@ -1536,11 +1543,16 @@
       });
     }
 
+    function homeRailSort(spec) {
+      if (spec && spec.sort !== undefined && spec.sort !== '') return spec.sort;
+      return spec && spec.id === 'recently_added' ? 'recently_added' : 'title';
+    }
+
     function homeRailSpecByID(id) {
       const smart = HOME_SMART_RAILS.find(rail => rail.id === id);
-      if (smart) return { id: smart.id, name: smart.name, kind: 'smart', sort: smart.sort };
+      if (smart) return { id: smart.id, name: smart.name, kind: 'smart', sort: homeRailSort(smart) };
       const collection = (state.collections || []).find(item => item && item.id === id);
-      if (collection) return { id: collection.id, name: collection.name || collection.id, kind: 'custom' };
+      if (collection) return { id: collection.id, name: collection.name || collection.id, kind: 'custom', sort: 'title' };
       return null;
     }
 
@@ -1549,8 +1561,8 @@
         const extras = {
           collection: spec.id,
           limit: HOME_RAIL_LIMIT,
+          sort: homeRailSort(spec),
         };
-        if (spec.sort !== undefined) extras.sort = spec.sort;
         const result = await request(fetchImpl, gamesPath(state.query, catalogExtras('', extras)));
         return { spec, result, error: null };
       } catch (error) {
@@ -1686,7 +1698,7 @@
         id: rail.id,
         name: rail.name,
         kind: 'smart',
-        sort: rail.sort,
+        sort: homeRailSort(rail),
       }));
       const railGenerations = Object.create(null);
       smartSpecs.forEach(spec => {
@@ -1723,6 +1735,7 @@
           id: collection.id,
           name: collection.name || collection.id,
           kind: 'custom',
+          sort: 'title',
         });
         if (sequence !== state.requestSequence) return snapshot();
         if (homeRailSequences[collection.id] !== railGenerations[collection.id]) {
