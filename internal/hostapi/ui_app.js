@@ -430,6 +430,51 @@
     return String(state || '');
   }
 
+  function cardSourceOffline(game) {
+    return Boolean(game) && (game.state === 'missing' || game.root_online === false);
+  }
+
+  function cardSourceUnreadable(game) {
+    return Boolean(game) && game.state === 'invalid' && game.root_online !== false;
+  }
+
+  function coverStatusLabel(game) {
+    if (cardSourceOffline(game)) return 'Offline';
+    return sourceLabel(game && game.state);
+  }
+
+  function isSessionPlayingCard(session, game, sessionLive, sessionAuthority) {
+    if (sessionAuthority !== undefined && sessionAuthority !== 'authoritative') return false;
+    if (!session || session.state !== 'active' || !session.game_id || !game) return false;
+    if (session.game_id === game.id) return true;
+    if (Array.isArray(game.variants) && game.variants.some(item => item && item.id === session.game_id)) {
+      return true;
+    }
+    return isSelectedGame(sessionLive || { id: session.game_id }, game);
+  }
+
+  function collectStateGames(state) {
+    const games = [];
+    if (state && state.selectedLiveGame) games.push(state.selectedLiveGame);
+    (state && state.games ? state.games : []).forEach(game => games.push(game));
+    for (const rail of (state && state.homeRails) || []) {
+      for (const view of (rail && rail.gameViews) || []) {
+        if (view && view.live) games.push(view.live);
+      }
+    }
+    return games;
+  }
+
+  function findLiveGameInState(state, id) {
+    if (!id || !state) return null;
+    if (state.sessionLiveGame && state.sessionLiveGame.id === id) return state.sessionLiveGame;
+    return collectStateGames(state).find(game => game && game.id === id) || null;
+  }
+
+  function groupedWallNeedsSessionHydration(state, sessionID) {
+    return collectStateGames(state).some(game => game && game.group_key && game.id !== sessionID);
+  }
+
   function cardTitle(game) {
     if (!game) return '';
     if (game.canonical_title) return game.canonical_title;
@@ -452,7 +497,7 @@
   function coverHoverMeta(game) {
     const bits = [systemLabel(game.system)];
     if (game && game.region) bits.push(regionLabel(game.region));
-    bits.push(sourceLabel(game.state));
+    bits.push(coverStatusLabel(game));
     return bits.join(' · ');
   }
 
@@ -1049,6 +1094,7 @@
       sessionWarning: null,
       sessionMessage: '',
       sessionGameTitle: '',
+      sessionLiveGame: null,
       activeMutation: null,
       mutationMessage: '',
       catalogState: 'loading',
@@ -1249,6 +1295,8 @@
       }
     }
 
+    let sessionLiveSequence = 0;
+
     function reconcileSelection() {
       if (!state.selectedLiveGame) return;
       let index = state.games.findIndex(game => game.id === state.selectedLiveGame.id);
@@ -1273,6 +1321,12 @@
       state.sessionMessage = session.state === 'failed'
         ? 'The local host reports a failed session.'
         : '';
+      if (session.state !== 'active' || !session.game_id) {
+        sessionLiveSequence += 1;
+        state.sessionLiveGame = null;
+      } else if (state.sessionLiveGame && state.sessionLiveGame.id !== session.game_id) {
+        state.sessionLiveGame = null;
+      }
     }
 
     function sessionFailure(error, phase = 'unavailable') {
@@ -1289,6 +1343,54 @@
       state.sessionWarning = phase === 'malformed' ? state.sessionError : null;
       state.sessionMessage = privacyMessage(error, state.sessionError.message);
       if (phase === 'malformed') state.sessionMessage = fallback;
+    }
+
+    async function emitHydratedSessionLive(isCurrent) {
+      await hydrateSessionLiveGame();
+      if (typeof isCurrent === 'function' && !isCurrent()) return snapshot();
+      return emit();
+    }
+
+    async function hydrateSessionLiveGame() {
+      const session = state.session;
+      const sessionID = session && session.state === 'active' ? session.game_id : '';
+      if (!sessionID) {
+        state.sessionLiveGame = null;
+        return;
+      }
+      const known = findLiveGameInState(state, sessionID);
+      if (known) {
+        state.sessionLiveGame = known;
+        return;
+      }
+      if (!groupedWallNeedsSessionHydration(state, sessionID)) {
+        state.sessionLiveGame = null;
+        return;
+      }
+      const sequence = ++sessionLiveSequence;
+      const requestedID = sessionID;
+      let payload;
+      try {
+        payload = await request(fetchImpl, gameDetailPath(requestedID));
+      } catch {
+        if (sequence !== sessionLiveSequence) return;
+        if (state.sessionLiveGame && state.sessionLiveGame.id !== requestedID) {
+          state.sessionLiveGame = null;
+        }
+        return;
+      }
+      if (sequence !== sessionLiveSequence) return;
+      if (!state.session || state.session.game_id !== requestedID || state.session.state !== 'active') {
+        return;
+      }
+      try {
+        state.sessionLiveGame = parseDetail(payload, requestedID);
+      } catch {
+        if (sequence !== sessionLiveSequence) return;
+        if (state.sessionLiveGame && state.sessionLiveGame.id !== requestedID) {
+          state.sessionLiveGame = null;
+        }
+      }
     }
 
     function mutationIsCurrent(mutation) {
@@ -1316,7 +1418,10 @@
         const payload = await request(fetchImpl, spec.path, spec.options);
         if (sequence !== state.statusSequence || state.activeMutation) return snapshot();
         acceptSession(parseSession(payload));
-        return emit();
+        emit();
+        return emitHydratedSessionLive(
+          () => sequence === state.statusSequence && !state.activeMutation
+        );
       } catch (error) {
         if (sequence !== state.statusSequence || state.activeMutation) return snapshot();
         sessionFailure(error, error && error.code === 'MALFORMED_RESPONSE' ? 'malformed' : 'unavailable');
@@ -1332,6 +1437,9 @@
         const session = parseSession(payload);
         if (sequence !== state.statusSequence || !mutationIsCurrent(mutation)) return { stale: true };
         acceptSession(session);
+        void emitHydratedSessionLive(
+          () => sequence === state.statusSequence && !state.activeMutation
+        );
         return { session };
       } catch (error) {
         if (sequence !== state.statusSequence || !mutationIsCurrent(mutation)) return { stale: true };
@@ -1721,7 +1829,9 @@
         : (state.metadataFallbackCount ? 'metadata_fallback' : 'curated');
       if (options && options.preserveLaunch) rebindSelectedHomeGame();
       else reconcileSelection();
-      return emit();
+      const generation = state.requestSequence;
+      emit();
+      return emitHydratedSessionLive(() => generation === state.requestSequence);
     }
 
     const homeRailSequences = Object.create(null);
@@ -1867,7 +1977,12 @@
       flattenHomeGames(rails);
       if (options && options.preserveLaunch) rebindSelectedHomeGame();
       else reconcileSelection();
-      return emit();
+      emit();
+      return emitHydratedSessionLive(() => (
+        requestGeneration === state.requestSequence
+        && homeRailSequences[railID] === sequence
+        && state.libraryView === 'home'
+      ));
     }
 
     function homeLaunchRailBatchIsStale(batch, requestGeneration) {
@@ -1933,7 +2048,8 @@
         state.catalogError = null;
         state.hostState = 'ready';
         reconcileSelection();
-        return emit();
+        emit();
+        return emitHydratedSessionLive(() => sequence === state.requestSequence);
       } catch (error) {
         if (sequence !== state.requestSequence) return snapshot();
         state.catalogState = 'catalog_error';
@@ -1958,7 +2074,8 @@
         state.gameViews = gameViews;
         state.nextCursor = typeof result.next_cursor === 'string' ? result.next_cursor : '';
         state.metadataFallbackCount = metadataFallbackCount(gameViews);
-        return emit();
+        emit();
+        return emitHydratedSessionLive(() => sequence === state.requestSequence);
       } catch (error) {
         if (sequence !== state.requestSequence) return snapshot();
         return emit();
@@ -2461,6 +2578,11 @@
     variantLabel,
     dumpIdentityFacts,
     coverHoverMeta,
+    coverStatusLabel,
+    cardSourceOffline,
+    cardSourceUnreadable,
+    isSessionPlayingCard,
+    findLiveGameInState,
     regionLabel,
     catalogDumpRegions,
     systemLabel,
@@ -3562,6 +3684,57 @@
     return image;
   }
 
+  function liveGameForID(id) {
+    if (!id) return null;
+    if (state.selectedLiveGame && state.selectedLiveGame.id === id) return state.selectedLiveGame;
+    const listed = (state.games || []).find(item => item.id === id);
+    if (listed) return listed;
+    const pools = [state.selectedLiveGame].concat(state.games || []);
+    for (const rail of state.homeRails || []) {
+      for (const view of rail.gameViews || []) {
+        if (view && view.live) {
+          if (view.live.id === id) return view.live;
+          pools.push(view.live);
+        }
+      }
+    }
+    for (const item of pools) {
+      if (!item || !Array.isArray(item.variants)) continue;
+      const variant = item.variants.find(candidate => candidate && candidate.id === id);
+      if (!variant) continue;
+      if (variant.group_key || !item.group_key) return variant;
+      return Object.freeze({ ...variant, group_key: item.group_key });
+    }
+    return null;
+  }
+
+  function cardSessionPlaying(game) {
+    return isSessionPlayingCard(
+      state.session,
+      game,
+      state.sessionLiveGame || liveGameForID(state.session && state.session.game_id),
+      state.sessionAuthority
+    );
+  }
+
+  function appendCoverMarks(card, game) {
+    const favorite = game && game.favorite === true;
+    const offline = cardSourceOffline(game);
+    const unreadable = cardSourceUnreadable(game);
+    const playing = cardSessionPlaying(game);
+    if (favorite) card.setAttribute('data-favorite', 'true');
+    if (offline) card.setAttribute('data-unavailable', 'true');
+    if (unreadable) card.setAttribute('data-invalid', 'true');
+    if (playing) card.setAttribute('data-playing', 'true');
+    if (!favorite && !offline && !unreadable && !playing) return;
+    const marks = element('span', 'card-marks');
+    if (offline) marks.appendChild(element('span', 'card-mark card-mark-offline', 'Offline'));
+    if (unreadable) marks.appendChild(element('span', 'card-mark card-mark-invalid', 'Unreadable'));
+    if (playing) marks.appendChild(element('span', 'card-mark card-mark-playing', 'Playing'));
+    if (favorite) marks.appendChild(element('span', 'card-mark card-mark-favorite', 'Favorite'));
+    card.appendChild(marks);
+  }
+
   function renderCard(view, liveGame, parent, pane, homeCoord) {
     const game = view.live;
     const presentation = view.presentation;
@@ -3601,6 +3774,7 @@
       if (game.variant_count > 1) {
         card.appendChild(element('p', 'game-meta game-meta-variant', `${game.variant_count} versions`));
       }
+      appendCoverMarks(card, game);
     }
     if (game.title && cardTitle(game) !== game.title) card.setAttribute('title', game.title);
     card.tabIndex = showSelected || (!state.selectedLiveGame && !gameCardNodes().length && !(parent && parent.children && parent.children.length)) ? 0 : -1;

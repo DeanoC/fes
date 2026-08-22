@@ -31,6 +31,10 @@ const {
   variantLabel,
   dumpIdentityFacts,
   coverHoverMeta,
+  coverStatusLabel,
+  cardSourceOffline,
+  cardSourceUnreadable,
+  isSessionPlayingCard,
   regionLabel,
   catalogDumpRegions,
   systemLabel,
@@ -567,6 +571,44 @@ test('variantLabel and dump facts share region revision and flags', () => {
   assert.equal(variantLabel({ title: 'Mystery Dump' }), 'Mystery Dump');
   assert.equal(coverHoverMeta({ system: 'megadrive', state: 'available', region: 'usa' }), 'Mega Drive · USA · Ready');
   assert.equal(coverHoverMeta({ system: 'megadrive', state: 'available' }), 'Mega Drive · Ready');
+  assert.equal(coverHoverMeta({
+    system: 'megadrive', state: 'available', region: 'usa', root_online: false,
+  }), 'Mega Drive · USA · Offline');
+  assert.equal(coverHoverMeta({ system: 'snes', state: 'invalid', root_online: true }), 'SNES · Unreadable');
+  assert.equal(coverStatusLabel({ state: 'available', root_online: false }), 'Offline');
+  assert.equal(coverStatusLabel({ state: 'invalid', root_online: true }), 'Unreadable');
+  assert.equal(cardSourceOffline({ state: 'available', root_online: false }), true);
+  assert.equal(cardSourceOffline({ state: 'invalid', root_online: true }), false);
+  assert.equal(cardSourceUnreadable({ state: 'invalid', root_online: true }), true);
+  assert.equal(cardSourceUnreadable({ state: 'invalid', root_online: false }), false);
+  assert.equal(isSessionPlayingCard(
+    { state: 'active', game_id: 'megadrive-sonic-japan' },
+    { id: 'megadrive-sonic-usa', group_key: 'megadrive\u001fsonic' },
+    { id: 'megadrive-sonic-japan', group_key: 'megadrive\u001fsonic' },
+  ), true);
+  assert.equal(isSessionPlayingCard(
+    { state: 'active', game_id: 'megadrive-sonic-japan' },
+    { id: 'snes-mario-test', group_key: 'snes\u001fmario' },
+    { id: 'megadrive-sonic-japan', group_key: 'megadrive\u001fsonic' },
+  ), false);
+  assert.equal(isSessionPlayingCard(
+    { state: 'active', game_id: 'megadrive-sonic-japan' },
+    { id: 'megadrive-sonic-usa', group_key: 'megadrive\u001fsonic' },
+    { id: 'megadrive-sonic-japan', group_key: 'megadrive\u001fsonic' },
+    'authoritative',
+  ), true);
+  assert.equal(isSessionPlayingCard(
+    { state: 'active', game_id: 'megadrive-sonic-japan' },
+    { id: 'megadrive-sonic-usa', group_key: 'megadrive\u001fsonic' },
+    { id: 'megadrive-sonic-japan', group_key: 'megadrive\u001fsonic' },
+    'last-known',
+  ), false);
+  assert.equal(isSessionPlayingCard(
+    { state: 'active', game_id: 'megadrive-sonic-japan' },
+    { id: 'megadrive-sonic-usa', group_key: 'megadrive\u001fsonic' },
+    { id: 'megadrive-sonic-japan', group_key: 'megadrive\u001fsonic' },
+    'indeterminate',
+  ), false);
 });
 
 test('unmatched catalog cards stay quiet and sort/count the visible library', () => {
@@ -1750,6 +1792,202 @@ test('session parser accepts privacy-safe optional fields and rejects malformed 
   }
 });
 
+test('grouped catalog hydrates the active variant via GET /api/v1/games/{id} and gates Playing on authority', async () => {
+  const groupKey = 'megadrive\u001fsonic';
+  const usa = availableGame('megadrive-sonic-usa', 'Sonic the Hedgehog (USA)', {
+    system: 'megadrive',
+    group_key: groupKey,
+    variant_count: 2,
+  });
+  const japan = availableGame('megadrive-sonic-japan', 'Sonic the Hedgehog (Japan)', {
+    system: 'megadrive',
+    group_key: groupKey,
+    region: 'japan',
+  });
+  assert.equal(Object.prototype.hasOwnProperty.call(usa, 'variants'), false);
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/session': [
+      jsonResponse(sessionFixture({
+        state: 'active', game_id: japan.id, system: 'megadrive',
+      })),
+      malformedJSONResponse(),
+    ],
+    '/api/v1/games': [jsonResponse({ games: [usa] })],
+    [`/api/v1/games/${japan.id}`]: [jsonResponse(japan)],
+  });
+  const controller = createAppController({ fetchImpl });
+  await controller.loadSession();
+  await controller.loadCatalog('');
+  let state = controller.getState();
+  assert.equal(state.selectedLiveGame, null);
+  assert.equal(state.sessionLiveGame.id, japan.id);
+  assert.equal(state.sessionLiveGame.group_key, groupKey);
+  assert.equal(state.sessionAuthority, 'authoritative');
+  assert.equal(isSessionPlayingCard(state.session, usa, state.sessionLiveGame, state.sessionAuthority), true);
+  assert.ok(calls.some(call => call.path === `/api/v1/games/${japan.id}`));
+  await controller.loadSession();
+  state = controller.getState();
+  assert.equal(state.sessionAuthority, 'last-known');
+  assert.equal(state.session.state, 'active');
+  assert.equal(state.session.game_id, japan.id);
+  assert.equal(isSessionPlayingCard(state.session, usa, state.sessionLiveGame, state.sessionAuthority), false);
+});
+
+test('accepted session is emitted before optional Playing hydrate', async () => {
+  const groupKey = 'megadrive\u001fsonic';
+  const usa = availableGame('megadrive-sonic-usa', 'Sonic the Hedgehog (USA)', {
+    system: 'megadrive',
+    group_key: groupKey,
+    variant_count: 2,
+  });
+  const japan = availableGame('megadrive-sonic-japan', 'Sonic the Hedgehog (Japan)', {
+    system: 'megadrive',
+    group_key: groupKey,
+    region: 'japan',
+  });
+  let releaseDetail;
+  const authorities = [];
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/session': [
+      jsonResponse(sessionFixture({
+        state: 'active', game_id: japan.id, system: 'megadrive',
+      })),
+      jsonResponse(sessionFixture({ state: 'idle' })),
+    ],
+    '/api/v1/session/stop': [jsonResponse(sessionFixture({ state: 'idle' }))],
+    '/api/v1/games': [jsonResponse({ games: [usa] })],
+    [`/api/v1/games/${japan.id}`]: [() => new Promise(resolve => { releaseDetail = resolve; })],
+  });
+  const controller = createAppController({
+    fetchImpl,
+    onStateChange(next) { authorities.push(next.sessionAuthority); },
+  });
+  await controller.loadCatalog('');
+  const pending = controller.loadSession();
+  await waitForCondition(
+    () => controller.getState().sessionAuthority === 'authoritative',
+    'session authority stayed indeterminate while Playing hydrate was held',
+  );
+  const mid = controller.getState();
+  assert.equal(mid.session.state, 'active');
+  assert.equal(mid.sessionPhase, 'active');
+  assert.equal(mid.sessionLiveGame, null);
+  assert.ok(authorities.includes('authoritative'));
+  await controller.stopSession();
+  assert.equal(calls.some(call => call.path === '/api/v1/session/stop'), true);
+  releaseDetail(jsonResponse(japan));
+  await pending;
+});
+
+test('stale catalog hydrate does not emit after a newer requestSequence', async () => {
+  const groupKey = 'megadrive\u001fsonic';
+  const usa = availableGame('megadrive-sonic-usa', 'Sonic the Hedgehog (USA)', {
+    system: 'megadrive',
+    group_key: groupKey,
+    variant_count: 2,
+  });
+  const japan = availableGame('megadrive-sonic-japan', 'Sonic the Hedgehog (Japan)', {
+    system: 'megadrive',
+    group_key: groupKey,
+    region: 'japan',
+  });
+  const mario = availableGame('snes-mario-test', 'Mario');
+  let releaseDetail;
+  const seen = [];
+  const { fetchImpl } = routedFetch({
+    '/api/v1/session': [jsonResponse(sessionFixture({
+      state: 'active', game_id: japan.id, system: 'megadrive',
+    }))],
+    '/api/v1/games?q=old': [jsonResponse({ games: [usa] })],
+    '/api/v1/games?q=new': [jsonResponse({ games: [mario] })],
+    [`/api/v1/games/${japan.id}`]: [() => new Promise(resolve => { releaseDetail = resolve; })],
+  });
+  const controller = createAppController({
+    fetchImpl,
+    onStateChange(next) {
+      seen.push({
+        games: next.games.map(game => game.id),
+        catalogState: next.catalogState,
+      });
+    },
+  });
+  await controller.loadSession();
+  const oldCatalog = controller.loadCatalog('old');
+  await waitForCondition(
+    () => controller.getState().games[0] && controller.getState().games[0].id === usa.id,
+    'grouped catalog was not applied before Playing hydrate',
+  );
+  const newerCatalog = controller.loadCatalog('new');
+  await newerCatalog;
+  assert.equal(controller.getState().games[0].id, mario.id);
+  const afterNewer = seen.length;
+  releaseDetail(jsonResponse(japan));
+  await oldCatalog;
+  const state = controller.getState();
+  assert.equal(state.games[0].id, mario.id);
+  assert.equal(state.catalogState, 'populated');
+  assert.equal(
+    seen.slice(afterNewer).some(item => item.catalogState === 'populated' && item.games[0] === usa.id),
+    false,
+  );
+});
+
+test('stale home hydrate does not emit after a newer catalog load', async () => {
+  const groupKey = 'megadrive\u001fsonic';
+  const usa = availableGame('megadrive-sonic-usa', 'Sonic the Hedgehog (USA)', {
+    system: 'megadrive',
+    group_key: groupKey,
+    variant_count: 2,
+  });
+  const japan = availableGame('megadrive-sonic-japan', 'Sonic the Hedgehog (Japan)', {
+    system: 'megadrive',
+    group_key: groupKey,
+    region: 'japan',
+  });
+  const mario = availableGame('snes-mario-test', 'Mario');
+  let releaseDetail;
+  const seen = [];
+  const { fetchImpl } = routedFetch({
+    '/api/v1/session': [jsonResponse(sessionFixture({
+      state: 'active', game_id: japan.id, system: 'megadrive',
+    }))],
+    '/api/v1/games': [jsonResponse({ games: [mario] })],
+    [`/api/v1/games/${japan.id}`]: [() => new Promise(resolve => { releaseDetail = resolve; })],
+    '/api/v1/games?collection=continue': [jsonResponse({ games: [usa] })],
+    '/api/v1/games?collection=favorites': [jsonResponse({ games: [] })],
+    '/api/v1/games?collection=recents': [jsonResponse({ games: [] })],
+  });
+  const controller = createAppController({
+    fetchImpl,
+    onStateChange(next) {
+      seen.push({
+        view: next.libraryView,
+        games: next.games.map(game => game.id),
+      });
+    },
+  });
+  await controller.loadSession();
+  const home = controller.openHome();
+  await waitForCondition(
+    () => controller.getState().libraryView === 'home'
+      && controller.getState().games.some(game => game.id === usa.id),
+    'home rails were not applied before Playing hydrate',
+  );
+  const catalog = controller.setLibraryNav('', '');
+  await catalog;
+  const afterCatalog = seen.length;
+  releaseDetail(jsonResponse(japan));
+  await home;
+  const state = controller.getState();
+  assert.equal(state.libraryView, 'grid');
+  assert.deepEqual(state.games.map(game => game.id), [mario.id]);
+  assert.deepEqual(state.homeRails, []);
+  assert.equal(
+    seen.slice(afterCatalog).some(item => item.view === 'home' && item.games.includes(usa.id)),
+    false,
+  );
+});
+
 test('startup reconstructs active session without changing catalog selection and resolves only a matching live title', async () => {
   const { calls, fetchImpl } = routedFetch({
     '/api/v1/session': [jsonResponse(sessionFixture({
@@ -2630,6 +2868,19 @@ function gameCards(document) {
 
 function selectedCard(document) {
   return gameCards(document).find(card => card.attributes.get('aria-pressed') === 'true') || null;
+}
+
+function cardMark(card, kind) {
+  const wanted = kind ? `card-mark-${kind}` : 'card-mark';
+  const visit = nodes => {
+    for (const node of nodes || []) {
+      if (String(node.className || '').split(/\s+/).includes(wanted)) return node;
+      const found = visit(node.children);
+      if (found) return found;
+    }
+    return null;
+  };
+  return visit(card && card.children);
 }
 
 async function pressKey(document, key, target = document.activeElement, extras) {
@@ -5713,6 +5964,7 @@ test('list layout CSS keeps rows compact without overlaying cover-card titles', 
   assert.match(css, /\.game-list/);
   assert.match(css, /\.game-card\.game-row/);
   assert.match(css, /\.game-row-favorite/);
+  assert.match(css, /--list-row-height:\s*72px/);
   assert.match(css, /--list-row-stride:\s*78px/);
 });
 
@@ -6241,6 +6493,237 @@ test('cover hover includes region and list rows do not add a dump line', async (
   assert.equal(body.children[3].className, 'game-meta game-meta-variant');
   assert.equal(body.children[3].textContent, '3 versions');
   assert.equal(body.children.filter(child => String(child.className).includes('game-meta')).length, 2);
+});
+
+test('Cover and Home show non-hover favorite offline and playing marks', async () => {
+  const css = readAsset('ui.css');
+  const app = readAsset('ui_app.js');
+  assert.match(css, /\.card-mark\s*\{[^}]*opacity:\s*1/);
+  assert.doesNotMatch(css, /\.card-mark[^{]*\{[^}]*opacity:\s*0/);
+  assert.doesNotMatch(css, /\.game-card h3, \.game-card \.game-meta, \.game-card \.fallback-note, \.game-card \.card-mark/);
+  assert.match(css, /\.game-card \.game-meta\s*\{[^}]*white-space:\s*nowrap/);
+  assert.match(css, /--list-row-height:\s*72px/);
+  assert.match(app, /rows \* Math\.round\(metrics\.cardWidth \* 1\.5 \+ metrics\.gap\)/);
+
+  const favorite = availableGame('snes-mario-test', 'Mario', { favorite: true });
+  const ready = availableGame('snes-zelda-test', 'Zelda', { favorite: false });
+  const missing = availableGame('snes-missing-test', 'Missing', { state: 'missing' });
+  const offlineRoot = availableGame('snes-offline-test', 'Offline Root', {
+    state: 'available',
+    root_online: false,
+  });
+  const unreadable = availableGame('snes-invalid-test', 'Bad Dump', { state: 'invalid' });
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse({ games: [favorite, ready, missing, offlineRoot, unreadable] })],
+    sessionResponses: [jsonResponse(sessionFixture({
+      state: 'active',
+      game_id: ready.id,
+      system: 'snes',
+    }))],
+  });
+  await settleBrowser();
+  const byID = Object.fromEntries(gameCards(document).map(card => [card.attributes.get('data-game-id'), card]));
+  assert.equal(cardMark(byID[favorite.id], 'favorite').textContent, 'Favorite');
+  assert.equal(byID[favorite.id].getAttribute('data-favorite'), 'true');
+  assert.equal(cardMark(byID[ready.id], 'favorite'), null);
+  assert.equal(cardMark(byID[ready.id], 'offline'), null);
+  assert.equal(cardMark(byID[ready.id], 'playing').textContent, 'Playing');
+  assert.equal(byID[ready.id].getAttribute('data-playing'), 'true');
+  assert.equal(cardMark(byID[missing.id], 'offline').textContent, 'Offline');
+  assert.equal(cardMark(byID[offlineRoot.id], 'offline').textContent, 'Offline');
+  assert.equal(cardMark(byID[unreadable.id], 'offline'), null);
+  assert.equal(cardMark(byID[unreadable.id], 'invalid').textContent, 'Unreadable');
+  assert.equal(byID[missing.id].getAttribute('data-unavailable'), 'true');
+  assert.equal(byID[offlineRoot.id].getAttribute('data-unavailable'), 'true');
+  assert.equal(byID[unreadable.id].getAttribute('data-unavailable'), null);
+  assert.equal(byID[unreadable.id].getAttribute('data-invalid'), 'true');
+  assert.equal(byID[ready.id].getAttribute('data-unavailable'), null);
+  assert.equal(byID[favorite.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · Ready');
+  assert.equal(byID[offlineRoot.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · Offline');
+  assert.equal(byID[unreadable.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · Unreadable');
+
+  document.nodes.get('layout-list').click();
+  await settleBrowser();
+  const row = gameCards(document).find(card => card.attributes.get('data-game-id') === favorite.id);
+  assert.ok(row.className.includes('game-row'));
+  assert.equal(cardMark(row, 'favorite'), null);
+  const body = row.children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(body.children[2].className, 'game-row-favorite');
+  assert.equal(body.children[2].textContent, 'Favorite');
+  assert.equal(body.children.length, 3);
+});
+
+test('Home rails reuse the same cover marks without hover', async () => {
+  const favorite = availableGame('snes-mario-test', 'Mario', { favorite: true });
+  const offline = availableGame('snes-offline-test', 'Offline Game', {
+    state: 'missing',
+    root_online: false,
+  });
+  const playing = availableGame('snes-zelda-test', 'Zelda', { favorite: false });
+  const { document } = await runBrowserApp({
+    keepHome: true,
+    responses: [jsonResponse({ games: [favorite, offline, playing] })],
+    sessionResponses: [jsonResponse(sessionFixture({
+      state: 'active',
+      game_id: playing.id,
+      system: 'snes',
+    }))],
+    homeRails: {
+      continue: jsonResponse({ games: [playing] }),
+      favorites: jsonResponse({ games: [favorite] }),
+      recents: jsonResponse({ games: [offline] }),
+    },
+  });
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-list').className, 'home-rails');
+  const byRail = Object.fromEntries(homeRails(document).map(rail => [
+    rail.attributes.get('data-home-rail'),
+    rail.querySelectorAll('.game-card')[0],
+  ]));
+  assert.equal(cardMark(byRail.favorites, 'favorite').textContent, 'Favorite');
+  assert.equal(cardMark(byRail.recents, 'offline').textContent, 'Offline');
+  assert.equal(cardMark(byRail.continue, 'playing').textContent, 'Playing');
+  assert.equal(cardMark(byRail.continue, 'favorite'), null);
+  assert.equal(cardMark(byRail.favorites, 'offline'), null);
+});
+
+test('toggleFavorite flips the Cover mark without a catalog reload', async () => {
+  const game = availableGame('snes-actraiser-test', 'ActRaiser', { favorite: false });
+  const catalogListGets = calls => calls.filter(call => String(call.path).split('?')[0] === '/api/v1/games').length;
+  const { document, calls } = await runBrowserApp({
+    responses: [jsonResponse({ games: [game] }), jsonResponse(game)],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  const before = gameCards(document)[0];
+  assert.equal(cardMark(before, 'favorite'), null);
+  const catalogGets = catalogListGets(calls);
+  await openCardActions(document, before);
+  document.getElementById('game-action-favorite').click();
+  await settleBrowser();
+  const after = gameCards(document)[0];
+  assert.equal(cardMark(after, 'favorite').textContent, 'Favorite');
+  assert.equal(after.getAttribute('data-favorite'), 'true');
+  assert.equal(catalogListGets(calls), catalogGets);
+  await openCardActions(document, after);
+  assert.equal(document.getElementById('game-action-favorite').textContent, 'Unfavorite');
+  document.getElementById('game-action-favorite').click();
+  await settleBrowser();
+  const cleared = gameCards(document)[0];
+  assert.equal(cardMark(cleared, 'favorite'), null);
+  assert.equal(cleared.getAttribute('data-favorite'), null);
+  assert.equal(catalogListGets(calls), catalogGets);
+});
+
+test('Playing mark is only on the active session game and clears after stop', async () => {
+  const playing = availableGame('snes-actraiser-test', 'ActRaiser');
+  const other = availableGame('snes-mario-test', 'Mario');
+  const { document } = await runBrowserApp({
+    responses: [
+      jsonResponse({ games: [playing, other] }),
+      jsonResponse(readFixture('stop-success.json')),
+    ],
+    sessionResponses: [
+      jsonResponse(sessionFixture({
+        state: 'active',
+        game_id: playing.id,
+        system: 'snes',
+      })),
+      jsonResponse(sessionFixture({ state: 'idle' })),
+    ],
+  });
+  await settleBrowser();
+  const cards = Object.fromEntries(gameCards(document).map(card => [card.attributes.get('data-game-id'), card]));
+  assert.equal(cardMark(cards[playing.id], 'playing').textContent, 'Playing');
+  assert.equal(cardMark(cards[other.id], 'playing'), null);
+  await document.nodes.get('session-actions').children.find(node => node.id === 'stop-session').click();
+  await settleBrowser();
+  const stopped = Object.fromEntries(gameCards(document).map(card => [card.attributes.get('data-game-id'), card]));
+  assert.equal(cardMark(stopped[playing.id], 'playing'), null);
+  assert.equal(cardMark(stopped[other.id], 'playing'), null);
+  assert.equal(stopped[playing.id].getAttribute('data-playing'), null);
+});
+
+test('Playing mark maps a launched variant back to the grouped Cover card', async () => {
+  const groupKey = 'megadrive\u001fsonic';
+  const usa = availableGame('megadrive-sonic-usa', 'Sonic the Hedgehog (USA)', {
+    system: 'megadrive',
+    group_key: groupKey,
+    variant_count: 2,
+  });
+  const japan = availableGame('megadrive-sonic-japan', 'Sonic the Hedgehog (Japan)', {
+    system: 'megadrive',
+    group_key: groupKey,
+    region: 'japan',
+  });
+  const other = availableGame('snes-mario-test', 'Mario');
+  assert.equal(Object.prototype.hasOwnProperty.call(usa, 'variants'), false);
+  const { document, calls } = await runBrowserApp({
+    responses: [
+      jsonResponse({ games: [usa, other] }),
+      jsonResponse(japan),
+    ],
+    sessionResponses: [jsonResponse(sessionFixture({
+      state: 'active',
+      game_id: japan.id,
+      system: 'megadrive',
+    }))],
+  });
+  await settleBrowser();
+  const cards = Object.fromEntries(gameCards(document).map(card => [card.attributes.get('data-game-id'), card]));
+  assert.equal(selectedCard(document), null);
+  assert.equal(cards[usa.id].attributes.get('data-game-id'), 'megadrive-sonic-usa');
+  assert.equal(cardMark(cards[usa.id], 'playing').textContent, 'Playing');
+  assert.equal(cardMark(cards[other.id], 'playing'), null);
+  assert.ok(calls.some(call => call.path === `/api/v1/games/${japan.id}`));
+});
+
+test('Playing mark stays off after a failed status poll keeps last-known active session', async () => {
+  const playing = availableGame('snes-actraiser-test', 'ActRaiser');
+  const other = availableGame('snes-mario-test', 'Mario');
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse({ games: [playing, other] })],
+    sessionResponses: [
+      jsonResponse(sessionFixture({
+        state: 'active',
+        game_id: playing.id,
+        system: 'snes',
+      })),
+      malformedJSONResponse(),
+    ],
+  });
+  await settleBrowser();
+  let cards = Object.fromEntries(gameCards(document).map(card => [card.attributes.get('data-game-id'), card]));
+  assert.equal(cardMark(cards[playing.id], 'playing').textContent, 'Playing');
+  await document.nodes.get('session-actions').children.find(node => node.id === 'refresh-session').click();
+  await settleBrowser();
+  cards = Object.fromEntries(gameCards(document).map(card => [card.attributes.get('data-game-id'), card]));
+  assert.equal(cardMark(cards[playing.id], 'playing'), null);
+  assert.equal(cardMark(cards[other.id], 'playing'), null);
+  assert.equal(cards[playing.id].getAttribute('data-playing'), null);
+  assert.match(browserText(document.nodes.get('session-details')), /Last-known session details/i);
+});
+
+test('cover wall spacers still use cardWidth * 1.5 for a 2-col window', async () => {
+  const app = readAsset('ui_app.js');
+  assert.match(app, /rows \* Math\.round\(metrics\.cardWidth \* 1\.5 \+ metrics\.gap\)/);
+  const games = [];
+  for (let index = 0; index < 90; index += 1) {
+    games.push(availableGame(`snes-game-${index}`, `Title ${index}`));
+  }
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse({ games })],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  document.nodes.get('catalog-list').clientWidth = 448;
+  document.nodes.get('layout-list').click();
+  await settleBrowser();
+  document.nodes.get('layout-cover').click();
+  await settleBrowser();
+  const spacer = document.nodes.get('catalog-list').children
+    .find(child => child.attributes.get('data-wall-spacer') === 'end');
+  assert.ok(spacer);
+  assert.equal(spacer.style.height, '1700px');
 });
 
 test('Region select includes mapDumpRegion tokens and catalogExtras sends korea', async () => {

@@ -224,6 +224,51 @@ img.cover-art { width: 100%; object-fit: contain; object-position: center; backg
 .game-card:hover .fallback-note, .game-card.selected .fallback-note, .game-card:focus-visible .fallback-note {
   opacity: 1;
 }
+.card-marks {
+  position: absolute;
+  inset: 8px 8px auto;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px;
+  pointer-events: none;
+}
+.card-mark {
+  opacity: 1;
+  border-radius: 999px;
+  padding: 3px 7px;
+  font-size: .62rem;
+  font-weight: 750;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  line-height: 1.15;
+  box-shadow: 0 1px 8px rgba(0, 0, 0, .45);
+}
+.card-mark-favorite {
+  margin-left: auto;
+  background: var(--accent);
+  color: #15120d;
+}
+.card-mark-offline {
+  background: rgba(12, 16, 23, .82);
+  color: var(--danger);
+  border: 1px solid rgba(255, 155, 143, .45);
+}
+.card-mark-invalid {
+  background: rgba(12, 16, 23, .82);
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+.card-mark-playing {
+  background: var(--success);
+  color: #15120d;
+}
+.game-card:not(.game-row)[data-state]:not([data-state="available"]) .cover-art,
+.game-card:not(.game-row)[data-unavailable="true"] .cover-art {
+  filter: grayscale(.28) brightness(.72);
+}
+.game-card.game-row .card-marks { display: none; }
 .game-card.game-row {
   aspect-ratio: auto;
   height: var(--list-row-height, 72px);
