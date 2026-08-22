@@ -3758,7 +3758,7 @@
       const bits = [systemLabel(game.system)];
       if (game.year) bits.push(game.year);
       if (game.genre) bits.push(game.genre);
-      bits.push(sourceLabel(game.state));
+      bits.push(coverStatusLabel(game));
       body.appendChild(element('p', 'game-meta', bits.join(' · ')));
       if (game.favorite === true) body.appendChild(element('p', 'game-row-favorite', 'Favorite'));
       if (game.variant_count > 1) {
@@ -3862,7 +3862,7 @@
     const facts = element('div', 'detail-facts');
     const factRows = [
       [systemLabel(game.system), 'System'],
-      [sourceLabel(game.state), 'Status'],
+      [coverStatusLabel(game), 'Status'],
       [game.content_prepared ? 'Prepared' : 'On demand', 'Staging'],
       [presentation.year !== '—' ? presentation.year : '', 'Year'],
       [presentation.genre, 'Genre'],

@@ -6409,6 +6409,7 @@ test('detail facts show dump identity and hide Version unless multiple variants'
     { value: 'rev a', label: 'Revision' },
     { value: 'beta', label: 'Flags' },
   ]);
+  assert.ok(facts.some(fact => fact.label === 'Status' && fact.value === 'Ready'));
   assert.equal(document.getElementById('game-version'), null);
 
   const single = {
@@ -6422,6 +6423,55 @@ test('detail facts show dump identity and hide Version unless multiple variants'
   await gameCards(again.document)[0].click();
   await settleBrowser();
   assert.equal(again.document.getElementById('game-version'), null);
+
+  const offline = availableGame('megadrive-offline-test', 'Streets of Rage 2 (USA)', {
+    system: 'megadrive',
+    state: 'available',
+    root_online: false,
+    region: 'usa',
+  });
+  const offlineApp = await runBrowserApp({
+    responses: [jsonResponse({ games: [offline] }), jsonResponse(offline)],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  assert.equal(
+    gameCards(offlineApp.document)[0].children.find(child => child.className === 'game-meta').textContent,
+    'Mega Drive · USA · Offline',
+  );
+  offlineApp.document.nodes.get('layout-list').click();
+  await settleBrowser();
+  const offlineRow = gameCards(offlineApp.document)[0];
+  const offlineBody = offlineRow.children.find(child => String(child.className).includes('game-row-body'));
+  assert.match(offlineBody.children[1].textContent, /Offline/);
+  assert.doesNotMatch(offlineBody.children[1].textContent, /Ready/);
+  await offlineRow.click();
+  await settleBrowser();
+  assert.ok(detailFactsFrom(offlineApp.document).some(fact => fact.label === 'Status' && fact.value === 'Offline'));
+
+  const unreadable = availableGame('snes-invalid-test', 'Bad Dump', {
+    state: 'invalid',
+    root_online: true,
+  });
+  const unreadableApp = await runBrowserApp({
+    responses: [jsonResponse({ games: [unreadable] }), jsonResponse(unreadable)],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  assert.equal(
+    gameCards(unreadableApp.document)[0].children.find(child => child.className === 'game-meta').textContent,
+    'SNES · Unreadable',
+  );
+  unreadableApp.document.nodes.get('layout-list').click();
+  await settleBrowser();
+  const unreadableRow = gameCards(unreadableApp.document)[0];
+  const unreadableBody = unreadableRow.children.find(child => String(child.className).includes('game-row-body'));
+  assert.match(unreadableBody.children[1].textContent, /Unreadable/);
+  assert.doesNotMatch(unreadableBody.children[1].textContent, /Offline/);
+  assert.equal(cardMark(unreadableRow), null);
+  await unreadableRow.click();
+  await settleBrowser();
+  assert.ok(detailFactsFrom(unreadableApp.document).some(fact => fact.label === 'Status' && fact.value === 'Unreadable'));
 });
 
 test('multi-variant detail still labels #game-version with variantLabel', async () => {
@@ -6503,6 +6553,10 @@ test('Cover and Home show non-hover favorite offline and playing marks', async (
   assert.doesNotMatch(css, /\.game-card h3, \.game-card \.game-meta, \.game-card \.fallback-note, \.game-card \.card-mark/);
   assert.match(css, /\.game-card \.game-meta\s*\{[^}]*white-space:\s*nowrap/);
   assert.match(css, /--list-row-height:\s*72px/);
+  assert.match(css, /--list-row-stride:\s*78px/);
+  assert.match(app, /bits\.push\(coverStatusLabel\(game\)\)/);
+  assert.match(app, /\[coverStatusLabel\(game\), 'Status'\]/);
+  assert.doesNotMatch(app, /bits\.push\(sourceLabel\(game\.state\)\)/);
   assert.match(app, /rows \* Math\.round\(metrics\.cardWidth \* 1\.5 \+ metrics\.gap\)/);
 
   const favorite = availableGame('snes-mario-test', 'Mario', { favorite: true });
@@ -6512,9 +6566,22 @@ test('Cover and Home show non-hover favorite offline and playing marks', async (
     state: 'available',
     root_online: false,
   });
-  const unreadable = availableGame('snes-invalid-test', 'Bad Dump', { state: 'invalid' });
+  const offlineMega = availableGame('megadrive-offline-test', 'Streets of Rage 2 (USA)', {
+    system: 'megadrive',
+    year: '1992',
+    genre: 'Beat \'em Up',
+    state: 'available',
+    root_online: false,
+    region: 'usa',
+  });
+  const unreadable = availableGame('snes-invalid-test', 'Bad Dump', {
+    state: 'invalid',
+    root_online: true,
+    favorite: true,
+    variant_count: 2,
+  });
   const { document } = await runBrowserApp({
-    responses: [jsonResponse({ games: [favorite, ready, missing, offlineRoot, unreadable] })],
+    responses: [jsonResponse({ games: [favorite, ready, missing, offlineRoot, offlineMega, unreadable] })],
     sessionResponses: [jsonResponse(sessionFixture({
       state: 'active',
       game_id: ready.id,
@@ -6540,17 +6607,44 @@ test('Cover and Home show non-hover favorite offline and playing marks', async (
   assert.equal(byID[ready.id].getAttribute('data-unavailable'), null);
   assert.equal(byID[favorite.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · Ready');
   assert.equal(byID[offlineRoot.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · Offline');
+  assert.equal(byID[offlineMega.id].children.find(child => child.className === 'game-meta').textContent, 'Mega Drive · USA · Offline');
   assert.equal(byID[unreadable.id].children.find(child => child.className === 'game-meta').textContent, 'SNES · Unreadable');
+  assert.equal(cardMark(byID[offlineMega.id], 'offline').textContent, 'Offline');
 
   document.nodes.get('layout-list').click();
   await settleBrowser();
-  const row = gameCards(document).find(card => card.attributes.get('data-game-id') === favorite.id);
+  const listByID = Object.fromEntries(gameCards(document).map(card => [card.attributes.get('data-game-id'), card]));
+  const row = listByID[favorite.id];
   assert.ok(row.className.includes('game-row'));
   assert.equal(cardMark(row, 'favorite'), null);
   const body = row.children.find(child => String(child.className).includes('game-row-body'));
   assert.equal(body.children[2].className, 'game-row-favorite');
   assert.equal(body.children[2].textContent, 'Favorite');
   assert.equal(body.children.length, 3);
+
+  const offlineBody = listByID[offlineRoot.id].children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(offlineBody.children[1].className, 'game-meta');
+  assert.match(offlineBody.children[1].textContent, /Offline/);
+  assert.doesNotMatch(offlineBody.children[1].textContent, /Ready/);
+  assert.equal(cardMark(listByID[offlineRoot.id]), null);
+  assert.equal(listByID[offlineRoot.id].children.some(child => String(child.className).includes('card-marks')), false);
+
+  const megaBody = listByID[offlineMega.id].children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(megaBody.children[1].textContent, 'Mega Drive · 1992 · Beat \'em Up · Offline');
+  assert.doesNotMatch(megaBody.children[1].textContent, /Ready/);
+  assert.doesNotMatch(megaBody.children[1].textContent, /USA/);
+  assert.equal(cardMark(listByID[offlineMega.id]), null);
+
+  const unreadableBody = listByID[unreadable.id].children.find(child => String(child.className).includes('game-row-body'));
+  assert.equal(unreadableBody.children[1].textContent, 'SNES · Unreadable');
+  assert.doesNotMatch(unreadableBody.children[1].textContent, /Offline/);
+  assert.equal(cardMark(listByID[unreadable.id]), null);
+  assert.equal(listByID[unreadable.id].children.some(child => String(child.className).includes('card-marks')), false);
+  assert.equal(unreadableBody.children[2].className, 'game-row-favorite');
+  assert.equal(unreadableBody.children[2].textContent, 'Favorite');
+  assert.equal(unreadableBody.children[3].className, 'game-meta game-meta-variant');
+  assert.equal(unreadableBody.children[3].textContent, '2 versions');
+  assert.equal(unreadableBody.children.length, 4);
 });
 
 test('Home rails reuse the same cover marks without hover', async () => {
