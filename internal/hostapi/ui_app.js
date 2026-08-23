@@ -552,9 +552,27 @@
     return facts;
   }
 
-  function variantLabel(game) {
-    const parts = dumpIdentityFacts(game).map(fact => fact.value);
-    return parts.join(' · ') || (game && game.title) || 'Dump';
+  function variantLabelText(game, keepMatchingTitle) {
+    const title = game && typeof game.title === 'string' ? game.title.trim() : '';
+    const canonical = game && typeof game.canonical_title === 'string' ? game.canonical_title.trim() : '';
+    const parts = [];
+    if (title && (keepMatchingTitle || title !== canonical)) parts.push(title);
+    parts.push(...dumpIdentityFacts(game).map(fact => fact && fact.value).filter(Boolean));
+    const kind = sourceKindLabel(game);
+    if (kind) parts.push(kind);
+    return parts.join(' · ') || title || 'Dump';
+  }
+
+  function variantLabel(game, variants) {
+    const title = game && typeof game.title === 'string' ? game.title.trim() : '';
+    const stripped = variantLabelText(game, false);
+    const siblings = Array.isArray(variants) ? variants : [];
+    const keepMatchingTitle = Boolean(title) && siblings.some(other => {
+      if (!other || other === game) return false;
+      if (game && game.id && other.id === game.id) return false;
+      return variantLabelText(other, false) === stripped;
+    });
+    return variantLabelText(game, keepMatchingTitle);
   }
 
   function coverHoverMeta(game, view) {
@@ -4094,7 +4112,7 @@
       const select = element('select');
       select.id = 'game-version';
       variants.forEach(variant => {
-        const option = element('option', '', variantLabel(variant));
+        const option = element('option', '', variantLabel(variant, variants));
         option.value = variant.id;
         if (variant.id === game.id) option.selected = true;
         select.appendChild(option);
