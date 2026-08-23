@@ -53,6 +53,7 @@ const {
   catalogSortOverridden,
   catalogEffectiveSort,
   catalogSortOverrideLabel,
+  catalogSortControlHidden,
 } = require('./ui_app.js');
 const FogCastMetadata = require('./ui_metadata.js');
 
@@ -251,6 +252,7 @@ function browserDocument() {
     'layout-list': 'button',
     'catalog-sort': 'select',
     'catalog-sort-label': 'span',
+    'catalog-sort-filter': 'label',
     'refresh-catalog': 'button',
     'filter-system': 'select',
     'filter-region': 'select',
@@ -271,7 +273,7 @@ function browserDocument() {
     'nav-recently-added', 'collection-list', 'create-collection', 'collection-name-label',
     'collection-name', 'save-collection', 'rename-collection', 'delete-collection',
     'platform-list', 'catalog-layout', 'layout-cover', 'layout-list',
-    'catalog-sort', 'catalog-sort-label',
+    'catalog-sort', 'catalog-sort-label', 'catalog-sort-filter',
     'attract', 'attract-title', 'attract-stage',
     'open-settings', 'settings', 'settings-attract-idle', 'settings-preferred-regions',
     'settings-host-health', 'settings-message', 'save-settings', 'close-settings',
@@ -322,6 +324,15 @@ function browserDocument() {
 function catalogSortOption(document, value) {
   const select = document.nodes.get('catalog-sort');
   return ((select && select.children) || []).find(option => option.value === value) || null;
+}
+
+function assertCatalogSortVisibility(document, hidden) {
+  const sort = document.nodes.get('catalog-sort');
+  const label = document.nodes.get('catalog-sort-label');
+  const wrap = document.nodes.get('catalog-sort-filter');
+  assert.equal(sort.hidden, hidden);
+  assert.equal(label.hidden, hidden);
+  assert.equal(wrap.hidden, hidden);
 }
 
 function browserText(node) {
@@ -1325,6 +1336,10 @@ test('collection See-alls and Home override Year/System without mutating stored 
   assert.equal(catalogSortOverrideLabel('title'), 'Sort (Title)');
   assert.equal(catalogSortOverrideLabel('recents'), 'Sort (Recent)');
   assert.equal(catalogSortOverrideLabel('recently_added'), 'Sort (Recently added)');
+  assert.equal(catalogSortControlHidden({ libraryView: 'home', collection: '', sort: 'year' }), true);
+  assert.equal(catalogSortControlHidden({ libraryView: 'grid', collection: '', sort: 'year' }), false);
+  assert.equal(catalogSortControlHidden({ libraryView: 'grid', collection: 'recents', sort: 'year' }), false);
+  assert.equal(catalogSortControlHidden({ libraryView: 'grid', collection: 'recently_added', sort: 'title' }), false);
 });
 
 test('setCatalogSort ignores recents so All-games Year does not become Title', async () => {
@@ -3814,8 +3829,7 @@ test('catalog sort dropdown locks on Home and collection See-alls without changi
   assert.equal(sort.disabled, true);
   assert.equal(sort.value, 'title');
   assert.equal(sort.getAttribute('data-sort-override'), 'title');
-  assert.equal(sort.getAttribute('aria-label'), 'Sort (Title)');
-  assert.equal(label.textContent, 'Sort (Title)');
+  assertCatalogSortVisibility(document, true);
 
   document.nodes.get('nav-all').click();
   await settleBrowser();
@@ -3823,6 +3837,7 @@ test('catalog sort dropdown locks on Home and collection See-alls without changi
   assert.equal(sort.getAttribute('data-sort-override'), null);
   assert.equal(sort.getAttribute('aria-label'), 'Sort');
   assert.equal(label.textContent, 'Sort');
+  assertCatalogSortVisibility(document, false);
 
   sort.value = 'year';
   sort.dispatchEvent({ type: 'change' });
@@ -3837,6 +3852,7 @@ test('catalog sort dropdown locks on Home and collection See-alls without changi
   assert.equal(sort.value, 'title');
   assert.equal(sort.getAttribute('data-sort-override'), 'title');
   assert.equal(label.textContent, 'Sort (Title)');
+  assertCatalogSortVisibility(document, false);
   sort.value = 'system';
   sort.dispatchEvent({ type: 'change' });
   await settleBrowser();
@@ -3851,6 +3867,7 @@ test('catalog sort dropdown locks on Home and collection See-alls without changi
   assert.equal(sort.getAttribute('data-sort-override'), 'recently_added');
   assert.equal(label.textContent, 'Sort (Recently added)');
   assert.equal(sort.getAttribute('aria-label'), 'Sort (Recently added)');
+  assertCatalogSortVisibility(document, false);
 
   const custom = document.nodes.get('nav-collection-weekend-queue');
   assert.ok(custom);
@@ -3860,6 +3877,7 @@ test('catalog sort dropdown locks on Home and collection See-alls without changi
   assert.equal(sort.value, 'title');
   assert.equal(sort.getAttribute('data-sort-override'), 'title');
   assert.equal(label.textContent, 'Sort (Title)');
+  assertCatalogSortVisibility(document, false);
 
   document.nodes.get('nav-all').click();
   await settleBrowser();
@@ -3867,6 +3885,7 @@ test('catalog sort dropdown locks on Home and collection See-alls without changi
   assert.equal(sort.value, 'year');
   assert.equal(sort.getAttribute('data-sort-override'), null);
   assert.equal(label.textContent, 'Sort');
+  assertCatalogSortVisibility(document, false);
   assert.ok(calls.filter(call => call.path === '/api/v1/games?sort=year&grouped=1').length >= 2);
 });
 
@@ -3888,6 +3907,8 @@ test('empty collection See-alls lock the sort dropdown and empty All-games unloc
   await settleBrowser();
   const sort = document.nodes.get('catalog-sort');
   const label = document.nodes.get('catalog-sort-label');
+  assert.equal(sort.disabled, true);
+  assertCatalogSortVisibility(document, true);
 
   document.nodes.get('nav-all').click();
   await settleBrowser();
@@ -4048,6 +4069,116 @@ test('All-games cannot select Recent and silently get Title', async () => {
   assert.equal(sort.value, 'year');
   assert.equal(recentsOption.hidden, true);
   assert.equal(recentsOption.disabled, true);
+});
+
+test('Home hides sort when Recents or Recently added rails are visible', async () => {
+  const shell = readAsset('ui_shell.html');
+  const css = readAsset('ui.css');
+  assert.match(shell, /<label class="filter-label" id="catalog-sort-filter">/);
+  assert.match(css, /\.filter-label\[hidden\]\s*\{\s*display:\s*none\s*;\s*\}/);
+  const continueGame = availableGame('megadrive-sonic-test', 'Sonic the Hedgehog', { system: 'megadrive' });
+  const recentGame = availableGame('nes-zelda-test', 'Zelda', { system: 'nes' });
+  const recentlyAddedGame = availableGame('snes-actraiser-test', 'ActRaiser', { system: 'snes' });
+  const populated = jsonResponse(readFixture('catalog-populated.json'));
+  const empty = jsonResponse({ games: [] });
+  const { document, calls } = await runBrowserApp({
+    keepHome: true,
+    responses: [populated, populated, populated],
+    homeRails: {
+      continue: jsonResponse({ games: [continueGame] }),
+      favorites: empty,
+      recents: jsonResponse({ games: [recentGame] }),
+      recently_added: jsonResponse({ games: [recentlyAddedGame] }),
+    },
+  });
+  await settleBrowser();
+  const sort = document.nodes.get('catalog-sort');
+  const label = document.nodes.get('catalog-sort-label');
+  assert.deepEqual(homeRails(document).map(rail => rail.attributes.get('data-home-rail')), [
+    'continue', 'recents', 'recently_added',
+  ]);
+  assert.equal(sort.disabled, true);
+  assertCatalogSortVisibility(document, true);
+  assert.equal(sort.getAttribute('data-sort-override'), 'title');
+  const homeFetchCount = calls.filter(call => String(call.path).startsWith('/api/v1/games')).length;
+
+  document.nodes.get('nav-all').click();
+  await settleBrowser();
+  assertCatalogSortVisibility(document, false);
+  assert.equal(sort.disabled, false);
+  assert.equal(label.textContent, 'Sort');
+  sort.value = 'year';
+  sort.dispatchEvent({ type: 'change' });
+  await settleBrowser();
+  assert.equal(sort.value, 'year');
+  assert.ok(calls.some(call => call.path === '/api/v1/games?sort=year&grouped=1'));
+
+  document.nodes.get('nav-home').click();
+  await settleBrowser();
+  assert.equal(sort.disabled, true);
+  assertCatalogSortVisibility(document, true);
+  const homeAfterYear = calls.slice(homeFetchCount).filter(call => (
+    String(call.path).startsWith('/api/v1/games') && String(call.path).includes('limit=12')
+  ));
+  assert.ok(homeAfterYear.some(call => call.path.includes('collection=recents')));
+  assert.ok(homeAfterYear.some(call => call.path.includes('collection=recently_added')));
+  assert.equal(homeAfterYear.every(call => !call.path.includes('sort=year') && !call.path.includes('sort=platform')), true);
+
+  document.nodes.get('nav-recents').click();
+  await settleBrowser();
+  assertCatalogSortVisibility(document, false);
+  assert.equal(sort.disabled, true);
+  assert.equal(sort.value, 'recents');
+  assert.equal(label.textContent, 'Sort (Recent)');
+  assert.equal(sort.getAttribute('aria-label'), 'Sort (Recent)');
+
+  document.nodes.get('nav-recently-added').click();
+  await settleBrowser();
+  assertCatalogSortVisibility(document, false);
+  assert.equal(sort.disabled, true);
+  assert.equal(sort.value, 'recently_added');
+  assert.equal(label.textContent, 'Sort (Recently added)');
+  assert.equal(sort.getAttribute('aria-label'), 'Sort (Recently added)');
+
+  document.nodes.get('nav-all').click();
+  await settleBrowser();
+  assertCatalogSortVisibility(document, false);
+  assert.equal(sort.disabled, false);
+  assert.equal(sort.value, 'year');
+  assert.equal(label.textContent, 'Sort');
+});
+
+test('Home hides sort when only title rails are visible', async () => {
+  const continueGame = availableGame('megadrive-sonic-test', 'Sonic the Hedgehog', { system: 'megadrive' });
+  const populated = jsonResponse(readFixture('catalog-populated.json'));
+  const empty = jsonResponse({ games: [] });
+  const { document } = await runBrowserApp({
+    keepHome: true,
+    responses: [populated],
+    homeRails: {
+      continue: jsonResponse({ games: [continueGame] }),
+      favorites: empty,
+      recents: empty,
+      unplayed: empty,
+      recently_added: empty,
+    },
+  });
+  await settleBrowser();
+  const sort = document.nodes.get('catalog-sort');
+  assert.deepEqual(homeRails(document).map(rail => rail.attributes.get('data-home-rail')), ['continue']);
+  assert.equal(sort.disabled, true);
+  assertCatalogSortVisibility(document, true);
+
+  document.nodes.get('nav-continue').click();
+  await settleBrowser();
+  assertCatalogSortVisibility(document, false);
+  assert.equal(sort.disabled, true);
+  assert.equal(document.nodes.get('catalog-sort-label').textContent, 'Sort (Title)');
+
+  document.nodes.get('nav-home').click();
+  await settleBrowser();
+  assert.equal(sort.disabled, true);
+  assertCatalogSortVisibility(document, true);
 });
 
 test('home omits empty Unplayed and Recently added rails and See all opens those walls', async () => {

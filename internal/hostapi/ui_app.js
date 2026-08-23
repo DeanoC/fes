@@ -88,6 +88,10 @@
     return 'Sort (Title)';
   }
 
+  function catalogSortControlHidden(state) {
+    return Boolean(state) && state.libraryView === 'home';
+  }
+
   const HOME_LAUNCH_RECONCILE_RAILS = Object.freeze(['unplayed', 'continue', 'recents']);
   const MAX_ATTRACT_IDLE_SECONDS = 2147483;
   const MAX_ATTRACT_IDLE_MS = 2147483647;
@@ -2719,6 +2723,7 @@
     catalogSortOverridden,
     catalogEffectiveSort,
     catalogSortOverrideLabel,
+    catalogSortControlHidden,
   });
   root.FogCastApp = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -2747,6 +2752,7 @@
     yearFilter: document.getElementById('filter-year'),
     sortFilter: document.getElementById('catalog-sort'),
     sortFilterLabel: document.getElementById('catalog-sort-label'),
+    sortFilterWrap: document.getElementById('catalog-sort-filter'),
     hidePrerelease: document.getElementById('filter-hide-prerelease'),
     hideHacks: document.getElementById('filter-hide-hacks'),
     availabilityFilter: document.getElementById('filter-availability'),
@@ -3675,11 +3681,15 @@
 
   function syncCatalogSortControl() {
     if (!nodes.sortFilter) return;
+    const hidden = catalogSortControlHidden(state);
     const overridden = catalogSortOverridden(state);
     const effective = catalogEffectiveSort(state);
     syncCatalogSortRecentsOption(effective === 'recents');
     nodes.sortFilter.value = effective;
     nodes.sortFilter.disabled = overridden;
+    nodes.sortFilter.hidden = hidden;
+    if (nodes.sortFilterLabel) nodes.sortFilterLabel.hidden = hidden;
+    if (nodes.sortFilterWrap) nodes.sortFilterWrap.hidden = hidden;
     if (overridden) {
       nodes.sortFilter.setAttribute('data-sort-override', effective);
       nodes.sortFilter.setAttribute(
