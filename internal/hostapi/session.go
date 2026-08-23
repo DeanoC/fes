@@ -317,8 +317,17 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 		}
 		result.Media = s.currentMediaState()
 	}
-	// FPGA remote-start is detach-only for this ladder: input attach stays
-	// optional through the explicit session input endpoint.
+	if s.remoteInput != nil && execution != "host_only" && resp.Status.State == protocol.StateActive {
+		core := sessionCore(resp.Status)
+		if core == "" {
+			return sessionResult{}, s.stopAfterFailedAttach(execution)
+		}
+		if err := s.remoteInput.Attach(ctx, core); err != nil {
+			return sessionResult{}, s.stopAfterFailedAttach(execution)
+		}
+		result = s.publicSession(resp.Status, &progress)
+		result.Execution = execution
+	}
 	s.record("session.launch", result, &progress)
 	if resp.Status.State == protocol.StateActive {
 		if recorder, ok := s.service.(interface {
@@ -410,6 +419,15 @@ func (s *sessionCoordinator) stop(ctx context.Context) (sessionResult, error) {
 	}
 	s.record("session.stop", result, nil)
 	return result, nil
+}
+
+func (s *sessionCoordinator) stopAfterFailedAttach(execution string) error {
+	_, stopErr := s.stopServiceBounded()
+	_ = s.stopMediaBounded(execution)
+	if stopErr != nil {
+		return stopErr
+	}
+	return remoteInputError()
 }
 
 func (s *sessionCoordinator) stopServiceBounded() (protocol.Status, error) {

@@ -40,6 +40,7 @@ type fakeService struct {
 	stopErr       error
 	stopResults   []error
 	stopCalled    chan struct{}
+	stopCtxErrs   []error
 	progress      []string
 	execution     string
 	executionErr  error
@@ -80,7 +81,8 @@ func (s *fakeService) Launch(ctx context.Context, _ string, progress fogcast.Pro
 	}
 	return s.launch, s.launchErr
 }
-func (s *fakeService) Stop(context.Context) (protocol.Status, error) {
+func (s *fakeService) Stop(ctx context.Context) (protocol.Status, error) {
+	s.stopCtxErrs = append(s.stopCtxErrs, ctx.Err())
 	if s.order != nil {
 		*s.order = append(*s.order, "service.stop")
 	}
@@ -100,13 +102,18 @@ func (s *fakeService) Stop(context.Context) (protocol.Status, error) {
 }
 
 type fakeRemoteInput struct {
-	status host.RemoteInputStatus
-	attach []string
-	detach []string
+	status    host.RemoteInputStatus
+	attach    []string
+	detach    []string
+	attachErr error
 }
 
 func (r *fakeRemoteInput) Attach(_ context.Context, core string) error {
 	r.attach = append(r.attach, core)
+	if r.attachErr != nil {
+		r.status = host.RemoteInputStatus{State: host.RemoteInputFailed}
+		return r.attachErr
+	}
 	r.status = host.RemoteInputStatus{State: host.RemoteInputAttached, Ready: true}
 	return nil
 }
@@ -324,32 +331,200 @@ func TestSessionOwnsRemoteInputAttachDetachAndStatusLifecycle(t *testing.T) {
 	launch.Host = "127.0.0.1"
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, launch)
-	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"input":{"state":"detached"`) {
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"execution":"fpga_native"`) {
 		t.Fatalf("launch = %d %s", response.Code, response.Body.String())
 	}
-	if len(input.attach) != 0 {
-		t.Fatalf("FPGA launch attached remote input: %#v", input.attach)
+	if !strings.Contains(response.Body.String(), `"input":{"state":"attached"`) {
+		t.Fatalf("FPGA launch omitted attached input: %s", response.Body.String())
+	}
+	if len(input.attach) != 1 || input.attach[0] != core {
+		t.Fatalf("FPGA launch attach calls = %#v", input.attach)
 	}
 
 	status := serve(t, handler, http.MethodGet, "/api/v1/session/input")
-	if status.Code != http.StatusOK || !strings.Contains(status.Body.String(), `"state":"detached"`) {
-		t.Fatalf("input status after launch = %d %s", status.Code, status.Body.String())
-	}
-
-	attach := httptest.NewRequest(http.MethodPost, "/api/v1/session/input/attach", nil)
-	attach.Host = "127.0.0.1"
-	attachResponse := httptest.NewRecorder()
-	handler.ServeHTTP(attachResponse, attach)
-	if attachResponse.Code != http.StatusOK || len(input.attach) != 1 || input.attach[0] != core {
-		t.Fatalf("optional attach = %d %s calls=%#v", attachResponse.Code, attachResponse.Body.String(), input.attach)
+	if status.Code != http.StatusOK || !strings.Contains(status.Body.String(), `"state":"attached"`) {
+		t.Fatalf("input status = %d %s", status.Code, status.Body.String())
 	}
 
 	detach := httptest.NewRequest(http.MethodPost, "/api/v1/session/input/detach", nil)
 	detach.Host = "127.0.0.1"
 	detachResponse := httptest.NewRecorder()
 	handler.ServeHTTP(detachResponse, detach)
-	if detachResponse.Code != http.StatusOK || len(input.detach) != 1 {
+	if detachResponse.Code != http.StatusOK || len(input.detach) != 1 || input.detach[0] != "operator_detach" {
 		t.Fatalf("detach = %d %s calls=%#v", detachResponse.Code, detachResponse.Body.String(), input.detach)
+	}
+
+	attach := httptest.NewRequest(http.MethodPost, "/api/v1/session/input/attach", nil)
+	attach.Host = "127.0.0.1"
+	attachResponse := httptest.NewRecorder()
+	handler.ServeHTTP(attachResponse, attach)
+	if attachResponse.Code != http.StatusOK || len(input.attach) != 2 || input.attach[1] != core {
+		t.Fatalf("explicit attach after detach = %d %s calls=%#v", attachResponse.Code, attachResponse.Body.String(), input.attach)
+	}
+}
+
+func TestFPGANativeSessionStopDetachesRemoteInput(t *testing.T) {
+	gameID := "actraiser"
+	system := protocol.SystemSNES
+	core := "SNES"
+	service := &fakeService{
+		launch:  protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core}},
+		status:  protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core},
+		stopped: protocol.Status{State: protocol.StateIdle},
+	}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
+	handler := hostapi.New(service, hostapi.WithRemoteInput(input))
+
+	launch := launchSession(t, handler, gameID)
+	if launch.Code != http.StatusOK || len(input.attach) != 1 {
+		t.Fatalf("launch = %d %s attach=%#v", launch.Code, launch.Body.String(), input.attach)
+	}
+
+	stop := serve(t, handler, http.MethodPost, "/api/v1/session/stop")
+	if stop.Code != http.StatusOK || !strings.Contains(stop.Body.String(), `"state":"idle"`) {
+		t.Fatalf("stop = %d %s", stop.Code, stop.Body.String())
+	}
+	if len(input.detach) != 1 || input.detach[0] != "session_stop" {
+		t.Fatalf("stop detach calls = %#v", input.detach)
+	}
+	if strings.Contains(stop.Body.String(), `"state":"attached"`) {
+		t.Fatalf("stop left input attached: %s", stop.Body.String())
+	}
+}
+
+func TestFPGANativeLaunchAttachFailureStopsSession(t *testing.T) {
+	gameID := "actraiser"
+	system := protocol.SystemSNES
+	core := "SNES"
+	stopCalled := make(chan struct{})
+	service := &fakeService{
+		launch:     protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core}},
+		stopped:    protocol.Status{State: protocol.StateIdle},
+		stopCalled: stopCalled,
+	}
+	input := &fakeRemoteInput{
+		status:    host.RemoteInputStatus{State: host.RemoteInputDetached},
+		attachErr: errors.New("bridge failed"),
+	}
+	handler := hostapi.New(service, hostapi.WithRemoteInput(input))
+
+	launch := launchSession(t, handler, gameID)
+	if launch.Code == http.StatusOK {
+		t.Fatalf("attach failure unexpectedly succeeded: %s", launch.Body.String())
+	}
+	if len(input.attach) != 1 || input.attach[0] != core {
+		t.Fatalf("attach attempts = %#v", input.attach)
+	}
+	select {
+	case <-stopCalled:
+	default:
+		t.Fatal("attach failure did not stop the FPGA session")
+	}
+}
+
+func TestFPGANativeLaunchAttachFailureWhenCoreMissingStopsSession(t *testing.T) {
+	gameID := "actraiser"
+	system := protocol.SystemSNES
+	stopCalled := make(chan struct{})
+	service := &fakeService{
+		launch:     protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system}},
+		stopped:    protocol.Status{State: protocol.StateIdle},
+		stopCalled: stopCalled,
+	}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
+	handler := hostapi.New(service, hostapi.WithRemoteInput(input))
+
+	launch := launchSession(t, handler, gameID)
+	if launch.Code == http.StatusOK {
+		t.Fatalf("missing-core launch unexpectedly succeeded: %s", launch.Body.String())
+	}
+	if len(input.attach) != 0 {
+		t.Fatalf("missing-core launch attached: %#v", input.attach)
+	}
+	select {
+	case <-stopCalled:
+	default:
+		t.Fatal("missing-core attach did not stop the FPGA session")
+	}
+}
+
+func TestFPGANativeLaunchAttachFailureStopsAfterCanceledRequest(t *testing.T) {
+	gameID := "actraiser"
+	system := protocol.SystemSNES
+	core := "SNES"
+	service := &fakeService{
+		launch:  protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core}},
+		stopped: protocol.Status{State: protocol.StateIdle},
+	}
+	input := &fakeRemoteInput{
+		status:    host.RemoteInputStatus{State: host.RemoteInputDetached},
+		attachErr: errors.New("bridge failed"),
+	}
+	handler := hostapi.New(service, hostapi.WithRemoteInput(input))
+
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/launch", strings.NewReader(`{"game_id":"`+gameID+`"}`))
+	request.Host = "127.0.0.1"
+	ctx, cancel := context.WithCancel(request.Context())
+	cancel()
+	request = request.WithContext(ctx)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code == http.StatusOK {
+		t.Fatalf("canceled attach failure unexpectedly succeeded: %s", response.Body.String())
+	}
+	if len(service.stopCtxErrs) == 0 {
+		t.Fatal("attach failure did not stop the FPGA session")
+	}
+	for index, err := range service.stopCtxErrs {
+		if err != nil {
+			t.Fatalf("stop context %d was already done: %v", index, err)
+		}
+	}
+}
+
+func TestFPGANativeLaunchAttachFailureReportsBoundedStopError(t *testing.T) {
+	gameID := "actraiser"
+	system := protocol.SystemSNES
+	core := "SNES"
+	service := &fakeService{
+		launch:  protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core}},
+		stopped: protocol.Status{State: protocol.StateIdle},
+		stopErr: errors.New("stop failed"),
+	}
+	input := &fakeRemoteInput{
+		status:    host.RemoteInputStatus{State: host.RemoteInputDetached},
+		attachErr: errors.New("bridge failed"),
+	}
+	handler := hostapi.New(service, hostapi.WithRemoteInput(input))
+
+	launch := launchSession(t, handler, gameID)
+	if launch.Code != http.StatusServiceUnavailable || !strings.Contains(launch.Body.String(), `"code":"TARGET_UNAVAILABLE"`) {
+		t.Fatalf("cleanup failure = %d %s", launch.Code, launch.Body.String())
+	}
+	if strings.Contains(launch.Body.String(), `"code":"MISTER_UNAVAILABLE"`) {
+		t.Fatalf("attach error hid the stop cleanup failure: %s", launch.Body.String())
+	}
+	if len(service.stopCtxErrs) == 0 {
+		t.Fatal("failed cleanup did not attempt bounded stop")
+	}
+}
+
+func TestFPGANativeLaunchSkipsAttachWhenRemoteInputDisabled(t *testing.T) {
+	gameID := "actraiser"
+	system := protocol.SystemSNES
+	core := "SNES"
+	service := &fakeService{
+		launch:  protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core}},
+		stopped: protocol.Status{State: protocol.StateIdle},
+	}
+	handler := hostapi.New(service)
+
+	launch := launchSession(t, handler, gameID)
+	if launch.Code != http.StatusOK || !strings.Contains(launch.Body.String(), `"execution":"fpga_native"`) {
+		t.Fatalf("launch = %d %s", launch.Code, launch.Body.String())
+	}
+	if strings.Contains(launch.Body.String(), `"input":`) {
+		t.Fatalf("disabled remote input leaked input status: %s", launch.Body.String())
 	}
 }
 
