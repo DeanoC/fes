@@ -5987,6 +5987,21 @@ test('home partial rail failures do not use the empty-home copy', async () => {
   assert.ok(state.homeRailFailures > 0);
 });
 
+test('empty All games is honest that scan is internal CLI not a host API', async () => {
+  const empty = jsonResponse({ games: [] });
+  const { document } = await runBrowserApp({
+    responses: [empty],
+  });
+  await settleBrowser();
+  const message = document.nodes.get('catalog-list').children[0];
+  assert.ok(message);
+  assert.match(message.textContent, /The library is empty/);
+  assert.match(message.textContent, /internal CLI/);
+  assert.doesNotMatch(message.textContent, /\/api\/v1\/.*scan/i);
+  const retry = document.nodes.get('catalog-actions').children[0];
+  assert.equal(retry.textContent, 'Reload catalog');
+});
+
 test('empty home uses home-specific copy instead of claiming the library is empty', async () => {
   const { document } = await runBrowserApp({
     keepHome: true,

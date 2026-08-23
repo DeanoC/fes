@@ -14,6 +14,13 @@ import (
 
 const dumpKeySeparator = "\x1f"
 
+// SeededActRaiserAlias is the catalog search token for exact ActRaiser
+// (not ActRaiser 2). It matches the host FPGA allowlist key and dump titles
+// whose canonical name is ActRaiser.
+const SeededActRaiserAlias = "actraiser"
+
+const exactActRaiserCanonical = "ActRaiser"
+
 var DefaultPreferredRegions = []string{"usa", "world", "europe", "japan"}
 
 var dumpFold = cases.Fold()
@@ -308,6 +315,34 @@ func dumpSearchDocument(id, title, canonical, aliases string, system protocol.Sy
 		foldSearchText(string(system)),
 		foldSearchText(aliases),
 	}, " "))
+}
+
+// ExactActRaiserTitle reports whether catalog identity is ActRaiser after dump
+// decorations are stripped. Sequels such as ActRaiser 2 / II are excluded.
+func ExactActRaiserTitle(canonical, title string) bool {
+	name := strings.TrimSpace(canonical)
+	if name == "" {
+		name = ParseDump(title).CanonicalTitle
+	}
+	return strings.EqualFold(name, exactActRaiserCanonical)
+}
+
+// SeededSearchAliases keeps operator/metadata aliases and, for exact ActRaiser,
+// the seeded actraiser token used by host search and the FPGA allowlist key.
+func SeededSearchAliases(canonical, title, existing string) string {
+	existing = strings.TrimSpace(existing)
+	if !ExactActRaiserTitle(canonical, title) {
+		return existing
+	}
+	if existing == "" {
+		return SeededActRaiserAlias
+	}
+	for _, part := range strings.Fields(existing) {
+		if strings.EqualFold(part, SeededActRaiserAlias) {
+			return existing
+		}
+	}
+	return existing + " " + SeededActRaiserAlias
 }
 
 func dumpPenaltySQL(column string) string {

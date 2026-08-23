@@ -44,6 +44,44 @@ func TestParseDumpHandlesCommaTagsAndAliases(t *testing.T) {
 	}
 }
 
+func TestExactActRaiserTitleAndSeededAlias(t *testing.T) {
+	if !catalog.ExactActRaiserTitle("", "ActRaiser (USA) (Rev 1)") {
+		t.Fatal("decorated ActRaiser")
+	}
+	if !catalog.ExactActRaiserTitle("ActRaiser", "ignored dump title") {
+		t.Fatal("canonical ActRaiser")
+	}
+	if catalog.ExactActRaiserTitle("", "ActRaiser 2 (USA)") || catalog.ExactActRaiserTitle("ActRaiser 2", "ActRaiser 2") {
+		t.Fatal("sequel must not match")
+	}
+	if catalog.ExactActRaiserTitle("", "ActRaiser II") {
+		t.Fatal("roman sequel must not match")
+	}
+	if got := catalog.SeededSearchAliases("", "ActRaiser (USA)", ""); got != catalog.SeededActRaiserAlias {
+		t.Fatalf("seeded aliases = %q", got)
+	}
+	if got := catalog.SeededSearchAliases("", "ActRaiser 2 (USA)", ""); got != "" {
+		t.Fatalf("sequel aliases = %q", got)
+	}
+	if got := catalog.SeededSearchAliases("ActRaiser", "ActRaiser (USA)", "actraiser extra"); got != "actraiser extra" {
+		t.Fatalf("existing alias = %q", got)
+	}
+}
+
+func TestMatchesTextFindsSeededActRaiserAlias(t *testing.T) {
+	game := catalog.Game{Title: "ActRaiser (USA)", CanonicalTitle: "ActRaiser", System: protocol.SystemSNES}
+	if !catalog.MatchesText(game, "actraiser") || !catalog.MatchesText(game, "ActRaiser") {
+		t.Fatal("seeded ActRaiser alias")
+	}
+	sequel := catalog.Game{Title: "ActRaiser 2 (USA)", CanonicalTitle: "ActRaiser 2", System: protocol.SystemSNES}
+	if catalog.ExactActRaiserTitle(sequel.CanonicalTitle, sequel.Title) {
+		t.Fatal("sequel matched exact ActRaiser identity")
+	}
+	if !catalog.MatchesText(sequel, "ActRaiser 2") {
+		t.Fatal("sequel title search")
+	}
+}
+
 func TestParseDumpLeavesUndecoratedTitles(t *testing.T) {
 	dump := catalog.ParseDump("Alpha")
 	if dump.CanonicalTitle != "Alpha" || dump.Region != "" || dump.Revision != "" || len(dump.Flags) != 0 {

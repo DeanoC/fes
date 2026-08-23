@@ -3554,7 +3554,7 @@
     }
     if (view === 'empty' || view === 'no_matches') {
       nodes.list.appendChild(element('p', 'status-message', 'Home has no Continue, Favorites, Recent, or collection titles yet.'));
-      nodes.actions.appendChild(retryButton('Refresh catalog', loadCatalog));
+      nodes.actions.appendChild(retryButton('Reload catalog', loadCatalog));
       return;
     }
     nodes.status.textContent = state.metadataFallbackCount ? 'populated metadata_fallback' : 'populated';
@@ -3613,8 +3613,8 @@
       return;
     }
     if (view === 'empty' || view === 'no_matches') {
-      nodes.list.appendChild(element('p', 'status-message', state.query ? 'No matching games.' : (state.collection ? 'This collection is empty.' : 'The library is empty.')));
-      nodes.actions.appendChild(retryButton('Refresh catalog', loadCatalog));
+      nodes.list.appendChild(element('p', 'status-message', state.query ? 'No matching games.' : (state.collection ? 'This collection is empty.' : 'The library is empty. Catalog scan is an internal CLI command; this page only reads the current catalog.')));
+      nodes.actions.appendChild(retryButton('Reload catalog', loadCatalog));
       return;
     }
     nodes.status.textContent = state.metadataFallbackCount ? 'populated metadata_fallback' : 'populated';

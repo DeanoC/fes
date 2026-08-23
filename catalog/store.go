@@ -178,21 +178,22 @@ func (x *ScanSession) Observe(ctx context.Context, candidate Candidate) (Change,
 	var change Change
 	dump := ParseDump(candidate.Title)
 	groupKey := GroupKey(candidate.System, dump.CanonicalTitle)
-	searchText := dumpSearchDocument(candidate.ID, candidate.Title, dump.CanonicalTitle, "", candidate.System)
+	aliases := SeededSearchAliases(dump.CanonicalTitle, candidate.Title, previous.aliases)
+	searchText := dumpSearchDocument(candidate.ID, candidate.Title, dump.CanonicalTitle, aliases, candidate.System)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		_, err = x.tx.ExecContext(ctx, `
 			INSERT INTO games (
 				game_id, library_id, system, relative_path, title, source_kind, source_state, reason,
 				source_size, modified_ns, zip_member, zip_size, zip_crc32, zip_entry_count, seen_generation,
-				search_text, canonical_title, region, revision, dump_flags, group_key, first_seen_ns
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				search_text, search_aliases, canonical_title, region, revision, dump_flags, group_key, first_seen_ns
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			candidate.ID, x.root.ID, candidate.System, candidate.RelativePath, candidate.Title,
 			candidate.Kind, candidate.State, candidate.Reason,
 			candidate.Fingerprint.SourceSize, candidate.Fingerprint.ModifiedNS,
 			candidate.Fingerprint.ZIPMember, candidate.Fingerprint.ZIPSize,
 			candidate.Fingerprint.ZIPCRC32, candidate.Fingerprint.ZIPEntryCount, x.generation,
-			searchText, dump.CanonicalTitle, dump.Region, dump.Revision, dump.FlagString(), groupKey,
+			searchText, aliases, dump.CanonicalTitle, dump.Region, dump.Revision, dump.FlagString(), groupKey,
 			time.Now().UnixNano(),
 		)
 		if err != nil {
@@ -221,14 +222,14 @@ func (x *ScanSession) Observe(ctx context.Context, candidate Candidate) (Change,
 		_, err = x.tx.ExecContext(ctx, `
 			UPDATE games SET title = ?, source_kind = ?, source_state = ?, reason = ?,
 				source_size = ?, modified_ns = ?, zip_member = ?, zip_size = ?, zip_crc32 = ?,
-				zip_entry_count = ?, seen_generation = ?, search_text = ?,
+				zip_entry_count = ?, seen_generation = ?, search_text = ?, search_aliases = ?,
 				canonical_title = ?, region = ?, revision = ?, dump_flags = ?, group_key = ?`+contentUpdate+`
 			WHERE game_id = ?`,
 			candidate.Title, candidate.Kind, candidate.State, candidate.Reason,
 			candidate.Fingerprint.SourceSize, candidate.Fingerprint.ModifiedNS,
 			candidate.Fingerprint.ZIPMember, candidate.Fingerprint.ZIPSize,
 			candidate.Fingerprint.ZIPCRC32, candidate.Fingerprint.ZIPEntryCount,
-			x.generation, dumpSearchDocument(candidate.ID, candidate.Title, dump.CanonicalTitle, previous.aliases, candidate.System),
+			x.generation, searchText, aliases,
 			dump.CanonicalTitle, dump.Region, dump.Revision, dump.FlagString(), groupKey, candidate.ID,
 		)
 		if err != nil {
@@ -530,11 +531,15 @@ func gameFilterSQL(query Query, gameAlias, libraryAlias string) (string, []any) 
 	}
 	if folded := foldSearchText(query.Text); folded != "" {
 		like := escapeLIKE(folded)
+		seedClause := ""
+		if folded == foldSearchText(SeededActRaiserAlias) {
+			seedClause = " OR lower(" + gameAlias + ".canonical_title) = 'actraiser'"
+		}
 		if match := ftsMatchQuery(folded); match != "" {
-			builder.WriteString(" AND (" + gameAlias + ".rowid IN (SELECT rowid FROM games_fts WHERE games_fts MATCH ?) OR " + gameAlias + ".search_text LIKE '%' || ? || '%' ESCAPE '\\')")
+			builder.WriteString(" AND (" + gameAlias + ".rowid IN (SELECT rowid FROM games_fts WHERE games_fts MATCH ?) OR " + gameAlias + ".search_text LIKE '%' || ? || '%' ESCAPE '\\'" + seedClause + ")")
 			args = append(args, match, like)
 		} else {
-			builder.WriteString(" AND " + gameAlias + ".search_text LIKE '%' || ? || '%' ESCAPE '\\'")
+			builder.WriteString(" AND (" + gameAlias + ".search_text LIKE '%' || ? || '%' ESCAPE '\\'" + seedClause + ")")
 			args = append(args, like)
 		}
 	}
@@ -704,6 +709,7 @@ func (s *Store) SetFacets(ctx context.Context, id, genre, year, aliases string) 
 	if aliases == "" {
 		aliases = game.SearchAliases
 	}
+	aliases = SeededSearchAliases(game.CanonicalTitle, game.Title, aliases)
 	search := dumpSearchDocument(game.ID, game.Title, game.CanonicalTitle, aliases, game.System)
 	_, err = s.db.ExecContext(ctx, `
 		UPDATE games SET genre = ?, year = ?, search_aliases = ?, search_text = ?

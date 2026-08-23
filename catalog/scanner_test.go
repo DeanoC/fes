@@ -883,6 +883,49 @@ func TestScannerSkipsCaseMismatchedCueCompanions(t *testing.T) {
 	}
 }
 
+func TestScannerOperatorSNESRootIndexesActRaiserForHostSearch(t *testing.T) {
+	ctx := context.Background()
+	rootPath := t.TempDir()
+	mustWriteScannerFile(t, filepath.Join(rootPath, "ActRaiser.smc"), []byte("actraiser"))
+	mustWriteScannerFile(t, filepath.Join(rootPath, "ActRaiser (USA).sfc"), []byte("actraiser-usa"))
+	mustWriteScannerFile(t, filepath.Join(rootPath, "ActRaiser 2 (USA).sfc"), []byte("actraiser-2"))
+	store := openScannerStore(t)
+	root := Root{ID: "operator-snes-root", System: protocol.SystemSNES, Path: rootPath}
+	scanner := Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}
+	report, err := scanner.Scan(ctx, []Root{root})
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(report.Roots) != 1 || report.Roots[0].RootID != "operator-snes-root" || report.Roots[0].Offline || report.Roots[0].Added != 3 {
+		t.Fatalf("report = %+v", report)
+	}
+
+	page, err := store.QueryGames(ctx, Query{Text: "actraiser", Grouped: true, Limit: 20})
+	if err != nil {
+		t.Fatalf("QueryGames: %v", err)
+	}
+	var foundExact bool
+	for _, game := range page.Games {
+		if game.LibraryID != "operator-snes-root" {
+			t.Fatalf("library = %q", game.LibraryID)
+		}
+		if ExactActRaiserTitle(game.CanonicalTitle, game.Title) {
+			foundExact = true
+			if game.SearchAliases != SeededActRaiserAlias {
+				t.Fatalf("aliases = %q", game.SearchAliases)
+			}
+		}
+	}
+	if !foundExact {
+		t.Fatalf("ActRaiser missing from %+v", page.Games)
+	}
+
+	detail := scannerGameByPath(t, store, "ActRaiser.smc")
+	if !detail.RootOnline || detail.State != SourceStateAvailable || !ExactActRaiserTitle(detail.CanonicalTitle, detail.Title) {
+		t.Fatalf("plain ActRaiser = %+v", detail)
+	}
+}
+
 func assertReasonsPathFree(t *testing.T, rootPath string, games []Game) {
 	t.Helper()
 	for _, game := range games {

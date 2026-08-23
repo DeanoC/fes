@@ -234,6 +234,9 @@ func MatchesText(game Game, text string) bool {
 	if folded == "" {
 		return true
 	}
+	if folded == foldSearchText(SeededActRaiserAlias) && ExactActRaiserTitle(game.CanonicalTitle, game.Title) {
+		return true
+	}
 	return strings.Contains(foldSearchText(game.Title), folded) ||
 		strings.Contains(foldSearchText(game.CanonicalTitle), folded) ||
 		strings.Contains(foldSearchText(game.ID), folded) ||

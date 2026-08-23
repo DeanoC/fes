@@ -203,13 +203,14 @@ func rewriteDumpFields(ctx context.Context, connection *sql.Conn) error {
 	for _, game := range games {
 		dump := ParseDump(game.title)
 		system := protocol.System(game.system)
+		aliases := SeededSearchAliases(dump.CanonicalTitle, game.title, game.aliases)
 		if _, err := connection.ExecContext(ctx, `
 			UPDATE games SET canonical_title = ?, region = ?, revision = ?, dump_flags = ?, group_key = ?,
 			  first_seen_ns = CASE WHEN first_seen_ns = 0 THEN ? ELSE first_seen_ns END,
-			  search_text = ?
+			  search_aliases = ?, search_text = ?
 			WHERE game_id = ?`,
 			dump.CanonicalTitle, dump.Region, dump.Revision, dump.FlagString(), GroupKey(system, dump.CanonicalTitle),
-			game.modified, dumpSearchDocument(game.id, game.title, dump.CanonicalTitle, game.aliases, system), game.id,
+			game.modified, aliases, dumpSearchDocument(game.id, game.title, dump.CanonicalTitle, aliases, system), game.id,
 		); err != nil {
 			return err
 		}

@@ -781,7 +781,7 @@ func normalizeRoot(raw string) (string, error) {
 	}
 	root = filepath.Clean(root)
 	if info, err := os.Lstat(root); err == nil && info.Mode()&os.ModeSymlink != 0 {
-		return "", fmt.Errorf("must not be a symbolic link")
+		return "", fmt.Errorf("must not be a symbolic link; configure the real absolute directory")
 	}
 	return root, nil
 }

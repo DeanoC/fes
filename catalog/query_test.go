@@ -350,6 +350,56 @@ func TestQueryGamesOfflineExcludesInvalidRows(t *testing.T) {
 	assertGameIDs(t, page.Games, []string{"snes-away", "snes-gone"})
 }
 
+func TestQueryGamesFindsOperatorSNESRootActRaiser(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	root := catalog.Root{ID: "operator-snes-root", System: protocol.SystemSNES, Path: "/games/Games/SNES"}
+	session, err := store.BeginRootScan(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustObserve(t, session, candidate("snes-actraiser-usa", "ActRaiser (USA)", "ActRaiser (USA).sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA), catalog.ChangeAdded)
+	mustObserve(t, session, candidate("snes-actraiser-plain", "ActRaiser", "ActRaiser.smc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA), catalog.ChangeAdded)
+	mustObserve(t, session, candidate("snes-actraiser-2", "ActRaiser 2 (USA)", "ActRaiser 2 (USA).sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA), catalog.ChangeAdded)
+	mustComplete(t, session)
+
+	for _, query := range []string{"ActRaiser", "actraiser"} {
+		page, err := store.QueryGames(ctx, catalog.Query{Text: query, Grouped: true, Limit: 20})
+		if err != nil {
+			t.Fatalf("QueryGames(%q): %v", query, err)
+		}
+		var foundExact, foundSequel bool
+		for _, game := range page.Games {
+			if game.LibraryID != "operator-snes-root" {
+				t.Fatalf("%q result library = %q", query, game.LibraryID)
+			}
+			if catalog.ExactActRaiserTitle(game.CanonicalTitle, game.Title) {
+				foundExact = true
+				if game.SearchAliases != catalog.SeededActRaiserAlias {
+					t.Fatalf("%q exact aliases = %q", query, game.SearchAliases)
+				}
+			}
+			if game.CanonicalTitle == "ActRaiser 2" {
+				foundSequel = true
+			}
+		}
+		if !foundExact {
+			t.Fatalf("QueryGames(%q) missing exact ActRaiser: %+v", query, page.Games)
+		}
+		if query == "ActRaiser 2" && !foundSequel {
+			t.Fatalf("QueryGames(%q) missing sequel: %+v", query, page.Games)
+		}
+	}
+
+	sequel, err := store.QueryGames(ctx, catalog.Query{Text: "ActRaiser 2", Grouped: true, Limit: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sequel.Games) != 1 || sequel.Games[0].CanonicalTitle != "ActRaiser 2" {
+		t.Fatalf("sequel search = %+v", sequel.Games)
+	}
+}
+
 func TestCursorRoundTripsTitleWithRecordSeparator(t *testing.T) {
 	game := catalog.Game{
 		ID: "snes-split", Title: "Alpha\x1eZulu", CanonicalTitle: "Alpha\x1eZulu",

@@ -117,7 +117,9 @@ bin/fogcast-api --config /path/to/local/fogcast.toml --listen 127.0.0.1:8787
 Initial endpoints are `GET /api/v1/health`, `GET /api/v1/status`,
 `GET /api/v1/games?q=<optional query>`, `GET /api/v1/games/{id}`,
 `GET /api/v1/session`, `GET /api/v1/session/events?after=<sequence>`,
-`POST /api/v1/session/launch`, and `POST /api/v1/session/stop`. The root path
+`POST /api/v1/session/launch`, and `POST /api/v1/session/stop`. There is no
+public scan route; `fogcast scan` is an INTERNAL CLI command that writes the
+SQLite catalog that `fogcast-api` and the UI later read. The root path
 serves a self-contained browser shell. Launch requests contain only a `game_id`;
 the host resolves catalog and target details internally. The initial host-only
 execution boundary is `internal/hostexec`, with a RetroArch adapter that launches

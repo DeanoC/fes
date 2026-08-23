@@ -224,9 +224,9 @@ request_timeout_seconds = 12
 upload_timeout_seconds = 60
 
 [[libraries]]
-id = "snes-main"
+id = "operator-snes-root"
 system = "snes"
-root = "/absolute/local/mount/SNES"
+root = "/absolute/nonsymlink/Games/Games/SNES"
 
 [host_emulator]
 binary = "/absolute/path/to/RetroArch"
@@ -259,6 +259,13 @@ Notes:
 
 - TOML does not interpolate environment variables. Replace placeholders in the
   private file; do not commit the resolved values.
+- `id = "operator-snes-root"` is the live operator-style library id. Historical
+  examples and tests may still use `snes-main`; that id is not the working
+  operator catalog key.
+- `root` must be a clean absolute directory that is not a symbolic link.
+  `normalizeRoot` fails closed on symlink leaves. A `FogCastMounts/SNES`-style
+  symlink mount is rejected; point at the real `Games/Games/SNES` directory
+  instead. Do not record private host paths in Git.
 - `capture_device = "screen"` selects the Darwin main-display capture path.
 - `generation` must be nonzero. Change it when deliberately creating a new
   cast identity during lifecycle development.
@@ -313,7 +320,7 @@ checkout/catalog, after changing library roots, or whenever library contents
 have changed:
 
 ```sh
-for mount in "$HOME/FogCastMounts/SNES" "$HOME/FogCastMounts/Genesis"; do
+for mount in "/absolute/nonsymlink/Games/Games/SNES" "/absolute/nonsymlink/Games/Games/Genesis"; do
   ruby -e '
     child = spawn("/bin/ls", "-1", ARGV.fetch(0), out: File::NULL)
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
@@ -333,6 +340,10 @@ for mount in "$HOME/FogCastMounts/SNES" "$HOME/FogCastMounts/Genesis"; do
   }
 done
 ```
+
+Replace those paths with the operator's real nonsymlink library roots. Do not
+probe a `FogCastMounts/SNES` symlink and then copy that path into
+`[[libraries]]`; config load rejects the symlink leaf.
 
 The probe runs each filesystem access in a separately supervised child. If it
 times out, do not scan or repeatedly force-unmount; inspect the mount/helper
@@ -357,8 +368,14 @@ bin/fogcast \
 ```
 
 `fogcast-api` opens the existing SQLite catalog; it does not scan libraries and
-there is no host scan route. A missing or stale scan therefore produces a
-missing or stale games query even when configuration and mounts are correct.
+there is no host `/api/v1/.../scan` route. Catalog `scan` remains an INTERNAL
+CLI command (`bin/fogcast --config ... scan`). The host UI Refresh control only
+reloads that catalog. A missing or stale internal scan therefore produces a
+missing or stale games query even when configuration and roots are correct.
+After a successful internal scan of `operator-snes-root`, ActRaiser (exact
+catalog title ActRaiser, including dump decorations; not ActRaiser 2) is
+findable through `GET /api/v1/games?q=ActRaiser` or `q=actraiser` and the same
+search the UI uses.
 
 ### 2. Start the host API
 
