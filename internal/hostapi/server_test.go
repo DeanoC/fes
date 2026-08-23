@@ -314,25 +314,34 @@ func TestSessionOwnsRemoteInputAttachDetachAndStatusLifecycle(t *testing.T) {
 	core := "SNES"
 	service := &fakeService{
 		launch:  protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core}},
+		status:  protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core},
 		stopped: protocol.Status{State: protocol.StateIdle},
 	}
-	input := &fakeRemoteInput{}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
 	handler := hostapi.New(service, hostapi.WithRemoteInput(input))
 
 	launch := httptest.NewRequest(http.MethodPost, "/api/v1/session/launch", strings.NewReader(`{"game_id":"snes-test"}`))
 	launch.Host = "127.0.0.1"
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, launch)
-	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"input":{"state":"attached"`) {
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"input":{"state":"detached"`) {
 		t.Fatalf("launch = %d %s", response.Code, response.Body.String())
 	}
-	if len(input.attach) != 1 || input.attach[0] != core {
-		t.Fatalf("attach calls = %#v", input.attach)
+	if len(input.attach) != 0 {
+		t.Fatalf("FPGA launch attached remote input: %#v", input.attach)
 	}
 
 	status := serve(t, handler, http.MethodGet, "/api/v1/session/input")
-	if status.Code != http.StatusOK || !strings.Contains(status.Body.String(), `"state":"attached"`) {
-		t.Fatalf("input status = %d %s", status.Code, status.Body.String())
+	if status.Code != http.StatusOK || !strings.Contains(status.Body.String(), `"state":"detached"`) {
+		t.Fatalf("input status after launch = %d %s", status.Code, status.Body.String())
+	}
+
+	attach := httptest.NewRequest(http.MethodPost, "/api/v1/session/input/attach", nil)
+	attach.Host = "127.0.0.1"
+	attachResponse := httptest.NewRecorder()
+	handler.ServeHTTP(attachResponse, attach)
+	if attachResponse.Code != http.StatusOK || len(input.attach) != 1 || input.attach[0] != core {
+		t.Fatalf("optional attach = %d %s calls=%#v", attachResponse.Code, attachResponse.Body.String(), input.attach)
 	}
 
 	detach := httptest.NewRequest(http.MethodPost, "/api/v1/session/input/detach", nil)

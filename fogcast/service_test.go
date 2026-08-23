@@ -945,6 +945,318 @@ func TestServiceDefaultExecutionRemainsFPGAAndUsesTargetLaunch(t *testing.T) {
 	}
 }
 
+func TestServiceHostOnlyThenFPGAOnKitStatusStopHitAgent(t *testing.T) {
+	hostGame := serviceGame(catalog.Content{})
+	hostGame.ID = "snes-host-only"
+	hostGame.Content = nil
+	fpgaGame := serviceGame(catalog.Content{})
+	fpgaGame.ID = "snes-actraiser-test"
+	fpgaGame.Title = "ActRaiser"
+	identity := protocol.ContentIdentity{SHA256: serviceDigest, Size: 3, Extension: "sfc"}
+	prepared := preparedServiceFixture(t, []byte("rom"), identity)
+	adapter := &fakeHostExecutor{}
+	fpgaID, fpgaSystem := fpgaGame.ID, fpgaGame.System
+	client := &fakeServiceClient{
+		nativeLaunch: exactNativeLaunchResponse(t, fpgaGame, DefaultActRaiserROMPath),
+		statusResult: protocol.Status{State: protocol.StateActive, GameID: &fpgaID, System: &fpgaSystem},
+		stopResult:   protocol.Status{State: protocol.StateIdle},
+	}
+	service := newService(
+		Config{
+			Libraries:      []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: "/private/library"}},
+			RequestTimeout: time.Second,
+			UploadTimeout:  2 * time.Second,
+			FPGAROMPaths:   map[string]string{DefaultFPGAROMGameID: DefaultActRaiserROMPath},
+		},
+		Paths{Staging: "/private/staging"},
+		&fakeServiceCatalog{games: []catalog.Game{hostGame, fpgaGame}},
+		&fakeServiceScanner{},
+		&fakeServicePreparer{prepared: prepared},
+		client,
+		WithExecutionPolicy(ExecutionPolicy{
+			Resolver: ExecutionResolverFunc(func(_ context.Context, game catalog.Game) (string, error) {
+				if game.ID == hostGame.ID {
+					return ExecutionHostOnly, nil
+				}
+				return ExecutionFPGANative, nil
+			}),
+			Host: adapter,
+		}),
+	)
+	if _, err := service.Launch(context.Background(), hostGame.ID, nil); err != nil {
+		t.Fatalf("host Launch: %v", err)
+	}
+	if adapter.launchCalls != 1 {
+		t.Fatalf("host launch calls=%d", adapter.launchCalls)
+	}
+	if _, err := service.Launch(context.Background(), fpgaGame.ID, nil); err != nil {
+		t.Fatalf("FPGA Launch: %v", err)
+	}
+	if client.nativeLaunchCalls != 1 {
+		t.Fatalf("native launch calls=%d", client.nativeLaunchCalls)
+	}
+	if adapter.stopCalls != 1 {
+		t.Fatalf("host executor stop calls=%d after FPGA launch, want 1", adapter.stopCalls)
+	}
+	status, err := service.Status(context.Background())
+	if err != nil || status.State != protocol.StateActive || status.GameID == nil || *status.GameID != fpgaGame.ID {
+		t.Fatalf("FPGA status = %+v, %v", status, err)
+	}
+	if client.statusCalls != 1 || adapter.statusCalls != 0 {
+		t.Fatalf("status routing client=%d host=%d", client.statusCalls, adapter.statusCalls)
+	}
+	if _, err := service.Stop(context.Background()); err != nil {
+		t.Fatalf("FPGA Stop: %v", err)
+	}
+	if client.stopCalls != 1 {
+		t.Fatalf("agent stop calls=%d, want 1", client.stopCalls)
+	}
+	if adapter.stopCalls != 1 {
+		t.Fatalf("host executor stop calls=%d after FPGA Stop, want 1 (reconcile only)", adapter.stopCalls)
+	}
+}
+
+func TestServiceFPGANativeOnKitLaunchUsesV1RequestAndSkipsUpload(t *testing.T) {
+	game := serviceGame(catalog.Content{SHA256: serviceDigest, Size: 3, Extension: "sfc"})
+	game.ID = "snes-actraiser-test"
+	game.Title = "ActRaiser"
+	game.RootOnline = false
+	game.State = catalog.SourceStateMissing
+	store := &fakeServiceCatalog{games: []catalog.Game{game}}
+	client := &fakeServiceClient{
+		nativeLaunch: exactNativeLaunchResponse(t, game, DefaultActRaiserROMPath),
+	}
+	service := newService(
+		Config{
+			Libraries:      []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: "/private/library"}},
+			RequestTimeout: time.Second,
+			UploadTimeout:  2 * time.Second,
+			FPGAROMPaths:   map[string]string{DefaultFPGAROMGameID: DefaultActRaiserROMPath},
+		},
+		Paths{Staging: "/private/staging"}, store, &fakeServiceScanner{}, &fakeServicePreparer{err: errors.New("source should not be prepared")}, client,
+	)
+	response, err := service.Launch(context.Background(), game.ID, nil)
+	if err != nil {
+		t.Fatalf("Launch: %v", err)
+	}
+	if response.Status.State != protocol.StateActive || response.Status.GameID == nil || *response.Status.GameID != game.ID {
+		t.Fatalf("response = %+v", response)
+	}
+	if client.nativeLaunchCalls != 1 || client.launchCalls != 0 || client.probeCalls != 0 || client.uploadCalls != 0 {
+		t.Fatalf("calls native=%d content=%d probe=%d upload=%d", client.nativeLaunchCalls, client.launchCalls, client.probeCalls, client.uploadCalls)
+	}
+	want := protocol.LaunchRequest{GameID: game.ID, System: protocol.SystemSNES, ROMPath: DefaultActRaiserROMPath}
+	if client.nativeLaunchReq != want {
+		t.Fatalf("native launch = %+v, want %+v", client.nativeLaunchReq, want)
+	}
+}
+
+func TestServiceSeededActRaiserAliasAcceptsDumpDecorations(t *testing.T) {
+	game := serviceGame(catalog.Content{})
+	game.ID = "snes-actraiser-usa"
+	game.Title = "ActRaiser (USA)"
+	client := &fakeServiceClient{nativeLaunch: exactNativeLaunchResponse(t, game, DefaultActRaiserROMPath)}
+	service := newService(
+		Config{
+			Libraries:      []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: "/private/library"}},
+			RequestTimeout: time.Second,
+			UploadTimeout:  2 * time.Second,
+			FPGAROMPaths:   map[string]string{DefaultFPGAROMGameID: DefaultActRaiserROMPath},
+		},
+		Paths{Staging: "/private/staging"}, &fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServiceScanner{}, &fakeServicePreparer{}, client,
+	)
+	if _, err := service.Launch(context.Background(), game.ID, nil); err != nil {
+		t.Fatalf("Launch: %v", err)
+	}
+	if client.nativeLaunchCalls != 1 || client.nativeLaunchReq.ROMPath != DefaultActRaiserROMPath {
+		t.Fatalf("native launch calls=%d path=%q", client.nativeLaunchCalls, client.nativeLaunchReq.ROMPath)
+	}
+}
+
+func TestServiceFPGANativeOnKitLaunchUsesExactGameIDMapping(t *testing.T) {
+	game := serviceGame(catalog.Content{})
+	romPath := "/media/fat/games/SNES/Exact.smc"
+	client := &fakeServiceClient{nativeLaunch: exactNativeLaunchResponse(t, game, romPath)}
+	service := newService(
+		Config{
+			Libraries:      []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: "/private/library"}},
+			RequestTimeout: time.Second,
+			UploadTimeout:  2 * time.Second,
+			FPGAROMPaths:   map[string]string{game.ID: romPath},
+		},
+		Paths{Staging: "/private/staging"}, &fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServiceScanner{}, &fakeServicePreparer{}, client,
+	)
+	if _, err := service.Launch(context.Background(), game.ID, nil); err != nil {
+		t.Fatalf("Launch: %v", err)
+	}
+	if client.nativeLaunchReq.ROMPath != romPath {
+		t.Fatalf("rom_path = %q", client.nativeLaunchReq.ROMPath)
+	}
+}
+
+func TestSeededActRaiserGameMatchesCanonicalTitleOnly(t *testing.T) {
+	cases := []struct {
+		title, canonical string
+		want             bool
+	}{
+		{title: "ActRaiser", want: true},
+		{title: "actraiser", want: true},
+		{title: "ActRaiser (USA)", want: true},
+		{title: "ActRaiser (USA) (Rev 1)", want: true},
+		{title: "ActRaiser (USA) (Beta)", want: true},
+		{canonical: "ActRaiser", title: "ignored dump title", want: true},
+		{title: "ActRaiser 2", want: false},
+		{title: "ActRaiser 2 (USA)", want: false},
+		{title: "ActRaiser II", want: false},
+		{canonical: "ActRaiser 2", title: "ActRaiser 2 (USA)", want: false},
+		{title: "Synthetic", want: false},
+	}
+	for _, tc := range cases {
+		game := catalog.Game{Title: tc.title, CanonicalTitle: tc.canonical}
+		if got := seededActRaiserGame(game); got != tc.want {
+			t.Fatalf("seededActRaiserGame(title=%q canonical=%q) = %v, want %v", tc.title, tc.canonical, got, tc.want)
+		}
+	}
+}
+
+func TestServiceSeededActRaiserAliasRejectsSequelTitle(t *testing.T) {
+	game := serviceGame(catalog.Content{SHA256: serviceDigest, Size: 3, Extension: "sfc"})
+	game.Title = "ActRaiser 2"
+	store := &fakeServiceCatalog{games: []catalog.Game{game}}
+	client := &fakeServiceClient{}
+	client.probe = func(_ context.Context, system protocol.System, identity protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
+		return protocol.CacheProbeResponse{Present: true, System: &system, Content: &identity}, nil
+	}
+	client.launch = exactLaunchResponse(t, game, contentIdentity(*game.Content))
+	service := newService(
+		Config{
+			Libraries:      []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: "/private/library"}},
+			RequestTimeout: time.Second,
+			UploadTimeout:  2 * time.Second,
+			FPGAROMPaths:   map[string]string{DefaultFPGAROMGameID: DefaultActRaiserROMPath},
+		},
+		Paths{Staging: "/private/staging"}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client,
+	)
+	if _, err := service.Launch(context.Background(), game.ID, nil); err != nil {
+		t.Fatalf("Launch: %v", err)
+	}
+	if client.launchCalls != 1 || client.nativeLaunchCalls != 0 {
+		t.Fatalf("content launchCalls=%d native=%d", client.launchCalls, client.nativeLaunchCalls)
+	}
+}
+
+func TestServiceUnmappedFPGALaunchKeepsContentPath(t *testing.T) {
+	game := serviceGame(catalog.Content{SHA256: serviceDigest, Size: 3, Extension: "sfc"})
+	store := &fakeServiceCatalog{games: []catalog.Game{game}}
+	client := &fakeServiceClient{}
+	client.probe = func(_ context.Context, system protocol.System, identity protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
+		return protocol.CacheProbeResponse{Present: true, System: &system, Content: &identity}, nil
+	}
+	client.launch = exactLaunchResponse(t, game, contentIdentity(*game.Content))
+	service := newService(
+		Config{
+			Libraries:      []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: "/private/library"}},
+			RequestTimeout: time.Second,
+			UploadTimeout:  2 * time.Second,
+			FPGAROMPaths:   map[string]string{DefaultFPGAROMGameID: DefaultActRaiserROMPath},
+		},
+		Paths{Staging: "/private/staging"}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client,
+	)
+	if _, err := service.Launch(context.Background(), game.ID, nil); err != nil {
+		t.Fatalf("Launch: %v", err)
+	}
+	if client.launchCalls != 1 || client.nativeLaunchCalls != 0 {
+		t.Fatalf("content launchCalls=%d native=%d", client.launchCalls, client.nativeLaunchCalls)
+	}
+}
+
+func TestServiceFPGANativeOnKitLaunchRejectsMismatchedStatus(t *testing.T) {
+	game := serviceGame(catalog.Content{})
+	game.Title = "ActRaiser"
+	client := &fakeServiceClient{
+		nativeLaunch: func(context.Context, protocol.LaunchRequest) (protocol.Status, error) {
+			return protocol.Status{State: protocol.StateIdle}, nil
+		},
+	}
+	service := newService(
+		Config{
+			Libraries:      []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: "/private/library"}},
+			RequestTimeout: time.Second,
+			UploadTimeout:  2 * time.Second,
+			FPGAROMPaths:   map[string]string{DefaultFPGAROMGameID: DefaultActRaiserROMPath},
+		},
+		Paths{Staging: "/private/staging"}, &fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServiceScanner{}, &fakeServicePreparer{}, client,
+	)
+	_, err := service.Launch(context.Background(), game.ID, nil)
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeInternal {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestServiceFPGANativeClientUsesAgentLaunchAndEmptyStop(t *testing.T) {
+	game := serviceGame(catalog.Content{})
+	game.Title = "ActRaiser"
+	var launchBody []byte
+	var stopBody []byte
+	var paths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.Method+" "+r.URL.Path)
+		body, _ := io.ReadAll(r.Body)
+		switch r.URL.Path {
+		case "/v1/health":
+			_, _ = io.WriteString(w, `{"api_version":"v1","agent_version":"0.1.0","ready":true,"mister_process":true,"command_pipe":true}`)
+		case "/v1/status":
+			_, _ = io.WriteString(w, `{"state":"active","game_id":"snes-synthetic","system":"snes","expected_core":"SNES","observed_core":"SNES","last_error":null}`)
+		case "/v1/launch":
+			launchBody = append([]byte(nil), body...)
+			_, _ = io.WriteString(w, `{"state":"active","game_id":"snes-synthetic","system":"snes","expected_core":"SNES","observed_core":"SNES","last_error":null}`)
+		case "/v1/stop":
+			stopBody = append([]byte(nil), body...)
+			_, _ = io.WriteString(w, `{"state":"idle","game_id":null,"system":null,"expected_core":null,"observed_core":null,"last_error":null}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	baseURL, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := host.NewClient(baseURL, "test-token", server.Client())
+	service := newService(
+		Config{
+			Libraries:      []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: "/private/library"}},
+			RequestTimeout: time.Second,
+			UploadTimeout:  2 * time.Second,
+			FPGAROMPaths:   map[string]string{DefaultFPGAROMGameID: DefaultActRaiserROMPath},
+		},
+		Paths{Staging: "/private/staging"}, &fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServiceScanner{}, &fakeServicePreparer{}, client,
+	)
+	if _, err := service.Health(context.Background()); err != nil {
+		t.Fatalf("Health: %v", err)
+	}
+	if _, err := service.Launch(context.Background(), game.ID, nil); err != nil {
+		t.Fatalf("Launch: %v", err)
+	}
+	if _, err := service.Status(context.Background()); err != nil {
+		t.Fatalf("Status: %v", err)
+	}
+	if _, err := service.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	if got := strings.Join(paths, ","); got != "GET /v1/health,POST /v1/launch,GET /v1/status,POST /v1/stop" {
+		t.Fatalf("paths = %q", got)
+	}
+	wantLaunch := `{"game_id":"snes-synthetic","system":"snes","rom_path":"/media/fat/games/SNES/ActRaiser.smc"}`
+	if string(launchBody) != wantLaunch {
+		t.Fatalf("launch body = %s", launchBody)
+	}
+	if len(stopBody) != 0 {
+		t.Fatalf("stop body = %q", stopBody)
+	}
+}
+
 func TestServiceCatalogAndV1ControlDelegation(t *testing.T) {
 	game := serviceGame(catalog.Content{})
 	report := catalog.ScanReport{Roots: []catalog.RootReport{{RootID: "snes-main", Added: 1}}}
@@ -1566,22 +1878,25 @@ func (f *fakeServicePreparer) Prepare(ctx context.Context, root catalog.Root, ga
 }
 
 type fakeServiceClient struct {
-	probe        func(context.Context, protocol.System, protocol.ContentIdentity) (protocol.CacheProbeResponse, error)
-	upload       func(context.Context, protocol.System, protocol.ContentIdentity, io.Reader) (protocol.CacheUploadResponse, error)
-	launch       func(context.Context, protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, error)
-	probeCalls   int
-	uploadCalls  int
-	launchCalls  int
-	healthCalls  int
-	statusCalls  int
-	stopCalls    int
-	activeGame   string
-	healthResult protocol.Health
-	statusResult protocol.Status
-	stopResult   protocol.Status
-	healthErr    error
-	statusErr    error
-	stopErr      error
+	probe             func(context.Context, protocol.System, protocol.ContentIdentity) (protocol.CacheProbeResponse, error)
+	upload            func(context.Context, protocol.System, protocol.ContentIdentity, io.Reader) (protocol.CacheUploadResponse, error)
+	launch            func(context.Context, protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, error)
+	nativeLaunch      func(context.Context, protocol.LaunchRequest) (protocol.Status, error)
+	probeCalls        int
+	uploadCalls       int
+	launchCalls       int
+	nativeLaunchCalls int
+	nativeLaunchReq   protocol.LaunchRequest
+	healthCalls       int
+	statusCalls       int
+	stopCalls         int
+	activeGame        string
+	healthResult      protocol.Health
+	statusResult      protocol.Status
+	stopResult        protocol.Status
+	healthErr         error
+	statusErr         error
+	stopErr           error
 }
 
 func (f *fakeServiceClient) ProbeContent(ctx context.Context, system protocol.System, content protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
@@ -1612,6 +1927,19 @@ func (f *fakeServiceClient) LaunchContent(ctx context.Context, request protocol.
 	return response, err
 }
 
+func (f *fakeServiceClient) Launch(ctx context.Context, request protocol.LaunchRequest) (protocol.Status, error) {
+	f.nativeLaunchCalls++
+	f.nativeLaunchReq = request
+	if f.nativeLaunch == nil {
+		return protocol.Status{}, errors.New("unexpected native launch")
+	}
+	status, err := f.nativeLaunch(ctx, request)
+	if err == nil {
+		f.activeGame = request.GameID
+	}
+	return status, err
+}
+
 func (f *fakeServiceClient) Health(context.Context) (protocol.Health, error) {
 	f.healthCalls++
 	return f.healthResult, f.healthErr
@@ -1630,6 +1958,7 @@ func (f *fakeServiceClient) Stop(context.Context) (protocol.Status, error) {
 type fakeHostExecutor struct {
 	launchCalls int
 	stopCalls   int
+	statusCalls int
 	contentPath string
 }
 
@@ -1651,6 +1980,7 @@ func (f *fakeHostExecutor) Launch(_ context.Context, content io.Reader, identity
 }
 func (f *fakeHostExecutor) Stop(context.Context) error { f.stopCalls++; return nil }
 func (f *fakeHostExecutor) Status(context.Context) (hostexec.Status, error) {
+	f.statusCalls++
 	return hostexec.Status{State: hostexec.Active}, nil
 }
 
@@ -1681,6 +2011,20 @@ func contentIdentity(content catalog.Content) protocol.ContentIdentity {
 
 func absentProbe(_ context.Context, _ protocol.System, _ protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
 	return protocol.CacheProbeResponse{Present: false}, nil
+}
+
+func exactNativeLaunchResponse(t *testing.T, game catalog.Game, romPath string) func(context.Context, protocol.LaunchRequest) (protocol.Status, error) {
+	t.Helper()
+	return func(_ context.Context, request protocol.LaunchRequest) (protocol.Status, error) {
+		if request != (protocol.LaunchRequest{GameID: game.ID, System: game.System, ROMPath: romPath}) {
+			t.Fatalf("native launch request = %+v", request)
+		}
+		gameID, system, coreName := game.ID, game.System, "SNES"
+		return protocol.Status{
+			State: protocol.StateActive, GameID: &gameID, System: &system,
+			ExpectedCore: &coreName, ObservedCore: &coreName,
+		}, nil
+	}
 }
 
 func exactLaunchResponse(t *testing.T, game catalog.Game, content protocol.ContentIdentity) func(context.Context, protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, error) {

@@ -48,6 +48,17 @@ func DefaultPaths() (Paths, error) {
 	}, nil
 }
 
+const (
+	// DefaultAgentBaseURL is the mister-remote agent origin when base_url is
+	// omitted. The operator runs the host where that tunnel already exists.
+	DefaultAgentBaseURL = "http://127.0.0.1:18182"
+	// DefaultFPGAROMGameID is the seeded v1 allowlist key for ActRaiser.
+	DefaultFPGAROMGameID = "actraiser"
+	// DefaultActRaiserROMPath is the on-kit ROM path seeded for ActRaiser.
+	DefaultActRaiserROMPath = "/media/fat/games/SNES/ActRaiser.smc"
+	onKitROMRoot            = "/media/fat"
+)
+
 type Config struct {
 	BaseURL        string
 	Token          string
@@ -61,6 +72,9 @@ type Config struct {
 	Metadata       MetadataConfig
 	LibraryMedia   []librarymedia.Root
 	Library        LibraryConfig
+	// FPGAROMPaths maps catalog game_id (or the seeded ActRaiser alias) to an
+	// on-kit rom_path. It is the v1 FPGA remote-start allowlist.
+	FPGAROMPaths map[string]string
 }
 
 type LibraryConfig struct {
@@ -165,6 +179,7 @@ type fileConfig struct {
 	Metadata              *fileMetadata        `toml:"metadata"`
 	LibraryMedia          []fileLibraryMedia   `toml:"library_media"`
 	Library               *fileLibrarySettings `toml:"library"`
+	FPGAROMPaths          map[string]string    `toml:"fpga_rom_paths"`
 }
 
 type fileLibraryMedia struct {
@@ -263,7 +278,7 @@ func LoadConfig(path string) (Config, error) {
 		return Config{}, fmt.Errorf("decode FogCast config: %w", err)
 	}
 
-	baseURL, err := normalizeHTTPOrigin(raw.BaseURL)
+	baseURL, err := normalizeHTTPOrigin(defaultedAgentBaseURL(raw.BaseURL))
 	if err != nil {
 		return Config{}, err
 	}
@@ -306,6 +321,10 @@ func LoadConfig(path string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	fpgaROMPaths, err := normalizeFPGAROMPaths(raw.FPGAROMPaths)
+	if err != nil {
+		return Config{}, err
+	}
 
 	return Config{
 		BaseURL:        baseURL,
@@ -321,7 +340,54 @@ func LoadConfig(path string) (Config, error) {
 		Metadata:     metadata,
 		LibraryMedia: libraryMedia,
 		Library:      library,
+		FPGAROMPaths: fpgaROMPaths,
 	}, nil
+}
+
+func defaultedAgentBaseURL(raw string) string {
+	if strings.TrimSpace(raw) == "" {
+		return DefaultAgentBaseURL
+	}
+	return raw
+}
+
+func normalizeFPGAROMPaths(raw map[string]string) (map[string]string, error) {
+	if raw == nil {
+		raw = map[string]string{DefaultFPGAROMGameID: DefaultActRaiserROMPath}
+	}
+	paths := make(map[string]string, len(raw))
+	for gameID, romPath := range raw {
+		if err := protocol.ValidateGameID(gameID); err != nil {
+			return nil, fmt.Errorf("fpga_rom_paths key: %w", err)
+		}
+		cleaned, err := normalizeOnKitROMPath(romPath)
+		if err != nil {
+			return nil, fmt.Errorf("fpga_rom_paths %q: %w", gameID, err)
+		}
+		paths[gameID] = cleaned
+	}
+	return paths, nil
+}
+
+func normalizeOnKitROMPath(raw string) (string, error) {
+	if strings.IndexByte(raw, 0) >= 0 {
+		return "", fmt.Errorf("rom_path must not contain a NUL byte")
+	}
+	if strings.TrimSpace(raw) == "" {
+		return "", fmt.Errorf("rom_path must not be empty")
+	}
+	if !filepath.IsAbs(raw) {
+		return "", fmt.Errorf("rom_path must be an absolute on-kit path")
+	}
+	cleaned := filepath.Clean(raw)
+	relative, err := filepath.Rel(onKitROMRoot, cleaned)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
+		return "", fmt.Errorf("rom_path must stay under %s", onKitROMRoot)
+	}
+	if cleaned == onKitROMRoot {
+		return "", fmt.Errorf("rom_path must identify a file under %s", onKitROMRoot)
+	}
+	return filepath.ToSlash(cleaned), nil
 }
 
 func normalizeMetadata(raw *fileMetadata, sourceInfo os.FileInfo) (MetadataConfig, error) {

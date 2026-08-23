@@ -59,6 +59,7 @@ type serviceClient interface {
 	ProbeContent(context.Context, protocol.System, protocol.ContentIdentity) (protocol.CacheProbeResponse, error)
 	UploadContent(context.Context, protocol.System, protocol.ContentIdentity, io.Reader) (protocol.CacheUploadResponse, error)
 	LaunchContent(context.Context, protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, error)
+	Launch(context.Context, protocol.LaunchRequest) (protocol.Status, error)
 	Health(context.Context) (protocol.Health, error)
 	Status(context.Context) (protocol.Status, error)
 	Stop(context.Context) (protocol.Status, error)
@@ -172,6 +173,7 @@ type Service struct {
 	hostEmulator       HostEmulatorConfig
 	metadataRoot       string
 	metadataScope      string
+	fpgaROMPaths       map[string]string
 	activeExecution    string
 	activeGameID       string
 	activeSystem       protocol.System
@@ -311,6 +313,7 @@ func newService(config Config, paths Paths, store serviceCatalog, scanner servic
 		hostEmulator:      config.HostEmulator,
 		metadataRoot:      paths.MetadataRoot,
 		metadataScope:     config.Metadata.ClientID,
+		fpgaROMPaths:      copyFPGAROMPaths(config.FPGAROMPaths),
 	}
 	for _, option := range options {
 		if option != nil {
@@ -626,6 +629,13 @@ func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 	if err != nil {
 		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 	}
+	if status.State == protocol.StateIdle {
+		s.executionMu.Lock()
+		if s.activeExecution == ExecutionFPGANative {
+			s.activeExecution, s.activeGameID, s.activeSystem = "", "", ""
+		}
+		s.executionMu.Unlock()
+	}
 	return status, nil
 }
 
@@ -636,21 +646,20 @@ func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 	hostOnly := s.activeExecution == ExecutionHostOnly
 	s.executionMu.Unlock()
 	if hostOnly {
-		if s.hostExecutor == nil {
-			return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
+		if err := s.stopHostOnlyIfActive(ctx); err != nil {
+			return protocol.Status{}, err
 		}
-		if err := s.hostExecutor.Stop(ctx); err != nil {
-			return protocol.Status{}, canonicalError(protocol.CodeInternal, safeContextError(err))
-		}
-		s.executionMu.Lock()
-		s.activeExecution, s.activeGameID, s.activeSystem = "", "", ""
-		s.executionMu.Unlock()
 		return protocol.Status{State: protocol.StateIdle}, nil
 	}
 	status, err := s.client.Stop(ctx)
 	if err != nil {
 		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 	}
+	s.executionMu.Lock()
+	if s.activeExecution == ExecutionFPGANative {
+		s.activeExecution, s.activeGameID, s.activeSystem = "", "", ""
+	}
+	s.executionMu.Unlock()
 	return status, nil
 }
 
@@ -675,6 +684,9 @@ func (s *Service) launchGame(ctx context.Context, game catalog.Game, progress Pr
 	}
 	if execution == ExecutionHostOnly {
 		return s.launchHostOnly(ctx, game, root, progress)
+	}
+	if romPath, ok := s.onKitROMPath(game); ok {
+		return s.launchFPGANative(ctx, game, romPath, progress)
 	}
 	if hostPathLaunch(game) {
 		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInvalidArchive, nil)
@@ -942,6 +954,95 @@ func (s *Service) launchContent(parent context.Context, game catalog.Game, ident
 		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeInternal, nil)
 	}
 	return response, nil
+}
+
+func (s *Service) launchFPGANative(parent context.Context, game catalog.Game, romPath string, progress ProgressFunc) (protocol.CachedLaunchResponse, bool, error) {
+	if err := protocol.ValidateSystem(game.System); err != nil {
+		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeUnsupportedSystem, nil)
+	}
+	emitProgress(progress, "launch", "launching on-kit FPGA content")
+	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
+	defer cancel()
+	// Reconcile a prior host_only RetroArch session before this launch can
+	// record FPGA ownership. Overwriting the marker first would leave the
+	// emulator running while later Status/Stop hit only the agent.
+	if err := s.stopHostOnlyIfActive(ctx); err != nil {
+		return protocol.CachedLaunchResponse{}, false, err
+	}
+	request := protocol.LaunchRequest{GameID: game.ID, System: game.System, ROMPath: romPath}
+	status, err := s.client.Launch(ctx, request)
+	if err != nil {
+		return protocol.CachedLaunchResponse{}, false, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
+	}
+	if !validFPGALaunch(status, request) {
+		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, nil)
+	}
+	s.executionMu.Lock()
+	s.activeExecution = ExecutionFPGANative
+	s.activeGameID, s.activeSystem = game.ID, game.System
+	s.executionMu.Unlock()
+	return protocol.CachedLaunchResponse{Status: status}, false, nil
+}
+
+func (s *Service) stopHostOnlyIfActive(ctx context.Context) error {
+	s.executionMu.Lock()
+	hostOnly := s.activeExecution == ExecutionHostOnly
+	s.executionMu.Unlock()
+	if !hostOnly {
+		return nil
+	}
+	if s.hostExecutor == nil {
+		return canonicalError(protocol.CodeInternal, nil)
+	}
+	if err := s.hostExecutor.Stop(ctx); err != nil {
+		return canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	s.executionMu.Lock()
+	if s.activeExecution == ExecutionHostOnly {
+		s.activeExecution, s.activeGameID, s.activeSystem = "", "", ""
+	}
+	s.executionMu.Unlock()
+	return nil
+}
+
+func (s *Service) onKitROMPath(game catalog.Game) (string, bool) {
+	if path, ok := s.fpgaROMPaths[game.ID]; ok {
+		return path, true
+	}
+	if path, ok := s.fpgaROMPaths[DefaultFPGAROMGameID]; ok && seededActRaiserGame(game) {
+		return path, true
+	}
+	return "", false
+}
+
+func seededActRaiserGame(game catalog.Game) bool {
+	canonical := strings.TrimSpace(game.CanonicalTitle)
+	if canonical == "" {
+		canonical = catalog.ParseDump(game.Title).CanonicalTitle
+	}
+	return strings.EqualFold(canonical, "ActRaiser")
+}
+
+func copyFPGAROMPaths(raw map[string]string) map[string]string {
+	if len(raw) == 0 {
+		return nil
+	}
+	copied := make(map[string]string, len(raw))
+	for gameID, romPath := range raw {
+		copied[gameID] = romPath
+	}
+	return copied
+}
+
+func validFPGALaunch(status protocol.Status, request protocol.LaunchRequest) bool {
+	spec, ok := core.DefaultRegistry().Lookup(request.System)
+	return ok &&
+		status.State == protocol.StateActive &&
+		status.GameID != nil && *status.GameID == request.GameID &&
+		status.System != nil && *status.System == request.System &&
+		status.ExpectedCore != nil && *status.ExpectedCore == spec.ExpectedCore &&
+		status.ObservedCore != nil && *status.ObservedCore == spec.ExpectedCore &&
+		status.LastError == nil
 }
 
 func validServiceLaunch(response protocol.CachedLaunchResponse, request protocol.CachedLaunchRequest) bool {
