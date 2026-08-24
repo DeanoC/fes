@@ -833,6 +833,7 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 	flags.SetOutput(stderr)
 	listen := flags.String("listen", "127.0.0.1:8787", "loopback HTTP listen address")
 	configPath := flags.String("config", "", "FogCast configuration path")
+	metadataConfigPath := flags.String("metadata-config", "", "FogCast configuration path supplying the metadata section")
 	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
 		return 2
 	}
@@ -853,7 +854,7 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 	if strings.TrimSpace(*configPath) != "" {
 		paths.Config = *configPath
 	}
-	config, err := fogcast.LoadConfig(paths.Config)
+	config, err := loadAPIConfig(paths.Config, *metadataConfigPath)
 	if err != nil {
 		fmt.Fprintln(stderr, "fogcast-api: configuration load failed")
 		return 1
@@ -925,6 +926,23 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 		}
 		return 0
 	}
+}
+
+func loadAPIConfig(configPath, metadataConfigPath string) (fogcast.Config, error) {
+	config, err := fogcast.LoadConfig(configPath)
+	if err != nil {
+		return fogcast.Config{}, err
+	}
+	metadataConfigPath = strings.TrimSpace(metadataConfigPath)
+	if metadataConfigPath == "" {
+		return config, nil
+	}
+	metadataConfig, err := fogcast.LoadMetadataConfig(metadataConfigPath)
+	if err != nil {
+		return fogcast.Config{}, err
+	}
+	config.Metadata = metadataConfig
+	return config, nil
 }
 
 func normalizeListenAddress(address string) (string, error) {

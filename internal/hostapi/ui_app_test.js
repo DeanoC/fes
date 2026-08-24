@@ -1761,9 +1761,9 @@ test('browser artwork load errors replace only the failed provider image with ne
   const imageError = cardImage.listeners.get('error');
   assert.equal(typeof imageError, 'function');
   imageError();
-  assert.equal(cardImage.className, 'cover-art artwork-empty');
+  assert.equal(cardImage.className, 'cover-art artwork-empty artwork-unavailable');
   assert.equal(cardImage.tagName, 'SPAN');
-  assert.equal(cardImage.textContent, 'No art');
+  assert.equal(cardImage.textContent, 'Art unavailable');
   assert.equal(cardImage.attributes.size, 0);
 });
 

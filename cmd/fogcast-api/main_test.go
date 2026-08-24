@@ -68,6 +68,94 @@ root = "` + dir + `"
 	}
 }
 
+func TestLoadAPIConfigCanSourceMetadataFromSeparatePrivateConfig(t *testing.T) {
+	dir := t.TempDir()
+	primaryPath := filepath.Join(dir, "launch.toml")
+	metadataPath := filepath.Join(dir, "metadata.toml")
+	primary := `base_url = "http://127.0.0.1:8182"
+token = "launch-token"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+
+[[libraries]]
+id = "test"
+system = "snes"
+root = "` + dir + `"
+`
+	secondary := `[metadata]
+enabled = true
+provider = "launchbox"
+archive = "` + filepath.Join(dir, "Metadata.zip") + `"
+`
+	if err := os.WriteFile(primaryPath, []byte(primary), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(metadataPath, []byte(secondary), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	config, err := loadAPIConfig(primaryPath, metadataPath)
+	if err != nil {
+		t.Fatalf("loadAPIConfig: %v", err)
+	}
+	if config.Token != "launch-token" || len(config.Libraries) != 1 || config.Libraries[0].ID != "test" {
+		t.Fatalf("primary launch config changed: %#v", config)
+	}
+	if !config.Metadata.Configured || !config.Metadata.Enabled || config.Metadata.Provider != "launchbox" || config.Metadata.Archive != filepath.Join(dir, "Metadata.zip") {
+		t.Fatalf("metadata config = %#v", config.Metadata)
+	}
+}
+
+func TestLoadAPIConfigPreservesPrimaryMetadataWithoutOverride(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	configText := `base_url = "http://127.0.0.1:8182"
+token = "launch-token"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+
+[metadata]
+enabled = false
+provider = "launchbox"
+`
+	if err := os.WriteFile(path, []byte(configText), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	config, err := loadAPIConfig(path, "")
+	if err != nil {
+		t.Fatalf("loadAPIConfig: %v", err)
+	}
+	if !config.Metadata.Configured || config.Metadata.Enabled || config.Metadata.Provider != "launchbox" {
+		t.Fatalf("metadata config = %#v", config.Metadata)
+	}
+}
+
+func TestLoadAPIConfigRejectsOverrideWithoutMetadataSection(t *testing.T) {
+	dir := t.TempDir()
+	primaryPath := filepath.Join(dir, "config.toml")
+	overridePath := filepath.Join(dir, "metadata.toml")
+	primary := `base_url = "http://127.0.0.1:8182"
+token = "launch-token"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+
+[metadata]
+enabled = false
+provider = "launchbox"
+`
+	if err := os.WriteFile(primaryPath, []byte(primary), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(overridePath, []byte(`token = "not-metadata"
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := loadAPIConfig(primaryPath, overridePath); err == nil || !strings.Contains(err.Error(), "metadata section is required") {
+		t.Fatalf("loadAPIConfig error = %v", err)
+	}
+}
+
 func TestNormalizeListenAddressAcceptsLoopbackForms(t *testing.T) {
 	for _, address := range []string{"127.0.0.1:8787", "localhost:8787", "[::1]:8787"} {
 		if got, err := normalizeListenAddress(address); err != nil || got == "" {

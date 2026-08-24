@@ -359,6 +359,31 @@ func LoadConfig(path string) (Config, error) {
 	}, nil
 }
 
+// LoadMetadataConfig reads only the metadata section from a FogCast config.
+// Other recognized sections are decoded but not applied or validated.
+func LoadMetadataConfig(path string) (MetadataConfig, error) {
+	file, err := openConfigSource(path)
+	if err != nil {
+		return MetadataConfig{}, err
+	}
+	defer file.Close()
+
+	var raw fileConfig
+	decoder := toml.NewDecoder(file)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&raw); err != nil {
+		return MetadataConfig{}, fmt.Errorf("decode FogCast config: %w", err)
+	}
+	if raw.Metadata == nil {
+		return MetadataConfig{}, fmt.Errorf("decode FogCast config: metadata section is required")
+	}
+	sourceInfo, err := file.Stat()
+	if err != nil {
+		return MetadataConfig{}, fmt.Errorf("inspect FogCast config: %w", err)
+	}
+	return normalizeMetadata(raw.Metadata, sourceInfo)
+}
+
 func defaultedAgentBaseURL(raw string) string {
 	if strings.TrimSpace(raw) == "" {
 		return DefaultAgentBaseURL

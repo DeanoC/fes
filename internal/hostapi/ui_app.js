@@ -3961,8 +3961,15 @@
     return element(tagName, `${role}-art artwork-empty`);
   }
 
-  function replaceWithNeutralArtwork(image, role) {
+  function unavailableArtwork(role) {
     const replacement = neutralArtwork(role);
+    replacement.className += ' artwork-unavailable';
+    if (role === 'cover') replacement.textContent = 'Art unavailable';
+    return replacement;
+  }
+
+  function replaceWithNeutralArtwork(image, role) {
+    const replacement = unavailableArtwork(role);
     if (typeof image.replaceWith === 'function') {
       image.replaceWith(replacement);
       return;

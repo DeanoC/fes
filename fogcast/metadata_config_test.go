@@ -63,6 +63,43 @@ client_secret = "client-secret"
 	}
 }
 
+func TestLoadMetadataConfigReadsOnlyMetadataFromFullProfile(t *testing.T) {
+	dir := t.TempDir()
+	archive := filepath.Join(dir, "Metadata.zip")
+	path := filepath.Join(dir, "metadata.toml")
+	content := `token = "not-used-by-metadata"
+request_timeout_seconds = -1
+
+[[libraries]]
+id = "invalid-but-not-applied"
+system = "unknown"
+root = "relative"
+
+[metadata]
+enabled = true
+provider = "launchbox"
+archive = "` + archive + `"
+`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	config, err := fogcast.LoadMetadataConfig(path)
+	if err != nil {
+		t.Fatalf("LoadMetadataConfig: %v", err)
+	}
+	if !config.Configured || !config.Enabled || config.Provider != "launchbox" || config.Archive != archive {
+		t.Fatalf("metadata = %#v", config)
+	}
+}
+
+func TestLoadMetadataConfigRequiresMetadataSection(t *testing.T) {
+	path := writeConfig(t, `token = "not-metadata"
+`)
+	if _, err := fogcast.LoadMetadataConfig(path); err == nil || !strings.Contains(err.Error(), "metadata section is required") {
+		t.Fatalf("LoadMetadataConfig error = %v", err)
+	}
+}
+
 func TestLoadConfigRejectsUnsafeEnabledMetadataConfiguration(t *testing.T) {
 	dir := t.TempDir()
 	base := validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))

@@ -114,6 +114,20 @@ future CLI, browser, and native clients. It binds to loopback only:
 bin/fogcast-api --config /path/to/local/fogcast.toml --listen 127.0.0.1:8787
 ```
 
+When a temporary launch profile intentionally omits metadata settings, keep
+the provider configuration in a separate private FogCast config and opt in to
+it explicitly:
+
+```sh
+bin/fogcast-api --config /path/to/launch.toml \
+  --metadata-config /path/to/metadata.toml \
+  --listen 127.0.0.1:8787
+```
+
+Only the `[metadata]` section comes from `--metadata-config`; launch, library,
+target, and media settings continue to come from `--config`. The same private
+file validation applies to enabled metadata.
+
 Initial endpoints are `GET /api/v1/health`, `GET /api/v1/status`,
 `GET /api/v1/games?q=<optional query>`, `GET /api/v1/games/{id}`,
 `GET /api/v1/session`, `GET /api/v1/session/events?after=<sequence>`,
