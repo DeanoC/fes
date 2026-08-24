@@ -825,6 +825,14 @@
     return { path: '/api/v1/session/stop', options: { method: 'POST' } };
   }
 
+  function attachInputRequest() {
+    return { path: '/api/v1/session/input/attach', options: { method: 'POST' } };
+  }
+
+  function detachInputRequest() {
+    return { path: '/api/v1/session/input/detach', options: { method: 'POST' } };
+  }
+
   function validateLaunchSuccess(payload, requestedID) {
     let session;
     try {
@@ -847,6 +855,19 @@
     }
     if (session.state !== 'idle') {
       throw createError('MALFORMED_RESPONSE', 'The local host returned an invalid stop response.');
+    }
+    return session;
+  }
+
+  function validateInputMutationSuccess(payload) {
+    let session;
+    try {
+      session = parseSession(payload);
+    } catch (_) {
+      throw createError('MALFORMED_RESPONSE', 'The local host returned an invalid input response.');
+    }
+    if (!session.input) {
+      throw createError('MALFORMED_RESPONSE', 'The local host returned an invalid input response.');
     }
     return session;
   }
@@ -1206,6 +1227,7 @@
       statusSequence: 0,
       launchSequence: 0,
       stopSequence: 0,
+      inputSequence: 0,
       sessionStarted: false,
       sessionAuthority: 'indeterminate',
       session: null,
@@ -1514,10 +1536,13 @@
     }
 
     function mutationIsCurrent(mutation) {
-      return state.activeMutation === mutation.kind
-        && (mutation.kind === 'launch'
-          ? state.launchSequence === mutation.sequence
-          : state.stopSequence === mutation.sequence);
+      if (state.activeMutation !== mutation.kind) return false;
+      if (mutation.kind === 'launch') return state.launchSequence === mutation.sequence;
+      if (mutation.kind === 'stop') return state.stopSequence === mutation.sequence;
+      if (mutation.kind === 'attach' || mutation.kind === 'detach') {
+        return state.inputSequence === mutation.sequence;
+      }
+      return false;
     }
 
     async function loadSession() {
@@ -1589,7 +1614,34 @@
           state.launchMessage = privacyMessage(result.error, 'The launch could not be confirmed by the local host.');
         }
         sessionFailure(result.error, result.error.code === 'MALFORMED_RESPONSE' ? 'malformed' : 'unavailable');
-        state.sessionMessage = privacyMessage(result.error, 'The local host session could not be reconciled.');
+        state.sessionMessage = mutation.kind === 'attach' || mutation.kind === 'detach'
+          ? privacyMessage(result.error, 'The input operation could not be confirmed.')
+          : privacyMessage(result.error, 'The local host session could not be reconciled.');
+      } else if (mutation.kind === 'attach' || mutation.kind === 'detach') {
+        const reconciled = result.session;
+        const expected = mutation.kind === 'attach' ? 'attached' : 'detached';
+        const inputConfirmed = !operationError
+          && mutation.inputResponseValid
+          && reconciled
+          && reconciled.state === 'active'
+          && reconciled.input
+          && reconciled.input.state === expected;
+        if (inputConfirmed) {
+          state.sessionPhase = 'active';
+          state.sessionMessage = mutation.kind === 'attach' ? 'Input attached.' : 'Input detached.';
+        } else {
+          if (operationError && operationError.code === 'MALFORMED_RESPONSE' && reconciled && reconciled.state === 'active') {
+            state.sessionPhase = 'malformed';
+            state.sessionWarning = errorSnapshot(operationError, 'The local host returned an invalid input response.');
+          } else {
+            state.sessionPhase = reconciled ? sessionViewState(reconciled) : 'error';
+          }
+          state.sessionError = errorSnapshot(
+            operationError || createError('SESSION_POSTCONDITION_FAILED', 'The local host did not confirm the input change.'),
+            'The input operation could not be completed.',
+          );
+          state.sessionMessage = privacyMessage(state.sessionError, 'The input operation could not be completed.');
+        }
       } else if (mutation.kind === 'launch' && !selectionChanged) {
         const reconciled = result.session;
         if (sessionConfirmed && !operationError) {
@@ -1655,7 +1707,8 @@
       state.sessionError = null;
       state.sessionWarning = null;
       state.sessionMessage = '';
-      state.sessionPhase = mutation.kind === 'stop' ? 'stopping' : 'loading';
+      if (mutation.kind === 'stop') state.sessionPhase = 'stopping';
+      else if (mutation.kind === 'launch') state.sessionPhase = 'loading';
       if (mutation.kind === 'launch') {
         state.launchState = 'launching';
         state.launchError = null;
@@ -1667,7 +1720,8 @@
         const payload = await operation();
         mutation.stopResponseValid = mutation.kind === 'stop';
         if (mutation.kind === 'launch') mutation.launchResponse = validateLaunchSuccess(payload, mutation.requestedID);
-        else mutation.stopResponseValid = Boolean(validateStopSuccess(payload));
+        else if (mutation.kind === 'stop') mutation.stopResponseValid = Boolean(validateStopSuccess(payload));
+        else mutation.inputResponseValid = Boolean(validateInputMutationSuccess(payload));
       } catch (error) {
         operationError = error;
       }
@@ -1752,6 +1806,41 @@
         const spec = stopRequest();
         return request(fetchImpl, spec.path, spec.options);
       });
+    }
+
+    function inputMutationAllowed(desired) {
+      if (state.sessionAuthority !== 'authoritative' || !state.sessionStarted) return false;
+      if (!state.session || state.session.state !== 'active' || !state.session.input) return false;
+      if (state.session.execution !== 'fpga_native') return false;
+      const current = state.session.input.state;
+      if (current === 'starting' || current === 'reconnecting') return false;
+      if (desired === 'attached') return current !== 'attached';
+      if (desired === 'detached') return current === 'attached';
+      return false;
+    }
+
+    async function mutateInput(kind) {
+      if (state.activeMutation) return mutationConflict();
+      const desired = kind === 'attach' ? 'attached' : 'detached';
+      if (!inputMutationAllowed(desired)) return emit();
+      const mutation = {
+        kind,
+        sequence: ++state.inputSequence,
+        inputResponseValid: false,
+      };
+      state.statusSequence += 1;
+      return runMutation(mutation, async () => {
+        const spec = kind === 'attach' ? attachInputRequest() : detachInputRequest();
+        return request(fetchImpl, spec.path, spec.options);
+      });
+    }
+
+    async function attachInput() {
+      return mutateInput('attach');
+    }
+
+    async function detachInput() {
+      return mutateInput('detach');
     }
 
     function catalogViewSort(collection, extraSort) {
@@ -2656,6 +2745,8 @@
       refreshPresentation,
       launchSelected,
       stopSession,
+      attachInput,
+      detachInput,
       observeVisibleCovers,
       setCatalogFilter,
       setCatalogSort,
@@ -2680,6 +2771,8 @@
     launchRequest,
     sessionRequest,
     stopRequest,
+    attachInputRequest,
+    detachInputRequest,
     parseSession,
     sessionViewState,
     launchStatus,
@@ -3007,6 +3100,21 @@
 
   function populateGameActionsMenu(menu, game) {
     menu.replaceChildren();
+    const play = launchControl(game);
+    const playItem = element('button', 'game-actions-item', play.label);
+    playItem.type = 'button';
+    playItem.id = 'game-action-play';
+    playItem.setAttribute('role', 'menuitem');
+    playItem.disabled = !play.enabled;
+    if (play.reason) playItem.setAttribute('aria-label', `${play.label}. ${play.reason}`);
+    playItem.addEventListener('click', async () => {
+      closeGameActionsMenu({ restoreFocus: true });
+      if (!state.selectedLiveGame || state.selectedLiveGame.id !== game.id) {
+        await selectGame(game.id);
+      }
+      return launchSelected();
+    });
+    menu.appendChild(playItem);
     const favorite = element('button', 'game-actions-item', game.favorite === true ? 'Unfavorite' : 'Favorite');
     favorite.type = 'button';
     favorite.id = 'game-action-favorite';
@@ -3145,11 +3253,15 @@
 
   let refreshSessionButton;
   let stopSessionButton;
+  let attachInputButton;
+  let detachInputButton;
   let sessionActionReason;
 
   function sessionStatusText() {
     if (state.activeMutation === 'launch') return 'Launching session…';
     if (state.activeMutation === 'stop') return 'Stopping session…';
+    if (state.activeMutation === 'attach') return 'Attaching input…';
+    if (state.activeMutation === 'detach') return 'Detaching input…';
     switch (state.sessionPhase) {
       case 'loading': return 'Checking session status…';
       case 'active': return 'Active session';
@@ -3197,7 +3309,9 @@
     }
     if (session.system !== undefined) nodes.sessionDetails.appendChild(sessionFact('System', session.system));
     if (session.execution !== undefined) nodes.sessionDetails.appendChild(sessionFact('Execution', session.execution));
-    if (session.media !== undefined) nodes.sessionDetails.appendChild(sessionFact('Media', session.media));
+    if (session.media !== undefined && session.execution !== 'fpga_native') {
+      nodes.sessionDetails.appendChild(sessionFact('Media', session.media));
+    }
     if (session.progress) {
       nodes.sessionDetails.appendChild(sessionFact('Progress stage', boundedMessage(session.progress.stage, '—', 120)));
       nodes.sessionDetails.appendChild(sessionFact('Progress message', boundedMessage(session.progress.message, '—', 240)));
@@ -3222,6 +3336,20 @@
       stopSessionButton.type = 'button';
       stopSessionButton.addEventListener('click', stopSession);
       nodes.sessionActions.appendChild(stopSessionButton);
+    }
+    if (!attachInputButton) {
+      attachInputButton = element('button', 'button secondary', 'Attach input');
+      attachInputButton.id = 'attach-session-input';
+      attachInputButton.type = 'button';
+      attachInputButton.addEventListener('click', attachInput);
+      nodes.sessionActions.appendChild(attachInputButton);
+    }
+    if (!detachInputButton) {
+      detachInputButton = element('button', 'button secondary', 'Detach input');
+      detachInputButton.id = 'detach-session-input';
+      detachInputButton.type = 'button';
+      detachInputButton.addEventListener('click', detachInput);
+      nodes.sessionActions.appendChild(detachInputButton);
     }
     if (!sessionActionReason) {
       sessionActionReason = element('p', 'launch-reason');
@@ -3257,16 +3385,41 @@
       : state.sessionAuthority === 'last-known'
         ? 'Current session status is not authoritative; retry before stopping.'
         : 'No current authoritative active session is available to stop.');
+    const fpgaNative = hasActiveSession && state.session.execution === 'fpga_native';
+    const inputState = hasActiveSession && state.session.input ? state.session.input.state : '';
+    const inputBusy = fpgaNative && (inputState === 'starting' || inputState === 'reconnecting');
+    const canDetach = fpgaNative && inputState === 'attached';
+    const canAttach = fpgaNative && Boolean(inputState) && inputState !== 'attached' && !inputBusy;
+    const inputReason = conflictReason || (fpgaNative
+      ? (inputBusy
+        ? 'Input is still transitioning; wait before attach or detach.'
+        : (!state.session.input
+          ? ''
+          : (canDetach || canAttach ? '' : 'Input is not in a state that can be changed.')))
+      : '');
     refreshSessionButton.disabled = Boolean(state.activeMutation);
     stopSessionButton.disabled = Boolean(stopReason);
     stopSessionButton.hidden = !hasActiveSession && !state.activeMutation;
-    sessionActionReason.textContent = conflictReason || (!hasActiveSession ? stopReason : '');
-    if (conflictReason || !hasActiveSession) {
+    attachInputButton.hidden = !canAttach && state.activeMutation !== 'attach';
+    attachInputButton.disabled = Boolean(conflictReason) || !canAttach;
+    detachInputButton.hidden = !canDetach && state.activeMutation !== 'detach';
+    detachInputButton.disabled = Boolean(conflictReason) || !canDetach;
+    sessionActionReason.textContent = conflictReason || (!hasActiveSession ? stopReason : inputReason);
+    const stopRefreshDescribed = Boolean(conflictReason) || Boolean(!hasActiveSession && stopReason);
+    const inputDescribed = Boolean(conflictReason) || Boolean(hasActiveSession && inputReason);
+    if (stopRefreshDescribed) {
       refreshSessionButton.setAttribute('aria-describedby', 'session-action-reason');
       stopSessionButton.setAttribute('aria-describedby', 'session-action-reason');
     } else {
       refreshSessionButton.removeAttribute?.('aria-describedby');
       stopSessionButton.removeAttribute?.('aria-describedby');
+    }
+    if (inputDescribed) {
+      attachInputButton.setAttribute('aria-describedby', 'session-action-reason');
+      detachInputButton.setAttribute('aria-describedby', 'session-action-reason');
+    } else {
+      attachInputButton.removeAttribute?.('aria-describedby');
+      detachInputButton.removeAttribute?.('aria-describedby');
     }
   }
 
@@ -3987,7 +4140,7 @@
   }
 
   function launchControl(game) {
-    const label = 'Launch';
+    const label = 'Play';
     if (!game) return { label, reason: launchBlockReason(game), enabled: false };
     const blocked = launchBlockReason(game);
     if (blocked) return { label, reason: blocked, enabled: false };
@@ -4013,10 +4166,10 @@
       };
     }
     if (state.session && state.session.state === 'active' && state.session.game_id === game.id) {
-      return { label, reason: 'Already active.', enabled: false };
+      return { label, reason: 'Already playing.', enabled: false };
     }
     if (state.session && state.session.state === 'active') {
-      return { label: 'Replace active session', reason: '', enabled: true };
+      return { label: 'Play instead', reason: '', enabled: true };
     }
     return { label, reason: '', enabled: true };
   }
@@ -4225,6 +4378,14 @@
 
   function stopSession() {
     return controller.stopSession();
+  }
+
+  function attachInput() {
+    return controller.attachInput();
+  }
+
+  function detachInput() {
+    return controller.detachInput();
   }
 
   function focusWithoutScroll(node) {

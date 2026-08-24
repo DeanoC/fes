@@ -1110,7 +1110,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
       }), async () => {
         await selectSonic(harness);
         let snapshot = await harness.snapshot();
-        assert.equal(snapshot.launchButtonLabel, 'Replace active session');
+        assert.equal(snapshot.launchButtonLabel, 'Play instead');
         await harness.click('#launch-game');
         const launch = await harness.waitForRequest({ method: 'POST', path: '/api/v1/session/launch' });
         snapshot = await harness.waitForText('#session-status', 'Launching session');

@@ -11,6 +11,8 @@ const {
   launchRequest,
   sessionRequest,
   stopRequest,
+  attachInputRequest,
+  detachInputRequest,
   parseSession,
   sessionViewState,
   launchStatus,
@@ -1693,7 +1695,7 @@ test('browser render paths keep cards, detail, and launch usable across metadata
     await firstCard.click();
     assert.match(browserText(document.nodes.get('detail-content')), /Sonic the Hedgehog/);
     const launchButton = document.nodes.get('launch-actions').children
-      .find(child => child.tagName === 'BUTTON' && child.textContent === 'Launch');
+      .find(child => child.tagName === 'BUTTON' && child.textContent === 'Play');
     assert.ok(launchButton, `${testCase.name} should retain launch action after detail refresh`);
     assert.equal(launchButton.disabled, false, `${testCase.name} eligibility must stay live`);
 
@@ -1806,7 +1808,7 @@ test('browser rendering falls back for shape-complete invalid presentation value
   assert.equal(detailContent.children[0].className, 'backdrop-art artwork-empty');
 
   const launchButton = document.nodes.get('launch-actions').children
-    .find(child => child.tagName === 'BUTTON' && child.textContent === 'Launch');
+    .find(child => child.tagName === 'BUTTON' && child.textContent === 'Play');
   assert.ok(launchButton);
   await launchButton.click();
   assert.match(browserText(document.nodes.get('launch-actions')), /launch_success/);
@@ -1916,6 +1918,16 @@ test('session and stop requests preserve the host wire contract', () => {
   });
   assert.equal(stopRequest().options.body, undefined);
   assert.equal(stopRequest().options.headers, undefined);
+  assert.deepEqual(attachInputRequest(), {
+    path: '/api/v1/session/input/attach',
+    options: { method: 'POST' },
+  });
+  assert.deepEqual(detachInputRequest(), {
+    path: '/api/v1/session/input/detach',
+    options: { method: 'POST' },
+  });
+  assert.equal(attachInputRequest().options.body, undefined);
+  assert.equal(detachInputRequest().options.body, undefined);
 });
 
 test('session parser accepts privacy-safe optional fields and rejects malformed identity or metrics', () => {
@@ -2370,6 +2382,10 @@ test('session panel renders only accepted fields, reconstructs active title, and
   assert.match(details, /Sonic the Hedgehog/);
   assert.match(details, /megadrive-sonic-test/);
   assert.match(details, /session is ready/);
+  assert.match(details, /Executionfpga_native/);
+  assert.match(details, /Input stateattached/);
+  assert.match(details, /Input readinessReady/);
+  assert.doesNotMatch(details, /Media/);
   assert.doesNotMatch(details, /must not render|private\/path/);
   assert.equal(sessionCalls[0].options.method, 'GET');
   assert.equal(sessionCalls[0].options.body, undefined);
@@ -2384,6 +2400,228 @@ test('session panel renders only accepted fields, reconstructs active title, and
   assert.equal(stopCall.options.method, 'POST');
   assert.equal(stopCall.options.body, undefined);
   assert.equal(stopCall.options.headers, undefined);
+});
+
+test('Play on ActRaiser drives fpga_native launch, shows attached input, and Stop/Detach clear session UX', async () => {
+  const actraiser = availableGame('snes-actraiser-usa', 'ActRaiser (USA)', {
+    canonical_title: 'ActRaiser',
+    content_prepared: false,
+  });
+  const sequel = availableGame('snes-actraiser-2', 'ActRaiser 2 (USA)', {
+    canonical_title: 'ActRaiser 2',
+  });
+  const attached = sessionFixture({
+    state: 'active',
+    game_id: actraiser.id,
+    system: 'snes',
+    execution: 'fpga_native',
+    input: inputFixture(),
+  });
+  const detached = sessionFixture({
+    state: 'active',
+    game_id: actraiser.id,
+    system: 'snes',
+    execution: 'fpga_native',
+    input: { ...inputFixture(), state: 'detached', ready: false },
+  });
+  const idle = sessionFixture({ state: 'idle' });
+  const { document, calls } = await runBrowserApp({
+    responses: [
+      jsonResponse({ games: [actraiser, sequel] }),
+      jsonResponse(actraiser),
+      jsonResponse(attached),
+      jsonResponse(detached),
+      jsonResponse(idle),
+    ],
+    sessionResponses: [
+      jsonResponse(idle),
+      jsonResponse(attached),
+      jsonResponse(detached),
+      jsonResponse(idle),
+    ],
+  });
+  await settleBrowser();
+  await gameCards(document)[0].click();
+  await settleBrowser();
+  const play = document.getElementById('launch-game');
+  assert.equal(play.textContent, 'Play');
+  assert.equal(play.disabled, false);
+  assert.equal(document.getElementById('launch-reason').textContent, '');
+  await play.click();
+  await settleBrowser();
+  const launch = calls.find(call => call.path === '/api/v1/session/launch');
+  assert.ok(launch);
+  assert.equal(launch.options.method, 'POST');
+  assert.equal(launch.options.body, `{"game_id":"${actraiser.id}"}`);
+  const details = browserText(document.nodes.get('session-details'));
+  assert.match(details, /ActRaiser \(USA\)/);
+  assert.match(details, /Executionfpga_native/);
+  assert.match(details, /Input stateattached/);
+  assert.match(details, /Input readinessReady/);
+  assert.doesNotMatch(details, /Media/);
+  assert.doesNotMatch(details, /cast|HDMI|HIL|pad delivery/i);
+  assert.equal(document.getElementById('stop-session').hidden, false);
+  const detach = document.getElementById('detach-session-input');
+  assert.equal(detach.hidden, false);
+  assert.equal(document.getElementById('attach-session-input').hidden, true);
+  await detach.click();
+  await settleBrowser();
+  const detachCall = calls.find(call => call.path === '/api/v1/session/input/detach');
+  assert.ok(detachCall);
+  assert.equal(detachCall.options.method, 'POST');
+  assert.equal(detachCall.options.body, undefined);
+  assert.equal(detachCall.options.headers, undefined);
+  assert.match(browserText(document.nodes.get('session-details')), /Input statedetached/);
+  assert.match(browserText(document.nodes.get('session-details')), /Executionfpga_native/);
+  assert.equal(document.getElementById('detach-session-input').hidden, true);
+  assert.equal(document.getElementById('attach-session-input').hidden, false);
+  await document.getElementById('stop-session').click();
+  await settleBrowser();
+  assert.equal(document.nodes.get('session-status').textContent, 'Session stopped.');
+  assert.equal(document.getElementById('stop-session').hidden, true);
+  assert.equal(document.getElementById('detach-session-input').hidden, true);
+  assert.equal(document.getElementById('attach-session-input').hidden, true);
+  assert.doesNotMatch(browserText(document.nodes.get('session-details')), /attached/);
+});
+
+test('Play from the game actions menu uses the selected catalog title id', async () => {
+  const actraiser = availableGame('snes-actraiser-usa', 'ActRaiser (USA)');
+  const { document, calls } = await runKeyboardApp({
+    pages: [{ games: [actraiser] }],
+    launchResponse: {
+      state: 'active',
+      game_id: actraiser.id,
+      system: 'snes',
+      execution: 'fpga_native',
+      input: inputFixture(),
+    },
+  });
+  await settleBrowser();
+  await openAllGamesGrid(document);
+  await openCardActions(document, gameCards(document)[0]);
+  const play = document.getElementById('game-action-play');
+  assert.equal(play.textContent, 'Play');
+  assert.equal(play.disabled, false);
+  await play.click();
+  await settleBrowser();
+  const launch = calls.find(call => call.path === '/api/v1/session/launch');
+  assert.ok(launch);
+  assert.equal(JSON.parse(launch.options.body).game_id, actraiser.id);
+});
+
+test('explicit attach and detach use empty POSTs and follow session input.state', async () => {
+  const attached = sessionFixture({
+    state: 'active',
+    game_id: 'snes-actraiser-usa',
+    system: 'snes',
+    execution: 'fpga_native',
+    input: inputFixture(),
+  });
+  const detached = sessionFixture({
+    ...attached,
+    input: { ...inputFixture(), state: 'detached', ready: false },
+  });
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/session': [
+      jsonResponse(attached),
+      jsonResponse(detached),
+      jsonResponse(attached),
+    ],
+    '/api/v1/session/input/detach': [jsonResponse(detached)],
+    '/api/v1/session/input/attach': [jsonResponse(attached)],
+  });
+  const controller = createAppController({ fetchImpl });
+  await controller.loadSession();
+  assert.equal(controller.getState().session.execution, 'fpga_native');
+  assert.equal(controller.getState().session.input.state, 'attached');
+  await controller.attachInput();
+  assert.equal(calls.filter(call => call.path === '/api/v1/session/input/attach').length, 0);
+  await controller.detachInput();
+  const detach = calls.find(call => call.path === '/api/v1/session/input/detach');
+  assert.ok(detach);
+  assert.equal(detach.options.method, 'POST');
+  assert.equal(detach.options.body, undefined);
+  assert.equal(detach.options.headers, undefined);
+  assert.equal(controller.getState().session.input.state, 'detached');
+  assert.equal(controller.getState().sessionMessage, 'Input detached.');
+  await controller.detachInput();
+  assert.equal(calls.filter(call => call.path === '/api/v1/session/input/detach').length, 1);
+  await controller.attachInput();
+  const attach = calls.find(call => call.path === '/api/v1/session/input/attach');
+  assert.ok(attach);
+  assert.equal(attach.options.method, 'POST');
+  assert.equal(attach.options.body, undefined);
+  assert.equal(controller.getState().session.input.state, 'attached');
+  assert.equal(controller.getState().sessionMessage, 'Input attached.');
+});
+
+test('starting and reconnecting input reasons describe Attach/Detach only', async () => {
+  for (const inputState of ['starting', 'reconnecting']) {
+    const active = sessionFixture({
+      state: 'active',
+      game_id: 'snes-actraiser-usa',
+      system: 'snes',
+      execution: 'fpga_native',
+      input: { ...inputFixture(), state: inputState, ready: false },
+    });
+    const { document } = await runBrowserApp({
+      responses: [jsonResponse({ games: [availableGame('snes-actraiser-usa', 'ActRaiser (USA)')] })],
+      sessionResponses: [jsonResponse(active)],
+    });
+    const reason = document.getElementById('session-action-reason');
+    assert.match(reason.textContent, /wait before attach or detach/i, inputState);
+    assert.equal(document.getElementById('refresh-session').getAttribute('aria-describedby'), null, inputState);
+    assert.equal(document.getElementById('stop-session').getAttribute('aria-describedby'), null, inputState);
+    assert.equal(document.getElementById('attach-session-input').getAttribute('aria-describedby'), 'session-action-reason', inputState);
+    assert.equal(document.getElementById('detach-session-input').getAttribute('aria-describedby'), 'session-action-reason', inputState);
+    assert.equal(document.getElementById('stop-session').hidden, false, inputState);
+    assert.equal(document.getElementById('stop-session').disabled, false, inputState);
+  }
+});
+
+test('host_only session details still show media state and hide input controls', async () => {
+  const active = sessionFixture({
+    state: 'active',
+    game_id: 'megadrive-sonic-test',
+    system: 'megadrive',
+    execution: 'host_only',
+    media: 'active',
+  });
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse(readFixture('catalog-populated.json'))],
+    sessionResponses: [jsonResponse(active)],
+  });
+  const details = browserText(document.nodes.get('session-details'));
+  assert.match(details, /Executionhost_only/);
+  assert.match(details, /Mediaactive/);
+  assert.equal(document.getElementById('detach-session-input').hidden, true);
+  assert.equal(document.getElementById('attach-session-input').hidden, true);
+});
+
+test('host_only session with detached input does not offer Attach', async () => {
+  const active = sessionFixture({
+    state: 'active',
+    game_id: 'megadrive-sonic-test',
+    system: 'megadrive',
+    execution: 'host_only',
+    media: 'active',
+    input: { ...inputFixture(), state: 'detached', ready: false },
+  });
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/session': [jsonResponse(active)],
+    '/api/v1/session/input/attach': [jsonResponse(active)],
+  });
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse(readFixture('catalog-populated.json'))],
+    sessionResponses: [jsonResponse(active)],
+  });
+  assert.equal(document.getElementById('attach-session-input').hidden, true);
+  assert.equal(document.getElementById('detach-session-input').hidden, true);
+  assert.doesNotMatch(document.getElementById('session-action-reason').textContent, /wait before attach or detach/i);
+  const controller = createAppController({ fetchImpl });
+  await controller.loadSession();
+  await controller.attachInput();
+  assert.equal(calls.filter(call => call.path === '/api/v1/session/input/attach').length, 0);
 });
 
 test('session malformed state exposes a safe retry without leaking response fields', async () => {
@@ -2404,6 +2642,7 @@ test('launchBlockReason disables unmapped platforms only when launchable is fals
     state: 'available', root_online: true, content_prepared: true, execution: 'fpga_native',
   };
   assert.equal(launchBlockReason(ready), '');
+  assert.equal(launchBlockReason({ ...ready, content_prepared: false }), '');
   assert.equal(launchBlockReason({ ...ready, launchable: false }), 'This platform is browse-only on this host.');
 });
 
@@ -6361,10 +6600,11 @@ test('right-click ContextMenu and Shift+F10 open game actions on cover list and 
   const menu = gameActionsMenu(document);
   assert.equal(menu.hidden, false);
   assert.deepEqual(gameActionsItems(document).map(item => item.textContent), [
+    'Play',
     'Favorite',
     'Add to Weekend Queue',
   ]);
-  assert.equal(document.activeElement.id, 'game-action-favorite');
+  assert.equal(document.activeElement.id, 'game-action-play');
   assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'grid');
 
   document.nodes.get('layout-list').click();
@@ -6373,7 +6613,7 @@ test('right-click ContextMenu and Shift+F10 open game actions on cover list and 
   assert.ok(row.className.includes('game-row'));
   await openCardActions(document, row, 'ContextMenu');
   assert.equal(gameActionsMenu(document).hidden, false);
-  assert.equal(document.activeElement.id, 'game-action-favorite');
+  assert.equal(document.activeElement.id, 'game-action-play');
 
   document.nodes.get('nav-home').click();
   await settleBrowser();
@@ -6385,6 +6625,7 @@ test('right-click ContextMenu and Shift+F10 open game actions on cover list and 
   assert.equal(gameActionsMenu(document).hidden, false);
   assert.equal(document.nodes.get('launcher').attributes.get('data-keyboard-pane'), 'home');
   assert.deepEqual(gameActionsItems(document).map(item => item.textContent), [
+    'Play',
     'Favorite',
     'Add to Weekend Queue',
   ]);
@@ -6430,6 +6671,7 @@ test('game actions Favorite and collection rows call existing controller methods
   await openAllGamesGrid(second.document);
   await openCardActions(second.document, gameCards(second.document)[0]);
   assert.deepEqual(gameActionsItems(second.document).map(item => item.textContent), [
+    'Play',
     'Unfavorite',
     'Remove from Weekend Queue',
   ]);
@@ -6592,7 +6834,7 @@ test('Arrow Home and End keep the focused game action visible inside the menu', 
   await openCardActions(document, gameCards(document)[0]);
   const menu = gameActionsMenu(document);
   const items = gameActionsItems(document);
-  assert.equal(items.length, 13);
+  assert.equal(items.length, 14);
   menu.clientHeight = 80;
   menu.scrollTop = 0;
   items.forEach((item, index) => {
@@ -6601,8 +6843,8 @@ test('Arrow Home and End keep the focused game action visible inside the menu', 
   });
   const catalogScrolls = gameCards(document).map(card => (card.scrollIntoViewCalls || []).length);
   await pressKey(document, 'End');
-  assert.equal(document.activeElement, items[12]);
-  assert.equal(menu.scrollTop, 440);
+  assert.equal(document.activeElement, items[13]);
+  assert.equal(menu.scrollTop, 480);
   await pressKey(document, 'Home');
   assert.equal(document.activeElement, items[0]);
   assert.equal(menu.scrollTop, 0);
