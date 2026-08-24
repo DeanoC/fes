@@ -2,10 +2,15 @@ package catalog
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -41,7 +46,29 @@ type RootReport struct {
 }
 
 type Store struct {
-	db *sql.DB
+	db                     *sql.DB
+	scanLeaseDirectory     string
+	scanLeaseDirectoryErr  error
+	scanLeaseDirectoryOnce sync.Once
+	memoryScanLease        chan struct{}
+}
+
+const maxCatalogOpenConnections = 4
+
+// ContentLaunchAdmission holds SQLite's writer reservation while a caller
+// launches content that matched the catalog snapshot. Holding the reservation
+// prevents scanners in other processes from committing a changed fingerprint
+// between the match and the launch request.
+type ContentLaunchAdmission interface {
+	ContentMatches() bool
+	Close() error
+}
+
+type contentLaunchAdmission struct {
+	tx        *sql.Tx
+	matches   bool
+	closeOnce sync.Once
+	closeErr  error
 }
 
 type ScanSession struct {
@@ -58,12 +85,20 @@ func Open(path string) (*Store, error) {
 }
 
 func OpenContext(ctx context.Context, path string) (*Store, error) {
-	db, err := sql.Open("sqlite", path)
+	dsn, err := catalogDSN(path)
+	if err != nil {
+		return nil, fmt.Errorf("resolve catalog database path: %w", err)
+	}
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open catalog database: %w", err)
 	}
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
+	maximumConnections := maxCatalogOpenConnections
+	if path == ":memory:" {
+		maximumConnections = 1
+	}
+	db.SetMaxOpenConns(maximumConnections)
+	db.SetMaxIdleConns(maximumConnections)
 
 	connection, err := db.Conn(ctx)
 	if err != nil {
@@ -93,11 +128,124 @@ func OpenContext(ctx context.Context, path string) (*Store, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	return &Store{db: db}, nil
+	store := &Store{db: db, memoryScanLease: make(chan struct{}, 1)}
+	store.memoryScanLease <- struct{}{}
+	if path != ":memory:" {
+		absolute, err := filepath.Abs(path)
+		if err != nil {
+			_ = db.Close()
+			return nil, fmt.Errorf("resolve catalog scan lease path: %w", err)
+		}
+		store.scanLeaseDirectory = absolute + ".scan-locks"
+	}
+	return store, nil
+}
+
+func catalogDSN(path string) (string, error) {
+	if path == ":memory:" {
+		return "file::memory:?_txlock=immediate", nil
+	}
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	u := url.URL{Scheme: "file", Path: filepath.ToSlash(absolute)}
+	query := u.Query()
+	query.Set("_busy_timeout", "5000")
+	query.Set("_foreign_keys", "on")
+	query.Set("_txlock", "immediate")
+	u.RawQuery = query.Encode()
+	return u.String(), nil
 }
 
 func (s *Store) Close() error {
 	return s.db.Close()
+}
+
+func (s *Store) acquireRootScanLease(ctx context.Context, root Root) (func() error, error) {
+	if s.scanLeaseDirectory == "" {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-s.memoryScanLease:
+			return func() error {
+				s.memoryScanLease <- struct{}{}
+				return nil
+			}, nil
+		}
+	}
+	if err := s.prepareScanLeaseDirectory(); err != nil {
+		return nil, err
+	}
+	directory, err := os.OpenRoot(s.scanLeaseDirectory)
+	if err != nil {
+		return nil, fmt.Errorf("open catalog scan lease directory: %w", err)
+	}
+	digest := sha256.Sum256([]byte(string(root.System) + "\x00" + root.Path))
+	file, err := directory.OpenFile(hex.EncodeToString(digest[:])+".lock", os.O_CREATE|os.O_RDWR, 0o600)
+	_ = directory.Close()
+	if err != nil {
+		return nil, fmt.Errorf("open catalog root scan lease: %w", err)
+	}
+	for {
+		acquired, err := tryLockScanLease(file)
+		if err != nil {
+			_ = file.Close()
+			return nil, fmt.Errorf("lock catalog root scan lease: %w", err)
+		}
+		if acquired {
+			var once sync.Once
+			var releaseErr error
+			return func() error {
+				once.Do(func() {
+					releaseErr = errors.Join(unlockScanLease(file), file.Close())
+				})
+				return releaseErr
+			}, nil
+		}
+		timer := time.NewTimer(scanLeaseRetryInterval)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			_ = file.Close()
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+func (s *Store) prepareScanLeaseDirectory() error {
+	s.scanLeaseDirectoryOnce.Do(func() {
+		if err := os.Mkdir(s.scanLeaseDirectory, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
+			s.scanLeaseDirectoryErr = fmt.Errorf("create catalog scan lease directory: %w", err)
+			return
+		}
+		info, err := os.Lstat(s.scanLeaseDirectory)
+		if err != nil {
+			s.scanLeaseDirectoryErr = fmt.Errorf("inspect catalog scan lease directory: %w", err)
+			return
+		}
+		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 || !scanLeaseDirectoryModeIsPrivate(info.Mode()) {
+			s.scanLeaseDirectoryErr = errors.New("catalog scan lease directory must be a private real directory")
+		}
+	})
+	return s.scanLeaseDirectoryErr
+}
+
+func (a *contentLaunchAdmission) ContentMatches() bool {
+	return a.matches
+}
+
+func (a *contentLaunchAdmission) Close() error {
+	a.closeOnce.Do(func() {
+		a.closeErr = a.tx.Rollback()
+		if errors.Is(a.closeErr, sql.ErrTxDone) {
+			a.closeErr = nil
+		}
+	})
+	return a.closeErr
 }
 
 func (s *Store) BeginRootScan(ctx context.Context, root Root) (*ScanSession, error) {
@@ -301,6 +449,192 @@ func (x *ScanSession) Rollback() error {
 		return nil
 	}
 	return err
+}
+
+const reasonLibraryRetired = "superseded_library"
+
+const reasonLibraryRebound = "library_path_changed"
+
+// Libraries returns stored library identities. Folder-watch uses this to
+// retire SNES rows that are no longer the configured source of truth.
+func (s *Store) Libraries(ctx context.Context) ([]Root, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, system, root FROM libraries ORDER BY id`)
+	if err != nil {
+		return nil, fmt.Errorf("list catalog libraries: %w", err)
+	}
+	defer rows.Close()
+	var libraries []Root
+	for rows.Next() {
+		var root Root
+		if err := rows.Scan(&root.ID, &root.System, &root.Path); err != nil {
+			return nil, fmt.Errorf("read catalog library: %w", err)
+		}
+		libraries = append(libraries, root)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate catalog libraries: %w", err)
+	}
+	return libraries, nil
+}
+
+// RetireLibrary drops games for libraryID and marks the library offline so
+// the UI cannot select a dead id after watch_root replaces that SoT.
+// Identity is by id only; a changed path cannot use MarkRootOffline.
+func (s *Store) RetireLibrary(ctx context.Context, libraryID string) error {
+	libraryID = strings.TrimSpace(libraryID)
+	if libraryID == "" {
+		return fmt.Errorf("retire catalog library: empty id")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin retire library %q: %w", libraryID, err)
+	}
+	defer tx.Rollback()
+
+	var exists int
+	err = tx.QueryRowContext(ctx, "SELECT 1 FROM libraries WHERE id = ?", libraryID).Scan(&exists)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return nil
+	case err != nil:
+		return fmt.Errorf("read library %q: %w", libraryID, err)
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM games WHERE library_id = ?", libraryID); err != nil {
+		return fmt.Errorf("drop games for retired library %q: %w", libraryID, err)
+	}
+	if _, err := tx.ExecContext(ctx, "UPDATE libraries SET online = 0, last_error = ?, generation = generation + 1 WHERE id = ?", reasonLibraryRetired, libraryID); err != nil {
+		return fmt.Errorf("mark library %q retired: %w", libraryID, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit retire library %q: %w", libraryID, err)
+	}
+	return nil
+}
+
+// ReleaseLibraryRoot removes stale identities that conflict with root's path
+// or reuse root's id for a different system. Games are dropped because their
+// ids are bound to the retired library identity; the following scan rebuilds
+// them under root.ID. A same-system id at another path remains for
+// RebindLibrary to move.
+func (s *Store) ReleaseLibraryRoot(ctx context.Context, root Root) error {
+	root.ID = strings.TrimSpace(root.ID)
+	if root.ID == "" {
+		return fmt.Errorf("release catalog library root: empty id")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin release library root %q: %w", root.ID, err)
+	}
+	defer tx.Rollback()
+
+	dropLibrary := func(libraryID string) error {
+		if _, err := tx.ExecContext(ctx, "DELETE FROM games WHERE library_id = ?", libraryID); err != nil {
+			return fmt.Errorf("drop games for released library %q: %w", libraryID, err)
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM libraries WHERE id = ?", libraryID); err != nil {
+			return fmt.Errorf("delete released library %q: %w", libraryID, err)
+		}
+		return nil
+	}
+	changed := false
+	var retiredID string
+	var retiredSystem protocol.System
+	err = tx.QueryRowContext(ctx,
+		"SELECT id, system FROM libraries WHERE root = ?", root.Path,
+	).Scan(&retiredID, &retiredSystem)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+	case err != nil:
+		return fmt.Errorf("read library owning replacement root %q: %w", root.Path, err)
+	case retiredID == root.ID && retiredSystem == root.System:
+		return nil
+	default:
+		if err := dropLibrary(retiredID); err != nil {
+			return err
+		}
+		changed = true
+	}
+
+	var reusedSystem protocol.System
+	err = tx.QueryRowContext(ctx, "SELECT system FROM libraries WHERE id = ?", root.ID).Scan(&reusedSystem)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+	case err != nil:
+		return fmt.Errorf("read reused library identity %q: %w", root.ID, err)
+	case reusedSystem != root.System:
+		if err := dropLibrary(root.ID); err != nil {
+			return err
+		}
+		changed = true
+	}
+	if !changed {
+		return nil
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit release library root %q: %w", root.ID, err)
+	}
+	return nil
+}
+
+// RebindLibrary moves an existing library id to a new root path. Existing
+// catalog rows are removed so callers cannot launch content collected from the
+// old root; a following scan recreates matching game ids from the new root.
+func (s *Store) RebindLibrary(ctx context.Context, root Root) error {
+	root.ID = strings.TrimSpace(root.ID)
+	if root.ID == "" {
+		return fmt.Errorf("rebind catalog library: empty id")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin rebind library %q: %w", root.ID, err)
+	}
+	defer tx.Rollback()
+
+	var storedSystem protocol.System
+	var storedPath string
+	err = tx.QueryRowContext(ctx, "SELECT system, root FROM libraries WHERE id = ?", root.ID).Scan(&storedSystem, &storedPath)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return nil
+	case err != nil:
+		return fmt.Errorf("read library %q: %w", root.ID, err)
+	case storedSystem != root.System:
+		return fmt.Errorf("rebind library %q: system changed from %q to %q", root.ID, storedSystem, root.System)
+	case storedPath == root.Path:
+		return nil
+	}
+	var conflictingID string
+	var conflictingSystem protocol.System
+	err = tx.QueryRowContext(ctx,
+		"SELECT id, system FROM libraries WHERE root = ? AND id <> ?", root.Path, root.ID,
+	).Scan(&conflictingID, &conflictingSystem)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+	case err != nil:
+		return fmt.Errorf("read destination root for library %q: %w", root.ID, err)
+	case conflictingSystem != root.System:
+		return fmt.Errorf("rebind library %q: destination root belongs to system %q", root.ID, conflictingSystem)
+	default:
+		if _, err := tx.ExecContext(ctx, "DELETE FROM games WHERE library_id = ?", conflictingID); err != nil {
+			return fmt.Errorf("drop games for superseded library %q: %w", conflictingID, err)
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM libraries WHERE id = ?", conflictingID); err != nil {
+			return fmt.Errorf("drop superseded library %q: %w", conflictingID, err)
+		}
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM games WHERE library_id = ?", root.ID); err != nil {
+		return fmt.Errorf("drop games for rebound library %q: %w", root.ID, err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		"UPDATE libraries SET root = ?, online = 0, last_error = ?, generation = generation + 1 WHERE id = ?",
+		root.Path, reasonLibraryRebound, root.ID,
+	); err != nil {
+		return fmt.Errorf("rebind library %q: %w", root.ID, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit rebind library %q: %w", root.ID, err)
+	}
+	return nil
 }
 
 func (s *Store) MarkRootOffline(ctx context.Context, root Root, reason string) (RootReport, error) {
@@ -812,6 +1146,62 @@ func (s *Store) GameMatchesRoot(ctx context.Context, game Game, root Root) (bool
 	return matches != 0, nil
 }
 
+// ContentMatches reports whether the complete source and content snapshot is
+// still current for the configured root. Unlike CompareAndSetContent, it never
+// writes a remembered digest back into the catalog.
+func (s *Store) ContentMatches(ctx context.Context, game Game, root Root, content Content) (bool, error) {
+	return contentMatches(ctx, s.db, game, root, content)
+}
+
+type contentMatchQuerier interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func contentMatches(ctx context.Context, querier contentMatchQuerier, game Game, root Root, content Content) (bool, error) {
+	var matches int
+	err := querier.QueryRowContext(ctx, `
+		SELECT EXISTS (
+		  SELECT 1 FROM games
+		  WHERE game_id = ? AND library_id = ? AND system = ? AND relative_path = ? AND source_kind = ?
+		    AND source_size = ? AND modified_ns = ? AND zip_member = ?
+		    AND zip_size = ? AND zip_crc32 = ? AND zip_entry_count = ?
+		    AND content_sha256 = ? AND content_size = ? AND content_extension = ?
+		    AND EXISTS (
+		      SELECT 1 FROM libraries AS l
+		      WHERE l.id = games.library_id AND l.id = ? AND l.system = ? AND l.root = ?
+		    )
+		)`,
+		game.ID, game.LibraryID, game.System, game.RelativePath, game.Kind,
+		game.Fingerprint.SourceSize, game.Fingerprint.ModifiedNS, game.Fingerprint.ZIPMember,
+		game.Fingerprint.ZIPSize, game.Fingerprint.ZIPCRC32, game.Fingerprint.ZIPEntryCount,
+		content.SHA256, content.Size, content.Extension,
+		root.ID, root.System, root.Path,
+	).Scan(&matches)
+	if err != nil {
+		return false, fmt.Errorf("match catalog content for game %q: %w", game.ID, err)
+	}
+	return matches != 0, nil
+}
+
+// BeginContentLaunchAdmission atomically checks the content snapshot while
+// reserving SQLite's single writer slot. The caller must close the returned
+// admission after the launch request finishes so external catalog writers can
+// proceed.
+func (s *Store) BeginContentLaunchAdmission(ctx context.Context, game Game, root Root, content Content) (ContentLaunchAdmission, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin catalog content launch admission: %w", err)
+	}
+	fail := func(cause error) (ContentLaunchAdmission, error) {
+		return nil, errors.Join(cause, tx.Rollback())
+	}
+	matches, err := contentMatches(ctx, tx, game, root, content)
+	if err != nil {
+		return fail(err)
+	}
+	return &contentLaunchAdmission{tx: tx, matches: matches}, nil
+}
+
 func (s *Store) UpdateContent(ctx context.Context, id string, fingerprint Fingerprint, content Content) (bool, error) {
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE games SET content_sha256 = ?, content_size = ?, content_extension = ?
@@ -834,11 +1224,19 @@ func (s *Store) UpdateContent(ctx context.Context, id string, fingerprint Finger
 // CompareAndSetContent records prepared content only while the complete source
 // identity used by the preparer is still the catalog's current identity.
 func (s *Store) CompareAndSetContent(ctx context.Context, game Game, root Root, content Content) (bool, error) {
+	var expectedSHA256, expectedSize, expectedExtension any
+	if game.Content != nil {
+		expectedSHA256 = game.Content.SHA256
+		expectedSize = game.Content.Size
+		expectedExtension = game.Content.Extension
+	}
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE games SET content_sha256 = ?, content_size = ?, content_extension = ?
 		WHERE game_id = ? AND library_id = ? AND system = ? AND relative_path = ? AND source_kind = ?
 		  AND source_size = ? AND modified_ns = ? AND zip_member = ?
 		  AND zip_size = ? AND zip_crc32 = ? AND zip_entry_count = ?
+		  AND ((? IS NULL AND content_sha256 IS NULL AND content_size IS NULL AND content_extension IS NULL)
+		       OR (content_sha256 = ? AND content_size = ? AND content_extension = ?))
 		  AND EXISTS (
 		    SELECT 1 FROM libraries AS l
 		    WHERE l.id = games.library_id AND l.id = ? AND l.system = ? AND l.root = ?
@@ -847,6 +1245,7 @@ func (s *Store) CompareAndSetContent(ctx context.Context, game Game, root Root, 
 		game.ID, game.LibraryID, game.System, game.RelativePath, game.Kind,
 		game.Fingerprint.SourceSize, game.Fingerprint.ModifiedNS, game.Fingerprint.ZIPMember,
 		game.Fingerprint.ZIPSize, game.Fingerprint.ZIPCRC32, game.Fingerprint.ZIPEntryCount,
+		expectedSHA256, expectedSHA256, expectedSize, expectedExtension,
 		root.ID, root.System, root.Path,
 	)
 	if err != nil {

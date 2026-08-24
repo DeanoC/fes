@@ -18,7 +18,7 @@ import (
 
 func TestOperatorSNESRootScanMakesActRaiserFindableOnPublicGamesAPI(t *testing.T) {
 	dir := t.TempDir()
-	root := filepath.Join(dir, "Games", "Games", "SNES")
+	root := operatorSNESTestRoot(t, dir)
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,8 @@ root = %q
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
-	if len(report.Roots) != 1 || report.Roots[0].RootID != "operator-snes-root" || report.Roots[0].Offline || report.Roots[0].Added != 3 {
+	const watchedLibraryID = "operator-snes-root"
+	if len(report.Roots) != 1 || report.Roots[0].RootID != watchedLibraryID || report.Roots[0].Offline || report.Roots[0].Added != 3 {
 		t.Fatalf("scan report = %+v", report)
 	}
 
@@ -77,7 +78,7 @@ root = %q
 		if err != nil {
 			t.Fatalf("QueryGames(%q): %v", query, err)
 		}
-		if !pageHasExactActRaiser(page.Games) {
+		if !pageHasExactActRaiser(page.Games, watchedLibraryID) {
 			t.Fatalf("QueryGames(%q) missing exact ActRaiser: %+v", query, titlesOf(page.Games))
 		}
 		response := serveOperatorGames(t, handler, "/api/v1/games?q="+query)
@@ -85,7 +86,7 @@ root = %q
 			t.Fatalf("GET /api/v1/games?q=%s status = %d body=%s", query, response.Code, response.Body.String())
 		}
 		body := response.Body.String()
-		if strings.Contains(body, "operator-snes-root") || strings.Contains(body, root) {
+		if strings.Contains(body, "operator-snes-root") || strings.Contains(body, watchedLibraryID) || strings.Contains(body, root) {
 			t.Fatalf("public games leaked library id or root: %s", body)
 		}
 		var result struct {
@@ -113,7 +114,7 @@ root = %q
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(detailPage.Games) != 1 || detailPage.Games[0].CanonicalTitle != "ActRaiser 2" {
+	if len(detailPage.Games) != 1 || detailPage.Games[0].LibraryID != watchedLibraryID || detailPage.Games[0].CanonicalTitle != "ActRaiser 2" {
 		t.Fatalf("sequel search = %+v", titlesOf(detailPage.Games))
 	}
 }
@@ -155,13 +156,44 @@ root = %q
 	}
 }
 
-func pageHasExactActRaiser(games []catalog.Game) bool {
+func pageHasExactActRaiser(games []catalog.Game, libraryID string) bool {
 	for _, game := range games {
-		if catalog.ExactActRaiserTitle(game.CanonicalTitle, game.Title) && game.LibraryID == "operator-snes-root" {
+		if catalog.ExactActRaiserTitle(game.CanonicalTitle, game.Title) && game.LibraryID == libraryID {
 			return true
 		}
 	}
 	return false
+}
+
+func operatorSNESTestRoot(t *testing.T, parent string) string {
+	t.Helper()
+	// FTS intentionally searches game-id tokens. Choose a bounded fixture path
+	// whose derived exact-ActRaiser ids cannot add an unrelated 2* token to the
+	// "ActRaiser 2" query exercised below.
+	for i := 0; i < 256; i++ {
+		root := filepath.Join(parent, fmt.Sprintf("root-%03d", i), "Games", "Games", "SNES")
+		const libraryID = "operator-snes-root"
+		collides := false
+		for _, game := range []struct {
+			relativePath string
+			title        string
+		}{
+			{relativePath: "ActRaiser.smc", title: "ActRaiser"},
+			{relativePath: "ActRaiser (USA).sfc", title: "ActRaiser (USA)"},
+		} {
+			id := catalog.GameID("snes", libraryID, game.relativePath, game.title)
+			digest := id[strings.LastIndexByte(id, '-')+1:]
+			if strings.HasPrefix(digest, "2") {
+				collides = true
+				break
+			}
+		}
+		if !collides {
+			return root
+		}
+	}
+	t.Fatal("could not select a noncolliding operator SNES fixture root")
+	return ""
 }
 
 func titlesOf(games []catalog.Game) []string {

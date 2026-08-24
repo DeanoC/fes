@@ -39,12 +39,14 @@ type serviceCatalog interface {
 	Platforms(context.Context) ([]catalog.PlatformInfo, error)
 	GamesByIDs(context.Context, []string) ([]catalog.Game, error)
 	GameMatchesRoot(context.Context, catalog.Game, catalog.Root) (bool, error)
+	BeginContentLaunchAdmission(context.Context, catalog.Game, catalog.Root, catalog.Content) (catalog.ContentLaunchAdmission, error)
 	CompareAndSetContent(context.Context, catalog.Game, catalog.Root, catalog.Content) (bool, error)
 	Close() error
 }
 
 type serviceScanner interface {
 	Scan(context.Context, []catalog.Root) (catalog.ScanReport, error)
+	SetAdmissionGate(func(context.Context) (func(), error))
 }
 
 type debugServiceScanner interface {
@@ -153,34 +155,52 @@ func WithExecutionPolicy(policy ExecutionPolicy) ServiceOption {
 }
 
 type Service struct {
-	catalog            serviceCatalog
-	scanner            serviceScanner
-	preparer           servicePreparer
-	client             serviceClient
-	roots              []catalog.Root
-	rootsByID          map[string]catalog.Root
-	requestTimeout     time.Duration
-	uploadTimeout      time.Duration
-	uploadReadDelay    time.Duration
-	executionResolver  ExecutionResolver
-	hostExecutor       hostexec.Adapter
-	users              *libraryuser.Store
-	media              *librarymedia.Index
-	libraryOverlayPath string
-	libraryMu          sync.RWMutex
-	attractIdle        int
-	preferredRegions   []string
-	hostEmulator       HostEmulatorConfig
-	metadataRoot       string
-	metadataScope      string
-	fpgaROMPaths       map[string]string
-	activeExecution    string
-	activeGameID       string
-	activeSystem       protocol.System
-	executionMu        sync.Mutex
-	closeOnce          sync.Once
-	closeErr           error
+	catalog                 serviceCatalog
+	scanner                 serviceScanner
+	preparer                servicePreparer
+	client                  serviceClient
+	roots                   []catalog.Root
+	rootsByID               map[string]catalog.Root
+	requestTimeout          time.Duration
+	uploadTimeout           time.Duration
+	uploadReadDelay         time.Duration
+	executionResolver       ExecutionResolver
+	hostExecutor            hostexec.Adapter
+	users                   *libraryuser.Store
+	media                   *librarymedia.Index
+	libraryOverlayPath      string
+	libraryMu               sync.RWMutex
+	attractIdle             int
+	preferredRegions        []string
+	hostEmulator            HostEmulatorConfig
+	metadataRoot            string
+	metadataScope           string
+	watchRoot               string
+	folderWatchInterval     time.Duration
+	folderWatchFailureMu    sync.Mutex
+	folderWatchFailureCount int
+	catalogAdmission        chan struct{}
+	scanMu                  sync.Mutex
+	scanWG                  sync.WaitGroup
+	closing                 bool
+	catalogCloseWait        time.Duration
+	fpgaROMPaths            map[string]string
+	activeExecution         string
+	activeGameID            string
+	activeSystem            protocol.System
+	executionMu             sync.Mutex
+	closeOnce               sync.Once
+	catalogCloseOnce        sync.Once
+	catalogCloseErr         error
+	closeErr                error
 }
+
+const catalogCloseScanTimeout = 2 * time.Second
+
+var (
+	errCatalogClosing            = errors.New("catalog is closing")
+	errFolderWatchRootUnresolved = errors.New("folder watch root is unresolved")
+)
 
 func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, error) {
 	if err := ctx.Err(); err != nil {
@@ -294,11 +314,17 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 		media = openedMedia
 		options = append(options, WithLibraryMedia(media))
 	}
-	return newService(config, paths, store, scanner, preparer, client, options...), nil
+	service := newService(config, paths, store, scanner, preparer, client, options...)
+	if len(service.folderWatchRoots()) > 0 {
+		if err := service.retireSupersededSNESLibraries(ctx); err != nil {
+			return fail("retire superseded SNES libraries", err)
+		}
+	}
+	return service, nil
 }
 
 func newService(config Config, paths Paths, store serviceCatalog, scanner serviceScanner, preparer servicePreparer, client serviceClient, options ...ServiceOption) *Service {
-	roots := append([]catalog.Root(nil), config.Libraries...)
+	roots := ApplyFolderWatchRoot(config.Libraries, config.Library.WatchRoot)
 	rootsByID := make(map[string]catalog.Root, len(roots))
 	for _, root := range roots {
 		rootsByID[root.ID] = root
@@ -313,8 +339,12 @@ func newService(config Config, paths Paths, store serviceCatalog, scanner servic
 		hostEmulator:      config.HostEmulator,
 		metadataRoot:      paths.MetadataRoot,
 		metadataScope:     config.Metadata.ClientID,
+		watchRoot:         strings.TrimSpace(config.Library.WatchRoot),
 		fpgaROMPaths:      copyFPGAROMPaths(config.FPGAROMPaths),
+		catalogAdmission:  make(chan struct{}, 1),
 	}
+	service.catalogAdmission <- struct{}{}
+	scanner.SetAdmissionGate(service.acquireCatalogAdmission)
 	for _, option := range options {
 		if option != nil {
 			option(service)
@@ -407,6 +437,9 @@ func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFu
 
 func (s *Service) Close() error {
 	s.closeOnce.Do(func() {
+		s.scanMu.Lock()
+		s.closing = true
+		s.scanMu.Unlock()
 		var first error
 		if s.media != nil {
 			first = s.media.Close()
@@ -416,8 +449,15 @@ func (s *Service) Close() error {
 				first = err
 			}
 		}
-		if err := s.catalog.Close(); first == nil {
-			first = err
+		if s.waitForCatalogScan() {
+			if err := s.closeCatalog(); first == nil {
+				first = err
+			}
+		} else {
+			go func() {
+				s.scanWG.Wait()
+				_ = s.closeCatalog()
+			}()
 		}
 		s.closeErr = first
 	})
@@ -425,6 +465,50 @@ func (s *Service) Close() error {
 		return canonicalError(protocol.CodeInternal, nil)
 	}
 	return nil
+}
+
+func (s *Service) catalogCloseTimeout() time.Duration {
+	if s.catalogCloseWait > 0 {
+		return s.catalogCloseWait
+	}
+	return catalogCloseScanTimeout
+}
+
+func (s *Service) beginCatalogScan() bool {
+	s.scanMu.Lock()
+	defer s.scanMu.Unlock()
+	if s.closing {
+		return false
+	}
+	s.scanWG.Add(1)
+	return true
+}
+
+func (s *Service) endCatalogScan() {
+	s.scanWG.Done()
+}
+
+func (s *Service) closeCatalog() error {
+	s.catalogCloseOnce.Do(func() {
+		s.catalogCloseErr = s.catalog.Close()
+	})
+	return s.catalogCloseErr
+}
+
+func (s *Service) waitForCatalogScan() bool {
+	done := make(chan struct{})
+	go func() {
+		s.scanWG.Wait()
+		close(done)
+	}()
+	timer := time.NewTimer(s.catalogCloseTimeout())
+	defer timer.Stop()
+	select {
+	case <-done:
+		return true
+	case <-timer.C:
+		return false
+	}
 }
 
 func (s *Service) CastStart(ctx context.Context, session, token string, generation uint64) (host.CastStatus, error) {
@@ -455,6 +539,16 @@ func (s *Service) Scan(ctx context.Context) (catalog.ScanReport, error) {
 	if err := ctx.Err(); err != nil {
 		return catalog.ScanReport{}, err
 	}
+	if !s.beginCatalogScan() {
+		return catalog.ScanReport{}, canonicalError(protocol.CodeInternal, errCatalogClosing)
+	}
+	defer s.endCatalogScan()
+	if err := s.retireSupersededSNESLibrariesWithAdmission(ctx); err != nil {
+		if ctx.Err() != nil {
+			return catalog.ScanReport{}, ctx.Err()
+		}
+		return catalog.ScanReport{}, canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
 	report, err := s.scanner.Scan(ctx, append([]catalog.Root(nil), s.roots...))
 	if err != nil {
 		if ctx.Err() != nil {
@@ -464,6 +558,182 @@ func (s *Service) Scan(ctx context.Context) (catalog.ScanReport, error) {
 	}
 	_ = s.ScanMedia(ctx)
 	return report, nil
+}
+
+// FolderWatchRoot returns the configured SNES folder-watch source of truth.
+func (s *Service) FolderWatchRoot() string {
+	return s.watchRoot
+}
+
+func (s *Service) folderWatchRoots() []catalog.Root {
+	out := make([]catalog.Root, 0, 1)
+	for _, root := range s.roots {
+		if root.System == protocol.SystemSNES {
+			out = append(out, root)
+		}
+	}
+	return out
+}
+
+// ReconcileFolderWatch updates the host catalog from the configured SNES
+// watch root. It does not scan non-SNES libraries or library media.
+func (s *Service) ReconcileFolderWatch(ctx context.Context) (catalog.ScanReport, error) {
+	if err := ctx.Err(); err != nil {
+		return catalog.ScanReport{}, err
+	}
+	roots := s.folderWatchRoots()
+	if len(roots) == 0 {
+		return catalog.ScanReport{}, canonicalError(protocol.CodeInternal, errFolderWatchRootUnresolved)
+	}
+	if !s.beginCatalogScan() {
+		return catalog.ScanReport{}, canonicalError(protocol.CodeInternal, errCatalogClosing)
+	}
+	defer s.endCatalogScan()
+	if err := s.retireSupersededSNESLibrariesWithAdmission(ctx); err != nil {
+		if ctx.Err() != nil {
+			return catalog.ScanReport{}, ctx.Err()
+		}
+		return catalog.ScanReport{}, canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	report, err := s.scanner.Scan(ctx, roots)
+	if err != nil {
+		if ctx.Err() != nil {
+			return catalog.ScanReport{}, ctx.Err()
+		}
+		return catalog.ScanReport{}, canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	return report, nil
+}
+
+type catalogLibraryRetirer interface {
+	Libraries(context.Context) ([]catalog.Root, error)
+	RebindLibrary(context.Context, catalog.Root) error
+	RetireLibrary(context.Context, string) error
+}
+
+type catalogLibraryRootReleaser interface {
+	ReleaseLibraryRoot(context.Context, catalog.Root) error
+}
+
+func (s *Service) retireSupersededSNESLibraries(ctx context.Context) error {
+	retirer, ok := s.catalog.(catalogLibraryRetirer)
+	if !ok {
+		return nil
+	}
+	keep := make(map[string]catalog.Root)
+	keepByID := make(map[string]catalog.Root)
+	keepByPath := make(map[string]catalog.Root)
+	for _, root := range s.roots {
+		keepByPath[root.Path] = root
+		if strings.TrimSpace(root.ID) != "" {
+			keepByID[root.ID] = root
+		}
+		if root.System == protocol.SystemSNES && strings.TrimSpace(root.ID) != "" {
+			keep[root.ID] = root
+		}
+	}
+	libraries, err := retirer.Libraries(ctx)
+	if err != nil {
+		return err
+	}
+	releaser, supportsRelease := retirer.(catalogLibraryRootReleaser)
+	for _, library := range libraries {
+		root, adopted := keepByPath[library.Path]
+		if !adopted || library.ID == root.ID && library.System == root.System {
+			root, adopted = keepByID[library.ID]
+			adopted = adopted && library.System != root.System
+		}
+		if !adopted {
+			continue
+		}
+		if !supportsRelease {
+			return errors.New("catalog library does not support releasing an adopted root")
+		}
+		if err := releaser.ReleaseLibraryRoot(ctx, root); err != nil {
+			return err
+		}
+	}
+	for _, library := range libraries {
+		if library.System != protocol.SystemSNES {
+			continue
+		}
+		root, ok := keep[library.ID]
+		if !ok || library.Path == root.Path {
+			continue
+		}
+		if err := retirer.RebindLibrary(ctx, root); err != nil {
+			return err
+		}
+	}
+	for _, library := range libraries {
+		if library.System != protocol.SystemSNES {
+			continue
+		}
+		if _, ok := keep[library.ID]; ok {
+			continue
+		}
+		if _, adopted := keepByPath[library.Path]; adopted {
+			continue
+		}
+		if err := retirer.RetireLibrary(ctx, library.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) retireSupersededSNESLibrariesWithAdmission(ctx context.Context) error {
+	if _, ok := s.catalog.(catalogLibraryRetirer); !ok {
+		return nil
+	}
+	release, err := s.acquireCatalogAdmission(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+	return s.retireSupersededSNESLibraries(ctx)
+}
+
+// RunFolderWatch reconciles the SNES watch root immediately and then on a
+// poll interval until ctx is cancelled. Polling is the SMB-safe watch path.
+func (s *Service) RunFolderWatch(ctx context.Context) error {
+	interval := s.folderWatchInterval
+	if interval <= 0 {
+		interval = catalog.DefaultFolderWatchInterval
+	}
+	watcher := catalog.FolderWatcher{
+		Scan: func(ctx context.Context, _ []catalog.Root) (catalog.ScanReport, error) {
+			return s.ReconcileFolderWatch(ctx)
+		},
+		Roots:    s.folderWatchRoots,
+		Interval: interval,
+		OnError:  s.noteFolderWatchReconcileFailure,
+	}
+	return watcher.Run(ctx)
+}
+
+func (s *Service) noteFolderWatchReconcileFailure() {
+	s.folderWatchFailureMu.Lock()
+	s.folderWatchFailureCount++
+	s.folderWatchFailureMu.Unlock()
+}
+
+func (s *Service) acquireCatalogAdmission(ctx context.Context) (func(), error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-s.catalogAdmission:
+		return func() { s.catalogAdmission <- struct{}{} }, nil
+	}
+}
+
+// FolderWatchReconcileFailures returns how many non-cancel reconcile
+// failures the poller has seen. Transient SMB errors increment this and
+// the watcher keeps retrying.
+func (s *Service) FolderWatchReconcileFailures() int {
+	s.folderWatchFailureMu.Lock()
+	defer s.folderWatchFailureMu.Unlock()
+	return s.folderWatchFailureCount
 }
 
 func (s *Service) Games(ctx context.Context) ([]catalog.Game, error) {
@@ -703,8 +973,8 @@ func (s *Service) launchGame(ctx context.Context, game catalog.Game, progress Pr
 		}
 		if probe.Present {
 			emitProgress(progress, "cache", "content is already cached")
-			response, err := s.launchContent(ctx, game, identity, progress)
-			return response, false, err
+			emitProgress(progress, "launch", "launching cached content")
+			return s.launchAdmittedContent(ctx, game, root, *game.Content, identity)
 		}
 		emitProgress(progress, "cache", "content is not cached")
 	}
@@ -870,14 +1140,18 @@ func (s *Service) launchPrepared(ctx context.Context, game catalog.Game, prepare
 	}
 	content := catalog.Content{SHA256: prepared.Content.SHA256, Size: prepared.Content.Size, Extension: prepared.Content.Extension}
 	root := s.rootsByID[game.LibraryID]
+	release, err := s.acquireCatalogAdmission(ctx)
+	if err != nil {
+		return protocol.CachedLaunchResponse{}, false, err
+	}
 	updated, err := s.catalog.CompareAndSetContent(ctx, game, root, content)
+	release()
 	if err != nil {
 		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, safeContextError(err))
 	}
 	if !updated {
 		return protocol.CachedLaunchResponse{}, true, nil
 	}
-
 	emitProgress(progress, "cache", "checking target cache")
 	probe, err := s.probe(ctx, game.System, prepared.Content)
 	if err != nil {
@@ -885,15 +1159,48 @@ func (s *Service) launchPrepared(ctx context.Context, game catalog.Game, prepare
 	}
 	if probe.Present {
 		emitProgress(progress, "cache", "content is already cached")
-		response, err := s.launchContent(ctx, game, prepared.Content, progress)
-		return response, false, err
+	} else {
+		emitProgress(progress, "cache", "content is not cached")
+		if err := s.uploadPrepared(ctx, game.System, prepared, progress); err != nil {
+			return protocol.CachedLaunchResponse{}, false, err
+		}
 	}
-	emitProgress(progress, "cache", "content is not cached")
-	if err := s.uploadPrepared(ctx, game.System, prepared, progress); err != nil {
+	emitProgress(progress, "launch", "launching cached content")
+	return s.launchAdmittedContent(ctx, game, root, content, prepared.Content)
+}
+
+func (s *Service) launchAdmittedContent(ctx context.Context, game catalog.Game, root catalog.Root, content catalog.Content, identity protocol.ContentIdentity) (response protocol.CachedLaunchResponse, retry bool, resultErr error) {
+	releaseLocal, err := s.acquireCatalogAdmission(ctx)
+	if err != nil {
 		return protocol.CachedLaunchResponse{}, false, err
 	}
-	response, err = s.launchContent(ctx, game, prepared.Content, progress)
-	return response, false, err
+	admission, err := s.catalog.BeginContentLaunchAdmission(ctx, game, root, content)
+	if err != nil {
+		releaseLocal()
+		if ctx.Err() != nil {
+			return protocol.CachedLaunchResponse{}, false, ctx.Err()
+		}
+		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	defer func() {
+		closeErr := admission.Close()
+		releaseLocal()
+		if closeErr == nil {
+			return
+		}
+		response = protocol.CachedLaunchResponse{}
+		retry = false
+		if resultErr == nil {
+			resultErr = canonicalError(protocol.CodeInternal, safeContextError(closeErr))
+		} else {
+			resultErr = errors.Join(resultErr, closeErr)
+		}
+	}()
+	if !admission.ContentMatches() {
+		return protocol.CachedLaunchResponse{}, true, nil
+	}
+	response, resultErr = s.launchContent(ctx, game, identity)
+	return response, false, resultErr
 }
 
 func (s *Service) uploadPrepared(parent context.Context, system protocol.System, prepared *romsource.Prepared, progress ProgressFunc) (resultErr error) {
@@ -941,8 +1248,7 @@ func (s *Service) probe(parent context.Context, system protocol.System, identity
 	return response, nil
 }
 
-func (s *Service) launchContent(parent context.Context, game catalog.Game, identity protocol.ContentIdentity, progress ProgressFunc) (protocol.CachedLaunchResponse, error) {
-	emitProgress(progress, "launch", "launching cached content")
+func (s *Service) launchContent(parent context.Context, game catalog.Game, identity protocol.ContentIdentity) (protocol.CachedLaunchResponse, error) {
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 	defer cancel()
 	request := protocol.CachedLaunchRequest{GameID: game.ID, System: game.System, Content: identity}

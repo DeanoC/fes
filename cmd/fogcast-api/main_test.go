@@ -106,6 +106,36 @@ type shutdownCompositionService struct {
 	stops    int
 }
 
+type folderWatchCompositionService struct {
+	compositionService
+	watchErr          error
+	watchRelease      <-chan struct{}
+	reconcileFailures int
+}
+
+func (s *folderWatchCompositionService) RunFolderWatch(ctx context.Context) error {
+	if s.watchErr != nil {
+		return s.watchErr
+	}
+	if s.watchRelease != nil {
+		<-s.watchRelease
+		return nil
+	}
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (s *folderWatchCompositionService) FolderWatchReconcileFailures() int {
+	return s.reconcileFailures
+}
+
+type folderWatchLogWriter chan string
+
+func (w folderWatchLogWriter) Write(p []byte) (int, error) {
+	w <- string(p)
+	return len(p), nil
+}
+
 func (s *shutdownCompositionService) Stop(context.Context) (protocol.Status, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -871,6 +901,65 @@ func TestCompositionMediaHandleReportsPersistentTargetStatusFailure(t *testing.T
 	case <-handle.(interface{ Done() <-chan struct{} }).Done():
 	case <-time.After(time.Second):
 		t.Fatal("persistent target status failure did not close Done")
+	}
+}
+
+func TestStopFolderWatchTimesOutWhenReconcileIsStuck(t *testing.T) {
+	started := time.Now()
+	err := stopFolderWatch(func() {}, make(chan struct{}), 30*time.Millisecond)
+	if !errors.Is(err, errFolderWatchStopTimeout) {
+		t.Fatalf("stop = %v", err)
+	}
+	if time.Since(started) > time.Second {
+		t.Fatal("folder-watch stop blocked beyond the bound")
+	}
+}
+
+func TestStopFolderWatchReturnsWhenWatchStops(t *testing.T) {
+	done := make(chan struct{})
+	close(done)
+	if err := stopFolderWatch(func() {}, done, time.Second); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRunReportsFolderWatchTerminalFailureWithoutLeakingError(t *testing.T) {
+	watchErr := errors.New("folder-watch secret=must-not-leak")
+	watchService := &folderWatchCompositionService{watchErr: watchErr}
+	var stderr bytes.Buffer
+	runFolderWatch(context.Background(), watchService, &stderr, time.Hour)
+	if got := stderr.String(); !strings.Contains(got, "fogcast-api: folder-watch failed") || strings.Contains(got, watchErr.Error()) {
+		t.Fatalf("stderr = %q", got)
+	}
+}
+
+func TestRunReportsFolderWatchReconcileFailuresWhileWatcherRemainsActive(t *testing.T) {
+	release := make(chan struct{})
+	watchService := &folderWatchCompositionService{watchRelease: release, reconcileFailures: 2}
+	logs := make(folderWatchLogWriter, 1)
+	done := make(chan struct{})
+	go func() {
+		runFolderWatch(context.Background(), watchService, logs, time.Millisecond)
+		close(done)
+	}()
+	select {
+	case got := <-logs:
+		if !strings.Contains(got, "fogcast-api: folder-watch reconciliation failures: 2") {
+			t.Fatalf("stderr = %q", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("folder-watch failure count was not reported")
+	}
+	select {
+	case <-done:
+		t.Fatal("folder watch returned before the active runner stopped")
+	default:
+	}
+	close(release)
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("folder watch did not return after the runner stopped")
 	}
 }
 

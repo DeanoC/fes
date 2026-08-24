@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -137,6 +138,227 @@ func TestScannerTraversesIncrementallyWithoutFollowingSymlinks(t *testing.T) {
 	}
 	if game := scannerGameByPath(t, store, "RPGs/Chrono Trigger.SFC"); game.RootOnline || game.State != SourceStateAvailable {
 		t.Fatalf("offline root changed game availability: %+v", game)
+	}
+}
+
+func TestScannerDoesNotPOSIXOpenUNCRoot(t *testing.T) {
+	ctx := context.Background()
+	store := openScannerStore(t)
+	scanner := Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}
+	report, err := scanner.Scan(ctx, []Root{{
+		ID: "folder-watch-unc", System: protocol.SystemSNES, Path: "//deano-clawz/Games/Games/SNES",
+	}})
+	if err != nil {
+		t.Fatalf("Scan(UNC): %v", err)
+	}
+	if got := report.Roots; !reflect.DeepEqual(got, []RootReport{{
+		RootID: "folder-watch-unc", System: protocol.SystemSNES, Offline: true, Reason: reasonRootOffline,
+	}}) {
+		t.Fatalf("UNC report = %+v", got)
+	}
+	if games := scannerGames(t, store); len(games) != 0 {
+		t.Fatalf("UNC root indexed %v", scannerGamePaths(games))
+	}
+	if !isRemoteUNCPath("//deano-clawz/Games/Games/SNES") || isRemoteUNCPath("/absolute/snes") {
+		t.Fatal("UNC detection drifted")
+	}
+}
+
+func TestScannerDoesNotHoldCatalogTransactionDuringTraversal(t *testing.T) {
+	ctx := context.Background()
+	rootPath := t.TempDir()
+	mustWriteScannerFile(t, filepath.Join(rootPath, "Axelay.sfc"), []byte("axelay"))
+	store := openScannerStore(t)
+	root := Root{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}
+	scanner := Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}
+	if _, err := scanner.Scan(ctx, []Root{root}); err != nil {
+		t.Fatalf("seed Scan: %v", err)
+	}
+
+	started := make(chan struct{})
+	block := make(chan struct{})
+	var once sync.Once
+	scanner.walkDir = func(rootFS fs.FS, walkRoot string, fn fs.WalkDirFunc) error {
+		once.Do(func() {
+			close(started)
+			<-block
+		})
+		return fs.WalkDir(rootFS, walkRoot, fn)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := scanner.Scan(ctx, []Root{root})
+		done <- err
+	}()
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("traversal did not start")
+	}
+	readDone := make(chan error, 1)
+	go func() {
+		_, err := store.Games(ctx)
+		readDone <- err
+	}()
+	select {
+	case err := <-readDone:
+		if err != nil {
+			t.Fatalf("catalog read during traversal: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("catalog read blocked during traversal")
+	}
+	close(block)
+	if err := <-done; err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+}
+
+func TestScannerSerializesOverlappingCollectionsPerRoot(t *testing.T) {
+	ctx := context.Background()
+	rootPath := t.TempDir()
+	mustWriteScannerFile(t, filepath.Join(rootPath, "Older.sfc"), []byte("older"))
+	databasePath := filepath.Join(t.TempDir(), "catalog.sqlite3")
+	olderStore, err := Open(databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = olderStore.Close() })
+	root := Root{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}
+
+	olderCollected := make(chan struct{})
+	releaseOlder := make(chan struct{})
+	older := Scanner{Store: olderStore, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}
+	walks := 0
+	older.walkDir = func(rootFS fs.FS, walkRoot string, fn fs.WalkDirFunc) error {
+		if err := fs.WalkDir(rootFS, walkRoot, fn); err != nil {
+			return err
+		}
+		walks++
+		if walks == 2 {
+			close(olderCollected)
+			<-releaseOlder
+		}
+		return nil
+	}
+	olderDone := make(chan error, 1)
+	go func() {
+		_, err := older.Scan(ctx, []Root{root})
+		olderDone <- err
+	}()
+	select {
+	case <-olderCollected:
+	case <-time.After(time.Second):
+		t.Fatal("older scan did not finish collecting")
+	}
+	mustWriteScannerFile(t, filepath.Join(rootPath, "Newer.sfc"), []byte("newer"))
+	newerStore, err := Open(databasePath)
+	if err != nil {
+		t.Fatalf("Open concurrent CLI store during traversal: %v", err)
+	}
+	t.Cleanup(func() { _ = newerStore.Close() })
+	newerTraversal := make(chan struct{})
+	newer := Scanner{Store: newerStore, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}
+	newer.walkDir = func(rootFS fs.FS, walkRoot string, fn fs.WalkDirFunc) error {
+		select {
+		case <-newerTraversal:
+		default:
+			close(newerTraversal)
+		}
+		return fs.WalkDir(rootFS, walkRoot, fn)
+	}
+
+	newerDone := make(chan error, 1)
+	go func() {
+		_, err := newer.Scan(ctx, []Root{root})
+		newerDone <- err
+	}()
+	select {
+	case <-newerTraversal:
+		t.Fatal("newer scan traversed before the older cross-process lease was released")
+	case err := <-newerDone:
+		t.Fatalf("newer scan completed before the older cross-process lease was released: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(releaseOlder)
+	if err := <-olderDone; err != nil {
+		t.Fatalf("older Scan: %v", err)
+	}
+	select {
+	case err := <-newerDone:
+		if err != nil {
+			t.Fatalf("newer Scan: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("newer scan remained blocked after the older cross-process lease was released")
+	}
+
+	games := scannerGames(t, newerStore)
+	if got, want := scannerGamePaths(games), []string{"Newer.sfc", "Older.sfc"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("games after overlapping scans = %v, want %v", got, want)
+	}
+	if game := scannerGameByPath(t, newerStore, "Newer.sfc"); game.State != SourceStateAvailable {
+		t.Fatalf("newer ROM was wiped by older collection: %+v", game)
+	}
+}
+
+func TestScannerLeasesDoNotSerializeDifferentRoots(t *testing.T) {
+	ctx := context.Background()
+	databasePath := filepath.Join(t.TempDir(), "catalog.sqlite3")
+	firstStore, err := Open(databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = firstStore.Close() })
+	secondStore, err := Open(databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = secondStore.Close() })
+	firstRoot := Root{ID: "snes-first", System: protocol.SystemSNES, Path: t.TempDir()}
+	secondRoot := Root{ID: "snes-second", System: protocol.SystemSNES, Path: t.TempDir()}
+	mustWriteScannerFile(t, filepath.Join(firstRoot.Path, "First.sfc"), []byte("first"))
+	mustWriteScannerFile(t, filepath.Join(secondRoot.Path, "Second.sfc"), []byte("second"))
+
+	firstStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	var once sync.Once
+	first := Scanner{Store: firstStore, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}
+	first.walkDir = func(rootFS fs.FS, walkRoot string, fn fs.WalkDirFunc) error {
+		once.Do(func() {
+			close(firstStarted)
+			<-releaseFirst
+		})
+		return fs.WalkDir(rootFS, walkRoot, fn)
+	}
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := first.Scan(ctx, []Root{firstRoot})
+		firstDone <- err
+	}()
+	select {
+	case <-firstStarted:
+	case <-time.After(time.Second):
+		t.Fatal("first root traversal did not start")
+	}
+
+	secondDone := make(chan error, 1)
+	go func() {
+		_, err := (Scanner{Store: secondStore, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}).Scan(ctx, []Root{secondRoot})
+		secondDone <- err
+	}()
+	select {
+	case err := <-secondDone:
+		if err != nil {
+			t.Fatalf("second root Scan: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("different root was blocked by the first root's scan lease")
+	}
+	close(releaseFirst)
+	if err := <-firstDone; err != nil {
+		t.Fatalf("first root Scan: %v", err)
 	}
 }
 

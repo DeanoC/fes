@@ -16,6 +16,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -59,13 +60,265 @@ func TestServiceLaunchRememberedCacheHitDoesNotReadSource(t *testing.T) {
 			if response.Content != contentIdentity(content) || response.Status.State != protocol.StateActive {
 				t.Fatalf("response = %+v", response)
 			}
-			if store.gameCalls != 1 || store.updateCalls != 0 {
-				t.Fatalf("catalog calls = game:%d update:%d", store.gameCalls, store.updateCalls)
+			if store.gameCalls != 1 || store.matchCalls != 1 || store.updateCalls != 0 {
+				t.Fatalf("catalog calls = game:%d match:%d update:%d", store.gameCalls, store.matchCalls, store.updateCalls)
 			}
 			if preparer.calls != 0 || client.uploadCalls != 0 || client.launchCalls != 1 {
 				t.Fatalf("source/target calls = prepare:%d upload:%d launch:%d", preparer.calls, client.uploadCalls, client.launchCalls)
 			}
 		})
+	}
+}
+
+func TestServiceLaunchCacheHitRetriesWhenScanReplacesContent(t *testing.T) {
+	oldContent := catalog.Content{SHA256: strings.Repeat("a", 64), Size: 3, Extension: "sfc"}
+	newContent := catalog.Content{SHA256: strings.Repeat("b", 64), Size: 4, Extension: "sfc"}
+	oldGame := serviceGame(oldContent)
+	newGame := serviceGame(newContent)
+	newGame.Fingerprint.SourceSize = newContent.Size
+	newGame.Fingerprint.ModifiedNS++
+
+	store := &fakeServiceCatalog{games: []catalog.Game{oldGame, newGame}}
+	store.match = func(_ context.Context, game catalog.Game, _ catalog.Root, content catalog.Content) (bool, error) {
+		if store.matchCalls == 1 {
+			if game.Fingerprint != oldGame.Fingerprint || content != oldContent {
+				t.Fatalf("old snapshot check = game %+v content %+v", game, content)
+			}
+			return false, nil
+		}
+		if game.Fingerprint != newGame.Fingerprint || content != newContent {
+			t.Fatalf("new snapshot check = game %+v content %+v", game, content)
+		}
+		return true, nil
+	}
+	client := &fakeServiceClient{}
+	client.probe = func(_ context.Context, system protocol.System, identity protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
+		return protocol.CacheProbeResponse{Present: true, System: &system, Content: &identity}, nil
+	}
+	client.launch = exactLaunchResponse(t, newGame, contentIdentity(newContent))
+	service := newTestService(store, &fakeServicePreparer{}, client)
+
+	response, err := service.Launch(context.Background(), oldGame.ID, nil)
+	if err != nil {
+		t.Fatalf("Launch: %v", err)
+	}
+	if response.Content != contentIdentity(newContent) {
+		t.Fatalf("launched content = %+v, want %+v", response.Content, contentIdentity(newContent))
+	}
+	if store.gameCalls != 2 || store.matchCalls != 2 || store.updateCalls != 0 || client.probeCalls != 2 || client.launchCalls != 1 {
+		t.Fatalf("calls = game:%d match:%d update:%d probe:%d launch:%d", store.gameCalls, store.matchCalls, store.updateCalls, client.probeCalls, client.launchCalls)
+	}
+}
+
+func TestServiceLaunchAdmissionBlocksFolderReconcileAfterContentValidation(t *testing.T) {
+	content := catalog.Content{SHA256: serviceDigest, Size: 3, Extension: "sfc"}
+	game := serviceGame(content)
+	store := &fakeServiceCatalog{games: []catalog.Game{game}}
+	client := &fakeServiceClient{}
+	client.probe = func(_ context.Context, system protocol.System, identity protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
+		return protocol.CacheProbeResponse{Present: true, System: &system, Content: &identity}, nil
+	}
+	launchStarted := make(chan struct{})
+	launchReturned := make(chan struct{})
+	releaseLaunch := make(chan struct{})
+	client.launch = func(ctx context.Context, request protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, error) {
+		close(launchStarted)
+		select {
+		case <-releaseLaunch:
+			response, err := exactLaunchResponse(t, game, contentIdentity(content))(ctx, request)
+			close(launchReturned)
+			return response, err
+		case <-ctx.Done():
+			return protocol.CachedLaunchResponse{}, ctx.Err()
+		}
+	}
+	service := newTestService(store, &fakeServicePreparer{}, client)
+	scanStarted := make(chan struct{})
+	scanAttempted := make(chan struct{})
+	scanAdmittedEarly := make(chan struct{}, 1)
+	scanner := &fakeServiceScanner{attempted: scanAttempted, started: scanStarted, onAdmitted: func() {
+		select {
+		case <-launchReturned:
+		default:
+			scanAdmittedEarly <- struct{}{}
+		}
+	}}
+	scanner.SetAdmissionGate(service.acquireCatalogAdmission)
+	service.scanner = scanner
+
+	launchDone := make(chan error, 1)
+	go func() {
+		_, err := service.Launch(context.Background(), game.ID, nil)
+		launchDone <- err
+	}()
+	<-launchStarted
+
+	reconcileDone := make(chan error, 1)
+	go func() {
+		_, err := service.ReconcileFolderWatch(context.Background())
+		reconcileDone <- err
+	}()
+	<-scanAttempted
+
+	close(releaseLaunch)
+	if err := <-launchDone; err != nil {
+		t.Fatalf("Launch: %v", err)
+	}
+	select {
+	case <-scanStarted:
+	case <-time.After(time.Second):
+		t.Fatal("folder scan did not start after launch admission completed")
+	}
+	select {
+	case <-scanAdmittedEarly:
+		t.Fatal("folder scan acquired admission before cached launch returned")
+	default:
+	}
+	if err := <-reconcileDone; err != nil {
+		t.Fatalf("ReconcileFolderWatch: %v", err)
+	}
+}
+
+func TestServiceLaunchAdmissionBlocksExternalCatalogWriter(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "catalog.sqlite3")
+	launchStore, err := catalog.Open(path)
+	if err != nil {
+		t.Fatalf("Open(launch): %v", err)
+	}
+	externalStore, err := catalog.Open(path)
+	if err != nil {
+		_ = launchStore.Close()
+		t.Fatalf("Open(external): %v", err)
+	}
+	defer externalStore.Close()
+
+	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/private/library"}
+	content := catalog.Content{SHA256: serviceDigest, Size: 3, Extension: "sfc"}
+	candidate := catalog.Candidate{
+		ID: "snes-synthetic", Title: "Synthetic", RelativePath: "game.sfc",
+		System: protocol.SystemSNES, Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable,
+		Fingerprint: catalog.Fingerprint{SourceSize: 3, ModifiedNS: 123},
+	}
+	session, err := launchStore.BeginRootScan(ctx, root)
+	if err != nil {
+		t.Fatalf("BeginRootScan: %v", err)
+	}
+	if _, err := session.Observe(ctx, candidate); err != nil {
+		t.Fatalf("Observe: %v", err)
+	}
+	if _, err := session.Complete(ctx); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	game, err := launchStore.Game(ctx, candidate.ID)
+	if err != nil {
+		t.Fatalf("Game: %v", err)
+	}
+	if updated, err := launchStore.CompareAndSetContent(ctx, game, root, content); err != nil || !updated {
+		t.Fatalf("CompareAndSetContent = %v, %v, want true, nil", updated, err)
+	}
+	game, err = launchStore.Game(ctx, candidate.ID)
+	if err != nil {
+		t.Fatalf("Game(content): %v", err)
+	}
+
+	client := &fakeServiceClient{}
+	client.probe = func(_ context.Context, system protocol.System, identity protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
+		return protocol.CacheProbeResponse{Present: true, System: &system, Content: &identity}, nil
+	}
+	launchStarted := make(chan struct{})
+	releaseLaunch := make(chan struct{})
+	client.launch = func(callCtx context.Context, request protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, error) {
+		close(launchStarted)
+		select {
+		case <-releaseLaunch:
+			return exactLaunchResponse(t, game, contentIdentity(content))(callCtx, request)
+		case <-callCtx.Done():
+			return protocol.CachedLaunchResponse{}, callCtx.Err()
+		}
+	}
+	service := newService(
+		Config{Libraries: []catalog.Root{root}, RequestTimeout: 2 * time.Second, UploadTimeout: 2 * time.Second},
+		Paths{Staging: t.TempDir()}, launchStore, &fakeServiceScanner{}, &fakeServicePreparer{}, client,
+	)
+	defer service.Close()
+
+	launchDone := make(chan error, 1)
+	go func() {
+		_, err := service.Launch(ctx, game.ID, nil)
+		launchDone <- err
+	}()
+	<-launchStarted
+
+	newContent := catalog.Content{SHA256: strings.Repeat("b", 64), Size: 3, Extension: "sfc"}
+	writerDone := make(chan error, 1)
+	go func() {
+		updated, err := externalStore.CompareAndSetContent(ctx, game, root, newContent)
+		if err == nil && !updated {
+			err = errors.New("external content update did not match remembered snapshot")
+		}
+		writerDone <- err
+	}()
+	select {
+	case err := <-writerDone:
+		t.Fatalf("external catalog writer completed during target launch: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(releaseLaunch)
+	if err := <-launchDone; err != nil {
+		t.Fatalf("Launch: %v", err)
+	}
+	select {
+	case err := <-writerDone:
+		if err != nil {
+			t.Fatalf("external catalog writer after launch: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("external catalog writer remained blocked after target launch")
+	}
+}
+
+func TestServiceCatalogAdmissionWaitHonorsCancellation(t *testing.T) {
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, &fakeServiceClient{})
+	release, err := service.acquireCatalogAdmission(context.Background())
+	if err != nil {
+		t.Fatalf("acquireCatalogAdmission: %v", err)
+	}
+	defer release()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := service.acquireCatalogAdmission(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled acquire error = %v, want context.Canceled", err)
+	}
+}
+
+func TestServiceLaunchProgressCanReenterFolderReconcileBeforeAdmission(t *testing.T) {
+	content := catalog.Content{SHA256: serviceDigest, Size: 3, Extension: "sfc"}
+	game := serviceGame(content)
+	store := &fakeServiceCatalog{games: []catalog.Game{game}}
+	client := &fakeServiceClient{}
+	client.probe = func(_ context.Context, system protocol.System, identity protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
+		return protocol.CacheProbeResponse{Present: true, System: &system, Content: &identity}, nil
+	}
+	client.launch = exactLaunchResponse(t, game, contentIdentity(content))
+	service := newTestService(store, &fakeServicePreparer{}, client)
+	var reconcileErr error
+	var once sync.Once
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err := service.Launch(ctx, game.ID, func(progress Progress) {
+		if progress.Stage == "launch" {
+			once.Do(func() {
+				_, reconcileErr = service.ReconcileFolderWatch(ctx)
+			})
+		}
+	})
+	if err != nil {
+		t.Fatalf("Launch: %v", err)
+	}
+	if reconcileErr != nil {
+		t.Fatalf("reentrant ReconcileFolderWatch: %v", reconcileErr)
 	}
 }
 
@@ -1305,8 +1558,8 @@ func TestServiceCatalogAndV1ControlDelegation(t *testing.T) {
 	if err := service.Close(); err != nil {
 		t.Fatalf("Close(second): %v", err)
 	}
-	if store.closeCalls != 1 {
-		t.Fatalf("catalog close calls = %d, want 1", store.closeCalls)
+	if store.closeCount() != 1 {
+		t.Fatalf("catalog close calls = %d, want 1", store.closeCount())
 	}
 }
 
@@ -1557,7 +1810,7 @@ func TestServiceLaunchRejectsReconfiguredRootBeforeReadingOrTargetMutation(t *te
 	defer service.Close()
 
 	_, err = service.Launch(context.Background(), gameID, nil)
-	assertServiceErrorCode(t, err, protocol.CodeSourceUnavailable)
+	assertServiceErrorCode(t, err, protocol.CodeROMNotFound)
 	if requestCount != 0 || len(uploaded) != 0 {
 		t.Fatalf("reconfigured root reached target: requests=%d uploaded=%q", requestCount, uploaded)
 	}
@@ -1687,11 +1940,14 @@ type fakeServiceCatalog struct {
 	searchGames []catalog.Game
 	gameErr     error
 	gameCalls   int
+	matchCalls  int
 	updateCalls int
+	closeMu     sync.Mutex
 	closeCalls  int
 	queryErr    error
 	searchQuery string
 	rootMatch   func(context.Context, catalog.Game, catalog.Root) (bool, error)
+	match       func(context.Context, catalog.Game, catalog.Root, catalog.Content) (bool, error)
 	update      func(context.Context, catalog.Game, catalog.Root, catalog.Content) (bool, error)
 }
 
@@ -1772,6 +2028,29 @@ func (f *fakeServiceCatalog) GameMatchesRoot(ctx context.Context, game catalog.G
 	return game.LibraryID == root.ID && game.System == root.System, nil
 }
 
+func (f *fakeServiceCatalog) ContentMatches(ctx context.Context, game catalog.Game, root catalog.Root, content catalog.Content) (bool, error) {
+	f.matchCalls++
+	if f.match != nil {
+		return f.match(ctx, game, root, content)
+	}
+	return true, nil
+}
+
+type fakeContentLaunchAdmission struct {
+	matches bool
+}
+
+func (a *fakeContentLaunchAdmission) ContentMatches() bool { return a.matches }
+func (a *fakeContentLaunchAdmission) Close() error         { return nil }
+
+func (f *fakeServiceCatalog) BeginContentLaunchAdmission(ctx context.Context, game catalog.Game, root catalog.Root, content catalog.Content) (catalog.ContentLaunchAdmission, error) {
+	matches, err := f.ContentMatches(ctx, game, root, content)
+	if err != nil {
+		return nil, err
+	}
+	return &fakeContentLaunchAdmission{matches: matches}, nil
+}
+
 func (f *fakeServiceCatalog) CompareAndSetContent(ctx context.Context, game catalog.Game, root catalog.Root, content catalog.Content) (bool, error) {
 	f.updateCalls++
 	if f.update != nil {
@@ -1781,15 +2060,29 @@ func (f *fakeServiceCatalog) CompareAndSetContent(ctx context.Context, game cata
 }
 
 func (f *fakeServiceCatalog) Close() error {
+	f.closeMu.Lock()
+	defer f.closeMu.Unlock()
 	f.closeCalls++
 	return nil
 }
 
+func (f *fakeServiceCatalog) closeCount() int {
+	f.closeMu.Lock()
+	defer f.closeMu.Unlock()
+	return f.closeCalls
+}
+
 type fakeServiceScanner struct {
-	report catalog.ScanReport
-	err    error
-	calls  int
-	roots  []catalog.Root
+	report     catalog.ScanReport
+	err        error
+	calls      int
+	roots      []catalog.Root
+	started    chan struct{}
+	block      <-chan struct{}
+	attempted  chan struct{}
+	admit      func(context.Context) (func(), error)
+	onAdmitted func()
+	once       sync.Once
 }
 
 type serviceRoundTripFunc func(*http.Request) (*http.Response, error)
@@ -1856,9 +2149,34 @@ func serviceJSONResponse(request *http.Request, payload any) (*http.Response, er
 	}, nil
 }
 
-func (f *fakeServiceScanner) Scan(_ context.Context, roots []catalog.Root) (catalog.ScanReport, error) {
+func (f *fakeServiceScanner) SetAdmissionGate(admit func(context.Context) (func(), error)) {
+	f.admit = admit
+}
+
+func (f *fakeServiceScanner) Scan(ctx context.Context, roots []catalog.Root) (catalog.ScanReport, error) {
 	f.calls++
 	f.roots = append([]catalog.Root(nil), roots...)
+	if f.attempted != nil {
+		close(f.attempted)
+	}
+	release := func() {}
+	if f.admit != nil {
+		var err error
+		release, err = f.admit(ctx)
+		if err != nil {
+			return catalog.ScanReport{}, err
+		}
+	}
+	defer release()
+	if f.onAdmitted != nil {
+		f.onAdmitted()
+	}
+	if f.started != nil {
+		f.once.Do(func() { close(f.started) })
+	}
+	if f.block != nil {
+		<-f.block
+	}
 	return f.report, f.err
 }
 

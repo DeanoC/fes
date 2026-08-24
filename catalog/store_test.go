@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -101,6 +102,20 @@ func TestSchemaMigratesNewDatabaseAndRejectsFutureVersion(t *testing.T) {
 	}
 	if _, err := catalog.Open(path); err == nil || !strings.Contains(err.Error(), "newer") {
 		t.Fatalf("Open(future database) error = %v, want newer-schema error", err)
+	}
+}
+
+func TestOpenEscapesReservedCatalogPathCharacters(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "catalog ?#%.sqlite3")
+	store, err := catalog.Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("stat catalog at literal path: %v", err)
 	}
 }
 
@@ -393,6 +408,255 @@ func TestScanSessionFingerprintOrKindChangeClearsContent(t *testing.T) {
 	}
 }
 
+func TestStoreRetireLibraryDropsGamesByID(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	keep := catalog.Root{ID: "snes-keep", System: protocol.SystemSNES, Path: "/games/keep"}
+	drop := catalog.Root{ID: "snes-drop", System: protocol.SystemSNES, Path: "/games/drop"}
+	mega := catalog.Root{ID: "genesis-main", System: protocol.SystemMegaDrive, Path: "/games/mega"}
+	keepGame := candidate("snes-keep-game", "Keep", "keep.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA)
+	dropGame := candidate("snes-drop-game", "Drop", "drop.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA)
+	megaGame := catalog.Candidate{
+		ID: "md-game", Title: "Mega", RelativePath: "mega.md", System: protocol.SystemMegaDrive,
+		Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, Fingerprint: fingerprintA,
+	}
+	for _, item := range []struct {
+		root catalog.Root
+		game catalog.Candidate
+	}{
+		{keep, keepGame},
+		{drop, dropGame},
+		{mega, megaGame},
+	} {
+		session, err := store.BeginRootScan(ctx, item.root)
+		if err != nil {
+			t.Fatalf("BeginRootScan(%s): %v", item.root.ID, err)
+		}
+		mustObserve(t, session, item.game, catalog.ChangeAdded)
+		mustComplete(t, session)
+	}
+
+	if err := store.RetireLibrary(ctx, drop.ID); err != nil {
+		t.Fatalf("RetireLibrary: %v", err)
+	}
+	if err := store.RetireLibrary(ctx, drop.ID); err != nil {
+		t.Fatalf("RetireLibrary(idempotent): %v", err)
+	}
+	if _, err := store.Game(ctx, dropGame.ID); err == nil || !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("retired game still present: %v", err)
+	}
+	if got := mustGame(t, store, keepGame.ID); got.State != catalog.SourceStateAvailable {
+		t.Fatalf("kept SNES game = %+v", got)
+	}
+	if got := mustGame(t, store, megaGame.ID); got.System != protocol.SystemMegaDrive {
+		t.Fatalf("non-SNES game = %+v", got)
+	}
+	libraries, err := store.Libraries(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, library := range libraries {
+		if library.ID == drop.ID {
+			found = true
+			if library.Path != drop.Path {
+				t.Fatalf("retired library identity = %#v", library)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("retired library row was deleted")
+	}
+}
+
+func TestStoreReleaseLibraryRootRemovesSupersededIdentity(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	old := catalog.Root{ID: "old-snes-id", System: protocol.SystemSNES, Path: "/games/snes"}
+	replacement := catalog.Root{ID: "new-snes-id", System: protocol.SystemSNES, Path: old.Path}
+	session, err := store.BeginRootScan(ctx, old)
+	if err != nil {
+		t.Fatalf("BeginRootScan(old): %v", err)
+	}
+	game := candidate("old-snes-game", "Axelay", "Axelay.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA)
+	mustObserve(t, session, game, catalog.ChangeAdded)
+	mustComplete(t, session)
+
+	if err := store.ReleaseLibraryRoot(ctx, replacement); err != nil {
+		t.Fatalf("ReleaseLibraryRoot: %v", err)
+	}
+	if _, err := store.Game(ctx, game.ID); err == nil || !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("released game still present: %v", err)
+	}
+	libraries, err := store.Libraries(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(libraries) != 0 {
+		t.Fatalf("libraries after release = %#v, want none", libraries)
+	}
+
+	rescan, err := store.BeginRootScan(ctx, replacement)
+	if err != nil {
+		t.Fatalf("BeginRootScan(replacement): %v", err)
+	}
+	if err := rescan.Rollback(); err != nil {
+		t.Fatalf("Rollback(replacement): %v", err)
+	}
+}
+
+func TestStoreReleaseLibraryRootAllowsSystemReclassification(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	old := catalog.Root{ID: "old-snes-id", System: protocol.SystemSNES, Path: "/games/shared"}
+	replacement := catalog.Root{ID: "genesis-main", System: protocol.SystemMegaDrive, Path: old.Path}
+	session, err := store.BeginRootScan(ctx, old)
+	if err != nil {
+		t.Fatalf("BeginRootScan(old): %v", err)
+	}
+	game := candidate("old-snes-game", "Axelay", "Axelay.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA)
+	mustObserve(t, session, game, catalog.ChangeAdded)
+	mustComplete(t, session)
+
+	if err := store.ReleaseLibraryRoot(ctx, replacement); err != nil {
+		t.Fatalf("ReleaseLibraryRoot: %v", err)
+	}
+	rescan, err := store.BeginRootScan(ctx, replacement)
+	if err != nil {
+		t.Fatalf("BeginRootScan(reclassified): %v", err)
+	}
+	if err := rescan.Rollback(); err != nil {
+		t.Fatalf("Rollback(reclassified): %v", err)
+	}
+}
+
+func TestStoreReleaseLibraryRootAllowsSameIDSystemReclassification(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	old := catalog.Root{ID: "shared-main", System: protocol.SystemMegaDrive, Path: "/games/shared"}
+	replacement := catalog.Root{ID: old.ID, System: protocol.SystemSNES, Path: old.Path}
+	session, err := store.BeginRootScan(ctx, old)
+	if err != nil {
+		t.Fatalf("BeginRootScan(old): %v", err)
+	}
+	game := candidate("old-mega-game", "Sonic", "Sonic.md", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA)
+	game.System = protocol.SystemMegaDrive
+	mustObserve(t, session, game, catalog.ChangeAdded)
+	mustComplete(t, session)
+
+	if err := store.ReleaseLibraryRoot(ctx, replacement); err != nil {
+		t.Fatalf("ReleaseLibraryRoot: %v", err)
+	}
+	rescan, err := store.BeginRootScan(ctx, replacement)
+	if err != nil {
+		t.Fatalf("BeginRootScan(reclassified): %v", err)
+	}
+	if err := rescan.Rollback(); err != nil {
+		t.Fatalf("Rollback(reclassified): %v", err)
+	}
+}
+
+func TestStoreReleaseLibraryRootAllowsSameIDSystemAndPathReclassification(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	old := catalog.Root{ID: "shared-main", System: protocol.SystemMegaDrive, Path: "/games/old"}
+	replacement := catalog.Root{ID: old.ID, System: protocol.SystemSNES, Path: "/games/new"}
+	session, err := store.BeginRootScan(ctx, old)
+	if err != nil {
+		t.Fatalf("BeginRootScan(old): %v", err)
+	}
+	game := candidate("old-mega-game", "Sonic", "Sonic.md", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA)
+	game.System = protocol.SystemMegaDrive
+	mustObserve(t, session, game, catalog.ChangeAdded)
+	mustComplete(t, session)
+
+	if err := store.ReleaseLibraryRoot(ctx, replacement); err != nil {
+		t.Fatalf("ReleaseLibraryRoot: %v", err)
+	}
+	rescan, err := store.BeginRootScan(ctx, replacement)
+	if err != nil {
+		t.Fatalf("BeginRootScan(reclassified): %v", err)
+	}
+	if err := rescan.Rollback(); err != nil {
+		t.Fatalf("Rollback(reclassified): %v", err)
+	}
+}
+
+func TestStoreRebindLibraryMovesRootAndDropsStaleGames(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	oldRoot := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/games/old"}
+	game := candidate("snes-game", "Old", "old.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA)
+	session, err := store.BeginRootScan(ctx, oldRoot)
+	if err != nil {
+		t.Fatalf("BeginRootScan(old): %v", err)
+	}
+	mustObserve(t, session, game, catalog.ChangeAdded)
+	mustComplete(t, session)
+
+	newRoot := oldRoot
+	newRoot.Path = "/games/new"
+	if err := store.RebindLibrary(ctx, newRoot); err != nil {
+		t.Fatalf("RebindLibrary: %v", err)
+	}
+	if _, err := store.Game(ctx, game.ID); err == nil || !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("stale game remained after rebind: %v", err)
+	}
+	libraries, err := store.Libraries(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(libraries, []catalog.Root{newRoot}) {
+		t.Fatalf("libraries after rebind = %#v, want %#v", libraries, []catalog.Root{newRoot})
+	}
+	rescan, err := store.BeginRootScan(ctx, newRoot)
+	if err != nil {
+		t.Fatalf("BeginRootScan(new): %v", err)
+	}
+	rescan.Rollback()
+}
+
+func TestStoreRebindLibraryReplacesSupersededDestinationIdentity(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	configured := catalog.Root{ID: "operator-snes", System: protocol.SystemSNES, Path: "/games/old"}
+	synthetic := catalog.Root{ID: "folder-watch-synthetic", System: protocol.SystemSNES, Path: "/games/new"}
+	for _, item := range []struct {
+		root catalog.Root
+		game catalog.Candidate
+	}{
+		{configured, candidate("configured-game", "Configured", "configured.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA)},
+		{synthetic, candidate("synthetic-game", "Synthetic", "synthetic.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA)},
+	} {
+		session, err := store.BeginRootScan(ctx, item.root)
+		if err != nil {
+			t.Fatalf("BeginRootScan(%s): %v", item.root.ID, err)
+		}
+		mustObserve(t, session, item.game, catalog.ChangeAdded)
+		mustComplete(t, session)
+	}
+
+	configured.Path = synthetic.Path
+	if err := store.RebindLibrary(ctx, configured); err != nil {
+		t.Fatalf("RebindLibrary: %v", err)
+	}
+	if games, err := store.Games(ctx); err != nil || len(games) != 0 {
+		t.Fatalf("games after destination replacement = %+v, %v", games, err)
+	}
+	libraries, err := store.Libraries(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(libraries, []catalog.Root{configured}) {
+		t.Fatalf("libraries after destination replacement = %#v, want %#v", libraries, []catalog.Root{configured})
+	}
+	rescan, err := store.BeginRootScan(ctx, configured)
+	if err != nil {
+		t.Fatalf("BeginRootScan(rebound): %v", err)
+	}
+	rescan.Rollback()
+}
+
 func TestStoreOfflineMarkingPreservesRowsAndContent(t *testing.T) {
 	ctx := context.Background()
 	store := openStore(t)
@@ -625,6 +889,203 @@ func TestStoreCompareAndSetContentRejectsChangedSourceKind(t *testing.T) {
 		t.Fatalf("CompareAndSetContent(current) = %v, %v, want true, nil", updated, err)
 	}
 	assertContent(t, mustGame(t, store, original.ID).Content, content)
+}
+
+func TestStoreContentMatchesDoesNotOverwriteNewerDigest(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/games/snes"}
+	c := candidate("snes-game", "Game", "game.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA)
+	x, err := store.BeginRootScan(ctx, root)
+	if err != nil {
+		t.Fatalf("BeginRootScan: %v", err)
+	}
+	mustObserve(t, x, c, catalog.ChangeAdded)
+	mustComplete(t, x)
+	game := mustGame(t, store, c.ID)
+	oldContent := catalog.Content{SHA256: strings.Repeat("a", 64), Size: 1024, Extension: "sfc"}
+	newContent := catalog.Content{SHA256: strings.Repeat("b", 64), Size: 1024, Extension: "sfc"}
+	if updated, err := store.CompareAndSetContent(ctx, game, root, oldContent); err != nil || !updated {
+		t.Fatalf("CompareAndSetContent(old) = %v, %v, want true, nil", updated, err)
+	}
+	remembered := mustGame(t, store, c.ID)
+	if updated, err := store.CompareAndSetContent(ctx, remembered, root, newContent); err != nil || !updated {
+		t.Fatalf("CompareAndSetContent(new) = %v, %v, want true, nil", updated, err)
+	}
+
+	if matches, err := store.ContentMatches(ctx, remembered, root, oldContent); err != nil || matches {
+		t.Fatalf("ContentMatches(old) = %v, %v, want false, nil", matches, err)
+	}
+	assertContent(t, mustGame(t, store, c.ID).Content, newContent)
+	current := mustGame(t, store, c.ID)
+	if matches, err := store.ContentMatches(ctx, current, root, newContent); err != nil || !matches {
+		t.Fatalf("ContentMatches(new) = %v, %v, want true, nil", matches, err)
+	}
+}
+
+func TestStoreContentLaunchAdmissionBlocksExternalScanCommit(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "catalog.sqlite3")
+	launchStore, err := catalog.Open(path)
+	if err != nil {
+		t.Fatalf("Open(launch): %v", err)
+	}
+	defer launchStore.Close()
+	scanStore, err := catalog.Open(path)
+	if err != nil {
+		t.Fatalf("Open(scan): %v", err)
+	}
+	defer scanStore.Close()
+
+	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/games/snes"}
+	original := candidate("snes-game", "Game", "game.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA)
+	session, err := launchStore.BeginRootScan(ctx, root)
+	if err != nil {
+		t.Fatalf("BeginRootScan(original): %v", err)
+	}
+	mustObserve(t, session, original, catalog.ChangeAdded)
+	mustComplete(t, session)
+	game := mustGame(t, launchStore, original.ID)
+	content := catalog.Content{SHA256: strings.Repeat("a", 64), Size: 1024, Extension: "sfc"}
+	if updated, err := launchStore.CompareAndSetContent(ctx, game, root, content); err != nil || !updated {
+		t.Fatalf("CompareAndSetContent = %v, %v, want true, nil", updated, err)
+	}
+	game = mustGame(t, launchStore, original.ID)
+	admission, err := launchStore.BeginContentLaunchAdmission(ctx, game, root, content)
+	if err != nil {
+		t.Fatalf("BeginContentLaunchAdmission: %v", err)
+	}
+	if !admission.ContentMatches() {
+		t.Fatal("content launch admission rejected current snapshot")
+	}
+	readDone := make(chan error, 1)
+	go func() {
+		_, err := launchStore.Games(ctx)
+		readDone <- err
+	}()
+	select {
+	case err := <-readDone:
+		if err != nil {
+			t.Fatalf("catalog read during launch admission: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("catalog read blocked during launch admission")
+	}
+
+	changed := original
+	changed.Fingerprint.ModifiedNS++
+	scanStarted := make(chan struct{})
+	scanDone := make(chan error, 1)
+	go func() {
+		close(scanStarted)
+		x, err := scanStore.BeginRootScan(ctx, root)
+		if err != nil {
+			scanDone <- err
+			return
+		}
+		if _, err := x.Observe(ctx, changed); err != nil {
+			_ = x.Rollback()
+			scanDone <- err
+			return
+		}
+		_, err = x.Complete(ctx)
+		scanDone <- err
+	}()
+	<-scanStarted
+	select {
+	case err := <-scanDone:
+		t.Fatalf("external scan completed during launch admission: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	if err := admission.Close(); err != nil {
+		t.Fatalf("close admission: %v", err)
+	}
+	select {
+	case err := <-scanDone:
+		if err != nil {
+			t.Fatalf("external scan after admission: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("external scan remained blocked after launch admission closed")
+	}
+	if matches, err := launchStore.ContentMatches(ctx, game, root, content); err != nil || matches {
+		t.Fatalf("ContentMatches(old snapshot) = %v, %v, want false, nil", matches, err)
+	}
+}
+
+func TestStoreContentMatchesRejectsEverySnapshotDimension(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/games/snes"}
+	c := candidate("snes-game", "Game", "game.zip", catalog.SourceKindZIP, catalog.SourceStateAvailable, fingerprintB)
+	x, err := store.BeginRootScan(ctx, root)
+	if err != nil {
+		t.Fatalf("BeginRootScan: %v", err)
+	}
+	mustObserve(t, x, c, catalog.ChangeAdded)
+	mustComplete(t, x)
+	game := mustGame(t, store, c.ID)
+	content := catalog.Content{SHA256: strings.Repeat("e", 64), Size: 2048, Extension: "sfc"}
+	if updated, err := store.CompareAndSetContent(ctx, game, root, content); err != nil || !updated {
+		t.Fatalf("CompareAndSetContent = %v, %v, want true, nil", updated, err)
+	}
+	game = mustGame(t, store, c.ID)
+
+	tests := []struct {
+		name string
+		edit func(*catalog.Game, *catalog.Root, *catalog.Content)
+	}{
+		{name: "game id", edit: func(g *catalog.Game, _ *catalog.Root, _ *catalog.Content) { g.ID = "snes-other" }},
+		{name: "library id", edit: func(g *catalog.Game, _ *catalog.Root, _ *catalog.Content) { g.LibraryID = "snes-other" }},
+		{name: "system", edit: func(g *catalog.Game, _ *catalog.Root, _ *catalog.Content) { g.System = protocol.SystemMegaDrive }},
+		{name: "relative path", edit: func(g *catalog.Game, _ *catalog.Root, _ *catalog.Content) { g.RelativePath = "other.zip" }},
+		{name: "source kind", edit: func(g *catalog.Game, _ *catalog.Root, _ *catalog.Content) { g.Kind = catalog.SourceKindRaw }},
+		{name: "source size", edit: func(g *catalog.Game, _ *catalog.Root, _ *catalog.Content) { g.Fingerprint.SourceSize++ }},
+		{name: "modified ns", edit: func(g *catalog.Game, _ *catalog.Root, _ *catalog.Content) { g.Fingerprint.ModifiedNS++ }},
+		{name: "zip member", edit: func(g *catalog.Game, _ *catalog.Root, _ *catalog.Content) { g.Fingerprint.ZIPMember = "other.sfc" }},
+		{name: "zip size", edit: func(g *catalog.Game, _ *catalog.Root, _ *catalog.Content) { g.Fingerprint.ZIPSize++ }},
+		{name: "zip crc", edit: func(g *catalog.Game, _ *catalog.Root, _ *catalog.Content) { g.Fingerprint.ZIPCRC32++ }},
+		{name: "zip entries", edit: func(g *catalog.Game, _ *catalog.Root, _ *catalog.Content) { g.Fingerprint.ZIPEntryCount++ }},
+		{name: "content sha", edit: func(_ *catalog.Game, _ *catalog.Root, c *catalog.Content) { c.SHA256 = strings.Repeat("f", 64) }},
+		{name: "content size", edit: func(_ *catalog.Game, _ *catalog.Root, c *catalog.Content) { c.Size++ }},
+		{name: "content extension", edit: func(_ *catalog.Game, _ *catalog.Root, c *catalog.Content) { c.Extension = "bin" }},
+		{name: "root id", edit: func(_ *catalog.Game, r *catalog.Root, _ *catalog.Content) { r.ID = "snes-other" }},
+		{name: "root system", edit: func(_ *catalog.Game, r *catalog.Root, _ *catalog.Content) { r.System = protocol.SystemMegaDrive }},
+		{name: "root path", edit: func(_ *catalog.Game, r *catalog.Root, _ *catalog.Content) { r.Path = "/games/other" }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			gotGame, gotRoot, gotContent := game, root, content
+			test.edit(&gotGame, &gotRoot, &gotContent)
+			if matches, err := store.ContentMatches(ctx, gotGame, gotRoot, gotContent); err != nil || matches {
+				t.Fatalf("ContentMatches = %v, %v, want false, nil", matches, err)
+			}
+		})
+	}
+}
+
+func TestStoreCompareAndSetContentRejectsReplacedPriorDigest(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/games/snes"}
+	c := candidate("snes-game", "Game", "game.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA)
+	x, err := store.BeginRootScan(ctx, root)
+	if err != nil {
+		t.Fatalf("BeginRootScan: %v", err)
+	}
+	mustObserve(t, x, c, catalog.ChangeAdded)
+	mustComplete(t, x)
+	initial := mustGame(t, store, c.ID)
+	first := catalog.Content{SHA256: strings.Repeat("c", 64), Size: 1024, Extension: "sfc"}
+	second := catalog.Content{SHA256: strings.Repeat("d", 64), Size: 1024, Extension: "sfc"}
+	if updated, err := store.CompareAndSetContent(ctx, initial, root, first); err != nil || !updated {
+		t.Fatalf("CompareAndSetContent(first) = %v, %v, want true, nil", updated, err)
+	}
+	if updated, err := store.CompareAndSetContent(ctx, initial, root, second); err != nil || updated {
+		t.Fatalf("CompareAndSetContent(stale prior) = %v, %v, want false, nil", updated, err)
+	}
+	assertContent(t, mustGame(t, store, c.ID).Content, first)
 }
 
 func TestStoreLoadsLibraryRootAndContentCASBindsIt(t *testing.T) {

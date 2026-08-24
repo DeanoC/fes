@@ -1,0 +1,184 @@
+package catalog
+
+import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/DeanoC/FogCast-POC/internal/core"
+	"github.com/DeanoC/FogCast-POC/protocol"
+)
+
+func TestFolderWatcherReconcileAddsAndRemovesSNESROMs(t *testing.T) {
+	ctx := context.Background()
+	rootPath := t.TempDir()
+	store := openScannerStore(t)
+	root := Root{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}
+	watcher := FolderWatcher{
+		Scan:  Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}.Scan,
+		Roots: func() []Root { return []Root{root} },
+	}
+
+	mustWriteScannerFile(t, filepath.Join(rootPath, "Axelay.sfc"), []byte("axelay"))
+	if _, err := watcher.Reconcile(ctx); err != nil {
+		t.Fatalf("Reconcile(add): %v", err)
+	}
+	games := scannerGames(t, store)
+	if len(games) != 1 || games[0].State != SourceStateAvailable || games[0].RelativePath != "Axelay.sfc" {
+		t.Fatalf("after add = %+v", games)
+	}
+
+	if err := os.Remove(filepath.Join(rootPath, "Axelay.sfc")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := watcher.Reconcile(ctx); err != nil {
+		t.Fatalf("Reconcile(remove): %v", err)
+	}
+	games = scannerGames(t, store)
+	if len(games) != 1 || games[0].State != SourceStateMissing || games[0].RelativePath != "Axelay.sfc" {
+		t.Fatalf("after remove = %+v", games)
+	}
+}
+
+func TestFolderWatcherRootsCallbackChangesWatchedFolder(t *testing.T) {
+	ctx := context.Background()
+	first := t.TempDir()
+	second := t.TempDir()
+	mustWriteScannerFile(t, filepath.Join(first, "First.sfc"), []byte("first"))
+	mustWriteScannerFile(t, filepath.Join(second, "Second.sfc"), []byte("second"))
+	store := openScannerStore(t)
+	scan := Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}.Scan
+	firstWatcher := FolderWatcher{
+		Scan:  scan,
+		Roots: func() []Root { return []Root{{ID: "watch-a", System: protocol.SystemSNES, Path: first}} },
+	}
+	secondWatcher := FolderWatcher{
+		Scan:  scan,
+		Roots: func() []Root { return []Root{{ID: "watch-b", System: protocol.SystemSNES, Path: second}} },
+	}
+
+	if _, err := firstWatcher.Reconcile(ctx); err != nil {
+		t.Fatalf("Reconcile(first): %v", err)
+	}
+	if paths := scannerGamePaths(scannerGames(t, store)); len(paths) != 1 || paths[0] != "First.sfc" {
+		t.Fatalf("first watch paths = %v", paths)
+	}
+
+	if _, err := secondWatcher.Reconcile(ctx); err != nil {
+		t.Fatalf("Reconcile(second): %v", err)
+	}
+	games := scannerGames(t, store)
+	available := map[string]string{}
+	for _, game := range games {
+		if game.State == SourceStateAvailable {
+			available[game.LibraryID] = game.RelativePath
+		}
+	}
+	if available["watch-a"] != "First.sfc" || available["watch-b"] != "Second.sfc" {
+		t.Fatalf("watch roots did not stay config-driven: %v from %+v", available, games)
+	}
+}
+
+func TestFolderWatcherIgnoresNonSNESRoots(t *testing.T) {
+	ctx := context.Background()
+	rootPath := t.TempDir()
+	mustWriteScannerFile(t, filepath.Join(rootPath, "Sonic.md"), []byte("sonic"))
+	store := openScannerStore(t)
+	watcher := FolderWatcher{
+		Scan: Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}.Scan,
+		Roots: func() []Root {
+			return []Root{{ID: "genesis-main", System: protocol.SystemMegaDrive, Path: rootPath}}
+		},
+	}
+	if _, err := watcher.Reconcile(ctx); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	if games := scannerGames(t, store); len(games) != 0 {
+		t.Fatalf("non-SNES watch indexed %v", scannerGamePaths(games))
+	}
+}
+
+func TestFolderWatcherRunStopsOnCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	calls := 0
+	watcher := FolderWatcher{
+		Scan: func(context.Context, []Root) (ScanReport, error) {
+			calls++
+			return ScanReport{}, nil
+		},
+		Roots:    func() []Root { return []Root{{ID: "snes-main", System: protocol.SystemSNES, Path: t.TempDir()}} },
+		Interval: 20 * time.Millisecond,
+	}
+	done := make(chan error, 1)
+	go func() { done <- watcher.Run(ctx) }()
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	select {
+	case err := <-done:
+		if err != context.Canceled {
+			t.Fatalf("Run = %v, want canceled", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Run did not stop")
+	}
+	if calls < 1 {
+		t.Fatal("Run never reconciled")
+	}
+}
+
+func TestFolderWatcherRunReportsPersistentErrorsAndKeepsRetrying(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	calls := 0
+	failures := 0
+	watcher := FolderWatcher{
+		Scan: func(context.Context, []Root) (ScanReport, error) {
+			calls++
+			return ScanReport{}, errors.New("transient smb")
+		},
+		Roots:    func() []Root { return []Root{{ID: "snes-main", System: protocol.SystemSNES, Path: t.TempDir()}} },
+		Interval: 15 * time.Millisecond,
+		OnError:  func() { failures++ },
+	}
+	done := make(chan error, 1)
+	go func() { done <- watcher.Run(ctx) }()
+	deadline := time.Now().Add(200 * time.Millisecond)
+	for time.Now().Before(deadline) && (calls < 2 || failures < 2) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	cancel()
+	<-done
+	if calls < 2 || failures < 2 {
+		t.Fatalf("calls=%d failures=%d, want retries after persistent errors", calls, failures)
+	}
+}
+
+func TestFolderWatcherRunReportsOfflineRootsAndKeepsRetrying(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	calls := 0
+	failures := 0
+	watcher := FolderWatcher{
+		Scan: func(context.Context, []Root) (ScanReport, error) {
+			calls++
+			return ScanReport{Roots: []RootReport{{RootID: "snes-main", System: protocol.SystemSNES, Offline: true}}}, nil
+		},
+		Roots:    func() []Root { return []Root{{ID: "snes-main", System: protocol.SystemSNES, Path: t.TempDir()}} },
+		Interval: 15 * time.Millisecond,
+		OnError:  func() { failures++ },
+	}
+	done := make(chan error, 1)
+	go func() { done <- watcher.Run(ctx) }()
+	deadline := time.Now().Add(200 * time.Millisecond)
+	for time.Now().Before(deadline) && (calls < 2 || failures < 2) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	cancel()
+	<-done
+	if calls < 2 || failures < 2 {
+		t.Fatalf("calls=%d failures=%d, want offline roots to count as reconcile failures", calls, failures)
+	}
+}

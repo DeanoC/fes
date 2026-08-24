@@ -525,7 +525,7 @@ func (s *Service) librarySettingsSnapshot() LibraryConfig {
 	if len(regions) == 0 {
 		regions = append([]string(nil), catalog.DefaultPreferredRegions...)
 	}
-	return LibraryConfig{AttractIdleSeconds: seconds, PreferredRegions: regions}
+	return LibraryConfig{AttractIdleSeconds: seconds, PreferredRegions: regions, WatchRoot: s.watchRoot}
 }
 
 func (s *Service) currentPreferredRegions() []string {

@@ -518,6 +518,129 @@ root = "` + secondRoot + `"
 `
 }
 
+func TestLoadConfigWatchRootComesFromConfigNotCandidateDefault(t *testing.T) {
+	dir := t.TempDir()
+	first := filepath.Join(dir, "games-a")
+	second := filepath.Join(dir, "games-b")
+	for _, root := range []string{first, second} {
+		if err := os.MkdirAll(root, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	firstCfg, err := fogcast.LoadConfig(writeConfig(t, validConfig(first, filepath.Join(dir, "other-a"))+"\n[library]\nwatch_root = \""+first+"\"\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondCfg, err := fogcast.LoadConfig(writeConfig(t, validConfig(second, filepath.Join(dir, "other-b"))+"\n[library]\nwatch_root = \""+second+"\"\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstCfg.Library.WatchRoot != first || secondCfg.Library.WatchRoot != second {
+		t.Fatalf("watch roots = %q and %q", firstCfg.Library.WatchRoot, secondCfg.Library.WatchRoot)
+	}
+	if firstCfg.Library.WatchRoot == fogcast.DefaultFolderWatchRoot || secondCfg.Library.WatchRoot == fogcast.DefaultFolderWatchRoot {
+		t.Fatal("explicit watch_root ignored in favor of the candidate UNC")
+	}
+}
+
+func TestLoadConfigWatchRootDefaultsToSNESLibraryThenCandidateUNC(t *testing.T) {
+	dir := t.TempDir()
+	snesRoot := filepath.Join(dir, "SNES")
+	if err := os.MkdirAll(snesRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	withLibrary, err := fogcast.LoadConfig(writeConfig(t, validConfig(snesRoot, filepath.Join(dir, "Genesis"))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if withLibrary.Library.WatchRoot != filepath.Clean(snesRoot) {
+		t.Fatalf("watch root from SNES library = %q", withLibrary.Library.WatchRoot)
+	}
+
+	withoutSNES := `base_url = "http://192.0.2.10:8182"
+token = "test-token"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+`
+	bare, err := fogcast.LoadConfig(writeConfig(t, withoutSNES))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bare.Library.WatchRoot != fogcast.DefaultFolderWatchRoot {
+		t.Fatalf("default watch_root = %q, want %q", bare.Library.WatchRoot, fogcast.DefaultFolderWatchRoot)
+	}
+}
+
+func TestLoadConfigPreservesUNCWatchRootCandidate(t *testing.T) {
+	content := `base_url = "http://192.0.2.10:8182"
+token = "test-token"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+
+[library]
+watch_root = "//deano-clawz/Games/Games/SNES"
+`
+	cfg, err := fogcast.LoadConfig(writeConfig(t, content))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Library.WatchRoot != fogcast.DefaultFolderWatchRoot {
+		t.Fatalf("UNC watch_root = %q", cfg.Library.WatchRoot)
+	}
+}
+
+func TestLoadConfigRejectsAmbiguousUNCWatchRoot(t *testing.T) {
+	dir := t.TempDir()
+	firstRoot := filepath.Join(dir, "SNES-a")
+	secondRoot := filepath.Join(dir, "SNES-b")
+	content := `base_url = "http://192.0.2.10:8182"
+token = "test-token"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+
+[[libraries]]
+id = "snes-a"
+system = "snes"
+root = "` + firstRoot + `"
+
+[[libraries]]
+id = "snes-b"
+system = "snes"
+root = "` + secondRoot + `"
+
+[library]
+watch_root = "//server/share/SNES"
+`
+	if _, err := fogcast.LoadConfig(writeConfig(t, content)); err == nil {
+		t.Fatal("ambiguous UNC watch_root accepted")
+	} else if !strings.Contains(err.Error(), "more than one local absolute SNES root") {
+		t.Fatalf("unexpected error = %v", err)
+	}
+}
+
+func TestLoadConfigRejectsInvalidWatchRoot(t *testing.T) {
+	base := `base_url = "http://192.0.2.10:8182"
+token = "test-token"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+
+[library]
+`
+	tests := map[string]string{
+		"relative":  base + "watch_root = \"relative/games\"\n",
+		"empty UNC": base + "watch_root = \"//server\"\n",
+		"dot UNC":   base + "watch_root = \"//server/share/../other\"\n",
+		"unclean":   base + "watch_root = \"/tmp/../etc\"\n",
+	}
+	for name, content := range tests {
+		t.Run(name, func(t *testing.T) {
+			if _, err := fogcast.LoadConfig(writeConfig(t, content)); err == nil {
+				t.Fatal("invalid watch_root accepted")
+			}
+		})
+	}
+}
+
 func TestNormalizeLibraryConfigClampsOverflowingAttractIdle(t *testing.T) {
 	normalized, err := fogcast.NormalizeLibraryConfig(fogcast.LibraryConfig{
 		AttractIdleSeconds: fogcast.MaxAttractIdleSeconds + 1000,

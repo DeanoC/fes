@@ -13,12 +13,15 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/DeanoC/FogCast-POC/internal/core"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
 const defaultMaxZIPEntries = 4096
+
+const scanLeaseRetryInterval = 25 * time.Millisecond
 
 const (
 	reasonRootOffline       = "root_offline"
@@ -31,6 +34,8 @@ const (
 	reasonZIPNoROM          = "zip_no_rom"
 	reasonZIPTooManyEntries = "zip_too_many_entries"
 )
+
+var errRemoteRootUnmounted = errors.New("catalog root is a remote UNC path; mount an absolute local path")
 
 // SourceErrorCode maps a catalog source state to the public launch error code
 // without exposing scanner diagnostics or host paths.
@@ -52,10 +57,17 @@ type Scanner struct {
 	Platforms     PlatformRegistry
 	MaxZIPEntries int
 	Debug         func(string)
+	admit         func(context.Context) (func(), error)
 
 	walkDir  func(fs.FS, string, fs.WalkDirFunc) error
 	lstat    func(string) (fs.FileInfo, error)
 	openFile func(*os.Root, string) (scannerSourceFile, error)
+}
+
+// SetAdmissionGate conditions catalog mutation without holding the gate while
+// the scanner traverses and fingerprints the source tree.
+func (s *Scanner) SetAdmissionGate(admit func(context.Context) (func(), error)) {
+	s.admit = admit
 }
 
 type scannerSourceFile interface {
@@ -187,9 +199,15 @@ func (s Scanner) Scan(ctx context.Context, roots []Root) (ScanReport, error) {
 		if !ok {
 			return report, fmt.Errorf("scan root %q: system %q is not registered", root.ID, root.System)
 		}
+		releaseLease, err := s.Store.acquireRootScanLease(ctx, root)
+		if err != nil {
+			return report, err
+		}
 		heldRoot, err := openScannerRoot(root.Path)
 		if err != nil {
-			rootReport, err := s.Store.MarkRootOffline(ctx, root, reasonRootOffline)
+			rootReport, scanErr := s.Store.MarkRootOffline(ctx, root, reasonRootOffline)
+			leaseErr := releaseLease()
+			err := errors.Join(scanErr, leaseErr)
 			if err != nil {
 				return report, err
 			}
@@ -199,11 +217,11 @@ func (s Scanner) Scan(ctx context.Context, roots []Root) (ScanReport, error) {
 			}
 			continue
 		}
-
 		rootReport, scanErr := s.scanRoot(ctx, root, heldRoot, extensions, maximumZIPEntries)
 		closeErr := heldRoot.directory.Close()
-		if scanErr != nil || closeErr != nil {
-			err := errors.Join(scanErr, closeErr)
+		leaseErr := releaseLease()
+		if scanErr != nil || closeErr != nil || leaseErr != nil {
+			err := errors.Join(scanErr, closeErr, leaseErr)
 			return report, err
 		}
 		report.Roots = append(report.Roots, rootReport)
@@ -212,6 +230,43 @@ func (s Scanner) Scan(ctx context.Context, roots []Root) (ScanReport, error) {
 		}
 	}
 	return report, nil
+}
+
+func (s Scanner) beginRootScanAfterContention(ctx context.Context, root Root) (*ScanSession, error) {
+	for {
+		session, err := s.Store.BeginRootScan(ctx, root)
+		if err == nil {
+			return session, nil
+		}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if !isSQLiteLockContention(err) {
+			return nil, err
+		}
+		timer := time.NewTimer(scanLeaseRetryInterval)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+func isSQLiteLockContention(err error) bool {
+	var coded interface{ Code() int }
+	if !errors.As(err, &coded) {
+		return false
+	}
+	switch coded.Code() & 0xff {
+	case 5, 6: // SQLITE_BUSY or SQLITE_LOCKED, including their extended codes.
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Scanner) SetDebug(debug func(string)) {
@@ -229,7 +284,19 @@ func (s *Scanner) extensions(system protocol.System) (map[string]struct{}, bool)
 	return spec.Extensions, true
 }
 
+func isRemoteUNCPath(path string) bool {
+	unified := strings.ReplaceAll(strings.TrimSpace(path), `\`, "/")
+	if !strings.HasPrefix(unified, "//") || strings.HasPrefix(unified, "///") {
+		return false
+	}
+	parts := strings.Split(strings.TrimPrefix(unified, "//"), "/")
+	return len(parts) >= 2 && parts[0] != "" && parts[1] != ""
+}
+
 func openScannerRoot(path string) (*scannerRoot, error) {
+	if isRemoteUNCPath(path) {
+		return nil, errRemoteRootUnmounted
+	}
 	entryInfo, err := os.Lstat(path)
 	if err != nil || entryInfo.Mode()&fs.ModeSymlink != 0 || !entryInfo.IsDir() {
 		return nil, errors.Join(err, errors.New("catalog root is not a real directory"))
@@ -247,12 +314,6 @@ func openScannerRoot(path string) (*scannerRoot, error) {
 }
 
 func (s Scanner) scanRoot(ctx context.Context, root Root, heldRoot *scannerRoot, extensions map[string]struct{}, maximumZIPEntries int) (RootReport, error) {
-	session, err := s.Store.BeginRootScan(ctx, root)
-	if err != nil {
-		return RootReport{}, err
-	}
-	defer session.Rollback()
-
 	walk := s.walkDir
 	if walk == nil {
 		walk = fs.WalkDir
@@ -269,10 +330,54 @@ func (s Scanner) scanRoot(ctx context.Context, root Root, heldRoot *scannerRoot,
 	traversal := newScannerTraversalFS(heldRoot.directory)
 	skipped, err := s.collectSkippedCompanions(ctx, walk, traversal, heldRoot, extensions)
 	if err != nil {
-		_ = session.Rollback()
 		return RootReport{}, err
 	}
-	err = walk(traversal, ".", func(fsPath string, entry fs.DirEntry, walkErr error) error {
+	candidates, err := s.collectRootCandidates(ctx, walk, lstat, openFile, traversal, heldRoot, root, extensions, maximumZIPEntries, skipped)
+	if err != nil {
+		if !heldRoot.matchesConfiguredPath(root.Path) {
+			return s.Store.MarkRootOffline(ctx, root, reasonRootOffline)
+		}
+		return RootReport{}, fmt.Errorf("scan root %q: %w", root.ID, err)
+	}
+	if !heldRoot.matchesConfiguredPath(root.Path) {
+		return s.Store.MarkRootOffline(ctx, root, reasonRootOffline)
+	}
+	release := func() {}
+	if s.admit != nil {
+		release, err = s.admit(ctx)
+		if err != nil {
+			return RootReport{}, err
+		}
+	}
+	defer release()
+
+	session, err := s.beginRootScanAfterContention(ctx, root)
+	if err != nil {
+		return RootReport{}, err
+	}
+	defer session.Rollback()
+	for _, candidate := range candidates {
+		if _, err := session.Observe(ctx, candidate); err != nil {
+			return RootReport{}, err
+		}
+	}
+	return session.Complete(ctx)
+}
+
+func (s Scanner) collectRootCandidates(
+	ctx context.Context,
+	walk func(fs.FS, string, fs.WalkDirFunc) error,
+	lstat func(string) (fs.FileInfo, error),
+	openFile func(*os.Root, string) (scannerSourceFile, error),
+	traversal *scannerTraversalFS,
+	heldRoot *scannerRoot,
+	root Root,
+	extensions map[string]struct{},
+	maximumZIPEntries int,
+	skipped skippedCompanions,
+) ([]Candidate, error) {
+	var candidates []Candidate
+	err := walk(traversal, ".", func(fsPath string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -318,8 +423,8 @@ func (s Scanner) scanRoot(ctx context.Context, root Root, heldRoot *scannerRoot,
 			}
 			candidate.State = SourceStateInvalid
 			candidate.Reason = sourceFailureReason(err)
-			_, err = session.Observe(ctx, candidate)
-			return err
+			candidates = append(candidates, candidate)
+			return nil
 		}
 		if info.Mode()&fs.ModeSymlink != 0 || !info.Mode().IsRegular() {
 			return nil
@@ -346,19 +451,10 @@ func (s Scanner) scanRoot(ctx context.Context, root Root, heldRoot *scannerRoot,
 				candidate.Reason = reasonSourceUnreadable
 			}
 		}
-		_, err = session.Observe(ctx, candidate)
-		return err
+		candidates = append(candidates, candidate)
+		return nil
 	})
-	if err != nil {
-		if !heldRoot.matchesConfiguredPath(root.Path) {
-			return s.rollbackAndMarkOffline(ctx, root, session)
-		}
-		return RootReport{}, fmt.Errorf("scan root %q: %w", root.ID, err)
-	}
-	if !heldRoot.matchesConfiguredPath(root.Path) {
-		return s.rollbackAndMarkOffline(ctx, root, session)
-	}
-	return session.Complete(ctx)
+	return candidates, err
 }
 
 type skippedCompanions struct {
@@ -445,13 +541,6 @@ func (r *scannerRoot) matchesConfiguredPath(path string) bool {
 	}
 	openedInfo, err := r.directory.Stat(".")
 	return err == nil && openedInfo.IsDir() && os.SameFile(r.info, openedInfo)
-}
-
-func (s Scanner) rollbackAndMarkOffline(ctx context.Context, root Root, session *ScanSession) (RootReport, error) {
-	if err := session.Rollback(); err != nil {
-		return RootReport{}, fmt.Errorf("roll back replaced root %q: %w", root.ID, err)
-	}
-	return s.Store.MarkRootOffline(ctx, root, reasonRootOffline)
 }
 
 func openVerifiedCandidate(root *os.Root, relativePath string, expected fs.FileInfo, openFile func(*os.Root, string) (scannerSourceFile, error)) (scannerSourceFile, fs.FileInfo, error) {

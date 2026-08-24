@@ -228,6 +228,10 @@ id = "operator-snes-root"
 system = "snes"
 root = "/absolute/nonsymlink/Games/Games/SNES"
 
+[library]
+# Confirmed SNES-first folder-watch SoT. Override if the mounted path differs.
+watch_root = "//deano-clawz/Games/Games/SNES"
+
 [host_emulator]
 binary = "/absolute/path/to/RetroArch"
 core = "/absolute/path/to/snes9x_libretro.dylib"
@@ -266,6 +270,19 @@ Notes:
   `normalizeRoot` fails closed on symlink leaves. A `FogCastMounts/SNES`-style
   symlink mount is rejected; point at the real `Games/Games/SNES` directory
   instead. Do not record private host paths in Git.
+- `[library] watch_root` is the SNES folder-watch catalog source of truth.
+  The confirmed default is `//deano-clawz/Games/Games/SNES`. That UNC string
+  is the documented SoT identity, not a POSIX path: the scanner never
+  `Lstat`/`OpenRoot`s it. Runtime indexing uses the configured absolute SNES
+  `[[libraries]]` `root` (the operator mount of that same SoT), or a local
+  `watch_root` override. If that mount is missing at Open or mid-run, FogCast
+  keeps the library identity; the scanner marks it offline and later polls
+  recover when the share remounts. Fail-closed only when no local SNES
+  `[[libraries]]` path is configured. A replaced SNES library is retired from
+  the catalog so the UI cannot select a dead id. `fogcast-api` polls the
+  mounted folder and updates the host catalog when SNES ROMs appear or
+  disappear. Play stages one ROM to the kit cache on miss and launches the
+  cached ROM on hit.
 - `capture_device = "screen"` selects the Darwin main-display capture path.
 - `generation` must be nonzero. Change it when deliberately creating a new
   cast identity during lifecycle development.
@@ -367,15 +384,20 @@ bin/fogcast \
   scan
 ```
 
-`fogcast-api` opens the existing SQLite catalog; it does not scan libraries and
-there is no host `/api/v1/.../scan` route. Catalog `scan` remains an INTERNAL
-CLI command (`bin/fogcast --config ... scan`). The host UI Refresh control only
-reloads that catalog. A missing or stale internal scan therefore produces a
-missing or stale games query even when configuration and roots are correct.
-After a successful internal scan of `operator-snes-root`, ActRaiser (exact
-catalog title ActRaiser, including dump decorations; not ActRaiser 2) is
-findable through `GET /api/v1/games?q=ActRaiser` or `q=actraiser` and the same
-search the UI uses.
+`fogcast-api` automatically reconciles the configured SNES `watch_root` into
+the existing SQLite catalog at startup and on its polling interval; there is no
+host `/api/v1/.../scan` route. Catalog `scan` remains an INTERNAL CLI command
+(`bin/fogcast --config ... scan`) for an explicit full scan, including any
+configured non-SNES libraries that the SNES folder watcher does not reconcile.
+The host UI Refresh control only reloads the current catalog and does not
+trigger either workflow. A stale SNES catalog therefore indicates a
+folder-watch reconciliation failure, while a stale non-SNES catalog can
+indicate that the explicit internal scan has not run. After successful
+automatic SNES reconciliation (or an explicit internal scan) of
+`operator-snes-root`,
+ActRaiser (exact catalog title ActRaiser, including dump decorations; not
+ActRaiser 2) is findable through `GET /api/v1/games?q=ActRaiser` or
+`q=actraiser` and the same search the UI uses.
 
 ### 2. Start the host API
 

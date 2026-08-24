@@ -55,10 +55,82 @@ type targetMediaCast interface {
 }
 
 const (
-	targetCleanupTimeout = 2 * time.Second
-	targetStatusInterval = 100 * time.Millisecond
-	targetStatusFailures = 3
+	targetCleanupTimeout   = 2 * time.Second
+	targetStatusInterval   = 100 * time.Millisecond
+	targetStatusFailures   = 3
+	folderWatchStopTimeout = 2 * time.Second
+	folderWatchLogInterval = time.Second
 )
+
+var errFolderWatchStopTimeout = errors.New("folder-watch stop timed out")
+
+// stopFolderWatch cancels the watch loop and waits up to timeout. A stuck
+// SMB Lstat is not interruptible; Service.Close still waits for an in-flight
+// reconcile and will not close the catalog under a live scan.
+func stopFolderWatch(cancel context.CancelFunc, done <-chan struct{}, timeout time.Duration) error {
+	if cancel != nil {
+		cancel()
+	}
+	if timeout <= 0 {
+		timeout = folderWatchStopTimeout
+	}
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-done:
+		return nil
+	case <-timer.C:
+		return errFolderWatchStopTimeout
+	}
+}
+
+func runFolderWatch(ctx context.Context, candidate service, stderr io.Writer, logInterval time.Duration) {
+	runner, ok := candidate.(interface {
+		RunFolderWatch(context.Context) error
+	})
+	if !ok {
+		return
+	}
+	watchErrors := make(chan error, 1)
+	go func() { watchErrors <- runner.RunFolderWatch(ctx) }()
+	counter, reportsFailures := candidate.(interface {
+		FolderWatchReconcileFailures() int
+	})
+	if !reportsFailures {
+		reportFolderWatchTerminalError(ctx, stderr, <-watchErrors)
+		return
+	}
+	if logInterval <= 0 {
+		logInterval = folderWatchLogInterval
+	}
+	ticker := time.NewTicker(logInterval)
+	defer ticker.Stop()
+	lastFailures := 0
+	for {
+		select {
+		case err := <-watchErrors:
+			reportFolderWatchFailures(stderr, counter.FolderWatchReconcileFailures(), &lastFailures)
+			reportFolderWatchTerminalError(ctx, stderr, err)
+			return
+		case <-ticker.C:
+			reportFolderWatchFailures(stderr, counter.FolderWatchReconcileFailures(), &lastFailures)
+		}
+	}
+}
+
+func reportFolderWatchFailures(stderr io.Writer, failures int, lastFailures *int) {
+	if failures <= *lastFailures {
+		return
+	}
+	fmt.Fprintf(stderr, "fogcast-api: folder-watch reconciliation failures: %d\n", failures)
+	*lastFailures = failures
+}
+
+func reportFolderWatchTerminalError(ctx context.Context, stderr io.Writer, err error) {
+	if err != nil && ctx.Err() == nil {
+		fmt.Fprintln(stderr, "fogcast-api: folder-watch failed")
+	}
+}
 
 type compositionDeps struct {
 	newCapture      captureSourceFactory
@@ -793,6 +865,15 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 		return 1
 	}
 	closers = append(closers, runCloser{label: "service cleanup", close: fogcastService.Close})
+	watchCtx, watchCancel := context.WithCancel(ctx)
+	watchDone := make(chan struct{})
+	go func() {
+		defer close(watchDone)
+		runFolderWatch(watchCtx, fogcastService, stderr, folderWatchLogInterval)
+	}()
+	closers = append(closers, runCloser{label: "folder-watch stop", close: func() error {
+		return stopFolderWatch(watchCancel, watchDone, folderWatchStopTimeout)
+	}})
 	handler, closeRemoteInput, err := compose(fogcastService, config, defaultBridgeStarter)
 	if err != nil {
 		fmt.Fprintln(stderr, "fogcast-api: API composition failed")
