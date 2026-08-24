@@ -1763,6 +1763,7 @@ test('browser artwork load errors replace only the failed provider image with ne
   imageError();
   assert.equal(cardImage.className, 'cover-art artwork-empty');
   assert.equal(cardImage.tagName, 'SPAN');
+  assert.equal(cardImage.textContent, 'No art');
   assert.equal(cardImage.attributes.size, 0);
 });
 
@@ -1796,6 +1797,7 @@ test('browser rendering falls back for shape-complete invalid presentation value
   assert.equal(document.nodes.get('catalog-status').textContent, 'populated metadata_fallback');
   for (const card of catalogList.children) {
     assert.equal(card.children[0].className, 'cover-art artwork-empty');
+    assert.equal(card.children[0].textContent, 'No art');
     assert.doesNotMatch(card.children[0].className, /evil|sr-only|status-message|palette-|treatment-/);
     const notes = card.children.filter(child => child.className === 'fallback-note');
     notes.forEach(note => assert.doesNotMatch(note.textContent, /evil|sr-only|status-message/));
@@ -7480,6 +7482,67 @@ test('Playing mark stays off after a failed status poll keeps last-known active 
   assert.match(browserText(document.nodes.get('session-details')), /Last-known session details/i);
 });
 
+test('cover wall CSS keeps a minimum track and card aspect ratio', () => {
+  const css = readAsset('ui.css');
+  const cardBlock = css.match(/(?:^|\n)\.game-card \{[^}]+\}/);
+  const railCardBlock = css.match(/\.home-rail-track \.game-card \{[^}]+\}/);
+  assert.match(css, /minmax\(min\(100%, var\(--wall-min-track\)\), 1fr\)/);
+  assert.ok(cardBlock);
+  assert.match(cardBlock[0], /aspect-ratio: 2 \/ 3;/);
+  assert.match(cardBlock[0], /min-width: 0;/);
+  assert.doesNotMatch(cardBlock[0], /min-height: 0;/);
+  assert.ok(railCardBlock);
+  assert.match(railCardBlock[0], /min-width: 148px;/);
+  assert.match(css, /\.artwork-empty \{/);
+  assert.match(css, /\.platform-list \.nav-item \{[^}]*overflow:\s*hidden/);
+  assert.match(css, /\.platform-count \{[^}]*flex:\s*0 0 auto/);
+});
+
+test('cover and home rail cards show an honest missing-art placeholder', async () => {
+  const actraiser = availableGame('snes-actraiser-test', 'ActRaiser');
+  const { document } = await runBrowserApp({
+    keepHome: true,
+    responses: [jsonResponse({ games: [actraiser] })],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+    homeRails: {
+      continue: jsonResponse({ games: [actraiser] }),
+      favorites: jsonResponse({ games: [] }),
+      recents: jsonResponse({ games: [] }),
+    },
+  });
+  await settleBrowser();
+  const continueRail = homeRails(document).find(rail => rail.attributes.get('data-home-rail') === 'continue');
+  assert.ok(continueRail);
+  const homeCard = continueRail.querySelectorAll('.game-card')[0];
+  assert.ok(homeCard);
+  assert.equal(homeCard.children[0].className, 'cover-art artwork-empty');
+  assert.equal(homeCard.children[0].textContent, 'No art');
+  assert.equal(homeCard.children[0].tagName, 'SPAN');
+
+  const seeAll = continueRail.querySelectorAll('.home-rail-see-all')[0]
+    || continueRail.children[0].children[1];
+  seeAll.click();
+  await settleBrowser();
+  assert.equal(document.nodes.get('catalog-list').className, 'game-grid');
+  const wallCard = gameCards(document).find(card => card.attributes.get('data-game-id') === 'snes-actraiser-test');
+  assert.ok(wallCard);
+  assert.equal(wallCard.children[0].className, 'cover-art artwork-empty');
+  assert.equal(wallCard.children[0].textContent, 'No art');
+});
+
+test('invalid catalog cover handles use the missing-art placeholder instead of throwing', async () => {
+  const actraiser = availableGame('snes-actraiser-test', 'ActRaiser', { cover: 'not-a-handle' });
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse({ games: [actraiser] })],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  await settleBrowser();
+  const card = gameCards(document)[0];
+  assert.ok(card);
+  assert.equal(card.children[0].className, 'cover-art artwork-empty');
+  assert.equal(card.children[0].textContent, 'No art');
+});
+
 test('cover wall spacers still use cardWidth * 1.5 for a 2-col window', async () => {
   const app = readAsset('ui_app.js');
   assert.match(app, /rows \* Math\.round\(metrics\.cardWidth \* 1\.5 \+ metrics\.gap\)/);
@@ -7500,6 +7563,41 @@ test('cover wall spacers still use cardWidth * 1.5 for a 2-col window', async ()
     .find(child => child.attributes.get('data-wall-spacer') === 'end');
   assert.ok(spacer);
   assert.equal(spacer.style.height, '1700px');
+});
+
+test('narrow catalog wallMetrics follows min(100%, --wall-min-track) for spacers and arrows', async () => {
+  const app = readAsset('ui_app.js');
+  assert.match(app, /const trackMin = Math\.min\(minTrack, available\)/);
+  assert.doesNotMatch(app, /Math\.max\(minTrack, width - padding\)/);
+  const games = [];
+  for (let index = 0; index < 90; index += 1) {
+    games.push(availableGame(`snes-game-${index}`, `Title ${index}`));
+  }
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse({ games })],
+    sessionResponses: [jsonResponse({ state: 'idle' })],
+  });
+  document.nodes.get('catalog-list').clientWidth = 180;
+  document.nodes.get('layout-list').click();
+  await settleBrowser();
+  document.nodes.get('layout-cover').click();
+  await settleBrowser();
+  const spacer = document.nodes.get('catalog-list').children
+    .find(child => child.attributes.get('data-wall-spacer') === 'end');
+  assert.ok(spacer);
+  assert.equal(spacer.style.height, '2840px');
+  assert.notEqual(spacer.style.height, '3290px');
+
+  const { document: keys } = await runKeyboardApp({
+    pages: [{
+      games: Array.from({ length: 8 }, (_, index) => availableGame(`snes-grid-${index}`, `Grid ${index}`)),
+    }],
+  });
+  await settleBrowser();
+  keys.nodes.get('catalog-list').clientWidth = 180;
+  await openAllGamesGrid(keys);
+  await pressKey(keys, 'ArrowDown');
+  assert.equal(selectedCard(keys).attributes.get('data-game-id'), 'snes-grid-1');
 });
 
 test('Region select includes mapDumpRegion tokens and catalogExtras sends korea', async () => {

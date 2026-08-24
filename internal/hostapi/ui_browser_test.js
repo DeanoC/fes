@@ -1814,6 +1814,140 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
       });
     });
 
+    await t.test('typical-width Mega Drive cover wall keeps a grid and missing-art placeholder', async () => {
+      const megadriveTitles = [
+        'ActRaiser',
+        'Alex Kidd in the Enchanted Castle',
+        'Altered Beast',
+        'Castle of Illusion Starring Mickey Mouse',
+        'Comix Zone',
+        'Golden Axe',
+        'Gunstar Heroes',
+        'Phantasy Star IV',
+        'Shinobi III: Return of the Ninja Master',
+        'Sonic the Hedgehog',
+        'Streets of Rage 2',
+        'Thunder Force IV',
+      ];
+      const games = megadriveTitles.map((title, index) => ({
+        id: title === 'ActRaiser' ? 'snes-actraiser-test' : `megadrive-grid-${index}`,
+        title,
+        system: 'megadrive',
+        kind: 'zip',
+        state: 'available',
+        root_online: true,
+        content_prepared: true,
+        execution: 'fpga_native',
+      }));
+      const presentations = Object.fromEntries(games.map(game => [
+        game.id,
+        fixture('presentation-no-match.json', 200, { override: { game_id: game.id, state: 'no_match' } }),
+      ]));
+      const details = Object.fromEntries(games.map(game => [
+        game.id,
+        fixture('detail-unknown.json', 200, { override: game }),
+      ]));
+      await runScenario(harness, 'cover-wall-typical-width-missing-art', basePlan({
+        catalog: {
+          '': fixture('catalog-populated.json', 200, { override: { games } }),
+          'collection=continue': fixture('catalog-populated.json', 200, { override: { games: [games[0]] } }),
+        },
+        details,
+        presentations,
+        platforms: {
+          platforms: [
+            { id: 'megadrive', label: 'Sega Mega Drive / Genesis', game_count: 128, online: true, launchable: true },
+            { id: 'snes', label: 'Super Nintendo Entertainment System', game_count: 96, online: true, launchable: true },
+          ],
+        },
+      }), async () => {
+        await harness.setViewport(1362, 900);
+        await harness.reload();
+        await openAllGames(harness);
+        await harness.waitForCatalog('populated metadata_fallback');
+        const wall = await harness.evaluate(`(() => {
+          const list = document.getElementById('catalog-list');
+          const cards = Array.from(list.querySelectorAll('.game-card'));
+          const boxes = cards.map(card => card.getBoundingClientRect());
+          let overlap = 0;
+          for (let i = 0; i < boxes.length; i += 1) {
+            for (let j = i + 1; j < boxes.length; j += 1) {
+              const a = boxes[i];
+              const b = boxes[j];
+              const width = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
+              const height = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+              overlap = Math.max(overlap, width * height);
+            }
+          }
+          const firstTop = boxes[0] ? boxes[0].top : 0;
+          const first = boxes[0] || { width: 0, height: 0 };
+          const act = cards.find(card => card.getAttribute('data-game-id') === 'snes-actraiser-test');
+          const cover = act && act.querySelector('.cover-art');
+          const catalog = document.querySelector('.catalog-panel');
+          const catalogLeft = catalog ? catalog.getBoundingClientRect().left : 0;
+          const counts = Array.from(document.querySelectorAll('.platform-count'));
+          const countBleed = counts.reduce((max, node) => {
+            const right = node.getBoundingClientRect().right;
+            return Math.max(max, right - catalogLeft);
+          }, -999);
+          return {
+            catalogWidth: list.clientWidth,
+            cardCount: cards.length,
+            visibleCols: boxes.filter(box => Math.abs(box.top - firstTop) < 2).length,
+            minCardWidth: Math.min(...boxes.map(box => box.width)),
+            minCardHeight: Math.min(...boxes.map(box => box.height)),
+            firstWidth: first.width,
+            firstHeight: first.height,
+            aspect: first.width > 0 ? first.height / first.width : 0,
+            overlap,
+            placeholder: cover ? cover.textContent.trim() : '',
+            placeholderClass: cover ? cover.className : '',
+            brokenImages: cards.filter(card => card.querySelector('img.cover-art')).length,
+            platformCount: counts.length,
+            countBleed,
+          };
+        })()`);
+        assert.ok(wall.catalogWidth > 400, JSON.stringify(wall));
+        assert.ok(wall.visibleCols >= 2, JSON.stringify(wall));
+        assert.ok(wall.minCardWidth >= 140, JSON.stringify(wall));
+        assert.ok(wall.minCardHeight >= 200, JSON.stringify(wall));
+        assert.ok(wall.aspect > 1.3 && wall.aspect < 1.7, JSON.stringify(wall));
+        assert.ok(wall.overlap < 4, JSON.stringify(wall));
+        assert.equal(wall.placeholder, 'No art', JSON.stringify(wall));
+        assert.match(wall.placeholderClass, /artwork-empty/);
+        assert.equal(wall.brokenImages, 0, JSON.stringify(wall));
+        assert.ok(wall.platformCount >= 2, JSON.stringify(wall));
+        assert.ok(wall.countBleed <= 0, JSON.stringify(wall));
+
+        await harness.click('#nav-home');
+        const home = await harness.waitForSnapshot(item => (
+          item.navHomeSelected === true
+          && item.catalogListClass.includes('home-rails')
+          && item.homeRails.some(rail => rail.id === 'continue' && rail.cards.includes('snes-actraiser-test'))
+        ));
+        assert.equal(home.homeRails.some(rail => rail.id === 'continue'), true);
+        const continueArt = await harness.evaluate(`(() => {
+          const rail = document.querySelector('[data-home-rail="continue"]');
+          const card = rail && rail.querySelector('.game-card[data-game-id="snes-actraiser-test"]');
+          const cover = card && card.querySelector('.cover-art');
+          const box = card ? card.getBoundingClientRect() : { width: 0, height: 0 };
+          return {
+            placeholder: cover ? cover.textContent.trim() : '',
+            placeholderClass: cover ? cover.className : '',
+            width: box.width,
+            height: box.height,
+            broken: Boolean(card && card.querySelector('img.cover-art')),
+          };
+        })()`);
+        assert.equal(continueArt.placeholder, 'No art', JSON.stringify(continueArt));
+        assert.match(continueArt.placeholderClass, /artwork-empty/);
+        assert.ok(continueArt.width >= 140, JSON.stringify(continueArt));
+        assert.ok(continueArt.height >= 200, JSON.stringify(continueArt));
+        assert.equal(continueArt.broken, false, JSON.stringify(continueArt));
+        await harness.clearViewport();
+      }, { openAllGames: false });
+    });
+
     await t.test('home renders stacked rails, hides empty rows, and See all opens the grid', async () => {
       await runScenario(harness, 'home-collection-rails', basePlan({
         collections: [{ id: 'weekend-queue', name: 'Weekend Queue' }],

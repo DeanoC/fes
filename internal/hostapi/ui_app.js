@@ -3600,9 +3600,10 @@
       + readStylePx(styles, ['padding-right', 'paddingRight'], 0);
     const gap = readStylePx(styles, ['column-gap', 'columnGap', 'gap'], 14);
     const minTrack = readStylePx(styles, ['--wall-min-track'], 210);
-    const inner = Math.max(minTrack, width - padding);
-    const cols = Math.max(1, Math.floor((inner + gap) / (minTrack + gap)));
-    const cardWidth = Math.max(1, (inner - gap * Math.max(0, cols - 1)) / cols);
+    const available = Math.max(1, width - padding);
+    const trackMin = Math.min(minTrack, available);
+    const cols = Math.max(1, Math.floor((available + gap) / (trackMin + gap)));
+    const cardWidth = Math.max(1, (available - gap * Math.max(0, cols - 1)) / cols);
     return { cols, cardWidth, gap };
   }
 
@@ -3948,8 +3949,15 @@
     nodes.yearFilter.value = selectedYear;
   }
 
+  function usableArtworkHandle(handle) {
+    return typeof handle === 'string' && ARTWORK_HANDLE_PATTERN.test(handle) ? handle : '';
+  }
+
   function neutralArtwork(role) {
     const tagName = role === 'cover' ? 'span' : 'div';
+    if (role === 'cover') {
+      return element(tagName, `${role}-art artwork-empty`, 'No art');
+    }
     return element(tagName, `${role}-art artwork-empty`);
   }
 
@@ -3966,15 +3974,16 @@
   }
 
   function artworkElement(role, style, handle, loading) {
-    if (!handle) {
-      if (!style) return neutralArtwork(role);
+    const usable = usableArtworkHandle(handle);
+    if (!usable) {
+      if (role === 'cover' || !style) return neutralArtwork(role);
       return element(
-        role === 'cover' ? 'span' : 'div',
+        'div',
         `${role}-art palette-${style.palette} treatment-${style.treatment}`,
       );
     }
     const image = element('img', `${role}-art image-art`);
-    image.setAttribute('src', artworkPath(handle));
+    image.setAttribute('src', artworkPath(usable));
     image.setAttribute('alt', '');
     image.setAttribute('loading', loading);
     image.addEventListener('error', () => replaceWithNeutralArtwork(image, role));
