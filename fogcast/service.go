@@ -566,17 +566,12 @@ func (s *Service) FolderWatchRoot() string {
 }
 
 func (s *Service) folderWatchRoots() []catalog.Root {
-	out := make([]catalog.Root, 0, 1)
-	for _, root := range s.roots {
-		if root.System == protocol.SystemSNES {
-			out = append(out, root)
-		}
-	}
-	return out
+	return FolderWatchRoots(s.roots, s.watchRoot)
 }
 
 // ReconcileFolderWatch updates the host catalog from the configured SNES
-// watch root. It does not scan non-SNES libraries or library media.
+// watch root and the first configured Mega Drive mount. It does not scan
+// other systems or library media.
 func (s *Service) ReconcileFolderWatch(ctx context.Context) (catalog.ScanReport, error) {
 	if err := ctx.Err(); err != nil {
 		return catalog.ScanReport{}, err
@@ -694,8 +689,9 @@ func (s *Service) retireSupersededSNESLibrariesWithAdmission(ctx context.Context
 	return s.retireSupersededSNESLibraries(ctx)
 }
 
-// RunFolderWatch reconciles the SNES watch root immediately and then on a
-// poll interval until ctx is cancelled. Polling is the SMB-safe watch path.
+// RunFolderWatch reconciles the configured SNES root and first Mega Drive
+// mount immediately and then on a poll interval until ctx is cancelled.
+// Polling is the SMB-safe watch path.
 func (s *Service) RunFolderWatch(ctx context.Context) error {
 	interval := s.folderWatchInterval
 	if interval <= 0 {

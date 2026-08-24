@@ -133,7 +133,8 @@ Initial endpoints are `GET /api/v1/health`, `GET /api/v1/status`,
 `GET /api/v1/session`, `GET /api/v1/session/events?after=<sequence>`,
 `POST /api/v1/session/launch`, and `POST /api/v1/session/stop`. There is no
 public scan route. `fogcast-api` reconciles the configured SNES `watch_root`
-into the SQLite catalog when ROMs appear or disappear, and `fogcast scan`
+and the first configured Mega Drive `[[libraries]]` root (the `Games/Genesis`
+mount) into the SQLite catalog when ROMs appear or disappear, and `fogcast scan`
 remains an INTERNAL CLI command that writes the same catalog. The root path
 serves a self-contained browser shell. Launch requests contain only a `game_id`;
 the host resolves catalog and target details internally. The initial host-only
@@ -143,10 +144,12 @@ Game and session responses include only public models and the current `fpga_nati
 execution capability; they intentionally omit NAS paths, library IDs, target
 credentials, cache digests, and ROM filenames.
 
-## Host folder-watch catalog (SNES)
+## Host folder-watch catalog (SNES + Mega Drive)
 
 The host catalog source of truth for this slice is a **config-driven** folder
-watch of SNES ROMs. Set it in the private FogCast TOML:
+watch of SNES and Mega Drive ROMs. Set the SNES source in the private FogCast
+TOML; the first configured Mega Drive `[[libraries]]` root is watched alongside
+it:
 
 ```toml
 [library]
@@ -156,15 +159,19 @@ watch_root = "//deano-clawz/Games/Games/SNES"
 
 If `watch_root` is omitted, FogCast uses the first configured SNES
 `[[libraries]]` root, or the confirmed default `//deano-clawz/Games/Games/SNES`.
+The first configured Mega Drive `[[libraries]]` root is independently used for
+the `Games/Genesis` host mount; additional Mega Drive roots remain available
+to the explicit full scan but are not part of folder-watch.
 The UNC value is the documented SoT identity; the scanner does not POSIX-open
 it. Runtime indexing uses the configured absolute SNES `[[libraries]]` path
 (the operator mount of that same SoT), or `watch_root` itself when it is
 already a local directory. A temporarily missing mount keeps that library
 identity: the scanner marks it offline and later polls recover without a
-restart. Folder-watch fail-closes only when no local SNES `[[libraries]]`
-path is configured. Changing a local `watch_root` retires the previous SNES
-library so the UI cannot select a dead id. Play uses the existing kit cache: a miss stages that
-one SNES ROM to the target cache; a hit launches the already cached ROM. This
+restart. Folder-watch fail-closes only when neither a local SNES `[[libraries]]`
+path nor a Mega Drive mount is configured. Changing a local `watch_root` retires
+the previous SNES library so the UI cannot select a dead id. Play uses the
+existing kit cache: a miss stages the selected SNES or Mega Drive ROM to the
+target cache; a hit launches the already cached ROM. This
 is **Software-tested** host behavior, not HIL.
 
 ## Host metadata (disabled by default)

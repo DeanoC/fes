@@ -12,9 +12,9 @@ import (
 // folder-watch. Inotify is not required and is often silent on guest SMB.
 const DefaultFolderWatchInterval = 5 * time.Second
 
-// FolderWatcher reconciles configured SNES library roots into the catalog
-// store when ROMs appear or disappear. Roots come from the caller so the
-// watch path stays config-driven.
+// FolderWatcher reconciles configured SNES and Mega Drive library roots into
+// the catalog store when ROMs appear or disappear. Roots come from the caller
+// so the watch paths stay config-driven.
 type FolderWatcher struct {
 	Scan     func(context.Context, []Root) (ScanReport, error)
 	Roots    func() []Root
@@ -30,7 +30,7 @@ func (w FolderWatcher) roots() []Root {
 	}
 	out := make([]Root, 0, 1)
 	for _, root := range w.Roots() {
-		if root.System != protocol.SystemSNES {
+		if root.System != protocol.SystemSNES && root.System != protocol.SystemMegaDrive {
 			continue
 		}
 		out = append(out, root)

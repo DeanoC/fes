@@ -277,12 +277,15 @@ Notes:
   `[[libraries]]` `root` (the operator mount of that same SoT), or a local
   `watch_root` override. If that mount is missing at Open or mid-run, FogCast
   keeps the library identity; the scanner marks it offline and later polls
-  recover when the share remounts. Fail-closed only when no local SNES
-  `[[libraries]]` path is configured. A replaced SNES library is retired from
-  the catalog so the UI cannot select a dead id. `fogcast-api` polls the
-  mounted folder and updates the host catalog when SNES ROMs appear or
-  disappear. Play stages one ROM to the kit cache on miss and launches the
-  cached ROM on hit.
+  recover when the share remounts. The first configured Mega Drive
+  `[[libraries]]` mount (the `Games/Genesis` analog) is reconciled alongside
+  SNES; additional Mega Drive roots remain available to the explicit full
+  scan. Fail-closed only when neither a local SNES `[[libraries]]` path nor a
+  Mega Drive mount is configured. A replaced SNES library is retired from the
+  catalog so the UI cannot select a dead id. `fogcast-api` polls both selected
+  folders and updates the host catalog when supported ROMs appear or
+  disappear. Play stages one SNES or Mega Drive ROM to the kit cache on miss
+  and launches the cached ROM on hit.
 - `capture_device = "screen"` selects the Darwin main-display capture path.
 - `generation` must be nonzero. Change it when deliberately creating a new
   cast identity during lifecycle development.
@@ -384,16 +387,18 @@ bin/fogcast \
   scan
 ```
 
-`fogcast-api` automatically reconciles the configured SNES `watch_root` into
-the existing SQLite catalog at startup and on its polling interval; there is no
+`fogcast-api` automatically reconciles the configured SNES `watch_root` and
+the first configured Mega Drive `[[libraries]]` mount into the existing SQLite
+catalog at startup and on its polling interval; there is no
 host `/api/v1/.../scan` route. Catalog `scan` remains an INTERNAL CLI command
 (`bin/fogcast --config ... scan`) for an explicit full scan, including any
-configured non-SNES libraries that the SNES folder watcher does not reconcile.
+configured roots beyond the selected SNES and first Mega Drive folder-watch
+roots.
 The host UI Refresh control only reloads the current catalog and does not
-trigger either workflow. A stale SNES catalog therefore indicates a
-folder-watch reconciliation failure, while a stale non-SNES catalog can
-indicate that the explicit internal scan has not run. After successful
-automatic SNES reconciliation (or an explicit internal scan) of
+trigger either workflow. A stale SNES or first-Mega-Drive catalog therefore
+indicates a folder-watch reconciliation failure, while a stale other catalog
+can indicate that the explicit internal scan has not run. After successful
+automatic reconciliation (or an explicit internal scan) of
 `operator-snes-root`,
 ActRaiser (exact catalog title ActRaiser, including dump decorations; not
 ActRaiser 2) is findable through `GET /api/v1/games?q=ActRaiser` or

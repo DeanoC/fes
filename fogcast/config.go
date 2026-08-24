@@ -967,14 +967,20 @@ func isLocalAbsoluteWatchPath(path string) bool {
 	return filepath.IsAbs(trimmed)
 }
 
-// FolderWatchRoots returns the SNES-only roots the folder watcher should
-// reconcile. Changing watchRoot changes the watched path and may select a
-// different library identity.
+// FolderWatchRoots returns the selected SNES root and the first configured
+// Mega Drive mount for concurrent folder-watch reconciliation. Other systems
+// never enter this watch operation.
 func FolderWatchRoots(libraries []catalog.Root, watchRoot string) []catalog.Root {
 	var out []catalog.Root
+	megaSeen := false
 	for _, library := range ApplyFolderWatchRoot(libraries, watchRoot) {
 		if library.System == protocol.SystemSNES {
 			out = append(out, library)
+			continue
+		}
+		if library.System == protocol.SystemMegaDrive && !megaSeen {
+			out = append(out, library)
+			megaSeen = true
 		}
 	}
 	return out

@@ -82,15 +82,38 @@ func TestFolderWatcherRootsCallbackChangesWatchedFolder(t *testing.T) {
 	}
 }
 
-func TestFolderWatcherIgnoresNonSNESRoots(t *testing.T) {
+func TestFolderWatcherRootsKeepOnlySupportedSystems(t *testing.T) {
+	var watched []Root
+	watcher := FolderWatcher{
+		Scan: func(_ context.Context, roots []Root) (ScanReport, error) {
+			watched = append([]Root(nil), roots...)
+			return ScanReport{}, nil
+		},
+		Roots: func() []Root {
+			return []Root{
+				{ID: "snes-main", System: protocol.SystemSNES},
+				{ID: "genesis-main", System: protocol.SystemMegaDrive},
+				{ID: "nes-main", System: protocol.System("nes")},
+			}
+		},
+	}
+	if _, err := watcher.Reconcile(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(watched) != 2 || watched[0].System != protocol.SystemSNES || watched[1].System != protocol.SystemMegaDrive {
+		t.Fatalf("watched roots = %#v", watched)
+	}
+}
+
+func TestFolderWatcherIgnoresUnsupportedRoots(t *testing.T) {
 	ctx := context.Background()
 	rootPath := t.TempDir()
-	mustWriteScannerFile(t, filepath.Join(rootPath, "Sonic.md"), []byte("sonic"))
+	mustWriteScannerFile(t, filepath.Join(rootPath, "game.rom"), []byte("unsupported"))
 	store := openScannerStore(t)
 	watcher := FolderWatcher{
 		Scan: Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}.Scan,
 		Roots: func() []Root {
-			return []Root{{ID: "genesis-main", System: protocol.SystemMegaDrive, Path: rootPath}}
+			return []Root{{ID: "nes-main", System: protocol.System("nes"), Path: rootPath}}
 		},
 	}
 	if _, err := watcher.Reconcile(ctx); err != nil {
