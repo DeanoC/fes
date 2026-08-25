@@ -1,6 +1,7 @@
 package targetcache_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"fmt"
@@ -78,7 +79,7 @@ func TestKeyRejectsCrossSystemAndMalformedValuesWithoutPathLeak(t *testing.T) {
 	}{
 		{name: "SNES rejects md", system: protocol.SystemSNES, key: protocol.ContentKey{SHA256: digest, Extension: "md"}, code: protocol.CodeUnsupportedSystem},
 		{name: "Mega Drive rejects sfc", system: protocol.SystemMegaDrive, key: protocol.ContentKey{SHA256: digest, Extension: "sfc"}, code: protocol.CodeUnsupportedSystem},
-		{name: "unknown system", system: "nes", key: protocol.ContentKey{SHA256: digest, Extension: "bin"}, code: protocol.CodeUnsupportedSystem},
+		{name: "unknown system", system: "unknown", key: protocol.ContentKey{SHA256: digest, Extension: "bin"}, code: protocol.CodeUnsupportedSystem},
 		{name: "uppercase digest", system: protocol.SystemSNES, key: protocol.ContentKey{SHA256: strings.Repeat("A", 64), Extension: "sfc"}, code: protocol.CodeBadRequest},
 		{name: "short digest", system: protocol.SystemSNES, key: protocol.ContentKey{SHA256: strings.Repeat("a", 63), Extension: "sfc"}, code: protocol.CodeBadRequest},
 		{name: "dotted extension", system: protocol.SystemSNES, key: protocol.ContentKey{SHA256: digest, Extension: ".sfc"}, code: protocol.CodeBadRequest},
@@ -140,6 +141,52 @@ func TestOpenResolvesConfiguredRootAndCreatesPrivateSystemDirectories(t *testing
 		if !info.IsDir() || info.Mode().Perm() != 0o700 {
 			t.Fatalf("%s directory mode = %v, want requested mode 0700 on regular filesystem", system, info.Mode())
 		}
+	}
+}
+
+func TestOpenSupportsEveryRegisteredFPGASystem(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		system    protocol.System
+		extension string
+	}{
+		{name: "Mega Drive", system: protocol.SystemMegaDrive, extension: "md"},
+		{name: "SNES", system: protocol.SystemSNES, extension: "sfc"},
+		{name: "NES", system: protocol.SystemNES, extension: "nes"},
+		{name: "SMS", system: protocol.SystemSMS, extension: "sms"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			manager := openTestManager(t, root)
+
+			info, err := os.Lstat(filepath.Join(root, string(tt.system)))
+			if err != nil {
+				t.Fatalf("Open did not create %s cache directory: %v", tt.system, err)
+			}
+			if !info.IsDir() || info.Mode().Perm() != 0o700 {
+				t.Fatalf("%s directory = mode %v, want a 0700 directory", tt.system, info.Mode())
+			}
+
+			content := []byte("registered-cache-" + string(tt.system))
+			identity := contentIdentity(content, tt.extension)
+			response, apiErr := manager.Put(context.Background(), tt.system, identity, bytes.NewReader(content))
+			if apiErr != nil {
+				t.Fatalf("Put(%s): %v", tt.system, apiErr)
+			}
+			assertUploadResponse(t, response, protocol.CacheUploadCreated, tt.system, identity)
+
+			probe, apiErr := manager.Probe(context.Background(), tt.system, identity.Key())
+			if apiErr != nil {
+				t.Fatalf("Probe(%s): %v", tt.system, apiErr)
+			}
+			if !probe.Present || probe.Content == nil || *probe.Content != identity {
+				t.Fatalf("Probe(%s) = %#v, want present identity %#v", tt.system, probe, identity)
+			}
+		})
 	}
 }
 

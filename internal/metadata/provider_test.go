@@ -14,6 +14,10 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) { return f(request) }
 
+func testIGDBPlatformsJSON() string {
+	return `[{"id":1,"name":"Sega Mega Drive/Genesis","slug":"genesis-slash-megadrive","checksum":"platform-checksum","updated_at":1},{"id":2,"name":"Super Nintendo Entertainment System","slug":"snes","checksum":"snes-checksum","updated_at":1},{"id":3,"name":"Nintendo Entertainment System","slug":"nes","checksum":"nes-checksum","updated_at":1},{"id":4,"name":"Sega Master System/Mark III","slug":"sms","checksum":"sms-checksum","updated_at":1}]`
+}
+
 func TestIGDBProviderUsesOfficialTokenAndAPIWireContract(t *testing.T) {
 	var requests []*http.Request
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -25,7 +29,7 @@ func TestIGDBProviderUsesOfficialTokenAndAPIWireContract(t *testing.T) {
 			body = `{"access_token":"fixture-token","expires_in":3600,"token_type":"bearer"}`
 		case "api.igdb.com":
 			if request.URL.Path == "/v4/platforms" {
-				body = `[{"id":1,"name":"Sega Mega Drive/Genesis","slug":"genesis-slash-megadrive","checksum":"platform-checksum","updated_at":1},{"id":2,"name":"Super Nintendo Entertainment System","slug":"snes","checksum":"snes-checksum","updated_at":1}]`
+				body = testIGDBPlatformsJSON()
 			} else {
 				body = `[{"id":99,"name":"Sonic the Hedgehog","platforms":[1],"summary":"A summary","first_release_date":662688000,"genres":[{"name":"Platformer"}],"involved_companies":[{"developer":true,"company":{"name":"SEGA"}}],"cover":{"image_id":"cover-id"},"artworks":[{"image_id":"backdrop-id"}],"checksum":"game-checksum","updated_at":2}]`
 			}
@@ -70,7 +74,7 @@ func TestIGDBProviderUsesOfficialTokenAndAPIWireContract(t *testing.T) {
 		}
 	}
 	platformBody, _ := io.ReadAll(requests[1].Body)
-	if !strings.Contains(string(platformBody), `fields id,name,slug,checksum,updated_at`) || !strings.Contains(string(platformBody), `limit 2`) {
+	if !strings.Contains(string(platformBody), `fields id,name,slug,checksum,updated_at`) || !strings.Contains(string(platformBody), `limit 4`) {
 		t.Fatalf("platform body = %q", platformBody)
 	}
 	gameBody, _ := io.ReadAll(requests[2].Body)

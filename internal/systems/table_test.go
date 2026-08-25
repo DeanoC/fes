@@ -10,6 +10,7 @@ import (
 
 func TestTableInvariants(t *testing.T) {
 	platforms := make(map[protocol.System]struct{})
+	launchSystems := make(map[protocol.System]struct{})
 	aliases := make(map[string]struct{})
 	fpga := 0
 	for _, row := range Rows() {
@@ -42,17 +43,21 @@ func TestTableInvariants(t *testing.T) {
 		}
 		switch row.Capability {
 		case CapabilityCatalog:
-			if row.Core != nil {
-				t.Fatalf("catalog row %q has core data", row.PlatformID)
+			if row.Core != nil || row.LaunchSystem != "" {
+				t.Fatalf("catalog row %q has launch data", row.PlatformID)
 			}
 		case CapabilityFPGANative:
 			fpga++
-			if row.Core == nil || row.Core.ExpectedCore == "" || row.Core.RBF == "" || row.Core.KitROMRoot == "" || row.Core.MGLRoot == "" {
+			if row.Core == nil || row.Core.ExpectedCore == "" || row.Core.RBF == "" || row.Core.KitROMRoot == "" || row.Core.MGLRoot == "" || row.LaunchSystem == "" || row.LaunchSystem != row.PlatformID {
 				t.Fatalf("FPGA row %q lacks core data", row.PlatformID)
 			}
 			if err := protocol.ValidateSystem(row.PlatformID); err != nil {
 				t.Fatalf("FPGA row %q is not a protocol system: %v", row.PlatformID, err)
 			}
+			if _, exists := launchSystems[row.LaunchSystem]; exists {
+				t.Fatalf("duplicate FPGA launch system %q", row.LaunchSystem)
+			}
+			launchSystems[row.LaunchSystem] = struct{}{}
 		case CapabilityHostOnly:
 		default:
 			t.Fatalf("invalid capability %q", row.Capability)
@@ -63,10 +68,10 @@ func TestTableInvariants(t *testing.T) {
 			}
 		}
 	}
-	if fpga != 2 {
-		t.Fatalf("FPGA rows = %d, want 2", fpga)
+	if fpga != 4 {
+		t.Fatalf("FPGA rows = %d, want 4", fpga)
 	}
-	if !Mapped(protocol.SystemSNES) || !Mapped(protocol.SystemMegaDrive) || Mapped("nes") {
+	if !Mapped(protocol.SystemSNES) || !Mapped(protocol.SystemMegaDrive) || !Mapped(protocol.SystemNES) || !Mapped(protocol.SystemSMS) {
 		t.Fatal("folder mappings do not match the approved slice")
 	}
 }
@@ -92,7 +97,41 @@ func TestSMBFolderUsesMappedAlias(t *testing.T) {
 	if !ok || mega != "//deano-clawz/Games/Games/Genesis" {
 		t.Fatalf("Mega Drive folder = %q, %v", mega, ok)
 	}
-	if _, ok := SMBFolder(DefaultSMBShareRoot, "nes"); ok {
-		t.Fatal("catalog-only NES unexpectedly has an SMB mapping")
+	nes, ok := SMBFolder(DefaultSMBShareRoot, protocol.SystemNES)
+	if !ok || nes != "//deano-clawz/Games/Games/NES" {
+		t.Fatalf("NES folder = %q, %v", nes, ok)
+	}
+	sms, ok := SMBFolder(DefaultSMBShareRoot, protocol.SystemSMS)
+	if !ok || sms != "//deano-clawz/Games/Games/SMS" {
+		t.Fatalf("SMS folder = %q, %v", sms, ok)
+	}
+}
+
+func TestFPGAExtensionAndCoverRows(t *testing.T) {
+	for _, test := range []struct {
+		system                              protocol.System
+		alias                               string
+		extensions                          []string
+		expectedCore, rbf, romRoot, mglRoot string
+		delay, index                        int
+		slug, name                          string
+	}{
+		{protocol.SystemNES, "NES", []string{".nes", ".unf", ".unif", ".fds"}, "NES", "_Console/NES", "/media/fat/games/NES", "/media/fat/games/NES", 1, 0, "nes", "Nintendo Entertainment System"},
+		{protocol.SystemSMS, "SMS", []string{".sms"}, "SMS", "_Console/SMS", "/media/fat/games/SMS", "/media/fat/games/SMS", 1, 1, "sms", "Sega Master System/Mark III"},
+	} {
+		row, ok := Lookup(test.system)
+		if !ok || row.Capability != CapabilityFPGANative || row.FolderAlias != test.alias || row.LaunchSystem != test.system {
+			t.Fatalf("row %q = %#v, ok=%v", test.system, row, ok)
+		}
+		if strings.Join(row.Extensions, ",") != strings.Join(test.extensions, ",") {
+			t.Fatalf("extensions for %q = %v, want %v", test.system, row.Extensions, test.extensions)
+		}
+		if row.Core == nil || row.Core.ExpectedCore != test.expectedCore || row.Core.RBF != test.rbf || row.Core.KitROMRoot != test.romRoot || row.Core.MGLRoot != test.mglRoot || row.Core.FileDelay != test.delay || row.Core.FileType != "f" || row.Core.FileIndex != test.index {
+			t.Fatalf("core for %q = %#v", test.system, row.Core)
+		}
+		cover := row.CoverSlugs[CoverProviderIGDB]
+		if cover.Slug != test.slug || cover.Name != test.name {
+			t.Fatalf("cover for %q = %#v", test.system, cover)
+		}
 	}
 }

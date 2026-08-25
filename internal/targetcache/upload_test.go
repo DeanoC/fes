@@ -31,7 +31,7 @@ func TestPutRejectsInvalidIdentityBeforeReadingOrCreatingPart(t *testing.T) {
 		{name: "zero length", system: protocol.SystemSNES, identity: protocol.ContentIdentity{SHA256: strings.Repeat("a", 64), Size: 0, Extension: "sfc"}, code: protocol.CodeBadRequest},
 		{name: "oversized length", system: protocol.SystemSNES, identity: protocol.ContentIdentity{SHA256: strings.Repeat("a", 64), Size: protocol.MaxContentBytes + 1, Extension: "sfc"}, code: protocol.CodeBadRequest},
 		{name: "unsupported extension", system: protocol.SystemSNES, identity: protocol.ContentIdentity{SHA256: strings.Repeat("a", 64), Size: 1, Extension: "md"}, code: protocol.CodeUnsupportedSystem},
-		{name: "unsupported system", system: "nes", identity: protocol.ContentIdentity{SHA256: strings.Repeat("a", 64), Size: 1, Extension: "bin"}, code: protocol.CodeUnsupportedSystem},
+		{name: "unsupported system", system: "unknown", identity: protocol.ContentIdentity{SHA256: strings.Repeat("a", 64), Size: 1, Extension: "bin"}, code: protocol.CodeUnsupportedSystem},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

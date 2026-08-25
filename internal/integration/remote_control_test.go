@@ -151,7 +151,7 @@ func TestRemoteControlEndToEnd(t *testing.T) {
 		request protocol.LaunchRequest
 		code    protocol.ErrorCode
 	}{
-		{request: protocol.LaunchRequest{GameID: "nes-test", System: "nes", ROMPath: snesROM}, code: protocol.CodeUnsupportedSystem},
+		{request: protocol.LaunchRequest{GameID: "unknown-test", System: "mystery", ROMPath: snesROM}, code: protocol.CodeUnsupportedSystem},
 		{request: protocol.LaunchRequest{GameID: "missing-rom", System: protocol.SystemSNES, ROMPath: filepath.Join(snesRoot, "missing.sfc")}, code: protocol.CodeROMNotFound},
 		{request: protocol.LaunchRequest{GameID: "escaped-rom", System: protocol.SystemSNES, ROMPath: outsideROM}, code: protocol.CodeInvalidROMPath},
 	}

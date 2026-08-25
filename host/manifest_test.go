@@ -40,7 +40,7 @@ func TestLoadManifestRejectsInvalidGames(t *testing.T) {
 	t.Parallel()
 	tests := map[string]string{
 		"duplicate":     "[[games]]\nid=\"same\"\ntitle=\"One\"\nsystem=\"snes\"\nrom_path=\"/media/fat/games/SNES/one.sfc\"\n[[games]]\nid=\"same\"\ntitle=\"Two\"\nsystem=\"snes\"\nrom_path=\"/media/fat/games/SNES/two.sfc\"\n",
-		"unsupported":   "[[games]]\nid=\"nes-test\"\ntitle=\"NES\"\nsystem=\"nes\"\nrom_path=\"/media/fat/games/NES/test.nes\"\n",
+		"unsupported":   "[[games]]\nid=\"mystery-test\"\ntitle=\"Mystery\"\nsystem=\"mystery\"\nrom_path=\"/media/fat/games/Mystery/test.bin\"\n",
 		"relative path": "[[games]]\nid=\"snes-test\"\ntitle=\"SNES\"\nsystem=\"snes\"\nrom_path=\"relative.sfc\"\n",
 		"blank title":   "[[games]]\nid=\"snes-test\"\ntitle=\" \"\nsystem=\"snes\"\nrom_path=\"/media/fat/games/SNES/test.sfc\"\n",
 		"bad ID":        "[[games]]\nid=\"Bad ID\"\ntitle=\"SNES\"\nsystem=\"snes\"\nrom_path=\"/media/fat/games/SNES/test.sfc\"\n",

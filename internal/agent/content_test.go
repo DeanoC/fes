@@ -340,7 +340,7 @@ func TestContentControllerRejectsInvalidOperationsBeforeCacheAccess(t *testing.T
 		code protocol.ErrorCode
 	}{
 		{name: "probe system", call: func(c *agent.ContentController) *protocol.APIError {
-			_, apiErr := c.ProbeContent(context.Background(), "nes", identity.Key())
+			_, apiErr := c.ProbeContent(context.Background(), "mystery", identity.Key())
 			return apiErr
 		}, code: protocol.CodeUnsupportedSystem},
 		{name: "probe key", call: func(c *agent.ContentController) *protocol.APIError {
@@ -348,7 +348,7 @@ func TestContentControllerRejectsInvalidOperationsBeforeCacheAccess(t *testing.T
 			return apiErr
 		}, code: protocol.CodeBadRequest},
 		{name: "put system", call: func(c *agent.ContentController) *protocol.APIError {
-			_, apiErr := c.PutContent(context.Background(), "nes", identity, strings.NewReader("data"))
+			_, apiErr := c.PutContent(context.Background(), "mystery", identity, strings.NewReader("data"))
 			return apiErr
 		}, code: protocol.CodeUnsupportedSystem},
 		{name: "put identity", call: func(c *agent.ContentController) *protocol.APIError {
@@ -390,7 +390,7 @@ func TestCachedLaunchValidatesCompleteRequestBeforeCacheAccess(t *testing.T) {
 		code   protocol.ErrorCode
 	}{
 		{name: "game", mutate: func(request *protocol.CachedLaunchRequest) { request.GameID = "Private Game" }, code: protocol.CodeBadRequest},
-		{name: "system", mutate: func(request *protocol.CachedLaunchRequest) { request.System = "nes" }, code: protocol.CodeUnsupportedSystem},
+		{name: "system", mutate: func(request *protocol.CachedLaunchRequest) { request.System = "mystery" }, code: protocol.CodeUnsupportedSystem},
 		{name: "content", mutate: func(request *protocol.CachedLaunchRequest) { request.Content.Size = 0 }, code: protocol.CodeBadRequest},
 	}
 	for _, test := range tests {
@@ -420,14 +420,14 @@ func TestCachedLaunchRejectsProtocolUnsupportedSystemBeforeCustomRegistryCacheAc
 	store := &recordingContentStore{}
 	runtime := &contentRuntime{health: protocol.Health{Ready: true}, launchObserved: "NES"}
 	registry := core.NewRegistry(core.Spec{
-		System: "nes", ExpectedCore: "NES", RBFSelector: "_Console/NES", ROMRoot: "/media/fat/games/NES",
+		System: "mystery", ExpectedCore: "NES", RBFSelector: "_Console/NES", ROMRoot: "/media/fat/games/NES",
 		Extensions: map[string]struct{}{".nes": {}}, FileDelay: 1, FileType: "f", FileIndex: 0,
 	})
 	coordinator := agent.New(runtime, registry, time.Second, time.Second)
 	controller := agent.NewContentController(coordinator, store)
 
 	_, apiErr := controller.LaunchContent(context.Background(), protocol.CachedLaunchRequest{
-		GameID: "nes-cached-test", System: "nes",
+		GameID: "nes-cached-test", System: "mystery",
 		Content: protocol.ContentIdentity{SHA256: cachedDigest, Size: 4, Extension: "nes"},
 	})
 	if apiErr == nil || apiErr.Code != protocol.CodeUnsupportedSystem {

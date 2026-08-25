@@ -28,7 +28,7 @@ func (m *Manager) checkedPath(system protocol.System, key protocol.ContentKey) (
 	if !ok {
 		return inventoryKey{}, "", &protocol.APIError{
 			Code:    protocol.CodeUnsupportedSystem,
-			Message: "system is not Mega Drive or SNES",
+			Message: "system is not registered for the target cache",
 		}
 	}
 	if _, ok := allowed["."+key.Extension]; !ok {

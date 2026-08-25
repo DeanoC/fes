@@ -5,6 +5,8 @@ type System string
 const (
 	SystemMegaDrive System = "megadrive"
 	SystemSNES      System = "snes"
+	SystemNES       System = "nes"
+	SystemSMS       System = "sms"
 )
 
 type State string

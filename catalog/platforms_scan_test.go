@@ -9,9 +9,9 @@ import (
 func TestScannerUsesHostPlatformRegistryForBrowseOnlySystems(t *testing.T) {
 	ctx := context.Background()
 	rootPath := t.TempDir()
-	mustWriteScannerFile(t, filepath.Join(rootPath, "mario.nes"), []byte("mario"))
+	mustWriteScannerFile(t, filepath.Join(rootPath, "mario.gba"), []byte("mario"))
 	store := openScannerStore(t)
-	root := Root{ID: "nes-main", System: "nes", Path: rootPath}
+	root := Root{ID: "gba-main", System: "gba", Path: rootPath}
 	scanner := Scanner{Store: store, Platforms: DefaultPlatforms()}
 	report, err := scanner.Scan(ctx, []Root{root})
 	if err != nil {
@@ -21,7 +21,7 @@ func TestScannerUsesHostPlatformRegistryForBrowseOnlySystems(t *testing.T) {
 		t.Fatalf("report = %+v", report)
 	}
 	games, err := store.Games(ctx)
-	if err != nil || len(games) != 1 || games[0].System != "nes" {
+	if err != nil || len(games) != 1 || games[0].System != "gba" {
 		t.Fatalf("games = %+v, %v", games, err)
 	}
 }

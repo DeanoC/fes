@@ -92,7 +92,7 @@ func TestFolderWatcherRootsKeepOnlySupportedSystems(t *testing.T) {
 			return []Root{
 				{ID: "snes-main", System: protocol.SystemSNES},
 				{ID: "genesis-main", System: protocol.SystemMegaDrive},
-				{ID: "nes-main", System: protocol.System("nes")},
+				{ID: "unknown-main", System: protocol.System("mystery")},
 			}
 		},
 	}
@@ -112,7 +112,7 @@ func TestFolderWatcherIgnoresUnsupportedRoots(t *testing.T) {
 	watcher := FolderWatcher{
 		Scan: Scanner{Store: store, Platforms: DefaultPlatforms()}.Scan,
 		Roots: func() []Root {
-			return []Root{{ID: "nes-main", System: protocol.System("nes"), Path: rootPath}}
+			return []Root{{ID: "unknown-main", System: protocol.System("mystery"), Path: rootPath}}
 		},
 	}
 	if _, err := watcher.Reconcile(ctx); err != nil {

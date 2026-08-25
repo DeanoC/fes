@@ -123,7 +123,7 @@ func TestIGDBGamesQueryUsesOnlyDocumentedGameFields(t *testing.T) {
 		if request.URL.Host == "id.twitch.tv" {
 			body = `{"access_token":"fixture-token","expires_in":3600}`
 		} else if request.URL.Path == "/v4/platforms" {
-			body = `[{"id":1,"name":"Sega Mega Drive/Genesis","slug":"genesis-slash-megadrive","checksum":"platform-checksum","updated_at":1},{"id":2,"name":"Super Nintendo Entertainment System","slug":"snes","checksum":"snes-checksum","updated_at":1}]`
+			body = testIGDBPlatformsJSON()
 		} else if request.URL.Path == "/v4/games" {
 			fields := strings.TrimPrefix(strings.SplitN(readRequestBody(request), ";", 2)[0], "fields ")
 			for _, field := range strings.Split(fields, ",") {
@@ -160,7 +160,7 @@ func TestContractPlatformMappingRefreshesAfterPositiveTTL(t *testing.T) {
 		body := `{"access_token":"fixture-token","expires_in":315360000}`
 		if request.URL.Path == "/v4/platforms" {
 			platformCalls.Add(1)
-			body = `[{"id":1,"name":"Sega Mega Drive/Genesis","slug":"genesis-slash-megadrive","checksum":"md-a","updated_at":1},{"id":2,"name":"Super Nintendo Entertainment System","slug":"snes","checksum":"snes-a","updated_at":1}]`
+			body = testIGDBPlatformsJSON()
 		}
 		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(body)), Request: request}, nil
 	})}
@@ -201,7 +201,7 @@ func TestContractPlatformResolutionWaiterCancellationDoesNotWaitOnLeader(t *test
 			}
 			select {
 			case <-release:
-				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(`[{"id":1,"name":"Sega Mega Drive/Genesis","slug":"genesis-slash-megadrive","checksum":"md-a","updated_at":1},{"id":2,"name":"Super Nintendo Entertainment System","slug":"snes","checksum":"snes-a","updated_at":1}]`)), Request: request}, nil
+				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(testIGDBPlatformsJSON())), Request: request}, nil
 			case <-request.Context().Done():
 				return nil, request.Context().Err()
 			}
@@ -252,7 +252,7 @@ func TestContractInvalidDurablePlatformMappingIsNotServed(t *testing.T) {
 	client := &http.Client{Transport: deadlineRoundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.Path == "/v4/platforms" {
 			platformCalls.Add(1)
-			return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(`[{"id":1,"name":"Sega Mega Drive/Genesis","slug":"genesis-slash-megadrive","checksum":"md-a","updated_at":1},{"id":2,"name":"Super Nintendo Entertainment System","slug":"snes","checksum":"snes-a","updated_at":1}]`)), Request: request}, nil
+			return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(testIGDBPlatformsJSON())), Request: request}, nil
 		}
 		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"access_token":"fixture-token","expires_in":315360000}`)), Request: request}, nil
 	})}
@@ -293,7 +293,7 @@ func TestContractPlatformLeaderCancellationDoesNotPoisonSharedFlight(t *testing.
 			platformCalls.Add(1)
 			close(started)
 			<-release
-			return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(`[{"id":1,"name":"Sega Mega Drive/Genesis","slug":"genesis-slash-megadrive","checksum":"md-a","updated_at":1},{"id":2,"name":"Super Nintendo Entertainment System","slug":"snes","checksum":"snes-a","updated_at":1}]`)), Request: request}, nil
+			return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(testIGDBPlatformsJSON())), Request: request}, nil
 		}
 		return nil, errors.New("unexpected provider request")
 	})}
@@ -344,7 +344,7 @@ func TestContractProviderCloseUnblocksActiveLookup(t *testing.T) {
 		case "/oauth2/token":
 			return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"access_token":"fixture-token","expires_in":315360000}`)), Request: request}, nil
 		case "/v4/platforms":
-			return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(`[{"id":1,"name":"Sega Mega Drive/Genesis","slug":"genesis-slash-megadrive","checksum":"md-a","updated_at":1},{"id":2,"name":"Super Nintendo Entertainment System","slug":"snes","checksum":"snes-a","updated_at":1}]`)), Request: request}, nil
+			return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(testIGDBPlatformsJSON())), Request: request}, nil
 		case "/v4/games":
 			close(started)
 			<-request.Context().Done()

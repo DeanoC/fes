@@ -2366,10 +2366,10 @@ func exactLaunchResponse(t *testing.T, game catalog.Game, content protocol.Conte
 }
 
 func TestServiceLaunchRejectsUnmappedPlatformWithoutProbe(t *testing.T) {
-	content := catalog.Content{SHA256: serviceDigest, Size: 3, Extension: "nes"}
+	content := catalog.Content{SHA256: serviceDigest, Size: 3, Extension: "bin"}
 	game := catalog.Game{
-		ID: "nes-mario-test", Title: "Mario", LibraryID: "nes-main", RelativePath: "game.nes",
-		System: "nes", Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable,
+		ID: "unknown-mario-test", Title: "Mario", LibraryID: "unknown-main", RelativePath: "game.bin",
+		System: "mystery", Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable,
 		RootOnline: true, Fingerprint: catalog.Fingerprint{SourceSize: 3, ModifiedNS: 123}, Content: &content,
 	}
 	store := &fakeServiceCatalog{games: []catalog.Game{game}}
@@ -2378,7 +2378,7 @@ func TestServiceLaunchRejectsUnmappedPlatformWithoutProbe(t *testing.T) {
 		t.Fatal("unmapped platform probed the target")
 		return protocol.CacheProbeResponse{}, nil
 	}
-	root := catalog.Root{ID: "nes-main", System: "nes", Path: "/private/library"}
+	root := catalog.Root{ID: "unknown-main", System: "mystery", Path: "/private/library"}
 	service := newService(
 		Config{Libraries: []catalog.Root{root}, RequestTimeout: time.Second, UploadTimeout: 2 * time.Second},
 		Paths{Staging: "/private/staging"}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client,

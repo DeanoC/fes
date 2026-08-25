@@ -36,35 +36,46 @@ type CoverSpec struct {
 }
 
 type Row struct {
-	FolderAlias string
-	PlatformID  protocol.System
-	Label       string
-	Extensions  []string
-	Capability  Capability
-	Core        *CoreSpec
-	CoverSlugs  map[string]CoverSpec
+	FolderAlias  string
+	PlatformID   protocol.System
+	LaunchSystem protocol.System
+	Label        string
+	Extensions   []string
+	Capability   Capability
+	Core         *CoreSpec
+	CoverSlugs   map[string]CoverSpec
 }
 
 var table = []Row{
 	{
-		FolderAlias: "Genesis", PlatformID: protocol.SystemMegaDrive, Label: "Mega Drive",
+		FolderAlias: "Genesis", PlatformID: protocol.SystemMegaDrive, LaunchSystem: protocol.SystemMegaDrive, Label: "Mega Drive",
 		Extensions: []string{".md", ".gen", ".bin"}, Capability: CapabilityFPGANative,
 		Core:       &CoreSpec{ExpectedCore: "MegaDrive", RBF: "_Console/MegaDrive", KitROMRoot: "/media/fat/games/MegaDrive", MGLRoot: "/media/fat/games/MegaDrive", FileDelay: 1, FileType: "f", FileIndex: 1},
 		CoverSlugs: map[string]CoverSpec{CoverProviderIGDB: {Slug: "genesis-slash-megadrive", Name: "Sega Mega Drive/Genesis"}},
 	},
 	{
-		FolderAlias: "SNES", PlatformID: protocol.SystemSNES, Label: "SNES",
+		FolderAlias: "SNES", PlatformID: protocol.SystemSNES, LaunchSystem: protocol.SystemSNES, Label: "SNES",
 		Extensions: []string{".sfc", ".smc", ".bin"}, Capability: CapabilityFPGANative,
 		Core:       &CoreSpec{ExpectedCore: "SNES", RBF: "_Console/SNES", KitROMRoot: "/media/fat/games/SNES", MGLRoot: "/media/fat/games/SNES", FileDelay: 2, FileType: "f", FileIndex: 0},
 		CoverSlugs: map[string]CoverSpec{CoverProviderIGDB: {Slug: "snes", Name: "Super Nintendo Entertainment System"}},
 	},
-	{PlatformID: "nes", Label: "NES", Extensions: []string{".nes", ".unf", ".unif", ".fds"}, Capability: CapabilityCatalog},
+	{
+		FolderAlias: "NES", PlatformID: protocol.SystemNES, LaunchSystem: protocol.SystemNES, Label: "NES",
+		Extensions: []string{".nes", ".unf", ".unif", ".fds"}, Capability: CapabilityFPGANative,
+		Core:       &CoreSpec{ExpectedCore: "NES", RBF: "_Console/NES", KitROMRoot: "/media/fat/games/NES", MGLRoot: "/media/fat/games/NES", FileDelay: 1, FileType: "f", FileIndex: 0},
+		CoverSlugs: map[string]CoverSpec{CoverProviderIGDB: {Slug: "nes", Name: "Nintendo Entertainment System"}},
+	},
 	{PlatformID: "gb", Label: "Game Boy", Extensions: []string{".gb"}, Capability: CapabilityCatalog},
 	{PlatformID: "gbc", Label: "Game Boy Color", Extensions: []string{".gbc"}, Capability: CapabilityCatalog},
 	{PlatformID: "gba", Label: "Game Boy Advance", Extensions: []string{".gba"}, Capability: CapabilityCatalog},
 	{PlatformID: "n64", Label: "Nintendo 64", Extensions: []string{".n64", ".z64", ".v64"}, Capability: CapabilityCatalog},
 	{PlatformID: "psx", Label: "PlayStation", Extensions: []string{".cue", ".chd", ".pbp", ".iso", ".img"}, Capability: CapabilityCatalog},
-	{PlatformID: "sms", Label: "Master System", Extensions: []string{".sms"}, Capability: CapabilityCatalog},
+	{
+		FolderAlias: "SMS", PlatformID: protocol.SystemSMS, LaunchSystem: protocol.SystemSMS, Label: "Master System",
+		Extensions: []string{".sms"}, Capability: CapabilityFPGANative,
+		Core:       &CoreSpec{ExpectedCore: "SMS", RBF: "_Console/SMS", KitROMRoot: "/media/fat/games/SMS", MGLRoot: "/media/fat/games/SMS", FileDelay: 1, FileType: "f", FileIndex: 1},
+		CoverSlugs: map[string]CoverSpec{CoverProviderIGDB: {Slug: "sms", Name: "Sega Master System/Mark III"}},
+	},
 	{PlatformID: "gg", Label: "Game Gear", Extensions: []string{".gg"}, Capability: CapabilityCatalog},
 	{PlatformID: "pce", Label: "PC Engine", Extensions: []string{".pce", ".sgx"}, Capability: CapabilityCatalog},
 	{PlatformID: "32x", Label: "32X", Extensions: []string{".32x"}, Capability: CapabilityCatalog},

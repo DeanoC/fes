@@ -85,7 +85,7 @@ func TestInventoryRetainsDirectStalePartsAndAccountsConservatively(t *testing.T)
 	}
 
 	rootPart := writeNamedFile(t, root, ".fogcast-root.part", []byte("not an upload location"))
-	unknownSystem := filepath.Join(root, "nes")
+	unknownSystem := filepath.Join(root, "unknown")
 	if err := os.Mkdir(unknownSystem, 0o700); err != nil {
 		t.Fatal(err)
 	}

@@ -246,19 +246,27 @@ func prepareRoot(configured string) (string, os.FileInfo, error) {
 }
 
 func cloneRegisteredExtensions(registry core.Registry) map[protocol.System]map[string]struct{} {
-	result := make(map[protocol.System]map[string]struct{}, 2)
-	for _, system := range []protocol.System{protocol.SystemMegaDrive, protocol.SystemSNES} {
-		spec, ok := registry.Lookup(system)
-		if !ok {
-			continue
-		}
+	specs := registry.Specs()
+	result := make(map[protocol.System]map[string]struct{}, len(specs))
+	for _, spec := range specs {
 		allowed := make(map[string]struct{}, len(spec.Extensions))
 		for extension := range spec.Extensions {
 			allowed[extension] = struct{}{}
 		}
-		result[system] = allowed
+		result[spec.System] = allowed
 	}
 	return result
+}
+
+func registeredSystems(extensions map[protocol.System]map[string]struct{}) []protocol.System {
+	systems := make([]protocol.System, 0, len(extensions))
+	for system := range extensions {
+		systems = append(systems, system)
+	}
+	sort.Slice(systems, func(left, right int) bool {
+		return systems[left] < systems[right]
+	})
+	return systems
 }
 
 func (m *Manager) inventory() error {
@@ -289,7 +297,7 @@ func (m *Manager) inventory() error {
 		}
 	}
 
-	for _, system := range []protocol.System{protocol.SystemMegaDrive, protocol.SystemSNES} {
+	for _, system := range registeredSystems(m.extensions) {
 		allowed, registered := m.extensions[system]
 		if !registered {
 			continue

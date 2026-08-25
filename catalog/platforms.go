@@ -26,9 +26,7 @@ func DefaultPlatforms() PlatformRegistry {
 	platforms := make([]Platform, 0, len(rows))
 	for _, row := range rows {
 		platform := Platform{ID: row.PlatformID, Label: row.Label, Extensions: platformExtensions(row.Extensions...)}
-		if row.Capability == systems.CapabilityFPGANative {
-			platform.LaunchSystem = row.PlatformID
-		}
+		platform.LaunchSystem = row.LaunchSystem
 		platforms = append(platforms, platform)
 	}
 	return NewPlatformRegistry(platforms...)

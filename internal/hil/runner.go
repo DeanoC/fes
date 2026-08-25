@@ -133,7 +133,7 @@ func (r Runner) Run(ctx context.Context) (Report, error) {
 		code    protocol.ErrorCode
 	}{
 		{name: "invalid token", api: r.UnauthorizedAPI, request: protocol.LaunchRequest{GameID: "invalid-token", System: protocol.SystemSNES, ROMPath: snes.ROMPath}, code: protocol.CodeUnauthorized},
-		{name: "unsupported system", api: r.API, request: protocol.LaunchRequest{GameID: "unsupported-test", System: "nes", ROMPath: snes.ROMPath}, code: protocol.CodeUnsupportedSystem},
+		{name: "unsupported system", api: r.API, request: protocol.LaunchRequest{GameID: "unsupported-test", System: "mystery", ROMPath: snes.ROMPath}, code: protocol.CodeUnsupportedSystem},
 		{name: "invalid extension", api: r.API, request: protocol.LaunchRequest{GameID: "invalid-extension", System: protocol.SystemSNES, ROMPath: "/media/fat/games/SNES/.mister-remote-invalid.txt"}, code: protocol.CodeInvalidROMPath},
 		{name: "missing ROM", api: r.API, request: protocol.LaunchRequest{GameID: "missing-rom", System: protocol.SystemSNES, ROMPath: "/media/fat/games/SNES/__mister_remote_missing__.sfc"}, code: protocol.CodeROMNotFound},
 		{name: "escaped path", api: r.API, request: protocol.LaunchRequest{GameID: "escaped-rom", System: protocol.SystemSNES, ROMPath: "/media/fat/games/SNES/../../MiSTer"}, code: protocol.CodeInvalidROMPath},

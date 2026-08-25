@@ -218,7 +218,7 @@ func (p *IGDBProvider) resolvePlatforms(ctx context.Context) (map[string]resolve
 		return nil, err
 	}
 	p.platformMu.Lock()
-	if len(p.platforms) == 2 && p.now().Before(p.platformsExpiresAt) {
+	if len(p.platforms) == len(igdbPlatformSpecs()) && p.now().Before(p.platformsExpiresAt) {
 		platforms := clonePlatforms(p.platforms)
 		p.platformMu.Unlock()
 		return platforms, nil

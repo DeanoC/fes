@@ -238,7 +238,7 @@ func TestV2ProbeValidatesPathAndQueryBeforeController(t *testing.T) {
 		wantCode   protocol.ErrorCode
 	}{
 		{name: "mixed case system", path: "/v2/cache/SNES/" + v2Digest + "?extension=sfc", wantStatus: http.StatusUnprocessableEntity, wantCode: protocol.CodeUnsupportedSystem},
-		{name: "unknown system", path: "/v2/cache/nes/" + v2Digest + "?extension=sfc", wantStatus: http.StatusUnprocessableEntity, wantCode: protocol.CodeUnsupportedSystem},
+		{name: "unknown system", path: "/v2/cache/mystery/" + v2Digest + "?extension=sfc", wantStatus: http.StatusUnprocessableEntity, wantCode: protocol.CodeUnsupportedSystem},
 		{name: "short digest", path: "/v2/cache/snes/abcd?extension=sfc", wantStatus: http.StatusBadRequest, wantCode: protocol.CodeBadRequest},
 		{name: "mixed case digest", path: "/v2/cache/snes/" + strings.ToUpper(v2Digest) + "?extension=sfc", wantStatus: http.StatusBadRequest, wantCode: protocol.CodeBadRequest},
 		{name: "missing extension", path: "/v2/cache/snes/" + v2Digest, wantStatus: http.StatusBadRequest, wantCode: protocol.CodeBadRequest},

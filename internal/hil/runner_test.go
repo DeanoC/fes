@@ -33,6 +33,9 @@ func (a *fakeAPI) Status(context.Context) (protocol.Status, error) { return a.st
 
 func (a *fakeAPI) Launch(_ context.Context, request protocol.LaunchRequest) (protocol.Status, error) {
 	a.launches = append(a.launches, request)
+	if protocol.ValidateSystem(request.System) != nil {
+		return protocol.Status{}, &protocol.APIError{Code: protocol.CodeUnsupportedSystem, Message: "unsupported"}
+	}
 	if apiErr := a.errors[request.GameID]; apiErr != nil {
 		return protocol.Status{}, apiErr
 	}
@@ -170,7 +173,6 @@ func acceptanceFixture() (*fakeAPI, *fakeAPI, []host.Game) {
 			protocol.SystemSNES:      {State: protocol.StateActive, System: &snesSystem, ExpectedCore: &snesCore, ObservedCore: &snesCore},
 		},
 		errors: map[string]*protocol.APIError{
-			"unsupported-test":  {Code: protocol.CodeUnsupportedSystem, Message: "unsupported"},
 			"invalid-extension": {Code: protocol.CodeInvalidROMPath, Message: "invalid"},
 			"missing-rom":       {Code: protocol.CodeROMNotFound, Message: "missing"},
 			"escaped-rom":       {Code: protocol.CodeInvalidROMPath, Message: "escaped"},

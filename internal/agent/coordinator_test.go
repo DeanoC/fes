@@ -178,7 +178,7 @@ func TestUnsupportedSystemPreservesPreviousState(t *testing.T) {
 	runtime := &fakeRuntime{health: protocol.Health{Ready: true}}
 	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
 	before := coordinator.Status()
-	_, apiErr := coordinator.Launch(context.Background(), protocol.LaunchRequest{GameID: "nes-test", System: "nes", ROMPath: "/media/fat/games/NES/test.nes"})
+	_, apiErr := coordinator.Launch(context.Background(), protocol.LaunchRequest{GameID: "mystery-test", System: "mystery", ROMPath: "/media/fat/games/Mystery/test.bin"})
 	if apiErr == nil || apiErr.Code != protocol.CodeUnsupportedSystem {
 		t.Fatalf("error = %#v", apiErr)
 	}

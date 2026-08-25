@@ -52,7 +52,7 @@ func TestGamesListDoesNotLookupMetadataAndKeepsIdentityFields(t *testing.T) {
 
 func TestGamesListMarksUnmappedPlatformBrowseOnly(t *testing.T) {
 	service := &fakeService{games: []catalog.Game{{
-		ID: "nes-mario-test", Title: "Mario", System: "nes",
+		ID: "gba-mario-test", Title: "Mario", System: "gba",
 		Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
 	}}}
 	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games")
@@ -89,10 +89,10 @@ func TestGamesListRejectsMalformedCursorAndInvalidSort(t *testing.T) {
 func TestGamesListHonorsHostPlatformLaunchPolicy(t *testing.T) {
 	service := &launchableFake{
 		fakeService: fakeService{games: []catalog.Game{{
-			ID: "nes-mario-test", Title: "Mario", System: "nes",
+			ID: "gba-mario-test", Title: "Mario", System: "gba",
 			Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
 		}}},
-		launchable: map[protocol.System]bool{"nes": true},
+		launchable: map[protocol.System]bool{"gba": true},
 	}
 	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games")
 	if response.Code != http.StatusOK {

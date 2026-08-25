@@ -151,7 +151,7 @@ func TestReconcileCoreNames(t *testing.T) {
 	}{
 		{name: "menu", coreName: "MENU", create: true, state: protocol.StateIdle},
 		{name: "registered", coreName: "SNES", create: true, state: protocol.StateActive, system: func() *protocol.System { v := protocol.SystemSNES; return &v }()},
-		{name: "unknown", coreName: "NES", create: true, state: protocol.StateFailed, code: protocol.CodeUnrecognizedCore},
+		{name: "unknown", coreName: "UNKNOWN", create: true, state: protocol.StateFailed, code: protocol.CodeUnrecognizedCore},
 		{name: "missing", create: false, state: protocol.StateFailed, code: protocol.CodeMiSTerUnavailable},
 	}
 	for _, tt := range tests {

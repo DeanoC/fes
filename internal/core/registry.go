@@ -1,6 +1,8 @@
 package core
 
 import (
+	"sort"
+
 	"github.com/DeanoC/FogCast-POC/internal/systems"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
@@ -32,11 +34,11 @@ type Registry struct {
 func DefaultRegistry() Registry {
 	var specs []Spec
 	for _, row := range systems.Rows() {
-		if row.Capability != systems.CapabilityFPGANative || row.Core == nil {
+		if row.Capability != systems.CapabilityFPGANative || row.LaunchSystem == "" || row.Core == nil {
 			continue
 		}
 		specs = append(specs, Spec{
-			System: row.PlatformID, ExpectedCore: row.Core.ExpectedCore, RBFSelector: row.Core.RBF,
+			System: row.LaunchSystem, ExpectedCore: row.Core.ExpectedCore, RBFSelector: row.Core.RBF,
 			ROMRoot: row.Core.KitROMRoot, MGLRoot: row.Core.MGLRoot, Extensions: extensionSet(row.Extensions...),
 			FileDelay: row.Core.FileDelay, FileType: row.Core.FileType, FileIndex: row.Core.FileIndex,
 		})
@@ -55,6 +57,17 @@ func NewRegistry(specs ...Spec) Registry {
 func (r Registry) Lookup(system protocol.System) (Spec, bool) {
 	spec, ok := r.bySystem[system]
 	return cloneSpec(spec), ok
+}
+
+func (r Registry) Specs() []Spec {
+	specs := make([]Spec, 0, len(r.bySystem))
+	for _, spec := range r.bySystem {
+		specs = append(specs, cloneSpec(spec))
+	}
+	sort.Slice(specs, func(left, right int) bool {
+		return specs[left].System < specs[right].System
+	})
+	return specs
 }
 
 func (r Registry) LookupObserved(name string) (Spec, bool) {

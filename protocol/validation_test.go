@@ -29,13 +29,15 @@ func TestValidateGameID(t *testing.T) {
 
 func TestValidateSystem(t *testing.T) {
 	t.Parallel()
-	for _, system := range []protocol.System{protocol.SystemMegaDrive, protocol.SystemSNES} {
+	for _, system := range []protocol.System{protocol.SystemMegaDrive, protocol.SystemSNES, protocol.SystemNES, protocol.SystemSMS} {
 		if err := protocol.ValidateSystem(system); err != nil {
 			t.Fatalf("ValidateSystem(%q): %v", system, err)
 		}
 	}
-	if err := protocol.ValidateSystem("nes"); err == nil {
-		t.Fatal("ValidateSystem(nes) succeeded")
+	for _, system := range []protocol.System{"gba", "mystery"} {
+		if err := protocol.ValidateSystem(system); err == nil {
+			t.Fatalf("ValidateSystem(%q) succeeded", system)
+		}
 	}
 }
 
@@ -116,7 +118,7 @@ func TestCompleteCachedLaunchRequestRejectsUnknownSystem(t *testing.T) {
 
 	request := protocol.CachedLaunchRequest{
 		GameID:  "snes-test",
-		System:  "nes",
+		System:  "mystery",
 		Content: protocol.ContentIdentity{SHA256: testDigest, Size: 1, Extension: "sfc"},
 	}
 	if err := protocol.ValidateGameID(request.GameID); err != nil {
