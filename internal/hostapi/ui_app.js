@@ -418,7 +418,8 @@
     nds: 'Nintendo DS',
     arcade: 'Arcade',
     a2600: 'Atari 2600',
-    lynx: 'Lynx',
+    coleco: 'ColecoVision',
+    lynx: 'Atari Lynx',
     ngp: 'Neo Geo Pocket',
     ws: 'WonderSwan',
   });

@@ -15,7 +15,7 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) { return f(request) }
 
 func testIGDBPlatformsJSON() string {
-	return `[{"id":1,"name":"Sega Mega Drive/Genesis","slug":"genesis-slash-megadrive","checksum":"platform-checksum","updated_at":1},{"id":2,"name":"Super Nintendo Entertainment System","slug":"snes","checksum":"snes-checksum","updated_at":1},{"id":3,"name":"Nintendo Entertainment System","slug":"nes","checksum":"nes-checksum","updated_at":1},{"id":4,"name":"Sega Master System/Mark III","slug":"sms","checksum":"sms-checksum","updated_at":1},{"id":5,"name":"Game Boy","slug":"gb","checksum":"gb-checksum","updated_at":1},{"id":6,"name":"Game Boy Advance","slug":"gba","checksum":"gba-checksum","updated_at":1},{"id":7,"name":"TurboGrafx-16/PC Engine","slug":"turbografx16--1","checksum":"pce-checksum","updated_at":1},{"id":8,"name":"Sega Game Gear","slug":"game-gear","checksum":"gg-checksum","updated_at":1}]`
+	return `[{"id":1,"name":"Sega Mega Drive/Genesis","slug":"genesis-slash-megadrive","checksum":"platform-checksum","updated_at":1},{"id":2,"name":"Super Nintendo Entertainment System","slug":"snes","checksum":"snes-checksum","updated_at":1},{"id":3,"name":"Nintendo Entertainment System","slug":"nes","checksum":"nes-checksum","updated_at":1},{"id":4,"name":"Sega Master System/Mark III","slug":"sms","checksum":"sms-checksum","updated_at":1},{"id":5,"name":"Game Boy","slug":"gb","checksum":"gb-checksum","updated_at":1},{"id":6,"name":"Game Boy Advance","slug":"gba","checksum":"gba-checksum","updated_at":1},{"id":7,"name":"TurboGrafx-16/PC Engine","slug":"turbografx16--1","checksum":"pce-checksum","updated_at":1},{"id":8,"name":"Sega Game Gear","slug":"game-gear","checksum":"gg-checksum","updated_at":1},{"id":9,"name":"Game Boy Color","slug":"gbc","checksum":"gbc-checksum","updated_at":1},{"id":10,"name":"Atari 2600","slug":"atari2600","checksum":"a2600-checksum","updated_at":1},{"id":11,"name":"ColecoVision","slug":"colecovision","checksum":"coleco-checksum","updated_at":1},{"id":12,"name":"Atari Lynx","slug":"lynx","checksum":"lynx-checksum","updated_at":1}]`
 }
 
 func TestIGDBProviderUsesOfficialTokenAndAPIWireContract(t *testing.T) {
@@ -74,7 +74,7 @@ func TestIGDBProviderUsesOfficialTokenAndAPIWireContract(t *testing.T) {
 		}
 	}
 	platformBody, _ := io.ReadAll(requests[1].Body)
-	if !strings.Contains(string(platformBody), `fields id,name,slug,checksum,updated_at`) || !strings.Contains(string(platformBody), `limit 8`) {
+	if !strings.Contains(string(platformBody), `fields id,name,slug,checksum,updated_at`) || !strings.Contains(string(platformBody), `limit 12`) {
 		t.Fatalf("platform body = %q", platformBody)
 	}
 	gameBody, _ := io.ReadAll(requests[2].Body)

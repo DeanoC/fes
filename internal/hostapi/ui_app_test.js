@@ -789,6 +789,10 @@ test('library wording shows clean titles and honest launch blocks', () => {
   assert.equal(displayTitle('Bare Knuckle ~ Streets of Rage (World) (Rev A)'), 'Bare Knuckle ~ Streets of Rage');
   assert.equal(systemLabel('megadrive'), 'Mega Drive');
   assert.equal(systemLabel('snes'), 'SNES');
+  assert.equal(systemLabel('gbc'), 'Game Boy Color');
+  assert.equal(systemLabel('a2600'), 'Atari 2600');
+  assert.equal(systemLabel('coleco'), 'ColecoVision');
+  assert.equal(systemLabel('lynx'), 'Atari Lynx');
   assert.equal(sourceLabel('available'), 'Ready');
   assert.equal(sourceLabel('missing'), 'Offline');
   assert.equal(launchBlockReason({ state: 'available', content_prepared: true, root_online: true }), '');
@@ -1955,6 +1959,10 @@ test('session parser accepts privacy-safe optional fields and rejects malformed 
   }));
   assert.equal(nesSession.system, 'nes');
   assert.equal(nesSession.game_id, 'nes-mario-test');
+
+  for (const system of ['gbc', 'a2600', 'coleco', 'lynx']) {
+    assert.equal(parseSession(sessionFixture({ state: 'active', system })).system, system);
+  }
 
   for (const malformed of [
     sessionFixture({ state: 'unknown' }),

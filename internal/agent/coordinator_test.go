@@ -166,6 +166,26 @@ func TestInitializeUsesValidatedPendingSystemForSharedObservedCore(t *testing.T)
 	}
 }
 
+func TestInitializeUsesDurableAtari2600IntentForAtari7800Observation(t *testing.T) {
+	t.Parallel()
+	atari2600 := protocol.SystemAtari2600
+	observed := "ATARI7800"
+	runtime := &fakeRuntime{reconciled: protocol.Status{
+		State:        protocol.StateFailed,
+		ObservedCore: &observed,
+		LastError:    &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Message: "observed core requires launch intent"},
+	}}
+	store := &recordingContentStore{activeSystem: &atari2600}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	agent.NewContentController(coordinator, store)
+
+	coordinator.Initialize(context.Background())
+	status := coordinator.Status()
+	if status.State != protocol.StateActive || status.System == nil || *status.System != atari2600 || status.ExpectedCore == nil || *status.ExpectedCore != observed || status.LastError != nil {
+		t.Fatalf("status = %#v", status)
+	}
+}
+
 func TestInitializeReconcilesInterruptedLaunchWhenObservedCoreSelectsOneSide(t *testing.T) {
 	t.Parallel()
 

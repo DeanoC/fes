@@ -21,13 +21,18 @@ const (
 const CoverProviderIGDB = "igdb"
 
 type CoreSpec struct {
-	ExpectedCore string
-	RBF          string
-	KitROMRoot   string
-	MGLRoot      string
-	FileDelay    int
-	FileType     string
-	FileIndex    int
+	ExpectedCore         string
+	ObservedFallback     bool
+	RequiresLaunchIntent bool
+	RBF                  string
+	KitROMRoot           string
+	MGLRoot              string
+	// RequiredFiles are resolved relative to MGLRoot, which remains stable
+	// when cached launches replace KitROMRoot with the cache directory.
+	RequiredFiles []string
+	FileDelay     int
+	FileType      string
+	FileIndex     int
 }
 
 type CoverSpec struct {
@@ -68,10 +73,15 @@ var table = []Row{
 	{
 		FolderAlias: "gb", PlatformID: protocol.SystemGameBoy, LaunchSystem: protocol.SystemGameBoy, Label: "Game Boy",
 		Extensions: []string{".gb"}, Capability: CapabilityFPGANative,
-		Core:       &CoreSpec{ExpectedCore: "GAMEBOY", RBF: "_Console/Gameboy", KitROMRoot: "/media/fat/games/Gameboy", MGLRoot: "/media/fat/games/Gameboy", FileDelay: 2, FileType: "f", FileIndex: 1},
+		Core:       &CoreSpec{ExpectedCore: "GAMEBOY", ObservedFallback: true, RBF: "_Console/Gameboy", KitROMRoot: "/media/fat/games/Gameboy", MGLRoot: "/media/fat/games/Gameboy", FileDelay: 2, FileType: "f", FileIndex: 1},
 		CoverSlugs: map[string]CoverSpec{CoverProviderIGDB: {Slug: "gb", Name: "Game Boy"}},
 	},
-	{PlatformID: "gbc", Label: "Game Boy Color", Extensions: []string{".gbc"}, Capability: CapabilityCatalog},
+	{
+		FolderAlias: "Game Boy Color", PlatformID: protocol.SystemGameBoyColor, LaunchSystem: protocol.SystemGameBoyColor, Label: "Game Boy Color",
+		Extensions: []string{".gbc"}, Capability: CapabilityFPGANative,
+		Core:       &CoreSpec{ExpectedCore: "GAMEBOY", RBF: "_Console/Gameboy", KitROMRoot: "/media/fat/games/Gameboy", MGLRoot: "/media/fat/games/Gameboy", FileDelay: 2, FileType: "f", FileIndex: 1},
+		CoverSlugs: map[string]CoverSpec{CoverProviderIGDB: {Slug: "gbc", Name: "Game Boy Color"}},
+	},
 	{
 		FolderAlias: "gba", PlatformID: protocol.SystemGBA, LaunchSystem: protocol.SystemGBA, Label: "Game Boy Advance",
 		Extensions: []string{".gba"}, Capability: CapabilityFPGANative,
@@ -83,7 +93,7 @@ var table = []Row{
 	{
 		FolderAlias: "SMS", PlatformID: protocol.SystemSMS, LaunchSystem: protocol.SystemSMS, Label: "Master System",
 		Extensions: []string{".sms"}, Capability: CapabilityFPGANative,
-		Core:       &CoreSpec{ExpectedCore: "SMS", RBF: "_Console/SMS", KitROMRoot: "/media/fat/games/SMS", MGLRoot: "/media/fat/games/SMS", FileDelay: 1, FileType: "f", FileIndex: 1},
+		Core:       &CoreSpec{ExpectedCore: "SMS", ObservedFallback: true, RBF: "_Console/SMS", KitROMRoot: "/media/fat/games/SMS", MGLRoot: "/media/fat/games/SMS", FileDelay: 1, FileType: "f", FileIndex: 1},
 		CoverSlugs: map[string]CoverSpec{CoverProviderIGDB: {Slug: "sms", Name: "Sega Master System/Mark III"}},
 	},
 	{
@@ -104,8 +114,24 @@ var table = []Row{
 	{PlatformID: "psp", Label: "PSP", Extensions: []string{".iso", ".cso", ".pbp"}, Capability: CapabilityCatalog},
 	{PlatformID: "nds", Label: "Nintendo DS", Extensions: []string{".nds"}, Capability: CapabilityCatalog},
 	{PlatformID: "arcade", Label: "Arcade", Extensions: []string{".zip"}, Capability: CapabilityCatalog},
-	{PlatformID: "a2600", Label: "Atari 2600", Extensions: []string{".a26", ".bin"}, Capability: CapabilityCatalog},
-	{PlatformID: "lynx", Label: "Lynx", Extensions: []string{".lnx"}, Capability: CapabilityCatalog},
+	{
+		FolderAlias: "Atari2600", PlatformID: protocol.SystemAtari2600, LaunchSystem: protocol.SystemAtari2600, Label: "Atari 2600",
+		Extensions: []string{".a26", ".bin"}, Capability: CapabilityFPGANative,
+		Core:       &CoreSpec{ExpectedCore: "ATARI7800", RequiresLaunchIntent: true, RBF: "_Console/Atari7800", KitROMRoot: "/media/fat/games/Atari2600", MGLRoot: "/media/fat/games/ATARI7800", FileDelay: 1, FileType: "f", FileIndex: 1},
+		CoverSlugs: map[string]CoverSpec{CoverProviderIGDB: {Slug: "atari2600", Name: "Atari 2600"}},
+	},
+	{
+		FolderAlias: "ColecoVision", PlatformID: protocol.SystemColecoVision, LaunchSystem: protocol.SystemColecoVision, Label: "ColecoVision",
+		Extensions: []string{".col", ".bin", ".rom"}, Capability: CapabilityFPGANative,
+		Core:       &CoreSpec{ExpectedCore: "Coleco", RBF: "_Console/ColecoVision", KitROMRoot: "/media/fat/games/Coleco", MGLRoot: "/media/fat/games/Coleco", FileDelay: 1, FileType: "f", FileIndex: 0},
+		CoverSlugs: map[string]CoverSpec{CoverProviderIGDB: {Slug: "colecovision", Name: "ColecoVision"}},
+	},
+	{
+		FolderAlias: "AtariLynx", PlatformID: protocol.SystemAtariLynx, LaunchSystem: protocol.SystemAtariLynx, Label: "Atari Lynx",
+		Extensions: []string{".lnx", ".lyx"}, Capability: CapabilityFPGANative,
+		Core:       &CoreSpec{ExpectedCore: "AtariLynx", RBF: "_Console/AtariLynx", KitROMRoot: "/media/fat/games/AtariLynx", MGLRoot: "/media/fat/games/AtariLynx", RequiredFiles: []string{"boot.rom"}, FileDelay: 1, FileType: "f", FileIndex: 0},
+		CoverSlugs: map[string]CoverSpec{CoverProviderIGDB: {Slug: "lynx", Name: "Atari Lynx"}},
+	},
 	{PlatformID: "ngp", Label: "Neo Geo Pocket", Extensions: []string{".ngp", ".ngc"}, Capability: CapabilityCatalog},
 	{PlatformID: "ws", Label: "WonderSwan", Extensions: []string{".ws", ".wsc"}, Capability: CapabilityCatalog},
 }
@@ -145,6 +171,7 @@ func cloneRow(row Row) Row {
 	copy.Extensions = append([]string(nil), row.Extensions...)
 	if row.Core != nil {
 		core := *row.Core
+		core.RequiredFiles = append([]string(nil), row.Core.RequiredFiles...)
 		copy.Core = &core
 	}
 	copy.CoverSlugs = make(map[string]CoverSpec, len(row.CoverSlugs))

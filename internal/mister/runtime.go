@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -40,7 +41,27 @@ func NewRuntime(paths Paths, registry core.Registry, writer CommandWriter, proce
 }
 
 func (r *Runtime) Prepare(spec core.Spec, romPath string) (PreparedLaunch, *protocol.APIError) {
+	if !r.prerequisitesReady(spec) {
+		return PreparedLaunch{}, &protocol.APIError{Code: protocol.CodeUnsupportedSystem, Message: "system prerequisite is unavailable"}
+	}
 	return PrepareLaunch(spec, romPath)
+}
+
+func (r *Runtime) prerequisitesReady(spec core.Spec) bool {
+	if len(spec.RequiredFiles) == 0 {
+		return true
+	}
+	for _, prerequisite := range spec.RequiredFiles {
+		cleaned := filepath.Clean(filepath.FromSlash(prerequisite))
+		if filepath.IsAbs(cleaned) || cleaned == "." || cleaned == ".." || strings.HasPrefix(cleaned, ".."+string(os.PathSeparator)) {
+			return false
+		}
+		info, err := os.Stat(filepath.Join(spec.MGLRoot, cleaned))
+		if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
+			return false
+		}
+	}
+	return true
 }
 
 type FileCommandWriter struct {

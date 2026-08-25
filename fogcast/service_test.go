@@ -1540,6 +1540,15 @@ func TestServiceCatalogAndV1ControlDelegation(t *testing.T) {
 	if store.searchQuery != "synthetic" {
 		t.Fatalf("search query = %q", store.searchQuery)
 	}
+	if got, err := service.QueryGames(ctx, catalog.Query{}); err != nil || !reflect.DeepEqual(got.Games, []catalog.Game{game}) {
+		t.Fatalf("QueryGames = %+v, %v", got, err)
+	}
+	if got, err := service.Platforms(ctx); err != nil || len(got) != 0 {
+		t.Fatalf("Platforms = %+v, %v", got, err)
+	}
+	if client.healthCalls != 0 {
+		t.Fatalf("catalog reads contacted target health %d times", client.healthCalls)
+	}
 	if got, err := service.Health(ctx); err != nil || got != health {
 		t.Fatalf("Health = %+v, %v", got, err)
 	}

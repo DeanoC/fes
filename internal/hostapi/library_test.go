@@ -50,17 +50,17 @@ func TestGamesListDoesNotLookupMetadataAndKeepsIdentityFields(t *testing.T) {
 	}
 }
 
-func TestGamesListMarksCatalogOnlyPlatformBrowseOnly(t *testing.T) {
+func TestGamesListMarksPromotedGBCPlatformLaunchable(t *testing.T) {
 	service := &fakeService{games: []catalog.Game{{
-		ID: "gbc-zelda-test", Title: "Zelda", System: "gbc",
+		ID: "gbc-zelda-test", Title: "Zelda", System: protocol.SystemGameBoyColor,
 		Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
 	}}}
 	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games")
 	if response.Code != http.StatusOK {
 		t.Fatal(response.Body.String())
 	}
-	if !strings.Contains(response.Body.String(), `"launchable":false`) {
-		t.Fatalf("browse-only launchable missing: %s", response.Body.String())
+	if !strings.Contains(response.Body.String(), `"launchable":true`) {
+		t.Fatalf("GBC launchable flag missing: %s", response.Body.String())
 	}
 }
 

@@ -8,15 +8,19 @@ import (
 )
 
 type Spec struct {
-	System       protocol.System
-	ExpectedCore string
-	RBFSelector  string
-	ROMRoot      string
-	MGLRoot      string
-	Extensions   map[string]struct{}
-	FileDelay    int
-	FileType     string
-	FileIndex    int
+	System               protocol.System
+	ExpectedCore         string
+	ObservedFallback     bool
+	RequiresLaunchIntent bool
+	RBFSelector          string
+	ROMRoot              string
+	MGLRoot              string
+	// RequiredFiles are resolved relative to MGLRoot.
+	RequiredFiles []string
+	Extensions    map[string]struct{}
+	FileDelay     int
+	FileType      string
+	FileIndex     int
 }
 
 func extensionSet(values ...string) map[string]struct{} {
@@ -40,8 +44,10 @@ func DefaultRegistry() Registry {
 			continue
 		}
 		specs = append(specs, Spec{
-			System: row.LaunchSystem, ExpectedCore: row.Core.ExpectedCore, RBFSelector: row.Core.RBF,
-			ROMRoot: row.Core.KitROMRoot, MGLRoot: row.Core.MGLRoot, Extensions: extensionSet(row.Extensions...),
+			System: row.LaunchSystem, ExpectedCore: row.Core.ExpectedCore, ObservedFallback: row.Core.ObservedFallback,
+			RequiresLaunchIntent: row.Core.RequiresLaunchIntent, RBFSelector: row.Core.RBF,
+			ROMRoot: row.Core.KitROMRoot, MGLRoot: row.Core.MGLRoot,
+			RequiredFiles: append([]string(nil), row.Core.RequiredFiles...), Extensions: extensionSet(row.Extensions...),
 			FileDelay: row.Core.FileDelay, FileType: row.Core.FileType, FileIndex: row.Core.FileIndex,
 		})
 	}
@@ -63,14 +69,9 @@ func NewRegistry(specs ...Spec) Registry {
 				result.observedCandidates[spec.ExpectedCore] = candidates
 			}
 			candidates[spec.System] = struct{}{}
-			if len(candidates) == 1 {
+			if (len(candidates) == 1 && !spec.RequiresLaunchIntent) || spec.ObservedFallback {
 				result.byObserved[spec.ExpectedCore] = spec.System
-			} else if _, sms := candidates[protocol.SystemSMS]; sms {
-				// SMS and Game Gear intentionally share the MiSTer core name.
-				// Keep SMS as the explicit no-intent fallback; Coordinator uses
-				// the validated pending launch system to select Game Gear.
-				result.byObserved[spec.ExpectedCore] = protocol.SystemSMS
-			} else {
+			} else if fallback, ok := result.byObserved[spec.ExpectedCore]; !ok || !result.bySystem[fallback].ObservedFallback {
 				delete(result.byObserved, spec.ExpectedCore)
 			}
 		}
@@ -104,7 +105,7 @@ func (r Registry) LookupObserved(name string) (Spec, bool) {
 
 // LookupObservedForSystem resolves name only when it is the expected core for
 // the requested system. It is used when durable launch intent disambiguates a
-// shared observed core name such as SMS.
+// shared observed core name such as SMS or GAMEBOY.
 func (r Registry) LookupObservedForSystem(name string, system protocol.System) (Spec, bool) {
 	spec, ok := r.Lookup(system)
 	if !ok || spec.ExpectedCore != name {
@@ -114,8 +115,8 @@ func (r Registry) LookupObservedForSystem(name string, system protocol.System) (
 }
 
 // RecognizesObserved reports whether name belongs to any registered core.
-// It deliberately does not require a unique system mapping; SMS is shared by
-// Master System and Game Gear and is resolved by launch intent when available.
+// It deliberately does not require a unique system mapping; shared cores are
+// resolved by launch intent when available.
 func (r Registry) RecognizesObserved(name string) bool {
 	_, ok := r.observedCandidates[name]
 	return ok
@@ -123,6 +124,7 @@ func (r Registry) RecognizesObserved(name string) bool {
 
 func cloneSpec(spec Spec) Spec {
 	copy := spec
+	copy.RequiredFiles = append([]string(nil), spec.RequiredFiles...)
 	copy.Extensions = make(map[string]struct{}, len(spec.Extensions))
 	for extension := range spec.Extensions {
 		copy.Extensions[extension] = struct{}{}

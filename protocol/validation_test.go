@@ -31,13 +31,14 @@ func TestValidateSystem(t *testing.T) {
 	t.Parallel()
 	for _, system := range []protocol.System{
 		protocol.SystemMegaDrive, protocol.SystemSNES, protocol.SystemNES, protocol.SystemSMS,
-		protocol.SystemGameBoy, protocol.SystemGBA, protocol.SystemPCE, protocol.SystemGameGear,
+		protocol.SystemGameBoy, protocol.SystemGameBoyColor, protocol.SystemGBA, protocol.SystemPCE,
+		protocol.SystemGameGear, protocol.SystemAtari2600, protocol.SystemColecoVision, protocol.SystemAtariLynx,
 	} {
 		if err := protocol.ValidateSystem(system); err != nil {
 			t.Fatalf("ValidateSystem(%q): %v", system, err)
 		}
 	}
-	for _, system := range []protocol.System{"gbc", "mystery"} {
+	for _, system := range []protocol.System{"mystery", "n64"} {
 		if err := protocol.ValidateSystem(system); err == nil {
 			t.Fatalf("ValidateSystem(%q) succeeded", system)
 		}

@@ -158,6 +158,42 @@ func TestRuntimeHealthRequiresProcessAndPipe(t *testing.T) {
 	}
 }
 
+func TestRuntimePrepareRequiresNonEmptyLynxBootROM(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	registry := core.DefaultRegistry()
+	spec, ok := registry.Lookup(protocol.SystemAtariLynx)
+	if !ok {
+		t.Fatal("Lynx core spec is missing")
+	}
+	romRoot := filepath.Join(dir, "cache")
+	dataRoot := filepath.Join(dir, "games", "AtariLynx")
+	if err := os.MkdirAll(romRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(dataRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	rom := filepath.Join(romRoot, "test.lnx")
+	if err := os.WriteFile(rom, []byte("rom"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	spec.ROMRoot = romRoot
+	spec.MGLRoot = dataRoot
+	runtime := mister.NewRuntime(mister.Paths{MenuRBF: filepath.Join(dir, "opt", "fogcast", "menu.rbf")}, registry, &fakeWriter{}, fixedProcess(true), time.Millisecond)
+
+	if _, apiErr := runtime.Prepare(spec, rom); apiErr == nil || apiErr.Code != protocol.CodeUnsupportedSystem {
+		t.Fatalf("Prepare without boot.rom error = %#v", apiErr)
+	}
+	bootROM := filepath.Join(dataRoot, "boot.rom")
+	if err := os.WriteFile(bootROM, []byte("boot"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, apiErr := runtime.Prepare(spec, rom); apiErr != nil {
+		t.Fatalf("Prepare with boot.rom: %v", apiErr)
+	}
+}
+
 func TestReconcileCoreNames(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

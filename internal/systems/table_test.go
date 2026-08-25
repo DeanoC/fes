@@ -62,18 +62,26 @@ func TestTableInvariants(t *testing.T) {
 		default:
 			t.Fatalf("invalid capability %q", row.Capability)
 		}
+		if row.Core != nil {
+			for _, prerequisite := range row.Core.RequiredFiles {
+				if path.IsAbs(prerequisite) || path.Clean(prerequisite) != prerequisite || prerequisite == "." || prerequisite == ".." || strings.HasPrefix(prerequisite, "../") {
+					t.Fatalf("invalid target prerequisite %q for %q", prerequisite, row.PlatformID)
+				}
+			}
+		}
 		for provider, cover := range row.CoverSlugs {
 			if strings.TrimSpace(provider) == "" || strings.TrimSpace(cover.Slug) == "" || strings.TrimSpace(cover.Name) == "" {
 				t.Fatalf("invalid cover mapping for %q: %q %#v", row.PlatformID, provider, cover)
 			}
 		}
 	}
-	if fpga != 8 {
-		t.Fatalf("FPGA rows = %d, want 8", fpga)
+	if fpga != 12 {
+		t.Fatalf("FPGA rows = %d, want 12", fpga)
 	}
 	for _, system := range []protocol.System{
 		protocol.SystemMegaDrive, protocol.SystemSNES, protocol.SystemNES, protocol.SystemSMS,
-		protocol.SystemGameBoy, protocol.SystemGBA, protocol.SystemPCE, protocol.SystemGameGear,
+		protocol.SystemGameBoy, protocol.SystemGameBoyColor, protocol.SystemGBA, protocol.SystemPCE,
+		protocol.SystemGameGear, protocol.SystemAtari2600, protocol.SystemColecoVision, protocol.SystemAtariLynx,
 	} {
 		if !Mapped(system) {
 			t.Fatalf("folder mapping missing for %q", system)
@@ -118,6 +126,10 @@ func TestSMBFolderUsesMappedAlias(t *testing.T) {
 		{protocol.SystemGBA, "gba"},
 		{protocol.SystemPCE, "pce"},
 		{protocol.SystemGameGear, "gg"},
+		{protocol.SystemGameBoyColor, "Game Boy Color"},
+		{protocol.SystemAtari2600, "Atari2600"},
+		{protocol.SystemColecoVision, "ColecoVision"},
+		{protocol.SystemAtariLynx, "AtariLynx"},
 	} {
 		folder, ok := SMBFolder(DefaultSMBShareRoot, test.system)
 		want := DefaultSMBShareRoot + "/" + test.alias
@@ -142,6 +154,10 @@ func TestFPGAExtensionAndCoverRows(t *testing.T) {
 		{protocol.SystemGBA, "gba", []string{".gba"}, "GBA", "_Console/GBA", "/media/fat/games/GBA", "/media/fat/games/GBA", 2, 0, "gba", "Game Boy Advance"},
 		{protocol.SystemPCE, "pce", []string{".pce"}, "TGFX16", "_Console/TurboGrafx16", "/media/fat/games/TGFX16", "/media/fat/games/TGFX16", 1, 0, "turbografx16--1", "TurboGrafx-16/PC Engine"},
 		{protocol.SystemGameGear, "gg", []string{".gg"}, "SMS", "_Console/SMS", "/media/fat/games/SMS", "/media/fat/games/SMS", 1, 2, "game-gear", "Sega Game Gear"},
+		{protocol.SystemGameBoyColor, "Game Boy Color", []string{".gbc"}, "GAMEBOY", "_Console/Gameboy", "/media/fat/games/Gameboy", "/media/fat/games/Gameboy", 2, 1, "gbc", "Game Boy Color"},
+		{protocol.SystemAtari2600, "Atari2600", []string{".a26", ".bin"}, "ATARI7800", "_Console/Atari7800", "/media/fat/games/Atari2600", "/media/fat/games/ATARI7800", 1, 1, "atari2600", "Atari 2600"},
+		{protocol.SystemColecoVision, "ColecoVision", []string{".col", ".bin", ".rom"}, "Coleco", "_Console/ColecoVision", "/media/fat/games/Coleco", "/media/fat/games/Coleco", 1, 0, "colecovision", "ColecoVision"},
+		{protocol.SystemAtariLynx, "AtariLynx", []string{".lnx", ".lyx"}, "AtariLynx", "_Console/AtariLynx", "/media/fat/games/AtariLynx", "/media/fat/games/AtariLynx", 1, 0, "lynx", "Atari Lynx"},
 	} {
 		row, ok := Lookup(test.system)
 		if !ok || row.Capability != CapabilityFPGANative || row.FolderAlias != test.alias || row.LaunchSystem != test.system {
@@ -157,5 +173,9 @@ func TestFPGAExtensionAndCoverRows(t *testing.T) {
 		if cover.Slug != test.slug || cover.Name != test.name {
 			t.Fatalf("cover for %q = %#v", test.system, cover)
 		}
+	}
+	lynx, ok := Lookup(protocol.SystemAtariLynx)
+	if !ok || lynx.Core == nil || len(lynx.Core.RequiredFiles) != 1 || lynx.Core.RequiredFiles[0] != "boot.rom" {
+		t.Fatalf("Lynx prerequisites = %#v, %v", lynx.Core, ok)
 	}
 }

@@ -30,6 +30,10 @@ func TestRegistry(t *testing.T) {
 		{protocol.SystemGBA, ".gba", "GBA", "_Console/GBA", "/media/fat/games/GBA", "/media/fat/games/GBA", 2, 0},
 		{protocol.SystemPCE, ".pce", "TGFX16", "_Console/TurboGrafx16", "/media/fat/games/TGFX16", "/media/fat/games/TGFX16", 1, 0},
 		{protocol.SystemGameGear, ".gg", "SMS", "_Console/SMS", "/media/fat/games/SMS", "/media/fat/games/SMS", 1, 2},
+		{protocol.SystemGameBoyColor, ".gbc", "GAMEBOY", "_Console/Gameboy", "/media/fat/games/Gameboy", "/media/fat/games/Gameboy", 2, 1},
+		{protocol.SystemAtari2600, ".a26", "ATARI7800", "_Console/Atari7800", "/media/fat/games/Atari2600", "/media/fat/games/ATARI7800", 1, 1},
+		{protocol.SystemColecoVision, ".col", "Coleco", "_Console/ColecoVision", "/media/fat/games/Coleco", "/media/fat/games/Coleco", 1, 0},
+		{protocol.SystemAtariLynx, ".lnx", "AtariLynx", "_Console/AtariLynx", "/media/fat/games/AtariLynx", "/media/fat/games/AtariLynx", 1, 0},
 	} {
 		spec, ok := registry.Lookup(test.system)
 		if !ok || spec.System != test.system || spec.ExpectedCore != test.core || spec.RBFSelector != test.rbf || spec.ROMRoot != test.romRoot || spec.MGLRoot != test.mglRoot || spec.FileDelay != test.delay || spec.FileType != "f" || spec.FileIndex != test.index {
@@ -39,8 +43,13 @@ func TestRegistry(t *testing.T) {
 			t.Fatalf("%s extensions = %#v, missing %s", test.system, spec.Extensions, test.extension)
 		}
 	}
-	if _, ok := registry.Lookup("gbc"); ok {
-		t.Fatal("unexpected catalog-only GBC registry entry")
+	lynx, ok := registry.Lookup(protocol.SystemAtariLynx)
+	if !ok || len(lynx.RequiredFiles) != 1 || lynx.RequiredFiles[0] != "boot.rom" {
+		t.Fatalf("Lynx registry prerequisites = %#v, %v", lynx.RequiredFiles, ok)
+	}
+	a2600, ok := registry.Lookup(protocol.SystemAtari2600)
+	if !ok || !a2600.RequiresLaunchIntent {
+		t.Fatalf("Atari 2600 intent requirement = %#v, %v", a2600, ok)
 	}
 }
 
@@ -68,6 +77,22 @@ func TestLookupObserved(t *testing.T) {
 		spec, ok := registry.LookupObservedForSystem("SMS", system)
 		if !ok || spec.System != system || spec.ExpectedCore != "SMS" {
 			t.Fatalf("LookupObservedForSystem(SMS, %s) = %#v, %v", system, spec, ok)
+		}
+	}
+	gameBoy, ok := registry.LookupObserved("GAMEBOY")
+	if !ok || gameBoy.System != protocol.SystemGameBoy {
+		t.Fatalf("LookupObserved(GAMEBOY) = %#v, %v; canonical GB fallback must remain available without launch intent", gameBoy, ok)
+	}
+	if _, ok := registry.LookupObserved("ATARI7800"); ok {
+		t.Fatal("ATARI7800 must require launch intent")
+	}
+	if spec, ok := registry.LookupObservedForSystem("ATARI7800", protocol.SystemAtari2600); !ok || spec.System != protocol.SystemAtari2600 {
+		t.Fatalf("ATARI7800 intent lookup = %#v, %v", spec, ok)
+	}
+	for _, system := range []protocol.System{protocol.SystemGameBoy, protocol.SystemGameBoyColor} {
+		spec, ok := registry.LookupObservedForSystem("GAMEBOY", system)
+		if !ok || spec.System != system || spec.ExpectedCore != "GAMEBOY" {
+			t.Fatalf("LookupObservedForSystem(GAMEBOY, %s) = %#v, %v", system, spec, ok)
 		}
 	}
 	if _, ok := registry.LookupObservedForSystem("SMS", protocol.SystemSNES); ok {
@@ -104,6 +129,19 @@ func TestLookupObservedDoesNotFirstWinArbitraryDuplicate(t *testing.T) {
 	}
 	if !registry.RecognizesObserved("SHARED") {
 		t.Fatal("RecognizesObserved(SHARED) = false")
+	}
+}
+
+func TestLookupObservedUsesDeclaredFallbackRegardlessOfSpecOrder(t *testing.T) {
+	t.Parallel()
+	preferred := core.Spec{System: protocol.SystemGameBoy, ExpectedCore: "GAMEBOY", ObservedFallback: true}
+	alternate := core.Spec{System: protocol.SystemGameBoyColor, ExpectedCore: "GAMEBOY"}
+	for _, specs := range [][]core.Spec{{preferred, alternate}, {alternate, preferred}} {
+		registry := core.NewRegistry(specs...)
+		spec, ok := registry.LookupObserved("GAMEBOY")
+		if !ok || spec.System != protocol.SystemGameBoy {
+			t.Fatalf("LookupObserved(GAMEBOY) = %#v, %v", spec, ok)
+		}
 	}
 }
 

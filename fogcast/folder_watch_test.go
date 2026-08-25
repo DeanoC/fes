@@ -21,10 +21,13 @@ func TestFolderWatchRootsIncludeEveryMappedConfiguredRoot(t *testing.T) {
 	firstMega := catalog.Root{ID: "genesis-first", System: protocol.SystemMegaDrive, Path: "/games/Genesis"}
 	secondMega := catalog.Root{ID: "genesis-second", System: protocol.SystemMegaDrive, Path: "/other/Genesis"}
 	gba := catalog.Root{ID: "gba-main", System: protocol.SystemGBA, Path: "/games/GBA"}
-	gbc := catalog.Root{ID: "gbc-main", System: "gbc", Path: "/games/GBC"}
+	gbc := catalog.Root{ID: "gbc-main", System: protocol.SystemGameBoyColor, Path: "/games/GBC"}
+	atari2600 := catalog.Root{ID: "a2600-main", System: protocol.SystemAtari2600, Path: "/games/Atari2600"}
+	coleco := catalog.Root{ID: "coleco-main", System: protocol.SystemColecoVision, Path: "/games/ColecoVision"}
+	lynx := catalog.Root{ID: "lynx-main", System: protocol.SystemAtariLynx, Path: "/games/AtariLynx"}
 
-	got := FolderWatchRoots([]catalog.Root{snes, firstMega, gba, gbc, secondMega})
-	want := []catalog.Root{snes, firstMega, gba, secondMega}
+	got := FolderWatchRoots([]catalog.Root{snes, firstMega, gba, gbc, atari2600, coleco, lynx, secondMega})
+	want := []catalog.Root{snes, firstMega, gba, gbc, atari2600, coleco, lynx, secondMega}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("watch roots = %#v, want %#v", got, want)
 	}
@@ -769,6 +772,10 @@ func TestServiceReconcileNewFPGAFolderWatchUsesKitCacheMissThenHit(t *testing.T)
 		{name: "GBA", file: "Mario.gba", rootID: "gba-main", core: "GBA", system: protocol.SystemGBA},
 		{name: "PC Engine", file: "Bonk.pce", rootID: "pce-main", core: "TGFX16", system: protocol.SystemPCE},
 		{name: "Game Gear", file: "Sonic.gg", rootID: "gg-main", core: "SMS", system: protocol.SystemGameGear},
+		{name: "Game Boy Color", file: "Zelda.gbc", rootID: "gbc-main", core: "GAMEBOY", system: protocol.SystemGameBoyColor},
+		{name: "Atari 2600", file: "Adventure.a26", rootID: "a2600-main", core: "ATARI7800", system: protocol.SystemAtari2600},
+		{name: "ColecoVision", file: "Zaxxon.col", rootID: "coleco-main", core: "Coleco", system: protocol.SystemColecoVision},
+		{name: "Atari Lynx", file: "Chip.lnx", rootID: "lynx-main", core: "AtariLynx", system: protocol.SystemAtariLynx},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
