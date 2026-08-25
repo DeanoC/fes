@@ -525,8 +525,12 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
           const hero = detail && detail.querySelector('.detail-hero');
           const backdrop = detail && detail.querySelector('.backdrop-art');
           const card = document.querySelector('#catalog-list .game-card.selected');
+          const heroCover = hero && hero.querySelector('img.cover-art');
+          const cardCover = card && card.querySelector('img.cover-art');
           const panelBox = panel ? panel.getBoundingClientRect() : null;
           const backBox = backdrop ? backdrop.getBoundingClientRect() : null;
+          const cardBox = card ? card.getBoundingClientRect() : null;
+          const cardCoverBox = cardCover ? cardCover.getBoundingClientRect() : null;
           return {
             backdrop: detail && detail.children[0] ? detail.children[0].className : '',
             hero: hero ? hero.className : '',
@@ -538,6 +542,11 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
             leftDelta: panelBox && backBox ? Math.abs(backBox.left - panelBox.left) : 99,
             widthDelta: detail && backBox ? Math.abs(backBox.width - detail.clientWidth) : 99,
             overflowX: detail ? detail.scrollWidth - detail.clientWidth : 99,
+            heroCoverFit: heroCover ? getComputedStyle(heroCover).objectFit : '',
+            cardCoverFit: cardCover ? getComputedStyle(cardCover).objectFit : '',
+            cardCoverPosition: cardCover ? getComputedStyle(cardCover).objectPosition : '',
+            cardCoverWidthDelta: cardBox && cardCoverBox ? Math.abs(cardCoverBox.width - cardBox.width) : 99,
+            cardCoverHeightDelta: cardBox && cardCoverBox ? Math.abs(cardCoverBox.height - cardBox.height) : 99,
           };
         })()`);
         assert.match(layout.backdrop, /backdrop-art/);
@@ -550,6 +559,13 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         assert.ok(layout.leftDelta <= 2, JSON.stringify(layout));
         assert.ok(layout.widthDelta <= 2, JSON.stringify(layout));
         assert.ok(layout.overflowX <= 1, JSON.stringify(layout));
+        assert.equal(layout.heroCoverFit, 'contain');
+        assert.equal(layout.cardCoverFit, 'contain');
+        assert.equal(layout.cardCoverPosition, '50% 50%');
+        // The image fills the card's inner box; the 4px delta is the card's
+        // two 2px borders rather than artwork overflow.
+        assert.ok(layout.cardCoverWidthDelta <= 4.1, JSON.stringify(layout));
+        assert.ok(layout.cardCoverHeightDelta <= 4.1, JSON.stringify(layout));
       });
 
       await runScenario(harness, 'rich-detail-inset-media', basePlan({

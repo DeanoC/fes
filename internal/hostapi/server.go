@@ -356,7 +356,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 			writeJSON(w, http.StatusOK, overlayPresentation(r.Context(), service, game, presentationResult{GameID: game.ID, State: string(metadata.StateUnconfigured)}))
 			return
 		}
-		result, err := config.metadata.Lookup(r.Context(), metadata.LookupInput{Title: game.Title, System: game.System})
+		result, err := lookupGameMetadata(r.Context(), config.metadata, game)
 		if err != nil {
 			writeJSON(w, http.StatusOK, overlayPresentation(r.Context(), service, game, presentationResult{GameID: game.ID, State: "offline"}))
 			return
@@ -635,12 +635,45 @@ func publicGame(game catalog.Game) gameResult {
 	return result
 }
 
+func metadataLookupTitles(game catalog.Game) []string {
+	title := strings.TrimSpace(game.Title)
+	canonical := strings.TrimSpace(game.CanonicalTitle)
+	if canonical == "" {
+		canonical = strings.TrimSpace(catalog.ParseDump(title).CanonicalTitle)
+	}
+	if canonical != "" {
+		normalizedCanonical, canonicalErr := metadata.NormalizeTitle(canonical)
+		decoratedTitle, decoratedErr := metadata.DecoratedTitle(title)
+		if canonicalErr == nil && decoratedErr == nil && decoratedTitle != normalizedCanonical {
+			return []string{title, canonical}
+		}
+		return []string{canonical}
+	}
+	return []string{game.Title}
+}
+
+func lookupGameMetadata(ctx context.Context, runtime metadata.Runtime, game catalog.Game) (metadata.Result, error) {
+	var fallback metadata.Result
+	titles := metadataLookupTitles(game)
+	for index, title := range titles {
+		result, err := runtime.Lookup(ctx, metadata.LookupInput{Title: title, System: game.System})
+		if err != nil {
+			return metadata.Result{}, err
+		}
+		if result.Outcome != metadata.OutcomeNoMatch || index == len(titles)-1 {
+			return result, nil
+		}
+		fallback = result
+	}
+	return fallback, nil
+}
+
 func publicGameWithGenre(ctx context.Context, config serverOptions, game catalog.Game) gameResult {
 	result := publicGame(game)
 	if config.metadata == nil || config.metadataState != metadata.StateReady {
 		return result
 	}
-	lookup, err := config.metadata.Lookup(ctx, metadata.LookupInput{Title: game.Title, System: game.System})
+	lookup, err := lookupGameMetadata(ctx, config.metadata, game)
 	if err != nil || (lookup.Outcome != metadata.OutcomeExact && lookup.Outcome != metadata.OutcomeConfident) {
 		return result
 	}

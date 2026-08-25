@@ -2,9 +2,12 @@ package metadata
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -50,6 +53,105 @@ func TestLaunchBoxCatalogMatchesGenesisTitleAndIgnoresOtherPlatforms(t *testing.
 	unrelated, err := runtime.Lookup(context.Background(), LookupInput{Title: "Unrelated", System: protocol.SystemMegaDrive})
 	if err != nil || unrelated.Outcome != OutcomeNoMatch {
 		t.Fatalf("unrelated = %+v err=%v", unrelated, err)
+	}
+}
+
+func TestLaunchBoxCatalogCoversEveryFPGALaunchableSystem(t *testing.T) {
+	tests := []struct {
+		system   protocol.System
+		platform string
+	}{
+		{protocol.SystemSNES, "Super Nintendo Entertainment System"},
+		{protocol.SystemMegaDrive, "Sega Genesis"},
+		{protocol.SystemNES, "Nintendo Entertainment System"},
+		{protocol.SystemSMS, "Sega Master System"},
+		{protocol.SystemGameBoy, "Nintendo Game Boy"},
+		{protocol.SystemGBA, "Nintendo Game Boy Advance"},
+		{protocol.SystemPCE, "NEC TurboGrafx-16"},
+		{protocol.SystemGameGear, "Sega Game Gear"},
+		{protocol.SystemGameBoyColor, "Nintendo Game Boy Color"},
+		{protocol.SystemAtari2600, "Atari 2600"},
+		{protocol.SystemColecoVision, "ColecoVision"},
+		{protocol.SystemAtariLynx, "Atari Lynx"},
+	}
+	var xml strings.Builder
+	xml.WriteString(`<?xml version="1.0" standalone="yes"?><LaunchBox>`)
+	for index, test := range tests {
+		id := itoaYear(1000 + index)
+		xml.WriteString(`<Game><DatabaseID>` + id + `</DatabaseID><Name>Shared Title</Name><Platform>` + test.platform + `</Platform></Game>`)
+		xml.WriteString(`<GameImage><DatabaseID>` + id + `</DatabaseID><FileName>cover_` + id + `.jpg</FileName><Type>Box - Front</Type></GameImage>`)
+	}
+	xml.WriteString(`</LaunchBox>`)
+	catalog, err := LoadLaunchBoxCatalog(strings.NewReader(xml.String()))
+	if err != nil {
+		t.Fatalf("LoadLaunchBoxCatalog: %v", err)
+	}
+	runtime := NewLaunchBoxRuntime(catalog, nil)
+	t.Cleanup(func() { _ = runtime.Close() })
+	for _, test := range tests {
+		t.Run(string(test.system), func(t *testing.T) {
+			result, err := runtime.Lookup(context.Background(), LookupInput{Title: "Shared Title", System: test.system})
+			if err != nil || result.Outcome != OutcomeExact || result.Presentation.CoverArtworkID == "" {
+				t.Fatalf("Lookup = %+v err=%v", result, err)
+			}
+		})
+	}
+}
+
+func TestLaunchBoxCoverageArchive(t *testing.T) {
+	archive := os.Getenv("FOGCAST_LAUNCHBOX_COVERAGE_ARCHIVE")
+	if archive == "" {
+		t.Skip("FOGCAST_LAUNCHBOX_COVERAGE_ARCHIVE is not set")
+	}
+	file, err := os.Open(archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := hex.EncodeToString(hash.Sum(nil)), "fd57f8c83d5c5dea88668a5eeb06368dea9e0b115a011076d29bf9bcf3a5c151"; got != want {
+		t.Fatalf("archive SHA-256 = %s want %s", got, want)
+	}
+	runtimeValue, err := OpenLaunchBoxArchive(archive, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = runtimeValue.Close() })
+	runtime := runtimeValue.(*launchBoxCatalogRuntime)
+	want := map[protocol.System]struct{ candidates, covers int }{
+		protocol.SystemSNES:         {2946, 2713},
+		protocol.SystemMegaDrive:    {2094, 2072},
+		protocol.SystemNES:          {3789, 3276},
+		protocol.SystemSMS:          {551, 513},
+		protocol.SystemGameBoy:      {1597, 1476},
+		protocol.SystemGBA:          {2357, 2228},
+		protocol.SystemPCE:          {342, 331},
+		protocol.SystemGameGear:     {412, 399},
+		protocol.SystemGameBoyColor: {1552, 1401},
+		protocol.SystemAtari2600:    {1288, 1200},
+		protocol.SystemColecoVision: {493, 479},
+		protocol.SystemAtariLynx:    {162, 131},
+	}
+	if len(runtime.catalog.candidates) != len(want) {
+		t.Fatalf("mapped systems = %d want %d", len(runtime.catalog.candidates), len(want))
+	}
+	for system, counts := range want {
+		candidates := runtime.catalog.candidates[system]
+		covers := 0
+		for _, candidate := range candidates {
+			if len(candidate.Artwork) > 0 {
+				covers++
+			}
+		}
+		if len(candidates) != counts.candidates || covers != counts.covers {
+			t.Errorf("%s candidates/covers = %d/%d want %d/%d", system, len(candidates), covers, counts.candidates, counts.covers)
+		}
 	}
 }
 

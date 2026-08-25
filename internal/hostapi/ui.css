@@ -214,8 +214,7 @@ input { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding:
   margin: 0;
   border-radius: 0;
 }
-img.cover-art { width: 100%; object-fit: contain; object-position: center; background: transparent; }
-.game-card img.cover-art { object-fit: cover; }
+img.cover-art { display: block; width: 100%; object-fit: contain; object-position: center; background: rgba(8, 10, 14, .88); }
 .cover-art::before, .cover-art::after, .backdrop-art::before, .backdrop-art::after { position: absolute; content: ""; pointer-events: none; }
 .cover-art::before, .backdrop-art::before { inset: 12%; border: 2px solid rgba(255, 255, 255, .28); transform: rotate(-12deg); }
 .cover-art::after, .backdrop-art::after { width: 150%; height: 35%; right: -20%; bottom: 12%; background: rgba(255, 255, 255, .16); transform: rotate(-18deg); }
@@ -465,7 +464,6 @@ img.cover-art { width: 100%; object-fit: contain; object-position: center; backg
   border-radius: 8px;
   box-shadow: var(--shadow);
 }
-.detail-hero img.cover-art { object-fit: cover; }
 .detail-hero-copy { display: grid; gap: 8px; min-width: 0; padding-bottom: 2px; }
 .logo-art { max-width: 100%; max-height: 48px; object-fit: contain; background: transparent; }
 .marquee-art { display: block; width: 100%; max-height: 72px; object-fit: contain; border-radius: 8px; margin: 10px 0 0; }

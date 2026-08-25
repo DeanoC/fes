@@ -4,6 +4,49 @@ Date: 2026-08-11
 Status: Designed; independent Vega review pending
 Disposition: **CONDITIONAL-GO**
 
+## 2026-08-25 bounded FPGA-system coverage amendment
+
+The operator explicitly authorized host cover-art coverage for the twelve
+FPGA-launchable systems. Sol approved this bounded source-authority amendment:
+the LaunchBox protocol mapping is the closed table below, while all matching,
+attribution, storage, image validation, fallback, and release gates in this
+decision remain unchanged. `PlatformAlternateName` has no mapping authority;
+an unknown canonical platform name fails closed. FogCast never infers a
+platform identifier or artwork association.
+
+| Protocol system | Exact canonical `Platform.Name` | Candidates | Front covers |
+| --- | --- | ---: | ---: |
+| `snes` | `Super Nintendo Entertainment System` | 2,946 | 2,713 |
+| `megadrive` | `Sega Genesis` | 2,094 | 2,072 |
+| `nes` | `Nintendo Entertainment System` | 3,789 | 3,276 |
+| `sms` | `Sega Master System` | 551 | 513 |
+| `gb` | `Nintendo Game Boy` | 1,597 | 1,476 |
+| `gba` | `Nintendo Game Boy Advance` | 2,357 | 2,228 |
+| `pce` | `NEC TurboGrafx-16` | 342 | 331 |
+| `gg` | `Sega Game Gear` | 412 | 399 |
+| `gbc` | `Nintendo Game Boy Color` | 1,552 | 1,401 |
+| `a2600` | `Atari 2600` | 1,288 | 1,200 |
+| `coleco` | `ColecoVision` | 493 | 479 |
+| `lynx` | `Atari Lynx` | 162 | 131 |
+| **Total** |  | **17,583** | **16,219** |
+
+The counts are a machine observation on 2026-08-25 of the operator-supplied
+official LaunchBox `Metadata.zip`, whose `Metadata.xml` member is dated
+2026-08-16 08:00 and whose archive SHA-256 is
+`fd57f8c83d5c5dea88668a5eeb06368dea9e0b115a011076d29bf9bcf3a5c151`.
+The durable probe is `TestLaunchBoxCoverageArchive` in
+`internal/metadata/provider_launchbox_test.go`, run with Go 1.26.5 as:
+
+```sh
+FOGCAST_LAUNCHBOX_COVERAGE_ARCHIVE=/path/to/Metadata.zip \
+  go test ./internal/metadata -run TestLaunchBoxCoverageArchive -count=1 -v
+```
+
+The probe hashes the complete archive before parsing and asserts every count
+in the table. These observations and the implementation checks are
+**Software-tested** evidence only. They are not a live-provider policy or
+release validation, HIL observation, hardware claim, or Accepted evidence.
+
 This decision is the executable architecture and security contract for replacing
 the active IGDB/Twitch integration. It is subordinate to
 [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md),
@@ -225,8 +268,8 @@ credential, host, query, remote response, or local cache path.
 Matching is always constrained to the exact protocol system before title
 comparison:
 
-1. Map `protocol.SystemSNES` only to `Super Nintendo Entertainment System` and
-   `protocol.SystemMegaDrive` only to `Sega Genesis` for the current snapshot.
+1. Map a protocol system only through the closed twelve-row canonical
+   `Platform.Name` table in the 2026-08-25 amendment.
 2. Compare the normalized live catalog title to a provider canonical title.
 3. Compare accepted `GameAlternateName` values linked to that exact game and
    platform under the member-specific grammar below.
@@ -560,8 +603,9 @@ double-counted: only the `Platforms.xml` rows are authoritative. A duplicate
 key within either member, missing key, extra key, cross-member mismatch, or
 conflicting alternate link fails the generation. Non-name `Platform` leaf
 fields are explicitly ignored and do not participate in mirror equality.
-Protocol mapping still admits only the two exact canonical platform names; a
-platform alternate never changes protocol identity.
+Protocol mapping still admits only the twelve exact canonical platform names
+in the 2026-08-25 amendment; a platform alternate never changes protocol
+identity.
 
 Each `Game.DatabaseID` is unique and positive. Every `GameAlternateName` and
 `GameImage.DatabaseID` must reference exactly one parsed `Game`; forward links
@@ -633,7 +677,7 @@ may retain an unlisted XML field:
 | --- | ---: | --- |
 | `Game.DatabaseID`, `GameAlternateName.DatabaseID`, `GameImage.DatabaseID` | 19 / 19 | ASCII decimal `1..9223372036854775807`; no sign, zero value, or leading zero |
 | `Game.Name` | 1,024 / 256 | required and non-empty after trim |
-| `Game.Platform`, `Platform.Name`, `PlatformAlternateName.Name`, `PlatformAlternateName.Alternate` | 256 / 128 | required and non-empty; normalized index admits only the two exact mapped canonical platform values |
+| `Game.Platform`, `Platform.Name`, `PlatformAlternateName.Name`, `PlatformAlternateName.Alternate` | 256 / 128 | required and non-empty; normalized index admits only the closed twelve exact mapped canonical platform values |
 | `Game.Overview` | 65,536 / 16,384 | optional; trim only |
 | `Game.ReleaseYear` | 4 / 4 | optional; exactly four ASCII decimal digits when used |
 | raw `Game.Genres` | 4,096 / 1,024 | at most 64 semicolon-delimited entries; each trimmed entry at most 256 / 128; dedupe preserves order |
@@ -962,7 +1006,7 @@ and green focused plus full checks.
 | Archive | Compressed/member/uncompressed/count/path limits remain independent. Apply the exact inclusive 32:1 integer member rule to every entry before opening any member stream and before deciding that `Mame.xml` or `Files.xml` is ignored; checked totals receive the same aggregate rule. Accept exact `uncompressed == 32 * compressed`; reject max+1, nonempty/zero-compressed, checked-addition overflow, multiplication-overflow adversaries, float/rounding substitutes, and any ignored-member ratio failure. The retained `Metadata.zip` fixture at SHA-256 `627e9b0c55554ec232fc32ce50272b530dc5d30c7b179cbe09f7ec58b46925dd` must pass with `Mame.xml` exactly 46,241,047 / 1,462,912 and all other archive/schema gates intact. Duplicate, absolute, traversal, separator, symlink, special, encrypted, unknown-shape, truncated, trailing, and oversized entries are rejected before promotion. |
 | XML framing | Exercise `framedXMLReader` before `encoding/xml`: exact max/max+1 ordinary text for known ignored and unknown leaf fields, CDATA, comment, 256/257-byte declaration, 1,024/1,025-byte attribute, 64/65-byte names, 16,384/16,385-byte start tags, entities, malformed/unterminated boundaries, and adversarial alternating shapes under one-byte, delimiter-split, and 32 KiB input. Exercise framer-only depth 8/9, attributes 8/9 and aggregate 4,096/4,097. The 4,096 case uses otherwise valid `xml:space="preserve"` attributes on permitted leaves distributed within family/per-game caps and succeeds; the 4,097th attribute fails before its frame reaches the decoder. Instrument zero offending-frame bytes delivered to the decoder and a 131,084-byte frame-buffer high-water ceiling plus fixed scratch; caller-side post-`Token()` length checks alone fail acceptance. |
 | XML schema | Strict streaming parse; every accepted UTF-8 declaration-policy variant and exactly one initial declaration; every other processing instruction, DTD/directive/entity/network input, malformed UTF-8, duplicate IDs/keys, invalid references/numbers rejected. Root, top-level record, and ordinary leaf attributes are zero/one rejection cases even though the framer has defense-in-depth attribute budgets. Accept zero or one exact lexical and namespace-expanded `xml:space="preserve"` only at `Metadata.xml/LaunchBox/GameAlternateName/AlternateName`. Table-reject unprefixed/other-prefix/wrong-binding/wrong-URI/wrong-local-name/wrong-value/wrong-case, duplicate or second attributes, every `xmlns` declaration, and the valid attribute at every wrong root/record/leaf/member placement. Table-drive every selected field's exact byte/rune max and max+1, depth 8/9, and elements 16,000,000/16,000,001. Exercise `Metadata.xml` family caps/max+1 for `Game` 250,000/250,001, `GameAlternateName` 250,000/250,001 and per-game 64/65, `GameImage` 2,000,000/2,000,001 and per-game 512/513, `Platform` 512/513, `PlatformAlternateName` 1,024/1,025, `Emulator` 128/129, and `EmulatorPlatform` 1,024/1,025; exercise its 2,502,688/2,502,689 aggregate. Exercise `Platforms.xml` 512/513, 1,024/1,025, and 1,536/1,537 plus the 2,504,224/2,504,225 combined aggregate. Reject unknown top-level families, cross-member missing/extra/conflicting platform keys, structurally invalid aliases/bad links, and nested schema fields. The retained fixture must assert 69,311 raw aliases, 69,304 normalized tuple keys including one ignored blank, seven two-row trim-collapsed groups, 69,303 persisted canonical tuples, source-order-independent reconciliation, the sole namespace-correct attribute, both 189/431 platform copies and equality, every ignored family, max 30 raw aliases/game, and all recomputed maxima, including the separate 151-byte/123-rune and 150-rune/150-byte alias rows. `ReleaseDate` never supplies a year; valid-looking, malformed, timezone-bearing, and overlong cases prove ignore-versus-resource-failure behavior. |
-| Index | Exact SNES/Genesis mapping; observed field mapping; archive/schema/parser hashes; SQLite integrity; deterministic byte-bounded generation; crash before/after fsync/rename/pointer swap preserves old or new complete generation, never partial. |
+| Index | Exact closed twelve-system mapping from the 2026-08-25 amendment; observed field mapping; archive/schema/parser hashes; SQLite integrity; deterministic byte-bounded generation; crash before/after fsync/rename/pointer swap preserves old or new complete generation, never partial. |
 | Matching | Exact platform first; canonical, accepted `GameAlternateName`, decorated tiers. Prove exact XML-`S` boundary trim; exact raw tuple repetition rejects; distinct raw boundary-whitespace variants with one normalized full tuple deduplicate; byte-identical sorted alias rows after reversed and randomized source order; distinct-region provenance projecting to one matcher alias; distinct canonical spellings projecting to one matcher alias; same alias across games remaining ambiguous; duplicate selected-child/schema conflict; duplicate provider-game identity conflict; equal best tie ambiguous; no-match; no fuzzy auto-attach; provider input detached. Raw and post-reconciliation total/per-game max/max+1 tests must show no bound is weakened by blanks or duplicates. |
 | Region/media selection | Type and region order fixed; lexical tie determinism; role ambiguity affects only role; exact filename grammar/extensions and 44-byte/rune max accepted. Table-reject 40-character stem/max+1, `../`, slash, backslash, `%2f` and `%2F`, `?`, `#`, colon, space, controls, invalid UTF-8, non-ASCII, uppercase/unknown extensions, and extension/MIME disagreement. Prove one escaped segment plus final scheme/host/effective-port/path/query/fragment/userinfo revalidation and zero requests on every rejection; CRC32 checked before decode. |
 | Cache migration | Schema v1/IGDB settings, rows, platform map, credential scope, SQLite sidecars, artwork refs/objects/files all purged; no old handle can open; schema v2 provider/generation keys do not collide; purge failure blocks startup. |
@@ -1045,7 +1089,8 @@ LaunchBox live validation may run only when the coordinator records one of:
   and accepts the conservative limits in this decision.
 
 The live check is host-only and no-target: one conditional snapshot retrieval,
-stream parse/index, exact SNES/Genesis sample matches, one bounded cover and one
+stream parse/index, exact sample matches across the closed twelve-system map,
+one bounded cover and one
 bounded backdrop, CRC/decode/cache/restart/offline/7-day-expiry/purge checks,
 loopback browser projection, and a residue/secret/log scan. Disable and purge
 afterward. Record source/archive/index/image hashes and separate fixture-tested,

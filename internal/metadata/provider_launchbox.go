@@ -22,7 +22,8 @@ const (
 	launchBoxCoverCacheLimit  = 64
 )
 
-// LaunchBoxCatalog is an in-memory index of SNES/Genesis records from official XML.
+// LaunchBoxCatalog is an in-memory index of FPGA-launchable system records from
+// official XML.
 type LaunchBoxCatalog struct {
 	candidates map[protocol.System][]Candidate
 	covers     map[string]string
@@ -64,7 +65,8 @@ type launchBoxCatalogBatch struct {
 	games map[string]*launchBoxIndexedGame
 }
 
-// LoadLaunchBoxCatalog parses Metadata.xml and keeps only FogCast SNES/Genesis games.
+// LoadLaunchBoxCatalog parses Metadata.xml and keeps only FogCast's
+// FPGA-launchable systems.
 func LoadLaunchBoxCatalog(reader io.Reader) (*LaunchBoxCatalog, error) {
 	batch := &launchBoxCatalogBatch{games: make(map[string]*launchBoxIndexedGame)}
 	decoder := xml.NewDecoder(reader)
@@ -124,8 +126,18 @@ func LoadLaunchBoxCatalog(reader io.Reader) (*LaunchBoxCatalog, error) {
 	}
 	catalog := &LaunchBoxCatalog{
 		candidates: map[protocol.System][]Candidate{
-			protocol.SystemMegaDrive: nil,
-			protocol.SystemSNES:      nil,
+			protocol.SystemSNES:         nil,
+			protocol.SystemMegaDrive:    nil,
+			protocol.SystemNES:          nil,
+			protocol.SystemSMS:          nil,
+			protocol.SystemGameBoy:      nil,
+			protocol.SystemGBA:          nil,
+			protocol.SystemPCE:          nil,
+			protocol.SystemGameGear:     nil,
+			protocol.SystemGameBoyColor: nil,
+			protocol.SystemAtari2600:    nil,
+			protocol.SystemColecoVision: nil,
+			protocol.SystemAtariLynx:    nil,
 		},
 		covers: make(map[string]string),
 	}
@@ -187,10 +199,30 @@ func launchBoxStudios(record launchBoxGameRecord) []string {
 
 func launchBoxSystem(platform string) (protocol.System, bool) {
 	switch strings.TrimSpace(platform) {
-	case "Sega Genesis", "Sega Mega Drive":
+	case "Sega Genesis":
 		return protocol.SystemMegaDrive, true
-	case "Super Nintendo Entertainment System", "Super Famicom":
+	case "Super Nintendo Entertainment System":
 		return protocol.SystemSNES, true
+	case "Nintendo Entertainment System":
+		return protocol.SystemNES, true
+	case "Sega Master System":
+		return protocol.SystemSMS, true
+	case "Nintendo Game Boy":
+		return protocol.SystemGameBoy, true
+	case "Nintendo Game Boy Advance":
+		return protocol.SystemGBA, true
+	case "NEC TurboGrafx-16":
+		return protocol.SystemPCE, true
+	case "Sega Game Gear":
+		return protocol.SystemGameGear, true
+	case "Nintendo Game Boy Color":
+		return protocol.SystemGameBoyColor, true
+	case "Atari 2600":
+		return protocol.SystemAtari2600, true
+	case "ColecoVision":
+		return protocol.SystemColecoVision, true
+	case "Atari Lynx":
+		return protocol.SystemAtariLynx, true
 	default:
 		return "", false
 	}

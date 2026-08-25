@@ -7494,6 +7494,7 @@ test('cover wall CSS keeps a minimum track and card aspect ratio', () => {
   const css = readAsset('ui.css');
   const cardBlock = css.match(/(?:^|\n)\.game-card \{[^}]+\}/);
   const railCardBlock = css.match(/\.home-rail-track \.game-card \{[^}]+\}/);
+  const imageCoverBlock = css.match(/img\.cover-art \{[^}]+\}/);
   assert.match(css, /minmax\(min\(100%, var\(--wall-min-track\)\), 1fr\)/);
   assert.ok(cardBlock);
   assert.match(cardBlock[0], /aspect-ratio: 2 \/ 3;/);
@@ -7501,6 +7502,10 @@ test('cover wall CSS keeps a minimum track and card aspect ratio', () => {
   assert.doesNotMatch(cardBlock[0], /min-height: 0;/);
   assert.ok(railCardBlock);
   assert.match(railCardBlock[0], /min-width: 148px;/);
+  assert.ok(imageCoverBlock);
+  assert.match(imageCoverBlock[0], /object-fit:\s*contain;/);
+  assert.match(imageCoverBlock[0], /object-position:\s*center;/);
+  assert.doesNotMatch(css, /(?:\.game-card|\.detail-hero) img\.cover-art \{[^}]*object-fit:\s*cover;/);
   assert.match(css, /\.artwork-empty \{/);
   assert.match(css, /\.platform-list \.nav-item \{[^}]*overflow:\s*hidden/);
   assert.match(css, /\.platform-count \{[^}]*flex:\s*0 0 auto/);
