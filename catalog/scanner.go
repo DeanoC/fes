@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/internal/core"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
@@ -53,7 +52,6 @@ func SourceErrorCode(game Game) protocol.ErrorCode {
 
 type Scanner struct {
 	Store         *Store
-	Registry      core.Registry
 	Platforms     PlatformRegistry
 	MaxZIPEntries int
 	Debug         func(string)
@@ -274,14 +272,14 @@ func (s *Scanner) SetDebug(debug func(string)) {
 }
 
 func (s *Scanner) extensions(system protocol.System) (map[string]struct{}, bool) {
-	if platform, ok := s.Platforms.Lookup(system); ok {
+	platforms := s.Platforms
+	if platforms.byID == nil {
+		platforms = DefaultPlatforms()
+	}
+	if platform, ok := platforms.Lookup(system); ok {
 		return platform.Extensions, true
 	}
-	spec, ok := s.Registry.Lookup(system)
-	if !ok {
-		return nil, false
-	}
-	return spec.Extensions, true
+	return nil, false
 }
 
 func isRemoteUNCPath(path string) bool {

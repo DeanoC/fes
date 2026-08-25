@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DeanoC/FogCast-POC/internal/systems"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
@@ -111,14 +112,15 @@ func (p *IGDBProvider) ResolvePlatform(ctx context.Context, system protocol.Syst
 	if err := p.isClosed(); err != nil {
 		return "", err
 	}
-	if system != protocol.SystemMegaDrive && system != protocol.SystemSNES {
+	spec, ok := platformSlugForSystem(system)
+	if !ok {
 		return "", newOpError(ErrPolicyBlocked, nil)
 	}
 	platforms, err := p.resolvePlatforms(ctx)
 	if err != nil {
 		return "", err
 	}
-	platform, ok := platforms[platformSlugForSystem(string(system)).slug]
+	platform, ok := platforms[spec.slug]
 	if !ok {
 		return "", newOpError(ErrPolicyBlocked, nil)
 	}
@@ -164,14 +166,14 @@ func (p *IGDBProvider) Lookup(parent context.Context, query ProviderQuery) (Prov
 	if strings.TrimSpace(query.NormalizedTitle) == "" {
 		return ProviderResult{}, newOpError(ErrPolicyBlocked, nil)
 	}
-	if query.System != "megadrive" && query.System != "snes" {
+	spec, ok := platformSlugForSystem(query.System)
+	if !ok {
 		return ProviderResult{}, newOpError(ErrPolicyBlocked, nil)
 	}
 	platforms, err := p.resolvePlatforms(ctx)
 	if err != nil {
 		return ProviderResult{}, err
 	}
-	spec := platformSlugForSystem(string(query.System))
 	platform, ok := platforms[spec.slug]
 	if !ok {
 		return ProviderResult{}, newOpError(ErrPolicyBlocked, nil)
@@ -294,21 +296,27 @@ func (p *IGDBProvider) resolvePlatformsLeader(ctx context.Context) (map[string]r
 	if cachedOK && validResolvedPlatforms(cached) && p.now().Before(cachedExpires) {
 		return clonePlatforms(cached), cachedExpires, nil
 	}
-	body := `fields id,name,slug,checksum,updated_at; where slug = ("snes","genesis-slash-megadrive"); limit 2;`
+	expected := igdbPlatformSpecs()
+	slugs := make([]string, 0, len(expected))
+	for slug := range expected {
+		slugs = append(slugs, slug)
+	}
+	sort.Strings(slugs)
+	quoted := make([]string, len(slugs))
+	for index, slug := range slugs {
+		quoted[index] = strconv.Quote(slug)
+	}
+	body := `fields id,name,slug,checksum,updated_at; where slug = (` + strings.Join(quoted, ",") + `); limit ` + strconv.Itoa(len(slugs)) + `;`
 	payload, err := p.apiJSON(ctx, "/platforms", body)
 	if err != nil {
 		return nil, time.Time{}, err
 	}
 	var records []igdbPlatform
-	if err := json.Unmarshal(payload, &records); err != nil || records == nil || len(records) != 2 {
+	if err := json.Unmarshal(payload, &records); err != nil || records == nil || len(records) != len(expected) {
 		return nil, time.Time{}, newOpError(ErrInvalidResponse, err)
 	}
-	expected := map[string]string{
-		"snes":                    "Super Nintendo Entertainment System",
-		"genesis-slash-megadrive": "Sega Mega Drive/Genesis",
-	}
-	resolved := make(map[string]resolvedPlatform, 2)
-	seenIDs := make(map[string]struct{}, 2)
+	resolved := make(map[string]resolvedPlatform, len(expected))
+	seenIDs := make(map[string]struct{}, len(expected))
 	for _, record := range records {
 		name, ok := expected[record.Slug]
 		if !ok || record.Name != name || record.ID <= 0 || strings.TrimSpace(record.Checksum) == "" {
@@ -321,7 +329,7 @@ func (p *IGDBProvider) resolvePlatformsLeader(ctx context.Context) (map[string]r
 		seenIDs[id] = struct{}{}
 		resolved[record.Slug] = resolvedPlatform{ID: id, Checksum: record.Checksum, Updated: record.UpdatedAt}
 	}
-	if len(resolved) != 2 {
+	if !hasExactPlatformSlugs(resolved, expected) {
 		return nil, time.Time{}, newOpError(ErrPolicyBlocked, nil)
 	}
 	if cache != nil {
@@ -354,11 +362,8 @@ func samePlatformIdentity(left, right map[string]resolvedPlatform) bool {
 }
 
 func validResolvedPlatforms(platforms map[string]resolvedPlatform) bool {
-	expected := map[string]struct{}{
-		"genesis-slash-megadrive": {},
-		"snes":                    {},
-	}
-	if len(platforms) != len(expected) {
+	expected := igdbPlatformSpecs()
+	if !hasExactPlatformSlugs(platforms, expected) {
 		return false
 	}
 	seenIDs := make(map[string]struct{}, len(platforms))
@@ -378,6 +383,18 @@ func validResolvedPlatforms(platforms map[string]resolvedPlatform) bool {
 	return true
 }
 
+func hasExactPlatformSlugs(platforms map[string]resolvedPlatform, expected map[string]string) bool {
+	if len(platforms) != len(expected) {
+		return false
+	}
+	for slug := range expected {
+		if _, ok := platforms[slug]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
 func clonePlatforms(platforms map[string]resolvedPlatform) map[string]resolvedPlatform {
 	copy := make(map[string]resolvedPlatform, len(platforms))
 	for slug, platform := range platforms {
@@ -388,11 +405,23 @@ func clonePlatforms(platforms map[string]resolvedPlatform) map[string]resolvedPl
 
 type platformSpec struct{ slug string }
 
-func platformSlugForSystem(system string) platformSpec {
-	if system == "snes" {
-		return platformSpec{slug: "snes"}
+func platformSlugForSystem(system protocol.System) (platformSpec, bool) {
+	row, ok := systems.Lookup(system)
+	if !ok {
+		return platformSpec{}, false
 	}
-	return platformSpec{slug: "genesis-slash-megadrive"}
+	cover, ok := row.CoverSlugs[systems.CoverProviderIGDB]
+	return platformSpec{slug: cover.Slug}, ok && cover.Slug != ""
+}
+
+func igdbPlatformSpecs() map[string]string {
+	expected := make(map[string]string)
+	for _, row := range systems.Rows() {
+		if cover, ok := row.CoverSlugs[systems.CoverProviderIGDB]; ok && cover.Slug != "" {
+			expected[cover.Slug] = cover.Name
+		}
+	}
+	return expected
 }
 
 func buildGamesQuery(title, platformID, region string) string {

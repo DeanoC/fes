@@ -107,6 +107,21 @@ func TestIGDBProviderMapsSafeHTTPFailures(t *testing.T) {
 	}
 }
 
+func TestIGDBResolvedPlatformCardinalityFollowsExpectedSlugs(t *testing.T) {
+	expected := map[string]string{"one": "One", "two": "Two", "three": "Three"}
+	resolved := map[string]resolvedPlatform{
+		"one": {ID: "1"}, "two": {ID: "2"}, "three": {ID: "3"},
+	}
+	if !hasExactPlatformSlugs(resolved, expected) {
+		t.Fatal("three table-derived cover slugs were rejected")
+	}
+	delete(resolved, "three")
+	resolved["other"] = resolvedPlatform{ID: "3"}
+	if hasExactPlatformSlugs(resolved, expected) {
+		t.Fatal("wrong cover slug set was accepted by cardinality alone")
+	}
+}
+
 func (code ErrorCode) String() string { return string(code) }
 
 func TestIGDBProviderHonorsCanceledContext(t *testing.T) {

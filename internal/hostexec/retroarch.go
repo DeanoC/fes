@@ -13,12 +13,13 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DeanoC/FogCast-POC/internal/systems"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
 type Capability string
 
-const HostOnly Capability = "host_only"
+const HostOnly Capability = Capability(systems.CapabilityHostOnly)
 
 type State string
 

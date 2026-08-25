@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast-POC/catalog"
+	"github.com/DeanoC/FogCast-POC/internal/systems"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
@@ -21,8 +22,20 @@ func TestDefaultPlatformsIncludesLaunchableAndBrowseOnly(t *testing.T) {
 	if err := catalog.ValidatePlatform("unknown"); err == nil {
 		t.Fatal("ValidatePlatform(unknown) succeeded")
 	}
-	if !catalog.Launchable(protocol.SystemMegaDrive) || catalog.Launchable("nes") {
+	if !catalog.Launchable(protocol.SystemMegaDrive) || !catalog.Launchable(protocol.SystemSNES) || catalog.Launchable("nes") {
 		t.Fatalf("launchable mapping is wrong")
+	}
+	launchable := 0
+	for _, row := range systems.Rows() {
+		if catalog.Launchable(row.PlatformID) {
+			launchable++
+		}
+	}
+	if launchable != 2 {
+		t.Fatalf("launchable rows = %d, want 2", launchable)
+	}
+	if err := protocol.ValidateSystem("nes"); err == nil {
+		t.Fatal("catalog-only NES became a protocol launch system")
 	}
 	if catalog.PlatformLabel("nes") != "NES" {
 		t.Fatalf("label = %q", catalog.PlatformLabel("nes"))

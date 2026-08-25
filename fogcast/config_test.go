@@ -1,6 +1,8 @@
 package fogcast_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"strings"
@@ -543,7 +545,7 @@ func TestLoadConfigWatchRootComesFromConfigNotCandidateDefault(t *testing.T) {
 	}
 }
 
-func TestLoadConfigWatchRootDefaultsToSNESLibraryThenCandidateUNC(t *testing.T) {
+func TestLoadConfigWatchRootDefaultsToShareRoot(t *testing.T) {
 	dir := t.TempDir()
 	snesRoot := filepath.Join(dir, "SNES")
 	if err := os.MkdirAll(snesRoot, 0o700); err != nil {
@@ -553,8 +555,8 @@ func TestLoadConfigWatchRootDefaultsToSNESLibraryThenCandidateUNC(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if withLibrary.Library.WatchRoot != filepath.Clean(snesRoot) {
-		t.Fatalf("watch root from SNES library = %q", withLibrary.Library.WatchRoot)
+	if withLibrary.Library.WatchRoot != fogcast.DefaultFolderWatchRoot {
+		t.Fatalf("watch root with local libraries = %q", withLibrary.Library.WatchRoot)
 	}
 
 	withoutSNES := `base_url = "http://192.0.2.10:8182"
@@ -578,7 +580,7 @@ request_timeout_seconds = 12
 upload_timeout_seconds = 60
 
 [library]
-watch_root = "//deano-clawz/Games/Games/SNES"
+watch_root = "//deano-clawz/Games/Games"
 `
 	cfg, err := fogcast.LoadConfig(writeConfig(t, content))
 	if err != nil {
@@ -589,7 +591,133 @@ watch_root = "//deano-clawz/Games/Games/SNES"
 	}
 }
 
-func TestLoadConfigRejectsAmbiguousUNCWatchRoot(t *testing.T) {
+func TestLoadConfigNormalizesLegacyMappedFolderWatchRootToShare(t *testing.T) {
+	content := `base_url = "http://192.0.2.10:8182"
+token = "test-token"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+
+[library]
+watch_root = "//deano-clawz/Games/Games/SNES"
+`
+	cfg, err := fogcast.LoadConfig(writeConfig(t, content))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Library.WatchRoot != fogcast.DefaultFolderWatchRoot {
+		t.Fatalf("legacy watch_root normalized to %q", cfg.Library.WatchRoot)
+	}
+}
+
+func TestLoadConfigMigratesLegacyLocalMappedFolderToLibrary(t *testing.T) {
+	share := t.TempDir()
+	legacy := filepath.Join(share, "SNES")
+	if err := os.Mkdir(legacy, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	content := `base_url = "http://192.0.2.10:8182"
+token = "test-token"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+
+[library]
+watch_root = "` + legacy + `"
+`
+	cfg, err := fogcast.LoadConfig(writeConfig(t, content))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Library.WatchRoot != share {
+		t.Fatalf("legacy local share root = %q, want %q", cfg.Library.WatchRoot, share)
+	}
+	if len(cfg.Libraries) != 1 || cfg.Libraries[0].System != protocol.SystemSNES || cfg.Libraries[0].Path != legacy || !strings.HasPrefix(cfg.Libraries[0].ID, "folder-watch-") {
+		t.Fatalf("legacy local library = %#v", cfg.Libraries)
+	}
+}
+
+func TestLoadConfigMigratesRootLevelLegacyMappedFolderToLibrary(t *testing.T) {
+	tests := map[string]protocol.System{
+		"Genesis": protocol.SystemMegaDrive,
+		"SNES":    protocol.SystemSNES,
+	}
+	for folder, system := range tests {
+		t.Run(folder, func(t *testing.T) {
+			legacy := "/" + folder
+			content := `base_url = "http://192.0.2.10:8182"
+token = "test-token"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+
+[library]
+watch_root = "` + legacy + `"
+`
+			cfg, err := fogcast.LoadConfig(writeConfig(t, content))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Library.WatchRoot != "/" {
+				t.Fatalf("legacy local share root = %q, want /", cfg.Library.WatchRoot)
+			}
+			if len(cfg.Libraries) != 1 || cfg.Libraries[0].System != system || cfg.Libraries[0].Path != legacy || !strings.HasPrefix(cfg.Libraries[0].ID, "folder-watch-") {
+				t.Fatalf("legacy local library = %#v", cfg.Libraries)
+			}
+		})
+	}
+}
+
+func TestLoadConfigRejectsAmbiguousLocalShareWithoutLibraries(t *testing.T) {
+	content := `base_url = "http://192.0.2.10:8182"
+token = "test-token"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+
+[library]
+watch_root = "` + t.TempDir() + `"
+`
+	if _, err := fogcast.LoadConfig(writeConfig(t, content)); err == nil || !strings.Contains(err.Error(), "requires an explicit [[libraries]] mapping") {
+		t.Fatalf("ambiguous local share error = %v", err)
+	}
+}
+
+func TestLoadConfigRejectsLegacyLocalMappedFolderConflicts(t *testing.T) {
+	share := t.TempDir()
+	legacy := filepath.Join(share, "SNES")
+	if err := os.Mkdir(legacy, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256([]byte(legacy))
+	legacyID := "folder-watch-" + hex.EncodeToString(digest[:6])
+	tests := map[string]string{
+		"path": `[[libraries]]
+id = "nes-conflict"
+system = "nes"
+root = "` + legacy + `"
+`,
+		"id": `[[libraries]]
+id = "` + legacyID + `"
+system = "nes"
+root = "` + filepath.Join(share, "NES") + `"
+`,
+	}
+	for name, library := range tests {
+		t.Run(name, func(t *testing.T) {
+			content := `base_url = "http://192.0.2.10:8182"
+token = "test-token"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+
+` + library + `
+[library]
+watch_root = "` + legacy + `"
+`
+			if _, err := fogcast.LoadConfig(writeConfig(t, content)); err == nil || !strings.Contains(err.Error(), "conflicts with [[libraries]]") {
+				t.Fatalf("legacy conflict error = %v", err)
+			}
+		})
+	}
+}
+
+func TestLoadConfigAllowsMultipleLocalRootsForOneMappedSystem(t *testing.T) {
 	dir := t.TempDir()
 	firstRoot := filepath.Join(dir, "SNES-a")
 	secondRoot := filepath.Join(dir, "SNES-b")
@@ -609,12 +737,14 @@ system = "snes"
 root = "` + secondRoot + `"
 
 [library]
-watch_root = "//server/share/SNES"
+watch_root = "//server/share"
 `
-	if _, err := fogcast.LoadConfig(writeConfig(t, content)); err == nil {
-		t.Fatal("ambiguous UNC watch_root accepted")
-	} else if !strings.Contains(err.Error(), "more than one local absolute SNES root") {
-		t.Fatalf("unexpected error = %v", err)
+	config, err := fogcast.LoadConfig(writeConfig(t, content))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(config.Libraries) != 2 {
+		t.Fatalf("libraries = %#v", config.Libraries)
 	}
 }
 

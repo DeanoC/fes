@@ -11,100 +11,21 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast-POC/catalog"
-	"github.com/DeanoC/FogCast-POC/internal/core"
 	"github.com/DeanoC/FogCast-POC/libraryuser"
 	"github.com/DeanoC/FogCast-POC/protocol"
 	"github.com/DeanoC/FogCast-POC/romsource"
 )
 
-func TestFolderWatchRootsFollowConfiguredWatchRoot(t *testing.T) {
-	first := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/first/snes"}
-	second := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/second/snes"}
-	mega := catalog.Root{ID: "genesis-main", System: protocol.SystemMegaDrive, Path: "/mega"}
-
-	got := FolderWatchRoots([]catalog.Root{first, mega}, first.Path)
-	wantFirst := first
-	if !reflect.DeepEqual(got, []catalog.Root{wantFirst, mega}) {
-		t.Fatalf("first watch roots = %#v", got)
-	}
-	got = FolderWatchRoots([]catalog.Root{second, mega}, second.Path)
-	wantSecond := second
-	if !reflect.DeepEqual(got, []catalog.Root{wantSecond, mega}) {
-		t.Fatalf("second watch roots = %#v", got)
-	}
-	got = FolderWatchRoots([]catalog.Root{mega}, DefaultFolderWatchRoot)
-	if !reflect.DeepEqual(got, []catalog.Root{mega}) {
-		t.Fatalf("UNC without an SNES mount should still watch Mega Drive, got %#v", got)
-	}
-}
-
-func TestFolderWatchRootsSelectFirstMegaDriveMountAlongsideSNES(t *testing.T) {
+func TestFolderWatchRootsIncludeEveryMappedConfiguredRoot(t *testing.T) {
 	snes := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/games/SNES"}
 	firstMega := catalog.Root{ID: "genesis-first", System: protocol.SystemMegaDrive, Path: "/games/Genesis"}
 	secondMega := catalog.Root{ID: "genesis-second", System: protocol.SystemMegaDrive, Path: "/other/Genesis"}
+	nes := catalog.Root{ID: "nes-main", System: "nes", Path: "/games/NES"}
 
-	got := FolderWatchRoots([]catalog.Root{snes, firstMega, secondMega}, snes.Path)
-	want := []catalog.Root{snes, firstMega}
+	got := FolderWatchRoots([]catalog.Root{snes, firstMega, nes, secondMega})
+	want := []catalog.Root{snes, firstMega, secondMega}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("watch roots = %#v, want %#v", got, want)
-	}
-}
-
-func TestApplyFolderWatchRootUNCUsesOperatorMountOrFailsClosed(t *testing.T) {
-	mount := t.TempDir()
-	snes := catalog.Root{ID: "operator-snes-root", System: protocol.SystemSNES, Path: mount}
-	mega := catalog.Root{ID: "genesis-main", System: protocol.SystemMegaDrive, Path: "/mega"}
-	got := ApplyFolderWatchRoot([]catalog.Root{snes, mega}, DefaultFolderWatchRoot)
-	wantSNES := snes
-	if !reflect.DeepEqual(got, []catalog.Root{wantSNES, mega}) {
-		t.Fatalf("UNC with mount = %#v", got)
-	}
-	if got[0].Path == DefaultFolderWatchRoot || got[0].ID != snes.ID {
-		t.Fatal("UNC SoT did not preserve the operator mount identity")
-	}
-
-	missing := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/old/snes"}
-	kept := ApplyFolderWatchRoot([]catalog.Root{missing, mega}, DefaultFolderWatchRoot)
-	wantMissing := missing
-	if !reflect.DeepEqual(kept, []catalog.Root{wantMissing, mega}) {
-		t.Fatalf("UNC with unmounted configured SNES = %#v", kept)
-	}
-
-	closed := ApplyFolderWatchRoot([]catalog.Root{mega}, DefaultFolderWatchRoot)
-	if !reflect.DeepEqual(closed, []catalog.Root{mega}) {
-		t.Fatalf("UNC without a SNES library = %#v", closed)
-	}
-}
-
-func TestApplyFolderWatchRootUNCFailsClosedForAmbiguousMounts(t *testing.T) {
-	first := catalog.Root{ID: "snes-first", System: protocol.SystemSNES, Path: "/mnt/snes-first"}
-	second := catalog.Root{ID: "snes-second", System: protocol.SystemSNES, Path: "/mnt/snes-second"}
-	mega := catalog.Root{ID: "genesis-main", System: protocol.SystemMegaDrive, Path: "/mega"}
-	if got := ApplyFolderWatchRoot([]catalog.Root{first, mega, second}, DefaultFolderWatchRoot); !reflect.DeepEqual(got, []catalog.Root{mega}) {
-		t.Fatalf("ambiguous UNC mounts did not fail closed: %#v", got)
-	}
-}
-
-func TestApplyFolderWatchRootUsesConfigNotBakedInPath(t *testing.T) {
-	libraries := []catalog.Root{{ID: "genesis-main", System: protocol.SystemMegaDrive, Path: "/mega"}}
-	first := ApplyFolderWatchRoot(libraries, "/mnt/games-a")
-	second := ApplyFolderWatchRoot(libraries, "/mnt/games-b")
-	wantFirst := catalog.Root{ID: FolderWatchLibraryID("/mnt/games-a"), System: protocol.SystemSNES, Path: "/mnt/games-a"}
-	wantSecond := catalog.Root{ID: FolderWatchLibraryID("/mnt/games-b"), System: protocol.SystemSNES, Path: "/mnt/games-b"}
-	if len(first) != 2 || first[1] != wantFirst || len(second) != 2 || second[1] != wantSecond {
-		t.Fatalf("watch root did not follow config: %#v %#v", first, second)
-	}
-	if first[1].Path == DefaultFolderWatchRoot || second[1].Path == DefaultFolderWatchRoot {
-		t.Fatal("configured watch root fell back to the candidate UNC")
-	}
-	unchanged := ApplyFolderWatchRoot(libraries, "")
-	if !reflect.DeepEqual(unchanged, libraries) {
-		t.Fatalf("empty watch root mutated libraries: %#v", unchanged)
-	}
-	samePath := []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: "/mnt/games-a"}}
-	wantSamePath := append([]catalog.Root(nil), samePath...)
-	if got := ApplyFolderWatchRoot(samePath, "/mnt/games-a"); !reflect.DeepEqual(got, wantSamePath) {
-		t.Fatalf("matching SNES library did not preserve its configured id: %#v", got)
 	}
 }
 
@@ -126,7 +47,7 @@ func TestUnchangedConfiguredSNESPathPreservesUserState(t *testing.T) {
 	t.Cleanup(func() { _ = users.Close() })
 
 	root := catalog.Root{ID: "operator-snes-root", System: protocol.SystemSNES, Path: rootPath}
-	scanner := &catalog.Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: catalog.DefaultPlatforms()}
+	scanner := &catalog.Scanner{Store: store, Platforms: catalog.DefaultPlatforms()}
 	if _, err := scanner.Scan(ctx, []catalog.Root{root}); err != nil {
 		t.Fatalf("seed Scan: %v", err)
 	}
@@ -163,12 +84,14 @@ func TestUnchangedConfiguredSNESPathPreservesUserState(t *testing.T) {
 func TestServiceFolderWatchRootComesFromConfig(t *testing.T) {
 	first := t.TempDir()
 	second := t.TempDir()
+	firstRoot := catalog.Root{ID: "snes-first", System: protocol.SystemSNES, Path: filepath.Join(first, "SNES")}
+	secondRoot := catalog.Root{ID: "snes-second", System: protocol.SystemSNES, Path: filepath.Join(second, "SNES")}
 	firstService := newService(
-		Config{Library: LibraryConfig{WatchRoot: first}, RequestTimeout: time.Second, UploadTimeout: time.Second},
+		Config{Libraries: []catalog.Root{firstRoot}, Library: LibraryConfig{WatchRoot: first}, RequestTimeout: time.Second, UploadTimeout: time.Second},
 		Paths{Staging: t.TempDir()}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{},
 	)
 	secondService := newService(
-		Config{Library: LibraryConfig{WatchRoot: second}, RequestTimeout: time.Second, UploadTimeout: time.Second},
+		Config{Libraries: []catalog.Root{secondRoot}, Library: LibraryConfig{WatchRoot: second}, RequestTimeout: time.Second, UploadTimeout: time.Second},
 		Paths{Staging: t.TempDir()}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{},
 	)
 	if firstService.FolderWatchRoot() != first || secondService.FolderWatchRoot() != second {
@@ -177,52 +100,19 @@ func TestServiceFolderWatchRootComesFromConfig(t *testing.T) {
 	if firstService.FolderWatchRoot() == DefaultFolderWatchRoot || secondService.FolderWatchRoot() == DefaultFolderWatchRoot {
 		t.Fatal("service used the candidate UNC instead of config")
 	}
-	if !reflect.DeepEqual(firstService.folderWatchRoots(), []catalog.Root{{
-		ID: FolderWatchLibraryID(first), System: protocol.SystemSNES, Path: first,
-	}}) {
+	if !reflect.DeepEqual(firstService.folderWatchRoots(), []catalog.Root{firstRoot}) {
 		t.Fatalf("first service roots = %#v", firstService.folderWatchRoots())
 	}
 }
 
-func TestApplyFolderWatchRootReplacesSupersededSNESLibrary(t *testing.T) {
-	old := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/old/snes"}
-	mega := catalog.Root{ID: "genesis-main", System: protocol.SystemMegaDrive, Path: "/mega"}
-	got := ApplyFolderWatchRoot([]catalog.Root{old, mega}, "/new/snes")
-	want := []catalog.Root{
-		mega,
-		{ID: FolderWatchLibraryID("/new/snes"), System: protocol.SystemSNES, Path: "/new/snes"},
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("replaced roots = %#v, want %#v", got, want)
-	}
-	if FolderWatchLibraryID("/old/snes") == FolderWatchLibraryID("/new/snes") {
-		t.Fatal("changed watch_root reused a synthetic library id")
-	}
-}
-
-func TestFolderWatchLibraryIDIsValidAndPathStable(t *testing.T) {
-	first := FolderWatchLibraryID("/mnt/a")
-	second := FolderWatchLibraryID("/mnt/b")
-	if err := protocol.ValidateGameID(first); err != nil {
-		t.Fatal(err)
-	}
-	if first == second || first == FolderWatchLibraryID("/mnt/a/") {
-		t.Fatalf("ids = %q %q", first, second)
-	}
-	if FolderWatchLibraryID("/mnt/a") != first {
-		t.Fatal("same path produced a different id")
-	}
-}
-
-func TestServiceScanAndWatchShareOneSNESRoot(t *testing.T) {
+func TestServiceScanAndWatchShareConfiguredMappedRoots(t *testing.T) {
 	scanner := &fakeServiceScanner{}
 	old := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/old/snes"}
 	mega := catalog.Root{ID: "genesis-main", System: protocol.SystemMegaDrive, Path: "/mega"}
-	watch := "/new/snes"
 	service := newService(
 		Config{
 			Libraries:      []catalog.Root{old, mega},
-			Library:        LibraryConfig{WatchRoot: watch},
+			Library:        LibraryConfig{WatchRoot: "/new/share"},
 			RequestTimeout: time.Second, UploadTimeout: time.Second,
 		},
 		Paths{Staging: "/private/staging"}, &fakeServiceCatalog{}, scanner, &fakeServicePreparer{}, &fakeServiceClient{},
@@ -230,18 +120,14 @@ func TestServiceScanAndWatchShareOneSNESRoot(t *testing.T) {
 	if _, err := service.Scan(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	wantSNES := catalog.Root{ID: FolderWatchLibraryID(watch), System: protocol.SystemSNES, Path: watch}
-	if !reflect.DeepEqual(scanner.roots, []catalog.Root{mega, wantSNES}) {
+	if !reflect.DeepEqual(scanner.roots, []catalog.Root{old, mega}) {
 		t.Fatalf("Scan roots = %#v", scanner.roots)
 	}
-	if !reflect.DeepEqual(service.folderWatchRoots(), []catalog.Root{mega, wantSNES}) {
+	if !reflect.DeepEqual(service.folderWatchRoots(), []catalog.Root{old, mega}) {
 		t.Fatalf("watch roots = %#v", service.folderWatchRoots())
 	}
-	if _, ok := service.rootsByID[old.ID]; ok {
-		t.Fatal("Play still resolved the superseded SNES library")
-	}
-	if service.rootsByID[wantSNES.ID] != wantSNES {
-		t.Fatalf("Play SoT = %#v", service.rootsByID[wantSNES.ID])
+	if service.rootsByID[old.ID] != old {
+		t.Fatalf("Play root = %#v", service.rootsByID[old.ID])
 	}
 }
 
@@ -260,7 +146,7 @@ func TestChangedWatchRootCanRescanWithoutIdentityConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	scanner := &catalog.Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: catalog.DefaultPlatforms()}
+	scanner := &catalog.Scanner{Store: store, Platforms: catalog.DefaultPlatforms()}
 	const configuredID = "operator-snes-root"
 	first := newService(
 		Config{
@@ -320,7 +206,7 @@ func TestChangedConfiguredSNESIDCanRescanSamePath(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	scanner := &catalog.Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: catalog.DefaultPlatforms()}
+	scanner := &catalog.Scanner{Store: store, Platforms: catalog.DefaultPlatforms()}
 	first := newService(
 		Config{
 			Libraries:      []catalog.Root{{ID: "old-snes-id", System: protocol.SystemSNES, Path: rootPath}},
@@ -368,7 +254,7 @@ func TestConfiguredSNESIDReuseRebindsBeforeReleasingSupersededRoots(t *testing.T
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	scanner := &catalog.Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: catalog.DefaultPlatforms()}
+	scanner := &catalog.Scanner{Store: store, Platforms: catalog.DefaultPlatforms()}
 	if _, err := scanner.Scan(ctx, []catalog.Root{
 		{ID: "a-current", System: protocol.SystemSNES, Path: currentPath},
 		{ID: "z-reused", System: protocol.SystemSNES, Path: retainedPath},
@@ -418,7 +304,7 @@ func TestServiceScanReleasesRetiredSNESRootReclassifiedAsMegaDrive(t *testing.T)
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	scanner := &catalog.Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: catalog.DefaultPlatforms()}
+	scanner := &catalog.Scanner{Store: store, Platforms: catalog.DefaultPlatforms()}
 	oldSNES := catalog.Root{ID: "old-snes-id", System: protocol.SystemSNES, Path: sharedPath}
 	if _, err := scanner.Scan(ctx, []catalog.Root{oldSNES}); err != nil {
 		t.Fatalf("seed scan: %v", err)
@@ -486,7 +372,7 @@ func TestServiceScanReleasesMegaDriveRootReclassifiedAsSNES(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { _ = store.Close() })
-			scanner := &catalog.Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: catalog.DefaultPlatforms()}
+			scanner := &catalog.Scanner{Store: store, Platforms: catalog.DefaultPlatforms()}
 			oldMega := catalog.Root{ID: test.oldID, System: protocol.SystemMegaDrive, Path: oldPath}
 			if _, err := scanner.Scan(ctx, []catalog.Root{oldMega}); err != nil {
 				t.Fatalf("seed scan: %v", err)
@@ -541,7 +427,7 @@ func TestServiceScanReleasesSNESIdentityReclassifiedAsMegaDriveAtNewPath(t *test
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	scanner := &catalog.Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: catalog.DefaultPlatforms()}
+	scanner := &catalog.Scanner{Store: store, Platforms: catalog.DefaultPlatforms()}
 	oldSNES := catalog.Root{ID: "shared-main", System: protocol.SystemSNES, Path: oldPath}
 	if _, err := scanner.Scan(ctx, []catalog.Root{oldSNES}); err != nil {
 		t.Fatalf("seed scan: %v", err)
@@ -632,7 +518,7 @@ func TestServiceReconcileFolderWatchUpdatesCatalogThenPlayUsesKitCache(t *testin
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	scanner := &catalog.Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: catalog.DefaultPlatforms()}
+	scanner := &catalog.Scanner{Store: store, Platforms: catalog.DefaultPlatforms()}
 	preparer := &romsource.Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}
 	rom := []byte("snes-rom-bytes")
 	if err := os.WriteFile(filepath.Join(watch, "Axelay.sfc"), rom, 0o600); err != nil {
@@ -673,6 +559,7 @@ func TestServiceReconcileFolderWatchUpdatesCatalogThenPlayUsesKitCache(t *testin
 
 	service := newService(
 		Config{
+			Libraries:      []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: watch}},
 			Library:        LibraryConfig{WatchRoot: watch},
 			RequestTimeout: time.Second, UploadTimeout: 2 * time.Second,
 		},
@@ -733,7 +620,7 @@ func TestServiceReconcileMegaDriveFolderWatchUpdatesCatalogThenPlayUsesKitCache(
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	scanner := &catalog.Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: catalog.DefaultPlatforms()}
+	scanner := &catalog.Scanner{Store: store, Platforms: catalog.DefaultPlatforms()}
 	preparer := &romsource.Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}
 	rom := []byte("mega-rom-bytes")
 	if err := os.WriteFile(filepath.Join(watch, "Sonic.md"), rom, 0o600); err != nil {
@@ -814,7 +701,7 @@ func TestServiceRetiresSupersededSNESLibraryFromCatalog(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	scanner := &catalog.Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: catalog.DefaultPlatforms()}
+	scanner := &catalog.Scanner{Store: store, Platforms: catalog.DefaultPlatforms()}
 	old := catalog.Root{ID: "operator-snes-root", System: protocol.SystemSNES, Path: oldDir}
 	first := newService(
 		Config{Libraries: []catalog.Root{old}, RequestTimeout: time.Second, UploadTimeout: time.Second},
@@ -831,8 +718,8 @@ func TestServiceRetiresSupersededSNESLibraryFromCatalog(t *testing.T) {
 
 	second := newService(
 		Config{
-			Libraries:      []catalog.Root{old},
-			Library:        LibraryConfig{WatchRoot: newDir},
+			Libraries:      []catalog.Root{{ID: "operator-snes-new", System: protocol.SystemSNES, Path: newDir}},
+			Library:        LibraryConfig{WatchRoot: DefaultFolderWatchRoot},
 			RequestTimeout: time.Second, UploadTimeout: time.Second,
 		},
 		Paths{Staging: t.TempDir()}, store, scanner, &fakeServicePreparer{}, &fakeServiceClient{},
@@ -870,7 +757,7 @@ func TestServiceUNCWatchRootKeepsUnmountedSNESIdentityAndRecovers(t *testing.T) 
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	scanner := &catalog.Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: catalog.DefaultPlatforms()}
+	scanner := &catalog.Scanner{Store: store, Platforms: catalog.DefaultPlatforms()}
 	snes := catalog.Root{ID: "operator-snes-root", System: protocol.SystemSNES, Path: mount}
 	watchedSNES := snes
 	first := newService(
@@ -932,7 +819,7 @@ func TestServiceUNCWatchRootKeepsUnmountedSNESIdentityAndRecovers(t *testing.T) 
 	}
 }
 
-func TestServiceOpenPreservesCatalogWhenUNCWatchRootIsUnresolved(t *testing.T) {
+func TestServiceOpenRetiresMappedCatalogWhenNoMappedRootsRemain(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
 	mount := filepath.Join(dir, "SNES")
@@ -983,9 +870,12 @@ upload_timeout_seconds = 2
 	if _, err := service.ReconcileFolderWatch(ctx); !errors.Is(err, errFolderWatchRootUnresolved) {
 		t.Fatalf("ReconcileFolderWatch(unresolved) error = %v", err)
 	}
-	kept, err := service.Games(ctx)
-	if err != nil || len(kept) != 1 || kept[0].ID != seeded[0].ID {
-		t.Fatalf("catalog after unresolved Open = %+v err=%v", kept, err)
+	remaining, err := service.Games(ctx)
+	if err != nil || len(remaining) != 0 {
+		t.Fatalf("catalog after mapped roots removed = %+v err=%v", remaining, err)
+	}
+	if _, err := service.Game(ctx, seeded[0].ID); err == nil {
+		t.Fatal("retired mapped game remains selectable")
 	}
 }
 
@@ -1000,7 +890,7 @@ func TestServiceUNCWatchRootUsesMountedSNESLibrary(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	scanner := &catalog.Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: catalog.DefaultPlatforms()}
+	scanner := &catalog.Scanner{Store: store, Platforms: catalog.DefaultPlatforms()}
 	snes := catalog.Root{ID: "operator-snes-root", System: protocol.SystemSNES, Path: mount}
 	watchedSNES := snes
 	service := newService(
@@ -1032,7 +922,7 @@ func TestServiceCloseDoesNotCloseCatalogUnderLiveScan(t *testing.T) {
 	catalogStore := &fakeServiceCatalog{}
 	scanner := &fakeServiceScanner{started: started, block: block}
 	service := newService(
-		Config{Library: LibraryConfig{WatchRoot: t.TempDir()}, RequestTimeout: time.Second, UploadTimeout: time.Second},
+		Config{Libraries: []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: t.TempDir()}}, Library: LibraryConfig{WatchRoot: DefaultFolderWatchRoot}, RequestTimeout: time.Second, UploadTimeout: time.Second},
 		Paths{Staging: t.TempDir()}, catalogStore, scanner, &fakeServicePreparer{}, &fakeServiceClient{},
 	)
 	service.catalogCloseWait = 40 * time.Millisecond
@@ -1072,7 +962,7 @@ func TestServiceCloseWaitsForScanThenClosesCatalog(t *testing.T) {
 	catalogStore := &fakeServiceCatalog{}
 	scanner := &fakeServiceScanner{started: started, block: block}
 	service := newService(
-		Config{Library: LibraryConfig{WatchRoot: t.TempDir()}, RequestTimeout: time.Second, UploadTimeout: time.Second},
+		Config{Libraries: []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: t.TempDir()}}, Library: LibraryConfig{WatchRoot: DefaultFolderWatchRoot}, RequestTimeout: time.Second, UploadTimeout: time.Second},
 		Paths{Staging: t.TempDir()}, catalogStore, scanner, &fakeServicePreparer{}, &fakeServiceClient{},
 	)
 	service.catalogCloseWait = time.Second
@@ -1121,14 +1011,16 @@ func TestServiceRunFolderWatchCountsOfflineRoots(t *testing.T) {
 	}
 }
 
-func TestServiceReconcileFolderWatchScansMegaDriveRoots(t *testing.T) {
+func TestServiceReconcileFolderWatchScansEveryMappedRoot(t *testing.T) {
 	scanner := &fakeServiceScanner{}
 	snes := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/snes"}
 	mega := catalog.Root{ID: "genesis-main", System: protocol.SystemMegaDrive, Path: "/mega"}
+	secondMega := catalog.Root{ID: "genesis-second", System: protocol.SystemMegaDrive, Path: "/mega-two"}
+	nes := catalog.Root{ID: "nes-main", System: "nes", Path: "/nes"}
 	service := newService(
 		Config{
-			Libraries:      []catalog.Root{snes, mega},
-			Library:        LibraryConfig{WatchRoot: snes.Path},
+			Libraries:      []catalog.Root{snes, mega, nes, secondMega},
+			Library:        LibraryConfig{WatchRoot: DefaultFolderWatchRoot},
 			RequestTimeout: time.Second, UploadTimeout: time.Second,
 		},
 		Paths{Staging: "/private/staging"}, &fakeServiceCatalog{}, scanner, &fakeServicePreparer{}, &fakeServiceClient{},
@@ -1136,8 +1028,7 @@ func TestServiceReconcileFolderWatchScansMegaDriveRoots(t *testing.T) {
 	if _, err := service.ReconcileFolderWatch(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	wantSNES := snes
-	if !reflect.DeepEqual(scanner.roots, []catalog.Root{wantSNES, mega}) {
+	if !reflect.DeepEqual(scanner.roots, []catalog.Root{snes, mega, secondMega}) {
 		t.Fatalf("watch scanned %#v", scanner.roots)
 	}
 }

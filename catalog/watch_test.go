@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/internal/core"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
@@ -18,7 +17,7 @@ func TestFolderWatcherReconcileAddsAndRemovesSNESROMs(t *testing.T) {
 	store := openScannerStore(t)
 	root := Root{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}
 	watcher := FolderWatcher{
-		Scan:  Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}.Scan,
+		Scan:  Scanner{Store: store, Platforms: DefaultPlatforms()}.Scan,
 		Roots: func() []Root { return []Root{root} },
 	}
 
@@ -50,7 +49,7 @@ func TestFolderWatcherRootsCallbackChangesWatchedFolder(t *testing.T) {
 	mustWriteScannerFile(t, filepath.Join(first, "First.sfc"), []byte("first"))
 	mustWriteScannerFile(t, filepath.Join(second, "Second.sfc"), []byte("second"))
 	store := openScannerStore(t)
-	scan := Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}.Scan
+	scan := Scanner{Store: store, Platforms: DefaultPlatforms()}.Scan
 	firstWatcher := FolderWatcher{
 		Scan:  scan,
 		Roots: func() []Root { return []Root{{ID: "watch-a", System: protocol.SystemSNES, Path: first}} },
@@ -111,7 +110,7 @@ func TestFolderWatcherIgnoresUnsupportedRoots(t *testing.T) {
 	mustWriteScannerFile(t, filepath.Join(rootPath, "game.rom"), []byte("unsupported"))
 	store := openScannerStore(t)
 	watcher := FolderWatcher{
-		Scan: Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}.Scan,
+		Scan: Scanner{Store: store, Platforms: DefaultPlatforms()}.Scan,
 		Roots: func() []Root {
 			return []Root{{ID: "nes-main", System: protocol.System("nes"), Path: rootPath}}
 		},

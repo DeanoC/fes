@@ -138,10 +138,10 @@ func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) 
 	s.mu.Lock()
 	execution, mediaHandle, mediaState, terminalStatus := s.execution, s.mediaHandle, s.mediaState, s.terminalStatus
 	s.mu.Unlock()
-	if execution == "host_only" && mediaState == "stopped" && terminalStatus != nil {
+	if execution == fogcast.ExecutionHostOnly && mediaState == "stopped" && terminalStatus != nil {
 		st = *terminalStatus
 	}
-	if execution == "host_only" && mediaHandle != nil && mediaState == "active" && mediaHandleDone(mediaHandle) {
+	if execution == fogcast.ExecutionHostOnly && mediaHandle != nil && mediaState == "active" && mediaHandleDone(mediaHandle) {
 		mediaErr := s.stopMediaBounded(execution)
 		stopped, stopErr := s.stopServiceBounded()
 		result := s.publicSession(stopped, nil)
@@ -157,7 +157,7 @@ func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) 
 		s.record("session.media.exit", result, nil)
 		return result, nil
 	}
-	if st.State == protocol.StateIdle && execution == "host_only" && mediaHandle != nil && mediaState == "active" {
+	if st.State == protocol.StateIdle && execution == fogcast.ExecutionHostOnly && mediaHandle != nil && mediaState == "active" {
 		if err := s.stopMediaBounded(execution); err != nil {
 			result := s.publicSession(st, nil)
 			result.Execution = execution
@@ -248,11 +248,11 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 			return sessionResult{}, remoteInputError()
 		}
 	}
-	if err := s.stopMediaBounded("host_only"); err != nil {
+	if err := s.stopMediaBounded(fogcast.ExecutionHostOnly); err != nil {
 		return sessionResult{}, err
 	}
 
-	execution := "fpga_native"
+	execution := fogcast.ExecutionFPGANative
 	if resolver, ok := s.service.(sessionExecutionService); ok {
 		resolved, err := resolver.SessionExecution(ctx, id)
 		if err != nil {
@@ -265,12 +265,12 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 	s.mu.Lock()
 	s.execution = execution
 	s.terminalStatus = nil
-	if execution != "host_only" {
+	if execution != fogcast.ExecutionHostOnly {
 		s.mediaHandle = nil
 		s.mediaState = ""
 	}
 	s.mu.Unlock()
-	if execution == "host_only" && s.media != nil {
+	if execution == fogcast.ExecutionHostOnly && s.media != nil {
 		handle, err := s.media.Start(ctx, id)
 		if err != nil {
 			media := "failed"
@@ -309,7 +309,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 	}
 	result := s.publicSession(resp.Status, &progress)
 	result.Execution = execution
-	if execution == "host_only" {
+	if execution == fogcast.ExecutionHostOnly {
 		if resp.Status.State != protocol.StateActive {
 			if err := s.stopMediaBounded(execution); err != nil {
 				return sessionResult{}, err
@@ -317,7 +317,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 		}
 		result.Media = s.currentMediaState()
 	}
-	if s.remoteInput != nil && execution != "host_only" && resp.Status.State == protocol.StateActive {
+	if s.remoteInput != nil && execution != fogcast.ExecutionHostOnly && resp.Status.State == protocol.StateActive {
 		core := sessionCore(resp.Status)
 		if core == "" {
 			return sessionResult{}, s.stopAfterFailedAttach(execution)
@@ -343,7 +343,7 @@ func (s *sessionCoordinator) stopMedia(ctx context.Context, execution string) er
 	s.mu.Lock()
 	handle := s.mediaHandle
 	s.mu.Unlock()
-	if execution != "host_only" || handle == nil {
+	if execution != fogcast.ExecutionHostOnly || handle == nil {
 		return nil
 	}
 	parent := ctx
@@ -400,7 +400,7 @@ func (s *sessionCoordinator) stop(ctx context.Context) (sessionResult, error) {
 	s.mu.Unlock()
 	var mediaErr error
 	if hadMedia {
-		mediaErr = s.stopMediaBounded("host_only")
+		mediaErr = s.stopMediaBounded(fogcast.ExecutionHostOnly)
 	}
 	st, serviceErr := s.stopServiceBounded()
 	if mediaErr != nil {
@@ -414,7 +414,7 @@ func (s *sessionCoordinator) stop(ctx context.Context) (sessionResult, error) {
 	}
 	result := s.publicSession(st, nil)
 	if hadMedia {
-		result.Execution = "host_only"
+		result.Execution = fogcast.ExecutionHostOnly
 		result.Media = "stopped"
 	}
 	s.record("session.stop", result, nil)
@@ -564,7 +564,7 @@ func publicSession(st protocol.Status, progress *sessionProgress) sessionResult 
 	}
 	result := sessionResult{State: st.State, GameID: gameID, System: system, Progress: progress}
 	if system != nil {
-		result.Execution = "fpga_native"
+		result.Execution = fogcast.ExecutionFPGANative
 	}
 	return result
 }

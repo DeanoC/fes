@@ -625,7 +625,7 @@ func publicGame(game catalog.Game) gameResult {
 	result := gameResult{
 		ID: game.ID, Title: game.Title, System: game.System, Kind: game.Kind,
 		State: game.State, RootOnline: game.RootOnline, ContentPrepared: game.Content != nil,
-		Execution: "fpga_native", Platform: game.System, Launchable: catalog.Launchable(game.System),
+		Execution: fogcast.ExecutionFPGANative, Platform: game.System, Launchable: catalog.Launchable(game.System),
 		CanonicalTitle: canonical, Region: game.Region, Revision: game.Revision, DumpFlags: game.DumpFlags,
 		GroupKey: game.GroupKey, VariantCount: game.VariantCount, Genre: game.Genre, Year: game.Year,
 	}

@@ -17,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/internal/core"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
@@ -44,7 +43,7 @@ func TestScannerTraversesIncrementallyWithoutFollowingSymlinks(t *testing.T) {
 	store := openScannerStore(t)
 	root := Root{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}
 	offline := Root{ID: "snes-offline", System: protocol.SystemSNES, Path: filepath.Join(t.TempDir(), "missing")}
-	scanner := Scanner{Store: store, Registry: core.DefaultRegistry()}
+	scanner := Scanner{Store: store}
 	scanner.openFile = func(root *os.Root, name string) (scannerSourceFile, error) {
 		switch filepath.Base(name) {
 		case "unreadable.smc":
@@ -144,7 +143,7 @@ func TestScannerTraversesIncrementallyWithoutFollowingSymlinks(t *testing.T) {
 func TestScannerDoesNotPOSIXOpenUNCRoot(t *testing.T) {
 	ctx := context.Background()
 	store := openScannerStore(t)
-	scanner := Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}
+	scanner := Scanner{Store: store, Platforms: DefaultPlatforms()}
 	report, err := scanner.Scan(ctx, []Root{{
 		ID: "folder-watch-unc", System: protocol.SystemSNES, Path: "//deano-clawz/Games/Games/SNES",
 	}})
@@ -170,7 +169,7 @@ func TestScannerDoesNotHoldCatalogTransactionDuringTraversal(t *testing.T) {
 	mustWriteScannerFile(t, filepath.Join(rootPath, "Axelay.sfc"), []byte("axelay"))
 	store := openScannerStore(t)
 	root := Root{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}
-	scanner := Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}
+	scanner := Scanner{Store: store, Platforms: DefaultPlatforms()}
 	if _, err := scanner.Scan(ctx, []Root{root}); err != nil {
 		t.Fatalf("seed Scan: %v", err)
 	}
@@ -229,7 +228,7 @@ func TestScannerSerializesOverlappingCollectionsPerRoot(t *testing.T) {
 
 	olderCollected := make(chan struct{})
 	releaseOlder := make(chan struct{})
-	older := Scanner{Store: olderStore, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}
+	older := Scanner{Store: olderStore, Platforms: DefaultPlatforms()}
 	walks := 0
 	older.walkDir = func(rootFS fs.FS, walkRoot string, fn fs.WalkDirFunc) error {
 		if err := fs.WalkDir(rootFS, walkRoot, fn); err != nil {
@@ -259,7 +258,7 @@ func TestScannerSerializesOverlappingCollectionsPerRoot(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = newerStore.Close() })
 	newerTraversal := make(chan struct{})
-	newer := Scanner{Store: newerStore, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}
+	newer := Scanner{Store: newerStore, Platforms: DefaultPlatforms()}
 	newer.walkDir = func(rootFS fs.FS, walkRoot string, fn fs.WalkDirFunc) error {
 		select {
 		case <-newerTraversal:
@@ -324,7 +323,7 @@ func TestScannerLeasesDoNotSerializeDifferentRoots(t *testing.T) {
 	firstStarted := make(chan struct{})
 	releaseFirst := make(chan struct{})
 	var once sync.Once
-	first := Scanner{Store: firstStore, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}
+	first := Scanner{Store: firstStore, Platforms: DefaultPlatforms()}
 	first.walkDir = func(rootFS fs.FS, walkRoot string, fn fs.WalkDirFunc) error {
 		once.Do(func() {
 			close(firstStarted)
@@ -345,7 +344,7 @@ func TestScannerLeasesDoNotSerializeDifferentRoots(t *testing.T) {
 
 	secondDone := make(chan error, 1)
 	go func() {
-		_, err := (Scanner{Store: secondStore, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}).Scan(ctx, []Root{secondRoot})
+		_, err := (Scanner{Store: secondStore, Platforms: DefaultPlatforms()}).Scan(ctx, []Root{secondRoot})
 		secondDone <- err
 	}()
 	select {
@@ -390,7 +389,7 @@ func TestScannerZIPClassificationUsesOnlyCentralDirectory(t *testing.T) {
 
 	store := openScannerStore(t)
 	root := Root{ID: "snes-zips", System: protocol.SystemSNES, Path: rootPath}
-	report, err := (Scanner{Store: store, Registry: core.DefaultRegistry()}).Scan(ctx, []Root{root})
+	report, err := (Scanner{Store: store}).Scan(ctx, []Root{root})
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
@@ -453,7 +452,7 @@ func TestScannerRollsBackRootWhenTraversalCannotComplete(t *testing.T) {
 	mustWriteScannerFile(t, filepath.Join(rootPath, "original.sfc"), []byte("original"))
 	store := openScannerStore(t)
 	root := Root{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}
-	scanner := Scanner{Store: store, Registry: core.DefaultRegistry()}
+	scanner := Scanner{Store: store}
 	if _, err := scanner.Scan(ctx, []Root{root}); err != nil {
 		t.Fatalf("seed Scan: %v", err)
 	}
@@ -482,7 +481,7 @@ func TestScannerTreatsConfiguredRootSymlinkAsOfflineWithoutReconciling(t *testin
 	mustWriteScannerFile(t, filepath.Join(rootPath, "game.sfc"), []byte("game"))
 	store := openScannerStore(t)
 	root := Root{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}
-	scanner := Scanner{Store: store, Registry: core.DefaultRegistry()}
+	scanner := Scanner{Store: store}
 	if _, err := scanner.Scan(ctx, []Root{root}); err != nil {
 		t.Fatalf("seed Scan: %v", err)
 	}
@@ -514,7 +513,7 @@ func TestScannerRejectsZIPLimitsOutsideHardMaximumBeforeChangingCatalog(t *testi
 			store := openScannerStore(t)
 			rootPath := t.TempDir()
 			mustWriteScannerFile(t, filepath.Join(rootPath, "game.sfc"), []byte("game"))
-			scanner := Scanner{Store: store, Registry: core.DefaultRegistry(), MaxZIPEntries: limit}
+			scanner := Scanner{Store: store, MaxZIPEntries: limit}
 			if _, err := scanner.Scan(context.Background(), []Root{{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}}); err == nil {
 				t.Fatalf("Scan with MaxZIPEntries %d succeeded", limit)
 			}
@@ -535,7 +534,7 @@ func TestScannerRootSwapAfterPreflightRollsBackAndMarksOffline(t *testing.T) {
 	mustWriteScannerFile(t, filepath.Join(rootPath, "game.sfc"), []byte("game"))
 	store := openScannerStore(t)
 	root := Root{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}
-	scanner := Scanner{Store: store, Registry: core.DefaultRegistry()}
+	scanner := Scanner{Store: store}
 	if _, err := scanner.Scan(ctx, []Root{root}); err != nil {
 		t.Fatalf("seed Scan: %v", err)
 	}
@@ -582,7 +581,7 @@ func TestScannerDirectorySwapBeforeDescentRollsBackWithoutMissing(t *testing.T) 
 	mustWriteScannerFile(t, filepath.Join(nestedPath, "game.sfc"), []byte("game"))
 	store := openScannerStore(t)
 	root := Root{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}
-	scanner := Scanner{Store: store, Registry: core.DefaultRegistry()}
+	scanner := Scanner{Store: store}
 	if _, err := scanner.Scan(ctx, []Root{root}); err != nil {
 		t.Fatalf("seed Scan: %v", err)
 	}
@@ -636,7 +635,7 @@ func TestScannerRealDirectorySwapBeforeDescentRollsBackWithoutMissing(t *testing
 	}
 	store := openScannerStore(t)
 	root := Root{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}
-	scanner := Scanner{Store: store, Registry: core.DefaultRegistry()}
+	scanner := Scanner{Store: store}
 	if _, err := scanner.Scan(ctx, []Root{root}); err != nil {
 		t.Fatalf("seed Scan: %v", err)
 	}
@@ -688,7 +687,7 @@ func TestScannerInternalDirectorySwapBeforeDescentRollsBackWithoutMissing(t *tes
 	}
 	store := openScannerStore(t)
 	root := Root{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}
-	scanner := Scanner{Store: store, Registry: core.DefaultRegistry()}
+	scanner := Scanner{Store: store}
 	if _, err := scanner.Scan(ctx, []Root{root}); err != nil {
 		t.Fatalf("seed Scan: %v", err)
 	}
@@ -740,7 +739,7 @@ func TestScannerInternalAncestorSwapBeforeDescentRollsBackWithoutMissing(t *test
 	}
 	store := openScannerStore(t)
 	root := Root{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}
-	scanner := Scanner{Store: store, Registry: core.DefaultRegistry()}
+	scanner := Scanner{Store: store}
 	if _, err := scanner.Scan(ctx, []Root{root}); err != nil {
 		t.Fatalf("seed Scan: %v", err)
 	}
@@ -789,7 +788,7 @@ func TestScannerRejectsRawFinalSymlinkSwap(t *testing.T) {
 	mustWriteScannerFile(t, external, []byte("outside"))
 
 	store := openScannerStore(t)
-	scanner := Scanner{Store: store, Registry: core.DefaultRegistry()}
+	scanner := Scanner{Store: store}
 	scanner.lstat = swapScannerCandidateAfterLstat(t, sourcePath, external)
 	if _, err := scanner.Scan(context.Background(), []Root{{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}}); err != nil {
 		t.Fatalf("Scan(raw swap): %v", err)
@@ -808,7 +807,7 @@ func TestScannerRejectsZIPFinalSymlinkSwapWithoutReadingExternalCentralDirectory
 	mustWriteScannerFile(t, external, makeScannerZIP(t, []scannerZIPEntry{{name: "outside.sfc", body: []byte("outside")}}))
 
 	store := openScannerStore(t)
-	scanner := Scanner{Store: store, Registry: core.DefaultRegistry()}
+	scanner := Scanner{Store: store}
 	scanner.lstat = swapScannerCandidateAfterLstat(t, sourcePath, external)
 	if _, err := scanner.Scan(context.Background(), []Root{{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}}); err != nil {
 		t.Fatalf("Scan(ZIP swap): %v", err)
@@ -828,7 +827,7 @@ func TestScannerRejectsParentDirectorySymlinkSwap(t *testing.T) {
 	mustWriteScannerFile(t, filepath.Join(externalParent, "game.sfc"), []byte("outside"))
 
 	store := openScannerStore(t)
-	scanner := Scanner{Store: store, Registry: core.DefaultRegistry()}
+	scanner := Scanner{Store: store}
 	swapped := false
 	scanner.lstat = func(name string) (fs.FileInfo, error) {
 		info, err := os.Lstat(name)
@@ -1018,7 +1017,7 @@ func TestScannerSkipsCueReferencedCompanions(t *testing.T) {
 	mustWriteScannerFile(t, filepath.Join(rootPath, "game.img"), []byte("track"))
 	store := openScannerStore(t)
 	root := Root{ID: "psx-main", System: "psx", Path: rootPath}
-	scanner := Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}
+	scanner := Scanner{Store: store, Platforms: DefaultPlatforms()}
 	report, err := scanner.Scan(ctx, []Root{root})
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
@@ -1041,7 +1040,7 @@ func TestScannerKeepsUnrelatedBasenameWhenCueNamesSubdirectory(t *testing.T) {
 	mustWriteScannerFile(t, filepath.Join(rootPath, "game.cue"), []byte("FILE \"tracks/track.img\" BINARY\nTRACK 01 MODE1/2352\nINDEX 01 00:00:00\n"))
 	store := openScannerStore(t)
 	root := Root{ID: "psx-main", System: "psx", Path: rootPath}
-	scanner := Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}
+	scanner := Scanner{Store: store, Platforms: DefaultPlatforms()}
 	report, err := scanner.Scan(ctx, []Root{root})
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
@@ -1064,7 +1063,7 @@ func TestScannerDoesNotSkipROMsReferencedByUnsupportedCue(t *testing.T) {
 	mustWriteScannerFile(t, filepath.Join(rootPath, "game.cue"), []byte("FILE \"game.sfc\" BINARY\nTRACK 01 MODE1/2352\nINDEX 01 00:00:00\n"))
 	store := openScannerStore(t)
 	root := Root{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}
-	scanner := Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}
+	scanner := Scanner{Store: store, Platforms: DefaultPlatforms()}
 	report, err := scanner.Scan(ctx, []Root{root})
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
@@ -1090,7 +1089,7 @@ func TestScannerSkipsCaseMismatchedCueCompanions(t *testing.T) {
 	mustWriteScannerFile(t, filepath.Join(rootPath, "game.cue"), []byte("FILE \"GAME.IMG\" BINARY\nTRACK 01 MODE1/2352\nINDEX 01 00:00:00\n"))
 	store := openScannerStore(t)
 	root := Root{ID: "psx-main", System: "psx", Path: rootPath}
-	scanner := Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}
+	scanner := Scanner{Store: store, Platforms: DefaultPlatforms()}
 	report, err := scanner.Scan(ctx, []Root{root})
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
@@ -1113,7 +1112,7 @@ func TestScannerOperatorSNESRootIndexesActRaiserForHostSearch(t *testing.T) {
 	mustWriteScannerFile(t, filepath.Join(rootPath, "ActRaiser 2 (USA).sfc"), []byte("actraiser-2"))
 	store := openScannerStore(t)
 	root := Root{ID: "operator-snes-root", System: protocol.SystemSNES, Path: rootPath}
-	scanner := Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}
+	scanner := Scanner{Store: store, Platforms: DefaultPlatforms()}
 	report, err := scanner.Scan(ctx, []Root{root})
 	if err != nil {
 		t.Fatalf("Scan: %v", err)

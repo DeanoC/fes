@@ -5,16 +5,16 @@ import (
 	"errors"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast-POC/internal/systems"
 )
 
 // DefaultFolderWatchInterval is the host poll interval for SMB-backed
 // folder-watch. Inotify is not required and is often silent on guest SMB.
 const DefaultFolderWatchInterval = 5 * time.Second
 
-// FolderWatcher reconciles configured SNES and Mega Drive library roots into
-// the catalog store when ROMs appear or disappear. Roots come from the caller
-// so the watch paths stay config-driven.
+// FolderWatcher reconciles every table-mapped library root into the catalog
+// store when ROMs appear or disappear. Roots come from the caller so the watch
+// paths stay config-driven.
 type FolderWatcher struct {
 	Scan     func(context.Context, []Root) (ScanReport, error)
 	Roots    func() []Root
@@ -28,9 +28,10 @@ func (w FolderWatcher) roots() []Root {
 	if w.Roots == nil {
 		return nil
 	}
-	out := make([]Root, 0, 1)
-	for _, root := range w.Roots() {
-		if root.System != protocol.SystemSNES && root.System != protocol.SystemMegaDrive {
+	roots := w.Roots()
+	out := make([]Root, 0, len(roots))
+	for _, root := range roots {
+		if !systems.Mapped(root.System) {
 			continue
 		}
 		out = append(out, root)

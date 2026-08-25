@@ -4,8 +4,6 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
-
-	"github.com/DeanoC/FogCast-POC/internal/core"
 )
 
 func TestScannerUsesHostPlatformRegistryForBrowseOnlySystems(t *testing.T) {
@@ -14,7 +12,7 @@ func TestScannerUsesHostPlatformRegistryForBrowseOnlySystems(t *testing.T) {
 	mustWriteScannerFile(t, filepath.Join(rootPath, "mario.nes"), []byte("mario"))
 	store := openScannerStore(t)
 	root := Root{ID: "nes-main", System: "nes", Path: rootPath}
-	scanner := Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}
+	scanner := Scanner{Store: store, Platforms: DefaultPlatforms()}
 	report, err := scanner.Scan(ctx, []Root{root})
 	if err != nil {
 		t.Fatal(err)
@@ -32,7 +30,7 @@ func TestScannerRejectsUnknownPlatforms(t *testing.T) {
 	ctx := context.Background()
 	store := openScannerStore(t)
 	root := Root{ID: "mystery-main", System: "mystery", Path: t.TempDir()}
-	scanner := Scanner{Store: store, Registry: core.DefaultRegistry(), Platforms: DefaultPlatforms()}
+	scanner := Scanner{Store: store, Platforms: DefaultPlatforms()}
 	if _, err := scanner.Scan(ctx, []Root{root}); err == nil {
 		t.Fatal("Scan(unknown platform) succeeded")
 	}

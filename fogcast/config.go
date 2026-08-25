@@ -15,6 +15,7 @@ import (
 
 	"github.com/DeanoC/FogCast-POC/catalog"
 	"github.com/DeanoC/FogCast-POC/internal/remotemedia"
+	"github.com/DeanoC/FogCast-POC/internal/systems"
 	"github.com/DeanoC/FogCast-POC/librarymedia"
 	"github.com/DeanoC/FogCast-POC/protocol"
 	"github.com/pelletier/go-toml/v2"
@@ -82,9 +83,8 @@ type Config struct {
 type LibraryConfig struct {
 	AttractIdleSeconds int
 	PreferredRegions   []string
-	// WatchRoot is the SNES folder-watch catalog source of truth. It is
-	// operator-configurable. DefaultFolderWatchRoot is the confirmed
-	// SNES-first default and remains overridable.
+	// WatchRoot is the SMB share root containing table-mapped library folders.
+	// The scanner uses only operator-configured local [[libraries]] mounts.
 	WatchRoot string
 }
 
@@ -328,12 +328,12 @@ func LoadConfig(path string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	watchRoot, err := resolveFolderWatchRoot(raw.Library, libraries)
+	watchRoot, legacyRoot, err := resolveFolderWatchRoot(raw.Library, libraries)
 	if err != nil {
 		return Config{}, fmt.Errorf("library watch_root: %w", err)
 	}
-	if err := validateFolderWatchRootMapping(watchRoot, libraries); err != nil {
-		return Config{}, fmt.Errorf("library watch_root: %w", err)
+	if legacyRoot != nil {
+		libraries = append(libraries, *legacyRoot)
 	}
 	library.WatchRoot = watchRoot
 	fpgaROMPaths, err := normalizeFPGAROMPaths(raw.FPGAROMPaths)
@@ -806,46 +806,64 @@ func NormalizeLibraryConfig(raw LibraryConfig) (LibraryConfig, error) {
 }
 
 const (
-	// DefaultFolderWatchRoot is the confirmed SNES-first folder-watch SoT.
-	// Code still reads the configured watch_root; this default is
-	// overridable and is not a baked-in sole source of truth.
-	DefaultFolderWatchRoot = "//deano-clawz/Games/Games/SNES"
+	// DefaultFolderWatchRoot is the confirmed SMB library share root.
+	DefaultFolderWatchRoot = systems.DefaultSMBShareRoot
 )
 
-// FolderWatchLibraryID returns a path-stable synthetic SNES library id.
-// Changing watch_root must not reuse a stored id; BeginRootScan rejects
-// path changes on an existing library row.
-func FolderWatchLibraryID(watchRoot string) string {
-	digest := sha256.Sum256([]byte(strings.TrimSpace(watchRoot)))
-	return "folder-watch-" + hex.EncodeToString(digest[:6])
-}
-
-func resolveFolderWatchRoot(raw *fileLibrarySettings, libraries []catalog.Root) (string, error) {
+func resolveFolderWatchRoot(raw *fileLibrarySettings, libraries []catalog.Root) (string, *catalog.Root, error) {
 	if raw != nil && strings.TrimSpace(raw.WatchRoot) != "" {
-		return normalizeWatchRoot(raw.WatchRoot)
-	}
-	for _, library := range libraries {
-		if library.System == protocol.SystemSNES && strings.TrimSpace(library.Path) != "" {
-			return library.Path, nil
+		root, err := normalizeWatchRoot(raw.WatchRoot)
+		if err != nil {
+			return "", nil, err
 		}
+		if parent, row, ok := mappedFolderParent(root); ok {
+			if !isUNCWatchRoot(strings.ReplaceAll(root, `\`, "/")) {
+				legacy := catalog.Root{ID: legacyFolderWatchLibraryID(root), System: row.PlatformID, Path: root}
+				for _, library := range libraries {
+					if library.Path == root {
+						if library.System == row.PlatformID {
+							return parent, nil, nil
+						}
+						return "", nil, fmt.Errorf("legacy mapped folder conflicts with [[libraries]] root %q", library.ID)
+					}
+					if library.ID == legacy.ID {
+						return "", nil, fmt.Errorf("legacy mapped folder id conflicts with [[libraries]] root %q", library.ID)
+					}
+				}
+				return parent, &legacy, nil
+			}
+			return parent, nil, nil
+		}
+		if !isUNCWatchRoot(strings.ReplaceAll(root, `\`, "/")) && len(libraries) == 0 {
+			return "", nil, fmt.Errorf("local share root requires an explicit [[libraries]] mapping")
+		}
+		return root, nil, nil
 	}
-	return normalizeWatchRoot(DefaultFolderWatchRoot)
+	root, err := normalizeWatchRoot(DefaultFolderWatchRoot)
+	return root, nil, err
 }
 
-func validateFolderWatchRootMapping(watchRoot string, libraries []catalog.Root) error {
-	if !isUNCWatchRoot(strings.ReplaceAll(strings.TrimSpace(watchRoot), `\`, "/")) {
-		return nil
-	}
-	localSNESRoots := 0
-	for _, library := range libraries {
-		if library.System == protocol.SystemSNES && isLocalAbsoluteWatchPath(library.Path) {
-			localSNESRoots++
+func mappedFolderParent(root string) (string, systems.Row, bool) {
+	unified := strings.ReplaceAll(strings.TrimSpace(root), `\`, "/")
+	leaf := filepath.Base(filepath.FromSlash(unified))
+	for _, row := range systems.Rows() {
+		if row.FolderAlias != "" && strings.EqualFold(leaf, row.FolderAlias) {
+			separator := strings.LastIndex(unified, "/")
+			if separator == 0 {
+				return "/", row, true
+			}
+			if separator <= 1 {
+				return "", systems.Row{}, false
+			}
+			return unified[:separator], row, true
 		}
 	}
-	if localSNESRoots > 1 {
-		return fmt.Errorf("cannot map UNC watch_root to more than one local absolute SNES root")
-	}
-	return nil
+	return "", systems.Row{}, false
+}
+
+func legacyFolderWatchLibraryID(root string) string {
+	digest := sha256.Sum256([]byte(strings.TrimSpace(root)))
+	return "folder-watch-" + hex.EncodeToString(digest[:6])
 }
 
 func normalizeWatchRoot(raw string) (string, error) {
@@ -889,98 +907,13 @@ func normalizeUNCWatchRoot(path string) (string, error) {
 	return "//" + strings.Join(parts, "/"), nil
 }
 
-// ApplyFolderWatchRoot returns the host library roots with a single SNES
-// folder-watch source of truth. An empty watchRoot leaves configured
-// [[libraries]] unchanged so tests and overlays do not inject the
-// confirmed default.
-//
-// A non-empty watch_root keeps a matching configured SNES library id. When no
-// configured SNES path matches, it creates one path-specific
-// FolderWatchLibraryID. A UNC watch_root is the documented SoT identity only:
-// the scanner never
-// POSIX-opens it. Runtime indexing uses the configured absolute SNES
-// [[libraries]] path (the operator mount of that same SoT). That configured
-// identity is kept even if the mount is missing so the scanner can mark it
-// offline and later polls can recover. Fail-closed (no SNES root) only when no
-// local SNES [[libraries]] path is configured.
-func ApplyFolderWatchRoot(libraries []catalog.Root, watchRoot string) []catalog.Root {
-	watchRoot = strings.TrimSpace(watchRoot)
-	if watchRoot != "" && isUNCWatchRoot(strings.ReplaceAll(watchRoot, `\`, "/")) {
-		if mount, ok := resolveOperatorSNESMount(libraries); ok {
-			watchRoot = mount.Path
-		} else {
-			return dropSNESLibraries(libraries)
-		}
-	}
-	out := make([]catalog.Root, 0, len(libraries)+1)
-	keptSNES := false
-	for _, library := range libraries {
-		if library.System != protocol.SystemSNES {
-			out = append(out, library)
-			continue
-		}
-		if watchRoot == "" {
-			out = append(out, library)
-			continue
-		}
-		if library.Path == watchRoot && !keptSNES {
-			out = append(out, library)
-			keptSNES = true
-		}
-	}
-	if watchRoot != "" && !keptSNES {
-		out = append(out, catalog.Root{ID: FolderWatchLibraryID(watchRoot), System: protocol.SystemSNES, Path: watchRoot})
-	}
-	return out
-}
-
-func dropSNESLibraries(libraries []catalog.Root) []catalog.Root {
+// FolderWatchRoots returns every configured local root whose system row owns
+// an SMB folder alias. Adding a future mapping is table data, not watcher code.
+func FolderWatchRoots(libraries []catalog.Root) []catalog.Root {
 	out := make([]catalog.Root, 0, len(libraries))
 	for _, library := range libraries {
-		if library.System != protocol.SystemSNES {
+		if systems.Mapped(library.System) {
 			out = append(out, library)
-		}
-	}
-	return out
-}
-
-func resolveOperatorSNESMount(libraries []catalog.Root) (catalog.Root, bool) {
-	var mount catalog.Root
-	found := false
-	for _, library := range libraries {
-		if library.System == protocol.SystemSNES && isLocalAbsoluteWatchPath(library.Path) {
-			if found {
-				return catalog.Root{}, false
-			}
-			mount = library
-			found = true
-		}
-	}
-	return mount, found
-}
-
-func isLocalAbsoluteWatchPath(path string) bool {
-	trimmed := strings.TrimSpace(path)
-	if trimmed == "" || isUNCWatchRoot(strings.ReplaceAll(trimmed, `\`, "/")) {
-		return false
-	}
-	return filepath.IsAbs(trimmed)
-}
-
-// FolderWatchRoots returns the selected SNES root and the first configured
-// Mega Drive mount for concurrent folder-watch reconciliation. Other systems
-// never enter this watch operation.
-func FolderWatchRoots(libraries []catalog.Root, watchRoot string) []catalog.Root {
-	var out []catalog.Root
-	megaSeen := false
-	for _, library := range ApplyFolderWatchRoot(libraries, watchRoot) {
-		if library.System == protocol.SystemSNES {
-			out = append(out, library)
-			continue
-		}
-		if library.System == protocol.SystemMegaDrive && !megaSeen {
-			out = append(out, library)
-			megaSeen = true
 		}
 	}
 	return out

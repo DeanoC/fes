@@ -1,6 +1,9 @@
 package core
 
-import "github.com/DeanoC/FogCast-POC/protocol"
+import (
+	"github.com/DeanoC/FogCast-POC/internal/systems"
+	"github.com/DeanoC/FogCast-POC/protocol"
+)
 
 type Spec struct {
 	System       protocol.System
@@ -12,19 +15,6 @@ type Spec struct {
 	FileDelay    int
 	FileType     string
 	FileIndex    int
-}
-
-var defaults = []Spec{
-	{
-		System: protocol.SystemMegaDrive, ExpectedCore: "MegaDrive", RBFSelector: "_Console/MegaDrive",
-		ROMRoot: "/media/fat/games/MegaDrive", MGLRoot: "/media/fat/games/MegaDrive", Extensions: extensionSet(".md", ".gen", ".bin"),
-		FileDelay: 1, FileType: "f", FileIndex: 1,
-	},
-	{
-		System: protocol.SystemSNES, ExpectedCore: "SNES", RBFSelector: "_Console/SNES",
-		ROMRoot: "/media/fat/games/SNES", MGLRoot: "/media/fat/games/SNES", Extensions: extensionSet(".sfc", ".smc", ".bin"),
-		FileDelay: 2, FileType: "f", FileIndex: 0,
-	},
 }
 
 func extensionSet(values ...string) map[string]struct{} {
@@ -40,7 +30,18 @@ type Registry struct {
 }
 
 func DefaultRegistry() Registry {
-	return NewRegistry(defaults...)
+	var specs []Spec
+	for _, row := range systems.Rows() {
+		if row.Capability != systems.CapabilityFPGANative || row.Core == nil {
+			continue
+		}
+		specs = append(specs, Spec{
+			System: row.PlatformID, ExpectedCore: row.Core.ExpectedCore, RBFSelector: row.Core.RBF,
+			ROMRoot: row.Core.KitROMRoot, MGLRoot: row.Core.MGLRoot, Extensions: extensionSet(row.Extensions...),
+			FileDelay: row.Core.FileDelay, FileType: row.Core.FileType, FileIndex: row.Core.FileIndex,
+		})
+	}
+	return NewRegistry(specs...)
 }
 
 func NewRegistry(specs ...Spec) Registry {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DeanoC/FogCast-POC/internal/systems"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
@@ -21,7 +22,16 @@ type PlatformRegistry struct {
 }
 
 func DefaultPlatforms() PlatformRegistry {
-	return NewPlatformRegistry(defaultPlatforms...)
+	rows := systems.Rows()
+	platforms := make([]Platform, 0, len(rows))
+	for _, row := range rows {
+		platform := Platform{ID: row.PlatformID, Label: row.Label, Extensions: platformExtensions(row.Extensions...)}
+		if row.Capability == systems.CapabilityFPGANative {
+			platform.LaunchSystem = row.PlatformID
+		}
+		platforms = append(platforms, platform)
+	}
+	return NewPlatformRegistry(platforms...)
 }
 
 func NewPlatformRegistry(platforms ...Platform) PlatformRegistry {
@@ -83,28 +93,4 @@ func platformExtensions(values ...string) map[string]struct{} {
 		result[value] = struct{}{}
 	}
 	return result
-}
-
-var defaultPlatforms = []Platform{
-	{ID: protocol.SystemMegaDrive, Label: "Mega Drive", Extensions: platformExtensions(".md", ".gen", ".bin"), LaunchSystem: protocol.SystemMegaDrive},
-	{ID: protocol.SystemSNES, Label: "SNES", Extensions: platformExtensions(".sfc", ".smc", ".bin"), LaunchSystem: protocol.SystemSNES},
-	{ID: "nes", Label: "NES", Extensions: platformExtensions(".nes", ".unf", ".unif", ".fds")},
-	{ID: "gb", Label: "Game Boy", Extensions: platformExtensions(".gb")},
-	{ID: "gbc", Label: "Game Boy Color", Extensions: platformExtensions(".gbc")},
-	{ID: "gba", Label: "Game Boy Advance", Extensions: platformExtensions(".gba")},
-	{ID: "n64", Label: "Nintendo 64", Extensions: platformExtensions(".n64", ".z64", ".v64")},
-	{ID: "psx", Label: "PlayStation", Extensions: platformExtensions(".cue", ".chd", ".pbp", ".iso", ".img")},
-	{ID: "sms", Label: "Master System", Extensions: platformExtensions(".sms")},
-	{ID: "gg", Label: "Game Gear", Extensions: platformExtensions(".gg")},
-	{ID: "pce", Label: "PC Engine", Extensions: platformExtensions(".pce", ".sgx")},
-	{ID: "32x", Label: "32X", Extensions: platformExtensions(".32x")},
-	{ID: "saturn", Label: "Saturn", Extensions: platformExtensions(".cue", ".chd", ".iso")},
-	{ID: "dc", Label: "Dreamcast", Extensions: platformExtensions(".gdi", ".cdi", ".chd")},
-	{ID: "psp", Label: "PSP", Extensions: platformExtensions(".iso", ".cso", ".pbp")},
-	{ID: "nds", Label: "Nintendo DS", Extensions: platformExtensions(".nds")},
-	{ID: "arcade", Label: "Arcade", Extensions: platformExtensions(".zip")},
-	{ID: "a2600", Label: "Atari 2600", Extensions: platformExtensions(".a26", ".bin")},
-	{ID: "lynx", Label: "Lynx", Extensions: platformExtensions(".lnx")},
-	{ID: "ngp", Label: "Neo Geo Pocket", Extensions: platformExtensions(".ngp", ".ngc")},
-	{ID: "ws", Label: "WonderSwan", Extensions: platformExtensions(".ws", ".wsc")},
 }

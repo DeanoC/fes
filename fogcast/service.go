@@ -18,6 +18,7 @@ import (
 	"github.com/DeanoC/FogCast-POC/host"
 	"github.com/DeanoC/FogCast-POC/internal/core"
 	"github.com/DeanoC/FogCast-POC/internal/hostexec"
+	"github.com/DeanoC/FogCast-POC/internal/systems"
 	"github.com/DeanoC/FogCast-POC/librarymedia"
 	"github.com/DeanoC/FogCast-POC/libraryuser"
 	"github.com/DeanoC/FogCast-POC/protocol"
@@ -78,8 +79,8 @@ type mediaCastClient interface {
 }
 
 const (
-	ExecutionFPGANative = "fpga_native"
-	ExecutionHostOnly   = "host_only"
+	ExecutionFPGANative = string(systems.CapabilityFPGANative)
+	ExecutionHostOnly   = string(systems.CapabilityHostOnly)
 )
 
 // ExecutionResolver is intentionally a service-level policy seam for POC5.
@@ -244,8 +245,7 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 	if err != nil {
 		return fail("configure FogCast target", err)
 	}
-	registry := core.DefaultRegistry()
-	scanner := &catalog.Scanner{Store: store, Registry: registry, Platforms: catalog.DefaultPlatforms()}
+	scanner := &catalog.Scanner{Store: store, Platforms: catalog.DefaultPlatforms()}
 	preparer := &romsource.Preparer{StagingRoot: paths.Staging, MaxBytes: protocol.MaxContentBytes}
 	if httpClient == nil {
 		httpClient = http.DefaultClient
@@ -315,16 +315,14 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 		options = append(options, WithLibraryMedia(media))
 	}
 	service := newService(config, paths, store, scanner, preparer, client, options...)
-	if len(service.folderWatchRoots()) > 0 {
-		if err := service.retireSupersededSNESLibraries(ctx); err != nil {
-			return fail("retire superseded SNES libraries", err)
-		}
+	if err := service.retireSupersededLibraries(ctx); err != nil {
+		return fail("retire superseded mapped libraries", err)
 	}
 	return service, nil
 }
 
 func newService(config Config, paths Paths, store serviceCatalog, scanner serviceScanner, preparer servicePreparer, client serviceClient, options ...ServiceOption) *Service {
-	roots := ApplyFolderWatchRoot(config.Libraries, config.Library.WatchRoot)
+	roots := append([]catalog.Root(nil), config.Libraries...)
 	rootsByID := make(map[string]catalog.Root, len(roots))
 	for _, root := range roots {
 		rootsByID[root.ID] = root
@@ -543,7 +541,7 @@ func (s *Service) Scan(ctx context.Context) (catalog.ScanReport, error) {
 		return catalog.ScanReport{}, canonicalError(protocol.CodeInternal, errCatalogClosing)
 	}
 	defer s.endCatalogScan()
-	if err := s.retireSupersededSNESLibrariesWithAdmission(ctx); err != nil {
+	if err := s.retireSupersededLibrariesWithAdmission(ctx); err != nil {
 		if ctx.Err() != nil {
 			return catalog.ScanReport{}, ctx.Err()
 		}
@@ -560,35 +558,34 @@ func (s *Service) Scan(ctx context.Context) (catalog.ScanReport, error) {
 	return report, nil
 }
 
-// FolderWatchRoot returns the configured SNES folder-watch source of truth.
+// FolderWatchRoot returns the configured SMB share source of truth.
 func (s *Service) FolderWatchRoot() string {
 	return s.watchRoot
 }
 
 func (s *Service) folderWatchRoots() []catalog.Root {
-	return FolderWatchRoots(s.roots, s.watchRoot)
+	return FolderWatchRoots(s.roots)
 }
 
-// ReconcileFolderWatch updates the host catalog from the configured SNES
-// watch root and the first configured Mega Drive mount. It does not scan
-// other systems or library media.
+// ReconcileFolderWatch updates the host catalog from every configured root
+// mapped by the system table. It does not scan unmapped systems or media.
 func (s *Service) ReconcileFolderWatch(ctx context.Context) (catalog.ScanReport, error) {
 	if err := ctx.Err(); err != nil {
 		return catalog.ScanReport{}, err
 	}
 	roots := s.folderWatchRoots()
-	if len(roots) == 0 {
-		return catalog.ScanReport{}, canonicalError(protocol.CodeInternal, errFolderWatchRootUnresolved)
-	}
 	if !s.beginCatalogScan() {
 		return catalog.ScanReport{}, canonicalError(protocol.CodeInternal, errCatalogClosing)
 	}
 	defer s.endCatalogScan()
-	if err := s.retireSupersededSNESLibrariesWithAdmission(ctx); err != nil {
+	if err := s.retireSupersededLibrariesWithAdmission(ctx); err != nil {
 		if ctx.Err() != nil {
 			return catalog.ScanReport{}, ctx.Err()
 		}
 		return catalog.ScanReport{}, canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	if len(roots) == 0 {
+		return catalog.ScanReport{}, canonicalError(protocol.CodeInternal, errFolderWatchRootUnresolved)
 	}
 	report, err := s.scanner.Scan(ctx, roots)
 	if err != nil {
@@ -610,7 +607,7 @@ type catalogLibraryRootReleaser interface {
 	ReleaseLibraryRoot(context.Context, catalog.Root) error
 }
 
-func (s *Service) retireSupersededSNESLibraries(ctx context.Context) error {
+func (s *Service) retireSupersededLibraries(ctx context.Context) error {
 	retirer, ok := s.catalog.(catalogLibraryRetirer)
 	if !ok {
 		return nil
@@ -623,7 +620,7 @@ func (s *Service) retireSupersededSNESLibraries(ctx context.Context) error {
 		if strings.TrimSpace(root.ID) != "" {
 			keepByID[root.ID] = root
 		}
-		if root.System == protocol.SystemSNES && strings.TrimSpace(root.ID) != "" {
+		if systems.Mapped(root.System) && strings.TrimSpace(root.ID) != "" {
 			keep[root.ID] = root
 		}
 	}
@@ -649,7 +646,7 @@ func (s *Service) retireSupersededSNESLibraries(ctx context.Context) error {
 		}
 	}
 	for _, library := range libraries {
-		if library.System != protocol.SystemSNES {
+		if !systems.Mapped(library.System) {
 			continue
 		}
 		root, ok := keep[library.ID]
@@ -661,7 +658,7 @@ func (s *Service) retireSupersededSNESLibraries(ctx context.Context) error {
 		}
 	}
 	for _, library := range libraries {
-		if library.System != protocol.SystemSNES {
+		if !systems.Mapped(library.System) {
 			continue
 		}
 		if _, ok := keep[library.ID]; ok {
@@ -677,7 +674,7 @@ func (s *Service) retireSupersededSNESLibraries(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) retireSupersededSNESLibrariesWithAdmission(ctx context.Context) error {
+func (s *Service) retireSupersededLibrariesWithAdmission(ctx context.Context) error {
 	if _, ok := s.catalog.(catalogLibraryRetirer); !ok {
 		return nil
 	}
@@ -686,12 +683,11 @@ func (s *Service) retireSupersededSNESLibrariesWithAdmission(ctx context.Context
 		return err
 	}
 	defer release()
-	return s.retireSupersededSNESLibraries(ctx)
+	return s.retireSupersededLibraries(ctx)
 }
 
-// RunFolderWatch reconciles the configured SNES root and first Mega Drive
-// mount immediately and then on a poll interval until ctx is cancelled.
-// Polling is the SMB-safe watch path.
+// RunFolderWatch reconciles every configured table-mapped root immediately
+// and then on a poll interval until ctx is cancelled. Polling is SMB-safe.
 func (s *Service) RunFolderWatch(ctx context.Context) error {
 	interval := s.folderWatchInterval
 	if interval <= 0 {

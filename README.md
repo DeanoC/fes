@@ -132,10 +132,10 @@ Initial endpoints are `GET /api/v1/health`, `GET /api/v1/status`,
 `GET /api/v1/games?q=<optional query>`, `GET /api/v1/games/{id}`,
 `GET /api/v1/session`, `GET /api/v1/session/events?after=<sequence>`,
 `POST /api/v1/session/launch`, and `POST /api/v1/session/stop`. There is no
-public scan route. `fogcast-api` reconciles the configured SNES `watch_root`
-and the first configured Mega Drive `[[libraries]]` root (the `Games/Genesis`
-mount) into the SQLite catalog when ROMs appear or disappear, and `fogcast scan`
-remains an INTERNAL CLI command that writes the same catalog. The root path
+public scan route. `fogcast-api` reconciles every configured local library root
+whose system-table row has an SMB folder alias into the SQLite catalog when
+ROMs appear or disappear, and `fogcast scan` remains an INTERNAL CLI command
+that writes the same catalog. The root path
 serves a self-contained browser shell. Launch requests contain only a `game_id`;
 the host resolves catalog and target details internally. The initial host-only
 execution boundary is `internal/hostexec`, with a RetroArch adapter that launches
@@ -146,33 +146,31 @@ credentials, cache digests, and ROM filenames.
 
 ## Host folder-watch catalog (SNES + Mega Drive)
 
-The host catalog source of truth for this slice is a **config-driven** folder
-watch of SNES and Mega Drive ROMs. Set the SNES source in the private FogCast
-TOML; the first configured Mega Drive `[[libraries]]` root is watched alongside
-it:
+The host catalog source of truth is a **table-driven** folder watch. The table
+owns platform identity, extensions, capability, optional FPGA core data, cover
+slugs, and SMB aliases. This slice maps `SNES` to `snes` and `Genesis` to
+`megadrive`; those remain the only FPGA-native rows.
 
 ```toml
 [library]
-# Confirmed SNES-first folder-watch SoT. Override if the mounted path differs.
-watch_root = "//deano-clawz/Games/Games/SNES"
+# Remote identity only; the scanner never opens this UNC path.
+watch_root = "//deano-clawz/Games/Games"
 ```
 
-If `watch_root` is omitted, FogCast uses the first configured SNES
-`[[libraries]]` root, or the confirmed default `//deano-clawz/Games/Games/SNES`.
-The first configured Mega Drive `[[libraries]]` root is independently used for
-the `Games/Genesis` host mount; additional Mega Drive roots remain available
-to the explicit full scan but are not part of folder-watch.
-The UNC value is the documented SoT identity; the scanner does not POSIX-open
-it. Runtime indexing uses the configured absolute SNES `[[libraries]]` path
-(the operator mount of that same SoT), or `watch_root` itself when it is
-already a local directory. A temporarily missing mount keeps that library
-identity: the scanner marks it offline and later polls recover without a
-restart. Folder-watch fail-closes only when neither a local SNES `[[libraries]]`
-path nor a Mega Drive mount is configured. Changing a local `watch_root` retires
-the previous SNES library so the UI cannot select a dead id. Play uses the
-existing kit cache: a miss stages the selected SNES or Mega Drive ROM to the
-target cache; a hit launches the already cached ROM. This
-is **Software-tested** host behavior, not HIL.
+If `watch_root` is omitted, the confirmed share root above is used. Configure
+each operator-controlled local mount with `[[libraries]]`; the UNC value is
+never passed to `Lstat` or `OpenRoot`. Every configured root whose table row has
+an alias is polled, including multiple roots for one mapped platform. Missing
+mounts retain their identities, are marked offline, and recover on a later
+poll. Removed or replaced mapped libraries are retired so the UI cannot select
+dead ids. Play for SNES and Mega Drive keeps using the kit cache: a miss stages
+the ROM and a hit launches it without another upload. This is
+**Software-tested** host behavior, not HIL.
+
+For compatibility, a previous mapped-leaf value such as
+`//deano-clawz/Games/Games/SNES` is normalized to the share root at load time.
+A legacy local mapped leaf also becomes a stable local library mapping. Other
+local share roots require explicit `[[libraries]]` entries.
 
 ## Host metadata (disabled by default)
 

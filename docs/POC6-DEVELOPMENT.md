@@ -228,9 +228,14 @@ id = "operator-snes-root"
 system = "snes"
 root = "/absolute/nonsymlink/Games/Games/SNES"
 
+[[libraries]]
+id = "operator-genesis-root"
+system = "megadrive"
+root = "/absolute/nonsymlink/Games/Games/Genesis"
+
 [library]
-# Confirmed SNES-first folder-watch SoT. Override if the mounted path differs.
-watch_root = "//deano-clawz/Games/Games/SNES"
+# Remote identity only; local [[libraries]] roots are scanned.
+watch_root = "//deano-clawz/Games/Games"
 
 [host_emulator]
 binary = "/absolute/path/to/RetroArch"
@@ -270,22 +275,19 @@ Notes:
   `normalizeRoot` fails closed on symlink leaves. A `FogCastMounts/SNES`-style
   symlink mount is rejected; point at the real `Games/Games/SNES` directory
   instead. Do not record private host paths in Git.
-- `[library] watch_root` is the SNES folder-watch catalog source of truth.
-  The confirmed default is `//deano-clawz/Games/Games/SNES`. That UNC string
-  is the documented SoT identity, not a POSIX path: the scanner never
-  `Lstat`/`OpenRoot`s it. Runtime indexing uses the configured absolute SNES
-  `[[libraries]]` `root` (the operator mount of that same SoT), or a local
-  `watch_root` override. If that mount is missing at Open or mid-run, FogCast
-  keeps the library identity; the scanner marks it offline and later polls
-  recover when the share remounts. The first configured Mega Drive
-  `[[libraries]]` mount (the `Games/Genesis` analog) is reconciled alongside
-  SNES; additional Mega Drive roots remain available to the explicit full
-  scan. Fail-closed only when neither a local SNES `[[libraries]]` path nor a
-  Mega Drive mount is configured. A replaced SNES library is retired from the
-  catalog so the UI cannot select a dead id. `fogcast-api` polls both selected
-  folders and updates the host catalog when supported ROMs appear or
-  disappear. Play stages one SNES or Mega Drive ROM to the kit cache on miss
-  and launches the cached ROM on hit.
+- `[library] watch_root` is the SMB share identity. The confirmed default is
+  `//deano-clawz/Games/Games`. A legacy mapped-system leaf such as `/SNES` is
+  normalized to its parent share root at load time; a local mapped leaf also
+  becomes a stable local library mapping. Other local share roots require
+  explicit `[[libraries]]` entries.
+  The scanner never `Lstat`s or `OpenRoot`s the UNC value. Runtime indexing
+  uses only configured absolute `[[libraries]]` roots. The system table maps
+  the `SNES` folder to `snes` and `Genesis` to `megadrive`; every configured
+  root for a mapped platform is polled, including multiple roots for one
+  platform. Missing mounts keep their identities, are marked offline, and can
+  recover after remount. Removed or replaced mapped libraries are retired.
+  Play stages one SNES or Mega Drive ROM to the kit cache on miss and launches
+  the cached ROM on hit.
 - `capture_device = "screen"` selects the Darwin main-display capture path.
 - `generation` must be nonzero. Change it when deliberately creating a new
   cast identity during lifecycle development.
@@ -387,16 +389,15 @@ bin/fogcast \
   scan
 ```
 
-`fogcast-api` automatically reconciles the configured SNES `watch_root` and
-the first configured Mega Drive `[[libraries]]` mount into the existing SQLite
-catalog at startup and on its polling interval; there is no
+`fogcast-api` automatically reconciles every configured table-mapped
+`[[libraries]]` root into the existing SQLite catalog at startup and on its
+polling interval; there is no
 host `/api/v1/.../scan` route. Catalog `scan` remains an INTERNAL CLI command
-(`bin/fogcast --config ... scan`) for an explicit full scan, including any
-configured roots beyond the selected SNES and first Mega Drive folder-watch
-roots.
+(`bin/fogcast --config ... scan`) for an explicit full scan, including
+configured roots without table folder aliases.
 The host UI Refresh control only reloads the current catalog and does not
-trigger either workflow. A stale SNES or first-Mega-Drive catalog therefore
-indicates a folder-watch reconciliation failure, while a stale other catalog
+trigger either workflow. A stale mapped catalog therefore indicates a
+folder-watch reconciliation failure, while a stale unmapped catalog
 can indicate that the explicit internal scan has not run. After successful
 automatic reconciliation (or an explicit internal scan) of
 `operator-snes-root`,
