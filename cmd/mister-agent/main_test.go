@@ -57,8 +57,8 @@ func (*compositionRuntime) Prepare(core.Spec, string) (mister.PreparedLaunch, *p
 	return mister.PreparedLaunch{}, &protocol.APIError{Code: protocol.CodeInternal, Message: "unused"}
 }
 
-func (*compositionRuntime) Launch(context.Context, mister.PreparedLaunch) (string, *protocol.APIError) {
-	return "", &protocol.APIError{Code: protocol.CodeInternal, Message: "unused"}
+func (*compositionRuntime) Launch(context.Context, mister.PreparedLaunch) (string, bool, *protocol.APIError) {
+	return "", false, &protocol.APIError{Code: protocol.CodeInternal, Message: "unused"}
 }
 
 func (*compositionRuntime) Stop(context.Context) (string, *protocol.APIError) {
@@ -115,7 +115,25 @@ func (*compositionStore) PinForLaunch(protocol.System, protocol.ContentIdentity)
 	return &protocol.APIError{Code: protocol.CodeInternal, Message: "unused"}
 }
 
-func (*compositionStore) AbortLaunch(protocol.System, protocol.ContentIdentity) {}
+func (*compositionStore) RecordLaunchIntent(protocol.System, protocol.ContentIdentity) (targetcache.LaunchIntent, *protocol.APIError) {
+	return targetcache.LaunchIntent{}, &protocol.APIError{Code: protocol.CodeInternal, Message: "unused"}
+}
+
+func (*compositionStore) RecordDirectLaunchIntent(protocol.System) (targetcache.LaunchIntent, *protocol.APIError) {
+	return targetcache.LaunchIntent{}, &protocol.APIError{Code: protocol.CodeInternal, Message: "unused"}
+}
+
+func (*compositionStore) AbortLaunch(protocol.System, protocol.ContentIdentity, targetcache.LaunchIntent) *protocol.APIError {
+	return nil
+}
+
+func (*compositionStore) AbortDirectLaunch(protocol.System, targetcache.LaunchIntent) *protocol.APIError {
+	return nil
+}
+
+func (*compositionStore) CommitDirectLaunch(protocol.System, targetcache.LaunchIntent) *protocol.APIError {
+	return &protocol.APIError{Code: protocol.CodeInternal, Message: "unused"}
+}
 
 func (*compositionStore) CommitLaunch(protocol.System, protocol.ContentIdentity) *protocol.APIError {
 	return &protocol.APIError{Code: protocol.CodeInternal, Message: "unused"}
@@ -123,7 +141,14 @@ func (*compositionStore) CommitLaunch(protocol.System, protocol.ContentIdentity)
 
 func (*compositionStore) ClearActive() *protocol.APIError { return nil }
 
-func (s *compositionStore) ReconcileActive(protocol.Status) { s.reconciled = true }
+func (*compositionStore) ActiveRecordSystems(context.Context) (targetcache.ActiveRecords, bool, *protocol.APIError) {
+	return targetcache.ActiveRecords{}, false, nil
+}
+
+func (s *compositionStore) ReconcileActive(context.Context, protocol.Status, *targetcache.ActiveRecordEntry) *protocol.APIError {
+	s.reconciled = true
+	return nil
+}
 
 func TestRunComposesFixedCacheContentHandlerAndUploadTimeouts(t *testing.T) {
 	configPath := writeCompositionConfig(t, "cache_max_bytes = 67108864\n")

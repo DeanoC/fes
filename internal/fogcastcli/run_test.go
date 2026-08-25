@@ -120,6 +120,14 @@ func TestRunAcceptsEveryCommandAndRejectsEveryWrongArityBeforeOpen(t *testing.T)
 	}
 }
 
+func TestPublicCoreRecognizesSharedSMSCore(t *testing.T) {
+	value := "SMS"
+	got := publicCore(&value)
+	if got == nil || *got != value {
+		t.Fatalf("publicCore(SMS) = %v, want SMS", got)
+	}
+}
+
 func TestRunUsesDefaultPathsAndOverridesOnlyConfig(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

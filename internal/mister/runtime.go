@@ -98,15 +98,19 @@ func (r *Runtime) observe(ctx context.Context, expected string) (string, *protoc
 	}
 }
 
-func (r *Runtime) Launch(ctx context.Context, prepared PreparedLaunch) (string, *protocol.APIError) {
+// Launch reports whether command dispatch was attempted. Once dispatch is
+// attempted, an error may be ambiguous because the command pipe can consume a
+// command even when the writer reports a failure.
+func (r *Runtime) Launch(ctx context.Context, prepared PreparedLaunch) (string, bool, *protocol.APIError) {
 	path, err := WriteAtomicMGL(r.paths.MGLDirectory, prepared.MGL)
 	if err != nil {
-		return r.currentCore(), &protocol.APIError{Code: protocol.CodeInternal, Message: "transient MGL could not be installed"}
+		return r.currentCore(), false, &protocol.APIError{Code: protocol.CodeInternal, Message: "transient MGL could not be installed"}
 	}
 	if err := r.writer.Write(ctx, "load_core "+path+"\n"); err != nil {
-		return r.currentCore(), &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "MiSTer command could not be dispatched"}
+		return r.currentCore(), true, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "MiSTer command could not be dispatched"}
 	}
-	return r.observe(ctx, prepared.Spec.ExpectedCore)
+	observed, apiErr := r.observe(ctx, prepared.Spec.ExpectedCore)
+	return observed, true, apiErr
 }
 
 func (r *Runtime) Stop(ctx context.Context) (string, *protocol.APIError) {

@@ -22,8 +22,16 @@ func TestDefaultPlatformsIncludesLaunchableAndBrowseOnly(t *testing.T) {
 	if err := catalog.ValidatePlatform("unknown"); err == nil {
 		t.Fatal("ValidatePlatform(unknown) succeeded")
 	}
-	if !catalog.Launchable(protocol.SystemMegaDrive) || !catalog.Launchable(protocol.SystemSNES) || !catalog.Launchable(protocol.SystemNES) || !catalog.Launchable(protocol.SystemSMS) || catalog.Launchable("gba") {
-		t.Fatalf("launchable mapping is wrong")
+	for _, system := range []protocol.System{
+		protocol.SystemMegaDrive, protocol.SystemSNES, protocol.SystemNES, protocol.SystemSMS,
+		protocol.SystemGameBoy, protocol.SystemGBA, protocol.SystemPCE, protocol.SystemGameGear,
+	} {
+		if !catalog.Launchable(system) {
+			t.Fatalf("platform %q is not launchable", system)
+		}
+	}
+	if catalog.Launchable("gbc") {
+		t.Fatal("Game Boy Color unexpectedly launchable")
 	}
 	launchable := 0
 	for _, row := range systems.Rows() {
@@ -31,8 +39,8 @@ func TestDefaultPlatformsIncludesLaunchableAndBrowseOnly(t *testing.T) {
 			launchable++
 		}
 	}
-	if launchable != 4 {
-		t.Fatalf("launchable rows = %d, want 4", launchable)
+	if launchable != 8 {
+		t.Fatalf("launchable rows = %d, want 8", launchable)
 	}
 	for _, system := range []protocol.System{protocol.SystemNES, protocol.SystemSMS} {
 		platform, ok := catalog.DefaultPlatforms().Lookup(system)
@@ -40,8 +48,8 @@ func TestDefaultPlatformsIncludesLaunchableAndBrowseOnly(t *testing.T) {
 			t.Fatalf("platform %q launch system = %#v, ok=%v", system, platform, ok)
 		}
 	}
-	if platform, ok := catalog.DefaultPlatforms().Lookup("gba"); !ok || platform.LaunchSystem != "" {
-		t.Fatalf("catalog-only GBA platform = %#v, ok=%v", platform, ok)
+	if platform, ok := catalog.DefaultPlatforms().Lookup("gbc"); !ok || platform.LaunchSystem != "" {
+		t.Fatalf("catalog-only GBC platform = %#v, ok=%v", platform, ok)
 	}
 	if catalog.PlatformLabel("nes") != "NES" {
 		t.Fatalf("label = %q", catalog.PlatformLabel("nes"))

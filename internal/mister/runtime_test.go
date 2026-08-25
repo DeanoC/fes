@@ -79,9 +79,9 @@ func TestRuntimeLaunchAndStop(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	observed, apiErr := runtime.Launch(ctx, prepared)
-	if apiErr != nil || observed != "MegaDrive" {
-		t.Fatalf("launch = %q, %#v", observed, apiErr)
+	observed, dispatched, apiErr := runtime.Launch(ctx, prepared)
+	if apiErr != nil || observed != "MegaDrive" || !dispatched {
+		t.Fatalf("launch = %q, %t, %#v", observed, dispatched, apiErr)
 	}
 	observed, apiErr = runtime.Stop(ctx)
 	if apiErr != nil || observed != "MENU" {
@@ -111,9 +111,28 @@ func TestRuntimeLaunchTimeout(t *testing.T) {
 	prepared := mister.PreparedLaunch{Spec: core.Spec{ExpectedCore: "SNES"}, MGL: []byte("mgl\n")}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
-	observed, apiErr := runtime.Launch(ctx, prepared)
-	if apiErr == nil || apiErr.Code != protocol.CodeCoreTimeout || observed != "MENU" {
-		t.Fatalf("launch timeout = %q, %#v", observed, apiErr)
+	observed, dispatched, apiErr := runtime.Launch(ctx, prepared)
+	if apiErr == nil || apiErr.Code != protocol.CodeCoreTimeout || observed != "MENU" || !dispatched {
+		t.Fatalf("launch timeout = %q, %t, %#v", observed, dispatched, apiErr)
+	}
+}
+
+func TestRuntimeLaunchReportsFailureBeforeDispatch(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mglDirectory := filepath.Join(dir, "not-a-directory")
+	if err := os.WriteFile(mglDirectory, []byte("occupied"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writer := &fakeWriter{}
+	runtime := mister.NewRuntime(mister.Paths{CoreNameFile: filepath.Join(dir, "CORENAME"), MGLDirectory: mglDirectory}, core.DefaultRegistry(), writer, fixedProcess(true), time.Millisecond)
+
+	_, dispatched, apiErr := runtime.Launch(context.Background(), mister.PreparedLaunch{Spec: core.Spec{ExpectedCore: "SNES"}, MGL: []byte("mgl\n")})
+	if apiErr == nil || apiErr.Code != protocol.CodeInternal || dispatched {
+		t.Fatalf("launch = dispatched %t, error %#v", dispatched, apiErr)
+	}
+	if commands := writer.snapshot(); len(commands) != 0 {
+		t.Fatalf("commands = %q; want none", commands)
 	}
 }
 
@@ -151,6 +170,7 @@ func TestReconcileCoreNames(t *testing.T) {
 	}{
 		{name: "menu", coreName: "MENU", create: true, state: protocol.StateIdle},
 		{name: "registered", coreName: "SNES", create: true, state: protocol.StateActive, system: func() *protocol.System { v := protocol.SystemSNES; return &v }()},
+		{name: "shared SMS fallback", coreName: "SMS", create: true, state: protocol.StateActive, system: func() *protocol.System { v := protocol.SystemSMS; return &v }()},
 		{name: "unknown", coreName: "UNKNOWN", create: true, state: protocol.StateFailed, code: protocol.CodeUnrecognizedCore},
 		{name: "missing", create: false, state: protocol.StateFailed, code: protocol.CodeMiSTerUnavailable},
 	}

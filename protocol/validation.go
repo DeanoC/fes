@@ -20,7 +20,7 @@ func ValidateGameID(id string) error {
 
 func ValidateSystem(system System) error {
 	switch system {
-	case SystemMegaDrive, SystemSNES, SystemNES, SystemSMS:
+	case SystemMegaDrive, SystemSNES, SystemNES, SystemSMS, SystemGameBoy, SystemGBA, SystemPCE, SystemGameGear:
 		return nil
 	default:
 		return fmt.Errorf("unsupported system %q", system)

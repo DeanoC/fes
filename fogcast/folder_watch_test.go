@@ -20,10 +20,11 @@ func TestFolderWatchRootsIncludeEveryMappedConfiguredRoot(t *testing.T) {
 	snes := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/games/SNES"}
 	firstMega := catalog.Root{ID: "genesis-first", System: protocol.SystemMegaDrive, Path: "/games/Genesis"}
 	secondMega := catalog.Root{ID: "genesis-second", System: protocol.SystemMegaDrive, Path: "/other/Genesis"}
-	gba := catalog.Root{ID: "gba-main", System: "gba", Path: "/games/GBA"}
+	gba := catalog.Root{ID: "gba-main", System: protocol.SystemGBA, Path: "/games/GBA"}
+	gbc := catalog.Root{ID: "gbc-main", System: "gbc", Path: "/games/GBC"}
 
-	got := FolderWatchRoots([]catalog.Root{snes, firstMega, gba, secondMega})
-	want := []catalog.Root{snes, firstMega, secondMega}
+	got := FolderWatchRoots([]catalog.Root{snes, firstMega, gba, gbc, secondMega})
+	want := []catalog.Root{snes, firstMega, gba, secondMega}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("watch roots = %#v, want %#v", got, want)
 	}
@@ -731,6 +732,84 @@ func TestServiceReconcileNESAndSMSFolderWatchUsesKitCacheMissThenHit(t *testing.
 			}
 			client.launch = func(_ context.Context, request protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, error) {
 				operations = append(operations, "launch")
+				gameID, system, coreName := request.GameID, request.System, test.core
+				return protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ExpectedCore: &coreName, ObservedCore: &coreName}, Content: request.Content}, nil
+			}
+
+			service := newService(Config{
+				Libraries: []catalog.Root{{ID: test.rootID, System: test.system, Path: watch}},
+				Library:   LibraryConfig{WatchRoot: watch}, RequestTimeout: time.Second, UploadTimeout: 2 * time.Second,
+			}, Paths{Staging: staging}, store, scanner, preparer, client)
+			if _, err := service.ReconcileFolderWatch(ctx); err != nil {
+				t.Fatalf("ReconcileFolderWatch: %v", err)
+			}
+			games, err := service.Games(ctx)
+			if err != nil || len(games) != 1 || games[0].System != test.system || games[0].RelativePath != test.file || games[0].State != catalog.SourceStateAvailable {
+				t.Fatalf("catalog = %+v, err=%v", games, err)
+			}
+			if _, err := service.Launch(ctx, games[0].ID, nil); err != nil {
+				t.Fatalf("Launch(miss): %v", err)
+			}
+			if _, err := service.Launch(ctx, games[0].ID, nil); err != nil {
+				t.Fatalf("Launch(hit): %v", err)
+			}
+			if client.probeCalls != 2 || client.uploadCalls != 1 || client.launchCalls != 2 || !reflect.DeepEqual(operations, []string{"probe", "upload", "launch", "probe", "launch"}) {
+				t.Fatalf("operations=%v calls probe=%d upload=%d launch=%d", operations, client.probeCalls, client.uploadCalls, client.launchCalls)
+			}
+		})
+	}
+}
+
+func TestServiceReconcileNewFPGAFolderWatchUsesKitCacheMissThenHit(t *testing.T) {
+	for _, test := range []struct {
+		name, file, rootID, core string
+		system                   protocol.System
+	}{
+		{name: "Game Boy", file: "Tetris.gb", rootID: "gb-main", core: "GAMEBOY", system: protocol.SystemGameBoy},
+		{name: "GBA", file: "Mario.gba", rootID: "gba-main", core: "GBA", system: protocol.SystemGBA},
+		{name: "PC Engine", file: "Bonk.pce", rootID: "pce-main", core: "TGFX16", system: protocol.SystemPCE},
+		{name: "Game Gear", file: "Sonic.gg", rootID: "gg-main", core: "SMS", system: protocol.SystemGameGear},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+			watch, staging := t.TempDir(), t.TempDir()
+			store, err := catalog.Open(filepath.Join(t.TempDir(), "library.sqlite3"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = store.Close() })
+			scanner := &catalog.Scanner{Store: store, Platforms: catalog.DefaultPlatforms()}
+			preparer := &romsource.Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}
+			rom := []byte(test.name + "-rom-bytes")
+			if err := os.WriteFile(filepath.Join(watch, test.file), rom, 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			operations := []string{}
+			client := &fakeServiceClient{}
+			client.probe = func(_ context.Context, system protocol.System, identity protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
+				operations = append(operations, "probe")
+				if system != test.system {
+					t.Fatalf("probe system = %q", system)
+				}
+				if client.uploadCalls == 0 {
+					return protocol.CacheProbeResponse{Present: false}, nil
+				}
+				return protocol.CacheProbeResponse{Present: true, System: &system, Content: &identity}, nil
+			}
+			client.upload = func(_ context.Context, system protocol.System, identity protocol.ContentIdentity, reader io.Reader) (protocol.CacheUploadResponse, error) {
+				operations = append(operations, "upload")
+				body, err := io.ReadAll(reader)
+				if err != nil || string(body) != string(rom) {
+					t.Fatalf("uploaded = %q err=%v", body, err)
+				}
+				return protocol.CacheUploadResponse{Result: protocol.CacheUploadCreated, System: system, Content: identity}, nil
+			}
+			client.launch = func(_ context.Context, request protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, error) {
+				operations = append(operations, "launch")
+				if request.System != test.system {
+					t.Fatalf("launch system = %q", request.System)
+				}
 				gameID, system, coreName := request.GameID, request.System, test.core
 				return protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ExpectedCore: &coreName, ObservedCore: &coreName}, Content: request.Content}, nil
 			}

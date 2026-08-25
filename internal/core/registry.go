@@ -28,7 +28,9 @@ func extensionSet(values ...string) map[string]struct{} {
 }
 
 type Registry struct {
-	bySystem map[protocol.System]Spec
+	bySystem           map[protocol.System]Spec
+	byObserved         map[string]protocol.System
+	observedCandidates map[string]map[protocol.System]struct{}
 }
 
 func DefaultRegistry() Registry {
@@ -47,9 +49,31 @@ func DefaultRegistry() Registry {
 }
 
 func NewRegistry(specs ...Spec) Registry {
-	result := Registry{bySystem: make(map[protocol.System]Spec, len(specs))}
+	result := Registry{
+		bySystem:           make(map[protocol.System]Spec, len(specs)),
+		byObserved:         make(map[string]protocol.System, len(specs)),
+		observedCandidates: make(map[string]map[protocol.System]struct{}, len(specs)),
+	}
 	for _, spec := range specs {
 		result.bySystem[spec.System] = cloneSpec(spec)
+		if spec.ExpectedCore != "" {
+			candidates := result.observedCandidates[spec.ExpectedCore]
+			if candidates == nil {
+				candidates = make(map[protocol.System]struct{})
+				result.observedCandidates[spec.ExpectedCore] = candidates
+			}
+			candidates[spec.System] = struct{}{}
+			if len(candidates) == 1 {
+				result.byObserved[spec.ExpectedCore] = spec.System
+			} else if _, sms := candidates[protocol.SystemSMS]; sms {
+				// SMS and Game Gear intentionally share the MiSTer core name.
+				// Keep SMS as the explicit no-intent fallback; Coordinator uses
+				// the validated pending launch system to select Game Gear.
+				result.byObserved[spec.ExpectedCore] = protocol.SystemSMS
+			} else {
+				delete(result.byObserved, spec.ExpectedCore)
+			}
+		}
 	}
 	return result
 }
@@ -71,12 +95,30 @@ func (r Registry) Specs() []Spec {
 }
 
 func (r Registry) LookupObserved(name string) (Spec, bool) {
-	for _, spec := range r.bySystem {
-		if spec.ExpectedCore == name {
-			return cloneSpec(spec), true
-		}
+	system, ok := r.byObserved[name]
+	if !ok {
+		return Spec{}, false
 	}
-	return Spec{}, false
+	return r.Lookup(system)
+}
+
+// LookupObservedForSystem resolves name only when it is the expected core for
+// the requested system. It is used when durable launch intent disambiguates a
+// shared observed core name such as SMS.
+func (r Registry) LookupObservedForSystem(name string, system protocol.System) (Spec, bool) {
+	spec, ok := r.Lookup(system)
+	if !ok || spec.ExpectedCore != name {
+		return Spec{}, false
+	}
+	return spec, true
+}
+
+// RecognizesObserved reports whether name belongs to any registered core.
+// It deliberately does not require a unique system mapping; SMS is shared by
+// Master System and Game Gear and is resolved by launch intent when available.
+func (r Registry) RecognizesObserved(name string) bool {
+	_, ok := r.observedCandidates[name]
+	return ok
 }
 
 func cloneSpec(spec Spec) Spec {

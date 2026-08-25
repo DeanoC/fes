@@ -473,7 +473,7 @@ func publicCore(value *string) *string {
 		return nil
 	}
 	if *value != "MENU" {
-		if _, ok := core.DefaultRegistry().LookupObserved(*value); !ok {
+		if !core.DefaultRegistry().RecognizesObserved(*value) {
 			return nil
 		}
 	}

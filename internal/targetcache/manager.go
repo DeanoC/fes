@@ -142,6 +142,9 @@ type Manager struct {
 	inFlight      map[inventoryKey]uint64
 	pendingActive *activeRecord
 	recordPresent bool
+	launchIntent  *activeRecord
+	intentOwner   LaunchIntent
+	nextIntentID  uint64
 }
 
 func Open(config Config, registry core.Registry, options ...Option) (*Manager, error) {

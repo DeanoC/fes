@@ -68,11 +68,16 @@ func TestTableInvariants(t *testing.T) {
 			}
 		}
 	}
-	if fpga != 4 {
-		t.Fatalf("FPGA rows = %d, want 4", fpga)
+	if fpga != 8 {
+		t.Fatalf("FPGA rows = %d, want 8", fpga)
 	}
-	if !Mapped(protocol.SystemSNES) || !Mapped(protocol.SystemMegaDrive) || !Mapped(protocol.SystemNES) || !Mapped(protocol.SystemSMS) {
-		t.Fatal("folder mappings do not match the approved slice")
+	for _, system := range []protocol.System{
+		protocol.SystemMegaDrive, protocol.SystemSNES, protocol.SystemNES, protocol.SystemSMS,
+		protocol.SystemGameBoy, protocol.SystemGBA, protocol.SystemPCE, protocol.SystemGameGear,
+	} {
+		if !Mapped(system) {
+			t.Fatalf("folder mapping missing for %q", system)
+		}
 	}
 }
 
@@ -105,6 +110,21 @@ func TestSMBFolderUsesMappedAlias(t *testing.T) {
 	if !ok || sms != "//deano-clawz/Games/Games/SMS" {
 		t.Fatalf("SMS folder = %q, %v", sms, ok)
 	}
+	for _, test := range []struct {
+		system protocol.System
+		alias  string
+	}{
+		{protocol.SystemGameBoy, "gb"},
+		{protocol.SystemGBA, "gba"},
+		{protocol.SystemPCE, "pce"},
+		{protocol.SystemGameGear, "gg"},
+	} {
+		folder, ok := SMBFolder(DefaultSMBShareRoot, test.system)
+		want := DefaultSMBShareRoot + "/" + test.alias
+		if !ok || folder != want {
+			t.Fatalf("%s folder = %q, %v; want %q", test.system, folder, ok, want)
+		}
+	}
 }
 
 func TestFPGAExtensionAndCoverRows(t *testing.T) {
@@ -118,6 +138,10 @@ func TestFPGAExtensionAndCoverRows(t *testing.T) {
 	}{
 		{protocol.SystemNES, "NES", []string{".nes", ".unf", ".unif", ".fds"}, "NES", "_Console/NES", "/media/fat/games/NES", "/media/fat/games/NES", 1, 0, "nes", "Nintendo Entertainment System"},
 		{protocol.SystemSMS, "SMS", []string{".sms"}, "SMS", "_Console/SMS", "/media/fat/games/SMS", "/media/fat/games/SMS", 1, 1, "sms", "Sega Master System/Mark III"},
+		{protocol.SystemGameBoy, "gb", []string{".gb"}, "GAMEBOY", "_Console/Gameboy", "/media/fat/games/Gameboy", "/media/fat/games/Gameboy", 2, 1, "gb", "Game Boy"},
+		{protocol.SystemGBA, "gba", []string{".gba"}, "GBA", "_Console/GBA", "/media/fat/games/GBA", "/media/fat/games/GBA", 2, 0, "gba", "Game Boy Advance"},
+		{protocol.SystemPCE, "pce", []string{".pce"}, "TGFX16", "_Console/TurboGrafx16", "/media/fat/games/TGFX16", "/media/fat/games/TGFX16", 1, 0, "turbografx16--1", "TurboGrafx-16/PC Engine"},
+		{protocol.SystemGameGear, "gg", []string{".gg"}, "SMS", "_Console/SMS", "/media/fat/games/SMS", "/media/fat/games/SMS", 1, 2, "game-gear", "Sega Game Gear"},
 	} {
 		row, ok := Lookup(test.system)
 		if !ok || row.Capability != CapabilityFPGANative || row.FolderAlias != test.alias || row.LaunchSystem != test.system {

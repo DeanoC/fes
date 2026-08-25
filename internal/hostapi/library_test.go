@@ -50,9 +50,9 @@ func TestGamesListDoesNotLookupMetadataAndKeepsIdentityFields(t *testing.T) {
 	}
 }
 
-func TestGamesListMarksUnmappedPlatformBrowseOnly(t *testing.T) {
+func TestGamesListMarksCatalogOnlyPlatformBrowseOnly(t *testing.T) {
 	service := &fakeService{games: []catalog.Game{{
-		ID: "gba-mario-test", Title: "Mario", System: "gba",
+		ID: "gbc-zelda-test", Title: "Zelda", System: "gbc",
 		Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
 	}}}
 	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games")

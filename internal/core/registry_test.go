@@ -26,6 +26,10 @@ func TestRegistry(t *testing.T) {
 	}{
 		{protocol.SystemNES, ".nes", "NES", "_Console/NES", "/media/fat/games/NES", "/media/fat/games/NES", 1, 0},
 		{protocol.SystemSMS, ".sms", "SMS", "_Console/SMS", "/media/fat/games/SMS", "/media/fat/games/SMS", 1, 1},
+		{protocol.SystemGameBoy, ".gb", "GAMEBOY", "_Console/Gameboy", "/media/fat/games/Gameboy", "/media/fat/games/Gameboy", 2, 1},
+		{protocol.SystemGBA, ".gba", "GBA", "_Console/GBA", "/media/fat/games/GBA", "/media/fat/games/GBA", 2, 0},
+		{protocol.SystemPCE, ".pce", "TGFX16", "_Console/TurboGrafx16", "/media/fat/games/TGFX16", "/media/fat/games/TGFX16", 1, 0},
+		{protocol.SystemGameGear, ".gg", "SMS", "_Console/SMS", "/media/fat/games/SMS", "/media/fat/games/SMS", 1, 2},
 	} {
 		spec, ok := registry.Lookup(test.system)
 		if !ok || spec.System != test.system || spec.ExpectedCore != test.core || spec.RBFSelector != test.rbf || spec.ROMRoot != test.romRoot || spec.MGLRoot != test.mglRoot || spec.FileDelay != test.delay || spec.FileType != "f" || spec.FileIndex != test.index {
@@ -35,8 +39,8 @@ func TestRegistry(t *testing.T) {
 			t.Fatalf("%s extensions = %#v, missing %s", test.system, spec.Extensions, test.extension)
 		}
 	}
-	if _, ok := registry.Lookup("gba"); ok {
-		t.Fatal("unexpected catalog-only GBA registry entry")
+	if _, ok := registry.Lookup("gbc"); ok {
+		t.Fatal("unexpected catalog-only GBC registry entry")
 	}
 }
 
@@ -49,6 +53,25 @@ func TestLookupObserved(t *testing.T) {
 	}
 	if _, ok := registry.LookupObserved("Genesis"); ok {
 		t.Fatal("deprecated Genesis core must not match the POC registry")
+	}
+	sms, ok := registry.LookupObserved("SMS")
+	if !ok || sms.System != protocol.SystemSMS {
+		t.Fatalf("LookupObserved(SMS) = %#v, %v; canonical SMS fallback must remain available without launch intent", sms, ok)
+	}
+	if !registry.RecognizesObserved("SMS") {
+		t.Fatal("RecognizesObserved(SMS) = false, want registered shared core name")
+	}
+	if registry.RecognizesObserved("UNKNOWN") {
+		t.Fatal("RecognizesObserved(UNKNOWN) = true")
+	}
+	for _, system := range []protocol.System{protocol.SystemSMS, protocol.SystemGameGear} {
+		spec, ok := registry.LookupObservedForSystem("SMS", system)
+		if !ok || spec.System != system || spec.ExpectedCore != "SMS" {
+			t.Fatalf("LookupObservedForSystem(SMS, %s) = %#v, %v", system, spec, ok)
+		}
+	}
+	if _, ok := registry.LookupObservedForSystem("SMS", protocol.SystemSNES); ok {
+		t.Fatal("LookupObservedForSystem(SMS, SNES) = true")
 	}
 }
 
@@ -66,6 +89,21 @@ func TestLookupReturnsDefensiveExtensionCopy(t *testing.T) {
 	}
 	if _, ok := second.Extensions[".sfc"]; !ok {
 		t.Fatal("caller mutation changed the registry")
+	}
+}
+
+func TestLookupObservedDoesNotFirstWinArbitraryDuplicate(t *testing.T) {
+	t.Parallel()
+	registry := core.NewRegistry(
+		core.Spec{System: "one", ExpectedCore: "SHARED"},
+		core.Spec{System: "two", ExpectedCore: "SHARED"},
+		core.Spec{System: "three", ExpectedCore: "SHARED"},
+	)
+	if _, ok := registry.LookupObserved("SHARED"); ok {
+		t.Fatal("LookupObserved(SHARED) = true for arbitrary ambiguous candidates")
+	}
+	if !registry.RecognizesObserved("SHARED") {
+		t.Fatal("RecognizesObserved(SHARED) = false")
 	}
 }
 

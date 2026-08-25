@@ -553,8 +553,12 @@ func addKnownSize(total int64, info os.FileInfo) int64 {
 }
 
 func (m *Manager) isPinnedLocked(id inventoryKey) bool {
+	pending := m.pendingActive != nil && makeInventoryKey(m.pendingActive.System, m.pendingActive.Content.Key()) == id
+	previous := m.pendingActive != nil && m.pendingActive.Previous != nil && makeInventoryKey(m.pendingActive.Previous.System, m.pendingActive.Previous.Content.Key()) == id
 	return (m.uploading != nil && *m.uploading == id) ||
 		(m.active != nil && *m.active == id) ||
+		pending ||
+		previous ||
 		m.inFlight[id] > 0
 }
 

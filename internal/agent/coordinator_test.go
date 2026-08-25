@@ -9,6 +9,7 @@ import (
 	"github.com/DeanoC/FogCast-POC/internal/agent"
 	"github.com/DeanoC/FogCast-POC/internal/core"
 	"github.com/DeanoC/FogCast-POC/internal/mister"
+	"github.com/DeanoC/FogCast-POC/internal/targetcache"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
@@ -53,7 +54,7 @@ func (f *fakeRuntime) Prepare(spec core.Spec, path string) (mister.PreparedLaunc
 	return result, nil
 }
 
-func (f *fakeRuntime) Launch(_ context.Context, prepared mister.PreparedLaunch) (string, *protocol.APIError) {
+func (f *fakeRuntime) Launch(_ context.Context, prepared mister.PreparedLaunch) (string, bool, *protocol.APIError) {
 	f.mu.Lock()
 	f.launchCalls++
 	f.launched = prepared
@@ -61,7 +62,7 @@ func (f *fakeRuntime) Launch(_ context.Context, prepared mister.PreparedLaunch) 
 	if f.launchGate != nil {
 		<-f.launchGate
 	}
-	return f.launchObserved, f.launchErr
+	return f.launchObserved, true, f.launchErr
 }
 
 func (f *fakeRuntime) Stop(context.Context) (string, *protocol.APIError) {
@@ -138,6 +139,417 @@ func TestInitializeUsesReconciledStatus(t *testing.T) {
 	coordinator.Initialize(context.Background())
 	status := coordinator.Status()
 	if status.State != protocol.StateActive || status.GameID != nil || status.System == nil || *status.System != protocol.SystemSNES {
+		t.Fatalf("status = %#v", status)
+	}
+}
+
+func TestInitializeUsesValidatedPendingSystemForSharedObservedCore(t *testing.T) {
+	t.Parallel()
+	gameGear := protocol.SystemGameGear
+	runtime := &fakeRuntime{reconciled: protocol.Status{
+		State:        protocol.StateFailed,
+		ObservedCore: stringPtr("SMS"),
+		LastError:    &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Message: "observed core is ambiguous"},
+	}}
+	store := &recordingContentStore{activeSystem: &gameGear}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	agent.NewContentController(coordinator, store)
+
+	coordinator.Initialize(context.Background())
+	status := coordinator.Status()
+	if status.State != protocol.StateActive || status.System == nil || *status.System != protocol.SystemGameGear || status.ExpectedCore == nil || *status.ExpectedCore != "SMS" || status.ObservedCore == nil || *status.ObservedCore != "SMS" || status.LastError != nil {
+		t.Fatalf("status = %#v", status)
+	}
+	snapshot := store.snapshot()
+	if len(snapshot.reconciled) != 1 || snapshot.reconciled[0].System == nil || *snapshot.reconciled[0].System != protocol.SystemGameGear {
+		t.Fatalf("reconciled = %#v", snapshot.reconciled)
+	}
+}
+
+func TestInitializeReconcilesInterruptedLaunchWhenObservedCoreSelectsOneSide(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		candidate protocol.System
+		previous  protocol.System
+		observed  string
+		selected  protocol.System
+	}{
+		{name: "Game Boy candidate", candidate: protocol.SystemGameBoy, previous: protocol.SystemSNES, observed: "GAMEBOY", selected: protocol.SystemGameBoy},
+		{name: "Game Boy Advance candidate", candidate: protocol.SystemGBA, previous: protocol.SystemSNES, observed: "GBA", selected: protocol.SystemGBA},
+		{name: "PC Engine candidate", candidate: protocol.SystemPCE, previous: protocol.SystemSNES, observed: "TGFX16", selected: protocol.SystemPCE},
+		{name: "legacy previous", candidate: protocol.SystemGBA, previous: protocol.SystemNES, observed: "NES", selected: protocol.SystemNES},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			runtimeSystem := test.selected
+			runtime := &fakeRuntime{reconciled: protocol.Status{
+				State: protocol.StateActive, System: &runtimeSystem, ObservedCore: &test.observed,
+			}}
+			alternatives := targetcache.ActiveRecords{Candidate: targetcache.ActiveRecordEntry{System: test.candidate}, Previous: &targetcache.ActiveRecordEntry{System: test.previous}, Interrupted: true}
+			store := &recordingContentStore{activeSystems: &alternatives}
+			coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+			agent.NewContentController(coordinator, store)
+
+			coordinator.Initialize(context.Background())
+
+			status := coordinator.Status()
+			if status.State != protocol.StateActive || status.System == nil || *status.System != test.selected || status.ExpectedCore == nil || *status.ExpectedCore != test.observed || status.LastError != nil {
+				t.Fatalf("status = %#v", status)
+			}
+			snapshot := store.snapshot()
+			if len(snapshot.reconciled) != 1 || snapshot.reconciled[0].System == nil || *snapshot.reconciled[0].System != test.selected {
+				t.Fatalf("reconciled = %#v", snapshot.reconciled)
+			}
+		})
+	}
+}
+
+func TestInitializePreservesInterruptedSharedCoreTransitionAsAmbiguous(t *testing.T) {
+	t.Parallel()
+
+	sms := protocol.SystemSMS
+	gameGear := protocol.SystemGameGear
+	observed := "SMS"
+	runtime := &fakeRuntime{reconciled: protocol.Status{
+		State: protocol.StateActive, System: &sms, ExpectedCore: &observed, ObservedCore: &observed,
+	}}
+	alternatives := targetcache.ActiveRecords{Candidate: targetcache.ActiveRecordEntry{System: gameGear}, Previous: &targetcache.ActiveRecordEntry{System: sms}, Interrupted: true}
+	store := &recordingContentStore{activeSystems: &alternatives}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	agent.NewContentController(coordinator, store)
+
+	coordinator.Initialize(context.Background())
+
+	status := coordinator.Status()
+	if status.State != protocol.StateFailed || status.System != nil || status.ExpectedCore != nil || status.ObservedCore == nil || *status.ObservedCore != observed || status.LastError == nil || status.LastError.Code != protocol.CodeInternal {
+		t.Fatalf("status = %#v", status)
+	}
+	if snapshot := store.snapshot(); len(snapshot.reconciled) != 0 {
+		t.Fatalf("ambiguous launch was destructively reconciled: %#v", snapshot.reconciled)
+	}
+}
+
+func TestInitializePreservesInterruptedDirectSharedCoreTransitionBothDirections(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name      string
+		candidate protocol.System
+		previous  protocol.System
+	}{
+		{name: "SMS to Game Gear", candidate: protocol.SystemGameGear, previous: protocol.SystemSMS},
+		{name: "Game Gear to SMS", candidate: protocol.SystemSMS, previous: protocol.SystemGameGear},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			observed := "SMS"
+			runtime := &fakeRuntime{reconciled: protocol.Status{State: protocol.StateActive, System: &test.candidate, ObservedCore: &observed}}
+			alternatives := targetcache.ActiveRecords{
+				Candidate: targetcache.ActiveRecordEntry{System: test.candidate, Direct: true},
+				Previous:  &targetcache.ActiveRecordEntry{System: test.previous}, Interrupted: true,
+			}
+			store := &recordingContentStore{activeSystems: &alternatives}
+			coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+			agent.NewContentController(coordinator, store)
+
+			coordinator.Initialize(context.Background())
+
+			status := coordinator.Status()
+			if status.State != protocol.StateFailed || status.System != nil || status.LastError == nil || status.LastError.Code != protocol.CodeInternal {
+				t.Fatalf("status = %#v", status)
+			}
+			if snapshot := store.snapshot(); len(snapshot.reconciled) != 0 {
+				t.Fatalf("ambiguous direct launch was destructively reconciled: %#v", snapshot.reconciled)
+			}
+		})
+	}
+}
+
+func TestInitializeSelectsUniqueInterruptedDirectCandidateOrCachedPrevious(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name     string
+		observed string
+		selected targetcache.ActiveRecordEntry
+	}{
+		{name: "direct candidate", observed: "GBA", selected: targetcache.ActiveRecordEntry{System: protocol.SystemGBA, Direct: true}},
+		{name: "cached previous", observed: "SNES", selected: targetcache.ActiveRecordEntry{System: protocol.SystemSNES}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			runtime := &fakeRuntime{reconciled: protocol.Status{State: protocol.StateActive, System: &test.selected.System, ObservedCore: &test.observed}}
+			previous := targetcache.ActiveRecordEntry{System: protocol.SystemSNES}
+			alternatives := targetcache.ActiveRecords{
+				Candidate: targetcache.ActiveRecordEntry{System: protocol.SystemGBA, Direct: true},
+				Previous:  &previous, Interrupted: true,
+			}
+			store := &recordingContentStore{activeSystems: &alternatives}
+			coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+			agent.NewContentController(coordinator, store)
+
+			coordinator.Initialize(context.Background())
+
+			status := coordinator.Status()
+			if status.State != protocol.StateActive || status.System == nil || *status.System != test.selected.System || status.LastError != nil {
+				t.Fatalf("status = %#v", status)
+			}
+			snapshot := store.snapshot()
+			if len(snapshot.reconcileSelected) != 1 || snapshot.reconcileSelected[0] == nil || *snapshot.reconcileSelected[0] != test.selected {
+				t.Fatalf("selected record = %#v, want %#v", snapshot.reconcileSelected, test.selected)
+			}
+		})
+	}
+}
+
+func TestInitializeFinalizesIdenticalInterruptedRelaunch(t *testing.T) {
+	t.Parallel()
+
+	gba := protocol.SystemGBA
+	observed := "GBA"
+	identity := protocol.ContentIdentity{SHA256: cachedDigest, Size: 4, Extension: "gba"}
+	entry := targetcache.ActiveRecordEntry{System: gba, Content: identity}
+	runtime := &fakeRuntime{reconciled: protocol.Status{State: protocol.StateActive, System: &gba, ObservedCore: &observed}}
+	alternatives := targetcache.ActiveRecords{Candidate: entry, Previous: &entry, Interrupted: true}
+	store := &recordingContentStore{activeSystems: &alternatives}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	agent.NewContentController(coordinator, store)
+
+	coordinator.Initialize(context.Background())
+
+	status := coordinator.Status()
+	if status.State != protocol.StateActive || status.System == nil || *status.System != gba || status.LastError != nil {
+		t.Fatalf("status = %#v", status)
+	}
+	snapshot := store.snapshot()
+	if len(snapshot.reconcileSelected) != 1 || snapshot.reconcileSelected[0] == nil || *snapshot.reconcileSelected[0] != entry {
+		t.Fatalf("selected durable entry = %#v; want %#v", snapshot.reconcileSelected, entry)
+	}
+}
+
+func TestInitializePreservesSameSystemDifferentContentInterruptedRelaunch(t *testing.T) {
+	t.Parallel()
+
+	gba := protocol.SystemGBA
+	observed := "GBA"
+	candidate := targetcache.ActiveRecordEntry{System: gba, Content: protocol.ContentIdentity{SHA256: cachedDigest, Size: 4, Extension: "gba"}}
+	previous := targetcache.ActiveRecordEntry{System: gba, Content: protocol.ContentIdentity{SHA256: "1123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", Size: 4, Extension: "gba"}}
+	runtime := &fakeRuntime{reconciled: protocol.Status{State: protocol.StateActive, System: &gba, ObservedCore: &observed}}
+	alternatives := targetcache.ActiveRecords{Candidate: candidate, Previous: &previous, Interrupted: true}
+	store := &recordingContentStore{activeSystems: &alternatives}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	agent.NewContentController(coordinator, store)
+
+	coordinator.Initialize(context.Background())
+
+	status := coordinator.Status()
+	if status.State != protocol.StateFailed || status.LastError == nil || status.LastError.Code != protocol.CodeInternal {
+		t.Fatalf("status = %#v", status)
+	}
+	if snapshot := store.snapshot(); len(snapshot.reconciled) != 0 {
+		t.Fatalf("ambiguous same-system relaunch was reconciled: %#v", snapshot.reconciled)
+	}
+}
+
+func TestInitializePreservesInterruptedLaunchWhenObservedCoreMatchesNeitherEntry(t *testing.T) {
+	t.Parallel()
+
+	gba := protocol.SystemGBA
+	snes := protocol.SystemSNES
+	nes := protocol.SystemNES
+	observed := "NES"
+	runtime := &fakeRuntime{reconciled: protocol.Status{State: protocol.StateActive, System: &nes, ObservedCore: &observed}}
+	alternatives := targetcache.ActiveRecords{
+		Candidate:   targetcache.ActiveRecordEntry{System: gba},
+		Previous:    &targetcache.ActiveRecordEntry{System: snes},
+		Interrupted: true,
+	}
+	store := &recordingContentStore{activeSystems: &alternatives}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	agent.NewContentController(coordinator, store)
+
+	coordinator.Initialize(context.Background())
+
+	status := coordinator.Status()
+	if status.State != protocol.StateFailed || status.LastError == nil || status.LastError.Code != protocol.CodeInternal {
+		t.Fatalf("status = %#v", status)
+	}
+	if snapshot := store.snapshot(); len(snapshot.reconciled) != 0 {
+		t.Fatalf("unmatched interrupted launch was reconciled: %#v", snapshot.reconciled)
+	}
+}
+
+func TestInitializeDoesNotPublishSelectedSystemWhenDurableFinalizationFails(t *testing.T) {
+	t.Parallel()
+
+	snes := protocol.SystemSNES
+	gba := protocol.SystemGBA
+	observed := "GBA"
+	runtime := &fakeRuntime{reconciled: protocol.Status{State: protocol.StateActive, System: &gba, ObservedCore: &observed}}
+	alternatives := targetcache.ActiveRecords{Candidate: targetcache.ActiveRecordEntry{System: gba}, Previous: &targetcache.ActiveRecordEntry{System: snes}, Interrupted: true}
+	store := &recordingContentStore{
+		activeSystems: &alternatives,
+		reconcileErr:  &protocol.APIError{Code: protocol.CodeInternal, Message: "interrupted active cache record cannot be committed"},
+	}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	agent.NewContentController(coordinator, store)
+
+	coordinator.Initialize(context.Background())
+
+	status := coordinator.Status()
+	if status.State != protocol.StateFailed || status.System != nil || status.ExpectedCore != nil || status.ObservedCore == nil || *status.ObservedCore != observed || status.LastError == nil || status.LastError.Code != protocol.CodeInternal {
+		t.Fatalf("status = %#v", status)
+	}
+	if snapshot := store.snapshot(); len(snapshot.reconciled) != 1 {
+		t.Fatalf("reconciled = %#v", snapshot.reconciled)
+	}
+}
+
+func TestInitializeVerifiesDurableActiveWithIndependentContext(t *testing.T) {
+	t.Parallel()
+	gameGear := protocol.SystemGameGear
+	runtime := &fakeRuntime{reconciled: protocol.Status{
+		State:        protocol.StateFailed,
+		ObservedCore: stringPtr("SMS"),
+		LastError:    &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Message: "observed core is ambiguous"},
+	}}
+	var reconcileErr error
+	var reconcileDeadline time.Time
+	var reconcileHasDeadline bool
+	store := &recordingContentStore{
+		activeSystem: &gameGear,
+		onReconcile: func(ctx context.Context, _ protocol.Status) {
+			reconcileErr = ctx.Err()
+			reconcileDeadline, reconcileHasDeadline = ctx.Deadline()
+		},
+	}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	agent.NewContentController(coordinator, store)
+	expired, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	coordinator.Initialize(expired)
+
+	status := coordinator.Status()
+	if status.State != protocol.StateActive || status.System == nil || *status.System != protocol.SystemGameGear {
+		t.Fatalf("status = %#v", status)
+	}
+	if reconcileErr != nil || !reconcileHasDeadline || !reconcileDeadline.After(time.Now()) {
+		t.Fatalf("reconcile context = err %v, deadline %v, has deadline %v; want live bounded context", reconcileErr, reconcileDeadline, reconcileHasDeadline)
+	}
+}
+
+func TestInitializePreservesDurableRecordWhenVerificationIsIndeterminate(t *testing.T) {
+	t.Parallel()
+	runtime := &fakeRuntime{reconciled: protocol.Status{
+		State:        protocol.StateActive,
+		System:       systemPtr(protocol.SystemSMS),
+		ExpectedCore: stringPtr("SMS"),
+		ObservedCore: stringPtr("SMS"),
+	}}
+	store := &recordingContentStore{activeSystemErr: &protocol.APIError{Code: protocol.CodeInternal, Message: "cache verification was canceled"}}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	agent.NewContentController(coordinator, store)
+
+	coordinator.Initialize(context.Background())
+
+	status := coordinator.Status()
+	if status.State != protocol.StateFailed || status.System != nil || status.ExpectedCore != nil || status.ObservedCore == nil || *status.ObservedCore != "SMS" || status.LastError == nil || status.LastError.Code != protocol.CodeInternal {
+		t.Fatalf("status = %#v", status)
+	}
+	if snapshot := store.snapshot(); len(snapshot.reconciled) != 0 {
+		t.Fatalf("indeterminate durable record was destructively reconciled: %#v", snapshot.reconciled)
+	}
+}
+
+func TestInitializePreservesDurableRecordWhenRuntimeHasNoObservation(t *testing.T) {
+	t.Parallel()
+	gameGear := protocol.SystemGameGear
+	sms := protocol.SystemSMS
+	runtime := &fakeRuntime{reconciled: protocol.Status{
+		State:     protocol.StateFailed,
+		LastError: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "startup reconciliation timed out"},
+	}}
+	alternatives := targetcache.ActiveRecords{Candidate: targetcache.ActiveRecordEntry{System: gameGear}, Previous: &targetcache.ActiveRecordEntry{System: sms}, Interrupted: true}
+	store := &recordingContentStore{activeSystems: &alternatives}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	agent.NewContentController(coordinator, store)
+
+	coordinator.Initialize(context.Background())
+
+	status := coordinator.Status()
+	if status.State != protocol.StateFailed || status.ObservedCore != nil || status.LastError == nil || status.LastError.Code != protocol.CodeMiSTerUnavailable {
+		t.Fatalf("status = %#v", status)
+	}
+	if snapshot := store.snapshot(); len(snapshot.reconciled) != 0 {
+		t.Fatalf("unobserved runtime state destructively reconciled durable content: %#v", snapshot.reconciled)
+	}
+}
+
+func TestInitializeClearsInterruptedLaunchAfterConclusiveMenuObservation(t *testing.T) {
+	t.Parallel()
+
+	gameGear := protocol.SystemGameGear
+	sms := protocol.SystemSMS
+	interrupted := targetcache.ActiveRecords{Candidate: targetcache.ActiveRecordEntry{System: gameGear}, Previous: &targetcache.ActiveRecordEntry{System: sms}, Interrupted: true}
+	runtime := &fakeRuntime{reconciled: protocol.Status{State: protocol.StateIdle}}
+	store := &recordingContentStore{activeSystems: &interrupted}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	agent.NewContentController(coordinator, store)
+
+	coordinator.Initialize(context.Background())
+
+	status := coordinator.Status()
+	if status.State != protocol.StateIdle || status.System != nil || status.ExpectedCore != nil || status.LastError != nil {
+		t.Fatalf("status = %#v; want idle", status)
+	}
+	snapshot := store.snapshot()
+	if len(snapshot.reconciled) != 1 || snapshot.reconciled[0].State != protocol.StateIdle || snapshot.reconcileSelected[0] != nil {
+		t.Fatalf("reconciled = %#v selected = %#v", snapshot.reconciled, snapshot.reconcileSelected)
+	}
+}
+
+func TestInitializeOverridesCanonicalSharedCoreWithPendingGameGearSystem(t *testing.T) {
+	t.Parallel()
+	gameGear := protocol.SystemGameGear
+	sms := protocol.SystemSMS
+	expected := "SMS"
+	observed := "SMS"
+	runtime := &fakeRuntime{reconciled: protocol.Status{
+		State:        protocol.StateActive,
+		System:       &sms,
+		ExpectedCore: &expected,
+		ObservedCore: &observed,
+	}}
+	store := &recordingContentStore{activeSystem: &gameGear}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	agent.NewContentController(coordinator, store)
+
+	coordinator.Initialize(context.Background())
+	status := coordinator.Status()
+	if status.State != protocol.StateActive || status.System == nil || *status.System != protocol.SystemGameGear || status.ExpectedCore == nil || *status.ExpectedCore != "SMS" || status.ObservedCore == nil || *status.ObservedCore != "SMS" || status.LastError != nil {
+		t.Fatalf("status = %#v", status)
+	}
+}
+
+func TestInitializeDoesNotUseIncompatiblePendingSystem(t *testing.T) {
+	t.Parallel()
+	gameGear := protocol.SystemGameGear
+	runtime := &fakeRuntime{reconciled: protocol.Status{
+		State:        protocol.StateFailed,
+		ObservedCore: stringPtr("SNES"),
+		LastError:    &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Message: "observed core is ambiguous"},
+	}}
+	store := &recordingContentStore{activeSystem: &gameGear}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	agent.NewContentController(coordinator, store)
+
+	coordinator.Initialize(context.Background())
+	status := coordinator.Status()
+	if status.State != protocol.StateFailed || status.System != nil || status.ObservedCore == nil || *status.ObservedCore != "SNES" || status.LastError == nil || status.LastError.Code != protocol.CodeUnrecognizedCore {
 		t.Fatalf("status = %#v", status)
 	}
 }

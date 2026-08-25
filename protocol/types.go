@@ -7,6 +7,10 @@ const (
 	SystemSNES      System = "snes"
 	SystemNES       System = "nes"
 	SystemSMS       System = "sms"
+	SystemGameBoy   System = "gb"
+	SystemGBA       System = "gba"
+	SystemPCE       System = "pce"
+	SystemGameGear  System = "gg"
 )
 
 type State string
