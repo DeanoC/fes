@@ -83,6 +83,20 @@ func TestUIUsesOnlyExistingAPIEndpointFamilies(t *testing.T) {
 	}
 }
 
+func TestUIIncludesNewFPGASystemLabelsAndLaunchAllowlist(t *testing.T) {
+	html := hostapi.UIHTMLForTest()
+	for _, token := range []string{
+		"wsc: 'WonderSwan Color'",
+		"a7800: 'Atari 7800'",
+		"intv: 'Intellivision'",
+		"const SESSION_SYSTEM_ALLOWLIST = Object.freeze(Object.keys(CATALOG_PLATFORM_LABELS));",
+	} {
+		if !strings.Contains(html, token) {
+			t.Fatalf("assembled UI is missing FPGA system label/allowlist token %q", token)
+		}
+	}
+}
+
 func TestUISemanticAccessibilityAndResponsiveShell(t *testing.T) {
 	html := hostapi.UIHTMLForTest()
 	for _, token := range []string{

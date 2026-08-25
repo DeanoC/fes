@@ -32,7 +32,8 @@ func TestValidateSystem(t *testing.T) {
 	for _, system := range []protocol.System{
 		protocol.SystemMegaDrive, protocol.SystemSNES, protocol.SystemNES, protocol.SystemSMS,
 		protocol.SystemGameBoy, protocol.SystemGameBoyColor, protocol.SystemGBA, protocol.SystemPCE,
-		protocol.SystemGameGear, protocol.SystemAtari2600, protocol.SystemColecoVision, protocol.SystemAtariLynx,
+		protocol.SystemGameGear, protocol.SystemAtari2600, protocol.SystemAtari7800, protocol.SystemColecoVision,
+		protocol.SystemAtariLynx, protocol.SystemWonderSwan, protocol.SystemWonderSwanColor, protocol.SystemIntellivision,
 	} {
 		if err := protocol.ValidateSystem(system); err != nil {
 			t.Fatalf("ValidateSystem(%q): %v", system, err)

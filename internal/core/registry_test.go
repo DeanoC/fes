@@ -32,8 +32,12 @@ func TestRegistry(t *testing.T) {
 		{protocol.SystemGameGear, ".gg", "SMS", "_Console/SMS", "/media/fat/games/SMS", "/media/fat/games/SMS", 1, 2},
 		{protocol.SystemGameBoyColor, ".gbc", "GAMEBOY", "_Console/Gameboy", "/media/fat/games/Gameboy", "/media/fat/games/Gameboy", 2, 1},
 		{protocol.SystemAtari2600, ".a26", "ATARI7800", "_Console/Atari7800", "/media/fat/games/Atari2600", "/media/fat/games/ATARI7800", 1, 1},
+		{protocol.SystemAtari7800, ".a78", "ATARI7800", "_Console/Atari7800", "/media/fat/games/ATARI7800", "/media/fat/games/ATARI7800", 1, 1},
 		{protocol.SystemColecoVision, ".col", "Coleco", "_Console/ColecoVision", "/media/fat/games/Coleco", "/media/fat/games/Coleco", 1, 0},
 		{protocol.SystemAtariLynx, ".lnx", "AtariLynx", "_Console/AtariLynx", "/media/fat/games/AtariLynx", "/media/fat/games/AtariLynx", 1, 0},
+		{protocol.SystemWonderSwan, ".ws", "WonderSwan", "_Console/WonderSwan", "/media/fat/games/WonderSwan", "/media/fat/games/WonderSwan", 1, 1},
+		{protocol.SystemWonderSwanColor, ".wsc", "WonderSwan", "_Console/WonderSwan", "/media/fat/games/WonderSwanColor", "/media/fat/games/WonderSwan", 1, 1},
+		{protocol.SystemIntellivision, ".int", "Intellivision", "_Console/Intellivision", "/media/fat/games/Intellivision", "/media/fat/games/Intellivision", 1, 0},
 	} {
 		spec, ok := registry.Lookup(test.system)
 		if !ok || spec.System != test.system || spec.ExpectedCore != test.core || spec.RBFSelector != test.rbf || spec.ROMRoot != test.romRoot || spec.MGLRoot != test.mglRoot || spec.FileDelay != test.delay || spec.FileType != "f" || spec.FileIndex != test.index {
@@ -83,11 +87,20 @@ func TestLookupObserved(t *testing.T) {
 	if !ok || gameBoy.System != protocol.SystemGameBoy {
 		t.Fatalf("LookupObserved(GAMEBOY) = %#v, %v; canonical GB fallback must remain available without launch intent", gameBoy, ok)
 	}
-	if _, ok := registry.LookupObserved("ATARI7800"); ok {
-		t.Fatal("ATARI7800 must require launch intent")
-	}
 	if spec, ok := registry.LookupObservedForSystem("ATARI7800", protocol.SystemAtari2600); !ok || spec.System != protocol.SystemAtari2600 {
 		t.Fatalf("ATARI7800 intent lookup = %#v, %v", spec, ok)
+	}
+	if spec, ok := registry.LookupObserved("ATARI7800"); !ok || spec.System != protocol.SystemAtari7800 {
+		t.Fatalf("ATARI7800 default lookup = %#v, %v", spec, ok)
+	}
+	if spec, ok := registry.LookupObserved("WonderSwan"); !ok || spec.System != protocol.SystemWonderSwan {
+		t.Fatalf("WonderSwan default lookup = %#v, %v", spec, ok)
+	}
+	for _, system := range []protocol.System{protocol.SystemWonderSwan, protocol.SystemWonderSwanColor} {
+		spec, ok := registry.LookupObservedForSystem("WonderSwan", system)
+		if !ok || spec.System != system || spec.ExpectedCore != "WonderSwan" {
+			t.Fatalf("LookupObservedForSystem(WonderSwan, %s) = %#v, %v", system, spec, ok)
+		}
 	}
 	for _, system := range []protocol.System{protocol.SystemGameBoy, protocol.SystemGameBoyColor} {
 		spec, ok := registry.LookupObservedForSystem("GAMEBOY", system)

@@ -776,6 +776,10 @@ func TestServiceReconcileNewFPGAFolderWatchUsesKitCacheMissThenHit(t *testing.T)
 		{name: "Atari 2600", file: "Adventure.a26", rootID: "a2600-main", core: "ATARI7800", system: protocol.SystemAtari2600},
 		{name: "ColecoVision", file: "Zaxxon.col", rootID: "coleco-main", core: "Coleco", system: protocol.SystemColecoVision},
 		{name: "Atari Lynx", file: "Chip.lnx", rootID: "lynx-main", core: "AtariLynx", system: protocol.SystemAtariLynx},
+		{name: "WonderSwan", file: "Guilty Gear.ws", rootID: "ws-main", core: "WonderSwan", system: protocol.SystemWonderSwan},
+		{name: "WonderSwan Color", file: "Final Fantasy.wsc", rootID: "wsc-main", core: "WonderSwan", system: protocol.SystemWonderSwanColor},
+		{name: "Atari 7800", file: "Food Fight.a78", rootID: "a7800-main", core: "ATARI7800", system: protocol.SystemAtari7800},
+		{name: "Intellivision", file: "Astrosmash.int", rootID: "intv-main", core: "Intellivision", system: protocol.SystemIntellivision},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()

@@ -3,18 +3,22 @@ package protocol
 type System string
 
 const (
-	SystemMegaDrive    System = "megadrive"
-	SystemSNES         System = "snes"
-	SystemNES          System = "nes"
-	SystemSMS          System = "sms"
-	SystemGameBoy      System = "gb"
-	SystemGameBoyColor System = "gbc"
-	SystemGBA          System = "gba"
-	SystemPCE          System = "pce"
-	SystemGameGear     System = "gg"
-	SystemAtari2600    System = "a2600"
-	SystemColecoVision System = "coleco"
-	SystemAtariLynx    System = "lynx"
+	SystemMegaDrive       System = "megadrive"
+	SystemSNES            System = "snes"
+	SystemNES             System = "nes"
+	SystemSMS             System = "sms"
+	SystemGameBoy         System = "gb"
+	SystemGameBoyColor    System = "gbc"
+	SystemGBA             System = "gba"
+	SystemPCE             System = "pce"
+	SystemGameGear        System = "gg"
+	SystemAtari2600       System = "a2600"
+	SystemAtari7800       System = "a7800"
+	SystemColecoVision    System = "coleco"
+	SystemAtariLynx       System = "lynx"
+	SystemWonderSwan      System = "ws"
+	SystemWonderSwanColor System = "wsc"
+	SystemIntellivision   System = "intv"
 )
 
 type State string

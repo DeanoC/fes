@@ -422,6 +422,9 @@
     lynx: 'Atari Lynx',
     ngp: 'Neo Geo Pocket',
     ws: 'WonderSwan',
+    wsc: 'WonderSwan Color',
+    a7800: 'Atari 7800',
+    intv: 'Intellivision',
   });
 
   function systemLabel(system) {

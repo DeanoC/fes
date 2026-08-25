@@ -25,7 +25,8 @@ func TestDefaultPlatformsIncludesLaunchableAndBrowseOnly(t *testing.T) {
 	for _, system := range []protocol.System{
 		protocol.SystemMegaDrive, protocol.SystemSNES, protocol.SystemNES, protocol.SystemSMS,
 		protocol.SystemGameBoy, protocol.SystemGameBoyColor, protocol.SystemGBA, protocol.SystemPCE,
-		protocol.SystemGameGear, protocol.SystemAtari2600, protocol.SystemColecoVision, protocol.SystemAtariLynx,
+		protocol.SystemGameGear, protocol.SystemAtari2600, protocol.SystemAtari7800, protocol.SystemColecoVision,
+		protocol.SystemAtariLynx, protocol.SystemWonderSwan, protocol.SystemWonderSwanColor, protocol.SystemIntellivision,
 	} {
 		if !catalog.Launchable(system) {
 			t.Fatalf("platform %q is not launchable", system)
@@ -37,8 +38,8 @@ func TestDefaultPlatformsIncludesLaunchableAndBrowseOnly(t *testing.T) {
 			launchable++
 		}
 	}
-	if launchable != 12 {
-		t.Fatalf("launchable rows = %d, want 12", launchable)
+	if launchable != 16 {
+		t.Fatalf("launchable rows = %d, want 16", launchable)
 	}
 	for _, system := range []protocol.System{protocol.SystemNES, protocol.SystemSMS} {
 		platform, ok := catalog.DefaultPlatforms().Lookup(system)

@@ -133,7 +133,30 @@ var table = []Row{
 		CoverSlugs: map[string]CoverSpec{CoverProviderIGDB: {Slug: "lynx", Name: "Atari Lynx"}},
 	},
 	{PlatformID: "ngp", Label: "Neo Geo Pocket", Extensions: []string{".ngp", ".ngc"}, Capability: CapabilityCatalog},
-	{PlatformID: "ws", Label: "WonderSwan", Extensions: []string{".ws", ".wsc"}, Capability: CapabilityCatalog},
+	{
+		FolderAlias: "WonderSwan", PlatformID: protocol.SystemWonderSwan, LaunchSystem: protocol.SystemWonderSwan, Label: "WonderSwan",
+		Extensions: []string{".ws"}, Capability: CapabilityFPGANative,
+		Core:       &CoreSpec{ExpectedCore: "WonderSwan", ObservedFallback: true, RBF: "_Console/WonderSwan", KitROMRoot: "/media/fat/games/WonderSwan", MGLRoot: "/media/fat/games/WonderSwan", RequiredFiles: []string{"boot.rom", "boot1.rom"}, FileDelay: 1, FileType: "f", FileIndex: 1},
+		CoverSlugs: map[string]CoverSpec{CoverProviderIGDB: {Slug: "wonderswan", Name: "WonderSwan"}},
+	},
+	{
+		FolderAlias: "WonderSwan Color", PlatformID: protocol.SystemWonderSwanColor, LaunchSystem: protocol.SystemWonderSwanColor, Label: "WonderSwan Color",
+		Extensions: []string{".wsc"}, Capability: CapabilityFPGANative,
+		Core:       &CoreSpec{ExpectedCore: "WonderSwan", RBF: "_Console/WonderSwan", KitROMRoot: "/media/fat/games/WonderSwanColor", MGLRoot: "/media/fat/games/WonderSwan", RequiredFiles: []string{"boot.rom", "boot1.rom"}, FileDelay: 1, FileType: "f", FileIndex: 1},
+		CoverSlugs: map[string]CoverSpec{CoverProviderIGDB: {Slug: "wonderswan-color", Name: "WonderSwan Color"}},
+	},
+	{
+		FolderAlias: "Atari7800", PlatformID: protocol.SystemAtari7800, LaunchSystem: protocol.SystemAtari7800, Label: "Atari 7800",
+		Extensions: []string{".a78", ".bin"}, Capability: CapabilityFPGANative,
+		Core:       &CoreSpec{ExpectedCore: "ATARI7800", ObservedFallback: true, RBF: "_Console/Atari7800", KitROMRoot: "/media/fat/games/ATARI7800", MGLRoot: "/media/fat/games/ATARI7800", FileDelay: 1, FileType: "f", FileIndex: 1},
+		CoverSlugs: map[string]CoverSpec{CoverProviderIGDB: {Slug: "atari7800", Name: "Atari 7800"}},
+	},
+	{
+		FolderAlias: "Intellivision", PlatformID: protocol.SystemIntellivision, LaunchSystem: protocol.SystemIntellivision, Label: "Intellivision",
+		Extensions: []string{".rom", ".int", ".bin"}, Capability: CapabilityFPGANative,
+		Core:       &CoreSpec{ExpectedCore: "Intellivision", RBF: "_Console/Intellivision", KitROMRoot: "/media/fat/games/Intellivision", MGLRoot: "/media/fat/games/Intellivision", RequiredFiles: []string{"boot.rom"}, FileDelay: 1, FileType: "f", FileIndex: 0},
+		CoverSlugs: map[string]CoverSpec{CoverProviderIGDB: {Slug: "intellivision", Name: "Intellivision"}},
+	},
 }
 
 func Rows() []Row {

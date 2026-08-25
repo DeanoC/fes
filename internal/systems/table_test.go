@@ -75,13 +75,14 @@ func TestTableInvariants(t *testing.T) {
 			}
 		}
 	}
-	if fpga != 12 {
-		t.Fatalf("FPGA rows = %d, want 12", fpga)
+	if fpga != 16 {
+		t.Fatalf("FPGA rows = %d, want 16", fpga)
 	}
 	for _, system := range []protocol.System{
 		protocol.SystemMegaDrive, protocol.SystemSNES, protocol.SystemNES, protocol.SystemSMS,
 		protocol.SystemGameBoy, protocol.SystemGameBoyColor, protocol.SystemGBA, protocol.SystemPCE,
-		protocol.SystemGameGear, protocol.SystemAtari2600, protocol.SystemColecoVision, protocol.SystemAtariLynx,
+		protocol.SystemGameGear, protocol.SystemAtari2600, protocol.SystemAtari7800, protocol.SystemColecoVision,
+		protocol.SystemAtariLynx, protocol.SystemWonderSwan, protocol.SystemWonderSwanColor, protocol.SystemIntellivision,
 	} {
 		if !Mapped(system) {
 			t.Fatalf("folder mapping missing for %q", system)
@@ -130,6 +131,10 @@ func TestSMBFolderUsesMappedAlias(t *testing.T) {
 		{protocol.SystemAtari2600, "Atari2600"},
 		{protocol.SystemColecoVision, "ColecoVision"},
 		{protocol.SystemAtariLynx, "AtariLynx"},
+		{protocol.SystemWonderSwan, "WonderSwan"},
+		{protocol.SystemWonderSwanColor, "WonderSwan Color"},
+		{protocol.SystemAtari7800, "Atari7800"},
+		{protocol.SystemIntellivision, "Intellivision"},
 	} {
 		folder, ok := SMBFolder(DefaultSMBShareRoot, test.system)
 		want := DefaultSMBShareRoot + "/" + test.alias
@@ -158,6 +163,10 @@ func TestFPGAExtensionAndCoverRows(t *testing.T) {
 		{protocol.SystemAtari2600, "Atari2600", []string{".a26", ".bin"}, "ATARI7800", "_Console/Atari7800", "/media/fat/games/Atari2600", "/media/fat/games/ATARI7800", 1, 1, "atari2600", "Atari 2600"},
 		{protocol.SystemColecoVision, "ColecoVision", []string{".col", ".bin", ".rom"}, "Coleco", "_Console/ColecoVision", "/media/fat/games/Coleco", "/media/fat/games/Coleco", 1, 0, "colecovision", "ColecoVision"},
 		{protocol.SystemAtariLynx, "AtariLynx", []string{".lnx", ".lyx"}, "AtariLynx", "_Console/AtariLynx", "/media/fat/games/AtariLynx", "/media/fat/games/AtariLynx", 1, 0, "lynx", "Atari Lynx"},
+		{protocol.SystemWonderSwan, "WonderSwan", []string{".ws"}, "WonderSwan", "_Console/WonderSwan", "/media/fat/games/WonderSwan", "/media/fat/games/WonderSwan", 1, 1, "wonderswan", "WonderSwan"},
+		{protocol.SystemWonderSwanColor, "WonderSwan Color", []string{".wsc"}, "WonderSwan", "_Console/WonderSwan", "/media/fat/games/WonderSwanColor", "/media/fat/games/WonderSwan", 1, 1, "wonderswan-color", "WonderSwan Color"},
+		{protocol.SystemAtari7800, "Atari7800", []string{".a78", ".bin"}, "ATARI7800", "_Console/Atari7800", "/media/fat/games/ATARI7800", "/media/fat/games/ATARI7800", 1, 1, "atari7800", "Atari 7800"},
+		{protocol.SystemIntellivision, "Intellivision", []string{".rom", ".int", ".bin"}, "Intellivision", "_Console/Intellivision", "/media/fat/games/Intellivision", "/media/fat/games/Intellivision", 1, 0, "intellivision", "Intellivision"},
 	} {
 		row, ok := Lookup(test.system)
 		if !ok || row.Capability != CapabilityFPGANative || row.FolderAlias != test.alias || row.LaunchSystem != test.system {
@@ -177,5 +186,18 @@ func TestFPGAExtensionAndCoverRows(t *testing.T) {
 	lynx, ok := Lookup(protocol.SystemAtariLynx)
 	if !ok || lynx.Core == nil || len(lynx.Core.RequiredFiles) != 1 || lynx.Core.RequiredFiles[0] != "boot.rom" {
 		t.Fatalf("Lynx prerequisites = %#v, %v", lynx.Core, ok)
+	}
+	for _, test := range []struct {
+		system protocol.System
+		files  []string
+	}{
+		{protocol.SystemWonderSwan, []string{"boot.rom", "boot1.rom"}},
+		{protocol.SystemWonderSwanColor, []string{"boot.rom", "boot1.rom"}},
+		{protocol.SystemIntellivision, []string{"boot.rom"}},
+	} {
+		row, ok := Lookup(test.system)
+		if !ok || row.Core == nil || strings.Join(row.Core.RequiredFiles, ",") != strings.Join(test.files, ",") {
+			t.Fatalf("%s prerequisites = %#v, %v; want %v", test.system, row.Core, ok, test.files)
+		}
 	}
 }
