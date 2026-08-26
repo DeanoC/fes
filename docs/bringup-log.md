@@ -115,3 +115,128 @@ clone package/pin compatibility is inferred.
 `QUARTUS_ROOTDIR` was unset for this evidence capture. Quartus was therefore
 not inspected; it remains an optional oracle dependency and is only inspected
 when that variable is explicitly provided.
+
+## OSS synthesis, place-and-route, and RBF evidence — 2026-08-26
+
+Task 7 was run entirely from the authenticated repository-local toolchain. No
+hardware programming command was run. The initial TDD RED run was:
+
+```text
+$ python3 -m unittest tests.test_oss_purity -v
+Ran 3 tests in 0.014s
+FAILED (errors=3)
+FileNotFoundError: .../scripts/build_oss.sh
+```
+
+After adding the pipeline, the focused tests were GREEN:
+
+```text
+$ python3 -m unittest tests.test_oss_purity -v
+Ran 3 tests in 0.037s
+OK
+```
+
+The required logical simulation also passed:
+
+```text
+$ make sim EXP=010_blinky
+transition cycle=8 count=8 LED=1
+transition cycle=16 count=0 LED=0
+PASS: 24 post-edge counts verified (0-7 low, 8-15 high, wrap low)
+```
+
+### Authenticated tools and confirmed CLI
+
+The exact local identities used by the build were:
+
+| Command | Output or evidence |
+| --- | --- |
+| `build/toolchain/install/bin/yosys --version` | `Yosys 0.68+132 (git sha1 13b43f8c8, Release, GNU /usr/bin/c++ 14.2.0)` |
+| `build/toolchain/install/bin/nextpnr-mistral --version` | `"nextpnr-mistral" -- Next Generation Place and Route (Version nextpnr-0.11.1-14-g7d4f72c0)` |
+| `mistral-cv models` | Device database lists `5CSEBA6U23I7` as die `sx120f`, package `u23`/672, speed grade 7 |
+
+The build captured the local help output before routing:
+
+```text
+scripts/run_logged.sh build/oss/010_blinky/nextpnr-help.log \
+  build/toolchain/install/bin/nextpnr-mistral --help
+```
+
+That captured help explicitly provides `--json`, `--device`, `--qsf`, `--sdc`,
+`--freq`, `--rbf`, `--write`, `--report`, and
+`--detailed-timing-report`; no unsupported option was guessed.
+
+### Exact OSS commands and result
+
+The synthesis command is retained in `build/oss/010_blinky/yosys.log`:
+
+```text
+build/toolchain/install/bin/yosys -p 'read_verilog experiments/010_blinky/rtl/top.v; synth_intel_alm -nobram -nolutram -nodsp -top top; cd top; rename LED \LED[0]; stat; write_json build/oss/010_blinky/synth.json'
+```
+
+The post-synthesis port rename only changes the generated JSON key from the
+one-bit Verilog port name `LED` to the indexed `LED[0]` name required by the
+checked-in QSF. It does not modify the RTL or constraints. This keeps the
+shared `boards/de10nano/pins.qsf` and `boards/de10nano/clocks.sdc` inputs
+identical for the OSS lane.
+
+The route command is retained in `build/oss/010_blinky/nextpnr.log`:
+
+```text
+build/toolchain/install/bin/nextpnr-mistral \
+  --json build/oss/010_blinky/synth.json \
+  --device 5CSEBA6U23I7 \
+  --qsf boards/de10nano/pins.qsf \
+  --sdc boards/de10nano/clocks.sdc \
+  --freq 50 \
+  --rbf build/oss/010_blinky/top.rbf \
+  --write build/oss/010_blinky/routed.json \
+  --report build/oss/010_blinky/timing.json \
+  --detailed-timing-report
+```
+
+The route exited 0 with `Info: Program finished normally.` and constrained
+both `FPGA_CLK1_50` and `LED[0]` to the shared V11/W15 assignments. A
+case-insensitive search of the complete route log found no `unrouted` marker.
+
+The reported utilization was:
+
+| Resource | Used / available | Percent |
+| --- | ---: | ---: |
+| `MISTRAL_COMB` | 28 / 83820 | 0% |
+| `MISTRAL_FF` | 25 / 167640 | 0% |
+| `MISTRAL_IO` | 2 / 472 | 0% |
+| `MISTRAL_CLKENA` | 1 / 2 | 50% |
+| `MISTRAL_M10K` | 0 / 553 | 0% |
+
+The checked-in SDC requests 50 MHz (`20.000 ns`), and the final signoff report
+was `234.69 MHz (PASS at 50.00 MHz)`. Earlier placement/timing passes in the
+same log also passed at 361.01 MHz and 220.85 MHz.
+
+### Artifacts, hashes, and rebuild stability
+
+`make oss EXP=010_blinky` succeeded twice. The required RBF was nonempty at
+7,007,204 bytes. Its SHA-256 was identical on both runs:
+
+```text
+6afe6c8b7bb61a3a442d4fe9df88dc2f9dfe52ebdcf807501549db4168f95632  build/oss/010_blinky/top.rbf
+```
+
+The final artifact and log evidence is:
+
+| Path | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `build/oss/010_blinky/top.rbf` | 7007204 | `6afe6c8b7bb61a3a442d4fe9df88dc2f9dfe52ebdcf807501549db4168f95632` |
+| `build/oss/010_blinky/synth.json` | 251174 | `e34cbb5ab34ffc1987031f523d6134acc81070b3ab6221c5a27b84a5e484096b` |
+| `build/oss/010_blinky/routed.json` | 119035 | `66d06fc73fc94742fd5ad21dc28171f054eda93c174c0f8fba8944a77838455a` |
+| `build/oss/010_blinky/timing.json` | 34131 | `935069090971210c96561a59fdac82481800bbed3682e246c3efb44c3fc68df7` |
+| `build/oss/010_blinky/timing.txt` | 15771 | `8713b43957a93a74cb99ea7843a329e0a724d7772caa7410981e5f3c95d4cb96` |
+| `build/oss/010_blinky/yosys.log` | 48930 | `1ba77e4b5eefaaf8d2c12c7c1a76d22b3c32501d300c61a3a1b9c6bcda5ff126` |
+| `build/oss/010_blinky/nextpnr-help.log` | 6001 | `38888729e6dcbea9b91d43e2cb629e35fb31b521ee362175cfa001a322d79110` |
+| `build/oss/010_blinky/nextpnr.log` | 40132 | `d659c43dae726cd3228ffc418d2bc15d367f76fb773472272e1e02e8fd317ed8` |
+| `build/oss/010_blinky/manifest.json` | 4935 | `c04ce9a289a43753080b50cfb3d6051f40103aa471cec42f77978601d1d04904` |
+
+The manifest was generated by `collect_manifest.py` with explicit RTL, QSF,
+SDC, script, lockfile, command-log, and artifact arguments. It records target
+`5CSEBA6U23I7`, lane `oss`, all lock pins, source hashes, exact stage
+commands, and the dirty working-tree state expected during this task.
