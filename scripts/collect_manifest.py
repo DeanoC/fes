@@ -238,9 +238,13 @@ def _command_log_records(
             text = safe.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
             raise ManifestError(f"cannot read command log {safe}: {exc}") from exc
-        for line in text.splitlines():
-            if line.startswith("command:"):
-                commands.append(line.rstrip("\r"))
+        # run_logged.sh emits exactly one authenticated header as line one.
+        # Later command:-prefixed lines may be tool output and are not
+        # evidence of a command invocation.
+        lines = text.splitlines()
+        first_line = lines[0] if lines else ""
+        if first_line.startswith("command:"):
+            commands.append(first_line.rstrip("\r"))
     return [records[key] for key in sorted(records)], commands
 
 
@@ -406,11 +410,13 @@ def collect_manifest(
         destination,
         label="manifest",
         base=repository,
-        allowed_roots=(build, repository),
+        allowed_roots=(output,),
         require_exists=False,
     )
     if destination.exists() and destination.is_symlink():
         raise ManifestError(f"manifest path is a symlink: {destination}")
+    if destination.exists() and not destination.is_file():
+        raise ManifestError(f"manifest path is not a regular file: {destination}")
     try:
         destination.parent.mkdir(parents=True, exist_ok=True)
         encoded = json.dumps(

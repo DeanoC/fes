@@ -35,15 +35,33 @@ class ManifestTests(unittest.TestCase):
         shutil.rmtree(self.fixture, ignore_errors=True)
 
     def _collect(self, *, source: Path | None = None, artifact: Path | None = None) -> subprocess.CompletedProcess[str]:
+        return self._collect_with(
+            source=source,
+            artifact=artifact,
+        )
+
+    def _collect_with(
+        self,
+        *,
+        source: Path | None = None,
+        artifact: Path | None = None,
+        manifest: Path | None = None,
+        repo_root: Path = ROOT,
+        build_root: Path = ROOT / "build",
+        output: Path | None = None,
+        command_log: Path | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        output = output or self.output
+        command_log = command_log or self.log
         command = [
             sys.executable,
             str(COLLECTOR),
             "--repo-root",
-            str(ROOT),
+            str(repo_root),
             "--build-root",
-            str(ROOT / "build"),
+            str(build_root),
             "--output-dir",
-            str(self.output),
+            str(output),
             "--experiment",
             "010_blinky",
             "--lane",
@@ -53,10 +71,12 @@ class ManifestTests(unittest.TestCase):
             "--source",
             str(source or self.source),
             "--command-log",
-            str(self.log),
+            str(command_log),
             "--artifact",
             str(artifact or self.artifact),
         ]
+        if manifest is not None:
+            command.extend(["--manifest", str(manifest)])
         return subprocess.run(
             command,
             cwd=ROOT,
@@ -142,6 +162,51 @@ class ManifestTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("symlink", (result.stderr + result.stdout).lower())
 
+    def test_manifest_cannot_overwrite_repository_file(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="manifest-repository-") as temporary:
+            repository = Path(temporary)
+            shutil.copy2(ROOT / "toolchain.lock", repository / "toolchain.lock")
+            scripts = repository / "scripts"
+            scripts.mkdir()
+            shutil.copy2(ROOT / "scripts" / "lockfile.py", scripts / "lockfile.py")
+            build_root = repository / "build"
+            output = build_root / "oss" / "010_blinky"
+            output.mkdir(parents=True)
+            source = repository / "source.v"
+            source.write_text("module source; endmodule\n", encoding="utf-8")
+            artifact = output / "top.rbf"
+            artifact.write_bytes(b"fixture\n")
+            command_log = output / "build.log"
+            command_log.write_text("command: trusted-tool\n", encoding="utf-8")
+            protected = repository / "toolchain.lock"
+            original = protected.read_bytes()
+
+            result = self._collect_with(
+                source=source,
+                artifact=artifact,
+                manifest=protected,
+                repo_root=repository,
+                build_root=build_root,
+                output=output,
+                command_log=command_log,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(protected.read_bytes(), original)
+            self.assertIn("manifest", (result.stderr + result.stdout).lower())
+
+    def test_commands_use_only_first_runner_header(self) -> None:
+        self.log.write_text(
+            "command: trusted-tool --flag\n"
+            "tool output\n"
+            "command: forged-tool --dangerous\n",
+            encoding="utf-8",
+        )
+        result = self._collect()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest = json.loads((self.output / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["commands"], ["command: trusted-tool --flag"])
+
     def test_missing_declared_build_root_is_created(self) -> None:
         build_root = self.fixture / "new-build-root"
         output = build_root / "oss" / "010_blinky"
@@ -197,6 +262,32 @@ class LoggedCommandTests(unittest.TestCase):
             self.assertIn("stderr line", result.stdout)
             self.assertIn("failed command", result.stderr)
             self.assertIn(str(log), result.stderr)
+
+    def test_log_write_failure_is_failure_when_command_succeeds(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="logged-command-") as temporary:
+            log_directory = Path(temporary) / "not-a-log-file"
+            log_directory.mkdir()
+            result = subprocess.run(
+                [str(RUN_LOGGED), str(log_directory), "bash", "-c", "printf 'success\\n'"],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("failed command", result.stderr)
+            self.assertIn(str(log_directory), result.stderr)
+
+    def test_command_failure_status_wins_over_log_write_failure(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="logged-command-") as temporary:
+            log_directory = Path(temporary) / "not-a-log-file"
+            log_directory.mkdir()
+            result = subprocess.run(
+                [str(RUN_LOGGED), str(log_directory), "bash", "-c", "exit 7"],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(result.returncode, 7)
 
     def test_command_header_escapes_arguments_on_one_line(self) -> None:
         with tempfile.TemporaryDirectory(prefix="logged-command-") as temporary:

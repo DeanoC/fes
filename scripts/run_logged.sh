@@ -41,11 +41,26 @@ print_command() {
 } 2>&1 | tee -- "$log"
 
 # PIPESTATUS must be read immediately after the pipeline.  The first element
-# is the actual command block; the second is tee.
-status=${PIPESTATUS[0]}
+# is the actual command block; the second is tee.  A failed tee is still a
+# failed run even when the command succeeded, but a real command failure is
+# the primary status when both sides fail.
+pipeline_status=("${PIPESTATUS[@]}")
+command_status=${pipeline_status[0]}
+tee_status=${pipeline_status[1]}
+
+if (( command_status != 0 )); then
+    status=$command_status
+    failure_label="failed command (exit $command_status)"
+elif (( tee_status != 0 )); then
+    status=$tee_status
+    failure_label="failed command log (tee exit $tee_status)"
+else
+    status=0
+    failure_label=""
+fi
 
 if (( status != 0 )); then
-    printf 'failed command (exit %d):' "$status" >&2
+    printf '%s:' "$failure_label" >&2
     printf ' %q' "$@" >&2
     # Escape the path as well so this summary remains one physical line even
     # when a caller supplies an unusual log name containing whitespace/newlines.
