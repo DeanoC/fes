@@ -64,6 +64,22 @@ oracle output directory. It preserves the version, compile, normalization,
 and manifest command logs and never writes outside the repository's ignored
 `build/oracle/` tree.
 
+Before compiling, it validates and removes only the exact staged
+`build/oracle/<EXP>/project/output_files` directory. Symlinked paths or entries
+fail closed, so stale reports cannot be reused and cleanup cannot redirect
+outside the oracle tree. Attestation then requires the current compile to
+produce the exact regular, non-empty `top.rbf`, `top.fit.rpt`, and `top.sta.rpt`
+files; wildcard or cross-lane artifacts are not accepted.
+
+Normalization is conservative. The timing gate reads the structured Fmax table
+and uses exactly one `FPGA_CLK1_50` row's `Restricted Fmax` value; unrestricted
+maximums, missing rows, and ambiguous rows do not pass. Fitter evidence must
+explicitly report zero usage for each required forbidden class (`PLL`,
+`BRAM/M10K`, `MLAB/LUTRAM`, `DSP`, and the target SoC's `HPS`), with an
+unrecognized or absent class failing closed. The schema-2 build summary records
+the exact shared RTL, pin-QSF, and clock-SDC SHA-256 values and non-empty
+Quartus executable/version provenance.
+
 ## Comparison and acceptance
 
 Run the comparison only after both manifests exist:
@@ -81,6 +97,9 @@ are informational.
 
 The command fails closed only for the stated gates: a missing or failed build,
 an unrouted design, timing below 50 MHz, an unexpected hard block or unknown
-resource, a recorded failed simulation, or a missing/hash-mismatched required
-RBF artifact. The comparison does not claim hardware behavior until an
-operator records that observation separately.
+resource, a recorded failed simulation, missing or mismatched common source
+hashes, malformed/absent required hard-block evidence, or a missing,
+cross-lane, empty, or hash/size-mismatched required RBF artifact. Resource
+counts and byte differences remain informational, and absent resources are
+shown as `absent`, never as zero. The comparison does not claim hardware
+behavior until an operator records that observation separately.

@@ -30,6 +30,7 @@ VID_PID_RE = re.compile(
     r"(?<![0-9a-f])(?:0x)?([0-9a-f]{4})\s*:\s*(?:0x)?([0-9a-f]{4})(?![0-9a-f])",
     re.I,
 )
+QUARTUS_VERSION_RE = re.compile(r"(^|[^0-9])17\.0\.2([^0-9]|$)")
 
 # Keep this table explicit: the doctor must not search for a different FPGA
 # implementation when a pinned repository-local binary is missing.
@@ -40,6 +41,18 @@ OSS_TOOLS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("verilator", "Verilator", ("--version",)),
     ("openFPGALoader", "openFPGALoader", ("--version",)),
 )
+
+
+def _contains_symlink(path: Path) -> bool:
+    """Inspect a path without allowing a Quartus root to escape its spelling."""
+
+    absolute = Path(os.path.abspath(os.fspath(path)))
+    current = Path(absolute.anchor)
+    for component in absolute.parts[1:]:
+        current /= component
+        if current.is_symlink():
+            return True
+    return False
 
 
 def make_check(name: str, status: str, detail: str, required: bool) -> dict[str, Any]:
@@ -240,8 +253,33 @@ def quartus_checks() -> list[dict[str, Any]]:
         ]
 
     root = Path(quartus_root)
-    candidates = (root / "bin" / "quartus_sh", root / "quartus_sh")
-    executable = next((candidate for candidate in candidates if candidate.is_file()), None)
+    if any(character.isspace() for character in str(root)):
+        return [
+            make_check(
+                "Quartus",
+                "NOT READY",
+                f"QUARTUS_ROOTDIR={root}; installation paths with spaces are unsupported",
+                False,
+            )
+        ]
+    if _contains_symlink(root):
+        return [
+            make_check(
+                "Quartus",
+                "NOT READY",
+                f"QUARTUS_ROOTDIR={root}; path contains a symlink component",
+                False,
+            )
+        ]
+    candidates = (root / "bin" / "quartus_sh", root / "quartus" / "bin" / "quartus_sh")
+    executable = next(
+        (
+            candidate
+            for candidate in candidates
+            if candidate.is_file() and not candidate.is_symlink() and os.access(candidate, os.X_OK)
+        ),
+        None,
+    )
     if executable is None:
         return [
             make_check(
@@ -258,6 +296,16 @@ def quartus_checks() -> list[dict[str, Any]]:
     detail = f"{executable} --version -> {_short_output(result.stdout, result.stderr)}"
     if result.returncode != 0:
         return [make_check("Quartus", "ERROR", f"exit {result.returncode}; {detail}", False)]
+    version_text = "\n".join((result.stdout, result.stderr))
+    if QUARTUS_VERSION_RE.search(version_text) is None:
+        return [
+            make_check(
+                "Quartus",
+                "NOT READY",
+                f"{detail}; exact Quartus Prime 17.0.2 is required",
+                False,
+            )
+        ]
     return [make_check("Quartus", "OK", detail, False)]
 
 

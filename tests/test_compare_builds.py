@@ -20,24 +20,44 @@ class CompareBuildsTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         self.output = self.root / "comparison"
-        self.oss_rbf = self.root / "oss.rbf"
-        self.oracle_rbf = self.root / "oracle.rbf"
+        self.oss_rbf = self.root / "build" / "oss" / "010_blinky" / "top.rbf"
+        self.oracle_rbf = self.root / "build" / "oracle" / "010_blinky" / "top.rbf"
+        self.oss_rbf.parent.mkdir(parents=True)
+        self.oracle_rbf.parent.mkdir(parents=True)
         self.oss_rbf.write_bytes(b"oss-rbf")
         self.oracle_rbf.write_bytes(b"oracle-rbf")
 
     def tearDown(self):
         self.temp.cleanup()
 
-    def _manifest(self, lane, rbf, *, status="pass", alm=28, artifact=True):
+    def _manifest(self, lane, rbf, *, status="pass", alm=28, artifact=True, artifact_path=None):
         artifacts = []
         digest = _sha256(rbf) if rbf.exists() else "0" * 64
         if artifact:
-            artifacts.append({"path": str(rbf), "sha256": digest})
+            artifacts.append(
+                {
+                    "path": artifact_path or f"build/{lane}/010_blinky/top.rbf",
+                    "sha256": digest,
+                }
+            )
+        sources = [
+            {"path": "experiments/010_blinky/rtl/top.v", "sha256": "a" * 64},
+            {"path": "boards/de10nano/pins.qsf", "sha256": "b" * 64},
+            {"path": "boards/de10nano/clocks.sdc", "sha256": "c" * 64},
+        ]
+        hard_blocks = {
+            "PLL": {"used": 0, "available": 4},
+            "BRAM/M10K": {"used": 0, "available": 10},
+            "MLAB/LUTRAM": {"used": 0, "available": 8},
+            "DSP": {"used": 0, "available": 2},
+            "HPS": {"used": 0, "available": 1},
+        }
         return {
             "schema": 2,
             "experiment": "010_blinky",
             "lane": lane,
             "target": "5CSEBA6U23I7",
+            "sources": sources,
             "artifacts": artifacts,
             "build": {
                 "status": status,
@@ -53,7 +73,10 @@ class CompareBuildsTests(unittest.TestCase):
                 "resources": {
                     "ALM": {"used": alm, "available": 100, "utilization_percent": alm}
                 },
-                "hard_blocks": {},
+                "source_hashes": {
+                    source["path"]: source["sha256"] for source in sources
+                },
+                "hard_blocks": hard_blocks,
                 "hard_block_status": "pass",
                 "unknown_resources": {},
                 "simulation": {"status": "pass"},
@@ -117,20 +140,79 @@ class CompareBuildsTests(unittest.TestCase):
         self.assertTrue(any("build" in item.lower() for item in comparison["failures"]))
 
     def test_missing_artifact_is_failure_and_not_zero_resource(self):
-        missing = self.root / "does-not-exist.rbf"
-        value = self._manifest("oracle", missing, artifact=True)
-        value["artifacts"][0]["sha256"] = "0" * 64
-        value["build"]["resources"] = {}
-        oss = self._write_manifest("oss.json", self._manifest("oss", self.oss_rbf))
-        oracle = self._write_manifest("oracle.json", value)
+        oracle_bytes = self.oracle_rbf.read_bytes()
+        self.oracle_rbf.unlink()
+        try:
+            value = self._manifest("oracle", self.oracle_rbf, artifact=True)
+            value["build"]["resources"] = {}
+            oss = self._write_manifest("oss.json", self._manifest("oss", self.oss_rbf))
+            oracle = self._write_manifest("oracle.json", value)
 
-        result = self._run(oss, oracle)
+            result = self._run(oss, oracle)
+        finally:
+            self.oracle_rbf.write_bytes(oracle_bytes)
 
         self.assertNotEqual(result.returncode, 0)
         comparison = json.loads((self.output / "comparison.json").read_text())
         self.assertTrue(any("missing" in item.lower() for item in comparison["failures"]))
         oracle_lane = comparison["lanes"]["oracle"]
         self.assertNotIn("ALM", oracle_lane["resources"])
+
+    def test_common_source_hashes_must_be_present_and_identical(self):
+        oss_value = self._manifest("oss", self.oss_rbf)
+        oracle_value = self._manifest("oracle", self.oracle_rbf)
+        oracle_value["sources"] = [
+            source
+            for source in oracle_value["sources"]
+            if source["path"] != "boards/de10nano/pins.qsf"
+        ]
+        oss = self._write_manifest("oss.json", oss_value)
+        oracle = self._write_manifest("oracle.json", oracle_value)
+
+        result = self._run(oss, oracle)
+
+        self.assertNotEqual(result.returncode, 0)
+        comparison = json.loads((self.output / "comparison.json").read_text())
+        self.assertTrue(any("common" in item.lower() or "source" in item.lower() for item in comparison["failures"]))
+
+    def test_build_summary_source_hashes_must_match_manifest_sources(self):
+        oss_value = self._manifest("oss", self.oss_rbf)
+        oracle_value = self._manifest("oracle", self.oracle_rbf)
+        oracle_value["build"]["source_hashes"]["boards/de10nano/clocks.sdc"] = "d" * 64
+        oss = self._write_manifest("oss.json", oss_value)
+        oracle = self._write_manifest("oracle.json", oracle_value)
+
+        result = self._run(oss, oracle)
+
+        self.assertNotEqual(result.returncode, 0)
+        comparison = json.loads((self.output / "comparison.json").read_text())
+        self.assertTrue(any("build summary" in item.lower() for item in comparison["failures"]))
+
+    def test_hard_block_map_must_be_complete_and_well_formed(self):
+        oss_value = self._manifest("oss", self.oss_rbf)
+        oracle_value = self._manifest("oracle", self.oracle_rbf)
+        del oracle_value["build"]["hard_blocks"]["DSP"]
+        oss = self._write_manifest("oss.json", oss_value)
+        oracle = self._write_manifest("oracle.json", oracle_value)
+
+        result = self._run(oss, oracle)
+
+        self.assertNotEqual(result.returncode, 0)
+        comparison = json.loads((self.output / "comparison.json").read_text())
+        self.assertTrue(any("hard" in item.lower() for item in comparison["failures"]))
+
+    def test_rbf_must_use_exact_lane_path_and_match_summary(self):
+        oss_value = self._manifest("oss", self.oss_rbf)
+        oracle_value = self._manifest("oracle", self.oracle_rbf)
+        oracle_value["artifacts"][0]["path"] = "build/oss/010_blinky/top.rbf"
+        oss = self._write_manifest("oss.json", oss_value)
+        oracle = self._write_manifest("oracle.json", oracle_value)
+
+        result = self._run(oss, oracle)
+
+        self.assertNotEqual(result.returncode, 0)
+        comparison = json.loads((self.output / "comparison.json").read_text())
+        self.assertTrue(any("rbf" in item.lower() for item in comparison["failures"]))
 
 
 if __name__ == "__main__":

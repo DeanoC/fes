@@ -281,6 +281,60 @@ class DoctorTests(unittest.TestCase):
         oracle = json.loads(with_root.stdout)["optional_oracle"]
         self.assertTrue(any("17.0.2" in check["detail"] for check in oracle))
 
+    def test_quartus_root_with_nested_quartus_bin_is_inspected(self):
+        quartus_root = Path(self.tempdir.name) / "quartus-nested"
+        quartus_bin = quartus_root / "quartus" / "bin"
+        quartus_bin.mkdir(parents=True)
+        marker = Path(self.tempdir.name) / "nested-quartus-called"
+        self._write_executable(
+            quartus_bin / "quartus_sh",
+            f'printf "Quartus Prime 17.0.2 Build 602\\n"; : > "{marker}"',
+        )
+
+        result = self._run("--json", extra_env={"QUARTUS_ROOTDIR": str(quartus_root)})
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(marker.exists())
+        oracle = json.loads(result.stdout)["optional_oracle"]
+        self.assertEqual(oracle[0]["status"], "OK")
+        self.assertIn("17.0.2", oracle[0]["detail"])
+
+    def test_quartus_wrong_version_is_not_ready(self):
+        quartus_root = Path(self.tempdir.name) / "quartus-wrong"
+        quartus_bin = quartus_root / "bin"
+        quartus_bin.mkdir(parents=True)
+        self._write_executable(
+            quartus_bin / "quartus_sh",
+            'printf "Quartus Prime 17.0.0 Build 595\\n"',
+        )
+
+        result = self._run("--json", extra_env={"QUARTUS_ROOTDIR": str(quartus_root)})
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        oracle = json.loads(result.stdout)["optional_oracle"]
+        self.assertEqual(oracle[0]["status"], "NOT READY")
+        self.assertIn("17.0.2", oracle[0]["detail"])
+
+    def test_quartus_symlinked_root_is_not_ready_without_following_it(self):
+        real_root = Path(self.tempdir.name) / "quartus-real"
+        quartus_bin = real_root / "bin"
+        quartus_bin.mkdir(parents=True)
+        marker = Path(self.tempdir.name) / "symlinked-quartus-called"
+        self._write_executable(
+            quartus_bin / "quartus_sh",
+            f'printf "Quartus Prime 17.0.2 Build 602\\n"; : > "{marker}"',
+        )
+        linked_root = Path(self.tempdir.name) / "quartus-link"
+        linked_root.symlink_to(real_root, target_is_directory=True)
+
+        result = self._run("--json", extra_env={"QUARTUS_ROOTDIR": str(linked_root)})
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(marker.exists())
+        oracle = json.loads(result.stdout)["optional_oracle"]
+        self.assertEqual(oracle[0]["status"], "NOT READY")
+        self.assertIn("symlink", oracle[0]["detail"])
+
     def test_device_readiness_requires_exact_nextpnr_device_evidence(self):
         return_code, output = self._run_with_local_tools(["--json"])
 

@@ -226,12 +226,14 @@ if ! grep -Eq '(^|[^0-9])17\.0\.2([^0-9]|$)' <<< "$version_output"; then
     first_version_line="${version_output%%$'\n'*}"
     fail "Quartus oracle requires exact version 17.0.2; detected: ${first_version_line:-no version output}"
 fi
+quartus_version_line="${version_output%%$'\n'*}"
+quartus_version_sha256="$("$PYTHON" -c 'import hashlib,sys; print(hashlib.sha256(sys.argv[1].encode()).hexdigest())' "$version_output")"
 
 compile_cmd=("$QUARTUS_SH" --flow compile top)
 if (( PRINT_COMMANDS )); then
     printf 'experiment: %s\n' "$EXP"
     printf 'target: %s\n' "$TARGET"
-    printf 'quartus_version: %s\n' "${version_output%%$'\n'*}"
+    printf 'quartus_version: %s\n' "$quartus_version_line"
     printf 'project: experiments/%s/oracle/top.qpf\n' "$EXP"
     printf 'shared_rtl: %s\n' "$rtl_rel"
     printf 'shared_qsf: %s\n' "$qsf_rel"
@@ -241,7 +243,32 @@ if (( PRINT_COMMANDS )); then
     exit 0
 fi
 
-mkdir -p -- "$project_output_dir"
+clean_project_output() {
+    [[ "$project_output_dir" == "$oracle_dir/project/output_files" ]] \
+        || fail "unsafe staged Quartus output path: $project_output_dir"
+    if [[ -e "$project_output_dir" || -L "$project_output_dir" ]]; then
+        [[ -d "$project_output_dir" && ! -L "$project_output_dir" ]] \
+            || fail "staged Quartus output is not a regular directory: $project_output_dir"
+        path_has_symlink_component "$project_output_dir" \
+            && fail "staged Quartus output path contains a symlink component: $project_output_dir"
+        local nested_symlink output_real expected_real
+        nested_symlink="$(find -P "$project_output_dir" -type l -print -quit)"
+        [[ -z "$nested_symlink" ]] \
+            || fail "staged Quartus output contains a symlink: $nested_symlink"
+        output_real="$(CDPATH= cd -- "$project_output_dir" && pwd -P)"
+        expected_real="$oracle_dir/project/output_files"
+        [[ "$output_real" == "$expected_real" ]] \
+            || fail "staged Quartus output resolves outside the oracle project: $project_output_dir"
+        # This is the only cleanup in the wrapper.  The path and every nested
+        # entry were validated above, so stale reports cannot be attested and
+        # no symlink can redirect removal outside build/oracle.
+        rm -rf -- "$project_output_dir"
+    fi
+    mkdir -p -- "$project_output_dir"
+    printf 'cleaned staged Quartus output: %s\n' "$project_output_dir"
+}
+
+clean_project_output
 
 # Stage the project below the isolated output directory.  Relative paths in a
 # checked-in QSF are useful to a human opening the project, but would point at
@@ -276,28 +303,15 @@ validate_output_tree
 [[ -d "$project_output_dir" && ! -L "$project_output_dir" ]] \
     || fail "Quartus compile did not produce an isolated output_files directory"
 
-find_report() {
-    local pattern=$1
-    local candidate
-    # Avoid ``find | head`` here: with pipefail, a large report set can make
-    # find exit on SIGPIPE even though a valid first report was found.
-    while IFS= read -r candidate; do
-        printf '%s\n' "$candidate"
-        return 0
-    done < <(find "$project_output_dir" -maxdepth 1 -type f -name "$pattern" -print | sort)
-    return 0
-}
-
-rbf_source="$(find_report '*.rbf')"
-fit_source="$(find_report '*.fit.rpt')"
-timing_source="$(find_report '*.sta.rpt')"
-[[ -n "$rbf_source" ]] || fail "Quartus compile did not produce a required RBF artifact"
-[[ -n "$fit_source" ]] || fail "Quartus compile did not produce a required fitter report"
-[[ -n "$timing_source" ]] || fail "Quartus compile did not produce a required timing report"
-
+rbf_source="$project_output_dir/top.rbf"
+fit_source="$project_output_dir/top.fit.rpt"
+timing_source="$project_output_dir/top.sta.rpt"
 require_regular "$rbf_source" "Quartus RBF"
 require_regular "$fit_source" "Quartus fitter report"
 require_regular "$timing_source" "Quartus timing report"
+[[ -s "$rbf_source" ]] || fail "Quartus compile produced an empty required RBF artifact"
+[[ -s "$fit_source" ]] || fail "Quartus compile produced an empty required fitter report"
+[[ -s "$timing_source" ]] || fail "Quartus compile produced an empty required timing report"
 cp -- "$rbf_source" "$rbf"
 cp -- "$fit_source" "$fit_report"
 cp -- "$timing_source" "$timing_report"
@@ -306,8 +320,8 @@ cp -- "$timing_source" "$timing_report"
 # by compare_builds.py.  The parser is deliberately conservative: an absent
 # count stays absent, while an observed zero remains an explicit zero.
 {
-    print_command "$PYTHON" - "$fit_report" "$timing_report" "$summary" "$rbf" "$EXP" "$TARGET"
-    "$PYTHON" - "$fit_report" "$timing_report" "$summary" "$rbf" "$EXP" "$TARGET" <<'PY'
+    print_command "$PYTHON" - "$fit_report" "$timing_report" "$summary" "$rbf" "$EXP" "$TARGET" "$rtl" "$sdc" "$qsf" "$QUARTUS_SH" "$quartus_version_line" "$quartus_version_sha256"
+    "$PYTHON" - "$fit_report" "$timing_report" "$summary" "$rbf" "$EXP" "$TARGET" "$rtl" "$sdc" "$qsf" "$QUARTUS_SH" "$quartus_version_line" "$quartus_version_sha256" <<'PY'
 from __future__ import annotations
 
 import hashlib
@@ -316,21 +330,52 @@ import re
 import sys
 from pathlib import Path
 
-fit_path, timing_path, summary_path, rbf_path, experiment, target = map(Path, sys.argv[1:])
-experiment = str(experiment)
-target = str(target)
+fit_path = Path(sys.argv[1])
+timing_path = Path(sys.argv[2])
+summary_path = Path(sys.argv[3])
+rbf_path = Path(sys.argv[4])
+experiment = sys.argv[5]
+target = sys.argv[6]
+rtl_path = Path(sys.argv[7])
+sdc_path = Path(sys.argv[8])
+pins_path = Path(sys.argv[9])
+quartus_path = Path(sys.argv[10])
+quartus_version = sys.argv[11]
+quartus_version_output_sha256 = sys.argv[12]
 fit_text = fit_path.read_text(encoding="utf-8", errors="replace")
 timing_text = timing_path.read_text(encoding="utf-8", errors="replace")
 
-number = r"([0-9][0-9,]*(?:\.[0-9]+)?)"
+number = r"[0-9][0-9,]*(?:\.[0-9]+)?"
+number_token = rf"(?<![A-Za-z0-9]){number}(?![A-Za-z0-9])"
 
 
 def count_on_line(line: str) -> tuple[int | None, int | None]:
-    pairs = re.search(rf"{number}\s*/\s*{number}", line)
+    pairs = re.search(rf"({number})\s*/\s*({number})", line)
     if pairs:
         return int(float(pairs.group(1).replace(",", ""))), int(float(pairs.group(2).replace(",", "")))
-    used = re.search(rf"(?:used|utilized|usage)\D{{0,24}}{number}", line, re.I)
-    available = re.search(rf"(?:available|total|capacity)\D{{0,24}}{number}", line, re.I)
+    used = re.search(rf"(?:used|utilized|usage)\D{{0,24}}({number})", line, re.I)
+    available = re.search(rf"(?:available|total|capacity)\D{{0,24}}({number})", line, re.I)
+    if used and available:
+        return int(float(used.group(1).replace(",", ""))), int(float(available.group(1).replace(",", "")))
+    # TimeQuest/fitter tables commonly use ``| resource | used | total |``
+    # rather than a slash or words.  Skip the first non-empty label cell (it
+    # can itself contain digits, as in ``M10K``), then use the first two
+    # numeric cells and ignore a later percentage.
+    for delimiter in ("|", ";"):
+        if delimiter not in line:
+            continue
+        cells = [cell.strip() for cell in line.split(delimiter)]
+        first_label = next((index for index, cell in enumerate(cells) if cell), None)
+        if first_label is None:
+            continue
+        values: list[str] = []
+        for cell in cells[first_label + 1 :]:
+            values.extend(re.findall(number_token, cell))
+        if len(values) >= 2:
+            return int(float(values[0].replace(",", ""))), int(float(values[1].replace(",", "")))
+    values = re.findall(number_token, line)
+    if len(values) >= 2:
+        return int(float(values[0].replace(",", ""))), int(float(values[1].replace(",", "")))
     return (
         int(float(used.group(1).replace(",", ""))) if used else None,
         int(float(available.group(1).replace(",", ""))) if available else None,
@@ -361,26 +406,159 @@ resources: dict[str, dict[str, object]] = {}
 for labels in (("ALM",), ("register",), ("IO",)):
     resources.update(records_for(labels))
 
-hard_blocks: dict[str, dict[str, object]] = {}
-for labels in (("M10K", "block memory"), ("DSP",), ("PLL",), ("MLAB",), ("BRAM",)):
-    hard_blocks.update(records_for(labels))
+required_hard_aliases = {
+    "PLL": ("pll", "phase locked loop"),
+    "BRAM/M10K": ("m10k", "m20k", "ram block", "block memory", "bram"),
+    "MLAB/LUTRAM": ("mlab", "lutram"),
+    "DSP": ("dsp", "digital signal processor", "multiplier"),
+    "HPS": ("hps", "hard processor system", "arm processor"),
+}
 
-fmax_values: list[float] = []
-for line in timing_text.splitlines():
+
+def hard_record(name: str, aliases: tuple[str, ...]) -> tuple[dict[str, object] | None, str | None]:
+    candidates: list[tuple[int, int, bool]] = []
+    malformed: list[bool] = []
+    if name == "BRAM/M10K":
+        preferred_aliases = ("m10k", "m20k", "ram block", "bram")
+    elif name == "DSP":
+        preferred_aliases = ("dsp", "digital signal processor")
+    else:
+        preferred_aliases = aliases
+    for line in fit_text.splitlines():
+        lowered = line.lower()
+        matching = [alias for alias in aliases if alias in lowered]
+        if not matching:
+            continue
+        # Quartus reports both total block-memory *bits* and physical RAM
+        # blocks.  The former is not the forbidden-block count and would make
+        # the BRAM/M10K evidence ambiguous when both rows are present.
+        if name in {"BRAM/M10K", "MLAB/LUTRAM"} and re.search(r"(?:memory|block)\s+bits?\b", lowered):
+            continue
+        used, available = count_on_line(line)
+        if used is None or available is None:
+            if any(character.isdigit() for character in line):
+                malformed.append(any(alias in lowered for alias in preferred_aliases))
+            continue
+        candidates.append((used, available, any(alias in lowered for alias in preferred_aliases)))
+    if malformed:
+        return None, f"{name}: fitter evidence is unrecognized"
+    if any(preferred for _used, _available, preferred in candidates):
+        candidates = [candidate for candidate in candidates if candidate[2]]
+    unique = sorted(set((used, available) for used, available, _preferred in candidates))
+    if not unique:
+        return None, f"{name}: fitter evidence is missing"
+    if len(unique) != 1:
+        return None, f"{name}: fitter evidence is ambiguous"
+    used, available = unique[0]
+    record: dict[str, object] = {"used": used, "available": available}
+    record["utilization_percent"] = round(used * 100.0 / available, 6) if available else None
+    if used != 0:
+        return record, f"{name}: unexpected hard resource usage ({used})"
+    return record, None
+
+
+hard_blocks: dict[str, dict[str, object]] = {}
+hard_errors: list[str] = []
+for name, aliases in required_hard_aliases.items():
+    record, error = hard_record(name, aliases)
+    if record is not None:
+        hard_blocks[name] = record
+    if error is not None:
+        hard_errors.append(error)
+
+# Catch a resource section whose spelling is not covered by the conservative
+# aliases above.  This is deliberately an error rather than silently calling
+# an unrecognized hard block zero.
+unknown_resources: dict[str, dict[str, object]] = {}
+known_aliases = tuple(alias for aliases in required_hard_aliases.values() for alias in aliases)
+unknown_markers = ("ram block", "embedded memory", "hard block", "processor", "multiplier")
+for line in fit_text.splitlines():
     lowered = line.lower()
-    if "mhz" not in lowered:
+    if not any(marker in lowered for marker in unknown_markers):
         continue
-    if not any(marker in lowered for marker in ("fmax", "frequency", "clock", "period", "slack")):
+    if any(alias in lowered for alias in known_aliases):
         continue
-    for match in re.finditer(rf"{number}\s*mhz", line, re.I):
-        fmax_values.append(float(match.group(1).replace(",", "")))
-achieved = max(fmax_values) if fmax_values else None
+    if any(character.isdigit() for character in line):
+        key = "unrecognized:" + line.strip()[:80]
+        unknown_resources[key] = {"evidence": line.strip()}
+if unknown_resources:
+    hard_errors.append("unrecognized hard-resource evidence: " + ", ".join(sorted(unknown_resources)))
+
+hard_block_status = "pass" if not hard_errors else "fail"
+hard_block_reason = "; ".join(hard_errors) if hard_errors else "all required forbidden classes explicitly report zero usage"
+
+clock_name = "FPGA_CLK1_50"
+
+
+def table_cells(line: str) -> tuple[str, list[str]] | None:
+    for delimiter in ("|", ";"):
+        if delimiter in line:
+            return delimiter, [cell.strip() for cell in line.split(delimiter)]
+    return None
+
+
+def fmax_values(cell: str) -> list[float]:
+    return [float(value.replace(",", "")) for value in re.findall(rf"({number})\s*mhz", cell, re.I)]
+
+
+headers: list[tuple[str, int, int]] = []
+for line in timing_text.splitlines():
+    parsed = table_cells(line)
+    if parsed is None:
+        continue
+    delimiter, cells = parsed
+    clock_indexes = [index for index, cell in enumerate(cells) if re.search(r"\bclock\s+name\b", cell, re.I)]
+    restricted_indexes = [index for index, cell in enumerate(cells) if re.search(r"\brestricted\s+fmax\b", cell, re.I)]
+    if len(clock_indexes) == 1 and len(restricted_indexes) == 1:
+        headers.append((delimiter, clock_indexes[0], restricted_indexes[0]))
+
+restricted_candidates: list[float] = []
+invalid_restricted_rows = 0
+for delimiter, clock_index, restricted_index in headers:
+    for line in timing_text.splitlines():
+        parsed = table_cells(line)
+        if parsed is None or parsed[0] != delimiter:
+            continue
+        cells = parsed[1]
+        if max(clock_index, restricted_index) >= len(cells):
+            continue
+        if not re.fullmatch(rf"{re.escape(clock_name)}", cells[clock_index], re.I):
+            continue
+        values = fmax_values(cells[restricted_index])
+        if len(values) != 1:
+            invalid_restricted_rows += 1
+            continue
+        restricted_candidates.append(values[0])
+
+if len(restricted_candidates) == 1 and invalid_restricted_rows == 0:
+    achieved = restricted_candidates[0]
+else:
+    achieved = None
 timing_status = achieved is not None and achieved >= 50.0
 
+
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+common_source_hashes = {
+    f"experiments/{experiment}/rtl/top.v": sha256_file(rtl_path),
+    "boards/de10nano/clocks.sdc": sha256_file(sdc_path),
+    "boards/de10nano/pins.qsf": sha256_file(pins_path),
+}
+
 rbf_bytes = rbf_path.read_bytes()
+provenance = {
+    "executable": str(quartus_path),
+    "executable_sha256": sha256_file(quartus_path),
+    "version": quartus_version,
+    "required_version": "17.0.2",
+    "version_output_sha256": quartus_version_output_sha256,
+}
+
 summary = {
-    "status": "pass" if timing_status else "fail",
-    "build_status": "pass" if timing_status else "fail",
+    "status": "pass" if timing_status and hard_block_status == "pass" else "fail",
+    "build_status": "pass" if timing_status and hard_block_status == "pass" else "fail",
     "route": {"status": "pass", "unrouted": False},
     "route_status": "pass",
     "timing": {
@@ -392,10 +570,10 @@ summary = {
     "resources": resources,
     "hard_blocks": hard_blocks,
     "resource_classes": {name: "ordinary" for name in resources},
-    "unknown_resources": {},
-    "hard_block_status": "pass",
-    "hard_block_reason": "Quartus fitter report normalized; no OSS hard-block policy applied",
-    "authenticated_tools": {},
+    "unknown_resources": unknown_resources,
+    "hard_block_status": hard_block_status,
+    "hard_block_reason": hard_block_reason,
+    "authenticated_tools": {"quartus_sh": provenance},
     "reproducibility": {
         "rbf_size_bytes": len(rbf_bytes),
         "rbf_sha256": hashlib.sha256(rbf_bytes).hexdigest(),
@@ -404,8 +582,8 @@ summary = {
         "rbf_stable": None,
         "rbf_stability_reason": "oracle rebuild stability is informational",
     },
-    "source_hashes": {},
-    "tool_pins": {},
+    "source_hashes": common_source_hashes,
+    "tool_pins": {"quartus": provenance},
     "target": target,
     "lane": "oracle",
     "experiment": experiment,
@@ -425,7 +603,7 @@ PY
 
 summary_status="$("$PYTHON" -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8")).get("status", "fail"))' "$summary")"
 [[ "$summary_status" == pass ]] \
-    || fail "Quartus timing report does not satisfy the 50 MHz requirement; see $summary_log"
+    || fail "Quartus normalized reports do not satisfy timing or hard-resource evidence requirements; see $summary_log"
 
 manifest_cmd=(
     "$PYTHON" "$collector"

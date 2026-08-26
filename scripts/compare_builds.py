@@ -23,6 +23,7 @@ from typing import Any, Mapping, Sequence
 SCRIPT_ROOT = Path(__file__).resolve().parents[1]
 TARGET_DEVICE = "5CSEBA6U23I7"
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+REQUIRED_HARD_BLOCKS = ("PLL", "BRAM/M10K", "MLAB/LUTRAM", "DSP", "HPS")
 
 
 class ComparisonError(ValueError):
@@ -87,6 +88,81 @@ def _number(value: Any) -> float | None:
     return number if math.isfinite(number) else None
 
 
+def _source_records(manifest: Mapping[str, Any]) -> tuple[dict[str, str], list[str]]:
+    raw_records = manifest.get("sources")
+    if not isinstance(raw_records, list) or not raw_records:
+        return {}, ["common source hash records are missing"]
+    records: dict[str, str] = {}
+    failures: list[str] = []
+    for raw in raw_records:
+        if not isinstance(raw, dict):
+            failures.append("source hash record is malformed")
+            continue
+        path = raw.get("path")
+        digest = raw.get("sha256")
+        if not isinstance(path, str) or not path:
+            failures.append("source hash record has no path")
+            continue
+        if path in records:
+            failures.append(f"duplicate source hash record: {path}")
+            continue
+        if not isinstance(digest, str) or SHA256_RE.fullmatch(digest) is None:
+            failures.append(f"source hash is invalid: {path}")
+            continue
+        records[path] = digest
+    return records, failures
+
+
+def _summary_source_records(
+    build: Mapping[str, Any],
+    lane: str,
+    experiment: str,
+    manifest_sources: Mapping[str, str],
+) -> list[str]:
+    """Check the build summary's common-input hashes against manifest sources.
+
+    Schema-2 manifests expose the collector's top-level ``sources`` records,
+    while the normalized build summary also carries the hashes used by the
+    compiler invocation.  Requiring the common records in both places prevents
+    a stale summary from being paired with a newly collected manifest (or vice
+    versa).
+    """
+
+    failures: list[str] = []
+    raw = build.get("source_hashes")
+    if not isinstance(raw, dict) or not raw:
+        return [f"{lane} build source hash map is missing or malformed"]
+    summary_sources: dict[str, str] = {}
+    for path, digest in raw.items():
+        if not isinstance(path, str) or not path:
+            failures.append(f"{lane} build source hash path is malformed")
+            continue
+        if not isinstance(digest, str) or SHA256_RE.fullmatch(digest) is None:
+            failures.append(f"{lane} build source hash is invalid: {path}")
+            continue
+        summary_sources[path] = digest
+
+    common_sources = (
+        f"experiments/{experiment}/rtl/top.v",
+        "boards/de10nano/pins.qsf",
+        "boards/de10nano/clocks.sdc",
+    )
+    for path in common_sources:
+        manifest_digest = manifest_sources.get(path)
+        summary_digest = summary_sources.get(path)
+        if not isinstance(manifest_digest, str):
+            failures.append(f"{lane} common source hash is missing: {path}")
+        if not isinstance(summary_digest, str):
+            failures.append(f"{lane} build common source hash is missing: {path}")
+        if (
+            isinstance(manifest_digest, str)
+            and isinstance(summary_digest, str)
+            and manifest_digest != summary_digest
+        ):
+            failures.append(f"{lane} common source hash disagrees with build summary: {path}")
+    return failures
+
+
 def _artifact_path(raw: Any, manifest_path: Path, repo_root: Path) -> Path | None:
     if not isinstance(raw, str) or not raw:
         return None
@@ -105,18 +181,41 @@ def _artifact_path(raw: Any, manifest_path: Path, repo_root: Path) -> Path | Non
     return local_candidate
 
 
-def _artifact_records(manifest: Mapping[str, Any], manifest_path: Path, repo_root: Path) -> tuple[list[dict[str, Any]], list[str]]:
+def _expected_rbf_path(raw: Any, lane: str, experiment: str) -> bool:
+    if not isinstance(raw, str) or not raw:
+        return False
+    expected = f"build/{lane}/{experiment}/top.rbf"
+    # collect_manifest emits repository-relative POSIX paths.  Requiring that
+    # exact spelling prevents an absolute path outside the repository from
+    # masquerading as a lane artifact merely because it has the same suffix.
+    return not Path(raw).is_absolute() and raw == expected
+
+
+def _artifact_records(
+    manifest: Mapping[str, Any],
+    manifest_path: Path,
+    repo_root: Path,
+    lane: str,
+    experiment: str,
+) -> tuple[list[dict[str, Any]], list[str]]:
     raw_records = manifest.get("artifacts")
     if not isinstance(raw_records, list):
         return [], ["missing required artifact list"]
     records: list[dict[str, Any]] = []
     failures: list[str] = []
+    expected_rbf = f"build/{lane}/{experiment}/top.rbf"
+    rbf_record_count = 0
     for raw in raw_records:
         if not isinstance(raw, dict):
             failures.append("artifact record is malformed")
             continue
         raw_path = raw.get("path")
         digest = raw.get("sha256")
+        is_rbf = isinstance(raw_path, str) and raw_path.lower().endswith(".rbf")
+        if is_rbf and not _expected_rbf_path(raw_path, lane, experiment):
+            failures.append(f"RBF artifact path is not the exact {expected_rbf}: {raw_path}")
+        if is_rbf and _expected_rbf_path(raw_path, lane, experiment):
+            rbf_record_count += 1
         resolved = _artifact_path(raw_path, manifest_path, repo_root)
         entry: dict[str, Any] = {
             "path": raw_path,
@@ -146,15 +245,43 @@ def _artifact_records(manifest: Mapping[str, Any], manifest_path: Path, repo_roo
         entry["present"] = True
         entry["hash_matches"] = actual == digest
         entry["actual_sha256"] = actual
+        entry["size_bytes"] = resolved.stat().st_size
+        declared_size = raw.get("size_bytes")
+        if declared_size is not None and (
+            isinstance(declared_size, bool)
+            or not isinstance(declared_size, int)
+            or declared_size < 0
+            or declared_size != entry["size_bytes"]
+        ):
+            failures.append(f"artifact size mismatch: {raw_path}")
         if actual != digest:
             failures.append(f"artifact hash mismatch: {raw_path}")
         records.append(entry)
 
-    rbf_records = [record for record in records if isinstance(record.get("path"), str) and str(record["path"]).lower().endswith(".rbf")]
-    if not rbf_records:
-        failures.append("missing required artifact: RBF")
+    rbf_records = [
+        record
+        for record in records
+        if _expected_rbf_path(record.get("path"), lane, experiment)
+    ]
+    if rbf_record_count != 1:
+        failures.append(f"missing required artifact: exact RBF path {expected_rbf}")
     elif not any(record.get("present") and record.get("hash_matches") for record in rbf_records):
         failures.append("missing required artifact: usable RBF")
+
+    build = manifest.get("build")
+    reproducibility = build.get("reproducibility") if isinstance(build, dict) else None
+    expected_digest = reproducibility.get("rbf_sha256") if isinstance(reproducibility, dict) else None
+    expected_size = reproducibility.get("rbf_size_bytes") if isinstance(reproducibility, dict) else None
+    if not isinstance(expected_digest, str) or SHA256_RE.fullmatch(expected_digest) is None:
+        failures.append("RBF reproducibility SHA-256 is missing or invalid")
+    if isinstance(expected_size, bool) or not isinstance(expected_size, int) or expected_size < 1:
+        failures.append("RBF reproducibility size is missing or invalid")
+    if rbf_records:
+        rbf = rbf_records[0]
+        if isinstance(expected_digest, str) and rbf.get("sha256") != expected_digest:
+            failures.append("RBF artifact hash disagrees with reproducibility hash")
+        if rbf.get("present") and isinstance(expected_size, int) and rbf.get("size_bytes") != expected_size:
+            failures.append("RBF artifact size disagrees with reproducibility size")
     return records, failures
 
 
@@ -192,6 +319,48 @@ def _rbf_digest(build: Mapping[str, Any], artifacts: Sequence[Mapping[str, Any]]
         if isinstance(path, str) and path.lower().endswith(".rbf") and isinstance(record.get("sha256"), str):
             return record["sha256"]
     return None
+
+
+def _hard_block_view(build: Mapping[str, Any], lane: str) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    raw = build.get("hard_blocks")
+    if not isinstance(raw, dict) or not raw:
+        return {}, [f"{lane} hard-block evidence map is missing or empty"]
+
+    view: dict[str, dict[str, Any]] = {}
+    failures: list[str] = []
+    for name, record in raw.items():
+        if not isinstance(name, str) or not name or not isinstance(record, dict):
+            failures.append(f"{lane} hard-block evidence record is malformed")
+            continue
+        used = _number(record.get("used"))
+        available = _number(record.get("available"))
+        if used is None or available is None or used < 0 or available < 0:
+            failures.append(f"{lane} hard-block evidence is malformed: {name}")
+            continue
+        view[name] = {
+            key: record[key]
+            for key in ("used", "available", "utilization_percent")
+            if key in record
+        }
+        if used > 0:
+            failures.append(f"{lane} unexpected hard block in use: {name}={record['used']}")
+
+    if lane == "oracle":
+        unknown_keys = sorted(set(view) - set(REQUIRED_HARD_BLOCKS))
+        if unknown_keys:
+            failures.append(f"oracle hard-block evidence has unrecognized classes: {', '.join(unknown_keys)}")
+        for name in REQUIRED_HARD_BLOCKS:
+            record = view.get(name)
+            if record is None:
+                failures.append(f"oracle hard-block evidence is missing required class: {name}")
+                continue
+            used = _number(record.get("used"))
+            available = _number(record.get("available"))
+            if used is None or available is None:
+                failures.append(f"oracle hard-block evidence is malformed: {name}")
+            elif used != 0:
+                failures.append(f"oracle required hard block is nonzero: {name}={record.get('used')}")
+    return view, failures
 
 
 def _lane_view(
@@ -238,15 +407,14 @@ def _lane_view(
             failures.append(f"{lane} timing is below 50 MHz ({achieved:g} MHz)")
 
     hard_status = build.get("hard_block_status")
-    hard_blocks = build.get("hard_blocks")
+    hard_blocks, hard_failures = _hard_block_view(build, lane)
+    failures.extend(hard_failures)
     unknown = build.get("unknown_resources")
     if hard_status != "pass":
         failures.append(f"{lane} has unexpected hard blocks or unknown resources")
-    if isinstance(hard_blocks, dict):
-        for name, record in hard_blocks.items():
-            if isinstance(record, dict) and _number(record.get("used")) is not None and float(record["used"]) > 0:
-                failures.append(f"{lane} unexpected hard block in use: {name}={record['used']}")
-    if isinstance(unknown, dict) and unknown:
+    if not isinstance(unknown, dict):
+        failures.append(f"{lane} unknown-resource evidence map is missing or malformed")
+    elif unknown:
         failures.append(f"{lane} has unknown resources: {', '.join(sorted(str(item) for item in unknown))}")
 
     simulation = _simulation_view(manifest, build)
@@ -254,8 +422,17 @@ def _lane_view(
     if simulation_status in {"fail", "failed", "failure", "error", "not-pass"}:
         failures.append(f"{lane} simulation failed")
 
-    artifacts, artifact_failures = _artifact_records(manifest, manifest_path, repo_root)
+    manifest_experiment = manifest.get("experiment") if isinstance(manifest.get("experiment"), str) else ""
+    artifacts, artifact_failures = _artifact_records(
+        manifest, manifest_path, repo_root, lane, manifest_experiment
+    )
     failures.extend(f"{failure}" for failure in artifact_failures)
+    source_hashes, source_failures = _source_records(manifest)
+    failures.extend(f"{lane} {failure}" for failure in source_failures)
+    if isinstance(raw_build, dict) and manifest_experiment:
+        failures.extend(
+            _summary_source_records(raw_build, lane, manifest_experiment, source_hashes)
+        )
 
     return {
         "lane": lane,
@@ -266,10 +443,11 @@ def _lane_view(
         "route_status": route_status,
         "timing": timing_view,
         "resources": _resource_view(build),
-        "hard_blocks": hard_blocks if isinstance(hard_blocks, dict) else {},
+        "hard_blocks": hard_blocks,
         "hard_block_status": hard_status,
         "unknown_resources": unknown if isinstance(unknown, dict) else {},
         "simulation": simulation,
+        "source_hashes": source_hashes,
         "rbf_sha256": _rbf_digest(build, artifacts),
         "artifacts": [
             {key: value for key, value in record.items() if key != "resolved_path"}
@@ -330,6 +508,20 @@ def compare_manifests(
         for lane_name, manifest in (("OSS", oss_manifest), ("Quartus oracle", oracle_manifest)):
             if manifest.get("experiment") != expected_experiment:
                 failures.append(f"{lane_name} experiment does not match {expected_experiment}")
+        common_sources = (
+            f"experiments/{expected_experiment}/rtl/top.v",
+            "boards/de10nano/pins.qsf",
+            "boards/de10nano/clocks.sdc",
+        )
+        for source_path in common_sources:
+            oss_digest = oss.get("source_hashes", {}).get(source_path)
+            oracle_digest = oracle.get("source_hashes", {}).get(source_path)
+            if not isinstance(oss_digest, str):
+                failures.append(f"OSS common source hash is missing: {source_path}")
+            if not isinstance(oracle_digest, str):
+                failures.append(f"Quartus oracle common source hash is missing: {source_path}")
+            if isinstance(oss_digest, str) and isinstance(oracle_digest, str) and oss_digest != oracle_digest:
+                failures.append(f"common source hash differs: {source_path}")
     if oss_manifest.get("target") != oracle_manifest.get("target"):
         failures.append("lane targets differ")
 
@@ -360,8 +552,10 @@ def compare_manifests(
                 "both lanes are routed and not unrouted",
                 "both lanes meet the requested 50 MHz timing",
                 "both lanes have no unexpected hard blocks or unknown resources",
+                "both lanes contain complete explicit required hard-block evidence",
                 "failed simulations fail the comparison",
-                "each lane has a present, hash-matching RBF artifact",
+                "common RTL, pin-QSF, and clock-SDC SHA-256 values match exactly",
+                "each lane has the exact nonempty lane RBF with matching hash and size evidence",
             ],
         },
     }
