@@ -72,12 +72,25 @@ openFPGALoader --board de10nano --detect
 ```
 
 Hardware readiness accepts exactly one `--scan-usb` row for
-`usb-blasterII`/`0x09fb:6810`, then requires `--board de10nano --detect` to
-return one JTAG-chain device matching the exact `5CSEBA6U23I7` alias, model
-`5CSE*A6`, or the pinned loader IDCODE `0x02d020dd` (Cyclone V SoC
-`5CSE*A6/5CSX*6`). A different IDCODE or multiple chain rows/devices is not
-ready. A JTAG IDCODE identifies silicon family only; package/pin equivalence
-still depends on board identity.
+`usb-blasterII`/`0x09fb:0x6810` (the normalized `09fb:6810` form is also
+accepted), then requires `--board de10nano --detect` to return one JTAG-chain
+device matching the exact `5CSEBA6U23I7` alias, model `5CSE*A6`, or the pinned
+loader IDCODE `0x02d020dd` (Cyclone V SoC `5CSE*A6/5CSX*6`). A different
+IDCODE or multiple chain rows/devices is not ready. These cable and JTAG
+results are measured evidence only: JTAG identifies silicon family/IDCODE and
+does not establish the PCB, package, or pin equivalence.
+
+Because the cable scan is board-agnostic, strict hardware readiness also
+requires an explicit operator attestation:
+
+```text
+python3 scripts/doctor.py --strict hardware --expected-board de10nano
+```
+
+`de10nano` is the only supported attestation value in this task. The doctor
+reports this as **operator-attested board identity**, separately from measured
+cable and silicon checks; it is not an automatic board/package proof and does
+not establish clone pin compatibility.
 
 Programming syntax is `openFPGALoader --board de10nano --write-sram <top.rbf>`
 (or `--cable usb-blasterII --write-sram <top.rbf>` after an explicit cable is
@@ -92,9 +105,10 @@ HPS-storage, SD-card, or network deployment operation is part of this task.
 (missing USB-Blaster II firmware/no cable). The host `lsusb` listing contained
 only hubs and ordinary peripherals, with no Altera/Intel USB-Blaster VID `09fb`
 device. The available MiSTer Pi and SuperStation One devices have no onboard
-USB-Blaster, and no external USB-Blaster is connected, so general diagnostics
-report hardware as **NOT READY** while OSS tool/device readiness remains
-independently reportable.
+USB-Blaster, and no external USB-Blaster is connected. No operator board
+attestation was supplied, so general diagnostics report hardware as **NOT
+READY** while OSS tool/device readiness remains independently reportable; no
+clone package/pin compatibility is inferred.
 
 `QUARTUS_ROOTDIR` was unset for this evidence capture. Quartus was therefore
 not inspected; it remains an optional oracle dependency and is only inspected

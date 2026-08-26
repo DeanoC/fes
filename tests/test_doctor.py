@@ -247,17 +247,42 @@ class DoctorTests(unittest.TestCase):
         self.assertTrue(any("17.0.2" in check["detail"] for check in oracle))
 
     def test_device_readiness_requires_exact_nextpnr_device_evidence(self):
-        result = self._run("--json")
+        return_code, output = self._run_with_local_tools(["--json"])
 
-        self.assertEqual(result.returncode, 0, result.stderr)
-        device = json.loads(result.stdout)["device"]
+        self.assertEqual(return_code, 0, output)
+        device = json.loads(output)["device"]
         nextpnr = next(check for check in device if check["name"] == "nextpnr device support")
         self.assertEqual(nextpnr["status"], "OK")
         self.assertIn("5CSEBA6U23I7", nextpnr["detail"])
 
     def test_strict_hardware_accepts_one_board_cable_and_target_chain(self):
-        scan = "Bus device vid:pid probe_type manufacturer serial product\n1-2 09fb:6810 usbBlasterII Altera DE10-Nano\n"
-        chain = "JTAG chain:\nindex 0: idcode 0x02d020dd manufacturer altera family cyclone V Soc model 5CSE*A6/5CSX*6\n"
+        scan = "Bus device vid:pid probe_type manufacturer serial product\n1-2 0x09fb:0x6810 usbBlasterII Altera DE10-Nano\n"
+        chain = "JTAG chain:\nindex 0: idcode 0x2d020dd manufacturer altera family cyclone V Soc model 5CSE*A6/5CSX*6\n"
+
+        return_code, output = self._run_with_local_tools(
+            ["--json", "--strict", "hardware", "--expected-board", "de10nano"],
+            scan_output=scan,
+            chain_output=chain,
+            chain_exit=0,
+        )
+
+        self.assertEqual(return_code, 0, output)
+        report = json.loads(output)
+        board = next(check for check in report["hardware"] if check["name"] == "Board identity attestation")
+        cable = next(check for check in report["hardware"] if check["name"] == "Cable detection")
+        target = next(check for check in report["hardware"] if check["name"] == "JTAG chain target")
+        nextpnr = next(check for check in report["device"] if check["name"] == "nextpnr device support")
+        self.assertEqual(board["status"], "OK")
+        self.assertIn("operator-attested", board["detail"])
+        self.assertIn("not establish package/pin", board["detail"])
+        self.assertEqual(cable["status"], "OK")
+        self.assertEqual(target["status"], "OK")
+        self.assertIn("does not establish package/pin", target["detail"])
+        self.assertEqual(nextpnr["status"], "OK")
+
+    def test_strict_hardware_without_board_attestation_fails_with_valid_measurements(self):
+        scan = "Bus device vid:pid probe_type manufacturer serial product\n1-2 0x09fb:0x6810 usbBlasterII Altera DE10-Nano\n"
+        chain = "JTAG chain:\nindex 0: idcode 0x2d020dd manufacturer altera family cyclone V Soc model 5CSE*A6/5CSX*6\n"
 
         return_code, output = self._run_with_local_tools(
             ["--json", "--strict", "hardware"],
@@ -266,21 +291,49 @@ class DoctorTests(unittest.TestCase):
             chain_exit=0,
         )
 
-        self.assertEqual(return_code, 0, output)
+        self.assertNotEqual(return_code, 0)
         report = json.loads(output)
+        board = next(check for check in report["hardware"] if check["name"] == "Board identity attestation")
         cable = next(check for check in report["hardware"] if check["name"] == "Cable detection")
         target = next(check for check in report["hardware"] if check["name"] == "JTAG chain target")
-        nextpnr = next(check for check in report["device"] if check["name"] == "nextpnr device support")
+        self.assertEqual(board["status"], "NOT READY")
+        self.assertIn("board identity not attested", board["detail"])
         self.assertEqual(cable["status"], "OK")
         self.assertEqual(target["status"], "OK")
-        self.assertEqual(nextpnr["status"], "OK")
+
+    def test_cable_scan_accepts_normalized_vid_pid_form(self):
+        check = doctor._parse_cable_scan(
+            "Bus device vid:pid probe_type manufacturer serial product\n"
+            "1-2 09fb:6810 usbBlasterII Altera DE10-Nano\n",
+            0,
+            ("openFPGALoader", "--board", "de10nano", "--scan-usb"),
+        )
+
+        self.assertEqual(check["status"], "OK")
+        self.assertIn("0x09fb:0x6810", check["detail"])
+
+    def test_strict_hardware_rejects_unsupported_board_attestation(self):
+        scan = "Bus device vid:pid probe_type manufacturer serial product\n1-2 0x09fb:0x6810 usbBlasterII Altera DE10-Nano\n"
+        chain = "JTAG chain:\nindex 0: idcode 0x2d020dd manufacturer altera family cyclone V Soc model 5CSE*A6/5CSX*6\n"
+
+        return_code, output = self._run_with_local_tools(
+            ["--json", "--strict", "hardware", "--expected-board", "miSTer-pi"],
+            scan_output=scan,
+            chain_output=chain,
+            chain_exit=0,
+        )
+
+        self.assertNotEqual(return_code, 0)
+        board = next(check for check in json.loads(output)["hardware"] if check["name"] == "Board identity attestation")
+        self.assertEqual(board["status"], "NOT READY")
+        self.assertIn("unsupported", board["detail"])
 
     def test_strict_hardware_rejects_wrong_jtag_device(self):
-        scan = "Bus device vid:pid probe_type manufacturer serial product\n1-2 09fb:6810 usbBlasterII Altera DE10-Nano\n"
+        scan = "Bus device vid:pid probe_type manufacturer serial product\n1-2 0x09fb:0x6810 usbBlasterII Altera DE10-Nano\n"
         chain = "JTAG chain:\nindex 0: idcode 0x02d120dd manufacturer altera family cyclone V Soc model 5CSE*A5/5CST*5\n"
 
         return_code, output = self._run_with_local_tools(
-            ["--json", "--strict", "hardware"],
+            ["--json", "--strict", "hardware", "--expected-board", "de10nano"],
             scan_output=scan,
             chain_output=chain,
             chain_exit=0,
@@ -292,11 +345,11 @@ class DoctorTests(unittest.TestCase):
         self.assertIn("5CSEBA6U23I7", target["detail"])
 
     def test_strict_hardware_accepts_exact_alias_without_idcode(self):
-        scan = "Bus device vid:pid probe_type manufacturer serial product\n1-2 09fb:6810 usbBlasterII Altera DE10-Nano\n"
+        scan = "Bus device vid:pid probe_type manufacturer serial product\n1-2 0x09fb:0x6810 usbBlasterII Altera DE10-Nano\n"
         chain = "JTAG chain:\n5CSEBA6U23I7\n"
 
         return_code, output = self._run_with_local_tools(
-            ["--json", "--strict", "hardware"],
+            ["--json", "--strict", "hardware", "--expected-board", "de10nano"],
             scan_output=scan,
             chain_output=chain,
             chain_exit=0,
@@ -308,7 +361,7 @@ class DoctorTests(unittest.TestCase):
         self.assertIn("5CSEBA6U23I7", target["detail"])
 
     def test_strict_hardware_rejects_multiple_jtag_devices(self):
-        scan = "Bus device vid:pid probe_type manufacturer serial product\n1-2 09fb:6810 usbBlasterII Altera DE10-Nano\n"
+        scan = "Bus device vid:pid probe_type manufacturer serial product\n1-2 0x09fb:0x6810 usbBlasterII Altera DE10-Nano\n"
         chain = (
             "JTAG chain:\n"
             "index 0: idcode 0x02d020dd manufacturer altera family cyclone V Soc\n"
@@ -316,7 +369,7 @@ class DoctorTests(unittest.TestCase):
         )
 
         return_code, output = self._run_with_local_tools(
-            ["--json", "--strict", "hardware"],
+            ["--json", "--strict", "hardware", "--expected-board", "de10nano"],
             scan_output=scan,
             chain_output=chain,
             chain_exit=0,
@@ -330,13 +383,13 @@ class DoctorTests(unittest.TestCase):
     def test_strict_hardware_rejects_ambiguous_cable_detection(self):
         scan = (
             "Bus device vid:pid probe_type manufacturer serial product\n"
-            "1-2 09fb:6810 usbBlasterII Altera DE10-Nano\n"
-            "1-3 09fb:6810 usbBlasterII Altera DE10-Nano\n"
+            "1-2 0x09fb:0x6810 usbBlasterII Altera DE10-Nano\n"
+            "1-3 0x09fb:0x6810 usbBlasterII Altera DE10-Nano\n"
         )
         chain = "JTAG chain:\nindex 0: idcode 0x02d020dd manufacturer altera family cyclone V Soc\n"
 
         return_code, output = self._run_with_local_tools(
-            ["--json", "--strict", "hardware"],
+            ["--json", "--strict", "hardware", "--expected-board", "de10nano"],
             scan_output=scan,
             chain_output=chain,
             chain_exit=0,

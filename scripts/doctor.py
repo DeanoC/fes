@@ -22,9 +22,14 @@ INSTALL_BIN = ROOT / "build" / "toolchain" / "install" / "bin"
 TOOLCHAIN_BUILD = ROOT / "build" / "toolchain" / "build"
 TARGET_DEVICE = "5CSEBA6U23I7"
 TARGET_IDCODE = "0x02d020dd"
+TARGET_IDCODE_VALUE = int(TARGET_IDCODE, 16)
 LOADER_BOARD = "de10nano"
 LOADER_CABLE = "usb-blasterII"
 COMMAND_TIMEOUT = 15.0
+VID_PID_RE = re.compile(
+    r"(?<![0-9a-f])(?:0x)?([0-9a-f]{4})\s*:\s*(?:0x)?([0-9a-f]{4})(?![0-9a-f])",
+    re.I,
+)
 
 # Keep this table explicit: the doctor must not search for a different FPGA
 # implementation when a pinned repository-local binary is missing.
@@ -290,14 +295,38 @@ def _local_hardware_probe(
     return make_check(name, "NOT READY", f"exit {result.returncode}; {detail}", required)
 
 
+def _board_attestation_check(expected_board: str | None) -> dict[str, Any]:
+    if expected_board is None:
+        return make_check(
+            "Board identity attestation",
+            "NOT READY",
+            "board identity not attested; pass --expected-board de10nano for operator attestation",
+            True,
+        )
+    if expected_board != LOADER_BOARD:
+        return make_check(
+            "Board identity attestation",
+            "NOT READY",
+            f"unsupported board attestation {expected_board!r}; supported value is {LOADER_BOARD}",
+            True,
+        )
+    return make_check(
+        "Board identity attestation",
+        "OK",
+        "operator-attested board identity: de10nano; cable/JTAG evidence is measured separately and does not establish package/pin equivalence",
+        True,
+    )
+
+
 def _parse_cable_scan(output: str, returncode: int, command: Sequence[str]) -> dict[str, Any]:
-    rows = []
+    rows: list[tuple[str, int, int]] = []
     for line in output.splitlines():
         stripped = line.strip()
         if not stripped or "vid:pid" in stripped.lower():
             continue
-        if re.search(r"\b[0-9a-f]{4}:[0-9a-f]{4}\b", stripped, re.I):
-            rows.append(stripped)
+        match = VID_PID_RE.search(stripped)
+        if match:
+            rows.append((stripped, int(match.group(1), 16), int(match.group(2), 16)))
     command_text = " ".join(command)
     if returncode != 0:
         return make_check(
@@ -320,8 +349,11 @@ def _parse_cable_scan(output: str, returncode: int, command: Sequence[str]) -> d
             f"{command_text} found ambiguous multiple cables ({len(rows)})",
             True,
         )
-    row = rows[0]
-    expected_cable = re.search(r"usb[-_ ]?blasterii", row, re.I) or "09fb:6810" in row.lower()
+    row, vendor_id, product_id = rows[0]
+    expected_cable = (
+        (vendor_id, product_id) == (0x09FB, 0x6810)
+        or re.search(r"usb[-_ ]?blasterii", row, re.I)
+    )
     if not expected_cable:
         return make_check(
             "Cable detection",
@@ -332,7 +364,7 @@ def _parse_cable_scan(output: str, returncode: int, command: Sequence[str]) -> d
     return make_check(
         "Cable detection",
         "OK",
-        f"{command_text} found one {LOADER_CABLE}: {row}",
+        f"{command_text} found one {LOADER_CABLE} (VID:PID 0x{vendor_id:04x}:0x{product_id:04x}): {row}",
         True,
     )
 
@@ -346,7 +378,8 @@ def _parse_jtag_chain(output: str, returncode: int, command: Sequence[str]) -> d
             f"exit {returncode}; {command_text} -> {_short_output(output, '')}",
             True,
         )
-    idcodes = [value.lower() for value in re.findall(r"\bidcode\s*[:=]?\s*(0x[0-9a-f]+)", output, re.I)]
+    idcode_tokens = re.findall(r"\bidcode\s*[:=]?\s*(0x[0-9a-f]+)", output, re.I)
+    idcodes = [int(token, 16) for token in idcode_tokens]
     target_alias = re.findall(rf"\b{re.escape(TARGET_DEVICE)}\b", output, re.I)
     target_model = re.findall(r"\b5CSE\*A6\b", output, re.I)
     if idcodes:
@@ -366,9 +399,9 @@ def _parse_jtag_chain(output: str, returncode: int, command: Sequence[str]) -> d
 
     target_alias_match = bool(target_alias)
     target_model_match = bool(target_model)
-    target_idcode = TARGET_IDCODE.lower() in idcodes
+    target_idcode = TARGET_IDCODE_VALUE in idcodes
     if not (target_alias_match or target_model_match or target_idcode):
-        observed = ", ".join(idcodes) if idcodes else "no IDCODE"
+        observed = ", ".join(f"0x{value:x}" for value in idcodes) if idcodes else "no IDCODE"
         return make_check(
             "JTAG chain target",
             "NOT READY",
@@ -379,13 +412,15 @@ def _parse_jtag_chain(output: str, returncode: int, command: Sequence[str]) -> d
     return make_check(
         "JTAG chain target",
         "OK",
-        f"{command_text} one Cyclone V SoC device matched {evidence}; JTAG identifies silicon family/IDCODE only, so board package/pin identity still requires board identity",
+        f"{command_text} one Cyclone V SoC device matched {evidence}; JTAG evidence identifies silicon family/IDCODE only and does not establish package/pin equivalence",
         True,
     )
 
 
-def hardware_checks(pins: dict[str, Any]) -> list[dict[str, Any]]:
-    checks: list[dict[str, Any]] = []
+def hardware_checks(
+    pins: dict[str, Any], expected_board: str | None = None
+) -> list[dict[str, Any]]:
+    checks: list[dict[str, Any]] = [_board_attestation_check(expected_board)]
     lsusb = shutil.which("lsusb")
     if lsusb is None:
         checks.append(make_check("USB/JTAG visibility", "NOT READY", "lsusb not found", True))
@@ -541,13 +576,13 @@ def device_checks(pins: dict[str, Any]) -> list[dict[str, Any]]:
     return checks
 
 
-def build_report() -> dict[str, list[dict[str, Any]]]:
+def build_report(expected_board: str | None = None) -> dict[str, list[dict[str, Any]]]:
     pins = _load_pins()
     return {
         "host": host_checks(),
         "required_oss": oss_checks(pins),
         "optional_oracle": quartus_checks(),
-        "hardware": hardware_checks(pins),
+        "hardware": hardware_checks(pins, expected_board),
         "device": device_checks(pins),
     }
 
@@ -561,6 +596,10 @@ def _oss_ready(report: dict[str, list[dict[str, Any]]]) -> bool:
 
 
 def _hardware_ready(report: dict[str, list[dict[str, Any]]]) -> bool:
+    board = any(
+        check["name"] == "Board identity attestation" and check["status"] == "OK"
+        for check in report["hardware"]
+    )
     cable = any(
         check["name"] == "Cable detection" and check["status"] == "OK"
         for check in report["hardware"]
@@ -573,7 +612,7 @@ def _hardware_ready(report: dict[str, list[dict[str, Any]]]) -> bool:
         check["name"] == "nextpnr device support" and check["status"] == "OK"
         for check in report["device"]
     )
-    return cable and chain and device
+    return board and cable and chain and device
 
 
 def render_human(report: dict[str, list[dict[str, Any]]]) -> str:
@@ -598,12 +637,17 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="write only the structured JSON report")
     parser.add_argument("--strict", choices=("oss", "hardware"), help="return failure when readiness is not met")
+    parser.add_argument(
+        "--expected-board",
+        metavar="BOARD",
+        help="operator-attest the board identity (only de10nano is supported)",
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
-    report = build_report()
+    report = build_report(args.expected_board)
     if args.json:
         print(json.dumps(report, indent=2))
     else:
