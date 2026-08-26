@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import shutil
 import stat
 import subprocess
@@ -276,7 +277,9 @@ class ProgramPreflightTests(unittest.TestCase):
         self._write_executable(self.ssh, remote_body)
         self._write_executable(
             self.scp,
-            f"printf '%s\\n' \"$*\" >> {str(self.actions)!r}\nprintf '%s\\n' SCP >> {str(self.actions)!r}\nexit {scp_exit}\n",
+            f"printf '%s\\n' \"$*\" >> {str(self.actions)!r}\n"
+            f"for arg in \"$@\"; do printf 'SCP_ARG|%s\\n' \"$arg\" >> {str(self.actions)!r}; done\n"
+            f"printf '%s\\n' SCP >> {str(self.actions)!r}\nexit {scp_exit}\n",
         )
 
     def _env(
@@ -573,6 +576,18 @@ class ProgramPreflightTests(unittest.TestCase):
         self.assertNotIn("LOAD", actions)
         self.assertIn("load_core /tmp/", result.stdout)
 
+    def test_mister_dry_run_prints_legacy_scp_protocol_and_preserves_arguments(self) -> None:
+        result = self._run(transport="mister", host="mister.test", user="root")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        upload_line = next(
+            line for line in result.stdout.splitlines() if line.startswith("upload action: ")
+        )
+        self._assert_legacy_scp_arguments(
+            shlex.split(upload_line.split(": ", 1)[1]),
+            result.stdout,
+            include_executable=True,
+        )
+
     def test_mister_non_dry_run_verifies_hash_then_writes_fifo(self) -> None:
         result = self._run(transport="mister", dry_run=False, host="mister.test", user="root")
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -582,6 +597,16 @@ class ProgramPreflightTests(unittest.TestCase):
         self.assertIn("LOAD", actions)
         self.assertNotIn("/media/fat", result.stdout + result.stderr)
         self.assertIn("load_core /tmp/", result.stdout)
+
+    def test_mister_live_scp_invocation_uses_legacy_protocol_and_preserves_arguments(self) -> None:
+        result = self._run(transport="mister", dry_run=False, host="mister.test", user="root")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        scp_args = [
+            line.split("|", 1)[1]
+            for line in self.actions.read_text(encoding="utf-8").splitlines()
+            if line.startswith("SCP_ARG|")
+        ]
+        self._assert_legacy_scp_arguments(scp_args, result.stdout)
 
     def test_mister_remote_hash_mismatch_stops_before_fifo_write(self) -> None:
         self._write_remote_tools(digest="f" * 64)
@@ -816,6 +841,49 @@ class ProgramPreflightTests(unittest.TestCase):
             if line.startswith("remote_stage: "):
                 return line.split(": ", 1)[1]
         return ""
+
+    def _assert_legacy_scp_arguments(
+        self,
+        scp_args: list[str],
+        output: str,
+        *,
+        include_executable: bool = False,
+    ) -> None:
+        self.assertGreaterEqual(len(scp_args), 5)
+        if include_executable:
+            self.assertEqual(scp_args[0], str(self.scp))
+            scp_args = scp_args[1:]
+        self.assertEqual(scp_args[0], "-O")
+        self.assertEqual(scp_args.count("-O"), 1)
+        control_path = next(option for option in scp_args if option.startswith("ControlPath="))
+        self.assertEqual(
+            scp_args[1:-2],
+            [
+                "-o",
+                "BatchMode=no",
+                "-o",
+                "ConnectTimeout=10",
+                "-o",
+                "ConnectionAttempts=1",
+                "-o",
+                "ServerAliveInterval=5",
+                "-o",
+                "ServerAliveCountMax=2",
+                "-o",
+                "StrictHostKeyChecking=yes",
+                "-o",
+                "ControlMaster=auto",
+                "-o",
+                "ControlPersist=120s",
+                "-o",
+                control_path,
+            ],
+        )
+        self.assertEqual(scp_args[-2], str(self.artifact))
+        self.assertEqual(
+            scp_args[-1],
+            f"root@mister.test:{self._extract_stage(output)}",
+        )
 
     def test_mister_atomic_mkdir_failure_stops_for_dangling_symlink_or_race(self) -> None:
         self._write_remote_tools(mkdir_exit=1)

@@ -1560,7 +1560,7 @@ def _mister_transport_session(
     # SCP accepts the same bounded ``-o key=value`` options but has no SSH
     # ``-T`` switch in all supported OpenSSH versions.  Keep the option pairs
     # intact when dropping that first SSH-only flag.
-    scp_command = [scp, *ssh_options[1:], str(evidence.artifact_path), f"{target}:{stage_file}"]
+    scp_command = [scp, "-O", *ssh_options[1:], str(evidence.artifact_path), f"{target}:{stage_file}"]
     load_line = f"load_core {stage_file}"
     load_remote = _remote_load_script(
         stage_file,
