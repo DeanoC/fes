@@ -287,3 +287,120 @@ authenticated_tools.nextpnr-mistral.sha256 = 47ad7d4be8cf23f455e8b0835cb108a9859
 The route and RBF outputs remain the same as the original successful OSS
 bring-up: no unrouted markers, 28 combinational cells, 25 flip-flops, 2 IOs,
 0 M10Ks, and 234.69 MHz final signoff against the 50 MHz request.
+
+## OSS review fix round 3 evidence — 2026-08-26
+
+This is the authoritative post-Round-2 evidence. The two real OSS builds and
+the artifact hashes below were measured immediately after the clean
+implementation/test commit
+`0c353892e797c3b2598dd57b1958e4aa37625c64`. At that measurement point the
+manifest recorded `git.state = clean`, `git.dirty = false`, and no changes.
+This documentation update is subsequent documentation work, so the ignored
+manifest intentionally retains the measured implementation commit and clean
+state; it does not claim to be self-referential to the later documentation
+commit.
+
+### TDD and verification
+
+The Round-3 regressions were written before the implementation change. Against
+the prior code they failed for the unclassified Mistral multiply resources and
+the missing previous-experiment check:
+
+```text
+$ python3 -m unittest -v tests.test_oss_summary
+Ran 11 tests in 0.288s
+FAILED (failures=2)
+```
+
+After the minimal fix, the focused and full suites were green:
+
+```text
+$ python3 -m unittest -v tests.test_oss_purity tests.test_oss_summary tests.test_manifest
+Ran 34 tests in 1.011s
+OK
+
+$ python3 -m unittest -v tests.test_blinky_sources tests.test_bootstrap_interface tests.test_doctor tests.test_lockfile tests.test_manifest tests.test_oss_purity tests.test_oss_summary tests.test_repository_contract
+Ran 88 tests in 45.561s
+OK
+```
+
+`MISTRAL_MUL9X9`, `MISTRAL_MUL18X18`, and `MISTRAL_MUL27X27` are now explicit
+forbidden DSP resources. A previous manifest whose top-level `experiment`
+does not equal the current experiment cannot establish RBF stability. Unknown
+resources remain fail-closed. The real route's current utilization has no DSP
+use; the final report classifies the forbidden `MISTRAL_M10K`, HPS, and
+oscillator entries as zero-use hard resources and reports the ordinary Mistral
+fabric resources separately.
+
+The required real checks were:
+
+```text
+$ make sim EXP=010_blinky
+transition cycle=8 count=8 LED=1
+transition cycle=16 count=0 LED=0
+PASS: 24 post-edge counts verified (0-7 low, 8-15 high, wrap low)
+
+$ make oss EXP=010_blinky
+exit 0
+$ make oss EXP=010_blinky
+exit 0
+```
+
+### Current machine-readable result
+
+The final manifest is schema 2 for target `5CSEBA6U23I7`, lane `oss`, and
+experiment `010_blinky`. It records the clean measured implementation commit
+above and reports:
+
+```text
+build.status = pass
+build.build_status = pass
+build.route_status = pass
+build.hard_block_status = pass
+build.timing.clock = FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q
+build.timing.requested_mhz = 50.0
+build.timing.achieved_mhz = 234.6866912841797
+build.resources.MISTRAL_BUF = 3/0 (ordinary)
+build.resources.MISTRAL_CLKENA = 1/2 (ordinary)
+build.resources.MISTRAL_COMB = 28/83820 (ordinary)
+build.resources.MISTRAL_FF = 25/167640 (ordinary)
+build.resources.MISTRAL_IO = 2/472 (ordinary)
+build.hard_blocks.MISTRAL_M10K = 0/553 (forbidden, zero use)
+build.hard_blocks.cyclonev_hps_interface_mpu_general_purpose = 0/1 (forbidden, zero use)
+build.hard_blocks.cyclonev_oscillator = 0/1 (forbidden, zero use)
+build.unknown_resources = {}
+build.reproducibility.rbf_size_bytes = 7007204
+build.reproducibility.rbf_sha256 = 6afe6c8b7bb61a3a442d4fe9df88dc2f9dfe52ebdcf807501549db4168f95632
+build.reproducibility.previous_rbf_sha256 = 6afe6c8b7bb61a3a442d4fe9df88dc2f9dfe52ebdcf807501549db4168f95632
+build.reproducibility.rbf_stability_measured = true
+build.reproducibility.rbf_stable = true
+build.reproducibility.rbf_stability_reason = previous successful manifest provenance matched
+```
+
+The authenticated binaries were unchanged and remain tied to the lock pins:
+
+```text
+yosys 13b43f8c85ec430a33ee55d058fb4c32b42b6910 sha256=6efab7e5f944c8b835af470d082fc660791b97ccd9266271c5b793191f669d7d
+nextpnr-mistral 7d4f72c0aabc15da932748a54e82a6ff7b41921e sha256=47ad7d4be8cf23f455e8b0835cb108a98593f4ac05b309f5f82c5f6a05a14713
+```
+
+The complete final artifact and log inventory, including the manifest's
+measured sizes and hashes, is:
+
+| Path | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `build/oss/010_blinky/top.rbf` | 7007204 | `6afe6c8b7bb61a3a442d4fe9df88dc2f9dfe52ebdcf807501549db4168f95632` |
+| `build/oss/010_blinky/synth.json` | 251174 | `e34cbb5ab34ffc1987031f523d6134acc81070b3ab6221c5a27b84a5e484096b` |
+| `build/oss/010_blinky/routed.json` | 119035 | `66d06fc73fc94742fd5ad21dc28171f054eda93c174c0f8fba8944a77838455a` |
+| `build/oss/010_blinky/timing.json` | 34131 | `935069090971210c96561a59fdac82481800bbed3682e246c3efb44c3fc68df7` |
+| `build/oss/010_blinky/timing.txt` | 391 | `b9842880dd3d066df02960c5661da3343d3e1a5986a148ab9acd4fcb251c0a00` |
+| `build/oss/010_blinky/build-summary.json` | 3874 | `256f35fb18245060642a1820cbadb38bfa5256155fdab1fbe04988963d80a27d` |
+| `build/oss/010_blinky/yosys.log` | 48930 | `f898fa597afc7030f92f5ea23fa5f0c01e4226a1707f10652bca7362cce5f2c1` |
+| `build/oss/010_blinky/nextpnr-help.log` | 6001 | `38888729e6dcbea9b91d43e2cb629e35fb31b521ee362175cfa001a322d79110` |
+| `build/oss/010_blinky/nextpnr.log` | 40132 | `d659c43dae726cd3228ffc418d2bc15d367f76fb773472272e1e02e8fd317ed8` |
+| `build/oss/010_blinky/summary.log` | 2108 | `81ad337116ea149a671d638f0f87af1ff4a6ef6bc4b5c1e23a93a664e159cc3b` |
+| `build/oss/010_blinky/manifest-collect.log` | 2287 | `ac3e3ba03d0d67dc5b029de18b0ecb7d1529ade3066166638c3dd7cfb2977369` |
+| `build/oss/010_blinky/manifest.json` | 11520 | `424f685573848b270517d74e500d662742d35a4160d765d4111bd2d1fc8bca89` |
+
+The final route log contains no case-insensitive `unrouted` marker. No
+hardware was accessed and no Task 8 work was performed.
