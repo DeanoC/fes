@@ -4,6 +4,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+MAKEFILE = ROOT / "Makefile"
 QSF = ROOT / "boards" / "de10nano" / "pins.qsf"
 SDC = ROOT / "boards" / "de10nano" / "clocks.sdc"
 BOARD_README = ROOT / "boards" / "de10nano" / "README.md"
@@ -53,6 +54,8 @@ class BlinkySourcePolicyTests(unittest.TestCase):
         for forbidden in (
             "PLL",
             "RAM",
+            "BRAM",
+            "LUTRAM",
             "HPS",
             "DSP",
             "ALTPLL",
@@ -62,9 +65,21 @@ class BlinkySourcePolicyTests(unittest.TestCase):
         ):
             self.assertNotRegex(
                 rtl,
-                rf"\b{re.escape(forbidden)}\b",
+                re.compile(rf"\b{re.escape(forbidden)}\b", re.IGNORECASE),
                 forbidden,
             )
+
+    def test_sim_authenticates_verilator_before_lint(self):
+        makefile = MAKEFILE.read_text(encoding="utf-8")
+        auth = re.search(
+            r"doctor\.py[\"']?\s+--check-tool\s+verilator",
+            makefile,
+        )
+        self.assertIsNotNone(auth)
+        self.assertLess(
+            auth.start(),
+            makefile.index("--lint-only"),
+        )
 
     def test_board_readme_cites_both_pin_sources(self):
         self.assertTrue(BOARD_README.is_file(), BOARD_README)

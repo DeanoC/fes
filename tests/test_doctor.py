@@ -205,6 +205,41 @@ class DoctorTests(unittest.TestCase):
         self.assertIn("digest", output.lower())
         self.assertIn("NOT READY", output)
 
+    def test_check_tool_verilator_accepts_authenticated_local_binary(self):
+        return_code, output = self._run_with_local_tools(
+            ["--check-tool", "verilator"]
+        )
+
+        self.assertEqual(return_code, 0, output)
+        self.assertIn("Verilator", output)
+        self.assertIn("OK", output)
+
+    def test_check_tool_verilator_rejects_bad_digest_before_invocation(self):
+        local_install, local_build = self._install_local_tools()
+        verilator = local_install / "bin" / "verilator"
+        marker = Path(self.tempdir.name) / "verilator-invoked"
+        self._write_executable(
+            verilator,
+            f'printf "invoked\\n" > "{marker}"; printf "replaced\\n"',
+        )
+        pin = doctor._load_pins()["verilator"]
+        (local_build / "verilator" / f".digest-{pin.commit}.sha256").write_text(
+            "0" * 64 + "\n", encoding="utf-8"
+        )
+
+        environment = os.environ.copy()
+        environment["PATH"] = str(self.bin_dir)
+        environment.pop("QUARTUS_ROOTDIR", None)
+        output = io.StringIO()
+        with mock.patch.object(doctor, "INSTALL_BIN", local_install / "bin"), mock.patch.object(
+            doctor, "TOOLCHAIN_BUILD", local_build
+        ), mock.patch.dict(os.environ, environment, clear=True), contextlib.redirect_stdout(output):
+            return_code = doctor.main(["--check-tool", "verilator"])
+
+        self.assertNotEqual(return_code, 0)
+        self.assertFalse(marker.exists())
+        self.assertIn("digest", output.getvalue().lower())
+
     def test_json_has_structured_readiness_groups(self):
         result = self._run("--json")
 

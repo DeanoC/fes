@@ -630,10 +630,38 @@ def render_human(report: dict[str, list[dict[str, Any]]]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def check_tool(tool_name: str) -> dict[str, Any]:
+    """Authenticate and inspect one repository-local locked OSS tool."""
+
+    pins = _load_pins()
+    for command_name, display_name, args in OSS_TOOLS:
+        if command_name == tool_name:
+            return _local_tool_check(
+                command_name,
+                display_name,
+                args,
+                pins.get(command_name_to_tool(command_name)),
+            )
+    # ``parse_args`` restricts the public command-line values. Keep this
+    # branch useful for callers of the small Python interface as well.
+    return make_check(
+        tool_name,
+        "NOT READY",
+        f"unsupported repository-local tool: {tool_name}",
+        True,
+    )
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="write only the structured JSON report")
     parser.add_argument("--strict", choices=("oss", "hardware"), help="return failure when readiness is not met")
+    parser.add_argument(
+        "--check-tool",
+        choices=tuple(command_name for command_name, _display_name, _args in OSS_TOOLS),
+        metavar="TOOL",
+        help="authenticate and inspect one repository-local locked OSS tool",
+    )
     parser.add_argument(
         "--expected-board",
         metavar="BOARD",
@@ -644,6 +672,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
+    if args.check_tool is not None:
+        check = check_tool(args.check_tool)
+        if args.json:
+            print(json.dumps(check, indent=2))
+        else:
+            print(f"[{check['status']}] {check['name']}: {check['detail']}")
+        return 0 if check["status"] == "OK" else 1
+
     report = build_report(args.expected_board)
     if args.json:
         print(json.dumps(report, indent=2))
