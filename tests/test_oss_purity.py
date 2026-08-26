@@ -44,6 +44,71 @@ class OssPipelinePurityTests(unittest.TestCase):
         )
         path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
+    def _canonical_fixture(self, *, symlink_bin: bool = False, symlink_build_tools: bool = False) -> tuple[Path, Path]:
+        repository = self.fixture / "canonical-repository"
+        for relative in (
+            "scripts/build_oss.sh",
+            "scripts/run_logged.sh",
+            "scripts/collect_manifest.py",
+            "scripts/lockfile.py",
+            "scripts/oss_summary.py",
+            "toolchain.lock",
+            "boards/de10nano/pins.qsf",
+            "boards/de10nano/clocks.sdc",
+            "experiments/010_blinky/rtl/top.v",
+        ):
+            destination = repository / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / relative, destination)
+
+        install = repository / "build/toolchain/install"
+        build = repository / "build/toolchain/build"
+        install.mkdir(parents=True)
+        build.mkdir(parents=True)
+        external = self.fixture / "nested-external"
+        external_bin = external / "bin"
+        external_bin.mkdir(parents=True)
+        external_build = external / "build"
+        external_build.mkdir(parents=True)
+        marker = external / "invoked"
+
+        def shim(path: Path, name: str) -> None:
+            path.write_text(
+                "#!/bin/sh\n"
+                f"printf '%s\\n' '{name}' >> '{marker}'\n"
+                "exit 0\n",
+                encoding="utf-8",
+            )
+            path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+        if symlink_bin:
+            for name in ("yosys", "nextpnr-mistral"):
+                shim(external_bin / name, name)
+            (install / "bin").symlink_to(external_bin, target_is_directory=True)
+        else:
+            bin_dir = install / "bin"
+            bin_dir.mkdir()
+            for name in ("yosys", "nextpnr-mistral"):
+                shim(bin_dir / name, name)
+
+        pins = {
+            "yosys": "13b43f8c85ec430a33ee55d058fb4c32b42b6910",
+            "nextpnr": "7d4f72c0aabc15da932748a54e82a6ff7b41921e",
+        }
+        for lock_name, commit in pins.items():
+            evidence = external_build / lock_name if symlink_build_tools else build / lock_name
+            if symlink_build_tools:
+                evidence.mkdir(parents=True)
+                (build / lock_name).symlink_to(evidence, target_is_directory=True)
+            else:
+                evidence.mkdir(parents=True)
+            binary_name = "nextpnr-mistral" if lock_name == "nextpnr" else lock_name
+            binary = install / "bin" / binary_name
+            digest = __import__("hashlib").sha256(binary.read_bytes()).hexdigest()
+            (evidence / f".built-{commit}").write_text(f"commit={commit}", encoding="utf-8")
+            (evidence / f".digest-{commit}.sha256").write_text(digest, encoding="utf-8")
+        return repository, marker
+
     def _run(self, *args: str, extra_env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
         env = os.environ.copy()
         env.update(
@@ -134,6 +199,46 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("canonical", (result.stderr + result.stdout).lower())
         self.assertFalse(self.marker.exists(), "symlinked roots must stop before tool execution")
+
+    def test_real_mode_rejects_canonical_install_bin_symlink_before_invocation(self) -> None:
+        repository, marker = self._canonical_fixture(symlink_bin=True)
+        env = os.environ.copy()
+        env.update(
+            {
+                "TOOLCHAIN_INSTALL": str(repository / "build/toolchain/install"),
+                "TOOLCHAIN_BUILD": str(repository / "build/toolchain/build"),
+            }
+        )
+        result = subprocess.run(
+            [str(repository / "scripts/build_oss.sh"), "--experiment", "010_blinky"],
+            cwd=repository,
+            env=env,
+            text=True,
+            capture_output=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("symlink", (result.stderr + result.stdout).lower())
+        self.assertFalse(marker.exists(), "nested install symlink must stop before tool execution")
+
+    def test_real_mode_rejects_canonical_build_tool_symlinks_before_invocation(self) -> None:
+        repository, marker = self._canonical_fixture(symlink_build_tools=True)
+        env = os.environ.copy()
+        env.update(
+            {
+                "TOOLCHAIN_INSTALL": str(repository / "build/toolchain/install"),
+                "TOOLCHAIN_BUILD": str(repository / "build/toolchain/build"),
+            }
+        )
+        result = subprocess.run(
+            [str(repository / "scripts/build_oss.sh"), "--experiment", "010_blinky"],
+            cwd=repository,
+            env=env,
+            text=True,
+            capture_output=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("symlink", (result.stderr + result.stdout).lower())
+        self.assertFalse(marker.exists(), "nested build symlink must stop before tool execution")
 
 
 if __name__ == "__main__":

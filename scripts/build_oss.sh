@@ -197,6 +197,17 @@ validate_real_toolchain_roots() {
             fail "toolchain root is not a directory: $root"
         fi
     done
+    local nested_path
+    for nested_path in \
+        "$expected_install/bin" \
+        "$expected_install/bin/yosys" \
+        "$expected_install/bin/nextpnr-mistral" \
+        "$expected_build/yosys" \
+        "$expected_build/nextpnr"; do
+        if path_has_symlink_component "$nested_path"; then
+            fail "toolchain path contains a symlink component: $nested_path"
+        fi
+    done
 }
 
 validate_output_tree
@@ -251,12 +262,18 @@ authenticate_tool() {
     local binary="$TOOLCHAIN_INSTALL/bin/$tool_name"
     local commit stamp digest expected actual stamp_value
 
+    if path_has_symlink_component "$binary"; then
+        fail "repository-local executable path contains a symlink component: $binary"
+    fi
     [[ -f "$binary" && ! -L "$binary" && -x "$binary" ]] \
         || fail "repository-local executable is not authenticated: $binary"
     commit="$($PYTHON "$lockfile" get "$lock_name" commit)" \
         || fail "cannot read lock entry: $lock_name"
     stamp="$TOOLCHAIN_BUILD/$lock_name/.built-$commit"
     digest="$TOOLCHAIN_BUILD/$lock_name/.digest-$commit.sha256"
+    if path_has_symlink_component "$stamp" || path_has_symlink_component "$digest"; then
+        fail "toolchain evidence path contains a symlink component: $TOOLCHAIN_BUILD/$lock_name"
+    fi
     [[ -f "$stamp" && ! -L "$stamp" ]] \
         || fail "missing build stamp: $stamp"
     stamp_value="$(<"$stamp")"
@@ -328,11 +345,31 @@ summary_cmd=(
     --output "$out_summary"
     --timing-output "$out_timing_txt"
     --target "$TARGET"
+    --lane oss
+    --experiment "$EXP"
     --authenticated-tool "yosys=$YOSYS_COMMIT:$YOSYS_DIGEST"
     --authenticated-tool "nextpnr-mistral=$NEXTPNR_COMMIT:$NEXTPNR_DIGEST"
+    --tool-pin "yosys=$YOSYS_COMMIT"
+    --tool-pin "nextpnr=$NEXTPNR_COMMIT"
 )
+for source_spec in \
+    "$rtl_rel" \
+    "$qsf_rel" \
+    "$sdc_rel" \
+    "scripts/build_oss.sh" \
+    "scripts/run_logged.sh" \
+    "scripts/collect_manifest.py" \
+    "scripts/oss_summary.py" \
+    "toolchain.lock"; do
+    source_digest="$(sha256sum -- "$ROOT/$source_spec")"
+    source_digest="${source_digest%% *}"
+    summary_cmd+=(--source-hash "$source_spec=$source_digest")
+done
 if [[ -n "$previous_rbf_sha256" ]]; then
     summary_cmd+=(--previous-rbf-sha256 "$previous_rbf_sha256")
+fi
+if [[ -s "$manifest" ]]; then
+    summary_cmd+=(--previous-manifest "$manifest")
 fi
 "$run_logged" "$summary_log" "${summary_cmd[@]}"
 [[ -s "$out_summary" ]] || fail "build summary was not produced: $out_summary"
