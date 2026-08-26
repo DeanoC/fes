@@ -228,7 +228,10 @@ class OracleBoundaryTests(unittest.TestCase):
             set(summary["hard_blocks"]),
             {"PLL", "BRAM/M10K", "MLAB/LUTRAM", "DSP", "HPS"},
         )
-        self.assertTrue(all(record["used"] == 0 for record in summary["hard_blocks"].values()))
+        self.assertEqual(
+            [summary["hard_blocks"][name]["used"] for name in ("PLL", "BRAM/M10K", "DSP")],
+            [0, 0, 0],
+        )
         evidence = summary["hard_block_evidence"]
         self.assertEqual(set(evidence), set(summary["hard_blocks"]))
         for name in ("PLL", "BRAM/M10K", "DSP"):
@@ -237,7 +240,18 @@ class OracleBoundaryTests(unittest.TestCase):
         for name in ("MLAB/LUTRAM", "HPS"):
             self.assertEqual(evidence[name]["evidence_kind"], "static_exclusion")
             self.assertFalse(evidence[name]["measured"])
+            self.assertEqual(evidence[name]["status"], "excluded")
+            self.assertIsNone(evidence[name]["used"])
             self.assertIsNone(evidence[name]["available"])
+            self.assertEqual(
+                [source["path"] for source in evidence[name]["exclusion"]["sources"]],
+                [
+                    "experiments/010_blinky/rtl/top.v",
+                    "boards/de10nano/pins.qsf",
+                    "boards/de10nano/clocks.sdc",
+                    "experiments/010_blinky/oracle/top.qsf",
+                ],
+            )
             self.assertTrue(evidence[name]["exclusion"]["sources"])
         self.assertEqual(summary["source_hashes"]["boards/de10nano/clocks.sdc"], hashlib.sha256((ROOT / "boards/de10nano/clocks.sdc").read_bytes()).hexdigest())
         quartus_provenance = summary["authenticated_tools"]["quartus_sh"]

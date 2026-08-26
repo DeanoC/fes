@@ -27,6 +27,27 @@ REQUIRED_HARD_BLOCKS = ("PLL", "BRAM/M10K", "MLAB/LUTRAM", "DSP", "HPS")
 MEASURED_HARD_BLOCKS = ("PLL", "BRAM/M10K", "DSP")
 STATIC_HARD_BLOCKS = ("MLAB/LUTRAM", "HPS")
 QUARTUS_VERSION_RE = re.compile(r"(^|[^0-9])17\.0\.2(?:\s|$)")
+STATIC_EXCLUSION_CONTRACTS = {
+    "MLAB/LUTRAM": {
+        "basis": "static source/project exclusion",
+        "patterns": (
+            r"\bmlab(?:s)?\b",
+            r"\blutram\b",
+            r"\b(?:altsyncram|lpm_ram|mlab_cell)\b",
+            r"\b(?:reg|wire|logic)\s*\[[^\]]+\]\s+\w+\s*\[",
+        ),
+    },
+    "HPS": {
+        "basis": "static source/project exclusion",
+        "patterns": (
+            r"\bhps\b",
+            r"\bhard[_ ]processor",
+            r"\b(?:altera|cyclonev)[_ ]hps\b",
+            r"\b(?:hps_component|soc_system|soc_id|arm)\b",
+            r"\bsoc\b",
+        ),
+    },
+}
 
 
 class ComparisonError(ValueError):
@@ -324,30 +345,77 @@ def _rbf_digest(build: Mapping[str, Any], artifacts: Sequence[Mapping[str, Any]]
     return None
 
 
-def _exclusion_failures(record: Mapping[str, Any], lane: str, name: str) -> list[str]:
+def _canonical_static_paths(experiment: str) -> tuple[str, ...]:
+    return (
+        f"experiments/{experiment}/rtl/top.v",
+        "boards/de10nano/pins.qsf",
+        "boards/de10nano/clocks.sdc",
+        f"experiments/{experiment}/oracle/top.qsf",
+    )
+
+
+def _exclusion_failures(
+    record: Mapping[str, Any],
+    lane: str,
+    name: str,
+    experiment: str,
+    manifest_sources: Mapping[str, str],
+) -> list[str]:
+    contract = STATIC_EXCLUSION_CONTRACTS.get(name)
+    if contract is None:
+        return [f"{lane} {name} has no canonical static-exclusion contract"]
     exclusion = record.get("exclusion")
     if not isinstance(exclusion, dict):
         return [f"{lane} {name} static-exclusion evidence is missing"]
     failures: list[str] = []
-    if exclusion.get("basis") != "static source/project exclusion":
+    if "used" not in record or record.get("used") is not None:
+        failures.append(f"{lane} {name} static exclusion must use null used, not a fitted count")
+    if "available" not in record or record.get("available") is not None:
+        failures.append(f"{lane} {name} static exclusion must not claim fitted capacity")
+    if record.get("status") != "excluded":
+        failures.append(f"{lane} {name} static exclusion status must be excluded")
+    if record.get("evidence_kind") != "static_exclusion" or record.get("measured") is not False:
+        failures.append(f"{lane} {name} static exclusion evidence kind/completeness is invalid")
+    if exclusion.get("basis") != contract["basis"]:
         failures.append(f"{lane} {name} static-exclusion basis is invalid")
     patterns = exclusion.get("patterns")
-    if not isinstance(patterns, list) or not patterns or not all(isinstance(pattern, str) and pattern for pattern in patterns):
-        failures.append(f"{lane} {name} static-exclusion patterns are missing or malformed")
+    expected_patterns = list(contract["patterns"])
+    if patterns != expected_patterns:
+        failures.append(f"{lane} {name} static-exclusion patterns are not canonical")
+
     sources = exclusion.get("sources")
-    if not isinstance(sources, list) or not sources:
-        failures.append(f"{lane} {name} static-exclusion source records are missing")
-    else:
-        for source in sources:
-            if not isinstance(source, dict):
-                failures.append(f"{lane} {name} static-exclusion source record is malformed")
-                continue
-            path = source.get("path")
-            digest = source.get("sha256")
-            if not isinstance(path, str) or not path:
-                failures.append(f"{lane} {name} static-exclusion source path is malformed")
-            if not isinstance(digest, str) or SHA256_RE.fullmatch(digest) is None:
-                failures.append(f"{lane} {name} static-exclusion source hash is invalid")
+    expected_paths = _canonical_static_paths(experiment)
+    if not isinstance(sources, list):
+        failures.append(f"{lane} {name} static-exclusion source path set is missing or malformed")
+        return failures
+    if len(sources) != len(expected_paths):
+        failures.append(f"{lane} {name} static-exclusion source path set has unexpected size")
+    seen: set[str] = set()
+    for source in sources:
+        if not isinstance(source, dict) or set(source) != {"path", "sha256"}:
+            failures.append(f"{lane} {name} static-exclusion source record is malformed")
+            continue
+        path = source.get("path")
+        digest = source.get("sha256")
+        if not isinstance(path, str) or not path:
+            failures.append(f"{lane} {name} static-exclusion source path is malformed")
+            continue
+        if path in seen:
+            failures.append(f"{lane} {name} static-exclusion source path is duplicated: {path}")
+        seen.add(path)
+        if not isinstance(digest, str) or SHA256_RE.fullmatch(digest) is None:
+            failures.append(f"{lane} {name} static-exclusion source hash is invalid: {path}")
+            continue
+        expected_digest = manifest_sources.get(path)
+        if path not in expected_paths:
+            failures.append(f"{lane} {name} static-exclusion source path is not canonical: {path}")
+        elif not isinstance(expected_digest, str):
+            failures.append(f"{lane} {name} static-exclusion source hash has no manifest source: {path}")
+        elif digest != expected_digest:
+            failures.append(f"{lane} {name} static-exclusion source hash disagrees with manifest source: {path}")
+    missing_paths = sorted(set(expected_paths) - seen)
+    if missing_paths:
+        failures.append(f"{lane} {name} static-exclusion source path is missing: {', '.join(missing_paths)}")
     return failures
 
 
@@ -427,7 +495,12 @@ def _quartus_provenance_failures(build: Mapping[str, Any]) -> list[str]:
     return failures
 
 
-def _hard_block_view(build: Mapping[str, Any], lane: str) -> tuple[dict[str, dict[str, Any]], list[str]]:
+def _hard_block_view(
+    build: Mapping[str, Any],
+    lane: str,
+    experiment: str = "",
+    manifest_sources: Mapping[str, str] | None = None,
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
     if lane == "oracle":
         raw = build.get("hard_block_evidence")
         legacy = build.get("hard_blocks")
@@ -447,22 +520,27 @@ def _hard_block_view(build: Mapping[str, Any], lane: str) -> tuple[dict[str, dic
         if not isinstance(name, str) or not name or not isinstance(record, dict):
             failures.append(f"{lane} hard-block evidence record is malformed")
             continue
-        used = _number(record.get("used"))
-        available = _number(record.get("available"))
         evidence_kind = record.get("evidence_kind")
-        if used is None or used < 0:
-            failures.append(f"{lane} hard-block evidence is malformed: {name}")
-            continue
-        if available is None and not (
-            name in STATIC_HARD_BLOCKS and evidence_kind == "static_exclusion"
-        ):
-            failures.append(f"{lane} hard-block evidence is malformed: {name}")
-            continue
-        if available is not None and available < 0:
-            failures.append(f"{lane} hard-block evidence is malformed: {name}")
-            continue
+        is_static = lane == "oracle" and name in STATIC_HARD_BLOCKS and evidence_kind == "static_exclusion"
+        if is_static:
+            used = record.get("used")
+            available = record.get("available")
+            if used is not None or available is not None:
+                failures.append(f"{lane} hard-block static evidence is malformed: {name}")
+        else:
+            used = _number(record.get("used"))
+            available = _number(record.get("available"))
+            if used is None or used < 0:
+                failures.append(f"{lane} hard-block evidence is malformed: {name}")
+                continue
+            if available is None:
+                failures.append(f"{lane} hard-block evidence is malformed: {name}")
+                continue
+            if available < 0:
+                failures.append(f"{lane} hard-block evidence is malformed: {name}")
+                continue
         view[name] = dict(record)
-        if used > 0:
+        if isinstance(used, (int, float)) and used > 0:
             failures.append(f"{lane} unexpected hard block in use: {name}={record['used']}")
 
         if lane == "oracle":
@@ -470,9 +548,15 @@ def _hard_block_view(build: Mapping[str, Any], lane: str) -> tuple[dict[str, dic
                 if evidence_kind != "fitter_summary" or record.get("measured") is not True or available is None:
                     failures.append(f"oracle {name} evidence kind/completeness is invalid for measured fitter evidence")
             elif name in STATIC_HARD_BLOCKS:
-                if evidence_kind != "static_exclusion" or record.get("measured") is not False or record.get("available") is not None:
-                    failures.append(f"oracle {name} evidence kind/completeness is invalid for static exclusion")
-                failures.extend(_exclusion_failures(record, lane, name))
+                failures.extend(
+                    _exclusion_failures(
+                        record,
+                        lane,
+                        name,
+                        experiment,
+                        manifest_sources or {},
+                    )
+                )
             else:
                 failures.append(f"oracle hard-block evidence has unrecognized class: {name}")
 
@@ -486,7 +570,10 @@ def _hard_block_view(build: Mapping[str, Any], lane: str) -> tuple[dict[str, dic
             if record is None:
                 failures.append(f"oracle hard-block evidence is missing required class: {name}")
                 continue
-            if _number(record.get("used")) != 0:
+            if name in STATIC_HARD_BLOCKS:
+                if record.get("used") is not None:
+                    failures.append(f"oracle static exclusion is not null: {name}={record.get('used')}")
+            elif _number(record.get("used")) != 0:
                 failures.append(f"oracle required hard block is nonzero: {name}={record.get('used')}")
             legacy_record = legacy.get(name) if isinstance(legacy, dict) else None
             if not isinstance(legacy_record, dict):
@@ -543,8 +630,17 @@ def _lane_view(
         elif achieved < 50.0:
             failures.append(f"{lane} timing is below 50 MHz ({achieved:g} MHz)")
 
+    manifest_experiment = manifest.get("experiment") if isinstance(manifest.get("experiment"), str) else ""
+    source_hashes, source_failures = _source_records(manifest)
+    failures.extend(f"{lane} {failure}" for failure in source_failures)
+
     hard_status = build.get("hard_block_status")
-    hard_blocks, hard_failures = _hard_block_view(build, lane)
+    hard_blocks, hard_failures = _hard_block_view(
+        build,
+        lane,
+        manifest_experiment,
+        source_hashes,
+    )
     failures.extend(hard_failures)
     if lane == "oracle":
         failures.extend(_quartus_provenance_failures(build))
@@ -561,13 +657,10 @@ def _lane_view(
     if simulation_status in {"fail", "failed", "failure", "error", "not-pass"}:
         failures.append(f"{lane} simulation failed")
 
-    manifest_experiment = manifest.get("experiment") if isinstance(manifest.get("experiment"), str) else ""
     artifacts, artifact_failures = _artifact_records(
         manifest, manifest_path, repo_root, lane, manifest_experiment
     )
     failures.extend(f"{failure}" for failure in artifact_failures)
-    source_hashes, source_failures = _source_records(manifest)
-    failures.extend(f"{lane} {failure}" for failure in source_failures)
     if isinstance(raw_build, dict) and manifest_experiment:
         failures.extend(
             _summary_source_records(raw_build, lane, manifest_experiment, source_hashes)
@@ -600,6 +693,18 @@ def _resource_value(resources: Mapping[str, Any], name: str, key: str = "used") 
     if not isinstance(value, dict) or key not in value:
         return "absent"
     return value[key]
+
+
+def _hard_block_display(lane: Mapping[str, Any], name: str) -> Any:
+    value = lane.get("hard_blocks", {}).get(name) if isinstance(lane.get("hard_blocks"), dict) else None
+    if (
+        isinstance(value, dict)
+        and value.get("evidence_kind") == "static_exclusion"
+        and value.get("status") == "excluded"
+        and value.get("measured") is False
+    ):
+        return "excluded (static)"
+    return value.get("used") if isinstance(value, dict) and "used" in value else "absent"
 
 
 def _differences(oss: Mapping[str, Any], oracle: Mapping[str, Any]) -> list[str]:
@@ -692,6 +797,8 @@ def compare_manifests(
                 "both lanes meet the requested 50 MHz timing",
                 "both lanes have no unexpected hard blocks or unknown resources",
                 "both lanes contain complete explicit required hard-block evidence",
+                "oracle static exclusions use the canonical source path set, patterns, and manifest-matching hashes",
+                "oracle Quartus provenance authenticates the exact 17.0.2 executable and matching tool pin",
                 "failed simulations fail the comparison",
                 "common RTL, pin-QSF, and clock-SDC SHA-256 values match exactly",
                 "each lane has the exact nonempty lane RBF with matching hash and size evidence",
@@ -764,7 +871,7 @@ def comparison_markdown(comparison: Mapping[str, Any]) -> str:
             hard_blocks.update(lane["hard_blocks"])
     for name in sorted(hard_blocks):
         lines.append(
-            f"| {cell(name)} | {cell(_resource_value(oss.get('hard_blocks', {}), name))} | {cell(_resource_value(oracle.get('hard_blocks', {}), name))} |"
+            f"| {cell(name)} | {cell(_hard_block_display(oss, name))} | {cell(_hard_block_display(oracle, name))} |"
         )
     if not hard_blocks:
         lines.append("| (absent; not zero) | absent | absent |")

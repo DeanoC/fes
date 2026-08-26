@@ -44,34 +44,66 @@ class CompareBuildsTests(unittest.TestCase):
             {"path": "experiments/010_blinky/rtl/top.v", "sha256": "a" * 64},
             {"path": "boards/de10nano/pins.qsf", "sha256": "b" * 64},
             {"path": "boards/de10nano/clocks.sdc", "sha256": "c" * 64},
+            {"path": "experiments/010_blinky/oracle/top.qsf", "sha256": "d" * 64},
         ]
-        hard_blocks = {
+        direct_hard_blocks = {
             "PLL": {"used": 0, "available": 4, "evidence_kind": "fitter_summary", "measured": True},
             "BRAM/M10K": {"used": 0, "available": 10, "evidence_kind": "fitter_summary", "measured": True},
+            "DSP": {"used": 0, "available": 2, "evidence_kind": "fitter_summary", "measured": True},
+        }
+        static_sources = [
+            {"path": "experiments/010_blinky/rtl/top.v", "sha256": "a" * 64},
+            {"path": "boards/de10nano/pins.qsf", "sha256": "b" * 64},
+            {"path": "boards/de10nano/clocks.sdc", "sha256": "c" * 64},
+            {"path": "experiments/010_blinky/oracle/top.qsf", "sha256": "d" * 64},
+        ]
+        oracle_static = {
             "MLAB/LUTRAM": {
-                "used": 0,
+                "used": None,
                 "available": None,
+                "status": "excluded",
                 "evidence_kind": "static_exclusion",
                 "measured": False,
                 "exclusion": {
                     "basis": "static source/project exclusion",
-                    "patterns": ["mlab", "lutram"],
-                    "sources": [{"path": "experiments/010_blinky/rtl/top.v", "sha256": "a" * 64}],
+                    "patterns": [
+                        r"\bmlab(?:s)?\b",
+                        r"\blutram\b",
+                        r"\b(?:altsyncram|lpm_ram|mlab_cell)\b",
+                        r"\b(?:reg|wire|logic)\s*\[[^\]]+\]\s+\w+\s*\[",
+                    ],
+                    "sources": static_sources,
                 },
             },
-            "DSP": {"used": 0, "available": 2, "evidence_kind": "fitter_summary", "measured": True},
             "HPS": {
-                "used": 0,
+                "used": None,
                 "available": None,
+                "status": "excluded",
                 "evidence_kind": "static_exclusion",
                 "measured": False,
                 "exclusion": {
                     "basis": "static source/project exclusion",
-                    "patterns": ["hps", "hard processor"],
-                    "sources": [{"path": "experiments/010_blinky/oracle/top.qsf", "sha256": "a" * 64}],
+                    "patterns": [
+                        r"\bhps\b",
+                        r"\bhard[_ ]processor",
+                        r"\b(?:altera|cyclonev)[_ ]hps\b",
+                        r"\b(?:hps_component|soc_system|soc_id|arm)\b",
+                        r"\bsoc\b",
+                    ],
+                    "sources": static_sources,
                 },
             },
         }
+        hard_blocks = dict(direct_hard_blocks)
+        if lane == "oracle":
+            hard_blocks.update(oracle_static)
+        else:
+            hard_blocks.update(
+                {
+                    "MLAB/LUTRAM": {"used": 0, "available": 8},
+                    "HPS": {"used": 0, "available": 1},
+                }
+            )
         hard_block_evidence = json.loads(json.dumps(hard_blocks))
         provenance = {
             "path": "/opt/quartus/17.0/quartus/bin/quartus_sh",
@@ -278,6 +310,93 @@ class CompareBuildsTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             comparison = json.loads((self.output / "comparison.json").read_text())
             self.assertTrue(any("provenance" in item.lower() or "quartus" in item.lower() for item in comparison["failures"]))
+
+    def test_oracle_static_exclusion_patterns_must_be_canonical(self):
+        oss_value = self._manifest("oss", self.oss_rbf)
+        oracle_value = self._manifest("oracle", self.oracle_rbf)
+        for name in ("MLAB/LUTRAM", "HPS"):
+            oracle_value["build"]["hard_blocks"][name]["exclusion"]["patterns"] = ["arbitrary"]
+            oracle_value["build"]["hard_block_evidence"][name]["exclusion"]["patterns"] = ["arbitrary"]
+        oss = self._write_manifest("oss.json", oss_value)
+        oracle = self._write_manifest("oracle.json", oracle_value)
+
+        result = self._run(oss, oracle)
+
+        self.assertNotEqual(result.returncode, 0)
+        comparison = json.loads((self.output / "comparison.json").read_text())
+        self.assertTrue(any("pattern" in item.lower() for item in comparison["failures"]))
+
+    def test_oracle_static_exclusion_hash_must_match_manifest_source(self):
+        oss_value = self._manifest("oss", self.oss_rbf)
+        oracle_value = self._manifest("oracle", self.oracle_rbf)
+        for name in ("MLAB/LUTRAM", "HPS"):
+            for record in (
+                oracle_value["build"]["hard_blocks"][name],
+                oracle_value["build"]["hard_block_evidence"][name],
+            ):
+                record["exclusion"]["sources"][0]["sha256"] = "f" * 64
+        oss = self._write_manifest("oss.json", oss_value)
+        oracle = self._write_manifest("oracle.json", oracle_value)
+
+        result = self._run(oss, oracle)
+
+        self.assertNotEqual(result.returncode, 0)
+        comparison = json.loads((self.output / "comparison.json").read_text())
+        self.assertTrue(any("hash" in item.lower() for item in comparison["failures"]))
+
+    def test_oracle_static_exclusion_requires_exact_canonical_source_set(self):
+        for mutation in ("missing", "extra"):
+            oss_value = self._manifest("oss", self.oss_rbf)
+            oracle_value = self._manifest("oracle", self.oracle_rbf)
+            for name in ("MLAB/LUTRAM", "HPS"):
+                for record in (
+                    oracle_value["build"]["hard_blocks"][name],
+                    oracle_value["build"]["hard_block_evidence"][name],
+                ):
+                    if mutation == "missing":
+                        record["exclusion"]["sources"].pop()
+                    else:
+                        record["exclusion"]["sources"].append(
+                            {"path": "experiments/010_blinky/oracle/top.qpf", "sha256": "e" * 64}
+                        )
+            oss = self._write_manifest("oss.json", oss_value)
+            oracle = self._write_manifest("oracle.json", oracle_value)
+
+            result = self._run(oss, oracle)
+
+            self.assertNotEqual(result.returncode, 0)
+            comparison = json.loads((self.output / "comparison.json").read_text())
+            self.assertTrue(any("path" in item.lower() or "source" in item.lower() for item in comparison["failures"]))
+
+    def test_oracle_static_exclusion_must_use_null_used_not_invented_zero(self):
+        oss_value = self._manifest("oss", self.oss_rbf)
+        oracle_value = self._manifest("oracle", self.oracle_rbf)
+        for name in ("MLAB/LUTRAM", "HPS"):
+            oracle_value["build"]["hard_blocks"][name]["used"] = 0
+            oracle_value["build"]["hard_block_evidence"][name]["used"] = 0
+        oss = self._write_manifest("oss.json", oss_value)
+        oracle = self._write_manifest("oracle.json", oracle_value)
+
+        result = self._run(oss, oracle)
+
+        self.assertNotEqual(result.returncode, 0)
+        comparison = json.loads((self.output / "comparison.json").read_text())
+        self.assertTrue(any("static" in item.lower() or "excluded" in item.lower() for item in comparison["failures"]))
+
+    def test_static_exclusion_passes_as_excluded_and_renders_without_numeric_zero(self):
+        oss = self._write_manifest("oss.json", self._manifest("oss", self.oss_rbf))
+        oracle = self._write_manifest("oracle.json", self._manifest("oracle", self.oracle_rbf))
+
+        result = self._run(oss, oracle)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        comparison = json.loads((self.output / "comparison.json").read_text())
+        for name in ("MLAB/LUTRAM", "HPS"):
+            record = comparison["lanes"]["oracle"]["hard_blocks"][name]
+            self.assertIsNone(record["used"])
+            self.assertEqual(record["status"], "excluded")
+        markdown = (self.output / "comparison.md").read_text()
+        self.assertIn("excluded (static)", markdown)
 
 
 if __name__ == "__main__":

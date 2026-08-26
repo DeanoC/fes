@@ -490,6 +490,22 @@ def static_exclusion(
     report_pattern: re.Pattern[str],
     source_patterns: tuple[str, ...],
 ) -> tuple[dict[str, object], str | None]:
+    def excluded_record(source_records: list[dict[str, str]]) -> dict[str, object]:
+        return {
+            # No fitted count exists for these classes in the normal Cyclone V
+            # summary.  Keep that fact distinct from a measured zero.
+            "used": None,
+            "available": None,
+            "status": "excluded",
+            "evidence_kind": "static_exclusion",
+            "measured": False,
+            "exclusion": {
+                "basis": "static source/project exclusion",
+                "patterns": list(source_patterns),
+                "sources": source_records,
+            },
+        }
+
     # A normal Cyclone V Fitter Resource Summary does not provide measured
     # MLAB/LUTRAM or HPS rows.  These classes therefore use a separate,
     # explicitly labelled source/project exclusion contract.  If a report
@@ -503,17 +519,13 @@ def static_exclusion(
             continue
         used, available = count_on_line(line)
         if used is not None or available is not None:
-            return {
-                "used": 0,
-                "available": None,
-                "evidence_kind": "static_exclusion",
-                "measured": False,
-                "exclusion": {"basis": "static source/project exclusion", "patterns": list(source_patterns), "sources": []},
-            }, f"{name}: fitter report contains a measured row despite static exclusion"
+            return excluded_record([]), f"{name}: fitter report contains a measured row despite static exclusion"
+        return excluded_record([]), f"{name}: fitter report contains an unrecognized static-class row"
 
     source_inputs = (
         (f"experiments/{experiment}/rtl/top.v", rtl_path),
         ("boards/de10nano/pins.qsf", pins_path),
+        ("boards/de10nano/clocks.sdc", sdc_path),
         (f"experiments/{experiment}/oracle/top.qsf", oracle_qsf_path),
     )
     source_records: list[dict[str, str]] = []
@@ -521,29 +533,9 @@ def static_exclusion(
         text = path.read_text(encoding="utf-8", errors="replace")
         for pattern in source_patterns:
             if re.search(pattern, text, re.I | re.M):
-                return {
-                    "used": 0,
-                    "available": None,
-                    "evidence_kind": "static_exclusion",
-                    "measured": False,
-                    "exclusion": {
-                        "basis": "static source/project exclusion",
-                        "patterns": list(source_patterns),
-                        "sources": source_records,
-                    },
-                }, f"{name}: source/project exclusion matched {pattern!r} in {relative}"
+                return excluded_record(source_records), f"{name}: source/project exclusion matched {pattern!r} in {relative}"
         source_records.append({"path": relative, "sha256": sha256_file(path)})
-    return {
-        "used": 0,
-        "available": None,
-        "evidence_kind": "static_exclusion",
-        "measured": False,
-        "exclusion": {
-            "basis": "static source/project exclusion",
-            "patterns": list(source_patterns),
-            "sources": source_records,
-        },
-    }, None
+    return excluded_record(source_records), None
 
 
 static_hard_contracts = {
@@ -596,7 +588,7 @@ if unknown_resources:
     hard_errors.append("unrecognized hard-resource evidence: " + ", ".join(sorted(unknown_resources)))
 
 hard_block_status = "pass" if not hard_errors else "fail"
-hard_block_reason = "; ".join(hard_errors) if hard_errors else "fitter summary rows measure RAM Blocks/M10K, DSP Blocks, and PLLs; MLAB/LUTRAM and HPS use explicit static source/project exclusions"
+hard_block_reason = "; ".join(hard_errors) if hard_errors else "fitter summary rows measure RAM Blocks/M10K, DSP Blocks, and PLLs; MLAB/LUTRAM and HPS are excluded by static source/project evidence (used=null)"
 
 clock_name = "FPGA_CLK1_50"
 

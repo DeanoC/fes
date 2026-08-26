@@ -78,12 +78,26 @@ evidence is taken only from the physical rows emitted by the Cyclone V Fitter
 Summary (`RAM Blocks`/`M10K` or block-memory rows, `DSP Blocks`, and `PLLs`).
 The normal summary does not provide measured MLAB/LUTRAM or HPS rows, so those
 classes use an explicitly labelled `static_exclusion` contract: the wrapper
-records the checked source/project paths and their hashes, and rejects any
-matching memory/HPS entity or any report row that claims a measured count.
+records `used: null`, `available: null`, `status: excluded`, and the hashes for
+exactly these scanned inputs:
+
+```text
+experiments/<EXP>/rtl/top.v
+boards/de10nano/pins.qsf
+boards/de10nano/clocks.sdc
+experiments/<EXP>/oracle/top.qsf
+```
+
+It rejects any matching memory/HPS entity or any report row that claims a
+measured count. Comparison checks the canonical per-class exclusion patterns,
+the exact path set, and every nested hash against the corresponding manifest
+source record; arbitrary patterns, stale hashes, and missing/extra paths fail
+closed.
 Each required class is present in `hard_block_evidence`; measured rows carry
 `evidence_kind: fitter_summary` and `measured: true`, while static records carry
-`evidence_kind: static_exclusion`, `measured: false`, and no fabricated
-capacity. Missing, malformed, ambiguous, or unrecognized evidence fails closed.
+`evidence_kind: static_exclusion`, `measured: false`, and no fitted count or
+fabricated capacity. Missing, malformed, ambiguous, or unrecognized evidence
+fails closed.
 The schema-2 build summary records the exact shared RTL, pin-QSF, and clock-SDC
 SHA-256 values. It also records the absolute `quartus_sh` path, executable
 SHA-256, exact `17.0.2` version string, version-output SHA-256, and a matching
@@ -111,5 +125,6 @@ hashes, malformed/absent required hard-block evidence, missing/malformed or
 non-`17.0.2` Quartus provenance, or a missing, cross-lane, empty, or
 hash/size-mismatched required RBF artifact. Resource counts and byte
 differences remain informational, and absent resources are shown as `absent`,
-never as zero. The comparison does not claim hardware behavior until an
+never as zero. Static exclusions are rendered as `excluded (static)` in the
+comparison table. The comparison does not claim hardware behavior until an
 operator records that observation separately.
