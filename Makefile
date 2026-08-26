@@ -54,7 +54,19 @@ oss:
 	$(require_exp)
 	@scripts/build_oss.sh --experiment "$(EXP)"
 
-oracle compare program clean:
+
+oracle:
+	$(require_exp)
+	@scripts/build_oracle.sh --experiment "$(EXP)"
+
+compare:
+	$(require_exp)
+	@$(PYTHON) scripts/compare_builds.py --experiment "$(EXP)" \
+		--oss-manifest "build/oss/$(EXP)/manifest.json" \
+		--oracle-manifest "build/oracle/$(EXP)/manifest.json" \
+		--output-dir "build/compare/$(EXP)"
+
+program clean:
 	$(require_exp)
 	@printf 'target not implemented in this task\n' >&2
 	@exit 2
