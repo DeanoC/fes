@@ -116,6 +116,29 @@ clone package/pin compatibility is inferred.
 not inspected; it remains an optional oracle dependency and is only inspected
 when that variable is explicitly provided.
 
+### MiSTer ARM BusyBox compatibility — 2026-08-26
+
+A read-only dry-run probe against the development MiSTer Pi reached the real
+ARM-side transport but stopped before any directory creation, SCP upload, or
+FIFO write with `sh: stat: not found`. The target reports Linux `armv7l`, model
+`Terasic DE10-nano`, and BusyBox `1.33.1`. Its BusyBox image provides
+`busybox`, `ls`, `readlink`, `sha256sum`, `awk`, `find`, `od`, and `wc`, but no
+`stat` applet. The observed `/dev/MiSTer_cmd` is a root-owned FIFO (inode
+`331`), with one root MiSTer process holding a descriptor to that inode; the
+authenticated `/media/fat/MiSTer` executable SHA-256 was
+`7ca3cd2f224b9264d0889f593a0d77aafa5adda61910baba92c5ae401e26fcce`.
+
+The network transport now embeds one portable `misteross_metadata` shell
+function in each remote probe. It uses `LC_ALL=C busybox ls -din` (or
+`-Ldin` where a `/proc` descriptor/executable symlink must be followed),
+converts symbolic permissions including set-id and sticky bits with BusyBox
+`awk`, and emits the normalized `type|uid|gid|octal-mode|inode|nlink` record.
+All preflight, staging, verification, and final-load metadata checks retain
+their type, symlink, owner, mode, inode, link-count, and hash bindings. Remote
+file size is checked with `wc -c` redirected from the validated absolute
+staging path. The generated scripts contain no external `stat` invocation and
+the local Python `stat` checks remain unchanged.
+
 ## OSS synthesis, place-and-route, and RBF evidence — 2026-08-26
 
 Task 7 was run entirely from the authenticated repository-local toolchain. No

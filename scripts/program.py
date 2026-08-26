@@ -147,6 +147,7 @@ class RemotePreflight:
     main_executable_uid: int
     main_executable_gid: int
     main_executable_mode: int
+    main_executable_inode: int
     main_executable_nlink: int
     main_sha256: str
     main_fifo_inode: int
@@ -159,11 +160,13 @@ class RemoteStageMetadata:
     directory_uid: int
     directory_gid: int
     directory_mode: int
+    directory_inode: int
     directory_nlink: int
     file_type: str
     file_uid: int
     file_gid: int
     file_mode: int
+    file_inode: int
     file_nlink: int
     sha256: str
     path: str
@@ -948,7 +951,7 @@ def _parse_remote_preflight(output: str) -> RemotePreflight:
     if len(mains) != 1 or len(hashes) != 1 or len(fds) != 1:
         raise _fail("remote Main process evidence must identify exactly one PID, digest, and FIFO descriptor")
     main = mains[0]
-    if len(main) != 8:
+    if len(main) not in {8, 9}:
         raise _fail("remote Main executable metadata evidence is malformed")
     main_pid = _decimal(main[0], "Main PID")
     main_uid = _decimal(main[1], "Main uid")
@@ -957,7 +960,14 @@ def _parse_remote_preflight(output: str) -> RemotePreflight:
     executable_uid = _decimal(main[4], "Main executable uid")
     executable_gid = _decimal(main[5], "Main executable gid")
     executable_mode = _octal(main[6], "Main executable")
-    executable_nlink = _decimal(main[7], "Main executable nlink")
+    if len(main) == 9:
+        executable_inode = _decimal(main[7], "Main executable inode")
+        executable_nlink = _decimal(main[8], "Main executable nlink")
+        if executable_inode <= 0:
+            raise _fail("remote Main executable inode is unsafe")
+    else:
+        executable_inode = 0
+        executable_nlink = _decimal(main[7], "Main executable nlink")
     if not executable.startswith("/") or "|" in executable or executable.endswith(" (deleted)"):
         raise _fail("remote Main executable identity is malformed")
     main_sha = hashes[0]
@@ -997,6 +1007,7 @@ def _parse_remote_preflight(output: str) -> RemotePreflight:
         main_executable_uid=executable_uid,
         main_executable_gid=executable_gid,
         main_executable_mode=executable_mode,
+        main_executable_inode=executable_inode,
         main_executable_nlink=executable_nlink,
         main_sha256=main_sha[1],
         main_fifo_inode=main_fifo_inode,
@@ -1004,20 +1015,29 @@ def _parse_remote_preflight(output: str) -> RemotePreflight:
     )
 
 
-def _parse_remote_directory(output: str) -> tuple[str, int, int, int, int]:
+def _parse_remote_directory(output: str) -> tuple[str, int, int, int, int, int]:
     lines = [line.strip() for line in output.splitlines() if line.strip()]
     if any(not line.startswith("DIR|") for line in lines):
         raise _fail("remote private staging directory response contains an unknown record")
     records = [line.split("|")[1:] for line in lines if line.startswith("DIR|")]
-    if len(records) != 1 or len(records[0]) != 5:
+    if len(records) != 1 or len(records[0]) not in {5, 6}:
         raise _fail("remote private staging directory metadata is missing or ambiguous")
     record = records[0]
+    if len(record) == 6:
+        inode = _decimal(record[4], "staging directory inode")
+        nlink = _decimal(record[5], "staging directory nlink")
+        if inode <= 0:
+            raise _fail("remote staging directory inode is unsafe")
+    else:
+        inode = 0
+        nlink = _decimal(record[4], "staging directory nlink")
     return (
         record[0].lower(),
         _decimal(record[1], "staging directory uid"),
         _decimal(record[2], "staging directory gid"),
         _octal(record[3], "staging directory"),
-        _decimal(record[4], "staging directory nlink"),
+        inode,
+        nlink,
     )
 
 
@@ -1030,7 +1050,14 @@ def _parse_remote_stage(output: str, expected_path: str) -> RemoteStageMetadata:
     dirs = [line.split("|")[1:] for line in lines[1:] if line.startswith("DIR|")]
     files = [line.split("|")[1:] for line in lines[1:] if line.startswith("FILE|")]
     hashes = [line.split("|")[1:] for line in lines[1:] if line.startswith("HASH|")]
-    if len(dirs) != 1 or len(files) != 1 or len(hashes) != 1 or len(dirs[0]) != 5 or len(files[0]) != 5 or len(hashes[0]) != 2:
+    if (
+        len(dirs) != 1
+        or len(files) != 1
+        or len(hashes) != 1
+        or len(dirs[0]) not in {5, 6}
+        or len(files[0]) not in {5, 6}
+        or len(hashes[0]) != 2
+    ):
         raise _fail("remote staged RBF metadata/hash response is incomplete or ambiguous")
     directory, file_record, digest = dirs[0], files[0], hashes[0]
     path = digest[1]
@@ -1039,11 +1066,25 @@ def _parse_remote_stage(output: str, expected_path: str) -> RemoteStageMetadata:
     directory_type = directory[0].lower()
     directory_uid, directory_gid = _decimal(directory[1], "staging directory uid"), _decimal(directory[2], "staging directory gid")
     directory_mode = _octal(directory[3], "staging directory")
-    directory_nlink = _decimal(directory[4], "staging directory nlink")
+    if len(directory) == 6:
+        directory_inode = _decimal(directory[4], "staging directory inode")
+        directory_nlink = _decimal(directory[5], "staging directory nlink")
+        if directory_inode <= 0:
+            raise _fail("remote staging directory inode is unsafe")
+    else:
+        directory_inode = 0
+        directory_nlink = _decimal(directory[4], "staging directory nlink")
     file_type = file_record[0].lower()
     file_uid, file_gid = _decimal(file_record[1], "staged RBF uid"), _decimal(file_record[2], "staged RBF gid")
     file_mode = _octal(file_record[3], "staged RBF")
-    file_nlink = _decimal(file_record[4], "staged RBF nlink")
+    if len(file_record) == 6:
+        file_inode = _decimal(file_record[4], "staged RBF inode")
+        file_nlink = _decimal(file_record[5], "staged RBF nlink")
+        if file_inode <= 0:
+            raise _fail("remote staged RBF inode is unsafe")
+    else:
+        file_inode = 0
+        file_nlink = _decimal(file_record[4], "staged RBF nlink")
     if directory_type not in {"directory", "dir"} or directory_uid != 0 or directory_gid != 0 or directory_mode != 0o700 or directory_nlink < 2:
         raise _fail("remote private staging directory metadata is unsafe")
     if file_type not in {"regular file", "regular"} or file_uid != 0 or file_gid != 0 or file_nlink != 1:
@@ -1057,29 +1098,105 @@ def _parse_remote_stage(output: str, expected_path: str) -> RemoteStageMetadata:
         directory_uid=directory_uid,
         directory_gid=directory_gid,
         directory_mode=directory_mode,
+        directory_inode=directory_inode,
         directory_nlink=directory_nlink,
         file_type=file_type,
         file_uid=file_uid,
         file_gid=file_gid,
         file_mode=file_mode,
+        file_inode=file_inode,
         file_nlink=file_nlink,
         sha256=digest[0],
         path=path,
     )
 
 
+def _remote_metadata_helper() -> str:
+    """Return a POSIX shell metadata probe that works on MiSTer's BusyBox."""
+
+    # BusyBox 1.33.1 has no external ``stat`` applet.  Numeric long ``ls``
+    # exposes inode, symbolic mode, link count, numeric uid, and numeric gid
+    # in its first five fields.  The date and pathname fields are deliberately
+    # ignored so filename contents cannot affect the authenticated record.
+    return r'''
+misteross_metadata() {
+    misteross_follow=0
+    if [ "${1-}" = "-L" ]; then
+        misteross_follow=1
+        shift
+    fi
+    [ "$#" -eq 1 ] || return 1
+    misteross_path=$1
+    [ -n "$misteross_path" ] || return 1
+    if [ "$misteross_follow" = 1 ]; then
+        misteross_line=$(LC_ALL=C busybox ls -Ldin "$misteross_path") || return 1
+    else
+        misteross_line=$(LC_ALL=C busybox ls -din "$misteross_path") || return 1
+    fi
+    printf '%s\n' "$misteross_line" | LC_ALL=C busybox awk '
+function rw(c) {
+    if (c == "r") return 4
+    if (c == "w") return 2
+    if (c == "-") return 0
+    return -1
+}
+function ex(c, setid, sticky) {
+    if (c == "x") return 1
+    if (c == "-") return 0
+    if (setid && (c == "s" || c == "S")) return (c == "s")
+    if (sticky && (c == "t" || c == "T")) return (c == "t")
+    return -1
+}
+function special(c, kind) {
+    if (c == "-") return 0
+    if (c == "r" || c == "w" || c == "x") return 0
+    if (kind == "s" && (c == "s" || c == "S")) return 1
+    if (kind == "t" && (c == "t" || c == "T")) return 1
+    return -1
+}
+{
+    if (NR != 1 || NF < 5) exit 1
+    perms = $2
+    if (length(perms) != 10) exit 1
+    type = substr(perms, 1, 1)
+    if (type == "-") kind = "regular file"
+    else if (type == "d") kind = "directory"
+    else if (type == "l") kind = "symbolic link"
+    else if (type == "p") kind = "fifo"
+    else if (type == "c") kind = "character special file"
+    else if (type == "b") kind = "block special file"
+    else if (type == "s") kind = "socket"
+    else exit 1
+    if ($1 !~ /^[0-9]+$/ || $3 !~ /^[0-9]+$/ || $4 !~ /^[0-9]+$/ || $5 !~ /^[0-9]+$/) exit 1
+    ur = rw(substr(perms, 2, 1)); uw = rw(substr(perms, 3, 1)); ux = ex(substr(perms, 4, 1), 1, 0); us = special(substr(perms, 4, 1), "s")
+    gr = rw(substr(perms, 5, 1)); gw = rw(substr(perms, 6, 1)); gx = ex(substr(perms, 7, 1), 1, 0); gs = special(substr(perms, 7, 1), "s")
+    otr = rw(substr(perms, 8, 1)); otw = rw(substr(perms, 9, 1)); otx = ex(substr(perms, 10, 1), 0, 1); ots = special(substr(perms, 10, 1), "t")
+    if (ur < 0 || uw < 0 || ux < 0 || us < 0 || gr < 0 || gw < 0 || gx < 0 || gs < 0 || otr < 0 || otw < 0 || otx < 0 || ots < 0) exit 1
+    mode = (us * 4 + gs * 2 + ots) * 512 + (ur + uw + ux) * 64 + (gr + gw + gx) * 8 + (otr + otw + otx)
+    printf "%s|%s|%s|%o|%s|%s\n", kind, $4, $5, mode, $1, $3
+}
+END {
+    if (NR != 1) exit 1
+}
+'
+}
+'''
+
+
 def _remote_preflight_script() -> str:
-    return r''': MISTEROSS_PREFLIGHT_V1
+    return _remote_metadata_helper() + r''': MISTEROSS_PREFLIGHT_V1
 set -eu
 printf 'PREFLIGHT_V1\n'
 fifo=/dev/MiSTer_cmd
 [ -p "$fifo" ]
-fifo_stat=$(stat -Lc '%F|%u|%g|%a|%i|%h' "$fifo")
-printf 'FIFO|%s\n' "$fifo_stat"
+fifo_meta=$(misteross_metadata "$fifo")
+[ -n "$fifo_meta" ]
+printf 'FIFO|%s\n' "$fifo_meta"
 printf 'ARCH|%s\n' "$(uname -m)"
 [ -d /tmp ] && [ -w /tmp ]
-tmp_stat=$(stat -Lc '%F|%u|%g|%a|%i|%h' /tmp)
-printf 'TMP|%s\n' "$tmp_stat"
+tmp_meta=$(misteross_metadata /tmp)
+[ -n "$tmp_meta" ]
+printf 'TMP|%s\n' "$tmp_meta"
 main_count=0
 for pid_dir in /proc/[0-9]*; do
     [ -r "$pid_dir/comm" ] || continue
@@ -1088,22 +1205,22 @@ for pid_dir in /proc/[0-9]*; do
     case "$comm" in
         Main_MiSTer|MiSTer)
             main_count=$((main_count + 1))
-            uid=$(awk '$1 == "Uid:" { if ($2 != 0 || $3 != 0 || $4 != 0) exit 1; print $2; exit }' "$pid_dir/status" 2>/dev/null || true)
+            uid=$(busybox awk '$1 == "Uid:" { if ($2 != 0 || $3 != 0 || $4 != 0) exit 1; print $2; exit }' "$pid_dir/status" 2>/dev/null || true)
             exe=$(readlink "$pid_dir/exe" 2>/dev/null || true)
             [ -n "$uid" ] && [ -n "$exe" ] || exit 1
-            exe_stat=$(stat -Lc '%F|%u|%g|%a|%h' "$pid_dir/exe" 2>/dev/null || true)
-            exe_sha=$(sha256sum "$pid_dir/exe" 2>/dev/null | awk 'NF { print $1; exit }' || true)
-            [ -n "$exe_stat" ] && [ -n "$exe_sha" ] || exit 1
-            printf 'MAIN|%s|%s|%s|%s\n' "$pid" "$uid" "$exe" "$exe_stat"
+            exe_meta=$(misteross_metadata -L "$pid_dir/exe" 2>/dev/null || true)
+            exe_sha=$(sha256sum "$pid_dir/exe" 2>/dev/null | busybox awk 'NF { print $1; exit }' || true)
+            [ -n "$exe_meta" ] && [ -n "$exe_sha" ] || exit 1
+            printf 'MAIN|%s|%s|%s|%s\n' "$pid" "$uid" "$exe" "$exe_meta"
             printf 'MAIN_SHA|%s|%s\n' "$pid" "$exe_sha"
-            fifo_inode=$(printf '%s\n' "$fifo_stat" | awk -F'|' '{ print $5 }')
+            fifo_inode=$(printf '%s\n' "$fifo_meta" | busybox awk -F'|' '{ print $5 }')
             for fd in "$pid_dir"/fd/*; do
                 [ -e "$fd" ] || continue
-                fd_stat=$(stat -Lc '%F|%i|%h' "$fd" 2>/dev/null || true)
-                fd_type=$(printf '%s\n' "$fd_stat" | awk -F'|' '{ print $1 }')
-                fd_inode=$(printf '%s\n' "$fd_stat" | awk -F'|' '{ print $2 }')
+                fd_meta=$(misteross_metadata -L "$fd" 2>/dev/null || true)
+                fd_type=$(printf '%s\n' "$fd_meta" | busybox awk -F'|' '{ print $1 }')
+                fd_inode=$(printf '%s\n' "$fd_meta" | busybox awk -F'|' '{ print $5 }')
                 if [ "$fd_type" = fifo ] && [ "$fd_inode" = "$fifo_inode" ]; then
-                    fd_nlink=$(printf '%s\n' "$fd_stat" | awk -F'|' '{ print $3 }')
+                    fd_nlink=$(printf '%s\n' "$fd_meta" | busybox awk -F'|' '{ print $6 }')
                     printf 'MAIN_FD|%s|%s|%s\n' "$pid" "$fd_inode" "$fd_nlink"
                     break
                 fi
@@ -1118,8 +1235,10 @@ done
 def _remote_mkdir_script(stage_dir: str) -> str:
     quoted = shlex.quote(stage_dir)
     return (
-        f": MISTEROSS_MKDIR_V1 {quoted}; set -eu; umask 077; mkdir -m 0700 -- {quoted}; "
-        f"[ ! -L {quoted} ]; stat -Lc 'DIR|%F|%u|%g|%a|%h' -- {quoted}"
+        _remote_metadata_helper()
+        + f": MISTEROSS_MKDIR_V1 {quoted}; set -eu; umask 077; mkdir -m 0700 {quoted}; "
+        f"[ ! -L {quoted} ]; metadata=$(misteross_metadata {quoted}); "
+        f"[ -n \"$metadata\" ]; printf 'DIR|%s\\n' \"$metadata\""
     )
 
 
@@ -1127,14 +1246,16 @@ def _remote_verify_script(stage_dir: str, stage_file: str) -> str:
     quoted_dir = shlex.quote(stage_dir)
     quoted_file = shlex.quote(stage_file)
     return (
-        f": MISTEROSS_VERIFY_V1 {shlex.quote(stage_file)}; set -eu; "
+        _remote_metadata_helper()
+        + f": MISTEROSS_VERIFY_V1 {shlex.quote(stage_file)}; set -eu; "
         f"[ ! -L {quoted_dir} ]; [ -d {quoted_dir} ]; "
         f"[ ! -L {quoted_file} ]; [ -f {quoted_file} ]; "
-        f"chmod 0400 -- {quoted_file}; "
+        f"chmod 0400 {quoted_file}; "
         f"[ ! -L {quoted_file} ]; [ -f {quoted_file} ]; "
-        f"printf 'VERIFY_V1\\n'; stat -Lc 'DIR|%F|%u|%g|%a|%h' -- {quoted_dir}; "
-        f"stat -Lc 'FILE|%F|%u|%g|%a|%h' -- {quoted_file}; "
-        f"digest=$(sha256sum -- {quoted_file} | awk 'NF == 2 {{print $1; exit}}'); "
+        f"printf 'VERIFY_V1\\n'; dir_meta=$(misteross_metadata {quoted_dir}); "
+        f"file_meta=$(misteross_metadata {quoted_file}); [ -n \"$dir_meta\" ] && [ -n \"$file_meta\" ]; "
+        f"printf 'DIR|%s\\n' \"$dir_meta\"; printf 'FILE|%s\\n' \"$file_meta\"; "
+        f"digest=$(sha256sum {quoted_file} | busybox awk 'NF == 2 {{print $1; exit}}'); "
         f"[ -n \"$digest\" ]; printf 'HASH|%s|%s\\n' \"$digest\" {quoted_file}"
     )
 
@@ -1147,6 +1268,8 @@ def _remote_load_script(
     *,
     artifact_sha256: str | None = None,
     artifact_size: int | None = None,
+    main_executable_inode: int | None = None,
+    main_executable_nlink: int | None = None,
 ) -> str:
     if REMOTE_STAGE_FILE_RE.fullmatch(stage_file) is None:
         raise _fail("internal remote load path failed validation")
@@ -1160,38 +1283,63 @@ def _remote_load_script(
         raise _fail("internal artifact digest failed validation")
     if artifact_size is not None and (not isinstance(artifact_size, int) or artifact_size <= 0):
         raise _fail("internal artifact size failed validation")
+    if main_executable_inode is not None and (
+        not isinstance(main_executable_inode, int) or main_executable_inode <= 0
+    ):
+        raise _fail("internal Main executable inode failed validation")
+    if main_executable_nlink is not None and (
+        not isinstance(main_executable_nlink, int) or main_executable_nlink <= 0
+    ):
+        raise _fail("internal Main executable link count failed validation")
     stage_dir = shlex.quote(str(Path(stage_file).parent))
     quoted_stage = shlex.quote(stage_file)
     artifact_recheck = ""
     if artifact_sha256 is not None and artifact_size is not None:
         artifact_recheck = (
-            f"[ \"$(sha256sum -- {quoted_stage} | awk 'NF == 2 {{print $1; exit}}')\" = {artifact_sha256} ]; "
-            f"[ \"$(stat -Lc '%s' -- {quoted_stage})\" = {artifact_size} ]; "
+            f"[ \"$(sha256sum {quoted_stage} | busybox awk 'NF == 2 {{print $1; exit}}')\" = {artifact_sha256} ]; "
+            f"[ \"$(wc -c < {quoted_stage})\" = {artifact_size} ]; "
         )
+    main_inode_check = ""
+    if main_executable_inode is not None:
+        main_inode_check = (
+            f"[ \"$(printf '%s\\n' \"$exe_meta\" | busybox awk -F'|' '{{print $5}}')\" = {main_executable_inode} ]; "
+        )
+    main_nlink_check = (
+        f"[ \"$(printf '%s\\n' \"$exe_meta\" | busybox awk -F'|' '{{print $6}}')\" = {main_executable_nlink} ]; "
+        if main_executable_nlink is not None
+        else "[ \"$(printf '%s\\n' \"$exe_meta\" | busybox awk -F'|' '{print $6}')\" -gt 0 ]; "
+    )
     return (
-        f": MISTEROSS_LOAD_V1 {quoted_stage}; set -eu; fifo=/dev/MiSTer_cmd; "
+        _remote_metadata_helper()
+        + f": MISTEROSS_LOAD_V1 {quoted_stage}; set -eu; fifo=/dev/MiSTer_cmd; "
         f"[ ! -L {stage_dir} ]; [ -d {stage_dir} ]; "
         f"[ ! -L {quoted_stage} ]; [ -f {quoted_stage} ]; "
-        f"stage_stat=$(stat -Lc '%F|%u|%g|%a|%h' -- {quoted_stage}); "
-        f"[ \"$(printf '%s\\n' \"$stage_stat\" | awk -F'|' '{{print $1}}')\" = 'regular file' ]; "
-        f"[ \"$(printf '%s\\n' \"$stage_stat\" | awk -F'|' '{{print $2}}')\" = 0 ]; "
-        f"[ \"$(printf '%s\\n' \"$stage_stat\" | awk -F'|' '{{print $3}}')\" = 0 ]; "
-        f"[ \"$(printf '%s\\n' \"$stage_stat\" | awk -F'|' '{{print $4}}')\" = 400 ]; "
-        f"[ \"$(printf '%s\\n' \"$stage_stat\" | awk -F'|' '{{print $5}}')\" = 1 ]; "
+        f"stage_meta=$(misteross_metadata {quoted_stage}); "
+        f"[ \"$(printf '%s\\n' \"$stage_meta\" | busybox awk -F'|' '{{print $1}}')\" = 'regular file' ]; "
+        f"[ \"$(printf '%s\\n' \"$stage_meta\" | busybox awk -F'|' '{{print $2}}')\" = 0 ]; "
+        f"[ \"$(printf '%s\\n' \"$stage_meta\" | busybox awk -F'|' '{{print $3}}')\" = 0 ]; "
+        f"[ \"$(printf '%s\\n' \"$stage_meta\" | busybox awk -F'|' '{{print $4}}')\" = 400 ]; "
+        f"[ \"$(printf '%s\\n' \"$stage_meta\" | busybox awk -F'|' '{{print $5}}')\" -gt 0 ]; "
+        f"[ \"$(printf '%s\\n' \"$stage_meta\" | busybox awk -F'|' '{{print $6}}')\" = 1 ]; "
         f"{artifact_recheck}"
         f"[ ! -L \"$fifo\" ]; [ -p \"$fifo\" ]; "
-        f"[ \"$(stat -Lc '%i' -- \"$fifo\")\" = {fifo_inode} ]; "
-        f"[ \"$(awk '$1 == \"Uid:\" {{print $2; exit}}' /proc/{main_pid}/status)\" = 0 ]; "
-        f"exe_stat=$(stat -Lc '%F|%u|%g|%a|%h' -- /proc/{main_pid}/exe); "
-        f"[ \"$(printf '%s\\n' \"$exe_stat\" | awk -F'|' '{{print $1}}')\" = 'regular file' ]; "
-        f"[ \"$(printf '%s\\n' \"$exe_stat\" | awk -F'|' '{{print $2}}')\" = 0 ]; "
-        f"[ \"$(printf '%s\\n' \"$exe_stat\" | awk -F'|' '{{print $3}}')\" = 0 ]; "
-        f"[ \"$(sha256sum -- /proc/{main_pid}/exe | awk 'NF == 2 {{print $1; exit}}')\" = {main_sha256} ]; "
+        f"fifo_meta=$(misteross_metadata \"$fifo\"); "
+        f"[ \"$(printf '%s\\n' \"$fifo_meta\" | busybox awk -F'|' '{{print $1}}')\" = fifo ]; "
+        f"[ \"$(printf '%s\\n' \"$fifo_meta\" | busybox awk -F'|' '{{print $5}}')\" = {fifo_inode} ]; "
+        f"[ \"$(busybox awk '$1 == \"Uid:\" {{print $2; exit}}' /proc/{main_pid}/status)\" = 0 ]; "
+        f"exe_meta=$(misteross_metadata -L /proc/{main_pid}/exe); "
+        f"[ \"$(printf '%s\\n' \"$exe_meta\" | busybox awk -F'|' '{{print $1}}')\" = 'regular file' ]; "
+        f"[ \"$(printf '%s\\n' \"$exe_meta\" | busybox awk -F'|' '{{print $2}}')\" = 0 ]; "
+        f"[ \"$(printf '%s\\n' \"$exe_meta\" | busybox awk -F'|' '{{print $3}}')\" = 0 ]; "
+        f"{main_inode_check}"
+        f"{main_nlink_check}"
+        f"[ \"$(sha256sum /proc/{main_pid}/exe | busybox awk 'NF == 2 {{print $1; exit}}')\" = {main_sha256} ]; "
         f"held=0; for fd in /proc/{main_pid}/fd/*; do [ -e \"$fd\" ] || continue; "
-        f"fd_stat=$(stat -Lc '%F|%i' -- \"$fd\" 2>/dev/null || true); "
-        f"fd_type=$(printf '%s\\n' \"$fd_stat\" | awk -F'|' '{{print $1}}'); "
-        f"fd_inode=$(printf '%s\\n' \"$fd_stat\" | awk -F'|' '{{print $2}}'); "
-        f"if [ \"$fd_type\" = fifo ] && [ \"$fd_inode\" = {fifo_inode} ]; then held=1; break; fi; done; "
+        f"fd_meta=$(misteross_metadata -L \"$fd\" 2>/dev/null || true); "
+        f"fd_type=$(printf '%s\\n' \"$fd_meta\" | busybox awk -F'|' '{{print $1}}'); "
+        f"fd_inode=$(printf '%s\\n' \"$fd_meta\" | busybox awk -F'|' '{{print $5}}'); "
+        f"fd_nlink=$(printf '%s\\n' \"$fd_meta\" | busybox awk -F'|' '{{print $6}}'); "
+        f"if [ \"$fd_type\" = fifo ] && [ \"$fd_inode\" = {fifo_inode} ] && [ \"$fd_nlink\" -gt 0 ]; then held=1; break; fi; done; "
         f"[ \"$held\" = 1 ]; printf '%s\\n' {shlex.quote(f'load_core {stage_file}')} > \"$fifo\""
     )
 
@@ -1421,6 +1569,8 @@ def _mister_transport_session(
         preflight.main_sha256,
         artifact_sha256=evidence.sha256,
         artifact_size=evidence.size_bytes,
+        main_executable_inode=preflight.main_executable_inode or None,
+        main_executable_nlink=preflight.main_executable_nlink,
     )
     load_command = [ssh, *ssh_options, target, load_remote]
 
@@ -1444,11 +1594,18 @@ def _mister_transport_session(
             "remote private staging directory creation failed (collision/race/permissions): "
             f"{_short_output(mkdir_result.stdout, mkdir_result.stderr)}"
         )
-    directory_type, directory_uid, directory_gid, directory_mode, directory_nlink = _parse_remote_directory(
-        mkdir_result.stdout
-    )
+    (
+        directory_type,
+        directory_uid,
+        directory_gid,
+        directory_mode,
+        directory_inode,
+        directory_nlink,
+    ) = _parse_remote_directory(mkdir_result.stdout)
     if directory_type not in {"directory", "dir"} or directory_uid != 0 or directory_gid != 0 or directory_mode != 0o700 or directory_nlink < 2:
         raise _fail("remote private staging directory is not root-owned mode 0700 with safe links")
+    if directory_inode < 0:
+        raise _fail("remote private staging directory inode is malformed")
 
     upload = _run(scp_command, timeout=REMOTE_TIMEOUT)
     if upload.returncode != 0:
