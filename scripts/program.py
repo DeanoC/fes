@@ -115,13 +115,11 @@ class CableRow:
     text: str
     vendor_id: int
     product_id: int
-    index: int = 0
 
 
 @dataclass(frozen=True)
 class SelectedCable:
     row: CableRow
-    physical_index: int
     interface: str
 
 
@@ -667,25 +665,8 @@ def parse_cable_scan(output: str, returncode: int, command: Sequence[str]) -> li
             continue
         match = VID_PID_RE.search(stripped)
         if match:
-            explicit_index: int | None = None
-            indexed = re.search(r"\b(?:cable[-_ ]?index|index)\s*(?:[:=]|\s)\s*(\d+)\b", stripped, re.IGNORECASE)
-            if indexed is not None:
-                explicit_index = int(indexed.group(1), 10)
             vendor_id, product_id = int(match.group(1), 16), int(match.group(2), 16)
-            matching_count = sum(
-                row.vendor_id == EXPECTED_CABLE_VID and row.product_id == EXPECTED_CABLE_PID
-                for row in rows
-            )
-            rows.append(
-                CableRow(
-                    stripped,
-                    vendor_id,
-                    product_id,
-                    (matching_count if explicit_index is None else explicit_index)
-                    if (vendor_id, product_id) == (EXPECTED_CABLE_VID, EXPECTED_CABLE_PID)
-                    else -1,
-                )
-            )
+            rows.append(CableRow(stripped, vendor_id, product_id))
     return rows
 
 
@@ -702,25 +683,23 @@ def select_cable(
         raise _fail(
             f"unsupported --cable interface {interface!r}; expected {EXPECTED_CABLE_INTERFACE!r}"
         )
-    if cable_index is None:
-        if len(rows) != 1:
-            raise _fail(
-                f"ambiguous multiple DE10-Nano/USB-Blaster devices ({len(rows)}); pass an exact --cable-index"
-            )
-        selected = [rows[0]]
-    else:
-        if cable_index < 0:
-            raise _fail("invalid cable index: expected a non-negative physical selector")
-        selected = [row for row in rows if row.index == cable_index]
-        if len(selected) != 1:
-            raise _fail(f"--cable-index must select exactly one discovered cable: {cable_index}")
-    row = selected[0]
+    if len(rows) != 1:
+        raise _fail(
+            f"multiple DE10-Nano/USB-Blaster devices ({len(rows)}) are unsafe; "
+            "USB-Blaster II selection requires exactly one discovered device"
+        )
+    if cable_index is not None:
+        raise _fail(
+            "--cable-index is unsupported for the pinned USB-Blaster II interface; "
+            "physical multi-probe selection is disabled"
+        )
+    row = rows[0]
     if (row.vendor_id, row.product_id) != (EXPECTED_CABLE_VID, EXPECTED_CABLE_PID):
         raise _fail(
             "unexpected USB-Blaster cable VID/PID: "
             f"0x{row.vendor_id:04x}:0x{row.product_id:04x}; expected 0x{EXPECTED_CABLE_VID:04x}:0x{EXPECTED_CABLE_PID:04x}"
         )
-    return SelectedCable(row=row, physical_index=row.index, interface=interface)
+    return SelectedCable(row=row, interface=interface)
 
 
 def parse_jtag_detect(output: str, returncode: int, command: Sequence[str]) -> str:
@@ -861,8 +840,6 @@ def _jtag_transport(evidence: ArtifactEvidence, args: argparse.Namespace) -> int
             LOADER_BOARD,
             "--cable",
             selected.interface,
-            "--cable-index",
-            str(selected.physical_index),
         ]
         detect_command = [programmer, *selector, "--detect"]
         _print_command("JTAG discovery", detect_command)
@@ -872,7 +849,7 @@ def _jtag_transport(evidence: ArtifactEvidence, args: argparse.Namespace) -> int
 
         final_command = [programmer, *selector, "--write-sram", str(snapshot)]
         print(f"board: {LOADER_BOARD}")
-        print(f"cable: {selected.interface} (physical index {selected.physical_index})")
+        print(f"cable: {selected.interface}")
         print(f"JTAG target: {matched}")
         _print_command("volatile action", final_command)
         if args.dry_run:
@@ -890,9 +867,10 @@ def _remote_command(
     target: str,
     command: str,
     *,
+    ssh_options: Sequence[str] = SSH_OPTIONS,
     timeout: float = REMOTE_TIMEOUT,
 ) -> subprocess.CompletedProcess[str]:
-    return _run([ssh, *SSH_OPTIONS, target, command], timeout=timeout)
+    return _run([ssh, *ssh_options, target, command], timeout=timeout)
 
 
 def _decimal(value: str, label: str) -> int:
@@ -1048,8 +1026,8 @@ def _parse_remote_stage(output: str, expected_path: str) -> RemoteStageMetadata:
         raise _fail("remote private staging directory metadata is unsafe")
     if file_type not in {"regular file", "regular"} or file_uid != 0 or file_gid != 0 or file_nlink != 1:
         raise _fail("remote staged RBF is not a root-owned regular file with one link")
-    if file_mode & 0o077 or not (file_mode & 0o400):
-        raise _fail("remote staged RBF mode is not private")
+    if file_mode != 0o400:
+        raise _fail("remote staged RBF mode is not exactly private mode 0400")
     if SHA256_RE.fullmatch(digest[0]) is None:
         raise _fail("remote staged RBF SHA-256 is malformed")
     return RemoteStageMetadata(
@@ -1130,9 +1108,12 @@ def _remote_verify_script(stage_dir: str, stage_file: str) -> str:
         f": MISTEROSS_VERIFY_V1 {shlex.quote(stage_file)}; set -eu; "
         f"[ ! -L {quoted_dir} ]; [ -d {quoted_dir} ]; "
         f"[ ! -L {quoted_file} ]; [ -f {quoted_file} ]; "
+        f"chmod 0400 -- {quoted_file}; "
+        f"[ ! -L {quoted_file} ]; [ -f {quoted_file} ]; "
         f"printf 'VERIFY_V1\\n'; stat -Lc 'DIR|%F|%u|%g|%a|%h' -- {quoted_dir}; "
         f"stat -Lc 'FILE|%F|%u|%g|%a|%h' -- {quoted_file}; "
-        f"printf 'HASH|'; sha256sum -- {quoted_file} | awk 'NF == 2 {{print $1; exit}}'; printf '|%s\\n' {quoted_file}"
+        f"digest=$(sha256sum -- {quoted_file} | awk 'NF == 2 {{print $1; exit}}'); "
+        f"[ -n \"$digest\" ]; printf 'HASH|%s|%s\\n' \"$digest\" {quoted_file}"
     )
 
 
@@ -1173,6 +1154,7 @@ def _remote_load_script(
         f"[ \"$(printf '%s\\n' \"$stage_stat\" | awk -F'|' '{{print $1}}')\" = 'regular file' ]; "
         f"[ \"$(printf '%s\\n' \"$stage_stat\" | awk -F'|' '{{print $2}}')\" = 0 ]; "
         f"[ \"$(printf '%s\\n' \"$stage_stat\" | awk -F'|' '{{print $3}}')\" = 0 ]; "
+        f"[ \"$(printf '%s\\n' \"$stage_stat\" | awk -F'|' '{{print $4}}')\" = 400 ]; "
         f"[ \"$(printf '%s\\n' \"$stage_stat\" | awk -F'|' '{{print $5}}')\" = 1 ]; "
         f"{artifact_recheck}"
         f"[ ! -L \"$fifo\" ]; [ -p \"$fifo\" ]; "
@@ -1201,13 +1183,53 @@ def _new_remote_stage() -> tuple[str, str]:
     return stage_dir, stage_file
 
 
-def _mister_transport(evidence: ArtifactEvidence, args: argparse.Namespace) -> int:
-    _require_board_attestation(args, EXPECTED_NETWORK_BOARD)
-    host = validate_host(args.host)
-    user = validate_user(args.user)
-    ssh = _resolve_executable(args.ssh or "ssh", "ssh")
-    scp = _resolve_executable(args.scp or "scp", "scp")
-    target = f"{user}@{host}"
+@contextlib.contextmanager
+def _ephemeral_ssh_session(ssh: str, target: str):
+    """Share one private, temporary SSH control socket across a run."""
+
+    control_dir: Path | None = None
+    ssh_options: tuple[str, ...] = SSH_OPTIONS
+    created_dir: Path | None = None
+    try:
+        try:
+            created_dir = Path(tempfile.mkdtemp(prefix="misteross-ssh-"))
+            os.chmod(created_dir, 0o700)
+        except OSError as exc:
+            if created_dir is not None:
+                shutil.rmtree(created_dir, ignore_errors=True)
+            raise _fail(f"cannot create private SSH control directory: {exc}") from exc
+        control_dir = created_dir
+        control_path = control_dir / "control-%C"
+        ssh_options = (
+            *SSH_OPTIONS,
+            "-o",
+            "ControlMaster=auto",
+            "-o",
+            "ControlPersist=120s",
+            "-o",
+            f"ControlPath={control_path}",
+        )
+        yield ssh_options
+    finally:
+        if control_dir is not None:
+            try:
+                _run(
+                    [ssh, *ssh_options, "-o", "BatchMode=yes", "-O", "exit", target],
+                    timeout=REMOTE_TIMEOUT,
+                )
+            except ProgramError:
+                pass
+            shutil.rmtree(control_dir, ignore_errors=True)
+
+
+def _mister_transport_session(
+    evidence: ArtifactEvidence,
+    args: argparse.Namespace,
+    ssh: str,
+    scp: str,
+    target: str,
+    ssh_options: Sequence[str],
+) -> int:
     stage_dir, stage_file = _new_remote_stage()
     expected_main = args.expected_main_sha256
     if not args.dry_run and expected_main is None:
@@ -1217,9 +1239,9 @@ def _mister_transport(evidence: ArtifactEvidence, args: argparse.Namespace) -> i
         )
 
     preflight_text = _remote_preflight_script()
-    preflight_command = [ssh, *SSH_OPTIONS, target, preflight_text]
+    preflight_command = [ssh, *ssh_options, target, preflight_text]
     _print_command("remote preflight (ARM/FIFO/Main, read-only)", preflight_command)
-    preflight_result = _remote_command(ssh, target, preflight_text)
+    preflight_result = _remote_command(ssh, target, preflight_text, ssh_options=ssh_options)
     if preflight_result.returncode != 0:
         raise _fail(
             f"remote ARM/FIFO/Main preflight failed: "
@@ -1246,7 +1268,7 @@ def _mister_transport(evidence: ArtifactEvidence, args: argparse.Namespace) -> i
     # SCP accepts the same bounded ``-o key=value`` options but has no SSH
     # ``-T`` switch in all supported OpenSSH versions.  Keep the option pairs
     # intact when dropping that first SSH-only flag.
-    scp_command = [scp, *SSH_OPTIONS[1:], str(evidence.artifact_path), f"{target}:{stage_file}"]
+    scp_command = [scp, *ssh_options[1:], str(evidence.artifact_path), f"{target}:{stage_file}"]
     load_line = f"load_core {stage_file}"
     load_remote = _remote_load_script(
         stage_file,
@@ -1256,7 +1278,7 @@ def _mister_transport(evidence: ArtifactEvidence, args: argparse.Namespace) -> i
         artifact_sha256=evidence.sha256,
         artifact_size=evidence.size_bytes,
     )
-    load_command = [ssh, *SSH_OPTIONS, target, load_remote]
+    load_command = [ssh, *ssh_options, target, load_remote]
 
     print("transport: mister ARM-side volatile FIFO")
     print("board: MiSTer-compatible DE10-Nano RBF contract")
@@ -1270,9 +1292,9 @@ def _mister_transport(evidence: ArtifactEvidence, args: argparse.Namespace) -> i
         return 0
 
     mkdir_text = _remote_mkdir_script(stage_dir)
-    mkdir_command = [ssh, *SSH_OPTIONS, target, mkdir_text]
+    mkdir_command = [ssh, *ssh_options, target, mkdir_text]
     _print_command("private staging directory action", mkdir_command)
-    mkdir_result = _remote_command(ssh, target, mkdir_text)
+    mkdir_result = _remote_command(ssh, target, mkdir_text, ssh_options=ssh_options)
     if mkdir_result.returncode != 0:
         raise _fail(
             "remote private staging directory creation failed (collision/race/permissions): "
@@ -1289,9 +1311,9 @@ def _mister_transport(evidence: ArtifactEvidence, args: argparse.Namespace) -> i
         raise _fail(f"SCP upload failed with exit {upload.returncode}: {_short_output(upload.stdout, upload.stderr)}")
 
     verify_text = _remote_verify_script(stage_dir, stage_file)
-    verify_command = [ssh, *SSH_OPTIONS, target, verify_text]
+    verify_command = [ssh, *ssh_options, target, verify_text]
     _print_command("remote metadata/hash verification", verify_command)
-    verify = _remote_command(ssh, target, verify_text)
+    verify = _remote_command(ssh, target, verify_text, ssh_options=ssh_options)
     if verify.returncode != 0:
         raise _fail(f"remote staged RBF verification failed: {_short_output(verify.stdout, verify.stderr)}")
     metadata = _parse_remote_stage(verify.stdout, stage_file)
@@ -1299,7 +1321,7 @@ def _mister_transport(evidence: ArtifactEvidence, args: argparse.Namespace) -> i
         raise _fail(f"remote SHA-256 mismatch: expected {evidence.sha256}, got {metadata.sha256}")
 
     _print_command("load request action", load_command)
-    loaded = _remote_command(ssh, target, load_remote)
+    loaded = _remote_command(ssh, target, load_remote, ssh_options=ssh_options)
     if loaded.returncode != 0:
         raise _fail(
             f"remote FIFO load request failed with exit {loaded.returncode}: "
@@ -1307,6 +1329,22 @@ def _mister_transport(evidence: ArtifactEvidence, args: argparse.Namespace) -> i
         )
     print(f"load request dispatched; outcome unverified: {load_line}")
     return 0
+
+
+def _mister_transport(evidence: ArtifactEvidence, args: argparse.Namespace) -> int:
+    _require_board_attestation(args, EXPECTED_NETWORK_BOARD)
+    host = validate_host(args.host)
+    user = validate_user(args.user)
+    ssh = _resolve_executable(args.ssh or "ssh", "ssh")
+    scp = _resolve_executable(args.scp or "scp", "scp")
+    target = f"{user}@{host}"
+    if not args.dry_run and args.expected_main_sha256 is None:
+        raise _fail(
+            "non-dry network action requires explicit expected Main executable SHA-256 "
+            "(--expected-main-sha256 or MISTER_EXPECTED_MAIN_SHA256)"
+        )
+    with _ephemeral_ssh_session(ssh, target) as ssh_options:
+        return _mister_transport_session(evidence, args, ssh, scp, target, ssh_options)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:

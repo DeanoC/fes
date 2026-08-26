@@ -197,3 +197,50 @@ program: no DE10-Nano detected by openFPGALoader
 
 No real target, credential, endpoint, upload, load, reboot, or hardware
 observation is used in this fix round.
+
+## Fix Round 2 — pinned USB-Blaster and SSH/staging hardening
+
+This scoped review round added regression tests before implementation. Against
+the Round 1 baseline, the focused suite ran 39 tests with 8 expected RED
+failures covering USB-Blaster `--cable-index` use, generated remote hash
+recording, remote mode hardening, ephemeral SSH control paths, and Make recipe
+injection. After the narrow fixes:
+
+```text
+timeout 180s python3 -m unittest tests.test_program_preflight -v
+Ran 39 tests in 3.261s
+OK
+
+timeout 180s python3 -m unittest discover -s tests -p 'test_*.py' -q
+Ran 157 tests in 110.768s
+OK
+```
+
+The JTAG path now requires exactly one discovered `09fb:6810` USB-Blaster II
+row and uses only the captured interface name; `--cable-index` is rejected and
+multiple rows stop unconditionally. The remote verification script first
+rejects symlinks, requires a regular file, changes the SCP-created artifact to
+mode `0400`, rechecks it, and emits one exact `HASH|digest|path` record. The
+test executes that generated script against newline-containing artifact bytes
+and then replaces the file with a symlink to prove fail-closed behavior.
+
+Network preflight, atomic private staging, SCP, verification, and FIFO dispatch
+share one bounded SSH session through a `0700` local temporary directory and an
+ephemeral `ControlMaster`/`ControlPath`; cleanup closes the master and removes
+the directory best-effort on success and failure. No credential is captured or
+logged. The Make `program` recipe invokes the executable `scripts/program.py`
+directly, leaving all operator values in the exported environment for Python
+validation; regression cases cover shell `$()` and quote payloads without
+executing marker commands.
+
+The full suite was disconnected. A primary MiSTer dry run with all host/user
+variables unset validated the canonical OSS artifact and stopped with exit 2:
+
+```text
+program: mister transport requires an explicit host (--host or MISTER_HOST)
+```
+
+An optional JTAG dry run performed only local snapshot creation and
+`openFPGALoader --board de10nano --scan-usb`, then stopped with exit 2 because
+no matching DE10-Nano device was present. No target, credentials, upload,
+FIFO write, SRAM programming, reboot, or hardware observation was used.

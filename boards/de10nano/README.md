@@ -33,9 +33,14 @@ to `scripts/program.py`. They are validated as strict hostname/user values and
 are passed to `ssh`/`scp` as array elements. Passwords are never command-line
 arguments or logged; an operator may answer the normal SSH prompt. The bounded
 SSH options use `BatchMode=no`, `ConnectTimeout=10`, one connection attempt,
-and `StrictHostKeyChecking=yes`. Use an SSH key/agent when repeated prompts
-are undesirable; no password or persistent ControlMaster socket is stored by
-this procedure.
+and `StrictHostKeyChecking=yes`, plus an ephemeral `ControlMaster`/`ControlPath`
+under a private local temporary directory. The same control connection is
+shared by preflight, staging, SCP, verification, and dispatch so interactive
+password authentication prompts at most once; the master is closed and the
+private socket directory is removed on success or failure (best effort).
+`BatchMode=no` deliberately leaves the normal operator SSH credential prompt
+available. Use an SSH key/agent to avoid that prompt; no password is stored,
+embedded, or logged.
 
 Before an upload, the script performs one consolidated read-only SSH preflight
 for an ARM architecture, root-owned `/dev/MiSTer_cmd` FIFO metadata, exactly
@@ -62,8 +67,9 @@ to `/dev/MiSTer_cmd`. The script prints the exact shell-escaped action and
 reports only `load request dispatched; outcome unverified`; it never claims
 that the FPGA loaded successfully. Hardware observation and post-load status
 belong to Task 10. The volatile directory is intentionally left in place for
-operator recovery and disappears on reboot/power-cycle; it is never a
-persistent programming path. FogCast may own a custom `/media/fat/MiSTer`, so
+operator recovery; its uploaded RBF is made mode `0400` after SCP and its
+directory remains mode `0700`. The directory disappears on reboot/power-cycle;
+it is never a persistent programming path. FogCast may own a custom `/media/fat/MiSTer`, so
 the procedure never overwrites or replaces it and does not write the SD card,
 flash, or persistent configuration.
 
@@ -104,9 +110,10 @@ openFPGALoader --board de10nano --detect
 
 `program.py` requires one exact USB-Blaster II VID/PID row (`09fb:6810`) and
 one matching Cyclone V JTAG device. `--cable usb-blasterII` names only the
-interface type. If more than one exact cable row is discovered, pass the
-physical index captured from that scan with `--cable-index`; an absent or
-out-of-range index stops. Every non-dry JTAG action also requires the explicit
+interface type. The pinned USB-Blaster II interface cannot safely honor
+`--cable-index`: zero rows stop, exactly one exact row may proceed, and more
+than one row stops unconditionally even if an index is supplied. Every
+non-dry JTAG action also requires the explicit
 operator attestation `--expected-board de10nano` (or
 `PROGRAM_EXPECTED_BOARD=de10nano`). The loader consumes a private immutable
 local snapshot of the validated RBF, so replacing the canonical file during

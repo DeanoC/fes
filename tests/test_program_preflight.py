@@ -3,9 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -167,7 +169,7 @@ class ProgramPreflightTests(unittest.TestCase):
         stage_dir_uid: int = 0,
         stage_dir_type: str = "directory",
         stage_dir_nlink: int = 2,
-        stage_file_mode: str = "600",
+        stage_file_mode: str = "400",
         stage_file_uid: int = 0,
         stage_file_type: str = "regular file",
         stage_file_nlink: int = 1,
@@ -499,17 +501,18 @@ class ProgramPreflightTests(unittest.TestCase):
         self.assertIn("no DE10-Nano detected", result.stdout + result.stderr)
         self.assertNotIn("PROGRAM", self.actions.read_text() if self.actions.exists() else "")
 
-    def test_two_jtag_boards_require_exact_cable_selection(self) -> None:
+    def test_two_jtag_boards_stop_even_with_cable_index(self) -> None:
         self._write_programmer(
             scan=(
                 "Bus 1 0x09fb:0x6810 usb-blasterII de10nano\n"
                 "Bus 2 0x09fb:0x6810 usb-blasterII_2 de10nano\n"
             )
         )
-        result = self._run()
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("ambiguous", (result.stdout + result.stderr).lower())
-        self.assertNotIn("PROGRAM", self.actions.read_text() if self.actions.exists() else "")
+        for args in ((), ("--cable-index", "1")):
+            result = self._run(args=args)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("multiple", (result.stdout + result.stderr).lower())
+            self.assertNotIn("PROGRAM", self.actions.read_text() if self.actions.exists() else "")
 
     def test_one_jtag_board_dry_run_checks_but_never_programs(self) -> None:
         result = self._run()
@@ -650,6 +653,30 @@ class ProgramPreflightTests(unittest.TestCase):
         self.assertIn("sha256sum", actions)
         self.assertIn("SCP", actions)
 
+    def test_mister_uses_one_ephemeral_control_path_and_cleans_it(self) -> None:
+        result = self._run(transport="mister", dry_run=False, host="mister.test", user="root")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        output = result.stdout + result.stderr
+        control_paths = set(re.findall(r"ControlPath=([^\s]+)", output))
+        self.assertEqual(len(control_paths), 1, output)
+        control_path = next(iter(control_paths))
+        self.assertIn("%C", control_path)
+        self.assertFalse(Path(control_path.split("%", 1)[0]).parent.exists())
+        actions = self.actions.read_text()
+        self.assertGreaterEqual(actions.count("ControlPath="), 5)
+        self.assertIn("ControlMaster=auto", actions)
+        self.assertIn("ControlPersist=", actions)
+
+    def test_mister_control_path_is_cleaned_after_failure(self) -> None:
+        self._write_remote_tools(mkdir_exit=1)
+        result = self._run(transport="mister", dry_run=False, host="mister.test", user="root")
+        self.assertNotEqual(result.returncode, 0)
+        output = result.stdout + result.stderr
+        control_paths = set(re.findall(r"ControlPath=([^\s]+)", output))
+        self.assertEqual(len(control_paths), 1, output)
+        control_path = next(iter(control_paths))
+        self.assertFalse(Path(control_path.split("%", 1)[0]).parent.exists())
+
     @staticmethod
     def _extract_stage(output: str) -> str:
         for line in output.splitlines():
@@ -673,6 +700,62 @@ class ProgramPreflightTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("stage", (result.stdout + result.stderr).lower())
         self.assertNotIn("LOAD", self.actions.read_text())
+
+    def test_remote_verify_script_hashes_without_newline_splitting_and_rejects_symlink(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="misteross-verify-") as directory:
+            stage_dir = Path(directory)
+            stage_file = stage_dir / "artifact.rbf"
+            content = b"line one\nline two\n"
+            stage_file.write_bytes(content)
+            stage_file.chmod(0o664)
+            script_source = (
+                "from program import _remote_verify_script; "
+                f"print(_remote_verify_script({str(stage_dir)!r}, {str(stage_file)!r}))"
+            )
+            env = os.environ.copy()
+            env["PYTHONPATH"] = str(PROGRAM.parent)
+            generated = subprocess.run(
+                [sys.executable, "-c", script_source],
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(generated.returncode, 0, generated.stderr)
+            executed = subprocess.run(
+                ["/bin/sh", "-c", generated.stdout],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(executed.returncode, 0, executed.stderr)
+            lines = executed.stdout.splitlines()
+            expected_hash = hashlib.sha256(content).hexdigest()
+            self.assertEqual(
+                [line for line in lines if line.startswith("HASH|")],
+                [f"HASH|{expected_hash}|{stage_file}"],
+            )
+            self.assertEqual(
+                len([line for line in lines if line.startswith("HASH|")]),
+                1,
+            )
+            file_lines = [line for line in lines if line.startswith("FILE|")]
+            self.assertEqual(len(file_lines), 1)
+            self.assertIn("|400|", file_lines[0])
+            self.assertEqual(stat.S_IMODE(stage_file.stat().st_mode), 0o400)
+
+            outside = stage_dir / "outside.rbf"
+            outside.write_bytes(content)
+            stage_file.unlink()
+            stage_file.symlink_to(outside)
+            rejected = subprocess.run(
+                ["/bin/sh", "-c", generated.stdout],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertNotEqual(rejected.returncode, 0)
+            self.assertNotIn("HASH|", rejected.stdout)
 
     def test_mister_binds_fifo_to_one_root_main_pid_and_matching_inode(self) -> None:
         for options, expected in (
@@ -715,32 +798,28 @@ class ProgramPreflightTests(unittest.TestCase):
         self.assertIn("load request dispatched; outcome unverified", result.stdout)
         self.assertNotIn("load complete", result.stdout.lower())
 
-    def test_jtag_cable_index_selects_physical_probe_and_cable_is_interface(self) -> None:
-        self._write_programmer(
-            scan=(
-                "0 0x09fb:0x6810 usb-blasterII probe-a\n"
-                "1 0x09fb:0x6810 usb-blasterII probe-b\n"
-            )
-        )
-        result = self._run(args=("--cable", "usb-blasterII", "--cable-index", "1"))
+    def test_jtag_single_usb_blaster_uses_interface_without_cable_index(self) -> None:
+        result = self._run(args=("--cable", "usb-blasterII"))
         self.assertEqual(result.returncode, 0, result.stderr)
         action_lines = self.actions.read_text().splitlines()
-        self.assertTrue(any("--cable-index 1" in line for line in action_lines))
         self.assertTrue(any("--cable usb-blasterII" in line for line in action_lines))
-        self.assertFalse(any("--cable probe-b" in line for line in action_lines))
+        self.assertFalse(any("--cable-index" in line for line in action_lines))
+        self.assertNotIn("physical index", result.stdout + result.stderr)
 
-        result = self._run(args=("--cable-index", "2"))
+    def test_jtag_usb_blaster_rejects_cable_index_even_for_single_probe(self) -> None:
+        result = self._run(args=("--cable-index", "0"))
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("index", (result.stdout + result.stderr).lower())
-        self.assertNotIn("PROGRAM", self.actions.read_text())
+        self.assertIn("cable-index", (result.stdout + result.stderr).lower())
+        self.assertNotIn("PROGRAM", self.actions.read_text() if self.actions.exists() else "")
 
     def test_jtag_scan_bus_and_device_columns_are_not_cable_index(self) -> None:
         # openFPGALoader's scan output starts with USB bus and device address;
-        # --cable-index is the zero-based index among matching FTDI probes.
+        # those columns are not a selector for the pinned USB-Blaster II path.
         self._write_programmer(scan="001 002 0x09fb:0x6810 usb-blasterII\n")
         result = self._run()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("--cable-index 0", self.actions.read_text())
+        self.assertIn("--cable usb-blasterII", self.actions.read_text())
+        self.assertNotIn("--cable-index", self.actions.read_text())
 
     def test_jtag_snapshot_survives_source_replacement_and_is_cleaned(self) -> None:
         original = self.artifact.read_bytes()
@@ -806,6 +885,48 @@ class ProgramPreflightTests(unittest.TestCase):
         result = self._run()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("stability", (result.stdout + result.stderr).lower())
+
+    def test_make_program_does_not_execute_malicious_python_or_host_values(self) -> None:
+        marker = self.fixture / "make-injected"
+        env = self._env(transport="mister", dry_run=True, host=f"$(touch {marker})", user="root")
+        env["PYTHON"] = f"python3; touch {marker}"
+        result = subprocess.run(
+            [
+                "make",
+                "--no-print-directory",
+                "program",
+                f"EXP={EXPERIMENT}",
+                "BUILD=oss",
+            ],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("host", (result.stdout + result.stderr).lower())
+        self.assertFalse(marker.exists())
+
+        env = self._env(transport="mister", dry_run=True, host="mister.test", user=f"'; touch {marker}")
+        env["PYTHON"] = f"python3; touch {marker}"
+        result = subprocess.run(
+            [
+                "make",
+                "--no-print-directory",
+                "program",
+                f"EXP={EXPERIMENT}",
+                "BUILD=oss",
+            ],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("user", (result.stdout + result.stderr).lower())
+        self.assertFalse(marker.exists())
 
 
 if __name__ == "__main__":

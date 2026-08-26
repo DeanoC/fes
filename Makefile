@@ -38,7 +38,7 @@ help:
 		"Variables: EXP=$(EXP) BUILD=$(BUILD) PYTHON=$(PYTHON)" \
 		"  PROGRAM_TRANSPORT=$(PROGRAM_TRANSPORT) MISTER_HOST/MISTER_USER required for mister" \
 		"  PROGRAM_EXPECTED_BOARD is required for every non-dry action (misterpi or de10nano)" \
-		"  PROGRAM_EXPECTED_MAIN_SHA256 is required for non-dry mister; PROGRAM_CABLE_INDEX selects a physical JTAG probe" \
+		"  PROGRAM_EXPECTED_MAIN_SHA256 is required for non-dry mister; PROGRAM_CABLE_INDEX is rejected for USB-Blaster II" \
 		"  PROGRAMMER/PROGRAM_SSH/PROGRAM_SCP/PROGRAM_CABLE and PROGRAM_DRY_RUN=1 are optional"
 
 define require_exp
@@ -87,7 +87,7 @@ compare:
 		--output-dir "build/compare/$(EXP)"
 
 program:
-	@$(PYTHON) scripts/program.py
+	@scripts/program.py
 
 clean:
 	$(require_exp)
