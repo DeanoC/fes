@@ -1,0 +1,29 @@
+[tool.yosys]
+repo = "https://github.com/YosysHQ/yosys.git"
+commit = "13b43f8c85ec430a33ee55d058fb4c32b42b6910"
+order = 10
+rationale = "Current upstream Intel ALM synthesis baseline sampled 2026-08-26."
+
+[tool.mistral]
+repo = "https://github.com/Ravenslofty/mistral.git"
+commit = "d509238a203aadbb76291ab06543a401df91cf54"
+order = 20
+rationale = "Current Cyclone V database/compiler baseline sampled 2026-08-26."
+
+[tool.nextpnr]
+repo = "https://github.com/YosysHQ/nextpnr.git"
+commit = "7d4f72c0aabc15da932748a54e82a6ff7b41921e"
+order = 30
+rationale = "Current Mistral backend baseline sampled 2026-08-26."
+
+[tool.verilator]
+repo = "https://github.com/verilator/verilator.git"
+commit = "5e4151e3e0c8ecf11d9845a93495f37a31b2f667"
+order = 40
+rationale = "Current lint and simulation baseline sampled 2026-08-26."
+
+[tool.openfpgaloader]
+repo = "https://github.com/trabucayre/openFPGALoader.git"
+commit = "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86"
+order = 50
+rationale = "Current DE10-Nano programmer baseline sampled 2026-08-26."
