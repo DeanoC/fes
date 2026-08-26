@@ -244,3 +244,41 @@ An optional JTAG dry run performed only local snapshot creation and
 `openFPGALoader --board de10nano --scan-usb`, then stopped with exit 2 because
 no matching DE10-Nano device was present. No target, credentials, upload,
 FIFO write, SRAM programming, reboot, or hardware observation was used.
+
+## Fix Round 3 — Make boundary, control shutdown, and boolean parsing
+
+Round 3 added the three review regressions before implementation. The focused
+suite first ran 44 tests with 11 expected failures: four Make/help payload
+cases, two control-master shutdown cases, and five malformed
+`PROGRAM_DRY_RUN` values. After the scoped fixes, including an explicit unset
+default case:
+
+```text
+timeout 180s python3 -m unittest tests.test_program_preflight -q
+Ran 45 tests in 3.846s
+OK
+
+timeout 180s python3 -m unittest discover -s tests -p 'test_*.py' -q
+Ran 163 tests in 110.865s
+OK
+```
+
+The Make default/help target now prints literal documented defaults and never
+expands `EXP`, `BUILD`, `PYTHON`, or `PROGRAM_TRANSPORT` in its shell recipe.
+Regression runs of plain `make` and `make help` with quote, semicolon, and
+`$()` payloads for each variable complete safely without marker commands.
+
+SSH cleanup now checks `ssh -O exit`, uses bounded `-O stop` plus a retry and
+socket-directory disappearance check on failure, and removes the private
+directory only after shutdown is confirmed. If confirmation fails, cleanup
+raises an error and preserves the directory for operator cleanup; tests cover
+fallback success, fallback failure, and no test-harness orphan. `BatchMode=yes`
+is used only for bounded cleanup operations, while normal operator
+authentication remains `BatchMode=no`.
+
+`PROGRAM_DRY_RUN` now accepts only exact case-insensitive true/false tokens,
+rejects misspellings and surrounding whitespace with one early diagnostic, and
+uses dry-run as the safe unset/empty default. Exact `false` reaches the fake
+live transport path; malformed values fail before local artifact or transport
+output. No hardware, target, credentials, upload, load, reboot, or persistent
+storage was used.

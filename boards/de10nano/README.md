@@ -83,9 +83,14 @@ rebooting or power-cycling the unit restores the normal menu. The script never
 reboots automatically.
 
 Use `PROGRAM_DRY_RUN=1 make program ...` (or `--dry-run`) to run local and
-read-only remote checks without SCP upload or FIFO load. An absent host/user,
-ambiguous remote state, missing FIFO/process, staging collision, or hash
-mismatch stops before any action.
+read-only remote checks without SCP upload or FIFO load. An unset or empty
+`PROGRAM_DRY_RUN` is the safe dry-run default; use the exact value `0` (or
+`false`) for a live action after supplying all attestations. Other spellings,
+including surrounding whitespace, are rejected before local or remote work.
+An absent host/user, ambiguous remote state, missing FIFO/process, staging
+collision, or hash mismatch stops before any action. If bounded SSH master
+shutdown cannot be confirmed, the private local control directory is retained
+and cleanup is reported for operator action.
 
 ## Optional external USB-Blaster/JTAG transport
 

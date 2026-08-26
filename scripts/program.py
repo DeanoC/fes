@@ -24,6 +24,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
@@ -37,6 +38,9 @@ EXPECTED_CABLE_PID = 0x6810
 EXPECTED_IDCODE = 0x02D020DD
 COMMAND_TIMEOUT = 20.0
 REMOTE_TIMEOUT = 15.0
+CONTROL_COMMAND_TIMEOUT = 5.0
+CONTROL_WAIT_TIMEOUT = 1.0
+CONTROL_WAIT_INTERVAL = 0.05
 EXPERIMENT_RE = re.compile(r"^[0-9]{3}_[a-z0-9_]+$")
 LANE_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
 HOST_LABEL_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
@@ -57,6 +61,8 @@ EXPECTED_NETWORK_BOARD = "misterpi"
 EXPECTED_JTAG_BOARD = "de10nano"
 EXPECTED_CABLE_INTERFACE = "usb-blasterII"
 MAIN_SOURCE_COMMIT = "d1a3a4e65c2dbee1f23eb5a890d8f29e6448c30d"
+TRUE_ENV_VALUES = frozenset(("1", "true", "yes", "on"))
+FALSE_ENV_VALUES = frozenset(("0", "false", "no", "off"))
 
 OSS_RESOURCE_CLASSES = {
     "MISTRAL_BUF": "ordinary",
@@ -552,7 +558,23 @@ def _env_value(*names: str) -> str | None:
 
 
 def _env_bool(name: str) -> bool:
-    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+    value = os.environ.get(name)
+    # Make exports this optional variable as an empty string when no operator
+    # value is supplied. Treat that representation like an unset variable and
+    # keep the fail-closed default as dry-run.
+    if value is None or value == "":
+        return True
+    if not isinstance(value, str):
+        raise _fail(f"{name} must be a string boolean (unset, true, or false)")
+    normalized = value.lower()
+    if normalized in TRUE_ENV_VALUES:
+        return True
+    if normalized in FALSE_ENV_VALUES:
+        return False
+    raise _fail(
+        f"{name} must be exactly one of {sorted(TRUE_ENV_VALUES | FALSE_ENV_VALUES)} "
+        "without surrounding whitespace"
+    )
 
 
 def validate_host(value: str | None) -> str:
@@ -1183,6 +1205,92 @@ def _new_remote_stage() -> tuple[str, str]:
     return stage_dir, stage_file
 
 
+def _control_dir_empty(control_dir: Path) -> bool:
+    try:
+        next(control_dir.iterdir())
+    except StopIteration:
+        return True
+    except FileNotFoundError:
+        return True
+    except OSError as exc:
+        raise _fail(f"cannot inspect SSH control directory {control_dir}: {exc}") from exc
+    return False
+
+
+def _wait_for_control_shutdown(control_dir: Path) -> bool:
+    deadline = time.monotonic() + CONTROL_WAIT_TIMEOUT
+    while True:
+        if _control_dir_empty(control_dir):
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(CONTROL_WAIT_INTERVAL)
+
+
+def _control_operation(
+    ssh: str,
+    target: str,
+    ssh_options: Sequence[str],
+    operation: str,
+) -> subprocess.CompletedProcess[str]:
+    return _run(
+        [ssh, *ssh_options, "-o", "BatchMode=yes", "-O", operation, target],
+        timeout=CONTROL_COMMAND_TIMEOUT,
+    )
+
+
+def _cleanup_ssh_control_master(
+    ssh: str,
+    target: str,
+    ssh_options: Sequence[str],
+    control_dir: Path,
+) -> None:
+    """Close the master and remove its directory only after bounded confirmation."""
+
+    exited = _control_operation(ssh, target, ssh_options, "exit")
+    if exited.returncode == 0 and _wait_for_control_shutdown(control_dir):
+        try:
+            shutil.rmtree(control_dir)
+        except OSError as exc:
+            raise _fail(
+                f"SSH control master stopped but private control directory cleanup failed; "
+                f"preserve {control_dir}: {exc}"
+            ) from exc
+        if control_dir.exists():
+            raise _fail(
+                f"SSH control master stopped but private control directory remains; "
+                f"preserve {control_dir}"
+            )
+        return
+
+    # A failed exit can leave a master accepting sessions. Stop accepting new
+    # sessions, request shutdown again, and only unlink after the socket path
+    # has disappeared. Every operation and wait is deliberately bounded.
+    stopped = _control_operation(ssh, target, ssh_options, "stop")
+    if stopped.returncode == 0:
+        retried = _control_operation(ssh, target, ssh_options, "exit")
+        if retried.returncode == 0 or _control_dir_empty(control_dir):
+            if _wait_for_control_shutdown(control_dir):
+                try:
+                    shutil.rmtree(control_dir)
+                except OSError as exc:
+                    raise _fail(
+                        f"SSH control master fallback stopped but private control directory cleanup failed; "
+                        f"preserve {control_dir}: {exc}"
+                    ) from exc
+                if control_dir.exists():
+                    raise _fail(
+                        f"SSH control master fallback stopped but private control directory remains; "
+                        f"preserve {control_dir}"
+                    )
+                return
+
+    raise _fail(
+        f"SSH control master shutdown could not be confirmed; preserve {control_dir} "
+        "for operator cleanup"
+    )
+
+
 @contextlib.contextmanager
 def _ephemeral_ssh_session(ssh: str, target: str):
     """Share one private, temporary SSH control socket across a run."""
@@ -1212,14 +1320,7 @@ def _ephemeral_ssh_session(ssh: str, target: str):
         yield ssh_options
     finally:
         if control_dir is not None:
-            try:
-                _run(
-                    [ssh, *ssh_options, "-o", "BatchMode=yes", "-O", "exit", target],
-                    timeout=REMOTE_TIMEOUT,
-                )
-            except ProgramError:
-                pass
-            shutil.rmtree(control_dir, ignore_errors=True)
+            _cleanup_ssh_control_master(ssh, target, ssh_options, control_dir)
 
 
 def _mister_transport_session(

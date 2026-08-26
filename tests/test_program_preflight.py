@@ -177,6 +177,8 @@ class ProgramPreflightTests(unittest.TestCase):
         verify_exit: int = 0,
         scp_exit: int = 0,
         load_exit: int = 0,
+        control_exit: int = 0,
+        control_stop_exit: int = 0,
         stage_exists: bool = False,
     ) -> None:
         digest = digest or _sha256(self.artifact)
@@ -233,6 +235,8 @@ class ProgramPreflightTests(unittest.TestCase):
             "case \" $* \" in\n"
             f"  *'MISTEROSS_PREFLIGHT_V1'*) printf '%b' {preflight_output!r} ; exit 0 ;;\n"
             + mkdir_branch
+            + f"  *'-O exit'*) exit {control_exit} ;;\n"
+            + f"  *'-O stop'*) exit {control_stop_exit} ;;\n"
             + f"  *'MISTEROSS_VERIFY_V1'*) verify_stage=\"${{remote_command#*MISTEROSS_VERIFY_V1 }}\"; verify_stage=\"${{verify_stage%%;*}}\"; printf '%b' {verify_output!r}; printf 'HASH|%s|%s\\n' {digest!r} \"$verify_stage\"; exit {verify_exit} ;;\n"
             + f"  *'MISTEROSS_RACE_V1'*) printf '%s\\n' RACE; exit 1 ;;\n"
             + f"  *'uname -m'*) printf '%s' {architecture!r} ;;\n"
@@ -677,6 +681,32 @@ class ProgramPreflightTests(unittest.TestCase):
         control_path = next(iter(control_paths))
         self.assertFalse(Path(control_path.split("%", 1)[0]).parent.exists())
 
+    def test_mister_control_exit_failure_uses_bounded_stop_fallback(self) -> None:
+        self._write_remote_tools(control_exit=7, control_stop_exit=0)
+        result = self._run(transport="mister", dry_run=False, host="mister.test", user="root")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        actions = self.actions.read_text()
+        self.assertIn("-O exit", actions)
+        self.assertIn("-O stop", actions)
+        output = result.stdout + result.stderr
+        control_paths = set(re.findall(r"ControlPath=([^\s]+)", output))
+        self.assertEqual(len(control_paths), 1, output)
+        control_path = next(iter(control_paths))
+        self.assertFalse(Path(control_path.split("%", 1)[0]).parent.exists())
+
+    def test_mister_control_shutdown_failure_surfaces_and_preserves_path(self) -> None:
+        self._write_remote_tools(control_exit=7, control_stop_exit=8)
+        result = self._run(transport="mister", dry_run=False, host="mister.test", user="root")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("control", (result.stdout + result.stderr).lower())
+        output = result.stdout + result.stderr
+        control_paths = set(re.findall(r"ControlPath=([^\s]+)", output))
+        self.assertEqual(len(control_paths), 1, output)
+        control_path = next(iter(control_paths))
+        control_dir = Path(control_path.split("%", 1)[0]).parent
+        self.assertTrue(control_dir.exists())
+        shutil.rmtree(control_dir, ignore_errors=True)
+
     @staticmethod
     def _extract_stage(output: str) -> str:
         for line in output.splitlines():
@@ -927,6 +957,109 @@ class ProgramPreflightTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("user", (result.stdout + result.stderr).lower())
         self.assertFalse(marker.exists())
+
+    def test_make_plain_and_help_do_not_expand_operator_variables(self) -> None:
+        for variable in ("EXP", "BUILD", "PYTHON", "PROGRAM_TRANSPORT"):
+            with self.subTest(variable=variable):
+                marker = self.fixture / f"make-{variable.lower()}-injected"
+                env = os.environ.copy()
+                env[variable] = f'x$(touch {marker})"; touch {marker}; echo "'
+                for target in (None, "help"):
+                    command = ["make", "--no-print-directory"]
+                    if target is not None:
+                        command.append(target)
+                    result = subprocess.run(
+                        command,
+                        cwd=ROOT,
+                        env=env,
+                        text=True,
+                        capture_output=True,
+                        check=False,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertFalse(marker.exists(), result.stdout + result.stderr)
+                self.assertIn("Open MiSTer OSS Cyclone V toolchain", result.stdout)
+
+    def test_program_dry_run_requires_exact_boolean_environment_values(self) -> None:
+        invalid_values = ("tru", " true ", "maybe", "1 ", "yes\n")
+        command = [
+            str(PROGRAM),
+            "--repo-root",
+            str(ROOT),
+            "--experiment",
+            EXPERIMENT,
+            "--build",
+            LANE,
+        ]
+        for value in invalid_values:
+            with self.subTest(value=repr(value)):
+                env = self._env(transport="mister", dry_run=True, host="mister.test", user="root")
+                env["PROGRAM_DRY_RUN"] = value
+                result = subprocess.run(
+                    command,
+                    cwd=ROOT,
+                    env=env,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(
+                    len((result.stdout + result.stderr).splitlines()),
+                    1,
+                    result.stdout + result.stderr,
+                )
+                self.assertIn("PROGRAM_DRY_RUN", result.stdout + result.stderr)
+                self.assertFalse(self.actions.exists())
+
+    def test_program_dry_run_exact_false_allows_live_fake_transport(self) -> None:
+        env = self._env(transport="mister", dry_run=True, host="mister.test", user="root")
+        env["PROGRAM_DRY_RUN"] = "false"
+        command = [
+            str(PROGRAM),
+            "--repo-root",
+            str(ROOT),
+            "--experiment",
+            EXPERIMENT,
+            "--build",
+            LANE,
+        ]
+        result = subprocess.run(
+            command,
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        actions = self.actions.read_text()
+        self.assertIn("SCP", actions)
+        self.assertIn("LOAD", actions)
+
+    def test_program_dry_run_unset_defaults_to_safe_read_only_mode(self) -> None:
+        env = self._env(transport="mister", dry_run=True, host="mister.test", user="root")
+        env.pop("PROGRAM_DRY_RUN")
+        command = [
+            str(PROGRAM),
+            "--repo-root",
+            str(ROOT),
+            "--experiment",
+            EXPERIMENT,
+            "--build",
+            LANE,
+        ]
+        result = subprocess.run(
+            command,
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("DRY RUN", result.stdout)
+        self.assertNotIn("SCP", self.actions.read_text() if self.actions.exists() else "")
 
 
 if __name__ == "__main__":

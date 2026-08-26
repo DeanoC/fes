@@ -35,11 +35,11 @@ help:
 		"  program    Load one artifact volatile-only (mister default; jtag optional)" \
 		"  clean      Remove generated output for an experiment" \
 		"" \
-		"Variables: EXP=$(EXP) BUILD=$(BUILD) PYTHON=$(PYTHON)" \
-		"  PROGRAM_TRANSPORT=$(PROGRAM_TRANSPORT) MISTER_HOST/MISTER_USER required for mister" \
+		"Variables: EXP=010_blinky BUILD=oss PYTHON=python3" \
+		"  PROGRAM_TRANSPORT=mister MISTER_HOST/MISTER_USER required for mister" \
 		"  PROGRAM_EXPECTED_BOARD is required for every non-dry action (misterpi or de10nano)" \
 		"  PROGRAM_EXPECTED_MAIN_SHA256 is required for non-dry mister; PROGRAM_CABLE_INDEX is rejected for USB-Blaster II" \
-		"  PROGRAMMER/PROGRAM_SSH/PROGRAM_SCP/PROGRAM_CABLE and PROGRAM_DRY_RUN=1 are optional"
+		"  PROGRAMMER/PROGRAM_SSH/PROGRAM_SCP/PROGRAM_CABLE are optional; PROGRAM_DRY_RUN=1 is the safe default (0/false for live)"
 
 define require_exp
 	@if ! printf '%s\n' '$(EXP)' | grep -Eq '^[0-9][0-9][0-9]_[a-z0-9_]+$$'; then \
