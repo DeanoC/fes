@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"os/exec"
 	"strconv"
 	"sync"
@@ -29,11 +30,36 @@ type MJPEGPreview struct {
 func NewMJPEGPreview() *MJPEGPreview { return &MJPEGPreview{changed: make(chan struct{})} }
 
 // Decoder returns a fresh session-owned H.264-to-JPEG converter.
+var previewFFmpegFallbacks = []string{
+	"/opt/homebrew/bin/ffmpeg",
+	"/usr/local/bin/ffmpeg",
+}
+
+func previewFFmpegPath() (string, error) {
+	if path, err := exec.LookPath("ffmpeg"); err == nil && path != "" {
+		return path, nil
+	}
+	for _, candidate := range previewFFmpegFallbacks {
+		info, err := os.Stat(candidate)
+		if err != nil || info.IsDir() {
+			continue
+		}
+		if info.Mode()&0o111 != 0 {
+			return candidate, nil
+		}
+	}
+	return "", errors.New("ffmpeg is unavailable")
+}
+
 func (p *MJPEGPreview) Decoder(context.Context) (ManagedDecoder, error) {
 	if p == nil {
 		return nil, errors.New("MJPEG preview is unavailable")
 	}
-	cmd := exec.Command("ffmpeg", "-hide_banner", "-loglevel", "warning", "-f", "h264", "-i", "pipe:0", "-an", "-fps_mode", "passthrough", "-c:v", "mjpeg", "-q:v", "5", "-flush_packets", "1", "-f", "image2pipe", "pipe:1")
+	ffmpeg, err := previewFFmpegPath()
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.Command(ffmpeg, "-hide_banner", "-loglevel", "warning", "-f", "h264", "-i", "pipe:0", "-an", "-fps_mode", "passthrough", "-c:v", "mjpeg", "-q:v", "5", "-flush_packets", "1", "-f", "image2pipe", "pipe:1")
 	input, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err

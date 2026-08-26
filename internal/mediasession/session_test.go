@@ -132,6 +132,16 @@ func TestHandleStopRetriesOnlyFailedComponentsAndRemainsBounded(t *testing.T) {
 	}
 }
 
+func TestStartFailureAfterSuccessfulCleanupReturnsNilHandle(t *testing.T) {
+	receiver := &fakeComponent{name: "receiver"}
+	sender := &fakeComponent{name: "sender", startErr: errors.New("start failed")}
+	session := New(sender, receiver, WithStopTimeout(100*time.Millisecond))
+	handle, err := session.Start(context.Background(), "game-1")
+	if err == nil || handle != nil {
+		t.Fatalf("Start = handle %v err %v, want nil handle after successful cleanup", handle, err)
+	}
+}
+
 func TestStartCleanupFailureReturnsRetryablePartialHandle(t *testing.T) {
 	receiver := &fakeComponent{name: "receiver", stopErr: errors.New("cleanup failed")}
 	sender := &fakeComponent{name: "sender", startErr: errors.New("start failed")}

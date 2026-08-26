@@ -157,6 +157,39 @@ type generationMediaHandle struct {
 	stops int
 }
 
+type partialMediaSession struct {
+	mu          sync.Mutex
+	stopResults []error
+	stops       int
+	done        chan struct{}
+}
+
+type partialMediaHandle struct{ owner *partialMediaSession }
+
+func (m *partialMediaSession) Start(context.Context, string) (hostapi.MediaHandle, error) {
+	return &partialMediaHandle{owner: m}, errors.New("partial preview start failed")
+}
+
+func (h *partialMediaHandle) Stop(context.Context) error {
+	h.owner.mu.Lock()
+	defer h.owner.mu.Unlock()
+	h.owner.stops++
+	if len(h.owner.stopResults) == 0 {
+		return nil
+	}
+	err := h.owner.stopResults[0]
+	h.owner.stopResults = h.owner.stopResults[1:]
+	return err
+}
+
+func (h *partialMediaHandle) Done() <-chan struct{} { return h.owner.done }
+
+func (m *partialMediaSession) stopCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.stops
+}
+
 func (m *generationMediaSession) Start(context.Context, string) (hostapi.MediaHandle, error) {
 	handle := &generationMediaHandle{}
 	m.mu.Lock()
@@ -582,6 +615,169 @@ func TestFPGANativePlayStartsMediaAfterLaunchAndKeepsRemoteInputAttached(t *test
 	}
 	if len(media.stop) != 1 || len(input.detach) != 1 || input.detach[0] != "session_stop" {
 		t.Fatalf("media stops=%#v input detaches=%#v", media.stop, input.detach)
+	}
+}
+
+func TestFPGANativePreviewStartFailureKeepsSessionAndPads(t *testing.T) {
+	gameID := "actraiser"
+	system := protocol.SystemSNES
+	core := "SNES"
+	service := &fakeService{
+		launch:  protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core}},
+		status:  protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core},
+		stopped: protocol.Status{State: protocol.StateIdle},
+	}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
+	media := &fakeMediaSession{err: errors.New("capture device is busy")}
+	handler := hostapi.New(service, hostapi.WithMediaSession(media), hostapi.WithRemoteInput(input))
+
+	launch := launchSession(t, handler, gameID)
+	if launch.Code != http.StatusOK || !strings.Contains(launch.Body.String(), `"execution":"fpga_native"`) || !strings.Contains(launch.Body.String(), `"media":"failed"`) || !strings.Contains(launch.Body.String(), `"input":{"state":"attached"`) {
+		t.Fatalf("launch = %d %s", launch.Code, launch.Body.String())
+	}
+	if len(service.stopCtxErrs) != 0 {
+		t.Fatalf("preview start failure stopped the FPGA session: stops=%d", len(service.stopCtxErrs))
+	}
+	if len(input.attach) != 1 || input.attach[0] != core || len(input.detach) != 0 {
+		t.Fatalf("pads = attach %#v detach %#v", input.attach, input.detach)
+	}
+
+	again := launchSession(t, handler, gameID)
+	if again.Code != http.StatusOK || !strings.Contains(again.Body.String(), `"state":"active"`) {
+		t.Fatalf("second launch = %d %s", again.Code, again.Body.String())
+	}
+	if strings.Contains(again.Body.String(), `"code":"TARGET_UNAVAILABLE"`) {
+		t.Fatalf("second launch lost the target: %s", again.Body.String())
+	}
+}
+
+func TestFPGANativePreviewStartFailureStopClearsFailedMedia(t *testing.T) {
+	gameID := "actraiser"
+	system := protocol.SystemSNES
+	core := "SNES"
+	service := &fakeService{
+		launch:  protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core}},
+		status:  protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core},
+		stopped: protocol.Status{State: protocol.StateIdle},
+	}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
+	media := &fakeMediaSession{err: errors.New("capture device is busy")}
+	handler := hostapi.New(service, hostapi.WithMediaSession(media), hostapi.WithRemoteInput(input))
+
+	launch := launchSession(t, handler, gameID)
+	if launch.Code != http.StatusOK || !strings.Contains(launch.Body.String(), `"media":"failed"`) || !strings.Contains(launch.Body.String(), `"input":{"state":"attached"`) {
+		t.Fatalf("launch = %d %s", launch.Code, launch.Body.String())
+	}
+	status := serve(t, handler, http.MethodGet, "/api/v1/session")
+	if status.Code != http.StatusOK || !strings.Contains(status.Body.String(), `"state":"active"`) || !strings.Contains(status.Body.String(), `"media":"failed"`) {
+		t.Fatalf("status after failed preview = %d %s", status.Code, status.Body.String())
+	}
+	if len(service.stopCtxErrs) != 0 || len(input.detach) != 0 {
+		t.Fatalf("failed preview stopped session or pads: service stops=%d input detaches=%#v", len(service.stopCtxErrs), input.detach)
+	}
+
+	stop := serve(t, handler, http.MethodPost, "/api/v1/session/stop")
+	if stop.Code != http.StatusOK || strings.Contains(stop.Body.String(), `"media":"failed"`) || !strings.Contains(stop.Body.String(), `"media":"stopped"`) {
+		t.Fatalf("stop = %d %s", stop.Code, stop.Body.String())
+	}
+	if len(media.stop) != 0 {
+		t.Fatalf("handle-less failed preview called media stop: %#v", media.stop)
+	}
+	if len(service.stopCtxErrs) == 0 {
+		t.Fatalf("stop did not stop FPGA session")
+	}
+	if len(input.detach) != 1 || input.detach[0] != "session_stop" {
+		t.Fatalf("stop pads = %#v", input.detach)
+	}
+
+	service.status = protocol.Status{State: protocol.StateIdle}
+	idle := serve(t, handler, http.MethodGet, "/api/v1/session")
+	if idle.Code != http.StatusOK || !strings.Contains(idle.Body.String(), `"state":"idle"`) || strings.Contains(idle.Body.String(), `"media":"failed"`) {
+		t.Fatalf("idle status after stop kept failed media: %d %s", idle.Code, idle.Body.String())
+	}
+}
+
+func TestFPGANativePreviewStartFailureReapsPartialHandle(t *testing.T) {
+	gameID := "actraiser"
+	system := protocol.SystemSNES
+	core := "SNES"
+	service := &fakeService{
+		launch: protocol.CachedLaunchResponse{Status: protocol.Status{
+			State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core,
+		}},
+		status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core},
+	}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
+	media := &partialMediaSession{
+		stopResults: []error{errors.New("first cleanup failed"), errors.New("retry cleanup failed"), nil},
+		done:        make(chan struct{}),
+	}
+	handler := hostapi.New(service, hostapi.WithMediaSession(media), hostapi.WithRemoteInput(input))
+
+	launch := launchSession(t, handler, gameID)
+	if launch.Code != http.StatusOK || !strings.Contains(launch.Body.String(), `"state":"active"`) || !strings.Contains(launch.Body.String(), `"media":"failed"`) {
+		t.Fatalf("launch = %d %s", launch.Code, launch.Body.String())
+	}
+	if got := media.stopCount(); got != 2 {
+		t.Fatalf("partial preview cleanup attempts = %d, want 2", got)
+	}
+	if len(service.stopCtxErrs) != 0 || len(input.detach) != 0 {
+		t.Fatalf("preview cleanup stopped session or pads: service stops=%d input detaches=%#v", len(service.stopCtxErrs), input.detach)
+	}
+
+	close(media.done)
+	deadline := time.Now().Add(time.Second)
+	for media.stopCount() != 3 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if got := media.stopCount(); got != 3 {
+		t.Fatalf("terminal partial preview cleanup attempts = %d, want 3", got)
+	}
+	status := serve(t, handler, http.MethodGet, "/api/v1/session")
+	deadline = time.Now().Add(time.Second)
+	for !strings.Contains(status.Body.String(), `"media":"stopped"`) && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+		status = serve(t, handler, http.MethodGet, "/api/v1/session")
+	}
+	if status.Code != http.StatusOK || !strings.Contains(status.Body.String(), `"state":"active"`) || !strings.Contains(status.Body.String(), `"media":"stopped"`) || !strings.Contains(status.Body.String(), `"input":{"state":"attached"`) {
+		t.Fatalf("status after terminal preview cleanup = %d %s", status.Code, status.Body.String())
+	}
+	if len(service.stopCtxErrs) != 0 || len(input.detach) != 0 {
+		t.Fatalf("terminal preview cleanup stopped session or pads: service stops=%d input detaches=%#v", len(service.stopCtxErrs), input.detach)
+	}
+}
+
+func TestFPGANativePreviewExitKeepsSessionAndPads(t *testing.T) {
+	gameID := "actraiser"
+	system := protocol.SystemSNES
+	core := "SNES"
+	service := &fakeService{
+		launch:  protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core}},
+		status:  protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core},
+		stopped: protocol.Status{State: protocol.StateIdle},
+	}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
+	done := make(chan struct{})
+	media := &fakeMediaSession{done: done}
+	handler := hostapi.New(service, hostapi.WithMediaSession(media), hostapi.WithRemoteInput(input))
+	launch := launchSession(t, handler, gameID)
+	if launch.Code != http.StatusOK || !strings.Contains(launch.Body.String(), `"media":"active"`) {
+		t.Fatalf("launch = %d %s", launch.Code, launch.Body.String())
+	}
+	close(done)
+
+	status := serve(t, handler, http.MethodGet, "/api/v1/session")
+	if status.Code != http.StatusOK || !strings.Contains(status.Body.String(), `"state":"active"`) || !strings.Contains(status.Body.String(), `"media":"stopped"`) || !strings.Contains(status.Body.String(), `"input":{"state":"attached"`) {
+		t.Fatalf("status after preview exit = %d %s", status.Code, status.Body.String())
+	}
+	if len(service.stopCtxErrs) != 0 {
+		t.Fatalf("preview exit stopped the FPGA session: stops=%d", len(service.stopCtxErrs))
+	}
+	if len(input.detach) != 0 {
+		t.Fatalf("preview exit detached pads: %#v", input.detach)
+	}
+	if len(media.stop) != 1 {
+		t.Fatalf("preview exit did not stop media only: %#v", media.stop)
 	}
 }
 

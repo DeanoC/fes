@@ -947,9 +947,11 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 		Handler:           mux,
 		BaseContext:       func(net.Listener) context.Context { return ctx },
 		ReadHeaderTimeout: 5 * time.Second,
-		WriteTimeout:      30 * time.Second,
-		IdleTimeout:       30 * time.Second,
-		MaxHeaderBytes:    16 << 10,
+		// Preview is a long-lived MJPEG stream; per-write deadlines live on
+		// the handler. A global WriteTimeout would detach the in-page picture.
+		WriteTimeout:   0,
+		IdleTimeout:    30 * time.Second,
+		MaxHeaderBytes: 16 << 10,
 	}
 	serveErrors := make(chan error, 1)
 	go func() { serveErrors <- server.Serve(listener) }()

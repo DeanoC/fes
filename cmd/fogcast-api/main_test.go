@@ -388,6 +388,24 @@ func (*fpgaCompositionService) Launch(context.Context, string, fogcast.ProgressF
 	}}, nil
 }
 
+type fpgaPreviewTrackingService struct {
+	fpgaCompositionService
+	status protocol.Status
+	stops  int
+}
+
+func (s *fpgaPreviewTrackingService) Status(context.Context) (protocol.Status, error) {
+	return s.status, nil
+}
+
+func (s *fpgaPreviewTrackingService) Stop(context.Context) (protocol.Status, error) {
+	s.stops++
+	return protocol.Status{State: protocol.StateIdle}, nil
+}
+
+func strPtr(value string) *string                      { return &value }
+func systemPtr(value protocol.System) *protocol.System { return &value }
+
 type compositionTargetCast struct {
 	mu               sync.Mutex
 	started          int
@@ -610,6 +628,37 @@ func TestComposeAPIFPGAMJPEGPreviewUsesCaptureInHostUIWithoutTargetCast(t *testi
 	previewRoute := serveComposition(t, handler, http.MethodGet, "/api/v1/session/preview", "")
 	if previewRoute.Code != http.StatusOK || !strings.Contains(previewRoute.Body.String(), string(fixtureJPEG)) {
 		t.Fatalf("preview route = %d %x", previewRoute.Code, previewRoute.Body.Bytes())
+	}
+}
+
+func TestComposeAPIFPGAPreviewStartFailureKeepsFPGASession(t *testing.T) {
+	service := &fpgaPreviewTrackingService{
+		status: protocol.Status{State: protocol.StateActive, GameID: strPtr("actraiser"), System: systemPtr(protocol.SystemSNES), ObservedCore: strPtr("SNES")},
+	}
+	config := fogcast.Config{Token: "test-token", Media: fogcast.MediaConfig{Enabled: true, CaptureDevice: "fixture-device", Decoder: "mjpeg"}}
+	handler, cleanup, err := composeAPI(service, config, nil,
+		withCaptureSourceFactory(func(fogcast.MediaConfig) (remotemedia.CaptureSource, error) {
+			t.Fatal("preview decoder failure must not open capture")
+			return nil, errors.New("capture device is busy")
+		}),
+		withPreviewDecoderFactory(func(context.Context) (remotemedia.ManagedDecoder, error) {
+			return nil, errors.New("ffmpeg is unavailable")
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	response := serveComposition(t, handler, http.MethodPost, "/api/v1/session/launch", `{"game_id":"actraiser"}`)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"execution":"fpga_native"`) || !strings.Contains(response.Body.String(), `"media":"failed"`) {
+		t.Fatalf("launch = %d %s", response.Code, response.Body.String())
+	}
+	if service.stops != 0 {
+		t.Fatalf("preview start failure stopped FPGA session: stops=%d", service.stops)
+	}
+	again := serveComposition(t, handler, http.MethodPost, "/api/v1/session/launch", `{"game_id":"actraiser"}`)
+	if again.Code != http.StatusOK || strings.Contains(again.Body.String(), `"code":"TARGET_UNAVAILABLE"`) {
+		t.Fatalf("second launch = %d %s", again.Code, again.Body.String())
 	}
 }
 

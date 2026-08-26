@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -216,5 +218,47 @@ func TestLocalPreviewRejectsMissingFactories(t *testing.T) {
 	}
 	if _, err := (&LocalPreview{newCapture: func() (CaptureSource, error) { return nil, errors.New("private") }, newDecoder: func(context.Context) (ManagedDecoder, error) { return nil, nil }}).Start(context.Background(), "game"); !errors.Is(err, ErrManagedReceiverStart) {
 		t.Fatalf("start error = %v", err)
+	}
+}
+
+func TestPreviewFFmpegPathUsesLookPath(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "ffmpeg")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir)
+	orig := previewFFmpegFallbacks
+	t.Cleanup(func() { previewFFmpegFallbacks = orig })
+	previewFFmpegFallbacks = nil
+	path, err := previewFFmpegPath()
+	if err != nil || path != bin {
+		t.Fatalf("path = %q err=%v want %q", path, err, bin)
+	}
+}
+
+func TestPreviewFFmpegPathFallsBackOutsideLaunchdPATH(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "ffmpeg")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", t.TempDir())
+	orig := previewFFmpegFallbacks
+	t.Cleanup(func() { previewFFmpegFallbacks = orig })
+	previewFFmpegFallbacks = []string{bin}
+	path, err := previewFFmpegPath()
+	if err != nil || path != bin {
+		t.Fatalf("path = %q err=%v want %q", path, err, bin)
+	}
+}
+
+func TestPreviewFFmpegPathUnavailable(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	orig := previewFFmpegFallbacks
+	t.Cleanup(func() { previewFFmpegFallbacks = orig })
+	previewFFmpegFallbacks = []string{filepath.Join(t.TempDir(), "missing")}
+	if _, err := previewFFmpegPath(); err == nil || !strings.Contains(err.Error(), "unavailable") {
+		t.Fatalf("error = %v", err)
 	}
 }

@@ -142,6 +142,18 @@ func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) 
 		st = *terminalStatus
 	}
 	if mediaHandle != nil && mediaState == "active" && mediaHandleDone(mediaHandle) {
+		if !mediaOwnsSession(execution) {
+			mediaErr := s.stopMediaBounded(execution)
+			result := s.publicSession(st, nil)
+			result.Execution = execution
+			result.Media = s.currentMediaState()
+			if mediaErr != nil {
+				s.record("session.media.exit_failed", result, nil)
+				return result, nil
+			}
+			s.record("session.media.exit", result, nil)
+			return result, nil
+		}
 		inputErr := s.detachInputBounded("media_exit")
 		mediaErr := s.stopMediaBounded(execution)
 		stopped, stopErr := s.stopServiceBounded()
@@ -214,9 +226,22 @@ func (s *sessionCoordinator) watchMedia(handle MediaHandle, generation uint64, e
 		s.observationMu.Lock()
 		defer s.observationMu.Unlock()
 		s.mu.Lock()
-		current := s.mediaHandle == handle && s.mediaGeneration == generation && s.mediaState == "active"
+		current := s.mediaHandle == handle && s.mediaGeneration == generation && (s.mediaState == "active" || s.mediaState == "failed")
 		s.mu.Unlock()
 		if !current {
+			return
+		}
+		if !mediaOwnsSession(execution) {
+			mediaErr := s.stopMediaBounded(execution)
+			st, _ := s.service.Status(context.Background())
+			result := s.publicSession(st, nil)
+			result.Execution = execution
+			result.Media = s.currentMediaState()
+			if mediaErr != nil {
+				s.record("session.media.exit_failed", result, nil)
+				return
+			}
+			s.record("session.media.exit", result, nil)
 			return
 		}
 		inputErr := s.detachInputBounded("media_exit")
@@ -307,17 +332,19 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 	}
 	if execution != fogcast.ExecutionHostOnly && resp.Status.State == protocol.StateActive {
 		if err := s.startMedia(ctx, id, execution); err != nil {
-			mediaErr := s.stopMediaBounded(execution)
-			_, stopErr := s.stopServiceBounded()
-			if mediaErr != nil {
-				return sessionResult{}, mediaErr
+			_ = s.stopMediaBounded(execution)
+			s.mu.Lock()
+			if s.mediaHandle == nil {
+				s.mediaState = "failed"
 			}
-			if stopErr != nil {
-				return sessionResult{}, stopErr
+			s.mu.Unlock()
+			result.Media = s.currentMediaState()
+			if result.Media == "" {
+				result.Media = "failed"
 			}
-			return sessionResult{}, err
+		} else {
+			result.Media = s.currentMediaState()
 		}
-		result.Media = s.currentMediaState()
 	}
 	if s.remoteInput != nil && execution != fogcast.ExecutionHostOnly && resp.Status.State == protocol.StateActive {
 		core := sessionCore(resp.Status)
@@ -345,6 +372,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 func (s *sessionCoordinator) stopMedia(ctx context.Context, execution string) error {
 	s.mu.Lock()
 	handle := s.mediaHandle
+	state := s.mediaState
 	s.mu.Unlock()
 	if handle == nil {
 		return nil
@@ -357,9 +385,14 @@ func (s *sessionCoordinator) stopMedia(ctx context.Context, execution string) er
 	defer cancel()
 	if err := handle.Stop(cleanupCtx); err != nil {
 		s.mu.Lock()
-		s.mediaState = "active"
+		if state == "" {
+			s.mediaState = "active"
+		} else {
+			s.mediaState = state
+		}
+		state = s.mediaState
 		s.mu.Unlock()
-		s.record("session.media.stop_failed", sessionResult{State: protocol.StateActive, Execution: execution, Media: "active"}, nil)
+		s.record("session.media.stop_failed", sessionResult{State: protocol.StateActive, Execution: execution, Media: state}, nil)
 		return &protocol.APIError{Code: protocol.CodeInternal, Message: "media session could not be stopped"}
 	}
 	s.mu.Lock()
@@ -377,7 +410,7 @@ func (s *sessionCoordinator) startMedia(ctx context.Context, id, execution strin
 	handle, err := s.media.Start(ctx, id)
 	if err != nil {
 		media := "failed"
-		if handle != nil {
+		if handle != nil && mediaOwnsSession(execution) {
 			s.mu.Lock()
 			s.execution = execution
 			s.mediaHandle = handle
@@ -387,6 +420,19 @@ func (s *sessionCoordinator) startMedia(ctx context.Context, id, execution strin
 			s.mu.Unlock()
 			s.watchMedia(handle, generation, execution)
 			media = "active"
+		} else {
+			s.mu.Lock()
+			var generation uint64
+			if handle != nil {
+				s.mediaHandle = handle
+				s.mediaGeneration++
+				generation = s.mediaGeneration
+			}
+			s.mediaState = "failed"
+			s.mu.Unlock()
+			if handle != nil {
+				s.watchMedia(handle, generation, execution)
+			}
 		}
 		s.record("session.media.failed", sessionResult{State: protocol.StateIdle, Execution: execution, Media: media}, nil)
 		return err
@@ -434,6 +480,7 @@ func (s *sessionCoordinator) stop(ctx context.Context) (sessionResult, error) {
 	s.mu.Lock()
 	hadMedia := s.mediaHandle != nil
 	execution := s.execution
+	failedWithoutHandle := !hadMedia && s.mediaState == "failed"
 	s.mu.Unlock()
 	var mediaErr error
 	if hadMedia {
@@ -451,6 +498,14 @@ func (s *sessionCoordinator) stop(ctx context.Context) (sessionResult, error) {
 	}
 	result := s.publicSession(st, nil)
 	if hadMedia {
+		result.Execution = execution
+		result.Media = "stopped"
+	} else if failedWithoutHandle {
+		s.mu.Lock()
+		if s.mediaHandle == nil && s.mediaState == "failed" {
+			s.mediaState = "stopped"
+		}
+		s.mu.Unlock()
 		result.Execution = execution
 		result.Media = "stopped"
 	}
@@ -633,6 +688,10 @@ func mediaState(handle MediaHandle) string {
 		return "inactive"
 	}
 	return "active"
+}
+
+func mediaOwnsSession(execution string) bool {
+	return execution == fogcast.ExecutionHostOnly
 }
 
 func publicEvents(events []sessionEvent) []sessionEvent {
