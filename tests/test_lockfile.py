@@ -11,7 +11,7 @@ from scripts import lockfile
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_COMMITS = {
     "yosys": "13b43f8c85ec430a33ee55d058fb4c32b42b6910",
-    "mistral": "d509238a203aadbb76291ab06543a401df91cf54",
+    "mistral": "bfa096c1deac6180a3eee784693c28dac491ab18",
     "nextpnr": "7d4f72c0aabc15da932748a54e82a6ff7b41921e",
     "verilator": "5e4151e3e0c8ecf11d9845a93495f37a31b2f667",
     "openfpgaloader": "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86",
@@ -85,6 +85,22 @@ class LockfileTests(unittest.TestCase):
     def test_mistral_precedes_nextpnr(self):
         lock = lockfile.load_lock(ROOT / "toolchain.lock")
         self.assertLess(lock["mistral"].order, lock["nextpnr"].order)
+
+    def test_yosys_pin_documents_its_cmake_build_surface(self):
+        lock = lockfile.load_lock(ROOT / "toolchain.lock")
+        self.assertIn("CMake", lock["yosys"].rationale)
+
+    def test_mistral_pin_documents_nextpnr_compatibility_revision(self):
+        lock = lockfile.load_lock(ROOT / "toolchain.lock")
+        self.assertEqual(
+            lock["mistral"].commit,
+            "bfa096c1deac6180a3eee784693c28dac491ab18",
+        )
+        self.assertIn("nextpnr", lock["mistral"].rationale)
+
+    def test_mistral_pin_includes_its_array_header_fix(self):
+        lock = lockfile.load_lock(ROOT / "toolchain.lock")
+        self.assertIn("array", lock["mistral"].rationale)
 
     def test_get_prints_only_requested_commit(self):
         result = subprocess.run(

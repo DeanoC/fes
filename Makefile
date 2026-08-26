@@ -27,9 +27,15 @@ define require_exp
 	fi
 endef
 
-.PHONY: toolchain doctor sim oss oracle compare program clean
+.PHONY: toolchain toolchain-check doctor sim oss oracle compare program clean
 
-toolchain doctor:
+toolchain:
+	@scripts/bootstrap.sh
+
+toolchain-check:
+	@scripts/bootstrap.sh --check-prereqs
+
+doctor:
 	@printf 'target not implemented in this task\n' >&2
 	@exit 2
 

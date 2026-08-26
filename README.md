@@ -17,10 +17,30 @@ silently installed. No build target programs hardware automatically. M1
 programming is volatile only: it does not write flash, HPS storage, or an SD
 card.
 
+Bootstrap is repository-local and idempotent. Check ordinary host prerequisites
+without changing the machine, inspect the lock-derived plan, then build the
+five pinned tools:
+
+```text
+make toolchain-check
+scripts/bootstrap.sh --print-plan
+make toolchain
+source scripts/env.sh
+```
+
+`build/toolchain/src/` contains detached exact-commit checkouts,
+`build/toolchain/build/` contains build logs and identity stamps, and
+`build/toolchain/install/` contains the shared local prefix. A dirty or
+mismatched checkout stops with instructions for a manual, reviewable fix; the
+bootstrap never resets or deletes source trees. `scripts/env.sh` prepends only
+the local `install/bin` directory and adds local library/pkg-config paths. It
+does not search for Quartus.
+
 The public interface is:
 
 ```text
 make toolchain
+make toolchain-check
 make doctor
 make sim EXP=010_blinky
 make oss EXP=010_blinky
