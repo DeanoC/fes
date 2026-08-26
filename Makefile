@@ -3,6 +3,19 @@
 EXP ?= 010_blinky
 BUILD ?= oss
 PYTHON ?= python3
+PROGRAM_TRANSPORT ?= mister
+MISTER_HOST ?=
+MISTER_USER ?=
+PROGRAMMER ?=
+PROGRAM_SSH ?=
+PROGRAM_SCP ?=
+PROGRAM_CABLE ?=
+PROGRAM_DRY_RUN ?=
+
+# Pass operator-selected programming settings through the environment.  This
+# avoids interpolating host/user values into a shell command; program.py does
+# the strict validation before creating any subprocess.
+export EXP BUILD PROGRAM_TRANSPORT MISTER_HOST MISTER_USER PROGRAMMER PROGRAM_SSH PROGRAM_SCP PROGRAM_CABLE PROGRAM_DRY_RUN
 
 help:
 	@printf '%s\n' \
@@ -16,10 +29,12 @@ help:
 		"  oss        Build an experiment with the open-source FPGA lane" \
 		"  oracle     Build an experiment with the explicit Quartus oracle lane" \
 		"  compare    Compare OSS and oracle build results" \
-		"  program    Program one volatile OSS artifact explicitly" \
+		"  program    Load one artifact volatile-only (mister default; jtag optional)" \
 		"  clean      Remove generated output for an experiment" \
 		"" \
-		"Variables: EXP=$(EXP) BUILD=$(BUILD) PYTHON=$(PYTHON)"
+		"Variables: EXP=$(EXP) BUILD=$(BUILD) PYTHON=$(PYTHON)" \
+		"  PROGRAM_TRANSPORT=$(PROGRAM_TRANSPORT) MISTER_HOST/MISTER_USER required for mister" \
+		"  PROGRAMMER/PROGRAM_SSH/PROGRAM_SCP/PROGRAM_CABLE and PROGRAM_DRY_RUN=1 are optional"
 
 define require_exp
 	@if ! printf '%s\n' '$(EXP)' | grep -Eq '^[0-9][0-9][0-9]_[a-z0-9_]+$$'; then \
@@ -66,7 +81,10 @@ compare:
 		--oracle-manifest "build/oracle/$(EXP)/manifest.json" \
 		--output-dir "build/compare/$(EXP)"
 
-program clean:
+program:
+	@$(PYTHON) scripts/program.py
+
+clean:
 	$(require_exp)
 	@printf 'target not implemented in this task\n' >&2
 	@exit 2
