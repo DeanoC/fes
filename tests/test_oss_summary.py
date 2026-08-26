@@ -93,6 +93,7 @@ class OssSummaryTests(unittest.TestCase):
         rbf_digest = hashlib.sha256(rbf).hexdigest()
         return {
             "lane": "oss",
+            "experiment": "010_blinky",
             "target": "5CSEBA6U23I7",
             "sources": [{"path": path, "sha256": digest} for path, digest in sorted(SOURCE_HASHES.items())],
             "tool_pins": {
@@ -191,6 +192,25 @@ class OssSummaryTests(unittest.TestCase):
         self.assertTrue(output.exists())
         self.assertEqual(json.loads(output.read_text(encoding="utf-8"))["hard_block_status"], "fail")
 
+    def test_known_mistral_dsp_primitives_are_forbidden(self) -> None:
+        timing = {
+            "fmax": {"FPGA_CLK1_50_MISTRAL": {"constraint": 50, "achieved": 234.5}},
+            "utilization": {
+                "MISTRAL_COMB": {"used": 28, "available": 83820},
+                "MISTRAL_MUL9X9": {"used": 1, "available": 8},
+                "MISTRAL_MUL18X18": {"used": 0, "available": 4},
+                "MISTRAL_MUL27X27": {"used": 0, "available": 2},
+            },
+        }
+        result, output = self._run_summary(timing, "Info: Program finished normally.\n")
+        self.assertNotEqual(result.returncode, 0)
+        summary = json.loads(output.read_text(encoding="utf-8"))
+        for name in ("MISTRAL_MUL9X9", "MISTRAL_MUL18X18", "MISTRAL_MUL27X27"):
+            self.assertEqual(summary["resource_classes"][name], "forbidden")
+            self.assertIn(name, summary["hard_blocks"])
+        self.assertEqual(summary["hard_blocks"]["MISTRAL_MUL9X9"]["used"], 1)
+        self.assertEqual(summary["hard_block_status"], "fail")
+
     def test_unknown_resource_fails_conservatively(self) -> None:
         result, output = self._run_summary(
             {
@@ -278,6 +298,24 @@ class OssSummaryTests(unittest.TestCase):
         self.assertFalse(stability["rbf_stability_measured"])
         self.assertIsNone(stability["rbf_stable"])
         self.assertIn("successful", stability["rbf_stability_reason"])
+
+    def test_mismatched_previous_experiment_does_not_claim_stability(self) -> None:
+        previous = self._valid_previous_manifest()
+        previous["experiment"] = "011_other"
+        result, output = self._run_summary(
+            {
+                "fmax": {"FPGA_CLK1_50_MISTRAL": {"constraint": 50, "achieved": 234.5}},
+                "utilization": {},
+            },
+            "Info: Program finished normally.\n",
+            previous=b"rbf-bytes\n",
+            previous_manifest=previous,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        stability = json.loads(output.read_text(encoding="utf-8"))["reproducibility"]
+        self.assertFalse(stability["rbf_stability_measured"])
+        self.assertIsNone(stability["rbf_stable"])
+        self.assertIn("experiment", stability["rbf_stability_reason"])
 
 
 if __name__ == "__main__":

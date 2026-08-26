@@ -19,6 +19,9 @@ COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 ORDINARY_RESOURCES = frozenset(
     {"MISTRAL_BUF", "MISTRAL_CLKENA", "MISTRAL_COMB", "MISTRAL_FF", "MISTRAL_IO"}
 )
+FORBIDDEN_MISTRAL_DSP_RESOURCES = frozenset(
+    {"MISTRAL_MUL9X9", "MISTRAL_MUL18X18", "MISTRAL_MUL27X27"}
+)
 FORBIDDEN_RESOURCE_MARKERS = (
     ("pll", "PLL"),
     ("phase_locked", "PLL"),
@@ -111,6 +114,8 @@ def _route_status(path: Path) -> None:
 def _resource_class(name: str) -> str:
     if name in ORDINARY_RESOURCES:
         return "ordinary"
+    if name in FORBIDDEN_MISTRAL_DSP_RESOURCES:
+        return "forbidden"
     normalized = name.lower()
     if any(marker in normalized for marker, _ in FORBIDDEN_RESOURCE_MARKERS):
         return "forbidden"
@@ -288,6 +293,10 @@ def _stability(
         if previous is not None:
             if previous.get("lane") != lane:
                 reasons.append(f"previous lane is {previous.get('lane')!r}, expected {lane!r}")
+            if previous.get("experiment") != experiment:
+                reasons.append(
+                    f"previous experiment is {previous.get('experiment')!r}, expected {experiment!r}"
+                )
             if previous.get("target") != target:
                 reasons.append(f"previous target is {previous.get('target')!r}, expected {target!r}")
 
