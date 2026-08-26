@@ -301,6 +301,13 @@ class OracleBoundaryTests(unittest.TestCase):
     def test_timequest_multiple_operating_corners_use_conservative_minimum(self):
         timing = "\n".join(
             [
+                "+------------------------------------------+",
+                "; Clocks                                   ;",
+                "+--------------+------+--------+-----------+",
+                "; Clock Name   ; Type ; Period ; Frequency ;",
+                "+--------------+------+--------+-----------+",
+                "; FPGA_CLK1_50 ; Base ; 20.000 ; 50.0 MHz  ;",
+                "+--------------+------+--------+-----------+",
                 "+----------------------------------------------------+",
                 "; Slow 1100mV 100C Model Fmax Summary                ;",
                 "+------------+-----------------+--------------+------+",

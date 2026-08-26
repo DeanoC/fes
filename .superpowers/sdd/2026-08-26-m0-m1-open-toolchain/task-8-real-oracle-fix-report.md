@@ -100,3 +100,42 @@ The parser now requires a recognized `Fitter Summary` or `Fitter Resource
 Usage Summary` section marker; positive synthetic fixtures place fitted rows in
 that structure, while exact labels outside it fail closed. `git diff --check`
 also passed after the Round 1 changes.
+
+## Fix Round 2: clock-definition header handling
+
+### RED
+
+Command:
+
+```text
+python3 -m unittest -v tests.test_oracle_boundary
+```
+
+Result: 17 tests ran with 1 expected failure. The multi-corner positive fixture
+now includes a realistic preceding clock-definition table whose header contains
+`Clock Name` but no `Restricted Fmax`; the parser incorrectly counted that
+ordinary header as malformed and returned null timing evidence.
+
+### GREEN
+
+Focused command:
+
+```text
+bash -n scripts/build_oracle.sh && python3 -m unittest -v tests.test_oracle_boundary
+```
+
+Result: 17 tests passed.
+
+Full-suite command:
+
+```text
+python3 -m unittest discover -s tests -p 'test*.py'
+```
+
+Result: 178 tests passed in 116.063s.
+
+The timing parser now ignores ordinary `Clock Name`-only table headers while
+retaining fail-closed malformed-header detection for every row containing
+`Restricted Fmax` without exactly one `Clock Name` and one `Restricted Fmax`
+column. The two genuine Fmax summary tables continue to reduce to the
+conservative 321.34 MHz result. `git diff --check` passed.

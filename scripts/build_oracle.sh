@@ -723,7 +723,7 @@ for line_number, line in enumerate(timing_lines):
     delimiter, cells = parsed
     clock_indexes = [index for index, cell in enumerate(cells) if re.search(r"\bclock\s+name\b", cell, re.I)]
     restricted_indexes = [index for index, cell in enumerate(cells) if re.search(r"\brestricted\s+fmax\b", cell, re.I)]
-    if clock_indexes or restricted_indexes:
+    if restricted_indexes:
         if len(clock_indexes) != 1 or len(restricted_indexes) != 1:
             malformed_headers += 1
             continue
