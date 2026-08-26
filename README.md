@@ -29,7 +29,8 @@ source scripts/env.sh
 ```
 
 `build/toolchain/src/` contains detached exact-commit checkouts,
-`build/toolchain/build/` contains build logs and identity stamps, and
+`build/toolchain/build/` contains build logs, identity output, and per-commit
+SHA-256 digest stamps, and
 `build/toolchain/install/` contains the shared local prefix. A dirty or
 mismatched checkout stops with instructions for a manual, reviewable fix; the
 bootstrap never resets or deletes source trees. `scripts/env.sh` prepends only

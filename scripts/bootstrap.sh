@@ -122,25 +122,75 @@ probe_header() {
     fi
 }
 
-probe_boost_components() {
-    local source='#include <boost/program_options.hpp>
-#include <boost/thread.hpp>
-int main() {
-    boost::program_options::options_description options("probe");
-    options.add_options()("value", "value");
-    boost::thread worker([]() {});
-    worker.join();
-    return static_cast<int>(options.options().size());
-}'
-    if printf '%s\n' "$source" |
-        c++ -std=c++17 -x c++ - -Wl,--no-as-needed \
-            -lboost_program_options -lboost_iostreams -lboost_thread -pthread \
-            -o /dev/null >/dev/null 2>&1; then
-        printf '  [ok]      %-18s (program_options, iostreams, thread)\n' 'Boost components'
-    else
-        printf '  [missing] %-18s (program_options, iostreams, thread development libraries)\n' 'Boost components'
-        MISSING_HEADERS+=('Boost components')
+probe_eigen_cmake() {
+    if ! command -v cmake >/dev/null 2>&1; then
+        printf '  [missing] %-18s (cmake)\n' 'Eigen3 CMake'
+        MISSING_HEADERS+=('Eigen3 CMake')
+        return
     fi
+
+    local probe_root
+    probe_root="$(mktemp -d "${TMPDIR:-/tmp}/open-mister-eigen.XXXXXX")"
+    printf '%s\n' \
+        'cmake_minimum_required(VERSION 3.16)' \
+        'project(eigen_probe LANGUAGES CXX)' \
+        'find_package(Eigen3 REQUIRED NO_MODULE)' \
+        'add_executable(eigen_probe main.cpp)' \
+        'target_link_libraries(eigen_probe PRIVATE Eigen3::Eigen)' \
+        >"$probe_root/CMakeLists.txt"
+    printf '%s\n' \
+        '#include <Eigen/Core>' \
+        'int main() { Eigen::Vector3f value; return static_cast<int>(value.size()); }' \
+        >"$probe_root/main.cpp"
+
+    if cmake -S "$probe_root" -B "$probe_root/build" -G Ninja >/dev/null 2>&1; then
+        printf '  [ok]      %-18s (find_package(Eigen3 REQUIRED NO_MODULE))\n' 'Eigen3 CMake'
+        rm -rf -- "$probe_root"
+        return 0
+    fi
+    printf '  [missing] %-18s (find_package(Eigen3 REQUIRED NO_MODULE))\n' 'Eigen3 CMake'
+    MISSING_HEADERS+=('Eigen3 CMake')
+    rm -rf -- "$probe_root"
+    return 0
+}
+
+probe_boost_components() {
+    if ! command -v cmake >/dev/null 2>&1; then
+        printf '  [missing] %-18s (cmake)\n' 'Boost components'
+        MISSING_HEADERS+=('Boost components')
+        return
+    fi
+
+    local probe_root
+    probe_root="$(mktemp -d "${TMPDIR:-/tmp}/open-mister-boost.XXXXXX")"
+    printf '%s\n' \
+        'cmake_minimum_required(VERSION 3.16)' \
+        'project(boost_probe LANGUAGES CXX)' \
+        'find_package(Boost REQUIRED COMPONENTS program_options iostreams thread)' \
+        'add_executable(boost_probe main.cpp)' \
+        'target_link_libraries(boost_probe PRIVATE Boost::program_options Boost::iostreams Boost::thread)' \
+        >"$probe_root/CMakeLists.txt"
+    printf '%s\n' \
+        '#include <boost/iostreams/device/array.hpp>' \
+        '#include <boost/program_options.hpp>' \
+        '#include <boost/thread.hpp>' \
+        'int main() {' \
+        '    boost::program_options::options_description options("probe");' \
+        '    boost::thread worker([]() {});' \
+        '    worker.join();' \
+        '    return static_cast<int>(options.options().size());' \
+        '}' \
+        >"$probe_root/main.cpp"
+
+    if cmake -S "$probe_root" -B "$probe_root/build" -G Ninja >/dev/null 2>&1; then
+        printf '  [ok]      %-18s (find_package(Boost REQUIRED COMPONENTS program_options iostreams thread))\n' 'Boost components'
+        rm -rf -- "$probe_root"
+        return 0
+    fi
+    printf '  [missing] %-18s (find_package(Boost REQUIRED COMPONENTS program_options iostreams thread))\n' 'Boost components'
+    MISSING_HEADERS+=('Boost components')
+    rm -rf -- "$probe_root"
+    return 0
 }
 
 check_prereqs() {
@@ -154,6 +204,7 @@ check_prereqs() {
     check_command cmake cmake
     check_command ninja ninja-build
     check_command make make
+    check_command perl perl
     check_command "$PYTHON" python3
     check_command "${PYTHON_CONFIG:-${PYTHON}-config}" python3-dev
     check_command pkg-config pkg-config
@@ -166,7 +217,7 @@ check_prereqs() {
     probe_header 'Python development headers' cc c Python.h
     probe_header Boost c++ c++ boost/version.hpp
     probe_boost_components
-    probe_header Eigen3 c++ c++ Eigen/Core '' -I/usr/include/eigen3
+    probe_eigen_cmake
     probe_header libffi cc c ffi.h libffi
     probe_header readline cc c readline/readline.h readline
     probe_header Tcl cc c tcl.h tcl
@@ -185,7 +236,7 @@ check_prereqs() {
     printf '  sudo apt-get install build-essential git cmake ninja-build python3-dev '
     printf 'libboost-dev libboost-program-options-dev libboost-iostreams-dev libboost-thread-dev '
     printf 'libeigen3-dev libffi-dev libreadline-dev tcl-dev zlib1g-dev '
-    printf 'liblzma-dev libusb-1.0-0-dev libftdi1-dev pkg-config autoconf flex bison help2man\n'
+    printf 'liblzma-dev libusb-1.0-0-dev libftdi1-dev pkg-config autoconf flex bison help2man perl\n'
     return 1
 }
 
@@ -246,6 +297,22 @@ identity_binary() {
     esac
 }
 
+identity_file() {
+    printf '%s\n' "$BUILD_ROOT/$1/.identity-${COMMIT[$1]}.txt"
+}
+
+digest_file() {
+    printf '%s\n' "$BUILD_ROOT/$1/.digest-${COMMIT[$1]}.sha256"
+}
+
+binary_digest() {
+    local tool="$1"
+    local binary
+    binary="$(identity_binary "$tool")"
+    command -v sha256sum >/dev/null 2>&1 || die 'sha256sum is required for tool identity authentication'
+    sha256sum -- "$binary" | cut -d ' ' -f1
+}
+
 run_identity() {
     local tool="$1"
     local binary
@@ -257,13 +324,29 @@ run_identity() {
     esac
 }
 
-identity_check() {
+record_identity() {
     local tool="$1"
-    local identity_file="$BUILD_ROOT/$tool/.identity-${COMMIT[$tool]}.txt"
     local output
     output="$(run_identity "$tool" 2>&1)" || return 1
     [[ -n "$output" ]] || return 1
-    printf '%s\n' "$output" >"$identity_file"
+    printf '%s\n' "$output" >"$(identity_file "$tool")"
+    binary_digest "$tool" >"$(digest_file "$tool")"
+}
+
+artifact_verified() {
+    local tool="$1"
+    local expected actual
+    local digest_path
+    local output
+
+    output="$(run_identity "$tool" 2>&1)" || return 1
+    [[ -n "$output" ]] || return 1
+    digest_path="$(digest_file "$tool")"
+    [[ -f "$digest_path" ]] || return 1
+    expected="$(tr -d '[:space:]' <"$digest_path")"
+    [[ "$expected" =~ ^[0-9a-f]{64}$ ]] || return 1
+    actual="$(binary_digest "$tool")" || return 1
+    [[ "$expected" == "$actual" ]]
 }
 
 build_yosys() {
@@ -325,7 +408,7 @@ build_tool() {
     mkdir -p "$build_dir" "$INSTALL_ROOT/bin"
     checkout_pin "$tool"
 
-    if [[ -f "$stamp" ]] && identity_check "$tool"; then
+    if [[ -f "$stamp" ]] && artifact_verified "$tool"; then
         printf '==> %s already built at %s (identity verified)\n' "$tool" "${COMMIT[$tool]}"
         return 0
     fi
@@ -338,7 +421,7 @@ build_tool() {
         openfpgaloader) build_openfpgaloader ;;
         *) die "unknown tool: $tool" ;;
     esac
-    identity_check "$tool" || die "installed $tool failed its version/help identity check"
+    record_identity "$tool" || die "installed $tool failed its version/help identity check"
     printf 'commit=%s\n' "${COMMIT[$tool]}" >"$stamp"
     printf '==> %s installed; stamp %s\n' "$tool" "$stamp"
 }
