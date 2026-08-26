@@ -50,6 +50,7 @@ class ManifestTests(unittest.TestCase):
         build_root: Path = ROOT / "build",
         output: Path | None = None,
         command_log: Path | None = None,
+        build_summary: Path | None = None,
     ) -> subprocess.CompletedProcess[str]:
         output = output or self.output
         command_log = command_log or self.log
@@ -77,6 +78,8 @@ class ManifestTests(unittest.TestCase):
         ]
         if manifest is not None:
             command.extend(["--manifest", str(manifest)])
+        if build_summary is not None:
+            command.extend(["--build-summary", str(build_summary)])
         return subprocess.run(
             command,
             cwd=ROOT,
@@ -84,6 +87,26 @@ class ManifestTests(unittest.TestCase):
             text=True,
             capture_output=True,
         )
+
+    def test_manifest_records_machine_readable_build_summary(self) -> None:
+        summary = {
+            "status": "pass",
+            "route": {"status": "pass"},
+            "timing": {"clock": "FPGA_CLK1_50", "requested_mhz": 50.0, "achieved_mhz": 234.5, "status": "pass"},
+            "resources": {"MISTRAL_COMB": {"used": 28, "available": 83820, "utilization_percent": 0.0}},
+            "hard_blocks": {"MISTRAL_M10K": {"used": 0, "available": 553}},
+            "authenticated_tools": {"yosys": {"commit": "13b43f8c85ec430a33ee55d058fb4c32b42b6910", "sha256": "a" * 64}},
+            "reproducibility": {"rbf_sha256": "b" * 64, "rbf_size_bytes": 7, "rbf_stability_measured": True, "rbf_stable": True},
+        }
+        summary_path = self.output / "build-summary.json"
+        summary_path.write_text(json.dumps(summary), encoding="utf-8")
+        result = self._collect_with(build_summary=summary_path)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest = json.loads((self.output / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["schema"], 2)
+        self.assertEqual(manifest["build"], summary)
+        self.assertEqual(manifest["build"]["timing"]["requested_mhz"], 50.0)
+        self.assertTrue(manifest["build"]["reproducibility"]["rbf_stable"])
 
     def test_repeated_generation_is_byte_identical(self) -> None:
         first = self._collect()

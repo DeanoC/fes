@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import stat
 import subprocess
 import tempfile
@@ -88,6 +89,51 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("invalid EXP", result.stderr + result.stdout)
         self.assertFalse(self.marker.exists(), "invalid experiment must stop before tool execution")
+
+    def test_output_symlink_is_rejected_before_external_target_changes(self) -> None:
+        experiment = "999_symlink_guard"
+        experiment_root = ROOT / "experiments" / experiment
+        output_link = ROOT / "build" / "oss" / experiment
+        outside = self.fixture / "outside-output"
+        outside.mkdir()
+        sentinel = outside / "sentinel.txt"
+        sentinel.write_text("untouched\n", encoding="utf-8")
+        (experiment_root / "rtl").mkdir(parents=True)
+        shutil.copy2(ROOT / "experiments" / "010_blinky" / "rtl" / "top.v", experiment_root / "rtl" / "top.v")
+        output_link.symlink_to(outside, target_is_directory=True)
+        try:
+            result = self._run("--experiment", experiment)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("symlink", (result.stderr + result.stdout).lower())
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "untouched\n")
+            self.assertFalse((outside / "yosys.log").exists())
+            self.assertFalse(self.marker.exists(), "unsafe output must stop before tool execution")
+        finally:
+            output_link.unlink(missing_ok=True)
+            shutil.rmtree(experiment_root, ignore_errors=True)
+
+    def test_real_mode_rejects_external_toolchain_roots_before_invocation(self) -> None:
+        result = self._run("--experiment", "010_blinky")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("canonical", (result.stderr + result.stdout).lower())
+        self.assertFalse(self.marker.exists(), "external roots must stop before tool execution")
+
+    def test_real_mode_rejects_symlinked_toolchain_roots_before_invocation(self) -> None:
+        install_link = self.fixture / "install-link"
+        build_link = self.fixture / "build-link"
+        install_link.symlink_to(self.install, target_is_directory=True)
+        build_link.symlink_to(self.build_root, target_is_directory=True)
+        result = self._run(
+            "--experiment",
+            "010_blinky",
+            extra_env={
+                "TOOLCHAIN_INSTALL": str(install_link),
+                "TOOLCHAIN_BUILD": str(build_link),
+            },
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("canonical", (result.stderr + result.stdout).lower())
+        self.assertFalse(self.marker.exists(), "symlinked roots must stop before tool execution")
 
 
 if __name__ == "__main__":

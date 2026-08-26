@@ -248,6 +248,34 @@ def _command_log_records(
     return [records[key] for key in sorted(records)], commands
 
 
+def _build_summary_record(
+    value: Path | None,
+    *,
+    base: Path,
+    repo_root: Path,
+    build_root: Path,
+) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    candidate = _path_argument(Path(value), base=base)
+    safe = _safe_path(
+        candidate,
+        label="build summary",
+        base=base,
+        allowed_roots=(repo_root, build_root),
+        require_exists=True,
+    )
+    if safe.is_symlink() or not safe.is_file():
+        raise ManifestError(f"build summary is not a regular file: {value}")
+    try:
+        summary = json.loads(safe.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ManifestError(f"cannot read build summary {safe}: {exc}") from exc
+    if not isinstance(summary, dict):
+        raise ManifestError(f"build summary must contain a JSON object: {value}")
+    return summary
+
+
 def _timestamp() -> str:
     value = os.environ.get("SOURCE_DATE_EPOCH")
     try:
@@ -334,6 +362,7 @@ def collect_manifest(
     build_root: Path | None = None,
     commands: Sequence[str] = (),
     manifest_path: Path | None = None,
+    build_summary_path: Path | None = None,
 ) -> dict[str, Any]:
     """Collect and write one manifest, returning the JSON-compatible object."""
 
@@ -386,6 +415,12 @@ def collect_manifest(
         repo_root=repository,
         build_root=build,
     )
+    build_summary = _build_summary_record(
+        build_summary_path,
+        base=repository,
+        repo_root=repository,
+        build_root=build,
+    )
     all_commands = sorted(dict.fromkeys([*commands, *logged_commands]))
 
     manifest: dict[str, Any] = {
@@ -396,12 +431,14 @@ def collect_manifest(
         "git": _git_state(repository),
         "host": _host(),
         "lane": lane,
-        "schema": 1,
+        "schema": 2 if build_summary is not None else 1,
         "sources": sources,
         "target": target,
         "timestamp": _timestamp(),
         "tool_pins": _tool_pins(repository),
     }
+    if build_summary is not None:
+        manifest["build"] = build_summary
 
     destination = Path(manifest_path) if manifest_path is not None else output / "manifest.json"
     if not destination.is_absolute():
@@ -458,6 +495,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--artifact", "--artifact-path", dest="artifacts", action="append", type=Path, default=[])
     parser.add_argument("--command", action="append", default=[])
     parser.add_argument("--manifest", type=Path)
+    parser.add_argument("--build-summary", dest="build_summary", type=Path)
     return parser
 
 
@@ -494,6 +532,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             build_root=arguments.build_root,
             commands=arguments.command,
             manifest_path=arguments.manifest,
+            build_summary_path=arguments.build_summary,
         )
         return 0
     except ManifestError as exc:

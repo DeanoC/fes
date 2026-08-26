@@ -2,8 +2,8 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd -P)"
 PYTHON="${PYTHON:-python3}"
 EXP="${EXP:-010_blinky}"
 TOOLCHAIN_INSTALL="${TOOLCHAIN_INSTALL:-$ROOT/build/toolchain/install}"
@@ -75,20 +75,135 @@ qsf_rel="boards/de10nano/pins.qsf"
 sdc_rel="boards/de10nano/clocks.sdc"
 out_rel="build/oss/$EXP"
 out_dir="$ROOT/$out_rel"
+out_synth="$out_dir/synth.json"
+out_routed="$out_dir/routed.json"
+out_rbf="$out_dir/top.rbf"
+out_timing_json="$out_dir/timing.json"
+out_timing_txt="$out_dir/timing.txt"
+out_summary="$out_dir/build-summary.json"
+yosys_log="$out_dir/yosys.log"
+nextpnr_help_log="$out_dir/nextpnr-help.log"
+nextpnr_log="$out_dir/nextpnr.log"
+summary_log="$out_dir/summary.log"
+manifest_log="$out_dir/manifest-collect.log"
+manifest="$out_dir/manifest.json"
 run_logged="$ROOT/scripts/run_logged.sh"
 collector="$ROOT/scripts/collect_manifest.py"
 lockfile="$ROOT/scripts/lockfile.py"
+summary_tool="$ROOT/scripts/oss_summary.py"
 
 rtl="$ROOT/$rtl_rel"
 qsf="$ROOT/$qsf_rel"
 sdc="$ROOT/$sdc_rel"
 yosys="$TOOLCHAIN_INSTALL/bin/yosys"
 nextpnr="$TOOLCHAIN_INSTALL/bin/nextpnr-mistral"
+YOSYS_COMMIT=""
+YOSYS_DIGEST=""
+NEXTPNR_COMMIT=""
+NEXTPNR_DIGEST=""
+
+path_has_symlink_component() {
+    local path=$1
+    local current component
+    local -a components
+    case "$path" in
+        /*)
+            current=/
+            path=${path#/}
+            ;;
+        *)
+            current=$PWD
+            ;;
+    esac
+    IFS='/' read -r -a components <<< "$path"
+    for component in "${components[@]}"; do
+        [[ -z "$component" || "$component" == "." ]] && continue
+        if [[ "$component" == ".." ]]; then
+            current=${current%/*}
+            [[ -n "$current" ]] || current=/
+            continue
+        fi
+        if [[ "$current" == "/" ]]; then
+            current="/$component"
+        else
+            current="$current/$component"
+        fi
+        [[ -L "$current" ]] && return 0
+    done
+    return 1
+}
 
 require_file() {
     local path=$1
     [[ -f "$path" ]] || fail "missing required file: $path"
 }
+
+validate_output_tree() {
+    local build_root="$ROOT/build"
+    local existing="$out_dir"
+    local canonical_build existing_real
+
+    [[ "$out_dir" == "$build_root"/* ]] \
+        || fail "unsafe OSS output path outside $build_root: $out_dir"
+    if path_has_symlink_component "$out_dir"; then
+        fail "OSS output path contains a symlink component: $out_dir"
+    fi
+    if [[ -e "$out_dir" && ! -d "$out_dir" ]]; then
+        fail "OSS output path is not a directory: $out_dir"
+    fi
+
+    if [[ -e "$build_root" ]]; then
+        [[ -d "$build_root" ]] || fail "build root is not a directory: $build_root"
+        canonical_build="$(cd -- "$build_root" && pwd -P)"
+        [[ "$canonical_build" == "$build_root" ]] \
+            || fail "build root resolves outside repository: $build_root"
+    fi
+
+    while [[ ! -e "$existing" && ! -L "$existing" ]]; do
+        existing=$(dirname -- "$existing")
+    done
+    [[ -d "$existing" ]] || fail "OSS output parent is not a directory: $existing"
+    existing_real="$(cd -- "$existing" && pwd -P)"
+    if [[ -n "${canonical_build:-}" ]]; then
+        [[ "$existing_real" == "$canonical_build" || "$existing_real" == "$canonical_build"/* ]] \
+            || fail "OSS output resolves outside repository build root: $out_dir"
+    else
+        [[ "$existing_real" == "$ROOT" || "$existing_real" == "$ROOT"/* ]] \
+            || fail "OSS output resolves outside repository: $out_dir"
+    fi
+
+    local output_leaf
+    for output_leaf in "$out_synth" "$out_routed" "$out_rbf" "$out_timing_json" \
+        "$out_timing_txt" "$yosys_log" "$nextpnr_help_log" "$nextpnr_log" \
+        "$out_summary" "$summary_log" "$manifest_log" "$manifest"; do
+        [[ ! -L "$output_leaf" ]] \
+            || fail "OSS output file is a symlink: $output_leaf"
+    done
+}
+
+validate_real_toolchain_roots() {
+    local expected_install="$ROOT/build/toolchain/install"
+    local expected_build="$ROOT/build/toolchain/build"
+    [[ "$TOOLCHAIN_INSTALL" == "$expected_install" ]] \
+        || fail "real OSS builds require canonical toolchain install root: $expected_install"
+    [[ "$TOOLCHAIN_BUILD" == "$expected_build" ]] \
+        || fail "real OSS builds require canonical toolchain build root: $expected_build"
+    local root
+    for root in "$expected_install" "$expected_build"; do
+        if path_has_symlink_component "$root"; then
+            fail "toolchain root contains a symlink component: $root"
+        fi
+        if [[ -e "$root" && ! -d "$root" ]]; then
+            fail "toolchain root is not a directory: $root"
+        fi
+    done
+}
+
+validate_output_tree
+
+if (( ! PRINT_COMMANDS )); then
+    validate_real_toolchain_roots
+fi
 
 require_file "$rtl"
 require_file "$qsf"
@@ -96,17 +211,7 @@ require_file "$sdc"
 require_file "$run_logged"
 require_file "$collector"
 require_file "$lockfile"
-
-out_synth="$out_dir/synth.json"
-out_routed="$out_dir/routed.json"
-out_rbf="$out_dir/top.rbf"
-out_timing_json="$out_dir/timing.json"
-out_timing_txt="$out_dir/timing.txt"
-yosys_log="$out_dir/yosys.log"
-nextpnr_help_log="$out_dir/nextpnr-help.log"
-nextpnr_log="$out_dir/nextpnr.log"
-manifest_log="$out_dir/manifest-collect.log"
-manifest="$out_dir/manifest.json"
+require_file "$summary_tool"
 
 yosys_program="read_verilog $rtl_rel; synth_intel_alm -nobram -nolutram -nodsp -top top; cd top; rename LED \\LED[0]; stat; write_json $out_rel/synth.json"
 yosys_cmd=("$yosys" -p "$yosys_program")
@@ -166,6 +271,13 @@ authenticate_tool() {
     actual="${actual%% *}"
     [[ "$actual" == "$expected" ]] \
         || fail "binary digest does not match lock evidence: $binary"
+    if [[ "$tool_name" == "yosys" ]]; then
+        YOSYS_COMMIT=$commit
+        YOSYS_DIGEST=$actual
+    elif [[ "$tool_name" == "nextpnr-mistral" ]]; then
+        NEXTPNR_COMMIT=$commit
+        NEXTPNR_DIGEST=$actual
+    fi
 }
 
 authenticate_tool yosys yosys
@@ -173,11 +285,18 @@ authenticate_tool nextpnr nextpnr-mistral
 
 mkdir -p -- "$out_dir"
 
+previous_rbf_sha256=""
+if [[ -s "$out_rbf" ]]; then
+    previous_rbf_sha256="$(sha256sum -- "$out_rbf")"
+    previous_rbf_sha256="${previous_rbf_sha256%% *}"
+fi
+
 : > "$out_synth"
 : > "$out_routed"
 : > "$out_rbf"
 : > "$out_timing_json"
 : > "$out_timing_txt"
+: > "$out_summary"
 
 "$run_logged" "$yosys_log" "${yosys_cmd[@]}"
 [[ -s "$out_synth" ]] || fail "synthesis did not produce a nonempty JSON design: $out_synth"
@@ -199,31 +318,24 @@ done
 [[ -s "$out_rbf" ]] || fail "place-and-route did not produce a nonempty RBF: $out_rbf"
 [[ -s "$out_timing_json" ]] || fail "place-and-route did not produce a nonempty timing report: $out_timing_json"
 
-timing_pass=0
-rbf_size=$(wc -c < "$out_rbf")
-rbf_hash=$(sha256sum -- "$out_rbf")
-rbf_hash=${rbf_hash%% *}
-{
-    printf 'target: %s\n' "$TARGET"
-    printf 'constraint: 50 MHz (20.000 ns)\n'
-    printf 'rbf_size_bytes: %s\n' "$rbf_size"
-    printf 'rbf_sha256: %s\n' "$rbf_hash"
-    while IFS= read -r route_line; do
-        route_lower=${route_line,,}
-        if [[ "$route_lower" == *unrouted* ]]; then
-            fail "unrouted marker found in route log: $nextpnr_log"
-        fi
-        if [[ "$route_line" == *"PASS at 50.00 MHz"* || "$route_line" == *"PASS at 50 MHz"* ]]; then
-            timing_pass=1
-        fi
-        case "$route_line" in
-            *"Max frequency"*|*"MISTRAL_"*|*"Critical path"*|*"Slack"*)
-                printf '%s\n' "$route_line"
-                ;;
-        esac
-    done < "$nextpnr_log"
-} > "$out_timing_txt"
-(( timing_pass == 1 )) || fail "50 MHz timing requirement was not met; see $nextpnr_log"
+summary_cmd=(
+    "$PYTHON" "$summary_tool"
+    --timing-json "$out_timing_json"
+    --route-log "$nextpnr_log"
+    --rbf "$out_rbf"
+    --requested-mhz 50
+    --clock-prefix FPGA_CLK1_50
+    --output "$out_summary"
+    --timing-output "$out_timing_txt"
+    --target "$TARGET"
+    --authenticated-tool "yosys=$YOSYS_COMMIT:$YOSYS_DIGEST"
+    --authenticated-tool "nextpnr-mistral=$NEXTPNR_COMMIT:$NEXTPNR_DIGEST"
+)
+if [[ -n "$previous_rbf_sha256" ]]; then
+    summary_cmd+=(--previous-rbf-sha256 "$previous_rbf_sha256")
+fi
+"$run_logged" "$summary_log" "${summary_cmd[@]}"
+[[ -s "$out_summary" ]] || fail "build summary was not produced: $out_summary"
 [[ -s "$out_timing_txt" ]] || fail "timing summary is empty: $out_timing_txt"
 
 manifest_cmd=(
@@ -240,15 +352,19 @@ manifest_cmd=(
     --source "$ROOT/scripts/build_oss.sh"
     --source "$run_logged"
     --source "$collector"
+    --source "$summary_tool"
     --source "$ROOT/toolchain.lock"
     --command-log "$yosys_log"
     --command-log "$nextpnr_help_log"
     --command-log "$nextpnr_log"
+    --command-log "$summary_log"
     --artifact "$out_synth"
     --artifact "$out_routed"
     --artifact "$out_rbf"
     --artifact "$out_timing_json"
     --artifact "$out_timing_txt"
+    --artifact "$out_summary"
+    --build-summary "$out_summary"
     --manifest "$manifest"
 )
 
