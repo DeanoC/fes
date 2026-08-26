@@ -71,14 +71,16 @@ openFPGALoader --board de10nano --scan-usb
 openFPGALoader --board de10nano --detect
 ```
 
-Hardware readiness accepts exactly one `--scan-usb` row for
-`usb-blasterII`/`0x09fb:0x6810` (the normalized `09fb:6810` form is also
-accepted), then requires `--board de10nano --detect` to return one JTAG-chain
-device matching the exact `5CSEBA6U23I7` alias, model `5CSE*A6`, or the pinned
-loader IDCODE `0x02d020dd` (Cyclone V SoC `5CSE*A6/5CSX*6`). A different
-IDCODE or multiple chain rows/devices is not ready. These cable and JTAG
-results are measured evidence only: JTAG identifies silicon family/IDCODE and
-does not establish the PCB, package, or pin equivalence.
+Hardware readiness accepts exactly one `--scan-usb` row whose parsed numeric
+VID/PID is `0x09fb:0x6810` (the normalized `09fb:6810` form is also accepted);
+descriptor text is not used for cable identity, so USB-Blaster III, wrong-PID,
+and suffixed descriptor rows are not ready. It then requires
+`--board de10nano --detect` to return one JTAG-chain device matching the exact
+`5CSEBA6U23I7` alias, model `5CSE*A6`, or the pinned loader IDCODE
+`0x02d020dd` (Cyclone V SoC `5CSE*A6/5CSX*6`). A different IDCODE or multiple
+chain rows/devices is not ready. These cable and JTAG results are measured
+evidence only: JTAG identifies silicon family/IDCODE and does not establish
+the PCB, package, or pin equivalence.
 
 Because the cable scan is board-agnostic, strict hardware readiness also
 requires an explicit operator attestation:

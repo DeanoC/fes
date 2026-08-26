@@ -350,10 +350,7 @@ def _parse_cable_scan(output: str, returncode: int, command: Sequence[str]) -> d
             True,
         )
     row, vendor_id, product_id = rows[0]
-    expected_cable = (
-        (vendor_id, product_id) == (0x09FB, 0x6810)
-        or re.search(r"usb[-_ ]?blasterii", row, re.I)
-    )
+    expected_cable = (vendor_id, product_id) == (0x09FB, 0x6810)
     if not expected_cable:
         return make_check(
             "Cable detection",
