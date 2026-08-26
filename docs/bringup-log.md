@@ -64,11 +64,20 @@ The pinned `nextpnr-mistral --help` accepts these exact inputs and outputs:
 
 The pinned `openFPGALoader --list-boards` contains `de10nano` with cable
 `usb-blasterII`; `--list-cables` contains the `usb-blasterII` entry at VID/PID
-`0x09fb:6810`. Its read-only discovery command is:
+`0x09fb:6810`. The board-aware, read-only discovery commands are:
 
 ```text
-openFPGALoader --detect
+openFPGALoader --board de10nano --scan-usb
+openFPGALoader --board de10nano --detect
 ```
+
+Hardware readiness accepts exactly one `--scan-usb` row for
+`usb-blasterII`/`0x09fb:6810`, then requires `--board de10nano --detect` to
+return one JTAG-chain device matching the exact `5CSEBA6U23I7` alias, model
+`5CSE*A6`, or the pinned loader IDCODE `0x02d020dd` (Cyclone V SoC
+`5CSE*A6/5CSX*6`). A different IDCODE or multiple chain rows/devices is not
+ready. A JTAG IDCODE identifies silicon family only; package/pin equivalence
+still depends on board identity.
 
 Programming syntax is `openFPGALoader --board de10nano --write-sram <top.rbf>`
 (or `--cable usb-blasterII --write-sram <top.rbf>` after an explicit cable is
@@ -78,12 +87,14 @@ HPS-storage, SD-card, or network deployment operation is part of this task.
 
 ### Current hardware result
 
-`openFPGALoader --detect` exited 1 with `JTAG init failed` because no cable was
-visible. The host `lsusb` listing contained only hubs and ordinary peripherals,
-with no Altera/Intel USB-Blaster VID `09fb` device. The available MiSTer Pi and
-SuperStation One devices have no onboard USB-Blaster, and no external
-USB-Blaster is connected, so general diagnostics report hardware as **NOT
-READY** while OSS tool/device readiness remains independently reportable.
+`openFPGALoader --board de10nano --scan-usb` found no connected cable, and
+`openFPGALoader --board de10nano --detect` exited 1 with `JTAG init failed`
+(missing USB-Blaster II firmware/no cable). The host `lsusb` listing contained
+only hubs and ordinary peripherals, with no Altera/Intel USB-Blaster VID `09fb`
+device. The available MiSTer Pi and SuperStation One devices have no onboard
+USB-Blaster, and no external USB-Blaster is connected, so general diagnostics
+report hardware as **NOT READY** while OSS tool/device readiness remains
+independently reportable.
 
 `QUARTUS_ROOTDIR` was unset for this evidence capture. Quartus was therefore
 not inspected; it remains an optional oracle dependency and is only inspected
