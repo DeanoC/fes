@@ -1,13 +1,23 @@
+import io
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
+from unittest import mock
 
 from scripts import lockfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
+EXPECTED_COMMITS = {
+    "yosys": "13b43f8c85ec430a33ee55d058fb4c32b42b6910",
+    "mistral": "d509238a203aadbb76291ab06543a401df91cf54",
+    "nextpnr": "7d4f72c0aabc15da932748a54e82a6ff7b41921e",
+    "verilator": "5e4151e3e0c8ecf11d9845a93495f37a31b2f667",
+    "openfpgaloader": "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86",
+}
 
 
 def _complete_lock(**overrides: str) -> str:
@@ -68,6 +78,12 @@ class LockfileTests(unittest.TestCase):
             self.assertRegex(pin.commit, r"^[0-9a-f]{40}$")
             self.assertTrue(pin.repo.startswith("https://github.com/"))
 
+    def test_checked_in_lock_has_approved_commits(self):
+        lock = lockfile.load_lock(ROOT / "toolchain.lock")
+        self.assertEqual(
+            {name: pin.commit for name, pin in lock.items()}, EXPECTED_COMMITS
+        )
+
     def test_mistral_precedes_nextpnr(self):
         lock = lockfile.load_lock(ROOT / "toolchain.lock")
         self.assertLess(lock["mistral"].order, lock["nextpnr"].order)
@@ -82,6 +98,32 @@ class LockfileTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, "7d4f72c0aabc15da932748a54e82a6ff7b41921e\n")
         self.assertEqual(result.stderr, "")
+
+    def test_cli_invalid_arguments_exit_two_without_traceback(self):
+        result = subprocess.run(
+            [sys.executable, "scripts/lockfile.py", "get", "unknown", "commit"],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(result.stderr, "lockfile: unknown tool: unknown\n")
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertEqual(len(result.stderr.splitlines()), 1)
+
+    def test_cli_validate_sanitizes_escaped_newline_key(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "toolchain.lock"
+            path.write_text('"bad\\nkey" = 1\n\n' + _complete_lock(), encoding="utf-8")
+            stderr = io.StringIO()
+            with mock.patch.object(lockfile, "DEFAULT_LOCK", path), redirect_stderr(stderr):
+                status = lockfile.main(["validate"])
+            message = stderr.getvalue()
+            self.assertEqual(status, 2)
+            self.assertEqual(len(message.splitlines()), 1)
+            self.assertNotIn("Traceback", message)
+            self.assertIn("bad", message)
 
     def test_symbolic_commit_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:

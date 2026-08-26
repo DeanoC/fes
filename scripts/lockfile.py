@@ -178,7 +178,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args == ["validate"]:
             errors = validate_lock(DEFAULT_LOCK)
             if errors:
-                print(f"{DEFAULT_LOCK.name}: invalid: {'; '.join(errors)}", file=sys.stderr)
+                message = _single_line("; ".join(errors))
+                print(f"{DEFAULT_LOCK.name}: invalid: {message}", file=sys.stderr)
                 return 2
             print(f"{DEFAULT_LOCK.name}: valid")
             return 0
