@@ -46,7 +46,16 @@ class OracleBoundaryTests(unittest.TestCase):
         binary.chmod(binary.stat().st_mode | stat.S_IXUSR)
         return temp, root, marker
 
-    def _quartus_real(self, version, fit_report, timing_report, *, write_outputs=True, layout="quartus"):
+    def _quartus_real(
+        self,
+        version,
+        fit_report,
+        timing_report,
+        *,
+        write_outputs=True,
+        layout="quartus",
+        version_output=None,
+    ):
         temp = tempfile.TemporaryDirectory()
         root = Path(temp.name) / "quartus-root"
         if layout == "quartus":
@@ -55,11 +64,16 @@ class OracleBoundaryTests(unittest.TestCase):
             binary = root / "bin" / "quartus_sh"
         binary.parent.mkdir(parents=True)
         marker = Path(temp.name) / "compile-marker"
+        version_output = version_output or f"Quartus Prime Version {version}"
+        version_lines = version_output.splitlines() or [""]
         lines = [
             "#!/usr/bin/env bash",
             "set -eu",
             "if [[ ${1:-} == --version ]]; then",
-            f"  printf '%s\\n' 'Quartus Prime Version {version}'",
+            *[
+                f"  printf '%s\\n' {shlex.quote(line)}"
+                for line in version_lines
+            ],
             "  exit 0",
             "fi",
             f"printf '%s\\n' compiled > {shlex.quote(str(marker))}",
@@ -261,6 +275,129 @@ class OracleBoundaryTests(unittest.TestCase):
         self.assertEqual(quartus_provenance["sha256"], quartus_provenance["executable_sha256"])
         self.assertRegex(quartus_provenance["version_output_sha256"], r"^[0-9a-f]{64}$")
         self.assertTrue(marker_seen)
+
+    def test_timequest_multiple_operating_corners_use_conservative_minimum(self):
+        timing = "\n".join(
+            [
+                "+----------------------------------------------------+",
+                "; Slow 1100mV 100C Model Fmax Summary                ;",
+                "+------------+-----------------+--------------+------+",
+                "; Fmax       ; Restricted Fmax ; Clock Name   ; Note ;",
+                "+------------+-----------------+--------------+------+",
+                "; 351.62 MHz ; 351.62 MHz      ; FPGA_CLK1_50 ;      ;",
+                "+------------+-----------------+--------------+------+",
+                "; Slow 1100mV -40C Model Fmax Summary                ;",
+                "+------------+-----------------+--------------+------+",
+                "; Fmax       ; Restricted Fmax ; Clock Name   ; Note ;",
+                "+------------+-----------------+--------------+------+",
+                "; 321.34 MHz ; 321.34 MHz      ; FPGA_CLK1_50 ;      ;",
+            ]
+        ) + "\n"
+        temp, root, marker = self._quartus_real(
+            "17.0.2", self._complete_fit_report(), timing
+        )
+        with temp:
+            result, summary, marker_seen = self._run_real(root, marker)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(summary["timing"]["achieved_mhz"], 321.34)
+        self.assertTrue(marker_seen)
+
+    def test_timequest_malformed_exact_clock_restricted_fmax_fails_closed(self):
+        timing = "\n".join(
+            [
+                "Fmax Summary",
+                "; Fmax       ; Restricted Fmax ; Clock Name   ; Note ;",
+                "; 351.62 MHz ; not-a-frequency ; FPGA_CLK1_50 ;      ;",
+            ]
+        ) + "\n"
+        temp, root, marker = self._quartus_real(
+            "17.0.2", self._complete_fit_report(), timing
+        )
+        with temp:
+            result, summary, marker_seen = self._run_real(root, marker)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIsNone(summary["timing"]["achieved_mhz"])
+        self.assertEqual(summary["timing"]["status"], "fail")
+        self.assertTrue(marker_seen)
+
+    def test_capability_prose_outside_resource_summary_is_ignored(self):
+        fit = self._complete_fit_report() + "\n".join(
+            [
+                "; Parallel Compilation ;",
+                "; Processors ; Number ;",
+                "; Number detected on machine ; 24 ;",
+                "; PLL capability ; 6 ;",
+                "; Fitter Resource Utilization by Entity ;",
+                "; mlab_entity_pin ; MLAB0 ;",
+                "; Hard processor system peripheral utilization ; ; ;",
+                ";     -- Boot from FPGA ; 0 / 1 ( 0 % ) ;",
+                "; Total MLAB memory bits ; 0 ;",
+                "; Pin Name ; FPGA_CLK1_50 ; MLAB0 ;",
+            ]
+        ) + "\n"
+        temp, root, marker = self._quartus_real(
+            "17.0.2", fit, self._fmax_report(("FPGA_CLK1_50", "100", "100"))
+        )
+        with temp:
+            result, summary, marker_seen = self._run_real(root, marker)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(summary["hard_block_status"], "pass")
+        self.assertEqual(summary["unknown_resources"], {})
+        self.assertEqual(
+            [summary["hard_blocks"][name]["used"] for name in ("PLL", "BRAM/M10K", "DSP")],
+            [0, 0, 0],
+        )
+        self.assertIsNone(summary["hard_blocks"]["MLAB/LUTRAM"]["used"])
+        self.assertIsNone(summary["hard_blocks"]["HPS"]["used"])
+        self.assertTrue(marker_seen)
+
+    def test_contradictory_physical_fitted_rows_fail_closed(self):
+        fit = self._complete_fit_report() + "\n".join(
+            [
+                "; Fitter Resource Usage Summary ;",
+                "; Total DSP Blocks ; 1 / 112 ; 1 % ;",
+            ]
+        ) + "\n"
+        temp, root, marker = self._quartus_real(
+            "17.0.2", fit, self._fmax_report(("FPGA_CLK1_50", "100", "100"))
+        )
+        with temp:
+            result, summary, marker_seen = self._run_real(root, marker)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(summary["hard_block_status"], "fail")
+        self.assertTrue(marker_seen)
+
+    def test_banner_plus_version_stores_exact_quartus_version_line(self):
+        version_line = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
+        temp, root, marker = self._quartus_real(
+            "17.0.2",
+            self._complete_fit_report(),
+            self._fmax_report(("FPGA_CLK1_50", "100", "100")),
+            version_output=(
+                "Quartus Prime Shell\n"
+                f"{version_line}\n"
+                "Copyright (C) 2017 Intel Corporation. All rights reserved."
+            ),
+        )
+        with temp:
+            result, summary, marker_seen = self._run_real(root, marker)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            summary["authenticated_tools"]["quartus_sh"]["version"], version_line
+        )
+        self.assertTrue(marker_seen)
+
+    def test_oracle_qsf_ignores_partitions_without_ignored_incremental_assignment(self):
+        qsf = (ROOT / "experiments" / "010_blinky" / "oracle" / "top.qsf").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("set_global_assignment -name IGNORE_PARTITIONS ON", qsf)
+        self.assertNotIn("INCREMENTAL_COMPILATION OFF", qsf)
 
     def test_fitter_forbidden_usage_fails_with_measured_evidence(self):
         fit = self._complete_fit_report().replace(

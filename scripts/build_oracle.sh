@@ -222,11 +222,20 @@ require_regular "$collector" "manifest collector"
 
 version_output="$("$QUARTUS_SH" --version 2>&1)" \
     || fail "Quartus oracle unavailable; could not execute $QUARTUS_SH --version"
-if ! grep -Eq '(^|[^0-9])17\.0\.2([[:space:]]|$)' <<< "$version_output"; then
-    first_version_line="${version_output%%$'\n'*}"
-    fail "Quartus oracle requires exact version 17.0.2; detected: ${first_version_line:-no version output}"
-fi
-quartus_version_line="${version_output%%$'\n'*}"
+quartus_version_line="$("$PYTHON" -c '
+import re
+import sys
+
+matches = [
+    line
+    for line in sys.argv[1].splitlines()
+    if re.search(r"(?<![0-9])17[.]0[.]2(?![0-9])", line)
+]
+if len(matches) != 1:
+    raise SystemExit(1)
+print(matches[0])
+' "$version_output")" \
+    || fail "Quartus oracle requires exactly one line containing exact version 17.0.2"
 quartus_version_sha256="$("$PYTHON" -c 'import hashlib,sys; print(hashlib.sha256(sys.argv[1].encode()).hexdigest())' "$version_output")"
 
 compile_cmd=("$QUARTUS_SH" --flow compile top)
@@ -350,7 +359,48 @@ number = r"[0-9][0-9,]*(?:\.[0-9]+)?"
 number_token = rf"(?<![A-Za-z0-9]){number}(?![A-Za-z0-9])"
 
 
+def table_cells(line: str) -> tuple[str, list[str]] | None:
+    for delimiter in ("|", ";"):
+        if delimiter in line:
+            return delimiter, [cell.strip() for cell in line.split(delimiter)]
+    return None
+
+
+def table_row(line: str) -> tuple[str, str, list[str]] | None:
+    parsed = table_cells(line)
+    if parsed is None:
+        return None
+    delimiter, cells = parsed
+    first_label = next((index for index, cell in enumerate(cells) if cell), None)
+    if first_label is None:
+        return None
+    label = re.sub(r"\s+", " ", cells[first_label]).strip()
+    label = re.sub(r"^(?:--\s*)+", "", label).strip()
+    return delimiter, label, cells[first_label + 1 :]
+
+
 def count_on_line(line: str) -> tuple[int | None, int | None]:
+    row = table_row(line)
+    if row is not None:
+        _delimiter, _label, value_cells = row
+        value_text = " | ".join(value_cells)
+        pairs = re.search(rf"({number})\s*/\s*({number})", value_text)
+        if pairs:
+            return int(float(pairs.group(1).replace(",", ""))), int(float(pairs.group(2).replace(",", "")))
+        used = re.search(rf"(?:used|utilized|usage)\D{{0,24}}({number})", value_text, re.I)
+        available = re.search(rf"(?:available|total|capacity)\D{{0,24}}({number})", value_text, re.I)
+        if used and available:
+            return int(float(used.group(1).replace(",", ""))), int(float(available.group(1).replace(",", "")))
+        values: list[str] = []
+        for cell in value_cells:
+            values.extend(re.findall(number_token, cell))
+        if len(values) >= 2:
+            return int(float(values[0].replace(",", ""))), int(float(values[1].replace(",", "")))
+        return (
+            int(float(used.group(1).replace(",", ""))) if used else None,
+            int(float(available.group(1).replace(",", ""))) if available else None,
+        )
+
     pairs = re.search(rf"({number})\s*/\s*({number})", line)
     if pairs:
         return int(float(pairs.group(1).replace(",", ""))), int(float(pairs.group(2).replace(",", "")))
@@ -358,22 +408,6 @@ def count_on_line(line: str) -> tuple[int | None, int | None]:
     available = re.search(rf"(?:available|total|capacity)\D{{0,24}}({number})", line, re.I)
     if used and available:
         return int(float(used.group(1).replace(",", ""))), int(float(available.group(1).replace(",", "")))
-    # TimeQuest/fitter tables commonly use ``| resource | used | total |``
-    # rather than a slash or words.  Skip the first non-empty label cell (it
-    # can itself contain digits, as in ``M10K``), then use the first two
-    # numeric cells and ignore a later percentage.
-    for delimiter in ("|", ";"):
-        if delimiter not in line:
-            continue
-        cells = [cell.strip() for cell in line.split(delimiter)]
-        first_label = next((index for index, cell in enumerate(cells) if cell), None)
-        if first_label is None:
-            continue
-        values: list[str] = []
-        for cell in cells[first_label + 1 :]:
-            values.extend(re.findall(number_token, cell))
-        if len(values) >= 2:
-            return int(float(values[0].replace(",", ""))), int(float(values[1].replace(",", "")))
     values = re.findall(number_token, line)
     if len(values) >= 2:
         return int(float(values[0].replace(",", ""))), int(float(values[1].replace(",", "")))
@@ -415,48 +449,88 @@ resources: dict[str, dict[str, object]] = {}
 for name, pattern in resource_patterns.items():
     resources.update(records_for(name, pattern))
 
-fitted_hard_aliases = {
-    "PLL": ("pll", "phase locked loop"),
-    "BRAM/M10K": ("m10k", "m20k", "ram block", "block memory", "bram"),
+def summary_rows(text: str) -> list[tuple[str, str, str, list[str]]]:
+    """Return rows from the two fitted-resource summary sections.
+
+    Quartus exports many capability, pin, entity, and diagnostic tables in the
+    same report.  Their labels are intentionally not evidence.  Section
+    markers are used when present; compact synthetic reports may omit them and
+    are handled by the caller with the complete set of parsed rows.
+    """
+
+    summary_names = {"fitter summary", "fitter resource usage summary"}
+    end_names = {
+        "fitter settings",
+        "parallel compilation",
+        "fitter netlist optimizations",
+        "fitter partition statistics",
+        "fitter resource utilization by entity",
+    }
+    active = False
+    rows: list[tuple[str, str, str, list[str]]] = []
+    for line in text.splitlines():
+        row = table_row(line)
+        if row is None:
+            continue
+        delimiter, label, value_cells = row
+        normalized = re.sub(r"\s+", " ", label).strip().casefold()
+        if normalized in summary_names:
+            active = True
+            continue
+        if normalized in end_names:
+            active = False
+            continue
+        if active:
+            rows.append((line, delimiter, label, value_cells))
+    return rows
+
+
+all_fit_rows = [
+    (line, row[0], row[1], row[2])
+    for line in fit_text.splitlines()
+    if (row := table_row(line)) is not None
+]
+summary_section_names = {"fitter summary", "fitter resource usage summary"}
+summary_section_present = any(
+    re.sub(r"\s+", " ", label).strip().casefold() in summary_section_names
+    for _line, _delimiter, label, _value_cells in all_fit_rows
+)
+fitted_rows = summary_rows(fit_text) if summary_section_present else all_fit_rows
+
+
+hard_row_patterns = {
+    "PLL": (
+        re.compile(r"^(?:total|fractional)\s+plls?$", re.I),
+    ),
+    "BRAM/M10K": (
+        re.compile(r"^total\s+ram\s+blocks?$", re.I),
+        re.compile(r"^(?:total\s+)?m(?:10|20)k\s+blocks?$", re.I),
+    ),
     # A multiplier row can be useful context in a Fitter report, but the
     # acceptance gate is deliberately tied to the physical DSP Blocks row.
-    "DSP": ("dsp", "digital signal processor"),
+    "DSP": (
+        re.compile(r"^total\s+dsp\s+blocks?$", re.I),
+    ),
 }
 
 
-def hard_record(name: str, aliases: tuple[str, ...]) -> tuple[dict[str, object] | None, str | None]:
-    def alias_present(text: str, alias: str) -> bool:
-        return re.search(rf"(?<![A-Za-z0-9]){re.escape(alias)}s?(?![A-Za-z0-9])", text) is not None
-
-    candidates: list[tuple[int, int, bool]] = []
-    malformed: list[bool] = []
-    if name == "BRAM/M10K":
-        preferred_aliases = ("m10k", "m20k", "ram block", "bram")
-    elif name == "DSP":
-        preferred_aliases = ("dsp", "digital signal processor")
-    else:
-        preferred_aliases = aliases
-    for line in fit_text.splitlines():
-        lowered = line.lower()
-        matching = [alias for alias in aliases if alias_present(lowered, alias)]
-        if not matching:
-            continue
-        # Quartus reports both total block-memory *bits* and physical RAM
-        # blocks.  The former is not the forbidden-block count and would make
-        # the BRAM/M10K evidence ambiguous when both rows are present.
-        if name in {"BRAM/M10K", "MLAB/LUTRAM"} and re.search(r"(?:memory|block)\s+bits?\b", lowered):
+def hard_record(
+    name: str,
+    patterns: tuple[re.Pattern[str], ...],
+) -> tuple[dict[str, object] | None, str | None]:
+    candidates: list[tuple[int, int]] = []
+    malformed = False
+    for line, _delimiter, label, _value_cells in fitted_rows:
+        if not any(pattern.fullmatch(label) for pattern in patterns):
             continue
         used, available = count_on_line(line)
         if used is None or available is None:
-            if any(character.isdigit() for character in line):
-                malformed.append(any(alias_present(lowered, alias) for alias in preferred_aliases))
-                continue
-        candidates.append((used, available, any(alias_present(lowered, alias) for alias in preferred_aliases)))
+            malformed = True
+            continue
+        candidates.append((used, available))
     if malformed:
         return None, f"{name}: fitter evidence is unrecognized"
-    if any(preferred for _used, _available, preferred in candidates):
-        candidates = [candidate for candidate in candidates if candidate[2]]
-    unique = sorted(set((used, available) for used, available, _preferred in candidates))
+    unique = sorted(set(candidates))
     if not unique:
         return None, f"{name}: fitter evidence is missing"
     if len(unique) != 1:
@@ -475,8 +549,8 @@ def sha256_file(path: Path) -> str:
 
 hard_blocks: dict[str, dict[str, object]] = {}
 hard_errors: list[str] = []
-for name, aliases in fitted_hard_aliases.items():
-    record, error = hard_record(name, aliases)
+for name, patterns in hard_row_patterns.items():
+    record, error = hard_record(name, patterns)
     if record is not None:
         record["evidence_kind"] = "fitter_summary"
         record["measured"] = True
@@ -492,8 +566,9 @@ def static_exclusion(
 ) -> tuple[dict[str, object], str | None]:
     def excluded_record(source_records: list[dict[str, str]]) -> dict[str, object]:
         return {
-            # No fitted count exists for these classes in the normal Cyclone V
-            # summary.  Keep that fact distinct from a measured zero.
+            # No aggregate fitted class count exists for these classes in the
+            # normal Cyclone V summary.  Keep that fact distinct from a
+            # measured zero even when capability rows are present.
             "used": None,
             "available": None,
             "status": "excluded",
@@ -506,16 +581,15 @@ def static_exclusion(
             },
         }
 
-    # A normal Cyclone V Fitter Resource Summary does not provide measured
-    # MLAB/LUTRAM or HPS rows.  These classes therefore use a separate,
+    # A normal Cyclone V Fitter Resource Summary can contain MLAB memory-bit
+    # and HPS peripheral-capability rows, but it does not provide an aggregate
+    # measured class count.  These classes therefore use a separate,
     # explicitly labelled source/project exclusion contract.  If a report
-    # does contain a physical-count row, do not silently reinterpret it as a
-    # static zero: the evidence is contradictory and fails closed.
-    for line in fit_text.splitlines():
-        if report_pattern.search(line) is None:
-            continue
-        lowered = line.lower()
-        if re.search(r"(?:memory|block)\s+bits?\b", lowered):
+    # does contain an aggregate physical-count row, do not silently
+    # reinterpret it as a static zero: the evidence is contradictory and
+    # fails closed.
+    for line, _delimiter, label, _value_cells in fitted_rows:
+        if report_pattern.fullmatch(label) is None:
             continue
         used, available = count_on_line(line)
         if used is not None or available is not None:
@@ -540,7 +614,7 @@ def static_exclusion(
 
 static_hard_contracts = {
     "MLAB/LUTRAM": (
-        re.compile(r"\b(?:mlab|lutram)(?:s)?\b", re.I),
+        re.compile(r"^(?:total\s+)?mlabs?$|^(?:total\s+)?mlab/lutram\s+blocks?$", re.I),
         (
             r"\bmlab(?:s)?\b",
             r"\blutram\b",
@@ -549,7 +623,7 @@ static_hard_contracts = {
         ),
     ),
     "HPS": (
-        re.compile(r"\b(?:hps|hard\s+processor\s+system|arm\s+processor)\b", re.I),
+        re.compile(r"^(?:total\s+)?(?:hps|hard\s+processor\s+system)\s+blocks?$", re.I),
         (
             r"\bhps\b",
             r"\bhard[_ ]processor",
@@ -569,21 +643,62 @@ for name, (report_pattern, source_patterns) in static_hard_contracts.items():
 # aliases above.  This is deliberately an error rather than silently calling
 # an unrecognized hard block zero.
 unknown_resources: dict[str, dict[str, object]] = {}
-known_aliases = tuple(alias for aliases in fitted_hard_aliases.values() for alias in aliases)
+all_known_hard_patterns = tuple(
+    pattern for patterns in hard_row_patterns.values() for pattern in patterns
+)
+all_static_hard_patterns = tuple(
+    value[0] for value in static_hard_contracts.values()
+)
 # ``9x9 multipliers`` is a normal companion row in some Quartus reports.  It
 # is not itself the direct DSP gate, but it is recognized context when the
 # required DSP Blocks row is also present.
-known_context_aliases = ("multiplier",)
-unknown_markers = ("ram block", "embedded memory", "hard block", "processor", "multiplier")
-for line in fit_text.splitlines():
-    lowered = line.lower()
+known_context_patterns = (
+    re.compile(r"^(?:total\s+)?(?:[0-9]+x[0-9]+\s+)?multipliers?$", re.I),
+)
+unknown_markers = (
+    "ram block",
+    "embedded memory",
+    "hard block",
+    "processor",
+    "multiplier",
+    "pll",
+    "dsp",
+    "m10k",
+    "m20k",
+    "bram",
+    "mlab",
+    "lutram",
+)
+ignored_prose = ("capability", "peripheral", "entity", "pin", "compilation", "diagnostic")
+for line, _delimiter, label, _value_cells in fitted_rows:
+    lowered = label.casefold()
     if not any(marker in lowered for marker in unknown_markers):
         continue
-    if any(alias in lowered for alias in (*known_aliases, *known_context_aliases)):
+    # MLAB memory bits and block-memory bits are capacity/bit totals, not
+    # aggregate physical MLAB/LUTRAM fitted counts.
+    if re.search(r"(?:memory|block)\s+bits?\b", lowered):
         continue
-    if any(character.isdigit() for character in line):
+    if any(pattern.fullmatch(label) for pattern in (*all_known_hard_patterns, *all_static_hard_patterns, *known_context_patterns)):
+        continue
+    if any(word in lowered for word in ignored_prose):
+        continue
+    # CPU scheduling diagnostics contain ``processor`` but are not fitted
+    # physical resources.  A physical HPS aggregate is handled by the static
+    # exclusion contract above.
+    if "processor" in lowered and not re.search(r"\bhps\b|hard\s+processor\s+system", lowered):
+        continue
+    if not re.search(r"\b(?:total|blocks?|ram|m10k|m20k|bram|dsp|plls?|resources?|units?|count|usage)\b", lowered):
+        continue
+    used, available = count_on_line(line)
+    if used is None and available is None:
+        # A malformed aggregate row is still evidence that must not be
+        # silently ignored, while one-field capability/prose rows were
+        # filtered above.
         key = "unrecognized:" + line.strip()[:80]
         unknown_resources[key] = {"evidence": line.strip()}
+        continue
+    key = "unrecognized:" + line.strip()[:80]
+    unknown_resources[key] = {"evidence": line.strip()}
 if unknown_resources:
     hard_errors.append("unrecognized hard-resource evidence: " + ", ".join(sorted(unknown_resources)))
 
@@ -593,48 +708,59 @@ hard_block_reason = "; ".join(hard_errors) if hard_errors else "fitter summary r
 clock_name = "FPGA_CLK1_50"
 
 
-def table_cells(line: str) -> tuple[str, list[str]] | None:
-    for delimiter in ("|", ";"):
-        if delimiter in line:
-            return delimiter, [cell.strip() for cell in line.split(delimiter)]
-    return None
-
-
 def fmax_values(cell: str) -> list[float]:
     return [float(value.replace(",", "")) for value in re.findall(rf"({number})\s*mhz", cell, re.I)]
 
 
-headers: list[tuple[str, int, int]] = []
-for line in timing_text.splitlines():
+timing_lines = timing_text.splitlines()
+headers: list[tuple[int, str, int, int]] = []
+malformed_headers = 0
+for line_number, line in enumerate(timing_lines):
     parsed = table_cells(line)
     if parsed is None:
         continue
     delimiter, cells = parsed
     clock_indexes = [index for index, cell in enumerate(cells) if re.search(r"\bclock\s+name\b", cell, re.I)]
     restricted_indexes = [index for index, cell in enumerate(cells) if re.search(r"\brestricted\s+fmax\b", cell, re.I)]
-    if len(clock_indexes) == 1 and len(restricted_indexes) == 1:
-        headers.append((delimiter, clock_indexes[0], restricted_indexes[0]))
+    if clock_indexes or restricted_indexes:
+        if len(clock_indexes) != 1 or len(restricted_indexes) != 1:
+            malformed_headers += 1
+            continue
+        headers.append((line_number, delimiter, clock_indexes[0], restricted_indexes[0]))
 
 restricted_candidates: list[float] = []
-invalid_restricted_rows = 0
-for delimiter, clock_index, restricted_index in headers:
-    for line in timing_text.splitlines():
-        parsed = table_cells(line)
-        if parsed is None or parsed[0] != delimiter:
-            continue
+invalid_timing_tables = 0
+for header_number, delimiter, clock_index, restricted_index in headers:
+    target_rows: list[list[str]] = []
+    line_number = header_number + 1
+    while line_number < len(timing_lines):
+        parsed = table_cells(timing_lines[line_number])
+        if parsed is None:
+            if re.fullmatch(r"[+\-= ]+", timing_lines[line_number].strip()):
+                line_number += 1
+                continue
+            break
+        if parsed[0] != delimiter:
+            break
         cells = parsed[1]
-        if max(clock_index, restricted_index) >= len(cells):
-            continue
-        if not re.fullmatch(rf"{re.escape(clock_name)}", cells[clock_index], re.I):
-            continue
-        values = fmax_values(cells[restricted_index])
-        if len(values) != 1:
-            invalid_restricted_rows += 1
-            continue
-        restricted_candidates.append(values[0])
+        if any(re.search(r"\bclock\s+name\b", cell, re.I) for cell in cells):
+            break
+        if max(clock_index, restricted_index) < len(cells):
+            if re.fullmatch(rf"{re.escape(clock_name)}", cells[clock_index], re.I):
+                target_rows.append(cells)
+        line_number += 1
+    if len(target_rows) != 1:
+        invalid_timing_tables += 1
+        continue
+    cells = target_rows[0]
+    values = fmax_values(cells[restricted_index])
+    if len(values) != 1:
+        invalid_timing_tables += 1
+        continue
+    restricted_candidates.append(values[0])
 
-if len(restricted_candidates) == 1 and invalid_restricted_rows == 0:
-    achieved = restricted_candidates[0]
+if headers and malformed_headers == 0 and invalid_timing_tables == 0 and restricted_candidates:
+    achieved = min(restricted_candidates)
 else:
     achieved = None
 timing_status = achieved is not None and achieved >= 50.0
