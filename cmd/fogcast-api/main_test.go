@@ -23,6 +23,15 @@ import (
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
+func serveComposition(t *testing.T, handler http.Handler, method, path, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	request := httptest.NewRequest(method, path, strings.NewReader(body))
+	request.Host = "127.0.0.1"
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	return response
+}
+
 func TestRunRejectsNonLoopbackListenAddress(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := run(context.Background(), []string{"--listen", "0.0.0.0:8787"}, &stdout, &stderr, nil)
@@ -266,6 +275,50 @@ type compositionCapture struct {
 	closeErrs []error
 }
 
+type compositionPreviewCapture struct {
+	started chan struct{}
+	closed  chan struct{}
+	samples chan remotemedia.EncodedSample
+	once    sync.Once
+}
+
+func (c *compositionPreviewCapture) Start() error { c.once.Do(func() { close(c.started) }); return nil }
+func (c *compositionPreviewCapture) Next(ctx context.Context) (remotemedia.EncodedSample, error) {
+	select {
+	case sample := <-c.samples:
+		return sample, nil
+	case <-ctx.Done():
+		return remotemedia.EncodedSample{}, ctx.Err()
+	case <-c.closed:
+		return remotemedia.EncodedSample{}, context.Canceled
+	}
+}
+func (*compositionPreviewCapture) Stats() remotemedia.CaptureStats { return remotemedia.CaptureStats{} }
+func (c *compositionPreviewCapture) Close() error {
+	select {
+	case <-c.closed:
+	default:
+		close(c.closed)
+	}
+	return nil
+}
+
+type compositionPreviewDecoder struct {
+	started int
+	done    chan struct{}
+	writes  chan []byte
+	once    sync.Once
+}
+
+func (d *compositionPreviewDecoder) Start() error { d.started++; return nil }
+func (d *compositionPreviewDecoder) Write(p []byte) (int, error) {
+	d.writes <- append([]byte(nil), p...)
+	return len(p), nil
+}
+func (d *compositionPreviewDecoder) Close() error { d.once.Do(func() { close(d.done) }); return nil }
+func (d *compositionPreviewDecoder) Wait() error  { <-d.done; return nil }
+func (d *compositionPreviewDecoder) Kill() error  { d.once.Do(func() { close(d.done) }); return nil }
+
 func (*compositionCapture) Start() error { return nil }
 func (*compositionCapture) Next(context.Context) (remotemedia.EncodedSample, error) {
 	return remotemedia.EncodedSample{}, context.Canceled
@@ -322,6 +375,17 @@ type hostOnlyCompositionService struct{ compositionService }
 
 func (*hostOnlyCompositionService) SessionExecution(context.Context, string) (string, error) {
 	return "host_only", nil
+}
+
+type fpgaCompositionService struct{ compositionService }
+
+func (*fpgaCompositionService) Launch(context.Context, string, fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error) {
+	gameID := "actraiser"
+	system := protocol.SystemSNES
+	core := "SNES"
+	return protocol.CachedLaunchResponse{Status: protocol.Status{
+		State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core,
+	}}, nil
 }
 
 type compositionTargetCast struct {
@@ -457,6 +521,114 @@ func TestComposeAPIStartsAndStopsTargetCastWithHostMedia(t *testing.T) {
 	}
 	if err := cleanup(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestComposeAPIFPGALocalPlaybackUsesFFPlayReceiverWithoutTargetCast(t *testing.T) {
+	target := &compositionTargetCast{}
+	capture := &compositionCapture{}
+	config := fogcast.Config{Token: "test-token", Media: fogcast.MediaConfig{
+		Enabled: true, Session: "fixture-session", Generation: 3, SSRC: 7,
+		RTPListen: "127.0.0.1:5000", RTPDestination: "127.0.0.1:5000",
+		CaptureDevice: "fixture-device", Decoder: "ffplay",
+	}}
+	handler, cleanup, err := composeAPI(&fpgaCompositionService{}, config, nil,
+		withTargetCast(target),
+		withCaptureSourceFactory(func(fogcast.MediaConfig) (remotemedia.CaptureSource, error) { return capture, nil }),
+		withManagedReceiverOptions(
+			remotemedia.WithManagedReceiverBind(func(string, *net.UDPAddr) (remotemedia.ManagedPacketConn, error) {
+				return &compositionPacketConn{closed: make(chan struct{})}, nil
+			}),
+			remotemedia.WithManagedReceiverFactory(func(remotemedia.ReceiverConfig) (remotemedia.ManagedReceiverTransport, error) {
+				return &compositionTransport{}, nil
+			}),
+			remotemedia.WithManagedReceiverDecoder(func(context.Context) (remotemedia.ManagedDecoder, error) { return nil, nil }),
+		),
+		withManagedSenderOptions(remotemedia.WithManagedSenderFactory(func(remotemedia.SenderConfig, remotemedia.CaptureSource) (remotemedia.ManagedSenderRunner, error) {
+			return &compositionRunner{done: make(chan struct{}), source: capture}, nil
+		})),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	response := serveComposition(t, handler, http.MethodPost, "/api/v1/session/launch", `{"game_id":"actraiser"}`)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"execution":"fpga_native"`) || !strings.Contains(response.Body.String(), `"media":"active"`) {
+		t.Fatalf("launch = %d %s", response.Code, response.Body.String())
+	}
+	started, stopped := target.counts()
+	if started != 0 || stopped != 0 {
+		t.Fatalf("local playback claimed target cast: starts=%d stops=%d", started, stopped)
+	}
+}
+
+func TestComposeAPIFPGAMJPEGPreviewUsesCaptureInHostUIWithoutTargetCast(t *testing.T) {
+	target := &compositionTargetCast{}
+	capture := &compositionPreviewCapture{started: make(chan struct{}), closed: make(chan struct{}), samples: make(chan remotemedia.EncodedSample, 1)}
+	decoder := &compositionPreviewDecoder{done: make(chan struct{}), writes: make(chan []byte, 1)}
+	fixtureJPEG := []byte{0xff, 0xd8, 1, 2, 0xff, 0xd9}
+	previewHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "multipart/x-mixed-replace; boundary=fixture")
+		_, _ = w.Write(fixtureJPEG)
+	})
+	config := fogcast.Config{Token: "test-token", Media: fogcast.MediaConfig{Enabled: true, CaptureDevice: "fixture-device", Decoder: "mjpeg"}}
+	handler, cleanup, err := composeAPI(&fpgaCompositionService{}, config, nil,
+		withTargetCast(target),
+		withCaptureSourceFactory(func(fogcast.MediaConfig) (remotemedia.CaptureSource, error) { return capture, nil }),
+		withPreviewDecoderFactory(func(context.Context) (remotemedia.ManagedDecoder, error) { return decoder, nil }),
+		withPreviewHandler(previewHandler),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	response := serveComposition(t, handler, http.MethodPost, "/api/v1/session/launch", `{"game_id":"actraiser"}`)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"execution":"fpga_native"`) || !strings.Contains(response.Body.String(), `"media":"active"`) {
+		t.Fatalf("launch = %d %s", response.Code, response.Body.String())
+	}
+	select {
+	case <-capture.started:
+	default:
+		t.Fatal("preview capture did not start")
+	}
+	if decoder.started != 1 {
+		t.Fatalf("preview decoder starts = %d", decoder.started)
+	}
+	started, stopped := target.counts()
+	if started != 0 || stopped != 0 {
+		t.Fatalf("local preview claimed target cast: starts=%d stops=%d", started, stopped)
+	}
+	capture.samples <- remotemedia.EncodedSample{AVCC: []byte{0, 0, 0, 1, 0x65}, SPS: []byte{0x67}, PPS: []byte{0x68}, NALLengthSize: 4, Keyframe: true}
+	select {
+	case annexB := <-decoder.writes:
+		if !strings.Contains(string(annexB), string([]byte{0, 0, 0, 1, 0x65})) {
+			t.Fatalf("preview decoder did not receive capture frame: %x", annexB)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("preview decoder did not receive capture frame")
+	}
+	previewRoute := serveComposition(t, handler, http.MethodGet, "/api/v1/session/preview", "")
+	if previewRoute.Code != http.StatusOK || !strings.Contains(previewRoute.Body.String(), string(fixtureJPEG)) {
+		t.Fatalf("preview route = %d %x", previewRoute.Code, previewRoute.Body.Bytes())
+	}
+}
+
+func TestPreviewCaptureDeviceOverrideEnablesMJPEGWithoutStoredMedia(t *testing.T) {
+	config := fogcast.Config{Media: fogcast.MediaConfig{}}
+	applyPreviewCaptureDevice(&config, "  fixture ShadowCast  ")
+	if !config.Media.Enabled || config.Media.Decoder != "mjpeg" || config.Media.CaptureDevice != "fixture ShadowCast" {
+		t.Fatalf("media = %#v", config.Media)
+	}
+}
+
+func TestComposeAPIRejectsAudioForLocalFFPlayRoute(t *testing.T) {
+	config := fogcast.Config{Token: "test-token", Media: fogcast.MediaConfig{
+		Enabled: true, Session: "fixture-session", Generation: 3, SSRC: 7,
+		RTPListen: "127.0.0.1:5000", RTPDestination: "127.0.0.1:5000",
+		CaptureDevice: "fixture-device", Decoder: "ffplay", Audio: compositionAudioConfig(),
+	}}
+	if handler, cleanup, err := composeAPI(&fpgaCompositionService{}, config, nil); err == nil || handler != nil || cleanup != nil {
+		t.Fatalf("audio local playback composition = handler:%v cleanup:%v err:%v", handler != nil, cleanup != nil, err)
 	}
 }
 

@@ -377,6 +377,23 @@ mtu = 1200
 	}
 }
 
+func TestLoadConfigAllowsLocalMJPEGPreviewWithoutTransportIdentity(t *testing.T) {
+	dir := t.TempDir()
+	path := writeConfig(t, validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))+`
+[media]
+enabled = true
+decoder = "mjpeg"
+capture_device = "fixture-device"
+`)
+	config, err := fogcast.LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := config.Media; !got.Enabled || got.Decoder != "mjpeg" || got.CaptureDevice != "fixture-device" || got.Session != "" || got.SSRC != 0 {
+		t.Fatalf("media config = %#v", got)
+	}
+}
+
 func TestLoadConfigLoadsNestedAudioConfiguration(t *testing.T) {
 	dir := t.TempDir()
 	path := writeConfig(t, validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))+`

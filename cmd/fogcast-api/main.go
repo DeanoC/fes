@@ -134,6 +134,8 @@ func reportFolderWatchTerminalError(ctx context.Context, stderr io.Writer, err e
 
 type compositionDeps struct {
 	newCapture      captureSourceFactory
+	newPreview      remotemedia.PreviewDecoderFactory
+	previewHandler  http.Handler
 	newAudio        audioSourceFactory
 	openMetadata    metadataOpener
 	receiverOptions []remotemedia.ManagedReceiverOption
@@ -144,6 +146,14 @@ type compositionDeps struct {
 
 func withCaptureSourceFactory(factory captureSourceFactory) compositionOption {
 	return func(deps *compositionDeps) { deps.newCapture = factory }
+}
+
+func withPreviewDecoderFactory(factory remotemedia.PreviewDecoderFactory) compositionOption {
+	return func(deps *compositionDeps) { deps.newPreview = factory }
+}
+
+func withPreviewHandler(handler http.Handler) compositionOption {
+	return func(deps *compositionDeps) { deps.previewHandler = handler }
 }
 
 func withAudioSourceFactory(factory audioSourceFactory) compositionOption {
@@ -270,48 +280,84 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 	}
 	if config.Media.Enabled {
 		var err error
+		if (config.Media.Decoder == "ffplay" || config.Media.Decoder == "mjpeg") && config.Media.Audio.Enabled {
+			_ = closeComposition(cleanup)
+			return nil, nil, errors.New("fogcast-api: local media playback is video-only")
+		}
 		if deps.newCapture == nil {
 			_ = closeComposition(cleanup)
 			return nil, nil, errors.New("fogcast-api: media capture source is unavailable")
 		}
-		sender := &managedSenderComponent{
-			media:        config.Media,
-			token:        config.Token,
-			newSources:   makeMediaSourcesFactory(deps.newCapture, deps.newAudio),
-			options:      deps.senderOptions,
-			audioOptions: deps.audioOptions,
-		}
-		target := deps.targetCast
-		if target == nil {
-			if castService, ok := service.(targetCast); ok {
-				target = castService
-			} else {
-				target, err = newTargetCast(config)
+		if config.Media.Decoder == "mjpeg" {
+			preview := remotemedia.NewMJPEGPreview()
+			decoderFactory := preview.Decoder
+			previewHandler := http.Handler(preview)
+			if deps.newPreview != nil {
+				decoderFactory = deps.newPreview
 			}
-			if err != nil {
+			if deps.previewHandler != nil {
+				previewHandler = deps.previewHandler
+			}
+			component, previewErr := remotemedia.NewLocalPreview(func() (remotemedia.CaptureSource, error) {
+				return deps.newCapture(config.Media)
+			}, decoderFactory)
+			if previewErr != nil {
 				_ = closeComposition(cleanup)
-				return nil, nil, errors.New("fogcast-api: target cast configuration failed")
+				return nil, nil, errors.New("fogcast-api: media configuration failed")
 			}
-		}
-		var receiver mediasession.Component
-		if target != nil {
-			receiver = noopMediaComponent{}
+			mediaOwner := newCompositionMediaSession(hostapi.NewMediaSessionAdapter(mediasession.New(component, noopMediaComponent{})), nil, "", "", 0)
+			cleanup = append(cleanup, mediaOwner.Close)
+			serverOptions = append(serverOptions, hostapi.WithMediaSession(mediaOwner), hostapi.WithMediaPreview(previewHandler))
 		} else {
-			receiver, err = remotemedia.NewManagedReceiver(remotemedia.ManagedReceiverConfig{
-				Session: config.Media.Session, Generation: config.Media.Generation, Token: config.Token,
-				SSRC: config.Media.SSRC, RTPAddress: config.Media.RTPListen, ControlAddress: config.Media.ControlAddress, Decoder: config.Media.Decoder,
-			}, deps.receiverOptions...)
+			sender := &managedSenderComponent{
+				media:        config.Media,
+				token:        config.Token,
+				newSources:   makeMediaSourcesFactory(deps.newCapture, deps.newAudio),
+				options:      deps.senderOptions,
+				audioOptions: deps.audioOptions,
+			}
+			target := deps.targetCast
+			if target == nil {
+				if castService, ok := service.(targetCast); ok {
+					target = castService
+				} else {
+					target, err = newTargetCast(config)
+				}
+				if err != nil {
+					_ = closeComposition(cleanup)
+					return nil, nil, errors.New("fogcast-api: target cast configuration failed")
+				}
+			}
+			var receiver mediasession.Component
+			mediaTarget := target
+			if config.Media.Decoder == "ffplay" {
+				// Local playback is the sofa-path preview: the existing capture
+				// sender feeds the host receiver/ffplay window and must not claim
+				// the target presentation surface from the active FPGA core.
+				mediaTarget = nil
+				receiver, err = remotemedia.NewManagedReceiver(remotemedia.ManagedReceiverConfig{
+					Session: config.Media.Session, Generation: config.Media.Generation, Token: config.Token,
+					SSRC: config.Media.SSRC, RTPAddress: config.Media.RTPListen, ControlAddress: config.Media.ControlAddress, Decoder: config.Media.Decoder,
+				}, deps.receiverOptions...)
+			} else if target != nil {
+				receiver = noopMediaComponent{}
+			} else {
+				receiver, err = remotemedia.NewManagedReceiver(remotemedia.ManagedReceiverConfig{
+					Session: config.Media.Session, Generation: config.Media.Generation, Token: config.Token,
+					SSRC: config.Media.SSRC, RTPAddress: config.Media.RTPListen, ControlAddress: config.Media.ControlAddress, Decoder: config.Media.Decoder,
+				}, deps.receiverOptions...)
+			}
 			if err != nil {
 				_ = closeComposition(cleanup)
 				return nil, nil, errors.New("fogcast-api: media configuration failed")
 			}
+			mediaOwner := newCompositionMediaSession(hostapi.NewMediaSessionAdapter(mediasession.New(sender, receiver)), mediaTarget, config.Media.Session, config.Token, config.Media.Generation)
+			if config.Media.Audio.Enabled {
+				mediaOwner.mediaSet = &protocol.CastMediaSet{Version: protocol.CastMediaSetVersion, Video: true, Audio: true}
+			}
+			cleanup = append(cleanup, mediaOwner.Close)
+			serverOptions = append(serverOptions, hostapi.WithMediaSession(mediaOwner))
 		}
-		mediaOwner := newCompositionMediaSession(hostapi.NewMediaSessionAdapter(mediasession.New(sender, receiver)), target, config.Media.Session, config.Token, config.Media.Generation)
-		if config.Media.Audio.Enabled {
-			mediaOwner.mediaSet = &protocol.CastMediaSet{Version: protocol.CastMediaSetVersion, Video: true, Audio: true}
-		}
-		cleanup = append(cleanup, mediaOwner.Close)
-		serverOptions = append(serverOptions, hostapi.WithMediaSession(mediaOwner))
 	}
 	if !config.RemoteInput.Enabled {
 		return hostapi.New(service, serverOptions...), func() error { return closeComposition(cleanup) }, nil
@@ -834,6 +880,7 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 	listen := flags.String("listen", "127.0.0.1:8787", "loopback HTTP listen address")
 	configPath := flags.String("config", "", "FogCast configuration path")
 	metadataConfigPath := flags.String("metadata-config", "", "FogCast configuration path supplying the metadata section")
+	previewCaptureDevice := flags.String("preview-capture-device", "", "local capture device shown in the FPGA Play surface")
 	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
 		return 2
 	}
@@ -859,6 +906,7 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 		fmt.Fprintln(stderr, "fogcast-api: configuration load failed")
 		return 1
 	}
+	applyPreviewCaptureDevice(&config, *previewCaptureDevice)
 	config.MetadataRoot = paths.MetadataRoot
 	fogcastService, err := open(ctx, paths)
 	if err != nil || fogcastService == nil {
@@ -897,6 +945,7 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 	mux.Handle("/api/", handler)
 	server := &http.Server{
 		Handler:           mux,
+		BaseContext:       func(net.Listener) context.Context { return ctx },
 		ReadHeaderTimeout: 5 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       30 * time.Second,
@@ -925,6 +974,15 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 			return 1
 		}
 		return 0
+	}
+}
+
+func applyPreviewCaptureDevice(config *fogcast.Config, raw string) {
+	if config == nil {
+		return
+	}
+	if device := strings.TrimSpace(raw); device != "" {
+		config.Media = fogcast.MediaConfig{Enabled: true, Decoder: "mjpeg", CaptureDevice: device}
 	}
 }
 

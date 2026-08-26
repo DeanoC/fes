@@ -124,6 +124,7 @@ type apiError struct {
 type serverOptions struct {
 	remoteInput   host.RemoteInputController
 	media         MediaSession
+	mediaPreview  http.Handler
 	metadata      metadata.Runtime
 	metadataState metadata.ConfigState
 }
@@ -136,6 +137,12 @@ func WithRemoteInput(remoteInput host.RemoteInputController) ServerOption {
 
 func WithMediaSession(media MediaSession) ServerOption {
 	return func(options *serverOptions) { options.media = media }
+}
+
+// WithMediaPreview exposes a browser-safe picture stream owned by the active
+// host media session.
+func WithMediaPreview(preview http.Handler) ServerOption {
+	return func(options *serverOptions) { options.mediaPreview = preview }
 }
 
 func WithMetadata(runtime metadata.Runtime, states ...metadata.ConfigState) ServerOption {
@@ -171,6 +178,9 @@ func New(service Service, options ...ServerOption) http.Handler {
 		}
 		writeJSON(w, http.StatusOK, result)
 	})
+	if config.mediaPreview != nil {
+		mux.Handle("GET /api/v1/session/preview", config.mediaPreview)
+	}
 	mux.HandleFunc("GET /api/v1/session/events", func(w http.ResponseWriter, r *http.Request) {
 		var after uint64
 		if raw := r.URL.Query().Get("after"); raw != "" {

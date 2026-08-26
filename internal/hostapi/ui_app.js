@@ -2897,6 +2897,8 @@
     launchActions: document.getElementById('launch-actions'),
     launchStatus: document.getElementById('launch-status'),
     sessionPanel: document.getElementById('session-panel'),
+    sessionPreview: document.getElementById('session-preview'),
+    sessionPreviewImage: document.getElementById('session-preview-image'),
     sessionStatus: document.getElementById('session-status'),
     sessionDetails: document.getElementById('session-details'),
     sessionActions: document.getElementById('session-actions'),
@@ -3349,7 +3351,7 @@
     }
     if (session.system !== undefined) nodes.sessionDetails.appendChild(sessionFact('System', session.system));
     if (session.execution !== undefined) nodes.sessionDetails.appendChild(sessionFact('Execution', session.execution));
-    if (session.media !== undefined && session.execution !== 'fpga_native') {
+	if (session.media !== undefined) {
       nodes.sessionDetails.appendChild(sessionFact('Media', session.media));
     }
     if (session.progress) {
@@ -3359,6 +3361,24 @@
     if (session.input) {
       nodes.sessionDetails.appendChild(sessionFact('Input state', session.input.state));
       nodes.sessionDetails.appendChild(sessionFact('Input readiness', session.input.ready ? 'Ready' : 'Not ready'));
+    }
+  }
+
+  function renderSessionPreview() {
+    const visible = Boolean(
+      state.sessionAuthority === 'authoritative'
+      && state.session
+      && state.session.state === 'active'
+      && state.session.execution === 'fpga_native'
+      && state.session.media === 'active',
+    );
+    nodes.sessionPreview.hidden = !visible;
+    if (visible) {
+      if (nodes.sessionPreviewImage.getAttribute('src') !== '/api/v1/session/preview') {
+        nodes.sessionPreviewImage.setAttribute('src', '/api/v1/session/preview');
+      }
+    } else {
+      nodes.sessionPreviewImage.removeAttribute('src');
     }
   }
 
@@ -3413,6 +3433,7 @@
     nodes.sessionPanel.className = sessionNeedsAttention() ? 'session-panel' : 'session-panel session-quiet';
     nodes.sessionStatus.textContent = sessionStatusText();
     nodes.sessionMessage.textContent = state.sessionMessage || '';
+    renderSessionPreview();
     renderSessionDetails();
     const conflictReason = state.activeMutation ? 'A session transition is already in progress.' : '';
     const hasActiveSession = Boolean(

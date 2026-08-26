@@ -34,6 +34,7 @@ type fakeService struct {
 	statusRelease chan struct{}
 	statusOnce    sync.Once
 	launch        protocol.CachedLaunchResponse
+	launchCalls   int
 	launchErr     error
 	launchHook    func(context.Context)
 	stopped       protocol.Status
@@ -73,6 +74,7 @@ func (s *fakeService) Status(ctx context.Context) (protocol.Status, error) {
 	return s.status, s.statusErr
 }
 func (s *fakeService) Launch(ctx context.Context, _ string, progress fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error) {
+	s.launchCalls++
 	if s.launchHook != nil {
 		s.launchHook(ctx)
 	}
@@ -139,6 +141,7 @@ type fakeMediaSession struct {
 	stopErrs       []error
 	stopDeadlines  []time.Time
 	startCtx       []context.Context
+	startCheck     func()
 	done           chan struct{}
 }
 
@@ -170,6 +173,9 @@ func (h *generationMediaHandle) Stop(context.Context) error {
 }
 
 func (m *fakeMediaSession) Start(ctx context.Context, gameID string) (hostapi.MediaHandle, error) {
+	if m.startCheck != nil {
+		m.startCheck()
+	}
 	m.start = append(m.start, gameID)
 	m.startCtx = append(m.startCtx, ctx)
 	if m.order != nil {
@@ -239,6 +245,20 @@ func TestGamesReturnsStablePublicCatalogWithoutPrivatePathsOrDigests(t *testing.
 		t.Fatalf("games = %#v", result.Games)
 	}
 	assertJSONHeaders(t, response)
+}
+
+func TestSessionPreviewRouteUsesInjectedHostPictureHandler(t *testing.T) {
+	service := &fakeService{}
+	handler := hostapi.New(service, hostapi.WithMediaPreview(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "multipart/x-mixed-replace; boundary=test-frame")
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		_, _ = w.Write([]byte("fixture-frame"))
+	})))
+	response := serve(t, handler, http.MethodGet, "/api/v1/session/preview")
+	if response.Code != http.StatusOK || response.Body.String() != "fixture-frame" || response.Header().Get("Cache-Control") != "no-store" || response.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("preview = %d headers=%#v body=%q", response.Code, response.Header(), response.Body.String())
+	}
 }
 
 func TestGamesSupportsSearchAndExecutionCapability(t *testing.T) {
@@ -525,6 +545,64 @@ func TestFPGANativeLaunchSkipsAttachWhenRemoteInputDisabled(t *testing.T) {
 	}
 	if strings.Contains(launch.Body.String(), `"input":`) {
 		t.Fatalf("disabled remote input leaked input status: %s", launch.Body.String())
+	}
+}
+
+func TestFPGANativePlayStartsMediaAfterLaunchAndKeepsRemoteInputAttached(t *testing.T) {
+	gameID := "actraiser"
+	system := protocol.SystemSNES
+	core := "SNES"
+	service := &fakeService{
+		launch:  protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core}},
+		status:  protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core},
+		stopped: protocol.Status{State: protocol.StateIdle},
+	}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
+	media := &fakeMediaSession{startCheck: func() {
+		if service.launchCalls != 1 {
+			t.Fatalf("media started before FPGA launch: launch calls = %d", service.launchCalls)
+		}
+		if len(input.attach) != 0 {
+			t.Fatalf("media started after remote input attach: %#v", input.attach)
+		}
+	}}
+	handler := hostapi.New(service, hostapi.WithMediaSession(media), hostapi.WithRemoteInput(input))
+
+	launch := launchSession(t, handler, gameID)
+	if launch.Code != http.StatusOK || !strings.Contains(launch.Body.String(), `"execution":"fpga_native"`) || !strings.Contains(launch.Body.String(), `"media":"active"`) || !strings.Contains(launch.Body.String(), `"input":{"state":"attached"`) {
+		t.Fatalf("launch = %d %s", launch.Code, launch.Body.String())
+	}
+	if len(media.start) != 1 || media.start[0] != gameID || len(input.attach) != 1 || input.attach[0] != core {
+		t.Fatalf("media starts=%#v input attaches=%#v", media.start, input.attach)
+	}
+
+	stop := serve(t, handler, http.MethodPost, "/api/v1/session/stop")
+	if stop.Code != http.StatusOK || !strings.Contains(stop.Body.String(), `"media":"stopped"`) {
+		t.Fatalf("stop = %d %s", stop.Code, stop.Body.String())
+	}
+	if len(media.stop) != 1 || len(input.detach) != 1 || input.detach[0] != "session_stop" {
+		t.Fatalf("media stops=%#v input detaches=%#v", media.stop, input.detach)
+	}
+}
+
+func TestFPGANativeInputAttachFailureStopsStartedMedia(t *testing.T) {
+	gameID := "actraiser"
+	system := protocol.SystemSNES
+	core := "SNES"
+	service := &fakeService{
+		launch:  protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core}},
+		stopped: protocol.Status{State: protocol.StateIdle},
+	}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}, attachErr: errors.New("bridge failed")}
+	media := &fakeMediaSession{}
+	handler := hostapi.New(service, hostapi.WithMediaSession(media), hostapi.WithRemoteInput(input))
+
+	launch := launchSession(t, handler, gameID)
+	if launch.Code == http.StatusOK {
+		t.Fatalf("attach failure unexpectedly succeeded: %s", launch.Body.String())
+	}
+	if len(media.start) != 1 || len(media.stop) != 1 || len(service.stopCtxErrs) == 0 {
+		t.Fatalf("starts=%#v stops=%#v service stops=%d", media.start, media.stop, len(service.stopCtxErrs))
 	}
 }
 

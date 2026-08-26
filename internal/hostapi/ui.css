@@ -567,6 +567,10 @@ img.cover-art { display: block; width: 100%; object-fit: contain; object-positio
 .session-header { display: flex; align-items: start; justify-content: space-between; gap: 20px; }
 .session-header h2 { margin-bottom: 0; }
 .session-status { max-width: 34rem; margin: 8px 0 0; color: var(--accent-cool); text-align: right; overflow-wrap: anywhere; }
+.session-preview { margin: 18px 0; }
+.session-preview[hidden] { display: none; }
+.session-preview img { display: block; width: 100%; max-height: min(68vh, 720px); aspect-ratio: 16 / 9; object-fit: contain; border-radius: 10px; background: #000; }
+.session-preview figcaption { margin-top: 6px; color: var(--muted); font-size: .75rem; }
 .session-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin: 18px 0; }
 .session-detail { min-width: 0; border-top: 1px solid var(--line); padding-top: 7px; }
 .session-detail strong { display: block; font-size: .82rem; }

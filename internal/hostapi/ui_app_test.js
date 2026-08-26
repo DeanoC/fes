@@ -273,7 +273,7 @@ function browserDocument() {
     'launcher', 'health', 'game-search', 'refresh-catalog', 'filter-system', 'filter-region', 'catalog', 'catalog-status',
     'catalog-list', 'catalog-actions', 'detail', 'detail-content',
     'launch-actions', 'launch-status', 'session-panel', 'session-status',
-    'session-details', 'session-actions', 'session-message',
+    'session-preview', 'session-preview-image', 'session-details', 'session-actions', 'session-message',
     'nav-home', 'nav-all', 'nav-continue', 'nav-favorites', 'nav-recents', 'nav-unplayed',
     'nav-recently-added', 'collection-list', 'create-collection', 'collection-name-label',
     'collection-name', 'save-collection', 'rename-collection', 'delete-collection',
@@ -306,6 +306,7 @@ function browserDocument() {
   document.nodes.get('attract').hidden = true;
   document.nodes.get('settings').hidden = true;
   document.nodes.get('game-actions-menu').hidden = true;
+  document.nodes.get('session-preview').hidden = true;
   document.nodes.get('catalog-list').clientWidth = 896;
   const sortSelect = document.nodes.get('catalog-sort');
   [
@@ -2399,7 +2400,7 @@ test('session panel renders only accepted fields, reconstructs active title, and
   assert.match(details, /Executionfpga_native/);
   assert.match(details, /Input stateattached/);
   assert.match(details, /Input readinessReady/);
-  assert.doesNotMatch(details, /Media/);
+  assert.match(details, /Mediaactive/);
   assert.doesNotMatch(details, /must not render|private\/path/);
   assert.equal(sessionCalls[0].options.method, 'GET');
   assert.equal(sessionCalls[0].options.body, undefined);
@@ -2610,6 +2611,38 @@ test('host_only session details still show media state and hide input controls',
   assert.match(details, /Mediaactive/);
   assert.equal(document.getElementById('detach-session-input').hidden, true);
   assert.equal(document.getElementById('attach-session-input').hidden, true);
+});
+
+test('fpga_native session details show local media and attached input together', async () => {
+  const active = sessionFixture({
+    state: 'active',
+    game_id: 'snes-actraiser-usa',
+    system: 'snes',
+    execution: 'fpga_native',
+    media: 'active',
+    input: { ...inputFixture(), state: 'attached', ready: true },
+  });
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse({ games: [availableGame('snes-actraiser-usa', 'ActRaiser (USA)')] })],
+    sessionResponses: [jsonResponse(active)],
+  });
+  const details = browserText(document.nodes.get('session-details'));
+  assert.match(details, /Executionfpga_native/);
+  assert.match(details, /Mediaactive/);
+  assert.match(details, /Input stateattached/);
+  assert.equal(document.getElementById('session-preview').hidden, false);
+  assert.equal(document.getElementById('session-preview-image').attributes.get('src'), '/api/v1/session/preview');
+});
+
+test('session live picture surface is in the Play panel and hides outside active FPGA media', async () => {
+  const shell = readAsset('ui_shell.html');
+  assert.match(shell, /id="session-panel"[\s\S]*id="session-preview"[\s\S]*id="session-preview-image"/);
+  const { document } = await runBrowserApp({
+    responses: [jsonResponse({ games: [] })],
+    sessionResponses: [jsonResponse(sessionFixture({ state: 'idle', media: 'stopped' }))],
+  });
+  assert.equal(document.getElementById('session-preview').hidden, true);
+  assert.equal(document.getElementById('session-preview-image').attributes.has('src'), false);
 });
 
 test('host_only session with detached input does not offer Attach', async () => {

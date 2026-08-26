@@ -171,8 +171,8 @@ type RemoteInputConfig struct {
 	Enabled bool
 }
 
-// MediaConfig contains the opt-in host media transport. Zero values keep
-// physical capture and all media sockets disabled.
+// MediaConfig contains opt-in host capture, preview, and transport settings.
+// Zero values keep physical capture and all media sockets disabled.
 type MediaConfig struct {
 	Enabled        bool
 	Session        string
@@ -582,25 +582,30 @@ func normalizeMedia(raw fileMedia) (MediaConfig, error) {
 	if !raw.Enabled {
 		return MediaConfig{}, nil
 	}
-	if strings.TrimSpace(raw.Session) == "" || raw.SSRC == 0 || strings.TrimSpace(raw.CaptureDevice) == "" {
+	decoder := strings.ToLower(strings.TrimSpace(raw.Decoder))
+	if decoder == "" {
+		decoder = "none"
+	}
+	if decoder != "none" && decoder != "ffplay" && decoder != "mjpeg" {
+		return MediaConfig{}, fmt.Errorf("media decoder must be none, ffplay, or mjpeg")
+	}
+	if strings.TrimSpace(raw.CaptureDevice) == "" {
 		return MediaConfig{}, fmt.Errorf("media configuration is invalid")
 	}
-	for name, address := range map[string]string{"rtp_listen": raw.RTPListen, "rtp_destination": raw.RTPDestination} {
-		if _, _, err := net.SplitHostPort(address); err != nil {
-			return MediaConfig{}, fmt.Errorf("media %s must be a host:port address", name)
+	if decoder != "mjpeg" {
+		if strings.TrimSpace(raw.Session) == "" || raw.SSRC == 0 {
+			return MediaConfig{}, fmt.Errorf("media configuration is invalid")
+		}
+		for name, address := range map[string]string{"rtp_listen": raw.RTPListen, "rtp_destination": raw.RTPDestination} {
+			if _, _, err := net.SplitHostPort(address); err != nil {
+				return MediaConfig{}, fmt.Errorf("media %s must be a host:port address", name)
+			}
 		}
 	}
 	if strings.TrimSpace(raw.ControlAddress) != "" {
 		if _, _, err := net.SplitHostPort(raw.ControlAddress); err != nil {
 			return MediaConfig{}, fmt.Errorf("media control_address must be a host:port address")
 		}
-	}
-	decoder := strings.ToLower(strings.TrimSpace(raw.Decoder))
-	if decoder == "" {
-		decoder = "none"
-	}
-	if decoder != "none" && decoder != "ffplay" {
-		return MediaConfig{}, fmt.Errorf("media decoder must be none or ffplay")
 	}
 	if raw.Width < 0 || raw.Height < 0 || raw.FPSNumerator < 0 || raw.FPSDenominator < 0 || raw.Bitrate < 0 || raw.GOP < 0 || raw.MTU < 0 {
 		return MediaConfig{}, fmt.Errorf("media dimensions, frame rate, bitrate, gop, and mtu must not be negative")
