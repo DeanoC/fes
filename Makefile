@@ -10,12 +10,15 @@ PROGRAMMER ?=
 PROGRAM_SSH ?=
 PROGRAM_SCP ?=
 PROGRAM_CABLE ?=
+PROGRAM_CABLE_INDEX ?=
+PROGRAM_EXPECTED_BOARD ?=
+PROGRAM_EXPECTED_MAIN_SHA256 ?=
 PROGRAM_DRY_RUN ?=
 
 # Pass operator-selected programming settings through the environment.  This
 # avoids interpolating host/user values into a shell command; program.py does
 # the strict validation before creating any subprocess.
-export EXP BUILD PROGRAM_TRANSPORT MISTER_HOST MISTER_USER PROGRAMMER PROGRAM_SSH PROGRAM_SCP PROGRAM_CABLE PROGRAM_DRY_RUN
+export EXP BUILD PROGRAM_TRANSPORT MISTER_HOST MISTER_USER PROGRAMMER PROGRAM_SSH PROGRAM_SCP PROGRAM_CABLE PROGRAM_CABLE_INDEX PROGRAM_EXPECTED_BOARD PROGRAM_EXPECTED_MAIN_SHA256 PROGRAM_DRY_RUN
 
 help:
 	@printf '%s\n' \
@@ -34,6 +37,8 @@ help:
 		"" \
 		"Variables: EXP=$(EXP) BUILD=$(BUILD) PYTHON=$(PYTHON)" \
 		"  PROGRAM_TRANSPORT=$(PROGRAM_TRANSPORT) MISTER_HOST/MISTER_USER required for mister" \
+		"  PROGRAM_EXPECTED_BOARD is required for every non-dry action (misterpi or de10nano)" \
+		"  PROGRAM_EXPECTED_MAIN_SHA256 is required for non-dry mister; PROGRAM_CABLE_INDEX selects a physical JTAG probe" \
 		"  PROGRAMMER/PROGRAM_SSH/PROGRAM_SCP/PROGRAM_CABLE and PROGRAM_DRY_RUN=1 are optional"
 
 define require_exp

@@ -31,24 +31,46 @@ MISTER_HOST=mister.example MISTER_USER=root \
 `MISTER_HOST` and `MISTER_USER` may instead be passed as `--host` and `--user`
 to `scripts/program.py`. They are validated as strict hostname/user values and
 are passed to `ssh`/`scp` as array elements. Passwords are never command-line
-arguments or logged; an operator may answer the normal SSH prompt.
+arguments or logged; an operator may answer the normal SSH prompt. The bounded
+SSH options use `BatchMode=no`, `ConnectTimeout=10`, one connection attempt,
+and `StrictHostKeyChecking=yes`. Use an SSH key/agent when repeated prompts
+are undesirable; no password or persistent ControlMaster socket is stored by
+this procedure.
 
-Before an upload, the script performs read-only SSH checks for an ARM
-architecture, the `/dev/MiSTer_cmd` FIFO, a running `Main_MiSTer`/`MiSTer`
-process, writable `/tmp`, and an unused deterministic staging name. It stages
-only at `/tmp/misteross-<experiment>-<hash-prefix>.rbf`, verifies the remote
-SHA-256, then (only without `--dry-run`) writes exactly:
+Before an upload, the script performs one consolidated read-only SSH preflight
+for an ARM architecture, root-owned `/dev/MiSTer_cmd` FIFO metadata, exactly
+one root-owned `Main_MiSTer`/`MiSTer` PID, that process's authenticated
+executable identity, a matching open FIFO inode, and writable `/tmp`. Every
+non-dry action also requires the explicit operator attestation
+`--expected-board misterpi` (or `PROGRAM_EXPECTED_BOARD=misterpi`) and the
+expected Main executable SHA-256 (`--expected-main-sha256` or
+`MISTER_EXPECTED_MAIN_SHA256`). A dry run may report the discovered Main hash,
+but does not authenticate it for an action.
+
+The stage directory is a fresh cryptographically unpredictable
+`/tmp/misteross-<32-hex>/`, created atomically with mode `0700`; an existing
+name, race, symlink, non-root owner, wrong type/mode/link count, or failed
+metadata check stops before upload or FIFO dispatch. The RBF is uploaded as
+`artifact.rbf` inside that private directory and its exact remote SHA-256 and
+metadata are verified before (only without `--dry-run`) writing:
 
 ```text
-load_core /tmp/misteross-<experiment>-<hash-prefix>.rbf
+load_core /tmp/misteross-<32-hex>/artifact.rbf
 ```
 
-to `/dev/MiSTer_cmd`. `/tmp` is volatile. FogCast may own a custom
-`/media/fat/MiSTer`; the procedure never overwrites or replaces that file and
-does not write the SD card, flash, or any persistent configuration. The
-authenticated [DeanoC/Main_MiSTer `input.cpp` FIFO implementation](https://github.com/DeanoC/Main_MiSTer/blob/fogcast/stage-a-baseline/input.cpp)
-defines `/dev/MiSTer_cmd` and exact `load_core PATH` handling, while
-[`fpga_io.cpp`](https://github.com/DeanoC/Main_MiSTer/blob/fogcast/stage-a-baseline/fpga_io.cpp)
+to `/dev/MiSTer_cmd`. The script prints the exact shell-escaped action and
+reports only `load request dispatched; outcome unverified`; it never claims
+that the FPGA loaded successfully. Hardware observation and post-load status
+belong to Task 10. The volatile directory is intentionally left in place for
+operator recovery and disappears on reboot/power-cycle; it is never a
+persistent programming path. FogCast may own a custom `/media/fat/MiSTer`, so
+the procedure never overwrites or replaces it and does not write the SD card,
+flash, or persistent configuration.
+
+The cited Main source is pinned to the immutable
+[DeanoC/Main_MiSTer commit `d1a3a4e65c2dbee1f23eb5a890d8f29e6448c30d` `input.cpp`](https://github.com/DeanoC/Main_MiSTer/blob/d1a3a4e65c2dbee1f23eb5a890d8f29e6448c30d/input.cpp),
+which defines `/dev/MiSTer_cmd` and exact `load_core PATH` handling; its
+[`fpga_io.cpp`](https://github.com/DeanoC/Main_MiSTer/blob/d1a3a4e65c2dbee1f23eb5a890d8f29e6448c30d/fpga_io.cpp)
 loads an absolute RBF and restarts the FPGA application. A minimal blinky can
 make Main exit because it does not provide the MiSTer framework handshake;
 rebooting or power-cycling the unit restores the normal menu. The script never
@@ -81,9 +103,15 @@ openFPGALoader --board de10nano --detect
 ```
 
 `program.py` requires one exact USB-Blaster II VID/PID row (`09fb:6810`) and
-one matching Cyclone V JTAG device. If more than one cable is present, pass
-the exact discovered identifier with `--cable`; otherwise it stops. The final
-operation is only `openFPGALoader ... --write-sram <canonical-top.rbf>`.
+one matching Cyclone V JTAG device. `--cable usb-blasterII` names only the
+interface type. If more than one exact cable row is discovered, pass the
+physical index captured from that scan with `--cable-index`; an absent or
+out-of-range index stops. Every non-dry JTAG action also requires the explicit
+operator attestation `--expected-board de10nano` (or
+`PROGRAM_EXPECTED_BOARD=de10nano`). The loader consumes a private immutable
+local snapshot of the validated RBF, so replacing the canonical file during
+discovery cannot change the bytes selected for programming. The final
+operation is only `openFPGALoader ... --write-sram <private-snapshot.rbf>`.
 There is no flash flag, address, SD-card path, or persistent programming
 option. SRAM configuration disappears at power-off, so a power-cycle restores
 the board's normal persistent configuration. No programming action is part of

@@ -682,7 +682,7 @@ summary = {
         "previous_rbf_sha256": None,
         "rbf_stability_measured": False,
         "rbf_stable": None,
-        "rbf_stability_reason": "oracle rebuild stability is informational",
+        "rbf_stability_reason": "oracle rebuild stability is unmeasured by contract",
     },
     "source_hashes": common_source_hashes,
     "tool_pins": {"quartus": provenance},
