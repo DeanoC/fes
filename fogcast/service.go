@@ -142,6 +142,14 @@ func WithLibraryOverlayPath(path string) ServiceOption {
 	return func(service *Service) { service.libraryOverlayPath = path }
 }
 
+func WithConfigPath(path string) ServiceOption {
+	return func(service *Service) { service.configPath = path }
+}
+
+func withTargetClientFactory(factory func(TargetConfig) (serviceClient, error)) ServiceOption {
+	return func(service *Service) { service.targetClientFactory = factory }
+}
+
 func WithLibraryMedia(index *librarymedia.Index) ServiceOption {
 	return func(service *Service) { service.media = index }
 }
@@ -156,44 +164,60 @@ func WithExecutionPolicy(policy ExecutionPolicy) ServiceOption {
 }
 
 type Service struct {
-	catalog                 serviceCatalog
-	scanner                 serviceScanner
-	preparer                servicePreparer
-	client                  serviceClient
-	roots                   []catalog.Root
-	rootsByID               map[string]catalog.Root
-	requestTimeout          time.Duration
-	uploadTimeout           time.Duration
-	uploadReadDelay         time.Duration
-	executionResolver       ExecutionResolver
-	hostExecutor            hostexec.Adapter
-	users                   *libraryuser.Store
-	media                   *librarymedia.Index
-	libraryOverlayPath      string
-	libraryMu               sync.RWMutex
-	attractIdle             int
-	preferredRegions        []string
-	hostEmulator            HostEmulatorConfig
-	metadataRoot            string
-	metadataScope           string
-	watchRoot               string
-	folderWatchInterval     time.Duration
-	folderWatchFailureMu    sync.Mutex
-	folderWatchFailureCount int
-	catalogAdmission        chan struct{}
-	scanMu                  sync.Mutex
-	scanWG                  sync.WaitGroup
-	closing                 bool
-	catalogCloseWait        time.Duration
-	fpgaROMPaths            map[string]string
-	activeExecution         string
-	activeGameID            string
-	activeSystem            protocol.System
-	executionMu             sync.Mutex
-	closeOnce               sync.Once
-	catalogCloseOnce        sync.Once
-	catalogCloseErr         error
-	closeErr                error
+	catalog             serviceCatalog
+	scanner             serviceScanner
+	preparer            servicePreparer
+	roots               []catalog.Root
+	rootsByID           map[string]catalog.Root
+	configPath          string
+	configWriteMu       sync.Mutex
+	targets             []TargetConfig
+	selectedTarget      string
+	targetClients       map[string]serviceClient
+	targetClientFactory func(TargetConfig) (serviceClient, error)
+	// Existing media/input composition captures its selected connection at startup.
+	targetSwitchLocked       bool
+	targetMu                 sync.RWMutex
+	requestTimeout           time.Duration
+	uploadTimeout            time.Duration
+	uploadReadDelay          time.Duration
+	executionResolver        ExecutionResolver
+	hostExecutor             hostexec.Adapter
+	users                    *libraryuser.Store
+	media                    *librarymedia.Index
+	libraryOverlayPath       string
+	librarySettingsOnce      sync.Once
+	librarySettingsAdmission chan struct{}
+	libraryMu                sync.RWMutex
+	attractIdle              int
+	preferredRegions         []string
+	hostEmulator             HostEmulatorConfig
+	metadataRoot             string
+	metadataScope            string
+	watchRoot                string
+	folderWatchInterval      time.Duration
+	folderWatchFailureMu     sync.Mutex
+	folderWatchFailureCount  int
+	catalogAdmission         chan struct{}
+	scanMu                   sync.Mutex
+	scanWG                   sync.WaitGroup
+	closing                  bool
+	catalogCloseWait         time.Duration
+	fpgaROMPaths             map[string]string
+	activeExecution          string
+	activeTarget             string
+	activeGameID             string
+	activeSystem             protocol.System
+	selectedTargetReconciled bool
+	// selectedTargetRepairAllowed permits one same-target connection repair after status is unreachable.
+	selectedTargetRepairAllowed bool
+	lifecycleOnce               sync.Once
+	lifecycleAdmission          chan struct{}
+	executionMu                 sync.Mutex
+	closeOnce                   sync.Once
+	catalogCloseOnce            sync.Once
+	catalogCloseErr             error
+	closeErr                    error
 }
 
 const catalogCloseScanTimeout = 2 * time.Second
@@ -241,10 +265,6 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 	if err := ensurePrivateDirectory(paths.Staging); err != nil {
 		return fail("prepare FogCast staging", err)
 	}
-	baseURL, err := url.Parse(config.BaseURL)
-	if err != nil {
-		return fail("configure FogCast target", err)
-	}
 	scanner := &catalog.Scanner{Store: store, Platforms: catalog.DefaultPlatforms()}
 	preparer := &romsource.Preparer{StagingRoot: paths.Staging, MaxBytes: protocol.MaxContentBytes}
 	if httpClient == nil {
@@ -252,8 +272,22 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 	}
 	operationClient := *httpClient
 	operationClient.Timeout = 0
-	client := host.NewClient(baseURL, config.Token, &operationClient)
-	options := make([]ServiceOption, 0, 1)
+	targetClientFactory := func(target TargetConfig) (serviceClient, error) {
+		if !target.Enabled {
+			return nil, nil
+		}
+		baseURL, err := url.Parse(target.Address)
+		if err != nil {
+			return nil, err
+		}
+		return host.NewClient(baseURL, target.Agent, &operationClient), nil
+	}
+	selectedTarget := targetByName(config.Targets, config.SelectedTarget)
+	client, err := targetClientFactory(selectedTarget)
+	if err != nil {
+		return fail("configure FogCast target", err)
+	}
+	options := []ServiceOption{WithConfigPath(paths.Config), withTargetClientFactory(targetClientFactory)}
 	if config.HostEmulator.Binary != "" {
 		cores := make(map[protocol.System]string, len(config.HostEmulator.Cores))
 		for _, entry := range config.HostEmulator.Cores {
@@ -328,9 +362,12 @@ func newService(config Config, paths Paths, store serviceCatalog, scanner servic
 		rootsByID[root.ID] = root
 	}
 	service := &Service{
-		catalog: store, scanner: scanner, preparer: preparer, client: client,
+		catalog: store, scanner: scanner, preparer: preparer,
 		roots: roots, rootsByID: rootsByID,
-		requestTimeout: config.RequestTimeout, uploadTimeout: config.UploadTimeout,
+		targets: append([]TargetConfig(nil), config.Targets...), selectedTarget: config.SelectedTarget,
+		targetClients:      make(map[string]serviceClient),
+		targetSwitchLocked: config.RemoteInput.Enabled || config.Media.Enabled,
+		requestTimeout:     config.RequestTimeout, uploadTimeout: config.UploadTimeout,
 		executionResolver: defaultExecutionResolver{},
 		attractIdle:       config.Library.AttractIdleSeconds,
 		preferredRegions:  append([]string(nil), config.Library.PreferredRegions...),
@@ -341,6 +378,14 @@ func newService(config Config, paths Paths, store serviceCatalog, scanner servic
 		fpgaROMPaths:      copyFPGAROMPaths(config.FPGAROMPaths),
 		catalogAdmission:  make(chan struct{}, 1),
 	}
+	if len(service.targets) == 0 {
+		enabled := strings.TrimSpace(config.BaseURL) != "" && strings.TrimSpace(config.Token) != ""
+		service.targets = []TargetConfig{{Name: "dev", Enabled: enabled, Address: config.BaseURL, Agent: config.Token}}
+		service.selectedTarget = "dev"
+	}
+	if client != nil {
+		service.targetClients[service.selectedTarget] = client
+	}
 	service.catalogAdmission <- struct{}{}
 	scanner.SetAdmissionGate(service.acquireCatalogAdmission)
 	for _, option := range options {
@@ -348,8 +393,33 @@ func newService(config Config, paths Paths, store serviceCatalog, scanner servic
 			option(service)
 		}
 	}
+	service.selectedTargetReconciled = !targetByName(service.targets, service.selectedTarget).Enabled
 	service.applyPersistedLibraryOverlay()
 	return service
+}
+
+func (s *Service) selectedClientSnapshot() (serviceClient, bool) {
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
+	return s.selectedClientLocked()
+}
+
+func (s *Service) selectedClientLocked() (serviceClient, bool) {
+	client := s.targetClients[s.selectedTarget]
+	return client, client != nil
+}
+
+func (s *Service) libraryRootsSnapshot() []catalog.Root {
+	s.libraryMu.RLock()
+	defer s.libraryMu.RUnlock()
+	return append([]catalog.Root(nil), s.roots...)
+}
+
+func (s *Service) libraryRoot(id string) (catalog.Root, bool) {
+	s.libraryMu.RLock()
+	defer s.libraryMu.RUnlock()
+	root, ok := s.rootsByID[id]
+	return root, ok
 }
 
 // SessionExecution resolves the service-owned execution policy for one catalog game.
@@ -413,6 +483,13 @@ func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFu
 	if err := protocol.ValidateGameID(gameID); err != nil {
 		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeBadRequest, nil)
 	}
+	releaseLifecycle, err := s.acquireLifecycle(ctx)
+	if err != nil {
+		return protocol.CachedLaunchResponse{}, err
+	}
+	defer releaseLifecycle()
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
 	for attempt := 0; attempt < 2; attempt++ {
 		game, err := s.catalog.Game(ctx, gameID)
 		if err != nil {
@@ -427,6 +504,15 @@ func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFu
 		}
 		response, retry, err := s.launchGame(ctx, game, progress)
 		if !retry {
+			if err == nil && response.Status.State == protocol.StateActive {
+				s.executionMu.Lock()
+				if s.activeExecution != ExecutionHostOnly {
+					s.activeExecution = ExecutionFPGANative
+					s.activeTarget = s.selectedTarget
+					s.activeGameID, s.activeSystem = game.ID, game.System
+				}
+				s.executionMu.Unlock()
+			}
 			return response, err
 		}
 	}
@@ -510,30 +596,43 @@ func (s *Service) waitForCatalogScan() bool {
 }
 
 func (s *Service) CastStart(ctx context.Context, session, token string, generation uint64) (host.CastStatus, error) {
-	client, ok := s.client.(castClient)
-	if !ok {
+	target, available := s.selectedClientSnapshot()
+	client, ok := target.(castClient)
+	if !available || !ok {
 		return host.CastStatus{}, errors.New("target cast control is unavailable")
 	}
 	return client.CastStart(ctx, session, token, generation)
 }
 
 func (s *Service) CastStartWithMedia(ctx context.Context, session, token string, generation uint64, media protocol.CastMediaSet) (host.CastStatus, error) {
-	client, ok := s.client.(mediaCastClient)
-	if !ok {
+	target, available := s.selectedClientSnapshot()
+	client, ok := target.(mediaCastClient)
+	if !available || !ok {
 		return host.CastStatus{}, errors.New("target cast control is unavailable")
 	}
 	return client.CastStartWithMedia(ctx, session, token, generation, media)
 }
 
 func (s *Service) CastStop(ctx context.Context, session string, generation uint64) (host.CastStatus, error) {
-	client, ok := s.client.(castClient)
-	if !ok {
+	target, available := s.selectedClientSnapshot()
+	client, ok := target.(castClient)
+	if !available || !ok {
 		return host.CastStatus{}, errors.New("target cast control is unavailable")
 	}
 	return client.CastStop(ctx, session, generation)
 }
 
 func (s *Service) Scan(ctx context.Context) (catalog.ScanReport, error) {
+	releaseSettings, err := s.acquireLibrarySettings(ctx)
+	if err != nil {
+		return catalog.ScanReport{}, err
+	}
+	defer releaseSettings()
+	return s.scanLocked(ctx)
+}
+
+// scanLocked scans the published library roots while library settings admission is held.
+func (s *Service) scanLocked(ctx context.Context) (catalog.ScanReport, error) {
 	if err := ctx.Err(); err != nil {
 		return catalog.ScanReport{}, err
 	}
@@ -547,7 +646,7 @@ func (s *Service) Scan(ctx context.Context) (catalog.ScanReport, error) {
 		}
 		return catalog.ScanReport{}, canonicalError(protocol.CodeInternal, safeContextError(err))
 	}
-	report, err := s.scanner.Scan(ctx, append([]catalog.Root(nil), s.roots...))
+	report, err := s.scanner.Scan(ctx, s.libraryRootsSnapshot())
 	if err != nil {
 		if ctx.Err() != nil {
 			return catalog.ScanReport{}, ctx.Err()
@@ -564,12 +663,22 @@ func (s *Service) FolderWatchRoot() string {
 }
 
 func (s *Service) folderWatchRoots() []catalog.Root {
-	return FolderWatchRoots(s.roots)
+	return FolderWatchRoots(s.libraryRootsSnapshot())
 }
 
 // ReconcileFolderWatch updates the host catalog from every configured root
 // mapped by the system table. It does not scan unmapped systems or media.
 func (s *Service) ReconcileFolderWatch(ctx context.Context) (catalog.ScanReport, error) {
+	releaseSettings, err := s.acquireLibrarySettings(ctx)
+	if err != nil {
+		return catalog.ScanReport{}, err
+	}
+	defer releaseSettings()
+	return s.reconcileFolderWatchLocked(ctx)
+}
+
+// reconcileFolderWatchLocked scans mapped roots while library settings admission is held.
+func (s *Service) reconcileFolderWatchLocked(ctx context.Context) (catalog.ScanReport, error) {
 	if err := ctx.Err(); err != nil {
 		return catalog.ScanReport{}, err
 	}
@@ -615,12 +724,10 @@ func (s *Service) retireSupersededLibraries(ctx context.Context) error {
 	keep := make(map[string]catalog.Root)
 	keepByID := make(map[string]catalog.Root)
 	keepByPath := make(map[string]catalog.Root)
-	for _, root := range s.roots {
+	for _, root := range s.libraryRootsSnapshot() {
 		keepByPath[root.Path] = root
 		if strings.TrimSpace(root.ID) != "" {
 			keepByID[root.ID] = root
-		}
-		if systems.Mapped(root.System) && strings.TrimSpace(root.ID) != "" {
 			keep[root.ID] = root
 		}
 	}
@@ -646,9 +753,6 @@ func (s *Service) retireSupersededLibraries(ctx context.Context) error {
 		}
 	}
 	for _, library := range libraries {
-		if !systems.Mapped(library.System) {
-			continue
-		}
 		root, ok := keep[library.ID]
 		if !ok || library.Path == root.Path {
 			continue
@@ -658,9 +762,6 @@ func (s *Service) retireSupersededLibraries(ctx context.Context) error {
 		}
 	}
 	for _, library := range libraries {
-		if !systems.Mapped(library.System) {
-			continue
-		}
 		if _, ok := keep[library.ID]; ok {
 			continue
 		}
@@ -716,6 +817,19 @@ func (s *Service) acquireCatalogAdmission(ctx context.Context) (func(), error) {
 		return nil, ctx.Err()
 	case <-s.catalogAdmission:
 		return func() { s.catalogAdmission <- struct{}{} }, nil
+	}
+}
+
+func (s *Service) acquireLibrarySettings(ctx context.Context) (func(), error) {
+	s.librarySettingsOnce.Do(func() {
+		s.librarySettingsAdmission = make(chan struct{}, 1)
+		s.librarySettingsAdmission <- struct{}{}
+	})
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-s.librarySettingsAdmission:
+		return func() { s.librarySettingsAdmission <- struct{}{} }, nil
 	}
 }
 
@@ -857,7 +971,11 @@ func (s *Service) hostLaunchable(system protocol.System) bool {
 func (s *Service) Health(parent context.Context) (protocol.Health, error) {
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 	defer cancel()
-	health, err := s.client.Health(ctx)
+	client, ok := s.selectedClientSnapshot()
+	if !ok {
+		return protocol.Health{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
+	}
+	health, err := client.Health(ctx)
 	if err != nil {
 		return protocol.Health{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 	}
@@ -867,6 +985,13 @@ func (s *Service) Health(parent context.Context) (protocol.Health, error) {
 func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 	defer cancel()
+	releaseLifecycle, err := s.acquireLifecycle(ctx)
+	if err != nil {
+		return protocol.Status{}, err
+	}
+	defer releaseLifecycle()
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
 	s.executionMu.Lock()
 	hostOnly := s.activeExecution == ExecutionHostOnly
 	gameID, system := s.activeGameID, s.activeSystem
@@ -881,29 +1006,72 @@ func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 		}
 		if status.State == hostexec.Idle {
 			s.executionMu.Lock()
-			s.activeExecution, s.activeGameID, s.activeSystem = "", "", ""
+			s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
 			s.executionMu.Unlock()
 			return protocol.Status{State: protocol.StateIdle}, nil
 		}
 		return protocol.Status{State: protocol.StateActive, GameID: stringPtr(gameID), System: systemPtr(system)}, nil
 	}
-	status, err := s.client.Status(ctx)
+	client, ok := s.selectedClientLocked()
+	if !ok {
+		s.allowSelectedTargetRepair(parent)
+		return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
+	}
+	status, err := client.Status(ctx)
 	if err != nil {
+		s.allowSelectedTargetRepair(parent)
 		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 	}
-	if status.State == protocol.StateIdle {
+	if status.State == protocol.StateActive {
 		s.executionMu.Lock()
-		if s.activeExecution == ExecutionFPGANative {
-			s.activeExecution, s.activeGameID, s.activeSystem = "", "", ""
+		s.selectedTargetReconciled = false
+		s.selectedTargetRepairAllowed = false
+		if s.activeExecution == "" {
+			s.activeExecution = ExecutionFPGANative
+			s.activeTarget = s.selectedTarget
+			if status.GameID != nil {
+				s.activeGameID = *status.GameID
+			}
+			if status.System != nil {
+				s.activeSystem = *status.System
+			}
 		}
+		s.executionMu.Unlock()
+	} else if status.State == protocol.StateIdle {
+		s.executionMu.Lock()
+		s.selectedTargetReconciled = true
+		s.selectedTargetRepairAllowed = false
+		if s.activeExecution == ExecutionFPGANative {
+			s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
+		}
+		s.executionMu.Unlock()
+	} else {
+		s.executionMu.Lock()
+		s.selectedTargetReconciled = false
+		s.selectedTargetRepairAllowed = false
 		s.executionMu.Unlock()
 	}
 	return status, nil
 }
 
+func (s *Service) allowSelectedTargetRepair(parent context.Context) {
+	if parent.Err() != nil {
+		return
+	}
+	s.executionMu.Lock()
+	s.selectedTargetReconciled = false
+	s.selectedTargetRepairAllowed = s.activeExecution == ""
+	s.executionMu.Unlock()
+}
+
 func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 	defer cancel()
+	releaseLifecycle, err := s.acquireLifecycle(ctx)
+	if err != nil {
+		return protocol.Status{}, err
+	}
+	defer releaseLifecycle()
 	s.executionMu.Lock()
 	hostOnly := s.activeExecution == ExecutionHostOnly
 	s.executionMu.Unlock()
@@ -913,23 +1081,44 @@ func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 		}
 		return protocol.Status{State: protocol.StateIdle}, nil
 	}
-	status, err := s.client.Stop(ctx)
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
+	client, ok := s.selectedClientLocked()
+	if !ok {
+		return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
+	}
+	status, err := client.Stop(ctx)
 	if err != nil {
 		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 	}
 	s.executionMu.Lock()
 	if s.activeExecution == ExecutionFPGANative {
-		s.activeExecution, s.activeGameID, s.activeSystem = "", "", ""
+		s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
 	}
+	s.selectedTargetReconciled = status.State == protocol.StateIdle
+	s.selectedTargetRepairAllowed = false
 	s.executionMu.Unlock()
 	return status, nil
+}
+
+func (s *Service) acquireLifecycle(ctx context.Context) (func(), error) {
+	s.lifecycleOnce.Do(func() {
+		s.lifecycleAdmission = make(chan struct{}, 1)
+		s.lifecycleAdmission <- struct{}{}
+	})
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-s.lifecycleAdmission:
+		return func() { s.lifecycleAdmission <- struct{}{} }, nil
+	}
 }
 
 func (s *Service) launchGame(ctx context.Context, game catalog.Game, progress ProgressFunc) (protocol.CachedLaunchResponse, bool, error) {
 	if !s.PlatformLaunchable(game.System) {
 		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeUnsupportedSystem, nil)
 	}
-	root, ok := s.rootsByID[game.LibraryID]
+	root, ok := s.libraryRoot(game.LibraryID)
 	if !ok || root.System != game.System {
 		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeSourceUnavailable, nil)
 	}
@@ -1023,6 +1212,7 @@ func (s *Service) launchHostOnly(ctx context.Context, game catalog.Game, root ca
 	// ownership before cleanup so a degraded cleanup error cannot orphan it.
 	s.executionMu.Lock()
 	s.activeExecution = ExecutionHostOnly
+	s.activeTarget = ""
 	s.activeGameID, s.activeSystem = game.ID, game.System
 	s.executionMu.Unlock()
 	if err := prepared.Remove(); err != nil {
@@ -1095,6 +1285,7 @@ func (s *Service) launchHostPath(ctx context.Context, game catalog.Game, root ca
 	}
 	s.executionMu.Lock()
 	s.activeExecution = ExecutionHostOnly
+	s.activeTarget = ""
 	s.activeGameID, s.activeSystem = game.ID, game.System
 	s.executionMu.Unlock()
 	gameID, system := game.ID, game.System
@@ -1131,7 +1322,10 @@ func (s *Service) launchPrepared(ctx context.Context, game catalog.Game, prepare
 		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, nil)
 	}
 	content := catalog.Content{SHA256: prepared.Content.SHA256, Size: prepared.Content.Size, Extension: prepared.Content.Extension}
-	root := s.rootsByID[game.LibraryID]
+	root, ok := s.libraryRoot(game.LibraryID)
+	if !ok {
+		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeSourceUnavailable, nil)
+	}
 	release, err := s.acquireCatalogAdmission(ctx)
 	if err != nil {
 		return protocol.CachedLaunchResponse{}, false, err
@@ -1216,7 +1410,11 @@ func (s *Service) uploadPrepared(parent context.Context, system protocol.System,
 	emitProgress(progress, "upload", "uploading prepared content")
 	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
 	defer cancel()
-	response, err := s.client.UploadContent(ctx, system, prepared.Content, body)
+	client, ok := s.selectedClientLocked()
+	if !ok {
+		return canonicalError(protocol.CodeMiSTerUnavailable, nil)
+	}
+	response, err := client.UploadContent(ctx, system, prepared.Content, body)
 	if err != nil {
 		return canonicalRemoteError(err, protocol.CodeTransferFailed)
 	}
@@ -1230,7 +1428,11 @@ func (s *Service) uploadPrepared(parent context.Context, system protocol.System,
 func (s *Service) probe(parent context.Context, system protocol.System, identity protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 	defer cancel()
-	response, err := s.client.ProbeContent(ctx, system, identity)
+	client, ok := s.selectedClientLocked()
+	if !ok {
+		return protocol.CacheProbeResponse{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
+	}
+	response, err := client.ProbeContent(ctx, system, identity)
 	if err != nil {
 		return protocol.CacheProbeResponse{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 	}
@@ -1244,7 +1446,11 @@ func (s *Service) launchContent(parent context.Context, game catalog.Game, ident
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 	defer cancel()
 	request := protocol.CachedLaunchRequest{GameID: game.ID, System: game.System, Content: identity}
-	response, err := s.client.LaunchContent(ctx, request)
+	client, ok := s.selectedClientLocked()
+	if !ok {
+		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
+	}
+	response, err := client.LaunchContent(ctx, request)
 	if err != nil {
 		return protocol.CachedLaunchResponse{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 	}
@@ -1268,7 +1474,11 @@ func (s *Service) launchFPGANative(parent context.Context, game catalog.Game, ro
 		return protocol.CachedLaunchResponse{}, false, err
 	}
 	request := protocol.LaunchRequest{GameID: game.ID, System: game.System, ROMPath: romPath}
-	status, err := s.client.Launch(ctx, request)
+	client, ok := s.selectedClientLocked()
+	if !ok {
+		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeMiSTerUnavailable, nil)
+	}
+	status, err := client.Launch(ctx, request)
 	if err != nil {
 		return protocol.CachedLaunchResponse{}, false, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 	}
@@ -1277,6 +1487,7 @@ func (s *Service) launchFPGANative(parent context.Context, game catalog.Game, ro
 	}
 	s.executionMu.Lock()
 	s.activeExecution = ExecutionFPGANative
+	s.activeTarget = s.selectedTarget
 	s.activeGameID, s.activeSystem = game.ID, game.System
 	s.executionMu.Unlock()
 	return protocol.CachedLaunchResponse{Status: status}, false, nil
@@ -1297,7 +1508,7 @@ func (s *Service) stopHostOnlyIfActive(ctx context.Context) error {
 	}
 	s.executionMu.Lock()
 	if s.activeExecution == ExecutionHostOnly {
-		s.activeExecution, s.activeGameID, s.activeSystem = "", "", ""
+		s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
 	}
 	s.executionMu.Unlock()
 	return nil

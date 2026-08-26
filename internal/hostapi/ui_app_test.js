@@ -262,6 +262,9 @@ function browserDocument() {
     'open-settings': 'button',
     'settings-attract-idle': 'input',
     'settings-preferred-regions': 'input',
+    'settings-selected-target': 'select',
+    'add-library': 'button',
+    'add-target': 'button',
     'save-settings': 'button',
     'close-settings': 'button',
     'game-actions-menu': 'div',
@@ -278,6 +281,7 @@ function browserDocument() {
     'catalog-sort', 'catalog-sort-label', 'catalog-sort-filter',
     'attract', 'attract-title', 'attract-stage',
     'open-settings', 'settings', 'settings-attract-idle', 'settings-preferred-regions',
+    'settings-libraries', 'add-library', 'settings-targets', 'add-target', 'settings-selected-target',
     'settings-host-health', 'settings-message', 'save-settings', 'close-settings',
     'game-actions-menu',
   ];
@@ -3075,19 +3079,53 @@ test('attract idle seconds follow the host API when no override is set', async (
 
 test('library settings PUT updates attract idle and reloads the catalog', async () => {
   const { calls, fetchImpl } = queuedFetch([
-    jsonResponse({ attract_idle_seconds: 60, preferred_regions: ['usa'] }),
-    jsonResponse({ attract_idle_seconds: 12, preferred_regions: ['japan'] }),
+    jsonResponse({
+      attract_idle_seconds: 60,
+      preferred_regions: ['usa'],
+      libraries: [{ id: 'operator-snes-root', system: 'snes', root: '/library/SNES' }],
+      targets: [{ name: 'dev', address: 'http://192.0.2.10:8182', enabled: true, agent_configured: true }],
+      selected_target: 'dev',
+      systems: [{ id: 'snes', label: 'SNES' }],
+    }),
+    jsonResponse({
+      attract_idle_seconds: 12,
+      preferred_regions: ['japan'],
+      libraries: [{ id: 'operator-snes-root', system: 'snes', root: '/library/SNES' }],
+      targets: [
+        { name: 'dev', address: 'http://192.0.2.10:8182', enabled: true, agent_configured: true },
+        { name: 'spare', address: '', enabled: false, agent_configured: false },
+      ],
+      selected_target: 'spare',
+      systems: [{ id: 'snes', label: 'SNES' }],
+    }),
+    jsonResponse({ platforms: [{ id: 'snes', label: 'SNES', game_count: 1, online: true, launchable: true }] }),
     jsonResponse(readFixture('catalog-populated.json')),
   ]);
   const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
   await controller.loadSettings();
   assert.equal(controller.getState().attractIdleSeconds, 60);
-  await controller.saveSettings({ attract_idle_seconds: 12, preferred_regions: ['japan'] });
+  await controller.saveSettings({
+    attract_idle_seconds: 12,
+    preferred_regions: ['japan'],
+    libraries: [{ id: 'operator-snes-root', system: 'snes', root: '/library/SNES' }],
+    targets: [
+      { name: 'dev', address: 'http://192.0.2.10:8182', enabled: true },
+      { name: 'spare', address: '', enabled: false },
+    ],
+    selected_target: 'spare',
+  });
   assert.equal(controller.getState().attractIdleSeconds, 12);
   assert.deepEqual(controller.getState().librarySettings.preferred_regions, ['japan']);
   assert.equal(calls[1].path, '/api/v1/library/settings');
   assert.equal(calls[1].options.method, 'PUT');
-  assert.ok(String(calls[2].path).startsWith('/api/v1/games'));
+  const body = JSON.parse(calls[1].options.body);
+  assert.equal(body.libraries[0].root, '/library/SNES');
+  assert.equal(body.targets[0].agent, undefined);
+  assert.equal(body.selected_target, 'spare');
+  assert.equal(controller.getState().librarySettings.selected_target, 'spare');
+  assert.equal(calls[2].path, '/api/v1/platforms');
+  assert.ok(String(calls[3].path).startsWith('/api/v1/games'));
+  assert.equal(controller.getState().platforms[0].id, 'snes');
 });
 
 test('overlapping settings saves persist in start order', async () => {
@@ -3361,7 +3399,7 @@ async function openAllGamesGrid(document) {
   await pressKey(document, 'Enter', navAll);
 }
 
-async function runKeyboardApp({ pages, railPages, platforms, launchResponse, globals, collections, onSettings, attractItems } = {}) {
+async function runKeyboardApp({ pages, railPages, platforms, launchResponse, globals, collections, onSettings, attractItems, settings } = {}) {
   const catalogPages = pages || [{
     games: readFixture('catalog-populated.json').games,
     next_cursor: '',
@@ -3386,9 +3424,13 @@ async function runKeyboardApp({ pages, railPages, platforms, launchResponse, glo
         return jsonResponse({
           attract_idle_seconds: written.attract_idle_seconds,
           preferred_regions: written.preferred_regions,
+          libraries: written.libraries || [],
+          targets: (written.targets || []).map(target => ({ ...target, agent_configured: Boolean(target.agent) })),
+          selected_target: written.selected_target || '',
+          systems: (settings && settings.systems) || [],
         });
       }
-      return jsonResponse({ attract_idle_seconds: 60, preferred_regions: ['usa', 'world', 'europe', 'japan'] });
+      return jsonResponse(settings || { attract_idle_seconds: 60, preferred_regions: ['usa', 'world', 'europe', 'japan'] });
     }
     if (pathOnly === '/api/v1/library/facets') {
       return jsonResponse({ genres: [], years: [] });
@@ -3691,8 +3733,147 @@ test('settings overlay cancels attract and enterAttract no-ops until close', asy
   assert.equal(document.nodes.get('attract').hidden, true);
 });
 
+test('settings UI adds a library folder and a disabled named target without echoing the stored agent', async () => {
+  const settings = {
+    attract_idle_seconds: 60,
+    preferred_regions: ['usa'],
+    libraries: [{ id: 'operator-snes-root', system: 'snes', root: '/library/SNES' }],
+    targets: [{ name: 'dev', address: 'http://192.0.2.10:8182', enabled: true, agent_configured: true }],
+    selected_target: 'dev',
+    systems: [{ id: 'snes', label: 'SNES' }, { id: 'nes', label: 'NES' }],
+  };
+  const { document, calls } = await runKeyboardApp({ settings });
+  await settleBrowser();
+  await document.nodes.get('open-settings').click();
+  await waitForCondition(() => document.nodes.get('settings-libraries').children.length === 1, 'library settings did not render');
+  assert.equal(document.nodes.get('settings-targets').children.length, 1);
+  const devAgent = document.nodes.get('settings-targets').children[0]._fogcastFields.agent;
+  assert.equal(devAgent.value, '');
+  assert.equal(devAgent.placeholder, 'Stored');
+  const devFields = document.nodes.get('settings-targets').children[0]._fogcastFields;
+  devFields.name.value = 'den';
+  devFields.name.dispatchEvent({ type: 'input' });
+  assert.equal(document.nodes.get('settings-selected-target').value, 'den');
+
+  document.nodes.get('add-library').click();
+  const addedLibrary = document.nodes.get('settings-libraries').children[1]._fogcastFields;
+  addedLibrary.system.value = 'nes';
+  addedLibrary.root.value = '/library/NES';
+  document.nodes.get('add-target').click();
+  const addedTarget = document.nodes.get('settings-targets').children[1]._fogcastFields;
+  addedTarget.name.value = 'spare';
+  assert.equal(document.nodes.get('settings-selected-target').value, 'den');
+  document.nodes.get('settings-selected-target').value = 'spare';
+  document.nodes.get('save-settings').click();
+  await waitForCondition(() => calls.some(call => call.path === '/api/v1/library/settings' && call.options && call.options.method === 'PUT'), 'settings PUT not sent');
+  const put = calls.find(call => call.path === '/api/v1/library/settings' && call.options && call.options.method === 'PUT');
+  const body = JSON.parse(put.options.body);
+  assert.equal(body.libraries.length, 2);
+  assert.deepEqual(body.libraries[1], { id: '', system: 'nes', root: '/library/NES' });
+  assert.equal(body.targets.length, 2);
+  assert.equal(body.targets[0].agent, undefined);
+  assert.equal(body.targets[0].name, 'den');
+  assert.equal(body.targets[0].original_name, 'dev');
+  assert.deepEqual(body.targets[1], { name: 'spare', address: '', enabled: false });
+  assert.equal(body.selected_target, 'spare');
+});
+
+test('settings UI explicitly clears a stored target agent while untouched blank preserves it', async () => {
+  const settings = {
+    attract_idle_seconds: 60,
+    preferred_regions: ['usa'],
+    libraries: [],
+    targets: [{ name: 'dev', address: 'http://192.0.2.10:8182', enabled: false, agent_configured: true }],
+    selected_target: 'dev',
+    systems: [],
+  };
+  const { document, calls } = await runKeyboardApp({ settings });
+  await settleBrowser();
+  await document.nodes.get('open-settings').click();
+  await waitForCondition(() => document.nodes.get('settings-targets').children.length === 1, 'target settings did not render');
+  const fields = document.nodes.get('settings-targets').children[0]._fogcastFields;
+
+  fields.address.value = '';
+  fields.address.dispatchEvent({ type: 'input' });
+  fields.clearAgent.click();
+  document.nodes.get('save-settings').click();
+  await waitForCondition(() => calls.some(call => call.path === '/api/v1/library/settings' && call.options && call.options.method === 'PUT'), 'settings PUT not sent');
+
+  const put = calls.find(call => call.path === '/api/v1/library/settings' && call.options && call.options.method === 'PUT');
+  const body = JSON.parse(put.options.body);
+  assert.equal(body.targets[0].agent, '');
+  assert.equal(fields.agent.value, '');
+});
+
+test('settings UI preserves a stored target agent after replacement text is deleted', async () => {
+  const settings = {
+    attract_idle_seconds: 60,
+    preferred_regions: ['usa'],
+    libraries: [],
+    targets: [{ name: 'dev', address: 'http://192.0.2.10:8182', enabled: false, agent_configured: true }],
+    selected_target: 'dev',
+    systems: [],
+  };
+  const { document, calls } = await runKeyboardApp({ settings });
+  await settleBrowser();
+  await document.nodes.get('open-settings').click();
+  await waitForCondition(() => document.nodes.get('settings-targets').children.length === 1, 'target settings did not render');
+  const fields = document.nodes.get('settings-targets').children[0]._fogcastFields;
+
+  fields.agent.value = 'fixture-replacement';
+  fields.agent.dispatchEvent({ type: 'input' });
+  fields.agent.value = '';
+  fields.agent.dispatchEvent({ type: 'input' });
+  document.nodes.get('save-settings').click();
+  await waitForCondition(() => calls.some(call => call.path === '/api/v1/library/settings' && call.options && call.options.method === 'PUT'), 'settings PUT not sent');
+
+  const put = calls.find(call => call.path === '/api/v1/library/settings' && call.options && call.options.method === 'PUT');
+  const body = JSON.parse(put.options.body);
+  assert.equal(body.targets[0].agent, undefined);
+});
+
+test('settings UI keeps a selected non-first target selected through rename and add', async () => {
+  const { document } = await runKeyboardApp({
+    settings: {
+      attract_idle_seconds: 60,
+      preferred_regions: ['usa'],
+      libraries: [],
+      targets: [
+        { name: 'dev', address: 'http://192.0.2.10:8182', enabled: true, agent_configured: true },
+        { name: 'spare', address: 'http://192.0.2.11:8182', enabled: true, agent_configured: true },
+      ],
+      selected_target: 'spare',
+      systems: [],
+    },
+  });
+  await settleBrowser();
+  await document.nodes.get('open-settings').click();
+  await waitForCondition(() => document.nodes.get('settings-targets').children.length === 2, 'target settings did not render');
+  const selectedName = document.nodes.get('settings-targets').children[1]._fogcastFields.name;
+  selectedName.value = 'den';
+  selectedName.dispatchEvent({ type: 'input' });
+  assert.equal(document.nodes.get('settings-selected-target').value, 'den');
+  selectedName.value = 'dev';
+  selectedName.dispatchEvent({ type: 'input' });
+  const firstName = document.nodes.get('settings-targets').children[0]._fogcastFields.name;
+  firstName.value = 'spare';
+  firstName.dispatchEvent({ type: 'input' });
+  assert.equal(document.nodes.get('settings-selected-target').value, 'dev');
+  document.nodes.get('add-target').click();
+  assert.equal(document.nodes.get('settings-selected-target').value, 'dev');
+});
+
 test('settings overlay traps Tab and blocks launcher Enter', async () => {
-  const { document, calls } = await runKeyboardApp();
+  const { document, calls } = await runKeyboardApp({
+    settings: {
+      attract_idle_seconds: 60,
+      preferred_regions: ['usa'],
+      libraries: [],
+      targets: [{ name: 'dev', address: 'http://192.0.2.10:8182', enabled: true, agent_configured: true }],
+      selected_target: 'dev',
+      systems: [],
+    },
+  });
   await settleBrowser();
   await openAllGamesGrid(document);
   await pressKey(document, 'Enter');
@@ -3704,6 +3885,12 @@ test('settings overlay traps Tab and blocks launcher Enter', async () => {
   ), 'settings overlay did not open');
   assert.equal(document.nodes.get('launcher').inert, true);
 
+  const targetFields = document.nodes.get('settings-targets').children[0]._fogcastFields;
+  targetFields.agent.focus();
+  const enabledTab = await pressKey(document, 'Tab', targetFields.agent);
+  assert.equal(enabledTab.defaultPrevented, true);
+  assert.equal(document.activeElement, targetFields.clearAgent);
+
   document.nodes.get('close-settings').focus();
   const tab = await pressKey(document, 'Tab', document.nodes.get('close-settings'));
   assert.equal(tab.defaultPrevented, true);
@@ -3713,10 +3900,17 @@ test('settings overlay traps Tab and blocks launcher Enter', async () => {
   assert.equal(shiftTab.defaultPrevented, true);
   assert.equal(document.activeElement, document.nodes.get('close-settings'));
 
-  const allowed = new Set(['settings-attract-idle', 'settings-preferred-regions', 'save-settings', 'close-settings']);
+  const allowed = new Set([
+    'settings-attract-idle', 'settings-preferred-regions', 'add-library',
+    'settings-selected-target', 'add-target', 'save-settings', 'close-settings',
+  ]);
   for (let index = 0; index < 6; index += 1) {
     await pressKey(document, 'Tab');
-    assert.ok(allowed.has(document.activeElement && document.activeElement.id), document.activeElement && document.activeElement.id);
+    assert.ok(
+      allowed.has(document.activeElement && document.activeElement.id)
+        || Object.values(targetFields).includes(document.activeElement),
+      document.activeElement && document.activeElement.id,
+    );
   }
 
   const launch = document.getElementById('launch-game');
@@ -3814,6 +4008,64 @@ test('stale settings save does not refill a reopened form', async () => {
   await saving;
   await settleBrowser();
   assert.equal(document.nodes.get('settings-attract-idle').value, '8');
+});
+
+test('stale settings save does not overwrite dynamic library and target edits', async () => {
+  let releaseSave;
+  let saveStarted;
+  const saveHeld = new Promise(resolve => { releaseSave = resolve; });
+  const putStarted = new Promise(resolve => { saveStarted = resolve; });
+  const { document } = await runKeyboardApp({
+    settings: {
+      attract_idle_seconds: 60,
+      preferred_regions: ['usa'],
+      libraries: [{ id: 'snes-main', system: 'snes', root: '/library/SNES' }],
+      targets: [{ name: 'dev', address: 'http://192.0.2.10:8182', enabled: false, agent_configured: true }],
+      selected_target: 'dev',
+      systems: [{ id: 'snes', label: 'SNES' }, { id: 'nes', label: 'NES' }],
+    },
+    onSettings: async ({ options }) => {
+      if (options && options.method === 'PUT') {
+        saveStarted();
+        await saveHeld;
+      }
+    },
+  });
+  await settleBrowser();
+  await document.nodes.get('open-settings').click();
+  await waitForCondition(() => (
+    document.nodes.get('settings-libraries').children.length === 1
+    && document.nodes.get('settings-targets').children.length === 1
+  ), 'settings rows did not render');
+
+  const saving = document.nodes.get('save-settings').click();
+  await putStarted;
+  const library = document.nodes.get('settings-libraries').children[0]._fogcastFields;
+  library.system.value = 'nes';
+  library.system.dispatchEvent({ type: 'change' });
+  library.root.value = '/library/NES';
+  library.root.dispatchEvent({ type: 'input' });
+  const target = document.nodes.get('settings-targets').children[0]._fogcastFields;
+  target.name.value = 'den';
+  target.name.dispatchEvent({ type: 'input' });
+  target.address.value = 'http://192.0.2.11:8182';
+  target.address.dispatchEvent({ type: 'input' });
+  target.agent.value = 'fixture-agent';
+  target.agent.dispatchEvent({ type: 'input' });
+  target.enabled.checked = true;
+  target.enabled.dispatchEvent({ type: 'change' });
+  releaseSave();
+  await saving;
+  await settleBrowser();
+
+  const currentLibrary = document.nodes.get('settings-libraries').children[0]._fogcastFields;
+  const currentTarget = document.nodes.get('settings-targets').children[0]._fogcastFields;
+  assert.equal(currentLibrary.system.value, 'nes');
+  assert.equal(currentLibrary.root.value, '/library/NES');
+  assert.equal(currentTarget.name.value, 'den');
+  assert.equal(currentTarget.address.value, 'http://192.0.2.11:8182');
+  assert.equal(currentTarget.agent.value, 'fixture-agent');
+  assert.equal(currentTarget.enabled.checked, true);
 });
 
 test('settings overlay opens from the header and Escape returns to the previous pane', async () => {

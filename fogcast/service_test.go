@@ -2220,10 +2220,792 @@ type fakeServiceClient struct {
 	activeGame        string
 	healthResult      protocol.Health
 	statusResult      protocol.Status
+	statusFn          func(context.Context) (protocol.Status, error)
 	stopResult        protocol.Status
+	stopFn            func(context.Context) (protocol.Status, error)
 	healthErr         error
 	statusErr         error
 	stopErr           error
+}
+
+func TestNamedTargetSelectionRoutesPlayStatusAndStop(t *testing.T) {
+	ctx := context.Background()
+	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: t.TempDir()}
+	game := catalog.Game{
+		ID: "snes-target-route", Title: "Target Route", System: protocol.SystemSNES, LibraryID: root.ID,
+		Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
+	}
+	dev := &fakeServiceClient{
+		statusResult: protocol.Status{State: protocol.StateIdle},
+		nativeLaunch: func(context.Context, protocol.LaunchRequest) (protocol.Status, error) {
+			return protocol.Status{}, errors.New("dev should not launch")
+		},
+	}
+	spare := &fakeServiceClient{
+		nativeLaunch: func(_ context.Context, request protocol.LaunchRequest) (protocol.Status, error) {
+			expected := "SNES"
+			return protocol.Status{State: protocol.StateActive, GameID: &request.GameID, System: &request.System, ExpectedCore: &expected, ObservedCore: &expected}, nil
+		},
+		statusResult: protocol.Status{State: protocol.StateActive, GameID: &game.ID, System: &game.System},
+		stopResult:   protocol.Status{State: protocol.StateIdle},
+	}
+	service := newService(
+		Config{
+			Libraries: []catalog.Root{root},
+			Targets:   []TargetConfig{{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182", Agent: "test-token"}}, SelectedTarget: "dev",
+			Library:        LibraryConfig{AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}},
+			RequestTimeout: time.Second, UploadTimeout: time.Second,
+			FPGAROMPaths: map[string]string{game.ID: "/media/fat/games/SNES/TargetRoute.smc"},
+		},
+		Paths{Staging: t.TempDir()}, &fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServiceScanner{}, &fakeServicePreparer{}, dev,
+		withTargetClientFactory(func(target TargetConfig) (serviceClient, error) {
+			if target.Name == "spare" {
+				return spare, nil
+			}
+			return dev, nil
+		}),
+	)
+	if _, err := service.Status(ctx); err != nil {
+		t.Fatalf("reconcile selected target: %v", err)
+	}
+	if err := service.SetLibrarySettings(ctx, LibraryConfig{
+		AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}, Libraries: []catalog.Root{root},
+		Targets: []TargetConfig{
+			{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182"},
+			{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182", Agent: "spare-test-token", AgentSet: true},
+		},
+		SelectedTarget: "spare",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Launch(ctx, game.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+	if spare.nativeLaunchCalls != 1 || dev.nativeLaunchCalls != 0 {
+		t.Fatalf("launch calls dev=%d spare=%d", dev.nativeLaunchCalls, spare.nativeLaunchCalls)
+	}
+	if _, err := service.Status(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if spare.statusCalls != 1 || dev.statusCalls != 1 {
+		t.Fatalf("status calls dev=%d spare=%d", dev.statusCalls, spare.statusCalls)
+	}
+	changedActiveConnection := service.SetLibrarySettings(ctx, LibraryConfig{
+		AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}, Libraries: []catalog.Root{root},
+		Targets: []TargetConfig{
+			{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182"},
+			{Name: "spare", Enabled: true, Address: "http://192.0.2.99:8182", Agent: "replacement-test-token", AgentSet: true},
+		},
+		SelectedTarget: "spare",
+	})
+	var apiErr *protocol.APIError
+	if !errors.As(changedActiveConnection, &apiErr) || apiErr.Code != protocol.CodeBadRequest {
+		t.Fatalf("active connection edit error = %v", changedActiveConnection)
+	}
+	blocked := service.SetLibrarySettings(ctx, LibraryConfig{
+		AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}, Libraries: []catalog.Root{root},
+		Targets: []TargetConfig{
+			{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182"},
+			{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182"},
+		},
+		SelectedTarget: "dev",
+	})
+	apiErr = nil
+	if !errors.As(blocked, &apiErr) || apiErr.Code != protocol.CodeBadRequest {
+		t.Fatalf("active target switch error = %v", blocked)
+	}
+	if _, err := service.Stop(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if spare.stopCalls != 1 || dev.stopCalls != 0 {
+		t.Fatalf("stop calls dev=%d spare=%d", dev.stopCalls, spare.stopCalls)
+	}
+}
+
+func TestStartupReconciliationBlocksNamedTargetSwitchBeforeStatus(t *testing.T) {
+	ctx := context.Background()
+	gameID := "snes-startup-active"
+	system := protocol.SystemSNES
+	dev := &fakeServiceClient{
+		statusResult: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system},
+		stopResult:   protocol.Status{State: protocol.StateIdle},
+	}
+	spare := &fakeServiceClient{}
+	service := newService(
+		Config{
+			Targets: []TargetConfig{
+				{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182", Agent: "dev-fixture-token"},
+				{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182", Agent: "spare-fixture-token"},
+			},
+			SelectedTarget: "dev",
+			Library:        LibraryConfig{AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}},
+			RequestTimeout: time.Second,
+		},
+		Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, dev,
+		withTargetClientFactory(func(target TargetConfig) (serviceClient, error) {
+			if target.Name == "spare" {
+				return spare, nil
+			}
+			return dev, nil
+		}),
+	)
+	err := service.SetLibrarySettings(ctx, LibraryConfig{
+		AttractIdleSeconds: 60,
+		PreferredRegions:   []string{"usa"},
+		Targets: []TargetConfig{
+			{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182"},
+			{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182"},
+		},
+		SelectedTarget: "spare",
+	})
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBadRequest {
+		t.Fatalf("unreconciled target switch error = %v", err)
+	}
+	if dev.statusCalls != 0 || service.LibrarySettings().SelectedTarget != "dev" {
+		t.Fatalf("rejected switch queried or changed target: status=%d selected=%q", dev.statusCalls, service.LibrarySettings().SelectedTarget)
+	}
+	status, err := service.Status(ctx)
+	if err != nil || status.State != protocol.StateActive {
+		t.Fatalf("startup status = %+v, %v", status, err)
+	}
+	if _, err := service.Stop(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if dev.stopCalls != 1 || spare.stopCalls != 0 {
+		t.Fatalf("stop calls dev=%d spare=%d", dev.stopCalls, spare.stopCalls)
+	}
+}
+
+func TestIdleStartupReconciliationAllowsOneNamedTargetSwitch(t *testing.T) {
+	ctx := context.Background()
+	dev := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}}
+	spare := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}}
+	service := newService(
+		Config{
+			Targets: []TargetConfig{
+				{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182", Agent: "dev-fixture-token"},
+				{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182", Agent: "spare-fixture-token"},
+			},
+			SelectedTarget: "dev",
+			Library:        LibraryConfig{AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}},
+			RequestTimeout: time.Second,
+		},
+		Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, dev,
+		withTargetClientFactory(func(target TargetConfig) (serviceClient, error) {
+			if target.Name == "spare" {
+				return spare, nil
+			}
+			return dev, nil
+		}),
+	)
+	settingsFor := func(selected string) LibraryConfig {
+		return LibraryConfig{
+			AttractIdleSeconds: 60,
+			PreferredRegions:   []string{"usa"},
+			Targets: []TargetConfig{
+				{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182"},
+				{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182"},
+			},
+			SelectedTarget: selected,
+		}
+	}
+	if err := service.SetLibrarySettings(ctx, settingsFor("spare")); err == nil {
+		t.Fatal("unreconciled startup switch succeeded")
+	}
+	if _, err := service.Status(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.SetLibrarySettings(ctx, settingsFor("spare")); err != nil {
+		t.Fatalf("idle-reconciled switch: %v", err)
+	}
+	if err := service.SetLibrarySettings(ctx, settingsFor("dev")); err == nil {
+		t.Fatal("new selected target switched again without reconciliation")
+	}
+	if dev.statusCalls != 1 || spare.statusCalls != 0 {
+		t.Fatalf("status calls dev=%d spare=%d", dev.statusCalls, spare.statusCalls)
+	}
+}
+
+func TestFailedStatusDoesNotAllowNamedTargetRecoverySwitch(t *testing.T) {
+	ctx := context.Background()
+	statusCalls := 0
+	dev := &fakeServiceClient{statusFn: func(context.Context) (protocol.Status, error) {
+		statusCalls++
+		if statusCalls == 1 {
+			return protocol.Status{State: protocol.StateIdle}, nil
+		}
+		return protocol.Status{}, errors.New("fixture target unavailable")
+	}}
+	spare := &fakeServiceClient{}
+	service := newService(
+		Config{
+			Targets: []TargetConfig{
+				{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182", Agent: "dev-fixture-token"},
+				{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182", Agent: "spare-fixture-token"},
+			},
+			SelectedTarget: "dev",
+			Library:        LibraryConfig{AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}},
+			RequestTimeout: time.Second,
+		},
+		Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, dev,
+		withTargetClientFactory(func(target TargetConfig) (serviceClient, error) {
+			if target.Name == "spare" {
+				return spare, nil
+			}
+			return dev, nil
+		}),
+	)
+	settingsFor := func(selected string) LibraryConfig {
+		return LibraryConfig{
+			AttractIdleSeconds: 60,
+			PreferredRegions:   []string{"usa"},
+			Targets: []TargetConfig{
+				{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182"},
+				{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182"},
+			},
+			SelectedTarget: selected,
+		}
+	}
+	if _, err := service.Status(ctx); err != nil {
+		t.Fatalf("reconcile dev: %v", err)
+	}
+	if _, err := service.Status(ctx); err == nil {
+		t.Fatal("later unreachable dev status succeeded")
+	} else {
+		var apiErr *protocol.APIError
+		if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeMiSTerUnavailable {
+			t.Fatalf("unreachable dev status error = %v", err)
+		}
+	}
+	if err := service.SetLibrarySettings(ctx, settingsFor("spare")); err == nil {
+		t.Fatal("unreachable target switched without successful reconciliation")
+	}
+	if dev.statusCalls != 2 || spare.statusCalls != 0 || service.LibrarySettings().SelectedTarget != "dev" {
+		t.Fatalf("status calls dev=%d spare=%d selected=%q", dev.statusCalls, spare.statusCalls, service.LibrarySettings().SelectedTarget)
+	}
+}
+
+func TestFailedStartupStatusAllowsOneSelectedTargetConnectionRepair(t *testing.T) {
+	ctx := context.Background()
+	unreachable := &fakeServiceClient{statusErr: errors.New("fixture target unavailable")}
+	repaired := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}}
+	service := newService(
+		Config{
+			Targets:        []TargetConfig{{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182", Agent: "dev-fixture-token"}},
+			SelectedTarget: "dev",
+			Library:        LibraryConfig{AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}},
+			RequestTimeout: time.Second,
+		},
+		Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, unreachable,
+		withTargetClientFactory(func(target TargetConfig) (serviceClient, error) {
+			if target.Address == "http://192.0.2.20:8182" {
+				return repaired, nil
+			}
+			return unreachable, nil
+		}),
+	)
+	settingsFor := func(address string) LibraryConfig {
+		return LibraryConfig{
+			AttractIdleSeconds: 60,
+			PreferredRegions:   []string{"usa"},
+			Targets:            []TargetConfig{{Name: "dev", Enabled: true, Address: address}},
+			SelectedTarget:     "dev",
+		}
+	}
+	if _, err := service.Status(ctx); err == nil {
+		t.Fatal("unreachable startup status succeeded")
+	}
+	if err := service.SetLibrarySettings(ctx, settingsFor("http://192.0.2.20:8182")); err != nil {
+		t.Fatalf("repair selected target connection: %v", err)
+	}
+	if err := service.SetLibrarySettings(ctx, settingsFor("http://192.0.2.21:8182")); err == nil {
+		t.Fatal("second connection repair succeeded without reconciling repaired target")
+	}
+	if _, err := service.Status(ctx); err != nil {
+		t.Fatalf("status through repaired connection: %v", err)
+	}
+	if unreachable.statusCalls != 1 || repaired.statusCalls != 1 {
+		t.Fatalf("status calls unreachable=%d repaired=%d", unreachable.statusCalls, repaired.statusCalls)
+	}
+}
+
+func TestFailedStatusDoesNotAllowRecoveryFromKnownActiveExecution(t *testing.T) {
+	ctx := context.Background()
+	dev := &fakeServiceClient{statusErr: errors.New("fixture target unavailable")}
+	service := newService(
+		Config{
+			Targets: []TargetConfig{
+				{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182", Agent: "dev-fixture-token"},
+				{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182", Agent: "spare-fixture-token"},
+			},
+			SelectedTarget: "dev",
+			Library:        LibraryConfig{AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}},
+			RequestTimeout: time.Second,
+		},
+		Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, dev,
+		withTargetClientFactory(func(TargetConfig) (serviceClient, error) { return &fakeServiceClient{}, nil }),
+	)
+	service.executionMu.Lock()
+	service.activeExecution = ExecutionFPGANative
+	service.activeTarget = "dev"
+	service.executionMu.Unlock()
+	if _, err := service.Status(ctx); err == nil {
+		t.Fatal("unreachable active target status succeeded")
+	}
+	service.executionMu.Lock()
+	repairAllowed := service.selectedTargetRepairAllowed
+	service.executionMu.Unlock()
+	if repairAllowed {
+		t.Fatal("failed status granted repair while an execution was active")
+	}
+	err := service.SetLibrarySettings(ctx, LibraryConfig{
+		AttractIdleSeconds: 60,
+		PreferredRegions:   []string{"usa"},
+		Targets: []TargetConfig{
+			{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182"},
+			{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182"},
+		},
+		SelectedTarget: "spare",
+	})
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBadRequest {
+		t.Fatalf("active target recovery switch error = %v", err)
+	}
+	if service.LibrarySettings().SelectedTarget != "dev" {
+		t.Fatalf("active target changed to %q", service.LibrarySettings().SelectedTarget)
+	}
+}
+
+func TestStatusReconciliationPinsActiveNamedTargetBeforeSettingsSwitch(t *testing.T) {
+	ctx := context.Background()
+	gameID := "snes-reconciled"
+	system := protocol.SystemSNES
+	statusEntered := make(chan struct{})
+	statusRelease := make(chan struct{})
+	dev := &fakeServiceClient{
+		statusFn: func(context.Context) (protocol.Status, error) {
+			close(statusEntered)
+			<-statusRelease
+			return protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system}, nil
+		},
+		stopResult: protocol.Status{State: protocol.StateIdle},
+	}
+	spare := &fakeServiceClient{}
+	service := newService(
+		Config{
+			Targets: []TargetConfig{
+				{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182", Agent: "dev-test-token"},
+				{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182", Agent: "spare-test-token"},
+			},
+			SelectedTarget: "dev",
+			Library:        LibraryConfig{AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}},
+			RequestTimeout: time.Second,
+		},
+		Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, dev,
+		withTargetClientFactory(func(target TargetConfig) (serviceClient, error) {
+			if target.Name == "spare" {
+				return spare, nil
+			}
+			return dev, nil
+		}),
+	)
+	statusDone := make(chan error, 1)
+	go func() {
+		status, err := service.Status(ctx)
+		if err == nil && status.State != protocol.StateActive {
+			err = errors.New("reconciled status was not active")
+		}
+		statusDone <- err
+	}()
+	<-statusEntered
+	settingsDone := make(chan error, 1)
+	go func() {
+		settingsDone <- service.SetLibrarySettings(ctx, LibraryConfig{
+			AttractIdleSeconds: 60,
+			PreferredRegions:   []string{"usa"},
+			Targets: []TargetConfig{
+				{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182"},
+				{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182"},
+			},
+			SelectedTarget: "spare",
+		})
+	}()
+	select {
+	case err := <-settingsDone:
+		t.Fatalf("settings switch completed before status reconciliation: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(statusRelease)
+	if err := <-statusDone; err != nil {
+		t.Fatal(err)
+	}
+	err := <-settingsDone
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBadRequest {
+		t.Fatalf("active reconciled target switch error = %v", err)
+	}
+	if _, err := service.Stop(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if dev.stopCalls != 1 || spare.stopCalls != 0 {
+		t.Fatalf("stop calls dev=%d spare=%d", dev.stopCalls, spare.stopCalls)
+	}
+}
+
+func TestStopPinsReconciledNamedTargetThroughSettingsSwitch(t *testing.T) {
+	ctx := context.Background()
+	stopEntered := make(chan struct{})
+	stopRelease := make(chan struct{})
+	dev := &fakeServiceClient{
+		statusResult: protocol.Status{State: protocol.StateIdle},
+		stopFn: func(context.Context) (protocol.Status, error) {
+			close(stopEntered)
+			<-stopRelease
+			return protocol.Status{State: protocol.StateIdle}, nil
+		},
+	}
+	spare := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}}
+	service := newService(
+		Config{
+			Targets: []TargetConfig{
+				{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182", Agent: "dev-test-token"},
+				{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182", Agent: "spare-test-token"},
+			},
+			SelectedTarget: "dev",
+			Library:        LibraryConfig{AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}},
+			RequestTimeout: time.Second,
+		},
+		Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, dev,
+		withTargetClientFactory(func(target TargetConfig) (serviceClient, error) {
+			if target.Name == "spare" {
+				return spare, nil
+			}
+			return dev, nil
+		}),
+	)
+	if _, err := service.Status(ctx); err != nil {
+		t.Fatalf("reconcile dev idle: %v", err)
+	}
+
+	stopDone := make(chan error, 1)
+	go func() {
+		_, err := service.Stop(ctx)
+		stopDone <- err
+	}()
+	<-stopEntered
+	settingsDone := make(chan error, 1)
+	go func() {
+		settingsDone <- service.SetLibrarySettings(ctx, LibraryConfig{
+			AttractIdleSeconds: 60,
+			PreferredRegions:   []string{"usa"},
+			Targets: []TargetConfig{
+				{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182"},
+				{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182"},
+			},
+			SelectedTarget: "spare",
+		})
+	}()
+	select {
+	case err := <-settingsDone:
+		t.Fatalf("settings switch completed before Stop reconciliation: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(stopRelease)
+	if err := <-stopDone; err != nil {
+		t.Fatalf("stop dev: %v", err)
+	}
+	if err := <-settingsDone; err != nil {
+		t.Fatalf("switch to spare: %v", err)
+	}
+
+	err := service.SetLibrarySettings(ctx, LibraryConfig{
+		AttractIdleSeconds: 60,
+		PreferredRegions:   []string{"usa"},
+		Targets: []TargetConfig{
+			{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182"},
+			{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182"},
+		},
+		SelectedTarget: "dev",
+	})
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBadRequest {
+		t.Fatalf("unreconciled spare switch error = %v", err)
+	}
+	if spare.statusCalls != 0 {
+		t.Fatalf("spare status calls = %d, want 0", spare.statusCalls)
+	}
+	if _, err := service.Status(ctx); err != nil {
+		t.Fatalf("reconcile spare idle: %v", err)
+	}
+	if err := service.SetLibrarySettings(ctx, LibraryConfig{
+		AttractIdleSeconds: 60,
+		PreferredRegions:   []string{"usa"},
+		Targets: []TargetConfig{
+			{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182"},
+			{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182"},
+		},
+		SelectedTarget: "dev",
+	}); err != nil {
+		t.Fatalf("switch after spare reconciliation: %v", err)
+	}
+}
+
+func TestIdleStatusCannotClearNewerNamedTargetLaunch(t *testing.T) {
+	ctx := context.Background()
+	root := catalog.Root{ID: "snes-status-race", System: protocol.SystemSNES, Path: t.TempDir()}
+	game := catalog.Game{
+		ID: "snes-status-race", Title: "Status Race", System: protocol.SystemSNES, LibraryID: root.ID,
+		Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
+	}
+	statusEntered := make(chan struct{})
+	statusRelease := make(chan struct{})
+	launchEntered := make(chan struct{})
+	client := &fakeServiceClient{
+		statusFn: func(context.Context) (protocol.Status, error) {
+			close(statusEntered)
+			<-statusRelease
+			return protocol.Status{State: protocol.StateIdle}, nil
+		},
+		nativeLaunch: func(_ context.Context, request protocol.LaunchRequest) (protocol.Status, error) {
+			close(launchEntered)
+			expected := "SNES"
+			return protocol.Status{State: protocol.StateActive, GameID: &request.GameID, System: &request.System, ExpectedCore: &expected, ObservedCore: &expected}, nil
+		},
+		stopResult: protocol.Status{State: protocol.StateIdle},
+	}
+	service := newService(
+		Config{
+			Libraries: []catalog.Root{root},
+			Targets: []TargetConfig{
+				{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182", Agent: "dev-test-token"},
+				{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182", Agent: "spare-test-token"},
+			},
+			SelectedTarget: "dev",
+			Library:        LibraryConfig{AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}},
+			RequestTimeout: time.Second,
+			FPGAROMPaths:   map[string]string{game.ID: "/media/fat/games/SNES/StatusRace.smc"},
+		},
+		Paths{}, &fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServiceScanner{}, &fakeServicePreparer{}, client,
+		withTargetClientFactory(func(TargetConfig) (serviceClient, error) { return client, nil }),
+	)
+	statusDone := make(chan error, 1)
+	go func() {
+		_, err := service.Status(ctx)
+		statusDone <- err
+	}()
+	<-statusEntered
+	launchDone := make(chan error, 1)
+	go func() {
+		_, err := service.Launch(ctx, game.ID, nil)
+		launchDone <- err
+	}()
+	select {
+	case <-launchEntered:
+		t.Fatal("launch reached the target before idle status reconciliation completed")
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(statusRelease)
+	if err := <-statusDone; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-launchDone; err != nil {
+		t.Fatal(err)
+	}
+	err := service.SetLibrarySettings(ctx, LibraryConfig{
+		AttractIdleSeconds: 60,
+		PreferredRegions:   []string{"usa"},
+		Libraries:          []catalog.Root{root},
+		Targets: []TargetConfig{
+			{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182"},
+			{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182"},
+		},
+		SelectedTarget: "spare",
+	})
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBadRequest {
+		t.Fatalf("post-launch target switch error = %v", err)
+	}
+}
+
+func TestStopDeadlineIsBoundedWhileNamedTargetLaunchIsBlocked(t *testing.T) {
+	root := catalog.Root{ID: "snes-stop-deadline", System: protocol.SystemSNES, Path: t.TempDir()}
+	game := catalog.Game{
+		ID: "snes-stop-deadline", Title: "Stop Deadline", System: protocol.SystemSNES, LibraryID: root.ID,
+		Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
+	}
+	launchEntered := make(chan struct{})
+	launchRelease := make(chan struct{})
+	client := &fakeServiceClient{
+		nativeLaunch: func(_ context.Context, request protocol.LaunchRequest) (protocol.Status, error) {
+			close(launchEntered)
+			<-launchRelease
+			expected := "SNES"
+			return protocol.Status{State: protocol.StateActive, GameID: &request.GameID, System: &request.System, ExpectedCore: &expected, ObservedCore: &expected}, nil
+		},
+	}
+	service := newService(
+		Config{
+			Libraries:      []catalog.Root{root},
+			Targets:        []TargetConfig{{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182", Agent: "dev-test-token"}},
+			SelectedTarget: "dev",
+			Library:        LibraryConfig{AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}},
+			RequestTimeout: time.Second,
+			FPGAROMPaths:   map[string]string{game.ID: "/media/fat/games/SNES/StopDeadline.smc"},
+		},
+		Paths{}, &fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServiceScanner{}, &fakeServicePreparer{}, client,
+	)
+	launchDone := make(chan error, 1)
+	go func() {
+		_, err := service.Launch(context.Background(), game.ID, nil)
+		launchDone <- err
+	}()
+	<-launchEntered
+	stopCtx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	_, err := service.Stop(stopCtx)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("blocked stop error = %v", err)
+	}
+	if elapsed := time.Since(started); elapsed > 200*time.Millisecond {
+		t.Fatalf("blocked stop exceeded bounded deadline: %s", elapsed)
+	}
+	if client.stopCalls != 0 {
+		t.Fatalf("target stop calls = %d, want 0 before launch transition completes", client.stopCalls)
+	}
+	close(launchRelease)
+	if err := <-launchDone; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNamedTargetSwitchRejectsStartupBoundComposedDependencies(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		config func(*Config)
+	}{
+		{name: "remote input", config: func(config *Config) { config.RemoteInput.Enabled = true }},
+		{name: "media", config: func(config *Config) { config.Media.Enabled = true }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			config := Config{
+				Targets: []TargetConfig{
+					{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182", Agent: "dev-test-token"},
+					{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182", Agent: "spare-test-token"},
+				},
+				SelectedTarget: "dev",
+				Library:        LibraryConfig{AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}},
+			}
+			test.config(&config)
+			service := newService(config, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{})
+			if err := service.SetLibrarySettings(context.Background(), LibraryConfig{
+				AttractIdleSeconds: 60,
+				PreferredRegions:   []string{"usa"},
+				Targets: []TargetConfig{
+					{Name: "den", PreviousName: "dev", Enabled: true, Address: "http://192.0.2.10:8182"},
+					{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182"},
+				},
+				SelectedTarget: "den",
+			}); err != nil {
+				t.Fatalf("selected target rename: %v", err)
+			}
+			if err := service.SetLibrarySettings(context.Background(), LibraryConfig{
+				AttractIdleSeconds: 60,
+				PreferredRegions:   []string{"usa"},
+				Targets: []TargetConfig{
+					{Name: "den", Enabled: true, Address: "http://192.0.2.10:8182"},
+					{Name: "spare", Enabled: true, Address: "http://192.0.2.12:8182"},
+				},
+				SelectedTarget: "den",
+			}); err != nil {
+				t.Fatalf("unselected target edit: %v", err)
+			}
+			err := service.SetLibrarySettings(context.Background(), LibraryConfig{
+				AttractIdleSeconds: 60,
+				PreferredRegions:   []string{"usa"},
+				Targets: []TargetConfig{
+					{Name: "den", Enabled: true, Address: "http://192.0.2.10:8182"},
+					{Name: "spare", Enabled: true, Address: "http://192.0.2.12:8182"},
+				},
+				SelectedTarget: "spare",
+			})
+			var apiErr *protocol.APIError
+			if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBadRequest {
+				t.Fatalf("target switch error = %v", err)
+			}
+		})
+	}
+}
+
+func TestNamedTargetRenameRetainsStoredAgentWithoutEcho(t *testing.T) {
+	service := newService(
+		Config{
+			Targets:        []TargetConfig{{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182", Agent: "stored-test-token"}},
+			SelectedTarget: "dev",
+			Library:        LibraryConfig{AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}},
+		},
+		Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{},
+		withTargetClientFactory(func(TargetConfig) (serviceClient, error) { return &fakeServiceClient{}, nil }),
+	)
+	if err := service.SetLibrarySettings(context.Background(), LibraryConfig{
+		AttractIdleSeconds: 60,
+		PreferredRegions:   []string{"usa"},
+		Targets: []TargetConfig{{
+			Name: "den", PreviousName: "dev", Enabled: true, Address: "http://192.0.2.10:8182",
+		}},
+		SelectedTarget: "den",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	settings := service.LibrarySettings()
+	if len(settings.Targets) != 1 || settings.Targets[0].Name != "den" || settings.Targets[0].Agent != "stored-test-token" {
+		t.Fatalf("renamed target = %#v", settings.Targets)
+	}
+}
+
+func TestMergeTargetAgentsUsesExplicitRenameIdentityBeforeDestinationName(t *testing.T) {
+	service := &Service{targets: []TargetConfig{
+		{Name: "dev", Agent: "dev-test-token"},
+		{Name: "spare", Agent: "spare-test-token"},
+	}}
+	for _, test := range []struct {
+		name string
+		next []TargetConfig
+		want map[string]string
+	}{
+		{
+			name: "swap",
+			next: []TargetConfig{
+				{Name: "spare", PreviousName: "dev"},
+				{Name: "dev", PreviousName: "spare"},
+			},
+			want: map[string]string{"spare": "dev-test-token", "dev": "spare-test-token"},
+		},
+		{
+			name: "rename into removed existing name",
+			next: []TargetConfig{{Name: "spare", PreviousName: "dev"}},
+			want: map[string]string{"spare": "dev-test-token"},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			merged, err := service.mergeTargetAgentsLocked(test.next)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, target := range merged {
+				if target.Agent != test.want[target.Name] {
+					t.Fatalf("target %q agent = %q", target.Name, target.Agent)
+				}
+			}
+		})
+	}
+	if _, err := service.mergeTargetAgentsLocked([]TargetConfig{
+		{Name: "dev"},
+		{Name: "den", PreviousName: "dev"},
+	}); err == nil {
+		t.Fatal("duplicate current target identity was accepted")
+	}
 }
 
 func (f *fakeServiceClient) ProbeContent(ctx context.Context, system protocol.System, content protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
@@ -2272,13 +3054,19 @@ func (f *fakeServiceClient) Health(context.Context) (protocol.Health, error) {
 	return f.healthResult, f.healthErr
 }
 
-func (f *fakeServiceClient) Status(context.Context) (protocol.Status, error) {
+func (f *fakeServiceClient) Status(ctx context.Context) (protocol.Status, error) {
 	f.statusCalls++
+	if f.statusFn != nil {
+		return f.statusFn(ctx)
+	}
 	return f.statusResult, f.statusErr
 }
 
-func (f *fakeServiceClient) Stop(context.Context) (protocol.Status, error) {
+func (f *fakeServiceClient) Stop(ctx context.Context) (protocol.Status, error) {
 	f.stopCalls++
+	if f.stopFn != nil {
+		return f.stopFn(ctx)
+	}
 	return f.stopResult, f.stopErr
 }
 

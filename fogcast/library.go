@@ -2,6 +2,8 @@ package fogcast
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"os"
 	"path/filepath"
@@ -525,7 +527,14 @@ func (s *Service) librarySettingsSnapshot() LibraryConfig {
 	if len(regions) == 0 {
 		regions = append([]string(nil), catalog.DefaultPreferredRegions...)
 	}
-	return LibraryConfig{AttractIdleSeconds: seconds, PreferredRegions: regions, WatchRoot: s.watchRoot}
+	return LibraryConfig{
+		AttractIdleSeconds: seconds,
+		PreferredRegions:   regions,
+		Libraries:          append([]catalog.Root(nil), s.roots...),
+		Targets:            append([]TargetConfig(nil), s.targets...),
+		SelectedTarget:     s.selectedTarget,
+		WatchRoot:          s.watchRoot,
+	}
 }
 
 func (s *Service) currentPreferredRegions() []string {
@@ -545,13 +554,26 @@ func (s *Service) SetLibrarySettings(ctx context.Context, next LibraryConfig) er
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	normalized, err := NormalizeLibraryConfig(next)
+	releaseSettings, err := s.acquireLibrarySettings(ctx)
 	if err != nil {
-		return canonicalError(protocol.CodeBadRequest, nil)
+		return err
 	}
+	defer releaseSettings()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.targetMu.Lock()
 	s.libraryMu.Lock()
-	defer s.libraryMu.Unlock()
-	return s.persistAndPublishLibrarySettingsLocked(normalized)
+	rootsChanged, err := s.setLibrarySettingsLocked(next)
+	s.libraryMu.Unlock()
+	s.targetMu.Unlock()
+	if err != nil {
+		return err
+	}
+	if rootsChanged {
+		_, err = s.scanLocked(ctx)
+	}
+	return err
 }
 
 var librarySettingsPatchStartHook func()
@@ -563,8 +585,16 @@ func (s *Service) PatchLibrarySettings(ctx context.Context, patch LibraryConfigP
 	if librarySettingsPatchStartHook != nil {
 		librarySettingsPatchStartHook()
 	}
+	releaseSettings, err := s.acquireLibrarySettings(ctx)
+	if err != nil {
+		return err
+	}
+	defer releaseSettings()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.targetMu.Lock()
 	s.libraryMu.Lock()
-	defer s.libraryMu.Unlock()
 	next := s.librarySettingsSnapshot()
 	if patch.AttractIdleSeconds != nil {
 		next.AttractIdleSeconds = *patch.AttractIdleSeconds
@@ -572,21 +602,212 @@ func (s *Service) PatchLibrarySettings(ctx context.Context, patch LibraryConfigP
 	if patch.PreferredRegions != nil {
 		next.PreferredRegions = append([]string(nil), *patch.PreferredRegions...)
 	}
-	normalized, err := NormalizeLibraryConfig(next)
-	if err != nil {
-		return canonicalError(protocol.CodeBadRequest, nil)
+	if patch.Libraries != nil {
+		next.Libraries = append([]catalog.Root(nil), (*patch.Libraries)...)
 	}
-	return s.persistAndPublishLibrarySettingsLocked(normalized)
+	if patch.Targets != nil {
+		next.Targets = append([]TargetConfig(nil), (*patch.Targets)...)
+	}
+	if patch.SelectedTarget != nil {
+		next.SelectedTarget = *patch.SelectedTarget
+	}
+	rootsChanged, err := s.setLibrarySettingsLocked(next)
+	s.libraryMu.Unlock()
+	s.targetMu.Unlock()
+	if err != nil {
+		return err
+	}
+	if rootsChanged {
+		_, err = s.scanLocked(ctx)
+	}
+	return err
 }
 
-func (s *Service) persistAndPublishLibrarySettingsLocked(normalized LibraryConfig) error {
-	if s.libraryOverlayPath != "" {
-		if err := saveLibraryOverlay(s.libraryOverlayPath, normalized); err != nil {
+func (s *Service) setLibrarySettingsLocked(next LibraryConfig) (bool, error) {
+	if next.Libraries == nil {
+		next.Libraries = append([]catalog.Root(nil), s.roots...)
+	}
+	if next.Targets == nil {
+		next.Targets = append([]TargetConfig(nil), s.targets...)
+		if strings.TrimSpace(next.SelectedTarget) == "" {
+			next.SelectedTarget = s.selectedTarget
+		}
+	}
+	if len(next.Targets) == 0 {
+		return false, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	next.Libraries = assignLibraryRootIDs(next.Libraries)
+	mergedTargets, err := s.mergeTargetAgentsLocked(next.Targets)
+	if err != nil {
+		return false, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	next.Targets = mergedTargets
+	selectedWrite := targetByName(next.Targets, next.SelectedTarget)
+	normalized, err := NormalizeLibraryConfig(next)
+	if err != nil {
+		return false, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	selected := targetByName(normalized.Targets, normalized.SelectedTarget)
+	currentSelected := targetByName(s.targets, s.selectedTarget)
+	s.executionMu.Lock()
+	active := s.activeExecution != ""
+	reconciled := s.selectedTargetReconciled
+	repairAllowed := s.selectedTargetRepairAllowed
+	s.executionMu.Unlock()
+	selectedNameChanged := normalized.SelectedTarget != s.selectedTarget
+	selectedRenamesCurrent := selectedNameChanged && strings.TrimSpace(selectedWrite.PreviousName) == s.selectedTarget
+	selectedConnectionChanged := selected.Enabled != currentSelected.Enabled || selected.Address != currentSelected.Address || selected.Agent != currentSelected.Agent
+	selectedIdentityChanged := (!selectedRenamesCurrent && selectedNameChanged) || selectedConnectionChanged
+	sameEnabledTargetRepair := repairAllowed && !selectedNameChanged && selected.Enabled && currentSelected.Enabled &&
+		(selected.Address != currentSelected.Address || selected.Agent != currentSelected.Agent)
+	if selectedIdentityChanged && !reconciled && !sameEnabledTargetRepair {
+		return false, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	if active && (selectedNameChanged || selectedConnectionChanged) {
+		return false, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	if s.targetSwitchLocked && ((!selectedRenamesCurrent && selectedNameChanged) || selectedConnectionChanged) {
+		return false, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	var selectedClient serviceClient
+	if selected.Enabled {
+		if s.targetClientFactory == nil {
+			if normalized.SelectedTarget == s.selectedTarget || selectedRenamesCurrent {
+				selectedClient = s.targetClients[s.selectedTarget]
+			}
+			if selectedClient == nil {
+				return false, canonicalError(protocol.CodeInternal, nil)
+			}
+		} else {
+			selectedClient, err = s.targetClientFactory(selected)
+			if err != nil {
+				return false, canonicalError(protocol.CodeBadRequest, nil)
+			}
+		}
+	}
+	rootsChanged := !sameLibraryRoots(s.roots, normalized.Libraries)
+	if err := s.persistAndPublishLibrarySettingsLocked(normalized, selectedClient, selectedIdentityChanged); err != nil {
+		return false, err
+	}
+	return rootsChanged, nil
+}
+
+func (s *Service) mergeTargetAgentsLocked(next []TargetConfig) ([]TargetConfig, error) {
+	current := make(map[string]string, len(s.targets))
+	for _, target := range s.targets {
+		current[target.Name] = target.Agent
+	}
+	merged := append([]TargetConfig(nil), next...)
+	claimedCurrentNames := make(map[string]struct{}, len(merged))
+	for index := range merged {
+		previous := strings.TrimSpace(merged[index].PreviousName)
+		currentName := previous
+		if currentName == "" {
+			if _, exists := current[merged[index].Name]; exists {
+				currentName = merged[index].Name
+			}
+		}
+		if currentName == "" {
+			continue
+		}
+		agent, ok := current[currentName]
+		if !ok {
+			return nil, errors.New("previous target name is unknown")
+		}
+		if _, duplicate := claimedCurrentNames[currentName]; duplicate {
+			return nil, errors.New("current target identity is claimed more than once")
+		}
+		claimedCurrentNames[currentName] = struct{}{}
+		if !merged[index].AgentSet {
+			merged[index].Agent = agent
+		}
+	}
+	return merged, nil
+}
+
+func assignLibraryRootIDs(roots []catalog.Root) []catalog.Root {
+	assigned := append([]catalog.Root(nil), roots...)
+	for index := range assigned {
+		if strings.TrimSpace(assigned[index].ID) != "" {
+			continue
+		}
+		path, err := normalizeRoot(assigned[index].Path)
+		if err != nil {
+			continue
+		}
+		digest := sha256.Sum256([]byte(string(assigned[index].System) + "\x00" + path))
+		assigned[index].ID = "library-" + string(assigned[index].System) + "-" + hex.EncodeToString(digest[:6])
+	}
+	return assigned
+}
+
+func sameLibraryRoots(left, right []catalog.Root) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *Service) persistAndPublishLibrarySettingsLocked(normalized LibraryConfig, selectedClient serviceClient, selectedIdentityChanged bool) error {
+	s.configWriteMu.Lock()
+	defer s.configWriteMu.Unlock()
+	var previousOverlay []byte
+	previousOverlayExists := false
+	var previousConfig []byte
+	previousConfigExists := false
+	if s.configPath != "" {
+		var err error
+		previousConfig, previousConfigExists, err = snapshotPrivateFile(s.configPath)
+		if err != nil {
 			return canonicalError(protocol.CodeInternal, safeContextError(err))
+		}
+	}
+	if s.libraryOverlayPath != "" {
+		var err error
+		previousOverlay, previousOverlayExists, err = snapshotLibraryOverlay(s.libraryOverlayPath)
+		if err != nil {
+			return canonicalError(protocol.CodeInternal, safeContextError(err))
+		}
+		if err := saveLibraryOverlay(s.libraryOverlayPath, normalized); err != nil {
+			if restoreErr := restoreLibraryOverlay(s.libraryOverlayPath, previousOverlay, previousOverlayExists); restoreErr != nil {
+				return canonicalError(protocol.CodeInternal, safeContextError(errors.Join(err, restoreErr)))
+			}
+			return canonicalError(protocol.CodeInternal, safeContextError(err))
+		}
+	}
+	if s.configPath != "" {
+		if err := writeCanonicalConfig(s.configPath, normalized.Libraries, normalized.Targets, normalized.SelectedTarget); err != nil {
+			restoreErrors := []error{err, restorePrivateFile(s.configPath, previousConfig, previousConfigExists)}
+			if s.libraryOverlayPath != "" {
+				restoreErrors = append(restoreErrors, restoreLibraryOverlay(s.libraryOverlayPath, previousOverlay, previousOverlayExists))
+			}
+			return canonicalError(protocol.CodeInternal, safeContextError(errors.Join(restoreErrors...)))
 		}
 	}
 	s.attractIdle = normalized.AttractIdleSeconds
 	s.preferredRegions = append([]string(nil), normalized.PreferredRegions...)
+	s.roots = append([]catalog.Root(nil), normalized.Libraries...)
+	s.rootsByID = make(map[string]catalog.Root, len(s.roots))
+	for _, root := range s.roots {
+		s.rootsByID[root.ID] = root
+	}
+	s.targets = append([]TargetConfig(nil), normalized.Targets...)
+	s.selectedTarget = normalized.SelectedTarget
+	s.targetClients = make(map[string]serviceClient)
+	if selectedClient != nil {
+		s.targetClients[s.selectedTarget] = selectedClient
+	}
+	if selectedIdentityChanged {
+		s.executionMu.Lock()
+		s.selectedTargetReconciled = !targetByName(s.targets, s.selectedTarget).Enabled
+		s.selectedTargetRepairAllowed = false
+		s.executionMu.Unlock()
+	}
 	return nil
 }
 

@@ -529,7 +529,9 @@ img.cover-art { display: block; width: 100%; object-fit: contain; object-positio
   color: var(--accent);
 }
 .settings-panel {
-  width: min(520px, calc(100vw - 32px));
+	width: min(760px, calc(100vw - 32px));
+	max-height: min(88vh, 900px);
+	overflow: auto;
   display: grid;
   gap: 12px;
   border: 1px solid var(--line);
@@ -537,6 +539,20 @@ img.cover-art { display: block; width: 100%; object-fit: contain; object-positio
   padding: 22px;
   background: var(--surface-raised);
   box-shadow: var(--shadow);
+}
+.settings-group { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+.settings-group h3 { margin: 0; font-size: 1rem; }
+.settings-group-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.settings-help { margin: 0; color: var(--muted); font-size: .75rem; }
+.settings-list { display: grid; gap: 8px; }
+.settings-row { display: grid; grid-template-columns: minmax(120px, .8fr) minmax(220px, 1.7fr) auto; gap: 8px; align-items: end; }
+.settings-target-row { grid-template-columns: minmax(100px, .7fr) minmax(180px, 1.2fr) minmax(140px, 1fr) auto auto auto; }
+.settings-row .filter-label { min-width: 0; }
+.settings-row input, .settings-row select, #settings-selected-target { width: 100%; }
+.settings-enabled { display: flex; align-items: center; gap: 6px; min-height: 40px; color: var(--muted); font-size: .75rem; }
+.button.compact { min-height: 34px; padding: 6px 10px; }
+@media (max-width: 680px) {
+	.settings-row, .settings-target-row { grid-template-columns: 1fr; align-items: stretch; }
 }
 .settings-status { margin: 0; color: var(--muted); font-size: .82rem; }
 .settings-message { min-height: 1.2em; margin: 0; color: var(--danger); }

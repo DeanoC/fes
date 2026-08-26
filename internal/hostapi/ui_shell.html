@@ -151,6 +151,25 @@
       <label class="filter-label" for="settings-preferred-regions">Preferred regions
         <input id="settings-preferred-regions" type="text" autocomplete="off" spellcheck="false">
       </label>
+      <section class="settings-group" aria-labelledby="settings-libraries-heading">
+        <div class="settings-group-header">
+          <h3 id="settings-libraries-heading">Library folders</h3>
+          <button id="add-library" class="button secondary compact" type="button">Add folder</button>
+        </div>
+        <p class="settings-help">Choose a system and a clean absolute NAS or local folder.</p>
+        <div id="settings-libraries" class="settings-list"></div>
+      </section>
+      <section class="settings-group" aria-labelledby="settings-targets-heading">
+        <div class="settings-group-header">
+          <h3 id="settings-targets-heading">MiSTer targets</h3>
+          <button id="add-target" class="button secondary compact" type="button">Add target</button>
+        </div>
+        <label class="filter-label" for="settings-selected-target">Selected target
+          <select id="settings-selected-target"></select>
+        </label>
+        <p class="settings-help">Agent credentials are write-only. Leave a stored agent blank to keep it.</p>
+        <div id="settings-targets" class="settings-list"></div>
+      </section>
       <p id="settings-host-health" class="settings-status" role="status"></p>
       <p id="settings-message" class="settings-message" role="alert"></p>
       <div class="settings-actions">

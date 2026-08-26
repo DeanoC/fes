@@ -106,6 +106,11 @@ func saveLibraryOverlay(path string, settings LibraryConfig) error {
 		_ = os.Remove(tmpName)
 		return err
 	}
+	if libraryOverlayPublishErrorHook != nil {
+		if err := libraryOverlayPublishErrorHook(); err != nil {
+			return err
+		}
+	}
 	if err := ensurePrivateRegularFile(path); err != nil {
 		return err
 	}
@@ -113,4 +118,14 @@ func saveLibraryOverlay(path string, settings LibraryConfig) error {
 		libraryOverlaySaveHook()
 	}
 	return nil
+}
+
+var libraryOverlayPublishErrorHook func() error
+
+func snapshotLibraryOverlay(path string) ([]byte, bool, error) {
+	return snapshotPrivateFile(path)
+}
+
+func restoreLibraryOverlay(path string, body []byte, existed bool) error {
+	return restorePrivateFile(path, body, existed)
 }

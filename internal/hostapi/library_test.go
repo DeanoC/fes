@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/DeanoC/FogCast-POC/catalog"
@@ -419,25 +421,65 @@ func TestCollectionMemberRejectsInvalidGameID(t *testing.T) {
 
 type settingsFake struct {
 	fakeService
-	settings fogcast.LibraryConfig
+	mu         sync.Mutex
+	settings   fogcast.LibraryConfig
+	writeStart chan<- struct{}
+	release    <-chan struct{}
 }
 
 func (s *settingsFake) LibrarySettings() fogcast.LibraryConfig {
-	return s.settings
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return cloneLibraryConfig(s.settings)
 }
 
 func (s *settingsFake) SetLibrarySettings(_ context.Context, next fogcast.LibraryConfig) error {
-	s.settings = next
+	if s.writeStart != nil {
+		s.writeStart <- struct{}{}
+		<-s.release
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if next.Libraries == nil {
+		next.Libraries = append([]catalog.Root(nil), s.settings.Libraries...)
+	}
+	if next.Targets == nil {
+		next.Targets = append([]fogcast.TargetConfig(nil), s.settings.Targets...)
+		if strings.TrimSpace(next.SelectedTarget) == "" {
+			next.SelectedTarget = s.settings.SelectedTarget
+		}
+	}
+	next.Targets = mergeFakeTargetAgents(s.settings.Targets, next.Targets)
+	normalized, err := fogcast.NormalizeLibraryConfig(next)
+	if err != nil {
+		return &protocol.APIError{Code: protocol.CodeBadRequest, Message: "library settings request is invalid"}
+	}
+	s.settings = normalized
 	return nil
 }
 
 func (s *settingsFake) PatchLibrarySettings(_ context.Context, patch fogcast.LibraryConfigPatch) error {
+	if s.writeStart != nil && patch.AttractIdleSeconds != nil && patch.PreferredRegions != nil && patch.Libraries == nil && patch.Targets == nil && patch.SelectedTarget == nil {
+		s.writeStart <- struct{}{}
+		<-s.release
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	next := s.settings
 	if patch.AttractIdleSeconds != nil {
 		next.AttractIdleSeconds = *patch.AttractIdleSeconds
 	}
 	if patch.PreferredRegions != nil {
 		next.PreferredRegions = append([]string(nil), *patch.PreferredRegions...)
+	}
+	if patch.Libraries != nil {
+		next.Libraries = append([]catalog.Root(nil), (*patch.Libraries)...)
+	}
+	if patch.Targets != nil {
+		next.Targets = mergeFakeTargetAgents(s.settings.Targets, *patch.Targets)
+	}
+	if patch.SelectedTarget != nil {
+		next.SelectedTarget = *patch.SelectedTarget
 	}
 	normalized, err := fogcast.NormalizeLibraryConfig(next)
 	if err != nil {
@@ -447,18 +489,68 @@ func (s *settingsFake) PatchLibrarySettings(_ context.Context, patch fogcast.Lib
 	return nil
 }
 
+func cloneLibraryConfig(settings fogcast.LibraryConfig) fogcast.LibraryConfig {
+	settings.PreferredRegions = append([]string(nil), settings.PreferredRegions...)
+	settings.Libraries = append([]catalog.Root(nil), settings.Libraries...)
+	settings.Targets = append([]fogcast.TargetConfig(nil), settings.Targets...)
+	return settings
+}
+
+func mergeFakeTargetAgents(current, next []fogcast.TargetConfig) []fogcast.TargetConfig {
+	agents := make(map[string]string, len(current))
+	for _, target := range current {
+		agents[target.Name] = target.Agent
+	}
+	merged := append([]fogcast.TargetConfig(nil), next...)
+	for index := range merged {
+		if !merged[index].AgentSet {
+			name := merged[index].Name
+			if merged[index].PreviousName != "" {
+				name = merged[index].PreviousName
+			}
+			merged[index].Agent = agents[name]
+		}
+	}
+	return merged
+}
+
+func TestLibrarySettingsTargetRenameCarriesOriginalNameWithoutAgentEcho(t *testing.T) {
+	service := &settingsFake{settings: fogcast.LibraryConfig{
+		AttractIdleSeconds: 60,
+		PreferredRegions:   []string{"usa"},
+		Targets:            []fogcast.TargetConfig{{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182", Agent: "stored-test-token"}},
+		SelectedTarget:     "dev",
+	}}
+	response := serveBody(t, hostapi.New(service), http.MethodPut, "/api/v1/library/settings", `{"attract_idle_seconds":60,"preferred_regions":["usa"],"targets":[{"name":"den","original_name":"dev","address":"http://192.0.2.10:8182","enabled":true}],"selected_target":"den"}`)
+	if response.Code != http.StatusOK {
+		t.Fatalf("rename = %d %s", response.Code, response.Body.String())
+	}
+	if len(service.settings.Targets) != 1 || service.settings.Targets[0].Name != "den" || service.settings.Targets[0].Agent != "stored-test-token" {
+		t.Fatalf("renamed target = %#v", service.settings.Targets)
+	}
+	if strings.Contains(response.Body.String(), "stored-test-token") || strings.Contains(response.Body.String(), `"agent"`) {
+		t.Fatalf("rename response leaked agent: %s", response.Body.String())
+	}
+}
+
 func TestLibrarySettingsGetPutPatchEmptyOrJSON(t *testing.T) {
 	service := &settingsFake{settings: fogcast.LibraryConfig{
 		AttractIdleSeconds: 60,
 		PreferredRegions:   []string{"usa", "world"},
+		Libraries:          []catalog.Root{{ID: "operator-snes-root", System: protocol.SystemSNES, Path: "/library/snes"}},
+		Targets:            []fogcast.TargetConfig{{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182", Agent: "test-token"}},
+		SelectedTarget:     "dev",
 	}}
 	handler := hostapi.New(service)
 	got := serve(t, handler, http.MethodGet, "/api/v1/library/settings")
 	if got.Code != http.StatusOK || !strings.Contains(got.Body.String(), `"attract_idle_seconds":60`) || !strings.Contains(got.Body.String(), `"usa"`) {
 		t.Fatalf("get = %d %s", got.Code, got.Body.String())
 	}
-	if strings.Contains(got.Body.String(), "token") || strings.Contains(got.Body.String(), "client_secret") || strings.Contains(got.Body.String(), "/api/v1/health") {
+	if strings.Contains(got.Body.String(), "test-token") || strings.Contains(got.Body.String(), `"agent"`) || strings.Contains(got.Body.String(), "client_secret") || strings.Contains(got.Body.String(), "/api/v1/health") {
 		t.Fatalf("get leaked secrets or health: %s", got.Body.String())
+	}
+	if !strings.Contains(got.Body.String(), `"selected_target":"dev"`) || !strings.Contains(got.Body.String(), `"agent_configured":true`) || !strings.Contains(got.Body.String(), `"label":"SNES"`) || !strings.Contains(got.Body.String(), `"id":"n64","label":"Nintendo 64"`) || !strings.Contains(got.Body.String(), `"id":"psx","label":"PlayStation"`) || !strings.Contains(got.Body.String(), `"id":"arcade","label":"Arcade"`) {
+		t.Fatalf("get missing library/target settings: %s", got.Body.String())
 	}
 
 	emptyPut := serveBody(t, handler, http.MethodPut, "/api/v1/library/settings", "")
@@ -469,6 +561,13 @@ func TestLibrarySettingsGetPutPatchEmptyOrJSON(t *testing.T) {
 	replaced := serveBody(t, handler, http.MethodPut, "/api/v1/library/settings", `{"attract_idle_seconds":12,"preferred_regions":["japan","europe"]}`)
 	if replaced.Code != http.StatusOK || service.settings.AttractIdleSeconds != 12 || strings.Join(service.settings.PreferredRegions, ",") != "japan,europe" {
 		t.Fatalf("put = %d %s settings=%+v", replaced.Code, replaced.Body.String(), service.settings)
+	}
+	replaced = serveBody(t, handler, http.MethodPut, "/api/v1/library/settings", `{"attract_idle_seconds":12,"preferred_regions":["japan","europe"],"libraries":[{"id":"operator-snes-root","system":"snes","root":"/library/snes"},{"id":"nes-auto","system":"nes","root":"/library/nes"}],"targets":[{"name":"dev","address":"http://192.0.2.10:8182","enabled":true},{"name":"spare","address":"","agent":"","enabled":false}],"selected_target":"spare"}`)
+	if replaced.Code != http.StatusOK || len(service.settings.Libraries) != 2 || len(service.settings.Targets) != 2 || service.settings.SelectedTarget != "spare" {
+		t.Fatalf("extended put = %d %s settings=%+v", replaced.Code, replaced.Body.String(), service.settings)
+	}
+	if strings.Contains(replaced.Body.String(), "test-token") || strings.Contains(replaced.Body.String(), `"agent"`) {
+		t.Fatalf("extended put leaked agent: %s", replaced.Body.String())
 	}
 
 	patched := serveBody(t, handler, http.MethodPatch, "/api/v1/library/settings", `{"attract_idle_seconds":8}`)
@@ -499,6 +598,49 @@ func TestLibrarySettingsGetPutPatchEmptyOrJSON(t *testing.T) {
 	defaults := serve(t, hostapi.New(&fakeService{}), http.MethodGet, "/api/v1/library/settings")
 	if defaults.Code != http.StatusOK || !strings.Contains(defaults.Body.String(), `"attract_idle_seconds":60`) {
 		t.Fatalf("defaults = %d %s", defaults.Code, defaults.Body.String())
+	}
+}
+
+func TestLibrarySettingsLegacyPutPreservesConcurrentExtendedUpdate(t *testing.T) {
+	writeStart := make(chan struct{})
+	release := make(chan struct{})
+	service := &settingsFake{
+		settings: fogcast.LibraryConfig{
+			AttractIdleSeconds: 60,
+			PreferredRegions:   []string{"usa"},
+			Libraries:          []catalog.Root{{ID: "snes-old", System: protocol.SystemSNES, Path: "/library/old"}},
+			Targets:            []fogcast.TargetConfig{{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182", Agent: "fixture-agent"}},
+			SelectedTarget:     "dev",
+		},
+		writeStart: writeStart,
+		release:    release,
+	}
+	handler := hostapi.New(service)
+	responseDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		responseDone <- serveBody(t, handler, http.MethodPut, "/api/v1/library/settings", `{"attract_idle_seconds":12,"preferred_regions":["japan"]}`)
+	}()
+	<-writeStart
+
+	updatedLibraries := []catalog.Root{{ID: "nes-new", System: protocol.SystemNES, Path: "/library/new"}}
+	updatedTargets := []fogcast.TargetConfig{{Name: "spare", Enabled: false}}
+	selectedTarget := "spare"
+	updated := serveBody(t, handler, http.MethodPatch, "/api/v1/library/settings", `{"libraries":[{"id":"nes-new","system":"nes","root":"/library/new"}],"targets":[{"name":"spare","address":"","enabled":false}],"selected_target":"spare"}`)
+	if updated.Code != http.StatusOK {
+		t.Fatalf("concurrent patch = %d %s", updated.Code, updated.Body.String())
+	}
+	close(release)
+
+	response := <-responseDone
+	if response.Code != http.StatusOK {
+		t.Fatalf("put = %d %s", response.Code, response.Body.String())
+	}
+	settings := service.LibrarySettings()
+	if settings.AttractIdleSeconds != 12 || !reflect.DeepEqual(settings.PreferredRegions, []string{"japan"}) {
+		t.Fatalf("legacy fields = %+v", settings)
+	}
+	if !reflect.DeepEqual(settings.Libraries, updatedLibraries) || !reflect.DeepEqual(settings.Targets, updatedTargets) || settings.SelectedTarget != selectedTarget {
+		t.Fatalf("concurrent extended update reverted: %+v", settings)
 	}
 }
 

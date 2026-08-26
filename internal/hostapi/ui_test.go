@@ -83,6 +83,22 @@ func TestUIUsesOnlyExistingAPIEndpointFamilies(t *testing.T) {
 	}
 }
 
+func TestUIExtendsExistingSettingsPaneForLibrariesAndTargets(t *testing.T) {
+	html := hostapi.UIHTMLForTest()
+	for _, token := range []string{
+		`id="settings-libraries"`, `id="add-library"`,
+		`id="settings-targets"`, `id="add-target"`,
+		`id="settings-selected-target"`, `agent.type = 'password'`,
+	} {
+		if !strings.Contains(html, token) {
+			t.Fatalf("assembled UI is missing settings control %q", token)
+		}
+	}
+	if strings.Contains(html, "/api/v1/targets") || strings.Contains(html, "/api/v1/settings") {
+		t.Fatal("assembled UI invented a second settings endpoint family")
+	}
+}
+
 func TestUIIncludesNewFPGASystemLabelsAndLaunchAllowlist(t *testing.T) {
 	html := hostapi.UIHTMLForTest()
 	for _, token := range []string{

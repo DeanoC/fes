@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast-POC/catalog"
 	"github.com/DeanoC/FogCast-POC/fogcast"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
@@ -106,6 +107,103 @@ func TestLoadConfigDefaultsAgentBaseURLWhenOmitted(t *testing.T) {
 	}
 	if config.BaseURL != fogcast.DefaultAgentBaseURL {
 		t.Fatalf("base URL = %q, want %q", config.BaseURL, fogcast.DefaultAgentBaseURL)
+	}
+}
+
+func TestLoadConfigMigratesLegacyAgentToDevTarget(t *testing.T) {
+	dir := t.TempDir()
+	config, err := fogcast.LoadConfig(writeConfig(t, validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.SelectedTarget != "dev" || len(config.Targets) != 1 {
+		t.Fatalf("targets = %#v, selected = %q", config.Targets, config.SelectedTarget)
+	}
+	if got := config.Targets[0]; got.Name != "dev" || !got.Enabled || got.Address != "http://192.0.2.10:8182" || got.Agent != "test-token" || got.AgentSet {
+		t.Fatalf("dev target = %#v", got)
+	}
+}
+
+func TestLoadConfigLoadsNamedTargetsIncludingDisabledTarget(t *testing.T) {
+	dir := t.TempDir()
+	content := strings.Replace(validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis")),
+		`base_url = "http://192.0.2.10:8182"`+"\n"+`token = "test-token"`+"\n",
+		`selected_target = "dev"`+"\n", 1) +
+		"\n[[targets]]\nname = \"dev\"\nenabled = true\naddress = \"http://192.0.2.10:8182\"\nagent = \"test-token\"\n" +
+		"\n[[targets]]\nname = \"spare\"\nenabled = false\naddress = \"\"\nagent = \"\"\n"
+	config, err := fogcast.LoadConfig(writeConfig(t, content))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.SelectedTarget != "dev" || len(config.Targets) != 2 {
+		t.Fatalf("targets = %#v, selected = %q", config.Targets, config.SelectedTarget)
+	}
+	if got := config.Targets[1]; got.Name != "spare" || got.Enabled || got.Address != "" || got.Agent != "" || got.AgentSet {
+		t.Fatalf("disabled target = %#v", got)
+	}
+	if config.BaseURL != "http://192.0.2.10:8182" || config.Token != "test-token" {
+		t.Fatalf("selected compatibility mirrors = %q, token-set=%t", config.BaseURL, config.Token != "")
+	}
+}
+
+func TestLoadConfigRejectsDisabledSelectedTargetForStartupBoundFeatures(t *testing.T) {
+	dir := t.TempDir()
+	base := strings.Replace(validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis")),
+		`base_url = "http://192.0.2.10:8182"`+"\n"+`token = "test-token"`+"\n",
+		`selected_target = "spare"`+"\n", 1) + `
+[[targets]]
+name = "dev"
+enabled = true
+address = "http://192.0.2.10:8182"
+agent = "test-token"
+
+[[targets]]
+name = "spare"
+enabled = false
+address = ""
+agent = ""
+`
+	for name, feature := range map[string]string{
+		"remote input": "[remote_input]\nenabled = true\n",
+		"media":        "[media]\nenabled = true\nsession = \"fixture-session\"\nssrc = 1\nrtp_listen = \"127.0.0.1:5000\"\nrtp_destination = \"127.0.0.1:5001\"\ncapture_device = \"fixture-device\"\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := fogcast.LoadConfig(writeConfig(t, base+"\n"+feature)); err == nil {
+				t.Fatal("disabled selected target accepted for startup-bound feature")
+			}
+		})
+	}
+}
+
+func TestLoadConfigRejectsInvalidNamedTargetsWithoutLeakingAgent(t *testing.T) {
+	dir := t.TempDir()
+	base := strings.Replace(validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis")),
+		`base_url = "http://192.0.2.10:8182"`+"\n"+`token = "test-token"`+"\n", "", 1)
+	const secretFixture = "test-token-must-not-appear"
+	tests := map[string]string{
+		"invalid name":          `selected_target = "Bad Name"\n[[targets]]\nname = "Bad Name"\nenabled = true\naddress = "http://192.0.2.10:8182"\nagent = "` + secretFixture + `"\n`,
+		"invalid address":       `selected_target = "dev"\n[[targets]]\nname = "dev"\nenabled = true\naddress = "https://192.0.2.10:8182"\nagent = "` + secretFixture + `"\n`,
+		"duplicate name":        `selected_target = "dev"\n[[targets]]\nname = "dev"\nenabled = true\naddress = "http://192.0.2.10:8182"\nagent = "` + secretFixture + `"\n[[targets]]\nname = "dev"\n`,
+		"address without agent": `selected_target = "dev"\n[[targets]]\nname = "dev"\nenabled = true\naddress = "http://192.0.2.10:8182"\nagent = ""\n`,
+		"agent without address": `selected_target = "dev"\n[[targets]]\nname = "dev"\nenabled = true\naddress = ""\nagent = "` + secretFixture + `"\n`,
+		"unknown selected":      `selected_target = "missing"\n[[targets]]\nname = "dev"\nenabled = true\naddress = "http://192.0.2.10:8182"\nagent = "` + secretFixture + `"\n`,
+	}
+	for name, targetConfig := range tests {
+		t.Run(name, func(t *testing.T) {
+			targetConfig = strings.ReplaceAll(targetConfig, `\n`, "\n")
+			selectedLine, targetTables, ok := strings.Cut(targetConfig, "\n")
+			if !ok {
+				t.Fatal("test target fixture must contain a selected target and target tables")
+			}
+			content := strings.Replace(base, "request_timeout_seconds = 12", selectedLine+"\nrequest_timeout_seconds = 12", 1) + targetTables
+			_, err := fogcast.LoadConfig(writeConfig(t, content))
+			if err == nil {
+				t.Fatal("invalid target configuration accepted")
+			}
+			if strings.Contains(err.Error(), secretFixture) {
+				t.Fatalf("error leaked agent fixture: %v", err)
+			}
+		})
 	}
 }
 
@@ -781,6 +879,28 @@ func TestNormalizeLibraryConfigClampsOverflowingAttractIdle(t *testing.T) {
 	}
 	if normalized.AttractIdleSeconds != fogcast.MaxAttractIdleSeconds {
 		t.Fatalf("idle = %d want %d", normalized.AttractIdleSeconds, fogcast.MaxAttractIdleSeconds)
+	}
+}
+
+func TestNormalizeLibraryConfigNormalizesLibrariesAndTargets(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "SNES")
+	normalized, err := fogcast.NormalizeLibraryConfig(fogcast.LibraryConfig{
+		Libraries:      []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: root}},
+		Targets:        []fogcast.TargetConfig{{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182/", Agent: "test-token", AgentSet: true}},
+		SelectedTarget: "dev",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(normalized.Libraries) != 1 || normalized.Libraries[0].Path != root {
+		t.Fatalf("libraries = %#v", normalized.Libraries)
+	}
+	if len(normalized.Targets) != 1 || normalized.Targets[0].Address != "http://192.0.2.10:8182" || normalized.Targets[0].AgentSet {
+		t.Fatalf("targets = %#v", normalized.Targets)
+	}
+	if normalized.SelectedTarget != "dev" {
+		t.Fatalf("selected target = %q", normalized.SelectedTarget)
 	}
 }
 

@@ -65,6 +65,8 @@ const (
 type Config struct {
 	BaseURL        string
 	Token          string
+	Targets        []TargetConfig
+	SelectedTarget string
 	MetadataRoot   string
 	RequestTimeout time.Duration
 	UploadTimeout  time.Duration
@@ -80,9 +82,24 @@ type Config struct {
 	FPGAROMPaths map[string]string
 }
 
+// TargetConfig describes one named MiSTer agent. Disabled targets may omit
+// Address and Agent so an operator can add them before they are online.
+// AgentSet and PreviousName are in-memory write markers and are never persisted.
+type TargetConfig struct {
+	Name         string
+	Enabled      bool
+	Address      string
+	Agent        string
+	AgentSet     bool
+	PreviousName string
+}
+
 type LibraryConfig struct {
 	AttractIdleSeconds int
 	PreferredRegions   []string
+	Libraries          []catalog.Root
+	Targets            []TargetConfig
+	SelectedTarget     string
 	// WatchRoot is the SMB share root containing table-mapped library folders.
 	// The scanner uses only operator-configured local [[libraries]] mounts.
 	WatchRoot string
@@ -91,6 +108,9 @@ type LibraryConfig struct {
 type LibraryConfigPatch struct {
 	AttractIdleSeconds *int
 	PreferredRegions   *[]string
+	Libraries          *[]catalog.Root
+	Targets            *[]TargetConfig
+	SelectedTarget     *string
 }
 
 // MetadataConfig contains opt-in provider-scoped presentation enrichment.
@@ -176,6 +196,8 @@ type MediaConfig struct {
 type fileConfig struct {
 	BaseURL               string               `toml:"base_url"`
 	Token                 string               `toml:"token"`
+	SelectedTarget        string               `toml:"selected_target"`
+	Targets               []fileTarget         `toml:"targets"`
 	RequestTimeoutSeconds int64                `toml:"request_timeout_seconds"`
 	UploadTimeoutSeconds  int64                `toml:"upload_timeout_seconds"`
 	Libraries             []fileLibrary        `toml:"libraries"`
@@ -186,6 +208,13 @@ type fileConfig struct {
 	LibraryMedia          []fileLibraryMedia   `toml:"library_media"`
 	Library               *fileLibrarySettings `toml:"library"`
 	FPGAROMPaths          map[string]string    `toml:"fpga_rom_paths"`
+}
+
+type fileTarget struct {
+	Name    string `toml:"name"`
+	Enabled bool   `toml:"enabled"`
+	Address string `toml:"address"`
+	Agent   string `toml:"agent"`
 }
 
 type fileLibraryMedia struct {
@@ -285,13 +314,11 @@ func LoadConfig(path string) (Config, error) {
 		return Config{}, fmt.Errorf("decode FogCast config: %w", err)
 	}
 
-	baseURL, err := normalizeHTTPOrigin(defaultedAgentBaseURL(raw.BaseURL))
+	targets, selectedTarget, err := normalizeLoadedTargets(raw)
 	if err != nil {
 		return Config{}, err
 	}
-	if strings.TrimSpace(raw.Token) == "" {
-		return Config{}, fmt.Errorf("token must not be empty")
-	}
+	selected := targetByName(targets, selectedTarget)
 	requestTimeout, err := positiveDuration("request_timeout_seconds", raw.RequestTimeoutSeconds)
 	if err != nil {
 		return Config{}, err
@@ -311,6 +338,9 @@ func LoadConfig(path string) (Config, error) {
 	media, err := normalizeMedia(raw.Media)
 	if err != nil {
 		return Config{}, err
+	}
+	if (raw.RemoteInput.Enabled || media.Enabled) && !selected.Enabled {
+		return Config{}, fmt.Errorf("selected target %q must be enabled when remote input or media is enabled", selectedTarget)
 	}
 	sourceInfo, err := file.Stat()
 	if err != nil {
@@ -336,14 +366,19 @@ func LoadConfig(path string) (Config, error) {
 		libraries = append(libraries, *legacyRoot)
 	}
 	library.WatchRoot = watchRoot
+	library.Libraries = append([]catalog.Root(nil), libraries...)
+	library.Targets = append([]TargetConfig(nil), targets...)
+	library.SelectedTarget = selectedTarget
 	fpgaROMPaths, err := normalizeFPGAROMPaths(raw.FPGAROMPaths)
 	if err != nil {
 		return Config{}, err
 	}
 
 	return Config{
-		BaseURL:        baseURL,
-		Token:          raw.Token,
+		BaseURL:        selected.Address,
+		Token:          selected.Agent,
+		Targets:        targets,
+		SelectedTarget: selectedTarget,
 		RequestTimeout: requestTimeout,
 		UploadTimeout:  uploadTimeout,
 		Libraries:      libraries,
@@ -357,6 +392,79 @@ func LoadConfig(path string) (Config, error) {
 		Library:      library,
 		FPGAROMPaths: fpgaROMPaths,
 	}, nil
+}
+
+func normalizeLoadedTargets(raw fileConfig) ([]TargetConfig, string, error) {
+	if len(raw.Targets) == 0 {
+		address, err := normalizeHTTPOrigin(defaultedAgentBaseURL(raw.BaseURL))
+		if err != nil {
+			return nil, "", err
+		}
+		if strings.TrimSpace(raw.Token) == "" {
+			return nil, "", fmt.Errorf("token must not be empty")
+		}
+		return []TargetConfig{{Name: "dev", Enabled: true, Address: address, Agent: raw.Token}}, "dev", nil
+	}
+	targets := make([]TargetConfig, 0, len(raw.Targets))
+	for _, target := range raw.Targets {
+		targets = append(targets, TargetConfig{
+			Name: target.Name, Enabled: target.Enabled, Address: target.Address, Agent: target.Agent,
+		})
+	}
+	return normalizeTargets(targets, raw.SelectedTarget)
+}
+
+func normalizeTargets(raw []TargetConfig, selected string) ([]TargetConfig, string, error) {
+	targets := make([]TargetConfig, 0, len(raw))
+	seen := make(map[string]struct{}, len(raw))
+	for _, target := range raw {
+		name := strings.TrimSpace(target.Name)
+		if err := protocol.ValidateGameID(name); err != nil {
+			return nil, "", fmt.Errorf("target name: %w", err)
+		}
+		if _, duplicate := seen[name]; duplicate {
+			return nil, "", fmt.Errorf("duplicate target name %q", name)
+		}
+		address := strings.TrimSpace(target.Address)
+		agent := target.Agent
+		hasAddress := address != ""
+		hasAgent := strings.TrimSpace(agent) != ""
+		if hasAddress != hasAgent {
+			return nil, "", fmt.Errorf("target %q address and agent must both be set or both be empty", name)
+		}
+		if target.Enabled && !hasAddress {
+			return nil, "", fmt.Errorf("enabled target %q requires address and agent", name)
+		}
+		if hasAddress {
+			var err error
+			address, err = normalizeHTTPOrigin(address)
+			if err != nil {
+				return nil, "", fmt.Errorf("target %q address: %w", name, err)
+			}
+		}
+		seen[name] = struct{}{}
+		targets = append(targets, TargetConfig{Name: name, Enabled: target.Enabled, Address: address, Agent: agent})
+	}
+	selected = strings.TrimSpace(selected)
+	if len(targets) == 0 {
+		if selected != "" {
+			return nil, "", fmt.Errorf("selected target %q does not exist", selected)
+		}
+		return targets, "", nil
+	}
+	if _, ok := seen[selected]; !ok {
+		return nil, "", fmt.Errorf("selected target %q does not exist", selected)
+	}
+	return targets, selected, nil
+}
+
+func targetByName(targets []TargetConfig, name string) TargetConfig {
+	for _, target := range targets {
+		if target.Name == name {
+			return target
+		}
+	}
+	return TargetConfig{}
 }
 
 // LoadMetadataConfig reads only the metadata section from a FogCast config.
@@ -802,7 +910,30 @@ func NormalizeLibraryConfig(raw LibraryConfig) (LibraryConfig, error) {
 		seen[mapped] = struct{}{}
 		normalized = append(normalized, mapped)
 	}
-	return LibraryConfig{AttractIdleSeconds: seconds, PreferredRegions: normalized, WatchRoot: strings.TrimSpace(raw.WatchRoot)}, nil
+	libraries, err := normalizeCatalogRoots(raw.Libraries)
+	if err != nil {
+		return LibraryConfig{}, err
+	}
+	targets, selectedTarget, err := normalizeTargets(raw.Targets, raw.SelectedTarget)
+	if err != nil {
+		return LibraryConfig{}, err
+	}
+	return LibraryConfig{
+		AttractIdleSeconds: seconds,
+		PreferredRegions:   normalized,
+		Libraries:          libraries,
+		Targets:            targets,
+		SelectedTarget:     selectedTarget,
+		WatchRoot:          strings.TrimSpace(raw.WatchRoot),
+	}, nil
+}
+
+func normalizeCatalogRoots(raw []catalog.Root) ([]catalog.Root, error) {
+	encoded := make([]fileLibrary, 0, len(raw))
+	for _, root := range raw {
+		encoded = append(encoded, fileLibrary{ID: root.ID, System: root.System, Root: root.Path})
+	}
+	return normalizeLibraries(encoded)
 }
 
 const (

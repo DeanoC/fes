@@ -12,6 +12,7 @@ import (
 
 	"github.com/DeanoC/FogCast-POC/catalog"
 	"github.com/DeanoC/FogCast-POC/fogcast"
+	"github.com/DeanoC/FogCast-POC/internal/systems"
 	"github.com/DeanoC/FogCast-POC/librarymedia"
 	"github.com/DeanoC/FogCast-POC/libraryuser"
 	"github.com/DeanoC/FogCast-POC/protocol"
@@ -58,18 +59,34 @@ type librarySettingsService interface {
 }
 
 type settingsWrite struct {
-	AttractIdleSeconds *int      `json:"attract_idle_seconds"`
-	PreferredRegions   *[]string `json:"preferred_regions"`
+	AttractIdleSeconds *int                    `json:"attract_idle_seconds"`
+	PreferredRegions   *[]string               `json:"preferred_regions"`
+	Libraries          *[]settingsLibraryWrite `json:"libraries"`
+	Targets            *[]settingsTargetWrite  `json:"targets"`
+	SelectedTarget     *string                 `json:"selected_target"`
+}
+
+type settingsLibraryWrite struct {
+	ID     string          `json:"id"`
+	System protocol.System `json:"system"`
+	Root   string          `json:"root"`
+}
+
+type settingsTargetWrite struct {
+	Name         string  `json:"name"`
+	PreviousName string  `json:"original_name"`
+	Address      string  `json:"address"`
+	Agent        *string `json:"agent"`
+	Enabled      bool    `json:"enabled"`
 }
 
 func handleLibrarySettings(w http.ResponseWriter, r *http.Request, service Service) {
-	current := defaultLibrarySettings(service)
 	if r.Method == http.MethodGet {
 		if err := rejectBody(w, r); err != nil {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "settings request body must be empty")
 			return
 		}
-		writeJSON(w, http.StatusOK, publicLibrarySettings(current))
+		writeJSON(w, http.StatusOK, publicLibrarySettings(defaultLibrarySettings(service)))
 		return
 	}
 	writer, ok := service.(librarySettingsService)
@@ -102,23 +119,59 @@ func handleLibrarySettings(w http.ResponseWriter, r *http.Request, service Servi
 var errInvalidLibrarySettings = errors.New("library settings request is invalid")
 
 func applyLibrarySettingsWrite(r *http.Request, writer librarySettingsService, patch settingsWrite) error {
-	if r.Method == http.MethodPatch {
-		return writer.PatchLibrarySettings(r.Context(), fogcast.LibraryConfigPatch{
-			AttractIdleSeconds: patch.AttractIdleSeconds,
-			PreferredRegions:   patch.PreferredRegions,
-		})
+	var next fogcast.LibraryConfig
+	if patch.AttractIdleSeconds != nil {
+		next.AttractIdleSeconds = *patch.AttractIdleSeconds
 	}
-	if patch.AttractIdleSeconds == nil || patch.PreferredRegions == nil {
+	if patch.PreferredRegions != nil {
+		next.PreferredRegions = append([]string(nil), (*patch.PreferredRegions)...)
+	}
+	if patch.Libraries != nil {
+		next.Libraries = make([]catalog.Root, 0, len(*patch.Libraries))
+		for _, entry := range *patch.Libraries {
+			next.Libraries = append(next.Libraries, catalog.Root{ID: entry.ID, System: entry.System, Path: entry.Root})
+		}
+	}
+	if patch.Targets != nil {
+		next.Targets = make([]fogcast.TargetConfig, 0, len(*patch.Targets))
+		for _, entry := range *patch.Targets {
+			target := fogcast.TargetConfig{Name: entry.Name, PreviousName: entry.PreviousName, Address: entry.Address, Enabled: entry.Enabled}
+			if entry.Agent != nil {
+				target.Agent = *entry.Agent
+				target.AgentSet = true
+			}
+			next.Targets = append(next.Targets, target)
+		}
+	}
+	if patch.SelectedTarget != nil {
+		next.SelectedTarget = *patch.SelectedTarget
+	}
+	if r.Method == http.MethodPut && (patch.AttractIdleSeconds == nil || patch.PreferredRegions == nil) {
 		return errInvalidLibrarySettings
 	}
-	normalized, err := fogcast.NormalizeLibraryConfig(fogcast.LibraryConfig{
-		AttractIdleSeconds: *patch.AttractIdleSeconds,
-		PreferredRegions:   append([]string(nil), *patch.PreferredRegions...),
+	return writer.PatchLibrarySettings(r.Context(), fogcast.LibraryConfigPatch{
+		AttractIdleSeconds: patch.AttractIdleSeconds,
+		PreferredRegions:   patch.PreferredRegions,
+		Libraries:          libraryRootsPointer(next.Libraries, patch.Libraries != nil),
+		Targets:            targetConfigsPointer(next.Targets, patch.Targets != nil),
+		SelectedTarget:     patch.SelectedTarget,
 	})
-	if err != nil {
-		return errInvalidLibrarySettings
+}
+
+func libraryRootsPointer(roots []catalog.Root, present bool) *[]catalog.Root {
+	if !present {
+		return nil
 	}
-	return writer.SetLibrarySettings(r.Context(), normalized)
+	copy := append([]catalog.Root(nil), roots...)
+	return &copy
+}
+
+func targetConfigsPointer(targets []fogcast.TargetConfig, present bool) *[]fogcast.TargetConfig {
+	if !present {
+		return nil
+	}
+	copy := append([]fogcast.TargetConfig(nil), targets...)
+	return &copy
 }
 
 func defaultLibrarySettings(service Service) fogcast.LibraryConfig {
@@ -140,14 +193,35 @@ func publicLibrarySettings(settings fogcast.LibraryConfig) map[string]any {
 	if regions == nil {
 		regions = []string{}
 	}
+	libraries := make([]map[string]any, 0, len(settings.Libraries))
+	for _, root := range settings.Libraries {
+		libraries = append(libraries, map[string]any{
+			"id": root.ID, "system": root.System, "root": root.Path,
+		})
+	}
+	targets := make([]map[string]any, 0, len(settings.Targets))
+	for _, target := range settings.Targets {
+		targets = append(targets, map[string]any{
+			"name": target.Name, "address": target.Address, "enabled": target.Enabled,
+			"agent_configured": strings.TrimSpace(target.Agent) != "",
+		})
+	}
+	platforms := make([]map[string]any, 0)
+	for _, row := range systems.Rows() {
+		platforms = append(platforms, map[string]any{"id": row.PlatformID, "label": row.Label})
+	}
 	return map[string]any{
 		"attract_idle_seconds": settings.AttractIdleSeconds,
 		"preferred_regions":    regions,
+		"libraries":            libraries,
+		"targets":              targets,
+		"selected_target":      settings.SelectedTarget,
+		"systems":              platforms,
 	}
 }
 
 func decodeOptionalSettings(w http.ResponseWriter, r *http.Request) (bool, settingsWrite, error) {
-	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "request body must contain one valid JSON object")

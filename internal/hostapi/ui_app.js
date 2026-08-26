@@ -2324,7 +2324,7 @@
       return loadCatalog(state.query);
     }
 
-    async function loadPlatforms() {
+    async function refreshPlatforms() {
       try {
         const payload = await request(fetchImpl, '/api/v1/platforms');
         const list = payload && Array.isArray(payload.platforms) ? payload.platforms : [];
@@ -2338,6 +2338,10 @@
       } catch (_) {
         if (!state.platforms.length) state.platforms = Object.freeze([]);
       }
+    }
+
+    async function loadPlatforms() {
+      await refreshPlatforms();
       try {
         const settingsSequence = state.settingsSequence;
         const attract = await request(fetchImpl, '/api/v1/library/attract?limit=1');
@@ -2497,9 +2501,31 @@
       const regions = payload && Array.isArray(payload.preferred_regions)
         ? payload.preferred_regions.filter(item => typeof item === 'string' && item.trim()).map(item => item.trim().toLowerCase())
         : [];
+      const libraries = payload && Array.isArray(payload.libraries)
+        ? payload.libraries.filter(item => item && typeof item.system === 'string' && typeof item.root === 'string').map(item => Object.freeze({
+          id: typeof item.id === 'string' ? item.id : '',
+          system: item.system,
+          root: item.root,
+        }))
+        : [];
+      const targets = payload && Array.isArray(payload.targets)
+        ? payload.targets.filter(item => item && typeof item.name === 'string').map(item => Object.freeze({
+          name: item.name,
+          address: typeof item.address === 'string' ? item.address : '',
+          enabled: item.enabled === true,
+          agent_configured: item.agent_configured === true,
+        }))
+        : [];
+      const systems = payload && Array.isArray(payload.systems)
+        ? payload.systems.filter(item => item && typeof item.id === 'string' && typeof item.label === 'string').map(item => Object.freeze({ id: item.id, label: item.label }))
+        : [];
       return Object.freeze({
         attract_idle_seconds: idle > 0 ? idle : 60,
         preferred_regions: Object.freeze(regions),
+        libraries: Object.freeze(libraries),
+        targets: Object.freeze(targets),
+        selected_target: payload && typeof payload.selected_target === 'string' ? payload.selected_target : '',
+        systems: Object.freeze(systems),
       });
     }
 
@@ -2528,12 +2554,16 @@
         body: JSON.stringify({
           attract_idle_seconds: next && next.attract_idle_seconds,
           preferred_regions: next && next.preferred_regions,
+          libraries: next && next.libraries,
+          targets: next && next.targets,
+          selected_target: next && next.selected_target,
         }),
       });
       const parsed = parseLibrarySettings(payload);
       if (!applyLibrarySettings(parsed, sequence)) return snapshot();
       if (sequence === state.settingsSequence) state.settingsSequence += 1;
       emit();
+      await refreshPlatforms();
       return reloadVisibleCatalog(state.query);
     }
 
@@ -2835,6 +2865,7 @@
   let collectionEditor = null;
   let forceKeyboardRestore = false;
   let settingsGeneration = 0;
+  let settingsSelectedTargetRow = null;
   let searchTimer = null;
   let attractIdleHydrated = false;
   let gameActionsMenu = { open: false, gameId: '', pane: 'grid', home: null };
@@ -2892,6 +2923,11 @@
     settings: document.getElementById('settings'),
     settingsAttractIdle: document.getElementById('settings-attract-idle'),
     settingsPreferredRegions: document.getElementById('settings-preferred-regions'),
+    settingsLibraries: document.getElementById('settings-libraries'),
+    addLibrary: document.getElementById('add-library'),
+    settingsTargets: document.getElementById('settings-targets'),
+    addTarget: document.getElementById('add-target'),
+    settingsSelectedTarget: document.getElementById('settings-selected-target'),
     settingsHostHealth: document.getElementById('settings-host-health'),
     settingsMessage: document.getElementById('settings-message'),
     saveSettings: document.getElementById('save-settings'),
@@ -4632,12 +4668,21 @@
   }
 
   function settingsFocusables() {
-    return [
+    const fixed = [
       nodes.settingsAttractIdle,
       nodes.settingsPreferredRegions,
-      nodes.saveSettings,
-      nodes.closeSettings,
-    ].filter(node => node && !node.disabled && node.hidden !== true);
+      nodes.addLibrary,
+      nodes.settingsSelectedTarget,
+      nodes.addTarget,
+    ];
+    const dynamic = [];
+    for (const container of [nodes.settingsLibraries, nodes.settingsTargets]) {
+      if (!container || typeof container.querySelectorAll !== 'function') continue;
+      dynamic.push(...Array.from(container.querySelectorAll('.settings-field')));
+      dynamic.push(...Array.from(container.querySelectorAll('.settings-remove')));
+    }
+    return fixed.concat(dynamic, [nodes.saveSettings, nodes.closeSettings])
+      .filter(node => node && !node.disabled && node.hidden !== true);
   }
 
   function setSettingsChromeInert(inert) {
@@ -4668,6 +4713,170 @@
     return generation !== settingsGeneration || !settingsIsOpen();
   }
 
+  function settingsField(labelText, field) {
+    const label = element('label', 'filter-label');
+    label.appendChild(element('span', '', labelText));
+    field.className = `${field.className || ''} settings-field`.trim();
+    label.appendChild(field);
+    return label;
+  }
+
+  function removeSettingsRow(container, row) {
+    if (!container || !row) return;
+    container.replaceChildren(...Array.from(container.children).filter(child => child !== row));
+    bumpSettingsGeneration();
+  }
+
+  function renderLibraryRow(library, systems) {
+    const row = element('div', 'settings-row settings-library-row');
+    row.setAttribute('data-library-id', library && library.id ? library.id : '');
+    const system = element('select', 'settings-library-system');
+    for (const choice of systems) {
+      const option = element('option', '', choice.label);
+      option.value = choice.id;
+      system.appendChild(option);
+    }
+    system.value = library && library.system ? library.system : (systems[0] && systems[0].id) || '';
+    const root = element('input', 'settings-library-root');
+    root.type = 'text';
+    root.autocomplete = 'off';
+    root.spellcheck = false;
+    root.value = library && library.root ? library.root : '';
+    const remove = element('button', 'button secondary compact settings-remove', 'Remove');
+    remove.type = 'button';
+    remove.addEventListener('click', () => removeSettingsRow(nodes.settingsLibraries, row));
+    system.addEventListener('change', bumpSettingsGeneration);
+    root.addEventListener('input', bumpSettingsGeneration);
+    row._fogcastFields = { system, root };
+    row.appendChild(settingsField('System', system));
+    row.appendChild(settingsField('Folder', root));
+    row.appendChild(remove);
+    return row;
+  }
+
+  function refreshSelectedTargetOptions(selected) {
+    if (!nodes.settingsSelectedTarget) return;
+    const names = nodes.settingsTargets
+      ? Array.from(nodes.settingsTargets.children).map(row => row._fogcastFields && row._fogcastFields.name.value).filter(Boolean)
+      : [];
+    nodes.settingsSelectedTarget.replaceChildren(...names.map(name => {
+      const option = element('option', '', name);
+      option.value = name;
+      return option;
+    }));
+    nodes.settingsSelectedTarget.value = names.includes(selected) ? selected : (names[0] || '');
+  }
+
+  function targetSettingsRowByName(name) {
+    if (!nodes.settingsTargets) return null;
+    return Array.from(nodes.settingsTargets.children).find(row => (
+      row._fogcastFields && row._fogcastFields.name.value === name
+    )) || null;
+  }
+
+  function renderTargetRow(target) {
+    const row = element('div', 'settings-row settings-target-row');
+    const name = element('input', 'settings-target-name');
+    name.type = 'text';
+    name.autocomplete = 'off';
+    name.spellcheck = false;
+    name.value = target && target.name ? target.name : '';
+    const address = element('input', 'settings-target-address');
+    address.type = 'url';
+    address.autocomplete = 'off';
+    address.spellcheck = false;
+    address.value = target && target.address ? target.address : '';
+    const agent = element('input', 'settings-target-agent');
+    agent.type = 'password';
+    agent.autocomplete = 'new-password';
+    agent.value = '';
+    agent.placeholder = target && target.agent_configured ? 'Stored' : 'Optional while disabled';
+    const clearAgent = element('button', 'button secondary compact settings-field settings-clear-agent', 'Clear agent');
+    clearAgent.type = 'button';
+    clearAgent.hidden = !(target && target.agent_configured);
+    const enabled = element('input', 'settings-target-enabled');
+    enabled.type = 'checkbox';
+    enabled.className = `${enabled.className || ''} settings-field`.trim();
+    enabled.checked = Boolean(target && target.enabled);
+    const enabledLabel = element('label', 'settings-enabled');
+    enabledLabel.appendChild(enabled);
+    enabledLabel.appendChild(element('span', '', 'Enabled'));
+    const remove = element('button', 'button secondary compact settings-remove', 'Remove');
+    remove.type = 'button';
+    remove.addEventListener('click', () => {
+      const selected = nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value;
+      if (settingsSelectedTargetRow === row) settingsSelectedTargetRow = null;
+      removeSettingsRow(nodes.settingsTargets, row);
+      refreshSelectedTargetOptions(selected);
+      if (!settingsSelectedTargetRow) {
+        settingsSelectedTargetRow = targetSettingsRowByName(nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value);
+      }
+    });
+    name.addEventListener('input', () => {
+      const selected = nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value;
+      const selectedRow = settingsSelectedTargetRow;
+      const nextSelected = selectedRow === row ? name.value : selected;
+      refreshSelectedTargetOptions(nextSelected);
+      if (selectedRow && nodes.settingsTargets && Array.from(nodes.settingsTargets.children).includes(selectedRow)) {
+        settingsSelectedTargetRow = selectedRow;
+      } else {
+        settingsSelectedTargetRow = targetSettingsRowByName(nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value);
+      }
+      bumpSettingsGeneration();
+    });
+    address.addEventListener('input', bumpSettingsGeneration);
+    row._fogcastAgentDirty = false;
+    row._fogcastAgentClear = false;
+    agent.addEventListener('input', () => {
+      row._fogcastAgentDirty = agent.value !== '';
+      row._fogcastAgentClear = false;
+      clearAgent.textContent = 'Clear agent';
+      bumpSettingsGeneration();
+    });
+    clearAgent.addEventListener('click', () => {
+      row._fogcastAgentClear = !row._fogcastAgentClear;
+      row._fogcastAgentDirty = row._fogcastAgentClear;
+      agent.value = '';
+      agent.placeholder = row._fogcastAgentClear ? 'Will clear' : 'Stored';
+      clearAgent.textContent = row._fogcastAgentClear ? 'Keep agent' : 'Clear agent';
+      bumpSettingsGeneration();
+    });
+    enabled.addEventListener('change', bumpSettingsGeneration);
+    row._fogcastFields = { name, address, agent, clearAgent, enabled };
+    row._fogcastOriginalName = target && target.name ? target.name : '';
+    row.appendChild(settingsField('Name', name));
+    row.appendChild(settingsField('Address', address));
+    row.appendChild(settingsField('Agent', agent));
+    row.appendChild(clearAgent);
+    row.appendChild(enabledLabel);
+    row.appendChild(remove);
+    return row;
+  }
+
+  function addLibrarySettingsRow() {
+    if (!nodes.settingsLibraries) return;
+    const settings = controller.getState().librarySettings;
+    const systems = settings && Array.isArray(settings.systems) ? settings.systems : [];
+    nodes.settingsLibraries.appendChild(renderLibraryRow({}, systems));
+    bumpSettingsGeneration();
+  }
+
+  function addTargetSettingsRow() {
+    if (!nodes.settingsTargets) return;
+    const used = new Set(Array.from(nodes.settingsTargets.children).map(row => row._fogcastFields && row._fogcastFields.name.value));
+    let index = nodes.settingsTargets.children.length + 1;
+    let name = `target-${index}`;
+    while (used.has(name)) {
+      index += 1;
+      name = `target-${index}`;
+    }
+    const row = renderTargetRow({ name, enabled: false, agent_configured: false });
+    row._fogcastOriginalName = '';
+    nodes.settingsTargets.appendChild(row);
+    refreshSelectedTargetOptions(nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value);
+    bumpSettingsGeneration();
+  }
+
   function fillSettingsForm(settings) {
     if (nodes.settingsAttractIdle) {
       nodes.settingsAttractIdle.value = String((settings && settings.attract_idle_seconds) || state.attractIdleSeconds || 60);
@@ -4676,6 +4885,18 @@
       const regions = settings && Array.isArray(settings.preferred_regions) ? settings.preferred_regions : [];
       nodes.settingsPreferredRegions.value = regions.join(', ');
     }
+    const systems = settings && Array.isArray(settings.systems) ? settings.systems : [];
+    if (nodes.settingsLibraries) {
+      const libraries = settings && Array.isArray(settings.libraries) ? settings.libraries : [];
+      nodes.settingsLibraries.replaceChildren(...libraries.map(library => renderLibraryRow(library, systems)));
+    }
+    if (nodes.settingsTargets) {
+      const targets = settings && Array.isArray(settings.targets) ? settings.targets : [];
+      settingsSelectedTargetRow = null;
+      nodes.settingsTargets.replaceChildren(...targets.map(renderTargetRow));
+    }
+    refreshSelectedTargetOptions(settings && settings.selected_target);
+    settingsSelectedTargetRow = targetSettingsRowByName(nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value);
     if (nodes.settingsHostHealth) {
       nodes.settingsHostHealth.textContent = nodes.health ? nodes.health.textContent : '';
     }
@@ -4726,10 +4947,27 @@
     const generation = settingsGeneration;
     const idle = Number(nodes.settingsAttractIdle && nodes.settingsAttractIdle.value);
     const regions = parseRegionsInput(nodes.settingsPreferredRegions && nodes.settingsPreferredRegions.value);
+    const libraries = nodes.settingsLibraries ? Array.from(nodes.settingsLibraries.children).map(row => ({
+      id: row.getAttribute('data-library-id') || '',
+      system: row._fogcastFields.system.value,
+      root: row._fogcastFields.root.value,
+    })) : [];
+    const targets = nodes.settingsTargets ? Array.from(nodes.settingsTargets.children).map(row => {
+      const fields = row._fogcastFields;
+      const target = { name: fields.name.value, address: fields.address.value, enabled: fields.enabled.checked === true };
+      if (row._fogcastOriginalName && row._fogcastOriginalName !== fields.name.value) {
+        target.original_name = row._fogcastOriginalName;
+      }
+      if (row._fogcastAgentDirty) target.agent = row._fogcastAgentClear ? '' : fields.agent.value;
+      return target;
+    }) : [];
     try {
       await controller.saveSettings({
         attract_idle_seconds: idle,
         preferred_regions: regions,
+        libraries,
+        targets,
+        selected_target: nodes.settingsSelectedTarget ? nodes.settingsSelectedTarget.value : '',
       });
       if (settingsRequestExpired(generation)) return;
       fillSettingsForm(controller.getState().librarySettings);
@@ -5206,6 +5444,12 @@
   if (nodes.openSettings) nodes.openSettings.addEventListener('click', () => { void openSettings(); });
   if (nodes.closeSettings) nodes.closeSettings.addEventListener('click', closeSettings);
   if (nodes.saveSettings) nodes.saveSettings.addEventListener('click', () => { void saveSettingsFromForm(); });
+  if (nodes.addLibrary) nodes.addLibrary.addEventListener('click', addLibrarySettingsRow);
+  if (nodes.addTarget) nodes.addTarget.addEventListener('click', addTargetSettingsRow);
+  if (nodes.settingsSelectedTarget) nodes.settingsSelectedTarget.addEventListener('change', () => {
+    settingsSelectedTargetRow = targetSettingsRowByName(nodes.settingsSelectedTarget.value);
+    bumpSettingsGeneration();
+  });
   if (nodes.settingsAttractIdle) nodes.settingsAttractIdle.addEventListener('input', bumpSettingsGeneration);
   if (nodes.settingsPreferredRegions) nodes.settingsPreferredRegions.addEventListener('input', bumpSettingsGeneration);
   if (typeof document.addEventListener === 'function') {
