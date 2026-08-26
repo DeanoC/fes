@@ -11,6 +11,7 @@ help:
 		"Public targets:" \
 		"  toolchain  Build or locate the pinned repository-local OSS tools" \
 		"  doctor     Report host, toolchain, oracle, and hardware readiness" \
+		"  doctor-strict  Require host and OSS readiness (Quartus/hardware optional)" \
 		"  sim        Simulate an experiment with the Verilator lane" \
 		"  oss        Build an experiment with the open-source FPGA lane" \
 		"  oracle     Build an experiment with the explicit Quartus oracle lane" \
@@ -27,7 +28,7 @@ define require_exp
 	fi
 endef
 
-.PHONY: toolchain toolchain-check doctor sim oss oracle compare program clean
+.PHONY: toolchain toolchain-check doctor doctor-strict sim oss oracle compare program clean
 
 toolchain:
 	@scripts/bootstrap.sh
@@ -36,8 +37,10 @@ toolchain-check:
 	@scripts/bootstrap.sh --check-prereqs
 
 doctor:
-	@printf 'target not implemented in this task\n' >&2
-	@exit 2
+	@bash -c '. scripts/env.sh; exec "$$1" scripts/doctor.py' _ "$(PYTHON)"
+
+doctor-strict:
+	@bash -c '. scripts/env.sh; exec "$$1" scripts/doctor.py --strict oss' _ "$(PYTHON)"
 
 sim oss oracle compare program clean:
 	$(require_exp)
