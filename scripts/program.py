@@ -1227,6 +1227,27 @@ def _wait_for_control_shutdown(control_dir: Path) -> bool:
         time.sleep(CONTROL_WAIT_INTERVAL)
 
 
+def _cleanup_ssh_options(ssh_options: Sequence[str]) -> tuple[str, ...]:
+    """Build control-operation options with passwordless cleanup semantics."""
+
+    # BatchMode=no is needed for the operator-facing session so a credential
+    # prompt may remain interactive.  Cleanup must never prompt, and OpenSSH
+    # option precedence can be order-sensitive, so remove every existing
+    # BatchMode setting before placing the one required value first.
+    cleaned: list[str] = ["-o", "BatchMode=yes"]
+    index = 0
+    while index < len(ssh_options):
+        option = ssh_options[index]
+        if option == "-o" and index + 1 < len(ssh_options):
+            setting = ssh_options[index + 1]
+            if setting.lower().startswith("batchmode="):
+                index += 2
+                continue
+        cleaned.append(option)
+        index += 1
+    return tuple(cleaned)
+
+
 def _control_operation(
     ssh: str,
     target: str,
@@ -1234,9 +1255,22 @@ def _control_operation(
     operation: str,
 ) -> subprocess.CompletedProcess[str]:
     return _run(
-        [ssh, *ssh_options, "-o", "BatchMode=yes", "-O", operation, target],
+        [ssh, *_cleanup_ssh_options(ssh_options), "-O", operation, target],
         timeout=CONTROL_COMMAND_TIMEOUT,
     )
+
+
+def _remove_control_dir(control_dir: Path) -> None:
+    try:
+        shutil.rmtree(control_dir)
+    except OSError as exc:
+        raise _fail(
+            f"private SSH control directory cleanup failed; preserve {control_dir}: {exc}"
+        ) from exc
+    if control_dir.exists():
+        raise _fail(
+            f"private SSH control directory remains after cleanup; preserve {control_dir}"
+        )
 
 
 def _cleanup_ssh_control_master(
@@ -1249,18 +1283,7 @@ def _cleanup_ssh_control_master(
 
     exited = _control_operation(ssh, target, ssh_options, "exit")
     if exited.returncode == 0 and _wait_for_control_shutdown(control_dir):
-        try:
-            shutil.rmtree(control_dir)
-        except OSError as exc:
-            raise _fail(
-                f"SSH control master stopped but private control directory cleanup failed; "
-                f"preserve {control_dir}: {exc}"
-            ) from exc
-        if control_dir.exists():
-            raise _fail(
-                f"SSH control master stopped but private control directory remains; "
-                f"preserve {control_dir}"
-            )
+        _remove_control_dir(control_dir)
         return
 
     # A failed exit can leave a master accepting sessions. Stop accepting new
@@ -1271,18 +1294,7 @@ def _cleanup_ssh_control_master(
         retried = _control_operation(ssh, target, ssh_options, "exit")
         if retried.returncode == 0 or _control_dir_empty(control_dir):
             if _wait_for_control_shutdown(control_dir):
-                try:
-                    shutil.rmtree(control_dir)
-                except OSError as exc:
-                    raise _fail(
-                        f"SSH control master fallback stopped but private control directory cleanup failed; "
-                        f"preserve {control_dir}: {exc}"
-                    ) from exc
-                if control_dir.exists():
-                    raise _fail(
-                        f"SSH control master fallback stopped but private control directory remains; "
-                        f"preserve {control_dir}"
-                    )
+                _remove_control_dir(control_dir)
                 return
 
     raise _fail(
@@ -1298,6 +1310,7 @@ def _ephemeral_ssh_session(ssh: str, target: str):
     control_dir: Path | None = None
     ssh_options: tuple[str, ...] = SSH_OPTIONS
     created_dir: Path | None = None
+    body_error: BaseException | None = None
     try:
         try:
             created_dir = Path(tempfile.mkdtemp(prefix="misteross-ssh-"))
@@ -1317,10 +1330,28 @@ def _ephemeral_ssh_session(ssh: str, target: str):
             "-o",
             f"ControlPath={control_path}",
         )
-        yield ssh_options
+        try:
+            yield ssh_options
+        except BaseException as exc:
+            body_error = exc
+            raise
     finally:
         if control_dir is not None:
-            _cleanup_ssh_control_master(ssh, target, ssh_options, control_dir)
+            try:
+                # A failed first connection may never have created a socket.
+                # In that case, remove only the empty private directory and do
+                # not send misleading control commands to a nonexistent master.
+                if _control_dir_empty(control_dir):
+                    _remove_control_dir(control_dir)
+                else:
+                    _cleanup_ssh_control_master(ssh, target, ssh_options, control_dir)
+            except ProgramError as cleanup_error:
+                if body_error is not None:
+                    raise _fail(
+                        f"primary transport error: {body_error}; "
+                        f"SSH control cleanup failed: {cleanup_error}"
+                    ) from cleanup_error
+                raise
 
 
 def _mister_transport_session(

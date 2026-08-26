@@ -180,6 +180,8 @@ class ProgramPreflightTests(unittest.TestCase):
         control_exit: int = 0,
         control_stop_exit: int = 0,
         stage_exists: bool = False,
+        preflight_exit: int = 0,
+        create_control_marker_on_preflight: bool = True,
     ) -> None:
         digest = digest or _sha256(self.artifact)
         legacy_stage = f"/tmp/misteross-{EXPERIMENT}-{digest[:16]}.rbf"
@@ -223,6 +225,26 @@ class ProgramPreflightTests(unittest.TestCase):
             + f"DIR|{stage_dir_type}|{stage_dir_uid}|0|{stage_dir_mode}|{stage_dir_nlink}\n"
             + f"FILE|{stage_file_type}|{stage_file_uid}|0|{stage_file_mode}|{stage_file_nlink}\n"
         )
+        control_marker = ""
+        if create_control_marker_on_preflight:
+            control_marker = (
+                "control_path=\"\"\n"
+                "for arg in \"$@\"; do\n"
+                "  case \"$arg\" in ControlPath=*) control_path=\"${arg#ControlPath=}\" ;; esac\n"
+                "done\n"
+                "if [ -n \"$control_path\" ]; then\n"
+                "  control_dir=\"${control_path%/*}\"\n"
+                "  mkdir -p -- \"$control_dir\"\n"
+                "  : > \"$control_dir/fake-master\"\n"
+                "fi\n"
+            )
+        control_cleanup = (
+            "control_path=\"\"\n"
+            "for arg in \"$@\"; do\n"
+            "  case \"$arg\" in ControlPath=*) control_path=\"${arg#ControlPath=}\" ;; esac\n"
+            "done\n"
+            "if [ -n \"$control_path\" ]; then rm -f -- \"${control_path%/*}/fake-master\"; fi\n"
+        )
         mkdir_branch = (
             f"  *'MISTEROSS_MKDIR_V1'*) exit {mkdir_exit} ;;\n"
             if mkdir_exit
@@ -233,10 +255,10 @@ class ProgramPreflightTests(unittest.TestCase):
             f"printf '%s\\n' \"$*\" >> {str(self.actions)!r}\n"
             "remote_command=\"${!#}\"\n"
             "case \" $* \" in\n"
-            f"  *'MISTEROSS_PREFLIGHT_V1'*) printf '%b' {preflight_output!r} ; exit 0 ;;\n"
+            f"  *'MISTEROSS_PREFLIGHT_V1'*) {control_marker} printf '%b' {preflight_output!r} ; exit {preflight_exit} ;;\n"
             + mkdir_branch
-            + f"  *'-O exit'*) exit {control_exit} ;;\n"
-            + f"  *'-O stop'*) exit {control_stop_exit} ;;\n"
+            + f"  *'-O exit'*) {control_cleanup if control_exit == 0 else ''} exit {control_exit} ;;\n"
+            + f"  *'-O stop'*) {control_cleanup if control_stop_exit == 0 else ''} exit {control_stop_exit} ;;\n"
             + f"  *'MISTEROSS_VERIFY_V1'*) verify_stage=\"${{remote_command#*MISTEROSS_VERIFY_V1 }}\"; verify_stage=\"${{verify_stage%%;*}}\"; printf '%b' {verify_output!r}; printf 'HASH|%s|%s\\n' {digest!r} \"$verify_stage\"; exit {verify_exit} ;;\n"
             + f"  *'MISTEROSS_RACE_V1'*) printf '%s\\n' RACE; exit 1 ;;\n"
             + f"  *'uname -m'*) printf '%s' {architecture!r} ;;\n"
@@ -670,6 +692,59 @@ class ProgramPreflightTests(unittest.TestCase):
         self.assertGreaterEqual(actions.count("ControlPath="), 5)
         self.assertIn("ControlMaster=auto", actions)
         self.assertIn("ControlPersist=", actions)
+
+    def test_mister_cleanup_control_operations_use_batchmode_yes_only(self) -> None:
+        result = self._run(transport="mister", dry_run=False, host="mister.test", user="root")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        cleanup_lines = [
+            line
+            for line in self.actions.read_text(encoding="utf-8").splitlines()
+            if " -O exit " in f" {line} " or " -O stop " in f" {line} "
+        ]
+        self.assertTrue(cleanup_lines)
+        for line in cleanup_lines:
+            self.assertIn("-o BatchMode=yes", line)
+            self.assertNotIn("BatchMode=no", line)
+            self.assertLess(line.index("BatchMode=yes"), line.index("-O"))
+
+    def test_mister_initial_preflight_failure_removes_empty_control_dir_without_shutdown(self) -> None:
+        self._write_remote_tools(preflight_exit=7, create_control_marker_on_preflight=False)
+        result = self._run(transport="mister", dry_run=False, host="mister.test", user="root")
+        self.assertNotEqual(result.returncode, 0)
+        output = result.stdout + result.stderr
+        self.assertIn("remote ARM/FIFO/Main preflight failed", output)
+        actions = self.actions.read_text(encoding="utf-8")
+        self.assertNotIn("-O exit", actions)
+        self.assertNotIn("-O stop", actions)
+        control_paths = set(re.findall(r"ControlPath=([^\s]+)", output))
+        self.assertEqual(len(control_paths), 1, output)
+        control_dir = Path(next(iter(control_paths)).split("%", 1)[0]).parent
+        self.assertFalse(control_dir.exists())
+
+    def test_mister_primary_and_cleanup_failures_are_aggregated_and_preserve_path(self) -> None:
+        self._write_remote_tools(
+            preflight_exit=7,
+            control_exit=8,
+            control_stop_exit=9,
+            create_control_marker_on_preflight=True,
+        )
+        result = self._run(transport="mister", dry_run=False, host="mister.test", user="root")
+        self.assertNotEqual(result.returncode, 0)
+        output = result.stdout + result.stderr
+        self.assertIn("remote ARM/FIFO/Main preflight failed", output)
+        self.assertIn("control cleanup", output.lower())
+        self.assertLess(
+            output.index("remote ARM/FIFO/Main preflight failed"),
+            output.lower().index("control cleanup"),
+        )
+        actions = self.actions.read_text(encoding="utf-8")
+        self.assertIn("-O exit", actions)
+        self.assertIn("-O stop", actions)
+        control_paths = set(re.findall(r"ControlPath=([^\s]+)", output))
+        self.assertEqual(len(control_paths), 1, output)
+        control_dir = Path(next(iter(control_paths)).split("%", 1)[0]).parent
+        self.assertTrue(control_dir.exists())
+        shutil.rmtree(control_dir, ignore_errors=True)
 
     def test_mister_control_path_is_cleaned_after_failure(self) -> None:
         self._write_remote_tools(mkdir_exit=1)

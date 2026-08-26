@@ -282,3 +282,37 @@ uses dry-run as the safe unset/empty default. Exact `false` reaches the fake
 live transport path; malformed values fail before local artifact or transport
 output. No hardware, target, credentials, upload, load, reboot, or persistent
 storage was used.
+
+## Fix Round 4 — cleanup option precedence and primary-error preservation
+
+Round 4 added regressions before implementation for cleanup option ordering,
+an initial preflight failure with no control socket, and simultaneous primary
+transport plus cleanup failure. The focused suite first ran 48 tests and had
+three expected failures: cleanup still included the earlier `BatchMode=no`,
+an empty session still attempted `-O exit`, and cleanup masked the preflight
+diagnostic. After the narrow fixes:
+
+```text
+timeout 180s python3 -m unittest tests.test_program_preflight -v
+Ran 48 tests in 4.366s
+OK
+
+timeout 180s python3 -m unittest discover -s tests -p 'test_*.py' -q
+Ran 166 tests in 111.821s
+OK
+```
+
+Control operations now rebuild the SSH argument array with every prior
+`BatchMode` setting removed and `BatchMode=yes` placed first, so interactive
+authentication settings cannot win by first-value precedence. The ephemeral
+session inspects its private control directory before cleanup: an initial
+authentication/preflight error that left no socket removes only that empty
+directory and re-raises the original error without a shutdown command. When a
+socket is present and bounded cleanup fails, the original transport error is
+kept first, the cleanup diagnostic is appended, and the private directory is
+preserved; cleanup failure after a successful body remains an error. The fake
+SSH fixtures create/remove a marker socket to exercise both branches without a
+real target.
+
+All verification was disconnected. No target, credentials, upload, FIFO
+write, reboot, or hardware observation was used.

@@ -36,8 +36,10 @@ SSH options use `BatchMode=no`, `ConnectTimeout=10`, one connection attempt,
 and `StrictHostKeyChecking=yes`, plus an ephemeral `ControlMaster`/`ControlPath`
 under a private local temporary directory. The same control connection is
 shared by preflight, staging, SCP, verification, and dispatch so interactive
-password authentication prompts at most once; the master is closed and the
-private socket directory is removed on success or failure (best effort).
+password authentication prompts at most once. Bounded control cleanup uses
+`BatchMode=yes`; if the first connection failed before creating a master, only
+the empty private directory is removed, while a shutdown failure preserves the
+socket directory and is reported alongside the primary transport error.
 `BatchMode=no` deliberately leaves the normal operator SSH credential prompt
 available. Use an SSH key/agent to avoid that prompt; no password is stored,
 embedded, or logged.
