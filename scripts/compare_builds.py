@@ -24,6 +24,9 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[1]
 TARGET_DEVICE = "5CSEBA6U23I7"
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 REQUIRED_HARD_BLOCKS = ("PLL", "BRAM/M10K", "MLAB/LUTRAM", "DSP", "HPS")
+MEASURED_HARD_BLOCKS = ("PLL", "BRAM/M10K", "DSP")
+STATIC_HARD_BLOCKS = ("MLAB/LUTRAM", "HPS")
+QUARTUS_VERSION_RE = re.compile(r"(^|[^0-9])17\.0\.2(?:\s|$)")
 
 
 class ComparisonError(ValueError):
@@ -321,10 +324,122 @@ def _rbf_digest(build: Mapping[str, Any], artifacts: Sequence[Mapping[str, Any]]
     return None
 
 
+def _exclusion_failures(record: Mapping[str, Any], lane: str, name: str) -> list[str]:
+    exclusion = record.get("exclusion")
+    if not isinstance(exclusion, dict):
+        return [f"{lane} {name} static-exclusion evidence is missing"]
+    failures: list[str] = []
+    if exclusion.get("basis") != "static source/project exclusion":
+        failures.append(f"{lane} {name} static-exclusion basis is invalid")
+    patterns = exclusion.get("patterns")
+    if not isinstance(patterns, list) or not patterns or not all(isinstance(pattern, str) and pattern for pattern in patterns):
+        failures.append(f"{lane} {name} static-exclusion patterns are missing or malformed")
+    sources = exclusion.get("sources")
+    if not isinstance(sources, list) or not sources:
+        failures.append(f"{lane} {name} static-exclusion source records are missing")
+    else:
+        for source in sources:
+            if not isinstance(source, dict):
+                failures.append(f"{lane} {name} static-exclusion source record is malformed")
+                continue
+            path = source.get("path")
+            digest = source.get("sha256")
+            if not isinstance(path, str) or not path:
+                failures.append(f"{lane} {name} static-exclusion source path is malformed")
+            if not isinstance(digest, str) or SHA256_RE.fullmatch(digest) is None:
+                failures.append(f"{lane} {name} static-exclusion source hash is invalid")
+    return failures
+
+
+def _quartus_provenance_failures(build: Mapping[str, Any]) -> list[str]:
+    """Validate the oracle's authenticated Quartus executable record.
+
+    The oracle is optional, but a manifest claiming to be its output must
+    carry enough provenance to identify exactly which compiler produced the
+    reports.  Keep this check independent of the host: the recorded path may
+    not exist on the machine performing comparison, while the executable and
+    version-output digests still authenticate the evidence that was collected.
+    """
+
+    failures: list[str] = []
+    authenticated = build.get("authenticated_tools")
+    if not isinstance(authenticated, dict):
+        return ["oracle Quartus provenance is missing authenticated_tools"]
+    if set(authenticated) != {"quartus_sh"}:
+        return ["oracle Quartus provenance authenticated_tools must contain only quartus_sh"]
+    executable_record = authenticated.get("quartus_sh")
+    if not isinstance(executable_record, dict):
+        failures.append("oracle Quartus provenance is missing authenticated quartus_sh record")
+
+    pins = build.get("tool_pins")
+    if not isinstance(pins, dict):
+        failures.append("oracle Quartus provenance is missing tool_pins")
+    elif set(pins) != {"quartus"}:
+        failures.append("oracle Quartus provenance tool_pins must contain only quartus")
+    pin_record = pins.get("quartus") if isinstance(pins, dict) else None
+    if not isinstance(pin_record, dict):
+        failures.append("oracle Quartus provenance is missing quartus tool pin/version record")
+
+    if not isinstance(executable_record, dict) or not isinstance(pin_record, dict):
+        return failures
+
+    required_string_fields = ("path", "executable", "version", "required_version")
+    required_digest_fields = ("sha256", "executable_sha256", "version_output_sha256")
+    for label, record in (("authenticated quartus_sh", executable_record), ("quartus tool pin", pin_record)):
+        for field in required_string_fields:
+            value = record.get(field)
+            if not isinstance(value, str) or not value:
+                failures.append(f"oracle Quartus provenance {label} has missing or malformed {field}")
+        for field in required_digest_fields:
+            value = record.get(field)
+            if not isinstance(value, str) or SHA256_RE.fullmatch(value) is None:
+                failures.append(f"oracle Quartus provenance {label} has invalid {field}")
+
+        path = record.get("path")
+        executable = record.get("executable")
+        if isinstance(path, str) and not Path(path).is_absolute():
+            failures.append(f"oracle Quartus provenance {label} path is not absolute")
+        if isinstance(path, str) and any(character.isspace() for character in path):
+            failures.append(f"oracle Quartus provenance {label} path contains whitespace")
+        if isinstance(path, str) and Path(path).name != "quartus_sh":
+            failures.append(f"oracle Quartus provenance {label} path is not quartus_sh")
+        if isinstance(path, str) and isinstance(executable, str) and path != executable:
+            failures.append(f"oracle Quartus provenance {label} path/executable disagree")
+        if (
+            isinstance(record.get("sha256"), str)
+            and isinstance(record.get("executable_sha256"), str)
+            and record["sha256"] != record["executable_sha256"]
+        ):
+            failures.append(f"oracle Quartus provenance {label} executable digests disagree")
+        if record.get("required_version") != "17.0.2":
+            failures.append(f"oracle Quartus provenance {label} required version is not exact 17.0.2")
+        version = record.get("version")
+        if not isinstance(version, str) or QUARTUS_VERSION_RE.search(version) is None:
+            failures.append(f"oracle Quartus provenance {label} is not exact Quartus 17.0.2")
+
+    # The two records are deliberately redundant: one authenticates the
+    # executable used by the wrapper, and one pins the tool in the build
+    # summary.  Requiring them to agree prevents a stale pin from being paired
+    # with a newer compiler record.
+    for field in ("path", "executable", "sha256", "executable_sha256", "version", "required_version", "version_output_sha256"):
+        if executable_record.get(field) != pin_record.get(field):
+            failures.append(f"oracle Quartus provenance authenticated/pin {field} disagrees")
+    return failures
+
+
 def _hard_block_view(build: Mapping[str, Any], lane: str) -> tuple[dict[str, dict[str, Any]], list[str]]:
-    raw = build.get("hard_blocks")
-    if not isinstance(raw, dict) or not raw:
-        return {}, [f"{lane} hard-block evidence map is missing or empty"]
+    if lane == "oracle":
+        raw = build.get("hard_block_evidence")
+        legacy = build.get("hard_blocks")
+        if not isinstance(raw, dict) or not raw:
+            return {}, ["oracle hard-block evidence map is missing or empty"]
+        if not isinstance(legacy, dict) or not legacy:
+            return {}, ["oracle hard-block summary map is missing or empty"]
+    else:
+        raw = build.get("hard_blocks")
+        legacy = None
+        if not isinstance(raw, dict) or not raw:
+            return {}, [f"{lane} hard-block evidence map is missing or empty"]
 
     view: dict[str, dict[str, Any]] = {}
     failures: list[str] = []
@@ -334,19 +449,36 @@ def _hard_block_view(build: Mapping[str, Any], lane: str) -> tuple[dict[str, dic
             continue
         used = _number(record.get("used"))
         available = _number(record.get("available"))
-        if used is None or available is None or used < 0 or available < 0:
+        evidence_kind = record.get("evidence_kind")
+        if used is None or used < 0:
             failures.append(f"{lane} hard-block evidence is malformed: {name}")
             continue
-        view[name] = {
-            key: record[key]
-            for key in ("used", "available", "utilization_percent")
-            if key in record
-        }
+        if available is None and not (
+            name in STATIC_HARD_BLOCKS and evidence_kind == "static_exclusion"
+        ):
+            failures.append(f"{lane} hard-block evidence is malformed: {name}")
+            continue
+        if available is not None and available < 0:
+            failures.append(f"{lane} hard-block evidence is malformed: {name}")
+            continue
+        view[name] = dict(record)
         if used > 0:
             failures.append(f"{lane} unexpected hard block in use: {name}={record['used']}")
 
+        if lane == "oracle":
+            if name in MEASURED_HARD_BLOCKS:
+                if evidence_kind != "fitter_summary" or record.get("measured") is not True or available is None:
+                    failures.append(f"oracle {name} evidence kind/completeness is invalid for measured fitter evidence")
+            elif name in STATIC_HARD_BLOCKS:
+                if evidence_kind != "static_exclusion" or record.get("measured") is not False or record.get("available") is not None:
+                    failures.append(f"oracle {name} evidence kind/completeness is invalid for static exclusion")
+                failures.extend(_exclusion_failures(record, lane, name))
+            else:
+                failures.append(f"oracle hard-block evidence has unrecognized class: {name}")
+
     if lane == "oracle":
-        unknown_keys = sorted(set(view) - set(REQUIRED_HARD_BLOCKS))
+        expected = set(REQUIRED_HARD_BLOCKS)
+        unknown_keys = sorted(set(view) - expected)
         if unknown_keys:
             failures.append(f"oracle hard-block evidence has unrecognized classes: {', '.join(unknown_keys)}")
         for name in REQUIRED_HARD_BLOCKS:
@@ -354,12 +486,17 @@ def _hard_block_view(build: Mapping[str, Any], lane: str) -> tuple[dict[str, dic
             if record is None:
                 failures.append(f"oracle hard-block evidence is missing required class: {name}")
                 continue
-            used = _number(record.get("used"))
-            available = _number(record.get("available"))
-            if used is None or available is None:
-                failures.append(f"oracle hard-block evidence is malformed: {name}")
-            elif used != 0:
+            if _number(record.get("used")) != 0:
                 failures.append(f"oracle required hard block is nonzero: {name}={record.get('used')}")
+            legacy_record = legacy.get(name) if isinstance(legacy, dict) else None
+            if not isinstance(legacy_record, dict):
+                failures.append(f"oracle hard-block summary is missing required class: {name}")
+            elif legacy_record != record:
+                failures.append(f"oracle hard-block summary disagrees with evidence: {name}")
+        if isinstance(legacy, dict):
+            legacy_unknown = sorted(set(legacy) - expected)
+            if legacy_unknown:
+                failures.append(f"oracle hard-block summary has unrecognized classes: {', '.join(legacy_unknown)}")
     return view, failures
 
 
@@ -409,6 +546,8 @@ def _lane_view(
     hard_status = build.get("hard_block_status")
     hard_blocks, hard_failures = _hard_block_view(build, lane)
     failures.extend(hard_failures)
+    if lane == "oracle":
+        failures.extend(_quartus_provenance_failures(build))
     unknown = build.get("unknown_resources")
     if hard_status != "pass":
         failures.append(f"{lane} has unexpected hard blocks or unknown resources")

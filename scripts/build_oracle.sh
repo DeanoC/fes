@@ -222,7 +222,7 @@ require_regular "$collector" "manifest collector"
 
 version_output="$("$QUARTUS_SH" --version 2>&1)" \
     || fail "Quartus oracle unavailable; could not execute $QUARTUS_SH --version"
-if ! grep -Eq '(^|[^0-9])17\.0\.2([^0-9]|$)' <<< "$version_output"; then
+if ! grep -Eq '(^|[^0-9])17\.0\.2([[:space:]]|$)' <<< "$version_output"; then
     first_version_line="${version_output%%$'\n'*}"
     fail "Quartus oracle requires exact version 17.0.2; detected: ${first_version_line:-no version output}"
 fi
@@ -320,8 +320,8 @@ cp -- "$timing_source" "$timing_report"
 # by compare_builds.py.  The parser is deliberately conservative: an absent
 # count stays absent, while an observed zero remains an explicit zero.
 {
-    print_command "$PYTHON" - "$fit_report" "$timing_report" "$summary" "$rbf" "$EXP" "$TARGET" "$rtl" "$sdc" "$qsf" "$QUARTUS_SH" "$quartus_version_line" "$quartus_version_sha256"
-    "$PYTHON" - "$fit_report" "$timing_report" "$summary" "$rbf" "$EXP" "$TARGET" "$rtl" "$sdc" "$qsf" "$QUARTUS_SH" "$quartus_version_line" "$quartus_version_sha256" <<'PY'
+    print_command "$PYTHON" - "$fit_report" "$timing_report" "$summary" "$rbf" "$EXP" "$TARGET" "$rtl" "$sdc" "$qsf" "$oracle_qsf" "$QUARTUS_SH" "$quartus_version_line" "$quartus_version_sha256"
+    "$PYTHON" - "$fit_report" "$timing_report" "$summary" "$rbf" "$EXP" "$TARGET" "$rtl" "$sdc" "$qsf" "$oracle_qsf" "$QUARTUS_SH" "$quartus_version_line" "$quartus_version_sha256" <<'PY'
 from __future__ import annotations
 
 import hashlib
@@ -339,9 +339,10 @@ target = sys.argv[6]
 rtl_path = Path(sys.argv[7])
 sdc_path = Path(sys.argv[8])
 pins_path = Path(sys.argv[9])
-quartus_path = Path(sys.argv[10])
-quartus_version = sys.argv[11]
-quartus_version_output_sha256 = sys.argv[12]
+oracle_qsf_path = Path(sys.argv[10])
+quartus_path = Path(sys.argv[11])
+quartus_version = sys.argv[12]
+quartus_version_output_sha256 = sys.argv[13]
 fit_text = fit_path.read_text(encoding="utf-8", errors="replace")
 timing_text = timing_path.read_text(encoding="utf-8", errors="replace")
 
@@ -382,40 +383,51 @@ def count_on_line(line: str) -> tuple[int | None, int | None]:
     )
 
 
-def records_for(labels: tuple[str, ...]) -> dict[str, dict[str, object]]:
+resource_patterns = {
+    "ALM": re.compile(r"\b(?:total\s+)?(?:logic\s+)?alms?\b", re.I),
+    "register": re.compile(r"\b(?:total\s+)?(?:dedicated\s+logic\s+)?registers?\b", re.I),
+    # Quartus uses both ``Total pins`` and ``I/O pins``.  Do not search for
+    # the substring ``IO``: it occurs in version/build prose and would turn
+    # those numbers into a fake resource record.
+    "IO": re.compile(r"\b(?:total\s+(?:user\s+)?(?:i\s*/?\s*o\s+)?pins?|i\s*/?\s*o\s+pins?)\b", re.I),
+}
+
+
+def records_for(name: str, pattern: re.Pattern[str]) -> dict[str, dict[str, object]]:
     records: dict[str, dict[str, object]] = {}
     for line in fit_text.splitlines():
-        lowered = line.lower()
-        if not any(label.lower() in lowered for label in labels):
+        if pattern.search(line) is None:
             continue
         used, available = count_on_line(line)
         if used is None and available is None:
             continue
-        key = labels[0]
         record: dict[str, object] = {"used": used, "available": available}
         if isinstance(used, int) and isinstance(available, int) and available:
             record["utilization_percent"] = round(used * 100.0 / available, 6)
         else:
             record["utilization_percent"] = None
-        records[key] = record
+        records[name] = record
         break
     return records
 
 
 resources: dict[str, dict[str, object]] = {}
-for labels in (("ALM",), ("register",), ("IO",)):
-    resources.update(records_for(labels))
+for name, pattern in resource_patterns.items():
+    resources.update(records_for(name, pattern))
 
-required_hard_aliases = {
+fitted_hard_aliases = {
     "PLL": ("pll", "phase locked loop"),
     "BRAM/M10K": ("m10k", "m20k", "ram block", "block memory", "bram"),
-    "MLAB/LUTRAM": ("mlab", "lutram"),
-    "DSP": ("dsp", "digital signal processor", "multiplier"),
-    "HPS": ("hps", "hard processor system", "arm processor"),
+    # A multiplier row can be useful context in a Fitter report, but the
+    # acceptance gate is deliberately tied to the physical DSP Blocks row.
+    "DSP": ("dsp", "digital signal processor"),
 }
 
 
 def hard_record(name: str, aliases: tuple[str, ...]) -> tuple[dict[str, object] | None, str | None]:
+    def alias_present(text: str, alias: str) -> bool:
+        return re.search(rf"(?<![A-Za-z0-9]){re.escape(alias)}s?(?![A-Za-z0-9])", text) is not None
+
     candidates: list[tuple[int, int, bool]] = []
     malformed: list[bool] = []
     if name == "BRAM/M10K":
@@ -426,7 +438,7 @@ def hard_record(name: str, aliases: tuple[str, ...]) -> tuple[dict[str, object] 
         preferred_aliases = aliases
     for line in fit_text.splitlines():
         lowered = line.lower()
-        matching = [alias for alias in aliases if alias in lowered]
+        matching = [alias for alias in aliases if alias_present(lowered, alias)]
         if not matching:
             continue
         # Quartus reports both total block-memory *bits* and physical RAM
@@ -437,9 +449,9 @@ def hard_record(name: str, aliases: tuple[str, ...]) -> tuple[dict[str, object] 
         used, available = count_on_line(line)
         if used is None or available is None:
             if any(character.isdigit() for character in line):
-                malformed.append(any(alias in lowered for alias in preferred_aliases))
-            continue
-        candidates.append((used, available, any(alias in lowered for alias in preferred_aliases)))
+                malformed.append(any(alias_present(lowered, alias) for alias in preferred_aliases))
+                continue
+        candidates.append((used, available, any(alias_present(lowered, alias) for alias in preferred_aliases)))
     if malformed:
         return None, f"{name}: fitter evidence is unrecognized"
     if any(preferred for _used, _available, preferred in candidates):
@@ -457,12 +469,107 @@ def hard_record(name: str, aliases: tuple[str, ...]) -> tuple[dict[str, object] 
     return record, None
 
 
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 hard_blocks: dict[str, dict[str, object]] = {}
 hard_errors: list[str] = []
-for name, aliases in required_hard_aliases.items():
+for name, aliases in fitted_hard_aliases.items():
     record, error = hard_record(name, aliases)
     if record is not None:
+        record["evidence_kind"] = "fitter_summary"
+        record["measured"] = True
         hard_blocks[name] = record
+    if error is not None:
+        hard_errors.append(error)
+
+
+def static_exclusion(
+    name: str,
+    report_pattern: re.Pattern[str],
+    source_patterns: tuple[str, ...],
+) -> tuple[dict[str, object], str | None]:
+    # A normal Cyclone V Fitter Resource Summary does not provide measured
+    # MLAB/LUTRAM or HPS rows.  These classes therefore use a separate,
+    # explicitly labelled source/project exclusion contract.  If a report
+    # does contain a physical-count row, do not silently reinterpret it as a
+    # static zero: the evidence is contradictory and fails closed.
+    for line in fit_text.splitlines():
+        if report_pattern.search(line) is None:
+            continue
+        lowered = line.lower()
+        if re.search(r"(?:memory|block)\s+bits?\b", lowered):
+            continue
+        used, available = count_on_line(line)
+        if used is not None or available is not None:
+            return {
+                "used": 0,
+                "available": None,
+                "evidence_kind": "static_exclusion",
+                "measured": False,
+                "exclusion": {"basis": "static source/project exclusion", "patterns": list(source_patterns), "sources": []},
+            }, f"{name}: fitter report contains a measured row despite static exclusion"
+
+    source_inputs = (
+        (f"experiments/{experiment}/rtl/top.v", rtl_path),
+        ("boards/de10nano/pins.qsf", pins_path),
+        (f"experiments/{experiment}/oracle/top.qsf", oracle_qsf_path),
+    )
+    source_records: list[dict[str, str]] = []
+    for relative, path in source_inputs:
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for pattern in source_patterns:
+            if re.search(pattern, text, re.I | re.M):
+                return {
+                    "used": 0,
+                    "available": None,
+                    "evidence_kind": "static_exclusion",
+                    "measured": False,
+                    "exclusion": {
+                        "basis": "static source/project exclusion",
+                        "patterns": list(source_patterns),
+                        "sources": source_records,
+                    },
+                }, f"{name}: source/project exclusion matched {pattern!r} in {relative}"
+        source_records.append({"path": relative, "sha256": sha256_file(path)})
+    return {
+        "used": 0,
+        "available": None,
+        "evidence_kind": "static_exclusion",
+        "measured": False,
+        "exclusion": {
+            "basis": "static source/project exclusion",
+            "patterns": list(source_patterns),
+            "sources": source_records,
+        },
+    }, None
+
+
+static_hard_contracts = {
+    "MLAB/LUTRAM": (
+        re.compile(r"\b(?:mlab|lutram)(?:s)?\b", re.I),
+        (
+            r"\bmlab(?:s)?\b",
+            r"\blutram\b",
+            r"\b(?:altsyncram|lpm_ram|mlab_cell)\b",
+            r"\b(?:reg|wire|logic)\s*\[[^\]]+\]\s+\w+\s*\[",
+        ),
+    ),
+    "HPS": (
+        re.compile(r"\b(?:hps|hard\s+processor\s+system|arm\s+processor)\b", re.I),
+        (
+            r"\bhps\b",
+            r"\bhard[_ ]processor",
+            r"\b(?:altera|cyclonev)[_ ]hps\b",
+            r"\b(?:hps_component|soc_system|soc_id|arm)\b",
+            r"\bsoc\b",
+        ),
+    ),
+}
+for name, (report_pattern, source_patterns) in static_hard_contracts.items():
+    record, error = static_exclusion(name, report_pattern, source_patterns)
+    hard_blocks[name] = record
     if error is not None:
         hard_errors.append(error)
 
@@ -470,13 +577,17 @@ for name, aliases in required_hard_aliases.items():
 # aliases above.  This is deliberately an error rather than silently calling
 # an unrecognized hard block zero.
 unknown_resources: dict[str, dict[str, object]] = {}
-known_aliases = tuple(alias for aliases in required_hard_aliases.values() for alias in aliases)
+known_aliases = tuple(alias for aliases in fitted_hard_aliases.values() for alias in aliases)
+# ``9x9 multipliers`` is a normal companion row in some Quartus reports.  It
+# is not itself the direct DSP gate, but it is recognized context when the
+# required DSP Blocks row is also present.
+known_context_aliases = ("multiplier",)
 unknown_markers = ("ram block", "embedded memory", "hard block", "processor", "multiplier")
 for line in fit_text.splitlines():
     lowered = line.lower()
     if not any(marker in lowered for marker in unknown_markers):
         continue
-    if any(alias in lowered for alias in known_aliases):
+    if any(alias in lowered for alias in (*known_aliases, *known_context_aliases)):
         continue
     if any(character.isdigit() for character in line):
         key = "unrecognized:" + line.strip()[:80]
@@ -485,7 +596,7 @@ if unknown_resources:
     hard_errors.append("unrecognized hard-resource evidence: " + ", ".join(sorted(unknown_resources)))
 
 hard_block_status = "pass" if not hard_errors else "fail"
-hard_block_reason = "; ".join(hard_errors) if hard_errors else "all required forbidden classes explicitly report zero usage"
+hard_block_reason = "; ".join(hard_errors) if hard_errors else "fitter summary rows measure RAM Blocks/M10K, DSP Blocks, and PLLs; MLAB/LUTRAM and HPS use explicit static source/project exclusions"
 
 clock_name = "FPGA_CLK1_50"
 
@@ -537,10 +648,6 @@ else:
 timing_status = achieved is not None and achieved >= 50.0
 
 
-def sha256_file(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
 common_source_hashes = {
     f"experiments/{experiment}/rtl/top.v": sha256_file(rtl_path),
     "boards/de10nano/clocks.sdc": sha256_file(sdc_path),
@@ -549,7 +656,9 @@ common_source_hashes = {
 
 rbf_bytes = rbf_path.read_bytes()
 provenance = {
+    "path": str(quartus_path),
     "executable": str(quartus_path),
+    "sha256": sha256_file(quartus_path),
     "executable_sha256": sha256_file(quartus_path),
     "version": quartus_version,
     "required_version": "17.0.2",
@@ -569,6 +678,7 @@ summary = {
     },
     "resources": resources,
     "hard_blocks": hard_blocks,
+    "hard_block_evidence": hard_blocks,
     "resource_classes": {name: "ordinary" for name in resources},
     "unknown_resources": unknown_resources,
     "hard_block_status": hard_block_status,

@@ -113,20 +113,15 @@ class OracleBoundaryTests(unittest.TestCase):
     def _complete_fit_report():
         return "\n".join(
             [
+                "Quartus Prime Version 17.0.2 Build 602",
                 "Total ALMs | 2 | 100 | 2%",
                 "Total registers | 2 | 100 | 2%",
                 "Total pins | 2 | 10 | 20%",
                 "Total block memory bits | 0 | 524288 | 0%",
-                "Total RAM Blocks 0 10 0%",
-                "PLLs | 0 | 4 | 0%",
-                "M10K blocks | 0 | 10 | 0%",
-                "Total MLAB memory bits | 0 | 64000 | 0%",
-                "Total MLABs | 0 | 8 | 0%",
-                "MLAB blocks | 0 | 8 | 0%",
+                "Total RAM Blocks | 0 | 10 | 0%",
+                "Total PLLs | 0 | 4 | 0%",
                 "Total 9x9 multipliers | 0 | 2 | 0%",
-                "Total DSP blocks | 0 | 2 | 0%",
-                "DSP blocks | 0 | 2 | 0%",
-                "HPS blocks | 0 | 1 | 0%",
+                "Total DSP Blocks | 0 | 2 | 0%",
             ]
         ) + "\n"
 
@@ -227,17 +222,62 @@ class OracleBoundaryTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(summary["timing"]["achieved_mhz"], 123.45)
+        self.assertEqual(summary["resources"]["IO"]["used"], 2)
+        self.assertEqual(summary["resources"]["IO"]["available"], 10)
         self.assertEqual(
             set(summary["hard_blocks"]),
             {"PLL", "BRAM/M10K", "MLAB/LUTRAM", "DSP", "HPS"},
         )
         self.assertTrue(all(record["used"] == 0 for record in summary["hard_blocks"].values()))
+        evidence = summary["hard_block_evidence"]
+        self.assertEqual(set(evidence), set(summary["hard_blocks"]))
+        for name in ("PLL", "BRAM/M10K", "DSP"):
+            self.assertEqual(evidence[name]["evidence_kind"], "fitter_summary")
+            self.assertTrue(evidence[name]["measured"])
+        for name in ("MLAB/LUTRAM", "HPS"):
+            self.assertEqual(evidence[name]["evidence_kind"], "static_exclusion")
+            self.assertFalse(evidence[name]["measured"])
+            self.assertIsNone(evidence[name]["available"])
+            self.assertTrue(evidence[name]["exclusion"]["sources"])
         self.assertEqual(summary["source_hashes"]["boards/de10nano/clocks.sdc"], hashlib.sha256((ROOT / "boards/de10nano/clocks.sdc").read_bytes()).hexdigest())
         quartus_provenance = summary["authenticated_tools"]["quartus_sh"]
         self.assertTrue(quartus_provenance["executable"])
+        self.assertEqual(quartus_provenance["path"], quartus_provenance["executable"])
         self.assertRegex(quartus_provenance["executable_sha256"], r"^[0-9a-f]{64}$")
+        self.assertEqual(quartus_provenance["sha256"], quartus_provenance["executable_sha256"])
         self.assertRegex(quartus_provenance["version_output_sha256"], r"^[0-9a-f]{64}$")
         self.assertTrue(marker_seen)
+
+    def test_fitter_forbidden_usage_fails_with_measured_evidence(self):
+        fit = self._complete_fit_report().replace(
+            "Total DSP Blocks | 0 | 2 | 0%", "Total DSP Blocks | 1 | 2 | 50%"
+        )
+        temp, root, marker = self._quartus_real(
+            "17.0.2", fit, self._fmax_report(("FPGA_CLK1_50", "100", "100"))
+        )
+        with temp:
+            result, summary, marker_seen = self._run_real(root, marker)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(summary["hard_blocks"]["DSP"]["used"], 1)
+        self.assertEqual(summary["hard_block_evidence"]["DSP"]["evidence_kind"], "fitter_summary")
+        self.assertTrue(marker_seen)
+
+    def test_static_exclusion_is_rejected_when_report_measures_mlab_or_hps(self):
+        for row in (
+            "Total MLABs | 1 | 8 | 12.5%",
+            "Total HPS blocks | 1 | 1 | 100%",
+        ):
+            fit = self._complete_fit_report() + row + "\n"
+            temp, root, marker = self._quartus_real(
+                "17.0.2", fit, self._fmax_report(("FPGA_CLK1_50", "100", "100"))
+            )
+            with temp:
+                result, summary, marker_seen = self._run_real(root, marker)
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(summary["hard_block_status"], "fail")
+            self.assertTrue(marker_seen)
 
     def test_timequest_missing_or_ambiguous_restricted_fmax_fails(self):
         fit = self._complete_fit_report()

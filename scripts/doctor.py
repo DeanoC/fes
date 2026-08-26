@@ -30,7 +30,7 @@ VID_PID_RE = re.compile(
     r"(?<![0-9a-f])(?:0x)?([0-9a-f]{4})\s*:\s*(?:0x)?([0-9a-f]{4})(?![0-9a-f])",
     re.I,
 )
-QUARTUS_VERSION_RE = re.compile(r"(^|[^0-9])17\.0\.2([^0-9]|$)")
+QUARTUS_VERSION_RE = re.compile(r"(^|[^0-9])17\.0\.2(?:\s|$)")
 
 # Keep this table explicit: the doctor must not search for a different FPGA
 # implementation when a pinned repository-local binary is missing.
@@ -272,11 +272,28 @@ def quartus_checks() -> list[dict[str, Any]]:
             )
         ]
     candidates = (root / "bin" / "quartus_sh", root / "quartus" / "bin" / "quartus_sh")
+    # Do not choose a later layout candidate after discovering that an
+    # earlier candidate crosses a symlinked directory.  Every documented
+    # root/bin and root/quartus/bin spelling must be inspected as written,
+    # before any optional Quartus process is launched.
+    for candidate in candidates:
+        if _contains_symlink(candidate):
+            return [
+                make_check(
+                    "Quartus",
+                    "NOT READY",
+                    f"QUARTUS_ROOTDIR={root}; path contains a symlink component: {candidate}",
+                    False,
+                )
+            ]
     executable = next(
         (
             candidate
             for candidate in candidates
-            if candidate.is_file() and not candidate.is_symlink() and os.access(candidate, os.X_OK)
+            if candidate.is_file()
+            and not candidate.is_symlink()
+            and os.access(candidate, os.X_OK)
+            and not _contains_symlink(candidate)
         ),
         None,
     )

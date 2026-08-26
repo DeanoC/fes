@@ -46,11 +46,41 @@ class CompareBuildsTests(unittest.TestCase):
             {"path": "boards/de10nano/clocks.sdc", "sha256": "c" * 64},
         ]
         hard_blocks = {
-            "PLL": {"used": 0, "available": 4},
-            "BRAM/M10K": {"used": 0, "available": 10},
-            "MLAB/LUTRAM": {"used": 0, "available": 8},
-            "DSP": {"used": 0, "available": 2},
-            "HPS": {"used": 0, "available": 1},
+            "PLL": {"used": 0, "available": 4, "evidence_kind": "fitter_summary", "measured": True},
+            "BRAM/M10K": {"used": 0, "available": 10, "evidence_kind": "fitter_summary", "measured": True},
+            "MLAB/LUTRAM": {
+                "used": 0,
+                "available": None,
+                "evidence_kind": "static_exclusion",
+                "measured": False,
+                "exclusion": {
+                    "basis": "static source/project exclusion",
+                    "patterns": ["mlab", "lutram"],
+                    "sources": [{"path": "experiments/010_blinky/rtl/top.v", "sha256": "a" * 64}],
+                },
+            },
+            "DSP": {"used": 0, "available": 2, "evidence_kind": "fitter_summary", "measured": True},
+            "HPS": {
+                "used": 0,
+                "available": None,
+                "evidence_kind": "static_exclusion",
+                "measured": False,
+                "exclusion": {
+                    "basis": "static source/project exclusion",
+                    "patterns": ["hps", "hard processor"],
+                    "sources": [{"path": "experiments/010_blinky/oracle/top.qsf", "sha256": "a" * 64}],
+                },
+            },
+        }
+        hard_block_evidence = json.loads(json.dumps(hard_blocks))
+        provenance = {
+            "path": "/opt/quartus/17.0/quartus/bin/quartus_sh",
+            "executable": "/opt/quartus/17.0/quartus/bin/quartus_sh",
+            "sha256": "d" * 64,
+            "executable_sha256": "d" * 64,
+            "version": "Quartus Prime Version 17.0.2 Build 602",
+            "required_version": "17.0.2",
+            "version_output_sha256": "e" * 64,
         }
         return {
             "schema": 2,
@@ -77,9 +107,12 @@ class CompareBuildsTests(unittest.TestCase):
                     source["path"]: source["sha256"] for source in sources
                 },
                 "hard_blocks": hard_blocks,
+                "hard_block_evidence": hard_block_evidence,
                 "hard_block_status": "pass",
                 "unknown_resources": {},
                 "simulation": {"status": "pass"},
+                "authenticated_tools": {"quartus_sh": provenance},
+                "tool_pins": {"quartus": provenance},
                 "reproducibility": {
                     "rbf_sha256": digest,
                     "rbf_size_bytes": rbf.stat().st_size if rbf.exists() else 0,
@@ -192,6 +225,7 @@ class CompareBuildsTests(unittest.TestCase):
         oss_value = self._manifest("oss", self.oss_rbf)
         oracle_value = self._manifest("oracle", self.oracle_rbf)
         del oracle_value["build"]["hard_blocks"]["DSP"]
+        del oracle_value["build"]["hard_block_evidence"]["DSP"]
         oss = self._write_manifest("oss.json", oss_value)
         oracle = self._write_manifest("oracle.json", oracle_value)
 
@@ -213,6 +247,37 @@ class CompareBuildsTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         comparison = json.loads((self.output / "comparison.json").read_text())
         self.assertTrue(any("rbf" in item.lower() for item in comparison["failures"]))
+
+    def test_oracle_hard_block_evidence_kind_and_completeness_are_required(self):
+        oss_value = self._manifest("oss", self.oss_rbf)
+        oracle_value = self._manifest("oracle", self.oracle_rbf)
+        del oracle_value["build"]["hard_block_evidence"]["MLAB/LUTRAM"]["exclusion"]
+        oracle_value["build"]["hard_block_evidence"]["MLAB/LUTRAM"]["evidence_kind"] = "fitter_summary"
+        oss = self._write_manifest("oss.json", oss_value)
+        oracle = self._write_manifest("oracle.json", oracle_value)
+
+        result = self._run(oss, oracle)
+
+        self.assertNotEqual(result.returncode, 0)
+        comparison = json.loads((self.output / "comparison.json").read_text())
+        self.assertTrue(any("evidence" in item.lower() for item in comparison["failures"]))
+
+    def test_oracle_quartus_provenance_is_required_and_exact(self):
+        for mutation in ("missing", "wrong-version"):
+            oss_value = self._manifest("oss", self.oss_rbf)
+            oracle_value = self._manifest("oracle", self.oracle_rbf)
+            if mutation == "missing":
+                del oracle_value["build"]["authenticated_tools"]
+            else:
+                oracle_value["build"]["authenticated_tools"]["quartus_sh"]["version"] = "Quartus Prime Version 17.0.0 Build 595"
+            oss = self._write_manifest("oss.json", oss_value)
+            oracle = self._write_manifest("oracle.json", oracle_value)
+
+            result = self._run(oss, oracle)
+
+            self.assertNotEqual(result.returncode, 0)
+            comparison = json.loads((self.output / "comparison.json").read_text())
+            self.assertTrue(any("provenance" in item.lower() or "quartus" in item.lower() for item in comparison["failures"]))
 
 
 if __name__ == "__main__":

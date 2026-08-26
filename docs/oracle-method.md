@@ -73,12 +73,21 @@ files; wildcard or cross-lane artifacts are not accepted.
 
 Normalization is conservative. The timing gate reads the structured Fmax table
 and uses exactly one `FPGA_CLK1_50` row's `Restricted Fmax` value; unrestricted
-maximums, missing rows, and ambiguous rows do not pass. Fitter evidence must
-explicitly report zero usage for each required forbidden class (`PLL`,
-`BRAM/M10K`, `MLAB/LUTRAM`, `DSP`, and the target SoC's `HPS`), with an
-unrecognized or absent class failing closed. The schema-2 build summary records
-the exact shared RTL, pin-QSF, and clock-SDC SHA-256 values and non-empty
-Quartus executable/version provenance.
+maximums, missing rows, and ambiguous rows do not pass. Direct fitted-resource
+evidence is taken only from the physical rows emitted by the Cyclone V Fitter
+Summary (`RAM Blocks`/`M10K` or block-memory rows, `DSP Blocks`, and `PLLs`).
+The normal summary does not provide measured MLAB/LUTRAM or HPS rows, so those
+classes use an explicitly labelled `static_exclusion` contract: the wrapper
+records the checked source/project paths and their hashes, and rejects any
+matching memory/HPS entity or any report row that claims a measured count.
+Each required class is present in `hard_block_evidence`; measured rows carry
+`evidence_kind: fitter_summary` and `measured: true`, while static records carry
+`evidence_kind: static_exclusion`, `measured: false`, and no fabricated
+capacity. Missing, malformed, ambiguous, or unrecognized evidence fails closed.
+The schema-2 build summary records the exact shared RTL, pin-QSF, and clock-SDC
+SHA-256 values. It also records the absolute `quartus_sh` path, executable
+SHA-256, exact `17.0.2` version string, version-output SHA-256, and a matching
+Quartus tool pin record; comparison validates both provenance records.
 
 ## Comparison and acceptance
 
@@ -98,8 +107,9 @@ are informational.
 The command fails closed only for the stated gates: a missing or failed build,
 an unrouted design, timing below 50 MHz, an unexpected hard block or unknown
 resource, a recorded failed simulation, missing or mismatched common source
-hashes, malformed/absent required hard-block evidence, or a missing,
-cross-lane, empty, or hash/size-mismatched required RBF artifact. Resource
-counts and byte differences remain informational, and absent resources are
-shown as `absent`, never as zero. The comparison does not claim hardware
-behavior until an operator records that observation separately.
+hashes, malformed/absent required hard-block evidence, missing/malformed or
+non-`17.0.2` Quartus provenance, or a missing, cross-lane, empty, or
+hash/size-mismatched required RBF artifact. Resource counts and byte
+differences remain informational, and absent resources are shown as `absent`,
+never as zero. The comparison does not claim hardware behavior until an
+operator records that observation separately.

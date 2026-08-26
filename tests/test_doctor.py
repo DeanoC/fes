@@ -335,6 +335,47 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(oracle[0]["status"], "NOT READY")
         self.assertIn("symlink", oracle[0]["detail"])
 
+    def _assert_quartus_nested_symlink_is_not_ready(
+        self, root, linked_component, real_component, executable_suffix=()
+    ):
+        marker = Path(self.tempdir.name) / f"{linked_component}-symlink-called"
+        executable_parent = real_component.joinpath(*executable_suffix)
+        executable_parent.mkdir(parents=True)
+        self._write_executable(
+            executable_parent / "quartus_sh",
+            f'printf "Quartus Prime 17.0.2 Build 602\\n"; : > "{marker}"',
+        )
+        (root / linked_component).symlink_to(real_component, target_is_directory=True)
+
+        result = self._run("--json", extra_env={"QUARTUS_ROOTDIR": str(root)})
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(marker.exists())
+        oracle = json.loads(result.stdout)["optional_oracle"]
+        self.assertEqual(oracle[0]["status"], "NOT READY")
+        self.assertIn("symlink", oracle[0]["detail"])
+
+    def test_quartus_root_bin_symlink_is_rejected_before_invocation(self):
+        root = Path(self.tempdir.name) / "quartus-root-bin-link"
+        root.mkdir()
+        self._assert_quartus_nested_symlink_is_not_ready(
+            root, "bin", Path(self.tempdir.name) / "real-bin"
+        )
+
+    def test_quartus_root_quartus_symlink_is_rejected_before_invocation(self):
+        root = Path(self.tempdir.name) / "quartus-root-quartus-link"
+        root.mkdir()
+        self._assert_quartus_nested_symlink_is_not_ready(
+            root, "quartus", Path(self.tempdir.name) / "real-quartus", ("bin",)
+        )
+
+    def test_quartus_root_quartus_bin_symlink_is_rejected_before_invocation(self):
+        root = Path(self.tempdir.name) / "quartus-root-quartus-bin-link"
+        (root / "quartus").mkdir(parents=True)
+        self._assert_quartus_nested_symlink_is_not_ready(
+            root / "quartus", "bin", Path(self.tempdir.name) / "real-quartus-bin"
+        )
+
     def test_device_readiness_requires_exact_nextpnr_device_evidence(self):
         return_code, output = self._run_with_local_tools(["--json"])
 
