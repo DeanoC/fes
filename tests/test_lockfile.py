@@ -1,11 +1,9 @@
-import io
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stderr
 from pathlib import Path
-from unittest import mock
 
 from scripts import lockfile
 
@@ -114,13 +112,23 @@ class LockfileTests(unittest.TestCase):
 
     def test_cli_validate_sanitizes_escaped_newline_key(self):
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "toolchain.lock"
-            path.write_text('"bad\\nkey" = 1\n\n' + _complete_lock(), encoding="utf-8")
-            stderr = io.StringIO()
-            with mock.patch.object(lockfile, "DEFAULT_LOCK", path), redirect_stderr(stderr):
-                status = lockfile.main(["validate"])
-            message = stderr.getvalue()
-            self.assertEqual(status, 2)
+            root = Path(directory)
+            script_dir = root / "scripts"
+            script_dir.mkdir()
+            script = script_dir / "lockfile.py"
+            shutil.copy2(ROOT / "scripts" / "lockfile.py", script)
+            (root / "toolchain.lock").write_text(
+                '"bad\\nkey" = 1\n\n' + _complete_lock(), encoding="utf-8"
+            )
+            result = subprocess.run(
+                [sys.executable, str(script), "validate"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(result.returncode, 2)
+            self.assertEqual(result.stdout, "")
+            message = result.stderr
             self.assertEqual(len(message.splitlines()), 1)
             self.assertNotIn("Traceback", message)
             self.assertIn("bad", message)
