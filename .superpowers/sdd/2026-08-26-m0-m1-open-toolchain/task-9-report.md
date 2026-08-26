@@ -316,3 +316,31 @@ real target.
 
 All verification was disconnected. No target, credentials, upload, FIFO
 write, reboot, or hardware observation was used.
+
+## Fix Round 5 — atomic control-directory cleanup
+
+Round 5 added a race regression before implementation. It first failed because
+recursive cleanup silently deleted a marker inserted after the empty-directory
+observation instead of reporting the race and preserving the entry. The final
+focused and full disconnected suites passed:
+
+```text
+timeout 180s python3 -m unittest tests.test_program_preflight -v
+Ran 49 tests in 4.660s
+OK
+
+timeout 180s python3 -m unittest discover -s tests -p 'test_*.py' -q
+Ran 167 tests in 111.452s
+OK
+```
+
+Control-directory cleanup now uses only atomic `Path.rmdir()` operations. The
+kernel-level empty-directory check is the final removal guard, so an entry that
+appears after any earlier observation causes a bounded cleanup error while the
+directory and entry remain available for operator inspection. The setup-error
+cleanup path uses the same non-recursive operation; no control-directory entry
+is recursively unlinked. Existing cleanup-failure aggregation and no-master
+handling remain unchanged.
+
+No target, credentials, upload, FIFO write, reboot, or hardware observation
+was used.

@@ -1262,12 +1262,18 @@ def _control_operation(
 
 def _remove_control_dir(control_dir: Path) -> None:
     try:
-        shutil.rmtree(control_dir)
+        # ``rmdir`` is the final emptiness check and removal in one atomic
+        # filesystem operation.  Never recursively unlink an unexpected
+        # control socket or marker that appeared after an earlier observation.
+        control_dir.rmdir()
+    except FileNotFoundError:
+        return
     except OSError as exc:
         raise _fail(
-            f"private SSH control directory cleanup failed; preserve {control_dir}: {exc}"
+            f"private SSH control directory is not empty or cannot be removed atomically; "
+            f"preserve {control_dir}: {exc}"
         ) from exc
-    if control_dir.exists():
+    if os.path.lexists(control_dir):
         raise _fail(
             f"private SSH control directory remains after cleanup; preserve {control_dir}"
         )
@@ -1317,7 +1323,13 @@ def _ephemeral_ssh_session(ssh: str, target: str):
             os.chmod(created_dir, 0o700)
         except OSError as exc:
             if created_dir is not None:
-                shutil.rmtree(created_dir, ignore_errors=True)
+                try:
+                    created_dir.rmdir()
+                except OSError as cleanup_exc:
+                    raise _fail(
+                        f"cannot create private SSH control directory: {exc}; "
+                        f"cleanup failed, preserve {created_dir}: {cleanup_exc}"
+                    ) from cleanup_exc
             raise _fail(f"cannot create private SSH control directory: {exc}") from exc
         control_dir = created_dir
         control_path = control_dir / "control-%C"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -721,6 +722,27 @@ class ProgramPreflightTests(unittest.TestCase):
         control_dir = Path(next(iter(control_paths)).split("%", 1)[0]).parent
         self.assertFalse(control_dir.exists())
 
+    def test_control_dir_marker_race_after_empty_observation_is_preserved(self) -> None:
+        spec = importlib.util.spec_from_file_location("task9_program_under_test", PROGRAM)
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        program = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = program
+        spec.loader.exec_module(program)
+        with tempfile.TemporaryDirectory(prefix="control-race-") as directory:
+            control_dir = Path(directory) / "control"
+            control_dir.mkdir()
+            self.assertTrue(program._control_dir_empty(control_dir))
+            marker = control_dir / "late-marker"
+            marker.write_text("appeared after observation", encoding="utf-8")
+            with self.assertRaises(program.ProgramError) as raised:
+                program._remove_control_dir(control_dir)
+            self.assertIn("preserve", str(raised.exception))
+            self.assertTrue(control_dir.is_dir())
+            self.assertEqual(marker.read_text(encoding="utf-8"), "appeared after observation")
+            marker.unlink()
+            control_dir.rmdir()
+
     def test_mister_primary_and_cleanup_failures_are_aggregated_and_preserve_path(self) -> None:
         self._write_remote_tools(
             preflight_exit=7,
@@ -744,7 +766,10 @@ class ProgramPreflightTests(unittest.TestCase):
         self.assertEqual(len(control_paths), 1, output)
         control_dir = Path(next(iter(control_paths)).split("%", 1)[0]).parent
         self.assertTrue(control_dir.exists())
-        shutil.rmtree(control_dir, ignore_errors=True)
+        entries = list(control_dir.iterdir())
+        self.assertEqual(len(entries), 1)
+        entries[0].unlink()
+        control_dir.rmdir()
 
     def test_mister_control_path_is_cleaned_after_failure(self) -> None:
         self._write_remote_tools(mkdir_exit=1)
@@ -780,7 +805,10 @@ class ProgramPreflightTests(unittest.TestCase):
         control_path = next(iter(control_paths))
         control_dir = Path(control_path.split("%", 1)[0]).parent
         self.assertTrue(control_dir.exists())
-        shutil.rmtree(control_dir, ignore_errors=True)
+        entries = list(control_dir.iterdir())
+        self.assertEqual(len(entries), 1)
+        entries[0].unlink()
+        control_dir.rmdir()
 
     @staticmethod
     def _extract_stage(output: str) -> str:
