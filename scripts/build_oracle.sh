@@ -454,8 +454,9 @@ def summary_rows(text: str) -> list[tuple[str, str, str, list[str]]]:
 
     Quartus exports many capability, pin, entity, and diagnostic tables in the
     same report.  Their labels are intentionally not evidence.  Section
-    markers are used when present; compact synthetic reports may omit them and
-    are handled by the caller with the complete set of parsed rows.
+    markers are required before any row can be treated as fitted evidence.
+    Capability, pin, entity, and diagnostic rows without those markers are
+    intentionally ignored by this parser.
     """
 
     summary_names = {"fitter summary", "fitter resource usage summary"}
@@ -495,7 +496,7 @@ summary_section_present = any(
     re.sub(r"\s+", " ", label).strip().casefold() in summary_section_names
     for _line, _delimiter, label, _value_cells in all_fit_rows
 )
-fitted_rows = summary_rows(fit_text) if summary_section_present else all_fit_rows
+fitted_rows = summary_rows(fit_text) if summary_section_present else []
 
 
 hard_row_patterns = {

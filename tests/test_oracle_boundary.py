@@ -127,6 +127,7 @@ class OracleBoundaryTests(unittest.TestCase):
     def _complete_fit_report():
         return "\n".join(
             [
+                "; Fitter Summary ;",
                 "Quartus Prime Version 17.0.2 Build 602",
                 "Total ALMs | 2 | 100 | 2%",
                 "Total registers | 2 | 100 | 2%",
@@ -136,6 +137,7 @@ class OracleBoundaryTests(unittest.TestCase):
                 "Total PLLs | 0 | 4 | 0%",
                 "Total 9x9 multipliers | 0 | 2 | 0%",
                 "Total DSP Blocks | 0 | 2 | 0%",
+                "; Fitter Settings ;",
             ]
         ) + "\n"
 
@@ -274,6 +276,26 @@ class OracleBoundaryTests(unittest.TestCase):
         self.assertRegex(quartus_provenance["executable_sha256"], r"^[0-9a-f]{64}$")
         self.assertEqual(quartus_provenance["sha256"], quartus_provenance["executable_sha256"])
         self.assertRegex(quartus_provenance["version_output_sha256"], r"^[0-9a-f]{64}$")
+        self.assertTrue(marker_seen)
+
+    def test_hard_resource_labels_without_fitted_summary_fail_closed(self):
+        fit = "\n".join(
+            [
+                "Device capability table",
+                "Total RAM Blocks | 0 | 10 | 0%",
+                "Total PLLs | 0 | 4 | 0%",
+                "Total DSP Blocks | 0 | 2 | 0%",
+            ]
+        ) + "\n"
+        temp, root, marker = self._quartus_real(
+            "17.0.2", fit, self._fmax_report(("FPGA_CLK1_50", "100", "100"))
+        )
+        with temp:
+            result, summary, marker_seen = self._run_real(root, marker)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(summary["hard_block_status"], "fail")
+        self.assertTrue(all(name not in summary["hard_blocks"] for name in ("PLL", "BRAM/M10K", "DSP")))
         self.assertTrue(marker_seen)
 
     def test_timequest_multiple_operating_corners_use_conservative_minimum(self):
@@ -419,7 +441,7 @@ class OracleBoundaryTests(unittest.TestCase):
             "Total MLABs | 1 | 8 | 12.5%",
             "Total HPS blocks | 1 | 1 | 100%",
         ):
-            fit = self._complete_fit_report() + row + "\n"
+            fit = self._complete_fit_report() + "; Fitter Resource Usage Summary ;\n" + row + "\n"
             temp, root, marker = self._quartus_real(
                 "17.0.2", fit, self._fmax_report(("FPGA_CLK1_50", "100", "100"))
             )

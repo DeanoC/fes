@@ -61,3 +61,42 @@ No repository concerns. Per the task boundary, no fresh hardware/network
 target access or Quartus recompilation was performed; the parser was exercised
 against the captured generated report shapes through hermetic fake-compiler
 tests.
+
+## Fix Round 1: fitted-summary boundary
+
+### RED
+
+Command:
+
+```text
+python3 -m unittest -v tests.test_oracle_boundary
+```
+
+Result: 17 tests ran with 1 expected failure. The new
+`test_hard_resource_labels_without_fitted_summary_fail_closed` regression
+failed because exact `Total RAM Blocks`, `Total PLLs`, and `Total DSP Blocks`
+labels in an unmarked capability table were accepted by the unsafe
+`all_fit_rows` fallback.
+
+### GREEN
+
+Focused command:
+
+```text
+bash -n scripts/build_oracle.sh && python3 -m unittest -v tests.test_oracle_boundary
+```
+
+Result: 17 tests passed.
+
+Full-suite command:
+
+```text
+python3 -m unittest discover -s tests -p 'test*.py' -v
+```
+
+Result: 178 tests passed.
+
+The parser now requires a recognized `Fitter Summary` or `Fitter Resource
+Usage Summary` section marker; positive synthetic fixtures place fitted rows in
+that structure, while exact labels outside it fail closed. `git diff --check`
+also passed after the Round 1 changes.
