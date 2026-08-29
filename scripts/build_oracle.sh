@@ -78,6 +78,7 @@ qsf="$ROOT/$qsf_rel"
 sdc="$ROOT/$sdc_rel"
 run_logged="$ROOT/scripts/run_logged.sh"
 collector="$ROOT/scripts/collect_manifest.py"
+policy_tool="$ROOT/scripts/experiment_policy.py"
 
 rbf="$oracle_dir/top.rbf"
 fit_report="$oracle_dir/top.fit.rpt"
@@ -210,6 +211,52 @@ print_command() {
 
 validate_output_tree
 validate_quartus_root
+
+require_regular "$policy_tool" "closed experiment policy"
+
+# Consume the same closed policy as the OSS lane before invoking Quartus.
+# Besides rejecting unknown experiment selectors, --check-sources rejects
+# external includes and forbidden tokens and checks the required HPS GP marker.
+policy_output="$(
+    "$PYTHON" "$policy_tool" \
+        --experiment "$EXP" \
+        --format shell \
+        --check-sources \
+        --repo-root "$ROOT"
+)" || fail "cannot load closed experiment policy: $EXP"
+
+policy_name=
+policy_source=
+policy_top=
+policy_clock=
+policy_clock_mhz=
+policy_qsf=
+policy_sdc=
+policy_artifact=
+while IFS='=' read -r policy_key policy_value; do
+    case "$policy_key" in
+        name) policy_name=$policy_value ;;
+        source) policy_source=$policy_value ;;
+        top) policy_top=$policy_value ;;
+        clock) policy_clock=$policy_value ;;
+        clock_mhz) policy_clock_mhz=$policy_value ;;
+        qsf) policy_qsf=$policy_value ;;
+        sdc) policy_sdc=$policy_value ;;
+        artifact) policy_artifact=$policy_value ;;
+        allowed_hard_blocks) : ;;
+        "") : ;;
+        *) fail "closed experiment policy emitted an unknown field: $policy_key" ;;
+    esac
+done <<< "$policy_output"
+
+[[ "$policy_name" == "$EXP" ]] || fail "closed experiment policy name mismatch"
+[[ "$policy_source" == "$rtl_rel" ]] || fail "closed experiment policy source mismatch"
+[[ "$policy_top" == "top" ]] || fail "closed experiment policy top mismatch"
+[[ "$policy_clock" == "FPGA_CLK1_50" && "$policy_clock_mhz" == "50" ]] \
+    || fail "closed experiment policy clock mismatch"
+[[ "$policy_qsf" == "$qsf_rel" && "$policy_sdc" == "$sdc_rel" ]] \
+    || fail "closed experiment policy constraint mismatch"
+[[ "$policy_artifact" == "top.rbf" ]] || fail "closed experiment policy artifact mismatch"
 
 require_regular "$rtl" "shared RTL"
 require_regular "$qsf" "shared pin constraints"
@@ -628,14 +675,16 @@ for name, patterns in hard_row_patterns.items():
 # row, so accept only those closed aliases and retain the fitter measurement.
 mailbox_hps_patterns = (
     re.compile(
-        r"^(?:total\s+)?cyclonev[_ ]hps[_ ]interface[_ ]mpu[_ ]general[_ ]purpose(?:[_ ]interfaces?)?$",
+        r"^(?:total[ _-]+)?cyclonev[ _-]+hps[ _-]+interface[ _-]+"
+        r"mpu[ _-]+general[ _-]+purpose(?:[ _-]+interfaces?)?$",
         re.I,
     ),
     re.compile(
-        r"^(?:total\s+)?hps(?:[_ ]+interface)?(?:[_ ]+mpu)?[_ ]+general[_ ]+purpose(?:[_ ]+(?:interfaces?|i/o))?$",
+        r"^(?:total[ _-]+)?hps(?:[ _-]+interface)?(?:[ _-]+mpu)?"
+        r"[ _-]+general[ _-]+purpose(?:[ _-]+(?:interfaces?|i/o))?$",
         re.I,
     ),
-    re.compile(r"^mpu[_ ]+general[_ ]+purpose$", re.I),
+    re.compile(r"^mpu[ _-]+general[ _-]+purpose$", re.I),
 )
 if experiment == "020_linux_mailbox":
     hps_candidates: list[tuple[int, int]] = []
@@ -671,6 +720,216 @@ if experiment == "020_linux_mailbox":
                 "cyclonev_hps_interface_mpu_general_purpose: expected exactly one, got "
                 + str(used)
             )
+
+
+mailbox_zero_fitted_rows = (
+    (
+        "HPS boot from FPGA",
+        re.compile(r"^(?:hps[ _-]+)?boot[ _-]+from[ _-]+fpga$", re.I),
+    ),
+    (
+        "HPS clock resets",
+        re.compile(r"^(?:hps[ _-]+)?clock[ _-]+resets$", re.I),
+    ),
+    (
+        "HPS cross trigger",
+        re.compile(r"^(?:hps[ _-]+)?cross[ _-]+trigger$", re.I),
+    ),
+    (
+        "HPS S2F AXI",
+        re.compile(r"^(?:hps[ _-]+)?s2f[ _-]+axi$", re.I),
+    ),
+    (
+        "HPS F2S AXI",
+        re.compile(r"^(?:hps[ _-]+)?f2s[ _-]+axi$", re.I),
+    ),
+    (
+        "HPS AXI Lightweight",
+        re.compile(r"^(?:hps[ _-]+)?axi[ _-]+lightweight$", re.I),
+    ),
+    (
+        "HPS interrupts",
+        re.compile(r"^(?:hps[ _-]+)?interrupts?$", re.I),
+    ),
+    (
+        "HPS JTAG",
+        re.compile(r"^(?:hps[ _-]+)?jtag$", re.I),
+    ),
+    (
+        "HPS loan I/O",
+        re.compile(r"^(?:hps[ _-]+)?loan[ _-]+i/o$", re.I),
+    ),
+    (
+        "HPS MPU event standby",
+        re.compile(r"^(?:hps[ _-]+)?mpu[ _-]+event[ _-]+standby$", re.I),
+    ),
+    (
+        "HPS STM event",
+        re.compile(r"^(?:hps[ _-]+)?stm[ _-]+event$", re.I),
+    ),
+    (
+        "HPS TPIU trace",
+        re.compile(r"^(?:hps[ _-]+)?tpiu[ _-]+trace$", re.I),
+    ),
+    (
+        "HPS DMA",
+        re.compile(r"^(?:hps[ _-]+)?dma$", re.I),
+    ),
+    (
+        "HPS CAN",
+        re.compile(r"^(?:hps[ _-]+)?can$", re.I),
+    ),
+    (
+        "HPS EMAC",
+        re.compile(r"^(?:hps[ _-]+)?emac$", re.I),
+    ),
+    (
+        "HPS I2C",
+        re.compile(r"^(?:hps[ _-]+)?i2c$", re.I),
+    ),
+    (
+        "HPS NAND Flash",
+        re.compile(r"^(?:hps[ _-]+)?nand[ _-]+flash$", re.I),
+    ),
+    (
+        "HPS QSPI",
+        re.compile(r"^(?:hps[ _-]+)?qspi$", re.I),
+    ),
+    (
+        "HPS SDMMC",
+        re.compile(r"^(?:hps[ _-]+)?sdmmc$", re.I),
+    ),
+    (
+        "HPS SPI Master",
+        re.compile(r"^(?:hps[ _-]+)?spi[ _-]+master$", re.I),
+    ),
+    (
+        "HPS SPI Slave",
+        re.compile(r"^(?:hps[ _-]+)?spi[ _-]+slave$", re.I),
+    ),
+    (
+        "HPS UART",
+        re.compile(r"^(?:hps[ _-]+)?uart$", re.I),
+    ),
+    (
+        "HPS USB",
+        re.compile(r"^(?:hps[ _-]+)?usb$", re.I),
+    ),
+    (
+        "HSSI RX PCS",
+        re.compile(r"^(?:total[ _-]+)?hssi[ _-]+rx[ _-]+pcs(?:s)?$", re.I),
+    ),
+    (
+        "HSSI PMA RX Deserializers",
+        re.compile(
+            r"^(?:total[ _-]+)?hssi[ _-]+pma[ _-]+rx[ _-]+deserializers?$",
+            re.I,
+        ),
+    ),
+    (
+        "HSSI TX PCS",
+        re.compile(r"^(?:total[ _-]+)?hssi[ _-]+tx[ _-]+pcs(?:s)?$", re.I),
+    ),
+    (
+        "HSSI PMA TX Serializers",
+        re.compile(
+            r"^(?:total[ _-]+)?hssi[ _-]+pma[ _-]+tx[ _-]+serializers?$",
+            re.I,
+        ),
+    ),
+    (
+        "DLL",
+        re.compile(r"^(?:total[ _-]+)?dlls?$", re.I),
+    ),
+    (
+        "SERDES transmitters",
+        re.compile(r"^(?:total[ _-]+)?serdes[ _-]+transmitters?$", re.I),
+    ),
+    (
+        "SERDES receivers",
+        re.compile(r"^(?:total[ _-]+)?serdes[ _-]+receivers?$", re.I),
+    ),
+    (
+        "JTAG blocks",
+        re.compile(
+            r"^(?:total[ _-]+)?(?:jtags|jtag[ _-]+blocks?)$",
+            re.I,
+        ),
+    ),
+    (
+        "ASMI blocks",
+        re.compile(r"^(?:total[ _-]+)?asmi[ _-]+blocks?$", re.I),
+    ),
+    (
+        "CRC blocks",
+        re.compile(r"^(?:total[ _-]+)?crc[ _-]+blocks?$", re.I),
+    ),
+    (
+        "remote update blocks",
+        re.compile(r"^(?:total[ _-]+)?remote[ _-]+update[ _-]+blocks?$", re.I),
+    ),
+    (
+        "oscillator blocks",
+        re.compile(r"^(?:total[ _-]+)?oscillator[ _-]+blocks?$", re.I),
+    ),
+    (
+        "impedance control blocks",
+        re.compile(r"^(?:total[ _-]+)?impedance[ _-]+control[ _-]+blocks?$", re.I),
+    ),
+    (
+        "hard memory controllers",
+        re.compile(r"^(?:total[ _-]+)?hard[ _-]+memory[ _-]+controllers?$", re.I),
+    ),
+    (
+        "block memory implementation bits",
+        re.compile(
+            r"^(?:total[ _-]+)?block[ _-]+memory[ _-]+implementation[ _-]+bits?$",
+            re.I,
+        ),
+    ),
+)
+
+
+def optional_zero_record(
+    name: str,
+    pattern: re.Pattern[str],
+) -> tuple[dict[str, object] | None, str | None]:
+    """Validate a hard-resource row when a Quartus release emits it."""
+
+    candidates: list[tuple[int, int]] = []
+    malformed = False
+    for line, _delimiter, label, _value_cells in fitted_rows:
+        if pattern.fullmatch(label) is None:
+            continue
+        used, available = count_on_line(line)
+        if used is None or available is None:
+            malformed = True
+            continue
+        candidates.append((used, available))
+    if malformed:
+        return None, f"{name}: fitter evidence is unrecognized"
+    if not candidates:
+        return None, None
+    if len(candidates) != 1:
+        return None, f"{name}: fitter evidence is ambiguous"
+    used, available = candidates[0]
+    record: dict[str, object] = {
+        "used": used,
+        "available": available,
+        "utilization_percent": round(used * 100.0 / available, 6) if available else None,
+        "evidence_kind": "fitter_summary",
+        "measured": True,
+    }
+    if used != 0:
+        return record, f"{name}: unexpected forbidden resource usage ({used})"
+    return record, None
+
+
+if experiment == "020_linux_mailbox":
+    for name, pattern in mailbox_zero_fitted_rows:
+        _record, error = optional_zero_record(name, pattern)
+        if error is not None:
+            hard_errors.append(error)
 
 
 def static_exclusion(
@@ -802,6 +1061,27 @@ all_static_hard_patterns = tuple(
 # required DSP Blocks row is also present.
 known_context_patterns = (
     re.compile(r"^(?:total\s+)?(?:[0-9]+x[0-9]+\s+)?multipliers?$", re.I),
+    re.compile(r"^resource$", re.I),
+    re.compile(
+        r"^(?:hard\s+processor\s+system|hps)?\s*peripheral\s+utilization$",
+        re.I,
+    ),
+    re.compile(
+        r"^(?:total\s+)?(?:block\s+)?memory\s+bits?$",
+        re.I,
+    ),
+    re.compile(
+        r"^(?:total\s+)?block\s+memory\s+implementation\s+bits?$",
+        re.I,
+    ),
+    re.compile(r"^(?:total\s+)?(?:mlab|lutram)\s+memory\s+bits?$", re.I),
+    re.compile(r"^(?:total\s+)?sdram(?:\s+(?:interfaces?|ports?))?$", re.I),
+    *(
+        pattern
+        for _name, pattern in mailbox_zero_fitted_rows
+        if experiment == "020_linux_mailbox"
+    ),
+    *(mailbox_hps_patterns if experiment == "020_linux_mailbox" else ()),
 )
 unknown_markers = (
     "ram block",
@@ -816,37 +1096,128 @@ unknown_markers = (
     "bram",
     "mlab",
     "lutram",
+) + (
+    (
+        "hard",
+        "resource",
+        "hps",
+        "mpu",
+        "arm",
+        "sdram",
+        "oscillator",
+        "controller",
+        "hssi",
+        "serdes",
+        "asmi",
+        "crc",
+        "remote update",
+        "jtag",
+        "dll",
+    )
+    if experiment == "020_linux_mailbox"
+    else ()
 )
 ignored_prose = ("capability", "peripheral", "entity", "pin", "compilation", "diagnostic")
+
+
+def add_unknown_resource(line: str) -> None:
+    key = "unrecognized:" + line.strip()[:80]
+    unknown_resources[key] = {"evidence": line.strip()}
+
+
 for line, _delimiter, label, _value_cells in fitted_rows:
     lowered = label.casefold()
     if not any(marker in lowered for marker in unknown_markers):
         continue
-    # MLAB memory bits and block-memory bits are capacity/bit totals, not
-    # aggregate physical MLAB/LUTRAM fitted counts.
-    if re.search(r"(?:memory|block)\s+bits?\b", lowered):
-        continue
     if any(pattern.fullmatch(label) for pattern in (*all_known_hard_patterns, *all_static_hard_patterns, *known_context_patterns)):
         continue
-    if any(word in lowered for word in ignored_prose):
+    # The normal HPS peripheral-utilization heading is a context row; an
+    # unrecognized HPS/MPU/ARM entity row is still hard-resource evidence.
+    if experiment != "020_linux_mailbox" and any(
+        word in lowered for word in ignored_prose
+    ):
         continue
     # CPU scheduling diagnostics contain ``processor`` but are not fitted
     # physical resources.  A physical HPS aggregate is handled by the static
     # exclusion contract above.
-    if "processor" in lowered and not re.search(r"\bhps\b|hard\s+processor\s+system", lowered):
+    if (
+        experiment != "020_linux_mailbox"
+        and "processor" in lowered
+        and not re.search(r"\bhps\b|hard\s+processor\s+system", lowered)
+    ):
         continue
-    if not re.search(r"\b(?:total|blocks?|ram|m10k|m20k|bram|dsp|plls?|resources?|units?|count|usage)\b", lowered):
+    if (
+        experiment != "020_linux_mailbox"
+        and not re.search(
+            r"\b(?:total|blocks?|ram|m10k|m20k|bram|dsp|plls?|resources?|units?|count|usage)\b",
+            lowered,
+        )
+    ):
         continue
     used, available = count_on_line(line)
     if used is None and available is None:
         # A malformed aggregate row is still evidence that must not be
         # silently ignored, while one-field capability/prose rows were
         # filtered above.
-        key = "unrecognized:" + line.strip()[:80]
-        unknown_resources[key] = {"evidence": line.strip()}
+        add_unknown_resource(line)
         continue
-    key = "unrecognized:" + line.strip()[:80]
-    unknown_resources[key] = {"evidence": line.strip()}
+    add_unknown_resource(line)
+
+# Mailbox reports are accepted only against a closed fitted-row vocabulary.
+# In addition to the marker scan above, reject any remaining numeric row that
+# is not a known ordinary utilization row.  This catches a newly named hard
+# resource even if its label does not contain one of today's markers.
+if experiment == "020_linux_mailbox":
+    # Exact full-label vocabulary for ordinary Cyclone-V fitted resources.
+    # Do not accept a row merely because its label contains a word such as
+    # "logic", "clock", or "memory": new numeric rows are evidence that the
+    # closed policy does not understand and therefore fail below.
+    ordinary_fitted_patterns = (
+        re.compile(r"^(?:total\s+)?alms?$", re.I),
+        re.compile(r"^(?:total\s+)?(?:dedicated\s+logic\s+)?registers?$", re.I),
+        re.compile(r"^(?:total\s+)?(?:user\s+)?(?:i\s*/?\s*o\s+)?pins?$", re.I),
+        re.compile(r"^logic utilization \(alms needed / total alms on device\)$", re.I),
+        re.compile(r"^alms needed \[=a-b\+c\]$", re.I),
+        re.compile(r"^\[a\] alms used in final placement \[=a\+b\+c\+d\]$", re.I),
+        re.compile(r"^\[[a-d]\] alms used for (?:lut logic(?: and registers)?|registers|memory \(up to half of total alms\))$", re.I),
+        re.compile(r"^\[[bc]\] estimate of alms (?:recoverable by dense packing|unavailable \[=a\+b\+c\+d\])$", re.I),
+        re.compile(r"^\[[a-d]\] due to (?:location constrained logic|lab-wide signal conflicts|lab input limits|virtual i/os)$", re.I),
+        re.compile(r"^total labs: partially or completely used$", re.I),
+        re.compile(r"^(?:logic|memory) labs(?: \(up to half of total labs\))?$", re.I),
+        re.compile(r"^combinational alut usage for (?:logic|route-throughs)$", re.I),
+        re.compile(r"^(?:[4-7]|<=3) input functions$", re.I),
+        re.compile(r"^(?:primary|secondary) logic registers$", re.I),
+        re.compile(r"^(?:design implementation|routing optimization) registers$", re.I),
+        re.compile(r"^virtual pins$", re.I),
+        re.compile(r"^(?:clock|dedicated input) pins$", re.I),
+        re.compile(r"^global signals$", re.I),
+        re.compile(r"^(?:global|quadrant|horizontal periphery) clocks$", re.I),
+        re.compile(r"^(?:average|peak) interconnect usage \(total/h/v\)$", re.I),
+        re.compile(r"^(?:maximum|highest non-global|total|average) fan-out$", re.I),
+    )
+    known_fitted_patterns = (
+        *all_known_hard_patterns,
+        *all_static_hard_patterns,
+        *known_context_patterns,
+    )
+    for line, _delimiter, label, _value_cells in fitted_rows:
+        if any(pattern.fullmatch(label) for pattern in known_fitted_patterns):
+            continue
+        lowered = label.casefold()
+        if experiment != "020_linux_mailbox" and any(
+            word in lowered for word in ignored_prose
+        ):
+            continue
+        if any(marker in lowered for marker in unknown_markers):
+            # Already handled by the marker pass (including malformed rows).
+            continue
+        used, available = count_on_line(line)
+        if used is None and available is None:
+            continue
+        if any(pattern.fullmatch(label) for pattern in ordinary_fitted_patterns):
+            continue
+        add_unknown_resource(line)
+
 if unknown_resources:
     hard_errors.append("unrecognized hard-resource evidence: " + ", ".join(sorted(unknown_resources)))
 

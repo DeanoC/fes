@@ -1810,10 +1810,10 @@ class Transport:
                 os.fsync(stderr_file.fileno())
             run_stdout = stdout_path.read_bytes()
             run_stderr = stderr_path.read_bytes()
-            if run_stdout != b"" or b"FOGCAST_FPGA_DEV_" in run_stderr or not self._safe_remote_stream(run_stderr.decode("utf-8", errors="strict")):
+            if run_stdout != b"" or run_stderr != b"":
                 raise TransportError("faulted run child emitted unexpected output or result framing")
-            if returncode not in CLOSED_SSH_OUTCOMES:
-                raise TransportError("faulted run child exit is outside the closed signal/disconnect set")
+            if returncode != 255:
+                raise TransportError("faulted run child exit must be exactly 255")
             reboot = self._invoke(session.ssh(remote_fault_command("recovery-reboot", selected.run_id)), timeout=RUN_TIMEOUT)
             reboot_disconnected_at = self.config.clock()
             _durable_write(trace / "reboot.stdout", reboot.stdout.encode())

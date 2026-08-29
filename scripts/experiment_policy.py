@@ -46,6 +46,7 @@ class ExperimentPolicy:
     allowed_hard_blocks: Mapping[str, int]
     forbidden_source_patterns: tuple[str, ...]
     forbidden_resource_patterns: tuple[str, ...]
+    required_source_identifiers: Mapping[str, int] = MappingProxyType({})
     constraints: tuple[str, ...] = BOARD_CONSTRAINTS
     target: str = TARGET_DEVICE
     artifact: str = "top.rbf"
@@ -79,6 +80,21 @@ class ExperimentPolicy:
                 raise PolicyError(f"{self.name}: allowed hard-block count for {resource} must be non-negative")
             allowed[resource] = count
         object.__setattr__(self, "allowed_hard_blocks", MappingProxyType(allowed))
+
+        required_source_identifiers: dict[str, int] = {}
+        for identifier, count in dict(self.required_source_identifiers).items():
+            if not isinstance(identifier, str) or not re.fullmatch(r"[A-Za-z_]\w*", identifier):
+                raise PolicyError(f"{self.name}: required source identifiers must be Verilog identifiers")
+            if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+                raise PolicyError(
+                    f"{self.name}: required source identifier count for {identifier} must be non-negative"
+                )
+            required_source_identifiers[identifier] = count
+        object.__setattr__(
+            self,
+            "required_source_identifiers",
+            MappingProxyType(required_source_identifiers),
+        )
 
         for label, values in (
             ("source", self.forbidden_source_patterns),
@@ -270,6 +286,19 @@ class ExperimentPolicy:
             if re.search(expression, text, flags=re.IGNORECASE):
                 raise PolicyError(f"forbidden source pattern {pattern!r} in {path_text}")
 
+        if path_text not in self.sources:
+            return
+        if re.search(r"`\s*include\b", text):
+            raise PolicyError(f"source includes are not permitted in {path_text}")
+        for identifier, expected in self.required_source_identifiers.items():
+            expression = rf"(?<![A-Za-z0-9_$]){re.escape(identifier)}(?![A-Za-z0-9_$])"
+            actual = len(re.findall(expression, text))
+            if actual != expected:
+                raise PolicyError(
+                    f"source identifier {identifier!r} in {path_text} must occur exactly "
+                    f"{expected} time(s), got {actual}"
+                )
+
     def validate_design(self, *, top: str, sources: Sequence[str]) -> None:
         """Validate the top and exact production source list."""
 
@@ -291,6 +320,7 @@ class ExperimentPolicy:
             "allowed_hard_blocks": dict(self.allowed_hard_blocks),
             "forbidden_source_patterns": list(self.forbidden_source_patterns),
             "forbidden_resource_patterns": list(self.forbidden_resource_patterns),
+            "required_source_identifiers": dict(self.required_source_identifiers),
             "target": self.target,
             "artifact": self.artifact,
         }
@@ -363,6 +393,9 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
             allowed_hard_blocks={"cyclonev_hps_interface_mpu_general_purpose": 1},
             forbidden_source_patterns=(*_COMMON_SOURCE_PATTERNS, "LED", "GPIO", "external_gpio"),
             forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
             clock_evidence_names=("protocol.FPGA_CLK1_50",),
         ),
     }

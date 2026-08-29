@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from scripts.experiment_policy import PolicyError, policy_for
 
 
 class ExperimentPolicyTests(unittest.TestCase):
+    ROOT = Path(__file__).resolve().parents[1]
+
     def test_unknown_experiment_is_rejected(self) -> None:
         with self.assertRaisesRegex(PolicyError, "unknown experiment"):
             policy_for("030_unknown")
@@ -73,6 +76,29 @@ class ExperimentPolicyTests(unittest.TestCase):
             policy.validate_design(top="not_top", sources=policy.sources)
         with self.assertRaisesRegex(PolicyError, "source"):
             policy.validate_design(top=policy.top, sources=("wrong/top.v",))
+
+    def test_mailbox_source_policy_uses_tokens_hashes_and_synthesis_evidence(self) -> None:
+        policy = policy_for("020_linux_mailbox")
+        relative = "experiments/020_linux_mailbox/rtl/top.v"
+        source = (self.ROOT / relative).read_text(encoding="utf-8")
+
+        policy.validate_source_text(relative, source)
+        with self.assertRaisesRegex(PolicyError, "forbidden source pattern"):
+            policy.validate_source_text(
+                relative,
+                source.replace("mailbox_fsm protocol (", "mailbox_fsm video ("),
+            )
+        with self.assertRaisesRegex(PolicyError, "source identifier"):
+            policy.validate_source_text(
+                relative,
+                source
+                + "\ncyclonev_hps_interface_mpu_general_purpose second_gp();\n",
+            )
+        with self.assertRaisesRegex(PolicyError, "source includes"):
+            policy.validate_source_text(
+                relative,
+                '`include "extra_mailbox_logic.v"\n' + source,
+            )
 
 
 if __name__ == "__main__":

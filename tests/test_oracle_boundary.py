@@ -458,6 +458,187 @@ class OracleBoundaryTests(unittest.TestCase):
                 self.assertEqual(summary["hard_block_status"], "fail")
                 self.assertTrue(marker_seen)
 
+    def test_mailbox_rejects_nonzero_extra_hps_and_hard_resource_rows(self):
+        rows = (
+            "HPS blocks | 1 | 1 | 100%",
+            "MPU blocks | 1 | 1 | 100%",
+            "ARM blocks | 1 | 1 | 100%",
+            "Oscillator blocks | 1 | 1 | 100%",
+            "Hard Memory Controllers | 1 | 1 | 100%",
+        )
+        for row in rows:
+            with self.subTest(row=row):
+                fit = self._mailbox_fit_report().replace(
+                    "; Fitter Settings ;", row + "\n; Fitter Settings ;", 1
+                )
+                temp, root, marker = self._quartus_real(
+                    "17.0.2",
+                    fit,
+                    self._fmax_report(("FPGA_CLK1_50", "100", "100")),
+                )
+                with temp:
+                    result, summary, marker_seen = self._run_real(
+                        root, marker, experiment="020_linux_mailbox"
+                    )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(summary["hard_block_status"], "fail")
+                self.assertTrue(marker_seen)
+
+    def test_mailbox_rejects_unknown_fitted_hard_resource_row_even_when_zero(self):
+        for row in (
+            "Total hard resource count | 0 | 1 | 0%",
+            "Total unclassified units | 0 | 1 | 0%",
+            "HPS block bits | 1 | 1 | 100%",
+            "Total tensor logic accelerators | 1 | 1 | 100%",
+            "HSSI capability | 1 | 1 | 100%",
+            "Resource capability | 1 | 1 | 100%",
+            "Processor accelerator | 1 | 1 | 100%",
+        ):
+            with self.subTest(row=row):
+                fit = self._mailbox_fit_report().replace(
+                    "; Fitter Settings ;", row + "\n; Fitter Settings ;", 1
+                )
+                temp, root, marker = self._quartus_real(
+                    "17.0.2",
+                    fit,
+                    self._fmax_report(("FPGA_CLK1_50", "100", "100")),
+                )
+                with temp:
+                    result, summary, marker_seen = self._run_real(
+                        root, marker, experiment="020_linux_mailbox"
+                    )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(summary["hard_block_status"], "fail")
+                self.assertTrue(marker_seen)
+
+    def test_mailbox_rejects_extra_hps_entity_before_compile(self):
+        source_path = ROOT / "experiments" / "020_linux_mailbox" / "rtl" / "top.v"
+        original = source_path.read_text(encoding="utf-8")
+        try:
+            source_path.write_text(
+                original
+                + "\nmodule forbidden_hps_entity;\n"
+                + "  cyclonev_hps_interface_mpu_general_purpose forbidden_gp();\n"
+                + "endmodule\n",
+                encoding="utf-8",
+            )
+            temp, root, marker = self._quartus_real(
+                "17.0.2",
+                self._mailbox_fit_report(),
+                self._fmax_report(("FPGA_CLK1_50", "100", "100")),
+            )
+            with temp:
+                result, summary, marker_seen = self._run_real(
+                    root, marker, experiment="020_linux_mailbox"
+                )
+        finally:
+            source_path.write_text(original, encoding="utf-8")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(summary, {})
+        self.assertFalse(marker_seen)
+        self.assertIn("source", result.stdout.lower() + result.stderr.lower())
+
+    def test_mailbox_oracle_consumes_shared_forbidden_source_policy(self):
+        source_path = ROOT / "experiments" / "020_linux_mailbox" / "rtl" / "top.v"
+        original = source_path.read_text(encoding="utf-8")
+        try:
+            source_path.write_text(
+                original.replace("mailbox_fsm protocol (", "mailbox_fsm video ("),
+                encoding="utf-8",
+            )
+            temp, root, marker = self._quartus_real(
+                "17.0.2",
+                self._mailbox_fit_report(),
+                self._fmax_report(("FPGA_CLK1_50", "100", "100")),
+            )
+            with temp:
+                result, summary, marker_seen = self._run_real(
+                    root, marker, experiment="020_linux_mailbox"
+                )
+        finally:
+            source_path.write_text(original, encoding="utf-8")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(summary, {})
+        self.assertFalse(marker_seen)
+        self.assertIn("forbidden source pattern", result.stderr.lower())
+
+    def test_mailbox_accepts_real_quartus_hps_zero_rows(self):
+        capability_rows = "\n".join(
+            (
+                "Hard processor system peripheral utilization | |",
+                "-- Boot from FPGA | 0 / 1 ( 0 % ) |",
+                "-- Clock resets | 0 / 1 ( 0 % ) |",
+                "-- Cross trigger | 0 / 1 ( 0 % ) |",
+                "-- S2F AXI | 0 / 1 ( 0 % ) |",
+                "-- F2S AXI | 0 / 1 ( 0 % ) |",
+                "-- AXI Lightweight | 0 / 1 ( 0 % ) |",
+                "-- SDRAM | 0 / 1 ( 0 % ) |",
+                "-- Interrupts | 0 / 1 ( 0 % ) |",
+                "-- JTAG | 0 / 1 ( 0 % ) |",
+                "-- Loan I/O | 0 / 1 ( 0 % ) |",
+                "-- MPU event standby | 0 / 1 ( 0 % ) |",
+                "-- MPU general purpose | 1 / 1 ( 100 % ) |",
+                "-- STM event | 0 / 1 ( 0 % ) |",
+                "-- TPIU trace | 0 / 1 ( 0 % ) |",
+                "-- DMA | 0 / 1 ( 0 % ) |",
+                "-- CAN | 0 / 2 ( 0 % ) |",
+                "-- EMAC | 0 / 2 ( 0 % ) |",
+                "-- I2C | 0 / 4 ( 0 % ) |",
+                "-- NAND Flash | 0 / 1 ( 0 % ) |",
+                "-- QSPI | 0 / 1 ( 0 % ) |",
+                "-- SDMMC | 0 / 1 ( 0 % ) |",
+                "-- SPI Master | 0 / 2 ( 0 % ) |",
+                "-- SPI Slave | 0 / 2 ( 0 % ) |",
+                "-- UART | 0 / 2 ( 0 % ) |",
+                "-- USB | 0 / 2 ( 0 % ) |",
+                "Total DSP Blocks | 0 / 112 | 0 %",
+                "M10K blocks | 0 / 553 | 0 %",
+                "Fractional PLLs | 0 / 6 | 0 %",
+                "Total LABs: partially or completely used | 6 / 4191 | 0 %",
+                "-- 7 input functions | 0",
+                "-- 6 input functions | 16",
+                "-- 5 input functions | 13",
+                "-- 4 input functions | 10",
+                "-- <=3 input functions | 37",
+                "Global signals | 1",
+                "-- Global clocks | 1 / 16 | 6 %",
+                "-- Quadrant clocks | 0 / 66 | 0 %",
+                "-- Horizontal periphery clocks | 0 / 18 | 0 %",
+                "Average interconnect usage (total/H/V) | 0.0% / 0.0% / 0.0%",
+                "Peak interconnect usage (total/H/V) | 1.5% / 1.7% / 0.9%",
+                "Maximum fan-out | 63",
+                "Highest non-global fan-out | 35",
+                "Total fan-out | 338",
+                "Average fan-out | 3.28",
+                "Oscillator blocks | 0 / 1 | 0 %",
+                "Hard Memory Controllers | 0 / 1 | 0 %",
+            )
+        )
+        fit = (
+            self._complete_fit_report()
+            .replace("Total RAM Blocks | 0 | 10 | 0%\n", "")
+            .replace("Total PLLs | 0 | 4 | 0%\n", "")
+            .replace("Total DSP Blocks | 0 | 2 | 0%\n", "")
+        ).replace(
+            "; Fitter Settings ;",
+            capability_rows
+            + "\nTotal MLAB memory bits | 0 | 524288 | 0%"
+            + "\n; Fitter Settings ;",
+            1,
+        )
+        temp, root, marker = self._quartus_real(
+            "17.0.2",
+            fit,
+            self._fmax_report(("FPGA_CLK1_50", "100", "100")),
+        )
+        with temp:
+            result, summary, marker_seen = self._run_real(
+                root, marker, experiment="020_linux_mailbox"
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(summary["hard_block_status"], "pass")
+        self.assertTrue(marker_seen)
+
     def test_oracle_selector_rejects_repeated_and_mixed_experiment_selectors(self):
         temp, root, marker = self._quartus("17.0.2")
         with temp:
@@ -476,8 +657,15 @@ class OracleBoundaryTests(unittest.TestCase):
                 "--print-commands",
                 env={"QUARTUS_ROOTDIR": str(root)},
             )
+            unknown = self._run(
+                "--experiment",
+                "030_unknown",
+                env={"QUARTUS_ROOTDIR": str(root)},
+            )
         self.assertNotEqual(repeated.returncode, 0)
         self.assertNotEqual(mixed.returncode, 0)
+        self.assertNotEqual(unknown.returncode, 0)
+        self.assertIn("unknown experiment", unknown.stderr)
         self.assertFalse(marker.exists())
 
     def test_hard_resource_labels_without_fitted_summary_fail_closed(self):

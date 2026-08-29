@@ -4,6 +4,7 @@ import hashlib
 import io
 import json
 import os
+import signal
 import stat
 import tempfile
 import unittest
@@ -1085,16 +1086,56 @@ class FogCastFaultTests(unittest.TestCase):
                     f"FOGCAST_FPGA_DEV_FAULT_KILLED run_id={RUN_ID}\n",
                 )
 
-    def test_fault_accepts_only_closed_signal_disconnect_set_with_durable_recovery(self):
-        for returncode in (255, -1, -2, -9, -15):
+    def test_fault_rejects_every_signal_disconnect_code(self):
+        for returncode in (
+            -signal.SIGHUP,
+            -signal.SIGINT,
+            -signal.SIGKILL,
+            -signal.SIGTERM,
+        ):
             with self.subTest(returncode=returncode), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 bundle = write_bundle(root)
                 fake = FakeTransport(run_returncode=returncode)
-                report = fogcast_dev.Transport(config(root, fake)).fault_inject(bundle)
-                self.assertEqual(report.run_returncode, returncode)
-                self.assertIn("reboot", fake.remote_order)
-                self.assertIn("ready", fake.remote_order)
+                with self.assertRaises(fogcast_dev.TransportError):
+                    fogcast_dev.Transport(config(root, fake)).fault_inject(bundle)
+                self.assertNotIn("reboot", fake.remote_order)
+
+    def test_fault_rejects_any_nonempty_child_stdout_or_stderr(self):
+        cases = (
+            ("printable stdout", b"diagnostic\n", b""),
+            (
+                "FOGCAST stdout",
+                b"FOGCAST_FPGA_DEV_RESULT_UNAVAILABLE code=state_store_failed\n",
+                b"",
+            ),
+            ("printable stderr", b"", b"diagnostic\n"),
+            (
+                "FOGCAST stderr",
+                b"",
+                b"FOGCAST_FPGA_DEV_RESULT_UNAVAILABLE code=state_store_failed\n",
+            ),
+        )
+        for label, child_stdout, child_stderr in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                bundle = write_bundle(root)
+                fake = FakeTransport()
+                fake.child_stdout = child_stdout
+                fake.child_stderr = child_stderr
+                with self.assertRaises(fogcast_dev.TransportError):
+                    fogcast_dev.Transport(config(root, fake)).fault_inject(bundle)
+                self.assertNotIn("reboot", fake.remote_order)
+
+    def test_fault_accepts_only_exact_255_with_empty_child_streams(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = write_bundle(root)
+            fake = FakeTransport(run_returncode=255)
+            report = fogcast_dev.Transport(config(root, fake)).fault_inject(bundle)
+            self.assertEqual(report.run_returncode, 255)
+            self.assertIn("reboot", fake.remote_order)
+            self.assertIn("ready", fake.remote_order)
 
     def test_fault_mismatch_terminates_and_reaps_owned_child_but_preserves_stage(self):
         with tempfile.TemporaryDirectory() as directory:

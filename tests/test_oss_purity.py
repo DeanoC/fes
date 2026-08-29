@@ -186,6 +186,7 @@ class OssPipelinePurityTests(unittest.TestCase):
         sentinel.write_text("untouched\n", encoding="utf-8")
         (experiment_root / "rtl").mkdir(parents=True)
         shutil.copy2(ROOT / "experiments" / "010_blinky" / "rtl" / "top.v", experiment_root / "rtl" / "top.v")
+        output_link.parent.mkdir(parents=True, exist_ok=True)
         output_link.symlink_to(outside, target_is_directory=True)
         try:
             result = self._run("--experiment", experiment)
