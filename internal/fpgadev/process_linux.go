@@ -154,6 +154,15 @@ func (s linuxProcessScanner) readIdentityAttempt(ctx context.Context, root strin
 		}
 		return ProcessIdentity{}, false, false, err
 	}
+	if statBefore.StartTime == 0 {
+		// Some MiSTer kernels report zero for init and kernel threads. Neither
+		// can be the expected Main or agent executable, so omit those entries
+		// while retaining the fail-closed rule for every user process.
+		if pid == 1 || statBefore.Flags&processFlagKThread != 0 {
+			return ProcessIdentity{}, false, false, nil
+		}
+		return ProcessIdentity{}, false, false, processError("process stat start time is invalid", nil)
+	}
 	if err := ctx.Err(); err != nil {
 		return ProcessIdentity{}, false, false, err
 	}
@@ -299,7 +308,7 @@ func (s linuxProcessScanner) readStatValue(ctx context.Context, path string, pid
 	if s.readStat != nil {
 		return s.readStat(ctx, path, pid)
 	}
-	return readLinuxProcStat(ctx, path, pid)
+	return readLinuxProcStatValue(ctx, path, pid)
 }
 
 func openLinuxExecutable(ctx context.Context, path string) (*os.File, error) {
@@ -325,6 +334,19 @@ func transientProcessError(err error) bool {
 }
 
 func readLinuxProcStat(ctx context.Context, path string, pid int) (procStatInfo, error) {
+	info, err := readLinuxProcStatValue(ctx, path, pid)
+	if err != nil {
+		return procStatInfo{}, err
+	}
+	if info.StartTime == 0 {
+		return procStatInfo{}, processError("process stat start time is invalid", nil)
+	}
+	return info, nil
+}
+
+// readLinuxProcStatValue leaves zero-start-time policy to the complete process
+// scanner. Other callers retain readLinuxProcStat's strict non-zero contract.
+func readLinuxProcStatValue(ctx context.Context, path string, pid int) (procStatInfo, error) {
 	if err := ctx.Err(); err != nil {
 		return procStatInfo{}, err
 	}
@@ -338,9 +360,6 @@ func readLinuxProcStat(ctx context.Context, path string, pid int) (procStatInfo,
 	}
 	if parsedPID != pid {
 		return procStatInfo{}, processError("process stat PID mismatch", nil)
-	}
-	if start == 0 {
-		return procStatInfo{}, processError("process stat start time is invalid", nil)
 	}
 	return procStatInfo{PID: parsedPID, State: state, Flags: flags, StartTime: start}, nil
 }

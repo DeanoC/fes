@@ -538,6 +538,10 @@ func writeProcStatFixture(t *testing.T, root string, pid int, start uint64, stat
 }
 
 func writeProcStatFixtureWithFlags(t *testing.T, root string, pid int, start uint64, state string, flags uint64) string {
+	return writeProcStatFixtureWithStartTime(t, root, pid, fmt.Sprint(start), state, flags)
+}
+
+func writeProcStatFixtureWithStartTime(t *testing.T, root string, pid int, start, state string, flags uint64) string {
 	t.Helper()
 	processDir := filepath.Join(root, fmt.Sprint(pid))
 	if err := os.Mkdir(processDir, 0o700); err != nil {
@@ -549,12 +553,52 @@ func writeProcStatFixtureWithFlags(t *testing.T, root string, pid int, start uin
 		fields[index] = "0"
 	}
 	fields[6] = fmt.Sprint(flags)
-	fields[19] = fmt.Sprint(start)
+	fields[19] = start
 	stat := fmt.Sprintf("%d (fixture) %s", pid, strings.Join(fields, " "))
 	if err := os.WriteFile(filepath.Join(processDir, "stat"), []byte(stat), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	return processDir
+}
+
+func TestLinuxProcessObserverSkipsZeroStartTimeInitAndKernelThreads(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux /proc adapter")
+	}
+	root := t.TempDir()
+	executable, _, want := makeMainFixture(t, root)
+	writeProcStatFixture(t, root, 1, 0, "S")
+	writeProcStatFixtureWithFlags(t, root, 32, 0, "I", processFlagKThread)
+
+	got, err := (Observer{ProcRoot: root, Expected: executable}).Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot with zero-start-time init and kernel thread: %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Snapshot = %#v, want %#v", got, want)
+	}
+}
+
+func TestLinuxProcessObserverFailsClosedForInvalidUserStartTime(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux /proc adapter")
+	}
+	for _, test := range []struct {
+		name      string
+		startTime string
+	}{
+		{name: "zero", startTime: "0"},
+		{name: "garbage", startTime: "not-a-start-time"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			executable, _, _ := makeMainFixture(t, root)
+			writeProcStatFixtureWithStartTime(t, root, 33, test.startTime, "S", 0)
+			if _, err := (Observer{ProcRoot: root, Expected: executable}).Snapshot(); err == nil {
+				t.Fatal("invalid user-process start time was accepted")
+			}
+		})
+	}
 }
 
 func TestLinuxProcessObserverSkipsPFKThreadMissingExe(t *testing.T) {
