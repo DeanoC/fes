@@ -10,8 +10,46 @@ class RepositoryContractTests(unittest.TestCase):
         result = subprocess.run(
             ["make", "help"], cwd=ROOT, text=True, capture_output=True, check=True
         )
-        for target in ("toolchain", "doctor", "sim", "oss", "oracle", "compare", "program"):
+        for target in (
+            "toolchain",
+            "doctor",
+            "sim",
+            "oss",
+            "oracle",
+            "compare",
+            "program",
+            "dev-load",
+            "dev-preflight",
+            "dev-fault-inject",
+        ):
             self.assertIn(target, result.stdout)
+
+    def test_fogcast_targets_dispatch_fixed_actions_with_environment_selectors(self):
+        run_id = "0123456789abcdef0123456789abcdef"
+        for target, action in (
+            ("dev-load", "load"),
+            ("dev-preflight", "preflight"),
+            ("dev-fault-inject", "fault-inject"),
+        ):
+            with self.subTest(target=target):
+                result = subprocess.run(
+                    [
+                        "make",
+                        "-n",
+                        target,
+                        "EXP=020_linux_mailbox",
+                        "BUILD=oss",
+                        f"RUN_ID={run_id}",
+                    ],
+                    cwd=ROOT,
+                    text=True,
+                    capture_output=True,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(f"scripts/fogcast_dev.py {action}", result.stdout)
+                self.assertIn('--experiment "$EXP"', result.stdout)
+                self.assertIn('--build "$BUILD"', result.stdout)
+                self.assertIn('--run-id "$RUN_ID"', result.stdout)
 
     def test_unknown_experiment_is_rejected(self):
         result = subprocess.run(

@@ -15,11 +15,20 @@ PROGRAM_CABLE_INDEX ?=
 PROGRAM_EXPECTED_BOARD ?=
 PROGRAM_EXPECTED_MAIN_SHA256 ?=
 PROGRAM_DRY_RUN ?=
+FOGCAST_DEV_HOST ?=
+FOGCAST_DEV_USER ?=
+FOGCAST_DEV_EXPECTED_BOARD ?=
+FOGCAST_DEV_EXPECTED_MAIN_SHA256 ?=
+FOGCAST_DEV_TOOL_SHA256 ?=
+FOGCAST_DEV_SSH ?=
+FOGCAST_DEV_SCP ?=
+FOGCAST_DEV_DRY_RUN ?= 1
 
 # Pass operator-selected programming settings through the environment.  This
 # avoids interpolating host/user values into a shell command; program.py does
 # the strict validation before creating any subprocess.
 export EXP BUILD RUN_ID PYTHON PROGRAM_TRANSPORT MISTER_HOST MISTER_USER PROGRAMMER PROGRAM_SSH PROGRAM_SCP PROGRAM_CABLE PROGRAM_CABLE_INDEX PROGRAM_EXPECTED_BOARD PROGRAM_EXPECTED_MAIN_SHA256 PROGRAM_DRY_RUN
+export FOGCAST_DEV_HOST FOGCAST_DEV_USER FOGCAST_DEV_EXPECTED_BOARD FOGCAST_DEV_EXPECTED_MAIN_SHA256 FOGCAST_DEV_TOOL_SHA256 FOGCAST_DEV_SSH FOGCAST_DEV_SCP FOGCAST_DEV_DRY_RUN
 
 help:
 	@printf '%s\n' \
@@ -34,6 +43,9 @@ help:
 		"  oracle     Build an experiment with the explicit Quartus oracle lane" \
 		"  compare    Compare OSS and oracle build results" \
 		"  dev-bundle Build a private unsigned OSS/oracle development bundle" \
+		"  dev-load   Stage, run, recover, and retrieve one FogCast development result" \
+		"  dev-preflight  Stage and preflight one bundle without reboot/result retrieval" \
+		"  dev-fault-inject  Run the deterministic fenced kill/recovery workflow" \
 		"  program    Load one artifact volatile-only (mister default; jtag optional)" \
 		"  clean      Remove generated output for an experiment" \
 		"" \
@@ -41,7 +53,9 @@ help:
 		"  PROGRAM_TRANSPORT=mister MISTER_HOST/MISTER_USER required for mister" \
 		"  PROGRAM_EXPECTED_BOARD is required for every non-dry action (misterpi or de10nano)" \
 		"  PROGRAM_EXPECTED_MAIN_SHA256 is required for non-dry mister; PROGRAM_CABLE_INDEX is rejected for USB-Blaster II" \
-		"  PROGRAMMER/PROGRAM_SSH/PROGRAM_SCP/PROGRAM_CABLE are optional; PROGRAM_DRY_RUN=1 is the safe default (0/false for live)"
+		"  PROGRAMMER/PROGRAM_SSH/PROGRAM_SCP/PROGRAM_CABLE are optional; PROGRAM_DRY_RUN=1 is the safe default (0/false for live)" \
+		"  FogCast targets require FOGCAST_DEV_HOST/USER/EXPECTED_BOARD/EXPECTED_MAIN_SHA256/TOOL_SHA256" \
+		"  FOGCAST_DEV_SSH/FOGCAST_DEV_SCP are optional pinned clients; FOGCAST_DEV_DRY_RUN=1 is the safe default"
 
 define require_exp
 	@if ! printf '%s\n' "$$EXP" | grep -Eq '^[0-9][0-9][0-9]_[a-z0-9_]+$$'; then \
@@ -50,7 +64,7 @@ define require_exp
 	fi
 endef
 
-.PHONY: toolchain toolchain-check doctor doctor-strict sim oss oracle compare dev-bundle program clean
+.PHONY: toolchain toolchain-check doctor doctor-strict sim oss oracle compare dev-bundle dev-load dev-preflight dev-fault-inject program clean
 
 toolchain:
 	@scripts/bootstrap.sh
@@ -98,6 +112,33 @@ dev-bundle:
 	else \
 		exec "$(PYTHON)" scripts/dev_bundle.py --experiment "$$EXP" --lane "$$BUILD"; \
 	fi
+
+define require_fogcast_dev
+	@if [ "$$EXP" != "020_linux_mailbox" ]; then \
+		printf 'FogCast development transport requires EXP=020_linux_mailbox\n' >&2; \
+		exit 2; \
+	fi
+	@if [ "$$BUILD" != "oss" ] && [ "$$BUILD" != "oracle" ]; then \
+		printf 'FogCast development transport requires BUILD=oss or BUILD=oracle\n' >&2; \
+		exit 2; \
+	fi
+	@if ! printf '%s\n' "$$RUN_ID" | grep -Eq '^[0-9a-f]{32}$$'; then \
+		printf 'FogCast development transport requires RUN_ID=<32-lower-hex>\n' >&2; \
+		exit 2; \
+	fi
+endef
+
+dev-load:
+	$(require_fogcast_dev)
+	@exec "$$PYTHON" scripts/fogcast_dev.py load --experiment "$$EXP" --build "$$BUILD" --run-id "$$RUN_ID"
+
+dev-preflight:
+	$(require_fogcast_dev)
+	@exec "$$PYTHON" scripts/fogcast_dev.py preflight --experiment "$$EXP" --build "$$BUILD" --run-id "$$RUN_ID"
+
+dev-fault-inject:
+	$(require_fogcast_dev)
+	@exec "$$PYTHON" scripts/fogcast_dev.py fault-inject --experiment "$$EXP" --build "$$BUILD" --run-id "$$RUN_ID"
 
 program:
 	@scripts/program.py
