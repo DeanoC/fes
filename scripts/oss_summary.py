@@ -12,6 +12,11 @@ import sys
 from pathlib import Path
 from typing import Any, Sequence
 
+try:  # Imports work both as ``scripts.oss_summary`` and as a CLI script.
+    from .experiment_policy import ExperimentPolicy, PolicyError, policy_for
+except ImportError:  # pragma: no cover - exercised by the script entry point.
+    from experiment_policy import ExperimentPolicy, PolicyError, policy_for
+
 
 TARGET_DEVICE = "5CSEBA6U23I7"
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -68,7 +73,12 @@ def _integer(value: Any, *, label: str) -> int:
     return int(number)
 
 
-def _timing(path: Path, requested_mhz: float, clock_prefix: str) -> tuple[str, float]:
+def _timing(
+    path: Path,
+    requested_mhz: float,
+    clock_prefix: str,
+    policy: ExperimentPolicy | None = None,
+) -> tuple[str, float]:
     timing_path = _regular_file(path, "timing report")
     try:
         timing = json.loads(timing_path.read_text(encoding="utf-8"))
@@ -79,7 +89,10 @@ def _timing(path: Path, requested_mhz: float, clock_prefix: str) -> tuple[str, f
 
     matches: list[tuple[str, dict[str, Any]]] = []
     for clock_name, values in timing["fmax"].items():
-        if isinstance(clock_name, str) and clock_name.startswith(clock_prefix) and isinstance(values, dict):
+        # Timing identities are closed per experiment.  Do not use raw
+        # startswith: FPGA_CLK1_500_FAKE must not attest FPGA_CLK1_50.
+        intended = policy.matches_clock(clock_name) if policy is not None else clock_name == clock_prefix
+        if intended and isinstance(values, dict):
             matches.append((clock_name, values))
     if len(matches) != 1:
         raise SummaryError(
@@ -111,7 +124,11 @@ def _route_status(path: Path) -> None:
         raise SummaryError(f"route log contains an unrouted marker: {route_path}")
 
 
-def _resource_class(name: str) -> str:
+def _resource_class(name: str, policy: ExperimentPolicy | None = None) -> str:
+    """Classify a resource through the selected closed experiment policy."""
+
+    if policy is not None:
+        return policy.classify_resource(name)
     if name in ORDINARY_RESOURCES:
         return "ordinary"
     if name in FORBIDDEN_MISTRAL_DSP_RESOURCES:
@@ -124,6 +141,7 @@ def _resource_class(name: str) -> str:
 
 def _resources(
     timing_path: Path,
+    policy: ExperimentPolicy | None = None,
 ) -> tuple[
     dict[str, dict[str, Any]],
     dict[str, dict[str, Any]],
@@ -157,20 +175,29 @@ def _resources(
     resource_classes: dict[str, str] = {}
     forbidden_in_use: list[str] = []
     for name, values in resources.items():
-        classification = _resource_class(name)
+        classification = _resource_class(name, policy)
         resource_classes[name] = classification
-        if classification == "forbidden":
+        if classification in {"forbidden", "allowed"}:
             hard_blocks[name] = values
-            if values["used"] > 0:
+            expected = policy.allowed_hard_blocks.get(name) if policy is not None else None
+            if classification == "forbidden" and values["used"] > 0:
                 forbidden_in_use.append(f"{name}={values['used']}")
+            elif classification == "allowed" and expected is not None and values["used"] != expected:
+                forbidden_in_use.append(f"{name}={values['used']} (expected exactly {expected})")
         elif classification == "unknown":
             unknown_resources[name] = values
+
+    missing_allowed: list[str] = []
+    if policy is not None:
+        missing_allowed = sorted(set(policy.allowed_hard_blocks) - set(resources))
 
     reasons: list[str] = []
     if forbidden_in_use:
         reasons.append("forbidden hard resources in use: " + ", ".join(sorted(forbidden_in_use)))
     if unknown_resources:
         reasons.append("unknown utilization resources: " + ", ".join(sorted(unknown_resources)))
+    if missing_allowed:
+        reasons.append("missing allowed hard resources: " + ", ".join(missing_allowed))
     status = "fail" if reasons else "pass"
     reason = "; ".join(reasons) if reasons else "no forbidden hard resources or unknown utilization keys"
     return resources, hard_blocks, unknown_resources, resource_classes, status, reason
@@ -379,13 +406,27 @@ def build_summary(
     experiment: str = "010_blinky",
     target: str = TARGET_DEVICE,
 ) -> dict[str, Any]:
+    try:
+        policy = policy_for(experiment)
+    except PolicyError as exc:
+        raise SummaryError(str(exc)) from exc
     if target != TARGET_DEVICE:
         raise SummaryError(f"target must be {TARGET_DEVICE}, got {target!r}")
     if requested_mhz <= 0 or not math.isfinite(requested_mhz):
         raise SummaryError("requested frequency must be positive and finite")
+    if float(requested_mhz) != float(policy.clock_mhz):
+        raise SummaryError(
+            f"requested frequency is {requested_mhz:g} MHz, expected {policy.clock_mhz:g} MHz for {experiment}"
+        )
+    if clock_prefix != policy.clock:
+        raise SummaryError(
+            f"clock prefix is {clock_prefix!r}, expected {policy.clock!r} for {experiment}"
+        )
     _route_status(route_log)
-    clock_name, achieved_mhz = _timing(timing_json, requested_mhz, clock_prefix)
-    resources, hard_blocks, unknown_resources, resource_classes, hard_block_status, hard_block_reason = _resources(timing_json)
+    clock_name, achieved_mhz = _timing(timing_json, requested_mhz, clock_prefix, policy)
+    resources, hard_blocks, unknown_resources, resource_classes, hard_block_status, hard_block_reason = _resources(
+        timing_json, policy
+    )
     tools = _authenticated_tools(authenticated_tools)
     source_records = _keyed_records(source_hashes, label="source hash", pattern=SHA256_RE)
     pin_records = _keyed_records(tool_pins, label="tool pin", pattern=COMMIT_RE)
@@ -402,6 +443,10 @@ def build_summary(
     )
     build_status = "pass" if hard_block_status == "pass" else "fail"
     return {
+        "experiment": experiment,
+        "top": policy.top,
+        "clock_constraint_mhz": float(policy.clock_mhz),
+        "allowed_hard_blocks": dict(policy.allowed_hard_blocks),
         "status": build_status,
         "build_status": build_status,
         "route": {"status": "pass", "unrouted": False},
@@ -423,6 +468,7 @@ def build_summary(
         "source_hashes": source_records,
         "tool_pins": pin_records,
         "target": target,
+        "experiment_policy": policy.as_dict(),
     }
 
 

@@ -51,11 +51,13 @@ class OssPipelinePurityTests(unittest.TestCase):
             "scripts/run_logged.sh",
             "scripts/collect_manifest.py",
             "scripts/lockfile.py",
+            "scripts/experiment_policy.py",
             "scripts/oss_summary.py",
             "toolchain.lock",
             "boards/de10nano/pins.qsf",
             "boards/de10nano/clocks.sdc",
             "experiments/010_blinky/rtl/top.v",
+            "experiments/020_linux_mailbox/rtl/top.v",
         ):
             destination = repository / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -140,6 +142,17 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertIn("run_logged.sh", commands)
         self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
 
+    def test_print_commands_selects_mailbox_policy_and_hps_source(self) -> None:
+        result = self._run("--print-commands", "--experiment", "020_linux_mailbox")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/020_linux_mailbox/rtl/top.v", commands)
+        self.assertIn("-top top", commands)
+        self.assertIn("-nobram -nolutram -nodsp", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
     def test_script_and_commands_have_no_proprietary_lane_references(self) -> None:
         forbidden = ("quartus", "qsys", "sopc", "/opt/intel", "QUARTUS_ROOTDIR")
         script = BUILD_OSS.read_text(encoding="utf-8")
@@ -154,6 +167,14 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("invalid EXP", result.stderr + result.stdout)
         self.assertFalse(self.marker.exists(), "invalid experiment must stop before tool execution")
+
+    def test_hostile_experiment_value_is_rejected_without_shell_execution(self) -> None:
+        hostile = "020_linux_mailbox' ; touch '" + str(self.fixture / "selector-marker") + "' ; echo '"
+        result = self._run("--print-commands", "--experiment", hostile)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("invalid EXP", result.stderr + result.stdout)
+        self.assertFalse((self.fixture / "selector-marker").exists())
+        self.assertFalse(self.marker.exists(), "hostile experiment must stop before tool execution")
 
     def test_output_symlink_is_rejected_before_external_target_changes(self) -> None:
         experiment = "999_symlink_guard"

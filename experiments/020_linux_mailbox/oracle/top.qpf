@@ -1,0 +1,3 @@
+# Quartus project file for the optional 17.0.2 mailbox oracle lane.
+QUARTUS_VERSION = "17.0";
+PROJECT_REVISION = "top";

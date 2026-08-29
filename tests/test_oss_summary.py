@@ -25,6 +25,11 @@ SOURCE_HASHES = {
     "scripts/run_logged.sh": "7" * 64,
     "toolchain.lock": "8" * 64,
 }
+MAILBOX_SOURCE_HASHES = {
+    **SOURCE_HASHES,
+    "experiments/010_blinky/rtl/top.v": "3" * 64,
+    "experiments/020_linux_mailbox/rtl/top.v": "9" * 64,
+}
 
 
 class OssSummaryTests(unittest.TestCase):
@@ -39,6 +44,7 @@ class OssSummaryTests(unittest.TestCase):
         tool_pins: dict[str, str] | None = None,
         tool_auth: dict[str, tuple[str, str]] | None = None,
         lane: str = "oss",
+        experiment: str = "010_blinky",
     ) -> tuple[subprocess.CompletedProcess[str], Path]:
         temporary = tempfile.TemporaryDirectory(prefix="oss-summary-")
         self.addCleanup(temporary.cleanup)
@@ -69,12 +75,15 @@ class OssSummaryTests(unittest.TestCase):
             str(root / "timing.txt"),
             "--lane",
             lane,
+            "--experiment",
+            experiment,
             "--authenticated-tool",
             f"yosys={YOSYS_COMMIT}:{(tool_auth or {}).get('yosys', (YOSYS_COMMIT, YOSYS_DIGEST))[1]}",
             "--authenticated-tool",
             f"nextpnr-mistral={NEXTPNR_COMMIT}:{(tool_auth or {}).get('nextpnr-mistral', (NEXTPNR_COMMIT, NEXTPNR_DIGEST))[1]}",
         ]
-        for path, digest in sorted((source_hashes or SOURCE_HASHES).items()):
+        selected_sources = source_hashes or (MAILBOX_SOURCE_HASHES if experiment == "020_linux_mailbox" else SOURCE_HASHES)
+        for path, digest in sorted(selected_sources.items()):
             command.extend(["--source-hash", f"{path}={digest}"])
         for name, commit in sorted((tool_pins or {"nextpnr": NEXTPNR_COMMIT, "yosys": YOSYS_COMMIT}).items()):
             command.extend(["--tool-pin", f"{name}={commit}"])
@@ -89,18 +98,25 @@ class OssSummaryTests(unittest.TestCase):
         result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True)
         return result, output_path
 
-    def _valid_previous_manifest(self, *, rbf: bytes = b"rbf-bytes\n") -> dict:
+    def _valid_previous_manifest(
+        self,
+        *,
+        rbf: bytes = b"rbf-bytes\n",
+        experiment: str = "010_blinky",
+        source_hashes: dict[str, str] | None = None,
+    ) -> dict:
         rbf_digest = hashlib.sha256(rbf).hexdigest()
+        selected_sources = source_hashes or (MAILBOX_SOURCE_HASHES if experiment == "020_linux_mailbox" else SOURCE_HASHES)
         return {
             "lane": "oss",
-            "experiment": "010_blinky",
+            "experiment": experiment,
             "target": "5CSEBA6U23I7",
-            "sources": [{"path": path, "sha256": digest} for path, digest in sorted(SOURCE_HASHES.items())],
+            "sources": [{"path": path, "sha256": digest} for path, digest in sorted(selected_sources.items())],
             "tool_pins": {
                 "nextpnr": {"commit": NEXTPNR_COMMIT},
                 "yosys": {"commit": YOSYS_COMMIT},
             },
-            "artifacts": [{"path": "build/oss/010_blinky/top.rbf", "sha256": rbf_digest}],
+            "artifacts": [{"path": f"build/oss/{experiment}/top.rbf", "sha256": rbf_digest}],
             "build": {
                 "status": "pass",
                 "build_status": "pass",
@@ -242,6 +258,109 @@ class OssSummaryTests(unittest.TestCase):
         self.assertTrue(stability["rbf_stability_measured"])
         self.assertTrue(stability["rbf_stable"])
         self.assertIn("matched", stability["rbf_stability_reason"])
+
+    def test_mailbox_summary_accepts_exact_hps_primitive_and_rejects_other_hard_blocks(self) -> None:
+        timing = {
+            "fmax": {"protocol.FPGA_CLK1_50": {"constraint": 50, "achieved": 130.8}},
+            "utilization": {
+                "MISTRAL_COMB": {"used": 76, "available": 83820},
+                "MISTRAL_FF": {"used": 19, "available": 167640},
+                "MISTRAL_IO": {"used": 1, "available": 472},
+                "MISTRAL_CLKENA": {"used": 1, "available": 2},
+                "MISTRAL_BUF": {"used": 8, "available": 0},
+                "MISTRAL_M10K": {"used": 0, "available": 553},
+                "cyclonev_oscillator": {"used": 0, "available": 1},
+                "cyclonev_hps_interface_mpu_general_purpose": {"used": 1, "available": 1},
+            },
+        }
+        previous = self._valid_previous_manifest(experiment="020_linux_mailbox")
+        result, output = self._run_summary(
+            timing,
+            "Info: Program finished normally.\n",
+            previous=b"rbf-bytes\n",
+            previous_manifest=previous,
+            experiment="020_linux_mailbox",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        summary = json.loads(output.read_text(encoding="utf-8"))
+        self.assertEqual(summary["experiment"], "020_linux_mailbox")
+        self.assertEqual(summary["hard_blocks"]["cyclonev_hps_interface_mpu_general_purpose"]["used"], 1)
+        self.assertEqual(summary["hard_block_status"], "pass")
+
+    def test_mailbox_summary_rejects_missing_or_extra_hps_usage(self) -> None:
+        for resource_name, used, expected in (
+            ("cyclonev_hps_interface_mpu_general_purpose", 0, "exactly 1"),
+            ("MISTRAL_M10K", 1, "forbidden"),
+        ):
+            with self.subTest(resource_name=resource_name):
+                result, output = self._run_summary(
+                    {
+                        "fmax": {"protocol.FPGA_CLK1_50": {"constraint": 50, "achieved": 130.8}},
+                        "utilization": {
+                            "MISTRAL_COMB": {"used": 1, "available": 83820},
+                            "cyclonev_hps_interface_mpu_general_purpose": {"used": 1, "available": 1},
+                            resource_name: {"used": used, "available": 553 if resource_name == "MISTRAL_M10K" else 1},
+                        },
+                    },
+                    "Info: Program finished normally.\n",
+                    experiment="020_linux_mailbox",
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(expected, (result.stderr + result.stdout).lower())
+                self.assertTrue(output.exists())
+
+    def test_timing_rejects_adjacent_or_unrelated_clock_name_collisions(self) -> None:
+        cases = (
+            ("010_blinky", "FPGA_CLK1_500_FAKE"),
+            ("010_blinky", "FPGA_CLK1_50_EXTRA"),
+            ("010_blinky", "FPGA_CLK1_50X"),
+            ("020_linux_mailbox", "protocol.FPGA_CLK1_500_FAKE"),
+            ("020_linux_mailbox", "protocol.FPGA_CLK1_50_EXTRA"),
+            ("020_linux_mailbox", "unrelated.FPGA_CLK1_50"),
+        )
+        for experiment, hostile_clock in cases:
+            with self.subTest(experiment=experiment, hostile_clock=hostile_clock):
+                utilization = {}
+                if experiment == "020_linux_mailbox":
+                    utilization = {
+                        "cyclonev_hps_interface_mpu_general_purpose": {"used": 1, "available": 1},
+                    }
+                result, output = self._run_summary(
+                    {
+                        "fmax": {hostile_clock: {"constraint": 50, "achieved": 130.8}},
+                        "utilization": utilization,
+                    },
+                    "Info: Program finished normally.\n",
+                    experiment=experiment,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("exactly one intended clock", (result.stderr + result.stdout).lower())
+                self.assertFalse(output.exists())
+
+    def test_timing_accepts_real_mailbox_and_decorated_blinky_clock_names(self) -> None:
+        for experiment, clock_name, utilization in (
+            (
+                "020_linux_mailbox",
+                "protocol.FPGA_CLK1_50",
+                {"cyclonev_hps_interface_mpu_general_purpose": {"used": 1, "available": 1}},
+            ),
+            (
+                "010_blinky",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+                {},
+            ),
+        ):
+            with self.subTest(experiment=experiment, clock_name=clock_name):
+                result, output = self._run_summary(
+                    {
+                        "fmax": {clock_name: {"constraint": 50, "achieved": 130.8}},
+                        "utilization": utilization,
+                    },
+                    "Info: Program finished normally.\n",
+                    experiment=experiment,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(json.loads(output.read_text(encoding="utf-8"))["timing"]["clock"], clock_name)
 
     def test_stale_source_does_not_claim_stability(self) -> None:
         previous = self._valid_previous_manifest()

@@ -11,7 +11,7 @@ PYTHON="${PYTHON:-python3}"
 EXP="${EXP:-010_blinky}"
 TARGET="5CSEBA6U23I7"
 PRINT_COMMANDS=0
-POSITIONAL_SET=0
+EXPERIMENT_OPTION_SET=0
 
 usage() {
     printf '%s\n' \
@@ -31,7 +31,9 @@ while (( $# > 0 )); do
             ;;
         --experiment)
             (( $# >= 2 )) || fail "--experiment requires a value"
+            (( EXPERIMENT_OPTION_SET == 0 )) || fail "--experiment may be specified only once"
             EXP=$2
+            EXPERIMENT_OPTION_SET=1
             shift 2
             ;;
         -h|--help)
@@ -46,10 +48,7 @@ while (( $# > 0 )); do
             fail "unknown option: $1"
             ;;
         *)
-            (( POSITIONAL_SET == 0 )) || fail "unexpected argument: $1"
-            EXP=$1
-            POSITIONAL_SET=1
-            shift
+            fail "unexpected positional selector: $1"
             ;;
     esac
 done
@@ -287,17 +286,23 @@ cp -- "$oracle_qpf" "$project_dir/top.qpf"
 "$PYTHON" - "$oracle_qsf" "$project_dir/top.qsf" "$rtl" "$sdc" "$qsf" <<'PY'
 from pathlib import Path
 import json
+import re
 import sys
 
 source, destination, rtl, sdc, pins = map(Path, sys.argv[1:])
 text = source.read_text(encoding="utf-8")
-replacements = {
-    '"../../../experiments/010_blinky/rtl/top.v"': json.dumps(str(rtl)),
-    '"../../../boards/de10nano/clocks.sdc"': json.dumps(str(sdc)),
-    '"../../../boards/de10nano/pins.qsf"': json.dumps(str(pins)),
-}
-for old, new in replacements.items():
-    text = text.replace(old, new)
+for assignment, value in (("VERILOG_FILE", rtl), ("SDC_FILE", sdc)):
+    pattern = rf"(?m)^(\s*set_global_assignment\s+-name\s+{assignment}\s+)[^\s#]+"
+    text, replacements = re.subn(
+        pattern,
+        lambda match: match.group(1) + json.dumps(str(value)),
+        text,
+    )
+    if replacements != 1:
+        raise SystemExit(f"oracle QSF must contain exactly one {assignment} assignment")
+# Keep compatibility with the original blinky template if it declares the
+# shared board pins file.  Mailbox deliberately has no output-pin assignment.
+text = text.replace('"../../../boards/de10nano/pins.qsf"', json.dumps(str(pins)))
 destination.write_text(text, encoding="utf-8")
 PY
 
@@ -329,8 +334,8 @@ cp -- "$timing_source" "$timing_report"
 # by compare_builds.py.  The parser is deliberately conservative: an absent
 # count stays absent, while an observed zero remains an explicit zero.
 {
-    print_command "$PYTHON" - "$fit_report" "$timing_report" "$summary" "$rbf" "$EXP" "$TARGET" "$rtl" "$sdc" "$qsf" "$oracle_qsf" "$QUARTUS_SH" "$quartus_version_line" "$quartus_version_sha256"
-    "$PYTHON" - "$fit_report" "$timing_report" "$summary" "$rbf" "$EXP" "$TARGET" "$rtl" "$sdc" "$qsf" "$oracle_qsf" "$QUARTUS_SH" "$quartus_version_line" "$quartus_version_sha256" <<'PY'
+    print_command "$PYTHON" - "$fit_report" "$timing_report" "$summary" "$rbf" "$EXP" "$TARGET" "$rtl" "$sdc" "$qsf" "$oracle_qpf" "$oracle_qsf" "$QUARTUS_SH" "$quartus_version_line" "$quartus_version_sha256" "$version_log" "$quartus_log"
+    "$PYTHON" - "$fit_report" "$timing_report" "$summary" "$rbf" "$EXP" "$TARGET" "$rtl" "$sdc" "$qsf" "$oracle_qpf" "$oracle_qsf" "$QUARTUS_SH" "$quartus_version_line" "$quartus_version_sha256" "$version_log" "$quartus_log" <<'PY'
 from __future__ import annotations
 
 import hashlib
@@ -338,6 +343,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import Mapping
 
 fit_path = Path(sys.argv[1])
 timing_path = Path(sys.argv[2])
@@ -348,10 +354,13 @@ target = sys.argv[6]
 rtl_path = Path(sys.argv[7])
 sdc_path = Path(sys.argv[8])
 pins_path = Path(sys.argv[9])
-oracle_qsf_path = Path(sys.argv[10])
-quartus_path = Path(sys.argv[11])
-quartus_version = sys.argv[12]
-quartus_version_output_sha256 = sys.argv[13]
+oracle_qpf_path = Path(sys.argv[10])
+oracle_qsf_path = Path(sys.argv[11])
+quartus_path = Path(sys.argv[12])
+quartus_version = sys.argv[13]
+quartus_version_output_sha256 = sys.argv[14]
+version_log_path = Path(sys.argv[15])
+quartus_log_path = Path(sys.argv[16])
 fit_text = fit_path.read_text(encoding="utf-8", errors="replace")
 timing_text = timing_path.read_text(encoding="utf-8", errors="replace")
 
@@ -396,6 +405,8 @@ def count_on_line(line: str) -> tuple[int | None, int | None]:
             values.extend(re.findall(number_token, cell))
         if len(values) >= 2:
             return int(float(values[0].replace(",", ""))), int(float(values[1].replace(",", "")))
+        if len(values) == 1:
+            return int(float(values[0].replace(",", ""))), None
         return (
             int(float(used.group(1).replace(",", ""))) if used else None,
             int(float(available.group(1).replace(",", ""))) if available else None,
@@ -411,6 +422,8 @@ def count_on_line(line: str) -> tuple[int | None, int | None]:
     values = re.findall(number_token, line)
     if len(values) >= 2:
         return int(float(values[0].replace(",", ""))), int(float(values[1].replace(",", "")))
+    if len(values) == 1:
+        return int(float(values[0].replace(",", ""))), None
     return (
         int(float(used.group(1).replace(",", ""))) if used else None,
         int(float(available.group(1).replace(",", ""))) if available else None,
@@ -424,6 +437,9 @@ resource_patterns = {
     # the substring ``IO``: it occurs in version/build prose and would turn
     # those numbers into a fake resource record.
     "IO": re.compile(r"\b(?:total\s+(?:user\s+)?(?:i\s*/?\s*o\s+)?pins?|i\s*/?\s*o\s+pins?)\b", re.I),
+    "block_memory_bits": re.compile(r"\b(?:total\s+)?block\s+memory\s+bits?\b", re.I),
+    "lutram_bits": re.compile(r"\b(?:total\s+)?(?:mlab|lutram)\s+memory\s+bits?\b", re.I),
+    "sdram_interfaces": re.compile(r"\b(?:total\s+)?sdram\s+(?:interfaces?|ports?)\b", re.I),
 }
 
 
@@ -468,7 +484,8 @@ def summary_rows(text: str) -> list[tuple[str, str, str, list[str]]]:
         "fitter resource utilization by entity",
     }
     active = False
-    rows: list[tuple[str, str, str, list[str]]] = []
+    current_name: str | None = None
+    sections: dict[str, list[tuple[str, str, str, list[str]]]] = {}
     for line in text.splitlines():
         row = table_row(line)
         if row is None:
@@ -477,13 +494,21 @@ def summary_rows(text: str) -> list[tuple[str, str, str, list[str]]]:
         normalized = re.sub(r"\s+", " ", label).strip().casefold()
         if normalized in summary_names:
             active = True
+            current_name = normalized
+            sections.setdefault(normalized, [])
             continue
         if normalized in end_names:
             active = False
+            current_name = None
             continue
-        if active:
-            rows.append((line, delimiter, label, value_cells))
-    return rows
+        if active and current_name is not None:
+            sections[current_name].append((line, delimiter, label, value_cells))
+    # The resource-usage table is the canonical physical fitted-resource
+    # section.  Prefer it when present so the same physical quantity is not
+    # counted once in Fitter Summary and again in the detailed table.  Tiny
+    # fixtures and older Quartus exports may only contain Fitter Summary, so
+    # retain that as a strict fallback.
+    return sections.get("fitter resource usage summary") or sections.get("fitter summary", [])
 
 
 all_fit_rows = [
@@ -531,16 +556,53 @@ def hard_record(
         candidates.append((used, available))
     if malformed:
         return None, f"{name}: fitter evidence is unrecognized"
-    unique = sorted(set(candidates))
-    if not unique:
+    if not candidates:
         return None, f"{name}: fitter evidence is missing"
-    if len(unique) != 1:
+    if len(candidates) != 1:
         return None, f"{name}: fitter evidence is ambiguous"
-    used, available = unique[0]
+    used, available = candidates[0]
     record: dict[str, object] = {"used": used, "available": available}
     record["utilization_percent"] = round(used * 100.0 / available, 6) if available else None
     if used != 0:
         return record, f"{name}: unexpected hard resource usage ({used})"
+    return record, None
+
+
+def measured_report_record(
+    name: str,
+    patterns: tuple[re.Pattern[str], ...],
+    *,
+    require_zero: bool = True,
+    allow_missing_available: bool = False,
+) -> tuple[dict[str, object] | None, str | None]:
+    """Read exactly one canonical resource row from the selected report table."""
+
+    candidates: list[tuple[int, int]] = []
+    malformed = False
+    for line, _delimiter, label, _value_cells in fitted_rows:
+        if not any(pattern.fullmatch(label) for pattern in patterns):
+            continue
+        used, available = count_on_line(line)
+        if used is None or (available is None and not allow_missing_available):
+            malformed = True
+            continue
+        candidates.append((used, available))
+    if malformed:
+        return None, f"{name}: fitter evidence is unrecognized"
+    if not candidates:
+        return None, f"{name}: fitter evidence is missing"
+    if len(candidates) != 1:
+        return None, f"{name}: fitter evidence is ambiguous"
+    used, available = candidates[0]
+    record: dict[str, object] = {
+        "used": used,
+        "available": available,
+        "utilization_percent": round(used * 100.0 / available, 6) if available else None,
+        "evidence_kind": "fitter_summary",
+        "measured": True,
+    }
+    if require_zero and used != 0:
+        return record, f"{name}: unexpected forbidden resource usage ({used})"
     return record, None
 
 
@@ -560,12 +622,96 @@ for name, patterns in hard_row_patterns.items():
         hard_errors.append(error)
 
 
+# Unlike PLL/RAM/DSP, the mailbox intentionally consumes one exact HPS
+# general-purpose primitive.  Quartus releases spell this aggregate either as
+# the primitive identifier or as a human-readable ``HPS ... general purpose``
+# row, so accept only those closed aliases and retain the fitter measurement.
+mailbox_hps_patterns = (
+    re.compile(
+        r"^(?:total\s+)?cyclonev[_ ]hps[_ ]interface[_ ]mpu[_ ]general[_ ]purpose(?:[_ ]interfaces?)?$",
+        re.I,
+    ),
+    re.compile(
+        r"^(?:total\s+)?hps(?:[_ ]+interface)?(?:[_ ]+mpu)?[_ ]+general[_ ]+purpose(?:[_ ]+(?:interfaces?|i/o))?$",
+        re.I,
+    ),
+    re.compile(r"^mpu[_ ]+general[_ ]+purpose$", re.I),
+)
+if experiment == "020_linux_mailbox":
+    hps_candidates: list[tuple[int, int]] = []
+    hps_malformed = False
+    for line, _delimiter, label, _value_cells in fitted_rows:
+        if not any(pattern.fullmatch(label) for pattern in mailbox_hps_patterns):
+            continue
+        used, available = count_on_line(line)
+        if used is None or available is None:
+            hps_malformed = True
+            continue
+        hps_candidates.append((used, available))
+    if hps_malformed:
+        hard_errors.append(
+            "cyclonev_hps_interface_mpu_general_purpose: fitter evidence is unrecognized"
+        )
+    if len(hps_candidates) != 1:
+        hard_errors.append(
+            "cyclonev_hps_interface_mpu_general_purpose: fitter evidence is missing or ambiguous"
+        )
+    else:
+        used, available = hps_candidates[0]
+        hps_record: dict[str, object] = {
+            "used": used,
+            "available": available,
+            "utilization_percent": round(used * 100.0 / available, 6) if available else None,
+            "evidence_kind": "fitter_summary",
+            "measured": True,
+        }
+        hard_blocks["cyclonev_hps_interface_mpu_general_purpose"] = hps_record
+        if used != 1:
+            hard_errors.append(
+                "cyclonev_hps_interface_mpu_general_purpose: expected exactly one, got "
+                + str(used)
+            )
+
+
 def static_exclusion(
     name: str,
     report_pattern: re.Pattern[str],
     source_patterns: tuple[str, ...],
 ) -> tuple[dict[str, object], str | None]:
+    static_basis = (
+        "static source/project/command exclusion"
+        if experiment == "020_linux_mailbox"
+        else "static source/project exclusion"
+    )
+    proof_commands = (
+        [
+            {
+                "path": f"build/oracle/{experiment}/{path.name}",
+                "sha256": sha256_file(path),
+            }
+            for path in (version_log_path, quartus_log_path)
+        ]
+        if experiment == "020_linux_mailbox"
+        else []
+    )
+    report_binding = (
+        {
+            "path": f"build/oracle/{experiment}/top.fit.rpt",
+            "sha256": sha256_file(fit_path),
+        }
+        if experiment == "020_linux_mailbox"
+        else None
+    )
+
     def excluded_record(source_records: list[dict[str, str]]) -> dict[str, object]:
+        exclusion: dict[str, object] = {
+            "basis": static_basis,
+            "patterns": list(source_patterns),
+            "sources": source_records,
+        }
+        if experiment == "020_linux_mailbox":
+            exclusion["commands"] = proof_commands
+            exclusion["report"] = report_binding
         return {
             # No aggregate fitted class count exists for these classes in the
             # normal Cyclone V summary.  Keep that fact distinct from a
@@ -575,11 +721,7 @@ def static_exclusion(
             "status": "excluded",
             "evidence_kind": "static_exclusion",
             "measured": False,
-            "exclusion": {
-                "basis": "static source/project exclusion",
-                "patterns": list(source_patterns),
-                "sources": source_records,
-            },
+            "exclusion": exclusion,
         }
 
     # A normal Cyclone V Fitter Resource Summary can contain MLAB memory-bit
@@ -597,12 +739,16 @@ def static_exclusion(
             return excluded_record([]), f"{name}: fitter report contains a measured row despite static exclusion"
         return excluded_record([]), f"{name}: fitter report contains an unrecognized static-class row"
 
-    source_inputs = (
+    source_inputs = [
         (f"experiments/{experiment}/rtl/top.v", rtl_path),
         ("boards/de10nano/pins.qsf", pins_path),
         ("boards/de10nano/clocks.sdc", sdc_path),
-        (f"experiments/{experiment}/oracle/top.qsf", oracle_qsf_path),
-    )
+    ]
+    if experiment == "020_linux_mailbox":
+        source_inputs.append(
+            (f"experiments/{experiment}/oracle/top.qpf", oracle_qpf_path)
+        )
+    source_inputs.append((f"experiments/{experiment}/oracle/top.qsf", oracle_qsf_path))
     source_records: list[dict[str, str]] = []
     for relative, path in source_inputs:
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -623,7 +769,9 @@ static_hard_contracts = {
             r"\b(?:reg|wire|logic)\s*\[[^\]]+\]\s+\w+\s*\[",
         ),
     ),
-    "HPS": (
+}
+if experiment == "010_blinky":
+    static_hard_contracts["HPS"] = (
         re.compile(r"^(?:total\s+)?(?:hps|hard\s+processor\s+system)\s+blocks?$", re.I),
         (
             r"\bhps\b",
@@ -632,8 +780,7 @@ static_hard_contracts = {
             r"\b(?:hps_component|soc_system|soc_id|arm)\b",
             r"\bsoc\b",
         ),
-    ),
-}
+    )
 for name, (report_pattern, source_patterns) in static_hard_contracts.items():
     record, error = static_exclusion(name, report_pattern, source_patterns)
     hard_blocks[name] = record
@@ -704,9 +851,126 @@ if unknown_resources:
     hard_errors.append("unrecognized hard-resource evidence: " + ", ".join(sorted(unknown_resources)))
 
 hard_block_status = "pass" if not hard_errors else "fail"
-hard_block_reason = "; ".join(hard_errors) if hard_errors else "fitter summary rows measure RAM Blocks/M10K, DSP Blocks, and PLLs; MLAB/LUTRAM and HPS are excluded by static source/project evidence (used=null)"
+if hard_errors:
+    hard_block_reason = "; ".join(hard_errors)
+elif experiment == "020_linux_mailbox":
+    hard_block_reason = "fitter summary rows measure RAM Blocks/M10K, DSP Blocks, PLLs, and one allowed HPS general-purpose primitive; MLAB/LUTRAM remains excluded by static source/project evidence (used=null)"
+else:
+    hard_block_reason = "fitter summary rows measure RAM Blocks/M10K, DSP Blocks, and PLLs; MLAB/LUTRAM and HPS are excluded by static source/project evidence (used=null)"
 
 clock_name = "FPGA_CLK1_50"
+
+
+def top_port_evidence(path: Path) -> dict[str, int]:
+    """Parse only the production top declaration for semantic port counts."""
+
+    text = path.read_text(encoding="utf-8", errors="replace")
+    match = re.search(r"\bmodule\s+top\s*\((?P<ports>.*?)\)\s*;", text, re.I | re.S)
+    if match is None:
+        raise ValueError("production top declaration is missing")
+    counts = {"input": 0, "output": 0, "inout": 0}
+    clock_inputs = 0
+    current_direction: str | None = None
+    for raw_segment in match.group("ports").split(","):
+        segment = re.sub(r"//[^\n]*|/\*.*?\*/", " ", raw_segment, flags=re.S).strip()
+        if not segment:
+            continue
+        direction_match = re.match(r"^(input|output|inout)\b(?P<tail>.*)$", segment, re.I | re.S)
+        if direction_match:
+            current_direction = direction_match.group(1).lower()
+            tail = direction_match.group("tail")
+        elif current_direction is not None:
+            tail = segment
+        else:
+            raise ValueError("production top port declaration has an undeclared ANSI segment")
+        names = re.findall(r"\b[A-Za-z_][A-Za-z0-9_$]*\b", tail)
+        if not names:
+            raise ValueError("production top port declaration is malformed")
+        name = names[-1]
+        counts[current_direction] += 1
+        if current_direction == "input" and name == clock_name:
+            clock_inputs += 1
+    if clock_inputs != 1:
+        raise ValueError("production top must expose exactly one FPGA_CLK1_50 input")
+    return {
+        "clock_inputs": clock_inputs,
+        "external_input_ports": counts["input"] - clock_inputs,
+        "external_output_ports": counts["output"],
+        "bidirectional_ports": counts["inout"],
+    }
+
+
+semantic_resource_evidence: dict[str, int] | None = None
+if experiment == "020_linux_mailbox":
+    try:
+        semantic_resource_evidence = top_port_evidence(rtl_path)
+    except (OSError, ValueError) as exc:
+        hard_errors.append(f"semantic port evidence: {exc}")
+        semantic_resource_evidence = {
+            "clock_inputs": 0,
+            "external_input_ports": 0,
+            "external_output_ports": 0,
+            "bidirectional_ports": 0,
+        }
+
+    def measured_used(
+        records: Mapping[str, dict[str, object]],
+        name: str,
+        *,
+        required: bool = True,
+    ) -> int:
+        record = records.get(name)
+        used = record.get("used") if isinstance(record, dict) else None
+        if record is None and not required:
+            return 0
+        if type(used) is not int or used < 0:
+            hard_errors.append(f"semantic resource evidence is missing or malformed: {name}")
+            return 0
+        return used
+
+    semantic_rows = {
+        "block_memory_bits": (
+            re.compile(r"^(?:total\s+)?block\s+memory\s+bits?$", re.I),
+        ),
+        "lutram_bits": (
+            re.compile(r"^(?:total\s+)?(?:mlab|lutram)\s+memory\s+bits?$", re.I),
+            re.compile(r"^(?:total\s+)?lutram\s+bits?$", re.I),
+        ),
+        "sdram_interfaces": (
+            re.compile(r"^(?:total\s+)?sdram(?:\s+(?:interfaces?|ports?))?$", re.I),
+        ),
+    }
+    for semantic_name, patterns in semantic_rows.items():
+        measured, error = measured_report_record(
+            semantic_name,
+            patterns,
+            allow_missing_available=semantic_name == "lutram_bits",
+        )
+        if measured is not None:
+            resources[semantic_name] = measured
+        if error is not None:
+            hard_errors.append(error)
+
+    semantic_resource_evidence.update(
+        {
+            "hps_general_purpose_interfaces": measured_used(
+                hard_blocks, "cyclonev_hps_interface_mpu_general_purpose"
+            ),
+            "pll_blocks": measured_used(hard_blocks, "PLL"),
+            "dsp_blocks": measured_used(hard_blocks, "DSP"),
+            "block_memory_bits": measured_used(resources, "block_memory_bits"),
+            "lutram_bits": measured_used(resources, "lutram_bits"),
+            "sdram_interfaces": measured_used(resources, "sdram_interfaces"),
+        }
+    )
+    for semantic_name in ("block_memory_bits", "lutram_bits", "sdram_interfaces"):
+        if semantic_resource_evidence[semantic_name] != 0:
+            hard_errors.append(
+                f"{semantic_name}: unexpected forbidden resource usage "
+                f"({semantic_resource_evidence[semantic_name]})"
+            )
+    hard_block_status = "pass" if not hard_errors else "fail"
+    hard_block_reason = "; ".join(hard_errors) if hard_errors else hard_block_reason
 
 
 def fmax_values(cell: str) -> list[float]:
@@ -774,6 +1038,10 @@ common_source_hashes = {
 }
 
 rbf_bytes = rbf_path.read_bytes()
+synthesis_report = {
+    "path": f"build/oracle/{experiment}/top.fit.rpt",
+    "sha256": sha256_file(fit_path),
+}
 provenance = {
     "path": str(quartus_path),
     "executable": str(quartus_path),
@@ -802,6 +1070,13 @@ summary = {
     "unknown_resources": unknown_resources,
     "hard_block_status": hard_block_status,
     "hard_block_reason": hard_block_reason,
+    "clock_intent": clock_name,
+    "allowed_hard_blocks": (
+        {"cyclonev_hps_interface_mpu_general_purpose": 1}
+        if experiment == "020_linux_mailbox"
+        else {}
+    ),
+    "resource_evidence": semantic_resource_evidence,
     "authenticated_tools": {"quartus_sh": provenance},
     "reproducibility": {
         "rbf_size_bytes": len(rbf_bytes),
@@ -813,12 +1088,15 @@ summary = {
     },
     "source_hashes": common_source_hashes,
     "tool_pins": {"quartus": provenance},
+    "synthesis_report": synthesis_report,
+    "synthesis_report_path": synthesis_report["path"],
+    "synthesis_report_sha256": synthesis_report["sha256"],
     "target": target,
     "lane": "oracle",
     "experiment": experiment,
     "simulation": {"status": "not-run"},
 }
-summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+summary_path.write_text(json.dumps(summary, indent=2, sort_keys=False) + "\n", encoding="utf-8")
 timing_path.with_name("timing.txt").write_text(
     "target: " + target + "\n"
     + "constraint: 50 MHz\n"
@@ -850,6 +1128,7 @@ manifest_cmd=(
     --source "$ROOT/scripts/build_oracle.sh"
     --source "$run_logged"
     --source "$collector"
+    --source "$ROOT/scripts/experiment_policy.py"
     --source "$ROOT/scripts/compare_builds.py"
     --source "$ROOT/toolchain.lock"
     --command-log "$version_log"

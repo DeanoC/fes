@@ -2,17 +2,17 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build and verify `020_linux_mailbox` in OSS and Quartus lanes, package its exact FogCast development manifest, and transport it through the private FogCast loader without changing the existing MiSTer programming path.
+**Goal:** Build and verify `020_linux_mailbox` in OSS and Quartus lanes, package its exact FogCast development manifest plus canonical synthesis-resource evidence, and transport it through the private FogCast loader without changing the existing MiSTer programming path.
 
 **Architecture:** The new experiment contains a tiny HPS-GPI/GPO mailbox and a Verilator primitive model. Existing build/report tools become experiment-policy-driven so blinky remains zero-hard-block while mailbox requires exactly one Cyclone V HPS general-purpose primitive. A separate `fogcast_dev.py` transport stages an exact bundle, invokes `mister-fpga-dev`, survives the expected reboot disconnect, and retrieves the hash-bound result.
 
 **Tech Stack:** Python 3 standard library, GNU Make, Bash, Verilog, Verilator, pinned Yosys/Mistral/nextpnr toolchain, Quartus Prime Lite 17.0.2 oracle, SSH/SCP.
 
-**Spec:** sibling FogCast `docs/superpowers/specs/2026-08-27-linux-mailbox-dev-loader-design.md`, amended candidate SHA-256 `b0c708055ffbde0cc97eeb42cf7c0b40d4d2ddcd8a5e73d375a13c8097a2d9e9`, derived from commit `e91ed0e` and pending operator re-approval.
+**Spec:** sibling FogCast `docs/superpowers/specs/2026-08-27-linux-mailbox-dev-loader-design.md`, amended candidate SHA-256 `fe9f8ecc42f9be44a627863562f80a1c92eeb667d868be0071c858f4d388b514`, derived from the operator-approved lifecycle plus the reviewed schema-2 Main identity and signed descriptor-bound synthesis-resource evidence corrections, and pending operator re-approval.
 
 ## Global Constraints
 
-- No implementation task starts until the operator explicitly re-approves the exact amended spec hash recorded above.
+- Software-only isolated implementation and review may proceed against the amended candidate. No staging, commit, cumulative integration, target contact, or HIL begins until the operator explicitly re-approves the exact amended spec hash recorded above.
 - Root coordinator owns integration and evidence; basic tasks use fresh Luna-max worktrees branched from the last reviewed cumulative integration head, never concurrent writers to overlapping files.
 - Before every `git add` or `git commit`, the root coordinator confirms current explicit user authorization; plan text and reviewer approval are not authorization.
 - Sol reviews FPGA/HPS and lifecycle contract changes; Vega independently reviews each task before integration.
@@ -120,34 +120,27 @@ localparam [95:0] MESSAGE = {8'h4f,8'h53,8'h53,8'h20,8'h46,8'h50,8'h47,8'h41,8'h
 - Comparison requires equal target, experiment, clock intent, policy hash, protocol source hash, allowed hard blocks, and passing timing; it explicitly does not require equal RBF hashes.
 
 - [ ] Write failing manifest/comparison tests for missing/mismatched policy hash, protocol hash, target, clock, primitive count, unexpected hard block, timing failure, and distinct-but-valid RBF hashes.
+- [ ] Write failing independent resource-evidence tests for reordered/unknown fields, wrong lane/source/artifact/report binding, any extra external port, HPS general-purpose count other than one, and every nonzero PLL/DSP/block-memory/LUTRAM/SDRAM count. Require both real lane report parsers to emit the same canonical unsigned evidence prefix without sharing the target parser.
 - [ ] Run `python3 -m unittest tests.test_manifest tests.test_compare_builds tests.test_oracle_boundary -v`; expect the new policy/protocol-binding cases to fail.
 - [ ] Create the minimal Quartus project using the identical production `top.v`, device `5CSEBA6U23I7`, `FPGA_CLK1_50` V11, 3.3-V LVTTL, and shared 50 MHz SDC. Do not add simulation model or physical output pins.
 - [ ] Extend collection/comparison using the closed policy module; authenticate Quartus 17.0.2 exactly as M1 already requires.
 - [ ] Run `python3 -m unittest tests.test_manifest tests.test_compare_builds tests.test_oracle_boundary -v && make oracle EXP=020_linux_mailbox && make compare EXP=020_linux_mailbox`; expect all tests and semantic comparison to pass.
 - [ ] Commit with `git commit -m "feat: add mailbox oracle comparison"` after Sol and Vega approval.
 
-### Task 4: Exact FogCast Development Bundle
+### Task 4: Exact FogCast Development Bundle — superseded authority
 
-**Files:**
-- Create: `scripts/dev_bundle.py`
-- Create: `tests/test_dev_bundle.py`
-- Modify: `Makefile`
-- Modify: `.gitignore`
+The former signed Task 4 text is superseded in full. Use the approved unsigned
+producer plan as the sole authority for this task:
 
-**Interfaces:**
-- Produces `build/dev-bundle/<lane>/020_linux_mailbox/{top.rbf,manifest.json}` and CLI:
+`docs/superpowers/plans/2026-08-28-unsigned-resource-evidence.md`
 
-```text
-python3 scripts/dev_bundle.py --experiment 020_linux_mailbox --lane oss --run-id <32-lower-hex>
-```
+Approved companion-plan SHA-256:
+`a394262a1f234cd60faa43829731bc55f507ec5296e428598c2269dff0237c18`
 
-- [ ] Write failing tests for exact key order/schema, canonical hashes, source commit, literal filename, size bound, run ID generation/validation, lane, board, regular/no-symlink inputs, non-passing build rejection, and atomic private output modes.
-- [ ] Run `python3 -m unittest tests.test_dev_bundle -v`; expect missing module failure.
-- [ ] Implement using opened regular file descriptors and canonical compact JSON plus newline. Copy only `top.rbf` and `manifest.json`; derive `source_commit` from exact `git rev-parse HEAD`, reject every dirty worktree, and require the selected build manifest's authenticated source commit, protocol-source hash, policy hash, RBF hash, and size to match that same HEAD and opened RBF. There is no dirty-build override in schema v1.
-- [ ] Add `make dev-bundle EXP=020_linux_mailbox BUILD=oss`; reject other experiments.
-- [ ] Before commit, run only the fixture/unit suite `python3 -m unittest tests.test_dev_bundle -v`; it must prove dirty-worktree rejection and exact stale-build/source-commit rejection without weakening either gate.
-- [ ] Commit with `git commit -m "feat: package FogCast FPGA development bundle"` after Vega approval and fresh explicit user authorization.
-- [ ] Create a disposable clean verification worktree at that exact cumulative commit, rebuild `make oss EXP=020_linux_mailbox`, then run `make dev-bundle EXP=020_linux_mailbox BUILD=oss RUN_ID=0123456789abcdef0123456789abcdef` and `python3 -m json.tool build/dev-bundle/oss/020_linux_mailbox/manifest.json`; record the commit/tree, build-manifest source commit, artifact hash/size, and bundle hash, then remove the disposable worktree.
+That companion plan governs the unsigned schema-2 evidence encoder,
+manifest-bound OSS/oracle bundles, freeze checks, and exact fixture handoff.
+Do not apply any requirements from the superseded Task 4 text. Tasks 1–3 and
+Tasks 5–6 of this plan are unchanged.
 
 ### Task 5: Dedicated FogCast SSH/Reboot/Result Transport
 
@@ -159,11 +152,11 @@ python3 scripts/dev_bundle.py --experiment 020_linux_mailbox --lane oss --run-id
 
 **Interfaces:**
 - Produces CLI `make dev-load EXP=020_linux_mailbox BUILD=oss RUN_ID=<32-lower-hex>`, preflight-only CLI `make dev-preflight ...`, and deterministic crash CLI `make dev-fault-inject ...` using environment `FOGCAST_DEV_HOST`, `FOGCAST_DEV_USER`, `FOGCAST_DEV_EXPECTED_BOARD`, `FOGCAST_DEV_EXPECTED_MAIN_SHA256`, `FOGCAST_DEV_TOOL_SHA256`, `FOGCAST_DEV_SSH`, `FOGCAST_DEV_SCP`, and `FOGCAST_DEV_DRY_RUN`.
-- Remote command is exactly `mister-fpga-dev run --manifest /tmp/misteross-fpgadev-<run_id>/manifest.json --artifact /tmp/misteross-fpgadev-<run_id>/top.rbf`; no credential enters argv.
+- Remote execution uses the pinned OpenSSH client in quiet mode and the exact remote command `exec mister-fpga-dev run --manifest /tmp/misteross-fpgadev-<run_id>/manifest.json --artifact /tmp/misteross-fpgadev-<run_id>/top.rbf`, with every fixed token shell-quoted by the transport and no operator value interpolated; the login shell is therefore replaced by the run process and no credential enters argv.
 
-- [ ] Build fake SSH/SCP tests for exact RUN_ID propagation through bundle/stage/invocation/result/cleanup, private `0700` directory/`0600` files, no-follow metadata, exact executable/board/Main attestations, run collision, one invocation, expected reboot disconnect only after valid persisted framing, 120-second reconnect bound, host-key re-resolution hook, result retrieval/binding including session/generation/mode, 30-second exact readiness, durable host copy before remote deletion, and cleanup aggregation.
+- [ ] Build fake SSH/SCP tests for exact RUN_ID propagation through bundle/stage/invocation/result/cleanup, private `0700` directory/`0600` files, no-follow metadata, exact executable/board/Main attestations, run collision, one invocation, provisional post-intent disconnect handling, exact result-unavailable classification, 120-second reconnect bound, host-key re-resolution hook, result retrieval/binding including session/generation/mode/recovery request, 30-second exact readiness even when the result is missing, valid-result-backed classification of the expected successful reboot disconnect, durable host copy before remote deletion, and cleanup aggregation. Result-unavailable, `recovery_request=failed`, a missing result, missing expected disconnect, or failed readiness fails the run; recovery/readiness verification is never skipped.
 - [ ] Add `dev-preflight` tests proving it stages the selected reviewed bundle, invokes exactly `mister-fpga-dev preflight`, accepts only stdout `FOGCAST_FPGA_DEV_PREFLIGHT code=ok\n` with empty stderr, performs no reconnect/result phase, and always cleans the disposable stage. Add rejection tests for every malformed preflight/result line, duplicate/missing result, hash/source/session/generation/mode mismatch, premature disconnect, wrong target, unsafe executable, path injection, and dry-run value outside exact `0|1|false|true`.
-- [ ] Add `dev-fault-inject` fake-transport tests: stage and arm, start `run` as one owned `subprocess.Popen` SSH session with private host stdout/stderr files, poll `inspect` through separate argv-list SSH sessions until the exact bound identity/phase, invoke `fault-kill`, wait/reap the original SSH child, validate its expected killed exit/framing, and return only after preserving a durable private host trace. It must not detach, use a remote shell ampersand, reboot, clean the target stage, or lose child output; every timeout/error terminates/reaps local SSH and preserves the target fence.
+- [ ] Add `dev-fault-inject` fake-transport tests: stage and arm, start the exact quiet/direct-`exec` `run` as one owned `subprocess.Popen` SSH session with private host stdout/stderr files, poll `inspect` through separate argv-list SSH sessions until the exact bound identity/phase, invoke `fault-kill`, wait/reap the original SSH child, require SSH exit 255 from the signaled remote process and empty run stdout/stderr with no result framing, and return only after preserving the separate exact `inspect` and `fault-kill` output plus durable private host trace. It must not detach, use a remote shell ampersand, reboot, clean the target stage, or lose child output; every timeout/error terminates/reaps local SSH and preserves the target fence.
 - [ ] Run `python3 -m unittest tests.test_fogcast_dev -v`; expect missing module failure.
 - [ ] Implement argv-list-only subprocesses, strict fixed remote paths under `/tmp/misteross-fpgadev-<run_id>`, existing ControlMaster safety rules, and no shell interpolation of operator values. The old `scripts/program.py` is not imported or modified.
 - [ ] Before commit, run `python3 -m unittest tests.test_fogcast_dev -v`; fake transport tests must pass without requiring a generated real bundle in the dirty implementation worktree.

@@ -15,6 +15,50 @@ ORACLE = ROOT / "scripts" / "build_oracle.sh"
 
 
 class OracleBoundaryTests(unittest.TestCase):
+    def test_mailbox_oracle_project_is_minimal_and_uses_shared_clock_constraint(self):
+        project = ROOT / "experiments" / "020_linux_mailbox" / "oracle"
+        qpf = project / "top.qpf"
+        qsf = project / "top.qsf"
+        self.assertTrue(qpf.is_file(), qpf)
+        self.assertTrue(qsf.is_file(), qsf)
+        qpf_text = qpf.read_text(encoding="utf-8")
+        qsf_text = qsf.read_text(encoding="utf-8")
+        self.assertIn('QUARTUS_VERSION = "17.0"', qpf_text)
+        for expected in (
+            'set_global_assignment -name FAMILY "Cyclone V"',
+            "set_global_assignment -name DEVICE 5CSEBA6U23I7",
+            "set_global_assignment -name TOP_LEVEL_ENTITY top",
+            'set_global_assignment -name VERILOG_FILE "../../../experiments/020_linux_mailbox/rtl/top.v"',
+            'set_global_assignment -name SDC_FILE "../../../boards/de10nano/clocks.sdc"',
+            "set_location_assignment PIN_V11 -to FPGA_CLK1_50",
+            'set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to FPGA_CLK1_50',
+        ):
+            self.assertIn(expected, qsf_text)
+        for forbidden in (
+            "LED",
+            "hps_gp_model.v",
+            "output pin",
+            "PIN_W15",
+            "QSYS",
+            "qsys",
+        ):
+            self.assertNotIn(forbidden, qsf_text)
+
+    def test_mailbox_print_commands_bind_shared_sources_without_simulation_model(self):
+        temp, root, marker = self._quartus("17.0.2")
+        with temp:
+            result = self._run(
+                "--experiment",
+                "020_linux_mailbox",
+                "--print-commands",
+                env={"QUARTUS_ROOTDIR": str(root)},
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("experiments/020_linux_mailbox/rtl/top.v", result.stdout)
+        self.assertIn("boards/de10nano/clocks.sdc", result.stdout)
+        self.assertNotIn("hps_gp_model.v", result.stdout)
+        self.assertFalse(marker.exists())
+
     def _run(self, *args, env=None):
         merged = os.environ.copy()
         merged.pop("QUARTUS_ROOTDIR", None)
@@ -91,8 +135,8 @@ class OracleBoundaryTests(unittest.TestCase):
         binary.chmod(binary.stat().st_mode | stat.S_IXUSR)
         return temp, root, marker
 
-    def _run_real(self, root, marker, *, seed=None):
-        target = ROOT / "build" / "oracle" / "010_blinky"
+    def _run_real(self, root, marker, *, seed=None, experiment="010_blinky"):
+        target = ROOT / "build" / "oracle" / experiment
         target_parent = target.parent
         target_parent.mkdir(parents=True, exist_ok=True)
         preserve = tempfile.TemporaryDirectory()
@@ -105,7 +149,7 @@ class OracleBoundaryTests(unittest.TestCase):
                 seed(target)
             result = self._run(
                 "--experiment",
-                "010_blinky",
+                experiment,
                 env={"QUARTUS_ROOTDIR": str(root)},
             )
             summary = {}
@@ -140,6 +184,16 @@ class OracleBoundaryTests(unittest.TestCase):
                 "; Fitter Settings ;",
             ]
         ) + "\n"
+
+    @classmethod
+    def _mailbox_fit_report(cls):
+        return cls._complete_fit_report().replace(
+            "; Fitter Settings ;",
+            "cyclonev_hps_interface_mpu_general_purpose | 1 | 1 | 100%\n"
+            "Total MLAB memory bits | 0 | 524288 | 0%\n"
+            "SDRAM | 0 | 1 | 0%\n"
+            "; Fitter Settings ;",
+        )
 
     @staticmethod
     def _fmax_report(*rows):
@@ -277,6 +331,154 @@ class OracleBoundaryTests(unittest.TestCase):
         self.assertEqual(quartus_provenance["sha256"], quartus_provenance["executable_sha256"])
         self.assertRegex(quartus_provenance["version_output_sha256"], r"^[0-9a-f]{64}$")
         self.assertTrue(marker_seen)
+
+    def test_mailbox_report_parser_emits_exact_semantic_evidence(self):
+        temp, root, marker = self._quartus_real(
+            "17.0.2",
+            self._mailbox_fit_report(),
+            self._fmax_report(("FPGA_CLK1_50", "100", "100")),
+        )
+        with temp:
+            result, summary, marker_seen = self._run_real(
+                root, marker, experiment="020_linux_mailbox"
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(marker_seen)
+        self.assertEqual(
+            list(summary["resource_evidence"]),
+            [
+                "clock_inputs",
+                "external_input_ports",
+                "external_output_ports",
+                "bidirectional_ports",
+                "hps_general_purpose_interfaces",
+                "pll_blocks",
+                "dsp_blocks",
+                "block_memory_bits",
+                "lutram_bits",
+                "sdram_interfaces",
+            ],
+        )
+        self.assertEqual(summary["resource_evidence"], {
+            "clock_inputs": 1,
+            "external_input_ports": 0,
+            "external_output_ports": 0,
+            "bidirectional_ports": 0,
+            "hps_general_purpose_interfaces": 1,
+            "pll_blocks": 0,
+            "dsp_blocks": 0,
+            "block_memory_bits": 0,
+            "lutram_bits": 0,
+            "sdram_interfaces": 0,
+        })
+        self.assertEqual(
+            summary["hard_blocks"]["cyclonev_hps_interface_mpu_general_purpose"]["used"],
+            1,
+        )
+
+    def test_mailbox_report_parser_accepts_real_single_value_mlab_row(self):
+        fit = self._mailbox_fit_report().replace(
+            "Total MLAB memory bits | 0 | 524288 | 0%",
+            "Total MLAB memory bits | 0",
+        )
+        temp, root, marker = self._quartus_real(
+            "17.0.2",
+            fit,
+            self._fmax_report(("FPGA_CLK1_50", "100", "100")),
+        )
+        with temp:
+            result, summary, marker_seen = self._run_real(
+                root, marker, experiment="020_linux_mailbox"
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(marker_seen)
+        self.assertEqual(summary["resource_evidence"]["lutram_bits"], 0)
+
+    def test_mailbox_raw_forbidden_rows_must_be_present_once_and_zero(self):
+        rows = (
+            ("block memory bits", "Total block memory bits | 0 | 524288 | 0%"),
+            ("MLAB memory bits", "Total MLAB memory bits | 0 | 524288 | 0%"),
+            ("SDRAM interfaces", "SDRAM | 0 | 1 | 0%"),
+            ("RAM blocks", "Total RAM Blocks | 0 | 10 | 0%"),
+            ("PLLs", "Total PLLs | 0 | 4 | 0%"),
+            ("DSP blocks", "Total DSP Blocks | 0 | 2 | 0%"),
+        )
+        for label, row in rows:
+            with self.subTest(label=label):
+                base = self._mailbox_fit_report()
+                missing = base.replace(row + "\n", "")
+                duplicate = base.replace(
+                    "; Fitter Settings ;", row + "\n; Fitter Settings ;", 1
+                )
+                nonzero = base.replace(row, row.replace("| 0 |", "| 1 |", 1))
+                for variant, fit in (
+                    ("missing", missing),
+                    ("duplicate", duplicate),
+                    ("nonzero", nonzero),
+                ):
+                    with self.subTest(variant=variant):
+                        temp, root, marker = self._quartus_real(
+                            "17.0.2",
+                            fit,
+                            self._fmax_report(("FPGA_CLK1_50", "100", "100")),
+                        )
+                        with temp:
+                            result, summary, marker_seen = self._run_real(
+                                root, marker, experiment="020_linux_mailbox"
+                            )
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertEqual(summary["hard_block_status"], "fail")
+                        self.assertTrue(marker_seen)
+
+    def test_mailbox_allowed_hps_row_must_be_present_once_with_exact_count(self):
+        row = "cyclonev_hps_interface_mpu_general_purpose | 1 | 1 | 100%"
+        base = self._mailbox_fit_report()
+        variants = (
+            ("missing", base.replace(row + "\n", "")),
+            (
+                "duplicate",
+                base.replace("; Fitter Settings ;", row + "\n; Fitter Settings ;", 1),
+            ),
+            ("wrong count", base.replace(row, row.replace("| 1 |", "| 2 |", 1))),
+        )
+        for label, fit in variants:
+            with self.subTest(label=label):
+                temp, root, marker = self._quartus_real(
+                    "17.0.2",
+                    fit,
+                    self._fmax_report(("FPGA_CLK1_50", "100", "100")),
+                )
+                with temp:
+                    result, summary, marker_seen = self._run_real(
+                        root, marker, experiment="020_linux_mailbox"
+                    )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(summary["hard_block_status"], "fail")
+                self.assertTrue(marker_seen)
+
+    def test_oracle_selector_rejects_repeated_and_mixed_experiment_selectors(self):
+        temp, root, marker = self._quartus("17.0.2")
+        with temp:
+            repeated = self._run(
+                "--experiment",
+                "010_blinky",
+                "--experiment",
+                "020_linux_mailbox",
+                "--print-commands",
+                env={"QUARTUS_ROOTDIR": str(root)},
+            )
+            mixed = self._run(
+                "--experiment",
+                "010_blinky",
+                "020_linux_mailbox",
+                "--print-commands",
+                env={"QUARTUS_ROOTDIR": str(root)},
+            )
+        self.assertNotEqual(repeated.returncode, 0)
+        self.assertNotEqual(mixed.returncode, 0)
+        self.assertFalse(marker.exists())
 
     def test_hard_resource_labels_without_fitted_summary_fail_closed(self):
         fit = "\n".join(

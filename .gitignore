@@ -1,5 +1,6 @@
 .worktrees/
 /build/
+/build/dev-bundle/
 /third_party/
 /.cache/
 __pycache__/

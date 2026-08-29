@@ -44,16 +44,23 @@ class ManifestTests(unittest.TestCase):
         self,
         *,
         source: Path | None = None,
+        sources: list[Path] | None = None,
         artifact: Path | None = None,
+        artifacts: list[Path] | None = None,
         manifest: Path | None = None,
         repo_root: Path = ROOT,
         build_root: Path = ROOT / "build",
         output: Path | None = None,
         command_log: Path | None = None,
+        command_logs: list[Path] | None = None,
         build_summary: Path | None = None,
+        experiment: str = "010_blinky",
+        lane: str = "oss",
     ) -> subprocess.CompletedProcess[str]:
         output = output or self.output
         command_log = command_log or self.log
+        source_values = list(sources) if sources is not None else [source or self.source]
+        artifact_values = list(artifacts) if artifacts is not None else [artifact or self.artifact]
         command = [
             sys.executable,
             str(COLLECTOR),
@@ -64,18 +71,18 @@ class ManifestTests(unittest.TestCase):
             "--output-dir",
             str(output),
             "--experiment",
-            "010_blinky",
+            experiment,
             "--lane",
-            "oss",
+            lane,
             "--target",
             TARGET,
-            "--source",
-            str(source or self.source),
-            "--command-log",
-            str(command_log),
-            "--artifact",
-            str(artifact or self.artifact),
         ]
+        for source_value in source_values:
+            command.extend(["--source", str(source_value)])
+        for log_path in (command_logs or [command_log]):
+            command.extend(["--command-log", str(log_path)])
+        for artifact_value in artifact_values:
+            command.extend(["--artifact", str(artifact_value)])
         if manifest is not None:
             command.extend(["--manifest", str(manifest)])
         if build_summary is not None:
@@ -87,6 +94,418 @@ class ManifestTests(unittest.TestCase):
             text=True,
             capture_output=True,
         )
+
+    def test_mailbox_ansi_port_parser_counts_comma_separated_names(self) -> None:
+        from scripts.collect_manifest import _top_port_evidence
+
+        source = """module top (
+            input wire FPGA_CLK1_50, hidden_input,
+            output wire hidden_output,
+            inout wire hidden_bidir
+        );
+        endmodule
+        """
+        self.assertEqual(
+            _top_port_evidence(source, "FPGA_CLK1_50"),
+            {
+                "clock_inputs": 1,
+                "external_input_ports": 1,
+                "external_output_ports": 1,
+                "bidirectional_ports": 1,
+            },
+        )
+
+    def test_mailbox_static_source_scan_uses_verilog_identifier_boundaries(self) -> None:
+        from scripts.collect_manifest import _validate_oss_static_source_scan
+
+        expected = {
+            "pll_blocks": "MISTRAL_PLL",
+            "dsp_blocks": "MISTRAL_MUL9X9",
+            "block_memory_bits": "MISTRAL_M10K",
+            "lutram_bits": "MISTRAL_MLAB",
+            "sdram_interfaces": "cyclonev_hps_interface_fpga2sdram",
+        }
+        repository = self.fixture / "scan-repository"
+        relative_paths = (
+            "experiments/020_linux_mailbox/rtl/top.v",
+            "boards/de10nano/pins.qsf",
+            "boards/de10nano/clocks.sdc",
+        )
+        for relative in relative_paths:
+            path = repository / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("", encoding="utf-8")
+
+        for field, identifier in expected.items():
+            top = repository / relative_paths[0]
+            top.write_text(f"module top; {identifier} u0(); endmodule\n", encoding="utf-8")
+            records = [
+                {"path": relative, "sha256": hashlib.sha256((repository / relative).read_bytes()).hexdigest()}
+                for relative in relative_paths
+            ]
+            with self.subTest(field=field, identifier=identifier):
+                with self.assertRaises(ValueError):
+                    _validate_oss_static_source_scan(
+                        records,
+                        repository,
+                        field,
+                        "020_linux_mailbox",
+                        "oss",
+                    )
+
+    def test_mailbox_manifest_requires_one_bound_synthesis_report(self) -> None:
+        protocol = ROOT / "experiments" / "020_linux_mailbox" / "rtl" / "top.v"
+        output = self.fixture / "build" / "oss" / "020_linux_mailbox-report"
+        output.mkdir(parents=True)
+        artifact = output / "top.rbf"
+        artifact.write_bytes(b"mailbox-rbf\n")
+        report = output / "timing.json"
+        report.write_text(
+            '{"fmax":{"protocol.FPGA_CLK1_50":{"constraint":50,"achieved":130}}}\n',
+            encoding="utf-8",
+        )
+        logs = []
+        yosys = ROOT / "build" / "toolchain" / "install" / "bin" / "yosys"
+        nextpnr = ROOT / "build" / "toolchain" / "install" / "bin" / "nextpnr-mistral"
+        command_lines = {
+            "yosys.log": (
+                f"command: {yosys} -p "
+                "'read_verilog experiments/020_linux_mailbox/rtl/top.v; "
+                "synth_intel_alm -nobram -nolutram -nodsp -top top; stat; "
+                "write_json build/oss/020_linux_mailbox/synth.json'\n"
+            ),
+            "nextpnr-help.log": f"command: {nextpnr} --help\n",
+            "nextpnr.log": (
+                f"command: {nextpnr} --json "
+                "build/oss/020_linux_mailbox/synth.json --device 5CSEBA6U23I7 "
+                "--qsf boards/de10nano/pins.qsf --sdc boards/de10nano/clocks.sdc "
+                "--freq 50 --rbf build/oss/020_linux_mailbox/top.rbf "
+                "--write build/oss/020_linux_mailbox/routed.json "
+                "--report build/oss/020_linux_mailbox/timing.json "
+                "--detailed-timing-report\n"
+            ),
+        }
+        for name in ("yosys.log", "nextpnr-help.log", "nextpnr.log"):
+            log = output / name
+            log.write_text(command_lines[name], encoding="utf-8")
+            logs.append(log)
+        protocol_hash = hashlib.sha256(protocol.read_bytes()).hexdigest()
+        from scripts.experiment_policy import policy_for
+
+        policy = policy_for("020_linux_mailbox").as_dict()
+        policy_hash = hashlib.sha256(
+            json.dumps(policy, ensure_ascii=True, separators=(",", ":"), sort_keys=True).encode()
+        ).hexdigest()
+        summary = {
+            "experiment": "020_linux_mailbox",
+            "target": TARGET,
+            "lane": "oss",
+            "top": "top",
+            "clock_intent": "FPGA_CLK1_50",
+            "clock_constraint_mhz": 50.0,
+            "allowed_hard_blocks": policy["allowed_hard_blocks"],
+            "experiment_policy": policy,
+            "experiment_policy_sha256": policy_hash,
+            "policy_sha256": policy_hash,
+            "protocol_source_sha256": protocol_hash,
+            "resource_evidence": {
+                "clock_inputs": 1,
+                "external_input_ports": 0,
+                "external_output_ports": 0,
+                "bidirectional_ports": 0,
+                "hps_general_purpose_interfaces": 1,
+                "pll_blocks": 0,
+                "dsp_blocks": 0,
+                "block_memory_bits": 0,
+                "lutram_bits": 0,
+                "sdram_interfaces": 0,
+            },
+            "status": "pass",
+            "build_status": "pass",
+            "route": {"status": "pass", "unrouted": False},
+            "route_status": "pass",
+            "timing": {
+                "clock": "protocol.FPGA_CLK1_50",
+                "requested_mhz": 50.0,
+                "achieved_mhz": 130.0,
+                "status": "pass",
+            },
+            "hard_blocks": {
+                "cyclonev_hps_interface_mpu_general_purpose": {"used": 1, "available": 1}
+            },
+            "resources": {},
+            "hard_block_status": "pass",
+            "unknown_resources": {},
+            "source_hashes": {"experiments/020_linux_mailbox/rtl/top.v": protocol_hash},
+            "reproducibility": {
+                "rbf_sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
+                "rbf_size_bytes": artifact.stat().st_size,
+            },
+        }
+        summary_path = output / "build-summary.json"
+        summary_path.write_text(json.dumps(summary), encoding="utf-8")
+        result = self._collect_with(
+            source=protocol,
+            artifacts=[artifact],
+            output=output,
+            command_logs=logs,
+            build_summary=summary_path,
+            experiment="020_linux_mailbox",
+        )
+        self.assertNotEqual(result.returncode, 0)
+
+    def test_mailbox_manifest_binds_policy_protocol_and_semantic_resource_evidence(self) -> None:
+        protocol = ROOT / "experiments" / "020_linux_mailbox" / "rtl" / "top.v"
+        output = self.fixture / "build" / "oss" / "020_linux_mailbox"
+        output.mkdir(parents=True)
+        artifact = output / "top.rbf"
+        artifact.write_bytes(b"mailbox-rbf\n")
+        report = output / "timing.json"
+        report.write_text(
+            '{"fmax":{"protocol.FPGA_CLK1_50":{"constraint":50,"achieved":130}}}\n',
+            encoding="utf-8",
+        )
+        logs = []
+        yosys = ROOT / "build" / "toolchain" / "install" / "bin" / "yosys"
+        nextpnr = ROOT / "build" / "toolchain" / "install" / "bin" / "nextpnr-mistral"
+        command_lines = {
+            "yosys.log": (
+                f"command: {yosys} -p "
+                "'read_verilog experiments/020_linux_mailbox/rtl/top.v; "
+                "synth_intel_alm -nobram -nolutram -nodsp -top top; stat; "
+                "write_json build/oss/020_linux_mailbox/synth.json'\n"
+            ),
+            "nextpnr-help.log": f"command: {nextpnr} --help\n",
+            "nextpnr.log": (
+                f"command: {nextpnr} --json "
+                "build/oss/020_linux_mailbox/synth.json --device 5CSEBA6U23I7 "
+                "--qsf boards/de10nano/pins.qsf --sdc boards/de10nano/clocks.sdc "
+                "--freq 50 --rbf build/oss/020_linux_mailbox/top.rbf "
+                "--write build/oss/020_linux_mailbox/routed.json "
+                "--report build/oss/020_linux_mailbox/timing.json "
+                "--detailed-timing-report\n"
+            ),
+        }
+        for name in ("yosys.log", "nextpnr-help.log", "nextpnr.log"):
+            log = output / name
+            log.write_text(command_lines[name], encoding="utf-8")
+            logs.append(log)
+        protocol_hash = hashlib.sha256(protocol.read_bytes()).hexdigest()
+        from scripts.experiment_policy import policy_for
+
+        policy = policy_for("020_linux_mailbox").as_dict()
+        summary = {
+            "status": "pass",
+            "build_status": "pass",
+            "route": {"status": "pass", "unrouted": False},
+            "route_status": "pass",
+            "timing": {
+                "clock": "protocol.FPGA_CLK1_50",
+                "requested_mhz": 50.0,
+                "achieved_mhz": 130.8,
+                "status": "pass",
+            },
+            "resources": {
+                "cyclonev_hps_interface_mpu_general_purpose": {
+                    "used": 1,
+                    "available": 1,
+                }
+            },
+            "hard_blocks": {
+                "cyclonev_hps_interface_mpu_general_purpose": {
+                    "used": 1,
+                    "available": 1,
+                }
+            },
+            "hard_block_status": "pass",
+            "unknown_resources": {},
+            "allowed_hard_blocks": policy["allowed_hard_blocks"],
+            "experiment_policy": policy,
+            "protocol_source_sha256": protocol_hash,
+            "experiment_policy_sha256": hashlib.sha256(
+                json.dumps(
+                    policy,
+                    ensure_ascii=True,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                ).encode("utf-8")
+            ).hexdigest(),
+            "resource_evidence": {
+                "clock_inputs": 1,
+                "external_input_ports": 0,
+                "external_output_ports": 0,
+                "bidirectional_ports": 0,
+                "hps_general_purpose_interfaces": 1,
+                "pll_blocks": 0,
+                "dsp_blocks": 0,
+                "block_memory_bits": 0,
+                "lutram_bits": 0,
+                "sdram_interfaces": 0,
+            },
+            "source_hashes": {
+                "experiments/020_linux_mailbox/rtl/top.v": protocol_hash,
+                },
+            "authenticated_tools": {
+                "yosys": {
+                    "commit": "13b43f8c85ec430a33ee55d058fb4c32b42b6910",
+                    "path": "build/toolchain/install/bin/yosys",
+                    "sha256": hashlib.sha256(yosys.read_bytes()).hexdigest(),
+                },
+                "nextpnr-mistral": {
+                    "commit": "7d4f72c0aabc15da932748a54e82a6ff7b41921e",
+                    "path": "build/toolchain/install/bin/nextpnr-mistral",
+                    "sha256": hashlib.sha256(nextpnr.read_bytes()).hexdigest(),
+                },
+            },
+            "tool_pins": {
+                "yosys": "13b43f8c85ec430a33ee55d058fb4c32b42b6910",
+                "nextpnr": "7d4f72c0aabc15da932748a54e82a6ff7b41921e",
+            },
+            "reproducibility": {
+                "rbf_sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
+                "rbf_size_bytes": artifact.stat().st_size,
+            },
+        }
+        summary_path = output / "build-summary.json"
+        summary_path.write_text(json.dumps(summary), encoding="utf-8")
+        result = self._collect_with(
+            sources=[
+                protocol,
+                ROOT / "boards" / "de10nano" / "pins.qsf",
+                ROOT / "boards" / "de10nano" / "clocks.sdc",
+            ],
+            artifacts=[artifact, report],
+            output=output,
+            command_logs=logs,
+            build_root=self.fixture / "build",
+            build_summary=summary_path,
+            experiment="020_linux_mailbox",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["experiment"], "020_linux_mailbox")
+        self.assertEqual(manifest["protocol_source_sha256"], protocol_hash)
+        self.assertEqual(manifest["build"]["protocol_source_sha256"], protocol_hash)
+        self.assertEqual(manifest["build"]["experiment_policy"], policy)
+        self.assertRegex(manifest["experiment_policy_sha256"], r"^[0-9a-f]{64}$")
+        self.assertEqual(
+            manifest["build"]["resource_evidence"]["hps_general_purpose_interfaces"],
+            1,
+        )
+
+    def test_mailbox_manifest_rejects_policy_protocol_and_semantic_tampering(self) -> None:
+        protocol = ROOT / "experiments" / "020_linux_mailbox" / "rtl" / "top.v"
+        output = self.fixture / "build" / "oss" / "020_linux_mailbox-tamper"
+        output.mkdir(parents=True)
+        artifact = output / "top.rbf"
+        artifact.write_bytes(b"mailbox-rbf\n")
+        report = output / "timing.json"
+        report.write_text(
+            '{"fmax":{"protocol.FPGA_CLK1_50":{"constraint":50,"achieved":130}}}\n',
+            encoding="utf-8",
+        )
+        log = output / "oss.log"
+        log.write_text("command: trusted-tool\n", encoding="utf-8")
+        protocol_hash = hashlib.sha256(protocol.read_bytes()).hexdigest()
+        from scripts.experiment_policy import policy_for
+
+        policy = policy_for("020_linux_mailbox").as_dict()
+        policy_hash = hashlib.sha256(
+            json.dumps(
+                policy, ensure_ascii=True, separators=(",", ":"), sort_keys=True
+            ).encode("utf-8")
+        ).hexdigest()
+        evidence = {
+            "clock_inputs": 1,
+            "external_input_ports": 0,
+            "external_output_ports": 0,
+            "bidirectional_ports": 0,
+            "hps_general_purpose_interfaces": 1,
+            "pll_blocks": 0,
+            "dsp_blocks": 0,
+            "block_memory_bits": 0,
+            "lutram_bits": 0,
+            "sdram_interfaces": 0,
+        }
+        valid = {
+            "experiment": "020_linux_mailbox",
+            "target": TARGET,
+            "lane": "oss",
+            "top": "top",
+            "clock_intent": "FPGA_CLK1_50",
+            "clock_constraint_mhz": 50.0,
+            "allowed_hard_blocks": policy["allowed_hard_blocks"],
+            "experiment_policy": policy,
+            "experiment_policy_sha256": policy_hash,
+            "policy_sha256": policy_hash,
+            "protocol_source_sha256": protocol_hash,
+            "resource_evidence": evidence,
+            "status": "pass",
+            "build_status": "pass",
+            "route": {"status": "pass", "unrouted": False},
+            "route_status": "pass",
+            "timing": {
+                "clock": "protocol.FPGA_CLK1_50",
+                "requested_mhz": 50.0,
+                "achieved_mhz": 130.8,
+                "status": "pass",
+            },
+            "resources": {
+                "cyclonev_hps_interface_mpu_general_purpose": {
+                    "used": 1, "available": 1
+                }
+            },
+            "hard_blocks": {
+                "cyclonev_hps_interface_mpu_general_purpose": {
+                    "used": 1, "available": 1
+                }
+            },
+            "hard_block_status": "pass",
+            "unknown_resources": {},
+            "source_hashes": {
+                "experiments/020_linux_mailbox/rtl/top.v": protocol_hash
+            },
+            "reproducibility": {
+                "rbf_sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
+                "rbf_size_bytes": artifact.stat().st_size,
+            },
+        }
+        summary_path = output / "build-summary.json"
+        mutations = (
+            ("wrong policy hash", lambda value: value.__setitem__("policy_sha256", "f" * 64)),
+            ("wrong protocol hash", lambda value: value.__setitem__("protocol_source_sha256", "f" * 64)),
+            (
+                "wrong protocol source",
+                lambda value: value.__setitem__("protocol_source", "experiments/010_blinky/rtl/top.v"),
+            ),
+            ("wrong lane", lambda value: value.__setitem__("lane", "oracle")),
+            (
+                "unknown semantic field",
+                lambda value: value["resource_evidence"].__setitem__("unknown", 0),
+            ),
+            (
+                "extra output port",
+                lambda value: value["resource_evidence"].__setitem__(
+                    "external_output_ports", 1
+                ),
+            ),
+        )
+        for name, mutate in mutations:
+            with self.subTest(name=name):
+                summary_path.write_text(json.dumps(valid), encoding="utf-8")
+                value = json.loads(summary_path.read_text(encoding="utf-8"))
+                mutate(value)
+                summary_path.write_text(json.dumps(value), encoding="utf-8")
+                result = self._collect_with(
+                    source=protocol,
+                    artifacts=[artifact, report],
+                    output=output,
+                    command_log=log,
+                    build_root=self.fixture,
+                    build_summary=summary_path,
+                    experiment="020_linux_mailbox",
+                )
+                self.assertNotEqual(result.returncode, 0)
 
     def test_manifest_records_machine_readable_build_summary(self) -> None:
         summary = {

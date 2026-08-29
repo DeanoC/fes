@@ -70,9 +70,6 @@ fi
 
 cd -- "$ROOT"
 
-rtl_rel="experiments/$EXP/rtl/top.v"
-qsf_rel="boards/de10nano/pins.qsf"
-sdc_rel="boards/de10nano/clocks.sdc"
 out_rel="build/oss/$EXP"
 out_dir="$ROOT/$out_rel"
 out_synth="$out_dir/synth.json"
@@ -90,11 +87,19 @@ manifest="$out_dir/manifest.json"
 run_logged="$ROOT/scripts/run_logged.sh"
 collector="$ROOT/scripts/collect_manifest.py"
 lockfile="$ROOT/scripts/lockfile.py"
+policy_tool="$ROOT/scripts/experiment_policy.py"
 summary_tool="$ROOT/scripts/oss_summary.py"
-
-rtl="$ROOT/$rtl_rel"
-qsf="$ROOT/$qsf_rel"
-sdc="$ROOT/$sdc_rel"
+rtl_rel=""
+qsf_rel=""
+sdc_rel=""
+policy_name=""
+policy_top=""
+policy_clock=""
+policy_clock_mhz=""
+policy_artifact=""
+rtl=""
+qsf=""
+sdc=""
 yosys="$TOOLCHAIN_INSTALL/bin/yosys"
 nextpnr="$TOOLCHAIN_INSTALL/bin/nextpnr-mistral"
 YOSYS_COMMIT=""
@@ -212,6 +217,44 @@ validate_real_toolchain_roots() {
 
 validate_output_tree
 
+require_file "$policy_tool"
+
+policy_output="$(
+    "$PYTHON" "$policy_tool" \
+        --experiment "$EXP" \
+        --format shell \
+        --check-sources \
+        --repo-root "$ROOT"
+)" || fail "cannot load closed experiment policy: $EXP"
+
+# Parse the policy's fixed-key output without eval or shell interpolation.
+# Every value is selected by a literal key and originates from the closed table.
+while IFS='=' read -r policy_key policy_value; do
+    case "$policy_key" in
+        name) policy_name=$policy_value ;;
+        source) rtl_rel=$policy_value ;;
+        top) policy_top=$policy_value ;;
+        clock) policy_clock=$policy_value ;;
+        clock_mhz) policy_clock_mhz=$policy_value ;;
+        qsf) qsf_rel=$policy_value ;;
+        sdc) sdc_rel=$policy_value ;;
+        artifact) policy_artifact=$policy_value ;;
+        allowed_hard_blocks) : ;; # Consumed by Python summary validation.
+        "") : ;;
+        *) fail "closed experiment policy emitted an unknown field: $policy_key" ;;
+    esac
+done <<< "$policy_output"
+
+[[ "$policy_name" == "$EXP" ]] || fail "closed experiment policy name mismatch"
+[[ -n "$rtl_rel" && -n "$policy_top" && -n "$policy_clock" ]] \
+    || fail "closed experiment policy is missing source/top/clock"
+[[ "$policy_clock_mhz" == "50" ]] || fail "closed experiment policy must constrain 50 MHz"
+[[ "$policy_artifact" == "top.rbf" ]] || fail "closed experiment policy must emit top.rbf"
+
+rtl="$ROOT/$rtl_rel"
+qsf="$ROOT/$qsf_rel"
+sdc="$ROOT/$sdc_rel"
+
 if (( ! PRINT_COMMANDS )); then
     validate_real_toolchain_roots
 fi
@@ -224,7 +267,12 @@ require_file "$collector"
 require_file "$lockfile"
 require_file "$summary_tool"
 
-yosys_program="read_verilog $rtl_rel; synth_intel_alm -nobram -nolutram -nodsp -top top; cd top; rename LED \\LED[0]; stat; write_json $out_rel/synth.json"
+if [[ "$policy_name" == "010_blinky" ]]; then
+    yosys_post_synth='cd top; rename LED \LED[0]; '
+else
+    yosys_post_synth=''
+fi
+yosys_program="read_verilog $rtl_rel; synth_intel_alm -nobram -nolutram -nodsp -top $policy_top; ${yosys_post_synth}stat; write_json $out_rel/synth.json"
 yosys_cmd=("$yosys" -p "$yosys_program")
 nextpnr_help_cmd=("$nextpnr" --help)
 nextpnr_cmd=(
@@ -233,8 +281,8 @@ nextpnr_cmd=(
     --device "$TARGET"
     --qsf "$qsf_rel"
     --sdc "$sdc_rel"
-    --freq 50
-    --rbf "$out_rel/top.rbf"
+    --freq "$policy_clock_mhz"
+    --rbf "$out_rel/$policy_artifact"
     --write "$out_rel/routed.json"
     --report "$out_rel/timing.json"
     --detailed-timing-report
@@ -340,8 +388,8 @@ summary_cmd=(
     --timing-json "$out_timing_json"
     --route-log "$nextpnr_log"
     --rbf "$out_rbf"
-    --requested-mhz 50
-    --clock-prefix FPGA_CLK1_50
+    --requested-mhz "$policy_clock_mhz"
+    --clock-prefix "$policy_clock"
     --output "$out_summary"
     --timing-output "$out_timing_txt"
     --target "$TARGET"
@@ -359,6 +407,7 @@ for source_spec in \
     "scripts/build_oss.sh" \
     "scripts/run_logged.sh" \
     "scripts/collect_manifest.py" \
+    "scripts/experiment_policy.py" \
     "scripts/oss_summary.py" \
     "toolchain.lock"; do
     source_digest="$(sha256sum -- "$ROOT/$source_spec")"
@@ -389,6 +438,7 @@ manifest_cmd=(
     --source "$ROOT/scripts/build_oss.sh"
     --source "$run_logged"
     --source "$collector"
+    --source "$policy_tool"
     --source "$summary_tool"
     --source "$ROOT/toolchain.lock"
     --command-log "$yosys_log"
