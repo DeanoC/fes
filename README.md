@@ -1,9 +1,11 @@
 # Open MiSTer OSS Cyclone V Toolchain
 
 This private, local repository tests whether a fully open toolchain can build a
-useful bitstream for the Terasic DE10-Nano/MiSTer FPGA (`5CSEBA6U23I7`) and
-blink a physical board LED. The first experiment is `010_blinky`: a 50 MHz
-input, a fabric counter, and one user LED.
+useful bitstream for the Terasic DE10-Nano/MiSTer FPGA (`5CSEBA6U23I7`). The
+first experiment, `010_blinky`, drives one user LED from a 50 MHz fabric
+counter. The software-tested `020_linux_mailbox` experiment instead exposes a
+small HPS GPI/GPO mailbox with no external FPGA output and returns the exact
+payload `OSS FPGA OK\n` to a private FogCast development loader.
 
 The three lanes are deliberately separate:
 
@@ -48,8 +50,25 @@ make oss EXP=010_blinky
 make oracle EXP=010_blinky
 make compare EXP=010_blinky
 make program EXP=010_blinky BUILD=oss
+
+make sim EXP=020_linux_mailbox
+make oss EXP=020_linux_mailbox
+make oracle EXP=020_linux_mailbox
+make compare EXP=020_linux_mailbox
+make dev-bundle EXP=020_linux_mailbox BUILD=oss RUN_ID=<32-lower-hex>
+make dev-preflight EXP=020_linux_mailbox BUILD=oss RUN_ID=<32-lower-hex>
+make dev-load EXP=020_linux_mailbox BUILD=oss RUN_ID=<32-lower-hex>
+make dev-fault-inject EXP=020_linux_mailbox BUILD=oss RUN_ID=<32-lower-hex>
 ```
 
-The repository remains private and local while the open flow is being reduced,
-simulated, compiled, and validated on hardware. Video, HPS integration, SDRAM,
-audio, and persistent-storage changes are outside this project cycle.
+The `dev-*` targets are a separate FogCast transport; they do not change or
+wrap the existing `program` path. They default to dry-run and require explicit
+target attestations before live use. See
+[Linux mailbox development](docs/linux-mailbox-development.md) for the exact
+workflow, evidence limits, recovery behavior, and rollback boundary.
+
+The repository remains private while the open flow is being reduced,
+simulated, compiled, and validated. The M2 handoff is **Software-tested** only:
+no mailbox RBF has been loaded on hardware by this repository gate. Video,
+SDRAM, audio, and persistent-storage changes remain outside this project
+cycle.

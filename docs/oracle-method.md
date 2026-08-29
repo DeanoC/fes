@@ -2,8 +2,9 @@
 
 Quartus Prime Lite 17.0.2 is an optional reference compiler, not an open-tool
 dependency. The oracle is accepted only after its exact version is reported;
-the identical blinky RTL, target device, pinout, and 50 MHz timing intent are
-used in both lanes. Oracle outputs remain under `build/oracle/<EXP>/` and
+the selected experiment's identical production RTL, target device, and 50 MHz
+timing intent are used in both lanes. Oracle outputs remain under
+`build/oracle/<EXP>/` and
 include logs, the RBF, fitter and timing reports, a normalized resource/timing
 summary, and a schema-2 manifest.
 
@@ -42,7 +43,7 @@ path containing spaces, a missing executable, or any version other than the
 exact `17.0.2`. The unavailable result is intentionally friendly:
 `Quartus oracle unavailable; OSS and simulation remain usable`.
 
-## Minimal project and command
+## Minimal projects and command
 
 `experiments/010_blinky/oracle/top.qpf` and `top.qsf` describe one `top`
 entity for Cyclone V device `5CSEBA6U23I7`. The QSF reuses the shared
@@ -51,13 +52,24 @@ entity for Cyclone V device `5CSEBA6U23I7`. The QSF reuses the shared
 assignments, RBF generation enabled, and incremental compilation disabled.
 There are no QIP/QSYS or generated-IP assignments.
 
+`experiments/020_linux_mailbox/oracle/top.qpf` and `top.qsf` are a second
+minimal project. They reuse the mailbox production RTL and shared clock
+constraint, assign only `FPGA_CLK1_50` to V11, and deliberately have no LED or
+other external output assignment. The simulation-only HPS model is excluded.
+Quartus and OSS must each report one HPS general-purpose boundary and zero use
+of every forbidden hard-block class defined by the closed experiment policy.
+
 After the version and path checks, the wrapper stages that project below
 `build/oracle/<EXP>/project/` and runs the only proprietary command in this
 lane from that directory:
 
 ```text
-<QUARTUS_ROOTDIR>/bin/quartus_sh --flow compile top
+<resolved-quartus_sh> --flow compile top
 ```
+
+The resolver accepts either a Quartus installation directory containing
+`bin/quartus_sh` or its versioned parent containing
+`quartus/bin/quartus_sh`.
 
 The wrapper copies only regular RBF, fitter, and timing report files to the
 oracle output directory. It preserves the version, compile, normalization,
@@ -76,23 +88,30 @@ and uses exactly one `FPGA_CLK1_50` row's `Restricted Fmax` value; unrestricted
 maximums, missing rows, and ambiguous rows do not pass. Direct fitted-resource
 evidence is taken only from the physical rows emitted by the Cyclone V Fitter
 Summary (`RAM Blocks`/`M10K` or block-memory rows, `DSP Blocks`, and `PLLs`).
-The normal summary does not provide measured MLAB/LUTRAM or HPS rows, so those
-classes use an explicitly labelled `static_exclusion` contract: the wrapper
-records `used: null`, `available: null`, `status: excluded`, and the hashes for
-exactly these scanned inputs:
+The mailbox oracle additionally requires one unambiguous measured
+`cyclonev_hps_interface_mpu_general_purpose` row with `used: 1`; every other
+HPS or unknown hard-resource row fails closed.
+
+The normal summary does not provide a measured aggregate MLAB/LUTRAM class, so
+that class uses an explicitly labelled `static_exclusion` contract for both
+experiments. Blinky also uses static exclusion for HPS because it permits no
+HPS boundary. A static record has `used: null`, `available: null`,
+`status: excluded`, and hashes for these scanned inputs:
 
 ```text
 experiments/<EXP>/rtl/top.v
 boards/de10nano/pins.qsf
 boards/de10nano/clocks.sdc
+experiments/<EXP>/oracle/top.qpf    # mailbox static evidence
 experiments/<EXP>/oracle/top.qsf
 ```
 
-It rejects any matching memory/HPS entity or any report row that claims a
-measured count. Comparison checks the canonical per-class exclusion patterns,
-the exact path set, and every nested hash against the corresponding manifest
-source record; arbitrary patterns, stale hashes, and missing/extra paths fail
-closed.
+The mailbox static input set has all five paths; blinky's set omits `top.qpf`.
+The wrapper rejects a matching entity or a measured row for a class that is
+supposed to be statically excluded. Comparison checks the canonical per-class
+exclusion patterns, exact experiment-specific path set, and every nested hash
+against the corresponding manifest source record; arbitrary patterns, stale
+hashes, and missing/extra paths fail closed.
 Each required class is present in `hard_block_evidence`; measured rows carry
 `evidence_kind: fitter_summary` and `measured: true`, while static records carry
 `evidence_kind: static_exclusion`, `measured: false`, and no fitted count or
@@ -105,10 +124,12 @@ Quartus tool pin record; comparison validates both provenance records.
 
 ## Comparison and acceptance
 
-Run the comparison only after both manifests exist:
+Run the comparison only after both manifests exist. Select the same experiment
+for both builds and the comparison:
 
 ```bash
 make compare EXP=010_blinky
+make compare EXP=020_linux_mailbox
 ```
 
 This writes `build/compare/010_blinky/comparison.json` and
@@ -128,3 +149,18 @@ differences remain informational, and absent resources are shown as `absent`,
 never as zero. Static exclusions are rendered as `excluded (static)` in the
 comparison table. The comparison does not claim hardware behavior until an
 operator records that observation separately.
+
+For `020_linux_mailbox`, comparison additionally binds the closed experiment
+policy hash, mailbox protocol-source hash, exact one-HPS-GP semantic resource
+vector, zero external outputs, and the independently parsed OSS and Quartus
+synthesis reports. Distinct RBF hashes remain expected and acceptable: the
+gate compares intent, provenance, resources, and timing rather than compiler
+byte identity. The resulting comparison is Software-tested evidence only; it
+does not attest that either RBF has run on a target.
+
+The source policy is intentionally not a Verilog parser. It rejects the
+closed forbidden-token set and external includes, checks the one required HPS
+GP identifier, and binds the complete production source by SHA-256 in each
+manifest. Actual instantiated resources and ports are established by the OSS
+and Quartus synthesis reports. Changing the RTL is therefore visible and
+reviewable without maintaining a second, incomplete Verilog grammar in Python.

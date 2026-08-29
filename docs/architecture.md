@@ -25,9 +25,47 @@ Every build preserves command lines and complete logs. Build targets never
 program hardware implicitly. Hardware work is limited to volatile FPGA
 configuration; flash, HPS storage, and SD-card contents are not modified.
 
-## Initial boundary
+## Milestone boundaries
 
 M0 establishes pinned, repository-local tools, environment setup, diagnostics,
 and reproducibility metadata. M1 is only the `010_blinky` 50 MHz counter and
-LED experiment. Raster/video, PLLs, HPS, BRAM/M10K, LUTRAM, DSPs, SDRAM,
-audio, and MiSTer framework integration are deferred.
+LED experiment.
+
+M2 adds `020_linux_mailbox`. Its production RTL has one input clock, exactly
+one `cyclonev_hps_interface_mpu_general_purpose` boundary, a 12-byte constant
+message, and no external FPGA output. Its policy permits that one HPS general
+purpose primitive while continuing to reject PLL, DSP, block-memory, LUTRAM,
+SDRAM, video, audio, and unknown hard-block use. Simulation substitutes a
+test-only HPS model that never enters either synthesis lane.
+
+The M2 data flow extends the common build without changing M1 programming:
+
+```text
+shared RTL + policy
+  -> Verilator protocol proof
+  -> OSS and Quartus builds
+  -> lane-specific manifests and canonical resource evidence
+  -> semantic comparison
+  -> private four-file development bundle
+  -> dedicated FogCast dev transport
+```
+
+`scripts/dev_bundle.py` binds `top.rbf`, the compact artifact manifest,
+canonical unsigned resource evidence, and `bundle.sha256` to one clean source
+commit, lane, and run ID. `scripts/fogcast_dev.py` is a separate host transport
+for FogCast preflight, volatile load, and deterministic recovery testing. It
+uses argv-list subprocesses and direct remote `exec` commands; it does not
+import or modify `scripts/program.py`.
+
+The transport distinguishes three time domains: an absolute 120-second SSH
+reconnect bound, a cumulative 30-second recovered FogCast/Main readiness
+bound, and an absolute 10-second fault-inspection bound. A successful reboot
+must expose a fresh session and strictly greater owner generation. A fault
+cycle additionally requires the orphan stage, result, diagnostic, hook, and
+socket to be absent after recovery.
+
+M2's repository handoff is Software-tested. It proves source policy,
+simulation, both compiler lanes, deterministic OSS bytes, semantic comparison,
+bundle construction, and host-only dry-run transport. It does not claim FPGA,
+HPS mailbox, reboot, or display behavior on a physical target. Those remain in
+the separately authorized cross-repository HIL phase.
