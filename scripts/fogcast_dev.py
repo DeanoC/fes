@@ -879,7 +879,7 @@ set -eu
 [ -d {stage} ]
 cd {stage}
 set -- {members}
-for name do [ ! -L "$name" ] && [ -f "$name" ]; chmod 0600 "$name"; done
+for name do [ ! -L "$name" ]; [ -f "$name" ]; chmod 0600 "$name"; done
 printf 'FOGCAST_MISTEROSS_STAGE_V1\n'
 printf 'DIR|%s\n' "$(misteross_meta {stage})"
 for name do printf 'FILE|%s|%s|%s|%s\n' "$name" "$(misteross_meta "$name")" "$(wc -c < "$name")" "$(sha256sum "$name" | busybox awk 'NF==2 {{print $1; exit}}')"; done
@@ -1215,8 +1215,22 @@ class Transport:
             raise TransportError("SCP returned malformed command evidence")
         return result
 
-    def _attest(self, session: _ControlSession) -> Attestation:
-        result = self._invoke(session.ssh(_attestation_script()), timeout=REMOTE_COMMAND_TIMEOUT)
+    def _attest(
+        self,
+        session: _ControlSession,
+        *,
+        deadline: float | None = None,
+    ) -> Attestation:
+        timeout = (
+            REMOTE_COMMAND_TIMEOUT
+            if deadline is None
+            else self._deadline_budget(
+                deadline, REMOTE_COMMAND_TIMEOUT, "readiness 30-second bound"
+            )
+        )
+        result = self._invoke(session.ssh(_attestation_script()), timeout=timeout)
+        if deadline is not None and self.config.clock() > deadline:
+            raise TransportError("readiness exceeded its cumulative 30-second deadline")
         if result.returncode != 0 or result.stderr != "":
             raise TransportError("remote executable attestation command failed")
         return parse_attestation(
@@ -1225,20 +1239,49 @@ class Transport:
             expected_tool_sha256=self.config.expected_tool_sha256,
         )
 
-    def _stage(self, bundle: Bundle, session: _ControlSession) -> None:
-        self._attest(session)
-        created = self._invoke(session.ssh(_mkdir_script(bundle.run_id)), timeout=REMOTE_COMMAND_TIMEOUT)
+    def _stage(
+        self,
+        bundle: Bundle,
+        session: _ControlSession,
+        *,
+        deadline: float | None = None,
+    ) -> None:
+        def timeout() -> float:
+            if deadline is None:
+                return REMOTE_COMMAND_TIMEOUT
+            return self._deadline_budget(
+                deadline, REMOTE_COMMAND_TIMEOUT, "readiness 30-second bound"
+            )
+
+        def check_deadline() -> None:
+            if deadline is not None and self.config.clock() > deadline:
+                raise TransportError(
+                    "readiness exceeded its cumulative 30-second deadline"
+                )
+
+        self._attest(session, deadline=deadline)
+        created = self._invoke(
+            session.ssh(_mkdir_script(bundle.run_id)), timeout=timeout()
+        )
         if created.returncode != 0:
             raise TransportError("remote private stage collision or mkdir failure")
         try:
+            check_deadline()
             if created.stderr != "":
                 raise TransportError("remote private stage mkdir produced unexpected stderr")
             _parse_dir(created.stdout)
             destination = f"{self.target}:{remote_stage(bundle.run_id)}/"
-            copied = self._scp(session.scp([str(path) for path in bundle.members], destination), timeout=REMOTE_COMMAND_TIMEOUT)
+            copied = self._scp(
+                session.scp([str(path) for path in bundle.members], destination),
+                timeout=timeout(),
+            )
+            check_deadline()
             if copied.returncode != 0 or getattr(copied, "stdout", "") != "" or getattr(copied, "stderr", "") != "":
                 raise TransportError("staging the reviewed four-file bundle failed")
-            verified = self._invoke(session.ssh(_verify_script(bundle.run_id)), timeout=REMOTE_COMMAND_TIMEOUT)
+            verified = self._invoke(
+                session.ssh(_verify_script(bundle.run_id)), timeout=timeout()
+            )
+            check_deadline()
             if verified.returncode != 0 or verified.stderr != "":
                 raise TransportError("remote no-follow stage verification failed")
             _parse_stage(verified.stdout, bundle)
@@ -1259,12 +1302,19 @@ class Transport:
         ssh = lambda command: tuple(ssh_argv(self.config.ssh, self.config.user, self.config.host, command))
         destination = f"{self.target}:{remote_stage(bundle.run_id)}/"
         scp_upload = tuple([self.config.scp, *SCP_OPTIONS, *[str(path) for path in bundle.members], destination])
-        common = [ssh(_attestation_script()), ssh(_mkdir_script(bundle.run_id)), scp_upload, ssh(_verify_script(bundle.run_id))]
+        stage_plan = [
+            ssh(_attestation_script()),
+            ssh(_mkdir_script(bundle.run_id)),
+            scp_upload,
+            ssh(_verify_script(bundle.run_id)),
+        ]
+        common = list(stage_plan)
         if action == "preflight":
             common.extend((ssh(remote_preflight_command(bundle.run_id)), ssh(_cleanup_script(bundle.run_id))))
         elif action == "load":
             common.extend((
                 ssh(remote_run_command(bundle.run_id)), ssh(_reconnect_script()),
+                *stage_plan,
                 ssh(remote_preflight_command(bundle.run_id)), ssh(_readiness_script()),
                 ssh(_result_probe_script(bundle.run_id)),
                 tuple([self.config.scp, *SCP_OPTIONS, f"{self.target}:{_result_path(bundle.run_id)}", str(trace / "result.json")]),
@@ -1639,6 +1689,7 @@ class Transport:
 
         ready: ReadyRecord | None = None
         recovery: _ControlSession | None = None
+        recovery_staged = False
         result_raw: bytes | None = None
         connected_at: float | None = None
         if staged and disconnected_at is not None:
@@ -1649,6 +1700,8 @@ class Transport:
         if recovery is not None and connected_at is not None:
             readiness_deadline = connected_at + READINESS_TIMEOUT
             try:
+                self._stage(selected, recovery, deadline=readiness_deadline)
+                recovery_staged = True
                 ready = self._verify_readiness(selected, recovery, connected_at)
                 _durable_write(trace / "ready.json", ready.raw)
             except BaseException as exc:
@@ -1697,10 +1750,11 @@ class Transport:
             except BaseException as exc:
                 errors.append(exc)
         if recovery is not None:
-            try:
-                self._cleanup_stage(selected, recovery)
-            except BaseException as exc:
-                errors.append(exc)
+            if recovery_staged:
+                try:
+                    self._cleanup_stage(selected, recovery)
+                except BaseException as exc:
+                    errors.append(exc)
             try:
                 recovery.close()
             except BaseException as exc:

@@ -6,6 +6,7 @@ import json
 import os
 import signal
 import stat
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -311,6 +312,8 @@ class FakeTransport:
         self.clock: FakeClock | None = None
         self.resolve_elapsed = 0.0
         self.elapsed: dict[str, float] = {}
+        self.drop_stage_on_reconnect = False
+        self.stage_present = False
 
     def _advance(self, label: str) -> None:
         if self.clock is not None:
@@ -332,6 +335,8 @@ class FakeTransport:
         if "FOGCAST_MISTEROSS_RECONNECT_V1" in command:
             self.remote_order.append("reconnect")
             self._advance("reconnect")
+            if self.drop_stage_on_reconnect:
+                self.stage_present = False
             return SimpleNamespace(
                 returncode=0,
                 stdout="FOGCAST_MISTEROSS_RECONNECT_V1\n",
@@ -372,6 +377,8 @@ class FakeTransport:
             )
         if "FOGCAST_MISTEROSS_MKDIR_V1" in command:
             self.remote_order.append("mkdir")
+            self.stage_present = True
+            self._advance("mkdir")
             return SimpleNamespace(returncode=0, stdout=self.mkdir_stdout, stderr="")
         if "FOGCAST_MISTEROSS_VERIFY_V1" in command:
             self.remote_order.append("verify")
@@ -388,6 +395,8 @@ class FakeTransport:
         if "mister-fpga-dev preflight" in command:
             self.remote_order.append("preflight")
             self._advance("preflight")
+            if not self.stage_present:
+                return SimpleNamespace(returncode=2, stdout="", stderr="stage missing")
             if (
                 "run" in self.remote_order
                 and "result-delete" not in self.remote_order
@@ -453,6 +462,7 @@ class FakeTransport:
             )
         if "FOGCAST_MISTEROSS_CLEANUP_V1" in command:
             self.remote_order.append("cleanup")
+            self.stage_present = False
             return SimpleNamespace(returncode=self.cleanup_returncode, stdout="", stderr="cleanup failed" if self.cleanup_returncode else "")
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
@@ -582,6 +592,32 @@ class FogCastCommandTests(unittest.TestCase):
         self.assertEqual(argv[-1], command)
         self.assertIn("-q", argv)
         self.assertIn("-T", argv)
+
+    def test_remote_verify_rejects_symlink_without_chmodding_its_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run_id = hashlib.sha256(str(root).encode()).hexdigest()[:32]
+            stage = Path(fogcast_dev.remote_stage(run_id))
+            target = root / "target"
+            target.write_bytes(b"target")
+            os.chmod(target, 0o644)
+            stage.mkdir(mode=0o700)
+            try:
+                (stage / "manifest.json").symlink_to(target)
+                for name in ("resource_evidence.json", "top.rbf", "bundle.sha256"):
+                    (stage / name).write_bytes(name.encode())
+                completed = subprocess.run(
+                    ["/bin/sh", "-c", fogcast_dev._verify_script(run_id)],
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertNotEqual(completed.returncode, 0)
+                self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o644)
+            finally:
+                for child in stage.iterdir():
+                    child.unlink()
+                stage.rmdir()
 
     def test_preflight_stages_exact_bundle_and_cleans_without_reconnect_or_result(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1240,6 +1276,40 @@ class FogCastRecoveryTests(unittest.TestCase):
             self.assertLess(fake.remote_order.index("live"), fake.remote_order.index("result-probe"))
             self.assertLess(fake.remote_order.index("result-delete"), final_preflight)
 
+    def test_load_restages_bundle_when_reboot_clears_tmp_before_recovery(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = write_bundle(root)
+            fake = FakeTransport()
+            fake.drop_stage_on_reconnect = True
+            report = fogcast_dev.Transport(config(root, fake)).load(bundle)
+            self.assertTrue(report.ok)
+            self.assertEqual(fake.remote_order.count("mkdir"), 2)
+            reconnect = fake.remote_order.index("reconnect")
+            second_mkdir = [
+                index for index, operation in enumerate(fake.remote_order)
+                if operation == "mkdir"
+            ][1]
+            self.assertLess(reconnect, second_mkdir)
+            self.assertLess(second_mkdir, fake.remote_order.index("ready"))
+
+    def test_recovery_restage_deadline_cleans_the_newly_owned_stage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = write_bundle(root)
+            fake = FakeTransport()
+            fake.clock = FakeClock()
+            fake.drop_stage_on_reconnect = True
+            fake.elapsed["mkdir"] = fogcast_dev.READINESS_TIMEOUT + 1.0
+            with self.assertRaisesRegex(
+                fogcast_dev.TransportError,
+                "readiness exceeded its cumulative 30-second deadline",
+            ):
+                fogcast_dev.Transport(config(root, fake)).load(bundle)
+            self.assertFalse(fake.stage_present)
+            reconnect = fake.remote_order.index("reconnect")
+            self.assertIn("cleanup", fake.remote_order[reconnect + 1 :])
+
     def test_reconnect_deadline_is_absolute_from_the_disconnect_boundary(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1344,8 +1414,11 @@ class FogCastRecoveryTests(unittest.TestCase):
 
             preflights = positions("mister-fpga-dev preflight")
             self.assertEqual(len(preflights), 2)
+            verifies = positions("FOGCAST_MISTEROSS_VERIFY_V1")
+            self.assertEqual(len(verifies), 2)
             self.assertLess(positions("mister-fpga-dev run")[0], positions("FOGCAST_MISTEROSS_RECONNECT_V1")[0])
-            self.assertLess(positions("FOGCAST_MISTEROSS_RECONNECT_V1")[0], preflights[0])
+            self.assertLess(positions("FOGCAST_MISTEROSS_RECONNECT_V1")[0], verifies[1])
+            self.assertLess(verifies[1], preflights[0])
             self.assertLess(preflights[0], positions("FOGCAST_MISTEROSS_READINESS_V3")[0])
             self.assertLess(positions("FOGCAST_MISTEROSS_READINESS_V3")[0], positions("FOGCAST_MISTEROSS_RESULT_V1")[0])
             self.assertLess(positions("FOGCAST_MISTEROSS_RESULT_DELETE_V1")[0], preflights[1])
