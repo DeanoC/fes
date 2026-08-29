@@ -56,6 +56,16 @@ func NewTargetControllerWithConfig(listenAddress, uinputPath string) *TargetCont
 	return &TargetController{listenAddress: listenAddress, uinputPath: uinputPath}
 }
 
+// NewTargetControllerForProfile keeps the development profile free of input
+// workers and their uinput/socket descriptors. Production and compatibility
+// profiles retain the existing target controller construction.
+func NewTargetControllerForProfile(listenAddress, uinputPath string, development bool) *TargetController {
+	if development {
+		return nil
+	}
+	return NewTargetControllerWithConfig(listenAddress, uinputPath)
+}
+
 func (c *TargetController) Attach(ctx context.Context, spec Spec) error {
 	if c == nil || ctx == nil || spec.Session == 0 || len(spec.Token) < 16 || !validCore(spec.Core) {
 		return errors.New("invalid input lease")
@@ -70,7 +80,9 @@ func (c *TargetController) Attach(ctx context.Context, spec Spec) error {
 	}
 	c.active = nil
 	c.mu.Unlock()
-	stopLease(current)
+	if err := stopLease(current); err != nil {
+		return err
+	}
 
 	sink, err := bridge.OpenUInput(c.uinputPath)
 	if err != nil {
@@ -83,8 +95,7 @@ func (c *TargetController) Attach(ctx context.Context, spec Spec) error {
 		Core:    spec.Core,
 	}, sink)
 	if err != nil {
-		_ = sink.Close()
-		return err
+		return errors.Join(err, sink.Close())
 	}
 	leaseCtx, cancel := context.WithCancel(context.Background())
 	candidate := &lease{
@@ -97,8 +108,7 @@ func (c *TargetController) Attach(ctx context.Context, spec Spec) error {
 	go func() { _ = server.ListenAndServe(leaseCtx) }()
 	select {
 	case <-ctx.Done():
-		stopLease(candidate)
-		return ctx.Err()
+		return errors.Join(stopLease(candidate), ctx.Err())
 	case <-server.Ready():
 	}
 
@@ -107,8 +117,7 @@ func (c *TargetController) Attach(ctx context.Context, spec Spec) error {
 		previous := c.active
 		c.active = candidate
 		c.mu.Unlock()
-		stopLease(previous)
-		return nil
+		return stopLease(previous)
 	}
 	c.active = candidate
 	c.mu.Unlock()
@@ -127,11 +136,11 @@ func (c *TargetController) Detach(ctx context.Context, session uint64) error {
 	}
 	c.active = nil
 	c.mu.Unlock()
-	stopLease(current)
+	stopErr := stopLease(current)
 	if ctx == nil {
-		return nil
+		return stopErr
 	}
-	return ctx.Err()
+	return errors.Join(stopErr, ctx.Err())
 }
 
 func (c *TargetController) OpenStream(ctx context.Context, session uint64) (net.Conn, error) {
@@ -158,20 +167,21 @@ func (c *TargetController) Close() error {
 	current := c.active
 	c.active = nil
 	c.mu.Unlock()
-	stopLease(current)
-	return nil
+	return stopLease(current)
 }
 
-func stopLease(current *lease) {
+func stopLease(current *lease) error {
 	if current == nil {
-		return
+		return nil
 	}
 	if current.cancel != nil {
 		current.cancel()
 	}
+	var closeErr error
 	if current.server != nil {
-		_ = current.server.Close()
+		closeErr = current.server.Close()
 	}
+	return closeErr
 }
 
 func validCore(core string) bool {

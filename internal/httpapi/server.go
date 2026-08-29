@@ -60,12 +60,16 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 	mux.Handle("POST /v1/stop", authenticate(token, stopHandler(controller)))
 	if settings.cast != nil {
 		registerCastRoutes(mux, token, settings.cast)
+	} else if settings.unavailableCast {
+		registerUnavailableCastRoutes(mux, token)
 	}
 	if settings.content != nil {
 		registerContentRoutes(mux, token, settings.content)
 	}
 	if settings.input != nil {
 		registerInputRoutes(mux, token, settings.input)
+	} else if settings.unavailableInput {
+		registerUnavailableInputRoutes(mux, token)
 	}
 	return requestLogger(logger, rejectInvalidV2RouteShapes(mux))
 }
@@ -74,6 +78,13 @@ func registerInputRoutes(mux *http.ServeMux, token string, controller InputContr
 	mux.Handle("/v1/input/attach", authenticate(token, exactMethod(http.MethodPost, inputAttachHandler(controller))))
 	mux.Handle("/v1/input/detach", authenticate(token, exactMethod(http.MethodPost, inputDetachHandler(controller))))
 	mux.Handle("/v1/input/stream", authenticate(token, inputStreamHandler(controller)))
+}
+
+func registerUnavailableInputRoutes(mux *http.ServeMux, token string) {
+	handler := unavailableAuxiliaryHandler()
+	mux.Handle("POST /v1/input/attach", authenticate(token, exactMethod(http.MethodPost, handler)))
+	mux.Handle("POST /v1/input/detach", authenticate(token, exactMethod(http.MethodPost, handler)))
+	mux.Handle("CONNECT /v1/input/stream", authenticate(token, handler))
 }
 
 func inputAttachHandler(controller InputController) http.Handler {

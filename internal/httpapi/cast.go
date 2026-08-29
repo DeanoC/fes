@@ -17,6 +17,20 @@ func registerCastRoutes(mux *http.ServeMux, token string, controller CastControl
 	mux.Handle("GET /v1/cast/status", authenticate(token, exactMethod(http.MethodGet, castStatusHandler(controller))))
 }
 
+func registerUnavailableCastRoutes(mux *http.ServeMux, token string) {
+	handler := unavailableAuxiliaryHandler()
+	mux.Handle("POST /v1/cast/start", authenticate(token, exactMethod(http.MethodPost, handler)))
+	mux.Handle("POST /v1/cast/stop", authenticate(token, exactMethod(http.MethodPost, handler)))
+	mux.Handle("GET /v1/cast/status", authenticate(token, exactMethod(http.MethodGet, handler)))
+}
+
+func unavailableAuxiliaryHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		setRequestError(r, protocol.CodeMiSTerUnavailable)
+		writeError(w, http.StatusServiceUnavailable, string(protocol.CodeMiSTerUnavailable), "MiSTer is unavailable")
+	})
+}
+
 func castStartHandler(controller CastController) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 8<<10)

@@ -81,3 +81,145 @@ func TestLoadAgentConfigRejectsUnknownUnsafeAndInvalidCacheValues(t *testing.T) 
 		})
 	}
 }
+
+const validDevelopmentConfig = validAgentConfig + `build_profile = "development"
+development_profile = true
+hardware_owner_path = "/var/lib/fogcast/hardware-owner-v1.json"
+hardware_owner_lock = "/run/fogcast/hardware-owner-v1.lock"
+designation_path = "/run/fogcast/designation"
+target_identity_path = "/run/fogcast/target-identity"
+fpgadev_boot_dispatcher = "/media/fat/linux/user-startup.sh"
+fpgadev_start_sources = ["/etc/init.d/S99fogcast-agent", "/media/fat/linux/user-startup.sh"]
+`
+
+func TestLoadAgentConfigCapturesExplicitFPGABootAuthority(t *testing.T) {
+	t.Parallel()
+	cfg, err := agentconfig.Parse([]byte(validDevelopmentConfig))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.FPGADevBootDispatcher != "/media/fat/linux/user-startup.sh" {
+		t.Fatalf("dispatcher = %q", cfg.FPGADevBootDispatcher)
+	}
+	if len(cfg.FPGADevStartSources) != 2 || cfg.FPGADevStartSources[1] != "/media/fat/linux/user-startup.sh" {
+		t.Fatalf("start sources = %#v", cfg.FPGADevStartSources)
+	}
+	if err := cfg.ValidateDevelopmentInventory(); err != nil {
+		t.Fatalf("explicit boot authority rejected: %v", err)
+	}
+}
+
+func TestLoadAgentConfigRejectsInvalidFPGABootAuthority(t *testing.T) {
+	t.Parallel()
+	base, err := agentconfig.Parse([]byte(validDevelopmentConfig))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := map[string]agentconfig.Config{}
+	missingDispatcher := base
+	missingDispatcher.FPGADevBootDispatcher = ""
+	tests["missing dispatcher"] = missingDispatcher
+	missingSources := base
+	missingSources.FPGADevStartSources = nil
+	tests["missing sources"] = missingSources
+	unsorted := base
+	unsorted.FPGADevStartSources = []string{"/media/fat/linux/user-startup.sh", "/etc/init.d/S99fogcast-agent"}
+	tests["unsorted sources"] = unsorted
+	duplicate := base
+	duplicate.FPGADevStartSources = []string{"/etc/init.d/S99fogcast-agent", "/etc/init.d/S99fogcast-agent"}
+	tests["duplicate sources"] = duplicate
+	notMember := base
+	notMember.FPGADevBootDispatcher = "/media/fat/linux/other-startup.sh"
+	tests["dispatcher not inventoried"] = notMember
+	tooMany := base
+	tooMany.FPGADevStartSources = make([]string, 17)
+	for index := range tooMany.FPGADevStartSources {
+		tooMany.FPGADevStartSources[index] = "/etc/init.d/S" + strings.Repeat("0", 2) + string(rune('A'+index))
+	}
+	tests["too many sources"] = tooMany
+	for name, cfg := range tests {
+		t.Run(name, func(t *testing.T) {
+			if err := cfg.ValidateFPGABootAuthority(); err == nil {
+				t.Fatal("invalid FPGA development boot authority accepted")
+			}
+		})
+	}
+	for name, content := range map[string]string{
+		"missing dispatcher field": strings.Replace(validDevelopmentConfig, "fpgadev_boot_dispatcher = \"/media/fat/linux/user-startup.sh\"\n", "", 1),
+		"missing sources field":    strings.Replace(validDevelopmentConfig, "fpgadev_start_sources = [\"/etc/init.d/S99fogcast-agent\", \"/media/fat/linux/user-startup.sh\"]\n", "", 1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := agentconfig.Parse([]byte(content)); err == nil {
+				t.Fatal("development config without explicit FPGA authority parsed")
+			}
+		})
+	}
+}
+
+func TestLoadAgentConfigValidatesRestrictedDevelopmentProfile(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "agent.toml")
+	if err := os.WriteFile(path, []byte(validDevelopmentConfig), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := agentconfig.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.BuildProfile != "development" || !cfg.DevelopmentProfile || cfg.HardwareOwnerPath == "" || cfg.HardwareOwnerLock == "" || cfg.DesignationPath == "" || cfg.TargetIdentityPath == "" {
+		t.Fatalf("development config = %#v", cfg)
+	}
+	if err := cfg.ValidateProfile(true); err != nil {
+		t.Fatalf("development profile with capability rejected: %v", err)
+	}
+	if err := cfg.ValidateProfile(false); err == nil {
+		t.Fatal("development profile accepted without compile-time capability")
+	}
+}
+
+func TestLoadAgentConfigRejectsDevelopmentFieldsInProductionProfile(t *testing.T) {
+	t.Parallel()
+	for _, field := range []string{
+		`development_profile = false`,
+		`hardware_owner_path = "/var/lib/fogcast/owner.json"`,
+		`hardware_owner_lock = "/run/fogcast/owner.lock"`,
+		`designation_path = "/run/fogcast/designation"`,
+		`target_identity_path = "/run/fogcast/identity"`,
+	} {
+		t.Run(field, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "agent.toml")
+			if err := os.WriteFile(path, []byte(validAgentConfig+field+"\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := agentconfig.Load(path); err == nil {
+				t.Fatal("development-only field accepted by production config")
+			}
+		})
+	}
+}
+
+func TestLoadAgentConfigRequiresCompleteDevelopmentPathsAndExplicitOptIn(t *testing.T) {
+	t.Parallel()
+	tests := map[string]string{
+		"missing opt in":       strings.Replace(validDevelopmentConfig, "development_profile = true\n", "", 1),
+		"missing owner path":   strings.Replace(validDevelopmentConfig, "hardware_owner_path = \"/var/lib/fogcast/hardware-owner-v1.json\"\n", "", 1),
+		"relative lock":        strings.Replace(validDevelopmentConfig, "hardware_owner_lock = \"/run/fogcast/hardware-owner-v1.lock\"", "hardware_owner_lock = \"owner.lock\"", 1),
+		"relative designation": strings.Replace(validDevelopmentConfig, "designation_path = \"/run/fogcast/designation\"", "designation_path = \"designation\"", 1),
+		"relative identity":    strings.Replace(validDevelopmentConfig, "target_identity_path = \"/run/fogcast/target-identity\"", "target_identity_path = \"identity\"", 1),
+	}
+	for name, content := range tests {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "agent.toml")
+			if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			cfg, err := agentconfig.Load(path)
+			if err != nil {
+				return
+			}
+			if err := cfg.ValidateProfile(true); err == nil {
+				t.Fatal("incomplete development profile accepted")
+			}
+		})
+	}
+}

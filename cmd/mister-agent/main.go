@@ -16,6 +16,7 @@ import (
 	"github.com/DeanoC/FogCast-POC/internal/agentconfig"
 	"github.com/DeanoC/FogCast-POC/internal/cast"
 	"github.com/DeanoC/FogCast-POC/internal/core"
+	"github.com/DeanoC/FogCast-POC/internal/hardwareowner"
 	"github.com/DeanoC/FogCast-POC/internal/httpapi"
 	"github.com/DeanoC/FogCast-POC/internal/input"
 	"github.com/DeanoC/FogCast-POC/internal/mister"
@@ -39,8 +40,8 @@ type runDependencies struct {
 	serve      func(*http.Server) error
 }
 
-func run(ctx context.Context, configPath string, logger *slog.Logger) error {
-	return runWithDependencies(ctx, configPath, logger, productionRunDependencies())
+func run(ctx context.Context, configPath string, logger *slog.Logger, startupFD ...int) error {
+	return runWithDependencies(ctx, configPath, logger, productionRunDependencies(), startupFD...)
 }
 
 func productionRunDependencies() runDependencies {
@@ -74,10 +75,20 @@ func productionRunDependencies() runDependencies {
 	}
 }
 
-func runWithDependencies(ctx context.Context, configPath string, logger *slog.Logger, dependencies runDependencies) (resultErr error) {
+func runWithDependencies(ctx context.Context, configPath string, logger *slog.Logger, dependencies runDependencies, startupFD ...int) (resultErr error) {
 	cfg, err := agentconfig.Load(configPath)
 	if err != nil {
 		return errors.New("target configuration could not be loaded")
+	}
+	if err := cfg.ValidateProfile(fpgadevCapability); err != nil {
+		return errors.New("target configuration could not be loaded")
+	}
+	if cfg.IsDevelopmentProfile() {
+		if len(startupFD) != 1 || validateStartupFD(startupFD[0]) != nil {
+			return errors.New("development profile requires inherited readiness fd 3")
+		}
+	} else if len(startupFD) > 1 {
+		return errors.New("multiple startup descriptors were supplied")
 	}
 	registry := core.DefaultRegistry()
 	cache, err := dependencies.openCache(targetcache.Config{
@@ -89,13 +100,19 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		return errors.New("target cache could not be opened")
 	}
 	runtime := dependencies.newRuntime(cfg, registry)
-	coordinator := agent.New(runtime, registry, 10*time.Second, 5*time.Second)
+	var normalGate hardwareowner.NormalGate
+	if cfg.IsDevelopmentProfile() {
+		normalGate = newNormalGate(cfg, configPath)
+	}
+	coordinator := agent.New(runtime, registry, 10*time.Second, 5*time.Second, normalGate)
 	content := agent.NewContentController(coordinator, cache)
 	startup, cancel := context.WithTimeout(ctx, 40*time.Second)
 	coordinator.Initialize(startup)
 	cancel()
 	options := []httpapi.Option{httpapi.WithContent(content)}
-	if cfg.CastBinary != "" {
+	if cfg.IsDevelopmentProfile() {
+		options = append(options, httpapi.WithUnavailableCast(), httpapi.WithUnavailableInput())
+	} else if cfg.CastBinary != "" {
 		if dependencies.newCast == nil {
 			return errors.New("cast controller could not be configured")
 		}
@@ -123,7 +140,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		}()
 	}
 	var inputController httpapi.InputController
-	if dependencies.newInput != nil {
+	if !cfg.IsDevelopmentProfile() && dependencies.newInput != nil {
 		inputController = dependencies.newInput(cfg)
 		if inputController != nil {
 			options = append(options, httpapi.WithInput(inputController))
@@ -138,6 +155,15 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		ReadTimeout:       75 * time.Second,
 		WriteTimeout:      75 * time.Second,
 		IdleTimeout:       30 * time.Second,
+	}
+	fd := -1
+	if len(startupFD) == 1 {
+		fd = startupFD[0]
+	}
+	if cfg.IsDevelopmentProfile() || fd != -1 {
+		if err := announceStartup(ctx, configPath, cfg, fd); err != nil {
+			return err
+		}
 	}
 	go func() {
 		<-ctx.Done()
@@ -154,15 +180,23 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 
 func main() {
 	configPath := flag.String("config", "/media/fat/mister-remote/agent.toml", "target configuration path")
+	startupFD := registerStartupFlag(flag.CommandLine)
 	flag.Parse()
 	if flag.NArg() != 0 {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: mister-agent [--config path]")
 		os.Exit(2)
 	}
+	fd := startupFDValue(startupFD)
+	if fd != -1 {
+		if err := validateStartupFD(fd); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, "usage: mister-agent [--config path]")
+			os.Exit(2)
+		}
+	}
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := run(ctx, *configPath, logger); err != nil {
+	if err := run(ctx, *configPath, logger, fd); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, "mister-agent: startup failed")
 		os.Exit(1)
 	}

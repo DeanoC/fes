@@ -316,3 +316,43 @@ func TestTokenAndBodyNeverAppearInLogs(t *testing.T) {
 		}
 	}
 }
+
+func TestUnavailableInputRoutesReturnMiSTerUnavailableWithoutHardwareCall(t *testing.T) {
+	handler := httpapi.New(&fakeController{}, "test-token", "0.1.0", discardLogger(), httpapi.WithUnavailableInput())
+	tests := []struct {
+		name       string
+		method     string
+		path       string
+		body       string
+		wantStatus int
+		wantAllow  string
+	}{
+		{name: "attach", method: http.MethodPost, path: "/v1/input/attach", body: `{"session":1,"token":"00112233445566778899aabbccddeeff","core":"SNES"}`, wantStatus: http.StatusServiceUnavailable},
+		{name: "detach", method: http.MethodPost, path: "/v1/input/detach", body: `{"session":1}`, wantStatus: http.StatusServiceUnavailable},
+		{name: "stream", method: http.MethodConnect, path: "/v1/input/stream", wantStatus: http.StatusServiceUnavailable},
+		{name: "stream method", method: http.MethodGet, path: "/v1/input/stream", wantStatus: http.StatusMethodNotAllowed, wantAllow: http.MethodConnect},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(test.method, test.path, strings.NewReader(test.body))
+			request.Header.Set("Authorization", "Bearer test-token")
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != test.wantStatus {
+				t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+			}
+			if response.Header().Get("Allow") != test.wantAllow {
+				t.Fatalf("allow = %q, want %q", response.Header().Get("Allow"), test.wantAllow)
+			}
+			if test.wantStatus == http.StatusServiceUnavailable {
+				var envelope protocol.ErrorEnvelope
+				if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
+					t.Fatal(err)
+				}
+				if envelope.Error.Code != protocol.CodeMiSTerUnavailable {
+					t.Fatalf("error code = %q", envelope.Error.Code)
+				}
+			}
+		})
+	}
+}

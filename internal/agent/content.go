@@ -76,7 +76,14 @@ func (c *ContentController) LaunchContent(parent context.Context, request protoc
 	if err := protocol.ValidateContentIdentity(request.Content); err != nil {
 		return response, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "content identity is invalid"}
 	}
-
+	normalUnlock, apiErr := c.coordinator.enterNormal(parent)
+	if apiErr != nil {
+		response.Status = c.coordinator.Status()
+		return response, apiErr
+	}
+	defer func() {
+		response.Status, resultErr = c.coordinator.finalizeNormalTransition(response.Status, resultErr, normalUnlock)
+	}()
 	resolved, apiErr := c.store.Resolve(parent, request.System, request.Content)
 	if apiErr != nil {
 		response.Status = c.coordinator.Status()

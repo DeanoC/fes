@@ -24,9 +24,11 @@ type ContentController interface {
 }
 
 type serverOptions struct {
-	content ContentController
-	input   InputController
-	cast    CastController
+	content          ContentController
+	input            InputController
+	cast             CastController
+	unavailableCast  bool
+	unavailableInput bool
 }
 
 type Option func(*serverOptions)
@@ -41,6 +43,19 @@ func WithInput(controller InputController) Option {
 	return func(options *serverOptions) {
 		options.input = controller
 	}
+}
+
+// WithUnavailableCast registers the stable public cast routes without
+// constructing a cast worker. It is used by the restricted development
+// profile, where cast/presentation facilities are intentionally absent.
+func WithUnavailableCast() Option {
+	return func(options *serverOptions) { options.unavailableCast = true }
+}
+
+// WithUnavailableInput registers the stable public input routes without
+// constructing an input worker or opening uinput/socket descriptors.
+func WithUnavailableInput() Option {
+	return func(options *serverOptions) { options.unavailableInput = true }
 }
 
 type CastController interface {

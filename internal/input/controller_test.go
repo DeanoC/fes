@@ -34,3 +34,12 @@ func TestTargetControllerOpenStreamRequiresActiveLease(t *testing.T) {
 		t.Fatal("stream opened without lease")
 	}
 }
+
+func TestNewTargetControllerForProfileRefusesDevelopmentProfileConstruction(t *testing.T) {
+	if controller := NewTargetControllerForProfile("127.0.0.1:18183", "/dev/uinput", true); controller != nil {
+		t.Fatal("development profile constructed an input controller")
+	}
+	if controller := NewTargetControllerForProfile("127.0.0.1:18183", "/dev/uinput", false); controller == nil {
+		t.Fatal("production profile did not construct input controller")
+	}
+}

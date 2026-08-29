@@ -1,0 +1,15 @@
+listen_address = "127.0.0.1:8182"
+token = "REPLACE_WITH_A_TARGET_LOCAL_TOKEN"
+mister_process_comm = "MiSTer"
+command_pipe = "/dev/MiSTer_cmd"
+core_name_file = "/tmp/CORENAME"
+menu_rbf = "/media/fat/menu.rbf"
+mgl_directory = "/media/fat/mister-remote"
+build_profile = "development"
+development_profile = true
+hardware_owner_path = "/var/lib/fogcast/hardware-owner-v1.json"
+hardware_owner_lock = "/run/fogcast/hardware-owner-v1.lock"
+designation_path = "/var/lib/fogcast/fogcast-designation-v1.json"
+target_identity_path = "/var/lib/fogcast/fogcast-target-identity-v1.json"
+fpgadev_boot_dispatcher = "/media/fat/linux/user-startup.sh"
+fpgadev_start_sources = ["/media/fat/linux/user-startup.sh"]
