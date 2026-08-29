@@ -381,17 +381,17 @@ func readAndHashInventoryDescriptor(ctx context.Context, descriptor inventoryDes
 	if readMeta.Dev != descriptor.meta.Dev || readMeta.Ino != descriptor.meta.Ino || readMeta.Mode&unix.S_IFMT != unix.S_IFREG {
 		return nil, "", errors.New("held inventory descriptor identity changed before hash")
 	}
-	if readMeta.Size < 0 || readMeta.Size > InstallJournalMaxBytes {
+	if readMeta.Size < 0 || readMeta.Size > ProtectedRegularMaxBytes {
 		return nil, "", errors.New("inventory regular file exceeds hash bound")
 	}
 	data := make([]byte, 0, readMeta.Size)
-	reader := io.LimitReader(readFile, InstallJournalMaxBytes+1)
+	reader := io.LimitReader(readFile, ProtectedRegularMaxBytes+1)
 	var readErr error
 	data, readErr = io.ReadAll(reader)
 	if readErr != nil {
 		return nil, "", readErr
 	}
-	if len(data) > InstallJournalMaxBytes {
+	if len(data) > ProtectedRegularMaxBytes {
 		return nil, "", errors.New("inventory regular file exceeds hash bound")
 	}
 	if err := ctx.Err(); err != nil {

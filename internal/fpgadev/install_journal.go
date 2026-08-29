@@ -30,11 +30,14 @@ import (
 )
 
 const (
-	InstallJournalPath       = "/var/lib/fogcast/fpgadev-install-v1.json"
-	InstallBackupDir         = "/var/lib/fogcast/fpgadev-install-v1-backups"
-	InstallLockPath          = "/var/lock/fogcast/fpgadev-install.lock"
-	BootProofPath            = "/run/fogcast/fpgadev-boot-v1.json"
-	InstallJournalMaxBytes   = 1 << 20
+	InstallJournalPath = "/var/lib/fogcast/fpgadev-install-v1.json"
+	InstallBackupDir   = "/var/lib/fogcast/fpgadev-install-v1-backups"
+	InstallLockPath    = "/var/lock/fogcast/fpgadev-install.lock"
+	BootProofPath      = "/run/fogcast/fpgadev-boot-v1.json"
+	// InstallJournalMaxBytes bounds durable JSON and related control metadata.
+	InstallJournalMaxBytes = 1 << 20
+	// ProtectedRegularMaxBytes bounds descriptor-held protected artifact reads and hashes.
+	ProtectedRegularMaxBytes = 2 << 20
 	BootProofMaxBytes        = 16 << 10
 	ReadinessReceiptMaxBytes = 1024
 )

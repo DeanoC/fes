@@ -1596,6 +1596,36 @@ func TestCaptureSourceInventoryAndProtectedBackups(t *testing.T) {
 	}
 }
 
+func TestReadRegularFileNoFollowUsesProtectedRegularBound(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "protected-regular")
+	accepted := bytes.Repeat([]byte{0xa5}, InstallJournalMaxBytes+1)
+	if err := os.WriteFile(path, accepted, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := readRegularFileNoFollow(path, info)
+	if err != nil {
+		t.Fatalf("read %d-byte protected regular: %v", len(accepted), err)
+	}
+	if !bytes.Equal(got, accepted) {
+		t.Fatal("protected regular bytes changed")
+	}
+
+	if err := os.WriteFile(path, bytes.Repeat([]byte{0x5a}, ProtectedRegularMaxBytes+1), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	info, err = os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readRegularFileNoFollow(path, info); err == nil {
+		t.Fatal("oversized protected regular accepted")
+	}
+}
+
 func TestSourcePlanRejectsSwapSymlinkTypeOwnerModeAndLink(t *testing.T) {
 	root := t.TempDir()
 	_ = os.Chmod(root, 0o700)
@@ -1716,14 +1746,16 @@ func TestSourcePlanRejectsCorruptBackupAndPerformsAtomicDisable(t *testing.T) {
 	}
 }
 
-func TestInventoryFromProtectedConfigCapturesClosedFields(t *testing.T) {
+func TestInventoryFromProtectedConfigAcceptsPlayKitMainAndRejectsInvalidMain(t *testing.T) {
 	root := t.TempDir()
 	_ = os.Chmod(root, 0o700)
 	mainPath := filepath.Join(root, "Main_MiSTer")
+	mainBytes := bytes.Repeat([]byte{0xa5}, 1059560)
 	fifoPath := filepath.Join(root, "MiSTer_cmd")
 	dispatcher := filepath.Join(root, "dispatcher")
+	input := filepath.Join(root, "uinput")
 	legacy := filepath.Join(root, "legacy")
-	for path, data := range map[string][]byte{mainPath: []byte("main"), dispatcher: []byte("dispatcher"), legacy: []byte("legacy")} {
+	for path, data := range map[string][]byte{mainPath: mainBytes, dispatcher: []byte("dispatcher"), input: []byte("uinput fixture"), legacy: []byte("legacy")} {
 		if err := os.WriteFile(path, data, 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -1746,9 +1778,14 @@ func TestInventoryFromProtectedConfigCapturesClosedFields(t *testing.T) {
 		"designation_path = \"" + filepath.Join(root, "designation") + "\"\n" +
 		"target_identity_path = \"" + filepath.Join(root, "identity") + "\"\n" +
 		"fpgadev_boot_dispatcher = \"" + dispatcher + "\"\n" +
-		"fpgadev_start_sources = [\"" + dispatcher + "\", \"" + legacy + "\"]\n")
+		"fpgadev_start_sources = [\"" + dispatcher + "\", \"" + legacy + "\"]\n" +
+		"input_uinput_path = \"" + input + "\"\n")
 	if err := os.WriteFile(config, configBytes, 0o600); err != nil {
 		t.Fatal(err)
+	}
+	mainExpectation, err := inspectPathExpectation(mainPath, true)
+	if err != nil {
+		t.Fatalf("inspect %d-byte Main: %v", len(mainBytes), err)
 	}
 	inventory, err := InventoryFromProtectedConfig(config, mainPath, fifoPath, filepath.Join(root, "backups"), dispatcher, []string{dispatcher, legacy})
 	if err != nil {
@@ -1756,6 +1793,40 @@ func TestInventoryFromProtectedConfigCapturesClosedFields(t *testing.T) {
 	}
 	if inventory.Schema != 1 || inventory.MainExecutable.Path != mainPath || inventory.MainFIFO.Kind != "fifo" || len(inventory.StartSources) != 2 || inventory.InputListen == nil {
 		t.Fatalf("inventory=%#v", inventory)
+	}
+	mainHash := sha256.Sum256(mainBytes)
+	if mainExpectation.SHA256 != hex.EncodeToString(mainHash[:]) || inventory.MainExecutable.SHA256 != hex.EncodeToString(mainHash[:]) {
+		t.Fatalf("Main hash=%q want=%x", inventory.MainExecutable.SHA256, mainHash)
+	}
+
+	if err := os.Remove(mainPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(mainPath, bytes.Repeat([]byte{0x5a}, ProtectedRegularMaxBytes+1), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := InventoryFromProtectedConfig(config, mainPath, fifoPath, filepath.Join(root, "backups"), dispatcher, []string{dispatcher, legacy}); err == nil {
+		t.Fatal("oversized Main executable accepted")
+	}
+
+	if err := os.Remove(mainPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(dispatcher, mainPath); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := InventoryFromProtectedConfig(config, mainPath, fifoPath, filepath.Join(root, "backups"), dispatcher, []string{dispatcher, legacy}); err == nil {
+		t.Fatal("symlinked Main executable accepted")
+	}
+
+	if err := os.Remove(mainPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := mkfifoRuntimeTest(mainPath); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := InventoryFromProtectedConfig(config, mainPath, fifoPath, filepath.Join(root, "backups"), dispatcher, []string{dispatcher, legacy}); err == nil {
+		t.Fatal("non-regular Main executable accepted")
 	}
 }
 

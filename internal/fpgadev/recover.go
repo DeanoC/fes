@@ -1735,12 +1735,12 @@ func readProtectedSource(path string) (kind string, mode uint32, digest string, 
 	if err != nil {
 		return "", 0, "", nil, err
 	}
-	data, readErr := io.ReadAll(io.LimitReader(readable, InstallJournalMaxBytes+1))
+	data, readErr := io.ReadAll(io.LimitReader(readable, ProtectedRegularMaxBytes+1))
 	closeErr := readable.Close()
 	if err := errors.Join(readErr, closeErr); err != nil {
 		return "", 0, "", nil, err
 	}
-	if len(data) > InstallJournalMaxBytes {
+	if len(data) > ProtectedRegularMaxBytes {
 		return "", 0, "", nil, errors.New("launch source exceeds size bound")
 	}
 	last, err := held.Stat()
@@ -1782,12 +1782,12 @@ func inspectPathExpectation(path string, required bool) (PathExpectation, error)
 		if readErr != nil {
 			return PathExpectation{}, readErr
 		}
-		data, ioErr := io.ReadAll(io.LimitReader(readable, InstallJournalMaxBytes+1))
+		data, ioErr := io.ReadAll(io.LimitReader(readable, ProtectedRegularMaxBytes+1))
 		closeErr := readable.Close()
 		if err := errors.Join(ioErr, closeErr); err != nil {
 			return PathExpectation{}, err
 		}
-		if len(data) > InstallJournalMaxBytes {
+		if len(data) > ProtectedRegularMaxBytes {
 			return PathExpectation{}, errors.New("protected regular path exceeds size bound")
 		}
 		digest := sha256.Sum256(data)
@@ -1910,12 +1910,12 @@ func readRegularFileNoFollow(path string, info os.FileInfo) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, readErr := io.ReadAll(io.LimitReader(readable, InstallJournalMaxBytes+1))
+	data, readErr := io.ReadAll(io.LimitReader(readable, ProtectedRegularMaxBytes+1))
 	closeErr := readable.Close()
 	if err := errors.Join(readErr, closeErr); err != nil {
 		return nil, err
 	}
-	if len(data) > InstallJournalMaxBytes {
+	if len(data) > ProtectedRegularMaxBytes {
 		return nil, errors.New("protected file exceeds size bound")
 	}
 	return data, nil

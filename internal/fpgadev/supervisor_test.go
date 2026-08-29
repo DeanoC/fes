@@ -920,6 +920,34 @@ func TestResolveInventoryAtUsesProtectedMetadataAndBoundedContext(t *testing.T) 
 	}
 }
 
+func TestResolveInventoryAtHashesPlayKitMainAndRejectsOversizedRegular(t *testing.T) {
+	fixture := newInventoryResolutionFixture(t)
+	mainBytes := bytes.Repeat([]byte{0xa5}, 1059560)
+	if err := os.WriteFile(fixture.inventory.MainExecutable.Path, mainBytes, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mainHash := sha256.Sum256(mainBytes)
+	fixture.inventory.MainExecutable.SHA256 = hex.EncodeToString(mainHash[:])
+	options := InventoryResolutionOptions{
+		ProcRoot:               filepath.Join(fixture.root, "proc"),
+		Phase:                  InventoryPhasePreDispatch,
+		RequireProcessEvidence: false,
+		ScanProcessDescriptors: false,
+		RequireNetworkEvidence: false,
+		RequireMainFIFOOwner:   false,
+	}
+	if _, err := ResolveInventoryAt(context.Background(), fixture.inventory, options); err != nil {
+		t.Fatalf("resolve %d-byte Main: %v", len(mainBytes), err)
+	}
+
+	if err := os.WriteFile(fixture.inventory.MainExecutable.Path, bytes.Repeat([]byte{0x5a}, ProtectedRegularMaxBytes+1), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ResolveInventoryAt(context.Background(), fixture.inventory, options); err == nil {
+		t.Fatal("oversized inventory regular file accepted")
+	}
+}
+
 func TestResolveInventoryAtRejectsExpectedAbsentAppearanceAfterResolution(t *testing.T) {
 	fixture := newInventoryResolutionFixture(t)
 	first, err := ResolveInventoryAt(context.Background(), fixture.inventory, InventoryResolutionOptions{

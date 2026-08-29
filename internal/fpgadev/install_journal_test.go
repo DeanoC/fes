@@ -58,8 +58,28 @@ func TestInstallJournalRejectsReorderedUnknownDuplicateAndOversizedRecords(t *te
 			t.Fatalf("hostile journal accepted: %s", input)
 		}
 	}
-	if _, err := ParseInstallJournal(append([]byte(strings.Repeat("x", 1024*1024+1)), '\n')); err == nil {
+	if ProtectedRegularMaxBytes <= InstallJournalMaxBytes {
+		t.Fatalf("protected regular bound=%d must exceed journal bound=%d", ProtectedRegularMaxBytes, InstallJournalMaxBytes)
+	}
+	if _, err := ParseInstallJournal([]byte(strings.Repeat("x", InstallJournalMaxBytes+1))); err == nil {
 		t.Fatal("oversized journal accepted")
+	}
+}
+
+func TestInstallJournalStoreRejectsOversizedFileAtJournalCap(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Chmod(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	store := NewInstallJournal(filepath.Join(root, "journal.json"), uint32(os.Getuid()))
+	if err := os.Mkdir(store.BackupDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(store.Path, []byte(strings.Repeat("x", InstallJournalMaxBytes+1)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, exists, err := store.Load(); err == nil || !exists {
+		t.Fatalf("oversized journal file load exists=%v err=%v", exists, err)
 	}
 }
 
