@@ -137,13 +137,14 @@ exec mister-fpga-dev run \
 ```
 
 The expected reboot disconnect is provisional, never success by itself. The
-host allows at most 120 seconds for reconnection, then one cumulative 30-second
-window for target attestation, protected ready-v3 state, live Main/FIFO/FPGA
-and two stable `MENU` observations, result retrieval, durable host storage,
-remote result deletion, and a final exact preflight. Recovery must use a new
-session and a strictly greater owner generation. A missing result, missing
-disconnect, failed recovery request, stale identity, or failed readiness fails
-the load.
+host allows at most 120 seconds for reconnection. Because the reboot clears
+the `/tmp` stage, the host then re-stages and revalidates the same four bundle
+members before recovery preflight. Re-staging, protected ready-v3 state, live
+Main/FIFO/FPGA and two stable `MENU` observations, result retrieval, durable
+host storage, remote result deletion, and the final exact preflight share one
+cumulative 30-second window. Recovery must use a new session and a strictly
+greater owner generation. A missing result, missing disconnect, failed
+recovery request, stale identity, or failed readiness fails the load.
 
 ## Deterministic fault cycle
 
