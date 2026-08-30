@@ -57,8 +57,17 @@ type artifactBindingState struct {
 	// retained separately so cleanup stays descriptor-relative.
 	dispatchPath string
 	dispatchLeaf string
-	metadata     ArtifactMetadata
-	manifest     Manifest
+	// dispatchDirectorySearchable records the publication-window 0711 mode
+	// independently from dispatchLeaf so cleanup can retry a failed 0700
+	// restoration after the named link was already removed.
+	dispatchDirectorySearchable bool
+	// dispatchCleanupDirty remains set until removal/mode-restoration metadata
+	// has been successfully synchronized through the retained directory FD.
+	dispatchCleanupDirty bool
+	setDirectoryMode     func(int, uint32) error
+	syncDirectory        func(int) error
+	metadata             ArtifactMetadata
+	manifest             Manifest
 	// resourceEvidence is immutable evidence verified against the retained
 	// descriptor-bound staging directory. Package-local fixtures may provide it
 	// directly; production bindings populate it on their first read.
@@ -209,8 +218,18 @@ func (b *ArtifactBinding) Close() error {
 	if b.state.closed {
 		return nil
 	}
-	b.state.closed = true
 	dispatchErr := b.state.releaseDispatchPathLocked()
+	if dispatchErr != nil {
+		// Cleanup can fail after unlinking the capability but before restoring
+		// the private directory mode. Retry once while the retained directory
+		// descriptor and independent mode state are still available. If the
+		// retry also fails, leave the binding open so a later Close can retry.
+		if retryErr := b.state.releaseDispatchPathLocked(); retryErr != nil {
+			return errors.Join(dispatchErr, retryErr)
+		}
+		dispatchErr = nil
+	}
+	b.state.closed = true
 	var artifactErr error
 	if b.state.artifact != nil {
 		if err := b.state.artifact.Close(); err != nil {

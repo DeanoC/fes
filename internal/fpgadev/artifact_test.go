@@ -334,6 +334,9 @@ func TestArtifactBindRejectsOwnerMismatches(t *testing.T) {
 
 func TestArtifactDispatchPathUsesNamedCapabilityMainCanOpen(t *testing.T) {
 	staging, manifest := makeArtifactFixture(t, []byte("rbf-payload"))
+	if mode := artifactDirectoryMode(t, staging); mode != privateStagingMode {
+		t.Fatalf("private staging mode = %04o, want %04o", mode, privateStagingMode)
+	}
 	binding, err := testArtifactAccess().Bind(manifest, staging)
 	if err != nil {
 		t.Fatal(err)
@@ -343,9 +346,25 @@ func TestArtifactDispatchPathUsesNamedCapabilityMainCanOpen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DispatchPath: %v", err)
 	}
-	wantPath := filepath.Join(staging, ".fogcast-load.rbf")
+	wantPath := filepath.Join(staging, dispatchArtifactLeaf)
 	if dispatchPath != wantPath {
 		t.Fatalf("dispatch path = %q, want named capability %q", dispatchPath, wantPath)
+	}
+	if leaf := filepath.Base(dispatchPath); strings.HasPrefix(leaf, ".") || filepath.Ext(leaf) != ".rbf" {
+		t.Fatalf("dispatch leaf = %q, want visible RBF name", leaf)
+	}
+	if mode := artifactDirectoryMode(t, staging); mode != dispatchSearchableStagingMode {
+		t.Fatalf("published staging mode = %04o, want searchable %04o", mode, dispatchSearchableStagingMode)
+	}
+	var sourceStat, capabilityStat unix.Stat_t
+	if err := unix.Lstat(filepath.Join(staging, ManifestArtifact), &sourceStat); err != nil {
+		t.Fatal(err)
+	}
+	if err := unix.Lstat(dispatchPath, &capabilityStat); err != nil {
+		t.Fatal(err)
+	}
+	if sourceStat.Dev != capabilityStat.Dev || sourceStat.Ino != capabilityStat.Ino || sourceStat.Nlink != 2 || capabilityStat.Nlink != 2 {
+		t.Fatalf("published capability source=%d:%d/%d capability=%d:%d/%d, want same inode with nlink=2", sourceStat.Dev, sourceStat.Ino, sourceStat.Nlink, capabilityStat.Dev, capabilityStat.Ino, capabilityStat.Nlink)
 	}
 	got, err := os.ReadFile(dispatchPath)
 	if err != nil {
@@ -375,7 +394,7 @@ func TestArtifactDispatchPathUsesNamedCapabilityMainCanOpen(t *testing.T) {
 
 func TestArtifactDispatchPathRejectsCapabilityCollision(t *testing.T) {
 	staging, manifest := makeArtifactFixture(t, []byte("rbf-payload"))
-	if err := os.Symlink("top.rbf", filepath.Join(staging, ".fogcast-load.rbf")); err != nil {
+	if err := os.Symlink("top.rbf", filepath.Join(staging, dispatchArtifactLeaf)); err != nil {
 		t.Fatal(err)
 	}
 	binding, err := testArtifactAccess().Bind(manifest, staging)
@@ -385,6 +404,9 @@ func TestArtifactDispatchPathRejectsCapabilityCollision(t *testing.T) {
 	defer binding.Close()
 	if _, err := binding.DispatchPath(); err == nil {
 		t.Fatal("named capability collision was accepted")
+	}
+	if mode := artifactDirectoryMode(t, staging); mode != privateStagingMode {
+		t.Fatalf("staging mode after collision = %04o, want private %04o", mode, privateStagingMode)
 	}
 }
 
@@ -396,7 +418,7 @@ func TestArtifactDispatchPathRejectsWholeStagingDirectorySwap(t *testing.T) {
 		if err := os.Rename(staging, displaced); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.Mkdir(staging, 0o700); err != nil {
+		if err := os.Mkdir(staging, dispatchSearchableStagingMode); err != nil {
 			t.Fatal(err)
 		}
 		if err := os.WriteFile(filepath.Join(staging, dispatchArtifactLeaf), []byte("attacker-rbf"), 0o600); err != nil {
@@ -413,6 +435,12 @@ func TestArtifactDispatchPathRejectsWholeStagingDirectorySwap(t *testing.T) {
 	}
 	if _, err := os.Lstat(filepath.Join(displaced, dispatchArtifactLeaf)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("descriptor-relative capability cleanup error = %v, want absent", err)
+	}
+	if mode := artifactDirectoryMode(t, displaced); mode != privateStagingMode {
+		t.Fatalf("retained directory mode after swap = %04o, want restored %04o", mode, privateStagingMode)
+	}
+	if mode := artifactDirectoryMode(t, staging); mode != dispatchSearchableStagingMode {
+		t.Fatalf("hostile replacement directory mode = %04o, want untouched %04o", mode, dispatchSearchableStagingMode)
 	}
 	raw, err := os.ReadFile(filepath.Join(staging, dispatchArtifactLeaf))
 	if err != nil || string(raw) != "attacker-rbf" {
@@ -435,6 +463,9 @@ func TestArtifactReleaseDispatchPathRemovesCapabilityAndRestoresLinkInvariant(t 
 	if links := artifactLinkCount(t, artifactPath); links != 2 {
 		t.Fatalf("published artifact link count = %d, want 2", links)
 	}
+	if mode := artifactDirectoryMode(t, staging); mode != dispatchSearchableStagingMode {
+		t.Fatalf("published staging mode = %04o, want %04o", mode, dispatchSearchableStagingMode)
+	}
 	if err := binding.ReleaseDispatchPath(); err != nil {
 		t.Fatalf("ReleaseDispatchPath: %v", err)
 	}
@@ -444,9 +475,212 @@ func TestArtifactReleaseDispatchPathRemovesCapabilityAndRestoresLinkInvariant(t 
 	if links := artifactLinkCount(t, artifactPath); links != 1 {
 		t.Fatalf("released artifact link count = %d, want 1", links)
 	}
+	if mode := artifactDirectoryMode(t, staging); mode != privateStagingMode {
+		t.Fatalf("released staging mode = %04o, want restored %04o", mode, privateStagingMode)
+	}
 	if err := binding.Revalidate(); err != nil {
 		t.Fatalf("revalidate after dispatch cleanup: %v", err)
 	}
+}
+
+func TestArtifactCloseRetriesPrivateModeRestorationAfterDispatchLinkRemoval(t *testing.T) {
+	staging, manifest := makeArtifactFixture(t, []byte("rbf-payload"))
+	binding, err := testArtifactAccess().Bind(manifest, staging)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dispatchPath, err := binding.DispatchPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	restoreErr := errors.New("injected private-mode restoration failure")
+	restoreCalls := 0
+	binding.state.setDirectoryMode = func(fd int, mode uint32) error {
+		if mode == privateStagingMode {
+			restoreCalls++
+			if restoreCalls == 1 {
+				return restoreErr
+			}
+		}
+		return unix.Fchmod(fd, mode)
+	}
+	if err := binding.ReleaseDispatchPath(); !errors.Is(err, restoreErr) {
+		t.Fatalf("first ReleaseDispatchPath() = %v, want injected restoration failure", err)
+	}
+	if _, err := os.Lstat(dispatchPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("capability after partial cleanup = %v, want absent", err)
+	}
+	if mode := artifactDirectoryMode(t, staging); mode != dispatchSearchableStagingMode {
+		t.Fatalf("mode after injected restoration failure = %04o, want %04o", mode, dispatchSearchableStagingMode)
+	}
+	if err := binding.Close(); err != nil {
+		t.Fatalf("Close retrying private mode restoration: %v", err)
+	}
+	if restoreCalls != 2 {
+		t.Fatalf("private-mode restore calls = %d, want 2", restoreCalls)
+	}
+	if mode := artifactDirectoryMode(t, staging); mode != privateStagingMode {
+		t.Fatalf("mode after restoration retry = %04o, want %04o", mode, privateStagingMode)
+	}
+}
+
+func TestArtifactCloseKeepsDescriptorsForLaterPrivateModeRestorationRetry(t *testing.T) {
+	staging, manifest := makeArtifactFixture(t, []byte("rbf-payload"))
+	binding, err := testArtifactAccess().Bind(manifest, staging)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dispatchPath, err := binding.DispatchPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	restoreErr := errors.New("injected close restoration failure")
+	restoreCalls := 0
+	binding.state.setDirectoryMode = func(fd int, mode uint32) error {
+		if mode == privateStagingMode {
+			restoreCalls++
+			if restoreCalls <= 2 {
+				return restoreErr
+			}
+		}
+		return unix.Fchmod(fd, mode)
+	}
+	if err := binding.Close(); !errors.Is(err, restoreErr) {
+		t.Fatalf("Close() = %v, want first restoration failure after bounded retry", err)
+	}
+	if restoreCalls != 2 {
+		t.Fatalf("private-mode restore calls after first Close = %d, want bounded retry", restoreCalls)
+	}
+	if _, err := os.Lstat(dispatchPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("capability after partial Close cleanup = %v, want absent", err)
+	}
+	if mode := artifactDirectoryMode(t, staging); mode != dispatchSearchableStagingMode {
+		t.Fatalf("mode after failed Close cleanup retry = %04o, want %04o", mode, dispatchSearchableStagingMode)
+	}
+	if err := binding.Close(); err != nil {
+		t.Fatalf("later Close retrying retained descriptor cleanup = %v", err)
+	}
+	if restoreCalls != 3 {
+		t.Fatalf("private-mode restore calls after later Close = %d, want 3", restoreCalls)
+	}
+	if mode := artifactDirectoryMode(t, staging); mode != privateStagingMode {
+		t.Fatalf("mode after later Close cleanup = %04o, want %04o", mode, privateStagingMode)
+	}
+	if err := binding.Close(); err != nil {
+		t.Fatalf("idempotent Close after completed cleanup = %v", err)
+	}
+}
+
+func TestArtifactCloseAcceptsSuccessfulBoundedPrivateModeRestorationRetry(t *testing.T) {
+	staging, manifest := makeArtifactFixture(t, []byte("rbf-payload"))
+	binding, err := testArtifactAccess().Bind(manifest, staging)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dispatchPath, err := binding.DispatchPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	restoreErr := errors.New("injected transient close restoration failure")
+	restoreCalls := 0
+	binding.state.setDirectoryMode = func(fd int, mode uint32) error {
+		if mode == privateStagingMode {
+			restoreCalls++
+			if restoreCalls == 1 {
+				return restoreErr
+			}
+		}
+		return unix.Fchmod(fd, mode)
+	}
+	if err := binding.Close(); err != nil {
+		t.Fatalf("Close() after successful bounded cleanup retry = %v", err)
+	}
+	if restoreCalls != 2 {
+		t.Fatalf("private-mode restore calls = %d, want successful bounded retry", restoreCalls)
+	}
+	if _, err := os.Lstat(dispatchPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("capability after Close cleanup = %v, want absent", err)
+	}
+	if mode := artifactDirectoryMode(t, staging); mode != privateStagingMode {
+		t.Fatalf("mode after successful Close cleanup retry = %04o, want %04o", mode, privateStagingMode)
+	}
+}
+
+func TestArtifactCloseRetriesPendingCleanupDirectorySync(t *testing.T) {
+	staging, manifest := makeArtifactFixture(t, []byte("rbf-payload"))
+	binding, err := testArtifactAccess().Bind(manifest, staging)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dispatchPath, err := binding.DispatchPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	syncErr := errors.New("injected cleanup directory sync failure")
+	syncCalls := 0
+	binding.state.syncDirectory = func(fd int) error {
+		syncCalls++
+		if syncCalls == 1 {
+			return syncErr
+		}
+		return unix.Fsync(fd)
+	}
+	if err := binding.Close(); err != nil {
+		t.Fatalf("Close() after successful cleanup sync retry = %v", err)
+	}
+	if syncCalls != 2 {
+		t.Fatalf("cleanup directory sync calls = %d, want successful bounded retry", syncCalls)
+	}
+	if _, err := os.Lstat(dispatchPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("capability after cleanup sync retry = %v, want absent", err)
+	}
+	if mode := artifactDirectoryMode(t, staging); mode != privateStagingMode {
+		t.Fatalf("mode after cleanup sync retry = %04o, want %04o", mode, privateStagingMode)
+	}
+}
+
+func TestArtifactCloseKeepsDescriptorForLaterCleanupDirectorySyncRetry(t *testing.T) {
+	staging, manifest := makeArtifactFixture(t, []byte("rbf-payload"))
+	binding, err := testArtifactAccess().Bind(manifest, staging)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := binding.DispatchPath(); err != nil {
+		t.Fatal(err)
+	}
+	syncErr := errors.New("injected persistent cleanup directory sync failure")
+	syncCalls := 0
+	binding.state.syncDirectory = func(fd int) error {
+		syncCalls++
+		if syncCalls <= 2 {
+			return syncErr
+		}
+		return unix.Fsync(fd)
+	}
+	if err := binding.Close(); !errors.Is(err, syncErr) {
+		t.Fatalf("Close() = %v, want persistent cleanup sync failure", err)
+	}
+	if syncCalls != 2 {
+		t.Fatalf("cleanup directory sync calls after first Close = %d, want bounded retry", syncCalls)
+	}
+	if err := binding.Close(); err != nil {
+		t.Fatalf("later Close retrying retained directory sync = %v", err)
+	}
+	if syncCalls != 3 {
+		t.Fatalf("cleanup directory sync calls after later Close = %d, want 3", syncCalls)
+	}
+	if mode := artifactDirectoryMode(t, staging); mode != privateStagingMode {
+		t.Fatalf("mode after later cleanup sync = %04o, want %04o", mode, privateStagingMode)
+	}
+}
+
+func artifactDirectoryMode(t *testing.T, path string) uint32 {
+	t.Helper()
+	var stat unix.Stat_t
+	if err := unix.Lstat(path, &stat); err != nil {
+		t.Fatal(err)
+	}
+	return stat.Mode & 0o7777
 }
 
 func artifactLinkCount(t *testing.T, path string) uint64 {

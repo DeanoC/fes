@@ -493,7 +493,7 @@ func TestRunnerRevalidatesArtifactAfterQuiescenceBeforeFIFO(t *testing.T) {
 	}}
 	deps.dispatchPath = func(context.Context, *ArtifactBinding) (string, error) {
 		events = append(events, "dispatch-path")
-		return "/tmp/misteross-fpgadev-run/.fogcast-load.rbf", nil
+		return "/tmp/misteross-fpgadev-run/fogcast-load.rbf", nil
 	}
 
 	result, err := newFixtureRunner(deps).RunCommand(context.Background(), fixture.request)
@@ -565,6 +565,9 @@ func TestRunnerNamedCapabilityMainCanOpenCompletesHandoff(t *testing.T) {
 	}
 	if _, err := os.Lstat(mainFIFO.path); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("dispatch capability after stable Main absence = %v, want removed", err)
+	}
+	if mode := artifactDirectoryMode(t, staging); mode != privateStagingMode {
+		t.Fatalf("staging mode after successful handoff = %04o, want restored %04o", mode, privateStagingMode)
 	}
 }
 
@@ -1420,7 +1423,7 @@ func TestRunnerNominalLifecyclePersistsTerminalFenceAndRequestsRecovery(t *testi
 	if result.PrimaryCode != string(CodeOK) || result.Phase != ResultPhaseDoneObserved {
 		t.Fatalf("terminal result = %#v", result)
 	}
-	if fixture.fifo.calls != 1 || fixture.fifo.command != "load_core /anonymous/.fogcast-load.rbf\n" {
+	if fixture.fifo.calls != 1 || fixture.fifo.command != "load_core /anonymous/fogcast-load.rbf\n" {
 		t.Fatalf("FIFO dispatch = calls:%d command:%q", fixture.fifo.calls, fixture.fifo.command)
 	}
 	if fixture.mapper.openCalls != 1 || fixture.mapper.registers == nil || fixture.mapper.registers.closeCalls != 1 {
@@ -4317,7 +4320,7 @@ func (f *task7RunnerFixture) dependencies() runnerDependencies {
 			if err := ctx.Err(); err != nil {
 				return "", err
 			}
-			return "/anonymous/.fogcast-load.rbf", nil
+			return "/anonymous/fogcast-load.rbf", nil
 		},
 		mailbox:         f.mailbox,
 		mailboxProgress: f.mailboxProgress,
@@ -4654,6 +4657,14 @@ func (f *task7MainOpeningFIFO) Dispatch(ctx context.Context, command string) (At
 	f.path = strings.TrimSuffix(strings.TrimPrefix(command, "load_core "), "\n")
 	if filepath.Base(f.path) != dispatchArtifactLeaf || strings.HasPrefix(f.path, "/proc/") {
 		return Invoked, fmt.Errorf("Main received an invalid named capability %q", f.path)
+	}
+	if strings.HasPrefix(filepath.Base(f.path), ".") {
+		return Invoked, fmt.Errorf("Main received a hidden named capability %q", f.path)
+	}
+	if info, err := os.Stat(filepath.Dir(f.path)); err != nil {
+		return Invoked, fmt.Errorf("Main stat named capability parent: %w", err)
+	} else if info.Mode().Perm() != os.FileMode(dispatchSearchableStagingMode) {
+		return Invoked, fmt.Errorf("Main named capability parent mode = %04o, want %04o", info.Mode().Perm(), dispatchSearchableStagingMode)
 	}
 	got, err := os.ReadFile(f.path)
 	if err != nil {

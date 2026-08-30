@@ -18,11 +18,16 @@ import (
 
 const artifactOpenFlags = unix.O_RDONLY | unix.O_CLOEXEC | unix.O_NOFOLLOW | unix.O_NONBLOCK
 
-// dispatchArtifactLeaf is deliberately fixed and hidden. It is published as
+const (
+	privateStagingMode            = 0o700
+	dispatchSearchableStagingMode = 0o711
+	dispatchArtifactLeaf          = "fogcast-load.rbf"
+)
+
+// dispatchArtifactLeaf is deliberately fixed and visible. It is published as
 // a hard link to the retained descriptor immediately before Main receives the
 // load_core command, so Main opens an ordinary named RBF while the bytes stay
 // bound to the descriptor admitted by the artifact validator.
-const dispatchArtifactLeaf = ".fogcast-load.rbf"
 
 func resultPersistenceSupported() bool { return true }
 
@@ -138,9 +143,19 @@ func (b *ArtifactBinding) dispatchPathLocked() (string, error) {
 		if err := verifyDispatchArtifactLocked(b); err != nil {
 			return "", err
 		}
+		if err := verifyAbsoluteDispatchPathLocked(b); err != nil {
+			return "", err
+		}
 		return b.state.dispatchPath, nil
 	}
 	directoryFD := int(b.state.dir.Fd())
+	var directoryStat unix.Stat_t
+	if err := unix.Fstat(directoryFD, &directoryStat); err != nil {
+		return "", fmt.Errorf("stat private dispatch directory: %w", err)
+	}
+	if err := validateDirectoryStat(&directoryStat, b.state.expectedUID); err != nil {
+		return "", err
+	}
 	artifactPath := b.state.metadata.Path
 	artifact, metadata, err := openAndInspectArtifactWithNlink(directoryFD, b.state.manifest, b.state.expectedUID, artifactPath, 1)
 	if err != nil {
@@ -165,6 +180,19 @@ func (b *ArtifactBinding) dispatchPathLocked() (string, error) {
 	}
 	if err := verifyDispatchArtifactLocked(b); err != nil {
 		return cleanup(err)
+	}
+	if err := b.state.changeDirectoryMode(directoryFD, dispatchSearchableStagingMode); err != nil {
+		return cleanup(fmt.Errorf("make dispatch capability directory searchable: %w", err))
+	}
+	b.state.dispatchDirectorySearchable = true
+	if err := unix.Fstat(directoryFD, &directoryStat); err != nil {
+		return cleanup(fmt.Errorf("stat searchable dispatch directory: %w", err))
+	}
+	if err := validateDirectoryStatMode(&directoryStat, b.state.expectedUID, dispatchSearchableStagingMode); err != nil {
+		return cleanup(err)
+	}
+	if err := unix.Fsync(directoryFD); err != nil {
+		return cleanup(fmt.Errorf("sync searchable dispatch capability directory: %w", err))
 	}
 	if b.state.dispatchVerify != nil {
 		b.state.dispatchVerify()
@@ -238,7 +266,7 @@ func verifyAbsoluteDispatchPathLocked(b *ArtifactBinding) error {
 	if err := unix.Fstat(reopenedFD, &reopenedStat); err != nil {
 		return fmt.Errorf("stat reopened dispatch directory: %w", err)
 	}
-	if err := validateDirectoryStat(&reopenedStat, b.state.expectedUID); err != nil {
+	if err := validateDirectoryStatMode(&reopenedStat, b.state.expectedUID, dispatchSearchableStagingMode); err != nil {
 		return fmt.Errorf("validate reopened dispatch directory: %w", err)
 	}
 	if retainedStat.Dev != reopenedStat.Dev || retainedStat.Ino != reopenedStat.Ino {
@@ -260,24 +288,65 @@ func verifyAbsoluteDispatchPathLocked(b *ArtifactBinding) error {
 }
 
 func (s *artifactBindingState) releaseDispatchPathLocked() error {
-	if s.dispatchLeaf == "" {
+	if s.dir == nil {
+		if s.dispatchLeaf != "" || s.dispatchDirectorySearchable || s.dispatchCleanupDirty {
+			return errors.New("dispatch capability directory is unavailable")
+		}
 		s.dispatchPath = ""
 		return nil
 	}
-	if s.dir == nil {
-		return errors.New("dispatch capability directory is unavailable")
-	}
 	directoryFD := int(s.dir.Fd())
-	leaf := s.dispatchLeaf
-	if err := unix.Unlinkat(directoryFD, leaf, 0); err != nil {
-		return fmt.Errorf("remove dispatch capability: %w", err)
+	var cleanupErr error
+	changed := false
+	if s.dispatchLeaf != "" {
+		if err := unix.Unlinkat(directoryFD, s.dispatchLeaf, 0); err != nil {
+			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("remove dispatch capability: %w", err))
+		} else {
+			s.dispatchLeaf = ""
+			s.dispatchPath = ""
+			changed = true
+		}
 	}
-	s.dispatchLeaf = ""
-	s.dispatchPath = ""
-	if err := unix.Fsync(directoryFD); err != nil {
-		return fmt.Errorf("sync dispatch capability removal: %w", err)
+	if s.dispatchDirectorySearchable {
+		if err := s.changeDirectoryMode(directoryFD, privateStagingMode); err != nil {
+			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("restore private staging directory mode: %w", err))
+		} else {
+			var directoryStat unix.Stat_t
+			if err := unix.Fstat(directoryFD, &directoryStat); err != nil {
+				cleanupErr = errors.Join(cleanupErr, fmt.Errorf("stat restored private staging directory: %w", err))
+			} else if err := validateDirectoryStat(&directoryStat, s.expectedUID); err != nil {
+				cleanupErr = errors.Join(cleanupErr, fmt.Errorf("validate restored private staging directory: %w", err))
+			} else {
+				s.dispatchDirectorySearchable = false
+			}
+			changed = true
+		}
 	}
-	return nil
+	if changed {
+		s.dispatchCleanupDirty = true
+	}
+	if s.dispatchCleanupDirty {
+		if err := s.syncDirectoryFD(directoryFD); err != nil {
+			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("sync dispatch capability cleanup: %w", err))
+		} else {
+			s.dispatchCleanupDirty = false
+		}
+	}
+	return cleanupErr
+}
+
+func (s *artifactBindingState) changeDirectoryMode(fd int, mode uint32) error {
+	if s.setDirectoryMode != nil {
+		return s.setDirectoryMode(fd, mode)
+	}
+	return unix.Fchmod(fd, mode)
+}
+
+func (s *artifactBindingState) syncDirectoryFD(fd int) error {
+	if s.syncDirectory != nil {
+		return s.syncDirectory(fd)
+	}
+	return unix.Fsync(fd)
 }
 
 // OpenArtifact returns a caller-owned duplicate of the retained, revalidated
@@ -666,14 +735,18 @@ func openArtifactDirectory(path string, beforeOpen func()) (int, error) {
 }
 
 func validateDirectoryStat(stat *unix.Stat_t, expectedUID uint32) error {
+	return validateDirectoryStatMode(stat, expectedUID, privateStagingMode)
+}
+
+func validateDirectoryStatMode(stat *unix.Stat_t, expectedUID uint32, expectedMode uint32) error {
 	if stat.Mode&unix.S_IFMT != unix.S_IFDIR {
 		return errors.New("staging path is not a directory")
 	}
 	if uint32(stat.Uid) != expectedUID {
 		return errors.New("staging directory owner is not authorized")
 	}
-	if stat.Mode&0o7777 != 0o700 {
-		return errors.New("staging directory mode must be 0700")
+	if stat.Mode&0o7777 != expectedMode {
+		return fmt.Errorf("staging directory mode must be %04o", expectedMode)
 	}
 	if stat.Nlink != 2 {
 		return errors.New("staging directory link count must be exactly two")
