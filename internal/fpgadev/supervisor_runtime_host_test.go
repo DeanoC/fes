@@ -39,29 +39,189 @@ func TestSupervisorRuntimeHostUsesInjectedTypedChildStarter(t *testing.T) {
 	}
 }
 
-func TestCompatibilityMainReadinessObservesExistingMainWithoutChild(t *testing.T) {
+func TestCompatibilityMainReadinessAlreadyMENUAtTmpWhenMediaFatAbsent(t *testing.T) {
 	dir := t.TempDir()
-	fifo, state, menu, core := filepath.Join(dir, "cmd"), filepath.Join(dir, "state"), filepath.Join(dir, "menu"), filepath.Join(dir, "CORENAME")
-	if err := mkfifoRuntimeTest(fifo); err != nil {
+	mediaFatCore := filepath.Join(dir, "media", "fat", "CORENAME")
+	tmpCore := filepath.Join(dir, "tmp", "CORENAME")
+	if err := os.MkdirAll(filepath.Dir(tmpCore), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	for path, data := range map[string]string{state: "operating\n", menu: "menu", core: "MENU\n"} {
-		if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	expected := ExecutableIdentity{Device: 8, Inode: 9, SHA256: strings.Repeat("a", 64)}
-	observer := &Observer{Expected: expected, Scanner: &fakeProcessScanner{scans: [][]ProcessRecord{{{Identity: ProcessIdentity{PID: 41, StartTime: 7, Device: 8, Inode: 9, SHA256: expected.SHA256}}}}}}
-	runtime, err := NewSupervisorRuntime(SupervisorRuntimeConfig{MainExecutable: "/tmp/main", MainFIFO: fifo, FPGAManagerState: state, MenuPath: menu, CoreNameFile: core, PollInterval: time.Millisecond})
-	if err != nil {
+	if err := os.WriteFile(tmpCore, []byte("MENU\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	runtime, observer := newCompatibilityMainReadinessFixture(t, mediaFatCore, tmpCore)
 	if runtime.main != nil {
 		t.Fatal("fresh runtime unexpectedly owns Main")
 	}
 	if err := NewCompatibilityMainReadiness(runtime, observer).Verify(context.Background()); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestCompatibilityMainReadinessAlreadyMENUAtMediaFatWhenPresent(t *testing.T) {
+	dir := t.TempDir()
+	tmpCore := filepath.Join(dir, "tmp", "CORENAME")
+	mediaFatCore := filepath.Join(dir, "media", "fat", "CORENAME")
+	if err := os.MkdirAll(filepath.Dir(mediaFatCore), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(mediaFatCore, []byte("MENU\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runtime, observer := newCompatibilityMainReadinessFixture(t, tmpCore, mediaFatCore)
+	if err := NewCompatibilityMainReadiness(runtime, observer).Verify(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSupervisorRuntimePairsOnlyCanonicalCORENAMEPaths(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		primary  string
+		fallback string
+	}{
+		{name: "tmp primary", primary: "/tmp/CORENAME", fallback: "/media/fat/CORENAME"},
+		{name: "media fat primary", primary: "/media/fat/CORENAME", fallback: "/tmp/CORENAME"},
+		{name: "custom primary", primary: "/fixture/CORENAME"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			runtime, err := NewSupervisorRuntime(SupervisorRuntimeConfig{CoreNameFile: test.primary})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if runtime.config.CoreNameFallbackFile != test.fallback {
+				t.Fatalf("fallback CORENAME path=%q, want %q", runtime.config.CoreNameFallbackFile, test.fallback)
+			}
+		})
+	}
+}
+
+func TestCompatibilityMainReadinessFailsClosedForNonMENUCORENAME(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		first string
+		other string
+	}{
+		{name: "wrong core", first: "MegaDrive\n"},
+		{name: "missing both paths"},
+		{name: "garbage CORENAME", first: "MENU\x00\n"},
+		{name: "conflicting publishers", first: "MENU\n", other: "NES\n"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			first := filepath.Join(dir, "tmp", "CORENAME")
+			other := filepath.Join(dir, "media", "fat", "CORENAME")
+			for path, data := range map[string]string{first: test.first, other: test.other} {
+				if data == "" {
+					continue
+				}
+				if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			runtime, observer := newCompatibilityMainReadinessFixture(t, first, other)
+			ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+			defer cancel()
+			if err := NewCompatibilityMainReadiness(runtime, observer).Verify(ctx); !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("Verify error=%v, want fail-closed deadline", err)
+			}
+		})
+	}
+}
+
+func TestCompatibilityMainReadinessMalformedFallbackCannotEscapeDeadline(t *testing.T) {
+	dir := t.TempDir()
+	primary := filepath.Join(dir, "tmp", "CORENAME")
+	fallback := filepath.Join(dir, "media", "fat", "CORENAME")
+	for _, path := range []string{primary, fallback} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(primary, []byte("MENU\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := mkfifoRuntimeTest(fallback); err != nil {
+		t.Fatal(err)
+	}
+	runtime, observer := newCompatibilityMainReadinessFixture(t, primary, fallback)
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	if err := NewCompatibilityMainReadiness(runtime, observer).Verify(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Verify error=%v, want fail-closed deadline", err)
+	}
+	if elapsed := time.Since(started); elapsed > 500*time.Millisecond {
+		t.Fatalf("malformed fallback escaped readiness deadline: %v", elapsed)
+	}
+}
+
+func TestCompatibilityMainReadinessKeepsFIFOAndFPGAManagerGates(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		breakGate func(*SupervisorRuntime) error
+	}{
+		{
+			name: "command FIFO",
+			breakGate: func(runtime *SupervisorRuntime) error {
+				return os.Remove(runtime.config.MainFIFO)
+			},
+		},
+		{
+			name: "FPGA manager",
+			breakGate: func(runtime *SupervisorRuntime) error {
+				return os.WriteFile(runtime.config.FPGAManagerState, []byte("unknown\n"), 0o600)
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			core := filepath.Join(dir, "tmp", "CORENAME")
+			if err := os.MkdirAll(filepath.Dir(core), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(core, []byte("MENU\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			runtime, observer := newCompatibilityMainReadinessFixture(t, core, filepath.Join(dir, "media", "fat", "CORENAME"))
+			if err := test.breakGate(runtime); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+			defer cancel()
+			if err := NewCompatibilityMainReadiness(runtime, observer).Verify(ctx); !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("Verify error=%v, want fail-closed deadline", err)
+			}
+		})
+	}
+}
+
+func newCompatibilityMainReadinessFixture(t *testing.T, coreNameFile, fallbackCoreNameFile string) (*SupervisorRuntime, *Observer) {
+	t.Helper()
+	dir := t.TempDir()
+	fifo, state, menu := filepath.Join(dir, "cmd"), filepath.Join(dir, "state"), filepath.Join(dir, "menu")
+	if err := mkfifoRuntimeTest(fifo); err != nil {
+		t.Fatal(err)
+	}
+	for path, data := range map[string]string{state: "operating\n", menu: "menu"} {
+		if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	expected := ExecutableIdentity{Device: 8, Inode: 9, SHA256: strings.Repeat("a", 64)}
+	observer := &Observer{Expected: expected, Scanner: &fakeProcessScanner{scans: [][]ProcessRecord{{{Identity: ProcessIdentity{PID: 41, StartTime: 7, Device: 8, Inode: 9, SHA256: expected.SHA256}}}}}}
+	runtime, err := NewSupervisorRuntime(SupervisorRuntimeConfig{
+		MainExecutable: "/tmp/main", MainFIFO: fifo, FPGAManagerState: state,
+		MenuPath: menu, CoreNameFile: coreNameFile, CoreNameFallbackFile: fallbackCoreNameFile,
+		PollInterval: time.Millisecond,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return runtime, observer
 }
 
 func TestSupervisorRuntimeHostReadinessPipeHonorsDeadline(t *testing.T) {

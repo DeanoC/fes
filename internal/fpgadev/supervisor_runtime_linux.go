@@ -41,6 +41,10 @@ type SupervisorRuntimeConfig struct {
 	FPGAManagerState string
 	MenuPath         string
 	CoreNameFile     string
+	// CoreNameFallbackFile is the alternate compatibility-Main publication
+	// path. Production pairs the configured /tmp/CORENAME and stock
+	// /media/fat/CORENAME locations; host fixtures may provide temporary paths.
+	CoreNameFallbackFile string
 
 	AgentExecutable  string
 	AgentArguments   []string
@@ -121,6 +125,14 @@ func NewSupervisorRuntime(config SupervisorRuntimeConfig) (*SupervisorRuntime, e
 	if config.CoreNameFile == "" {
 		config.CoreNameFile = "/media/fat/CORENAME"
 	}
+	if config.CoreNameFallbackFile == "" {
+		switch config.CoreNameFile {
+		case "/media/fat/CORENAME":
+			config.CoreNameFallbackFile = "/tmp/CORENAME"
+		case "/tmp/CORENAME":
+			config.CoreNameFallbackFile = "/media/fat/CORENAME"
+		}
+	}
 	if config.AgentExecutable == "" {
 		config.AgentExecutable = "/usr/bin/mister-agent"
 	}
@@ -138,6 +150,9 @@ func NewSupervisorRuntime(config SupervisorRuntimeConfig) (*SupervisorRuntime, e
 		if !filepath.IsAbs(path) || filepath.Clean(path) != path {
 			return nil, fmt.Errorf("%s path is not absolute and canonical", name)
 		}
+	}
+	if config.CoreNameFallbackFile != "" && (!filepath.IsAbs(config.CoreNameFallbackFile) || filepath.Clean(config.CoreNameFallbackFile) != config.CoreNameFallbackFile) {
+		return nil, errors.New("fallback core name path is not absolute and canonical")
 	}
 	if config.ProfileSHA256 != "" && !manifestHashPattern.MatchString(config.ProfileSHA256) {
 		return nil, errors.New("profile hash is not canonical")
@@ -523,12 +538,9 @@ func (r *SupervisorRuntime) MenuReady() error {
 }
 
 func (r *SupervisorRuntime) menuReady(ctx context.Context) error {
-	first, err := os.ReadFile(r.config.CoreNameFile)
+	first, err := r.menuSnapshot(ctx)
 	if err != nil {
 		return err
-	}
-	if string(first) != "MENU\n" {
-		return errors.New("CORENAME is not MENU")
 	}
 	timer := time.NewTimer(10 * time.Millisecond)
 	defer timer.Stop()
@@ -537,14 +549,80 @@ func (r *SupervisorRuntime) menuReady(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-	second, err := os.ReadFile(r.config.CoreNameFile)
+	second, err := r.menuSnapshot(ctx)
 	if err != nil {
 		return err
 	}
-	if string(second) != "MENU\n" {
+	if len(first) != len(second) {
 		return errors.New("CORENAME changed during readiness")
 	}
+	for index := range first {
+		if first[index] != second[index] {
+			return errors.New("CORENAME changed during readiness")
+		}
+	}
 	return nil
+}
+
+// menuSnapshot accepts only a non-empty, stable set of exact MENU publishers.
+// A missing alternate is allowed, but every present candidate must agree so a
+// stale or malformed CORENAME cannot be masked by the other location.
+func (r *SupervisorRuntime) menuSnapshot(ctx context.Context) ([]string, error) {
+	paths := []string{r.config.CoreNameFile}
+	if fallback := r.config.CoreNameFallbackFile; fallback != "" && fallback != r.config.CoreNameFile {
+		paths = append(paths, fallback)
+	}
+	ready := make([]string, 0, len(paths))
+	for _, path := range paths {
+		present, err := readMenuPublisher(ctx, path)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if present {
+			ready = append(ready, path)
+		}
+	}
+	if len(ready) == 0 {
+		return nil, errors.New("CORENAME is unavailable")
+	}
+	return ready, nil
+}
+
+func readMenuPublisher(ctx context.Context, path string) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_CLOEXEC|unix.O_NONBLOCK|unix.O_NOFOLLOW, 0)
+	if err != nil {
+		return false, err
+	}
+	file := os.NewFile(uintptr(fd), path)
+	if file == nil {
+		_ = unix.Close(fd)
+		return false, errors.New("CORENAME descriptor is unavailable")
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return false, err
+	}
+	if !info.Mode().IsRegular() {
+		return false, fmt.Errorf("CORENAME at %s is not a regular file", path)
+	}
+	raw, err := io.ReadAll(io.LimitReader(file, int64(len("MENU\n")+1)))
+	if err != nil {
+		return false, err
+	}
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	if string(raw) != "MENU\n" {
+		return false, fmt.Errorf("CORENAME at %s is not MENU", path)
+	}
+	return true, nil
 }
 
 func waitRuntimeCondition(ctx context.Context, interval time.Duration, check func() error) error {
