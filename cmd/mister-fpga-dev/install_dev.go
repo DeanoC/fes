@@ -72,10 +72,13 @@ func stopAgentOnlyWhenAbsent(observer recordedAgentObserver) func(context.Contex
 	}
 }
 
-// stopRecordedAgents first quiesces the legacy boot authority, then terminates
-// every exactly observed agent. A TERM-resistant process is escalated to KILL;
-// success still requires a stable complete-scan absence interval so a
-// supervisor respawn cannot pass through a transient empty snapshot.
+// stopRecordedAgents first attempts to quiesce the legacy boot authority, then
+// terminates every exactly observed agent even when the first authority proof
+// failed. Once the agents are absent it retries that proof, allowing a resolved
+// observation race to proceed while a persistent authority error remains
+// fail-closed. A TERM-resistant process is escalated to KILL; success still
+// requires a stable complete-scan absence interval so a supervisor respawn
+// cannot pass through a transient empty snapshot.
 func stopRecordedAgents(targets []recordedAgentTarget, stopAuthority func(context.Context) error, signal recordedAgentSignaler) func(context.Context) error {
 	return func(ctx context.Context) error {
 		if ctx == nil {
@@ -90,10 +93,12 @@ func stopRecordedAgents(targets []recordedAgentTarget, stopAuthority func(contex
 		if len(targets) == 0 {
 			return errors.New("agent observer is unavailable")
 		}
-		if err := stopAuthority(ctx); err != nil {
-			return err
+		authorityErr := stopAuthority(ctx)
+		stopErr := stopRecordedTargets(ctx, targets, signal, productionAgentStableAbsence)
+		if authorityErr != nil && stopErr == nil {
+			authorityErr = stopAuthority(ctx)
 		}
-		return stopRecordedTargets(ctx, targets, signal, productionAgentStableAbsence)
+		return errors.Join(authorityErr, stopErr)
 	}
 }
 

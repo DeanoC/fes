@@ -118,6 +118,85 @@ func TestProductionAgentStopperStopsAndProvesAbsentAtUsrSbin(t *testing.T) {
 	testProductionAgentStopperStopsAndProvesAbsent(t, "/usr/sbin/mister-agent")
 }
 
+func TestProductionAgentStopperActuallyStopsAndProvesRealUsrSbinProcessAbsentAfterTransientAuthorityFailure(t *testing.T) {
+	if os.Getenv("FOGCAST_TEST_REAL_SBIN_AGENT") == "1" {
+		for {
+			time.Sleep(time.Hour)
+		}
+	}
+	directory := filepath.Join(t.TempDir(), "usr", "sbin")
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	source, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	executable := filepath.Join(directory, "mister-agent")
+	if err := os.WriteFile(executable, raw, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	child := exec.Command(executable, "-test.run=^TestProductionAgentStopperActuallyStopsAndProvesRealUsrSbinProcessAbsentAfterTransientAuthorityFailure$")
+	child.Env = append(os.Environ(), "FOGCAST_TEST_REAL_SBIN_AGENT=1")
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if child.ProcessState == nil {
+			_ = child.Process.Kill()
+			_ = child.Wait()
+		}
+	}()
+	observer, err := newProductionAgentPathObserver(executable)
+	if err != nil {
+		t.Fatalf("construct real sbin observer: %v", err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		identities, scanErr := observer.SnapshotContext(context.Background())
+		if scanErr != nil {
+			t.Fatalf("scan real sbin agent: %v", scanErr)
+		}
+		if len(identities) == 1 && identities[0].PID == child.Process.Pid {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("real sbin agent PID %d was not attested: %#v", child.Process.Pid, identities)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	targets := []recordedAgentTarget{{path: executable, observer: observer}}
+	authorityErr := errors.New("legacy authority proof failed")
+	authorityCalls := 0
+	stopErr := stopRecordedAgents(targets, func(context.Context) error {
+		authorityCalls++
+		if authorityCalls == 1 {
+			return authorityErr
+		}
+		return nil
+	}, signalProductionAgent)(context.Background())
+	if stopErr != nil {
+		t.Fatalf("stop real sbin agent after reconciled authority proof: %v", stopErr)
+	}
+	if authorityCalls != 2 {
+		t.Fatalf("authority calls=%d want=2", authorityCalls)
+	}
+	proofContext, cancelProof := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelProof()
+	if err := proveRecordedAgentsAbsent(targets)(proofContext); err != nil {
+		t.Fatalf("prove real sbin agent absent after reconciled stop: %v", err)
+	}
+	if err := child.Wait(); err != nil {
+		if _, ok := err.(*exec.ExitError); !ok {
+			t.Fatalf("wait real sbin agent: %v", err)
+		}
+	}
+}
+
 func TestProductionAgentStopperStillStopsAndProvesAbsentAtUsrBin(t *testing.T) {
 	testProductionAgentStopperStopsAndProvesAbsent(t, "/usr/bin/mister-agent")
 }

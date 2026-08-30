@@ -44,14 +44,17 @@ func productionInstallManager() *fpgadev.InstallManager {
 	}
 	journal := fpgadev.NewProductionInstallJournal()
 	if err := ctx.Err(); err != nil {
+		productionInstallPrerequisiteError = fmt.Errorf("development profile construction timed out: %w", err)
 		return nil
 	}
 	mainObserver, err := fpgadev.NewObserverForExecutable(productionMainExecutable)
 	if err != nil {
+		productionInstallPrerequisiteError = fmt.Errorf("compatibility Main observer unavailable: %w", err)
 		return nil
 	}
 	agentTargets, err := productionAgentTargets()
 	if err != nil {
+		productionInstallPrerequisiteError = fmt.Errorf("legacy agent observer unavailable: %w", err)
 		return nil
 	}
 	runtime, err := fpgadev.NewSupervisorRuntime(fpgadev.SupervisorRuntimeConfig{
@@ -63,6 +66,7 @@ func productionInstallManager() *fpgadev.InstallManager {
 		AgentExecutable:  productionAgentExecutable,
 	})
 	if err != nil {
+		productionInstallPrerequisiteError = fmt.Errorf("supervisor runtime configuration invalid: %w", err)
 		return nil
 	}
 	bounded := func(operation func(context.Context) error) func(context.Context) error {
