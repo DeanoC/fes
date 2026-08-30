@@ -83,6 +83,9 @@ func newTask1AdmissionFixture(t *testing.T) task1AdmissionFixture {
 		t.Fatal(err)
 	}
 	install := hardwareowner.NewLocker(filepath.Join(root, "install.lock"), uid)
+	if err := os.WriteFile(install.Path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	ownerLock := hardwareowner.NewLocker(filepath.Join(root, "owner.lock"), uid)
 	profile := strings.Repeat("b", 64)
 	raw, err := journalRecord.MarshalCanonical()

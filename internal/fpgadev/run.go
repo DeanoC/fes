@@ -29,11 +29,15 @@ var (
 	// ErrRunPreflight identifies a failure before durable recovering_intent.
 	// It is intentionally separate from a post-intent result, which is
 	// authoritative in the returned Result and durable result store.
-	ErrRunPreflight        = errors.New("run did not commit durable intent")
-	ErrRunnerConfiguration = errors.New("FPGA development runner is not configured")
-	ErrProfileDisabled     = errors.New("FPGA development profile is disabled")
-	ErrResultUnavailable   = errors.New("terminal result is unavailable")
-	errOwnerStateStore     = errors.New("owner state store operation failed")
+	ErrRunPreflight                      = errors.New("run did not commit durable intent")
+	ErrRunnerConfiguration               = errors.New("FPGA development runner is not configured")
+	ErrProfileDisabled                   = errors.New("FPGA development profile is disabled")
+	ErrResultUnavailable                 = errors.New("terminal result is unavailable")
+	ErrMaintenanceGateLock               = errors.New("maintenance gate lock acquisition failed")
+	ErrMaintenanceGateJournalLoad        = errors.New("maintenance gate journal load failed")
+	ErrMaintenanceGateJournalNotTerminal = errors.New("maintenance gate journal is not terminal")
+	ErrMaintenanceGateStatusValidation   = errors.New("maintenance gate status validation failed")
+	errOwnerStateStore                   = errors.New("owner state store operation failed")
 )
 
 type MaintenanceStatus struct {

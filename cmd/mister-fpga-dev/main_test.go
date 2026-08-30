@@ -64,6 +64,32 @@ func TestCLIPreflightOwnershipConflictClassifiesJournalProofWithoutRawPath(t *te
 	}
 }
 
+func TestCLIPreflightOwnershipConflictClassifiesMaintenanceGateEnterStages(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		cause error
+		token string
+	}{
+		{name: "lock", cause: errors.Join(fpgadev.ErrMaintenanceGateLock, errors.New("/private/lock")), token: "maintenance_gate_lock_unavailable"},
+		{name: "journal load", cause: errors.Join(fpgadev.ErrMaintenanceGateJournalLoad, errors.New("/private/journal")), token: "maintenance_gate_journal_load_rejected"},
+		{name: "not terminal", cause: errors.Join(fpgadev.ErrMaintenanceGateJournalNotTerminal, errors.New("/private/journal")), token: "maintenance_gate_journal_not_terminal"},
+		{name: "status validation", cause: errors.Join(fpgadev.ErrMaintenanceGateStatusValidation, errors.New("/private/status")), token: "maintenance_gate_status_invalid"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			failure := &fpgadev.Failure{Code: fpgadev.CodeOwnershipConflict, Detail: "maintenance gate is unavailable"}
+			runner := &fakeCommandRunner{preflight: errors.Join(failure, opaqueCauseError{cause: test.cause})}
+			var stdout, stderr bytes.Buffer
+			if got := run([]string{"preflight", "--manifest", "/tmp/fixture/manifest.json", "--artifact", "/tmp/fixture/top.rbf"}, &stdout, &stderr, runner); got != exitUsage {
+				t.Fatalf("exit = %d, want %d", got, exitUsage)
+			}
+			want := "FOGCAST_FPGA_DEV_PREFLIGHT code=ownership_conflict detail=maintenance_gate_unavailable cause=" + test.token + "\n"
+			if stdout.Len() != 0 || stderr.String() != want || strings.Contains(stderr.String(), "/private/") {
+				t.Fatalf("stdout=%q stderr=%q, want sanitized stderr=%q", stdout.String(), stderr.String(), want)
+			}
+		})
+	}
+}
+
 func TestCLIRejectsMalformedSyntaxWithoutCallingRunner(t *testing.T) {
 	runner := &fakeCommandRunner{}
 	var stdout, stderr bytes.Buffer

@@ -157,6 +157,50 @@ func TestRunnerPreflightAcceptsPreviousBootCompatMainRecoveryReadOnly(t *testing
 	}
 }
 
+func TestRunnerPreflightAcceptsLiveShapedTerminalJournalAndPriorBootCompatRecoveryReadOnly(t *testing.T) {
+	fixture := newTask7RunnerFixture(t)
+	fixture.store.record = live61ceb8baRecoveryRecord()
+	ownerBefore := cloneTask7Record(fixture.store.record)
+
+	root := t.TempDir()
+	if err := os.Chmod(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	journal := NewInstallJournal(filepath.Join(root, "fpgadev-install-v1.json"), uint32(os.Getuid()))
+	if err := replaceInstallJournalForTest(journal, testTerminalInstallJournal()); err != nil {
+		t.Fatal(err)
+	}
+	journalBefore, err := os.ReadFile(journal.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lockPath := filepath.Join(root, "fpgadev-install.lock")
+	if err := os.WriteFile(lockPath, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	deps := fixture.dependencies()
+	deps.maintenance = NewMaintenanceGate(journal, NewInstallLocker(lockPath, uint32(os.Getuid())))
+	proof := &task7PriorBootQuiescence{}
+	deps.quiescence = proof
+	if err := newFixtureRunner(deps).Preflight(context.Background(), fixture.request); err != nil {
+		t.Fatalf("Preflight() = %v, want terminal maintenance gate to reach prior-boot admission", err)
+	}
+	journalAfter, err := os.ReadFile(journal.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(journalAfter, journalBefore) {
+		t.Fatal("read-only preflight mutated the terminal install journal")
+	}
+	if !reflect.DeepEqual(fixture.store.record, ownerBefore) || fixture.store.replaceCalls != 0 {
+		t.Fatalf("read-only preflight mutated owner: record=%#v replaces=%d", fixture.store.record, fixture.store.replaceCalls)
+	}
+	if fixture.fifo.calls != 0 || fixture.mapper.openCalls != 0 {
+		t.Fatalf("read-only preflight touched hardware path: fifo=%d mappings=%d", fixture.fifo.calls, fixture.mapper.openCalls)
+	}
+}
+
 func TestRunnerRunCommandReclaimsAttestedPreviousBootAtIntentBoundary(t *testing.T) {
 	fixture := newTask7RunnerFixture(t)
 	previousBoot := "222959a0-e21d-4d8b-a217-a6bd6367b2fb"

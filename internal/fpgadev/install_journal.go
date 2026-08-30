@@ -1081,8 +1081,13 @@ func journalStatField(info os.FileInfo, names ...string) (uint64, bool) {
 // NewMaintenanceGate. It holds the install flock for the lifetime of the
 // returned unlock and never mutates a terminal journal.
 type installMaintenanceGate struct {
-	journal *InstallJournalStore
-	locker  hardwareowner.OwnerLocker
+	journal        *InstallJournalStore
+	locker         hardwareowner.OwnerLocker
+	validateStatus func(MaintenanceStatus) error
+}
+
+type existingMaintenanceLocker interface {
+	LockExisting(context.Context) (hardwareowner.Unlock, error)
 }
 type maintenanceUnlock struct {
 	once   sync.Once
@@ -1133,28 +1138,39 @@ func (g *installMaintenanceGate) Enter(ctx context.Context) (MaintenanceStatus, 
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	unlock, err := g.locker.Lock(ctx)
+	existingLocker, ok := g.locker.(existingMaintenanceLocker)
+	if !ok {
+		return MaintenanceStatus{}, nil, fmt.Errorf("%w: %w", ErrMaintenanceGateLock, ErrRunnerConfiguration)
+	}
+	unlock, err := existingLocker.LockExisting(ctx)
 	if err != nil || unlock == nil {
-		return MaintenanceStatus{}, nil, err
+		if err == nil {
+			err = ErrRunnerConfiguration
+		}
+		return MaintenanceStatus{}, nil, fmt.Errorf("%w: %w", ErrMaintenanceGateLock, err)
 	}
 	release := func(cause error) (MaintenanceStatus, MaintenanceUnlock, error) {
 		return MaintenanceStatus{}, nil, errors.Join(cause, unlock())
 	}
 	record, exists, err := g.journal.Load()
 	if err != nil {
-		return release(err)
+		return release(fmt.Errorf("%w: %w", ErrMaintenanceGateJournalLoad, err))
 	}
 	if !exists || record.State != InstallStateTerminal {
-		return release(errors.New("install journal is not terminal"))
+		return release(ErrMaintenanceGateJournalNotTerminal)
 	}
 	raw, err := record.MarshalCanonical()
 	if err != nil {
-		return release(err)
+		return release(fmt.Errorf("%w: %w", ErrMaintenanceGateStatusValidation, err))
 	}
 	digest := sha256.Sum256(raw)
 	status := MaintenanceStatus{TerminalJournalSHA256: fmt.Sprintf("%x", digest[:]), Inventory: record.Inventory}
-	if err := status.Validate(); err != nil {
-		return release(err)
+	validateStatus := g.validateStatus
+	if validateStatus == nil {
+		validateStatus = func(candidate MaintenanceStatus) error { return candidate.Validate() }
+	}
+	if err := validateStatus(status); err != nil {
+		return release(fmt.Errorf("%w: %w", ErrMaintenanceGateStatusValidation, err))
 	}
 	return status, &maintenanceUnlock{unlock: unlock}, nil
 }

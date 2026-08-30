@@ -4,6 +4,7 @@ package hardwareowner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -41,11 +42,23 @@ func (l Locker) Lock(ctx context.Context) (Unlock, error) {
 	return unlock, err
 }
 
+// LockExisting acquires a lock only when the protected lock file already
+// exists. Maintenance admission uses this form so read-only operation never
+// creates authority that only installation is allowed to establish.
+func (l Locker) LockExisting(ctx context.Context) (Unlock, error) {
+	_, unlock, err := l.lockFile(ctx, openExistingLockNoFollow)
+	return unlock, err
+}
+
 // LockFile is the descriptor-retaining form of Lock. The returned descriptor
 // is the exact protected lock file whose flock is held by unlock. It exists
 // for the recovery trampoline's same-process exec handoff; ordinary callers
 // should use Lock so the descriptor cannot accidentally escape its scope.
 func (l Locker) LockFile(ctx context.Context) (*os.File, Unlock, error) {
+	return l.lockFile(ctx, openLockNoFollow)
+}
+
+func (l Locker) lockFile(ctx context.Context, openLock func(string) (*os.File, error)) (*os.File, Unlock, error) {
 	if ctx == nil {
 		return nil, nil, fmt.Errorf("lock context is nil")
 	}
@@ -58,7 +71,7 @@ func (l Locker) LockFile(ctx context.Context) (*os.File, Unlock, error) {
 	if err := ensureSecureParent(dirName(l.Path), l.ExpectedUID); err != nil {
 		return nil, nil, err
 	}
-	file, err := openLockNoFollow(l.Path)
+	file, err := openLock(l.Path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("open owner lock: %w", err)
 	}
@@ -151,7 +164,22 @@ func openOwnerRead(path string) (*os.File, error) {
 }
 
 func openLockNoFollow(path string) (*os.File, error) {
+	file, err := openExistingLockNoFollow(path)
+	if err == nil {
+		return file, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
 	fd, err := unix.Open(path, unix.O_RDWR|unix.O_CREAT|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	return os.NewFile(uintptr(fd), path), nil
+}
+
+func openExistingLockNoFollow(path string) (*os.File, error) {
+	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_NONBLOCK|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
 	if err != nil {
 		return nil, err
 	}

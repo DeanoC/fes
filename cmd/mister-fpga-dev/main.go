@@ -144,6 +144,19 @@ func ownershipConflictPreflightLine(err error) string {
 
 func classifyOwnershipConflictCause(err error) string {
 	for _, candidate := range []struct {
+		cause error
+		token string
+	}{
+		{fpgadev.ErrMaintenanceGateLock, "maintenance_gate_lock_unavailable"},
+		{fpgadev.ErrMaintenanceGateJournalLoad, "maintenance_gate_journal_load_rejected"},
+		{fpgadev.ErrMaintenanceGateJournalNotTerminal, "maintenance_gate_journal_not_terminal"},
+		{fpgadev.ErrMaintenanceGateStatusValidation, "maintenance_gate_status_invalid"},
+	} {
+		if errors.Is(err, candidate.cause) {
+			return candidate.token
+		}
+	}
+	for _, candidate := range []struct {
 		contains string
 		token    string
 	}{

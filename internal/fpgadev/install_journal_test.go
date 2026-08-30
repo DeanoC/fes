@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DeanoC/FogCast-POC/internal/hardwareowner"
 )
@@ -27,7 +28,11 @@ func TestInstallJournalCanonicalTerminalRoundTripAndMaintenanceGate(t *testing.T
 	if err != nil || !exists || loaded.State != InstallStateTerminal {
 		t.Fatalf("Load() = %#v exists=%v err=%v", loaded, exists, err)
 	}
-	status, unlock, err := NewMaintenanceGate(journal, NewInstallLocker(filepath.Join(root, "install.lock"), uint32(os.Getuid()))).Enter(context.Background())
+	lockPath := filepath.Join(root, "install.lock")
+	if err := os.WriteFile(lockPath, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	status, unlock, err := NewMaintenanceGate(journal, NewInstallLocker(lockPath, uint32(os.Getuid()))).Enter(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,9 +142,15 @@ func TestInstallJournalNonterminalBlocksMaintenanceAndAbsentRecordDoesNotAdopt(t
 		t.Fatal(err)
 	}
 	journal := NewInstallJournal(filepath.Join(root, "journal.json"), uint32(os.Getuid()))
-	lock := NewInstallLocker(filepath.Join(root, "install.lock"), uint32(os.Getuid()))
+	lockPath := filepath.Join(root, "install.lock")
+	if err := os.WriteFile(lockPath, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	lock := NewInstallLocker(lockPath, uint32(os.Getuid()))
 	if _, _, err := NewMaintenanceGate(journal, lock).Enter(context.Background()); err == nil {
 		t.Fatal("absent journal admitted maintenance")
+	} else if !errors.Is(err, ErrMaintenanceGateJournalNotTerminal) {
+		t.Fatalf("absent journal error = %v, want classified not-terminal stage", err)
 	}
 	record := testTerminalInstallJournal()
 	record.State = InstallStatePrepared
@@ -148,6 +159,124 @@ func TestInstallJournalNonterminalBlocksMaintenanceAndAbsentRecordDoesNotAdopt(t
 	}
 	if _, _, err := NewMaintenanceGate(journal, lock).Enter(context.Background()); err == nil {
 		t.Fatal("nonterminal journal admitted maintenance")
+	} else if !errors.Is(err, ErrMaintenanceGateJournalNotTerminal) {
+		t.Fatalf("nonterminal journal error = %v, want classified not-terminal stage", err)
+	}
+}
+
+func TestInstallMaintenanceGateClassifiesLockLoadAndStatusFailures(t *testing.T) {
+	uid := uint32(os.Getuid())
+	root := t.TempDir()
+	if err := os.Chmod(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	journal := NewInstallJournal(filepath.Join(root, "journal.json"), uid)
+	if err := replaceInstallJournalForTest(journal, testTerminalInstallJournal()); err != nil {
+		t.Fatal(err)
+	}
+	lockPath := filepath.Join(root, "install.lock")
+	if err := os.WriteFile(lockPath, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	missingLockPath := filepath.Join(root, "missing-install.lock")
+	missingLock := NewMaintenanceGate(journal, NewInstallLocker(missingLockPath, uid))
+	if _, _, err := missingLock.Enter(context.Background()); !errors.Is(err, ErrMaintenanceGateLock) {
+		t.Fatalf("missing lock error = %v, want classified lock stage", err)
+	}
+	if _, err := os.Lstat(missingLockPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("maintenance gate created missing lock: %v", err)
+	}
+
+	missingParent := NewMaintenanceGate(journal, NewInstallLocker(filepath.Join(root, "missing", "install.lock"), uid))
+	if _, _, err := missingParent.Enter(context.Background()); !errors.Is(err, ErrMaintenanceGateLock) {
+		t.Fatalf("missing lock parent error = %v, want classified lock stage", err)
+	}
+	unsafeParent := filepath.Join(root, "unsafe")
+	if err := os.Mkdir(unsafeParent, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	insecureParent := NewMaintenanceGate(journal, NewInstallLocker(filepath.Join(unsafeParent, "install.lock"), uid))
+	if _, _, err := insecureParent.Enter(context.Background()); !errors.Is(err, ErrMaintenanceGateLock) {
+		t.Fatalf("insecure lock parent error = %v, want classified lock stage", err)
+	}
+
+	heldUnlock, err := NewInstallLocker(lockPath, uid).Lock(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+	defer cancel()
+	if _, _, err := NewMaintenanceGate(journal, NewInstallLocker(lockPath, uid)).Enter(ctx); !errors.Is(err, ErrMaintenanceGateLock) {
+		t.Fatalf("held lock error = %v, want classified lock stage", err)
+	}
+	if err := heldUnlock(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Chmod(journal.Path, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := NewMaintenanceGate(journal, NewInstallLocker(lockPath, uid)).Enter(context.Background()); !errors.Is(err, ErrMaintenanceGateJournalLoad) {
+		t.Fatalf("unprotected journal error = %v, want classified load stage", err)
+	}
+	if err := os.Chmod(journal.Path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	gate := NewMaintenanceGate(journal, NewInstallLocker(lockPath, uid))
+	gate.validateStatus = func(MaintenanceStatus) error { return errors.New("fixture status reject") }
+	if _, _, err := gate.Enter(context.Background()); !errors.Is(err, ErrMaintenanceGateStatusValidation) {
+		t.Fatalf("status rejection error = %v, want classified status stage", err)
+	}
+}
+
+func TestInstallMaintenanceGateClassifiesJournalLoadRejections(t *testing.T) {
+	uid := uint32(os.Getuid())
+	for _, test := range []struct {
+		name   string
+		mutate func(*testing.T, *InstallJournalStore)
+	}{
+		{name: "parse", mutate: func(t *testing.T, journal *InstallJournalStore) {
+			t.Helper()
+			if err := os.WriteFile(journal.Path, []byte("not-json\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "uid", mutate: func(t *testing.T, journal *InstallJournalStore) {
+			t.Helper()
+			journal.ExpectedUID = uid + 1
+		}},
+		{name: "link-count", mutate: func(t *testing.T, journal *InstallJournalStore) {
+			t.Helper()
+			if err := os.Link(journal.Path, journal.Path+".linked"); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "size", mutate: func(t *testing.T, journal *InstallJournalStore) {
+			t.Helper()
+			if err := os.WriteFile(journal.Path, []byte(strings.Repeat("x", InstallJournalMaxBytes+1)), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			if err := os.Chmod(root, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			journal := NewInstallJournal(filepath.Join(root, "journal.json"), uid)
+			if err := replaceInstallJournalForTest(journal, testTerminalInstallJournal()); err != nil {
+				t.Fatal(err)
+			}
+			test.mutate(t, journal)
+			lockPath := filepath.Join(root, "install.lock")
+			if err := os.WriteFile(lockPath, nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := NewMaintenanceGate(journal, NewInstallLocker(lockPath, uid)).Enter(context.Background()); !errors.Is(err, ErrMaintenanceGateJournalLoad) {
+				t.Fatalf("Enter() error = %v, want classified journal load stage", err)
+			}
+		})
 	}
 }
 
