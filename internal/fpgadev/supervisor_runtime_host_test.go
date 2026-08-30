@@ -92,15 +92,14 @@ func TestRunnerLiveDE10NanoMainStaysOnFourByteMENUAfterSuccessfulFIFODispatchFai
 
 	fixture := newTask7RunnerFixture(t)
 	fixture.store.record.BootID = "222959a0-e21d-4d8b-a217-a6bd6367b2fb"
-	// The live Main population never became absent after accepting load_core.
-	// Returning the handoff deadline keeps this test fast while preserving the
-	// production-shaped readiness proof below: unique Main, operating FPGA
-	// manager, four-byte /tmp/CORENAME MENU, and absent /media/fat/CORENAME.
-	fixture.observerErr = context.DeadlineExceeded
+	// Bound the production handoff verifier to keep this test fast while
+	// preserving the live-shaped proof: unique Main, operating FPGA manager,
+	// four-byte /tmp/CORENAME MENU, and absent /media/fat/CORENAME.
 	deps := fixture.dependencies()
 	proof := &task7PriorBootQuiescence{}
 	deps.quiescence = proof
-	deps.readiness = NewCompatibilityMainReadiness(runtime, mainObserver)
+	productionReadiness := NewCompatibilityMainReadiness(runtime, mainObserver)
+	deps.readiness = boundedProgrammedReadiness{readiness: productionReadiness, handoff: productionReadiness, timeout: 50 * time.Millisecond}
 
 	result, err := newFixtureRunner(deps).RunCommand(context.Background(), fixture.request)
 	if err != nil {
@@ -135,6 +134,85 @@ func TestRunnerLiveDE10NanoMainStaysOnFourByteMENUAfterSuccessfulFIFODispatchFai
 	if raw, readErr := os.ReadFile(runtime.config.FPGAManagerState); readErr != nil || string(raw) != "operating\n" {
 		t.Fatalf("FPGA manager after dispatch = %q, %v, want operating without a positive core-transition observation", raw, readErr)
 	}
+}
+
+func TestCompatibilityMainHandoffWaitsForStableCORENAMELeaveMENU(t *testing.T) {
+	dir := t.TempDir()
+	tmpCore := filepath.Join(dir, "tmp", "CORENAME")
+	fatCore := filepath.Join(dir, "media", "fat", "CORENAME")
+	if err := os.MkdirAll(filepath.Dir(tmpCore), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(tmpCore, []byte("MENU"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runtime, observer := newCompatibilityMainReadinessFixture(t, tmpCore, fatCore)
+	readiness := NewCompatibilityMainReadiness(runtime, observer)
+	writeDone := make(chan error, 1)
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		writeDone <- os.WriteFile(tmpCore, []byte("Powerboat\n"), 0o600)
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	if err := readiness.WaitProgrammed(ctx); err != nil {
+		t.Fatalf("WaitProgrammed() = %v", err)
+	}
+	if err := <-writeDone; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCompatibilityMainHandoffRejectsMENUAndMalformedCORENAME(t *testing.T) {
+	tests := []string{"MENU", "MENU\n", "Power\tboat", "\x00core"}
+	for _, value := range tests {
+		t.Run(hex.EncodeToString([]byte(value)), func(t *testing.T) {
+			dir := t.TempDir()
+			core := filepath.Join(dir, "CORENAME")
+			if err := os.WriteFile(core, []byte(value), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			runtime, observer := newCompatibilityMainReadinessFixture(t, core, filepath.Join(dir, "missing"))
+			ctx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
+			defer cancel()
+			if err := NewCompatibilityMainReadiness(runtime, observer).WaitProgrammed(ctx); !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("WaitProgrammed(%q) = %v, want deadline", value, err)
+			}
+		})
+	}
+}
+
+func TestCompatibilityMainHandoffRequiresOperatingFPGAManager(t *testing.T) {
+	dir := t.TempDir()
+	core := filepath.Join(dir, "CORENAME")
+	if err := os.WriteFile(core, []byte("Powerboat"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runtime, observer := newCompatibilityMainReadinessFixture(t, core, filepath.Join(dir, "missing"))
+	if err := os.WriteFile(runtime.config.FPGAManagerState, []byte("reset\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
+	defer cancel()
+	if err := NewCompatibilityMainReadiness(runtime, observer).WaitProgrammed(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("WaitProgrammed() = %v, want deadline without operating FPGA manager", err)
+	}
+}
+
+type boundedProgrammedReadiness struct {
+	readiness readinessVerifier
+	handoff   programmedHandoffVerifier
+	timeout   time.Duration
+}
+
+func (r boundedProgrammedReadiness) Verify(ctx context.Context) error {
+	return r.readiness.Verify(ctx)
+}
+
+func (r boundedProgrammedReadiness) WaitProgrammed(ctx context.Context) error {
+	bounded, cancel := context.WithTimeout(ctx, r.timeout)
+	defer cancel()
+	return r.handoff.WaitProgrammed(bounded)
 }
 
 func TestCompatibilityMainReadinessAlreadyMENUAtMediaFatWhenPresent(t *testing.T) {

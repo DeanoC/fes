@@ -109,6 +109,28 @@ func (r *CompatibilityMainReadiness) Verify(ctx context.Context) error {
 	})
 }
 
+// WaitProgrammed waits for positive post-dispatch evidence: the FPGA manager
+// remains operational and every present canonical CORENAME publisher has
+// stably left MENU. Main process absence is deliberately not part of this
+// predicate because fpga_load_rbf app_restart may immediately replace Main.
+func (r *CompatibilityMainReadiness) WaitProgrammed(ctx context.Context) error {
+	if r == nil || r.runtime == nil {
+		return ErrRunnerConfiguration
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return waitRuntimeCondition(ctx, r.runtime.config.PollInterval, func() error {
+		if err := r.runtime.FPGAManagerReady(); err != nil {
+			return err
+		}
+		if err := r.runtime.coreProgrammed(ctx); err != nil {
+			return err
+		}
+		return r.runtime.FPGAManagerReady()
+	})
+}
+
 func NewSupervisorRuntime(config SupervisorRuntimeConfig) (*SupervisorRuntime, error) {
 	if config.MainExecutable == "" {
 		config.MainExecutable = "/media/fat/MiSTer"
@@ -564,6 +586,70 @@ func (r *SupervisorRuntime) menuReady(ctx context.Context) error {
 	return nil
 }
 
+func (r *SupervisorRuntime) coreProgrammed(ctx context.Context) error {
+	first, err := r.coreNameSnapshot(ctx)
+	if err != nil {
+		return err
+	}
+	for _, publisher := range first {
+		if publisher.value == "MENU" {
+			return errors.New("CORENAME remains MENU")
+		}
+	}
+	timer := time.NewTimer(10 * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	second, err := r.coreNameSnapshot(ctx)
+	if err != nil {
+		return err
+	}
+	if len(first) != len(second) {
+		return errors.New("CORENAME changed during handoff")
+	}
+	for index := range first {
+		if first[index] != second[index] || second[index].value == "MENU" {
+			return errors.New("CORENAME changed during handoff")
+		}
+	}
+	return nil
+}
+
+type coreNamePublisher struct {
+	path  string
+	value string
+}
+
+func (r *SupervisorRuntime) coreNameSnapshot(ctx context.Context) ([]coreNamePublisher, error) {
+	paths := []string{r.config.CoreNameFile}
+	if fallback := r.config.CoreNameFallbackFile; fallback != "" && fallback != r.config.CoreNameFile {
+		paths = append(paths, fallback)
+	}
+	publishers := make([]coreNamePublisher, 0, len(paths))
+	for _, path := range paths {
+		value, err := readCoreNamePublisher(ctx, path)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		publishers = append(publishers, coreNamePublisher{path: path, value: value})
+	}
+	if len(publishers) == 0 {
+		return nil, errors.New("CORENAME is unavailable")
+	}
+	for index := 1; index < len(publishers); index++ {
+		if publishers[index].value != publishers[0].value {
+			return nil, errors.New("CORENAME publishers disagree")
+		}
+	}
+	return publishers, nil
+}
+
 // menuSnapshot accepts only a non-empty, stable set of publishers containing
 // exactly MENU, with or without a single trailing newline. A missing alternate
 // is allowed, but every present candidate must publish MENU so a stale or
@@ -593,37 +679,60 @@ func (r *SupervisorRuntime) menuSnapshot(ctx context.Context) ([]string, error) 
 }
 
 func readMenuPublisher(ctx context.Context, path string) (bool, error) {
-	if err := ctx.Err(); err != nil {
+	value, err := readCoreNamePublisher(ctx, path)
+	if err != nil {
 		return false, err
+	}
+	if value != "MENU" {
+		return false, fmt.Errorf("CORENAME at %s is not MENU", path)
+	}
+	return true, nil
+}
+
+func readCoreNamePublisher(ctx context.Context, path string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
 	}
 	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_CLOEXEC|unix.O_NONBLOCK|unix.O_NOFOLLOW, 0)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	file := os.NewFile(uintptr(fd), path)
 	if file == nil {
 		_ = unix.Close(fd)
-		return false, errors.New("CORENAME descriptor is unavailable")
+		return "", errors.New("CORENAME descriptor is unavailable")
 	}
 	defer file.Close()
 	info, err := file.Stat()
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	if !info.Mode().IsRegular() {
-		return false, fmt.Errorf("CORENAME at %s is not a regular file", path)
+		return "", fmt.Errorf("CORENAME at %s is not a regular file", path)
 	}
-	raw, err := io.ReadAll(io.LimitReader(file, int64(len("MENU\n")+1)))
+	raw, err := io.ReadAll(io.LimitReader(file, 130))
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	if err := ctx.Err(); err != nil {
-		return false, err
+		return "", err
 	}
-	if string(raw) != "MENU" && string(raw) != "MENU\n" {
-		return false, fmt.Errorf("CORENAME at %s is not MENU", path)
+	if len(raw) == 0 || len(raw) > 129 {
+		return "", fmt.Errorf("CORENAME at %s has invalid length", path)
 	}
-	return true, nil
+	value := string(raw)
+	if strings.HasSuffix(value, "\n") {
+		value = strings.TrimSuffix(value, "\n")
+	}
+	if value == "" || strings.ContainsAny(value, "\x00\r\n") {
+		return "", fmt.Errorf("CORENAME at %s is malformed", path)
+	}
+	for _, character := range []byte(value) {
+		if character < 0x20 || character > 0x7e {
+			return "", fmt.Errorf("CORENAME at %s is malformed", path)
+		}
+	}
+	return value, nil
 }
 
 func waitRuntimeCondition(ctx context.Context, interval time.Duration, check func() error) error {

@@ -184,6 +184,7 @@ type resultWriter interface {
 }
 
 type readinessVerifier interface{ Verify(context.Context) error }
+type programmedHandoffVerifier interface{ WaitProgrammed(context.Context) error }
 type profileVerifier interface{ Verify(context.Context) error }
 type rebooter interface{ Request(context.Context) error }
 
@@ -343,6 +344,8 @@ func validateProductionRunnerDependencies(d runnerDependencies) error {
 	}
 	if d.readiness == nil {
 		missing = append(missing, "Main readiness")
+	} else if _, ok := d.readiness.(programmedHandoffVerifier); !ok {
+		missing = append(missing, "programmed handoff")
 	}
 	if d.reboot == nil {
 		missing = append(missing, "reboot")
@@ -761,6 +764,10 @@ func (r *Runner) executePrepared(ctx context.Context, request Request, prepared 
 		if capErr != nil {
 			operationErr, primaryCode, primaryDetail = capErr, CodeLoadDispatchFailed, "artifact binding could not be dispatched"
 		} else {
+			// From this point Main may hold or reopen the named capability even
+			// if the synchronous adapter reports an ambiguous failure. Every
+			// later binding close therefore preserves the pathname.
+			prepared.binding.retainDispatchPathForMain()
 			command := "load_core " + capability + "\n"
 			// Mark the invocation immediately before entering the synchronous
 			// adapter. A pre-dispatch failure remains at intent_committed;
@@ -823,21 +830,18 @@ func (r *Runner) executePrepared(ctx context.Context, request Request, prepared 
 		return makeResult(manifest, current, primaryCode, primaryDetail, observation, r.elapsedMSFrom(prepared.started)), newFailure(primaryCode, primaryDetail, true, operationErr)
 	}
 	if operationErr == nil {
-		waitErr := d.observer.WaitStableAbsent(handoffCtx, append([]ProcessIdentity(nil), prepared.baseline...), qualificationStableAbsence)
-		if waitErr == nil {
-			waitErr = handoffCtx.Err()
+		handoff, ok := d.readiness.(programmedHandoffVerifier)
+		var waitErr error
+		if !ok {
+			waitErr = ErrRunnerConfiguration
+		} else {
+			waitErr = handoff.WaitProgrammed(handoffCtx)
+			if waitErr == nil {
+				waitErr = handoffCtx.Err()
+			}
 		}
 		if waitErr != nil {
-			operationErr, primaryCode, primaryDetail = waitErr, CodeMainHandoffTimeout, "Main process handoff timed out"
-		}
-		if operationErr == nil {
-			// The named capability must remain available until Main has proved
-			// stable absence. Remove it before qualification so the retained
-			// top.rbf returns to its original exact-link invariant. Cleanup
-			// failure is fail-closed and never proceeds to mailbox ownership.
-			if err := prepared.binding.ReleaseDispatchPath(); err != nil {
-				operationErr, primaryCode, primaryDetail = err, CodeNoOwnerQualificationFailed, "dispatch capability cleanup failed"
-			}
+			operationErr, primaryCode, primaryDetail = waitErr, CodeMainHandoffTimeout, "FPGA programming handoff timed out"
 		}
 		if operationErr == nil {
 			qualificationCtx, qualificationCancel := context.WithTimeout(ctx, qualificationTimeout)

@@ -524,7 +524,7 @@ func TestArtifactCloseRetriesPrivateModeRestorationAfterDispatchLinkRemoval(t *t
 	}
 }
 
-func TestArtifactCloseKeepsDescriptorsForLaterPrivateModeRestorationRetry(t *testing.T) {
+func TestArtifactCloseKeepsDescriptorsForLaterExplicitReleaseRestorationRetry(t *testing.T) {
 	staging, manifest := makeArtifactFixture(t, []byte("rbf-payload"))
 	binding, err := testArtifactAccess().Bind(manifest, staging)
 	if err != nil {
@@ -539,17 +539,20 @@ func TestArtifactCloseKeepsDescriptorsForLaterPrivateModeRestorationRetry(t *tes
 	binding.state.setDirectoryMode = func(fd int, mode uint32) error {
 		if mode == privateStagingMode {
 			restoreCalls++
-			if restoreCalls <= 2 {
+			if restoreCalls <= 3 {
 				return restoreErr
 			}
 		}
 		return unix.Fchmod(fd, mode)
 	}
+	if err := binding.ReleaseDispatchPath(); !errors.Is(err, restoreErr) {
+		t.Fatalf("ReleaseDispatchPath() = %v, want restoration failure", err)
+	}
 	if err := binding.Close(); !errors.Is(err, restoreErr) {
 		t.Fatalf("Close() = %v, want first restoration failure after bounded retry", err)
 	}
-	if restoreCalls != 2 {
-		t.Fatalf("private-mode restore calls after first Close = %d, want bounded retry", restoreCalls)
+	if restoreCalls != 3 {
+		t.Fatalf("private-mode restore calls after first Close = %d, want explicit release plus bounded retry", restoreCalls)
 	}
 	if _, err := os.Lstat(dispatchPath); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("capability after partial Close cleanup = %v, want absent", err)
@@ -560,8 +563,8 @@ func TestArtifactCloseKeepsDescriptorsForLaterPrivateModeRestorationRetry(t *tes
 	if err := binding.Close(); err != nil {
 		t.Fatalf("later Close retrying retained descriptor cleanup = %v", err)
 	}
-	if restoreCalls != 3 {
-		t.Fatalf("private-mode restore calls after later Close = %d, want 3", restoreCalls)
+	if restoreCalls != 4 {
+		t.Fatalf("private-mode restore calls after later Close = %d, want 4", restoreCalls)
 	}
 	if mode := artifactDirectoryMode(t, staging); mode != privateStagingMode {
 		t.Fatalf("mode after later Close cleanup = %04o, want %04o", mode, privateStagingMode)
@@ -571,7 +574,7 @@ func TestArtifactCloseKeepsDescriptorsForLaterPrivateModeRestorationRetry(t *tes
 	}
 }
 
-func TestArtifactCloseAcceptsSuccessfulBoundedPrivateModeRestorationRetry(t *testing.T) {
+func TestArtifactCloseAcceptsSuccessfulPendingExplicitReleaseRestoration(t *testing.T) {
 	staging, manifest := makeArtifactFixture(t, []byte("rbf-payload"))
 	binding, err := testArtifactAccess().Bind(manifest, staging)
 	if err != nil {
@@ -591,6 +594,9 @@ func TestArtifactCloseAcceptsSuccessfulBoundedPrivateModeRestorationRetry(t *tes
 			}
 		}
 		return unix.Fchmod(fd, mode)
+	}
+	if err := binding.ReleaseDispatchPath(); !errors.Is(err, restoreErr) {
+		t.Fatalf("ReleaseDispatchPath() = %v, want restoration failure", err)
 	}
 	if err := binding.Close(); err != nil {
 		t.Fatalf("Close() after successful bounded cleanup retry = %v", err)
@@ -625,6 +631,9 @@ func TestArtifactCloseRetriesPendingCleanupDirectorySync(t *testing.T) {
 		}
 		return unix.Fsync(fd)
 	}
+	if err := binding.ReleaseDispatchPath(); !errors.Is(err, syncErr) {
+		t.Fatalf("ReleaseDispatchPath() = %v, want sync failure", err)
+	}
 	if err := binding.Close(); err != nil {
 		t.Fatalf("Close() after successful cleanup sync retry = %v", err)
 	}
@@ -639,7 +648,7 @@ func TestArtifactCloseRetriesPendingCleanupDirectorySync(t *testing.T) {
 	}
 }
 
-func TestArtifactCloseKeepsDescriptorForLaterCleanupDirectorySyncRetry(t *testing.T) {
+func TestArtifactCloseKeepsDescriptorForLaterExplicitReleaseSyncRetry(t *testing.T) {
 	staging, manifest := makeArtifactFixture(t, []byte("rbf-payload"))
 	binding, err := testArtifactAccess().Bind(manifest, staging)
 	if err != nil {
@@ -652,22 +661,25 @@ func TestArtifactCloseKeepsDescriptorForLaterCleanupDirectorySyncRetry(t *testin
 	syncCalls := 0
 	binding.state.syncDirectory = func(fd int) error {
 		syncCalls++
-		if syncCalls <= 2 {
+		if syncCalls <= 3 {
 			return syncErr
 		}
 		return unix.Fsync(fd)
 	}
+	if err := binding.ReleaseDispatchPath(); !errors.Is(err, syncErr) {
+		t.Fatalf("ReleaseDispatchPath() = %v, want sync failure", err)
+	}
 	if err := binding.Close(); !errors.Is(err, syncErr) {
 		t.Fatalf("Close() = %v, want persistent cleanup sync failure", err)
 	}
-	if syncCalls != 2 {
-		t.Fatalf("cleanup directory sync calls after first Close = %d, want bounded retry", syncCalls)
+	if syncCalls != 3 {
+		t.Fatalf("cleanup directory sync calls after first Close = %d, want explicit release plus bounded retry", syncCalls)
 	}
 	if err := binding.Close(); err != nil {
 		t.Fatalf("later Close retrying retained directory sync = %v", err)
 	}
-	if syncCalls != 3 {
-		t.Fatalf("cleanup directory sync calls after later Close = %d, want 3", syncCalls)
+	if syncCalls != 4 {
+		t.Fatalf("cleanup directory sync calls after later Close = %d, want 4", syncCalls)
 	}
 	if mode := artifactDirectoryMode(t, staging); mode != privateStagingMode {
 		t.Fatalf("mode after later cleanup sync = %04o, want %04o", mode, privateStagingMode)
@@ -824,7 +836,7 @@ func TestArtifactBindingValueCopiesShareLifecycleState(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := os.Lstat(dispatchPath); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("Close dispatch cleanup error = %v, want absent", err)
+		t.Fatalf("ordinary Close dispatch cleanup error = %v, want absent", err)
 	}
 	if _, err := binding.DispatchPath(); err == nil {
 		t.Fatal("value copy close did not close the shared capability")
@@ -834,6 +846,28 @@ func TestArtifactBindingValueCopiesShareLifecycleState(t *testing.T) {
 	}
 	if err := binding.Revalidate(); err == nil {
 		t.Fatal("revalidation after copied close succeeded")
+	}
+}
+
+func TestArtifactBindingRetainedMainCapabilitySurvivesClose(t *testing.T) {
+	staging, manifest := makeArtifactFixture(t, []byte("rbf-payload"))
+	binding, err := testArtifactAccess().Bind(manifest, staging)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dispatchPath, err := binding.DispatchPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding.retainDispatchPathForMain()
+	if err := binding.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := os.ReadFile(dispatchPath); err != nil || string(got) != "rbf-payload" {
+		t.Fatalf("retained Main capability after Close = %q, %v", got, err)
+	}
+	if mode := artifactDirectoryMode(t, staging); mode != dispatchSearchableStagingMode {
+		t.Fatalf("retained Main capability parent mode = %04o, want %04o", mode, dispatchSearchableStagingMode)
 	}
 }
 

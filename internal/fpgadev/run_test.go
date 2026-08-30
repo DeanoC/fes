@@ -563,11 +563,109 @@ func TestRunnerNamedCapabilityMainCanOpenCompletesHandoff(t *testing.T) {
 	if mainFIFO.calls != 1 || fixture.mapper.openCalls != 1 {
 		t.Fatalf("named-capability path = FIFO:%d mailbox:%d, want one Main open and mailbox", mainFIFO.calls, fixture.mapper.openCalls)
 	}
-	if _, err := os.Lstat(mainFIFO.path); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("dispatch capability after stable Main absence = %v, want removed", err)
+	if got, err := os.ReadFile(mainFIFO.path); err != nil || !bytes.Equal(got, payload) {
+		t.Fatalf("dispatch capability retained for app_restart = %q, %v", got, err)
 	}
-	if mode := artifactDirectoryMode(t, staging); mode != privateStagingMode {
-		t.Fatalf("staging mode after successful handoff = %04o, want restored %04o", mode, privateStagingMode)
+	if mode := artifactDirectoryMode(t, staging); mode != dispatchSearchableStagingMode {
+		t.Fatalf("staging mode after successful handoff = %04o, want retained searchable %04o", mode, dispatchSearchableStagingMode)
+	}
+}
+
+func TestRunnerHandoffTimeoutCloseKeepsNamedCapabilityWhileMainHoldsIt(t *testing.T) {
+	staging, manifest, _ := makeVerifiedBundleFixture(t)
+	binding, err := testArtifactAccess().Bind(manifest, staging)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := os.ReadFile(filepath.Join(staging, ManifestArtifact))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fixture := newTask7RunnerFixture(t)
+	fixture.manifest = manifest
+	fixture.binding = binding
+	fixture.request = Request{ManifestPath: filepath.Join(staging, "manifest.json"), ArtifactPath: filepath.Join(staging, ManifestArtifact)}
+	holdingFIFO := &task7MainHoldingFIFO{}
+	deps := fixture.dependencies()
+	deps.fifo = holdingFIFO
+	deps.bind = func(ctx context.Context, _ Request) (Manifest, ArtifactBinding, error) {
+		return manifest, binding, ctx.Err()
+	}
+	deps.revalidate = func(ctx context.Context, candidate *ArtifactBinding) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return candidate.Revalidate()
+	}
+	deps.dispatchPath = func(ctx context.Context, candidate *ArtifactBinding) (string, error) {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		return candidate.DispatchPath()
+	}
+	fixture.readiness.handoffErr = context.DeadlineExceeded
+
+	result, err := newFixtureRunner(deps).RunCommand(context.Background(), fixture.request)
+	if err != nil {
+		t.Fatalf("RunCommand() = %v", err)
+	}
+	defer holdingFIFO.close()
+	if result.PrimaryCode != string(CodeMainHandoffTimeout) || result.Phase != ResultPhaseLoadAttempted {
+		t.Fatalf("timeout result = %#v", result)
+	}
+	if holdingFIFO.file == nil {
+		t.Fatal("Main fixture did not retain the named capability descriptor")
+	}
+	if got, readErr := os.ReadFile(holdingFIFO.path); readErr != nil || !bytes.Equal(got, payload) {
+		t.Fatalf("named capability after timeout Close = %q, %v, want reopenable", got, readErr)
+	}
+	fdTarget, err := os.Readlink(fmt.Sprintf("/proc/self/fd/%d", holdingFIFO.file.Fd()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.HasSuffix(fdTarget, " (deleted)") {
+		t.Fatalf("held Main descriptor target = %q, must remain named", fdTarget)
+	}
+	if mode := artifactDirectoryMode(t, staging); mode != dispatchSearchableStagingMode {
+		t.Fatalf("timeout staging mode = %04o, want searchable %04o", mode, dispatchSearchableStagingMode)
+	}
+}
+
+func TestRunnerMainGoneWhileCORENAMERemainsMENUIsNotHandoffSuccess(t *testing.T) {
+	fixture := newTask7RunnerFixture(t)
+	observer := &task7HandoffDeadlineObserver{baseline: append([]ProcessIdentity(nil), fixture.baseline...)}
+	deps := fixture.dependencies()
+	deps.observer = observer
+	fixture.readiness.handoffErr = context.DeadlineExceeded
+
+	result, err := newFixtureRunner(deps).RunCommand(context.Background(), fixture.request)
+	if err != nil {
+		t.Fatalf("RunCommand() = %v", err)
+	}
+	if result.PrimaryCode != string(CodeMainHandoffTimeout) || result.Phase != ResultPhaseLoadAttempted {
+		t.Fatalf("Main-gone MENU result = %#v, want fail-closed handoff timeout", result)
+	}
+	if observer.waitCalls != 0 {
+		t.Fatalf("Main absence was consulted %d times as handoff success", observer.waitCalls)
+	}
+}
+
+func TestRunnerProgrammedCORENAMEHandoffIgnoresRespawnedMain(t *testing.T) {
+	fixture := newTask7RunnerFixture(t)
+	observer := &task7HandoffDeadlineObserver{baseline: append([]ProcessIdentity(nil), fixture.baseline...), waitErr: errors.New("replacement Main remains present")}
+	deps := fixture.dependencies()
+	deps.observer = observer
+
+	result, err := newFixtureRunner(deps).RunCommand(context.Background(), fixture.request)
+	if err != nil {
+		t.Fatalf("RunCommand() = %v", err)
+	}
+	if result.PrimaryCode != string(CodeOK) || result.Phase != ResultPhaseDoneObserved {
+		t.Fatalf("programmed handoff result = %#v, want mailbox success", result)
+	}
+	if fixture.readiness.handoffCalls != 1 || observer.waitCalls != 0 {
+		t.Fatalf("handoff predicates = programmed:%d Main-absence:%d, want 1/0", fixture.readiness.handoffCalls, observer.waitCalls)
 	}
 }
 
@@ -1455,11 +1553,11 @@ func TestRunnerStartsMainHandoffTimeoutAfterCompletedFIFODispatch(t *testing.T) 
 	if result.PrimaryCode != string(CodeOK) {
 		t.Fatalf("primary code = %q, want ok", result.PrimaryCode)
 	}
-	if observer.waitCalls != 1 {
-		t.Fatalf("handoff observer calls = %d, want 1", observer.waitCalls)
+	if observer.waitCalls != 0 || fixture.readiness.handoffCalls != 1 {
+		t.Fatalf("handoff calls = Main-absence:%d programmed:%d, want 0/1", observer.waitCalls, fixture.readiness.handoffCalls)
 	}
-	if observer.deadlineRemaining < mainHandoffTimeout-dispatchDelay/2 {
-		t.Fatalf("handoff deadline remaining after %v dispatch = %v, want a fresh %v post-dispatch window", dispatchDelay, observer.deadlineRemaining, mainHandoffTimeout)
+	if fixture.readiness.handoffDeadlineRemaining < mainHandoffTimeout-dispatchDelay/2 {
+		t.Fatalf("handoff deadline remaining after %v dispatch = %v, want a fresh %v post-dispatch window", dispatchDelay, fixture.readiness.handoffDeadlineRemaining, mainHandoffTimeout)
 	}
 }
 
@@ -1821,9 +1919,9 @@ func TestRunnerLeavesIntentPhaseWhenDispatchCannotBeAttempted(t *testing.T) {
 	}
 }
 
-func TestRunnerPreservesFenceWhenMainExecutableChangesDuringHandoff(t *testing.T) {
+func TestRunnerPreservesFenceWhenProgrammedHandoffCannotBeProven(t *testing.T) {
 	fixture := newTask7RunnerFixture(t)
-	fixture.observerErr = ErrProcessIdentityChanged
+	fixture.readiness.handoffErr = ErrProcessIdentityChanged
 	runner := newFixtureRunner(fixture.dependencies())
 	result, err := runner.RunCommand(context.Background(), fixture.request)
 	if err != nil {
@@ -4211,7 +4309,6 @@ type task7RunnerFixture struct {
 	secret          string
 	expireAt        string
 	cancel          context.CancelFunc
-	observerErr     error
 	store           *task7OwnerStore
 	locker          *task7OwnerLocker
 	fifo            *task7FIFO
@@ -4646,6 +4743,30 @@ type task7MainOpeningFIFO struct {
 	calls       int
 }
 
+type task7MainHoldingFIFO struct {
+	path string
+	file *os.File
+}
+
+func (f *task7MainHoldingFIFO) Dispatch(ctx context.Context, command string) (Attempt, error) {
+	if err := ctx.Err(); err != nil {
+		return NotInvoked, err
+	}
+	f.path = strings.TrimSuffix(strings.TrimPrefix(command, "load_core "), "\n")
+	file, err := os.Open(f.path)
+	if err != nil {
+		return Invoked, err
+	}
+	f.file = file
+	return Completed, nil
+}
+
+func (f *task7MainHoldingFIFO) close() {
+	if f != nil && f.file != nil {
+		_ = f.file.Close()
+	}
+}
+
 func (f *task7MainOpeningFIFO) Dispatch(ctx context.Context, command string) (Attempt, error) {
 	f.calls++
 	if err := ctx.Err(); err != nil {
@@ -4705,9 +4826,6 @@ func (o *task7Observer) Snapshot() ([]ProcessIdentity, error) {
 }
 
 func (o *task7Observer) WaitStableAbsent(ctx context.Context, _ []ProcessIdentity, _ time.Duration) error {
-	if o.fixture.observerErr != nil {
-		return o.fixture.observerErr
-	}
 	return ctx.Err()
 }
 
@@ -4735,6 +4853,7 @@ type task7HandoffDeadlineObserver struct {
 	baseline          []ProcessIdentity
 	waitCalls         int
 	deadlineRemaining time.Duration
+	waitErr           error
 }
 
 func (o *task7HandoffDeadlineObserver) Snapshot() ([]ProcessIdentity, error) {
@@ -4748,7 +4867,7 @@ func (o *task7HandoffDeadlineObserver) WaitStableAbsent(ctx context.Context, _ [
 		return errors.New("Main handoff context has no deadline")
 	}
 	o.deadlineRemaining = time.Until(deadline)
-	return nil
+	return o.waitErr
 }
 
 type task7Qualification struct {
@@ -4874,9 +4993,12 @@ func (p *task7Profile) Verify(ctx context.Context) error {
 }
 
 type task7Readiness struct {
-	calls  int
-	failAt int
-	err    error
+	calls                    int
+	failAt                   int
+	err                      error
+	handoffCalls             int
+	handoffErr               error
+	handoffDeadlineRemaining time.Duration
 }
 
 func (r *task7Readiness) Verify(ctx context.Context) error {
@@ -4888,6 +5010,17 @@ func (r *task7Readiness) Verify(ctx context.Context) error {
 		return r.err
 	}
 	return nil
+}
+
+func (r *task7Readiness) WaitProgrammed(ctx context.Context) error {
+	r.handoffCalls++
+	if deadline, ok := ctx.Deadline(); ok {
+		r.handoffDeadlineRemaining = time.Until(deadline)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return r.handoffErr
 }
 
 type task7TerminalInstall struct{}

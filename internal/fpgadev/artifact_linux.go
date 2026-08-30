@@ -101,8 +101,9 @@ func (a ArtifactAccess) Bind(manifest Manifest, staging string) (ArtifactBinding
 
 // Revalidate opens a temporary descriptor beneath the retained directory,
 // requires its complete device/inode/size/hash identity to remain unchanged,
-// and closes only that temporary descriptor. The retained descriptor and any
-// published named dispatch capability remain stable until shared-state Close.
+// and closes only that temporary descriptor. The retained descriptors remain
+// stable until shared-state Close; a capability retained for Main remains
+// available after Close for app_restart reopen.
 func (b *ArtifactBinding) Revalidate() error {
 	if b == nil || b.state == nil {
 		return errors.New("nil artifact binding")
@@ -304,6 +305,7 @@ func (s *artifactBindingState) releaseDispatchPathLocked() error {
 		} else {
 			s.dispatchLeaf = ""
 			s.dispatchPath = ""
+			s.retainDispatchPath = false
 			changed = true
 		}
 	}

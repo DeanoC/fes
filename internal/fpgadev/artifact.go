@@ -61,6 +61,10 @@ type artifactBindingState struct {
 	// independently from dispatchLeaf so cleanup can retry a failed 0700
 	// restoration after the named link was already removed.
 	dispatchDirectorySearchable bool
+	// retainDispatchPath is armed only after DispatchPath returns successfully
+	// to the runner. Close then leaves the published capability available for
+	// Main's app_restart reopen; failed publication still performs cleanup.
+	retainDispatchPath bool
 	// dispatchCleanupDirty remains set until removal/mode-restoration metadata
 	// has been successfully synchronized through the retained directory FD.
 	dispatchCleanupDirty bool
@@ -78,8 +82,9 @@ type artifactBindingState struct {
 }
 
 // ArtifactBinding protects the staging directory descriptor, the retained
-// artifact descriptor, and the exact artifact identity until FIFO dispatch.
-// Its state pointer makes value copies share one lock and one close lifecycle.
+// artifact descriptor, and the exact artifact identity through dispatch and
+// qualification. Its state pointer makes value copies share one lock and one
+// close lifecycle; a capability retained for Main survives that close.
 type ArtifactBinding struct {
 	state *artifactBindingState
 }
@@ -126,9 +131,10 @@ func (b *ArtifactBinding) DispatchPath() (string, error) {
 	return b.dispatchPathLocked()
 }
 
-// ReleaseDispatchPath removes the named Main-load capability while retaining
-// the artifact binding. It is used after stable Main absence so qualification
-// can continue to require the original top.rbf link count and identity.
+// ReleaseDispatchPath explicitly removes the named Main-load capability while
+// retaining the artifact binding. The load runner does not call this method:
+// Main may retain or reopen the pathname across app_restart, so ordinary
+// binding close must leave the descriptor-bound capability published.
 func (b *ArtifactBinding) ReleaseDispatchPath() error {
 	if b == nil || b.state == nil {
 		return nil
@@ -136,6 +142,17 @@ func (b *ArtifactBinding) ReleaseDispatchPath() error {
 	b.state.mu.Lock()
 	defer b.state.mu.Unlock()
 	return b.state.releaseDispatchPathLocked()
+}
+
+func (b *ArtifactBinding) retainDispatchPathForMain() {
+	if b == nil || b.state == nil {
+		return
+	}
+	b.state.mu.Lock()
+	defer b.state.mu.Unlock()
+	if !b.state.closed && b.state.dispatchLeaf != "" {
+		b.state.retainDispatchPath = true
+	}
 }
 
 // CapabilityPath is an explicit alias for DispatchPath.
@@ -208,7 +225,9 @@ func (b *ArtifactBinding) Evidence() (ResourceEvidenceV2, error) {
 	return b.ResourceEvidence()
 }
 
-// Close releases the protected staging descriptor. It is idempotent.
+// Close releases the protected staging descriptors. It is idempotent. A
+// dispatch capability armed for Main is intentionally retained for
+// app_restart reopen; only an explicit ReleaseDispatchPath removes it.
 func (b *ArtifactBinding) Close() error {
 	if b == nil || b.state == nil {
 		return nil
@@ -218,7 +237,14 @@ func (b *ArtifactBinding) Close() error {
 	if b.state.closed {
 		return nil
 	}
-	dispatchErr := b.state.releaseDispatchPathLocked()
+	var dispatchErr error
+	// If explicit release already removed the link but failed while restoring
+	// the private mode or syncing metadata, retain the historical cleanup retry.
+	// Never initiate unlink from Close while a published pathname can still be
+	// held or reopened by Main.
+	if !b.state.retainDispatchPath || b.state.dispatchLeaf == "" {
+		dispatchErr = b.state.releaseDispatchPathLocked()
+	}
 	if dispatchErr != nil {
 		// Cleanup can fail after unlinking the capability but before restoring
 		// the private directory mode. Retry once while the retained directory
