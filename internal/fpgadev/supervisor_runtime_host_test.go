@@ -244,6 +244,29 @@ func TestCompatibilityMainReadinessKeepsFIFOAndFPGAManagerGates(t *testing.T) {
 	}
 }
 
+func TestCompatibilityMainReadinessRequiresUniqueMain(t *testing.T) {
+	dir := t.TempDir()
+	core := filepath.Join(dir, "tmp", "CORENAME")
+	if err := os.MkdirAll(filepath.Dir(core), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(core, []byte("MENU\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runtime, observer := newCompatibilityMainReadinessFixture(t, core, filepath.Join(dir, "media", "fat", "CORENAME"))
+	first := ProcessIdentity{PID: 41, StartTime: 7, Device: observer.Expected.Device, Inode: observer.Expected.Inode, SHA256: observer.Expected.SHA256}
+	second := first
+	second.PID = 42
+	second.StartTime = 8
+	observer.Scanner = &fakeProcessScanner{scans: [][]ProcessRecord{{{Identity: first}, {Identity: second}}}}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+	defer cancel()
+	if err := NewCompatibilityMainReadiness(runtime, observer).Verify(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Verify error=%v, want fail-closed deadline", err)
+	}
+}
+
 func newCompatibilityMainReadinessFixture(t *testing.T, coreNameFile, fallbackCoreNameFile string) (*SupervisorRuntime, *Observer) {
 	t.Helper()
 	dir := t.TempDir()
@@ -489,11 +512,19 @@ func TestSupervisorRuntimeHostRejectsUnsafeReadinessInputs(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.config.MainFIFO = unsafeFIFO
-	if err := os.Chmod(unsafeFIFO, 0o644); err != nil {
+	if err := os.Chmod(unsafeFIFO, 0o666); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.CommandFIFOReady(); err == nil {
-		t.Fatal("FIFO with unsafe mode accepted")
+		t.Fatal("world-writable FIFO accepted")
+	}
+	symlinkFIFO := filepath.Join(dir, "symlink-fifo")
+	if err := os.Symlink(unsafeFIFO, symlinkFIFO); err != nil {
+		t.Fatal(err)
+	}
+	r.config.MainFIFO = symlinkFIFO
+	if err := r.CommandFIFOReady(); err == nil {
+		t.Fatal("FIFO symlink accepted")
 	}
 	if err := r.FPGAManagerReady(); err != nil {
 		t.Fatal(err)
@@ -512,6 +543,27 @@ func TestSupervisorRuntimeHostRejectsUnsafeReadinessInputs(t *testing.T) {
 	}
 	if err := r.MenuReady(); err == nil {
 		t.Fatal("mutated CORENAME accepted")
+	}
+}
+
+func TestSupervisorRuntimeCommandFIFOAcceptsSupportedMainModes(t *testing.T) {
+	for _, mode := range []os.FileMode{0o600, 0o644} {
+		t.Run(mode.String(), func(t *testing.T) {
+			fifo := filepath.Join(t.TempDir(), "MiSTer_cmd")
+			if err := mkfifoRuntimeTest(fifo); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Chmod(fifo, mode); err != nil {
+				t.Fatal(err)
+			}
+			runtime, err := NewSupervisorRuntime(SupervisorRuntimeConfig{MainFIFO: fifo})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := runtime.CommandFIFOReady(); err != nil {
+				t.Fatalf("CommandFIFOReady mode %04o: %v", mode, err)
+			}
+		})
 	}
 }
 

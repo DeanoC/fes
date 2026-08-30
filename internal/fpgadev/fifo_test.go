@@ -3,6 +3,7 @@ package fpgadev
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -90,19 +91,26 @@ func TestFIFODispatchNoReaderCancellationLeavesNoLateWrite(t *testing.T) {
 }
 
 func TestFIFODispatchWritesExactSingleLineAndCompletes(t *testing.T) {
-	path := makeTestFIFO(t)
-	reader := openTestFIFOReader(t, path)
-	fifo := testFIFO(path)
+	for _, mode := range []os.FileMode{0o600, 0o644} {
+		t.Run(mode.String(), func(t *testing.T) {
+			path := makeTestFIFO(t)
+			if err := os.Chmod(path, mode); err != nil {
+				t.Fatal(err)
+			}
+			reader := openTestFIFOReader(t, path)
+			fifo := testFIFO(path)
 
-	attempt, err := fifo.Dispatch(context.Background(), "load_core /tmp/top.rbf\n")
-	if err != nil {
-		t.Fatalf("Dispatch: %v", err)
-	}
-	if attempt != Completed {
-		t.Fatalf("Dispatch attempt = %v, want Completed", attempt)
-	}
-	if got := string(readFIFOAfterDispatch(t, reader)); got != "load_core /tmp/top.rbf\n" {
-		t.Fatalf("FIFO command = %q", got)
+			attempt, err := fifo.Dispatch(context.Background(), "load_core /tmp/top.rbf\n")
+			if err != nil {
+				t.Fatalf("Dispatch: %v", err)
+			}
+			if attempt != Completed {
+				t.Fatalf("Dispatch attempt = %v, want Completed", attempt)
+			}
+			if got := string(readFIFOAfterDispatch(t, reader)); got != "load_core /tmp/top.rbf\n" {
+				t.Fatalf("FIFO command = %q", got)
+			}
+		})
 	}
 }
 
@@ -178,16 +186,18 @@ func TestFIFODispatchRejectsFIFOTypeModeOwnerAndSymlink(t *testing.T) {
 			t.Fatalf("ancestor symlink Dispatch = %v, %v", attempt, err)
 		}
 	})
-	t.Run("mode", func(t *testing.T) {
-		path := makeTestFIFO(t)
-		if err := os.Chmod(path, 0o640); err != nil {
-			t.Fatal(err)
-		}
-		attempt, err := testFIFO(path).Dispatch(context.Background(), "load_core /tmp/top.rbf\n")
-		if err == nil || attempt != NotInvoked {
-			t.Fatalf("wrong mode Dispatch = %v, %v", attempt, err)
-		}
-	})
+	for _, mode := range []os.FileMode{0o640, 0o666} {
+		t.Run("mode "+mode.String(), func(t *testing.T) {
+			path := makeTestFIFO(t)
+			if err := os.Chmod(path, mode); err != nil {
+				t.Fatal(err)
+			}
+			attempt, err := testFIFO(path).Dispatch(context.Background(), "load_core /tmp/top.rbf\n")
+			if err == nil || attempt != NotInvoked {
+				t.Fatalf("mode %04o Dispatch = %v, %v", mode, attempt, err)
+			}
+		})
+	}
 	t.Run("owner", func(t *testing.T) {
 		path := makeTestFIFO(t)
 		wrong := uint32(os.Getuid() + 1)
@@ -196,6 +206,71 @@ func TestFIFODispatchRejectsFIFOTypeModeOwnerAndSymlink(t *testing.T) {
 			t.Fatalf("wrong owner Dispatch = %v, %v", attempt, err)
 		}
 	})
+}
+
+func TestValidateFIFOInfoAcceptsSupportedModesAndRejectsUnsafeEntries(t *testing.T) {
+	for _, test := range []struct {
+		mode os.FileMode
+		want bool
+	}{{mode: 0o600, want: true}, {mode: 0o644, want: true}, {mode: 0o640}, {mode: 0o666}, {mode: os.ModeSetuid | 0o600}, {mode: os.ModeSetgid | 0o644}, {mode: os.ModeSticky | 0o644}} {
+		t.Run(fmt.Sprintf("mode %04o", test.mode), func(t *testing.T) {
+			path := makeTestFIFO(t)
+			if err := os.Chmod(path, test.mode); err != nil {
+				t.Fatal(err)
+			}
+			info, err := os.Lstat(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := validateFIFOInfo(info, uint32(os.Getuid())); (err == nil) != test.want {
+				t.Fatalf("validateFIFOInfo mode %04o error = %v, want success %t", test.mode, err, test.want)
+			}
+		})
+	}
+
+	t.Run("regular file", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "MiSTer_cmd")
+		if err := os.WriteFile(path, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		info, err := os.Lstat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := validateFIFOInfo(info, uint32(os.Getuid())); err == nil {
+			t.Fatal("regular file accepted")
+		}
+	})
+
+	t.Run("symlink", func(t *testing.T) {
+		target := makeTestFIFO(t)
+		path := filepath.Join(t.TempDir(), "MiSTer_cmd")
+		if err := os.Symlink(target, path); err != nil {
+			t.Fatal(err)
+		}
+		info, err := os.Lstat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := validateFIFOInfo(info, uint32(os.Getuid())); err == nil {
+			t.Fatal("FIFO symlink accepted")
+		}
+	})
+}
+
+func TestValidateFIFODescriptorAcceptsSupportedModesAndRejectsUnsafeModes(t *testing.T) {
+	for _, test := range []struct {
+		mode uint32
+		want bool
+	}{{mode: 0o600, want: true}, {mode: 0o644, want: true}, {mode: 0o640}, {mode: 0o666}, {mode: 0o4600}, {mode: 0o2644}, {mode: 0o1644}} {
+		t.Run(fmt.Sprintf("%04o", test.mode), func(t *testing.T) {
+			mode := test.mode
+			stat := fifoDescriptor{Device: 1, Inode: 1, Mode: unix.S_IFIFO | mode, UID: uint32(os.Getuid())}
+			if err := validateFIFODescriptor(stat, uint32(os.Getuid())); (err == nil) != test.want {
+				t.Fatalf("validateFIFODescriptor mode %04o error = %v, want success %t", mode, err, test.want)
+			}
+		})
+	}
 }
 
 func TestFIFODispatchClassifiesOpenPollWriteShortAndCloseErrors(t *testing.T) {

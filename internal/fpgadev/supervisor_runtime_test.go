@@ -423,13 +423,13 @@ func TestSupervisorRuntime4cRetainsExactMainAttestation(t *testing.T) {
 	}
 }
 
-func TestSupervisorRuntimeCommandFIFORequiresRootOwned0600(t *testing.T) {
+func TestSupervisorRuntimeCommandFIFORejectsWorldWritable(t *testing.T) {
 	root := t.TempDir()
 	fifo := filepath.Join(root, "MiSTer_cmd")
 	if err := mkfifoRuntimeTest(fifo); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Chmod(fifo, 0o644); err != nil {
+	if err := os.Chmod(fifo, 0o666); err != nil {
 		t.Fatal(err)
 	}
 	runtime, err := NewSupervisorRuntime(SupervisorRuntimeConfig{MainFIFO: fifo})
@@ -437,7 +437,7 @@ func TestSupervisorRuntimeCommandFIFORequiresRootOwned0600(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := runtime.CommandFIFOReady(); err == nil {
-		t.Fatal("insecure Main FIFO was accepted")
+		t.Fatal("world-writable Main FIFO was accepted")
 	}
 }
 

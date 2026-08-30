@@ -561,8 +561,8 @@ func validateFIFOInfo(info os.FileInfo, expectedUID uint32) error {
 	if mode&os.ModeNamedPipe == 0 {
 		return errors.New("FIFO path is not a named pipe")
 	}
-	if mode.Perm() != 0o600 || mode&(os.ModeSetuid|os.ModeSetgid|os.ModeSticky) != 0 {
-		return errors.New("FIFO mode must be 0600")
+	if mode&(os.ModeSetuid|os.ModeSetgid|os.ModeSticky) != 0 || !allowedFIFOPermissions(uint32(mode.Perm())) {
+		return errors.New("FIFO mode must be 0600 or 0644")
 	}
 	uid, ok := fileInfoUID(info)
 	if !ok || uid != expectedUID {
@@ -575,8 +575,8 @@ func validateFIFODescriptor(stat fifoDescriptor, expectedUID uint32) error {
 	if stat.Mode&unix.S_IFMT != unix.S_IFIFO {
 		return errors.New("FIFO descriptor is not a named pipe")
 	}
-	if stat.Mode&0o7777 != 0o600 {
-		return errors.New("FIFO descriptor mode must be 0600")
+	if !allowedFIFOPermissions(stat.Mode & 0o7777) {
+		return errors.New("FIFO descriptor mode must be 0600 or 0644")
 	}
 	if stat.UID != expectedUID {
 		return errors.New("FIFO descriptor owner is not authorized")
@@ -585,6 +585,12 @@ func validateFIFODescriptor(stat fifoDescriptor, expectedUID uint32) error {
 		return errors.New("FIFO descriptor identity is invalid")
 	}
 	return nil
+}
+
+func allowedFIFOPermissions(mode uint32) bool {
+	// Compatibility Main publishes 0644 on the DE10-Nano: only its owner can
+	// write commands. Keep the allowlist exact so no other mode is implied.
+	return mode == 0o600 || mode == 0o644
 }
 
 func sameFIFODescriptor(left, right fifoDescriptor) bool {

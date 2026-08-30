@@ -507,8 +507,8 @@ func (r *SupervisorRuntime) CommandFIFOReady() error {
 	if info.Mode()&os.ModeType != os.ModeNamedPipe {
 		return errors.New("Main command FIFO has the wrong type")
 	}
-	if info.Mode().Perm() != 0o600 || info.Mode()&(os.ModeSetuid|os.ModeSetgid|os.ModeSticky) != 0 {
-		return fmt.Errorf("Main command FIFO mode is %o, want 600", info.Mode().Perm())
+	if info.Mode()&(os.ModeSetuid|os.ModeSetgid|os.ModeSticky) != 0 || !allowedFIFOPermissions(uint32(info.Mode().Perm())) {
+		return fmt.Errorf("Main command FIFO mode is %o, want 600 or 644", info.Mode().Perm())
 	}
 	if r.config.RequireRootFIFO {
 		stat, ok := info.Sys().(*syscall.Stat_t)
