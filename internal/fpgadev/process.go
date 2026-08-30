@@ -3,6 +3,7 @@ package fpgadev
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -61,7 +62,8 @@ func (p ProcessIdentity) equal(other ProcessIdentity) bool {
 // avoids hashing it; its device/inode pair is still retained for identity
 // mismatch detection.
 type ProcessRecord struct {
-	Identity ProcessIdentity
+	Identity                  ProcessIdentity
+	CompatibilityMainPresence bool
 }
 
 // ProcessScanner is the platform seam for complete process-population scans.
@@ -136,6 +138,82 @@ func NewObserverForExecutable(path string, procRoot ...string) (*Observer, error
 	return NewObserver(identity, procRoot...), nil
 }
 
+// CompatibilityMainObserver admits an already-running compatibility Main for
+// its initial presence snapshot, then binds lifecycle absence checks to the
+// actual immutable executable identity returned by that snapshot.
+type CompatibilityMainObserver struct {
+	Expected      ExecutableIdentity
+	Scanner       ProcessScanner
+	StrictScanner ProcessScanner
+}
+
+// NewCompatibilityMainObserver constructs the Linux-only presence observer.
+// A byte-identical process may be included despite inode replacement only when
+// its executable path, comm, and exact two-argument menu launch are canonical.
+func NewCompatibilityMainObserver(executablePath, menuPath string, procRoot ...string) (*CompatibilityMainObserver, error) {
+	if !filepath.IsAbs(executablePath) || filepath.Clean(executablePath) != executablePath ||
+		!filepath.IsAbs(menuPath) || filepath.Clean(menuPath) != menuPath {
+		return nil, errors.New("compatibility Main paths are not absolute and canonical")
+	}
+	if executableIdentityForPath == nil || makeCompatibilityPresenceScanner == nil {
+		return nil, ErrProcessScannerUnsupported
+	}
+	identity, err := executableIdentityForPath(executablePath)
+	if err != nil {
+		return nil, err
+	}
+	root := "/proc"
+	if len(procRoot) != 0 && procRoot[0] != "" {
+		root = procRoot[0]
+	}
+	return &CompatibilityMainObserver{
+		Expected:      identity,
+		Scanner:       makeCompatibilityPresenceScanner(root, executablePath, menuPath),
+		StrictScanner: makeProcessScanner(root),
+	}, nil
+}
+
+// Snapshot is the unbounded compatibility form required by processObserver.
+func (o *CompatibilityMainObserver) Snapshot() ([]ProcessIdentity, error) {
+	return o.SnapshotContext(context.Background())
+}
+
+// SnapshotContext returns actual PID/start/executable identities. It never
+// rewrites an observed device or inode to the protected pathname identity.
+func (o *CompatibilityMainObserver) SnapshotContext(ctx context.Context) ([]ProcessIdentity, error) {
+	if o == nil || !o.Expected.valid() || o.Scanner == nil {
+		return nil, ErrProcessScannerUnsupported
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	records, err := o.Scanner.Scan(ctx, o.Expected)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateProcessRecords(records, o.Expected); err != nil {
+		return nil, err
+	}
+	identities := make([]ProcessIdentity, 0, len(records))
+	for _, record := range records {
+		if processMatchesExpected(record.Identity, o.Expected) || record.CompatibilityMainPresence {
+			identities = append(identities, record.Identity)
+		}
+	}
+	return normalizeProcessIdentities(identities), ctx.Err()
+}
+
+// WaitStableAbsent uses no compatibility signature fallback. The unique
+// baseline's actual device, inode, and digest become the strict expectation,
+// preserving PID-reuse and executable-change fencing after admission.
+func (o *CompatibilityMainObserver) WaitStableAbsent(ctx context.Context, baseline []ProcessIdentity, stable time.Duration) error {
+	if o == nil || o.StrictScanner == nil || len(baseline) != 1 || !baseline[0].executable().valid() {
+		return errors.New("compatibility Main lifecycle baseline is invalid")
+	}
+	strict := Observer{Expected: baseline[0].executable(), Scanner: o.StrictScanner}
+	return strict.WaitStableAbsent(ctx, baseline, stable)
+}
+
 // executableIdentityForPath is installed by the Linux implementation.  A
 // nil value is the fail-closed non-Linux behavior.
 var executableIdentityForPath func(string) (ExecutableIdentity, error)
@@ -198,6 +276,10 @@ func (o Observer) scanner() ProcessScanner {
 // makeProcessScanner is installed by process_linux.go.  Leaving it nil is
 // intentional: non-Linux production builds compile but fail closed.
 var makeProcessScanner func(string) ProcessScanner
+
+// makeCompatibilityPresenceScanner is installed only by process_linux.go.
+// It is never used by strict lifecycle or stable-absence observers.
+var makeCompatibilityPresenceScanner func(string, string, string) ProcessScanner
 
 func (o Observer) clock() ProcessClock {
 	if o.Clock != nil {
@@ -288,6 +370,9 @@ func validateProcessRecords(records []ProcessRecord, expected ExecutableIdentity
 		}
 		if identity.SHA256 != "" && !identity.executable().valid() {
 			return errors.New("process scan returned an invalid identity")
+		}
+		if record.CompatibilityMainPresence && !identity.executable().valid() {
+			return errors.New("compatibility Main presence has an invalid executable identity")
 		}
 		if identity.Device == expected.Device && identity.Inode == expected.Inode && identity.SHA256 == "" {
 			return errors.New("process scan omitted candidate executable digest")

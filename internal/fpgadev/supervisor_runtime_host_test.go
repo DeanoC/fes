@@ -406,6 +406,50 @@ func TestCompatibilityMainReadinessRequiresUniqueMain(t *testing.T) {
 	}
 }
 
+func TestCompatibilityMainReadinessAcceptsUniqueLiveAppRestartMain(t *testing.T) {
+	dir := t.TempDir()
+	core := filepath.Join(dir, "tmp", "CORENAME")
+	if err := os.MkdirAll(filepath.Dir(core), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(core, []byte("MENU"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runtime, _ := newCompatibilityMainReadinessFixture(t, core, filepath.Join(dir, "media", "fat", "CORENAME"))
+	procRoot := filepath.Join(dir, "proc")
+	if err := os.MkdirAll(procRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	mainPath := filepath.Join(dir, "media", "fat", "MiSTer")
+	menuPath := filepath.Join(dir, "media", "fat", "menu.rbf")
+	if err := os.MkdirAll(filepath.Dir(mainPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(mainPath, []byte("protected-main-binary"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	presence, err := NewCompatibilityMainObserver(mainPath, menuPath, procRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	presence.Expected.Device++
+	presence.Expected.Inode++
+	processDir := writeProcStatFixture(t, procRoot, 614, 257, "R")
+	if err := os.Symlink(mainPath, filepath.Join(processDir, "exe")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(processDir, "comm"), []byte("MiSTer\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(processDir, "cmdline"), []byte(mainPath+"\x00"+menuPath+"\x00"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := NewCompatibilityMainReadiness(runtime, presence).Verify(context.Background()); err != nil {
+		t.Fatalf("Verify unique /media/fat/MiSTer-shaped app_restart Main: %v", err)
+	}
+}
+
 func newCompatibilityMainReadinessFixture(t *testing.T, coreNameFile, fallbackCoreNameFile string) (*SupervisorRuntime, *Observer) {
 	t.Helper()
 	dir := t.TempDir()

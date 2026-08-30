@@ -136,8 +136,7 @@ func TestRunnerPreflightAcceptsProvenPreviousBootNormalMainReadOnly(t *testing.T
 
 func TestRunnerPreflightAcceptsPreviousBootCompatMainRecoveryReadOnly(t *testing.T) {
 	fixture := newTask7RunnerFixture(t)
-	recovery := recoveryRecord(task7IntentRecord(hardwareowner.PhaseLoadAttempted), CodeMainHandoffTimeout)
-	recovery.BootID = "40506b2a-7382-435d-a8f0-442689dcc288"
+	recovery := live61ceb8baRecoveryRecord()
 	fixture.store.record = recovery
 	deps := fixture.dependencies()
 	proof := &task7PriorBootQuiescence{}
@@ -195,15 +194,44 @@ func TestRunnerRunCommandReclaimsAttestedPreviousBootAtIntentBoundary(t *testing
 
 func TestRunnerRunCommandReclaimsPreviousBootCompatMainRecoveryAtIntentBoundary(t *testing.T) {
 	fixture := newTask7RunnerFixture(t)
-	previousBoot := "40506b2a-7382-435d-a8f0-442689dcc288"
-	recovery := recoveryRecord(task7IntentRecord(hardwareowner.PhaseLoadAttempted), CodeMainHandoffTimeout)
-	recovery.BootID = previousBoot
+	recovery := live61ceb8baRecoveryRecord()
 	previousSession := recovery.ActiveSession
 	previousGeneration := recovery.ActiveGeneration
 	previousHighWater := recovery.GenerationHighWater
 	previousCandidate := recovery.CandidateSession
 	fixture.store.record = recovery
 	deps := fixture.dependencies()
+	root := t.TempDir()
+	mainPath := filepath.Join(root, "media", "fat", "MiSTer")
+	menuPath := filepath.Join(root, "media", "fat", "menu.rbf")
+	if err := os.MkdirAll(filepath.Dir(mainPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(mainPath, []byte("protected-main-binary"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	mainLifecycle, err := NewCompatibilityMainObserver(mainPath, menuPath, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mainLifecycle.Expected.Device++
+	mainLifecycle.Expected.Inode++
+	presenceScanner := mainLifecycle.Scanner.(linuxProcessScanner)
+	presenceScanner.readExecutableLink = func(string) (string, error) {
+		return mainPath + " (deleted)", nil
+	}
+	mainLifecycle.Scanner = presenceScanner
+	processDir := writeProcStatFixture(t, root, 614, 257, "R")
+	if err := os.Symlink(mainPath, filepath.Join(processDir, "exe")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(processDir, "comm"), []byte("MiSTer\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(processDir, "cmdline"), []byte(mainPath+"\x00"+menuPath+"\x00"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	deps.observer = mainLifecycle
 	proof := &task7PriorBootQuiescence{}
 	deps.quiescence = proof
 	deps.newSession = func() (string, error) { return strings.Repeat("4", 32), nil }
@@ -292,6 +320,29 @@ func TestRunnerPreflightRejectsUnreclaimableOwnerRecords(t *testing.T) {
 			f.store.record.BootID = "222959a0-e21d-4d8b-a217-a6bd6367b2fb"
 			f.store.record.CandidateGeneration = f.store.record.ActiveGeneration
 			f.store.record.GenerationHighWater = f.store.record.ActiveGeneration
+		}},
+		{name: "previous boot live compat recovery has wrong owner", configure: func(f *task7RunnerFixture) {
+			f.store.record = live61ceb8baRecoveryRecord()
+			f.store.record.ActiveOwner = hardwareowner.OwnerFPGADev
+		}},
+		{name: "previous boot live compat recovery is missing candidate", configure: func(f *task7RunnerFixture) {
+			f.store.record = live61ceb8baRecoveryRecord()
+			f.store.record.CandidateSession = ""
+			f.store.record.CandidateGeneration = 0
+			f.store.record.CandidateMode = hardwareowner.ModeNone
+			f.store.record.CandidateOwner = hardwareowner.OwnerNone
+		}},
+		{name: "previous boot live compat recovery candidate generation is not greater", configure: func(f *task7RunnerFixture) {
+			f.store.record = live61ceb8baRecoveryRecord()
+			f.store.record.CandidateGeneration = f.store.record.ActiveGeneration
+		}},
+		{name: "previous boot live compat recovery requested resources differ", configure: func(f *task7RunnerFixture) {
+			f.store.record = live61ceb8baRecoveryRecord()
+			f.store.record.RequestedResources = []string{"fpga_generation"}
+		}},
+		{name: "previous boot live compat recovery first failure is empty", configure: func(f *task7RunnerFixture) {
+			f.store.record = live61ceb8baRecoveryRecord()
+			f.store.record.FirstFailure = ""
 		}},
 		{name: "same boot fpgadev active", configure: func(f *task7RunnerFixture) {
 			f.store.record = task7ActiveRecord(hardwareowner.PhaseLeaseActive)
@@ -4464,6 +4515,29 @@ func task7IntentRecord(phase hardwareowner.Phase) hardwareowner.Record {
 	record.QuiescingOwner = hardwareowner.OwnerCompatMain
 	record.RequestedResources = hardwareowner.DevelopmentLeases()
 	return record
+}
+
+func live61ceb8baRecoveryRecord() hardwareowner.Record {
+	return hardwareowner.Record{
+		Schema:              1,
+		State:               hardwareowner.StateRecoveryRequired,
+		Phase:               hardwareowner.PhaseLoadAttempted,
+		BootID:              "6f7753a0-0f6e-4baa-967e-8a86493d74f1",
+		RunID:               "61ceb8ba1f9ba9b4c9b9a9ad1047041d",
+		GenerationHighWater: 10,
+		ActiveSession:       "7ce42546db32e0029c7febe067383738",
+		ActiveGeneration:    1,
+		ActiveMode:          hardwareowner.ModeFPGANative,
+		CandidateSession:    "cb30dcf9673a93f56b5cbf589070be79",
+		CandidateGeneration: 10,
+		CandidateMode:       hardwareowner.ModeUpdating,
+		QuiescingOwner:      hardwareowner.OwnerCompatMain,
+		CandidateOwner:      hardwareowner.OwnerFPGADev,
+		ActiveOwner:         hardwareowner.OwnerCompatMain,
+		ActiveLeases:        hardwareowner.NormalLeases(),
+		RequestedResources:  hardwareowner.DevelopmentLeases(),
+		FirstFailure:        string(CodeMainHandoffTimeout),
+	}
 }
 
 func task7NoOwnerRecord() hardwareowner.Record {

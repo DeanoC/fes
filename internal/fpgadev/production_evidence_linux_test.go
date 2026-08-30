@@ -269,8 +269,7 @@ func TestRunnerPreflightPriorBootCompatMainRecoverySucceedsWithReadyAbsentAndRem
 		t.Fatal(err)
 	}
 	fixture := newTask7RunnerFixture(t)
-	recovery := recoveryRecord(task7IntentRecord(hardwareowner.PhaseLoadAttempted), CodeMainHandoffTimeout)
-	recovery.BootID = "40506b2a-7382-435d-a8f0-442689dcc288"
+	recovery := live61ceb8baRecoveryRecord()
 	fixture.store.record = recovery
 	status := MaintenanceStatus{TerminalJournalSHA256: admission.ready.JournalSHA256, Inventory: testTerminalInstallJournal().Inventory}
 	deps := fixture.dependencies()

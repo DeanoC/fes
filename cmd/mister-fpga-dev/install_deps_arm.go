@@ -52,6 +52,11 @@ func productionInstallManager() *fpgadev.InstallManager {
 		productionInstallPrerequisiteError = fmt.Errorf("compatibility Main observer unavailable: %w", err)
 		return nil
 	}
+	mainPresence, err := fpgadev.NewCompatibilityMainObserver(productionMainExecutable, cfg.MenuRBF)
+	if err != nil {
+		productionInstallPrerequisiteError = fmt.Errorf("compatibility Main presence unavailable: %w", err)
+		return nil
+	}
 	agentTargets, err := productionAgentTargets()
 	if err != nil {
 		productionInstallPrerequisiteError = fmt.Errorf("legacy agent observer unavailable: %w", err)
@@ -105,7 +110,7 @@ func productionInstallManager() *fpgadev.InstallManager {
 		PackageSHA256:        productionSelfSHA256(),
 		ExpectedUID:          0,
 		BootID:               func() (string, error) { return readProductionBootID() },
-		MainReadiness:        bounded(fpgadev.NewCompatibilityMainReadiness(runtime, mainObserver).Verify),
+		MainReadiness:        bounded(fpgadev.NewCompatibilityMainReadiness(runtime, mainPresence).Verify),
 		MainObserver:         mainObserver,
 		StopAgent:            bounded(stopAgent),
 		// Re-run the identity-bound stop during proof so an agent that appears

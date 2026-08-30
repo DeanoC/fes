@@ -533,6 +533,162 @@ func TestLinuxProcessObserverScansCompleteProcPopulation(t *testing.T) {
 	}
 }
 
+func TestCompatibilityMainObserverAcceptsLiveAppRestartMainByExactSignatureAndDigest(t *testing.T) {
+	root := t.TempDir()
+	mainPath := filepath.Join(root, "media", "fat", "MiSTer")
+	menuPath := filepath.Join(root, "media", "fat", "menu.rbf")
+	if err := os.MkdirAll(filepath.Dir(mainPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(mainPath, []byte("protected-main-binary"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	observer, err := NewCompatibilityMainObserver(mainPath, menuPath, root)
+	if err != nil {
+		t.Fatalf("NewCompatibilityMainObserver: %v", err)
+	}
+	// Model the live app_restart grandchild whose executable bytes and exact
+	// launch signature are canonical even though its retained inode differs
+	// from the currently protected pathname identity.
+	actual, err := testExecutableIdentityFromPath(mainPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	observer.Expected.Device++
+	observer.Expected.Inode++
+	presenceScanner := observer.Scanner.(linuxProcessScanner)
+	presenceScanner.readExecutableLink = func(string) (string, error) {
+		return mainPath + " (deleted)", nil
+	}
+	observer.Scanner = presenceScanner
+	processDir := writeProcStatFixture(t, root, 614, 257, "R")
+	if err := os.Symlink(mainPath, filepath.Join(processDir, "exe")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(processDir, "comm"), []byte("MiSTer\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(processDir, "cmdline"), []byte(mainPath+"\x00"+menuPath+"\x00"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := observer.SnapshotContext(context.Background())
+	if err != nil {
+		t.Fatalf("SnapshotContext: %v", err)
+	}
+	want := []ProcessIdentity{{
+		PID: 614, StartTime: 257,
+		Device: actual.Device, Inode: actual.Inode, SHA256: actual.SHA256,
+	}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("SnapshotContext = %#v, want exact live Main %#v", got, want)
+	}
+	if err := os.RemoveAll(processDir); err != nil {
+		t.Fatal(err)
+	}
+	if err := observer.WaitStableAbsent(context.Background(), got, 0); err != nil {
+		t.Fatalf("WaitStableAbsent against actual retained identity: %v", err)
+	}
+	processDir = writeProcStatFixture(t, root, 614, 257, "R")
+	if err := os.Symlink(mainPath, filepath.Join(processDir, "exe")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(processDir, "comm"), []byte("MiSTer\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(processDir, "cmdline"), []byte(mainPath+"\x00"+menuPath+"\x00"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	strict := NewObserver(observer.Expected, root)
+	strictGot, err := strict.SnapshotContext(context.Background())
+	if err != nil {
+		t.Fatalf("strict SnapshotContext: %v", err)
+	}
+	if len(strictGot) != 0 {
+		t.Fatalf("strict lifecycle observer admitted inode-mismatched Main: %#v", strictGot)
+	}
+	secondDir := writeProcStatFixture(t, root, 615, 258, "R")
+	if err := os.Symlink(mainPath, filepath.Join(secondDir, "exe")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(secondDir, "comm"), []byte("MiSTer\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(secondDir, "cmdline"), []byte(mainPath+"\x00"+menuPath+"\x00"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	duplicate, err := observer.SnapshotContext(context.Background())
+	if err != nil {
+		t.Fatalf("duplicate SnapshotContext: %v", err)
+	}
+	if len(duplicate) != 2 {
+		t.Fatalf("duplicate SnapshotContext = %#v, want two identities for unique-Main fence", duplicate)
+	}
+}
+
+func TestCompatibilityMainObserverFallbackRejectsNonExactLaunchSignature(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		comm    string
+		cmdline []byte
+	}{
+		{name: "wrong comm", comm: "sh\n"},
+		{name: "missing menu argument", comm: "MiSTer\n"},
+		{name: "different executable argument", comm: "MiSTer\n", cmdline: []byte("/tmp/MiSTer\x00/media/fat/menu.rbf\x00")},
+		{name: "extra argument", comm: "MiSTer\n", cmdline: []byte("placeholder")},
+		{name: "digest mismatch", comm: "MiSTer\n", cmdline: []byte("placeholder")},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			mainPath := filepath.Join(root, "media", "fat", "MiSTer")
+			menuPath := filepath.Join(root, "media", "fat", "menu.rbf")
+			if err := os.MkdirAll(filepath.Dir(mainPath), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(mainPath, []byte("protected-main-binary"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			observer, err := NewCompatibilityMainObserver(mainPath, menuPath, root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			observer.Expected.Device++
+			observer.Expected.Inode++
+			if test.name == "digest mismatch" {
+				observer.Expected.SHA256 = strings.Repeat("b", 64)
+			}
+			processDir := writeProcStatFixture(t, root, 614, 257, "R")
+			if err := os.Symlink(mainPath, filepath.Join(processDir, "exe")); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(processDir, "comm"), []byte(test.comm), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			cmdline := test.cmdline
+			if cmdline == nil && test.name == "wrong comm" {
+				cmdline = []byte(mainPath + "\x00" + menuPath + "\x00")
+			} else if cmdline == nil {
+				cmdline = []byte(mainPath + "\x00")
+			} else if test.name == "extra argument" {
+				cmdline = []byte(mainPath + "\x00" + menuPath + "\x00--extra\x00")
+			} else if test.name == "digest mismatch" {
+				cmdline = []byte(mainPath + "\x00" + menuPath + "\x00")
+			}
+			if err := os.WriteFile(filepath.Join(processDir, "cmdline"), cmdline, 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			got, err := observer.SnapshotContext(context.Background())
+			if err != nil {
+				t.Fatalf("SnapshotContext: %v", err)
+			}
+			if len(got) != 0 {
+				t.Fatalf("SnapshotContext = %#v, want non-exact fallback fenced", got)
+			}
+		})
+	}
+}
+
 func writeProcStatFixture(t *testing.T, root string, pid int, start uint64, state string) string {
 	return writeProcStatFixtureWithFlags(t, root, pid, start, state, 0)
 }

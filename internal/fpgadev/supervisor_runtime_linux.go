@@ -75,10 +75,10 @@ type SupervisorRuntime struct {
 // caller deadline for all gates.
 type CompatibilityMainReadiness struct {
 	runtime  *SupervisorRuntime
-	observer *Observer
+	observer contextProcessSnapshotter
 }
 
-func NewCompatibilityMainReadiness(runtime *SupervisorRuntime, observer *Observer) *CompatibilityMainReadiness {
+func NewCompatibilityMainReadiness(runtime *SupervisorRuntime, observer contextProcessSnapshotter) *CompatibilityMainReadiness {
 	return &CompatibilityMainReadiness{runtime: runtime, observer: observer}
 }
 

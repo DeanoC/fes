@@ -3,6 +3,7 @@
 package fpgadev
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"golang.org/x/sys/unix"
 )
@@ -21,6 +23,9 @@ func init() {
 	makeProcessScanner = func(root string) ProcessScanner {
 		return linuxProcessScanner{root: root}
 	}
+	makeCompatibilityPresenceScanner = func(root, executablePath, menuPath string) ProcessScanner {
+		return linuxProcessScanner{root: root, compatibilityExecutablePath: executablePath, compatibilityMenuPath: menuPath}
+	}
 	executableIdentityForPath = linuxExecutableIdentity
 }
 
@@ -28,6 +33,7 @@ type linuxExecutableHash func(context.Context, string, ExecutableIdentity) (uint
 type linuxHeldExecutableHash func(context.Context, *os.File, ExecutableIdentity) (uint64, uint64, string, error)
 type linuxExecutableOpener func(context.Context, string) (*os.File, error)
 type linuxProcStatReader func(context.Context, string, int) (procStatInfo, error)
+type linuxExecutableLinkReader func(string) (string, error)
 
 type procStatInfo struct {
 	PID       int
@@ -43,11 +49,14 @@ type executableSample struct {
 }
 
 type linuxProcessScanner struct {
-	root               string
-	hashExecutable     linuxExecutableHash
-	hashHeldExecutable linuxHeldExecutableHash
-	openExecutable     linuxExecutableOpener
-	readStat           linuxProcStatReader
+	root                        string
+	compatibilityExecutablePath string
+	compatibilityMenuPath       string
+	hashExecutable              linuxExecutableHash
+	hashHeldExecutable          linuxHeldExecutableHash
+	openExecutable              linuxExecutableOpener
+	readStat                    linuxProcStatReader
+	readExecutableLink          linuxExecutableLinkReader
 }
 
 type processScanError struct {
@@ -99,7 +108,9 @@ func (s linuxProcessScanner) Scan(ctx context.Context, expected ExecutableIdenti
 			return nil, err
 		}
 		if present {
-			records = append(records, ProcessRecord{Identity: identity})
+			compatibilityMainPresence := s.compatibilityExecutablePath != "" && identity.SHA256 == expected.SHA256 &&
+				(identity.Device != expected.Device || identity.Inode != expected.Inode)
+			records = append(records, ProcessRecord{Identity: identity, CompatibilityMainPresence: compatibilityMainPresence})
 		}
 	}
 	if err := ctx.Err(); err != nil {
@@ -210,17 +221,32 @@ func (s linuxProcessScanner) readIdentityAttempt(ctx context.Context, root strin
 	}
 
 	digest := ""
-	if !expected.valid() || (first.Device == expected.Device && first.Inode == expected.Inode) {
+	compatibilityMainPresence, signatureErr := s.compatibilityMainCandidate(ctx, processDir, exePath, first, expected)
+	if signatureErr != nil {
+		if transientProcessError(signatureErr) {
+			return s.classifyMissingExecutable(ctx, statPath, pid, statMiddle, signatureErr)
+		}
+		return ProcessIdentity{}, false, false, signatureErr
+	}
+	if !expected.valid() || (first.Device == expected.Device && first.Inode == expected.Inode) || compatibilityMainPresence {
 		var hashDevice, hashInode uint64
 		var hashErr error
 		if s.hashExecutable != nil {
-			hashDevice, hashInode, digest, hashErr = s.hashExecutable(ctx, exePath, expected)
+			hashExpected := expected
+			if compatibilityMainPresence {
+				hashExpected = ExecutableIdentity{}
+			}
+			hashDevice, hashInode, digest, hashErr = s.hashExecutable(ctx, exePath, hashExpected)
 		} else {
 			hasher := s.hashHeldExecutable
 			if hasher == nil {
 				hasher = hashLinuxExecutableFileContext
 			}
-			hashDevice, hashInode, digest, hashErr = hasher(ctx, held, expected)
+			hashExpected := expected
+			if compatibilityMainPresence {
+				hashExpected = ExecutableIdentity{}
+			}
+			hashDevice, hashInode, digest, hashErr = hasher(ctx, held, hashExpected)
 		}
 		if hashErr != nil {
 			if transientProcessError(hashErr) {
@@ -230,6 +256,9 @@ func (s linuxProcessScanner) readIdentityAttempt(ctx context.Context, root strin
 		}
 		if hashDevice != first.Device || hashInode != first.Inode {
 			return ProcessIdentity{}, false, true, nil
+		}
+		if compatibilityMainPresence && digest != expected.SHA256 {
+			compatibilityMainPresence = false
 		}
 	}
 	if err := ctx.Err(); err != nil {
@@ -278,7 +307,67 @@ func (s linuxProcessScanner) readIdentityAttempt(ctx context.Context, root strin
 		return ProcessIdentity{}, false, false, processError("close process executable failed", err)
 	}
 	closed = true
-	return ProcessIdentity{PID: pid, StartTime: statAfter.StartTime, Device: first.Device, Inode: first.Inode, SHA256: digest}, true, false, nil
+	identity := ProcessIdentity{PID: pid, StartTime: statAfter.StartTime, Device: first.Device, Inode: first.Inode, SHA256: digest}
+	return identity, true, false, nil
+}
+
+func (s linuxProcessScanner) compatibilityMainCandidate(ctx context.Context, processDir, exePath string, sample executableSample, expected ExecutableIdentity) (bool, error) {
+	if s.compatibilityExecutablePath == "" || s.compatibilityMenuPath == "" || !expected.valid() ||
+		(sample.Device == expected.Device && sample.Inode == expected.Inode) {
+		return false, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	readLink := s.readExecutableLink
+	if readLink == nil {
+		readLink = os.Readlink
+	}
+	target, err := readLink(exePath)
+	if err != nil {
+		return false, processError("read process executable link failed", err)
+	}
+	if strings.TrimSuffix(target, " (deleted)") != s.compatibilityExecutablePath {
+		return false, nil
+	}
+	comm, err := readBoundedProcessFile(ctx, filepath.Join(processDir, "comm"), 64)
+	if err != nil {
+		return false, err
+	}
+	if string(comm) != "MiSTer\n" {
+		return false, nil
+	}
+	cmdline, err := readBoundedProcessFile(ctx, filepath.Join(processDir, "cmdline"), 4096)
+	if err != nil {
+		return false, err
+	}
+	if len(cmdline) == 0 || cmdline[len(cmdline)-1] != 0 {
+		return false, nil
+	}
+	argv := bytes.Split(cmdline[:len(cmdline)-1], []byte{0})
+	return len(argv) == 2 && string(argv[0]) == s.compatibilityExecutablePath && string(argv[1]) == s.compatibilityMenuPath, nil
+}
+
+func readBoundedProcessFile(ctx context.Context, path string, limit int64) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, processError("open process metadata failed", err)
+	}
+	raw, err := io.ReadAll(io.LimitReader(file, limit+1))
+	if err != nil {
+		_ = file.Close()
+		return nil, processError("read process metadata failed", err)
+	}
+	if err := file.Close(); err != nil {
+		return nil, processError("close process metadata failed", err)
+	}
+	if int64(len(raw)) > limit {
+		return nil, processError("process metadata exceeds limit", nil)
+	}
+	return raw, ctx.Err()
 }
 
 func (s linuxProcessScanner) classifyMissingExecutable(ctx context.Context, statPath string, pid int, before procStatInfo, openErr error) (ProcessIdentity, bool, bool, error) {

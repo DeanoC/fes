@@ -26,6 +26,44 @@ func TestCLIPreflightSuccessHasExactFramingAndNoMutation(t *testing.T) {
 	}
 }
 
+func TestCLIPreflightOwnershipConflictIncludesSafeRejectStageAndCause(t *testing.T) {
+	failure := &fpgadev.Failure{Code: fpgadev.CodeOwnershipConflict, Detail: "Main readiness is unavailable"}
+	runner := &fakeCommandRunner{preflight: errors.Join(failure, opaqueCauseError{cause: errors.New("compatibility Main is not uniquely present")})}
+	var stdout, stderr bytes.Buffer
+	if got := run([]string{"preflight", "--manifest", "/tmp/fixture/manifest.json", "--artifact", "/tmp/fixture/top.rbf"}, &stdout, &stderr, runner); got != exitUsage {
+		t.Fatalf("exit = %d, want %d", got, exitUsage)
+	}
+	want := "FOGCAST_FPGA_DEV_PREFLIGHT code=ownership_conflict detail=main_readiness_unavailable cause=compatibility_main_not_unique\n"
+	if stdout.Len() != 0 || stderr.String() != want {
+		t.Fatalf("stdout=%q stderr=%q, want empty stdout and stderr=%q", stdout.String(), stderr.String(), want)
+	}
+}
+
+type opaqueCauseError struct {
+	cause error
+}
+
+func (e opaqueCauseError) Error() string {
+	return "ownership conflict cause withheld"
+}
+
+func (e opaqueCauseError) Unwrap() error {
+	return e.cause
+}
+
+func TestCLIPreflightOwnershipConflictClassifiesJournalProofWithoutRawPath(t *testing.T) {
+	failure := &fpgadev.Failure{Code: fpgadev.CodeOwnershipConflict, Detail: "quiescence proof is unavailable"}
+	runner := &fakeCommandRunner{preflight: errors.Join(failure, errors.New("terminal journal digest does not match maintenance proof: /private/secret"))}
+	var stdout, stderr bytes.Buffer
+	if got := run([]string{"preflight", "--manifest", "/tmp/fixture/manifest.json", "--artifact", "/tmp/fixture/top.rbf"}, &stdout, &stderr, runner); got != exitUsage {
+		t.Fatalf("exit = %d, want %d", got, exitUsage)
+	}
+	want := "FOGCAST_FPGA_DEV_PREFLIGHT code=ownership_conflict detail=quiescence_proof_unavailable cause=terminal_journal_digest_mismatch\n"
+	if stdout.Len() != 0 || stderr.String() != want || strings.Contains(stderr.String(), "/private/secret") {
+		t.Fatalf("stdout=%q stderr=%q, want sanitized stderr=%q", stdout.String(), stderr.String(), want)
+	}
+}
+
 func TestCLIRejectsMalformedSyntaxWithoutCallingRunner(t *testing.T) {
 	runner := &fakeCommandRunner{}
 	var stdout, stderr bytes.Buffer

@@ -15,7 +15,7 @@ type SupervisorRuntime struct{}
 
 type CompatibilityMainReadiness struct{}
 
-func NewCompatibilityMainReadiness(*SupervisorRuntime, *Observer) *CompatibilityMainReadiness {
+func NewCompatibilityMainReadiness(*SupervisorRuntime, contextProcessSnapshotter) *CompatibilityMainReadiness {
 	return &CompatibilityMainReadiness{}
 }
 

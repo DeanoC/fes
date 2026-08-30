@@ -79,6 +79,10 @@ func newProductionRunnerDependencies() (runnerDependencies, error) {
 	if err != nil {
 		return runnerDependencies{}, err
 	}
+	mainLifecycle, err := NewCompatibilityMainObserver(productionMainPath, cfg.MenuRBF)
+	if err != nil {
+		return runnerDependencies{}, err
+	}
 	runtime, err := NewSupervisorRuntime(SupervisorRuntimeConfig{
 		MainExecutable:   productionMainPath,
 		MainFIFO:         cfg.CommandPipe,
@@ -106,17 +110,17 @@ func newProductionRunnerDependencies() (runnerDependencies, error) {
 		locker:      hardwareowner.NewLocker(cfg.HardwareOwnerLock),
 		artifact:    artifact,
 		fifo:        NewFIFO(cfg.CommandPipe),
-		observer:    mainObserver,
+		observer:    mainLifecycle,
 		qualifier: NewQualifier(mapper, NewStaticPolicy(), QualificationObservers{
-			MainAbsent:   mainObserver,
+			MainAbsent:   mainLifecycle,
 			Subsystems:   evidence,
 			PressedInput: evidence,
 			Programming:  evidence,
 		}),
 		mapper:    mapper,
 		results:   NewProductionResultStore(),
-		readiness: NewCompatibilityMainReadiness(runtime, mainObserver),
-		install:   NewCompatibilityMainReadiness(runtime, mainObserver),
+		readiness: NewCompatibilityMainReadiness(runtime, mainLifecycle),
+		install:   NewCompatibilityMainReadiness(runtime, mainLifecycle),
 		reboot:    commandRebooter{},
 		clock:     realRunnerClock{},
 		bootID:    readKernelBootID,
