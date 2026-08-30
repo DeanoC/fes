@@ -19,6 +19,11 @@ type ArtifactAccess struct {
 	// BeforeDirectoryOpen is a test seam at the trusted-root/openat2
 	// boundary. Production callers leave it nil.
 	BeforeDirectoryOpen func()
+
+	// BeforeDispatchPathVerify is a test seam immediately before the published
+	// named capability is re-resolved through its absolute staging path.
+	// Production callers leave it nil.
+	BeforeDispatchPathVerify func()
 }
 
 // NewArtifactAccess constructs descriptor-bound access with an optional
@@ -47,13 +52,19 @@ type artifactBindingState struct {
 	mu       sync.Mutex
 	dir      *os.File
 	artifact *os.File
-	metadata ArtifactMetadata
-	manifest Manifest
+	// dispatchPath is a stable, named hard-link capability published only
+	// immediately before the synchronous Main FIFO write. dispatchLeaf is
+	// retained separately so cleanup stays descriptor-relative.
+	dispatchPath string
+	dispatchLeaf string
+	metadata     ArtifactMetadata
+	manifest     Manifest
 	// resourceEvidence is immutable evidence verified against the retained
 	// descriptor-bound staging directory. Package-local fixtures may provide it
 	// directly; production bindings populate it on their first read.
 	resourceEvidence *ResourceEvidenceV2
 	expectedUID      uint32
+	dispatchVerify   func()
 	closed           bool
 }
 
@@ -90,9 +101,10 @@ func (b *ArtifactBinding) Open() (*os.File, error) {
 	return b.OpenArtifact()
 }
 
-// DispatchPath returns a process-scoped procfs capability for the retained
-// descriptor. Callers dispatch this capability rather than the mutable
-// staging pathname; the descriptor remains bound to the bytes until Close.
+// DispatchPath publishes and returns a named capability for the retained
+// descriptor. The platform implementation anchors publication to the
+// retained staging directory and artifact descriptor; callers dispatch this
+// capability rather than a procfs path or mutable staging pathname.
 func (b *ArtifactBinding) DispatchPath() (string, error) {
 	if b == nil || b.state == nil {
 		return "", errors.New("nil artifact binding")
@@ -102,7 +114,19 @@ func (b *ArtifactBinding) DispatchPath() (string, error) {
 	if b.state.closed || b.state.artifact == nil {
 		return "", errors.New("artifact binding is closed")
 	}
-	return fmt.Sprintf("/proc/%d/fd/%d", os.Getpid(), b.state.artifact.Fd()), nil
+	return b.dispatchPathLocked()
+}
+
+// ReleaseDispatchPath removes the named Main-load capability while retaining
+// the artifact binding. It is used after stable Main absence so qualification
+// can continue to require the original top.rbf link count and identity.
+func (b *ArtifactBinding) ReleaseDispatchPath() error {
+	if b == nil || b.state == nil {
+		return nil
+	}
+	b.state.mu.Lock()
+	defer b.state.mu.Unlock()
+	return b.state.releaseDispatchPathLocked()
 }
 
 // CapabilityPath is an explicit alias for DispatchPath.
@@ -186,23 +210,25 @@ func (b *ArtifactBinding) Close() error {
 		return nil
 	}
 	b.state.closed = true
+	dispatchErr := b.state.releaseDispatchPathLocked()
 	var artifactErr error
 	if b.state.artifact != nil {
-		artifactErr = b.state.artifact.Close()
+		if err := b.state.artifact.Close(); err != nil {
+			artifactErr = fmt.Errorf("close artifact descriptor: %w", err)
+		}
 		b.state.artifact = nil
 	}
 	var directoryErr error
 	if b.state.dir != nil {
-		directoryErr = b.state.dir.Close()
+		if err := b.state.dir.Close(); err != nil {
+			directoryErr = fmt.Errorf("close staging directory: %w", err)
+		}
 		b.state.dir = nil
 	}
-	if artifactErr != nil && directoryErr != nil {
-		return fmt.Errorf("close artifact descriptor: %v; close staging directory: %w", artifactErr, directoryErr)
+	if dispatchErr != nil || artifactErr != nil || directoryErr != nil {
+		return errors.Join(dispatchErr, artifactErr, directoryErr)
 	}
-	if artifactErr != nil {
-		return fmt.Errorf("close artifact descriptor: %w", artifactErr)
-	}
-	return directoryErr
+	return nil
 }
 
 // Release is the lifecycle-oriented alias for Close.

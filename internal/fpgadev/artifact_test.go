@@ -332,7 +332,7 @@ func TestArtifactBindRejectsOwnerMismatches(t *testing.T) {
 	}
 }
 
-func TestArtifactDispatchPathRetainsRevalidatedBytesAfterPathReplacement(t *testing.T) {
+func TestArtifactDispatchPathUsesNamedCapabilityMainCanOpen(t *testing.T) {
 	staging, manifest := makeArtifactFixture(t, []byte("rbf-payload"))
 	binding, err := testArtifactAccess().Bind(manifest, staging)
 	if err != nil {
@@ -343,8 +343,16 @@ func TestArtifactDispatchPathRetainsRevalidatedBytesAfterPathReplacement(t *test
 	if err != nil {
 		t.Fatalf("DispatchPath: %v", err)
 	}
-	if !strings.HasPrefix(dispatchPath, "/proc/") || strings.Contains(dispatchPath, staging) {
-		t.Fatalf("dispatch path = %q", dispatchPath)
+	wantPath := filepath.Join(staging, ".fogcast-load.rbf")
+	if dispatchPath != wantPath {
+		t.Fatalf("dispatch path = %q, want named capability %q", dispatchPath, wantPath)
+	}
+	got, err := os.ReadFile(dispatchPath)
+	if err != nil {
+		t.Fatalf("Main-style open of dispatch path: %v", err)
+	}
+	if string(got) != "rbf-payload" {
+		t.Fatalf("Main-style read of dispatch path = %q", got)
 	}
 	replacement := filepath.Join(staging, "replacement.rbf")
 	if err := os.WriteFile(replacement, []byte("new-payload"), 0o600); err != nil {
@@ -353,13 +361,101 @@ func TestArtifactDispatchPathRetainsRevalidatedBytesAfterPathReplacement(t *test
 	if err := os.Rename(replacement, filepath.Join(staging, "top.rbf")); err != nil {
 		t.Fatal(err)
 	}
-	got, err := os.ReadFile(dispatchPath)
+	got, err = os.ReadFile(dispatchPath)
 	if err != nil {
 		t.Fatalf("read dispatch capability: %v", err)
 	}
 	if string(got) != "rbf-payload" {
 		t.Fatalf("dispatch capability followed replaced pathname: %q", got)
 	}
+	if err := binding.Revalidate(); err == nil {
+		t.Fatal("revalidation accepted replacement while named capability was published")
+	}
+}
+
+func TestArtifactDispatchPathRejectsCapabilityCollision(t *testing.T) {
+	staging, manifest := makeArtifactFixture(t, []byte("rbf-payload"))
+	if err := os.Symlink("top.rbf", filepath.Join(staging, ".fogcast-load.rbf")); err != nil {
+		t.Fatal(err)
+	}
+	binding, err := testArtifactAccess().Bind(manifest, staging)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer binding.Close()
+	if _, err := binding.DispatchPath(); err == nil {
+		t.Fatal("named capability collision was accepted")
+	}
+}
+
+func TestArtifactDispatchPathRejectsWholeStagingDirectorySwap(t *testing.T) {
+	staging, manifest := makeArtifactFixture(t, []byte("rbf-payload"))
+	displaced := staging + "-displaced"
+	access := testArtifactAccess()
+	access.BeforeDispatchPathVerify = func() {
+		if err := os.Rename(staging, displaced); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Mkdir(staging, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(staging, dispatchArtifactLeaf), []byte("attacker-rbf"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	binding, err := access.Bind(manifest, staging)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer binding.Close()
+	if path, err := binding.DispatchPath(); err == nil || path != "" {
+		t.Fatalf("DispatchPath after directory swap = %q, %v, want fail-closed", path, err)
+	}
+	if _, err := os.Lstat(filepath.Join(displaced, dispatchArtifactLeaf)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("descriptor-relative capability cleanup error = %v, want absent", err)
+	}
+	raw, err := os.ReadFile(filepath.Join(staging, dispatchArtifactLeaf))
+	if err != nil || string(raw) != "attacker-rbf" {
+		t.Fatalf("replacement directory capability = %q, %v, want untouched hostile fixture", raw, err)
+	}
+}
+
+func TestArtifactReleaseDispatchPathRemovesCapabilityAndRestoresLinkInvariant(t *testing.T) {
+	staging, manifest := makeArtifactFixture(t, []byte("rbf-payload"))
+	binding, err := testArtifactAccess().Bind(manifest, staging)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer binding.Close()
+	dispatchPath, err := binding.DispatchPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifactPath := filepath.Join(staging, ManifestArtifact)
+	if links := artifactLinkCount(t, artifactPath); links != 2 {
+		t.Fatalf("published artifact link count = %d, want 2", links)
+	}
+	if err := binding.ReleaseDispatchPath(); err != nil {
+		t.Fatalf("ReleaseDispatchPath: %v", err)
+	}
+	if _, err := os.Lstat(dispatchPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("released dispatch path error = %v, want absent", err)
+	}
+	if links := artifactLinkCount(t, artifactPath); links != 1 {
+		t.Fatalf("released artifact link count = %d, want 1", links)
+	}
+	if err := binding.Revalidate(); err != nil {
+		t.Fatalf("revalidate after dispatch cleanup: %v", err)
+	}
+}
+
+func artifactLinkCount(t *testing.T, path string) uint64 {
+	t.Helper()
+	var stat unix.Stat_t
+	if err := unix.Lstat(path, &stat); err != nil {
+		t.Fatal(err)
+	}
+	return uint64(stat.Nlink)
 }
 
 func TestArtifactOpenUsesRetainedDescriptorAfterPathReplacement(t *testing.T) {
@@ -486,11 +582,15 @@ func TestArtifactBindingValueCopiesShareLifecycleState(t *testing.T) {
 		t.Fatal(err)
 	}
 	copyBinding := binding
-	if _, err := copyBinding.DispatchPath(); err != nil {
+	dispatchPath, err := copyBinding.DispatchPath()
+	if err != nil {
 		t.Fatal(err)
 	}
 	if err := copyBinding.Close(); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := os.Lstat(dispatchPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Close dispatch cleanup error = %v, want absent", err)
 	}
 	if _, err := binding.DispatchPath(); err == nil {
 		t.Fatal("value copy close did not close the shared capability")

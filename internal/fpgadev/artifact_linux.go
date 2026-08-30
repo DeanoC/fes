@@ -18,6 +18,12 @@ import (
 
 const artifactOpenFlags = unix.O_RDONLY | unix.O_CLOEXEC | unix.O_NOFOLLOW | unix.O_NONBLOCK
 
+// dispatchArtifactLeaf is deliberately fixed and hidden. It is published as
+// a hard link to the retained descriptor immediately before Main receives the
+// load_core command, so Main opens an ordinary named RBF while the bytes stay
+// bound to the descriptor admitted by the artifact validator.
+const dispatchArtifactLeaf = ".fogcast-load.rbf"
+
 func resultPersistenceSupported() bool { return true }
 
 // Bind opens the staging directory without following its final symlink, then
@@ -78,19 +84,20 @@ func (a ArtifactAccess) Bind(manifest Manifest, staging string) (ArtifactBinding
 	keepDirectory = true
 	return ArtifactBinding{
 		state: &artifactBindingState{
-			dir:         directory,
-			artifact:    secondArtifact,
-			metadata:    secondMetadata,
-			manifest:    manifest,
-			expectedUID: a.ExpectedUID,
+			dir:            directory,
+			artifact:       secondArtifact,
+			metadata:       secondMetadata,
+			manifest:       manifest,
+			expectedUID:    a.ExpectedUID,
+			dispatchVerify: a.BeforeDispatchPathVerify,
 		},
 	}, nil
 }
 
 // Revalidate opens a temporary descriptor beneath the retained directory,
 // requires its complete device/inode/size/hash identity to remain unchanged,
-// and closes only that temporary descriptor. The retained descriptor and its
-// process-scoped dispatch path remain stable until shared-state Close.
+// and closes only that temporary descriptor. The retained descriptor and any
+// published named dispatch capability remain stable until shared-state Close.
 func (b *ArtifactBinding) Revalidate() error {
 	if b == nil || b.state == nil {
 		return errors.New("nil artifact binding")
@@ -100,7 +107,11 @@ func (b *ArtifactBinding) Revalidate() error {
 	if b.state.closed || b.state.dir == nil || b.state.artifact == nil {
 		return errors.New("artifact binding is closed")
 	}
-	artifact, metadata, err := openAndInspectArtifact(int(b.state.dir.Fd()), b.state.manifest, b.state.expectedUID, b.state.metadata.Path)
+	expectedNlink := uint64(1)
+	if b.state.dispatchLeaf != "" {
+		expectedNlink = 2
+	}
+	artifact, metadata, err := openAndInspectArtifactWithNlink(int(b.state.dir.Fd()), b.state.manifest, b.state.expectedUID, b.state.metadata.Path, expectedNlink)
 	if err != nil {
 		return fmt.Errorf("reopen artifact: %w", err)
 	}
@@ -111,6 +122,160 @@ func (b *ArtifactBinding) Revalidate() error {
 	}
 	if err := artifact.Close(); err != nil {
 		return fmt.Errorf("close revalidation descriptor: %w", err)
+	}
+	return nil
+}
+
+// dispatchPathLocked publishes one descriptor-anchored named hard link. The
+// caller holds state.mu. A collision, source replacement, link identity
+// mismatch, or directory-sync failure leaves the binding unpublished and
+// fails closed.
+func (b *ArtifactBinding) dispatchPathLocked() (string, error) {
+	if b.state.dir == nil || b.state.artifact == nil {
+		return "", errors.New("artifact binding is closed")
+	}
+	if b.state.dispatchPath != "" {
+		if err := verifyDispatchArtifactLocked(b); err != nil {
+			return "", err
+		}
+		return b.state.dispatchPath, nil
+	}
+	directoryFD := int(b.state.dir.Fd())
+	artifactPath := b.state.metadata.Path
+	artifact, metadata, err := openAndInspectArtifactWithNlink(directoryFD, b.state.manifest, b.state.expectedUID, artifactPath, 1)
+	if err != nil {
+		return "", fmt.Errorf("validate dispatch source: %w", err)
+	}
+	if closeErr := artifact.Close(); closeErr != nil {
+		return "", fmt.Errorf("close dispatch source: %w", closeErr)
+	}
+	if !sameArtifactMetadata(metadata, b.state.metadata) {
+		return "", errors.New("dispatch source differs from retained artifact")
+	}
+	if err := linkRetainedArtifact(int(b.state.artifact.Fd()), directoryFD, dispatchArtifactLeaf); err != nil {
+		return "", fmt.Errorf("publish dispatch capability: %w", err)
+	}
+	b.state.dispatchLeaf = dispatchArtifactLeaf
+	b.state.dispatchPath = filepath.Join(filepath.Dir(artifactPath), dispatchArtifactLeaf)
+	cleanup := func(cause error) (string, error) {
+		return "", errors.Join(cause, b.state.releaseDispatchPathLocked())
+	}
+	if err := unix.Fsync(directoryFD); err != nil {
+		return cleanup(fmt.Errorf("sync dispatch capability directory: %w", err))
+	}
+	if err := verifyDispatchArtifactLocked(b); err != nil {
+		return cleanup(err)
+	}
+	if b.state.dispatchVerify != nil {
+		b.state.dispatchVerify()
+	}
+	if err := verifyAbsoluteDispatchPathLocked(b); err != nil {
+		return cleanup(err)
+	}
+	return b.state.dispatchPath, nil
+}
+
+func linkRetainedArtifact(artifactFD, directoryFD int, leaf string) error {
+	if err := unix.Linkat(artifactFD, "", directoryFD, leaf, unix.AT_EMPTY_PATH); err == nil {
+		return nil
+	} else if !errors.Is(err, unix.ENOENT) && !errors.Is(err, unix.EPERM) && !errors.Is(err, unix.EACCES) && !errors.Is(err, unix.EOPNOTSUPP) {
+		return err
+	}
+	// AT_EMPTY_PATH requires CAP_DAC_READ_SEARCH even when the caller owns the
+	// file. Following this process's own retained descriptor creates the same
+	// exact-inode hard link without imposing that capability on ordinary test
+	// and development environments. Main never receives this procfs path.
+	selfDescriptor := fmt.Sprintf("/proc/self/fd/%d", artifactFD)
+	return unix.Linkat(unix.AT_FDCWD, selfDescriptor, directoryFD, leaf, unix.AT_SYMLINK_FOLLOW)
+}
+
+func verifyDispatchArtifactLocked(b *ArtifactBinding) error {
+	if b.state.dispatchLeaf == "" || b.state.dispatchPath == "" || b.state.dir == nil || b.state.artifact == nil {
+		return errors.New("dispatch capability is unavailable")
+	}
+	directoryFD := int(b.state.dir.Fd())
+	capability, metadata, err := openAndInspectArtifactWithNlink(directoryFD, b.state.manifest, b.state.expectedUID, b.state.dispatchLeaf, 2)
+	if err != nil {
+		return fmt.Errorf("verify dispatch capability: %w", err)
+	}
+	if closeErr := capability.Close(); closeErr != nil {
+		return fmt.Errorf("close dispatch capability: %w", closeErr)
+	}
+	metadata.Path = b.state.metadata.Path
+	if !sameArtifactMetadata(metadata, b.state.metadata) {
+		return errors.New("dispatch capability differs from retained artifact")
+	}
+	source, sourceMetadata, err := openAndInspectArtifactWithNlink(directoryFD, b.state.manifest, b.state.expectedUID, b.state.metadata.Path, 2)
+	if err != nil {
+		return fmt.Errorf("verify dispatch source: %w", err)
+	}
+	if closeErr := source.Close(); closeErr != nil {
+		return fmt.Errorf("close dispatch source: %w", closeErr)
+	}
+	if !sameArtifactMetadata(sourceMetadata, b.state.metadata) {
+		return errors.New("dispatch source changed after capability publication")
+	}
+	return nil
+}
+
+func verifyAbsoluteDispatchPathLocked(b *ArtifactBinding) error {
+	staging := filepath.Dir(b.state.metadata.Path)
+	reopenedFD, err := openArtifactDirectory(staging, nil)
+	if err != nil {
+		return fmt.Errorf("reopen dispatch staging path: %w", err)
+	}
+	reopened := os.NewFile(uintptr(reopenedFD), staging)
+	if reopened == nil {
+		_ = unix.Close(reopenedFD)
+		return errors.New("reopen dispatch staging path returned no descriptor")
+	}
+	defer reopened.Close()
+
+	var retainedStat, reopenedStat unix.Stat_t
+	if err := unix.Fstat(int(b.state.dir.Fd()), &retainedStat); err != nil {
+		return fmt.Errorf("stat retained dispatch directory: %w", err)
+	}
+	if err := unix.Fstat(reopenedFD, &reopenedStat); err != nil {
+		return fmt.Errorf("stat reopened dispatch directory: %w", err)
+	}
+	if err := validateDirectoryStat(&reopenedStat, b.state.expectedUID); err != nil {
+		return fmt.Errorf("validate reopened dispatch directory: %w", err)
+	}
+	if retainedStat.Dev != reopenedStat.Dev || retainedStat.Ino != reopenedStat.Ino {
+		return errors.New("dispatch staging path differs from retained directory")
+	}
+
+	capability, metadata, err := openAndInspectArtifactWithNlink(reopenedFD, b.state.manifest, b.state.expectedUID, b.state.dispatchLeaf, 2)
+	if err != nil {
+		return fmt.Errorf("open absolute dispatch capability: %w", err)
+	}
+	if closeErr := capability.Close(); closeErr != nil {
+		return fmt.Errorf("close absolute dispatch capability: %w", closeErr)
+	}
+	metadata.Path = b.state.metadata.Path
+	if !sameArtifactMetadata(metadata, b.state.metadata) {
+		return errors.New("absolute dispatch capability differs from retained artifact")
+	}
+	return nil
+}
+
+func (s *artifactBindingState) releaseDispatchPathLocked() error {
+	if s.dispatchLeaf == "" {
+		s.dispatchPath = ""
+		return nil
+	}
+	if s.dir == nil {
+		return errors.New("dispatch capability directory is unavailable")
+	}
+	directoryFD := int(s.dir.Fd())
+	leaf := s.dispatchLeaf
+	if err := unix.Unlinkat(directoryFD, leaf, 0); err != nil {
+		return fmt.Errorf("remove dispatch capability: %w", err)
+	}
+	s.dispatchLeaf = ""
+	s.dispatchPath = ""
+	if err := unix.Fsync(directoryFD); err != nil {
+		return fmt.Errorf("sync dispatch capability removal: %w", err)
 	}
 	return nil
 }
@@ -144,7 +309,15 @@ func (b *ArtifactBinding) OpenArtifact() (*os.File, error) {
 }
 
 func openAndInspectArtifact(directoryFD int, manifest Manifest, expectedUID uint32, path string) (*os.File, ArtifactMetadata, error) {
-	artifactFD, err := openArtifactAt(directoryFD, manifest.ArtifactFilename)
+	return openAndInspectArtifactWithNlink(directoryFD, manifest, expectedUID, path, 1)
+}
+
+func openAndInspectArtifactWithNlink(directoryFD int, manifest Manifest, expectedUID uint32, path string, expectedNlink uint64) (*os.File, ArtifactMetadata, error) {
+	name := manifest.ArtifactFilename
+	if filepath.Base(path) != name {
+		name = filepath.Base(path)
+	}
+	artifactFD, err := openArtifactMemberAt(directoryFD, name)
 	if err != nil {
 		return nil, ArtifactMetadata{}, err
 	}
@@ -153,7 +326,7 @@ func openAndInspectArtifact(directoryFD int, manifest Manifest, expectedUID uint
 		_ = unix.Close(artifactFD)
 		return nil, ArtifactMetadata{}, errors.New("open artifact returned no descriptor")
 	}
-	metadata, err := inspectArtifactFile(artifact, manifest, expectedUID)
+	metadata, err := inspectArtifactFileWithNlink(artifact, manifest, expectedUID, expectedNlink)
 	if err != nil {
 		_ = artifact.Close()
 		return nil, ArtifactMetadata{}, err
@@ -174,6 +347,10 @@ func openArtifactAt(directoryFD int, name string) (int, error) {
 	if name != ManifestArtifact {
 		return -1, errors.New("artifact filename is not the fixed top.rbf")
 	}
+	return openArtifactMemberAt(directoryFD, name)
+}
+
+func openArtifactMemberAt(directoryFD int, name string) (int, error) {
 	how := &unix.OpenHow{
 		Flags:   uint64(artifactOpenFlags),
 		Resolve: unix.RESOLVE_BENEATH | unix.RESOLVE_NO_SYMLINKS,
@@ -183,7 +360,7 @@ func openArtifactAt(directoryFD int, name string) (int, error) {
 		if errors.Is(err, unix.ENOSYS) || errors.Is(err, unix.EOPNOTSUPP) {
 			return -1, fmt.Errorf("openat2 artifact resolution unsupported: %w", ErrUnsupported)
 		}
-		return -1, fmt.Errorf("open artifact with openat2: %w", err)
+		return -1, fmt.Errorf("open artifact member with openat2: %w", err)
 	}
 	return fd, nil
 }
@@ -505,6 +682,10 @@ func validateDirectoryStat(stat *unix.Stat_t, expectedUID uint32) error {
 }
 
 func inspectArtifactFile(file *os.File, manifest Manifest, expectedUID uint32) (ArtifactMetadata, error) {
+	return inspectArtifactFileWithNlink(file, manifest, expectedUID, 1)
+}
+
+func inspectArtifactFileWithNlink(file *os.File, manifest Manifest, expectedUID uint32, expectedNlink uint64) (ArtifactMetadata, error) {
 	var before unix.Stat_t
 	if err := unix.Fstat(int(file.Fd()), &before); err != nil {
 		return ArtifactMetadata{}, fmt.Errorf("stat artifact: %w", err)
@@ -518,8 +699,8 @@ func inspectArtifactFile(file *os.File, manifest Manifest, expectedUID uint32) (
 	if before.Mode&0o7777 != 0o600 {
 		return ArtifactMetadata{}, errors.New("artifact mode must be 0600")
 	}
-	if before.Nlink != 1 {
-		return ArtifactMetadata{}, errors.New("artifact link count must be one")
+	if uint64(before.Nlink) != expectedNlink {
+		return ArtifactMetadata{}, fmt.Errorf("artifact link count must be %d", expectedNlink)
 	}
 	if before.Size <= 0 || uint64(before.Size) > MaxRBFSize {
 		return ArtifactMetadata{}, fmt.Errorf("artifact size must be between 1 and %d", MaxRBFSize)

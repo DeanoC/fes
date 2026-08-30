@@ -14,6 +14,20 @@ func (b *ArtifactBinding) Revalidate() error {
 	return ErrUnsupported
 }
 
+func (b *ArtifactBinding) dispatchPathLocked() (string, error) {
+	return "", ErrUnsupported
+}
+
+func (s *artifactBindingState) releaseDispatchPathLocked() error {
+	if s == nil || s.dispatchLeaf == "" {
+		if s != nil {
+			s.dispatchPath = ""
+		}
+		return nil
+	}
+	return ErrUnsupported
+}
+
 func (b *ArtifactBinding) OpenArtifact() (*os.File, error) {
 	return nil, ErrUnsupported
 }

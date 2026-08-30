@@ -473,6 +473,101 @@ func TestRunnerRechecksQuiescenceImmediatelyBeforeFIFO(t *testing.T) {
 	}
 }
 
+func TestRunnerRevalidatesArtifactAfterQuiescenceBeforeFIFO(t *testing.T) {
+	fixture := newTask7RunnerFixture(t)
+	var events []string
+	revalidationCalls := 0
+	finalRevalidationErr := errors.New("artifact changed after quiescence")
+	deps := fixture.dependencies()
+	deps.revalidate = func(context.Context, *ArtifactBinding) error {
+		revalidationCalls++
+		events = append(events, "revalidate")
+		if revalidationCalls == 2 {
+			return finalRevalidationErr
+		}
+		return nil
+	}
+	deps.quiescence = task7Quiescence{pre: func(context.Context, MaintenanceStatus, hardwareowner.Record) error {
+		events = append(events, "quiescence")
+		return nil
+	}}
+	deps.dispatchPath = func(context.Context, *ArtifactBinding) (string, error) {
+		events = append(events, "dispatch-path")
+		return "/tmp/misteross-fpgadev-run/.fogcast-load.rbf", nil
+	}
+
+	result, err := newFixtureRunner(deps).RunCommand(context.Background(), fixture.request)
+	if err != nil {
+		t.Fatalf("RunCommand() = %v", err)
+	}
+	if result.PrimaryCode != string(CodeLoadDispatchFailed) || result.Phase != ResultPhaseIntentCommitted {
+		t.Fatalf("result = %#v, want pre-dispatch failure", result)
+	}
+	if fixture.fifo.calls != 0 {
+		t.Fatalf("FIFO calls = %d, want zero after final revalidation failure", fixture.fifo.calls)
+	}
+	wantEvents := []string{"quiescence", "revalidate", "quiescence", "revalidate"}
+	if !reflect.DeepEqual(events, wantEvents) {
+		t.Fatalf("dispatch events = %#v, want %#v", events, wantEvents)
+	}
+}
+
+func TestRunnerNamedCapabilityMainCanOpenCompletesHandoff(t *testing.T) {
+	staging, manifest, _ := makeVerifiedBundleFixture(t)
+	binding, err := testArtifactAccess().Bind(manifest, staging)
+	if err != nil {
+		t.Fatal(err)
+	}
+	qDeps, _, _ := validQualificationDeps()
+	qDeps.Policy = staticPolicyVerifier{}
+	receipt, err := newFixtureQualifier(qDeps).Qualify(context.Background(), binding)
+	if err != nil {
+		t.Fatalf("construct real-binding receipt: %v", err)
+	}
+	payload, err := os.ReadFile(filepath.Join(staging, ManifestArtifact))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fixture := newTask7RunnerFixture(t)
+	fixture.manifest = manifest
+	fixture.binding = binding
+	fixture.request = Request{ManifestPath: filepath.Join(staging, "manifest.json"), ArtifactPath: filepath.Join(staging, ManifestArtifact)}
+	fixture.qualifier = &task7Qualification{receipt: receipt}
+	mainFIFO := &task7MainOpeningFIFO{wantPayload: payload}
+	deps := fixture.dependencies()
+	deps.fifo = mainFIFO
+	deps.bind = func(ctx context.Context, _ Request) (Manifest, ArtifactBinding, error) {
+		return manifest, binding, ctx.Err()
+	}
+	deps.revalidate = func(ctx context.Context, candidate *ArtifactBinding) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return candidate.Revalidate()
+	}
+	deps.dispatchPath = func(ctx context.Context, candidate *ArtifactBinding) (string, error) {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		return candidate.DispatchPath()
+	}
+
+	result, err := newFixtureRunner(deps).RunCommand(context.Background(), fixture.request)
+	if err != nil {
+		t.Fatalf("RunCommand() = %v", err)
+	}
+	if result.PrimaryCode != string(CodeOK) || result.Phase != ResultPhaseDoneObserved {
+		t.Fatalf("named-capability result = %#v, want successful handoff and mailbox", result)
+	}
+	if mainFIFO.calls != 1 || fixture.mapper.openCalls != 1 {
+		t.Fatalf("named-capability path = FIFO:%d mailbox:%d, want one Main open and mailbox", mainFIFO.calls, fixture.mapper.openCalls)
+	}
+	if _, err := os.Lstat(mainFIFO.path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("dispatch capability after stable Main absence = %v, want removed", err)
+	}
+}
+
 func TestRunnerRejectsHostileOwnerAndSemanticProofsAtTheirAdmissionGates(t *testing.T) {
 	staleSupervisor := errors.New("supervisor is no longer quiescent")
 	staleAgent := errors.New("agent is no longer quiescent")
@@ -1325,7 +1420,7 @@ func TestRunnerNominalLifecyclePersistsTerminalFenceAndRequestsRecovery(t *testi
 	if result.PrimaryCode != string(CodeOK) || result.Phase != ResultPhaseDoneObserved {
 		t.Fatalf("terminal result = %#v", result)
 	}
-	if fixture.fifo.calls != 1 || fixture.fifo.command != "load_core /anonymous/proc-fd\n" {
+	if fixture.fifo.calls != 1 || fixture.fifo.command != "load_core /anonymous/.fogcast-load.rbf\n" {
 		t.Fatalf("FIFO dispatch = calls:%d command:%q", fixture.fifo.calls, fixture.fifo.command)
 	}
 	if fixture.mapper.openCalls != 1 || fixture.mapper.registers == nil || fixture.mapper.registers.closeCalls != 1 {
@@ -4222,7 +4317,7 @@ func (f *task7RunnerFixture) dependencies() runnerDependencies {
 			if err := ctx.Err(); err != nil {
 				return "", err
 			}
-			return "/anonymous/proc-fd", nil
+			return "/anonymous/.fogcast-load.rbf", nil
 		},
 		mailbox:         f.mailbox,
 		mailboxProgress: f.mailboxProgress,
@@ -4540,6 +4635,34 @@ type task7FIFO struct {
 	attempt Attempt
 	err     error
 	fixture *task7RunnerFixture
+}
+
+type task7MainOpeningFIFO struct {
+	wantPayload []byte
+	path        string
+	calls       int
+}
+
+func (f *task7MainOpeningFIFO) Dispatch(ctx context.Context, command string) (Attempt, error) {
+	f.calls++
+	if err := ctx.Err(); err != nil {
+		return NotInvoked, err
+	}
+	if !strings.HasPrefix(command, "load_core ") || !strings.HasSuffix(command, "\n") {
+		return Invoked, errors.New("Main received a malformed load_core command")
+	}
+	f.path = strings.TrimSuffix(strings.TrimPrefix(command, "load_core "), "\n")
+	if filepath.Base(f.path) != dispatchArtifactLeaf || strings.HasPrefix(f.path, "/proc/") {
+		return Invoked, fmt.Errorf("Main received an invalid named capability %q", f.path)
+	}
+	got, err := os.ReadFile(f.path)
+	if err != nil {
+		return Invoked, fmt.Errorf("Main open named capability: %w", err)
+	}
+	if !bytes.Equal(got, f.wantPayload) {
+		return Invoked, errors.New("Main read bytes other than the retained RBF")
+	}
+	return Completed, nil
 }
 
 func (f *task7FIFO) Dispatch(ctx context.Context, command string) (Attempt, error) {

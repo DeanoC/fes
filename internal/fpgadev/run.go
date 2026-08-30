@@ -723,6 +723,34 @@ func (r *Runner) executePrepared(ctx context.Context, request Request, prepared 
 		primaryDetail = "Main load dispatch failed"
 	} else if err := callContext(dispatchCtx, func(c context.Context) error { return d.revalidate(c, &prepared.binding) }); err != nil {
 		operationErr, primaryCode, primaryDetail = err, CodeLoadDispatchFailed, "artifact binding could not be revalidated"
+	} else if proofErr := callContext(dispatchCtx, func(proofCtx context.Context) error {
+		// Re-verify the retained semantic maintenance proof after the
+		// durable intent and artifact revalidation, immediately before the
+		// FIFO handoff. A proof that changes in this window must remain at
+		// intent_committed and enter recovery without invoking Main.
+		if prepared.priorBootReclaim {
+			verifier, ok := d.quiescence.(priorBootQuiescenceVerifier)
+			if !ok {
+				return hardwareowner.ErrOwnerWrongBoot
+			}
+			if err := verifier.VerifyPriorBoot(proofCtx, prepared.maintenanceStatus, prepared.previous, prepared.currentBootID); err != nil {
+				return err
+			}
+			if d.readiness == nil {
+				return ErrRunnerConfiguration
+			}
+			return d.readiness.Verify(proofCtx)
+		}
+		return d.quiescence.VerifyPreDispatch(proofCtx, prepared.maintenanceStatus, current)
+	}); proofErr != nil {
+		operationErr, primaryCode, primaryDetail = proofErr, CodeLoadDispatchFailed, "quiescence proof is unavailable"
+	} else if err := callContext(dispatchCtx, func(c context.Context) error {
+		// This is deliberately after the semantic quiescence proof. It closes
+		// the artifact replacement window immediately before publication of the
+		// named capability and the single synchronous FIFO write.
+		return d.revalidate(c, &prepared.binding)
+	}); err != nil {
+		operationErr, primaryCode, primaryDetail = err, CodeLoadDispatchFailed, "artifact binding changed before dispatch"
 	} else {
 		var capability string
 		capErr := callContext(dispatchCtx, func(c context.Context) error {
@@ -732,27 +760,6 @@ func (r *Runner) executePrepared(ctx context.Context, request Request, prepared 
 		})
 		if capErr != nil {
 			operationErr, primaryCode, primaryDetail = capErr, CodeLoadDispatchFailed, "artifact binding could not be dispatched"
-		} else if proofErr := callContext(dispatchCtx, func(proofCtx context.Context) error {
-			// Re-verify the retained semantic maintenance proof after the
-			// durable intent and artifact revalidation, immediately before the
-			// FIFO handoff. A proof that changes in this window must remain at
-			// intent_committed and enter recovery without invoking Main.
-			if prepared.priorBootReclaim {
-				verifier, ok := d.quiescence.(priorBootQuiescenceVerifier)
-				if !ok {
-					return hardwareowner.ErrOwnerWrongBoot
-				}
-				if err := verifier.VerifyPriorBoot(proofCtx, prepared.maintenanceStatus, prepared.previous, prepared.currentBootID); err != nil {
-					return err
-				}
-				if d.readiness == nil {
-					return ErrRunnerConfiguration
-				}
-				return d.readiness.Verify(proofCtx)
-			}
-			return d.quiescence.VerifyPreDispatch(proofCtx, prepared.maintenanceStatus, current)
-		}); proofErr != nil {
-			operationErr, primaryCode, primaryDetail = proofErr, CodeLoadDispatchFailed, "quiescence proof is unavailable"
 		} else {
 			command := "load_core " + capability + "\n"
 			// Mark the invocation immediately before entering the synchronous
@@ -822,6 +829,15 @@ func (r *Runner) executePrepared(ctx context.Context, request Request, prepared 
 		}
 		if waitErr != nil {
 			operationErr, primaryCode, primaryDetail = waitErr, CodeMainHandoffTimeout, "Main process handoff timed out"
+		}
+		if operationErr == nil {
+			// The named capability must remain available until Main has proved
+			// stable absence. Remove it before qualification so the retained
+			// top.rbf returns to its original exact-link invariant. Cleanup
+			// failure is fail-closed and never proceeds to mailbox ownership.
+			if err := prepared.binding.ReleaseDispatchPath(); err != nil {
+				operationErr, primaryCode, primaryDetail = err, CodeNoOwnerQualificationFailed, "dispatch capability cleanup failed"
+			}
 		}
 		if operationErr == nil {
 			qualificationCtx, qualificationCancel := context.WithTimeout(ctx, qualificationTimeout)
