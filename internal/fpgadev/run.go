@@ -714,24 +714,25 @@ func (r *Runner) executePrepared(ctx context.Context, request Request, prepared 
 	dispatchAttempted := false
 	// The synchronous FIFO is invoked exactly once.  Every returned error is
 	// conservatively considered potentially consumed.
-	handoffCtx, handoffCancel := context.WithTimeout(ctx, mainHandoffTimeout)
-	defer handoffCancel()
+	dispatchCtx, dispatchCancel := context.WithTimeout(ctx, mainHandoffTimeout)
+	defer dispatchCancel()
+	var handoffCtx context.Context
 	if d.revalidate == nil || d.dispatchPath == nil || d.fifo == nil || d.quiescence == nil {
 		operationErr = ErrRunnerConfiguration
 		primaryCode = CodeLoadDispatchFailed
 		primaryDetail = "Main load dispatch failed"
-	} else if err := callContext(handoffCtx, func(c context.Context) error { return d.revalidate(c, &prepared.binding) }); err != nil {
+	} else if err := callContext(dispatchCtx, func(c context.Context) error { return d.revalidate(c, &prepared.binding) }); err != nil {
 		operationErr, primaryCode, primaryDetail = err, CodeLoadDispatchFailed, "artifact binding could not be revalidated"
 	} else {
 		var capability string
-		capErr := callContext(handoffCtx, func(c context.Context) error {
+		capErr := callContext(dispatchCtx, func(c context.Context) error {
 			var err error
 			capability, err = d.dispatchPath(c, &prepared.binding)
 			return err
 		})
 		if capErr != nil {
 			operationErr, primaryCode, primaryDetail = capErr, CodeLoadDispatchFailed, "artifact binding could not be dispatched"
-		} else if proofErr := callContext(handoffCtx, func(proofCtx context.Context) error {
+		} else if proofErr := callContext(dispatchCtx, func(proofCtx context.Context) error {
 			// Re-verify the retained semantic maintenance proof after the
 			// durable intent and artifact revalidation, immediately before the
 			// FIFO handoff. A proof that changes in this window must remain at
@@ -759,16 +760,20 @@ func (r *Runner) executePrepared(ctx context.Context, request Request, prepared 
 			// once the adapter is called, even NotInvoked/partial attempts are
 			// conservatively fenced by load_attempted.
 			dispatchAttempted = true
-			_, dispatchErr := boundedFIFO(handoffCtx, d.fifo, command)
+			_, dispatchErr := boundedFIFO(dispatchCtx, d.fifo, command)
+			dispatchCancel()
 			operationErr = dispatchErr
 			if dispatchErr != nil {
 				primaryCode, primaryDetail = CodeLoadDispatchFailed, "Main load dispatch failed"
+			} else {
+				// The protocol's Main-exit bound starts when the synchronous
+				// FIFO dispatch completes. Mandatory load-attempted persistence
+				// and the post-dispatch checkpoint consume this fresh window;
+				// pre-dispatch validation does not.
+				freshHandoffCtx, handoffCancel := context.WithTimeout(ctx, mainHandoffTimeout)
+				defer handoffCancel()
+				handoffCtx = freshHandoffCtx
 			}
-		}
-	}
-	if operationErr == nil {
-		if err := handoffCtx.Err(); err != nil {
-			operationErr, primaryCode, primaryDetail = err, CodeMainHandoffTimeout, "Main process handoff timed out"
 		}
 	}
 	// The phase write is mandatory immediately after an attempted dispatch,
@@ -1441,10 +1446,13 @@ func boundedFIFO(ctx context.Context, fifo fifoDispatcher, command string) (Atte
 		return NotInvoked, err
 	}
 	attempt, err := fifo.Dispatch(ctx, command)
-	if ctxErr := ctx.Err(); ctxErr != nil {
-		return attempt, ctxErr
+	if err != nil {
+		return attempt, err
 	}
-	return attempt, err
+	// Dispatch is synchronous. A nil result means its write and close
+	// completed before return, so a concurrent context expiry cannot turn the
+	// already-consumed command into a dispatch failure.
+	return attempt, nil
 }
 
 func classifyMailboxFailure(err error) (Code, string) {

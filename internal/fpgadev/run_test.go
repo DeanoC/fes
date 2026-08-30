@@ -1342,6 +1342,40 @@ func TestRunnerNominalLifecyclePersistsTerminalFenceAndRequestsRecovery(t *testi
 	}
 }
 
+func TestRunnerStartsMainHandoffTimeoutAfterCompletedFIFODispatch(t *testing.T) {
+	fixture := newTask7RunnerFixture(t)
+	const dispatchDelay = 300 * time.Millisecond
+	observer := &task7HandoffDeadlineObserver{baseline: append([]ProcessIdentity(nil), fixture.baseline...)}
+	deps := fixture.dependencies()
+	deps.fifo = task7DelayedCompletedFIFO{delay: dispatchDelay}
+	deps.observer = observer
+
+	result, err := newFixtureRunner(deps).RunCommand(context.Background(), fixture.request)
+	if err != nil {
+		t.Fatalf("RunCommand() = %v", err)
+	}
+	if result.PrimaryCode != string(CodeOK) {
+		t.Fatalf("primary code = %q, want ok", result.PrimaryCode)
+	}
+	if observer.waitCalls != 1 {
+		t.Fatalf("handoff observer calls = %d, want 1", observer.waitCalls)
+	}
+	if observer.deadlineRemaining < mainHandoffTimeout-dispatchDelay/2 {
+		t.Fatalf("handoff deadline remaining after %v dispatch = %v, want a fresh %v post-dispatch window", dispatchDelay, observer.deadlineRemaining, mainHandoffTimeout)
+	}
+}
+
+func TestBoundedFIFOPreservesCompletedDispatchAtConcurrentContextExpiry(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	attempt, err := boundedFIFO(ctx, task7CancelingCompletedFIFO{cancel: cancel}, "load_core /anonymous/proc-fd\n")
+	if err != nil {
+		t.Fatalf("boundedFIFO() error = %v, want completed dispatch preserved", err)
+	}
+	if attempt != Completed {
+		t.Fatalf("boundedFIFO() attempt = %v, want Completed", attempt)
+	}
+}
+
 func TestRunnerPersistsMailboxBoundariesInOrderWithoutRetrospectivePromotion(t *testing.T) {
 	fixture := newTask7RunnerFixture(t)
 	runner := newFixtureRunner(fixture.dependencies())
@@ -4541,6 +4575,46 @@ func (o *task7Observer) WaitStableAbsent(ctx context.Context, _ []ProcessIdentit
 		return o.fixture.observerErr
 	}
 	return ctx.Err()
+}
+
+type task7DelayedCompletedFIFO struct{ delay time.Duration }
+
+func (f task7DelayedCompletedFIFO) Dispatch(ctx context.Context, _ string) (Attempt, error) {
+	timer := time.NewTimer(f.delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return Completed, nil
+	case <-ctx.Done():
+		return Invoked, ctx.Err()
+	}
+}
+
+type task7CancelingCompletedFIFO struct{ cancel context.CancelFunc }
+
+func (f task7CancelingCompletedFIFO) Dispatch(context.Context, string) (Attempt, error) {
+	f.cancel()
+	return Completed, nil
+}
+
+type task7HandoffDeadlineObserver struct {
+	baseline          []ProcessIdentity
+	waitCalls         int
+	deadlineRemaining time.Duration
+}
+
+func (o *task7HandoffDeadlineObserver) Snapshot() ([]ProcessIdentity, error) {
+	return append([]ProcessIdentity(nil), o.baseline...), nil
+}
+
+func (o *task7HandoffDeadlineObserver) WaitStableAbsent(ctx context.Context, _ []ProcessIdentity, _ time.Duration) error {
+	o.waitCalls++
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return errors.New("Main handoff context has no deadline")
+	}
+	o.deadlineRemaining = time.Until(deadline)
+	return nil
 }
 
 type task7Qualification struct {
