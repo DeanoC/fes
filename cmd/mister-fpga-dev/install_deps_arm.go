@@ -21,7 +21,6 @@ const (
 	productionAgentTemplate    = "/etc/fogcast/agent.toml.example"
 	productionMainExecutable   = "/media/fat/MiSTer"
 	productionManagerState     = "/sys/class/fpga_manager/fpga0/state"
-	productionAgentExecutable  = "/usr/bin/mister-agent"
 	productionRecoveryHelper   = "/usr/bin/mister-fpga-dev"
 	productionSupervisorBinary = "/usr/bin/fogcast-dev-supervisor"
 	productionSupervisorSource = "/media/fat/linux/fogcast-dev-supervisor.sh"
@@ -51,7 +50,7 @@ func productionInstallManager() *fpgadev.InstallManager {
 	if err != nil {
 		return nil
 	}
-	agentObserver, err := fpgadev.NewObserverForExecutable(productionAgentExecutable)
+	agentTargets, err := productionAgentTargets()
 	if err != nil {
 		return nil
 	}
@@ -100,8 +99,8 @@ func productionInstallManager() *fpgadev.InstallManager {
 		BootID:               func() (string, error) { return readProductionBootID() },
 		MainReadiness:        bounded(fpgadev.NewCompatibilityMainReadiness(runtime, mainObserver).Verify),
 		MainObserver:         mainObserver,
-		StopAgent:            bounded(stopRecordedAgent(agentObserver)),
-		ProveAgentAbsent:     bounded(proveAgentAbsent(agentObserver)),
+		StopAgent:            bounded(stopRecordedAgents(agentTargets, stopProductionLegacyAgentAuthority, signalProductionAgent)),
+		ProveAgentAbsent:     bounded(proveRecordedAgentsAbsent(agentTargets)),
 		RequestReboot:        requestProductionReboot,
 	})
 	if err != nil {
@@ -112,27 +111,16 @@ func productionInstallManager() *fpgadev.InstallManager {
 	return manager
 }
 
-func stopRecordedAgent(observer *fpgadev.Observer) func(context.Context) error {
-	if observer == nil {
-		return func(context.Context) error { return errors.New("agent observer is unavailable") }
+func stopProductionLegacyAgentAuthority(ctx context.Context) error {
+	observer, err := newScriptSupervisorObserver(
+		productionLegacySupervisor,
+		[]string{"mister-agent", productionLegacyAgent, "--config", productionLegacyAgentConfig},
+		[]string{"mister-agent", productionAgentFATExecutable, "--config", productionLegacyAgentConfig},
+	)
+	if err != nil {
+		return err
 	}
-	return stopAgentOnlyWhenAbsent(observer)
-}
-
-func proveAgentAbsent(observer *fpgadev.Observer) func(context.Context) error {
-	return func(ctx context.Context) error {
-		if observer == nil {
-			return errors.New("agent observer is unavailable")
-		}
-		identities, err := observer.SnapshotContext(ctx)
-		if err != nil {
-			return err
-		}
-		if len(identities) != 0 {
-			return errors.New("agent process remains present")
-		}
-		return ctx.Err()
-	}
+	return stopRecordedTargets(ctx, []recordedAgentTarget{{path: productionLegacySupervisor, observer: observer}}, signalProductionAgent, productionAgentStableAbsence)
 }
 
 func readProductionBootID() (string, error) {

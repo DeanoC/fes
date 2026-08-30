@@ -10,10 +10,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/DeanoC/FogCast-POC/internal/fpgadev"
 	"github.com/DeanoC/FogCast-POC/internal/hardwareowner"
@@ -102,10 +104,459 @@ func TestProductionAgentStopperRequiresConclusiveAbsence(t *testing.T) {
 type fakeAgentObserver struct {
 	identities []fpgadev.ProcessIdentity
 	err        error
+	snapshot   func(context.Context) ([]fpgadev.ProcessIdentity, error)
 }
 
-func (o fakeAgentObserver) SnapshotContext(context.Context) ([]fpgadev.ProcessIdentity, error) {
+func (o fakeAgentObserver) SnapshotContext(ctx context.Context) ([]fpgadev.ProcessIdentity, error) {
+	if o.snapshot != nil {
+		return o.snapshot(ctx)
+	}
 	return append([]fpgadev.ProcessIdentity(nil), o.identities...), o.err
+}
+
+func TestProductionAgentStopperStopsAndProvesAbsentAtUsrSbin(t *testing.T) {
+	testProductionAgentStopperStopsAndProvesAbsent(t, "/usr/sbin/mister-agent")
+}
+
+func TestProductionAgentStopperStillStopsAndProvesAbsentAtUsrBin(t *testing.T) {
+	testProductionAgentStopperStopsAndProvesAbsent(t, "/usr/bin/mister-agent")
+}
+
+func TestProductionAgentStopperStopsOrphanedFATChildAfterAuthority(t *testing.T) {
+	identity := fpgadev.ProcessIdentity{PID: 645, StartTime: 22, Device: 18, Inode: 20, SHA256: strings.Repeat("b", 64)}
+	present := false
+	observer := fakeAgentObserver{snapshot: func(context.Context) ([]fpgadev.ProcessIdentity, error) {
+		if present {
+			return []fpgadev.ProcessIdentity{identity}, nil
+		}
+		return nil, nil
+	}}
+	signals := 0
+	stop := stopRecordedAgents(
+		[]recordedAgentTarget{{path: productionAgentFATExecutable, observer: observer}},
+		func(context.Context) error {
+			// Model a TERM-resistant child orphaned when its shell supervisor is
+			// killed. The child appears only after authority quiescence.
+			present = true
+			return nil
+		},
+		func(_ context.Context, _ recordedAgentObserver, got fpgadev.ProcessIdentity, signal syscall.Signal) error {
+			if got != identity || signal != syscall.SIGTERM {
+				t.Fatalf("signal identity=%#v signal=%v", got, signal)
+			}
+			signals++
+			present = false
+			return nil
+		},
+	)
+	if err := stop(context.Background()); err != nil {
+		t.Fatalf("stop orphaned FAT child: %v", err)
+	}
+	if signals != 1 {
+		t.Fatalf("signals=%d want=1", signals)
+	}
+	if err := proveRecordedAgentsAbsent([]recordedAgentTarget{{path: productionAgentFATExecutable, observer: observer}})(context.Background()); err != nil {
+		t.Fatalf("prove orphaned FAT child absent: %v", err)
+	}
+}
+
+func TestProductionAgentStopperEscalatesTermResistantLeftover(t *testing.T) {
+	identity := fpgadev.ProcessIdentity{PID: 643, StartTime: 17, Device: 18, Inode: 19, SHA256: strings.Repeat("a", 64)}
+	present := true
+	observer := fakeAgentObserver{
+		snapshot: func(context.Context) ([]fpgadev.ProcessIdentity, error) {
+			if present {
+				return []fpgadev.ProcessIdentity{identity}, nil
+			}
+			return nil, nil
+		},
+	}
+	var signals []syscall.Signal
+	targets := []recordedAgentTarget{{path: "/usr/sbin/mister-agent", observer: observer}}
+	err := stopRecordedAgents(targets, func(context.Context) error { return nil }, func(_ context.Context, _ recordedAgentObserver, _ fpgadev.ProcessIdentity, signal syscall.Signal) error {
+		signals = append(signals, signal)
+		if signal == syscall.SIGKILL {
+			present = false
+		}
+		return nil
+	})(context.Background())
+	if err != nil {
+		t.Fatalf("stop TERM-resistant agent: %v", err)
+	}
+	if len(signals) != 2 || signals[0] != syscall.SIGTERM || signals[1] != syscall.SIGKILL {
+		t.Fatalf("signals=%v want=[terminated killed]", signals)
+	}
+}
+
+func testProductionAgentStopperStopsAndProvesAbsent(t *testing.T, path string) {
+	t.Helper()
+	identity := fpgadev.ProcessIdentity{PID: 643, StartTime: 17, Device: 18, Inode: 19, SHA256: strings.Repeat("a", 64)}
+	present := true
+	observer := fakeAgentObserver{
+		snapshot: func(context.Context) ([]fpgadev.ProcessIdentity, error) {
+			if present {
+				return []fpgadev.ProcessIdentity{identity}, nil
+			}
+			return nil, nil
+		},
+	}
+	authorityStopped := false
+	var signals []syscall.Signal
+	targets := []recordedAgentTarget{{path: path, observer: observer}}
+	stop := stopRecordedAgents(targets, func(context.Context) error {
+		authorityStopped = true
+		return nil
+	}, func(_ context.Context, _ recordedAgentObserver, got fpgadev.ProcessIdentity, signal syscall.Signal) error {
+		if !authorityStopped {
+			t.Fatal("agent was signalled before its boot authority stopped")
+		}
+		if got != identity {
+			t.Fatalf("signalled identity=%#v want=%#v", got, identity)
+		}
+		signals = append(signals, signal)
+		present = false
+		return nil
+	})
+	if err := stop(context.Background()); err != nil {
+		t.Fatalf("stop %s: %v", path, err)
+	}
+	if err := proveRecordedAgentsAbsent(targets)(context.Background()); err != nil {
+		t.Fatalf("prove %s absent: %v", path, err)
+	}
+	if len(signals) != 1 || signals[0] != syscall.SIGTERM {
+		t.Fatalf("signals=%v want=[terminated]", signals)
+	}
+}
+
+func TestProductionAgentStopperFailClosedWhenLeftoverCannotBeProvenGone(t *testing.T) {
+	identity := fpgadev.ProcessIdentity{PID: 643, StartTime: 17, Device: 18, Inode: 19, SHA256: strings.Repeat("a", 64)}
+	tests := []struct {
+		name          string
+		targets       []recordedAgentTarget
+		stopAuthority func(context.Context) error
+		signal        recordedAgentSignaler
+		proveOnly     bool
+	}{
+		{
+			name: "initial scan error",
+			targets: []recordedAgentTarget{{path: "/usr/sbin/mister-agent", observer: fakeAgentObserver{
+				err: errors.New("process scan incomplete"),
+			}}},
+		},
+		{
+			name: "termination error",
+			targets: []recordedAgentTarget{{path: "/usr/sbin/mister-agent", observer: fakeAgentObserver{
+				identities: []fpgadev.ProcessIdentity{identity},
+			}}},
+			signal: func(context.Context, recordedAgentObserver, fpgadev.ProcessIdentity, syscall.Signal) error {
+				return errors.New("identity-bound signal failed")
+			},
+		},
+		{
+			name: "still present after TERM and KILL",
+			targets: []recordedAgentTarget{{path: "/usr/sbin/mister-agent", observer: fakeAgentObserver{
+				identities: []fpgadev.ProcessIdentity{identity},
+			}}},
+		},
+		{
+			name: "final proof scan error",
+			targets: []recordedAgentTarget{{path: "/usr/sbin/mister-agent", observer: fakeAgentObserver{
+				err: errors.New("process scan incomplete"),
+			}}},
+			proveOnly: true,
+		},
+		{name: "incomplete path proof", targets: []recordedAgentTarget{{path: "/usr/sbin/mister-agent"}}},
+		{
+			name:    "boot authority stop failed",
+			targets: []recordedAgentTarget{{path: "/usr/sbin/mister-agent", observer: fakeAgentObserver{}}},
+			stopAuthority: func(context.Context) error {
+				return errors.New("legacy supervisor remains present")
+			},
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			if test.proveOnly {
+				if err := proveRecordedAgentsAbsent(test.targets)(context.Background()); err == nil {
+					t.Fatal("inconclusive proof unexpectedly succeeded")
+				}
+				return
+			}
+			stopAuthority := test.stopAuthority
+			if stopAuthority == nil {
+				stopAuthority = func(context.Context) error { return nil }
+			}
+			signal := test.signal
+			if signal == nil {
+				signal = func(context.Context, recordedAgentObserver, fpgadev.ProcessIdentity, syscall.Signal) error {
+					return nil
+				}
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+			defer cancel()
+			if err := stopRecordedAgents(test.targets, stopAuthority, signal)(ctx); err == nil {
+				t.Fatal("inconclusive stop unexpectedly succeeded")
+			}
+		})
+	}
+}
+
+func TestProductionAgentStopperUsesOneStableWindowAcrossBinAndSbin(t *testing.T) {
+	binScans := 0
+	binRespawnObserved := false
+	bin := fakeAgentObserver{snapshot: func(context.Context) ([]fpgadev.ProcessIdentity, error) {
+		binScans++
+		if binScans == 2 {
+			binRespawnObserved = true
+			return []fpgadev.ProcessIdentity{{PID: 77}}, nil
+		}
+		return nil, nil
+	}}
+	sbin := fakeAgentObserver{}
+	targets := []recordedAgentTarget{
+		{path: productionAgentExecutable, observer: bin},
+		{path: productionLegacyAgent, observer: sbin},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+	if err := waitRecordedTargetsStableAbsent(ctx, targets, 25*time.Millisecond); err != nil {
+		t.Fatalf("composite stable absence: %v", err)
+	}
+	if !binRespawnObserved || binScans < 4 {
+		t.Fatalf("bin scans=%d respawn=%t; stable timer did not reset across both paths", binScans, binRespawnObserved)
+	}
+}
+
+func TestProductionAgentTargetsCoverBinAndMissingSbin(t *testing.T) {
+	targets, err := productionAgentTargets()
+	if err != nil {
+		t.Fatalf("construct production targets with missing executables: %v", err)
+	}
+	if len(targets) != 3 || targets[0].path != productionAgentExecutable || targets[1].path != productionLegacyAgent || targets[2].path != productionAgentFATExecutable {
+		t.Fatalf("targets=%#v", targets)
+	}
+	for _, target := range targets {
+		if target.observer == nil {
+			t.Fatalf("target %s has no proof observer", target.path)
+		}
+	}
+}
+
+func TestProductionAgentPathObserverRetriesProcessExitDuringDiscovery(t *testing.T) {
+	attempts := 0
+	observer := &productionAgentPathObserver{
+		path: "/usr/sbin/mister-agent",
+		scanAttempt: func(context.Context) ([]fpgadev.ProcessIdentity, bool, error) {
+			attempts++
+			return nil, attempts < 3, nil
+		},
+	}
+	identities, err := observer.SnapshotContext(context.Background())
+	if err != nil || len(identities) != 0 || attempts != 3 {
+		t.Fatalf("transient exit identities=%v attempts=%d err=%v", identities, attempts, err)
+	}
+}
+
+func TestProductionAgentPathObserverFindsDeletedExecutable(t *testing.T) {
+	if os.Getenv("FOGCAST_TEST_DELETED_AGENT") == "1" {
+		select {}
+	}
+	source, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	executable := filepath.Join(t.TempDir(), "mister-agent")
+	if err := os.WriteFile(executable, raw, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	child := exec.Command(executable, "-test.run=^TestProductionAgentPathObserverFindsDeletedExecutable$")
+	child.Env = append(os.Environ(), "FOGCAST_TEST_DELETED_AGENT=1")
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if child.ProcessState == nil {
+			_ = child.Process.Kill()
+			_ = child.Wait()
+		}
+	}()
+	time.Sleep(20 * time.Millisecond)
+	if err := os.Remove(executable); err != nil {
+		t.Fatal(err)
+	}
+	observer, err := newProductionAgentPathObserver(executable)
+	if err != nil {
+		t.Fatalf("construct deleted-path observer: %v", err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		identities, scanErr := observer.SnapshotContext(context.Background())
+		if scanErr != nil {
+			t.Fatalf("scan deleted executable: %v", scanErr)
+		}
+		for _, identity := range identities {
+			if identity.PID == child.Process.Pid {
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("deleted executable PID %d was not observed", child.Process.Pid)
+}
+
+func TestProductionAgentAuthorityStopsRealShellScriptSupervisor(t *testing.T) {
+	directory := t.TempDir()
+	script := filepath.Join(directory, "mister-supervise")
+	agent := filepath.Join(directory, "mister-agent")
+	config := filepath.Join(directory, "agent.toml")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\ntrap 'exit 0' TERM INT\nwhile :; do sleep 0.05; done\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	observer, err := newScriptSupervisorObserver(script, []string{"mister-agent", agent, "--config", config})
+	if err != nil {
+		t.Fatalf("construct script supervisor observer: %v", err)
+	}
+	child := exec.Command(script, "mister-agent", agent, "--config", config)
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = child.Process.Kill()
+		_ = child.Wait()
+	}()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		identities, scanErr := observer.SnapshotContext(context.Background())
+		if scanErr != nil {
+			t.Fatalf("scan shell supervisor: %v", scanErr)
+		}
+		if len(identities) == 1 && identities[0].PID == child.Process.Pid {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("shell supervisor PID %d was not attested: %#v", child.Process.Pid, identities)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err := stopRecordedTargetsWithGrace(context.Background(), []recordedAgentTarget{{path: script, observer: observer}}, signalProductionAgent, 250*time.Millisecond, 25*time.Millisecond); err != nil {
+		t.Fatalf("stop shell supervisor: %v", err)
+	}
+	if err := child.Wait(); err != nil {
+		if _, ok := err.(*exec.ExitError); !ok {
+			t.Fatalf("wait shell supervisor: %v", err)
+		}
+	}
+}
+
+func TestProductionAgentAuthorityAcceptsOnlyRetainedImageInvocations(t *testing.T) {
+	observer, err := newScriptSupervisorObserver(
+		productionLegacySupervisor,
+		[]string{"mister-agent", productionLegacyAgent, "--config", productionLegacyAgentConfig},
+		[]string{"mister-agent", productionAgentFATExecutable, "--config", productionLegacyAgentConfig},
+	)
+	if err != nil {
+		t.Fatalf("construct production supervisor observer: %v", err)
+	}
+	tests := []struct {
+		name string
+		argv []string
+		want bool
+	}{
+		{name: "legacy rootfs agent", argv: []string{"/bin/sh", productionLegacySupervisor, "mister-agent", productionLegacyAgent, "--config", productionLegacyAgentConfig}, want: true},
+		{name: "current FAT agent", argv: []string{"/bin/sh", productionLegacySupervisor, "mister-agent", productionAgentFATExecutable, "--config", productionLegacyAgentConfig}, want: true},
+		{name: "successor config is not legacy authority", argv: []string{"/bin/sh", productionLegacySupervisor, "mister-agent", productionLegacyAgent, "--config", "/etc/fogcast/agent.toml"}},
+		{name: "unrecognized child", argv: []string{"/bin/sh", productionLegacySupervisor, "mister-agent", "/tmp/mister-agent", "--config", productionLegacyAgentConfig}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := observer.matches(test.argv); got != test.want {
+				t.Fatalf("matches(%q)=%t want=%t", test.argv, got, test.want)
+			}
+		})
+	}
+}
+
+func TestProductionAgentAuthorityFailsClosedForUnrecognizedInvocation(t *testing.T) {
+	directory := t.TempDir()
+	script := filepath.Join(directory, "mister-supervise")
+	knownAgent := filepath.Join(directory, "known-agent")
+	unknownAgent := filepath.Join(directory, "unknown-agent")
+	config := filepath.Join(directory, "agent.toml")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\ntrap 'exit 0' TERM INT\nwhile :; do sleep 0.05; done\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	observer, err := newScriptSupervisorObserver(script, []string{"mister-agent", knownAgent, "--config", config})
+	if err != nil {
+		t.Fatal(err)
+	}
+	child := exec.Command(script, "mister-agent", unknownAgent, "--config", config)
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = child.Process.Kill()
+		_ = child.Wait()
+	}()
+	if _, err := observer.SnapshotContext(context.Background()); err == nil || !strings.Contains(err.Error(), "invocation is not recognized") {
+		t.Fatalf("unrecognized authority error=%v", err)
+	}
+}
+
+func TestProductionAgentAuthorityFailsClosedWithoutInterpreterIdentity(t *testing.T) {
+	directory := t.TempDir()
+	script := filepath.Join(directory, "mister-supervise")
+	agent := filepath.Join(directory, "mister-agent")
+	config := filepath.Join(directory, "agent.toml")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\ntrap 'exit 0' TERM INT\nwhile :; do sleep 0.05; done\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	observer, err := newScriptSupervisorObserver(script, []string{"mister-agent", agent, "--config", config})
+	if err != nil {
+		t.Fatal(err)
+	}
+	observer.interpreter = fakeAgentObserver{}
+	child := exec.Command(script, "mister-agent", agent, "--config", config)
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = child.Process.Kill()
+		_ = child.Wait()
+	}()
+	if _, err := observer.SnapshotContext(context.Background()); err == nil || !strings.Contains(err.Error(), "interpreter identity is unavailable") {
+		t.Fatalf("missing interpreter identity error=%v", err)
+	}
+}
+
+func TestProductionAgentAuthorityStopsReplacementSupervisor(t *testing.T) {
+	original := fpgadev.ProcessIdentity{PID: 643, StartTime: 17, Device: 18, Inode: 19, SHA256: strings.Repeat("a", 64)}
+	replacement := fpgadev.ProcessIdentity{PID: 644, StartTime: 21, Device: 18, Inode: 19, SHA256: strings.Repeat("a", 64)}
+	population := []fpgadev.ProcessIdentity{original}
+	observer := fakeAgentObserver{snapshot: func(context.Context) ([]fpgadev.ProcessIdentity, error) {
+		return append([]fpgadev.ProcessIdentity(nil), population...), nil
+	}}
+	var signalled []fpgadev.ProcessIdentity
+	err := stopRecordedTargetsWithGrace(context.Background(), []recordedAgentTarget{{path: "/usr/sbin/mister-supervise", observer: observer}}, func(_ context.Context, _ recordedAgentObserver, identity fpgadev.ProcessIdentity, signal syscall.Signal) error {
+		signalled = append(signalled, identity)
+		switch {
+		case identity == original && signal == syscall.SIGTERM:
+			population = []fpgadev.ProcessIdentity{replacement}
+		case identity == replacement && signal == syscall.SIGKILL:
+			population = nil
+		}
+		return nil
+	}, 25*time.Millisecond, 25*time.Millisecond)
+	if err != nil {
+		t.Fatalf("stop replacement supervisor: %v", err)
+	}
+	if len(signalled) != 2 || signalled[0] != original || signalled[1] != replacement {
+		t.Fatalf("signalled=%#v, want original then replacement", signalled)
+	}
 }
 
 // TestInitializeTaggedInstallCommandsUseConcreteManager exercises the tagged
