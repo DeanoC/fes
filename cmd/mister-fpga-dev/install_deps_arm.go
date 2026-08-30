@@ -57,6 +57,10 @@ func productionInstallManager() *fpgadev.InstallManager {
 		productionInstallPrerequisiteError = fmt.Errorf("legacy agent observer unavailable: %w", err)
 		return nil
 	}
+	stopAgent := stopRecordedAgents(agentTargets, stopProductionLegacyAgentAuthority, signalProductionAgent)
+	proveAgentAbsent := func(ctx context.Context) error {
+		return stopRecordedTargets(ctx, agentTargets, signalProductionAgent, productionAgentStableAbsence)
+	}
 	runtime, err := fpgadev.NewSupervisorRuntime(fpgadev.SupervisorRuntimeConfig{
 		MainExecutable:   productionMainExecutable,
 		MainFIFO:         cfg.CommandPipe,
@@ -103,9 +107,11 @@ func productionInstallManager() *fpgadev.InstallManager {
 		BootID:               func() (string, error) { return readProductionBootID() },
 		MainReadiness:        bounded(fpgadev.NewCompatibilityMainReadiness(runtime, mainObserver).Verify),
 		MainObserver:         mainObserver,
-		StopAgent:            bounded(stopRecordedAgents(agentTargets, stopProductionLegacyAgentAuthority, signalProductionAgent)),
-		ProveAgentAbsent:     bounded(proveRecordedAgentsAbsent(agentTargets)),
-		RequestReboot:        requestProductionReboot,
+		StopAgent:            bounded(stopAgent),
+		// Re-run the identity-bound stop during proof so an agent that appears
+		// after the first stop is terminated, not merely observed until timeout.
+		ProveAgentAbsent: bounded(proveAgentAbsent),
+		RequestReboot:    requestProductionReboot,
 	})
 	if err != nil {
 		productionInstallPrerequisiteError = fmt.Errorf("development profile configuration invalid: %w", err)

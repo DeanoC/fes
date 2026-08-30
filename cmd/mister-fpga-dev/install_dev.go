@@ -122,37 +122,55 @@ func stopRecordedTargets(ctx context.Context, targets []recordedAgentTarget, sig
 }
 
 func stopRecordedTargetsWithGrace(ctx context.Context, targets []recordedAgentTarget, signal recordedAgentSignaler, grace, stable time.Duration) error {
-	population, err := snapshotRecordedTargets(ctx, targets)
-	if err != nil {
-		return err
+	if signal == nil {
+		return errors.New("agent stop dependency is unavailable")
 	}
-	for index, identities := range population {
-		for _, identity := range identities {
-			if err := signal(ctx, targets[index].observer, identity, syscall.SIGTERM); err != nil {
-				return err
-			}
+	type termination struct {
+		firstSeen time.Time
+		killed    bool
+	}
+	terminations := make(map[fpgadev.ProcessIdentity]termination)
+	absentSince := time.Time{}
+	for {
+		population, err := snapshotRecordedTargets(ctx, targets)
+		if err != nil {
+			return err
 		}
-	}
-	graceCtx, cancel := context.WithTimeout(ctx, grace)
-	err = waitRecordedTargetsStableAbsent(graceCtx, targets, 0)
-	cancel()
-	if err != nil && !errors.Is(err, context.DeadlineExceeded) {
-		return err
-	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		population, scanErr := snapshotRecordedTargets(ctx, targets)
-		if scanErr != nil {
-			return scanErr
-		}
+		now := time.Now()
+		present := false
 		for index, identities := range population {
 			for _, identity := range identities {
-				if signalErr := signal(ctx, targets[index].observer, identity, syscall.SIGKILL); signalErr != nil {
-					return signalErr
+				present = true
+				state, seen := terminations[identity]
+				switch {
+				case !seen:
+					if err := signal(ctx, targets[index].observer, identity, syscall.SIGTERM); err != nil {
+						return err
+					}
+					terminations[identity] = termination{firstSeen: now}
+				case !state.killed && now.Sub(state.firstSeen) >= grace:
+					if err := signal(ctx, targets[index].observer, identity, syscall.SIGKILL); err != nil {
+						return err
+					}
+					state.killed = true
+					terminations[identity] = state
 				}
 			}
 		}
+		if present {
+			absentSince = time.Time{}
+		} else if absentSince.IsZero() {
+			absentSince = now
+		}
+		if !absentSince.IsZero() && now.Sub(absentSince) >= stable {
+			return ctx.Err()
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(productionAgentPollInterval):
+		}
 	}
-	return waitRecordedTargetsStableAbsent(ctx, targets, stable)
 }
 
 func snapshotRecordedTargets(ctx context.Context, targets []recordedAgentTarget) ([][]fpgadev.ProcessIdentity, error) {
@@ -560,11 +578,7 @@ func runInstallCommandWithPrivilege(args []string, stdout, stderr io.Writer, run
 		manager, ok = candidate.(installCommandRunner)
 	}
 	if manager == nil {
-		if productionInstallPrerequisiteError != nil {
-			_, _ = fmt.Fprintf(stderr, "FOGCAST_FPGA_DEV_INSTALL code=unavailable detail=%s\n", productionInstallPrerequisiteError)
-		} else {
-			_, _ = io.WriteString(stderr, "FOGCAST_FPGA_DEV_INSTALL code=unavailable\n")
-		}
+		_, _ = fmt.Fprintf(stderr, "FOGCAST_FPGA_DEV_INSTALL code=unavailable detail=%s\n", installFailureDetail(productionInstallPrerequisiteError))
 		return exitFailure
 	}
 	var err error
@@ -577,11 +591,23 @@ func runInstallCommandWithPrivilege(args []string, stdout, stderr io.Writer, run
 		err = manager.Uninstall(context.Background())
 	}
 	if err != nil && !errors.Is(err, fpgadev.ErrRebootRequested) {
-		_, _ = fmt.Fprintln(stderr, "FOGCAST_FPGA_DEV_INSTALL code=unavailable")
+		_, _ = fmt.Fprintf(stderr, "FOGCAST_FPGA_DEV_INSTALL code=unavailable detail=%s\n", installFailureDetail(err))
 		return exitFailure
 	}
 	_, _ = fmt.Fprintf(stdout, "FOGCAST_FPGA_DEV_INSTALL command=%s code=ok\n", args[0])
 	return exitOK
+}
+
+func installFailureDetail(err error) string {
+	if err == nil {
+		return "install failure reason was not recorded"
+	}
+	return strings.Map(func(r rune) rune {
+		if r < ' ' || r == 0x7f {
+			return ' '
+		}
+		return r
+	}, err.Error())
 }
 
 func validPackageRootArg(path string) bool {

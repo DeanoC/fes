@@ -3266,6 +3266,12 @@ func (m *InstallManager) Install(ctx context.Context, packageRoot string) error 
 	if err := m.failureHook("after-trampoline-publication"); err != nil {
 		return err
 	}
+	// Package staging and pre-journal source work can outlast the initial
+	// agent proof. Reconcile once more immediately before publishing the
+	// prepared checkpoint so a replacement agent cannot survive into Prepare.
+	if err := m.stopAndProveAgent(ctx); err != nil {
+		return err
+	}
 	record := InstallJournalRecord{Schema: 1, State: InstallStatePrepared, InstallBootID: bootID, PackageSHA256: m.PackageSHA256, PreviousConfigSHA256: m.PreviousConfigSHA256, Inventory: m.Inventory, Sources: cloneSourceRecords(m.Sources)}
 	if err := m.replaceJournalCheckpoint(record, InstallStatePrepared); err != nil {
 		return err

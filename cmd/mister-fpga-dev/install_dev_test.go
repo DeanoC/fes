@@ -27,6 +27,15 @@ type installFixtureRunner struct {
 	packageRoot                    string
 }
 
+type failingInstallRunner struct {
+	commandRunner
+	err error
+}
+
+func (r failingInstallRunner) Install(context.Context, string) error { return r.err }
+func (r failingInstallRunner) Recover(context.Context) error         { return r.err }
+func (r failingInstallRunner) Uninstall(context.Context) error       { return r.err }
+
 func (r *installFixtureRunner) Install(_ context.Context, packageRoot string) error {
 	r.installs++
 	r.packageRoot = packageRoot
@@ -72,6 +81,26 @@ func TestInstallCommandForwardsVerifiedPackageRoot(t *testing.T) {
 	}
 	if runner.packageRoot != "/tmp/private-package" {
 		t.Fatalf("package root=%q", runner.packageRoot)
+	}
+}
+
+func TestInstallCommandUnavailableIncludesFailureDetail(t *testing.T) {
+	want := "package-aware install requires a verified package root"
+	var out, errOut bytes.Buffer
+	got := runInstallCommandWithPrivilege(
+		[]string{"install-profile"},
+		&out,
+		&errOut,
+		failingInstallRunner{err: errors.New(want + "\n\t\x00")},
+		func() bool { return true },
+	)
+	if got != exitFailure || out.Len() != 0 {
+		t.Fatalf("exit=%d out=%q err=%q", got, out.String(), errOut.String())
+	}
+	if detail := errOut.String(); !strings.Contains(detail, "code=unavailable detail=") || !strings.Contains(detail, want) {
+		t.Fatalf("unavailable detail=%q", detail)
+	} else if strings.Count(detail, "\n") != 1 || strings.ContainsAny(strings.TrimSuffix(detail, "\n"), "\r\n\t\x00") {
+		t.Fatalf("unavailable detail is not one sanitized line: %q", detail)
 	}
 }
 
@@ -201,6 +230,35 @@ func TestProductionAgentStopperStillStopsAndProvesAbsentAtUsrBin(t *testing.T) {
 	testProductionAgentStopperStopsAndProvesAbsent(t, "/usr/bin/mister-agent")
 }
 
+func TestProductionAgentProofStopsUsrSbinRespawnBetweenCallbacks(t *testing.T) {
+	original := fpgadev.ProcessIdentity{PID: 643, StartTime: 17, Device: 18, Inode: 19, SHA256: strings.Repeat("a", 64)}
+	replacement := fpgadev.ProcessIdentity{PID: 17646, StartTime: 29, Device: 18, Inode: 19, SHA256: strings.Repeat("a", 64)}
+	population := []fpgadev.ProcessIdentity{original}
+	observer := fakeAgentObserver{snapshot: func(context.Context) ([]fpgadev.ProcessIdentity, error) {
+		return append([]fpgadev.ProcessIdentity(nil), population...), nil
+	}}
+	targets := []recordedAgentTarget{{path: productionLegacyAgent, observer: observer}}
+	var signalled []fpgadev.ProcessIdentity
+	stopAgent := stopRecordedAgents(targets, func(context.Context) error { return nil }, func(_ context.Context, _ recordedAgentObserver, identity fpgadev.ProcessIdentity, signal syscall.Signal) error {
+		if signal != syscall.SIGTERM {
+			t.Fatalf("signal=%v want=terminated", signal)
+		}
+		signalled = append(signalled, identity)
+		population = nil
+		return nil
+	})
+	if err := stopAgent(context.Background()); err != nil {
+		t.Fatalf("initial stop: %v", err)
+	}
+	population = []fpgadev.ProcessIdentity{replacement}
+	if err := stopAgent(context.Background()); err != nil {
+		t.Fatalf("proof stop after respawn: %v", err)
+	}
+	if len(signalled) != 2 || signalled[0] != original || signalled[1] != replacement || len(population) != 0 {
+		t.Fatalf("signalled=%#v population=%#v", signalled, population)
+	}
+}
+
 func TestProductionAgentStopperStopsOrphanedFATChildAfterAuthority(t *testing.T) {
 	identity := fpgadev.ProcessIdentity{PID: 645, StartTime: 22, Device: 18, Inode: 20, SHA256: strings.Repeat("b", 64)}
 	present := false
@@ -264,6 +322,41 @@ func TestProductionAgentStopperEscalatesTermResistantLeftover(t *testing.T) {
 	}
 	if len(signals) != 2 || signals[0] != syscall.SIGTERM || signals[1] != syscall.SIGKILL {
 		t.Fatalf("signals=%v want=[terminated killed]", signals)
+	}
+}
+
+func TestProductionAgentStopperTerminatesRespawnAfterFirstEmptyScan(t *testing.T) {
+	original := fpgadev.ProcessIdentity{PID: 643, StartTime: 17, Device: 18, Inode: 19, SHA256: strings.Repeat("a", 64)}
+	replacement := fpgadev.ProcessIdentity{PID: 17646, StartTime: 29, Device: 18, Inode: 19, SHA256: strings.Repeat("a", 64)}
+	population := []fpgadev.ProcessIdentity{original}
+	spawnAfterEmpty := false
+	observer := fakeAgentObserver{snapshot: func(context.Context) ([]fpgadev.ProcessIdentity, error) {
+		if spawnAfterEmpty && len(population) == 0 {
+			spawnAfterEmpty = false
+			population = []fpgadev.ProcessIdentity{replacement}
+			return nil, nil
+		}
+		return append([]fpgadev.ProcessIdentity(nil), population...), nil
+	}}
+	var signalled []fpgadev.ProcessIdentity
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	err := stopRecordedTargetsWithGrace(ctx, []recordedAgentTarget{{path: productionLegacyAgent, observer: observer}}, func(_ context.Context, _ recordedAgentObserver, identity fpgadev.ProcessIdentity, signal syscall.Signal) error {
+		if signal != syscall.SIGTERM {
+			t.Fatalf("signal=%v want=terminated", signal)
+		}
+		signalled = append(signalled, identity)
+		population = nil
+		if identity == original {
+			spawnAfterEmpty = true
+		}
+		return nil
+	}, 25*time.Millisecond, 25*time.Millisecond)
+	if err != nil {
+		t.Fatalf("stop replacement after empty scan: %v", err)
+	}
+	if len(signalled) != 2 || signalled[0] != original || signalled[1] != replacement || len(population) != 0 {
+		t.Fatalf("signalled=%#v population=%#v", signalled, population)
 	}
 }
 
@@ -633,8 +726,8 @@ func TestProductionAgentAuthorityStopsReplacementSupervisor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stop replacement supervisor: %v", err)
 	}
-	if len(signalled) != 2 || signalled[0] != original || signalled[1] != replacement {
-		t.Fatalf("signalled=%#v, want original then replacement", signalled)
+	if len(signalled) != 3 || signalled[0] != original || signalled[1] != replacement || signalled[2] != replacement {
+		t.Fatalf("signalled=%#v, want TERM original then TERM/KILL replacement", signalled)
 	}
 }
 

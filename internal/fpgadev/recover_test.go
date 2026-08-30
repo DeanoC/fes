@@ -130,6 +130,82 @@ func TestFailStopInstallPublishesTrampolineBeforePrepared(t *testing.T) {
 	}
 }
 
+func TestInstallPackageRootPreflightFailsBeforeAgentMutation(t *testing.T) {
+	fixture := newCoarseInstallFixture(t)
+	var order []string
+	fixture.manager.StopAgent = func(context.Context) error {
+		order = append(order, "stop")
+		return nil
+	}
+	fixture.manager.ProveAgentAbsent = func(context.Context) error {
+		order = append(order, "prove")
+		return nil
+	}
+	err := fixture.manager.Install(context.Background(), "")
+	if err == nil || err.Error() != "package-aware install requires a verified package root" {
+		t.Fatalf("install error=%v", err)
+	}
+	if got := strings.Join(order, ","); got != "" {
+		t.Fatalf("preflight unexpectedly mutated agent lifecycle: %q", got)
+	}
+	if _, exists, loadErr := fixture.manager.Journal.Load(); loadErr != nil || exists {
+		t.Fatalf("journal exists=%v err=%v", exists, loadErr)
+	}
+}
+
+func TestInstallStopsRespawnedAgentImmediatelyBeforePreparedJournal(t *testing.T) {
+	fixture := newCoarseInstallFixture(t)
+	agentPresent := true
+	stopCalls := 0
+	fixture.manager.StopAgent = func(context.Context) error {
+		stopCalls++
+		agentPresent = false
+		return nil
+	}
+	fixture.manager.ProveAgentAbsent = func(context.Context) error {
+		if agentPresent {
+			return errors.New("leftover agent remains present")
+		}
+		return nil
+	}
+	fixture.manager.FailureHook = func(event string) error {
+		switch event {
+		case "before-trampoline-publication":
+			agentPresent = true
+		case "before-prepared-fsync":
+			if agentPresent {
+				return errors.New("prepared journal observed a live leftover agent")
+			}
+			if stopCalls != 2 {
+				return fmt.Errorf("stop calls=%d want=2", stopCalls)
+			}
+		}
+		return nil
+	}
+	if err := fixture.manager.Install(context.Background(), fixture.packageRoot); !errors.Is(err, ErrRebootRequested) {
+		t.Fatalf("install error=%v", err)
+	}
+}
+
+func TestInstallFailsClosedWhenRespawnCannotBeProvenGoneBeforePreparedJournal(t *testing.T) {
+	fixture := newCoarseInstallFixture(t)
+	proofCalls := 0
+	fixture.manager.ProveAgentAbsent = func(context.Context) error {
+		proofCalls++
+		if proofCalls == 2 {
+			return errors.New("respawned agent remains live")
+		}
+		return nil
+	}
+	err := fixture.manager.Install(context.Background(), fixture.packageRoot)
+	if err == nil || !strings.Contains(err.Error(), "respawned agent remains live") {
+		t.Fatalf("install error=%v", err)
+	}
+	if _, exists, loadErr := fixture.manager.Journal.Load(); loadErr != nil || exists {
+		t.Fatalf("journal exists=%v err=%v", exists, loadErr)
+	}
+}
+
 func TestFailStopInstallBeforeTrampolinePublicationLeavesOriginalSources(t *testing.T) {
 	fixture := newCoarseInstallFixture(t)
 	crash := errors.New("simulated crash before trampoline publication")
