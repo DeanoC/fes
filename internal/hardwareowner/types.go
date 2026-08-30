@@ -649,7 +649,7 @@ func validateStateTransition(previous, next Record, bootChanged bool) error {
 		return fmt.Errorf("invalid owner-state transition %s -> %s", previous.State, next.State)
 	}
 	if bootChanged {
-		if previous.State != StateRecoveryRequired || !isRebootRecoveryNoOwner(next) {
+		if !isPriorBootNormalMainReclaim(previous, next) && (previous.State != StateRecoveryRequired || !isRebootRecoveryNoOwner(next)) {
 			return fmt.Errorf("boot_id changed outside recovery_required -> reboot-recovery no_owner")
 		}
 	} else if previous.State == StateRecoveryRequired && next.State == StateNoOwner {
@@ -665,6 +665,26 @@ func validateStateTransition(previous, next Record, bootChanged bool) error {
 		return fmt.Errorf("development no_owner cannot start Main")
 	}
 	return nil
+}
+
+// isPriorBootNormalMainReclaim recognizes the single migration transition
+// that binds an already-attested current-boot compatibility Main to a fresh
+// development intent. The caller supplies the current-boot proof; transition
+// validation keeps the durable shape narrow and all neighboring boot changes
+// fenced. Ordinary Gate admission never uses this exception.
+func isPriorBootNormalMainReclaim(previous, next Record) bool {
+	return previous.State == StateNormalMain &&
+		next.State == StateRecoveringIntent &&
+		next.Phase == PhaseIntentCommitted &&
+		next.ActiveSession == previous.ActiveSession &&
+		next.ActiveGeneration == previous.ActiveGeneration &&
+		next.ActiveMode == previous.ActiveMode &&
+		next.ActiveOwner == previous.ActiveOwner &&
+		sameStrings(next.ActiveLeases, previous.ActiveLeases) &&
+		next.QuiescingOwner == OwnerCompatMain &&
+		next.CandidateOwner == OwnerFPGADev &&
+		next.CandidateMode == ModeUpdating &&
+		sameStrings(next.RequestedResources, devLeases)
 }
 
 func validatePhaseTransition(previous, next Record) error {

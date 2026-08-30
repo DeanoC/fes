@@ -126,6 +126,22 @@ The native hardware coordinator exposes exactly one target mode:
 - `recovering`: reconciliation owns admission while it makes state safe; or
 - `failed`: automatic recovery could not make ownership or hardware safe.
 
+The retained FPGA-development migration path has one narrow reboot
+reconciliation exception. A canonical previous-boot `normal_main` /
+`compat_main` record may be rebound only by committing a current-boot
+`recovering_intent` after read-only preflight proves the current kernel boot,
+the protected terminal journal, and current live compatibility Main readiness:
+exactly one Main, a canonical command FIFO with mode `0600` or `0644`, an
+operating FPGA manager, and stable canonical `MENU`. The boot-local ready
+record is not part of this successor-boot proof because `/run` is cleared by
+reboot and production publishes a new ready record only after ownership has
+already been rebound.
+Ordinary hardware admission, same-boot conflicts, every previous-boot
+non-normal state, absent or invalid owner state, missing or mismatched journal
+or live-Main proof, and stale fault operations remain fenced. This migration
+exception does not make the host a second hardware coordinator or generalize
+stale-boot admission.
+
 Every launch has a fresh `(session, generation)` identity. The coordinator
 alone grants and revokes leases for FPGA/HPS mappings, presentation, audio,
 input, saves, media sockets/buffers, and their lifecycle transitions. A lease

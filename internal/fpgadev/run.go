@@ -62,6 +62,21 @@ type QuiescenceVerifier interface {
 	VerifyPressedInput(context.Context, MaintenanceStatus, hardwareowner.Record) error
 }
 
+// priorBootQuiescenceVerifier is the narrow migration-only proof required to
+// rebind a canonical compatibility-Main owner record left by a prior boot. It
+// is deliberately separate from ordinary quiescence so generic fixtures and
+// hardware admission gates cannot silently treat a stale boot as current.
+type priorBootQuiescenceVerifier interface {
+	VerifyPriorBoot(context.Context, MaintenanceStatus, hardwareowner.Record, string) error
+}
+
+// priorBootPostMainVerifier keeps the successor-boot exception explicit at
+// post-Main qualification. Implementations must retain all dynamic absence
+// proofs while replacing only the unavailable boot-local ready provenance.
+type priorBootPostMainVerifier interface {
+	VerifyPriorBootPostMain(context.Context, MaintenanceStatus, hardwareowner.Record, hardwareowner.Record, string) (PolicySubsystemProof, error)
+}
+
 // Request names the staged bundle.  The production binder accepts only the
 // exact manifest.json/top.rbf pair below a private misteross staging root.
 type Request struct {
@@ -417,6 +432,8 @@ type preparedRun struct {
 	baseline          []ProcessIdentity
 	started           time.Time
 	previous          hardwareowner.Record
+	currentBootID     string
+	priorBootReclaim  bool
 	unlock            hardwareowner.Unlock
 	maintenance       MaintenanceUnlock
 	maintenanceStatus MaintenanceStatus
@@ -515,15 +532,24 @@ func (r *Runner) prepare(ctx context.Context, request Request, preflight bool) (
 	if d.quiescence == nil {
 		return fail(CodeOwnershipConflict, "quiescence proof is unavailable", ErrRunnerConfiguration)
 	}
-	if err := d.quiescence.VerifyPreDispatch(ctx, prepared.maintenanceStatus, record); err != nil {
-		return fail(CodeOwnershipConflict, "quiescence proof is unavailable", err)
-	}
 	bootID, err := r.currentBootID(d)
-	if err != nil || record.BootID != bootID {
-		if err == nil {
-			err = hardwareowner.ErrOwnerWrongBoot
-		}
+	if err != nil {
 		return fail(CodeOwnershipConflict, "owner admission is fenced", err)
+	}
+	if record.BootID != bootID {
+		if record.State != hardwareowner.StateNormalMain {
+			return fail(CodeOwnershipConflict, "owner admission is fenced", hardwareowner.ErrOwnerWrongBoot)
+		}
+		verifier, ok := d.quiescence.(priorBootQuiescenceVerifier)
+		if !ok {
+			return fail(CodeOwnershipConflict, "owner admission is fenced", hardwareowner.ErrOwnerWrongBoot)
+		}
+		if err := verifier.VerifyPriorBoot(ctx, prepared.maintenanceStatus, record, bootID); err != nil {
+			return fail(CodeOwnershipConflict, "quiescence proof is unavailable", err)
+		}
+		prepared.priorBootReclaim = true
+	} else if err := d.quiescence.VerifyPreDispatch(ctx, prepared.maintenanceStatus, record); err != nil {
+		return fail(CodeOwnershipConflict, "quiescence proof is unavailable", err)
 	}
 	if err := ctx.Err(); err != nil {
 		return fail(CodeOwnershipConflict, "operation canceled", err)
@@ -576,7 +602,7 @@ func (r *Runner) prepare(ctx context.Context, request Request, preflight bool) (
 	} else if conflict {
 		return fail(CodeResultConflict, "result already exists", nil)
 	}
-	prepared.previous = record
+	prepared.previous, prepared.currentBootID = record, bootID
 	if preflight {
 		return prepared, nil
 	}
@@ -650,6 +676,11 @@ func (r *Runner) executePrepared(ctx context.Context, request Request, prepared 
 	}
 	generation := previous.GenerationHighWater + 1
 	intent := previous
+	// A prior-boot normal_main is admitted only through the current journal and
+	// live-Main proof in prepare. Commit its migration-only reclaim at the
+	// existing first durable boundary so Preflight remains read-only and every
+	// later fence, including FaultKill, belongs to the current boot.
+	intent.BootID = prepared.currentBootID
 	intent.State = hardwareowner.StateRecoveringIntent
 	intent.Phase = hardwareowner.PhaseIntentCommitted
 	intent.RunID = manifest.RunID
@@ -700,6 +731,19 @@ func (r *Runner) executePrepared(ctx context.Context, request Request, prepared 
 			// durable intent and artifact revalidation, immediately before the
 			// FIFO handoff. A proof that changes in this window must remain at
 			// intent_committed and enter recovery without invoking Main.
+			if prepared.priorBootReclaim {
+				verifier, ok := d.quiescence.(priorBootQuiescenceVerifier)
+				if !ok {
+					return hardwareowner.ErrOwnerWrongBoot
+				}
+				if err := verifier.VerifyPriorBoot(proofCtx, prepared.maintenanceStatus, prepared.previous, prepared.currentBootID); err != nil {
+					return err
+				}
+				if d.readiness == nil {
+					return ErrRunnerConfiguration
+				}
+				return d.readiness.Verify(proofCtx)
+			}
 			return d.quiescence.VerifyPreDispatch(proofCtx, prepared.maintenanceStatus, current)
 		}); proofErr != nil {
 			operationErr, primaryCode, primaryDetail = proofErr, CodeLoadDispatchFailed, "quiescence proof is unavailable"
@@ -1168,20 +1212,40 @@ func (r *Runner) qualifyAndNoOwner(ctx context.Context, d runnerDependencies, cu
 	if d.quiescence == nil {
 		return hardwareowner.Record{}, ErrRunnerConfiguration
 	}
-	proof, err := d.quiescence.VerifyPostMain(ctx, prepared.maintenanceStatus, current)
+	var proof PolicySubsystemProof
+	var err error
+	if prepared.priorBootReclaim {
+		verifier, ok := d.quiescence.(priorBootPostMainVerifier)
+		if !ok {
+			return hardwareowner.Record{}, hardwareowner.ErrOwnerWrongBoot
+		}
+		proof, err = verifier.VerifyPriorBootPostMain(ctx, prepared.maintenanceStatus, prepared.previous, current, prepared.currentBootID)
+	} else {
+		proof, err = d.quiescence.VerifyPostMain(ctx, prepared.maintenanceStatus, current)
+	}
 	if err != nil {
 		return hardwareowner.Record{}, err
 	}
 	if err := proof.Validate(); err != nil {
 		return hardwareowner.Record{}, err
 	}
-	if err := d.quiescence.VerifyPressedInput(ctx, prepared.maintenanceStatus, current); err != nil {
-		return hardwareowner.Record{}, err
+	// The migration-only post-Main proof includes the same pressed-input
+	// observation in its validated subsystem proof. Ordinary same-boot
+	// qualification retains the separate verifier call unchanged.
+	if !prepared.priorBootReclaim {
+		if err := d.quiescence.VerifyPressedInput(ctx, prepared.maintenanceStatus, current); err != nil {
+			return hardwareowner.Record{}, err
+		}
 	}
 	var receipt Receipt
 	if concrete, ok := d.qualifier.(*Qualifier); ok && concrete != nil && concrete.implementation != nil {
 		clone := *concrete.implementation
 		clone.dependencies.Baseline = append([]ProcessIdentity(nil), prepared.baseline...)
+		if prepared.priorBootReclaim {
+			if err := enablePriorBootQualification(&clone.dependencies); err != nil {
+				return hardwareowner.Record{}, err
+			}
+		}
 		receipt, err = (Qualifier{implementation: &clone}).Qualify(ctx, prepared.binding)
 	} else {
 		receipt, err = d.qualifier.Qualify(ctx, prepared.binding)

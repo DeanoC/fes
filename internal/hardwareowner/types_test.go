@@ -1044,6 +1044,46 @@ func TestFixRound4EnforcesRebootBoundaryAcrossNoOwner(t *testing.T) {
 	})
 }
 
+func TestPreviousBootNormalMainMayCommitOnlyExactCurrentBootDevelopmentIntent(t *testing.T) {
+	previous := normalMainRecord()
+	intent := cloneRecord(previous)
+	intent.State = StateRecoveringIntent
+	intent.Phase = PhaseIntentCommitted
+	intent.BootID = validBootIDNext
+	intent.RunID = validRunID
+	intent.GenerationHighWater++
+	intent.CandidateSession = validSessionNext
+	intent.CandidateGeneration = intent.GenerationHighWater
+	intent.CandidateMode = ModeUpdating
+	intent.QuiescingOwner = OwnerCompatMain
+	intent.CandidateOwner = OwnerFPGADev
+	intent.RequestedResources = append([]string(nil), validDevLeases...)
+
+	if err := intent.ValidateTransition(previous); err != nil {
+		t.Fatalf("exact prior-boot normal_main reclaim rejected: %v", err)
+	}
+	mutations := []struct {
+		name string
+		edit func(*Record)
+	}{
+		{name: "same state", edit: func(next *Record) { next.State, next.Phase = StateNormalMain, "" }},
+		{name: "wrong phase", edit: func(next *Record) { next.Phase = PhaseLoadAttempted }},
+		{name: "changed active session", edit: func(next *Record) { next.ActiveSession = validSessionDev }},
+		{name: "changed active generation", edit: func(next *Record) { next.ActiveGeneration++ }},
+		{name: "changed active owner", edit: func(next *Record) { next.ActiveOwner = OwnerFPGADev }},
+		{name: "missing compat quiescer", edit: func(next *Record) { next.QuiescingOwner = OwnerNone }},
+	}
+	for _, mutation := range mutations {
+		t.Run(mutation.name, func(t *testing.T) {
+			next := cloneRecord(intent)
+			mutation.edit(&next)
+			if err := next.ValidateTransition(previous); err == nil {
+				t.Fatal("neighboring cross-boot transition was accepted")
+			}
+		})
+	}
+}
+
 func TestFixRound4FreshCandidateSessionDiffersFromPriorActive(t *testing.T) {
 	previous := normalMainRecord()
 	candidate := recoveringIntentRecord()

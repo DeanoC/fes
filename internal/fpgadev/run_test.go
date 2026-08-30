@@ -112,6 +112,135 @@ func TestRunnerPreflightIsReadOnlyAndUsesExactSuccessContract(t *testing.T) {
 	}
 }
 
+func TestRunnerPreflightAcceptsProvenPreviousBootNormalMainReadOnly(t *testing.T) {
+	fixture := newTask7RunnerFixture(t)
+	fixture.store.record.BootID = "222959a0-e21d-4d8b-a217-a6bd6367b2fb"
+	deps := fixture.dependencies()
+	proof := &task7PriorBootQuiescence{}
+	deps.quiescence = proof
+	runner := newFixtureRunner(deps)
+
+	if err := runner.Preflight(context.Background(), fixture.request); err != nil {
+		t.Fatalf("Preflight() = %v, want proven previous-boot normal_main admission", err)
+	}
+	if proof.priorCalls != 1 || proof.currentCalls != 0 {
+		t.Fatalf("quiescence proof calls = prior:%d current:%d, want 1/0", proof.priorCalls, proof.currentCalls)
+	}
+	if fixture.readiness.calls != 1 {
+		t.Fatalf("Main readiness calls = %d, want current live proof", fixture.readiness.calls)
+	}
+	if fixture.store.replaceCalls != 0 || fixture.fifo.calls != 0 || fixture.mapper.openCalls != 0 {
+		t.Fatalf("stale-boot preflight mutated state: replace=%d fifo=%d mappings=%d", fixture.store.replaceCalls, fixture.fifo.calls, fixture.mapper.openCalls)
+	}
+}
+
+func TestRunnerRunCommandReclaimsAttestedPreviousBootAtIntentBoundary(t *testing.T) {
+	fixture := newTask7RunnerFixture(t)
+	previousBoot := "222959a0-e21d-4d8b-a217-a6bd6367b2fb"
+	fixture.store.record.BootID = previousBoot
+	previousSession := fixture.store.record.ActiveSession
+	deps := fixture.dependencies()
+	proof := &task7PriorBootQuiescence{}
+	deps.quiescence = proof
+	runner := newFixtureRunner(deps)
+
+	result, err := runner.RunCommand(context.Background(), fixture.request)
+	if err != nil {
+		t.Fatalf("RunCommand() = result:%#v err:%v", result, err)
+	}
+	if len(fixture.store.history) == 0 {
+		t.Fatal("RunCommand did not commit owner intent")
+	}
+	intent := fixture.store.history[0]
+	if intent.State != hardwareowner.StateRecoveringIntent || intent.Phase != hardwareowner.PhaseIntentCommitted || intent.BootID != task7BootID {
+		t.Fatalf("first durable owner = %#v, want current-boot recovering intent", intent)
+	}
+	if intent.ActiveSession != previousSession || intent.ActiveGeneration != 42 || intent.ActiveOwner != hardwareowner.OwnerCompatMain {
+		t.Fatalf("reclaimed intent did not preserve attested compat owner: %#v", intent)
+	}
+	if proof.priorCalls != 2 || proof.currentCalls != 0 {
+		t.Fatalf("quiescence proof calls = prior:%d current:%d, want prior admission and narrow pre-FIFO revalidation", proof.priorCalls, proof.currentCalls)
+	}
+	if proof.priorPostCalls != 1 || proof.postCalls != 0 {
+		t.Fatalf("post-Main proof calls = prior:%d ordinary:%d, want migration-only proof", proof.priorPostCalls, proof.postCalls)
+	}
+	if fixture.readiness.calls != 2 {
+		t.Fatalf("Main readiness calls = %d, want admission and immediate pre-FIFO revalidation", fixture.readiness.calls)
+	}
+}
+
+func TestRunnerRechecksPriorBootMainReadinessImmediatelyBeforeFIFO(t *testing.T) {
+	fixture := newTask7RunnerFixture(t)
+	fixture.store.record.BootID = "222959a0-e21d-4d8b-a217-a6bd6367b2fb"
+	fixture.readiness.err = errors.New("Main readiness changed before dispatch")
+	fixture.readiness.failAt = 2
+	deps := fixture.dependencies()
+	proof := &task7PriorBootQuiescence{}
+	deps.quiescence = proof
+
+	result, err := newFixtureRunner(deps).RunCommand(context.Background(), fixture.request)
+	if err != nil {
+		t.Fatalf("RunCommand() = %v, want handled post-intent recovery", err)
+	}
+	if proof.priorCalls != 2 || fixture.readiness.calls != 2 {
+		t.Fatalf("prior-boot pre-FIFO proofs = journal:%d readiness:%d, want 2/2", proof.priorCalls, fixture.readiness.calls)
+	}
+	if fixture.fifo.calls != 0 || result.Phase != ResultPhaseIntentCommitted || result.PrimaryCode != string(CodeLoadDispatchFailed) {
+		t.Fatalf("lost live-Main proof reached FIFO/result=%#v fifo=%d", result, fixture.fifo.calls)
+	}
+	fixture.store.mu.Lock()
+	final := cloneTask7Record(fixture.store.record)
+	fixture.store.mu.Unlock()
+	if final.State != hardwareowner.StateRecoveryRequired || final.Phase != hardwareowner.PhaseIntentCommitted {
+		t.Fatalf("lost live-Main proof final owner = %#v, want fenced intent recovery", final)
+	}
+}
+
+func TestRunnerPreflightRejectsUnreclaimableOwnerRecords(t *testing.T) {
+	tests := []struct {
+		name      string
+		configure func(*task7RunnerFixture)
+	}{
+		{name: "absent", configure: func(f *task7RunnerFixture) { f.store.record = hardwareowner.Record{} }},
+		{name: "invalid", configure: func(f *task7RunnerFixture) { f.store.record.ActiveOwner = hardwareowner.OwnerNone }},
+		{name: "previous boot fpgadev active", configure: func(f *task7RunnerFixture) {
+			f.store.record = task7ActiveRecord(hardwareowner.PhaseLeaseActive)
+			f.store.record.BootID = "222959a0-e21d-4d8b-a217-a6bd6367b2fb"
+		}},
+		{name: "previous boot recovering intent", configure: func(f *task7RunnerFixture) {
+			f.store.record = task7IntentRecord(hardwareowner.PhaseIntentCommitted)
+			f.store.record.BootID = "222959a0-e21d-4d8b-a217-a6bd6367b2fb"
+		}},
+		{name: "same boot fpgadev active", configure: func(f *task7RunnerFixture) {
+			f.store.record = task7ActiveRecord(hardwareowner.PhaseLeaseActive)
+		}},
+		{name: "previous boot Main readiness missing", configure: func(f *task7RunnerFixture) {
+			f.store.record.BootID = "222959a0-e21d-4d8b-a217-a6bd6367b2fb"
+			f.readiness.err = errors.New("Main readiness is absent")
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newTask7RunnerFixture(t)
+			test.configure(fixture)
+			deps := fixture.dependencies()
+			proof := &task7PriorBootQuiescence{}
+			deps.quiescence = proof
+			err := newFixtureRunner(deps).Preflight(context.Background(), fixture.request)
+			if err == nil || !errors.Is(err, ErrRunPreflight) {
+				t.Fatalf("Preflight() = %v, want ownership_conflict", err)
+			}
+			failure, ok := err.(*Failure)
+			if !ok || failure.Code != CodeOwnershipConflict {
+				t.Fatalf("Preflight failure = %#v, want ownership_conflict", err)
+			}
+			if fixture.store.replaceCalls != 0 || fixture.fifo.calls != 0 {
+				t.Fatalf("rejected owner mutated state: replace=%d fifo=%d", fixture.store.replaceCalls, fixture.fifo.calls)
+			}
+		})
+	}
+}
+
 func TestMaintenanceGateAndQuiescenceAreSemanticBoundaries(t *testing.T) {
 	var _ MaintenanceGate = semanticMaintenanceFixture{}
 	var _ QuiescenceVerifier = semanticQuiescenceFixture{}
@@ -242,11 +371,11 @@ func TestRunnerRejectsHostileOwnerAndSemanticProofsAtTheirAdmissionGates(t *test
 			},
 		},
 		{
-			name: "wrong boot after semantic admission",
+			name: "wrong boot without prior-boot proof",
 			configure: func(f *task7RunnerFixture, _ *task7MaintenanceGate) {
 				f.store.record.BootID = "fedcba98-7654-3210-fedc-ba9876543210"
 			},
-			wantQuiescence: 1, wantOwnerLock: 1,
+			wantOwnerLock: 1,
 		},
 		{
 			name: "non-normal owner after semantic admission",
@@ -490,6 +619,38 @@ type task7MaintenanceGate struct {
 	enterCalls  int
 	unlockCalls int
 	events      *task7EventLog
+}
+
+type task7PriorBootQuiescence struct {
+	priorCalls     int
+	priorPostCalls int
+	currentCalls   int
+	postCalls      int
+	postErr        error
+}
+
+func (q *task7PriorBootQuiescence) VerifyPriorBoot(context.Context, MaintenanceStatus, hardwareowner.Record, string) error {
+	q.priorCalls++
+	return nil
+}
+
+func (q *task7PriorBootQuiescence) VerifyPreDispatch(context.Context, MaintenanceStatus, hardwareowner.Record) error {
+	q.currentCalls++
+	return nil
+}
+
+func (q *task7PriorBootQuiescence) VerifyPostMain(context.Context, MaintenanceStatus, hardwareowner.Record) (PolicySubsystemProof, error) {
+	q.postCalls++
+	return PolicySubsystemProof{}, q.postErr
+}
+
+func (q *task7PriorBootQuiescence) VerifyPriorBootPostMain(context.Context, MaintenanceStatus, hardwareowner.Record, hardwareowner.Record, string) (PolicySubsystemProof, error) {
+	q.priorPostCalls++
+	return semanticQuiescenceFixture{}.VerifyPostMain(context.Background(), MaintenanceStatus{}, hardwareowner.Record{})
+}
+
+func (*task7PriorBootQuiescence) VerifyPressedInput(context.Context, MaintenanceStatus, hardwareowner.Record) error {
+	return nil
 }
 
 func (g *task7MaintenanceGate) Enter(context.Context) (MaintenanceStatus, MaintenanceUnlock, error) {
@@ -4377,13 +4538,21 @@ func (p *task7Profile) Verify(ctx context.Context) error {
 	return p.verifyErr
 }
 
-type task7Readiness struct{ err error }
+type task7Readiness struct {
+	calls  int
+	failAt int
+	err    error
+}
 
 func (r *task7Readiness) Verify(ctx context.Context) error {
+	r.calls++
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return r.err
+	if r.err != nil && (r.failAt == 0 || r.calls == r.failAt) {
+		return r.err
+	}
+	return nil
 }
 
 type task7TerminalInstall struct{}

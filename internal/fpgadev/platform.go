@@ -454,8 +454,16 @@ type bindingSubsystemVerifier interface {
 	VerifyWithPolicy(context.Context, ArtifactBinding, PolicyProof) (PolicySubsystemProof, error)
 }
 
+type priorBootBindingSubsystemVerifier interface {
+	VerifyPriorBootWithPolicy(context.Context, ArtifactBinding, PolicyProof) (PolicySubsystemProof, error)
+}
+
 type PressedInputNeutralizer interface {
 	NeutralizePressedInput(context.Context) error
+}
+
+type priorBootPressedInputNeutralizer interface {
+	NeutralizePriorBootPressedInput(context.Context) error
 }
 
 type BridgeVerifier interface {
@@ -469,6 +477,58 @@ type ProgrammingAbsenceProof struct {
 
 type ProgrammingVerifier interface {
 	VerifyProgramming(context.Context) (ProgrammingAbsenceProof, error)
+}
+
+type priorBootProgrammingVerifier interface {
+	VerifyPriorBootProgramming(context.Context) (ProgrammingAbsenceProof, error)
+}
+
+type priorBootSubsystemQualification struct {
+	source priorBootBindingSubsystemVerifier
+}
+
+func (q priorBootSubsystemQualification) Verify(context.Context) (PolicySubsystemProof, error) {
+	return PolicySubsystemProof{}, ErrQualificationUnsupported
+}
+
+func (q priorBootSubsystemQualification) VerifyWithPolicy(ctx context.Context, binding ArtifactBinding, policy PolicyProof) (PolicySubsystemProof, error) {
+	return q.source.VerifyPriorBootWithPolicy(ctx, binding, policy)
+}
+
+type priorBootPressedInputQualification struct {
+	source priorBootPressedInputNeutralizer
+}
+
+func (q priorBootPressedInputQualification) NeutralizePressedInput(ctx context.Context) error {
+	return q.source.NeutralizePriorBootPressedInput(ctx)
+}
+
+type priorBootProgrammingQualification struct{ source priorBootProgrammingVerifier }
+
+func (q priorBootProgrammingQualification) VerifyProgramming(ctx context.Context) (ProgrammingAbsenceProof, error) {
+	return q.source.VerifyPriorBootProgramming(ctx)
+}
+
+func enablePriorBootQualification(d *qualificationDependencies) error {
+	if d == nil {
+		return ErrQualificationUnsupported
+	}
+	subsystems, ok := d.Subsystems.(priorBootBindingSubsystemVerifier)
+	if !ok {
+		return fmt.Errorf("%w: prior-boot subsystem observer is unavailable", ErrQualificationUnsupported)
+	}
+	pressed, ok := d.PressedInput.(priorBootPressedInputNeutralizer)
+	if !ok {
+		return fmt.Errorf("%w: prior-boot pressed-input observer is unavailable", ErrQualificationUnsupported)
+	}
+	programming, ok := d.Programming.(priorBootProgrammingVerifier)
+	if !ok {
+		return fmt.Errorf("%w: prior-boot programming observer is unavailable", ErrQualificationUnsupported)
+	}
+	d.Subsystems = priorBootSubsystemQualification{source: subsystems}
+	d.PressedInput = priorBootPressedInputQualification{source: pressed}
+	d.Programming = priorBootProgrammingQualification{source: programming}
+	return nil
 }
 
 // QualificationDependencies is deliberately package-private.  The test

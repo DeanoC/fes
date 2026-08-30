@@ -36,6 +36,16 @@ type task1ReadyStoreOverride struct {
 	record ReadyRecordV3
 }
 
+type task1JournalReaderOverride struct {
+	record InstallJournalRecord
+	exists bool
+	err    error
+}
+
+func (r task1JournalReaderOverride) Load() (InstallJournalRecord, bool, error) {
+	return r.record, r.exists, r.err
+}
+
 func (s task1ReadyStoreOverride) Load() (ReadyRecordV3, bool, error) {
 	return s.record, true, nil
 }
@@ -199,6 +209,216 @@ func TestReadyRecordQuiescenceRequiresAndUsesCompleteAdmissionVerifier(t *testin
 	}
 	if err := (&readyRecordQuiescence{evidence: evidence, admission: verifier}).VerifyPreDispatch(context.Background(), status, fixture.owner); err == nil {
 		t.Fatal("profile mismatch bypassed complete admission verifier")
+	}
+}
+
+func TestReadyRecordQuiescenceAdmitsPreviousBootNormalMainWithoutReadyRecord(t *testing.T) {
+	fixture := newTask1AdmissionFixture(t)
+	status := MaintenanceStatus{TerminalJournalSHA256: fixture.ready.JournalSHA256, Inventory: testTerminalInstallJournal().Inventory}
+	owner := fixture.owner
+	owner.BootID = "222959a0-e21d-4d8b-a217-a6bd6367b2fb"
+	if err := fixture.readyStore.Remove(); err != nil {
+		t.Fatal(err)
+	}
+	quiescence := &readyRecordQuiescence{evidence: &productionQualificationEvidence{}, admission: fixture.verifier(t)}
+
+	if err := quiescence.VerifyPriorBoot(context.Background(), status, owner, task7BootID); err != nil {
+		t.Fatalf("VerifyPriorBoot() = %v, want terminal journal to admit stale normal owner without boot-local ready record", err)
+	}
+	owner.State = hardwareowner.StateRecoveringIntent
+	owner.Phase = hardwareowner.PhaseIntentCommitted
+	owner.RunID = strings.Repeat("a", 32)
+	owner.GenerationHighWater++
+	owner.CandidateSession = strings.Repeat("3", 32)
+	owner.CandidateGeneration = owner.GenerationHighWater
+	owner.CandidateMode = hardwareowner.ModeUpdating
+	owner.CandidateOwner = hardwareowner.OwnerFPGADev
+	owner.QuiescingOwner = hardwareowner.OwnerCompatMain
+	owner.RequestedResources = hardwareowner.DevelopmentLeases()
+	if err := quiescence.VerifyPriorBoot(context.Background(), status, owner, task7BootID); err == nil {
+		t.Fatal("prior-boot verifier admitted a stale development intent")
+	}
+}
+
+func TestRunnerPreflightPriorBootSucceedsWithReadyAbsentAndRemainsReadOnly(t *testing.T) {
+	admission := newTask1AdmissionFixture(t)
+	if err := admission.readyStore.Remove(); err != nil {
+		t.Fatal(err)
+	}
+	fixture := newTask7RunnerFixture(t)
+	fixture.store.record.BootID = "222959a0-e21d-4d8b-a217-a6bd6367b2fb"
+	status := MaintenanceStatus{TerminalJournalSHA256: admission.ready.JournalSHA256, Inventory: testTerminalInstallJournal().Inventory}
+	deps := fixture.dependencies()
+	deps.maintenance = &task7MaintenanceGate{status: status}
+	deps.quiescence = &readyRecordQuiescence{
+		evidence:  &productionQualificationEvidence{},
+		admission: admission.verifier(t),
+	}
+
+	if err := newFixtureRunner(deps).Preflight(context.Background(), fixture.request); err != nil {
+		t.Fatalf("prior-boot Preflight() required absent ready record: %v", err)
+	}
+	if fixture.store.replaceCalls != 0 || fixture.fifo.calls != 0 || fixture.mapper.openCalls != 0 {
+		t.Fatalf("prior-boot preflight mutated state: replace=%d fifo=%d mappings=%d", fixture.store.replaceCalls, fixture.fifo.calls, fixture.mapper.openCalls)
+	}
+}
+
+func TestReadyRecordQuiescencePriorBootPostMainDoesNotRequireReadyRecord(t *testing.T) {
+	fixture := newProductionEvidenceFixture(t)
+	journal := priorBootJournalForProductionEvidence(t, &fixture)
+	raw, err := journal.MarshalCanonical()
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := MaintenanceStatus{TerminalJournalSHA256: sha256Hex(raw), Inventory: fixture.inventory}
+	previous := task7NormalMainRecord()
+	previous.BootID = "222959a0-e21d-4d8b-a217-a6bd6367b2fb"
+	current := task7IntentRecord(hardwareowner.PhaseLoadAttempted)
+	verifier := &DevelopmentAdmissionVerifier{
+		BootID:  func() string { return task7BootID },
+		Journal: task1JournalReaderOverride{record: journal, exists: true},
+	}
+	quiescence := &readyRecordQuiescence{evidence: fixture.evidence, admission: verifier}
+	if err := fixture.evidence.ready.Remove(); err != nil {
+		t.Fatal(err)
+	}
+
+	proof, err := quiescence.VerifyPriorBootPostMain(context.Background(), status, previous, current, task7BootID)
+	if err != nil {
+		t.Fatalf("prior-boot post-Main proof required absent ready record: %v", err)
+	}
+	if err := proof.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name   string
+		mutate func(*MaintenanceStatus, *hardwareowner.Record, *hardwareowner.Record, *string)
+	}{
+		{name: "journal digest changed", mutate: func(status *MaintenanceStatus, _, _ *hardwareowner.Record, _ *string) {
+			status.TerminalJournalSHA256 = strings.Repeat("9", 64)
+		}},
+		{name: "previous owner is not normal", mutate: func(_ *MaintenanceStatus, previous, _ *hardwareowner.Record, _ *string) {
+			previous.State = hardwareowner.StateRecoveryRequired
+		}},
+		{name: "active tuple changed", mutate: func(_ *MaintenanceStatus, _ *hardwareowner.Record, current *hardwareowner.Record, _ *string) {
+			current.ActiveSession = strings.Repeat("8", 32)
+		}},
+		{name: "current boot changed", mutate: func(_ *MaintenanceStatus, _, _ *hardwareowner.Record, currentBootID *string) {
+			*currentBootID = "fedcba98-7654-3210-fedc-ba9876543210"
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			badStatus, badPrevious, badCurrent, badBootID := status, previous, current, task7BootID
+			test.mutate(&badStatus, &badPrevious, &badCurrent, &badBootID)
+			if _, err := quiescence.VerifyPriorBootPostMain(context.Background(), badStatus, badPrevious, badCurrent, badBootID); err == nil {
+				t.Fatal("invalid prior-boot post-Main proof was admitted")
+			}
+		})
+	}
+}
+
+func TestRunnerRunCommandPriorBootDoesNotFailPostMainSolelyBecauseReadyIsAbsent(t *testing.T) {
+	evidence := newProductionEvidenceFixture(t)
+	journal := priorBootJournalForProductionEvidence(t, &evidence)
+	raw, err := journal.MarshalCanonical()
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := MaintenanceStatus{TerminalJournalSHA256: sha256Hex(raw), Inventory: evidence.inventory}
+	verifier := &DevelopmentAdmissionVerifier{
+		BootID:  func() string { return task7BootID },
+		Journal: task1JournalReaderOverride{record: journal, exists: true},
+	}
+	if err := evidence.evidence.ready.Remove(); err != nil {
+		t.Fatal(err)
+	}
+	fixture := newTask7RunnerFixture(t)
+	fixture.store.record.BootID = "222959a0-e21d-4d8b-a217-a6bd6367b2fb"
+	deps := fixture.dependencies()
+	deps.maintenance = &task7MaintenanceGate{status: status}
+	deps.quiescence = &readyRecordQuiescence{evidence: evidence.evidence, admission: verifier}
+	programmingCalls := 0
+	evidence.evidence.observeProgramming = func(context.Context) (ProgrammingAbsenceProof, error) {
+		programmingCalls++
+		return ProgrammingAbsenceProof{NoProgrammingProcess: true, NoProgrammingMapping: true}, nil
+	}
+	qualification, _, _ := validQualificationDeps()
+	qualification.Subsystems = evidence.evidence
+	qualification.PressedInput = evidence.evidence
+	qualification.Programming = evidence.evidence
+	concreteQualifier := newFixtureQualifier(qualification)
+	deps.qualifier = &concreteQualifier
+
+	result, err := newFixtureRunner(deps).RunCommand(context.Background(), fixture.request)
+	if err != nil {
+		t.Fatalf("prior-boot RunCommand() failed after FIFO because ready is absent: result=%#v err=%v", result, err)
+	}
+	if fixture.fifo.calls != 1 || programmingCalls != 1 || result.PrimaryCode != string(CodeOK) {
+		t.Fatalf("prior-boot RunCommand() = result:%#v fifo:%d programming:%d, want complete successful qualification", result, fixture.fifo.calls, programmingCalls)
+	}
+}
+
+func TestReadyRecordQuiescenceSameBootPostMainStillRequiresReadyRecord(t *testing.T) {
+	fixture := newProductionEvidenceFixture(t)
+	quiescence := &readyRecordQuiescence{evidence: fixture.evidence}
+	if err := fixture.evidence.ready.Remove(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := quiescence.VerifyPostMain(context.Background(), fixture.status, fixture.owner); err == nil || !strings.Contains(err.Error(), "ready record is absent") {
+		t.Fatalf("same-boot post-Main proof admitted without ready record: %v", err)
+	}
+}
+
+func TestReadyRecordQuiescenceRejectsPreviousBootNormalWithoutCurrentJournalProof(t *testing.T) {
+	tests := []struct {
+		name          string
+		mutate        func(*task1AdmissionFixture, *DevelopmentAdmissionVerifier, *MaintenanceStatus, *hardwareowner.Record)
+		currentBootID string
+	}{
+		{name: "current boot changed", currentBootID: "fedcba98-7654-3210-fedc-ba9876543210"},
+		{name: "current boot invalid", currentBootID: "not-a-boot-id", mutate: func(_ *task1AdmissionFixture, verifier *DevelopmentAdmissionVerifier, _ *MaintenanceStatus, _ *hardwareowner.Record) {
+			verifier.BootID = func() string { return "not-a-boot-id" }
+		}},
+		{name: "owner is current boot", mutate: func(_ *task1AdmissionFixture, _ *DevelopmentAdmissionVerifier, _ *MaintenanceStatus, owner *hardwareowner.Record) {
+			owner.BootID = task7BootID
+		}},
+		{name: "journal absent", mutate: func(_ *task1AdmissionFixture, verifier *DevelopmentAdmissionVerifier, _ *MaintenanceStatus, _ *hardwareowner.Record) {
+			verifier.Journal = task1JournalReaderOverride{}
+		}},
+		{name: "journal nonterminal", mutate: func(_ *task1AdmissionFixture, verifier *DevelopmentAdmissionVerifier, _ *MaintenanceStatus, _ *hardwareowner.Record) {
+			record := testTerminalInstallJournal()
+			record.State = InstallStateInstalled
+			verifier.Journal = task1JournalReaderOverride{record: record, exists: true}
+		}},
+		{name: "journal digest mismatch", mutate: func(_ *task1AdmissionFixture, _ *DevelopmentAdmissionVerifier, status *MaintenanceStatus, _ *hardwareowner.Record) {
+			status.TerminalJournalSHA256 = strings.Repeat("c", 64)
+		}},
+		{name: "journal inventory mismatch", mutate: func(_ *task1AdmissionFixture, _ *DevelopmentAdmissionVerifier, status *MaintenanceStatus, _ *hardwareowner.Record) {
+			status.Inventory.Identity = "different-terminal-inventory-v1"
+		}},
+		{name: "journal load error", mutate: func(_ *task1AdmissionFixture, verifier *DevelopmentAdmissionVerifier, _ *MaintenanceStatus, _ *hardwareowner.Record) {
+			verifier.Journal = task1JournalReaderOverride{err: errors.New("journal unavailable")}
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newTask1AdmissionFixture(t)
+			verifier := fixture.verifier(t)
+			status := MaintenanceStatus{TerminalJournalSHA256: fixture.ready.JournalSHA256, Inventory: testTerminalInstallJournal().Inventory}
+			owner := fixture.owner
+			owner.BootID = "222959a0-e21d-4d8b-a217-a6bd6367b2fb"
+			currentBootID := test.currentBootID
+			if currentBootID == "" {
+				currentBootID = task7BootID
+			}
+			if test.mutate != nil {
+				test.mutate(&fixture, verifier, &status, &owner)
+			}
+			quiescence := &readyRecordQuiescence{evidence: &productionQualificationEvidence{}, admission: verifier}
+			if err := quiescence.VerifyPriorBoot(context.Background(), status, owner, currentBootID); err == nil {
+				t.Fatal("previous-boot normal owner admitted without exact current journal proof")
+			}
+		})
 	}
 }
 
@@ -563,6 +783,24 @@ type productionEvidenceFixture struct {
 	evidence     *productionQualificationEvidence
 	identities   map[int]ProcessIdentity
 	readIdentity func(context.Context, string, int) (ProcessIdentity, error)
+}
+
+func priorBootJournalForProductionEvidence(t *testing.T, fixture *productionEvidenceFixture) InstallJournalRecord {
+	t.Helper()
+	source := &fixture.inventory.StartSources[0]
+	trampoline := BuildApprovedRecoveryTrampoline()
+	if err := os.WriteFile(source.Path, trampoline, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256(trampoline)
+	source.DisabledState = "approved_trampoline"
+	source.DisabledSHA256 = hex.EncodeToString(digest[:])
+	fixture.status.Inventory = fixture.inventory
+	fixture.evidence.setStatus(fixture.status, fixture.owner)
+	journal := testTerminalInstallJournal()
+	journal.Inventory = fixture.inventory
+	journal.Sources = append([]SourceRecord(nil), fixture.inventory.StartSources...)
+	return journal
 }
 
 func newProductionEvidenceFixture(t *testing.T) productionEvidenceFixture {

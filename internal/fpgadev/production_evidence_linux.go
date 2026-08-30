@@ -158,7 +158,28 @@ func (e *productionQualificationEvidence) VerifyWithPolicy(ctx context.Context, 
 	return e.verifyDynamic(ctx, status, owner, binding, policy)
 }
 
+func (e *productionQualificationEvidence) VerifyPriorBootWithPolicy(ctx context.Context, binding ArtifactBinding, policy PolicyProof) (PolicySubsystemProof, error) {
+	manifest, metadata, err := validateQualificationBinding(&binding)
+	if err != nil {
+		return PolicySubsystemProof{}, err
+	}
+	if err := policy.Validate(manifest, metadata); err != nil {
+		return PolicySubsystemProof{}, err
+	}
+	e.setBinding(binding)
+	status, owner, _, _ := e.snapshot()
+	return e.verifyDynamicMode(ctx, status, owner, binding, policy, false)
+}
+
 func (e *productionQualificationEvidence) NeutralizePressedInput(ctx context.Context) error {
+	return e.neutralizePressedInputMode(ctx, true)
+}
+
+func (e *productionQualificationEvidence) NeutralizePriorBootPressedInput(ctx context.Context) error {
+	return e.neutralizePressedInputMode(ctx, false)
+}
+
+func (e *productionQualificationEvidence) neutralizePressedInputMode(ctx context.Context, requireReady bool) error {
 	status, owner, binding, hasBinding := e.snapshot()
 	if !hasBinding {
 		return errors.New("pressed-input evidence has no retained artifact")
@@ -167,7 +188,7 @@ func (e *productionQualificationEvidence) NeutralizePressedInput(ctx context.Con
 	if err != nil {
 		return err
 	}
-	proof, err := e.verifyDynamic(ctx, status, owner, binding, policy)
+	proof, err := e.verifyDynamicMode(ctx, status, owner, binding, policy, requireReady)
 	if err != nil {
 		return err
 	}
@@ -178,6 +199,14 @@ func (e *productionQualificationEvidence) NeutralizePressedInput(ctx context.Con
 }
 
 func (e *productionQualificationEvidence) VerifyProgramming(ctx context.Context) (ProgrammingAbsenceProof, error) {
+	return e.verifyProgrammingMode(ctx, true)
+}
+
+func (e *productionQualificationEvidence) VerifyPriorBootProgramming(ctx context.Context) (ProgrammingAbsenceProof, error) {
+	return e.verifyProgrammingMode(ctx, false)
+}
+
+func (e *productionQualificationEvidence) verifyProgrammingMode(ctx context.Context, requireReady bool) (ProgrammingAbsenceProof, error) {
 	status, owner, binding, hasBinding := e.snapshot()
 	if !hasBinding {
 		return ProgrammingAbsenceProof{}, errors.New("programming evidence has no retained artifact")
@@ -186,10 +215,10 @@ func (e *productionQualificationEvidence) VerifyProgramming(ctx context.Context)
 	if err != nil {
 		return ProgrammingAbsenceProof{}, err
 	}
-	if e.ready == nil {
+	if requireReady && e.ready == nil {
 		return ProgrammingAbsenceProof{}, ErrQuiescenceEvidenceUnavailable
 	}
-	if _, err := e.verifyDynamic(ctx, status, owner, binding, policy); err != nil {
+	if _, err := e.verifyDynamicMode(ctx, status, owner, binding, policy, requireReady); err != nil {
 		return ProgrammingAbsenceProof{}, err
 	}
 	if e.observeProgramming == nil {
@@ -304,6 +333,14 @@ func processUsesDevMem(ctx context.Context, processRoot string) (bool, error) {
 }
 
 func (e *productionQualificationEvidence) verifyPostMain(ctx context.Context) (PolicySubsystemProof, error) {
+	return e.verifyPostMainWithReady(ctx, true)
+}
+
+func (e *productionQualificationEvidence) verifyPriorBootPostMain(ctx context.Context) (PolicySubsystemProof, error) {
+	return e.verifyPostMainWithReady(ctx, false)
+}
+
+func (e *productionQualificationEvidence) verifyPostMainWithReady(ctx context.Context, requireReady bool) (PolicySubsystemProof, error) {
 	status, owner, binding, hasBinding := e.snapshot()
 	if !hasBinding {
 		return PolicySubsystemProof{}, errors.New("post-Main evidence has no retained artifact")
@@ -312,7 +349,7 @@ func (e *productionQualificationEvidence) verifyPostMain(ctx context.Context) (P
 	if err != nil {
 		return PolicySubsystemProof{}, err
 	}
-	return e.verifyDynamic(ctx, status, owner, binding, policy)
+	return e.verifyDynamicMode(ctx, status, owner, binding, policy, requireReady)
 }
 
 func (e *productionQualificationEvidence) verifyPressed(ctx context.Context) error {
@@ -320,6 +357,10 @@ func (e *productionQualificationEvidence) verifyPressed(ctx context.Context) err
 }
 
 func (e *productionQualificationEvidence) verifyDynamic(ctx context.Context, status MaintenanceStatus, owner hardwareowner.Record, binding ArtifactBinding, policy PolicyProof) (PolicySubsystemProof, error) {
+	return e.verifyDynamicMode(ctx, status, owner, binding, policy, true)
+}
+
+func (e *productionQualificationEvidence) verifyDynamicMode(ctx context.Context, status MaintenanceStatus, owner hardwareowner.Record, binding ArtifactBinding, policy PolicyProof, requireReady bool) (PolicySubsystemProof, error) {
 	if err := contextError(ctx); err != nil {
 		return PolicySubsystemProof{}, err
 	}
@@ -347,7 +388,7 @@ func (e *productionQualificationEvidence) verifyDynamic(ctx context.Context, sta
 	}
 	var ready ReadyRecordV3
 	var boot BootProof
-	if e.ready != nil {
+	if requireReady && e.ready != nil {
 		var exists bool
 		ready, exists, err = e.ready.Load()
 		if err != nil || !exists {
@@ -359,9 +400,9 @@ func (e *productionQualificationEvidence) verifyDynamic(ctx context.Context, sta
 		if err := ready.Validate(); err != nil {
 			return PolicySubsystemProof{}, err
 		}
-	} else if e.proof == nil {
+	} else if requireReady && e.proof == nil {
 		return PolicySubsystemProof{}, ErrQuiescenceEvidenceUnavailable
-	} else {
+	} else if requireReady {
 		var exists bool
 		boot, exists, err = e.proof.Load()
 		if err != nil || !exists {
@@ -378,10 +419,13 @@ func (e *productionQualificationEvidence) verifyDynamic(ctx context.Context, sta
 	if err != nil {
 		return PolicySubsystemProof{}, err
 	}
-	if e.ready != nil && (ready.BootID != bootID || ready.JournalSHA256 != status.TerminalJournalSHA256) {
+	if !requireReady && owner.BootID != bootID {
+		return PolicySubsystemProof{}, errors.New("owner does not match current production boot")
+	}
+	if requireReady && e.ready != nil && (ready.BootID != bootID || ready.JournalSHA256 != status.TerminalJournalSHA256) {
 		return PolicySubsystemProof{}, errors.New("boot proof does not match production evidence")
 	}
-	if e.ready == nil && (boot.BootID != bootID || boot.JournalSHA256 != status.TerminalJournalSHA256 || !boot.ResolvedInventoryMatches(status.Inventory) || !sameCapabilities(boot.Capabilities)) {
+	if requireReady && e.ready == nil && (boot.BootID != bootID || boot.JournalSHA256 != status.TerminalJournalSHA256 || !boot.ResolvedInventoryMatches(status.Inventory) || !sameCapabilities(boot.Capabilities)) {
 		return PolicySubsystemProof{}, errors.New("boot proof does not match production evidence")
 	}
 	if e.observer == nil {
@@ -398,14 +442,16 @@ func (e *productionQualificationEvidence) verifyDynamic(ctx context.Context, sta
 	if readIdentity == nil {
 		readIdentity = readInventoryProcessIdentity
 	}
-	expectedProcesses := []ProcessIdentity{{PID: int(ready.SupervisorPID), StartTime: ready.SupervisorStartTime}, {PID: int(ready.AgentPID), StartTime: ready.AgentStartTime}}
-	if e.ready == nil {
+	expectedProcesses := []ProcessIdentity{}
+	if requireReady && e.ready != nil {
+		expectedProcesses = []ProcessIdentity{{PID: int(ready.SupervisorPID), StartTime: ready.SupervisorStartTime}, {PID: int(ready.AgentPID), StartTime: ready.AgentStartTime}}
+	} else if requireReady {
 		expectedProcesses = []ProcessIdentity{{PID: int(boot.SupervisorPID), StartTime: boot.SupervisorStartTime, Device: boot.SupervisorExecutableDevice, Inode: boot.SupervisorExecutableInode, SHA256: boot.SupervisorExecutableSHA256}, {PID: int(boot.AgentPID), StartTime: boot.AgentStartTime, Device: boot.AgentExecutableDevice, Inode: boot.AgentExecutableInode, SHA256: boot.AgentExecutableSHA256}}
 	}
 	for _, expected := range expectedProcesses {
 		actual, identityErr := readIdentity(ctx, e.processRoot, expected.PID)
 		matches := actual.equal(expected)
-		if e.ready != nil {
+		if requireReady && e.ready != nil {
 			matches = actual.PID == expected.PID && actual.StartTime == expected.StartTime
 		}
 		if identityErr != nil || !matches {
@@ -423,7 +469,7 @@ func (e *productionQualificationEvidence) verifyDynamic(ctx context.Context, sta
 		ProcRoot: e.procRoot,
 		Phase:    InventoryPhaseMainAbsent,
 		Prior: func() *ResolvedInventoryV1 {
-			if e.ready != nil {
+			if !requireReady || e.ready != nil {
 				return nil
 			}
 			return &boot.ResolvedInventory
@@ -431,7 +477,7 @@ func (e *productionQualificationEvidence) verifyDynamic(ctx context.Context, sta
 		RequireProcessEvidence: false,
 		ScanProcessDescriptors: true,
 		RequireNetworkEvidence: true,
-		RequireNetworkAbsence:  e.ready != nil,
+		RequireNetworkAbsence:  !requireReady || e.ready != nil,
 		RequireMainFIFOOwner:   e.requireMainFIFOOwner,
 	})
 	if err != nil {
@@ -440,7 +486,7 @@ func (e *productionQualificationEvidence) verifyDynamic(ctx context.Context, sta
 	if err := resolved.Validate(); err != nil {
 		return PolicySubsystemProof{}, err
 	}
-	if e.ready == nil {
+	if requireReady && e.ready == nil {
 		return PolicySubsystemProof{}, ErrQuiescenceEvidenceUnavailable
 	}
 	return PolicySubsystemProof{MainAbsent: true, InputWorkersAbsent: true, OffloadWorkersAbsent: true, PresentationWorkersAbsent: true, DeviceDescriptorsAbsent: true, PressedInputCleared: true, NoInput: true, NoOffload: true, NoPresentation: true, NoSave: true, NoStorage: true, NoVideo: true, NoAudio: true, NoPLL: true, NoSDRAM: true, NoExternalOutput: true, NoSharedMemory: true}, nil
@@ -472,6 +518,38 @@ func (q *readyRecordQuiescence) VerifyPreDispatch(ctx context.Context, status Ma
 		return err
 	}
 	return q.admission.Verify(ctx, projectAdmissionOwner(owner))
+}
+
+func (q *readyRecordQuiescence) VerifyPriorBoot(ctx context.Context, status MaintenanceStatus, owner hardwareowner.Record, currentBootID string) error {
+	if q == nil || q.evidence == nil || q.admission == nil {
+		return ErrRunnerConfiguration
+	}
+	if owner.State != hardwareowner.StateNormalMain {
+		return hardwareowner.ErrOwnerNotNormal
+	}
+	q.evidence.setStatus(status, owner)
+	if err := contextError(ctx); err != nil {
+		return err
+	}
+	return q.admission.VerifyPriorBoot(ctx, projectAdmissionOwner(owner), currentBootID, status)
+}
+
+func (q *readyRecordQuiescence) VerifyPriorBootPostMain(ctx context.Context, status MaintenanceStatus, previous, current hardwareowner.Record, currentBootID string) (PolicySubsystemProof, error) {
+	if q == nil || q.evidence == nil || q.admission == nil {
+		return PolicySubsystemProof{}, ErrRunnerConfiguration
+	}
+	if current.State != hardwareowner.StateRecoveringIntent || current.BootID != currentBootID ||
+		current.ActiveSession != previous.ActiveSession || current.ActiveGeneration != previous.ActiveGeneration ||
+		current.ActiveMode != previous.ActiveMode || current.ActiveOwner != hardwareowner.OwnerCompatMain ||
+		!sameStringSlice(current.ActiveLeases, previous.ActiveLeases) || current.QuiescingOwner != hardwareowner.OwnerCompatMain ||
+		current.CandidateOwner != hardwareowner.OwnerFPGADev {
+		return PolicySubsystemProof{}, hardwareowner.ErrOwnerNotNormal
+	}
+	if err := q.admission.VerifyPriorBoot(ctx, projectAdmissionOwner(previous), currentBootID, status); err != nil {
+		return PolicySubsystemProof{}, err
+	}
+	q.evidence.setStatus(status, current)
+	return q.evidence.verifyPriorBootPostMain(ctx)
 }
 
 func (q *readyRecordQuiescence) VerifyPostMain(ctx context.Context, status MaintenanceStatus, owner hardwareowner.Record) (PolicySubsystemProof, error) {

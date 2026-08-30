@@ -710,6 +710,85 @@ func NewAdmissionVerifier(args ...any) *DevelopmentAdmissionVerifier {
 }
 
 func (v *DevelopmentAdmissionVerifier) Verify(ctx context.Context, owner hardwareowner.Record) error {
+	return v.verify(ctx, owner)
+}
+
+// VerifyPriorBoot is the migration-only read-side proof for a canonical
+// previous-boot compatibility owner. It binds the caller's locked terminal
+// journal proof to the current kernel boot without consulting boot-local ready
+// state, which is absent after reboot. The runner separately requires current
+// live Main readiness before it returns from read-only preflight. Ordinary
+// Verify and hardwareowner.Gate admission continue to reject stale boot IDs.
+func (v *DevelopmentAdmissionVerifier) VerifyPriorBoot(ctx context.Context, owner hardwareowner.Record, expectedCurrentBootID string, status MaintenanceStatus) error {
+	if v == nil {
+		return errSupervisorDeps
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := owner.Validate(); err != nil {
+		return fmt.Errorf("owner record is invalid: %w", err)
+	}
+	if owner.State != hardwareowner.StateNormalMain {
+		return errors.New("owner is not normal_main")
+	}
+	if err := status.Validate(); err != nil {
+		return fmt.Errorf("maintenance proof is invalid: %w", err)
+	}
+	bootID, err := invokeAdmissionString(ctx, v.BootID, v.CurrentBootID, readKernelBootID)
+	if err != nil {
+		return fmt.Errorf("read current boot ID: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	currentBootOwner := owner
+	currentBootOwner.BootID = bootID
+	if err := currentBootOwner.Validate(); err != nil {
+		return fmt.Errorf("current boot ID is invalid: %w", err)
+	}
+	if expectedCurrentBootID == "" || expectedCurrentBootID != bootID {
+		return errors.New("current boot changed during prior-boot admission")
+	}
+	if owner.BootID == bootID {
+		return errors.New("owner does not belong to a prior boot")
+	}
+	journalValue := v.Journal
+	if journalValue == nil {
+		journalValue = v.JournalStore
+	}
+	journal, ok := journalValue.(installJournalReader)
+	if !ok || admissionNil(journal) {
+		return errors.New("terminal journal is unavailable")
+	}
+	record, exists, err := journal.Load()
+	if err != nil {
+		return fmt.Errorf("load terminal journal: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if !exists || record.State != InstallStateTerminal {
+		return errors.New("terminal journal is not terminal")
+	}
+	journalBytes, err := record.MarshalCanonical()
+	if err != nil {
+		return fmt.Errorf("marshal terminal journal: %w", err)
+	}
+	digest := sha256.Sum256(journalBytes)
+	if status.TerminalJournalSHA256 != hex.EncodeToString(digest[:]) {
+		return errors.New("terminal journal digest does not match maintenance proof")
+	}
+	if !record.Inventory.Equal(status.Inventory) {
+		return errors.New("terminal journal inventory does not match maintenance proof")
+	}
+	return ctx.Err()
+}
+
+func (v *DevelopmentAdmissionVerifier) verify(ctx context.Context, owner hardwareowner.Record) error {
 	if v == nil {
 		return errSupervisorDeps
 	}

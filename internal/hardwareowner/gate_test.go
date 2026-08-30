@@ -60,6 +60,21 @@ func TestGateEnterRequiresCurrentCanonicalNormalMainAndClearMaintenance(t *testi
 	}
 }
 
+func TestGateEnterAndObserveStillRejectPreviousBootNormalMain(t *testing.T) {
+	store := testStore(t)
+	if err := store.Replace(normalMainRecord()); err != nil {
+		t.Fatal(err)
+	}
+	gate := NewGate(store, testLockerForStore(t, store), gateFenceFunc(func() error { return nil }), validBootIDNext)
+	gate.InstallLocker = Locker{Path: store.Path + ".install.lock", ExpectedUID: store.ExpectedUID}
+	if unlock, err := gate.Enter(context.Background()); !errors.Is(err, ErrOwnerWrongBoot) || unlock != nil {
+		t.Fatalf("Enter() = unlock:%v err:%v, want stale-boot fence", unlock, err)
+	}
+	if err := gate.Observe(); !errors.Is(err, ErrOwnerWrongBoot) {
+		t.Fatalf("Observe() = %v, want stale-boot fence", err)
+	}
+}
+
 func TestGateEnterKeepsSharedLockUntilReturnedUnlock(t *testing.T) {
 	store := testStore(t)
 	if err := store.Replace(normalMainRecord()); err != nil {
