@@ -66,6 +66,16 @@ func TestInstallJournalRejectsReorderedUnknownDuplicateAndOversizedRecords(t *te
 	}
 }
 
+func TestProtectedRegularBoundCoversStagedMisterAgent(t *testing.T) {
+	const stagedMisterAgentBytes = 7471266
+	if ProtectedRegularMaxBytes != 8<<20 {
+		t.Fatalf("protected regular bound=%d want=%d", ProtectedRegularMaxBytes, 8<<20)
+	}
+	if stagedMisterAgentBytes >= ProtectedRegularMaxBytes {
+		t.Fatalf("staged mister-agent bytes=%d must be below protected regular bound=%d", stagedMisterAgentBytes, ProtectedRegularMaxBytes)
+	}
+}
+
 func TestInstallJournalStoreRejectsOversizedFileAtJournalCap(t *testing.T) {
 	root := t.TempDir()
 	if err := os.Chmod(root, 0o700); err != nil {

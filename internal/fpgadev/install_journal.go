@@ -36,8 +36,11 @@ const (
 	BootProofPath      = "/run/fogcast/fpgadev-boot-v1.json"
 	// InstallJournalMaxBytes bounds durable JSON and related control metadata.
 	InstallJournalMaxBytes = 1 << 20
-	// ProtectedRegularMaxBytes bounds descriptor-held protected artifact reads and hashes.
-	ProtectedRegularMaxBytes = 2 << 20
+	// ProtectedRegularMaxBytes bounds descriptor-held protected artifact reads
+	// and hashes. Eight MiB covers the 7,471,266-byte staged mister-agent while
+	// the independent durable journal cap remains one MiB; larger files fail
+	// closed.
+	ProtectedRegularMaxBytes = 8 << 20
 	BootProofMaxBytes        = 16 << 10
 	ReadinessReceiptMaxBytes = 1024
 )

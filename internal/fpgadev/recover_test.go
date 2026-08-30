@@ -385,6 +385,46 @@ func TestFailStopInstallDurablyStagesPackageBeforeFixedPathMutation(t *testing.T
 	}
 }
 
+func TestInstallProfileAcceptsAndHashAttestsStagedMisterAgent(t *testing.T) {
+	const stagedMisterAgentBytes = 7471266
+	fixture := newCoarseInstallFixture(t)
+	agentBytes := bytes.Repeat([]byte{0xa5}, stagedMisterAgentBytes)
+	agentMember := "bin/mister-agent"
+	if err := os.WriteFile(filepath.Join(fixture.packageRoot, filepath.FromSlash(agentMember)), agentBytes, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fixture.packageMembers[agentMember] = agentBytes
+
+	var manifest strings.Builder
+	for _, member := range installPackageMembers {
+		digest := sha256.Sum256(fixture.packageMembers[member])
+		fmt.Fprintf(&manifest, "%x  %s\n", digest, member)
+	}
+	manifestBytes := []byte(manifest.String())
+	if err := os.WriteFile(filepath.Join(fixture.packageRoot, "manifest.sha256"), manifestBytes, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	manifestHash := sha256.Sum256(manifestBytes)
+	fixture.stagePath = filepath.Join(fixture.root, "staging", fmt.Sprintf("%x", manifestHash))
+
+	if err := fixture.manager.Install(context.Background(), fixture.packageRoot); !errors.Is(err, ErrRebootRequested) {
+		t.Fatalf("install-profile with %d-byte staged mister-agent error=%v", len(agentBytes), err)
+	}
+	wantHash := sha256.Sum256(agentBytes)
+	for _, path := range []string{
+		filepath.Join(fixture.stagePath, filepath.FromSlash(agentMember)),
+		fixture.manager.FixedMembers[agentMember],
+	} {
+		expectation, err := inspectPathExpectation(path, true)
+		if err != nil {
+			t.Fatalf("inspect installed mister-agent %s: %v", path, err)
+		}
+		if expectation.Kind != "regular" || expectation.SHA256 != hex.EncodeToString(wantHash[:]) {
+			t.Fatalf("installed mister-agent expectation=%#v want hash=%x", expectation, wantHash)
+		}
+	}
+}
+
 func TestFailStopPersistentStageUsesNonExecutable0600Members(t *testing.T) {
 	fixture := newCoarseInstallFixture(t)
 	pkg, err := ValidateInstallPackage(fixture.packageRoot)
