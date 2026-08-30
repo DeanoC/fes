@@ -564,9 +564,10 @@ func (r *SupervisorRuntime) menuReady(ctx context.Context) error {
 	return nil
 }
 
-// menuSnapshot accepts only a non-empty, stable set of exact MENU publishers.
-// A missing alternate is allowed, but every present candidate must agree so a
-// stale or malformed CORENAME cannot be masked by the other location.
+// menuSnapshot accepts only a non-empty, stable set of publishers containing
+// exactly MENU, with or without a single trailing newline. A missing alternate
+// is allowed, but every present candidate must publish MENU so a stale or
+// malformed CORENAME cannot be masked by the other location.
 func (r *SupervisorRuntime) menuSnapshot(ctx context.Context) ([]string, error) {
 	paths := []string{r.config.CoreNameFile}
 	if fallback := r.config.CoreNameFallbackFile; fallback != "" && fallback != r.config.CoreNameFile {
@@ -619,7 +620,7 @@ func readMenuPublisher(ctx context.Context, path string) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
-	if string(raw) != "MENU\n" {
+	if string(raw) != "MENU" && string(raw) != "MENU\n" {
 		return false, fmt.Errorf("CORENAME at %s is not MENU", path)
 	}
 	return true, nil

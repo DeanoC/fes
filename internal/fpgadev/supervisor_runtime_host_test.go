@@ -58,6 +58,24 @@ func TestCompatibilityMainReadinessAlreadyMENUAtTmpWhenMediaFatAbsent(t *testing
 	}
 }
 
+func TestCompatibilityMainReadinessAcceptsFourByteMENUAtTmpWithoutTrailingNewline(t *testing.T) {
+	dir := t.TempDir()
+	mediaFatCore := filepath.Join(dir, "media", "fat", "CORENAME")
+	tmpCore := filepath.Join(dir, "tmp", "CORENAME")
+	if err := os.MkdirAll(filepath.Dir(tmpCore), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(tmpCore, []byte("MENU"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runtime, observer := newCompatibilityMainReadinessFixture(t, mediaFatCore, tmpCore)
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+	if err := NewCompatibilityMainReadiness(runtime, observer).Verify(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestCompatibilityMainReadinessAlreadyMENUAtMediaFatWhenPresent(t *testing.T) {
 	dir := t.TempDir()
 	tmpCore := filepath.Join(dir, "tmp", "CORENAME")
@@ -106,6 +124,12 @@ func TestCompatibilityMainReadinessFailsClosedForNonMENUCORENAME(t *testing.T) {
 		{name: "missing both paths"},
 		{name: "garbage CORENAME", first: "MENU\x00\n"},
 		{name: "conflicting publishers", first: "MENU\n", other: "NES\n"},
+		{name: "lowercase menu", first: "menu"},
+		{name: "trailing space", first: "MENU "},
+		{name: "trailing data", first: "MENU\nX"},
+		{name: "second trailing newline", first: "MENU\n\n"},
+		{name: "carriage return", first: "MENU\r"},
+		{name: "CRLF", first: "MENU\r\n"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			dir := t.TempDir()
@@ -129,6 +153,27 @@ func TestCompatibilityMainReadinessFailsClosedForNonMENUCORENAME(t *testing.T) {
 				t.Fatalf("Verify error=%v, want fail-closed deadline", err)
 			}
 		})
+	}
+}
+
+func TestCompatibilityMainReadinessFailsClosedForSymlinkCORENAME(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target")
+	if err := os.WriteFile(target, []byte("MENU\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	core := filepath.Join(dir, "tmp", "CORENAME")
+	if err := os.MkdirAll(filepath.Dir(core), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, core); err != nil {
+		t.Fatal(err)
+	}
+	runtime, observer := newCompatibilityMainReadinessFixture(t, core, filepath.Join(dir, "media", "fat", "CORENAME"))
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+	defer cancel()
+	if err := NewCompatibilityMainReadiness(runtime, observer).Verify(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Verify error=%v, want fail-closed deadline", err)
 	}
 }
 
