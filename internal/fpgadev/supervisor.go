@@ -714,7 +714,8 @@ func (v *DevelopmentAdmissionVerifier) Verify(ctx context.Context, owner hardwar
 }
 
 // VerifyPriorBoot is the migration-only read-side proof for a canonical
-// previous-boot compatibility owner. It binds the caller's locked terminal
+// previous-boot compatibility owner, including the exact recovery_required
+// residue of a failed development handoff. It binds the caller's locked terminal
 // journal proof to the current kernel boot without consulting boot-local ready
 // state, which is absent after reboot. The runner separately requires current
 // live Main readiness before it returns from read-only preflight. Ordinary
@@ -732,8 +733,8 @@ func (v *DevelopmentAdmissionVerifier) VerifyPriorBoot(ctx context.Context, owne
 	if err := owner.Validate(); err != nil {
 		return fmt.Errorf("owner record is invalid: %w", err)
 	}
-	if owner.State != hardwareowner.StateNormalMain {
-		return errors.New("owner is not normal_main")
+	if !isPriorBootCompatMainOwner(owner) {
+		return errors.New("owner is not a reclaimable compatibility Main")
 	}
 	if err := status.Validate(); err != nil {
 		return fmt.Errorf("maintenance proof is invalid: %w", err)

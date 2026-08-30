@@ -537,7 +537,7 @@ func (r *Runner) prepare(ctx context.Context, request Request, preflight bool) (
 		return fail(CodeOwnershipConflict, "owner admission is fenced", err)
 	}
 	if record.BootID != bootID {
-		if record.State != hardwareowner.StateNormalMain {
+		if !isPriorBootCompatMainOwner(record) {
 			return fail(CodeOwnershipConflict, "owner admission is fenced", hardwareowner.ErrOwnerWrongBoot)
 		}
 		verifier, ok := d.quiescence.(priorBootQuiescenceVerifier)
@@ -554,7 +554,7 @@ func (r *Runner) prepare(ctx context.Context, request Request, preflight bool) (
 	if err := ctx.Err(); err != nil {
 		return fail(CodeOwnershipConflict, "operation canceled", err)
 	}
-	if record.State != hardwareowner.StateNormalMain {
+	if record.State != hardwareowner.StateNormalMain && !prepared.priorBootReclaim {
 		return fail(CodeOwnershipConflict, "owner admission is fenced", hardwareowner.ErrOwnerNotNormal)
 	}
 	if d.readiness == nil {
@@ -594,6 +594,9 @@ func (r *Runner) prepare(ctx context.Context, request Request, preflight bool) (
 		return fail(CodeManifestRejected, "staged artifact binding is invalid", errors.Join(ErrInvalidReceipt, cleanupErr))
 	}
 	prepared.manifest, prepared.binding = manifest, binding
+	if prepared.priorBootReclaim && record.RunID != "" && manifest.RunID == record.RunID {
+		return fail(CodeResultConflict, "run identity is not fresh", nil)
+	}
 	if d.results == nil {
 		return fail(CodeResultConflict, "result store is unavailable", ErrRunnerConfiguration)
 	}
@@ -676,10 +679,12 @@ func (r *Runner) executePrepared(ctx context.Context, request Request, prepared 
 	}
 	generation := previous.GenerationHighWater + 1
 	intent := previous
-	// A prior-boot normal_main is admitted only through the current journal and
-	// live-Main proof in prepare. Commit its migration-only reclaim at the
-	// existing first durable boundary so Preflight remains read-only and every
-	// later fence, including FaultKill, belongs to the current boot.
+	// A prior-boot compat_main owner is admitted only through the current
+	// journal and live-Main proof in prepare. This includes the exact
+	// recovery_required residue left when a prior development handoff failed.
+	// Commit its migration-only reclaim at the existing first durable boundary
+	// so Preflight remains read-only and every later fence, including FaultKill,
+	// belongs to the current boot.
 	intent.BootID = prepared.currentBootID
 	intent.State = hardwareowner.StateRecoveringIntent
 	intent.Phase = hardwareowner.PhaseIntentCommitted
@@ -1117,6 +1122,36 @@ func (r *Runner) executePrepared(ctx context.Context, request Request, prepared 
 		return result, newFailure(primaryCode, primaryDetail, true, operationErr)
 	}
 	return result, nil
+}
+
+func isPriorBootCompatMainOwner(record hardwareowner.Record) bool {
+	if record.State == hardwareowner.StateNormalMain {
+		return true
+	}
+	return record.State == hardwareowner.StateRecoveryRequired &&
+		(record.Phase == hardwareowner.PhaseIntentCommitted || record.Phase == hardwareowner.PhaseLoadAttempted) &&
+		record.FirstFailure != "" &&
+		record.ActiveOwner == hardwareowner.OwnerCompatMain &&
+		record.ActiveMode == hardwareowner.ModeFPGANative &&
+		record.QuiescingOwner == hardwareowner.OwnerCompatMain &&
+		record.CandidateSession != "" &&
+		record.CandidateSession != record.ActiveSession &&
+		record.CandidateGeneration > record.ActiveGeneration &&
+		record.CandidateOwner == hardwareowner.OwnerFPGADev &&
+		record.CandidateMode == hardwareowner.ModeUpdating &&
+		equalPriorBootResources(record.RequestedResources, hardwareowner.DevelopmentLeases())
+}
+
+func equalPriorBootResources(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func (r *Runner) runMailboxWithProgress(ctx context.Context, d runnerDependencies, regs Registers, clock Clock, current *hardwareowner.Record, prepared *preparedRun) (Observation, error) {

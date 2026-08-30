@@ -524,7 +524,7 @@ func (q *readyRecordQuiescence) VerifyPriorBoot(ctx context.Context, status Main
 	if q == nil || q.evidence == nil || q.admission == nil {
 		return ErrRunnerConfiguration
 	}
-	if owner.State != hardwareowner.StateNormalMain {
+	if !isPriorBootCompatMainOwner(owner) {
 		return hardwareowner.ErrOwnerNotNormal
 	}
 	q.evidence.setStatus(status, owner)

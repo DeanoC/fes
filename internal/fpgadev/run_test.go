@@ -134,6 +134,30 @@ func TestRunnerPreflightAcceptsProvenPreviousBootNormalMainReadOnly(t *testing.T
 	}
 }
 
+func TestRunnerPreflightAcceptsPreviousBootCompatMainRecoveryReadOnly(t *testing.T) {
+	fixture := newTask7RunnerFixture(t)
+	recovery := recoveryRecord(task7IntentRecord(hardwareowner.PhaseLoadAttempted), CodeMainHandoffTimeout)
+	recovery.BootID = "40506b2a-7382-435d-a8f0-442689dcc288"
+	fixture.store.record = recovery
+	deps := fixture.dependencies()
+	proof := &task7PriorBootQuiescence{}
+	deps.quiescence = proof
+	runner := newFixtureRunner(deps)
+
+	if err := runner.Preflight(context.Background(), fixture.request); err != nil {
+		t.Fatalf("Preflight() = %v, want proven previous-boot recovery_required/compat_main admission", err)
+	}
+	if proof.priorCalls != 1 || proof.currentCalls != 0 {
+		t.Fatalf("quiescence proof calls = prior:%d current:%d, want 1/0", proof.priorCalls, proof.currentCalls)
+	}
+	if fixture.readiness.calls != 1 {
+		t.Fatalf("Main readiness calls = %d, want current live proof", fixture.readiness.calls)
+	}
+	if fixture.store.replaceCalls != 0 || fixture.fifo.calls != 0 || fixture.mapper.openCalls != 0 {
+		t.Fatalf("previous-boot recovery preflight mutated state: replace=%d fifo=%d mappings=%d", fixture.store.replaceCalls, fixture.fifo.calls, fixture.mapper.openCalls)
+	}
+}
+
 func TestRunnerRunCommandReclaimsAttestedPreviousBootAtIntentBoundary(t *testing.T) {
 	fixture := newTask7RunnerFixture(t)
 	previousBoot := "222959a0-e21d-4d8b-a217-a6bd6367b2fb"
@@ -166,6 +190,49 @@ func TestRunnerRunCommandReclaimsAttestedPreviousBootAtIntentBoundary(t *testing
 	}
 	if fixture.readiness.calls != 2 {
 		t.Fatalf("Main readiness calls = %d, want admission and immediate pre-FIFO revalidation", fixture.readiness.calls)
+	}
+}
+
+func TestRunnerRunCommandReclaimsPreviousBootCompatMainRecoveryAtIntentBoundary(t *testing.T) {
+	fixture := newTask7RunnerFixture(t)
+	previousBoot := "40506b2a-7382-435d-a8f0-442689dcc288"
+	recovery := recoveryRecord(task7IntentRecord(hardwareowner.PhaseLoadAttempted), CodeMainHandoffTimeout)
+	recovery.BootID = previousBoot
+	previousSession := recovery.ActiveSession
+	previousGeneration := recovery.ActiveGeneration
+	previousHighWater := recovery.GenerationHighWater
+	previousCandidate := recovery.CandidateSession
+	fixture.store.record = recovery
+	deps := fixture.dependencies()
+	proof := &task7PriorBootQuiescence{}
+	deps.quiescence = proof
+	deps.newSession = func() (string, error) { return strings.Repeat("4", 32), nil }
+	runner := newFixtureRunner(deps)
+
+	result, err := runner.RunCommand(context.Background(), fixture.request)
+	if err != nil {
+		t.Fatalf("RunCommand() = result:%#v err:%v", result, err)
+	}
+	if len(fixture.store.history) == 0 {
+		t.Fatal("RunCommand did not commit owner intent")
+	}
+	intent := fixture.store.history[0]
+	if intent.State != hardwareowner.StateRecoveringIntent || intent.Phase != hardwareowner.PhaseIntentCommitted || intent.BootID != task7BootID {
+		t.Fatalf("first durable owner = %#v, want current-boot recovering intent", intent)
+	}
+	if intent.ActiveSession != previousSession || intent.ActiveGeneration != previousGeneration || intent.ActiveOwner != hardwareowner.OwnerCompatMain {
+		t.Fatalf("reclaimed intent did not preserve attested compat owner: %#v", intent)
+	}
+	if intent.CandidateSession == previousCandidate || intent.CandidateGeneration != previousHighWater+1 || intent.FirstFailure != "" {
+		t.Fatalf("reclaimed intent did not allocate a fresh development candidate: %#v", intent)
+	}
+	for i, record := range fixture.store.history {
+		if record.BootID != task7BootID {
+			t.Fatalf("later fence %d retained stale boot ID: %#v", i, record)
+		}
+	}
+	if proof.priorCalls != 2 || proof.currentCalls != 0 || proof.priorPostCalls != 1 || proof.postCalls != 0 {
+		t.Fatalf("prior-boot proofs = admission:%d current:%d post:%d ordinary-post:%d", proof.priorCalls, proof.currentCalls, proof.priorPostCalls, proof.postCalls)
 	}
 }
 
@@ -211,8 +278,29 @@ func TestRunnerPreflightRejectsUnreclaimableOwnerRecords(t *testing.T) {
 			f.store.record = task7IntentRecord(hardwareowner.PhaseIntentCommitted)
 			f.store.record.BootID = "222959a0-e21d-4d8b-a217-a6bd6367b2fb"
 		}},
+		{name: "previous boot compat recovery without development candidate", configure: func(f *task7RunnerFixture) {
+			f.store.record = recoveryRecord(task7NormalMainRecord(), CodeMainHandoffTimeout)
+			f.store.record.BootID = "222959a0-e21d-4d8b-a217-a6bd6367b2fb"
+		}},
+		{name: "previous boot compat recovery reuses active session", configure: func(f *task7RunnerFixture) {
+			f.store.record = recoveryRecord(task7IntentRecord(hardwareowner.PhaseLoadAttempted), CodeMainHandoffTimeout)
+			f.store.record.BootID = "222959a0-e21d-4d8b-a217-a6bd6367b2fb"
+			f.store.record.CandidateSession = f.store.record.ActiveSession
+		}},
+		{name: "previous boot compat recovery candidate is not newer", configure: func(f *task7RunnerFixture) {
+			f.store.record = recoveryRecord(task7IntentRecord(hardwareowner.PhaseLoadAttempted), CodeMainHandoffTimeout)
+			f.store.record.BootID = "222959a0-e21d-4d8b-a217-a6bd6367b2fb"
+			f.store.record.CandidateGeneration = f.store.record.ActiveGeneration
+			f.store.record.GenerationHighWater = f.store.record.ActiveGeneration
+		}},
 		{name: "same boot fpgadev active", configure: func(f *task7RunnerFixture) {
 			f.store.record = task7ActiveRecord(hardwareowner.PhaseLeaseActive)
+		}},
+		{name: "same boot recovering intent", configure: func(f *task7RunnerFixture) {
+			f.store.record = task7IntentRecord(hardwareowner.PhaseIntentCommitted)
+		}},
+		{name: "same boot compat Main recovery required", configure: func(f *task7RunnerFixture) {
+			f.store.record = recoveryRecord(task7IntentRecord(hardwareowner.PhaseLoadAttempted), CodeMainHandoffTimeout)
 		}},
 		{name: "previous boot Main readiness missing", configure: func(f *task7RunnerFixture) {
 			f.store.record.BootID = "222959a0-e21d-4d8b-a217-a6bd6367b2fb"
@@ -238,6 +326,45 @@ func TestRunnerPreflightRejectsUnreclaimableOwnerRecords(t *testing.T) {
 				t.Fatalf("rejected owner mutated state: replace=%d fifo=%d", fixture.store.replaceCalls, fixture.fifo.calls)
 			}
 		})
+	}
+}
+
+func TestRunnerRunCommandRejectsSameBootCompatMainRecoveryBeforeIntent(t *testing.T) {
+	fixture := newTask7RunnerFixture(t)
+	fixture.store.record = recoveryRecord(task7IntentRecord(hardwareowner.PhaseLoadAttempted), CodeMainHandoffTimeout)
+
+	result, err := newFixtureRunner(fixture.dependencies()).RunCommand(context.Background(), fixture.request)
+	if err == nil || !errors.Is(err, ErrRunPreflight) {
+		t.Fatalf("RunCommand() = result:%#v err:%v, want pre-intent ownership conflict", result, err)
+	}
+	failure, ok := err.(*Failure)
+	if !ok || failure.Code != CodeOwnershipConflict {
+		t.Fatalf("RunCommand failure = %#v, want ownership_conflict", err)
+	}
+	if fixture.store.replaceCalls != 0 || fixture.fifo.calls != 0 || fixture.mapper.openCalls != 0 || fixture.results.createCalls != 0 {
+		t.Fatalf("same-boot conflict crossed intent boundary: replace=%d fifo=%d mappings=%d results=%d", fixture.store.replaceCalls, fixture.fifo.calls, fixture.mapper.openCalls, fixture.results.createCalls)
+	}
+}
+
+func TestRunnerPreflightRejectsPreviousBootRecoveryRunIDReuseReadOnly(t *testing.T) {
+	fixture := newTask7RunnerFixture(t)
+	recovery := recoveryRecord(task7IntentRecord(hardwareowner.PhaseLoadAttempted), CodeMainHandoffTimeout)
+	recovery.BootID = "40506b2a-7382-435d-a8f0-442689dcc288"
+	fixture.store.record = recovery
+	fixture.manifest.RunID = recovery.RunID
+	deps := fixture.dependencies()
+	deps.quiescence = &task7PriorBootQuiescence{}
+
+	err := newFixtureRunner(deps).Preflight(context.Background(), fixture.request)
+	if err == nil || !errors.Is(err, ErrRunPreflight) {
+		t.Fatalf("Preflight() = %v, want stale RunID rejection", err)
+	}
+	failure, ok := err.(*Failure)
+	if !ok || failure.Code != CodeResultConflict {
+		t.Fatalf("Preflight failure = %#v, want result_conflict", err)
+	}
+	if fixture.store.replaceCalls != 0 || fixture.fifo.calls != 0 || fixture.mapper.openCalls != 0 || fixture.results.createCalls != 0 {
+		t.Fatalf("stale RunID crossed a mutation boundary: replace=%d fifo=%d mappings=%d results=%d", fixture.store.replaceCalls, fixture.fifo.calls, fixture.mapper.openCalls, fixture.results.createCalls)
 	}
 }
 

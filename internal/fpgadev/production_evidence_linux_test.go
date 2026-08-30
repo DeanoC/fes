@@ -263,6 +263,31 @@ func TestRunnerPreflightPriorBootSucceedsWithReadyAbsentAndRemainsReadOnly(t *te
 	}
 }
 
+func TestRunnerPreflightPriorBootCompatMainRecoverySucceedsWithReadyAbsentAndRemainsReadOnly(t *testing.T) {
+	admission := newTask1AdmissionFixture(t)
+	if err := admission.readyStore.Remove(); err != nil {
+		t.Fatal(err)
+	}
+	fixture := newTask7RunnerFixture(t)
+	recovery := recoveryRecord(task7IntentRecord(hardwareowner.PhaseLoadAttempted), CodeMainHandoffTimeout)
+	recovery.BootID = "40506b2a-7382-435d-a8f0-442689dcc288"
+	fixture.store.record = recovery
+	status := MaintenanceStatus{TerminalJournalSHA256: admission.ready.JournalSHA256, Inventory: testTerminalInstallJournal().Inventory}
+	deps := fixture.dependencies()
+	deps.maintenance = &task7MaintenanceGate{status: status}
+	deps.quiescence = &readyRecordQuiescence{
+		evidence:  &productionQualificationEvidence{},
+		admission: admission.verifier(t),
+	}
+
+	if err := newFixtureRunner(deps).Preflight(context.Background(), fixture.request); err != nil {
+		t.Fatalf("prior-boot recovery Preflight() required absent ready record: %v", err)
+	}
+	if fixture.store.replaceCalls != 0 || fixture.fifo.calls != 0 || fixture.mapper.openCalls != 0 {
+		t.Fatalf("prior-boot recovery preflight mutated state: replace=%d fifo=%d mappings=%d", fixture.store.replaceCalls, fixture.fifo.calls, fixture.mapper.openCalls)
+	}
+}
+
 func TestReadyRecordQuiescencePriorBootPostMainDoesNotRequireReadyRecord(t *testing.T) {
 	fixture := newProductionEvidenceFixture(t)
 	journal := priorBootJournalForProductionEvidence(t, &fixture)

@@ -674,17 +674,25 @@ durable intent; fixture implementations exercise the lifecycle.
 
 **2026-08-30 migration amendment:** the canonical architecture now permits an
 optional private `VerifyPriorBoot` extension to this boundary for the sole
-read-only preflight of a canonical previous-boot `normal_main` / `compat_main`
-record. It requires the current kernel boot, protected terminal journal, and
-current live compatibility Main readiness (unique Main, canonical FIFO with
-mode `0600` or `0644`, operating FPGA manager, and stable canonical `MENU`). It
+read-only preflight of either a canonical previous-boot `normal_main` /
+`compat_main` record or the exact previous-boot `recovery_required` residue of
+a failed pre-transfer development handoff. The latter must retain
+`compat_main` and its complete active leases, an `intent_committed` or
+`load_attempted` phase with a recorded failure, and a distinct, newer
+development candidate. It requires the current kernel boot, protected terminal
+journal, and current live compatibility Main readiness (unique Main, canonical
+FIFO with mode `0600` or `0644`, operating FPGA manager, and stable canonical
+`MENU`). It
 does not require the boot-local ready record: `/run` is empty after reboot, and
 production cannot publish a current-boot ready record while ownership still
-names the previous boot. RunCommand binds the current boot only at its first
-durable `recovering_intent`. The three methods above remain the ordinary
-boundary, and hardware admission, same-boot conflicts, previous-boot non-normal states,
-absent or invalid owner state, missing journal or live-Main proof, and stale
-fault operations remain fail-closed as specified in
+names the previous boot. RunCommand requires a RunID distinct from the failed
+operation and binds the current boot only at its first durable
+`recovering_intent`, preserving the active Main tuple while allocating a fresh
+development candidate. The three methods above remain the ordinary boundary,
+and hardware admission, all same-boot conflicts, previous-boot
+`fpgadev_active` and `recovering_intent`, other recovery shapes, absent or
+invalid owner state, missing journal or live-Main proof, and stale fault
+operations remain fail-closed as specified in
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 The sole install lock is

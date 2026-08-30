@@ -533,6 +533,7 @@ func (r Record) ValidateTransition(previous Record) error {
 		return fmt.Errorf("next record: %w", err)
 	}
 	bootChanged := previous.BootID != r.BootID
+	priorBootCompatMainReclaim := isPriorBootCompatMainReclaim(previous, r)
 	if err := validateStateTransition(previous, r, bootChanged); err != nil {
 		return err
 	}
@@ -607,7 +608,7 @@ func (r Record) ValidateTransition(previous Record) error {
 	if !highWaterAdvanced && activeChanged && r.ActiveSession != "" && !transferFromCandidate {
 		return fmt.Errorf("new owner identity did not advance high-water")
 	}
-	if previous.RunID != "" && r.RunID != "" && previous.RunID != r.RunID {
+	if previous.RunID != "" && r.RunID != "" && previous.RunID != r.RunID && !priorBootCompatMainReclaim {
 		return fmt.Errorf("run_id changed before recovery completed")
 	}
 	return nil
@@ -638,6 +639,7 @@ func validateStateTransition(previous, next Record, bootChanged bool) error {
 		StateRecoveryRequired: {
 			StateRecoveryRequired: {},
 			StateNoOwner:          {},
+			StateRecoveringIntent: {},
 		},
 		StateNormalMainStarting: {
 			StateNormalMainStarting: {},
@@ -649,9 +651,11 @@ func validateStateTransition(previous, next Record, bootChanged bool) error {
 		return fmt.Errorf("invalid owner-state transition %s -> %s", previous.State, next.State)
 	}
 	if bootChanged {
-		if !isPriorBootNormalMainReclaim(previous, next) && (previous.State != StateRecoveryRequired || !isRebootRecoveryNoOwner(next)) {
+		if !isPriorBootCompatMainReclaim(previous, next) && (previous.State != StateRecoveryRequired || !isRebootRecoveryNoOwner(next)) {
 			return fmt.Errorf("boot_id changed outside recovery_required -> reboot-recovery no_owner")
 		}
+	} else if previous.State == StateRecoveryRequired && next.State == StateRecoveringIntent {
+		return fmt.Errorf("recovery_required -> recovering_intent requires a proven successor boot")
 	} else if previous.State == StateRecoveryRequired && next.State == StateNoOwner {
 		return fmt.Errorf("recovery_required -> no_owner requires a successor boot")
 	}
@@ -667,15 +671,31 @@ func validateStateTransition(previous, next Record, bootChanged bool) error {
 	return nil
 }
 
-// isPriorBootNormalMainReclaim recognizes the single migration transition
-// that binds an already-attested current-boot compatibility Main to a fresh
-// development intent. The caller supplies the current-boot proof; transition
-// validation keeps the durable shape narrow and all neighboring boot changes
-// fenced. Ordinary Gate admission never uses this exception.
-func isPriorBootNormalMainReclaim(previous, next Record) bool {
-	return previous.State == StateNormalMain &&
+// isPriorBootCompatMainReclaim recognizes the migration transition that binds
+// an already-attested current-boot compatibility Main to a fresh development
+// intent. The previous record may be canonical normal_main or the exact
+// candidate-bearing recovery_required residue of a failed development
+// handoff. The caller supplies the current-boot proof; transition validation
+// keeps the durable shape narrow and all neighboring boot changes fenced.
+// Ordinary Gate admission never uses this exception.
+func isPriorBootCompatMainReclaim(previous, next Record) bool {
+	previousReclaimable := previous.State == StateNormalMain ||
+		(previous.State == StateRecoveryRequired &&
+			(previous.Phase == PhaseIntentCommitted || previous.Phase == PhaseLoadAttempted) &&
+			previous.FirstFailure != "" &&
+			previous.ActiveOwner == OwnerCompatMain &&
+			previous.ActiveMode == ModeFPGANative &&
+			previous.QuiescingOwner == OwnerCompatMain &&
+			previous.CandidateSession != "" &&
+			previous.CandidateSession != previous.ActiveSession &&
+			previous.CandidateGeneration > previous.ActiveGeneration &&
+			previous.CandidateOwner == OwnerFPGADev &&
+			previous.CandidateMode == ModeUpdating &&
+			sameStrings(previous.RequestedResources, devLeases))
+	return previousReclaimable &&
 		next.State == StateRecoveringIntent &&
 		next.Phase == PhaseIntentCommitted &&
+		(previous.RunID == "" || next.RunID != previous.RunID) &&
 		next.ActiveSession == previous.ActiveSession &&
 		next.ActiveGeneration == previous.ActiveGeneration &&
 		next.ActiveMode == previous.ActiveMode &&
@@ -710,6 +730,10 @@ func validatePhaseTransition(previous, next Record) error {
 	case previous.State == StateNormalMain && next.State == StateRecoveringIntent:
 		if next.Phase != PhaseIntentCommitted {
 			return fmt.Errorf("normal_main -> recovering_intent must begin at intent_committed")
+		}
+	case previous.State == StateRecoveryRequired && next.State == StateRecoveringIntent:
+		if next.Phase != PhaseIntentCommitted {
+			return fmt.Errorf("recovery_required reclaim must begin at intent_committed")
 		}
 	case previous.State == StateRecoveringIntent && next.State == StateNoOwner:
 		if previous.Phase != PhaseLoadAttempted || next.Phase != PhaseMainAbsent {

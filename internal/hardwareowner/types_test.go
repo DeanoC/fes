@@ -1084,6 +1084,73 @@ func TestPreviousBootNormalMainMayCommitOnlyExactCurrentBootDevelopmentIntent(t 
 	}
 }
 
+func TestPreviousBootCompatMainRecoveryMayCommitOnlyExactCurrentBootDevelopmentIntent(t *testing.T) {
+	previous := recoveryRequiredAfter(recoveringIntentRecord())
+	previous.Phase = PhaseLoadAttempted
+	next := cloneRecord(previous)
+	next.State = StateRecoveringIntent
+	next.Phase = PhaseIntentCommitted
+	next.BootID = validBootIDNext
+	next.RunID = strings.Repeat("e", 32)
+	next.GenerationHighWater++
+	next.CandidateSession = validSessionNext
+	next.CandidateGeneration = next.GenerationHighWater
+	next.FirstFailure = ""
+
+	if err := next.ValidateTransition(previous); err != nil {
+		t.Fatalf("exact prior-boot recovery_required/compat_main reclaim rejected: %v", err)
+	}
+	mutations := []struct {
+		name string
+		edit func(*Record)
+	}{
+		{name: "same boot", edit: func(candidate *Record) { candidate.BootID = previous.BootID }},
+		{name: "wrong phase", edit: func(candidate *Record) { candidate.Phase = PhaseLoadAttempted }},
+		{name: "reused failed run", edit: func(candidate *Record) { candidate.RunID = previous.RunID }},
+		{name: "changed active session", edit: func(candidate *Record) { candidate.ActiveSession = validSessionNext }},
+		{name: "changed active generation", edit: func(candidate *Record) { candidate.ActiveGeneration++ }},
+		{name: "changed active owner", edit: func(candidate *Record) { candidate.ActiveOwner = OwnerFPGADev }},
+		{name: "missing compat quiescer", edit: func(candidate *Record) { candidate.QuiescingOwner = OwnerNone }},
+	}
+	for _, mutation := range mutations {
+		t.Run(mutation.name, func(t *testing.T) {
+			candidate := cloneRecord(next)
+			mutation.edit(&candidate)
+			if err := candidate.ValidateTransition(previous); err == nil {
+				t.Fatal("neighboring recovery reclaim transition was accepted")
+			}
+		})
+	}
+
+	predecessorMutations := []struct {
+		name string
+		edit func(*Record)
+	}{
+		{name: "predecessor wrong phase", edit: func(record *Record) { record.Phase = PhaseMessagePartial }},
+		{name: "predecessor has no failure", edit: func(record *Record) { record.FirstFailure = "" }},
+		{name: "predecessor reuses active session", edit: func(record *Record) { record.CandidateSession = record.ActiveSession }},
+		{name: "predecessor candidate is not newer", edit: func(record *Record) {
+			record.CandidateGeneration = record.ActiveGeneration
+			record.GenerationHighWater = record.ActiveGeneration
+		}},
+	}
+	for _, mutation := range predecessorMutations {
+		t.Run(mutation.name, func(t *testing.T) {
+			candidatePrevious := cloneRecord(previous)
+			mutation.edit(&candidatePrevious)
+			if err := candidatePrevious.Validate(); err != nil {
+				t.Fatalf("invalid predecessor mutation: %v", err)
+			}
+			if isPriorBootCompatMainReclaim(candidatePrevious, next) {
+				t.Fatal("neighboring recovery predecessor matched the reclaim predicate")
+			}
+			if err := next.ValidateTransition(candidatePrevious); err == nil {
+				t.Fatal("neighboring recovery predecessor was accepted")
+			}
+		})
+	}
+}
+
 func TestFixRound4FreshCandidateSessionDiffersFromPriorActive(t *testing.T) {
 	previous := normalMainRecord()
 	candidate := recoveringIntentRecord()
