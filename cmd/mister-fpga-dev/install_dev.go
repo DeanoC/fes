@@ -373,6 +373,8 @@ const (
 	productionProcessArgumentsMaxBytes = 4096
 )
 
+var errProcessArgumentsInvalid = errors.New("process arguments are invalid")
+
 func newScriptSupervisorObserver(script string, invocations ...[]string) (*scriptSupervisorObserver, error) {
 	if !filepath.IsAbs(script) || filepath.Clean(script) != script || len(invocations) == 0 {
 		return nil, errors.New("script supervisor observer is unavailable")
@@ -422,6 +424,9 @@ func (o *scriptSupervisorObserver) SnapshotContext(ctx context.Context) ([]fpgad
 		cmdlinePath := filepath.Join("/proc", entry.Name(), "cmdline")
 		argv, err := readProcessArguments(cmdlinePath)
 		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if errors.Is(err, errProcessArgumentsInvalid) && !o.authorityPrefix(argv) {
 			continue
 		}
 		if err != nil {
@@ -492,14 +497,19 @@ func readProcessArguments(path string) ([]string, error) {
 	if len(raw) == 0 {
 		return nil, nil
 	}
-	if len(raw) > productionProcessArgumentsMaxBytes || raw[len(raw)-1] != 0 {
-		return nil, errors.New("process arguments are invalid")
+	invalid := len(raw) > productionProcessArgumentsMaxBytes || raw[len(raw)-1] != 0
+	payload := raw
+	if raw[len(raw)-1] == 0 {
+		payload = raw[:len(raw)-1]
 	}
-	parts := strings.Split(string(raw[:len(raw)-1]), "\x00")
+	parts := strings.Split(string(payload), "\x00")
 	for _, part := range parts {
 		if part == "" {
-			return nil, errors.New("process arguments are invalid")
+			invalid = true
 		}
+	}
+	if invalid {
+		return parts, errProcessArgumentsInvalid
 	}
 	return parts, nil
 }

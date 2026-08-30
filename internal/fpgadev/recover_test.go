@@ -130,23 +130,63 @@ func TestFailStopInstallPublishesTrampolineBeforePrepared(t *testing.T) {
 	}
 }
 
-func TestInstallPackageRootPreflightFailsBeforeAgentMutation(t *testing.T) {
-	fixture := newCoarseInstallFixture(t)
-	var order []string
-	fixture.manager.StopAgent = func(context.Context) error {
-		order = append(order, "stop")
-		return nil
+func TestInstallPackageRootPreflightStopsAndProvesAgentBeforeFailing(t *testing.T) {
+	tests := []struct {
+		name        string
+		packageRoot string
+		wantError   string
+	}{
+		{
+			name:      "missing package root",
+			wantError: "package-aware install requires a verified package root",
+		},
+		{
+			name:        "invalid package root",
+			packageRoot: filepath.Join(t.TempDir(), "missing-package"),
+			wantError:   "no such file or directory",
+		},
 	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newCoarseInstallFixture(t)
+			var order []string
+			fixture.manager.StopAgent = func(context.Context) error {
+				order = append(order, "stop")
+				return nil
+			}
+			fixture.manager.ProveAgentAbsent = func(context.Context) error {
+				order = append(order, "prove")
+				return nil
+			}
+			err := fixture.manager.Install(context.Background(), test.packageRoot)
+			if err == nil || !strings.Contains(err.Error(), test.wantError) {
+				t.Fatalf("install error=%v, want detail %q", err, test.wantError)
+			}
+			if got := strings.Join(order, ","); got != "stop,prove" {
+				t.Fatalf("agent lifecycle order=%q want=stop,prove", got)
+			}
+			if _, exists, loadErr := fixture.manager.Journal.Load(); loadErr != nil || exists {
+				t.Fatalf("journal exists=%v err=%v", exists, loadErr)
+			}
+		})
+	}
+}
+
+func TestInstallPackageRootPreflightKeepsAgentFailureFailClosed(t *testing.T) {
+	fixture := newCoarseInstallFixture(t)
+	leftover := errors.New("leftover agent cannot be proven gone")
+	proveCalled := false
+	fixture.manager.StopAgent = func(context.Context) error { return leftover }
 	fixture.manager.ProveAgentAbsent = func(context.Context) error {
-		order = append(order, "prove")
+		proveCalled = true
 		return nil
 	}
 	err := fixture.manager.Install(context.Background(), "")
-	if err == nil || err.Error() != "package-aware install requires a verified package root" {
-		t.Fatalf("install error=%v", err)
+	if !errors.Is(err, leftover) {
+		t.Fatalf("install error=%v want=%v", err, leftover)
 	}
-	if got := strings.Join(order, ","); got != "" {
-		t.Fatalf("preflight unexpectedly mutated agent lifecycle: %q", got)
+	if proveCalled {
+		t.Fatal("absence proof ran after stop failure")
 	}
 	if _, exists, loadErr := fixture.manager.Journal.Load(); loadErr != nil || exists {
 		t.Fatalf("journal exists=%v err=%v", exists, loadErr)

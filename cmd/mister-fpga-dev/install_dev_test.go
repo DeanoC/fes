@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -622,6 +623,65 @@ func TestProductionAgentAuthorityStopsRealShellScriptSupervisor(t *testing.T) {
 		if _, ok := err.(*exec.ExitError); !ok {
 			t.Fatalf("wait shell supervisor: %v", err)
 		}
+	}
+}
+
+func TestProductionAgentAuthorityIgnoresInvalidCmdlineFromUnrelatedProcess(t *testing.T) {
+	if os.Getenv("FOGCAST_TEST_LONG_UNRELATED_CMDLINE") == "1" {
+		select {}
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	child := exec.Command(executable, "-test.run=^TestProductionAgentAuthorityIgnoresInvalidCmdlineFromUnrelatedProcess$", strings.Repeat("x", productionProcessArgumentsMaxBytes+1))
+	child.Env = append(os.Environ(), "FOGCAST_TEST_LONG_UNRELATED_CMDLINE=1")
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = child.Process.Kill()
+		_ = child.Wait()
+	}()
+
+	directory := t.TempDir()
+	script := filepath.Join(directory, "mister-supervise")
+	agent := filepath.Join(directory, "mister-agent")
+	config := filepath.Join(directory, "agent.toml")
+	observer, err := newScriptSupervisorObserver(script, []string{"mister-agent", agent, "--config", config})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		raw, readErr := os.ReadFile(filepath.Join("/proc", strconv.Itoa(child.Process.Pid), "cmdline"))
+		if readErr == nil && len(raw) > productionProcessArgumentsMaxBytes {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("unrelated long cmdline unavailable: bytes=%d err=%v", len(raw), readErr)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if identities, err := observer.SnapshotContext(context.Background()); err != nil || len(identities) != 0 {
+		t.Fatalf("unrelated invalid cmdline identities=%v err=%v", identities, err)
+	}
+}
+
+func TestReadProcessArgumentsRetainsAuthorityPrefixOnInvalidInput(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cmdline")
+	raw := []byte(productionScriptInterpreter + "\x00" + productionLegacySupervisor + "\x00mister-agent\x00")
+	raw = append(raw, bytes.Repeat([]byte("x"), productionProcessArgumentsMaxBytes)...)
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	argv, err := readProcessArguments(path)
+	if err == nil || !strings.Contains(err.Error(), "process arguments are invalid") {
+		t.Fatalf("invalid cmdline error=%v", err)
+	}
+	observer := &scriptSupervisorObserver{script: productionLegacySupervisor}
+	if !observer.authorityPrefix(argv) {
+		t.Fatalf("invalid cmdline lost authority prefix: %q", argv)
 	}
 }
 

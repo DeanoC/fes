@@ -3188,9 +3188,6 @@ func (m *InstallManager) Install(ctx context.Context, packageRoot string) error 
 	if err != nil {
 		return err
 	}
-	if !exists && root == "" && (m.StageRoot != "" || len(m.FixedMembers) != 0) {
-		return errors.New("package-aware install requires a verified package root")
-	}
 	if !exists && m.needsInstallSourceComposition() {
 		if err := m.composeInstallSourcePlan(); err != nil {
 			return err
@@ -3201,6 +3198,9 @@ func (m *InstallManager) Install(ctx context.Context, packageRoot string) error 
 	}
 	if err := m.stopAndProveAgent(ctx); err != nil {
 		return err
+	}
+	if !exists && root == "" && (m.StageRoot != "" || len(m.FixedMembers) != 0) {
+		return errors.New("package-aware install requires a verified package root")
 	}
 	if exists {
 		if err := m.bindJournalRecord(current); err != nil {
