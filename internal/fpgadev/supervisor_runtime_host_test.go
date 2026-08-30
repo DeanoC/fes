@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DeanoC/FogCast-POC/internal/hardwareowner"
 )
 
 func TestSupervisorRuntimeHostUsesInjectedTypedChildStarter(t *testing.T) {
@@ -73,6 +75,65 @@ func TestCompatibilityMainReadinessAcceptsFourByteMENUAtTmpWithoutTrailingNewlin
 	defer cancel()
 	if err := NewCompatibilityMainReadiness(runtime, observer).Verify(ctx); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRunnerLiveDE10NanoMainStaysOnFourByteMENUAfterSuccessfulFIFODispatchFailsClosed(t *testing.T) {
+	dir := t.TempDir()
+	tmpCore := filepath.Join(dir, "tmp", "CORENAME")
+	fatCore := filepath.Join(dir, "media", "fat", "CORENAME")
+	if err := os.MkdirAll(filepath.Dir(tmpCore), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(tmpCore, []byte("MENU"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runtime, mainObserver := newCompatibilityMainReadinessFixture(t, tmpCore, fatCore)
+
+	fixture := newTask7RunnerFixture(t)
+	fixture.store.record.BootID = "222959a0-e21d-4d8b-a217-a6bd6367b2fb"
+	// The live Main population never became absent after accepting load_core.
+	// Returning the handoff deadline keeps this test fast while preserving the
+	// production-shaped readiness proof below: unique Main, operating FPGA
+	// manager, four-byte /tmp/CORENAME MENU, and absent /media/fat/CORENAME.
+	fixture.observerErr = context.DeadlineExceeded
+	deps := fixture.dependencies()
+	proof := &task7PriorBootQuiescence{}
+	deps.quiescence = proof
+	deps.readiness = NewCompatibilityMainReadiness(runtime, mainObserver)
+
+	result, err := newFixtureRunner(deps).RunCommand(context.Background(), fixture.request)
+	if err != nil {
+		t.Fatalf("RunCommand() = %v, want handled fail-closed recovery", err)
+	}
+	if result.PrimaryCode != string(CodeMainHandoffTimeout) || result.Phase != ResultPhaseLoadAttempted {
+		t.Fatalf("live-shaped handoff result = %#v, want main_handoff_timeout at load_attempted", result)
+	}
+	if fixture.fifo.calls != 1 || fixture.mapper.openCalls != 0 || len(result.PayloadHex) != 0 {
+		t.Fatalf("load path = fifo:%d mailbox-opens:%d payload:%q, want successful single FIFO dispatch and no FPGA payload", fixture.fifo.calls, fixture.mapper.openCalls, result.PayloadHex)
+	}
+	if proof.priorCalls != 2 || proof.currentCalls != 0 {
+		t.Fatalf("prior-boot proof calls = prior:%d current:%d, want admission plus pre-dispatch revalidation", proof.priorCalls, proof.currentCalls)
+	}
+	mainAfter, snapshotErr := mainObserver.Snapshot()
+	if snapshotErr != nil || len(mainAfter) != 1 {
+		t.Fatalf("Main population after dispatch = %#v, %v, want the one expected Main still present", mainAfter, snapshotErr)
+	}
+
+	fixture.store.mu.Lock()
+	final := cloneTask7Record(fixture.store.record)
+	fixture.store.mu.Unlock()
+	if final.State != hardwareowner.StateRecoveryRequired || final.ActiveOwner != hardwareowner.OwnerCompatMain || final.FirstFailure != string(CodeMainHandoffTimeout) {
+		t.Fatalf("fail-closed owner = %#v, want recovery_required compat_main with main_handoff_timeout", final)
+	}
+	if raw, readErr := os.ReadFile(tmpCore); readErr != nil || string(raw) != "MENU" {
+		t.Fatalf("four-byte /tmp/CORENAME after dispatch = %q, %v", raw, readErr)
+	}
+	if _, statErr := os.Stat(fatCore); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("/media/fat/CORENAME after dispatch error = %v, want absent", statErr)
+	}
+	if raw, readErr := os.ReadFile(runtime.config.FPGAManagerState); readErr != nil || string(raw) != "operating\n" {
+		t.Fatalf("FPGA manager after dispatch = %q, %v, want operating without a positive core-transition observation", raw, readErr)
 	}
 }
 
