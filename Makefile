@@ -7,6 +7,8 @@ CXX ?= c++
 AR ?= ar
 NM ?= nm
 CXXFILT ?= c++filt
+TARGET_CXX ?= arm-none-linux-gnueabihf-g++
+TARGET_AR ?= arm-none-linux-gnueabihf-ar
 
 BUILD_DIR ?= build
 ARCHIVE := $(BUILD_DIR)/libmister-runtime.a
@@ -52,7 +54,7 @@ TEST_BINS := \
 	$(BUILD_DIR)/tests/unit/protocol_test \
 	$(BUILD_DIR)/tests/integration/daemon_server_test
 
-.PHONY: all clean test run-tests sanitize tsan archive-audit active-tree-test
+.PHONY: all clean test run-tests sanitize tsan archive-audit active-tree-test target
 
 all: $(ARCHIVE) $(DAEMON)
 
@@ -155,7 +157,7 @@ run-tests: $(TEST_BINS)
 		"$$test_binary"; \
 	done
 
-active-tree-test: $(ARCHIVE)
+active-tree-test: all
 	@tests/active_tree_test.sh "$(CURDIR)"
 
 test: run-tests active-tree-test
@@ -249,6 +251,10 @@ archive-audit: $(ARCHIVE)
 		echo "SPI dependency closure omits MMIO" >&2; \
 		exit 1; \
 	}
+
+target:
+	$(MAKE) BUILD_DIR=build/target CXX="$(TARGET_CXX)" \
+		AR="$(TARGET_AR)" all
 
 clean:
 	rm -rf -- "$(BUILD_DIR)"

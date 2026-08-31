@@ -1,5 +1,88 @@
 # Development
 
+## Host build and checks
+
+The repository requires a C++14 compiler, GNU Make, `ar`, `nm`, and standard
+Linux build utilities. Run the ordinary host path with:
+
+```sh
+make clean
+make all
+make test
+```
+
+The [support matrix](docs/support-matrix.md) is the canonical record for
+software and physical-hardware support.
+
+Run the memory/undefined-behavior and thread sanitizer paths separately:
+
+```sh
+make sanitize
+make tsan
+```
+
+The full repository checks also include:
+
+```sh
+make archive-audit
+scripts/check-active-tree.sh
+scripts/check-history.sh
+```
+
+`check-active-tree.sh` rebuilds the canonical host products while checking
+dependency invalidation and deterministic archive output.
+
+## Arm cross-build
+
+Use the pinned GNU Arm 10.2-2020.11 A-profile toolchain from host setup; it is
+not vendored or downloaded by this repository.
+
+```sh
+runtime_target_bin=/home/deano/.cache/toolchains/gcc-arm-10.2-2020.11-x86_64-arm-none-linux-gnueabihf/bin
+make target \
+  TARGET_CXX="$runtime_target_bin/arm-none-linux-gnueabihf-g++" \
+  TARGET_AR="$runtime_target_bin/arm-none-linux-gnueabihf-ar"
+file build/target/libmister-runtime.a build/target/mister-runtime
+```
+
+The expected executable is a 32-bit Arm EABI5 hard-float Linux artifact. The
+archive contains objects produced by the same target compiler.
+
+## Native-image installation — not yet available
+
+There is no authorized native-image build, service ordering, packaged idle
+RBF, installation procedure, production profile, or physical-Pi acceptance at
+this milestone. Do not install the host or cross-built artifacts onto a Pi and
+do not replace the working legacy image. Image integration needs a later,
+separately reviewed plan.
+
+## Physical evidence
+
+Hardware evidence is concise engineering evidence, not an attestation system.
+Record each result in this format:
+
+```text
+Date: YYYY-MM-DD
+FogCast commit: <full SHA>
+Runtime commit: <full SHA>
+Image identity: <reproducible image name or digest>
+System: <canonical support-matrix ID or development RBF>
+Result: pass | fail
+Evidence: <launch/core/video/input/save/stop/relaunch observations and useful failure detail>
+```
+
+Only a test performed on the physical Pi can change a hardware-support claim.
+
+## Rollback principles
+
+- Keep the conventional legacy image unchanged and independently bootable.
+- Treat image selection or reflashing as the explicit switch between legacy
+  and native ownership; do not add runtime auto-detection or fallback.
+- Do not switch the disposable kit's everyday image until every required
+  hardware acceptance row passes.
+- Record the exact runtime, agent, and image revisions before any later switch.
+- Preserve the last known-good legacy source and image as the direct rollback.
+
 ## Extraction provenance
 
 This repository was seeded by filtering the useful runtime history from Main_MiSTer.
