@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 var ErrInvalidQuery = errors.New("catalog query is invalid")

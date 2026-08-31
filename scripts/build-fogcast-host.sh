@@ -44,7 +44,7 @@ cp "$repo/resources/fogcast-host/Info.plist" "$app/Contents/Info.plist"
 
 MACOSX_DEPLOYMENT_TARGET="$deployment_target" CGO_CFLAGS="$cgo_cflags" CGO_CXXFLAGS="$cgo_cxxflags" CGO_LDFLAGS="$cgo_ldflags" CGO_LDFLAGS_ALLOW="$ldflags_allow" CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 mise exec go@1.26.5 -- go build \
 	-buildvcs=false -trimpath \
-	-ldflags "-s -w -X github.com/DeanoC/FogCast-POC/internal/version.Version=$version -X github.com/DeanoC/FogCast-POC/internal/version.Revision=$revision" \
+	-ldflags "-s -w -X github.com/DeanoC/FogCast/internal/version.Version=$version -X github.com/DeanoC/FogCast/internal/version.Revision=$revision" \
 	-o "$app/Contents/MacOS/fogcast-api" \
 	"$repo/cmd/fogcast-api"
 

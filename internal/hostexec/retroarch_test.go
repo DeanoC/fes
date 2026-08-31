@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/internal/hostexec"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/internal/hostexec"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 type fakeProcess struct {

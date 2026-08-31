@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/internal/mediasession"
+	"github.com/DeanoC/FogCast/internal/mediasession"
 )
 
 var (

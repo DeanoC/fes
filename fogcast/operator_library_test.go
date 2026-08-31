@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/catalog"
-	"github.com/DeanoC/FogCast-POC/fogcast"
-	"github.com/DeanoC/FogCast-POC/internal/hostapi"
+	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/fogcast"
+	"github.com/DeanoC/FogCast/internal/hostapi"
 )
 
 func TestOperatorSNESRootScanMakesActRaiserFindableOnPublicGamesAPI(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DeanoC/FogCast-POC/catalog"
+	"github.com/DeanoC/FogCast/catalog"
 	"github.com/pelletier/go-toml/v2"
 )
 

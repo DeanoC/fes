@@ -11,11 +11,11 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/catalog"
-	"github.com/DeanoC/FogCast-POC/fogcast"
-	"github.com/DeanoC/FogCast-POC/internal/hostapi"
-	"github.com/DeanoC/FogCast-POC/libraryuser"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/fogcast"
+	"github.com/DeanoC/FogCast/internal/hostapi"
+	"github.com/DeanoC/FogCast/libraryuser"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 func TestPlatformsEndpointIsEmptyWithoutLibraryQuery(t *testing.T) {

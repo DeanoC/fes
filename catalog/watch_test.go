@@ -5,10 +5,11 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 func TestFolderWatcherReconcileAddsAndRemovesSNESROMs(t *testing.T) {
@@ -154,53 +155,53 @@ func TestFolderWatcherRunStopsOnCancel(t *testing.T) {
 func TestFolderWatcherRunReportsPersistentErrorsAndKeepsRetrying(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	calls := 0
-	failures := 0
+	var calls int32
+	var failures int32
 	watcher := FolderWatcher{
 		Scan: func(context.Context, []Root) (ScanReport, error) {
-			calls++
+			atomic.AddInt32(&calls, 1)
 			return ScanReport{}, errors.New("transient smb")
 		},
 		Roots:    func() []Root { return []Root{{ID: "snes-main", System: protocol.SystemSNES, Path: t.TempDir()}} },
 		Interval: 15 * time.Millisecond,
-		OnError:  func() { failures++ },
+		OnError:  func() { atomic.AddInt32(&failures, 1) },
 	}
 	done := make(chan error, 1)
 	go func() { done <- watcher.Run(ctx) }()
 	deadline := time.Now().Add(200 * time.Millisecond)
-	for time.Now().Before(deadline) && (calls < 2 || failures < 2) {
+	for time.Now().Before(deadline) && (atomic.LoadInt32(&calls) < 2 || atomic.LoadInt32(&failures) < 2) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	cancel()
 	<-done
-	if calls < 2 || failures < 2 {
-		t.Fatalf("calls=%d failures=%d, want retries after persistent errors", calls, failures)
+	if atomic.LoadInt32(&calls) < 2 || atomic.LoadInt32(&failures) < 2 {
+		t.Fatalf("calls=%d failures=%d, want retries after persistent errors", atomic.LoadInt32(&calls), atomic.LoadInt32(&failures))
 	}
 }
 
 func TestFolderWatcherRunReportsOfflineRootsAndKeepsRetrying(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	calls := 0
-	failures := 0
+	var calls int32
+	var failures int32
 	watcher := FolderWatcher{
 		Scan: func(context.Context, []Root) (ScanReport, error) {
-			calls++
+			atomic.AddInt32(&calls, 1)
 			return ScanReport{Roots: []RootReport{{RootID: "snes-main", System: protocol.SystemSNES, Offline: true}}}, nil
 		},
 		Roots:    func() []Root { return []Root{{ID: "snes-main", System: protocol.SystemSNES, Path: t.TempDir()}} },
 		Interval: 15 * time.Millisecond,
-		OnError:  func() { failures++ },
+		OnError:  func() { atomic.AddInt32(&failures, 1) },
 	}
 	done := make(chan error, 1)
 	go func() { done <- watcher.Run(ctx) }()
 	deadline := time.Now().Add(200 * time.Millisecond)
-	for time.Now().Before(deadline) && (calls < 2 || failures < 2) {
+	for time.Now().Before(deadline) && (atomic.LoadInt32(&calls) < 2 || atomic.LoadInt32(&failures) < 2) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	cancel()
 	<-done
-	if calls < 2 || failures < 2 {
-		t.Fatalf("calls=%d failures=%d, want offline roots to count as reconcile failures", calls, failures)
+	if atomic.LoadInt32(&calls) < 2 || atomic.LoadInt32(&failures) < 2 {
+		t.Fatalf("calls=%d failures=%d, want offline roots to count as reconcile failures", atomic.LoadInt32(&calls), atomic.LoadInt32(&failures))
 	}
 }

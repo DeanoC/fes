@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/internal/remotemedia"
+	"github.com/DeanoC/FogCast/internal/remotemedia"
 )
 
 func TestParseBridgeArgsRequiresPrivateTransportAndTokenFile(t *testing.T) {

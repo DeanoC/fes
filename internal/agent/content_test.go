@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/internal/agent"
-	"github.com/DeanoC/FogCast-POC/internal/core"
-	"github.com/DeanoC/FogCast-POC/internal/mister"
-	"github.com/DeanoC/FogCast-POC/internal/targetcache"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/internal/agent"
+	"github.com/DeanoC/FogCast/internal/core"
+	"github.com/DeanoC/FogCast/internal/mister"
+	"github.com/DeanoC/FogCast/internal/targetcache"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 const cachedDigest = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

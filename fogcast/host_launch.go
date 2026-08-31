@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DeanoC/FogCast-POC/catalog"
+	"github.com/DeanoC/FogCast/catalog"
 )
 
 func materializeConfinedLibrary(ctx context.Context, rootPath, relativePath string, fingerprint catalog.Fingerprint) (launchPath string, cleanup func(), err error) {

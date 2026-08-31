@@ -1,8 +1,8 @@
 VERSION ?= 0.1.0
 REVISION ?= $(shell git rev-parse --verify HEAD 2>/dev/null || printf unknown)
 CONTAINER_RUNTIME ?= docker
-LDFLAGS = -s -w -X github.com/DeanoC/FogCast-POC/internal/version.Version=$(VERSION)
-FOGCAST_LDFLAGS = $(LDFLAGS) -X github.com/DeanoC/FogCast-POC/internal/version.Revision=$(REVISION)
+LDFLAGS = -s -w -X github.com/DeanoC/FogCast/internal/version.Version=$(VERSION)
+FOGCAST_LDFLAGS = $(LDFLAGS) -X github.com/DeanoC/FogCast/internal/version.Revision=$(REVISION)
 FOGCAST_GOOS ?= darwin
 FOGCAST_GOARCH ?= arm64
 FOGCAST_OUTPUT ?= bin/fogcast
@@ -18,7 +18,7 @@ else
 NATIVE_GO_ENV =
 endif
 
-.PHONY: fmt test test-ui test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-cli build-hil build-fogcast-hil build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-agent build-bridge build-lock build-lock-container build-poc2-lock package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-dev-image poc1b-verify-images poc1b-qemu-smoke poc1b-kernel-test poc1b-kernel poc1b-verify-kernel poc1b-deploy-test poc2-rootfs-test poc2-deploy-test
+.PHONY: fmt test test-ui test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-agent build-bridge build-target-image-lock build-target-image-lock-container target-image-resolve target-image-fetch target-image-test target-images target-image-dev target-image-verify target-image-qemu-smoke target-image-deploy target-smoke target-kernel-test target-kernel target-kernel-verify
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
@@ -26,18 +26,14 @@ fmt:
 test: build-agent test-ui
 	$(NATIVE_GO_ENV) go test -race ./...
 	sh scripts/tests/fogcast-build_test.sh
-	sh scripts/tests/inventory_test.sh
-	sh scripts/tests/start-agent_test.sh
-	sh scripts/tests/poc1b-sources_test.sh
-	sh scripts/tests/poc1b-rootfs_test.sh
-	sh scripts/tests/poc2-rootfs_test.sh
-	sh scripts/tests/poc1b-image_test.sh
-	sh scripts/tests/poc1b-dev_test.sh
-	sh scripts/tests/poc1b-dev-container_test.sh
-	sh scripts/tests/poc1b-kernel_test.sh
-	sh scripts/tests/install-poc1b-target_test.sh
-	sh scripts/tests/install-poc2-target_test.sh
-	sh scripts/tests/restore-poc1b-sd_test.sh
+	sh scripts/tests/target-image-sources_test.sh
+	sh scripts/tests/target-image-rootfs_test.sh
+	sh scripts/tests/target-image_test.sh
+	sh scripts/tests/target-image-dev_test.sh
+	sh scripts/tests/target-image-dev-container_test.sh
+	sh scripts/tests/target-kernel_test.sh
+	sh scripts/tests/deploy-target-image_test.sh
+	sh scripts/tests/target-smoke_test.sh
 
 test-ui:
 	node --test internal/hostapi/ui_metadata_test.js internal/hostapi/ui_app_test.js
@@ -54,7 +50,7 @@ vet:
 
 check: fmt test vet
 
-build: build-fogcast build-fogcast-api build-cli build-hil build-fogcast-hil build-remote-play-receiver build-remote-play-impair build-agent build-bridge build-lock build-lock-container build-poc2-lock
+build: build-fogcast build-fogcast-api build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-agent build-bridge build-target-image-lock build-target-image-lock-container
 
 build-fogcast:
 	mkdir -p "$(dir $(FOGCAST_OUTPUT))"
@@ -71,13 +67,9 @@ build-cli:
 	mkdir -p bin
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/misterctl ./cmd/misterctl
 
-build-hil:
+build-remote-play-sender:
 	mkdir -p bin
-	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/mister-hil ./cmd/mister-hil
-
-build-fogcast-hil:
-	mkdir -p bin
-	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/fogcast-hil ./cmd/fogcast-hil
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/remote-play-sender ./cmd/remote-play-sender
 
 build-remote-play-receiver:
 	mkdir -p bin
@@ -99,84 +91,55 @@ build-bridge:
 	mkdir -p bin
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/mister-bridge-linux-armv7 ./cmd/mister-bridge
 
-build-lock:
+build-target-image-lock:
 	mkdir -p bin
-	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/poc1b-lock ./cmd/poc1b-lock
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/target-image-lock ./cmd/target-image-lock
 
-build-lock-container:
+build-target-image-lock-container:
 	mkdir -p bin
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/poc1b-lock-linux-amd64 ./cmd/poc1b-lock
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/target-image-lock-linux-amd64 ./cmd/target-image-lock
 
-build-poc2-lock:
-	mkdir -p bin
-	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/poc2-lock ./cmd/poc2-lock
-
-poc1b-resolve: build-lock
-	@command -v "$(CONTAINER_RUNTIME)" >/dev/null 2>&1 || { echo 'poc1b-resolve: install a Docker-compatible container runtime first' >&2; exit 2; }
+target-image-resolve: build-target-image-lock
+	@command -v "$(CONTAINER_RUNTIME)" >/dev/null 2>&1 || { echo 'target-image-resolve: install a Docker-compatible container runtime first' >&2; exit 2; }
 	$(CONTAINER_RUNTIME) pull --platform linux/amd64 docker.io/library/debian:12.11-slim
-	bin/poc1b-lock resolve --container-runtime "$(CONTAINER_RUNTIME)" --output build/sources.poc1b.lock.toml
+	bin/target-image-lock resolve --container-runtime "$(CONTAINER_RUNTIME)" --output build/target-image.sources.lock.toml
 
-poc1b-fetch: build-lock-container
-	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/poc1b-container.sh fetch /work/scripts/fetch-poc1b-sources.sh
+target-image-fetch: build-target-image-lock-container build-agent
+	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/target-image-container.sh fetch /work/scripts/fetch-target-image-sources.sh
+	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-target-image.sh --fetch prod
+	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-target-image.sh --fetch dev
 
-poc1b-image-test:
-	sh scripts/tests/poc1b-image_test.sh
+target-image-test:
+	sh scripts/tests/target-image_test.sh
 
-poc1b-image-fetch: build-agent
-	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-poc1b-image.sh --fetch prod
-	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-poc1b-image.sh --fetch dev
-
-poc1b-images: build-agent poc1b-image-fetch
-	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-poc1b-image.sh prod
-	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-poc1b-image.sh dev
+target-images: build-agent target-image-fetch
+	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-target-image.sh prod
+	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-target-image.sh dev
 
 # Fast development path: only the dev root, one persistent Buildroot output,
-# and no reproducibility comparison. Use poc1b-images for release evidence.
-poc1b-dev-image: build-agent
-	POC1B_DEV_CONTAINER=1 POC1B_OUTPUT_VOLUME=mister-remote-poc1b-dev-output POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-poc1b-image.sh --fast-dev
+# and no reproducibility comparison. Use target-images for release evidence.
+target-image-dev: build-agent target-image-fetch
+	TARGET_IMAGE_DEV_CONTAINER=1 TARGET_IMAGE_OUTPUT_VOLUME=fogcast-target-image-output TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-target-image.sh --fast-dev
 
-poc1b-verify-images:
-	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-poc1b-image.sh prod build/output/poc1b/prod/linux.img build/output/poc1b/prod/manifest.tsv build/output/poc1b/prod/library-report.tsv
-	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-poc1b-image.sh dev build/output/poc1b/dev/linux.img build/output/poc1b/dev/manifest.tsv build/output/poc1b/dev/library-report.tsv
+target-image-verify:
+	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-target-image.sh prod build/output/target-image/prod/linux.img build/output/target-image/prod/manifest.tsv build/output/target-image/prod/library-report.tsv
+	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-target-image.sh dev build/output/target-image/dev/linux.img build/output/target-image/dev/manifest.tsv build/output/target-image/dev/library-report.tsv
 
-poc1b-qemu-smoke:
-	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/qemu-smoke-poc1b.sh prod build/output/poc1b/prod/linux.img
-	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/qemu-smoke-poc1b.sh dev build/output/poc1b/dev/linux.img
+target-image-qemu-smoke:
+	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/qemu-smoke-target-image.sh prod build/output/target-image/prod/linux.img
+	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/qemu-smoke-target-image.sh dev build/output/target-image/dev/linux.img
 
-poc1b-kernel-test:
-	sh scripts/tests/poc1b-kernel_test.sh
+target-image-deploy:
+	scripts/deploy-target-image.sh $(TARGET_IMAGE)
 
-poc1b-kernel: poc1b-images
-	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-poc1b-kernel.sh
+target-smoke:
+	scripts/target-smoke.sh "$(GAME_ID)" "$(EXPECTED_CORE)"
 
-poc1b-verify-kernel: poc1b-kernel
-	POC1B_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-poc1b-kernel.sh build/output/poc1b/kernel
+target-kernel-test:
+	sh scripts/tests/target-kernel_test.sh
 
-poc1b-deploy-test:
-	sh scripts/tests/install-poc1b-target_test.sh
+target-kernel: target-images
+	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-target-kernel.sh
 
-poc2-rootfs-test:
-	sh scripts/tests/poc2-rootfs_test.sh
-
-poc2-deploy-test:
-	sh scripts/tests/install-poc2-target_test.sh
-	sh scripts/tests/restore-poc1b-sd_test.sh
-
-package-poc1a:
-	MISTER_TOKEN="$${MISTER_TOKEN:?MISTER_TOKEN is required}" VERSION="$(VERSION)" ./scripts/package-poc1a.sh
-
-package-test:
-	@set -eu; \
-	sh -n scripts/package-poc1a.sh scripts/install-poc1a.sh scripts/install-poc1a-target.sh deploy/poc1a/start-agent.sh deploy/poc1a/user-startup.snippet.sh; \
-	sh scripts/tests/install-poc1a-target_test.sh; \
-	MISTER_TOKEN=abcdefghijklmnopqrstuvwxyzABCDEF VERSION="$(VERSION)" ./scripts/package-poc1a.sh; \
-	archive="dist/mister-remote-poc1a-$(VERSION).tar.gz"; \
-	expected=$$(printf '%s\n' 'mister-remote/MiSTer.ini.fragment' 'mister-remote/agent.toml' 'mister-remote/mister-agent' 'mister-remote/start-agent.sh'); \
-	actual=$$(tar -tzf "$$archive"); \
-	test "$$actual" = "$$expected"; \
-	! tar -tzf "$$archive" | rg -i '\.(rom|bin|gen|md|sfc|smc|rbf|map)$$'; \
-	first_archive=$$(mktemp -t mister-remote-poc1a.XXXXXX); \
-	trap 'rm -f "$$first_archive"' EXIT INT TERM; \
-	cp "$$archive" "$$first_archive"; \
-	MISTER_TOKEN=abcdefghijklmnopqrstuvwxyzABCDEF VERSION="$(VERSION)" ./scripts/package-poc1a.sh; \
-	cmp "$$first_archive" "$$archive"
+target-kernel-verify: target-kernel
+	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-target-kernel.sh build/output/target-image/kernel

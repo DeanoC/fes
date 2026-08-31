@@ -7,7 +7,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 type Root struct {

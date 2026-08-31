@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 type fakeProcess struct {
@@ -41,7 +41,7 @@ func (p *fakeProcess) Kill() error {
 }
 
 func testConfig() Config {
-	return Config{Binary: "/media/fat/mister-remote/fbbridge-poc6", RTPAddress: ":5534", Control: ":5535", Framebuffer: "/dev/fb0", NativeCmd: "/dev/MiSTer_cmd", NativeMode: "8888 1 1920 1080", StopTimeout: time.Second}
+	return Config{Binary: "/media/fat/fogcast/fbbridge", RTPAddress: ":5534", Control: ":5535", Framebuffer: "/dev/fb0", NativeCmd: "/dev/MiSTer_cmd", NativeMode: "8888 1 1920 1080", StopTimeout: time.Second}
 }
 
 func TestControllerStartsWithAuthenticatedSessionArgumentsAndStops(t *testing.T) {

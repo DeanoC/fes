@@ -8,8 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/DeanoC/FogCast-POC/fogcast"
-	"github.com/DeanoC/FogCast-POC/internal/fogcastcli"
+	"github.com/DeanoC/FogCast/fogcast"
+	"github.com/DeanoC/FogCast/internal/fogcastcli"
 )
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer, open fogcastcli.OpenService) int {

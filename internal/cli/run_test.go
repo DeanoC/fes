@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/host"
-	"github.com/DeanoC/FogCast-POC/internal/cli"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/host"
+	"github.com/DeanoC/FogCast/internal/cli"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 type fakeLibrary struct {
@@ -164,7 +164,7 @@ func TestDefaultConfigPath(t *testing.T) {
 		openedPath = path
 		return &fakeLibrary{}, nil
 	})
-	if exit != 0 || openedPath != filepath.Join(home, ".config", "mister-remote", "config.toml") {
+	if exit != 0 || openedPath != filepath.Join(home, ".config", "fogcast", "config.toml") {
 		t.Fatalf("exit=%d config path=%q", exit, openedPath)
 	}
 }

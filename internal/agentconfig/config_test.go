@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/internal/agentconfig"
+	"github.com/DeanoC/FogCast/internal/agentconfig"
 )
 
 const validAgentConfig = `listen_address = "0.0.0.0:8182"
@@ -15,7 +15,7 @@ mister_process_comm = "MiSTer"
 command_pipe = "/dev/MiSTer_cmd"
 core_name_file = "/tmp/CORENAME"
 menu_rbf = "/media/fat/menu.rbf"
-mgl_directory = "/tmp/mister-remote"
+mgl_directory = "/tmp/fogcast"
 `
 
 func TestLoadAgentConfigDefaultsCacheMaximum(t *testing.T) {
@@ -63,7 +63,7 @@ func TestLoadAgentConfigRejectsUnknownUnsafeAndInvalidCacheValues(t *testing.T) 
 		"relative pipe":    strings.Replace(validAgentConfig, `command_pipe = "/dev/MiSTer_cmd"`, `command_pipe = "MiSTer_cmd"`, 1),
 		"relative core":    strings.Replace(validAgentConfig, `core_name_file = "/tmp/CORENAME"`, `core_name_file = "CORENAME"`, 1),
 		"relative menu":    strings.Replace(validAgentConfig, `menu_rbf = "/media/fat/menu.rbf"`, `menu_rbf = "menu.rbf"`, 1),
-		"relative MGL":     strings.Replace(validAgentConfig, `mgl_directory = "/tmp/mister-remote"`, `mgl_directory = "mister-remote"`, 1),
+		"relative MGL":     strings.Replace(validAgentConfig, `mgl_directory = "/tmp/fogcast"`, `mgl_directory = "fogcast"`, 1),
 		"zero cache":       validAgentConfig + "cache_max_bytes = 0\n",
 		"negative cache":   validAgentConfig + "cache_max_bytes = -1\n",
 		"overflow cache":   validAgentConfig + "cache_max_bytes = 9223372036854775808\n",

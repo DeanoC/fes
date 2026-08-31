@@ -14,7 +14,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 const (

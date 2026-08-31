@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/internal/core"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/internal/core"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 type Paths struct {

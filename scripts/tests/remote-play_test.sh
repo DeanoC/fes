@@ -7,16 +7,16 @@ trap 'rm -rf "$fixture"' EXIT INT TERM
 
 (
   cd "$repo"
-  mise exec go@1.26.5 -- go build -trimpath -o "$fixture/remote-play-spike" ./cmd/remote-play-spike
-  mise exec go@1.26.5 -- go build -trimpath -o "$fixture/remote-play-receiver" ./cmd/remote-play-receiver
-  mise exec go@1.26.5 -- go build -trimpath -o "$fixture/remote-play-impair" ./cmd/remote-play-impair
+  go build -trimpath -o "$fixture/remote-play-sender" ./cmd/remote-play-sender
+  go build -trimpath -o "$fixture/remote-play-receiver" ./cmd/remote-play-receiver
+  go build -trimpath -o "$fixture/remote-play-impair" ./cmd/remote-play-impair
 )
 
-probe=$($fixture/remote-play-spike probe)
+probe=$($fixture/remote-play-sender probe)
 printf '%s\n' "$probe" | grep -q '"physical_capture_required": true'
 printf '%s\n' "$probe" | grep -q '"synthetic_frames": false'
 
-if "$fixture/remote-play-spike" sender >/tmp/remote-play-sender.out 2>"$fixture/sender.err"; then
+if "$fixture/remote-play-sender" sender >"$fixture/sender.out" 2>"$fixture/sender.err"; then
   printf '%s\n' 'sender unexpectedly accepted a missing physical capture device' >&2
   exit 1
 fi

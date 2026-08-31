@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/fogcast"
+	"github.com/DeanoC/FogCast/fogcast"
 )
 
 func TestDefaultPathsIncludesPrivateMetadataRoot(t *testing.T) {

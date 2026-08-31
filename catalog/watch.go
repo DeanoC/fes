@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/internal/systems"
+	"github.com/DeanoC/FogCast/internal/systems"
 )
 
 // DefaultFolderWatchInterval is the host poll interval for SMB-backed

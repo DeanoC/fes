@@ -1,4 +1,4 @@
-// Command fogcast-api serves the local FogCast application API for POC3 clients.
+// Command fogcast-api serves the local FogCast application API for FogCast clients.
 package main
 
 import (
@@ -18,13 +18,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/fogcast"
-	"github.com/DeanoC/FogCast-POC/host"
-	"github.com/DeanoC/FogCast-POC/internal/hostapi"
-	"github.com/DeanoC/FogCast-POC/internal/mediasession"
-	"github.com/DeanoC/FogCast-POC/internal/metadata"
-	"github.com/DeanoC/FogCast-POC/internal/remotemedia"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/fogcast"
+	"github.com/DeanoC/FogCast/host"
+	"github.com/DeanoC/FogCast/internal/hostapi"
+	"github.com/DeanoC/FogCast/internal/mediasession"
+	"github.com/DeanoC/FogCast/internal/metadata"
+	"github.com/DeanoC/FogCast/internal/remotemedia"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 type service interface {

@@ -13,15 +13,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/internal/agent"
-	"github.com/DeanoC/FogCast-POC/internal/agentconfig"
-	"github.com/DeanoC/FogCast-POC/internal/cast"
-	"github.com/DeanoC/FogCast-POC/internal/core"
-	"github.com/DeanoC/FogCast-POC/internal/httpapi"
-	"github.com/DeanoC/FogCast-POC/internal/input"
-	"github.com/DeanoC/FogCast-POC/internal/mister"
-	"github.com/DeanoC/FogCast-POC/internal/targetcache"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/internal/agent"
+	"github.com/DeanoC/FogCast/internal/agentconfig"
+	"github.com/DeanoC/FogCast/internal/cast"
+	"github.com/DeanoC/FogCast/internal/core"
+	"github.com/DeanoC/FogCast/internal/httpapi"
+	"github.com/DeanoC/FogCast/internal/input"
+	"github.com/DeanoC/FogCast/internal/mister"
+	"github.com/DeanoC/FogCast/internal/targetcache"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 func TestRunDoesNotExposeMalformedConfigurationContents(t *testing.T) {
@@ -343,7 +343,7 @@ mister_process_comm = "MiSTer"
 command_pipe = "/dev/MiSTer_cmd"
 core_name_file = "/tmp/CORENAME"
 menu_rbf = "/media/fat/menu.rbf"
-mgl_directory = "/tmp/mister-remote"
+mgl_directory = "/tmp/fogcast"
 ` + extra
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)

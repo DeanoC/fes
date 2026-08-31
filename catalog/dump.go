@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/protocol"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/unicode/norm"
 )

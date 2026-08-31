@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 const launchBoxSampleXML = `<?xml version="1.0" standalone="yes"?><LaunchBox>` +

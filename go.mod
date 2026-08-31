@@ -1,4 +1,4 @@
-module github.com/DeanoC/FogCast-POC
+module github.com/DeanoC/FogCast
 
 go 1.26.0
 

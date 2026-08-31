@@ -8,7 +8,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 // UInputSink writes Linux input_event records to an already configured uinput

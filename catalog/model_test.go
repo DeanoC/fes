@@ -3,8 +3,8 @@ package catalog_test
 import (
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/catalog"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 func TestNormalizeRelativePath(t *testing.T) {

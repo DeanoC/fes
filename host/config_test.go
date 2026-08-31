@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/host"
+	"github.com/DeanoC/FogCast/host"
 )
 
 const validConnectionConfig = `base_url = "http://192.0.2.10:8182"

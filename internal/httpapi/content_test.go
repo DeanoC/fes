@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/internal/httpapi"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/internal/httpapi"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 const v2Digest = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

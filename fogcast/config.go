@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/catalog"
-	"github.com/DeanoC/FogCast-POC/internal/remotemedia"
-	"github.com/DeanoC/FogCast-POC/internal/systems"
-	"github.com/DeanoC/FogCast-POC/librarymedia"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/internal/remotemedia"
+	"github.com/DeanoC/FogCast/internal/systems"
+	"github.com/DeanoC/FogCast/librarymedia"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/pelletier/go-toml/v2"
 )
 
@@ -52,7 +52,7 @@ func DefaultPaths() (Paths, error) {
 }
 
 const (
-	// DefaultAgentBaseURL is the mister-remote agent origin when base_url is
+	// DefaultAgentBaseURL is the fogcast agent origin when base_url is
 	// omitted. The operator runs the host where that tunnel already exists.
 	DefaultAgentBaseURL = "http://127.0.0.1:18182"
 	// DefaultFPGAROMGameID is the seeded v1 allowlist key for ActRaiser.

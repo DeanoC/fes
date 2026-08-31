@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/internal/mediasession"
+	"github.com/DeanoC/FogCast/internal/mediasession"
 )
 
 type adapterTestComponent struct {

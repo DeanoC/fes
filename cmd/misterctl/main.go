@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/DeanoC/FogCast-POC/host"
-	"github.com/DeanoC/FogCast-POC/internal/cli"
+	"github.com/DeanoC/FogCast/host"
+	"github.com/DeanoC/FogCast/internal/cli"
 )
 
 func main() {

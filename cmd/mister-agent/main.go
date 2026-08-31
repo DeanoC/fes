@@ -12,15 +12,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/internal/agent"
-	"github.com/DeanoC/FogCast-POC/internal/agentconfig"
-	"github.com/DeanoC/FogCast-POC/internal/cast"
-	"github.com/DeanoC/FogCast-POC/internal/core"
-	"github.com/DeanoC/FogCast-POC/internal/httpapi"
-	"github.com/DeanoC/FogCast-POC/internal/input"
-	"github.com/DeanoC/FogCast-POC/internal/mister"
-	"github.com/DeanoC/FogCast-POC/internal/targetcache"
-	"github.com/DeanoC/FogCast-POC/internal/version"
+	"github.com/DeanoC/FogCast/internal/agent"
+	"github.com/DeanoC/FogCast/internal/agentconfig"
+	"github.com/DeanoC/FogCast/internal/cast"
+	"github.com/DeanoC/FogCast/internal/core"
+	"github.com/DeanoC/FogCast/internal/httpapi"
+	"github.com/DeanoC/FogCast/internal/input"
+	"github.com/DeanoC/FogCast/internal/mister"
+	"github.com/DeanoC/FogCast/internal/targetcache"
+	"github.com/DeanoC/FogCast/internal/version"
 )
 
 const (
@@ -153,7 +153,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 }
 
 func main() {
-	configPath := flag.String("config", "/media/fat/mister-remote/agent.toml", "target configuration path")
+	configPath := flag.String("config", "/media/fat/fogcast/agent.toml", "target configuration path")
 	flag.Parse()
 	if flag.NArg() != 0 {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: mister-agent [--config path]")

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/catalog"
+	"github.com/DeanoC/FogCast/catalog"
 )
 
 func TestReferencedMediaNamesParsesCueAndGDI(t *testing.T) {

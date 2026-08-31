@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/internal/targetcache"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/internal/targetcache"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 func TestInventoryRetainsDirectStalePartsAndAccountsConservatively(t *testing.T) {

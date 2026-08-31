@@ -5,12 +5,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/internal/mister"
+	"github.com/DeanoC/FogCast/internal/mister"
 )
 
 func TestWriteAtomicMGL(t *testing.T) {
 	t.Parallel()
-	dir := filepath.Join(t.TempDir(), "mister-remote")
+	dir := filepath.Join(t.TempDir(), "fogcast")
 	path, err := mister.WriteAtomicMGL(dir, []byte("new mgl\n"))
 	if err != nil {
 		t.Fatal(err)

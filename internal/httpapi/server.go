@@ -19,8 +19,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/internal/input"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/internal/input"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 type Controller interface {

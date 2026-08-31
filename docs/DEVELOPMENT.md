@@ -2,63 +2,103 @@
 
 ## Local checks
 
-FogCast uses Go for the host and target services and dependency-free
-JavaScript tests for the browser UI.
-
 ```sh
 go test ./...
 node --test internal/hostapi/ui_metadata_test.js internal/hostapi/ui_app_test.js
+node --test internal/hostapi/ui_browser_test.js
 go vet ./...
 git diff --check
 ```
 
-The browser integration suite can be run separately with:
+`make test` runs these checks plus the target-image fixture tests and the
+operator-script tests. Use `TMPDIR=/home/deano/.cache/fogcast-tmp` on the
+development host if the system `/tmp` is full.
 
-```sh
-node --test internal/hostapi/ui_browser_test.js
-```
-
-## Builds
-
-Build the normal project binaries with:
+## Binaries and target image
 
 ```sh
 make build
+make build-agent
+make target-image-fetch
+make target-image-dev
 ```
 
-Important outputs include the host/API programs, CLI and hardware test tools,
-remote-media helpers, and the ARMv7 target agent. Build only the target agent
-with:
+The development image is
+`build/output/target-image/dev/linux.img`. The release image and kernel use:
 
 ```sh
-make build-agent
+make target-images
+make target-image-verify
+make target-kernel-verify
 ```
 
-The resulting target binary is:
+The development image includes SSH and curl. The production image does not;
+capture and decoding tools run on the host.
 
-```text
-bin/mister-agent-linux-armv7
+## Dedicated fixture
+
+The designated disposable kit is:
+
+- Host: `powerboat`
+- MiSTer Pi: `192.168.10.239`, SSH `root` / `1`
+- ROM share: `//DEANO-CLAWZ/Games`
+- ROM directory inside the share: `Games`
+- Powerboat mount: `/mnt/fogcast-games` (read-only, configured locally)
+- Host config: `~/.config/fogcast/config.toml` (untracked, mode `0600`)
+- Host API: `http://127.0.0.1:8787`
+- Target API: `http://192.168.10.239:8182`
+
+The target boots `/media/fat/linux/linux.img`. Its boot scripts start the
+MiSTer/Main-compatible process and then the FAT-side agent using
+`/media/fat/fogcast/agent.toml` and `/media/fat/fogcast/mister-agent`.
+
+The fixture uses the stock MiSTer login and changing SSH host keys after a
+rebuild is expected. Rebooting, reflashing, or replacing the image is normal.
+
+## Deploy and exercise the kit
+
+Deploy an image and request a reboot:
+
+```sh
+make target-image-deploy TARGET_IMAGE=build/output/target-image/dev/linux.img
 ```
 
-## Private configuration
+Run a real catalog launch through the same host API used by the browser:
 
-Target addresses, credentials, tokens, game-library paths, and private media
-configuration stay in untracked local configuration. Examples in source must
-use placeholders rather than live values.
+```sh
+make target-smoke GAME_ID=YOUR_GAME_ID EXPECTED_CORE=YOUR_CORE_NAME
+```
 
-The dedicated MiSTer Pi is disposable development hardware on a local
-network. Its normal development login is `root` with password `1`, and its SSH
-host key may change after a rebuild. Rebooting, reflashing, or replacing its
-image is acceptable. Do not build production security, rollback, or failover
-systems around this fixture.
+The smoke command checks host and target health, calls
+`POST /api/v1/session/launch`, polls `/tmp/CORENAME`, calls
+`POST /api/v1/session/stop`, and waits for `MENU`. Direct equivalents are:
 
-## Hardware changes
+```sh
+curl --get --data-urlencode 'q=Sonic the Hedgehog 2' \
+  http://127.0.0.1:8787/api/v1/games
+curl -H 'Content-Type: application/json' \
+  --data '{"game_id":"GAME_ID_FROM_QUERY"}' \
+  http://127.0.0.1:8787/api/v1/session/launch
+curl -X POST http://127.0.0.1:8787/api/v1/session/stop
+```
 
-Before changing target behavior, trace the relevant path from
+When target access is needed directly:
+
+```sh
+sshpass -p 1 ssh -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null root@192.168.10.239 \
+  'cat /tmp/CORENAME; curl --version'
+curl --fail http://192.168.10.239:8182/v1/health
+```
+
+## Change discipline
+
+Before changing target behavior, trace the path from
 `docs/ARCHITECTURE.md` into the named source files. Test host-only behavior
-locally, then run the actual operation on the designated MiSTer Pi when the
-feature touches FPGA loading, input, video, audio, or target lifecycle.
+locally, then run the actual operation on the designated kit when the change
+touches FPGA loading, input, video, audio, or target lifecycle.
 
-The current development-RBF goal will reuse `/dev/MiSTer_cmd` and the resident
-Main-compatible process. A development core may make Main exit or leave the
-screen unusable; a target reboot is an acceptable recovery during this work.
+Names in the active tree describe current use: the image toolchain is
+`target-image`, the target FAT directory is `fogcast`, and the sender command
+is `remote-play-sender`. Do not introduce numbered experiment names into
+active code or docs.

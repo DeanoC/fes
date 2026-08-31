@@ -3,8 +3,8 @@ package core_test
 import (
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/internal/core"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/internal/core"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 func TestRegistry(t *testing.T) {
@@ -65,7 +65,7 @@ func TestLookupObserved(t *testing.T) {
 		t.Fatalf("LookupObserved(MegaDrive) = %#v, %v", spec, ok)
 	}
 	if _, ok := registry.LookupObserved("Genesis"); ok {
-		t.Fatal("deprecated Genesis core must not match the POC registry")
+		t.Fatal("deprecated Genesis core must not match the registry")
 	}
 	sms, ok := registry.LookupObserved("SMS")
 	if !ok || sms.System != protocol.SystemSMS {

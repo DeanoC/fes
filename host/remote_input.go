@@ -15,8 +15,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/protocol"
-	"github.com/DeanoC/FogCast-POC/remoteinput"
+	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/remoteinput"
 )
 
 const (
