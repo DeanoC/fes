@@ -75,6 +75,13 @@ void TestProtocolVersion()
 		ErrorCode::invalid_request);
 	ExpectError("{\"protocol\":9223372036854775808,\"operation\":\"status\"}",
 		ErrorCode::invalid_request);
+	ExpectError("{\"protocol\":2}", ErrorCode::invalid_request);
+	ExpectError("{\"protocol\":2,\"operation\":true}", ErrorCode::invalid_request);
+	ExpectError("{\"protocol\":2,\"operation\":\"unknown\"}", ErrorCode::invalid_request);
+	ExpectError("{\"protocol\":2,\"operation\":\"status\",\"extra\":true}",
+		ErrorCode::invalid_request);
+	ExpectError("{\"protocol\":2,\"operation\":\"launch\",\"system\":\"test\",\"rbf\":\"/a\",\"media\":{},\"settings\":{}}",
+		ErrorCode::unsupported_protocol);
 }
 
 void TestUnknownFields()
@@ -99,14 +106,26 @@ void TestJsonAcceptedValueKinds()
 
 void TestOperationShapes()
 {
-	ExpectError("{\"protocol\":1,\"operation\":\"status\",\"rbf\":\"/a\"}",
-		ErrorCode::invalid_request);
-	ExpectError("{\"protocol\":1,\"operation\":\"launch\",\"rbf\":\"/a\",\"media\":{},\"settings\":{}}",
-		ErrorCode::invalid_request);
-	ExpectError("{\"protocol\":1,\"operation\":\"launch\",\"system\":\"test\",\"rbf\":\"/a\",\"media\":{}}",
-		ErrorCode::invalid_request);
-	ExpectError("{\"protocol\":1,\"operation\":\"load_development_rbf\"}",
-		ErrorCode::invalid_request);
+	struct ShapeCase {
+		const char* request;
+	};
+	const ShapeCase cases[] = {
+		{"{\"operation\":\"status\"}"},
+		{"{\"protocol\":1}"},
+		{"{\"protocol\":1,\"operation\":\"status\",\"rbf\":\"/a\"}"},
+		{"{\"protocol\":1,\"operation\":\"launch\",\"rbf\":\"/a\",\"media\":{},\"settings\":{}}"},
+		{"{\"protocol\":1,\"operation\":\"launch\",\"system\":\"test\",\"media\":{},\"settings\":{}}"},
+		{"{\"protocol\":1,\"operation\":\"launch\",\"system\":\"test\",\"rbf\":\"/a\",\"settings\":{}}"},
+		{"{\"protocol\":1,\"operation\":\"launch\",\"system\":\"test\",\"rbf\":\"/a\",\"media\":{}}"},
+		{"{\"protocol\":1,\"operation\":\"launch\",\"system\":\"test\",\"rbf\":\"/a\",\"media\":{},\"settings\":{},\"extra\":true}"},
+		{"{\"protocol\":1,\"operation\":\"load_development_rbf\"}"},
+		{"{\"protocol\":1,\"operation\":\"load_development_rbf\",\"rbf\":\"/a\",\"extra\":true}"},
+		{"{\"operation\":\"stop\"}"},
+		{"{\"protocol\":1,\"operation\":\"stop\",\"rbf\":\"/a\"}"},
+	};
+	for (const ShapeCase& shape : cases) {
+		ExpectError(shape.request, ErrorCode::invalid_request);
+	}
 	ExpectError("{\"protocol\":1,\"operation\":\"unknown\"}",
 		ErrorCode::invalid_request);
 }

@@ -156,8 +156,7 @@ Error ParseRequest(const std::string& line, Request* request)
 	const json::Value* protocol = Find(root, "protocol");
 	if (protocol == nullptr) return Invalid("request requires protocol");
 	if (protocol->type != json::Type::integer) return Invalid("protocol must be an integer");
-	if (protocol->integer_value != 1)
-		return {ErrorCode::unsupported_protocol, "unsupported protocol"};
+	const bool unsupported_protocol = protocol->integer_value != 1;
 	const json::Value* operation = Find(root, "operation");
 	if (operation == nullptr || operation->type != json::Type::string)
 		return Invalid("request requires operation");
@@ -198,6 +197,8 @@ Error ParseRequest(const std::string& line, Request* request)
 		return Invalid("unknown operation");
 	}
 
+	if (unsupported_protocol)
+		return {ErrorCode::unsupported_protocol, "unsupported protocol"};
 	*request = parsed;
 	return {};
 }
