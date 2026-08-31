@@ -31,7 +31,8 @@ Error LinuxSpi::Exchange(std::uint8_t target,
 	if (!error.ok()) return error;
 	const std::uint32_t owned = kSpiStrobeMask | kSpiFileSelectMask |
 		kSpiUserSelectMask;
-	const std::uint32_t selected = (original & ~owned) | select;
+	const std::uint32_t data_mask = 0x0000ffffu;
+	const std::uint32_t selected = (original & ~(owned | data_mask)) | select;
 	error = mmio_.Write32(kSpiGpoAddress, selected);
 	if (!error.ok()) return error;
 	std::vector<std::uint16_t> response;

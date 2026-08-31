@@ -9,6 +9,9 @@
 #include <assert.h>
 #include <stdio.h>
 
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
 #include <thread>
 #include <vector>
 
@@ -59,6 +62,54 @@ bool HasLog(const std::vector<mister::LogRecord>& records,
 	}
 	return false;
 }
+
+class StatusReentrantLog final : public mister::LogSink {
+public:
+	void Enable(mister::Runtime& runtime)
+	{
+		std::lock_guard<std::mutex> lock(mutex_);
+		runtime_ = &runtime;
+		enabled_ = true;
+	}
+
+	void Write(const mister::LogRecord&) override
+	{
+		mister::Runtime* runtime = nullptr;
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			if (enabled_) runtime = runtime_;
+		}
+		if (runtime == nullptr) return;
+		const mister::Status status = runtime->status();
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			observed_state_ = status.state;
+			reentered_ = true;
+		}
+		condition_.notify_all();
+	}
+
+	bool WaitUntilReentered()
+	{
+		std::unique_lock<std::mutex> lock(mutex_);
+		return condition_.wait_for(lock, std::chrono::seconds(2),
+			[this]() { return reentered_; });
+	}
+
+	mister::State observed_state() const
+	{
+		std::lock_guard<std::mutex> lock(mutex_);
+		return observed_state_;
+	}
+
+private:
+	mutable std::mutex mutex_;
+	std::condition_variable condition_;
+	mister::Runtime* runtime_ = nullptr;
+	bool enabled_ = false;
+	bool reentered_ = false;
+	mister::State observed_state_ = mister::State::starting;
+};
 
 void TestStartLoadsIdleOnceAndPublishesIdle()
 {
@@ -118,6 +169,27 @@ void TestConcurrentMutationReturnsBusyWithoutQueueing()
 	assert(fixture.hardware.development_calls == 0);
 	fixture.hardware.ReleaseLaunch();
 	launch.join();
+}
+
+void TestRejectedMutationLogCanReadStatusWithoutDeadlock()
+{
+	mister::Profiles profiles = Fixture::BuildProfiles();
+	mister_test::FakeHardware hardware;
+	StatusReentrantLog log;
+	mister::Runtime runtime(hardware, profiles, log);
+	assert(runtime.Start().ok());
+	log.Enable(runtime);
+	mister::Error second_start;
+	std::thread rejected([&runtime, &second_start]() {
+		second_start = runtime.Start();
+	});
+	if (!log.WaitUntilReentered()) {
+		fputs("reentrant log could not read status\n", stderr);
+		abort();
+	}
+	rejected.join();
+	assert(second_start.code == ErrorCode::busy);
+	assert(log.observed_state() == State::idle);
 }
 
 void TestStatusRemainsReadableDuringMutation()
@@ -368,6 +440,7 @@ int main()
 	TestValidationPrecedesHardwareMutation();
 	TestBlockedLaunchPublishesStarting();
 	TestConcurrentMutationReturnsBusyWithoutQueueing();
+	TestRejectedMutationLogCanReadStatusWithoutDeadlock();
 	TestStatusRemainsReadableDuringMutation();
 	TestSuccessfulGameRecordsIdentity();
 	TestWrongObservedCoreCleansUpOnce();
@@ -386,6 +459,6 @@ int main()
 	TestValidationFailureLogsDirectErrorWithoutHardware();
 	TestPostMutationFailureLogsCleanupAndPrimary();
 	TestFailedCleanupLogsBothFailuresAndDevelopmentInventsNoIdentity();
-	puts("runtime_test: 23 passed");
+	puts("runtime_test: 24 passed");
 	return 0;
 }

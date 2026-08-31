@@ -46,17 +46,24 @@ public:
 
 	Error Start()
 	{
+		LogRecord rejection;
+		bool rejected = false;
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
 			if (busy_ || started_) {
-				const Error error = Busy("runtime already started");
-				Log("start", "", "", "validate", error);
-				return error;
+				rejection = {"start", "", "", "validate",
+					Busy("runtime already started")};
+				rejected = true;
+			} else {
+				busy_ = true;
+				started_ = true;
+				status_ = {};
+				status_.state = State::starting;
 			}
-			busy_ = true;
-			started_ = true;
-			status_ = {};
-			status_.state = State::starting;
+		}
+		if (rejected) {
+			log_.Write(rejection);
+			return rejection.error;
 		}
 		Log("start", "", "", "validate");
 		Log("start", "", "", "starting");
@@ -90,14 +97,21 @@ public:
 
 	Error LaunchGame(const mister::Launch& launch)
 	{
+		LogRecord rejection;
+		bool rejected = false;
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
 			if (busy_ || !started_ || status_.state != State::idle) {
-				const Error error = Busy("runtime is not idle");
-				Log("launch", launch.system, "", "validate", error);
-				return error;
+				rejection = {"launch", launch.system, "", "validate",
+					Busy("runtime is not idle")};
+				rejected = true;
+			} else {
+				busy_ = true;
 			}
-			busy_ = true;
+		}
+		if (rejected) {
+			log_.Write(rejection);
+			return rejection.error;
 		}
 
 		PreparedLaunch prepared;
@@ -148,14 +162,21 @@ public:
 
 	Error LoadDevelopmentRBF(const std::string& rbf)
 	{
+		LogRecord rejection;
+		bool rejected = false;
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
 			if (busy_ || !started_ || status_.state != State::idle) {
-				const Error error = Busy("runtime is not idle");
-				Log("load_development_rbf", "", "", "validate", error);
-				return error;
+				rejection = {"load_development_rbf", "", "", "validate",
+					Busy("runtime is not idle")};
+				rejected = true;
+			} else {
+				busy_ = true;
 			}
-			busy_ = true;
+		}
+		if (rejected) {
+			log_.Write(rejection);
+			return rejection.error;
 		}
 		if (!ValidAbsolutePath(rbf)) {
 			const Error error = Invalid("invalid RBF path");
@@ -192,32 +213,36 @@ public:
 
 	Error Stop()
 	{
+		LogRecord immediate;
+		bool return_immediately = false;
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
 			if (busy_ || !started_) {
-				const Error error = Busy("runtime mutation is busy");
-				Log("stop", status_.system, status_.core, "validate", error);
-				return error;
-			}
-			if (status_.state == State::reboot_required) {
-				const Error error = {ErrorCode::idle_failed,
-					status_.error.message.empty() ? "reboot required" : status_.error.message};
-				Log("stop", "", "", "validate", error);
-				return error;
-			}
-			if (status_.state == State::idle) {
-				Log("stop", "", "", "idle");
-				return {};
-			}
-			if (status_.state != State::running_game &&
+				immediate = {"stop", status_.system, status_.core, "validate",
+					Busy("runtime mutation is busy")};
+				return_immediately = true;
+			} else if (status_.state == State::reboot_required) {
+				immediate = {"stop", "", "", "validate",
+					{ErrorCode::idle_failed, status_.error.message.empty() ?
+						"reboot required" : status_.error.message}};
+				return_immediately = true;
+			} else if (status_.state == State::idle) {
+				immediate = {"stop", "", "", "idle", {}};
+				return_immediately = true;
+			} else if (status_.state != State::running_game &&
 				status_.state != State::running_development) {
-				const Error error = Busy("runtime is not stoppable");
-				Log("stop", status_.system, status_.core, "validate", error);
-				return error;
+				immediate = {"stop", status_.system, status_.core, "validate",
+					Busy("runtime is not stoppable")};
+				return_immediately = true;
+			} else {
+				busy_ = true;
+				status_.state = State::starting;
+				status_.execution = Execution::none;
 			}
-			busy_ = true;
-			status_.state = State::starting;
-			status_.execution = Execution::none;
+		}
+		if (return_immediately) {
+			log_.Write(immediate);
+			return immediate.error;
 		}
 		Log("stop", "", "", "starting");
 		const HardwareResult result = hardware_.LoadIdle();

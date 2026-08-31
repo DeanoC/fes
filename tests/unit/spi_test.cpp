@@ -57,6 +57,18 @@ void TestFileTargetUsesOnlyFileSelect()
 	assert((mmio.writes.front().value & mister::native::kSpiUserSelectMask) == 0);
 }
 
+void TestExchangeReplacesStaleRegisterDataBits()
+{
+	mister_test::FakeMmio mmio;
+	mmio.values[mister::native::kSpiGpoAddress] = 0x800000f0u;
+	ScriptAck(mmio, 0);
+	FixedClock clock(1);
+	mister::native::LinuxSpi spi(mmio, clock);
+	assert(spi.Exchange(mister::native::kUserIoTarget, {0x000f}, nullptr, 10).ok());
+	assert((mmio.writes[1].value & 0x0000ffffu) == 0x000fu);
+	assert((mmio.writes[2].value & 0x0000ffffu) == 0x000fu);
+}
+
 void TestDeadlineReturnsDirectIoFailureAndDeselects()
 {
 	mister_test::FakeMmio mmio;
@@ -88,8 +100,9 @@ int main()
 {
 	TestExchangeSelectsStrobesAcknowledgesAndDeselects();
 	TestFileTargetUsesOnlyFileSelect();
+	TestExchangeReplacesStaleRegisterDataBits();
 	TestDeadlineReturnsDirectIoFailureAndDeselects();
 	TestMmioAndTargetFailuresRemainDirect();
-	puts("spi_test: 4 passed");
+	puts("spi_test: 5 passed");
 	return 0;
 }
