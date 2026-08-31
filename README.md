@@ -1,74 +1,87 @@
-# Open MiSTer OSS Cyclone V Toolchain
+# Open MiSTer FPGA development environment
 
-This private, local repository tests whether a fully open toolchain can build a
-useful bitstream for the Terasic DE10-Nano/MiSTer FPGA (`5CSEBA6U23I7`). The
-first experiment, `010_blinky`, drives one user LED from a 50 MHz fabric
-counter. The software-tested `020_linux_mailbox` experiment instead exposes a
-small HPS GPI/GPO mailbox with no external FPGA output and returns the exact
-payload `OSS FPGA OK\n` to a private FogCast development loader.
+This repository builds small experimental RBF files for the MiSTer/DE10-Nano
+Cyclone V FPGA (`5CSEBA6U23I7`). It exists to make ordinary MiSTer core
+development possible with both the open-source Mistral toolchain and Quartus.
 
-The three lanes are deliberately separate:
+## What works now
 
-- `sim` uses Verilator as the logical oracle.
-- `oss` uses only pinned Yosys, nextpnr-mistral, Mistral, and openFPGALoader.
-- `oracle` uses Quartus Prime Lite 17.0.2 only when explicitly requested.
+- Verilator simulation for the included experiments.
+- A pinned repository-local Yosys, nextpnr-mistral, Mistral, and
+  openFPGALoader toolchain.
+- Open-source synthesis, place-and-route, and RBF generation.
+- An optional Quartus Prime Lite 17.0.2 reference build using the same RTL.
+- Semantic comparison between the OSS and Quartus outputs.
+- `010_blinky`, a small LED counter.
+- `020_linux_mailbox`, a small HPS GPI/GPO mailbox experiment.
 
-Quartus is never an OSS or simulation dependency. FPGA sources are built from
-pinned commits into `build/toolchain/`; host prerequisites are reported, not
-silently installed. No build target programs hardware automatically. M1
-programming is volatile only: it does not write flash, HPS storage, or an SD
-card.
-
-Bootstrap is repository-local and idempotent. Check ordinary host prerequisites
-without changing the machine, inspect the lock-derived plan, then build the
-five pinned tools:
+The useful outputs are ordinary local files:
 
 ```text
+build/oss/<experiment>/top.rbf
+build/oracle/<experiment>/top.rbf
+```
+
+FogCast owns choosing one of those files, transferring it to the disposable
+MiSTer Pi, and loading it. This repository does not own FogCast deployment,
+target recovery, hardware ownership, or network policy.
+
+## Quick start
+
+Check prerequisites and build the pinned OSS tools:
+
+```sh
 make toolchain-check
-scripts/bootstrap.sh --print-plan
 make toolchain
 source scripts/env.sh
 ```
 
-`build/toolchain/src/` contains detached exact-commit checkouts,
-`build/toolchain/build/` contains build logs, identity output, and per-commit
-SHA-256 digest stamps, and
-`build/toolchain/install/` contains the shared local prefix. A dirty or
-mismatched checkout stops with instructions for a manual, reviewable fix; the
-bootstrap never resets or deletes source trees. `scripts/env.sh` prepends only
-the local `install/bin` directory and adds local library/pkg-config paths. It
-does not search for Quartus.
+Build the mailbox experiment with the open toolchain:
 
-The public interface is:
-
-```text
-make toolchain
-make toolchain-check
-make doctor
-make sim EXP=010_blinky
-make oss EXP=010_blinky
-make oracle EXP=010_blinky
-make compare EXP=010_blinky
-make program EXP=010_blinky BUILD=oss
-
+```sh
 make sim EXP=020_linux_mailbox
 make oss EXP=020_linux_mailbox
-make oracle EXP=020_linux_mailbox
-make compare EXP=020_linux_mailbox
-make dev-bundle EXP=020_linux_mailbox BUILD=oss RUN_ID=<32-lower-hex>
-make dev-preflight EXP=020_linux_mailbox BUILD=oss RUN_ID=<32-lower-hex>
-make dev-load EXP=020_linux_mailbox BUILD=oss RUN_ID=<32-lower-hex>
-make dev-fault-inject EXP=020_linux_mailbox BUILD=oss RUN_ID=<32-lower-hex>
 ```
 
-The `dev-*` targets are a separate FogCast transport; they do not change or
-wrap the existing `program` path. They default to dry-run and require explicit
-target attestations before live use. See
-[Linux mailbox development](docs/linux-mailbox-development.md) for the exact
-workflow, evidence limits, recovery behavior, and rollback boundary.
+The resulting development core is:
 
-The repository remains private while the open flow is being reduced,
-simulated, compiled, and validated. The M2 handoff is **Software-tested** only:
-no mailbox RBF has been loaded on hardware by this repository gate. Video,
-SDRAM, audio, and persistent-storage changes remain outside this project
-cycle.
+```text
+build/oss/020_linux_mailbox/top.rbf
+```
+
+If Quartus 17.0.2 is installed, build and compare the reference output:
+
+```sh
+make oracle EXP=020_linux_mailbox
+make compare EXP=020_linux_mailbox
+```
+
+See `docs/oracle-method.md` for the explicit Quartus path and
+`docs/linux-mailbox-development.md` for the mailbox experiment.
+
+## Optional direct programming
+
+`make program` remains an optional volatile diagnostic for a selected build.
+It can use the resident Main command FIFO on a MiSTer target or an external
+USB-Blaster/JTAG connection on a DE10-Nano. It is not the intended FogCast UI
+path and never writes flash or the SD card.
+
+```sh
+PROGRAM_DRY_RUN=1 MISTER_HOST=misterpi MISTER_USER=root \
+  make program EXP=020_linux_mailbox BUILD=oss
+```
+
+The old `dev-bundle`, `dev-load`, `dev-preflight`, and `dev-fault-inject`
+transport was abandoned. It duplicated FogCast's responsibility and is absent
+from this recovery branch; Git history retains it.
+
+## Repository layout
+
+- `experiments/`: RTL, simulation, constraints, and minimal Quartus projects.
+- `boards/de10nano/`: shared device and pin constraints.
+- `scripts/`: tool bootstrap, build, comparison, diagnostics, and optional
+  direct programming.
+- `toolchain.lock`: pinned OSS tool sources and commits.
+- `build/`: ignored generated tools, reports, manifests, and RBF files.
+
+The current build structure is described in `docs/architecture.md`.
