@@ -24,9 +24,10 @@ type ContentController interface {
 }
 
 type serverOptions struct {
-	content ContentController
-	input   InputController
-	cast    CastController
+	content     ContentController
+	input       InputController
+	cast        CastController
+	development DevelopmentController
 }
 
 type Option func(*serverOptions)

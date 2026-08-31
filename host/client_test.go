@@ -1,6 +1,7 @@
 package host_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -77,6 +78,105 @@ func TestClientLaunchSendsJSON(t *testing.T) {
 	status, err := host.NewClient(baseURL, "test-token", server.Client()).Launch(context.Background(), want)
 	if err != nil || status.State != protocol.StateActive {
 		t.Fatalf("status = %#v, %v", status, err)
+	}
+}
+
+func TestClientDevelopmentRBFStreamsAuthenticatedBody(t *testing.T) {
+	t.Parallel()
+	payload := []byte("development-rbf")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/development/rbf" || r.URL.RawQuery != "" {
+			t.Errorf("request = %s %s?%s", r.Method, r.URL.Path, r.URL.RawQuery)
+		}
+		if r.Header.Get("Authorization") != "Bearer test-token" || r.Header.Get("Content-Type") != "application/octet-stream" {
+			t.Errorf("authorization=%q content-type=%q", r.Header.Get("Authorization"), r.Header.Get("Content-Type"))
+		}
+		if r.ContentLength != int64(len(payload)) {
+			t.Errorf("content length = %d", r.ContentLength)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Error(err)
+		}
+		if !bytes.Equal(body, payload) {
+			t.Errorf("body = %q", body)
+		}
+		_, _ = io.WriteString(w, `{"state":"active","game_id":null,"system":null,"expected_core":null,"observed_core":"DEVCORE","last_error":null,"development":true}`)
+	}))
+	defer server.Close()
+	baseURL, _ := url.Parse(server.URL)
+
+	status, err := host.NewClient(baseURL, "test-token", server.Client()).LoadDevelopmentRBF(context.Background(), int64(len(payload)), bytes.NewReader(payload))
+	if err != nil || status.State != protocol.StateActive || !status.Development || status.ObservedCore == nil || *status.ObservedCore != "DEVCORE" {
+		t.Fatalf("status = %#v, err = %v", status, err)
+	}
+}
+
+func TestClientDevelopmentRBFRejectsInvalidInputBeforeRequest(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		size    int64
+		content io.Reader
+	}{
+		{name: "empty", size: 0, content: strings.NewReader("")},
+		{name: "too large", size: (32 << 20) + 1, content: strings.NewReader("rbf")},
+		{name: "missing reader", size: 3},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			transport := &countingResponseTransport{}
+			_, err := contentClientWithTransport(transport).LoadDevelopmentRBF(context.Background(), test.size, test.content)
+			if err == nil {
+				t.Fatal("invalid development RBF input accepted")
+			}
+			if transport.calls != 0 {
+				t.Fatalf("transport calls = %d", transport.calls)
+			}
+		})
+	}
+}
+
+func TestClientDevelopmentRBFRejectsMismatchedStatus(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "idle", body: `{"state":"idle","game_id":null,"system":null,"expected_core":null,"observed_core":null,"last_error":null,"development":true}`},
+		{name: "ordinary active", body: `{"state":"active","game_id":null,"system":null,"expected_core":null,"observed_core":"DEVCORE","last_error":null}`},
+		{name: "game identity", body: `{"state":"active","game_id":"snes-game","system":"snes","expected_core":null,"observed_core":"DEVCORE","last_error":null,"development":true}`},
+		{name: "embedded error", body: `{"state":"active","game_id":null,"system":null,"expected_core":null,"observed_core":"DEVCORE","last_error":{"code":"INTERNAL","message":"failed"},"development":true}`},
+		{name: "premature recovery", body: `{"state":"active","game_id":null,"system":null,"expected_core":null,"observed_core":null,"last_error":null,"development":true,"recovery":"reboot_required"}`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			client := contentClientWithTransport(&staticResponseTransport{body: test.body})
+			if _, err := client.LoadDevelopmentRBF(context.Background(), 3, strings.NewReader("rbf")); err == nil {
+				t.Fatal("mismatched development status accepted")
+			}
+		})
+	}
+}
+
+func TestClientDevelopmentRebootUsesAuthenticatedEmptyPost(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/development/reboot" || r.Header.Get("Authorization") != "Bearer test-token" {
+			t.Fatalf("development reboot request = %s %s auth=%q", r.Method, r.URL.Path, r.Header.Get("Authorization"))
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil || len(body) != 0 {
+			t.Fatalf("development reboot body = %q err=%v", body, err)
+		}
+		_ = json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
+	}))
+	defer server.Close()
+	baseURL, _ := url.Parse(server.URL)
+
+	status, err := host.NewClient(baseURL, "test-token", server.Client()).RebootDevelopment(context.Background())
+	if err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("development reboot = %#v, %v", status, err)
 	}
 }
 

@@ -29,6 +29,7 @@ type Service interface {
 	Health(context.Context) (protocol.Health, error)
 	Status(context.Context) (protocol.Status, error)
 	Launch(context.Context, string, fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error)
+	LoadDevelopmentRBF(context.Context, int64, io.Reader) (protocol.Status, error)
 	Stop(context.Context) (protocol.Status, error)
 }
 
@@ -203,6 +204,21 @@ func New(service Service, options ...ServerOption) http.Handler {
 			return
 		}
 		result, err := session.launch(r.Context(), request.GameID)
+		if err != nil {
+			writeSessionError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+	})
+	mux.HandleFunc("POST /api/v1/session/development-rbf", func(w http.ResponseWriter, r *http.Request) {
+		contentTypes := r.Header.Values("Content-Type")
+		if len(contentTypes) != 1 || contentTypes[0] != "application/octet-stream" || len(r.TransferEncoding) != 0 ||
+			r.ContentLength < 1 || r.ContentLength > protocol.MaxDevelopmentRBFBytes {
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "development RBF upload requires a bounded application/octet-stream body")
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, protocol.MaxDevelopmentRBFBytes)
+		result, err := session.loadDevelopmentRBF(r.Context(), r.ContentLength, r.Body)
 		if err != nil {
 			writeSessionError(w, err)
 			return

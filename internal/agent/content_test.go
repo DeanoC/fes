@@ -106,6 +106,13 @@ func (f *contentRuntime) Launch(ctx context.Context, prepared mister.PreparedLau
 	return observed, !beforeDispatch, apiErr
 }
 
+func (f *contentRuntime) LoadDevelopmentRBF(context.Context, int64, io.Reader) (string, bool, *protocol.APIError) {
+	return "", false, &protocol.APIError{Code: protocol.CodeInternal, Message: "unused"}
+}
+func (f *contentRuntime) RecoverDevelopment(context.Context) (string, *protocol.APIError) {
+	return "", &protocol.APIError{Code: protocol.CodeInternal, Message: "unused"}
+}
+
 func (f *contentRuntime) Stop(context.Context) (string, *protocol.APIError) {
 	if f.log != nil {
 		f.log.add("stop")

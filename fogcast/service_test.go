@@ -2205,27 +2205,140 @@ func (f *fakeServicePreparer) Prepare(ctx context.Context, root catalog.Root, ga
 }
 
 type fakeServiceClient struct {
-	probe             func(context.Context, protocol.System, protocol.ContentIdentity) (protocol.CacheProbeResponse, error)
-	upload            func(context.Context, protocol.System, protocol.ContentIdentity, io.Reader) (protocol.CacheUploadResponse, error)
-	launch            func(context.Context, protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, error)
-	nativeLaunch      func(context.Context, protocol.LaunchRequest) (protocol.Status, error)
-	probeCalls        int
-	uploadCalls       int
-	launchCalls       int
-	nativeLaunchCalls int
-	nativeLaunchReq   protocol.LaunchRequest
-	healthCalls       int
-	statusCalls       int
-	stopCalls         int
-	activeGame        string
-	healthResult      protocol.Health
-	statusResult      protocol.Status
-	statusFn          func(context.Context) (protocol.Status, error)
-	stopResult        protocol.Status
-	stopFn            func(context.Context) (protocol.Status, error)
-	healthErr         error
-	statusErr         error
-	stopErr           error
+	probe              func(context.Context, protocol.System, protocol.ContentIdentity) (protocol.CacheProbeResponse, error)
+	upload             func(context.Context, protocol.System, protocol.ContentIdentity, io.Reader) (protocol.CacheUploadResponse, error)
+	launch             func(context.Context, protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, error)
+	nativeLaunch       func(context.Context, protocol.LaunchRequest) (protocol.Status, error)
+	developmentLoad    func(context.Context, int64, io.Reader) (protocol.Status, error)
+	developmentReboot  func(context.Context) (protocol.Status, error)
+	probeCalls         int
+	uploadCalls        int
+	launchCalls        int
+	nativeLaunchCalls  int
+	developmentCalls   int
+	developmentReboots int
+	developmentSize    int64
+	developmentBody    []byte
+	nativeLaunchReq    protocol.LaunchRequest
+	healthCalls        int
+	statusCalls        int
+	stopCalls          int
+	activeGame         string
+	healthResult       protocol.Health
+	healthFn           func(context.Context) (protocol.Health, error)
+	statusResult       protocol.Status
+	statusFn           func(context.Context) (protocol.Status, error)
+	stopResult         protocol.Status
+	stopFn             func(context.Context) (protocol.Status, error)
+	healthErr          error
+	statusErr          error
+	stopErr            error
+}
+
+func TestServiceDevelopmentRBFUsesSelectedTargetAndStops(t *testing.T) {
+	payload := []byte("development-rbf")
+	observed := "DEVCORE"
+	client := &fakeServiceClient{
+		developmentLoad: func(_ context.Context, size int64, body io.Reader) (protocol.Status, error) {
+			if size != int64(len(payload)) {
+				t.Fatalf("development RBF size = %d", size)
+			}
+			got, err := io.ReadAll(body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(got, payload) {
+				t.Fatalf("development RBF body = %q", got)
+			}
+			return protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &observed}, nil
+		},
+		statusResult: protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &observed},
+		stopResult: protocol.Status{
+			State: protocol.StateStopping, Development: true, Recovery: protocol.RecoveryRebootRequired,
+		},
+	}
+	client.developmentReboot = func(context.Context) (protocol.Status, error) {
+		client.statusResult = protocol.Status{State: protocol.StateIdle}
+		return protocol.Status{}, io.EOF
+	}
+	healthChecks := 0
+	client.healthFn = func(context.Context) (protocol.Health, error) {
+		healthChecks++
+		if healthChecks < 3 {
+			return protocol.Health{Ready: true, BootID: "boot-before"}, nil
+		}
+		return protocol.Health{Ready: true, BootID: "boot-after"}, nil
+	}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+
+	status, err := service.LoadDevelopmentRBF(context.Background(), int64(len(payload)), bytes.NewReader(payload))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.State != protocol.StateActive || !status.Development {
+		t.Fatalf("development load status = %+v", status)
+	}
+	if service.activeExecution != ExecutionFPGADevelopment || service.activeGameID != "" || service.activeSystem != "" {
+		t.Fatalf("active development execution = %q game = %q system = %q", service.activeExecution, service.activeGameID, service.activeSystem)
+	}
+
+	status, err = service.Status(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.State != protocol.StateActive || !status.Development {
+		t.Fatalf("development status = %+v", status)
+	}
+	status, err = service.Stop(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.State != protocol.StateIdle || client.stopCalls != 1 || client.developmentReboots != 1 || healthChecks < 3 || service.activeExecution != "" {
+		t.Fatalf("stop status = %+v calls = %d reboots = %d health checks = %d execution = %q", status, client.stopCalls, client.developmentReboots, healthChecks, service.activeExecution)
+	}
+}
+
+func TestServiceRejectsCatalogLaunchWhileDevelopmentRBFIsActive(t *testing.T) {
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, &fakeServiceClient{})
+	service.activeExecution = ExecutionFPGADevelopment
+
+	_, err := service.Launch(context.Background(), "snes-replacement", nil)
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBusy {
+		t.Fatalf("launch error = %v", err)
+	}
+	if service.activeExecution != ExecutionFPGADevelopment {
+		t.Fatalf("active execution = %q", service.activeExecution)
+	}
+}
+
+func TestServiceDevelopmentActiveReconstructsAfterHostRestart(t *testing.T) {
+	observed := "DEVCORE"
+	client := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &observed}}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+
+	active, err := service.DevelopmentActive(context.Background())
+	if err != nil || !active {
+		t.Fatalf("development active = %t, %v", active, err)
+	}
+	if service.activeExecution != ExecutionFPGADevelopment {
+		t.Fatalf("reconstructed execution = %q", service.activeExecution)
+	}
+}
+
+func TestServiceDevelopmentActiveReconstructsStoppingRecoveryAfterHostRestart(t *testing.T) {
+	client := &fakeServiceClient{statusResult: protocol.Status{
+		State: protocol.StateStopping, Development: true, Recovery: protocol.RecoveryRebootRequired,
+	}}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+
+	active, err := service.DevelopmentActive(context.Background())
+	if err != nil || !active {
+		t.Fatalf("development active = %t, %v", active, err)
+	}
+	if service.activeExecution != ExecutionFPGADevelopment {
+		t.Fatalf("reconstructed execution = %q", service.activeExecution)
+	}
 }
 
 func TestNamedTargetSelectionRoutesPlayStatusAndStop(t *testing.T) {
@@ -3049,8 +3162,28 @@ func (f *fakeServiceClient) Launch(ctx context.Context, request protocol.LaunchR
 	return status, err
 }
 
-func (f *fakeServiceClient) Health(context.Context) (protocol.Health, error) {
+func (f *fakeServiceClient) LoadDevelopmentRBF(ctx context.Context, size int64, body io.Reader) (protocol.Status, error) {
+	f.developmentCalls++
+	f.developmentSize = size
+	if f.developmentLoad == nil {
+		return protocol.Status{}, errors.New("unexpected development RBF load")
+	}
+	return f.developmentLoad(ctx, size, body)
+}
+
+func (f *fakeServiceClient) RebootDevelopment(ctx context.Context) (protocol.Status, error) {
+	f.developmentReboots++
+	if f.developmentReboot == nil {
+		return protocol.Status{}, errors.New("unexpected development reboot")
+	}
+	return f.developmentReboot(ctx)
+}
+
+func (f *fakeServiceClient) Health(ctx context.Context) (protocol.Health, error) {
 	f.healthCalls++
+	if f.healthFn != nil {
+		return f.healthFn(ctx)
+	}
 	return f.healthResult, f.healthErr
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -16,8 +17,11 @@ type Paths struct {
 	MiSTerProcessComm string
 	CommandPipe       string
 	CoreNameFile      string
+	BootIDFile        string
 	MenuRBF           string
 	MGLDirectory      string
+	DevelopmentRBF    string
+	RebootCommand     string
 }
 
 type CommandWriter interface {
@@ -134,11 +138,37 @@ func (r *Runtime) Launch(ctx context.Context, prepared PreparedLaunch) (string, 
 	return observed, true, apiErr
 }
 
+func (r *Runtime) LoadDevelopmentRBF(ctx context.Context, size int64, content io.Reader) (string, bool, *protocol.APIError) {
+	if err := writeAtomicDevelopmentRBF(r.paths.DevelopmentRBF, size, content); err != nil {
+		return r.currentCore(), false, &protocol.APIError{Code: protocol.CodeInternal, Message: "development RBF could not be installed"}
+	}
+	if err := r.writer.Write(ctx, "load_core "+r.paths.DevelopmentRBF+"\n"); err != nil {
+		return r.currentCore(), true, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "MiSTer command could not be dispatched"}
+	}
+	return r.currentCore(), true, nil
+}
+
 func (r *Runtime) Stop(ctx context.Context) (string, *protocol.APIError) {
 	if err := r.writer.Write(ctx, "load_core "+r.paths.MenuRBF+"\n"); err != nil {
 		return r.currentCore(), &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "Menu-core command could not be dispatched"}
 	}
 	return r.observe(ctx, "MENU")
+}
+
+func (r *Runtime) RecoverDevelopment(ctx context.Context) (string, *protocol.APIError) {
+	if err := ctx.Err(); err != nil {
+		return r.currentCore(), &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "development-core recovery was cancelled"}
+	}
+	info, err := os.Stat(r.paths.RebootCommand)
+	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
+		return r.currentCore(), &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "development-core reboot recovery is unavailable"}
+	}
+	command := exec.Command(r.paths.RebootCommand)
+	if err := command.Start(); err != nil {
+		return r.currentCore(), &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "development-core reboot could not be started"}
+	}
+	go func() { _ = command.Wait() }()
+	return r.currentCore(), nil
 }
 
 func (r *Runtime) currentCore() string {
@@ -150,7 +180,8 @@ func (r *Runtime) Health(version string) protocol.Health {
 	process := r.process.Running(r.paths.MiSTerProcessComm)
 	_, pipeErr := os.Stat(r.paths.CommandPipe)
 	pipe := pipeErr == nil
-	return protocol.Health{APIVersion: "v1", AgentVersion: version, Ready: process && pipe, MiSTerProcess: process, CommandPipe: pipe}
+	bootID, _ := os.ReadFile(r.paths.BootIDFile)
+	return protocol.Health{APIVersion: "v1", AgentVersion: version, Ready: process && pipe, MiSTerProcess: process, CommandPipe: pipe, BootID: strings.TrimSpace(string(bootID))}
 }
 
 func (r *Runtime) Reconcile(ctx context.Context) protocol.Status {

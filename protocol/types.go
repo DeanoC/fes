@@ -1,5 +1,9 @@
 package protocol
 
+const MaxDevelopmentRBFBytes int64 = 32 << 20
+
+const RecoveryRebootRequired = "reboot_required"
+
 type System string
 
 const (
@@ -71,6 +75,7 @@ type Health struct {
 	Ready         bool   `json:"ready"`
 	MiSTerProcess bool   `json:"mister_process"`
 	CommandPipe   bool   `json:"command_pipe"`
+	BootID        string `json:"boot_id,omitempty"`
 }
 
 type Status struct {
@@ -80,6 +85,8 @@ type Status struct {
 	ExpectedCore *string   `json:"expected_core"`
 	ObservedCore *string   `json:"observed_core"`
 	LastError    *APIError `json:"last_error"`
+	Development  bool      `json:"development,omitempty"`
+	Recovery     string    `json:"recovery,omitempty"`
 }
 
 type LaunchRequest struct {

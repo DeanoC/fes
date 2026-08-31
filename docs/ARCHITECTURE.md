@@ -62,7 +62,36 @@ and then starts the FAT-side FogCast agent from `/media/fat/fogcast`.
 
 ## Development RBF extension
 
-The next small extension is a host action that accepts an arbitrary local RBF,
-transfers it to the target, and asks the target to load it through the existing
-MiSTer command path. It does not require a second programmer, a new runtime
-coordinator, or a separate target-control protocol.
+```text
+Host tool
+  -> POST /api/v1/session/development-rbf (raw RBF)
+  -> host session service
+  -> POST /v1/development/rbf (raw RBF)
+  -> mister-agent atomically installs /tmp/fogcast-development/core.rbf
+  -> /dev/MiSTer_cmd: load_core /tmp/fogcast-development/core.rbf
+  -> development FPGA image
+```
+
+This path intentionally has no catalog entry, MGL, game identity, manifest,
+rollback store, or second programmer. The public session reports
+`execution: fpga_development` with no game or system.
+
+Non-MiSTer development images, including the `misteross` blinky and mailbox
+experiments, do not implement the GPI signature expected by the current
+MiSTer/Main process. Main exits after loading them and cannot reload Menu from
+that FPGA state. Development Stop therefore uses an explicit recovery
+handshake:
+
+1. `POST /v1/stop` returns `recovery: reboot_required` without rebooting.
+2. The host records the target's Linux boot ID, then sends
+   `POST /v1/development/reboot`.
+3. The host waits for target health to report a different boot ID and an idle
+   status after boot. This proves the reboot even when polling does not sample
+   the brief disconnect.
+4. Only then does the public Stop return an idle session.
+
+Normal game Stop is unchanged and continues to load `menu.rbf` through
+`/dev/MiSTer_cmd` without rebooting. The relevant source entry points are
+`internal/hostapi/session.go`, `fogcast/service.go`,
+`host/development_client.go`, `internal/httpapi/development.go`,
+`internal/agent/coordinator.go`, and `internal/mister/runtime.go`.
