@@ -456,6 +456,25 @@ func (s *Service) SessionExecution(ctx context.Context, gameID string) (string, 
 	return execution, nil
 }
 
+// DevelopmentActive reconstructs development ownership from the selected
+// target after a host restart, when no local execution marker exists yet.
+func (s *Service) DevelopmentActive(ctx context.Context) (bool, error) {
+	s.executionMu.Lock()
+	execution := s.activeExecution
+	s.executionMu.Unlock()
+	if execution == ExecutionFPGADevelopment {
+		return true, nil
+	}
+	if execution != "" {
+		return false, nil
+	}
+	status, err := s.Status(ctx)
+	if err != nil {
+		return false, err
+	}
+	return status.Development && status.State != protocol.StateIdle, nil
+}
+
 func (s *Service) resolveExecution(ctx context.Context, game catalog.Game) (string, error) {
 	execution, err := s.executionResolver.Resolve(ctx, game)
 	if err != nil {
@@ -497,6 +516,12 @@ func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFu
 		return protocol.CachedLaunchResponse{}, err
 	}
 	defer releaseLifecycle()
+	s.executionMu.Lock()
+	developmentActive := s.activeExecution == ExecutionFPGADevelopment
+	s.executionMu.Unlock()
+	if developmentActive {
+		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeBusy, nil)
+	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
 	for attempt := 0; attempt < 2; attempt++ {

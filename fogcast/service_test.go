@@ -2298,6 +2298,34 @@ func TestServiceDevelopmentRBFUsesSelectedTargetAndStops(t *testing.T) {
 	}
 }
 
+func TestServiceRejectsCatalogLaunchWhileDevelopmentRBFIsActive(t *testing.T) {
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, &fakeServiceClient{})
+	service.activeExecution = ExecutionFPGADevelopment
+
+	_, err := service.Launch(context.Background(), "snes-replacement", nil)
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBusy {
+		t.Fatalf("launch error = %v", err)
+	}
+	if service.activeExecution != ExecutionFPGADevelopment {
+		t.Fatalf("active execution = %q", service.activeExecution)
+	}
+}
+
+func TestServiceDevelopmentActiveReconstructsAfterHostRestart(t *testing.T) {
+	observed := "DEVCORE"
+	client := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &observed}}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+
+	active, err := service.DevelopmentActive(context.Background())
+	if err != nil || !active {
+		t.Fatalf("development active = %t, %v", active, err)
+	}
+	if service.activeExecution != ExecutionFPGADevelopment {
+		t.Fatalf("reconstructed execution = %q", service.activeExecution)
+	}
+}
+
 func TestNamedTargetSelectionRoutesPlayStatusAndStop(t *testing.T) {
 	ctx := context.Background()
 	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: t.TempDir()}

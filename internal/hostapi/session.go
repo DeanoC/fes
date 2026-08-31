@@ -33,6 +33,10 @@ type sessionExecutionService interface {
 	SessionExecution(context.Context, string) (string, error)
 }
 
+type sessionDevelopmentService interface {
+	DevelopmentActive(context.Context) (bool, error)
+}
+
 type sessionProgress struct {
 	Stage   string `json:"stage"`
 	Message string `json:"message"`
@@ -281,6 +285,13 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 	defer s.end()
 	s.observationMu.Lock()
 	defer s.observationMu.Unlock()
+	development, err := s.developmentActive(ctx)
+	if err != nil {
+		return sessionResult{}, err
+	}
+	if development {
+		return sessionResult{}, developmentMustStopError()
+	}
 
 	if s.remoteInput != nil {
 		if err := s.remoteInput.Detach(ctx, "session_replace"); err != nil {
@@ -314,6 +325,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 	s.mu.Unlock()
 	if execution == fogcast.ExecutionHostOnly {
 		if err := s.startMedia(ctx, id, execution); err != nil {
+			s.restoreExecution(previousExecution)
 			return sessionResult{}, err
 		}
 	}
@@ -324,6 +336,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 	})
 	if err != nil {
 		_ = s.stopMediaBounded(execution)
+		s.restoreExecution(previousExecution)
 		return sessionResult{}, err
 	}
 	result := s.publicSession(resp.Status, &progress)
@@ -514,6 +527,9 @@ func (s *sessionCoordinator) stop(ctx context.Context) (sessionResult, error) {
 	defer s.end()
 	s.observationMu.Lock()
 	defer s.observationMu.Unlock()
+	if _, err := s.developmentActive(ctx); err != nil {
+		return sessionResult{}, err
+	}
 
 	var inputErr error
 	if s.remoteInput != nil {
@@ -567,6 +583,44 @@ func (s *sessionCoordinator) stop(ctx context.Context) (sessionResult, error) {
 	}
 	s.record("session.stop", result, nil)
 	return result, nil
+}
+
+func (s *sessionCoordinator) developmentActive(ctx context.Context) (bool, error) {
+	s.mu.Lock()
+	execution := s.execution
+	s.mu.Unlock()
+	if execution == fogcast.ExecutionFPGADevelopment {
+		return true, nil
+	}
+	if execution != "" {
+		return false, nil
+	}
+	probe, ok := s.service.(sessionDevelopmentService)
+	if !ok {
+		return false, nil
+	}
+	development, err := probe.DevelopmentActive(ctx)
+	if err != nil {
+		return false, err
+	}
+	if !development {
+		return false, nil
+	}
+	s.mu.Lock()
+	if s.execution == "" {
+		s.execution = fogcast.ExecutionFPGADevelopment
+		s.terminalStatus = nil
+	}
+	development = s.execution == fogcast.ExecutionFPGADevelopment
+	s.mu.Unlock()
+	return development, nil
+}
+
+func (s *sessionCoordinator) restoreExecution(execution string) {
+	s.mu.Lock()
+	s.execution = execution
+	s.terminalStatus = nil
+	s.mu.Unlock()
 }
 
 func (s *sessionCoordinator) stopAfterFailedAttach(execution string) error {
@@ -695,6 +749,10 @@ func (s *sessionCoordinator) publicSession(st protocol.Status, progress *session
 
 func busyError() error {
 	return &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
+}
+
+func developmentMustStopError() error {
+	return &protocol.APIError{Code: protocol.CodeBusy, Message: "stop the development RBF before launching a game"}
 }
 
 func remoteInputError() error {

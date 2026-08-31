@@ -64,6 +64,9 @@ func (s *fakeService) Search(_ context.Context, query string) ([]catalog.Game, e
 func (s *fakeService) SessionExecution(context.Context, string) (string, error) {
 	return s.execution, s.executionErr
 }
+func (s *fakeService) DevelopmentActive(context.Context) (bool, error) {
+	return s.status.Development && s.status.State != protocol.StateIdle, s.statusErr
+}
 func (s *fakeService) Game(context.Context, string) (catalog.Game, error) { return s.game, s.gameErr }
 func (s *fakeService) Health(context.Context) (protocol.Health, error)    { return s.health, s.healthErr }
 func (s *fakeService) Status(ctx context.Context) (protocol.Status, error) {
@@ -427,6 +430,83 @@ func TestSessionDevelopmentRBFStreamsWithoutMediaOrInput(t *testing.T) {
 	idle := serve(t, handler, http.MethodGet, "/api/v1/session")
 	if idle.Code != http.StatusOK || strings.Contains(idle.Body.String(), "execution") {
 		t.Fatalf("idle development session = %d %s", idle.Code, idle.Body.String())
+	}
+}
+
+func TestSessionDevelopmentRBFMustStopBeforeCatalogLaunch(t *testing.T) {
+	for _, execution := range []string{fogcast.ExecutionFPGANative, fogcast.ExecutionHostOnly} {
+		t.Run(execution, func(t *testing.T) {
+			observed := "DEVCORE"
+			development := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &observed}
+			service := &fakeService{
+				development: development,
+				status:      development,
+				execution:   execution,
+				launch:      protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive}},
+			}
+			handler := hostapi.New(service)
+			load := httptest.NewRequest(http.MethodPost, "/api/v1/session/development-rbf", strings.NewReader("rbf"))
+			load.Host = "127.0.0.1"
+			load.Header.Set("Content-Type", "application/octet-stream")
+			loadResponse := httptest.NewRecorder()
+			handler.ServeHTTP(loadResponse, load)
+			if loadResponse.Code != http.StatusOK {
+				t.Fatalf("development load = %d %s", loadResponse.Code, loadResponse.Body.String())
+			}
+
+			launch := httptest.NewRequest(http.MethodPost, "/api/v1/session/launch", strings.NewReader(`{"game_id":"replacement"}`))
+			launch.Host = "127.0.0.1"
+			launchResponse := httptest.NewRecorder()
+			handler.ServeHTTP(launchResponse, launch)
+			if launchResponse.Code != http.StatusConflict || service.launchCalls != 0 {
+				t.Fatalf("replacement launch = %d %s calls=%d", launchResponse.Code, launchResponse.Body.String(), service.launchCalls)
+			}
+			status := serve(t, handler, http.MethodGet, "/api/v1/session")
+			if !strings.Contains(status.Body.String(), `"execution":"fpga_development"`) {
+				t.Fatalf("development ownership was lost: %s", status.Body.String())
+			}
+		})
+	}
+}
+
+func TestSessionStopReconstructsDevelopmentAfterHostRestart(t *testing.T) {
+	observed := "DEVCORE"
+	service := &fakeService{
+		status:  protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &observed},
+		stopped: protocol.Status{State: protocol.StateIdle},
+	}
+	handler := hostapi.New(service)
+	response := serve(t, handler, http.MethodPost, "/api/v1/session/stop")
+	if response.Code != http.StatusOK || service.stopHasDeadline {
+		t.Fatalf("restart recovery stop = %d %s deadline=%t", response.Code, response.Body.String(), service.stopHasDeadline)
+	}
+}
+
+func TestSessionUnknownDevelopmentStateBlocksLaunchAfterHostRestart(t *testing.T) {
+	service := &fakeService{
+		statusErr: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target unavailable"},
+		execution: fogcast.ExecutionHostOnly,
+		launch:    protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive}},
+	}
+	handler := hostapi.New(service)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/launch", strings.NewReader(`{"game_id":"replacement"}`))
+	request.Host = "127.0.0.1"
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusInternalServerError || service.launchCalls != 0 || !strings.Contains(response.Body.String(), `"code":"MISTER_UNAVAILABLE"`) {
+		t.Fatalf("unknown-state launch = %d %s calls=%d", response.Code, response.Body.String(), service.launchCalls)
+	}
+}
+
+func TestSessionUnknownDevelopmentStateDoesNotUseBoundedStopAfterHostRestart(t *testing.T) {
+	service := &fakeService{
+		statusErr: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target unavailable"},
+		stopped:   protocol.Status{State: protocol.StateIdle},
+	}
+	handler := hostapi.New(service)
+	response := serve(t, handler, http.MethodPost, "/api/v1/session/stop")
+	if response.Code != http.StatusInternalServerError || len(service.stopCtxErrs) != 0 || !strings.Contains(response.Body.String(), `"code":"MISTER_UNAVAILABLE"`) {
+		t.Fatalf("unknown-state stop = %d %s stop calls=%d", response.Code, response.Body.String(), len(service.stopCtxErrs))
 	}
 }
 
@@ -1016,6 +1096,11 @@ func TestHostOnlyLaunchFailureStopsMedia(t *testing.T) {
 	events := serve(t, handler, http.MethodGet, "/api/v1/session/events")
 	if !strings.Contains(events.Body.String(), `"event":"session.media.stop"`) || strings.Contains(events.Body.String(), "/private/secret") {
 		t.Fatalf("failure events = %s", events.Body.String())
+	}
+	service.status = protocol.Status{State: protocol.StateIdle}
+	status := serve(t, handler, http.MethodGet, "/api/v1/session")
+	if strings.Contains(status.Body.String(), `"execution"`) {
+		t.Fatalf("failed launch retained replacement ownership: %s", status.Body.String())
 	}
 }
 
