@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/internal/packagepoc"
+	"github.com/DeanoC/FogCast/internal/packagepoc"
 )
 
 var archiveFiles = map[string]string{

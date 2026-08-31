@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 type ConfigState string

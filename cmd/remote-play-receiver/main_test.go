@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/internal/remotemedia"
+	"github.com/DeanoC/FogCast/internal/remotemedia"
 )
 
 func TestReceiverCommandRequiresSessionAndToken(t *testing.T) {

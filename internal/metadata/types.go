@@ -7,7 +7,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 // ProviderName identifies an upstream adapter without exposing its wire model.

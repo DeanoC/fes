@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/protocol"
 	_ "modernc.org/sqlite"
 )
 

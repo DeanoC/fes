@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/catalog"
-	"github.com/DeanoC/FogCast-POC/internal/metadata"
-	"github.com/DeanoC/FogCast-POC/libraryuser"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/internal/metadata"
+	"github.com/DeanoC/FogCast/libraryuser"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 func TestQueryGamesMapsMalformedCursorToBadRequest(t *testing.T) {

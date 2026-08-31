@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/catalog"
-	"github.com/DeanoC/FogCast-POC/fogcast"
-	"github.com/DeanoC/FogCast-POC/internal/hil"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/fogcast"
+	"github.com/DeanoC/FogCast/internal/hil"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 type poc2FakeService struct {

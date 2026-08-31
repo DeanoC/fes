@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/catalog"
-	"github.com/DeanoC/FogCast-POC/internal/remotemedia"
-	"github.com/DeanoC/FogCast-POC/internal/systems"
-	"github.com/DeanoC/FogCast-POC/librarymedia"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/internal/remotemedia"
+	"github.com/DeanoC/FogCast/internal/systems"
+	"github.com/DeanoC/FogCast/librarymedia"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/pelletier/go-toml/v2"
 )
 

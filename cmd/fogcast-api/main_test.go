@@ -14,13 +14,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/catalog"
-	"github.com/DeanoC/FogCast-POC/fogcast"
-	"github.com/DeanoC/FogCast-POC/host"
-	"github.com/DeanoC/FogCast-POC/internal/hostapi"
-	"github.com/DeanoC/FogCast-POC/internal/metadata"
-	"github.com/DeanoC/FogCast-POC/internal/remotemedia"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/fogcast"
+	"github.com/DeanoC/FogCast/host"
+	"github.com/DeanoC/FogCast/internal/hostapi"
+	"github.com/DeanoC/FogCast/internal/metadata"
+	"github.com/DeanoC/FogCast/internal/remotemedia"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 func serveComposition(t *testing.T, handler http.Handler, method, path, body string) *httptest.ResponseRecorder {

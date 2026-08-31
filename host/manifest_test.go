@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/host"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/host"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 func TestLoadManifest(t *testing.T) {

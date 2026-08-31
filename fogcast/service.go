@@ -14,15 +14,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/catalog"
-	"github.com/DeanoC/FogCast-POC/host"
-	"github.com/DeanoC/FogCast-POC/internal/core"
-	"github.com/DeanoC/FogCast-POC/internal/hostexec"
-	"github.com/DeanoC/FogCast-POC/internal/systems"
-	"github.com/DeanoC/FogCast-POC/librarymedia"
-	"github.com/DeanoC/FogCast-POC/libraryuser"
-	"github.com/DeanoC/FogCast-POC/protocol"
-	"github.com/DeanoC/FogCast-POC/romsource"
+	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/host"
+	"github.com/DeanoC/FogCast/internal/core"
+	"github.com/DeanoC/FogCast/internal/hostexec"
+	"github.com/DeanoC/FogCast/internal/systems"
+	"github.com/DeanoC/FogCast/librarymedia"
+	"github.com/DeanoC/FogCast/libraryuser"
+	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/romsource"
 )
 
 type Progress struct {

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/host"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/host"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 type API interface {

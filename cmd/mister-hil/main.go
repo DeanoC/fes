@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DeanoC/FogCast-POC/host"
-	"github.com/DeanoC/FogCast-POC/internal/hil"
+	"github.com/DeanoC/FogCast/host"
+	"github.com/DeanoC/FogCast/internal/hil"
 )
 
 func main() {

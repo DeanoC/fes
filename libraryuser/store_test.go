@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/libraryuser"
+	"github.com/DeanoC/FogCast/libraryuser"
 	_ "modernc.org/sqlite"
 )
 

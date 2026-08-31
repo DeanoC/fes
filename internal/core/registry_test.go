@@ -3,8 +3,8 @@ package core_test
 import (
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/internal/core"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/internal/core"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 func TestRegistry(t *testing.T) {

@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/catalog"
-	"github.com/DeanoC/FogCast-POC/fogcast"
-	"github.com/DeanoC/FogCast-POC/host"
-	"github.com/DeanoC/FogCast-POC/internal/hostapi"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/fogcast"
+	"github.com/DeanoC/FogCast/host"
+	"github.com/DeanoC/FogCast/internal/hostapi"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 type fakeService struct {

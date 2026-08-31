@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/internal/imagepoc"
+	"github.com/DeanoC/FogCast/internal/imagepoc"
 )
 
 const validPOC2 = `format = 1

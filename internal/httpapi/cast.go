@@ -7,8 +7,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/DeanoC/FogCast-POC/internal/cast"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/internal/cast"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 func registerCastRoutes(mux *http.ServeMux, token string, controller CastController) {

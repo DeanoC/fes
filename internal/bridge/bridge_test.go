@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 type testSink struct {

@@ -3,7 +3,7 @@ package hostapi
 import (
 	"context"
 
-	"github.com/DeanoC/FogCast-POC/internal/mediasession"
+	"github.com/DeanoC/FogCast/internal/mediasession"
 )
 
 // NewMediaSessionAdapter exposes a managed media session through the host API

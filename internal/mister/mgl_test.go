@@ -4,9 +4,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/internal/core"
-	"github.com/DeanoC/FogCast-POC/internal/mister"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/internal/core"
+	"github.com/DeanoC/FogCast/internal/mister"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 func TestRenderMGLGolden(t *testing.T) {

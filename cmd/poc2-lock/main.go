@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/DeanoC/FogCast-POC/internal/imagepoc"
+	"github.com/DeanoC/FogCast/internal/imagepoc"
 )
 
 func main() {

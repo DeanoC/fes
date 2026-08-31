@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/internal/hostapi"
+	"github.com/DeanoC/FogCast/internal/hostapi"
 )
 
 func TestUIHandlerReturnsSelfContainedHTML(t *testing.T) {

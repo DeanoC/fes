@@ -2,7 +2,7 @@
 
 package bridge
 
-import "github.com/DeanoC/FogCast-POC/protocol"
+import "github.com/DeanoC/FogCast/protocol"
 
 // FakeSink is used by tests and makes non-Linux builds explicit: no device is opened.
 type FakeSink struct {

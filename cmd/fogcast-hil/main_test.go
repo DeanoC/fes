@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/fogcast"
-	"github.com/DeanoC/FogCast-POC/internal/hil"
+	"github.com/DeanoC/FogCast/fogcast"
+	"github.com/DeanoC/FogCast/internal/hil"
 )
 
 func TestCLIUsesFogcastServiceAsPOC2Service(t *testing.T) {

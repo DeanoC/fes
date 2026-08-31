@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/internal/imagepoc"
+	"github.com/DeanoC/FogCast/internal/imagepoc"
 )
 
 func TestResolveWritesImmutableSourceLock(t *testing.T) {

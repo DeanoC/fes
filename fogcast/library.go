@@ -9,11 +9,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DeanoC/FogCast-POC/catalog"
-	"github.com/DeanoC/FogCast-POC/internal/metadata"
-	"github.com/DeanoC/FogCast-POC/librarymedia"
-	"github.com/DeanoC/FogCast-POC/libraryuser"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/internal/metadata"
+	"github.com/DeanoC/FogCast/librarymedia"
+	"github.com/DeanoC/FogCast/libraryuser"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 type AttractItem struct {

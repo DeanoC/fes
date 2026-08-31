@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/catalog"
+	"github.com/DeanoC/FogCast/catalog"
 	_ "modernc.org/sqlite"
 )
 

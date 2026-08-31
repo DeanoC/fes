@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/internal/packagepoc"
+	"github.com/DeanoC/FogCast/internal/packagepoc"
 )
 
 func main() {

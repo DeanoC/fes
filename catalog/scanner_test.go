@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 func TestScannerTraversesIncrementallyWithoutFollowingSymlinks(t *testing.T) {

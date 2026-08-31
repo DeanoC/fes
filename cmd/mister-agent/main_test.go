@@ -13,15 +13,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/internal/agent"
-	"github.com/DeanoC/FogCast-POC/internal/agentconfig"
-	"github.com/DeanoC/FogCast-POC/internal/cast"
-	"github.com/DeanoC/FogCast-POC/internal/core"
-	"github.com/DeanoC/FogCast-POC/internal/httpapi"
-	"github.com/DeanoC/FogCast-POC/internal/input"
-	"github.com/DeanoC/FogCast-POC/internal/mister"
-	"github.com/DeanoC/FogCast-POC/internal/targetcache"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/internal/agent"
+	"github.com/DeanoC/FogCast/internal/agentconfig"
+	"github.com/DeanoC/FogCast/internal/cast"
+	"github.com/DeanoC/FogCast/internal/core"
+	"github.com/DeanoC/FogCast/internal/httpapi"
+	"github.com/DeanoC/FogCast/internal/input"
+	"github.com/DeanoC/FogCast/internal/mister"
+	"github.com/DeanoC/FogCast/internal/targetcache"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 func TestRunDoesNotExposeMalformedConfigurationContents(t *testing.T) {

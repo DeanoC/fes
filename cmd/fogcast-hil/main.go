@@ -20,8 +20,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/fogcast"
-	"github.com/DeanoC/FogCast-POC/internal/hil"
+	"github.com/DeanoC/FogCast/fogcast"
+	"github.com/DeanoC/FogCast/internal/hil"
 )
 
 var _ hil.POC2Service = (*fogcast.Service)(nil)

@@ -19,14 +19,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/internal/remotemedia"
+	"github.com/DeanoC/FogCast/internal/remotemedia"
 )
+
+const commandName = "remote-play-sender"
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := run(ctx, os.Args[1:], os.Stdout, os.Stderr); err != nil {
-		fmt.Fprintf(os.Stderr, "remote-play-spike: %v\n", err)
+		fmt.Fprintf(os.Stderr, "%s: %v\n", commandName, err)
 		os.Exit(1)
 	}
 }

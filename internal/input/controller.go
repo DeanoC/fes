@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/internal/bridge"
+	"github.com/DeanoC/FogCast/internal/bridge"
 )
 
 const streamDialTimeout = 2 * time.Second

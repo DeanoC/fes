@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/internal/cast"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/internal/cast"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 type castHandlerTestController struct{ starts int }

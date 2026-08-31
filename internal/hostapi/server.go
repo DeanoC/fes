@@ -14,11 +14,11 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/DeanoC/FogCast-POC/catalog"
-	"github.com/DeanoC/FogCast-POC/fogcast"
-	"github.com/DeanoC/FogCast-POC/host"
-	"github.com/DeanoC/FogCast-POC/internal/metadata"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/fogcast"
+	"github.com/DeanoC/FogCast/host"
+	"github.com/DeanoC/FogCast/internal/metadata"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 // Service is the host operation surface used by the privacy-safe application API.

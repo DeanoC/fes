@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 const testDigest = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

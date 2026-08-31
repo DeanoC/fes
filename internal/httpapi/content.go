@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/DeanoC/FogCast-POC/internal/cast"
-	"github.com/DeanoC/FogCast-POC/internal/core"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/internal/cast"
+	"github.com/DeanoC/FogCast/internal/core"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 const (

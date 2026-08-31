@@ -1,8 +1,8 @@
 VERSION ?= 0.1.0
 REVISION ?= $(shell git rev-parse --verify HEAD 2>/dev/null || printf unknown)
 CONTAINER_RUNTIME ?= docker
-LDFLAGS = -s -w -X github.com/DeanoC/FogCast-POC/internal/version.Version=$(VERSION)
-FOGCAST_LDFLAGS = $(LDFLAGS) -X github.com/DeanoC/FogCast-POC/internal/version.Revision=$(REVISION)
+LDFLAGS = -s -w -X github.com/DeanoC/FogCast/internal/version.Version=$(VERSION)
+FOGCAST_LDFLAGS = $(LDFLAGS) -X github.com/DeanoC/FogCast/internal/version.Revision=$(REVISION)
 FOGCAST_GOOS ?= darwin
 FOGCAST_GOARCH ?= arm64
 FOGCAST_OUTPUT ?= bin/fogcast
@@ -18,7 +18,7 @@ else
 NATIVE_GO_ENV =
 endif
 
-.PHONY: fmt test test-ui test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-cli build-hil build-fogcast-hil build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-agent build-bridge build-lock build-lock-container build-poc2-lock package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-dev-image poc1b-verify-images poc1b-qemu-smoke poc1b-kernel-test poc1b-kernel poc1b-verify-kernel poc1b-deploy-test poc2-rootfs-test poc2-deploy-test
+.PHONY: fmt test test-ui test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-cli build-hil build-fogcast-hil build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-agent build-bridge build-lock build-lock-container build-poc2-lock package-poc1a package-test poc1b-resolve poc1b-fetch poc1b-image-test poc1b-image-fetch poc1b-images poc1b-dev-image poc1b-verify-images poc1b-qemu-smoke poc1b-kernel-test poc1b-kernel poc1b-verify-kernel poc1b-deploy-test poc2-rootfs-test poc2-deploy-test
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
@@ -54,7 +54,7 @@ vet:
 
 check: fmt test vet
 
-build: build-fogcast build-fogcast-api build-cli build-hil build-fogcast-hil build-remote-play-receiver build-remote-play-impair build-agent build-bridge build-lock build-lock-container build-poc2-lock
+build: build-fogcast build-fogcast-api build-cli build-hil build-fogcast-hil build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-agent build-bridge build-lock build-lock-container build-poc2-lock
 
 build-fogcast:
 	mkdir -p "$(dir $(FOGCAST_OUTPUT))"
@@ -78,6 +78,10 @@ build-hil:
 build-fogcast-hil:
 	mkdir -p bin
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/fogcast-hil ./cmd/fogcast-hil
+
+build-remote-play-sender:
+	mkdir -p bin
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/remote-play-sender ./cmd/remote-play-sender
 
 build-remote-play-receiver:
 	mkdir -p bin

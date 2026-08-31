@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"text/tabwriter"
 
-	"github.com/DeanoC/FogCast-POC/host"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/host"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 type Library interface {

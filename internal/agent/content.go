@@ -4,8 +4,8 @@ import (
 	"context"
 	"io"
 
-	"github.com/DeanoC/FogCast-POC/internal/targetcache"
-	"github.com/DeanoC/FogCast-POC/protocol"
+	"github.com/DeanoC/FogCast/internal/targetcache"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 type ContentStore interface {

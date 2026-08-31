@@ -18,7 +18,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/internal/remotemedia"
+	"github.com/DeanoC/FogCast/internal/remotemedia"
 	"golang.org/x/sys/unix"
 )
 

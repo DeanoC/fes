@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/fogcast"
+	"github.com/DeanoC/FogCast/fogcast"
 	"golang.org/x/sys/unix"
 )
 

@@ -7,8 +7,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/internal/remotemedia"
+	"github.com/DeanoC/FogCast/internal/remotemedia"
 )
+
+func TestCommandUsesCanonicalName(t *testing.T) {
+	if commandName != "remote-play-sender" {
+		t.Fatalf("commandName = %q, want remote-play-sender", commandName)
+	}
+}
 
 func TestSenderRequiresPhysicalCaptureDevice(t *testing.T) {
 	var stderr bytes.Buffer

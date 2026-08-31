@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DeanoC/FogCast-POC/internal/mister"
+	"github.com/DeanoC/FogCast/internal/mister"
 )
 
 func TestProcProcessCheckerFindsExactComm(t *testing.T) {

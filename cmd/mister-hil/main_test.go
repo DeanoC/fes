@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast-POC/internal/hil"
+	"github.com/DeanoC/FogCast/internal/hil"
 )
 
 func TestTerminalPrompterConfirmsOnlyExplicitYes(t *testing.T) {
