@@ -59,8 +59,6 @@ type Server struct {
 	ready      chan struct{}
 	metrics    Metrics
 	stopOnce   sync.Once
-	closeErrMu sync.Mutex
-	closeErr   error
 	wg         sync.WaitGroup
 	activeMu   sync.Mutex
 	active     bool
@@ -117,10 +115,10 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	}
 }
 func (s *Server) Close() error {
+	var err error
 	s.stopOnce.Do(func() {
-		var errs []error
 		if s.ln != nil {
-			errs = append(errs, s.ln.Close())
+			err = s.ln.Close()
 		}
 		s.activeMu.Lock()
 		if s.activeConn != nil {
@@ -128,16 +126,10 @@ func (s *Server) Close() error {
 		}
 		s.activeMu.Unlock()
 		s.wg.Wait()
-		errs = append(errs, s.sink.ReleaseAll())
+		_ = s.sink.ReleaseAll()
 		s.metrics.Releases.Add(1)
-		errs = append(errs, s.sink.Close())
-		s.closeErrMu.Lock()
-		s.closeErr = errors.Join(errs...)
-		s.closeErrMu.Unlock()
+		_ = s.sink.Close()
 	})
-	s.closeErrMu.Lock()
-	err := s.closeErr
-	s.closeErrMu.Unlock()
 	return err
 }
 func (s *Server) handle(ctx context.Context, conn net.Conn) {
@@ -170,11 +162,7 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 		s.active = false
 		s.activeConn = nil
 		s.activeMu.Unlock()
-		if err := s.sink.ReleaseAll(); err != nil {
-			s.closeErrMu.Lock()
-			s.closeErr = errors.Join(s.closeErr, err)
-			s.closeErrMu.Unlock()
-		}
+		_ = s.sink.ReleaseAll()
 		s.metrics.Releases.Add(1)
 		if s.cfg.OnDisconnect != nil {
 			s.cfg.OnDisconnect()

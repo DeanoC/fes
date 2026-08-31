@@ -1,7 +1,6 @@
 // Command remote-play-audiobridge is a target-private diagnostic audio
 // receiver. It is intentionally not part of the public cast controller or
-// host_cast lifecycle: a native coordinator-owned AudioSink is still required
-// before this path could carry physical target audio.
+// host_cast lifecycle; physical target audio is not wired into this helper.
 package main
 
 import (

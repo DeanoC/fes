@@ -7,9 +7,8 @@ import (
 	"time"
 )
 
-// ProviderLaunchBox is the only provider name admitted by the LaunchBox
-// runtime. It remains separate from the legacy provider value until the later
-// migration slice removes that compatibility path.
+// ProviderLaunchBox is the provider name admitted by the LaunchBox runtime.
+// It remains distinct from the existing provider name for config compatibility.
 const ProviderLaunchBox ProviderName = "launchbox"
 
 // ActivatableRuntime is an internal composition seam. Runtime consumers only

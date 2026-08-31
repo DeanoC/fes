@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"io"
 	"path/filepath"
 	"reflect"
@@ -52,7 +51,6 @@ type contentRuntime struct {
 	stopObserved         string
 	stopErr              *protocol.APIError
 	launchGate           chan struct{}
-	launchEntered        chan struct{}
 	waitForContext       bool
 	prepareCalls         int
 	launchCalls          int
@@ -95,13 +93,9 @@ func (f *contentRuntime) Launch(ctx context.Context, prepared mister.PreparedLau
 	f.launchCalls++
 	f.launched = prepared
 	gate := f.launchGate
-	launchEntered := f.launchEntered
 	waitForContext := f.waitForContext
 	observed, apiErr, beforeDispatch := f.launchObserved, f.launchErr, f.launchBeforeDispatch
 	f.mu.Unlock()
-	if launchEntered != nil {
-		launchEntered <- struct{}{}
-	}
 	if gate != nil {
 		<-gate
 	}
@@ -194,9 +188,6 @@ type recordingContentStore struct {
 	pinned            bool
 	log               *callLog
 	onCommit          func()
-	onResolve         func()
-	onPin             func()
-	onAbort           func()
 	onDirectCommit    func()
 	onClear           func()
 	onReconcile       func(context.Context, protocol.Status)
@@ -233,15 +224,11 @@ func (s *recordingContentStore) Resolve(_ context.Context, system protocol.Syste
 		s.log.add("resolve")
 	}
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.resolveCalls++
 	s.lastResolveSystem = system
 	s.lastResolve = content
-	resolved, apiErr, onResolve := s.resolved, s.resolveErr, s.onResolve
-	s.mu.Unlock()
-	if onResolve != nil {
-		onResolve()
-	}
-	return resolved, apiErr
+	return s.resolved, s.resolveErr
 }
 
 func (s *recordingContentStore) PinForLaunch(system protocol.System, content protocol.ContentIdentity) *protocol.APIError {
@@ -249,18 +236,14 @@ func (s *recordingContentStore) PinForLaunch(system protocol.System, content pro
 		s.log.add("pin")
 	}
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.pinCalls++
 	s.lastPinSystem = system
 	s.lastPin = content
 	if s.pinErr == nil {
 		s.pinned = true
 	}
-	apiErr, onPin := s.pinErr, s.onPin
-	s.mu.Unlock()
-	if onPin != nil {
-		onPin()
-	}
-	return apiErr
+	return s.pinErr
 }
 
 func (s *recordingContentStore) RecordLaunchIntent(system protocol.System, content protocol.ContentIdentity) (targetcache.LaunchIntent, *protocol.APIError) {
@@ -295,13 +278,8 @@ func (s *recordingContentStore) AbortLaunch(system protocol.System, content prot
 	s.lastAbortSystem = system
 	s.lastAbort = content
 	s.pinned = false
-	onAbort := s.onAbort
-	apiErr := s.abortErr
 	s.mu.Unlock()
-	if onAbort != nil {
-		onAbort()
-	}
-	return apiErr
+	return s.abortErr
 }
 
 func (s *recordingContentStore) AbortDirectLaunch(system protocol.System, _ targetcache.LaunchIntent) *protocol.APIError {
@@ -634,213 +612,6 @@ func TestCachedLaunchUsesResolvedRootAndPathThenCommitsObservedCore(t *testing.T
 	}
 	if snapshot := store.snapshot(); snapshot.resolveSystem != request.System || snapshot.resolvedContent != identity || snapshot.pinSystem != request.System || snapshot.pinContent != identity || snapshot.commitSystem != request.System || snapshot.commitContent != identity || !snapshot.pinned {
 		t.Fatalf("cache calls = %#v", snapshot)
-	}
-}
-
-func TestCachedLaunchHoldsNormalAdmissionThroughResolvePinDispatchAndCommit(t *testing.T) {
-	identity := protocol.ContentIdentity{SHA256: cachedDigest, Size: 4, Extension: "sfc"}
-	request := protocol.CachedLaunchRequest{GameID: "snes-cached-test", System: protocol.SystemSNES, Content: identity}
-	firstEntered := make(chan struct{}, 1)
-	secondEntered := make(chan struct{}, 1)
-	gate := &serialNormalGate{entered: firstEntered}
-	resolveEntered := make(chan struct{}, 1)
-	resolveRelease := make(chan struct{})
-	pinEntered := make(chan struct{}, 1)
-	pinRelease := make(chan struct{})
-	launchEntered := make(chan struct{}, 1)
-	launchRelease := make(chan struct{})
-	commitEntered := make(chan struct{}, 1)
-	commitRelease := make(chan struct{})
-	store := &recordingContentStore{
-		resolved: targetcache.Resolved{Root: "/target/cache", Path: "/target/cache/snes/cached.sfc"},
-		onResolve: func() {
-			resolveEntered <- struct{}{}
-			<-resolveRelease
-		},
-		onPin: func() {
-			pinEntered <- struct{}{}
-			<-pinRelease
-		},
-		onCommit: func() {
-			commitEntered <- struct{}{}
-			<-commitRelease
-		},
-	}
-	runtime := &contentRuntime{
-		health:         protocol.Health{Ready: true},
-		launchObserved: "SNES",
-		launchGate:     launchRelease,
-		launchEntered:  launchEntered,
-	}
-	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second, gate)
-	controller := agent.NewContentController(coordinator, store)
-	launchDone := make(chan *protocol.APIError, 1)
-	go func() {
-		_, apiErr := controller.LaunchContent(context.Background(), request)
-		launchDone <- apiErr
-	}()
-
-	select {
-	case <-firstEntered:
-	case <-time.After(time.Second):
-		t.Fatal("cached launch did not acquire normal admission before cache resolution")
-	}
-	select {
-	case <-resolveEntered:
-	case <-time.After(time.Second):
-		t.Fatal("cached launch did not resolve content after normal admission")
-	}
-	startSecondAdmission(t, gate, secondEntered)
-	assertAdmissionBlocked(t, secondEntered, "content resolution")
-	close(resolveRelease)
-
-	select {
-	case <-pinEntered:
-	case <-time.After(time.Second):
-		t.Fatal("cached launch did not pin content")
-	}
-	assertAdmissionBlocked(t, secondEntered, "content pin")
-	close(pinRelease)
-
-	select {
-	case <-launchEntered:
-	case <-time.After(time.Second):
-		t.Fatal("cached launch did not dispatch to the runtime")
-	}
-	assertAdmissionBlocked(t, secondEntered, "core dispatch")
-	close(launchRelease)
-
-	select {
-	case <-commitEntered:
-	case <-time.After(time.Second):
-		t.Fatal("cached launch did not reach durable active-record commit")
-	}
-	assertAdmissionBlocked(t, secondEntered, "active-record commit")
-	close(commitRelease)
-
-	if apiErr := <-launchDone; apiErr != nil {
-		t.Fatal(apiErr)
-	}
-	select {
-	case <-secondEntered:
-	case <-time.After(time.Second):
-		t.Fatal("normal admission was not released after cached terminal commit")
-	}
-}
-
-func TestCachedLaunchHoldsNormalAdmissionThroughAbortTerminalHandling(t *testing.T) {
-	identity := protocol.ContentIdentity{SHA256: cachedDigest, Size: 4, Extension: "sfc"}
-	request := protocol.CachedLaunchRequest{GameID: "snes-cached-test", System: protocol.SystemSNES, Content: identity}
-	firstEntered := make(chan struct{}, 1)
-	secondEntered := make(chan struct{}, 1)
-	gate := &serialNormalGate{entered: firstEntered}
-	abortEntered := make(chan struct{}, 1)
-	abortRelease := make(chan struct{})
-	store := &recordingContentStore{
-		resolved: targetcache.Resolved{Root: "/target/cache", Path: "/target/cache/snes/cached.sfc"},
-		onAbort: func() {
-			abortEntered <- struct{}{}
-			<-abortRelease
-		},
-	}
-	runtime := &contentRuntime{
-		health:     protocol.Health{Ready: true},
-		prepareErr: &protocol.APIError{Code: protocol.CodeInvalidROMPath, Message: "prepare failed"},
-	}
-	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second, gate)
-	controller := agent.NewContentController(coordinator, store)
-	launchDone := make(chan *protocol.APIError, 1)
-	go func() {
-		_, apiErr := controller.LaunchContent(context.Background(), request)
-		launchDone <- apiErr
-	}()
-
-	select {
-	case <-firstEntered:
-	case <-time.After(time.Second):
-		t.Fatal("cached launch did not acquire normal admission before cache resolution")
-	}
-	startSecondAdmission(t, gate, secondEntered)
-	select {
-	case <-abortEntered:
-	case <-time.After(time.Second):
-		t.Fatal("cached launch did not reach abort terminal handling")
-	}
-	assertAdmissionBlocked(t, secondEntered, "abort terminal handling")
-	close(abortRelease)
-	if apiErr := <-launchDone; apiErr == nil || apiErr.Code != protocol.CodeInvalidROMPath {
-		t.Fatalf("cached launch error = %#v; want prepare failure", apiErr)
-	}
-	select {
-	case <-secondEntered:
-	case <-time.After(time.Second):
-		t.Fatal("normal admission was not released after cached abort handling")
-	}
-}
-
-func TestCachedLaunchReleaseFailureProjectsUnavailableWithoutReplacingPrimary(t *testing.T) {
-	identity := protocol.ContentIdentity{SHA256: cachedDigest, Size: 4, Extension: "sfc"}
-	request := protocol.CachedLaunchRequest{GameID: "snes-release-test", System: protocol.SystemSNES, Content: identity}
-	unlockErr := errors.New("private owner release detail")
-	tests := []struct {
-		name      string
-		launchErr *protocol.APIError
-		wantCode  protocol.ErrorCode
-	}{
-		{name: "after success", wantCode: ""},
-		{name: "after primary failure", launchErr: &protocol.APIError{Code: protocol.CodeCoreTimeout, Message: "core did not appear"}, wantCode: protocol.CodeCoreTimeout},
-	}
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			gate := &failingUnlockGate{unlockError: unlockErr}
-			store := &recordingContentStore{resolved: targetcache.Resolved{Root: "/target/cache", Path: "/target/cache/snes/cached.sfc"}}
-			runtime := &contentRuntime{health: protocol.Health{Ready: true}, launchObserved: "SNES", launchErr: test.launchErr}
-			coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second, gate)
-			controller := agent.NewContentController(coordinator, store)
-
-			response, apiErr := controller.LaunchContent(context.Background(), request)
-			if test.wantCode == "" {
-				if apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable || apiErr.Message != "MiSTer is unavailable" {
-					t.Fatalf("release error = %#v; want generic unavailable", apiErr)
-				}
-			} else if apiErr == nil || apiErr.Code != test.wantCode || apiErr.Message != test.launchErr.Message {
-				t.Fatalf("primary error = %#v; want %#v", apiErr, test.launchErr)
-			}
-			assertLiveUnavailableStatus(t, response.Status)
-			assertLiveUnavailableStatus(t, coordinator.Status())
-			if gate.calls() != 1 {
-				t.Fatalf("unlock calls = %d; want exactly one", gate.calls())
-			}
-			if strings.Contains(apiErr.Message, "private owner release detail") {
-				t.Fatalf("private release error leaked through API: %#v", apiErr)
-			}
-		})
-	}
-}
-
-func startSecondAdmission(t *testing.T, gate *serialNormalGate, entered chan<- struct{}) {
-	t.Helper()
-	go func() {
-		unlock, err := gate.Enter(context.Background())
-		if err != nil {
-			t.Errorf("second normal admission: %v", err)
-			return
-		}
-		if err := unlock(); err != nil {
-			t.Errorf("second normal admission unlock: %v", err)
-			return
-		}
-		entered <- struct{}{}
-	}()
-}
-
-func assertAdmissionBlocked(t *testing.T, entered <-chan struct{}, phase string) {
-	t.Helper()
-	select {
-	case <-entered:
-		t.Fatalf("second normal admission acquired during %s", phase)
-	case <-time.After(20 * time.Millisecond):
 	}
 }
 

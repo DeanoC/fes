@@ -392,12 +392,3 @@ func TestInstallTokenRenameFailureNeverWritesCredentialToTemporaryPath(t *testin
 		}
 	}
 }
-
-func TestNewForProfileRefusesDevelopmentProfileConstruction(t *testing.T) {
-	if controller, err := NewForProfile(testConfig(), nil, true); controller != nil || !errors.Is(err, ErrDevelopmentProfile) {
-		t.Fatalf("development cast construction = controller %#v error %v", controller, err)
-	}
-	if controller, err := NewForProfile(testConfig(), nil, false); err != nil || controller == nil {
-		t.Fatalf("production cast construction = controller %#v error %v", controller, err)
-	}
-}

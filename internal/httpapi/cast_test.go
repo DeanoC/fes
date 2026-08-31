@@ -2,9 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"encoding/json"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -121,33 +118,4 @@ func (*mediaCapableCastHandlerController) CastMediaCapabilities(context.Context)
 
 func (*mediaCapableCastHandlerController) Status(context.Context) cast.Status {
 	return cast.Status{State: cast.Active, Media: &protocol.CastStatusMedia{Version: protocol.CastMediaSetVersion, Video: true, Audio: false, Ready: true, Capabilities: protocol.CastMediaCapabilities{Version: protocol.CastMediaSetVersion, Video: true, Audio: true}}}
-}
-
-func TestUnavailableCastRoutesReturnMiSTerUnavailableWithoutController(t *testing.T) {
-	handler := New(&unavailableBaseController{}, "test-token", "0.1.0", slog.New(slog.NewJSONHandler(io.Discard, nil)), WithUnavailableCast())
-	request := httptest.NewRequest(http.MethodGet, "/v1/cast/status", nil)
-	request.Header.Set("Authorization", "Bearer test-token")
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, request)
-	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
-	}
-	var envelope protocol.ErrorEnvelope
-	if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
-		t.Fatal(err)
-	}
-	if envelope.Error.Code != protocol.CodeMiSTerUnavailable {
-		t.Fatalf("error code = %q", envelope.Error.Code)
-	}
-}
-
-type unavailableBaseController struct{}
-
-func (*unavailableBaseController) Health(string) protocol.Health { return protocol.Health{} }
-func (*unavailableBaseController) Status() protocol.Status       { return protocol.Status{} }
-func (*unavailableBaseController) Launch(context.Context, protocol.LaunchRequest) (protocol.Status, *protocol.APIError) {
-	return protocol.Status{}, nil
-}
-func (*unavailableBaseController) Stop(context.Context) (protocol.Status, *protocol.APIError) {
-	return protocol.Status{}, nil
 }

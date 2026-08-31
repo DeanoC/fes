@@ -19,9 +19,6 @@ var (
 	ErrStart   = errors.New("cast session failed to start")
 	ErrStop    = errors.New("cast session failed to stop")
 	ErrStale   = errors.New("cast session identity does not match")
-	// ErrDevelopmentProfile prevents accidental construction of cast workers
-	// in the restricted hardware-development profile.
-	ErrDevelopmentProfile = errors.New("cast controller is disabled in development profile")
 )
 
 const defaultStartGrace = 100 * time.Millisecond
@@ -106,16 +103,6 @@ func New(config Config, start StartProcess) (*Controller, error) {
 		}
 	}
 	return &Controller{config: config, start: start}, nil
-}
-
-// NewForProfile constructs the compatibility cast worker only for profiles
-// that explicitly permit auxiliary media facilities. The M2 development
-// profile passes development=true and receives no controller.
-func NewForProfile(config Config, start StartProcess, development bool) (*Controller, error) {
-	if development {
-		return nil, ErrDevelopmentProfile
-	}
-	return New(config, start)
 }
 
 func (c *Controller) Start(ctx context.Context, sessionID, token string, generation uint64) error {

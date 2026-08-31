@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -23,7 +22,6 @@ import (
 	"github.com/DeanoC/FogCast-POC/internal/mister"
 	"github.com/DeanoC/FogCast-POC/internal/targetcache"
 	"github.com/DeanoC/FogCast-POC/protocol"
-	"golang.org/x/sys/unix"
 )
 
 func TestRunDoesNotExposeMalformedConfigurationContents(t *testing.T) {
@@ -40,132 +38,6 @@ func TestRunDoesNotExposeMalformedConfigurationContents(t *testing.T) {
 	if strings.Contains(err.Error(), "real-secret-token") {
 		t.Fatalf("configuration content leaked in error: %v", err)
 	}
-}
-
-func TestDevelopmentCapabilityMatchesBuildProfile(t *testing.T) {
-	if fpgadevCapability != expectedFPGACapability {
-		t.Fatalf("build capability = %v, expected %v", fpgadevCapability, expectedFPGACapability)
-	}
-}
-
-func TestDevelopmentManualStartupFailsBeforeControllersWithoutReadinessFD(t *testing.T) {
-	configPath := writeDevelopmentCompositionConfig(t)
-	opened := false
-	deps := runDependencies{
-		openCache: func(targetcache.Config, core.Registry, ...targetcache.Option) (agent.ContentStore, error) {
-			opened = true
-			return nil, errors.New("cache should not be opened")
-		},
-		newRuntime: func(agentconfig.Config, core.Registry) agent.Runtime {
-			opened = true
-			return nil
-		},
-		serve: func(*http.Server) error {
-			opened = true
-			return nil
-		},
-	}
-	if err := runWithDependencies(context.Background(), configPath, slog.New(slog.NewJSONHandler(io.Discard, nil)), deps); err == nil {
-		t.Fatal("development startup without inherited readiness fd was accepted")
-	}
-	if opened {
-		t.Fatal("development startup composed dependencies before rejecting missing readiness fd")
-	}
-}
-
-func TestDevelopmentCompositionOmitsAuxiliaryFacilitiesAndKeepsUnavailableRoutes(t *testing.T) {
-	if !fpgadevCapability {
-		t.Skip("development composition is only available in the fpgadev build")
-	}
-	configPath := writeDevelopmentCompositionConfig(t)
-	runtime := &compositionRuntime{}
-	store := &compositionStore{}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	readPipe, writePipe, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer readPipe.Close()
-	if fd := int(writePipe.Fd()); fd != 3 {
-		if err := unix.Dup2(fd, 3); err != nil {
-			_ = readPipe.Close()
-			_ = writePipe.Close()
-			t.Fatal(err)
-		}
-		_ = writePipe.Close()
-		writePipe = os.NewFile(3, "development-readiness")
-	}
-	deps := runDependencies{
-		openCache: func(targetcache.Config, core.Registry, ...targetcache.Option) (agent.ContentStore, error) {
-			return store, nil
-		},
-		newRuntime: func(agentconfig.Config, core.Registry) agent.Runtime { return runtime },
-		newInput: func(agentconfig.Config) httpapi.InputController {
-			t.Fatal("development profile constructed input controller")
-			return nil
-		},
-		newCast: func(agentconfig.Config) (httpapi.CastController, error) {
-			t.Fatal("development profile constructed cast controller")
-			return nil, nil
-		},
-		serve: func(server *http.Server) error {
-			for _, request := range []*http.Request{
-				httptest.NewRequest(http.MethodGet, "/v1/cast/status", nil),
-				httptest.NewRequest(http.MethodPost, "/v1/input/attach", strings.NewReader(`{"session":1,"token":"00112233445566778899aabbccddeeff","core":"SNES"}`)),
-			} {
-				request.Header.Set("Authorization", "Bearer test-token")
-				response := httptest.NewRecorder()
-				server.Handler.ServeHTTP(response, request)
-				if response.Code != http.StatusServiceUnavailable {
-					t.Fatalf("development unavailable route status = %d body=%s", response.Code, response.Body.String())
-				}
-				var envelope protocol.ErrorEnvelope
-				if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
-					t.Fatal(err)
-				}
-				if envelope.Error.Code != protocol.CodeMiSTerUnavailable {
-					t.Fatalf("development unavailable route code = %q", envelope.Error.Code)
-				}
-			}
-			cancel()
-			return http.ErrServerClosed
-		},
-	}
-	if err := runWithDependencies(ctx, configPath, slog.New(slog.NewJSONHandler(io.Discard, nil)), deps, int(writePipe.Fd())); err != nil {
-		t.Fatal(err)
-	}
-	if raw, err := io.ReadAll(readPipe); err != nil {
-		t.Fatal(err)
-	} else if len(raw) == 0 {
-		t.Fatal("development startup did not emit readiness receipt")
-	}
-}
-
-func writeDevelopmentCompositionConfig(t *testing.T) string {
-	t.Helper()
-	root := t.TempDir()
-	path := filepath.Join(root, "agent.toml")
-	content := `listen_address = "127.0.0.1:8182"
-token = "test-token"
-mister_process_comm = "MiSTer"
-command_pipe = "/dev/MiSTer_cmd"
-core_name_file = "/tmp/CORENAME"
-menu_rbf = "/media/fat/menu.rbf"
-mgl_directory = "/tmp/mister-remote"
-build_profile = "development"
-development_profile = true
-hardware_owner_path = "/run/fogcast-test/owner.json"
-hardware_owner_lock = "/run/fogcast-test/owner.lock"
-designation_path = "/run/fogcast-test/designation"
-target_identity_path = "/run/fogcast-test/identity"
-fpgadev_boot_dispatcher = "/media/fat/linux/user-startup.sh"
-fpgadev_start_sources = ["/etc/init.d/S99fogcast-agent", "/media/fat/linux/user-startup.sh"]
-`
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	return path
 }
 
 type compositionRuntime struct {

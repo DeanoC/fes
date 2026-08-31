@@ -2,20 +2,16 @@ package agent
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 
 	"github.com/DeanoC/FogCast-POC/internal/core"
-	"github.com/DeanoC/FogCast-POC/internal/hardwareowner"
 	"github.com/DeanoC/FogCast-POC/internal/mister"
 	"github.com/DeanoC/FogCast-POC/internal/targetcache"
 	"github.com/DeanoC/FogCast-POC/protocol"
 )
 
 const durableActiveReconcileTimeout = 40 * time.Second
-
-var errNormalAvailabilityObservation = errors.New("normal admission live observation is unavailable")
 
 type Runtime interface {
 	Health(string) protocol.Health
@@ -31,23 +27,17 @@ type Coordinator struct {
 	content       ContentStore
 	launchTimeout time.Duration
 	stopTimeout   time.Duration
-	normalGate    hardwareowner.NormalGate
 	transition    chan struct{}
 	mu            sync.RWMutex
 	status        protocol.Status
 }
 
-func New(runtime Runtime, registry core.Registry, launchTimeout, stopTimeout time.Duration, normalGates ...hardwareowner.NormalGate) *Coordinator {
-	var normalGate hardwareowner.NormalGate
-	if len(normalGates) != 0 {
-		normalGate = normalGates[0]
-	}
+func New(runtime Runtime, registry core.Registry, launchTimeout, stopTimeout time.Duration) *Coordinator {
 	return &Coordinator{
 		runtime:       runtime,
 		registry:      registry,
 		launchTimeout: launchTimeout,
 		stopTimeout:   stopTimeout,
-		normalGate:    normalGate,
 		transition:    make(chan struct{}, 1),
 		status:        protocol.Status{State: protocol.StateIdle},
 	}
@@ -73,11 +63,9 @@ func (c *Coordinator) set(status protocol.Status) {
 }
 
 func (c *Coordinator) Status() protocol.Status {
-	status := c.cachedStatus()
-	if err := c.observeNormalAvailability(); err != nil {
-		return unavailableStatus(status)
-	}
-	return status
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return cloneStatus(c.status)
 }
 
 func (c *Coordinator) Health(version string) protocol.Health {
@@ -87,39 +75,6 @@ func (c *Coordinator) Health(version string) protocol.Health {
 		health.Ready = false
 	}
 	return health
-}
-
-func (c *Coordinator) cachedStatus() protocol.Status {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return cloneStatus(c.status)
-}
-
-func (c *Coordinator) observeNormalAvailability() error {
-	if c.normalGate == nil {
-		return nil
-	}
-	observer, ok := c.normalGate.(hardwareowner.MaintenanceObserver)
-	if !ok {
-		return errNormalAvailabilityObservation
-	}
-	return observer.Observe()
-}
-
-func unavailableStatus(status protocol.Status) protocol.Status {
-	status.State = protocol.StateFailed
-	status.LastError = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "MiSTer is unavailable"}
-	return status
-}
-
-// persistUnavailableStatus records a failure that belongs to an actual
-// transition, such as rejected admission or an ambiguous unlock. Public live
-// observations use unavailableStatus directly and must never overwrite this
-// authoritative transition state.
-func (c *Coordinator) persistUnavailableStatus(status protocol.Status) protocol.Status {
-	status = unavailableStatus(status)
-	c.set(status)
-	return cloneStatus(status)
 }
 
 func (c *Coordinator) Initialize(ctx context.Context) {
@@ -216,7 +171,7 @@ func interruptedLaunchStatus(status protocol.Status) protocol.Status {
 	return status
 }
 
-func (c *Coordinator) Launch(parent context.Context, request protocol.LaunchRequest) (status protocol.Status, resultErr *protocol.APIError) {
+func (c *Coordinator) Launch(parent context.Context, request protocol.LaunchRequest) (protocol.Status, *protocol.APIError) {
 	if !c.begin() {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
 	}
@@ -239,13 +194,6 @@ func (c *Coordinator) Launch(parent context.Context, request protocol.LaunchRequ
 			return apiErr
 		}
 	}
-	normalUnlock, apiErr := c.enterNormal(parent)
-	if apiErr != nil {
-		return c.Status(), apiErr
-	}
-	defer func() {
-		status, resultErr = c.finalizeNormalTransition(status, resultErr, normalUnlock)
-	}()
 	status, dispatchAttempted, apiErr := c.launchWithIntent(parent, request.GameID, spec, request.ROMPath, recordIntent)
 	if apiErr != nil {
 		if intentRecorded && !dispatchAttempted {
@@ -261,10 +209,6 @@ func (c *Coordinator) Launch(parent context.Context, request protocol.LaunchRequ
 	return status, nil
 }
 
-// launchWithIntent performs the core transition while the caller holds
-// normal admission. Keeping this separate lets cached launches acquire once
-// before resolving and pinning content, then retain the same lease through
-// their durable commit or abort handling.
 func (c *Coordinator) launchWithIntent(parent context.Context, gameID string, spec core.Spec, romPath string, recordIntent func() *protocol.APIError) (protocol.Status, bool, *protocol.APIError) {
 	if !c.runtime.Health("").Ready {
 		return c.Status(), false, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "Main_MiSTer or command pipe is unavailable"}
@@ -296,29 +240,19 @@ func (c *Coordinator) launchWithIntent(parent context.Context, gameID string, sp
 	return c.Status(), dispatchAttempted, nil
 }
 
-func (c *Coordinator) Stop(parent context.Context) (status protocol.Status, resultErr *protocol.APIError) {
+func (c *Coordinator) Stop(parent context.Context) (protocol.Status, *protocol.APIError) {
 	if !c.begin() {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
 	}
 	defer c.end()
-	normalUnlock, apiErr := c.enterNormal(parent)
-	if apiErr != nil {
-		return c.Status(), apiErr
-	}
-	defer func() {
-		status, resultErr = c.finalizeNormalTransition(status, resultErr, normalUnlock)
-	}()
-	// Admission has already performed the authoritative check. Use the cached
-	// transition state for the idle decision so a transient public observation
-	// cannot turn an idle no-op into a runtime Stop.
-	status = c.cachedStatus()
-	if status.State == protocol.StateIdle {
-		return status, nil
+	current := c.Status()
+	if current.State == protocol.StateIdle {
+		return current, nil
 	}
 	if !c.runtime.Health("").Ready {
-		return status, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "Main_MiSTer or command pipe is unavailable"}
+		return current, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "Main_MiSTer or command pipe is unavailable"}
 	}
-	stopping := cloneStatus(status)
+	stopping := cloneStatus(current)
 	stopping.State = protocol.StateStopping
 	stopping.LastError = nil
 	c.set(stopping)
@@ -353,55 +287,6 @@ func (c *Coordinator) Stop(parent context.Context) (status protocol.Status, resu
 	}
 	c.set(protocol.Status{State: protocol.StateIdle})
 	return c.Status(), nil
-}
-
-func (c *Coordinator) enterNormal(parent context.Context) (hardwareowner.Unlock, *protocol.APIError) {
-	if c.normalGate == nil {
-		return nil, nil
-	}
-	if parent == nil {
-		parent = context.Background()
-	}
-	unlock, err := c.normalGate.Enter(parent)
-	if err != nil {
-		if unlock != nil {
-			_ = unlock()
-		}
-		return nil, c.projectNormalAdmissionFailure()
-	}
-	if unlock == nil {
-		return nil, c.projectNormalAdmissionFailure()
-	}
-	return unlock, nil
-}
-
-func (c *Coordinator) projectNormalAdmissionFailure() *protocol.APIError {
-	apiErr := &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "MiSTer is unavailable"}
-	c.persistUnavailableStatus(c.cachedStatus())
-	return apiErr
-}
-
-// finalizeNormalTransition is the one release path for each admitted normal
-// transition. A release error makes the result ambiguous: the public status
-// is failed/unavailable, while an earlier transition error remains the
-// deterministic API error. The release error itself is intentionally never
-// exposed.
-func (c *Coordinator) finalizeNormalTransition(status protocol.Status, primary *protocol.APIError, unlock hardwareowner.Unlock) (protocol.Status, *protocol.APIError) {
-	if releaseErr := releaseNormal(unlock); releaseErr == nil {
-		return status, primary
-	}
-	status = c.persistUnavailableStatus(status)
-	if primary != nil {
-		return status, primary
-	}
-	return status, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "MiSTer is unavailable"}
-}
-
-func releaseNormal(unlock hardwareowner.Unlock) error {
-	if unlock == nil {
-		return nil
-	}
-	return unlock()
 }
 
 func cloneStatus(status protocol.Status) protocol.Status {
