@@ -10,6 +10,10 @@ CXXFILT ?= c++filt
 
 BUILD_DIR ?= build
 ARCHIVE := $(BUILD_DIR)/libmister-runtime.a
+DAEMON := $(BUILD_DIR)/mister-runtime
+
+VERSION_DIRTY = $(shell test -z "$$(git status --porcelain --untracked-files=normal)" || printf '%s' -dirty)
+MISTER_RUNTIME_VERSION ?= git-$(shell git rev-parse --short=12 HEAD)$(VERSION_DIRTY)
 
 CPPFLAGS := -Iinclude -Isrc
 TEST_CPPFLAGS := $(CPPFLAGS) -Itests/support
@@ -26,7 +30,15 @@ LIB_SOURCES := \
 	src/native/linux/spi.cpp \
 	src/linux/production_hardware.cpp
 LIB_OBJECTS := $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(LIB_SOURCES))
-DEPENDENCIES := $(LIB_OBJECTS:.o=.d)
+DAEMON_SOURCES := \
+	src/daemon/json.cpp \
+	src/daemon/protocol.cpp \
+	src/daemon/controller.cpp \
+	src/daemon/server.cpp \
+	src/daemon/main.cpp \
+	src/linux/stderr_log.cpp
+DAEMON_OBJECTS := $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(DAEMON_SOURCES))
+DEPENDENCIES := $(LIB_OBJECTS:.o=.d) $(DAEMON_OBJECTS:.o=.d)
 
 TEST_BINS := \
 	$(BUILD_DIR)/tests/unit/profile_test \
@@ -37,11 +49,15 @@ TEST_BINS := \
 	$(BUILD_DIR)/tests/unit/fpga_manager_test \
 	$(BUILD_DIR)/tests/unit/mmio_test \
 	$(BUILD_DIR)/tests/unit/spi_test \
-	$(BUILD_DIR)/tests/unit/protocol_test
+	$(BUILD_DIR)/tests/unit/protocol_test \
+	$(BUILD_DIR)/tests/integration/daemon_server_test
 
 .PHONY: all clean test run-tests sanitize tsan archive-audit active-tree-test
 
-all: $(ARCHIVE)
+all: $(ARCHIVE) $(DAEMON)
+
+$(BUILD_DIR)/src/daemon/main.o: CPPFLAGS += \
+	-DMISTER_RUNTIME_VERSION=\"$(MISTER_RUNTIME_VERSION)\"
 
 $(BUILD_DIR)/%.o: %.cpp
 	@mkdir -p "$(dir $@)"
@@ -50,6 +66,11 @@ $(BUILD_DIR)/%.o: %.cpp
 $(ARCHIVE): $(LIB_OBJECTS)
 	@mkdir -p "$(dir $@)"
 	ZERO_AR_DATE=1 $(AR) rcsD "$@" $(LIB_OBJECTS)
+
+$(DAEMON): $(DAEMON_OBJECTS) $(ARCHIVE)
+	$(CXX) $(CXXFLAGS) $(DAEMON_OBJECTS) \
+		-Wl,--whole-archive $(ARCHIVE) -Wl,--no-whole-archive \
+		$(LDFLAGS) $(LDLIBS) -o "$@"
 
 $(BUILD_DIR)/tests/unit/profile_test: tests/unit/profile_test.cpp \
 		tests/support/test_profiles.hpp src/profile.cpp
@@ -114,6 +135,20 @@ $(BUILD_DIR)/tests/unit/protocol_test: tests/unit/protocol_test.cpp \
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/protocol_test.cpp \
 		src/daemon/json.cpp src/daemon/protocol.cpp src/profile.cpp src/runtime.cpp -o "$@"
 
+$(BUILD_DIR)/tests/integration/daemon_server_test: \
+		tests/integration/daemon_server_test.cpp \
+		tests/support/fake_hardware.cpp \
+		src/daemon/controller.cpp src/daemon/server.cpp \
+		src/daemon/json.cpp src/daemon/protocol.cpp \
+		src/linux/stderr_log.cpp src/profile.cpp src/runtime.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) \
+		tests/integration/daemon_server_test.cpp \
+		tests/support/fake_hardware.cpp \
+		src/daemon/controller.cpp src/daemon/server.cpp \
+		src/daemon/json.cpp src/daemon/protocol.cpp \
+		src/linux/stderr_log.cpp src/profile.cpp src/runtime.cpp -o "$@"
+
 run-tests: $(TEST_BINS)
 	@set -euo pipefail; \
 	for test_binary in $(TEST_BINS); do \
@@ -133,8 +168,10 @@ sanitize:
 tsan:
 	@$(MAKE) BUILD_DIR="$(BUILD_DIR)/tsan" \
 		CXXFLAGS="$(CXXFLAGS) -fsanitize=thread -fno-omit-frame-pointer" \
-		"$(BUILD_DIR)/tsan/tests/unit/runtime_test"
+		"$(BUILD_DIR)/tsan/tests/unit/runtime_test" \
+		"$(BUILD_DIR)/tsan/tests/integration/daemon_server_test"
 	@"$(BUILD_DIR)/tsan/tests/unit/runtime_test"
+	@"$(BUILD_DIR)/tsan/tests/integration/daemon_server_test"
 
 archive-audit: $(ARCHIVE)
 	@set -euo pipefail; \
@@ -158,7 +195,7 @@ archive-audit: $(ARCHIVE)
 		printf '%s\n' "$$archive_list" >&2; \
 		exit 1; \
 	}; \
-	object_members="$$(find "$(BUILD_DIR)/src" -type f -name '*.o' -printf '%f\n' | LC_ALL=C sort)"; \
+	object_members="$$(printf '%s\n' $(notdir $(LIB_OBJECTS)) | LC_ALL=C sort)"; \
 	[[ "$$actual_members" == "$$object_members" ]] || { \
 		echo "archive members differ from production objects" >&2; \
 		exit 1; \
@@ -180,12 +217,12 @@ archive-audit: $(ARCHIVE)
 			*) echo "archive contains non-production source: $$source" >&2; exit 1 ;; \
 		esac; \
 		compiled_sources+="$$source"$$'\n'; \
-	done < <(find "$(BUILD_DIR)/src" -type f -name '*.o' | LC_ALL=C sort); \
+	done < <(printf '%s\n' $(LIB_OBJECTS) | LC_ALL=C sort); \
 	raw_owners="$$(while IFS= read -r object; do \
 		if $(NM) -u "$$object" | grep -E '(^|[[:space:]])_?(close|ioctl|mmap|munmap|open|open64|openat|pread|pread64|pwrite|pwrite64)(@.*)?$$' >/dev/null; then \
 			printf '%s\n' "$${object#"$(BUILD_DIR)/"}"; \
 		fi; \
-	done < <(find "$(BUILD_DIR)/src" -type f -name '*.o' | LC_ALL=C sort))"; \
+	done < <(printf '%s\n' $(LIB_OBJECTS) | LC_ALL=C sort))"; \
 	expected_raw_owners=$$'src/native/artifacts.o\nsrc/native/core_loader.o\nsrc/native/linux/fpga_manager.o\nsrc/native/linux/mmio.o'; \
 	[[ "$$raw_owners" == "$$expected_raw_owners" ]] || { \
 		echo "raw I/O ownership differs from the canonical native boundary" >&2; \
