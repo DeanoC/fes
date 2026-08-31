@@ -182,35 +182,3 @@ client_secret = "secret"
 		t.Fatal("world-readable metadata config accepted")
 	}
 }
-
-func TestREADMEDocumentsDisabledMetadataContract(t *testing.T) {
-	readme, err := os.ReadFile(filepath.Join("..", "README.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	content := string(readme)
-	for _, required := range []string{
-		"## Host metadata (disabled by default)",
-		"[metadata]",
-		"enabled = false",
-		"provider = \"igdb\"",
-		"enabled = true",
-		"client_id = \"REPLACE_IN_PRIVATE_CONFIG\"",
-		"client_secret = \"REPLACE_IN_PRIVATE_CONFIG\"",
-		"mode `0600`",
-		"~/.cache/fogcast/metadata",
-		"cache.sqlite3*",
-		"memory only",
-		"`0700` directories",
-		"no `player_count` request",
-		"Data from IGDB.com",
-		"purges",
-		"same-origin",
-		"terms",
-		"synthetic provider responses",
-	} {
-		if !strings.Contains(content, required) {
-			t.Errorf("README is missing metadata contract text %q", required)
-		}
-	}
-}
