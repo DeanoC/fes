@@ -5,6 +5,32 @@ repo=$(CDPATH='' cd -- "$(dirname "$0")/../.." && pwd)
 fixture=$(mktemp -d "${TMPDIR:-/tmp}/mister-remote-poc1b-image.XXXXXX")
 trap 'rm -rf "$fixture"' EXIT INT TERM
 
+for curl_symbol in BR2_PACKAGE_LIBCURL BR2_PACKAGE_LIBCURL_CURL; do
+  grep -Fqx "$curl_symbol=y" \
+    "$repo/buildroot/configs/mister_remote_poc1b_dev_defconfig"
+  if grep -Fqx "$curl_symbol=y" \
+    "$repo/buildroot/configs/mister_remote_poc1b_prod_defconfig"; then
+    echo "production image unexpectedly includes $curl_symbol" >&2
+    exit 1
+  fi
+done
+if grep -Fqx 'BR2_PACKAGE_CURL=y' \
+  "$repo/buildroot/configs/mister_remote_poc1b_dev_defconfig"; then
+  echo 'development image uses legacy BR2_PACKAGE_CURL symbol' >&2
+  exit 1
+fi
+for variant in prod dev; do
+  grep -Fqx 'BR2_PRIMARY_SITE="https://sources.buildroot.net"' \
+    "$repo/buildroot/configs/mister_remote_poc1b_${variant}_defconfig"
+done
+for unrelated_dev_package in BR2_PACKAGE_FFMPEG BR2_PACKAGE_SDL2; do
+  if grep -Fqx "$unrelated_dev_package=y" \
+    "$repo/buildroot/configs/mister_remote_poc1b_dev_defconfig"; then
+    echo "development target image unexpectedly includes $unrelated_dev_package" >&2
+    exit 1
+  fi
+done
+
 grep -Fq 'export E2FSPROGS_FAKE_TIME=$inside_epoch' \
   "$repo/scripts/build-poc1b-image.sh"
 grep -Fq '/bin/rm -rf "$inside_output"' \
