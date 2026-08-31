@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -190,6 +191,9 @@ func (*compositionService) Status(context.Context) (protocol.Status, error) {
 }
 func (*compositionService) Launch(context.Context, string, fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error) {
 	return protocol.CachedLaunchResponse{}, nil
+}
+func (*compositionService) LoadDevelopmentRBF(context.Context, int64, io.Reader) (protocol.Status, error) {
+	return protocol.Status{State: protocol.StateActive, Development: true}, nil
 }
 func (*compositionService) Stop(context.Context) (protocol.Status, error) {
 	return protocol.Status{State: protocol.StateIdle}, nil

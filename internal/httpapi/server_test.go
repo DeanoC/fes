@@ -28,6 +28,30 @@ type fakeController struct {
 	stopCalls     int
 }
 
+type fakeDevelopmentController struct {
+	status      protocol.Status
+	size        int64
+	body        []byte
+	calls       int
+	rebootCalls int
+}
+
+func (f *fakeDevelopmentController) RebootDevelopment(context.Context) (protocol.Status, *protocol.APIError) {
+	f.rebootCalls++
+	return protocol.Status{State: protocol.StateIdle}, nil
+}
+
+func (f *fakeDevelopmentController) LoadDevelopmentRBF(_ context.Context, size int64, content io.Reader) (protocol.Status, *protocol.APIError) {
+	body, err := io.ReadAll(content)
+	if err != nil {
+		return protocol.Status{}, &protocol.APIError{Code: protocol.CodeInternal, Message: "test reader failed"}
+	}
+	f.calls++
+	f.size = size
+	f.body = append([]byte(nil), body...)
+	return f.status, nil
+}
+
 func (f *fakeController) Health(version string) protocol.Health {
 	f.healthVersion = version
 	return f.health
@@ -47,6 +71,95 @@ func (f *fakeController) Launch(_ context.Context, request protocol.LaunchReques
 func (f *fakeController) Stop(context.Context) (protocol.Status, *protocol.APIError) {
 	f.stopCalls++
 	return protocol.Status{State: protocol.StateIdle}, f.stopErr
+}
+
+func TestDevelopmentRBFUploadStreamsToController(t *testing.T) {
+	t.Parallel()
+	payload := []byte("development-rbf")
+	development := &fakeDevelopmentController{status: protocol.Status{State: protocol.StateActive, Development: true}}
+	handler := httpapi.New(&fakeController{}, "test-token", "0.1.0", discardLogger(), httpapi.WithDevelopment(development))
+	request := httptest.NewRequest(http.MethodPost, "/v1/development/rbf", bytes.NewReader(payload))
+	request.ContentLength = int64(len(payload))
+	request.Header.Set("Authorization", "Bearer test-token")
+	request.Header.Set("Content-Type", "application/octet-stream")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	if development.calls != 1 || development.size != int64(len(payload)) || !bytes.Equal(development.body, payload) {
+		t.Fatalf("development call = count %d size %d body %q", development.calls, development.size, development.body)
+	}
+	var status protocol.Status
+	if err := json.Unmarshal(response.Body.Bytes(), &status); err != nil {
+		t.Fatal(err)
+	}
+	if status.State != protocol.StateActive || !status.Development {
+		t.Fatalf("response = %#v", status)
+	}
+}
+
+func TestDevelopmentRBFUploadRejectsInvalidStreamMetadata(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name             string
+		contentLength    int64
+		contentType      string
+		transferEncoding []string
+	}{
+		{name: "empty", contentLength: 0, contentType: "application/octet-stream"},
+		{name: "unknown length", contentLength: -1, contentType: "application/octet-stream"},
+		{name: "too large", contentLength: (32 << 20) + 1, contentType: "application/octet-stream"},
+		{name: "missing media type", contentLength: 3},
+		{name: "wrong media type", contentLength: 3, contentType: "application/json"},
+		{name: "transfer encoded", contentLength: -1, contentType: "application/octet-stream", transferEncoding: []string{"chunked"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			development := &fakeDevelopmentController{}
+			handler := httpapi.New(&fakeController{}, "test-token", "0.1.0", discardLogger(), httpapi.WithDevelopment(development))
+			body := &observedReader{data: []byte("rbf"), err: io.EOF}
+			request := httptest.NewRequest(http.MethodPost, "/v1/development/rbf", body)
+			request.ContentLength = test.contentLength
+			request.TransferEncoding = test.transferEncoding
+			request.Header.Set("Authorization", "Bearer test-token")
+			if test.contentType != "" {
+				request.Header.Set("Content-Type", test.contentType)
+			}
+			response := httptest.NewRecorder()
+
+			handler.ServeHTTP(response, request)
+
+			assertAPIError(t, response, http.StatusBadRequest, protocol.CodeBadRequest)
+			if development.calls != 0 || body.reads != 0 {
+				t.Fatalf("invalid upload reached controller: calls=%d reads=%d", development.calls, body.reads)
+			}
+		})
+	}
+}
+
+func TestDevelopmentRebootUsesAuthenticatedController(t *testing.T) {
+	t.Parallel()
+	development := &fakeDevelopmentController{}
+	handler := httpapi.New(&fakeController{}, "test-token", "0.1.0", discardLogger(), httpapi.WithDevelopment(development))
+	request := httptest.NewRequest(http.MethodPost, "/v1/development/reboot", nil)
+	request.Header.Set("Authorization", "Bearer test-token")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK || development.rebootCalls != 1 {
+		t.Fatalf("development reboot = %d %s calls=%d", response.Code, response.Body.String(), development.rebootCalls)
+	}
+	var status protocol.Status
+	if err := json.Unmarshal(response.Body.Bytes(), &status); err != nil {
+		t.Fatal(err)
+	}
+	if status.State != protocol.StateIdle {
+		t.Fatalf("development reboot response = %#v", status)
+	}
 }
 
 func TestAuthenticationRequiresExactlyOneAuthorizationHeader(t *testing.T) {

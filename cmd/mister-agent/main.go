@@ -26,6 +26,9 @@ import (
 const (
 	targetCacheRoot         = "/media/fat/fogcast/cache"
 	targetCacheActiveRecord = "/run/fogcast-active.json"
+	developmentRBFPath      = "/tmp/fogcast-development/core.rbf"
+	rebootCommand           = "/sbin/reboot"
+	bootIDFile              = "/proc/sys/kernel/random/boot_id"
 	castShutdownTimeout     = 2 * time.Second
 )
 
@@ -53,8 +56,11 @@ func productionRunDependencies() runDependencies {
 				MiSTerProcessComm: cfg.MiSTerProcessComm,
 				CommandPipe:       cfg.CommandPipe,
 				CoreNameFile:      cfg.CoreNameFile,
+				BootIDFile:        bootIDFile,
 				MenuRBF:           cfg.MenuRBF,
 				MGLDirectory:      cfg.MGLDirectory,
+				DevelopmentRBF:    developmentRBFPath,
+				RebootCommand:     rebootCommand,
 			}
 			return mister.NewRuntime(paths, registry, mister.FileCommandWriter{Path: cfg.CommandPipe}, mister.ProcProcessChecker{Root: "/proc"}, 25*time.Millisecond)
 		},
@@ -94,7 +100,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	startup, cancel := context.WithTimeout(ctx, 40*time.Second)
 	coordinator.Initialize(startup)
 	cancel()
-	options := []httpapi.Option{httpapi.WithContent(content)}
+	options := []httpapi.Option{httpapi.WithContent(content), httpapi.WithDevelopment(coordinator)}
 	if cfg.CastBinary != "" {
 		if dependencies.newCast == nil {
 			return errors.New("cast controller could not be configured")

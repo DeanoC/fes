@@ -10,6 +10,8 @@ and content selection; the MiSTer is a small, directly controlled target.
   `internal/systems/table.go`.
 - Real FPGA game launches on the designated MiSTer Pi.
 - Target-side content caching, input, stop, and active-core observation.
+- Host API loading of arbitrary development RBF files, with automatic reboot
+  recovery back to Menu for non-MiSTer cores.
 - Browser UI, local media previews, and host-emulator/remote-media modes.
 - A reproducible target image toolchain with a development image containing
   SSH and curl.
@@ -25,12 +27,17 @@ The normal FPGA launch path is:
 5. FogCast observes `/tmp/CORENAME` for the active core. Stopping sends
    `load_core <menu.rbf>` through the same command path.
 
-## Current goal
+## Development RBF path
 
-Add a development action beside normal game launch: transfer an arbitrary
-local `.rbf` to the disposable MiSTer Pi and load it through the same proven
-target command path. Rebooting the kit is an acceptable recovery while a
-development core is being brought up.
+`POST /api/v1/session/development-rbf` accepts one bounded
+`application/octet-stream` body. FogCast streams it to the target, installs it
+as a temporary RBF, and loads it through `/dev/MiSTer_cmd`. A development Stop
+uses an explicit two-request target handshake, reboots the disposable kit,
+and reports idle only after health shows a new Linux boot ID and the target
+reports Menu idle.
+
+The host API path works now. A browser file picker for the same endpoint is
+the next UI extension; it is not a second loading path.
 
 ## Repository boundaries
 

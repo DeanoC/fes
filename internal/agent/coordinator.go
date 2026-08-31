@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"io"
 	"sync"
 	"time"
 
@@ -18,6 +19,8 @@ type Runtime interface {
 	Reconcile(context.Context) protocol.Status
 	Prepare(core.Spec, string) (mister.PreparedLaunch, *protocol.APIError)
 	Launch(context.Context, mister.PreparedLaunch) (observed string, dispatchAttempted bool, apiErr *protocol.APIError)
+	LoadDevelopmentRBF(context.Context, int64, io.Reader) (observed string, dispatchAttempted bool, apiErr *protocol.APIError)
+	RecoverDevelopment(context.Context) (observed string, apiErr *protocol.APIError)
 	Stop(context.Context) (string, *protocol.APIError)
 }
 
@@ -240,6 +243,34 @@ func (c *Coordinator) launchWithIntent(parent context.Context, gameID string, sp
 	return c.Status(), dispatchAttempted, nil
 }
 
+func (c *Coordinator) LoadDevelopmentRBF(parent context.Context, size int64, content io.Reader) (protocol.Status, *protocol.APIError) {
+	if !c.begin() {
+		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
+	}
+	defer c.end()
+	if !c.runtime.Health("").Ready {
+		return c.Status(), &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "Main_MiSTer or command pipe is unavailable"}
+	}
+	c.set(protocol.Status{State: protocol.StateLaunching, Development: true})
+	ctx, cancel := context.WithTimeout(parent, c.launchTimeout)
+	defer cancel()
+	observed, _, apiErr := c.runtime.LoadDevelopmentRBF(ctx, size, content)
+	if apiErr != nil {
+		failed := protocol.Status{State: protocol.StateFailed, Development: true, LastError: cloneAPIError(apiErr)}
+		if observed != "" {
+			failed.ObservedCore = &observed
+		}
+		c.set(failed)
+		return c.Status(), apiErr
+	}
+	active := protocol.Status{State: protocol.StateActive, Development: true}
+	if observed != "" && observed != "MENU" {
+		active.ObservedCore = &observed
+	}
+	c.set(active)
+	return c.Status(), nil
+}
+
 func (c *Coordinator) Stop(parent context.Context) (protocol.Status, *protocol.APIError) {
 	if !c.begin() {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
@@ -248,6 +279,14 @@ func (c *Coordinator) Stop(parent context.Context) (protocol.Status, *protocol.A
 	current := c.Status()
 	if current.State == protocol.StateIdle {
 		return current, nil
+	}
+	if current.Development {
+		stopping := cloneStatus(current)
+		stopping.State = protocol.StateStopping
+		stopping.LastError = nil
+		stopping.Recovery = protocol.RecoveryRebootRequired
+		c.set(stopping)
+		return c.Status(), nil
 	}
 	if !c.runtime.Health("").Ready {
 		return current, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "Main_MiSTer or command pipe is unavailable"}
@@ -284,6 +323,41 @@ func (c *Coordinator) Stop(parent context.Context) (protocol.Status, *protocol.A
 			c.set(failed)
 			return c.Status(), apiErr
 		}
+	}
+	c.set(protocol.Status{State: protocol.StateIdle})
+	return c.Status(), nil
+}
+
+func (c *Coordinator) RebootDevelopment(parent context.Context) (protocol.Status, *protocol.APIError) {
+	if !c.begin() {
+		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
+	}
+	defer c.end()
+	current := c.Status()
+	if current.State != protocol.StateStopping || !current.Development || current.Recovery != protocol.RecoveryRebootRequired {
+		return current, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "development reboot was not requested"}
+	}
+	if c.content != nil {
+		if apiErr := c.content.ClearActive(); apiErr != nil {
+			failed := cloneStatus(current)
+			failed.State = protocol.StateFailed
+			failed.LastError = cloneAPIError(apiErr)
+			c.set(failed)
+			return c.Status(), apiErr
+		}
+	}
+	ctx, cancel := context.WithTimeout(parent, c.stopTimeout)
+	defer cancel()
+	observed, apiErr := c.runtime.RecoverDevelopment(ctx)
+	if apiErr != nil {
+		failed := cloneStatus(current)
+		failed.State = protocol.StateFailed
+		failed.LastError = cloneAPIError(apiErr)
+		if observed != "" {
+			failed.ObservedCore = &observed
+		}
+		c.set(failed)
+		return c.Status(), apiErr
 	}
 	c.set(protocol.Status{State: protocol.StateIdle})
 	return c.Status(), nil

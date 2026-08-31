@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -41,7 +42,9 @@ func TestRunDoesNotExposeMalformedConfigurationContents(t *testing.T) {
 }
 
 type compositionRuntime struct {
-	reconciled bool
+	reconciled      bool
+	developmentSize int64
+	developmentBody []byte
 }
 
 func (*compositionRuntime) Health(string) protocol.Health {
@@ -59,6 +62,20 @@ func (*compositionRuntime) Prepare(core.Spec, string) (mister.PreparedLaunch, *p
 
 func (*compositionRuntime) Launch(context.Context, mister.PreparedLaunch) (string, bool, *protocol.APIError) {
 	return "", false, &protocol.APIError{Code: protocol.CodeInternal, Message: "unused"}
+}
+
+func (r *compositionRuntime) LoadDevelopmentRBF(_ context.Context, size int64, content io.Reader) (string, bool, *protocol.APIError) {
+	body, err := io.ReadAll(content)
+	if err != nil {
+		return "", false, &protocol.APIError{Code: protocol.CodeInternal, Message: "test reader failed"}
+	}
+	r.developmentSize = size
+	r.developmentBody = append([]byte(nil), body...)
+	return "DEVCORE", true, nil
+}
+
+func (r *compositionRuntime) RecoverDevelopment(context.Context) (string, *protocol.APIError) {
+	return "MENU", nil
 }
 
 func (*compositionRuntime) Stop(context.Context) (string, *protocol.APIError) {
@@ -183,6 +200,16 @@ func TestRunComposesFixedCacheContentHandlerAndUploadTimeouts(t *testing.T) {
 			if response.Code != http.StatusOK || response.Body.String() != "{\"present\":false}\n" {
 				t.Fatalf("content route = HTTP %d %q", response.Code, response.Body.String())
 			}
+			payload := []byte("development-rbf")
+			request = httptest.NewRequest(http.MethodPost, "/v1/development/rbf", strings.NewReader(string(payload)))
+			request.ContentLength = int64(len(payload))
+			request.Header.Set("Authorization", "Bearer test-token")
+			request.Header.Set("Content-Type", "application/octet-stream")
+			response = httptest.NewRecorder()
+			server.Handler.ServeHTTP(response, request)
+			if response.Code != http.StatusOK || rbfStatus(response.Body.Bytes()).State != protocol.StateActive {
+				t.Fatalf("development route = HTTP %d %q", response.Code, response.Body.String())
+			}
 			cancel()
 			return http.ErrServerClosed
 		},
@@ -196,6 +223,15 @@ func TestRunComposesFixedCacheContentHandlerAndUploadTimeouts(t *testing.T) {
 	if !runtime.reconciled || !store.reconciled || !listened {
 		t.Fatalf("startup runtime=%v store=%v listened=%v", runtime.reconciled, store.reconciled, listened)
 	}
+	if runtime.developmentSize != int64(len("development-rbf")) || string(runtime.developmentBody) != "development-rbf" {
+		t.Fatalf("development runtime = size %d body %q", runtime.developmentSize, runtime.developmentBody)
+	}
+}
+
+func rbfStatus(body []byte) protocol.Status {
+	var status protocol.Status
+	_ = json.Unmarshal(body, &status)
+	return status
 }
 
 func TestRunComposesTargetInputController(t *testing.T) {

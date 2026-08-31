@@ -82,6 +82,23 @@ curl -H 'Content-Type: application/json' \
 curl -X POST http://127.0.0.1:8787/api/v1/session/stop
 ```
 
+Load a locally built development RBF through the host API:
+
+```sh
+curl --fail -H 'Content-Type: application/octet-stream' \
+  --data-binary @/absolute/path/to/top.rbf \
+  http://127.0.0.1:8787/api/v1/session/development-rbf
+curl --fail http://127.0.0.1:8787/api/v1/session
+curl --fail -X POST http://127.0.0.1:8787/api/v1/session/stop
+```
+
+The active response is `{"state":"active","execution":"fpga_development"}`.
+Stop may take roughly one target boot cycle. For a non-MiSTer RBF it first
+receives `reboot_required` from the target, requests the reboot separately,
+and waits for health to report a new Linux boot ID plus Menu idle before
+returning `{"state":"idle"}`. Do not treat a sampled disconnect or the stale
+`/tmp/CORENAME` left by an incompatible core as recovery evidence.
+
 When target access is needed directly:
 
 ```sh

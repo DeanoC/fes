@@ -1,9 +1,11 @@
 package hostapi_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -20,32 +22,36 @@ import (
 )
 
 type fakeService struct {
-	games         []catalog.Game
-	search        []catalog.Game
-	query         string
-	game          catalog.Game
-	gamesErr      error
-	gameErr       error
-	health        protocol.Health
-	healthErr     error
-	status        protocol.Status
-	statusErr     error
-	statusStarted chan struct{}
-	statusRelease chan struct{}
-	statusOnce    sync.Once
-	launch        protocol.CachedLaunchResponse
-	launchCalls   int
-	launchErr     error
-	launchHook    func(context.Context)
-	stopped       protocol.Status
-	stopErr       error
-	stopResults   []error
-	stopCalled    chan struct{}
-	stopCtxErrs   []error
-	progress      []string
-	execution     string
-	executionErr  error
-	order         *[]string
+	games           []catalog.Game
+	search          []catalog.Game
+	query           string
+	game            catalog.Game
+	gamesErr        error
+	gameErr         error
+	health          protocol.Health
+	healthErr       error
+	status          protocol.Status
+	statusErr       error
+	statusStarted   chan struct{}
+	statusRelease   chan struct{}
+	statusOnce      sync.Once
+	launch          protocol.CachedLaunchResponse
+	launchCalls     int
+	launchErr       error
+	launchHook      func(context.Context)
+	development     protocol.Status
+	developmentBody []byte
+	developmentSize int64
+	stopped         protocol.Status
+	stopErr         error
+	stopResults     []error
+	stopCalled      chan struct{}
+	stopCtxErrs     []error
+	stopHasDeadline bool
+	progress        []string
+	execution       string
+	executionErr    error
+	order           *[]string
 }
 
 func (s *fakeService) Games(context.Context) ([]catalog.Game, error) {
@@ -83,8 +89,18 @@ func (s *fakeService) Launch(ctx context.Context, _ string, progress fogcast.Pro
 	}
 	return s.launch, s.launchErr
 }
+func (s *fakeService) LoadDevelopmentRBF(_ context.Context, size int64, body io.Reader) (protocol.Status, error) {
+	s.developmentSize = size
+	content, err := io.ReadAll(body)
+	if err != nil {
+		return protocol.Status{}, err
+	}
+	s.developmentBody = content
+	return s.development, nil
+}
 func (s *fakeService) Stop(ctx context.Context) (protocol.Status, error) {
 	s.stopCtxErrs = append(s.stopCtxErrs, ctx.Err())
+	_, s.stopHasDeadline = ctx.Deadline()
 	if s.order != nil {
 		*s.order = append(*s.order, "service.stop")
 	}
@@ -354,6 +370,100 @@ func TestSessionLaunchAndStopUseOnlyGameIDAndExposeProgress(t *testing.T) {
 	handler.ServeHTTP(stopResponse, stop)
 	if stopResponse.Code != http.StatusOK || !strings.Contains(stopResponse.Body.String(), `"state":"idle"`) {
 		t.Fatalf("stop response = %d %s", stopResponse.Code, stopResponse.Body.String())
+	}
+}
+
+func TestSessionDevelopmentRBFStreamsWithoutMediaOrInput(t *testing.T) {
+	payload := []byte("development-rbf")
+	observed := "DEVCORE"
+	service := &fakeService{
+		development: protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &observed},
+		stopped:     protocol.Status{State: protocol.StateIdle},
+	}
+	remoteInput := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputAttached, Ready: true}}
+	media := &fakeMediaSession{}
+	handler := hostapi.New(service, hostapi.WithRemoteInput(remoteInput), hostapi.WithMediaSession(media))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/development-rbf", bytes.NewReader(payload))
+	request.Host = "127.0.0.1"
+	request.Header.Set("Content-Type", "application/octet-stream")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("development load response = %d %s", response.Code, response.Body.String())
+	}
+	if service.developmentSize != int64(len(payload)) || !bytes.Equal(service.developmentBody, payload) {
+		t.Fatalf("development upload size = %d body = %q", service.developmentSize, service.developmentBody)
+	}
+	if len(remoteInput.detach) != 1 || remoteInput.detach[0] != "session_replace" {
+		t.Fatalf("remote input detach = %v", remoteInput.detach)
+	}
+	if len(media.start) != 0 {
+		t.Fatalf("media starts = %v", media.start)
+	}
+	var result struct {
+		State     protocol.State `json:"state"`
+		Execution string         `json:"execution"`
+		GameID    *string        `json:"game_id"`
+		System    *string        `json:"system"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.State != protocol.StateActive || result.Execution != fogcast.ExecutionFPGADevelopment || result.GameID != nil || result.System != nil {
+		t.Fatalf("development session = %+v", result)
+	}
+	stop := httptest.NewRequest(http.MethodPost, "/api/v1/session/stop", nil)
+	stop.Host = "127.0.0.1"
+	stopResponse := httptest.NewRecorder()
+	handler.ServeHTTP(stopResponse, stop)
+	if stopResponse.Code != http.StatusOK {
+		t.Fatalf("development stop = %d %s", stopResponse.Code, stopResponse.Body.String())
+	}
+	if service.stopHasDeadline {
+		t.Fatal("development stop was forced through the bounded cleanup timeout")
+	}
+	service.status = protocol.Status{State: protocol.StateIdle}
+	idle := serve(t, handler, http.MethodGet, "/api/v1/session")
+	if idle.Code != http.StatusOK || strings.Contains(idle.Body.String(), "execution") {
+		t.Fatalf("idle development session = %d %s", idle.Code, idle.Body.String())
+	}
+}
+
+func TestSessionDevelopmentRBFRejectsInvalidStreamMetadata(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		content []byte
+		setup   func(*http.Request)
+	}{
+		{name: "missing content type", content: []byte("rbf")},
+		{name: "empty", content: nil, setup: func(request *http.Request) {
+			request.Header.Set("Content-Type", "application/octet-stream")
+		}},
+		{name: "chunked", content: []byte("rbf"), setup: func(request *http.Request) {
+			request.Header.Set("Content-Type", "application/octet-stream")
+			request.TransferEncoding = []string{"chunked"}
+			request.ContentLength = -1
+		}},
+		{name: "too large", content: []byte("rbf"), setup: func(request *http.Request) {
+			request.Header.Set("Content-Type", "application/octet-stream")
+			request.ContentLength = protocol.MaxDevelopmentRBFBytes + 1
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			service := &fakeService{development: protocol.Status{State: protocol.StateActive, Development: true}}
+			handler := hostapi.New(service)
+			request := httptest.NewRequest(http.MethodPost, "/api/v1/session/development-rbf", bytes.NewReader(test.content))
+			request.Host = "127.0.0.1"
+			if test.setup != nil {
+				test.setup(request)
+			}
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != http.StatusBadRequest || service.developmentSize != 0 {
+				t.Fatalf("response = %d %s development size = %d", response.Code, response.Body.String(), service.developmentSize)
+			}
+		})
 	}
 }
 

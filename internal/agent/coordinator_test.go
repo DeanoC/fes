@@ -1,7 +1,9 @@
 package agent_test
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"sync"
 	"testing"
 	"time"
@@ -14,22 +16,28 @@ import (
 )
 
 type fakeRuntime struct {
-	mu             sync.Mutex
-	health         protocol.Health
-	reconciled     protocol.Status
-	prepared       mister.PreparedLaunch
-	prepareErr     *protocol.APIError
-	launchObserved string
-	launchErr      *protocol.APIError
-	stopObserved   string
-	stopErr        *protocol.APIError
-	launchGate     chan struct{}
-	prepareCalls   int
-	launchCalls    int
-	stopCalls      int
-	prepareSpec    core.Spec
-	preparePath    string
-	launched       mister.PreparedLaunch
+	mu                   sync.Mutex
+	health               protocol.Health
+	reconciled           protocol.Status
+	prepared             mister.PreparedLaunch
+	prepareErr           *protocol.APIError
+	launchObserved       string
+	launchErr            *protocol.APIError
+	stopObserved         string
+	stopErr              *protocol.APIError
+	developmentObserved  string
+	developmentErr       *protocol.APIError
+	developmentBody      []byte
+	developmentSize      int64
+	developmentCalls     int
+	launchGate           chan struct{}
+	prepareCalls         int
+	launchCalls          int
+	stopCalls            int
+	developmentStopCalls int
+	prepareSpec          core.Spec
+	preparePath          string
+	launched             mister.PreparedLaunch
 }
 
 func (f *fakeRuntime) Health(string) protocol.Health {
@@ -72,6 +80,26 @@ func (f *fakeRuntime) Stop(context.Context) (string, *protocol.APIError) {
 	return f.stopObserved, f.stopErr
 }
 
+func (f *fakeRuntime) RecoverDevelopment(context.Context) (string, *protocol.APIError) {
+	f.mu.Lock()
+	f.developmentStopCalls++
+	f.mu.Unlock()
+	return f.stopObserved, f.stopErr
+}
+
+func (f *fakeRuntime) LoadDevelopmentRBF(_ context.Context, size int64, content io.Reader) (string, bool, *protocol.APIError) {
+	body, err := io.ReadAll(content)
+	if err != nil {
+		return "", false, &protocol.APIError{Code: protocol.CodeInternal, Message: "test reader failed"}
+	}
+	f.mu.Lock()
+	f.developmentCalls++
+	f.developmentSize = size
+	f.developmentBody = append([]byte(nil), body...)
+	f.mu.Unlock()
+	return f.developmentObserved, true, f.developmentErr
+}
+
 func (f *fakeRuntime) counts() (prepare, launch, stop int) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -102,6 +130,49 @@ func TestLaunchTransitionsToActive(t *testing.T) {
 	spec, path, prepared := runtime.launchInputs()
 	if path != "/media/fat/games/MegaDrive/test.md" || prepared.Spec.ROMRoot != "/media/fat/games/MegaDrive" || spec.ROMRoot != "/media/fat/games/MegaDrive" {
 		t.Fatalf("v1 launch inputs = spec %#v path %q prepared %#v", spec, path, prepared)
+	}
+}
+
+func TestDevelopmentRBFTransitionsToActiveAndStopsAtMenu(t *testing.T) {
+	t.Parallel()
+	payload := []byte("development-rbf")
+	runtime := &fakeRuntime{
+		health:              protocol.Health{Ready: true},
+		developmentObserved: "DEVCORE",
+		stopObserved:        "MENU",
+	}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+
+	status, apiErr := coordinator.LoadDevelopmentRBF(context.Background(), int64(len(payload)), bytes.NewReader(payload))
+	if apiErr != nil {
+		t.Fatal(apiErr)
+	}
+	if status.State != protocol.StateActive || !status.Development || status.GameID != nil || status.System != nil || status.ObservedCore == nil || *status.ObservedCore != "DEVCORE" {
+		t.Fatalf("development status = %#v", status)
+	}
+	runtime.mu.Lock()
+	developmentCalls := runtime.developmentCalls
+	developmentSize := runtime.developmentSize
+	developmentBody := append([]byte(nil), runtime.developmentBody...)
+	runtime.mu.Unlock()
+	if developmentCalls != 1 || developmentSize != int64(len(payload)) || !bytes.Equal(developmentBody, payload) {
+		t.Fatalf("development runtime call = count %d size %d body %q", developmentCalls, developmentSize, developmentBody)
+	}
+	runtime.health = protocol.Health{Ready: false}
+
+	stopped, apiErr := coordinator.Stop(context.Background())
+	if apiErr != nil || stopped.State != protocol.StateStopping || !stopped.Development || stopped.Recovery != protocol.RecoveryRebootRequired {
+		t.Fatalf("stop = %#v, %#v", stopped, apiErr)
+	}
+	if runtime.developmentStopCalls != 0 || runtime.stopCalls != 0 {
+		t.Fatalf("development recovery calls = %d normal stop calls = %d", runtime.developmentStopCalls, runtime.stopCalls)
+	}
+	stopped, apiErr = coordinator.RebootDevelopment(context.Background())
+	if apiErr != nil || stopped.State != protocol.StateIdle || stopped.Development || stopped.Recovery != "" {
+		t.Fatalf("development reboot = %#v, %#v", stopped, apiErr)
+	}
+	if runtime.developmentStopCalls != 1 || runtime.stopCalls != 0 {
+		t.Fatalf("development recovery calls = %d normal stop calls = %d", runtime.developmentStopCalls, runtime.stopCalls)
 	}
 }
 

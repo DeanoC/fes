@@ -68,6 +68,14 @@ type serviceClient interface {
 	Stop(context.Context) (protocol.Status, error)
 }
 
+type developmentRBFClient interface {
+	LoadDevelopmentRBF(context.Context, int64, io.Reader) (protocol.Status, error)
+}
+
+type developmentRecoveryClient interface {
+	RebootDevelopment(context.Context) (protocol.Status, error)
+}
+
 type castClient interface {
 	CastStart(context.Context, string, string, uint64) (host.CastStatus, error)
 	CastStop(context.Context, string, uint64) (host.CastStatus, error)
@@ -79,8 +87,9 @@ type mediaCastClient interface {
 }
 
 const (
-	ExecutionFPGANative = string(systems.CapabilityFPGANative)
-	ExecutionHostOnly   = string(systems.CapabilityHostOnly)
+	ExecutionFPGANative      = string(systems.CapabilityFPGANative)
+	ExecutionFPGADevelopment = "fpga_development"
+	ExecutionHostOnly        = string(systems.CapabilityHostOnly)
 )
 
 // ExecutionResolver is a service-level policy seam.
@@ -982,6 +991,47 @@ func (s *Service) Health(parent context.Context) (protocol.Health, error) {
 	return health, nil
 }
 
+func (s *Service) LoadDevelopmentRBF(parent context.Context, size int64, content io.Reader) (protocol.Status, error) {
+	if size <= 0 || size > protocol.MaxDevelopmentRBFBytes || content == nil {
+		return protocol.Status{}, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
+	defer cancel()
+	releaseLifecycle, err := s.acquireLifecycle(ctx)
+	if err != nil {
+		return protocol.Status{}, err
+	}
+	defer releaseLifecycle()
+	if err := s.stopHostOnlyIfActive(ctx); err != nil {
+		return protocol.Status{}, err
+	}
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
+	client, ok := s.selectedClientLocked()
+	if !ok {
+		return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
+	}
+	developmentClient, ok := client.(developmentRBFClient)
+	if !ok {
+		return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
+	}
+	status, err := developmentClient.LoadDevelopmentRBF(ctx, size, content)
+	if err != nil {
+		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeTransferFailed)
+	}
+	if status.State != protocol.StateActive || !status.Development || status.GameID != nil || status.System != nil || status.ExpectedCore != nil || status.LastError != nil {
+		return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
+	}
+	s.executionMu.Lock()
+	s.activeExecution = ExecutionFPGADevelopment
+	s.activeTarget = s.selectedTarget
+	s.activeGameID, s.activeSystem = "", ""
+	s.selectedTargetReconciled = false
+	s.selectedTargetRepairAllowed = false
+	s.executionMu.Unlock()
+	return status, nil
+}
+
 func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 	defer cancel()
@@ -1027,7 +1077,11 @@ func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 		s.selectedTargetReconciled = false
 		s.selectedTargetRepairAllowed = false
 		if s.activeExecution == "" {
-			s.activeExecution = ExecutionFPGANative
+			if status.Development {
+				s.activeExecution = ExecutionFPGADevelopment
+			} else {
+				s.activeExecution = ExecutionFPGANative
+			}
 			s.activeTarget = s.selectedTarget
 			if status.GameID != nil {
 				s.activeGameID = *status.GameID
@@ -1041,7 +1095,7 @@ func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 		s.executionMu.Lock()
 		s.selectedTargetReconciled = true
 		s.selectedTargetRepairAllowed = false
-		if s.activeExecution == ExecutionFPGANative {
+		if s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment {
 			s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
 		}
 		s.executionMu.Unlock()
@@ -1065,16 +1119,21 @@ func (s *Service) allowSelectedTargetRepair(parent context.Context) {
 }
 
 func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
-	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
+	s.executionMu.Lock()
+	activeExecution := s.activeExecution
+	s.executionMu.Unlock()
+	timeout := s.requestTimeout
+	if activeExecution == ExecutionFPGADevelopment {
+		timeout = s.uploadTimeout
+	}
+	ctx, cancel := serviceTimeout(parent, timeout)
 	defer cancel()
 	releaseLifecycle, err := s.acquireLifecycle(ctx)
 	if err != nil {
 		return protocol.Status{}, err
 	}
 	defer releaseLifecycle()
-	s.executionMu.Lock()
-	hostOnly := s.activeExecution == ExecutionHostOnly
-	s.executionMu.Unlock()
+	hostOnly := activeExecution == ExecutionHostOnly
 	if hostOnly {
 		if err := s.stopHostOnlyIfActive(ctx); err != nil {
 			return protocol.Status{}, err
@@ -1091,14 +1150,53 @@ func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 	if err != nil {
 		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 	}
+	if status.State == protocol.StateStopping && status.Development && status.Recovery == protocol.RecoveryRebootRequired {
+		recoveryClient, ok := client.(developmentRecoveryClient)
+		if !ok {
+			return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
+		}
+		health, healthErr := client.Health(ctx)
+		if healthErr != nil || health.BootID == "" {
+			return protocol.Status{}, canonicalRemoteError(healthErr, protocol.CodeMiSTerUnavailable)
+		}
+		_, _ = recoveryClient.RebootDevelopment(ctx)
+		status, err = waitForDevelopmentRecovery(ctx, client, health.BootID)
+		if err != nil {
+			return protocol.Status{}, err
+		}
+	}
 	s.executionMu.Lock()
-	if s.activeExecution == ExecutionFPGANative {
+	if s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment {
 		s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
 	}
 	s.selectedTargetReconciled = status.State == protocol.StateIdle
 	s.selectedTargetRepairAllowed = false
 	s.executionMu.Unlock()
 	return status, nil
+}
+
+func waitForDevelopmentRecovery(ctx context.Context, client serviceClient, previousBootID string) (protocol.Status, error) {
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		health, healthErr := client.Health(ctx)
+		if healthErr == nil && health.Ready && health.BootID != "" && health.BootID != previousBootID {
+			status, statusErr := client.Status(ctx)
+			if statusErr == nil && validRecoveredDevelopmentStatus(status) {
+				return status, nil
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, safeContextError(ctx.Err()))
+		case <-ticker.C:
+		}
+	}
+}
+
+func validRecoveredDevelopmentStatus(status protocol.Status) bool {
+	return status.State == protocol.StateIdle && !status.Development && status.Recovery == "" &&
+		status.GameID == nil && status.System == nil && status.ExpectedCore == nil && status.ObservedCore == nil && status.LastError == nil
 }
 
 func (s *Service) acquireLifecycle(ctx context.Context) (func(), error) {

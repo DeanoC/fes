@@ -2,6 +2,7 @@ package hostapi
 
 import (
 	"context"
+	"io"
 	"sync"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 type sessionService interface {
 	Game(context.Context, string) (catalog.Game, error)
 	Launch(context.Context, string, fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error)
+	LoadDevelopmentRBF(context.Context, int64, io.Reader) (protocol.Status, error)
 	Stop(context.Context) (protocol.Status, error)
 	Status(context.Context) (protocol.Status, error)
 }
@@ -192,6 +194,10 @@ func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) 
 
 	result := s.publicSession(st, nil)
 	s.mu.Lock()
+	if st.State == protocol.StateIdle && s.execution == fogcast.ExecutionFPGADevelopment {
+		s.execution = ""
+		s.terminalStatus = nil
+	}
 	if s.execution != "" {
 		result.Execution = s.execution
 	}
@@ -369,6 +375,42 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 	return result, nil
 }
 
+func (s *sessionCoordinator) loadDevelopmentRBF(ctx context.Context, size int64, content io.Reader) (sessionResult, error) {
+	if !s.begin() {
+		return sessionResult{}, busyError()
+	}
+	defer s.end()
+	s.observationMu.Lock()
+	defer s.observationMu.Unlock()
+
+	if s.remoteInput != nil {
+		if err := s.remoteInput.Detach(ctx, "session_replace"); err != nil {
+			return sessionResult{}, remoteInputError()
+		}
+	}
+	s.mu.Lock()
+	previousExecution := s.execution
+	s.mu.Unlock()
+	if err := s.stopMediaBounded(previousExecution); err != nil {
+		return sessionResult{}, err
+	}
+
+	status, err := s.service.LoadDevelopmentRBF(ctx, size, content)
+	if err != nil {
+		return sessionResult{}, err
+	}
+	s.mu.Lock()
+	s.execution = fogcast.ExecutionFPGADevelopment
+	s.mediaHandle = nil
+	s.mediaState = ""
+	s.terminalStatus = nil
+	s.mu.Unlock()
+	result := s.publicSession(status, nil)
+	result.Execution = fogcast.ExecutionFPGADevelopment
+	s.record("session.development_rbf", result, nil)
+	return result, nil
+}
+
 func (s *sessionCoordinator) stopMedia(ctx context.Context, execution string) error {
 	s.mu.Lock()
 	handle := s.mediaHandle
@@ -486,7 +528,13 @@ func (s *sessionCoordinator) stop(ctx context.Context) (sessionResult, error) {
 	if hadMedia {
 		mediaErr = s.stopMediaBounded(execution)
 	}
-	st, serviceErr := s.stopServiceBounded()
+	var st protocol.Status
+	var serviceErr error
+	if execution == fogcast.ExecutionFPGADevelopment {
+		st, serviceErr = s.service.Stop(ctx)
+	} else {
+		st, serviceErr = s.stopServiceBounded()
+	}
 	if mediaErr != nil {
 		return sessionResult{}, mediaErr
 	}
@@ -508,6 +556,14 @@ func (s *sessionCoordinator) stop(ctx context.Context) (sessionResult, error) {
 		s.mu.Unlock()
 		result.Execution = execution
 		result.Media = "stopped"
+	}
+	if execution == fogcast.ExecutionFPGADevelopment {
+		s.mu.Lock()
+		if s.execution == fogcast.ExecutionFPGADevelopment {
+			s.execution = ""
+			s.terminalStatus = nil
+		}
+		s.mu.Unlock()
 	}
 	s.record("session.stop", result, nil)
 	return result, nil
@@ -671,7 +727,9 @@ func publicSession(st protocol.Status, progress *sessionProgress) sessionResult 
 		system = nil
 	}
 	result := sessionResult{State: st.State, GameID: gameID, System: system, Progress: progress}
-	if system != nil {
+	if st.State == protocol.StateActive && st.Development {
+		result.Execution = fogcast.ExecutionFPGADevelopment
+	} else if system != nil {
 		result.Execution = fogcast.ExecutionFPGANative
 	}
 	return result

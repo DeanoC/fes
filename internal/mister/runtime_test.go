@@ -1,6 +1,7 @@
 package mister_test
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -96,6 +97,78 @@ func TestRuntimeLaunchAndStop(t *testing.T) {
 	}
 }
 
+func TestRuntimeStopSchedulesRebootAfterDevelopmentCoreExit(t *testing.T) {
+	dir := t.TempDir()
+	coreName := filepath.Join(dir, "CORENAME")
+	rebooted := filepath.Join(dir, "rebooted")
+	reboot := filepath.Join(dir, "reboot")
+	script := "#!/bin/sh\n: > '" + rebooted + "'\n"
+	if err := os.WriteFile(reboot, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writer := &fakeWriter{}
+	runtime := mister.NewRuntime(mister.Paths{
+		MiSTerProcessComm: "MiSTer",
+		CoreNameFile:      coreName,
+		MenuRBF:           "/media/fat/menu.rbf",
+		RebootCommand:     reboot,
+	}, core.DefaultRegistry(), writer, fixedProcess(false), time.Millisecond)
+
+	observed, apiErr := runtime.RecoverDevelopment(context.Background())
+	if apiErr != nil || observed != "" {
+		t.Fatalf("development recovery stop = %q, %#v", observed, apiErr)
+	}
+	if commands := writer.snapshot(); len(commands) != 0 {
+		t.Fatalf("recovery wrote stale command pipe = %q", commands)
+	}
+	deadline := time.Now().Add(250 * time.Millisecond)
+	for {
+		if _, err := os.Stat(rebooted); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("development recovery reboot was not scheduled")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestRuntimeLoadsDevelopmentRBFBeforeDispatch(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	coreName := filepath.Join(dir, "CORENAME")
+	rbfPath := filepath.Join(dir, "development", "core.rbf")
+	payload := []byte("development-rbf")
+	writer := &fakeWriter{}
+	writer.onWrite = func(command string) {
+		if command != "load_core "+rbfPath+"\n" {
+			panic("unexpected development RBF command: " + command)
+		}
+		installed, err := os.ReadFile(rbfPath)
+		if err != nil {
+			panic(err)
+		}
+		if !bytes.Equal(installed, payload) {
+			panic("development RBF was dispatched before complete installation")
+		}
+		if err := os.WriteFile(coreName, []byte("DEVCORE\n"), 0o600); err != nil {
+			panic(err)
+		}
+	}
+	runtime := mister.NewRuntime(mister.Paths{
+		CoreNameFile:   coreName,
+		DevelopmentRBF: rbfPath,
+	}, core.DefaultRegistry(), writer, fixedProcess(true), time.Millisecond)
+
+	observed, dispatched, apiErr := runtime.LoadDevelopmentRBF(context.Background(), int64(len(payload)), bytes.NewReader(payload))
+	if apiErr != nil || !dispatched || observed != "DEVCORE" {
+		t.Fatalf("development load = %q, %t, %#v", observed, dispatched, apiErr)
+	}
+	if _, err := os.Stat(rbfPath + ".new"); !os.IsNotExist(err) {
+		t.Fatalf("temporary development RBF remains: %v", err)
+	}
+}
+
 func TestRuntimeLaunchTimeout(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -140,7 +213,11 @@ func TestRuntimeHealthRequiresProcessAndPipe(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	pipe := filepath.Join(dir, "MiSTer_cmd")
-	paths := mister.Paths{MiSTerProcessComm: "MiSTer", CommandPipe: pipe, CoreNameFile: filepath.Join(dir, "CORENAME"), MenuRBF: "/media/fat/menu.rbf", MGLDirectory: filepath.Join(dir, "mgl")}
+	bootIDFile := filepath.Join(dir, "boot_id")
+	if err := os.WriteFile(bootIDFile, []byte("boot-before\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	paths := mister.Paths{MiSTerProcessComm: "MiSTer", CommandPipe: pipe, CoreNameFile: filepath.Join(dir, "CORENAME"), MenuRBF: "/media/fat/menu.rbf", MGLDirectory: filepath.Join(dir, "mgl"), BootIDFile: bootIDFile}
 	withoutPipe := mister.NewRuntime(paths, core.DefaultRegistry(), &fakeWriter{}, fixedProcess(true), time.Millisecond).Health("0.1.0")
 	if withoutPipe.Ready || !withoutPipe.MiSTerProcess || withoutPipe.CommandPipe {
 		t.Fatalf("health without pipe = %#v", withoutPipe)
@@ -153,7 +230,7 @@ func TestRuntimeHealthRequiresProcessAndPipe(t *testing.T) {
 		t.Fatalf("health without process = %#v", withoutProcess)
 	}
 	ready := mister.NewRuntime(paths, core.DefaultRegistry(), &fakeWriter{}, fixedProcess(true), time.Millisecond).Health("0.1.0")
-	if !ready.Ready || ready.AgentVersion != "0.1.0" || ready.APIVersion != "v1" {
+	if !ready.Ready || ready.AgentVersion != "0.1.0" || ready.APIVersion != "v1" || ready.BootID != "boot-before" {
 		t.Fatalf("ready health = %#v", ready)
 	}
 }
