@@ -47,6 +47,17 @@ grep -Fq 'toolchain=/target-image-output/work-2-prod/host/bin/arm-buildroot-linu
   "$repo/scripts/qemu-smoke-target-image.sh"
 grep -Fq 'toolchain_root=/target-image-output/work-2-prod/host' \
   "$repo/scripts/qemu-smoke-target-image.sh"
+target_image_verify=$(
+  awk '
+    /^target-image-verify:/ { in_target=1; next }
+    in_target && /^[^[:space:]]/ { exit }
+    in_target { print }
+  ' "$repo/Makefile"
+)
+printf '%s\n' "$target_image_verify" | grep -Fq \
+  'scripts/verify-target-image.sh prod build/output/target-image/prod/linux.img build/output/target-image/prod/manifest.tsv build/output/target-image/prod/library-report.tsv'
+printf '%s\n' "$target_image_verify" | grep -Fq \
+  'scripts/verify-target-image.sh dev build/output/target-image/dev/linux.img build/output/target-image/dev/manifest.tsv build/output/target-image/dev/library-report.tsv'
 if grep -Fq 'readonly=on' "$repo/scripts/qemu-smoke-target-image.sh"; then
   echo 'QEMU smoke config uses unsupported read-only SD backing' >&2
   exit 1

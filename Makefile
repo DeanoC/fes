@@ -122,6 +122,7 @@ target-image-dev: build-agent target-image-fetch
 	TARGET_IMAGE_DEV_CONTAINER=1 TARGET_IMAGE_OUTPUT_VOLUME=fogcast-target-image-output TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-target-image.sh --fast-dev
 
 target-image-verify:
+	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-target-image.sh prod build/output/target-image/prod/linux.img build/output/target-image/prod/manifest.tsv build/output/target-image/prod/library-report.tsv
 	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-target-image.sh dev build/output/target-image/dev/linux.img build/output/target-image/dev/manifest.tsv build/output/target-image/dev/library-report.tsv
 
 target-image-qemu-smoke:
