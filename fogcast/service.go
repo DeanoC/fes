@@ -1097,16 +1097,22 @@ func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 		s.allowSelectedTargetRepair(parent)
 		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 	}
-	if status.State == protocol.StateActive {
+	if status.Development && (status.State == protocol.StateActive || status.State == protocol.StateStopping) {
 		s.executionMu.Lock()
 		s.selectedTargetReconciled = false
 		s.selectedTargetRepairAllowed = false
 		if s.activeExecution == "" {
-			if status.Development {
-				s.activeExecution = ExecutionFPGADevelopment
-			} else {
-				s.activeExecution = ExecutionFPGANative
-			}
+			s.activeExecution = ExecutionFPGADevelopment
+			s.activeTarget = s.selectedTarget
+			s.activeGameID, s.activeSystem = "", ""
+		}
+		s.executionMu.Unlock()
+	} else if status.State == protocol.StateActive {
+		s.executionMu.Lock()
+		s.selectedTargetReconciled = false
+		s.selectedTargetRepairAllowed = false
+		if s.activeExecution == "" {
+			s.activeExecution = ExecutionFPGANative
 			s.activeTarget = s.selectedTarget
 			if status.GameID != nil {
 				s.activeGameID = *status.GameID

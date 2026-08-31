@@ -2326,6 +2326,21 @@ func TestServiceDevelopmentActiveReconstructsAfterHostRestart(t *testing.T) {
 	}
 }
 
+func TestServiceDevelopmentActiveReconstructsStoppingRecoveryAfterHostRestart(t *testing.T) {
+	client := &fakeServiceClient{statusResult: protocol.Status{
+		State: protocol.StateStopping, Development: true, Recovery: protocol.RecoveryRebootRequired,
+	}}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+
+	active, err := service.DevelopmentActive(context.Background())
+	if err != nil || !active {
+		t.Fatalf("development active = %t, %v", active, err)
+	}
+	if service.activeExecution != ExecutionFPGADevelopment {
+		t.Fatalf("reconstructed execution = %q", service.activeExecution)
+	}
+}
+
 func TestNamedTargetSelectionRoutesPlayStatusAndStop(t *testing.T) {
 	ctx := context.Background()
 	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: t.TempDir()}

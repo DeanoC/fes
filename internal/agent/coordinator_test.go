@@ -168,7 +168,7 @@ func TestDevelopmentRBFTransitionsToActiveAndStopsAtMenu(t *testing.T) {
 		t.Fatalf("development recovery calls = %d normal stop calls = %d", runtime.developmentStopCalls, runtime.stopCalls)
 	}
 	stopped, apiErr = coordinator.RebootDevelopment(context.Background())
-	if apiErr != nil || stopped.State != protocol.StateIdle || stopped.Development || stopped.Recovery != "" {
+	if apiErr != nil || stopped.State != protocol.StateStopping || !stopped.Development || stopped.Recovery != protocol.RecoveryRebootRequired {
 		t.Fatalf("development reboot = %#v, %#v", stopped, apiErr)
 	}
 	if runtime.developmentStopCalls != 1 || runtime.stopCalls != 0 {

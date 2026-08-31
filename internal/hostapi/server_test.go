@@ -40,6 +40,7 @@ type fakeService struct {
 	launchErr       error
 	launchHook      func(context.Context)
 	development     protocol.Status
+	developmentErr  error
 	developmentBody []byte
 	developmentSize int64
 	stopped         protocol.Status
@@ -99,7 +100,7 @@ func (s *fakeService) LoadDevelopmentRBF(_ context.Context, size int64, body io.
 		return protocol.Status{}, err
 	}
 	s.developmentBody = content
-	return s.development, nil
+	return s.development, s.developmentErr
 }
 func (s *fakeService) Stop(ctx context.Context) (protocol.Status, error) {
 	s.stopCtxErrs = append(s.stopCtxErrs, ctx.Err())
@@ -544,6 +545,32 @@ func TestSessionDevelopmentRBFRejectsInvalidStreamMetadata(t *testing.T) {
 				t.Fatalf("response = %d %s development size = %d", response.Code, response.Body.String(), service.developmentSize)
 			}
 		})
+	}
+}
+
+func TestFailedDevelopmentRBFLoadClearsStoppedHostOnlyOwnership(t *testing.T) {
+	gameID := "host-game"
+	service := &fakeService{
+		execution:      fogcast.ExecutionHostOnly,
+		launch:         protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID}},
+		status:         protocol.Status{State: protocol.StateIdle},
+		developmentErr: &protocol.APIError{Code: protocol.CodeTransferFailed, Message: "upload failed"},
+	}
+	media := &fakeMediaSession{}
+	handler := hostapi.New(service, hostapi.WithMediaSession(media))
+	launchSession(t, handler, gameID)
+
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/development-rbf", strings.NewReader("rbf"))
+	request.Host = "127.0.0.1"
+	request.Header.Set("Content-Type", "application/octet-stream")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code == http.StatusOK {
+		t.Fatalf("development load unexpectedly succeeded: %s", response.Body.String())
+	}
+	status := serve(t, handler, http.MethodGet, "/api/v1/session")
+	if strings.Contains(status.Body.String(), `"execution":"host_only"`) {
+		t.Fatalf("failed replacement retained stopped host ownership: %s", status.Body.String())
 	}
 }
 

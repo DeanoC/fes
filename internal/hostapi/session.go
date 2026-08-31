@@ -410,6 +410,18 @@ func (s *sessionCoordinator) loadDevelopmentRBF(ctx context.Context, size int64,
 
 	status, err := s.service.LoadDevelopmentRBF(ctx, size, content)
 	if err != nil {
+		if observed, observeErr := s.service.Status(ctx); observeErr == nil {
+			s.mu.Lock()
+			switch {
+			case observed.Development && observed.State != protocol.StateIdle:
+				s.execution = fogcast.ExecutionFPGADevelopment
+				s.terminalStatus = nil
+			case observed.State == protocol.StateIdle:
+				s.execution = ""
+				s.terminalStatus = nil
+			}
+			s.mu.Unlock()
+		}
 		return sessionResult{}, err
 	}
 	s.mu.Lock()

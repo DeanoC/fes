@@ -359,7 +359,6 @@ func (c *Coordinator) RebootDevelopment(parent context.Context) (protocol.Status
 		c.set(failed)
 		return c.Status(), apiErr
 	}
-	c.set(protocol.Status{State: protocol.StateIdle})
 	return c.Status(), nil
 }
 
