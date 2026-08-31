@@ -36,7 +36,8 @@ TEST_BINS := \
 	$(BUILD_DIR)/tests/unit/core_loader_test \
 	$(BUILD_DIR)/tests/unit/fpga_manager_test \
 	$(BUILD_DIR)/tests/unit/mmio_test \
-	$(BUILD_DIR)/tests/unit/spi_test
+	$(BUILD_DIR)/tests/unit/spi_test \
+	$(BUILD_DIR)/tests/unit/protocol_test
 
 .PHONY: all clean test run-tests sanitize tsan archive-audit active-tree-test
 
@@ -106,6 +107,12 @@ $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cp
 		tests/support/capture_log.cpp src/native/artifacts.cpp \
 		src/native/core_loader.cpp src/native/hardware.cpp src/profile.cpp \
 		src/linux/production_hardware.cpp -o "$@"
+
+$(BUILD_DIR)/tests/unit/protocol_test: tests/unit/protocol_test.cpp \
+		src/daemon/json.cpp src/daemon/protocol.cpp src/profile.cpp src/runtime.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/protocol_test.cpp \
+		src/daemon/json.cpp src/daemon/protocol.cpp src/profile.cpp src/runtime.cpp -o "$@"
 
 run-tests: $(TEST_BINS)
 	@set -euo pipefail; \
