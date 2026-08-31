@@ -92,9 +92,10 @@ and target health endpoints, launches through the host session API, waits for
 the expected `/tmp/CORENAME`, stops through the host API, and waits for
 `MENU`. It does not inject NAS, process, upload, or reboot failures.
 
-The dedicated MiSTer is migrated from `/media/fat/mister-remote` to
-`/media/fat/fogcast` when the renamed image is deployed. No symlink or old
-path is retained.
+The dedicated MiSTer is migrated to `/media/fat/fogcast` with a one-time
+operator command immediately before the renamed image is deployed. The
+committed deployment script contains only the canonical path, and no symlink
+or old path is retained.
 
 ## Removed code and documents
 
