@@ -10,7 +10,7 @@ import (
 
 func TestWriteAtomicMGL(t *testing.T) {
 	t.Parallel()
-	dir := filepath.Join(t.TempDir(), "mister-remote")
+	dir := filepath.Join(t.TempDir(), "fogcast")
 	path, err := mister.WriteAtomicMGL(dir, []byte("new mgl\n"))
 	if err != nil {
 		t.Fatal(err)

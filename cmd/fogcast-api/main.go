@@ -1,4 +1,4 @@
-// Command fogcast-api serves the local FogCast application API for POC3 clients.
+// Command fogcast-api serves the local FogCast application API for FogCast clients.
 package main
 
 import (

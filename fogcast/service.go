@@ -83,7 +83,7 @@ const (
 	ExecutionHostOnly   = string(systems.CapabilityHostOnly)
 )
 
-// ExecutionResolver is intentionally a service-level policy seam for POC5.
+// ExecutionResolver is a service-level policy seam.
 // Catalog schema v1 remains unchanged; persistence of execution metadata is
 // deferred until it becomes catalog-owned product data.
 type ExecutionResolver interface {

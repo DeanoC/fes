@@ -202,7 +202,7 @@ mister_process_comm = "MiSTer"
 command_pipe = "/dev/MiSTer_cmd"
 core_name_file = "/tmp/CORENAME"
 menu_rbf = "/media/fat/menu.rbf"
-mgl_directory = "/tmp/mister-remote"
+mgl_directory = "/tmp/fogcast"
 cores = []
 `
 	path := filepath.Join(dir, "agent-with-cores.toml")

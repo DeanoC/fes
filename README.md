@@ -1,72 +1,59 @@
 # FogCast
 
-FogCast is a host application and target agent that browse and launch a
-multi-system game library on MiSTer hardware. The host owns the UI, catalog,
-and content selection. The MiSTer Pi runs a small agent and the normal
-Main-compatible core-loading path.
+FogCast is a host application and MiSTer target agent for browsing and
+launching a large multi-system game library. The host owns the UI, catalog,
+and content selection; the MiSTer is a small, directly controlled target.
 
 ## What works now
 
-- Thousands of catalogued games across the FPGA-native systems declared in
+- Thousands of catalogued games across the systems in
   `internal/systems/table.go`.
-- Real game launches on the dedicated MiSTer Pi.
+- Real FPGA game launches on the designated MiSTer Pi.
 - Target-side content caching, input, stop, and active-core observation.
-- A browser UI with local media and preview support.
-- Host-emulator casting and remote-media experiments in addition to native
-  FPGA game launch.
+- Browser UI, local media previews, and host-emulator/remote-media modes.
+- A reproducible target image toolchain with a development image containing
+  SSH and curl.
 
-The working FPGA launch path is:
+The normal FPGA launch path is:
 
 1. The browser sends a game ID to `POST /api/v1/session/launch`.
-2. The host resolves the game and uploads it through `/v2/cache` when needed.
-3. The host calls the target agent's `/v2/launch` endpoint.
-4. The agent creates a transient MGL and writes `load_core <mgl>` to
-   `/dev/MiSTer_cmd`.
-5. The resident Main-compatible process loads the RBF and game. FogCast reads
-   `/tmp/CORENAME` to observe the active core.
-
-Stopping a game loads `menu.rbf` through the same command path.
+2. The host resolves the catalog entry and uploads content to the target when
+   the target cache does not already contain it.
+3. The target agent creates a transient MGL and writes
+   `load_core <mgl>` to `/dev/MiSTer_cmd`.
+4. The MiSTer/Main-compatible process loads the RBF and game.
+5. FogCast observes `/tmp/CORENAME` for the active core. Stopping sends
+   `load_core <menu.rbf>` through the same command path.
 
 ## Current goal
 
-Add a development action beside normal game launch. It will accept an
-arbitrary local `.rbf`, transfer it to the disposable MiSTer Pi, and load it
-through the same proven Main-compatible command path.
-
-This does not require a new FPGA programmer, automatic misteross artifact
-discovery, the experimental native coordinator, or the abandoned fpgadev
-supervisor/recovery system.
+Add a development action beside normal game launch: transfer an arbitrary
+local `.rbf` to the disposable MiSTer Pi and load it through the same proven
+target command path. Rebooting the kit is an acceptable recovery while a
+development core is being brought up.
 
 ## Repository boundaries
 
 | Repository | Owns |
 | --- | --- |
-| `FogCast-POC` | Host application, browser UI, catalog, target agent, content transfer, and launch requests |
-| `Main_MiSTer` | The upstream-derived Main implementation behind the working Main-compatible target path |
-| `misteross` | Verilator, open-source, and Quartus FPGA builds that produce development RBF files |
+| `FogCast` | Host application, browser UI, catalog, target agent, content transfer, and launch requests |
+| `Main_MiSTer` | The MiSTer/Main implementation used by the target image |
+| `misteross` | Quartus, Verilator, and open-source FPGA builds that produce RBF files |
 
-The `Main_MiSTer` native-coordinator branches are experiments, not a
-prerequisite for the working system. FogCast commits after `3f27741` that add
-the fpgadev supervisor, hardware-owner records, attestation, journals, fault
-injection, and fail-stop recovery are abandoned and intentionally absent from
-this recovery branch. Git history retains them.
+The current FogCast tree has one active target-image toolchain and one direct
+launch path. Superseded experiments are removed from the working tree; Git
+history is the archive.
 
 ## Build and test
 
-The normal local checks are:
-
-```sh
-go test ./...
-node --test internal/hostapi/ui_metadata_test.js internal/hostapi/ui_app_test.js
-go vet ./...
-```
-
-Build the normal binaries with:
-
 ```sh
 make build
+make test
+make vet
+git diff --check
 ```
 
-For setup, configuration, and the target-agent build, read
-`docs/DEVELOPMENT.md`. The current process boundaries and source entry points
-are in `docs/ARCHITECTURE.md`.
+For the target image, fixture details, deployment, and live launch checks,
+read [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). The current process
+boundaries and source entry points are in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

@@ -153,7 +153,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 }
 
 func main() {
-	configPath := flag.String("config", "/media/fat/mister-remote/agent.toml", "target configuration path")
+	configPath := flag.String("config", "/media/fat/fogcast/agent.toml", "target configuration path")
 	flag.Parse()
 	if flag.NArg() != 0 {
 		_, _ = fmt.Fprintln(os.Stderr, "usage: mister-agent [--config path]")

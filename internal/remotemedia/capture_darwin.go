@@ -234,7 +234,7 @@ func (c *NativeCapture) Close() error {
 }
 
 func (c *NativeCapture) RequestKeyframe() error {
-	return errors.New("VideoToolbox adapter uses periodic IDR; runtime force-IDR is not supported by this spike")
+	return errors.New("VideoToolbox adapter uses periodic IDR; runtime force-IDR is not supported by this adapter")
 }
 
 func nativeError(errorOut *C.char, operation string) error {

@@ -52,7 +52,7 @@ func DefaultPaths() (Paths, error) {
 }
 
 const (
-	// DefaultAgentBaseURL is the mister-remote agent origin when base_url is
+	// DefaultAgentBaseURL is the fogcast agent origin when base_url is
 	// omitted. The operator runs the host where that tunnel already exists.
 	DefaultAgentBaseURL = "http://127.0.0.1:18182"
 	// DefaultFPGAROMGameID is the seeded v1 allowlist key for ActRaiser.

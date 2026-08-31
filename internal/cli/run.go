@@ -33,7 +33,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, open Open
 	}
 	flags := flag.NewFlagSet("misterctl", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	configPath := flags.String("config", filepath.Join(home, ".config", "mister-remote", "config.toml"), "host configuration path")
+	configPath := flags.String("config", filepath.Join(home, ".config", "fogcast", "config.toml"), "host configuration path")
 	jsonOutput := flags.Bool("json", false, "emit JSON")
 	if err := flags.Parse(args); err != nil {
 		writeUsage(stderr)

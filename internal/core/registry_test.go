@@ -65,7 +65,7 @@ func TestLookupObserved(t *testing.T) {
 		t.Fatalf("LookupObserved(MegaDrive) = %#v, %v", spec, ok)
 	}
 	if _, ok := registry.LookupObserved("Genesis"); ok {
-		t.Fatal("deprecated Genesis core must not match the POC registry")
+		t.Fatal("deprecated Genesis core must not match the registry")
 	}
 	sms, ok := registry.LookupObserved("SMS")
 	if !ok || sms.System != protocol.SystemSMS {

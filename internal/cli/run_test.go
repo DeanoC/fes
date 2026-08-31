@@ -164,7 +164,7 @@ func TestDefaultConfigPath(t *testing.T) {
 		openedPath = path
 		return &fakeLibrary{}, nil
 	})
-	if exit != 0 || openedPath != filepath.Join(home, ".config", "mister-remote", "config.toml") {
+	if exit != 0 || openedPath != filepath.Join(home, ".config", "fogcast", "config.toml") {
 		t.Fatalf("exit=%d config path=%q", exit, openedPath)
 	}
 }

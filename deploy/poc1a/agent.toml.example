@@ -1,8 +1,0 @@
-listen_address = "0.0.0.0:8182"
-token = "example-poc-token-not-valid"
-mister_process_comm = "MiSTer"
-command_pipe = "/dev/MiSTer_cmd"
-core_name_file = "/tmp/CORENAME"
-menu_rbf = "/media/fat/menu.rbf"
-mgl_directory = "/tmp/mister-remote"
-cache_max_bytes = 2147483648

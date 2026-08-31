@@ -343,7 +343,7 @@ mister_process_comm = "MiSTer"
 command_pipe = "/dev/MiSTer_cmd"
 core_name_file = "/tmp/CORENAME"
 menu_rbf = "/media/fat/menu.rbf"
-mgl_directory = "/tmp/mister-remote"
+mgl_directory = "/tmp/fogcast"
 ` + extra
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
