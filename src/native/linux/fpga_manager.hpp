@@ -1,97 +1,31 @@
 // Copyright 2026 FogCast contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#ifndef MISTER_RUNTIME_NATIVE_LINUX_NATIVE_FPGA_PROGRAMMER_HPP
-#define MISTER_RUNTIME_NATIVE_LINUX_NATIVE_FPGA_PROGRAMMER_HPP
+#pragma once
 
-#include "native/hardware_broker.hpp"
-#include "native/linux/native_core_artifact_adapter.hpp"
-#include "native/native_clock.hpp"
+#include "native/hardware.hpp"
+#include "native/linux/mmio.hpp"
 
-#include <memory>
+#include <cstdint>
 
 namespace mister {
 namespace native {
-namespace linux_native {
 
-struct NativeFpgaSinkStartOutcome {
-	Result result;
-	bool acquired;
-	bool mutation_attempted;
-	bool mutation_applied;
-};
+constexpr std::uint32_t kFpgaStatusAddress = 0xff706000u;
+constexpr std::uint32_t kFpgaControlAddress = 0xff706004u;
+constexpr std::uint32_t kFpgaMonitorAddress = 0xff706850u;
+constexpr std::uint32_t kFpgaDataAddress = 0xffb90000u;
 
-struct NativeFpgaSinkWriteOutcome {
-	Result result;
-	size_t accepted_bytes;
-	bool mutation_attempted;
-	bool mutation_applied;
-};
-
-struct NativeFpgaSinkFinishOutcome {
-	Result result;
-	bool mutation_attempted;
-	bool mutation_applied;
-	bool configuration_done_observed;
-	bool initialization_observed;
-	bool user_mode_observed;
-	bool manager_drive_released;
-};
-
-class NativeFpgaProgramSession {
+class LinuxFpgaManager final : public FpgaManager {
 public:
-	virtual ~NativeFpgaProgramSession() {}
-	NativeFpgaProgramSession(const NativeFpgaProgramSession &) = delete;
-	NativeFpgaProgramSession &operator=(const NativeFpgaProgramSession &) = delete;
-
-protected:
-	NativeFpgaProgramSession() {}
+	LinuxFpgaManager(Mmio&, Clock&);
+	NativeResult Program(const Artifact&,
+		std::uint64_t absolute_deadline_ms) override;
 
 private:
-	friend class NativeFpgaProgrammer;
-	virtual NativeFpgaSinkWriteOutcome Write(const unsigned char *bytes,
-		size_t count, uint64_t absolute_deadline_ms) = 0;
-	virtual NativeFpgaSinkFinishOutcome Finish(
-		uint64_t absolute_deadline_ms) = 0;
+	Mmio& mmio_;
+	Clock& clock_;
 };
 
-class NativeFpgaByteSink {
-public:
-	virtual ~NativeFpgaByteSink() {}
-
-private:
-	friend class NativeFpgaProgrammer;
-	virtual NativeFpgaSinkStartOutcome Begin(uint64_t expected_bytes,
-		uint64_t absolute_deadline_ms,
-		std::unique_ptr<NativeFpgaProgramSession> *session) = 0;
-};
-
-struct NativeFpgaProgrammingReceipt {
-	Result result;
-	bool acquired;
-	uint64_t accepted_bytes;
-	bool configuration_done_observed;
-	bool initialization_observed;
-	bool user_mode_observed;
-	bool manager_drive_released;
-	uint64_t mutation_sequence;
-};
-
-class NativeFpgaProgrammer final {
-public:
-	NativeFpgaProgrammer(HardwareBroker &broker, NativeClock &clock,
-		NativeFpgaByteSink &sink);
-	NativeFpgaProgrammingReceipt Program(const OperationLease &lease,
-		const NativeCoreArtifactHandle &artifact);
-
-private:
-	HardwareBroker &broker_;
-	NativeClock &clock_;
-	NativeFpgaByteSink &sink_;
-};
-
-} // namespace linux_native
 } // namespace native
 } // namespace mister
-
-#endif

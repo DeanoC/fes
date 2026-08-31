@@ -1,0 +1,191 @@
+// Copyright 2026 FogCast contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+#include "libmister-runtime/runtime.h"
+
+#include <set>
+#include <utility>
+
+namespace mister {
+namespace {
+
+Error Invalid(const char* message)
+{
+	return {ErrorCode::invalid_request, message};
+}
+
+bool ValidIdentifier(const std::string& value)
+{
+	if (value.empty() || value.size() > 32) return false;
+	for (unsigned char byte : value) {
+		if (!((byte >= 'a' && byte <= 'z') ||
+			(byte >= '0' && byte <= '9') || byte == '_' || byte == '-'))
+			return false;
+	}
+	return true;
+}
+
+bool ValidCore(const std::string& value)
+{
+	if (value.empty() || value.size() > 64) return false;
+	for (unsigned char byte : value) {
+		if (byte < 0x20 || byte > 0x7e) return false;
+	}
+	return true;
+}
+
+bool ValidAbsolutePath(const std::string& value)
+{
+	return !value.empty() && value.size() <= 4095 && value[0] == '/';
+}
+
+bool ValidUtf8(const std::string& value)
+{
+	if (value.empty() || value.size() > 64) return false;
+	for (std::size_t index = 0; index < value.size();) {
+		const unsigned char first = static_cast<unsigned char>(value[index]);
+		std::size_t continuation = 0;
+		std::uint32_t codepoint = 0;
+		if (first <= 0x7f) {
+			++index;
+			continue;
+		} else if (first >= 0xc2 && first <= 0xdf) {
+			continuation = 1;
+			codepoint = first & 0x1fu;
+		} else if (first >= 0xe0 && first <= 0xef) {
+			continuation = 2;
+			codepoint = first & 0x0fu;
+		} else if (first >= 0xf0 && first <= 0xf4) {
+			continuation = 3;
+			codepoint = first & 0x07u;
+		} else {
+			return false;
+		}
+		if (index + continuation >= value.size()) return false;
+		for (std::size_t offset = 1; offset <= continuation; ++offset) {
+			const unsigned char byte =
+				static_cast<unsigned char>(value[index + offset]);
+			if ((byte & 0xc0u) != 0x80u) return false;
+			codepoint = (codepoint << 6) | (byte & 0x3fu);
+		}
+		if ((continuation == 2 && codepoint < 0x800u) ||
+			(continuation == 3 && codepoint < 0x10000u) ||
+			(codepoint >= 0xd800u && codepoint <= 0xdfffu) ||
+			codepoint > 0x10ffffu)
+			return false;
+		index += continuation + 1;
+	}
+	return true;
+}
+
+const MediaRule* FindMedia(const Profile& profile, const std::string& role)
+{
+	for (const MediaRule& rule : profile.media) {
+		if (rule.role == role) return &rule;
+	}
+	return nullptr;
+}
+
+const SettingRule* FindSetting(const Profile& profile, const std::string& name)
+{
+	for (const SettingRule& rule : profile.settings) {
+		if (rule.name == name) return &rule;
+	}
+	return nullptr;
+}
+
+} // namespace
+
+Error Profiles::Add(Profile profile)
+{
+	if (!ValidIdentifier(profile.system)) return Invalid("invalid system identifier");
+	if (!ValidCore(profile.expected_core)) return Invalid("invalid expected core");
+	if (profile.media.size() > 8) return Invalid("too many media rules");
+	if (profile.settings.size() > 16) return Invalid("too many setting rules");
+	for (const Profile& existing : profiles_) {
+		if (existing.system == profile.system) return Invalid("duplicate system");
+	}
+	std::set<std::string> roles;
+	std::set<std::uint8_t> indices;
+	for (const MediaRule& rule : profile.media) {
+		if (!ValidIdentifier(rule.role)) return Invalid("invalid media role");
+		if (!roles.insert(rule.role).second) return Invalid("duplicate media role");
+		if (!indices.insert(rule.index).second) return Invalid("duplicate media index");
+	}
+	std::set<std::string> settings;
+	for (const SettingRule& rule : profile.settings) {
+		if (!ValidIdentifier(rule.name)) return Invalid("invalid setting name");
+		if (!settings.insert(rule.name).second) return Invalid("duplicate setting name");
+		std::set<std::string> values;
+		for (const std::string& value : rule.allowed_values) {
+			if (!ValidUtf8(value)) return Invalid("invalid setting value");
+			if (!values.insert(value).second) return Invalid("duplicate allowed value");
+		}
+	}
+	profiles_.push_back(std::move(profile));
+	return {};
+}
+
+Error Profiles::Prepare(const Launch& launch, PreparedLaunch* output) const
+{
+	if (output == nullptr) return Invalid("missing prepared launch output");
+	if (!ValidIdentifier(launch.system)) return Invalid("invalid system identifier");
+	if (!ValidAbsolutePath(launch.rbf)) return Invalid("invalid RBF path");
+	if (launch.media.size() > 8) return Invalid("too many media entries");
+	if (launch.settings.size() > 16) return Invalid("too many settings");
+	const Profile* profile = nullptr;
+	for (const Profile& candidate : profiles_) {
+		if (candidate.system == launch.system) {
+			profile = &candidate;
+			break;
+		}
+	}
+	if (profile == nullptr) return {ErrorCode::unknown_system, "unknown system"};
+
+	PreparedLaunch prepared;
+	prepared.system = profile->system;
+	prepared.expected_core = profile->expected_core;
+	prepared.rbf = launch.rbf;
+	std::set<std::string> supplied_media;
+	for (const Media& media : launch.media) {
+		if (!ValidIdentifier(media.role) || !ValidAbsolutePath(media.path))
+			return Invalid("invalid media entry");
+		if (!supplied_media.insert(media.role).second)
+			return Invalid("duplicate media role");
+		const MediaRule* rule = FindMedia(*profile, media.role);
+		if (rule == nullptr) return Invalid("unknown media role");
+		prepared.media.push_back({rule->index, media.path});
+	}
+	for (const MediaRule& rule : profile->media) {
+		if (rule.required && supplied_media.count(rule.role) == 0)
+			return {ErrorCode::missing_media, "missing required media"};
+	}
+
+	std::set<std::string> supplied_settings;
+	for (const Setting& setting : launch.settings) {
+		if (!ValidIdentifier(setting.name) || !ValidUtf8(setting.value))
+			return Invalid("invalid setting");
+		if (!supplied_settings.insert(setting.name).second)
+			return Invalid("duplicate setting");
+		const SettingRule* rule = FindSetting(*profile, setting.name);
+		if (rule == nullptr) return Invalid("unknown setting");
+		bool allowed = false;
+		for (const std::string& value : rule->allowed_values) {
+			if (value == setting.value) {
+				allowed = true;
+				break;
+			}
+		}
+		if (!allowed) return Invalid("setting value not allowed");
+		prepared.settings.push_back(setting);
+	}
+	*output = std::move(prepared);
+	return {};
+}
+
+bool Profiles::empty() const
+{
+	return profiles_.empty();
+}
+
+} // namespace mister

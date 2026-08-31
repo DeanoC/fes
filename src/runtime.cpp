@@ -1,622 +1,347 @@
-/*
- * Copyright 2026 FogCast contributors
- * SPDX-License-Identifier: GPL-3.0-or-later
- */
+// Copyright 2026 FogCast contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
 
-#include "runtime_internal.hpp"
+#include "libmister-runtime/runtime.h"
 
-#include <exception>
 #include <mutex>
-#include <set>
-#include <stdlib.h>
+#include <utility>
 
-#if defined(MISTER_RUNTIME_TESTING)
-static MisterRuntimeTest::Fault v2_test_fault = MisterRuntimeTest::FAULT_NONE;
-
-namespace MisterRuntimeTest {
-void SetFault(Fault fault) { v2_test_fault = fault; }
-void ClearFault() { v2_test_fault = FAULT_NONE; }
-}
-#endif
-
+namespace mister {
 namespace {
 
-struct MisterRuntimeV2 {
-	uint32_t generation;
-	MisterPlatformV2 platform_v2;
-	uint32_t v2_state;
-	uint32_t v2_last_result;
-	uint32_t v2_primary_result;
-	uint32_t v2_cleanup_result;
-	uint64_t v2_tick_count;
-	uint32_t v2_capability_flags;
-};
-
-std::mutex v2_registry_mutex;
-std::set<void *> v2_live_contexts;
-
-enum RegistryResult {
-	REGISTRY_OK,
-	REGISTRY_BUSY,
-	REGISTRY_FAILURE
-};
-
-#if defined(MISTER_RUNTIME_TESTING)
-static bool test_fault(unsigned fault)
+Error Busy(const char* message)
 {
-	return v2_test_fault == static_cast<MisterRuntimeTest::Fault>(fault) ||
-		(v2_test_fault == MisterRuntimeTest::FAULT_RECOVER_DOUBLE_UNREGISTER &&
-			(fault == MisterRuntimeTest::FAULT_RECOVER_UNREGISTER ||
-			fault == MisterRuntimeTest::FAULT_RECOVER_DOUBLE_UNREGISTER));
-}
-#else
-static bool test_fault(unsigned) { return false; }
-#endif
-
-static RegistryResult registry_register(void *context, unsigned fault)
-{
-	try {
-		std::lock_guard<std::mutex> lock(v2_registry_mutex);
-		if (test_fault(fault)) throw std::bad_alloc();
-		if (v2_live_contexts.find(context) != v2_live_contexts.end()) {
-			return REGISTRY_BUSY;
-		}
-		v2_live_contexts.insert(context);
-		return REGISTRY_OK;
-	} catch (...) {
-		return REGISTRY_FAILURE;
-	}
+	return {ErrorCode::busy, message};
 }
 
-static bool registry_unregister(void *context, unsigned fault)
+Error Invalid(const char* message)
 {
-	try {
-		std::lock_guard<std::mutex> lock(v2_registry_mutex);
-		if (test_fault(fault)) throw std::bad_alloc();
-		v2_live_contexts.erase(context);
-		return true;
-	} catch (...) {
-		return false;
-	}
+	return {ErrorCode::invalid_request, message};
 }
 
-static bool registry_force_unregister(void *context, unsigned fault)
+Error IdleFailure(const Error& cause)
 {
-	try {
-		std::lock_guard<std::mutex> lock(v2_registry_mutex);
-		if (test_fault(fault)) throw std::bad_alloc();
-		v2_live_contexts.erase(context);
-		return true;
-	} catch (...) {
-		return false;
-	}
+	return {ErrorCode::idle_failed,
+		cause.message.empty() ? "idle load failed" : cause.message};
 }
 
-class RecoveryRegistration {
+bool ValidAbsolutePath(const std::string& path)
+{
+	return !path.empty() && path.size() <= 4095 && path[0] == '/';
+}
+
+} // namespace
+
+class Runtime::Impl {
 public:
-	explicit RecoveryRegistration(void *context) : context_(context), held_(true) {}
-	~RecoveryRegistration()
+	Impl(Hardware& hardware, const Profiles& profiles, LogSink& log)
+		: mutex_(), hardware_(hardware), profiles_(profiles), log_(log), status_(),
+		  busy_(false), started_(false) {}
+
+	void Log(const std::string& operation, const std::string& system,
+		const std::string& core, const std::string& phase, const Error& error = {})
 	{
-		if (held_) registry_force_unregister(context_, 0);
+		log_.Write({operation, system, core, phase, error});
 	}
-	bool release(unsigned fault)
+
+	Error Start()
 	{
-		if (!registry_unregister(context_, fault)) return false;
-		held_ = false;
-		return true;
-	}
-	bool force_release(unsigned fault)
-	{
-		if (registry_force_unregister(context_, fault) || registry_force_unregister(context_, 0)) {
-			held_ = false;
-			return true;
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			if (busy_ || started_) {
+				const Error error = Busy("runtime already started");
+				Log("start", "", "", "validate", error);
+				return error;
+			}
+			busy_ = true;
+			started_ = true;
+			status_ = {};
+			status_.state = State::starting;
 		}
-		return false;
+		Log("start", "", "", "validate");
+		Log("start", "", "", "starting");
+		const HardwareResult result = hardware_.LoadIdle();
+		if (!result.error.ok()) {
+			const Error error = IdleFailure(result.error);
+			{
+				std::lock_guard<std::mutex> lock(mutex_);
+				status_.state = State::reboot_required;
+				status_.error = error;
+				busy_ = false;
+			}
+			Log("start", "", "", "failure", error);
+			return error;
+		}
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			status_ = {};
+			status_.state = State::idle;
+			busy_ = false;
+		}
+		Log("start", "", "", "idle");
+		return {};
+	}
+
+	Status status() const
+	{
+		std::lock_guard<std::mutex> lock(mutex_);
+		return status_;
+	}
+
+	Error LaunchGame(const mister::Launch& launch)
+	{
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			if (busy_ || !started_ || status_.state != State::idle) {
+				const Error error = Busy("runtime is not idle");
+				Log("launch", launch.system, "", "validate", error);
+				return error;
+			}
+			busy_ = true;
+		}
+
+		PreparedLaunch prepared;
+		const Error validation = profiles_.Prepare(launch, &prepared);
+		if (!validation.ok()) {
+			{
+				std::lock_guard<std::mutex> lock(mutex_);
+				status_.error = validation;
+				busy_ = false;
+			}
+			Log("launch", launch.system, "", "validate", validation);
+			return validation;
+		}
+		Log("launch", prepared.system, prepared.expected_core, "validate");
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			status_.state = State::starting;
+			status_.execution = Execution::game;
+			status_.system = prepared.system;
+			status_.core = prepared.expected_core;
+			status_.error = {};
+		}
+		Log("launch", prepared.system, prepared.expected_core, "starting");
+
+		HardwareResult result = hardware_.Launch(prepared);
+		if (result.error.ok() && result.observed_core != prepared.expected_core) {
+			result.error = {ErrorCode::core_mismatch,
+				"observed core does not match profile"};
+			result.mutation_attempted = true;
+		}
+		if (result.error.ok()) {
+			{
+				std::lock_guard<std::mutex> lock(mutex_);
+				status_.state = State::running_game;
+				status_.execution = Execution::game;
+				status_.system = prepared.system;
+				status_.core = result.observed_core;
+				status_.error = {};
+				busy_ = false;
+			}
+			Log("launch", prepared.system, result.observed_core, "running");
+			return {};
+		}
+		return FinishLaunchFailure("launch", prepared.system,
+			result.observed_core.empty() ? prepared.expected_core : result.observed_core,
+			result);
+	}
+
+	Error LoadDevelopmentRBF(const std::string& rbf)
+	{
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			if (busy_ || !started_ || status_.state != State::idle) {
+				const Error error = Busy("runtime is not idle");
+				Log("load_development_rbf", "", "", "validate", error);
+				return error;
+			}
+			busy_ = true;
+		}
+		if (!ValidAbsolutePath(rbf)) {
+			const Error error = Invalid("invalid RBF path");
+			{
+				std::lock_guard<std::mutex> lock(mutex_);
+				status_.error = error;
+				busy_ = false;
+			}
+			Log("load_development_rbf", "", "", "validate", error);
+			return error;
+		}
+		Log("load_development_rbf", "", "", "validate");
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			status_ = {};
+			status_.state = State::starting;
+			status_.execution = Execution::development;
+		}
+		Log("load_development_rbf", "", "", "starting");
+		const HardwareResult result = hardware_.LoadDevelopmentRBF(rbf);
+		if (result.error.ok()) {
+			{
+				std::lock_guard<std::mutex> lock(mutex_);
+				status_ = {};
+				status_.state = State::running_development;
+				status_.execution = Execution::development;
+				busy_ = false;
+			}
+			Log("load_development_rbf", "", "", "running");
+			return {};
+		}
+		return FinishLaunchFailure("load_development_rbf", "", "", result);
+	}
+
+	Error Stop()
+	{
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			if (busy_ || !started_) {
+				const Error error = Busy("runtime mutation is busy");
+				Log("stop", status_.system, status_.core, "validate", error);
+				return error;
+			}
+			if (status_.state == State::reboot_required) {
+				const Error error = {ErrorCode::idle_failed,
+					status_.error.message.empty() ? "reboot required" : status_.error.message};
+				Log("stop", "", "", "validate", error);
+				return error;
+			}
+			if (status_.state == State::idle) {
+				Log("stop", "", "", "idle");
+				return {};
+			}
+			if (status_.state != State::running_game &&
+				status_.state != State::running_development) {
+				const Error error = Busy("runtime is not stoppable");
+				Log("stop", status_.system, status_.core, "validate", error);
+				return error;
+			}
+			busy_ = true;
+			status_.state = State::starting;
+			status_.execution = Execution::none;
+		}
+		Log("stop", "", "", "starting");
+		const HardwareResult result = hardware_.LoadIdle();
+		if (!result.error.ok()) {
+			const Error error = IdleFailure(result.error);
+			{
+				std::lock_guard<std::mutex> lock(mutex_);
+				status_ = {};
+				status_.state = State::reboot_required;
+				status_.error = error;
+				busy_ = false;
+			}
+			Log("stop", "", "", "failure", error);
+			return error;
+		}
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			status_ = {};
+			status_.state = State::idle;
+			busy_ = false;
+		}
+		Log("stop", "", "", "idle");
+		return {};
 	}
 
 private:
-	void *context_;
-	bool held_;
+	Error FinishLaunchFailure(const std::string& operation,
+		const std::string& system, const std::string& core,
+		const HardwareResult& result)
+	{
+		const Error primary = result.error;
+		Log(operation, system, core, "failure", primary);
+		if (!result.mutation_attempted) {
+			std::lock_guard<std::mutex> lock(mutex_);
+			status_ = {};
+			status_.state = State::idle;
+			status_.error = primary;
+			busy_ = false;
+			return primary;
+		}
+		Log(operation, system, core, "cleanup");
+		const HardwareResult cleanup = hardware_.LoadIdle();
+		if (cleanup.error.ok()) {
+			{
+				std::lock_guard<std::mutex> lock(mutex_);
+				status_ = {};
+				status_.state = State::idle;
+				status_.error = primary;
+				busy_ = false;
+			}
+			return primary;
+		}
+		const Error idle_error = IdleFailure(cleanup.error);
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			status_ = {};
+			status_.state = State::reboot_required;
+			status_.error = idle_error;
+			busy_ = false;
+		}
+		Log(operation, system, core, "cleanup", idle_error);
+		return idle_error;
+	}
+
+	mutable std::mutex mutex_;
+	Hardware& hardware_;
+	const Profiles& profiles_;
+	LogSink& log_;
+	Status status_;
+	bool busy_;
+	bool started_;
 };
 
-static bool all_zero(const uint32_t *values, unsigned count)
+Runtime::Runtime(Hardware& hardware, const Profiles& profiles, LogSink& log)
+	: impl_(new Impl(hardware, profiles, log)) {}
+
+Runtime::~Runtime() = default;
+
+Error Runtime::Start() { return impl_->Start(); }
+Status Runtime::status() const { return impl_->status(); }
+Error Runtime::LaunchGame(const Launch& launch) { return impl_->LaunchGame(launch); }
+Error Runtime::LoadDevelopmentRBF(const std::string& rbf)
 {
-	for (unsigned index = 0; index < count; ++index) {
-		if (values[index] != 0) return false;
+	return impl_->LoadDevelopmentRBF(rbf);
+}
+Error Runtime::Stop() { return impl_->Stop(); }
+
+const char* ErrorCodeName(ErrorCode code)
+{
+	switch (code) {
+	case ErrorCode::none: return "none";
+	case ErrorCode::invalid_request: return "invalid_request";
+	case ErrorCode::unsupported_protocol: return "unsupported_protocol";
+	case ErrorCode::unknown_system: return "unknown_system";
+	case ErrorCode::missing_media: return "missing_media";
+	case ErrorCode::busy: return "busy";
+	case ErrorCode::program_failed: return "program_failed";
+	case ErrorCode::core_mismatch: return "core_mismatch";
+	case ErrorCode::io_failed: return "io_failed";
+	case ErrorCode::idle_failed: return "idle_failed";
 	}
-	return true;
+	return "invalid";
 }
 
-static bool valid_result(MisterResult result)
+const char* StateName(State state)
 {
-	switch (result) {
-	case MISTER_RESULT_OK:
-	case MISTER_RESULT_INVALID_ARGUMENT:
-	case MISTER_RESULT_INVALID_STATE:
-	case MISTER_RESULT_UNSUPPORTED:
-	case MISTER_RESULT_DEADLINE:
-	case MISTER_RESULT_PLATFORM:
-	case MISTER_RESULT_CLEANUP_INCOMPLETE:
-	case MISTER_RESULT_EXIT_REQUIRED:
-		return true;
-	case MISTER_RESULT_REPRESENTATION_MIN:
-	case MISTER_RESULT_REPRESENTATION_MAX:
-	default:
-		return false;
+	switch (state) {
+	case State::idle: return "idle";
+	case State::starting: return "starting";
+	case State::running_game: return "running_game";
+	case State::running_development: return "running_development";
+	case State::reboot_required: return "reboot_required";
 	}
+	return "invalid";
 }
 
-static MisterResult normalize_result(MisterResult result)
+const char* ExecutionName(Execution execution)
 {
-	return valid_result(result) ? result : MISTER_RESULT_PLATFORM;
-}
-
-static bool valid_platform_prefix(const MisterPlatformV2 *platform)
-{
-	return platform != nullptr &&
-		platform->abi_version == MISTER_RUNTIME_ABI_VERSION_V2 &&
-		platform->struct_size >= sizeof(*platform) &&
-		platform->capability_flags == MISTER_CAP_V2_KNOWN &&
-		all_zero(platform->reserved, 4);
-}
-
-static bool valid_platform(const MisterPlatformV2 *platform)
-{
-	return valid_platform_prefix(platform) && platform->start != nullptr &&
-		platform->load != nullptr && platform->tick != nullptr &&
-		platform->observe != nullptr && platform->stop != nullptr &&
-		platform->recover != nullptr;
-}
-
-static bool valid_view(const MisterStringView view, uint32_t minimum,
-	uint32_t maximum)
-{
-	return view.length >= minimum && view.length <= maximum &&
-		(view.length == 0 || view.data != nullptr);
-}
-
-static bool lower_alnum(char value)
-{
-	return (value >= 'a' && value <= 'z') || (value >= '0' && value <= '9');
-}
-
-static bool lower_hex(char value)
-{
-	return (value >= '0' && value <= '9') || (value >= 'a' && value <= 'f');
-}
-
-static bool valid_game_id(MisterStringView view)
-{
-	if (!valid_view(view, 1, 128) || !lower_alnum(view.data[0]) ||
-		!lower_alnum(view.data[view.length - 1])) return false;
-	for (uint32_t index = 1; index + 1 < view.length; ++index) {
-		if (!lower_alnum(view.data[index]) && view.data[index] != '-') return false;
+	switch (execution) {
+	case Execution::none: return "none";
+	case Execution::game: return "game";
+	case Execution::development: return "development";
 	}
-	return true;
+	return "invalid";
 }
 
-static bool valid_system(MisterStringView view)
-{
-	if (!valid_view(view, 1, 32) || !lower_alnum(view.data[0])) return false;
-	for (uint32_t index = 1; index < view.length; ++index) {
-		char value = view.data[index];
-		if (!lower_alnum(value) && value != '_' && value != '-') return false;
-	}
-	return true;
-}
-
-static bool valid_expected_core(MisterStringView view)
-{
-	if (!valid_view(view, 1, 64)) return false;
-	char first = view.data[0];
-	if (!((first >= 'A' && first <= 'Z') ||
-		(first >= 'a' && first <= 'z') || (first >= '0' && first <= '9'))) return false;
-	for (uint32_t index = 1; index < view.length; ++index) {
-		char value = view.data[index];
-		bool valid = (value >= 'A' && value <= 'Z') ||
-			(value >= 'a' && value <= 'z') || (value >= '0' && value <= '9') ||
-			value == ' ' || value == '_' || value == '+' || value == '(' ||
-			value == ')' || value == '.' || value == '-';
-		if (!valid) return false;
-	}
-	return true;
-}
-
-static bool valid_sha256(MisterStringView view)
-{
-	if (!valid_view(view, 64, 64)) return false;
-	for (uint32_t index = 0; index < view.length; ++index) {
-		if (!lower_hex(view.data[index])) return false;
-	}
-	return true;
-}
-
-static bool valid_extension(MisterStringView view)
-{
-	if (!valid_view(view, 1, 16)) return false;
-	for (uint32_t index = 0; index < view.length; ++index) {
-		if (!lower_alnum(view.data[index])) return false;
-	}
-	return true;
-}
-
-static bool valid_launch(const MisterLaunchV2 *launch)
-{
-	return launch != nullptr &&
-		launch->abi_version == MISTER_RUNTIME_ABI_VERSION_V2 &&
-		launch->struct_size >= sizeof(*launch) && all_zero(launch->reserved, 4) &&
-		valid_game_id(launch->game_id) && valid_system(launch->system) &&
-		valid_expected_core(launch->expected_core) &&
-		launch->content.abi_version == MISTER_RUNTIME_ABI_VERSION_V2 &&
-		launch->content.struct_size >= sizeof(launch->content) &&
-		all_zero(launch->content.reserved, 4) &&
-		valid_sha256(launch->content.sha256) &&
-		launch->content.size >= 1 && launch->content.size <= 32u * 1024u * 1024u &&
-		valid_extension(launch->content.extension);
-}
-
-static bool initialized_observation(const MisterObservationV2 *observation)
-{
-	return observation != nullptr &&
-		observation->abi_version == MISTER_RUNTIME_ABI_VERSION_V2 &&
-		observation->struct_size == sizeof(*observation) &&
-		observation->ready == 0 && observation->observed_core.data == nullptr &&
-		observation->observed_core.length == 0 && observation->resource_flags == 0 &&
-		all_zero(observation->reserved, 4);
-}
-
-static bool initialized_recovery_observation(
-	const MisterRecoveryObservationV2 *observation)
-{
-	return observation != nullptr &&
-		observation->abi_version == MISTER_RUNTIME_ABI_VERSION_V2 &&
-		observation->struct_size == sizeof(*observation) &&
-		observation->observed_resource_flags == 0 &&
-		observation->neutral_resource_flags == 0 && all_zero(observation->reserved, 4);
-}
-
-static bool initialized_status(const MisterStatusV2 *status)
-{
-	return status != nullptr && status->abi_version == MISTER_RUNTIME_ABI_VERSION_V2 &&
-		status->struct_size == sizeof(*status) && status->state == 0 &&
-		status->last_result == 0 && status->primary_result == 0 &&
-		status->cleanup_result == 0 && status->tick_count == 0 &&
-		status->capability_flags == 0 && all_zero(status->reserved, 4);
-}
-
-static bool valid_observation_output(const MisterObservationV2 *observation)
-{
-	return observation->abi_version == MISTER_RUNTIME_ABI_VERSION_V2 &&
-		observation->struct_size == sizeof(*observation) && observation->ready <= 1 &&
-		(observation->resource_flags & ~MISTER_RESOURCE_V2_KNOWN) == 0 &&
-		(observation->observed_core.length == 0 ||
-			valid_expected_core(observation->observed_core)) &&
-		all_zero(observation->reserved, 4);
-}
-
-static bool valid_recovery_output(const MisterRecoveryObservationV2 *observation)
-{
-	return observation->abi_version == MISTER_RUNTIME_ABI_VERSION_V2 &&
-		observation->struct_size == sizeof(*observation) &&
-		(observation->observed_resource_flags & ~MISTER_RESOURCE_V2_KNOWN) == 0 &&
-		(observation->neutral_resource_flags & ~MISTER_RESOURCE_V2_KNOWN) == 0 &&
-		all_zero(observation->reserved, 4);
-}
-
-template <typename Callback>
-static MisterResult call_platform(Callback callback)
-{
-	try {
-		return normalize_result(callback());
-	} catch (...) {
-		return MISTER_RESULT_PLATFORM;
-	}
-}
-
-static bool is_v2(const MisterRuntime *runtime)
-{
-	return MisterRuntime_ReadGeneration(runtime) == MISTER_RUNTIME_GENERATION_V2;
-}
-
-static MisterRuntimeV2 *as_v2(MisterRuntime *runtime)
-{
-	return reinterpret_cast<MisterRuntimeV2 *>(runtime);
-}
-
-static const MisterRuntimeV2 *as_v2(const MisterRuntime *runtime)
-{
-	return reinterpret_cast<const MisterRuntimeV2 *>(runtime);
-}
-
-static void set_primary(MisterRuntime *runtime, MisterResult result)
-{
-	if (as_v2(runtime)->v2_primary_result == MISTER_RESULT_OK) {
-		as_v2(runtime)->v2_primary_result = static_cast<uint32_t>(result);
-	}
-}
-
-static MisterResult fail_call(MisterRuntime *runtime, MisterResult result)
-{
-	as_v2(runtime)->v2_last_result = static_cast<uint32_t>(result);
-	return result;
-}
-
-static MisterResult run_observe(MisterRuntime *runtime,
-	MisterObservationV2 *observation, uint32_t deadline_ms)
-{
-	MisterResult result = call_platform([&]() {
-		return as_v2(runtime)->platform_v2.observe(as_v2(runtime)->platform_v2.context, observation,
-			deadline_ms);
-	});
-	if (result != MISTER_RESULT_OK) return result;
-	return valid_observation_output(observation) ? MISTER_RESULT_OK : MISTER_RESULT_PLATFORM;
-}
-
-}  // namespace
-
-#if defined(MISTER_RUNTIME_TESTING)
-namespace MisterRuntimeTest {
-MisterResult DiscardExitRequired(MisterRuntime **runtime)
-{
-	if (runtime == nullptr || *runtime == nullptr || !is_v2(*runtime) ||
-		as_v2(*runtime)->v2_state != MISTER_STATE_EXIT_REQUIRED) {
-		return MISTER_RESULT_INVALID_STATE;
-	}
-	void *context = as_v2(*runtime)->platform_v2.context;
-	if (!registry_force_unregister(context, ~0u)) return MISTER_RESULT_PLATFORM;
-	free(*runtime);
-	*runtime = nullptr;
-	return MISTER_RESULT_OK;
-}
-}
-#endif
-
-extern "C" uint32_t MisterRuntime_ABIVersionV2(void)
-{
-	return MISTER_RUNTIME_ABI_VERSION_V2;
-}
-
-extern "C" MisterResult MisterRuntime_CreateV2(const MisterPlatformV2 *platform,
-	MisterRuntime **runtime)
-{
-	if (runtime == nullptr || *runtime != nullptr || !valid_platform(platform)) {
-		return MISTER_RESULT_INVALID_ARGUMENT;
-	}
-
-	MisterRuntimeV2 *created = nullptr;
-	try {
-#if defined(MISTER_RUNTIME_TESTING)
-		if (test_fault(MisterRuntimeTest::FAULT_CREATE_ALLOCATE)) throw std::bad_alloc();
-#endif
-		created = static_cast<MisterRuntimeV2 *>(calloc(1, sizeof(*created)));
-		if (created == nullptr) return MISTER_RESULT_PLATFORM;
-		created->generation = MISTER_RUNTIME_GENERATION_V2;
-		created->platform_v2 = *platform;
-		created->v2_state = MISTER_STATE_CREATED;
-		created->v2_capability_flags = platform->capability_flags;
-#if defined(MISTER_RUNTIME_TESTING)
-		RegistryResult registered = registry_register(platform->context,
-			MisterRuntimeTest::FAULT_CREATE_REGISTER);
-#else
-		RegistryResult registered = registry_register(platform->context, 0);
-#endif
-		if (registered != REGISTRY_OK) {
-			free(created);
-			return registered == REGISTRY_BUSY ? MISTER_RESULT_INVALID_STATE :
-				MISTER_RESULT_PLATFORM;
-		}
-		*runtime = reinterpret_cast<MisterRuntime *>(created);
-		return MISTER_RESULT_OK;
-	} catch (...) {
-		free(created);
-		*runtime = nullptr;
-		return MISTER_RESULT_PLATFORM;
-	}
-}
-
-extern "C" MisterResult MisterRuntime_StartV2(MisterRuntime *runtime,
-	uint32_t deadline_ms)
-{
-	if (!is_v2(runtime)) return MISTER_RESULT_INVALID_ARGUMENT;
-	if (as_v2(runtime)->v2_state != MISTER_STATE_CREATED) return fail_call(runtime, MISTER_RESULT_INVALID_STATE);
-	if (deadline_ms == 0) return fail_call(runtime, MISTER_RESULT_INVALID_ARGUMENT);
-	MisterResult result = call_platform([&]() {
-		return as_v2(runtime)->platform_v2.start(as_v2(runtime)->platform_v2.context, deadline_ms);
-	});
-	if (result == MISTER_RESULT_OK) {
-		as_v2(runtime)->v2_state = MISTER_STATE_READY;
-		as_v2(runtime)->v2_last_result = MISTER_RESULT_OK;
-		return result;
-	}
-	as_v2(runtime)->v2_state = MISTER_STATE_FAILED;
-	as_v2(runtime)->v2_last_result = result;
-	set_primary(runtime, result);
-	return result;
-}
-
-extern "C" MisterResult MisterRuntime_LoadV2(MisterRuntime *runtime,
-	const MisterLaunchV2 *launch, uint32_t deadline_ms)
-{
-	if (!is_v2(runtime)) return MISTER_RESULT_INVALID_ARGUMENT;
-	if (as_v2(runtime)->v2_state != MISTER_STATE_READY) return fail_call(runtime, MISTER_RESULT_INVALID_STATE);
-	if (deadline_ms == 0 || !valid_launch(launch)) {
-		return fail_call(runtime, MISTER_RESULT_INVALID_ARGUMENT);
-	}
-	MisterResult result = call_platform([&]() {
-		return as_v2(runtime)->platform_v2.load(as_v2(runtime)->platform_v2.context, launch, deadline_ms);
-	});
-	if (result == MISTER_RESULT_OK) {
-		MisterObservationV2 observation = {};
-		observation.abi_version = MISTER_RUNTIME_ABI_VERSION_V2;
-		observation.struct_size = sizeof(observation);
-		result = run_observe(runtime, &observation, deadline_ms);
-		if (result == MISTER_RESULT_OK && observation.ready != 1) result = MISTER_RESULT_PLATFORM;
-		if (result == MISTER_RESULT_OK &&
-			(observation.resource_flags & MISTER_RESOURCE_V2_KNOWN) != MISTER_RESOURCE_V2_KNOWN) {
-			result = MISTER_RESULT_PLATFORM;
-		}
-	}
-	if (result == MISTER_RESULT_OK) {
-		as_v2(runtime)->v2_state = MISTER_STATE_RUNNING;
-		as_v2(runtime)->v2_last_result = MISTER_RESULT_OK;
-		return result;
-	}
-	as_v2(runtime)->v2_state = MISTER_STATE_FAILED;
-	as_v2(runtime)->v2_last_result = result;
-	set_primary(runtime, result);
-	return result;
-}
-
-extern "C" MisterResult MisterRuntime_TickV2(MisterRuntime *runtime,
-	uint32_t deadline_ms)
-{
-	if (!is_v2(runtime)) return MISTER_RESULT_INVALID_ARGUMENT;
-	if (as_v2(runtime)->v2_state != MISTER_STATE_RUNNING) return fail_call(runtime, MISTER_RESULT_INVALID_STATE);
-	if (deadline_ms == 0) return fail_call(runtime, MISTER_RESULT_INVALID_ARGUMENT);
-	MisterResult result = call_platform([&]() {
-		return as_v2(runtime)->platform_v2.tick(as_v2(runtime)->platform_v2.context, deadline_ms);
-	});
-	if (result == MISTER_RESULT_OK) {
-		++as_v2(runtime)->v2_tick_count;
-		as_v2(runtime)->v2_last_result = MISTER_RESULT_OK;
-		return result;
-	}
-	as_v2(runtime)->v2_state = MISTER_STATE_FAILED;
-	as_v2(runtime)->v2_last_result = result;
-	set_primary(runtime, result);
-	return result;
-}
-
-extern "C" MisterResult MisterRuntime_ObserveV2(MisterRuntime *runtime,
-	MisterObservationV2 *observation, uint32_t deadline_ms)
-{
-	if (!is_v2(runtime)) return MISTER_RESULT_INVALID_ARGUMENT;
-	if (deadline_ms == 0 || !initialized_observation(observation)) {
-		return fail_call(runtime, MISTER_RESULT_INVALID_ARGUMENT);
-	}
-	return run_observe(runtime, observation, deadline_ms);
-}
-
-extern "C" MisterResult MisterRuntime_StatusV2(const MisterRuntime *runtime,
-	MisterStatusV2 *status)
-{
-	if (!is_v2(runtime) || !initialized_status(status)) return MISTER_RESULT_INVALID_ARGUMENT;
-	status->state = as_v2(runtime)->v2_state;
-	status->last_result = as_v2(runtime)->v2_last_result;
-	status->primary_result = as_v2(runtime)->v2_primary_result;
-	status->cleanup_result = as_v2(runtime)->v2_cleanup_result;
-	status->tick_count = as_v2(runtime)->v2_tick_count;
-	status->capability_flags = as_v2(runtime)->v2_capability_flags;
-	return MISTER_RESULT_OK;
-}
-
-extern "C" MisterResult MisterRuntime_StopV2(MisterRuntime *runtime,
-	uint32_t deadline_ms)
-{
-	if (!is_v2(runtime)) return MISTER_RESULT_INVALID_ARGUMENT;
-	uint32_t state = as_v2(runtime)->v2_state;
-	if (state != MISTER_STATE_CREATED && state != MISTER_STATE_READY &&
-		state != MISTER_STATE_RUNNING && state != MISTER_STATE_FAILED &&
-		state != MISTER_STATE_CLEANUP_INCOMPLETE && state != MISTER_STATE_STOPPED) {
-		return fail_call(runtime, MISTER_RESULT_INVALID_STATE);
-	}
-	if (deadline_ms == 0) return fail_call(runtime, MISTER_RESULT_INVALID_ARGUMENT);
-	if (state == MISTER_STATE_CREATED || state == MISTER_STATE_STOPPED) {
-		as_v2(runtime)->v2_state = MISTER_STATE_STOPPED;
-		as_v2(runtime)->v2_last_result = MISTER_RESULT_OK;
-		as_v2(runtime)->v2_cleanup_result = MISTER_RESULT_OK;
-		return MISTER_RESULT_OK;
-	}
-	MisterResult result = call_platform([&]() {
-		return as_v2(runtime)->platform_v2.stop(as_v2(runtime)->platform_v2.context,
-			deadline_ms);
-	});
-	if (result == MISTER_RESULT_OK) {
-		as_v2(runtime)->v2_state = MISTER_STATE_STOPPED;
-		as_v2(runtime)->v2_last_result = MISTER_RESULT_OK;
-		as_v2(runtime)->v2_cleanup_result = MISTER_RESULT_OK;
-		return MISTER_RESULT_OK;
-	}
-	if (result == MISTER_RESULT_EXIT_REQUIRED) {
-		as_v2(runtime)->v2_state = MISTER_STATE_EXIT_REQUIRED;
-		as_v2(runtime)->v2_last_result = result;
-		as_v2(runtime)->v2_cleanup_result = result;
-		return result;
-	}
-	as_v2(runtime)->v2_state = MISTER_STATE_CLEANUP_INCOMPLETE;
-	as_v2(runtime)->v2_last_result = result;
-	as_v2(runtime)->v2_cleanup_result = result;
-	return result;
-}
-
-extern "C" MisterResult MisterRuntime_DestroyV2(MisterRuntime **runtime)
-{
-	if (runtime == nullptr || *runtime == nullptr || !is_v2(*runtime)) {
-		return MISTER_RESULT_INVALID_ARGUMENT;
-	}
-	if (as_v2(*runtime)->v2_state != MISTER_STATE_CREATED &&
-		as_v2(*runtime)->v2_state != MISTER_STATE_STOPPED) {
-		return fail_call(*runtime, MISTER_RESULT_INVALID_STATE);
-	}
-	void *context = as_v2(*runtime)->platform_v2.context;
-#if defined(MISTER_RUNTIME_TESTING)
-	if (!registry_unregister(context, MisterRuntimeTest::FAULT_DESTROY_UNREGISTER)) {
-#else
-	if (!registry_unregister(context, 0)) {
-#endif
-		return MISTER_RESULT_PLATFORM;
-	}
-	free(*runtime);
-	*runtime = nullptr;
-	return MISTER_RESULT_OK;
-}
-
-extern "C" MisterResult MisterRuntime_RecoverPlatformV2(const MisterPlatformV2 *platform,
-	uint32_t required_resource_flags, MisterRecoveryObservationV2 *observation,
-	uint32_t deadline_ms)
-{
-	if (!valid_platform_prefix(platform) || platform->recover == nullptr ||
-		required_resource_flags == 0 ||
-		(required_resource_flags & ~MISTER_RESOURCE_V2_KNOWN) != 0 || deadline_ms == 0 ||
-		!initialized_recovery_observation(observation)) {
-		return MISTER_RESULT_INVALID_ARGUMENT;
-	}
-	RegistryResult registered = REGISTRY_FAILURE;
-#if defined(MISTER_RUNTIME_TESTING)
-	registered = registry_register(platform->context, MisterRuntimeTest::FAULT_RECOVER_REGISTER);
-#else
-	registered = registry_register(platform->context, 0);
-#endif
-	if (registered != REGISTRY_OK) {
-		return registered == REGISTRY_BUSY ? MISTER_RESULT_INVALID_STATE :
-			MISTER_RESULT_PLATFORM;
-	}
-	RecoveryRegistration registration(platform->context);
-	MisterResult result = call_platform([&]() {
-		return platform->recover(platform->context, required_resource_flags, observation,
-			deadline_ms);
-	});
-#if defined(MISTER_RUNTIME_TESTING)
-	bool released = registration.release(MisterRuntimeTest::FAULT_RECOVER_UNREGISTER);
-#else
-	bool released = registration.release(0);
-#endif
-	if (!released) {
-		if (!registration.force_release(
-#if defined(MISTER_RUNTIME_TESTING)
-			MisterRuntimeTest::FAULT_RECOVER_DOUBLE_UNREGISTER
-#else
-			0
-#endif
-		)) return MISTER_RESULT_PLATFORM;
-		return MISTER_RESULT_PLATFORM;
-	}
-	if (!valid_recovery_output(observation)) return MISTER_RESULT_PLATFORM;
-	if (result != MISTER_RESULT_OK) return result;
-	if ((observation->neutral_resource_flags & required_resource_flags) !=
-		required_resource_flags ||
-		(observation->observed_resource_flags & required_resource_flags) != 0) {
-		return MISTER_RESULT_PLATFORM;
-	}
-	return MISTER_RESULT_OK;
-}
+} // namespace mister

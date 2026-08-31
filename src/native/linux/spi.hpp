@@ -1,67 +1,44 @@
 // Copyright 2026 FogCast contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#ifndef MISTER_RUNTIME_NATIVE_LINUX_NATIVE_CORE_PROTOCOL_IO_ADAPTER_HPP
-#define MISTER_RUNTIME_NATIVE_LINUX_NATIVE_CORE_PROTOCOL_IO_ADAPTER_HPP
+#pragma once
 
-#include "native/core_loader.hpp"
+#include "native/hardware.hpp"
+#include "native/linux/mmio.hpp"
 
-#include <stddef.h>
-#include <stdint.h>
+#include <cstdint>
+#include <vector>
 
 namespace mister {
 namespace native {
-namespace linux_native {
 
-#if defined(MISTER_NATIVE_CORE_PROTOCOL_IO_TESTING)
-class NativeCoreProtocolIoTestMapping final {
+constexpr std::uint8_t kFileIoTarget = 0;
+constexpr std::uint8_t kUserIoTarget = 1;
+constexpr std::uint32_t kSpiGpoAddress = 0xff706010u;
+constexpr std::uint32_t kSpiGpiAddress = 0xff706014u;
+constexpr std::uint32_t kSpiStrobeMask = 0x00020000u;
+constexpr std::uint32_t kSpiFileSelectMask = 0x00040000u;
+constexpr std::uint32_t kSpiUserSelectMask = 0x00100000u;
+
+class Spi {
 public:
-	NativeCoreProtocolIoTestMapping() : identity(0) {}
-	uintptr_t identity;
+	virtual ~Spi() {}
+	virtual Error Exchange(std::uint8_t target,
+		const std::vector<std::uint16_t>& request,
+		std::vector<std::uint16_t>* response,
+		std::uint64_t absolute_deadline_ms) = 0;
 };
 
-// Host tests inject only the adapter's private register backend. This seam is
-// not part of a production translation unit or public target protocol.
-class NativeCoreProtocolIoTestOperations {
+class LinuxSpi final : public Spi {
 public:
-	virtual ~NativeCoreProtocolIoTestOperations() {}
-	virtual size_t PageSize() const = 0;
-	virtual int Open(const char *path, int flags) = 0;
-	virtual int Close(int descriptor) = 0;
-	virtual int Map(int descriptor, uint64_t page_offset, size_t length,
-		NativeCoreProtocolIoTestMapping *mapping) = 0;
-	virtual int Unmap(const NativeCoreProtocolIoTestMapping &mapping,
-		size_t length) = 0;
-	virtual int Read32(const NativeCoreProtocolIoTestMapping &mapping,
-		size_t offset, uint32_t *value) = 0;
-	virtual int Write32(const NativeCoreProtocolIoTestMapping &mapping,
-		size_t offset, uint32_t value) = 0;
-	virtual int OrderingBarrier() = 0;
-};
-#endif
-
-class NativeCoreProtocolIoAdapterCapabilitySet;
-
-class NativeCoreProtocolIoAdapter final {
-public:
-	explicit NativeCoreProtocolIoAdapter(NativeClock &clock);
-#if defined(MISTER_NATIVE_CORE_PROTOCOL_IO_TESTING)
-	NativeCoreProtocolIoAdapter(NativeClock &clock,
-		NativeCoreProtocolIoTestOperations &operations);
-#endif
-	~NativeCoreProtocolIoAdapter();
-	NativeCoreProtocolIoAdapter(const NativeCoreProtocolIoAdapter &) = delete;
-	NativeCoreProtocolIoAdapter &operator=(
-		const NativeCoreProtocolIoAdapter &) = delete;
-	bool valid() const;
-	NativeCoreProtocolCapabilities capabilities();
+	LinuxSpi(Mmio&, Clock&);
+	Error Exchange(std::uint8_t, const std::vector<std::uint16_t>&,
+		std::vector<std::uint16_t>*, std::uint64_t) override;
 
 private:
-	NativeCoreProtocolCapabilities capabilities_;
+	Mmio& mmio_;
+	Clock& clock_;
 };
 
-} // namespace linux_native
 } // namespace native
 } // namespace mister
-
-#endif

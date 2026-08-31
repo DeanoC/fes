@@ -3,173 +3,73 @@
 
 #include "native/linux/fpga_manager.hpp"
 
+#include "native/artifacts.hpp"
+
+#include <unistd.h>
+
+#include <algorithm>
+#include <cstddef>
+
 namespace mister {
 namespace native {
-namespace linux_native {
 namespace {
 
-Result ToProgrammingResult(NativeArtifactResult result)
+NativeResult Failed(const std::string& message, bool attempted)
 {
-	switch (result) {
-	case NativeArtifactResult::ok: return MISTER_RESULT_OK;
-	case NativeArtifactResult::invalid_argument:
-	case NativeArtifactResult::invalid_identity:
-		return MISTER_RESULT_INVALID_ARGUMENT;
-	case NativeArtifactResult::deadline: return MISTER_RESULT_DEADLINE;
-	case NativeArtifactResult::cleanup_incomplete:
-	case NativeArtifactResult::insecure:
-	case NativeArtifactResult::not_found:
-	case NativeArtifactResult::changed:
-	case NativeArtifactResult::digest_mismatch:
-	case NativeArtifactResult::io:
-	default: return MISTER_RESULT_PLATFORM;
-	}
-}
-
-NativeFpgaProgrammingReceipt Receipt(Result result)
-{
-	const NativeFpgaProgrammingReceipt receipt = {
-		result, false, 0, false, false, false, false, 0};
-	return receipt;
+	return {{ErrorCode::program_failed, message}, attempted};
 }
 
 } // namespace
 
-NativeFpgaProgrammer::NativeFpgaProgrammer(HardwareBroker &broker,
-	NativeClock &clock, NativeFpgaByteSink &sink)
-	: broker_(broker), clock_(clock), sink_(sink)
-{
-}
+LinuxFpgaManager::LinuxFpgaManager(Mmio& mmio, Clock& clock)
+	: mmio_(mmio), clock_(clock) {}
 
-NativeFpgaProgrammingReceipt NativeFpgaProgrammer::Program(
-	const OperationLease &lease, const NativeCoreArtifactHandle &artifact)
+NativeResult LinuxFpgaManager::Program(const Artifact& artifact,
+	std::uint64_t deadline)
 {
-	NativeFpgaProgrammingReceipt receipt = Receipt(MISTER_RESULT_OK);
-	if (!artifact.valid() || artifact.bound_profile_ == nullptr)
-		return Receipt(MISTER_RESULT_INVALID_ARGUMENT);
-	if (lease.operation_kind() != OperationKind::program_fpga)
-		return Receipt(MISTER_RESULT_INVALID_STATE);
-	const uint64_t deadline = lease.absolute_deadline_ms();
-	if (clock_.NowMs() >= deadline) return Receipt(MISTER_RESULT_DEADLINE);
-	std::unique_ptr<HardwareLeaseView> view;
-	Result result = broker_.AcquireHardwareLeaseView(lease, &view);
-	if (result != MISTER_RESULT_OK) return Receipt(result);
-	result = view->AuthorizeFpgaProgrammingProfile(*artifact.bound_profile_);
-	if (result != MISTER_RESULT_OK) return Receipt(result);
-	NativeArtifactResult artifact_result =
-		artifact.PrepareVerifiedProgrammingRead(deadline);
-	if (artifact_result != NativeArtifactResult::ok) {
-		receipt.result = ToProgrammingResult(artifact_result);
-		return receipt;
-	}
-
-	std::unique_ptr<NativeFpgaProgramSession> session;
-	auto record_applied = [&view, &receipt](bool applied) -> Result {
-		if (!applied) return MISTER_RESULT_OK;
-		const uint64_t sequence = view->RecordMutation();
-		if (sequence == 0) return MISTER_RESULT_PLATFORM;
-		receipt.mutation_sequence = sequence;
-		return MISTER_RESULT_OK;
-	};
-	const NativeFpgaSinkStartOutcome start =
-		sink_.Begin(artifact.size(), deadline, &session);
-	receipt.acquired = start.acquired || start.mutation_attempted ||
-		start.mutation_applied;
-	result = record_applied(start.mutation_applied);
-	const bool malformed_start =
-		(start.result == MISTER_RESULT_OK) != (session.get() != nullptr);
-	if (result != MISTER_RESULT_OK || malformed_start ||
-		start.result != MISTER_RESULT_OK) {
-		receipt.result = result != MISTER_RESULT_OK ? result :
-			(malformed_start ? MISTER_RESULT_PLATFORM : start.result);
-		session.reset();
-		return receipt;
-	}
+	if (artifact.fd() < 0 || artifact.size() == 0)
+		return Failed("invalid RBF artifact", false);
+	if (clock_.NowMs() >= deadline) return Failed("deadline exceeded", false);
+	std::uint32_t status = 0;
+	Error error = mmio_.Read32(kFpgaStatusAddress, &status);
+	if (!error.ok()) return Failed(error.message, false);
+	bool attempted = true;
+	error = mmio_.Write32(kFpgaControlAddress, 0x5u);
+	if (!error.ok()) return Failed(error.message, attempted);
 
 	unsigned char bytes[4096];
-	uint64_t consumed = 0;
-	while (consumed < artifact.size()) {
-		if (clock_.NowMs() >= deadline) {
-			receipt.result = MISTER_RESULT_DEADLINE;
-			return receipt;
+	std::uint64_t offset = 0;
+	while (offset < artifact.size()) {
+		if (clock_.NowMs() >= deadline) return Failed("deadline exceeded", attempted);
+		const std::size_t count = static_cast<std::size_t>(
+			std::min<std::uint64_t>(sizeof(bytes), artifact.size() - offset));
+		if (pread(artifact.fd(), bytes, count, static_cast<off_t>(offset)) !=
+			static_cast<ssize_t>(count))
+			return Failed("RBF read failed", attempted);
+		for (std::size_t index = 0; index < count; index += 4) {
+			if (clock_.NowMs() >= deadline)
+				return Failed("deadline exceeded", attempted);
+			std::uint32_t word = 0;
+			for (std::size_t byte = 0; byte < 4 && index + byte < count; ++byte)
+				word |= static_cast<std::uint32_t>(bytes[index + byte]) << (byte * 8);
+			error = mmio_.Write32(kFpgaDataAddress, word);
+			if (!error.ok()) return Failed(error.message, attempted);
 		}
-		const uint64_t remaining = artifact.size() - consumed;
-		const size_t requested = remaining < sizeof(bytes) ?
-			static_cast<size_t>(remaining) : sizeof(bytes);
-		ssize_t read_count = 0;
-		artifact_result = artifact.ReadForUse(bytes, requested, &read_count,
-			deadline);
-		if (artifact_result != NativeArtifactResult::ok) {
-			receipt.result = ToProgrammingResult(artifact_result);
-			return receipt;
-		}
-		if (read_count <= 0 || static_cast<size_t>(read_count) != requested) {
-			receipt.result = MISTER_RESULT_PLATFORM;
-			return receipt;
-		}
-		size_t written = 0;
-		while (written < requested) {
-			if (clock_.NowMs() >= deadline) {
-				receipt.result = MISTER_RESULT_DEADLINE;
-				return receipt;
-			}
-			const NativeFpgaSinkWriteOutcome outcome = session->Write(
-				bytes + written, requested - written, deadline);
-			receipt.acquired = receipt.acquired || outcome.mutation_attempted ||
-				outcome.mutation_applied || outcome.accepted_bytes != 0;
-			result = record_applied(
-				outcome.mutation_applied || outcome.accepted_bytes != 0);
-			if (outcome.accepted_bytes > UINT64_MAX - receipt.accepted_bytes)
-				receipt.accepted_bytes = UINT64_MAX;
-			else
-				receipt.accepted_bytes +=
-					static_cast<uint64_t>(outcome.accepted_bytes);
-			if (result != MISTER_RESULT_OK) {
-				receipt.result = result;
-				return receipt;
-			}
-			if (outcome.accepted_bytes == 0 ||
-				outcome.accepted_bytes > requested - written) {
-				receipt.result = outcome.result == MISTER_RESULT_OK ?
-					MISTER_RESULT_PLATFORM : outcome.result;
-				return receipt;
-			}
-			written += outcome.accepted_bytes;
-			if (outcome.result != MISTER_RESULT_OK) {
-				receipt.result = outcome.result;
-				return receipt;
-			}
-			if (clock_.NowMs() >= deadline) {
-				receipt.result = MISTER_RESULT_DEADLINE;
-				return receipt;
-			}
-		}
-		consumed += requested;
+		offset += count;
 	}
-
-	artifact_result = artifact.RevalidateProgrammedIdentity(deadline);
-	if (artifact_result != NativeArtifactResult::ok) {
-		receipt.result = ToProgrammingResult(artifact_result);
-		return receipt;
-	}
-	const NativeFpgaSinkFinishOutcome finish = session->Finish(deadline);
-	receipt.acquired = receipt.acquired || finish.mutation_attempted ||
-		finish.mutation_applied;
-	result = record_applied(finish.mutation_applied);
-	receipt.configuration_done_observed = finish.configuration_done_observed;
-	receipt.initialization_observed = finish.initialization_observed;
-	receipt.user_mode_observed = finish.user_mode_observed;
-	receipt.manager_drive_released = finish.manager_drive_released;
-	if (result != MISTER_RESULT_OK) receipt.result = result;
-	else if (finish.result != MISTER_RESULT_OK) receipt.result = finish.result;
-	else if (!finish.configuration_done_observed ||
-		!finish.initialization_observed || !finish.user_mode_observed ||
-		!finish.manager_drive_released || receipt.accepted_bytes != artifact.size() ||
-		receipt.mutation_sequence == 0)
-		receipt.result = MISTER_RESULT_PLATFORM;
-	return receipt;
+	if (clock_.NowMs() >= deadline) return Failed("deadline exceeded", attempted);
+	std::uint32_t monitor = 0;
+	error = mmio_.Read32(kFpgaMonitorAddress, &monitor);
+	if (!error.ok()) return Failed(error.message, attempted);
+	error = mmio_.Read32(kFpgaStatusAddress, &status);
+	if (!error.ok()) return Failed(error.message, attempted);
+	if ((monitor & 0x3u) != 0x3u || (status & 0x7u) != 4u)
+		return Failed("FPGA did not reach configuration, initialization, and user mode",
+			attempted);
+	error = mmio_.Write32(kFpgaControlAddress, 0x2u);
+	if (!error.ok()) return Failed(error.message, attempted);
+	return {{}, true};
 }
 
-} // namespace linux_native
 } // namespace native
 } // namespace mister
