@@ -24,6 +24,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -111,8 +112,9 @@ struct Fixture {
 
 class RunningServer {
 public:
-	RunningServer(mister::Runtime& runtime, const std::string& path)
-		: controller_(runtime, "test-version"), server_(path, controller_),
+	RunningServer(mister::Runtime& runtime, const std::string& path,
+		std::string version = "test-version")
+		: controller_(runtime, std::move(version)), server_(path, controller_),
 		  result_(), finished_(false), thread_([this]() {
 			  result_ = server_.Serve();
 			  finished_.store(true);
@@ -238,6 +240,41 @@ void CreateStaleSocket(const std::string& path)
 	assert(close(descriptor) == 0);
 }
 
+int CreateListener(const std::string& path, int backlog)
+{
+	const int descriptor = socket(AF_UNIX, SOCK_STREAM, 0);
+	assert(descriptor >= 0);
+	const sockaddr_un address = Address(path);
+	assert(bind(descriptor, reinterpret_cast<const sockaddr*>(&address),
+		sizeof(address)) == 0);
+	assert(listen(descriptor, backlog) == 0);
+	return descriptor;
+}
+
+std::vector<int> FillListenerBacklog(const std::string& path)
+{
+	std::vector<int> clients;
+	for (int attempt = 0; attempt < 32; ++attempt) {
+		const int descriptor = socket(AF_UNIX, SOCK_STREAM, 0);
+		assert(descriptor >= 0);
+		const int flags = fcntl(descriptor, F_GETFL, 0);
+		assert(flags >= 0);
+		assert(fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) == 0);
+		const sockaddr_un address = Address(path);
+		if (connect(descriptor, reinterpret_cast<const sockaddr*>(&address),
+			sizeof(address)) == 0) {
+			clients.push_back(descriptor);
+			continue;
+		}
+		const int error = errno;
+		assert(close(descriptor) == 0);
+		assert(error == EAGAIN || error == EINPROGRESS);
+		return clients;
+	}
+	assert(false);
+	return clients;
+}
+
 std::vector<mister::LogRecord> OperationRecords(
 	const std::vector<mister::LogRecord>& records, const std::string& operation)
 {
@@ -260,6 +297,21 @@ void AssertSameRecords(const std::vector<mister::LogRecord>& left,
 		assert(left[index].error.code == right[index].error.code);
 		assert(left[index].error.message == right[index].error.message);
 	}
+}
+
+void AssertBoundedFallback(const std::string& response)
+{
+	assert(response.size() <= 65536);
+	assert(!response.empty() && response.back() == '\n');
+	assert(Count(response, '\n') == 1);
+	Contains(response, "\"ok\":false");
+	Contains(response, "\"state\":\"idle\"");
+	Contains(response, "\"execution\":\"none\"");
+	Contains(response, "\"system\":null");
+	Contains(response, "\"core\":null");
+	Contains(response, "\"code\":\"io_failed\"");
+	Contains(response, "\"message\":\"response exceeds 65536 bytes\"");
+	Contains(response, "\"version\":\"-\"");
 }
 
 std::string CaptureStderr(const mister::LogRecord& record)
@@ -546,6 +598,37 @@ void TestRequestStopWaitsAndRemovesOnlyItsOwnSocket()
 	assert(unlink(replaced.c_str()) == 0);
 }
 
+void TestRequestStopPreventsListenerDescriptorReuseUntilServeReturns()
+{
+	TempDirectory temporary;
+	Fixture fixture;
+	fixture.Start();
+	fixture.hardware.BlockLaunch();
+	mister::daemon::Controller controller(fixture.runtime, "test-version");
+	const int listener_slot = open("/dev/null", O_RDONLY);
+	assert(listener_slot >= 0);
+	assert(close(listener_slot) == 0);
+	mister::daemon::Server server(temporary.Entry("runtime.sock"), controller);
+	assert(fcntl(listener_slot, F_GETFD) >= 0);
+	mister::Error serve_result;
+	std::thread serving([&]() { serve_result = server.Serve(); });
+	const int client = Connect(temporary.Entry("runtime.sock"));
+	SendAll(client, std::string(kLaunch) + "\n");
+	fixture.hardware.WaitUntilLaunchEntered();
+
+	server.RequestStop();
+	const int replacement = open("/dev/null", O_RDONLY);
+	assert(replacement >= 0);
+	const bool listener_number_was_reused = replacement == listener_slot;
+	fixture.hardware.ReleaseLaunch();
+	Contains(ReadToEof(client), "\"state\":\"running_game\"");
+	assert(close(client) == 0);
+	serving.join();
+	assert(serve_result.ok());
+	assert(close(replacement) == 0);
+	assert(!listener_number_was_reused);
+}
+
 void TestSecondServerRefusesToStealLiveListener()
 {
 	TempDirectory temporary;
@@ -562,6 +645,48 @@ void TestSecondServerRefusesToStealLiveListener()
 		assert(refused.code == mister::ErrorCode::io_failed);
 		Contains(Exchange(path, kStatus), "\"version\":\"test-version\"");
 	}
+}
+
+void TestFullBacklogLiveOwnerProbeDoesNotBlock()
+{
+	TempDirectory temporary;
+	const std::string path = temporary.Entry("runtime.sock");
+	const int owner = CreateListener(path, 0);
+	std::vector<int> queued_clients = FillListenerBacklog(path);
+	assert(!queued_clients.empty());
+	Fixture fixture;
+	fixture.Start();
+	mister::daemon::Controller controller(fixture.runtime, "test-version");
+	std::mutex mutex;
+	std::condition_variable condition;
+	bool completed = false;
+	mister::Error contender_result;
+	std::thread contender([&]() {
+		mister::daemon::Server server(path, controller);
+		contender_result = server.Serve();
+		{
+			std::lock_guard<std::mutex> lock(mutex);
+			completed = true;
+		}
+		condition.notify_all();
+	});
+	bool completed_before_backlog_drain = false;
+	{
+		std::unique_lock<std::mutex> lock(mutex);
+		completed_before_backlog_drain = condition.wait_for(lock,
+			std::chrono::seconds(2), [&]() { return completed; });
+	}
+	if (!completed_before_backlog_drain) {
+		const int accepted = accept(owner, nullptr, nullptr);
+		assert(accepted >= 0);
+		assert(close(accepted) == 0);
+	}
+	contender.join();
+	assert(contender_result.code == mister::ErrorCode::io_failed);
+	for (int descriptor : queued_clients) assert(close(descriptor) == 0);
+	assert(close(owner) == 0);
+	assert(unlink(path.c_str()) == 0);
+	assert(completed_before_backlog_drain);
 }
 
 void TestConfirmedStaleSocketIsRemovedAndReboundOnce()
@@ -641,6 +766,27 @@ void TestSocketLaunchEmitsDirectRuntimeIdentityAndPhases()
 	assert(socket_records[2].phase == "running");
 }
 
+void TestOversizedHardwareErrorUsesBoundedValidFallback()
+{
+	TempDirectory temporary;
+	Fixture fixture;
+	fixture.Start();
+	fixture.hardware.launch_result = {
+		{mister::ErrorCode::io_failed, std::string(70000, 'x')}, false, ""};
+	RunningServer server(fixture.runtime, temporary.Entry("runtime.sock"));
+	AssertBoundedFallback(Exchange(temporary.Entry("runtime.sock"), kLaunch));
+}
+
+void TestOversizedVersionUsesBoundedValidFallback()
+{
+	TempDirectory temporary;
+	Fixture fixture;
+	fixture.Start();
+	RunningServer server(fixture.runtime, temporary.Entry("runtime.sock"),
+		std::string(70000, 'v'));
+	AssertBoundedFallback(Exchange(temporary.Entry("runtime.sock"), kStatus));
+}
+
 void TestDevelopmentInventsNoIdentityAndStderrEscapesFields()
 {
 	TempDirectory temporary;
@@ -689,10 +835,14 @@ int main()
 	TestReconstructedRuntimeDoesNotPreserveAGame();
 	TestLostLaunchResponseIsReconciledByStatus();
 	TestRequestStopWaitsAndRemovesOnlyItsOwnSocket();
+	TestRequestStopPreventsListenerDescriptorReuseUntilServeReturns();
 	TestSecondServerRefusesToStealLiveListener();
+	TestFullBacklogLiveOwnerProbeDoesNotBlock();
 	TestConfirmedStaleSocketIsRemovedAndReboundOnce();
 	TestSocketLaunchEmitsDirectRuntimeIdentityAndPhases();
+	TestOversizedVersionUsesBoundedValidFallback();
+	TestOversizedHardwareErrorUsesBoundedValidFallback();
 	TestDevelopmentInventsNoIdentityAndStderrEscapesFields();
-	puts("daemon_server_test: 15 passed");
+	puts("daemon_server_test: 19 passed");
 	return 0;
 }

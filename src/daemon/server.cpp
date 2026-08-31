@@ -6,6 +6,7 @@
 #include <cerrno>
 #include <cstddef>
 #include <cstring>
+#include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>
@@ -82,6 +83,7 @@ Server::~Server()
 {
 	RequestStop();
 	WaitForConnections();
+	CloseListener();
 	(void)CleanupOwnedSocket();
 }
 
@@ -119,6 +121,12 @@ Error Server::RemoveConfirmedStaleSocket()
 	auto probe = [this]() -> Error {
 		const int probe = socket(AF_UNIX, SOCK_STREAM, 0);
 		if (probe < 0) return IoError("create Unix socket probe", errno);
+		const int flags = fcntl(probe, F_GETFL, 0);
+		if (flags < 0 || fcntl(probe, F_SETFL, flags | O_NONBLOCK) < 0) {
+			const Error error = IoError("make Unix socket probe nonblocking", errno);
+			ShutdownAndClose(probe);
+			return error;
+		}
 		sockaddr_un address;
 		const socklen_t length = Address(socket_path_, &address);
 		const int connected = connect(probe,
@@ -127,6 +135,8 @@ Error Server::RemoveConfirmedStaleSocket()
 		ShutdownAndClose(probe);
 		if (connected == 0)
 			return {ErrorCode::io_failed, "Unix socket path has a live listener"};
+		if (connect_error == EAGAIN || connect_error == EINPROGRESS)
+			return {ErrorCode::io_failed, "Unix socket path has an occupied listener"};
 		if (connect_error != ECONNREFUSED)
 			return IoError("cannot prove Unix socket is stale", connect_error);
 		return {};
@@ -220,6 +230,7 @@ Error Server::Serve()
 		}
 	}
 	WaitForConnections();
+	CloseListener();
 	const Error cleanup = CleanupOwnedSocket();
 	if (result.ok() && !cleanup.ok()) result = cleanup;
 	return result;
@@ -229,11 +240,15 @@ void Server::RequestStop()
 {
 	stop_requested_.store(true);
 	std::lock_guard<std::mutex> lock(listener_mutex_);
-	if (listener_ >= 0) {
-		shutdown(listener_, SHUT_RDWR);
-		(void)close(listener_);
-		listener_ = -1;
-	}
+	if (listener_ >= 0) shutdown(listener_, SHUT_RDWR);
+}
+
+void Server::CloseListener()
+{
+	std::lock_guard<std::mutex> lock(listener_mutex_);
+	if (listener_ < 0) return;
+	(void)close(listener_);
+	listener_ = -1;
 }
 
 void Server::HandleConnection(int descriptor)

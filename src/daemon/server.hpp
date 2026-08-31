@@ -32,6 +32,7 @@ private:
 	Error BindAndListen(int descriptor);
 	Error RemoveConfirmedStaleSocket();
 	Error CleanupOwnedSocket();
+	void CloseListener();
 	void HandleConnection(int descriptor);
 	void ConnectionFinished();
 	void WaitForConnections();

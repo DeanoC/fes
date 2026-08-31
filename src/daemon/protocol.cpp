@@ -4,12 +4,18 @@
 #include "daemon/protocol.hpp"
 
 #include <cstring>
+#include <utility>
 
 #include "daemon/json.hpp"
 
 namespace mister {
 namespace daemon {
 namespace {
+
+const std::size_t kMaximumResponseLineBytes = 65536;
+const std::size_t kResponseTerminatorBytes = 1;
+const std::size_t kMaximumResponsePayloadBytes =
+	kMaximumResponseLineBytes - kResponseTerminatorBytes;
 
 Error Invalid(const std::string& message)
 {
@@ -111,36 +117,104 @@ bool ParseSettings(const json::Value& object, std::vector<Setting>* settings, Er
 	return true;
 }
 
-void AppendQuoted(std::string* output, const std::string& value)
+class BoundedOutput {
+public:
+	explicit BoundedOutput(std::size_t maximum)
+		: maximum_(maximum), overflow_(false), output_() {}
+
+	void Append(const char* value)
+	{
+		Append(value, std::strlen(value));
+	}
+
+	void Append(const std::string& value)
+	{
+		Append(value.data(), value.size());
+	}
+
+	void Append(char value) { Append(&value, 1); }
+	bool ok() const { return !overflow_; }
+	std::string Take() { return std::move(output_); }
+
+private:
+	void Append(const char* value, std::size_t size)
+	{
+		if (overflow_) return;
+		if (size > maximum_ - output_.size()) {
+			overflow_ = true;
+			return;
+		}
+		output_.append(value, size);
+	}
+
+	const std::size_t maximum_;
+	bool overflow_;
+	std::string output_;
+};
+
+void AppendQuoted(BoundedOutput* output, const std::string& value)
 {
-	output->push_back('"');
+	output->Append('"');
 	static const char hex[] = "0123456789abcdef";
 	for (unsigned char character : value) {
+		if (!output->ok()) return;
 		switch (character) {
-		case '"': *output += "\\\""; break;
-		case '\\': *output += "\\\\"; break;
-		case '\b': *output += "\\b"; break;
-		case '\f': *output += "\\f"; break;
-		case '\n': *output += "\\n"; break;
-		case '\r': *output += "\\r"; break;
-		case '\t': *output += "\\t"; break;
+		case '"': output->Append("\\\""); break;
+		case '\\': output->Append("\\\\"); break;
+		case '\b': output->Append("\\b"); break;
+		case '\f': output->Append("\\f"); break;
+		case '\n': output->Append("\\n"); break;
+		case '\r': output->Append("\\r"); break;
+		case '\t': output->Append("\\t"); break;
 		default:
 			if (character < 0x20) {
-				*output += "\\u00";
-				output->push_back(hex[(character >> 4) & 0x0f]);
-				output->push_back(hex[character & 0x0f]);
+				output->Append("\\u00");
+				output->Append(hex[(character >> 4) & 0x0f]);
+				output->Append(hex[character & 0x0f]);
 			} else {
-				output->push_back(static_cast<char>(character));
+				output->Append(static_cast<char>(character));
 			}
 		}
 	}
-	output->push_back('"');
+	output->Append('"');
 }
 
-void AppendIdentity(std::string* output, const std::string& value)
+void AppendIdentity(BoundedOutput* output, const std::string& value)
 {
-	if (value.empty()) *output += "null";
+	if (value.empty()) output->Append("null");
 	else AppendQuoted(output, value);
+}
+
+bool TryEncodeResponse(bool ok, const Status& status, const std::string& version,
+	std::string* response)
+{
+	BoundedOutput output(kMaximumResponsePayloadBytes);
+	output.Append("{\"protocol\":1,\"ok\":");
+	output.Append(ok ? "true" : "false");
+	output.Append(",\"state\":");
+	AppendQuoted(&output, StateName(status.state));
+	output.Append(",\"execution\":");
+	AppendQuoted(&output, ExecutionName(status.execution));
+	output.Append(",\"system\":");
+	AppendIdentity(&output, status.system);
+	output.Append(",\"core\":");
+	AppendIdentity(&output, status.core);
+	output.Append(",\"error\":");
+	if (status.error.ok()) {
+		output.Append("null");
+	} else {
+		output.Append("{\"code\":");
+		AppendQuoted(&output, ErrorCodeName(status.error.code));
+		output.Append(",\"message\":");
+		AppendQuoted(&output, status.error.message);
+		output.Append("}");
+	}
+	output.Append(",\"version\":");
+	AppendQuoted(&output, version);
+	output.Append("}");
+	if (!output.ok()) return false;
+	*response = output.Take();
+	return true;
 }
 
 } // namespace
@@ -205,30 +279,17 @@ Error ParseRequest(const std::string& line, Request* request)
 
 std::string EncodeResponse(bool ok, const Status& status, const std::string& version)
 {
-	std::string output = "{\"protocol\":1,\"ok\":";
-	output += ok ? "true" : "false";
-	output += ",\"state\":";
-	AppendQuoted(&output, StateName(status.state));
-	output += ",\"execution\":";
-	AppendQuoted(&output, ExecutionName(status.execution));
-	output += ",\"system\":";
-	AppendIdentity(&output, status.system);
-	output += ",\"core\":";
-	AppendIdentity(&output, status.core);
-	output += ",\"error\":";
-	if (status.error.ok()) {
-		output += "null";
-	} else {
-		output += "{\"code\":";
-		AppendQuoted(&output, ErrorCodeName(status.error.code));
-		output += ",\"message\":";
-		AppendQuoted(&output, status.error.message);
-		output += "}";
-	}
-	output += ",\"version\":";
-	AppendQuoted(&output, version);
-	output += "}";
-	return output;
+	std::string response;
+	if (TryEncodeResponse(ok, status, version, &response)) return response;
+	Status fallback = status;
+	fallback.system.clear();
+	fallback.core.clear();
+	fallback.error = {ErrorCode::io_failed, "response exceeds 65536 bytes"};
+	if (TryEncodeResponse(false, fallback, "-", &response)) return response;
+	return "{\"protocol\":1,\"ok\":false,\"state\":\"idle\","
+		"\"execution\":\"none\",\"system\":null,\"core\":null,"
+		"\"error\":{\"code\":\"io_failed\","
+		"\"message\":\"response exceeds 65536 bytes\"},\"version\":\"-\"}";
 }
 
 } // namespace daemon
