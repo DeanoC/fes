@@ -12,12 +12,27 @@ import (
 const (
 	coverMaxW = 256
 	coverMaxH = 320
+	// Source decode limits. Cover cells are smaller; these bound allocations
+	// before image.Decode reads full pixels. Matches host artwork policy.
+	coverDecodeMaxEdge   = 4096
+	coverDecodeMaxPixels = 16_777_216
 )
 
 // DecodeCover decodes JPEG/PNG artwork and scales it to the cover cell.
 func DecodeCover(data []byte) (*image.RGBA, error) {
 	if len(data) == 0 {
 		return nil, fmt.Errorf("artwork is empty")
+	}
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Width < 1 || cfg.Height < 1 {
+		return nil, fmt.Errorf("artwork dimensions are invalid")
+	}
+	pixels := int64(cfg.Width) * int64(cfg.Height)
+	if cfg.Width > coverDecodeMaxEdge || cfg.Height > coverDecodeMaxEdge || pixels > coverDecodeMaxPixels {
+		return nil, fmt.Errorf("artwork dimensions %dx%d exceed limit", cfg.Width, cfg.Height)
 	}
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {

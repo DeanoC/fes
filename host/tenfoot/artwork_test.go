@@ -2,9 +2,12 @@ package tenfoot
 
 import (
 	"bytes"
+	"encoding/binary"
+	"hash/crc32"
 	"image"
 	"image/color"
 	"image/png"
+	"strings"
 	"testing"
 )
 
@@ -33,11 +36,72 @@ func TestDecodeCoverScalesJPEGSizedPNG(t *testing.T) {
 	}
 }
 
+func TestDecodeCoverScalesAcceptedSource(t *testing.T) {
+	t.Parallel()
+	src := image.NewRGBA(image.Rect(0, 0, 512, 640))
+	for y := 0; y < 640; y++ {
+		for x := 0; x < 512; x++ {
+			src.Set(x, y, color.RGBA{R: 10, G: 200, B: 10, A: 255})
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, src); err != nil {
+		t.Fatal(err)
+	}
+	got, err := DecodeCover(buf.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Bounds().Dx() != coverMaxW || got.Bounds().Dy() != coverMaxH {
+		t.Fatalf("size = %s want %dx%d", got.Bounds(), coverMaxW, coverMaxH)
+	}
+}
+
 func TestDecodeCoverRejectsEmpty(t *testing.T) {
 	t.Parallel()
 	if _, err := DecodeCover(nil); err == nil {
 		t.Fatal("expected error")
 	}
+}
+
+func TestDecodeCoverRejectsOversizedBeforeDecode(t *testing.T) {
+	t.Parallel()
+	// IHDR-only PNG: DecodeConfig sees 100000x100000, image.Decode would
+	// allocate tens of gigabytes. Rejection must happen first.
+	_, err := DecodeCover(pngIHDR(100000, 100000))
+	if err == nil {
+		t.Fatal("expected oversized artwork to be rejected")
+	}
+	if !strings.Contains(err.Error(), "exceed limit") {
+		t.Fatalf("err = %v", err)
+	}
+	_, err = DecodeCover(pngIHDR(coverDecodeMaxEdge+1, 1))
+	if err == nil {
+		t.Fatal("expected over-width artwork to be rejected")
+	}
+}
+
+func pngIHDR(width, height uint32) []byte {
+	var b bytes.Buffer
+	b.Write([]byte{0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a})
+	ihdr := make([]byte, 13)
+	binary.BigEndian.PutUint32(ihdr[0:4], width)
+	binary.BigEndian.PutUint32(ihdr[4:8], height)
+	ihdr[8] = 8
+	ihdr[9] = 2
+	writePNGChunk(&b, "IHDR", ihdr)
+	writePNGChunk(&b, "IEND", nil)
+	return b.Bytes()
+}
+
+func writePNGChunk(w *bytes.Buffer, typ string, data []byte) {
+	_ = binary.Write(w, binary.BigEndian, uint32(len(data)))
+	crc := crc32.NewIEEE()
+	_, _ = crc.Write([]byte(typ))
+	_, _ = crc.Write(data)
+	w.Write([]byte(typ))
+	w.Write(data)
+	_ = binary.Write(w, binary.BigEndian, crc.Sum32())
 }
 
 func TestCoverDestRectPreservesAspect(t *testing.T) {

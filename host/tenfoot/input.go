@@ -158,6 +158,38 @@ func isHoldable(cmd Command) bool {
 	}
 }
 
+// applyPressed updates hold/repeat from this frame's pressed commands.
+// After a dual-direction hold/release, a still-held direction is re-armed so
+// navigation repeat continues (Repeater tracks only one command).
+func applyPressed(app *App, pressed, held map[Command]bool, now time.Time) bool {
+	for cmd := range held {
+		if !pressed[cmd] {
+			app.Release(cmd)
+			delete(held, cmd)
+		}
+	}
+	for cmd := range pressed {
+		if cmd == CmdNone || held[cmd] {
+			continue
+		}
+		if cmd == CmdQuit {
+			return true
+		}
+		app.Press(cmd, now)
+		held[cmd] = true
+	}
+	if !pressed[app.repeat.held] {
+		for cmd := range held {
+			if !isHoldable(cmd) {
+				continue
+			}
+			app.Press(cmd, now)
+			break
+		}
+	}
+	return false
+}
+
 func (c Command) String() string {
 	switch c {
 	case CmdUp:

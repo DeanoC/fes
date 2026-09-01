@@ -540,23 +540,7 @@ func pollGamepads(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, held map[C
 			pressed[cmd] = true
 		}
 	}
-	for cmd := range held {
-		if !pressed[cmd] {
-			app.Release(cmd)
-			delete(held, cmd)
-		}
-	}
-	for cmd := range pressed {
-		if cmd == CmdNone || held[cmd] {
-			continue
-		}
-		if cmd == CmdQuit {
-			return true
-		}
-		app.Press(cmd, now)
-		held[cmd] = true
-	}
-	return false
+	return applyPressed(app, pressed, held, now)
 }
 
 func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.FogcastEvent, now time.Time, stick *stickTracker) bool {
