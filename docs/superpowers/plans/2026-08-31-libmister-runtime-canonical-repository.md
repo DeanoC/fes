@@ -1,5 +1,14 @@
 # Canonical libmister-runtime Repository Implementation Plan
 
+**Status:** Completed 2026-09-01
+
+**Result:** The private
+[`DeanoC/libmister-runtime`](https://github.com/DeanoC/libmister-runtime)
+repository completed the reviewed Milestone 1 baseline at `b10f746`. Its
+current main commit when this record was updated is `d6e7ec2`, which adds the
+reviewed GNU/Apple toolchain portability change. This plan is retained as the
+historical execution record; Milestone 2 has its own design and plan.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.
 
 **Goal:** Create an independently buildable `libmister-runtime` repository with one lifecycle API, the useful native implementation, one four-operation local daemon, preserved source history, and an honest software-only baseline.

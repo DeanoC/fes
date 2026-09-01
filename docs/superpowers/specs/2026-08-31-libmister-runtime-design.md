@@ -1,11 +1,11 @@
 # Native MiSTer Runtime Design
 
-**Status:** Proposed; approved in discussion, not yet implemented
+**Status:** Approved; Milestone 1 complete, Milestones 2-7 planned
 
 **Date:** 2026-08-31
 
-**Repositories affected:** `FogCast`, new `libmister-runtime`, `Main_MiSTer`,
-and `misteross`
+**Repositories involved:** `FogCast`, `libmister-runtime`, `Main_MiSTer` as the
+legacy reference, and `misteross` as the RBF producer
 
 ## Purpose
 
@@ -38,18 +38,21 @@ That path launches real games from the existing catalogue on the designated
 MiSTer Pi. It also loads arbitrary development RBFs, using a target reboot to
 recover when an incompatible RBF causes Main to exit.
 
-The experimental native work is currently embedded in branches of the large
-`Main_MiSTer` repository. The lifecycle ABI archive called
-`libmister-runtime.a`, the actual native hardware implementation called
-`libfogcast-native-personality.a`, and a `fogcast-runtime` daemon are separate
-pieces. Production platform construction is deliberately disabled and the
-only profiles are synthetic/private Mega Drive and SNES profiles. No native
-hardware acceptance has been recorded. A second obsolete
-`mister_runtime_linux_v2` scaffold also remains in that history.
+Milestone 1 extracted and reduced the useful native lineage into the private
+standalone repository
+[`DeanoC/libmister-runtime`](https://github.com/DeanoC/libmister-runtime).
+At commit `d6e7ec2db1049a0d6bd9edfd44a233ac174729f9` it contains one canonical
+lifecycle library, one `mister-runtime` daemon, the approved four-operation
+local protocol, and the narrow native Linux primitives. The production
+profile table remains empty, production hardware construction remains
+explicitly unavailable, and the truthful hardware-supported-system count is
+zero. The extracted history and active tree contain none of the discarded
+Main application, coordinator, legacy ABI, or synthetic production-profile
+paths.
 
-The most complete native lineage, rather than the older detached checkout, is
-the source to extract when implementation begins. Nothing in this document
-changes the currently working conventional path.
+The working conventional FogCast path is unchanged. Milestone 2 is specified
+separately in
+[`2026-09-01-bootable-native-baseline-design.md`](2026-09-01-bootable-native-baseline-design.md).
 
 ## Success definition
 
@@ -333,17 +336,19 @@ can be written in parallel.
 
 ### 1. Canonical repository
 
-- Create `DeanoC/libmister-runtime` from the most complete experimental native
-  lineage.
-- Preserve relevant file history where practical, without importing the
-  upstream Main tree.
-- Combine the lifecycle boundary and native hardware implementation under the
-  new names.
-- Delete the excluded `mister_runtime_linux_v2` scaffold and other superseded
-  active-tree copies.
-- Add accurate root documentation and a software-only test baseline.
+**Completed 2026-09-01.** `DeanoC/libmister-runtime` is independently
+clonable and buildable. It preserves the allowlisted native lineage, has one
+canonical library and daemon, rejects the discarded active names and paths,
+passes the software and Arm cross-build gates, and truthfully reports zero
+hardware-supported systems. The reviewed milestone baseline was `b10f746`;
+the current main commit when this roadmap was updated is `d6e7ec2` with the
+subsequent GNU/Apple toolchain portability improvement.
 
 ### 2. Bootable native baseline
+
+**Approved design; implementation not started.** The authoritative milestone
+design is
+[`2026-09-01-bootable-native-baseline-design.md`](2026-09-01-bootable-native-baseline-design.md).
 
 - Add the native-image build target and image-owned binaries.
 - Boot runtime before agent.
