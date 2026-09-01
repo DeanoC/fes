@@ -129,7 +129,7 @@ void ConfigurePreflight(mister_test::FakeMmio& mmio, std::uint32_t msel)
 	mmio.values[kMonitor] = 7;
 	mmio.values[kSdr] = 0;
 	mmio.values[kBridgeReset] = 7;
-	mmio.values[kRemap] = 1;
+	mmio.read_as_zero.insert(kRemap);
 }
 
 void ConfigureSuccess(mister_test::FakeMmio& mmio, std::uint32_t msel = 9)
@@ -176,6 +176,15 @@ bool HasWrite(const mister_test::FakeMmio& mmio, std::uint32_t address,
 	for (const auto& write : mmio.writes)
 		if (write.offset == address && write.value == value) return true;
 	return false;
+}
+
+std::size_t ReadCount(const mister_test::FakeMmio& mmio,
+	std::uint32_t address)
+{
+	std::size_t count = 0;
+	for (std::uint32_t read : mmio.reads)
+		if (read == address) ++count;
+	return count;
 }
 
 void ExpectStillContained(const mister_test::FakeMmio& mmio)
@@ -229,6 +238,35 @@ void TestProgramsWithExactContainmentConfigurationAndReleaseOrder()
 	EXPECT(result.error.ok());
 	EXPECT(result.mutation_attempted);
 	EXPECT(mmio.writes.size() == mmio.expected_writes.size());
+}
+
+void TestWriteOnlyRemapReleaseWritesLiteralBeforeCoreNormal()
+{
+	TempArtifact input(4);
+	mister_test::FakeMmio mmio;
+	ConfigureSuccess(mmio);
+	FixedClock clock(1);
+	mister::native::LinuxFpgaManager manager(mmio, clock);
+	const auto result = manager.Program(input.artifact, 100);
+	if (!result.error.ok()) fprintf(stderr, "program error: %s\n",
+		result.error.message.c_str());
+	EXPECT(result.error.ok());
+	EXPECT(ReadCount(mmio, kRemap) == 0);
+	std::size_t release_index = mmio.writes.size();
+	std::size_t core_normal_index = mmio.writes.size();
+	std::size_t release_count = 0;
+	for (std::size_t index = 0; index < mmio.writes.size(); ++index) {
+		if (mmio.writes[index].offset == kRemap &&
+			mmio.writes[index].value == 0x19u) {
+			++release_count;
+			release_index = index;
+		}
+		if (mmio.writes[index].offset == kGpo &&
+			mmio.writes[index].value == kGpoNormal)
+			core_normal_index = index;
+	}
+	EXPECT(release_count == 1);
+	EXPECT(release_index < core_normal_index);
 }
 
 void TestMselMappingAndControlRmwPreserveUnrelatedBits()
@@ -565,7 +603,7 @@ void TestManagerReadbackMismatchRemainsContained()
 	EXPECT(!HasWrite(mmio, kGpo, kGpoNormal));
 }
 
-void TestReleaseWriteNotStuckBlocksCoreNormal()
+void TestReadableReleaseWriteNotStuckBlocksCoreNormal()
 {
 	struct Case {
 		std::uint32_t address;
@@ -575,7 +613,6 @@ void TestReleaseWriteNotStuckBlocksCoreNormal()
 	const Case cases[] = {
 		{kSdr, 0, "SDR release readback"},
 		{kBridgeReset, 7, "bridge reset release readback"},
-		{kRemap, 1, "L3 remap release readback"},
 	};
 	for (const Case& item : cases) {
 		TempArtifact input(4);
@@ -596,7 +633,7 @@ void TestReleaseWriteNotStuckBlocksCoreNormal()
 	}
 }
 
-void TestReleaseReadErrorsBlockCoreNormal()
+void TestReadableReleaseReadErrorsBlockCoreNormal()
 {
 	struct Case {
 		std::uint32_t address;
@@ -606,7 +643,6 @@ void TestReleaseReadErrorsBlockCoreNormal()
 	const Case cases[] = {
 		{kSdr, "SDR release readback", 0x3fffu},
 		{kBridgeReset, "bridge reset release readback", 0},
-		{kRemap, "L3 remap release readback", 0x19u},
 	};
 	for (const Case& item : cases) {
 		TempArtifact input(4);
@@ -619,6 +655,22 @@ void TestReleaseReadErrorsBlockCoreNormal()
 		ExpectProgramFailure(result, true, item.phase, item.last);
 		EXPECT(!HasWrite(mmio, kGpo, kGpoNormal));
 	}
+}
+
+void TestRemapReleaseWriteFailureBlocksCoreNormal()
+{
+	TempArtifact input(4);
+	mister_test::FakeMmio mmio;
+	ConfigureSuccess(mmio);
+	mmio.PushWriteError(kRemap, {});
+	mmio.PushWriteError(kRemap,
+		{mister::ErrorCode::io_failed, "scripted remap release"});
+	FixedClock clock(1);
+	mister::native::LinuxFpgaManager manager(mmio, clock);
+	const auto result = manager.Program(input.artifact, 100);
+	ExpectProgramFailure(result, true, "L3 remap release write", 0x19u);
+	EXPECT(ReadCount(mmio, kRemap) == 0);
+	EXPECT(!HasWrite(mmio, kGpo, kGpoNormal));
 }
 
 void TestCoreNormalWriteFailureIsReported()
@@ -674,6 +726,8 @@ void Run(const char* name, Function function, int* count)
 int main()
 {
 	int count = 0;
+	Run("write-only L3 remap release",
+		TestWriteOnlyRemapReleaseWritesLiteralBeforeCoreNormal, &count);
 	Run("exact containment/configuration/release order",
 		TestProgramsWithExactContainmentConfigurationAndReleaseOrder, &count);
 	Run("MSEL mapping and CTRL/GPO RMW preservation",
@@ -709,10 +763,12 @@ int main()
 		TestManagerReadbackErrorsRemainContained, &count);
 	Run("manager readback mismatch containment",
 		TestManagerReadbackMismatchRemainsContained, &count);
-	Run("release write-not-stuck containment",
-		TestReleaseWriteNotStuckBlocksCoreNormal, &count);
-	Run("release read-error containment",
-		TestReleaseReadErrorsBlockCoreNormal, &count);
+	Run("readable release write-not-stuck containment",
+		TestReadableReleaseWriteNotStuckBlocksCoreNormal, &count);
+	Run("readable release read-error containment",
+		TestReadableReleaseReadErrorsBlockCoreNormal, &count);
+	Run("remap release write failure",
+		TestRemapReleaseWriteFailureBlocksCoreNormal, &count);
 	Run("core normal failure", TestCoreNormalWriteFailureIsReported, &count);
 	Run("final readback failure", TestFinalReadbackFailureIsReported, &count);
 	Run("initial deadline classification", TestInitialDeadlineIsNotAttempted, &count);

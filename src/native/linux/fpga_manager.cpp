@@ -314,13 +314,8 @@ NativeResult LinuxFpgaManager::Program(const Artifact& artifact,
 	error = state.Write(kL3RemapAddress, kL3RemapFpgaEnabled,
 		"L3 remap release write");
 	if (!error.ok()) return Failed(error, state.write_attempted_);
-	std::uint32_t observed_remap = kL3RemapFpgaEnabled;
-	error = state.Read(kL3RemapAddress, &observed_remap,
-		"L3 remap release readback", kL3RemapFpgaEnabled);
-	if (!error.ok()) return Failed(error, state.write_attempted_);
-	if (observed_remap != kL3RemapFpgaEnabled)
-		return Failed(ProgrammingError("L3 remap release readback", observed_remap,
-			"L3 remap mismatch"), state.write_attempted_);
+	// Cyclone V L3 REMAP is write-only (Linux altera-hps2fpga.c); the
+	// complete literal write and MMIO barrier are the valid authority.
 
 	error = state.SetCoreReset(false);
 	if (!error.ok()) return Failed(error, state.write_attempted_);

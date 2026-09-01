@@ -19,6 +19,10 @@ mister::Error FakeMmio::Read32(std::uint32_t offset, std::uint32_t* value)
 		scripted_error->second.pop_front();
 		if (!error.ok()) return error;
 	}
+	if (read_as_zero.count(offset) != 0) {
+		*value = 0;
+		return {};
+	}
 	auto script = scripted_reads.find(offset);
 	if (script != scripted_reads.end() && !script->second.empty()) {
 		*value = script->second.front();

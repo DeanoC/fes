@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <deque>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -33,6 +34,7 @@ public:
 	std::map<std::uint32_t, std::deque<mister::Error>> scripted_read_errors;
 	std::map<std::uint32_t, std::deque<mister::Error>> scripted_write_errors;
 	std::map<std::uint32_t, std::uint32_t> forced_values_after_write;
+	std::set<std::uint32_t> read_as_zero;
 	std::vector<Write> expected_writes;
 	bool enforce_expected_writes = false;
 	std::string write_mismatch;
