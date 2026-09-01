@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"time"
 )
 
 const DefaultSocketPath = "/run/mister-runtime.sock"
@@ -74,6 +75,8 @@ func (client *Client) call(ctx context.Context, operation string) (Response, err
 		return Response{}, contextOr(ctx, errRuntimeConnection)
 	}
 	defer connection.Close()
+	stopCancellationRelay := relayContextCancellation(ctx, connection)
+	defer stopCancellationRelay()
 
 	if deadline, ok := ctx.Deadline(); ok {
 		if err := connection.SetDeadline(deadline); err != nil {
@@ -266,5 +269,25 @@ func contextOr(ctx context.Context, fallback error) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if deadline, ok := ctx.Deadline(); ok && !time.Now().Before(deadline) {
+		return context.DeadlineExceeded
+	}
 	return fallback
+}
+
+func relayContextCancellation(ctx context.Context, connection net.Conn) func() {
+	done := ctx.Done()
+	if done == nil {
+		return func() {}
+	}
+
+	stopped := make(chan struct{})
+	go func() {
+		select {
+		case <-done:
+			_ = connection.SetDeadline(time.Now())
+		case <-stopped:
+		}
+	}()
+	return func() { close(stopped) }
 }

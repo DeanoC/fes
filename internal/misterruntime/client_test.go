@@ -341,6 +341,81 @@ func TestClientHonorsContextDeadlineWithoutRetry(t *testing.T) {
 	}
 }
 
+func TestClientHonorsContextCancellationAfterConnectWithoutRetry(t *testing.T) {
+	path := temporarySocketPath(t)
+	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+
+	requestReceived := make(chan fixtureResult, 1)
+	fixtureDone := make(chan fixtureResult, 1)
+	go func() {
+		result := fixtureResult{}
+		connection, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			result.err = acceptErr
+			requestReceived <- result
+			fixtureDone <- result
+			return
+		}
+		defer connection.Close()
+
+		result.request, result.err = readNewline(connection)
+		requestReceived <- result
+		if result.err == nil {
+			result.err = requireClientClose(connection)
+		}
+		if err := listener.SetDeadline(time.Now().Add(100 * time.Millisecond)); err != nil && result.err == nil {
+			result.err = err
+		}
+		second, acceptErr := listener.Accept()
+		if acceptErr == nil {
+			_ = second.Close()
+			if result.err == nil {
+				result.err = fmt.Errorf("accepted more than one connection")
+			}
+		}
+		fixtureDone <- result
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	callDone := make(chan error, 1)
+	go func() {
+		_, err := NewClient(path).Status(ctx)
+		callDone <- err
+	}()
+
+	request := waitFixtureResult(t, requestReceived)
+	if request.err != nil {
+		t.Fatal(request.err)
+	}
+	if request.request != `{"protocol":1,"operation":"status"}` {
+		t.Fatalf("request = %q", request.request)
+	}
+
+	cancelled := time.Now()
+	cancel()
+	select {
+	case err := <-callDone:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Status error = %v, want context canceled", err)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("Status did not return promptly after context cancellation")
+	}
+	if elapsed := time.Since(cancelled); elapsed > 250*time.Millisecond {
+		t.Fatalf("Status returned after %s", elapsed)
+	}
+
+	result := waitFixtureResult(t, fixtureDone)
+	if result.err != nil {
+		t.Fatal(result.err)
+	}
+}
+
 func newSocketFixture(t *testing.T, response string, waitForClientClose bool) *socketFixture {
 	t.Helper()
 	path := temporarySocketPath(t)
