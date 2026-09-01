@@ -43,8 +43,11 @@ LIB_SOURCES := \
 	src/profile.cpp \
 	src/native/artifacts.cpp \
 	src/native/core_loader.cpp \
+	src/native/video_recipe.cpp \
+	src/native/video.cpp \
 	src/native/hardware.cpp \
 	src/native/linux/fpga_manager.cpp \
+	src/native/linux/i2c.cpp \
 	src/native/linux/mmio.cpp \
 	src/native/linux/spi.cpp \
 	src/linux/production_hardware.cpp
@@ -189,18 +192,22 @@ $(BUILD_DIR)/tests/unit/off_t_test: tests/unit/off_t_test.cpp
 
 $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cpp \
 		tests/support/capture_log.cpp src/native/artifacts.cpp \
-		src/native/core_loader.cpp src/native/hardware.cpp src/profile.cpp \
+		src/native/core_loader.cpp src/native/video_recipe.cpp \
+		src/native/video.cpp src/native/hardware.cpp src/profile.cpp \
 		src/linux/production_hardware.cpp \
 		src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
+		src/native/linux/i2c.cpp \
 		src/native/linux/spi.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) \
 		-DMISTER_RUNTIME_IDLE_RBF=\"/definitely-missing/libmister-runtime/idle.rbf\" \
 		tests/unit/native_hardware_test.cpp \
 		tests/support/capture_log.cpp src/native/artifacts.cpp \
-		src/native/core_loader.cpp src/native/hardware.cpp src/profile.cpp \
+		src/native/core_loader.cpp src/native/video_recipe.cpp \
+		src/native/video.cpp src/native/hardware.cpp src/profile.cpp \
 		src/linux/production_hardware.cpp \
 		src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
+		src/native/linux/i2c.cpp \
 		src/native/linux/spi.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/protocol_test: tests/unit/protocol_test.cpp \
@@ -272,6 +279,11 @@ archive-audit: $(ARCHIVE)
 		printf '%s\n' "$$duplicate_members" >&2; \
 		exit 1; \
 	}; \
+	member_count="$$(printf '%s\n' "$$actual_members" | sed '/^$$/d' | wc -l | tr -d ' ')"; \
+	[[ "$$member_count" == 12 ]] || { \
+		echo "canonical archive must contain exactly 12 production members" >&2; \
+		exit 1; \
+	}; \
 	archive_list="$$(find "$(BUILD_DIR)" -maxdepth 1 -type f -name '*.a' | sed 's|^.*/||' | LC_ALL=C sort)"; \
 	[[ "$$archive_list" == "libmister-runtime.a" ]] || { \
 		echo "canonical build did not produce exactly one archive" >&2; \
@@ -284,7 +296,8 @@ archive-audit: $(ARCHIVE)
 		exit 1; \
 	}; \
 	for required in runtime.o profile.o artifacts.o core_loader.o hardware.o \
-		fpga_manager.o mmio.o spi.o production_hardware.o; do \
+		fpga_manager.o mmio.o spi.o production_hardware.o video_recipe.o \
+		video.o i2c.o; do \
 		grep -Fx "$$required" <<<"$$actual_members" >/dev/null || { \
 			echo "archive omits required native member: $$required" >&2; \
 			exit 1; \
@@ -296,7 +309,7 @@ archive-audit: $(ARCHIVE)
 		source="$${relative_object%.o}.cpp"; \
 		[[ -f "$$source" ]] || { echo "object has no production source: $$relative_object" >&2; exit 1; }; \
 		case "$$source" in \
-			src/runtime.cpp|src/profile.cpp|src/native/artifacts.cpp|src/native/core_loader.cpp|src/native/hardware.cpp|src/native/linux/fpga_manager.cpp|src/native/linux/mmio.cpp|src/native/linux/spi.cpp|src/linux/production_hardware.cpp) ;; \
+			src/runtime.cpp|src/profile.cpp|src/native/artifacts.cpp|src/native/core_loader.cpp|src/native/video_recipe.cpp|src/native/video.cpp|src/native/hardware.cpp|src/native/linux/fpga_manager.cpp|src/native/linux/i2c.cpp|src/native/linux/mmio.cpp|src/native/linux/spi.cpp|src/linux/production_hardware.cpp) ;; \
 			*) echo "archive contains non-production source: $$source" >&2; exit 1 ;; \
 		esac; \
 		compiled_sources+="$$source"$$'\n'; \
@@ -306,7 +319,7 @@ archive-audit: $(ARCHIVE)
 			printf '%s\n' "$${object#"$(BUILD_DIR)/"}"; \
 		fi; \
 	done < <(printf '%s\n' $(LIB_OBJECTS) | LC_ALL=C sort))"; \
-	expected_raw_owners=$$'src/native/artifacts.o\nsrc/native/core_loader.o\nsrc/native/linux/fpga_manager.o\nsrc/native/linux/mmio.o'; \
+	expected_raw_owners=$$'src/native/artifacts.o\nsrc/native/core_loader.o\nsrc/native/linux/fpga_manager.o\nsrc/native/linux/i2c.o\nsrc/native/linux/mmio.o'; \
 	[[ "$$raw_owners" == "$$expected_raw_owners" ]] || { \
 		echo "raw I/O ownership differs from the canonical native boundary" >&2; \
 		diff -u <(printf '%s\n' "$$expected_raw_owners") \
@@ -314,13 +327,13 @@ archive-audit: $(ARCHIVE)
 		exit 1; \
 	}; \
 	undefined_symbols="$$( $(NM) -u "$(ARCHIVE)" | $(CXXFILT) )"; \
-	if grep -E '(^|[^[:alnum:]_])(fpga_load_rbf|user_io_|scheduler_|offload_|reboot|reexec|execl|system)($$|[^[:alnum:]_])' \
+	if grep -E '(^|[^[:alnum:]_])(fpga_load_rbf|user_io_|video_mode_adjust|scheduler_|offload_|reboot|reexec|execl|system)($$|[^[:alnum:]_])' \
 		<<<"$$undefined_symbols" >/dev/null; then \
 		echo "archive references superseded mutation authority" >&2; \
 		exit 1; \
 	fi; \
 	if $(NM) -g "$(ARCHIVE)" | $(CXXFILT) | \
-		grep -E 'LinuxMmioTestOperations|FakeHardware|FakeMmio|FakeSpi|CartProfile|BiosProfile|mister_test' >/dev/null; then \
+		grep -E 'LinuxMmioTestOperations|LinuxI2cTestOperations|FakeHardware|FakeMmio|FakeSpi|FakeI2c|CartProfile|BiosProfile|mister_test' >/dev/null; then \
 		echo "archive exports test-only hardware or profile symbols" >&2; \
 		exit 1; \
 	fi; \
@@ -328,6 +341,24 @@ archive-audit: $(ARCHIVE)
 		echo "native hardware dependency closure omits artifacts" >&2; \
 		exit 1; \
 	}; \
+	grep -F 'src/native/video.hpp' "$(BUILD_DIR)/src/native/hardware.d" >/dev/null || { \
+		echo "native hardware dependency closure omits video" >&2; \
+		exit 1; \
+	}; \
+	for header in src/native/video_recipe.hpp src/native/core_loader.hpp \
+		src/native/linux/spi.hpp src/native/linux/i2c.hpp; do \
+		grep -F "$$header" "$(BUILD_DIR)/src/native/video.d" >/dev/null || { \
+			echo "video dependency closure omits $$header" >&2; \
+			exit 1; \
+		}; \
+	done; \
+	for header in src/native/linux/i2c.hpp src/native/video.hpp \
+		src/native/video_recipe.hpp; do \
+		grep -F "$$header" "$(BUILD_DIR)/src/linux/production_hardware.d" >/dev/null || { \
+			echo "production hardware dependency closure omits $$header" >&2; \
+			exit 1; \
+		}; \
+	done; \
 	grep -F 'src/native/linux/mmio.hpp' "$(BUILD_DIR)/src/native/linux/spi.d" >/dev/null || { \
 		echo "SPI dependency closure omits MMIO" >&2; \
 		exit 1; \

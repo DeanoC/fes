@@ -5,6 +5,7 @@
 
 #include "native/artifacts.hpp"
 #include "native/core_loader.hpp"
+#include "native/video.hpp"
 
 #include <algorithm>
 #include <limits>
@@ -37,10 +38,10 @@ Error CoreIoError(const Error& error)
 } // namespace
 
 NativeHardware::NativeHardware(ArtifactOpener& opener, FpgaManager& fpga,
-	CoreLoader& core, Clock& clock, LogSink& log, std::string idle_rbf,
-	NativeTimeouts timeouts)
-	: opener_(opener), fpga_(fpga), core_(core), clock_(clock), log_(log),
-	  idle_rbf_(std::move(idle_rbf)), timeouts_(timeouts) {}
+	CoreLoader& core, VideoBringup& video, Clock& clock, LogSink& log,
+	std::string idle_rbf, NativeTimeouts timeouts)
+	: opener_(opener), fpga_(fpga), core_(core), video_(video), clock_(clock),
+	  log_(log), idle_rbf_(std::move(idle_rbf)), timeouts_(timeouts) {}
 
 HardwareResult NativeHardware::LoadIdle()
 {
@@ -52,7 +53,12 @@ HardwareResult NativeHardware::LoadIdle()
 		Deadline(clock_, timeouts_.program_ms));
 	error = programmed.error.ok() ? Error{} : ProgramError(programmed.error);
 	log_.Write({"start", "", "", "program", error});
-	return {error, programmed.error.ok() ? true : programmed.mutation_attempted, ""};
+	if (!error.ok()) return {error, programmed.mutation_attempted, ""};
+	const VideoResult video = video_.BringUp("MENU",
+		Deadline(clock_, timeouts_.video_ms));
+	if (!video.error.ok())
+		return {CoreIoError(video.error), true, video.observed_core};
+	return {{}, true, video.observed_core};
 }
 
 HardwareResult NativeHardware::Launch(const PreparedLaunch& launch)

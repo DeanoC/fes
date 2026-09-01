@@ -7,6 +7,7 @@
 #include "native/core_loader.hpp"
 #include "native/hardware.hpp"
 #include "native/linux/spi.hpp"
+#include "native/video.hpp"
 
 #include <assert.h>
 #include <fcntl.h>
@@ -102,6 +103,27 @@ public:
 	int calls = 0;
 };
 
+class RecordingVideo final : public mister::native::VideoBringup {
+public:
+	explicit RecordingVideo(std::vector<std::string>& events) : events_(events)
+	{
+		result.phase = "hdmi_verify";
+		result.observed_core = "MENU";
+	}
+	mister::native::VideoResult BringUp(const std::string& expected_core,
+		std::uint64_t deadline) override
+	{
+		events_.push_back("video:" + expected_core);
+		deadlines.push_back(deadline);
+		++calls;
+		return result;
+	}
+	std::vector<std::string>& events_;
+	mister::native::VideoResult result;
+	std::vector<std::uint64_t> deadlines;
+	int calls = 0;
+};
+
 class RecordingSpi final : public mister::native::Spi {
 public:
 	explicit RecordingSpi(std::vector<std::string>& events) : events_(events) {}
@@ -137,8 +159,9 @@ struct Fixture {
 		  rbf(temporary.File("game.rbf", "game")),
 		  media_two(temporary.File("two.bin", "22")),
 		  media_zero(temporary.File("zero.bin", "0")), opener(events), fpga(events),
-		  spi(events), core(spi), clock(100), log(), hardware(opener, fpga, core,
-			clock, log, idle, {30000, 10000}) {}
+		  spi(events), core(spi), video(events), clock(100), log(),
+		  hardware(opener, fpga, core, video, clock, log, idle,
+			{30000, 10000, 10000}) {}
 	mister::PreparedLaunch Launch() const
 	{
 		mister::PreparedLaunch launch;
@@ -160,6 +183,7 @@ struct Fixture {
 	RecordingFpga fpga;
 	RecordingSpi spi;
 	mister::native::CoreLoader core;
+	RecordingVideo video;
 	FixedClock clock;
 	mister_test::CaptureLog log;
 	mister::native::NativeHardware hardware;
@@ -189,18 +213,80 @@ void TestLaunchPreflightsAllArtifactsThenProgramsAndConfiguresInOrder()
 	assert(Find(fixture.events, "media:0") < Find(fixture.events, "media:2"));
 }
 
-void TestDevelopmentAndIdleOnlyPreflightAndProgramTheirRbf()
+void TestIdleRequiresVideoAndPreservesDevelopmentBehavior()
 {
 	Fixture fixture;
 	assert(fixture.hardware.LoadDevelopmentRBF(fixture.rbf).error.ok());
 	assert(fixture.events.size() == 2);
 	assert(fixture.events[0] == "open:" + fixture.rbf);
 	assert(fixture.events[1] == "program:" + fixture.rbf);
+	assert(fixture.video.calls == 0);
 	fixture.events.clear();
-	assert(fixture.hardware.LoadIdle().error.ok());
-	assert(fixture.events.size() == 2);
-	assert(fixture.events[0] == "open:" + fixture.idle);
-	assert(fixture.events[1] == "program:" + fixture.idle);
+	const mister::HardwareResult idle = fixture.hardware.LoadIdle();
+	assert(idle.error.ok());
+	assert(idle.mutation_attempted);
+	assert(idle.observed_core == "MENU");
+	assert(fixture.events == std::vector<std::string>({
+		"open:" + fixture.idle,
+		"program:" + fixture.idle,
+		"video:MENU",
+	}));
+	assert(fixture.video.deadlines == std::vector<std::uint64_t>({10100}));
+}
+
+void TestIdlePreflightFailureCallsNeitherFpgaNorVideo()
+{
+	Fixture fixture;
+	fixture.opener.fail_call = 1;
+	const mister::HardwareResult result = fixture.hardware.LoadIdle();
+	assert(result.error.code == mister::ErrorCode::io_failed);
+	assert(!result.mutation_attempted);
+	assert(fixture.fpga.calls == 0);
+	assert(fixture.video.calls == 0);
+}
+
+void TestIdleFpgaFailureNeverCallsVideoAndPreservesMutationFlag()
+{
+	Fixture before;
+	before.fpga.result = {{mister::ErrorCode::program_failed, "before"}, false};
+	const mister::HardwareResult before_result = before.hardware.LoadIdle();
+	assert(before_result.error.code == mister::ErrorCode::program_failed);
+	assert(!before_result.mutation_attempted);
+	assert(before.video.calls == 0);
+
+	Fixture after;
+	after.fpga.result = {{mister::ErrorCode::program_failed, "after"}, true};
+	const mister::HardwareResult after_result = after.hardware.LoadIdle();
+	assert(after_result.error.code == mister::ErrorCode::program_failed);
+	assert(after_result.mutation_attempted);
+	assert(after.video.calls == 0);
+}
+
+void TestIdleVideoFailureIsAttemptedIoFailureWithoutCleanup()
+{
+	Fixture fixture;
+	fixture.video.result.error = {
+		mister::ErrorCode::program_failed, "injected video failure"};
+	fixture.video.result.observed_core = "MENU";
+	const mister::HardwareResult result = fixture.hardware.LoadIdle();
+	assert(result.error.code == mister::ErrorCode::io_failed);
+	assert(result.error.message == "injected video failure");
+	assert(result.mutation_attempted);
+	assert(result.observed_core == "MENU");
+	assert(fixture.fpga.calls == 1);
+	assert(fixture.video.calls == 1);
+	assert(fixture.events == std::vector<std::string>({
+		"open:" + fixture.idle,
+		"program:" + fixture.idle,
+		"video:MENU",
+	}));
+}
+
+void TestLaunchNeverCallsIdleVideo()
+{
+	Fixture fixture;
+	assert(fixture.hardware.Launch(fixture.Launch()).error.ok());
+	assert(fixture.video.calls == 0);
 }
 
 void TestOneAbsoluteDeadlinePerNativeStage()
@@ -211,6 +297,7 @@ void TestOneAbsoluteDeadlinePerNativeStage()
 	assert(fixture.fpga.deadlines[0] == 30100);
 	assert(!fixture.spi.deadlines.empty());
 	for (std::uint64_t deadline : fixture.spi.deadlines) assert(deadline == 10100);
+	assert(fixture.video.calls == 0);
 }
 
 void TestPreflightAndProgramFailuresUseExactMutationMapping()
@@ -334,7 +421,11 @@ void TestUnavailableHardwareRemainsFailureOnly()
 int main()
 {
 	TestLaunchPreflightsAllArtifactsThenProgramsAndConfiguresInOrder();
-	TestDevelopmentAndIdleOnlyPreflightAndProgramTheirRbf();
+	TestIdleRequiresVideoAndPreservesDevelopmentBehavior();
+	TestIdlePreflightFailureCallsNeitherFpgaNorVideo();
+	TestIdleFpgaFailureNeverCallsVideoAndPreservesMutationFlag();
+	TestIdleVideoFailureIsAttemptedIoFailureWithoutCleanup();
+	TestLaunchNeverCallsIdleVideo();
 	TestOneAbsoluteDeadlinePerNativeStage();
 	TestPreflightAndProgramFailuresUseExactMutationMapping();
 	TestEveryConcretePreflightRejectionPerformsZeroHardwareWork();
@@ -342,6 +433,6 @@ int main()
 	TestNativeLoggingNamesPhasesAndConfirmedCore();
 	TestProductionConstructionOwnsRealIdleHardware();
 	TestUnavailableHardwareRemainsFailureOnly();
-	puts("native_hardware_test: 9 passed");
+	puts("native_hardware_test: 13 passed");
 	return 0;
 }

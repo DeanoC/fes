@@ -65,11 +65,14 @@ artifacts.o
 core_loader.o
 fpga_manager.o
 hardware.o
+i2c.o
 mmio.o
 production_hardware.o
 profile.o
 runtime.o
 spi.o
+video.o
+video_recipe.o
 EOF
 ar t "$archive" | grep -v '^__\.SYMDEF' >"$temporary/archive-members"
 LC_ALL=C sort -o "$temporary/archive-members" "$temporary/archive-members"
@@ -83,9 +86,30 @@ if grep -Eai 'fake|test|fixture' "$temporary/archive-members" >/dev/null; then
 	exit 1
 fi
 
+nm -g "$archive" >"$temporary/archive-symbols.raw"
+c++filt <"$temporary/archive-symbols.raw" >"$temporary/archive-symbols"
+if grep -E 'FakeHardware|FakeMmio|FakeSpi|FakeI2c|LinuxI2cTestOperations|CartProfile|BiosProfile|mister_test' \
+	"$temporary/archive-symbols" >/dev/null; then
+	echo "archive contains fake hardware or profile symbols" >&2
+	exit 1
+fi
+if grep -E '(^|[^[:alnum:]_])video_mode_adjust($|[^[:alnum:]_])' \
+	"$temporary/archive-symbols" >/dev/null; then
+	echo "archive contains Main mutation authority" >&2
+	exit 1
+fi
+
+if strings "$daemon" | grep -Eai '(^|/)libi2c([.-]|$)' >/dev/null || \
+	nm -g "$daemon" | c++filt | \
+		grep -E '(^|[^[:alnum:]_])_?i2c_smbus_[[:alnum:]_]*($|[^[:alnum:]_])' \
+		>/dev/null; then
+	echo "executable links external libi2c" >&2
+	exit 1
+fi
+
 nm -g "$daemon" >"$temporary/daemon-symbols.raw"
 c++filt <"$temporary/daemon-symbols.raw" >"$temporary/daemon-symbols"
-if grep -E '(^|[^[:alnum:]_])(fpga_load_rbf|user_io_|scheduler_|offload_|Main|FakeHardware|FakeMmio|FakeSpi|CartProfile|BiosProfile|mister_test)($|[^[:alnum:]_])' \
+if grep -E '(^|[^[:alnum:]_])(fpga_load_rbf|user_io_|video_mode_adjust|scheduler_|offload_|Main|FakeHardware|FakeMmio|FakeSpi|FakeI2c|LinuxI2cTestOperations|CartProfile|BiosProfile|mister_test)($|[^[:alnum:]_])' \
 	"$temporary/daemon-symbols" >/dev/null; then
 	echo "executable contains Main mutation or fake symbols" >&2
 	exit 1
