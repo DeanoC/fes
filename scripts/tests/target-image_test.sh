@@ -557,6 +557,36 @@ assert_reject_extra_service_basename \
   native-extra-agent-command etc/init.d/S50mister-agent \
   '    printf '\''%s\n'\'' "$!" > /run/mister-agent-supervisor.pid' \
   'command mister-agent' 'a command agent basename launch'
+assert_reject_extra_service_basename \
+  native-extra-runtime-double-quoted etc/init.d/S40mister-runtime \
+  '    printf '\''%s\n'\'' "$!" > /run/mister-runtime-supervisor.pid' \
+  'env FOGCAST_SERVICE=runtime "mister-runtime"' \
+  'an env-prefixed double-quoted runtime basename launch'
+assert_reject_extra_service_basename \
+  native-extra-runtime-single-quoted etc/init.d/S40mister-runtime \
+  '    printf '\''%s\n'\'' "$!" > /run/mister-runtime-supervisor.pid' \
+  "command 'mister-runtime'" \
+  'a command-prefixed single-quoted runtime basename launch'
+assert_reject_extra_service_basename \
+  native-extra-runtime-backslash-escaped etc/init.d/S40mister-runtime \
+  '    printf '\''%s\n'\'' "$!" > /run/mister-runtime-supervisor.pid' \
+  'exec mister\-runtime' \
+  'an exec-prefixed backslash-escaped runtime basename launch'
+assert_reject_extra_service_basename \
+  native-extra-agent-double-quoted etc/init.d/S50mister-agent \
+  '    printf '\''%s\n'\'' "$!" > /run/mister-agent-supervisor.pid' \
+  'env FOGCAST_SERVICE=agent "mister-agent"' \
+  'an env-prefixed double-quoted agent basename launch'
+assert_reject_extra_service_basename \
+  native-extra-agent-single-quoted etc/init.d/S50mister-agent \
+  '    printf '\''%s\n'\'' "$!" > /run/mister-agent-supervisor.pid' \
+  "command 'mister-agent'" \
+  'a command-prefixed single-quoted agent basename launch'
+assert_reject_extra_service_basename \
+  native-extra-agent-backslash-escaped etc/init.d/S50mister-agent \
+  '    printf '\''%s\n'\'' "$!" > /run/mister-agent-supervisor.pid' \
+  'exec mister\-agent' \
+  'an exec-prefixed backslash-escaped agent basename launch'
 
 native_missing_pid_write=$fixture/native-missing-pid-write
 cp -R "$native_root" "$native_missing_pid_write"

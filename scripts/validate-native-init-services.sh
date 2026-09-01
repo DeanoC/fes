@@ -95,6 +95,30 @@ validate_start_commands() {
     EXPECTED_LAUNCH="$expected_launch" \
     EXPECTED_PID_WRITE="$expected_pid_write" \
     awk '
+      function deescape_simple_token(word, normalized, i, character) {
+        normalized=""
+        for (i=1; i <= length(word); i++) {
+          character=substr(word, i, 1)
+          if (character == "\\" && i < length(word)) {
+            i++
+            character=substr(word, i, 1)
+          }
+          normalized=normalized character
+        }
+        return normalized
+      }
+
+      function normalize_simple_token(word, first, last) {
+        first=substr(word, 1, 1)
+        last=substr(word, length(word), 1)
+        if (length(word) >= 2 &&
+            ((first == "\"" && last == "\"") ||
+             (first == "\047" && last == "\047"))) {
+          return substr(word, 2, length(word) - 2)
+        }
+        return deescape_simple_token(word)
+      }
+
       function has_service_basename(line, fields, field_count, i, word) {
         field_count=split(line, fields, /[[:space:]]+/)
         for (i=1; i <= field_count; i++) {
@@ -105,6 +129,7 @@ validate_start_commands() {
           sub(/^\$\(/, "", word)
           gsub(/^[;&|(){}]+/, "", word)
           gsub(/[;&|(){}]+$/, "", word)
+          word=normalize_simple_token(word)
           if (word == "mister-runtime" || word == "mister-agent") {
             return 1
           }
