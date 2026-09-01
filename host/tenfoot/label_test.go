@@ -5,11 +5,30 @@ import (
 	"image"
 	"testing"
 
+	"golang.org/x/image/font"
 	"golang.org/x/image/font/gofont/goregular"
+	"golang.org/x/image/font/opentype"
 )
 
 func init() {
 	labelTTFOverride = goregular.TTF
+}
+
+func goRegularFace(t *testing.T, sizePx int) font.Face {
+	t.Helper()
+	parsed, err := opentype.Parse(goregular.TTF)
+	if err != nil {
+		t.Fatal(err)
+	}
+	face, err := opentype.NewFace(parsed, &opentype.FaceOptions{
+		Size:    float64(sizePx),
+		DPI:     72,
+		Hinting: font.HintingFull,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return face
 }
 
 func TestRasterizeLabelUTF8(t *testing.T) {
@@ -35,6 +54,28 @@ func TestRasterizeLabelUTF8(t *testing.T) {
 	clipped := rasterizeLabel("Éclair Super Nintendo Entertainment System", 40, 16)
 	if clipped == nil || clipped.Bounds().Dx() > 40 {
 		t.Fatalf("clipped width = %v", clipped)
+	}
+}
+
+func TestRasterizeLabelCJKFallback(t *testing.T) {
+	t.Parallel()
+	primary := goRegularFace(t, 16)
+	if _, ok := primary.GlyphAdvance('日'); ok {
+		t.Fatal("Go Regular unexpectedly covers CJK")
+	}
+	titles := []string{"日本語", "中文", "한글", "ファイナルファンタジー VII"}
+	for _, title := range titles {
+		got := rasterizeLabel(title, 800, 16)
+		if !labelHasInk(got) {
+			t.Fatalf("%q produced no glyphs", title)
+		}
+		tofu := rasterizeLabelWithFace(primary, title, 800, 16)
+		if tofu != nil && got.Bounds().Eq(tofu.Bounds()) && bytes.Equal(got.Pix, tofu.Pix) {
+			if !labelHasRealGlyph('日') {
+				t.Skip("no system fallback font with CJK glyphs")
+			}
+			t.Fatalf("%q rasterized as Go Regular .notdef boxes", title)
+		}
 	}
 }
 
