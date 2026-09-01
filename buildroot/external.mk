@@ -1,1 +1,1 @@
-# FogCast target currently uses only a rootfs overlay and post-build policy.
+include $(sort $(wildcard $(BR2_EXTERNAL_FOGCAST_TARGET_PATH)/package/*/*.mk))

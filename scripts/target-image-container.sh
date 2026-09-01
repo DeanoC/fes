@@ -33,6 +33,28 @@ case "$mode" in
     ;;
 esac
 
+native_runtime_source=
+native_runtime_commit=
+if [ -n "${LIBMISTER_RUNTIME_DIR:-}" ]; then
+  case "$LIBMISTER_RUNTIME_DIR" in
+    /*) : ;;
+    *)
+      printf '%s\n' 'target-image-container: LIBMISTER_RUNTIME_DIR must be absolute' >&2
+      exit 2
+      ;;
+  esac
+  [ -d "$LIBMISTER_RUNTIME_DIR" ] || {
+    printf '%s\n' 'target-image-container: runtime source is not a directory' >&2
+    exit 2
+  }
+  native_runtime_source=$(CDPATH='' cd -- "$LIBMISTER_RUNTIME_DIR" && pwd -P)
+  native_lock=${NATIVE_RUNTIME_INPUT_LOCK:-$repo_root/build/native-runtime.inputs.lock.toml}
+  native_idle=${NATIVE_RUNTIME_IDLE_FILE:-$repo_root/build/cache/target-image/native/idle.rbf}
+  "$repo_root/scripts/verify-native-runtime-inputs.sh" \
+    "$native_lock" "$native_runtime_source" "$native_idle"
+  native_runtime_commit=$(git -C "$native_runtime_source" rev-parse --verify HEAD)
+fi
+
 if [ "${TARGET_IMAGE_DEV_CONTAINER:-0}" = 1 ]; then
   dev_platform=${TARGET_IMAGE_DEV_PLATFORM:-}
   if [ -z "$dev_platform" ]; then
@@ -72,6 +94,19 @@ if [ "${TARGET_IMAGE_DEV_CONTAINER:-0}" = 1 ]; then
       "$repo_root"
   fi
   if [ "$mode" = run ]; then
+    if [ -n "$native_runtime_source" ]; then
+      exec "$runtime" run --rm \
+        --platform "$dev_platform" \
+        --network none \
+        --ulimit core=0:0 \
+        --user "$host_uid:$host_gid" \
+        --volume "$repo_root:/work" \
+        --volume "$output_volume:/target-image-output" \
+        --volume "$native_runtime_source:/runtime-source:ro" \
+        --env "FOGCAST_MISTER_RUNTIME_COMMIT=$native_runtime_commit" \
+        --workdir /work \
+        "$dev_image" "$@"
+    fi
     exec "$runtime" run --rm \
       --platform "$dev_platform" \
       --network none \
@@ -79,6 +114,18 @@ if [ "${TARGET_IMAGE_DEV_CONTAINER:-0}" = 1 ]; then
       --user "$host_uid:$host_gid" \
       --volume "$repo_root:/work" \
       --volume "$output_volume:/target-image-output" \
+      --workdir /work \
+      "$dev_image" "$@"
+  fi
+  if [ -n "$native_runtime_source" ]; then
+    exec "$runtime" run --rm \
+      --platform "$dev_platform" \
+      --ulimit core=0:0 \
+      --user "$host_uid:$host_gid" \
+      --volume "$repo_root:/work" \
+      --volume "$output_volume:/target-image-output" \
+      --volume "$native_runtime_source:/runtime-source:ro" \
+      --env "FOGCAST_MISTER_RUNTIME_COMMIT=$native_runtime_commit" \
       --workdir /work \
       "$dev_image" "$@"
   fi
@@ -189,6 +236,19 @@ if ! printf '%s\n' "$build_image_id" | grep -Eq '^sha256:[0-9a-f]{64}$' || \
 fi
 
 if [ "$mode" = run ]; then
+  if [ -n "$native_runtime_source" ]; then
+    exec "$runtime" run --rm \
+      --platform "$platform" \
+      --network none \
+      --ulimit core=0:0 \
+      --user "$host_uid:$host_gid" \
+      --volume "$repo_root:/work" \
+      --volume "$output_volume:/target-image-output" \
+      --volume "$native_runtime_source:/runtime-source:ro" \
+      --env "FOGCAST_MISTER_RUNTIME_COMMIT=$native_runtime_commit" \
+      --workdir /work \
+      "$build_image_id" "$@"
+  fi
   exec "$runtime" run --rm \
     --platform "$platform" \
     --network none \
@@ -196,6 +256,19 @@ if [ "$mode" = run ]; then
     --user "$host_uid:$host_gid" \
     --volume "$repo_root:/work" \
     --volume "$output_volume:/target-image-output" \
+    --workdir /work \
+    "$build_image_id" "$@"
+fi
+
+if [ -n "$native_runtime_source" ]; then
+  exec "$runtime" run --rm \
+    --platform "$platform" \
+    --ulimit core=0:0 \
+    --user "$host_uid:$host_gid" \
+    --volume "$repo_root:/work" \
+    --volume "$output_volume:/target-image-output" \
+    --volume "$native_runtime_source:/runtime-source:ro" \
+    --env "FOGCAST_MISTER_RUNTIME_COMMIT=$native_runtime_commit" \
     --workdir /work \
     "$build_image_id" "$@"
 fi
