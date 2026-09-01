@@ -7,7 +7,8 @@ the lifecycle API, native Linux primitives, profile model, and
 
 ## Current status
 
-Software-tested only. Production native construction is not yet available.
+Software-tested only. Production native construction is available for the
+image-owned idle baseline; physical acceptance is still pending.
 Hardware-supported systems: 0.
 
 The current production profile table is empty. The fake hardware and profiles

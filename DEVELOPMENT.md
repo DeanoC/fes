@@ -55,13 +55,13 @@ The expected executable is a 32-bit Arm EABI5 hard-float Linux artifact. The
 archive contains objects produced by the same target compiler, with 64-bit
 `off_t` enabled for production MMIO offsets.
 
-## Native-image installation — not yet available
+## Native-image installation
 
-There is no authorized native-image build, service ordering, packaged idle
-RBF, installation procedure, production profile, or physical-Pi acceptance at
-this milestone. Do not install the host or cross-built artifacts onto a Pi and
-do not replace the working legacy image. Image integration needs a later,
-separately reviewed plan.
+The production runtime is built by FogCast's reviewed native image, which
+supplies the packaged idle RBF. Do not install ad hoc cross-builds or host
+artifacts onto a Pi and do not replace the working legacy image. Physical-Pi
+acceptance is still pending; image integration needs a later, separately
+reviewed plan.
 
 ## Physical evidence
 

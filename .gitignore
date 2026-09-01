@@ -1,4 +1,5 @@
 /build/
+/.worktrees/
 /.idea/.gitignore
 /.idea/editor.xml
 /.idea/misc.xml
