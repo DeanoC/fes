@@ -1,0 +1,47 @@
+#!/bin/sh
+set -eu
+
+supervisor_pid=/run/mister-agent-supervisor.pid
+
+stop_service() {
+  [ -f "$supervisor_pid" ] || return 0
+  IFS= read -r pid < "$supervisor_pid"
+  /bin/kill "$pid" 2>/dev/null || true
+  stop_wait=5
+  while /bin/kill -0 "$pid" 2>/dev/null && [ "$stop_wait" -gt 0 ]; do
+    /bin/sleep 1
+    stop_wait=$((stop_wait - 1))
+  done
+  /bin/rm -f "$supervisor_pid"
+}
+
+case "${1:-start}" in
+  start)
+    wait_seconds=30
+    while [ ! -f /media/fat/fogcast/agent.toml ] && [ "$wait_seconds" -gt 0 ]; do
+      /bin/sleep 1
+      wait_seconds=$((wait_seconds - 1))
+    done
+    if [ ! -f /media/fat/fogcast/agent.toml ]; then
+      printf '%s\n' 'mister-agent: writable FAT configuration did not appear within 30 seconds' >&2
+      exit 1
+    fi
+    /bin/mkdir -p /media/fat/fogcast/cache/megadrive /media/fat/fogcast/cache/snes
+    /bin/chmod 0700 /media/fat/fogcast/cache /media/fat/fogcast/cache/megadrive /media/fat/fogcast/cache/snes
+
+    /usr/sbin/mister-supervise mister-agent /usr/sbin/mister-agent \
+      --config /media/fat/fogcast/agent.toml --runtime native &
+    printf '%s\n' "$!" > /run/mister-agent-supervisor.pid
+    ;;
+  stop)
+    stop_service
+    ;;
+  restart)
+    stop_service
+    "$0" start
+    ;;
+  *)
+    printf 'usage: %s start|stop|restart\n' "$0" >&2
+    exit 2
+    ;;
+esac

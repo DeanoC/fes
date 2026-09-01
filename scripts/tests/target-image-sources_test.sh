@@ -9,6 +9,38 @@ grep -Fq 'TARGET_IMAGE_LOCK' "$repo/scripts/fetch-target-image-sources.sh"
 grep -Fq 'TARGET_IMAGE_CONTAINER_RUNTIME' "$repo/scripts/target-image-container.sh"
 grep -Fqx 'name: FOGCAST_TARGET' "$repo/buildroot/external.desc"
 grep -Fq 'fogcast_target_dev_defconfig' "$repo/scripts/build-target-image.sh"
+grep -Fq 'fogcast_target_native_dev_defconfig' "$repo/scripts/build-target-image.sh"
+grep -Fq '/work/scripts/verify-native-runtime-inputs.sh' "$repo/scripts/build-target-image.sh"
+
+native_fetch_target=$(
+  awk '
+    /^target-image-native-fetch:/ { in_target=1; next }
+    in_target && /^[^[:space:]]/ { exit }
+    in_target { print }
+  ' "$repo/Makefile"
+)
+printf '%s\n' "$native_fetch_target" | grep -Fq \
+  'scripts/target-image-container.sh fetch \'
+printf '%s\n' "$native_fetch_target" | grep -Fq \
+  '/work/scripts/fetch-native-runtime-inputs.sh'
+printf '%s\n' "$native_fetch_target" | grep -Fq \
+  'LIBMISTER_RUNTIME_DIR="$(LIBMISTER_RUNTIME_DIR)" \'
+printf '%s\n' "$native_fetch_target" | grep -Fq \
+  'scripts/build-target-image.sh --fetch native-dev'
+
+for legacy_target in target-image-fetch target-images target-image-dev target-image-verify target-image-qemu-smoke; do
+  legacy_body=$(
+    awk -v target="$legacy_target:" '
+      $0 ~ "^" target { in_target=1; next }
+      in_target && /^[^[:space:]]/ { exit }
+      in_target { print }
+    ' "$repo/Makefile"
+  )
+  if printf '%s\n' "$legacy_body" | grep -Fq 'native'; then
+    echo "$legacy_target gained a native prerequisite or command" >&2
+    exit 1
+  fi
+done
 
 grep -Fq 'snapshot.debian.org/archive/debian/20260801T120000Z' \
   "$repo/containers/target-image/Dockerfile"

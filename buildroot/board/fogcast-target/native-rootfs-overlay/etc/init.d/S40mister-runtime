@@ -1,0 +1,34 @@
+#!/bin/sh
+set -eu
+
+supervisor_pid=/run/mister-runtime-supervisor.pid
+
+stop_service() {
+  [ -f "$supervisor_pid" ] || return 0
+  IFS= read -r pid < "$supervisor_pid"
+  /bin/kill "$pid" 2>/dev/null || true
+  stop_wait=5
+  while /bin/kill -0 "$pid" 2>/dev/null && [ "$stop_wait" -gt 0 ]; do
+    /bin/sleep 1
+    stop_wait=$((stop_wait - 1))
+  done
+  /bin/rm -f "$supervisor_pid"
+}
+
+case "${1:-start}" in
+  start)
+    /usr/sbin/mister-supervise mister-runtime /usr/sbin/mister-runtime &
+    printf '%s\n' "$!" > /run/mister-runtime-supervisor.pid
+    ;;
+  stop)
+    stop_service
+    ;;
+  restart)
+    stop_service
+    "$0" start
+    ;;
+  *)
+    printf 'usage: %s start|stop|restart\n' "$0" >&2
+    exit 2
+    ;;
+esac

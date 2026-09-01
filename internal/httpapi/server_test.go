@@ -337,21 +337,22 @@ func TestLaunchRejectsMalformedMultipleAndOversizedJSON(t *testing.T) {
 func TestAPIErrorStatusMapping(t *testing.T) {
 	t.Parallel()
 	tests := map[protocol.ErrorCode]int{
-		protocol.CodeBadRequest:        http.StatusBadRequest,
-		protocol.CodeUnauthorized:      http.StatusUnauthorized,
-		protocol.CodeROMNotFound:       http.StatusNotFound,
-		protocol.CodeBusy:              http.StatusConflict,
-		protocol.CodeUnsupportedSystem: http.StatusUnprocessableEntity,
-		protocol.CodeInvalidROMPath:    http.StatusUnprocessableEntity,
-		protocol.CodeMiSTerUnavailable: http.StatusServiceUnavailable,
-		protocol.CodeCoreTimeout:       http.StatusServiceUnavailable,
-		protocol.CodeContentNotCached:  http.StatusNotFound,
-		protocol.CodeSourceUnavailable: http.StatusUnprocessableEntity,
-		protocol.CodeInvalidArchive:    http.StatusUnprocessableEntity,
-		protocol.CodeDigestMismatch:    http.StatusUnprocessableEntity,
-		protocol.CodeTransferFailed:    http.StatusBadRequest,
-		protocol.CodeCacheFull:         http.StatusInsufficientStorage,
-		protocol.CodeInternal:          http.StatusInternalServerError,
+		protocol.CodeBadRequest:           http.StatusBadRequest,
+		protocol.CodeUnauthorized:         http.StatusUnauthorized,
+		protocol.CodeROMNotFound:          http.StatusNotFound,
+		protocol.CodeBusy:                 http.StatusConflict,
+		protocol.CodeUnsupportedSystem:    http.StatusUnprocessableEntity,
+		protocol.CodeUnsupportedOperation: http.StatusUnprocessableEntity,
+		protocol.CodeInvalidROMPath:       http.StatusUnprocessableEntity,
+		protocol.CodeMiSTerUnavailable:    http.StatusServiceUnavailable,
+		protocol.CodeCoreTimeout:          http.StatusServiceUnavailable,
+		protocol.CodeContentNotCached:     http.StatusNotFound,
+		protocol.CodeSourceUnavailable:    http.StatusUnprocessableEntity,
+		protocol.CodeInvalidArchive:       http.StatusUnprocessableEntity,
+		protocol.CodeDigestMismatch:       http.StatusUnprocessableEntity,
+		protocol.CodeTransferFailed:       http.StatusBadRequest,
+		protocol.CodeCacheFull:            http.StatusInsufficientStorage,
+		protocol.CodeInternal:             http.StatusInternalServerError,
 	}
 	for code, wantStatus := range tests {
 		t.Run(string(code), func(t *testing.T) {

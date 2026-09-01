@@ -19,6 +19,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/httpapi"
 	"github.com/DeanoC/FogCast/internal/input"
 	"github.com/DeanoC/FogCast/internal/mister"
+	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/internal/targetcache"
 	"github.com/DeanoC/FogCast/internal/version"
 )
@@ -34,6 +35,13 @@ const (
 
 var errCastShutdown = errors.New("cast controller could not be stopped")
 
+type runtimeBackend string
+
+const (
+	runtimeMain   runtimeBackend = "main"
+	runtimeNative runtimeBackend = "native"
+)
+
 type runDependencies struct {
 	openCache  func(targetcache.Config, core.Registry, ...targetcache.Option) (agent.ContentStore, error)
 	newRuntime func(agentconfig.Config, core.Registry) agent.Runtime
@@ -42,27 +50,25 @@ type runDependencies struct {
 	serve      func(*http.Server) error
 }
 
-func run(ctx context.Context, configPath string, logger *slog.Logger) error {
-	return runWithDependencies(ctx, configPath, logger, productionRunDependencies())
+func run(ctx context.Context, configPath string, backend runtimeBackend, logger *slog.Logger) error {
+	dependencies, err := productionRunDependencies(backend)
+	if err != nil {
+		return err
+	}
+	return runWithDependencies(ctx, configPath, logger, dependencies)
 }
 
-func productionRunDependencies() runDependencies {
-	return runDependencies{
+func productionRunDependencies(backend runtimeBackend) (runDependencies, error) {
+	return runtimeDependencies(backend, nil)
+}
+
+func runtimeDependencies(backend runtimeBackend, nativeControl misterruntime.Control) (runDependencies, error) {
+	if backend != runtimeMain && backend != runtimeNative {
+		return runDependencies{}, errors.New("target runtime backend is invalid")
+	}
+	dependencies := runDependencies{
 		openCache: func(config targetcache.Config, registry core.Registry, options ...targetcache.Option) (agent.ContentStore, error) {
 			return targetcache.Open(config, registry, options...)
-		},
-		newRuntime: func(cfg agentconfig.Config, registry core.Registry) agent.Runtime {
-			paths := mister.Paths{
-				MiSTerProcessComm: cfg.MiSTerProcessComm,
-				CommandPipe:       cfg.CommandPipe,
-				CoreNameFile:      cfg.CoreNameFile,
-				BootIDFile:        bootIDFile,
-				MenuRBF:           cfg.MenuRBF,
-				MGLDirectory:      cfg.MGLDirectory,
-				DevelopmentRBF:    developmentRBFPath,
-				RebootCommand:     rebootCommand,
-			}
-			return mister.NewRuntime(paths, registry, mister.FileCommandWriter{Path: cfg.CommandPipe}, mister.ProcProcessChecker{Root: "/proc"}, 25*time.Millisecond)
 		},
 		newInput: func(cfg agentconfig.Config) httpapi.InputController {
 			return input.NewTargetControllerWithConfig(cfg.InputListenAddress, cfg.InputUInputPath)
@@ -78,6 +84,29 @@ func productionRunDependencies() runDependencies {
 		},
 		serve: func(server *http.Server) error { return server.ListenAndServe() },
 	}
+	if backend == runtimeMain {
+		dependencies.newRuntime = func(cfg agentconfig.Config, registry core.Registry) agent.Runtime {
+			paths := mister.Paths{
+				MiSTerProcessComm: cfg.MiSTerProcessComm,
+				CommandPipe:       cfg.CommandPipe,
+				CoreNameFile:      cfg.CoreNameFile,
+				BootIDFile:        bootIDFile,
+				MenuRBF:           cfg.MenuRBF,
+				MGLDirectory:      cfg.MGLDirectory,
+				DevelopmentRBF:    developmentRBFPath,
+				RebootCommand:     rebootCommand,
+			}
+			return mister.NewRuntime(paths, registry, mister.FileCommandWriter{Path: cfg.CommandPipe}, mister.ProcProcessChecker{Root: "/proc"}, 25*time.Millisecond)
+		}
+		return dependencies, nil
+	}
+	if nativeControl == nil {
+		nativeControl = misterruntime.NewClient(misterruntime.DefaultSocketPath)
+	}
+	dependencies.newRuntime = func(agentconfig.Config, core.Registry) agent.Runtime {
+		return misterruntime.NewRuntime(nativeControl, bootIDFile, 25*time.Millisecond, 250*time.Millisecond)
+	}
+	return dependencies, nil
 }
 
 func runWithDependencies(ctx context.Context, configPath string, logger *slog.Logger, dependencies runDependencies) (resultErr error) {
@@ -160,15 +189,17 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 
 func main() {
 	configPath := flag.String("config", "/media/fat/fogcast/agent.toml", "target configuration path")
+	runtimeValue := flag.String("runtime", string(runtimeMain), "target runtime backend (main or native)")
 	flag.Parse()
-	if flag.NArg() != 0 {
-		_, _ = fmt.Fprintln(os.Stderr, "usage: mister-agent [--config path]")
+	backend := runtimeBackend(*runtimeValue)
+	if flag.NArg() != 0 || (backend != runtimeMain && backend != runtimeNative) {
+		_, _ = fmt.Fprintln(os.Stderr, "usage: mister-agent [--config path] [--runtime main|native]")
 		os.Exit(2)
 	}
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := run(ctx, *configPath, logger); err != nil {
+	if err := run(ctx, *configPath, backend, logger); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, "mister-agent: startup failed")
 		os.Exit(1)
 	}

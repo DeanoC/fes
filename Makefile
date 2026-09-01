@@ -1,6 +1,7 @@
 VERSION ?= 0.1.0
 REVISION ?= $(shell git rev-parse --verify HEAD 2>/dev/null || printf unknown)
 CONTAINER_RUNTIME ?= docker
+LIBMISTER_RUNTIME_DIR ?= $(abspath ../libmister-runtime)
 LDFLAGS = -s -w -X github.com/DeanoC/FogCast/internal/version.Version=$(VERSION)
 FOGCAST_LDFLAGS = $(LDFLAGS) -X github.com/DeanoC/FogCast/internal/version.Revision=$(REVISION)
 FOGCAST_GOOS ?= darwin
@@ -18,7 +19,7 @@ else
 NATIVE_GO_ENV =
 endif
 
-.PHONY: fmt test test-ui test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-agent build-bridge build-target-image-lock build-target-image-lock-container target-image-resolve target-image-fetch target-image-test target-images target-image-dev target-image-verify target-image-qemu-smoke target-image-deploy target-smoke target-kernel-test target-kernel target-kernel-verify
+.PHONY: fmt test test-ui test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-agent build-bridge build-target-image-lock build-target-image-lock-container target-image-resolve target-image-fetch target-image-test target-images target-image-dev target-image-verify target-image-qemu-smoke target-image-native-fetch target-image-native target-image-native-verify target-image-native-qemu-smoke target-image-deploy target-smoke target-kernel-test target-kernel target-kernel-verify
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
@@ -26,6 +27,7 @@ fmt:
 test: build-agent test-ui
 	$(NATIVE_GO_ENV) go test -race ./...
 	sh scripts/tests/fogcast-build_test.sh
+	sh scripts/tests/native-runtime-inputs_test.sh
 	sh scripts/tests/target-image-sources_test.sh
 	sh scripts/tests/target-image-rootfs_test.sh
 	sh scripts/tests/target-image_test.sh
@@ -128,6 +130,27 @@ target-image-verify:
 target-image-qemu-smoke:
 	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/qemu-smoke-target-image.sh prod build/output/target-image/prod/linux.img
 	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/qemu-smoke-target-image.sh dev build/output/target-image/dev/linux.img
+
+target-image-native-fetch: build-target-image-lock-container build-agent
+	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
+	  scripts/target-image-container.sh fetch \
+	  /work/scripts/fetch-native-runtime-inputs.sh
+	LIBMISTER_RUNTIME_DIR="$(LIBMISTER_RUNTIME_DIR)" \
+	  TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
+	  scripts/build-target-image.sh --fetch native-dev
+
+target-image-native: build-agent target-image-native-fetch
+	LIBMISTER_RUNTIME_DIR="$(LIBMISTER_RUNTIME_DIR)" \
+	  TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
+	  scripts/build-target-image.sh native-dev
+
+target-image-native-verify:
+	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-target-image.sh native-dev build/output/target-image/native-dev/linux.img build/output/target-image/native-dev/manifest.tsv build/output/target-image/native-dev/library-report.tsv
+
+target-image-native-qemu-smoke:
+	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
+	  scripts/qemu-smoke-target-image.sh native-dev \
+	  build/output/target-image/native-dev/linux.img
 
 target-image-deploy:
 	scripts/deploy-target-image.sh $(TARGET_IMAGE)

@@ -626,6 +626,8 @@ func publicErrorMessage(code protocol.ErrorCode) string {
 		return "another launch or stop transition is running"
 	case protocol.CodeUnsupportedSystem:
 		return "game system is unsupported"
+	case protocol.CodeUnsupportedOperation:
+		return "requested operation is unsupported"
 	case protocol.CodeInvalidROMPath:
 		return "target ROM path is invalid"
 	case protocol.CodeSourceUnavailable:
@@ -759,7 +761,7 @@ func writeSessionError(w http.ResponseWriter, err error) {
 		if apiErr.Code == protocol.CodeROMNotFound {
 			status = http.StatusNotFound
 		}
-		if apiErr.Code == protocol.CodeBadRequest || apiErr.Code == protocol.CodeUnsupportedSystem {
+		if apiErr.Code == protocol.CodeBadRequest || apiErr.Code == protocol.CodeUnsupportedSystem || apiErr.Code == protocol.CodeUnsupportedOperation {
 			status = http.StatusBadRequest
 		}
 		writeError(w, status, string(apiErr.Code), publicErrorMessage(apiErr.Code))

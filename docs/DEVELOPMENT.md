@@ -35,6 +35,25 @@ make target-kernel-verify
 The development image includes SSH and curl. The production image does not;
 capture and decoding tools run on the host.
 
+Build and inspect the separate native-runtime candidate with a clean runtime
+checkout at the commit pinned by `build/native-runtime.inputs.lock.toml`:
+
+```sh
+export LIBMISTER_RUNTIME_DIR=/absolute/path/to/libmister-runtime
+make target-image-native
+make target-image-native-verify
+make target-image-native-qemu-smoke
+```
+
+This produces `build/output/target-image/native-dev/linux.img`. The build runs
+twice and requires identical image digests. Verification inspects the locked
+idle RBF, build-input record, ARM runtime and static ARM agent, and the
+runtime's target-library closure. QEMU proves only the read-only root,
+volatile mounts, and init packaging. Until Task 7 runs on the designated kit,
+`native-dev` has no hardware acceptance, ready-state claim, supported game
+systems, game launch, or development-RBF support. Continue to use the legacy
+`dev` image for the working game and development-RBF paths below.
+
 ## Dedicated fixture
 
 The designated disposable kit is:

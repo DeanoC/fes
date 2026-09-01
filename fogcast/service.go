@@ -1801,6 +1801,8 @@ func canonicalError(code protocol.ErrorCode, cause error) error {
 		message = "another launch or stop transition is running"
 	case protocol.CodeUnsupportedSystem:
 		message = "game system is unsupported"
+	case protocol.CodeUnsupportedOperation:
+		message = "requested operation is unsupported"
 	case protocol.CodeInvalidROMPath:
 		message = "target ROM path is invalid"
 	case protocol.CodeSourceUnavailable:

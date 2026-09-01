@@ -42,6 +42,22 @@ MiSTer core services.
 These are simple process boundaries on a local, disposable development kit;
 they are not a distributed ownership, failover, or recovery protocol.
 
+## Agent runtime backends
+
+The target agent defaults to the existing Main runtime. Passing
+`--runtime native` explicitly selects the separate native adapter, which uses
+only `/run/mister-runtime.sock` and does not inspect the Main process,
+`/dev/MiSTer_cmd`, or `/tmp/CORENAME`. There is no backend detection or
+fallback.
+
+The native adapter reports ready only when `mister-runtime` reports `idle`.
+An idle Stop confirms that state without calling the runtime Stop operation.
+Native game support has zero systems, and game requests return an
+unsupported-system error; development loading and recovery return an
+unsupported-operation error. The separate `native-dev` candidate packages
+this composition, but it has only software and QEMU root/init packaging
+evidence. Physical idle-path acceptance remains Task 7 work.
+
 ## Other modes
 
 Host-emulator execution, remote input, capture, and host-to-target media are
@@ -55,10 +71,21 @@ The active image toolchain is under `buildroot/`, `containers/target-image/`,
 
 - `build/output/target-image/dev/linux.img`: the fast development image.
 - `build/output/target-image/prod/linux.img`: the reproducible production image.
+- `build/output/target-image/native-dev/linux.img`: the reproducible native
+  runtime candidate image.
 - `build/output/target-image/kernel/`: the reproducible kernel artifact.
 
-The target boots `/media/fat/linux/linux.img`, starts the MiSTer/Main process,
-and then starts the FAT-side FogCast agent from `/media/fat/fogcast`.
+The working `dev` and `prod` targets boot `/media/fat/linux/linux.img`, start
+the MiSTer/Main process, and then start the FAT-side FogCast agent from
+`/media/fat/fogcast`. They remain the game and development-RBF path.
+
+The `native-dev` candidate instead starts image-owned `mister-runtime` and
+then image-owned `mister-agent --runtime native`. It contains exactly one
+locked idle RBF under `/usr/share/mister-runtime`, has no Main startup or
+`/dev/MiSTer_cmd` wait, and retains the same read-only root with volatile
+`/run`, `/tmp`, and `/var/log`. Its QEMU smoke proves only root filesystem and
+init packaging; it does not emulate FPGA programming, prove target readiness,
+or establish game or development-RBF support.
 
 ## Development RBF extension
 

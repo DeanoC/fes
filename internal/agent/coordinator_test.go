@@ -3,6 +3,7 @@ package agent_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"sync"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/mister"
+	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/internal/targetcache"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -656,6 +658,133 @@ func TestHealthRemainsNotReadyAfterUnavailableReconciliation(t *testing.T) {
 	if health := coordinator.Health("0.1.0"); health.Ready {
 		t.Fatalf("health = %#v", health)
 	}
+}
+
+type nativeIdleControl struct {
+	statusCalls int
+	stopCalls   int
+}
+
+func (c *nativeIdleControl) Status(context.Context) (misterruntime.Response, error) {
+	c.statusCalls++
+	return misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
+}
+
+func (c *nativeIdleControl) Stop(context.Context) (misterruntime.Response, error) {
+	c.stopCalls++
+	return misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
+}
+
+func TestCoordinatorStopWhileNativeIdleDoesNotCallRuntimeStop(t *testing.T) {
+	t.Parallel()
+	control := &nativeIdleControl{}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	coordinator := agent.New(runtime, core.NewRegistry(), time.Second, time.Second)
+	coordinator.Initialize(context.Background())
+	status, apiErr := coordinator.Stop(context.Background())
+	if apiErr != nil || status.State != protocol.StateIdle {
+		t.Fatalf("stop = %#v, %#v", status, apiErr)
+	}
+	if control.statusCalls != 1 || control.stopCalls != 0 {
+		t.Fatalf("control calls = status:%d stop:%d", control.statusCalls, control.stopCalls)
+	}
+}
+
+type unreadNativeDevelopmentBody struct {
+	reads int
+}
+
+func (r *unreadNativeDevelopmentBody) Read([]byte) (int, error) {
+	r.reads++
+	return 0, errors.New("native unsupported body must not be read")
+}
+
+func TestNativeUnsupportedDevelopmentPreservesIdleAndPublicStopDoesNotMutateControl(t *testing.T) {
+	t.Parallel()
+	control := &nativeIdleControl{}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	coordinator := agent.New(runtime, core.NewRegistry(), time.Second, time.Second)
+	coordinator.Initialize(context.Background())
+	body := &unreadNativeDevelopmentBody{}
+
+	returned, apiErr := coordinator.LoadDevelopmentRBF(context.Background(), 3, body)
+	if apiErr == nil || apiErr.Code != protocol.CodeUnsupportedOperation || apiErr.Message != "requested operation is unsupported" {
+		t.Fatalf("development error = %#v", apiErr)
+	}
+	assertCleanIdleStatus(t, returned)
+	assertCleanIdleStatus(t, coordinator.Status())
+	if body.reads != 0 {
+		t.Fatalf("development body reads = %d", body.reads)
+	}
+
+	stopped, stopErr := coordinator.Stop(context.Background())
+	if stopErr != nil {
+		t.Fatalf("idle stop error = %#v", stopErr)
+	}
+	assertCleanIdleStatus(t, stopped)
+	if control.statusCalls != 2 || control.stopCalls != 0 {
+		t.Fatalf("control calls = status:%d stop:%d", control.statusCalls, control.stopCalls)
+	}
+}
+
+func TestAttemptedDevelopmentFailureStillReportsFailedOwnership(t *testing.T) {
+	t.Parallel()
+	runtime := &fakeRuntime{
+		health:              protocol.Health{Ready: true},
+		developmentObserved: "DEVCORE",
+		developmentErr:      &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "dispatch result is uncertain"},
+	}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	status, apiErr := coordinator.LoadDevelopmentRBF(context.Background(), 3, bytes.NewReader([]byte("rbf")))
+	if apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable {
+		t.Fatalf("development error = %#v", apiErr)
+	}
+	if status.State != protocol.StateFailed || !status.Development || status.ObservedCore == nil || *status.ObservedCore != "DEVCORE" || status.LastError == nil || status.LastError.Code != protocol.CodeMiSTerUnavailable {
+		t.Fatalf("status = %#v", status)
+	}
+}
+
+func assertCleanIdleStatus(t *testing.T, status protocol.Status) {
+	t.Helper()
+	if status.State != protocol.StateIdle || status.Development || status.GameID != nil || status.System != nil || status.ExpectedCore != nil || status.ObservedCore != nil || status.LastError != nil || status.Recovery != "" {
+		t.Fatalf("status = %#v", status)
+	}
+}
+
+func TestUnavailableCoordinatorErrorsUseBackendNeutralMessage(t *testing.T) {
+	t.Parallel()
+	const wantMessage = "target runtime is unavailable"
+
+	t.Run("launch", func(t *testing.T) {
+		runtime := &fakeRuntime{health: protocol.Health{Ready: false}}
+		coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+		_, apiErr := coordinator.Launch(context.Background(), protocol.LaunchRequest{GameID: "snes-test", System: protocol.SystemSNES, ROMPath: "/games/test.sfc"})
+		if apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable || apiErr.Message != wantMessage {
+			t.Fatalf("error = %#v", apiErr)
+		}
+	})
+
+	t.Run("development", func(t *testing.T) {
+		runtime := &fakeRuntime{health: protocol.Health{Ready: false}}
+		coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+		_, apiErr := coordinator.LoadDevelopmentRBF(context.Background(), 3, bytes.NewReader([]byte("rbf")))
+		if apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable || apiErr.Message != wantMessage {
+			t.Fatalf("error = %#v", apiErr)
+		}
+	})
+
+	t.Run("stop", func(t *testing.T) {
+		runtime := &fakeRuntime{health: protocol.Health{Ready: true}, launchObserved: "SNES"}
+		coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+		if _, apiErr := coordinator.Launch(context.Background(), protocol.LaunchRequest{GameID: "snes-test", System: protocol.SystemSNES, ROMPath: "/games/test.sfc"}); apiErr != nil {
+			t.Fatal(apiErr)
+		}
+		runtime.health.Ready = false
+		_, apiErr := coordinator.Stop(context.Background())
+		if apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable || apiErr.Message != wantMessage {
+			t.Fatalf("error = %#v", apiErr)
+		}
+	})
 }
 
 func TestInvalidLaunchPreservesPreviousState(t *testing.T) {
