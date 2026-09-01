@@ -214,7 +214,7 @@ func (c *Coordinator) Launch(parent context.Context, request protocol.LaunchRequ
 
 func (c *Coordinator) launchWithIntent(parent context.Context, gameID string, spec core.Spec, romPath string, recordIntent func() *protocol.APIError) (protocol.Status, bool, *protocol.APIError) {
 	if !c.runtime.Health("").Ready {
-		return c.Status(), false, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "Main_MiSTer or command pipe is unavailable"}
+		return c.Status(), false, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}
 	}
 	prepared, apiErr := c.runtime.Prepare(spec, romPath)
 	if apiErr != nil {
@@ -249,7 +249,7 @@ func (c *Coordinator) LoadDevelopmentRBF(parent context.Context, size int64, con
 	}
 	defer c.end()
 	if !c.runtime.Health("").Ready {
-		return c.Status(), &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "Main_MiSTer or command pipe is unavailable"}
+		return c.Status(), &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}
 	}
 	c.set(protocol.Status{State: protocol.StateLaunching, Development: true})
 	ctx, cancel := context.WithTimeout(parent, c.launchTimeout)
@@ -289,7 +289,7 @@ func (c *Coordinator) Stop(parent context.Context) (protocol.Status, *protocol.A
 		return c.Status(), nil
 	}
 	if !c.runtime.Health("").Ready {
-		return current, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "Main_MiSTer or command pipe is unavailable"}
+		return current, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}
 	}
 	stopping := cloneStatus(current)
 	stopping.State = protocol.StateStopping

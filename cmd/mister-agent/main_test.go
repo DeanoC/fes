@@ -21,6 +21,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/httpapi"
 	"github.com/DeanoC/FogCast/internal/input"
 	"github.com/DeanoC/FogCast/internal/mister"
+	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/internal/targetcache"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -32,7 +33,7 @@ func TestRunDoesNotExposeMalformedConfigurationContents(t *testing.T) {
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	err := run(context.Background(), path, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	err := run(context.Background(), path, runtimeMain, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	if err == nil {
 		t.Fatal("malformed configuration was accepted")
 	}
@@ -351,7 +352,11 @@ func TestRunCacheInventoryFailureAbortsBeforeListening(t *testing.T) {
 
 func TestProductionCacheDependencyCreatesPrivateInventory(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "cache")
-	store, err := productionRunDependencies().openCache(targetcache.Config{
+	dependencies, err := productionRunDependencies(runtimeMain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := dependencies.openCache(targetcache.Config{
 		Root:         root,
 		ActiveRecord: filepath.Join(t.TempDir(), "run", "fogcast-active.json"),
 		MaxBytes:     64 << 20,
@@ -367,6 +372,93 @@ func TestProductionCacheDependencyCreatesPrivateInventory(t *testing.T) {
 		if err != nil || !info.IsDir() || info.Mode().Perm() != 0o700 {
 			t.Fatalf("cache directory %q = %v, err=%v, want requested directory mode 0700 on regular filesystem", filepath.Base(directory), info, err)
 		}
+	}
+}
+
+func TestProductionRuntimeBackendDefaultsToMain(t *testing.T) {
+	t.Parallel()
+	dependencies, err := productionRunDependencies(runtimeMain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime := dependencies.newRuntime(agentconfig.Config{}, core.NewRegistry())
+	if _, ok := runtime.(*mister.Runtime); !ok {
+		t.Fatalf("default runtime = %T, want *mister.Runtime", runtime)
+	}
+}
+
+func TestProductionRuntimeBackendSelectsNativeOnlyWhenExplicit(t *testing.T) {
+	t.Parallel()
+	mainDependencies, err := productionRunDependencies(runtimeMain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nativeDependencies, err := productionRunDependencies(runtimeNative)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := mainDependencies.newRuntime(agentconfig.Config{}, core.NewRegistry()).(*mister.Runtime); !ok {
+		t.Fatal("main backend did not compose Main runtime")
+	}
+	if _, ok := nativeDependencies.newRuntime(agentconfig.Config{}, core.NewRegistry()).(*misterruntime.Runtime); !ok {
+		t.Fatal("native backend did not compose native runtime")
+	}
+}
+
+func TestProductionRuntimeBackendRejectsUnknownValueWithoutFallback(t *testing.T) {
+	t.Parallel()
+	if _, err := productionRunDependencies(runtimeBackend("automatic")); err == nil {
+		t.Fatal("unknown runtime backend was accepted")
+	}
+	err := run(context.Background(), filepath.Join(t.TempDir(), "missing-config.toml"), runtimeBackend("automatic"), slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	if err == nil || err.Error() != "target runtime backend is invalid" {
+		t.Fatalf("run error = %v", err)
+	}
+}
+
+type idleCompositionControl struct {
+	statusCalls int
+	stopCalls   int
+}
+
+func (c *idleCompositionControl) Status(context.Context) (misterruntime.Response, error) {
+	c.statusCalls++
+	return misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
+}
+
+func (c *idleCompositionControl) Stop(context.Context) (misterruntime.Response, error) {
+	c.stopCalls++
+	return misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
+}
+
+type unreadCompositionBody struct {
+	reads int
+}
+
+func (r *unreadCompositionBody) Read([]byte) (int, error) {
+	r.reads++
+	return 0, errors.New("body must not be read")
+}
+
+func TestNativeCompositionReportsIdleAndUnsupportedDevelopment(t *testing.T) {
+	t.Parallel()
+	control := &idleCompositionControl{}
+	dependencies, err := runtimeDependencies(runtimeNative, control)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime := dependencies.newRuntime(agentconfig.Config{}, core.NewRegistry())
+	status := runtime.Reconcile(context.Background())
+	if status.State != protocol.StateIdle || status.LastError != nil {
+		t.Fatalf("status = %#v", status)
+	}
+	body := &unreadCompositionBody{}
+	_, attempted, apiErr := runtime.LoadDevelopmentRBF(context.Background(), 3, body)
+	if attempted || apiErr == nil || apiErr.Code != protocol.CodeUnsupportedOperation || body.reads != 0 {
+		t.Fatalf("development = attempted:%t error:%#v reads:%d", attempted, apiErr, body.reads)
+	}
+	if control.statusCalls != 1 || control.stopCalls != 0 {
+		t.Fatalf("control calls = status:%d stop:%d", control.statusCalls, control.stopCalls)
 	}
 }
 

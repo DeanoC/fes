@@ -42,6 +42,21 @@ MiSTer core services.
 These are simple process boundaries on a local, disposable development kit;
 they are not a distributed ownership, failover, or recovery protocol.
 
+## Agent runtime backends
+
+The target agent defaults to the existing Main runtime. Passing
+`--runtime native` explicitly selects the separate native adapter, which uses
+only `/run/mister-runtime.sock` and does not inspect the Main process,
+`/dev/MiSTer_cmd`, or `/tmp/CORENAME`. There is no backend detection or
+fallback.
+
+The native adapter currently reports ready only when `mister-runtime` reports
+`idle`. An idle Stop confirms that state without calling the runtime Stop
+operation. Native game support has zero systems, and game requests return an
+unsupported-system error; development loading and recovery return an
+unsupported-operation error. Packaging this composition in the `native-dev`
+image and completing physical idle-path acceptance remain pending work.
+
 ## Other modes
 
 Host-emulator execution, remote input, capture, and host-to-target media are

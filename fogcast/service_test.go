@@ -3320,6 +3320,19 @@ func TestServiceLaunchRejectsUnmappedPlatformWithoutProbe(t *testing.T) {
 	}
 }
 
+func TestCanonicalRemoteErrorPreservesUnsupportedOperation(t *testing.T) {
+	t.Parallel()
+	private := errors.New("private target detail")
+	err := canonicalRemoteError(errors.Join(&protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "target wording"}, private), protocol.CodeTransferFailed)
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeUnsupportedOperation || apiErr.Message != "requested operation is unsupported" {
+		t.Fatalf("canonical error = %#v", err)
+	}
+	if strings.Contains(err.Error(), "private") || strings.Contains(err.Error(), "target wording") {
+		t.Fatalf("remote detail leaked: %v", err)
+	}
+}
+
 type fakePathHostExecutor struct {
 	fakeHostExecutor
 	pathCalls  int

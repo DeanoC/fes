@@ -358,7 +358,7 @@ func statusForError(code protocol.ErrorCode) int {
 		return http.StatusNotFound
 	case protocol.CodeBusy:
 		return http.StatusConflict
-	case protocol.CodeUnsupportedSystem, protocol.CodeInvalidROMPath, protocol.CodeSourceUnavailable, protocol.CodeInvalidArchive, protocol.CodeDigestMismatch:
+	case protocol.CodeUnsupportedSystem, protocol.CodeUnsupportedOperation, protocol.CodeInvalidROMPath, protocol.CodeSourceUnavailable, protocol.CodeInvalidArchive, protocol.CodeDigestMismatch:
 		return http.StatusUnprocessableEntity
 	case protocol.CodeTransferFailed:
 		return http.StatusBadRequest

@@ -511,6 +511,23 @@ func TestSessionUnknownDevelopmentStateDoesNotUseBoundedStopAfterHostRestart(t *
 	}
 }
 
+func TestSessionUnsupportedOperationIsPublicBadRequest(t *testing.T) {
+	t.Parallel()
+	service := &fakeService{developmentErr: &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "private target wording"}}
+	handler := hostapi.New(service)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/development-rbf", strings.NewReader("rbf"))
+	request.Host = "127.0.0.1"
+	request.Header.Set("Content-Type", "application/octet-stream")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), `"code":"UNSUPPORTED_OPERATION"`) || !strings.Contains(response.Body.String(), `"message":"requested operation is unsupported"`) {
+		t.Fatalf("response = %d %s", response.Code, response.Body.String())
+	}
+	if strings.Contains(response.Body.String(), "private") {
+		t.Fatalf("target detail leaked: %s", response.Body.String())
+	}
+}
+
 func TestSessionDevelopmentRBFRejectsInvalidStreamMetadata(t *testing.T) {
 	for _, test := range []struct {
 		name    string
