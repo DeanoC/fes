@@ -95,6 +95,23 @@ validate_start_commands() {
     EXPECTED_LAUNCH="$expected_launch" \
     EXPECTED_PID_WRITE="$expected_pid_write" \
     awk '
+      function has_service_basename(line, fields, field_count, i, word) {
+        field_count=split(line, fields, /[[:space:]]+/)
+        for (i=1; i <= field_count; i++) {
+          word=fields[i]
+          if (word ~ /^#/) {
+            return 0
+          }
+          sub(/^\$\(/, "", word)
+          gsub(/^[;&|(){}]+/, "", word)
+          gsub(/[;&|(){}]+$/, "", word)
+          if (word == "mister-runtime" || word == "mister-agent") {
+            return 1
+          }
+        }
+        return 0
+      }
+
       BEGIN {
         expected_launch=ENVIRON["EXPECTED_LAUNCH"]
         expected_pid_write=ENVIRON["EXPECTED_PID_WRITE"]
@@ -119,6 +136,9 @@ validate_start_commands() {
             index($0, "/usr/sbin/mister-agent") != 0) {
           native_launch_line_count++
         }
+        if ($0 != expected_launch && has_service_basename($0)) {
+          unexpected_service_basename_count++
+        }
         if (index($0, "$!") != 0 && index($0, ">") != 0) {
           pid_write_count++
         }
@@ -127,6 +147,7 @@ validate_start_commands() {
         if (launch_count != 1 || pid_count != 1 ||
             background_count != 1 || supervisor_count != 1 ||
             native_launch_line_count != 1 ||
+            unexpected_service_basename_count != 0 ||
             pid_write_count != 1 || pid_line != launch_line + 1) {
           exit 1
         }

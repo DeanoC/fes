@@ -509,6 +509,55 @@ if verify_fixture native-dev "$native_extra_launch" "$fixture/native-extra-launc
   service_validation_failures=$((service_validation_failures + 1))
 fi
 
+assert_reject_extra_service_basename() {
+  fixture_name=$1
+  service_path=$2
+  pid_write=$3
+  extra_command=$4
+  description=$5
+  mutated_root=$fixture/$fixture_name
+  cp -R "$native_root" "$mutated_root"
+  PID_WRITE="$pid_write" EXTRA_COMMAND="$extra_command" awk '
+    { print }
+    $0 == ENVIRON["PID_WRITE"] {
+      print "    " ENVIRON["EXTRA_COMMAND"]
+    }
+  ' "$mutated_root/$service_path" > "$mutated_root/$service_path.new"
+  mv "$mutated_root/$service_path.new" "$mutated_root/$service_path"
+  chmod 0755 "$mutated_root/$service_path"
+  if verify_fixture native-dev "$mutated_root" \
+    "$fixture/$fixture_name.manifest" "$fixture/$fixture_name.libraries" \
+    >/dev/null 2>&1; then
+    printf 'native verifier accepted %s\n' "$description" >&2
+    service_validation_failures=$((service_validation_failures + 1))
+  fi
+}
+
+assert_reject_extra_service_basename \
+  native-extra-runtime-bare etc/init.d/S40mister-runtime \
+  '    printf '\''%s\n'\'' "$!" > /run/mister-runtime-supervisor.pid' \
+  mister-runtime 'a bare runtime basename launch'
+assert_reject_extra_service_basename \
+  native-extra-runtime-exec etc/init.d/S40mister-runtime \
+  '    printf '\''%s\n'\'' "$!" > /run/mister-runtime-supervisor.pid' \
+  'exec mister-runtime' 'an exec runtime basename launch'
+assert_reject_extra_service_basename \
+  native-extra-runtime-command etc/init.d/S40mister-runtime \
+  '    printf '\''%s\n'\'' "$!" > /run/mister-runtime-supervisor.pid' \
+  'command mister-runtime' 'a command runtime basename launch'
+assert_reject_extra_service_basename \
+  native-extra-agent-bare etc/init.d/S50mister-agent \
+  '    printf '\''%s\n'\'' "$!" > /run/mister-agent-supervisor.pid' \
+  mister-agent 'a bare agent basename launch'
+assert_reject_extra_service_basename \
+  native-extra-agent-exec etc/init.d/S50mister-agent \
+  '    printf '\''%s\n'\'' "$!" > /run/mister-agent-supervisor.pid' \
+  'exec mister-agent' 'an exec agent basename launch'
+assert_reject_extra_service_basename \
+  native-extra-agent-command etc/init.d/S50mister-agent \
+  '    printf '\''%s\n'\'' "$!" > /run/mister-agent-supervisor.pid' \
+  'command mister-agent' 'a command agent basename launch'
+
 native_missing_pid_write=$fixture/native-missing-pid-write
 cp -R "$native_root" "$native_missing_pid_write"
 awk '
