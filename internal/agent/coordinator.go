@@ -251,11 +251,16 @@ func (c *Coordinator) LoadDevelopmentRBF(parent context.Context, size int64, con
 	if !c.runtime.Health("").Ready {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}
 	}
+	previous := c.Status()
 	c.set(protocol.Status{State: protocol.StateLaunching, Development: true})
 	ctx, cancel := context.WithTimeout(parent, c.launchTimeout)
 	defer cancel()
-	observed, _, apiErr := c.runtime.LoadDevelopmentRBF(ctx, size, content)
+	observed, dispatchAttempted, apiErr := c.runtime.LoadDevelopmentRBF(ctx, size, content)
 	if apiErr != nil {
+		if !dispatchAttempted && apiErr.Code == protocol.CodeUnsupportedOperation {
+			c.set(previous)
+			return c.Status(), apiErr
+		}
 		failed := protocol.Status{State: protocol.StateFailed, Development: true, LastError: cloneAPIError(apiErr)}
 		if observed != "" {
 			failed.ObservedCore = &observed

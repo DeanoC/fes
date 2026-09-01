@@ -299,6 +299,21 @@ func TestNativeDirectStopTranslationMapsControlResultForLaterMilestone(t *testin
 			t.Fatalf("stop = observed:%q error:%#v", observed, apiErr)
 		}
 	})
+
+	t.Run("idle error result", func(t *testing.T) {
+		response := runtimeResponse("idle", "none")
+		response.OK = false
+		response.Error = &misterruntime.RemoteError{Code: "io_failed", Message: "private idle stop detail"}
+		control := &recordingControl{stop: response}
+		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+		observed, apiErr := runtime.Stop(context.Background())
+		if observed != "" || apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable || apiErr.Message != "target runtime is unavailable" {
+			t.Fatalf("stop = observed:%q error:%#v", observed, apiErr)
+		}
+		if strings.Contains(apiErr.Message, "private") {
+			t.Fatalf("stop detail leaked: %#v", apiErr)
+		}
+	})
 }
 
 func TestNativeHealthReadsBootIDWithoutLeakingReadErrors(t *testing.T) {

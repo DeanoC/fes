@@ -77,7 +77,7 @@ func (r *Runtime) RecoverDevelopment(context.Context) (string, *protocol.APIErro
 
 func (r *Runtime) Stop(ctx context.Context) (string, *protocol.APIError) {
 	response, err := r.control.Stop(ctx)
-	if err != nil || response.State != "idle" {
+	if err != nil || !response.OK || response.State != "idle" {
 		return "", unavailableError()
 	}
 	return "", nil
