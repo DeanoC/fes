@@ -18,6 +18,93 @@ expect_rejected() {
   fi
 }
 
+active_once() {
+  active_file=$1
+  active_value=$2
+  awk -v wanted="$active_value" '
+    $0 !~ /^[[:space:]]*#/ && $0 == wanted { count++ }
+    END { exit count == 1 ? 0 : 1 }
+  ' "$active_file"
+}
+
+extract_command_block() {
+  extract_file=$1
+  extract_name=$2
+  extract_output=$3
+  awk -v wanted="define $extract_name" '
+    $0 == wanted {
+      found++
+      active=1
+      next
+    }
+    active && $0 == "endef" {
+      ended++
+      active=0
+      next
+    }
+    active { print }
+    END { if (found != 1 || ended != 1 || active) exit 1 }
+  ' "$extract_file" >"$extract_output"
+}
+
+validate_package_semantics() {
+  validate_mk=$1
+  validate_package_config=$2
+  validate_root_config=$3
+  validate_external=$4
+
+  active_once "$validate_mk" 'MISTER_RUNTIME_SITE = /runtime-source' &&
+    active_once "$validate_mk" 'MISTER_RUNTIME_SITE_METHOD = local' &&
+    active_once "$validate_mk" 'MISTER_RUNTIME_LICENSE = GPL-3.0-or-later' &&
+    active_once "$validate_mk" 'MISTER_RUNTIME_LICENSE_FILES = LICENSE' &&
+    active_once "$validate_mk" '$(eval $(generic-package))' || return 1
+
+  extract_command_block "$validate_mk" MISTER_RUNTIME_BUILD_CMDS \
+    "$fixture/actual-build-block" || return 1
+  cmp "$expected_build_block" "$fixture/actual-build-block" >/dev/null 2>&1 || return 1
+  extract_command_block "$validate_mk" MISTER_RUNTIME_INSTALL_TARGET_CMDS \
+    "$fixture/actual-install-block" || return 1
+  cmp "$expected_install_block" "$fixture/actual-install-block" >/dev/null 2>&1 || return 1
+
+  awk '
+    /^define MISTER_RUNTIME_.*_CMDS$/ { definitions[$0]++ }
+    END {
+      exit definitions["define MISTER_RUNTIME_BUILD_CMDS"] == 1 &&
+           definitions["define MISTER_RUNTIME_INSTALL_TARGET_CMDS"] == 1 &&
+           length(definitions) == 2 ? 0 : 1
+    }
+  ' "$validate_mk" || return 1
+
+  awk '
+    /^[[:space:]]*#/ { next }
+    /^config / { section=$2; configs[$2]++; next }
+    section == "BR2_PACKAGE_FOGCAST_MISTER_RUNTIME" &&
+      $0 == "\tbool \"mister-runtime\"" { public_bool++ }
+    section == "BR2_PACKAGE_MISTER_RUNTIME" &&
+      $0 == "\tbool" { hidden_bool++ }
+    section == "BR2_PACKAGE_MISTER_RUNTIME" &&
+      $0 == "\tdefault y if BR2_PACKAGE_FOGCAST_MISTER_RUNTIME" { bridge++ }
+    END {
+      exit configs["BR2_PACKAGE_FOGCAST_MISTER_RUNTIME"] == 1 &&
+           configs["BR2_PACKAGE_MISTER_RUNTIME"] == 1 &&
+           public_bool == 1 && hidden_bool == 1 && bridge == 1 ? 0 : 1
+    }
+  ' "$validate_package_config" || return 1
+
+  active_once "$validate_root_config" \
+    'source "$BR2_EXTERNAL_FOGCAST_TARGET_PATH/package/mister-runtime/Config.in"' &&
+    active_once "$validate_external" \
+      'include $(sort $(wildcard $(BR2_EXTERNAL_FOGCAST_TARGET_PATH)/package/*/*.mk))'
+}
+
+expect_semantic_rejected() {
+  semantic_name=$1
+  shift
+  if validate_package_semantics "$@"; then
+    fail "package semantic validator accepted $semantic_name"
+  fi
+}
+
 write_lock() {
   write_path=$1
   write_runtime_commit=$2
@@ -55,10 +142,14 @@ runtime_source=$fixture/runtime-source
 mkdir -p "$runtime_source"
 git -C "$runtime_source" init -q
 printf '%s\n' runtime >"$runtime_source/README"
-git -C "$runtime_source" add README
+printf '%s\n' /build/ >"$runtime_source/.gitignore"
+git -C "$runtime_source" add README .gitignore
 git -C "$runtime_source" -c user.name=Test -c user.email=test@example.invalid \
   commit -q -m fixture
 runtime_commit=$(git -C "$runtime_source" rev-parse HEAD)
+mkdir -p "$runtime_source/build"
+printf '%s\n' 'ignored x86-64 host object' >"$runtime_source/build/host-object.o"
+test -z "$(git -C "$runtime_source" status --porcelain --untracked-files=all)"
 
 idle=$fixture/idle.rbf
 printf '%s' 'fixture idle rbf' >"$idle"
@@ -177,7 +268,7 @@ NATIVE_RUNTIME_FAKE_DOWNLOAD=$idle \
 NATIVE_RUNTIME_FETCH_LOG=$fetch_log \
   sh "$fetcher"
 cmp "$idle" "$fetch_cache/idle.rbf"
-grep -Fqx \
+grep -Fqx -- \
   "https://raw.githubusercontent.com/MiSTer-devel/Distribution_MiSTer/f7bde4becb452ca28f604ad9802bbed5c6b58e01/menu.rbf" \
   "$fetch_log"
 
@@ -206,21 +297,163 @@ expect_rejected 'fetch with wrong size' \
 test "$(cat "$fetch_cache/idle.rbf")" = prior || \
   fail 'wrong-size fetch replaced the prior cached artifact'
 
-grep -Fq 'MISTER_RUNTIME_SITE = /runtime-source' "$package_mk"
-grep -Fq 'MISTER_RUNTIME_SITE_METHOD = local' "$package_mk"
-grep -Fq 'CXX="$(TARGET_CXX)" AR="$(TARGET_AR)" NM="$(TARGET_NM)"' "$package_mk"
-grep -Fq 'CXXFILT="$(TARGET_CROSS)c++filt"' "$package_mk"
-grep -Fq 'MISTER_RUNTIME_VERSION="git-$(FOGCAST_MISTER_RUNTIME_COMMIT)"' "$package_mk"
-grep -Fq '$(@D)/build/mister-runtime' "$package_mk"
-grep -Fq '$(TARGET_DIR)/usr/sbin/mister-runtime' "$package_mk"
+expected_build_block=$fixture/expected-build-block
+cat >"$expected_build_block" <<'EOF'
+	/bin/rm -rf "$(@D)/build"
+	$(TARGET_MAKE_ENV) $(MAKE) -C $(@D) \
+		CXX="$(TARGET_CXX)" AR="$(TARGET_AR)" NM="$(TARGET_NM)" \
+		CXXFILT="$(TARGET_CROSS)c++filt" \
+		MISTER_RUNTIME_VERSION="git-$(FOGCAST_MISTER_RUNTIME_COMMIT)" \
+		all
+EOF
+expected_install_block=$fixture/expected-install-block
+cat >"$expected_install_block" <<'EOF'
+	$(INSTALL) -D -m 0755 $(@D)/build/mister-runtime \
+		$(TARGET_DIR)/usr/sbin/mister-runtime
+EOF
+
+# Prove the active package surface first, then pressure-test the same validator
+# against realistic mutations of that accepted source.
+candidate_mk=$package_mk
+validate_package_semantics "$candidate_mk" "$package_config" \
+  "$repo/buildroot/Config.in" "$repo/buildroot/external.mk" ||
+  fail 'semantic validator rejected the intended package shape'
+
+commented_root_config=$fixture/commented-root-Config.in
+sed 's/^source /# source /' "$repo/buildroot/Config.in" >"$commented_root_config"
+expect_semantic_rejected 'commented Config.in wiring' \
+  "$candidate_mk" "$package_config" "$commented_root_config" \
+  "$repo/buildroot/external.mk"
+
+commented_external=$fixture/commented-external.mk
+sed 's/^include /# include /' "$repo/buildroot/external.mk" >"$commented_external"
+expect_semantic_rejected 'commented external.mk wiring' \
+  "$candidate_mk" "$package_config" "$repo/buildroot/Config.in" \
+  "$commented_external"
+
+missing_bridge_config=$fixture/missing-bridge-Config.in
+sed '/^config BR2_PACKAGE_MISTER_RUNTIME$/d' "$package_config" \
+  >"$missing_bridge_config"
+expect_semantic_rejected 'missing hidden Kconfig bridge' \
+  "$candidate_mk" "$missing_bridge_config" "$repo/buildroot/Config.in" \
+  "$repo/buildroot/external.mk"
+
+missing_default_config=$fixture/missing-default-Config.in
+sed '/default y if BR2_PACKAGE_FOGCAST_MISTER_RUNTIME/d' "$package_config" \
+  >"$missing_default_config"
+expect_semantic_rejected 'missing Kconfig bridge default' \
+  "$candidate_mk" "$missing_default_config" "$repo/buildroot/Config.in" \
+  "$repo/buildroot/external.mk"
+
+missing_all_mk=$fixture/missing-all.mk
+sed '/^[[:space:]]*all$/d' "$candidate_mk" >"$missing_all_mk"
+expect_semantic_rejected 'missing production all target' \
+  "$missing_all_mk" "$package_config" "$repo/buildroot/Config.in" \
+  "$repo/buildroot/external.mk"
+
+extra_target_mk=$fixture/extra-target.mk
+sed 's/^[[:space:]]*all$/\t\tall test/' "$candidate_mk" >"$extra_target_mk"
+expect_semantic_rejected 'extra build target' \
+  "$extra_target_mk" "$package_config" "$repo/buildroot/Config.in" \
+  "$repo/buildroot/external.mk"
+
+wrong_tool_mk=$fixture/wrong-tool.mk
+sed 's/CXX="$(TARGET_CXX)"/CXX="$(HOSTCXX)"/' "$candidate_mk" \
+  >"$wrong_tool_mk"
+expect_semantic_rejected 'host compiler substitution' \
+  "$wrong_tool_mk" "$package_config" "$repo/buildroot/Config.in" \
+  "$repo/buildroot/external.mk"
+
+extra_build_command_mk=$fixture/extra-build-command.mk
+awk '
+  { print }
+  $0 == "define MISTER_RUNTIME_BUILD_CMDS" { print "\t/bin/true" }
+' "$candidate_mk" >"$extra_build_command_mk"
+expect_semantic_rejected 'extra build command' \
+  "$extra_build_command_mk" "$package_config" "$repo/buildroot/Config.in" \
+  "$repo/buildroot/external.mk"
+
+extra_install_mk=$fixture/extra-install.mk
+awk '
+  $0 == "define MISTER_RUNTIME_INSTALL_TARGET_CMDS" { install=1 }
+  install && $0 == "endef" {
+    print "\t$(INSTALL) -D -m 0644 $(@D)/build/libmister-runtime.a $(TARGET_DIR)/usr/lib/libmister-runtime.a"
+    install=0
+  }
+  { print }
+' "$candidate_mk" >"$extra_install_mk"
+expect_semantic_rejected 'extra installed file and destination' \
+  "$extra_install_mk" "$package_config" "$repo/buildroot/Config.in" \
+  "$repo/buildroot/external.mk"
+
+package_source=$fixture/package-source
+mkdir -p "$package_source"
+cp -R "$runtime_source/." "$package_source/"
+test -f "$package_source/build/host-object.o"
+fake_make=$fixture/fake-runtime-make
+fake_make_log=$fixture/fake-runtime-make.log
+cat >"$fake_make" <<'EOF'
+#!/bin/sh
+set -eu
+test "$#" -eq 8
+test "$1" = -C
+source=$2
+test "$3" = CXX=target-c++
+test "$4" = AR=target-ar
+test "$5" = NM=target-nm
+test "$6" = CXXFILT=target-c++filt
+test "$7" = "MISTER_RUNTIME_VERSION=git-$EXPECTED_RUNTIME_COMMIT"
+test "$8" = all
+printf '%s\n' "$*" >"$PACKAGE_FAKE_MAKE_LOG"
+if [ -e "$source/build/host-object.o" ]; then
+  printf '%s\n' 'ignored host build artifact reached package build' >&2
+  exit 90
+fi
+mkdir -p "$source/build"
+printf '%s\n' target-arm-daemon >"$source/build/mister-runtime"
+chmod 0755 "$source/build/mister-runtime"
+EOF
+chmod 0755 "$fake_make"
+
+package_target=$fixture/target
+package_harness=$fixture/package-harness.mk
+cat >"$package_harness" <<EOF
+PACKAGE_SOURCE := $package_source
+FAKE_MAKE := $fake_make
+TARGET_MAKE_ENV :=
+MAKE := \$(FAKE_MAKE)
+TARGET_CXX := target-c++
+TARGET_AR := target-ar
+TARGET_NM := target-nm
+TARGET_CROSS := target-
+FOGCAST_MISTER_RUNTIME_COMMIT := $runtime_commit
+INSTALL := /usr/bin/install
+TARGET_DIR := $package_target
+generic-package :=
+include $package_mk
+
+\$(PACKAGE_SOURCE)/.build-stamp:
+	\$(MISTER_RUNTIME_BUILD_CMDS)
+
+\$(PACKAGE_SOURCE)/.install-stamp:
+	\$(MISTER_RUNTIME_INSTALL_TARGET_CMDS)
+EOF
+EXPECTED_RUNTIME_COMMIT=$runtime_commit PACKAGE_FAKE_MAKE_LOG=$fake_make_log \
+  make -f "$package_harness" "$package_source/.build-stamp"
+test ! -e "$package_source/build/host-object.o" || \
+  fail 'ignored host build artifact survived package build preparation'
+grep -Fqx -- \
+  "-C $package_source CXX=target-c++ AR=target-ar NM=target-nm CXXFILT=target-c++filt MISTER_RUNTIME_VERSION=git-$runtime_commit all" \
+  "$fake_make_log"
+make -f "$package_harness" "$package_source/.install-stamp"
+test "$(find "$package_target" -type f -print)" = \
+  "$package_target/usr/sbin/mister-runtime" ||
+  fail 'package installed something other than the production daemon'
+test "$(cat "$package_target/usr/sbin/mister-runtime")" = target-arm-daemon
+
 if grep -Eqi '(fake|Main_MiSTer|git clone|https?://)' "$package_mk"; then
   fail 'Buildroot package contains a fake/Main/network source path'
 fi
-test "$(grep -c '\$(INSTALL)' "$package_mk")" -eq 1 || \
-  fail 'Buildroot package installs more than the production daemon'
-grep -Fq 'config BR2_PACKAGE_FOGCAST_MISTER_RUNTIME' "$package_config"
-grep -Fq 'package/mister-runtime/Config.in' "$repo/buildroot/Config.in"
-grep -Fq 'package/*/*.mk' "$repo/buildroot/external.mk"
 grep -Fq 'sh scripts/tests/native-runtime-inputs_test.sh' "$repo/Makefile"
 
 real_lock=$repo/build/native-runtime.inputs.lock.toml
