@@ -64,6 +64,25 @@ Host-emulator execution, remote input, capture, and host-to-target media are
 existing optional modes. They share the host session UI but do not replace or
 precede the direct FPGA launch path.
 
+## Native 10-foot launcher
+
+`cmd/fogcast-tenfoot` is an SDL3 host-side cover grid. It is another client of
+the public host API, not a second launch path:
+
+```text
+Native SDL3 UI
+  -> GET /api/v1/games
+  -> GET /api/v1/presentation/games/{id}
+  -> GET /api/v1/presentation/artwork/{handle}
+  -> POST /api/v1/session/launch
+  -> host session service
+  -> existing FPGA launch path
+```
+
+Source entry points are `host/tenfoot/` and `cmd/fogcast-tenfoot`. The browser
+shell remains the default UI. Build and run notes are in
+[native-tenfoot-launcher/README.md](native-tenfoot-launcher/README.md).
+
 ## Target image
 
 The active image toolchain is under `buildroot/`, `containers/target-image/`,
