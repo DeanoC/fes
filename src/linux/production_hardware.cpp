@@ -52,7 +52,7 @@ Error CreateProductionHardware(LogSink& log,
 
 std::unique_ptr<Hardware> CreateUnavailableHardware(const Error& reason)
 {
-	return std::unique_ptr<Hardware>(new UnavailableHardware(reason));
+	return std::make_unique<UnavailableHardware>(reason);
 }
 
 } // namespace mister

@@ -28,13 +28,15 @@ if grep -ERni --include='*.[ch]' --include='*.cpp' --include='*.hpp' \
 	exit 1
 fi
 
-archive_list=$(find "$build" -maxdepth 1 -type f -name '*.a' -printf '%f\n' | LC_ALL=C sort)
+archive_list=$(find "$build" -maxdepth 1 -type f -name '*.a' | sed 's|^.*/||' | LC_ALL=C sort)
 [[ "$archive_list" == 'libmister-runtime.a' ]] || {
 	echo "canonical build must contain exactly build/libmister-runtime.a" >&2
 	printf '%s\n' "$archive_list" >&2
 	exit 1
 }
-executable_list=$(find "$build" -maxdepth 1 -type f -perm /111 -printf '%f\n' | LC_ALL=C sort)
+executable_list=$(find "$build" -maxdepth 1 -type f \
+	\( -perm -0100 -o -perm -0010 -o -perm -0001 \) |
+	sed 's|^.*/||' | LC_ALL=C sort)
 [[ "$executable_list" == 'mister-runtime' ]] || {
 	echo "canonical build must contain exactly build/mister-runtime" >&2
 	printf '%s\n' "$executable_list" >&2
@@ -69,7 +71,7 @@ profile.o
 runtime.o
 spi.o
 EOF
-ar t "$archive" >"$temporary/archive-members"
+ar t "$archive" | grep -v '^__\.SYMDEF' >"$temporary/archive-members"
 LC_ALL=C sort -o "$temporary/archive-members" "$temporary/archive-members"
 cmp "$temporary/expected-members" "$temporary/archive-members" || {
 	echo "archive members do not exactly match the production source manifest" >&2
@@ -102,7 +104,9 @@ check_header_rebuilds() {
 		echo "$label header has no recorded object dependencies" >&2
 		exit 1
 	}
+	# GNU Make 3.81 compares modification times at one-second resolution.
 	touch "$marker"
+	sleep 1
 	touch "$root/$header"
 	make -C "$root" all >/dev/null
 	touch -r "$timestamp" "$root/$header"

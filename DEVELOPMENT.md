@@ -2,8 +2,11 @@
 
 ## Host build and checks
 
-The repository requires a C++14 compiler, GNU Make, `ar`, `nm`, and standard
-Linux build utilities. Run the ordinary host path with:
+The repository requires a C++14 compiler, GNU Make, `ar`, `nm`, and POSIX
+build utilities. The canonical host path is Linux with GNU `ar`/`ld`. Apple
+clang and Apple `ld` also build the library and daemon on macOS by using BSD
+`ar` (`rcs` plus `ZERO_AR_DATE=1`) and `-force_load` for archive link closure.
+Run the ordinary host path with:
 
 ```sh
 make clean

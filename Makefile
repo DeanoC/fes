@@ -22,6 +22,22 @@ CPPFLAGS := -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc
 TEST_CPPFLAGS := $(CPPFLAGS) -Itests/support
 CXXFLAGS ?= -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP
 
+# GNU ar accepts -D (deterministic). BSD/Apple ar does not; ZERO_AR_DATE=1
+# already zeros timestamps on those implementations.
+ifeq ($(shell $(AR) --help 2>&1 | grep -c -- '-D'),0)
+AR_CREATE_FLAGS := rcs
+else
+AR_CREATE_FLAGS := rcsD
+endif
+
+# GNU ld uses --whole-archive so omitted native members fail at link.
+# Apple ld uses -force_load for the same archive closure.
+ifeq ($(shell $(CXX) --version 2>/dev/null | grep -c 'Apple clang'),0)
+DAEMON_ARCHIVE_LINK = -Wl,--whole-archive $(ARCHIVE) -Wl,--no-whole-archive
+else
+DAEMON_ARCHIVE_LINK = -Wl,-force_load,$(ARCHIVE)
+endif
+
 LIB_SOURCES := \
 	src/runtime.cpp \
 	src/profile.cpp \
@@ -86,11 +102,11 @@ $(BUILD_DIR)/%.o: %.cpp
 
 $(ARCHIVE): $(LIB_OBJECTS)
 	@mkdir -p "$(dir $@)"
-	ZERO_AR_DATE=1 $(AR) rcsD "$@" $(LIB_OBJECTS)
+	ZERO_AR_DATE=1 $(AR) $(AR_CREATE_FLAGS) "$@" $(LIB_OBJECTS)
 
 $(DAEMON): $(DAEMON_OBJECTS) $(ARCHIVE)
 	$(CXX) $(CXXFLAGS) $(DAEMON_OBJECTS) \
-		-Wl,--whole-archive $(ARCHIVE) -Wl,--no-whole-archive \
+		$(DAEMON_ARCHIVE_LINK) \
 		$(LDFLAGS) $(LDLIBS) -o "$@"
 
 $(BUILD_DIR)/tests/unit/profile_test: tests/unit/profile_test.cpp \
@@ -210,20 +226,20 @@ tsan:
 archive-audit: $(ARCHIVE)
 	@set -euo pipefail; \
 	expected_members="$$(printf '%s\n' $(notdir $(LIB_OBJECTS)) | LC_ALL=C sort)"; \
-	actual_members="$$(ar t "$(ARCHIVE)" | LC_ALL=C sort)"; \
+	actual_members="$$(ar t "$(ARCHIVE)" | grep -v '^__\.SYMDEF' | LC_ALL=C sort)"; \
 	[[ "$$actual_members" == "$$expected_members" ]] || { \
 		echo "archive members differ from the production object list" >&2; \
 		diff -u <(printf '%s\n' "$$expected_members") \
 			<(printf '%s\n' "$$actual_members") >&2 || true; \
 		exit 1; \
 	}; \
-	duplicate_members="$$(ar t "$(ARCHIVE)" | LC_ALL=C sort | uniq -d)"; \
+	duplicate_members="$$(ar t "$(ARCHIVE)" | grep -v '^__\.SYMDEF' | LC_ALL=C sort | uniq -d)"; \
 	[[ -z "$$duplicate_members" ]] || { \
 		echo "archive contains duplicate members" >&2; \
 		printf '%s\n' "$$duplicate_members" >&2; \
 		exit 1; \
 	}; \
-	archive_list="$$(find "$(BUILD_DIR)" -maxdepth 1 -type f -name '*.a' -printf '%P\n' | LC_ALL=C sort)"; \
+	archive_list="$$(find "$(BUILD_DIR)" -maxdepth 1 -type f -name '*.a' | sed 's|^.*/||' | LC_ALL=C sort)"; \
 	[[ "$$archive_list" == "libmister-runtime.a" ]] || { \
 		echo "canonical build did not produce exactly one archive" >&2; \
 		printf '%s\n' "$$archive_list" >&2; \

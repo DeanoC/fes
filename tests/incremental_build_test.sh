@@ -42,6 +42,8 @@ for header in "${headers[@]}"; do
 	touch -r "$root/$header" "$temporary/${header//\//_}"
 done
 touch "$temporary/rebuild-marker"
+# GNU Make 3.81 compares modification times at one-second resolution.
+sleep 1
 for header in "${headers[@]}"; do
 	touch "$root/$header"
 done
