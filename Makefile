@@ -69,6 +69,7 @@ TEST_BINS := \
 	$(BUILD_DIR)/tests/unit/mmio_test \
 	$(BUILD_DIR)/tests/unit/off_t_test \
 	$(BUILD_DIR)/tests/unit/spi_test \
+	$(BUILD_DIR)/tests/unit/video_recipe_test \
 	$(BUILD_DIR)/tests/unit/protocol_test \
 	$(BUILD_DIR)/tests/integration/daemon_server_test
 TEST_HEADERS := $(wildcard \
@@ -141,6 +142,12 @@ $(BUILD_DIR)/tests/unit/spi_test: tests/unit/spi_test.cpp \
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/spi_test.cpp \
 		tests/support/fake_mmio.cpp src/native/linux/spi.cpp -o "$@"
+
+$(BUILD_DIR)/tests/unit/video_recipe_test: tests/unit/video_recipe_test.cpp \
+		src/native/video_recipe.hpp src/native/video_recipe.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/video_recipe_test.cpp \
+		src/native/video_recipe.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/fpga_manager_test: tests/unit/fpga_manager_test.cpp \
 		tests/support/fake_mmio.cpp src/native/artifacts.cpp \
