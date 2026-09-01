@@ -166,7 +166,7 @@ chmod 0755 "$fake_bin/curl" "$fake_bin/sshpass" "$fake_bin/sleep" \
 expected_inputs=$fixture/expected-build-inputs
 cat > "$expected_inputs" <<'EOF'
 format=1
-mister_runtime_commit=4f76c054e5642535acf6a742888868e6924cc7d1
+mister_runtime_commit=14d0ebe71ad2cafb6d4536b7f91dfefe851da0b2
 idle_repository=https://github.com/MiSTer-devel/Distribution_MiSTer
 idle_commit=f7bde4becb452ca28f604ad9802bbed5c6b58e01
 idle_path=menu.rbf
