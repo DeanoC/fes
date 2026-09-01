@@ -160,7 +160,8 @@ run-tests: $(TEST_BINS)
 active-tree-test: all
 	@tests/active_tree_test.sh "$(CURDIR)"
 
-test: run-tests active-tree-test
+test: run-tests
+	@$(MAKE) active-tree-test
 
 sanitize:
 	@$(MAKE) BUILD_DIR="$(BUILD_DIR)/sanitize" \
@@ -191,7 +192,7 @@ archive-audit: $(ARCHIVE)
 		printf '%s\n' "$$duplicate_members" >&2; \
 		exit 1; \
 	}; \
-	archive_list="$$(find "$(BUILD_DIR)" -type f -name '*.a' -printf '%P\n' | LC_ALL=C sort)"; \
+	archive_list="$$(find "$(BUILD_DIR)" -maxdepth 1 -type f -name '*.a' -printf '%P\n' | LC_ALL=C sort)"; \
 	[[ "$$archive_list" == "libmister-runtime.a" ]] || { \
 		echo "canonical build did not produce exactly one archive" >&2; \
 		printf '%s\n' "$$archive_list" >&2; \

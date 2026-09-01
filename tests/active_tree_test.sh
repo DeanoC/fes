@@ -14,19 +14,30 @@ root=$1
 
 fixture=$(mktemp -d /tmp/libmister-active-tree-test.XXXXXX)
 trap 'rm -rf -- "$fixture"' EXIT
-mkdir -p "$fixture/include" "$fixture/src"
+mkdir -p "$fixture/include" "$fixture/src" "$fixture/build"
 : >"$fixture/Makefile"
+
+expect_guard_failure() {
+	local expected=$1
+	local log=$fixture/guard.log
+	if "$root/scripts/check-active-tree.sh" "$fixture" >"$log" 2>&1; then
+		echo "active-tree guard accepted invalid fixture: $expected" >&2
+		exit 1
+	fi
+	if ! grep -Fqx "$expected" "$log"; then
+		echo "active-tree guard failed for the wrong reason; expected: $expected" >&2
+		cat "$log" >&2
+		exit 1
+	fi
+}
+
 mkdir "$fixture/runtime"
-if "$root/scripts/check-active-tree.sh" "$fixture" >/dev/null 2>&1; then
-	echo "active-tree guard accepted an obsolete root path" >&2
-	exit 1
-fi
+expect_guard_failure 'obsolete root active path exists: runtime'
 rmdir "$fixture/runtime"
 printf '%s\n' 'class HardwareBroker;' >"$fixture/src/legacy.hpp"
-if "$root/scripts/check-active-tree.sh" "$fixture" >/dev/null 2>&1; then
-	echo "active-tree guard accepted a historic framework term" >&2
-	exit 1
-fi
+expect_guard_failure 'historic compatibility term remains in the active tree'
+rm -f -- "$fixture/src/legacy.hpp"
+expect_guard_failure 'canonical build must contain exactly build/libmister-runtime.a'
 
 archive="$root/build/libmister-runtime.a"
 [[ -s "$archive" ]] || {
