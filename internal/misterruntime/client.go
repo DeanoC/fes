@@ -75,14 +75,17 @@ func (client *Client) call(ctx context.Context, operation string) (Response, err
 		return Response{}, contextOr(ctx, errRuntimeConnection)
 	}
 	defer connection.Close()
-	stopCancellationRelay := relayContextCancellation(ctx, connection)
-	defer stopCancellationRelay()
 
 	if deadline, ok := ctx.Deadline(); ok {
 		if err := connection.SetDeadline(deadline); err != nil {
 			return Response{}, contextOr(ctx, errRuntimeDeadline)
 		}
 	}
+	if err := ctx.Err(); err != nil {
+		return Response{}, err
+	}
+	stopCancellationRelay := relayContextCancellation(ctx, connection)
+	defer stopCancellationRelay()
 
 	request := append(payload, '\n')
 	if err := writePayload(connection, request); err != nil {

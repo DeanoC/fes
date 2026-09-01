@@ -8,7 +8,9 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -380,7 +382,7 @@ func TestClientHonorsContextCancellationAfterConnectWithoutRetry(t *testing.T) {
 		fixtureDone <- result
 	}()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Hour))
 	defer cancel()
 	callDone := make(chan error, 1)
 	go func() {
@@ -408,6 +410,92 @@ func TestClientHonorsContextCancellationAfterConnectWithoutRetry(t *testing.T) {
 	}
 	if elapsed := time.Since(cancelled); elapsed > 250*time.Millisecond {
 		t.Fatalf("Status returned after %s", elapsed)
+	}
+
+	result := waitFixtureResult(t, fixtureDone)
+	if result.err != nil {
+		t.Fatal(result.err)
+	}
+}
+
+func TestClientDoesNotReplaceCancellationDeadlineWithFutureContextDeadline(t *testing.T) {
+	previousProcs := runtime.GOMAXPROCS(1)
+	defer runtime.GOMAXPROCS(previousProcs)
+
+	path := temporarySocketPath(t)
+	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+
+	accepted := make(chan struct{}, 1)
+	fixtureDone := make(chan fixtureResult, 1)
+	go func() {
+		result := fixtureResult{}
+		connection, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			result.err = acceptErr
+			fixtureDone <- result
+			return
+		}
+		accepted <- struct{}{}
+		defer connection.Close()
+
+		result.request, result.err = readNewline(connection)
+		if errors.Is(result.err, io.EOF) {
+			result.err = nil
+		} else if result.err == nil {
+			if result.request != `{"protocol":1,"operation":"status"}` {
+				result.err = fmt.Errorf("request = %q", result.request)
+			} else {
+				result.err = requireClientClose(connection)
+			}
+		}
+		if err := listener.SetDeadline(time.Now().Add(100 * time.Millisecond)); err != nil && result.err == nil {
+			result.err = err
+		}
+		second, acceptErr := listener.Accept()
+		if acceptErr == nil {
+			_ = second.Close()
+			if result.err == nil {
+				result.err = fmt.Errorf("accepted more than one connection")
+			}
+		}
+		fixtureDone <- result
+	}()
+
+	base, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Hour))
+	defer cancel()
+	deadlineEntered := make(chan struct{}, 1)
+	releaseDeadline := make(chan struct{})
+	ctx := &deadlineGateContext{
+		Context:         base,
+		gateCall:        4,
+		deadlineEntered: deadlineEntered,
+		releaseDeadline: releaseDeadline,
+	}
+	callDone := make(chan error, 1)
+	go func() {
+		_, err := NewClient(path).Status(ctx)
+		callDone <- err
+	}()
+
+	waitSignal(t, accepted)
+	waitSignal(t, deadlineEntered)
+	cancel()
+	for range 10 {
+		runtime.Gosched()
+	}
+	close(releaseDeadline)
+
+	select {
+	case err := <-callDone:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Status error = %v, want context canceled", err)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("Status did not return promptly after cancellation with a future deadline")
 	}
 
 	result := waitFixtureResult(t, fixtureDone)
@@ -466,6 +554,15 @@ func waitFixtureResult(t *testing.T, done <-chan fixtureResult) fixtureResult {
 	case <-time.After(time.Second):
 		t.Fatal("socket fixture did not finish")
 		return fixtureResult{}
+	}
+}
+
+func waitSignal(t *testing.T, signal <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-signal:
+	case <-time.After(time.Second):
+		t.Fatal("socket fixture did not reach synchronization point")
 	}
 }
 
@@ -541,4 +638,25 @@ func responseLineAtLength(t *testing.T, length int) string {
 		t.Fatalf("response length = %d, want %d", len(response), length)
 	}
 	return response
+}
+
+type deadlineGateContext struct {
+	context.Context
+	mu              sync.Mutex
+	calls           int
+	gateCall        int
+	deadlineEntered chan<- struct{}
+	releaseDeadline <-chan struct{}
+}
+
+func (ctx *deadlineGateContext) Deadline() (time.Time, bool) {
+	ctx.mu.Lock()
+	ctx.calls++
+	gate := ctx.calls == ctx.gateCall
+	ctx.mu.Unlock()
+	if gate {
+		ctx.deadlineEntered <- struct{}{}
+		<-ctx.releaseDeadline
+	}
+	return ctx.Context.Deadline()
 }
