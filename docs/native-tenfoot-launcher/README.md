@@ -1,7 +1,8 @@
 # Native 10-foot launcher
 
 SDL3 cover grid on Mac. It talks to the existing FogCast public host API over
-HTTP. It does not own catalog, content transfer, or `/dev/MiSTer_cmd`.
+HTTP. It does not own catalog, content transfer, or `/dev/MiSTer_cmd`. The
+browser shell remains the default UI.
 
 ## Build
 
@@ -55,5 +56,4 @@ make tenfoot-smoke
   when a session starts is later work.
 - TV safe area and overscan are later. Fullscreen is available; it is not
   calibrated for living-room overscan.
-- Linux is next. This spike is Mac-first.
-- The launcher does not replace `ui_shell` on `main`.
+- Mac-first. Linux is next.
