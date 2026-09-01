@@ -10,9 +10,12 @@ roles:
 - `mister-runtime` owns the local Unix-socket protocol and delegates every
   hardware-changing request to that lifecycle API.
 - `src/native` and `src/linux` contain the Linux hardware primitives and the
-  production construction boundary. Construction intentionally returns
-  `io_failed` today because the image-owned idle artifact, production profiles,
-  and accepted device composition do not exist yet.
+  production construction boundary. `CreateProductionHardware` owns
+  `PosixArtifactOpener`, `LinuxMmio`, `SteadyClock`, `LinuxFpgaManager`,
+  `LinuxSpi`, `CoreLoader`, and `NativeHardware`; the dependency graph is
+  `LinuxMmio + SteadyClock -> LinuxFpgaManager + LinuxSpi -> CoreLoader ->
+  NativeHardware`. Its installed idle path is
+  `/usr/share/mister-runtime/idle.rbf`. Production profiles remain empty.
 
 The library does not own a network API, catalogue, transfer cache, or host
 session. A future target agent integration belongs outside this repository

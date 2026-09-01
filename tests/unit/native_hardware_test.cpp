@@ -301,20 +301,32 @@ void TestNativeLoggingNamesPhasesAndConfirmedCore()
 	assert(preflight && program && probe && configure && media);
 }
 
-void TestProductionConstructionIsExplicitlyUnavailableAndNeverFake()
+void TestProductionConstructionOwnsRealIdleHardware()
 {
 	assert(mister::ProductionProfiles().empty());
 	mister_test::CaptureLog log;
 	std::unique_ptr<mister::Hardware> hardware;
-	const mister::Error unavailable = mister::CreateProductionHardware(log, &hardware);
-	assert(unavailable.code == mister::ErrorCode::io_failed);
-	assert(!hardware);
-	hardware = mister::CreateUnavailableHardware(unavailable);
+	const mister::Error created = mister::CreateProductionHardware(log, &hardware);
+	assert(created.ok());
+	assert(hardware);
+	const mister::HardwareResult idle = hardware->LoadIdle();
+	assert(idle.error.code == mister::ErrorCode::io_failed);
+	assert(idle.error.message.find(
+		"/definitely-missing/libmister-runtime/idle.rbf") != std::string::npos);
+	assert(!idle.mutation_attempted);
+}
+
+void TestUnavailableHardwareRemainsFailureOnly()
+{
+	const mister::Error reason = {
+		mister::ErrorCode::io_failed, "injected construction failure"};
+	std::unique_ptr<mister::Hardware> hardware =
+		mister::CreateUnavailableHardware(reason);
 	assert(hardware);
 	assert(hardware->LoadIdle().error.code == mister::ErrorCode::io_failed);
+	assert(hardware->Launch({}).error.code == mister::ErrorCode::io_failed);
 	assert(hardware->LoadDevelopmentRBF("/x").error.code ==
 		mister::ErrorCode::io_failed);
-	assert(hardware->Launch({}).error.code == mister::ErrorCode::io_failed);
 }
 
 } // namespace
@@ -328,7 +340,8 @@ int main()
 	TestEveryConcretePreflightRejectionPerformsZeroHardwareWork();
 	TestProbeMismatchAndIoRetainObservedCoreAndMutation();
 	TestNativeLoggingNamesPhasesAndConfirmedCore();
-	TestProductionConstructionIsExplicitlyUnavailableAndNeverFake();
-	puts("native_hardware_test: 8 passed");
+	TestProductionConstructionOwnsRealIdleHardware();
+	TestUnavailableHardwareRemainsFailureOnly();
+	puts("native_hardware_test: 9 passed");
 	return 0;
 }

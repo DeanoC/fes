@@ -22,6 +22,6 @@ fixtures verify software mechanics and do not establish system support.
 | `wsc` | not implemented | software: no | hardware: no |
 | `intv` | not implemented | software: no | hardware: no |
 
-Production native construction is unavailable and hardware-supported systems
-remain zero. Change a row only in the same commit as its implementation and
-support evidence.
+Production native construction is available for the image-owned idle baseline,
+but hardware-supported systems remain zero pending physical acceptance. Change
+a row only in the same commit as its implementation and support evidence.
