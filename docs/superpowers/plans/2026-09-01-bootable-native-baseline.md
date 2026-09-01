@@ -280,21 +280,22 @@ command, alongside the idle-path macro. Retain the recipe's existing supporting
 source inputs and flags:
 
 ```make
-build/tests/unit/native_hardware_test: \\
-  tests/unit/native_hardware_test.cpp \\
-  src/linux/production_hardware.cpp \\
-  src/native/linux/mmio.cpp \\
-  src/native/linux/fpga_manager.cpp \\
-  src/native/linux/spi.cpp
-
-	$(CXX) $(CXXFLAGS) \\
-	  -DMISTER_RUNTIME_IDLE_RBF=\"/definitely-missing/libmister-runtime/idle.rbf\" \\
-	  tests/unit/native_hardware_test.cpp \\
-	  src/linux/production_hardware.cpp \\
-	  src/native/linux/mmio.cpp \\
-	  src/native/linux/fpga_manager.cpp \\
-	  src/native/linux/spi.cpp \\
-	  -o $@
+$(BUILD_DIR)/tests/unit/native_hardware_test: \
+	tests/unit/native_hardware_test.cpp \
+	tests/support/capture_log.cpp src/native/artifacts.cpp \
+	src/native/core_loader.cpp src/native/hardware.cpp src/profile.cpp \
+	src/linux/production_hardware.cpp \
+	src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
+	src/native/linux/spi.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) \
+		-DMISTER_RUNTIME_IDLE_RBF=\"/definitely-missing/libmister-runtime/idle.rbf\" \
+		tests/unit/native_hardware_test.cpp \
+		tests/support/capture_log.cpp src/native/artifacts.cpp \
+		src/native/core_loader.cpp src/native/hardware.cpp src/profile.cpp \
+		src/linux/production_hardware.cpp \
+		src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
+		src/native/linux/spi.cpp -o "$@"
 ```
 
 - [ ] **Step 3: Run the focused test and verify RED**
@@ -1363,30 +1364,32 @@ changed boot ID, and fresh ready idle.
 - [ ] **Step 3: Capture and inspect the real HDMI output**
 
 ```bash
-mkdir -p build/output/target-image/native-dev/evidence
+capture_root=build/output/target-image/native-dev
+mkdir -p "$capture_root"
+capture_dir=$(mktemp -d "$capture_root/evidence.XXXXXX")
 {
   v4l2-ctl --list-devices
   v4l2-ctl --device /dev/video0 --all
   v4l2-ctl --device /dev/video0 --list-formats-ext
-} > build/output/target-image/native-dev/evidence/v4l2-video0-report.txt
+} > "$capture_dir/v4l2-video0-report.txt"
 ffmpeg -hide_banner -loglevel error -f v4l2 -i /dev/video0 \
   -t 5 -vf fps=1 -frames:v 5 -strftime 1 -y \
-  build/output/target-image/native-dev/evidence/idle-%Y%m%dT%H%M%S.png
-set -- build/output/target-image/native-dev/evidence/idle-*.png
+  "$capture_dir"/idle-%Y%m%dT%H%M%S.png
+set -- "$capture_dir"/idle-*.png
 test "$#" -eq 5
 sha256sum \
-  build/output/target-image/native-dev/evidence/v4l2-video0-report.txt \
-  build/output/target-image/native-dev/evidence/idle-*.png \
-  | tee build/output/target-image/native-dev/evidence/capture-sha256.txt
+  "$capture_dir"/v4l2-video0-report.txt \
+  "$capture_dir"/idle-*.png \
+  > "$capture_dir"/capture-sha256.txt
 ```
 
 Capture exactly five timestamped frames across the five-second interval and
-retain the V4L2 device/mode report. Open every PNG with the local image-view
-tool and inspect each one. Every frame must show stable geometry and
-non-corrupt idle output; a blacked-out OSD due to no input is acceptable only
-when the HDMI signal and frame geometry are stable in all five frames. Record
-the V4L2-report hash and every frame hash in the canonical evidence. Do not
-commit any binary capture frame.
+retain the V4L2 device/mode report in the fresh run-specific `capture_dir`.
+Open every PNG with the local image-view tool and inspect each one. Every frame
+must show stable geometry and non-corrupt idle output; a blacked-out OSD due to
+no input is acceptable only when the HDMI signal and frame geometry are stable
+in all five frames. Record the V4L2-report hash and every frame hash in the
+canonical evidence. Do not commit any binary capture frame.
 
 - [ ] **Step 4: Collect direct logs and installed identities**
 
