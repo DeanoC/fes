@@ -70,6 +70,7 @@ TEST_BINS := \
 	$(BUILD_DIR)/tests/unit/off_t_test \
 	$(BUILD_DIR)/tests/unit/spi_test \
 	$(BUILD_DIR)/tests/unit/video_recipe_test \
+	$(BUILD_DIR)/tests/unit/i2c_test \
 	$(BUILD_DIR)/tests/unit/protocol_test \
 	$(BUILD_DIR)/tests/integration/daemon_server_test
 TEST_HEADERS := $(wildcard \
@@ -148,6 +149,12 @@ $(BUILD_DIR)/tests/unit/video_recipe_test: tests/unit/video_recipe_test.cpp \
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/video_recipe_test.cpp \
 		src/native/video_recipe.cpp -o "$@"
+
+$(BUILD_DIR)/tests/unit/i2c_test: tests/unit/i2c_test.cpp \
+		src/native/linux/i2c.hpp src/native/linux/i2c.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) -DMISTER_RUNTIME_TESTING $(CXXFLAGS) \
+		tests/unit/i2c_test.cpp src/native/linux/i2c.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/fpga_manager_test: tests/unit/fpga_manager_test.cpp \
 		tests/support/fake_mmio.cpp src/native/artifacts.cpp \
