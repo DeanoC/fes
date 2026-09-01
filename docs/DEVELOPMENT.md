@@ -74,6 +74,22 @@ MiSTer/Main-compatible process and then the FAT-side agent using
 The fixture uses the stock MiSTer login and changing SSH host keys after a
 rebuild is expected. Rebooting, reflashing, or replacing the image is normal.
 
+After deploying the `native-dev` image, run its bounded idle-lifecycle checks:
+
+```sh
+make target-native-smoke
+```
+
+This checks the target and host ready/idle state, exact native child
+executables and installed build inputs, absence of conventional Main and its
+command FIFO, idle Stop, and fresh idle after an explicit reboot with a changed
+Linux boot ID. Each API and SSH call is bounded to five seconds by default;
+set `FOGCAST_CALL_TIMEOUT` to a positive decimal no greater than 60 seconds
+when the fixture needs a different per-call bound. It does not inspect HDMI
+output and does not perform the
+mandatory legacy-image rollback and real-game launch; both remain separate
+physical acceptance steps.
+
 ## Deploy and exercise the kit
 
 Deploy an image and request a reboot:
