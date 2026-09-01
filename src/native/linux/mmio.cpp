@@ -198,17 +198,5 @@ Error LinuxMmio::Write32(std::uint32_t offset, std::uint32_t value)
 	return impl_->Write(offset, value);
 }
 
-Error LinuxMmio::SetBridges(bool enabled)
-{
-	const std::uint32_t sdr = 0xffc25080u;
-	const std::uint32_t remap = 0xff800000u;
-	const std::uint32_t bridge = 0xffd0501cu;
-	Error error = Write32(sdr, enabled ? 0x3fffu : 0u);
-	if (!error.ok()) return error;
-	error = Write32(remap, enabled ? 0x19u : 1u);
-	if (!error.ok()) return error;
-	return Write32(bridge, enabled ? 0u : 7u);
-}
-
 } // namespace native
 } // namespace mister

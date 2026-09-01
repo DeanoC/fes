@@ -44,7 +44,6 @@ public:
 	LinuxMmio& operator=(const LinuxMmio&) = delete;
 	Error Read32(std::uint32_t, std::uint32_t*) override;
 	Error Write32(std::uint32_t, std::uint32_t) override;
-	Error SetBridges(bool enabled);
 
 private:
 	class Impl;

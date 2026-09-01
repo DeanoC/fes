@@ -87,17 +87,6 @@ void TestRejectsMisalignedAndMissingOutputWithoutMapping()
 	assert(operations.open_calls == 0);
 }
 
-void TestBridgeControlUsesNarrowKnownRegisters()
-{
-	Operations operations;
-	mister::native::LinuxMmio mmio(operations);
-	assert(mmio.SetBridges(true).ok());
-	assert(operations.writes.size() == 3);
-	assert(operations.writes[0].second == 0x3fffu);
-	assert(operations.writes[1].second == 0x19u);
-	assert(operations.writes[2].second == 0u);
-}
-
 } // namespace
 
 int main()
@@ -105,7 +94,6 @@ int main()
 	TestMapsEachNeededPageOnceAndCleansUp();
 	TestReadAndWriteUseRegisterOffsetWithinPage();
 	TestRejectsMisalignedAndMissingOutputWithoutMapping();
-	TestBridgeControlUsesNarrowKnownRegisters();
-	puts("mmio_test: 4 passed");
+	puts("mmio_test: 3 passed");
 	return 0;
 }
