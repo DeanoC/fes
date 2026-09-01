@@ -12,21 +12,42 @@ grep -Fq 'fogcast_target_dev_defconfig' "$repo/scripts/build-target-image.sh"
 grep -Fq 'fogcast_target_native_dev_defconfig' "$repo/scripts/build-target-image.sh"
 grep -Fq '/work/scripts/verify-native-runtime-inputs.sh' "$repo/scripts/build-target-image.sh"
 
-native_fetch_target=$(
-  awk '
-    /^target-image-native-fetch:/ { in_target=1; next }
-    in_target && /^[^[:space:]]/ { exit }
-    in_target { print }
-  ' "$repo/Makefile"
+native_make_root=$fixture/native-make
+native_make_log=$fixture/native-make.log
+native_runtime_path=$fixture/runtime-source
+mkdir -p "$native_make_root/scripts" "$native_runtime_path"
+cat >"$native_make_root/scripts/target-image-container.sh" <<'EOF'
+#!/bin/sh
+set -eu
+printf 'container\truntime=%s\targc=%s\targ1=%s\targ2=%s\n' \
+  "${LIBMISTER_RUNTIME_DIR:-}" "$#" "$1" "$2" >>"$NATIVE_FETCH_RECIPE_LOG"
+EOF
+cat >"$native_make_root/scripts/build-target-image.sh" <<'EOF'
+#!/bin/sh
+set -eu
+printf 'build\truntime=%s\targc=%s\targ1=%s\targ2=%s\n' \
+  "${LIBMISTER_RUNTIME_DIR:-}" "$#" "$1" "$2" >>"$NATIVE_FETCH_RECIPE_LOG"
+EOF
+chmod 0755 "$native_make_root/scripts/target-image-container.sh" \
+  "$native_make_root/scripts/build-target-image.sh"
+(
+  cd "$native_make_root"
+  NATIVE_FETCH_RECIPE_LOG=$native_make_log \
+  LIBMISTER_RUNTIME_DIR=$native_runtime_path \
+    make --no-print-directory -f "$repo/Makefile" \
+      -o build-target-image-lock-container -o build-agent \
+      target-image-native-fetch
 )
-printf '%s\n' "$native_fetch_target" | grep -Fq \
-  'scripts/target-image-container.sh fetch \'
-printf '%s\n' "$native_fetch_target" | grep -Fq \
-  '/work/scripts/fetch-native-runtime-inputs.sh'
-printf '%s\n' "$native_fetch_target" | grep -Fq \
-  'LIBMISTER_RUNTIME_DIR="$(LIBMISTER_RUNTIME_DIR)" \'
-printf '%s\n' "$native_fetch_target" | grep -Fq \
-  'scripts/build-target-image.sh --fetch native-dev'
+{
+  printf 'container\truntime=\targc=2\targ1=fetch\targ2=/work/scripts/fetch-native-runtime-inputs.sh\n'
+  printf 'build\truntime=%s\targc=2\targ1=--fetch\targ2=native-dev\n' \
+    "$native_runtime_path"
+} >"$fixture/native-make.expected"
+if ! cmp "$fixture/native-make.expected" "$native_make_log"; then
+  printf '%s\n' \
+    'native fetch recipe did not isolate idle bootstrap from runtime verification' >&2
+  exit 1
+fi
 
 for legacy_target in target-image-fetch target-images target-image-dev target-image-verify target-image-qemu-smoke; do
   legacy_body=$(
