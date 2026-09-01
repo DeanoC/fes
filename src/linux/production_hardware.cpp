@@ -10,6 +10,7 @@
 #include "native/linux/mmio.hpp"
 #include "native/linux/spi.hpp"
 
+#include <cstdlib>
 #include <time.h>
 #include <utility>
 
@@ -47,7 +48,7 @@ public:
 	std::uint64_t NowMs() const override
 	{
 		struct timespec stamp = {};
-		if (clock_gettime(CLOCK_MONOTONIC, &stamp) != 0) return 0;
+		if (clock_gettime(CLOCK_MONOTONIC, &stamp) != 0) std::abort();
 		return static_cast<std::uint64_t>(stamp.tv_sec) * 1000u +
 			static_cast<std::uint64_t>(stamp.tv_nsec) / 1000000u;
 	}
