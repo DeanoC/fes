@@ -106,6 +106,23 @@ func TestNativeHealthIsReadyOnlyForIdleAndKeepsLegacyBooleansFalse(t *testing.T)
 	}
 }
 
+func TestNativeHealthRejectsErrorBearingIdleResponse(t *testing.T) {
+	t.Parallel()
+	response := runtimeResponse("idle", "none")
+	response.OK = false
+	response.Error = &misterruntime.RemoteError{Code: "io_failed", Message: "private runtime detail"}
+	control := &recordingControl{statuses: []misterruntime.Response{response}}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	health := runtime.Health("agent-test")
+	if health.Ready || health.APIVersion != "v1" || health.AgentVersion != "agent-test" || health.MiSTerProcess || health.CommandPipe {
+		t.Fatalf("health = %#v", health)
+	}
+	statusCalls, stopCalls := control.calls()
+	if statusCalls != 1 || stopCalls != 0 {
+		t.Fatalf("control calls = status:%d stop:%d", statusCalls, stopCalls)
+	}
+}
+
 type blockingHealthControl struct {
 	statusCalls int
 	hadDeadline bool
@@ -143,6 +160,34 @@ func TestNativeReconcileMapsIdleWithoutIdentity(t *testing.T) {
 	status := runtime.Reconcile(context.Background())
 	if status.State != protocol.StateIdle || status.GameID != nil || status.System != nil || status.ExpectedCore != nil || status.ObservedCore != nil || status.Development || status.Recovery != "" || status.LastError != nil {
 		t.Fatalf("status = %#v", status)
+	}
+}
+
+func TestNativeReconcileTreatsErrorBearingIdleAndStartingAsImmediateUnavailable(t *testing.T) {
+	t.Parallel()
+	for _, state := range []string{"idle", "starting"} {
+		t.Run(state, func(t *testing.T) {
+			response := runtimeResponse(state, "none")
+			response.OK = false
+			response.Error = &misterruntime.RemoteError{Code: "io_failed", Message: "private runtime detail"}
+			if state == "starting" {
+				system, coreName := "megadrive", "MegaDrive"
+				response.System, response.Core = &system, &coreName
+			}
+			control := &recordingControl{statuses: []misterruntime.Response{response}}
+			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+			defer cancel()
+			status := runtime.Reconcile(ctx)
+			assertUnavailableStatus(t, status)
+			if status.GameID != nil || status.System != nil || status.ExpectedCore != nil || status.ObservedCore != nil || status.Development || status.Recovery != "" {
+				t.Fatalf("runtime identity leaked: %#v", status)
+			}
+			statusCalls, stopCalls := control.calls()
+			if statusCalls != 1 || stopCalls != 0 {
+				t.Fatalf("control calls = status:%d stop:%d, want one conclusive status call", statusCalls, stopCalls)
+			}
+		})
 	}
 }
 

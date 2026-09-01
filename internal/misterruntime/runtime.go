@@ -35,7 +35,7 @@ func (r *Runtime) Health(version string) protocol.Health {
 	ctx, cancel := context.WithTimeout(context.Background(), r.healthTimeout)
 	defer cancel()
 	response, err := r.control.Status(ctx)
-	health.Ready = err == nil && response.State == "idle"
+	health.Ready = err == nil && response.OK && response.State == "idle"
 	return health
 }
 
@@ -43,6 +43,9 @@ func (r *Runtime) Reconcile(ctx context.Context) protocol.Status {
 	for {
 		response, err := r.control.Status(ctx)
 		if err == nil {
+			if !response.OK {
+				return unavailableStatus()
+			}
 			switch response.State {
 			case "idle":
 				return protocol.Status{State: protocol.StateIdle}
