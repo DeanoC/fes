@@ -133,7 +133,8 @@ target-image-qemu-smoke:
 	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/qemu-smoke-target-image.sh dev build/output/target-image/dev/linux.img
 
 target-image-native-fetch: build-target-image-lock-container build-agent
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
+	LIBMISTER_RUNTIME_DIR= \
+	  TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
 	  scripts/target-image-container.sh fetch \
 	  /work/scripts/fetch-native-runtime-inputs.sh
 	LIBMISTER_RUNTIME_DIR="$(LIBMISTER_RUNTIME_DIR)" \
