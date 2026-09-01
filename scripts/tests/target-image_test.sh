@@ -8,6 +8,8 @@ trap 'rm -rf "$fixture"' EXIT INT TERM
 for curl_symbol in BR2_PACKAGE_LIBCURL BR2_PACKAGE_LIBCURL_CURL; do
   grep -Fqx "$curl_symbol=y" \
     "$repo/buildroot/configs/fogcast_target_dev_defconfig"
+  grep -Fqx "$curl_symbol=y" \
+    "$repo/buildroot/configs/fogcast_target_native_dev_defconfig"
   if grep -Fqx "$curl_symbol=y" \
     "$repo/buildroot/configs/fogcast_target_prod_defconfig"; then
     echo "production image unexpectedly includes $curl_symbol" >&2
@@ -19,9 +21,13 @@ if grep -Fqx 'BR2_PACKAGE_CURL=y' \
   echo 'development image uses legacy BR2_PACKAGE_CURL symbol' >&2
   exit 1
 fi
-for variant in prod dev; do
+for variant in prod dev native-dev; do
+  case "$variant" in
+    native-dev) defconfig=$repo/buildroot/configs/fogcast_target_native_dev_defconfig ;;
+    *) defconfig=$repo/buildroot/configs/fogcast_target_${variant}_defconfig ;;
+  esac
   grep -Fqx 'BR2_PRIMARY_SITE="https://sources.buildroot.net"' \
-    "$repo/buildroot/configs/fogcast_target_${variant}_defconfig"
+    "$defconfig"
 done
 for unrelated_dev_package in BR2_PACKAGE_FFMPEG BR2_PACKAGE_SDL2; do
   if grep -Fqx "$unrelated_dev_package=y" \
@@ -58,6 +64,15 @@ printf '%s\n' "$target_image_verify" | grep -Fq \
   'scripts/verify-target-image.sh prod build/output/target-image/prod/linux.img build/output/target-image/prod/manifest.tsv build/output/target-image/prod/library-report.tsv'
 printf '%s\n' "$target_image_verify" | grep -Fq \
   'scripts/verify-target-image.sh dev build/output/target-image/dev/linux.img build/output/target-image/dev/manifest.tsv build/output/target-image/dev/library-report.tsv'
+native_target_image_verify=$(
+  awk '
+    /^target-image-native-verify:/ { in_target=1; next }
+    in_target && /^[^[:space:]]/ { exit }
+    in_target { print }
+  ' "$repo/Makefile"
+)
+printf '%s\n' "$native_target_image_verify" | grep -Fq \
+  'scripts/verify-target-image.sh native-dev build/output/target-image/native-dev/linux.img build/output/target-image/native-dev/manifest.tsv build/output/target-image/native-dev/library-report.tsv'
 if grep -Fq 'readonly=on' "$repo/scripts/qemu-smoke-target-image.sh"; then
   echo 'QEMU smoke config uses unsupported read-only SD backing' >&2
   exit 1
@@ -67,6 +82,10 @@ TARGET_IMAGE_TEST_MODE=1 sh "$repo/scripts/build-target-image.sh" \
   --validate-inside-path prod \
   /target-image-output/work-1-prod \
   /work/build/output/target-image/work-1-prod/images/rootfs.ext4
+TARGET_IMAGE_TEST_MODE=1 sh "$repo/scripts/build-target-image.sh" \
+  --validate-inside-path native-dev \
+  /target-image-output/work-2-native-dev \
+  /work/build/output/target-image/work-2-native-dev/images/rootfs.ext4
 for rejected_path in \
   /target-image-output/../work \
   /target-image-output/work-1-dev \
@@ -83,6 +102,13 @@ if TARGET_IMAGE_TEST_MODE=1 sh "$repo/scripts/build-target-image.sh" \
   /target-image-output/work-1-prod \
   /work/build/output/target-image/work-2-prod/images/rootfs.ext4 >/dev/null 2>&1; then
   echo 'inside path validator accepted mismatched run destinations' >&2
+  exit 1
+fi
+if TARGET_IMAGE_TEST_MODE=1 sh "$repo/scripts/build-target-image.sh" \
+  --validate-inside-path staging \
+  /target-image-output/work-1-staging \
+  /work/build/output/target-image/work-1-staging/images/rootfs.ext4 >/dev/null 2>&1; then
+  echo 'inside path validator accepted a fourth variant' >&2
   exit 1
 fi
 
@@ -129,6 +155,20 @@ TARGET_IMAGE_OUTPUT_ROOT=$output_root \
 test "$(cat "$output_root/prod/linux.img")" = image-prod
 test "$(wc -l < "$build_log" | tr -d ' ')" -eq "$build_count"
 
+: > "$build_log"
+TARGET_IMAGE_TEST_MODE=1 \
+TARGET_IMAGE_BUILD_ONCE=$fake_build \
+TARGET_IMAGE_BUILD_LOG=$build_log \
+TARGET_IMAGE_OUTPUT_ROOT=$output_root \
+  sh "$repo/scripts/build-target-image.sh" native-dev
+test -f "$output_root/native-dev/linux.img"
+test "$(wc -l < "$build_log" | tr -d ' ')" -eq 2
+grep -Fq "native-dev|$output_root/work-1-native-dev|1751459412" "$build_log"
+grep -Fq "native-dev|$output_root/work-2-native-dev|1751459412" "$build_log"
+grep -Fq 'run_1_sha256=' "$output_root/native-dev/reproducibility.txt"
+test "$(awk -F= '$1 == "run_1_sha256" { print $2 }' "$output_root/native-dev/reproducibility.txt")" = \
+  "$(awk -F= '$1 == "run_2_sha256" { print $2 }' "$output_root/native-dev/reproducibility.txt")"
+
 printf '%s\n' prior > "$output_root/prod/linux.img"
 if TARGET_IMAGE_TEST_MODE=1 \
   TARGET_IMAGE_BUILD_ONCE=$fake_build \
@@ -147,12 +187,21 @@ cat > "$fake_bin/file" <<'EOF'
 #!/bin/sh
 case "$*" in
   *mister-agent*) printf '%s\n' 'ELF 32-bit LSB executable, ARM, EABI5 version 1 (SYSV), statically linked, stripped' ;;
+  *mister-runtime*) printf '%s\n' 'ELF 32-bit LSB pie executable, ARM, EABI5 version 1 (SYSV), dynamically linked, stripped' ;;
   *) /usr/bin/file "$@" ;;
 esac
 EOF
 cat > "$fake_bin/readelf" <<'EOF'
 #!/bin/sh
-printf '%s\n' '  Class:                             ELF32' '  Machine:                           ARM'
+case "$*" in
+  *'-d '*mister-runtime|'-d '*mister-runtime)
+    printf '%s\n' \
+      ' 0x00000001 (NEEDED)                     Shared library: [libstdc++.so.6]' \
+      ' 0x00000001 (NEEDED)                     Shared library: [libgcc_s.so.1]' \
+      ' 0x00000001 (NEEDED)                     Shared library: [libc.so.6]'
+    ;;
+  *) printf '%s\n' '  Class:                             ELF32' '  Machine:                           ARM' ;;
+esac
 EOF
 chmod 0755 "$fake_bin/file" "$fake_bin/readelf"
 
@@ -192,11 +241,39 @@ EOF
     mkdir -p "$root$(dirname "$library")"
     : > "$root$library"
   done
-  if [ "$variant" = dev ]; then
+  if [ "$variant" = dev ] || [ "$variant" = native-dev ]; then
     ln -s /run/dropbear "$root/etc/dropbear"
     : > "$root/usr/sbin/dropbearmulti"
     chmod 0755 "$root/usr/sbin/dropbearmulti"
     ln -s dropbearmulti "$root/usr/sbin/dropbear"
+  fi
+  if [ "$variant" = native-dev ]; then
+    rm "$root/etc/init.d/S40mister-main"
+    cat > "$root/etc/init.d/S40mister-runtime" <<'EOF'
+#!/bin/sh
+/usr/sbin/mister-supervise mister-runtime /usr/sbin/mister-runtime &
+EOF
+    cat > "$root/etc/init.d/S50mister-agent" <<'EOF'
+#!/bin/sh
+/usr/sbin/mister-supervise mister-agent /usr/sbin/mister-agent \
+  --config /media/fat/fogcast/agent.toml --runtime native &
+EOF
+    chmod 0755 "$root/etc/init.d/S40mister-runtime" "$root/etc/init.d/S50mister-agent"
+    : > "$root/usr/sbin/mister-runtime"
+    chmod 0755 "$root/usr/sbin/mister-runtime"
+    mkdir -p "$root/usr/share/mister-runtime"
+    cp "$repo/build/cache/target-image/native/idle.rbf" \
+      "$root/usr/share/mister-runtime/idle.rbf"
+    cat > "$root/usr/share/mister-runtime/build-inputs" <<'EOF'
+format=1
+mister_runtime_commit=1045306bf97d5e8f68fde7626cb954194f505ff5
+idle_repository=https://github.com/MiSTer-devel/Distribution_MiSTer
+idle_commit=f7bde4becb452ca28f604ad9802bbed5c6b58e01
+idle_path=menu.rbf
+idle_sha256=821bcf66181a00ff550e4a4110dc11c9fa8e68d38e9cb5558b3ddb99ca938934
+idle_size=2452588
+idle_install_path=/usr/share/mister-runtime/idle.rbf
+EOF
   fi
 }
 
@@ -212,15 +289,24 @@ verify_fixture() {
 
 prod_root=$fixture/prod-root
 dev_root=$fixture/dev-root
+native_root=$fixture/native-root
 make_root "$prod_root" prod
 make_root "$dev_root" dev
+make_root "$native_root" native-dev
 verify_fixture prod "$prod_root" "$fixture/prod.manifest" "$fixture/prod.libraries"
 verify_fixture dev "$dev_root" "$fixture/dev.manifest" "$fixture/dev.libraries"
+verify_fixture native-dev "$native_root" "$fixture/native.manifest" "$fixture/native.libraries"
 LC_ALL=C sort -c "$fixture/prod.manifest"
 LC_ALL=C sort -c "$fixture/prod.libraries"
 test "$(wc -l < "$fixture/prod.libraries" | tr -d ' ')" -eq 14
 grep -Eq '^/lib/libz\.so\.1[[:space:]]+/lib/libz\.so\.1[[:space:]]+[0-9a-f]{64}$' \
   "$fixture/prod.libraries"
+grep -Eq '^/lib/libstdc\+\+\.so\.6[[:space:]]+/lib/libstdc\+\+\.so\.6[[:space:]]+[0-9a-f]{64}$' \
+  "$fixture/native.libraries"
+grep -Eq '^usr/share/mister-runtime/idle\.rbf[[:space:]]+file[[:space:]]+821bcf66181a00ff550e4a4110dc11c9fa8e68d38e9cb5558b3ddb99ca938934$' \
+  "$fixture/native.manifest"
+grep -Eq '^usr/share/mister-runtime/build-inputs[[:space:]]+file[[:space:]]+[0-9a-f]{64}$' \
+  "$fixture/native.manifest"
 
 unreadable_root=$fixture/unreadable-root
 cp -R "$prod_root" "$unreadable_root"
@@ -262,6 +348,53 @@ cp -R "$prod_root" "$missing_root"
 rm "$missing_root/lib/libz.so.1"
 if verify_fixture prod "$missing_root" "$fixture/missing.manifest" "$fixture/missing.libraries" >/dev/null 2>&1; then
   echo 'image verifier accepted a missing closure library' >&2
+  exit 1
+fi
+
+native_missing_needed=$fixture/native-missing-needed
+cp -R "$native_root" "$native_missing_needed"
+rm "$native_missing_needed/lib/libstdc++.so.6"
+if verify_fixture native-dev "$native_missing_needed" "$fixture/native-missing-needed.manifest" "$fixture/native-missing-needed.libraries" >/dev/null 2>&1; then
+  echo 'native verifier accepted a missing runtime NEEDED library' >&2
+  exit 1
+fi
+
+native_extra_rbf=$fixture/native-extra-rbf
+cp -R "$native_root" "$native_extra_rbf"
+cp "$native_extra_rbf/usr/share/mister-runtime/idle.rbf" "$native_extra_rbf/extra.rbf"
+if verify_fixture native-dev "$native_extra_rbf" "$fixture/native-extra-rbf.manifest" "$fixture/native-extra-rbf.libraries" >/dev/null 2>&1; then
+  echo 'native verifier accepted more than one RBF' >&2
+  exit 1
+fi
+
+native_main=$fixture/native-main
+cp -R "$native_root" "$native_main"
+: > "$native_main/etc/init.d/S40mister-main"
+if verify_fixture native-dev "$native_main" "$fixture/native-main.manifest" "$fixture/native-main.libraries" >/dev/null 2>&1; then
+  echo 'native verifier accepted the Main init service' >&2
+  exit 1
+fi
+
+native_wrong_inputs=$fixture/native-wrong-inputs
+cp -R "$native_root" "$native_wrong_inputs"
+sed 's#idle_path=menu.rbf#idle_path=latest.rbf#' \
+  "$native_wrong_inputs/usr/share/mister-runtime/build-inputs" > \
+  "$native_wrong_inputs/usr/share/mister-runtime/build-inputs.new"
+mv "$native_wrong_inputs/usr/share/mister-runtime/build-inputs.new" \
+  "$native_wrong_inputs/usr/share/mister-runtime/build-inputs"
+if verify_fixture native-dev "$native_wrong_inputs" "$fixture/native-wrong-inputs.manifest" "$fixture/native-wrong-inputs.libraries" >/dev/null 2>&1; then
+  echo 'native verifier accepted a build-input record that differs from the lock' >&2
+  exit 1
+fi
+
+native_legacy_agent=$fixture/native-legacy-agent
+cp -R "$native_root" "$native_legacy_agent"
+sed 's/ --runtime native//' "$native_legacy_agent/etc/init.d/S50mister-agent" > \
+  "$native_legacy_agent/etc/init.d/S50mister-agent.new"
+mv "$native_legacy_agent/etc/init.d/S50mister-agent.new" \
+  "$native_legacy_agent/etc/init.d/S50mister-agent"
+if verify_fixture native-dev "$native_legacy_agent" "$fixture/native-legacy-agent.manifest" "$fixture/native-legacy-agent.libraries" >/dev/null 2>&1; then
+  echo 'native verifier accepted an agent without explicit native backend selection' >&2
   exit 1
 fi
 
@@ -341,6 +474,14 @@ if verify_fixture prod "$bin_rom_root" "$fixture/bin-rom.manifest" "$fixture/bin
   exit 1
 fi
 
+legacy_rbf_root=$fixture/legacy-rbf-root
+cp -R "$prod_root" "$legacy_rbf_root"
+: > "$legacy_rbf_root/menu.rbf"
+if verify_fixture prod "$legacy_rbf_root" "$fixture/legacy-rbf.manifest" "$fixture/legacy-rbf.libraries" >/dev/null 2>&1; then
+  echo 'legacy verifier accepted a bundled RBF' >&2
+  exit 1
+fi
+
 gdb_root=$fixture/gdb-root
 cp -R "$prod_root" "$gdb_root"
 mkdir -p "$gdb_root/usr/lib"
@@ -358,6 +499,24 @@ TARGET_IMAGE_SMOKE_VOLATILE /run /tmp /var/log writable tmpfs
 TARGET_IMAGE_SMOKE_READY
 EOF
 TARGET_IMAGE_TEST_MODE=1 sh "$repo/scripts/qemu-smoke-target-image.sh" --verify-log prod "$smoke_log"
+
+native_smoke_log=$fixture/qemu-native-smoke.log
+cat > "$native_smoke_log" <<'EOF'
+TARGET_IMAGE_SMOKE_ROOT options=relatime,ro,data=ordered
+TARGET_IMAGE_SMOKE_VOLATILE /run /tmp /var/log writable tmpfs
+TARGET_IMAGE_SMOKE_READY
+EOF
+TARGET_IMAGE_TEST_MODE=1 sh "$repo/scripts/qemu-smoke-target-image.sh" \
+  --verify-log native-dev "$native_smoke_log"
+{
+  printf '%s\n' 'mister-main: waiting for /media/fat payloads'
+  cat "$native_smoke_log"
+} > "$native_smoke_log.main-wait"
+if TARGET_IMAGE_TEST_MODE=1 \
+  sh "$repo/scripts/qemu-smoke-target-image.sh" --verify-log native-dev "$native_smoke_log.main-wait" >/dev/null 2>&1; then
+  echo 'native QEMU smoke accepted a Main payload wait' >&2
+  exit 1
+fi
 
 sed 's/relatime,ro,data/relatime,rw,road/' "$smoke_log" > "$smoke_log.bad"
 if TARGET_IMAGE_TEST_MODE=1 \

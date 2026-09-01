@@ -5,11 +5,13 @@ repo=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 cleanup_manifest_tmp=
 cleanup_library_tmp=
 cleanup_inspect_root=
+cleanup_native_inputs_tmp=
 
 cleanup() {
   [ -z "$cleanup_manifest_tmp" ] || /bin/rm -f "$cleanup_manifest_tmp"
   [ -z "$cleanup_library_tmp" ] || /bin/rm -f "$cleanup_library_tmp"
   [ -z "$cleanup_inspect_root" ] || /bin/rm -rf "$cleanup_inspect_root"
+  [ -z "$cleanup_native_inputs_tmp" ] || /bin/rm -f "$cleanup_native_inputs_tmp"
 }
 trap cleanup EXIT INT TERM
 
@@ -32,15 +34,37 @@ required_libraries() {
 }
 
 usage() {
-  printf 'usage: verify-target-image.sh prod|dev IMAGE MANIFEST LIBRARY_REPORT | --inside VARIANT IMAGE MANIFEST LIBRARY_REPORT | --root-fixture VARIANT ROOT MANIFEST LIBRARY_REPORT\n' >&2
+  printf 'usage: verify-target-image.sh prod|dev|native-dev IMAGE MANIFEST LIBRARY_REPORT | --inside VARIANT IMAGE MANIFEST LIBRARY_REPORT | --root-fixture VARIANT ROOT MANIFEST LIBRARY_REPORT\n' >&2
   exit 2
 }
 
 validate_variant() {
   case "$1" in
-    prod|dev) : ;;
+    prod|dev|native-dev) : ;;
     *) usage ;;
   esac
+}
+
+read_native_lock_value() {
+  lock_section=$1
+  lock_key=$2
+  awk -v wanted_section="$lock_section" -v wanted_key="$lock_key" '
+    /^\[/ {
+      section=$0
+      gsub(/^\[|\]$/, "", section)
+      next
+    }
+    section == wanted_section && $0 ~ "^[[:space:]]*" wanted_key "[[:space:]]*=" {
+      value=$0
+      sub(/^[^=]*=[[:space:]]*/, "", value)
+      quote=substr(value, 1, 1)
+      if ((quote == "\"" || quote == sprintf("%c", 39)) &&
+          substr(value, length(value), 1) == quote) {
+        value=substr(value, 2, length(value) - 2)
+      }
+      print value
+    }
+  ' "$repo/build/native-runtime.inputs.lock.toml"
 }
 
 verify_root() {
@@ -51,14 +75,28 @@ verify_root() {
   validate_variant "$variant"
   root=$(CDPATH='' cd -- "$root" && pwd -P)
 
-  for required in \
-    /sbin/init \
-    /usr/bin/busybox \
-    /usr/sbin/mister-agent \
-    /etc/init.d/S20mister-network \
-    /etc/init.d/S40mister-main \
-    /etc/init.d/S49fogcast-target-smoke \
-    /etc/init.d/S50mister-agent; do
+  if [ "$variant" = native-dev ]; then
+    required_paths='/sbin/init
+/usr/bin/busybox
+/usr/sbin/mister-runtime
+/usr/sbin/mister-agent
+/usr/share/mister-runtime/idle.rbf
+/usr/share/mister-runtime/build-inputs
+/etc/init.d/S20mister-network
+/etc/init.d/S40mister-runtime
+/etc/init.d/S49fogcast-target-smoke
+/etc/init.d/S50mister-agent'
+  else
+    required_paths='/sbin/init
+/usr/bin/busybox
+/usr/sbin/mister-agent
+/etc/init.d/S20mister-network
+/etc/init.d/S40mister-main
+/etc/init.d/S49fogcast-target-smoke
+/etc/init.d/S50mister-agent'
+  fi
+  printf '%s\n' "$required_paths" | while IFS= read -r required; do
+    [ -n "$required" ] || continue
     [ -e "$root$required" ] || {
       printf 'verify-target-image: missing required path: %s\n' "$required" >&2
       exit 1
@@ -101,6 +139,68 @@ EOF
     }
   done
 
+  if [ "$variant" = native-dev ]; then
+    [ ! -e "$root/etc/init.d/S40mister-main" ] || {
+      printf '%s\n' 'verify-target-image: native image contains the Main init service' >&2
+      exit 1
+    }
+    native_runtime_service=$root/etc/init.d/S40mister-runtime
+    native_agent_service=$root/etc/init.d/S50mister-agent
+    grep -Fq '/usr/sbin/mister-supervise mister-runtime /usr/sbin/mister-runtime &' \
+      "$native_runtime_service" || {
+      printf '%s\n' 'verify-target-image: native runtime service has the wrong start command' >&2
+      exit 1
+    }
+    grep -Fq '/usr/sbin/mister-supervise mister-agent /usr/sbin/mister-agent \' \
+      "$native_agent_service" &&
+      grep -Fq -- '--config /media/fat/fogcast/agent.toml --runtime native &' \
+        "$native_agent_service" || {
+      printf '%s\n' 'verify-target-image: native agent service has the wrong start command' >&2
+      exit 1
+    }
+    if grep -Eq '/dev/MiSTer_cmd|CORENAME|/media/fat/MiSTer|agent_binary=|killall|pidof|pgrep|/proc/' \
+      "$native_agent_service"; then
+      printf '%s\n' 'verify-target-image: native agent service depends on legacy Main state' >&2
+      exit 1
+    fi
+
+    idle=$root/usr/share/mister-runtime/idle.rbf
+    expected_idle_sha=$(read_native_lock_value idle_rbf sha256)
+    expected_idle_size=$(read_native_lock_value idle_rbf size)
+    [ "$(sha256sum "$idle" | awk '{print $1}')" = "$expected_idle_sha" ] || {
+      printf '%s\n' 'verify-target-image: native idle RBF digest differs from the lock' >&2
+      exit 1
+    }
+    [ "$(wc -c < "$idle" | tr -d ' ')" = "$expected_idle_size" ] || {
+      printf '%s\n' 'verify-target-image: native idle RBF size differs from the lock' >&2
+      exit 1
+    }
+    rbf_count=$(find "$root" -type f -iname '*.rbf' | wc -l | tr -d ' ')
+    [ "$rbf_count" -eq 1 ] || {
+      printf 'verify-target-image: native image must contain exactly one RBF, found %s\n' "$rbf_count" >&2
+      exit 1
+    }
+
+    expected_inputs=$(mktemp "${TMPDIR:-/tmp}/fogcast-native-build-inputs.XXXXXX")
+    cleanup_native_inputs_tmp=$expected_inputs
+    {
+      printf 'format=1\n'
+      printf 'mister_runtime_commit=%s\n' "$(read_native_lock_value mister_runtime commit)"
+      printf 'idle_repository=%s\n' "$(read_native_lock_value idle_rbf repository)"
+      printf 'idle_commit=%s\n' "$(read_native_lock_value idle_rbf commit)"
+      printf 'idle_path=%s\n' "$(read_native_lock_value idle_rbf path)"
+      printf 'idle_sha256=%s\n' "$expected_idle_sha"
+      printf 'idle_size=%s\n' "$expected_idle_size"
+      printf 'idle_install_path=%s\n' "$(read_native_lock_value idle_rbf install_path)"
+    } > "$expected_inputs"
+    cmp "$expected_inputs" "$root/usr/share/mister-runtime/build-inputs" >/dev/null 2>&1 || {
+      printf '%s\n' 'verify-target-image: native build-input record differs from the lock' >&2
+      exit 1
+    }
+    /bin/rm -f "$expected_inputs"
+    cleanup_native_inputs_tmp=
+  fi
+
   server_resolved=$(find "$root" \( -type f -o -type l \) \
     \( -name dropbear -o -name dropbearmulti -o -name sshd \) \
     -exec sh -c '
@@ -138,14 +238,26 @@ EOF
     }
   fi
 
-  if find "$root" -type f \( \
-    -iname '*.rom' -o -iname '*.sfc' -o -iname '*.smc' -o \
-    -iname '*.md' -o -iname '*.gen' -o -iname '*.zip' -o \
-    -iname '*.bin' -o -iname '*.rbf' -o -iname '*.map' -o -name 'agent.toml' \
-    -o -name '*-gdb.py' \
-  \) -print -quit | grep -q .; then
-    printf '%s\n' 'verify-target-image: forbidden game, runtime, or debug payload found' >&2
-    exit 1
+  if [ "$variant" = native-dev ]; then
+    if find "$root" -type f \( \
+      -iname '*.rom' -o -iname '*.sfc' -o -iname '*.smc' -o \
+      -iname '*.md' -o -iname '*.gen' -o -iname '*.zip' -o \
+      -iname '*.bin' -o -iname '*.map' -o -name 'agent.toml' \
+      -o -name '*-gdb.py' \
+    \) -print -quit | grep -q .; then
+      printf '%s\n' 'verify-target-image: forbidden game, runtime, or debug payload found' >&2
+      exit 1
+    fi
+  else
+    if find "$root" -type f \( \
+      -iname '*.rom' -o -iname '*.sfc' -o -iname '*.smc' -o \
+      -iname '*.md' -o -iname '*.gen' -o -iname '*.zip' -o \
+      -iname '*.bin' -o -iname '*.rbf' -o -iname '*.map' -o -name 'agent.toml' \
+      -o -name '*-gdb.py' \
+    \) -print -quit | grep -q .; then
+      printf '%s\n' 'verify-target-image: forbidden game, runtime, or debug payload found' >&2
+      exit 1
+    fi
   fi
   "$repo/scripts/scan-target-image-secrets.sh" "$root"
   for forbidden_tool in \
@@ -168,6 +280,40 @@ EOF
   if strings -a "$agent" | grep -Eiq '(^|[[:space:]])(token|secret|bearer|api[_-]?key)[[:space:]]*(=|:)'; then
     printf '%s\n' 'verify-target-image: agent binary contains a token assignment' >&2
     exit 1
+  fi
+
+  if [ "$variant" = native-dev ]; then
+    runtime=$root/usr/sbin/mister-runtime
+    runtime_type=$(file "$runtime")
+    printf '%s\n' "$runtime_type" | grep -Eq 'ELF 32-bit.*ARM.*EABI5'
+    runtime_header=$(readelf -h "$runtime")
+    printf '%s\n' "$runtime_header" | grep -Eq 'Class:[[:space:]]+ELF32'
+    printf '%s\n' "$runtime_header" | grep -Eq 'Machine:[[:space:]]+ARM'
+    runtime_needed=$(readelf -d "$runtime" | awk '
+      /\(NEEDED\)/ {
+        value=$0
+        sub(/^.*\[/, "", value)
+        sub(/\].*$/, "", value)
+        print value
+      }
+    ')
+    [ -n "$runtime_needed" ] || {
+      printf '%s\n' 'verify-target-image: native runtime has no inspectable NEEDED closure' >&2
+      exit 1
+    }
+    printf '%s\n' "$runtime_needed" | while IFS= read -r needed; do
+      case "$needed" in
+        ''|*/*)
+          printf 'verify-target-image: invalid runtime NEEDED entry: %s\n' "$needed" >&2
+          exit 1
+          ;;
+      esac
+      required_path=$(required_libraries | awk -F/ -v wanted="$needed" '$NF == wanted { print; exit }')
+      [ -n "$required_path" ] && [ -e "$root$required_path" ] || {
+        printf 'verify-target-image: runtime NEEDED library is absent from the verified closure: %s\n' "$needed" >&2
+        exit 1
+      }
+    done
   fi
 
   /bin/mkdir -p "$(dirname "$manifest")" "$(dirname "$library_report")"
@@ -251,7 +397,7 @@ case "${1:-}" in
     cleanup_inspect_root=
     exit
     ;;
-  prod|dev)
+  prod|dev|native-dev)
     [ "$#" -eq 4 ] || usage
     variant=$1
     image=$2

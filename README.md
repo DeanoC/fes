@@ -15,6 +15,9 @@ and content selection; the MiSTer is a small, directly controlled target.
 - Browser UI, local media previews, and host-emulator/remote-media modes.
 - A reproducible target image toolchain with a development image containing
   SSH and curl.
+- A separate reproducible `native-dev` candidate image that packages the
+  native runtime, native agent backend, and one locked idle RBF. Its evidence
+  is software and QEMU packaging only until the Task 7 hardware checks.
 
 The normal FPGA launch path is:
 
@@ -50,6 +53,11 @@ the next UI extension; it is not a second loading path.
 The current FogCast tree has one active target-image toolchain and one direct
 launch path. Superseded experiments are removed from the working tree; Git
 history is the archive.
+
+The working FPGA game path remains the conventional `dev`/`prod` image path
+described above. The `native-dev` candidate has zero supported game systems,
+does not launch games or development RBFs, and is not yet a hardware-working
+path.
 
 ## Build and test
 

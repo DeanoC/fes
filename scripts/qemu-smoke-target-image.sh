@@ -4,7 +4,7 @@ set -eu
 repo=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 
 usage() {
-  printf 'usage: qemu-smoke-target-image.sh prod|dev IMAGE | --inside VARIANT IMAGE | --verify-log VARIANT LOG | --verify-kernel-cache KEY OUTPUT\n' >&2
+  printf 'usage: qemu-smoke-target-image.sh prod|dev|native-dev IMAGE | --inside VARIANT IMAGE | --verify-log VARIANT LOG | --verify-kernel-cache KEY OUTPUT\n' >&2
   exit 2
 }
 
@@ -35,7 +35,7 @@ kernel_cache_valid() {
 
 validate_variant() {
   case "$1" in
-    prod|dev) : ;;
+    prod|dev|native-dev) : ;;
     *) usage ;;
   esac
 }
@@ -51,10 +51,17 @@ verify_smoke_log() {
   grep -Eq 'TARGET_IMAGE_SMOKE_ROOT options=([^,[:space:]]+,)*ro(,|[[:space:]]|$)' "$smoke_log"
   grep -Fq 'TARGET_IMAGE_SMOKE_VOLATILE /run /tmp /var/log writable tmpfs' "$smoke_log"
   wait_count=$(grep -Fc 'mister-main: waiting for /media/fat payloads' "$smoke_log" || true)
-  test "$wait_count" -eq 1 || {
-    printf 'qemu-smoke-target-image: %s did not enter exactly one bounded payload wait\n' "$smoke_variant" >&2
-    exit 1
-  }
+  if [ "$smoke_variant" = native-dev ]; then
+    test "$wait_count" -eq 0 || {
+      printf '%s\n' 'qemu-smoke-target-image: native-dev entered a Main payload wait' >&2
+      exit 1
+    }
+  else
+    test "$wait_count" -eq 1 || {
+      printf 'qemu-smoke-target-image: %s did not enter exactly one bounded payload wait\n' "$smoke_variant" >&2
+      exit 1
+    }
+  fi
 }
 
 case "${1:-}" in
@@ -94,9 +101,16 @@ case "${1:-}" in
     esac
     test -f "$image"
 
-    # The smoke kernel is shared test infrastructure. Use one canonical pinned
-    # toolchain so switching rootfs variants cannot invalidate its cache.
-    toolchain=/target-image-output/work-2-prod/host/bin/arm-buildroot-linux-gnueabihf-
+    # The smoke kernel is shared test infrastructure. Legacy variants retain
+    # the canonical production toolchain; native-dev uses its own target
+    # toolchain so the native build is independently sufficient for smoke.
+    if [ "$variant" = native-dev ]; then
+      toolchain_root=/target-image-output/work-2-native-dev/host
+      toolchain=/target-image-output/work-2-native-dev/host/bin/arm-buildroot-linux-gnueabihf-
+    else
+      toolchain_root=/target-image-output/work-2-prod/host
+      toolchain=/target-image-output/work-2-prod/host/bin/arm-buildroot-linux-gnueabihf-
+    fi
     test -x "${toolchain}gcc" || {
       printf 'qemu-smoke-target-image: cross compiler is missing: %sgcc\n' "$toolchain" >&2
       exit 1
@@ -124,7 +138,6 @@ case "${1:-}" in
     fi
     test "$(git -C "$kernel_source" rev-parse HEAD)" = "$source_head"
     test -z "$(git -C "$kernel_source" status --porcelain --untracked-files=all -- ':!/.target-image-commit')"
-    toolchain_root=/target-image-output/work-2-prod/host
     toolchain_sha=$(
       cd "$toolchain_root"
       find . \( -type f -o -type l \) -print | LC_ALL=C sort | while IFS= read -r relative; do
@@ -180,7 +193,7 @@ case "${1:-}" in
     printf 'target image %s QEMU smoke passed (vexpress-a9, not FPGA emulation)\n' "$variant"
     exit
     ;;
-  prod|dev)
+  prod|dev|native-dev)
     [ "$#" -eq 2 ] || usage
     variant=$1
     image=$2

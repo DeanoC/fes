@@ -5,7 +5,7 @@ repo=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 epoch=1751459412
 
 usage() {
-  printf 'usage: build-target-image.sh prod|dev|--fast-dev|--promote-existing VARIANT|--fetch VARIANT|--inside VARIANT OUTPUT EPOCH EXPORT|--inside-fast-dev OUTPUT EPOCH EXPORT|--inside-fetch VARIANT OUTPUT EPOCH|--validate-inside-path VARIANT OUTPUT EXPORT\n' >&2
+  printf 'usage: build-target-image.sh prod|dev|native-dev|--fast-dev|--promote-existing VARIANT|--fetch VARIANT|--inside VARIANT OUTPUT EPOCH EXPORT|--inside-fast-dev OUTPUT EPOCH EXPORT|--inside-fetch VARIANT OUTPUT EPOCH|--validate-inside-path VARIANT OUTPUT EXPORT\n' >&2
   exit 2
 }
 
@@ -27,13 +27,39 @@ validate_inside_paths() {
 
 validate_variant() {
   case "$1" in
-    prod|dev) : ;;
+    prod|dev|native-dev) : ;;
     *) usage ;;
   esac
 }
 
 defconfig_for() {
-  printf 'fogcast_target_%s_defconfig\n' "$1"
+  case "$1" in
+    native-dev) printf '%s\n' fogcast_target_native_dev_defconfig ;;
+    prod|dev) printf 'fogcast_target_%s_defconfig\n' "$1" ;;
+  esac
+}
+
+verify_native_inputs() {
+  [ -n "${LIBMISTER_RUNTIME_DIR:-}" ] || {
+    printf '%s\n' 'build-target-image: LIBMISTER_RUNTIME_DIR is required for native-dev' >&2
+    exit 2
+  }
+  "$repo/scripts/verify-native-runtime-inputs.sh" \
+    "$repo/build/native-runtime.inputs.lock.toml" \
+    "$LIBMISTER_RUNTIME_DIR" \
+    "$repo/build/cache/target-image/native/idle.rbf"
+}
+
+run_target_container() {
+  container_variant=$1
+  shift
+  if [ "$container_variant" = native-dev ]; then
+    verify_native_inputs
+    LIBMISTER_RUNTIME_DIR=$LIBMISTER_RUNTIME_DIR \
+      "$repo/scripts/target-image-container.sh" "$@"
+  else
+    LIBMISTER_RUNTIME_DIR= "$repo/scripts/target-image-container.sh" "$@"
+  fi
 }
 
 inside_build() {
@@ -70,6 +96,13 @@ inside_build() {
   /work/bin/target-image-lock-linux-amd64 verify-inputs \
     --lock /work/build/target-image.sources.lock.toml \
     --cache /work/build/cache/target-image
+
+  if [ "$inside_variant" = native-dev ]; then
+    /work/scripts/verify-native-runtime-inputs.sh \
+      /work/build/native-runtime.inputs.lock.toml \
+      /runtime-source \
+      /work/build/cache/target-image/native/idle.rbf
+  fi
 
   /bin/rm -rf "$inside_output"
   export SOURCE_DATE_EPOCH=$inside_epoch
@@ -184,8 +217,9 @@ case "${1:-}" in
     variant=$2
     validate_variant "$variant"
     output=/target-image-output/fetch-$variant
-    exec "$repo/scripts/target-image-container.sh" fetch \
+    run_target_container "$variant" fetch \
       /work/scripts/build-target-image.sh --inside-fetch "$variant" "$output" "$epoch"
+    exit
     ;;
   --fast-dev)
     [ "$#" -eq 1 ] || usage
@@ -225,7 +259,7 @@ case "${1:-}" in
       /bin/cp "$dev_work/images/rootfs.ext4" "$output_root/dev/linux.img.new.$$"
       /bin/mv "$output_root/dev/linux.img.new.$$" "$output_root/dev/linux.img"
     else
-      exec "$repo/scripts/target-image-container.sh" run \
+      LIBMISTER_RUNTIME_DIR= exec "$repo/scripts/target-image-container.sh" run \
         /work/scripts/build-target-image.sh --inside-fast-dev \
         /target-image-output/dev-work-dev "$epoch" \
         /work/build/output/target-image/dev/linux.img
@@ -234,7 +268,7 @@ case "${1:-}" in
       "$(/usr/bin/shasum -a 256 "$output_root/dev/linux.img" | /usr/bin/awk '{print $1}')"
     exit
     ;;
-  prod|dev)
+  prod|dev|native-dev)
     [ "$#" -eq 1 ] || usage
     variant=$1
     ;;
@@ -282,7 +316,7 @@ if [ "$promote_existing" -ne 1 ]; then
     if [ -n "${TARGET_IMAGE_BUILD_ONCE:-}" ]; then
       "$TARGET_IMAGE_BUILD_ONCE" "$variant" "$work" "$epoch"
     else
-      "$repo/scripts/target-image-container.sh" run \
+      run_target_container "$variant" run \
         /work/scripts/build-target-image.sh --inside "$variant" "/target-image-output/work-$run-$variant" "$epoch" "/work/build/output/target-image/work-$run-$variant/images/rootfs.ext4"
     fi
     test -f "$work/images/rootfs.ext4" || {
