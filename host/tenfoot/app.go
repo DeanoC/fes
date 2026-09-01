@@ -252,6 +252,17 @@ func (a *App) Selected() (Game, bool) {
 	return a.games[a.grid.Focus], true
 }
 
+func (a *App) focusIndex(i int) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if i < 0 || i >= len(a.games) {
+		return false
+	}
+	a.grid.Focus = i
+	a.grid.ensureVisible()
+	return true
+}
+
 func (a *App) startLaunchLocked() {
 	if a.launch.Phase == "launching" {
 		return

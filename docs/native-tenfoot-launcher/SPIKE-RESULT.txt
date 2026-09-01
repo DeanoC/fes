@@ -1,9 +1,0 @@
-STATUS=GREEN
-PR=https://github.com/DeanoC/FogCast/pull/93
-HEAD=08c27eb
-
-Evidence
-- make build-fogcast-tenfoot produced bin/fogcast-tenfoot (SDL3 / Homebrew).
-- Live smoke against http://127.0.0.1:8787: 200 titles, 4 decoded covers, gamepad focus 0->1, POST /api/v1/session/launch.
-- Host answered the launch (HTTP 500 SOURCE_UNAVAILABLE: library roots offline). Kit / MiSTer is out of scope.
-- This agent session has no Cocoa window server; smoke used SDL dummy video. GUI terminals get the Cocoa window.

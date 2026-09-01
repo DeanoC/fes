@@ -334,19 +334,19 @@ func runSmoke(ctx context.Context, opts Options, app *App, renderer *C.SDL_Rende
 	padReady := time.Now().Add(2 * time.Second)
 	for time.Now().Before(padReady) {
 		pumpSDL(app, pads, time.Now())
-		if len(pads) > 0 {
+		if pads[id] != nil {
 			break
 		}
 		C.SDL_Delay(5)
 	}
-	if len(pads) == 0 {
+	if pads[id] == nil {
 		pad := C.SDL_OpenGamepad(id)
 		if pad != nil {
 			pads[id] = pad
 			app.SetGamepads(len(pads))
 		}
 	}
-	if len(pads) == 0 {
+	if pads[id] == nil {
 		return fmt.Errorf("smoke: virtual gamepad was not opened")
 	}
 	evidence["gamepad"] = true
@@ -354,12 +354,12 @@ func runSmoke(ctx context.Context, opts Options, app *App, renderer *C.SDL_Rende
 
 	focusBefore := app.Snapshot().Grid.Focus
 	evidence["focus_before"] = focusBefore
-	if err := virtualPress(app, pads, C.SDL_GAMEPAD_BUTTON_DPAD_RIGHT); err != nil {
+	if err := virtualPress(app, pads, id, C.SDL_GAMEPAD_BUTTON_DPAD_RIGHT); err != nil {
 		return err
 	}
 	focusAfter := app.Snapshot().Grid.Focus
 	if focusAfter == focusBefore {
-		if err := virtualPress(app, pads, C.SDL_GAMEPAD_BUTTON_DPAD_DOWN); err != nil {
+		if err := virtualPress(app, pads, id, C.SDL_GAMEPAD_BUTTON_DPAD_DOWN); err != nil {
 			return err
 		}
 		focusAfter = app.Snapshot().Grid.Focus
@@ -369,7 +369,31 @@ func runSmoke(ctx context.Context, opts Options, app *App, renderer *C.SDL_Rende
 		return fmt.Errorf("smoke: gamepad navigation did not move focus (%s)", padDump(app, pads))
 	}
 
-	if err := virtualPress(app, pads, C.SDL_GAMEPAD_BUTTON_SOUTH); err != nil {
+	snap = app.Snapshot()
+	launchIdx := -1
+	for i, game := range snap.Games {
+		if launchBlockReason(game) == "" {
+			launchIdx = i
+			break
+		}
+	}
+	if launchIdx < 0 {
+		for i, game := range snap.Games {
+			if game.Launchable {
+				launchIdx = i
+				break
+			}
+		}
+	}
+	if launchIdx < 0 {
+		return fmt.Errorf("smoke: no launchable title for POST /api/v1/session/launch")
+	}
+	if !app.focusIndex(launchIdx) {
+		return fmt.Errorf("smoke: failed to focus launchable title %d", launchIdx)
+	}
+	evidence["launch_focus"] = launchIdx
+
+	if err := virtualPress(app, pads, id, C.SDL_GAMEPAD_BUTTON_SOUTH); err != nil {
 		return err
 	}
 	launchDeadline := time.Now().Add(20 * time.Second)
@@ -378,26 +402,40 @@ func runSmoke(ctx context.Context, opts Options, app *App, renderer *C.SDL_Rende
 		app.Tick(time.Now())
 		launch := app.Snapshot().Launch
 		if launch.Phase == "ok" || launch.Phase == "host" || launch.Phase == "error" {
-			evidence["launch_phase"] = launch.Phase
-			evidence["launch_status"] = launch.HTTPStatus
-			evidence["launch_error"] = launch.ErrorCode
-			evidence["launch_message"] = launch.Message
-			evidence["launch_game_id"] = launch.GameID
 			break
 		}
 		C.SDL_Delay(10)
 	}
 	launch := app.Snapshot().Launch
-	switch {
-	case launch.Phase == "ok" || launch.Phase == "host":
-	case launch.Phase == "error" && launch.HTTPStatus == 0:
+	httpStatus := launch.HTTPStatus
+	if httpStatus == 0 {
 		game, ok := app.Selected()
-		if !ok || launch.GameID != game.ID || launchBlockReason(game) == "" {
-			return fmt.Errorf("smoke: launch transport failed: %s", launch.Message)
+		if !ok || !game.Launchable {
+			return fmt.Errorf("smoke: host launch did not POST /api/v1/session/launch: %#v", launch)
 		}
-		evidence["launch_blocked"] = launch.Message
-	default:
-		return fmt.Errorf("smoke: host launch did not complete: %#v", launch)
+		// UI availability blocks must not count as a host launch.
+		result, err := app.client.Launch(ctx, game.ID)
+		if err != nil {
+			return fmt.Errorf("smoke: POST /api/v1/session/launch: %w", err)
+		}
+		if result.HTTPStatus == 0 {
+			return fmt.Errorf("smoke: POST /api/v1/session/launch returned no HTTP status")
+		}
+		httpStatus = result.HTTPStatus
+		evidence["launch_ui"] = launch.Message
+		evidence["launch_phase"] = "host"
+		evidence["launch_error"] = result.ErrorCode
+		evidence["launch_message"] = result.ErrorMessage
+		evidence["launch_game_id"] = game.ID
+	} else {
+		evidence["launch_phase"] = launch.Phase
+		evidence["launch_error"] = launch.ErrorCode
+		evidence["launch_message"] = launch.Message
+		evidence["launch_game_id"] = launch.GameID
+	}
+	evidence["launch_status"] = httpStatus
+	if httpStatus == 0 {
+		return fmt.Errorf("smoke: host launch HTTP status missing: %#v", evidence)
 	}
 
 	payload, err := json.Marshal(evidence)
@@ -408,18 +446,12 @@ func runSmoke(ctx context.Context, opts Options, app *App, renderer *C.SDL_Rende
 	return nil
 }
 
-func firstPad(pads map[C.SDL_JoystickID]*C.SDL_Gamepad) *C.SDL_Gamepad {
-	for _, pad := range pads {
-		if pad != nil {
-			return pad
-		}
-	}
-	return nil
-}
-
-func virtualPress(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, button C.int) error {
+func virtualPress(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, id C.SDL_JoystickID, button C.int) error {
 	held := map[Command]bool{}
-	pad := firstPad(pads)
+	pad := pads[id]
+	if pad == nil {
+		return fmt.Errorf("smoke: virtual gamepad %d is not open (%s)", int(id), padDump(app, pads))
+	}
 	set := C.fogcast_virtual_button_on(pad, button, 1)
 	if set == 0 {
 		return fmt.Errorf("smoke: virtual button down: %s", sdlError())
@@ -682,7 +714,8 @@ func drawFrame(renderer *C.SDL_Renderer, snap Snapshot, textures map[string]sdlT
 		}
 		fillRect(renderer, float32(x), float32(y), float32(snap.Grid.CellW), float32(snap.Grid.CellH-36), 28, 32, 44, 255)
 		if tex, ok := textures[game.ID]; ok {
-			dst := C.SDL_FRect{x: C.float(x), y: C.float(y), w: C.float(snap.Grid.CellW), h: C.float(snap.Grid.CellH - 36)}
+			dx, dy, dw, dh := coverDestRect(x, y, snap.Grid.CellW, snap.Grid.CellH-36, tex.w, tex.h)
+			dst := C.SDL_FRect{x: C.float(dx), y: C.float(dy), w: C.float(dw), h: C.float(dh)}
 			C.SDL_RenderTexture(renderer, tex.tex, nil, &dst)
 		} else {
 			r, g, b := placeholderColor(game.Title)

@@ -39,3 +39,25 @@ func TestDecodeCoverRejectsEmpty(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestCoverDestRectPreservesAspect(t *testing.T) {
+	t.Parallel()
+	x, y, w, h := coverDestRect(10, 20, 210, 284, 256, 256)
+	if w != 210 || h != 210 || x != 10 || y != 57 {
+		t.Fatalf("square dest = %v %v %v %v", x, y, w, h)
+	}
+	x, y, w, h = coverDestRect(0, 0, 210, 284, 256, 320)
+	if w != 210 || h != 262.5 || x != 0 || y != 10.75 {
+		t.Fatalf("portrait dest = %v %v %v %v", x, y, w, h)
+	}
+	x, y, w, h = coverDestRect(5, 5, 210, 284, 200, 300)
+	if h != 284 || w <= 0 || w >= 210 {
+		t.Fatalf("2:3 dest = %v %v %v %v", x, y, w, h)
+	}
+	if y < 4.99 || y > 5.01 {
+		t.Fatalf("2:3 should fill height, y=%v", y)
+	}
+	if x <= 5 {
+		t.Fatalf("2:3 should pillarbox, x=%v", x)
+	}
+}
