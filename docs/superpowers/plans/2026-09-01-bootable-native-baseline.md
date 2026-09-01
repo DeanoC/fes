@@ -233,7 +233,11 @@ make archive-audit
 git status --short
 ```
 
-Expected: all 98 named tests and active-tree checks pass; the worktree is clean.
+Expected: the complete named test set and active-tree checks pass; record the
+actual named-test count in the task log. The current
+`d6e7ec2db1049a0d6bd9edfd44a233ac174729f9` baseline has 98 named tests only;
+a later approved runtime main may legitimately have a different count. The
+worktree is clean.
 
 - [ ] **Step 2: Replace the unavailable-construction assertion with a failing real-construction test**
 
@@ -270,11 +274,27 @@ void TestUnavailableHardwareRemainsFailureOnly()
 }
 ```
 
-Add both calls to `main()`. In the native-hardware test recipe, compile
-`production_hardware.cpp` with:
+Add both calls to `main()`. In the focused native-hardware test recipe, add the
+Linux implementation sources to both the prerequisites and the compile/link
+command, alongside the idle-path macro. Retain the recipe's existing supporting
+source inputs and flags:
 
 ```make
--DMISTER_RUNTIME_IDLE_RBF=\"/definitely-missing/libmister-runtime/idle.rbf\"
+build/tests/unit/native_hardware_test: \\
+  tests/unit/native_hardware_test.cpp \\
+  src/linux/production_hardware.cpp \\
+  src/native/linux/mmio.cpp \\
+  src/native/linux/fpga_manager.cpp \\
+  src/native/linux/spi.cpp
+
+	$(CXX) $(CXXFLAGS) \\
+	  -DMISTER_RUNTIME_IDLE_RBF=\"/definitely-missing/libmister-runtime/idle.rbf\" \\
+	  tests/unit/native_hardware_test.cpp \\
+	  src/linux/production_hardware.cpp \\
+	  src/native/linux/mmio.cpp \\
+	  src/native/linux/fpga_manager.cpp \\
+	  src/native/linux/spi.cpp \\
+	  -o $@
 ```
 
 - [ ] **Step 3: Run the focused test and verify RED**
@@ -460,6 +480,9 @@ func TestClientRejectsWrongProtocolAndUnknownResponseFields(t *testing.T)
 func TestClientAcceptsExactly65536BytesAndRejects65537(t *testing.T)
 func TestClientRejectsMissingNewline(t *testing.T)
 func TestClientRejectsInvalidStateExecutionAndErrorShapes(t *testing.T)
+func TestClientAcceptsStartingNoneWithNullOrRetainedIdentity(t *testing.T)
+func TestClientRequiresCompleteIdentityForStartingGame(t *testing.T)
+func TestClientRequiresNullIdentityForStartingDevelopment(t *testing.T)
 func TestClientHonorsContextDeadlineWithoutRetry(t *testing.T)
 ```
 
@@ -514,15 +537,16 @@ Accept only runtime states `idle`, `starting`, `running_game`,
 | State | Allowed execution and identity |
 | --- | --- |
 | `idle` | `none`; `system` and `core` are null |
-| `starting` | `none`, `game`, or `development`; game has non-null system/core, the others have null system/core |
+| `starting` | `none` with null identity or one complete non-empty retained `system`/`core` pair; `game` with the complete non-empty pair; `development` with null identity |
 | `running_game` | `game`; `system` and `core` are non-null and non-empty |
 | `running_development` | `development`; `system` and `core` are null |
 | `reboot_required` | `none`; `system` and `core` are null; error code is `idle_failed` |
 
-An execution of `none` or `development` never carries system/core identity;
-an execution of `game` always carries both. `ok=false` requires a non-null
-error, while a successful status response may retain the runtime's last direct
-error. Accept only the protocol-1 error codes `invalid_request`,
+Except for the permitted retained pair during `starting` plus `none`, an
+execution of `none` or `development` never carries system/core identity; an
+execution of `game` always carries one complete non-empty pair. `ok=false`
+requires a non-null error, while a successful status response may retain the
+runtime's last direct error. Accept only the protocol-1 error codes `invalid_request`,
 `unsupported_protocol`, `unknown_system`, `missing_media`, `busy`,
 `program_failed`, `core_mismatch`, `io_failed`, and `idle_failed`. Require a
 non-empty version. Return stable local errors such as `runtime response exceeds
@@ -580,9 +604,10 @@ func TestNativeHealthIsReadyOnlyForIdleAndKeepsLegacyBooleansFalse(t *testing.T)
 func TestNativeReconcileMapsIdleWithoutIdentity(t *testing.T)
 func TestNativeReconcileMapsRebootRequiredToFailedUnavailable(t *testing.T)
 func TestNativeReconcileWaitsThroughStartingAndHonorsContext(t *testing.T)
+func TestNativeReconcileTreatsNonIdleStartupAsUnavailable(t *testing.T)
 func TestNativePrepareAndLaunchRejectEveryGameWithoutControlMutation(t *testing.T)
 func TestNativeDevelopmentRejectsWithoutReadingBodyOrCallingControl(t *testing.T)
-func TestNativeStopUsesOneRuntimeStopAndMapsItsResult(t *testing.T)
+func TestNativeDirectStopTranslationMapsControlResultForLaterMilestone(t *testing.T)
 func TestCoordinatorStopWhileNativeIdleDoesNotCallRuntimeStop(t *testing.T)
 func TestNativeHealthReadsBootIDWithoutLeakingReadErrors(t *testing.T)
 ```
@@ -593,8 +618,7 @@ Use this exact target mapping:
 | --- | --- |
 | `idle` | `StateIdle`, no game/system/core/development identity |
 | `starting` | keep polling during `Reconcile`; `Health.Ready=false` |
-| `running_game` | `StateActive`, system/core only when supplied, no invented game ID |
-| `running_development` | `StateActive`, `Development=true`, no game/system identity |
+| `running_game` or `running_development` at Milestone 2 startup | `StateFailed`, `CodeMiSTerUnavailable`, stable unavailable message; no public active stop admission |
 | `reboot_required` | `StateFailed`, `CodeMiSTerUnavailable`, direct stable message |
 | socket/protocol failure | `StateFailed`, `CodeMiSTerUnavailable`, stable message |
 
@@ -668,8 +692,12 @@ func NewRuntime(control Control, bootIDFile string,
 
 `Reconcile` polls only while the runtime says `starting` or the socket is not
 yet reachable, using the caller context and `pollInterval`. A conclusive
-`idle`, active, or `reboot_required` response returns immediately. `Health`
-uses one call bounded by `healthTimeout`; it does not retry.
+`idle`, non-idle unavailable, or `reboot_required` response returns
+immediately. `Health` uses one call bounded by `healthTimeout`; it does not
+retry. Keep the public coordinator stop admission idle-only: it confirms an
+already-idle state without calling runtime `Stop`. The direct adapter `Stop`
+translation remains an isolated interface test for a later milestone; do not
+add coordinator-driven active stop or change product behaviour here.
 
 Factor production composition in `cmd/mister-agent/main.go` as:
 
@@ -1265,29 +1293,62 @@ using the runner as acceptance evidence.
 - Modify: `libmister-runtime/docs/support-matrix.md`
 
 **Interfaces:**
-- Consumes: reviewed, merged runtime and FogCast main commits, reproducible
-  native image, ShadowCast 3 at `/dev/video0`, and the known legacy image.
+- Consumes: clean, pulled runtime and FogCast main checkouts; rebuilt and
+  verified reproducible native and legacy images; ShadowCast 3 at
+  `/dev/video0`; and the known legacy image.
 - Produces: dated physical evidence and truthful Milestone 2 completion state.
 
-- [ ] **Step 1: Freeze exact inputs before touching the device**
+- [ ] **Step 1: Clean main checkouts, rebuild verified images, and freeze exact inputs before touching the device**
 
 ```bash
 fogcast_root=$(git rev-parse --show-toplevel)
+runtime_root=/home/deano/fes/libmister-runtime
+
+git -C "$fogcast_root" switch main
+git -C "$fogcast_root" pull --ff-only
+test -z "$(git -C "$fogcast_root" status --porcelain --untracked-files=all)"
+fogcast_commit=$(git -C "$fogcast_root" rev-parse HEAD)
+
+git -C "$runtime_root" switch main
+git -C "$runtime_root" pull --ff-only
+test -z "$(git -C "$runtime_root" status --porcelain --untracked-files=all)"
+runtime_commit=$(git -C "$runtime_root" rev-parse HEAD)
+locked_runtime_commit=$(awk -F"'" '
+  $0 == "[mister_runtime]" { in_runtime = 1; next }
+  /^\[/ { in_runtime = 0 }
+  in_runtime && /^commit = / { print $2; exit }
+' "$fogcast_root/build/native-runtime.inputs.lock.toml")
+printf '%s\n' "$locked_runtime_commit" | grep -Eq '^[0-9a-f]{40}$'
+test "$locked_runtime_commit" = "$runtime_commit"
+
 cd "$fogcast_root"
-git pull --ff-only
-test -z "$(git status --porcelain)"
-fogcast_commit=$(git rev-parse HEAD)
-runtime_commit=$(git -C /home/deano/fes/libmister-runtime rev-parse HEAD)
+make target-images
+make target-image-verify
+export LIBMISTER_RUNTIME_DIR="$runtime_root"
+make target-image-native
+make target-image-native-verify
+make target-image-native-qemu-smoke
+sh scripts/verify-native-runtime-inputs.sh \
+  build/native-runtime.inputs.lock.toml \
+  "$runtime_root" \
+  build/cache/target-image/native/idle.rbf
+
 native_image=build/output/target-image/native-dev/linux.img
-legacy_image=build/output/target-image/dev/linux.img
+legacy_dev_image=build/output/target-image/dev/linux.img
+legacy_prod_image=build/output/target-image/prod/linux.img
 native_sha=$(sha256sum "$native_image" | awk '{print $1}')
-legacy_sha=$(sha256sum "$legacy_image" | awk '{print $1}')
-printf 'fogcast=%s\nruntime=%s\nnative_image=%s\nlegacy_image=%s\n' \
-  "$fogcast_commit" "$runtime_commit" "$native_sha" "$legacy_sha"
+legacy_dev_sha=$(sha256sum "$legacy_dev_image" | awk '{print $1}')
+legacy_prod_sha=$(sha256sum "$legacy_prod_image" | awk '{print $1}')
+printf 'fogcast=%s\nruntime=%s\nlocked_runtime=%s\nnative_image=%s\nlegacy_dev_image=%s\nlegacy_prod_image=%s\n' \
+  "$fogcast_commit" "$runtime_commit" "$locked_runtime_commit" \
+  "$native_sha" "$legacy_dev_sha" "$legacy_prod_sha"
 ```
 
-Expected: both images exist and are non-empty; commits match the native input
-record and reviewed PRs.
+Expected: both clean main checkouts are fast-forwarded; the locked runtime
+commit equals clean runtime `HEAD`; the native-input verifier passes again;
+the reproducible `prod`, `dev`, and `native-dev` images are rebuilt and
+verified from clean FogCast main; and all three resulting image hashes are
+recorded before any hardware action.
 
 - [ ] **Step 2: Deploy native-dev and run the automated idle lifecycle**
 
@@ -1302,18 +1363,30 @@ changed boot ID, and fresh ready idle.
 - [ ] **Step 3: Capture and inspect the real HDMI output**
 
 ```bash
-v4l2-ctl --list-devices
 mkdir -p build/output/target-image/native-dev/evidence
+{
+  v4l2-ctl --list-devices
+  v4l2-ctl --device /dev/video0 --all
+  v4l2-ctl --device /dev/video0 --list-formats-ext
+} > build/output/target-image/native-dev/evidence/v4l2-video0-report.txt
 ffmpeg -hide_banner -loglevel error -f v4l2 -i /dev/video0 \
-  -frames:v 1 -y \
-  build/output/target-image/native-dev/evidence/idle.png
-sha256sum build/output/target-image/native-dev/evidence/idle.png
+  -t 5 -vf fps=1 -frames:v 5 -strftime 1 -y \
+  build/output/target-image/native-dev/evidence/idle-%Y%m%dT%H%M%S.png
+set -- build/output/target-image/native-dev/evidence/idle-*.png
+test "$#" -eq 5
+sha256sum \
+  build/output/target-image/native-dev/evidence/v4l2-video0-report.txt \
+  build/output/target-image/native-dev/evidence/idle-*.png \
+  | tee build/output/target-image/native-dev/evidence/capture-sha256.txt
 ```
 
-Open the PNG with the local image-view tool. It must show stable, non-corrupt
-idle video; a blacked-out OSD due to no input is acceptable only when the HDMI
-signal and frame geometry are stable. Record the observation and PNG hash; do
-not commit the binary capture.
+Capture exactly five timestamped frames across the five-second interval and
+retain the V4L2 device/mode report. Open every PNG with the local image-view
+tool and inspect each one. Every frame must show stable geometry and
+non-corrupt idle output; a blacked-out OSD due to no input is acceptable only
+when the HDMI signal and frame geometry are stable in all five frames. Record
+the V4L2-report hash and every frame hash in the canonical evidence. Do not
+commit any binary capture frame.
 
 - [ ] **Step 4: Collect direct logs and installed identities**
 
@@ -1332,7 +1405,7 @@ native mode, and no log reports fallback or conventional Main.
 - [ ] **Step 5: Reinstall legacy dev and launch a real known game**
 
 ```bash
-make target-image-deploy TARGET_IMAGE="$legacy_image"
+make target-image-deploy TARGET_IMAGE="$legacy_dev_image"
 game_id=$(curl --fail --silent --show-error --get \
   --data-urlencode 'q=Sonic the Hedgehog 2' \
   http://127.0.0.1:8787/api/v1/games | \
@@ -1347,10 +1420,12 @@ observes `MegaDrive`, stops, and observes `MENU`.
 
 Set `acceptance_date=$(date -I)` and create
 `docs/hardware/native-idle-baseline.md` with that date, full
-FogCast/runtime commits, native/legacy image hashes, idle source commit/hash,
-before/after boot IDs, process/FIFO result, stop result, HDMI observation and
-capture hash, and rollback game ID/core result. Mark the run `pass` only if all
-Steps 2-5 passed.
+FogCast/runtime commits, native, legacy-dev, and legacy-prod image hashes, idle
+source commit/hash,
+before/after boot IDs, process/FIFO result, stop result, V4L2 device/mode
+report and hash, every timestamped HDMI frame name/hash/inspection result, and
+rollback game ID/core result. Commit none of the binary capture frames. Mark
+the run `pass` only if all Steps 2-5 passed.
 
 Update FogCast docs so:
 

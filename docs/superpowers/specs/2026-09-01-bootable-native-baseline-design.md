@@ -181,6 +181,13 @@ FogCast adds one Go client for the existing newline-JSON protocol at
 one bounded protocol-1 request, reads one bounded response, and closes. The
 client does not reproduce runtime state or hardware rules.
 
+The client accepts the canonical runtime producer's transition shapes exactly:
+`starting` with `none` accepts either null `system`/`core` or one complete,
+non-empty retained `system`/`core` pair; `starting` with `game` requires that
+complete pair; and `starting` with `development` requires null identity. Idle
+and `reboot_required` remain `none` with null identity. A partial or empty
+pair is never valid.
+
 Agent startup chooses its backend explicitly, using a usage-based command-line
 option: `--runtime native`. The legacy image continues to start the agent
 without that option and therefore retains the current direct Main
@@ -191,8 +198,12 @@ can truthfully provide:
 
 - initialization/status asks the daemon for its observable state;
 - health is ready only when the daemon reports `idle`;
-- stop confirms `idle` without mutation when the runtime is already idle, and
-  otherwise calls runtime `stop` and requires an `idle` result;
+- public stop is idle-only: an already-idle stop confirms `idle` without a
+  runtime or hardware mutation;
+- a non-idle native state observed at startup is unavailable in this milestone,
+  rather than an admission to coordinator-driven active stop; the adapter may
+  unit-test its direct `Stop` translation as an interface method retained for a
+  later milestone;
 - explicit reboot continues to use FogCast's existing system reboot mechanism;
   and
 - game launch and development-RBF loading return a clear unsupported result
@@ -286,7 +297,7 @@ Failure handling stays direct and finite:
 | Idle artifact missing or unreadable at boot | Runtime reports `reboot_required`; agent not ready |
 | FPGA programming fails | Runtime reports the direct failure and `reboot_required`; agent not ready |
 | Runtime socket unavailable | Agent not ready; no fallback |
-| Runtime reports a non-idle active state at agent startup | Agent not ready for this milestone |
+| Runtime reports a non-idle state at agent startup | Unavailable for this milestone; no coordinator-driven active stop |
 | Game launch requested | Clear unsupported response before hardware mutation |
 | Development RBF requested | Clear unsupported response before hardware mutation |
 | Stop while idle | Target confirms `idle` without hardware mutation |
@@ -334,15 +345,25 @@ session, or durable recovery record.
 The milestone is not complete until the disposable target at
 `192.168.10.239` passes all of these checks:
 
-1. Record the FogCast commit, `libmister-runtime` commit, native image SHA-256,
-   idle source commit, and idle artifact SHA-256.
+Before touching the device, clean and fast-forward both repository main
+checkouts. From that clean FogCast main, rebuild and verify the reproducible
+legacy `prod` and `dev` images and the native image. Pull and verify a clean
+runtime main checkout, extract the locked runtime commit, assert it equals
+runtime `HEAD`, and re-run native-input verification. Only then hash and deploy
+the resulting images.
+
+1. Record the FogCast commit, `libmister-runtime` commit, native and legacy
+   image SHA-256 values, idle source commit, and idle artifact SHA-256.
 2. Install and boot the `native-dev` image.
 3. Confirm no conventional Main process is running and no agent path depends
    on `/dev/MiSTer_cmd`.
 4. Confirm `mister-runtime` reports `idle` and the existing FogCast target
    health reports ready.
-5. Observe stable, non-corrupt idle output through the attached HDMI capture.
-6. Call the existing stop path and confirm the runtime remains or returns to
+5. Capture five timestamped HDMI frames over five seconds and a V4L2
+   device/mode report. Inspect every frame for stable geometry and non-corrupt
+   output, and record every capture and report hash without committing binary
+   frames.
+6. Call the existing idle-only stop path and confirm the runtime remains
    `idle` without rebooting.
 7. Request an explicit reboot; confirm the Linux boot ID changes and the target
    returns to fresh `idle` and ready.
@@ -350,8 +371,9 @@ The milestone is not complete until the disposable target at
    proving that rollback still works.
 
 The evidence records the date, commits and image identities, observed states,
-HDMI result, reboot boot IDs, and legacy game used. A short human-readable
-report is sufficient.
+all rebuilt-image and capture/report hashes, five-frame inspection result,
+reboot boot IDs, and legacy game used. A short human-readable report is
+sufficient.
 
 ## Delivery sequence
 
