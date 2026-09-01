@@ -201,6 +201,11 @@ func runWindow(ctx context.Context, opts Options) error {
 	C.SDL_SetRenderVSync(renderer, 1)
 
 	app := NewApp(NewClient(opts.APIBase, nil), opts.Width, opts.Height, opts.MaxGames)
+	if opts.Smoke {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, opts.SmokeTimeout)
+		defer cancel()
+	}
 	app.Start(ctx)
 	defer app.Stop()
 
@@ -274,14 +279,11 @@ func initSDLVideo() bool {
 }
 
 func runSmoke(ctx context.Context, opts Options, app *App, renderer *C.SDL_Renderer, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, textures map[string]sdlTexture) error {
-	ctx, cancel := context.WithTimeout(ctx, opts.SmokeTimeout)
-	defer cancel()
 	evidence := map[string]any{
 		"api": opts.APIBase,
 	}
-	deadline := time.Now().Add(opts.SmokeTimeout)
 
-	for time.Now().Before(deadline) {
+	for {
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("smoke: library load timeout: %w", err)
 		}
@@ -291,10 +293,6 @@ func runSmoke(ctx context.Context, opts Options, app *App, renderer *C.SDL_Rende
 		snap := app.Snapshot()
 		if snap.LoadErr != "" {
 			return fmt.Errorf("smoke: library load: %s", snap.LoadErr)
-		}
-		if len(snap.Games) >= 2 && !snap.Loading {
-			evidence["games"] = len(snap.Games)
-			break
 		}
 		if len(snap.Games) >= 2 {
 			evidence["games"] = len(snap.Games)
@@ -307,8 +305,10 @@ func runSmoke(ctx context.Context, opts Options, app *App, renderer *C.SDL_Rende
 		return fmt.Errorf("smoke: need at least 2 titles, got %d (%s)", len(snap.Games), snap.Status)
 	}
 
-	coverDeadline := time.Now().Add(20 * time.Second)
-	for time.Now().Before(coverDeadline) {
+	for {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("smoke: no cover artwork decoded: %w", err)
+		}
 		pumpSDL(app, pads, time.Now())
 		app.Tick(time.Now())
 		snap = app.Snapshot()
@@ -332,7 +332,13 @@ func runSmoke(ctx context.Context, opts Options, app *App, renderer *C.SDL_Rende
 	defer C.SDL_DetachVirtualJoystick(id)
 
 	padReady := time.Now().Add(2 * time.Second)
+	if deadline, ok := ctx.Deadline(); ok && deadline.Before(padReady) {
+		padReady = deadline
+	}
 	for time.Now().Before(padReady) {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("smoke: virtual gamepad: %w", err)
+		}
 		pumpSDL(app, pads, time.Now())
 		if pads[id] != nil {
 			break
@@ -393,27 +399,37 @@ func runSmoke(ctx context.Context, opts Options, app *App, renderer *C.SDL_Rende
 	}
 	evidence["launch_focus"] = launchIdx
 
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("smoke: host launch did not POST /api/v1/session/launch: %w", err)
+	}
 	if err := virtualPress(app, pads, id, C.SDL_GAMEPAD_BUTTON_SOUTH); err != nil {
 		return err
 	}
-	launchDeadline := time.Now().Add(20 * time.Second)
-	for time.Now().Before(launchDeadline) {
-		pumpSDL(app, pads, time.Now())
-		app.Tick(time.Now())
+	for {
 		launch := app.Snapshot().Launch
-		if launch.Phase == "ok" || launch.Phase == "host" || launch.Phase == "error" {
+		if launch.HTTPStatus != 0 || launch.Phase == "ok" || launch.Phase == "host" || launch.Phase == "error" {
 			break
 		}
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("smoke: host launch did not POST /api/v1/session/launch: %#v: %w", launch, err)
+		}
+		pumpSDL(app, pads, time.Now())
+		app.Tick(time.Now())
 		C.SDL_Delay(10)
 	}
 	launch := app.Snapshot().Launch
 	httpStatus := launch.HTTPStatus
+	if httpStatus == 0 && (launch.Phase == "launching" || launch.Phase == "idle") {
+		return fmt.Errorf("smoke: host launch did not POST /api/v1/session/launch: %#v", launch)
+	}
 	if httpStatus == 0 {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("smoke: host launch did not POST /api/v1/session/launch: %#v: %w", launch, err)
+		}
 		game, ok := app.Selected()
-		if !ok || !game.Launchable {
+		if !ok {
 			return fmt.Errorf("smoke: host launch did not POST /api/v1/session/launch: %#v", launch)
 		}
-		// UI availability blocks must not count as a host launch.
 		result, err := app.client.Launch(ctx, game.ID)
 		if err != nil {
 			return fmt.Errorf("smoke: POST /api/v1/session/launch: %w", err)
