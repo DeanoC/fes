@@ -30,21 +30,29 @@ case "$url" in
     [ ! -f "$FOGCAST_FAKE_STOP_COUNT" ] || count=$(cat "$FOGCAST_FAKE_STOP_COUNT")
     count=$((count + 1))
     printf '%s\n' "$count" > "$FOGCAST_FAKE_STOP_COUNT"
+    [ "$FOGCAST_FAKE_MODE" != stop-request-error ] || exit 22
     printf '%s\n' '{"state":"idle","private":"STOP-RESPONSE-SECRET"}'
     ;;
   */v1/health)
     if [ -f "$FOGCAST_FAKE_REBOOTED" ]; then
-      boot_id=boot-after
-      [ "$FOGCAST_FAKE_MODE" != unchanged-boot ] || boot_id=boot-before
+      boot_id=22222222-2222-4222-8222-222222222222
+      [ "$FOGCAST_FAKE_MODE" != unchanged-boot ] || \
+        boot_id=11111111-1111-4111-8111-111111111111
       if [ "$FOGCAST_FAKE_MODE" = never-ready-after-reboot ]; then
-        printf '%s\n' '{"ready":false,"boot_id":"boot-after","private":"HEALTH-RESPONSE-SECRET"}'
+        printf '%s\n' '{"ready":false,"boot_id":"22222222-2222-4222-8222-222222222222","private":"HEALTH-RESPONSE-SECRET"}'
       else
         printf '{"ready":true,"boot_id":"%s","private":"HEALTH-RESPONSE-SECRET"}\n' "$boot_id"
       fi
+    elif [ "$FOGCAST_FAKE_MODE" = invalid-boot-newline ]; then
+      printf '%s\n' '{"ready":true,"boot_id":"\n","private":"HEALTH-RESPONSE-SECRET"}'
+    elif [ "$FOGCAST_FAKE_MODE" = invalid-boot-control ]; then
+      printf '%s\n' '{"ready":true,"boot_id":"boot-\u0001-id","private":"HEALTH-RESPONSE-SECRET"}'
+    elif [ "$FOGCAST_FAKE_MODE" = curl-stall ]; then
+      exit 28
     elif [ "$FOGCAST_FAKE_MODE" = never-ready ]; then
-      printf '%s\n' '{"ready":false,"boot_id":"boot-before","private":"HEALTH-RESPONSE-SECRET"}'
+      printf '%s\n' '{"ready":false,"boot_id":"11111111-1111-4111-8111-111111111111","private":"HEALTH-RESPONSE-SECRET"}'
     else
-      printf '%s\n' '{"ready":true,"boot_id":"boot-before","private":"HEALTH-RESPONSE-SECRET"}'
+      printf '%s\n' '{"ready":true,"boot_id":"11111111-1111-4111-8111-111111111111","private":"HEALTH-RESPONSE-SECRET"}'
     fi
     ;;
   */api/v1/status)
@@ -74,6 +82,10 @@ printf '%s\n' "$*" >> "$FOGCAST_FAKE_SSH_LOG"
 case "$*" in
   *FOGCAST_EXECUTABLES_BEGIN*)
     [ "$FOGCAST_FAKE_MODE" != inspection-error ] || exit 255
+    case "$*" in
+      *'/usr/bin/readlink '*) : ;;
+      *) exit 127 ;;
+    esac
     printf '%s\n' FOGCAST_EXECUTABLES_BEGIN
     printf '%s\n' /usr/sbin/mister-runtime-supervisor
     printf '%s\n' /usr/sbin/mister-agent-supervisor
@@ -81,6 +93,7 @@ case "$*" in
     [ "$FOGCAST_FAKE_MODE" = missing-agent ] || printf '%s\n' /usr/sbin/mister-agent
     [ "$FOGCAST_FAKE_MODE" != duplicate-runtime ] || printf '%s\n' /usr/sbin/mister-runtime
     [ "$FOGCAST_FAKE_MODE" != main-process ] || printf '%s\n' /media/fat/MiSTer
+    [ "$FOGCAST_FAKE_MODE" != deleted-main-process ] || printf '%s\n' '/media/fat/MiSTer (deleted)'
     printf '%s\n' FOGCAST_EXECUTABLES_END
     if [ "$FOGCAST_FAKE_MODE" = command-pipe ]; then
       printf '%s\n' FOGCAST_COMMAND_PIPE_FIFO=1
@@ -89,12 +102,23 @@ case "$*" in
     fi
     ;;
   *'/bin/cat /usr/share/mister-runtime/build-inputs'*)
-    if [ "$FOGCAST_FAKE_MODE" = wrong-build-inputs ]; then
-      cat "$FOGCAST_FAKE_EXPECTED_INPUTS"
-      printf '%s\n' FOGCAST_BUILD_INPUTS_END unexpected_extra
-    else
-      cat "$FOGCAST_FAKE_EXPECTED_INPUTS"
-    fi
+    case "$FOGCAST_FAKE_MODE" in
+      wrong-build-inputs)
+        cat "$FOGCAST_FAKE_EXPECTED_INPUTS"
+        printf '%s\n' unexpected_extra
+        ;;
+      missing-final-newline)
+        input_size=$(wc -c < "$FOGCAST_FAKE_EXPECTED_INPUTS" | tr -d ' ')
+        dd if="$FOGCAST_FAKE_EXPECTED_INPUTS" bs=1 count=$((input_size - 1)) 2>/dev/null
+        ;;
+      extra-blank-line)
+        cat "$FOGCAST_FAKE_EXPECTED_INPUTS"
+        printf '\n'
+        ;;
+      *)
+        cat "$FOGCAST_FAKE_EXPECTED_INPUTS"
+        ;;
+    esac
     ;;
   *FOGCAST_REBOOT_STARTED*)
     count=0
@@ -115,6 +139,20 @@ case "$*" in
 esac
 EOF
 
+cat > "$fake_bin/timeout" <<'EOF'
+#!/bin/sh
+set -eu
+printf '%s\n' "$*" >> "$FOGCAST_FAKE_TIMEOUT_LOG"
+[ "$#" -ge 2 ] || exit 2
+shift
+case "$FOGCAST_FAKE_MODE:$*" in
+  inspection-stall:*FOGCAST_EXECUTABLES_BEGIN*|build-inputs-stall:*'/bin/cat /usr/share/mister-runtime/build-inputs'*|reboot-stall:*FOGCAST_REBOOT_STARTED*)
+    exit 124
+    ;;
+esac
+exec "$@"
+EOF
+
 cat > "$fake_bin/sleep" <<'EOF'
 #!/bin/sh
 set -eu
@@ -123,7 +161,8 @@ count=0
 count=$((count + 1))
 printf '%s\n' "$count" > "$FOGCAST_FAKE_SLEEP_COUNT"
 EOF
-chmod 0755 "$fake_bin/curl" "$fake_bin/sshpass" "$fake_bin/sleep"
+chmod 0755 "$fake_bin/curl" "$fake_bin/sshpass" "$fake_bin/sleep" \
+  "$fake_bin/timeout"
 expected_inputs=$fixture/expected-build-inputs
 cat > "$expected_inputs" <<'EOF'
 format=1
@@ -139,6 +178,7 @@ EOF
 reset_case() {
   : > "$fixture/curl.log"
   : > "$fixture/ssh.log"
+  : > "$fixture/timeout.log"
   rm -f "$fixture/stop.count" "$fixture/status.count" "$fixture/reboot.count" \
     "$fixture/rebooted" "$fixture/sleep.count"
 }
@@ -149,6 +189,7 @@ run_smoke() {
   FOGCAST_FAKE_MODE=$mode \
   FOGCAST_FAKE_CURL_LOG=$fixture/curl.log \
   FOGCAST_FAKE_SSH_LOG=$fixture/ssh.log \
+  FOGCAST_FAKE_TIMEOUT_LOG=$fixture/timeout.log \
   FOGCAST_FAKE_STOP_COUNT=$fixture/stop.count \
   FOGCAST_FAKE_STATUS_COUNT=$fixture/status.count \
   FOGCAST_FAKE_REBOOT_COUNT=$fixture/reboot.count \
@@ -162,6 +203,7 @@ run_smoke() {
   FOGCAST_TARGET_PASSWORD=fixture-password-secret \
   FOGCAST_POLL_ATTEMPTS=3 \
   FOGCAST_POLL_INTERVAL=0 \
+  FOGCAST_CALL_TIMEOUT=2 \
   PATH="$fake_bin:$PATH" \
     sh "$smoke" > "$output" 2>&1
 }
@@ -177,62 +219,151 @@ assert_safe_output() {
 
 reset_case
 success_output=$fixture/success.out
-run_smoke success "$success_output"
-test "$(cat "$success_output")" = \
-  'native runtime smoke passed: boot boot-before -> boot-after, idle -> idle'
+if ! run_smoke success "$success_output"; then
+  printf '%s\n' 'native runtime smoke rejected the success fixture' >&2
+  cat "$success_output" >&2
+  exit 1
+fi
+success_expected=$fixture/success.expected
+printf '%s\n' \
+  'native runtime smoke passed: boot 11111111-1111-4111-8111-111111111111 -> 22222222-2222-4222-8222-222222222222, idle -> idle' \
+  > "$success_expected"
+cmp -s "$success_expected" "$success_output" || {
+  printf '%s\n' 'native runtime smoke did not produce the exact success record' >&2
+  cat "$success_output" >&2
+  exit 1
+}
 test "$(cat "$fixture/stop.count")" -eq 1
 test "$(cat "$fixture/reboot.count")" -eq 1
 test "$(grep -Fc -- 'http://host.test/api/v1/session/stop' "$fixture/curl.log")" -eq 1
+test "$(grep -Fc -- 'FOGCAST_REBOOT_STARTED' "$fixture/timeout.log")" -eq 1
+test "$(grep -Ec '^2 sshpass -p ' "$fixture/timeout.log")" -eq 3
+if grep -Fv -- '--connect-timeout 2 --max-time 2' "$fixture/curl.log" >/dev/null; then
+  printf '%s\n' 'native runtime smoke issued curl without both timeouts' >&2
+  exit 1
+fi
 grep -Fq -- 'http://target.test:8182/v1/health' "$fixture/curl.log"
 grep -Fq -- 'http://host.test/api/v1/status' "$fixture/curl.log"
 grep -Fq -- 'root@target.test' "$fixture/ssh.log"
 assert_safe_output "$success_output"
 
+count_file() {
+  count_path=$1
+  if [ -f "$count_path" ]; then
+    cat "$count_path"
+  else
+    printf '%s\n' 0
+  fi
+}
+
+assert_lifecycle() {
+  expected_stops=$1
+  expected_reboots=$2
+  test "$(count_file "$fixture/stop.count")" -eq "$expected_stops"
+  test "$(grep -Fc -- 'FOGCAST_REBOOT_STARTED' "$fixture/timeout.log" || true)" -eq \
+    "$expected_reboots"
+}
+
 run_failure() {
   mode=$1
   expected_error=$2
+  expected_stops=$3
+  expected_reboots=$4
   reset_case
   output=$fixture/$mode.out
   if run_smoke "$mode" "$output"; then
     printf 'native runtime smoke accepted failure mode: %s\n' "$mode" >&2
     exit 1
   fi
-  grep -Fqx "$expected_error" "$output" || {
+  expected_output=$fixture/$mode.expected
+  printf '%s\n' "$expected_error" > "$expected_output"
+  cmp -s "$expected_output" "$output" || {
     printf 'native runtime smoke returned an unstable error for %s\n' "$mode" >&2
     cat "$output" >&2
     exit 1
   }
   assert_safe_output "$output"
+  assert_lifecycle "$expected_stops" "$expected_reboots"
 }
 
 run_failure never-ready \
-  'native-runtime-smoke: initial ready idle state was not observed'
+  'native-runtime-smoke: initial ready idle state was not observed' 0 0
 test "$(cat "$fixture/sleep.count")" -eq 2
+run_failure curl-stall \
+  'native-runtime-smoke: initial ready idle state was not observed' 0 0
+run_failure invalid-boot-newline \
+  'native-runtime-smoke: initial ready idle state was not observed' 0 0
+run_failure invalid-boot-control \
+  'native-runtime-smoke: initial ready idle state was not observed' 0 0
 run_failure missing-runtime \
-  'native-runtime-smoke: expected exactly one mister-runtime executable'
+  'native-runtime-smoke: expected exactly one mister-runtime executable' 0 0
 run_failure missing-agent \
-  'native-runtime-smoke: expected exactly one mister-agent executable'
+  'native-runtime-smoke: expected exactly one mister-agent executable' 0 0
 run_failure duplicate-runtime \
-  'native-runtime-smoke: expected exactly one mister-runtime executable'
+  'native-runtime-smoke: expected exactly one mister-runtime executable' 0 0
 run_failure main-process \
-  'native-runtime-smoke: conventional MiSTer executable is running'
+  'native-runtime-smoke: conventional MiSTer executable is running' 0 0
+run_failure deleted-main-process \
+  'native-runtime-smoke: conventional MiSTer executable is running' 0 0
 run_failure command-pipe \
-  'native-runtime-smoke: /dev/MiSTer_cmd is a FIFO'
+  'native-runtime-smoke: /dev/MiSTer_cmd is a FIFO' 0 0
 run_failure wrong-build-inputs \
-  'native-runtime-smoke: installed build inputs differ from lock'
+  'native-runtime-smoke: installed build inputs differ from lock' 0 0
+run_failure missing-final-newline \
+  'native-runtime-smoke: installed build inputs differ from lock' 0 0
+run_failure extra-blank-line \
+  'native-runtime-smoke: installed build inputs differ from lock' 0 0
 run_failure inspection-error \
-  'native-runtime-smoke: target inspection failed'
+  'native-runtime-smoke: target inspection failed' 0 0
+run_failure inspection-stall \
+  'native-runtime-smoke: target inspection failed' 0 0
+run_failure build-inputs-stall \
+  'native-runtime-smoke: target inspection failed' 0 0
+run_failure stop-request-error \
+  'native-runtime-smoke: host stop request failed' 1 0
 run_failure stop-not-idle \
-  'native-runtime-smoke: host did not remain idle after stop'
-test "$(cat "$fixture/stop.count")" -eq 1
+  'native-runtime-smoke: host did not remain idle after stop' 1 0
 run_failure reboot-preexec-error \
-  'native-runtime-smoke: reboot command did not start'
-test "$(cat "$fixture/reboot.count")" -eq 1
+  'native-runtime-smoke: reboot command did not start' 1 1
+run_failure reboot-stall \
+  'native-runtime-smoke: reboot command did not start' 1 1
 run_failure unchanged-boot \
-  'native-runtime-smoke: fresh ready idle state with changed boot ID was not observed'
+  'native-runtime-smoke: fresh ready idle state with changed boot ID was not observed' 1 1
 run_failure never-ready-after-reboot \
-  'native-runtime-smoke: fresh ready idle state with changed boot ID was not observed'
+  'native-runtime-smoke: fresh ready idle state with changed boot ID was not observed' 1 1
 run_failure never-idle-after-reboot \
-  'native-runtime-smoke: fresh ready idle state with changed boot ID was not observed'
+  'native-runtime-smoke: fresh ready idle state with changed boot ID was not observed' 1 1
+
+run_invalid_configuration() {
+  attempts=$1
+  interval=$2
+  call_timeout=$3
+  expected_error=$4
+  reset_case
+  output=$fixture/configuration.out
+  if FOGCAST_POLL_ATTEMPTS=$attempts \
+    FOGCAST_POLL_INTERVAL=$interval \
+    FOGCAST_CALL_TIMEOUT=$call_timeout \
+    PATH="$fake_bin:$PATH" sh "$smoke" > "$output" 2>&1; then
+    printf '%s\n' 'native runtime smoke accepted invalid numeric configuration' >&2
+    exit 1
+  fi
+  expected_output=$fixture/configuration.expected
+  printf '%s\n' "$expected_error" > "$expected_output"
+  cmp -s "$expected_output" "$output"
+}
+
+for invalid_attempts in 0 01 1_0 301 999999999999999999999999999999; do
+  run_invalid_configuration "$invalid_attempts" 1 2 \
+    'native-runtime-smoke: poll attempts must be an integer from 1 to 300'
+done
+for invalid_interval in 1_0 -0.0 NaN 60.1 999999999999999999999999999999; do
+  run_invalid_configuration 3 "$invalid_interval" 2 \
+    'native-runtime-smoke: poll interval must be a decimal from 0 to 60 seconds'
+done
+for invalid_timeout in 0 01 1_0 -0.0 NaN 60.1 999999999999999999999999999999; do
+  run_invalid_configuration 3 1 "$invalid_timeout" \
+    'native-runtime-smoke: call timeout must be a decimal greater than 0 and at most 60 seconds'
+done
 
 printf '%s\n' 'native runtime smoke tests passed'

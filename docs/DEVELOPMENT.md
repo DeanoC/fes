@@ -83,7 +83,10 @@ make target-native-smoke
 This checks the target and host ready/idle state, exact native child
 executables and installed build inputs, absence of conventional Main and its
 command FIFO, idle Stop, and fresh idle after an explicit reboot with a changed
-Linux boot ID. It does not inspect HDMI output and does not perform the
+Linux boot ID. Each API and SSH call is bounded to five seconds by default;
+set `FOGCAST_CALL_TIMEOUT` to a positive decimal no greater than 60 seconds
+when the fixture needs a different per-call bound. It does not inspect HDMI
+output and does not perform the
 mandatory legacy-image rollback and real-game launch; both remain separate
 physical acceptance steps.
 

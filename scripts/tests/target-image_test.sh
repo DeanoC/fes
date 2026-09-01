@@ -288,6 +288,7 @@ EOF
     ln -s dropbearmulti "$root/usr/sbin/dropbear"
   fi
   if [ "$variant" = native-dev ]; then
+    ln -s busybox "$root/usr/bin/readlink"
     rm "$root/etc/init.d/S40mister-main"
     cat > "$root/etc/init.d/S40mister-runtime" <<'EOF'
 #!/bin/sh
@@ -349,6 +350,16 @@ make_root "$native_root" native-dev
 verify_fixture prod "$prod_root" "$fixture/prod.manifest" "$fixture/prod.libraries"
 verify_fixture dev "$dev_root" "$fixture/dev.manifest" "$fixture/dev.libraries"
 verify_fixture native-dev "$native_root" "$fixture/native.manifest" "$fixture/native.libraries"
+
+native_without_readlink=$fixture/native-without-readlink
+cp -R "$native_root" "$native_without_readlink"
+rm "$native_without_readlink/usr/bin/readlink"
+if verify_fixture native-dev "$native_without_readlink" \
+  "$fixture/native-without-readlink.manifest" \
+  "$fixture/native-without-readlink.libraries" >/dev/null 2>&1; then
+  echo 'native image verifier accepted missing /usr/bin/readlink' >&2
+  exit 1
+fi
 LC_ALL=C sort -c "$fixture/prod.manifest"
 LC_ALL=C sort -c "$fixture/prod.libraries"
 test "$(wc -l < "$fixture/prod.libraries" | tr -d ' ')" -eq 14

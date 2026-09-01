@@ -87,6 +87,7 @@ verify_root() {
   if [ "$variant" = native-dev ]; then
     required_paths='/sbin/init
 /usr/bin/busybox
+/usr/bin/readlink
 /usr/sbin/mister-runtime
 /usr/sbin/mister-agent
 /usr/share/mister-runtime/idle.rbf
