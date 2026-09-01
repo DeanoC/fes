@@ -6,6 +6,8 @@ cleanup_manifest_tmp=
 cleanup_library_tmp=
 cleanup_inspect_root=
 cleanup_native_inputs_tmp=
+canonical_native_input_lock=$repo/build/native-runtime.inputs.lock.toml
+native_input_lock=$canonical_native_input_lock
 
 cleanup() {
   [ -z "$cleanup_manifest_tmp" ] || /bin/rm -f "$cleanup_manifest_tmp"
@@ -45,6 +47,13 @@ validate_variant() {
   esac
 }
 
+reject_native_input_lock_override() {
+  [ -z "${TARGET_IMAGE_ROOT_FIXTURE_NATIVE_INPUT_LOCK:-}" ] || {
+    printf '%s\n' 'verify-target-image: native input lock override is only permitted with --root-fixture' >&2
+    exit 2
+  }
+}
+
 read_native_lock_value() {
   lock_section=$1
   lock_key=$2
@@ -64,7 +73,7 @@ read_native_lock_value() {
       }
       print value
     }
-  ' "$repo/build/native-runtime.inputs.lock.toml"
+  ' "$native_input_lock"
 }
 
 verify_root() {
@@ -146,18 +155,8 @@ EOF
     }
     native_runtime_service=$root/etc/init.d/S40mister-runtime
     native_agent_service=$root/etc/init.d/S50mister-agent
-    grep -Fq '/usr/sbin/mister-supervise mister-runtime /usr/sbin/mister-runtime &' \
-      "$native_runtime_service" || {
-      printf '%s\n' 'verify-target-image: native runtime service has the wrong start command' >&2
-      exit 1
-    }
-    grep -Fq '/usr/sbin/mister-supervise mister-agent /usr/sbin/mister-agent \' \
-      "$native_agent_service" &&
-      grep -Fq -- '--config /media/fat/fogcast/agent.toml --runtime native &' \
-        "$native_agent_service" || {
-      printf '%s\n' 'verify-target-image: native agent service has the wrong start command' >&2
-      exit 1
-    }
+    "$repo/scripts/validate-native-init-services.sh" \
+      "$native_runtime_service" "$native_agent_service"
     if grep -Eq '/dev/MiSTer_cmd|CORENAME|/media/fat/MiSTer|agent_binary=|killall|pidof|pgrep|/proc/' \
       "$native_agent_service"; then
       printf '%s\n' 'verify-target-image: native agent service depends on legacy Main state' >&2
@@ -362,11 +361,19 @@ case "${1:-}" in
       printf '%s\n' 'verify-target-image: root fixtures require test mode' >&2
       exit 2
     }
+    if [ -n "${TARGET_IMAGE_ROOT_FIXTURE_NATIVE_INPUT_LOCK:-}" ]; then
+      [ -f "$TARGET_IMAGE_ROOT_FIXTURE_NATIVE_INPUT_LOCK" ] || {
+        printf '%s\n' 'verify-target-image: root-fixture native input lock does not exist' >&2
+        exit 2
+      }
+      native_input_lock=$TARGET_IMAGE_ROOT_FIXTURE_NATIVE_INPUT_LOCK
+    fi
     verify_root "$2" "$3" "$4" "$5"
     exit
     ;;
   --inside)
     [ "$#" -eq 5 ] || usage
+    reject_native_input_lock_override
     variant=$2
     image=$3
     manifest=$4
@@ -399,6 +406,7 @@ case "${1:-}" in
     ;;
   prod|dev|native-dev)
     [ "$#" -eq 4 ] || usage
+    reject_native_input_lock_override
     variant=$1
     image=$2
     manifest=$3

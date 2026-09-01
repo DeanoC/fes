@@ -148,13 +148,9 @@ grep -Fq '/usr/sbin/mister-supervise mister-agent "$agent_binary" --config /medi
 test ! -e "$rootfs/media/fat/fogcast"
 grep -Fq 'TARGET_IMAGE_SMOKE_READY' "$smoke"
 
-grep -Fq 'supervisor_pid=/run/mister-runtime-supervisor.pid' "$native_runtime"
-grep -Fq '/usr/sbin/mister-supervise mister-runtime /usr/sbin/mister-runtime &' "$native_runtime"
-grep -Fq 'supervisor_pid=/run/mister-agent-supervisor.pid' "$native_agent"
+sh "$repo/scripts/validate-native-init-services.sh" "$native_runtime" "$native_agent"
 grep -Fq '[ ! -f /media/fat/fogcast/agent.toml ]' "$native_agent"
 grep -Fq '/bin/mkdir -p /media/fat/fogcast/cache/megadrive /media/fat/fogcast/cache/snes' "$native_agent"
-grep -Fq '/usr/sbin/mister-supervise mister-agent /usr/sbin/mister-agent \' "$native_agent"
-grep -Fq -- '--config /media/fat/fogcast/agent.toml --runtime native &' "$native_agent"
 if grep -Eq '/dev/MiSTer_cmd|CORENAME|/media/fat/MiSTer|agent_binary=|killall|pidof|pgrep|/proc/' "$native_agent"; then
   echo 'native agent init depends on Main, FIFO, CORENAME, FAT agent, or process inspection' >&2
   exit 1

@@ -205,6 +205,46 @@ esac
 EOF
 chmod 0755 "$fake_bin/file" "$fake_bin/readelf"
 
+synthetic_idle=$fixture/synthetic-idle.rbf
+printf '%s\n' 'synthetic native idle fixture' > "$synthetic_idle"
+synthetic_idle_sha=$(sha256sum "$synthetic_idle" | awk '{print $1}')
+synthetic_idle_size=$(wc -c < "$synthetic_idle" | tr -d ' ')
+synthetic_runtime_commit=1111111111111111111111111111111111111111
+synthetic_idle_commit=2222222222222222222222222222222222222222
+native_input_lock=$fixture/native-runtime.inputs.lock.toml
+cat > "$native_input_lock" <<EOF
+format = 1
+
+[mister_runtime]
+commit = '$synthetic_runtime_commit'
+mount_path = '/runtime-source'
+
+[idle_rbf]
+repository = 'https://fixture.invalid/fogcast/synthetic-idle'
+commit = '$synthetic_idle_commit'
+path = 'synthetic-idle.rbf'
+sha256 = '$synthetic_idle_sha'
+size = $synthetic_idle_size
+install_path = '/usr/share/mister-runtime/idle.rbf'
+EOF
+
+normal_override_log=$fixture/normal-lock-override.log
+set +e
+TARGET_IMAGE_TEST_MODE=1 \
+TARGET_IMAGE_ROOT_FIXTURE_NATIVE_INPUT_LOCK=$native_input_lock \
+TARGET_IMAGE_CONTAINER_RUNTIME=/bin/false \
+  sh "$repo/scripts/verify-target-image.sh" native-dev \
+    "$fixture/not-an-image" "$fixture/not-a-manifest" "$fixture/not-a-library-report" \
+    > "$normal_override_log" 2>&1
+normal_override_status=$?
+set -e
+test "$normal_override_status" -eq 2 || {
+  echo 'normal image verification did not explicitly reject the fixture lock override' >&2
+  exit 1
+}
+grep -Fq 'native input lock override is only permitted with --root-fixture' \
+  "$normal_override_log"
+
 make_root() {
   root=$1
   variant=$2
@@ -251,27 +291,39 @@ EOF
     rm "$root/etc/init.d/S40mister-main"
     cat > "$root/etc/init.d/S40mister-runtime" <<'EOF'
 #!/bin/sh
-/usr/sbin/mister-supervise mister-runtime /usr/sbin/mister-runtime &
+supervisor_pid=/run/mister-runtime-supervisor.pid
+case "${1:-start}" in
+  start)
+    /usr/sbin/mister-supervise mister-runtime /usr/sbin/mister-runtime &
+    printf '%s\n' "$!" > /run/mister-runtime-supervisor.pid
+    ;;
+esac
 EOF
     cat > "$root/etc/init.d/S50mister-agent" <<'EOF'
 #!/bin/sh
-/usr/sbin/mister-supervise mister-agent /usr/sbin/mister-agent \
-  --config /media/fat/fogcast/agent.toml --runtime native &
+supervisor_pid=/run/mister-agent-supervisor.pid
+case "${1:-start}" in
+  start)
+    /usr/sbin/mister-supervise mister-agent /usr/sbin/mister-agent \
+      --config /media/fat/fogcast/agent.toml --runtime native &
+    printf '%s\n' "$!" > /run/mister-agent-supervisor.pid
+    ;;
+esac
 EOF
     chmod 0755 "$root/etc/init.d/S40mister-runtime" "$root/etc/init.d/S50mister-agent"
     : > "$root/usr/sbin/mister-runtime"
     chmod 0755 "$root/usr/sbin/mister-runtime"
     mkdir -p "$root/usr/share/mister-runtime"
-    cp "$repo/build/cache/target-image/native/idle.rbf" \
+    cp "$synthetic_idle" \
       "$root/usr/share/mister-runtime/idle.rbf"
-    cat > "$root/usr/share/mister-runtime/build-inputs" <<'EOF'
+    cat > "$root/usr/share/mister-runtime/build-inputs" <<EOF
 format=1
-mister_runtime_commit=1045306bf97d5e8f68fde7626cb954194f505ff5
-idle_repository=https://github.com/MiSTer-devel/Distribution_MiSTer
-idle_commit=f7bde4becb452ca28f604ad9802bbed5c6b58e01
-idle_path=menu.rbf
-idle_sha256=821bcf66181a00ff550e4a4110dc11c9fa8e68d38e9cb5558b3ddb99ca938934
-idle_size=2452588
+mister_runtime_commit=$synthetic_runtime_commit
+idle_repository=https://fixture.invalid/fogcast/synthetic-idle
+idle_commit=$synthetic_idle_commit
+idle_path=synthetic-idle.rbf
+idle_sha256=$synthetic_idle_sha
+idle_size=$synthetic_idle_size
 idle_install_path=/usr/share/mister-runtime/idle.rbf
 EOF
   fi
@@ -283,6 +335,7 @@ verify_fixture() {
   verify_manifest=$3
   verify_libraries=$4
   PATH="$fake_bin:$PATH" TARGET_IMAGE_TEST_MODE=1 \
+  TARGET_IMAGE_ROOT_FIXTURE_NATIVE_INPUT_LOCK=$native_input_lock \
     sh "$repo/scripts/verify-target-image.sh" --root-fixture \
       "$verify_variant" "$verify_root" "$verify_manifest" "$verify_libraries"
 }
@@ -303,7 +356,7 @@ grep -Eq '^/lib/libz\.so\.1[[:space:]]+/lib/libz\.so\.1[[:space:]]+[0-9a-f]{64}$
   "$fixture/prod.libraries"
 grep -Eq '^/lib/libstdc\+\+\.so\.6[[:space:]]+/lib/libstdc\+\+\.so\.6[[:space:]]+[0-9a-f]{64}$' \
   "$fixture/native.libraries"
-grep -Eq '^usr/share/mister-runtime/idle\.rbf[[:space:]]+file[[:space:]]+821bcf66181a00ff550e4a4110dc11c9fa8e68d38e9cb5558b3ddb99ca938934$' \
+grep -Eq "^usr/share/mister-runtime/idle\\.rbf[[:space:]]+file[[:space:]]+$synthetic_idle_sha$" \
   "$fixture/native.manifest"
 grep -Eq '^usr/share/mister-runtime/build-inputs[[:space:]]+file[[:space:]]+[0-9a-f]{64}$' \
   "$fixture/native.manifest"
@@ -377,7 +430,7 @@ fi
 
 native_wrong_inputs=$fixture/native-wrong-inputs
 cp -R "$native_root" "$native_wrong_inputs"
-sed 's#idle_path=menu.rbf#idle_path=latest.rbf#' \
+sed 's#idle_path=synthetic-idle.rbf#idle_path=wrong-idle.rbf#' \
   "$native_wrong_inputs/usr/share/mister-runtime/build-inputs" > \
   "$native_wrong_inputs/usr/share/mister-runtime/build-inputs.new"
 mv "$native_wrong_inputs/usr/share/mister-runtime/build-inputs.new" \
@@ -397,6 +450,81 @@ if verify_fixture native-dev "$native_legacy_agent" "$fixture/native-legacy-agen
   echo 'native verifier accepted an agent without explicit native backend selection' >&2
   exit 1
 fi
+
+service_validation_failures=0
+
+native_commented_runtime=$fixture/native-commented-runtime
+cp -R "$native_root" "$native_commented_runtime"
+awk '
+  $0 == "    /usr/sbin/mister-supervise mister-runtime /usr/sbin/mister-runtime &" {
+    print "    # /usr/sbin/mister-supervise mister-runtime /usr/sbin/mister-runtime &"
+    next
+  }
+  { print }
+' "$native_commented_runtime/etc/init.d/S40mister-runtime" > \
+  "$native_commented_runtime/etc/init.d/S40mister-runtime.new"
+mv "$native_commented_runtime/etc/init.d/S40mister-runtime.new" \
+  "$native_commented_runtime/etc/init.d/S40mister-runtime"
+chmod 0755 "$native_commented_runtime/etc/init.d/S40mister-runtime"
+if verify_fixture native-dev "$native_commented_runtime" "$fixture/native-commented-runtime.manifest" "$fixture/native-commented-runtime.libraries" >/dev/null 2>&1; then
+  echo 'native verifier accepted a runtime launch present only in a comment' >&2
+  service_validation_failures=$((service_validation_failures + 1))
+fi
+
+native_wrong_agent_launch=$fixture/native-wrong-agent-launch
+cp -R "$native_root" "$native_wrong_agent_launch"
+cat > "$native_wrong_agent_launch/etc/init.d/S50mister-agent" <<'EOF'
+#!/bin/sh
+supervisor_pid=/run/mister-agent-supervisor.pid
+case "${1:-start}" in
+  start)
+    # /usr/sbin/mister-supervise mister-agent /usr/sbin/mister-agent \
+    #   --config /media/fat/fogcast/agent.toml --runtime native &
+    /usr/sbin/mister-supervise mister-agent /usr/sbin/mister-agent \
+      --config /media/fat/fogcast/wrong.toml --runtime legacy &
+    printf '%s\n' "$!" > /run/mister-agent-supervisor.pid
+    ;;
+esac
+EOF
+chmod 0755 "$native_wrong_agent_launch/etc/init.d/S50mister-agent"
+if verify_fixture native-dev "$native_wrong_agent_launch" "$fixture/native-wrong-agent-launch.manifest" "$fixture/native-wrong-agent-launch.libraries" >/dev/null 2>&1; then
+  echo 'native verifier accepted wrong active agent launch arguments' >&2
+  service_validation_failures=$((service_validation_failures + 1))
+fi
+
+native_extra_launch=$fixture/native-extra-launch
+cp -R "$native_root" "$native_extra_launch"
+awk '
+  { print }
+  $0 == "    printf '\''%s\\n'\'' \"$!\" > /run/mister-runtime-supervisor.pid" {
+    print "    /usr/sbin/mister-runtime"
+  }
+' "$native_extra_launch/etc/init.d/S40mister-runtime" > \
+  "$native_extra_launch/etc/init.d/S40mister-runtime.new"
+mv "$native_extra_launch/etc/init.d/S40mister-runtime.new" \
+  "$native_extra_launch/etc/init.d/S40mister-runtime"
+chmod 0755 "$native_extra_launch/etc/init.d/S40mister-runtime"
+if verify_fixture native-dev "$native_extra_launch" "$fixture/native-extra-launch.manifest" "$fixture/native-extra-launch.libraries" >/dev/null 2>&1; then
+  echo 'native verifier accepted an extra direct runtime launch command' >&2
+  service_validation_failures=$((service_validation_failures + 1))
+fi
+
+native_missing_pid_write=$fixture/native-missing-pid-write
+cp -R "$native_root" "$native_missing_pid_write"
+awk '
+  $0 == "    printf '\''%s\\n'\'' \"$!\" > /run/mister-runtime-supervisor.pid" { next }
+  { print }
+' "$native_missing_pid_write/etc/init.d/S40mister-runtime" > \
+  "$native_missing_pid_write/etc/init.d/S40mister-runtime.new"
+mv "$native_missing_pid_write/etc/init.d/S40mister-runtime.new" \
+  "$native_missing_pid_write/etc/init.d/S40mister-runtime"
+chmod 0755 "$native_missing_pid_write/etc/init.d/S40mister-runtime"
+if verify_fixture native-dev "$native_missing_pid_write" "$fixture/native-missing-pid-write.manifest" "$fixture/native-missing-pid-write.libraries" >/dev/null 2>&1; then
+  echo 'native verifier accepted a missing supervisor PID write' >&2
+  service_validation_failures=$((service_validation_failures + 1))
+fi
+
+test "$service_validation_failures" -eq 0 || exit 1
 
 prod_dropbear=$fixture/prod-dropbear
 cp -R "$prod_root" "$prod_dropbear"
