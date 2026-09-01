@@ -35,8 +35,39 @@ func TestClientListsGamesAndFollowsCursor(t *testing.T) {
 	if len(games) != 2 || games[0].ID != "snes-mario" || games[1].ID != "megadrive-sonic" {
 		t.Fatalf("games = %#v", games)
 	}
-	if len(paths) != 2 || !strings.Contains(paths[0], "grouped=1") || !strings.Contains(paths[0], "limit=200") {
+	if len(paths) != 2 || !strings.Contains(paths[0], "grouped=1") || !strings.Contains(paths[0], "availability=ready") || !strings.Contains(paths[0], "limit=200") {
 		t.Fatalf("paths = %#v", paths)
+	}
+}
+
+func TestListGamesPrefersLaunchableVariant(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"games": []Game{{
+				ID:         "snes-sonic-usa",
+				Title:      "Sonic",
+				System:     "snes",
+				State:      "available",
+				RootOnline: false,
+				Launchable: true,
+				Variants: []Game{
+					{ID: "snes-sonic-usa", Title: "Sonic", System: "snes", State: "available", RootOnline: false, Launchable: true},
+					{ID: "snes-sonic-japan", Title: "Sonic", System: "snes", State: "available", RootOnline: true, Launchable: true},
+				},
+			}},
+		})
+	}))
+	t.Cleanup(server.Close)
+	games, _, err := NewClient(server.URL, server.Client()).ListGames(context.Background(), "", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(games) != 1 || games[0].ID != "snes-sonic-japan" {
+		t.Fatalf("games = %#v", games)
+	}
+	if games[0].Variants != nil {
+		t.Fatalf("variants leaked into catalog row: %#v", games[0].Variants)
 	}
 }
 

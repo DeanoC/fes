@@ -104,7 +104,26 @@ func rasterizeLabel(text string, maxWidth, sizePx int) *image.RGBA {
 		Dot:  fixed.Point26_6{X: 0, Y: metrics.Ascent},
 	}
 	d.DrawString(display)
+	unpremultiplyRGBA(img)
 	return img
+}
+
+// unpremultiplyRGBA converts Go image.RGBA (premultiplied) to straight alpha
+// for SDL_BLENDMODE_BLEND. Anti-aliased edges otherwise composite too dark.
+func unpremultiplyRGBA(img *image.RGBA) {
+	if img == nil {
+		return
+	}
+	pix := img.Pix
+	for i := 0; i+3 < len(pix); i += 4 {
+		a := pix[i+3]
+		if a == 0 || a == 255 {
+			continue
+		}
+		pix[i+0] = uint8((int(pix[i+0])*255 + int(a)/2) / int(a))
+		pix[i+1] = uint8((int(pix[i+1])*255 + int(a)/2) / int(a))
+		pix[i+2] = uint8((int(pix[i+2])*255 + int(a)/2) / int(a))
+	}
 }
 
 func fitLabel(face font.Face, text string, maxWidth int) string {

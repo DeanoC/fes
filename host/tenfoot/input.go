@@ -111,6 +111,11 @@ func CommandFromStickHeld(axisX, axisY int, held Command) Command {
 	}
 	if horizontal {
 		if ax < stickGate {
+			// Stay on the latched axis until recenter or a hysteresis switch.
+			// Dropping the latch here made medium diagonals flip every frame.
+			if held == CmdLeft || held == CmdRight {
+				return held
+			}
 			return verticalStick(axisY)
 		}
 		if axisX < 0 {
@@ -119,6 +124,9 @@ func CommandFromStickHeld(axisX, axisY int, held Command) Command {
 		return CmdRight
 	}
 	if ay < stickGate {
+		if held == CmdUp || held == CmdDown {
+			return held
+		}
 		if axisX < 0 {
 			return CmdLeft
 		}

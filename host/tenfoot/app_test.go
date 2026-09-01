@@ -149,6 +149,28 @@ func TestAppRecordsHostLaunchErrorWithoutTransportFailure(t *testing.T) {
 	}
 }
 
+func TestSnapshotSharesCatalogSlice(t *testing.T) {
+	t.Parallel()
+	app := catalogApp(3)
+	snap := app.Snapshot()
+	if len(snap.Games) != 3 {
+		t.Fatalf("games = %d", len(snap.Games))
+	}
+	again := app.Snapshot()
+	if &snap.Games[0] != &again.Games[0] {
+		t.Fatal("Snapshot cloned the catalog")
+	}
+	app.games = []Game{availableGame("snes-only", "Only", "snes")}
+	app.grid.SetCount(1)
+	replaced := app.Snapshot()
+	if len(replaced.Games) != 1 || replaced.Games[0].ID != "snes-only" {
+		t.Fatalf("replaced = %#v", replaced.Games)
+	}
+	if &replaced.Games[0] == &snap.Games[0] {
+		t.Fatal("replaced catalog still aliases the previous snapshot")
+	}
+}
+
 func TestLaunchBlockReasonMirrorsWebUI(t *testing.T) {
 	t.Parallel()
 	ready := availableGame("snes-mario", "Mario", "snes")

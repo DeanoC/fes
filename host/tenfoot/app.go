@@ -205,11 +205,13 @@ func (a *App) Tick(now time.Time) Command {
 	return CmdNone
 }
 
-// Snapshot copies state for rendering. Cover images are shared, not cloned.
+// Snapshot copies renderer-facing state. The games slice is shared: loadLibrary
+// replaces it rather than mutating elements, so the frame loop does not clone
+// the catalog. Cover images are shared, not cloned; the cover map is copied.
 func (a *App) Snapshot() Snapshot {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	games := append([]Game(nil), a.games...)
+	games := a.games
 	covers := make(map[string]*image.RGBA, len(a.covers))
 	hits := 0
 	for id, slot := range a.covers {

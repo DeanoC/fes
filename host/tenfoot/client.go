@@ -39,6 +39,7 @@ type Game struct {
 	State      string `json:"state"`
 	RootOnline bool   `json:"root_online"`
 	Launchable bool   `json:"launchable"`
+	Variants   []Game `json:"variants,omitempty"`
 }
 
 // Presentation is GET /api/v1/presentation/games/{id}.
@@ -93,6 +94,7 @@ func (c *Client) ListGames(ctx context.Context, cursor string, limit int) ([]Gam
 	}
 	values := url.Values{}
 	values.Set("grouped", "1")
+	values.Set("availability", "ready")
 	values.Set("limit", strconv.Itoa(limit))
 	if strings.TrimSpace(cursor) != "" {
 		values.Set("cursor", cursor)
@@ -107,7 +109,27 @@ func (c *Client) ListGames(ctx context.Context, cursor string, limit int) ([]Gam
 	if page.Games == nil {
 		page.Games = []Game{}
 	}
+	for i, game := range page.Games {
+		page.Games[i] = preferLaunchable(game)
+	}
 	return page.Games, page.NextCursor, nil
+}
+
+// preferLaunchable keeps a grouped row launchable when the region-picked
+// representative is offline or otherwise blocked but a sibling variant is not.
+func preferLaunchable(game Game) Game {
+	if launchBlockReason(game) == "" {
+		game.Variants = nil
+		return game
+	}
+	for _, variant := range game.Variants {
+		variant.Variants = nil
+		if launchBlockReason(variant) == "" {
+			return variant
+		}
+	}
+	game.Variants = nil
+	return game
 }
 
 // FetchLibrary walks catalog pages until maxGames or the cursor ends.

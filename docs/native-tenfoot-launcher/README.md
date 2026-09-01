@@ -45,7 +45,7 @@ make tenfoot-smoke
 
 ## Host API used
 
-- `GET /api/v1/games?grouped=1`
+- `GET /api/v1/games?grouped=1&availability=ready`
 - `GET /api/v1/presentation/games/{id}`
 - `GET /api/v1/presentation/artwork/{handle}`
 - `POST /api/v1/session/launch` with `{"game_id":"..."}`

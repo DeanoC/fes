@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"bytes"
+	"image"
 	"testing"
 
 	"golang.org/x/image/font/gofont/goregular"
@@ -34,5 +35,21 @@ func TestRasterizeLabelUTF8(t *testing.T) {
 	clipped := rasterizeLabel("Éclair Super Nintendo Entertainment System", 40, 16)
 	if clipped == nil || clipped.Bounds().Dx() > 40 {
 		t.Fatalf("clipped width = %v", clipped)
+	}
+}
+
+func TestUnpremultiplyRGBAStraightensEdges(t *testing.T) {
+	t.Parallel()
+	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	img.Pix[0], img.Pix[1], img.Pix[2], img.Pix[3] = 118, 120, 124, 128
+	unpremultiplyRGBA(img)
+	if img.Pix[0] < 220 || img.Pix[1] < 220 || img.Pix[2] < 230 || img.Pix[3] != 128 {
+		t.Fatalf("straight alpha = %v", img.Pix)
+	}
+	opaque := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	opaque.Pix[0], opaque.Pix[1], opaque.Pix[2], opaque.Pix[3] = 236, 240, 248, 255
+	unpremultiplyRGBA(opaque)
+	if opaque.Pix[0] != 236 || opaque.Pix[3] != 255 {
+		t.Fatalf("opaque changed = %v", opaque.Pix)
 	}
 }

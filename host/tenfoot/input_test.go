@@ -49,6 +49,22 @@ func TestCommandFromKeyAndStick(t *testing.T) {
 	if CommandFromStickHeld(100, 100, CmdRight) != CmdNone {
 		t.Fatal("stick recenter")
 	}
+	// Latched axis below stickGate must not hand focus to the other axis.
+	if CommandFromStickHeld(12000, 17000, CmdRight) != CmdRight {
+		t.Fatal("stick latch holds right below gate")
+	}
+	if CommandFromStickHeld(-12000, 17000, CmdLeft) != CmdLeft {
+		t.Fatal("stick latch holds left below gate")
+	}
+	if CommandFromStickHeld(17000, 12000, CmdDown) != CmdDown {
+		t.Fatal("stick latch holds down below gate")
+	}
+	if CommandFromStickHeld(17000, -12000, CmdUp) != CmdUp {
+		t.Fatal("stick latch holds up below gate")
+	}
+	if CommandFromStickHeld(12000, 12000+stickHysteresis, CmdRight) != CmdDown {
+		t.Fatal("stick latch still switches on hysteresis")
+	}
 }
 
 func TestRepeaterFiresAfterDelay(t *testing.T) {
