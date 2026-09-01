@@ -7,13 +7,15 @@ the lifecycle API, native Linux primitives, profile model, and
 
 ## Current status
 
-Software-tested only. Production native construction is available for the
-image-owned idle baseline; physical acceptance is still pending.
+Software-tested only. Production native construction includes one fixed
+1280x720@60 menu-core video path for the image-owned idle baseline. Physical
+status remains pending later evidence from an exact pinned FogCast image.
 Hardware-supported systems: 0.
 
-The current production profile table is empty. The fake hardware and profiles
-under `tests/` verify software contracts only and are not evidence of system
-support.
+The current production profile table is empty. Native game video and
+development-RBF video are not supported or claimed. The fake hardware and
+profiles under `tests/` verify software contracts only and are not evidence of
+system support.
 
 ## Build and test
 

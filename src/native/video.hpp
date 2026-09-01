@@ -1,0 +1,56 @@
+// Copyright 2026 FogCast contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+#pragma once
+
+#include "libmister-runtime/runtime.h"
+
+#include <cstdint>
+#include <string>
+
+namespace mister {
+namespace native {
+
+class Clock;
+class CoreLoader;
+class I2c;
+class Spi;
+struct VideoRecipe;
+
+struct VideoResult {
+	Error error;
+	std::string phase;
+	std::string observed_core;
+	std::string selected_bus;
+	std::uint8_t power_before = 0;
+	std::uint8_t power_after = 0;
+	std::uint8_t link_status = 0;
+};
+
+class VideoBringup {
+public:
+	virtual ~VideoBringup() {}
+	virtual VideoResult BringUp(const std::string& expected_core,
+		std::uint64_t absolute_deadline_ms) = 0;
+};
+
+class MenuVideoBringup final : public VideoBringup {
+public:
+	MenuVideoBringup(CoreLoader&, Spi&, I2c&, Clock&, LogSink&,
+		const VideoRecipe&);
+	VideoResult BringUp(const std::string& expected_core,
+		std::uint64_t absolute_deadline_ms) override;
+
+private:
+	VideoResult PhaseFailure(const char*, const Error&,
+		const VideoResult&) const;
+	CoreLoader& core_;
+	Spi& spi_;
+	I2c& i2c_;
+	Clock& clock_;
+	LogSink& log_;
+	const VideoRecipe& recipe_;
+};
+
+} // namespace native
+} // namespace mister

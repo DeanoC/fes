@@ -12,9 +12,19 @@ roles:
 - `src/native` and `src/linux` contain the Linux hardware primitives and the
   production construction boundary. `CreateProductionHardware` owns
   `PosixArtifactOpener`, `LinuxMmio`, `SteadyClock`, `LinuxFpgaManager`,
-  `LinuxSpi`, `CoreLoader`, and `NativeHardware`; the dependency graph is
-  `LinuxMmio + SteadyClock -> LinuxFpgaManager + LinuxSpi -> CoreLoader ->
-  NativeHardware`. Its installed idle path is
+  `LinuxSpi`, `CoreLoader`, `LinuxI2c`, `MenuVideoBringup`, and
+  `NativeHardware`. The dependency graph is:
+
+  ```text
+  LinuxMmio + SteadyClock -> LinuxFpgaManager + LinuxSpi
+  LinuxSpi -> CoreLoader
+  SteadyClock -> LinuxI2c
+  CoreLoader + LinuxSpi + LinuxI2c + SteadyClock + LogSink + fixed recipe
+    -> MenuVideoBringup
+  all of the above -> NativeHardware
+  ```
+
+  Its installed idle path is
   `/usr/share/mister-runtime/idle.rbf`. Production profiles remain empty.
 
 The library does not own a network API, catalogue, transfer cache, or host
@@ -29,6 +39,28 @@ asks the hardware boundary to establish idle. A game launch validates the
 entire request against the one runtime-owned profile table before mutation; a
 development launch validates its absolute RBF path without inventing a system
 profile. Stop returns the hardware to idle.
+
+Native idle admission performs this exact sequence:
+
+```text
+open locked idle RBF
+  -> program FPGA and release bridges/core hardware reset
+  -> assert menu-core software reset over user-I/O SPI
+  -> probe and require core identity MENU
+  -> locate ADV7513 address 0x39 on /dev/i2c-0 through /dev/i2c-2
+  -> apply the fixed ADV7513 initialization
+  -> send the fixed 1280x720@60 timing and PLL words
+  -> apply the fixed 720p ADV7513 mode registers
+  -> release menu-core software reset
+  -> require ADV7513 HPD and monitor-sense status
+  -> publish idle
+```
+
+One absolute deadline bounds the video operation. A failure after programming
+is an attempted idle failure and therefore enters the existing
+`reboot_required` state; it does not clean up, reprogram, retry, or fall back.
+Only `LoadIdle()` uses this video component. Game launch and development-RBF
+loading retain their existing behavior and have no video-support claim.
 
 At most one hardware-changing operation is admitted. A concurrent mutation is
 rejected as `busy`; operations are not queued. After a mutation has begun, a

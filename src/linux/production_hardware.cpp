@@ -7,8 +7,11 @@
 #include "native/core_loader.hpp"
 #include "native/hardware.hpp"
 #include "native/linux/fpga_manager.hpp"
+#include "native/linux/i2c.hpp"
 #include "native/linux/mmio.hpp"
 #include "native/linux/spi.hpp"
+#include "native/video.hpp"
+#include "native/video_recipe.hpp"
 
 #include <cstdlib>
 #include <time.h>
@@ -58,8 +61,9 @@ class ProductionHardware final : public Hardware {
 public:
 	explicit ProductionHardware(LogSink& log)
 		: opener_(), mmio_(), clock_(), fpga_(mmio_, clock_),
-		  spi_(mmio_, clock_), core_(spi_),
-		  hardware_(opener_, fpga_, core_, clock_, log,
+		  spi_(mmio_, clock_), core_(spi_), i2c_(clock_),
+		  video_(core_, spi_, i2c_, clock_, log, native::Menu720p60Recipe()),
+		  hardware_(opener_, fpga_, core_, video_, clock_, log,
 			  MISTER_RUNTIME_IDLE_RBF, {}) {}
 
 	HardwareResult LoadIdle() override { return hardware_.LoadIdle(); }
@@ -79,6 +83,8 @@ private:
 	native::LinuxFpgaManager fpga_;
 	native::LinuxSpi spi_;
 	native::CoreLoader core_;
+	native::LinuxI2c i2c_;
+	native::MenuVideoBringup video_;
 	native::NativeHardware hardware_;
 };
 

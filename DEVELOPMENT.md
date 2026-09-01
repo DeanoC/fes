@@ -58,10 +58,11 @@ archive contains objects produced by the same target compiler, with 64-bit
 ## Native-image installation
 
 The production runtime is built by FogCast's reviewed native image, which
-supplies the packaged idle RBF. Do not install ad hoc cross-builds or host
-artifacts onto a Pi and do not replace the working legacy image. Physical-Pi
-acceptance is still pending; image integration needs a later, separately
-reviewed plan.
+supplies the packaged idle RBF. The fixed menu-core 1280x720@60 video path is
+software-tested only. Do not install ad hoc cross-builds or host artifacts onto
+a Pi and do not replace the working legacy image. Physical-Pi status may be
+claimed only after later acceptance evidence from an exact pinned FogCast
+image; no such hardware result is claimed here.
 
 ## Physical evidence
 

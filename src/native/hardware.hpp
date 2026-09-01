@@ -14,6 +14,7 @@ namespace native {
 class Artifact;
 class ArtifactOpener;
 class CoreLoader;
+class VideoBringup;
 
 class Clock {
 public:
@@ -24,6 +25,7 @@ public:
 struct NativeTimeouts {
 	std::uint32_t program_ms = 30000;
 	std::uint32_t core_io_ms = 10000;
+	std::uint32_t video_ms = 10000;
 };
 
 struct NativeResult {
@@ -40,7 +42,7 @@ public:
 
 class NativeHardware final : public Hardware {
 public:
-	NativeHardware(ArtifactOpener&, FpgaManager&, CoreLoader&, Clock&,
+	NativeHardware(ArtifactOpener&, FpgaManager&, CoreLoader&, VideoBringup&, Clock&,
 		LogSink&, std::string idle_rbf, NativeTimeouts);
 	HardwareResult LoadIdle() override;
 	HardwareResult Launch(const PreparedLaunch&) override;
@@ -50,6 +52,7 @@ private:
 	ArtifactOpener& opener_;
 	FpgaManager& fpga_;
 	CoreLoader& core_;
+	VideoBringup& video_;
 	Clock& clock_;
 	LogSink& log_;
 	std::string idle_rbf_;

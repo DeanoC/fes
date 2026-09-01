@@ -23,5 +23,8 @@ fixtures verify software mechanics and do not establish system support.
 | `intv` | not implemented | software: no | hardware: no |
 
 Production native construction is available for the image-owned idle baseline,
-but hardware-supported systems remain zero pending physical acceptance. Change
-a row only in the same commit as its implementation and support evidence.
+including a software-tested fixed menu-core 1280x720@60 video path. This idle
+baseline is not a game-system row or a hardware pass. Physical status awaits
+later evidence from an exact pinned FogCast image; hardware-supported systems
+remain zero. Change a row only in the same commit as its implementation and
+support evidence.
