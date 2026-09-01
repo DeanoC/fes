@@ -6,6 +6,7 @@ toolchain go1.26.5
 
 require (
 	github.com/pelletier/go-toml/v2 v2.4.3
+	golang.org/x/image v0.31.0
 	golang.org/x/sys v0.46.0
 	golang.org/x/text v0.40.0
 	gosqlite.org v0.14.0

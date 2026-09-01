@@ -1,6 +1,7 @@
 package tenfoot
 
 import (
+	"strconv"
 	"testing"
 	"time"
 )
@@ -35,6 +36,19 @@ func TestCommandFromKeyAndStick(t *testing.T) {
 	if CommandFromStick(100, 100) != CmdNone {
 		t.Fatal("stick deadzone")
 	}
+	// Near-diagonal noise must not flip a latched axis.
+	if CommandFromStickHeld(20000, 19900, CmdRight) != CmdRight {
+		t.Fatal("stick hysteresis hold")
+	}
+	if CommandFromStickHeld(19900, -20000, CmdUp) != CmdUp {
+		t.Fatal("stick hysteresis vertical hold")
+	}
+	if CommandFromStickHeld(20000, 20000+stickHysteresis, CmdRight) != CmdDown {
+		t.Fatal("stick hysteresis switch")
+	}
+	if CommandFromStickHeld(100, 100, CmdRight) != CmdNone {
+		t.Fatal("stick recenter")
+	}
 }
 
 func TestRepeaterFiresAfterDelay(t *testing.T) {
@@ -60,46 +74,97 @@ func TestApplyPressedRearmsRemainingDirection(t *testing.T) {
 	t.Parallel()
 	now := time.Unix(0, 0)
 
-	// Hold Left, also Up, release Up: Left must be re-armed so repeat continues.
-	app := NewApp(nil, 1280, 720, 8)
+	// Hold Right, also Down, release Down: Right is re-armed without an extra step.
+	app := catalogApp(20)
 	held := map[Command]bool{}
-	if applyPressed(app, map[Command]bool{CmdLeft: true}, held, now) {
+	if applyPressed(app, map[Command]bool{CmdRight: true}, held, now) {
 		t.Fatal("quit")
 	}
 	now = now.Add(10 * time.Millisecond)
-	if applyPressed(app, map[Command]bool{CmdLeft: true, CmdUp: true}, held, now) {
+	if applyPressed(app, map[Command]bool{CmdRight: true, CmdDown: true}, held, now) {
 		t.Fatal("quit")
+	}
+	focusAfterBoth := app.Snapshot().Grid.Focus
+	if focusAfterBoth <= 1 {
+		t.Fatalf("expected right+down focus > 1, got %d", focusAfterBoth)
 	}
 	now = now.Add(10 * time.Millisecond)
-	if applyPressed(app, map[Command]bool{CmdLeft: true}, held, now) {
+	if applyPressed(app, map[Command]bool{CmdRight: true}, held, now) {
 		t.Fatal("quit")
 	}
-	if app.repeat.held != CmdLeft {
-		t.Fatalf("after release up: held = %s want left", app.repeat.held)
+	if app.repeat.held != CmdRight {
+		t.Fatalf("after release down: held = %s want right", app.repeat.held)
 	}
-	if got := app.Tick(now.Add(repeatDelay + time.Millisecond)); got != CmdLeft {
-		t.Fatalf("left repeat = %s", got)
+	if got := app.Snapshot().Grid.Focus; got != focusAfterBoth {
+		t.Fatalf("re-arm moved focus %d -> %d", focusAfterBoth, got)
+	}
+	if got := app.Tick(now.Add(repeatDelay + time.Millisecond)); got != CmdRight {
+		t.Fatalf("right repeat = %s", got)
 	}
 
-	// Hold Left, also Up, release Left: Up is still held and must keep repeating.
-	app = NewApp(nil, 1280, 720, 8)
+	// Hold Right, also Down, release Right: Down is still held and must keep repeating.
+	app = catalogApp(20)
 	held = map[Command]bool{}
 	now = time.Unix(0, 0)
-	if applyPressed(app, map[Command]bool{CmdLeft: true}, held, now) {
+	if applyPressed(app, map[Command]bool{CmdRight: true}, held, now) {
 		t.Fatal("quit")
 	}
 	now = now.Add(10 * time.Millisecond)
-	if applyPressed(app, map[Command]bool{CmdLeft: true, CmdUp: true}, held, now) {
+	if applyPressed(app, map[Command]bool{CmdRight: true, CmdDown: true}, held, now) {
 		t.Fatal("quit")
+	}
+	focusAfterBoth = app.Snapshot().Grid.Focus
+	now = now.Add(10 * time.Millisecond)
+	if applyPressed(app, map[Command]bool{CmdDown: true}, held, now) {
+		t.Fatal("quit")
+	}
+	if app.repeat.held != CmdDown {
+		t.Fatalf("after release right: held = %s want down", app.repeat.held)
+	}
+	if got := app.Snapshot().Grid.Focus; got != focusAfterBoth {
+		t.Fatalf("re-arm moved focus %d -> %d", focusAfterBoth, got)
+	}
+	if got := app.Tick(now.Add(repeatDelay + time.Millisecond)); got != CmdDown {
+		t.Fatalf("down repeat = %s", got)
+	}
+}
+
+func TestApplyPressedSelectWhileHeldDoesNotWalkFocus(t *testing.T) {
+	t.Parallel()
+	app := catalogApp(20)
+	held := map[Command]bool{}
+	now := time.Unix(0, 0)
+	if applyPressed(app, map[Command]bool{CmdRight: true}, held, now) {
+		t.Fatal("quit")
+	}
+	focus := app.Snapshot().Grid.Focus
+	if focus != 1 {
+		t.Fatalf("focus after right = %d", focus)
 	}
 	now = now.Add(10 * time.Millisecond)
-	if applyPressed(app, map[Command]bool{CmdUp: true}, held, now) {
+	if applyPressed(app, map[Command]bool{CmdRight: true, CmdSelect: true}, held, now) {
 		t.Fatal("quit")
 	}
-	if app.repeat.held != CmdUp {
-		t.Fatalf("after release left: held = %s want up", app.repeat.held)
+	if got := app.Snapshot().Grid.Focus; got != focus {
+		t.Fatalf("select while held moved focus %d -> %d", focus, got)
 	}
-	if got := app.Tick(now.Add(repeatDelay + time.Millisecond)); got != CmdUp {
-		t.Fatalf("up repeat = %s", got)
+	if app.repeat.held != CmdRight {
+		t.Fatalf("held after select = %s want right", app.repeat.held)
 	}
+	if got := app.Tick(now.Add(50 * time.Millisecond)); got != CmdNone {
+		t.Fatalf("select must not restart repeat immediately: %s", got)
+	}
+	if got := app.Tick(time.Unix(0, 0).Add(repeatDelay + time.Millisecond)); got != CmdRight {
+		t.Fatalf("select restarted repeat delay: %s", got)
+	}
+}
+
+func catalogApp(n int) *App {
+	app := NewApp(nil, 1280, 720, n)
+	app.games = make([]Game, n)
+	for i := 0; i < n; i++ {
+		app.games[i] = Game{ID: "g" + strconv.Itoa(i), Title: "Game"}
+	}
+	app.grid.SetCount(n)
+	return app
 }

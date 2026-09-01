@@ -32,9 +32,10 @@ const (
 )
 
 const (
-	repeatDelay = 280 * time.Millisecond
-	repeatEvery = 90 * time.Millisecond
-	stickGate   = 16000
+	repeatDelay     = 280 * time.Millisecond
+	repeatEvery     = 90 * time.Millisecond
+	stickGate       = 16000
+	stickHysteresis = 8000
 )
 
 // CommandFromButton maps a gamepad button to a focus command.
@@ -83,26 +84,61 @@ func CommandFromKey(name string) Command {
 
 // CommandFromStick maps a left-stick axis sample to a d-pad command.
 func CommandFromStick(axisX, axisY int) Command {
-	ax, ay := axisX, axisY
-	if ax < 0 {
-		ax = -ax
-	}
-	if ay < 0 {
-		ay = -ay
-	}
+	return CommandFromStickHeld(axisX, axisY, CmdNone)
+}
+
+// CommandFromStickHeld maps a left-stick sample, keeping the previous
+// direction until the stick recenters or the other axis wins by stickHysteresis.
+func CommandFromStickHeld(axisX, axisY int, held Command) Command {
+	ax, ay := absAxis(axisX), absAxis(axisY)
 	if ax < stickGate && ay < stickGate {
 		return CmdNone
 	}
-	if ax >= ay {
+	horizontal := ax >= ay
+	switch held {
+	case CmdLeft, CmdRight:
+		if ay >= ax+stickHysteresis && ay >= stickGate {
+			horizontal = false
+		} else {
+			horizontal = true
+		}
+	case CmdUp, CmdDown:
+		if ax >= ay+stickHysteresis && ax >= stickGate {
+			horizontal = true
+		} else {
+			horizontal = false
+		}
+	}
+	if horizontal {
+		if ax < stickGate {
+			return verticalStick(axisY)
+		}
 		if axisX < 0 {
 			return CmdLeft
 		}
 		return CmdRight
 	}
+	if ay < stickGate {
+		if axisX < 0 {
+			return CmdLeft
+		}
+		return CmdRight
+	}
+	return verticalStick(axisY)
+}
+
+func verticalStick(axisY int) Command {
 	if axisY < 0 {
 		return CmdUp
 	}
 	return CmdDown
+}
+
+func absAxis(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 // Repeater emits held-direction repeats without blocking the frame loop.
@@ -121,10 +157,18 @@ func (r *Repeater) Down(cmd Command, now time.Time) Command {
 		r.held = cmd
 		r.heldSince = now
 		r.lastFire = now
-	} else {
-		r.held = CmdNone
 	}
 	return cmd
+}
+
+// Arm starts hold-repeat for cmd without emitting a focus move.
+func (r *Repeater) Arm(cmd Command, now time.Time) {
+	if !isHoldable(cmd) {
+		return
+	}
+	r.held = cmd
+	r.heldSince = now
+	r.lastFire = now
 }
 
 // Up clears a held movement command.
@@ -160,7 +204,8 @@ func isHoldable(cmd Command) bool {
 
 // applyPressed updates hold/repeat from this frame's pressed commands.
 // After a dual-direction hold/release, a still-held direction is re-armed so
-// navigation repeat continues (Repeater tracks only one command).
+// navigation repeat continues (Repeater tracks only one command). Re-arm does
+// not call Press: that would walk focus and restart repeat after South/East.
 func applyPressed(app *App, pressed, held map[Command]bool, now time.Time) bool {
 	for cmd := range held {
 		if !pressed[cmd] {
@@ -183,7 +228,7 @@ func applyPressed(app *App, pressed, held map[Command]bool, now time.Time) bool 
 			if !isHoldable(cmd) {
 				continue
 			}
-			app.Press(cmd, now)
+			app.repeat.Arm(cmd, now)
 			break
 		}
 	}

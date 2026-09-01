@@ -220,15 +220,12 @@ func runWindow(ctx context.Context, opts Options) error {
 	openExistingGamepads(pads, app)
 
 	textures := map[string]sdlTexture{}
-	defer func() {
-		for id, item := range textures {
-			C.SDL_DestroyTexture(item.tex)
-			delete(textures, id)
-		}
-	}()
+	defer destroyTextures(textures)
+	labels := map[string]sdlTexture{}
+	defer destroyTextures(labels)
 
 	if opts.Smoke {
-		return runSmoke(ctx, opts, app, renderer, pads, textures)
+		return runSmoke(ctx, opts, app, renderer, pads, textures, labels)
 	}
 
 	var stick stickTracker
@@ -248,14 +245,21 @@ func runWindow(ctx context.Context, opts Options) error {
 				return nil
 			}
 		}
-		if quit := pollGamepads(app, pads, held, now); quit {
+		if quit := pollGamepads(app, pads, held, &stick, now); quit {
 			return nil
 		}
 		app.Tick(now)
 		snap := app.Snapshot()
 		syncTextures(renderer, snap, textures)
-		drawFrame(renderer, snap, textures)
+		drawFrame(renderer, snap, textures, labels)
 		C.SDL_Delay(1)
+	}
+}
+
+func destroyTextures(textures map[string]sdlTexture) {
+	for id, item := range textures {
+		C.SDL_DestroyTexture(item.tex)
+		delete(textures, id)
 	}
 }
 
@@ -279,7 +283,7 @@ func initSDLVideo() bool {
 	return bool(C.SDL_Init(C.SDL_INIT_VIDEO | C.SDL_INIT_GAMEPAD))
 }
 
-func runSmoke(ctx context.Context, opts Options, app *App, renderer *C.SDL_Renderer, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, textures map[string]sdlTexture) error {
+func runSmoke(ctx context.Context, opts Options, app *App, renderer *C.SDL_Renderer, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, textures, labels map[string]sdlTexture) error {
 	evidence := map[string]any{
 		"api": opts.APIBase,
 	}
@@ -289,7 +293,7 @@ func runSmoke(ctx context.Context, opts Options, app *App, renderer *C.SDL_Rende
 			return fmt.Errorf("smoke: library load timeout: %w", err)
 		}
 		pumpSDL(app, pads, time.Now())
-		pollGamepads(app, pads, map[Command]bool{}, time.Now())
+		pollGamepads(app, pads, map[Command]bool{}, nil, time.Now())
 		app.Tick(time.Now())
 		snap := app.Snapshot()
 		if snap.LoadErr != "" {
@@ -314,7 +318,7 @@ func runSmoke(ctx context.Context, opts Options, app *App, renderer *C.SDL_Rende
 		app.Tick(time.Now())
 		snap = app.Snapshot()
 		syncTextures(renderer, snap, textures)
-		drawFrame(renderer, snap, textures)
+		drawFrame(renderer, snap, textures, labels)
 		if snap.CoverHits >= 1 {
 			break
 		}
@@ -471,7 +475,7 @@ func virtualPress(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, id C.SDL_J
 	C.SDL_PumpEvents()
 	now := time.Now()
 	pumpSDL(app, pads, now)
-	if pollGamepads(app, pads, held, now) {
+	if pollGamepads(app, pads, held, nil, now) {
 		return nil
 	}
 	if len(held) == 0 {
@@ -487,7 +491,7 @@ func virtualPress(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, id C.SDL_J
 	C.SDL_PumpEvents()
 	now = time.Now()
 	pumpSDL(app, pads, now)
-	pollGamepads(app, pads, held, now)
+	pollGamepads(app, pads, held, nil, now)
 	app.Tick(now)
 	return nil
 }
@@ -514,8 +518,13 @@ func padDump(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad) string {
 	return fmt.Sprintf("games=%d cols=%d focus=%d pads=%d", len(snap.Games), snap.Grid.Columns, snap.Grid.Focus, len(pads))
 }
 
-func pollGamepads(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, held map[Command]bool, now time.Time) bool {
+func pollGamepads(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, held map[Command]bool, stick *stickTracker, now time.Time) bool {
 	pressed := map[Command]bool{}
+	prevStick := CmdNone
+	if stick != nil {
+		prevStick = stick.cmd
+	}
+	stickCmd := CmdNone
 	for _, pad := range pads {
 		if pad == nil {
 			continue
@@ -536,9 +545,13 @@ func pollGamepads(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, held map[C
 		}
 		x := int(C.SDL_GetGamepadAxis(pad, C.SDL_GAMEPAD_AXIS_LEFTX))
 		y := int(C.SDL_GetGamepadAxis(pad, C.SDL_GAMEPAD_AXIS_LEFTY))
-		if cmd := CommandFromStick(x, y); cmd != CmdNone {
+		if cmd := CommandFromStickHeld(x, y, prevStick); cmd != CmdNone {
 			pressed[cmd] = true
+			stickCmd = cmd
 		}
+	}
+	if stick != nil {
+		stick.cmd = stickCmd
 	}
 	return applyPressed(app, pressed, held, now)
 }
@@ -690,13 +703,15 @@ func uploadTexture(renderer *C.SDL_Renderer, img *image.RGBA) (sdlTexture, error
 		C.SDL_DestroyTexture(tex)
 		return sdlTexture{}, fmt.Errorf("update texture: %s", sdlError())
 	}
+	C.SDL_SetTextureBlendMode(tex, C.SDL_BLENDMODE_BLEND)
 	return sdlTexture{tex: tex, w: w, h: h}, nil
 }
 
-func drawFrame(renderer *C.SDL_Renderer, snap Snapshot, textures map[string]sdlTexture) {
+func drawFrame(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[string]sdlTexture) {
 	C.SDL_SetRenderDrawColor(renderer, 12, 14, 20, 255)
 	C.SDL_RenderClear(renderer)
 	drawHeader(renderer, snap)
+	used := map[string]struct{}{}
 	start, end := snap.Grid.VisibleRange()
 	for i := start; i < end && i < len(snap.Games); i++ {
 		x, y, ok := snap.Grid.CellOrigin(i)
@@ -716,11 +731,43 @@ func drawFrame(renderer *C.SDL_Renderer, snap Snapshot, textures map[string]sdlT
 		} else {
 			r, g, b := placeholderColor(game.Title)
 			fillRect(renderer, float32(x+8), float32(y+8), float32(snap.Grid.CellW-16), float32(snap.Grid.CellH-52), r, g, b, 255)
-			drawDebug(renderer, x+16, y+24, initials(game.Title), 2)
+			drawLabel(renderer, labels, used, "i:"+game.ID, x+16, y+24, snap.Grid.CellW-32, 22, initials(game.Title))
 		}
-		drawDebug(renderer, x+6, y+snap.Grid.CellH-28, fitText(game.Title, 12), 2)
+		drawLabel(renderer, labels, used, "t:"+game.ID, x+6, y+snap.Grid.CellH-28, snap.Grid.CellW-12, 16, game.Title)
+	}
+	for key, item := range labels {
+		if _, ok := used[key]; ok {
+			continue
+		}
+		C.SDL_DestroyTexture(item.tex)
+		delete(labels, key)
 	}
 	C.SDL_RenderPresent(renderer)
+}
+
+func drawLabel(renderer *C.SDL_Renderer, labels map[string]sdlTexture, used map[string]struct{}, key string, x, y, maxW, sizePx int, text string) {
+	text = strings.TrimSpace(text)
+	if text == "" || maxW < 1 {
+		return
+	}
+	used[key] = struct{}{}
+	tex, ok := labels[key]
+	if !ok {
+		img := rasterizeLabel(text, maxW, sizePx)
+		if img == nil {
+			delete(used, key)
+			return
+		}
+		uploaded, err := uploadTexture(renderer, img)
+		if err != nil {
+			delete(used, key)
+			return
+		}
+		tex = uploaded
+		labels[key] = tex
+	}
+	dst := C.SDL_FRect{x: C.float(x), y: C.float(y), w: C.float(tex.w), h: C.float(tex.h)}
+	C.SDL_RenderTexture(renderer, tex.tex, nil, &dst)
 }
 
 func drawHeader(renderer *C.SDL_Renderer, snap Snapshot) {
