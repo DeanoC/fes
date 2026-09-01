@@ -195,8 +195,9 @@ func runWindow(ctx context.Context, opts Options) error {
 	if !bool(C.SDL_CreateWindowAndRenderer(title, C.int(opts.Width), C.int(opts.Height), flags, &window, &renderer)) {
 		return fmt.Errorf("sdl window: %s", sdlError())
 	}
-	defer C.SDL_DestroyRenderer(renderer)
+	// LIFO: destroy the renderer before the window it was created for.
 	defer C.SDL_DestroyWindow(window)
+	defer C.SDL_DestroyRenderer(renderer)
 	C.SDL_SetRenderLogicalPresentation(renderer, C.int(opts.Width), C.int(opts.Height), C.SDL_LOGICAL_PRESENTATION_LETTERBOX)
 	C.SDL_SetRenderVSync(renderer, 1)
 
@@ -384,18 +385,10 @@ func runSmoke(ctx context.Context, opts Options, app *App, renderer *C.SDL_Rende
 		}
 	}
 	if launchIdx < 0 {
-		for i, game := range snap.Games {
-			if game.Launchable {
-				launchIdx = i
-				break
-			}
-		}
-	}
-	if launchIdx < 0 {
-		return fmt.Errorf("smoke: no launchable title for POST /api/v1/session/launch")
+		return fmt.Errorf("smoke: no unblocked title for POST /api/v1/session/launch")
 	}
 	if !app.focusIndex(launchIdx) {
-		return fmt.Errorf("smoke: failed to focus launchable title %d", launchIdx)
+		return fmt.Errorf("smoke: failed to focus unblocked title %d", launchIdx)
 	}
 	evidence["launch_focus"] = launchIdx
 
@@ -429,6 +422,9 @@ func runSmoke(ctx context.Context, opts Options, app *App, renderer *C.SDL_Rende
 		game, ok := app.Selected()
 		if !ok {
 			return fmt.Errorf("smoke: host launch did not POST /api/v1/session/launch: %#v", launch)
+		}
+		if reason := launchBlockReason(game); reason != "" {
+			return fmt.Errorf("smoke: selected title is blocked (%s); refusing POST /api/v1/session/launch fallback: %#v", reason, launch)
 		}
 		result, err := app.client.Launch(ctx, game.ID)
 		if err != nil {
