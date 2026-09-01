@@ -36,6 +36,8 @@ type Game struct {
 	Cover      string `json:"cover,omitempty"`
 	Genre      string `json:"genre,omitempty"`
 	Year       string `json:"year,omitempty"`
+	State      string `json:"state"`
+	RootOnline bool   `json:"root_online"`
 	Launchable bool   `json:"launchable"`
 }
 

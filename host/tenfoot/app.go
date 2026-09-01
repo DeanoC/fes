@@ -261,6 +261,10 @@ func (a *App) startLaunchLocked() {
 		return
 	}
 	game := a.games[a.grid.Focus]
+	if reason := launchBlockReason(game); reason != "" {
+		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: reason}
+		return
+	}
 	a.launch = LaunchSnapshot{
 		GameID:  game.ID,
 		Phase:   "launching",
@@ -271,6 +275,24 @@ func (a *App) startLaunchLocked() {
 		ctx = context.Background()
 	}
 	go a.doLaunch(ctx, game)
+}
+
+// launchBlockReason mirrors ui_shell launchBlockReason: unavailable titles
+// must not POST /api/v1/session/launch.
+func launchBlockReason(game Game) string {
+	if !game.Launchable {
+		return "This platform is browse-only on this host."
+	}
+	if game.State == "missing" || !game.RootOnline {
+		return "This game's source is offline."
+	}
+	if game.State == "invalid" {
+		return "This ROM can't be read."
+	}
+	if game.State != "available" {
+		return "This game isn't ready to launch."
+	}
+	return ""
 }
 
 func (a *App) doLaunch(ctx context.Context, game Game) {
@@ -362,6 +384,10 @@ func (a *App) applyResult(result workResult) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	delete(a.inflight, result.gameID)
+	if !a.inPrefetchLocked(result.gameID) {
+		delete(a.covers, result.gameID)
+		return
+	}
 	slot := a.covers[result.gameID]
 	if slot == nil {
 		slot = &coverSlot{}
@@ -388,13 +414,7 @@ func (a *App) applyResult(result workResult) {
 
 func (a *App) queueVisibleWork() {
 	a.mu.Lock()
-	start, end := a.grid.PrefetchRange(prefetchRows)
-	if end > len(a.games) {
-		end = len(a.games)
-	}
-	if start < 0 {
-		start = 0
-	}
+	start, end := a.prefetchSpanLocked()
 	type pending struct {
 		item workItem
 		key  string
@@ -433,6 +453,7 @@ func (a *App) queueVisibleWork() {
 			break
 		}
 	}
+	a.evictCoversLocked()
 	a.mu.Unlock()
 	for _, item := range queue {
 		select {
@@ -442,6 +463,44 @@ func (a *App) queueVisibleWork() {
 			delete(a.inflight, item.key)
 			a.mu.Unlock()
 		}
+	}
+}
+
+func (a *App) prefetchSpanLocked() (int, int) {
+	start, end := a.grid.PrefetchRange(prefetchRows)
+	if start < 0 {
+		start = 0
+	}
+	if end > len(a.games) {
+		end = len(a.games)
+	}
+	return start, end
+}
+
+func (a *App) inPrefetchLocked(gameID string) bool {
+	start, end := a.prefetchSpanLocked()
+	for i := start; i < end; i++ {
+		if a.games[i].ID == gameID {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *App) evictCoversLocked() {
+	start, end := a.prefetchSpanLocked()
+	keep := make(map[string]struct{}, end-start)
+	for i := start; i < end; i++ {
+		keep[a.games[i].ID] = struct{}{}
+	}
+	for id := range a.covers {
+		if _, ok := keep[id]; ok {
+			continue
+		}
+		if _, busy := a.inflight[id]; busy {
+			continue
+		}
+		delete(a.covers, id)
 	}
 }
 

@@ -26,8 +26,6 @@ typedef struct FogcastEvent {
 	int down;
 } FogcastEvent;
 
-static SDL_Joystick *smoke_js;
-
 void fogcast_update_pads(void) {
 	SDL_UpdateJoysticks();
 	SDL_UpdateGamepads();
@@ -106,7 +104,7 @@ SDL_JoystickID fogcast_attach_virtual_gamepad(void) {
 	SDL_INIT_INTERFACE(&desc);
 	desc.type = SDL_JOYSTICK_TYPE_GAMEPAD;
 	desc.naxes = 2;
-	desc.nbuttons = 16;
+	desc.nbuttons = SDL_GAMEPAD_BUTTON_COUNT;
 	desc.nhats = 1;
 	desc.button_mask = 0xffffffffu;
 	desc.axis_mask = 0x00000003u;
@@ -114,22 +112,10 @@ SDL_JoystickID fogcast_attach_virtual_gamepad(void) {
 	return SDL_AttachVirtualJoystick(&desc);
 }
 
-int fogcast_open_virtual_joystick(SDL_JoystickID id) {
-	if (smoke_js != NULL) {
-		SDL_CloseJoystick(smoke_js);
-		smoke_js = NULL;
-	}
-	smoke_js = SDL_OpenJoystick(id);
-	return smoke_js != NULL;
-}
-
 int fogcast_virtual_button_on(SDL_Gamepad *pad, int button, int down) {
-	SDL_Joystick *js = smoke_js;
+	SDL_Joystick *js = NULL;
 	if (pad != NULL) {
-		SDL_Joystick *from_pad = SDL_GetGamepadJoystick(pad);
-		if (from_pad != NULL) {
-			js = from_pad;
-		}
+		js = SDL_GetGamepadJoystick(pad);
 	}
 	if (js == NULL) {
 		return 0;
@@ -155,14 +141,7 @@ int fogcast_virtual_button_on(SDL_Gamepad *pad, int button, int down) {
 	}
 	SDL_UpdateJoysticks();
 	SDL_UpdateGamepads();
-	return SDL_GetJoystickButton(js, button) ? 1 : 2;
-}
-
-void fogcast_close_virtual_joystick(void) {
-	if (smoke_js != NULL) {
-		SDL_CloseJoystick(smoke_js);
-		smoke_js = NULL;
-	}
+	return SDL_GetGamepadButton(pad, (SDL_GamepadButton)button) ? 1 : 2;
 }
 */
 import "C"
@@ -275,16 +254,22 @@ func runWindow(ctx context.Context, opts Options) error {
 }
 
 func initSDLVideo() bool {
+	bg := C.CString("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS")
+	defer C.free(unsafe.Pointer(bg))
+	one := C.CString("1")
+	defer C.free(unsafe.Pointer(one))
+	C.SDL_SetHint(bg, one)
 	if bool(C.SDL_Init(C.SDL_INIT_VIDEO | C.SDL_INIT_GAMEPAD)) {
 		return true
 	}
 	// Agent / SSH sessions often have Aqua but no Cocoa window server access.
 	dummy := C.CString("dummy")
 	defer C.free(unsafe.Pointer(dummy))
-	hint := C.CString("SDL_VIDEODRIVER")
+	hint := C.CString("SDL_VIDEO_DRIVER")
 	defer C.free(unsafe.Pointer(hint))
 	C.SDL_Quit()
 	C.SDL_SetHint(hint, dummy)
+	C.SDL_SetHint(bg, one)
 	return bool(C.SDL_Init(C.SDL_INIT_VIDEO | C.SDL_INIT_GAMEPAD))
 }
 
@@ -345,10 +330,6 @@ func runSmoke(ctx context.Context, opts Options, app *App, renderer *C.SDL_Rende
 		return fmt.Errorf("smoke: virtual gamepad: %s", sdlError())
 	}
 	defer C.SDL_DetachVirtualJoystick(id)
-	if C.fogcast_open_virtual_joystick(id) == 0 {
-		return fmt.Errorf("smoke: open virtual joystick: %s", sdlError())
-	}
-	defer C.fogcast_close_virtual_joystick()
 
 	padReady := time.Now().Add(2 * time.Second)
 	for time.Now().Before(padReady) {
@@ -407,11 +388,16 @@ func runSmoke(ctx context.Context, opts Options, app *App, renderer *C.SDL_Rende
 		C.SDL_Delay(10)
 	}
 	launch := app.Snapshot().Launch
-	if launch.HTTPStatus == 0 && launch.Phase != "ok" {
+	switch {
+	case launch.Phase == "ok" || launch.Phase == "host":
+	case launch.Phase == "error" && launch.HTTPStatus == 0:
+		game, ok := app.Selected()
+		if !ok || launch.GameID != game.ID || launchBlockReason(game) == "" {
+			return fmt.Errorf("smoke: launch transport failed: %s", launch.Message)
+		}
+		evidence["launch_blocked"] = launch.Message
+	default:
 		return fmt.Errorf("smoke: host launch did not complete: %#v", launch)
-	}
-	if launch.Phase == "error" && launch.HTTPStatus == 0 {
-		return fmt.Errorf("smoke: launch transport failed: %s", launch.Message)
 	}
 
 	payload, err := json.Marshal(evidence)
@@ -440,18 +426,15 @@ func virtualPress(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, button C.i
 	}
 	C.SDL_PumpEvents()
 	now := time.Now()
-	focusBefore := app.Snapshot().Grid.Focus
-	launchBefore := app.Snapshot().Launch.Phase
 	pumpSDL(app, pads, now)
 	if pollGamepads(app, pads, held, now) {
 		return nil
 	}
-	cmd := commandFromSDLButton(button)
-	moved := app.Snapshot().Grid.Focus != focusBefore
-	selected := app.Snapshot().Launch.Phase != launchBefore
-	if !moved && !selected && cmd != CmdNone && cmd != CmdQuit {
-		app.Press(cmd, now)
-		held[cmd] = true
+	if len(held) == 0 {
+		cmd := commandFromSDLButton(button)
+		if cmd != CmdNone && cmd != CmdQuit {
+			return fmt.Errorf("smoke: SDL gamepad path did not apply %v (%s)", cmd, padDump(app, pads))
+		}
 	}
 	app.Tick(now)
 	if C.fogcast_virtual_button_on(pad, button, 0) == 0 {
