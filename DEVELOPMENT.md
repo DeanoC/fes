@@ -31,6 +31,9 @@ scripts/check-history.sh
 
 `check-active-tree.sh` rebuilds the canonical host products while checking
 dependency invalidation and deterministic archive output.
+`make test` also exercises incremental test-header invalidation and verifies
+that changing an overridable version input updates `mister-runtime` without a
+clean build.
 
 ## Arm cross-build
 
@@ -46,7 +49,8 @@ file build/target/libmister-runtime.a build/target/mister-runtime
 ```
 
 The expected executable is a 32-bit Arm EABI5 hard-float Linux artifact. The
-archive contains objects produced by the same target compiler.
+archive contains objects produced by the same target compiler, with 64-bit
+`off_t` enabled for production MMIO offsets.
 
 ## Native-image installation — not yet available
 

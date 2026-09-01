@@ -66,6 +66,17 @@ void TestOversizeRbfIsRejected()
 		mister::ErrorCode::io_failed);
 }
 
+void TestEmbeddedNulCannotSelectATruncatedPosixPath()
+{
+	TempDirectory temporary;
+	const std::string existing = temporary.File("existing.rbf", 4);
+	const std::string deceptive = existing + std::string("\0missing.rbf", 12);
+	mister::native::PosixArtifactOpener opener;
+	mister::native::Artifact artifact;
+	assert(opener.Open(deceptive, 0, &artifact).code == mister::ErrorCode::io_failed);
+	assert(artifact.fd() == -1);
+}
+
 class FailingOpener final : public mister::native::ArtifactOpener {
 public:
 	explicit FailingOpener(int fail_call) : fail_call_(fail_call), calls(0), delegate() {}
@@ -125,8 +136,9 @@ int main()
 {
 	TestMissingDirectoryAndZeroLengthAreRejected();
 	TestOversizeRbfIsRejected();
+	TestEmbeddedNulCannotSelectATruncatedPosixPath();
 	TestCompleteSetFailureDoesNotAssignOutput();
 	TestMultiFilePreflightRetainsAndClosesDescriptors();
-	puts("artifacts_test: 4 passed");
+	puts("artifacts_test: 5 passed");
 	return 0;
 }

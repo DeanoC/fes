@@ -187,6 +187,21 @@ std::string ReadToEof(int descriptor)
 	return bytes;
 }
 
+std::string ReadRejectedFrameResponse(int descriptor)
+{
+	std::string bytes;
+	char buffer[4096];
+	while (true) {
+		const ssize_t count = recv(descriptor, buffer, sizeof(buffer), 0);
+		if (count < 0 && errno == EINTR) continue;
+		if (count < 0 && errno == ECONNRESET && !bytes.empty()) break;
+		assert(count >= 0);
+		if (count == 0) break;
+		bytes.append(buffer, static_cast<std::size_t>(count));
+	}
+	return bytes;
+}
+
 std::string ReadFileToEof(int descriptor)
 {
 	std::string bytes;
@@ -399,12 +414,27 @@ void TestIncompleteAndOversizedRequestsAreInvalidThenClose()
 		assert(Count(response, '\n') == 1);
 
 		descriptor = Connect(temporary.Entry("runtime.sock"));
-		SendAll(descriptor, std::string(65537, 'x') + "\n");
+		const std::string maximum_wire_request = std::string(65535, 'x') + "\n";
+		assert(maximum_wire_request.size() == 65536);
+		SendAll(descriptor, maximum_wire_request);
 		assert(shutdown(descriptor, SHUT_WR) == 0);
-		response = ReadToEof(descriptor);
+		response = ReadRejectedFrameResponse(descriptor);
 		assert(close(descriptor) == 0);
 		Contains(response, "\"ok\":false");
 		Contains(response, "\"code\":\"invalid_request\"");
+		assert(response.find("frame_too_large") == std::string::npos);
+		assert(Count(response, '\n') == 1);
+
+		descriptor = Connect(temporary.Entry("runtime.sock"));
+		const std::string oversized_wire_request = std::string(65536, 'x') + "\n";
+		assert(oversized_wire_request.size() == 65537);
+		SendAll(descriptor, oversized_wire_request);
+		assert(shutdown(descriptor, SHUT_WR) == 0);
+		response = ReadRejectedFrameResponse(descriptor);
+		assert(close(descriptor) == 0);
+		Contains(response, "\"ok\":false");
+		Contains(response, "\"code\":\"invalid_request\"");
+		Contains(response, "frame_too_large");
 		assert(Count(response, '\n') == 1);
 
 		response = Exchange(temporary.Entry("runtime.sock"), kStatus);
@@ -442,6 +472,20 @@ void TestLaunchDevelopmentAndStopMapIdentityAndState()
 		Contains(response, "\"state\":\"idle\"");
 		assert(fixture.hardware.idle_calls == 3);
 	}
+}
+
+void TestDecodedNulPathIsRejectedBeforeHardwareOverTheSocket()
+{
+	TempDirectory temporary;
+	Fixture fixture;
+	fixture.Start();
+	RunningServer server(fixture.runtime, temporary.Entry("runtime.sock"));
+	const std::string response = Exchange(temporary.Entry("runtime.sock"),
+		"{\"protocol\":1,\"operation\":\"load_development_rbf\","
+		"\"rbf\":\"/cores/real.rbf\\u0000ignored.rbf\"}");
+	Contains(response, "\"ok\":false");
+	Contains(response, "\"code\":\"invalid_request\"");
+	assert(fixture.hardware.development_calls == 0);
 }
 
 void TestStatusFromAnotherConnectionObservesStarting()
@@ -829,6 +873,7 @@ int main()
 	TestSecondRequestOnAConnectionIsNeverProcessed();
 	TestIncompleteAndOversizedRequestsAreInvalidThenClose();
 	TestLaunchDevelopmentAndStopMapIdentityAndState();
+	TestDecodedNulPathIsRejectedBeforeHardwareOverTheSocket();
 	TestStatusFromAnotherConnectionObservesStarting();
 	TestConcurrentMutationReturnsBusy();
 	TestCleanupFailureReturnsRebootRequiredIdleFailed();
@@ -843,6 +888,6 @@ int main()
 	TestOversizedVersionUsesBoundedValidFallback();
 	TestOversizedHardwareErrorUsesBoundedValidFallback();
 	TestDevelopmentInventsNoIdentityAndStderrEscapesFields();
-	puts("daemon_server_test: 19 passed");
+	puts("daemon_server_test: 20 passed");
 	return 0;
 }

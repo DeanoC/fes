@@ -138,6 +138,15 @@ void TestValidationPrecedesHardwareMutation()
 	assert(fixture.hardware.launch_calls == 0);
 }
 
+void TestDevelopmentPathRejectsEmbeddedNulBeforeHardwareMutation()
+{
+	Fixture fixture;
+	Start(fixture);
+	const std::string path("/cores/real.rbf\0ignored.rbf", 27);
+	assert(fixture.runtime.LoadDevelopmentRBF(path).code == ErrorCode::invalid_request);
+	assert(fixture.hardware.development_calls == 0);
+}
+
 void TestBlockedLaunchPublishesStarting()
 {
 	Fixture fixture;
@@ -438,6 +447,7 @@ int main()
 	TestStartLoadsIdleOnceAndPublishesIdle();
 	TestFailedStartRequiresReboot();
 	TestValidationPrecedesHardwareMutation();
+	TestDevelopmentPathRejectsEmbeddedNulBeforeHardwareMutation();
 	TestBlockedLaunchPublishesStarting();
 	TestConcurrentMutationReturnsBusyWithoutQueueing();
 	TestRejectedMutationLogCanReadStatusWithoutDeadlock();
@@ -459,6 +469,6 @@ int main()
 	TestValidationFailureLogsDirectErrorWithoutHardware();
 	TestPostMutationFailureLogsCleanupAndPrimary();
 	TestFailedCleanupLogsBothFailuresAndDevelopmentInventsNoIdentity();
-	puts("runtime_test: 24 passed");
+	puts("runtime_test: 25 passed");
 	return 0;
 }

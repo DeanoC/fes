@@ -64,6 +64,8 @@ Error PosixArtifactOpener::Open(const std::string& path,
 	std::uint64_t maximum_size, Artifact* output)
 {
 	if (output == nullptr) return {ErrorCode::io_failed, "missing artifact output"};
+	if (path.find('\0') != std::string::npos)
+		return {ErrorCode::io_failed, "artifact path contains a NUL byte"};
 	errno = 0;
 	const int descriptor = open(path.c_str(), O_RDONLY | O_CLOEXEC);
 	if (descriptor < 0) return IoError("open failed", path);

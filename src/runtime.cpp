@@ -27,7 +27,8 @@ Error IdleFailure(const Error& cause)
 
 bool ValidAbsolutePath(const std::string& path)
 {
-	return !path.empty() && path.size() <= 4095 && path[0] == '/';
+	return !path.empty() && path.size() <= 4095 && path[0] == '/' &&
+		path.find('\0') == std::string::npos;
 }
 
 } // namespace

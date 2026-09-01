@@ -13,11 +13,12 @@ TARGET_AR ?= arm-none-linux-gnueabihf-ar
 BUILD_DIR ?= build
 ARCHIVE := $(BUILD_DIR)/libmister-runtime.a
 DAEMON := $(BUILD_DIR)/mister-runtime
+VERSION_INPUT := $(BUILD_DIR)/.mister-runtime-version
 
 VERSION_DIRTY = $(shell test -z "$$(git status --porcelain --untracked-files=normal)" || printf '%s' -dirty)
 MISTER_RUNTIME_VERSION ?= git-$(shell git rev-parse --short=12 HEAD)$(VERSION_DIRTY)
 
-CPPFLAGS := -Iinclude -Isrc
+CPPFLAGS := -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc
 TEST_CPPFLAGS := $(CPPFLAGS) -Itests/support
 CXXFLAGS ?= -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP
 
@@ -50,16 +51,34 @@ TEST_BINS := \
 	$(BUILD_DIR)/tests/unit/core_loader_test \
 	$(BUILD_DIR)/tests/unit/fpga_manager_test \
 	$(BUILD_DIR)/tests/unit/mmio_test \
+	$(BUILD_DIR)/tests/unit/off_t_test \
 	$(BUILD_DIR)/tests/unit/spi_test \
 	$(BUILD_DIR)/tests/unit/protocol_test \
 	$(BUILD_DIR)/tests/integration/daemon_server_test
+TEST_HEADERS := $(wildcard \
+	include/libmister-runtime/*.h \
+	src/*.hpp \
+	src/native/*.hpp \
+	src/native/linux/*.hpp \
+	src/daemon/*.hpp \
+	src/linux/*.hpp \
+	tests/support/*.hpp)
 
-.PHONY: all clean test run-tests sanitize tsan archive-audit active-tree-test target
+.PHONY: all clean test run-tests incremental-build-test version-build-test \
+	force-version sanitize tsan archive-audit active-tree-test target
 
 all: $(ARCHIVE) $(DAEMON)
 
 $(BUILD_DIR)/src/daemon/main.o: CPPFLAGS += \
 	-DMISTER_RUNTIME_VERSION=\"$(MISTER_RUNTIME_VERSION)\"
+$(BUILD_DIR)/src/daemon/main.o: $(VERSION_INPUT)
+
+$(VERSION_INPUT): force-version
+	@mkdir -p "$(dir $@)"
+	@temporary="$@.tmp"; \
+	printf '%s\n' '$(MISTER_RUNTIME_VERSION)' >"$$temporary"; \
+	if ! cmp -s "$$temporary" "$@"; then mv -f "$$temporary" "$@"; \
+	else rm -f -- "$$temporary"; fi
 
 $(BUILD_DIR)/%.o: %.cpp
 	@mkdir -p "$(dir $@)"
@@ -121,6 +140,10 @@ $(BUILD_DIR)/tests/unit/mmio_test: tests/unit/mmio_test.cpp \
 	$(CXX) $(TEST_CPPFLAGS) -DMISTER_RUNTIME_TESTING $(CXXFLAGS) \
 		tests/unit/mmio_test.cpp src/native/linux/mmio.cpp -o "$@"
 
+$(BUILD_DIR)/tests/unit/off_t_test: tests/unit/off_t_test.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tests/unit/off_t_test.cpp -o "$@"
+
 $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cpp \
 		tests/support/capture_log.cpp src/native/artifacts.cpp \
 		src/native/core_loader.cpp src/native/hardware.cpp src/profile.cpp \
@@ -151,6 +174,8 @@ $(BUILD_DIR)/tests/integration/daemon_server_test: \
 		src/daemon/json.cpp src/daemon/protocol.cpp \
 		src/linux/stderr_log.cpp src/profile.cpp src/runtime.cpp -o "$@"
 
+$(TEST_BINS): $(TEST_HEADERS)
+
 run-tests: $(TEST_BINS)
 	@set -euo pipefail; \
 	for test_binary in $(TEST_BINS); do \
@@ -160,7 +185,13 @@ run-tests: $(TEST_BINS)
 active-tree-test: all
 	@tests/active_tree_test.sh "$(CURDIR)"
 
-test: run-tests
+incremental-build-test: run-tests
+	@tests/incremental_build_test.sh "$(CURDIR)" $(TEST_BINS)
+
+version-build-test: incremental-build-test
+	@tests/version_build_test.sh "$(CURDIR)"
+
+test: version-build-test
 	@$(MAKE) active-tree-test
 
 sanitize:

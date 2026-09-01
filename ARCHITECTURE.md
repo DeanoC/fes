@@ -56,6 +56,11 @@ absolute RBF path, semantic media paths, and profile-declared settings.
 Responses report `ok`, lifecycle state, execution type, system/core identity
 when present, a direct error when present, and the runtime version.
 
+The maximum request frame is 65,536 bytes including its newline terminator.
+Decoded path strings reject embedded NUL bytes at the protocol, lifecycle,
+profile, and POSIX artifact boundaries so the path validated by the runtime is
+the path presented to the operating system.
+
 `status` is the sole reconciliation mechanism for a response lost after
 dispatch. The caller observes daemon state instead of guessing whether a
 mutation happened or consulting another authority.
@@ -65,5 +70,7 @@ mutation happened or consulting another authority.
 The canonical host build produces one production archive and one daemon. The
 daemon links the whole archive so unresolved or accidentally omitted native
 members fail at the final link. Acceptance guards audit the archive manifest,
-exclude fake and historic symbols, exercise header dependency invalidation,
-and compare two clean archive hashes for determinism.
+exclude fake and historic symbols, exercise test and production header
+dependency invalidation, verify incremental version embedding, and compare two
+clean archive hashes for determinism. Host and 32-bit Arm production builds
+use 64-bit file offsets for high-address MMIO mappings.

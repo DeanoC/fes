@@ -18,7 +18,7 @@ namespace mister {
 namespace daemon {
 namespace {
 
-const std::size_t kMaximumRequestBytes = 65536;
+const std::size_t kMaximumRequestPayloadBytes = 65535;
 
 Error IoError(const std::string& action, int number)
 {
@@ -273,9 +273,10 @@ void Server::HandleConnection(int descriptor)
 				complete = true;
 				break;
 			}
-			if (line.size() == kMaximumRequestBytes) {
+			if (too_long) continue;
+			if (line.size() == kMaximumRequestPayloadBytes) {
 				too_long = true;
-				break;
+				continue;
 			}
 			line.push_back(buffer[index]);
 		}
@@ -285,7 +286,7 @@ void Server::HandleConnection(int descriptor)
 	if (read_failed)
 		response = controller_.InvalidRequest("request read failed");
 	else if (too_long)
-		response = controller_.InvalidRequest("request exceeds 65536 bytes");
+		response = controller_.InvalidRequest("frame_too_large");
 	else if (!complete)
 		response = controller_.InvalidRequest("request ended before newline");
 	else

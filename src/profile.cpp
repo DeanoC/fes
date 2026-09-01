@@ -36,7 +36,8 @@ bool ValidCore(const std::string& value)
 
 bool ValidAbsolutePath(const std::string& value)
 {
-	return !value.empty() && value.size() <= 4095 && value[0] == '/';
+	return !value.empty() && value.size() <= 4095 && value[0] == '/' &&
+		value.find('\0') == std::string::npos;
 }
 
 bool ValidUtf8(const std::string& value)

@@ -11,6 +11,9 @@
 #include <utility>
 #include <vector>
 
+static_assert(sizeof(off_t) >= 8,
+	"production MMIO requires 64-bit file offsets");
+
 namespace mister {
 namespace native {
 namespace {

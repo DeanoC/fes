@@ -151,6 +151,42 @@ void TestBounds()
 	ExpectError("{\"protocol\":1,\"operation\":\"load_development_rbf\",\"rbf\":\"/" + std::string(4095, 'a') + "\"}", ErrorCode::invalid_request);
 }
 
+void TestDecodedNulPathsAreRejected()
+{
+	ExpectError("{\"protocol\":1,\"operation\":\"load_development_rbf\",\"rbf\":\"/tmp/core\\u0000.rbf\"}",
+		ErrorCode::invalid_request);
+	ExpectError("{\"protocol\":1,\"operation\":\"launch\",\"system\":\"test\",\"rbf\":\"/tmp/core.rbf\",\"media\":{\"cartridge\":\"/tmp/game\\u0000.bin\"},\"settings\":{}}",
+		ErrorCode::invalid_request);
+}
+
+void TestExactValidBoundariesAreAccepted()
+{
+	const std::string identifier = "abcdefghijklmnopqrstuvwxyz_12345";
+	const std::string path = "/" + std::string(4094, 'p');
+	const std::string setting =
+		"0123456789abcdef"
+		"0123456789abcdef"
+		"0123456789abcdef"
+		"0123456789abcdef";
+	assert(identifier.size() == 32);
+	assert(path.size() == 4095);
+	assert(setting.size() == 64);
+
+	Request request;
+	assert(Parse("{\"protocol\":1,\"operation\":\"launch\",\"system\":\"" +
+		identifier + "\",\"rbf\":\"/a\",\"media\":{},\"settings\":{}}",
+		&request).ok());
+	assert(request.launch.system == identifier);
+	assert(Parse("{\"protocol\":1,\"operation\":\"load_development_rbf\",\"rbf\":\"" +
+		path + "\"}", &request).ok());
+	assert(request.rbf == path);
+	assert(Parse("{\"protocol\":1,\"operation\":\"launch\",\"system\":\"test\","
+		"\"rbf\":\"/a\",\"media\":{},\"settings\":{\"region\":\"" + setting +
+		"\"}}", &request).ok());
+	assert(request.launch.settings.size() == 1);
+	assert(request.launch.settings[0].value == setting);
+}
+
 void TestResponseEncoding()
 {
 	Status status;
@@ -210,8 +246,10 @@ int main()
 	TestOperationShapes();
 	TestSyntaxAndShapeFailures();
 	TestBounds();
+	TestDecodedNulPathsAreRejected();
+	TestExactValidBoundariesAreAccepted();
 	TestResponseEncoding();
 	TestErrorCodeNames();
 	TestStatusErrorIsIndependentOfResponseOk();
-	std::cout << "protocol_test: 10 tests passed\n";
+	std::cout << "protocol_test: 12 tests passed\n";
 }

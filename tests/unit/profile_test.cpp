@@ -120,6 +120,19 @@ void TestPathsMustBeAbsoluteAndBounded()
 	assert(profiles.Prepare(launch, &prepared).code == ErrorCode::invalid_request);
 }
 
+void TestEmbeddedNulPathsAreRejected()
+{
+	mister::Profiles profiles;
+	assert(profiles.Add(mister_test::CartProfile()).ok());
+	mister::PreparedLaunch prepared;
+	mister::Launch launch = ValidCartLaunch();
+	launch.rbf = std::string("/cores/real.rbf\0ignored.rbf", 27);
+	assert(profiles.Prepare(launch, &prepared).code == ErrorCode::invalid_request);
+	launch = ValidCartLaunch();
+	launch.media[0].path = std::string("/games/real.bin\0ignored.bin", 27);
+	assert(profiles.Prepare(launch, &prepared).code == ErrorCode::invalid_request);
+}
+
 void TestIdentifierSettingAndCountBounds()
 {
 	mister::Profiles profiles;
@@ -154,8 +167,9 @@ int main()
 	TestMissingRequiredMediaIsDirect();
 	TestUnknownSystemRoleSettingAndValueAreRejected();
 	TestPathsMustBeAbsoluteAndBounded();
+	TestEmbeddedNulPathsAreRejected();
 	TestIdentifierSettingAndCountBounds();
 	TestProductionRegistryStartsEmpty();
-	puts("profile_test: 9 passed");
+	puts("profile_test: 10 passed");
 	return 0;
 }
