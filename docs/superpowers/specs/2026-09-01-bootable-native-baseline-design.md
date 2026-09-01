@@ -47,7 +47,8 @@ physical checks pass.
   that image.
 - Package one immutable idle RBF in the Linux root filesystem.
 - Construct the real Linux hardware stack needed to load that idle RBF.
-- Start the image-owned FogCast agent only after the runtime reports `idle`.
+- Start the image-owned FogCast agent after the runtime process, and report
+  ready only after the runtime reports `idle`.
 - Give the agent an explicitly selected native backend that speaks the local
   runtime protocol.
 - Expose honest ready, idle, stop, reboot, unavailable, and failure states
@@ -79,9 +80,11 @@ expected commit recorded by FogCast, and builds it with the Buildroot target
 toolchain through a small external package.
 
 The native image contains image-owned copies of `mister-runtime`,
-`mister-agent`, and the idle RBF. Its init scripts start the runtime, wait for
-an actual `idle` status, then start the agent with an explicit native-backend
-argument. No component probes for Main or falls back to it.
+`mister-agent`, and the idle RBF. Its init scripts start the runtime and then
+start the agent with an explicit native-backend argument. The agent reads the
+runtime's actual state and reports ready only for `idle`; it does not infer
+readiness merely from process or socket existence. No component probes for
+Main or falls back to it.
 
 This keeps the working image intact, tests the new boundary without claiming
 game parity, and preserves one obvious rollback: reinstall the legacy `dev`
@@ -188,7 +191,8 @@ can truthfully provide:
 
 - initialization/status asks the daemon for its observable state;
 - health is ready only when the daemon reports `idle`;
-- stop calls runtime `stop` and requires an `idle` result;
+- stop confirms `idle` without mutation when the runtime is already idle, and
+  otherwise calls runtime `stop` and requires an `idle` result;
 - explicit reboot continues to use FogCast's existing system reboot mechanism;
   and
 - game launch and development-RBF loading return a clear unsupported result
@@ -233,16 +237,18 @@ Boot order is:
 native-dev Linux boots
   -> S40mister-runtime starts /usr/sbin/mister-runtime
   -> mister-runtime opens the packaged idle.rbf
-  -> mister-runtime programs the FPGA and enters idle
-  -> /run/mister-runtime.sock reports state idle
   -> S50mister-agent starts image-owned mister-agent --runtime native
   -> mister-agent reads status through the Unix socket
-  -> existing FogCast target health reports ready
+  -> successful programming produces idle and target health ready
+  -> failure produces reboot_required or unavailable and target health not ready
 ```
 
-`S50mister-agent` waits for the daemon to report `idle`, not merely for the
-socket file to exist. The existing simple process supervisor may restart a
-failed process; this milestone does not introduce a new retry framework.
+`S50mister-agent` is ordered after `S40mister-runtime`, but socket existence is
+not treated as readiness. The native adapter reads protocol status and makes
+the target ready only for `idle`. This also leaves `reboot_required` and socket
+failures visible through the running agent. The existing simple process
+supervisor may restart a failed process; this milestone does not introduce a
+new retry framework.
 
 If runtime startup fails, the daemon status remains observable as
 `reboot_required`, the agent must not report ready, and the logs show the
@@ -283,7 +289,7 @@ Failure handling stays direct and finite:
 | Runtime reports a non-idle active state at agent startup | Agent not ready for this milestone |
 | Game launch requested | Clear unsupported response before hardware mutation |
 | Development RBF requested | Clear unsupported response before hardware mutation |
-| Stop while idle | Runtime confirms or re-establishes `idle` |
+| Stop while idle | Target confirms `idle` without hardware mutation |
 | Runtime process restarts | Runtime deliberately reloads idle |
 | Device reboots | Host confirms a changed boot ID and fresh `idle` |
 
