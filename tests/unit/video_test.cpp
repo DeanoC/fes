@@ -25,8 +25,9 @@
 namespace {
 
 const std::uint64_t kDeadline = 100;
-// Selection, 92 initialization writes, the power read, and three mode writes.
-const std::size_t kLinkReadCallBegin = 97;
+// Selection, 92 initialization writes, the power read, three mode writes, and
+// five ADV EDID wake writes.
+const std::size_t kLinkReadCallBegin = 102;
 std::size_t scenarios = 0;
 
 class SequenceClock final : public mister::native::Clock {
@@ -56,6 +57,14 @@ public:
 		std::vector<std::string>& ordered_calls, mister_test::FakeI2c& i2c)
 		: events_(events), ordered_calls_(ordered_calls), i2c_(i2c) {}
 
+	mister::Error SynchronizeCore(std::uint64_t deadline) override
+	{
+		sync_deadline = deadline;
+		events_.push_back("spi:core_sync");
+		ordered_calls_.push_back("spi:core_sync");
+		return sync_error;
+	}
+
 	mister::Error Exchange(std::uint8_t target,
 		const std::vector<std::uint16_t>& request,
 		std::vector<std::uint16_t>* response, std::uint64_t deadline) override
@@ -68,6 +77,8 @@ public:
 		} else if (!request.empty() && request[0] == 0x0020) {
 			event = "spi:timing";
 			i2c_.MarkTimingEvent();
+		} else if (request.size() == 2 && request[0] == 0x0001) {
+			event = "spi:buttons";
 		} else if (request.size() == 9 && request[0] == 0x001e &&
 			request[1] == 0x0001) {
 			event = "spi:status_assert";
@@ -77,6 +88,9 @@ public:
 		} else {
 			event = "spi:unexpected";
 		}
+		if (request.size() == 9 && request[0] == 0x001e &&
+			request[1] == 0x0000)
+			i2c_.MarkReleaseEvent();
 		events_.push_back(event);
 		ordered_calls_.push_back(event);
 		if (call_index == fail_call_index) return failure;
@@ -113,6 +127,8 @@ public:
 	std::size_t fail_call_index = std::numeric_limits<std::size_t>::max();
 	mister::Error failure = {mister::ErrorCode::io_failed,
 		"scripted SPI failure"};
+	mister::Error sync_error;
+	std::uint64_t sync_deadline = 0;
 	std::vector<Call> calls;
 };
 
@@ -152,7 +168,7 @@ std::string HexByte(std::uint8_t value)
 
 std::vector<std::string> ExpectedAfterProbe()
 {
-	return {"spi:status_assert", "spi:probe"};
+	return {"spi:core_sync", "spi:status_assert", "spi:probe"};
 }
 
 std::vector<std::string> ExpectedAfterSelection()
@@ -207,9 +223,42 @@ std::vector<std::string> ExpectedAfterReleaseAttempt()
 	return expected;
 }
 
-std::vector<std::string> ExpectedAfterLinkReads(std::size_t count)
+std::vector<mister::native::RegisterWrite> ExpectedHdmiWakeWrites()
+{
+	return {{0x96, 0x04}, {0xc4, 0x00}, {0xc9, 0x03},
+		{0xc9, 0x13}, {0xc9, 0x03}};
+}
+
+std::vector<std::string> ExpectedAfterHdmiWake()
 {
 	std::vector<std::string> expected = ExpectedAfterReleaseAttempt();
+	for (const auto& write : ExpectedHdmiWakeWrites())
+		expected.push_back("i2c:write:" + HexByte(write.address) + ":" +
+			HexByte(write.value));
+	return expected;
+}
+
+std::vector<std::string> ExpectedAfterHdmiWakeWrites(std::size_t count)
+{
+	std::vector<std::string> expected = ExpectedAfterReleaseAttempt();
+	const auto wake = ExpectedHdmiWakeWrites();
+	assert(count <= wake.size());
+	for (std::size_t index = 0; index < count; ++index)
+		expected.push_back("i2c:write:" + HexByte(wake[index].address) + ":" +
+			HexByte(wake[index].value));
+	return expected;
+}
+
+std::vector<std::string> ExpectedAfterCoreInput()
+{
+	std::vector<std::string> expected = ExpectedAfterHdmiWake();
+	expected.push_back("spi:buttons");
+	return expected;
+}
+
+std::vector<std::string> ExpectedAfterLinkReads(std::size_t count)
+{
+	std::vector<std::string> expected = ExpectedAfterCoreInput();
 	for (std::size_t index = 0; index < count; ++index)
 		expected.push_back("i2c:read:0x42");
 	return expected;
@@ -248,10 +297,11 @@ void TestSuccessUsesExactOrderWireRequestsDeadlineDiagnosticsAndLogs()
 	Fixture fixture;
 	const mister::native::VideoResult result = fixture.video.BringUp("MENU", kDeadline);
 	const std::vector<std::string> expected = {
-		"spi:status_assert", "spi:probe",
+		"spi:core_sync", "spi:status_assert", "spi:probe",
 		"i2c:select:/dev/i2c-1:0x39:0x41", "i2c:initialization",
 		"i2c:read:0x41", "spi:timing", "i2c:mode",
-		"spi:status_release", "i2c:read:0x42",
+		"spi:status_release", "i2c:hdmi_wake", "spi:buttons",
+		"i2c:read:0x42",
 	};
 	assert(fixture.events == expected);
 	assert(fixture.ordered_calls == ExpectedAfterLinkReads(1));
@@ -266,11 +316,14 @@ void TestSuccessUsesExactOrderWireRequestsDeadlineDiagnosticsAndLogs()
 	assert(fixture.spi.calls.front().request == asserted);
 	assert(fixture.spi.TimingCall().request ==
 		mister::native::Menu720p60Recipe().timing_words);
-	assert(fixture.spi.calls.back().request == released);
+	assert(fixture.spi.calls[3].request == released);
 	assert(EqualWrites(fixture.i2c.InitializationWrites(),
 		mister::native::Menu720p60Recipe().adv_initialization));
 	assert(EqualWrites(fixture.i2c.ModeWrites(),
 		mister::native::Menu720p60Recipe().adv_mode));
+	assert(EqualWrites(fixture.i2c.HdmiWakeWrites(), ExpectedHdmiWakeWrites()));
+	assert(fixture.spi.calls[4].request ==
+		std::vector<std::uint16_t>({0x0001, 0x0000}));
 	assert(result.error.ok());
 	assert(result.phase == "hdmi_verify");
 	assert(result.observed_core == "MENU");
@@ -284,15 +337,16 @@ void TestSuccessUsesExactOrderWireRequestsDeadlineDiagnosticsAndLogs()
 	}
 	for (const auto& call : fixture.i2c.calls) assert(call.deadline == kDeadline);
 	const std::vector<mister::LogRecord> records = fixture.log.records();
-	const std::vector<std::string> phases = {"core_reset", "core_probe",
-		"hdmi_init", "video_timing", "core_release", "hdmi_verify"};
+	const std::vector<std::string> phases = {"core_sync", "core_reset", "core_probe",
+		"hdmi_init", "video_timing", "core_release", "hdmi_wake",
+		"core_input", "hdmi_verify"};
 	assert(records.size() == phases.size());
 	for (std::size_t index = 0; index < records.size(); ++index) {
 		assert(records[index].operation == "start");
 		assert(records[index].system.empty());
 		assert(records[index].phase == phases[index]);
 		assert(records[index].error.code == mister::ErrorCode::none);
-		if (index == 0) assert(records[index].core.empty());
+		if (index <= 1) assert(records[index].core.empty());
 		else assert(records[index].core == "MENU");
 	}
 	assert(records.back().error.message ==
@@ -313,6 +367,21 @@ void TestExpiredBeforeResetMakesNoHardwareCall()
 	++scenarios;
 }
 
+void TestCoreSynchronizationFailureStopsBeforeReset()
+{
+	Fixture fixture;
+	fixture.spi.sync_error = {mister::ErrorCode::io_failed,
+		"scripted core synchronization failure"};
+	const auto result = fixture.video.BringUp("MENU", kDeadline);
+	ExpectFailure(fixture, result, "core_sync",
+		"scripted core synchronization failure");
+	assert((fixture.events == std::vector<std::string>{"spi:core_sync"}));
+	assert(fixture.ordered_calls == fixture.events);
+	assert(fixture.spi.calls.empty());
+	assert(fixture.i2c.calls.empty());
+	++scenarios;
+}
+
 void TestResetAssertionFailureStopsAtAttempt()
 {
 	Fixture fixture;
@@ -321,9 +390,10 @@ void TestResetAssertionFailureStopsAtAttempt()
 		"scripted SPI failure"};
 	const auto result = fixture.video.BringUp("MENU", kDeadline);
 	ExpectFailure(fixture, result, "core_reset", "scripted SPI failure");
-	assert((fixture.events == std::vector<std::string>{"spi:status_assert"}));
+	assert((fixture.events == std::vector<std::string>{
+		"spi:core_sync", "spi:status_assert"}));
 	assert((fixture.ordered_calls ==
-		std::vector<std::string>{"spi:status_assert"}));
+		std::vector<std::string>{"spi:core_sync", "spi:status_assert"}));
 	++scenarios;
 }
 
@@ -335,7 +405,7 @@ void TestProbeTransportAndMalformedFailuresStopAtProbe()
 		const auto result = fixture.video.BringUp("MENU", kDeadline);
 		ExpectFailure(fixture, result, "core_probe", "scripted SPI failure");
 		assert((fixture.events == std::vector<std::string>{
-			"spi:status_assert", "spi:probe"}));
+			"spi:core_sync", "spi:status_assert", "spi:probe"}));
 		assert(fixture.ordered_calls == ExpectedAfterProbe());
 		++scenarios;
 	}
@@ -481,6 +551,44 @@ void TestSoftwareResetReleaseFailureStopsAtReleaseAttempt()
 	++scenarios;
 }
 
+void TestEveryEdidWakeWriteFailureStopsBeforeCoreInput()
+{
+	const auto wake = ExpectedHdmiWakeWrites();
+	const std::size_t mode_count =
+		mister::native::Menu720p60Recipe().adv_mode.size();
+	const std::size_t init_count =
+		mister::native::Menu720p60Recipe().adv_initialization.size();
+	for (std::size_t index = 0; index < wake.size(); ++index) {
+		Fixture fixture;
+		fixture.i2c.fail_write_index = init_count + mode_count + index;
+		const auto result = fixture.video.BringUp("MENU", kDeadline);
+		ExpectFailure(fixture, result, "hdmi_wake",
+			"scripted I2C write failure");
+		const auto actual = fixture.i2c.HdmiWakeWrites();
+		assert(actual.size() == index + 1);
+		for (std::size_t written = 0; written <= index; ++written) {
+			assert(actual[written].address == wake[written].address);
+			assert(actual[written].value == wake[written].value);
+		}
+		assert(CountEvent(fixture.events, "spi:buttons") == 0);
+		assert(CountEvent(fixture.events, "i2c:read:0x42") == 0);
+		assert(fixture.ordered_calls == ExpectedAfterHdmiWakeWrites(index + 1));
+		++scenarios;
+	}
+}
+
+void TestNeutralButtonFailureStopsBeforeLinkVerification()
+{
+	Fixture fixture;
+	fixture.spi.fail_call_index = 4;
+	const auto result = fixture.video.BringUp("MENU", kDeadline);
+	ExpectFailure(fixture, result, "core_input", "scripted SPI failure");
+	assert(CountEvent(fixture.events, "spi:buttons") == 1);
+	assert(CountEvent(fixture.events, "i2c:read:0x42") == 0);
+	assert(fixture.ordered_calls == ExpectedAfterCoreInput());
+	++scenarios;
+}
+
 void TestLinkReadTransportFailureStopsAtRead()
 {
 	Fixture fixture;
@@ -567,7 +675,7 @@ void TestEveryFailurePhaseLogsItsDirectIoFailure()
 		ExpectFailure(fixture, result, test.expected_phase, "scripted SPI failure");
 		if (test.spi_failure == 0)
 			assert((fixture.ordered_calls ==
-				std::vector<std::string>{"spi:status_assert"}));
+				std::vector<std::string>{"spi:core_sync", "spi:status_assert"}));
 		else if (test.spi_failure == 1)
 			assert(fixture.ordered_calls == ExpectedAfterProbe());
 		else if (test.spi_failure == 2)
@@ -596,6 +704,25 @@ void TestEveryFailurePhaseLogsItsDirectIoFailure()
 		assert(fixture.ordered_calls == ExpectedAfterLinkReads(1));
 		++scenarios;
 	}
+	{
+		Fixture fixture;
+		fixture.i2c.fail_write_index =
+			mister::native::Menu720p60Recipe().adv_initialization.size() +
+			mister::native::Menu720p60Recipe().adv_mode.size();
+		const auto result = fixture.video.BringUp("MENU", kDeadline);
+		ExpectFailure(fixture, result, "hdmi_wake",
+			"scripted I2C write failure");
+		assert(fixture.ordered_calls == ExpectedAfterHdmiWakeWrites(1));
+		++scenarios;
+	}
+	{
+		Fixture fixture;
+		fixture.spi.fail_call_index = 4;
+		const auto result = fixture.video.BringUp("MENU", kDeadline);
+		ExpectFailure(fixture, result, "core_input", "scripted SPI failure");
+		assert(fixture.ordered_calls == ExpectedAfterCoreInput());
+		++scenarios;
+	}
 }
 
 } // namespace
@@ -604,6 +731,7 @@ int main()
 {
 	TestSuccessUsesExactOrderWireRequestsDeadlineDiagnosticsAndLogs();
 	TestExpiredBeforeResetMakesNoHardwareCall();
+	TestCoreSynchronizationFailureStopsBeforeReset();
 	TestResetAssertionFailureStopsAtAttempt();
 	TestProbeTransportAndMalformedFailuresStopAtProbe();
 	TestOnlyExactTerminatedUppercaseMenuIdentityIsAccepted();
@@ -613,6 +741,8 @@ int main()
 	TestFullTimingExchangeFailureStopsBeforeModeWrites();
 	TestEveryModeWriteFailureStopsAtThatExactWrite();
 	TestSoftwareResetReleaseFailureStopsAtReleaseAttempt();
+	TestEveryEdidWakeWriteFailureStopsBeforeCoreInput();
+	TestNeutralButtonFailureStopsBeforeLinkVerification();
 	TestLinkReadTransportFailureStopsAtRead();
 	TestLinkPollingRepeatsOnlyStatusReadUntilBothBitsAreSet();
 	TestEachIncompleteLinkPredicateExpiresAfterExactlyFourReads();

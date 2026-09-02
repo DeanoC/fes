@@ -84,9 +84,15 @@ mister::Error FakeI2c::WriteByte(std::uint8_t address, std::uint8_t value,
 	if (events_ != nullptr) {
 		const bool before_timing = timing_write_index_ ==
 			std::numeric_limits<std::size_t>::max();
-		const char* event = before_timing ? "i2c:initialization" : "i2c:mode";
-		if (writes_.size() == 1 || (!before_timing &&
-			writes_.size() == timing_write_index_ + 1)) events_->push_back(event);
+		const bool after_release = release_write_index_ !=
+			std::numeric_limits<std::size_t>::max();
+		const char* event = before_timing ? "i2c:initialization" :
+			after_release ? "i2c:hdmi_wake" : "i2c:mode";
+		if (writes_.size() == 1 ||
+			(!before_timing && !after_release &&
+				writes_.size() == timing_write_index_ + 1) ||
+			(after_release && writes_.size() == release_write_index_ + 1))
+			events_->push_back(event);
 	}
 	if (write_index == fail_write_index) return write_error;
 	return {};
@@ -95,6 +101,11 @@ mister::Error FakeI2c::WriteByte(std::uint8_t address, std::uint8_t value,
 void FakeI2c::MarkTimingEvent()
 {
 	timing_write_index_ = writes_.size();
+}
+
+void FakeI2c::MarkReleaseEvent()
+{
+	release_write_index_ = writes_.size();
 }
 
 std::vector<mister::native::RegisterWrite> FakeI2c::InitializationWrites() const
@@ -109,8 +120,18 @@ std::vector<mister::native::RegisterWrite> FakeI2c::InitializationWrites() const
 std::vector<mister::native::RegisterWrite> FakeI2c::ModeWrites() const
 {
 	if (timing_write_index_ == std::numeric_limits<std::size_t>::max()) return {};
+	const std::size_t end = release_write_index_ ==
+		std::numeric_limits<std::size_t>::max() ? writes_.size() :
+		release_write_index_;
 	return std::vector<mister::native::RegisterWrite>(
-		writes_.begin() + timing_write_index_, writes_.end());
+		writes_.begin() + timing_write_index_, writes_.begin() + end);
+}
+
+std::vector<mister::native::RegisterWrite> FakeI2c::HdmiWakeWrites() const
+{
+	if (release_write_index_ == std::numeric_limits<std::size_t>::max()) return {};
+	return std::vector<mister::native::RegisterWrite>(
+		writes_.begin() + release_write_index_, writes_.end());
 }
 
 } // namespace mister_test

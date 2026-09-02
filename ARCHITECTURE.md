@@ -45,6 +45,7 @@ Native idle admission performs this exact sequence:
 ```text
 open locked idle RBF
   -> program FPGA and release bridges/core hardware reset
+  -> toggle the FPGA core-ID strobe and sample GPI
   -> assert menu-core software reset over user-I/O SPI
   -> probe and require core identity MENU
   -> locate ADV7513 address 0x39 on /dev/i2c-0 through /dev/i2c-2
@@ -52,6 +53,7 @@ open locked idle RBF
   -> send the fixed 1280x720@60 timing and PLL words
   -> apply the fixed 720p ADV7513 mode registers
   -> release menu-core software reset
+  -> emit the bounded ADV7513 wake edge and neutral core-input packet
   -> require ADV7513 HPD and monitor-sense status
   -> publish idle
 ```
