@@ -18,9 +18,9 @@ and content selection; the MiSTer is a small, directly controlled target.
   [docs/native-tenfoot-launcher/README.md](docs/native-tenfoot-launcher/README.md).
 - A reproducible target image toolchain with a development image containing
   SSH and curl.
-- A separate reproducible `native-dev` candidate image that packages the
-  native runtime, native agent backend, and one locked idle RBF. Its evidence
-  is software and QEMU packaging only until the Task 7 hardware checks.
+- A separate reproducible `native-dev` image that packages the native runtime,
+  native agent backend, and one locked idle RBF. Its idle path is hardware-
+  tested on the designated kit; it intentionally supports no game systems.
 
 The normal FPGA launch path is:
 
@@ -58,9 +58,17 @@ launch path. Superseded experiments are removed from the working tree; Git
 history is the archive.
 
 The working FPGA game path remains the conventional `dev`/`prod` image path
-described above. The `native-dev` candidate has zero supported game systems,
-does not launch games or development RBFs, and is not yet a hardware-working
-path.
+described above. The `native-dev` image has zero supported game systems, does
+not launch games or development RBFs, and is the hardware-tested idle baseline.
+
+## Milestone status
+
+```text
+legacy dev/prod = current game-capable path
+native-dev = hardware-tested idle baseline, zero supported game systems
+Milestone 2 = complete
+Milestone 3 = Mega Drive vertical slice next
+```
 
 ## Build and test
 

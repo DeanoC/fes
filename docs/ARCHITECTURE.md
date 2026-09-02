@@ -54,9 +54,8 @@ The native adapter reports ready only when `mister-runtime` reports `idle`.
 An idle Stop confirms that state without calling the runtime Stop operation.
 Native game support has zero systems, and game requests return an
 unsupported-system error; development loading and recovery return an
-unsupported-operation error. The separate `native-dev` candidate packages
-this composition, but it has only software and QEMU root/init packaging
-evidence. Physical idle-path acceptance remains Task 7 work.
+unsupported-operation error. The separate `native-dev` image packages this
+composition, and its idle path is hardware-tested on the designated kit.
 
 ## Other modes
 
@@ -115,7 +114,17 @@ legacy Menu-configuration helper, has no `/dev/MiSTer_cmd` wait, and retains
 the same read-only root with volatile `/run`, `/tmp`, and `/var/log`. Its QEMU
 smoke proves only root filesystem and init packaging; it does not emulate FPGA
 programming, prove target readiness, or establish game or development-RBF
-support.
+support. The designated-kit idle and legacy rollback gates are hardware-tested;
+native game and development-RBF support remain absent.
+
+## Milestone status
+
+```text
+legacy dev/prod = current game-capable path
+native-dev = hardware-tested idle baseline, zero supported game systems
+Milestone 2 = complete
+Milestone 3 = Mega Drive vertical slice next
+```
 
 ## Development RBF extension
 
