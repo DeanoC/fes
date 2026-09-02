@@ -92,6 +92,11 @@ func TestAppCyclesLibraryViewsAgainstHostAPI(t *testing.T) {
 	if gotCollections < 1 {
 		t.Fatal("collections were not fetched")
 	}
+	for _, query := range queries {
+		if strings.Contains(query, "collection=recents") && strings.Contains(query, "sort=title") {
+			t.Fatalf("recents must not send sort=title: %s", query)
+		}
+	}
 }
 
 func TestAppViewPickerSelectsCollection(t *testing.T) {
@@ -315,6 +320,28 @@ func TestAppKeepsFiltersInsideCollection(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("queries = %#v", got)
+	}
+}
+
+func TestCurrentQueryOmitsTitleSortForRecents(t *testing.T) {
+	t.Parallel()
+	app := catalogApp(1)
+	app.collectionID = "recents"
+	app.sort = "title"
+	got := app.currentQueryLocked()
+	if got.Collection != "recents" || got.Sort != "" {
+		t.Fatalf("recents title sort = %#v", got)
+	}
+	app.sort = "recently_added"
+	got = app.currentQueryLocked()
+	if got.Sort != "recently_added" {
+		t.Fatalf("recents explicit sort = %#v", got)
+	}
+	app.collectionID = "favorites"
+	app.sort = "title"
+	got = app.currentQueryLocked()
+	if got.Sort != "title" {
+		t.Fatalf("favorites title sort = %#v", got)
 	}
 }
 

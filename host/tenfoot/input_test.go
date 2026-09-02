@@ -243,14 +243,33 @@ func TestHoldGateNorthLongPressFavorites(t *testing.T) {
 	if got := g.Tick(now.Add(longPressMin + time.Millisecond)); got != CmdFavorite {
 		t.Fatalf("long = %s", got)
 	}
-	if got := g.Release(CmdSearch); got != CmdNone {
+	if got := g.Release(CmdSearch, now.Add(longPressMin+time.Millisecond)); got != CmdNone {
 		t.Fatalf("release after long = %s", got)
 	}
 	if !g.Begin(CmdSearch, now, true) {
 		t.Fatal("begin short")
 	}
-	if got := g.Release(CmdSearch); got != CmdSearch {
+	if got := g.Release(CmdSearch, now.Add(40*time.Millisecond)); got != CmdSearch {
 		t.Fatalf("short release = %s", got)
+	}
+}
+
+func TestHoldGateReleaseOnLongPressThresholdDoesNotSelect(t *testing.T) {
+	t.Parallel()
+	app := catalogApp(5)
+	held := map[Command]bool{}
+	now := time.Unix(0, 0)
+	if applyPressed(app, map[Command]bool{CmdSelect: true}, held, now) {
+		t.Fatal("quit")
+	}
+	if applyPressed(app, map[Command]bool{}, held, now.Add(longPressMin)) {
+		t.Fatal("quit")
+	}
+	if !app.Snapshot().ViewPicker {
+		t.Fatal("picker should open on threshold release")
+	}
+	if app.Snapshot().Launch.Phase != "idle" {
+		t.Fatalf("threshold release launched: %#v", app.Snapshot().Launch)
 	}
 }
 

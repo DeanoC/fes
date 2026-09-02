@@ -1048,10 +1048,17 @@ func (a *App) currentQueryLocked() GameListQuery {
 	return GameListQuery{
 		Limit:      a.pageLimit,
 		Platform:   a.platformID,
-		Sort:       a.sort,
+		Sort:       catalogQuerySort(a.collectionID, a.sort),
 		Q:          strings.TrimSpace(a.query),
 		Collection: a.collectionID,
 	}
+}
+
+func catalogQuerySort(collection, sort string) string {
+	if collection == "recents" && (sort == "" || sort == "title") {
+		return ""
+	}
+	return sort
 }
 
 func (a *App) libraryStatusLocked() string {

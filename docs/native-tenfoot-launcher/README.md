@@ -61,11 +61,13 @@ make tenfoot-smoke
 - `GET /api/v1/games?grouped=1&availability=ready` with optional `collection`,
   `platform`, `sort` (`title`, `recently_added`, `platform`), and `q`. Tenfoot
   keeps `availability=ready` even when the web home rails omit it, so an empty
-  sofa collection can still list titles in the browser. Catalog `cover`
-  handles load artwork directly; prefetched titles do not wait on presentation
-  metadata. A later view, platform, sort, or search reload cancels the in-flight
-  games request and cover artwork/presentation work for the superseded
-  generation. Each game may include `favorite` and `collections`.
+  sofa collection can still list titles in the browser. Recent (`collection=recents`)
+  omits the default `sort=title` so the host keeps last-played order; an explicit
+  West/X sort still applies. Catalog `cover` handles load artwork directly;
+  prefetched titles do not wait on presentation metadata. A later view, platform,
+  sort, or search reload cancels the in-flight games request and cover
+  artwork/presentation work for the superseded generation. Each game may include
+  `favorite` and `collections`.
 - `PUT` / `DELETE /api/v1/library/favorites/{id}` toggles the focused title.
   Unfavoriting while the Favorites view is active reloads that collection.
 - `GET /api/v1/presentation/games/{id}` for the focused title's detail strip
@@ -85,11 +87,11 @@ make tenfoot-smoke
   that decoded image changes.
 - `POST /api/v1/session/launch` with `{"game_id":"..."}`
 
-## P1 smart collections / favorites
+## Library views
 
-The cover grid cycles All and the web smart rails, then any custom collections
-from the host. Sofa create/rename of custom collections stays in the browser
-shell. See [P1-COLLECTIONS.md](P1-COLLECTIONS.md).
+The cover grid cycles All and the web smart rails (Continue, Favorites, Recent,
+Unplayed, Recently added), then any custom collections from the host. Sofa
+create/rename of custom collections stays in the browser shell.
 
 ## Known gaps
 

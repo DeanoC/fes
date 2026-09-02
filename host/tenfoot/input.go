@@ -251,8 +251,8 @@ func applyPressed(app *App, pressed, held map[Command]bool, now time.Time) bool 
 	gate := !app.SearchOpen() && !app.ViewPickerOpen()
 	for cmd := range held {
 		if !pressed[cmd] {
-			if short := app.hold.Release(cmd); short != CmdNone {
-				app.Press(short, now)
+			if fired := app.hold.Release(cmd, now); fired != CmdNone {
+				app.Press(fired, now)
 			}
 			app.Release(cmd)
 			delete(held, cmd)
@@ -353,7 +353,7 @@ func (g *HoldGate) Begin(cmd Command, now time.Time, gate bool) bool {
 	return true
 }
 
-func (g *HoldGate) Release(cmd Command) Command {
+func (g *HoldGate) Release(cmd Command, now time.Time) Command {
 	state, ok := g.pending[cmd]
 	if !ok {
 		return CmdNone
@@ -361,6 +361,9 @@ func (g *HoldGate) Release(cmd Command) Command {
 	delete(g.pending, cmd)
 	if state.long {
 		return CmdNone
+	}
+	if now.Sub(state.since) >= longPressMin {
+		return longPressCommand(cmd)
 	}
 	return cmd
 }
