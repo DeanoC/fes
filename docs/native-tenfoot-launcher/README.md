@@ -76,6 +76,10 @@ make tenfoot-smoke
   that decoded image changes.
 - `POST /api/v1/session/launch` with `{"game_id":"..."}`
 
+## Planned — P1 smart collections / favorites
+
+See [P1-COLLECTIONS.md](P1-COLLECTIONS.md). Not implemented on this tip yet; branch `feat/tenfoot-collections-p1` carries the brief for Luna SuperGrok.
+
 ## Known gaps
 
 - GPU resources stay allocated after launch. Releasing the renderer / textures
