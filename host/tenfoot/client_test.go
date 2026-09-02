@@ -196,6 +196,61 @@ func TestClientSessionAndStop(t *testing.T) {
 	}
 }
 
+func TestClientRejectsMalformedSessionResponses(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		code int
+		body string
+	}{
+		{name: "empty", code: 200, body: ""},
+		{name: "204", code: 204, body: ""},
+		{name: "empty object", code: 200, body: `{}`},
+		{name: "unknown state", code: 200, body: `{"state":"nope"}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.code)
+				_, _ = io.WriteString(w, tc.body)
+			}))
+			t.Cleanup(server.Close)
+			client := NewClient(server.URL, server.Client())
+			if _, err := client.Session(context.Background()); err == nil {
+				t.Fatal("Session accepted malformed body")
+			}
+			if _, err := client.Launch(context.Background(), "snes-mario"); err == nil {
+				t.Fatal("Launch accepted malformed body")
+			}
+			if _, err := client.Stop(context.Background()); err == nil {
+				t.Fatal("Stop accepted malformed body")
+			}
+		})
+	}
+}
+
+func TestClientLaunchRejectsNonActiveSuccess(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"state":"idle"}`)
+	}))
+	t.Cleanup(server.Close)
+	if _, err := NewClient(server.URL, server.Client()).Launch(context.Background(), "snes-mario"); err == nil {
+		t.Fatal("Launch accepted idle success")
+	}
+}
+
+func TestClientStopRejectsNonIdleSuccess(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"state":"active","game_id":"snes-mario"}`)
+	}))
+	t.Cleanup(server.Close)
+	if _, err := NewClient(server.URL, server.Client()).Stop(context.Background()); err == nil {
+		t.Fatal("Stop accepted active success")
+	}
+}
+
 func TestClientLaunchRecordsHostError(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

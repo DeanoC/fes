@@ -410,6 +410,12 @@ func (c *Client) Launch(ctx context.Context, gameID string) (LaunchResult, error
 	if err != nil {
 		return result, fmt.Errorf("launch response: %w", err)
 	}
+	if result.ErrorCode != "" {
+		return result, nil
+	}
+	if result.State != "active" {
+		return result, fmt.Errorf("launch response: expected active session, got %q", result.State)
+	}
 	return result, nil
 }
 
@@ -462,13 +468,28 @@ func (c *Client) Stop(ctx context.Context) (SessionResult, error) {
 	if err != nil {
 		return result, fmt.Errorf("stop response: %w", err)
 	}
+	if result.ErrorCode != "" {
+		return result, nil
+	}
+	if result.State != "idle" {
+		return result, fmt.Errorf("stop response: expected idle session, got %q", result.State)
+	}
 	return result, nil
+}
+
+func validSessionState(state string) bool {
+	switch state {
+	case "idle", "launching", "active", "stopping", "failed":
+		return true
+	default:
+		return false
+	}
 }
 
 func decodeSessionBody(status int, body []byte) (SessionResult, error) {
 	result := SessionResult{HTTPStatus: status}
 	if len(bytes.TrimSpace(body)) == 0 {
-		return result, nil
+		return result, fmt.Errorf("empty body")
 	}
 	var wire struct {
 		State     string           `json:"state"`
@@ -500,6 +521,10 @@ func decodeSessionBody(status int, body []byte) (SessionResult, error) {
 	if wire.Error != nil {
 		result.ErrorCode = wire.Error.Code
 		result.ErrorMessage = wire.Error.Message
+		return result, nil
+	}
+	if !validSessionState(wire.State) {
+		return result, fmt.Errorf("invalid session state %q", wire.State)
 	}
 	return result, nil
 }
