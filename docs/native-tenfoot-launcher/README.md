@@ -33,10 +33,15 @@ FOGCAST_API=http://127.0.0.1:8787 bin/fogcast-tenfoot
 Gamepad is the intended control path (d-pad / left stick to move, South/A to
 launch, East/B to back, Start to quit). Shoulders cycle the platform filter
 (All, then each host platform). West/X cycles sort (title, recently added,
-system). North/Y opens search; type with a keyboard, East/B clears or closes,
-South/A closes the field. Keyboard is debug-only: arrows/WASD, Enter to
-launch, Esc to back, Q to quit, `[` / `]` for platform, `x` for sort, `/` or
-`f` for search.
+system). On Recent, West/X cycles last played, title, and system; on Recently
+added it cycles recently added and system, matching the host. North/Y opens
+search; type with a keyboard, East/B clears or closes, South/A closes the
+field. Hold South/A (≥450ms) to open the library view list (All, Continue,
+Favorites, Recent, Unplayed, Recently added, then custom
+shelves); d-pad moves, South confirms, East cancels. Hold North/Y to
+favorite or unfavorite the focused title. Keyboard is debug-only: arrows/WASD,
+Enter to launch, Esc to back, Q to quit, `[` / `]` for platform, `x` for
+sort, `/` or `f` for search, `c` / Shift+`c` to cycle views, `v` to favorite.
 
 Run from a GUI terminal for the Cocoa window. Headless agent sessions fall
 back to SDL's dummy video driver; the cover grid, gamepad path, and host
@@ -53,12 +58,21 @@ make tenfoot-smoke
 - `GET /api/v1/platforms`, retried with backoff if the first fetch fails.
   The chrome status reports `platform list failed` until a list arrives;
   shoulders retry immediately while that error is set.
-- `GET /api/v1/games?grouped=1&availability=ready` with optional `platform`,
-  `sort` (`title`, `recently_added`, `platform`), and `q`. Catalog `cover`
+- `GET /api/v1/library/collections` for custom shelves. Smart rails are
+  `continue`, `favorites`, `recents`, `unplayed`, and `recently_added`.
+- `GET /api/v1/games?grouped=1&availability=ready` with optional `collection`,
+  `platform`, `sort` (`title`, `recently_added`, `platform`), and `q`. Tenfoot
+  keeps `availability=ready` even when the web home rails omit it, so an empty
+  sofa collection can still list titles in the browser. Recent (`collection=recents`)
+  omits `sort` for last-played order; Title and System send `sort=title` /
+  `sort=platform`. Recently added defaults to `sort=recently_added` (the host
+  rewrites empty/title to that order) and still accepts System. Catalog `cover`
   handles load artwork directly; prefetched titles do not wait on presentation
-  metadata. A later platform, sort, or search reload cancels the in-flight
+  metadata. A later view, platform, sort, or search reload cancels the in-flight
   games request and cover artwork/presentation work for the superseded
-  generation.
+  generation. Each game may include `favorite` and `collections`.
+- `PUT` / `DELETE /api/v1/library/favorites/{id}` toggles the focused title.
+  Unfavoriting while the Favorites view is active reloads that collection.
 - `GET /api/v1/presentation/games/{id}` for the focused title's detail strip
   (title, platform, year, genre, summary, and provider attribution). HTTP 200
   with `state: "offline"` is a temporary provider failure: details are not
@@ -75,6 +89,12 @@ make tenfoot-smoke
   missing. The SDL cover texture is keyed by game ID and is replaced when
   that decoded image changes.
 - `POST /api/v1/session/launch` with `{"game_id":"..."}`
+
+## Library views
+
+The cover grid cycles All and the web smart rails (Continue, Favorites, Recent,
+Unplayed, Recently added), then any custom collections from the host. Sofa
+create/rename of custom collections stays in the browser shell.
 
 ## Known gaps
 

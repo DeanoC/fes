@@ -37,6 +37,9 @@ func TestCommandFromKeyAndStick(t *testing.T) {
 	if CommandFromKey("[") != CmdFilterPrev || CommandFromKey("]") != CmdFilterNext || CommandFromKey("x") != CmdSortCycle || CommandFromKey("/") != CmdSearch {
 		t.Fatal("browse keyboard mapping")
 	}
+	if CommandFromKey("c") != CmdViewNext || CommandFromKey("v") != CmdFavorite || CommandFromKey("*") != CmdFavorite {
+		t.Fatal("collection keyboard mapping")
+	}
 	if CommandFromStick(20000, 0) != CmdRight || CommandFromStick(0, -20000) != CmdUp {
 		t.Fatal("stick mapping")
 	}
@@ -179,6 +182,94 @@ func TestApplyPressedSelectWhileHeldDoesNotWalkFocus(t *testing.T) {
 	}
 	if got := app.Tick(time.Unix(0, 0).Add(repeatDelay + time.Millisecond)); got != CmdRight {
 		t.Fatalf("select restarted repeat delay: %s", got)
+	}
+}
+
+func TestHoldGateSelectShortAndLongPress(t *testing.T) {
+	t.Parallel()
+	app := catalogApp(5)
+	held := map[Command]bool{}
+	now := time.Unix(0, 0)
+	if applyPressed(app, map[Command]bool{CmdSelect: true}, held, now) {
+		t.Fatal("quit")
+	}
+	if app.Snapshot().ViewPicker {
+		t.Fatal("picker opened on down")
+	}
+	if app.Snapshot().Launch.Phase != "idle" {
+		t.Fatalf("select fired on down: %#v", app.Snapshot().Launch)
+	}
+	now = now.Add(40 * time.Millisecond)
+	if applyPressed(app, map[Command]bool{}, held, now) {
+		t.Fatal("quit")
+	}
+	if app.Snapshot().Launch.Phase != "error" {
+		t.Fatalf("short select should confirm, launch = %#v", app.Snapshot().Launch)
+	}
+
+	app = catalogApp(5)
+	held = map[Command]bool{}
+	now = time.Unix(0, 0)
+	if applyPressed(app, map[Command]bool{CmdSelect: true}, held, now) {
+		t.Fatal("quit")
+	}
+	if got := app.Tick(now.Add(longPressMin + time.Millisecond)); got != CmdViewPicker {
+		t.Fatalf("long = %s", got)
+	}
+	if !app.Snapshot().ViewPicker {
+		t.Fatal("picker should open")
+	}
+	if applyPressed(app, map[Command]bool{}, held, now.Add(longPressMin+2*time.Millisecond)) {
+		t.Fatal("quit")
+	}
+	if app.Snapshot().Launch.Phase != "idle" {
+		t.Fatalf("long select launched: %#v", app.Snapshot().Launch)
+	}
+	if !app.Snapshot().ViewPicker {
+		t.Fatal("release should keep picker open")
+	}
+}
+
+func TestHoldGateNorthLongPressFavorites(t *testing.T) {
+	t.Parallel()
+	var g HoldGate
+	now := time.Unix(0, 0)
+	if !g.Begin(CmdSearch, now, true) {
+		t.Fatal("begin")
+	}
+	if got := g.Tick(now.Add(100 * time.Millisecond)); got != CmdNone {
+		t.Fatalf("early = %s", got)
+	}
+	if got := g.Tick(now.Add(longPressMin + time.Millisecond)); got != CmdFavorite {
+		t.Fatalf("long = %s", got)
+	}
+	if got := g.Release(CmdSearch, now.Add(longPressMin+time.Millisecond)); got != CmdNone {
+		t.Fatalf("release after long = %s", got)
+	}
+	if !g.Begin(CmdSearch, now, true) {
+		t.Fatal("begin short")
+	}
+	if got := g.Release(CmdSearch, now.Add(40*time.Millisecond)); got != CmdSearch {
+		t.Fatalf("short release = %s", got)
+	}
+}
+
+func TestHoldGateReleaseOnLongPressThresholdDoesNotSelect(t *testing.T) {
+	t.Parallel()
+	app := catalogApp(5)
+	held := map[Command]bool{}
+	now := time.Unix(0, 0)
+	if applyPressed(app, map[Command]bool{CmdSelect: true}, held, now) {
+		t.Fatal("quit")
+	}
+	if applyPressed(app, map[Command]bool{}, held, now.Add(longPressMin)) {
+		t.Fatal("quit")
+	}
+	if !app.Snapshot().ViewPicker {
+		t.Fatal("picker should open on threshold release")
+	}
+	if app.Snapshot().Launch.Phase != "idle" {
+		t.Fatalf("threshold release launched: %#v", app.Snapshot().Launch)
 	}
 }
 

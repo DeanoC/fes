@@ -22,6 +22,29 @@ const (
 
 var catalogSorts = []string{"title", "recently_added", "platform"}
 
+// recentsSorts are the orders queryRecents actually applies: last-played,
+// title, and platform. recently_added is omitted because the host ignores it.
+var recentsSorts = []string{"", "title", "platform"}
+
+// recentlyAddedSorts match QueryGames rewriting empty/title to added-date order
+// while still honoring an explicit platform sort.
+var recentlyAddedSorts = []string{"recently_added", "platform"}
+
+// LibraryView is one All / smart-rail / custom collection choice.
+type LibraryView struct {
+	ID    string
+	Label string
+}
+
+var smartLibraryViews = []LibraryView{
+	{ID: "", Label: "All"},
+	{ID: "continue", Label: "Continue"},
+	{ID: "favorites", Label: "Favorites"},
+	{ID: "recents", Label: "Recent"},
+	{ID: "unplayed", Label: "Unplayed"},
+	{ID: "recently_added", Label: "Recently added"},
+}
+
 type coverPhase int
 
 const (
@@ -90,6 +113,7 @@ type FocusDetail struct {
 	Genre       string
 	Summary     string
 	Attribution string
+	Favorite    bool
 }
 
 // MetaFacts joins platform, year, and genre for the detail strip.
@@ -144,21 +168,26 @@ func layoutDetailMeta(d FocusDetail, x, maxWidth, sizePx int) (facts string, fac
 
 // Snapshot is a frame-loop readable copy of launcher state.
 type Snapshot struct {
-	Games       []Game
-	Grid        Grid
-	Status      string
-	LoadErr     string
-	Loading     bool
-	Covers      map[string]*image.RGBA
-	Launch      LaunchSnapshot
-	Gamepads    int
-	CoverHits   int
-	Platforms   []Platform
-	PlatformID  string
-	Sort        string
-	Query       string
-	SearchOpen  bool
-	FocusDetail FocusDetail
+	Games           []Game
+	Grid            Grid
+	Status          string
+	LoadErr         string
+	Loading         bool
+	Covers          map[string]*image.RGBA
+	Launch          LaunchSnapshot
+	Gamepads        int
+	CoverHits       int
+	Platforms       []Platform
+	PlatformID      string
+	Sort            string
+	Query           string
+	SearchOpen      bool
+	FocusDetail     FocusDetail
+	Collection      string
+	ViewLabel       string
+	ViewPicker      bool
+	ViewPickerIndex int
+	Views           []LibraryView
 }
 
 // App owns catalog, focus, async covers, and host launch. SDL stays out.
@@ -183,22 +212,30 @@ type App struct {
 	maxGames  int
 	pageLimit int
 
-	platforms      []Platform
-	platformID     string
-	sort           string
-	query          string
-	searchOpen     bool
-	searchPending  bool
-	searchDue      time.Time
-	details        map[string]FocusDetail
-	loadGen        int
-	keepFocusID    string
-	keepFocusIndex int
-	navDirty       bool
-	platformErr    string
-	platformKick   chan struct{}
-	loadCancel     context.CancelFunc
-	jobCtx         context.Context
+	platforms       []Platform
+	platformID      string
+	sort            string
+	query           string
+	searchOpen      bool
+	searchPending   bool
+	searchDue       time.Time
+	details         map[string]FocusDetail
+	loadGen         int
+	keepFocusID     string
+	keepFocusIndex  int
+	navDirty        bool
+	platformErr     string
+	platformKick    chan struct{}
+	loadCancel      context.CancelFunc
+	jobCtx          context.Context
+	collectionID    string
+	collections     []Collection
+	collectionsErr  string
+	collectionsKick chan struct{}
+	viewPickerOpen  bool
+	viewPickerIndex int
+	favoriteBusy    bool
+	hold            HoldGate
 }
 
 // NewApp builds a launcher model bound to the host API client.
@@ -212,20 +249,21 @@ func NewApp(client *Client, width, height, maxGames int) *App {
 	grid := Grid{}
 	grid.Layout(width, height)
 	return &App{
-		client:       client,
-		games:        []Game{},
-		grid:         grid,
-		covers:       map[string]*coverSlot{},
-		inflight:     map[string]workKind{},
-		status:       "connecting to host API",
-		launch:       LaunchSnapshot{Phase: "idle"},
-		jobs:         make(chan workItem, coverJobBuffer),
-		results:      make(chan workResult, coverJobBuffer),
-		maxGames:     maxGames,
-		pageLimit:    defaultPageLimit,
-		sort:         "title",
-		details:      map[string]FocusDetail{},
-		platformKick: make(chan struct{}, 1),
+		client:          client,
+		games:           []Game{},
+		grid:            grid,
+		covers:          map[string]*coverSlot{},
+		inflight:        map[string]workKind{},
+		status:          "connecting to host API",
+		launch:          LaunchSnapshot{Phase: "idle"},
+		jobs:            make(chan workItem, coverJobBuffer),
+		results:         make(chan workResult, coverJobBuffer),
+		maxGames:        maxGames,
+		pageLimit:       defaultPageLimit,
+		sort:            "title",
+		details:         map[string]FocusDetail{},
+		platformKick:    make(chan struct{}, 1),
+		collectionsKick: make(chan struct{}, 1),
 	}
 }
 
@@ -248,6 +286,7 @@ func (a *App) Start(parent context.Context) {
 		go a.worker(ctx)
 	}
 	go a.loadPlatforms(ctx)
+	go a.loadCollections(ctx)
 	go a.loadLibrary(loadCtx, gen)
 }
 
@@ -268,6 +307,10 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if a.viewPickerOpen {
+		a.handleViewPickerLocked(cmd)
+		return
+	}
 	switch cmd {
 	case CmdUp:
 		a.moveFocusLocked(0, -1)
@@ -306,6 +349,14 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.cycleSortLocked()
 	case CmdSearch:
 		a.searchOpen = !a.searchOpen
+	case CmdViewPrev:
+		a.cycleViewLocked(-1)
+	case CmdViewNext:
+		a.cycleViewLocked(1)
+	case CmdViewPicker:
+		a.openViewPickerLocked()
+	case CmdFavorite:
+		a.toggleFavoriteLocked()
 	}
 }
 
@@ -388,15 +439,210 @@ func (a *App) cyclePlatformLocked(delta int) {
 }
 
 func (a *App) cycleSortLocked() {
+	sorts := a.sortChoicesLocked()
 	idx := 0
-	for i, sort := range catalogSorts {
+	for i, sort := range sorts {
 		if sort == a.sort {
 			idx = i
 			break
 		}
 	}
-	a.sort = catalogSorts[(idx+1)%len(catalogSorts)]
+	a.sort = sorts[(idx+1)%len(sorts)]
 	a.reloadLocked()
+}
+
+func (a *App) sortChoicesLocked() []string {
+	switch a.collectionID {
+	case "recents":
+		return recentsSorts
+	case "recently_added":
+		return recentlyAddedSorts
+	default:
+		return catalogSorts
+	}
+}
+
+func (a *App) cycleViewLocked(delta int) {
+	views := a.viewChoicesLocked()
+	if len(views) == 0 {
+		return
+	}
+	idx := a.currentViewIndexLocked()
+	idx = (idx + delta) % len(views)
+	if idx < 0 {
+		idx += len(views)
+	}
+	a.setCollectionLocked(views[idx].ID)
+}
+
+func (a *App) setCollectionLocked(id string) {
+	if id == a.collectionID {
+		return
+	}
+	a.collectionID = id
+	a.normalizeSortForCollectionLocked()
+	a.reloadLocked()
+}
+
+func (a *App) normalizeSortForCollectionLocked() {
+	switch a.collectionID {
+	case "recents":
+		if a.sort == "platform" || a.sort == "system" {
+			a.sort = "platform"
+			return
+		}
+		a.sort = ""
+	case "recently_added":
+		if a.sort == "platform" || a.sort == "system" {
+			a.sort = "platform"
+			return
+		}
+		a.sort = "recently_added"
+	default:
+		if a.sort == "" {
+			a.sort = "title"
+		}
+	}
+}
+
+func (a *App) openViewPickerLocked() {
+	a.searchOpen = false
+	a.viewPickerOpen = true
+	a.viewPickerIndex = a.currentViewIndexLocked()
+	if a.collectionsErr != "" {
+		a.requestCollectionsReloadLocked()
+	}
+}
+
+func (a *App) handleViewPickerLocked(cmd Command) {
+	views := a.viewChoicesLocked()
+	n := len(views)
+	if n == 0 {
+		a.viewPickerOpen = false
+		return
+	}
+	if a.viewPickerIndex < 0 {
+		a.viewPickerIndex = 0
+	}
+	if a.viewPickerIndex >= n {
+		a.viewPickerIndex = n - 1
+	}
+	switch cmd {
+	case CmdUp, CmdLeft, CmdViewPrev:
+		a.viewPickerIndex = (a.viewPickerIndex - 1 + n) % n
+	case CmdDown, CmdRight, CmdViewNext:
+		a.viewPickerIndex = (a.viewPickerIndex + 1) % n
+	case CmdSelect:
+		next := views[a.viewPickerIndex]
+		a.viewPickerOpen = false
+		a.setCollectionLocked(next.ID)
+	case CmdBack, CmdViewPicker:
+		a.viewPickerOpen = false
+	}
+}
+
+func (a *App) viewChoicesLocked() []LibraryView {
+	views := make([]LibraryView, 0, len(smartLibraryViews)+len(a.collections))
+	views = append(views, smartLibraryViews...)
+	seen := map[string]struct{}{}
+	for _, smart := range smartLibraryViews {
+		seen[smart.ID] = struct{}{}
+	}
+	for _, collection := range a.collections {
+		id := strings.TrimSpace(collection.ID)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		label := strings.TrimSpace(collection.Name)
+		if label == "" {
+			label = id
+		}
+		views = append(views, LibraryView{ID: id, Label: label})
+	}
+	return views
+}
+
+func (a *App) currentViewIndexLocked() int {
+	views := a.viewChoicesLocked()
+	for i, view := range views {
+		if view.ID == a.collectionID {
+			return i
+		}
+	}
+	return 0
+}
+
+func (a *App) viewLabelLocked() string {
+	views := a.viewChoicesLocked()
+	for _, view := range views {
+		if view.ID == a.collectionID {
+			if view.Label != "" {
+				return view.Label
+			}
+			return view.ID
+		}
+	}
+	if a.collectionID == "" {
+		return "All"
+	}
+	return a.collectionID
+}
+
+func (a *App) toggleFavoriteLocked() {
+	if a.favoriteBusy {
+		return
+	}
+	if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
+		a.status = "no title selected"
+		return
+	}
+	game := a.games[a.grid.Focus]
+	want := !game.Favorite
+	a.setGameFavoriteLocked(game.ID, want)
+	a.favoriteBusy = true
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	go a.doFavorite(ctx, game.ID, want)
+}
+
+func (a *App) setGameFavoriteLocked(gameID string, favorite bool) {
+	idx := -1
+	for i, game := range a.games {
+		if game.ID == gameID {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return
+	}
+	games := append([]Game{}, a.games...)
+	games[idx].Favorite = favorite
+	a.games = games
+}
+
+func (a *App) doFavorite(ctx context.Context, gameID string, want bool) {
+	err := a.client.SetFavorite(ctx, gameID, want)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.favoriteBusy = false
+	if err != nil {
+		a.setGameFavoriteLocked(gameID, !want)
+		a.status = "favorite failed: " + err.Error()
+		return
+	}
+	a.setGameFavoriteLocked(gameID, want)
+	if !want && a.collectionID == "favorites" {
+		a.reloadLocked()
+		return
+	}
+	a.status = a.libraryStatusLocked()
 }
 
 func (a *App) platformChoicesLocked() []string {
@@ -471,6 +717,10 @@ func (a *App) Tick(now time.Time) Command {
 	a.flushSearchLocked(now)
 	a.mu.Unlock()
 	a.queueVisibleWork(now)
+	if cmd := a.hold.Tick(now); cmd != CmdNone {
+		a.HandleCommand(cmd, now)
+		return cmd
+	}
 	if cmd := a.repeat.Tick(now); cmd != CmdNone {
 		a.HandleCommand(cmd, now)
 		return cmd
@@ -504,22 +754,34 @@ func (a *App) Snapshot() Snapshot {
 			status = status + " · platform list failed"
 		}
 	}
+	if a.collectionsErr != "" {
+		if status == "" {
+			status = "collection list failed"
+		} else {
+			status = status + " · collection list failed"
+		}
+	}
 	return Snapshot{
-		Games:       games,
-		Grid:        a.grid,
-		Status:      status,
-		LoadErr:     a.loadErr,
-		Loading:     a.loading,
-		Covers:      covers,
-		Launch:      a.launch,
-		Gamepads:    a.gamepads,
-		CoverHits:   hits,
-		Platforms:   a.platforms,
-		PlatformID:  a.platformID,
-		Sort:        a.sort,
-		Query:       a.query,
-		SearchOpen:  a.searchOpen,
-		FocusDetail: a.focusDetailLocked(),
+		Games:           games,
+		Grid:            a.grid,
+		Status:          status,
+		LoadErr:         a.loadErr,
+		Loading:         a.loading,
+		Covers:          covers,
+		Launch:          a.launch,
+		Gamepads:        a.gamepads,
+		CoverHits:       hits,
+		Platforms:       a.platforms,
+		PlatformID:      a.platformID,
+		Sort:            a.sort,
+		Query:           a.query,
+		SearchOpen:      a.searchOpen,
+		FocusDetail:     a.focusDetailLocked(),
+		Collection:      a.collectionID,
+		ViewLabel:       a.viewLabelLocked(),
+		ViewPicker:      a.viewPickerOpen,
+		ViewPickerIndex: a.viewPickerIndex,
+		Views:           a.viewChoicesLocked(),
 	}
 }
 
@@ -535,6 +797,40 @@ func (a *App) SearchOpen() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.searchOpen
+}
+
+// ViewPickerOpen reports whether the library view list is on screen.
+func (a *App) ViewPickerOpen() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.viewPickerOpen
+}
+
+// ChromeLine is the header label: active view, platform, sort, search, status.
+func (s Snapshot) ChromeLine() string {
+	view := strings.TrimSpace(s.ViewLabel)
+	if view == "" {
+		view = "All"
+	}
+	platform := "All"
+	if s.PlatformID != "" {
+		platform = s.PlatformID
+		for _, row := range s.Platforms {
+			if row.ID == s.PlatformID {
+				if label := strings.TrimSpace(row.Label); label != "" {
+					platform = label
+				}
+				break
+			}
+		}
+	}
+	search := "Search"
+	if s.SearchOpen {
+		search = "Search: " + s.Query + "_"
+	} else if strings.TrimSpace(s.Query) != "" {
+		search = "Search: " + s.Query
+	}
+	return fmt.Sprintf("%s  ·  %s  ·  %s  ·  %s  ·  %s", view, platform, sortLabel(s.Collection, s.Sort), search, s.Status)
 }
 
 // Selected returns the focused game, if any.
@@ -557,6 +853,7 @@ func (a *App) focusDetailLocked() FocusDetail {
 		Platform: a.platformLabelLocked(game.System),
 		Year:     strings.TrimSpace(game.Year),
 		Genre:    strings.TrimSpace(game.Genre),
+		Favorite: game.Favorite,
 	}
 	if cached, ok := a.details[game.ID]; ok {
 		if strings.TrimSpace(cached.Year) != "" {
@@ -733,29 +1030,110 @@ func (a *App) loadPlatforms(ctx context.Context) {
 	}
 }
 
+func (a *App) requestCollectionsReloadLocked() {
+	if a.collectionsKick == nil {
+		return
+	}
+	select {
+	case a.collectionsKick <- struct{}{}:
+	default:
+	}
+}
+
+func (a *App) loadCollections(ctx context.Context) {
+	fails := 0
+	for {
+		if err := ctx.Err(); err != nil {
+			return
+		}
+		collections, err := a.client.Collections(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+		a.mu.Lock()
+		if err == nil {
+			a.collections = collections
+			a.collectionsErr = ""
+			if a.viewPickerOpen {
+				n := len(a.viewChoicesLocked())
+				if a.viewPickerIndex >= n {
+					a.viewPickerIndex = a.currentViewIndexLocked()
+				}
+			}
+			a.mu.Unlock()
+			return
+		}
+		fails++
+		a.collectionsErr = err.Error()
+		delay := presentationRetryDelay(fails)
+		kick := a.collectionsKick
+		a.mu.Unlock()
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		case <-kick:
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+		}
+	}
+}
+
 func (a *App) currentQueryLocked() GameListQuery {
 	return GameListQuery{
-		Limit:    a.pageLimit,
-		Platform: a.platformID,
-		Sort:     a.sort,
-		Q:        strings.TrimSpace(a.query),
+		Limit:      a.pageLimit,
+		Platform:   a.platformID,
+		Sort:       catalogQuerySort(a.collectionID, a.sort),
+		Q:          strings.TrimSpace(a.query),
+		Collection: a.collectionID,
+	}
+}
+
+func catalogQuerySort(collection, sort string) string {
+	switch collection {
+	case "recents":
+		switch sort {
+		case "title":
+			return "title"
+		case "platform", "system":
+			return "platform"
+		default:
+			return ""
+		}
+	case "recently_added":
+		if sort == "platform" || sort == "system" {
+			return "platform"
+		}
+		return "recently_added"
+	default:
+		return sort
 	}
 }
 
 func (a *App) libraryStatusLocked() string {
 	n := len(a.games)
+	view := a.viewLabelLocked()
 	platform := "All"
 	if a.platformID != "" {
 		platform = a.platformLabelLocked(a.platformID)
 	}
-	sort := sortLabel(a.sort)
+	sort := sortLabel(a.collectionID, a.sort)
 	if q := strings.TrimSpace(a.query); q != "" {
-		return fmt.Sprintf("%d titles · %s · %s · %q", n, platform, sort, q)
+		return fmt.Sprintf("%d titles · %s · %s · %s · %q", n, view, platform, sort, q)
 	}
-	return fmt.Sprintf("%d titles · %s · %s", n, platform, sort)
+	return fmt.Sprintf("%d titles · %s · %s · %s", n, view, platform, sort)
 }
 
-func sortLabel(sort string) string {
+func sortLabel(collection, sort string) string {
+	if collection == "recents" && (sort == "" || sort == "recently_added") {
+		return "Last played"
+	}
 	switch sort {
 	case "recently_added":
 		return "Recently added"
@@ -925,7 +1303,7 @@ func (a *App) loadLibrary(ctx context.Context, gen int) {
 	a.loading = false
 	if len(a.games) == 0 {
 		a.status = "host API returned no titles"
-		if a.platformID != "" || strings.TrimSpace(a.query) != "" {
+		if a.platformID != "" || strings.TrimSpace(a.query) != "" || a.collectionID != "" {
 			a.status = a.libraryStatusLocked()
 		}
 	} else {
