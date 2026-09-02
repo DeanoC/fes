@@ -269,6 +269,9 @@ type App struct {
 	attractCycle       time.Duration
 	attractIdleSeconds int
 	attractIdleReady   bool
+	attractIdleAt      time.Time
+	attractIdleRefresh time.Duration
+	attractTried       map[string]bool
 	lastInput          time.Time
 	attractActive      bool
 	attractItems       []AttractItem

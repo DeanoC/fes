@@ -157,6 +157,7 @@ func TestAppSkipsAttractWhenDisabledOrModal(t *testing.T) {
 
 func TestAppAttractSelectLaunchesLaunchableItem(t *testing.T) {
 	handle := strings.Repeat("ab", 32)
+	pngBytes := mustPNG(t, 32, 16, color.RGBA{R: 200, G: 20, B: 20, A: 255})
 	var launches []string
 	var mu sync.Mutex
 	sessionJSON := `{"state":"idle"}`
@@ -177,6 +178,9 @@ func TestAppAttractSelectLaunchesLaunchableItem(t *testing.T) {
 					"launchable": true,
 				}},
 			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/presentation/artwork/"+handle:
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(pngBytes)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/launch":
 			raw, _ := io.ReadAll(r.Body)
 			mu.Lock()
@@ -391,6 +395,7 @@ func TestAppHidesAttractWhenPlaylistHasNoStills(t *testing.T) {
 
 func TestPendingSouthHoldDoesNotLaunchAttractItem(t *testing.T) {
 	handle := strings.Repeat("ab", 32)
+	pngBytes := mustPNG(t, 32, 16, color.RGBA{R: 20, G: 20, B: 200, A: 255})
 	var launches []string
 	var mu sync.Mutex
 	sessionJSON := `{"state":"idle"}`
@@ -414,6 +419,9 @@ func TestPendingSouthHoldDoesNotLaunchAttractItem(t *testing.T) {
 					"launchable": true,
 				}},
 			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/presentation/artwork/"+handle:
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(pngBytes)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/launch":
 			raw, _ := io.ReadAll(r.Body)
 			mu.Lock()
@@ -467,6 +475,149 @@ func TestPendingSouthHoldDoesNotLaunchAttractItem(t *testing.T) {
 	if got, ok := app.Selected(); !ok || got.ID != "snes-mario" {
 		t.Fatalf("focus moved, selected=%#v ok=%v", got, ok)
 	}
+}
+
+func TestAppSkipsAttractWhileLaunchInFlight(t *testing.T) {
+	handle := strings.Repeat("ab", 32)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"idle_seconds": 1,
+				"items": []map[string]any{{
+					"game_id":    "snes-mario",
+					"title":      "Mario",
+					"platform":   "snes",
+					"cover":      handle,
+					"launchable": true,
+				}},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) >= 1 && !snap.Loading
+	})
+	app.mu.Lock()
+	app.launch.Phase = "launching"
+	app.mu.Unlock()
+	armAttractSoon(app)
+	deadline := time.Now().Add(200 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		app.Tick(time.Now())
+		if app.Snapshot().Attract.Active {
+			t.Fatal("attract ran during in-flight launch")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestAppRefreshesDecreasedHostIdleBeforeCachedDeadline(t *testing.T) {
+	handle := strings.Repeat("ab", 32)
+	pngBytes := mustPNG(t, 32, 16, color.RGBA{R: 20, G: 180, B: 20, A: 255})
+	var idle atomic.Int32
+	idle.Store(300)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"idle_seconds": idle.Load(),
+				"items": []map[string]any{{
+					"game_id":    "snes-mario",
+					"title":      "Mario",
+					"platform":   "snes",
+					"cover":      handle,
+					"launchable": true,
+				}},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/presentation/artwork/"+handle:
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(pngBytes)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) >= 1 && !snap.Loading && snap.Attract.IdleSeconds == 300
+	})
+	idle.Store(1)
+	app.mu.Lock()
+	app.lastInput = time.Now().Add(-20 * time.Second)
+	app.attractIdleAt = time.Now().Add(-time.Minute)
+	app.mu.Unlock()
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return snap.Attract.Active && snap.Attract.IdleSeconds == 1
+	})
+}
+
+func TestAppFallsBackWhenAttractArtworkFails(t *testing.T) {
+	backdrop := strings.Repeat("ab", 32)
+	cover := strings.Repeat("cd", 32)
+	pngBytes := mustPNG(t, 32, 16, color.RGBA{R: 180, G: 20, B: 20, A: 255})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"idle_seconds": 1,
+				"items": []map[string]any{{
+					"game_id":    "snes-mario",
+					"title":      "Mario",
+					"platform":   "snes",
+					"backdrop":   backdrop,
+					"cover":      cover,
+					"launchable": true,
+				}},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/presentation/artwork/"+backdrop:
+			http.NotFound(w, r)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/presentation/artwork/"+cover:
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(pngBytes)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) >= 1 && !snap.Loading
+	})
+	armAttractSoon(app)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return snap.Attract.Active && snap.Attract.Handle == cover && snap.Attract.Image != nil
+	})
 }
 
 func TestStillAttractItemsDropsVideoOnly(t *testing.T) {

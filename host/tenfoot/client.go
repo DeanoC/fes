@@ -123,12 +123,25 @@ type AttractPlaylist struct {
 
 // StillHandle prefers backdrop, then cover, then marquee. Video is ignored.
 func (item AttractItem) StillHandle() string {
-	for _, handle := range []string{item.Backdrop, item.Cover, item.Marquee} {
-		if got := normalizeHandle(handle); got != "" {
-			return got
-		}
+	handles := item.stillHandles()
+	if len(handles) == 0 {
+		return ""
 	}
-	return ""
+	return handles[0]
+}
+
+func (item AttractItem) stillHandles() []string {
+	out := make([]string, 0, 3)
+	seen := map[string]bool{}
+	for _, handle := range []string{item.Backdrop, item.Cover, item.Marquee} {
+		got := normalizeHandle(handle)
+		if got == "" || seen[got] {
+			continue
+		}
+		seen[got] = true
+		out = append(out, got)
+	}
+	return out
 }
 
 // GameListQuery is GET /api/v1/games with the web UI's catalog params.

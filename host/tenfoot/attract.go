@@ -7,7 +7,10 @@ import (
 	"time"
 )
 
-const defaultAttractCycle = 12 * time.Second
+const (
+	defaultAttractCycle       = 12 * time.Second
+	defaultAttractIdleRefresh = 15 * time.Second
+)
 
 type attractResult struct {
 	gen    int
@@ -104,6 +107,7 @@ func (a *App) hideAttractLocked() {
 	a.attractHandle = ""
 	a.attractTitle = ""
 	a.attractLoading = false
+	a.attractTried = nil
 	a.hold.Clear()
 	if was {
 		a.attractGen++
@@ -147,7 +151,15 @@ func (a *App) currentAttractItemLocked() (AttractItem, bool) {
 }
 
 func (a *App) attractBlockedLocked() bool {
-	return a.attractDisabled || a.session.State == "active" || a.stopPhase == "stopping" || a.searchOpen || a.viewPickerOpen
+	switch a.session.State {
+	case "active", "launching", "stopping":
+		return true
+	}
+	switch a.launch.Phase {
+	case "launching", "host":
+		return true
+	}
+	return a.attractDisabled || a.stopPhase == "stopping" || a.searchOpen || a.viewPickerOpen
 }
 
 func (a *App) tickAttractLocked(now time.Time) {
@@ -178,7 +190,15 @@ func (a *App) tickAttractLocked(now time.Time) {
 	if idle <= 0 {
 		idle = attractIdleDuration(defaultAttractIdleSeconds)
 	}
+	refresh := a.attractIdleRefresh
+	if refresh <= 0 {
+		refresh = defaultAttractIdleRefresh
+	}
+	stale := a.attractIdleAt.IsZero() || now.Sub(a.attractIdleAt) >= refresh
 	if now.Sub(a.lastInput) < idle {
+		if stale {
+			a.startAttractFetchLocked(false)
+		}
 		return
 	}
 	a.startAttractFetchLocked(true)
@@ -211,6 +231,7 @@ func (a *App) applyAttractIdleLocked(playlist AttractPlaylist) {
 		a.attractIdleSeconds = playlist.IdleSeconds
 	}
 	a.attractIdleReady = true
+	a.attractIdleAt = time.Now()
 }
 
 func (a *App) fetchAttract(ctx context.Context, gen int, enter bool) {
@@ -225,6 +246,7 @@ func (a *App) fetchAttract(ctx context.Context, gen int, enter bool) {
 		a.applyAttractIdleLocked(playlist)
 	} else {
 		a.attractIdleReady = true
+		a.attractIdleAt = time.Now()
 	}
 	if !enter {
 		return
@@ -249,51 +271,55 @@ func (a *App) fetchAttract(ctx context.Context, gen int, enter bool) {
 	a.showAttractItemLocked(now)
 }
 
+func (a *App) nextAttractHandleLocked(item AttractItem) string {
+	if a.attractTried == nil {
+		a.attractTried = map[string]bool{}
+	}
+	for _, handle := range item.stillHandles() {
+		if !a.attractTried[handle] {
+			return handle
+		}
+	}
+	return ""
+}
+
 func (a *App) showAttractItemLocked(now time.Time) {
-	item, ok := a.currentAttractItemLocked()
-	if !ok {
+	if len(a.attractItems) == 0 {
 		a.hideAttractLocked()
 		return
 	}
-	handle := item.StillHandle()
-	if handle == "" {
-		start := a.attractIndex
-		for {
-			if len(a.attractItems) == 0 {
-				a.hideAttractLocked()
-				return
+	start := a.attractIndex
+	for {
+		item, ok := a.currentAttractItemLocked()
+		if !ok {
+			a.hideAttractLocked()
+			return
+		}
+		handle := a.nextAttractHandleLocked(item)
+		if handle != "" {
+			cycle := a.attractCycle
+			if cycle <= 0 {
+				cycle = defaultAttractCycle
 			}
-			a.attractIndex = (a.attractIndex + 1) % len(a.attractItems)
-			if a.attractIndex == start {
-				a.hideAttractLocked()
-				return
+			a.attractCycleAt = now.Add(cycle)
+			a.attractTitle = item.Title
+			a.attractImage = nil
+			a.attractHandle = handle
+			a.attractGen++
+			gen := a.attractGen
+			ctx := a.ctx
+			if ctx == nil {
+				ctx = context.Background()
 			}
-			item, ok = a.currentAttractItemLocked()
-			if !ok {
-				a.hideAttractLocked()
-				return
-			}
-			handle = item.StillHandle()
-			if handle != "" {
-				break
-			}
+			go a.fetchAttractArtwork(ctx, gen, handle)
+			return
+		}
+		a.attractIndex = (a.attractIndex + 1) % len(a.attractItems)
+		if a.attractIndex == start {
+			a.hideAttractLocked()
+			return
 		}
 	}
-	cycle := a.attractCycle
-	if cycle <= 0 {
-		cycle = defaultAttractCycle
-	}
-	a.attractCycleAt = now.Add(cycle)
-	a.attractTitle = item.Title
-	a.attractImage = nil
-	a.attractHandle = handle
-	a.attractGen++
-	gen := a.attractGen
-	ctx := a.ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	go a.fetchAttractArtwork(ctx, gen, handle)
 }
 
 func (a *App) fetchAttractArtwork(ctx context.Context, gen int, handle string) {
@@ -316,8 +342,16 @@ func (a *App) drainAttractResults() {
 		select {
 		case result := <-a.attractResults:
 			a.mu.Lock()
-			if result.gen == a.attractGen && a.attractActive && result.handle == a.attractHandle && result.err == nil {
-				a.attractImage = result.image
+			if result.gen == a.attractGen && a.attractActive && result.handle == a.attractHandle {
+				if result.err == nil && result.image != nil {
+					a.attractImage = result.image
+				} else {
+					if a.attractTried == nil {
+						a.attractTried = map[string]bool{}
+					}
+					a.attractTried[result.handle] = true
+					a.showAttractItemLocked(time.Now())
+				}
 			}
 			a.mu.Unlock()
 		default:
