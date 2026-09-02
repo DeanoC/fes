@@ -283,16 +283,24 @@ func (a *App) nextAttractHandleLocked(item AttractItem) string {
 	return ""
 }
 
+func (a *App) abandonAttractLocked(now time.Time) {
+	if now.IsZero() {
+		now = time.Now()
+	}
+	a.lastInput = now
+	a.hideAttractLocked()
+}
+
 func (a *App) showAttractItemLocked(now time.Time) {
 	if len(a.attractItems) == 0 {
-		a.hideAttractLocked()
+		a.abandonAttractLocked(now)
 		return
 	}
 	start := a.attractIndex
 	for {
 		item, ok := a.currentAttractItemLocked()
 		if !ok {
-			a.hideAttractLocked()
+			a.abandonAttractLocked(now)
 			return
 		}
 		handle := a.nextAttractHandleLocked(item)
@@ -316,7 +324,7 @@ func (a *App) showAttractItemLocked(now time.Time) {
 		}
 		a.attractIndex = (a.attractIndex + 1) % len(a.attractItems)
 		if a.attractIndex == start {
-			a.hideAttractLocked()
+			a.abandonAttractLocked(now)
 			return
 		}
 	}

@@ -620,6 +620,69 @@ func TestAppFallsBackWhenAttractArtworkFails(t *testing.T) {
 	})
 }
 
+func TestAppBacksOffWhenAttractArtworkExhausted(t *testing.T) {
+	handle := strings.Repeat("ab", 32)
+	var attractCalls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
+			attractCalls.Add(1)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"idle_seconds": 60,
+				"items": []map[string]any{{
+					"game_id":    "snes-mario",
+					"title":      "Mario",
+					"platform":   "snes",
+					"cover":      handle,
+					"launchable": true,
+				}},
+			})
+		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/artwork/"):
+			http.NotFound(w, r)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) >= 1 && !snap.Loading
+	})
+	armAttractSoon(app)
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		app.Tick(time.Now())
+		if attractCalls.Load() >= 1 && !app.Snapshot().Attract.Active {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if app.Snapshot().Attract.Active {
+		t.Fatal("exhausted artwork left attract active")
+	}
+	afterHide := attractCalls.Load()
+	if afterHide < 1 {
+		t.Fatal("did not fetch attract playlist")
+	}
+	spin := time.Now().Add(200 * time.Millisecond)
+	for time.Now().Before(spin) {
+		app.Tick(time.Now())
+		time.Sleep(5 * time.Millisecond)
+	}
+	if got := attractCalls.Load(); got > afterHide+1 {
+		t.Fatalf("attract refetch loop: before=%d after=%d", afterHide, got)
+	}
+}
+
 func TestStillAttractItemsDropsVideoOnly(t *testing.T) {
 	t.Parallel()
 	cover := strings.Repeat("ab", 32)
