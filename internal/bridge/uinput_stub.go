@@ -14,4 +14,5 @@ func (s *FakeSink) Apply(f protocol.InputFrame) error { s.Events = append(s.Even
 func (s *FakeSink) ReleaseAll() error                 { s.Released = true; return nil }
 func (s *FakeSink) Close() error                      { return nil }
 
-func OpenUInput(_ string) (Sink, error) { return nil, ErrUnsupportedPlatform }
+func OpenUInput(_ string) (Sink, error)          { return nil, ErrUnsupportedPlatform }
+func CreateUInputGamepad(_ string) (Sink, error) { return nil, ErrUnsupportedPlatform }

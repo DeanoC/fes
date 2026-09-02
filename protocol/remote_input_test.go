@@ -35,6 +35,31 @@ func TestRemoteInputControlFrameRoundTrip(t *testing.T) {
 	}
 }
 
+func TestRemoteInputCarriesExplicitGamepadCCode(t *testing.T) {
+	if InputCodeButtonC != 108 {
+		t.Fatalf("C code = %d, want 108", InputCodeButtonC)
+	}
+	frame := InputFrame{
+		Header: InputHeader{Type: InputTypeInput, Session: 42},
+		Seq:    9,
+		Device: 1,
+		Kind:   1,
+		Action: 1,
+		Code:   InputCodeButtonC,
+	}
+	wire, err := EncodeInputFrame(frame)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := DecodeInputFrame(bytes.NewReader(wire), 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Code != 108 {
+		t.Fatalf("decoded C code = %d, want 108", got.Code)
+	}
+}
+
 func TestRemoteInputRejectsHeaderAndValues(t *testing.T) {
 	frame := InputFrame{Header: InputHeader{Type: InputTypeInput, Session: 1}, Seq: 1, Device: 9}
 	if _, err := EncodeInputFrame(frame); err == nil {

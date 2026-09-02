@@ -39,6 +39,7 @@ type Config struct {
 	HeartbeatTimeout time.Duration
 	Logger           *slog.Logger
 	OnDisconnect     func()
+	Listen           func(network, address string) (net.Listener, error)
 }
 type Metrics struct{ Accepted, Applied, Rejected, SequenceGaps, Releases atomic.Uint64 }
 
@@ -53,17 +54,24 @@ type hello struct {
 	Proof   string `json:"proof"`
 }
 type Server struct {
-	cfg        Config
-	sink       Sink
-	ln         net.Listener
-	ready      chan struct{}
-	metrics    Metrics
-	stopOnce   sync.Once
-	wg         sync.WaitGroup
-	activeMu   sync.Mutex
-	active     bool
-	activeConn net.Conn
-	handshakes chan struct{}
+	cfg         Config
+	sink        Sink
+	ln          net.Listener
+	ready       chan struct{}
+	metrics     Metrics
+	stopOnce    sync.Once
+	closeErr    error
+	wg          sync.WaitGroup
+	activeMu    sync.Mutex
+	active      bool
+	activeConn  net.Conn
+	handshakes  chan struct{}
+	releaseMu   sync.Mutex
+	releaseErr  error
+	listenerMu  sync.Mutex
+	closed      bool
+	startup     chan error
+	startupOnce sync.Once
 }
 
 func New(cfg Config, sink Sink) (*Server, error) {
@@ -76,10 +84,16 @@ func New(cfg Config, sink Sink) (*Server, error) {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
-	return &Server{cfg: cfg, sink: sink, ready: make(chan struct{}), handshakes: make(chan struct{}, MaxHandshakeConns)}, nil
+	if cfg.Listen == nil {
+		cfg.Listen = net.Listen
+	}
+	return &Server{cfg: cfg, sink: sink, ready: make(chan struct{}), startup: make(chan error, 1), handshakes: make(chan struct{}, MaxHandshakeConns)}, nil
 }
 func (s *Server) Ready() <-chan struct{} { return s.ready }
+func (s *Server) Startup() <-chan error  { return s.startup }
 func (s *Server) Addr() net.Addr {
+	s.listenerMu.Lock()
+	defer s.listenerMu.Unlock()
 	if s.ln == nil {
 		return nil
 	}
@@ -87,12 +101,21 @@ func (s *Server) Addr() net.Addr {
 }
 func (s *Server) Metrics() *Metrics { return &s.metrics }
 func (s *Server) ListenAndServe(ctx context.Context) error {
-	ln, err := net.Listen("tcp", s.cfg.Addr)
+	ln, err := s.cfg.Listen("tcp", s.cfg.Addr)
 	if err != nil {
+		s.reportStartup(err)
 		return err
 	}
+	s.listenerMu.Lock()
+	if s.closed {
+		s.listenerMu.Unlock()
+		_ = ln.Close()
+		s.reportStartup(net.ErrClosed)
+		return net.ErrClosed
+	}
 	s.ln = ln
-	close(s.ready)
+	s.listenerMu.Unlock()
+	s.reportStartup(nil)
 	go func() { <-ctx.Done(); s.Close() }()
 	for {
 		c, err := ln.Accept()
@@ -114,11 +137,27 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		go func() { defer s.wg.Done(); defer func() { <-s.handshakes }(); s.handle(ctx, c) }()
 	}
 }
+
+func (s *Server) reportStartup(err error) {
+	s.startupOnce.Do(func() {
+		s.startup <- err
+		close(s.startup)
+		if err == nil {
+			close(s.ready)
+		}
+	})
+}
+
 func (s *Server) Close() error {
-	var err error
 	s.stopOnce.Do(func() {
-		if s.ln != nil {
-			err = s.ln.Close()
+		var listenerErr error
+		s.listenerMu.Lock()
+		s.closed = true
+		listener := s.ln
+		s.listenerMu.Unlock()
+		s.reportStartup(net.ErrClosed)
+		if listener != nil {
+			listenerErr = listener.Close()
 		}
 		s.activeMu.Lock()
 		if s.activeConn != nil {
@@ -126,11 +165,29 @@ func (s *Server) Close() error {
 		}
 		s.activeMu.Unlock()
 		s.wg.Wait()
-		_ = s.sink.ReleaseAll()
-		s.metrics.Releases.Add(1)
-		_ = s.sink.Close()
+		_ = s.releaseAll()
+		s.closeErr = errors.Join(listenerErr, s.recordedReleaseError(), s.sink.Close())
 	})
+	return s.closeErr
+}
+
+func (s *Server) releaseAll() error {
+	err := s.sink.ReleaseAll()
+	s.metrics.Releases.Add(1)
+	if err != nil {
+		s.releaseMu.Lock()
+		if s.releaseErr == nil {
+			s.releaseErr = err
+		}
+		s.releaseMu.Unlock()
+	}
 	return err
+}
+
+func (s *Server) recordedReleaseError() error {
+	s.releaseMu.Lock()
+	defer s.releaseMu.Unlock()
+	return s.releaseErr
 }
 func (s *Server) handle(ctx context.Context, conn net.Conn) {
 	defer conn.Close()
@@ -162,8 +219,7 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 		s.active = false
 		s.activeConn = nil
 		s.activeMu.Unlock()
-		_ = s.sink.ReleaseAll()
-		s.metrics.Releases.Add(1)
+		_ = s.releaseAll()
 		if s.cfg.OnDisconnect != nil {
 			s.cfg.OnDisconnect()
 		}

@@ -57,6 +57,16 @@ unsupported-system error; development loading and recovery return an
 unsupported-operation error. The separate `native-dev` image packages this
 composition, and its idle path is hardware-tested on the designated kit.
 
+The native agent creates one `FogCast Virtual Gamepad` during startup before
+runtime reconciliation. Its Linux identity is `BUS_VIRTUAL`, vendor `0x0000`,
+product `0x0001`, version `0x0001`; its capabilities are the one-player D-pad,
+A/B/C/Start, signed X/Y axes, and synchronized event reports consumed by the
+native runtime. Authenticated input leases only gate delivery to that retained
+device: detach releases held state without destroying it, and agent shutdown
+destroys it once. The Main backend keeps the existing per-lease input-device
+path. This software construction does not establish playable-input or native
+game hardware support.
+
 ## Other modes
 
 Host-emulator execution, remote input, capture, and host-to-target media are

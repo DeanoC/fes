@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"sort"
+
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 type Device uint8
@@ -47,6 +49,7 @@ const (
 	ButtonB         Code = 105
 	ButtonStart     Code = 106
 	ButtonSelect    Code = 107
+	ButtonC         Code = Code(protocol.InputCodeButtonC)
 	AxisLeftX       Code = 200
 	AxisLeftY       Code = 201
 )
@@ -128,7 +131,7 @@ func NormalizeKeyboard(key string, pressed bool) (Event, error) {
 	return Event{Device: DeviceKeyboard, Kind: KindKey, Action: action(pressed), Code: c}, nil
 }
 func NormalizeGamepad(button string, pressed bool) (Event, error) {
-	m := map[string]Code{"dpad-up": ButtonDPadUp, "dpad-down": ButtonDPadDown, "dpad-left": ButtonDPadLeft, "dpad-right": ButtonDPadRight, "a": ButtonA, "b": ButtonB, "start": ButtonStart, "select": ButtonSelect}
+	m := map[string]Code{"dpad-up": ButtonDPadUp, "dpad-down": ButtonDPadDown, "dpad-left": ButtonDPadLeft, "dpad-right": ButtonDPadRight, "a": ButtonA, "b": ButtonB, "c": ButtonC, "start": ButtonStart, "select": ButtonSelect}
 	c, ok := m[button]
 	if !ok {
 		return Event{}, fmt.Errorf("unsupported gamepad button %q", button)

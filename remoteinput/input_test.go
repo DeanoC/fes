@@ -27,6 +27,32 @@ func TestNormalizeGamepad(t *testing.T) {
 	}
 }
 
+func TestNormalizeGamepadCDoesNotRepurposeSelect(t *testing.T) {
+	c, err := NormalizeGamepad("c", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selectButton, err := NormalizeGamepad("select", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Code != ButtonC {
+		t.Fatalf("C = %#v, want ButtonC", c)
+	}
+	if c.Code != 108 {
+		t.Fatalf("ButtonC = %d, want code 108", c.Code)
+	}
+	if selectButton.Code != ButtonSelect {
+		t.Fatalf("select = %#v, want ButtonSelect", selectButton)
+	}
+	if selectButton.Code != 107 {
+		t.Fatalf("ButtonSelect = %d, want code 107", selectButton.Code)
+	}
+	if c.Code == selectButton.Code {
+		t.Fatalf("C = %#v, select = %#v", c, selectButton)
+	}
+}
+
 func TestStateSnapshotIsAuthoritativeAndReleaseAll(t *testing.T) {
 	var s State
 	if err := s.Apply(Event{Device: DeviceKeyboard, Kind: KindKey, Action: ActionPress, Code: KeyA}); err != nil {

@@ -87,7 +87,9 @@ type compositionStore struct {
 	reconciled bool
 }
 
-type compositionInput struct{}
+type compositionInput struct {
+	closed int
+}
 
 type compositionCast struct {
 	stopped      bool
@@ -115,7 +117,7 @@ func (*compositionInput) Detach(context.Context, uint64) error     { return nil 
 func (*compositionInput) OpenStream(context.Context, uint64) (net.Conn, error) {
 	return nil, errors.New("unused")
 }
-func (*compositionInput) Close() error { return nil }
+func (c *compositionInput) Close() error { c.closed++; return nil }
 
 func (*compositionStore) Probe(context.Context, protocol.System, protocol.ContentKey) (protocol.CacheProbeResponse, *protocol.APIError) {
 	return protocol.CacheProbeResponse{Present: false}, nil
@@ -248,14 +250,63 @@ func TestRunComposesTargetInputController(t *testing.T) {
 			return store, nil
 		},
 		newRuntime: func(agentconfig.Config, core.Registry) agent.Runtime { return runtime },
-		newInput:   func(agentconfig.Config) httpapi.InputController { seenInput = true; return inputController },
-		serve:      func(*http.Server) error { cancel(); return http.ErrServerClosed },
+		newInput: func(agentconfig.Config) (httpapi.InputController, error) {
+			if !runtime.reconciled {
+				t.Fatal("Main input controller was constructed before runtime initialization")
+			}
+			seenInput = true
+			return inputController, nil
+		},
+		serve: func(*http.Server) error { cancel(); return http.ErrServerClosed },
 	}
 	if err := runWithDependencies(ctx, configPath, slog.New(slog.NewJSONHandler(io.Discard, nil)), deps); err != nil {
 		t.Fatal(err)
 	}
 	if !seenInput {
 		t.Fatal("target input controller was not composed")
+	}
+	if inputController.closed != 1 {
+		t.Fatalf("target input close calls = %d, want 1", inputController.closed)
+	}
+}
+
+func TestNativeRunCreatesGamepadBeforeRuntimeAndClosesItAfterServing(t *testing.T) {
+	configPath := writeCompositionConfig(t, "")
+	inputController := &compositionInput{}
+	store := &compositionStore{}
+	var order []string
+	ctx, cancel := context.WithCancel(context.Background())
+	deps := runDependencies{
+		openCache: func(targetcache.Config, core.Registry, ...targetcache.Option) (agent.ContentStore, error) {
+			order = append(order, "cache")
+			return store, nil
+		},
+		newInput: func(agentconfig.Config) (httpapi.InputController, error) {
+			order = append(order, "input")
+			return inputController, nil
+		},
+		inputBeforeInitialize: true,
+		newRuntime: func(agentconfig.Config, core.Registry) agent.Runtime {
+			order = append(order, "runtime")
+			return &compositionRuntime{}
+		},
+		serve: func(*http.Server) error {
+			order = append(order, "serve")
+			if inputController.closed != 0 {
+				t.Fatal("native gamepad was closed before agent shutdown")
+			}
+			cancel()
+			return http.ErrServerClosed
+		},
+	}
+	if err := runWithDependencies(ctx, configPath, slog.New(slog.NewJSONHandler(io.Discard, nil)), deps); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(order, ","); got != "cache,input,runtime,serve" {
+		t.Fatalf("native startup order = %q", got)
+	}
+	if inputController.closed != 1 {
+		t.Fatalf("native gamepad close calls = %d, want 1", inputController.closed)
 	}
 }
 
@@ -402,6 +453,12 @@ func TestProductionRuntimeBackendSelectsNativeOnlyWhenExplicit(t *testing.T) {
 	}
 	if _, ok := nativeDependencies.newRuntime(agentconfig.Config{}, core.NewRegistry()).(*misterruntime.Runtime); !ok {
 		t.Fatal("native backend did not compose native runtime")
+	}
+	if mainDependencies.inputBeforeInitialize {
+		t.Fatal("Main backend moved input construction before runtime initialization")
+	}
+	if !nativeDependencies.inputBeforeInitialize {
+		t.Fatal("native backend did not require gamepad construction before runtime initialization")
 	}
 }
 
