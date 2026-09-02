@@ -39,9 +39,13 @@ search; type with a keyboard, East/B clears or closes, South/A closes the
 field. Hold South/A (≥450ms) to open the library view list (All, Continue,
 Favorites, Recent, Unplayed, Recently added, then custom
 shelves); d-pad moves, South confirms, East cancels. Hold North/Y to
-favorite or unfavorite the focused title. Keyboard is debug-only: arrows/WASD,
-Enter to launch, Esc to back, Q to quit, `[` / `]` for platform, `x` for
-sort, `/` or `f` for search, `c` / Shift+`c` to cycle views, `v` to favorite.
+favorite or unfavorite the focused title. While a host session is active,
+East/B stops it (`POST /api/v1/session/stop`); Start still quits the app.
+Keyboard is debug-only: arrows/WASD (S is stop, not down),
+Enter to launch, Esc/Backspace to back (or stop while a session is active),
+Q to quit, `[` / `]` for platform, `x` for sort, `/` or `f` for search,
+`c` / Shift+`c` to cycle views, `v` to favorite. Down arrow still moves focus
+when idle.
 
 Run from a GUI terminal for the Cocoa window. Headless agent sessions fall
 back to SDL's dummy video driver; the cover grid, gamepad path, and host
@@ -88,9 +92,18 @@ make tenfoot-smoke
   cover has already decoded, so the slot can fetch the new artwork or go
   missing. The SDL cover texture is keyed by game ID and is replaced when
   that decoded image changes.
-- `POST /api/v1/session/launch` with `{"game_id":"..."}`
-- `GET /api/v1/session` for now-playing / active session state (polled). P2.
-- `POST /api/v1/session/stop` (empty body) to end the active session. P2.
+- `POST /api/v1/session/launch` with `{"game_id":"..."}`. The launch JSON
+  (`state`, `game_id`, optional `execution` / `media` / `progress`) is adopted
+  immediately; tenfoot still polls afterward.
+- `GET /api/v1/session` polled about once a second while the window is up, and
+  again right after launch or stop. That is the same observation point the host
+  uses to reap exited host-only / media sessions (`internal/hostapi/session.go`).
+  When `state` is not `active`, `game_id` and `system` are omitted. `execution`,
+  `media`, `progress`, and `input.state` are shown in now-playing chrome when
+  present. Tenfoot does not call session/events, preview, input attach/detach,
+  or development-rbf.
+- `POST /api/v1/session/stop` with an empty body. Offered only while the session
+  is active or a stop is already in flight (East/B, Esc/Backspace, or `s`).
 
 ## Library views
 
@@ -98,11 +111,19 @@ The cover grid cycles All and the web smart rails (Continue, Favorites, Recent,
 Unplayed, Recently added), then any custom collections from the host. Sofa
 create/rename of custom collections stays in the browser shell.
 
+## GPU park
+
+The SDL window and renderer stay up for the process lifetime. When the host
+session becomes `active` (launch response or `GET /api/v1/session`), tenfoot
+parks GPU cover work: it destroys cover and label textures, drops decoded
+cover bitmaps, and does not upload a cover atlas until the session is idle
+again. Now-playing chrome is a few CPU-rasterized status labels, not the
+library grid. Stop and Quit still work while parked. On idle (stop success,
+poll, or media exit observed through the status poll) the cover grid resumes
+and textures are uploaded again for the visible/prefetch window.
+
 ## Known gaps
 
-- Session stop / now-playing chrome and GPU park on active session are P2
-  (`P2-SESSION.md`). Until then, launch still POSTs to the host but textures
-  stay allocated and there is no stop binding.
 - TV safe area and overscan are later. Fullscreen is available; it is not
   calibrated for living-room overscan. Short windows such as `-height 480`
   shrink the cover cell so the row sits above the detail footer.

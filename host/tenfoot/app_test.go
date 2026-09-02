@@ -81,6 +81,16 @@ func TestAppNavigatesAndLaunchesThroughHostAPI(t *testing.T) {
 	if !ok || selected.ID != "megadrive-sonic" {
 		t.Fatalf("selected = %#v ok=%v", selected, ok)
 	}
+	for time.Now().Before(deadline) {
+		app.Tick(time.Now())
+		if app.Snapshot().CoverHits >= 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if app.Snapshot().CoverHits < 1 {
+		t.Fatalf("cover hits = %d", app.Snapshot().CoverHits)
+	}
 	app.Press(CommandFromButton(ButtonSouth), now)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
@@ -96,16 +106,11 @@ func TestAppNavigatesAndLaunchesThroughHostAPI(t *testing.T) {
 	if len(launches) != 1 || launches[0] != `{"game_id":"megadrive-sonic"}` {
 		t.Fatalf("launches = %#v", launches)
 	}
-
-	for time.Now().Before(deadline) {
-		app.Tick(time.Now())
-		if snap = app.Snapshot(); snap.CoverHits >= 1 {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
+	if !snap.GPUParked || snap.Session.State != "active" || snap.Session.GameID != "megadrive-sonic" {
+		t.Fatalf("session = %#v parked=%v", snap.Session, snap.GPUParked)
 	}
-	if snap.CoverHits < 1 {
-		t.Fatalf("cover hits = %d", snap.CoverHits)
+	if snap.CoverHits != 0 {
+		t.Fatalf("parked cover hits = %d", snap.CoverHits)
 	}
 }
 

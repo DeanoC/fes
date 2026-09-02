@@ -243,6 +243,7 @@ func runWindow(ctx context.Context, opts Options) error {
 	var stick stickTracker
 	held := map[Command]bool{}
 	textInput := false
+	gpuParked := false
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil
@@ -264,8 +265,7 @@ func runWindow(ctx context.Context, opts Options) error {
 		app.Tick(now)
 		snap := app.Snapshot()
 		textInput = syncTextInput(window, snap.SearchOpen, textInput)
-		syncTextures(renderer, snap, textures)
-		drawFrame(renderer, snap, textures, labels)
+		gpuParked = applyGPUPark(renderer, snap, textures, labels, gpuParked)
 		C.SDL_Delay(1)
 	}
 }
@@ -343,16 +343,16 @@ func runSmoke(ctx context.Context, opts Options, app *App, renderer *C.SDL_Rende
 		pumpSDL(app, pads, time.Now())
 		app.Tick(time.Now())
 		snap = app.Snapshot()
-		syncTextures(renderer, snap, textures)
-		drawFrame(renderer, snap, textures, labels)
-		if snap.CoverHits >= 1 {
+		_ = applyGPUPark(renderer, snap, textures, labels, snap.GPUParked)
+		if snap.CoverHits >= 1 || snap.GPUParked {
 			break
 		}
 		C.SDL_Delay(10)
 	}
 	snap = app.Snapshot()
 	evidence["covers"] = snap.CoverHits
-	if snap.CoverHits < 1 {
+	evidence["gpu_parked"] = snap.GPUParked
+	if snap.CoverHits < 1 && !snap.GPUParked {
 		return fmt.Errorf("smoke: no cover artwork decoded")
 	}
 
@@ -727,8 +727,10 @@ func commandFromSDLKey(code C.int) Command {
 	switch C.SDL_Keycode(code) {
 	case C.SDLK_UP, C.SDLK_W:
 		return CmdUp
-	case C.SDLK_DOWN, C.SDLK_S:
+	case C.SDLK_DOWN:
 		return CmdDown
+	case C.SDLK_S:
+		return CmdStop
 	case C.SDLK_LEFT, C.SDLK_A:
 		return CmdLeft
 	case C.SDLK_RIGHT, C.SDLK_D:
@@ -754,6 +756,22 @@ func commandFromSDLKey(code C.int) Command {
 	default:
 		return CmdNone
 	}
+}
+
+func applyGPUPark(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[string]sdlTexture, parked bool) bool {
+	if snap.GPUParked {
+		if len(textures) > 0 {
+			destroyTextures(textures)
+		}
+		if !parked {
+			destroyTextures(labels)
+		}
+		drawNowPlaying(renderer, snap, labels)
+		return true
+	}
+	syncTextures(renderer, snap, textures)
+	drawFrame(renderer, snap, textures, labels)
+	return false
 }
 
 func syncTextures(renderer *C.SDL_Renderer, snap Snapshot, textures map[string]sdlTexture) {
@@ -885,7 +903,56 @@ func drawHeader(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTe
 	drawDebug(renderer, snap.Grid.Width-160, 22, pad, 2)
 	chrome := snap.ChromeLine()
 	drawLabel(renderer, labels, used, "chrome", 24, 52, snap.Grid.Width-48, 18, chrome)
-	drawDebug(renderer, 24, 72, "LB/RB platform  X sort  Y search  hold A view  hold Y fav", 1)
+	hint := "LB/RB platform  X sort  Y search  hold A view  hold Y fav"
+	if snap.GPUParked || snap.Session.State == "active" {
+		hint = "B stop  START quit"
+	}
+	drawDebug(renderer, 24, 72, hint, 1)
+}
+
+func drawNowPlaying(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTexture) {
+	C.SDL_SetRenderDrawColor(renderer, 12, 14, 20, 255)
+	C.SDL_RenderClear(renderer)
+	used := map[string]struct{}{}
+	drawHeader(renderer, snap, labels, used)
+	pad := 48
+	y := snap.Grid.HeaderHeight + 40
+	maxW := snap.Grid.Width - 2*pad
+	if maxW < 1 {
+		maxW = snap.Grid.Width
+		pad = 8
+	}
+	title := strings.TrimSpace(snap.Session.Title)
+	if title == "" {
+		title = strings.TrimSpace(snap.Session.GameID)
+	}
+	if title == "" {
+		title = "Session active"
+	}
+	drawLabel(renderer, labels, used, "np-title", pad, y, maxW, 28, title)
+	y += 40
+	meta := strings.TrimSpace(strings.TrimPrefix(snap.NowPlayingLine(), "Now playing"))
+	meta = strings.TrimSpace(strings.TrimPrefix(meta, "  ·  "))
+	if meta == "" {
+		meta = snap.Session.State
+	}
+	drawLabel(renderer, labels, used, "np-meta", pad, y, maxW, 18, meta)
+	y += 32
+	if progress := strings.TrimSpace(snap.Session.Progress); progress != "" {
+		drawLabel(renderer, labels, used, "np-progress", pad, y, maxW, 16, progress)
+		y += 28
+	}
+	if status := strings.TrimSpace(snap.Status); status != "" && status != snap.NowPlayingLine() {
+		drawLabel(renderer, labels, used, "np-status", pad, y, maxW, 16, status)
+	}
+	for key, item := range labels {
+		if _, ok := used[key]; ok {
+			continue
+		}
+		C.SDL_DestroyTexture(item.tex)
+		delete(labels, key)
+	}
+	C.SDL_RenderPresent(renderer)
 }
 
 func drawDetail(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTexture, used map[string]struct{}) {

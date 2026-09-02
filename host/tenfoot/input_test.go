@@ -34,6 +34,9 @@ func TestCommandFromKeyAndStick(t *testing.T) {
 	if CommandFromKey("right") != CmdRight || CommandFromKey("return") != CmdSelect {
 		t.Fatal("keyboard mapping")
 	}
+	if CommandFromKey("s") != CmdStop || CommandFromKey("down") != CmdDown || CommandFromKey("backspace") != CmdBack {
+		t.Fatal("stop keyboard mapping")
+	}
 	if CommandFromKey("[") != CmdFilterPrev || CommandFromKey("]") != CmdFilterNext || CommandFromKey("x") != CmdSortCycle || CommandFromKey("/") != CmdSearch {
 		t.Fatal("browse keyboard mapping")
 	}

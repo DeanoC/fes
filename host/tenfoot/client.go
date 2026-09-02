@@ -26,6 +26,7 @@ const (
 	artworkHandleLen   = 64
 	defaultHTTPTimeout = 15 * time.Second
 	launchHTTPTimeout  = 60 * time.Second
+	stopHTTPTimeout    = 60 * time.Second
 )
 
 // Game is one catalog row from GET /api/v1/games.
@@ -107,20 +108,41 @@ type GameListQuery struct {
 	Collection string
 }
 
-// LaunchResult is the host response to POST /api/v1/session/launch.
-type LaunchResult struct {
+// SessionProgress is the optional progress object on sessionResult.
+type SessionProgress struct {
+	Stage   string `json:"stage"`
+	Message string `json:"message"`
+}
+
+// SessionInput is the read-only remote-input object on sessionResult.
+type SessionInput struct {
+	State string `json:"state"`
+	Ready bool   `json:"ready"`
+}
+
+// SessionResult is sessionResult from GET /api/v1/session, POST launch, and POST stop.
+type SessionResult struct {
 	HTTPStatus   int
 	State        string
 	GameID       string
+	System       string
+	Execution    string
+	Media        string
+	Progress     *SessionProgress
+	Input        *SessionInput
 	ErrorCode    string
 	ErrorMessage string
 }
+
+// LaunchResult is the host response to POST /api/v1/session/launch.
+type LaunchResult = SessionResult
 
 // Client calls the FogCast public host API.
 type Client struct {
 	baseURL    string
 	httpClient *http.Client
 	launchHTTP *http.Client
+	stopHTTP   *http.Client
 }
 
 // NewClient builds a host API client. baseURL defaults to DefaultAPIBase.
@@ -136,7 +158,11 @@ func NewClient(baseURL string, httpClient *http.Client) *Client {
 	if launchHTTP.Timeout == 0 || launchHTTP.Timeout < launchHTTPTimeout {
 		launchHTTP.Timeout = launchHTTPTimeout
 	}
-	return &Client{baseURL: baseURL, httpClient: httpClient, launchHTTP: &launchHTTP}
+	stopHTTP := *httpClient
+	if stopHTTP.Timeout == 0 || stopHTTP.Timeout < stopHTTPTimeout {
+		stopHTTP.Timeout = stopHTTPTimeout
+	}
+	return &Client{baseURL: baseURL, httpClient: httpClient, launchHTTP: &launchHTTP, stopHTTP: &stopHTTP}
 }
 
 // ListGames fetches one catalog page. grouped=1 and availability=ready stay the default.
@@ -380,22 +406,97 @@ func (c *Client) Launch(ctx context.Context, gameID string) (LaunchResult, error
 	if err != nil {
 		return LaunchResult{}, err
 	}
-	result := LaunchResult{HTTPStatus: resp.StatusCode}
+	result, err := decodeSessionBody(resp.StatusCode, body)
+	if err != nil {
+		return result, fmt.Errorf("launch response: %w", err)
+	}
+	return result, nil
+}
+
+// Session loads GET /api/v1/session.
+func (c *Client) Session(ctx context.Context) (SessionResult, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/session", http.NoBody)
+	if err != nil {
+		return SessionResult{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return SessionResult{}, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponse))
+	if err != nil {
+		return SessionResult{}, err
+	}
+	result, err := decodeSessionBody(resp.StatusCode, body)
+	if err != nil {
+		return result, fmt.Errorf("session response: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		if result.ErrorCode != "" {
+			return result, fmt.Errorf("host API %d %s: %s", resp.StatusCode, result.ErrorCode, result.ErrorMessage)
+		}
+		return result, apiStatusError(resp.StatusCode, body)
+	}
+	return result, nil
+}
+
+// Stop posts an empty body to POST /api/v1/session/stop.
+func (c *Client) Stop(ctx context.Context) (SessionResult, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/session/stop", http.NoBody)
+	if err != nil {
+		return SessionResult{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.stopHTTP.Do(req)
+	if err != nil {
+		return SessionResult{}, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponse))
+	if err != nil {
+		return SessionResult{}, err
+	}
+	result, err := decodeSessionBody(resp.StatusCode, body)
+	if err != nil {
+		return result, fmt.Errorf("stop response: %w", err)
+	}
+	return result, nil
+}
+
+func decodeSessionBody(status int, body []byte) (SessionResult, error) {
+	result := SessionResult{HTTPStatus: status}
+	if len(bytes.TrimSpace(body)) == 0 {
+		return result, nil
+	}
 	var wire struct {
-		State  string `json:"state"`
-		GameID string `json:"game_id"`
-		Error  *struct {
+		State     string           `json:"state"`
+		GameID    *string          `json:"game_id"`
+		System    *string          `json:"system"`
+		Execution string           `json:"execution"`
+		Media     string           `json:"media"`
+		Progress  *SessionProgress `json:"progress"`
+		Input     *SessionInput    `json:"input"`
+		Error     *struct {
 			Code    string `json:"code"`
 			Message string `json:"message"`
 		} `json:"error"`
 	}
-	if len(bytes.TrimSpace(body)) > 0 {
-		if err := json.Unmarshal(body, &wire); err != nil {
-			return result, fmt.Errorf("launch response: %w", err)
-		}
+	if err := json.Unmarshal(body, &wire); err != nil {
+		return result, err
 	}
 	result.State = wire.State
-	result.GameID = wire.GameID
+	if wire.GameID != nil {
+		result.GameID = strings.TrimSpace(*wire.GameID)
+	}
+	if wire.System != nil {
+		result.System = strings.TrimSpace(*wire.System)
+	}
+	result.Execution = strings.TrimSpace(wire.Execution)
+	result.Media = strings.TrimSpace(wire.Media)
+	result.Progress = wire.Progress
+	result.Input = wire.Input
 	if wire.Error != nil {
 		result.ErrorCode = wire.Error.Code
 		result.ErrorMessage = wire.Error.Message
