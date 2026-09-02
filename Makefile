@@ -87,7 +87,8 @@ TEST_HEADERS := $(wildcard \
 	tests/support/*.hpp)
 
 .PHONY: all clean test run-tests incremental-build-test version-build-test \
-	force-version sanitize tsan archive-audit active-tree-test target
+	force-version sanitize tsan archive-audit active-tree-test \
+	profile-provenance-test target
 
 all: $(ARCHIVE) $(DAEMON)
 
@@ -240,6 +241,9 @@ run-tests: $(TEST_BINS)
 
 active-tree-test: all
 	@tests/active_tree_test.sh "$(CURDIR)"
+
+profile-provenance-test:
+	@tests/profile_provenance_test.sh "$(CURDIR)"
 
 incremental-build-test: run-tests
 	@tests/incremental_build_test.sh "$(CURDIR)" $(TEST_BINS)
