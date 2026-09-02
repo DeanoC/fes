@@ -260,6 +260,25 @@ func TestHoldGateNorthLongPressFavorites(t *testing.T) {
 	}
 }
 
+func TestHoldBeginNotesActivitySoAttractDoesNotStart(t *testing.T) {
+	t.Parallel()
+	app := catalogApp(3)
+	app.attractIdle = 20 * time.Millisecond
+	app.attractIdleReady = true
+	app.lastInput = time.Unix(0, 0)
+	held := map[Command]bool{}
+	now := time.Unix(1, 0)
+	if applyPressed(app, map[Command]bool{CmdSelect: true}, held, now) {
+		t.Fatal("quit")
+	}
+	if app.lastInput != now {
+		t.Fatalf("lastInput = %s want %s", app.lastInput, now)
+	}
+	if len(app.hold.pending) != 1 {
+		t.Fatalf("pending = %#v", app.hold.pending)
+	}
+}
+
 func TestHoldGateReleaseOnLongPressThresholdDoesNotSelect(t *testing.T) {
 	t.Parallel()
 	app := catalogApp(5)

@@ -2,14 +2,8 @@
 
 SDL3 cover grid on Mac. It talks to the existing FogCast public host API over
 HTTP. It does not own catalog, content transfer, or `/dev/MiSTer_cmd`. The
-browser shell remains the default UI.
-
-Phase briefs (implement in order; each links host APIs + acceptance):
-
-- [P0 browse](P0-BROWSE.md) — merged (#100)
-- [P1 collections / favorites](P1-COLLECTIONS.md) — merged (#104)
-- [P2 session / GPU park](P2-SESSION.md) — merged (#106)
-- [P3 living-room](P3-LIVINGROOM.md) — **active (slice A)**: TV safe area + stills attract. Alternate layouts and Linux are follow-up.
+browser shell remains the default UI. Fullscreen living-room use applies a
+local TV overscan inset and idle stills attract from the host playlist.
 
 ## Build
 
@@ -49,10 +43,12 @@ on Mac. Inner cover padding is unchanged and sits inside that gutter.
 
 Attract mode starts after the host `idle_seconds` from
 `GET /api/v1/library/attract` (default 60s) with no input, no modal search/view
-picker, and no active host session. It cycles stills (backdrop, else cover, else
-marquee) about every 12s. Any gamepad activity or debug key dismisses and resets
-the idle timer. South/A on a launchable attract item dismisses and launches.
-Video handles are ignored; tenfoot does not play attract video. `-smoke` implies
+picker, and no active host session. The client hydrates that idle threshold
+before arming the timer, and it skips playlist rows with no still (video-only).
+It cycles stills (backdrop, else cover, else marquee) about every 12s. Any
+gamepad activity or debug key dismisses and resets the idle timer. South/A on a
+launchable attract item dismisses and launches. A South/North hold that began
+before attract does not launch the attract title on release. `-smoke` implies
 `-no-attract`.
 
 Gamepad is the intended control path (d-pad / left stick to move, South/A to
@@ -159,12 +155,9 @@ not run while parked; after idle it may start again.
 
 ## Known gaps / next
 
-Slice A of [P3-LIVINGROOM.md](P3-LIVINGROOM.md) is in this tree (safe-area +
-stills attract). Follow-up:
-
 - Alternate sofa layouts (list or wheel) beyond the cover grid.
-- Attract **video** playback (host may return a `video` handle; tenfoot shows
-  stills only).
+- Attract **video** playback (host may return a `video` handle; tenfoot skips
+  video-only playlist rows and shows stills only).
 - Linux SDL3 build: `Makefile` `TENFOOT_CGO_ENV` is Darwin-oriented today;
   `host/tenfoot/sdl.go` is `//go:build sdl3` with a `!sdl3` stub. No Linux
   pkg-config target or CI yet.

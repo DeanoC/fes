@@ -104,9 +104,20 @@ func (a *App) hideAttractLocked() {
 	a.attractHandle = ""
 	a.attractTitle = ""
 	a.attractLoading = false
+	a.hold.Clear()
 	if was {
 		a.attractGen++
 	}
+}
+
+func stillAttractItems(items []AttractItem) []AttractItem {
+	out := make([]AttractItem, 0, len(items))
+	for _, item := range items {
+		if item.StillHandle() != "" {
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 func (a *App) consumeAttractLocked(cmd Command, now time.Time) bool {
@@ -159,6 +170,10 @@ func (a *App) tickAttractLocked(now time.Time) {
 	if a.attractLoading {
 		return
 	}
+	if !a.attractIdleReady {
+		a.startAttractFetchLocked(false)
+		return
+	}
 	idle := a.attractIdle
 	if idle <= 0 {
 		idle = attractIdleDuration(defaultAttractIdleSeconds)
@@ -166,6 +181,10 @@ func (a *App) tickAttractLocked(now time.Time) {
 	if now.Sub(a.lastInput) < idle {
 		return
 	}
+	a.startAttractFetchLocked(true)
+}
+
+func (a *App) startAttractFetchLocked(enter bool) {
 	a.attractLoading = true
 	a.attractGen++
 	gen := a.attractGen
@@ -173,10 +192,28 @@ func (a *App) tickAttractLocked(now time.Time) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	go a.fetchAttract(ctx, gen)
+	go a.fetchAttract(ctx, gen, enter)
 }
 
-func (a *App) fetchAttract(ctx context.Context, gen int) {
+func (a *App) hydrateAttractIdle(ctx context.Context) {
+	a.mu.Lock()
+	if a.attractDisabled || a.attractIdleReady || a.attractLoading {
+		a.mu.Unlock()
+		return
+	}
+	a.startAttractFetchLocked(false)
+	a.mu.Unlock()
+}
+
+func (a *App) applyAttractIdleLocked(playlist AttractPlaylist) {
+	if playlist.IdleSeconds > 0 {
+		a.attractIdle = attractIdleDuration(playlist.IdleSeconds)
+		a.attractIdleSeconds = playlist.IdleSeconds
+	}
+	a.attractIdleReady = true
+}
+
+func (a *App) fetchAttract(ctx context.Context, gen int, enter bool) {
 	playlist, err := a.client.Attract(ctx, defaultAttractLimit)
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -184,18 +221,32 @@ func (a *App) fetchAttract(ctx context.Context, gen int) {
 		return
 	}
 	a.attractLoading = false
-	if err != nil || a.attractBlockedLocked() || len(playlist.Items) == 0 {
+	if err == nil {
+		a.applyAttractIdleLocked(playlist)
+	} else {
+		a.attractIdleReady = true
+	}
+	if !enter {
+		return
+	}
+	items := stillAttractItems(playlist.Items)
+	if err != nil || a.attractBlockedLocked() || len(items) == 0 {
 		a.lastInput = time.Now()
 		return
 	}
-	if playlist.IdleSeconds > 0 {
-		a.attractIdle = attractIdleDuration(playlist.IdleSeconds)
-		a.attractIdleSeconds = playlist.IdleSeconds
+	now := time.Now()
+	idle := a.attractIdle
+	if idle <= 0 {
+		idle = attractIdleDuration(defaultAttractIdleSeconds)
 	}
-	a.attractItems = playlist.Items
+	if now.Sub(a.lastInput) < idle {
+		return
+	}
+	a.attractItems = items
 	a.attractIndex = 0
 	a.attractActive = true
-	a.showAttractItemLocked(time.Now())
+	a.hold.Clear()
+	a.showAttractItemLocked(now)
 }
 
 func (a *App) showAttractItemLocked(now time.Time) {
@@ -204,6 +255,30 @@ func (a *App) showAttractItemLocked(now time.Time) {
 		a.hideAttractLocked()
 		return
 	}
+	handle := item.StillHandle()
+	if handle == "" {
+		start := a.attractIndex
+		for {
+			if len(a.attractItems) == 0 {
+				a.hideAttractLocked()
+				return
+			}
+			a.attractIndex = (a.attractIndex + 1) % len(a.attractItems)
+			if a.attractIndex == start {
+				a.hideAttractLocked()
+				return
+			}
+			item, ok = a.currentAttractItemLocked()
+			if !ok {
+				a.hideAttractLocked()
+				return
+			}
+			handle = item.StillHandle()
+			if handle != "" {
+				break
+			}
+		}
+	}
 	cycle := a.attractCycle
 	if cycle <= 0 {
 		cycle = defaultAttractCycle
@@ -211,11 +286,7 @@ func (a *App) showAttractItemLocked(now time.Time) {
 	a.attractCycleAt = now.Add(cycle)
 	a.attractTitle = item.Title
 	a.attractImage = nil
-	handle := item.StillHandle()
 	a.attractHandle = handle
-	if handle == "" {
-		return
-	}
 	a.attractGen++
 	gen := a.attractGen
 	ctx := a.ctx

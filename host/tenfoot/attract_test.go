@@ -29,7 +29,7 @@ func TestAppEntersAttractAndDismissesOnInput(t *testing.T) {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
 			attractCalls.Add(1)
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"idle_seconds": 60,
+				"idle_seconds": 1,
 				"items": []map[string]any{{
 					"game_id":    "snes-mario",
 					"title":      "Mario",
@@ -56,10 +56,7 @@ func TestAppEntersAttractAndDismissesOnInput(t *testing.T) {
 		return len(snap.Games) >= 1 && !snap.Loading
 	})
 
-	app.mu.Lock()
-	app.attractIdle = 20 * time.Millisecond
-	app.lastInput = time.Now().Add(-time.Second)
-	app.mu.Unlock()
+	armAttractSoon(app)
 
 	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
 		return snap.Attract.Active && snap.Attract.Title == "Mario" && snap.Attract.Image != nil
@@ -106,10 +103,7 @@ func TestAppSkipsAttractWhileSessionActive(t *testing.T) {
 		return snap.Session.State == "active" && snap.GPUParked
 	})
 
-	app.mu.Lock()
-	app.attractIdle = time.Millisecond
-	app.lastInput = time.Now().Add(-time.Hour)
-	app.mu.Unlock()
+	armAttractSoon(app)
 	deadline := time.Now().Add(200 * time.Millisecond)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
@@ -117,9 +111,6 @@ func TestAppSkipsAttractWhileSessionActive(t *testing.T) {
 			t.Fatal("attract ran while session active")
 		}
 		time.Sleep(5 * time.Millisecond)
-	}
-	if attractCalls.Load() != 0 {
-		t.Fatalf("attract API called %d times while session active", attractCalls.Load())
 	}
 }
 
@@ -146,10 +137,7 @@ func TestAppSkipsAttractWhenDisabledOrModal(t *testing.T) {
 	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
 		return len(snap.Games) >= 1
 	})
-	app.mu.Lock()
-	app.attractIdle = time.Millisecond
-	app.lastInput = time.Now().Add(-time.Hour)
-	app.mu.Unlock()
+	armAttractSoon(app)
 	app.Tick(time.Now())
 	if app.Snapshot().Attract.Active {
 		t.Fatal("disabled attract became active")
@@ -157,9 +145,7 @@ func TestAppSkipsAttractWhenDisabledOrModal(t *testing.T) {
 
 	app.SetAttractDisabled(false)
 	app.Press(CmdSearch, time.Now())
-	app.mu.Lock()
-	app.lastInput = time.Now().Add(-time.Hour)
-	app.mu.Unlock()
+	armAttractSoon(app)
 	app.Tick(time.Now())
 	if app.Snapshot().Attract.Active {
 		t.Fatal("attract ran while search open")
@@ -182,7 +168,7 @@ func TestAppAttractSelectLaunchesLaunchableItem(t *testing.T) {
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"idle_seconds": 60,
+				"idle_seconds": 1,
 				"items": []map[string]any{{
 					"game_id":    "snes-mario",
 					"title":      "Mario",
@@ -215,10 +201,7 @@ func TestAppAttractSelectLaunchesLaunchableItem(t *testing.T) {
 	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
 		return len(snap.Games) >= 1 && !snap.Loading
 	})
-	app.mu.Lock()
-	app.attractIdle = 20 * time.Millisecond
-	app.lastInput = time.Now().Add(-time.Second)
-	app.mu.Unlock()
+	armAttractSoon(app)
 	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
 		return snap.Attract.Active
 	})
@@ -242,5 +225,260 @@ func TestOptionsSmokeDisablesAttract(t *testing.T) {
 	opts := Options{Smoke: true, APIBase: "http://127.0.0.1:8787"}.normalized()
 	if !opts.NoAttract || !opts.Hidden {
 		t.Fatalf("opts = %#v", opts)
+	}
+}
+
+func armAttractSoon(app *App) {
+	app.mu.Lock()
+	app.attractIdle = 20 * time.Millisecond
+	app.attractIdleReady = true
+	app.attractLoading = false
+	app.attractGen++
+	app.lastInput = time.Now().Add(-time.Hour)
+	app.mu.Unlock()
+}
+
+func TestAppHydratesHostIdleBeforeEnteringAttract(t *testing.T) {
+	handle := strings.Repeat("ab", 32)
+	pngBytes := mustPNG(t, 32, 16, color.RGBA{R: 20, G: 200, B: 20, A: 255})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"idle_seconds": 300,
+				"items": []map[string]any{{
+					"game_id":    "snes-mario",
+					"title":      "Mario",
+					"platform":   "snes",
+					"cover":      handle,
+					"launchable": true,
+				}},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/presentation/artwork/"+handle:
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(pngBytes)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) >= 1 && !snap.Loading && snap.Attract.IdleSeconds == 300
+	})
+
+	app.mu.Lock()
+	app.lastInput = time.Now().Add(-70 * time.Second)
+	app.mu.Unlock()
+	deadline := time.Now().Add(250 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		app.Tick(time.Now())
+		if app.Snapshot().Attract.Active {
+			t.Fatal("attract entered against a 300s host idle after only 70s")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestAppSkipsVideoOnlyAttractEntries(t *testing.T) {
+	cover := strings.Repeat("ab", 32)
+	video := strings.Repeat("cd", 32)
+	pngBytes := mustPNG(t, 32, 16, color.RGBA{R: 20, G: 20, B: 200, A: 255})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{
+					availableGame("snes-mario", "Mario", "snes"),
+					availableGame("megadrive-sonic", "Sonic", "megadrive"),
+				},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"idle_seconds": 1,
+				"items": []map[string]any{
+					{
+						"game_id":    "snes-mario",
+						"title":      "Mario",
+						"platform":   "snes",
+						"video":      video,
+						"launchable": true,
+					},
+					{
+						"game_id":    "megadrive-sonic",
+						"title":      "Sonic",
+						"platform":   "megadrive",
+						"cover":      cover,
+						"launchable": true,
+					},
+				},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/presentation/artwork/"+cover:
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(pngBytes)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) >= 2 && !snap.Loading
+	})
+	armAttractSoon(app)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return snap.Attract.Active && snap.Attract.Title == "Sonic" && snap.Attract.Image != nil
+	})
+}
+
+func TestAppHidesAttractWhenPlaylistHasNoStills(t *testing.T) {
+	video := strings.Repeat("cd", 32)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"idle_seconds": 1,
+				"items": []map[string]any{{
+					"game_id":    "snes-mario",
+					"title":      "Mario",
+					"platform":   "snes",
+					"video":      video,
+					"launchable": true,
+				}},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) >= 1 && !snap.Loading
+	})
+	armAttractSoon(app)
+	deadline := time.Now().Add(400 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		app.Tick(time.Now())
+		if app.Snapshot().Attract.Active {
+			t.Fatal("video-only playlist activated attract")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestPendingSouthHoldDoesNotLaunchAttractItem(t *testing.T) {
+	handle := strings.Repeat("ab", 32)
+	var launches []string
+	var mu sync.Mutex
+	sessionJSON := `{"state":"idle"}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{
+					availableGame("snes-mario", "Mario", "snes"),
+					availableGame("megadrive-sonic", "Sonic", "megadrive"),
+				},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"idle_seconds": 1,
+				"items": []map[string]any{{
+					"game_id":    "megadrive-sonic",
+					"title":      "Sonic",
+					"platform":   "megadrive",
+					"cover":      handle,
+					"launchable": true,
+				}},
+			})
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/launch":
+			raw, _ := io.ReadAll(r.Body)
+			mu.Lock()
+			launches = append(launches, string(raw))
+			sessionJSON = `{"state":"active","game_id":"megadrive-sonic"}`
+			mu.Unlock()
+			_, _ = io.WriteString(w, `{"state":"active","game_id":"megadrive-sonic"}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			mu.Lock()
+			body := sessionJSON
+			mu.Unlock()
+			_, _ = io.WriteString(w, body)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) >= 2 && !snap.Loading
+	})
+	armAttractSoon(app)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return snap.Attract.Active && snap.Attract.GameID == "megadrive-sonic"
+	})
+
+	held := map[Command]bool{CmdSelect: true}
+	if !app.hold.Begin(CmdSelect, time.Now(), true) {
+		t.Fatal("pending south hold")
+	}
+	if applyPressed(app, map[Command]bool{}, held, time.Now()) {
+		t.Fatal("quit")
+	}
+	if app.Snapshot().Attract.Active {
+		t.Fatal("attract should dismiss on pending south release")
+	}
+	deadline := time.Now().Add(200 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		app.Tick(time.Now())
+		time.Sleep(5 * time.Millisecond)
+	}
+	mu.Lock()
+	got := append([]string(nil), launches...)
+	mu.Unlock()
+	if len(got) != 0 {
+		t.Fatalf("pending south launched %#v", got)
+	}
+	if got, ok := app.Selected(); !ok || got.ID != "snes-mario" {
+		t.Fatalf("focus moved, selected=%#v ok=%v", got, ok)
+	}
+}
+
+func TestStillAttractItemsDropsVideoOnly(t *testing.T) {
+	t.Parallel()
+	cover := strings.Repeat("ab", 32)
+	video := strings.Repeat("cd", 32)
+	items := stillAttractItems([]AttractItem{
+		{Title: "video", Video: video},
+		{Title: "still", Cover: cover},
+		{Title: "empty"},
+	})
+	if len(items) != 1 || items[0].Title != "still" {
+		t.Fatalf("items = %#v", items)
 	}
 }

@@ -268,6 +268,7 @@ type App struct {
 	attractIdle        time.Duration
 	attractCycle       time.Duration
 	attractIdleSeconds int
+	attractIdleReady   bool
 	lastInput          time.Time
 	attractActive      bool
 	attractItems       []AttractItem
@@ -338,6 +339,7 @@ func (a *App) Start(parent context.Context) {
 	go a.loadCollections(ctx)
 	go a.pollSession(ctx)
 	go a.loadLibrary(loadCtx, gen)
+	go a.hydrateAttractIdle(ctx)
 }
 
 // Stop cancels background work.
@@ -779,6 +781,13 @@ func (a *App) replaceLoadContextLocked() context.Context {
 			return ctx
 		}
 	}
+}
+
+// NoteActivity records input so idle/attract timers reset.
+func (a *App) NoteActivity(now time.Time) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.noteActivityLocked(now)
 }
 
 // Press records a button down, including hold-repeat bookkeeping.
