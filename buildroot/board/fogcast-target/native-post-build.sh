@@ -66,7 +66,8 @@ idle_install_path=$(read_lock_value idle_rbf install_path)
   exit 1
 }
 
-/bin/rm -f "$target/etc/init.d/S40mister-main"
+/bin/rm -f "$target/etc/init.d/S40mister-main" \
+  "$target/usr/sbin/mister-disable-menu-blanking"
 /bin/mkdir -p "$target/usr/share/mister-runtime"
 /usr/bin/install -m 0644 \
   /work/build/cache/target-image/native/idle.rbf \

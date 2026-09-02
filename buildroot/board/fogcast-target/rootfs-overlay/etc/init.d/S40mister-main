@@ -43,6 +43,7 @@ case "${1:-start}" in
     done
     verify_file "$main"
     verify_file "$menu"
+    /usr/sbin/mister-disable-menu-blanking /media/fat/MiSTer.ini
     cd /media/fat
     /media/fat/MiSTer /media/fat/menu.rbf >> /var/log/mister-main.log 2>&1 &
     printf '%s\n' "$!" > "$main_pid"

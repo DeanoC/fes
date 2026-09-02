@@ -257,6 +257,10 @@ make_root() {
     : > "$root/etc/init.d/$service"
     chmod 0755 "$root/etc/init.d/$service"
   done
+  if [ "$variant" != native-dev ]; then
+    : > "$root/usr/sbin/mister-disable-menu-blanking"
+    chmod 0755 "$root/usr/sbin/mister-disable-menu-blanking"
+  fi
   cat > "$root/etc/fstab" <<'EOF'
 /dev/root / ext4 ro,noatime,noauto 0 1
 tmpfs /run tmpfs nosuid,nodev,mode=0755 0 0
@@ -436,6 +440,14 @@ cp -R "$native_root" "$native_main"
 : > "$native_main/etc/init.d/S40mister-main"
 if verify_fixture native-dev "$native_main" "$fixture/native-main.manifest" "$fixture/native-main.libraries" >/dev/null 2>&1; then
   echo 'native verifier accepted the Main init service' >&2
+  exit 1
+fi
+
+native_menu_helper=$fixture/native-menu-helper
+cp -R "$native_root" "$native_menu_helper"
+: > "$native_menu_helper/usr/sbin/mister-disable-menu-blanking"
+if verify_fixture native-dev "$native_menu_helper" "$fixture/native-menu-helper.manifest" "$fixture/native-menu-helper.libraries" >/dev/null 2>&1; then
+  echo 'native verifier accepted the legacy Menu configuration helper' >&2
   exit 1
 fi
 

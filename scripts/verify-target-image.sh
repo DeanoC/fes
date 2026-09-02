@@ -100,6 +100,7 @@ verify_root() {
     required_paths='/sbin/init
 /usr/bin/busybox
 /usr/sbin/mister-agent
+/usr/sbin/mister-disable-menu-blanking
 /etc/init.d/S20mister-network
 /etc/init.d/S40mister-main
 /etc/init.d/S49fogcast-target-smoke
@@ -152,6 +153,10 @@ EOF
   if [ "$variant" = native-dev ]; then
     [ ! -e "$root/etc/init.d/S40mister-main" ] || {
       printf '%s\n' 'verify-target-image: native image contains the Main init service' >&2
+      exit 1
+    }
+    [ ! -e "$root/usr/sbin/mister-disable-menu-blanking" ] || {
+      printf '%s\n' 'verify-target-image: native image contains the legacy Menu configuration helper' >&2
       exit 1
     }
     native_runtime_service=$root/etc/init.d/S40mister-runtime
