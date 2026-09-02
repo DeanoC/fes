@@ -481,6 +481,79 @@ func TestAppDoesNotInventGameIDForGameLessActiveSession(t *testing.T) {
 	}
 }
 
+func TestAppDoesNotKeepLaunchGameIDWhenPollOmitsIt(t *testing.T) {
+	var mu sync.Mutex
+	sessionJSON := `{"state":"idle"}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			mu.Lock()
+			body := sessionJSON
+			mu.Unlock()
+			_, _ = io.WriteString(w, body)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/launch":
+			mu.Lock()
+			sessionJSON = `{"state":"active","game_id":"snes-mario"}`
+			mu.Unlock()
+			w.WriteHeader(http.StatusOK)
+			_, _ = io.WriteString(w, `{"state":"active","game_id":"snes-mario"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) == 1 && !snap.Loading
+	})
+	app.Press(CmdSelect, time.Now())
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return snap.Session.State == "active" && snap.Session.GameID == "snes-mario"
+	})
+
+	mu.Lock()
+	sessionJSON = `{"state":"active","execution":"fpga_development"}`
+	mu.Unlock()
+	app.kickSessionPollLocked()
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return snap.Session.State == "active" && snap.Session.Execution == "fpga_development" && snap.Session.GameID == ""
+	})
+}
+
+func TestAppFillsGameIDFromLaunchResponseOnly(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+			})
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/launch":
+			w.WriteHeader(http.StatusOK)
+			_, _ = io.WriteString(w, `{"state":"active"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) == 1 && !snap.Loading
+	})
+	app.Press(CmdSelect, time.Now())
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return snap.Launch.Phase == "ok" && snap.Session.State == "active" && snap.Session.GameID == "snes-mario"
+	})
+}
+
 func TestAppStatusPrefersStopErrorAndProgressOverLaunchOK(t *testing.T) {
 	var mu sync.Mutex
 	sessionJSON := `{"state":"idle"}`

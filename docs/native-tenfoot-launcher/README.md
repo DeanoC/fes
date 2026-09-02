@@ -101,8 +101,9 @@ make tenfoot-smoke
   cannot unpark or re-park the GPU. That is the same observation point the host
   uses to reap exited host-only / media sessions (`internal/hostapi/session.go`).
   When `state` is not `active`, `game_id` and `system` are omitted. An active
-  session that omits `game_id` keeps that omission; tenfoot does not copy an ID
-  from an earlier launch. `execution`, `media`, `progress`, and `input.state`
+  session that omits `game_id` keeps that omission, including when another
+  client replaces a launched game with a development RBF; tenfoot copies an ID
+  from the local launch response only, not from later polls. `execution`, `media`, `progress`, and `input.state`
   are shown in now-playing chrome when present. Stop failures and live session
   progress replace a completed launch acknowledgement in the status line.
   Tenfoot does not call session/events, preview, input attach/detach, or

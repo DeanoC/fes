@@ -1068,6 +1068,9 @@ func (a *App) doLaunch(ctx context.Context, game Game) {
 	a.launch.Phase = "ok"
 	a.launch.Message = fmt.Sprintf("host accepted launch for %s", game.ID)
 	a.applySessionLocked(result)
+	if a.session.State == "active" && a.session.GameID == "" {
+		a.session.GameID = game.ID
+	}
 	a.kickSessionPollLocked()
 }
 
@@ -1176,8 +1179,6 @@ func (a *App) applySessionLocked(result SessionResult) {
 	if result.State != "active" {
 		a.session.GameID = ""
 		a.session.System = ""
-	} else if a.session.GameID == "" && a.launch.Phase == "ok" && a.launch.GameID != "" {
-		a.session.GameID = a.launch.GameID
 	}
 	if a.session.State != "active" && a.stopPhase != "stopping" {
 		a.stopPhase = "idle"
