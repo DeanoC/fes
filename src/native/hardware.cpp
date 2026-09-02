@@ -5,6 +5,7 @@
 
 #include "native/artifacts.hpp"
 #include "native/core_loader.hpp"
+#include "native/input.hpp"
 #include "native/video.hpp"
 
 #include <algorithm>
@@ -38,44 +39,100 @@ Error CoreIoError(const Error& error)
 } // namespace
 
 NativeHardware::NativeHardware(ArtifactOpener& opener, FpgaManager& fpga,
-	CoreLoader& core, VideoBringup& video, Clock& clock, LogSink& log,
-	std::string idle_rbf, NativeTimeouts timeouts)
-	: opener_(opener), fpga_(fpga), core_(core), video_(video), clock_(clock),
-	  log_(log), idle_rbf_(std::move(idle_rbf)), timeouts_(timeouts) {}
+	CoreLoader& core, VideoBringup& idle_video, FixedVideoBringup& game_video,
+	InputSession& input, const InputDeviceIdentity& input_identity, Clock& clock,
+	LogSink& log, std::string idle_rbf, NativeTimeouts timeouts)
+	: opener_(opener), fpga_(fpga), core_(core), idle_video_(idle_video),
+	  game_video_(game_video), input_(input), input_identity_(input_identity),
+	  clock_(clock), log_(log), idle_rbf_(std::move(idle_rbf)),
+	  timeouts_(timeouts), fault_sink_mutex_(), fault_sink_(nullptr),
+	  input_open_(false) {}
+
+NativeHardware::~NativeHardware()
+{
+	SetFaultSink(nullptr);
+	if (input_open_) (void)StopInput(Deadline(clock_, timeouts_.core_io_ms));
+}
+
+void NativeHardware::SetFaultSink(HardwareFaultSink* sink)
+{
+	std::lock_guard<std::mutex> lock(fault_sink_mutex_);
+	fault_sink_ = sink;
+}
+
+void NativeHardware::ForwardInputFault(std::uint64_t generation, Error error)
+{
+	std::lock_guard<std::mutex> lock(fault_sink_mutex_);
+	if (fault_sink_ != nullptr)
+		fault_sink_->ReportHardwareFault({generation, std::move(error)});
+}
+
+Error NativeHardware::StopInput(std::uint64_t deadline)
+{
+	if (!input_open_) return {};
+	const Error error = input_.Stop(deadline);
+	input_open_ = false;
+	return error;
+}
 
 HardwareResult NativeHardware::LoadIdle()
 {
+	const Error input_error = StopInput(Deadline(clock_, timeouts_.core_io_ms));
 	Artifact artifact;
 	Error error = OpenRBFArtifact(idle_rbf_, opener_, &artifact);
 	log_.Write({"start", "", "", "preflight", error});
-	if (!error.ok()) return {error, false, ""};
+	if (!error.ok()) return {input_error.ok() ? error : input_error, false, ""};
 	const NativeResult programmed = fpga_.Program(artifact,
 		Deadline(clock_, timeouts_.program_ms));
 	error = programmed.error.ok() ? Error{} : ProgramError(programmed.error);
 	log_.Write({"start", "", "", "program", error});
-	if (!error.ok()) return {error, programmed.mutation_attempted, ""};
-	const VideoResult video = video_.BringUp("MENU",
+	if (!error.ok()) return {input_error.ok() ? error : input_error,
+		programmed.mutation_attempted, ""};
+	const VideoResult video = idle_video_.BringUp("MENU",
 		Deadline(clock_, timeouts_.video_ms));
 	if (!video.error.ok())
-		return {CoreIoError(video.error), true, video.observed_core};
-	return {{}, true, video.observed_core};
+		return {input_error.ok() ? CoreIoError(video.error) : input_error,
+			true, video.observed_core};
+	return {input_error, true, video.observed_core};
 }
 
-HardwareResult NativeHardware::Launch(const PreparedLaunch& launch)
+HardwareResult NativeHardware::Launch(const PreparedLaunch& launch,
+	std::uint64_t generation)
 {
+	const std::uint64_t input_deadline =
+		Deadline(clock_, timeouts_.core_io_ms);
+	Error error = input_.Open(input_identity_, launch.input, input_deadline);
+	if (!error.ok()) {
+		log_.Write({"launch", launch.system, launch.expected_core,
+			"preflight", error});
+		return {error, false, ""};
+	}
+	input_open_ = true;
+
 	ArtifactSet artifacts;
-	Error error = OpenLaunchArtifacts(launch, opener_, &artifacts);
-	log_.Write({"launch", launch.system, launch.expected_core, "preflight", error});
-	if (!error.ok()) return {error, false, ""};
+	error = OpenLaunchArtifacts(launch, opener_, &artifacts);
+	if (!error.ok()) {
+		log_.Write({"launch", launch.system, launch.expected_core,
+			"preflight", error});
+		const Error stopped = StopInput(input_deadline);
+		return {stopped.ok() ? error : stopped, false, ""};
+	}
 	std::sort(artifacts.media.begin(), artifacts.media.end(),
 		[](const OpenedMedia& left, const OpenedMedia& right) {
 			return left.index < right.index;
 		});
+	log_.Write({"launch", launch.system, launch.expected_core, "preflight", {}});
 	const NativeResult programmed = fpga_.Program(artifacts.rbf,
 		Deadline(clock_, timeouts_.program_ms));
 	error = programmed.error.ok() ? Error{} : ProgramError(programmed.error);
 	log_.Write({"launch", launch.system, launch.expected_core, "program", error});
-	if (!error.ok()) return {error, programmed.mutation_attempted, ""};
+	if (!error.ok()) {
+		if (programmed.mutation_attempted)
+			return {error, true, ""};
+		const Error stopped = StopInput(
+			Deadline(clock_, timeouts_.core_io_ms));
+		return {stopped.ok() ? error : stopped, false, ""};
+	}
 
 	const std::uint64_t core_deadline = Deadline(clock_, timeouts_.core_io_ms);
 	error = core_.AssertReset(launch.core, core_deadline);
@@ -106,6 +163,30 @@ HardwareResult NativeHardware::Launch(const PreparedLaunch& launch)
 		log_.Write({"launch", launch.system, observed, "media", error});
 		if (!error.ok()) return {error, true, observed};
 	}
+
+	const VideoResult video = game_video_.BringUp(
+		Deadline(clock_, timeouts_.video_ms));
+	error = video.error.ok() ? Error{} : CoreIoError(video.error);
+	log_.Write({"launch", launch.system, observed, "video", error});
+	if (!error.ok()) return {error, true, observed};
+
+	error = input_.Neutralize(core_deadline);
+	if (!error.ok()) error = CoreIoError(error);
+	log_.Write({"launch", launch.system, observed, "input-neutral", error});
+	if (!error.ok()) return {error, true, observed};
+
+	error = core_.ReleaseReset(launch.core, core_deadline);
+	if (!error.ok()) error = CoreIoError(error);
+	log_.Write({"launch", launch.system, observed, "release", error});
+	if (!error.ok()) return {error, true, observed};
+
+	error = input_.Start(generation,
+		[this](std::uint64_t reported_generation, Error fault) {
+			ForwardInputFault(reported_generation, std::move(fault));
+		});
+	if (!error.ok()) error = CoreIoError(error);
+	log_.Write({"launch", launch.system, observed, "input", error});
+	if (!error.ok()) return {error, true, observed};
 	return {{}, true, observed};
 }
 

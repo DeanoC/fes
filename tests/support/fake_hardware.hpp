@@ -6,8 +6,10 @@
 #include "libmister-runtime/runtime.h"
 
 #include <condition_variable>
+#include <cstdint>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace mister_test {
@@ -15,12 +17,16 @@ namespace mister_test {
 class FakeHardware final : public mister::Hardware {
 public:
 	FakeHardware();
+	void SetFaultSink(mister::HardwareFaultSink*) override;
 	mister::HardwareResult LoadIdle() override;
-	mister::HardwareResult Launch(const mister::PreparedLaunch&) override;
+	mister::HardwareResult Launch(const mister::PreparedLaunch&,
+		std::uint64_t generation) override;
 	mister::HardwareResult LoadDevelopmentRBF(const std::string&) override;
 	void BlockLaunch();
 	void WaitUntilLaunchEntered();
 	void ReleaseLaunch();
+	void ReportFault(std::uint64_t generation, mister::Error);
+	bool WaitForIdleCalls(int count);
 
 	mister::HardwareResult idle_result;
 	mister::HardwareResult launch_result;
@@ -28,8 +34,12 @@ public:
 	int idle_calls;
 	int launch_calls;
 	int development_calls;
+	int fault_sink_sets;
+	bool idle_without_fault_sink;
 	std::vector<mister::PreparedLaunch> launches;
+	std::vector<std::uint64_t> launch_generations;
 	std::vector<std::string> development_rbfs;
+	std::vector<std::thread::id> idle_threads;
 
 private:
 	std::mutex mutex_;
@@ -37,6 +47,7 @@ private:
 	bool block_launch_;
 	bool launch_entered_;
 	bool release_launch_;
+	mister::HardwareFaultSink* fault_sink_;
 };
 
 } // namespace mister_test

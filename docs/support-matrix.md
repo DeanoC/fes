@@ -5,7 +5,7 @@ fixtures verify software mechanics and do not establish system support.
 
 | System ID | Implementation | Software status | Hardware status |
 | --- | --- | --- | --- |
-| `megadrive` | not implemented | software: no | hardware: no |
+| `megadrive` | native fixed-video, one-player launch/Stop/relaunch | software: yes | hardware: no |
 | `snes` | not implemented | software: no | hardware: no |
 | `nes` | not implemented | software: no | hardware: no |
 | `sms` | not implemented | software: no | hardware: no |
@@ -26,5 +26,11 @@ Production native construction is available for the image-owned idle baseline,
 including a software-tested fixed menu-core 1280x720@60 video path. This idle
 baseline is not a game-system row or a hardware pass. Physical status awaits
 later evidence from an exact pinned FogCast image; hardware-supported systems
-remain zero. Change a row only in the same commit as its implementation and
-support evidence.
+remain zero. The Mega Drive software result covers runtime validation, exact
+core/media/video/input ordering, bounded fault cleanup, Stop, and immediate
+relaunch under host tests. It does not claim visible HDMI or playable input on
+a physical MiSTer. Audio, saves, six-button input, multiplayer, remapping,
+hot-plug recovery, development-RBF loading/video acceptance, every other
+system, running-game restart preservation, conventional Main, transient MGLs,
+and automatic legacy fallback remain outside this slice. Change a row only in
+the same commit as its implementation and support evidence.

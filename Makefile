@@ -208,22 +208,24 @@ $(BUILD_DIR)/tests/unit/off_t_test: tests/unit/off_t_test.cpp
 
 $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cpp \
 		tests/support/capture_log.cpp src/native/artifacts.cpp \
-		src/native/core_loader.cpp src/native/video_recipe.cpp \
-		src/native/video.cpp src/native/hardware.cpp src/profile.cpp \
+		src/native/core_loader.cpp src/native/input.cpp \
+		src/native/video_recipe.cpp src/native/video.cpp \
+		src/native/hardware.cpp src/profile.cpp src/runtime.cpp \
 		src/linux/production_hardware.cpp \
 		src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
-		src/native/linux/i2c.cpp \
+		src/native/linux/i2c.cpp src/native/linux/input.cpp \
 		src/native/linux/spi.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) \
 		-DMISTER_RUNTIME_IDLE_RBF=\"/definitely-missing/libmister-runtime/idle.rbf\" \
 		tests/unit/native_hardware_test.cpp \
 		tests/support/capture_log.cpp src/native/artifacts.cpp \
-		src/native/core_loader.cpp src/native/video_recipe.cpp \
-		src/native/video.cpp src/native/hardware.cpp src/profile.cpp \
+		src/native/core_loader.cpp src/native/input.cpp \
+		src/native/video_recipe.cpp src/native/video.cpp \
+		src/native/hardware.cpp src/profile.cpp src/runtime.cpp \
 		src/linux/production_hardware.cpp \
 		src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
-		src/native/linux/i2c.cpp \
+		src/native/linux/i2c.cpp src/native/linux/input.cpp \
 		src/native/linux/spi.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/protocol_test: tests/unit/protocol_test.cpp \

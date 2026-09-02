@@ -149,11 +149,24 @@ struct HardwareResult {
 	std::string observed_core;
 };
 
+struct HardwareFault {
+	std::uint64_t generation = 0;
+	Error error;
+};
+
+class HardwareFaultSink {
+public:
+	virtual ~HardwareFaultSink() = default;
+	virtual void ReportHardwareFault(HardwareFault fault) = 0;
+};
+
 class Hardware {
 public:
 	virtual ~Hardware() {}
+	virtual void SetFaultSink(HardwareFaultSink*) = 0;
 	virtual HardwareResult LoadIdle() = 0;
-	virtual HardwareResult Launch(const PreparedLaunch&) = 0;
+	virtual HardwareResult Launch(const PreparedLaunch&,
+		std::uint64_t generation) = 0;
 	virtual HardwareResult LoadDevelopmentRBF(const std::string&) = 0;
 };
 

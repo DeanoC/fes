@@ -63,6 +63,17 @@ bool HasLog(const std::vector<mister::LogRecord>& records,
 	return false;
 }
 
+bool WaitForState(mister::Runtime& runtime, State state)
+{
+	const auto deadline = std::chrono::steady_clock::now() +
+		std::chrono::seconds(2);
+	do {
+		if (runtime.status().state == state) return true;
+		std::this_thread::yield();
+	} while (std::chrono::steady_clock::now() < deadline);
+	return runtime.status().state == state;
+}
+
 class StatusReentrantLog final : public mister::LogSink {
 public:
 	void Enable(mister::Runtime& runtime)
@@ -109,6 +120,58 @@ private:
 	bool enabled_ = false;
 	bool reentered_ = false;
 	mister::State observed_state_ = mister::State::starting;
+};
+
+class BlockingFaultIdleLog final : public mister::LogSink {
+public:
+	void Write(const mister::LogRecord& record) override
+	{
+		bool block = false;
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			if (armed_ && record.operation == "input_fault" &&
+				record.phase == "idle") {
+				armed_ = false;
+				blocked_ = true;
+				block = true;
+			}
+		}
+		condition_.notify_all();
+		if (!block) return;
+		std::unique_lock<std::mutex> lock(mutex_);
+		condition_.wait(lock, [this]() { return released_; });
+	}
+
+	void Arm()
+	{
+		std::lock_guard<std::mutex> lock(mutex_);
+		armed_ = true;
+		blocked_ = false;
+		released_ = false;
+	}
+
+	bool WaitUntilBlocked()
+	{
+		std::unique_lock<std::mutex> lock(mutex_);
+		return condition_.wait_for(lock, std::chrono::seconds(2),
+			[this]() { return blocked_; });
+	}
+
+	void Release()
+	{
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			released_ = true;
+		}
+		condition_.notify_all();
+	}
+
+private:
+	std::mutex mutex_;
+	std::condition_variable condition_;
+	bool armed_ = false;
+	bool blocked_ = false;
+	bool released_ = false;
 };
 
 void TestStartLoadsIdleOnceAndPublishesIdle()
@@ -440,6 +503,129 @@ void TestFailedCleanupLogsBothFailuresAndDevelopmentInventsNoIdentity()
 	}
 }
 
+void TestRuntimeOwnsFaultSinkBeforeStartupAndReleasesItOnDestruction()
+{
+	mister::Profiles profiles = Fixture::BuildProfiles();
+	mister_test::FakeHardware hardware;
+	mister_test::CaptureLog log;
+	{
+		mister::Runtime runtime(hardware, profiles, log);
+		assert(hardware.fault_sink_sets == 1);
+		assert(runtime.Start().ok());
+		assert(!hardware.idle_without_fault_sink);
+	}
+	assert(hardware.fault_sink_sets == 2);
+}
+
+void TestStopAndImmediateRelaunchUseStrictlyNewGenerations()
+{
+	Fixture fixture;
+	Start(fixture);
+	assert(fixture.runtime.LaunchGame(CartLaunch()).ok());
+	assert(fixture.runtime.Stop().ok());
+	assert(fixture.runtime.LaunchGame(CartLaunch()).ok());
+	assert(fixture.hardware.launch_generations ==
+		std::vector<std::uint64_t>({1, 2}));
+	assert(fixture.runtime.status().state == State::running_game);
+}
+
+void TestFaultQueuedDuringLaunchRunsOffReporterAndCleansActiveGenerationOnce()
+{
+	Fixture fixture;
+	Start(fixture);
+	fixture.hardware.BlockLaunch();
+	mister::Error launch_result;
+	std::thread launch([&]() {
+		launch_result = fixture.runtime.LaunchGame(CartLaunch());
+	});
+	fixture.hardware.WaitUntilLaunchEntered();
+	assert(fixture.hardware.launch_generations ==
+		std::vector<std::uint64_t>({1}));
+	const std::thread::id reporter = std::this_thread::get_id();
+	fixture.hardware.ReportFault(1,
+		{ErrorCode::io_failed, "queued input read failed"});
+	assert(fixture.hardware.idle_calls == 1);
+	fixture.hardware.ReleaseLaunch();
+	launch.join();
+	assert(launch_result.ok());
+	assert(fixture.hardware.WaitForIdleCalls(2));
+	assert(WaitForState(fixture.runtime, State::idle));
+	const mister::Status status = fixture.runtime.status();
+	assert(status.error.code == ErrorCode::io_failed);
+	assert(status.error.message == "queued input read failed");
+	assert(fixture.hardware.idle_calls == 2);
+	assert(fixture.hardware.idle_threads.size() == 2);
+	assert(fixture.hardware.idle_threads[1] != reporter);
+}
+
+void TestStaleFaultCannotCleanOrOverwriteANewerGeneration()
+{
+	Fixture fixture;
+	Start(fixture);
+	assert(fixture.runtime.LaunchGame(CartLaunch()).ok());
+	assert(fixture.runtime.Stop().ok());
+	assert(fixture.runtime.LaunchGame(CartLaunch()).ok());
+	fixture.hardware.ReportFault(1,
+		{ErrorCode::io_failed, "stale input failure"});
+	fixture.hardware.ReportFault(2,
+		{ErrorCode::io_failed, "active input failure"});
+	assert(fixture.hardware.WaitForIdleCalls(3));
+	assert(WaitForState(fixture.runtime, State::idle));
+	const mister::Status status = fixture.runtime.status();
+	assert(status.error.code == ErrorCode::io_failed);
+	assert(status.error.message == "active input failure");
+	assert(fixture.hardware.idle_calls == 3);
+}
+
+void TestActiveInputFaultCleanupFailureRequiresReboot()
+{
+	Fixture fixture;
+	Start(fixture);
+	assert(fixture.runtime.LaunchGame(CartLaunch()).ok());
+	fixture.hardware.idle_result.error = {
+		ErrorCode::program_failed, "fault cleanup idle failed"};
+	fixture.hardware.ReportFault(1,
+		{ErrorCode::io_failed, "input device removed"});
+	assert(fixture.hardware.WaitForIdleCalls(2));
+	assert(WaitForState(fixture.runtime, State::reboot_required));
+	const mister::Status status = fixture.runtime.status();
+	assert(status.error.code == ErrorCode::idle_failed);
+	assert(status.error.message == "fault cleanup idle failed");
+	assert(fixture.runtime.Stop().code == ErrorCode::idle_failed);
+	assert(fixture.hardware.idle_calls == 2);
+}
+
+void TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError()
+{
+	mister::Profiles profiles = Fixture::BuildProfiles();
+	mister_test::FakeHardware hardware;
+	BlockingFaultIdleLog log;
+	mister::Runtime runtime(hardware, profiles, log);
+	assert(runtime.Start().ok());
+	assert(runtime.LaunchGame(CartLaunch()).ok());
+
+	log.Arm();
+	hardware.ReportFault(1,
+		{ErrorCode::io_failed, "first input failure"});
+	assert(log.WaitUntilBlocked());
+	assert(runtime.status().state == State::idle);
+	assert(runtime.LaunchGame(CartLaunch()).ok());
+
+	hardware.ReportFault(2,
+		{ErrorCode::io_failed, "reserved input failure"});
+	const mister::Error stop = runtime.Stop();
+	assert(stop.code == ErrorCode::busy);
+	assert(hardware.idle_calls == 2);
+
+	log.Release();
+	assert(hardware.WaitForIdleCalls(3));
+	assert(WaitForState(runtime, State::idle));
+	const mister::Status status = runtime.status();
+	assert(status.error.code == ErrorCode::io_failed);
+	assert(status.error.message == "reserved input failure");
+	assert(hardware.idle_calls == 3);
+}
+
 } // namespace
 
 int main()
@@ -469,6 +655,12 @@ int main()
 	TestValidationFailureLogsDirectErrorWithoutHardware();
 	TestPostMutationFailureLogsCleanupAndPrimary();
 	TestFailedCleanupLogsBothFailuresAndDevelopmentInventsNoIdentity();
-	puts("runtime_test: 25 passed");
+	TestRuntimeOwnsFaultSinkBeforeStartupAndReleasesItOnDestruction();
+	TestStopAndImmediateRelaunchUseStrictlyNewGenerations();
+	TestFaultQueuedDuringLaunchRunsOffReporterAndCleansActiveGenerationOnce();
+	TestStaleFaultCannotCleanOrOverwriteANewerGeneration();
+	TestActiveInputFaultCleanupFailureRequiresReboot();
+	TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError();
+	puts("runtime_test: 31 passed");
 	return 0;
 }
