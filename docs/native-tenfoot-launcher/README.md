@@ -89,6 +89,8 @@ make tenfoot-smoke
   missing. The SDL cover texture is keyed by game ID and is replaced when
   that decoded image changes.
 - `POST /api/v1/session/launch` with `{"game_id":"..."}`
+- `GET /api/v1/session` for now-playing / active session state (polled). P2.
+- `POST /api/v1/session/stop` (empty body) to end the active session. P2.
 
 ## Library views
 
@@ -98,8 +100,9 @@ create/rename of custom collections stays in the browser shell.
 
 ## Known gaps
 
-- GPU resources stay allocated after launch. Releasing the renderer / textures
-  when a session starts is later work.
+- Session stop / now-playing chrome and GPU park on active session are P2
+  (`P2-SESSION.md`). Until then, launch still POSTs to the host but textures
+  stay allocated and there is no stop binding.
 - TV safe area and overscan are later. Fullscreen is available; it is not
   calibrated for living-room overscan. Short windows such as `-height 480`
   shrink the cover cell so the row sits above the detail footer.
