@@ -33,8 +33,10 @@ FOGCAST_API=http://127.0.0.1:8787 bin/fogcast-tenfoot
 Gamepad is the intended control path (d-pad / left stick to move, South/A to
 launch, East/B to back, Start to quit). Shoulders cycle the platform filter
 (All, then each host platform). West/X cycles sort (title, recently added,
-system). North/Y opens search; type with a keyboard, East/B clears or closes,
-South/A closes the field. Hold South/A (≥450ms) to open the library view
+system). On Recent, West/X cycles last played, title, and system — the host
+does not apply recently-added order to recents. North/Y opens search; type
+with a keyboard, East/B clears or closes, South/A closes the field. Hold
+South/A (≥450ms) to open the library view
 list (All, Continue, Favorites, Recent, Unplayed, Recently added, then custom
 shelves); d-pad moves, South confirms, East cancels. Hold North/Y to
 favorite or unfavorite the focused title. Keyboard is debug-only: arrows/WASD,
@@ -62,8 +64,8 @@ make tenfoot-smoke
   `platform`, `sort` (`title`, `recently_added`, `platform`), and `q`. Tenfoot
   keeps `availability=ready` even when the web home rails omit it, so an empty
   sofa collection can still list titles in the browser. Recent (`collection=recents`)
-  omits the default `sort=title` so the host keeps last-played order; an explicit
-  West/X sort still applies. Catalog `cover` handles load artwork directly;
+  omits `sort` for last-played order; Title and System send `sort=title` /
+  `sort=platform`. Catalog `cover` handles load artwork directly;
   prefetched titles do not wait on presentation metadata. A later view, platform,
   sort, or search reload cancels the in-flight games request and cover
   artwork/presentation work for the superseded generation. Each game may include

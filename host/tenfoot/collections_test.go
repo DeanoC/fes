@@ -323,25 +323,96 @@ func TestAppKeepsFiltersInsideCollection(t *testing.T) {
 	}
 }
 
-func TestCurrentQueryOmitsTitleSortForRecents(t *testing.T) {
+func TestCatalogQuerySortForRecents(t *testing.T) {
 	t.Parallel()
-	app := catalogApp(1)
-	app.collectionID = "recents"
-	app.sort = "title"
-	got := app.currentQueryLocked()
-	if got.Collection != "recents" || got.Sort != "" {
-		t.Fatalf("recents title sort = %#v", got)
+	if got := catalogQuerySort("recents", ""); got != "" {
+		t.Fatalf("last played = %q", got)
 	}
-	app.sort = "recently_added"
-	got = app.currentQueryLocked()
-	if got.Sort != "recently_added" {
-		t.Fatalf("recents explicit sort = %#v", got)
+	if got := catalogQuerySort("recents", "title"); got != "title" {
+		t.Fatalf("explicit title = %q", got)
 	}
-	app.collectionID = "favorites"
-	app.sort = "title"
-	got = app.currentQueryLocked()
-	if got.Sort != "title" {
-		t.Fatalf("favorites title sort = %#v", got)
+	if got := catalogQuerySort("recents", "recently_added"); got != "" {
+		t.Fatalf("recently_added = %q", got)
+	}
+	if got := catalogQuerySort("recents", "platform"); got != "platform" {
+		t.Fatalf("platform = %q", got)
+	}
+	if got := catalogQuerySort("favorites", "title"); got != "title" {
+		t.Fatalf("favorites title = %q", got)
+	}
+}
+
+func TestAppRecentsDefaultsToLastPlayedOrder(t *testing.T) {
+	var mu sync.Mutex
+	var queries []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v1/library/collections":
+			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []Collection{}})
+		case r.URL.Path == "/api/v1/games":
+			mu.Lock()
+			queries = append(queries, r.URL.RawQuery)
+			mu.Unlock()
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && len(snap.Games) == 1 && snap.Collection == ""
+	})
+	app.Press(CmdViewNext, time.Now())
+	app.Press(CmdViewNext, time.Now())
+	app.Press(CmdViewNext, time.Now())
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && snap.Collection == "recents" && snap.Sort == "" && strings.Contains(snap.ChromeLine(), "Last played")
+	})
+	mu.Lock()
+	got := append([]string(nil), queries...)
+	mu.Unlock()
+	found := false
+	for _, query := range got {
+		if !strings.Contains(query, "collection=recents") {
+			continue
+		}
+		found = true
+		if strings.Contains(query, "sort=") {
+			t.Fatalf("default recents sent sort: %s", query)
+		}
+	}
+	if !found {
+		t.Fatalf("no recents query in %#v", got)
+	}
+
+	app.Press(CmdSortCycle, time.Now())
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && snap.Collection == "recents" && snap.Sort == "title"
+	})
+	app.Press(CmdSortCycle, time.Now())
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && snap.Collection == "recents" && snap.Sort == "platform"
+	})
+	mu.Lock()
+	got = append([]string(nil), queries...)
+	mu.Unlock()
+	var sawTitle, sawPlatform bool
+	for _, query := range got {
+		if !strings.Contains(query, "collection=recents") {
+			continue
+		}
+		if strings.Contains(query, "sort=title") {
+			sawTitle = true
+		}
+		if strings.Contains(query, "sort=platform") {
+			sawPlatform = true
+		}
+	}
+	if !sawTitle || !sawPlatform {
+		t.Fatalf("explicit recents sorts missing title=%v platform=%v queries=%#v", sawTitle, sawPlatform, got)
 	}
 }
 
@@ -360,5 +431,9 @@ func TestChromeLineIncludesActiveView(t *testing.T) {
 	}
 	if !strings.HasPrefix(got, "Favorites") {
 		t.Fatalf("view should lead chrome: %q", got)
+	}
+	recent := Snapshot{ViewLabel: "Recent", Collection: "recents", Sort: "", Status: "0 titles · Recent · All · Last played"}
+	if chrome := recent.ChromeLine(); !strings.Contains(chrome, "Last played") {
+		t.Fatalf("recents chrome = %q", chrome)
 	}
 }

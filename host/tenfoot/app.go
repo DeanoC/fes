@@ -22,6 +22,10 @@ const (
 
 var catalogSorts = []string{"title", "recently_added", "platform"}
 
+// recentsSorts are the orders queryRecents actually applies: last-played,
+// title, and platform. recently_added is omitted because the host ignores it.
+var recentsSorts = []string{"", "title", "platform"}
+
 // LibraryView is one All / smart-rail / custom collection choice.
 type LibraryView struct {
 	ID    string
@@ -431,15 +435,23 @@ func (a *App) cyclePlatformLocked(delta int) {
 }
 
 func (a *App) cycleSortLocked() {
+	sorts := a.sortChoicesLocked()
 	idx := 0
-	for i, sort := range catalogSorts {
+	for i, sort := range sorts {
 		if sort == a.sort {
 			idx = i
 			break
 		}
 	}
-	a.sort = catalogSorts[(idx+1)%len(catalogSorts)]
+	a.sort = sorts[(idx+1)%len(sorts)]
 	a.reloadLocked()
+}
+
+func (a *App) sortChoicesLocked() []string {
+	if a.collectionID == "recents" {
+		return recentsSorts
+	}
+	return catalogSorts
 }
 
 func (a *App) cycleViewLocked(delta int) {
@@ -452,12 +464,31 @@ func (a *App) cycleViewLocked(delta int) {
 	if idx < 0 {
 		idx += len(views)
 	}
-	next := views[idx]
-	if next.ID == a.collectionID {
+	a.setCollectionLocked(views[idx].ID)
+}
+
+func (a *App) setCollectionLocked(id string) {
+	if id == a.collectionID {
 		return
 	}
-	a.collectionID = next.ID
+	a.collectionID = id
+	a.normalizeSortForCollectionLocked()
 	a.reloadLocked()
+}
+
+func (a *App) normalizeSortForCollectionLocked() {
+	if a.collectionID == "recents" {
+		switch a.sort {
+		case "platform", "system":
+			a.sort = "platform"
+		default:
+			a.sort = ""
+		}
+		return
+	}
+	if a.sort == "" {
+		a.sort = "title"
+	}
 }
 
 func (a *App) openViewPickerLocked() {
@@ -490,11 +521,7 @@ func (a *App) handleViewPickerLocked(cmd Command) {
 	case CmdSelect:
 		next := views[a.viewPickerIndex]
 		a.viewPickerOpen = false
-		if next.ID == a.collectionID {
-			return
-		}
-		a.collectionID = next.ID
-		a.reloadLocked()
+		a.setCollectionLocked(next.ID)
 	case CmdBack, CmdViewPicker:
 		a.viewPickerOpen = false
 	}
@@ -789,7 +816,7 @@ func (s Snapshot) ChromeLine() string {
 	} else if strings.TrimSpace(s.Query) != "" {
 		search = "Search: " + s.Query
 	}
-	return fmt.Sprintf("%s  ·  %s  ·  %s  ·  %s  ·  %s", view, platform, sortLabel(s.Sort), search, s.Status)
+	return fmt.Sprintf("%s  ·  %s  ·  %s  ·  %s  ·  %s", view, platform, sortLabel(s.Collection, s.Sort), search, s.Status)
 }
 
 // Selected returns the focused game, if any.
@@ -1055,10 +1082,17 @@ func (a *App) currentQueryLocked() GameListQuery {
 }
 
 func catalogQuerySort(collection, sort string) string {
-	if collection == "recents" && (sort == "" || sort == "title") {
+	if collection != "recents" {
+		return sort
+	}
+	switch sort {
+	case "title":
+		return "title"
+	case "platform", "system":
+		return "platform"
+	default:
 		return ""
 	}
-	return sort
 }
 
 func (a *App) libraryStatusLocked() string {
@@ -1068,14 +1102,17 @@ func (a *App) libraryStatusLocked() string {
 	if a.platformID != "" {
 		platform = a.platformLabelLocked(a.platformID)
 	}
-	sort := sortLabel(a.sort)
+	sort := sortLabel(a.collectionID, a.sort)
 	if q := strings.TrimSpace(a.query); q != "" {
 		return fmt.Sprintf("%d titles · %s · %s · %s · %q", n, view, platform, sort, q)
 	}
 	return fmt.Sprintf("%d titles · %s · %s · %s", n, view, platform, sort)
 }
 
-func sortLabel(sort string) string {
+func sortLabel(collection, sort string) string {
+	if collection == "recents" && (sort == "" || sort == "recently_added") {
+		return "Last played"
+	}
 	switch sort {
 	case "recently_added":
 		return "Recently added"
