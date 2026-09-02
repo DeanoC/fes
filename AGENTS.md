@@ -59,4 +59,15 @@ designated kit. Do not assume the same authorization for another device.
 - Prefer `rg` for source discovery.
 - Run the narrowest relevant tests, then affected package tests and
   `git diff --check`.
+- During active target/runtime development, prefer the fast loop: run the
+  host tests, cross-build only the changed self-contained runtime artifact,
+  inject it into a disposable copy of the last verified image, and deploy it
+  for bounded hardware diagnostics. Keep the original verified image
+  untouched and label derived-image results diagnostic only; they are not
+  reproducibility, release, or formal acceptance evidence.
+- Reserve the full two-pass `target-images`/`target-image-native` rebuild for
+  a stabilized change immediately before a major PR, merge, release, or
+  formal hardware acceptance. A full image rebuild remains mandatory when
+  Buildroot, init scripts, package contents, image configuration, or locked
+  inputs change.
 - Do not commit, push, or open a pull request unless the user authorizes it.

@@ -50,9 +50,19 @@ zero. The extracted history and active tree contain none of the discarded
 Main application, coordinator, legacy ABI, or synthetic production-profile
 paths.
 
-The working conventional FogCast path is unchanged. Milestone 2 is specified
-separately in
+The working conventional FogCast path is unchanged. The idle-only native
+baseline has now passed its designated-kit hardware acceptance, while native
+game support remains zero. Milestone 2 is specified separately in
 [`2026-09-01-bootable-native-baseline-design.md`](2026-09-01-bootable-native-baseline-design.md).
+
+Current milestone status:
+
+```text
+legacy dev/prod = current game-capable path
+native-dev = hardware-tested idle baseline, zero supported game systems
+Milestone 2 = complete
+Milestone 3 = Mega Drive vertical slice next
+```
 
 ## Success definition
 

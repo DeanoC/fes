@@ -49,10 +49,35 @@ This produces `build/output/target-image/native-dev/linux.img`. The build runs
 twice and requires identical image digests. Verification inspects the locked
 idle RBF, build-input record, ARM runtime and static ARM agent, and the
 runtime's target-library closure. QEMU proves only the read-only root,
-volatile mounts, and init packaging. Until Task 7 runs on the designated kit,
-`native-dev` has no hardware acceptance, ready-state claim, supported game
-systems, game launch, or development-RBF support. Continue to use the legacy
-`dev` image for the working game and development-RBF paths below.
+volatile mounts, and init packaging. The designated-kit idle path is now
+hardware-tested; `native-dev` still has zero supported game systems and no
+game-launch or development-RBF support. Continue to use the legacy `dev`
+image for the working game and development-RBF paths below.
+
+### Fast target iteration policy
+
+During active runtime or target debugging, do not rebuild the complete image
+for every source change. Run the narrow host tests, cross-build only the
+self-contained changed runtime artifact, and place it in a disposable copy of
+the last verified image. Deploy that derived image for a bounded diagnostic,
+preserving the verified source image and recording the derived hash. Derived
+image results are diagnostic only; they do not establish reproducibility,
+release readiness, or hardware acceptance.
+
+Use the full two-pass `target-images` or `target-image-native` build after a
+change has stabilized and immediately before a major PR, merge, release, or
+formal hardware acceptance. The full build is also required for any change to
+Buildroot, init scripts, package contents, image configuration, or locked
+inputs, because a runtime-only replacement cannot validate those changes.
+
+### Milestone status
+
+```text
+legacy dev/prod = current game-capable path
+native-dev = hardware-tested idle baseline, zero supported game systems
+Milestone 2 = complete
+Milestone 3 = Mega Drive vertical slice next
+```
 
 ## Dedicated fixture
 

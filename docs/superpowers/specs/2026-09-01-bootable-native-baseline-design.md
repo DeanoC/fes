@@ -90,6 +90,19 @@ This keeps the working image intact, tests the new boundary without claiming
 game parity, and preserves one obvious rollback: reinstall the legacy `dev`
 image.
 
+## Current status
+
+The native idle image and the unchanged legacy rollback have now passed the
+designated-kit acceptance. Native game and development-RBF support remain
+explicitly out of scope.
+
+```text
+legacy dev/prod = current game-capable path
+native-dev = hardware-tested idle baseline, zero supported game systems
+Milestone 2 = complete
+Milestone 3 = Mega Drive vertical slice next
+```
+
 ### Rejected alternatives
 
 - **Replace the current development image:** this would remove the tested
