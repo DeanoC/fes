@@ -54,6 +54,22 @@ volatile mounts, and init packaging. Until Task 7 runs on the designated kit,
 systems, game launch, or development-RBF support. Continue to use the legacy
 `dev` image for the working game and development-RBF paths below.
 
+### Fast target iteration policy
+
+During active runtime or target debugging, do not rebuild the complete image
+for every source change. Run the narrow host tests, cross-build only the
+self-contained changed runtime artifact, and place it in a disposable copy of
+the last verified image. Deploy that derived image for a bounded diagnostic,
+preserving the verified source image and recording the derived hash. Derived
+image results are diagnostic only; they do not establish reproducibility,
+release readiness, or hardware acceptance.
+
+Use the full two-pass `target-images` or `target-image-native` build after a
+change has stabilized and immediately before a major PR, merge, release, or
+formal hardware acceptance. The full build is also required for any change to
+Buildroot, init scripts, package contents, image configuration, or locked
+inputs, because a runtime-only replacement cannot validate those changes.
+
 ## Dedicated fixture
 
 The designated disposable kit is:
