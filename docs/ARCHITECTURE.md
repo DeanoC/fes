@@ -71,9 +71,10 @@ the public host API, not a second launch path:
 
 ```text
 Native SDL3 UI
-  -> GET /api/v1/games
-  -> GET /api/v1/presentation/games/{id}
-  -> GET /api/v1/presentation/artwork/{handle}
+  -> GET /api/v1/platforms
+  -> GET /api/v1/games (grouped=1, availability=ready, optional platform/sort/q)
+  -> GET /api/v1/presentation/artwork/{handle} from catalog cover handles
+  -> GET /api/v1/presentation/games/{id} for the focused title
   -> POST /api/v1/session/launch
   -> host session service
   -> existing FPGA launch path

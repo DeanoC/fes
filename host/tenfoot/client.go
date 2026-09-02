@@ -53,6 +53,48 @@ type Presentation struct {
 		Genre          string `json:"genre"`
 		Studio         string `json:"studio"`
 	} `json:"presentation"`
+	Attribution *PresentationAttribution `json:"attribution,omitempty"`
+}
+
+// PresentationAttribution is the provider label the public API returns with ready metadata.
+type PresentationAttribution struct {
+	Provider string `json:"provider"`
+	Label    string `json:"label"`
+}
+
+// AttributionLabel returns the validated IGDB or LaunchBox label, or empty.
+func (p Presentation) AttributionLabel() string {
+	if p.Attribution == nil {
+		return ""
+	}
+	provider := strings.TrimSpace(p.Attribution.Provider)
+	label := strings.TrimSpace(p.Attribution.Label)
+	switch {
+	case provider == "igdb" && label == "Data from IGDB.com":
+		return label
+	case provider == "launchbox" && label == "Data from LaunchBox Games Database":
+		return label
+	default:
+		return ""
+	}
+}
+
+// Platform is one row from GET /api/v1/platforms.
+type Platform struct {
+	ID         string `json:"id"`
+	Label      string `json:"label"`
+	GameCount  int    `json:"game_count"`
+	Online     bool   `json:"online"`
+	Launchable bool   `json:"launchable"`
+}
+
+// GameListQuery is GET /api/v1/games with the web UI's catalog params.
+type GameListQuery struct {
+	Cursor   string
+	Limit    int
+	Platform string
+	Sort     string
+	Q        string
 }
 
 // LaunchResult is the host response to POST /api/v1/session/launch.
@@ -87,8 +129,9 @@ func NewClient(baseURL string, httpClient *http.Client) *Client {
 	return &Client{baseURL: baseURL, httpClient: httpClient, launchHTTP: &launchHTTP}
 }
 
-// ListGames fetches one catalog page.
-func (c *Client) ListGames(ctx context.Context, cursor string, limit int) ([]Game, string, error) {
+// ListGames fetches one catalog page. grouped=1 and availability=ready stay the default.
+func (c *Client) ListGames(ctx context.Context, query GameListQuery) ([]Game, string, error) {
+	limit := query.Limit
 	if limit <= 0 {
 		limit = defaultPageLimit
 	}
@@ -96,8 +139,17 @@ func (c *Client) ListGames(ctx context.Context, cursor string, limit int) ([]Gam
 	values.Set("grouped", "1")
 	values.Set("availability", "ready")
 	values.Set("limit", strconv.Itoa(limit))
-	if strings.TrimSpace(cursor) != "" {
-		values.Set("cursor", cursor)
+	if platform := strings.TrimSpace(query.Platform); platform != "" {
+		values.Set("platform", platform)
+	}
+	if sort := catalogSortParam(query.Sort); sort != "" {
+		values.Set("sort", sort)
+	}
+	if q := strings.TrimSpace(query.Q); q != "" {
+		values.Set("q", q)
+	}
+	if strings.TrimSpace(query.Cursor) != "" {
+		values.Set("cursor", query.Cursor)
 	}
 	var page struct {
 		Games      []Game `json:"games"`
@@ -113,6 +165,19 @@ func (c *Client) ListGames(ctx context.Context, cursor string, limit int) ([]Gam
 		page.Games[i] = preferLaunchable(game)
 	}
 	return page.Games, page.NextCursor, nil
+}
+
+func catalogSortParam(sort string) string {
+	switch strings.TrimSpace(sort) {
+	case "title":
+		return "title"
+	case "recently_added":
+		return "recently_added"
+	case "platform", "system":
+		return "platform"
+	default:
+		return ""
+	}
 }
 
 // preferLaunchable keeps a grouped row launchable when the region-picked
@@ -132,10 +197,24 @@ func preferLaunchable(game Game) Game {
 	return game
 }
 
+// Platforms loads GET /api/v1/platforms.
+func (c *Client) Platforms(ctx context.Context) ([]Platform, error) {
+	var page struct {
+		Platforms []Platform `json:"platforms"`
+	}
+	if err := c.getJSON(ctx, "/api/v1/platforms", &page); err != nil {
+		return nil, err
+	}
+	if page.Platforms == nil {
+		page.Platforms = []Platform{}
+	}
+	return page.Platforms, nil
+}
+
 // FetchLibrary walks catalog pages until maxGames or the cursor ends.
-func (c *Client) FetchLibrary(ctx context.Context, pageLimit, maxGames int) ([]Game, error) {
-	if pageLimit <= 0 {
-		pageLimit = defaultPageLimit
+func (c *Client) FetchLibrary(ctx context.Context, query GameListQuery, maxGames int) ([]Game, error) {
+	if query.Limit <= 0 {
+		query.Limit = defaultPageLimit
 	}
 	if maxGames <= 0 {
 		maxGames = defaultMaxGames
@@ -148,7 +227,8 @@ func (c *Client) FetchLibrary(ctx context.Context, pageLimit, maxGames int) ([]G
 		if err := ctx.Err(); err != nil {
 			return all, err
 		}
-		page, next, err := c.ListGames(ctx, cursor, pageLimit)
+		query.Cursor = cursor
+		page, next, err := c.ListGames(ctx, query)
 		if err != nil {
 			return all, err
 		}

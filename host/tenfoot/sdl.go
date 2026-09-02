@@ -6,6 +6,7 @@ package tenfoot
 #cgo pkg-config: sdl3
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
+#include <stddef.h>
 #include <stdlib.h>
 
 enum {
@@ -15,7 +16,8 @@ enum {
 	FC_EV_BUTTON,
 	FC_EV_AXIS,
 	FC_EV_PAD_ADDED,
-	FC_EV_PAD_REMOVED
+	FC_EV_PAD_REMOVED,
+	FC_EV_TEXT
 };
 
 typedef struct FogcastEvent {
@@ -24,6 +26,7 @@ typedef struct FogcastEvent {
 	int value;
 	int which;
 	int down;
+	char *text;
 } FogcastEvent;
 
 void fogcast_update_pads(void) {
@@ -34,6 +37,7 @@ void fogcast_update_pads(void) {
 int fogcast_poll(FogcastEvent *out) {
 	SDL_Event e;
 	while (SDL_PollEvent(&e)) {
+		out->text = NULL;
 		switch (e.type) {
 		case SDL_EVENT_QUIT:
 			out->kind = FC_EV_QUIT;
@@ -46,6 +50,12 @@ int fogcast_poll(FogcastEvent *out) {
 			out->kind = FC_EV_KEY;
 			out->code = (int)e.key.key;
 			out->down = e.key.down ? 1 : 0;
+			return 1;
+		case SDL_EVENT_TEXT_INPUT:
+			out->kind = FC_EV_TEXT;
+			if (e.text.text != NULL) {
+				out->text = SDL_strdup(e.text.text);
+			}
 			return 1;
 		case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
 		case SDL_EVENT_GAMEPAD_BUTTON_UP:
@@ -165,12 +175,14 @@ const (
 	evAxis       = C.FC_EV_AXIS
 	evPadAdded   = C.FC_EV_PAD_ADDED
 	evPadRemoved = C.FC_EV_PAD_REMOVED
+	evText       = C.FC_EV_TEXT
 )
 
 type sdlTexture struct {
 	tex *C.SDL_Texture
 	w   int
 	h   int
+	src *image.RGBA
 }
 
 func runWindow(ctx context.Context, opts Options) error {
@@ -230,6 +242,7 @@ func runWindow(ctx context.Context, opts Options) error {
 
 	var stick stickTracker
 	held := map[Command]bool{}
+	textInput := false
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil
@@ -250,10 +263,23 @@ func runWindow(ctx context.Context, opts Options) error {
 		}
 		app.Tick(now)
 		snap := app.Snapshot()
+		textInput = syncTextInput(window, snap.SearchOpen, textInput)
 		syncTextures(renderer, snap, textures)
 		drawFrame(renderer, snap, textures, labels)
 		C.SDL_Delay(1)
 	}
+}
+
+func syncTextInput(window *C.SDL_Window, want, on bool) bool {
+	if want == on {
+		return on
+	}
+	if want {
+		C.SDL_StartTextInput(window)
+		return true
+	}
+	C.SDL_StopTextInput(window)
+	return false
 }
 
 func destroyTextures(textures map[string]sdlTexture) {
@@ -299,7 +325,7 @@ func runSmoke(ctx context.Context, opts Options, app *App, renderer *C.SDL_Rende
 		if snap.LoadErr != "" {
 			return fmt.Errorf("smoke: library load: %s", snap.LoadErr)
 		}
-		if len(snap.Games) >= 2 {
+		if len(snap.Games) >= 2 && !snap.Loading {
 			evidence["games"] = len(snap.Games)
 			break
 		}
@@ -536,6 +562,10 @@ func pollGamepads(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, held map[C
 			C.SDL_GAMEPAD_BUTTON_DPAD_RIGHT,
 			C.SDL_GAMEPAD_BUTTON_SOUTH,
 			C.SDL_GAMEPAD_BUTTON_EAST,
+			C.SDL_GAMEPAD_BUTTON_WEST,
+			C.SDL_GAMEPAD_BUTTON_NORTH,
+			C.SDL_GAMEPAD_BUTTON_LEFT_SHOULDER,
+			C.SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER,
 			C.SDL_GAMEPAD_BUTTON_START,
 			C.SDL_GAMEPAD_BUTTON_BACK,
 		} {
@@ -556,11 +586,29 @@ func pollGamepads(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, held map[C
 	return applyPressed(app, pressed, held, now)
 }
 
+func takeEventText(ev *C.FogcastEvent) string {
+	if ev.text == nil {
+		return ""
+	}
+	text := C.GoString(ev.text)
+	C.SDL_free(unsafe.Pointer(ev.text))
+	ev.text = nil
+	return text
+}
+
 func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.FogcastEvent, now time.Time, stick *stickTracker) bool {
 	switch ev.kind {
 	case evQuit:
 		return true
+	case evText:
+		text := takeEventText(ev)
+		if app.SearchOpen() {
+			app.TypeText(text, now)
+		}
 	case evKey:
+		if app.SearchOpen() {
+			return handleSearchKey(app, ev, now)
+		}
 		cmd := commandFromSDLKey(ev.code)
 		if ev.down != 0 {
 			if cmd == CmdQuit {
@@ -629,6 +677,14 @@ func commandFromSDLButton(code C.int) Command {
 		return CommandFromButton(ButtonSouth)
 	case C.SDL_GAMEPAD_BUTTON_EAST:
 		return CommandFromButton(ButtonEast)
+	case C.SDL_GAMEPAD_BUTTON_WEST:
+		return CommandFromButton(ButtonWest)
+	case C.SDL_GAMEPAD_BUTTON_NORTH:
+		return CommandFromButton(ButtonNorth)
+	case C.SDL_GAMEPAD_BUTTON_LEFT_SHOULDER:
+		return CommandFromButton(ButtonLeftShoulder)
+	case C.SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER:
+		return CommandFromButton(ButtonRightShoulder)
 	case C.SDL_GAMEPAD_BUTTON_START:
 		return CommandFromButton(ButtonStart)
 	case C.SDL_GAMEPAD_BUTTON_BACK:
@@ -636,6 +692,32 @@ func commandFromSDLButton(code C.int) Command {
 	default:
 		return CmdNone
 	}
+}
+
+func handleSearchKey(app *App, ev *C.FogcastEvent, now time.Time) bool {
+	key := C.SDL_Keycode(ev.code)
+	if ev.down != 0 {
+		switch key {
+		case C.SDLK_BACKSPACE:
+			app.SearchBackspace(now)
+		case C.SDLK_ESCAPE:
+			app.Press(CmdBack, now)
+		case C.SDLK_RETURN:
+			app.Press(CmdSelect, now)
+		case C.SDLK_UP, C.SDLK_DOWN, C.SDLK_LEFT, C.SDLK_RIGHT:
+			app.Press(commandFromSDLKey(ev.code), now)
+		}
+		return false
+	}
+	switch key {
+	case C.SDLK_ESCAPE:
+		app.Release(CmdBack)
+	case C.SDLK_RETURN:
+		app.Release(CmdSelect)
+	case C.SDLK_UP, C.SDLK_DOWN, C.SDLK_LEFT, C.SDLK_RIGHT:
+		app.Release(commandFromSDLKey(ev.code))
+	}
+	return false
 }
 
 func commandFromSDLKey(code C.int) Command {
@@ -654,6 +736,14 @@ func commandFromSDLKey(code C.int) Command {
 		return CmdBack
 	case C.SDLK_Q:
 		return CmdQuit
+	case C.SDLK_LEFTBRACKET:
+		return CmdFilterPrev
+	case C.SDLK_RIGHTBRACKET:
+		return CmdFilterNext
+	case C.SDLK_X:
+		return CmdSortCycle
+	case C.SDLK_SLASH, C.SDLK_F:
+		return CmdSearch
 	default:
 		return CmdNone
 	}
@@ -669,14 +759,19 @@ func syncTextures(renderer *C.SDL_Renderer, snap Snapshot, textures map[string]s
 			continue
 		}
 		needed[id] = struct{}{}
-		if _, ok := textures[id]; ok {
+		if existing, ok := textures[id]; ok && existing.src == img {
 			continue
+		}
+		if existing, ok := textures[id]; ok {
+			C.SDL_DestroyTexture(existing.tex)
+			delete(textures, id)
 		}
 		tex, err := uploadTexture(renderer, img)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "tenfoot: cover texture %s: %v\n", id, err)
 			continue
 		}
+		tex.src = img
 		textures[id] = tex
 	}
 	for id, item := range textures {
@@ -710,8 +805,8 @@ func uploadTexture(renderer *C.SDL_Renderer, img *image.RGBA) (sdlTexture, error
 func drawFrame(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[string]sdlTexture) {
 	C.SDL_SetRenderDrawColor(renderer, 12, 14, 20, 255)
 	C.SDL_RenderClear(renderer)
-	drawHeader(renderer, snap)
 	used := map[string]struct{}{}
+	drawHeader(renderer, snap, labels, used)
 	start, end := snap.Grid.VisibleRange()
 	for i := start; i < end && i < len(snap.Games); i++ {
 		x, y, ok := snap.Grid.CellOrigin(i)
@@ -735,6 +830,7 @@ func drawFrame(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[str
 		}
 		drawLabel(renderer, labels, used, "t:"+game.ID, x+6, y+snap.Grid.CellH-28, snap.Grid.CellW-12, 16, game.Title)
 	}
+	drawDetail(renderer, snap, labels, used)
 	for key, item := range labels {
 		if _, ok := used[key]; ok {
 			continue
@@ -750,6 +846,7 @@ func drawLabel(renderer *C.SDL_Renderer, labels map[string]sdlTexture, used map[
 	if text == "" || maxW < 1 {
 		return
 	}
+	key = labelCacheKey(key, text, maxW, sizePx)
 	used[key] = struct{}{}
 	tex, ok := labels[key]
 	if !ok {
@@ -770,15 +867,71 @@ func drawLabel(renderer *C.SDL_Renderer, labels map[string]sdlTexture, used map[
 	C.SDL_RenderTexture(renderer, tex.tex, nil, &dst)
 }
 
-func drawHeader(renderer *C.SDL_Renderer, snap Snapshot) {
+func drawHeader(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTexture, used map[string]struct{}) {
 	fillRect(renderer, 0, 0, float32(snap.Grid.Width), float32(snap.Grid.HeaderHeight), 18, 20, 28, 255)
-	drawDebug(renderer, 24, 24, "FOGCAST", 3)
+	drawDebug(renderer, 24, 18, "FOGCAST", 3)
 	pad := "KB DEBUG"
 	if snap.Gamepads > 0 {
 		pad = fmt.Sprintf("PAD %d", snap.Gamepads)
 	}
-	drawDebug(renderer, snap.Grid.Width-160, 28, pad, 2)
-	drawDebug(renderer, 220, 32, fitText(snap.Status, 70), 2)
+	drawDebug(renderer, snap.Grid.Width-160, 22, pad, 2)
+	chrome := headerChrome(snap)
+	drawLabel(renderer, labels, used, "chrome", 24, 52, snap.Grid.Width-48, 18, chrome)
+	drawDebug(renderer, 24, 72, "LB/RB platform  X sort  Y search", 1)
+}
+
+func headerChrome(snap Snapshot) string {
+	platform := "All"
+	if snap.PlatformID != "" {
+		platform = snap.PlatformID
+		for _, row := range snap.Platforms {
+			if row.ID == snap.PlatformID {
+				if label := strings.TrimSpace(row.Label); label != "" {
+					platform = label
+				}
+				break
+			}
+		}
+	}
+	search := "Search"
+	if snap.SearchOpen {
+		search = "Search: " + snap.Query + "_"
+	} else if strings.TrimSpace(snap.Query) != "" {
+		search = "Search: " + snap.Query
+	}
+	return fmt.Sprintf("%s  ·  %s  ·  %s  ·  %s", platform, sortLabel(snap.Sort), search, snap.Status)
+}
+
+func drawDetail(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTexture, used map[string]struct{}) {
+	h := snap.Grid.FooterHeight
+	if h < 1 {
+		return
+	}
+	y := snap.Grid.Height - h
+	fillRect(renderer, 0, float32(y), float32(snap.Grid.Width), float32(h), 16, 18, 26, 255)
+	detail := snap.FocusDetail
+	pad := 24
+	title := strings.TrimSpace(detail.Title)
+	if title == "" {
+		title = "No title focused"
+	}
+	drawLabel(renderer, labels, used, "d-title", pad, y+12, snap.Grid.Width-2*pad, 26, title)
+	metaWidth := snap.Grid.Width - 2*pad
+	facts, factsX, factsW, attr, attrX, attrW := layoutDetailMeta(detail, pad, metaWidth, 16)
+	if facts != "" && factsW > 0 {
+		drawLabel(renderer, labels, used, "d-meta", factsX, y+44, factsW, 16, facts)
+	}
+	if attr != "" && attrW > 0 {
+		drawLabel(renderer, labels, used, "d-attr", attrX, y+44, attrW, 16, attr)
+	}
+	summaryWidth := snap.Grid.Width - 2*pad
+	maxChars := summaryWidth / 8
+	if maxChars < 20 {
+		maxChars = 20
+	}
+	for i, line := range wrapWords(detail.Summary, maxChars, 2) {
+		drawLabel(renderer, labels, used, fmt.Sprintf("d-sum-%d", i), pad, y+68+i*20, summaryWidth, 16, line)
+	}
 }
 
 func fillRect(renderer *C.SDL_Renderer, x, y, w, h float32, r, g, b, a uint8) {

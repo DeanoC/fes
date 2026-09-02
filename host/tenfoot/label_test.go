@@ -79,6 +79,28 @@ func TestRasterizeLabelCJKFallback(t *testing.T) {
 	}
 }
 
+func TestLabelCacheKeyIncludesRenderedText(t *testing.T) {
+	t.Parallel()
+	titleA := labelCacheKey("d-title", "Mario", 800, 26)
+	titleB := labelCacheKey("d-title", "Sonic", 800, 26)
+	chromeA := labelCacheKey("chrome", "All  ·  Title  ·  Search  ·  2 titles", 1232, 18)
+	chromeB := labelCacheKey("chrome", "Super NES  ·  Title  ·  Search  ·  1 titles", 1232, 18)
+	if titleA == titleB {
+		t.Fatal("detail title key reused across different games")
+	}
+	if chromeA == chromeB {
+		t.Fatal("chrome key reused after filter text changed")
+	}
+	if titleA != labelCacheKey("d-title", " Mario ", 800, 26) {
+		t.Fatal("trimmed text must share a key")
+	}
+	sum0 := labelCacheKey("d-sum-0", "Jump on turtles.", 800, 16)
+	sum1 := labelCacheKey("d-sum-0", "Gotta go fast.", 800, 16)
+	if sum0 == sum1 {
+		t.Fatal("summary line key reused across different text")
+	}
+}
+
 func TestUnpremultiplyRGBAStraightensEdges(t *testing.T) {
 	t.Parallel()
 	img := image.NewRGBA(image.Rect(0, 0, 1, 1))

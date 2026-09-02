@@ -28,14 +28,14 @@ func TestClientListsGamesAndFollowsCursor(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	client := NewClient(server.URL, server.Client())
-	games, err := client.FetchLibrary(context.Background(), 200, 10)
+	games, err := client.FetchLibrary(context.Background(), GameListQuery{Limit: 200, Sort: "title"}, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(games) != 2 || games[0].ID != "snes-mario" || games[1].ID != "megadrive-sonic" {
 		t.Fatalf("games = %#v", games)
 	}
-	if len(paths) != 2 || !strings.Contains(paths[0], "grouped=1") || !strings.Contains(paths[0], "availability=ready") || !strings.Contains(paths[0], "limit=200") {
+	if len(paths) != 2 || !strings.Contains(paths[0], "grouped=1") || !strings.Contains(paths[0], "availability=ready") || !strings.Contains(paths[0], "limit=200") || !strings.Contains(paths[0], "sort=title") {
 		t.Fatalf("paths = %#v", paths)
 	}
 }
@@ -59,7 +59,7 @@ func TestListGamesPrefersLaunchableVariant(t *testing.T) {
 		})
 	}))
 	t.Cleanup(server.Close)
-	games, _, err := NewClient(server.URL, server.Client()).ListGames(context.Background(), "", 10)
+	games, _, err := NewClient(server.URL, server.Client()).ListGames(context.Background(), GameListQuery{Limit: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,6 +88,7 @@ func TestClientPresentationArtworkAndLaunch(t *testing.T) {
 					Genre          string `json:"genre"`
 					Studio         string `json:"studio"`
 				}{CoverArtworkID: handle, Summary: "jump", Year: "1985", Genre: "Platform", Studio: "Nintendo"},
+				Attribution: &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/presentation/artwork/"+handle:
 			w.Header().Set("Content-Type", "image/png")
@@ -107,6 +108,9 @@ func TestClientPresentationArtworkAndLaunch(t *testing.T) {
 	pres, err := client.GamePresentation(context.Background(), "snes-mario")
 	if err != nil || CoverHandle(Game{}, pres) != handle {
 		t.Fatalf("presentation = %#v, %v", pres, err)
+	}
+	if got := pres.AttributionLabel(); got != "Data from IGDB.com" {
+		t.Fatalf("attribution = %q", got)
 	}
 	data, ctype, err := client.Artwork(context.Background(), handle)
 	if err != nil || ctype != "image/png" || string(data) != "png-bytes" {
@@ -134,6 +138,74 @@ func TestClientLaunchRecordsHostError(t *testing.T) {
 	}
 	if result.HTTPStatus != 500 || result.ErrorCode != "SOURCE_UNAVAILABLE" {
 		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestClientListsGamesWithPlatformSortAndSearch(t *testing.T) {
+	t.Parallel()
+	var paths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.RequestURI())
+		_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{}})
+	}))
+	t.Cleanup(server.Close)
+	_, _, err := NewClient(server.URL, server.Client()).ListGames(context.Background(), GameListQuery{
+		Limit:    50,
+		Platform: "snes",
+		Sort:     "system",
+		Q:        "mario & luigi",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(paths) != 1 {
+		t.Fatalf("paths = %#v", paths)
+	}
+	for _, want := range []string{"grouped=1", "availability=ready", "platform=snes", "sort=platform", "q=mario"} {
+		if !strings.Contains(paths[0], want) {
+			t.Fatalf("missing %q in %s", want, paths[0])
+		}
+	}
+}
+
+func TestClientListsPlatforms(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/platforms" {
+			t.Errorf("path = %s", r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"platforms": []Platform{{ID: "snes", Label: "Super NES", GameCount: 3, Launchable: true}},
+		})
+	}))
+	t.Cleanup(server.Close)
+	platforms, err := NewClient(server.URL, server.Client()).Platforms(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(platforms) != 1 || platforms[0].ID != "snes" || platforms[0].Label != "Super NES" {
+		t.Fatalf("platforms = %#v", platforms)
+	}
+}
+
+func TestPresentationAttributionLabel(t *testing.T) {
+	t.Parallel()
+	igdb := Presentation{Attribution: &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"}}
+	if got := igdb.AttributionLabel(); got != "Data from IGDB.com" {
+		t.Fatalf("igdb = %q", got)
+	}
+	launchbox := Presentation{Attribution: &PresentationAttribution{Provider: "launchbox", Label: "Data from LaunchBox Games Database"}}
+	if got := launchbox.AttributionLabel(); got != "Data from LaunchBox Games Database" {
+		t.Fatalf("launchbox = %q", got)
+	}
+	unknown := Presentation{Attribution: &PresentationAttribution{Provider: "steam", Label: "Steam"}}
+	if got := unknown.AttributionLabel(); got != "" {
+		t.Fatalf("unknown = %q", got)
+	}
+	if got := (Presentation{}).AttributionLabel(); got != "" {
+		t.Fatalf("empty = %q", got)
 	}
 }
 

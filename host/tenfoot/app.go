@@ -2,18 +2,25 @@ package tenfoot
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"image"
+	"strings"
 	"sync"
 	"time"
 )
 
 const (
-	coverWorkers   = 6
-	prefetchRows   = 2
-	maxInflight    = 8
-	coverJobBuffer = 128
+	coverWorkers         = 6
+	prefetchRows         = 2
+	maxInflight          = 8
+	coverJobBuffer       = 128
+	searchDebounce       = 280 * time.Millisecond
+	presentationRetryMin = 400 * time.Millisecond
+	presentationRetryMax = 8 * time.Second
 )
+
+var catalogSorts = []string{"title", "recently_added", "platform"}
 
 type coverPhase int
 
@@ -27,10 +34,12 @@ const (
 )
 
 type coverSlot struct {
-	phase   coverPhase
-	handle  string
-	image   *image.RGBA
-	message string
+	phase      coverPhase
+	handle     string
+	image      *image.RGBA
+	message    string
+	detailTry  int
+	detailNext time.Time
 }
 
 type workKind int
@@ -44,15 +53,22 @@ type workItem struct {
 	kind   workKind
 	gameID string
 	handle string
+	gen    int
 }
 
 type workResult struct {
-	kind    workKind
-	gameID  string
-	handle  string
-	image   *image.RGBA
-	err     error
-	missing bool
+	kind        workKind
+	gameID      string
+	handle      string
+	image       *image.RGBA
+	err         error
+	missing     bool
+	state       string
+	year        string
+	genre       string
+	summary     string
+	attribution string
+	gen         int
 }
 
 // LaunchSnapshot is the current host launch attempt.
@@ -66,17 +82,83 @@ type LaunchSnapshot struct {
 	ErrorMessage string
 }
 
+// FocusDetail is the focused title's metadata shown in the detail strip.
+type FocusDetail struct {
+	Title       string
+	Platform    string
+	Year        string
+	Genre       string
+	Summary     string
+	Attribution string
+}
+
+// MetaFacts joins platform, year, and genre for the detail strip.
+func (d FocusDetail) MetaFacts() string {
+	parts := make([]string, 0, 3)
+	for _, part := range []string{d.Platform, d.Year, d.Genre} {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		parts = append(parts, part)
+	}
+	return strings.Join(parts, "  ·  ")
+}
+
+// MetaLine joins optional metadata and provider attribution.
+func (d FocusDetail) MetaLine() string {
+	parts := make([]string, 0, 2)
+	for _, part := range []string{d.MetaFacts(), d.Attribution} {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		parts = append(parts, part)
+	}
+	return strings.Join(parts, "  ·  ")
+}
+
+const detailMetaGap = 12
+
+// layoutDetailMeta gives attribution its own reserved width so fitLabel cannot
+// clip provenance off a shared facts line.
+func layoutDetailMeta(d FocusDetail, x, maxWidth, sizePx int) (facts string, factsX, factsW int, attr string, attrX, attrW int) {
+	facts = d.MetaFacts()
+	attr = strings.TrimSpace(d.Attribution)
+	if maxWidth < 1 {
+		return facts, x, 0, attr, x, 0
+	}
+	if attr == "" {
+		return facts, x, maxWidth, "", x, 0
+	}
+	attrW = measureLabel(attr, sizePx)
+	if attrW < 1 || attrW > maxWidth {
+		attrW = maxWidth
+	}
+	if facts == "" || attrW+detailMetaGap >= maxWidth {
+		return "", x, 0, attr, x, maxWidth
+	}
+	factsW = maxWidth - attrW - detailMetaGap
+	return facts, x, factsW, attr, x + factsW + detailMetaGap, attrW
+}
+
 // Snapshot is a frame-loop readable copy of launcher state.
 type Snapshot struct {
-	Games     []Game
-	Grid      Grid
-	Status    string
-	LoadErr   string
-	Loading   bool
-	Covers    map[string]*image.RGBA
-	Launch    LaunchSnapshot
-	Gamepads  int
-	CoverHits int
+	Games       []Game
+	Grid        Grid
+	Status      string
+	LoadErr     string
+	Loading     bool
+	Covers      map[string]*image.RGBA
+	Launch      LaunchSnapshot
+	Gamepads    int
+	CoverHits   int
+	Platforms   []Platform
+	PlatformID  string
+	Sort        string
+	Query       string
+	SearchOpen  bool
+	FocusDetail FocusDetail
 }
 
 // App owns catalog, focus, async covers, and host launch. SDL stays out.
@@ -100,6 +182,23 @@ type App struct {
 	results   chan workResult
 	maxGames  int
 	pageLimit int
+
+	platforms      []Platform
+	platformID     string
+	sort           string
+	query          string
+	searchOpen     bool
+	searchPending  bool
+	searchDue      time.Time
+	details        map[string]FocusDetail
+	loadGen        int
+	keepFocusID    string
+	keepFocusIndex int
+	navDirty       bool
+	platformErr    string
+	platformKick   chan struct{}
+	loadCancel     context.CancelFunc
+	jobCtx         context.Context
 }
 
 // NewApp builds a launcher model bound to the host API client.
@@ -113,17 +212,20 @@ func NewApp(client *Client, width, height, maxGames int) *App {
 	grid := Grid{}
 	grid.Layout(width, height)
 	return &App{
-		client:    client,
-		games:     []Game{},
-		grid:      grid,
-		covers:    map[string]*coverSlot{},
-		inflight:  map[string]workKind{},
-		status:    "connecting to host API",
-		launch:    LaunchSnapshot{Phase: "idle"},
-		jobs:      make(chan workItem, coverJobBuffer),
-		results:   make(chan workResult, coverJobBuffer),
-		maxGames:  maxGames,
-		pageLimit: defaultPageLimit,
+		client:       client,
+		games:        []Game{},
+		grid:         grid,
+		covers:       map[string]*coverSlot{},
+		inflight:     map[string]workKind{},
+		status:       "connecting to host API",
+		launch:       LaunchSnapshot{Phase: "idle"},
+		jobs:         make(chan workItem, coverJobBuffer),
+		results:      make(chan workResult, coverJobBuffer),
+		maxGames:     maxGames,
+		pageLimit:    defaultPageLimit,
+		sort:         "title",
+		details:      map[string]FocusDetail{},
+		platformKick: make(chan struct{}, 1),
 	}
 }
 
@@ -138,11 +240,15 @@ func (a *App) Start(parent context.Context) {
 	a.ctx = ctx
 	a.cancel = cancel
 	a.loading = true
+	a.loadGen++
+	gen := a.loadGen
+	loadCtx := a.replaceLoadContextLocked()
 	a.mu.Unlock()
 	for i := 0; i < coverWorkers; i++ {
 		go a.worker(ctx)
 	}
-	go a.loadLibrary(ctx)
+	go a.loadPlatforms(ctx)
+	go a.loadLibrary(loadCtx, gen)
 }
 
 // Stop cancels background work.
@@ -164,18 +270,182 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	defer a.mu.Unlock()
 	switch cmd {
 	case CmdUp:
-		a.grid.Move(0, -1)
+		a.moveFocusLocked(0, -1)
 	case CmdDown:
-		a.grid.Move(0, 1)
+		a.moveFocusLocked(0, 1)
 	case CmdLeft:
-		a.grid.Move(-1, 0)
+		a.moveFocusLocked(-1, 0)
 	case CmdRight:
-		a.grid.Move(1, 0)
+		a.moveFocusLocked(1, 0)
 	case CmdSelect:
+		if a.searchOpen {
+			a.searchOpen = false
+			a.applyPendingSearchLocked()
+			return
+		}
 		a.startLaunchLocked()
 	case CmdBack:
+		if a.searchOpen {
+			if strings.TrimSpace(a.query) != "" {
+				a.query = ""
+				a.searchPending = false
+				a.reloadLocked()
+				return
+			}
+			a.searchOpen = false
+			return
+		}
 		if a.launch.Phase == "launching" {
 			a.status = "launch in progress"
+		}
+	case CmdFilterPrev:
+		a.cyclePlatformLocked(-1)
+	case CmdFilterNext:
+		a.cyclePlatformLocked(1)
+	case CmdSortCycle:
+		a.cycleSortLocked()
+	case CmdSearch:
+		a.searchOpen = !a.searchOpen
+	}
+}
+
+// TypeText appends into the on-screen search field.
+func (a *App) TypeText(text string, now time.Time) {
+	text = strings.ReplaceAll(text, "\n", "")
+	text = strings.ReplaceAll(text, "\r", "")
+	if text == "" {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if !a.searchOpen {
+		return
+	}
+	a.query += text
+	a.markSearchLocked(now)
+}
+
+// SearchBackspace deletes the last search rune.
+func (a *App) SearchBackspace(now time.Time) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if !a.searchOpen || a.query == "" {
+		return
+	}
+	runes := []rune(a.query)
+	a.query = string(runes[:len(runes)-1])
+	a.markSearchLocked(now)
+}
+
+func (a *App) markSearchLocked(now time.Time) {
+	a.searchPending = true
+	a.searchDue = now.Add(searchDebounce)
+}
+
+func (a *App) flushSearchLocked(now time.Time) {
+	if !a.searchPending {
+		return
+	}
+	if !now.IsZero() && now.Before(a.searchDue) {
+		return
+	}
+	a.applyPendingSearchLocked()
+}
+
+func (a *App) applyPendingSearchLocked() {
+	if !a.searchPending {
+		return
+	}
+	a.searchPending = false
+	a.reloadLocked()
+}
+
+func (a *App) cyclePlatformLocked(delta int) {
+	choices := a.platformChoicesLocked()
+	if len(choices) < 2 {
+		if a.platformErr != "" {
+			a.requestPlatformReloadLocked()
+		}
+		return
+	}
+	idx := 0
+	for i, id := range choices {
+		if id == a.platformID {
+			idx = i
+			break
+		}
+	}
+	idx = (idx + delta) % len(choices)
+	if idx < 0 {
+		idx += len(choices)
+	}
+	next := choices[idx]
+	if next == a.platformID {
+		return
+	}
+	a.platformID = next
+	a.reloadLocked()
+}
+
+func (a *App) cycleSortLocked() {
+	idx := 0
+	for i, sort := range catalogSorts {
+		if sort == a.sort {
+			idx = i
+			break
+		}
+	}
+	a.sort = catalogSorts[(idx+1)%len(catalogSorts)]
+	a.reloadLocked()
+}
+
+func (a *App) platformChoicesLocked() []string {
+	ids := make([]string, 0, len(a.platforms)+1)
+	ids = append(ids, "")
+	seen := map[string]struct{}{"": {}}
+	for _, platform := range a.platforms {
+		id := strings.TrimSpace(platform.ID)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+func (a *App) reloadLocked() {
+	a.captureCatalogFocusLocked()
+	a.searchPending = false
+	a.loadGen++
+	gen := a.loadGen
+	a.loading = true
+	a.loadErr = ""
+	a.status = "loading library"
+	ctx := a.replaceLoadContextLocked()
+	go a.loadLibrary(ctx, gen)
+}
+
+func (a *App) replaceLoadContextLocked() context.Context {
+	parent := a.ctx
+	if parent == nil {
+		parent = context.Background()
+	}
+	if a.loadCancel != nil {
+		a.loadCancel()
+	}
+	ctx, cancel := context.WithCancel(parent)
+	a.loadCancel = cancel
+	a.jobCtx = ctx
+	a.inflight = map[string]workKind{}
+	for {
+		select {
+		case <-a.jobs:
+		default:
+			return ctx
 		}
 	}
 }
@@ -197,7 +467,10 @@ func (a *App) Release(cmd Command) {
 // Tick drains async work and queues visible covers. It must not block.
 func (a *App) Tick(now time.Time) Command {
 	a.drainResults()
-	a.queueVisibleWork()
+	a.mu.Lock()
+	a.flushSearchLocked(now)
+	a.mu.Unlock()
+	a.queueVisibleWork(now)
 	if cmd := a.repeat.Tick(now); cmd != CmdNone {
 		a.HandleCommand(cmd, now)
 		return cmd
@@ -224,16 +497,29 @@ func (a *App) Snapshot() Snapshot {
 	if a.launch.Phase != "idle" && a.launch.Message != "" {
 		status = a.launch.Message
 	}
+	if a.platformErr != "" {
+		if status == "" {
+			status = "platform list failed"
+		} else {
+			status = status + " · platform list failed"
+		}
+	}
 	return Snapshot{
-		Games:     games,
-		Grid:      a.grid,
-		Status:    status,
-		LoadErr:   a.loadErr,
-		Loading:   a.loading,
-		Covers:    covers,
-		Launch:    a.launch,
-		Gamepads:  a.gamepads,
-		CoverHits: hits,
+		Games:       games,
+		Grid:        a.grid,
+		Status:      status,
+		LoadErr:     a.loadErr,
+		Loading:     a.loading,
+		Covers:      covers,
+		Launch:      a.launch,
+		Gamepads:    a.gamepads,
+		CoverHits:   hits,
+		Platforms:   a.platforms,
+		PlatformID:  a.platformID,
+		Sort:        a.sort,
+		Query:       a.query,
+		SearchOpen:  a.searchOpen,
+		FocusDetail: a.focusDetailLocked(),
 	}
 }
 
@@ -242,6 +528,13 @@ func (a *App) SetGamepads(n int) {
 	a.mu.Lock()
 	a.gamepads = n
 	a.mu.Unlock()
+}
+
+// SearchOpen reports whether the on-screen search field is active.
+func (a *App) SearchOpen() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.searchOpen
 }
 
 // Selected returns the focused game, if any.
@@ -254,11 +547,62 @@ func (a *App) Selected() (Game, bool) {
 	return a.games[a.grid.Focus], true
 }
 
+func (a *App) focusDetailLocked() FocusDetail {
+	if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
+		return FocusDetail{}
+	}
+	game := a.games[a.grid.Focus]
+	detail := FocusDetail{
+		Title:    game.Title,
+		Platform: a.platformLabelLocked(game.System),
+		Year:     strings.TrimSpace(game.Year),
+		Genre:    strings.TrimSpace(game.Genre),
+	}
+	if cached, ok := a.details[game.ID]; ok {
+		if strings.TrimSpace(cached.Year) != "" {
+			detail.Year = cached.Year
+		}
+		if strings.TrimSpace(cached.Genre) != "" {
+			detail.Genre = cached.Genre
+		}
+		detail.Summary = strings.TrimSpace(cached.Summary)
+		detail.Attribution = strings.TrimSpace(cached.Attribution)
+	}
+	return detail
+}
+
+func (a *App) platformLabelLocked(system string) string {
+	system = strings.TrimSpace(system)
+	for _, platform := range a.platforms {
+		if platform.ID == system {
+			if label := strings.TrimSpace(platform.Label); label != "" {
+				return label
+			}
+			return platform.ID
+		}
+	}
+	if a.platformID != "" && a.platformID == system {
+		return a.platformID
+	}
+	return system
+}
+
+func (a *App) moveFocusLocked(dx, dy int) {
+	before := a.grid.Focus
+	a.grid.Move(dx, dy)
+	if a.grid.Focus != before {
+		a.navDirty = true
+	}
+}
+
 func (a *App) focusIndex(i int) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if i < 0 || i >= len(a.games) {
 		return false
+	}
+	if a.grid.Focus != i {
+		a.navDirty = true
 	}
 	a.grid.Focus = i
 	a.grid.ensureVisible()
@@ -267,6 +611,13 @@ func (a *App) focusIndex(i int) bool {
 
 func (a *App) startLaunchLocked() {
 	if a.launch.Phase == "launching" {
+		return
+	}
+	if a.searchPending {
+		a.applyPendingSearchLocked()
+		return
+	}
+	if a.loading {
 		return
 	}
 	if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
@@ -333,19 +684,216 @@ func (a *App) doLaunch(ctx context.Context, game Game) {
 	a.launch.Message = fmt.Sprintf("host accepted launch for %s", game.ID)
 }
 
-func (a *App) loadLibrary(ctx context.Context) {
+func (a *App) requestPlatformReloadLocked() {
+	if a.platformKick == nil {
+		return
+	}
+	select {
+	case a.platformKick <- struct{}{}:
+	default:
+	}
+}
+
+func (a *App) loadPlatforms(ctx context.Context) {
+	fails := 0
+	for {
+		if err := ctx.Err(); err != nil {
+			return
+		}
+		platforms, err := a.client.Platforms(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+		a.mu.Lock()
+		if err == nil {
+			a.platforms = platforms
+			a.platformErr = ""
+			a.mu.Unlock()
+			return
+		}
+		fails++
+		a.platformErr = err.Error()
+		delay := presentationRetryDelay(fails)
+		kick := a.platformKick
+		a.mu.Unlock()
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		case <-kick:
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+		}
+	}
+}
+
+func (a *App) currentQueryLocked() GameListQuery {
+	return GameListQuery{
+		Limit:    a.pageLimit,
+		Platform: a.platformID,
+		Sort:     a.sort,
+		Q:        strings.TrimSpace(a.query),
+	}
+}
+
+func (a *App) libraryStatusLocked() string {
+	n := len(a.games)
+	platform := "All"
+	if a.platformID != "" {
+		platform = a.platformLabelLocked(a.platformID)
+	}
+	sort := sortLabel(a.sort)
+	if q := strings.TrimSpace(a.query); q != "" {
+		return fmt.Sprintf("%d titles · %s · %s · %q", n, platform, sort, q)
+	}
+	return fmt.Sprintf("%d titles · %s · %s", n, platform, sort)
+}
+
+func sortLabel(sort string) string {
+	switch sort {
+	case "recently_added":
+		return "Recently added"
+	case "platform", "system":
+		return "System"
+	default:
+		return "Title"
+	}
+}
+
+func wrapWords(text string, maxChars, maxLines int) []string {
+	text = strings.TrimSpace(text)
+	if text == "" || maxChars < 1 || maxLines < 1 {
+		return nil
+	}
+	words := strings.Fields(text)
+	lines := make([]string, 0, maxLines)
+	var cur string
+	flush := func() bool {
+		if cur == "" {
+			return len(lines) >= maxLines
+		}
+		lines = append(lines, cur)
+		cur = ""
+		return len(lines) >= maxLines
+	}
+	for _, word := range words {
+		if len([]rune(word)) > maxChars {
+			word = string([]rune(word)[:maxChars])
+		}
+		next := word
+		if cur != "" {
+			next = cur + " " + word
+		}
+		if len([]rune(next)) <= maxChars {
+			cur = next
+			continue
+		}
+		if flush() {
+			return lines
+		}
+		cur = word
+	}
+	flush()
+	return lines
+}
+
+// restoreCatalogFocus keeps the pre-reload game when it is still in the catalog.
+// If that id is gone, the original index is clamped to the new length instead of
+// resetting to 0.
+func restoreCatalogFocus(games []Game, keepID string, keepIndex int) int {
+	if keepID != "" {
+		for i, game := range games {
+			if game.ID == keepID {
+				return i
+			}
+		}
+	}
+	if len(games) == 0 {
+		return 0
+	}
+	if keepIndex >= len(games) {
+		return len(games) - 1
+	}
+	if keepIndex < 0 {
+		return 0
+	}
+	return keepIndex
+}
+
+func (a *App) applyCatalogPageLocked(games []Game, keepID string, keepIndex int, pinned *bool, lastFocus *int) {
+	if *pinned && *lastFocus >= 0 && (a.grid.Focus != *lastFocus || a.navDirty) {
+		*pinned = false
+	}
+	a.games = games
+	a.grid.SetCount(len(a.games))
+	if !*pinned {
+		return
+	}
+	a.grid.Focus = restoreCatalogFocus(a.games, keepID, keepIndex)
+	a.grid.ensureVisible()
+	*lastFocus = a.grid.Focus
+}
+
+// captureCatalogFocusLocked records the current title so a superseded reload
+// can restore it. An already-cleared catalog or a still-loading partial page
+// must not overwrite that capture unless the user moved focus.
+func (a *App) captureCatalogFocusLocked() {
+	if len(a.games) == 0 {
+		return
+	}
+	if a.loading && !a.navDirty {
+		return
+	}
+	a.keepFocusIndex = a.grid.Focus
+	a.keepFocusID = ""
+	if a.keepFocusIndex >= 0 && a.keepFocusIndex < len(a.games) {
+		a.keepFocusID = a.games[a.keepFocusIndex].ID
+	}
+	a.navDirty = false
+}
+
+func (a *App) loadLibrary(ctx context.Context, gen int) {
 	var (
 		all    []Game
 		cursor string
 	)
+	a.mu.Lock()
+	if gen != a.loadGen {
+		a.mu.Unlock()
+		return
+	}
+	a.captureCatalogFocusLocked()
+	keepID := a.keepFocusID
+	keepIndex := a.keepFocusIndex
+	query := a.currentQueryLocked() // fixed for this generation; TypeText does not bump loadGen until debounce
+	a.games = nil
+	a.grid.SetCount(0)
+	pinned := true
+	lastFocus := -1
+	a.mu.Unlock()
 	for {
 		if err := ctx.Err(); err != nil {
-			a.setLoadError(err.Error())
 			return
 		}
-		page, next, err := a.client.ListGames(ctx, cursor, a.pageLimit)
+		a.mu.Lock()
+		if gen != a.loadGen {
+			a.mu.Unlock()
+			return
+		}
+		a.mu.Unlock()
+		query.Cursor = cursor
+		page, next, err := a.client.ListGames(ctx, query)
 		if err != nil {
-			a.setLoadError(err.Error())
+			if ctx.Err() != nil {
+				return
+			}
+			a.setLoadError(gen, err.Error())
 			return
 		}
 		remain := a.maxGames - len(all)
@@ -357,9 +905,12 @@ func (a *App) loadLibrary(ctx context.Context) {
 		}
 		all = append(all, page...)
 		a.mu.Lock()
-		a.games = append([]Game(nil), all...)
-		a.grid.SetCount(len(a.games))
-		a.status = fmt.Sprintf("%d titles from host API", len(a.games))
+		if gen != a.loadGen {
+			a.mu.Unlock()
+			return
+		}
+		a.applyCatalogPageLocked(append([]Game(nil), all...), keepID, keepIndex, &pinned, &lastFocus)
+		a.status = a.libraryStatusLocked()
 		a.mu.Unlock()
 		if next == "" || len(all) >= a.maxGames {
 			break
@@ -367,19 +918,31 @@ func (a *App) loadLibrary(ctx context.Context) {
 		cursor = next
 	}
 	a.mu.Lock()
+	if gen != a.loadGen {
+		a.mu.Unlock()
+		return
+	}
 	a.loading = false
 	if len(a.games) == 0 {
 		a.status = "host API returned no titles"
+		if a.platformID != "" || strings.TrimSpace(a.query) != "" {
+			a.status = a.libraryStatusLocked()
+		}
+	} else {
+		a.status = a.libraryStatusLocked()
 	}
 	a.mu.Unlock()
 }
 
-func (a *App) setLoadError(message string) {
+func (a *App) setLoadError(gen int, message string) {
 	a.mu.Lock()
+	defer a.mu.Unlock()
+	if gen != a.loadGen {
+		return
+	}
 	a.loading = false
 	a.loadErr = message
 	a.status = "library load failed"
-	a.mu.Unlock()
 }
 
 func (a *App) drainResults() {
@@ -396,7 +959,21 @@ func (a *App) drainResults() {
 func (a *App) applyResult(result workResult) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if result.gen != a.loadGen {
+		return
+	}
 	delete(a.inflight, result.gameID)
+	if result.err != nil && (errors.Is(result.err, context.Canceled) || errors.Is(result.err, context.DeadlineExceeded)) {
+		return
+	}
+	if result.kind == workPresentation && result.err == nil && presentationComplete(result.state, result.attribution) {
+		a.details[result.gameID] = FocusDetail{
+			Year:        strings.TrimSpace(result.year),
+			Genre:       strings.TrimSpace(result.genre),
+			Summary:     strings.TrimSpace(result.summary),
+			Attribution: strings.TrimSpace(result.attribution),
+		}
+	}
 	if !a.inPrefetchLocked(result.gameID) {
 		delete(a.covers, result.gameID)
 		return
@@ -406,18 +983,49 @@ func (a *App) applyResult(result workResult) {
 		slot = &coverSlot{}
 		a.covers[result.gameID] = slot
 	}
+	if result.kind == workPresentation {
+		if result.err != nil || !presentationComplete(result.state, result.attribution) {
+			schedulePresentationRetry(slot)
+		} else {
+			slot.detailTry = 0
+			slot.detailNext = time.Time{}
+		}
+	}
 	if result.err != nil {
+		if slot.phase == coverReady {
+			return
+		}
+		if result.kind == workPresentation && slot.handle != "" {
+			if slot.phase != coverFailed {
+				slot.phase = coverArtwork
+			}
+			return
+		}
 		slot.phase = coverFailed
 		slot.message = result.err.Error()
 		return
 	}
 	switch result.kind {
 	case workPresentation:
-		if result.missing || result.handle == "" {
+		complete := presentationComplete(result.state, result.attribution)
+		if slot.phase == coverReady && !complete {
+			return
+		}
+		prevHandle := slot.handle
+		if result.handle != "" || result.missing {
+			slot.handle = result.handle
+		}
+		if slot.handle == "" {
+			slot.image = nil
 			slot.phase = coverMissing
 			return
 		}
-		slot.handle = result.handle
+		if slot.handle == prevHandle && (slot.phase == coverReady || slot.phase == coverFailed) {
+			return
+		}
+		if slot.handle != prevHandle {
+			slot.image = nil
+		}
 		slot.phase = coverArtwork
 	case workArtwork:
 		slot.image = result.image
@@ -425,7 +1033,43 @@ func (a *App) applyResult(result workResult) {
 	}
 }
 
-func (a *App) queueVisibleWork() {
+func presentationComplete(state, attribution string) bool {
+	state = strings.TrimSpace(state)
+	switch strings.ToLower(state) {
+	case "offline":
+		return false
+	case "ready":
+		return strings.TrimSpace(attribution) != ""
+	case "disabled", "unconfigured", "no_match", "ambiguous":
+		return true
+	default:
+		return true
+	}
+}
+
+func presentationRetryDelay(fails int) time.Duration {
+	if fails < 1 {
+		fails = 1
+	}
+	delay := presentationRetryMin
+	for i := 1; i < fails && delay < presentationRetryMax; i++ {
+		delay *= 2
+	}
+	if delay > presentationRetryMax {
+		return presentationRetryMax
+	}
+	return delay
+}
+
+func schedulePresentationRetry(slot *coverSlot) {
+	if slot == nil {
+		return
+	}
+	slot.detailTry++
+	slot.detailNext = time.Now().Add(presentationRetryDelay(slot.detailTry))
+}
+
+func (a *App) queueVisibleWork(now time.Time) {
 	a.mu.Lock()
 	start, end := a.prefetchSpanLocked()
 	type pending struct {
@@ -433,7 +1077,17 @@ func (a *App) queueVisibleWork() {
 		key  string
 	}
 	var queue []pending
+	order := make([]int, 0, end-start)
+	if a.grid.Focus >= start && a.grid.Focus < end {
+		order = append(order, a.grid.Focus)
+	}
 	for i := start; i < end; i++ {
+		if i == a.grid.Focus {
+			continue
+		}
+		order = append(order, i)
+	}
+	for _, i := range order {
 		if len(a.inflight) >= maxInflight {
 			break
 		}
@@ -447,20 +1101,29 @@ func (a *App) queueVisibleWork() {
 			}
 			a.covers[game.ID] = slot
 		}
+		if _, have := a.details[game.ID]; !have && slot.phase != coverIdle && slot.phase != coverArtwork {
+			if _, busy := a.inflight[game.ID]; !busy && i == a.grid.Focus && !now.Before(slot.detailNext) {
+				a.inflight[game.ID] = workPresentation
+				queue = append(queue, pending{item: workItem{kind: workPresentation, gameID: game.ID, handle: slot.handle, gen: a.loadGen}, key: game.ID})
+				if len(a.inflight) >= maxInflight {
+					break
+				}
+			}
+		}
 		if _, busy := a.inflight[game.ID]; busy {
 			continue
 		}
 		switch slot.phase {
 		case coverIdle:
 			a.inflight[game.ID] = workPresentation
-			queue = append(queue, pending{item: workItem{kind: workPresentation, gameID: game.ID}, key: game.ID})
+			queue = append(queue, pending{item: workItem{kind: workPresentation, gameID: game.ID, handle: slot.handle, gen: a.loadGen}, key: game.ID})
 		case coverArtwork:
 			if slot.handle == "" {
 				slot.phase = coverMissing
 				continue
 			}
 			a.inflight[game.ID] = workArtwork
-			queue = append(queue, pending{item: workItem{kind: workArtwork, gameID: game.ID, handle: slot.handle}, key: game.ID})
+			queue = append(queue, pending{item: workItem{kind: workArtwork, gameID: game.ID, handle: slot.handle, gen: a.loadGen}, key: game.ID})
 		}
 		if len(a.inflight) >= maxInflight {
 			break
@@ -523,7 +1186,25 @@ func (a *App) worker(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case item := <-a.jobs:
-			result := a.doWork(ctx, item)
+			a.mu.Lock()
+			jobCtx := a.jobCtx
+			gen := a.loadGen
+			a.mu.Unlock()
+			if jobCtx == nil {
+				jobCtx = ctx
+			}
+			if item.gen != gen {
+				continue
+			}
+			result := a.doWork(jobCtx, item)
+			if item.gen != gen || jobCtx.Err() != nil {
+				a.mu.Lock()
+				if a.loadGen == item.gen {
+					delete(a.inflight, item.gameID)
+				}
+				a.mu.Unlock()
+				continue
+			}
 			select {
 			case a.results <- result:
 			case <-ctx.Done():
@@ -538,21 +1219,28 @@ func (a *App) doWork(ctx context.Context, item workItem) workResult {
 	case workPresentation:
 		pres, err := a.client.GamePresentation(ctx, item.gameID)
 		if err != nil {
-			return workResult{kind: workPresentation, gameID: item.gameID, err: err}
+			return workResult{kind: workPresentation, gameID: item.gameID, gen: item.gen, err: err}
 		}
 		handle := CoverHandle(Game{ID: item.gameID}, pres)
-		return workResult{kind: workPresentation, gameID: item.gameID, handle: handle, missing: handle == ""}
+		result := workResult{kind: workPresentation, gameID: item.gameID, handle: handle, missing: handle == "", state: pres.State, gen: item.gen}
+		if pres.Presentation != nil {
+			result.year = pres.Presentation.Year
+			result.genre = pres.Presentation.Genre
+			result.summary = pres.Presentation.Summary
+		}
+		result.attribution = pres.AttributionLabel()
+		return result
 	case workArtwork:
 		data, _, err := a.client.Artwork(ctx, item.handle)
 		if err != nil {
-			return workResult{kind: workArtwork, gameID: item.gameID, err: err}
+			return workResult{kind: workArtwork, gameID: item.gameID, gen: item.gen, err: err}
 		}
 		img, err := DecodeCover(data)
 		if err != nil {
-			return workResult{kind: workArtwork, gameID: item.gameID, err: err}
+			return workResult{kind: workArtwork, gameID: item.gameID, gen: item.gen, err: err}
 		}
-		return workResult{kind: workArtwork, gameID: item.gameID, handle: item.handle, image: img}
+		return workResult{kind: workArtwork, gameID: item.gameID, handle: item.handle, image: img, gen: item.gen}
 	default:
-		return workResult{kind: item.kind, gameID: item.gameID, err: fmt.Errorf("unknown work")}
+		return workResult{kind: item.kind, gameID: item.gameID, gen: item.gen, err: fmt.Errorf("unknown work")}
 	}
 }

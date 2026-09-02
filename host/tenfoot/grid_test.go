@@ -54,3 +54,26 @@ func TestGridEmptyMoveIsNoop(t *testing.T) {
 		t.Fatalf("focus = %d", grid.Focus)
 	}
 }
+
+func TestGridShortWindowKeepsCellsAboveFooter(t *testing.T) {
+	t.Parallel()
+	grid := Grid{}
+	grid.Layout(1280, 480)
+	grid.SetCount(8)
+	_, y, ok := grid.CellOrigin(0)
+	if !ok {
+		t.Fatal("cell 0 offscreen")
+	}
+	bottom := y + grid.CellH
+	footerTop := grid.Height - grid.FooterHeight
+	if bottom > footerTop {
+		t.Fatalf("cell bottom %d overlaps footer at %d (cellH=%d y=%d)", bottom, footerTop, grid.CellH, y)
+	}
+	if grid.CellH >= defaultCellH {
+		t.Fatalf("short window kept full cell height %d", grid.CellH)
+	}
+	grid.Layout(1280, 720)
+	if grid.CellH != defaultCellH {
+		t.Fatalf("taller window cellH=%d want %d", grid.CellH, defaultCellH)
+	}
+}

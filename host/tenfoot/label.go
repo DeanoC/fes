@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/color"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -226,7 +227,26 @@ func labelFace(sizePx int) font.Face {
 	return face
 }
 
-// rasterizeLabel draws UTF-8 text with a real font, clipped to maxWidth pixels.
+// labelCacheKey binds a texture slot to the exact rasterized string and size so
+// chrome and detail labels cannot reuse a stale texture after text changes.
+func labelCacheKey(slot, text string, maxW, sizePx int) string {
+	return strings.Join([]string{slot, strconv.Itoa(maxW), strconv.Itoa(sizePx), strings.TrimSpace(text)}, "\x1f")
+}
+
+func measureLabel(text string, sizePx int) int {
+	text = strings.TrimSpace(text)
+	if text == "" || sizePx < 1 {
+		return 0
+	}
+	labelMu.Lock()
+	defer labelMu.Unlock()
+	face := labelFace(sizePx)
+	if face == nil {
+		return 0
+	}
+	return font.MeasureString(face, text).Ceil()
+}
+
 func rasterizeLabel(text string, maxWidth, sizePx int) *image.RGBA {
 	text = strings.TrimSpace(text)
 	if text == "" || maxWidth < 1 || sizePx < 1 {

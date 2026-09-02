@@ -14,6 +14,10 @@ const (
 	CmdSelect
 	CmdBack
 	CmdQuit
+	CmdFilterPrev
+	CmdFilterNext
+	CmdSortCycle
+	CmdSearch
 )
 
 // Button is a gamepad-first control, independent of SDL.
@@ -29,6 +33,10 @@ const (
 	ButtonEast
 	ButtonStart
 	ButtonBack
+	ButtonWest
+	ButtonNorth
+	ButtonLeftShoulder
+	ButtonRightShoulder
 )
 
 const (
@@ -55,6 +63,14 @@ func CommandFromButton(button Button) Command {
 		return CmdBack
 	case ButtonStart:
 		return CmdQuit
+	case ButtonWest:
+		return CmdSortCycle
+	case ButtonNorth:
+		return CmdSearch
+	case ButtonLeftShoulder:
+		return CmdFilterPrev
+	case ButtonRightShoulder:
+		return CmdFilterNext
 	default:
 		return CmdNone
 	}
@@ -77,6 +93,14 @@ func CommandFromKey(name string) Command {
 		return CmdBack
 	case "q":
 		return CmdQuit
+	case "leftbracket", "[":
+		return CmdFilterPrev
+	case "rightbracket", "]":
+		return CmdFilterNext
+	case "x":
+		return CmdSortCycle
+	case "/", "slash", "f":
+		return CmdSearch
 	default:
 		return CmdNone
 	}
@@ -259,6 +283,14 @@ func (c Command) String() string {
 		return "back"
 	case CmdQuit:
 		return "quit"
+	case CmdFilterPrev:
+		return "filter-prev"
+	case CmdFilterNext:
+		return "filter-next"
+	case CmdSortCycle:
+		return "sort"
+	case CmdSearch:
+		return "search"
 	default:
 		return "none"
 	}

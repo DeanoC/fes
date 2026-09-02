@@ -8,6 +8,7 @@ type Grid struct {
 	Focus        int
 	ScrollRow    int
 	HeaderHeight int
+	FooterHeight int
 	Pad          int
 	Gap          int
 	CellW        int
@@ -17,7 +18,8 @@ type Grid struct {
 }
 
 const (
-	defaultHeaderHeight = 72
+	defaultHeaderHeight = 88
+	defaultFooterHeight = 120
 	defaultPad          = 36
 	defaultGap          = 18
 	defaultCellW        = 210
@@ -27,6 +29,9 @@ const (
 func (g *Grid) defaults() {
 	if g.HeaderHeight <= 0 {
 		g.HeaderHeight = defaultHeaderHeight
+	}
+	if g.FooterHeight <= 0 {
+		g.FooterHeight = defaultFooterHeight
 	}
 	if g.Pad <= 0 {
 		g.Pad = defaultPad
@@ -51,6 +56,8 @@ func (g *Grid) defaults() {
 // Layout recomputes columns and visible rows from the window size.
 func (g *Grid) Layout(width, height int) {
 	g.defaults()
+	g.CellW = defaultCellW
+	g.CellH = defaultCellH
 	g.Width = width
 	g.Height = height
 	innerW := width - 2*g.Pad
@@ -61,9 +68,12 @@ func (g *Grid) Layout(width, height int) {
 	if g.Columns < 1 {
 		g.Columns = 1
 	}
-	innerH := height - g.HeaderHeight - 2*g.Pad
-	if innerH < g.CellH {
-		innerH = g.CellH
+	innerH := height - g.HeaderHeight - g.FooterHeight - 2*g.Pad
+	if innerH < 1 {
+		innerH = 1
+	}
+	if g.CellH > innerH {
+		g.CellH = innerH
 	}
 	g.VisibleRows = (innerH + g.Gap) / (g.CellH + g.Gap)
 	if g.VisibleRows < 1 {

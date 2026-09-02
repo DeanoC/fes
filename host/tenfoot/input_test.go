@@ -9,14 +9,18 @@ import (
 func TestCommandFromGamepadButtons(t *testing.T) {
 	t.Parallel()
 	cases := map[Button]Command{
-		ButtonDPadUp:    CmdUp,
-		ButtonDPadDown:  CmdDown,
-		ButtonDPadLeft:  CmdLeft,
-		ButtonDPadRight: CmdRight,
-		ButtonSouth:     CmdSelect,
-		ButtonEast:      CmdBack,
-		ButtonStart:     CmdQuit,
-		ButtonBack:      CmdBack,
+		ButtonDPadUp:        CmdUp,
+		ButtonDPadDown:      CmdDown,
+		ButtonDPadLeft:      CmdLeft,
+		ButtonDPadRight:     CmdRight,
+		ButtonSouth:         CmdSelect,
+		ButtonEast:          CmdBack,
+		ButtonStart:         CmdQuit,
+		ButtonBack:          CmdBack,
+		ButtonWest:          CmdSortCycle,
+		ButtonNorth:         CmdSearch,
+		ButtonLeftShoulder:  CmdFilterPrev,
+		ButtonRightShoulder: CmdFilterNext,
 	}
 	for button, want := range cases {
 		if got := CommandFromButton(button); got != want {
@@ -29,6 +33,9 @@ func TestCommandFromKeyAndStick(t *testing.T) {
 	t.Parallel()
 	if CommandFromKey("right") != CmdRight || CommandFromKey("return") != CmdSelect {
 		t.Fatal("keyboard mapping")
+	}
+	if CommandFromKey("[") != CmdFilterPrev || CommandFromKey("]") != CmdFilterNext || CommandFromKey("x") != CmdSortCycle || CommandFromKey("/") != CmdSearch {
+		t.Fatal("browse keyboard mapping")
 	}
 	if CommandFromStick(20000, 0) != CmdRight || CommandFromStick(0, -20000) != CmdUp {
 		t.Fatal("stick mapping")

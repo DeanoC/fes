@@ -13,8 +13,22 @@ import (
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/internal/metadata"
+	"github.com/DeanoC/FogCast/librarymedia"
 	"github.com/DeanoC/FogCast/protocol"
 )
+
+type overlayMediaService struct {
+	*fakeService
+	media librarymedia.GameMedia
+}
+
+func (s overlayMediaService) CoverHandle(context.Context, string) string {
+	return s.media.Cover
+}
+
+func (s overlayMediaService) GameMedia(context.Context, string) (librarymedia.GameMedia, error) {
+	return s.media, nil
+}
 
 type presentationWire struct {
 	GameID       string `json:"game_id"`
@@ -152,6 +166,78 @@ func TestPresentationWireMapsProviderFailureToOfflineWithoutErrorPayload(t *test
 	}
 	if wire.GameID != "sonic" || wire.State != "offline" || wire.Error != nil || wire.Presentation != nil || wire.Attribution != nil {
 		t.Fatalf("offline wire = %#v body=%s", wire, response.Body.String())
+	}
+}
+
+func TestPresentationOverlayRewritesOnlyOfflineWithLocalMedia(t *testing.T) {
+	handle := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	base := overlayMediaService{
+		fakeService: &fakeService{game: catalog.Game{ID: "sonic", Title: "Sonic", System: protocol.SystemMegaDrive}},
+		media:       librarymedia.GameMedia{Cover: handle},
+	}
+	type overlayWire struct {
+		GameID       string `json:"game_id"`
+		State        string `json:"state"`
+		Presentation *struct {
+			CoverArtworkID string `json:"cover_artwork_id"`
+		} `json:"presentation"`
+		Attribution *struct {
+			Provider string `json:"provider"`
+			Label    string `json:"label"`
+		} `json:"attribution"`
+	}
+	get := func(t *testing.T, handler http.Handler) overlayWire {
+		t.Helper()
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://127.0.0.1/api/v1/presentation/games/sonic", nil))
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+		}
+		var wire overlayWire
+		if err := json.Unmarshal(response.Body.Bytes(), &wire); err != nil {
+			t.Fatal(err)
+		}
+		if wire.GameID != "sonic" || wire.Presentation == nil || wire.Presentation.CoverArtworkID != handle || wire.Attribution != nil {
+			t.Fatalf("overlay wire = %#v body=%s", wire, response.Body.String())
+		}
+		return wire
+	}
+
+	t.Run("offline", func(t *testing.T) {
+		handler := hostapi.New(base, hostapi.WithMetadata(presentationMetadata{err: &metadata.OpError{Code: metadata.ErrUpstreamUnavailable}}, metadata.StateReady))
+		if wire := get(t, handler); wire.State != "ready" {
+			t.Fatalf("offline overlay state = %q", wire.State)
+		}
+	})
+	for _, tc := range []struct {
+		name  string
+		state metadata.ConfigState
+		want  string
+	}{
+		{name: "disabled", state: metadata.StateDisabled, want: "disabled"},
+		{name: "unconfigured", state: metadata.StateUnconfigured, want: "unconfigured"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := hostapi.New(base, hostapi.WithMetadata(nil, tc.state))
+			if wire := get(t, handler); wire.State != tc.want {
+				t.Fatalf("%s overlay state = %q", tc.name, wire.State)
+			}
+		})
+	}
+	for _, tc := range []struct {
+		name    string
+		outcome metadata.Outcome
+		want    string
+	}{
+		{name: "no_match", outcome: metadata.OutcomeNoMatch, want: "no_match"},
+		{name: "ambiguous", outcome: metadata.OutcomeAmbiguous, want: "ambiguous"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := hostapi.New(base, hostapi.WithMetadata(presentationMetadata{result: metadata.Result{Outcome: tc.outcome}}, metadata.StateReady))
+			if wire := get(t, handler); wire.State != tc.want {
+				t.Fatalf("%s overlay state = %q", tc.name, wire.State)
+			}
+		})
 	}
 }
 
