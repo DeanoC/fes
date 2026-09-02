@@ -1,47 +1,42 @@
-# Tenfoot P3 — living-room polish (safe area, attract, layouts, Linux)
+# Tenfoot P3 — living-room slice (safe-area + attract; layouts/Linux phased)
 
-Branch: `feat/tenfoot-livingroom-p3` (off `main` @ `157506d` / post-#106 P2 session). Do **not** merge until green. Kit/MiSTer out of scope. Do **not** open the PR until acceptance is green (Luna opens it).
+Branch: `feat/tenfoot-livingroom-p3` (off `main` @ `157506d` / post-#106 P2 session). Do **not** merge until green. Kit/MiSTer out of scope. Do **not** open the PR until acceptance is green (Luna opens it). Web UI stays the default shell. Grok Bot does not write product code.
 
 ## Goal
 
-Ship the living-room gap list that P0–P2 left explicit in
-`docs/native-tenfoot-launcher/README.md`:
+Ship a **Mac living-room slice** on the existing SDL3 tenfoot client:
 
-1. **TV safe area / overscan** — keep chrome and the cover grid inside a
-   calibrated inset when fullscreen (or near-fullscreen) on a real TV.
-2. **Attract mode** — idle screensaver using the host attract playlist.
-3. **Alternate layouts** — at least one non-grid layout (list or wheel) the
-   sofa can switch to without leaving tenfoot.
-4. **Linux port** — `make build-fogcast-tenfoot` (or a documented sibling
-   target) builds and runs the SDL3 tenfoot client on Linux with the same
-   `-tags sdl3` surface Mac already uses.
+1. **TV safe-area / overscan calibration** so fullscreen cover chrome stays inside typical TV overscan.
+2. **Attract mode** (idle screensaver) driven by the existing host attract playlist API, gamepad-dismissible, stills-first.
 
-Gamepad-first. Web UI stays the default shell. Host catalog / session /
-MiSTer paths stay unchanged.
+Keep P0–P2 browse / collections / favorites / session stop / GPU park when not in attract.
+
+**Phasing inside P3** (prefer shipable Mac slice first):
+
+| Slice | Priority | Notes |
+| --- | --- | --- |
+| A. Safe-area + attract (stills) | **Must ship** | Mac-first; this PR’s acceptance bar |
+| B. Alternate layouts (list / shelf / wheel beyond cover grid) | Stretch | Only if A is green with budget; else document follow-up |
+| C. Linux SDL3 port | Follow-up / stretch | See HARD gaps — do not block A |
 
 ## Non-goals
 
-- Sofa create/rename of custom collections (web owns that; P1 left it).
-- Full settings editor for libraries / targets / preferred regions (web).
-- Writing `attract_idle_seconds` from tenfoot (read is enough; PATCH/PUT
-  settings stays web unless a tiny local override flag is trivial).
-- `GET /api/v1/session/events`, development-rbf, media preview player,
-  remote-input attach/detach UX (P2 left those out; keep them out).
-- New host endpoints for safe-area / overscan (none exist; do not invent).
-- Variants UI, screenshots gallery, video scrubber beyond attract playback.
-- Changing the FPGA launch path or kit images.
+- Kit / MiSTer hardware work
+- Parked polish #103 / #105 / #107 unless a trivial one-liner falls out of A
+- Sofa settings UI for libraries / targets / preferred_regions (web owns operator settings)
+- Full remote-input attach/detach, session/events SSE, development-rbf, media preview player
+- Replacing the browser shell
+- Requiring native **video** attract playback in the must-ship slice (stills + backdrop/cover/marquee are enough; video is stretch)
 
-## Exact host APIs to use
+## Inventory (honest)
 
-Contracts live in `internal/hostapi/server.go` and
-`internal/hostapi/library.go` (`handleAttract`, `publicLibrarySettings`,
-`AttractItem` in `fogcast/library.go`). Web reference:
-`internal/hostapi/ui_app.js` attract + settings hydrate.
+### Host APIs already present
 
-### Attract playlist (new for tenfoot)
+Contracts: `internal/hostapi/server.go`, `internal/hostapi/library.go` (`handleAttract`, settings handlers), `fogcast/library.go` (`AttractItem`, `AttractPlaylist`), web reference `internal/hostapi/ui_app.js` (`loadAttract`, attract timer / stage).
 
-`GET /api/v1/library/attract?limit=N` (default limit 24; host clamps
-`1…50`, invalid → `400 BAD_REQUEST`) →
+#### Attract playlist
+
+`GET /api/v1/library/attract?limit=N` (N clamped server-side; default/max around 24/50):
 
 ```json
 {
@@ -50,10 +45,10 @@ Contracts live in `internal/hostapi/server.go` and
       "game_id": "…",
       "title": "…",
       "platform": "snes",
-      "video": "…",
-      "cover": "…",
-      "backdrop": "…",
-      "marquee": "…",
+      "video": "handle-or-empty",
+      "cover": "handle-or-empty",
+      "backdrop": "handle-or-empty",
+      "marquee": "handle-or-empty",
       "launchable": true
     }
   ],
@@ -61,150 +56,104 @@ Contracts live in `internal/hostapi/server.go` and
 }
 ```
 
-Notes from `AttractPlaylist` / `handleAttract`:
+Media fields are **presentation artwork handles**. Fetch bytes with existing tenfoot path:
 
-- Playlist prefers favorites, then recents, then games-with-media; skips
-  titles with no cover/backdrop/marquee/video.
-- `idle_seconds` mirrors `AttractIdleSeconds()` (settings overlay;
-  default 60; clamped by `fogcast.MaxAttractIdleSeconds`).
-- If the service does not implement attract, host still returns
-  `{"items":[],"idle_seconds":60}`.
-- Media handles are the same presentation handles used elsewhere; resolve
-  artwork via existing `GET /api/v1/presentation/artwork/{handle}` (and
-  video/media only if tenfoot already has a safe path — still images are
-  enough for v1 attract if video decode is hard under SDL).
+`GET /api/v1/presentation/artwork/{handle}`
 
-### Library settings (read for idle; optional)
+(Web uses the same via `mediaPath` → `/api/v1/presentation/artwork/…`.)
 
-`GET /api/v1/library/settings` → public JSON including
-`attract_idle_seconds`, `preferred_regions`, `libraries`, `targets`,
-`selected_target`, `systems`.
+Playlist preference (host): favorites → recents → other titles with media (`AttractPlaylist`).
 
-`PUT` / `PATCH /api/v1/library/settings` exist (web edits
-`attract_idle_seconds` etc.). **P3 does not require tenfoot to write
-settings.** Hydrate idle from attract response and/or GET settings; a
-local CLI flag / env override for idle seconds is fine for sofa testing.
+#### Library settings (idle only; optional for tenfoot)
 
-### Safe area / overscan — **no host API**
+- `GET /api/v1/library/settings` → includes `attract_idle_seconds` (default 60), plus web-owned fields.
+- `PUT` / `PATCH /api/v1/library/settings` can update `attract_idle_seconds` (clamped; see `fogcast.MaxAttractIdleSeconds`).
 
-There is **no** `safe-area` / `overscan` field on library settings or
-elsewhere. Calibration is **client-local**:
+Tenfoot **may** read `idle_seconds` from the attract response (preferred, matches web hydrate) and optionally PATCH idle seconds from a simple calibration/settings chrome. Do **not** build a full sofa settings panel.
 
-- CLI flags and/or a small on-disk prefs file under the user config dir
-  (e.g. percent inset on each edge, or a single uniform percent).
-- Defaults must be conservative enough for typical consumer overscan
-  (document the default; allow 0% for PC monitors).
-- Fullscreen already exists (`-fullscreen`); P3 makes fullscreen
-  living-room-safe, not just borderless.
+#### Safe-area / overscan
 
-### Unchanged from P0–P2 (still required)
+**No host API** for TV insets. Calibration is **local** to the tenfoot process (CLI flags and/or a small on-disk prefs file under the user config dir). That is fine for P3 — not a HARD host gap.
 
-- Platforms, games (grouped+ready), collections, favorites, presentation +
-  artwork
-- Session poll / launch / stop + GPU park while active
-- Cover grid when the grid layout is selected
+### Current tenfoot state (post-P2)
 
-### Gaps (honest)
+- Cover **grid** only (`host/tenfoot/grid.go`, `sdl.go`).
+- Artwork decode is **JPEG/PNG** covers (`host/tenfoot/artwork.go`) — **no video decode/playback**.
+- Build: `make build-fogcast-tenfoot` → `-tags sdl3` with **Mac** `TENFOOT_CGO_ENV` (`MACOSX_DEPLOYMENT_TARGET`, Homebrew `sdl3` / `pkg-config`). Stub: `//go:build !sdl3` in `run_stub.go`.
+- README known gaps (pre-P3): TV safe area / overscan later; Mac-first, Linux next.
+- Session park (P2) must remain: attract should not fight GPU park — if host session is `active`, do not run attract; after stop/idle, attract timer may resume.
+
+### Gaps table
 
 | Item | Severity | Notes |
 | --- | --- | --- |
-| No tenfoot attract client | soft | Add `Attract(ctx, limit)` on `host/tenfoot/client.go`. |
-| Idle timer / attract overlay | soft | Mirror web: timer resets on input; any gamepad/key exits attract. |
-| TV inset | soft | Local prefs + layout math; **not** a missing host API. |
-| Alternate layout | soft | List **or** wheel (pick one primary; document). Grid remains default. |
-| Linux SDL3 build | soft | Makefile `TENFOOT_CGO_ENV` is Darwin-only today; `sdl.go` is `//go:build sdl3`, stub is `!sdl3`. Linux needs pkg-config `sdl3` + non-Darwin CGO env. |
-| Attract video under SDL | soft | Prefer stills (cover/backdrop/marquee) first; video is stretch. |
-| Settings write from sofa | out of scope | Web. |
-| **HARD_NEED** | **none for attract GET + local safe-area + layout + Linux build** | Host already exposes attract + settings read; safe-area is local. |
+| No safe-area insets in layout | soft (in-scope A) | Add margin/inset to grid + chrome; CLI `-safe-area` / percent; optional runtime calibrate UI |
+| No attract client / idle timer | soft (in-scope A) | `Client.Attract`, idle timer, stage overlay, dismiss on any gamepad/key |
+| Attract **video** handles | soft → stretch | Host may return `video`; tenfoot has no player. **Must-ship: stills** (prefer backdrop → cover → marquee). Video playback is stretch; if attempted and blocked, note in RESULT, do not HARD_NEED the whole P3 |
+| Full library settings UI | out of scope | Idle seconds from attract JSON is enough; optional PATCH |
+| Alternate layouts | stretch / follow-up | List or single-row shelf; do not block A |
+| Linux port | **HARD for full ship in one PR** | Makefile/CGO Mac-locked; Cocoa/Aqua comments; no Linux SDL3 target/docs/CI. Stretch: sketch `GOOS=linux` + pkg-config notes; follow-up issue/section if not proven |
+| Host TV safe-area API | none needed | Local calibration |
+| **HARD_NEED for slice A** | **none** if stills attract + local safe-area | Host attract + artwork already exist |
 
-Do **not** invent endpoints. If SuperGrok hits a real missing contract, mark
-`HARD_NEED` in the result file and stop.
+Do **not** invent endpoints. If SuperGrok hits a real missing contract for slice A, mark `HARD_NEED` in the result file and stop.
 
 ## UX (gamepad-first)
 
-### Safe area
+### Safe-area
 
-1. Apply inset to **all** drawn chrome: cover row, detail strip, status,
-   now-playing, attract, layout chrome.
-2. Provide a debug/calibration path (keyboard and/or hold-button chord)
-   that grows/shrinks the inset live and persists it. Document bindings.
-3. `-fullscreen` on a TV with default inset must not clip focus rings or
-   labels. Windowed short heights (`-height 480`) keep today’s fit behavior.
+1. Default insets for fullscreen living-room (document chosen % or px; typical ~3–5% per edge is fine).
+2. CLI: e.g. `-safe-area 0.05` or `-inset-pct 5` (pick one, document). Windowed debug can use 0.
+3. Optional: hold a button chord or a Settings entry to nudge insets with d-pad; persist locally.
+4. All chrome (grid, detail strip, now-playing, attract title) must respect insets.
 
 ### Attract
 
-1. After `idle_seconds` with no input (and no active host session, no modal
-   picker/search, settings-like overlay closed), enter attract.
-2. Fetch `GET /api/v1/library/attract?limit=24` (or hydrate idle earlier).
-3. Cycle items (~8–12s, slower if reduced-motion preference is detectable;
-   still OK to hardcode ~12s on native). Show title + best available still;
-   video optional.
-4. Any gamepad / keyboard / quit input **exits** attract and resets the
-   idle timer. South/A on a launchable attract item may launch (nice); not
-   required if exit-only is cleaner — document the choice.
-5. While a host session is active (P2 park), **do not** enter attract.
-6. Empty playlist → stay on the library; do not flash an empty overlay.
+1. After `idle_seconds` with no input (and no active host session, and no modal search/view picker), enter attract.
+2. Load `GET /api/v1/library/attract?limit=…`; cycle items on a short timer (match web spirit; exact ms flexible).
+3. Show still artwork (backdrop preferred, else cover, else marquee) + title; use existing artwork fetch/decode path (may need larger decode bounds for backdrops — keep memory bounded).
+4. **Any** gamepad activity or debug key dismisses attract and resets the idle timer.
+5. South/A on a launchable attract item **may** launch (nice); East/B or any input at least dismisses. Document choice.
+6. While attract is up, do not keep the full library atlas hotter than needed (reuse park patterns where practical: one stage texture is enough).
+7. Disabled via env/flag (mirror web `FogCastAttractDisabled`) for smoke/CI: e.g. `-no-attract` or `FOGCAST_TENFOOT_NO_ATTRACT=1`.
 
-### Alternate layouts
+### Alternate layouts (stretch only)
 
-1. Add a layout cycle (grid ↔ list **or** grid ↔ wheel). Bind to a free
-   control (document; do not steal Stop / Quit / search / view-picker).
-2. Focus, launch, favorite, view/platform/sort/search must keep working in
-   the alternate layout.
-3. GPU park (P2) still destroys layout textures on active session.
+If attempted: one alternate (vertical list **or** single-row shelf), gamepad-cycleable, same APIs. Do not regress cover grid.
 
-### Linux
+### Linux (stretch / follow-up)
 
-1. Document packages (`libsdl3-dev` / distro equivalent + `pkg-config`).
-2. Make `build-fogcast-tenfoot` (or `GOOS=linux` sibling) work without
-   Darwin-only `MACOSX_DEPLOYMENT_TARGET` flags when `uname` is not Darwin.
-3. Smoke: binary starts, talks to `http://127.0.0.1:8787`, `-smoke` path
-   green on Linux CI or a documented manual Linux check. Mac
-   `make tenfoot-smoke` must stay green.
+If attempted: Linux `pkg-config sdl3` build path beside Mac; document packages; smoke what can run headless/dummy. Do not block Mac A.
 
 ## Where to hook
 
 | Area | Path | Hook |
 | --- | --- | --- |
-| HTTP client | `host/tenfoot/client.go` | `Attract(ctx, limit)`; optional `LibrarySettings(ctx)`. |
-| App state | `host/tenfoot/app.go` | Idle timer, attract playlist + index, layout enum, safe-area inset, prefs load/save. |
-| SDL loop | `host/tenfoot/sdl.go` | Apply inset to layout rects; draw attract overlay; draw list/wheel; park still honored. |
-| Input | `host/tenfoot/input.go`, `sdl.go` | Reset idle on input; exit attract; layout cycle; inset calibrate. |
-| Makefile | `Makefile` | Non-Darwin `TENFOOT_CGO_ENV`; keep `-tags sdl3`. |
-| Build tags | `host/tenfoot/sdl.go`, `run_stub.go` | Stay `sdl3` / `!sdl3`; no Darwin-only build tag required for Linux SDL. |
-| Tests | `host/tenfoot/*_test.go` | Attract decode; idle enter/exit; inset math; layout focus; stub Linux build flags where testable. |
-| README | `docs/native-tenfoot-launcher/README.md` | APIs + controls; replace safe-area / Linux known-gaps with what shipped. |
+| HTTP client | `host/tenfoot/client.go` | `Attract(ctx, limit)`; reuse `Artwork` |
+| Options | `host/tenfoot/run.go`, `cmd/fogcast-tenfoot` | safe-area / no-attract flags |
+| App state | `host/tenfoot/app.go` | Idle timer; attract playlist + index; dismiss; skip when session active |
+| Layout | `host/tenfoot/grid.go`, `sdl.go` | Apply insets to draw/focus geometry |
+| Attract stage | `host/tenfoot/sdl.go` (or small `attract.go`) | Fullscreen still + title inside safe-area |
+| Prefs (optional) | new small file under user config | Persist inset pct |
+| Tests | `host/tenfoot/*_test.go` | Attract decode; idle enter/dismiss; insets; no attract when session active |
+| README | `docs/native-tenfoot-launcher/README.md` | Safe-area, attract APIs/controls; update known gaps |
 
-## Acceptance
+## Acceptance (slice A)
 
-- Fullscreen (and documented default inset) keeps all chrome inside the safe
-  area; inset is adjustable and persisted.
-- Idle → attract from `GET /api/v1/library/attract`; input exits; no attract
-  during active session.
-- User can switch grid ↔ alternate layout; launch / stop / browse / favorites
-  still work.
-- Linux: documented build with `-tags sdl3` produces a runnable
-  `fogcast-tenfoot` (smoke against live host or documented equivalent).
-- Mac: `go test ./host/tenfoot/` (+ sdl3 tagged tests as applicable) and
-  `make build-fogcast-tenfoot` green; `make tenfoot-smoke` vs
-  `http://127.0.0.1:8787` still passes.
-- P0–P2 browse / collections / session / GPU park still work.
-- README updated (attract + settings read, safe-area prefs, layout binding,
-  Linux build notes; known gaps refreshed).
-- Commit + push on `feat/tenfoot-livingroom-p3`. **Open PR into `main` when
-  green; do not merge.**
-- Write `/tmp/fogcast-TENFOOT-P3-RESULT.txt` with `STATUS=GREEN|HARD_NEED`,
-  `HEAD`, and PR URL when opened.
+- Fullscreen (and windowed) layout respects calibrated safe-area; no critical chrome in the overscan gutter.
+- After configured idle with no input and idle host session, attract shows host playlist stills; input dismisses.
+- Attract uses `GET /api/v1/library/attract` + artwork GETs; no invented APIs.
+- P0–P2 browse / favorites / collections / launch / stop / GPU park still work when not in attract.
+- `go test ./host/tenfoot/` (+ sdl3 tagged tests as applicable) and `make build-fogcast-tenfoot` green.
+- `make tenfoot-smoke` still passes against live host (`http://127.0.0.1:8787`); attract disabled or idle high enough that smoke is not flaky.
+- README updated (safe-area + attract; known gaps reflect Linux / layouts / video honestly).
+- Commit + push on `feat/tenfoot-livingroom-p3`. **Open PR into `main` when green; do not merge.**
+- Write `/tmp/fogcast-TENFOOT-P3-RESULT.txt` with `STATUS=GREEN|HARD_NEED`, `HEAD`, and PR URL when opened.
+
+Stretch B/C: if shipped in the same PR, call them out in RESULT; if not, leave a short “Follow-up” section in README — do not fail A for missing B/C.
 
 ## Executor
 
-SuperGrok / Luna on ai-dev-mac only. Not Codex. Not Grok Bot coding tokens.
-Prefer detached watchdog kick (prompt-file + bypassPermissions + --no-plan).
+SuperGrok / Luna on ai-dev-mac only. Not Codex. Not Grok Bot coding tokens. Prefer detached watchdog kick (prompt-file + bypassPermissions + --no-plan).
 
-Follow `/Users/clawzai/Developer/FOGCAST-PR-REVIEW-PLAYBOOK.md`: one wave
-session owns tip fixes (`grok --continue`); after polish pushes re-kick
-**Codex-only** (`@codex review`), not dual cursor review every push. Caster
-HOLD. Do not mill R1…Rn processes.
-
-Do **not** commit `GROK-*.md`, `run-*.sh`, or `/tmp` results into the FogCast
-repo.
+Do **not** commit `GROK-*.md`, `run-*.sh`, or `/tmp` results into the FogCast repo.
