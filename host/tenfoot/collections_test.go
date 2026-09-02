@@ -340,6 +340,15 @@ func TestCatalogQuerySortForRecents(t *testing.T) {
 	if got := catalogQuerySort("favorites", "title"); got != "title" {
 		t.Fatalf("favorites title = %q", got)
 	}
+	if got := catalogQuerySort("recently_added", "title"); got != "recently_added" {
+		t.Fatalf("recently_added title = %q", got)
+	}
+	if got := catalogQuerySort("recently_added", ""); got != "recently_added" {
+		t.Fatalf("recently_added empty = %q", got)
+	}
+	if got := catalogQuerySort("recently_added", "platform"); got != "platform" {
+		t.Fatalf("recently_added platform = %q", got)
+	}
 }
 
 func TestAppRecentsDefaultsToLastPlayedOrder(t *testing.T) {
@@ -416,6 +425,57 @@ func TestAppRecentsDefaultsToLastPlayedOrder(t *testing.T) {
 	}
 }
 
+func TestAppRecentlyAddedDefaultsToAddedSort(t *testing.T) {
+	var mu sync.Mutex
+	var queries []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v1/library/collections":
+			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []Collection{}})
+		case r.URL.Path == "/api/v1/games":
+			mu.Lock()
+			queries = append(queries, r.URL.RawQuery)
+			mu.Unlock()
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && len(snap.Games) == 1 && snap.Sort == "title"
+	})
+	for i := 0; i < 8 && app.Snapshot().Collection != "recently_added"; i++ {
+		app.Press(CmdViewNext, time.Now())
+	}
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && snap.Collection == "recently_added" && snap.Sort == "recently_added" && strings.Contains(snap.ChromeLine(), "Recently added")
+	})
+	mu.Lock()
+	got := append([]string(nil), queries...)
+	mu.Unlock()
+	found := false
+	for _, query := range got {
+		if !strings.Contains(query, "collection=recently_added") {
+			continue
+		}
+		found = true
+		if !strings.Contains(query, "sort=recently_added") {
+			t.Fatalf("recently_added default query = %s", query)
+		}
+	}
+	if !found {
+		t.Fatalf("no recently_added query in %#v", got)
+	}
+	app.Press(CmdSortCycle, time.Now())
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && snap.Collection == "recently_added" && snap.Sort == "platform"
+	})
+}
+
 func TestChromeLineIncludesActiveView(t *testing.T) {
 	t.Parallel()
 	snap := Snapshot{
@@ -435,5 +495,9 @@ func TestChromeLineIncludesActiveView(t *testing.T) {
 	recent := Snapshot{ViewLabel: "Recent", Collection: "recents", Sort: "", Status: "0 titles · Recent · All · Last played"}
 	if chrome := recent.ChromeLine(); !strings.Contains(chrome, "Last played") {
 		t.Fatalf("recents chrome = %q", chrome)
+	}
+	added := Snapshot{ViewLabel: "Recently added", Collection: "recently_added", Sort: "recently_added", Status: "1 titles · Recently added · All · Recently added"}
+	if chrome := added.ChromeLine(); !strings.Contains(chrome, "Recently added") {
+		t.Fatalf("recently added chrome = %q", chrome)
 	}
 }

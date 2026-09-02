@@ -26,6 +26,10 @@ var catalogSorts = []string{"title", "recently_added", "platform"}
 // title, and platform. recently_added is omitted because the host ignores it.
 var recentsSorts = []string{"", "title", "platform"}
 
+// recentlyAddedSorts match QueryGames rewriting empty/title to added-date order
+// while still honoring an explicit platform sort.
+var recentlyAddedSorts = []string{"recently_added", "platform"}
+
 // LibraryView is one All / smart-rail / custom collection choice.
 type LibraryView struct {
 	ID    string
@@ -448,10 +452,14 @@ func (a *App) cycleSortLocked() {
 }
 
 func (a *App) sortChoicesLocked() []string {
-	if a.collectionID == "recents" {
+	switch a.collectionID {
+	case "recents":
 		return recentsSorts
+	case "recently_added":
+		return recentlyAddedSorts
+	default:
+		return catalogSorts
 	}
-	return catalogSorts
 }
 
 func (a *App) cycleViewLocked(delta int) {
@@ -477,17 +485,23 @@ func (a *App) setCollectionLocked(id string) {
 }
 
 func (a *App) normalizeSortForCollectionLocked() {
-	if a.collectionID == "recents" {
-		switch a.sort {
-		case "platform", "system":
+	switch a.collectionID {
+	case "recents":
+		if a.sort == "platform" || a.sort == "system" {
 			a.sort = "platform"
-		default:
-			a.sort = ""
+			return
 		}
-		return
-	}
-	if a.sort == "" {
-		a.sort = "title"
+		a.sort = ""
+	case "recently_added":
+		if a.sort == "platform" || a.sort == "system" {
+			a.sort = "platform"
+			return
+		}
+		a.sort = "recently_added"
+	default:
+		if a.sort == "" {
+			a.sort = "title"
+		}
 	}
 }
 
@@ -1082,16 +1096,23 @@ func (a *App) currentQueryLocked() GameListQuery {
 }
 
 func catalogQuerySort(collection, sort string) string {
-	if collection != "recents" {
-		return sort
-	}
-	switch sort {
-	case "title":
-		return "title"
-	case "platform", "system":
-		return "platform"
+	switch collection {
+	case "recents":
+		switch sort {
+		case "title":
+			return "title"
+		case "platform", "system":
+			return "platform"
+		default:
+			return ""
+		}
+	case "recently_added":
+		if sort == "platform" || sort == "system" {
+			return "platform"
+		}
+		return "recently_added"
 	default:
-		return ""
+		return sort
 	}
 }
 
