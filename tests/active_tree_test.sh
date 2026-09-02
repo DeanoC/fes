@@ -59,13 +59,13 @@ if ar t "$archive" | grep -Ei 'fake|test|fixture' >/dev/null; then
 	exit 1
 fi
 if nm -g "$archive" | c++filt | \
-	grep -E 'FakeHardware|FakeMmio|FakeSpi|FakeI2c|CartProfile|BiosProfile|mister_test' \
+	grep -E 'FakeHardware|FakeMmio|FakeSpi|FakeI2c|FakeInput|CartProfile|BiosProfile|mister_test' \
 	>/dev/null; then
 	echo "production archive contains fake hardware or profile symbols" >&2
 	exit 1
 fi
 
-for member in video_recipe.o video.o i2c.o; do
+for member in video_recipe.o video.o i2c.o input.o linux_input.o; do
 	mutated=$(production_fixture "missing-${member%.o}")
 	ar d "$mutated/build/libmister-runtime.a" "$member"
 	expect_guard_failure \

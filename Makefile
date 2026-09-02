@@ -43,6 +43,7 @@ LIB_SOURCES := \
 	src/profile.cpp \
 	src/native/artifacts.cpp \
 	src/native/core_loader.cpp \
+	src/native/input.cpp \
 	src/native/video_recipe.cpp \
 	src/native/video.cpp \
 	src/native/hardware.cpp \
@@ -51,7 +52,8 @@ LIB_SOURCES := \
 	src/native/linux/mmio.cpp \
 	src/native/linux/spi.cpp \
 	src/linux/production_hardware.cpp
-LIB_OBJECTS := $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(LIB_SOURCES))
+LIB_OBJECTS := $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(LIB_SOURCES)) \
+	$(BUILD_DIR)/src/native/linux/linux_input.o
 DAEMON_SOURCES := \
 	src/daemon/json.cpp \
 	src/daemon/protocol.cpp \
@@ -74,6 +76,7 @@ TEST_BINS := \
 	$(BUILD_DIR)/tests/unit/spi_test \
 	$(BUILD_DIR)/tests/unit/video_recipe_test \
 	$(BUILD_DIR)/tests/unit/i2c_test \
+	$(BUILD_DIR)/tests/unit/input_test \
 	$(BUILD_DIR)/tests/unit/video_test \
 	$(BUILD_DIR)/tests/unit/protocol_test \
 	$(BUILD_DIR)/tests/integration/daemon_server_test
@@ -104,6 +107,10 @@ $(VERSION_INPUT): force-version
 	else rm -f -- "$$temporary"; fi
 
 $(BUILD_DIR)/%.o: %.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c "$<" -o "$@"
+
+$(BUILD_DIR)/src/native/linux/linux_input.o: src/native/linux/input.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c "$<" -o "$@"
 
@@ -160,6 +167,14 @@ $(BUILD_DIR)/tests/unit/i2c_test: tests/unit/i2c_test.cpp \
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) -DMISTER_RUNTIME_TESTING $(CXXFLAGS) \
 		tests/unit/i2c_test.cpp src/native/linux/i2c.cpp -o "$@"
+
+$(BUILD_DIR)/tests/unit/input_test: tests/unit/input_test.cpp \
+		tests/support/fake_input.cpp src/native/input.cpp \
+		src/native/linux/input.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) -DMISTER_RUNTIME_TESTING $(CXXFLAGS) \
+		tests/unit/input_test.cpp tests/support/fake_input.cpp \
+		src/native/input.cpp src/native/linux/input.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/video_test: tests/unit/video_test.cpp \
 		tests/support/fake_i2c.cpp tests/support/capture_log.cpp \
@@ -262,8 +277,10 @@ sanitize:
 tsan:
 	@$(MAKE) BUILD_DIR="$(BUILD_DIR)/tsan" \
 		CXXFLAGS="$(CXXFLAGS) -fsanitize=thread -fno-omit-frame-pointer" \
+		"$(BUILD_DIR)/tsan/tests/unit/input_test" \
 		"$(BUILD_DIR)/tsan/tests/unit/runtime_test" \
 		"$(BUILD_DIR)/tsan/tests/integration/daemon_server_test"
+	@"$(BUILD_DIR)/tsan/tests/unit/input_test"
 	@"$(BUILD_DIR)/tsan/tests/unit/runtime_test"
 	@"$(BUILD_DIR)/tsan/tests/integration/daemon_server_test"
 
@@ -284,8 +301,8 @@ archive-audit: $(ARCHIVE)
 		exit 1; \
 	}; \
 	member_count="$$(printf '%s\n' "$$actual_members" | sed '/^$$/d' | wc -l | tr -d ' ')"; \
-	[[ "$$member_count" == 12 ]] || { \
-		echo "canonical archive must contain exactly 12 production members" >&2; \
+	[[ "$$member_count" == 14 ]] || { \
+		echo "canonical archive must contain exactly 14 production members" >&2; \
 		exit 1; \
 	}; \
 	archive_list="$$(find "$(BUILD_DIR)" -maxdepth 1 -type f -name '*.a' | sed 's|^.*/||' | LC_ALL=C sort)"; \
@@ -299,9 +316,9 @@ archive-audit: $(ARCHIVE)
 		echo "archive members differ from production objects" >&2; \
 		exit 1; \
 	}; \
-	for required in runtime.o profile.o artifacts.o core_loader.o hardware.o \
+	for required in runtime.o profile.o artifacts.o core_loader.o input.o hardware.o \
 		fpga_manager.o mmio.o spi.o production_hardware.o video_recipe.o \
-		video.o i2c.o; do \
+		video.o i2c.o linux_input.o; do \
 		grep -Fx "$$required" <<<"$$actual_members" >/dev/null || { \
 			echo "archive omits required native member: $$required" >&2; \
 			exit 1; \
@@ -310,10 +327,12 @@ archive-audit: $(ARCHIVE)
 	compiled_sources=""; \
 	while IFS= read -r object; do \
 		relative_object=$${object#"$(BUILD_DIR)/"}; \
-		source="$${relative_object%.o}.cpp"; \
+		if [[ "$$relative_object" == "src/native/linux/linux_input.o" ]]; then \
+			source="src/native/linux/input.cpp"; \
+		else source="$${relative_object%.o}.cpp"; fi; \
 		[[ -f "$$source" ]] || { echo "object has no production source: $$relative_object" >&2; exit 1; }; \
 		case "$$source" in \
-			src/runtime.cpp|src/profile.cpp|src/native/artifacts.cpp|src/native/core_loader.cpp|src/native/video_recipe.cpp|src/native/video.cpp|src/native/hardware.cpp|src/native/linux/fpga_manager.cpp|src/native/linux/i2c.cpp|src/native/linux/mmio.cpp|src/native/linux/spi.cpp|src/linux/production_hardware.cpp) ;; \
+			src/runtime.cpp|src/profile.cpp|src/native/artifacts.cpp|src/native/core_loader.cpp|src/native/input.cpp|src/native/video_recipe.cpp|src/native/video.cpp|src/native/hardware.cpp|src/native/linux/fpga_manager.cpp|src/native/linux/i2c.cpp|src/native/linux/input.cpp|src/native/linux/mmio.cpp|src/native/linux/spi.cpp|src/linux/production_hardware.cpp) ;; \
 			*) echo "archive contains non-production source: $$source" >&2; exit 1 ;; \
 		esac; \
 		compiled_sources+="$$source"$$'\n'; \
@@ -323,7 +342,7 @@ archive-audit: $(ARCHIVE)
 			printf '%s\n' "$${object#"$(BUILD_DIR)/"}"; \
 		fi; \
 	done < <(printf '%s\n' $(LIB_OBJECTS) | LC_ALL=C sort))"; \
-	expected_raw_owners=$$'src/native/artifacts.o\nsrc/native/core_loader.o\nsrc/native/linux/fpga_manager.o\nsrc/native/linux/i2c.o\nsrc/native/linux/mmio.o'; \
+	expected_raw_owners=$$'src/native/artifacts.o\nsrc/native/core_loader.o\nsrc/native/linux/fpga_manager.o\nsrc/native/linux/i2c.o\nsrc/native/linux/linux_input.o\nsrc/native/linux/mmio.o'; \
 	[[ "$$raw_owners" == "$$expected_raw_owners" ]] || { \
 		echo "raw I/O ownership differs from the canonical native boundary" >&2; \
 		diff -u <(printf '%s\n' "$$expected_raw_owners") \
@@ -337,7 +356,7 @@ archive-audit: $(ARCHIVE)
 		exit 1; \
 	fi; \
 	if $(NM) -g "$(ARCHIVE)" | $(CXXFILT) | \
-		grep -E 'LinuxMmioTestOperations|LinuxI2cTestOperations|FakeHardware|FakeMmio|FakeSpi|FakeI2c|CartProfile|BiosProfile|mister_test' >/dev/null; then \
+		grep -E 'LinuxMmioTestOperations|LinuxI2cTestOperations|LinuxInputTestOperations|FakeHardware|FakeMmio|FakeSpi|FakeI2c|FakeInput|CartProfile|BiosProfile|mister_test' >/dev/null; then \
 		echo "archive exports test-only hardware or profile symbols" >&2; \
 		exit 1; \
 	fi; \
