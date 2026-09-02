@@ -127,6 +127,12 @@ public:
 class RecordingSpi final : public mister::native::Spi {
 public:
 	explicit RecordingSpi(std::vector<std::string>& events) : events_(events) {}
+	mister::Error SynchronizeCore(std::uint64_t deadline) override
+	{
+		deadlines.push_back(deadline);
+		events_.push_back("sync");
+		return sync_error;
+	}
 	mister::Error Exchange(std::uint8_t,
 		const std::vector<std::uint16_t>& request,
 		std::vector<std::uint16_t>* response, std::uint64_t deadline) override
@@ -151,6 +157,7 @@ public:
 	std::string observed_core = "TESTCART";
 	mister::Error probe_error;
 	std::vector<std::uint64_t> deadlines;
+	mister::Error sync_error;
 };
 
 struct Fixture {

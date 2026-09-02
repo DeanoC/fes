@@ -46,6 +46,53 @@ void TestExchangeSelectsStrobesAcknowledgesAndDeselects()
 		mister::native::kSpiFileSelectMask | mister::native::kSpiStrobeMask)) == 0);
 }
 
+void TestSynchronizeCoreTogglesOnlyCoreIdStrobeAndSamplesGpi()
+{
+	mister_test::FakeMmio mmio;
+	mmio.values[mister::native::kSpiGpoAddress] = 0x40000055u;
+	mmio.values[mister::native::kSpiGpiAddress] = 0x5ca623a4u;
+	FixedClock clock(1);
+	mister::native::LinuxSpi spi(mmio, clock);
+	assert(spi.SynchronizeCore(100).ok());
+	const std::vector<std::uint32_t> expected_reads = {
+		mister::native::kSpiGpoAddress, mister::native::kSpiGpiAddress};
+	assert(mmio.reads == expected_reads);
+	assert(mmio.writes.size() == 2);
+	assert(mmio.writes[0].offset == mister::native::kSpiGpoAddress);
+	assert(mmio.writes[0].value == 0x40000055u);
+	assert(mmio.writes[1].offset == mister::native::kSpiGpoAddress);
+	assert(mmio.writes[1].value == 0xc0000055u);
+}
+
+void TestSynchronizeCoreStopsAtEachDirectFailureAndDeadline()
+{
+	{
+		mister_test::FakeMmio mmio;
+		mmio.read_error = {mister::ErrorCode::io_failed, "GPO read failed"};
+		FixedClock clock(1);
+		mister::native::LinuxSpi spi(mmio, clock);
+		assert(spi.SynchronizeCore(100).message == "GPO read failed");
+		assert(mmio.writes.empty());
+	}
+	{
+		mister_test::FakeMmio mmio;
+		mmio.values[mister::native::kSpiGpoAddress] = 0x80000000u;
+		mmio.PushReadError(mister::native::kSpiGpiAddress,
+			{mister::ErrorCode::io_failed, "GPI read failed"});
+		FixedClock clock(1);
+		mister::native::LinuxSpi spi(mmio, clock);
+		assert(spi.SynchronizeCore(100).message == "GPI read failed");
+		assert(mmio.writes.size() == 1);
+	}
+	{
+		mister_test::FakeMmio mmio;
+		FixedClock clock(100);
+		mister::native::LinuxSpi spi(mmio, clock);
+		assert(spi.SynchronizeCore(100).message == "deadline exceeded");
+		assert(mmio.reads.empty() && mmio.writes.empty());
+	}
+}
+
 void TestFileTargetUsesOnlyFileSelect()
 {
 	mister_test::FakeMmio mmio;
@@ -99,10 +146,12 @@ void TestMmioAndTargetFailuresRemainDirect()
 int main()
 {
 	TestExchangeSelectsStrobesAcknowledgesAndDeselects();
+	TestSynchronizeCoreTogglesOnlyCoreIdStrobeAndSamplesGpi();
+	TestSynchronizeCoreStopsAtEachDirectFailureAndDeadline();
 	TestFileTargetUsesOnlyFileSelect();
 	TestExchangeReplacesStaleRegisterDataBits();
 	TestDeadlineReturnsDirectIoFailureAndDeselects();
 	TestMmioAndTargetFailuresRemainDirect();
-	puts("spi_test: 5 passed");
+	puts("spi_test: 7 passed");
 	return 0;
 }
