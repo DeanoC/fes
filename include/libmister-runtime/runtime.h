@@ -82,6 +82,8 @@ struct MediaRule {
 	std::string role;
 	std::uint8_t index = 0;
 	bool required = false;
+	std::vector<std::string> extensions;
+	std::uint64_t maximum_size = 0;
 };
 
 struct SettingRule {
@@ -89,16 +91,36 @@ struct SettingRule {
 	std::vector<std::string> allowed_values;
 };
 
+enum class FileWireFormat { little_endian_byte_pairs };
+
+struct CoreRecipe {
+	std::uint16_t reset_assert_word = 0;
+	std::uint16_t initial_status_word = 0;
+	std::uint16_t reset_release_word = 0;
+	FileWireFormat file_wire = FileWireFormat::little_endian_byte_pairs;
+};
+
+struct InputRecipe {
+	std::uint8_t player_count = 0;
+	std::uint16_t player_command = 0;
+	std::uint16_t up = 0, down = 0, left = 0, right = 0;
+	std::uint16_t a = 0, b = 0, c = 0, start = 0;
+};
+
 struct Profile {
 	std::string system;
 	std::string expected_core;
+	std::string rbf;
 	std::vector<MediaRule> media;
 	std::vector<SettingRule> settings;
+	CoreRecipe core;
+	InputRecipe input;
 };
 
 struct PreparedMedia {
 	std::uint8_t index = 0;
 	std::string path;
+	std::uint64_t maximum_size = 0;
 };
 
 struct PreparedLaunch {
@@ -107,6 +129,8 @@ struct PreparedLaunch {
 	std::string rbf;
 	std::vector<PreparedMedia> media;
 	std::vector<Setting> settings;
+	CoreRecipe core;
+	InputRecipe input;
 };
 
 class Profiles {

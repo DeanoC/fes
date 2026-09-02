@@ -397,7 +397,63 @@ void TestNativeLoggingNamesPhasesAndConfirmedCore()
 
 void TestProductionConstructionOwnsRealIdleHardware()
 {
-	assert(mister::ProductionProfiles().empty());
+	const mister::Profiles& profiles = mister::ProductionProfiles();
+	mister::Launch launch;
+	launch.system = "megadrive";
+	launch.rbf = "/usr/share/mister-runtime/cores/megadrive.rbf";
+	launch.media.push_back({"cartridge", "/media/fat/fogcast/cache/sonic2.bin"});
+	mister::PreparedLaunch prepared;
+	assert(profiles.Prepare(launch, &prepared).ok());
+	assert(prepared.system == "megadrive");
+	assert(prepared.expected_core == "MegaDrive");
+	assert(prepared.media.size() == 1 && prepared.media[0].index == 1);
+	assert(prepared.core.reset_assert_word == 0x0001);
+	assert(prepared.core.initial_status_word == 0x0001);
+	assert(prepared.core.reset_release_word == 0x0000);
+	assert(prepared.core.file_wire ==
+		mister::FileWireFormat::little_endian_byte_pairs);
+	assert(prepared.input.player_count == 1);
+	assert(prepared.input.player_command == 0x02);
+	assert(prepared.input.up == 0x0008);
+	assert(prepared.input.down == 0x0004);
+	assert(prepared.input.left == 0x0002);
+	assert(prepared.input.right == 0x0001);
+	assert(prepared.input.a == 0x0010);
+	assert(prepared.input.b == 0x0020);
+	assert(prepared.input.c == 0x0040);
+	assert(prepared.input.start == 0x0080);
+
+	mister::PreparedLaunch unchanged;
+	unchanged.system = "sentinel";
+	launch.system = "snes";
+	assert(profiles.Prepare(launch, &unchanged).code ==
+		mister::ErrorCode::unknown_system);
+	assert(unchanged.system == "sentinel");
+	launch.system = "megadrive";
+	launch.settings.push_back({"region", "pal"});
+	assert(profiles.Prepare(launch, &unchanged).code ==
+		mister::ErrorCode::invalid_request);
+	assert(unchanged.system == "sentinel");
+	launch.settings.clear();
+	launch.media[0].path = "/media/fat/fogcast/cache/sonic2.zip";
+	assert(profiles.Prepare(launch, &unchanged).code ==
+		mister::ErrorCode::invalid_request);
+	assert(unchanged.system == "sentinel");
+	launch.media[0].path = "/media/fat/fogcast/cache/sonic2.bin";
+	launch.media.push_back({"cartridge", "/media/fat/fogcast/cache/sonic2.md"});
+	assert(profiles.Prepare(launch, &unchanged).code ==
+		mister::ErrorCode::invalid_request);
+	assert(unchanged.system == "sentinel");
+	launch.media.pop_back();
+	launch.media.push_back({"bios", "/media/fat/fogcast/cache/bios.bin"});
+	assert(profiles.Prepare(launch, &unchanged).code ==
+		mister::ErrorCode::invalid_request);
+	assert(unchanged.system == "sentinel");
+	launch.media.pop_back();
+	launch.rbf = "/usr/share/mister-runtime/cores/other.rbf";
+	assert(profiles.Prepare(launch, &unchanged).code ==
+		mister::ErrorCode::invalid_request);
+	assert(unchanged.system == "sentinel");
 	mister_test::CaptureLog log;
 	std::unique_ptr<mister::Hardware> hardware;
 	const mister::Error created = mister::CreateProductionHardware(log, &hardware);

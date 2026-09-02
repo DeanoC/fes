@@ -24,6 +24,23 @@
 namespace mister {
 namespace {
 
+Profiles BuildProductionProfiles()
+{
+	Profile profile;
+	profile.system = "megadrive";
+	profile.expected_core = "MegaDrive";
+	profile.rbf = "/usr/share/mister-runtime/cores/megadrive.rbf";
+	profile.media.push_back({"cartridge", 1, true, {".md", ".gen", ".bin"},
+		32u * 1024u * 1024u});
+	profile.core = {0x0001, 0x0001, 0x0000,
+		FileWireFormat::little_endian_byte_pairs};
+	profile.input = {1, 0x02, 0x0008, 0x0004, 0x0002, 0x0001,
+		0x0010, 0x0020, 0x0040, 0x0080};
+	Profiles profiles;
+	if (!profiles.Add(std::move(profile)).ok()) std::abort();
+	return profiles;
+}
+
 class UnavailableHardware final : public Hardware {
 public:
 	explicit UnavailableHardware(Error reason) : reason_(std::move(reason))
@@ -92,7 +109,7 @@ private:
 
 const Profiles& ProductionProfiles()
 {
-	static const Profiles profiles;
+	static const Profiles profiles = BuildProductionProfiles();
 	return profiles;
 }
 
