@@ -16,6 +16,7 @@ constexpr std::uint8_t kFileIoTarget = 0;
 constexpr std::uint8_t kUserIoTarget = 1;
 constexpr std::uint32_t kSpiGpoAddress = 0xff706010u;
 constexpr std::uint32_t kSpiGpiAddress = 0xff706014u;
+constexpr std::uint32_t kSpiCoreIdStrobeMask = 0x80000000u;
 constexpr std::uint32_t kSpiStrobeMask = 0x00020000u;
 constexpr std::uint32_t kSpiFileSelectMask = 0x00040000u;
 constexpr std::uint32_t kSpiUserSelectMask = 0x00100000u;
@@ -23,6 +24,9 @@ constexpr std::uint32_t kSpiUserSelectMask = 0x00100000u;
 class Spi {
 public:
 	virtual ~Spi() {}
+	// Toggle the FPGA core-ID strobe and sample GPI after programming. Main
+	// performs this edge before its first user-I/O transaction.
+	virtual Error SynchronizeCore(std::uint64_t absolute_deadline_ms) = 0;
 	virtual Error Exchange(std::uint8_t target,
 		const std::vector<std::uint16_t>& request,
 		std::vector<std::uint16_t>* response,
@@ -32,6 +36,7 @@ public:
 class LinuxSpi final : public Spi {
 public:
 	LinuxSpi(Mmio&, Clock&);
+	Error SynchronizeCore(std::uint64_t) override;
 	Error Exchange(std::uint8_t, const std::vector<std::uint16_t>&,
 		std::vector<std::uint16_t>*, std::uint64_t) override;
 

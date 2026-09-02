@@ -35,8 +35,10 @@ public:
 		std::uint64_t) override;
 
 	void MarkTimingEvent();
+	void MarkReleaseEvent();
 	std::vector<mister::native::RegisterWrite> InitializationWrites() const;
 	std::vector<mister::native::RegisterWrite> ModeWrites() const;
+	std::vector<mister::native::RegisterWrite> HdmiWakeWrites() const;
 
 	std::string selected_bus = "/dev/i2c-1";
 	std::uint8_t detection_value = 0x40;
@@ -56,6 +58,7 @@ private:
 	std::vector<std::string>* ordered_calls_;
 	std::vector<mister::native::RegisterWrite> writes_;
 	std::size_t timing_write_index_ = std::numeric_limits<std::size_t>::max();
+	std::size_t release_write_index_ = std::numeric_limits<std::size_t>::max();
 	std::size_t link_read_count_ = 0;
 	std::uint8_t last_link_status_ = 0;
 };

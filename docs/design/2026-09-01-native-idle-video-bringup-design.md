@@ -121,6 +121,7 @@ The canonical idle sequence becomes:
 ```text
 open locked menu.rbf
   -> program FPGA and release bridges/core hardware reset
+  -> toggle the FPGA core-ID strobe and sample GPI
   -> assert menu-core software reset over user-I/O SPI
   -> probe and require observed core name MENU
   -> locate ADV7513 main map at address 0x39
@@ -128,6 +129,7 @@ open locked menu.rbf
   -> send fixed 1280x720@60 timing and PLL words with UIO_SET_VIDEO
   -> apply fixed 720p ADV7513 mode registers
   -> release menu-core software reset
+  -> emit a bounded ADV7513 EDID-request/clear wake edge and neutral input packet
   -> require ADV7513 HPD and monitor-sense status
   -> publish idle
 ```
@@ -234,6 +236,7 @@ future feature.
 ```text
 preflight
 program
+core_sync
 core_reset
 core_probe
 hdmi_init

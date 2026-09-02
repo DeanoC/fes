@@ -5,6 +5,17 @@
 
 namespace mister_test {
 
+mister::Error FakeSpi::SynchronizeCore(std::uint64_t deadline)
+{
+	(void)deadline;
+	if (!errors.empty()) {
+		const mister::Error error = errors.front();
+		errors.pop_front();
+		if (!error.ok()) return error;
+	}
+	return {};
+}
+
 mister::Error FakeSpi::Exchange(std::uint8_t target,
 	const std::vector<std::uint16_t>& request,
 	std::vector<std::uint16_t>* response, std::uint64_t deadline)

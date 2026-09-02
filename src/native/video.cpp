@@ -27,6 +27,17 @@ const std::vector<std::uint16_t> kReleasedStatus = {
 	0x0000, 0x0000, 0x0000, 0x0000,
 };
 
+// ADV7513's EDID request edge wakes the fixed-mode transmitter on a cold
+// native start.  The request is deliberately not read back here: the native
+// path has no need to select the EDID sub-map, and the transmitter's IRQ
+// response is not part of fixed-mode bring-up.
+const std::vector<RegisterWrite> kHdmiWake = {
+	{0x96, 0x04}, {0xc4, 0x00}, {0xc9, 0x03},
+	{0xc9, 0x13}, {0xc9, 0x03},
+};
+
+const std::vector<std::uint16_t> kNeutralButtons = {0x0001, 0x0000};
+
 std::string HexByte(std::uint8_t value)
 {
 	static const char digits[] = "0123456789abcdef";
@@ -76,7 +87,11 @@ VideoResult MenuVideoBringup::BringUp(const std::string& expected_core,
 		return PhaseFailure("core_reset",
 			{ErrorCode::io_failed, "deadline exceeded"}, result);
 
-	Error error = spi_.Exchange(kUserIoTarget, kAssertedStatus, nullptr, deadline);
+	Error error = spi_.SynchronizeCore(deadline);
+	if (!error.ok()) return PhaseFailure("core_sync", error, result);
+	PhaseSuccess("core_sync", &result, log_);
+
+	error = spi_.Exchange(kUserIoTarget, kAssertedStatus, nullptr, deadline);
 	if (!error.ok()) return PhaseFailure("core_reset", error, result);
 	PhaseSuccess("core_reset", &result, log_);
 
@@ -109,6 +124,16 @@ VideoResult MenuVideoBringup::BringUp(const std::string& expected_core,
 	error = spi_.Exchange(kUserIoTarget, kReleasedStatus, nullptr, deadline);
 	if (!error.ok()) return PhaseFailure("core_release", error, result);
 	PhaseSuccess("core_release", &result, log_);
+
+	for (const RegisterWrite& write : kHdmiWake) {
+		error = i2c_.WriteByte(write.address, write.value, deadline);
+		if (!error.ok()) return PhaseFailure("hdmi_wake", error, result);
+	}
+	PhaseSuccess("hdmi_wake", &result, log_);
+
+	error = spi_.Exchange(kUserIoTarget, kNeutralButtons, nullptr, deadline);
+	if (!error.ok()) return PhaseFailure("core_input", error, result);
+	PhaseSuccess("core_input", &result, log_);
 
 	do {
 		if (clock_.NowMs() >= deadline)

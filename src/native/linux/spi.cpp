@@ -16,6 +16,25 @@ Error Deadline()
 
 LinuxSpi::LinuxSpi(Mmio& mmio, Clock& clock) : mmio_(mmio), clock_(clock) {}
 
+Error LinuxSpi::SynchronizeCore(std::uint64_t deadline)
+{
+	if (clock_.NowMs() >= deadline) return Deadline();
+	std::uint32_t original = 0;
+	Error error = mmio_.Read32(kSpiGpoAddress, &original);
+	if (!error.ok()) return error;
+	if (clock_.NowMs() >= deadline) return Deadline();
+	const std::uint32_t strobe_low = original & ~kSpiCoreIdStrobeMask;
+	error = mmio_.Write32(kSpiGpoAddress, strobe_low);
+	if (!error.ok()) return error;
+	if (clock_.NowMs() >= deadline) return Deadline();
+	std::uint32_t ignored = 0;
+	error = mmio_.Read32(kSpiGpiAddress, &ignored);
+	if (!error.ok()) return error;
+	if (clock_.NowMs() >= deadline) return Deadline();
+	return mmio_.Write32(kSpiGpoAddress,
+		strobe_low | kSpiCoreIdStrobeMask);
+}
+
 Error LinuxSpi::Exchange(std::uint8_t target,
 	const std::vector<std::uint16_t>& request,
 	std::vector<std::uint16_t>* output, std::uint64_t deadline)

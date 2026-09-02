@@ -20,6 +20,8 @@ public:
 		std::uint64_t deadline;
 	};
 
+	mister::Error SynchronizeCore(std::uint64_t) override;
+
 	mister::Error Exchange(std::uint8_t,
 		const std::vector<std::uint16_t>&,
 		std::vector<std::uint16_t>*, std::uint64_t) override;
