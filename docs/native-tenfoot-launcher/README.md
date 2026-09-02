@@ -4,6 +4,13 @@ SDL3 cover grid on Mac. It talks to the existing FogCast public host API over
 HTTP. It does not own catalog, content transfer, or `/dev/MiSTer_cmd`. The
 browser shell remains the default UI.
 
+Phase briefs (implement in order; each links host APIs + acceptance):
+
+- [P0 browse](P0-BROWSE.md) — merged (#100)
+- [P1 collections / favorites](P1-COLLECTIONS.md) — merged (#104)
+- [P2 session / GPU park](P2-SESSION.md) — merged (#106)
+- [P3 living-room](P3-LIVINGROOM.md) — **active**: TV safe area, attract, alternate layouts, Linux
+
 ## Build
 
 Homebrew `sdl3` and `pkg-config` are required.
@@ -128,9 +135,20 @@ library grid. Stop and Quit still work while parked. On idle (stop success,
 poll, or media exit observed through the status poll) the cover grid resumes
 and textures are uploaded again for the visible/prefetch window.
 
-## Known gaps
+## Known gaps / next
 
-- TV safe area and overscan are later. Fullscreen is available; it is not
-  calibrated for living-room overscan. Short windows such as `-height 480`
-  shrink the cover cell so the row sits above the detail footer.
-- Mac-first. Linux is next.
+P3 in progress — see [P3-LIVINGROOM.md](P3-LIVINGROOM.md):
+
+- TV safe area / overscan inset (client-local prefs; no host API). Fullscreen
+  exists but is not yet calibrated for living-room overscan. Short windows
+  such as `-height 480` shrink the cover cell so the row sits above the
+  detail footer.
+- Attract mode via `GET /api/v1/library/attract` (web already idles into it;
+  tenfoot does not yet).
+- Alternate sofa layouts (list or wheel) beyond the cover grid.
+- Linux SDL3 build: `Makefile` `TENFOOT_CGO_ENV` is Darwin-oriented today;
+  `host/tenfoot/sdl.go` is `//go:build sdl3` with a `!sdl3` stub.
+
+Still out of tenfoot scope (web / later): sofa collection create/rename,
+library/target settings editor, session/events stream UI, development-rbf,
+media preview player, remote-input attach/detach chrome.
