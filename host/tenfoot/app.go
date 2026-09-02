@@ -254,6 +254,7 @@ type App struct {
 	hold            HoldGate
 	session         SessionResult
 	sessionTitle    string
+	sessionGen      int
 	stopPhase       string
 	stopMessage     string
 	gpuParked       bool
@@ -782,12 +783,14 @@ func (a *App) Snapshot() Snapshot {
 		}
 	}
 	status := a.status
-	if a.stopPhase == "stopping" && a.stopMessage != "" {
-		status = a.stopMessage
-	} else if a.launch.Phase != "idle" && a.launch.Message != "" {
+	if line := a.stopStatusLocked(); line != "" {
+		status = line
+	} else if a.launch.Phase != "idle" && a.launch.Phase != "ok" && a.launch.Message != "" {
 		status = a.launch.Message
 	} else if line := a.nowPlayingStatusLocked(); line != "" {
 		status = line
+	} else if a.launch.Phase == "ok" && a.launch.Message != "" {
+		status = a.launch.Message
 	}
 	if a.platformErr != "" {
 		if status == "" {
@@ -1012,6 +1015,7 @@ func (a *App) startLaunchLocked() {
 		Phase:   "launching",
 		Message: "launching " + game.Title,
 	}
+	a.bumpSessionGenLocked()
 	ctx := a.ctx
 	if ctx == nil {
 		ctx = context.Background()
@@ -1044,9 +1048,11 @@ func (a *App) doLaunch(ctx context.Context, game Game) {
 	if a.launch.GameID != game.ID {
 		return
 	}
+	a.bumpSessionGenLocked()
 	if err != nil {
 		a.launch.Phase = "error"
 		a.launch.Message = "launch failed: " + err.Error()
+		a.launch.GameID = ""
 		return
 	}
 	a.launch.HTTPStatus = result.HTTPStatus
@@ -1056,6 +1062,7 @@ func (a *App) doLaunch(ctx context.Context, game Game) {
 	if result.ErrorCode != "" {
 		a.launch.Phase = "host"
 		a.launch.Message = fmt.Sprintf("host launch %d %s: %s", result.HTTPStatus, result.ErrorCode, result.ErrorMessage)
+		a.launch.GameID = ""
 		return
 	}
 	a.launch.Phase = "ok"
@@ -1077,6 +1084,7 @@ func (a *App) startStopLocked() {
 	}
 	a.stopPhase = "stopping"
 	a.stopMessage = "stopping session"
+	a.bumpSessionGenLocked()
 	a.syncGPUParkLocked()
 	ctx := a.ctx
 	if ctx == nil {
@@ -1092,6 +1100,7 @@ func (a *App) doStop(ctx context.Context) {
 	if a.stopPhase != "stopping" {
 		return
 	}
+	a.bumpSessionGenLocked()
 	if err != nil {
 		a.stopPhase = "error"
 		a.stopMessage = "stop failed: " + err.Error()
@@ -1127,16 +1136,26 @@ func (a *App) pollSession(ctx context.Context) {
 }
 
 func (a *App) fetchSession(ctx context.Context) {
+	a.mu.Lock()
+	gen := a.sessionGen
+	a.mu.Unlock()
 	result, err := a.client.Session(ctx)
 	if err != nil || ctx.Err() != nil {
 		return
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if gen != a.sessionGen {
+		return
+	}
 	if a.launch.Phase == "launching" || a.stopPhase == "stopping" {
 		return
 	}
 	a.applySessionLocked(result)
+}
+
+func (a *App) bumpSessionGenLocked() {
+	a.sessionGen++
 }
 
 func (a *App) kickSessionPollLocked() {
@@ -1157,7 +1176,7 @@ func (a *App) applySessionLocked(result SessionResult) {
 	if result.State != "active" {
 		a.session.GameID = ""
 		a.session.System = ""
-	} else if a.session.GameID == "" && a.launch.GameID != "" {
+	} else if a.session.GameID == "" && a.launch.Phase == "ok" && a.launch.GameID != "" {
 		a.session.GameID = a.launch.GameID
 	}
 	if a.session.State != "active" && a.stopPhase != "stopping" {
@@ -1166,6 +1185,7 @@ func (a *App) applySessionLocked(result SessionResult) {
 		if a.launch.Phase == "ok" {
 			a.launch.Phase = "idle"
 			a.launch.Message = ""
+			a.launch.GameID = ""
 		}
 	}
 	a.syncGPUParkLocked()
@@ -1241,10 +1261,19 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 	}
 }
 
-func (a *App) nowPlayingStatusLocked() string {
-	if a.stopPhase == "stopping" && a.stopMessage != "" {
-		return a.stopMessage
+func (a *App) stopStatusLocked() string {
+	if strings.TrimSpace(a.stopMessage) == "" {
+		return ""
 	}
+	switch a.stopPhase {
+	case "stopping", "error", "host":
+		return a.stopMessage
+	default:
+		return ""
+	}
+}
+
+func (a *App) nowPlayingStatusLocked() string {
 	if a.session.State != "active" {
 		return ""
 	}

@@ -96,12 +96,17 @@ make tenfoot-smoke
   (`state`, `game_id`, optional `execution` / `media` / `progress`) is adopted
   immediately; tenfoot still polls afterward.
 - `GET /api/v1/session` polled about once a second while the window is up, and
-  again right after launch or stop. That is the same observation point the host
+  again right after launch or stop. A poll that started before a launch or stop
+  is discarded when that mutation finishes, so a stale idle or active snapshot
+  cannot unpark or re-park the GPU. That is the same observation point the host
   uses to reap exited host-only / media sessions (`internal/hostapi/session.go`).
-  When `state` is not `active`, `game_id` and `system` are omitted. `execution`,
-  `media`, `progress`, and `input.state` are shown in now-playing chrome when
-  present. Tenfoot does not call session/events, preview, input attach/detach,
-  or development-rbf.
+  When `state` is not `active`, `game_id` and `system` are omitted. An active
+  session that omits `game_id` keeps that omission; tenfoot does not copy an ID
+  from an earlier launch. `execution`, `media`, `progress`, and `input.state`
+  are shown in now-playing chrome when present. Stop failures and live session
+  progress replace a completed launch acknowledgement in the status line.
+  Tenfoot does not call session/events, preview, input attach/detach, or
+  development-rbf.
 - `POST /api/v1/session/stop` with an empty body. Offered only while the session
   is active or a stop is already in flight (East/B, Esc/Backspace, or `s`).
 
