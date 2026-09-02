@@ -96,15 +96,21 @@ The active image toolchain is under `buildroot/`, `containers/target-image/`,
 
 The working `dev` and `prod` targets boot `/media/fat/linux/linux.img`, start
 the MiSTer/Main process, and then start the FAT-side FogCast agent from
-`/media/fat/fogcast`. They remain the game and development-RBF path.
+`/media/fat/fogcast`. Before Main starts, the image-owned legacy boot service
+atomically enforces `osd_timeout=0` and `video_off=0` in the persistent
+`/media/fat/MiSTer.ini`, preserving unrelated settings and one copy of the
+pre-FogCast file. This keeps the Menu HDMI output visible during unattended
+capture and is idempotent across reboots. They remain the game and
+development-RBF path.
 
 The `native-dev` candidate instead starts image-owned `mister-runtime` and
 then image-owned `mister-agent --runtime native`. It contains exactly one
 locked idle RBF under `/usr/share/mister-runtime`, has no Main startup or
-`/dev/MiSTer_cmd` wait, and retains the same read-only root with volatile
-`/run`, `/tmp`, and `/var/log`. Its QEMU smoke proves only root filesystem and
-init packaging; it does not emulate FPGA programming, prove target readiness,
-or establish game or development-RBF support.
+legacy Menu-configuration helper, has no `/dev/MiSTer_cmd` wait, and retains
+the same read-only root with volatile `/run`, `/tmp`, and `/var/log`. Its QEMU
+smoke proves only root filesystem and init packaging; it does not emulate FPGA
+programming, prove target readiness, or establish game or development-RBF
+support.
 
 ## Development RBF extension
 

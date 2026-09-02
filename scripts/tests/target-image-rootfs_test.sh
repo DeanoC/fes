@@ -104,6 +104,7 @@ fstab=$rootfs/etc/fstab
 inittab=$rootfs/etc/inittab
 network=$rootfs/etc/init.d/S20mister-network
 main=$rootfs/etc/init.d/S40mister-main
+menu_blanking=$rootfs/usr/sbin/mister-disable-menu-blanking
 agent=$rootfs/etc/init.d/S50mister-agent
 smoke=$rootfs/etc/init.d/S49fogcast-target-smoke
 supervise=$rootfs/usr/sbin/mister-supervise
@@ -113,7 +114,12 @@ native_runtime=$native_rootfs/etc/init.d/S40mister-runtime
 native_agent=$native_rootfs/etc/init.d/S50mister-agent
 native_post_build=$repo/buildroot/board/fogcast-target/native-post-build.sh
 
-for required_file in "$fstab" "$inittab" "$network" "$main" "$agent" "$smoke" "$supervise" "$post_build"; do
+test -f "$menu_blanking" || {
+  printf '%s\n' 'legacy image is missing the Menu blanking policy helper' >&2
+  exit 1
+}
+test -x "$menu_blanking"
+for required_file in "$fstab" "$inittab" "$network" "$main" "$menu_blanking" "$agent" "$smoke" "$supervise" "$post_build"; do
   test -f "$required_file"
 done
 for required_file in "$native_runtime" "$native_agent" "$native_post_build"; do
@@ -137,7 +143,11 @@ grep -Fq '[ -s "$verify_path" ]' "$main"
 ! grep -Fq 'refusing changed artifact' "$main"
 grep -Fq 'wait_seconds=10' "$main"
 grep -Fq 'waiting for /media/fat' "$main"
+grep -Fq '/usr/sbin/mister-disable-menu-blanking /media/fat/MiSTer.ini' "$main"
 grep -Fq '/media/fat/MiSTer /media/fat/menu.rbf >> /var/log/mister-main.log 2>&1 &' "$main"
+blanking_line=$(grep -Fn '/usr/sbin/mister-disable-menu-blanking /media/fat/MiSTer.ini' "$main" | cut -d: -f1)
+launch_line=$(grep -Fn '/media/fat/MiSTer /media/fat/menu.rbf >> /var/log/mister-main.log 2>&1 &' "$main" | cut -d: -f1)
+[ "$blanking_line" -lt "$launch_line" ]
 ! grep -Fq 'mister-supervise mister-main' "$main"
 grep -Fq 'wait_seconds=30' "$agent"
 grep -Fq '[ ! -f /media/fat/fogcast/agent.toml ]' "$agent"
@@ -156,6 +166,7 @@ if grep -Eq '/dev/MiSTer_cmd|CORENAME|/media/fat/MiSTer|agent_binary=|killall|pi
   exit 1
 fi
 grep -Fq '/bin/rm -f "$target/etc/init.d/S40mister-main"' "$native_post_build"
+grep -Fq '"$target/usr/sbin/mister-disable-menu-blanking"' "$native_post_build"
 grep -Fq '/work/build/cache/target-image/native/idle.rbf' "$native_post_build"
 grep -Fq '"$target/usr/share/mister-runtime/idle.rbf"' "$native_post_build"
 grep -Fq '"$target/usr/share/mister-runtime/build-inputs"' "$native_post_build"
@@ -168,6 +179,158 @@ grep -Fq '/bin/sleep 1' "$supervise"
 
 fixture=$(mktemp -d "${TMPDIR:-/tmp}/fogcast-target-image-rootfs.XXXXXX")
 trap 'rm -rf "$fixture"' EXIT INT TERM
+
+menu_fixture=$fixture/menu-blanking
+mkdir -p "$menu_fixture"
+
+live_ini=$menu_fixture/live.ini
+cat > "$live_ini" <<'EOF'
+[MiSTer]
+osd_timeout=5
+video_off=1
+video_off_logo=0
+hdmi_off=0
+EOF
+cp "$live_ini" "$live_ini.original"
+cat > "$menu_fixture/live.expected" <<'EOF'
+[MiSTer]
+osd_timeout=0
+video_off=0
+video_off_logo=0
+hdmi_off=0
+EOF
+sh "$menu_blanking" "$live_ini"
+cmp "$live_ini" "$menu_fixture/live.expected"
+cmp "$live_ini.fogcast-backup" "$live_ini.original"
+live_hash=$(sha256sum "$live_ini" "$live_ini.fogcast-backup")
+sh "$menu_blanking" "$live_ini"
+[ "$live_hash" = "$(sha256sum "$live_ini" "$live_ini.fogcast-backup")" ]
+
+if command -v busybox >/dev/null 2>&1; then
+  busybox_path=$menu_fixture/busybox-path
+  mkdir -p "$busybox_path"
+  busybox --install -s "$busybox_path"
+  cp "$live_ini.original" "$menu_fixture/busybox.ini"
+  PATH=$busybox_path /bin/sh "$menu_blanking" "$menu_fixture/busybox.ini"
+  cmp "$menu_fixture/busybox.ini" "$menu_fixture/live.expected"
+fi
+
+missing_ini=$menu_fixture/missing.ini
+cat > "$menu_fixture/missing.expected" <<'EOF'
+[MiSTer]
+osd_timeout=0
+video_off=0
+EOF
+sh "$menu_blanking" "$missing_ini"
+cmp "$missing_ini" "$menu_fixture/missing.expected"
+test ! -e "$missing_ini.fogcast-backup"
+
+commented_ini=$menu_fixture/commented.ini
+cat > "$commented_ini" <<'EOF'
+[MiSTer]
+;osd_timeout=30
+;video_off=0
+keep=this
+EOF
+cat > "$menu_fixture/commented.expected" <<'EOF'
+[MiSTer]
+;osd_timeout=30
+;video_off=0
+keep=this
+osd_timeout=0
+video_off=0
+EOF
+sh "$menu_blanking" "$commented_ini"
+cmp "$commented_ini" "$menu_fixture/commented.expected"
+
+duplicates_ini=$menu_fixture/duplicates.ini
+cat > "$duplicates_ini" <<'EOF'
+preamble=keep
+[MiSTer]
+ OSD_TIMEOUT = 5
+video_off=1
+keep=this-too
+osd_timeout=30
+VIDEO_OFF = 2
+[Menu]
+osd_timeout=8
+video_off=9
+[video=1280,720,60]
+osd_timeout=99
+video_off=99
+EOF
+cat > "$menu_fixture/duplicates.expected" <<'EOF'
+preamble=keep
+[MiSTer]
+osd_timeout=0
+video_off=0
+keep=this-too
+[Menu]
+osd_timeout=0
+video_off=0
+[video=1280,720,60]
+osd_timeout=0
+video_off=0
+EOF
+sh "$menu_blanking" "$duplicates_ini"
+cmp "$duplicates_ini" "$menu_fixture/duplicates.expected"
+
+no_section_ini=$menu_fixture/no-section.ini
+cat > "$no_section_ini" <<'EOF'
+[Other]
+keep=this
+EOF
+cat > "$menu_fixture/no-section.expected" <<'EOF'
+[Other]
+keep=this
+
+[MiSTer]
+osd_timeout=0
+video_off=0
+EOF
+sh "$menu_blanking" "$no_section_ini"
+cmp "$no_section_ini" "$menu_fixture/no-section.expected"
+
+protected_ini=$menu_fixture/protected.ini
+cat > "$protected_ini" <<'EOF'
+[MiSTer]
+osd_timeout=5
+video_off=1
+EOF
+printf '%s\n' 'existing complete backup' > "$protected_ini.fogcast-backup"
+cp "$protected_ini.fogcast-backup" "$menu_fixture/protected-backup.expected"
+sh "$menu_blanking" "$protected_ini"
+cmp "$protected_ini.fogcast-backup" "$menu_fixture/protected-backup.expected"
+grep -Fqx 'osd_timeout=0' "$protected_ini"
+grep -Fqx 'video_off=0' "$protected_ini"
+
+copy_failure_ini=$menu_fixture/copy-failure.ini
+cat > "$copy_failure_ini" <<'EOF'
+[MiSTer]
+osd_timeout=5
+video_off=1
+EOF
+cp "$copy_failure_ini" "$menu_fixture/copy-failure.original"
+fake_bin=$menu_fixture/fake-bin
+mkdir -p "$fake_bin"
+cat > "$fake_bin/cp" <<'EOF'
+#!/bin/sh
+exit 9
+EOF
+chmod 0755 "$fake_bin/cp"
+if PATH=$fake_bin:$PATH sh "$menu_blanking" "$copy_failure_ini" >/dev/null 2>&1; then
+  echo 'Menu blanking helper accepted a failed backup copy' >&2
+  exit 1
+fi
+cmp "$copy_failure_ini" "$menu_fixture/copy-failure.original"
+test ! -e "$copy_failure_ini.fogcast-backup"
+if find "$menu_fixture" -maxdepth 1 -type f \
+  \( -name '.copy-failure.ini.fogcast.*' -o -name '.copy-failure.ini.fogcast-backup.*' \) \
+  -print -quit | grep -q .; then
+  echo 'Menu blanking helper left temporary files after a failed backup copy' >&2
+  exit 1
+fi
+
 target=$fixture/target
 mkdir -p "$target/root" "$target/etc/init.d" "$target/usr/lib" "$target/usr/sbin" "$target/usr/libexec/bluetooth" "$target/etc/dropbear" "$target/var" "$target/tmp"
 cp -R "$rootfs/." "$target/"
@@ -203,6 +366,7 @@ BR2_CONFIG=$prod_config "$post_build" "$target"
 test -d "$target/var/log"
 test ! -L "$target/var/log"
 test -x "$target/usr/sbin/mister-agent"
+test -x "$target/usr/sbin/mister-disable-menu-blanking"
 test ! -e "$target/usr/sbin/dropbear"
 test ! -e "$target/usr/libexec/bluetooth/bluetoothd"
 test ! -e "$target/etc/init.d/S30dbus"

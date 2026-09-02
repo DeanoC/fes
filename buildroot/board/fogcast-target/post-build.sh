@@ -50,6 +50,7 @@ target=$(CDPATH='' cd -- "$target" && pwd -P)
   "$target/etc/init.d"/S40mister-main \
   "$target/etc/init.d"/S49fogcast-target-smoke \
   "$target/etc/init.d"/S50mister-agent \
+  "$target/usr/sbin/mister-disable-menu-blanking" \
   "$target/usr/sbin/mister-supervise"
 
 if ! grep -Fqx 'BR2_PACKAGE_DROPBEAR=y' "${BR2_CONFIG:?BR2_CONFIG is required}"; then

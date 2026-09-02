@@ -69,7 +69,10 @@ The designated disposable kit is:
 
 The target boots `/media/fat/linux/linux.img`. Its boot scripts start the
 MiSTer/Main-compatible process and then the FAT-side agent using
-`/media/fat/fogcast/agent.toml` and `/media/fat/fogcast/mister-agent`.
+`/media/fat/fogcast/agent.toml` and `/media/fat/fogcast/mister-agent`. Before
+Main starts, the legacy image sets `osd_timeout=0` and `video_off=0` in
+`/media/fat/MiSTer.ini` so an unattended Menu remains visible over HDMI. The
+first changed file is retained as `/media/fat/MiSTer.ini.fogcast-backup`.
 
 The fixture uses the stock MiSTer login and changing SSH host keys after a
 rebuild is expected. Rebooting, reflashing, or replacing the image is normal.
