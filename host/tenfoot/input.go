@@ -22,6 +22,7 @@ const (
 	CmdViewNext
 	CmdViewPicker
 	CmdFavorite
+	CmdStop
 )
 
 // Button is a gamepad-first control, independent of SDL.
@@ -86,7 +87,7 @@ func CommandFromKey(name string) Command {
 	switch name {
 	case "up", "w":
 		return CmdUp
-	case "down", "s":
+	case "down":
 		return CmdDown
 	case "left", "a":
 		return CmdLeft
@@ -96,6 +97,8 @@ func CommandFromKey(name string) Command {
 		return CmdSelect
 	case "escape", "backspace":
 		return CmdBack
+	case "s":
+		return CmdStop
 	case "q":
 		return CmdQuit
 	case "leftbracket", "[":
@@ -316,6 +319,8 @@ func (c Command) String() string {
 		return "view-picker"
 	case CmdFavorite:
 		return "favorite"
+	case CmdStop:
+		return "stop"
 	default:
 		return "none"
 	}

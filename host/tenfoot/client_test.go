@@ -125,6 +125,132 @@ func TestClientPresentationArtworkAndLaunch(t *testing.T) {
 	}
 }
 
+func TestClientSessionAndStop(t *testing.T) {
+	t.Parallel()
+	var stopPath, stopBody string
+	var stopCT string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_, _ = io.WriteString(w, `{
+				"state":"active",
+				"game_id":"snes-mario",
+				"system":"snes",
+				"execution":"fpga_native",
+				"media":"active",
+				"progress":{"stage":"core","message":"running"},
+				"input":{"state":"attached","ready":true}
+			}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/stop":
+			raw, _ := io.ReadAll(r.Body)
+			stopPath = r.URL.Path
+			stopBody = string(raw)
+			stopCT = r.Header.Get("Content-Type")
+			w.WriteHeader(http.StatusOK)
+			_, _ = io.WriteString(w, `{"state":"idle","media":"stopped","execution":"fpga_native"}`)
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	client := NewClient(server.URL, server.Client())
+	got, err := client.Session(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.HTTPStatus != 200 || got.State != "active" || got.GameID != "snes-mario" || got.System != "snes" {
+		t.Fatalf("session = %#v", got)
+	}
+	if got.Execution != "fpga_native" || got.Media != "active" {
+		t.Fatalf("session overlays = %#v", got)
+	}
+	if got.Progress == nil || got.Progress.Stage != "core" || got.Progress.Message != "running" {
+		t.Fatalf("progress = %#v", got.Progress)
+	}
+	if got.Input == nil || got.Input.State != "attached" || !got.Input.Ready {
+		t.Fatalf("input = %#v", got.Input)
+	}
+
+	idleServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"state":"idle"}`)
+	}))
+	t.Cleanup(idleServer.Close)
+	idle, err := NewClient(idleServer.URL, idleServer.Client()).Session(context.Background())
+	if err != nil || idle.State != "idle" || idle.GameID != "" || idle.System != "" {
+		t.Fatalf("idle session = %#v, %v", idle, err)
+	}
+
+	stopped, err := client.Stop(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stopped.HTTPStatus != 200 || stopped.State != "idle" || stopped.Media != "stopped" || stopped.Execution != "fpga_native" {
+		t.Fatalf("stop = %#v", stopped)
+	}
+	if stopPath != "/api/v1/session/stop" || stopBody != "" {
+		t.Fatalf("stop request path=%q body=%q", stopPath, stopBody)
+	}
+	if stopCT != "" {
+		t.Fatalf("stop Content-Type = %q", stopCT)
+	}
+}
+
+func TestClientRejectsMalformedSessionResponses(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		code int
+		body string
+	}{
+		{name: "empty", code: 200, body: ""},
+		{name: "204", code: 204, body: ""},
+		{name: "empty object", code: 200, body: `{}`},
+		{name: "unknown state", code: 200, body: `{"state":"nope"}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.code)
+				_, _ = io.WriteString(w, tc.body)
+			}))
+			t.Cleanup(server.Close)
+			client := NewClient(server.URL, server.Client())
+			if _, err := client.Session(context.Background()); err == nil {
+				t.Fatal("Session accepted malformed body")
+			}
+			if _, err := client.Launch(context.Background(), "snes-mario"); err == nil {
+				t.Fatal("Launch accepted malformed body")
+			}
+			if _, err := client.Stop(context.Background()); err == nil {
+				t.Fatal("Stop accepted malformed body")
+			}
+		})
+	}
+}
+
+func TestClientLaunchRejectsNonActiveSuccess(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"state":"idle"}`)
+	}))
+	t.Cleanup(server.Close)
+	if _, err := NewClient(server.URL, server.Client()).Launch(context.Background(), "snes-mario"); err == nil {
+		t.Fatal("Launch accepted idle success")
+	}
+}
+
+func TestClientStopRejectsNonIdleSuccess(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"state":"active","game_id":"snes-mario"}`)
+	}))
+	t.Cleanup(server.Close)
+	if _, err := NewClient(server.URL, server.Client()).Stop(context.Background()); err == nil {
+		t.Fatal("Stop accepted active success")
+	}
+}
+
 func TestClientLaunchRecordsHostError(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

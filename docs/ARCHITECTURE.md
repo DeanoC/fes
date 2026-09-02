@@ -78,6 +78,8 @@ Native SDL3 UI
   -> GET /api/v1/presentation/artwork/{handle} from catalog cover handles
   -> GET /api/v1/presentation/games/{id} for the focused title
   -> POST /api/v1/session/launch
+  -> GET /api/v1/session (poll; now-playing)
+  -> POST /api/v1/session/stop
   -> host session service
   -> existing FPGA launch path
 ```

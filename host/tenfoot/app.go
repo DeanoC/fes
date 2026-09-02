@@ -18,6 +18,7 @@ const (
 	searchDebounce       = 280 * time.Millisecond
 	presentationRetryMin = 400 * time.Millisecond
 	presentationRetryMax = 8 * time.Second
+	sessionPollInterval  = time.Second
 )
 
 var catalogSorts = []string{"title", "recently_added", "platform"}
@@ -105,6 +106,19 @@ type LaunchSnapshot struct {
 	ErrorMessage string
 }
 
+// SessionSnapshot is the live host session from GET /api/v1/session (and launch/stop).
+type SessionSnapshot struct {
+	State      string
+	GameID     string
+	Title      string
+	System     string
+	Execution  string
+	Media      string
+	InputState string
+	Progress   string
+	Stopping   bool
+}
+
 // FocusDetail is the focused title's metadata shown in the detail strip.
 type FocusDetail struct {
 	Title       string
@@ -188,6 +202,8 @@ type Snapshot struct {
 	ViewPicker      bool
 	ViewPickerIndex int
 	Views           []LibraryView
+	Session         SessionSnapshot
+	GPUParked       bool
 }
 
 // App owns catalog, focus, async covers, and host launch. SDL stays out.
@@ -236,6 +252,13 @@ type App struct {
 	viewPickerIndex int
 	favoriteBusy    bool
 	hold            HoldGate
+	session         SessionResult
+	sessionTitle    string
+	sessionGen      int
+	stopPhase       string
+	stopMessage     string
+	gpuParked       bool
+	sessionKick     chan struct{}
 }
 
 // NewApp builds a launcher model bound to the host API client.
@@ -264,6 +287,8 @@ func NewApp(client *Client, width, height, maxGames int) *App {
 		details:         map[string]FocusDetail{},
 		platformKick:    make(chan struct{}, 1),
 		collectionsKick: make(chan struct{}, 1),
+		sessionKick:     make(chan struct{}, 1),
+		stopPhase:       "idle",
 	}
 }
 
@@ -287,6 +312,7 @@ func (a *App) Start(parent context.Context) {
 	}
 	go a.loadPlatforms(ctx)
 	go a.loadCollections(ctx)
+	go a.pollSession(ctx)
 	go a.loadLibrary(loadCtx, gen)
 }
 
@@ -311,6 +337,17 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.handleViewPickerLocked(cmd)
 		return
 	}
+	if a.sessionStopOfferedLocked() && !a.searchOpen {
+		switch cmd {
+		case CmdBack, CmdStop:
+			a.startStopLocked()
+			return
+		case CmdSelect:
+			return
+		case CmdUp, CmdDown, CmdLeft, CmdRight, CmdFilterPrev, CmdFilterNext, CmdSortCycle, CmdSearch, CmdViewPrev, CmdViewNext, CmdViewPicker, CmdFavorite:
+			return
+		}
+	}
 	switch cmd {
 	case CmdUp:
 		a.moveFocusLocked(0, -1)
@@ -327,6 +364,8 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 			return
 		}
 		a.startLaunchLocked()
+	case CmdStop:
+		a.startStopLocked()
 	case CmdBack:
 		if a.searchOpen {
 			if strings.TrimSpace(a.query) != "" {
@@ -744,7 +783,13 @@ func (a *App) Snapshot() Snapshot {
 		}
 	}
 	status := a.status
-	if a.launch.Phase != "idle" && a.launch.Message != "" {
+	if line := a.stopStatusLocked(); line != "" {
+		status = line
+	} else if a.launch.Phase != "idle" && a.launch.Phase != "ok" && a.launch.Message != "" {
+		status = a.launch.Message
+	} else if line := a.nowPlayingStatusLocked(); line != "" {
+		status = line
+	} else if a.launch.Phase == "ok" && a.launch.Message != "" {
 		status = a.launch.Message
 	}
 	if a.platformErr != "" {
@@ -782,6 +827,8 @@ func (a *App) Snapshot() Snapshot {
 		ViewPicker:      a.viewPickerOpen,
 		ViewPickerIndex: a.viewPickerIndex,
 		Views:           a.viewChoicesLocked(),
+		Session:         a.sessionSnapshotLocked(),
+		GPUParked:       a.gpuParked,
 	}
 }
 
@@ -806,8 +853,15 @@ func (a *App) ViewPickerOpen() bool {
 	return a.viewPickerOpen
 }
 
-// ChromeLine is the header label: active view, platform, sort, search, status.
+// ChromeLine is the header label: now-playing while a session is active, otherwise browse chrome.
 func (s Snapshot) ChromeLine() string {
+	if s.GPUParked || s.Session.State == "active" {
+		line := s.NowPlayingLine()
+		if strings.TrimSpace(s.Status) != "" && s.Status != line {
+			return line + "  ·  " + s.Status
+		}
+		return line
+	}
 	view := strings.TrimSpace(s.ViewLabel)
 	if view == "" {
 		view = "All"
@@ -831,6 +885,35 @@ func (s Snapshot) ChromeLine() string {
 		search = "Search: " + s.Query
 	}
 	return fmt.Sprintf("%s  ·  %s  ·  %s  ·  %s  ·  %s", view, platform, sortLabel(s.Collection, s.Sort), search, s.Status)
+}
+
+// NowPlayingLine is the compact active-session chrome.
+func (s Snapshot) NowPlayingLine() string {
+	parts := make([]string, 0, 6)
+	parts = append(parts, "Now playing")
+	title := strings.TrimSpace(s.Session.Title)
+	if title == "" {
+		title = strings.TrimSpace(s.Session.GameID)
+	}
+	if title != "" {
+		parts = append(parts, title)
+	}
+	if state := strings.TrimSpace(s.Session.State); state != "" {
+		parts = append(parts, state)
+	}
+	if exec := strings.TrimSpace(s.Session.Execution); exec != "" {
+		parts = append(parts, exec)
+	}
+	if media := strings.TrimSpace(s.Session.Media); media != "" {
+		parts = append(parts, "media "+media)
+	}
+	if input := strings.TrimSpace(s.Session.InputState); input != "" {
+		parts = append(parts, "input "+input)
+	}
+	if s.Session.Stopping {
+		parts = append(parts, "stopping")
+	}
+	return strings.Join(parts, "  ·  ")
 }
 
 // Selected returns the focused game, if any.
@@ -907,7 +990,7 @@ func (a *App) focusIndex(i int) bool {
 }
 
 func (a *App) startLaunchLocked() {
-	if a.launch.Phase == "launching" {
+	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() {
 		return
 	}
 	if a.searchPending {
@@ -926,11 +1009,13 @@ func (a *App) startLaunchLocked() {
 		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: reason}
 		return
 	}
+	a.sessionTitle = game.Title
 	a.launch = LaunchSnapshot{
 		GameID:  game.ID,
 		Phase:   "launching",
 		Message: "launching " + game.Title,
 	}
+	a.bumpSessionGenLocked()
 	ctx := a.ctx
 	if ctx == nil {
 		ctx = context.Background()
@@ -963,9 +1048,11 @@ func (a *App) doLaunch(ctx context.Context, game Game) {
 	if a.launch.GameID != game.ID {
 		return
 	}
+	a.bumpSessionGenLocked()
 	if err != nil {
 		a.launch.Phase = "error"
 		a.launch.Message = "launch failed: " + err.Error()
+		a.launch.GameID = ""
 		return
 	}
 	a.launch.HTTPStatus = result.HTTPStatus
@@ -975,10 +1062,231 @@ func (a *App) doLaunch(ctx context.Context, game Game) {
 	if result.ErrorCode != "" {
 		a.launch.Phase = "host"
 		a.launch.Message = fmt.Sprintf("host launch %d %s: %s", result.HTTPStatus, result.ErrorCode, result.ErrorMessage)
+		a.launch.GameID = ""
 		return
 	}
 	a.launch.Phase = "ok"
 	a.launch.Message = fmt.Sprintf("host accepted launch for %s", game.ID)
+	a.applySessionLocked(result)
+	if a.session.State == "active" && a.session.GameID == "" {
+		a.session.GameID = game.ID
+	}
+	a.kickSessionPollLocked()
+}
+
+func (a *App) sessionStopOfferedLocked() bool {
+	return a.session.State == "active" || a.stopPhase == "stopping"
+}
+
+func (a *App) startStopLocked() {
+	if a.stopPhase == "stopping" {
+		return
+	}
+	if a.session.State != "active" {
+		return
+	}
+	a.stopPhase = "stopping"
+	a.stopMessage = "stopping session"
+	a.bumpSessionGenLocked()
+	a.syncGPUParkLocked()
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	go a.doStop(ctx)
+}
+
+func (a *App) doStop(ctx context.Context) {
+	result, err := a.client.Stop(ctx)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.stopPhase != "stopping" {
+		return
+	}
+	a.bumpSessionGenLocked()
+	if err != nil {
+		a.stopPhase = "error"
+		a.stopMessage = "stop failed: " + err.Error()
+		a.syncGPUParkLocked()
+		return
+	}
+	if result.ErrorCode != "" {
+		a.stopPhase = "host"
+		a.stopMessage = fmt.Sprintf("host stop %d %s: %s", result.HTTPStatus, result.ErrorCode, result.ErrorMessage)
+		a.syncGPUParkLocked()
+		return
+	}
+	a.stopPhase = "ok"
+	a.stopMessage = ""
+	a.applySessionLocked(result)
+	a.kickSessionPollLocked()
+}
+
+func (a *App) pollSession(ctx context.Context) {
+	a.fetchSession(ctx)
+	ticker := time.NewTicker(sessionPollInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			a.fetchSession(ctx)
+		case <-a.sessionKick:
+			a.fetchSession(ctx)
+		}
+	}
+}
+
+func (a *App) fetchSession(ctx context.Context) {
+	a.mu.Lock()
+	gen := a.sessionGen
+	a.mu.Unlock()
+	result, err := a.client.Session(ctx)
+	if err != nil || ctx.Err() != nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if gen != a.sessionGen {
+		return
+	}
+	if a.launch.Phase == "launching" || a.stopPhase == "stopping" {
+		return
+	}
+	a.applySessionLocked(result)
+}
+
+func (a *App) bumpSessionGenLocked() {
+	a.sessionGen++
+}
+
+func (a *App) kickSessionPollLocked() {
+	if a.sessionKick == nil {
+		return
+	}
+	select {
+	case a.sessionKick <- struct{}{}:
+	default:
+	}
+}
+
+func (a *App) applySessionLocked(result SessionResult) {
+	if result.ErrorCode != "" {
+		return
+	}
+	a.session = result
+	if result.State != "active" {
+		a.session.GameID = ""
+		a.session.System = ""
+	}
+	if a.session.State != "active" && a.stopPhase != "stopping" {
+		a.stopPhase = "idle"
+		a.stopMessage = ""
+		if a.launch.Phase == "ok" {
+			a.launch.Phase = "idle"
+			a.launch.Message = ""
+			a.launch.GameID = ""
+		}
+	}
+	a.syncGPUParkLocked()
+}
+
+func (a *App) syncGPUParkLocked() {
+	want := a.session.State == "active" || a.stopPhase == "stopping"
+	if want == a.gpuParked {
+		if want {
+			a.viewPickerOpen = false
+			a.searchOpen = false
+		}
+		return
+	}
+	a.gpuParked = want
+	if !want {
+		return
+	}
+	a.viewPickerOpen = false
+	a.searchOpen = false
+	a.inflight = map[string]workKind{}
+	a.covers = map[string]*coverSlot{}
+	for {
+		select {
+		case <-a.jobs:
+		default:
+			return
+		}
+	}
+}
+
+func (a *App) sessionSnapshotLocked() SessionSnapshot {
+	title := strings.TrimSpace(a.sessionTitle)
+	if a.session.GameID != "" {
+		found := false
+		for _, game := range a.games {
+			if game.ID == a.session.GameID {
+				title = game.Title
+				found = true
+				break
+			}
+		}
+		if !found && a.launch.GameID != a.session.GameID {
+			title = a.session.GameID
+		}
+		if title == "" {
+			title = a.session.GameID
+		}
+	} else {
+		title = ""
+	}
+	progress := ""
+	if a.session.Progress != nil {
+		progress = strings.TrimSpace(a.session.Progress.Message)
+		if progress == "" {
+			progress = strings.TrimSpace(a.session.Progress.Stage)
+		}
+	}
+	inputState := ""
+	if a.session.Input != nil {
+		inputState = strings.TrimSpace(a.session.Input.State)
+	}
+	return SessionSnapshot{
+		State:      a.session.State,
+		GameID:     a.session.GameID,
+		Title:      title,
+		System:     a.session.System,
+		Execution:  a.session.Execution,
+		Media:      a.session.Media,
+		InputState: inputState,
+		Progress:   progress,
+		Stopping:   a.stopPhase == "stopping",
+	}
+}
+
+func (a *App) stopStatusLocked() string {
+	if strings.TrimSpace(a.stopMessage) == "" {
+		return ""
+	}
+	switch a.stopPhase {
+	case "stopping", "error", "host":
+		return a.stopMessage
+	default:
+		return ""
+	}
+}
+
+func (a *App) nowPlayingStatusLocked() string {
+	if a.session.State != "active" {
+		return ""
+	}
+	if a.session.Progress != nil {
+		if msg := strings.TrimSpace(a.session.Progress.Message); msg != "" {
+			return msg
+		}
+		if stage := strings.TrimSpace(a.session.Progress.Stage); stage != "" {
+			return stage
+		}
+	}
+	return ""
 }
 
 func (a *App) requestPlatformReloadLocked() {
@@ -1340,6 +1648,10 @@ func (a *App) applyResult(result workResult) {
 	if result.gen != a.loadGen {
 		return
 	}
+	if a.gpuParked {
+		delete(a.inflight, result.gameID)
+		return
+	}
 	delete(a.inflight, result.gameID)
 	if result.err != nil && (errors.Is(result.err, context.Canceled) || errors.Is(result.err, context.DeadlineExceeded)) {
 		return
@@ -1449,6 +1761,10 @@ func schedulePresentationRetry(slot *coverSlot) {
 
 func (a *App) queueVisibleWork(now time.Time) {
 	a.mu.Lock()
+	if a.gpuParked {
+		a.mu.Unlock()
+		return
+	}
 	start, end := a.prefetchSpanLocked()
 	type pending struct {
 		item workItem
@@ -1567,11 +1883,17 @@ func (a *App) worker(ctx context.Context) {
 			a.mu.Lock()
 			jobCtx := a.jobCtx
 			gen := a.loadGen
+			parked := a.gpuParked
 			a.mu.Unlock()
 			if jobCtx == nil {
 				jobCtx = ctx
 			}
-			if item.gen != gen {
+			if item.gen != gen || parked {
+				a.mu.Lock()
+				if a.loadGen == item.gen {
+					delete(a.inflight, item.gameID)
+				}
+				a.mu.Unlock()
 				continue
 			}
 			result := a.doWork(jobCtx, item)
