@@ -34,6 +34,21 @@ public:
 		std::uint64_t absolute_deadline_ms) = 0;
 };
 
+class FixedVideoBringup final {
+public:
+	FixedVideoBringup(Spi&, I2c&, Clock&, LogSink&, const VideoRecipe&);
+	VideoResult BringUp(std::uint64_t absolute_deadline_ms);
+
+private:
+	VideoResult PhaseFailure(const char*, const Error&,
+		const VideoResult&) const;
+	Spi& spi_;
+	I2c& i2c_;
+	Clock& clock_;
+	LogSink& log_;
+	const VideoRecipe& recipe_;
+};
+
 class MenuVideoBringup final : public VideoBringup {
 public:
 	MenuVideoBringup(CoreLoader&, Spi&, I2c&, Clock&, LogSink&,

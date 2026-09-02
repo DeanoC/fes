@@ -60,7 +60,107 @@ void PhaseSuccess(const char* phase, VideoResult* result, LogSink& log)
 	WritePhase(log, phase, *result, result->error);
 }
 
+Error InitializeAdv(I2c& i2c, const VideoRecipe& recipe,
+	std::uint64_t deadline, VideoResult* result)
+{
+	Error error = i2c.SelectFirst(0x39, 0x41, deadline, &result->selected_bus,
+		&result->power_before);
+	if (!error.ok()) return error;
+	for (const RegisterWrite& write : recipe.adv_initialization) {
+		error = i2c.WriteByte(write.address, write.value, deadline);
+		if (!error.ok()) return error;
+	}
+	return i2c.ReadByte(0x41, &result->power_after, deadline);
+}
+
+Error ApplyMode(Spi& spi, I2c& i2c, const VideoRecipe& recipe,
+	std::uint64_t deadline)
+{
+	Error error = spi.Exchange(kUserIoTarget, recipe.timing_words, nullptr,
+		deadline);
+	if (!error.ok()) return error;
+	for (const RegisterWrite& write : recipe.adv_mode) {
+		error = i2c.WriteByte(write.address, write.value, deadline);
+		if (!error.ok()) return error;
+	}
+	return {};
+}
+
+Error WakeAdv(I2c& i2c, std::uint64_t deadline)
+{
+	for (const RegisterWrite& write : kHdmiWake) {
+		const Error error = i2c.WriteByte(write.address, write.value, deadline);
+		if (!error.ok()) return error;
+	}
+	return {};
+}
+
+Error RequireLink(I2c& i2c, Clock& clock, std::uint64_t deadline,
+	VideoResult* result)
+{
+	do {
+		if (clock.NowMs() >= deadline)
+			return {ErrorCode::io_failed, "deadline exceeded"};
+		const Error error = i2c.ReadByte(0x42, &result->link_status, deadline);
+		if (!error.ok()) return error;
+	} while ((result->link_status & 0x60) != 0x60);
+	return {};
+}
+
+void CompleteVideo(const VideoRecipe& recipe, VideoResult* result, LogSink& log)
+{
+	result->phase = "hdmi_verify";
+	result->error = {ErrorCode::none,
+		std::string("recipe=") + recipe.identity +
+		" bus=" + result->selected_bus +
+		" address=0x39 power_before=" + HexByte(result->power_before) +
+		" power_after=" + HexByte(result->power_after) +
+		" link_status=" + HexByte(result->link_status)};
+	WritePhase(log, "hdmi_verify", *result, result->error);
+}
+
 } // namespace
+
+FixedVideoBringup::FixedVideoBringup(Spi& spi, I2c& i2c, Clock& clock,
+	LogSink& log, const VideoRecipe& recipe)
+	: spi_(spi), i2c_(i2c), clock_(clock), log_(log), recipe_(recipe) {}
+
+VideoResult FixedVideoBringup::PhaseFailure(const char* phase,
+	const Error& cause, const VideoResult& partial) const
+{
+	VideoResult result = partial;
+	result.phase = phase;
+	result.error.code = ErrorCode::io_failed;
+	result.error.message = cause.message.empty() ?
+		std::string(phase) + " failed" : cause.message;
+	WritePhase(log_, phase, result, result.error);
+	return result;
+}
+
+VideoResult FixedVideoBringup::BringUp(std::uint64_t deadline)
+{
+	VideoResult result;
+	if (clock_.NowMs() >= deadline)
+		return PhaseFailure("hdmi_init",
+			{ErrorCode::io_failed, "deadline exceeded"}, result);
+
+	Error error = InitializeAdv(i2c_, recipe_, deadline, &result);
+	if (!error.ok()) return PhaseFailure("hdmi_init", error, result);
+	PhaseSuccess("hdmi_init", &result, log_);
+
+	error = ApplyMode(spi_, i2c_, recipe_, deadline);
+	if (!error.ok()) return PhaseFailure("video_timing", error, result);
+	PhaseSuccess("video_timing", &result, log_);
+
+	error = WakeAdv(i2c_, deadline);
+	if (!error.ok()) return PhaseFailure("hdmi_wake", error, result);
+	PhaseSuccess("hdmi_wake", &result, log_);
+
+	error = RequireLink(i2c_, clock_, deadline, &result);
+	if (!error.ok()) return PhaseFailure("hdmi_verify", error, result);
+	CompleteVideo(recipe_, &result, log_);
+	return result;
+}
 
 MenuVideoBringup::MenuVideoBringup(CoreLoader& core, Spi& spi, I2c& i2c,
 	Clock& clock, LogSink& log, const VideoRecipe& recipe)
@@ -102,55 +202,29 @@ VideoResult MenuVideoBringup::BringUp(const std::string& expected_core,
 			{ErrorCode::io_failed, "unexpected menu core"}, result);
 	PhaseSuccess("core_probe", &result, log_);
 
-	error = i2c_.SelectFirst(0x39, 0x41, deadline, &result.selected_bus,
-		&result.power_before);
-	if (!error.ok()) return PhaseFailure("hdmi_init", error, result);
-	for (const RegisterWrite& write : recipe_.adv_initialization) {
-		error = i2c_.WriteByte(write.address, write.value, deadline);
-		if (!error.ok()) return PhaseFailure("hdmi_init", error, result);
-	}
-	error = i2c_.ReadByte(0x41, &result.power_after, deadline);
+	error = InitializeAdv(i2c_, recipe_, deadline, &result);
 	if (!error.ok()) return PhaseFailure("hdmi_init", error, result);
 	PhaseSuccess("hdmi_init", &result, log_);
 
-	error = spi_.Exchange(kUserIoTarget, recipe_.timing_words, nullptr, deadline);
+	error = ApplyMode(spi_, i2c_, recipe_, deadline);
 	if (!error.ok()) return PhaseFailure("video_timing", error, result);
-	for (const RegisterWrite& write : recipe_.adv_mode) {
-		error = i2c_.WriteByte(write.address, write.value, deadline);
-		if (!error.ok()) return PhaseFailure("video_timing", error, result);
-	}
 	PhaseSuccess("video_timing", &result, log_);
 
 	error = spi_.Exchange(kUserIoTarget, kReleasedStatus, nullptr, deadline);
 	if (!error.ok()) return PhaseFailure("core_release", error, result);
 	PhaseSuccess("core_release", &result, log_);
 
-	for (const RegisterWrite& write : kHdmiWake) {
-		error = i2c_.WriteByte(write.address, write.value, deadline);
-		if (!error.ok()) return PhaseFailure("hdmi_wake", error, result);
-	}
+	error = WakeAdv(i2c_, deadline);
+	if (!error.ok()) return PhaseFailure("hdmi_wake", error, result);
 	PhaseSuccess("hdmi_wake", &result, log_);
 
 	error = spi_.Exchange(kUserIoTarget, kNeutralButtons, nullptr, deadline);
 	if (!error.ok()) return PhaseFailure("core_input", error, result);
 	PhaseSuccess("core_input", &result, log_);
 
-	do {
-		if (clock_.NowMs() >= deadline)
-			return PhaseFailure("hdmi_verify",
-				{ErrorCode::io_failed, "deadline exceeded"}, result);
-		error = i2c_.ReadByte(0x42, &result.link_status, deadline);
-		if (!error.ok()) return PhaseFailure("hdmi_verify", error, result);
-	} while ((result.link_status & 0x60) != 0x60);
-
-	result.phase = "hdmi_verify";
-	result.error = {ErrorCode::none,
-		std::string("recipe=") + recipe_.identity +
-		" bus=" + result.selected_bus +
-		" address=0x39 power_before=" + HexByte(result.power_before) +
-		" power_after=" + HexByte(result.power_after) +
-		" link_status=" + HexByte(result.link_status)};
-	WritePhase(log_, "hdmi_verify", result, result.error);
+	error = RequireLink(i2c_, clock_, deadline, &result);
+	if (!error.ok()) return PhaseFailure("hdmi_verify", error, result);
+	CompleteVideo(recipe_, &result, log_);
 	return result;
 }
 

@@ -78,6 +78,11 @@ HardwareResult NativeHardware::Launch(const PreparedLaunch& launch)
 	if (!error.ok()) return {error, programmed.mutation_attempted, ""};
 
 	const std::uint64_t core_deadline = Deadline(clock_, timeouts_.core_io_ms);
+	error = core_.AssertReset(launch.core, core_deadline);
+	if (!error.ok()) error = CoreIoError(error);
+	log_.Write({"launch", launch.system, launch.expected_core, "reset", error});
+	if (!error.ok()) return {error, true, ""};
+
 	std::string observed;
 	error = core_.Probe(&observed, core_deadline);
 	if (!error.ok()) error = CoreIoError(error);
@@ -90,12 +95,13 @@ HardwareResult NativeHardware::Launch(const PreparedLaunch& launch)
 		return {error, true, observed};
 	}
 
-	error = core_.Configure(launch.settings, core_deadline);
+	error = core_.ApplyInitialStatus(launch.core, core_deadline);
 	if (!error.ok()) error = CoreIoError(error);
 	log_.Write({"launch", launch.system, observed, "configure", error});
 	if (!error.ok()) return {error, true, observed};
 	for (const OpenedMedia& media : artifacts.media) {
-		error = core_.Attach(media.index, media.artifact, core_deadline);
+		error = core_.Attach(media.index, media.artifact,
+			launch.core.file_wire, core_deadline);
 		if (!error.ok()) error = CoreIoError(error);
 		log_.Write({"launch", launch.system, observed, "media", error});
 		if (!error.ok()) return {error, true, observed};

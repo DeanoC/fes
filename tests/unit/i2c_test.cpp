@@ -260,7 +260,32 @@ void TestSelectedTransfersForwardExactBytesAndRespectDeadline()
 	assert(operations.write_requests.size() == 1);
 }
 
-void TestTransferFailuresAndSecondSelectionDoNotCreateAnotherOwner()
+void TestPersistentSelectionSupportsMenuGameMenuAndRelaunch()
+{
+	Operations operations;
+	operations.open_results = {{"/dev/i2c-0", 10}};
+	operations.read_values[{10, 0x41}] = 0x40;
+	FixedClock clock(1);
+	mister::native::LinuxI2c i2c(clock, operations);
+	const char* const stages[] = {"menu", "game", "menu", "relaunch"};
+	for (const char* stage : stages) {
+		(void)stage;
+		std::string bus = "unchanged";
+		std::uint8_t power = 0;
+		assert(i2c.SelectFirst(0x39, 0x41, 100, &bus, &power).ok());
+		assert(bus == "/dev/i2c-0");
+		assert(power == 0x40);
+	}
+	assert((operations.opened_paths ==
+		std::vector<std::string>{"/dev/i2c-0"}));
+	assert((operations.selected_descriptors == std::vector<int>{10}));
+	assert((operations.selected_addresses == std::vector<std::uint8_t>{0x39}));
+	assert((operations.read_requests ==
+		std::vector<std::pair<int, std::uint8_t>>{
+			{10, 0x41}, {10, 0x41}, {10, 0x41}, {10, 0x41}}));
+}
+
+void TestTransferFailuresAndDifferentSelectionDoNotCreateAnotherOwner()
 {
 	Operations operations;
 	operations.open_results = {{"/dev/i2c-0", 10}, {"/dev/i2c-1", 11}};
@@ -276,7 +301,7 @@ void TestTransferFailuresAndSecondSelectionDoNotCreateAnotherOwner()
 		std::uint8_t value = 0;
 		assert(i2c.ReadByte(0x42, &value, 100).code == mister::ErrorCode::io_failed);
 		assert(i2c.WriteByte(0x17, 0x62, 100).code == mister::ErrorCode::io_failed);
-		assert(i2c.SelectFirst(0x39, 0x41, 100, &bus, &power).code ==
+		assert(i2c.SelectFirst(0x3a, 0x41, 100, &bus, &power).code ==
 			mister::ErrorCode::io_failed);
 		assert((operations.opened_paths == std::vector<std::string>{"/dev/i2c-0"}));
 	}
@@ -296,7 +321,8 @@ int main()
 	TestSelectionDeadlineAfterSlaveSelectClosesCandidateBeforeDetectionRead();
 	TestInvalidAndUnselectedCallsDoNotDispatch();
 	TestSelectedTransfersForwardExactBytesAndRespectDeadline();
-	TestTransferFailuresAndSecondSelectionDoNotCreateAnotherOwner();
-	puts("i2c_test: 10 passed");
+	TestPersistentSelectionSupportsMenuGameMenuAndRelaunch();
+	TestTransferFailuresAndDifferentSelectionDoNotCreateAnotherOwner();
+	puts("i2c_test: 11 passed");
 	return 0;
 }

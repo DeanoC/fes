@@ -147,7 +147,10 @@ public:
 			for (unsigned char byte : observed_core) (*response)[index++] = byte;
 			(*response)[index] = ';';
 		} else if (request[0] == 0x001e) {
-			events_.push_back("configure");
+			events_.push_back(status_calls == 0 ?
+				"reset.assert:" + std::to_string(request.at(1)) :
+				"status.initial:" + std::to_string(request.at(1)));
+			++status_calls;
 		} else if (request[0] == 0x0055) {
 			events_.push_back("media:" + std::to_string(request[1]));
 		}
@@ -158,6 +161,7 @@ public:
 	mister::Error probe_error;
 	std::vector<std::uint64_t> deadlines;
 	mister::Error sync_error;
+	std::size_t status_calls = 0;
 };
 
 struct Fixture {
@@ -177,7 +181,8 @@ struct Fixture {
 		launch.rbf = rbf;
 		launch.media.push_back({2, media_two});
 		launch.media.push_back({0, media_zero});
-		launch.settings.push_back({"region", "pal"});
+		launch.core = {0x1111, 0x2222, 0x3333,
+			mister::FileWireFormat::little_endian_byte_pairs};
 		return launch;
 	}
 	TempDirectory temporary;
@@ -204,7 +209,7 @@ std::size_t Find(const std::vector<std::string>& events, const std::string& valu
 	return events.size();
 }
 
-void TestLaunchPreflightsAllArtifactsThenProgramsAndConfiguresInOrder()
+void TestLaunchUsesExactCoreRecipeAndExplicitMediaFormatInOrder()
 {
 	Fixture fixture;
 	const mister::HardwareResult result = fixture.hardware.Launch(fixture.Launch());
@@ -215,9 +220,25 @@ void TestLaunchPreflightsAllArtifactsThenProgramsAndConfiguresInOrder()
 	assert(fixture.events[1] == "open:" + fixture.media_two);
 	assert(fixture.events[2] == "open:" + fixture.media_zero);
 	assert(Find(fixture.events, "program:" + fixture.rbf) == 3);
-	assert(Find(fixture.events, "probe") == 4);
-	assert(Find(fixture.events, "configure") == 5);
+	assert(Find(fixture.events, "reset.assert:4369") == 4);
+	assert(Find(fixture.events, "probe") == 5);
+	assert(Find(fixture.events, "status.initial:8738") == 6);
 	assert(Find(fixture.events, "media:0") < Find(fixture.events, "media:2"));
+}
+
+void TestLaunchRejectsUnsupportedPreparedMediaFormatBeforeFileSelection()
+{
+	Fixture fixture;
+	mister::PreparedLaunch launch = fixture.Launch();
+	launch.core.file_wire = static_cast<mister::FileWireFormat>(99);
+	const mister::HardwareResult result = fixture.hardware.Launch(launch);
+	assert(result.error.code == mister::ErrorCode::io_failed);
+	assert(result.error.message == "unsupported file wire format");
+	assert(result.mutation_attempted);
+	assert(Find(fixture.events, "reset.assert:4369") < fixture.events.size());
+	assert(Find(fixture.events, "status.initial:8738") < fixture.events.size());
+	assert(Find(fixture.events, "media:0") == fixture.events.size());
+	assert(Find(fixture.events, "media:2") == fixture.events.size());
 }
 
 void TestIdleRequiresVideoAndPreservesDevelopmentBehavior()
@@ -483,7 +504,8 @@ void TestUnavailableHardwareRemainsFailureOnly()
 
 int main()
 {
-	TestLaunchPreflightsAllArtifactsThenProgramsAndConfiguresInOrder();
+	TestLaunchUsesExactCoreRecipeAndExplicitMediaFormatInOrder();
+	TestLaunchRejectsUnsupportedPreparedMediaFormatBeforeFileSelection();
 	TestIdleRequiresVideoAndPreservesDevelopmentBehavior();
 	TestIdlePreflightFailureCallsNeitherFpgaNorVideo();
 	TestIdleFpgaFailureNeverCallsVideoAndPreservesMutationFlag();
@@ -496,6 +518,6 @@ int main()
 	TestNativeLoggingNamesPhasesAndConfirmedCore();
 	TestProductionConstructionOwnsRealIdleHardware();
 	TestUnavailableHardwareRemainsFailureOnly();
-	puts("native_hardware_test: 13 passed");
+	puts("native_hardware_test: 14 passed");
 	return 0;
 }
