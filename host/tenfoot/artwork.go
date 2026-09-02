@@ -12,6 +12,8 @@ import (
 const (
 	coverMaxW = 256
 	coverMaxH = 320
+	stillMaxW = 1280
+	stillMaxH = 720
 	// Source decode limits. Cover cells are smaller; these bound allocations
 	// before image.Decode reads full pixels. Matches host artwork policy.
 	coverDecodeMaxEdge   = 4096
@@ -20,6 +22,15 @@ const (
 
 // DecodeCover decodes JPEG/PNG artwork and scales it to the cover cell.
 func DecodeCover(data []byte) (*image.RGBA, error) {
+	return decodeArtwork(data, coverMaxW, coverMaxH)
+}
+
+// DecodeStill decodes JPEG/PNG attract artwork and scales it to a 720p-class stage.
+func DecodeStill(data []byte) (*image.RGBA, error) {
+	return decodeArtwork(data, stillMaxW, stillMaxH)
+}
+
+func decodeArtwork(data []byte, maxW, maxH int) (*image.RGBA, error) {
 	if len(data) == 0 {
 		return nil, fmt.Errorf("artwork is empty")
 	}
@@ -38,7 +49,7 @@ func DecodeCover(data []byte) (*image.RGBA, error) {
 	if err != nil {
 		return nil, err
 	}
-	return scaleToFit(img, coverMaxW, coverMaxH), nil
+	return scaleToFit(img, maxW, maxH), nil
 }
 
 func scaleToFit(src image.Image, maxW, maxH int) *image.RGBA {

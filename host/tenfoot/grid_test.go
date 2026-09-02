@@ -77,3 +77,33 @@ func TestGridShortWindowKeepsCellsAboveFooter(t *testing.T) {
 		t.Fatalf("taller window cellH=%d want %d", grid.CellH, defaultCellH)
 	}
 }
+
+func TestGridSafeAreaKeepsChromeInsideInsets(t *testing.T) {
+	t.Parallel()
+	grid := Grid{}
+	grid.Safe = insetsFromPct(1280, 720, 0.05)
+	grid.Layout(1280, 720)
+	grid.SetCount(8)
+	if grid.Safe.Left < 60 || grid.Safe.Top < 30 {
+		t.Fatalf("insets = %+v", grid.Safe)
+	}
+	x, y, ok := grid.CellOrigin(0)
+	if !ok {
+		t.Fatal("cell 0 offscreen")
+	}
+	if x < grid.Safe.Left || y < grid.Safe.Top+grid.HeaderHeight {
+		t.Fatalf("cell origin %d,%d outside safe header", x, y)
+	}
+	bottom := y + grid.CellH
+	footerTop := grid.footerY()
+	if bottom > footerTop {
+		t.Fatalf("cell bottom %d overlaps footer at %d", bottom, footerTop)
+	}
+	if footerTop+grid.FooterHeight > grid.Height-grid.Safe.Bottom {
+		t.Fatalf("footer %d+%d exceeds bottom inset %d", footerTop, grid.FooterHeight, grid.Safe.Bottom)
+	}
+	right := x + grid.CellW
+	if right > grid.Width-grid.Safe.Right {
+		t.Fatalf("cell right %d exceeds inset", right)
+	}
+}

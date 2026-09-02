@@ -43,6 +43,9 @@ func TestCommandFromKeyAndStick(t *testing.T) {
 	if CommandFromKey("c") != CmdViewNext || CommandFromKey("v") != CmdFavorite || CommandFromKey("*") != CmdFavorite {
 		t.Fatal("collection keyboard mapping")
 	}
+	if CommandFromKey("-") != CmdSafeAreaOut || CommandFromKey("=") != CmdSafeAreaIn || CommandFromKey("plus") != CmdSafeAreaIn {
+		t.Fatal("safe-area keyboard mapping")
+	}
 	if CommandFromStick(20000, 0) != CmdRight || CommandFromStick(0, -20000) != CmdUp {
 		t.Fatal("stick mapping")
 	}

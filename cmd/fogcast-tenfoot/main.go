@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -52,9 +53,17 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 	smoke := fs.Bool("smoke", false, "run the Mac proof and exit")
 	maxGames := fs.Int("max-games", 0, "optional catalog cap")
 	timeout := fs.Duration("smoke-timeout", 45*time.Second, "smoke deadline")
+	safeArea := fs.Float64("safe-area", tenfoot.DefaultSafeAreaPct, "TV overscan inset as a fraction of each edge (0-0.2)")
+	noAttract := fs.Bool("no-attract", envTruthy("FOGCAST_TENFOOT_NO_ATTRACT"), "disable attract mode")
 	if err := fs.Parse(args); err != nil {
 		return tenfoot.Options{}, err
 	}
+	safeAreaSet := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "safe-area" {
+			safeAreaSet = true
+		}
+	})
 	return tenfoot.Options{
 		APIBase:      *api,
 		Width:        *width,
@@ -63,7 +72,19 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 		Smoke:        *smoke,
 		MaxGames:     *maxGames,
 		SmokeTimeout: *timeout,
+		SafeAreaPct:  *safeArea,
+		SafeAreaSet:  safeAreaSet,
+		NoAttract:    *noAttract,
 	}, nil
+}
+
+func envTruthy(key string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(key))) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 func envOr(key, fallback string) string {

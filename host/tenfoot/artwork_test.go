@@ -104,6 +104,30 @@ func writePNGChunk(w *bytes.Buffer, typ string, data []byte) {
 	_ = binary.Write(w, binary.BigEndian, crc.Sum32())
 }
 
+func TestDecodeStillScalesBackdropLargerThanCover(t *testing.T) {
+	t.Parallel()
+	src := image.NewRGBA(image.Rect(0, 0, 800, 400))
+	for y := 0; y < 400; y++ {
+		for x := 0; x < 800; x++ {
+			src.Set(x, y, color.RGBA{R: 10, G: 10, B: 200, A: 255})
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, src); err != nil {
+		t.Fatal(err)
+	}
+	got, err := DecodeStill(buf.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Bounds().Dx() > stillMaxW || got.Bounds().Dy() > stillMaxH {
+		t.Fatalf("size = %s", got.Bounds())
+	}
+	if got.Bounds().Dx() <= coverMaxW {
+		t.Fatalf("still was clamped to cover size %s", got.Bounds())
+	}
+}
+
 func TestCoverDestRectPreservesAspect(t *testing.T) {
 	t.Parallel()
 	x, y, w, h := coverDestRect(10, 20, 210, 284, 256, 256)

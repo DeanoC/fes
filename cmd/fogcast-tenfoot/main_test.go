@@ -17,6 +17,9 @@ func TestParseArgsDefaultsToLoopbackHostAPI(t *testing.T) {
 	if opts.APIBase != tenfoot.DefaultAPIBase || opts.Width != 1280 || opts.Height != 720 || opts.Fullscreen || opts.Smoke {
 		t.Fatalf("opts = %#v", opts)
 	}
+	if opts.SafeAreaSet || opts.NoAttract {
+		t.Fatalf("living-room defaults = %#v", opts)
+	}
 }
 
 func TestParseArgsSmokeAndAPI(t *testing.T) {
@@ -26,6 +29,17 @@ func TestParseArgsSmokeAndAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	if opts.APIBase != "http://127.0.0.1:8787" || !opts.Smoke || opts.SmokeTimeout != 12*time.Second || opts.MaxGames != 50 {
+		t.Fatalf("opts = %#v", opts)
+	}
+}
+
+func TestParseArgsSafeAreaAndNoAttract(t *testing.T) {
+	t.Parallel()
+	opts, err := parseArgs([]string{"-safe-area", "0", "-no-attract"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !opts.SafeAreaSet || opts.SafeAreaPct != 0 || !opts.NoAttract {
 		t.Fatalf("opts = %#v", opts)
 	}
 }

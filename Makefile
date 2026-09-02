@@ -75,7 +75,7 @@ build-fogcast-tenfoot:
 	$(TENFOOT_CGO_ENV) go build -tags sdl3 -buildvcs=false -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/fogcast-tenfoot ./cmd/fogcast-tenfoot
 
 tenfoot-smoke: build-fogcast-tenfoot
-	bin/fogcast-tenfoot -smoke -api http://127.0.0.1:8787
+	bin/fogcast-tenfoot -smoke -no-attract -api http://127.0.0.1:8787
 
 build-cli:
 	mkdir -p bin
