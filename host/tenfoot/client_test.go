@@ -209,6 +209,93 @@ func TestPresentationAttributionLabel(t *testing.T) {
 	}
 }
 
+func TestClientListsGamesWithCollection(t *testing.T) {
+	t.Parallel()
+	var paths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.RequestURI())
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"games": []Game{{ID: "snes-mario", Title: "Mario", Favorite: true, Collections: []string{"weekend-queue"}}},
+		})
+	}))
+	t.Cleanup(server.Close)
+	games, _, err := NewClient(server.URL, server.Client()).ListGames(context.Background(), GameListQuery{
+		Limit:      50,
+		Collection: "favorites",
+		Sort:       "title",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(games) != 1 || !games[0].Favorite || len(games[0].Collections) != 1 || games[0].Collections[0] != "weekend-queue" {
+		t.Fatalf("games = %#v", games)
+	}
+	if len(paths) != 1 {
+		t.Fatalf("paths = %#v", paths)
+	}
+	for _, want := range []string{"grouped=1", "availability=ready", "collection=favorites", "sort=title"} {
+		if !strings.Contains(paths[0], want) {
+			t.Fatalf("missing %q in %s", want, paths[0])
+		}
+	}
+}
+
+func TestClientListsCollectionsAndSetFavorite(t *testing.T) {
+	t.Parallel()
+	var methods []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		methods = append(methods, r.Method+" "+r.URL.Path)
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/collections":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"collections": []Collection{{ID: "weekend-queue", Name: "Weekend queue"}},
+			})
+		case r.Method == http.MethodPut && r.URL.Path == "/api/v1/library/favorites/snes-mario":
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "snes-mario", "favorite": true})
+		case r.Method == http.MethodDelete && r.URL.Path == "/api/v1/library/favorites/snes-mario":
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "snes-mario", "favorite": false})
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	client := NewClient(server.URL, server.Client())
+	collections, err := client.Collections(context.Background())
+	if err != nil || len(collections) != 1 || collections[0].ID != "weekend-queue" || collections[0].Name != "Weekend queue" {
+		t.Fatalf("collections = %#v, %v", collections, err)
+	}
+	if err := client.SetFavorite(context.Background(), "snes-mario", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.SetFavorite(context.Background(), "snes-mario", false); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(methods, ",") != "GET /api/v1/library/collections,PUT /api/v1/library/favorites/snes-mario,DELETE /api/v1/library/favorites/snes-mario" {
+		t.Fatalf("methods = %#v", methods)
+	}
+}
+
+func TestPreferLaunchableCopiesFavorite(t *testing.T) {
+	t.Parallel()
+	game := preferLaunchable(Game{
+		ID:          "snes-sonic-usa",
+		Title:       "Sonic",
+		System:      "snes",
+		State:       "available",
+		RootOnline:  false,
+		Launchable:  true,
+		Favorite:    true,
+		Collections: []string{"weekend-queue"},
+		Variants: []Game{
+			{ID: "snes-sonic-japan", Title: "Sonic", System: "snes", State: "available", RootOnline: true, Launchable: true},
+		},
+	})
+	if game.ID != "snes-sonic-japan" || !game.Favorite || len(game.Collections) != 1 {
+		t.Fatalf("game = %#v", game)
+	}
+}
+
 func TestNormalizeHandleRejectsShortValues(t *testing.T) {
 	t.Parallel()
 	if got := normalizeHandle("abc"); got != "" {

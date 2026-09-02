@@ -611,6 +611,9 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 		}
 		cmd := commandFromSDLKey(ev.code)
 		if ev.down != 0 {
+			if C.SDL_GetModState()&C.SDL_KMOD_SHIFT != 0 && cmd == CmdViewNext {
+				cmd = CmdViewPrev
+			}
 			if cmd == CmdQuit {
 				return true
 			}
@@ -744,6 +747,10 @@ func commandFromSDLKey(code C.int) Command {
 		return CmdSortCycle
 	case C.SDLK_SLASH, C.SDLK_F:
 		return CmdSearch
+	case C.SDLK_C:
+		return CmdViewNext
+	case C.SDLK_V:
+		return CmdFavorite
 	default:
 		return CmdNone
 	}
@@ -831,6 +838,7 @@ func drawFrame(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[str
 		drawLabel(renderer, labels, used, "t:"+game.ID, x+6, y+snap.Grid.CellH-28, snap.Grid.CellW-12, 16, game.Title)
 	}
 	drawDetail(renderer, snap, labels, used)
+	drawViewPicker(renderer, snap, labels, used)
 	for key, item := range labels {
 		if _, ok := used[key]; ok {
 			continue
@@ -875,31 +883,9 @@ func drawHeader(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTe
 		pad = fmt.Sprintf("PAD %d", snap.Gamepads)
 	}
 	drawDebug(renderer, snap.Grid.Width-160, 22, pad, 2)
-	chrome := headerChrome(snap)
+	chrome := snap.ChromeLine()
 	drawLabel(renderer, labels, used, "chrome", 24, 52, snap.Grid.Width-48, 18, chrome)
-	drawDebug(renderer, 24, 72, "LB/RB platform  X sort  Y search", 1)
-}
-
-func headerChrome(snap Snapshot) string {
-	platform := "All"
-	if snap.PlatformID != "" {
-		platform = snap.PlatformID
-		for _, row := range snap.Platforms {
-			if row.ID == snap.PlatformID {
-				if label := strings.TrimSpace(row.Label); label != "" {
-					platform = label
-				}
-				break
-			}
-		}
-	}
-	search := "Search"
-	if snap.SearchOpen {
-		search = "Search: " + snap.Query + "_"
-	} else if strings.TrimSpace(snap.Query) != "" {
-		search = "Search: " + snap.Query
-	}
-	return fmt.Sprintf("%s  ·  %s  ·  %s  ·  %s", platform, sortLabel(snap.Sort), search, snap.Status)
+	drawDebug(renderer, 24, 72, "LB/RB platform  X sort  Y search  hold A view  hold Y fav", 1)
 }
 
 func drawDetail(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTexture, used map[string]struct{}) {
@@ -914,6 +900,9 @@ func drawDetail(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTe
 	title := strings.TrimSpace(detail.Title)
 	if title == "" {
 		title = "No title focused"
+	}
+	if detail.Favorite {
+		title = "* " + title
 	}
 	drawLabel(renderer, labels, used, "d-title", pad, y+12, snap.Grid.Width-2*pad, 26, title)
 	metaWidth := snap.Grid.Width - 2*pad
@@ -931,6 +920,59 @@ func drawDetail(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTe
 	}
 	for i, line := range wrapWords(detail.Summary, maxChars, 2) {
 		drawLabel(renderer, labels, used, fmt.Sprintf("d-sum-%d", i), pad, y+68+i*20, summaryWidth, 16, line)
+	}
+}
+
+func drawViewPicker(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTexture, used map[string]struct{}) {
+	if !snap.ViewPicker || len(snap.Views) == 0 {
+		return
+	}
+	panelW := 420
+	if panelW > snap.Grid.Width-48 {
+		panelW = snap.Grid.Width - 48
+	}
+	if panelW < 200 {
+		panelW = snap.Grid.Width - 24
+	}
+	rowH := 28
+	headerH := 40
+	maxRows := 10
+	if maxRows > len(snap.Views) {
+		maxRows = len(snap.Views)
+	}
+	panelH := headerH + maxRows*rowH + 16
+	x := (snap.Grid.Width - panelW) / 2
+	y := snap.Grid.HeaderHeight + 12
+	fillRect(renderer, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
+	fillRect(renderer, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
+	drawLabel(renderer, labels, used, "view-title", x+16, y+10, panelW-32, 18, "Library view")
+	start := snap.ViewPickerIndex - maxRows/2
+	if start < 0 {
+		start = 0
+	}
+	if start+maxRows > len(snap.Views) {
+		start = len(snap.Views) - maxRows
+	}
+	if start < 0 {
+		start = 0
+	}
+	for i := 0; i < maxRows; i++ {
+		idx := start + i
+		if idx >= len(snap.Views) {
+			break
+		}
+		rowY := y + headerH + i*rowH
+		if idx == snap.ViewPickerIndex {
+			fillRect(renderer, float32(x+8), float32(rowY-2), float32(panelW-16), float32(rowH-2), 48, 56, 80, 255)
+		}
+		label := snap.Views[idx].Label
+		if label == "" {
+			label = snap.Views[idx].ID
+		}
+		if snap.Views[idx].ID == snap.Collection {
+			label = label + "  *"
+		}
+		drawLabel(renderer, labels, used, fmt.Sprintf("view-%d", idx), x+20, rowY, panelW-40, 16, label)
 	}
 }
 

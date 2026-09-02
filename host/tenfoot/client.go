@@ -30,16 +30,18 @@ const (
 
 // Game is one catalog row from GET /api/v1/games.
 type Game struct {
-	ID         string `json:"id"`
-	Title      string `json:"title"`
-	System     string `json:"system"`
-	Cover      string `json:"cover,omitempty"`
-	Genre      string `json:"genre,omitempty"`
-	Year       string `json:"year,omitempty"`
-	State      string `json:"state"`
-	RootOnline bool   `json:"root_online"`
-	Launchable bool   `json:"launchable"`
-	Variants   []Game `json:"variants,omitempty"`
+	ID          string   `json:"id"`
+	Title       string   `json:"title"`
+	System      string   `json:"system"`
+	Cover       string   `json:"cover,omitempty"`
+	Genre       string   `json:"genre,omitempty"`
+	Year        string   `json:"year,omitempty"`
+	State       string   `json:"state"`
+	RootOnline  bool     `json:"root_online"`
+	Launchable  bool     `json:"launchable"`
+	Favorite    bool     `json:"favorite,omitempty"`
+	Collections []string `json:"collections,omitempty"`
+	Variants    []Game   `json:"variants,omitempty"`
 }
 
 // Presentation is GET /api/v1/presentation/games/{id}.
@@ -88,13 +90,21 @@ type Platform struct {
 	Launchable bool   `json:"launchable"`
 }
 
+// Collection is one custom shelf from GET /api/v1/library/collections.
+type Collection struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	CreatedAt int64  `json:"created_at,omitempty"`
+}
+
 // GameListQuery is GET /api/v1/games with the web UI's catalog params.
 type GameListQuery struct {
-	Cursor   string
-	Limit    int
-	Platform string
-	Sort     string
-	Q        string
+	Cursor     string
+	Limit      int
+	Platform   string
+	Sort       string
+	Q          string
+	Collection string
 }
 
 // LaunchResult is the host response to POST /api/v1/session/launch.
@@ -148,6 +158,9 @@ func (c *Client) ListGames(ctx context.Context, query GameListQuery) ([]Game, st
 	if q := strings.TrimSpace(query.Q); q != "" {
 		values.Set("q", q)
 	}
+	if collection := strings.TrimSpace(query.Collection); collection != "" {
+		values.Set("collection", collection)
+	}
 	if strings.TrimSpace(query.Cursor) != "" {
 		values.Set("cursor", query.Cursor)
 	}
@@ -190,11 +203,55 @@ func preferLaunchable(game Game) Game {
 	for _, variant := range game.Variants {
 		variant.Variants = nil
 		if launchBlockReason(variant) == "" {
+			if !variant.Favorite {
+				variant.Favorite = game.Favorite
+			}
+			if len(variant.Collections) == 0 {
+				variant.Collections = game.Collections
+			}
 			return variant
 		}
 	}
 	game.Variants = nil
 	return game
+}
+
+// Collections loads GET /api/v1/library/collections.
+func (c *Client) Collections(ctx context.Context) ([]Collection, error) {
+	var page struct {
+		Collections []Collection `json:"collections"`
+	}
+	if err := c.getJSON(ctx, "/api/v1/library/collections", &page); err != nil {
+		return nil, err
+	}
+	if page.Collections == nil {
+		page.Collections = []Collection{}
+	}
+	return page.Collections, nil
+}
+
+// SetFavorite calls PUT or DELETE /api/v1/library/favorites/{id}.
+func (c *Client) SetFavorite(ctx context.Context, gameID string, favorite bool) error {
+	gameID = strings.TrimSpace(gameID)
+	if gameID == "" {
+		return fmt.Errorf("game id is empty")
+	}
+	method := http.MethodPut
+	if !favorite {
+		method = http.MethodDelete
+	}
+	path := "/api/v1/library/favorites/" + url.PathEscape(gameID)
+	var result struct {
+		ID       string `json:"id"`
+		Favorite bool   `json:"favorite"`
+	}
+	if err := c.mutateJSON(ctx, method, path, &result); err != nil {
+		return err
+	}
+	if result.Favorite != favorite {
+		return fmt.Errorf("host API favorite = %v, want %v", result.Favorite, favorite)
+	}
+	return nil
 }
 
 // Platforms loads GET /api/v1/platforms.
@@ -347,7 +404,11 @@ func (c *Client) Launch(ctx context.Context, gameID string) (LaunchResult, error
 }
 
 func (c *Client) getJSON(ctx context.Context, path string, dest any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
+	return c.mutateJSON(ctx, http.MethodGet, path, dest)
+}
+
+func (c *Client) mutateJSON(ctx context.Context, method, path string, dest any) error {
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, http.NoBody)
 	if err != nil {
 		return err
 	}
@@ -363,6 +424,12 @@ func (c *Client) getJSON(ctx context.Context, path string, dest any) error {
 	}
 	if resp.StatusCode != http.StatusOK {
 		return apiStatusError(resp.StatusCode, body)
+	}
+	if dest == nil {
+		return nil
+	}
+	if len(bytes.TrimSpace(body)) == 0 {
+		return nil
 	}
 	if err := json.Unmarshal(body, dest); err != nil {
 		return fmt.Errorf("decode %s: %w", path, err)

@@ -72,7 +72,9 @@ the public host API, not a second launch path:
 ```text
 Native SDL3 UI
   -> GET /api/v1/platforms
-  -> GET /api/v1/games (grouped=1, availability=ready, optional platform/sort/q)
+  -> GET /api/v1/library/collections
+  -> GET /api/v1/games (grouped=1, availability=ready, optional collection/platform/sort/q)
+  -> PUT or DELETE /api/v1/library/favorites/{id} for the focused title
   -> GET /api/v1/presentation/artwork/{handle} from catalog cover handles
   -> GET /api/v1/presentation/games/{id} for the focused title
   -> POST /api/v1/session/launch

@@ -2644,7 +2644,7 @@ func waitSnapshot(t *testing.T, app *App, d time.Duration, ok func(Snapshot) boo
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	t.Fatalf("timeout status=%q err=%q games=%d platform=%q sort=%q query=%q detail=%#v", snap.Status, snap.LoadErr, len(snap.Games), snap.PlatformID, snap.Sort, snap.Query, snap.FocusDetail)
+	t.Fatalf("timeout status=%q err=%q games=%d platform=%q sort=%q query=%q collection=%q view=%q detail=%#v", snap.Status, snap.LoadErr, len(snap.Games), snap.PlatformID, snap.Sort, snap.Query, snap.Collection, snap.ViewLabel, snap.FocusDetail)
 }
 
 func availableGame(id, title, system string) Game {

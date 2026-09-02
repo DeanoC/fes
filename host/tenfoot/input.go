@@ -18,6 +18,10 @@ const (
 	CmdFilterNext
 	CmdSortCycle
 	CmdSearch
+	CmdViewPrev
+	CmdViewNext
+	CmdViewPicker
+	CmdFavorite
 )
 
 // Button is a gamepad-first control, independent of SDL.
@@ -42,6 +46,7 @@ const (
 const (
 	repeatDelay     = 280 * time.Millisecond
 	repeatEvery     = 90 * time.Millisecond
+	longPressMin    = 450 * time.Millisecond
 	stickGate       = 16000
 	stickHysteresis = 8000
 )
@@ -101,6 +106,10 @@ func CommandFromKey(name string) Command {
 		return CmdSortCycle
 	case "/", "slash", "f":
 		return CmdSearch
+	case "c":
+		return CmdViewNext
+	case "v", "*":
+		return CmdFavorite
 	default:
 		return CmdNone
 	}
@@ -239,8 +248,12 @@ func isHoldable(cmd Command) bool {
 // navigation repeat continues (Repeater tracks only one command). Re-arm does
 // not call Press: that would walk focus and restart repeat after South/East.
 func applyPressed(app *App, pressed, held map[Command]bool, now time.Time) bool {
+	gate := !app.SearchOpen() && !app.ViewPickerOpen()
 	for cmd := range held {
 		if !pressed[cmd] {
+			if short := app.hold.Release(cmd); short != CmdNone {
+				app.Press(short, now)
+			}
 			app.Release(cmd)
 			delete(held, cmd)
 		}
@@ -251,6 +264,10 @@ func applyPressed(app *App, pressed, held map[Command]bool, now time.Time) bool 
 		}
 		if cmd == CmdQuit {
 			return true
+		}
+		if app.hold.Begin(cmd, now, gate) {
+			held[cmd] = true
+			continue
 		}
 		app.Press(cmd, now)
 		held[cmd] = true
@@ -291,7 +308,73 @@ func (c Command) String() string {
 		return "sort"
 	case CmdSearch:
 		return "search"
+	case CmdViewPrev:
+		return "view-prev"
+	case CmdViewNext:
+		return "view-next"
+	case CmdViewPicker:
+		return "view-picker"
+	case CmdFavorite:
+		return "favorite"
 	default:
 		return "none"
 	}
+}
+
+func longPressCommand(cmd Command) Command {
+	switch cmd {
+	case CmdSelect:
+		return CmdViewPicker
+	case CmdSearch:
+		return CmdFavorite
+	default:
+		return CmdNone
+	}
+}
+
+type holdState struct {
+	since time.Time
+	long  bool
+}
+
+// HoldGate defers Select and Search so a long press can fire a second command.
+type HoldGate struct {
+	pending map[Command]holdState
+}
+
+func (g *HoldGate) Begin(cmd Command, now time.Time, gate bool) bool {
+	if !gate || longPressCommand(cmd) == CmdNone {
+		return false
+	}
+	if g.pending == nil {
+		g.pending = map[Command]holdState{}
+	}
+	g.pending[cmd] = holdState{since: now}
+	return true
+}
+
+func (g *HoldGate) Release(cmd Command) Command {
+	state, ok := g.pending[cmd]
+	if !ok {
+		return CmdNone
+	}
+	delete(g.pending, cmd)
+	if state.long {
+		return CmdNone
+	}
+	return cmd
+}
+
+func (g *HoldGate) Tick(now time.Time) Command {
+	for cmd, state := range g.pending {
+		if state.long || now.Sub(state.since) < longPressMin {
+			continue
+		}
+		state.long = true
+		g.pending[cmd] = state
+		if long := longPressCommand(cmd); long != CmdNone {
+			return long
+		}
+	}
+	return CmdNone
 }
