@@ -135,6 +135,11 @@ HardwareResult NativeHardware::Launch(const PreparedLaunch& launch,
 	}
 
 	const std::uint64_t core_deadline = Deadline(clock_, timeouts_.core_io_ms);
+	error = core_.Synchronize(core_deadline);
+	if (!error.ok()) error = CoreIoError(error);
+	log_.Write({"launch", launch.system, launch.expected_core, "sync", error});
+	if (!error.ok()) return {error, true, ""};
+
 	error = core_.AssertReset(launch.core, core_deadline);
 	if (!error.ok()) error = CoreIoError(error);
 	log_.Write({"launch", launch.system, launch.expected_core, "reset", error});

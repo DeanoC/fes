@@ -87,6 +87,7 @@ validate the complete profile request
   -> open and validate the locked Mega Drive RBF and every media artifact
   -> sort opened media by profile-owned index
   -> program the FPGA
+  -> toggle the FPGA core-ID strobe and sample GPI
   -> assert profile-owned core reset
   -> probe and require core identity MegaDrive
   -> apply the profile-owned initial status

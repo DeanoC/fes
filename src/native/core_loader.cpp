@@ -66,6 +66,11 @@ CoreLoader::CoreLoader(Spi& spi) : spi_(spi), reader_(nullptr) {}
 CoreLoader::CoreLoader(Spi& spi, ArtifactReader& reader)
 	: spi_(spi), reader_(&reader) {}
 
+Error CoreLoader::Synchronize(std::uint64_t deadline)
+{
+	return spi_.SynchronizeCore(deadline);
+}
+
 Error CoreLoader::AssertReset(const CoreRecipe& recipe, std::uint64_t deadline)
 {
 	return ApplyStatus(spi_, recipe.reset_assert_word, deadline);
