@@ -13,8 +13,8 @@ and content selection; the MiSTer is a small, directly controlled target.
 - Host API loading of arbitrary development RBF files, with automatic reboot
   recovery back to Menu for non-MiSTer cores.
 - Browser UI, local media previews, and host-emulator/remote-media modes.
-- Native SDL3 10-foot cover grid on Mac (`cmd/fogcast-tenfoot`) that calls the
-  same public host API. See
+- Native SDL3 10-foot launcher on Mac (`cmd/fogcast-tenfoot`) with cover-grid,
+  shelf, and list layouts that calls the same public host API. See
   [docs/native-tenfoot-launcher/README.md](docs/native-tenfoot-launcher/README.md).
 - A reproducible target image toolchain with a development image containing
   SSH and curl.

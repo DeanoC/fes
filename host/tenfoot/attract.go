@@ -53,20 +53,59 @@ func (a *App) SetSafeAreaPct(pct float64) {
 	a.setSafeAreaPctLocked(pct, false)
 }
 
+func (a *App) SetLayout(mode LayoutKind) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.setLayoutLocked(mode, false)
+}
+
 func (a *App) setSafeAreaPctLocked(pct float64, persist bool) {
 	pct = clampSafeAreaPct(pct)
 	a.safeAreaPct = pct
 	a.grid.Safe = insetsFromPct(a.grid.Width, a.grid.Height, pct)
 	a.grid.Layout(a.grid.Width, a.grid.Height)
 	if persist {
-		path := a.prefsPath
-		if path == "" {
-			path = defaultPrefsPath()
-		}
-		if path != "" {
-			_ = saveTenfootPrefs(path, tenfootPrefs{SafeAreaPct: pct})
+		a.persistPrefsLocked("safe-area")
+	}
+}
+
+func (a *App) setLayoutLocked(mode LayoutKind, persist bool) {
+	a.grid.Mode = parseLayout(mode.String())
+	a.grid.Layout(a.grid.Width, a.grid.Height)
+	if persist {
+		a.persistPrefsLocked("layout")
+	}
+}
+
+func (a *App) cycleLayoutLocked() {
+	a.setLayoutLocked(a.grid.Mode.Next(), true)
+	a.status = "layout " + a.grid.Mode.Label()
+}
+
+func (a *App) persistPrefsLocked(field string) {
+	path := a.prefsPath
+	if path == "" {
+		path = defaultPrefsPath()
+	}
+	if path == "" {
+		return
+	}
+	existing, err := loadTenfootPrefs(path)
+	if err != nil {
+		existing = tenfootPrefs{
+			SafeAreaPct: DefaultSafeAreaPct,
+			Layout:      LayoutGrid.String(),
 		}
 	}
+	switch field {
+	case "safe-area":
+		existing.SafeAreaPct = a.safeAreaPct
+	case "layout":
+		existing.Layout = a.grid.Mode.String()
+	default:
+		return
+	}
+	_ = saveTenfootPrefs(path, existing)
 }
 
 func (a *App) SetPrefsPath(path string) {

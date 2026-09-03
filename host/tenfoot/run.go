@@ -19,6 +19,8 @@ type Options struct {
 	SmokeTimeout time.Duration
 	SafeAreaPct  float64
 	SafeAreaSet  bool
+	Layout       string
+	LayoutSet    bool
 	NoAttract    bool
 	PrefsPath    string
 }
@@ -53,22 +55,25 @@ func (o Options) normalized() Options {
 			o.MaxGames = 400
 		}
 	}
+	prefs, prefsErr := loadTenfootPrefs(o.prefsPath())
 	if !o.SafeAreaSet {
 		if pct, ok := parseSafeAreaEnv(os.Getenv("FOGCAST_TENFOOT_SAFE_AREA")); ok {
 			o.SafeAreaPct = pct
 			o.SafeAreaSet = true
 		}
 	}
-	if !o.SafeAreaSet {
-		if prefs, err := loadTenfootPrefs(o.prefsPath()); err == nil {
-			o.SafeAreaPct = prefs.SafeAreaPct
-			o.SafeAreaSet = true
-		}
+	if !o.SafeAreaSet && prefsErr == nil {
+		o.SafeAreaPct = prefs.SafeAreaPct
+		o.SafeAreaSet = true
 	}
 	if !o.SafeAreaSet {
 		o.SafeAreaPct = DefaultSafeAreaPct
 	}
 	o.SafeAreaPct = clampSafeAreaPct(o.SafeAreaPct)
+	if !o.LayoutSet && prefsErr == nil {
+		o.Layout = prefs.Layout
+	}
+	o.Layout = parseLayout(o.Layout).String()
 	if envTruthy(os.Getenv("FOGCAST_TENFOOT_NO_ATTRACT")) {
 		o.NoAttract = true
 	}

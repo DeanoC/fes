@@ -44,6 +44,17 @@ func TestParseArgsSafeAreaAndNoAttract(t *testing.T) {
 	}
 }
 
+func TestParseArgsLayout(t *testing.T) {
+	t.Parallel()
+	opts, err := parseArgs([]string{"-layout", "shelf"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !opts.LayoutSet || opts.Layout != "shelf" {
+		t.Fatalf("opts = %#v", opts)
+	}
+}
+
 func TestParseArgsRejectsUnknownFlag(t *testing.T) {
 	t.Parallel()
 	_, err := parseArgs([]string{"-bogus"})

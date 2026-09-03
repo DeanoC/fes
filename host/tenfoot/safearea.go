@@ -85,6 +85,7 @@ func (g Grid) footerY() int {
 
 type tenfootPrefs struct {
 	SafeAreaPct float64 `json:"safe_area_pct"`
+	Layout      string  `json:"layout"`
 }
 
 func defaultPrefsPath() string {
@@ -108,6 +109,7 @@ func loadTenfootPrefs(path string) (tenfootPrefs, error) {
 		return tenfootPrefs{}, err
 	}
 	prefs.SafeAreaPct = clampSafeAreaPct(prefs.SafeAreaPct)
+	prefs.Layout = parseLayout(prefs.Layout).String()
 	return prefs, nil
 }
 
@@ -116,6 +118,7 @@ func saveTenfootPrefs(path string, prefs tenfootPrefs) error {
 		return fmt.Errorf("prefs path is empty")
 	}
 	prefs.SafeAreaPct = clampSafeAreaPct(prefs.SafeAreaPct)
+	prefs.Layout = parseLayout(prefs.Layout).String()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}

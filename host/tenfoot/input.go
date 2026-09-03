@@ -25,6 +25,7 @@ const (
 	CmdStop
 	CmdSafeAreaIn
 	CmdSafeAreaOut
+	CmdLayoutCycle
 )
 
 // Button is a gamepad-first control, independent of SDL.
@@ -67,8 +68,10 @@ func CommandFromButton(button Button) Command {
 		return CmdRight
 	case ButtonSouth:
 		return CmdSelect
-	case ButtonEast, ButtonBack:
+	case ButtonEast:
 		return CmdBack
+	case ButtonBack:
+		return CmdLayoutCycle
 	case ButtonStart:
 		return CmdQuit
 	case ButtonWest:
@@ -119,6 +122,8 @@ func CommandFromKey(name string) Command {
 		return CmdSafeAreaOut
 	case "=", "plus", "equals":
 		return CmdSafeAreaIn
+	case "l":
+		return CmdLayoutCycle
 	default:
 		return CmdNone
 	}
@@ -339,6 +344,8 @@ func (c Command) String() string {
 		return "safe-area-in"
 	case CmdSafeAreaOut:
 		return "safe-area-out"
+	case CmdLayoutCycle:
+		return "layout-cycle"
 	default:
 		return "none"
 	}

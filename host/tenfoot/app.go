@@ -375,6 +375,9 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.setSafeAreaPctLocked(a.safeAreaPct-safeAreaNudge, true)
 		a.status = fmt.Sprintf("safe-area %.1f%%", a.safeAreaPct*100)
 		return
+	case CmdLayoutCycle:
+		a.cycleLayoutLocked()
+		return
 	}
 	if a.viewPickerOpen {
 		a.handleViewPickerLocked(cmd)

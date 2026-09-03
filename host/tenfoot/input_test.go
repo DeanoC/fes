@@ -16,7 +16,7 @@ func TestCommandFromGamepadButtons(t *testing.T) {
 		ButtonSouth:         CmdSelect,
 		ButtonEast:          CmdBack,
 		ButtonStart:         CmdQuit,
-		ButtonBack:          CmdBack,
+		ButtonBack:          CmdLayoutCycle,
 		ButtonWest:          CmdSortCycle,
 		ButtonNorth:         CmdSearch,
 		ButtonLeftShoulder:  CmdFilterPrev,
@@ -45,6 +45,9 @@ func TestCommandFromKeyAndStick(t *testing.T) {
 	}
 	if CommandFromKey("-") != CmdSafeAreaOut || CommandFromKey("=") != CmdSafeAreaIn || CommandFromKey("plus") != CmdSafeAreaIn {
 		t.Fatal("safe-area keyboard mapping")
+	}
+	if CommandFromKey("l") != CmdLayoutCycle {
+		t.Fatal("layout keyboard mapping")
 	}
 	if CommandFromStick(20000, 0) != CmdRight || CommandFromStick(0, -20000) != CmdUp {
 		t.Fatal("stick mapping")

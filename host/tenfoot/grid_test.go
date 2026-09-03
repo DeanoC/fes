@@ -78,6 +78,83 @@ func TestGridShortWindowKeepsCellsAboveFooter(t *testing.T) {
 	}
 }
 
+func TestShelfMovePagesVertically(t *testing.T) {
+	t.Parallel()
+	grid := Grid{Mode: LayoutShelf}
+	grid.Layout(1280, 720)
+	grid.SetCount(20)
+	if grid.VisibleRows != 1 || grid.Columns < 2 {
+		t.Fatalf("shelf columns=%d rows=%d", grid.Columns, grid.VisibleRows)
+	}
+	grid.Move(1, 0)
+	if grid.Focus != 1 {
+		t.Fatalf("right focus = %d", grid.Focus)
+	}
+	grid.Move(0, 1)
+	want := 1 + grid.Columns
+	if grid.Focus != want {
+		t.Fatalf("down page focus = %d want %d", grid.Focus, want)
+	}
+	grid.Move(-100, 0)
+	if grid.Focus != 0 {
+		t.Fatalf("left clamp focus = %d", grid.Focus)
+	}
+	start, end := grid.VisibleRange()
+	if grid.Focus < start || grid.Focus >= end {
+		t.Fatalf("focus %d outside visible [%d,%d)", grid.Focus, start, end)
+	}
+}
+
+func TestListMovePagesHorizontally(t *testing.T) {
+	t.Parallel()
+	grid := Grid{Mode: LayoutList}
+	grid.Layout(1280, 720)
+	grid.SetCount(40)
+	if grid.Columns != 1 || grid.VisibleRows < 2 {
+		t.Fatalf("list columns=%d rows=%d", grid.Columns, grid.VisibleRows)
+	}
+	grid.Move(0, 1)
+	if grid.Focus != 1 {
+		t.Fatalf("down focus = %d", grid.Focus)
+	}
+	grid.Move(1, 0)
+	want := 1 + grid.VisibleRows
+	if grid.Focus != want {
+		t.Fatalf("right page focus = %d want %d", grid.Focus, want)
+	}
+	grid.Move(0, -100)
+	if grid.Focus != 0 {
+		t.Fatalf("up clamp focus = %d", grid.Focus)
+	}
+	start, end := grid.VisibleRange()
+	if start != 0 || end != grid.VisibleRows {
+		t.Fatalf("visible = [%d,%d) rows=%d", start, end, grid.VisibleRows)
+	}
+}
+
+func TestShelfAndListStayInsideSafeArea(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []LayoutKind{LayoutShelf, LayoutList} {
+		grid := Grid{Mode: mode}
+		grid.Safe = insetsFromPct(1280, 720, 0.05)
+		grid.Layout(1280, 720)
+		grid.SetCount(12)
+		x, y, ok := grid.CellOrigin(0)
+		if !ok {
+			t.Fatalf("%s cell 0 offscreen", mode)
+		}
+		if x < grid.Safe.Left || y < grid.Safe.Top+grid.HeaderHeight {
+			t.Fatalf("%s origin %d,%d outside safe header", mode, x, y)
+		}
+		if y+grid.CellH > grid.footerY() {
+			t.Fatalf("%s cell bottom %d overlaps footer at %d", mode, y+grid.CellH, grid.footerY())
+		}
+		if x+grid.CellW > grid.Width-grid.Safe.Right {
+			t.Fatalf("%s cell right %d exceeds inset", mode, x+grid.CellW)
+		}
+	}
+}
+
 func TestGridSafeAreaKeepsChromeInsideInsets(t *testing.T) {
 	t.Parallel()
 	grid := Grid{}

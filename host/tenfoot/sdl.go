@@ -215,6 +215,7 @@ func runWindow(ctx context.Context, opts Options) error {
 
 	app := NewApp(NewClient(opts.APIBase, nil), opts.Width, opts.Height, opts.MaxGames)
 	app.SetPrefsPath(opts.prefsPath())
+	app.SetLayout(parseLayout(opts.Layout))
 	app.SetSafeAreaPct(opts.SafeAreaPct)
 	app.SetAttractDisabled(opts.NoAttract)
 	if opts.Smoke {
@@ -571,6 +572,7 @@ func pollGamepads(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, held map[C
 			C.SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER,
 			C.SDL_GAMEPAD_BUTTON_START,
 			C.SDL_GAMEPAD_BUTTON_BACK,
+			C.SDL_GAMEPAD_BUTTON_GUIDE,
 		} {
 			if bool(C.SDL_GetGamepadButton(pad, C.SDL_GamepadButton(button))) {
 				pressed[commandFromSDLButton(button)] = true
@@ -699,6 +701,8 @@ func commandFromSDLButton(code C.int) Command {
 		return CommandFromButton(ButtonStart)
 	case C.SDL_GAMEPAD_BUTTON_BACK:
 		return CommandFromButton(ButtonBack)
+	case C.SDL_GAMEPAD_BUTTON_GUIDE:
+		return CmdLayoutCycle
 	default:
 		return CmdNone
 	}
@@ -764,6 +768,8 @@ func commandFromSDLKey(code C.int) Command {
 		return CmdSafeAreaOut
 	case C.SDLK_EQUALS, C.SDLK_PLUS:
 		return CmdSafeAreaIn
+	case C.SDLK_L:
+		return CmdLayoutCycle
 	default:
 		return CmdNone
 	}
@@ -862,6 +868,24 @@ func drawFrame(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[str
 	C.SDL_RenderClear(renderer)
 	used := map[string]struct{}{}
 	drawHeader(renderer, snap, labels, used)
+	if snap.Grid.Mode == LayoutList {
+		drawListRows(renderer, snap, textures, labels, used)
+	} else {
+		drawCoverCells(renderer, snap, textures, labels, used)
+	}
+	drawDetail(renderer, snap, labels, used)
+	drawViewPicker(renderer, snap, labels, used)
+	for key, item := range labels {
+		if _, ok := used[key]; ok {
+			continue
+		}
+		C.SDL_DestroyTexture(item.tex)
+		delete(labels, key)
+	}
+	C.SDL_RenderPresent(renderer)
+}
+
+func drawCoverCells(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[string]sdlTexture, used map[string]struct{}) {
 	start, end := snap.Grid.VisibleRange()
 	for i := start; i < end && i < len(snap.Games); i++ {
 		x, y, ok := snap.Grid.CellOrigin(i)
@@ -885,16 +909,51 @@ func drawFrame(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[str
 		}
 		drawLabel(renderer, labels, used, "t:"+game.ID, x+6, y+snap.Grid.CellH-28, snap.Grid.CellW-12, 16, game.Title)
 	}
-	drawDetail(renderer, snap, labels, used)
-	drawViewPicker(renderer, snap, labels, used)
-	for key, item := range labels {
-		if _, ok := used[key]; ok {
+}
+
+func drawListRows(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[string]sdlTexture, used map[string]struct{}) {
+	start, end := snap.Grid.VisibleRange()
+	for i := start; i < end && i < len(snap.Games); i++ {
+		x, y, ok := snap.Grid.CellOrigin(i)
+		if !ok {
 			continue
 		}
-		C.SDL_DestroyTexture(item.tex)
-		delete(labels, key)
+		game := snap.Games[i]
+		focused := i == snap.Grid.Focus
+		if focused {
+			fillRect(renderer, float32(x-4), float32(y-2), float32(snap.Grid.CellW+8), float32(snap.Grid.CellH+4), 255, 184, 48, 255)
+		}
+		fillRect(renderer, float32(x), float32(y), float32(snap.Grid.CellW), float32(snap.Grid.CellH), 28, 32, 44, 255)
+		tx, ty, tw, th := snap.Grid.listThumbRect(x, y)
+		fillRect(renderer, float32(tx), float32(ty), float32(tw), float32(th), 18, 20, 28, 255)
+		if tex, ok := textures[game.ID]; ok {
+			dx, dy, dw, dh := coverDestRect(tx, ty, tw, th, tex.w, tex.h)
+			dst := C.SDL_FRect{x: C.float(dx), y: C.float(dy), w: C.float(dw), h: C.float(dh)}
+			C.SDL_RenderTexture(renderer, tex.tex, nil, &dst)
+		} else {
+			r, g, b := placeholderColor(game.Title)
+			fillRect(renderer, float32(tx+2), float32(ty+2), float32(tw-4), float32(th-4), r, g, b, 255)
+		}
+		textX := tx + tw + 16
+		textW := x + snap.Grid.CellW - textX - 12
+		if textW < 1 {
+			textW = 1
+		}
+		title := game.Title
+		if game.Favorite {
+			title = "* " + title
+		}
+		drawLabel(renderer, labels, used, "lt:"+game.ID, textX, y+12, textW, 22, title)
+		meta := strings.TrimSpace(game.System)
+		if year := strings.TrimSpace(game.Year); year != "" {
+			if meta != "" {
+				meta += "  ·  " + year
+			} else {
+				meta = year
+			}
+		}
+		drawLabel(renderer, labels, used, "lm:"+game.ID, textX, y+40, textW, 16, meta)
 	}
-	C.SDL_RenderPresent(renderer)
 }
 
 func drawLabel(renderer *C.SDL_Renderer, labels map[string]sdlTexture, used map[string]struct{}, key string, x, y, maxW, sizePx int, text string) {
@@ -936,9 +995,9 @@ func drawHeader(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTe
 	drawDebug(renderer, x+w-160, y+22, pad, 2)
 	chrome := snap.ChromeLine()
 	drawLabel(renderer, labels, used, "chrome", x+24, y+52, w-48, 18, chrome)
-	hint := "LB/RB platform  X sort  Y search  hold A view  hold Y fav"
+	hint := "LB/RB platform  X sort  Y search  hold A view  hold Y fav  SELECT layout"
 	if snap.GPUParked || snap.Session.State == "active" {
-		hint = "B stop  START quit"
+		hint = "B stop  START quit  SELECT layout"
 	}
 	drawDebug(renderer, x+24, y+72, hint, 1)
 }

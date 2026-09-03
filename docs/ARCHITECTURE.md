@@ -65,8 +65,9 @@ precede the direct FPGA launch path.
 
 ## Native 10-foot launcher
 
-`cmd/fogcast-tenfoot` is an SDL3 host-side cover grid. It is another client of
-the public host API, not a second launch path:
+`cmd/fogcast-tenfoot` is an SDL3 host-side 10-foot launcher (cover grid, shelf,
+and list). It is another client of the public host API, not a second launch
+path:
 
 ```text
 Native SDL3 UI
@@ -84,8 +85,9 @@ Native SDL3 UI
   -> existing FPGA launch path
 ```
 
-TV overscan insets are local to the tenfoot process (CLI `-safe-area` and optional
-`tenfoot.json` prefs). There is no host safe-area API.
+TV overscan insets and the sofa layout (`grid`, `shelf`, or `list`) are local
+to the tenfoot process (CLI `-safe-area` / `-layout` and optional `tenfoot.json`
+prefs). There is no host safe-area or layout API.
 
 Source entry points are `host/tenfoot/` and `cmd/fogcast-tenfoot`. The browser
 shell remains the default UI. Build and run notes are in
