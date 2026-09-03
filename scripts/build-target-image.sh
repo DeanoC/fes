@@ -47,7 +47,8 @@ verify_native_inputs() {
   "$repo/scripts/verify-native-runtime-inputs.sh" \
     "$repo/build/native-runtime.inputs.lock.toml" \
     "$LIBMISTER_RUNTIME_DIR" \
-    "$repo/build/cache/target-image/native/idle.rbf"
+    "$repo/build/cache/target-image/native/idle.rbf" \
+    "$repo/build/cache/target-image/native/megadrive.rbf"
 }
 
 run_target_container() {
@@ -101,7 +102,8 @@ inside_build() {
     /work/scripts/verify-native-runtime-inputs.sh \
       /work/build/native-runtime.inputs.lock.toml \
       /runtime-source \
-      /work/build/cache/target-image/native/idle.rbf
+      /work/build/cache/target-image/native/idle.rbf \
+      /work/build/cache/target-image/native/megadrive.rbf
   fi
 
   /bin/rm -rf "$inside_output"

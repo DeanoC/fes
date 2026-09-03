@@ -19,8 +19,10 @@ and content selection; the MiSTer is a small, directly controlled target.
 - A reproducible target image toolchain with a development image containing
   SSH and curl.
 - A separate reproducible `native-dev` image that packages the native runtime,
-  native agent backend, and one locked idle RBF. Its idle path is hardware-
-  tested on the designated kit; it intentionally supports no game systems.
+  native agent backend, one locked idle RBF, and one locked Mega Drive RBF.
+  Its idle path is hardware-tested on the designated kit. The Mega Drive
+  launch translation and packaging are software-tested candidates awaiting
+  exact-image physical acceptance; no native game system is supported yet.
 
 The normal FPGA launch path is:
 
@@ -58,16 +60,20 @@ launch path. Superseded experiments are removed from the working tree; Git
 history is the archive.
 
 The working FPGA game path remains the conventional `dev`/`prod` image path
-described above. The `native-dev` image has zero supported game systems, does
-not launch games or development RBFs, and is the hardware-tested idle baseline.
+described above. The `native-dev` image still has zero supported game systems
+and remains the hardware-tested idle baseline. Its candidate agent path accepts
+only registry system `megadrive`, sends the image-owned core and staged
+cartridge path to `mister-runtime`, and continues to reject development RBFs
+and every other system. Physical launch, input, Stop, and relaunch acceptance
+remain pending.
 
 ## Milestone status
 
 ```text
 legacy dev/prod = current game-capable path
-native-dev = hardware-tested idle baseline, zero supported game systems
+native-dev = hardware-tested idle baseline, Mega Drive candidate pending acceptance
 Milestone 2 = complete
-Milestone 3 = Mega Drive vertical slice next
+Milestone 3 = software integration in progress; exact-image hardware acceptance pending
 ```
 
 ## Build and test

@@ -98,22 +98,18 @@ idle_path=$(read_lock_value idle_rbf path)
 idle_sha=$(read_lock_value idle_rbf sha256)
 idle_size=$(read_lock_value idle_rbf size)
 idle_install_path=$(read_lock_value idle_rbf install_path)
+megadrive_repository=$(read_lock_value megadrive_rbf repository)
+megadrive_commit=$(read_lock_value megadrive_rbf commit)
+megadrive_path=$(read_lock_value megadrive_rbf path)
+megadrive_sha=$(read_lock_value megadrive_rbf sha256)
+megadrive_size=$(read_lock_value megadrive_rbf size)
+megadrive_install_path=$(read_lock_value megadrive_rbf install_path)
 for lock_value in "$runtime_commit" "$idle_repository" "$idle_commit" \
-  "$idle_path" "$idle_sha" "$idle_size" "$idle_install_path"; do
+  "$idle_path" "$idle_sha" "$idle_size" "$idle_install_path" \
+  "$megadrive_repository" "$megadrive_commit" "$megadrive_path" \
+  "$megadrive_sha" "$megadrive_size" "$megadrive_install_path"; do
   [ -n "$lock_value" ] || fail 'native input lock is invalid'
 done
-
-expected_build_inputs=$work_dir/expected-build-inputs
-{
-  printf '%s\n' 'format=1'
-  printf 'mister_runtime_commit=%s\n' "$runtime_commit"
-  printf 'idle_repository=%s\n' "$idle_repository"
-  printf 'idle_commit=%s\n' "$idle_commit"
-  printf 'idle_path=%s\n' "$idle_path"
-  printf 'idle_sha256=%s\n' "$idle_sha"
-  printf 'idle_size=%s\n' "$idle_size"
-  printf 'idle_install_path=%s\n' "$idle_install_path"
-} > "$expected_build_inputs"
 
 read_ready_boot() {
   health_response=$(curl --fail --silent \
@@ -194,6 +190,8 @@ if [ -p /dev/MiSTer_cmd ]; then
 else
   printf "%s\n" FOGCAST_COMMAND_PIPE_FIFO=0
 fi
+agent_sha=$(/usr/bin/sha256sum /usr/sbin/mister-agent | /usr/bin/awk "{print \$1}")
+printf "FOGCAST_AGENT_SHA256=%s\n" "$agent_sha"
 ' > "$inspection" 2>/dev/null; then
   fail 'target inspection failed'
 fi
@@ -231,6 +229,31 @@ main_count=$(awk '
   fail '/dev/MiSTer_cmd is a FIFO'
 [ "$(awk '$0 == "FOGCAST_COMMAND_PIPE_FIFO=0" { count++ } END { print count + 0 }' "$inspection")" -eq 1 ] ||
   fail 'target inspection failed'
+agent_sha=$(awk -F= '
+  $1 == "FOGCAST_AGENT_SHA256" { count++; value=$2 }
+  END { if (count == 1) print value }
+' "$inspection")
+printf '%s\n' "$agent_sha" | grep -Eq '^[0-9a-f]{64}$' ||
+  fail 'target inspection failed'
+
+expected_build_inputs=$work_dir/expected-build-inputs
+{
+  printf '%s\n' 'format=1'
+  printf 'mister_runtime_commit=%s\n' "$runtime_commit"
+  printf 'mister_agent_sha256=%s\n' "$agent_sha"
+  printf 'idle_repository=%s\n' "$idle_repository"
+  printf 'idle_commit=%s\n' "$idle_commit"
+  printf 'idle_path=%s\n' "$idle_path"
+  printf 'idle_sha256=%s\n' "$idle_sha"
+  printf 'idle_size=%s\n' "$idle_size"
+  printf 'idle_install_path=%s\n' "$idle_install_path"
+  printf 'megadrive_repository=%s\n' "$megadrive_repository"
+  printf 'megadrive_commit=%s\n' "$megadrive_commit"
+  printf 'megadrive_path=%s\n' "$megadrive_path"
+  printf 'megadrive_sha256=%s\n' "$megadrive_sha"
+  printf 'megadrive_size=%s\n' "$megadrive_size"
+  printf 'megadrive_install_path=%s\n' "$megadrive_install_path"
+} > "$expected_build_inputs"
 
 installed_build_inputs=$work_dir/installed-build-inputs
 if ! timeout "$call_timeout" sshpass -p "$target_password" ssh $ssh_options \

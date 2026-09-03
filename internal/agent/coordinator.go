@@ -24,26 +24,58 @@ type Runtime interface {
 	Stop(context.Context) (string, *protocol.APIError)
 }
 
-type Coordinator struct {
-	runtime       Runtime
-	registry      core.Registry
-	content       ContentStore
-	launchTimeout time.Duration
-	stopTimeout   time.Duration
-	transition    chan struct{}
-	mu            sync.RWMutex
-	status        protocol.Status
+type stopReadyRuntime interface {
+	StopReady() bool
 }
 
-func New(runtime Runtime, registry core.Registry, launchTimeout, stopTimeout time.Duration) *Coordinator {
-	return &Coordinator{
-		runtime:       runtime,
-		registry:      registry,
-		launchTimeout: launchTimeout,
-		stopTimeout:   stopTimeout,
-		transition:    make(chan struct{}, 1),
-		status:        protocol.Status{State: protocol.StateIdle},
+type ownedLaunchRuntime interface {
+	LaunchOwned(context.Context, context.Context, context.Context, mister.PreparedLaunch) (observed string, dispatchAttempted bool, apiErr *protocol.APIError)
+}
+
+type ownedStopRuntime interface {
+	StopOwned(context.Context, context.Context) (observed string, apiErr *protocol.APIError)
+}
+
+type CoordinatorOption func(*Coordinator)
+
+// WithOperationContext roots already-admitted runtime mutations in the agent
+// process lifetime instead of the lifetime of one HTTP connection.
+func WithOperationContext(ctx context.Context) CoordinatorOption {
+	return func(coordinator *Coordinator) {
+		if ctx != nil {
+			coordinator.operationContext = ctx
+		}
 	}
+}
+
+type Coordinator struct {
+	runtime          Runtime
+	registry         core.Registry
+	content          ContentStore
+	operationContext context.Context
+	launchTimeout    time.Duration
+	stopTimeout      time.Duration
+	transition       chan struct{}
+	mu               sync.RWMutex
+	status           protocol.Status
+}
+
+func New(runtime Runtime, registry core.Registry, launchTimeout, stopTimeout time.Duration, options ...CoordinatorOption) *Coordinator {
+	coordinator := &Coordinator{
+		runtime:          runtime,
+		registry:         registry,
+		operationContext: context.Background(),
+		launchTimeout:    launchTimeout,
+		stopTimeout:      stopTimeout,
+		transition:       make(chan struct{}, 1),
+		status:           protocol.Status{State: protocol.StateIdle},
+	}
+	for _, option := range options {
+		if option != nil {
+			option(coordinator)
+		}
+	}
+	return coordinator
 }
 
 func (c *Coordinator) begin() bool {
@@ -227,9 +259,17 @@ func (c *Coordinator) launchWithIntent(parent context.Context, gameID string, sp
 	}
 	system, expected := spec.System, spec.ExpectedCore
 	c.set(protocol.Status{State: protocol.StateLaunching, GameID: &gameID, System: &system, ExpectedCore: &expected})
-	ctx, cancel := context.WithTimeout(parent, c.launchTimeout)
-	defer cancel()
-	observed, dispatchAttempted, apiErr := c.runtime.Launch(ctx, prepared)
+	var observed string
+	var dispatchAttempted bool
+	if runtime, ok := c.runtime.(ownedLaunchRuntime); ok {
+		observation, cancel := context.WithTimeout(c.operationContext, c.launchTimeout)
+		defer cancel()
+		observed, dispatchAttempted, apiErr = runtime.LaunchOwned(parent, observation, c.operationContext, prepared)
+	} else {
+		ctx, cancel := context.WithTimeout(parent, c.launchTimeout)
+		defer cancel()
+		observed, dispatchAttempted, apiErr = c.runtime.Launch(ctx, prepared)
+	}
 	if apiErr != nil {
 		failed := protocol.Status{State: protocol.StateFailed, GameID: &gameID, System: &system, ExpectedCore: &expected, LastError: cloneAPIError(apiErr)}
 		if observed != "" {
@@ -293,16 +333,24 @@ func (c *Coordinator) Stop(parent context.Context) (protocol.Status, *protocol.A
 		c.set(stopping)
 		return c.Status(), nil
 	}
-	if !c.runtime.Health("").Ready {
+	if !runtimeStopReady(c.runtime) {
 		return current, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}
 	}
 	stopping := cloneStatus(current)
 	stopping.State = protocol.StateStopping
 	stopping.LastError = nil
 	c.set(stopping)
-	ctx, cancel := context.WithTimeout(parent, c.stopTimeout)
-	defer cancel()
-	observed, apiErr := c.runtime.Stop(ctx)
+	var observed string
+	var apiErr *protocol.APIError
+	if runtime, ok := c.runtime.(ownedStopRuntime); ok {
+		operation, cancel := context.WithTimeout(c.operationContext, c.stopTimeout)
+		defer cancel()
+		observed, apiErr = runtime.StopOwned(parent, operation)
+	} else {
+		ctx, cancel := context.WithTimeout(parent, c.stopTimeout)
+		defer cancel()
+		observed, apiErr = c.runtime.Stop(ctx)
+	}
 	if apiErr != nil {
 		failed := cloneStatus(stopping)
 		failed.State = protocol.StateFailed
@@ -331,6 +379,13 @@ func (c *Coordinator) Stop(parent context.Context) (protocol.Status, *protocol.A
 	}
 	c.set(protocol.Status{State: protocol.StateIdle})
 	return c.Status(), nil
+}
+
+func runtimeStopReady(runtime Runtime) bool {
+	if operationReady, ok := runtime.(stopReadyRuntime); ok {
+		return operationReady.StopReady()
+	}
+	return runtime.Health("").Ready
 }
 
 func (c *Coordinator) RebootDevelopment(parent context.Context) (protocol.Status, *protocol.APIError) {

@@ -2,6 +2,7 @@ package hostapi
 
 import (
 	"context"
+	"errors"
 	"io"
 	"sync"
 	"time"
@@ -661,21 +662,52 @@ func (s *sessionCoordinator) detachInputBounded(reason string) error {
 }
 
 func (s *sessionCoordinator) stopServiceBounded() (protocol.Status, error) {
-	var status protocol.Status
-	var first error
-	for attempt := 0; attempt < 2; attempt++ {
-		stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		var err error
-		status, err = s.service.Stop(stopCtx)
-		cancel()
-		if err == nil {
-			return status, first
+	stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	status, err := s.service.Stop(stopCtx)
+	cancel()
+	if err == nil || !ambiguousBoundedStopError(err) {
+		return status, err
+	}
+	reconcileCtx, reconcileCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer reconcileCancel()
+	for {
+		status, statusErr := s.service.Status(reconcileCtx)
+		if statusErr != nil {
+			return protocol.Status{}, err
 		}
-		if first == nil {
-			first = err
+		if exactIdleStatus(status) {
+			return status, nil
+		}
+		if !provisionalStopStatus(status) {
+			return protocol.Status{}, err
+		}
+		timer := time.NewTimer(25 * time.Millisecond)
+		select {
+		case <-reconcileCtx.Done():
+			timer.Stop()
+			return protocol.Status{}, err
+		case <-timer.C:
 		}
 	}
-	return status, first
+}
+
+func ambiguousBoundedStopError(err error) bool {
+	if !errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	var apiErr *protocol.APIError
+	return !errors.As(err, &apiErr) || apiErr.Code == protocol.CodeMiSTerUnavailable
+}
+
+func provisionalStopStatus(status protocol.Status) bool {
+	return (status.State == protocol.StateActive || status.State == protocol.StateStopping) &&
+		status.LastError == nil && !status.Development && status.Recovery == ""
+}
+
+func exactIdleStatus(status protocol.Status) bool {
+	return status.State == protocol.StateIdle && status.GameID == nil && status.System == nil &&
+		status.ExpectedCore == nil && status.ObservedCore == nil && status.LastError == nil &&
+		!status.Development && status.Recovery == ""
 }
 
 func (s *sessionCoordinator) inputStatus() (host.RemoteInputStatus, bool) {

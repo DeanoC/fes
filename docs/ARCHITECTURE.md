@@ -52,10 +52,14 @@ fallback.
 
 The native adapter reports ready only when `mister-runtime` reports `idle`.
 An idle Stop confirms that state without calling the runtime Stop operation.
-Native game support has zero systems, and game requests return an
-unsupported-system error; development loading and recovery return an
-unsupported-operation error. The separate `native-dev` image packages this
-composition, and its idle path is hardware-tested on the designated kit.
+Native product support still has zero game systems pending exact-image physical
+acceptance. The candidate software path accepts only the registry `megadrive`
+system, validates an absolute staged ROM, and sends one local request using
+`/usr/share/mister-runtime/cores/megadrive.rbf` with semantic media role
+`cartridge`. Every other system returns an unsupported-system error;
+development loading and recovery return an unsupported-operation error. The
+separate `native-dev` image packages this composition, and only its idle path
+is hardware-tested on the designated kit.
 
 The native agent creates one `FogCast Virtual Gamepad` during startup before
 runtime reconciliation. Its Linux identity is `BUS_VIRTUAL`, vendor `0x0000`,
@@ -119,21 +123,23 @@ development-RBF path.
 
 The `native-dev` candidate instead starts image-owned `mister-runtime` and
 then image-owned `mister-agent --runtime native`. It contains exactly one
-locked idle RBF under `/usr/share/mister-runtime`, has no Main startup or
-legacy Menu-configuration helper, has no `/dev/MiSTer_cmd` wait, and retains
-the same read-only root with volatile `/run`, `/tmp`, and `/var/log`. Its QEMU
-smoke proves only root filesystem and init packaging; it does not emulate FPGA
-programming, prove target readiness, or establish game or development-RBF
-support. The designated-kit idle and legacy rollback gates are hardware-tested;
-native game and development-RBF support remain absent.
+locked idle RBF and one locked Mega Drive RBF under `/usr/share/mister-runtime`,
+has no Main startup or legacy Menu-configuration helper, has no
+`/dev/MiSTer_cmd` wait, and retains the same read-only root with volatile
+`/run`, `/tmp`, and `/var/log`. Its build-input record identifies the runtime
+commit, agent binary, and both RBFs. Its QEMU smoke proves only root filesystem
+and init packaging; it does not emulate FPGA programming, prove target
+readiness, or establish game or development-RBF support. The designated-kit
+idle and legacy rollback gates are hardware-tested; native game and
+development-RBF support remain absent.
 
 ## Milestone status
 
 ```text
 legacy dev/prod = current game-capable path
-native-dev = hardware-tested idle baseline, zero supported game systems
+native-dev = hardware-tested idle baseline, Mega Drive candidate pending acceptance
 Milestone 2 = complete
-Milestone 3 = Mega Drive vertical slice next
+Milestone 3 = software integration in progress; exact-image hardware acceptance pending
 ```
 
 ## Development RBF extension

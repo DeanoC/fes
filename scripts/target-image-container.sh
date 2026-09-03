@@ -50,8 +50,9 @@ if [ -n "${LIBMISTER_RUNTIME_DIR:-}" ]; then
   native_runtime_source=$(CDPATH='' cd -- "$LIBMISTER_RUNTIME_DIR" && pwd -P)
   native_lock=${NATIVE_RUNTIME_INPUT_LOCK:-$repo_root/build/native-runtime.inputs.lock.toml}
   native_idle=${NATIVE_RUNTIME_IDLE_FILE:-$repo_root/build/cache/target-image/native/idle.rbf}
+  native_megadrive=${NATIVE_RUNTIME_MEGADRIVE_FILE:-$repo_root/build/cache/target-image/native/megadrive.rbf}
   "$repo_root/scripts/verify-native-runtime-inputs.sh" \
-    "$native_lock" "$native_runtime_source" "$native_idle"
+    "$native_lock" "$native_runtime_source" "$native_idle" "$native_megadrive"
   native_runtime_commit=$(git -C "$native_runtime_source" rev-parse --verify HEAD)
 fi
 

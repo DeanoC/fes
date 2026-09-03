@@ -1,14 +1,15 @@
 #!/bin/sh
 set -eu
 
-[ "$#" -eq 3 ] || {
-  printf '%s\n' 'usage: verify-native-runtime-inputs.sh LOCK RUNTIME_SOURCE IDLE_FILE' >&2
+[ "$#" -eq 4 ] || {
+  printf '%s\n' 'usage: verify-native-runtime-inputs.sh LOCK RUNTIME_SOURCE IDLE_FILE MEGADRIVE_FILE' >&2
   exit 2
 }
 
 lock=$1
 runtime_source=$2
 idle_file=$3
+megadrive_file=$4
 
 [ -f "$lock" ] || {
   printf '%s\n' 'verify-native-runtime-inputs: lock is not a regular file' >&2
@@ -46,6 +47,12 @@ idle_path=$(read_lock_value idle_rbf path)
 expected_sha=$(read_lock_value idle_rbf sha256)
 expected_size=$(read_lock_value idle_rbf size)
 install_path=$(read_lock_value idle_rbf install_path)
+megadrive_repository=$(read_lock_value megadrive_rbf repository)
+megadrive_commit=$(read_lock_value megadrive_rbf commit)
+megadrive_path=$(read_lock_value megadrive_rbf path)
+megadrive_sha=$(read_lock_value megadrive_rbf sha256)
+megadrive_size=$(read_lock_value megadrive_rbf size)
+megadrive_install_path=$(read_lock_value megadrive_rbf install_path)
 
 [ "$format" = 1 ] || {
   printf '%s\n' 'verify-native-runtime-inputs: lock format must be 1' >&2
@@ -81,6 +88,30 @@ printf '%s\n' "$expected_size" | grep -Eq '^[1-9][0-9]*$' || {
 }
 [ "$install_path" = /usr/share/mister-runtime/idle.rbf ] || {
   printf '%s\n' 'verify-native-runtime-inputs: idle install path must be absolute and fixed' >&2
+  exit 2
+}
+[ "$megadrive_repository" = https://github.com/MiSTer-devel/MegaDrive_MiSTer ] || {
+  printf '%s\n' 'verify-native-runtime-inputs: Mega Drive repository does not match the fixed source' >&2
+  exit 2
+}
+[ "$megadrive_commit" = 7365a137cfd8fa6f041e964d8b953159c0ec42d9 ] || {
+  printf '%s\n' 'verify-native-runtime-inputs: Mega Drive commit does not match the fixed source' >&2
+  exit 2
+}
+[ "$megadrive_path" = releases/MegaDrive_20260603.rbf ] || {
+  printf '%s\n' 'verify-native-runtime-inputs: Mega Drive path does not match the fixed source' >&2
+  exit 2
+}
+printf '%s\n' "$megadrive_sha" | grep -Eq '^[0-9a-f]{64}$' || {
+  printf '%s\n' 'verify-native-runtime-inputs: Mega Drive SHA-256 is invalid' >&2
+  exit 2
+}
+printf '%s\n' "$megadrive_size" | grep -Eq '^[1-9][0-9]*$' || {
+  printf '%s\n' 'verify-native-runtime-inputs: Mega Drive size is invalid' >&2
+  exit 2
+}
+[ "$megadrive_install_path" = /usr/share/mister-runtime/cores/megadrive.rbf ] || {
+  printf '%s\n' 'verify-native-runtime-inputs: Mega Drive install path must be image-owned and fixed' >&2
   exit 2
 }
 
@@ -133,4 +164,20 @@ actual_size=$(wc -c <"$idle_file" | tr -d ' ')
   exit 1
 }
 
-printf 'runtime_commit=%s\nidle_sha256=%s\n' "$actual_commit" "$actual_sha"
+[ -f "$megadrive_file" ] || {
+  printf '%s\n' 'verify-native-runtime-inputs: Mega Drive input is not a regular file' >&2
+  exit 1
+}
+actual_megadrive_sha=$(sha256sum "$megadrive_file" | awk '{print $1}')
+[ "$actual_megadrive_sha" = "$megadrive_sha" ] || {
+  printf '%s\n' 'verify-native-runtime-inputs: Mega Drive SHA-256 does not match the lock' >&2
+  exit 1
+}
+actual_megadrive_size=$(wc -c <"$megadrive_file" | tr -d ' ')
+[ "$actual_megadrive_size" = "$megadrive_size" ] || {
+  printf '%s\n' 'verify-native-runtime-inputs: Mega Drive size does not match the lock' >&2
+  exit 1
+}
+
+printf 'runtime_commit=%s\nidle_sha256=%s\nmegadrive_sha256=%s\n' \
+  "$actual_commit" "$actual_sha" "$actual_megadrive_sha"

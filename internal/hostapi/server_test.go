@@ -35,6 +35,7 @@ type fakeService struct {
 	statusStarted   chan struct{}
 	statusRelease   chan struct{}
 	statusOnce      sync.Once
+	statusHook      func(context.Context) (protocol.Status, error)
 	launch          protocol.CachedLaunchResponse
 	launchCalls     int
 	launchErr       error
@@ -49,6 +50,7 @@ type fakeService struct {
 	stopCalled      chan struct{}
 	stopCtxErrs     []error
 	stopHasDeadline bool
+	stopHook        func(context.Context) (protocol.Status, error)
 	progress        []string
 	execution       string
 	executionErr    error
@@ -71,6 +73,9 @@ func (s *fakeService) DevelopmentActive(context.Context) (bool, error) {
 func (s *fakeService) Game(context.Context, string) (catalog.Game, error) { return s.game, s.gameErr }
 func (s *fakeService) Health(context.Context) (protocol.Health, error)    { return s.health, s.healthErr }
 func (s *fakeService) Status(ctx context.Context) (protocol.Status, error) {
+	if s.statusHook != nil {
+		return s.statusHook(ctx)
+	}
 	if s.statusStarted != nil {
 		s.statusOnce.Do(func() { close(s.statusStarted) })
 	}
@@ -115,12 +120,84 @@ func (s *fakeService) Stop(ctx context.Context) (protocol.Status, error) {
 			close(s.stopCalled)
 		}
 	}
+	if s.stopHook != nil {
+		return s.stopHook(ctx)
+	}
 	if len(s.stopResults) > 0 {
 		err := s.stopResults[0]
 		s.stopResults = s.stopResults[1:]
 		return s.stopped, err
 	}
 	return s.stopped, s.stopErr
+}
+
+func TestPublicStopAfterTwoSecondExpiryReconcilesIdleWithoutResubmitting(t *testing.T) {
+	var stopCalls, statusCalls int
+	terminal := make(chan struct{})
+	service := &fakeService{status: protocol.Status{State: protocol.StateActive}}
+	service.stopHook = func(ctx context.Context) (protocol.Status, error) {
+		stopCalls++
+		if stopCalls > 1 {
+			return protocol.Status{}, errors.New("duplicate Stop must not be submitted")
+		}
+		<-ctx.Done()
+		go func() {
+			timer := time.NewTimer(100 * time.Millisecond)
+			defer timer.Stop()
+			<-timer.C
+			close(terminal)
+		}()
+		return protocol.Status{}, ctx.Err()
+	}
+	service.statusHook = func(context.Context) (protocol.Status, error) {
+		statusCalls++
+		select {
+		case <-terminal:
+			return protocol.Status{State: protocol.StateIdle}, nil
+		default:
+			gameID, system, coreName := "megadrive-stop-deadline", protocol.SystemMegaDrive, "MegaDrive"
+			return protocol.Status{State: protocol.StateStopping, GameID: &gameID, System: &system, ExpectedCore: &coreName, ObservedCore: &coreName}, nil
+		}
+	}
+	handler := hostapi.New(service)
+	started := time.Now()
+	response := serve(t, handler, http.MethodPost, "/api/v1/session/stop")
+	elapsed := time.Since(started)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"state":"idle"`) {
+		t.Errorf("public Stop = %d %s, want reconciled idle", response.Code, response.Body.String())
+	}
+	if stopCalls != 1 {
+		t.Errorf("service Stop calls = %d, want exactly one", stopCalls)
+	}
+	if statusCalls == 0 {
+		t.Errorf("service Status calls = 0, want Status-only reconciliation")
+	}
+	if elapsed < 2*time.Second || elapsed >= 4*time.Second {
+		t.Errorf("public Stop elapsed = %s, want bounded reconciliation after the 2s expiry", elapsed)
+	}
+}
+
+func TestPublicStopDoesNotReconcileConclusiveFailureAtDeadlineBoundary(t *testing.T) {
+	var stopCalls, statusCalls int
+	service := &fakeService{status: protocol.Status{State: protocol.StateActive}}
+	service.stopHook = func(context.Context) (protocol.Status, error) {
+		stopCalls++
+		return protocol.Status{}, errors.Join(
+			&protocol.APIError{Code: protocol.CodeCoreTimeout, Message: "conclusive service response"},
+			context.DeadlineExceeded,
+		)
+	}
+	service.statusHook = func(context.Context) (protocol.Status, error) {
+		statusCalls++
+		return protocol.Status{State: protocol.StateIdle}, nil
+	}
+	response := serve(t, hostapi.New(service), http.MethodPost, "/api/v1/session/stop")
+	if response.Code == http.StatusOK {
+		t.Fatalf("public Stop hid conclusive failure: %s", response.Body.String())
+	}
+	if stopCalls != 1 || statusCalls != 0 {
+		t.Fatalf("service calls = stop:%d status:%d, want 1/0", stopCalls, statusCalls)
+	}
 }
 
 type fakeRemoteInput struct {
@@ -1313,7 +1390,7 @@ func TestTransientMediaStopFailureRetriesBeforeReturning(t *testing.T) {
 	}
 }
 
-func TestStatusObservedMediaExitRetriesHostServiceStop(t *testing.T) {
+func TestStatusObservedMediaExitDoesNotReplayFailedHostServiceStop(t *testing.T) {
 	order := []string{}
 	service := &fakeService{
 		execution:   "host_only",
@@ -1338,12 +1415,12 @@ func TestStatusObservedMediaExitRetriesHostServiceStop(t *testing.T) {
 			serviceStops++
 		}
 	}
-	if serviceStops != 2 {
-		t.Fatalf("service stop attempts = %d, want failed attempt plus retry; order=%#v", serviceStops, order)
+	if serviceStops != 1 {
+		t.Fatalf("service stop attempts = %d, want one mutation; order=%#v", serviceStops, order)
 	}
 }
 
-func TestExplicitStopRetriesServiceButPreservesFirstFailure(t *testing.T) {
+func TestExplicitStopDoesNotReplayServiceMutationAndPreservesFailure(t *testing.T) {
 	service := &fakeService{
 		execution:   "host_only",
 		launch:      protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive}},
@@ -1357,8 +1434,8 @@ func TestExplicitStopRetriesServiceButPreservesFirstFailure(t *testing.T) {
 	if response.Code == http.StatusOK {
 		t.Fatalf("explicit stop hid first host-stop failure: %s", response.Body.String())
 	}
-	if len(service.stopResults) != 0 {
-		t.Fatalf("service retry did not consume both results: %#v", service.stopResults)
+	if len(service.stopResults) != 1 || service.stopResults[0] != nil {
+		t.Fatalf("service Stop was replayed: remaining results %#v", service.stopResults)
 	}
 }
 
@@ -1449,7 +1526,7 @@ func TestAutonomousMediaCleanupFailureStillStopsHostService(t *testing.T) {
 	}
 }
 
-func TestAutonomousServiceRetryPreservesFirstFailureEvent(t *testing.T) {
+func TestAutonomousServiceFailureIsRecordedWithoutReplay(t *testing.T) {
 	service := &fakeService{
 		execution:   "host_only",
 		launch:      protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive}},

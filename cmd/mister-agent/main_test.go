@@ -488,6 +488,10 @@ func (c *idleCompositionControl) Stop(context.Context) (misterruntime.Response, 
 	return misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
 }
 
+func (*idleCompositionControl) Launch(context.Context, misterruntime.LaunchRequest) (misterruntime.Response, error) {
+	return misterruntime.Response{}, errors.New("unused")
+}
+
 type unreadCompositionBody struct {
 	reads int
 }

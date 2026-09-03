@@ -110,6 +110,8 @@ write_lock() {
   write_runtime_commit=$2
   write_idle_sha=$3
   write_idle_size=$4
+  write_megadrive_sha=$5
+  write_megadrive_size=$6
   cat >"$write_path" <<EOF
 format = 1
 
@@ -124,6 +126,14 @@ path = 'menu.rbf'
 sha256 = '$write_idle_sha'
 size = $write_idle_size
 install_path = '/usr/share/mister-runtime/idle.rbf'
+
+[megadrive_rbf]
+repository = 'https://github.com/MiSTer-devel/MegaDrive_MiSTer'
+commit = '7365a137cfd8fa6f041e964d8b953159c0ec42d9'
+path = 'releases/MegaDrive_20260603.rbf'
+sha256 = '$write_megadrive_sha'
+size = $write_megadrive_size
+install_path = '/usr/share/mister-runtime/cores/megadrive.rbf'
 EOF
 }
 
@@ -155,14 +165,20 @@ idle=$fixture/idle.rbf
 printf '%s' 'fixture idle rbf' >"$idle"
 idle_sha=$(sha256sum "$idle" | awk '{print $1}')
 idle_size=$(wc -c <"$idle" | tr -d ' ')
+megadrive=$fixture/megadrive.rbf
+printf '%s' 'fixture Mega Drive rbf' >"$megadrive"
+megadrive_sha=$(sha256sum "$megadrive" | awk '{print $1}')
+megadrive_size=$(wc -c <"$megadrive" | tr -d ' ')
 lock=$fixture/native-runtime.inputs.lock.toml
-write_lock "$lock" "$runtime_commit" "$idle_sha" "$idle_size"
+write_lock "$lock" "$runtime_commit" "$idle_sha" "$idle_size" \
+  "$megadrive_sha" "$megadrive_size"
 
 verified_output=$(
-  sh "$verifier" "$lock" "$runtime_source" "$idle"
+  sh "$verifier" "$lock" "$runtime_source" "$idle" "$megadrive"
 )
 printf '%s\n' "$verified_output" | grep -Fq "$runtime_commit"
 printf '%s\n' "$verified_output" | grep -Fq "$idle_sha"
+printf '%s\n' "$verified_output" | grep -Fq "$megadrive_sha"
 if printf '%s\n' "$verified_output" | grep -Fq "$runtime_source"; then
   fail 'verifier printed a local runtime checkout path'
 fi
@@ -172,68 +188,114 @@ git -C "$runtime_source" add SECOND
 git -C "$runtime_source" -c user.name=Test -c user.email=test@example.invalid \
   commit -q -m second
 expect_rejected 'wrong runtime HEAD' \
-  sh "$verifier" "$lock" "$runtime_source" "$idle"
+  sh "$verifier" "$lock" "$runtime_source" "$idle" "$megadrive"
 git -C "$runtime_source" reset -q --hard "$runtime_commit"
 
 printf '%s\n' dirty >"$runtime_source/untracked"
 expect_rejected 'dirty runtime checkout' \
-  sh "$verifier" "$lock" "$runtime_source" "$idle"
+  sh "$verifier" "$lock" "$runtime_source" "$idle" "$megadrive"
 rm "$runtime_source/untracked"
 
 wrong_digest_lock=$fixture/wrong-digest.lock.toml
 write_lock "$wrong_digest_lock" "$runtime_commit" \
   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
-  "$idle_size"
+  "$idle_size" "$megadrive_sha" "$megadrive_size"
 expect_rejected 'wrong idle digest' \
-  sh "$verifier" "$wrong_digest_lock" "$runtime_source" "$idle"
+  sh "$verifier" "$wrong_digest_lock" "$runtime_source" "$idle" "$megadrive"
 
 wrong_size_lock=$fixture/wrong-size.lock.toml
-write_lock "$wrong_size_lock" "$runtime_commit" "$idle_sha" "$((idle_size + 1))"
+write_lock "$wrong_size_lock" "$runtime_commit" "$idle_sha" "$((idle_size + 1))" \
+  "$megadrive_sha" "$megadrive_size"
 expect_rejected 'wrong idle size' \
-  sh "$verifier" "$wrong_size_lock" "$runtime_source" "$idle"
+  sh "$verifier" "$wrong_size_lock" "$runtime_source" "$idle" "$megadrive"
 
 expect_rejected 'non-regular idle path' \
-  sh "$verifier" "$lock" "$runtime_source" "$fixture"
+  sh "$verifier" "$lock" "$runtime_source" "$fixture" "$megadrive"
 
 missing_commit_lock=$fixture/missing-commit.lock.toml
 sed "/^commit = '$runtime_commit'$/d" "$lock" >"$missing_commit_lock"
 expect_rejected 'missing runtime commit' \
-  sh "$verifier" "$missing_commit_lock" "$runtime_source" "$idle"
+  sh "$verifier" "$missing_commit_lock" "$runtime_source" "$idle" "$megadrive"
 
 short_commit_lock=$fixture/short-commit.lock.toml
 sed "s/$runtime_commit/abc123/" "$lock" >"$short_commit_lock"
 expect_rejected 'non-40-character runtime commit' \
-  sh "$verifier" "$short_commit_lock" "$runtime_source" "$idle"
+  sh "$verifier" "$short_commit_lock" "$runtime_source" "$idle" "$megadrive"
 
 relative_mount_lock=$fixture/relative-mount.lock.toml
 sed "s#mount_path = '/runtime-source'#mount_path = 'runtime-source'#" \
   "$lock" >"$relative_mount_lock"
 expect_rejected 'relative runtime mount path' \
-  sh "$verifier" "$relative_mount_lock" "$runtime_source" "$idle"
+  sh "$verifier" "$relative_mount_lock" "$runtime_source" "$idle" "$megadrive"
 
 relative_install_lock=$fixture/relative-install.lock.toml
 sed "s#install_path = '/usr/share/mister-runtime/idle.rbf'#install_path = 'idle.rbf'#" \
   "$lock" >"$relative_install_lock"
 expect_rejected 'relative idle install path' \
-  sh "$verifier" "$relative_install_lock" "$runtime_source" "$idle"
+  sh "$verifier" "$relative_install_lock" "$runtime_source" "$idle" "$megadrive"
 
 wrong_repository_lock=$fixture/wrong-repository.lock.toml
 sed 's#https://github.com/MiSTer-devel/Distribution_MiSTer#https://example.invalid/mutable#' \
   "$lock" >"$wrong_repository_lock"
 expect_rejected 'wrong idle repository' \
-  sh "$verifier" "$wrong_repository_lock" "$runtime_source" "$idle"
+  sh "$verifier" "$wrong_repository_lock" "$runtime_source" "$idle" "$megadrive"
 
 wrong_idle_commit_lock=$fixture/wrong-idle-commit.lock.toml
 sed 's/f7bde4becb452ca28f604ad9802bbed5c6b58e01/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/' \
   "$lock" >"$wrong_idle_commit_lock"
 expect_rejected 'wrong idle commit' \
-  sh "$verifier" "$wrong_idle_commit_lock" "$runtime_source" "$idle"
+  sh "$verifier" "$wrong_idle_commit_lock" "$runtime_source" "$idle" "$megadrive"
 
 wrong_idle_path_lock=$fixture/wrong-idle-path.lock.toml
 sed "s/path = 'menu.rbf'/path = 'latest.rbf'/" \
   "$lock" >"$wrong_idle_path_lock"
 expect_rejected 'wrong idle source path' \
-  sh "$verifier" "$wrong_idle_path_lock" "$runtime_source" "$idle"
+  sh "$verifier" "$wrong_idle_path_lock" "$runtime_source" "$idle" "$megadrive"
+
+wrong_megadrive_digest_lock=$fixture/wrong-megadrive-digest.lock.toml
+sed "s/$megadrive_sha/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/" \
+  "$lock" >"$wrong_megadrive_digest_lock"
+expect_rejected 'wrong Mega Drive digest' \
+  sh "$verifier" "$wrong_megadrive_digest_lock" "$runtime_source" "$idle" "$megadrive"
+
+wrong_megadrive_size_lock=$fixture/wrong-megadrive-size.lock.toml
+write_lock "$wrong_megadrive_size_lock" "$runtime_commit" "$idle_sha" "$idle_size" \
+  "$megadrive_sha" "$((megadrive_size + 1))"
+expect_rejected 'wrong Mega Drive size' \
+  sh "$verifier" "$wrong_megadrive_size_lock" "$runtime_source" "$idle" "$megadrive"
+
+wrong_megadrive_path_lock=$fixture/wrong-megadrive-path.lock.toml
+sed "s#path = 'releases/MegaDrive_20260603.rbf'#path = 'releases/latest.rbf'#" \
+  "$lock" >"$wrong_megadrive_path_lock"
+expect_rejected 'wrong Mega Drive source path' \
+  sh "$verifier" "$wrong_megadrive_path_lock" "$runtime_source" "$idle" "$megadrive"
+
+fat_megadrive_install_lock=$fixture/fat-megadrive-install.lock.toml
+sed "s#install_path = '/usr/share/mister-runtime/cores/megadrive.rbf'#install_path = '/media/fat/_Console/MegaDrive.rbf'#" \
+  "$lock" >"$fat_megadrive_install_lock"
+expect_rejected 'FAT Mega Drive install path' \
+  sh "$verifier" "$fat_megadrive_install_lock" "$runtime_source" "$idle" "$megadrive"
+
+wrong_megadrive_repository_lock=$fixture/wrong-megadrive-repository.lock.toml
+sed 's#https://github.com/MiSTer-devel/MegaDrive_MiSTer#https://example.invalid/MegaDrive#' \
+  "$lock" >"$wrong_megadrive_repository_lock"
+expect_rejected 'wrong Mega Drive repository' \
+  sh "$verifier" "$wrong_megadrive_repository_lock" "$runtime_source" "$idle" "$megadrive"
+
+wrong_megadrive_commit_lock=$fixture/wrong-megadrive-commit.lock.toml
+sed 's/7365a137cfd8fa6f041e964d8b953159c0ec42d9/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/' \
+  "$lock" >"$wrong_megadrive_commit_lock"
+expect_rejected 'wrong Mega Drive commit' \
+  sh "$verifier" "$wrong_megadrive_commit_lock" "$runtime_source" "$idle" "$megadrive"
+
+expect_rejected 'non-regular Mega Drive path' \
+  sh "$verifier" "$lock" "$runtime_source" "$idle" "$fixture"
+
+duplicate_megadrive_lock=$fixture/duplicate-megadrive.lock.toml
+cp "$lock" "$duplicate_megadrive_lock"
+sed -n '/^\[megadrive_rbf\]$/,$p' "$lock" >>"$duplicate_megadrive_lock"
+expect_rejected 'duplicate Mega Drive lock section' \
+  sh "$verifier" "$duplicate_megadrive_lock" "$runtime_source" "$idle" "$megadrive"
 
 fake_bin=$fixture/bin
 mkdir -p "$fake_bin"
@@ -255,7 +317,12 @@ done
 test -n "$output"
 test -n "$url"
 printf '%s\n' "$url" >>"$NATIVE_RUNTIME_FETCH_LOG"
-cp "$NATIVE_RUNTIME_FAKE_DOWNLOAD" "$output"
+case "$url" in
+  *MiSTer-devel/Distribution_MiSTer/*) source=$NATIVE_RUNTIME_FAKE_IDLE_DOWNLOAD ;;
+  *MiSTer-devel/MegaDrive_MiSTer/*) source=$NATIVE_RUNTIME_FAKE_MEGADRIVE_DOWNLOAD ;;
+  *) exit 91 ;;
+esac
+cp "$source" "$output"
 EOF
 chmod 0755 "$fake_bin/wget"
 
@@ -264,12 +331,17 @@ fetch_log=$fixture/fetch.log
 PATH="$fake_bin:$PATH" \
 NATIVE_RUNTIME_INPUT_LOCK=$lock \
 NATIVE_RUNTIME_CACHE=$fetch_cache \
-NATIVE_RUNTIME_FAKE_DOWNLOAD=$idle \
+NATIVE_RUNTIME_FAKE_IDLE_DOWNLOAD=$idle \
+NATIVE_RUNTIME_FAKE_MEGADRIVE_DOWNLOAD=$megadrive \
 NATIVE_RUNTIME_FETCH_LOG=$fetch_log \
   sh "$fetcher"
 cmp "$idle" "$fetch_cache/idle.rbf"
+cmp "$megadrive" "$fetch_cache/megadrive.rbf"
 grep -Fqx -- \
   "https://raw.githubusercontent.com/MiSTer-devel/Distribution_MiSTer/f7bde4becb452ca28f604ad9802bbed5c6b58e01/menu.rbf" \
+  "$fetch_log"
+grep -Fqx -- \
+  "https://raw.githubusercontent.com/MiSTer-devel/MegaDrive_MiSTer/7365a137cfd8fa6f041e964d8b953159c0ec42d9/releases/MegaDrive_20260603.rbf" \
   "$fetch_log"
 
 printf '%s' prior >"$fetch_cache/idle.rbf"
@@ -279,23 +351,40 @@ expect_rejected 'fetch with wrong digest' \
   env PATH="$fake_bin:$PATH" \
     NATIVE_RUNTIME_INPUT_LOCK="$lock" \
     NATIVE_RUNTIME_CACHE="$fetch_cache" \
-    NATIVE_RUNTIME_FAKE_DOWNLOAD="$bad_download" \
+    NATIVE_RUNTIME_FAKE_IDLE_DOWNLOAD="$bad_download" \
+    NATIVE_RUNTIME_FAKE_MEGADRIVE_DOWNLOAD="$megadrive" \
     NATIVE_RUNTIME_FETCH_LOG="$fetch_log" \
     sh "$fetcher"
 test "$(cat "$fetch_cache/idle.rbf")" = prior || \
   fail 'failed fetch replaced the prior cached artifact'
 
 wrong_fetch_size_lock=$fixture/wrong-fetch-size.lock.toml
-write_lock "$wrong_fetch_size_lock" "$runtime_commit" "$idle_sha" "$((idle_size + 1))"
+write_lock "$wrong_fetch_size_lock" "$runtime_commit" "$idle_sha" "$((idle_size + 1))" \
+  "$megadrive_sha" "$megadrive_size"
 expect_rejected 'fetch with wrong size' \
   env PATH="$fake_bin:$PATH" \
     NATIVE_RUNTIME_INPUT_LOCK="$wrong_fetch_size_lock" \
     NATIVE_RUNTIME_CACHE="$fetch_cache" \
-    NATIVE_RUNTIME_FAKE_DOWNLOAD="$idle" \
+    NATIVE_RUNTIME_FAKE_IDLE_DOWNLOAD="$idle" \
+    NATIVE_RUNTIME_FAKE_MEGADRIVE_DOWNLOAD="$megadrive" \
     NATIVE_RUNTIME_FETCH_LOG="$fetch_log" \
     sh "$fetcher"
 test "$(cat "$fetch_cache/idle.rbf")" = prior || \
   fail 'wrong-size fetch replaced the prior cached artifact'
+
+printf '%s' prior-megadrive >"$fetch_cache/megadrive.rbf"
+bad_megadrive=$fixture/bad-megadrive.rbf
+printf '%s' altered-megadrive >"$bad_megadrive"
+expect_rejected 'fetch with wrong Mega Drive digest' \
+  env PATH="$fake_bin:$PATH" \
+    NATIVE_RUNTIME_INPUT_LOCK="$lock" \
+    NATIVE_RUNTIME_CACHE="$fetch_cache" \
+    NATIVE_RUNTIME_FAKE_IDLE_DOWNLOAD="$idle" \
+    NATIVE_RUNTIME_FAKE_MEGADRIVE_DOWNLOAD="$bad_megadrive" \
+    NATIVE_RUNTIME_FETCH_LOG="$fetch_log" \
+    sh "$fetcher"
+test "$(cat "$fetch_cache/megadrive.rbf")" = prior-megadrive || \
+  fail 'failed fetch replaced the prior cached Mega Drive artifact'
 
 expected_build_block=$fixture/expected-build-block
 cat >"$expected_build_block" <<'EOF'
@@ -457,9 +546,16 @@ fi
 grep -Fq 'sh scripts/tests/native-runtime-inputs_test.sh' "$repo/Makefile"
 
 real_lock=$repo/build/native-runtime.inputs.lock.toml
-grep -Fqx "commit = 'c71733238bba066705e3d08d64876c4ad6b218ff'" "$real_lock"
+grep -Fqx "commit = '443b603de991b56b5f4d0d11c5bc88a3f83fad13'" "$real_lock"
 grep -Fqx "sha256 = '821bcf66181a00ff550e4a4110dc11c9fa8e68d38e9cb5558b3ddb99ca938934'" "$real_lock"
 grep -Fqx 'size = 2452588' "$real_lock"
+grep -Fqx '[megadrive_rbf]' "$real_lock"
+grep -Fqx "repository = 'https://github.com/MiSTer-devel/MegaDrive_MiSTer'" "$real_lock"
+grep -Fqx "commit = '7365a137cfd8fa6f041e964d8b953159c0ec42d9'" "$real_lock"
+grep -Fqx "path = 'releases/MegaDrive_20260603.rbf'" "$real_lock"
+grep -Fqx "sha256 = '0cd43ea2c96e726999f04924713ca090ae73829f3ab08109c6b552cebeba0839'" "$real_lock"
+grep -Fqx 'size = 4296864' "$real_lock"
+grep -Fqx "install_path = '/usr/share/mister-runtime/cores/megadrive.rbf'" "$real_lock"
 
 container_log=$fixture/container.log
 fake_container=$fixture/fake-container
@@ -512,6 +608,7 @@ NATIVE_RUNTIME_EXPECTED_SOURCE=$runtime_source \
 NATIVE_RUNTIME_EXPECTED_COMMIT=$runtime_commit \
 NATIVE_RUNTIME_INPUT_LOCK=$lock \
 NATIVE_RUNTIME_IDLE_FILE=$idle \
+NATIVE_RUNTIME_MEGADRIVE_FILE=$megadrive \
 LIBMISTER_RUNTIME_DIR=$runtime_source \
 TARGET_IMAGE_CONTAINER_RUNTIME=$fake_container \
   sh "$container" run true
@@ -537,6 +634,7 @@ expect_rejected 'relative runtime checkout path' \
     NATIVE_RUNTIME_PACKAGE_DIGEST="$package_digest" \
     NATIVE_RUNTIME_INPUT_LOCK="$lock" \
     NATIVE_RUNTIME_IDLE_FILE="$idle" \
+    NATIVE_RUNTIME_MEGADRIVE_FILE="$megadrive" \
     LIBMISTER_RUNTIME_DIR=relative/runtime \
     TARGET_IMAGE_CONTAINER_RUNTIME="$fake_container" \
     sh "$container" run true
@@ -548,6 +646,7 @@ expect_rejected 'container with dirty runtime checkout' \
     NATIVE_RUNTIME_PACKAGE_DIGEST="$package_digest" \
     NATIVE_RUNTIME_INPUT_LOCK="$lock" \
     NATIVE_RUNTIME_IDLE_FILE="$idle" \
+    NATIVE_RUNTIME_MEGADRIVE_FILE="$megadrive" \
     LIBMISTER_RUNTIME_DIR="$runtime_source" \
     TARGET_IMAGE_CONTAINER_RUNTIME="$fake_container" \
     sh "$container" run true

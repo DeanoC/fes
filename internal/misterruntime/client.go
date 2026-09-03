@@ -8,11 +8,14 @@ import (
 	"errors"
 	"io"
 	"net"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
 const DefaultSocketPath = "/run/mister-runtime.sock"
 const MaximumLineBytes = 65536
+const megaDriveRBFPath = "/usr/share/mister-runtime/cores/megadrive.rbf"
 
 var (
 	errRuntimeConnection      = errors.New("runtime connection failed")
@@ -22,6 +25,7 @@ var (
 	errRuntimeResponseTooLong = errors.New("runtime response exceeds 65536 bytes")
 	errRuntimeMissingNewline  = errors.New("runtime response is missing newline")
 	errInvalidRuntimeResponse = errors.New("invalid runtime response")
+	errInvalidRuntimeRequest  = errors.New("invalid runtime request")
 )
 
 type RemoteError struct {
@@ -40,8 +44,16 @@ type Response struct {
 	Version   string       `json:"version"`
 }
 
+type LaunchRequest struct {
+	System   string            `json:"system"`
+	RBF      string            `json:"rbf"`
+	Media    map[string]string `json:"media"`
+	Settings map[string]string `json:"settings"`
+}
+
 type Control interface {
 	Status(context.Context) (Response, error)
+	Launch(context.Context, LaunchRequest) (Response, error)
 	Stop(context.Context) (Response, error)
 }
 
@@ -54,18 +66,41 @@ func NewClient(socketPath string) *Client {
 }
 
 func (client *Client) Status(ctx context.Context) (Response, error) {
-	return client.call(ctx, "status")
+	return client.call(ctx, "status", nil)
+}
+
+func (client *Client) Launch(ctx context.Context, request LaunchRequest) (Response, error) {
+	if !validLaunchRequest(request) {
+		return Response{}, errInvalidRuntimeRequest
+	}
+	return client.call(ctx, "launch", &request)
 }
 
 func (client *Client) Stop(ctx context.Context) (Response, error) {
-	return client.call(ctx, "stop")
+	return client.call(ctx, "stop", nil)
 }
 
-func (client *Client) call(ctx context.Context, operation string) (Response, error) {
-	payload, err := json.Marshal(struct {
-		Protocol  int    `json:"protocol"`
-		Operation string `json:"operation"`
-	}{Protocol: 1, Operation: operation})
+func (client *Client) call(ctx context.Context, operation string, launch *LaunchRequest) (Response, error) {
+	var payload []byte
+	var err error
+	if launch == nil {
+		payload, err = json.Marshal(struct {
+			Protocol  int    `json:"protocol"`
+			Operation string `json:"operation"`
+		}{Protocol: 1, Operation: operation})
+	} else {
+		payload, err = json.Marshal(struct {
+			Protocol  int               `json:"protocol"`
+			Operation string            `json:"operation"`
+			System    string            `json:"system"`
+			RBF       string            `json:"rbf"`
+			Media     map[string]string `json:"media"`
+			Settings  map[string]string `json:"settings"`
+		}{
+			Protocol: 1, Operation: operation, System: launch.System,
+			RBF: launch.RBF, Media: launch.Media, Settings: launch.Settings,
+		})
+	}
 	if err != nil {
 		return Response{}, errInvalidRuntimeResponse
 	}
@@ -101,6 +136,16 @@ func (client *Client) call(ctx context.Context, operation string) (Response, err
 		return Response{}, err
 	}
 	return response, nil
+}
+
+func validLaunchRequest(request LaunchRequest) bool {
+	if request.System != "megadrive" || request.RBF != megaDriveRBFPath ||
+		request.Settings == nil || len(request.Settings) != 0 || len(request.Media) != 1 {
+		return false
+	}
+	cartridge, ok := request.Media["cartridge"]
+	return ok && filepath.IsAbs(cartridge) && filepath.Clean(cartridge) == cartridge &&
+		strings.IndexByte(cartridge, 0) < 0
 }
 
 func writePayload(connection net.Conn, payload []byte) error {

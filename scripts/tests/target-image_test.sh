@@ -209,8 +209,13 @@ synthetic_idle=$fixture/synthetic-idle.rbf
 printf '%s\n' 'synthetic native idle fixture' > "$synthetic_idle"
 synthetic_idle_sha=$(sha256sum "$synthetic_idle" | awk '{print $1}')
 synthetic_idle_size=$(wc -c < "$synthetic_idle" | tr -d ' ')
+synthetic_megadrive=$fixture/synthetic-megadrive.rbf
+printf '%s\n' 'synthetic native Mega Drive fixture' > "$synthetic_megadrive"
+synthetic_megadrive_sha=$(sha256sum "$synthetic_megadrive" | awk '{print $1}')
+synthetic_megadrive_size=$(wc -c < "$synthetic_megadrive" | tr -d ' ')
 synthetic_runtime_commit=1111111111111111111111111111111111111111
 synthetic_idle_commit=2222222222222222222222222222222222222222
+synthetic_megadrive_commit=3333333333333333333333333333333333333333
 native_input_lock=$fixture/native-runtime.inputs.lock.toml
 cat > "$native_input_lock" <<EOF
 format = 1
@@ -226,6 +231,14 @@ path = 'synthetic-idle.rbf'
 sha256 = '$synthetic_idle_sha'
 size = $synthetic_idle_size
 install_path = '/usr/share/mister-runtime/idle.rbf'
+
+[megadrive_rbf]
+repository = 'https://fixture.invalid/fogcast/synthetic-megadrive'
+commit = '$synthetic_megadrive_commit'
+path = 'synthetic-megadrive.rbf'
+sha256 = '$synthetic_megadrive_sha'
+size = $synthetic_megadrive_size
+install_path = '/usr/share/mister-runtime/cores/megadrive.rbf'
 EOF
 
 normal_override_log=$fixture/normal-lock-override.log
@@ -321,15 +334,26 @@ EOF
     mkdir -p "$root/usr/share/mister-runtime"
     cp "$synthetic_idle" \
       "$root/usr/share/mister-runtime/idle.rbf"
+    mkdir -p "$root/usr/share/mister-runtime/cores"
+    cp "$synthetic_megadrive" \
+      "$root/usr/share/mister-runtime/cores/megadrive.rbf"
+    synthetic_agent_sha=$(sha256sum "$root/usr/sbin/mister-agent" | awk '{print $1}')
     cat > "$root/usr/share/mister-runtime/build-inputs" <<EOF
 format=1
 mister_runtime_commit=$synthetic_runtime_commit
+mister_agent_sha256=$synthetic_agent_sha
 idle_repository=https://fixture.invalid/fogcast/synthetic-idle
 idle_commit=$synthetic_idle_commit
 idle_path=synthetic-idle.rbf
 idle_sha256=$synthetic_idle_sha
 idle_size=$synthetic_idle_size
 idle_install_path=/usr/share/mister-runtime/idle.rbf
+megadrive_repository=https://fixture.invalid/fogcast/synthetic-megadrive
+megadrive_commit=$synthetic_megadrive_commit
+megadrive_path=synthetic-megadrive.rbf
+megadrive_sha256=$synthetic_megadrive_sha
+megadrive_size=$synthetic_megadrive_size
+megadrive_install_path=/usr/share/mister-runtime/cores/megadrive.rbf
 EOF
   fi
 }
@@ -372,6 +396,8 @@ grep -Eq '^/lib/libz\.so\.1[[:space:]]+/lib/libz\.so\.1[[:space:]]+[0-9a-f]{64}$
 grep -Eq '^/lib/libstdc\+\+\.so\.6[[:space:]]+/lib/libstdc\+\+\.so\.6[[:space:]]+[0-9a-f]{64}$' \
   "$fixture/native.libraries"
 grep -Eq "^usr/share/mister-runtime/idle\\.rbf[[:space:]]+file[[:space:]]+$synthetic_idle_sha$" \
+  "$fixture/native.manifest"
+grep -Eq "^usr/share/mister-runtime/cores/megadrive\\.rbf[[:space:]]+file[[:space:]]+$synthetic_megadrive_sha$" \
   "$fixture/native.manifest"
 grep -Eq '^usr/share/mister-runtime/build-inputs[[:space:]]+file[[:space:]]+[0-9a-f]{64}$' \
   "$fixture/native.manifest"
@@ -431,7 +457,77 @@ native_extra_rbf=$fixture/native-extra-rbf
 cp -R "$native_root" "$native_extra_rbf"
 cp "$native_extra_rbf/usr/share/mister-runtime/idle.rbf" "$native_extra_rbf/extra.rbf"
 if verify_fixture native-dev "$native_extra_rbf" "$fixture/native-extra-rbf.manifest" "$fixture/native-extra-rbf.libraries" >/dev/null 2>&1; then
-  echo 'native verifier accepted more than one RBF' >&2
+  echo 'native verifier accepted a duplicate packaged RBF' >&2
+  exit 1
+fi
+
+native_symlink_failures=0
+native_moved_rbf_symlink=$fixture/native-moved-rbf-symlink
+cp -R "$native_root" "$native_moved_rbf_symlink"
+mv "$native_moved_rbf_symlink/usr/share/mister-runtime/cores/megadrive.rbf" \
+  "$native_moved_rbf_symlink/usr/share/mister-runtime/cores/MegaDrive_20260603.rbf"
+ln -s MegaDrive_20260603.rbf \
+  "$native_moved_rbf_symlink/usr/share/mister-runtime/cores/megadrive.rbf"
+if verify_fixture native-dev "$native_moved_rbf_symlink" \
+  "$fixture/native-moved-rbf-symlink.manifest" \
+  "$fixture/native-moved-rbf-symlink.libraries" >/dev/null 2>&1; then
+  echo 'native verifier accepted a moved Mega Drive RBF through the fixed-path symlink' >&2
+  native_symlink_failures=$((native_symlink_failures + 1))
+fi
+
+native_extra_rbf_symlink=$fixture/native-extra-rbf-symlink
+cp -R "$native_root" "$native_extra_rbf_symlink"
+ln -s usr/share/mister-runtime/cores/megadrive.rbf \
+  "$native_extra_rbf_symlink/extra.rbf"
+if verify_fixture native-dev "$native_extra_rbf_symlink" \
+  "$fixture/native-extra-rbf-symlink.manifest" \
+  "$fixture/native-extra-rbf-symlink.libraries" >/dev/null 2>&1; then
+  echo 'native verifier accepted an extra RBF symlink' >&2
+  native_symlink_failures=$((native_symlink_failures + 1))
+fi
+[ "$native_symlink_failures" -eq 0 ] || exit 1
+
+native_missing_megadrive=$fixture/native-missing-megadrive
+cp -R "$native_root" "$native_missing_megadrive"
+rm "$native_missing_megadrive/usr/share/mister-runtime/cores/megadrive.rbf"
+if verify_fixture native-dev "$native_missing_megadrive" "$fixture/native-missing-megadrive.manifest" "$fixture/native-missing-megadrive.libraries" >/dev/null 2>&1; then
+  echo 'native verifier accepted a missing Mega Drive RBF' >&2
+  exit 1
+fi
+
+native_renamed_megadrive=$fixture/native-renamed-megadrive
+cp -R "$native_root" "$native_renamed_megadrive"
+mv "$native_renamed_megadrive/usr/share/mister-runtime/cores/megadrive.rbf" \
+  "$native_renamed_megadrive/usr/share/mister-runtime/cores/MegaDrive_20260603.rbf"
+if verify_fixture native-dev "$native_renamed_megadrive" "$fixture/native-renamed-megadrive.manifest" "$fixture/native-renamed-megadrive.libraries" >/dev/null 2>&1; then
+  echo 'native verifier accepted a renamed Mega Drive RBF' >&2
+  exit 1
+fi
+
+native_wrong_megadrive=$fixture/native-wrong-megadrive
+cp -R "$native_root" "$native_wrong_megadrive"
+printf '%s\n' altered > "$native_wrong_megadrive/usr/share/mister-runtime/cores/megadrive.rbf"
+if verify_fixture native-dev "$native_wrong_megadrive" "$fixture/native-wrong-megadrive.manifest" "$fixture/native-wrong-megadrive.libraries" >/dev/null 2>&1; then
+  echo 'native verifier accepted a mismatched Mega Drive RBF' >&2
+  exit 1
+fi
+
+native_mgl=$fixture/native-mgl
+cp -R "$native_root" "$native_mgl"
+printf '%s\n' '<mistergamedescription/>' > "$native_mgl/usr/share/mister-runtime/launch.mgl"
+if verify_fixture native-dev "$native_mgl" "$fixture/native-mgl.manifest" "$fixture/native-mgl.libraries" >/dev/null 2>&1; then
+  echo 'native verifier accepted a conventional MGL payload' >&2
+  exit 1
+fi
+
+native_fifo=$fixture/native-fifo
+cp -R "$native_root" "$native_fifo"
+sed 's#--runtime native &#--runtime native --command-pipe /dev/MiSTer_cmd \&#' \
+  "$native_fifo/etc/init.d/S50mister-agent" > "$native_fifo/etc/init.d/S50mister-agent.new"
+mv "$native_fifo/etc/init.d/S50mister-agent.new" "$native_fifo/etc/init.d/S50mister-agent"
+chmod 0755 "$native_fifo/etc/init.d/S50mister-agent"
+if verify_fixture native-dev "$native_fifo" "$fixture/native-fifo.manifest" "$fixture/native-fifo.libraries" >/dev/null 2>&1; then
+  echo 'native verifier accepted conventional FIFO startup wiring' >&2
   exit 1
 fi
 
@@ -460,6 +556,14 @@ mv "$native_wrong_inputs/usr/share/mister-runtime/build-inputs.new" \
   "$native_wrong_inputs/usr/share/mister-runtime/build-inputs"
 if verify_fixture native-dev "$native_wrong_inputs" "$fixture/native-wrong-inputs.manifest" "$fixture/native-wrong-inputs.libraries" >/dev/null 2>&1; then
   echo 'native verifier accepted a build-input record that differs from the lock' >&2
+  exit 1
+fi
+
+native_wrong_agent_identity=$fixture/native-wrong-agent-identity
+cp -R "$native_root" "$native_wrong_agent_identity"
+printf '%s\n' altered >> "$native_wrong_agent_identity/usr/sbin/mister-agent"
+if verify_fixture native-dev "$native_wrong_agent_identity" "$fixture/native-wrong-agent-identity.manifest" "$fixture/native-wrong-agent-identity.libraries" >/dev/null 2>&1; then
+  echo 'native verifier accepted an agent binary that differs from its build-input identity' >&2
   exit 1
 fi
 

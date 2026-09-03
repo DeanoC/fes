@@ -91,6 +91,7 @@ verify_root() {
 /usr/sbin/mister-runtime
 /usr/sbin/mister-agent
 /usr/share/mister-runtime/idle.rbf
+/usr/share/mister-runtime/cores/megadrive.rbf
 /usr/share/mister-runtime/build-inputs
 /etc/init.d/S20mister-network
 /etc/init.d/S40mister-runtime
@@ -168,10 +169,19 @@ EOF
       printf '%s\n' 'verify-target-image: native agent service depends on legacy Main state' >&2
       exit 1
     fi
+    if grep -ERq '/dev/MiSTer_cmd|/tmp/CORENAME|/media/fat/MiSTer|load_core[[:space:]].*\.mgl' \
+      "$root/etc/init.d"; then
+      printf '%s\n' 'verify-target-image: native init contains conventional Main, MGL, or FIFO startup wiring' >&2
+      exit 1
+    fi
 
     idle=$root/usr/share/mister-runtime/idle.rbf
     expected_idle_sha=$(read_native_lock_value idle_rbf sha256)
     expected_idle_size=$(read_native_lock_value idle_rbf size)
+    [ -f "$idle" ] && [ ! -L "$idle" ] || {
+      printf '%s\n' 'verify-target-image: native idle RBF must be a regular non-symlink file' >&2
+      exit 1
+    }
     [ "$(sha256sum "$idle" | awk '{print $1}')" = "$expected_idle_sha" ] || {
       printf '%s\n' 'verify-target-image: native idle RBF digest differs from the lock' >&2
       exit 1
@@ -180,9 +190,24 @@ EOF
       printf '%s\n' 'verify-target-image: native idle RBF size differs from the lock' >&2
       exit 1
     }
-    rbf_count=$(find "$root" -type f -iname '*.rbf' | wc -l | tr -d ' ')
-    [ "$rbf_count" -eq 1 ] || {
-      printf 'verify-target-image: native image must contain exactly one RBF, found %s\n' "$rbf_count" >&2
+    megadrive=$root/usr/share/mister-runtime/cores/megadrive.rbf
+    expected_megadrive_sha=$(read_native_lock_value megadrive_rbf sha256)
+    expected_megadrive_size=$(read_native_lock_value megadrive_rbf size)
+    [ -f "$megadrive" ] && [ ! -L "$megadrive" ] || {
+      printf '%s\n' 'verify-target-image: native Mega Drive RBF must be a regular non-symlink file' >&2
+      exit 1
+    }
+    [ "$(sha256sum "$megadrive" | awk '{print $1}')" = "$expected_megadrive_sha" ] || {
+      printf '%s\n' 'verify-target-image: native Mega Drive RBF digest differs from the lock' >&2
+      exit 1
+    }
+    [ "$(wc -c < "$megadrive" | tr -d ' ')" = "$expected_megadrive_size" ] || {
+      printf '%s\n' 'verify-target-image: native Mega Drive RBF size differs from the lock' >&2
+      exit 1
+    }
+    rbf_count=$(find "$root" -iname '*.rbf' | wc -l | tr -d ' ')
+    [ "$rbf_count" -eq 2 ] || {
+      printf 'verify-target-image: native image must contain exactly two RBFs, found %s\n' "$rbf_count" >&2
       exit 1
     }
 
@@ -191,12 +216,19 @@ EOF
     {
       printf 'format=1\n'
       printf 'mister_runtime_commit=%s\n' "$(read_native_lock_value mister_runtime commit)"
+      printf 'mister_agent_sha256=%s\n' "$(sha256sum "$root/usr/sbin/mister-agent" | awk '{print $1}')"
       printf 'idle_repository=%s\n' "$(read_native_lock_value idle_rbf repository)"
       printf 'idle_commit=%s\n' "$(read_native_lock_value idle_rbf commit)"
       printf 'idle_path=%s\n' "$(read_native_lock_value idle_rbf path)"
       printf 'idle_sha256=%s\n' "$expected_idle_sha"
       printf 'idle_size=%s\n' "$expected_idle_size"
       printf 'idle_install_path=%s\n' "$(read_native_lock_value idle_rbf install_path)"
+      printf 'megadrive_repository=%s\n' "$(read_native_lock_value megadrive_rbf repository)"
+      printf 'megadrive_commit=%s\n' "$(read_native_lock_value megadrive_rbf commit)"
+      printf 'megadrive_path=%s\n' "$(read_native_lock_value megadrive_rbf path)"
+      printf 'megadrive_sha256=%s\n' "$expected_megadrive_sha"
+      printf 'megadrive_size=%s\n' "$expected_megadrive_size"
+      printf 'megadrive_install_path=%s\n' "$(read_native_lock_value megadrive_rbf install_path)"
     } > "$expected_inputs"
     cmp "$expected_inputs" "$root/usr/share/mister-runtime/build-inputs" >/dev/null 2>&1 || {
       printf '%s\n' 'verify-target-image: native build-input record differs from the lock' >&2
@@ -247,7 +279,7 @@ EOF
     if find "$root" -type f \( \
       -iname '*.rom' -o -iname '*.sfc' -o -iname '*.smc' -o \
       -iname '*.md' -o -iname '*.gen' -o -iname '*.zip' -o \
-      -iname '*.bin' -o -iname '*.map' -o -name 'agent.toml' \
+      -iname '*.bin' -o -iname '*.mgl' -o -iname '*.map' -o -name 'agent.toml' \
       -o -name '*-gdb.py' \
     \) -print -quit | grep -q .; then
       printf '%s\n' 'verify-target-image: forbidden game, runtime, or debug payload found' >&2

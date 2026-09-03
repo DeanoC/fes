@@ -137,7 +137,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		defer inputController.Close()
 	}
 	runtime := dependencies.newRuntime(cfg, registry)
-	coordinator := agent.New(runtime, registry, 10*time.Second, 5*time.Second)
+	coordinator := agent.New(runtime, registry, 10*time.Second, 5*time.Second, agent.WithOperationContext(ctx))
 	content := agent.NewContentController(coordinator, cache)
 	startup, cancel := context.WithTimeout(ctx, 40*time.Second)
 	coordinator.Initialize(startup)

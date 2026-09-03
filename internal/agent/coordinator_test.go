@@ -5,6 +5,9 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
+	"path/filepath"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -40,6 +43,72 @@ type fakeRuntime struct {
 	prepareSpec          core.Spec
 	preparePath          string
 	launched             mister.PreparedLaunch
+}
+
+type ownedContextRuntime struct {
+	fakeRuntime
+	started      chan struct{}
+	operationErr chan error
+}
+
+type ownedStopContextRuntime struct {
+	fakeRuntime
+	legacyStarted chan struct{}
+	ownedStarted  chan struct{}
+	release       chan struct{}
+	operationErr  chan error
+}
+
+type callerBoundStopRuntime struct {
+	fakeRuntime
+	contextErr chan error
+}
+
+func (r *ownedContextRuntime) LaunchOwned(_ context.Context, operation, _ context.Context, prepared mister.PreparedLaunch) (string, bool, *protocol.APIError) {
+	r.mu.Lock()
+	r.launchCalls++
+	r.launched = prepared
+	r.mu.Unlock()
+	close(r.started)
+	<-operation.Done()
+	r.operationErr <- operation.Err()
+	return "", true, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}
+}
+
+func (r *ownedStopContextRuntime) Stop(ctx context.Context) (string, *protocol.APIError) {
+	r.mu.Lock()
+	r.stopCalls++
+	r.mu.Unlock()
+	close(r.legacyStarted)
+	<-ctx.Done()
+	return "", &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}
+}
+
+func (r *ownedStopContextRuntime) StopOwned(_ context.Context, operation context.Context) (string, *protocol.APIError) {
+	r.mu.Lock()
+	r.stopCalls++
+	r.mu.Unlock()
+	close(r.ownedStarted)
+	select {
+	case <-r.release:
+		return "", nil
+	case <-operation.Done():
+		if r.operationErr != nil {
+			r.operationErr <- operation.Err()
+		}
+		return "", &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}
+	}
+}
+
+func (*ownedStopContextRuntime) StopReady() bool { return true }
+
+func (r *callerBoundStopRuntime) Stop(ctx context.Context) (string, *protocol.APIError) {
+	r.mu.Lock()
+	r.stopCalls++
+	r.mu.Unlock()
+	<-ctx.Done()
+	r.contextErr <- ctx.Err()
+	return "", &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}
 }
 
 func (f *fakeRuntime) Health(string) protocol.Health {
@@ -132,6 +201,151 @@ func TestLaunchTransitionsToActive(t *testing.T) {
 	spec, path, prepared := runtime.launchInputs()
 	if path != "/media/fat/games/MegaDrive/test.md" || prepared.Spec.ROMRoot != "/media/fat/games/MegaDrive" || spec.ROMRoot != "/media/fat/games/MegaDrive" {
 		t.Fatalf("v1 launch inputs = spec %#v path %q prepared %#v", spec, path, prepared)
+	}
+}
+
+func TestOwnedLaunchUsesCoordinatorProcessContextForShutdown(t *testing.T) {
+	process, stopProcess := context.WithCancel(context.Background())
+	runtime := &ownedContextRuntime{
+		fakeRuntime:  fakeRuntime{health: protocol.Health{Ready: true}},
+		started:      make(chan struct{}),
+		operationErr: make(chan error, 1),
+	}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second, agent.WithOperationContext(process))
+	done := make(chan *protocol.APIError, 1)
+	go func() {
+		_, apiErr := coordinator.Launch(context.Background(), protocol.LaunchRequest{
+			GameID: "megadrive-owned-shutdown", System: protocol.SystemMegaDrive, ROMPath: "/media/fat/games/MegaDrive/test.md",
+		})
+		done <- apiErr
+	}()
+	<-runtime.started
+	stopProcess()
+	select {
+	case apiErr := <-done:
+		if apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable {
+			t.Fatalf("shutdown launch error = %#v", apiErr)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("owned launch did not stop with coordinator process context")
+	}
+	if err := <-runtime.operationErr; !errors.Is(err, context.Canceled) {
+		t.Fatalf("owned operation context error = %v, want canceled", err)
+	}
+}
+
+func TestOwnedStopSurvivesInboundDeadlineAfterAdmission(t *testing.T) {
+	runtime := &ownedStopContextRuntime{
+		fakeRuntime:   fakeRuntime{health: protocol.Health{Ready: true}, launchObserved: "MegaDrive"},
+		legacyStarted: make(chan struct{}),
+		ownedStarted:  make(chan struct{}),
+		release:       make(chan struct{}),
+	}
+	released := false
+	defer func() {
+		if !released {
+			close(runtime.release)
+		}
+	}()
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second, agent.WithOperationContext(context.Background()))
+	request := protocol.LaunchRequest{GameID: "megadrive-owned-stop", System: protocol.SystemMegaDrive, ROMPath: "/media/fat/games/MegaDrive/test.md"}
+	if status, apiErr := coordinator.Launch(context.Background(), request); apiErr != nil || status.State != protocol.StateActive {
+		t.Fatalf("launch = %#v, %#v", status, apiErr)
+	}
+	parent, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	done := make(chan struct {
+		status protocol.Status
+		err    *protocol.APIError
+	}, 1)
+	go func() {
+		status, apiErr := coordinator.Stop(parent)
+		done <- struct {
+			status protocol.Status
+			err    *protocol.APIError
+		}{status: status, err: apiErr}
+	}()
+	select {
+	case <-runtime.ownedStarted:
+	case <-runtime.legacyStarted:
+		t.Fatal("admitted native Stop used the inbound request context")
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("runtime Stop was not dispatched")
+	}
+	<-parent.Done()
+	select {
+	case result := <-done:
+		t.Fatalf("owned Stop ended with inbound request: status=%#v error=%#v", result.status, result.err)
+	case <-time.After(25 * time.Millisecond):
+	}
+	close(runtime.release)
+	released = true
+	select {
+	case result := <-done:
+		if result.err != nil || result.status.State != protocol.StateIdle {
+			t.Fatalf("owned Stop completion = %#v, %#v", result.status, result.err)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("owned Stop did not publish idle")
+	}
+	_, _, stopCalls := runtime.counts()
+	if stopCalls != 1 {
+		t.Fatalf("runtime Stop calls = %d, want one", stopCalls)
+	}
+}
+
+func TestOwnedStopUsesCoordinatorProcessContextForShutdown(t *testing.T) {
+	process, stopProcess := context.WithCancel(context.Background())
+	runtime := &ownedStopContextRuntime{
+		fakeRuntime:   fakeRuntime{health: protocol.Health{Ready: true}, launchObserved: "MegaDrive"},
+		legacyStarted: make(chan struct{}),
+		ownedStarted:  make(chan struct{}),
+		release:       make(chan struct{}),
+		operationErr:  make(chan error, 1),
+	}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second, agent.WithOperationContext(process))
+	request := protocol.LaunchRequest{GameID: "megadrive-owned-stop-shutdown", System: protocol.SystemMegaDrive, ROMPath: "/media/fat/games/MegaDrive/test.md"}
+	if status, apiErr := coordinator.Launch(context.Background(), request); apiErr != nil || status.State != protocol.StateActive {
+		t.Fatalf("launch = %#v, %#v", status, apiErr)
+	}
+	done := make(chan *protocol.APIError, 1)
+	go func() {
+		_, apiErr := coordinator.Stop(context.Background())
+		done <- apiErr
+	}()
+	<-runtime.ownedStarted
+	stopProcess()
+	select {
+	case apiErr := <-done:
+		if apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable {
+			t.Fatalf("shutdown Stop error = %#v", apiErr)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("owned Stop did not stop with coordinator process context")
+	}
+	if err := <-runtime.operationErr; !errors.Is(err, context.Canceled) {
+		t.Fatalf("owned Stop operation context error = %v, want canceled", err)
+	}
+}
+
+func TestLegacyStopRemainsCallerBound(t *testing.T) {
+	runtime := &callerBoundStopRuntime{
+		fakeRuntime: fakeRuntime{
+			health:     protocol.Health{Ready: true},
+			reconciled: protocol.Status{State: protocol.StateActive, System: systemPtr(protocol.SystemSNES), ObservedCore: stringPtr("SNES")},
+		},
+		contextErr: make(chan error, 1),
+	}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second, agent.WithOperationContext(context.Background()))
+	coordinator.Initialize(context.Background())
+	parent, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	_, apiErr := coordinator.Stop(parent)
+	if apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable {
+		t.Fatalf("legacy Stop error = %#v", apiErr)
+	}
+	if err := <-runtime.contextErr; !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("legacy Stop context error = %v, want caller deadline", err)
 	}
 }
 
@@ -662,7 +876,10 @@ func TestHealthRemainsNotReadyAfterUnavailableReconciliation(t *testing.T) {
 
 type nativeIdleControl struct {
 	statusCalls int
+	launchCalls int
 	stopCalls   int
+	launch      misterruntime.Response
+	request     misterruntime.LaunchRequest
 }
 
 func (c *nativeIdleControl) Status(context.Context) (misterruntime.Response, error) {
@@ -673,6 +890,199 @@ func (c *nativeIdleControl) Status(context.Context) (misterruntime.Response, err
 func (c *nativeIdleControl) Stop(context.Context) (misterruntime.Response, error) {
 	c.stopCalls++
 	return misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
+}
+
+func (c *nativeIdleControl) Launch(_ context.Context, request misterruntime.LaunchRequest) (misterruntime.Response, error) {
+	c.launchCalls++
+	c.request = request
+	return c.launch, nil
+}
+
+func TestCoordinatorLaunchesMegaDriveThroughTheNativeRuntimeTranslation(t *testing.T) {
+	t.Parallel()
+	rom := filepath.Join(t.TempDir(), "sonic2.bin")
+	if err := os.WriteFile(rom, []byte("rom"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	system, coreName := "megadrive", "MegaDrive"
+	control := &nativeIdleControl{launch: misterruntime.Response{
+		Protocol: 1, OK: true, State: "running_game", Execution: "game",
+		System: &system, Core: &coreName, Version: "test",
+	}}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	coordinator.Initialize(context.Background())
+
+	status, apiErr := coordinator.Launch(context.Background(), protocol.LaunchRequest{
+		GameID: "megadrive-sonic2", System: protocol.SystemMegaDrive, ROMPath: rom,
+	})
+	if apiErr != nil {
+		t.Fatal(apiErr)
+	}
+	if status.State != protocol.StateActive || status.GameID == nil || *status.GameID != "megadrive-sonic2" ||
+		status.System == nil || *status.System != protocol.SystemMegaDrive ||
+		status.ExpectedCore == nil || *status.ExpectedCore != "MegaDrive" ||
+		status.ObservedCore == nil || *status.ObservedCore != "MegaDrive" {
+		t.Fatalf("status = %#v", status)
+	}
+	if control.launchCalls != 1 || control.request.System != "megadrive" ||
+		control.request.RBF != "/usr/share/mister-runtime/cores/megadrive.rbf" ||
+		len(control.request.Media) != 1 || control.request.Media["cartridge"] != rom ||
+		control.request.Settings == nil || len(control.request.Settings) != 0 {
+		t.Fatalf("native request = %#v calls=%d", control.request, control.launchCalls)
+	}
+}
+
+type nativeLifecycleControl struct {
+	state               string
+	idleError           *misterruntime.RemoteError
+	statusCalls         int
+	launchCalls         int
+	stopCalls           int
+	subsequentLaunchErr error
+}
+
+func (c *nativeLifecycleControl) Status(context.Context) (misterruntime.Response, error) {
+	c.statusCalls++
+	if c.state == "running_game" {
+		system, coreName := "megadrive", "MegaDrive"
+		return misterruntime.Response{
+			Protocol: 1, OK: true, State: "running_game", Execution: "game",
+			System: &system, Core: &coreName, Version: "test",
+		}, nil
+	}
+	response := misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none", Version: "test"}
+	if c.idleError != nil {
+		retained := *c.idleError
+		response.Error = &retained
+	}
+	return response, nil
+}
+
+func (c *nativeLifecycleControl) Launch(context.Context, misterruntime.LaunchRequest) (misterruntime.Response, error) {
+	c.launchCalls++
+	if c.launchCalls > 1 && c.subsequentLaunchErr != nil {
+		return misterruntime.Response{}, c.subsequentLaunchErr
+	}
+	c.state = "running_game"
+	system, coreName := "megadrive", "MegaDrive"
+	return misterruntime.Response{
+		Protocol: 1, OK: true, State: "running_game", Execution: "game",
+		System: &system, Core: &coreName, Version: "test",
+	}, nil
+}
+
+func (c *nativeLifecycleControl) Stop(context.Context) (misterruntime.Response, error) {
+	c.stopCalls++
+	c.state = "idle"
+	return misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
+}
+
+func TestCoordinatorStopsAnActiveNativeGameAndImmediatelyRelaunches(t *testing.T) {
+	rom := filepath.Join(t.TempDir(), "sonic2.bin")
+	if err := os.WriteFile(rom, []byte("rom"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	control := &nativeLifecycleControl{}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	coordinator.Initialize(context.Background())
+	request := protocol.LaunchRequest{
+		GameID: "megadrive-sonic2", System: protocol.SystemMegaDrive, ROMPath: rom,
+	}
+
+	launched, apiErr := coordinator.Launch(context.Background(), request)
+	if apiErr != nil || launched.State != protocol.StateActive {
+		t.Fatalf("launch = %#v error:%#v", launched, apiErr)
+	}
+	if health := coordinator.Health("test"); health.Ready {
+		t.Fatalf("active native game was globally launch-ready: %#v", health)
+	}
+	stopped, apiErr := coordinator.Stop(context.Background())
+	if apiErr != nil || stopped.State != protocol.StateIdle {
+		t.Fatalf("stop = %#v error:%#v", stopped, apiErr)
+	}
+	relaunched, apiErr := coordinator.Launch(context.Background(), request)
+	if apiErr != nil || relaunched.State != protocol.StateActive ||
+		relaunched.ObservedCore == nil || *relaunched.ObservedCore != "MegaDrive" {
+		t.Fatalf("relaunch = %#v error:%#v", relaunched, apiErr)
+	}
+	if control.launchCalls != 2 || control.stopCalls != 1 || control.statusCalls != 7 || control.state != "running_game" {
+		t.Fatalf("control = state:%q status:%d launch:%d stop:%d", control.state, control.statusCalls, control.launchCalls, control.stopCalls)
+	}
+}
+
+func TestCoordinatorRecoversOperationalIdleWithRetainedErrorAndLaunches(t *testing.T) {
+	rom := filepath.Join(t.TempDir(), "sonic2.bin")
+	if err := os.WriteFile(rom, []byte("rom"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	control := &nativeLifecycleControl{idleError: &misterruntime.RemoteError{
+		Code: "io_failed", Message: "private prior cleanup detail",
+	}}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	coordinator.Initialize(context.Background())
+
+	recovered := coordinator.Status()
+	if recovered.State != protocol.StateIdle || recovered.LastError == nil ||
+		recovered.LastError.Code != protocol.CodeMiSTerUnavailable ||
+		recovered.LastError.Message != "target runtime is unavailable" {
+		t.Errorf("recovered status = %#v", recovered)
+	}
+	if health := coordinator.Health("test"); !health.Ready {
+		t.Errorf("recovered idle health = %#v", health)
+	}
+	launched, apiErr := coordinator.Launch(context.Background(), protocol.LaunchRequest{
+		GameID: "megadrive-sonic2", System: protocol.SystemMegaDrive, ROMPath: rom,
+	})
+	if apiErr != nil || launched.State != protocol.StateActive || launched.GameID == nil ||
+		*launched.GameID != "megadrive-sonic2" || launched.LastError != nil {
+		t.Fatalf("launch = %#v error:%#v", launched, apiErr)
+	}
+	if control.statusCalls != 4 || control.launchCalls != 1 || control.state != "running_game" {
+		t.Fatalf("control = state:%q status:%d launch:%d", control.state, control.statusCalls, control.launchCalls)
+	}
+}
+
+func TestCoordinatorRejectsLostSecondLaunchAgainstTheOldNativeSessionWithoutChangingIntent(t *testing.T) {
+	rom := filepath.Join(t.TempDir(), "sonic2.bin")
+	if err := os.WriteFile(rom, []byte("rom"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	control := &nativeLifecycleControl{subsequentLaunchErr: errors.New("busy response was lost")}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	store := &recordingContentStore{}
+	agent.NewContentController(coordinator, store)
+	coordinator.Initialize(context.Background())
+
+	first, apiErr := coordinator.Launch(context.Background(), protocol.LaunchRequest{
+		GameID: "megadrive-sonic2", System: protocol.SystemMegaDrive, ROMPath: rom,
+	})
+	if apiErr != nil || first.State != protocol.StateActive || first.GameID == nil || *first.GameID != "megadrive-sonic2" {
+		t.Fatalf("first launch = %#v error:%#v", first, apiErr)
+	}
+	beforeIntent := store.snapshot()
+
+	second, apiErr := coordinator.Launch(context.Background(), protocol.LaunchRequest{
+		GameID: "megadrive-sonic3", System: protocol.SystemMegaDrive, ROMPath: rom,
+	})
+	if apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable || apiErr.Message != "target runtime is unavailable" {
+		t.Fatalf("second launch error = %#v", apiErr)
+	}
+	if !reflect.DeepEqual(second, first) || !reflect.DeepEqual(coordinator.Status(), first) {
+		t.Fatalf("old active status changed: first=%#v returned=%#v current=%#v", first, second, coordinator.Status())
+	}
+	afterIntent := store.snapshot()
+	if afterIntent.directIntentCalls != beforeIntent.directIntentCalls ||
+		afterIntent.directCommitCalls != beforeIntent.directCommitCalls ||
+		afterIntent.directAbortCalls != beforeIntent.directAbortCalls {
+		t.Fatalf("rejected launch changed intent: before=%#v after=%#v", beforeIntent, afterIntent)
+	}
+	if control.launchCalls != 1 || control.state != "running_game" {
+		t.Fatalf("old runtime session was mutated: state=%q launch calls=%d", control.state, control.launchCalls)
+	}
 }
 
 func TestCoordinatorStopWhileNativeIdleDoesNotCallRuntimeStop(t *testing.T) {
