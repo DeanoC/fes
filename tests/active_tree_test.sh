@@ -10,12 +10,27 @@ if [[ $# -ne 1 ]]; then
 fi
 
 root=$1
-"$root/scripts/check-active-tree.sh" "$root"
-
 fixture=$(mktemp -d /tmp/libmister-active-tree-test.XXXXXX)
 trap 'rm -rf -- "$fixture"' EXIT
 mkdir -p "$fixture/include" "$fixture/src" "$fixture/build"
 : >"$fixture/Makefile"
+
+expect_guard_success() {
+	local expected=$1
+	local checked_root=$2
+	local log=$fixture/guard.log
+	if ! "$root/scripts/check-active-tree.sh" "$checked_root" >"$log" 2>&1; then
+		echo "active-tree guard rejected valid fixture: $expected" >&2
+		cat "$log" >&2
+		exit 1
+	fi
+}
+
+grep -Fq 'kBksv2' "$root/src/native/adv7513.hpp" || {
+	echo 'ADV7513 BKSV2 register fixture is missing' >&2
+	exit 1
+}
+expect_guard_success 'ADV7513 BKSV2 register name' "$root"
 
 expect_guard_failure() {
 	local expected=$1
@@ -45,6 +60,15 @@ mkdir "$fixture/runtime"
 expect_guard_failure 'obsolete root active path exists: runtime'
 rmdir "$fixture/runtime"
 printf '%s\n' 'class HardwareBroker;' >"$fixture/src/legacy.hpp"
+expect_guard_failure 'historic compatibility term remains in the active tree'
+rm -f -- "$fixture/src/legacy.hpp"
+printf '%s\n' 'constexpr int v2 = 2;' >"$fixture/src/legacy.hpp"
+expect_guard_failure 'historic compatibility term remains in the active tree'
+rm -f -- "$fixture/src/legacy.hpp"
+printf '%s\n' 'class mister_runtime_linux_v2;' >"$fixture/src/legacy.hpp"
+expect_guard_failure 'historic compatibility term remains in the active tree'
+rm -f -- "$fixture/src/legacy.hpp"
+printf '%s\n' 'class NativeLinuxV2;' >"$fixture/src/legacy.hpp"
 expect_guard_failure 'historic compatibility term remains in the active tree'
 rm -f -- "$fixture/src/legacy.hpp"
 expect_guard_failure 'canonical build must contain exactly build/libmister-runtime.a'
