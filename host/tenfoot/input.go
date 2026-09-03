@@ -1,6 +1,9 @@
 package tenfoot
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 // Command is one focus-graph action from a gamepad or debug keyboard.
 type Command int
@@ -368,7 +371,10 @@ type holdState struct {
 }
 
 // HoldGate defers Select and Search so a long press can fire a second command.
+// Its methods are safe for concurrent use: the frame loop calls Begin/Tick
+// while the session poll and attract fetch may Clear.
 type HoldGate struct {
+	mu      sync.Mutex
 	pending map[Command]holdState
 }
 
@@ -376,6 +382,8 @@ func (g *HoldGate) Begin(cmd Command, now time.Time, gate bool) bool {
 	if !gate || longPressCommand(cmd) == CmdNone {
 		return false
 	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	if g.pending == nil {
 		g.pending = map[Command]holdState{}
 	}
@@ -384,14 +392,20 @@ func (g *HoldGate) Begin(cmd Command, now time.Time, gate bool) bool {
 }
 
 func (g *HoldGate) Cancel(cmd Command) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	delete(g.pending, cmd)
 }
 
 func (g *HoldGate) Clear() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	g.pending = nil
 }
 
 func (g *HoldGate) Release(cmd Command, now time.Time) Command {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	state, ok := g.pending[cmd]
 	if !ok {
 		return CmdNone
@@ -407,6 +421,8 @@ func (g *HoldGate) Release(cmd Command, now time.Time) Command {
 }
 
 func (g *HoldGate) Tick(now time.Time) Command {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	for cmd, state := range g.pending {
 		if state.long || now.Sub(state.since) < longPressMin {
 			continue

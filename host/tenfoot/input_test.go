@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 )
@@ -277,9 +278,40 @@ func TestHoldBeginNotesActivitySoAttractDoesNotStart(t *testing.T) {
 	if app.lastInput != now {
 		t.Fatalf("lastInput = %s want %s", app.lastInput, now)
 	}
-	if len(app.hold.pending) != 1 {
-		t.Fatalf("pending = %#v", app.hold.pending)
+	app.hold.mu.Lock()
+	n := len(app.hold.pending)
+	app.hold.mu.Unlock()
+	if n != 1 {
+		t.Fatalf("pending = %d", n)
 	}
+}
+
+func TestHoldGateClearConcurrentWithBeginTick(t *testing.T) {
+	t.Parallel()
+	var g HoldGate
+	now := time.Unix(0, 0)
+	const n = 8000
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < n; i++ {
+			g.Begin(CmdSelect, now, true)
+			_ = g.Tick(now.Add(time.Millisecond))
+			g.Cancel(CmdSelect)
+			_ = g.Release(CmdSearch, now)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < n; i++ {
+			g.Clear()
+			g.Begin(CmdSearch, now, true)
+			_ = g.Tick(now.Add(longPressMin + time.Millisecond))
+			_ = g.Release(CmdSelect, now)
+		}
+	}()
+	wg.Wait()
 }
 
 func TestHoldGateReleaseOnLongPressThresholdDoesNotSelect(t *testing.T) {

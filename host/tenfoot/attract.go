@@ -239,7 +239,7 @@ func (a *App) attractBlockedLocked() bool {
 		return true
 	}
 	switch a.launch.Phase {
-	case "launching", "host":
+	case "launching":
 		return true
 	}
 	return a.attractDisabled || a.stopPhase == "stopping" || a.searchOpen || a.viewPickerOpen
@@ -256,8 +256,12 @@ func (a *App) tickAttractLocked(now time.Time) {
 		return
 	}
 	if a.attractActive {
-		if a.pumpAttractVideoLocked(now) {
-			return
+		// Once frame 1 has armed the cap, do not decode catch-up samples.
+		pastCap := a.attractVideo && a.attractFrameSeq > 0 && !now.Before(a.attractCycleAt)
+		if !pastCap {
+			if a.pumpAttractVideoLocked(now) {
+				return
+			}
 		}
 		if a.attractShouldAdvanceLocked(now) {
 			if len(a.attractItems) > 1 {

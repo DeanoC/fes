@@ -923,6 +923,73 @@ func TestAppSkipsAttractWhileLaunchInFlight(t *testing.T) {
 	}
 }
 
+func TestAttractBlockedIgnoresRejectedHostLaunchPhase(t *testing.T) {
+	t.Parallel()
+	app := NewApp(NewClient("", nil), 1280, 720, 10)
+	if app.attractBlockedLocked() {
+		t.Fatal("idle app blocked attract")
+	}
+	app.launch.Phase = "host"
+	if app.attractBlockedLocked() {
+		t.Fatal("rejected host launch permanently blocked attract")
+	}
+	app.launch.Phase = "error"
+	if app.attractBlockedLocked() {
+		t.Fatal("failed launch blocked attract")
+	}
+	app.launch.Phase = "launching"
+	if !app.attractBlockedLocked() {
+		t.Fatal("in-flight launch did not block attract")
+	}
+}
+
+func TestAppAllowsAttractAfterRejectedHostLaunch(t *testing.T) {
+	handle := strings.Repeat("ab", 32)
+	pngBytes := mustPNG(t, 32, 16, color.RGBA{R: 200, G: 20, B: 20, A: 255})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"idle_seconds": 1,
+				"items": []map[string]any{{
+					"game_id":    "snes-mario",
+					"title":      "Mario",
+					"platform":   "snes",
+					"cover":      handle,
+					"launchable": true,
+				}},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/presentation/artwork/"+handle:
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(pngBytes)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) >= 1 && !snap.Loading
+	})
+	app.mu.Lock()
+	app.launch.Phase = "host"
+	app.launch.Message = "host launch 500 SOURCE_UNAVAILABLE: game source is unavailable"
+	app.mu.Unlock()
+	armAttractSoon(app)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return snap.Attract.Active
+	})
+}
+
 func TestAppRefreshesDecreasedHostIdleBeforeCachedDeadline(t *testing.T) {
 	handle := strings.Repeat("ab", 32)
 	pngBytes := mustPNG(t, 32, 16, color.RGBA{R: 20, G: 180, B: 20, A: 255})
@@ -1101,12 +1168,43 @@ func TestPumpAttractVideoIgnoresIdleFrame(t *testing.T) {
 	}
 }
 
+func TestTickAttractSkipsCatchUpVideoAfterPlaybackCap(t *testing.T) {
+	t.Parallel()
+	first := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	later := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	player := &seqAttractPlayer{frames: []*image.RGBA{first, later, later}}
+	app := NewApp(NewClient("", nil), 1280, 720, 10)
+	t.Cleanup(app.Stop)
+	app.attractActive = true
+	app.attractVideo = true
+	app.attractPlayer = player
+	app.attractHandle = strings.Repeat("aa", 32)
+	app.attractItems = []AttractItem{
+		{GameID: "a", Title: "A", Video: strings.Repeat("aa", 32), Launchable: true},
+		{GameID: "b", Title: "B", Video: strings.Repeat("bb", 32), Launchable: true},
+	}
+	now := time.Unix(1, 0)
+	app.pumpAttractVideoLocked(now)
+	if player.calls != 1 || app.attractFrameSeq != 1 {
+		t.Fatalf("first frame calls=%d seq=%d", player.calls, app.attractFrameSeq)
+	}
+	app.tickAttractLocked(now.Add(maxAttractVideo + time.Second))
+	if player.calls != 1 {
+		t.Fatalf("expired cap still pumped Frame, calls=%d", player.calls)
+	}
+	if app.attractIndex != 1 {
+		t.Fatalf("index = %d, want next item", app.attractIndex)
+	}
+}
+
 type seqAttractPlayer struct {
 	frames []*image.RGBA
 	i      int
+	calls  int
 }
 
 func (s *seqAttractPlayer) Frame() (*image.RGBA, bool, error) {
+	s.calls++
 	if s.i >= len(s.frames) {
 		return nil, false, nil
 	}
