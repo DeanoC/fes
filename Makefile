@@ -28,6 +28,7 @@ test: build-agent test-ui
 	$(NATIVE_GO_ENV) go test -race ./...
 	sh scripts/tests/fogcast-build_test.sh
 	sh scripts/tests/native-runtime-inputs_test.sh
+	sh scripts/tests/native-megadrive-support-truth_test.sh
 	sh scripts/tests/target-image-sources_test.sh
 	sh scripts/tests/target-image-rootfs_test.sh
 	sh scripts/tests/target-image_test.sh

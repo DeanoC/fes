@@ -35,7 +35,7 @@ make target-kernel-verify
 The development image includes SSH and curl. The production image does not;
 capture and decoding tools run on the host.
 
-Build and inspect the separate native-runtime candidate with a clean runtime
+Build and inspect the separate native-runtime image with a clean runtime
 checkout at the commit pinned by `build/native-runtime.inputs.lock.toml`:
 
 ```sh
@@ -49,10 +49,10 @@ This produces `build/output/target-image/native-dev/linux.img`. The build runs
 twice and requires identical image digests. Verification inspects the locked
 idle RBF, build-input record, ARM runtime and static ARM agent, and the
 runtime's target-library closure. QEMU proves only the read-only root,
-volatile mounts, and init packaging. The designated-kit idle path is now
-hardware-tested; `native-dev` still has zero supported game systems and no
-game-launch or development-RBF support. Continue to use the legacy `dev`
-image for the working game and development-RBF paths below.
+volatile mounts, and init packaging. The designated-kit idle and one-player
+Mega Drive launch/input/Stop/relaunch paths are hardware-tested. `native-dev`
+supports no other game system and no development-RBF path. Continue to use the
+legacy `dev` image for broader game and development-RBF paths below.
 
 ### Fast target iteration policy
 
@@ -74,9 +74,9 @@ inputs, because a runtime-only replacement cannot validate those changes.
 
 ```text
 legacy dev/prod = current game-capable path
-native-dev = hardware-tested idle baseline, zero supported game systems
+native-dev = hardware-tested Mega Drive launch/input/Stop/relaunch
 Milestone 2 = complete
-Milestone 3 = Mega Drive vertical slice next
+Milestone 3 = complete for the defined one-player Mega Drive vertical slice
 ```
 
 ## Dedicated fixture

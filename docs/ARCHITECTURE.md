@@ -52,14 +52,14 @@ fallback.
 
 The native adapter reports ready only when `mister-runtime` reports `idle`.
 An idle Stop confirms that state without calling the runtime Stop operation.
-Native product support still has zero game systems pending exact-image physical
-acceptance. The candidate software path accepts only the registry `megadrive`
-system, validates an absolute staged ROM, and sends one local request using
-`/usr/share/mister-runtime/cores/megadrive.rbf` with semantic media role
-`cartridge`. Every other system returns an unsupported-system error;
+Native product support contains one hardware-tested system: registry
+`megadrive`. The path validates an absolute staged ROM and sends one local
+request using `/usr/share/mister-runtime/cores/megadrive.rbf` with semantic
+media role `cartridge`. Every other system returns an unsupported-system error;
 development loading and recovery return an unsupported-operation error. The
-separate `native-dev` image packages this composition, and only its idle path
-is hardware-tested on the designated kit.
+separate `native-dev` image packages this composition. Its idle, visible Sonic
+2 launch, one-player input, Stop, and immediate relaunch paths are
+hardware-tested on the designated kit.
 
 The native agent creates one `FogCast Virtual Gamepad` during startup before
 runtime reconciliation. Its Linux identity is `BUS_VIRTUAL`, vendor `0x0000`,
@@ -68,8 +68,9 @@ A/B/C/Start, signed X/Y axes, and synchronized event reports consumed by the
 native runtime. Authenticated input leases only gate delivery to that retained
 device: detach releases held state without destroying it, and agent shutdown
 destroys it once. The Main backend keeps the existing per-lease input-device
-path. This software construction does not establish playable-input or native
-game hardware support.
+path. Exact-image physical acceptance established playable D-pad and jump
+input for the one-player Mega Drive slice; it does not establish six-button,
+multiplayer, remapping, or hot-plug support.
 
 ## Other modes
 
@@ -121,7 +122,7 @@ pre-FogCast file. This keeps the Menu HDMI output visible during unattended
 capture and is idempotent across reboots. They remain the game and
 development-RBF path.
 
-The `native-dev` candidate instead starts image-owned `mister-runtime` and
+The `native-dev` image instead starts image-owned `mister-runtime` and
 then image-owned `mister-agent --runtime native`. It contains exactly one
 locked idle RBF and one locked Mega Drive RBF under `/usr/share/mister-runtime`,
 has no Main startup or legacy Menu-configuration helper, has no
@@ -130,16 +131,18 @@ has no Main startup or legacy Menu-configuration helper, has no
 commit, agent binary, and both RBFs. Its QEMU smoke proves only root filesystem
 and init packaging; it does not emulate FPGA programming, prove target
 readiness, or establish game or development-RBF support. The designated-kit
-idle and legacy rollback gates are hardware-tested; native game and
-development-RBF support remain absent.
+idle, Mega Drive launch/input/Stop/relaunch, and legacy rollback gates are
+hardware-tested. Native development-RBF support remains absent. Exact hashes
+and dated physical observations are in
+[native-megadrive-baseline.md](hardware/native-megadrive-baseline.md).
 
 ## Milestone status
 
 ```text
 legacy dev/prod = current game-capable path
-native-dev = hardware-tested idle baseline, Mega Drive candidate pending acceptance
+native-dev = hardware-tested Mega Drive launch/input/Stop/relaunch
 Milestone 2 = complete
-Milestone 3 = software integration in progress; exact-image hardware acceptance pending
+Milestone 3 = complete for the defined one-player Mega Drive vertical slice
 ```
 
 ## Development RBF extension

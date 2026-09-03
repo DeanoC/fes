@@ -20,9 +20,9 @@ and content selection; the MiSTer is a small, directly controlled target.
   SSH and curl.
 - A separate reproducible `native-dev` image that packages the native runtime,
   native agent backend, one locked idle RBF, and one locked Mega Drive RBF.
-  Its idle path is hardware-tested on the designated kit. The Mega Drive
-  launch translation and packaging are software-tested candidates awaiting
-  exact-image physical acceptance; no native game system is supported yet.
+  Its idle path and one-player Mega Drive launch, input, Stop, and immediate
+  relaunch path are hardware-tested on the designated kit. See the dated
+  [native Mega Drive baseline](docs/hardware/native-megadrive-baseline.md).
 
 The normal FPGA launch path is:
 
@@ -59,21 +59,21 @@ The current FogCast tree has one active target-image toolchain and one direct
 launch path. Superseded experiments are removed from the working tree; Git
 history is the archive.
 
-The working FPGA game path remains the conventional `dev`/`prod` image path
-described above. The `native-dev` image still has zero supported game systems
-and remains the hardware-tested idle baseline. Its candidate agent path accepts
-only registry system `megadrive`, sends the image-owned core and staged
-cartridge path to `mister-runtime`, and continues to reject development RBFs
-and every other system. Physical launch, input, Stop, and relaunch acceptance
-remain pending.
+The conventional `dev`/`prod` image remains the broad FPGA game and
+development-RBF path described above. The separate `native-dev` image supports
+only registry system `megadrive`: it sends the image-owned core and staged
+cartridge path to `mister-runtime` and rejects development RBFs and every other
+system. The accepted slice is one player with D-pad, A/B/C, and Start. Audio,
+saves, six-button input, multiplayer, remapping, hot-plug recovery, and native
+development-RBF loading remain unsupported.
 
 ## Milestone status
 
 ```text
 legacy dev/prod = current game-capable path
-native-dev = hardware-tested idle baseline, Mega Drive candidate pending acceptance
+native-dev = hardware-tested Mega Drive launch/input/Stop/relaunch
 Milestone 2 = complete
-Milestone 3 = software integration in progress; exact-image hardware acceptance pending
+Milestone 3 = complete for the defined one-player Mega Drive vertical slice
 ```
 
 ## Build and test
