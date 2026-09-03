@@ -90,7 +90,9 @@ to the tenfoot process (CLI `-safe-area` / `-layout` and optional `tenfoot.json`
 prefs). There is no host safe-area or layout API.
 
 Source entry points are `host/tenfoot/` and `cmd/fogcast-tenfoot`. The browser
-shell remains the default UI. Build and run notes are in
+shell remains the default UI. Mac is the primary sofa target; Linux builds
+with the same `make build-fogcast-tenfoot` target (`CGO_ENABLED=1` and
+pkg-config `sdl3`). Build and run notes are in
 [native-tenfoot-launcher/README.md](native-tenfoot-launcher/README.md).
 
 ## Target image

@@ -19,7 +19,7 @@ else
 NATIVE_GO_ENV =
 endif
 
-.PHONY: fmt test test-ui test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-smoke build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-agent build-bridge build-target-image-lock build-target-image-lock-container target-image-resolve target-image-fetch target-image-test target-images target-image-dev target-image-verify target-image-qemu-smoke target-image-native-fetch target-image-native target-image-native-verify target-image-native-qemu-smoke target-image-deploy target-smoke target-native-smoke target-kernel-test target-kernel target-kernel-verify
+.PHONY: fmt test test-ui test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-cgo-env tenfoot-smoke build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-agent build-bridge build-target-image-lock build-target-image-lock-container target-image-resolve target-image-fetch target-image-test target-images target-image-dev target-image-verify target-image-qemu-smoke target-image-native-fetch target-image-native target-image-native-verify target-image-native-qemu-smoke target-image-deploy target-smoke target-native-smoke target-kernel-test target-kernel target-kernel-verify
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
@@ -66,13 +66,24 @@ build-fogcast-api:
 build-fogcast-host:
 	FOGCAST_SIGNING_IDENTITY="$(FOGCAST_SIGNING_IDENTITY)" VERSION="$(VERSION)" REVISION="$(REVISION)" scripts/build-fogcast-host.sh "$(FOGCAST_HOST_OUTPUT)"
 
-# Native SDL3 10-foot launcher. Requires Homebrew sdl3 and pkg-config.
-# This is a host API client; it does not change the MiSTer launch path.
+# Native SDL3 10-foot launcher. Requires pkg-config sdl3 and a C toolchain
+# (Homebrew sdl3 on Darwin; distro SDL3 devel on Linux — see
+# docs/native-tenfoot-launcher/LINUX.md). Host API client only.
+ifndef TENFOOT_CGO_ENV
+ifeq ($(shell uname -s),Darwin)
 TENFOOT_CGO_ENV = MACOSX_DEPLOYMENT_TARGET=11.0 CGO_ENABLED=1 CGO_CFLAGS=-mmacosx-version-min=11.0 CGO_LDFLAGS=-mmacosx-version-min=11.0 CGO_LDFLAGS_ALLOW=-Wl,-.*
+else
+TENFOOT_CGO_ENV = CGO_ENABLED=1
+endif
+endif
 
 build-fogcast-tenfoot:
 	mkdir -p bin
 	$(TENFOOT_CGO_ENV) go build -tags sdl3 -buildvcs=false -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/fogcast-tenfoot ./cmd/fogcast-tenfoot
+
+# Prints the CGO env the tenfoot target uses on this host (Darwin vs Linux).
+tenfoot-cgo-env:
+	@printf '%s\n' '$(TENFOOT_CGO_ENV)'
 
 tenfoot-smoke: build-fogcast-tenfoot
 	bin/fogcast-tenfoot -smoke -no-attract -api http://127.0.0.1:8787

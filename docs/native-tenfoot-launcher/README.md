@@ -1,20 +1,38 @@
 # Native 10-foot launcher
 
-SDL3 10-foot launcher on Mac. It talks to the existing FogCast public host API
-over HTTP. It does not own catalog, content transfer, or `/dev/MiSTer_cmd`. The
-browser shell remains the default UI. Fullscreen living-room use applies a
-local TV overscan inset and idle stills attract from the host playlist. Browse
-layouts are cover grid (default), shelf/carousel, and list.
+SDL3 10-foot launcher (Mac primary; Linux build path documented). It talks to
+the existing FogCast public host API over HTTP. It does not own catalog,
+content transfer, or `/dev/MiSTer_cmd`. The browser shell remains the default
+UI. Fullscreen living-room use applies a local TV overscan inset and idle
+stills attract from the host playlist. Browse layouts are cover grid
+(default), shelf/carousel, and list.
+
+Linux SDL3 packages, native-on-Linux build/run, and the Mac-vs-Linux proof
+split are in [`LINUX.md`](./LINUX.md).
 
 ## Build
 
-Homebrew `sdl3` and `pkg-config` are required.
+**Mac:** Homebrew `sdl3` and `pkg-config` are required.
 
 ```sh
 make build-fogcast-tenfoot
 ```
 
-That builds `bin/fogcast-tenfoot` with `-tags sdl3`.
+That builds `bin/fogcast-tenfoot` with `-tags sdl3`. `TENFOOT_CGO_ENV` on
+Darwin includes `MACOSX_DEPLOYMENT_TARGET=11.0` and `-mmacosx-version-min=11.0`.
+
+**Linux:** install a distro SDL3 development package so `pkg-config --modversion sdl3`
+succeeds (`libsdl3-dev`, `SDL3-devel`, or `sdl3` — see [`LINUX.md`](./LINUX.md)),
+then the same target:
+
+```sh
+pkg-config --modversion sdl3
+make tenfoot-cgo-env    # expect CGO_ENABLED=1, no Darwin flags
+make build-fogcast-tenfoot
+```
+
+Do not cross-compile the SDL3 binary from macOS (`GOOS=linux` + cgo needs a
+Linux sysroot). Native-on-Linux is the supported path.
 
 ## Run
 
@@ -41,8 +59,10 @@ FOGCAST_TENFOOT_SAFE_AREA=0 bin/fogcast-tenfoot
 
 Default overscan inset is **5% of each edge** (`-safe-area 0.05`). Windowed debug
 can pass `-safe-area 0`. `-` / `=` nudge the inset by 0.5 percentage points
-(clamped 0–20%) and persist to `$HOME/Library/Application Support/FogCast/tenfoot.json`
-on Mac. Inner cover padding is unchanged and sits inside that gutter.
+(clamped 0–20%) and persist to `tenfoot.json` under the user config dir
+(`~/Library/Application Support/FogCast/` on Mac;
+`$XDG_CONFIG_HOME/FogCast/` or `~/.config/FogCast/` on Linux). Inner cover
+padding is unchanged and sits inside that gutter.
 
 Sofa layout defaults to **grid**. `-layout shelf` or `-layout list` override
 the saved pref for that run; gamepad **Select/View** (SDL Back) or **Guide**,
@@ -82,11 +102,12 @@ Q to quit, `[` / `]` for platform, `x` for sort, `/` or `f` for search,
 `c` / Shift+`c` to cycle views, `v` to favorite, `l` to cycle layout,
 `-` / `=` to nudge the overscan inset. Down arrow still moves focus when idle.
 
-Run from a GUI terminal for the Cocoa window. Headless agent sessions fall
+On Mac, run from a GUI terminal for the Cocoa window. On Linux, use a session
+with X11 or Wayland for windowed/fullscreen. Headless agent sessions fall
 back to SDL's dummy video driver; the cover grid, gamepad path, and host
 launch still run.
 
-Automated Mac proof against a live host:
+Automated proof against a live host (Mac mini; same flags on Linux):
 
 ```sh
 make tenfoot-smoke
@@ -172,9 +193,11 @@ Attract does not run while parked; after idle it may start again.
 
 - Attract **video** playback (host may return a `video` handle; tenfoot skips
   video-only playlist rows and shows stills only).
-- Linux SDL3 build: `Makefile` `TENFOOT_CGO_ENV` is Darwin-oriented today;
-  `host/tenfoot/sdl.go` is `//go:build sdl3` with a `!sdl3` stub. No Linux
-  pkg-config target or CI yet.
+- **Linux GUI / localhost smoke:** Makefile Linux `TENFOOT_CGO_ENV` is
+  `CGO_ENABLED=1` with pkg-config `sdl3`. debian:sid `libsdl3-dev` compiled
+  an aarch64 binary on the mini (container). Windowed/fullscreen smoke and
+  `-smoke` against a loopback host API still need a Linux box (see
+  [`LINUX.md`](./LINUX.md)). No Linux CI job.
 - Full sofa settings UI (libraries / targets / preferred_regions stay in the
   browser). Idle seconds come from the attract JSON. Layout and overscan stay
   in local `tenfoot.json` / debug keys; there is no sofa settings screen.

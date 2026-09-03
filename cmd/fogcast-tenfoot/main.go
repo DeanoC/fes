@@ -50,7 +50,7 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 	width := fs.Int("width", 1280, "window width")
 	height := fs.Int("height", 720, "window height")
 	fullscreen := fs.Bool("fullscreen", false, "run fullscreen")
-	smoke := fs.Bool("smoke", false, "run the Mac proof and exit")
+	smoke := fs.Bool("smoke", false, "run the automated smoke and exit")
 	maxGames := fs.Int("max-games", 0, "optional catalog cap")
 	timeout := fs.Duration("smoke-timeout", 45*time.Second, "smoke deadline")
 	safeArea := fs.Float64("safe-area", tenfoot.DefaultSafeAreaPct, "TV overscan inset as a fraction of each edge (0-0.2)")

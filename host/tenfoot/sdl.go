@@ -302,7 +302,7 @@ func initSDLVideo() bool {
 	if bool(C.SDL_Init(C.SDL_INIT_VIDEO | C.SDL_INIT_GAMEPAD)) {
 		return true
 	}
-	// Agent / SSH sessions often have Aqua but no Cocoa window server access.
+	// Headless sessions (SSH, no window server) fall back to SDL dummy video.
 	dummy := C.CString("dummy")
 	defer C.free(unsafe.Pointer(dummy))
 	hint := C.CString("SDL_VIDEO_DRIVER")
