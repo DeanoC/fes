@@ -5,6 +5,7 @@
 
 #include "native/artifacts.hpp"
 #include "native/core_loader.hpp"
+#include "native/generated/megadrive.hpp"
 #include "native/hardware.hpp"
 #include "native/input.hpp"
 #include "native/linux/fpga_manager.hpp"
@@ -15,7 +16,10 @@
 #include "native/video.hpp"
 #include "native/video_recipe.hpp"
 
+#include <cstddef>
+#include <cstring>
 #include <cstdlib>
+#include <string>
 #include <time.h>
 #include <utility>
 
@@ -23,23 +27,54 @@
 #define MISTER_RUNTIME_IDLE_RBF "/usr/share/mister-runtime/idle.rbf"
 #endif
 
+#ifndef MISTER_RUNTIME_CORES_DIR
+#define MISTER_RUNTIME_CORES_DIR "/usr/share/mister-runtime/cores"
+#endif
+
 namespace mister {
 namespace {
 
+Profile ProfileFromGenerated(const native::generated::GeneratedSystem& sys)
+{
+	if (std::strcmp(sys.core.file_wire, "little_endian_byte_pairs") != 0)
+		std::abort();
+	Profile profile;
+	profile.system = sys.system;
+	profile.expected_core = sys.expected_core;
+	profile.rbf = std::string(MISTER_RUNTIME_CORES_DIR) + "/" + sys.rbf_artifact;
+	for (std::size_t i = 0; i < sys.media_count; ++i) {
+		const native::generated::GeneratedMediaRule& rule = sys.media[i];
+		MediaRule media;
+		media.role = rule.role;
+		media.index = rule.index;
+		media.required = rule.required;
+		media.maximum_size = rule.maximum_size;
+		for (std::size_t j = 0; j < rule.extension_count; ++j)
+			media.extensions.push_back(rule.extensions[j]);
+		profile.media.push_back(media);
+	}
+	profile.core.reset_assert_word = sys.core.reset_assert_word;
+	profile.core.initial_status_word = sys.core.initial_status_word;
+	profile.core.reset_release_word = sys.core.reset_release_word;
+	profile.core.file_wire = FileWireFormat::little_endian_byte_pairs;
+	profile.input.player_count = sys.input.player_count;
+	profile.input.player_command = sys.input.player_command;
+	profile.input.up = sys.input.up;
+	profile.input.down = sys.input.down;
+	profile.input.left = sys.input.left;
+	profile.input.right = sys.input.right;
+	profile.input.a = sys.input.a;
+	profile.input.b = sys.input.b;
+	profile.input.c = sys.input.c;
+	profile.input.start = sys.input.start;
+	return profile;
+}
+
 Profiles BuildProductionProfiles()
 {
-	Profile profile;
-	profile.system = "megadrive";
-	profile.expected_core = "MegaDrive";
-	profile.rbf = "/usr/share/mister-runtime/cores/megadrive.rbf";
-	profile.media.push_back({"cartridge", 1, true, {".md", ".gen", ".bin"},
-		32u * 1024u * 1024u});
-	profile.core = {0x0001, 0x0001, 0x0000,
-		FileWireFormat::little_endian_byte_pairs};
-	profile.input = {1, 0x02, 0x0008, 0x0004, 0x0002, 0x0001,
-		0x0010, 0x0020, 0x0040, 0x0080};
 	Profiles profiles;
-	if (!profiles.Add(std::move(profile)).ok()) std::abort();
+	if (!profiles.Add(ProfileFromGenerated(native::generated::kMegaDrive)).ok())
+		std::abort();
 	return profiles;
 }
 

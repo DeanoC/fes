@@ -34,6 +34,18 @@ roles:
   production profile is `megadrive`, whose image-owned core path is
   `/usr/share/mister-runtime/cores/megadrive.rbf`.
 
+FPGA-manager and SPI MMIO constants are checked-in generated C++14 text
+from mister-packages (`src/native/generated/de10_nano.hpp`). Production
+Mega Drive profile fields come from
+`src/native/generated/megadrive.hpp`. The image still owns the absolute
+RBF directory prefix.
+
+mister-packages is host software. The generated headers are target
+text for the ARMv7 Linux HPS runtime (Arm GNU C++14). The Pi / cross
+build does not run Go and does not use a development-host compiler.
+Regenerate those headers in mister-packages and replace the checked-in
+copies. Do not hand-edit them.
+
 ADV7513 programming lives in `src/native/adv7513.hpp`. Register addresses,
 bitfields, and CEA-861 AVI/VIC values are named from the public ADV7513
 datasheet and Programming Guide. Analog Devices "must be set" bytes stay
@@ -137,7 +149,8 @@ failure publishes `reboot_required`, and stale generations perform no work.
 
 Profiles own core identity, semantic media roles and indices, core and input
 recipes, and allowed settings. Callers own selection and staging of absolute
-paths. The production table contains only Mega Drive; test profiles are private
+paths. The production Mega Drive row is filled from the generated system
+table plus the image-owned cores directory. Test profiles are private
 fixtures and cannot be selected by the production daemon. The canonical
 software-versus-physical record is the [support matrix](docs/support-matrix.md).
 

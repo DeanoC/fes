@@ -85,6 +85,7 @@ TEST_HEADERS := $(wildcard \
 	include/libmister-runtime/*.h \
 	src/*.hpp \
 	src/native/*.hpp \
+	src/native/generated/*.hpp \
 	src/native/linux/*.hpp \
 	src/daemon/*.hpp \
 	src/linux/*.hpp \
@@ -399,6 +400,21 @@ archive-audit: $(ARCHIVE)
 	done; \
 	grep -F 'src/native/linux/mmio.hpp' "$(BUILD_DIR)/src/native/linux/spi.d" >/dev/null || { \
 		echo "SPI dependency closure omits MMIO" >&2; \
+		exit 1; \
+	}; \
+	grep -F 'src/native/generated/de10_nano.hpp' "$(BUILD_DIR)/src/native/linux/fpga_manager.d" \
+		>/dev/null || { \
+		echo "FPGA manager dependency closure omits generated de10_nano" >&2; \
+		exit 1; \
+	}; \
+	grep -F 'src/native/generated/de10_nano.hpp' "$(BUILD_DIR)/src/native/linux/spi.d" \
+		>/dev/null || { \
+		echo "SPI dependency closure omits generated de10_nano" >&2; \
+		exit 1; \
+	}; \
+	grep -F 'src/native/generated/megadrive.hpp' "$(BUILD_DIR)/src/linux/production_hardware.d" \
+		>/dev/null || { \
+		echo "production hardware dependency closure omits generated megadrive" >&2; \
 		exit 1; \
 	}
 

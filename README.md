@@ -24,6 +24,11 @@ running game across restart and does not start conventional Main, transient
 MGLs, or an automatic legacy fallback. Fakes under `tests/` verify software
 contracts only and are not physical evidence.
 
+HPS MMIO constants and the Mega Drive profile table are generated C++14
+headers checked in under `src/native/generated/`. They are target text
+for the ARMv7 Linux HPS, not host objects. The target build does not run
+Go.
+
 ## Build and test
 
 ```sh

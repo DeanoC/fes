@@ -40,8 +40,13 @@ clean build.
 
 ## Arm cross-build
 
+This runtime is Linux on the Cyclone V ARMv7 HPS, talking to the FPGA.
+That is the target. A development-host compiler is not a substitute.
+
 Use the pinned GNU Arm 10.2-2020.11 A-profile toolchain from host setup; it is
-not vendored or downloaded by this repository.
+not vendored or downloaded by this repository. Generated headers under
+`src/native/generated/` are C++14 target text from mister-packages;
+compile them with this toolchain.
 
 ```sh
 runtime_target_bin=/home/deano/.cache/toolchains/gcc-arm-10.2-2020.11-x86_64-arm-none-linux-gnueabihf/bin
