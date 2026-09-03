@@ -23,8 +23,10 @@ an Overlord port.
   from the production Mega Drive profile. `make test` requires both to
   match.
 
-No consumer repository is patched. Generated C++ is not checked into
-libmister-runtime yet.
+libmister-runtime checks in generated C++14 headers under
+`src/native/generated/`. This emitter is host software; those headers
+are target text for the ARMv7 Linux HPS. The Pi / cross build does not
+run Go and does not use the host compiler. FogCast is not patched.
 
 ## What this is not (yet)
 
@@ -33,7 +35,8 @@ libmister-runtime yet.
   consumed.
 - Connection solving, Verilog tops, XDC, Edalize, SVD, git-clone actions,
   or a second board.
-- A FogCast or libmister-runtime build dependency.
+- A FogCast or libmister-runtime *build* dependency on Go. Generated
+  headers are reviewed text copied into the runtime.
 
 ## Boundaries
 
@@ -45,8 +48,9 @@ libmister-runtime yet.
 | `misteross` | RBF production |
 | `overlord` / `ikuy_std_resources` | Frozen reference only |
 
-Until a consumer switches, **libmister-runtime source is the oracle**. If
-YAML and the runtime disagree, the runtime wins and the package is wrong.
+**Package YAML is the source of truth.** libmister-runtime keeps generated
+headers as reviewed text. If YAML and those headers disagree, regenerate
+the headers from this tree. Do not hand-edit them.
 
 Do not call this tree a catalog. FogCast already uses that word for games.
 
@@ -70,9 +74,8 @@ Requires Go 1.22 or later.
 See [docs/PLAN.md](docs/PLAN.md) and [docs/schema.md](docs/schema.md).
 
 1. **Milestone 1:** Cyclone V HPS map round-trips the runtime constants.
-2. **Milestone 2 (this tree):** `system.megadrive` as data. Still no
-   consumer patch.
-3. **Milestone 3:** libmister-runtime checks in generated headers.
+2. **Milestone 2:** `system.megadrive` as data.
+3. **Milestone 3:** libmister-runtime checks in generated C++14 headers.
 4. **Milestone 4:** FogCast launch fields, then SNES as data.
 
 ## Source notes

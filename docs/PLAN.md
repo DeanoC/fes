@@ -14,11 +14,11 @@ In scope: platform, board, SoC, CPU, register banks, `validate`,
 
 Out of scope: consumer patches, ADV7513, a second board.
 
-## Milestone 2 — Mega Drive as a system package (current)
+## Milestone 2 — Mega Drive as a system package
 
 `packages/system/megadrive.yaml` holds expected core, RBF role/artifact,
 media roles/indices/extensions, reset words, and input masks. The emitter
-writes a C++ table the runtime could compile. FogCast `systems/table.go`
+writes a C++14 table the runtime can compile. FogCast `systems/table.go`
 stays the product table (aliases, covers, library roots). The image owns
 the absolute RBF path.
 
@@ -26,12 +26,15 @@ Exit: `make test` diffs the package against
 `testdata/oracles/libmister-runtime-megadrive.yaml`. SNES is not part of
 this milestone.
 
-## Milestone 3 — Consume in libmister-runtime
+## Milestone 3 — Consume in libmister-runtime (current)
 
-Check generated headers into libmister-runtime (for example
-`src/native/generated/`). The Pi build must not require Go. Replace the
-hand-written `constexpr`s. Update runtime `ARCHITECTURE.md` in that same
-commit. FogCast stays untouched.
+libmister-runtime checks in generated C++14 headers under
+`src/native/generated/`. The emitter runs on a development host; the
+headers are target text for the ARMv7 Linux HPS. The Pi / cross build
+does not require Go and does not use the host compiler. Hand-written
+FPGA-manager and SPI `constexpr`s and the production Mega Drive profile
+literals are replaced. Runtime `ARCHITECTURE.md` records that. FogCast
+stays untouched.
 
 ## Milestone 4 — FogCast launch fields, then SNES
 
@@ -40,7 +43,8 @@ system package (or from the runtime protocol). Add `system.snes` as data.
 
 ## Working rules
 
-- Oracle for now: libmister-runtime source, not Overlord YAML.
-- Generated files are reviewed text, not a target-image build step.
+- Source of truth: package YAML, not Overlord YAML. Generated runtime
+  headers are copies.
+- Generated files are reviewed C++14 text, not a target-image build step.
 - One board (`de10_nano`) until a second kit exists.
 - Overlord stays frozen reference.

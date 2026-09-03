@@ -37,6 +37,9 @@ func TestGenerateContainsOracleNames(t *testing.T) {
 	if !strings.Contains(text, "namespace generated") {
 		t.Error("missing generated namespace")
 	}
+	if strings.Contains(text, "inline constexpr") {
+		t.Error("generated C++ is not C++14 (inline constexpr)")
+	}
 }
 
 func TestGenerateSystemContainsProfileFields(t *testing.T) {
@@ -61,9 +64,14 @@ func TestGenerateSystemContainsProfileFields(t *testing.T) {
 		`".md"`,
 		`"little_endian_byte_pairs"`,
 		"kMegaDrive",
+		"namespace native",
+		"static constexpr",
 	} {
 		if !strings.Contains(text, fragment) {
 			t.Errorf("generated C++ missing %s", fragment)
 		}
+	}
+	if strings.Contains(text, "inline constexpr") {
+		t.Error("generated C++ is not C++14 (inline constexpr)")
 	}
 }

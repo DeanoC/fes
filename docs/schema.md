@@ -126,6 +126,12 @@ the runtime profile accepts today.
 The image prefix (`/usr/share/mister-runtime/cores/`) is not a package
 field. FogCast aliases, covers, and library roots stay in FogCast.
 
+Emitted C++ is C++14 for the ARMv7 Linux HPS target, the dialect the
+runtime's Arm GNU toolchain uses. Namespace-scope `constexpr` integers
+and `static constexpr` tables; no inline variables. The emitter runs on
+a development host. The target image build does not compile this tree
+and does not use the host compiler.
+
 ## What is intentionally missing
 
 - Connections, prefabs, wildcards, and bus address allocation.

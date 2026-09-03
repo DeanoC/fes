@@ -15,10 +15,12 @@ These rules apply to all work in this repository.
 - This repository does not modify FogCast, libmister-runtime, misteross,
   or overlord. Consumer patches happen in those repos after the oracle
   matches.
-- Until a consumer consumes generated files, libmister-runtime headers
-  are the oracle. Change `testdata/oracles/` in the same commit as any
-  intentional constant change, and record the runtime commit in the
-  oracle file.
+- Package YAML is the source of truth. libmister-runtime keeps generated
+  C++14 headers as reviewed target text for the ARMv7 Linux HPS. Change
+  `testdata/oracles/` in the same commit as any intentional constant
+  change, and record the runtime commit in the oracle file. Regenerate
+  the runtime headers in that consumer repository; do not hand-edit
+  them. Do not compile the runtime with a development-host toolchain.
 - Do not add a connection solver, Verilog generator, SVD emitter, template
   CLI, or package-manager clone step without a demonstrated need and
   explicit approval.
