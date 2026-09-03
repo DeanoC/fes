@@ -15,6 +15,7 @@ type Grid struct {
 	CellH        int
 	Width        int
 	Height       int
+	Safe         SafeArea
 }
 
 const (
@@ -60,7 +61,7 @@ func (g *Grid) Layout(width, height int) {
 	g.CellH = defaultCellH
 	g.Width = width
 	g.Height = height
-	innerW := width - 2*g.Pad
+	innerW := width - g.Safe.Left - g.Safe.Right - 2*g.Pad
 	if innerW < g.CellW {
 		innerW = g.CellW
 	}
@@ -68,7 +69,7 @@ func (g *Grid) Layout(width, height int) {
 	if g.Columns < 1 {
 		g.Columns = 1
 	}
-	innerH := height - g.HeaderHeight - g.FooterHeight - 2*g.Pad
+	innerH := height - g.Safe.Top - g.Safe.Bottom - g.HeaderHeight - g.FooterHeight - 2*g.Pad
 	if innerH < 1 {
 		innerH = 1
 	}
@@ -173,8 +174,8 @@ func (g *Grid) CellOrigin(i int) (x, y int, ok bool) {
 	local := i - start
 	col := local % g.Columns
 	row := local / g.Columns
-	x = g.Pad + col*(g.CellW+g.Gap)
-	y = g.HeaderHeight + g.Pad + row*(g.CellH+g.Gap)
+	x = g.Safe.Left + g.Pad + col*(g.CellW+g.Gap)
+	y = g.Safe.Top + g.HeaderHeight + g.Pad + row*(g.CellH+g.Gap)
 	return x, y, true
 }
 

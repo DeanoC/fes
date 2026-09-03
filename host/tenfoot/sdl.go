@@ -214,6 +214,9 @@ func runWindow(ctx context.Context, opts Options) error {
 	C.SDL_SetRenderVSync(renderer, 1)
 
 	app := NewApp(NewClient(opts.APIBase, nil), opts.Width, opts.Height, opts.MaxGames)
+	app.SetPrefsPath(opts.prefsPath())
+	app.SetSafeAreaPct(opts.SafeAreaPct)
+	app.SetAttractDisabled(opts.NoAttract)
 	if opts.Smoke {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, opts.SmokeTimeout)
@@ -265,7 +268,7 @@ func runWindow(ctx context.Context, opts Options) error {
 		app.Tick(now)
 		snap := app.Snapshot()
 		textInput = syncTextInput(window, snap.SearchOpen, textInput)
-		gpuParked = applyGPUPark(renderer, snap, textures, labels, gpuParked)
+		gpuParked = presentFrame(renderer, snap, textures, labels, gpuParked)
 		C.SDL_Delay(1)
 	}
 }
@@ -343,7 +346,7 @@ func runSmoke(ctx context.Context, opts Options, app *App, renderer *C.SDL_Rende
 		pumpSDL(app, pads, time.Now())
 		app.Tick(time.Now())
 		snap = app.Snapshot()
-		_ = applyGPUPark(renderer, snap, textures, labels, snap.GPUParked)
+		_ = presentFrame(renderer, snap, textures, labels, snap.GPUParked)
 		if snap.CoverHits >= 1 || snap.GPUParked {
 			break
 		}
@@ -617,6 +620,10 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 			if cmd == CmdQuit {
 				return true
 			}
+			if app.AttractActive() && cmd == CmdNone {
+				app.DismissAttract(now)
+				return false
+			}
 			app.Press(cmd, now)
 		} else {
 			app.Release(cmd)
@@ -753,9 +760,32 @@ func commandFromSDLKey(code C.int) Command {
 		return CmdViewNext
 	case C.SDLK_V:
 		return CmdFavorite
+	case C.SDLK_MINUS:
+		return CmdSafeAreaOut
+	case C.SDLK_EQUALS, C.SDLK_PLUS:
+		return CmdSafeAreaIn
 	default:
 		return CmdNone
 	}
+}
+
+func presentFrame(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[string]sdlTexture, parked bool) bool {
+	if snap.Attract.Active {
+		for id, item := range textures {
+			if id == "attract" {
+				continue
+			}
+			C.SDL_DestroyTexture(item.tex)
+			delete(textures, id)
+		}
+		drawAttract(renderer, snap, textures, labels)
+		return parked
+	}
+	if item, ok := textures["attract"]; ok {
+		C.SDL_DestroyTexture(item.tex)
+		delete(textures, "attract")
+	}
+	return applyGPUPark(renderer, snap, textures, labels, parked)
 }
 
 func applyGPUPark(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[string]sdlTexture, parked bool) bool {
@@ -894,20 +924,23 @@ func drawLabel(renderer *C.SDL_Renderer, labels map[string]sdlTexture, used map[
 }
 
 func drawHeader(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTexture, used map[string]struct{}) {
-	fillRect(renderer, 0, 0, float32(snap.Grid.Width), float32(snap.Grid.HeaderHeight), 18, 20, 28, 255)
-	drawDebug(renderer, 24, 18, "FOGCAST", 3)
+	x := snap.Grid.contentLeft()
+	y := snap.Grid.headerY()
+	w := snap.Grid.contentWidth()
+	fillRect(renderer, float32(x), float32(y), float32(w), float32(snap.Grid.HeaderHeight), 18, 20, 28, 255)
+	drawDebug(renderer, x+24, y+18, "FOGCAST", 3)
 	pad := "KB DEBUG"
 	if snap.Gamepads > 0 {
 		pad = fmt.Sprintf("PAD %d", snap.Gamepads)
 	}
-	drawDebug(renderer, snap.Grid.Width-160, 22, pad, 2)
+	drawDebug(renderer, x+w-160, y+22, pad, 2)
 	chrome := snap.ChromeLine()
-	drawLabel(renderer, labels, used, "chrome", 24, 52, snap.Grid.Width-48, 18, chrome)
+	drawLabel(renderer, labels, used, "chrome", x+24, y+52, w-48, 18, chrome)
 	hint := "LB/RB platform  X sort  Y search  hold A view  hold Y fav"
 	if snap.GPUParked || snap.Session.State == "active" {
 		hint = "B stop  START quit"
 	}
-	drawDebug(renderer, 24, 72, hint, 1)
+	drawDebug(renderer, x+24, y+72, hint, 1)
 }
 
 func drawNowPlaying(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTexture) {
@@ -916,11 +949,12 @@ func drawNowPlaying(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]s
 	used := map[string]struct{}{}
 	drawHeader(renderer, snap, labels, used)
 	pad := 48
-	y := snap.Grid.HeaderHeight + 40
-	maxW := snap.Grid.Width - 2*pad
+	x := snap.Grid.contentLeft() + pad
+	y := snap.Grid.headerY() + snap.Grid.HeaderHeight + 40
+	maxW := snap.Grid.contentWidth() - 2*pad
 	if maxW < 1 {
-		maxW = snap.Grid.Width
-		pad = 8
+		maxW = snap.Grid.contentWidth()
+		x = snap.Grid.contentLeft() + 8
 	}
 	title := strings.TrimSpace(snap.Session.Title)
 	if title == "" {
@@ -929,21 +963,21 @@ func drawNowPlaying(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]s
 	if title == "" {
 		title = "Session active"
 	}
-	drawLabel(renderer, labels, used, "np-title", pad, y, maxW, 28, title)
+	drawLabel(renderer, labels, used, "np-title", x, y, maxW, 28, title)
 	y += 40
 	meta := strings.TrimSpace(strings.TrimPrefix(snap.NowPlayingLine(), "Now playing"))
 	meta = strings.TrimSpace(strings.TrimPrefix(meta, "  ·  "))
 	if meta == "" {
 		meta = snap.Session.State
 	}
-	drawLabel(renderer, labels, used, "np-meta", pad, y, maxW, 18, meta)
+	drawLabel(renderer, labels, used, "np-meta", x, y, maxW, 18, meta)
 	y += 32
 	if progress := strings.TrimSpace(snap.Session.Progress); progress != "" {
-		drawLabel(renderer, labels, used, "np-progress", pad, y, maxW, 16, progress)
+		drawLabel(renderer, labels, used, "np-progress", x, y, maxW, 16, progress)
 		y += 28
 	}
 	if status := strings.TrimSpace(snap.Status); status != "" && status != snap.NowPlayingLine() {
-		drawLabel(renderer, labels, used, "np-status", pad, y, maxW, 16, status)
+		drawLabel(renderer, labels, used, "np-status", x, y, maxW, 16, status)
 	}
 	for key, item := range labels {
 		if _, ok := used[key]; ok {
@@ -960,8 +994,10 @@ func drawDetail(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTe
 	if h < 1 {
 		return
 	}
-	y := snap.Grid.Height - h
-	fillRect(renderer, 0, float32(y), float32(snap.Grid.Width), float32(h), 16, 18, 26, 255)
+	y := snap.Grid.footerY()
+	x := snap.Grid.contentLeft()
+	w := snap.Grid.contentWidth()
+	fillRect(renderer, float32(x), float32(y), float32(w), float32(h), 16, 18, 26, 255)
 	detail := snap.FocusDetail
 	pad := 24
 	title := strings.TrimSpace(detail.Title)
@@ -971,22 +1007,22 @@ func drawDetail(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTe
 	if detail.Favorite {
 		title = "* " + title
 	}
-	drawLabel(renderer, labels, used, "d-title", pad, y+12, snap.Grid.Width-2*pad, 26, title)
-	metaWidth := snap.Grid.Width - 2*pad
-	facts, factsX, factsW, attr, attrX, attrW := layoutDetailMeta(detail, pad, metaWidth, 16)
+	drawLabel(renderer, labels, used, "d-title", x+pad, y+12, w-2*pad, 26, title)
+	metaWidth := w - 2*pad
+	facts, factsX, factsW, attr, attrX, attrW := layoutDetailMeta(detail, x+pad, metaWidth, 16)
 	if facts != "" && factsW > 0 {
 		drawLabel(renderer, labels, used, "d-meta", factsX, y+44, factsW, 16, facts)
 	}
 	if attr != "" && attrW > 0 {
 		drawLabel(renderer, labels, used, "d-attr", attrX, y+44, attrW, 16, attr)
 	}
-	summaryWidth := snap.Grid.Width - 2*pad
+	summaryWidth := w - 2*pad
 	maxChars := summaryWidth / 8
 	if maxChars < 20 {
 		maxChars = 20
 	}
 	for i, line := range wrapWords(detail.Summary, maxChars, 2) {
-		drawLabel(renderer, labels, used, fmt.Sprintf("d-sum-%d", i), pad, y+68+i*20, summaryWidth, 16, line)
+		drawLabel(renderer, labels, used, fmt.Sprintf("d-sum-%d", i), x+pad, y+68+i*20, summaryWidth, 16, line)
 	}
 }
 
@@ -994,12 +1030,13 @@ func drawViewPicker(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]s
 	if !snap.ViewPicker || len(snap.Views) == 0 {
 		return
 	}
+	contentW := snap.Grid.contentWidth()
 	panelW := 420
-	if panelW > snap.Grid.Width-48 {
-		panelW = snap.Grid.Width - 48
+	if panelW > contentW-48 {
+		panelW = contentW - 48
 	}
 	if panelW < 200 {
-		panelW = snap.Grid.Width - 24
+		panelW = contentW - 24
 	}
 	rowH := 28
 	headerH := 40
@@ -1008,8 +1045,8 @@ func drawViewPicker(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]s
 		maxRows = len(snap.Views)
 	}
 	panelH := headerH + maxRows*rowH + 16
-	x := (snap.Grid.Width - panelW) / 2
-	y := snap.Grid.HeaderHeight + 12
+	x := snap.Grid.contentLeft() + (contentW-panelW)/2
+	y := snap.Grid.headerY() + snap.Grid.HeaderHeight + 12
 	fillRect(renderer, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
 	fillRect(renderer, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
 	drawLabel(renderer, labels, used, "view-title", x+16, y+10, panelW-32, 18, "Library view")
@@ -1041,6 +1078,57 @@ func drawViewPicker(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]s
 		}
 		drawLabel(renderer, labels, used, fmt.Sprintf("view-%d", idx), x+20, rowY, panelW-40, 16, label)
 	}
+}
+
+func drawAttract(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[string]sdlTexture) {
+	C.SDL_SetRenderDrawColor(renderer, 8, 8, 12, 255)
+	C.SDL_RenderClear(renderer)
+	used := map[string]struct{}{}
+	x := snap.Grid.contentLeft()
+	y := snap.Grid.contentTop()
+	w := snap.Grid.contentWidth()
+	h := snap.Grid.contentHeight()
+	titleH := 56
+	stageH := h - titleH
+	if stageH < 1 {
+		stageH = h
+		titleH = 0
+	}
+	if img := snap.Attract.Image; img != nil {
+		if existing, ok := textures["attract"]; !ok || existing.src != img {
+			if ok {
+				C.SDL_DestroyTexture(existing.tex)
+				delete(textures, "attract")
+			}
+			if tex, err := uploadTexture(renderer, img); err == nil {
+				tex.src = img
+				textures["attract"] = tex
+			}
+		}
+		if tex, ok := textures["attract"]; ok {
+			dx, dy, dw, dh := coverDestRect(x, y, w, stageH, tex.w, tex.h)
+			dst := C.SDL_FRect{x: C.float(dx), y: C.float(dy), w: C.float(dw), h: C.float(dh)}
+			C.SDL_RenderTexture(renderer, tex.tex, nil, &dst)
+		}
+	} else if item, ok := textures["attract"]; ok {
+		C.SDL_DestroyTexture(item.tex)
+		delete(textures, "attract")
+	}
+	title := strings.TrimSpace(snap.Attract.Title)
+	if title == "" {
+		title = strings.TrimSpace(snap.Attract.GameID)
+	}
+	if title != "" && titleH > 0 {
+		drawLabel(renderer, labels, used, "attract-title", x+24, y+stageH+12, w-48, 28, title)
+	}
+	for key, item := range labels {
+		if _, ok := used[key]; ok {
+			continue
+		}
+		C.SDL_DestroyTexture(item.tex)
+		delete(labels, key)
+	}
+	C.SDL_RenderPresent(renderer)
 }
 
 func fillRect(renderer *C.SDL_Renderer, x, y, w, h float32, r, g, b, a uint8) {

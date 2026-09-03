@@ -43,6 +43,9 @@ func TestCommandFromKeyAndStick(t *testing.T) {
 	if CommandFromKey("c") != CmdViewNext || CommandFromKey("v") != CmdFavorite || CommandFromKey("*") != CmdFavorite {
 		t.Fatal("collection keyboard mapping")
 	}
+	if CommandFromKey("-") != CmdSafeAreaOut || CommandFromKey("=") != CmdSafeAreaIn || CommandFromKey("plus") != CmdSafeAreaIn {
+		t.Fatal("safe-area keyboard mapping")
+	}
 	if CommandFromStick(20000, 0) != CmdRight || CommandFromStick(0, -20000) != CmdUp {
 		t.Fatal("stick mapping")
 	}
@@ -254,6 +257,25 @@ func TestHoldGateNorthLongPressFavorites(t *testing.T) {
 	}
 	if got := g.Release(CmdSearch, now.Add(40*time.Millisecond)); got != CmdSearch {
 		t.Fatalf("short release = %s", got)
+	}
+}
+
+func TestHoldBeginNotesActivitySoAttractDoesNotStart(t *testing.T) {
+	t.Parallel()
+	app := catalogApp(3)
+	app.attractIdle = 20 * time.Millisecond
+	app.attractIdleReady = true
+	app.lastInput = time.Unix(0, 0)
+	held := map[Command]bool{}
+	now := time.Unix(1, 0)
+	if applyPressed(app, map[Command]bool{CmdSelect: true}, held, now) {
+		t.Fatal("quit")
+	}
+	if app.lastInput != now {
+		t.Fatalf("lastInput = %s want %s", app.lastInput, now)
+	}
+	if len(app.hold.pending) != 1 {
+		t.Fatalf("pending = %#v", app.hold.pending)
 	}
 }
 

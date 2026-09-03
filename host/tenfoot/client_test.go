@@ -422,6 +422,69 @@ func TestPreferLaunchableCopiesFavorite(t *testing.T) {
 	}
 }
 
+func TestClientAttractPlaylist(t *testing.T) {
+	t.Parallel()
+	backdrop := strings.Repeat("ab", 32)
+	cover := strings.Repeat("cd", 32)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/library/attract" {
+			t.Errorf("path = %s", r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		if r.URL.Query().Get("limit") != "24" {
+			t.Errorf("limit = %s", r.URL.Query().Get("limit"))
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"idle_seconds": 45,
+			"items": []map[string]any{{
+				"game_id":    "snes-mario",
+				"title":      "Mario",
+				"platform":   "snes",
+				"backdrop":   backdrop,
+				"cover":      cover,
+				"launchable": true,
+			}},
+		})
+	}))
+	t.Cleanup(server.Close)
+	playlist, err := NewClient(server.URL, server.Client()).Attract(context.Background(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if playlist.IdleSeconds != 45 || len(playlist.Items) != 1 {
+		t.Fatalf("playlist = %#v", playlist)
+	}
+	item := playlist.Items[0]
+	if item.StillHandle() != backdrop {
+		t.Fatalf("still handle = %q want backdrop", item.StillHandle())
+	}
+}
+
+func TestAttractStillHandlePrefersBackdropThenCoverThenMarquee(t *testing.T) {
+	t.Parallel()
+	backdrop := strings.Repeat("aa", 32)
+	cover := strings.Repeat("bb", 32)
+	marquee := strings.Repeat("cc", 32)
+	video := strings.Repeat("dd", 32)
+	item := AttractItem{Video: video, Cover: cover, Backdrop: backdrop, Marquee: marquee}
+	if item.StillHandle() != backdrop {
+		t.Fatalf("got %q", item.StillHandle())
+	}
+	item.Backdrop = ""
+	if item.StillHandle() != cover {
+		t.Fatalf("cover fallback = %q", item.StillHandle())
+	}
+	item.Cover = ""
+	if item.StillHandle() != marquee {
+		t.Fatalf("marquee fallback = %q", item.StillHandle())
+	}
+	item.Marquee = ""
+	if item.StillHandle() != "" {
+		t.Fatalf("video must not be a still handle, got %q", item.StillHandle())
+	}
+}
+
 func TestNormalizeHandleRejectsShortValues(t *testing.T) {
 	t.Parallel()
 	if got := normalizeHandle("abc"); got != "" {

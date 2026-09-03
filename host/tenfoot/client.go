@@ -98,6 +98,52 @@ type Collection struct {
 	CreatedAt int64  `json:"created_at,omitempty"`
 }
 
+const (
+	defaultAttractLimit       = 24
+	defaultAttractIdleSeconds = 60
+)
+
+// AttractItem is one row from GET /api/v1/library/attract.
+type AttractItem struct {
+	GameID     string `json:"game_id"`
+	Title      string `json:"title"`
+	Platform   string `json:"platform"`
+	Video      string `json:"video,omitempty"`
+	Cover      string `json:"cover,omitempty"`
+	Backdrop   string `json:"backdrop,omitempty"`
+	Marquee    string `json:"marquee,omitempty"`
+	Launchable bool   `json:"launchable"`
+}
+
+// AttractPlaylist is the attract response, including host idle_seconds.
+type AttractPlaylist struct {
+	Items       []AttractItem `json:"items"`
+	IdleSeconds int           `json:"idle_seconds"`
+}
+
+// StillHandle prefers backdrop, then cover, then marquee. Video is ignored.
+func (item AttractItem) StillHandle() string {
+	handles := item.stillHandles()
+	if len(handles) == 0 {
+		return ""
+	}
+	return handles[0]
+}
+
+func (item AttractItem) stillHandles() []string {
+	out := make([]string, 0, 3)
+	seen := map[string]bool{}
+	for _, handle := range []string{item.Backdrop, item.Cover, item.Marquee} {
+		got := normalizeHandle(handle)
+		if got == "" || seen[got] {
+			continue
+		}
+		seen[got] = true
+		out = append(out, got)
+	}
+	return out
+}
+
 // GameListQuery is GET /api/v1/games with the web UI's catalog params.
 type GameListQuery struct {
 	Cursor     string
@@ -348,6 +394,24 @@ func CoverHandle(game Game, presentation Presentation) string {
 		return ""
 	}
 	return normalizeHandle(presentation.Presentation.CoverArtworkID)
+}
+
+// Attract loads GET /api/v1/library/attract?limit=N.
+func (c *Client) Attract(ctx context.Context, limit int) (AttractPlaylist, error) {
+	if limit <= 0 {
+		limit = defaultAttractLimit
+	}
+	var page AttractPlaylist
+	if err := c.getJSON(ctx, "/api/v1/library/attract?limit="+strconv.Itoa(limit), &page); err != nil {
+		return AttractPlaylist{}, err
+	}
+	if page.Items == nil {
+		page.Items = []AttractItem{}
+	}
+	if page.IdleSeconds <= 0 {
+		page.IdleSeconds = defaultAttractIdleSeconds
+	}
+	return page, nil
 }
 
 // Artwork fetches raw cover bytes from GET /api/v1/presentation/artwork/{handle}.

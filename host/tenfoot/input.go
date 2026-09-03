@@ -23,6 +23,8 @@ const (
 	CmdViewPicker
 	CmdFavorite
 	CmdStop
+	CmdSafeAreaIn
+	CmdSafeAreaOut
 )
 
 // Button is a gamepad-first control, independent of SDL.
@@ -113,6 +115,10 @@ func CommandFromKey(name string) Command {
 		return CmdViewNext
 	case "v", "*":
 		return CmdFavorite
+	case "-", "minus":
+		return CmdSafeAreaOut
+	case "=", "plus", "equals":
+		return CmdSafeAreaIn
 	default:
 		return CmdNone
 	}
@@ -251,9 +257,16 @@ func isHoldable(cmd Command) bool {
 // navigation repeat continues (Repeater tracks only one command). Re-arm does
 // not call Press: that would walk focus and restart repeat after South/East.
 func applyPressed(app *App, pressed, held map[Command]bool, now time.Time) bool {
-	gate := !app.SearchOpen() && !app.ViewPickerOpen()
+	gate := !app.SearchOpen() && !app.ViewPickerOpen() && !app.AttractActive()
 	for cmd := range held {
 		if !pressed[cmd] {
+			if app.AttractActive() {
+				app.DismissAttract(now)
+				app.hold.Cancel(cmd)
+				app.Release(cmd)
+				delete(held, cmd)
+				continue
+			}
 			if fired := app.hold.Release(cmd, now); fired != CmdNone {
 				app.Press(fired, now)
 			}
@@ -269,6 +282,7 @@ func applyPressed(app *App, pressed, held map[Command]bool, now time.Time) bool 
 			return true
 		}
 		if app.hold.Begin(cmd, now, gate) {
+			app.NoteActivity(now)
 			held[cmd] = true
 			continue
 		}
@@ -321,6 +335,10 @@ func (c Command) String() string {
 		return "favorite"
 	case CmdStop:
 		return "stop"
+	case CmdSafeAreaIn:
+		return "safe-area-in"
+	case CmdSafeAreaOut:
+		return "safe-area-out"
 	default:
 		return "none"
 	}
@@ -356,6 +374,14 @@ func (g *HoldGate) Begin(cmd Command, now time.Time, gate bool) bool {
 	}
 	g.pending[cmd] = holdState{since: now}
 	return true
+}
+
+func (g *HoldGate) Cancel(cmd Command) {
+	delete(g.pending, cmd)
+}
+
+func (g *HoldGate) Clear() {
+	g.pending = nil
 }
 
 func (g *HoldGate) Release(cmd Command, now time.Time) Command {

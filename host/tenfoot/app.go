@@ -204,6 +204,8 @@ type Snapshot struct {
 	Views           []LibraryView
 	Session         SessionSnapshot
 	GPUParked       bool
+	Attract         AttractSnapshot
+	SafeAreaPct     float64
 }
 
 // App owns catalog, focus, async covers, and host launch. SDL stays out.
@@ -259,6 +261,28 @@ type App struct {
 	stopMessage     string
 	gpuParked       bool
 	sessionKick     chan struct{}
+
+	safeAreaPct        float64
+	prefsPath          string
+	attractDisabled    bool
+	attractIdle        time.Duration
+	attractCycle       time.Duration
+	attractIdleSeconds int
+	attractIdleReady   bool
+	attractIdleAt      time.Time
+	attractIdleRefresh time.Duration
+	attractTried       map[string]bool
+	lastInput          time.Time
+	attractActive      bool
+	attractItems       []AttractItem
+	attractIndex       int
+	attractImage       *image.RGBA
+	attractHandle      string
+	attractTitle       string
+	attractLoading     bool
+	attractGen         int
+	attractCycleAt     time.Time
+	attractResults     chan attractResult
 }
 
 // NewApp builds a launcher model bound to the host API client.
@@ -289,6 +313,9 @@ func NewApp(client *Client, width, height, maxGames int) *App {
 		collectionsKick: make(chan struct{}, 1),
 		sessionKick:     make(chan struct{}, 1),
 		stopPhase:       "idle",
+		attractIdle:     attractIdleDuration(defaultAttractIdleSeconds),
+		attractCycle:    defaultAttractCycle,
+		attractResults:  make(chan attractResult, 4),
 	}
 }
 
@@ -303,6 +330,7 @@ func (a *App) Start(parent context.Context) {
 	a.ctx = ctx
 	a.cancel = cancel
 	a.loading = true
+	a.lastInput = time.Now()
 	a.loadGen++
 	gen := a.loadGen
 	loadCtx := a.replaceLoadContextLocked()
@@ -314,6 +342,7 @@ func (a *App) Start(parent context.Context) {
 	go a.loadCollections(ctx)
 	go a.pollSession(ctx)
 	go a.loadLibrary(loadCtx, gen)
+	go a.hydrateAttractIdle(ctx)
 }
 
 // Stop cancels background work.
@@ -333,6 +362,20 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	a.noteActivityLocked(now)
+	if a.consumeAttractLocked(cmd, now) {
+		return
+	}
+	switch cmd {
+	case CmdSafeAreaIn:
+		a.setSafeAreaPctLocked(a.safeAreaPct+safeAreaNudge, true)
+		a.status = fmt.Sprintf("safe-area %.1f%%", a.safeAreaPct*100)
+		return
+	case CmdSafeAreaOut:
+		a.setSafeAreaPctLocked(a.safeAreaPct-safeAreaNudge, true)
+		a.status = fmt.Sprintf("safe-area %.1f%%", a.safeAreaPct*100)
+		return
+	}
 	if a.viewPickerOpen {
 		a.handleViewPickerLocked(cmd)
 		return
@@ -344,7 +387,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 			return
 		case CmdSelect:
 			return
-		case CmdUp, CmdDown, CmdLeft, CmdRight, CmdFilterPrev, CmdFilterNext, CmdSortCycle, CmdSearch, CmdViewPrev, CmdViewNext, CmdViewPicker, CmdFavorite:
+		case CmdUp, CmdDown, CmdLeft, CmdRight, CmdFilterPrev, CmdFilterNext, CmdSortCycle, CmdSearch, CmdViewPrev, CmdViewNext, CmdViewPicker, CmdFavorite, CmdSafeAreaIn, CmdSafeAreaOut:
 			return
 		}
 	}
@@ -408,6 +451,10 @@ func (a *App) TypeText(text string, now time.Time) {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	a.noteActivityLocked(now)
+	if a.consumeAttractLocked(CmdNone, now) {
+		return
+	}
 	if !a.searchOpen {
 		return
 	}
@@ -419,6 +466,10 @@ func (a *App) TypeText(text string, now time.Time) {
 func (a *App) SearchBackspace(now time.Time) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	a.noteActivityLocked(now)
+	if a.consumeAttractLocked(CmdBack, now) {
+		return
+	}
 	if !a.searchOpen || a.query == "" {
 		return
 	}
@@ -735,6 +786,13 @@ func (a *App) replaceLoadContextLocked() context.Context {
 	}
 }
 
+// NoteActivity records input so idle/attract timers reset.
+func (a *App) NoteActivity(now time.Time) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.noteActivityLocked(now)
+}
+
 // Press records a button down, including hold-repeat bookkeeping.
 func (a *App) Press(cmd Command, now time.Time) Command {
 	fired := a.repeat.Down(cmd, now)
@@ -752,8 +810,10 @@ func (a *App) Release(cmd Command) {
 // Tick drains async work and queues visible covers. It must not block.
 func (a *App) Tick(now time.Time) Command {
 	a.drainResults()
+	a.drainAttractResults()
 	a.mu.Lock()
 	a.flushSearchLocked(now)
+	a.tickAttractLocked(now)
 	a.mu.Unlock()
 	a.queueVisibleWork(now)
 	if cmd := a.hold.Tick(now); cmd != CmdNone {
@@ -829,6 +889,8 @@ func (a *App) Snapshot() Snapshot {
 		Views:           a.viewChoicesLocked(),
 		Session:         a.sessionSnapshotLocked(),
 		GPUParked:       a.gpuParked,
+		Attract:         a.attractSnapshotLocked(),
+		SafeAreaPct:     a.safeAreaPct,
 	}
 }
 
@@ -1004,7 +1066,13 @@ func (a *App) startLaunchLocked() {
 		a.launch = LaunchSnapshot{Phase: "error", Message: "no title selected"}
 		return
 	}
-	game := a.games[a.grid.Focus]
+	a.startLaunchGameLocked(a.games[a.grid.Focus])
+}
+
+func (a *App) startLaunchGameLocked(game Game) {
+	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() {
+		return
+	}
 	if reason := launchBlockReason(game); reason != "" {
 		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: reason}
 		return
@@ -1205,6 +1273,7 @@ func (a *App) syncGPUParkLocked() {
 	if !want {
 		return
 	}
+	a.hideAttractLocked()
 	a.viewPickerOpen = false
 	a.searchOpen = false
 	a.inflight = map[string]workKind{}
@@ -1761,7 +1830,7 @@ func schedulePresentationRetry(slot *coverSlot) {
 
 func (a *App) queueVisibleWork(now time.Time) {
 	a.mu.Lock()
-	if a.gpuParked {
+	if a.gpuParked || a.attractActive {
 		a.mu.Unlock()
 		return
 	}

@@ -76,12 +76,16 @@ Native SDL3 UI
   -> PUT or DELETE /api/v1/library/favorites/{id} for the focused title
   -> GET /api/v1/presentation/artwork/{handle} from catalog cover handles
   -> GET /api/v1/presentation/games/{id} for the focused title
+  -> GET /api/v1/library/attract (idle stills; artwork via the same presentation artwork GET)
   -> POST /api/v1/session/launch
   -> GET /api/v1/session (poll; now-playing)
   -> POST /api/v1/session/stop
   -> host session service
   -> existing FPGA launch path
 ```
+
+TV overscan insets are local to the tenfoot process (CLI `-safe-area` and optional
+`tenfoot.json` prefs). There is no host safe-area API.
 
 Source entry points are `host/tenfoot/` and `cmd/fogcast-tenfoot`. The browser
 shell remains the default UI. Build and run notes are in
