@@ -34,6 +34,13 @@ roles:
   production profile is `megadrive`, whose image-owned core path is
   `/usr/share/mister-runtime/cores/megadrive.rbf`.
 
+ADV7513 programming lives in `src/native/adv7513.hpp`. Register addresses,
+bitfields, and CEA-861 AVI/VIC values are named from the public ADV7513
+datasheet and Programming Guide. Analog Devices "must be set" bytes stay
+under `adv7513::adi_required` because those internals are not documented.
+`Menu720p60Recipe()` composes those named writes; the I2C byte sequence is
+unchanged from the known-working Main table.
+
 The library does not own a network API, catalogue, transfer cache, or host
 session. A future target agent integration belongs outside this repository
 and will call the daemon over `/run/mister-runtime.sock`.
@@ -55,7 +62,7 @@ open locked idle RBF
   -> toggle the FPGA core-ID strobe and sample GPI
   -> assert menu-core software reset over user-I/O SPI
   -> probe and require core identity MENU
-  -> locate ADV7513 address 0x39 on /dev/i2c-0 through /dev/i2c-2
+  -> locate ADV7513 main map 0x39 (PD/AD low, Programming Guide 0x72) on /dev/i2c-0 through /dev/i2c-2
   -> apply the fixed ADV7513 initialization
   -> send the fixed 1280x720@60 timing and PLL words
   -> apply the fixed 720p ADV7513 mode registers

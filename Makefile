@@ -75,6 +75,7 @@ TEST_BINS := \
 	$(BUILD_DIR)/tests/unit/off_t_test \
 	$(BUILD_DIR)/tests/unit/spi_test \
 	$(BUILD_DIR)/tests/unit/video_recipe_test \
+	$(BUILD_DIR)/tests/unit/adv7513_test \
 	$(BUILD_DIR)/tests/unit/i2c_test \
 	$(BUILD_DIR)/tests/unit/input_test \
 	$(BUILD_DIR)/tests/unit/video_test \
@@ -157,10 +158,16 @@ $(BUILD_DIR)/tests/unit/spi_test: tests/unit/spi_test.cpp \
 		tests/support/fake_mmio.cpp src/native/linux/spi.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/video_recipe_test: tests/unit/video_recipe_test.cpp \
-		src/native/video_recipe.hpp src/native/video_recipe.cpp
+		src/native/video_recipe.hpp src/native/video_recipe.cpp \
+		src/native/adv7513.hpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/video_recipe_test.cpp \
 		src/native/video_recipe.cpp -o "$@"
+
+$(BUILD_DIR)/tests/unit/adv7513_test: tests/unit/adv7513_test.cpp \
+		src/native/adv7513.hpp src/native/video_recipe.hpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/adv7513_test.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/i2c_test: tests/unit/i2c_test.cpp \
 		src/native/linux/i2c.hpp src/native/linux/i2c.cpp
@@ -370,13 +377,19 @@ archive-audit: $(ARCHIVE)
 		echo "native hardware dependency closure omits video" >&2; \
 		exit 1; \
 	}; \
-	for header in src/native/video_recipe.hpp src/native/core_loader.hpp \
+	for header in src/native/video_recipe.hpp src/native/adv7513.hpp \
+		src/native/core_loader.hpp \
 		src/native/linux/spi.hpp src/native/linux/i2c.hpp; do \
 		grep -F "$$header" "$(BUILD_DIR)/src/native/video.d" >/dev/null || { \
 			echo "video dependency closure omits $$header" >&2; \
 			exit 1; \
 		}; \
 	done; \
+	grep -F 'src/native/adv7513.hpp' "$(BUILD_DIR)/src/native/video_recipe.d" \
+		>/dev/null || { \
+		echo "video recipe dependency closure omits adv7513" >&2; \
+		exit 1; \
+	}; \
 	for header in src/native/linux/i2c.hpp src/native/video.hpp \
 		src/native/video_recipe.hpp; do \
 		grep -F "$$header" "$(BUILD_DIR)/src/linux/production_hardware.d" >/dev/null || { \
