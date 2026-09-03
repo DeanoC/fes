@@ -27,9 +27,16 @@ struct VideoResult {
 	std::uint8_t link_status = 0;
 };
 
+struct VideoQuiesceResult {
+	Error error;
+	bool mutation_attempted = false;
+};
+
 class VideoBringup {
 public:
 	virtual ~VideoBringup() {}
+	virtual VideoQuiesceResult Quiesce(
+		std::uint64_t absolute_deadline_ms) = 0;
 	virtual VideoResult BringUp(const std::string& expected_core,
 		std::uint64_t absolute_deadline_ms) = 0;
 };
@@ -38,6 +45,7 @@ class FixedVideoBringup final {
 public:
 	FixedVideoBringup(Spi&, I2c&, Clock&, LogSink&, const VideoRecipe&);
 	VideoResult BringUp(std::uint64_t absolute_deadline_ms);
+	VideoQuiesceResult Quiesce(std::uint64_t absolute_deadline_ms);
 
 private:
 	VideoResult PhaseFailure(const char*, const Error&,
@@ -53,6 +61,8 @@ class MenuVideoBringup final : public VideoBringup {
 public:
 	MenuVideoBringup(CoreLoader&, Spi&, I2c&, Clock&, LogSink&,
 		const VideoRecipe&);
+	VideoQuiesceResult Quiesce(
+		std::uint64_t absolute_deadline_ms) override;
 	VideoResult BringUp(const std::string& expected_core,
 		std::uint64_t absolute_deadline_ms) override;
 

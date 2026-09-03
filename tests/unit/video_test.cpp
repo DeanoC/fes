@@ -411,6 +411,71 @@ void TestFixedGameVideoNeutralizesGenericResetBeforeStatusRelease()
 	++scenarios;
 }
 
+void TestQuiesceUsesOneReadModifyWriteWithTheCallerDeadline()
+{
+	Fixture menu;
+	menu.i2c.detection_value = 0x15;
+	const mister::native::VideoQuiesceResult menu_result =
+		menu.video.Quiesce(kDeadline);
+	assert(menu_result.error.ok());
+	assert(menu_result.mutation_attempted);
+	assert(menu.spi.calls.empty());
+	assert(menu.i2c.calls.size() == 2);
+	assert(menu.i2c.calls[0].type == mister_test::FakeI2c::CallType::select);
+	assert(menu.i2c.calls[0].address == 0x39);
+	assert(menu.i2c.calls[0].value == 0x41);
+	assert(menu.i2c.calls[1].type == mister_test::FakeI2c::CallType::write);
+	assert(menu.i2c.calls[1].address == 0x41);
+	assert(menu.i2c.calls[1].value == 0x55);
+	for (const auto& call : menu.i2c.calls) assert(call.deadline == kDeadline);
+
+	Fixture game_fixture;
+	game_fixture.i2c.detection_value = 0x10;
+	mister::native::FixedVideoBringup game(game_fixture.spi, game_fixture.i2c,
+		game_fixture.clock, game_fixture.log,
+		mister::native::Menu720p60Recipe());
+	const mister::native::VideoQuiesceResult game_result = game.Quiesce(kDeadline);
+	assert(game_result.error.ok());
+	assert(game_result.mutation_attempted);
+	assert(game_fixture.i2c.calls.size() == 2);
+	assert(game_fixture.i2c.calls[1].address == 0x41);
+	assert(game_fixture.i2c.calls[1].value == 0x50);
+	++scenarios;
+}
+
+void TestQuiesceFailureStopsAtTheExactBoundedAttempt()
+{
+	Fixture expired({100});
+	const mister::native::VideoQuiesceResult expired_result =
+		expired.video.Quiesce(kDeadline);
+	assert(expired_result.error.code ==
+		mister::ErrorCode::io_failed);
+	assert(!expired_result.mutation_attempted);
+	assert(expired.i2c.calls.empty());
+
+	Fixture selection;
+	selection.i2c.select_error = {
+		mister::ErrorCode::io_failed, "scripted quiesce selection failure"};
+	const mister::native::VideoQuiesceResult select_result =
+		selection.video.Quiesce(kDeadline);
+	assert(select_result.error.code == mister::ErrorCode::io_failed);
+	assert(select_result.error.message == "scripted quiesce selection failure");
+	assert(!select_result.mutation_attempted);
+	assert(selection.i2c.calls.size() == 1);
+
+	Fixture write;
+	write.i2c.fail_write_index = 0;
+	const mister::native::VideoQuiesceResult write_result =
+		write.video.Quiesce(kDeadline);
+	assert(write_result.error.code == mister::ErrorCode::io_failed);
+	assert(write_result.error.message == "scripted I2C write failure");
+	assert(write_result.mutation_attempted);
+	assert(write.i2c.calls.size() == 2);
+	assert(write.i2c.calls[1].address == 0x41);
+	assert(write.i2c.calls[1].value == 0x40);
+	++scenarios;
+}
+
 mister::Error RunPostProgramComponents(ChronologyFixture& fixture)
 {
 	const mister::CoreRecipe recipe = {0x0001, 0x0001, 0x0000,
@@ -1080,6 +1145,8 @@ void TestFixedVideoRequiresBothHpdAndMonitorSenseBeforeReady()
 
 int main()
 {
+	TestQuiesceUsesOneReadModifyWriteWithTheCallerDeadline();
+	TestQuiesceFailureStopsAtTheExactBoundedAttempt();
 	TestFixedGameVideoNeutralizesGenericResetBeforeStatusRelease();
 	TestSuccessUsesExactOrderWireRequestsDeadlineDiagnosticsAndLogs();
 	TestExpiredBeforeResetMakesNoHardwareCall();

@@ -27,9 +27,12 @@ including a software-tested fixed menu-core 1280x720@60 video path. This idle
 baseline is not a game-system row or a hardware pass. Physical status awaits
 later evidence from an exact pinned FogCast image; hardware-supported systems
 remain zero. The Mega Drive software result covers runtime validation, exact
-core/media/video/input ordering, bounded fault cleanup, Stop, and immediate
-relaunch under host tests. It does not claim visible HDMI or playable input on
-a physical MiSTer. Audio, saves, six-button input, multiplayer, remapping,
+core/media/video/input ordering, bounded ADV7513 main-power quiesce before
+supported FPGA core transitions, bounded fault cleanup, Stop, and immediate
+relaunch under host tests. Failed quiesce writes are treated as hardware
+mutations and enter the existing idle cleanup path. This does not claim visible
+HDMI or playable input on a physical MiSTer. Audio, saves, six-button input,
+multiplayer, remapping,
 hot-plug recovery, development-RBF loading/video acceptance, every other
 system, running-game restart preservation, conventional Main, transient MGLs,
 and automatic legacy fallback remain outside this slice. Change a row only in

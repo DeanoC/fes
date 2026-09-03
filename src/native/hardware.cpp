@@ -82,12 +82,18 @@ HardwareResult NativeHardware::LoadIdle()
 	Error error = OpenRBFArtifact(idle_rbf_, opener_, &artifact);
 	log_.Write({"start", "", "", "preflight", error});
 	if (!error.ok()) return {input_error.ok() ? error : input_error, false, ""};
+	const VideoQuiesceResult quiesced = idle_video_.Quiesce(
+		Deadline(clock_, timeouts_.video_ms));
+	error = quiesced.error;
+	log_.Write({"start", "", "", "hdmi_quiesce", error});
+	if (!error.ok()) return {input_error.ok() ? error : input_error,
+		quiesced.mutation_attempted, ""};
 	const NativeResult programmed = fpga_.Program(artifact,
 		Deadline(clock_, timeouts_.program_ms));
 	error = programmed.error.ok() ? Error{} : ProgramError(programmed.error);
 	log_.Write({"start", "", "", "program", error});
 	if (!error.ok()) return {input_error.ok() ? error : input_error,
-		programmed.mutation_attempted, ""};
+		quiesced.mutation_attempted || programmed.mutation_attempted, ""};
 	const VideoResult video = idle_video_.BringUp("MENU",
 		Deadline(clock_, timeouts_.video_ms));
 	if (!video.error.ok())
@@ -122,6 +128,16 @@ HardwareResult NativeHardware::Launch(const PreparedLaunch& launch,
 			return left.index < right.index;
 		});
 	log_.Write({"launch", launch.system, launch.expected_core, "preflight", {}});
+	const VideoQuiesceResult quiesced = game_video_.Quiesce(
+		Deadline(clock_, timeouts_.video_ms));
+	error = quiesced.error;
+	log_.Write({"launch", launch.system, launch.expected_core,
+		"hdmi_quiesce", error});
+	if (!error.ok()) {
+		const Error stopped = StopInput(input_deadline);
+		return {stopped.ok() ? error : stopped,
+			quiesced.mutation_attempted, ""};
+	}
 	const NativeResult programmed = fpga_.Program(artifacts.rbf,
 		Deadline(clock_, timeouts_.program_ms));
 	error = programmed.error.ok() ? Error{} : ProgramError(programmed.error);
@@ -131,7 +147,8 @@ HardwareResult NativeHardware::Launch(const PreparedLaunch& launch,
 			return {error, true, ""};
 		const Error stopped = StopInput(
 			Deadline(clock_, timeouts_.core_io_ms));
-		return {stopped.ok() ? error : stopped, false, ""};
+		return {stopped.ok() ? error : stopped,
+			quiesced.mutation_attempted, ""};
 	}
 
 	const std::uint64_t core_deadline = Deadline(clock_, timeouts_.core_io_ms);

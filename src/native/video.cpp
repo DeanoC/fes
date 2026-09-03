@@ -71,6 +71,24 @@ Error InitializeAdv(I2c& i2c, const VideoRecipe& recipe,
 	return i2c.ReadByte(adv7513::reg::kPower, &result->power_after, deadline);
 }
 
+VideoQuiesceResult QuiesceAdv(I2c& i2c, Clock& clock,
+	std::uint64_t deadline)
+{
+	if (clock.NowMs() >= deadline)
+		return {{ErrorCode::io_failed, "deadline exceeded"}, false};
+	std::string selected_bus;
+	std::uint8_t power = 0;
+	Error error = i2c.SelectFirst(adv7513::kMainMapAddress7Bit,
+		adv7513::reg::kPower, deadline, &selected_bus, &power);
+	if (!error.ok()) return {error, false};
+	// Present a clean link loss before the FPGA changes its pixel stream. The
+	// ADV7513 guide documents main power-down for this transition; preserve the
+	// other power-register bits exactly as its read-modify-write rule requires.
+	error = i2c.WriteByte(adv7513::reg::kPower,
+		static_cast<std::uint8_t>(power | adv7513::kPowerPowerDown), deadline);
+	return {error, true};
+}
+
 Error ApplyMode(Spi& spi, I2c& i2c, const VideoRecipe& recipe,
 	std::uint64_t deadline)
 {
@@ -126,6 +144,11 @@ FixedVideoBringup::FixedVideoBringup(Spi& spi, I2c& i2c, Clock& clock,
 	LogSink& log, const VideoRecipe& recipe)
 	: spi_(spi), i2c_(i2c), clock_(clock), log_(log), recipe_(recipe) {}
 
+VideoQuiesceResult FixedVideoBringup::Quiesce(std::uint64_t deadline)
+{
+	return QuiesceAdv(i2c_, clock_, deadline);
+}
+
 VideoResult FixedVideoBringup::PhaseFailure(const char* phase,
 	const Error& cause, const VideoResult& partial) const
 {
@@ -171,6 +194,11 @@ MenuVideoBringup::MenuVideoBringup(CoreLoader& core, Spi& spi, I2c& i2c,
 	Clock& clock, LogSink& log, const VideoRecipe& recipe)
 	: core_(core), spi_(spi), i2c_(i2c), clock_(clock), log_(log),
 	  recipe_(recipe) {}
+
+VideoQuiesceResult MenuVideoBringup::Quiesce(std::uint64_t deadline)
+{
+	return QuiesceAdv(i2c_, clock_, deadline);
+}
 
 VideoResult MenuVideoBringup::PhaseFailure(const char* phase,
 	const Error& cause, const VideoResult& partial) const
