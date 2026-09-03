@@ -537,6 +537,7 @@ const std::vector<std::string> kSuccessfulLaunch = {
 	"artifact.open:sonic2.bin",
 	"media.sort:1",
 	"fpga.program",
+	"core.sync",
 	"core.reset.assert",
 	"core.probe:MegaDrive",
 	"core.status.initial",
@@ -566,15 +567,45 @@ void TestLaunchUsesExactCoreRecipeAndExplicitMediaFormatInOrder()
 	assert(fixture.events[2] == "artifact.open:two.bin");
 	assert(fixture.events[3] == "artifact.open:zero.bin");
 	assert(Find(fixture.events, "fpga.program") == 5);
-	assert(Find(fixture.events, "core.reset.assert") == 6);
-	assert(Find(fixture.events, "core.probe:MegaDrive") == 7);
-	assert(Find(fixture.events, "core.status.initial") == 8);
+	assert(Find(fixture.events, "core.sync") == 6);
+	assert(Find(fixture.events, "core.reset.assert") == 7);
+	assert(Find(fixture.events, "core.probe:MegaDrive") == 8);
+	assert(Find(fixture.events, "core.status.initial") == 9);
 	assert(Find(fixture.events, "core.media.select:0") <
 		Find(fixture.events, "core.media.select:2"));
 	assert(Find(fixture.events, "input.neutral") <
 		Find(fixture.events, "core.reset.release"));
 	assert(Find(fixture.events, "core.reset.release") <
 		Find(fixture.events, "input.start:1"));
+}
+
+void TestLaunchSynchronizesTheProgrammedCoreBeforeAnyCoreIo()
+{
+	Fixture success;
+	const mister::HardwareResult result = success.hardware.Launch(
+		success.MegaDriveLaunch(), 1);
+	assert(result.error.ok());
+	assert(Count(success.events, "core.sync") == 1);
+	assert(Find(success.events, "fpga.program") <
+		Find(success.events, "core.sync"));
+	assert(Find(success.events, "core.sync") <
+		Find(success.events, "core.reset.assert"));
+
+	Fixture failure;
+	failure.spi.sync_error = {
+		mister::ErrorCode::io_failed, "injected core synchronization failure"};
+	const mister::HardwareResult failed = failure.hardware.Launch(
+		failure.MegaDriveLaunch(), 1);
+	assert(failed.error.code == mister::ErrorCode::io_failed);
+	assert(failed.error.message == "injected core synchronization failure");
+	assert(failed.mutation_attempted);
+	assert(Count(failure.events, "core.sync") == 1);
+	assert(Find(failure.events, "core.reset.assert") == failure.events.size());
+	assert(Find(failure.events, "core.probe:MegaDrive") == failure.events.size());
+	assert(Find(failure.events, "core.media.select:1") == failure.events.size());
+	assert(Find(failure.events, "video.adv.initialize") == failure.events.size());
+	assert(Find(failure.events, "core.reset.release") == failure.events.size());
+	assert(Find(failure.events, "input.start:1") == failure.events.size());
 }
 
 void TestRuntimeLaunchUsesTheCompleteProductionOrderBeforePublishingRunning()
@@ -654,7 +685,7 @@ void TestOversizedRomIsRejectedBeforeFpgaAndClosesPreflightInput()
 void TestEveryPostProgramPhaseFailureGetsOneIdleCleanup()
 {
 	const std::vector<std::string> phases = {
-		"program", "core.reset.assert", "core.probe:MegaDrive",
+		"program", "core.sync", "core.reset.assert", "core.probe:MegaDrive",
 		"core.status.initial", "core.media.select:1",
 		"core.media.extension:.bin", "core.media.enable",
 		"core.media.data:all bytes once", "core.media.complete",
@@ -667,6 +698,9 @@ void TestEveryPostProgramPhaseFailureGetsOneIdleCleanup()
 		fixture.Start();
 		if (phase == "program") {
 			fixture.native.fpga.fail_call = fixture.native.fpga.calls + 1;
+		} else if (phase == "core.sync") {
+			fixture.native.spi.sync_error = {
+				mister::ErrorCode::io_failed, "injected core failure"};
 		} else if (phase == "core.probe:MegaDrive") {
 			fixture.native.spi.probe_error = {
 				mister::ErrorCode::io_failed, "injected core failure"};
@@ -736,7 +770,7 @@ void TestStopOrdersInputBeforeIdleAndImmediateRelaunchIsFresh()
 	}));
 	fixture.native.events.clear();
 	std::vector<std::string> second = kSuccessfulLaunch;
-	second[20] = "input.start:2";
+	second[21] = "input.start:2";
 	assert(fixture.runtime.LaunchGame(fixture.Request()).ok());
 	assert(fixture.native.events == second);
 	assert(fixture.native.input.descriptors == std::vector<int>({1, 2}));
@@ -962,17 +996,19 @@ void TestNativeLoggingNamesPhasesAndConfirmedCore()
 	const auto records = fixture.log.records();
 	bool preflight = false;
 	bool program = false;
+	bool sync = false;
 	bool probe = false;
 	bool configure = false;
 	bool media = false;
 	for (const auto& record : records) {
 		preflight = preflight || record.phase == "preflight";
 		program = program || record.phase == "program";
+		sync = sync || (record.phase == "sync" && record.core == "MegaDrive");
 		probe = probe || (record.phase == "probe" && record.core == "MegaDrive");
 		configure = configure || record.phase == "configure";
 		media = media || record.phase == "media";
 	}
-	assert(preflight && program && probe && configure && media);
+	assert(preflight && program && sync && probe && configure && media);
 }
 
 void TestProductionConstructionOwnsRealIdleHardware()
@@ -1064,6 +1100,7 @@ void TestUnavailableHardwareRemainsFailureOnly()
 int main()
 {
 	TestLaunchUsesExactCoreRecipeAndExplicitMediaFormatInOrder();
+	TestLaunchSynchronizesTheProgrammedCoreBeforeAnyCoreIo();
 	TestRuntimeLaunchUsesTheCompleteProductionOrderBeforePublishingRunning();
 	TestAllInputAndArtifactPreflightCompletesBeforeProgramming();
 	TestOversizedRomIsRejectedBeforeFpgaAndClosesPreflightInput();
@@ -1086,6 +1123,6 @@ int main()
 	TestNativeLoggingNamesPhasesAndConfirmedCore();
 	TestProductionConstructionOwnsRealIdleHardware();
 	TestUnavailableHardwareRemainsFailureOnly();
-	puts("native_hardware_test: 23 passed");
+	puts("native_hardware_test: 24 passed");
 	return 0;
 }

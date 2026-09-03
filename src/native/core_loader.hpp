@@ -26,6 +26,7 @@ class CoreLoader {
 public:
 	explicit CoreLoader(Spi&);
 	CoreLoader(Spi&, ArtifactReader&);
+	Error Synchronize(std::uint64_t absolute_deadline_ms);
 	Error AssertReset(const CoreRecipe&, std::uint64_t absolute_deadline_ms);
 	Error Probe(std::string* observed_core,
 		std::uint64_t absolute_deadline_ms);
