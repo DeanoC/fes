@@ -212,6 +212,7 @@ public:
 		}
 		assert(address == 0x42);
 		events_.push_back("video.link.ready");
+		if (on_link_ready) on_link_ready();
 		if (fail_event == "video.link.ready") {
 			fail_event.clear();
 			return {mister::ErrorCode::io_failed, "injected game video failure"};
@@ -248,6 +249,7 @@ public:
 	std::string fail_event;
 	std::size_t write_calls = 0;
 	std::size_t fail_write_call = 0;
+	std::function<void()> on_link_ready;
 
 private:
 	std::vector<std::string>& events_;
@@ -328,7 +330,8 @@ public:
 
 class RecordingInput final : public mister::native::InputSession {
 public:
-	explicit RecordingInput(std::vector<std::string>& events) : events_(events) {}
+	RecordingInput(std::vector<std::string>& events,
+		const mister::native::Clock& clock) : events_(events), clock_(clock) {}
 	mister::Error Open(const mister::native::InputDeviceIdentity& identity,
 		const mister::InputRecipe& recipe, std::uint64_t deadline) override
 	{
@@ -357,6 +360,8 @@ public:
 	{
 		events_.push_back("input.neutral");
 		neutral_deadlines.push_back(deadline);
+		if (reject_expired_deadline && clock_.NowMs() >= deadline)
+			return {mister::ErrorCode::io_failed, "input deadline expired"};
 		return neutral_error;
 	}
 	mister::Error Stop(std::uint64_t deadline) override
@@ -391,8 +396,10 @@ public:
 	std::vector<std::uint64_t> neutral_deadlines;
 	std::vector<std::uint64_t> stop_deadlines;
 	std::vector<std::uint64_t> generations;
+	bool reject_expired_deadline = false;
 
 private:
+	const mister::native::Clock& clock_;
 	bool opened_ = false;
 	std::function<void(std::uint64_t, mister::Error)> callback_;
 };
@@ -415,7 +422,7 @@ struct Fixture {
 		  rom(temporary.File("sonic2.bin", "sonic")), opener(events), fpga(events),
 		  i2c(events), spi(events, i2c), core(spi), idle_video(events), clock(100),
 		  log(events), game_video(spi, i2c, clock, log,
-			mister::native::Menu720p60Recipe()), input(events),
+			mister::native::Menu720p60Recipe()), input(events, clock),
 		  input_identity({"FogCast Virtual Gamepad", 0x0006, 0x0000, 0x0001,
 			0x0001}), sink(),
 		  hardware(opener, fpga, core, idle_video, game_video, input,
@@ -866,6 +873,20 @@ void TestOneAbsoluteDeadlinePerNativeStage()
 	assert(fixture.idle_video.calls == 0);
 }
 
+void TestPostVideoCoreStageGetsFreshDeadline()
+{
+	Fixture fixture;
+	fixture.input.reject_expired_deadline = true;
+	fixture.i2c.on_link_ready = [&fixture] { fixture.clock.now_ = 10101; };
+	const mister::HardwareResult result = fixture.hardware.Launch(
+		fixture.Launch(), 1);
+	assert(result.error.ok());
+	assert(fixture.input.neutral_deadlines ==
+		std::vector<std::uint64_t>({20101}));
+	assert(!fixture.spi.deadlines.empty());
+	assert(fixture.spi.deadlines.back() == 20101);
+}
+
 void TestPreflightAndProgramFailuresUseExactMutationMapping()
 {
 	Fixture preflight;
@@ -1058,12 +1079,13 @@ int main()
 	TestIdleVideoFailureIsAttemptedIoFailureWithoutCleanup();
 	TestLaunchNeverCallsIdleVideo();
 	TestOneAbsoluteDeadlinePerNativeStage();
+	TestPostVideoCoreStageGetsFreshDeadline();
 	TestPreflightAndProgramFailuresUseExactMutationMapping();
 	TestEveryConcretePreflightRejectionPerformsZeroHardwareWork();
 	TestProbeMismatchAndIoRetainObservedCoreAndMutation();
 	TestNativeLoggingNamesPhasesAndConfirmedCore();
 	TestProductionConstructionOwnsRealIdleHardware();
 	TestUnavailableHardwareRemainsFailureOnly();
-	puts("native_hardware_test: 22 passed");
+	puts("native_hardware_test: 23 passed");
 	return 0;
 }

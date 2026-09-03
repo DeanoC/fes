@@ -170,12 +170,14 @@ HardwareResult NativeHardware::Launch(const PreparedLaunch& launch,
 	log_.Write({"launch", launch.system, observed, "video", error});
 	if (!error.ok()) return {error, true, observed};
 
-	error = input_.Neutralize(core_deadline);
+	const std::uint64_t post_video_deadline =
+		Deadline(clock_, timeouts_.core_io_ms);
+	error = input_.Neutralize(post_video_deadline);
 	if (!error.ok()) error = CoreIoError(error);
 	log_.Write({"launch", launch.system, observed, "input-neutral", error});
 	if (!error.ok()) return {error, true, observed};
 
-	error = core_.ReleaseReset(launch.core, core_deadline);
+	error = core_.ReleaseReset(launch.core, post_video_deadline);
 	if (!error.ok()) error = CoreIoError(error);
 	log_.Write({"launch", launch.system, observed, "release", error});
 	if (!error.ok()) return {error, true, observed};
