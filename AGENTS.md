@@ -24,6 +24,7 @@ These rules apply to all work in this repository.
   explicit approval.
 - Do not call this tree a catalog.
 - Tests are proportional: parse, validate, and oracle-diff the real
-  platform YAML. Do not invent a second SoC to prove the loader.
+  platform and system YAML. Do not invent a second SoC or a second
+  system to prove the loader.
 - Do not commit, push, or open a pull request without explicit user
   authorization, except the initial repository bootstrap.

@@ -22,39 +22,28 @@ func main() {
 func run(command string, args []string) error {
 	switch command {
 	case "validate":
-		platform, err := platformPath(args)
+		path, err := inputPath(args)
 		if err != nil {
 			return err
 		}
-		resolved, err := pack.LoadPlatform(platform)
+		id, err := validatePath(path)
 		if err != nil {
 			return err
 		}
-		if _, err := resolved.Symbols(); err != nil {
-			return err
-		}
-		fmt.Printf("ok %s\n", resolved.Platform.ID)
+		fmt.Printf("ok %s\n", id)
 		return nil
 	case "report":
-		platform, err := platformPath(args)
+		path, err := inputPath(args)
 		if err != nil {
 			return err
 		}
-		resolved, err := pack.LoadPlatform(platform)
-		if err != nil {
-			return err
-		}
-		return resolved.Report(os.Stdout)
+		return reportPath(path)
 	case "emit-cpp":
-		platform, err := platformPath(args)
+		path, err := inputPath(args)
 		if err != nil {
 			return err
 		}
-		resolved, err := pack.LoadPlatform(platform)
-		if err != nil {
-			return err
-		}
-		text, err := emitcpp.Generate(resolved)
+		text, err := emitPath(path)
 		if err != nil {
 			return err
 		}
@@ -62,29 +51,9 @@ func run(command string, args []string) error {
 		return nil
 	case "diff-oracle":
 		if len(args) < 2 {
-			return fmt.Errorf("usage: mister-packages diff-oracle <platform.yaml> <oracle.yaml>")
+			return fmt.Errorf("usage: mister-packages diff-oracle <package.yaml> <oracle.yaml>")
 		}
-		resolved, err := pack.LoadPlatform(args[0])
-		if err != nil {
-			return err
-		}
-		got, err := resolved.SymbolMap()
-		if err != nil {
-			return err
-		}
-		oracle, err := pack.LoadOracle(args[1])
-		if err != nil {
-			return err
-		}
-		problems := pack.DiffOracle(got, oracle)
-		if len(problems) > 0 {
-			for _, problem := range problems {
-				fmt.Fprintf(os.Stderr, "%s\n", problem)
-			}
-			return fmt.Errorf("%d oracle mismatch(es)", len(problems))
-		}
-		fmt.Printf("ok %d oracle constants (%s)\n", len(oracle.Constants), oracle.Source.Commit)
-		return nil
+		return diffOracle(args[0], args[1])
 	case "help", "-h", "--help":
 		usage()
 		return nil
@@ -94,22 +63,150 @@ func run(command string, args []string) error {
 	}
 }
 
-func platformPath(args []string) (string, error) {
+func inputPath(args []string) (string, error) {
 	if len(args) == 0 {
 		return "packages/platform/de10_nano.yaml", nil
 	}
 	return args[0], nil
 }
 
+func validatePath(path string) (string, error) {
+	kind, err := pack.PeekKind(path)
+	if err != nil {
+		return "", err
+	}
+	switch kind {
+	case "platform":
+		resolved, err := pack.LoadPlatform(path)
+		if err != nil {
+			return "", err
+		}
+		if _, err := resolved.Symbols(); err != nil {
+			return "", err
+		}
+		return resolved.Platform.ID, nil
+	case "system":
+		sys, err := pack.LoadSystem(path)
+		if err != nil {
+			return "", err
+		}
+		return sys.ID, nil
+	default:
+		return "", fmt.Errorf("%s: kind %q is not platform or system", path, kind)
+	}
+}
+
+func reportPath(path string) error {
+	kind, err := pack.PeekKind(path)
+	if err != nil {
+		return err
+	}
+	switch kind {
+	case "platform":
+		resolved, err := pack.LoadPlatform(path)
+		if err != nil {
+			return err
+		}
+		return resolved.Report(os.Stdout)
+	case "system":
+		sys, err := pack.LoadSystem(path)
+		if err != nil {
+			return err
+		}
+		return sys.Report(os.Stdout)
+	default:
+		return fmt.Errorf("%s: kind %q is not platform or system", path, kind)
+	}
+}
+
+func emitPath(path string) (string, error) {
+	kind, err := pack.PeekKind(path)
+	if err != nil {
+		return "", err
+	}
+	switch kind {
+	case "platform":
+		resolved, err := pack.LoadPlatform(path)
+		if err != nil {
+			return "", err
+		}
+		return emitcpp.Generate(resolved)
+	case "system":
+		sys, err := pack.LoadSystem(path)
+		if err != nil {
+			return "", err
+		}
+		return emitcpp.GenerateSystem(sys)
+	default:
+		return "", fmt.Errorf("%s: kind %q is not platform or system", path, kind)
+	}
+}
+
+func diffOracle(packagePath, oraclePath string) error {
+	kind, err := pack.PeekKind(packagePath)
+	if err != nil {
+		return err
+	}
+	switch kind {
+	case "platform":
+		resolved, err := pack.LoadPlatform(packagePath)
+		if err != nil {
+			return err
+		}
+		got, err := resolved.SymbolMap()
+		if err != nil {
+			return err
+		}
+		oracle, err := pack.LoadOracle(oraclePath)
+		if err != nil {
+			return err
+		}
+		problems := pack.DiffOracle(got, oracle)
+		if err := printProblems(problems); err != nil {
+			return err
+		}
+		fmt.Printf("ok %d oracle constants (%s)\n", len(oracle.Constants), oracle.Source.Commit)
+		return nil
+	case "system":
+		sys, err := pack.LoadSystem(packagePath)
+		if err != nil {
+			return err
+		}
+		oracle, err := pack.LoadSystemOracle(oraclePath)
+		if err != nil {
+			return err
+		}
+		problems := pack.DiffSystemOracle(sys, oracle)
+		if err := printProblems(problems); err != nil {
+			return err
+		}
+		fmt.Printf("ok %s profile (%s)\n", sys.ID, oracle.Source.Commit)
+		return nil
+	default:
+		return fmt.Errorf("%s: kind %q is not platform or system", packagePath, kind)
+	}
+}
+
+func printProblems(problems []string) error {
+	if len(problems) == 0 {
+		return nil
+	}
+	for _, problem := range problems {
+		fmt.Fprintf(os.Stderr, "%s\n", problem)
+	}
+	return fmt.Errorf("%d oracle mismatch(es)", len(problems))
+}
+
 func usage() {
-	fmt.Fprintf(os.Stderr, `mister-packages — validate and emit hardware packages
+	fmt.Fprintf(os.Stderr, `mister-packages — validate and emit hardware and system packages
 
 Commands:
-  validate [platform.yaml]
-  report [platform.yaml]
-  emit-cpp [platform.yaml]
-  diff-oracle <platform.yaml> <oracle.yaml>
+  validate [package.yaml]
+  report [package.yaml]
+  emit-cpp [package.yaml]
+  diff-oracle <package.yaml> <oracle.yaml>
 
-Default platform is packages/platform/de10_nano.yaml.
+Default package is packages/platform/de10_nano.yaml.
+Package kind is platform or system.
 `)
 }

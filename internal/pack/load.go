@@ -92,6 +92,55 @@ func LoadOracle(path string) (*OracleFile, error) {
 	return &oracle, nil
 }
 
+func PeekKind(path string) (string, error) {
+	var header struct {
+		Schema string `yaml:"schema"`
+		Kind   string `yaml:"kind"`
+	}
+	if err := readYAML(path, &header); err != nil {
+		return "", err
+	}
+	if header.Schema != SchemaV1 {
+		return "", fmt.Errorf("%s: schema %q want %q", path, header.Schema, SchemaV1)
+	}
+	if header.Kind == "" {
+		return "", fmt.Errorf("%s: missing kind", path)
+	}
+	return header.Kind, nil
+}
+
+func LoadSystem(path string) (*SystemFile, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	var sys SystemFile
+	if err := readYAML(abs, &sys); err != nil {
+		return nil, err
+	}
+	if err := checkHeader(sys.Schema, sys.Kind, "system", abs); err != nil {
+		return nil, err
+	}
+	if err := sys.Validate(); err != nil {
+		return nil, fmt.Errorf("%s: %w", abs, err)
+	}
+	return &sys, nil
+}
+
+func LoadSystemOracle(path string) (*SystemOracleFile, error) {
+	var oracle SystemOracleFile
+	if err := readYAML(path, &oracle); err != nil {
+		return nil, err
+	}
+	if oracle.Profile.System == "" {
+		return nil, fmt.Errorf("%s: missing profile.system", path)
+	}
+	if oracle.Source.Commit == "" {
+		return nil, fmt.Errorf("%s: missing source commit", path)
+	}
+	return &oracle, nil
+}
+
 func checkHeader(schema, kind, wantKind, path string) error {
 	if schema != SchemaV1 {
 		return fmt.Errorf("%s: schema %q want %q", path, schema, SchemaV1)

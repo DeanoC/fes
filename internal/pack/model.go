@@ -130,8 +130,74 @@ type OracleFile struct {
 }
 
 type OracleSource struct {
-	Repository string `yaml:"repository"`
-	Commit     string `yaml:"commit"`
+	Repository string   `yaml:"repository"`
+	Commit     string   `yaml:"commit"`
+	Files      []string `yaml:"files"`
+}
+
+type SystemFile struct {
+	Schema       string        `yaml:"schema"`
+	Kind         string        `yaml:"kind"`
+	ID           string        `yaml:"id"`
+	Description  string        `yaml:"description"`
+	ExpectedCore string        `yaml:"expected_core"`
+	RBF          RBFRef        `yaml:"rbf"`
+	Media        []MediaRule   `yaml:"media"`
+	Settings     []SettingRule `yaml:"settings"`
+	Core         CoreRecipe    `yaml:"core"`
+	Input        InputRecipe   `yaml:"input"`
+}
+
+type RBFRef struct {
+	Role     string `yaml:"role"`
+	Artifact string `yaml:"artifact"`
+}
+
+type MediaRule struct {
+	Role        string        `yaml:"role"`
+	Index       int           `yaml:"index"`
+	Required    bool          `yaml:"required"`
+	Extensions  []string      `yaml:"extensions"`
+	MaximumSize hexnum.Uint64 `yaml:"maximum_size"`
+}
+
+type SettingRule struct {
+	Name          string   `yaml:"name"`
+	AllowedValues []string `yaml:"allowed_values"`
+}
+
+type CoreRecipe struct {
+	ResetAssertWord   hexnum.Uint64 `yaml:"reset_assert_word"`
+	InitialStatusWord hexnum.Uint64 `yaml:"initial_status_word"`
+	ResetReleaseWord  hexnum.Uint64 `yaml:"reset_release_word"`
+	FileWire          string        `yaml:"file_wire"`
+}
+
+type InputRecipe struct {
+	PlayerCount   int           `yaml:"player_count"`
+	PlayerCommand hexnum.Uint64 `yaml:"player_command"`
+	Up            hexnum.Uint64 `yaml:"up"`
+	Down          hexnum.Uint64 `yaml:"down"`
+	Left          hexnum.Uint64 `yaml:"left"`
+	Right         hexnum.Uint64 `yaml:"right"`
+	A             hexnum.Uint64 `yaml:"a"`
+	B             hexnum.Uint64 `yaml:"b"`
+	C             hexnum.Uint64 `yaml:"c"`
+	Start         hexnum.Uint64 `yaml:"start"`
+}
+
+type SystemOracleFile struct {
+	Source  OracleSource `yaml:"source"`
+	Profile SystemOracle `yaml:"profile"`
+}
+
+type SystemOracle struct {
+	System       string      `yaml:"system"`
+	ExpectedCore string      `yaml:"expected_core"`
+	RBF          RBFRef      `yaml:"rbf"`
+	Media        []MediaRule `yaml:"media"`
+	Core         CoreRecipe  `yaml:"core"`
+	Input        InputRecipe `yaml:"input"`
 }
 
 // Resolved is a loaded platform with register banks attached.

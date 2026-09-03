@@ -4,7 +4,7 @@ Every package file starts with:
 
 ```yaml
 schema: mister-packages.v1
-kind: platform | board | soc | cpu | register_bank
+kind: platform | board | soc | cpu | register_bank | system
 id: unique.dot.or.slash.free.id
 ```
 
@@ -82,9 +82,53 @@ bitfield encoding (`kSdrFpgaPortsEnabled = 0x3fff`).
 `address_symbols` may list more than one name when two runtime headers
 share an address (`kFpgaGpoAddress` and `kSpiGpoAddress`).
 
+## system
+
+A runtime profile: expected core identity, RBF role and artifact name,
+media rules, reset/status words, and input masks. It is not a FogCast
+product row and it does not store an image install path.
+
+```yaml
+kind: system
+id: megadrive
+expected_core: MegaDrive
+rbf:
+  role: core
+  artifact: megadrive.rbf
+media:
+  - role: cartridge
+    index: 1
+    required: true
+    extensions: [.md, .gen, .bin]
+    maximum_size: 0x2000000
+core:
+  reset_assert_word: 0x0001
+  initial_status_word: 0x0001
+  reset_release_word: 0x0000
+  file_wire: little_endian_byte_pairs
+input:
+  player_count: 1
+  player_command: 0x02
+  up: 0x0008
+  down: 0x0004
+  left: 0x0002
+  right: 0x0001
+  a: 0x0010
+  b: 0x0020
+  c: 0x0040
+  start: 0x0080
+```
+
+`file_wire` is currently only `little_endian_byte_pairs`. Input masks
+must be unique powers of two. `player_count` is 1 because that is what
+the runtime profile accepts today.
+
+The image prefix (`/usr/share/mister-runtime/cores/`) is not a package
+field. FogCast aliases, covers, and library roots stay in FogCast.
+
 ## What is intentionally missing
 
 - Connections, prefabs, wildcards, and bus address allocation.
-- `system` packages (milestone 2).
+- SNES and further system packages.
 - Actions, templates, and git clones. Provenance belongs in a later
   explicit adapter file, not a shell recipe.

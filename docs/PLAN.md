@@ -3,26 +3,28 @@
 This is the working plan, not a promise that later milestones are
 implemented.
 
-## Milestone 1 — Cyclone V HPS map (current)
+## Milestone 1 — Cyclone V HPS map
 
 Encode the DE10-Nano / Cyclone V MMIO the native runtime uses, including
-bitfields, not just bank bases. `make test` must reproduce every symbol in
+bitfields, not just bank bases. `make test` reproduces every symbol in
 `testdata/oracles/libmister-runtime-fpga.yaml`.
 
 In scope: platform, board, SoC, CPU, register banks, `validate`,
 `report`, `emit-cpp`, `diff-oracle`.
 
-Out of scope: consumer patches, system profiles, ADV7513, a second board.
+Out of scope: consumer patches, ADV7513, a second board.
 
-## Milestone 2 — Mega Drive as a system package
+## Milestone 2 — Mega Drive as a system package (current)
 
-Add `packages/system/megadrive.yaml` for expected core, RBF role, media
-roles/indices/extensions, reset words, and input masks. Emit a C++ table
-the runtime could compile. Keep FogCast `systems/table.go` as the product
-table (aliases, covers, library roots).
+`packages/system/megadrive.yaml` holds expected core, RBF role/artifact,
+media roles/indices/extensions, reset words, and input masks. The emitter
+writes a C++ table the runtime could compile. FogCast `systems/table.go`
+stays the product table (aliases, covers, library roots). The image owns
+the absolute RBF path.
 
-Exit: fixture test against the current Mega Drive profile. SNES is not
-part of this milestone.
+Exit: `make test` diffs the package against
+`testdata/oracles/libmister-runtime-megadrive.yaml`. SNES is not part of
+this milestone.
 
 ## Milestone 3 — Consume in libmister-runtime
 
