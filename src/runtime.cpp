@@ -3,7 +3,10 @@
 
 #include "libmister-runtime/runtime.h"
 
+#include <condition_variable>
+#include <deque>
 #include <mutex>
+#include <thread>
 #include <utility>
 
 namespace mister {
@@ -33,11 +36,41 @@ bool ValidAbsolutePath(const std::string& path)
 
 } // namespace
 
-class Runtime::Impl {
+class Runtime::Impl final : public HardwareFaultSink {
 public:
 	Impl(Hardware& hardware, const Profiles& profiles, LogSink& log)
-		: mutex_(), hardware_(hardware), profiles_(profiles), log_(log), status_(),
-		  busy_(false), started_(false) {}
+		: mutex_(), condition_(), hardware_(hardware), profiles_(profiles),
+		  log_(log), status_(), faults_(), busy_(false), started_(false),
+		  stopping_(false), next_generation_(0), active_generation_(0),
+		  pending_fault_generation_(0), fault_thread_(&Impl::DrainFaults, this)
+	{
+		hardware_.SetFaultSink(this);
+	}
+
+	~Impl()
+	{
+		hardware_.SetFaultSink(nullptr);
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			stopping_ = true;
+			faults_.clear();
+		}
+		condition_.notify_all();
+		if (fault_thread_.joinable()) fault_thread_.join();
+	}
+
+	void ReportHardwareFault(HardwareFault fault) override
+	{
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			if (stopping_) return;
+			if (fault.generation != 0 &&
+				fault.generation == active_generation_)
+				pending_fault_generation_ = fault.generation;
+			faults_.push_back(std::move(fault));
+		}
+		condition_.notify_all();
+	}
 
 	void Log(const std::string& operation, const std::string& system,
 		const std::string& core, const std::string& phase, const Error& error = {})
@@ -86,6 +119,7 @@ public:
 			status_.state = State::idle;
 			busy_ = false;
 		}
+		condition_.notify_all();
 		Log("start", "", "", "idle");
 		return {};
 	}
@@ -127,8 +161,11 @@ public:
 			return validation;
 		}
 		Log("launch", prepared.system, prepared.expected_core, "validate");
+		std::uint64_t generation = 0;
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
+			generation = ++next_generation_;
+			active_generation_ = generation;
 			status_.state = State::starting;
 			status_.execution = Execution::game;
 			status_.system = prepared.system;
@@ -137,7 +174,7 @@ public:
 		}
 		Log("launch", prepared.system, prepared.expected_core, "starting");
 
-		HardwareResult result = hardware_.Launch(prepared);
+		HardwareResult result = hardware_.Launch(prepared, generation);
 		if (result.error.ok() && result.observed_core != prepared.expected_core) {
 			result.error = {ErrorCode::core_mismatch,
 				"observed core does not match profile"};
@@ -151,9 +188,13 @@ public:
 				status_.system = prepared.system;
 				status_.core = result.observed_core;
 				status_.error = {};
-				busy_ = false;
 			}
 			Log("launch", prepared.system, result.observed_core, "running");
+			{
+				std::lock_guard<std::mutex> lock(mutex_);
+				busy_ = false;
+			}
+			condition_.notify_all();
 			return {};
 		}
 		return FinishLaunchFailure("launch", prepared.system,
@@ -218,7 +259,7 @@ public:
 		bool return_immediately = false;
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
-			if (busy_ || !started_) {
+			if (busy_ || pending_fault_generation_ != 0 || !started_) {
 				immediate = {"stop", status_.system, status_.core, "validate",
 					Busy("runtime mutation is busy")};
 				return_immediately = true;
@@ -237,6 +278,7 @@ public:
 				return_immediately = true;
 			} else {
 				busy_ = true;
+				active_generation_ = 0;
 				status_.state = State::starting;
 				status_.execution = Execution::none;
 			}
@@ -265,6 +307,7 @@ public:
 			status_.state = State::idle;
 			busy_ = false;
 		}
+		condition_.notify_all();
 		Log("stop", "", "", "idle");
 		return {};
 	}
@@ -275,6 +318,11 @@ private:
 		const HardwareResult& result)
 	{
 		const Error primary = result.error;
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			active_generation_ = 0;
+			pending_fault_generation_ = 0;
+		}
 		Log(operation, system, core, "failure", primary);
 		if (!result.mutation_attempted) {
 			std::lock_guard<std::mutex> lock(mutex_);
@@ -282,6 +330,7 @@ private:
 			status_.state = State::idle;
 			status_.error = primary;
 			busy_ = false;
+			condition_.notify_all();
 			return primary;
 		}
 		Log(operation, system, core, "cleanup");
@@ -294,6 +343,7 @@ private:
 				status_.error = primary;
 				busy_ = false;
 			}
+			condition_.notify_all();
 			return primary;
 		}
 		const Error idle_error = IdleFailure(cleanup.error);
@@ -304,17 +354,82 @@ private:
 			status_.error = idle_error;
 			busy_ = false;
 		}
+		condition_.notify_all();
 		Log(operation, system, core, "cleanup", idle_error);
 		return idle_error;
 	}
 
+	void DrainFaults()
+	{
+		for (;;) {
+			HardwareFault fault;
+			std::string system;
+			std::string core;
+			{
+				std::unique_lock<std::mutex> lock(mutex_);
+				condition_.wait(lock, [this]() {
+					return stopping_ || (!busy_ && !faults_.empty());
+				});
+				if (stopping_) return;
+				fault = std::move(faults_.front());
+				faults_.pop_front();
+				if (fault.generation == 0 ||
+					fault.generation != active_generation_ ||
+					fault.generation != pending_fault_generation_ ||
+					status_.state != State::running_game)
+					continue;
+				busy_ = true;
+				active_generation_ = 0;
+				pending_fault_generation_ = 0;
+				system = status_.system;
+				core = status_.core;
+				status_.state = State::starting;
+				status_.execution = Execution::none;
+			}
+
+			Log("input_fault", system, core, "failure", fault.error);
+			Log("input_fault", system, core, "cleanup");
+			const HardwareResult cleanup = hardware_.LoadIdle();
+			if (cleanup.error.ok()) {
+				{
+					std::lock_guard<std::mutex> lock(mutex_);
+					status_ = {};
+					status_.state = State::idle;
+					status_.error = fault.error;
+					busy_ = false;
+				}
+				condition_.notify_all();
+				Log("input_fault", system, core, "idle", fault.error);
+				continue;
+			}
+
+			const Error idle_error = IdleFailure(cleanup.error);
+			{
+				std::lock_guard<std::mutex> lock(mutex_);
+				status_ = {};
+				status_.state = State::reboot_required;
+				status_.error = idle_error;
+				busy_ = false;
+			}
+			condition_.notify_all();
+			Log("input_fault", system, core, "cleanup", idle_error);
+		}
+	}
+
 	mutable std::mutex mutex_;
+	std::condition_variable condition_;
 	Hardware& hardware_;
 	const Profiles& profiles_;
 	LogSink& log_;
 	Status status_;
+	std::deque<HardwareFault> faults_;
 	bool busy_;
 	bool started_;
+	bool stopping_;
+	std::uint64_t next_generation_;
+	std::uint64_t active_generation_;
+	std::uint64_t pending_fault_generation_;
+	std::thread fault_thread_;
 };
 
 Runtime::Runtime(Hardware& hardware, const Profiles& profiles, LogSink& log)

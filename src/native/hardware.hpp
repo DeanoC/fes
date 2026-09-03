@@ -6,6 +6,7 @@
 #include "libmister-runtime/runtime.h"
 
 #include <cstdint>
+#include <mutex>
 #include <string>
 
 namespace mister {
@@ -14,6 +15,9 @@ namespace native {
 class Artifact;
 class ArtifactOpener;
 class CoreLoader;
+class FixedVideoBringup;
+class InputSession;
+struct InputDeviceIdentity;
 class VideoBringup;
 
 class Clock {
@@ -42,21 +46,32 @@ public:
 
 class NativeHardware final : public Hardware {
 public:
-	NativeHardware(ArtifactOpener&, FpgaManager&, CoreLoader&, VideoBringup&, Clock&,
+	NativeHardware(ArtifactOpener&, FpgaManager&, CoreLoader&, VideoBringup&,
+		FixedVideoBringup&, InputSession&, const InputDeviceIdentity&, Clock&,
 		LogSink&, std::string idle_rbf, NativeTimeouts);
+	~NativeHardware();
+	void SetFaultSink(HardwareFaultSink*) override;
 	HardwareResult LoadIdle() override;
-	HardwareResult Launch(const PreparedLaunch&) override;
+	HardwareResult Launch(const PreparedLaunch&, std::uint64_t generation) override;
 	HardwareResult LoadDevelopmentRBF(const std::string&) override;
 
 private:
+	Error StopInput(std::uint64_t absolute_deadline_ms);
+	void ForwardInputFault(std::uint64_t generation, Error);
 	ArtifactOpener& opener_;
 	FpgaManager& fpga_;
 	CoreLoader& core_;
-	VideoBringup& video_;
+	VideoBringup& idle_video_;
+	FixedVideoBringup& game_video_;
+	InputSession& input_;
+	const InputDeviceIdentity& input_identity_;
 	Clock& clock_;
 	LogSink& log_;
 	std::string idle_rbf_;
 	NativeTimeouts timeouts_;
+	std::mutex fault_sink_mutex_;
+	HardwareFaultSink* fault_sink_;
+	bool input_open_;
 };
 
 } // namespace native

@@ -3,13 +3,16 @@
 
 #include "capture_log.hpp"
 #include "fake_i2c.hpp"
+#include "native/artifacts.hpp"
 #include "native/core_loader.hpp"
 #include "native/linux/spi.hpp"
 #include "native/video.hpp"
 #include "native/video_recipe.hpp"
 
 #include <assert.h>
+#include <fcntl.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #include <algorithm>
 #include <cstddef>
@@ -147,6 +150,215 @@ struct Fixture {
 	mister_test::CaptureLog log;
 	mister::native::MenuVideoBringup video;
 };
+
+struct TempMedia {
+	TempMedia()
+	{
+		char pattern[] = "/tmp/libmister-video-sequence.XXXXXX.bin";
+		const int descriptor = mkstemps(pattern, 4);
+		assert(descriptor >= 0);
+		path = pattern;
+		const unsigned char bytes[] = {0x10, 0x32, 0x54, 0x76};
+		assert(write(descriptor, bytes, sizeof(bytes)) ==
+			static_cast<ssize_t>(sizeof(bytes)));
+		assert(close(descriptor) == 0);
+	}
+	~TempMedia() { assert(unlink(path.c_str()) == 0); }
+	std::string path;
+};
+
+struct AttemptGate {
+	mister::Error Call(const std::string& name)
+	{
+		attempts.push_back(name);
+		const std::size_t current = next++;
+		if (current == fail_at)
+			return {mister::ErrorCode::io_failed, "scripted component failure"};
+		return {};
+	}
+	std::size_t fail_at = std::numeric_limits<std::size_t>::max();
+	std::size_t next = 0;
+	std::vector<std::string> attempts;
+};
+
+class ChronologySpi final : public mister::native::Spi {
+public:
+	ChronologySpi(AttemptGate& gate, std::vector<std::string>& ledger)
+		: gate_(gate), ledger_(ledger) {}
+
+	mister::Error SynchronizeCore(std::uint64_t) override
+	{
+		return gate_.Call("spi:sync");
+	}
+
+	mister::Error Exchange(std::uint8_t target,
+		const std::vector<std::uint16_t>& request,
+		std::vector<std::uint16_t>* response, std::uint64_t) override
+	{
+		assert(!request.empty());
+		std::string attempt = "spi:unexpected";
+		if (target == mister::native::kUserIoTarget &&
+			request.size() == 9 && request[0] == 0x001e) {
+			attempt = status_count_ == 0 ? "spi:reset.assert" :
+				status_count_ == 1 ? "spi:status.initial" : "spi:reset.release";
+			ledger_.push_back(status_count_ == 0 ? "core.reset.assert" :
+				status_count_ == 1 ? "core.status.initial" :
+				"core.reset.release");
+			++status_count_;
+		} else if (target == mister::native::kUserIoTarget &&
+			request[0] == 0x0014) {
+			attempt = "spi:probe";
+			ledger_.push_back("core.probe:MegaDrive");
+		} else if (target == mister::native::kFileIoTarget &&
+			request[0] == 0x0055) {
+			attempt = "spi:media.select";
+			ledger_.push_back("core.media.select:" +
+				std::to_string(request.at(1)));
+		} else if (target == mister::native::kFileIoTarget &&
+			request[0] == 0x0056) {
+			assert(request ==
+				std::vector<std::uint16_t>({0x0056, 0x622e, 0x6e69}));
+			attempt = "spi:media.extension";
+			ledger_.push_back("core.media.extension:.bin");
+		} else if (target == mister::native::kFileIoTarget &&
+			request == std::vector<std::uint16_t>({0x0053, 0x00ff})) {
+			attempt = "spi:media.enable";
+			ledger_.push_back("core.media.enable");
+		} else if (target == mister::native::kFileIoTarget &&
+			request[0] == 0x0054) {
+			assert(request ==
+				std::vector<std::uint16_t>({0x0054, 0x3210, 0x7654}));
+			attempt = "spi:media.data";
+			ledger_.push_back("core.media.data:all bytes once");
+		} else if (target == mister::native::kUserIoTarget &&
+			request[0] == 0x0029) {
+			attempt = "spi:media.index.clear";
+		} else if (target == mister::native::kFileIoTarget &&
+			request == std::vector<std::uint16_t>({0x0053, 0x0000})) {
+			attempt = "spi:media.complete";
+			ledger_.push_back("core.media.complete");
+		} else if (target == mister::native::kUserIoTarget &&
+			request[0] == 0x0020) {
+			attempt = "spi:video.timing";
+			ledger_.push_back("video.timing:menu_720p60");
+		}
+		const mister::Error error = gate_.Call(attempt);
+		if (!error.ok()) return error;
+		if (response != nullptr && request[0] == 0x0014) {
+			response->assign(request.size(), 0);
+			const std::string identity = "MegaDrive";
+			std::size_t index = 1;
+			for (unsigned char byte : identity) (*response)[index++] = byte;
+			(*response)[index] = ';';
+		}
+		return {};
+	}
+
+private:
+	AttemptGate& gate_;
+	std::vector<std::string>& ledger_;
+	std::size_t status_count_ = 0;
+};
+
+class ChronologyI2c final : public mister::native::I2c {
+public:
+	ChronologyI2c(AttemptGate& gate, std::vector<std::string>& ledger)
+		: gate_(gate), ledger_(ledger) {}
+
+	mister::Error SelectFirst(std::uint8_t slave, std::uint8_t detection,
+		std::uint64_t, std::string* bus, std::uint8_t* value) override
+	{
+		assert(slave == 0x39);
+		assert(detection == 0x41);
+		ledger_.push_back("video.adv.initialize");
+		const mister::Error error = gate_.Call("i2c:select");
+		if (!error.ok()) return error;
+		*bus = "/dev/i2c-1";
+		*value = 0x40;
+		return {};
+	}
+
+	mister::Error ReadByte(std::uint8_t address, std::uint8_t* value,
+		std::uint64_t) override
+	{
+		const mister::Error error = gate_.Call(
+			address == 0x41 ? "i2c:power.read" : "i2c:link.read");
+		if (!error.ok()) return error;
+		if (address == 0x41) {
+			*value = 0x10;
+		} else {
+			assert(address == 0x42);
+			*value = 0x60;
+			ledger_.push_back("video.link.ready");
+		}
+		return {};
+	}
+
+	mister::Error WriteByte(std::uint8_t address, std::uint8_t value,
+		std::uint64_t) override
+	{
+		writes.push_back({address, value});
+		const std::size_t initialization =
+			mister::native::Menu720p60Recipe().adv_initialization.size();
+		const std::size_t mode =
+			mister::native::Menu720p60Recipe().adv_mode.size();
+		if (write_count_ == initialization)
+			ledger_.push_back("video.adv.mode");
+		if (write_count_ == initialization + mode)
+			ledger_.push_back("video.adv.wake");
+		const char* phase = write_count_ < initialization ? "i2c:init.write" :
+			write_count_ < initialization + mode ? "i2c:mode.write" :
+			"i2c:wake.write";
+		++write_count_;
+		return gate_.Call(phase);
+	}
+	std::vector<mister::native::RegisterWrite> writes;
+
+private:
+	AttemptGate& gate_;
+	std::vector<std::string>& ledger_;
+	std::size_t write_count_ = 0;
+};
+
+struct ChronologyFixture {
+	explicit ChronologyFixture(
+		std::size_t fail_at = std::numeric_limits<std::size_t>::max())
+		: spi(gate, ledger), i2c(gate, ledger), core(spi),
+		video(spi, i2c, clock, log, mister::native::Menu720p60Recipe())
+	{
+		gate.fail_at = fail_at;
+		assert(opener.Open(media.path, 0, &artifact).ok());
+	}
+	TempMedia media;
+	mister::native::PosixArtifactOpener opener;
+	mister::native::Artifact artifact;
+	AttemptGate gate;
+	std::vector<std::string> ledger;
+	ChronologySpi spi;
+	ChronologyI2c i2c;
+	SequenceClock clock;
+	mister_test::CaptureLog log;
+	mister::native::CoreLoader core;
+	mister::native::FixedVideoBringup video;
+};
+
+mister::Error RunPostProgramComponents(ChronologyFixture& fixture)
+{
+	const mister::CoreRecipe recipe = {0x0001, 0x0001, 0x0000,
+		mister::FileWireFormat::little_endian_byte_pairs};
+	mister::Error error = fixture.core.AssertReset(recipe, kDeadline);
+	if (!error.ok()) return error;
+	std::string observed;
+	error = fixture.core.Probe(&observed, kDeadline);
+	if (!error.ok()) return error;
+	if (observed != "MegaDrive")
+		return {mister::ErrorCode::core_mismatch, "unexpected test core"};
+	error = fixture.core.ApplyInitialStatus(recipe, kDeadline);
+	if (!error.ok()) return error;
+	error = fixture.core.Attach(1, fixture.artifact, recipe.file_wire, kDeadline);
+	if (!error.ok()) return error;
+	return fixture.video.BringUp(kDeadline).error;
+}
 
 bool EqualWrites(const std::vector<mister::native::RegisterWrite>& actual,
 	const std::vector<mister::native::RegisterWrite>& expected)
@@ -725,6 +937,75 @@ void TestEveryFailurePhaseLogsItsDirectIoFailure()
 	}
 }
 
+void TestPostProgramComponentsUseExactMegaDriveChronologyWithoutRelease()
+{
+	ChronologyFixture fixture;
+	const mister::Error error = RunPostProgramComponents(fixture);
+	assert(error.ok());
+	const std::vector<std::string> expected = {
+		"core.reset.assert",
+		"core.probe:MegaDrive",
+		"core.status.initial",
+		"core.media.select:1",
+		"core.media.extension:.bin",
+		"core.media.enable",
+		"core.media.data:all bytes once",
+		"core.media.complete",
+		"video.adv.initialize",
+		"video.timing:menu_720p60",
+		"video.adv.mode",
+		"video.adv.wake",
+		"video.link.ready",
+	};
+	assert(fixture.ledger == expected);
+	assert(fixture.i2c.writes.size() == 100);
+	const std::vector<mister::native::RegisterWrite> expected_wake = {
+		{0x96, 0x04}, {0xc4, 0x00}, {0xc9, 0x03},
+		{0xc9, 0x13}, {0xc9, 0x03}};
+	for (std::size_t index = 0; index < expected_wake.size(); ++index) {
+		const auto& actual = fixture.i2c.writes[95 + index];
+		assert(actual.address == expected_wake[index].address);
+		assert(actual.value == expected_wake[index].value);
+	}
+	assert(std::find(fixture.ledger.begin(), fixture.ledger.end(),
+		"input.neutral") == fixture.ledger.end());
+	assert(std::find(fixture.ledger.begin(), fixture.ledger.end(),
+		"core.reset.release") == fixture.ledger.end());
+	++scenarios;
+}
+
+void TestEveryPostProgramSpiI2cAndReadFailureStopsChronologyAtThatAttempt()
+{
+	ChronologyFixture success;
+	assert(RunPostProgramComponents(success).ok());
+	const std::vector<std::string> expected_attempts = success.gate.attempts;
+	assert(!expected_attempts.empty());
+	for (std::size_t fail = 0; fail < expected_attempts.size(); ++fail) {
+		ChronologyFixture fixture(fail);
+		const mister::Error error = RunPostProgramComponents(fixture);
+		assert(error.code == mister::ErrorCode::io_failed);
+		assert(error.message == "scripted component failure");
+		assert(fixture.gate.attempts.size() == fail + 1);
+		assert(std::equal(fixture.gate.attempts.begin(),
+			fixture.gate.attempts.end(), expected_attempts.begin()));
+		++scenarios;
+	}
+}
+
+void TestFixedVideoRequiresBothHpdAndMonitorSenseBeforeReady()
+{
+	Fixture fixture({0, 1, 2, 3, 4, 5});
+	fixture.i2c.link_statuses = {0x20};
+	mister::native::FixedVideoBringup video(fixture.spi, fixture.i2c,
+		fixture.clock, fixture.log, mister::native::Menu720p60Recipe());
+	const mister::native::VideoResult result = video.BringUp(5);
+	ExpectFailure(fixture, result, "hdmi_verify", "deadline exceeded");
+	assert(result.link_status == 0x20);
+	assert(CountI2cCalls(fixture.i2c,
+		mister_test::FakeI2c::CallType::read, 0x42) == 4);
+	++scenarios;
+}
+
 } // namespace
 
 int main()
@@ -747,6 +1028,9 @@ int main()
 	TestLinkPollingRepeatsOnlyStatusReadUntilBothBitsAreSet();
 	TestEachIncompleteLinkPredicateExpiresAfterExactlyFourReads();
 	TestEveryFailurePhaseLogsItsDirectIoFailure();
+	TestPostProgramComponentsUseExactMegaDriveChronologyWithoutRelease();
+	TestEveryPostProgramSpiI2cAndReadFailureStopsChronologyAtThatAttempt();
+	TestFixedVideoRequiresBothHpdAndMonitorSenseBeforeReady();
 	printf("video_test: %zu scenarios passed\n", scenarios);
 	return 0;
 }

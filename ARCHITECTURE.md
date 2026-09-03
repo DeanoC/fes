@@ -12,7 +12,8 @@ roles:
 - `src/native` and `src/linux` contain the Linux hardware primitives and the
   production construction boundary. `CreateProductionHardware` owns
   `PosixArtifactOpener`, `LinuxMmio`, `SteadyClock`, `LinuxFpgaManager`,
-  `LinuxSpi`, `CoreLoader`, `LinuxI2c`, `MenuVideoBringup`, and
+  `LinuxSpi`, `CoreLoader`, `LinuxI2c`, `MenuVideoBringup`,
+  `FixedVideoBringup`, `LinuxInput`, `NativeInputSession`, and
   `NativeHardware`. The dependency graph is:
 
   ```text
@@ -21,11 +22,17 @@ roles:
   SteadyClock -> LinuxI2c
   CoreLoader + LinuxSpi + LinuxI2c + SteadyClock + LogSink + fixed recipe
     -> MenuVideoBringup
+  LinuxSpi + LinuxI2c + SteadyClock + LogSink + fixed recipe
+    -> FixedVideoBringup
+  SteadyClock -> LinuxInput
+  LinuxInput + LinuxSpi + SteadyClock + bounded delivery timeout
+    -> NativeInputSession
   all of the above -> NativeHardware
   ```
 
-  Its installed idle path is
-  `/usr/share/mister-runtime/idle.rbf`. Production profiles remain empty.
+  Its installed idle path is `/usr/share/mister-runtime/idle.rbf`. The one
+  production profile is `megadrive`, whose image-owned core path is
+  `/usr/share/mister-runtime/cores/megadrive.rbf`.
 
 The library does not own a network API, catalogue, transfer cache, or host
 session. A future target agent integration belongs outside this repository
@@ -58,25 +65,72 @@ open locked idle RBF
   -> publish idle
 ```
 
-One absolute deadline bounds the video operation. A failure after programming
-is an attempted idle failure and therefore enters the existing
-`reboot_required` state; it does not clean up, reprogram, retry, or fall back.
-Only `LoadIdle()` uses this video component. Game launch and development-RBF
-loading retain their existing behavior and have no video-support claim.
+When a game input session is open, `LoadIdle()` first prevents further input,
+joins its worker, attempts the session's final neutral packet, and closes its
+descriptors. At process startup there is no input session, so the same idle
+path safely begins at the locked idle-RBF open. One absolute deadline bounds
+each native stage. An idle failure enters `reboot_required`; it does not retry,
+fall back, or reboot automatically.
 
-At most one hardware-changing operation is admitted. A concurrent mutation is
-rejected as `busy`; operations are not queued. After a mutation has begun, a
-failed launch gets exactly one cleanup attempt. Cleanup success returns to
-`idle` with the original error; cleanup failure returns `reboot_required`.
+Mega Drive launch performs this exact sequence:
+
+```text
+validate the complete profile request
+  -> resolve and open exactly one FogCast Virtual Gamepad
+  -> open and validate the locked Mega Drive RBF and every media artifact
+  -> sort opened media by profile-owned index
+  -> program the FPGA
+  -> assert profile-owned core reset
+  -> probe and require core identity MegaDrive
+  -> apply the profile-owned initial status
+  -> attach cartridge at file index 1 using little-endian byte pairs
+  -> apply the fixed 1280x720@60 ADV7513 path and require link status
+  -> send a neutral player-one map
+  -> release core reset
+  -> start the owned input worker with the new runtime generation
+  -> publish running_game
+```
+
+Input resolution and all artifact opens complete before FPGA programming.
+Neutralization succeeds before reset release, and the generation-bound input
+worker starts before `running_game` becomes observable. Stop invalidates the
+active generation, joins and neutralizes input through `LoadIdle()`, performs
+the existing Menu idle bring-up once, and publishes `idle` only on success. A
+second launch repeats preflight and creates a new generation, descriptor
+session, and worker.
+
+At most one hardware-changing operation is admitted. A concurrent external
+lifecycle mutation is rejected as `busy`; external operations are not queued.
+The one-shot hardware-fault notification is only deferred until the active
+mutation releases that same boundary. After a mutation has begun, a failed
+launch gets exactly one cleanup attempt. Cleanup success returns to `idle` with
+the original error; cleanup failure returns `reboot_required`.
 There is no retry loop, failover path, recovery coordinator, or second
 ownership database.
 
-Profiles own core identity, semantic media roles and indices, and allowed
-settings. Callers own selection and staging of absolute paths. The production
-profile table is currently empty, so no FPGA system is implemented or
-supported. Test profiles are private fixtures and cannot be selected by the
-production daemon. The canonical support record is the
-[support matrix](docs/support-matrix.md).
+`Runtime::Impl` is the sole `HardwareFaultSink`. `Hardware::SetFaultSink`
+installs it before startup idle, and each admitted game hardware launch gets a
+strictly increasing generation. The input worker callback only enqueues its
+generation-tagged error and returns. Enqueuing an active-generation fault also
+reserves that generation under the runtime mutex, so Stop is rejected as busy
+until the drain owns cleanup. A private runtime drain thread admits the fault
+through the same mutation boundary, then invokes `LoadIdle()` exactly once; it
+never joins input from the input worker itself.
+Cleanup success preserves the direct input fault in idle status, cleanup
+failure publishes `reboot_required`, and stale generations perform no work.
+
+Profiles own core identity, semantic media roles and indices, core and input
+recipes, and allowed settings. Callers own selection and staging of absolute
+paths. The production table contains only Mega Drive; test profiles are private
+fixtures and cannot be selected by the production daemon. The canonical
+software-versus-physical record is the [support matrix](docs/support-matrix.md).
+
+The implemented Mega Drive path has no physical-hardware claim yet. Native
+audio, save RAM, save states, six-button X/Y/Z/Mode input, multiplayer,
+remapping, hot-plug recovery, and development-RBF loading/video acceptance are
+outside this slice. Every other game system remains unsupported. The runtime
+does not preserve a running game across restart and does not add conventional
+Main, transient MGLs, or automatic legacy fallback.
 
 ## Protocol
 

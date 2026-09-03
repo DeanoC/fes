@@ -143,7 +143,7 @@ class LinuxI2c::Impl {
 public:
 	Impl(Clock& clock, std::unique_ptr<Operations> owned)
 		: clock_(clock), owned_(std::move(owned)), operations_(owned_.get()),
-		  descriptor_(-1) {}
+		  descriptor_(-1), slave_address_(0) {}
 	~Impl()
 	{
 		if (descriptor_ >= 0) operations_->Close(descriptor_);
@@ -155,8 +155,19 @@ public:
 	{
 		if (selected_bus == nullptr || detected_value == nullptr)
 			return {ErrorCode::io_failed, "missing I2C selection output"};
-		if (descriptor_ >= 0)
-			return {ErrorCode::io_failed, "I2C device is already selected"};
+		if (descriptor_ >= 0) {
+			if (slave_address != slave_address_)
+				return {ErrorCode::io_failed,
+					"a different I2C device is already selected"};
+			if (clock_.NowMs() >= deadline) return Deadline();
+			std::uint8_t detected = 0;
+			if (operations_->ReadByteData(descriptor_, detection_register,
+				&detected) != 0)
+				return {ErrorCode::io_failed, "I2C device detection read failed"};
+			*selected_bus = selected_bus_;
+			*detected_value = detected;
+			return {};
+		}
 		const char* const buses[] = {
 			"/dev/i2c-0", "/dev/i2c-1", "/dev/i2c-2",
 		};
@@ -183,6 +194,8 @@ public:
 				continue;
 			}
 			descriptor_ = candidate;
+			slave_address_ = slave_address;
+			selected_bus_ = bus;
 			*selected_bus = bus;
 			*detected_value = detected;
 			return {};
@@ -218,6 +231,8 @@ private:
 	std::unique_ptr<Operations> owned_;
 	Operations* operations_;
 	int descriptor_;
+	std::uint8_t slave_address_;
+	std::string selected_bus_;
 };
 
 LinuxI2c::LinuxI2c(Clock& clock)

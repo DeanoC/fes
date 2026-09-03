@@ -47,7 +47,7 @@ executable_list=$(find "$build" -maxdepth 1 -type f \
 	exit 1
 }
 
-built_name_pattern='fogcast|personality|stage[-_ ]?[a-z0-9]*|poc[0-9]*|broker|coordinator|fence|replay|(^|[^[:alnum:]])v2([^[:alnum:]]|$)'
+built_name_pattern='fogcast[-_ ]runtime|personality|stage[-_ ]?[a-z0-9]*|poc[0-9]*|broker|coordinator|fence|replay|(^|[^[:alnum:]])v2([^[:alnum:]]|$)'
 for output in "$archive" "$daemon"; do
 	strings "$output" >"$temporary/$(basename "$output").strings"
 	grep -Fv '__gxx_personality_v0' "$temporary/$(basename "$output").strings" \
@@ -66,6 +66,8 @@ core_loader.o
 fpga_manager.o
 hardware.o
 i2c.o
+input.o
+linux_input.o
 mmio.o
 production_hardware.o
 profile.o
@@ -88,7 +90,7 @@ fi
 
 nm -g "$archive" >"$temporary/archive-symbols.raw"
 c++filt <"$temporary/archive-symbols.raw" >"$temporary/archive-symbols"
-if grep -E 'FakeHardware|FakeMmio|FakeSpi|FakeI2c|LinuxI2cTestOperations|CartProfile|BiosProfile|mister_test' \
+if grep -E 'FakeHardware|FakeMmio|FakeSpi|FakeI2c|FakeInput|LinuxI2cTestOperations|LinuxInputTestOperations|CartProfile|BiosProfile|mister_test' \
 	"$temporary/archive-symbols" >/dev/null; then
 	echo "archive contains fake hardware or profile symbols" >&2
 	exit 1
@@ -109,7 +111,7 @@ fi
 
 nm -g "$daemon" >"$temporary/daemon-symbols.raw"
 c++filt <"$temporary/daemon-symbols.raw" >"$temporary/daemon-symbols"
-if grep -E '(^|[^[:alnum:]_])(fpga_load_rbf|user_io_|video_mode_adjust|scheduler_|offload_|Main|FakeHardware|FakeMmio|FakeSpi|FakeI2c|LinuxI2cTestOperations|CartProfile|BiosProfile|mister_test)($|[^[:alnum:]_])' \
+if grep -E '(^|[^[:alnum:]_])(fpga_load_rbf|user_io_|video_mode_adjust|scheduler_|offload_|Main|FakeHardware|FakeMmio|FakeSpi|FakeI2c|FakeInput|LinuxI2cTestOperations|LinuxInputTestOperations|CartProfile|BiosProfile|mister_test)($|[^[:alnum:]_])' \
 	"$temporary/daemon-symbols" >/dev/null; then
 	echo "executable contains Main mutation or fake symbols" >&2
 	exit 1

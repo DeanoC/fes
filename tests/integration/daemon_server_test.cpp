@@ -554,6 +554,48 @@ void TestCleanupFailureReturnsRebootRequiredIdleFailed()
 	}
 }
 
+void TestSocketStopThenImmediateRelaunchUsesANewGeneration()
+{
+	TempDirectory temporary;
+	Fixture fixture;
+	fixture.Start();
+	RunningServer server(fixture.runtime, temporary.Entry("runtime.sock"));
+	Contains(Exchange(temporary.Entry("runtime.sock"), kLaunch),
+		"\"state\":\"running_game\"");
+	Contains(Exchange(temporary.Entry("runtime.sock"), kStop),
+		"\"state\":\"idle\"");
+	const std::string relaunched = Exchange(temporary.Entry("runtime.sock"),
+		kLaunch);
+	Contains(relaunched, "\"state\":\"running_game\"");
+	Contains(relaunched, "\"system\":\"test_cart\"");
+	Contains(relaunched, "\"core\":\"TESTCART\"");
+	assert(fixture.hardware.launch_generations ==
+		std::vector<std::uint64_t>({1, 2}));
+}
+
+void TestSocketStatusObservesAsynchronousInputFaultCleanup()
+{
+	TempDirectory temporary;
+	Fixture fixture;
+	fixture.Start();
+	RunningServer server(fixture.runtime, temporary.Entry("runtime.sock"));
+	Contains(Exchange(temporary.Entry("runtime.sock"), kLaunch),
+		"\"state\":\"running_game\"");
+	fixture.hardware.ReportFault(1,
+		{mister::ErrorCode::io_failed, "socket input delivery failed"});
+	assert(fixture.hardware.WaitForIdleCalls(2));
+	assert(fixture.log.WaitFor("input_fault", "idle"));
+	const std::string status = Exchange(temporary.Entry("runtime.sock"), kStatus);
+	Contains(status, "\"ok\":true");
+	Contains(status, "\"state\":\"idle\"");
+	Contains(status, "\"execution\":\"none\"");
+	Contains(status, "\"system\":null");
+	Contains(status, "\"core\":null");
+	Contains(status, "\"code\":\"io_failed\"");
+	Contains(status, "socket input delivery failed");
+	assert(fixture.hardware.idle_calls == 2);
+}
+
 void TestReconstructedRuntimeDoesNotPreserveAGame()
 {
 	TempDirectory temporary;
@@ -877,6 +919,8 @@ int main()
 	TestStatusFromAnotherConnectionObservesStarting();
 	TestConcurrentMutationReturnsBusy();
 	TestCleanupFailureReturnsRebootRequiredIdleFailed();
+	TestSocketStopThenImmediateRelaunchUsesANewGeneration();
+	TestSocketStatusObservesAsynchronousInputFaultCleanup();
 	TestReconstructedRuntimeDoesNotPreserveAGame();
 	TestLostLaunchResponseIsReconciledByStatus();
 	TestRequestStopWaitsAndRemovesOnlyItsOwnSocket();
@@ -888,6 +932,6 @@ int main()
 	TestOversizedVersionUsesBoundedValidFallback();
 	TestOversizedHardwareErrorUsesBoundedValidFallback();
 	TestDevelopmentInventsNoIdentityAndStderrEscapesFields();
-	puts("daemon_server_test: 20 passed");
+	puts("daemon_server_test: 22 passed");
 	return 0;
 }

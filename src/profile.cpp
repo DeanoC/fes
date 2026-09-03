@@ -3,6 +3,7 @@
 
 #include "libmister-runtime/runtime.h"
 
+#include <array>
 #include <set>
 #include <utility>
 
@@ -38,6 +39,44 @@ bool ValidAbsolutePath(const std::string& value)
 {
 	return !value.empty() && value.size() <= 4095 && value[0] == '/' &&
 		value.find('\0') == std::string::npos;
+}
+
+bool ValidExtension(const std::string& value)
+{
+	if (value.size() < 2 || value.size() > 16 || value[0] != '.') return false;
+	for (std::size_t index = 1; index < value.size(); ++index) {
+		const unsigned char byte = static_cast<unsigned char>(value[index]);
+		if (!((byte >= 'a' && byte <= 'z') ||
+			(byte >= '0' && byte <= '9')))
+			return false;
+	}
+	return true;
+}
+
+bool HasExtension(const std::string& path, const std::string& extension)
+{
+	return path.size() > extension.size() &&
+		path.compare(path.size() - extension.size(), extension.size(), extension) == 0;
+}
+
+bool ValidCoreRecipe(const CoreRecipe& recipe)
+{
+	return recipe.reset_assert_word != 0 && recipe.initial_status_word != 0 &&
+		recipe.file_wire == FileWireFormat::little_endian_byte_pairs;
+}
+
+bool ValidInputRecipe(const InputRecipe& recipe)
+{
+	if (recipe.player_count != 1 || recipe.player_command == 0) return false;
+	const std::array<std::uint16_t, 8> masks = {{recipe.up, recipe.down,
+		recipe.left, recipe.right, recipe.a, recipe.b, recipe.c, recipe.start}};
+	std::uint16_t seen = 0;
+	for (const std::uint16_t mask : masks) {
+		if (mask == 0 || (mask & (mask - 1u)) != 0 || (seen & mask) != 0)
+			return false;
+		seen = static_cast<std::uint16_t>(seen | mask);
+	}
+	return true;
 }
 
 bool ValidUtf8(const std::string& value)
@@ -101,8 +140,11 @@ Error Profiles::Add(Profile profile)
 {
 	if (!ValidIdentifier(profile.system)) return Invalid("invalid system identifier");
 	if (!ValidCore(profile.expected_core)) return Invalid("invalid expected core");
+	if (!ValidAbsolutePath(profile.rbf)) return Invalid("invalid profile RBF path");
 	if (profile.media.size() > 8) return Invalid("too many media rules");
 	if (profile.settings.size() > 16) return Invalid("too many setting rules");
+	if (!ValidCoreRecipe(profile.core)) return Invalid("invalid core recipe");
+	if (!ValidInputRecipe(profile.input)) return Invalid("invalid input recipe");
 	for (const Profile& existing : profiles_) {
 		if (existing.system == profile.system) return Invalid("duplicate system");
 	}
@@ -112,6 +154,15 @@ Error Profiles::Add(Profile profile)
 		if (!ValidIdentifier(rule.role)) return Invalid("invalid media role");
 		if (!roles.insert(rule.role).second) return Invalid("duplicate media role");
 		if (!indices.insert(rule.index).second) return Invalid("duplicate media index");
+		if (rule.extensions.empty()) return Invalid("missing media extensions");
+		if (rule.maximum_size == 0 || rule.maximum_size > 32u * 1024u * 1024u)
+			return Invalid("invalid media size limit");
+		std::set<std::string> extensions;
+		for (const std::string& extension : rule.extensions) {
+			if (!ValidExtension(extension)) return Invalid("invalid media extension");
+			if (!extensions.insert(extension).second)
+				return Invalid("duplicate media extension");
+		}
 	}
 	std::set<std::string> settings;
 	for (const SettingRule& rule : profile.settings) {
@@ -147,6 +198,9 @@ Error Profiles::Prepare(const Launch& launch, PreparedLaunch* output) const
 	prepared.system = profile->system;
 	prepared.expected_core = profile->expected_core;
 	prepared.rbf = launch.rbf;
+	prepared.core = profile->core;
+	prepared.input = profile->input;
+	if (launch.rbf != profile->rbf) return Invalid("RBF path is not profile-owned");
 	std::set<std::string> supplied_media;
 	for (const Media& media : launch.media) {
 		if (!ValidIdentifier(media.role) || !ValidAbsolutePath(media.path))
@@ -155,7 +209,15 @@ Error Profiles::Prepare(const Launch& launch, PreparedLaunch* output) const
 			return Invalid("duplicate media role");
 		const MediaRule* rule = FindMedia(*profile, media.role);
 		if (rule == nullptr) return Invalid("unknown media role");
-		prepared.media.push_back({rule->index, media.path});
+		bool allowed_extension = false;
+		for (const std::string& extension : rule->extensions) {
+			if (HasExtension(media.path, extension)) {
+				allowed_extension = true;
+				break;
+			}
+		}
+		if (!allowed_extension) return Invalid("media extension not allowed");
+		prepared.media.push_back({rule->index, media.path, rule->maximum_size});
 	}
 	for (const MediaRule& rule : profile->media) {
 		if (rule.required && supplied_media.count(rule.role) == 0)

@@ -113,7 +113,7 @@ Error OpenLaunchArtifacts(const PreparedLaunch& launch, ArtifactOpener& opener,
 	for (const PreparedMedia& media : launch.media) {
 		OpenedMedia opened;
 		opened.index = media.index;
-		error = opener.Open(media.path, 0, &opened.artifact);
+		error = opener.Open(media.path, media.maximum_size, &opened.artifact);
 		if (!error.ok()) return error;
 		candidate.media.push_back(std::move(opened));
 	}
