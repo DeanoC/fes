@@ -58,6 +58,7 @@ Native idle admission performs this exact sequence:
 
 ```text
 open locked idle RBF
+  -> read-modify-write ADV7513 main power-down to present a clean link loss
   -> program FPGA and release bridges/core hardware reset
   -> toggle the FPGA core-ID strobe and sample GPI
   -> assert menu-core software reset over user-I/O SPI
@@ -86,6 +87,7 @@ validate the complete profile request
   -> resolve and open exactly one FogCast Virtual Gamepad
   -> open and validate the locked Mega Drive RBF and every media artifact
   -> sort opened media by profile-owned index
+  -> read-modify-write ADV7513 main power-down to present a clean link loss
   -> program the FPGA
   -> toggle the FPGA core-ID strobe and sample GPI
   -> assert profile-owned core reset
@@ -101,7 +103,11 @@ validate the complete profile request
   -> publish running_game
 ```
 
-Input resolution and all artifact opens complete before FPGA programming.
+Input resolution and all artifact opens complete before the transmitter is
+quiesced and FPGA programming begins. Quiescing preserves every other ADV7513
+power-register bit and uses the existing bounded video deadline; failure stops
+before FPGA mutation. The subsequent fixed bring-up reinitializes the ADV7513
+and powers the output back up after the new core is programmed.
 Neutralization succeeds before reset release, and the generation-bound input
 worker starts before `running_game` becomes observable. Stop invalidates the
 active generation, joins and neutralizes input through `LoadIdle()`, performs

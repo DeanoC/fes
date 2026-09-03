@@ -163,6 +163,15 @@ public:
 	{
 		result.phase = "hdmi_verify";
 		result.observed_core = "MENU";
+		quiesce_result.mutation_attempted = true;
+	}
+	mister::native::VideoQuiesceResult Quiesce(
+		std::uint64_t deadline) override
+	{
+		events_.push_back("idle.video.quiesce");
+		quiesce_deadlines.push_back(deadline);
+		++quiesce_calls;
+		return quiesce_result;
 	}
 	mister::native::VideoResult BringUp(const std::string& expected_core,
 		std::uint64_t deadline) override
@@ -174,7 +183,10 @@ public:
 	}
 	std::vector<std::string>& events_;
 	mister::native::VideoResult result;
+	mister::native::VideoQuiesceResult quiesce_result;
+	std::vector<std::uint64_t> quiesce_deadlines;
 	std::vector<std::uint64_t> deadlines;
+	int quiesce_calls = 0;
 	int calls = 0;
 };
 
@@ -188,18 +200,14 @@ public:
 		deadlines.push_back(deadline);
 		timing_seen_ = false;
 		mode_seen_ = false;
-		events_.push_back("video.adv.initialize");
-		if (fail_event == "video.adv.initialize") {
-			fail_event.clear();
-			return {mister::ErrorCode::io_failed, "injected game video failure"};
-		}
+		selection_pending_ = true;
 		if (!select_error.ok()) {
 			const mister::Error error = select_error;
 			select_error = {};
 			return error;
 		}
 		*bus = "/dev/i2c-1";
-		*value = 0x40;
+		*value = 0x10;
 		return {};
 	}
 	mister::Error ReadByte(std::uint8_t address, std::uint8_t* value,
@@ -220,11 +228,23 @@ public:
 		*value = 0x60;
 		return {};
 	}
-	mister::Error WriteByte(std::uint8_t, std::uint8_t,
+	mister::Error WriteByte(std::uint8_t address, std::uint8_t value,
 		std::uint64_t deadline) override
 	{
 		deadlines.push_back(deadline);
 		++write_calls;
+		if (selection_pending_) {
+			const std::string selection_event =
+				address == 0x41 && value == 0x50 ?
+				"video.quiesce" : "video.adv.initialize";
+			events_.push_back(selection_event);
+			selection_pending_ = false;
+			if (fail_event == selection_event) {
+				fail_event.clear();
+				return {mister::ErrorCode::io_failed,
+					"injected game video failure"};
+			}
+		}
 		if (timing_seen_ && !mode_seen_) {
 			events_.push_back("video.adv.mode");
 			mode_seen_ = true;
@@ -255,6 +275,7 @@ private:
 	std::vector<std::string>& events_;
 	bool timing_seen_ = false;
 	bool mode_seen_ = false;
+	bool selection_pending_ = false;
 };
 
 class RecordingSpi final : public mister::native::Spi {
@@ -540,6 +561,7 @@ const std::vector<std::string> kSuccessfulLaunch = {
 	"artifact.open:megadrive.rbf",
 	"artifact.open:sonic2.bin",
 	"media.sort:1",
+	"video.quiesce",
 	"fpga.program",
 	"core.sync",
 	"core.reset.assert",
@@ -571,17 +593,70 @@ void TestLaunchUsesExactCoreRecipeAndExplicitMediaFormatInOrder()
 	assert(fixture.events[1] == "artifact.open:megadrive.rbf");
 	assert(fixture.events[2] == "artifact.open:two.bin");
 	assert(fixture.events[3] == "artifact.open:zero.bin");
-	assert(Find(fixture.events, "fpga.program") == 5);
-	assert(Find(fixture.events, "core.sync") == 6);
-	assert(Find(fixture.events, "core.reset.assert") == 7);
-	assert(Find(fixture.events, "core.probe:MegaDrive") == 8);
-	assert(Find(fixture.events, "core.status.initial") == 9);
+	assert(Find(fixture.events, "video.quiesce") == 5);
+	assert(Find(fixture.events, "fpga.program") == 6);
+	assert(Find(fixture.events, "core.sync") == 7);
+	assert(Find(fixture.events, "core.reset.assert") == 8);
+	assert(Find(fixture.events, "core.probe:MegaDrive") == 9);
+	assert(Find(fixture.events, "core.status.initial") == 10);
 	assert(Find(fixture.events, "core.media.select:0") <
 		Find(fixture.events, "core.media.select:2"));
 	assert(Find(fixture.events, "input.neutral") <
 		Find(fixture.events, "core.reset.release"));
 	assert(Find(fixture.events, "core.reset.release") <
 		Find(fixture.events, "input.start:1"));
+}
+
+void TestEveryCoreTransitionQuiescesHdmiBeforeFpgaProgramming()
+{
+	Fixture launch;
+	assert(launch.hardware.Launch(launch.MegaDriveLaunch(), 1).error.ok());
+	assert(Count(launch.events, "video.quiesce") == 1);
+	assert(Find(launch.events, "video.quiesce") <
+		Find(launch.events, "fpga.program"));
+	assert(launch.i2c.deadlines[0] == 10100);
+	assert(launch.i2c.deadlines[1] == 10100);
+
+	Fixture idle;
+	assert(idle.hardware.LoadIdle().error.ok());
+	assert(Count(idle.events, "idle.video.quiesce") == 1);
+	assert(Find(idle.events, "idle.video.quiesce") <
+		Find(idle.events, "fpga.program"));
+	assert(idle.idle_video.quiesce_deadlines ==
+		std::vector<std::uint64_t>({10100}));
+}
+
+void TestQuiesceFailureStopsBeforeFpgaMutationAndClosesLaunchInput()
+{
+	Fixture launch;
+	launch.i2c.select_error = {
+		mister::ErrorCode::io_failed, "injected HDMI quiesce failure"};
+	const mister::HardwareResult launch_result = launch.hardware.Launch(
+		launch.MegaDriveLaunch(), 1);
+	assert(launch_result.error.code == mister::ErrorCode::io_failed);
+	assert(launch_result.error.message == "injected HDMI quiesce failure");
+	assert(!launch_result.mutation_attempted);
+	assert(launch.fpga.calls == 0);
+	assert(launch.input.stop_calls == 1);
+
+	Fixture write_failure;
+	write_failure.i2c.fail_event = "video.quiesce";
+	const mister::HardwareResult write_result = write_failure.hardware.Launch(
+		write_failure.MegaDriveLaunch(), 1);
+	assert(write_result.error.code == mister::ErrorCode::io_failed);
+	assert(write_result.mutation_attempted);
+	assert(write_failure.fpga.calls == 0);
+	assert(write_failure.input.stop_calls == 1);
+
+	Fixture idle;
+	idle.idle_video.quiesce_result.error = {
+		mister::ErrorCode::io_failed, "injected idle HDMI quiesce failure"};
+	idle.idle_video.quiesce_result.mutation_attempted = false;
+	const mister::HardwareResult idle_result = idle.hardware.LoadIdle();
+	assert(idle_result.error.code == mister::ErrorCode::io_failed);
+	assert(idle_result.error.message == "injected idle HDMI quiesce failure");
+	assert(!idle_result.mutation_attempted);
+	assert(idle.fpga.calls == 0);
 }
 
 void TestLaunchSynchronizesTheProgrammedCoreBeforeAnyCoreIo()
@@ -690,7 +765,8 @@ void TestOversizedRomIsRejectedBeforeFpgaAndClosesPreflightInput()
 void TestEveryPostProgramPhaseFailureGetsOneIdleCleanup()
 {
 	const std::vector<std::string> phases = {
-		"program", "core.sync", "core.reset.assert", "core.probe:MegaDrive",
+		"video.quiesce", "program", "core.sync", "core.reset.assert",
+		"core.probe:MegaDrive",
 		"core.status.initial", "core.media.select:1",
 		"core.media.extension:.bin", "core.media.enable",
 		"core.media.data:all bytes once", "core.media.complete",
@@ -726,7 +802,8 @@ void TestEveryPostProgramPhaseFailureGetsOneIdleCleanup()
 		assert(!result.ok());
 		assert(fixture.runtime.status().state == mister::State::idle);
 		assert(Count(fixture.native.fpga.programmed, "idle.rbf") == 2);
-		assert(Count(fixture.native.fpga.programmed, "megadrive.rbf") == 1);
+		assert(Count(fixture.native.fpga.programmed, "megadrive.rbf") ==
+			(phase == "video.quiesce" ? 0 : 1));
 		assert(fixture.native.input.stop_calls == 1);
 		assert(Find(fixture.native.events, "runtime.running_game") ==
 			fixture.native.events.size());
@@ -770,13 +847,14 @@ void TestStopOrdersInputBeforeIdleAndImmediateRelaunchIsFresh()
 		"input.stop",
 		"input.final-neutral",
 		"artifact.open:idle.rbf",
+		"idle.video.quiesce",
 		"fpga.program",
 		"idle.video:MENU",
 		"runtime.idle",
 	}));
 	fixture.native.events.clear();
 	std::vector<std::string> second = kSuccessfulLaunch;
-	second[22] = "input.start:2";
+	second[23] = "input.start:2";
 	assert(fixture.runtime.LaunchGame(fixture.Request()).ok());
 	assert(fixture.native.events == second);
 	assert(fixture.native.input.descriptors == std::vector<int>({1, 2}));
@@ -841,6 +919,7 @@ void TestIdleRequiresVideoAndPreservesDevelopmentBehavior()
 	assert(idle.observed_core == "MENU");
 	assert(fixture.events == std::vector<std::string>({
 		"artifact.open:idle.rbf",
+		"idle.video.quiesce",
 		"fpga.program",
 		"idle.video:MENU",
 	}));
@@ -858,13 +937,13 @@ void TestIdlePreflightFailureCallsNeitherFpgaNorVideo()
 	assert(fixture.idle_video.calls == 0);
 }
 
-void TestIdleFpgaFailureNeverCallsVideoAndPreservesMutationFlag()
+void TestIdleFpgaFailureAfterQuiesceReportsHardwareMutation()
 {
 	Fixture before;
 	before.fpga.result = {{mister::ErrorCode::program_failed, "before"}, false};
 	const mister::HardwareResult before_result = before.hardware.LoadIdle();
 	assert(before_result.error.code == mister::ErrorCode::program_failed);
-	assert(!before_result.mutation_attempted);
+	assert(before_result.mutation_attempted);
 	assert(before.idle_video.calls == 0);
 
 	Fixture after;
@@ -890,6 +969,7 @@ void TestIdleVideoFailureIsAttemptedIoFailureWithoutCleanup()
 	assert(fixture.idle_video.calls == 1);
 	assert(fixture.events == std::vector<std::string>({
 		"artifact.open:idle.rbf",
+		"idle.video.quiesce",
 		"fpga.program",
 		"idle.video:MENU",
 	}));
@@ -927,7 +1007,7 @@ void TestPostVideoCoreStageGetsFreshDeadline()
 	assert(fixture.spi.deadlines.back() == 20101);
 }
 
-void TestPreflightAndProgramFailuresUseExactMutationMapping()
+void TestPreflightAndProgramFailuresIncludeQuiesceMutation()
 {
 	Fixture preflight;
 	preflight.opener.fail_call = 2;
@@ -939,7 +1019,7 @@ void TestPreflightAndProgramFailuresUseExactMutationMapping()
 	before.fpga.result = {{mister::ErrorCode::program_failed, "before"}, false};
 	const auto before_result = before.hardware.Launch(before.Launch(), 1);
 	assert(before_result.error.code == mister::ErrorCode::program_failed);
-	assert(!before_result.mutation_attempted);
+	assert(before_result.mutation_attempted);
 	Fixture after;
 	after.fpga.result = {{mister::ErrorCode::program_failed, "after"}, true};
 	const auto after_result = after.hardware.Launch(after.Launch(), 1);
@@ -1105,6 +1185,8 @@ void TestUnavailableHardwareRemainsFailureOnly()
 
 int main()
 {
+	TestEveryCoreTransitionQuiescesHdmiBeforeFpgaProgramming();
+	TestQuiesceFailureStopsBeforeFpgaMutationAndClosesLaunchInput();
 	TestLaunchUsesExactCoreRecipeAndExplicitMediaFormatInOrder();
 	TestLaunchSynchronizesTheProgrammedCoreBeforeAnyCoreIo();
 	TestRuntimeLaunchUsesTheCompleteProductionOrderBeforePublishingRunning();
@@ -1118,17 +1200,17 @@ int main()
 	TestLaunchRejectsUnsupportedPreparedMediaFormatBeforeFileSelection();
 	TestIdleRequiresVideoAndPreservesDevelopmentBehavior();
 	TestIdlePreflightFailureCallsNeitherFpgaNorVideo();
-	TestIdleFpgaFailureNeverCallsVideoAndPreservesMutationFlag();
+	TestIdleFpgaFailureAfterQuiesceReportsHardwareMutation();
 	TestIdleVideoFailureIsAttemptedIoFailureWithoutCleanup();
 	TestLaunchNeverCallsIdleVideo();
 	TestOneAbsoluteDeadlinePerNativeStage();
 	TestPostVideoCoreStageGetsFreshDeadline();
-	TestPreflightAndProgramFailuresUseExactMutationMapping();
+	TestPreflightAndProgramFailuresIncludeQuiesceMutation();
 	TestEveryConcretePreflightRejectionPerformsZeroHardwareWork();
 	TestProbeMismatchAndIoRetainObservedCoreAndMutation();
 	TestNativeLoggingNamesPhasesAndConfirmedCore();
 	TestProductionConstructionOwnsRealIdleHardware();
 	TestUnavailableHardwareRemainsFailureOnly();
-	puts("native_hardware_test: 24 passed");
+	puts("native_hardware_test: 26 passed");
 	return 0;
 }

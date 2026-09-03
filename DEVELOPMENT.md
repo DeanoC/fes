@@ -61,8 +61,10 @@ The production runtime is built by FogCast's reviewed native image, which
 supplies the packaged idle RBF. The fixed menu-core 1280x720@60 video path is
 software-tested only. ADV7513 register values are assembled from named
 constants in `src/native/adv7513.hpp` (datasheet / Programming Guide); host
-tests still require the exact previous I2C byte sequence. Do not install ad hoc cross-builds or host artifacts onto
-a Pi and do not replace the working legacy image. Physical-Pi status may be
+tests require the exact initialization sequence and the bounded power-down
+read-modify-write that precedes each supported core transition. Do not install
+ad hoc cross-builds or host artifacts onto a Pi and do not replace the working
+legacy image. Physical-Pi status may be
 claimed only after later acceptance evidence from an exact pinned FogCast
 image; no such hardware result is claimed here.
 
