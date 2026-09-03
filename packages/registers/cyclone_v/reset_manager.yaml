@@ -1,0 +1,20 @@
+schema: mister-packages.v1
+kind: register_bank
+id: cyclone_v.reset_manager
+description: Reset-manager slice used to hold and release HPS-FPGA bridges.
+
+registers:
+  - name: CTRL
+    offset: 0x4
+    access: rw
+    description: Reset-manager control. Observed by Main; not a runtime symbol yet.
+  - name: BRG_MOD_RESET
+    offset: 0x1c
+    access: rw
+    description: Bridge-module reset. Runtime writes 7 to hold, 0 to release.
+    address_symbols: [kBridgeResetAddress]
+    writes:
+      - symbol: kBridgesInReset
+        value: 0x7
+      - symbol: kBridgesReleased
+        value: 0x0

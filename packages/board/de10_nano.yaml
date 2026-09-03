@@ -1,0 +1,16 @@
+schema: mister-packages.v1
+kind: board
+id: de10_nano
+vendor: altera
+fpga_family: Cyclone V
+fpga_device: 5CSEBA6U23I7
+clocks:
+  - name: fpga_clk1_50
+    pin: V11
+    standard: 3.3-V LVTTL
+    frequency_hz: 50000000
+pins:
+  - name: LED0
+    pin: W15
+    standard: 3.3-V LVTTL
+    direction: output

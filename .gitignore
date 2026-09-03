@@ -1,0 +1,4 @@
+/bin/
+/mister-packages
+*.exe
+.DS_Store

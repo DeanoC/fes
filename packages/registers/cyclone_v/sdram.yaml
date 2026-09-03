@@ -1,0 +1,16 @@
+schema: mister-packages.v1
+kind: register_bank
+id: cyclone_v.sdram
+description: SDR controller FPGA-port reset used during programming.
+
+registers:
+  - name: FPGAPORTRST
+    offset: 0x5080
+    access: rw
+    description: SDR FPGA port reset. Runtime writes 0 to disable, 0x3fff to enable.
+    address_symbols: [kSdrFpgaPortResetAddress]
+    writes:
+      - symbol: kSdrFpgaPortsDisabled
+        value: 0x0
+      - symbol: kSdrFpgaPortsEnabled
+        value: 0x3fff
