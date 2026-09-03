@@ -92,7 +92,9 @@ validate the complete profile request
   -> probe and require core identity MegaDrive
   -> apply the profile-owned initial status
   -> attach cartridge at file index 1 using little-endian byte pairs
-  -> apply the fixed 1280x720@60 ADV7513 path and require link status
+  -> apply the fixed 1280x720@60 ADV7513 path and wake the transmitter
+  -> initialize the generic core buttons/switches word to neutral
+  -> require link status
   -> send a neutral player-one map
   -> release core reset
   -> start the owned input worker with the new runtime generation
