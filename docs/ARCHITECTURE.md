@@ -78,6 +78,7 @@ Native SDL3 UI
   -> GET /api/v1/presentation/artwork/{handle} from catalog cover handles
   -> GET /api/v1/presentation/games/{id} for the focused title
   -> GET /api/v1/library/attract (idle video then stills; artwork via the same presentation artwork GET)
+  -> GET /api/v1/library/settings and PATCH /api/v1/library/settings (idle seconds, preferred regions, selected target)
   -> POST /api/v1/session/launch
   -> GET /api/v1/session (poll; now-playing)
   -> POST /api/v1/session/stop
@@ -85,9 +86,12 @@ Native SDL3 UI
   -> existing FPGA launch path
 ```
 
-TV overscan insets and the sofa layout (`grid`, `shelf`, or `list`) are local
-to the tenfoot process (CLI `-safe-area` / `-layout` and optional `tenfoot.json`
-prefs). There is no host safe-area or layout API.
+TV overscan insets, sofa layout (`grid`, `shelf`, or `list`), and the local
+attract on/off gate are local to the tenfoot process (CLI `-safe-area` /
+`-layout` / `-no-attract` and optional `tenfoot.json` prefs). There is no host
+safe-area or layout API. Host attract idle, preferred regions, and selected
+target use the existing public library settings endpoints. Library path editing
+stays in the browser shell.
 
 Attract prefers a playlist `video` handle when present. Darwin CGO builds
 decode with AVFoundation (`host/tenfoot/attractvideo`) after streaming

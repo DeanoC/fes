@@ -229,7 +229,7 @@ func TestAppAttractSelectLaunchesLaunchableItem(t *testing.T) {
 func TestOptionsSmokeDisablesAttract(t *testing.T) {
 	t.Parallel()
 	opts := Options{Smoke: true, APIBase: "http://127.0.0.1:8787"}.normalized()
-	if !opts.NoAttract || !opts.Hidden {
+	if !opts.NoAttract || !opts.Hidden || !opts.NoAttractSet {
 		t.Fatalf("opts = %#v", opts)
 	}
 }

@@ -542,3 +542,135 @@ func TestNormalizeHandleRejectsShortValues(t *testing.T) {
 		t.Fatalf("cover handle = %q", got)
 	}
 }
+
+func TestClientLibrarySettingsGetAndPatch(t *testing.T) {
+	t.Parallel()
+	var patches []string
+	var methods []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/library/settings" {
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		methods = append(methods, r.Method)
+		switch r.Method {
+		case http.MethodGet:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"attract_idle_seconds": 90,
+				"preferred_regions":    []string{"usa", "japan"},
+				"selected_target":      "dev",
+				"targets": []map[string]any{
+					{"name": "dev", "address": "http://192.0.2.10:8182", "enabled": true, "agent_configured": true, "agent": "secret"},
+					{"name": "spare", "address": "", "enabled": false, "agent_configured": false},
+				},
+				"libraries": []map[string]any{{"id": "snes", "system": "snes", "root": "/library/snes"}},
+				"systems":   []map[string]any{{"id": "snes", "label": "SNES"}},
+			})
+		case http.MethodPatch:
+			raw, _ := io.ReadAll(r.Body)
+			patches = append(patches, string(raw))
+			var body map[string]any
+			if err := json.Unmarshal(raw, &body); err != nil {
+				t.Errorf("patch json: %v", err)
+			}
+			if _, ok := body["libraries"]; ok {
+				t.Errorf("patch included libraries: %s", raw)
+			}
+			if _, ok := body["targets"]; ok {
+				t.Errorf("patch included targets: %s", raw)
+			}
+			idle := 90
+			regions := []any{"usa", "japan"}
+			selected := "dev"
+			if v, ok := body["attract_idle_seconds"].(float64); ok {
+				idle = int(v)
+			}
+			if v, ok := body["preferred_regions"].([]any); ok {
+				regions = v
+			}
+			if v, ok := body["selected_target"].(string); ok {
+				selected = v
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"attract_idle_seconds": idle,
+				"preferred_regions":    regions,
+				"selected_target":      selected,
+				"targets":              []map[string]any{{"name": "dev", "enabled": true, "agent_configured": true}},
+				"libraries":            []map[string]any{},
+				"systems":              []map[string]any{},
+			})
+		default:
+			http.Error(w, "method", http.StatusMethodNotAllowed)
+		}
+	}))
+	t.Cleanup(server.Close)
+	client := NewClient(server.URL, server.Client())
+	got, err := client.LibrarySettings(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.AttractIdleSeconds != 90 || got.SelectedTarget != "dev" {
+		t.Fatalf("settings = %#v", got)
+	}
+	if len(got.PreferredRegions) != 2 || got.PreferredRegions[0] != "usa" {
+		t.Fatalf("regions = %#v", got.PreferredRegions)
+	}
+	if len(got.Targets) != 2 || got.Targets[0].Name != "dev" || !got.Targets[0].AgentConfigured || got.Targets[0].Address == "" {
+		t.Fatalf("targets = %#v", got.Targets)
+	}
+	if len(got.Libraries) != 1 || len(got.Systems) != 1 {
+		t.Fatalf("context = libs %#v systems %#v", got.Libraries, got.Systems)
+	}
+
+	idle := 75
+	patched, err := client.PatchLibrarySettings(context.Background(), LibrarySettingsPatch{AttractIdleSeconds: &idle})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if patched.AttractIdleSeconds != 75 {
+		t.Fatalf("idle patch = %#v", patched)
+	}
+	regions := []string{"japan"}
+	if _, err := client.PatchLibrarySettings(context.Background(), LibrarySettingsPatch{PreferredRegions: &regions}); err != nil {
+		t.Fatal(err)
+	}
+	target := "spare"
+	if _, err := client.PatchLibrarySettings(context.Background(), LibrarySettingsPatch{SelectedTarget: &target}); err != nil {
+		t.Fatal(err)
+	}
+	if len(patches) != 3 {
+		t.Fatalf("patches = %#v", patches)
+	}
+	if patches[0] != `{"attract_idle_seconds":75}` {
+		t.Fatalf("idle body = %q", patches[0])
+	}
+	if patches[1] != `{"preferred_regions":["japan"]}` {
+		t.Fatalf("regions body = %q", patches[1])
+	}
+	if patches[2] != `{"selected_target":"spare"}` {
+		t.Fatalf("target body = %q", patches[2])
+	}
+	if strings.Join(methods, ",") != "GET,PATCH,PATCH,PATCH" {
+		t.Fatalf("methods = %#v", methods)
+	}
+}
+
+func TestClientLibrarySettingsPatchEmptyRejected(t *testing.T) {
+	t.Parallel()
+	if _, err := NewClient("http://127.0.0.1:1", nil).PatchLibrarySettings(context.Background(), LibrarySettingsPatch{}); err == nil {
+		t.Fatal("empty patch accepted")
+	}
+}
+
+func TestClientLibrarySettingsGetError(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = io.WriteString(w, `{"error":{"code":"SETTINGS_UNAVAILABLE","message":"library settings are unavailable"}}`)
+	}))
+	t.Cleanup(server.Close)
+	if _, err := NewClient(server.URL, server.Client()).LibrarySettings(context.Background()); err == nil || !strings.Contains(err.Error(), "SETTINGS_UNAVAILABLE") {
+		t.Fatalf("err = %v", err)
+	}
+}

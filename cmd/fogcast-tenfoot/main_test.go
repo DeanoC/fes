@@ -39,7 +39,7 @@ func TestParseArgsSafeAreaAndNoAttract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !opts.SafeAreaSet || opts.SafeAreaPct != 0 || !opts.NoAttract {
+	if !opts.SafeAreaSet || opts.SafeAreaPct != 0 || !opts.NoAttract || !opts.NoAttractSet {
 		t.Fatalf("opts = %#v", opts)
 	}
 }
@@ -52,6 +52,17 @@ func TestParseArgsLayout(t *testing.T) {
 	}
 	if !opts.LayoutSet || opts.Layout != "shelf" {
 		t.Fatalf("opts = %#v", opts)
+	}
+}
+
+func TestParseArgsNoAttractFalseIsSet(t *testing.T) {
+	t.Parallel()
+	opts, err := parseArgs([]string{"-no-attract=false"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.NoAttract || !opts.NoAttractSet {
+		t.Fatalf("explicit false = %#v", opts)
 	}
 }
 

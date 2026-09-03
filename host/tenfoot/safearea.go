@@ -84,8 +84,9 @@ func (g Grid) footerY() int {
 }
 
 type tenfootPrefs struct {
-	SafeAreaPct float64 `json:"safe_area_pct"`
-	Layout      string  `json:"layout"`
+	SafeAreaPct    float64 `json:"safe_area_pct"`
+	Layout         string  `json:"layout"`
+	AttractEnabled *bool   `json:"attract_enabled,omitempty"`
 }
 
 func defaultPrefsPath() string {

@@ -22,6 +22,7 @@ type Options struct {
 	Layout       string
 	LayoutSet    bool
 	NoAttract    bool
+	NoAttractSet bool
 	PrefsPath    string
 }
 
@@ -51,6 +52,7 @@ func (o Options) normalized() Options {
 	if o.Smoke {
 		o.Hidden = true
 		o.NoAttract = true
+		o.NoAttractSet = true
 		if o.MaxGames > 400 {
 			o.MaxGames = 400
 		}
@@ -76,8 +78,16 @@ func (o Options) normalized() Options {
 	o.Layout = parseLayout(o.Layout).String()
 	if envTruthy(os.Getenv("FOGCAST_TENFOOT_NO_ATTRACT")) {
 		o.NoAttract = true
+		o.NoAttractSet = true
+	}
+	if !o.NoAttractSet && prefsErr == nil && !prefsAttractEnabled(prefs) {
+		o.NoAttract = true
 	}
 	return o
+}
+
+func (o Options) attractForced() bool {
+	return o.NoAttract && o.NoAttractSet
 }
 
 func envTruthy(value string) bool {

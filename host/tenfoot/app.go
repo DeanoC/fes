@@ -206,6 +206,7 @@ type Snapshot struct {
 	GPUParked       bool
 	Attract         AttractSnapshot
 	SafeAreaPct     float64
+	Settings        SettingsSnapshot
 }
 
 // App owns catalog, focus, async covers, and host launch. SDL stays out.
@@ -230,37 +231,54 @@ type App struct {
 	maxGames  int
 	pageLimit int
 
-	platforms       []Platform
-	platformID      string
-	sort            string
-	query           string
-	searchOpen      bool
-	searchPending   bool
-	searchDue       time.Time
-	details         map[string]FocusDetail
-	loadGen         int
-	keepFocusID     string
-	keepFocusIndex  int
-	navDirty        bool
-	platformErr     string
-	platformKick    chan struct{}
-	loadCancel      context.CancelFunc
-	jobCtx          context.Context
-	collectionID    string
-	collections     []Collection
-	collectionsErr  string
-	collectionsKick chan struct{}
-	viewPickerOpen  bool
-	viewPickerIndex int
-	favoriteBusy    bool
-	hold            HoldGate
-	session         SessionResult
-	sessionTitle    string
-	sessionGen      int
-	stopPhase       string
-	stopMessage     string
-	gpuParked       bool
-	sessionKick     chan struct{}
+	platforms            []Platform
+	platformID           string
+	sort                 string
+	query                string
+	searchOpen           bool
+	searchPending        bool
+	searchDue            time.Time
+	details              map[string]FocusDetail
+	loadGen              int
+	keepFocusID          string
+	keepFocusIndex       int
+	navDirty             bool
+	platformErr          string
+	platformKick         chan struct{}
+	loadCancel           context.CancelFunc
+	jobCtx               context.Context
+	collectionID         string
+	collections          []Collection
+	collectionsErr       string
+	collectionsKick      chan struct{}
+	viewPickerOpen       bool
+	viewPickerIndex      int
+	settingsOpen         bool
+	settingsIndex        int
+	settingsGen          int
+	settingsWriteGen     int
+	settingsPatchSeq     int
+	settingsAppliedSeq   int
+	settingsLoading      bool
+	settingsBusy         bool
+	settingsHydrated     bool
+	settingsStatus       string
+	settingsDraftIdle    int
+	settingsDraftRegions []string
+	settingsDraftTarget  string
+	settingsRegionIndex  int
+	hostSettings         LibrarySettings
+	attractPrefEnabled   bool
+	attractForcedOff     bool
+	favoriteBusy         bool
+	hold                 HoldGate
+	session              SessionResult
+	sessionTitle         string
+	sessionGen           int
+	stopPhase            string
+	stopMessage          string
+	gpuParked            bool
+	sessionKick          chan struct{}
 
 	safeAreaPct        float64
 	prefsPath          string
@@ -305,26 +323,27 @@ func NewApp(client *Client, width, height, maxGames int) *App {
 	grid := Grid{}
 	grid.Layout(width, height)
 	return &App{
-		client:          client,
-		games:           []Game{},
-		grid:            grid,
-		covers:          map[string]*coverSlot{},
-		inflight:        map[string]workKind{},
-		status:          "connecting to host API",
-		launch:          LaunchSnapshot{Phase: "idle"},
-		jobs:            make(chan workItem, coverJobBuffer),
-		results:         make(chan workResult, coverJobBuffer),
-		maxGames:        maxGames,
-		pageLimit:       defaultPageLimit,
-		sort:            "title",
-		details:         map[string]FocusDetail{},
-		platformKick:    make(chan struct{}, 1),
-		collectionsKick: make(chan struct{}, 1),
-		sessionKick:     make(chan struct{}, 1),
-		stopPhase:       "idle",
-		attractIdle:     attractIdleDuration(defaultAttractIdleSeconds),
-		attractCycle:    defaultAttractCycle,
-		attractResults:  make(chan attractResult, 4),
+		client:             client,
+		games:              []Game{},
+		grid:               grid,
+		covers:             map[string]*coverSlot{},
+		inflight:           map[string]workKind{},
+		status:             "connecting to host API",
+		launch:             LaunchSnapshot{Phase: "idle"},
+		jobs:               make(chan workItem, coverJobBuffer),
+		results:            make(chan workResult, coverJobBuffer),
+		maxGames:           maxGames,
+		pageLimit:          defaultPageLimit,
+		sort:               "title",
+		details:            map[string]FocusDetail{},
+		platformKick:       make(chan struct{}, 1),
+		collectionsKick:    make(chan struct{}, 1),
+		sessionKick:        make(chan struct{}, 1),
+		stopPhase:          "idle",
+		attractPrefEnabled: true,
+		attractIdle:        attractIdleDuration(defaultAttractIdleSeconds),
+		attractCycle:       defaultAttractCycle,
+		attractResults:     make(chan attractResult, 4),
 	}
 }
 
@@ -389,6 +408,17 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		return
 	case CmdLayoutCycle:
 		a.cycleLayoutLocked()
+		return
+	case CmdSettings:
+		if a.settingsOpen {
+			a.closeSettingsLocked()
+		} else {
+			a.openSettingsLocked()
+		}
+		return
+	}
+	if a.settingsOpen {
+		a.handleSettingsLocked(cmd)
 		return
 	}
 	if a.viewPickerOpen {
@@ -906,6 +936,7 @@ func (a *App) Snapshot() Snapshot {
 		GPUParked:       a.gpuParked,
 		Attract:         a.attractSnapshotLocked(),
 		SafeAreaPct:     a.safeAreaPct,
+		Settings:        a.settingsSnapshotLocked(),
 	}
 }
 
@@ -1281,6 +1312,7 @@ func (a *App) syncGPUParkLocked() {
 		if want {
 			a.viewPickerOpen = false
 			a.searchOpen = false
+			a.closeSettingsLocked()
 		}
 		return
 	}
@@ -1291,6 +1323,7 @@ func (a *App) syncGPUParkLocked() {
 	a.hideAttractLocked()
 	a.viewPickerOpen = false
 	a.searchOpen = false
+	a.closeSettingsLocked()
 	a.inflight = map[string]workKind{}
 	a.covers = map[string]*coverSlot{}
 	for {

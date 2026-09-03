@@ -55,18 +55,23 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 	timeout := fs.Duration("smoke-timeout", 45*time.Second, "smoke deadline")
 	safeArea := fs.Float64("safe-area", tenfoot.DefaultSafeAreaPct, "TV overscan inset as a fraction of each edge (0-0.2)")
 	layout := fs.String("layout", "grid", "sofa layout: grid, shelf, or list")
-	noAttract := fs.Bool("no-attract", envTruthy("FOGCAST_TENFOOT_NO_ATTRACT"), "disable attract mode")
+	envNoAttract := envTruthy("FOGCAST_TENFOOT_NO_ATTRACT")
+	noAttract := fs.Bool("no-attract", envNoAttract, "disable attract mode")
 	if err := fs.Parse(args); err != nil {
 		return tenfoot.Options{}, err
 	}
 	safeAreaSet := false
 	layoutSet := false
+	noAttractSet := envNoAttract
 	fs.Visit(func(f *flag.Flag) {
 		if f.Name == "safe-area" {
 			safeAreaSet = true
 		}
 		if f.Name == "layout" {
 			layoutSet = true
+		}
+		if f.Name == "no-attract" {
+			noAttractSet = true
 		}
 	})
 	return tenfoot.Options{
@@ -82,6 +87,7 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 		Layout:       *layout,
 		LayoutSet:    layoutSet,
 		NoAttract:    *noAttract,
+		NoAttractSet: noAttractSet,
 	}, nil
 }
 

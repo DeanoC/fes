@@ -50,6 +50,9 @@ func TestCommandFromKeyAndStick(t *testing.T) {
 	if CommandFromKey("l") != CmdLayoutCycle {
 		t.Fatal("layout keyboard mapping")
 	}
+	if CommandFromKey("o") != CmdSettings {
+		t.Fatal("settings keyboard mapping")
+	}
 	if CommandFromStick(20000, 0) != CmdRight || CommandFromStick(0, -20000) != CmdUp {
 		t.Fatal("stick mapping")
 	}

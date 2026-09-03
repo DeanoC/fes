@@ -29,6 +29,7 @@ const (
 	CmdSafeAreaIn
 	CmdSafeAreaOut
 	CmdLayoutCycle
+	CmdSettings
 )
 
 // Button is a gamepad-first control, independent of SDL.
@@ -127,6 +128,8 @@ func CommandFromKey(name string) Command {
 		return CmdSafeAreaIn
 	case "l":
 		return CmdLayoutCycle
+	case "o":
+		return CmdSettings
 	default:
 		return CmdNone
 	}
@@ -265,7 +268,7 @@ func isHoldable(cmd Command) bool {
 // navigation repeat continues (Repeater tracks only one command). Re-arm does
 // not call Press: that would walk focus and restart repeat after South/East.
 func applyPressed(app *App, pressed, held map[Command]bool, now time.Time) bool {
-	gate := !app.SearchOpen() && !app.ViewPickerOpen() && !app.AttractActive()
+	gate := !app.SearchOpen() && !app.ViewPickerOpen() && !app.SettingsOpen() && !app.AttractActive()
 	for cmd := range held {
 		if !pressed[cmd] {
 			if app.AttractActive() {
@@ -349,6 +352,8 @@ func (c Command) String() string {
 		return "safe-area-out"
 	case CmdLayoutCycle:
 		return "layout-cycle"
+	case CmdSettings:
+		return "settings"
 	default:
 		return "none"
 	}

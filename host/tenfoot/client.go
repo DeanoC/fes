@@ -404,6 +404,118 @@ func CoverHandle(game Game, presentation Presentation) string {
 	return normalizeHandle(presentation.Presentation.CoverArtworkID)
 }
 
+// LibraryTarget is one read-only target row from GET /api/v1/library/settings.
+type LibraryTarget struct {
+	Name            string `json:"name"`
+	Address         string `json:"address"`
+	Enabled         bool   `json:"enabled"`
+	AgentConfigured bool   `json:"agent_configured"`
+}
+
+// LibraryRoot is one library path row. Tenfoot does not edit these.
+type LibraryRoot struct {
+	ID     string `json:"id"`
+	System string `json:"system"`
+	Root   string `json:"root"`
+}
+
+// LibrarySystem is one platform label from GET /api/v1/library/settings.
+type LibrarySystem struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+}
+
+// LibrarySettings is GET /api/v1/library/settings.
+type LibrarySettings struct {
+	AttractIdleSeconds int             `json:"attract_idle_seconds"`
+	PreferredRegions   []string        `json:"preferred_regions"`
+	SelectedTarget     string          `json:"selected_target"`
+	Targets            []LibraryTarget `json:"targets"`
+	Libraries          []LibraryRoot   `json:"libraries"`
+	Systems            []LibrarySystem `json:"systems"`
+}
+
+// LibrarySettingsPatch is a partial PATCH /api/v1/library/settings body.
+// Nil fields are omitted.
+type LibrarySettingsPatch struct {
+	AttractIdleSeconds *int      `json:"attract_idle_seconds,omitempty"`
+	PreferredRegions   *[]string `json:"preferred_regions,omitempty"`
+	SelectedTarget     *string   `json:"selected_target,omitempty"`
+}
+
+func (p LibrarySettingsPatch) payload() (map[string]any, error) {
+	raw := map[string]any{}
+	if p.AttractIdleSeconds != nil {
+		raw["attract_idle_seconds"] = *p.AttractIdleSeconds
+	}
+	if p.PreferredRegions != nil {
+		regions := append([]string(nil), *p.PreferredRegions...)
+		if regions == nil {
+			regions = []string{}
+		}
+		raw["preferred_regions"] = regions
+	}
+	if p.SelectedTarget != nil {
+		raw["selected_target"] = *p.SelectedTarget
+	}
+	if len(raw) == 0 {
+		return nil, fmt.Errorf("settings patch is empty")
+	}
+	return raw, nil
+}
+
+// LibrarySettings loads GET /api/v1/library/settings.
+func (c *Client) LibrarySettings(ctx context.Context) (LibrarySettings, error) {
+	var result LibrarySettings
+	if err := c.getJSON(ctx, "/api/v1/library/settings", &result); err != nil {
+		return LibrarySettings{}, err
+	}
+	if result.PreferredRegions == nil {
+		result.PreferredRegions = []string{}
+	}
+	if result.Targets == nil {
+		result.Targets = []LibraryTarget{}
+	}
+	if result.Libraries == nil {
+		result.Libraries = []LibraryRoot{}
+	}
+	if result.Systems == nil {
+		result.Systems = []LibrarySystem{}
+	}
+	if result.AttractIdleSeconds <= 0 {
+		result.AttractIdleSeconds = defaultAttractIdleSeconds
+	}
+	return result, nil
+}
+
+// PatchLibrarySettings sends PATCH /api/v1/library/settings with only set fields.
+func (c *Client) PatchLibrarySettings(ctx context.Context, patch LibrarySettingsPatch) (LibrarySettings, error) {
+	payload, err := patch.payload()
+	if err != nil {
+		return LibrarySettings{}, err
+	}
+	var result LibrarySettings
+	if err := c.doJSON(ctx, http.MethodPatch, "/api/v1/library/settings", payload, &result); err != nil {
+		return LibrarySettings{}, err
+	}
+	if result.PreferredRegions == nil {
+		result.PreferredRegions = []string{}
+	}
+	if result.Targets == nil {
+		result.Targets = []LibraryTarget{}
+	}
+	if result.Libraries == nil {
+		result.Libraries = []LibraryRoot{}
+	}
+	if result.Systems == nil {
+		result.Systems = []LibrarySystem{}
+	}
+	if result.AttractIdleSeconds <= 0 {
+		result.AttractIdleSeconds = defaultAttractIdleSeconds
+	}
+	return result, nil
+}
+
 // Attract loads GET /api/v1/library/attract?limit=N.
 func (c *Client) Attract(ctx context.Context, limit int) (AttractPlaylist, error) {
 	if limit <= 0 {
@@ -697,15 +809,30 @@ func decodeSessionBody(status int, body []byte) (SessionResult, error) {
 }
 
 func (c *Client) getJSON(ctx context.Context, path string, dest any) error {
-	return c.mutateJSON(ctx, http.MethodGet, path, dest)
+	return c.doJSON(ctx, http.MethodGet, path, nil, dest)
 }
 
 func (c *Client) mutateJSON(ctx context.Context, method, path string, dest any) error {
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, http.NoBody)
+	return c.doJSON(ctx, method, path, nil, dest)
+}
+
+func (c *Client) doJSON(ctx context.Context, method, path string, payload any, dest any) error {
+	var bodyReader io.Reader = http.NoBody
+	if payload != nil {
+		data, err := json.Marshal(payload)
+		if err != nil {
+			return err
+		}
+		bodyReader = bytes.NewReader(data)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, bodyReader)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Accept", "application/json")
+	if payload != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return err

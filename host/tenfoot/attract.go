@@ -108,6 +108,8 @@ func (a *App) persistPrefsLocked(field string) {
 		existing.SafeAreaPct = a.safeAreaPct
 	case "layout":
 		existing.Layout = a.grid.Mode.String()
+	case "attract":
+		existing.AttractEnabled = boolPtr(a.attractPrefEnabled)
 	default:
 		return
 	}
@@ -242,7 +244,7 @@ func (a *App) attractBlockedLocked() bool {
 	case "launching":
 		return true
 	}
-	return a.attractDisabled || a.stopPhase == "stopping" || a.searchOpen || a.viewPickerOpen
+	return a.attractDisabled || a.stopPhase == "stopping" || a.searchOpen || a.viewPickerOpen || a.settingsOpen
 }
 
 func (a *App) tickAttractLocked(now time.Time) {

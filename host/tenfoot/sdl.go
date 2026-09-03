@@ -218,7 +218,7 @@ func runWindow(ctx context.Context, opts Options) error {
 	app.SetPrefsPath(opts.prefsPath())
 	app.SetLayout(parseLayout(opts.Layout))
 	app.SetSafeAreaPct(opts.SafeAreaPct)
-	app.SetAttractDisabled(opts.NoAttract)
+	app.ConfigureAttract(opts.NoAttract, opts.attractForced())
 	if opts.Smoke {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, opts.SmokeTimeout)
@@ -703,7 +703,7 @@ func commandFromSDLButton(code C.int) Command {
 	case C.SDL_GAMEPAD_BUTTON_BACK:
 		return CommandFromButton(ButtonBack)
 	case C.SDL_GAMEPAD_BUTTON_GUIDE:
-		return CmdLayoutCycle
+		return CmdSettings
 	default:
 		return CmdNone
 	}
@@ -771,6 +771,8 @@ func commandFromSDLKey(code C.int) Command {
 		return CmdSafeAreaIn
 	case C.SDLK_L:
 		return CmdLayoutCycle
+	case C.SDLK_O:
+		return CmdSettings
 	default:
 		return CmdNone
 	}
@@ -876,6 +878,7 @@ func drawFrame(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[str
 	}
 	drawDetail(renderer, snap, labels, used)
 	drawViewPicker(renderer, snap, labels, used)
+	drawSettings(renderer, snap, labels, used)
 	for key, item := range labels {
 		if _, ok := used[key]; ok {
 			continue
@@ -996,7 +999,7 @@ func drawHeader(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTe
 	drawDebug(renderer, x+w-160, y+22, pad, 2)
 	chrome := snap.ChromeLine()
 	drawLabel(renderer, labels, used, "chrome", x+24, y+52, w-48, 18, chrome)
-	hint := "LB/RB platform  X sort  Y search  hold A view  hold Y fav  SELECT layout"
+	hint := "LB/RB platform  X sort  Y search  hold A view  hold Y fav  SELECT layout  GUIDE settings"
 	if snap.GPUParked || snap.Session.State == "active" {
 		hint = "B stop  START quit  SELECT layout"
 	}
@@ -1138,6 +1141,90 @@ func drawViewPicker(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]s
 		}
 		drawLabel(renderer, labels, used, fmt.Sprintf("view-%d", idx), x+20, rowY, panelW-40, 16, label)
 	}
+}
+
+func drawSettings(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTexture, used map[string]struct{}) {
+	if !snap.Settings.Open || len(snap.Settings.Rows) == 0 {
+		return
+	}
+	contentW := snap.Grid.contentWidth()
+	contentH := snap.Grid.contentHeight()
+	C.SDL_SetRenderDrawBlendMode(renderer, C.SDL_BLENDMODE_BLEND)
+	fillRect(renderer, float32(snap.Grid.contentLeft()), float32(snap.Grid.contentTop()), float32(contentW), float32(contentH), 8, 8, 12, 180)
+	C.SDL_SetRenderDrawBlendMode(renderer, C.SDL_BLENDMODE_NONE)
+	panelW := 720
+	if panelW > contentW-48 {
+		panelW = contentW - 48
+	}
+	if panelW < 280 {
+		panelW = contentW - 24
+	}
+	rowH := 32
+	headerH := 44
+	footerH := 28
+	rows := snap.Settings.Rows
+	panelH := headerH + len(rows)*rowH + footerH
+	maxH := contentH - 24
+	if maxH < 120 {
+		maxH = contentH
+	}
+	if panelH > maxH {
+		panelH = maxH
+	}
+	x := snap.Grid.contentLeft() + (contentW-panelW)/2
+	y := snap.Grid.headerY() + snap.Grid.HeaderHeight + 12
+	if y+panelH > snap.Grid.footerY()-8 {
+		y = snap.Grid.contentTop() + (contentH-panelH)/2
+	}
+	fillRect(renderer, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
+	fillRect(renderer, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
+	title := "Settings"
+	if snap.Settings.LibraryCount > 0 {
+		title = fmt.Sprintf("Settings  ·  %d libraries", snap.Settings.LibraryCount)
+	}
+	drawLabel(renderer, labels, used, "set-title", x+16, y+12, panelW-32, 18, title)
+	visible := (panelH - headerH - footerH) / rowH
+	if visible < 1 {
+		visible = 1
+	}
+	if visible > len(rows) {
+		visible = len(rows)
+	}
+	start := snap.Settings.Index - visible/2
+	if start < 0 {
+		start = 0
+	}
+	if start+visible > len(rows) {
+		start = len(rows) - visible
+	}
+	if start < 0 {
+		start = 0
+	}
+	labelW := 140
+	if labelW > panelW/3 {
+		labelW = panelW / 3
+	}
+	for i := 0; i < visible; i++ {
+		idx := start + i
+		if idx >= len(rows) {
+			break
+		}
+		rowY := y + headerH + i*rowH
+		if idx == snap.Settings.Index {
+			fillRect(renderer, float32(x+8), float32(rowY-2), float32(panelW-16), float32(rowH-2), 48, 56, 80, 255)
+		}
+		row := rows[idx]
+		drawLabel(renderer, labels, used, fmt.Sprintf("set-l-%s", row.ID), x+20, rowY+4, labelW, 16, row.Label)
+		drawLabel(renderer, labels, used, fmt.Sprintf("set-v-%s-%d", row.ID, idx), x+20+labelW, rowY+4, panelW-labelW-40, 16, row.Value)
+	}
+	status := strings.TrimSpace(snap.Settings.Status)
+	if status == "" {
+		status = "A confirm  B close  Left/Right change"
+	}
+	if snap.Settings.Loading {
+		status = "loading host settings"
+	}
+	drawLabel(renderer, labels, used, "set-status", x+16, y+panelH-24, panelW-32, 14, status)
 }
 
 func drawAttract(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[string]sdlTexture) {

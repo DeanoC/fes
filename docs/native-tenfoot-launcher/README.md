@@ -65,8 +65,8 @@ can pass `-safe-area 0`. `-` / `=` nudge the inset by 0.5 percentage points
 padding is unchanged and sits inside that gutter.
 
 Sofa layout defaults to **grid**. `-layout shelf` or `-layout list` override
-the saved pref for that run; gamepad **Select/View** (SDL Back) or **Guide**,
-and debug keyboard `l`, cycle grid → shelf → list → grid. The choice is stored
+the saved pref for that run; gamepad **Select/View** (SDL Back) and debug
+keyboard `l` cycle grid → shelf → list → grid. The choice is stored
 in the same `tenfoot.json` as `layout`. Shelf is one row of larger covers:
 Left/Right move one title, Up/Down jump by a visible page of covers. List is
 vertical rows with a thumb, title, and system: Up/Down move one row, Left/Right
@@ -76,8 +76,9 @@ every layout.
 
 Attract mode starts after the host `idle_seconds` from
 `GET /api/v1/library/attract` (default 60s) with no input, no modal search/view
-picker, and no active host session. The client hydrates that idle threshold
-before arming the timer. Playlist rows with a `video` handle play first (Darwin
+picker or settings overlay, and no active host session. The client hydrates that
+idle threshold before arming the timer. A sofa settings PATCH of
+`attract_idle_seconds` updates the same idle timer. Playlist rows with a `video` handle play first (Darwin
 AVFoundation, including the track `preferredTransform`). Short clips play
 through, then the playlist advances; a single-item playlist restarts from the
 already-fetched local file and keeps the last frame on screen. Clips longer
@@ -93,7 +94,8 @@ attract does not launch the attract title on release. `-smoke` implies
 fallback; native video decode there is NEED.
 
 Gamepad is the intended control path (d-pad / left stick to move, South/A to
-launch, East/B to back, Start to quit, Select/View or Guide to cycle layout).
+launch, East/B to back, Start to quit, Select/View to cycle layout, Guide to
+open the sofa settings overlay).
 Shoulders cycle the platform filter
 (All, then each host platform). West/X cycles sort (title, recently added,
 system). On Recent, West/X cycles last played, title, and system; on Recently
@@ -108,7 +110,30 @@ Keyboard is debug-only: arrows/WASD (S is stop, not down),
 Enter to launch, Esc/Backspace to back (or stop while a session is active),
 Q to quit, `[` / `]` for platform, `x` for sort, `/` or `f` for search,
 `c` / Shift+`c` to cycle views, `v` to favorite, `l` to cycle layout,
-`-` / `=` to nudge the overscan inset. Down arrow still moves focus when idle.
+`o` to open settings, `-` / `=` to nudge the overscan inset. Down arrow still
+moves focus when idle.
+
+## Sofa settings
+
+Guide (debug keyboard `o`) opens a gamepad-first overlay inside the TV
+safe-area. Up/Down move rows, Left/Right change the focused row, South/A
+confirms, East/B closes. Attract does not arm while the overlay is open.
+Select/View still cycles layout and `-` / `=` still nudge overscan, including
+while the overlay is closed.
+
+Local prefs write immediately to `tenfoot.json`:
+
+- Layout (`grid` / `shelf` / `list`)
+- Safe-area inset
+- Attract on/off (local gate only). `-no-attract` and
+  `FOGCAST_TENFOOT_NO_ATTRACT` still force attract off for debug and smoke.
+
+Host fields load from `GET /api/v1/library/settings` and save with
+`PATCH /api/v1/library/settings` on confirm: attract idle seconds, preferred
+regions (usa / world / europe / japan), and selected target (from the GET
+target list). Library paths are shown as a count only; the path editor stays
+in the browser. A failed PATCH keeps the previous values and reports a short
+status line. Changing `selected_target` can fail while a session is active.
 
 On Mac, run from a GUI terminal for the Cocoa window. On Linux, use a session
 with X11 or Wayland for windowed/fullscreen. Headless agent sessions fall
@@ -181,6 +206,10 @@ make tenfoot-smoke
   `GET /api/v1/presentation/artwork/{handle}` and `Accept: image/*`. Attract
   does not run while the host session is `active`; dismiss/park/stop tears
   down the decoder and any queued player.
+- `GET /api/v1/library/settings` hydrates sofa settings (idle seconds,
+  preferred regions, selected target, read-only targets / systems /
+  library count). `PATCH /api/v1/library/settings` writes only the field the
+  operator confirmed. Tenfoot does not send `libraries` or target CRUD.
 
 ## Library views
 
@@ -212,9 +241,9 @@ Attract does not run while parked; after idle it may start again.
   an aarch64 binary on the mini (container). Windowed/fullscreen smoke and
   `-smoke` against a loopback host API still need a Linux box (see
   [`LINUX.md`](./LINUX.md)). No Linux CI job.
-- Full sofa settings UI (libraries / targets / preferred_regions stay in the
-  browser). Idle seconds come from the attract JSON. Layout and overscan stay
-  in local `tenfoot.json` / debug keys; there is no sofa settings screen.
+- Library-path / roots editor and target address/agent CRUD stay in the
+  browser. Sofa settings can pick `selected_target` and show a read-only
+  target list.
 
 Still out of tenfoot scope (web / later): sofa collection create/rename,
 library/target settings editor, session/events stream UI, development-rbf,
