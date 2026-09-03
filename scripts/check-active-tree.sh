@@ -18,7 +18,7 @@ for active_path in fogcast runtime support lib releases; do
 	fi
 done
 
-historic_pattern='stage[-_ ]?c0|poc[0-9]*|fogcast-runtime|native[-_ ]personality|mister_runtime_linux_v2|NativeLinuxV2|HardwareBroker|OperationLease|CapabilityBundle|AuthorityView|BackendFence|ReplayTracker|native_recovery|native_containment|native_peripheral_session|native_resources|native_audio|native_av_io|native_video|native_input|native_save|native_scheduler|native_offload|native_snes|v2'
+historic_pattern='stage[-_ ]?c0|poc[0-9]*|fogcast-runtime|native[-_ ]personality|mister_runtime_linux_v2|NativeLinuxV2|HardwareBroker|OperationLease|CapabilityBundle|AuthorityView|BackendFence|ReplayTracker|native_recovery|native_containment|native_peripheral_session|native_resources|native_audio|native_av_io|native_video|native_input|native_save|native_scheduler|native_offload|native_snes|(^|[^[:alnum:]])v2([^[:alnum:]]|$)'
 
 if grep -ERni --include='*.[ch]' --include='*.cpp' --include='*.hpp' \
 	--include='Makefile' "$historic_pattern" \
