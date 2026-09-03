@@ -7,6 +7,7 @@
 #include "native/hardware.hpp"
 #include "native/linux/i2c.hpp"
 #include "native/linux/spi.hpp"
+#include "native/adv7513.hpp"
 #include "native/video_recipe.hpp"
 
 #include <cstdint>
@@ -31,10 +32,7 @@ const std::vector<std::uint16_t> kReleasedStatus = {
 // native start.  The request is deliberately not read back here: the native
 // path has no need to select the EDID sub-map, and the transmitter's IRQ
 // response is not part of fixed-mode bring-up.
-const std::vector<RegisterWrite> kHdmiWake = {
-	{0x96, 0x04}, {0xc4, 0x00}, {0xc9, 0x03},
-	{0xc9, 0x13}, {0xc9, 0x03},
-};
+const std::vector<RegisterWrite> kHdmiWake = adv7513::HdmiWake();
 
 const std::vector<std::uint16_t> kNeutralButtons = {0x0001, 0x0000};
 
@@ -63,14 +61,14 @@ void PhaseSuccess(const char* phase, VideoResult* result, LogSink& log)
 Error InitializeAdv(I2c& i2c, const VideoRecipe& recipe,
 	std::uint64_t deadline, VideoResult* result)
 {
-	Error error = i2c.SelectFirst(0x39, 0x41, deadline, &result->selected_bus,
-		&result->power_before);
+	Error error = i2c.SelectFirst(adv7513::kMainMapAddress7Bit, adv7513::reg::kPower,
+		deadline, &result->selected_bus, &result->power_before);
 	if (!error.ok()) return error;
 	for (const RegisterWrite& write : recipe.adv_initialization) {
 		error = i2c.WriteByte(write.address, write.value, deadline);
 		if (!error.ok()) return error;
 	}
-	return i2c.ReadByte(0x41, &result->power_after, deadline);
+	return i2c.ReadByte(adv7513::reg::kPower, &result->power_after, deadline);
 }
 
 Error ApplyMode(Spi& spi, I2c& i2c, const VideoRecipe& recipe,
@@ -101,9 +99,11 @@ Error RequireLink(I2c& i2c, Clock& clock, std::uint64_t deadline,
 	do {
 		if (clock.NowMs() >= deadline)
 			return {ErrorCode::io_failed, "deadline exceeded"};
-		const Error error = i2c.ReadByte(0x42, &result->link_status, deadline);
+		const Error error = i2c.ReadByte(adv7513::reg::kStatus,
+			&result->link_status, deadline);
 		if (!error.ok()) return error;
-	} while ((result->link_status & 0x60) != 0x60);
+	} while ((result->link_status & adv7513::kStatusLinkReady) !=
+		adv7513::kStatusLinkReady);
 	return {};
 }
 
@@ -113,7 +113,8 @@ void CompleteVideo(const VideoRecipe& recipe, VideoResult* result, LogSink& log)
 	result->error = {ErrorCode::none,
 		std::string("recipe=") + recipe.identity +
 		" bus=" + result->selected_bus +
-		" address=0x39 power_before=" + HexByte(result->power_before) +
+		" address=" + HexByte(adv7513::kMainMapAddress7Bit) +
+		" power_before=" + HexByte(result->power_before) +
 		" power_after=" + HexByte(result->power_after) +
 		" link_status=" + HexByte(result->link_status)};
 	WritePhase(log, "hdmi_verify", *result, result->error);
