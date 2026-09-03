@@ -157,6 +157,10 @@ VideoResult FixedVideoBringup::BringUp(std::uint64_t deadline)
 	if (!error.ok()) return PhaseFailure("hdmi_wake", error, result);
 	PhaseSuccess("hdmi_wake", &result, log_);
 
+	error = spi_.Exchange(kUserIoTarget, kNeutralButtons, nullptr, deadline);
+	if (!error.ok()) return PhaseFailure("core_input", error, result);
+	PhaseSuccess("core_input", &result, log_);
+
 	error = RequireLink(i2c_, clock_, deadline, &result);
 	if (!error.ok()) return PhaseFailure("hdmi_verify", error, result);
 	CompleteVideo(recipe_, &result, log_);

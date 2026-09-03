@@ -241,6 +241,10 @@ public:
 			request[0] == 0x0020) {
 			attempt = "spi:video.timing";
 			ledger_.push_back("video.timing:menu_720p60");
+		} else if (target == mister::native::kUserIoTarget &&
+			request == std::vector<std::uint16_t>({0x0001, 0x0000})) {
+			attempt = "spi:buttons.neutral";
+			ledger_.push_back("core.buttons.neutral");
 		}
 		const mister::Error error = gate_.Call(attempt);
 		if (!error.ok()) return error;
@@ -341,6 +345,71 @@ struct ChronologyFixture {
 	mister::native::CoreLoader core;
 	mister::native::FixedVideoBringup video;
 };
+
+class GenericResetSpi final : public mister::native::Spi {
+public:
+	mister::Error SynchronizeCore(std::uint64_t) override { return {}; }
+
+	mister::Error Exchange(std::uint8_t target,
+		const std::vector<std::uint16_t>& request,
+		std::vector<std::uint16_t>* response, std::uint64_t) override
+	{
+		assert(!request.empty());
+		if (target == mister::native::kUserIoTarget &&
+			request.size() == 9 && request[0] == 0x001e) {
+			++status_count;
+			if (status_count == 3 && request[1] == 0 && generic_reset_asserted)
+				return {mister::ErrorCode::io_failed,
+					"generic button reset remained asserted"};
+		} else if (target == mister::native::kUserIoTarget &&
+			request[0] == 0x0014 && response != nullptr) {
+			response->assign(request.size(), 0);
+			const std::string identity = "MegaDrive";
+			std::size_t index = 1;
+			for (unsigned char byte : identity) (*response)[index++] = byte;
+			(*response)[index] = ';';
+		} else if (target == mister::native::kUserIoTarget &&
+			request == std::vector<std::uint16_t>({0x0001, 0x0000})) {
+			generic_reset_asserted = false;
+			++neutral_button_count;
+		}
+		return {};
+	}
+
+	bool generic_reset_asserted = true;
+	std::size_t neutral_button_count = 0;
+	std::size_t status_count = 0;
+};
+
+void TestFixedGameVideoNeutralizesGenericResetBeforeStatusRelease()
+{
+	TempMedia media;
+	mister::native::PosixArtifactOpener opener;
+	mister::native::Artifact artifact;
+	assert(opener.Open(media.path, 0, &artifact).ok());
+	GenericResetSpi spi;
+	std::vector<std::string> events;
+	std::vector<std::string> ordered_calls;
+	mister_test::FakeI2c i2c(&events, &ordered_calls);
+	SequenceClock clock;
+	mister_test::CaptureLog log;
+	mister::native::CoreLoader core(spi);
+	mister::native::FixedVideoBringup video(spi, i2c, clock, log,
+		mister::native::Menu720p60Recipe());
+	const mister::CoreRecipe recipe = {0x0001, 0x0001, 0x0000,
+		mister::FileWireFormat::little_endian_byte_pairs};
+	assert(core.AssertReset(recipe, kDeadline).ok());
+	std::string observed;
+	assert(core.Probe(&observed, kDeadline).ok());
+	assert(observed == "MegaDrive");
+	assert(core.ApplyInitialStatus(recipe, kDeadline).ok());
+	assert(core.Attach(1, artifact, recipe.file_wire, kDeadline).ok());
+	assert(video.BringUp(kDeadline).error.ok());
+	assert(core.ReleaseReset(recipe, kDeadline).ok());
+	assert(spi.neutral_button_count == 1);
+	assert(!spi.generic_reset_asserted);
+	++scenarios;
+}
 
 mister::Error RunPostProgramComponents(ChronologyFixture& fixture)
 {
@@ -955,6 +1024,7 @@ void TestPostProgramComponentsUseExactMegaDriveChronologyWithoutRelease()
 		"video.timing:menu_720p60",
 		"video.adv.mode",
 		"video.adv.wake",
+		"core.buttons.neutral",
 		"video.link.ready",
 	};
 	assert(fixture.ledger == expected);
@@ -1010,6 +1080,7 @@ void TestFixedVideoRequiresBothHpdAndMonitorSenseBeforeReady()
 
 int main()
 {
+	TestFixedGameVideoNeutralizesGenericResetBeforeStatusRelease();
 	TestSuccessUsesExactOrderWireRequestsDeadlineDiagnosticsAndLogs();
 	TestExpiredBeforeResetMakesNoHardwareCall();
 	TestCoreSynchronizationFailureStopsBeforeReset();

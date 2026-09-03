@@ -311,6 +311,10 @@ public:
 			event = "video.timing:menu_720p60";
 			events_.push_back(event);
 			i2c_.MarkTiming();
+		} else if (request ==
+			std::vector<std::uint16_t>({0x0001, 0x0000})) {
+			event = "core.buttons.neutral";
+			events_.push_back(event);
 		}
 		if (!fail_event.empty() && event == fail_event) {
 			fail_event.clear();
@@ -549,6 +553,7 @@ const std::vector<std::string> kSuccessfulLaunch = {
 	"video.adv.initialize",
 	"video.timing:menu_720p60",
 	"video.adv.mode",
+	"core.buttons.neutral",
 	"video.link.ready",
 	"input.neutral",
 	"core.reset.release",
@@ -690,7 +695,8 @@ void TestEveryPostProgramPhaseFailureGetsOneIdleCleanup()
 		"core.media.extension:.bin", "core.media.enable",
 		"core.media.data:all bytes once", "core.media.complete",
 		"video.adv.initialize", "video.timing:menu_720p60",
-		"video.adv.mode", "video.link.ready", "input.neutral",
+		"video.adv.mode", "core.buttons.neutral", "video.link.ready",
+		"input.neutral",
 		"core.reset.release", "input.start",
 	};
 	for (const std::string& phase : phases) {
@@ -770,7 +776,7 @@ void TestStopOrdersInputBeforeIdleAndImmediateRelaunchIsFresh()
 	}));
 	fixture.native.events.clear();
 	std::vector<std::string> second = kSuccessfulLaunch;
-	second[21] = "input.start:2";
+	second[22] = "input.start:2";
 	assert(fixture.runtime.LaunchGame(fixture.Request()).ok());
 	assert(fixture.native.events == second);
 	assert(fixture.native.input.descriptors == std::vector<int>({1, 2}));
