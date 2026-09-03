@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"context"
 	"image"
+	"os"
 	"strings"
 	"time"
 )
@@ -10,12 +11,15 @@ import (
 const (
 	defaultAttractCycle       = 12 * time.Second
 	defaultAttractIdleRefresh = 15 * time.Second
+	maxAttractVideo           = 60 * time.Second
 )
 
 type attractResult struct {
 	gen    int
 	handle string
 	image  *image.RGBA
+	player attractPlayer
+	video  bool
 	err    error
 }
 
@@ -28,6 +32,8 @@ type AttractSnapshot struct {
 	Launchable  bool
 	Handle      string
 	Image       *image.RGBA
+	Video       bool
+	FrameSeq    int
 	IdleSeconds int
 }
 
@@ -138,7 +144,10 @@ func (a *App) noteActivityLocked(now time.Time) {
 }
 
 func (a *App) hideAttractLocked() {
-	was := a.attractActive || a.attractLoading || a.attractImage != nil
+	was := a.attractActive || a.attractLoading || a.attractImage != nil || a.attractPlayer != nil || a.attractVideoPath != ""
+	a.cancelAttractMediaLocked()
+	a.stopAttractVideoLocked()
+	a.releaseAttractVideoFileLocked()
 	a.attractActive = false
 	a.attractItems = nil
 	a.attractIndex = 0
@@ -153,10 +162,45 @@ func (a *App) hideAttractLocked() {
 	}
 }
 
-func stillAttractItems(items []AttractItem) []AttractItem {
+func (a *App) stopAttractVideoLocked() {
+	if a.attractPlayer != nil {
+		a.attractPlayer.Close()
+		a.attractPlayer = nil
+	}
+	a.attractVideo = false
+	a.attractEnded = false
+	a.attractFrameSeq = 0
+}
+
+func (a *App) cancelAttractMediaLocked() {
+	if a.attractMediaCancel != nil {
+		a.attractMediaCancel()
+		a.attractMediaCancel = nil
+	}
+}
+
+func (a *App) replaceAttractMediaContextLocked() context.Context {
+	a.cancelAttractMediaLocked()
+	parent := a.ctx
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parent)
+	a.attractMediaCancel = cancel
+	return ctx
+}
+
+func (a *App) releaseAttractVideoFileLocked() {
+	if a.attractVideoPath != "" {
+		_ = os.Remove(a.attractVideoPath)
+		a.attractVideoPath = ""
+	}
+}
+
+func playableAttractItems(items []AttractItem) []AttractItem {
 	out := make([]AttractItem, 0, len(items))
 	for _, item := range items {
-		if item.StillHandle() != "" {
+		if normalizeHandle(item.Video) != "" || item.StillHandle() != "" {
 			out = append(out, item)
 		}
 	}
@@ -212,8 +256,13 @@ func (a *App) tickAttractLocked(now time.Time) {
 		return
 	}
 	if a.attractActive {
-		if len(a.attractItems) > 1 && !now.Before(a.attractCycleAt) {
-			a.attractIndex = (a.attractIndex + 1) % len(a.attractItems)
+		if a.pumpAttractVideoLocked(now) {
+			return
+		}
+		if a.attractShouldAdvanceLocked(now) {
+			if len(a.attractItems) > 1 {
+				a.attractIndex = (a.attractIndex + 1) % len(a.attractItems)
+			}
 			a.showAttractItemLocked(now)
 		}
 		return
@@ -290,7 +339,7 @@ func (a *App) fetchAttract(ctx context.Context, gen int, enter bool) {
 	if !enter {
 		return
 	}
-	items := stillAttractItems(playlist.Items)
+	items := playableAttractItems(playlist.Items)
 	if err != nil || a.attractBlockedLocked() || len(items) == 0 {
 		a.lastInput = time.Now()
 		return
@@ -310,16 +359,32 @@ func (a *App) fetchAttract(ctx context.Context, gen int, enter bool) {
 	a.showAttractItemLocked(now)
 }
 
-func (a *App) nextAttractHandleLocked(item AttractItem) string {
+func (a *App) nextAttractMediaLocked(item AttractItem) (handle string, video bool) {
 	if a.attractTried == nil {
 		a.attractTried = map[string]bool{}
 	}
+	if videoHandle := normalizeHandle(item.Video); videoHandle != "" && !a.attractTried[videoHandle] {
+		return videoHandle, true
+	}
 	for _, handle := range item.stillHandles() {
 		if !a.attractTried[handle] {
-			return handle
+			return handle, false
 		}
 	}
-	return ""
+	return "", false
+}
+
+func (a *App) attractShouldAdvanceLocked(now time.Time) bool {
+	if a.attractVideo {
+		if a.attractPlayer == nil || a.attractFrameSeq == 0 {
+			return false
+		}
+		if a.attractEnded {
+			return true
+		}
+		return !now.Before(a.attractCycleAt)
+	}
+	return len(a.attractItems) > 1 && !now.Before(a.attractCycleAt)
 }
 
 func (a *App) abandonAttractLocked(now time.Time) {
@@ -342,23 +407,39 @@ func (a *App) showAttractItemLocked(now time.Time) {
 			a.abandonAttractLocked(now)
 			return
 		}
-		handle := a.nextAttractHandleLocked(item)
+		handle, video := a.nextAttractMediaLocked(item)
 		if handle != "" {
-			cycle := a.attractCycle
-			if cycle <= 0 {
-				cycle = defaultAttractCycle
+			reuseVideo := video && a.attractVideoPath != "" && a.attractHandle == handle
+			cachedPath := a.attractVideoPath
+			a.stopAttractVideoLocked()
+			if !reuseVideo {
+				a.releaseAttractVideoFileLocked()
+				a.attractImage = nil
 			}
-			a.attractCycleAt = now.Add(cycle)
+			if !video {
+				cycle := a.attractCycle
+				if cycle <= 0 {
+					cycle = defaultAttractCycle
+				}
+				a.attractCycleAt = now.Add(cycle)
+			}
 			a.attractTitle = item.Title
-			a.attractImage = nil
 			a.attractHandle = handle
+			a.attractVideo = video
+			a.attractEnded = false
 			a.attractGen++
 			gen := a.attractGen
-			ctx := a.ctx
-			if ctx == nil {
-				ctx = context.Background()
+			ctx := a.replaceAttractMediaContextLocked()
+			if video {
+				if reuseVideo {
+					go a.openCachedAttractVideo(ctx, gen, handle, cachedPath)
+				} else {
+					opener := a.openAttractVideo
+					go a.fetchAttractVideo(ctx, gen, handle, opener)
+				}
+			} else {
+				go a.fetchAttractArtwork(ctx, gen, handle)
 			}
-			go a.fetchAttractArtwork(ctx, gen, handle)
 			return
 		}
 		a.attractIndex = (a.attractIndex + 1) % len(a.attractItems)
@@ -377,10 +458,67 @@ func (a *App) fetchAttractArtwork(ctx context.Context, gen int, handle string) {
 		result.image = img
 		result.err = decodeErr
 	}
+	a.sendAttractResult(ctx, result)
+}
+
+func (a *App) fetchAttractVideo(ctx context.Context, gen int, handle string, opener func(context.Context, *Client, string) (attractPlayer, error)) {
+	if opener == nil {
+		opener = defaultOpenAttractVideo
+	}
+	player, err := opener(ctx, a.client, handle)
+	if err != nil && player != nil {
+		player.Close()
+		player = nil
+	}
+	a.sendAttractResult(ctx, attractResult{gen: gen, handle: handle, player: player, video: true, err: err})
+}
+
+func (a *App) openCachedAttractVideo(ctx context.Context, gen int, handle, path string) {
+	opener := a.openAttractCached
+	var player attractPlayer
+	var err error
+	if opener != nil {
+		player, err = opener(path)
+	} else {
+		player, err = openAttractVideoPath(path)
+	}
+	if err != nil && player != nil {
+		player.Close()
+		player = nil
+	}
+	a.sendAttractResult(ctx, attractResult{gen: gen, handle: handle, player: player, video: true, err: err})
+}
+
+func (a *App) sendAttractResult(ctx context.Context, result attractResult) {
+	closePlayer := func() {
+		if result.player != nil {
+			result.player.Close()
+		}
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if ctx.Err() != nil {
+		closePlayer()
+		return
+	}
+	a.mu.Lock()
+	closed := a.attractClosed
+	a.mu.Unlock()
+	if closed {
+		closePlayer()
+		return
+	}
 	select {
 	case a.attractResults <- result:
+		a.mu.Lock()
+		closed = a.attractClosed
+		a.mu.Unlock()
+		if closed {
+			a.drainAttractResults()
+		}
 	case <-ctx.Done():
-	default:
+		closePlayer()
 	}
 }
 
@@ -389,22 +527,79 @@ func (a *App) drainAttractResults() {
 		select {
 		case result := <-a.attractResults:
 			a.mu.Lock()
-			if result.gen == a.attractGen && a.attractActive && result.handle == a.attractHandle {
-				if result.err == nil && result.image != nil {
-					a.attractImage = result.image
-				} else {
-					if a.attractTried == nil {
-						a.attractTried = map[string]bool{}
-					}
-					a.attractTried[result.handle] = true
-					a.showAttractItemLocked(time.Now())
+			if result.gen != a.attractGen || !a.attractActive || result.handle != a.attractHandle {
+				if result.player != nil {
+					result.player.Close()
 				}
+				a.mu.Unlock()
+				continue
+			}
+			if result.video {
+				if result.err != nil || result.player == nil {
+					a.markAttractTriedLocked(result.handle)
+					a.showAttractItemLocked(time.Now())
+					a.mu.Unlock()
+					continue
+				}
+				if path := takeAttractVideoFile(result.player); path != "" {
+					a.attractVideoPath = path
+				}
+				a.attractPlayer = result.player
+				a.attractVideo = true
+				a.pumpAttractVideoLocked(time.Now())
+				a.mu.Unlock()
+				continue
+			}
+			if result.err == nil && result.image != nil {
+				a.attractImage = result.image
+			} else {
+				a.markAttractTriedLocked(result.handle)
+				a.showAttractItemLocked(time.Now())
 			}
 			a.mu.Unlock()
 		default:
 			return
 		}
 	}
+}
+
+func (a *App) markAttractTriedLocked(handle string) {
+	if a.attractTried == nil {
+		a.attractTried = map[string]bool{}
+	}
+	a.attractTried[handle] = true
+}
+
+// pumpAttractVideoLocked copies the current frame. It returns true when it
+// already moved to a fallback still or the next row.
+func (a *App) pumpAttractVideoLocked(now time.Time) bool {
+	if !a.attractVideo || a.attractPlayer == nil {
+		return false
+	}
+	img, ended, err := a.attractPlayer.Frame()
+	if err != nil {
+		a.markAttractTriedLocked(a.attractHandle)
+		a.stopAttractVideoLocked()
+		a.showAttractItemLocked(now)
+		return true
+	}
+	if img != nil {
+		a.attractImage = img
+		a.attractFrameSeq++
+		if a.attractFrameSeq == 1 {
+			a.attractCycleAt = now.Add(maxAttractVideo)
+		}
+	}
+	if ended && a.attractFrameSeq == 0 {
+		a.markAttractTriedLocked(a.attractHandle)
+		a.stopAttractVideoLocked()
+		a.showAttractItemLocked(now)
+		return true
+	}
+	if ended {
+		a.attractEnded = true
+	}
+	return false
 }
 
 func (a *App) attractSnapshotLocked() AttractSnapshot {
@@ -421,6 +616,8 @@ func (a *App) attractSnapshotLocked() AttractSnapshot {
 		Launchable:  item.Launchable,
 		Handle:      a.attractHandle,
 		Image:       a.attractImage,
+		Video:       a.attractVideo && a.attractPlayer != nil,
+		FrameSeq:    a.attractFrameSeq,
 		IdleSeconds: idle,
 	}
 }

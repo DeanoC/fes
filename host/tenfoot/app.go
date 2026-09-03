@@ -283,6 +283,15 @@ type App struct {
 	attractGen         int
 	attractCycleAt     time.Time
 	attractResults     chan attractResult
+	openAttractVideo   func(context.Context, *Client, string) (attractPlayer, error)
+	openAttractCached  func(path string) (attractPlayer, error)
+	attractPlayer      attractPlayer
+	attractVideo       bool
+	attractEnded       bool
+	attractFrameSeq    int
+	attractVideoPath   string
+	attractClosed      bool
+	attractMediaCancel context.CancelFunc
 }
 
 // NewApp builds a launcher model bound to the host API client.
@@ -348,11 +357,14 @@ func (a *App) Start(parent context.Context) {
 // Stop cancels background work.
 func (a *App) Stop() {
 	a.mu.Lock()
+	a.hideAttractLocked()
+	a.attractClosed = true
 	cancel := a.cancel
 	a.mu.Unlock()
 	if cancel != nil {
 		cancel()
 	}
+	a.drainAttractResults()
 }
 
 // HandleCommand applies a gamepad or debug-keyboard command.

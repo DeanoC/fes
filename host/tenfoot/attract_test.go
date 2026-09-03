@@ -1,7 +1,9 @@
 package tenfoot
 
 import (
+	"context"
 	"encoding/json"
+	"image"
 	"image/color"
 	"io"
 	"net/http"
@@ -242,6 +244,27 @@ func armAttractSoon(app *App) {
 	app.mu.Unlock()
 }
 
+type fakeAttractPlayer struct {
+	img      *image.RGBA
+	endAfter time.Duration
+	started  time.Time
+	closed   *atomic.Bool
+}
+
+func (f *fakeAttractPlayer) Frame() (*image.RGBA, bool, error) {
+	if f.closed != nil && f.closed.Load() {
+		return nil, false, errAttractVideoUnavailable
+	}
+	ended := f.endAfter > 0 && !f.started.IsZero() && time.Since(f.started) >= f.endAfter
+	return f.img, ended, nil
+}
+
+func (f *fakeAttractPlayer) Close() {
+	if f.closed != nil {
+		f.closed.Store(true)
+	}
+}
+
 func TestAppHydratesHostIdleBeforeEnteringAttract(t *testing.T) {
 	handle := strings.Repeat("ab", 32)
 	pngBytes := mustPNG(t, 32, 16, color.RGBA{R: 20, G: 200, B: 20, A: 255})
@@ -293,7 +316,380 @@ func TestAppHydratesHostIdleBeforeEnteringAttract(t *testing.T) {
 	}
 }
 
-func TestAppSkipsVideoOnlyAttractEntries(t *testing.T) {
+func TestAppPlaysVideoOnlyAttractEntries(t *testing.T) {
+	video := strings.Repeat("cd", 32)
+	frame := image.NewRGBA(image.Rect(0, 0, 8, 8))
+	for i := range frame.Pix {
+		frame.Pix[i] = 255
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"idle_seconds": 1,
+				"items": []map[string]any{{
+					"game_id":    "snes-mario",
+					"title":      "Mario",
+					"platform":   "snes",
+					"video":      video,
+					"launchable": true,
+				}},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.openAttractVideo = func(context.Context, *Client, string) (attractPlayer, error) {
+		return &fakeAttractPlayer{img: frame, started: time.Now()}, nil
+	}
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) >= 1 && !snap.Loading
+	})
+	armAttractSoon(app)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return snap.Attract.Active && snap.Attract.Title == "Mario" && snap.Attract.Video && snap.Attract.Image != nil
+	})
+}
+
+func TestAppFallsBackToStillWhenAttractVideoFails(t *testing.T) {
+	cover := strings.Repeat("ab", 32)
+	video := strings.Repeat("cd", 32)
+	pngBytes := mustPNG(t, 32, 16, color.RGBA{R: 20, G: 20, B: 200, A: 255})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"idle_seconds": 1,
+				"items": []map[string]any{{
+					"game_id":    "snes-mario",
+					"title":      "Mario",
+					"platform":   "snes",
+					"video":      video,
+					"cover":      cover,
+					"launchable": true,
+				}},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/presentation/artwork/"+cover:
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(pngBytes)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.openAttractVideo = func(context.Context, *Client, string) (attractPlayer, error) {
+		return nil, errAttractVideoUnavailable
+	}
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) >= 1 && !snap.Loading
+	})
+	armAttractSoon(app)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return snap.Attract.Active && snap.Attract.Handle == cover && snap.Attract.Image != nil && !snap.Attract.Video
+	})
+}
+
+func TestAppFallsBackToStillWhenAttractVideoEndsBeforeFirstFrame(t *testing.T) {
+	cover := strings.Repeat("ab", 32)
+	video := strings.Repeat("cd", 32)
+	pngBytes := mustPNG(t, 32, 16, color.RGBA{R: 20, G: 20, B: 200, A: 255})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"idle_seconds": 1,
+				"items": []map[string]any{{
+					"game_id":    "snes-mario",
+					"title":      "Mario",
+					"platform":   "snes",
+					"video":      video,
+					"cover":      cover,
+					"launchable": true,
+				}},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/presentation/artwork/"+cover:
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(pngBytes)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.openAttractVideo = func(context.Context, *Client, string) (attractPlayer, error) {
+		return &fakeAttractPlayer{endAfter: time.Nanosecond, started: time.Now().Add(-time.Second)}, nil
+	}
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) >= 1 && !snap.Loading
+	})
+	armAttractSoon(app)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return snap.Attract.Active && snap.Attract.Handle == cover && snap.Attract.Image != nil && !snap.Attract.Video
+	})
+}
+
+func TestAppDismissTearsDownAttractVideo(t *testing.T) {
+	video := strings.Repeat("cd", 32)
+	frame := image.NewRGBA(image.Rect(0, 0, 8, 8))
+	var closed atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"idle_seconds": 1,
+				"items": []map[string]any{{
+					"game_id":    "snes-mario",
+					"title":      "Mario",
+					"platform":   "snes",
+					"video":      video,
+					"launchable": true,
+				}},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.openAttractVideo = func(context.Context, *Client, string) (attractPlayer, error) {
+		return &fakeAttractPlayer{img: frame, started: time.Now(), closed: &closed}, nil
+	}
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) >= 1 && !snap.Loading
+	})
+	armAttractSoon(app)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return snap.Attract.Active && snap.Attract.Video
+	})
+	app.DismissAttract(time.Now())
+	if !closed.Load() {
+		t.Fatal("dismiss did not close attract video player")
+	}
+	if app.Snapshot().Attract.Active || app.Snapshot().Attract.Video {
+		t.Fatal("attract video still active after dismiss")
+	}
+}
+
+func TestAppCancelsInFlightAttractVideoFetchOnDismiss(t *testing.T) {
+	video := strings.Repeat("cd", 32)
+	started := make(chan struct{})
+	reqErr := make(chan error, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"idle_seconds": 1,
+				"items": []map[string]any{{
+					"game_id":    "snes-mario",
+					"title":      "Mario",
+					"platform":   "snes",
+					"video":      video,
+					"launchable": true,
+				}},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/presentation/artwork/"+video:
+			w.Header().Set("Content-Type", "video/mp4")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(make([]byte, 16))
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
+			close(started)
+			select {
+			case <-r.Context().Done():
+				reqErr <- r.Context().Err()
+			case <-time.After(5 * time.Second):
+				reqErr <- context.DeadlineExceeded
+			}
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.openAttractVideo = func(ctx context.Context, client *Client, handle string) (attractPlayer, error) {
+		_, err := client.FetchVideoFile(ctx, handle)
+		return nil, err
+	}
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) >= 1 && !snap.Loading
+	})
+	armAttractSoon(app)
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		app.Tick(time.Now())
+		select {
+		case <-started:
+			deadline = time.Time{}
+		default:
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	if deadline != (time.Time{}) {
+		select {
+		case <-started:
+		default:
+			t.Fatal("attract video fetch did not start")
+		}
+	}
+	app.DismissAttract(time.Now())
+	select {
+	case err := <-reqErr:
+		if err != context.Canceled {
+			t.Fatalf("in-flight fetch err = %v, want canceled", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("dismiss left the attract video fetch running")
+	}
+	if app.Snapshot().Attract.Active {
+		t.Fatal("attract still active after dismiss")
+	}
+}
+
+func TestAppDoesNotRestartAttractVideoFetchBeforeFirstFrame(t *testing.T) {
+	video := strings.Repeat("cd", 32)
+	started := make(chan struct{})
+	reqErr := make(chan error, 1)
+	var fetches atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"idle_seconds": 1,
+				"items": []map[string]any{{
+					"game_id":    "snes-mario",
+					"title":      "Mario",
+					"platform":   "snes",
+					"video":      video,
+					"launchable": true,
+				}},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/presentation/artwork/"+video:
+			fetches.Add(1)
+			w.Header().Set("Content-Type", "video/mp4")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(make([]byte, 16))
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
+			select {
+			case <-started:
+			default:
+				close(started)
+			}
+			select {
+			case <-r.Context().Done():
+				reqErr <- r.Context().Err()
+			case <-time.After(5 * time.Second):
+				reqErr <- context.DeadlineExceeded
+			}
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.openAttractVideo = func(ctx context.Context, client *Client, handle string) (attractPlayer, error) {
+		_, err := client.FetchVideoFile(ctx, handle)
+		return nil, err
+	}
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) >= 1 && !snap.Loading
+	})
+	armAttractSoon(app)
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		app.Tick(time.Now())
+		select {
+		case <-started:
+			deadline = time.Time{}
+		default:
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	if deadline != (time.Time{}) {
+		select {
+		case <-started:
+		default:
+			t.Fatal("attract video fetch did not start")
+		}
+	}
+	app.mu.Lock()
+	app.attractCycleAt = time.Now().Add(-time.Second)
+	app.mu.Unlock()
+	hold := time.Now().Add(400 * time.Millisecond)
+	for time.Now().Before(hold) {
+		app.Tick(time.Now())
+		time.Sleep(5 * time.Millisecond)
+	}
+	if fetches.Load() != 1 {
+		t.Fatalf("fetches = %d, want 1 (load cap must not restart the clip)", fetches.Load())
+	}
+	select {
+	case err := <-reqErr:
+		t.Fatalf("in-flight fetch ended during load cap: %v", err)
+	default:
+	}
+}
+
+func TestAppShowsStillRowAfterFailedVideoOnly(t *testing.T) {
 	cover := strings.Repeat("ab", 32)
 	video := strings.Repeat("cd", 32)
 	pngBytes := mustPNG(t, 32, 16, color.RGBA{R: 20, G: 20, B: 200, A: 255})
@@ -338,6 +734,9 @@ func TestAppSkipsVideoOnlyAttractEntries(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.openAttractVideo = func(context.Context, *Client, string) (attractPlayer, error) {
+		return nil, errAttractVideoUnavailable
+	}
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
 	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
@@ -345,11 +744,11 @@ func TestAppSkipsVideoOnlyAttractEntries(t *testing.T) {
 	})
 	armAttractSoon(app)
 	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
-		return snap.Attract.Active && snap.Attract.Title == "Sonic" && snap.Attract.Image != nil
+		return snap.Attract.Active && snap.Attract.Title == "Sonic" && snap.Attract.Image != nil && !snap.Attract.Video
 	})
 }
 
-func TestAppHidesAttractWhenPlaylistHasNoStills(t *testing.T) {
+func TestAppHidesAttractWhenVideoOnlyFailsWithoutStill(t *testing.T) {
 	video := strings.Repeat("cd", 32)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -387,7 +786,7 @@ func TestAppHidesAttractWhenPlaylistHasNoStills(t *testing.T) {
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		if app.Snapshot().Attract.Active {
-			t.Fatal("video-only playlist activated attract")
+			t.Fatal("failed video-only playlist activated attract")
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
@@ -683,16 +1082,199 @@ func TestAppBacksOffWhenAttractArtworkExhausted(t *testing.T) {
 	}
 }
 
-func TestStillAttractItemsDropsVideoOnly(t *testing.T) {
+func TestPumpAttractVideoIgnoresIdleFrame(t *testing.T) {
+	t.Parallel()
+	first := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	app := NewApp(NewClient("", nil), 1280, 720, 10)
+	app.attractActive = true
+	app.attractVideo = true
+	app.attractPlayer = &seqAttractPlayer{frames: []*image.RGBA{first, nil, nil}}
+	now := time.Now()
+	app.pumpAttractVideoLocked(now)
+	if app.attractFrameSeq != 1 || app.attractImage != first {
+		t.Fatalf("first frame seq=%d image=%v", app.attractFrameSeq, app.attractImage != nil)
+	}
+	app.pumpAttractVideoLocked(now)
+	app.pumpAttractVideoLocked(now)
+	if app.attractFrameSeq != 1 {
+		t.Fatalf("idle ticks bumped FrameSeq to %d", app.attractFrameSeq)
+	}
+}
+
+type seqAttractPlayer struct {
+	frames []*image.RGBA
+	i      int
+}
+
+func (s *seqAttractPlayer) Frame() (*image.RGBA, bool, error) {
+	if s.i >= len(s.frames) {
+		return nil, false, nil
+	}
+	img := s.frames[s.i]
+	s.i++
+	return img, false, nil
+}
+
+func (s *seqAttractPlayer) Close() {}
+
+func TestAppStopClosesQueuedAttractVideo(t *testing.T) {
+	t.Parallel()
+	var closed atomic.Bool
+	app := NewApp(NewClient("", nil), 1280, 720, 10)
+	app.attractResults <- attractResult{
+		player: &fakeAttractPlayer{closed: &closed},
+		video:  true,
+	}
+	app.Stop()
+	if !closed.Load() {
+		t.Fatal("queued attract video was not closed on Stop")
+	}
+}
+
+func TestAppRestartsAttractVideoFromCachedFile(t *testing.T) {
+	video := strings.Repeat("cd", 32)
+	frame := image.NewRGBA(image.Rect(0, 0, 8, 8))
+	for i := range frame.Pix {
+		frame.Pix[i] = 255
+	}
+	var fetches atomic.Int32
+	var cached atomic.Int32
+	var hadImage atomic.Bool
+	var sawBlank atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"idle_seconds": 1,
+				"items": []map[string]any{{
+					"game_id":    "snes-mario",
+					"title":      "Mario",
+					"platform":   "snes",
+					"video":      video,
+					"launchable": true,
+				}},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/presentation/artwork/"+video:
+			t.Error("clip restart fetched video bytes again")
+			http.NotFound(w, r)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.openAttractVideo = func(context.Context, *Client, string) (attractPlayer, error) {
+		fetches.Add(1)
+		return &fileAttractPlayer{
+			inner: &fakeAttractPlayer{img: frame, endAfter: 20 * time.Millisecond, started: time.Now()},
+			path:  "cached-attract-clip",
+		}, nil
+	}
+	app.openAttractCached = func(path string) (attractPlayer, error) {
+		if path != "cached-attract-clip" {
+			t.Errorf("cached path = %q", path)
+		}
+		cached.Add(1)
+		return &fileAttractPlayer{
+			inner: &fakeAttractPlayer{img: frame, endAfter: 20 * time.Millisecond, started: time.Now()},
+			path:  path,
+			keep:  true,
+		}, nil
+	}
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) >= 1 && !snap.Loading
+	})
+	armAttractSoon(app)
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		app.Tick(time.Now())
+		snap := app.Snapshot()
+		if snap.Attract.Image != nil {
+			hadImage.Store(true)
+		}
+		if hadImage.Load() && snap.Attract.Active && snap.Attract.Image == nil {
+			sawBlank.Store(true)
+		}
+		if cached.Load() >= 1 && fetches.Load() == 1 && snap.Attract.Active && snap.Attract.Image != nil {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if fetches.Load() != 1 {
+		t.Fatalf("fetches = %d, want 1", fetches.Load())
+	}
+	if cached.Load() < 1 {
+		t.Fatal("clip restart did not reopen the cached file")
+	}
+	if sawBlank.Load() {
+		t.Fatal("clip restart blanked the attract stage")
+	}
+}
+
+func TestAppRestartsSingleAttractVideoWhenClipEnds(t *testing.T) {
+	video := strings.Repeat("cd", 32)
+	frame := image.NewRGBA(image.Rect(0, 0, 8, 8))
+	var opens atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"idle_seconds": 1,
+				"items": []map[string]any{{
+					"game_id":    "snes-mario",
+					"title":      "Mario",
+					"platform":   "snes",
+					"video":      video,
+					"launchable": true,
+				}},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.openAttractVideo = func(context.Context, *Client, string) (attractPlayer, error) {
+		opens.Add(1)
+		return &fakeAttractPlayer{img: frame, endAfter: 20 * time.Millisecond, started: time.Now()}, nil
+	}
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) >= 1 && !snap.Loading
+	})
+	armAttractSoon(app)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return snap.Attract.Active && snap.Attract.Video && opens.Load() >= 2
+	})
+}
+
+func TestPlayableAttractItemsKeepsVideoOnly(t *testing.T) {
 	t.Parallel()
 	cover := strings.Repeat("ab", 32)
 	video := strings.Repeat("cd", 32)
-	items := stillAttractItems([]AttractItem{
+	items := playableAttractItems([]AttractItem{
 		{Title: "video", Video: video},
 		{Title: "still", Cover: cover},
 		{Title: "empty"},
 	})
-	if len(items) != 1 || items[0].Title != "still" {
+	if len(items) != 2 || items[0].Title != "video" || items[1].Title != "still" {
 		t.Fatalf("items = %#v", items)
 	}
 }

@@ -4,7 +4,7 @@ SDL3 10-foot launcher (Mac primary; Linux build path documented). It talks to
 the existing FogCast public host API over HTTP. It does not own catalog,
 content transfer, or `/dev/MiSTer_cmd`. The browser shell remains the default
 UI. Fullscreen living-room use applies a local TV overscan inset and idle
-stills attract from the host playlist. Browse layouts are cover grid
+stills-or-video attract from the host playlist. Browse layouts are cover grid
 (default), shelf/carousel, and list.
 
 Linux SDL3 packages, native-on-Linux build/run, and the Mac-vs-Linux proof
@@ -77,12 +77,20 @@ every layout.
 Attract mode starts after the host `idle_seconds` from
 `GET /api/v1/library/attract` (default 60s) with no input, no modal search/view
 picker, and no active host session. The client hydrates that idle threshold
-before arming the timer, and it skips playlist rows with no still (video-only).
-It cycles stills (backdrop, else cover, else marquee) about every 12s. Any
-gamepad activity or debug key dismisses and resets the idle timer. South/A on a
-launchable attract item dismisses and launches. A South/North hold that began
-before attract does not launch the attract title on release. `-smoke` implies
-`-no-attract`.
+before arming the timer. Playlist rows with a `video` handle play first (Darwin
+AVFoundation, including the track `preferredTransform`). Short clips play
+through, then the playlist advances; a single-item playlist restarts from the
+already-fetched local file and keeps the last frame on screen. Clips longer
+than 60s are capped at 60s. Missing, failed, or unsupported video falls back
+to stills (backdrop, else cover, else marquee) for that row or the next
+playable row. Video-only rows play when decode works. Stills cycle about every
+12s. The renderer re-uploads only when a new video frame is ready. Any
+gamepad activity or debug key dismisses, tears down the decoder (including
+queued open results), and resets the idle timer. South/A on a launchable
+attract item dismisses and launches. A South/North hold that began before
+attract does not launch the attract title on release. `-smoke` implies
+`-no-attract`. Linux SDL3 builds skip the video download and keep the stills
+fallback; native video decode there is NEED.
 
 Gamepad is the intended control path (d-pad / left stick to move, South/A to
 launch, East/B to back, Start to quit, Select/View or Guide to cycle layout).
@@ -167,8 +175,12 @@ make tenfoot-smoke
 - `POST /api/v1/session/stop` with an empty body. Offered only while the session
   is active or a stop is already in flight (East/B, Esc/Backspace, or `s`).
 - `GET /api/v1/library/attract?limit=24` after idle. `idle_seconds` sets the
-  client timer. Stills load with `GET /api/v1/presentation/artwork/{handle}`.
-  Attract does not run while the host session is `active`.
+  client timer. On Darwin, video handles stream with `Accept: video/*` to a
+  temp file, then AVFoundation pulls frames. Linux and non-CGO builds do not
+  fetch video bytes. Stills still load with
+  `GET /api/v1/presentation/artwork/{handle}` and `Accept: image/*`. Attract
+  does not run while the host session is `active`; dismiss/park/stop tears
+  down the decoder and any queued player.
 
 ## Library views
 
@@ -191,8 +203,10 @@ Attract does not run while parked; after idle it may start again.
 
 ## Known gaps / next
 
-- Attract **video** playback (host may return a `video` handle; tenfoot skips
-  video-only playlist rows and shows stills only).
+- Attract **video** on Linux: Darwin plays host `video` handles in attract
+  (AVFoundation). Linux SDL3 builds compile without extra video libraries,
+  skip the video download, and fall back to stills. GUI video smoke on Linux
+  is NEED.
 - **Linux GUI / localhost smoke:** Makefile Linux `TENFOOT_CGO_ENV` is
   `CGO_ENABLED=1` with pkg-config `sdl3`. debian:sid `libsdl3-dev` compiled
   an aarch64 binary on the mini (container). Windowed/fullscreen smoke and

@@ -77,7 +77,7 @@ Native SDL3 UI
   -> PUT or DELETE /api/v1/library/favorites/{id} for the focused title
   -> GET /api/v1/presentation/artwork/{handle} from catalog cover handles
   -> GET /api/v1/presentation/games/{id} for the focused title
-  -> GET /api/v1/library/attract (idle stills; artwork via the same presentation artwork GET)
+  -> GET /api/v1/library/attract (idle video then stills; artwork via the same presentation artwork GET)
   -> POST /api/v1/session/launch
   -> GET /api/v1/session (poll; now-playing)
   -> POST /api/v1/session/stop
@@ -88,6 +88,16 @@ Native SDL3 UI
 TV overscan insets and the sofa layout (`grid`, `shelf`, or `list`) are local
 to the tenfoot process (CLI `-safe-area` / `-layout` and optional `tenfoot.json`
 prefs). There is no host safe-area or layout API.
+
+Attract prefers a playlist `video` handle when present. Darwin CGO builds
+decode with AVFoundation (`host/tenfoot/attractvideo`) after streaming
+`Accept: video/*` to a temp file (128 MiB cap). Linux and non-CGO builds skip
+that download and fall back to stills. Short clips play through, then the
+playlist advances or a single-item playlist restarts from the local file
+without re-fetching; clips longer than 60s are capped at 60s. Missing, failed,
+or unsupported video uses backdrop, else cover, else marquee. SDL re-uploads
+the stage texture only when `FrameSeq` changes. Hide, dismiss, park, and
+process stop tear down the decoder and close any player still queued.
 
 Source entry points are `host/tenfoot/` and `cmd/fogcast-tenfoot`. The browser
 shell remains the default UI. Mac is the primary sofa target; Linux builds

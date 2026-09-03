@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 )
@@ -458,6 +459,53 @@ func TestClientAttractPlaylist(t *testing.T) {
 	item := playlist.Items[0]
 	if item.StillHandle() != backdrop {
 		t.Fatalf("still handle = %q want backdrop", item.StillHandle())
+	}
+}
+
+func TestClientFetchVideoFileStreamsAcceptVideo(t *testing.T) {
+	t.Parallel()
+	handle := strings.Repeat("ee", 32)
+	payload := make([]byte, 32)
+	copy(payload[4:8], []byte("ftyp"))
+	var accept string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/presentation/artwork/"+handle {
+			http.NotFound(w, r)
+			return
+		}
+		accept = r.Header.Get("Accept")
+		w.Header().Set("Content-Type", "video/mp4")
+		_, _ = w.Write(payload)
+	}))
+	t.Cleanup(server.Close)
+	path, err := NewClient(server.URL, server.Client()).FetchVideoFile(context.Background(), handle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Remove(path) })
+	if accept != "video/*" {
+		t.Fatalf("Accept = %q", accept)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(payload) {
+		t.Fatalf("file = %q", got)
+	}
+}
+
+func TestClientFetchVideoFileRejectsImageMIME(t *testing.T) {
+	t.Parallel()
+	handle := strings.Repeat("ff", 32)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte("not-a-video-file!!"))
+	}))
+	t.Cleanup(server.Close)
+	path, err := NewClient(server.URL, server.Client()).FetchVideoFile(context.Background(), handle)
+	if path != "" || err == nil {
+		t.Fatalf("path=%q err=%v", path, err)
 	}
 }
 

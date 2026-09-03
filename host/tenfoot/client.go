@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -23,10 +24,12 @@ const (
 	defaultMaxGames    = 10000
 	maxAPIResponse     = 16 << 20
 	maxArtworkBytes    = 8 << 20
+	maxVideoBytes      = 128 << 20 // matches librarymedia.MaxVideoBytes
 	artworkHandleLen   = 64
 	defaultHTTPTimeout = 15 * time.Second
 	launchHTTPTimeout  = 60 * time.Second
 	stopHTTPTimeout    = 60 * time.Second
+	videoHTTPTimeout   = 120 * time.Second
 )
 
 // Game is one catalog row from GET /api/v1/games.
@@ -189,6 +192,7 @@ type Client struct {
 	httpClient *http.Client
 	launchHTTP *http.Client
 	stopHTTP   *http.Client
+	videoHTTP  *http.Client
 }
 
 // NewClient builds a host API client. baseURL defaults to DefaultAPIBase.
@@ -208,7 +212,11 @@ func NewClient(baseURL string, httpClient *http.Client) *Client {
 	if stopHTTP.Timeout == 0 || stopHTTP.Timeout < stopHTTPTimeout {
 		stopHTTP.Timeout = stopHTTPTimeout
 	}
-	return &Client{baseURL: baseURL, httpClient: httpClient, launchHTTP: &launchHTTP, stopHTTP: &stopHTTP}
+	videoHTTP := *httpClient
+	if videoHTTP.Timeout != 0 && videoHTTP.Timeout < videoHTTPTimeout {
+		videoHTTP.Timeout = videoHTTPTimeout
+	}
+	return &Client{baseURL: baseURL, httpClient: httpClient, launchHTTP: &launchHTTP, stopHTTP: &stopHTTP, videoHTTP: &videoHTTP}
 }
 
 // ListGames fetches one catalog page. grouped=1 and availability=ready stay the default.
@@ -441,6 +449,101 @@ func (c *Client) Artwork(ctx context.Context, handle string) ([]byte, string, er
 		return nil, "", apiStatusError(resp.StatusCode, body)
 	}
 	return body, resp.Header.Get("Content-Type"), nil
+}
+
+// FetchVideoFile streams GET /api/v1/presentation/artwork/{handle} to a temp file.
+// The caller must remove the file. Accept is video/*; the still Artwork path is unchanged.
+func (c *Client) FetchVideoFile(ctx context.Context, handle string) (string, error) {
+	handle = normalizeHandle(handle)
+	if handle == "" {
+		return "", fmt.Errorf("artwork handle is invalid")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/presentation/artwork/"+handle, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Accept", "video/*")
+	resp, err := c.videoHTTP.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		if readErr != nil && len(body) == 0 {
+			return "", readErr
+		}
+		return "", apiStatusError(resp.StatusCode, body)
+	}
+	ct := resp.Header.Get("Content-Type")
+	if imageContentType(ct) {
+		return "", fmt.Errorf("artwork is not video (%s)", ct)
+	}
+	file, err := os.CreateTemp("", "fogcast-attract-*.bin")
+	if err != nil {
+		return "", err
+	}
+	path := file.Name()
+	ok := false
+	defer func() {
+		_ = file.Close()
+		if !ok {
+			_ = os.Remove(path)
+		}
+	}()
+	n, err := io.Copy(file, io.LimitReader(resp.Body, maxVideoBytes+1))
+	if err != nil {
+		return "", err
+	}
+	if n > maxVideoBytes {
+		return "", fmt.Errorf("video exceeds %d bytes", maxVideoBytes)
+	}
+	if n < 16 {
+		return "", fmt.Errorf("video is too small")
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return "", err
+	}
+	var header [16]byte
+	if _, err := io.ReadFull(file, header[:]); err != nil {
+		return "", err
+	}
+	if !videoContentType(ct) && sniffVideoMIME(header[:]) == "" {
+		return "", fmt.Errorf("artwork is not video (%s)", ct)
+	}
+	ok = true
+	return path, nil
+}
+
+func imageContentType(value string) bool {
+	return strings.HasPrefix(contentTypeMain(value), "image/")
+}
+
+func videoContentType(value string) bool {
+	switch contentTypeMain(value) {
+	case "video/mp4", "video/webm", "video/x-m4v", "video/quicktime":
+		return true
+	default:
+		return false
+	}
+}
+
+func contentTypeMain(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if i := strings.Index(value, ";"); i >= 0 {
+		value = strings.TrimSpace(value[:i])
+	}
+	return value
+}
+
+func sniffVideoMIME(header []byte) string {
+	if len(header) >= 12 && string(header[4:8]) == "ftyp" {
+		return "video/mp4"
+	}
+	if len(header) >= 4 && header[0] == 0x1A && header[1] == 0x45 && header[2] == 0xDF && header[3] == 0xA3 {
+		return "video/webm"
+	}
+	return ""
 }
 
 // Launch posts {game_id} to POST /api/v1/session/launch.

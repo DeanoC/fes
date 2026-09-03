@@ -11,12 +11,13 @@ same public host API client; there is no second launch path.
    Homebrew deployment-target flags; other hosts get `CGO_ENABLED=1` only.
 3. **Docs** for distro packages, native-on-Linux build/run, and an honest split
    of what the Mac mini can prove vs what needs a Linux box.
-4. Existing sofa behavior (browse layouts, safe-area, attract stills, GPU park,
-   launch/stop) is unchanged on Darwin.
+4. Existing sofa behavior (browse layouts, safe-area, attract stills-or-video,
+   GPU park, launch/stop) is unchanged on Darwin aside from attract video.
 
 ## Non-goals
 
-- Attract **video** playback.
+- Linux attract **video** decode (Darwin ships AVFoundation; Linux skips the
+  video download and falls back to stills).
 - Further #110 / residual polish.
 - New sofa layout modes beyond grid / shelf / list.
 - Full CI matrix for Linux tenfoot.
@@ -48,6 +49,7 @@ same public host API client; there is no second launch path.
 | Linux `pkg-config --modversion sdl3` + `make build-fogcast-tenfoot` | debian:sid **container** on mini (aarch64) | Proven: `libsdl3-dev` → `sdl3` 3.4.16; ELF linked to `libSDL3.so.0`. This is a Linux userspace compile, not `GOOS=linux` from Darwin cgo. |
 | Linux `-smoke` vs host `127.0.0.1:8787` | Native Linux on the same host as the API | **NEED** — container smoke reached the API then got `403 HOST_NOT_ALLOWED` (host allowlist is loopback). Deano’s Linux box using `http://127.0.0.1:8787` is the real check. |
 | Linux windowed/fullscreen on X11/Wayland | Linux box with a display | **NEED** |
+| Linux attract video decode | Linux box | **NEED** — tenfoot skips the video download and falls back to stills; Darwin plays video |
 
 Cross-compile from Mac (`GOOS=linux go build -tags sdl3` on Darwin) is **not**
 provided. CGO + SDL3 needs a Linux compiler, headers, and `sdl3.pc`. A Linux

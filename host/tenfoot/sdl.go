@@ -183,6 +183,7 @@ type sdlTexture struct {
 	w   int
 	h   int
 	src *image.RGBA
+	seq int
 }
 
 func runWindow(ctx context.Context, opts Options) error {
@@ -1154,13 +1155,30 @@ func drawAttract(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[s
 		titleH = 0
 	}
 	if img := snap.Attract.Image; img != nil {
-		if existing, ok := textures["attract"]; !ok || existing.src != img {
+		b := img.Bounds()
+		tw, th := b.Dx(), b.Dy()
+		existing, ok := textures["attract"]
+		needUpload := !ok || existing.src != img || existing.w != tw || existing.h != th || existing.seq != snap.Attract.FrameSeq
+		if needUpload && ok && existing.tex != nil && existing.w == tw && existing.h == th && len(img.Pix) > 0 {
+			if bool(C.SDL_UpdateTexture(existing.tex, nil, unsafe.Pointer(&img.Pix[0]), C.int(img.Stride))) {
+				existing.src = img
+				existing.seq = snap.Attract.FrameSeq
+				textures["attract"] = existing
+				needUpload = false
+			} else {
+				C.SDL_DestroyTexture(existing.tex)
+				delete(textures, "attract")
+				ok = false
+			}
+		}
+		if needUpload {
 			if ok {
 				C.SDL_DestroyTexture(existing.tex)
 				delete(textures, "attract")
 			}
 			if tex, err := uploadTexture(renderer, img); err == nil {
 				tex.src = img
+				tex.seq = snap.Attract.FrameSeq
 				textures["attract"] = tex
 			}
 		}
