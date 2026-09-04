@@ -574,15 +574,15 @@ func TestCachedLaunchRejectsProtocolUnsupportedSystemBeforeCustomRegistryCacheAc
 
 func TestCachedLaunchUsesResolvedRootAndPathThenCommitsObservedCore(t *testing.T) {
 	log := &callLog{}
-	identity := protocol.ContentIdentity{SHA256: cachedDigest, Size: 4, Extension: "sfc"}
-	request := protocol.CachedLaunchRequest{GameID: "snes-cached-test", System: protocol.SystemSNES, Content: identity}
-	store := &recordingContentStore{resolved: targetcache.Resolved{Root: "/target/cache", Path: "/target/cache/snes/" + cachedDigest + ".sfc"}, log: log}
-	runtime := &contentRuntime{health: protocol.Health{Ready: true}, launchObserved: "SNES", log: log}
+	identity := protocol.ContentIdentity{SHA256: cachedDigest, Size: 4, Extension: "bin"}
+	request := protocol.CachedLaunchRequest{GameID: "megadrive-sonic2", System: protocol.SystemMegaDrive, Content: identity}
+	store := &recordingContentStore{resolved: targetcache.Resolved{Root: "/media/fat/fogcast/cache/megadrive", Path: "/media/fat/fogcast/cache/megadrive/" + cachedDigest + ".bin"}, log: log}
+	runtime := &contentRuntime{health: protocol.Health{Ready: true}, launchObserved: "MegaDrive", log: log}
 	registry := core.DefaultRegistry()
 	coordinator := agent.New(runtime, registry, time.Second, time.Second)
 	store.onCommit = func() {
 		status := coordinator.Status()
-		if status.State != protocol.StateActive || status.ObservedCore == nil || *status.ObservedCore != "SNES" {
+		if status.State != protocol.StateActive || status.ObservedCore == nil || *status.ObservedCore != "MegaDrive" {
 			t.Errorf("status at commit = %#v", status)
 		}
 	}
@@ -592,7 +592,7 @@ func TestCachedLaunchUsesResolvedRootAndPathThenCommitsObservedCore(t *testing.T
 	if apiErr != nil {
 		t.Fatal(apiErr)
 	}
-	wantJSON := `{"status":{"state":"active","game_id":"snes-cached-test","system":"snes","expected_core":"SNES","observed_core":"SNES","last_error":null},"content":{"sha256":"` + cachedDigest + `","size":4,"extension":"sfc"}}`
+	wantJSON := `{"status":{"state":"active","game_id":"megadrive-sonic2","system":"megadrive","expected_core":"MegaDrive","observed_core":"MegaDrive","last_error":null},"content":{"sha256":"` + cachedDigest + `","size":4,"extension":"bin"}}`
 	encoded, err := json.Marshal(response)
 	if err != nil {
 		t.Fatal(err)
@@ -604,14 +604,14 @@ func TestCachedLaunchUsesResolvedRootAndPathThenCommitsObservedCore(t *testing.T
 	if prepareCalls != 1 || launchCalls != 1 || path != store.resolved.Path || launched.AbsoluteROM != store.resolved.Path {
 		t.Fatalf("runtime launch = prepare %d launch %d spec %#v path %q prepared %#v", prepareCalls, launchCalls, spec, path, launched)
 	}
-	if spec.ROMRoot != store.resolved.Root || spec.System != protocol.SystemSNES || spec.ExpectedCore != "SNES" || spec.RBFSelector != "_Console/SNES" || spec.FileDelay != 2 || spec.FileType != "f" || spec.FileIndex != 0 {
+	if spec.ROMRoot != store.resolved.Root || spec.System != protocol.SystemMegaDrive || spec.ExpectedCore != "MegaDrive" || spec.RBFSelector != "_Console/MegaDrive" || spec.FileDelay != 1 || spec.FileType != "f" || spec.FileIndex != 1 {
 		t.Fatalf("prepared spec = %#v", spec)
 	}
-	if _, ok := spec.Extensions[".sfc"]; !ok || len(spec.Extensions) != 3 {
+	if _, ok := spec.Extensions[".bin"]; !ok || len(spec.Extensions) != 3 {
 		t.Fatalf("prepared extensions = %#v", spec.Extensions)
 	}
-	original, _ := registry.Lookup(protocol.SystemSNES)
-	if original.ROMRoot != "/media/fat/games/SNES" {
+	original, _ := registry.Lookup(protocol.SystemMegaDrive)
+	if original.ROMRoot != "/media/fat/games/MegaDrive" {
 		t.Fatalf("cached launch mutated registry root: %q", original.ROMRoot)
 	}
 	if events := log.snapshot(); !reflect.DeepEqual(events, []string{"resolve", "pin", "prepare", "intent", "launch", "commit"}) {

@@ -1270,21 +1270,25 @@ func TestServiceHostOnlyThenFPGAOnKitStatusStopHitAgent(t *testing.T) {
 }
 
 func TestServiceFPGANativeOnKitLaunchUsesV1RequestAndSkipsUpload(t *testing.T) {
-	game := serviceGame(catalog.Content{SHA256: serviceDigest, Size: 3, Extension: "sfc"})
-	game.ID = "snes-actraiser-test"
-	game.Title = "ActRaiser"
+	game := serviceGame(catalog.Content{SHA256: serviceDigest, Size: 3, Extension: "bin"})
+	game.ID = "megadrive-sonic2"
+	game.Title = "Sonic the Hedgehog 2"
+	game.System = protocol.SystemMegaDrive
+	game.LibraryID = "megadrive-main"
+	game.RelativePath = "sonic2.bin"
 	game.RootOnline = false
 	game.State = catalog.SourceStateMissing
+	romPath := "/media/fat/fogcast/cache/sonic2.bin"
 	store := &fakeServiceCatalog{games: []catalog.Game{game}}
 	client := &fakeServiceClient{
-		nativeLaunch: exactNativeLaunchResponse(t, game, DefaultActRaiserROMPath),
+		nativeLaunch: exactNativeLaunchResponse(t, game, romPath),
 	}
 	service := newService(
 		Config{
-			Libraries:      []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: "/private/library"}},
+			Libraries:      []catalog.Root{{ID: "megadrive-main", System: protocol.SystemMegaDrive, Path: "/private/library"}},
 			RequestTimeout: time.Second,
 			UploadTimeout:  2 * time.Second,
-			FPGAROMPaths:   map[string]string{DefaultFPGAROMGameID: DefaultActRaiserROMPath},
+			FPGAROMPaths:   map[string]string{game.ID: romPath},
 		},
 		Paths{Staging: "/private/staging"}, store, &fakeServiceScanner{}, &fakeServicePreparer{err: errors.New("source should not be prepared")}, client,
 	)
@@ -1298,7 +1302,7 @@ func TestServiceFPGANativeOnKitLaunchUsesV1RequestAndSkipsUpload(t *testing.T) {
 	if client.nativeLaunchCalls != 1 || client.launchCalls != 0 || client.probeCalls != 0 || client.uploadCalls != 0 {
 		t.Fatalf("calls native=%d content=%d probe=%d upload=%d", client.nativeLaunchCalls, client.launchCalls, client.probeCalls, client.uploadCalls)
 	}
-	want := protocol.LaunchRequest{GameID: game.ID, System: protocol.SystemSNES, ROMPath: DefaultActRaiserROMPath}
+	want := protocol.LaunchRequest{GameID: game.ID, System: protocol.SystemMegaDrive, ROMPath: romPath}
 	if client.nativeLaunchReq != want {
 		t.Fatalf("native launch = %+v, want %+v", client.nativeLaunchReq, want)
 	}
@@ -3268,6 +3272,9 @@ func exactNativeLaunchResponse(t *testing.T, game catalog.Game, romPath string) 
 			t.Fatalf("native launch request = %+v", request)
 		}
 		gameID, system, coreName := game.ID, game.System, "SNES"
+		if game.System == protocol.SystemMegaDrive {
+			coreName = "MegaDrive"
+		}
 		return protocol.Status{
 			State: protocol.StateActive, GameID: &gameID, System: &system,
 			ExpectedCore: &coreName, ObservedCore: &coreName,

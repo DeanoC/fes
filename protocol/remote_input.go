@@ -8,13 +8,14 @@ import (
 )
 
 const (
-	InputVersion     uint8 = 1
-	InputTypeInput   uint8 = 1
-	InputTypePing    uint8 = 2
-	InputTypePong    uint8 = 3
-	inputMagic             = "MSTR"
-	inputHeaderSize        = 16
-	inputPayloadSize       = 32
+	InputVersion     uint8  = 1
+	InputTypeInput   uint8  = 1
+	InputTypePing    uint8  = 2
+	InputTypePong    uint8  = 3
+	InputCodeButtonC uint16 = 108
+	inputMagic              = "MSTR"
+	inputHeaderSize         = 16
+	inputPayloadSize        = 32
 )
 
 type InputHeader struct {

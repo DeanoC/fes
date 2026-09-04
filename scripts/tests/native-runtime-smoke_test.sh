@@ -100,6 +100,11 @@ case "$*" in
     else
       printf '%s\n' FOGCAST_COMMAND_PIPE_FIFO=0
     fi
+    if [ "$FOGCAST_FAKE_MODE" = wrong-agent-identity ]; then
+      printf '%s\n' FOGCAST_AGENT_SHA256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    else
+      printf '%s\n' FOGCAST_AGENT_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    fi
     ;;
   *'/bin/cat /usr/share/mister-runtime/build-inputs'*)
     case "$FOGCAST_FAKE_MODE" in
@@ -166,13 +171,20 @@ chmod 0755 "$fake_bin/curl" "$fake_bin/sshpass" "$fake_bin/sleep" \
 expected_inputs=$fixture/expected-build-inputs
 cat > "$expected_inputs" <<'EOF'
 format=1
-mister_runtime_commit=c71733238bba066705e3d08d64876c4ad6b218ff
+mister_runtime_commit=443b603de991b56b5f4d0d11c5bc88a3f83fad13
+mister_agent_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 idle_repository=https://github.com/MiSTer-devel/Distribution_MiSTer
 idle_commit=f7bde4becb452ca28f604ad9802bbed5c6b58e01
 idle_path=menu.rbf
 idle_sha256=821bcf66181a00ff550e4a4110dc11c9fa8e68d38e9cb5558b3ddb99ca938934
 idle_size=2452588
 idle_install_path=/usr/share/mister-runtime/idle.rbf
+megadrive_repository=https://github.com/MiSTer-devel/MegaDrive_MiSTer
+megadrive_commit=7365a137cfd8fa6f041e964d8b953159c0ec42d9
+megadrive_path=releases/MegaDrive_20260603.rbf
+megadrive_sha256=0cd43ea2c96e726999f04924713ca090ae73829f3ab08109c6b552cebeba0839
+megadrive_size=4296864
+megadrive_install_path=/usr/share/mister-runtime/cores/megadrive.rbf
 EOF
 
 reset_case() {
@@ -307,6 +319,8 @@ run_failure deleted-main-process \
   'native-runtime-smoke: conventional MiSTer executable is running' 0 0
 run_failure command-pipe \
   'native-runtime-smoke: /dev/MiSTer_cmd is a FIFO' 0 0
+run_failure wrong-agent-identity \
+  'native-runtime-smoke: installed build inputs differ from lock' 0 0
 run_failure wrong-build-inputs \
   'native-runtime-smoke: installed build inputs differ from lock' 0 0
 run_failure missing-final-newline \

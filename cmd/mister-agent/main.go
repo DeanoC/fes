@@ -43,11 +43,12 @@ const (
 )
 
 type runDependencies struct {
-	openCache  func(targetcache.Config, core.Registry, ...targetcache.Option) (agent.ContentStore, error)
-	newRuntime func(agentconfig.Config, core.Registry) agent.Runtime
-	newInput   func(agentconfig.Config) httpapi.InputController
-	newCast    func(agentconfig.Config) (httpapi.CastController, error)
-	serve      func(*http.Server) error
+	openCache             func(targetcache.Config, core.Registry, ...targetcache.Option) (agent.ContentStore, error)
+	newRuntime            func(agentconfig.Config, core.Registry) agent.Runtime
+	newInput              func(agentconfig.Config) (httpapi.InputController, error)
+	inputBeforeInitialize bool
+	newCast               func(agentconfig.Config) (httpapi.CastController, error)
+	serve                 func(*http.Server) error
 }
 
 func run(ctx context.Context, configPath string, backend runtimeBackend, logger *slog.Logger) error {
@@ -70,8 +71,8 @@ func runtimeDependencies(backend runtimeBackend, nativeControl misterruntime.Con
 		openCache: func(config targetcache.Config, registry core.Registry, options ...targetcache.Option) (agent.ContentStore, error) {
 			return targetcache.Open(config, registry, options...)
 		},
-		newInput: func(cfg agentconfig.Config) httpapi.InputController {
-			return input.NewTargetControllerWithConfig(cfg.InputListenAddress, cfg.InputUInputPath)
+		newInput: func(cfg agentconfig.Config) (httpapi.InputController, error) {
+			return input.NewTargetControllerWithConfig(cfg.InputListenAddress, cfg.InputUInputPath), nil
 		},
 		newCast: func(cfg agentconfig.Config) (httpapi.CastController, error) {
 			return cast.New(cast.Config{
@@ -106,6 +107,10 @@ func runtimeDependencies(backend runtimeBackend, nativeControl misterruntime.Con
 	dependencies.newRuntime = func(agentconfig.Config, core.Registry) agent.Runtime {
 		return misterruntime.NewRuntime(nativeControl, bootIDFile, 25*time.Millisecond, 250*time.Millisecond)
 	}
+	dependencies.newInput = func(cfg agentconfig.Config) (httpapi.InputController, error) {
+		return input.NewNativeTargetControllerWithConfig(cfg.InputListenAddress, cfg.InputUInputPath)
+	}
+	dependencies.inputBeforeInitialize = true
 	return dependencies, nil
 }
 
@@ -123,8 +128,16 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	if err != nil {
 		return errors.New("target cache could not be opened")
 	}
+	var inputController httpapi.InputController
+	if dependencies.inputBeforeInitialize && dependencies.newInput != nil {
+		inputController, err = dependencies.newInput(cfg)
+		if err != nil || inputController == nil {
+			return errors.New("remote input controller could not be configured")
+		}
+		defer inputController.Close()
+	}
 	runtime := dependencies.newRuntime(cfg, registry)
-	coordinator := agent.New(runtime, registry, 10*time.Second, 5*time.Second)
+	coordinator := agent.New(runtime, registry, 10*time.Second, 5*time.Second, agent.WithOperationContext(ctx))
 	content := agent.NewContentController(coordinator, cache)
 	startup, cancel := context.WithTimeout(ctx, 40*time.Second)
 	coordinator.Initialize(startup)
@@ -157,13 +170,15 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 			resultErr = errCastShutdown
 		}()
 	}
-	var inputController httpapi.InputController
-	if dependencies.newInput != nil {
-		inputController = dependencies.newInput(cfg)
-		if inputController != nil {
-			options = append(options, httpapi.WithInput(inputController))
-			defer inputController.Close()
+	if !dependencies.inputBeforeInitialize && dependencies.newInput != nil {
+		inputController, err = dependencies.newInput(cfg)
+		if err != nil || inputController == nil {
+			return errors.New("remote input controller could not be configured")
 		}
+		defer inputController.Close()
+	}
+	if inputController != nil {
+		options = append(options, httpapi.WithInput(inputController))
 	}
 	handler := httpapi.New(coordinator, cfg.Token, version.Version, logger, options...)
 	server := &http.Server{

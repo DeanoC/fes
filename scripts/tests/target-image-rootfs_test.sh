@@ -169,6 +169,8 @@ grep -Fq '/bin/rm -f "$target/etc/init.d/S40mister-main"' "$native_post_build"
 grep -Fq '"$target/usr/sbin/mister-disable-menu-blanking"' "$native_post_build"
 grep -Fq '/work/build/cache/target-image/native/idle.rbf' "$native_post_build"
 grep -Fq '"$target/usr/share/mister-runtime/idle.rbf"' "$native_post_build"
+grep -Fq '/work/build/cache/target-image/native/megadrive.rbf' "$native_post_build"
+grep -Fq '"$target/usr/share/mister-runtime/cores/megadrive.rbf"' "$native_post_build"
 grep -Fq '"$target/usr/share/mister-runtime/build-inputs"' "$native_post_build"
 ! grep -Fq 'LIBMISTER_RUNTIME_DIR' "$native_post_build"
 
@@ -376,5 +378,101 @@ test ! -e "$target/usr/lib/libstdc++.so.6.0.28-gdb.py"
 : > "$target/forbidden.zip"
 if BR2_CONFIG=$prod_config "$post_build" "$target" >/dev/null 2>&1; then
   echo 'post-build accepted a ROM/archive-like payload' >&2
+  exit 1
+fi
+
+native_fixture=$fixture/native-post-build
+native_target=$native_fixture/target
+native_cache=$native_fixture/cache
+mkdir -p "$native_target/usr/sbin" "$native_target/etc/init.d" "$native_cache"
+cp -R "$native_rootfs/." "$native_target/"
+printf '%s\n' runtime > "$native_target/usr/sbin/mister-runtime"
+printf '%s\n' agent > "$native_target/usr/sbin/mister-agent"
+chmod 0755 "$native_target/usr/sbin/mister-runtime" "$native_target/usr/sbin/mister-agent"
+printf '%s\n' idle > "$native_cache/idle.rbf"
+printf '%s\n' megadrive > "$native_cache/megadrive.rbf"
+native_idle_sha=$(sha256sum "$native_cache/idle.rbf" | awk '{print $1}')
+native_idle_size=$(wc -c < "$native_cache/idle.rbf" | tr -d ' ')
+native_megadrive_sha=$(sha256sum "$native_cache/megadrive.rbf" | awk '{print $1}')
+native_megadrive_size=$(wc -c < "$native_cache/megadrive.rbf" | tr -d ' ')
+native_agent_sha=$(sha256sum "$native_target/usr/sbin/mister-agent" | awk '{print $1}')
+native_lock=$native_fixture/native-runtime.inputs.lock.toml
+cat > "$native_lock" <<EOF
+format = 1
+
+[mister_runtime]
+commit = '1111111111111111111111111111111111111111'
+mount_path = '/runtime-source'
+
+[idle_rbf]
+repository = 'https://fixture.invalid/idle'
+commit = '2222222222222222222222222222222222222222'
+path = 'idle.rbf'
+sha256 = '$native_idle_sha'
+size = $native_idle_size
+install_path = '/usr/share/mister-runtime/idle.rbf'
+
+[megadrive_rbf]
+repository = 'https://fixture.invalid/megadrive'
+commit = '3333333333333333333333333333333333333333'
+path = 'MegaDrive.rbf'
+sha256 = '$native_megadrive_sha'
+size = $native_megadrive_size
+install_path = '/usr/share/mister-runtime/cores/megadrive.rbf'
+EOF
+
+NATIVE_RUNTIME_INPUT_LOCK=$native_lock \
+NATIVE_RUNTIME_IDLE_FILE=$native_cache/idle.rbf \
+NATIVE_RUNTIME_MEGADRIVE_FILE=$native_cache/megadrive.rbf \
+  "$native_post_build" "$native_target"
+cmp "$native_cache/idle.rbf" "$native_target/usr/share/mister-runtime/idle.rbf"
+cmp "$native_cache/megadrive.rbf" "$native_target/usr/share/mister-runtime/cores/megadrive.rbf"
+test "$(stat -c %a "$native_target/usr/share/mister-runtime/idle.rbf")" = 644
+test "$(stat -c %a "$native_target/usr/share/mister-runtime/cores/megadrive.rbf")" = 644
+test "$(find "$native_target" -type f -iname '*.rbf' | wc -l | tr -d ' ')" -eq 2
+grep -Fqx "mister_runtime_commit=1111111111111111111111111111111111111111" \
+  "$native_target/usr/share/mister-runtime/build-inputs"
+grep -Fqx "mister_agent_sha256=$native_agent_sha" \
+  "$native_target/usr/share/mister-runtime/build-inputs"
+grep -Fqx "megadrive_sha256=$native_megadrive_sha" \
+  "$native_target/usr/share/mister-runtime/build-inputs"
+grep -Fqx 'megadrive_install_path=/usr/share/mister-runtime/cores/megadrive.rbf' \
+  "$native_target/usr/share/mister-runtime/build-inputs"
+
+native_post_build_symlink_failures=0
+native_moved_rbf_symlink=$native_fixture/target-moved-rbf-symlink
+cp -R "$native_target" "$native_moved_rbf_symlink"
+mv "$native_moved_rbf_symlink/usr/share/mister-runtime/cores/megadrive.rbf" \
+  "$native_moved_rbf_symlink/usr/share/mister-runtime/cores/MegaDrive_20260603.rbf"
+ln -s MegaDrive_20260603.rbf \
+  "$native_moved_rbf_symlink/usr/share/mister-runtime/cores/megadrive.rbf"
+if NATIVE_RUNTIME_INPUT_LOCK=$native_lock \
+  NATIVE_RUNTIME_IDLE_FILE=$native_cache/idle.rbf \
+  NATIVE_RUNTIME_MEGADRIVE_FILE=$native_cache/megadrive.rbf \
+    "$native_post_build" "$native_moved_rbf_symlink" >/dev/null 2>&1; then
+  echo 'native post-build accepted a moved Mega Drive RBF through the fixed-path symlink' >&2
+  native_post_build_symlink_failures=$((native_post_build_symlink_failures + 1))
+fi
+
+native_extra_rbf_symlink=$native_fixture/target-extra-rbf-symlink
+cp -R "$native_target" "$native_extra_rbf_symlink"
+ln -s cores/megadrive.rbf \
+  "$native_extra_rbf_symlink/usr/share/mister-runtime/extra.rbf"
+if NATIVE_RUNTIME_INPUT_LOCK=$native_lock \
+  NATIVE_RUNTIME_IDLE_FILE=$native_cache/idle.rbf \
+  NATIVE_RUNTIME_MEGADRIVE_FILE=$native_cache/megadrive.rbf \
+    "$native_post_build" "$native_extra_rbf_symlink" >/dev/null 2>&1; then
+  echo 'native post-build accepted an extra RBF symlink' >&2
+  native_post_build_symlink_failures=$((native_post_build_symlink_failures + 1))
+fi
+[ "$native_post_build_symlink_failures" -eq 0 ] || exit 1
+
+cp "$native_target/usr/share/mister-runtime/cores/megadrive.rbf" \
+  "$native_target/usr/share/mister-runtime/cores/duplicate.rbf"
+if NATIVE_RUNTIME_INPUT_LOCK=$native_lock \
+  NATIVE_RUNTIME_IDLE_FILE=$native_cache/idle.rbf \
+  NATIVE_RUNTIME_MEGADRIVE_FILE=$native_cache/megadrive.rbf \
+    "$native_post_build" "$native_target" >/dev/null 2>&1; then
+  echo 'native post-build accepted a duplicate packaged RBF' >&2
   exit 1
 fi

@@ -57,6 +57,73 @@ func TestClientStopUsesOnlyTheStopOperation(t *testing.T) {
 	}
 }
 
+func TestClientLaunchUsesTheExactTypedMegaDriveRequest(t *testing.T) {
+	const response = `{"protocol":1,"ok":true,"state":"running_game","execution":"game","system":"megadrive","core":"MegaDrive","error":null,"version":"git-test"}`
+	fixture := newSocketFixture(t, response+"\n", true)
+	request := LaunchRequest{
+		System: "megadrive",
+		RBF:    "/usr/share/mister-runtime/cores/megadrive.rbf",
+		Media: map[string]string{
+			"cartridge": "/media/fat/fogcast/cache/sonic2.bin",
+		},
+		Settings: map[string]string{},
+	}
+
+	result, err := NewClient(fixture.path).Launch(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.State != "running_game" || result.Execution != "game" ||
+		result.System == nil || *result.System != "megadrive" ||
+		result.Core == nil || *result.Core != "MegaDrive" {
+		t.Fatalf("response = %#v", result)
+	}
+	if got := fixture.wait(t); got != `{"protocol":1,"operation":"launch","system":"megadrive","rbf":"/usr/share/mister-runtime/cores/megadrive.rbf","media":{"cartridge":"/media/fat/fogcast/cache/sonic2.bin"},"settings":{}}` {
+		t.Fatalf("request = %q", got)
+	}
+}
+
+func TestClientRejectsLaunchShapesOutsideTheNativeMegaDriveContractBeforeDial(t *testing.T) {
+	valid := LaunchRequest{
+		System: "megadrive",
+		RBF:    "/usr/share/mister-runtime/cores/megadrive.rbf",
+		Media: map[string]string{
+			"cartridge": "/media/fat/fogcast/cache/sonic2.bin",
+		},
+		Settings: map[string]string{},
+	}
+	cases := []struct {
+		name   string
+		mutate func(*LaunchRequest)
+	}{
+		{name: "unsupported system", mutate: func(request *LaunchRequest) { request.System = "snes" }},
+		{name: "FAT core", mutate: func(request *LaunchRequest) { request.RBF = "/media/fat/_Console/MegaDrive.rbf" }},
+		{name: "relative cartridge", mutate: func(request *LaunchRequest) { request.Media["cartridge"] = "sonic2.bin" }},
+		{name: "missing cartridge", mutate: func(request *LaunchRequest) { request.Media = map[string]string{} }},
+		{name: "extra media", mutate: func(request *LaunchRequest) { request.Media["save"] = "/tmp/save.sav" }},
+		{name: "setting", mutate: func(request *LaunchRequest) { request.Settings["region"] = "auto" }},
+		{name: "nil settings", mutate: func(request *LaunchRequest) { request.Settings = nil }},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			request := LaunchRequest{
+				System: valid.System,
+				RBF:    valid.RBF,
+				Media: map[string]string{
+					"cartridge": valid.Media["cartridge"],
+				},
+				Settings: map[string]string{},
+			}
+			test.mutate(&request)
+			client := NewClient(filepath.Join(t.TempDir(), "must-not-be-dialed.sock"))
+			if _, err := client.Launch(context.Background(), request); err == nil {
+				t.Fatal("invalid native launch request accepted")
+			}
+		})
+	}
+}
+
 func TestClientRejectsWrongProtocolAndUnknownResponseFields(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -176,16 +243,22 @@ func TestClientRejectsInvalidStateExecutionAndErrorShapes(t *testing.T) {
 			}
 		})
 	}
+}
 
-	fixture := newSocketFixture(t, `{"protocol":1,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":{"code":"busy","message":"previous operation still running"},"version":"git-test"}`+"\n", true)
+func TestClientAcceptsOperationalIdleStatusWithRetainedPriorError(t *testing.T) {
+	fixture := newSocketFixture(t, `{"protocol":1,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":{"code":"io_failed","message":"previous cleanup completed"},"version":"git-test"}`+"\n", true)
 	response, err := NewClient(fixture.path).Status(context.Background())
 	if err != nil {
 		t.Fatalf("successful status retaining a runtime error rejected: %v", err)
 	}
-	if response.Error == nil || response.Error.Code != "busy" {
-		t.Fatalf("response error = %#v", response.Error)
+	if response.Protocol != 1 || !response.OK || response.State != "idle" || response.Execution != "none" ||
+		response.System != nil || response.Core != nil || response.Version != "git-test" || response.Error == nil ||
+		response.Error.Code != "io_failed" || response.Error.Message != "previous cleanup completed" {
+		t.Fatalf("response = %#v", response)
 	}
-	fixture.wait(t)
+	if request := fixture.wait(t); request != `{"protocol":1,"operation":"status"}` {
+		t.Fatalf("request = %q", request)
+	}
 }
 
 func TestClientAcceptsStartingNoneWithNullOrRetainedIdentity(t *testing.T) {

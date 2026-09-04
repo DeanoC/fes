@@ -90,6 +90,7 @@ const (
 	ExecutionFPGANative      = string(systems.CapabilityFPGANative)
 	ExecutionFPGADevelopment = "fpga_development"
 	ExecutionHostOnly        = string(systems.CapabilityHostOnly)
+	lostLaunchPollInterval   = 25 * time.Millisecond
 )
 
 // ExecutionResolver is a service-level policy seam.
@@ -1179,7 +1180,15 @@ func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 	}
 	status, err := client.Stop(ctx)
 	if err != nil {
-		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
+		targetDeadlineExpired := errors.Is(ctx.Err(), context.DeadlineExceeded) && parent.Err() == nil
+		if targetDeadlineExpired && ambiguousTargetMutationError(err) && activeExecution != ExecutionFPGADevelopment {
+			status, err = s.reconcileLostStop(parent, client, err, timeout)
+			if err != nil {
+				return protocol.Status{}, err
+			}
+		} else {
+			return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
+		}
 	}
 	if status.State == protocol.StateStopping && status.Development && status.Recovery == protocol.RecoveryRebootRequired {
 		recoveryClient, ok := client.(developmentRecoveryClient)
@@ -1204,6 +1213,38 @@ func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 	s.selectedTargetRepairAllowed = false
 	s.executionMu.Unlock()
 	return status, nil
+}
+
+func (s *Service) reconcileLostStop(parent context.Context, client serviceClient, stopErr error, timeout time.Duration) (protocol.Status, error) {
+	ctx, cancel := serviceTimeout(parent, timeout)
+	defer cancel()
+	for {
+		status, err := client.Status(ctx)
+		if err != nil {
+			return protocol.Status{}, canonicalRemoteError(errors.Join(stopErr, err), protocol.CodeMiSTerUnavailable)
+		}
+		if validRecoveredDevelopmentStatus(status) {
+			return status, nil
+		}
+		if !provisionalLostStop(status) {
+			if status.LastError != nil {
+				return protocol.Status{}, canonicalRemoteError(errors.Join(stopErr, status.LastError), protocol.CodeMiSTerUnavailable)
+			}
+			return protocol.Status{}, canonicalRemoteError(stopErr, protocol.CodeMiSTerUnavailable)
+		}
+		timer := time.NewTimer(lostLaunchPollInterval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return protocol.Status{}, canonicalRemoteError(errors.Join(stopErr, ctx.Err()), protocol.CodeMiSTerUnavailable)
+		case <-timer.C:
+		}
+	}
+}
+
+func provisionalLostStop(status protocol.Status) bool {
+	return (status.State == protocol.StateActive || status.State == protocol.StateStopping) &&
+		status.LastError == nil && !status.Development && status.Recovery == ""
 }
 
 func waitForDevelopmentRecovery(ctx context.Context, client serviceClient, previousBootID string) (protocol.Status, error) {
@@ -1573,20 +1614,79 @@ func (s *Service) probe(parent context.Context, system protocol.System, identity
 
 func (s *Service) launchContent(parent context.Context, game catalog.Game, identity protocol.ContentIdentity) (protocol.CachedLaunchResponse, error) {
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
-	defer cancel()
 	request := protocol.CachedLaunchRequest{GameID: game.ID, System: game.System, Content: identity}
 	client, ok := s.selectedClientLocked()
 	if !ok {
+		cancel()
 		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
 	response, err := client.LaunchContent(ctx, request)
+	targetDeadlineExpired := errors.Is(ctx.Err(), context.DeadlineExceeded) && parent.Err() == nil
+	cancel()
 	if err != nil {
+		if targetDeadlineExpired && ambiguousTargetMutationError(err) {
+			return s.reconcileLostContentLaunch(parent, client, request, err)
+		}
 		return protocol.CachedLaunchResponse{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 	}
 	if !validServiceLaunch(response, request) {
 		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeInternal, nil)
 	}
 	return response, nil
+}
+
+func ambiguousTargetMutationError(err error) bool {
+	var apiErr *protocol.APIError
+	if errors.As(err, &apiErr) {
+		return false
+	}
+	var transportErr *url.Error
+	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) ||
+		errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.As(err, &transportErr)
+}
+
+func (s *Service) reconcileLostContentLaunch(parent context.Context, client serviceClient, request protocol.CachedLaunchRequest, launchErr error) (protocol.CachedLaunchResponse, error) {
+	// A transport deadline does not end an admitted target mutation. The public
+	// caller bounds terminal observation; requestTimeout continues to bound each
+	// fresh, read-only Status call.
+	for {
+		if err := parent.Err(); err != nil {
+			return protocol.CachedLaunchResponse{}, canonicalRemoteError(errors.Join(launchErr, err), protocol.CodeMiSTerUnavailable)
+		}
+		statusContext, cancelStatus := serviceTimeout(parent, s.requestTimeout)
+		status, err := client.Status(statusContext)
+		cancelStatus()
+		if err != nil {
+			return protocol.CachedLaunchResponse{}, canonicalRemoteError(errors.Join(launchErr, err), protocol.CodeMiSTerUnavailable)
+		}
+		response := protocol.CachedLaunchResponse{Status: status, Content: request.Content}
+		if validServiceLaunch(response, request) {
+			return response, nil
+		}
+		if !provisionalLostContentLaunch(status, request) {
+			if status.LastError != nil {
+				return protocol.CachedLaunchResponse{}, canonicalRemoteError(errors.Join(launchErr, status.LastError), protocol.CodeMiSTerUnavailable)
+			}
+			return protocol.CachedLaunchResponse{}, canonicalRemoteError(launchErr, protocol.CodeMiSTerUnavailable)
+		}
+		timer := time.NewTimer(lostLaunchPollInterval)
+		select {
+		case <-parent.Done():
+			timer.Stop()
+			return protocol.CachedLaunchResponse{}, canonicalRemoteError(errors.Join(launchErr, parent.Err()), protocol.CodeMiSTerUnavailable)
+		case <-timer.C:
+		}
+	}
+}
+
+func provisionalLostContentLaunch(status protocol.Status, request protocol.CachedLaunchRequest) bool {
+	if status.State == protocol.StateIdle {
+		return status.GameID == nil && status.System == nil && status.ExpectedCore == nil && status.ObservedCore == nil && status.LastError == nil && !status.Development
+	}
+	spec, ok := core.DefaultRegistry().Lookup(request.System)
+	return ok && status.State == protocol.StateLaunching && status.GameID != nil && *status.GameID == request.GameID &&
+		status.System != nil && *status.System == request.System && status.ExpectedCore != nil && *status.ExpectedCore == spec.ExpectedCore &&
+		status.ObservedCore == nil && status.LastError == nil && !status.Development
 }
 
 func (s *Service) launchFPGANative(parent context.Context, game catalog.Game, romPath string, progress ProgressFunc) (protocol.CachedLaunchResponse, bool, error) {

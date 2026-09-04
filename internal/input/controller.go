@@ -28,10 +28,18 @@ type Controller interface {
 }
 
 type TargetController struct {
+	lifecycle     sync.Mutex
 	mu            sync.Mutex
 	active        *lease
 	listenAddress string
+	listen        func(network, address string) (net.Listener, error)
 	uinputPath    string
+	persistent    bridge.Sink
+	needsRelease  bool
+	closed        bool
+	pending       *lease
+	closeOnce     sync.Once
+	closeErr      error
 }
 
 type lease struct {
@@ -56,12 +64,49 @@ func NewTargetControllerWithConfig(listenAddress, uinputPath string) *TargetCont
 	return &TargetController{listenAddress: listenAddress, uinputPath: uinputPath}
 }
 
+func NewNativeTargetControllerWithConfig(listenAddress, uinputPath string) (*TargetController, error) {
+	sink, err := bridge.CreateUInputGamepad(uinputPath)
+	if err != nil {
+		return nil, err
+	}
+	return newTargetControllerWithSink(listenAddress, sink), nil
+}
+
+func newTargetControllerWithSink(listenAddress string, sink bridge.Sink) *TargetController {
+	if listenAddress == "" {
+		listenAddress = "127.0.0.1:18183"
+	}
+	return &TargetController{listenAddress: listenAddress, persistent: sink}
+}
+
 func (c *TargetController) Attach(ctx context.Context, spec Spec) error {
 	if c == nil || ctx == nil || spec.Session == 0 || len(spec.Token) < 16 || !validCore(spec.Core) {
 		return errors.New("invalid input lease")
 	}
+	c.lifecycle.Lock()
+	defer c.lifecycle.Unlock()
 
 	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return errors.New("input controller is closed")
+	}
+	if c.needsRelease {
+		persistent := c.persistent
+		c.mu.Unlock()
+		if persistent == nil {
+			return errors.New("input state could not be released")
+		}
+		if err := persistent.ReleaseAll(); err != nil {
+			return err
+		}
+		c.mu.Lock()
+		if c.closed {
+			c.mu.Unlock()
+			return errors.New("input controller is closed")
+		}
+		c.needsRelease = false
+	}
 	current := c.active
 	if current != nil && current.session == spec.Session && current.core == spec.Core &&
 		subtle.ConstantTimeCompare(current.token, spec.Token) == 1 {
@@ -70,17 +115,29 @@ func (c *TargetController) Attach(ctx context.Context, spec Spec) error {
 	}
 	c.active = nil
 	c.mu.Unlock()
-	stopLease(current)
-
-	sink, err := bridge.OpenUInput(c.uinputPath)
-	if err != nil {
+	if err := stopLease(current); err != nil {
+		c.mu.Lock()
+		c.needsRelease = c.persistent != nil
+		c.mu.Unlock()
 		return err
+	}
+
+	var sink bridge.Sink
+	if c.persistent != nil {
+		sink = retainedSink{Sink: c.persistent}
+	} else {
+		var err error
+		sink, err = bridge.OpenUInput(c.uinputPath)
+		if err != nil {
+			return err
+		}
 	}
 	server, err := bridge.New(bridge.Config{
 		Addr:    c.listenAddress,
 		Token:   append([]byte(nil), spec.Token...),
 		Session: spec.Session,
 		Core:    spec.Core,
+		Listen:  c.listen,
 	}, sink)
 	if err != nil {
 		_ = sink.Close()
@@ -94,15 +151,41 @@ func (c *TargetController) Attach(ctx context.Context, spec Spec) error {
 		server:  server,
 		cancel:  cancel,
 	}
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return errors.Join(errors.New("input controller is closed"), stopLease(candidate))
+	}
+	c.pending = candidate
+	c.mu.Unlock()
 	go func() { _ = server.ListenAndServe(leaseCtx) }()
+	var startupErr error
 	select {
 	case <-ctx.Done():
-		stopLease(candidate)
-		return ctx.Err()
-	case <-server.Ready():
+		startupErr = ctx.Err()
+	case startupErr = <-server.Startup():
+	}
+	if startupErr != nil {
+		stopErr := stopLease(candidate)
+		c.mu.Lock()
+		if c.pending == candidate {
+			c.pending = nil
+		}
+		if stopErr != nil {
+			c.needsRelease = c.persistent != nil
+		}
+		c.mu.Unlock()
+		return errors.Join(startupErr, stopErr)
 	}
 
 	c.mu.Lock()
+	if c.pending == candidate {
+		c.pending = nil
+	}
+	if c.closed {
+		c.mu.Unlock()
+		return errors.Join(errors.New("input controller is closed"), stopLease(candidate))
+	}
 	if c.active != nil {
 		previous := c.active
 		c.active = candidate
@@ -120,18 +203,46 @@ func (c *TargetController) Detach(ctx context.Context, session uint64) error {
 		return errors.New("invalid input session")
 	}
 	c.mu.Lock()
+	pending := c.pending
+	if pending != nil && pending.session == session {
+		c.pending = nil
+	} else {
+		pending = nil
+	}
+	c.mu.Unlock()
+	pendingErr := stopLease(pending)
+	if pendingErr != nil {
+		c.mu.Lock()
+		c.needsRelease = c.persistent != nil
+		c.mu.Unlock()
+	}
+
+	c.lifecycle.Lock()
+	defer c.lifecycle.Unlock()
+	c.mu.Lock()
 	current := c.active
 	if current == nil || current.session != session {
 		c.mu.Unlock()
-		return nil
+		if pending == nil {
+			return nil
+		}
+		if ctx == nil {
+			return pendingErr
+		}
+		return errors.Join(pendingErr, ctx.Err())
 	}
 	c.active = nil
 	c.mu.Unlock()
-	stopLease(current)
-	if ctx == nil {
-		return nil
+	releaseErr := errors.Join(pendingErr, stopLease(current))
+	if releaseErr != nil {
+		c.mu.Lock()
+		c.needsRelease = c.persistent != nil
+		c.mu.Unlock()
 	}
-	return ctx.Err()
+	if ctx == nil {
+		return releaseErr
+	}
+	return errors.Join(releaseErr, ctx.Err())
 }
 
 func (c *TargetController) OpenStream(ctx context.Context, session uint64) (net.Conn, error) {
@@ -154,24 +265,55 @@ func (c *TargetController) Close() error {
 	if c == nil {
 		return nil
 	}
-	c.mu.Lock()
-	current := c.active
-	c.active = nil
-	c.mu.Unlock()
-	stopLease(current)
-	return nil
+	c.closeOnce.Do(func() {
+		c.mu.Lock()
+		c.closed = true
+		pending := c.pending
+		c.pending = nil
+		c.mu.Unlock()
+		pendingErr := stopLease(pending)
+
+		c.lifecycle.Lock()
+		defer c.lifecycle.Unlock()
+		c.mu.Lock()
+		current := c.active
+		c.active = nil
+		persistent := c.persistent
+		c.persistent = nil
+		needsRelease := c.needsRelease
+		c.needsRelease = false
+		c.mu.Unlock()
+		stopErr := stopLease(current)
+		var releaseErr error
+		var persistentErr error
+		if persistent != nil {
+			if needsRelease {
+				releaseErr = persistent.ReleaseAll()
+			}
+			persistentErr = persistent.Close()
+		}
+		c.closeErr = errors.Join(pendingErr, stopErr, releaseErr, persistentErr)
+	})
+	return c.closeErr
 }
 
-func stopLease(current *lease) {
+type retainedSink struct {
+	bridge.Sink
+}
+
+func (retainedSink) Close() error { return nil }
+
+func stopLease(current *lease) error {
 	if current == nil {
-		return
+		return nil
 	}
 	if current.cancel != nil {
 		current.cancel()
 	}
 	if current.server != nil {
-		_ = current.server.Close()
+		return current.server.Close()
 	}
+	return nil
 }
 
 func validCore(core string) bool {
