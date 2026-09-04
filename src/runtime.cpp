@@ -245,6 +245,7 @@ public:
 				status_ = {};
 				status_.state = State::running_development;
 				status_.execution = Execution::development;
+				status_.core = result.observed_core;
 				busy_ = false;
 			}
 			Log("load_development_rbf", "", "", "running");

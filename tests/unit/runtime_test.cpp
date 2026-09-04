@@ -353,12 +353,65 @@ void TestDevelopmentHasNoGameIdentity()
 {
 	Fixture fixture;
 	Start(fixture);
+	fixture.hardware.development_result.observed_core = "MegaDrive";
 	assert(fixture.runtime.LoadDevelopmentRBF("/cores/dev.rbf").ok());
 	const mister::Status status = fixture.runtime.status();
 	assert(status.state == State::running_development);
 	assert(status.execution == Execution::development);
 	assert(status.system.empty());
-	assert(status.core.empty());
+	assert(status.core == "MegaDrive");
+}
+
+void TestEveryDevelopmentFailureUsesItsMutationBoundary()
+{
+	Fixture preflight;
+	Start(preflight);
+	preflight.hardware.development_result = {
+		{ErrorCode::io_failed, "preflight"}, false, ""};
+	assert(preflight.runtime.LoadDevelopmentRBF("/cores/dev.rbf").code ==
+		ErrorCode::io_failed);
+	assert(preflight.hardware.idle_calls == 1);
+	assert(preflight.runtime.status().state == State::idle);
+	assert(preflight.runtime.status().error.message == "preflight");
+
+	const std::vector<const char*> post_mutation_failures = {
+		"HDMI power-down write", "FPGA programming", "core synchronization",
+		"core observation",
+	};
+	for (const char* failure : post_mutation_failures) {
+		Fixture fixture;
+		Start(fixture);
+		fixture.hardware.development_result = {
+			{ErrorCode::io_failed, failure}, true, ""};
+		const mister::Error error =
+			fixture.runtime.LoadDevelopmentRBF("/cores/dev.rbf");
+		assert(error.code == ErrorCode::io_failed);
+		assert(error.message == failure);
+		assert(fixture.hardware.idle_calls == 2);
+		const mister::Status status = fixture.runtime.status();
+		assert(status.state == State::idle);
+		assert(status.error.code == ErrorCode::io_failed);
+		assert(status.error.message == failure);
+	}
+}
+
+void TestDevelopmentCleanupFailureRequiresReboot()
+{
+	Fixture fixture;
+	Start(fixture);
+	fixture.hardware.development_result = {
+		{ErrorCode::io_failed, "core observation"}, true, ""};
+	fixture.hardware.idle_result.error = {
+		ErrorCode::program_failed, "development cleanup idle failed"};
+	const mister::Error error =
+		fixture.runtime.LoadDevelopmentRBF("/cores/dev.rbf");
+	assert(error.code == ErrorCode::idle_failed);
+	assert(error.message == "development cleanup idle failed");
+	assert(fixture.hardware.idle_calls == 2);
+	const mister::Status status = fixture.runtime.status();
+	assert(status.state == State::reboot_required);
+	assert(status.error.code == ErrorCode::idle_failed);
+	assert(status.error.message == "development cleanup idle failed");
 }
 
 void TestStopFromBothRunningStatesLoadsIdleOnce()
@@ -373,6 +426,8 @@ void TestStopFromBothRunningStatesLoadsIdleOnce()
 	assert(development.runtime.LoadDevelopmentRBF("/dev.rbf").ok());
 	assert(development.runtime.Stop().ok());
 	assert(development.hardware.idle_calls == 2);
+	assert(development.runtime.LaunchGame(CartLaunch()).ok());
+	assert(development.runtime.status().state == State::running_game);
 }
 
 void TestStopFromIdleIsIdempotent()
@@ -645,6 +700,8 @@ int main()
 	TestSuccessfulCleanupPreservesPrimaryError();
 	TestFailedCleanupRequiresReboot();
 	TestDevelopmentHasNoGameIdentity();
+	TestEveryDevelopmentFailureUsesItsMutationBoundary();
+	TestDevelopmentCleanupFailureRequiresReboot();
 	TestStopFromBothRunningStatesLoadsIdleOnce();
 	TestStopFromIdleIsIdempotent();
 	TestStopFromRebootRequiredDoesNotCallHardware();
@@ -661,6 +718,6 @@ int main()
 	TestStaleFaultCannotCleanOrOverwriteANewerGeneration();
 	TestActiveInputFaultCleanupFailureRequiresReboot();
 	TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError();
-	puts("runtime_test: 31 passed");
+	puts("runtime_test: 33 passed");
 	return 0;
 }

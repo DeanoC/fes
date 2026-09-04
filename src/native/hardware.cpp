@@ -220,11 +220,31 @@ HardwareResult NativeHardware::LoadDevelopmentRBF(const std::string& rbf)
 	Error error = OpenRBFArtifact(rbf, opener_, &artifact);
 	log_.Write({"load_development_rbf", "", "", "preflight", error});
 	if (!error.ok()) return {error, false, ""};
+	const VideoQuiesceResult quiesced = game_video_.Quiesce(
+		Deadline(clock_, timeouts_.video_ms));
+	error = quiesced.error;
+	log_.Write({"load_development_rbf", "", "", "hdmi_quiesce", error});
+	if (!error.ok()) return {error, quiesced.mutation_attempted, ""};
 	const NativeResult programmed = fpga_.Program(artifact,
 		Deadline(clock_, timeouts_.program_ms));
 	error = programmed.error.ok() ? Error{} : ProgramError(programmed.error);
 	log_.Write({"load_development_rbf", "", "", "program", error});
-	return {error, programmed.error.ok() ? true : programmed.mutation_attempted, ""};
+	if (!error.ok())
+		return {error, quiesced.mutation_attempted ||
+			programmed.mutation_attempted, ""};
+
+	const std::uint64_t core_deadline =
+		Deadline(clock_, timeouts_.core_io_ms);
+	error = core_.Synchronize(core_deadline);
+	if (!error.ok()) error = CoreIoError(error);
+	log_.Write({"load_development_rbf", "", "", "sync", error});
+	if (!error.ok()) return {error, true, ""};
+
+	std::string observed;
+	error = core_.Probe(&observed, core_deadline);
+	if (!error.ok()) error = CoreIoError(error);
+	log_.Write({"load_development_rbf", "", observed, "probe", error});
+	return {error, true, observed};
 }
 
 } // namespace native

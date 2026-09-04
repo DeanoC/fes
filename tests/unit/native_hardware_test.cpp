@@ -21,6 +21,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -144,6 +145,7 @@ public:
 		programmed.push_back(BaseName(artifact.path()));
 		deadlines.push_back(deadline);
 		++calls;
+		if (on_program) on_program();
 		if (calls == fail_call) return failure;
 		return result;
 	}
@@ -153,6 +155,7 @@ public:
 		{mister::ErrorCode::program_failed, "injected program failure"}, true};
 	std::vector<std::string> programmed;
 	std::vector<std::uint64_t> deadlines;
+	std::function<void()> on_program;
 	int calls = 0;
 	int fail_call = 0;
 };
@@ -244,6 +247,8 @@ public:
 				return {mister::ErrorCode::io_failed,
 					"injected game video failure"};
 			}
+			if (selection_event == "video.quiesce" && on_quiesce)
+				on_quiesce();
 		}
 		if (timing_seen_ && !mode_seen_) {
 			events_.push_back("video.adv.mode");
@@ -269,6 +274,7 @@ public:
 	std::string fail_event;
 	std::size_t write_calls = 0;
 	std::size_t fail_write_call = 0;
+	std::function<void()> on_quiesce;
 	std::function<void()> on_link_ready;
 
 private:
@@ -904,15 +910,113 @@ void TestLaunchRejectsUnsupportedPreparedMediaFormatBeforeFileSelection()
 	assert(Find(fixture.events, "core.media.select:2") == fixture.events.size());
 }
 
-void TestIdleRequiresVideoAndPreservesDevelopmentBehavior()
+void TestDevelopmentLoadsMiSterRbfInExactOrderAndLeavesHdmiDown()
 {
 	Fixture fixture;
-	assert(fixture.hardware.LoadDevelopmentRBF(fixture.rbf).error.ok());
-	assert(fixture.events.size() == 2);
-	assert(fixture.events[0] == "artifact.open:megadrive.rbf");
-	assert(fixture.events[1] == "fpga.program");
+	fixture.i2c.on_quiesce = [&fixture] { fixture.clock.now_ = 200; };
+	fixture.fpga.on_program = [&fixture] { fixture.clock.now_ = 300; };
+	const mister::HardwareResult result =
+		fixture.hardware.LoadDevelopmentRBF(fixture.rbf);
+	assert(result.error.ok());
+	assert(result.mutation_attempted);
+	assert(result.observed_core == "MegaDrive");
+	assert(fixture.events == std::vector<std::string>({
+		"artifact.open:megadrive.rbf",
+		"video.quiesce",
+		"fpga.program",
+		"core.sync",
+		"core.probe:MegaDrive",
+	}));
+	assert(fixture.i2c.deadlines ==
+		std::vector<std::uint64_t>({10100, 10100}));
+	assert(fixture.fpga.deadlines ==
+		std::vector<std::uint64_t>({30200}));
+	assert(fixture.spi.deadlines ==
+		std::vector<std::uint64_t>({10300, 10300}));
 	assert(fixture.idle_video.calls == 0);
-	fixture.events.clear();
+	assert(fixture.input.open_calls == 0);
+	assert(fixture.input.neutral_deadlines.empty());
+	assert(fixture.input.start_calls == 0);
+	assert(fixture.input.stop_calls == 0);
+}
+
+void TestDevelopmentFailuresReportExactMutationBoundary()
+{
+	Fixture preflight;
+	preflight.opener.fail_call = 1;
+	const mister::HardwareResult preflight_result =
+		preflight.hardware.LoadDevelopmentRBF(preflight.rbf);
+	assert(preflight_result.error.code == mister::ErrorCode::io_failed);
+	assert(!preflight_result.mutation_attempted);
+	assert(preflight.i2c.deadlines.empty());
+	assert(preflight.fpga.calls == 0);
+	assert(preflight.spi.deadlines.empty());
+
+	Fixture deadline;
+	deadline.clock.now_ = std::numeric_limits<std::uint64_t>::max();
+	const mister::HardwareResult deadline_result =
+		deadline.hardware.LoadDevelopmentRBF(deadline.rbf);
+	assert(deadline_result.error.code == mister::ErrorCode::io_failed);
+	assert(deadline_result.error.message == "deadline exceeded");
+	assert(!deadline_result.mutation_attempted);
+	assert(deadline.i2c.deadlines.empty());
+	assert(deadline.fpga.calls == 0);
+	assert(deadline.spi.deadlines.empty());
+
+	Fixture select;
+	select.i2c.select_error = {
+		mister::ErrorCode::io_failed, "injected HDMI select failure"};
+	const mister::HardwareResult select_result =
+		select.hardware.LoadDevelopmentRBF(select.rbf);
+	assert(select_result.error.code == mister::ErrorCode::io_failed);
+	assert(select_result.error.message == "injected HDMI select failure");
+	assert(!select_result.mutation_attempted);
+	assert(select.fpga.calls == 0);
+	assert(select.spi.deadlines.empty());
+
+	Fixture write;
+	write.i2c.fail_event = "video.quiesce";
+	const mister::HardwareResult write_result =
+		write.hardware.LoadDevelopmentRBF(write.rbf);
+	assert(write_result.error.code == mister::ErrorCode::io_failed);
+	assert(write_result.mutation_attempted);
+	assert(write.fpga.calls == 0);
+	assert(write.spi.deadlines.empty());
+
+	Fixture program;
+	program.fpga.result = {
+		{mister::ErrorCode::program_failed, "injected program failure"}, false};
+	const mister::HardwareResult program_result =
+		program.hardware.LoadDevelopmentRBF(program.rbf);
+	assert(program_result.error.code == mister::ErrorCode::program_failed);
+	assert(program_result.mutation_attempted);
+	assert(program.spi.deadlines.empty());
+
+	Fixture synchronize;
+	synchronize.spi.sync_error = {
+		mister::ErrorCode::io_failed, "injected synchronization failure"};
+	const mister::HardwareResult synchronize_result =
+		synchronize.hardware.LoadDevelopmentRBF(synchronize.rbf);
+	assert(synchronize_result.error.code == mister::ErrorCode::io_failed);
+	assert(synchronize_result.error.message == "injected synchronization failure");
+	assert(synchronize_result.mutation_attempted);
+	assert(synchronize.events.back() == "core.sync");
+
+	Fixture probe;
+	probe.spi.probe_error = {
+		mister::ErrorCode::io_failed, "injected observation failure"};
+	const mister::HardwareResult probe_result =
+		probe.hardware.LoadDevelopmentRBF(probe.rbf);
+	assert(probe_result.error.code == mister::ErrorCode::io_failed);
+	assert(probe_result.error.message == "injected observation failure");
+	assert(probe_result.mutation_attempted);
+	assert(probe_result.observed_core.empty());
+	assert(probe.events.back() == "core.probe:MegaDrive");
+}
+
+void TestIdleRequiresVideo()
+{
+	Fixture fixture;
 	const mister::HardwareResult idle = fixture.hardware.LoadIdle();
 	assert(idle.error.ok());
 	assert(idle.mutation_attempted);
@@ -1198,7 +1302,9 @@ int main()
 	TestManualStopPreservesInputCancellationErrorAfterAttemptingIdle();
 	TestInputCallbackReportsTheGenerationThroughTheHardwareBoundary();
 	TestLaunchRejectsUnsupportedPreparedMediaFormatBeforeFileSelection();
-	TestIdleRequiresVideoAndPreservesDevelopmentBehavior();
+	TestDevelopmentLoadsMiSterRbfInExactOrderAndLeavesHdmiDown();
+	TestDevelopmentFailuresReportExactMutationBoundary();
+	TestIdleRequiresVideo();
 	TestIdlePreflightFailureCallsNeitherFpgaNorVideo();
 	TestIdleFpgaFailureAfterQuiesceReportsHardwareMutation();
 	TestIdleVideoFailureIsAttemptedIoFailureWithoutCleanup();
@@ -1211,6 +1317,6 @@ int main()
 	TestNativeLoggingNamesPhasesAndConfirmedCore();
 	TestProductionConstructionOwnsRealIdleHardware();
 	TestUnavailableHardwareRemainsFailureOnly();
-	puts("native_hardware_test: 26 passed");
+	puts("native_hardware_test: 28 passed");
 	return 0;
 }
