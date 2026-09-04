@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/DeanoC/mister-packages/internal/emitcpp"
+	"github.com/DeanoC/mister-packages/internal/emitgo"
 	"github.com/DeanoC/mister-packages/internal/pack"
 )
 
@@ -44,6 +45,17 @@ func run(command string, args []string) error {
 			return err
 		}
 		text, err := emitPath(path)
+		if err != nil {
+			return err
+		}
+		fmt.Print(text)
+		return nil
+	case "emit-go":
+		path, err := inputPath(args)
+		if err != nil {
+			return err
+		}
+		text, err := emitGoPath(path)
 		if err != nil {
 			return err
 		}
@@ -117,6 +129,21 @@ func reportPath(path string) error {
 	default:
 		return fmt.Errorf("%s: kind %q is not platform or system", path, kind)
 	}
+}
+
+func emitGoPath(path string) (string, error) {
+	kind, err := pack.PeekKind(path)
+	if err != nil {
+		return "", err
+	}
+	if kind != "system" {
+		return "", fmt.Errorf("%s: emit-go expects kind system, got %q", path, kind)
+	}
+	sys, err := pack.LoadSystem(path)
+	if err != nil {
+		return "", err
+	}
+	return emitgo.GenerateSystem(sys)
 }
 
 func emitPath(path string) (string, error) {
@@ -204,6 +231,7 @@ Commands:
   validate [package.yaml]
   report [package.yaml]
   emit-cpp [package.yaml]
+  emit-go [system.yaml]
   diff-oracle <package.yaml> <oracle.yaml>
 
 Default package is packages/platform/de10_nano.yaml.

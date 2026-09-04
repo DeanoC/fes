@@ -132,6 +132,10 @@ and `static constexpr` tables; no inline variables. The emitter runs on
 a development host. The target image build does not compile this tree
 and does not use the host compiler.
 
+`emit-go` writes FogCast launch constants for a `system` package:
+expected core identity and the cartridge media index. It does not emit
+aliases, covers, Main RBF paths, or library roots.
+
 ## What is intentionally missing
 
 - Connections, prefabs, wildcards, and bus address allocation.

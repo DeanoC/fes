@@ -26,7 +26,7 @@ Exit: `make test` diffs the package against
 `testdata/oracles/libmister-runtime-megadrive.yaml`. SNES is not part of
 this milestone.
 
-## Milestone 3 — Consume in libmister-runtime (current)
+## Milestone 3 — Consume in libmister-runtime
 
 libmister-runtime checks in generated C++14 headers under
 `src/native/generated/`. The emitter runs on a development host; the
@@ -36,10 +36,11 @@ FPGA-manager and SPI `constexpr`s and the production Mega Drive profile
 literals are replaced. Runtime `ARCHITECTURE.md` records that. FogCast
 stays untouched.
 
-## Milestone 4 — FogCast launch fields, then SNES
+## Milestone 4 — FogCast launch fields, then SNES (current)
 
-FogCast keeps product fields. File index and expected core come from the
-system package (or from the runtime protocol). Add `system.snes` as data.
+FogCast keeps product fields (aliases, covers, Main RBF selector, library
+roots). Mega Drive expected core and cartridge file index are generated
+Go (`emit-go`) checked into FogCast. SNES is not part of this slice.
 
 ## Working rules
 
