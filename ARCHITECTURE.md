@@ -115,6 +115,22 @@ validate the complete profile request
   -> publish running_game
 ```
 
+MiSTer-compatible development RBF loading performs this software sequence:
+
+```text
+open and validate the complete staged RBF
+  -> read-modify-write ADV7513 main power-down to present a clean link loss
+  -> program the FPGA exactly once from the opened artifact
+  -> toggle the FPGA core-ID strobe and sample GPI
+  -> optionally observe the MiSTer core identity
+  -> publish running_development with no system identity and HDMI down
+```
+
+The observation is reported as core identity only; it is not a system or
+catalogue claim. Development loading does not run fixed video bring-up, media,
+reset, status, or input operations. Its physical-hardware acceptance remains
+pending.
+
 Input resolution and all artifact opens complete before the transmitter is
 quiesced and FPGA programming begins. Quiescing preserves every other ADV7513
 power-register bit and uses the existing bounded video deadline; failure stops
@@ -154,12 +170,13 @@ table plus the image-owned cores directory. Test profiles are private
 fixtures and cannot be selected by the production daemon. The canonical
 software-versus-physical record is the [support matrix](docs/support-matrix.md).
 
-The implemented Mega Drive path has no physical-hardware claim yet. Native
-audio, save RAM, save states, six-button X/Y/Z/Mode input, multiplayer,
-remapping, hot-plug recovery, and development-RBF loading/video acceptance are
-outside this slice. Every other game system remains unsupported. The runtime
-does not preserve a running game across restart and does not add conventional
-Main, transient MGLs, or automatic legacy fallback.
+The MiSTer-compatible development RBF path is software-implemented with
+physical-hardware status pending. It does not promise development video.
+Native audio, save RAM, save states, six-button X/Y/Z/Mode input, multiplayer,
+remapping, and hot-plug recovery are outside this slice. Every other game
+system remains unsupported. The runtime does not preserve a running game
+across restart and does not add conventional Main, transient MGLs, or automatic
+legacy fallback.
 
 ## Protocol
 

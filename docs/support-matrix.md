@@ -22,6 +22,12 @@ fixtures verify software mechanics and do not establish system support.
 | `wsc` | not implemented | software: no | hardware: no |
 | `intv` | not implemented | software: no | hardware: no |
 
+## Non-system capabilities
+
+| Capability | Implementation | Software status | Hardware status |
+| --- | --- | --- | --- |
+| MiSTer-compatible development RBF | open, HDMI power-down, program, synchronize, optional core observation, Stop to idle | software: yes | hardware: pending |
+
 Production native construction is available for the image-owned idle baseline,
 including a software-tested fixed menu-core 1280x720@60 video path. This idle
 baseline is not a separate game-system row.
@@ -41,8 +47,13 @@ core/media/video/input ordering, bounded ADV7513 main-power quiesce before
 supported FPGA core transitions, bounded fault cleanup, Stop, and immediate
 relaunch under host tests and on the designated physical kit. Failed quiesce
 writes are treated as hardware mutations and enter the existing idle cleanup
-path. Audio, saves, six-button input, multiplayer, remapping, hot-plug recovery,
+path. In the unsupported scope below, development-RBF means generic loading
+outside the separate MiSTer-compatible capability.
+Audio, saves, six-button input, multiplayer, remapping, hot-plug recovery,
 development-RBF loading/video acceptance, every other
 system, running-game restart preservation, conventional Main, transient MGLs,
-and automatic legacy fallback remain outside this slice. Change a row only in
-the same commit as its implementation and support evidence.
+and automatic legacy fallback remain outside this slice. The separate
+MiSTer-compatible development capability is software-implemented; its physical
+acceptance remains pending and it does not change the supported-system count.
+Change a row only in the same commit as its implementation and support
+evidence.
