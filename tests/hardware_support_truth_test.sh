@@ -23,7 +23,7 @@ require_exact "$root/docs/support-matrix.md" \
 require_exact "$root/docs/support-matrix.md" \
 	'`443b603de991b56b5f4d0d11c5bc88a3f83fad13`. Exact native image SHA-256:'
 require_exact "$root/docs/support-matrix.md" \
-	'`7591ee6a943fabd3e40134f662bb76e242bffa201716ee0d4201a7859d31e480`.'
+	'`95c9b4671e0d19781a6428d2168ab631453740215b194519f12788ade03c7c2e`.'
 require_exact "$root/README.md" \
 	'[dated FogCast hardware baseline](https://github.com/DeanoC/FogCast/blob/main/docs/hardware/native-megadrive-baseline.md).'
 require_exact "$root/docs/support-matrix.md" \
