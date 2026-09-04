@@ -156,12 +156,23 @@ func (item AttractItem) stillHandles() []string {
 
 // GameListQuery is GET /api/v1/games with the web UI's catalog params.
 type GameListQuery struct {
-	Cursor     string
-	Limit      int
-	Platform   string
-	Sort       string
-	Q          string
-	Collection string
+	Cursor         string
+	Limit          int
+	Platform       string
+	Sort           string
+	Q              string
+	Collection     string
+	Genre          string
+	Year           string
+	Region         string
+	HidePrerelease bool
+	HideHacks      bool
+}
+
+// FacetValues is GET /api/v1/library/facets. The host does not return regions.
+type FacetValues struct {
+	Genres []string `json:"genres"`
+	Years  []string `json:"years"`
 }
 
 // SessionProgress is the optional progress object on sessionResult.
@@ -268,6 +279,21 @@ func (c *Client) ListGames(ctx context.Context, query GameListQuery) ([]Game, st
 	}
 	if collection := strings.TrimSpace(query.Collection); collection != "" {
 		values.Set("collection", collection)
+	}
+	if genre := strings.TrimSpace(query.Genre); genre != "" {
+		values.Set("genre", genre)
+	}
+	if year := strings.TrimSpace(query.Year); year != "" {
+		values.Set("year", year)
+	}
+	if region := strings.TrimSpace(query.Region); region != "" {
+		values.Set("region", region)
+	}
+	if query.HidePrerelease {
+		values.Set("hide_prerelease", "1")
+	}
+	if query.HideHacks {
+		values.Set("hide_hacks", "1")
 	}
 	if strings.TrimSpace(query.Cursor) != "" {
 		values.Set("cursor", query.Cursor)
@@ -425,6 +451,25 @@ func (c *Client) SetFavorite(ctx context.Context, gameID string, favorite bool) 
 		return fmt.Errorf("host API favorite = %v, want %v", result.Favorite, favorite)
 	}
 	return nil
+}
+
+// Facets loads GET /api/v1/library/facets. Nil genre/year arrays become empty.
+func (c *Client) Facets(ctx context.Context) (FacetValues, error) {
+	var values FacetValues
+	if err := c.getJSON(ctx, "/api/v1/library/facets", &values); err != nil {
+		return FacetValues{Genres: []string{}, Years: []string{}}, err
+	}
+	return normalizeFacets(values), nil
+}
+
+func normalizeFacets(values FacetValues) FacetValues {
+	if values.Genres == nil {
+		values.Genres = []string{}
+	}
+	if values.Years == nil {
+		values.Years = []string{}
+	}
+	return values
 }
 
 // Platforms loads GET /api/v1/platforms.

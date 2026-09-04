@@ -149,6 +149,7 @@ func (a *App) openSettingsLocked() {
 	}
 	a.searchOpen = false
 	a.closeCollectionOverlaysLocked()
+	a.closeFiltersLocked()
 	a.closeDetailLocked()
 	a.settingsOpen = true
 	a.settingsIndex = 0

@@ -773,6 +773,8 @@ func commandFromSDLKey(code C.int) Command {
 		return CmdLayoutCycle
 	case C.SDLK_O:
 		return CmdSettings
+	case C.SDLK_G:
+		return CmdFilters
 	default:
 		return CmdNone
 	}
@@ -904,6 +906,7 @@ func drawFrame(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[str
 	drawViewPicker(renderer, snap, labels, used)
 	drawCollectionMenu(renderer, snap, labels, used)
 	drawSettings(renderer, snap, labels, used)
+	drawFilters(renderer, snap, labels, used)
 	drawOSK(renderer, snap, labels, used)
 	for key, item := range labels {
 		if _, ok := used[key]; ok {
@@ -1025,7 +1028,7 @@ func drawHeader(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTe
 	drawDebug(renderer, x+w-160, y+22, pad, 2)
 	chrome := snap.ChromeLine()
 	drawLabel(renderer, labels, used, "chrome", x+24, y+52, w-48, 18, chrome)
-	hint := "LB/RB platform  X sort  Y search  hold A view  hold Y fav  SELECT layout  GUIDE settings"
+	hint := "LB/RB platform  X sort  hold X filter  Y search  hold A view  hold Y fav  SELECT layout  GUIDE settings"
 	if snap.GPUParked || snap.Session.State == "active" {
 		hint = "B stop  START quit  SELECT layout"
 		if h := strings.TrimSpace(snap.Session.InputHint); h != "" {
@@ -1035,6 +1038,8 @@ func drawHeader(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTe
 		}
 	} else if snap.OSK.Open {
 		hint = snap.OSK.Hint
+	} else if snap.Filters.Open {
+		hint = snap.Filters.Hint
 	} else if snap.CollectionMenu.Open {
 		hint = snap.CollectionMenu.Hint
 	} else if snap.ViewPicker {
@@ -1388,6 +1393,99 @@ func drawSettings(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdl
 		status = "loading host settings"
 	}
 	drawLabel(renderer, labels, used, "set-status", x+16, y+panelH-24, panelW-32, 14, status)
+}
+
+func drawFilters(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTexture, used map[string]struct{}) {
+	if !snap.Filters.Open || len(snap.Filters.Rows) == 0 {
+		return
+	}
+	contentW := snap.Grid.contentWidth()
+	contentH := snap.Grid.contentHeight()
+	C.SDL_SetRenderDrawBlendMode(renderer, C.SDL_BLENDMODE_BLEND)
+	fillRect(renderer, float32(snap.Grid.contentLeft()), float32(snap.Grid.contentTop()), float32(contentW), float32(contentH), 8, 8, 12, 180)
+	C.SDL_SetRenderDrawBlendMode(renderer, C.SDL_BLENDMODE_NONE)
+	panelW := 560
+	if panelW > contentW-48 {
+		panelW = contentW - 48
+	}
+	if panelW < 280 {
+		panelW = contentW - 24
+	}
+	rowH := 28
+	headerH := 44
+	footerH := 28
+	rows := snap.Filters.Rows
+	maxH := contentH - 24
+	if maxH < 120 {
+		maxH = contentH
+	}
+	visible := (maxH - headerH - footerH) / rowH
+	if visible < 1 {
+		visible = 1
+	}
+	if visible > len(rows) {
+		visible = len(rows)
+	}
+	if visible > 12 {
+		visible = 12
+	}
+	panelH := headerH + visible*rowH + footerH
+	if panelH > maxH {
+		panelH = maxH
+	}
+	x := snap.Grid.contentLeft() + (contentW-panelW)/2
+	y := snap.Grid.headerY() + snap.Grid.HeaderHeight + 12
+	if y+panelH > snap.Grid.footerY()-8 {
+		y = snap.Grid.contentTop() + (contentH-panelH)/2
+	}
+	fillRect(renderer, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
+	fillRect(renderer, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
+	title := strings.TrimSpace(snap.Filters.Title)
+	if title == "" {
+		title = "Filters"
+	}
+	drawLabel(renderer, labels, used, "flt-title", x+16, y+12, panelW-32, 18, title)
+	start := snap.Filters.Index - visible/2
+	if start < 0 {
+		start = 0
+	}
+	if start+visible > len(rows) {
+		start = len(rows) - visible
+	}
+	if start < 0 {
+		start = 0
+	}
+	labelW := 180
+	if labelW > panelW/2 {
+		labelW = panelW / 2
+	}
+	for i := 0; i < visible; i++ {
+		idx := start + i
+		if idx >= len(rows) {
+			break
+		}
+		rowY := y + headerH + i*rowH
+		if idx == snap.Filters.Index {
+			fillRect(renderer, float32(x+8), float32(rowY-2), float32(panelW-16), float32(rowH-2), 48, 56, 80, 255)
+		}
+		row := rows[idx]
+		label := row.Label
+		if row.Active {
+			label += "  *"
+		}
+		drawLabel(renderer, labels, used, fmt.Sprintf("flt-l-%s-%d", row.ID, idx), x+20, rowY+4, labelW, 16, label)
+		if strings.TrimSpace(row.Value) != "" {
+			drawLabel(renderer, labels, used, fmt.Sprintf("flt-v-%s-%d", row.ID, idx), x+20+labelW, rowY+4, panelW-labelW-40, 16, row.Value)
+		}
+	}
+	status := strings.TrimSpace(snap.Filters.Status)
+	if status == "" {
+		status = strings.TrimSpace(snap.Filters.Hint)
+	}
+	if status == "" {
+		status = "A select  B back"
+	}
+	drawLabel(renderer, labels, used, "flt-status", x+16, y+panelH-24, panelW-32, 14, status)
 }
 
 func drawOSK(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTexture, used map[string]struct{}) {
