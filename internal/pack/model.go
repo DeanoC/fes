@@ -136,21 +136,57 @@ type OracleSource struct {
 }
 
 type SystemFile struct {
-	Schema       string        `yaml:"schema"`
-	Kind         string        `yaml:"kind"`
-	ID           string        `yaml:"id"`
-	Description  string        `yaml:"description"`
-	ExpectedCore string        `yaml:"expected_core"`
-	RBF          RBFRef        `yaml:"rbf"`
-	Media        []MediaRule   `yaml:"media"`
-	Settings     []SettingRule `yaml:"settings"`
-	Core         CoreRecipe    `yaml:"core"`
-	Input        InputRecipe   `yaml:"input"`
+	Schema       string          `yaml:"schema"`
+	Kind         string          `yaml:"kind"`
+	ID           string          `yaml:"id"`
+	Description  string          `yaml:"description"`
+	ExpectedCore string          `yaml:"expected_core"`
+	RBF          RBFRef          `yaml:"rbf"`
+	Media        []MediaRule     `yaml:"media"`
+	Settings     []SettingRule   `yaml:"settings"`
+	Core         CoreRecipe      `yaml:"core"`
+	Input        InputRecipe     `yaml:"input"`
+	CoreSource   *CoreSourceFile `yaml:"-"`
 }
 
 type RBFRef struct {
 	Role     string `yaml:"role"`
 	Artifact string `yaml:"artifact"`
+	Source   string `yaml:"source"`
+}
+
+type CoreSourceFile struct {
+	Schema      string   `yaml:"schema"`
+	Kind        string   `yaml:"kind"`
+	ID          string   `yaml:"id"`
+	Description string   `yaml:"description"`
+	Repository  string   `yaml:"repository"`
+	Commit      string   `yaml:"commit"`
+	RBFPath     string   `yaml:"rbf_path"`
+	RBFSHA256   string   `yaml:"rbf_sha256"`
+	RBFSize     uint64   `yaml:"rbf_size"`
+	Project     string   `yaml:"project"`
+	Submodules  []GitPin `yaml:"submodules"`
+}
+
+type GitPin struct {
+	Path       string `yaml:"path"`
+	Repository string `yaml:"repository"`
+	Commit     string `yaml:"commit"`
+}
+
+type CoreSourceOracleFile struct {
+	Source OracleSource     `yaml:"source"`
+	Pin    CoreSourceOracle `yaml:"pin"`
+}
+
+type CoreSourceOracle struct {
+	Repository string `yaml:"repository"`
+	Commit     string `yaml:"commit"`
+	RBFPath    string `yaml:"rbf_path"`
+	RBFSHA256  string `yaml:"rbf_sha256"`
+	RBFSize    uint64 `yaml:"rbf_size"`
+	Project    string `yaml:"project"`
 }
 
 type MediaRule struct {

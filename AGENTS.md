@@ -23,7 +23,7 @@ These rules apply to all work in this repository.
   them. Do not compile the runtime with a development-host toolchain.
 - Do not add a connection solver, Verilog generator, SVD emitter, template
   CLI, or package-manager clone step without a demonstrated need and
-  explicit approval.
+  explicit approval. `core_source` files are pins, not clone recipes.
 - Do not call this tree a catalog.
 - Tests are proportional: parse, validate, and oracle-diff the real
   platform and system YAML. Do not invent a second SoC or a second

@@ -10,13 +10,15 @@ an Overlord port.
 ## What works now
 
 - Schema `mister-packages.v1` for `platform`, `board`, `soc`, `cpu`,
-  `register_bank`, and `system`.
+  `register_bank`, `system`, and `core_source`.
 - One platform: DE10-Nano / Cyclone V HPS.
 - Register banks and bitfields for the MMIO the native runtime actually
   uses (FPGA manager, SYSMGR FPGA interface, SDR port reset, bridge reset,
   L3 remap, SPI GPO/GPI strobes).
 - One system package: `megadrive` (expected core, RBF role/artifact, media
   rules, reset words, input masks). FogCast product fields stay in FogCast.
+- Mega Drive `core_source` pin: MiSTer-devel git commit plus the hashed
+  release RBF. This tree does not clone or run Quartus.
 - `mister-packages validate`, `report`, `emit-cpp`, `emit-go`, and
   `diff-oracle` on platform or system YAML. `emit-go` writes FogCast
   launch fields (expected core, cartridge index) from a system package.
@@ -63,10 +65,10 @@ make report
 make emit-cpp
 ```
 
-`make test` runs unit tests, validates `packages/platform/de10_nano.yaml`
-and `packages/system/megadrive.yaml`, and diffs them against
-`testdata/oracles/libmister-runtime-fpga.yaml` and
-`testdata/oracles/libmister-runtime-megadrive.yaml`.
+`make test` runs unit tests, validates `packages/platform/de10_nano.yaml`,
+`packages/system/megadrive.yaml`, and
+`packages/source/megadrive_mister.yaml`, and diffs them against the
+matching files in `testdata/oracles/`.
 
 Requires Go 1.22 or later.
 
@@ -77,8 +79,10 @@ See [docs/PLAN.md](docs/PLAN.md) and [docs/schema.md](docs/schema.md).
 1. **Milestone 1:** Cyclone V HPS map round-trips the runtime constants.
 2. **Milestone 2:** `system.megadrive` as data.
 3. **Milestone 3:** libmister-runtime checks in generated C++14 headers.
-4. **Milestone 4 (this tree + FogCast):** Mega Drive expected core and
-   file index as generated Go. SNES is later.
+4. **Milestone 4:** Mega Drive expected core and file index as generated
+   Go. SNES is later.
+5. **Milestone 5 (this tree):** Mega Drive core git pin. Fetch/build in
+   misteross.
 
 ## Source notes
 

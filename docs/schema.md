@@ -4,7 +4,7 @@ Every package file starts with:
 
 ```yaml
 schema: mister-packages.v1
-kind: platform | board | soc | cpu | register_bank | system
+kind: platform | board | soc | cpu | register_bank | system | core_source
 id: unique.dot.or.slash.free.id
 ```
 
@@ -126,6 +126,28 @@ the runtime profile accepts today.
 The image prefix (`/usr/share/mister-runtime/cores/`) is not a package
 field. FogCast aliases, covers, and library roots stay in FogCast.
 
+A system `rbf.source` path may point at a `core_source` file. That pin is
+data, not a clone action.
+
+## core_source
+
+Pinned git identity of a buildable FPGA core tree, plus the known-good
+release RBF hash. `validate` does not clone or build.
+
+```yaml
+kind: core_source
+id: megadrive_mister
+repository: https://github.com/MiSTer-devel/MegaDrive_MiSTer
+commit: 7365a137cfd8fa6f041e964d8b953159c0ec42d9
+rbf_path: releases/MegaDrive_20260603.rbf
+rbf_sha256: 0cd43ea2c96e726999f04924713ca090ae73829f3ab08109c6b552cebeba0839
+rbf_size: 4296864
+project: MegaDrive.qpf
+```
+
+The hashed `rbf_path` is the runtime/image oracle until a Quartus rebuild
+bit-matches. Fetch and compile belong in misteross.
+
 Emitted C++ is C++14 for the ARMv7 Linux HPS target, the dialect the
 runtime's Arm GNU toolchain uses. Namespace-scope `constexpr` integers
 and `static constexpr` tables; no inline variables. The emitter runs on
@@ -140,5 +162,5 @@ aliases, covers, Main RBF paths, or library roots.
 
 - Connections, prefabs, wildcards, and bus address allocation.
 - SNES and further system packages.
-- Actions, templates, and git clones. Provenance belongs in a later
-  explicit adapter file, not a shell recipe.
+- Actions, templates, and git clones. `core_source` is a pin, not a
+  clone recipe. Fetch and Quartus rebuild belong in misteross.

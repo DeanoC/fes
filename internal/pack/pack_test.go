@@ -61,11 +61,33 @@ func TestLoadSystemAndOracle(t *testing.T) {
 	if sys.ExpectedCore != "MegaDrive" {
 		t.Fatalf("core %q", sys.ExpectedCore)
 	}
+	if sys.CoreSource == nil {
+		t.Fatal("missing core_source")
+	}
+	if sys.CoreSource.Commit != "7365a137cfd8fa6f041e964d8b953159c0ec42d9" {
+		t.Fatalf("source commit %q", sys.CoreSource.Commit)
+	}
 	oracle, err := LoadSystemOracle(filepath.Join(root, "testdata", "oracles", "libmister-runtime-megadrive.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	problems := DiffSystemOracle(sys, oracle)
+	for _, problem := range problems {
+		t.Error(problem)
+	}
+}
+
+func TestLoadCoreSourceAndOracle(t *testing.T) {
+	root := repoRoot(t)
+	src, err := LoadCoreSource(filepath.Join(root, "packages", "source", "megadrive_mister.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	oracle, err := LoadCoreSourceOracle(filepath.Join(root, "testdata", "oracles", "megadrive-core-source.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	problems := DiffCoreSourceOracle(src, oracle)
 	for _, problem := range problems {
 		t.Error(problem)
 	}

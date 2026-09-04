@@ -173,6 +173,15 @@ func (s *SystemFile) Report(w io.Writer) error {
 	fmt.Fprintf(w, "system   %s\n", s.ID)
 	fmt.Fprintf(w, "core     %s\n", s.ExpectedCore)
 	fmt.Fprintf(w, "rbf      role=%s artifact=%s\n", s.RBF.Role, s.RBF.Artifact)
+	if s.CoreSource != nil {
+		fmt.Fprintf(w, "source   %s\n", s.CoreSource.ID)
+		fmt.Fprintf(w, "  repo     %s\n", s.CoreSource.Repository)
+		fmt.Fprintf(w, "  commit   %s\n", s.CoreSource.Commit)
+		fmt.Fprintf(w, "  rbf_path %s\n", s.CoreSource.RBFPath)
+		fmt.Fprintf(w, "  sha256   %s\n", s.CoreSource.RBFSHA256)
+		fmt.Fprintf(w, "  size     %d\n", s.CoreSource.RBFSize)
+		fmt.Fprintf(w, "  project  %s\n", s.CoreSource.Project)
+	}
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "media:")
 	for _, rule := range s.Media {

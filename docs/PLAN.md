@@ -36,11 +36,18 @@ FPGA-manager and SPI `constexpr`s and the production Mega Drive profile
 literals are replaced. Runtime `ARCHITECTURE.md` records that. FogCast
 stays untouched.
 
-## Milestone 4 — FogCast launch fields, then SNES (current)
+## Milestone 4 — FogCast launch fields, then SNES
 
 FogCast keeps product fields (aliases, covers, Main RBF selector, library
 roots). Mega Drive expected core and cartridge file index are generated
 Go (`emit-go`) checked into FogCast. SNES is not part of this slice.
+
+## Milestone 5 — Mega Drive core source pin (current)
+
+`packages/source/megadrive_mister.yaml` pins
+`MiSTer-devel/MegaDrive_MiSTer` at the Release 20260603 commit and the
+known-good `releases/MegaDrive_20260603.rbf` hash. `validate` does not
+clone. Fetch and Quartus rebuild are misteross work, planned next.
 
 ## Working rules
 

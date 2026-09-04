@@ -1,0 +1,14 @@
+schema: mister-packages.v1
+kind: core_source
+id: megadrive_mister
+description: >-
+  Pinned MiSTer-devel Mega Drive git tree. This is not a clone recipe.
+  The hashed release RBF is the runtime/image oracle until a Quartus
+  rebuild bit-matches. misteross fetches and optionally builds.
+
+repository: https://github.com/MiSTer-devel/MegaDrive_MiSTer
+commit: 7365a137cfd8fa6f041e964d8b953159c0ec42d9
+rbf_path: releases/MegaDrive_20260603.rbf
+rbf_sha256: 0cd43ea2c96e726999f04924713ca090ae73829f3ab08109c6b552cebeba0839
+rbf_size: 4296864
+project: MegaDrive.qpf

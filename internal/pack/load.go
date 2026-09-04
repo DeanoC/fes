@@ -124,7 +124,51 @@ func LoadSystem(path string) (*SystemFile, error) {
 	if err := sys.Validate(); err != nil {
 		return nil, fmt.Errorf("%s: %w", abs, err)
 	}
+	if sys.RBF.Source != "" {
+		packagesDir, err := packagesRoot(abs)
+		if err != nil {
+			return nil, err
+		}
+		srcPath := filepath.Join(packagesDir, sys.RBF.Source)
+		src, err := LoadCoreSource(srcPath)
+		if err != nil {
+			return nil, err
+		}
+		sys.CoreSource = src
+	}
 	return &sys, nil
+}
+
+func LoadCoreSource(path string) (*CoreSourceFile, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	var src CoreSourceFile
+	if err := readYAML(abs, &src); err != nil {
+		return nil, err
+	}
+	if err := checkHeader(src.Schema, src.Kind, "core_source", abs); err != nil {
+		return nil, err
+	}
+	if err := src.Validate(); err != nil {
+		return nil, fmt.Errorf("%s: %w", abs, err)
+	}
+	return &src, nil
+}
+
+func LoadCoreSourceOracle(path string) (*CoreSourceOracleFile, error) {
+	var oracle CoreSourceOracleFile
+	if err := readYAML(path, &oracle); err != nil {
+		return nil, err
+	}
+	if oracle.Pin.Commit == "" || oracle.Pin.RBFSHA256 == "" {
+		return nil, fmt.Errorf("%s: missing pin commit or rbf_sha256", path)
+	}
+	if oracle.Source.Commit == "" {
+		return nil, fmt.Errorf("%s: missing source commit", path)
+	}
+	return &oracle, nil
 }
 
 func LoadSystemOracle(path string) (*SystemOracleFile, error) {
