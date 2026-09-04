@@ -37,6 +37,7 @@ help:
 		"  fetch-core Check out a pinned core tree and hash its upstream RBF" \
 		"  rebuild-core  Compile a fetched core with Quartus 17.0.2" \
 		"  select-core  Copy upstream or rebuild RBF to build/current/" \
+		"  export-core-bundle  Seal a Mega Drive rebuild for FogCast handoff" \
 		"  program    Load one artifact volatile-only (mister default; jtag optional)" \
 		"  clean      Remove generated output for an experiment" \
 		"" \
@@ -53,7 +54,7 @@ define require_exp
 	fi
 endef
 
-.PHONY: toolchain toolchain-check doctor doctor-strict sim oss oracle compare fetch-core rebuild-core select-core program clean
+.PHONY: toolchain toolchain-check doctor doctor-strict sim oss oracle compare fetch-core rebuild-core select-core export-core-bundle program clean
 
 toolchain:
 	@scripts/bootstrap.sh
@@ -95,6 +96,9 @@ rebuild-core:
 
 select-core:
 	@$(PYTHON) scripts/select_core.py --core "$$CORE" --artifact "$$ARTIFACT"
+
+export-core-bundle:
+	@$(PYTHON) scripts/export_core_bundle.py --core "$(CORE)" --root "$(CURDIR)"
 
 program:
 	@scripts/program.py
