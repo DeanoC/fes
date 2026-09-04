@@ -36,3 +36,20 @@ make compare EXP=020_linux_mailbox
 The compilers are not expected to produce byte-identical RBFs. Comparison
 checks the selected experiment, target, source identity, resources, timing,
 and successful artifact generation.
+
+Rebuild a fetched core with the same Quartus install:
+
+```sh
+export QUARTUS_ROOTDIR=/path/to/17.0/quartus
+make fetch-core CORE=megadrive
+make rebuild-core CORE=megadrive
+```
+
+That compile runs in `build/rebuild/megadrive/project/`, never in the fetch
+checkout. The staged `sys/build_id.tcl` honors `MISTER_BUILD_DATE`, defaulting
+to `260603` from `releases/MegaDrive_20260603.rbf` (`--build-date` overrides).
+The rebuild is a second artifact beside the locked upstream RBF. They are not
+required to bit-match; Lite Edition cannot reproduce a Standard Edition
+bitstream. The Lite Mega Drive rebuild has been loaded on real MiSTer
+hardware. `make select-core` selects that rebuild;
+`ARTIFACT=upstream` falls back to the official release.

@@ -2,6 +2,8 @@
 
 EXP ?= 010_blinky
 BUILD ?= oss
+CORE ?= megadrive
+ARTIFACT ?= rebuild
 PYTHON ?= python3
 PROGRAM_TRANSPORT ?= mister
 MISTER_HOST ?=
@@ -18,7 +20,7 @@ PROGRAM_DRY_RUN ?=
 # Pass operator-selected programming settings through the environment.  This
 # avoids interpolating host/user values into a shell command; program.py does
 # the strict validation before creating any subprocess.
-export EXP BUILD PYTHON PROGRAM_TRANSPORT MISTER_HOST MISTER_USER PROGRAMMER PROGRAM_SSH PROGRAM_SCP PROGRAM_CABLE PROGRAM_CABLE_INDEX PROGRAM_EXPECTED_BOARD PROGRAM_EXPECTED_MAIN_SHA256 PROGRAM_DRY_RUN
+export EXP BUILD CORE ARTIFACT PYTHON PROGRAM_TRANSPORT MISTER_HOST MISTER_USER PROGRAMMER PROGRAM_SSH PROGRAM_SCP PROGRAM_CABLE PROGRAM_CABLE_INDEX PROGRAM_EXPECTED_BOARD PROGRAM_EXPECTED_MAIN_SHA256 PROGRAM_DRY_RUN
 
 help:
 	@printf '%s\n' \
@@ -32,10 +34,13 @@ help:
 		"  oss        Build an experiment with the open-source FPGA lane" \
 		"  oracle     Build an experiment with the explicit Quartus oracle lane" \
 		"  compare    Compare OSS and oracle build results" \
+		"  fetch-core Check out a pinned core tree and hash its upstream RBF" \
+		"  rebuild-core  Compile a fetched core with Quartus 17.0.2" \
+		"  select-core  Copy upstream or rebuild RBF to build/current/" \
 		"  program    Load one artifact volatile-only (mister default; jtag optional)" \
 		"  clean      Remove generated output for an experiment" \
 		"" \
-		"Variables: EXP=010_blinky BUILD=oss PYTHON=python3" \
+		"Variables: EXP=010_blinky BUILD=oss CORE=megadrive ARTIFACT=rebuild PYTHON=python3" \
 		"  PROGRAM_TRANSPORT=mister MISTER_HOST/MISTER_USER required for mister" \
 		"  PROGRAM_EXPECTED_BOARD is required for every non-dry action (misterpi or de10nano)" \
 		"  PROGRAM_EXPECTED_MAIN_SHA256 is required for non-dry mister; PROGRAM_CABLE_INDEX is rejected for USB-Blaster II" \
@@ -48,7 +53,7 @@ define require_exp
 	fi
 endef
 
-.PHONY: toolchain toolchain-check doctor doctor-strict sim oss oracle compare program clean
+.PHONY: toolchain toolchain-check doctor doctor-strict sim oss oracle compare fetch-core rebuild-core select-core program clean
 
 toolchain:
 	@scripts/bootstrap.sh
@@ -81,6 +86,15 @@ compare:
 		--oss-manifest "build/oss/$$EXP/manifest.json" \
 		--oracle-manifest "build/oracle/$$EXP/manifest.json" \
 		--output-dir "build/compare/$$EXP"
+
+fetch-core:
+	@$(PYTHON) scripts/fetch_core.py --core "$$CORE"
+
+rebuild-core:
+	@$(PYTHON) scripts/rebuild_core.py --core "$$CORE"
+
+select-core:
+	@$(PYTHON) scripts/select_core.py --core "$$CORE" --artifact "$$ARTIFACT"
 
 program:
 	@scripts/program.py

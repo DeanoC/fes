@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-# Build the optional Quartus reference lane.  This file is intentionally the
-# only wrapper that knows about the proprietary compiler.  In particular, it
-# never searches PATH: callers must opt in with QUARTUS_ROOTDIR.
+# Build the optional Quartus experiment lane.  This file and rebuild_core.py
+# are the wrappers that know about the proprietary compiler.  In particular,
+# they never search PATH: callers must opt in with QUARTUS_ROOTDIR.
 set -euo pipefail
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"

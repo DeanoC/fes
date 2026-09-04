@@ -1,3 +1,4 @@
+import os
 import subprocess
 import unittest
 from pathlib import Path
@@ -17,11 +18,33 @@ class RepositoryContractTests(unittest.TestCase):
             "oss",
             "oracle",
             "compare",
+            "fetch-core",
+            "rebuild-core",
+            "select-core",
             "program",
         ):
             self.assertIn(target, result.stdout)
+        self.assertIn("ARTIFACT=rebuild", result.stdout)
         for removed in ("dev-bundle", "dev-load", "dev-preflight", "dev-fault-inject"):
             self.assertNotIn(removed, result.stdout)
+
+    def test_make_select_core_uses_makefile_defaults(self):
+        env = os.environ.copy()
+        env.pop("CORE", None)
+        env.pop("ARTIFACT", None)
+        result = subprocess.run(
+            ["make", "select-core"],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+        )
+        combined = result.stderr + result.stdout
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("unknown core", combined)
+        self.assertNotIn("invalid choice", combined.lower())
+        self.assertIn("megadrive", combined)
+        self.assertIn("rebuild", combined)
 
     def test_unknown_experiment_is_rejected(self):
         result = subprocess.run(
