@@ -18,9 +18,12 @@ class RepositoryContractTests(unittest.TestCase):
             "oracle",
             "compare",
             "fetch-core",
+            "rebuild-core",
+            "select-core",
             "program",
         ):
             self.assertIn(target, result.stdout)
+        self.assertIn("ARTIFACT=rebuild", result.stdout)
         for removed in ("dev-bundle", "dev-load", "dev-preflight", "dev-fault-inject"):
             self.assertNotIn(removed, result.stdout)
 

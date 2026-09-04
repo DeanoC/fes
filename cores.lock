@@ -1,5 +1,5 @@
 # Copied pin from mister-packages packages/source/megadrive_mister.yaml.
-# This file is data, not a clone recipe. make fetch-core checks it out.
+# Upstream version only. make fetch-core checks it out; rebuild is separate.
 
 [core.megadrive]
 repo = "https://github.com/MiSTer-devel/MegaDrive_MiSTer"
@@ -8,4 +8,4 @@ rbf_path = "releases/MegaDrive_20260603.rbf"
 rbf_sha256 = "0cd43ea2c96e726999f04924713ca090ae73829f3ab08109c6b552cebeba0839"
 rbf_size = 4296864
 project = "MegaDrive.qpf"
-rationale = "Release 20260603. Hashed release RBF is the oracle until Quartus rebuild bit-matches."
+rationale = "Release 20260603. Upstream git pin plus the official RBF; our Quartus rebuild is a separate selectable artifact."

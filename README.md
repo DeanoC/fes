@@ -15,17 +15,26 @@ development possible with both the open-source Mistral toolchain and Quartus.
 - `010_blinky`, a small LED counter.
 - `020_linux_mailbox`, a small HPS GPI/GPO mailbox experiment.
 
-Pinned third-party cores live in `cores.lock`. `make fetch-core CORE=megadrive`
-checks out the locked Mega Drive git commit and hashes
-`releases/MegaDrive_20260603.rbf`. That is a fetch-and-hash gate, not a
-Quartus or OSS rebuild.
+Pinned third-party cores live in `cores.lock`. That file is the **upstream
+version**: exact git commit plus the official release RBF hash.
+`make fetch-core CORE=megadrive` checks those bytes out.
+`make rebuild-core CORE=megadrive` compiles our own RBF from that tree
+with Quartus Prime Lite 17.0.2. That rebuild has been loaded on real
+MiSTer hardware, so the fetch → Quartus → RBF path works end to end.
+The two artifacts are not required to bit-match (Lite cannot reproduce
+Standard). `make select-core CORE=megadrive` copies the hardware-verified
+rebuild to `build/current/megadrive.rbf`. `ARTIFACT=upstream` falls back
+to the official release. The fetch checkout is not modified. Rebuild
+identity is not a lock failure.
 
 The useful outputs are ordinary local files:
 
 ```text
 build/oss/<experiment>/top.rbf
 build/oracle/<experiment>/top.rbf
-build/cores/megadrive/
+build/cores/megadrive/releases/MegaDrive_20260603.rbf   # upstream
+build/rebuild/megadrive/megadrive.rbf                   # our rebuild
+build/current/megadrive.rbf                             # selected
 ```
 
 FogCast owns choosing one of those files, transferring it to the disposable
@@ -60,6 +69,16 @@ If Quartus 17.0.2 is installed, build and compare the reference output:
 ```sh
 make oracle EXP=020_linux_mailbox
 make compare EXP=020_linux_mailbox
+```
+
+Fetch the upstream Mega Drive pin, rebuild it, and select the current RBF
+(rebuild is the default; upstream is the fallback):
+
+```sh
+make fetch-core CORE=megadrive
+make rebuild-core CORE=megadrive
+make select-core CORE=megadrive
+make select-core CORE=megadrive ARTIFACT=upstream
 ```
 
 See `docs/oracle-method.md` for the explicit Quartus path and
