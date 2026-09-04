@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DeanoC/FogCast/internal/systems/generated"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -77,6 +78,29 @@ func TestTableInvariants(t *testing.T) {
 	}
 	if fpga != 16 {
 		t.Fatalf("FPGA rows = %d, want 16", fpga)
+	}
+}
+
+func TestMegaDriveLaunchFieldsComeFromPackage(t *testing.T) {
+	var mega *Row
+	for i := range Rows() {
+		if Rows()[i].PlatformID == protocol.SystemMegaDrive {
+			row := Rows()[i]
+			mega = &row
+			break
+		}
+	}
+	if mega == nil || mega.Core == nil {
+		t.Fatal("missing Mega Drive FPGA row")
+	}
+	if mega.Core.ExpectedCore != generated.MegaDriveExpectedCore || generated.MegaDriveExpectedCore != "MegaDrive" {
+		t.Fatalf("expected core %q", mega.Core.ExpectedCore)
+	}
+	if mega.Core.FileIndex != generated.MegaDriveCartridgeIndex || generated.MegaDriveCartridgeIndex != 1 {
+		t.Fatalf("file index %d", mega.Core.FileIndex)
+	}
+	if mega.Core.RBF != "_Console/MegaDrive" || mega.Core.KitROMRoot == "" {
+		t.Fatalf("product fields were replaced: %#v", mega.Core)
 	}
 	for _, system := range []protocol.System{
 		protocol.SystemMegaDrive, protocol.SystemSNES, protocol.SystemNES, protocol.SystemSMS,

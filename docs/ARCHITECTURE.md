@@ -20,7 +20,9 @@ The important source entry points are:
 
 - `internal/hostapi/server.go`: browser-facing session endpoints.
 - `internal/mediasession/`: host selection and session lifecycle.
-- `internal/systems/table.go`: platform, core, file-index, and library mapping.
+- `internal/systems/table.go`: platform, Main RBF selector, library mapping,
+  aliases, and covers. Mega Drive expected core and cartridge file index
+  come from mister-packages via `internal/systems/generated/`.
 - `internal/httpapi/content.go`: target cache and cached-launch endpoints.
 - `internal/agent/content.go`: target-side cached content launch.
 - `internal/mister/runtime.go`: MGL creation, command dispatch, core

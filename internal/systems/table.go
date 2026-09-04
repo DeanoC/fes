@@ -5,6 +5,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/DeanoC/FogCast/internal/systems/generated"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -55,7 +56,15 @@ var table = []Row{
 	{
 		FolderAlias: "Genesis", PlatformID: protocol.SystemMegaDrive, LaunchSystem: protocol.SystemMegaDrive, Label: "Mega Drive",
 		Extensions: []string{".md", ".gen", ".bin"}, Capability: CapabilityFPGANative,
-		Core:       &CoreSpec{ExpectedCore: "MegaDrive", RBF: "_Console/MegaDrive", KitROMRoot: "/media/fat/games/MegaDrive", MGLRoot: "/media/fat/games/MegaDrive", FileDelay: 1, FileType: "f", FileIndex: 1},
+		Core: &CoreSpec{
+			ExpectedCore: generated.MegaDriveExpectedCore,
+			RBF:          "_Console/MegaDrive",
+			KitROMRoot:   "/media/fat/games/MegaDrive",
+			MGLRoot:      "/media/fat/games/MegaDrive",
+			FileDelay:    1,
+			FileType:     "f",
+			FileIndex:    generated.MegaDriveCartridgeIndex,
+		},
 		CoverSlugs: map[string]CoverSpec{CoverProviderIGDB: {Slug: "genesis-slash-megadrive", Name: "Sega Mega Drive/Genesis"}},
 	},
 	{
