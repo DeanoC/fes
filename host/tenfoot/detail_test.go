@@ -253,8 +253,8 @@ func TestAppFocusDetailDecodesStudioPlayersAndScreenshots(t *testing.T) {
 }
 
 func TestAppDetailFocusEnterLeaveDoesNotStealBindings(t *testing.T) {
-	var launches int
-	var stops int
+	var launches atomic.Int64
+	var stops atomic.Int64
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/v1/games":
@@ -263,10 +263,10 @@ func TestAppDetailFocusEnterLeaveDoesNotStealBindings(t *testing.T) {
 				availableGame("megadrive-sonic", "Sonic", "megadrive"),
 			}})
 		case r.URL.Path == "/api/v1/session/launch" && r.Method == http.MethodPost:
-			launches++
+			launches.Add(1)
 			_, _ = io.WriteString(w, `{"state":"active","game_id":"snes-mario","execution":"fpga_native"}`)
 		case r.URL.Path == "/api/v1/session/stop" && r.Method == http.MethodPost:
-			stops++
+			stops.Add(1)
 			_, _ = io.WriteString(w, `{"state":"idle"}`)
 		case r.URL.Path == "/api/v1/session":
 			http.NotFound(w, r)
@@ -336,9 +336,9 @@ func TestAppDetailFocusEnterLeaveDoesNotStealBindings(t *testing.T) {
 	app.HandleCommand(CmdDown, now)
 	app.HandleCommand(CmdSelect, now)
 	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
-		return launches >= 1 && (snap.Session.State == "active" || snap.Launch.Phase == "ok" || snap.Launch.HTTPStatus != 0)
+		return launches.Load() >= 1 && (snap.Session.State == "active" || snap.Launch.Phase == "ok" || snap.Launch.HTTPStatus != 0)
 	})
-	if launches < 1 {
+	if launches.Load() < 1 {
 		t.Fatal("south/A should still launch from detail")
 	}
 
@@ -351,9 +351,9 @@ func TestAppDetailFocusEnterLeaveDoesNotStealBindings(t *testing.T) {
 	}
 	app.HandleCommand(CmdBack, time.Now())
 	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
-		return stops >= 1
+		return stops.Load() >= 1
 	})
-	if stops < 1 {
+	if stops.Load() < 1 {
 		t.Fatal("east/B should still stop the session")
 	}
 }
