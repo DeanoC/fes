@@ -1011,9 +1011,11 @@ func (a *App) Tick(now time.Time) Command {
 	a.tickAttractLocked(now)
 	a.mu.Unlock()
 	a.queueVisibleWork(now)
-	if cmd := a.hold.Tick(now); cmd != CmdNone {
-		a.HandleCommand(cmd, now)
-		return cmd
+	if a.browseHoldEnabled() {
+		if cmd := a.hold.Tick(now); cmd != CmdNone {
+			a.HandleCommand(cmd, now)
+			return cmd
+		}
 	}
 	if cmd := a.repeat.Tick(now); cmd != CmdNone {
 		a.HandleCommand(cmd, now)
@@ -1150,7 +1152,11 @@ func (a *App) ViewPickerOpen() bool {
 func (a *App) browseHoldEnabled() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.gpuParked || a.stopPhase == "stopping" {
+	return a.browseHoldEnabledLocked()
+}
+
+func (a *App) browseHoldEnabledLocked() bool {
+	if a.gpuParked || a.stopPhase == "stopping" || a.launch.Phase == "launching" {
 		return false
 	}
 	switch a.session.State {
@@ -1367,6 +1373,8 @@ func (a *App) startLaunchGameLocked(game Game) {
 		Phase:   "launching",
 		Message: "launching " + game.Title,
 	}
+	a.hold.Clear()
+	a.closeFiltersLocked()
 	a.bumpSessionGenLocked()
 	ctx := a.ctx
 	if ctx == nil {

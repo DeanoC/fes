@@ -204,7 +204,7 @@ func facetChoiceRows(kind, selected string, options []string, label func(string)
 }
 
 func (a *App) openFiltersLocked() {
-	if a.gpuParked || a.session.State == "active" || a.session.State == "launching" || a.stopPhase == "stopping" {
+	if !a.browseHoldEnabledLocked() {
 		return
 	}
 	a.searchOpen = false

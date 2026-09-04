@@ -253,6 +253,55 @@ func TestHoldWestOpensFiltersWithoutSorting(t *testing.T) {
 	}
 }
 
+func TestHoldWestDoesNotOpenFiltersAfterLaunchStarts(t *testing.T) {
+	unblock := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/session/launch" {
+			<-unblock
+			_ = json.NewEncoder(w).Encode(map[string]any{"state": "active", "game_id": "g0"})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(func() {
+		close(unblock)
+		server.Close()
+	})
+	app := catalogApp(3)
+	app.client = NewClient(server.URL, server.Client())
+	app.games[0] = availableGame("g0", "Game", "snes")
+	app.sort = "title"
+	held := map[Command]bool{}
+	now := time.Unix(0, 0)
+	if applyPressed(app, map[Command]bool{CmdSortCycle: true}, held, now) {
+		t.Fatal("quit")
+	}
+	app.Press(CmdSelect, now)
+	if app.Snapshot().Launch.Phase != "launching" {
+		t.Fatalf("phase = %s", app.Snapshot().Launch.Phase)
+	}
+	if got := app.Tick(now.Add(longPressMin + time.Millisecond)); got != CmdNone {
+		t.Fatalf("tick during launch = %s", got)
+	}
+	if app.FiltersOpen() {
+		t.Fatal("tick opened filters during launch")
+	}
+	if applyPressed(app, map[Command]bool{}, held, now.Add(longPressMin+2*time.Millisecond)) {
+		t.Fatal("quit")
+	}
+	snap := app.Snapshot()
+	if snap.Filters.Open {
+		t.Fatal("west release opened filters during launch")
+	}
+	if snap.Sort != "title" {
+		t.Fatalf("sort = %s", snap.Sort)
+	}
+	app.Press(CmdFilters, now)
+	if app.FiltersOpen() {
+		t.Fatal("CmdFilters opened overlay during launch")
+	}
+}
+
 func TestHoldWestReleaseAfterSessionStartDoesNotAttach(t *testing.T) {
 	app := catalogApp(3)
 	app.sort = "title"
