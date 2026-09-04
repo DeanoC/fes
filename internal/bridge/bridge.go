@@ -31,6 +31,12 @@ type Sink interface {
 	ReleaseAll() error
 	Close() error
 }
+
+// errRejectedInputFrame marks validation failures that occur before a sink
+// can mutate its device. The stream may reject these frames and keep serving;
+// all other Apply errors are treated as possibly partial device writes.
+var errRejectedInputFrame = errors.New("rejected input frame")
+
 type Config struct {
 	Addr             string
 	Token            []byte
@@ -271,6 +277,9 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 		}
 		if err := s.sink.Apply(f); err != nil {
 			s.metrics.Rejected.Add(1)
+			if errors.Is(err, errRejectedInputFrame) {
+				continue
+			}
 			return
 		}
 		s.metrics.Applied.Add(1)

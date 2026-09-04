@@ -40,6 +40,31 @@ type firstApplyErrorSink struct {
 	releaseOnce  sync.Once
 }
 
+type recoverableApplySink struct {
+	mu           sync.Mutex
+	applyCalls   int
+	releaseCalls int
+}
+
+func (s *recoverableApplySink) Apply(protocol.InputFrame) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.applyCalls++
+	if s.applyCalls == 1 {
+		return fmt.Errorf("unsupported control: %w", errRejectedInputFrame)
+	}
+	return nil
+}
+
+func (s *recoverableApplySink) ReleaseAll() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.releaseCalls++
+	return nil
+}
+
+func (*recoverableApplySink) Close() error { return nil }
+
 func (s *firstApplyErrorSink) Apply(protocol.InputFrame) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -251,6 +276,62 @@ func TestServerSinkFailureClosesStreamReleasesAndAllowsSuccessor(t *testing.T) {
 	_ = second.Close()
 	if err := server.Close(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestServerRejectedFrameKeepsHealthyStreamOpen(t *testing.T) {
+	token := []byte("0123456789abcdef")
+	sink := &recoverableApplySink{}
+	server, err := New(Config{Addr: "127.0.0.1:0", Token: token, Session: 9, Core: "MegaDrive", HeartbeatTimeout: 10 * time.Second}, sink)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { _ = server.ListenAndServe(ctx) }()
+	<-server.Ready()
+
+	connection, err := net.Dial("tcp", server.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connection.Close()
+	if _, err := fmt.Fprintf(connection, "{\"version\":1,\"session\":9,\"core\":\"MegaDrive\",\"proof\":\"%s\"}\n", hex.EncodeToString(token)); err != nil {
+		t.Fatal(err)
+	}
+	ack := make([]byte, len("{\"ok\":true}\n"))
+	if _, err := io.ReadFull(connection, ack); err != nil {
+		t.Fatal(err)
+	}
+	for sequence := uint32(1); sequence <= 2; sequence++ {
+		frame := protocol.InputFrame{Header: protocol.InputHeader{Type: protocol.InputTypeInput, Session: 9}, Seq: sequence, Device: 1, Kind: 1, Action: 1, Code: 104}
+		if err := WriteFrame(connection, frame); err != nil {
+			t.Fatal(err)
+		}
+	}
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		sink.mu.Lock()
+		calls := sink.applyCalls
+		sink.mu.Unlock()
+		if calls == 2 {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	sink.mu.Lock()
+	applyCalls := sink.applyCalls
+	releaseCalls := sink.releaseCalls
+	sink.mu.Unlock()
+	if applyCalls != 2 {
+		t.Fatalf("apply calls = %d, want rejected frame plus later valid frame", applyCalls)
+	}
+	if releaseCalls != 0 {
+		t.Fatalf("release calls before disconnect = %d, want 0", releaseCalls)
+	}
+	metrics := server.Metrics().Snapshot()
+	if metrics["rejected"] != 1 || metrics["applied"] != 1 {
+		t.Fatalf("metrics = %v, want one rejected and one applied", metrics)
 	}
 }
 

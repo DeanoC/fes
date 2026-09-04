@@ -131,23 +131,23 @@ func (s *UInputSink) Apply(f protocol.InputFrame) error {
 	}
 	code, eventType, ok := s.mapCode(f)
 	if !ok {
-		return errors.New("unsupported input code")
+		return fmt.Errorf("%w: unsupported input code", errRejectedInputFrame)
 	}
 	value := int32(0)
 	switch f.Action {
 	case 0: // release
 	case 1: // press
 		if eventType != evKey {
-			return errors.New("non-key press")
+			return fmt.Errorf("%w: non-key press", errRejectedInputFrame)
 		}
 		value = 1
 	case 2: // absolute axis value
 		if eventType != evAbs {
-			return errors.New("non-axis absolute event")
+			return fmt.Errorf("%w: non-axis absolute event", errRejectedInputFrame)
 		}
 		value = f.Value
 	default:
-		return errors.New("unsupported input action")
+		return fmt.Errorf("%w: unsupported input action", errRejectedInputFrame)
 	}
 	// A write error does not prove the kernel rejected the event record. Keep
 	// enough conservative state to neutralize any non-neutral record that may

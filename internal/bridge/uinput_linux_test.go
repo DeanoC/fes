@@ -163,8 +163,8 @@ func TestNativeUInputRejectsFramesOutsideOnePlayerGamepadContract(t *testing.T) 
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := sink.Apply(test.frame); err == nil {
-				t.Fatal("out-of-contract native frame was accepted")
+			if err := sink.Apply(test.frame); !errors.Is(err, errRejectedInputFrame) {
+				t.Fatalf("out-of-contract native frame error = %v, want rejected-frame marker", err)
 			}
 			after, err := os.ReadFile(path)
 			if err != nil {
