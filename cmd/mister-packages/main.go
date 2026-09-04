@@ -103,8 +103,14 @@ func validatePath(path string) (string, error) {
 			return "", err
 		}
 		return sys.ID, nil
+	case "core_source":
+		src, err := pack.LoadCoreSource(path)
+		if err != nil {
+			return "", err
+		}
+		return src.ID, nil
 	default:
-		return "", fmt.Errorf("%s: kind %q is not platform or system", path, kind)
+		return "", fmt.Errorf("%s: kind %q is not platform, system, or core_source", path, kind)
 	}
 }
 
@@ -126,8 +132,14 @@ func reportPath(path string) error {
 			return err
 		}
 		return sys.Report(os.Stdout)
+	case "core_source":
+		src, err := pack.LoadCoreSource(path)
+		if err != nil {
+			return err
+		}
+		return src.Report(os.Stdout)
 	default:
-		return fmt.Errorf("%s: kind %q is not platform or system", path, kind)
+		return fmt.Errorf("%s: kind %q is not platform, system, or core_source", path, kind)
 	}
 }
 
@@ -209,8 +221,23 @@ func diffOracle(packagePath, oraclePath string) error {
 		}
 		fmt.Printf("ok %s profile (%s)\n", sys.ID, oracle.Source.Commit)
 		return nil
+	case "core_source":
+		src, err := pack.LoadCoreSource(packagePath)
+		if err != nil {
+			return err
+		}
+		oracle, err := pack.LoadCoreSourceOracle(oraclePath)
+		if err != nil {
+			return err
+		}
+		problems := pack.DiffCoreSourceOracle(src, oracle)
+		if err := printProblems(problems); err != nil {
+			return err
+		}
+		fmt.Printf("ok %s pin (%s)\n", src.ID, oracle.Source.Commit)
+		return nil
 	default:
-		return fmt.Errorf("%s: kind %q is not platform or system", packagePath, kind)
+		return fmt.Errorf("%s: kind %q is not platform, system, or core_source", packagePath, kind)
 	}
 }
 
@@ -235,6 +262,6 @@ Commands:
   diff-oracle <package.yaml> <oracle.yaml>
 
 Default package is packages/platform/de10_nano.yaml.
-Package kind is platform or system.
+Package kind is platform, system, or core_source.
 `)
 }

@@ -12,6 +12,7 @@ expected_core: MegaDrive
 rbf:
   role: core
   artifact: megadrive.rbf
+  source: source/megadrive_mister.yaml
 
 media:
   - role: cartridge
