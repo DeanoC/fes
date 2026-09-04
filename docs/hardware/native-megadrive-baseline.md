@@ -1,6 +1,6 @@
 # Native Mega Drive hardware baseline
 
-Acceptance date: 2026-09-03
+Acceptance date: 2026-09-04
 
 Result: PASS
 
@@ -13,11 +13,11 @@ jump, Stop to idle, immediate relaunch, and unchanged legacy rollback.
 
 ## Authorities and reproducible artifacts
 
-- FogCast source: `483f794c285b38ca452d7fcc9ee6afb61302b782`
+- FogCast source: `889c777f0b7fe6fc662a9d8c7d57834c986239a7`
 - `libmister-runtime` source: `443b603de991b56b5f4d0d11c5bc88a3f83fad13`
-- Native-dev image SHA-256: `4d23a561906f5dcdc2b5fcd51a82eef8a9be1102f88c3c9487a1425cffeb599e`
-- Legacy-prod image SHA-256: `f1ede775a78f6cec02216a21d0cf21656b3d85a00d1458e9f1ff381b5720e87b`
-- Legacy-dev image SHA-256: `d7a9c02462891db4af0c0e3049c5331e6a2ef3d9a993acdf8cd991a482480ea2`
+- Native-dev image SHA-256: `7591ee6a943fabd3e40134f662bb76e242bffa201716ee0d4201a7859d31e480`
+- Legacy-prod image SHA-256: `260e36b8eeeaa87238b9e6c2f4c7975f86f45f131fe1e1f8c1f649453d7ac780`
+- Legacy-dev image SHA-256: `54210721b1419b80d4a15ca415e0a9068a081c1a01b4675dc64eed8f868e7a79`
 - Idle RBF: Distribution_MiSTer `f7bde4becb452ca28f604ad9802bbed5c6b58e01`
   `menu.rbf`, 2,452,588 bytes, SHA-256
   `821bcf66181a00ff550e4a4110dc11c9fa8e68d38e9cb5558b3ddb99ca938934`
@@ -35,17 +35,17 @@ deployed for acceptance.
 Installed native identities were:
 
 ```text
-/media/fat/linux/linux.img                 4d23a561906f5dcdc2b5fcd51a82eef8a9be1102f88c3c9487a1425cffeb599e
+/media/fat/linux/linux.img                 7591ee6a943fabd3e40134f662bb76e242bffa201716ee0d4201a7859d31e480
 /usr/sbin/mister-runtime                   f100441df7b50df5aa3a7659ea41773ad36501dabafc678688fe444e120e9098
-/usr/sbin/mister-agent                     53f6bbbf48c2402ae0d278f73343c3f36d78b1dae1f5849afa3ef07f89c2cd8f
-/usr/share/mister-runtime/build-inputs     c8cd5ab2059dfadf87883d1ca2fd057736d8734d4fb7524ced2eb810ab9d20f4
+/usr/sbin/mister-agent                     5746965d6f4d88461b5795abb3a8eb2e488ebdc0ff3b2cf2697a74b8fcf4f3d2
+/usr/share/mister-runtime/build-inputs     079d91b0ff9befaedd9bb46a5e01e23b5f133a76fbc8647637c430603fa9398d
 /usr/share/mister-runtime/idle.rbf         821bcf66181a00ff550e4a4110dc11c9fa8e68d38e9cb5558b3ddb99ca938934
 /usr/share/mister-runtime/cores/megadrive.rbf
                                             0cd43ea2c96e726999f04924713ca090ae73829f3ab08109c6b552cebeba0839
-FogCast host executable                    b8cda43722e331a7e970357a018ffea290095b8e8dddb7e35033d480939b469c
+FogCast host executable                    93a041191209a75d34b6af2f5c8b753742323e731edcf3738d7a0bcdef9c34bf
 ```
 
-The native boot ID was `5e715b7b-fee0-43f9-ad45-08f1b9c8e647`. Direct
+The native boot ID was `71760e31-a96f-487b-a3f4-b7ef915794c2`. Direct
 predicates proved exactly one image-owned runtime and agent, no conventional
 Main process, no `/dev/MiSTer_cmd`, FPGA manager `operating`, the fixed idle
 and Mega Drive artifacts, and one persistent `FogCast Virtual Gamepad`.
@@ -70,19 +70,19 @@ captured collision-proof RGB24 PNGs at 1920x1080. These five pre-input
 gameplay frames were opened individually:
 
 ```text
-layer4-gameplay-001.png  b11eaa517e824d70b095ea84141f961002bfec4e95485d9d1f0e88c5d1f18eb0
-layer4-gameplay-002.png  cf9f79a5fe61274e51f3505884b0282abab0ca74ca64f993882ffb973d3a6a3f
-layer4-gameplay-003.png  bca149a90005ca8747d7892838ad6fba338e1e7073bc04ca96062bbd404dc364
-layer4-gameplay-004.png  edbf6f3655fbd94ae423b5f23e68466ed7532366b37d434b5e926c45cf0ecd5b
-layer4-gameplay-005.png  3b307f4d2e972585b00b21b6547de6b5f711d9b506c7f15f0e7524c3a575dece
+layer4-gameplay-001.png  3c885e4e3cf08909e86a7563743e7f355bf4dadd9674d762f595761e23c6d8b3
+layer4-gameplay-002.png  508b44821ee4a9c29b8cc3e9a7b33738b3455efae51e8f9f4e1d42a77f8da911
+layer4-gameplay-003.png  508e99be8a2ca8b8533a63d271a70bfe08309c2ffc41058f6b8edc7ffc77600c
+layer4-gameplay-004.png  fb2d265be207185160999420281e1c2135660c5fc8e2e8ba06236ae7d334ff87
+layer4-gameplay-005.png  d3b513da30ec72c4c44b34800012f07b84523ed6ac61cbbf842e19fe4c30279b
 ```
 
 All five show recognizable Sonic 2 Emerald Hill gameplay with no red/green
 raster and no receiver no-signal output. A subsequent five-frame sequence was
 captured while the production input path held D-pad right and pressed A. It
 shows rightward displacement, ring collection, and Sonic airborne; its hashes
-are `cf9790bd...f88c`, `eda38d19...3fab`, `715aa004...f88a`,
-`08801dc1...4857`, and `241975ac...4cd4`. The input session sent 320 frames,
+are `f7eec6c8...10e7`, `d6f1e78e...d0f2`, `b8afb58b...a373`,
+`16308b38...761e`, and `fd2df219...8daa`. The input session sent 406 frames,
 reported no sequence gaps or state resyncs, detached cleanly, and released
 held state once.
 
@@ -98,7 +98,7 @@ acceptance.
 ## Legacy rollback and final state
 
 After native acceptance, the exact freshly reproducible legacy-dev image was
-deployed once. On new boot `5040bc74-b4e8-4f21-8f43-f953bf77ed7b`, the
+deployed once. On new boot `e006a65e-0890-4ba8-987a-d42d3bd8f5c6`, the
 unchanged smoke passed:
 
 ```text
@@ -106,7 +106,7 @@ target smoke passed: megadrive-sonic-the-hedgehog-2-world-rev-a-a6e9fedc03e1 -> 
 ```
 
 The final target has the exact installed legacy-dev image hash
-`d7a9c02462891db4af0c0e3049c5331e6a2ef3d9a993acdf8cd991a482480ea2`,
+`54210721b1419b80d4a15ca415e0a9068a081c1a01b4675dc64eed8f868e7a79`,
 one `/media/fat/MiSTer` process, `/dev/MiSTer_cmd` present, FPGA manager
 `operating`, and `CORENAME=MENU`. The host is idle and capture is released.
 Five final 1920x1080 frames were opened individually and show the stable
