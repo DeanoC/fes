@@ -17,8 +17,9 @@ an Overlord port.
   L3 remap, SPI GPO/GPI strobes).
 - One system package: `megadrive` (expected core, RBF role/artifact, media
   rules, reset words, input masks). FogCast product fields stay in FogCast.
-- `mister-packages validate`, `report`, `emit-cpp`, and `diff-oracle` on
-  platform or system YAML.
+- `mister-packages validate`, `report`, `emit-cpp`, `emit-go`, and
+  `diff-oracle` on platform or system YAML. `emit-go` writes FogCast
+  launch fields (expected core, cartridge index) from a system package.
 - Oracles extracted from libmister-runtime FPGA-manager/SPI headers and
   from the production Mega Drive profile. `make test` requires both to
   match.
@@ -76,7 +77,8 @@ See [docs/PLAN.md](docs/PLAN.md) and [docs/schema.md](docs/schema.md).
 1. **Milestone 1:** Cyclone V HPS map round-trips the runtime constants.
 2. **Milestone 2:** `system.megadrive` as data.
 3. **Milestone 3:** libmister-runtime checks in generated C++14 headers.
-4. **Milestone 4:** FogCast launch fields, then SNES as data.
+4. **Milestone 4 (this tree + FogCast):** Mega Drive expected core and
+   file index as generated Go. SNES is later.
 
 ## Source notes
 
