@@ -27,10 +27,10 @@ require_exact "$root/docs/DEVELOPMENT.md" \
 
 require_exact "$baseline" 'Acceptance date: 2026-09-04'
 require_exact "$baseline" 'Result: PASS'
-require_exact "$baseline" '- FogCast source: `889c777f0b7fe6fc662a9d8c7d57834c986239a7`'
+require_exact "$baseline" '- FogCast source: `cd85971bf0bffe36e69c381917f618620b901726`'
 require_exact "$baseline" '- `libmister-runtime` source: `443b603de991b56b5f4d0d11c5bc88a3f83fad13`'
-require_exact "$baseline" '- Native-dev image SHA-256: `7591ee6a943fabd3e40134f662bb76e242bffa201716ee0d4201a7859d31e480`'
-require_exact "$baseline" '- Legacy-dev image SHA-256: `54210721b1419b80d4a15ca415e0a9068a081c1a01b4675dc64eed8f868e7a79`'
+require_exact "$baseline" '- Native-dev image SHA-256: `95c9b4671e0d19781a6428d2168ab631453740215b194519f12788ade03c7c2e`'
+require_exact "$baseline" '- Legacy-dev image SHA-256: `91f9870a1d2988ffec3e9cda22dea7f729633bbfc26bdd6c35f5776b4abff055`'
 require_exact "$baseline" 'Hardware-supported native systems: 1 (`megadrive`).'
 require_exact "$baseline" 'Audio, saves, six-button input, multiplayer, remapping, hot-plug recovery,'
 require_exact "$baseline" 'development-RBF loading/video, every other system, running-game restart'
