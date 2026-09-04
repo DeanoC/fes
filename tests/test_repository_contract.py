@@ -21,6 +21,7 @@ class RepositoryContractTests(unittest.TestCase):
             "fetch-core",
             "rebuild-core",
             "select-core",
+            "export-core-bundle",
             "program",
         ):
             self.assertIn(target, result.stdout)
@@ -32,19 +33,19 @@ class RepositoryContractTests(unittest.TestCase):
         env = os.environ.copy()
         env.pop("CORE", None)
         env.pop("ARTIFACT", None)
+        env["PYTHON"] = "printf '%s\\n'"
         result = subprocess.run(
             ["make", "select-core"],
             cwd=ROOT,
             env=env,
             text=True,
             capture_output=True,
+            check=True,
         )
-        combined = result.stderr + result.stdout
-        self.assertNotEqual(result.returncode, 0)
-        self.assertNotIn("unknown core", combined)
-        self.assertNotIn("invalid choice", combined.lower())
-        self.assertIn("megadrive", combined)
-        self.assertIn("rebuild", combined)
+        self.assertEqual(
+            result.stdout.splitlines(),
+            ["scripts/select_core.py", "--core", "megadrive", "--artifact", "rebuild"],
+        )
 
     def test_unknown_experiment_is_rejected(self):
         result = subprocess.run(
@@ -71,6 +72,28 @@ class RepositoryContractTests(unittest.TestCase):
             capture_output=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_documents_separate_compile_select_and_export_paths(self):
+        for relative_path in ("README.md", "docs/architecture.md"):
+            with self.subTest(document=relative_path):
+                document = (ROOT / relative_path).read_text(encoding="utf-8")
+                for command in (
+                    "make fetch-core CORE=megadrive",
+                    "make rebuild-core CORE=megadrive",
+                    "make select-core CORE=megadrive",
+                    "make export-core-bundle CORE=megadrive",
+                ):
+                    self.assertIn(command, document)
+
+    def test_documents_the_immutable_fogcast_bundle_handoff(self):
+        for relative_path in ("README.md", "docs/architecture.md"):
+            with self.subTest(document=relative_path):
+                document = (ROOT / relative_path).read_text(encoding="utf-8")
+                self.assertIn("megadrive.rbf", document)
+                self.assertIn("megadrive-rbf.toml", document)
+                self.assertIn("build/bundles/megadrive/<rbf-sha256>/", document)
+                self.assertIn("printed bundle path", document)
+                self.assertIn("build/current/megadrive.rbf", document)
 
 
 if __name__ == "__main__":

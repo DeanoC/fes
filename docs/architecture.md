@@ -51,11 +51,27 @@ build/oracle/<experiment>/top.rbf
 build/cores/<name>/releases/*.rbf
 build/rebuild/<name>/<name>.rbf
 build/current/<name>.rbf
+build/bundles/megadrive/<rbf-sha256>/megadrive.rbf
+build/bundles/megadrive/<rbf-sha256>/megadrive-rbf.toml
 ```
 
-FogCast will select, upload, and load one of these ordinary files. No bundle,
-attestation record, run ID, recovery journal, or fault-injection result is
-required.
+The core workflow has three separate operations:
+
+```sh
+make fetch-core CORE=megadrive
+make rebuild-core CORE=megadrive
+make select-core CORE=megadrive
+make export-core-bundle CORE=megadrive
+```
+
+Rebuild compiles the pinned source. Select copies an operator-chosen artifact
+to the mutable `build/current/megadrive.rbf` convenience path. Export validates
+the rebuild against its closed comparison evidence and writes an immutable,
+content-addressed directory containing exactly `megadrive.rbf` and
+`megadrive-rbf.toml`. FogCast receives the exporter's printed bundle path under
+`build/bundles/megadrive/<rbf-sha256>/`, rather than a mutable rebuild or
+selection path. No attestation record, run ID, recovery journal, or
+fault-injection result is required.
 
 `make program` is an optional direct diagnostic. It is deliberately separate
 from `sim`, `oss`, `oracle`, and `compare`, so building an RBF never touches
@@ -85,5 +101,11 @@ fetch → Quartus 17.0.2 → RBF is a working path. Upstream remains the
 fallback if a later rebuild is broken.
 
 `make select-core` copies the rebuild to `build/current/<name>.rbf`.
-`ARTIFACT=upstream` falls back to the official release. FogCast still
-owns which file is installed on a target.
+`ARTIFACT=upstream` falls back to the official release. This selection is for
+operator use and is not the FogCast release handoff.
+
+`make export-core-bundle CORE=megadrive` accepts only the pinned Mega Drive
+revision and the MiSTer ABI. It rehashes the rebuild and recipe, validates the
+closed `compare.json`, writes the two-file bundle under its RBF digest, removes
+all write bits from the files and directory, and prints the absolute bundle
+path. FogCast owns which exported RBF is installed on a target.
