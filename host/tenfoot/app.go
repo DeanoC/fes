@@ -268,6 +268,7 @@ type App struct {
 	collectionID          string
 	collections           []Collection
 	collectionsErr        string
+	collectionsLoaded     bool
 	collectionsKick       chan struct{}
 	viewPickerOpen        bool
 	viewPickerIndex       int
@@ -1809,6 +1810,7 @@ func (a *App) loadCollections(ctx context.Context) {
 		if err == nil {
 			a.collections = collections
 			a.collectionsErr = ""
+			a.collectionsLoaded = true
 			fails = 0
 			if a.viewPickerOpen {
 				n := len(a.pickerRowsLocked())

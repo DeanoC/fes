@@ -39,7 +39,9 @@ func (a *App) pickerRowsLocked() []LibraryView {
 		}
 		out = append(out, view)
 	}
-	out = append(out, LibraryView{Label: "New collection...", Create: true})
+	if a.collectionsLoaded {
+		out = append(out, LibraryView{Label: "New collection...", Create: true})
+	}
 	return out
 }
 
@@ -86,6 +88,10 @@ func (a *App) handleViewPickerLocked(cmd Command) {
 	case CmdSelect:
 		row := rows[a.viewPickerIndex]
 		if row.Create {
+			if !a.collectionsLoaded {
+				a.status = "collection list not ready"
+				return
+			}
 			a.openNameEntryLocked(nameEntryCreate, "", "")
 			return
 		}
@@ -162,7 +168,7 @@ func (a *App) doCollectionMember(ctx context.Context, collectionID, gameID strin
 		return
 	}
 	a.setGameCollectionLocked(gameID, collectionID, want)
-	if !want && a.collectionID == collectionID {
+	if a.collectionID == collectionID {
 		a.reloadLocked()
 		return
 	}
@@ -314,6 +320,10 @@ func (a *App) submitNameEntryLocked() {
 	a.closeNameEntryLocked()
 	switch kind {
 	case nameEntryCreate:
+		if !a.collectionsLoaded {
+			a.status = "collection list not ready"
+			return
+		}
 		id = uniqueCollectionID(name, a.existingCollectionIDsLocked())
 		if IsReservedCollectionID(id) {
 			a.status = "collection id is reserved"

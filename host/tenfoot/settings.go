@@ -19,7 +19,7 @@ const (
 )
 
 const (
-	minSettingsIdleSeconds = 5
+	minSettingsIdleSeconds = 1       // host library settings allow 1s (ui_shell min, config defaults only <=0)
 	maxSettingsIdleSeconds = 2147483 // host MaxAttractIdleSeconds
 	settingsIdleStep       = 15
 )
@@ -387,6 +387,7 @@ func (a *App) fetchLibrarySettings(ctx context.Context, gen int) {
 	}
 	if writeGen != a.settingsWriteGen {
 		a.settingsLoading = false
+		a.hydrateSettingsFromAppliedLocked()
 		return
 	}
 	a.settingsLoading = false
@@ -397,6 +398,14 @@ func (a *App) fetchLibrarySettings(ctx context.Context, gen int) {
 	}
 	a.applyHostSettingsLocked(settings)
 	a.settingsHydrated = true
+	a.settingsStatus = ""
+}
+
+func (a *App) hydrateSettingsFromAppliedLocked() {
+	if !a.settingsOpen || a.settingsHydrated {
+		return
+	}
+	a.applyHostSettingsLocked(a.hostSettings)
 	a.settingsStatus = ""
 }
 
@@ -457,6 +466,10 @@ func (a *App) commitLibrarySettings(ctx context.Context, gen, seq int, patch Lib
 		}
 		a.settingsWriteGen++
 		a.status = a.settingsSavedStatusLocked(patch)
+		if !current {
+			a.settingsLoading = false
+			a.hydrateSettingsFromAppliedLocked()
+		}
 	}
 	if !current {
 		return

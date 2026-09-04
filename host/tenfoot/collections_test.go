@@ -676,6 +676,178 @@ func TestAppRemoveFromCustomCollectionReloadsView(t *testing.T) {
 	}
 }
 
+func TestAppAddToCustomCollectionReloadsView(t *testing.T) {
+	var mu sync.Mutex
+	member := false
+	var gameQueries []string
+	putStarted := make(chan struct{})
+	putRelease := make(chan struct{})
+	t.Cleanup(func() {
+		select {
+		case <-putRelease:
+		default:
+			close(putRelease)
+		}
+	})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v1/games":
+			mu.Lock()
+			gameQueries = append(gameQueries, r.URL.RawQuery)
+			in := member
+			mu.Unlock()
+			var games []Game
+			collection := r.URL.Query().Get("collection")
+			if collection == "" {
+				game := availableGame("snes-mario", "Mario", "snes")
+				if in {
+					game.Collections = []string{"weekend-queue"}
+				}
+				games = []Game{game}
+			} else if collection == "weekend-queue" && in {
+				game := availableGame("snes-mario", "Mario", "snes")
+				game.Collections = []string{"weekend-queue"}
+				games = []Game{game}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": games})
+		case r.URL.Path == "/api/v1/library/collections":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"collections": []Collection{{ID: "weekend-queue", Name: "Weekend queue"}},
+			})
+		case r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/api/v1/library/collections/weekend-queue/"):
+			close(putStarted)
+			<-putRelease
+			mu.Lock()
+			member = true
+			mu.Unlock()
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "snes-mario", "collection": "weekend-queue", "member": true})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && len(snap.Games) == 1 && len(snap.Views) == 7
+	})
+	focusPickerRow(t, app, false, "weekend-queue")
+	app.Press(CmdSortCycle, time.Now())
+	select {
+	case <-putStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("PUT did not start")
+	}
+	app.Press(CmdBack, time.Now())
+	for i := 0; i < 6; i++ {
+		app.Press(CmdViewNext, time.Now())
+	}
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return snap.Collection == "weekend-queue"
+	})
+	close(putRelease)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && snap.Collection == "weekend-queue" && len(snap.Games) == 1 && snap.Games[0].ID == "snes-mario"
+	})
+	found := false
+	mu.Lock()
+	got := append([]string(nil), gameQueries...)
+	mu.Unlock()
+	for _, query := range got {
+		if strings.Contains(query, "collection=weekend-queue") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("queries = %#v", got)
+	}
+}
+
+func TestAppHidesCreateUntilCollectionsLoad(t *testing.T) {
+	release := make(chan struct{})
+	t.Cleanup(func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+		case r.URL.Path == "/api/v1/library/collections":
+			<-release
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"collections": []Collection{{ID: "weekend-queue", Name: "Weekend queue"}},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && len(snap.Games) == 1
+	})
+	app.Press(CmdViewPicker, time.Now())
+	if !app.ViewPickerOpen() {
+		t.Fatal("picker should open")
+	}
+	for _, row := range app.Snapshot().PickerRows {
+		if row.Create {
+			t.Fatal("create row should wait for a successful collection list")
+		}
+	}
+	close(release)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		if !snap.ViewPicker {
+			return false
+		}
+		for _, row := range snap.PickerRows {
+			if row.Create {
+				return true
+			}
+		}
+		return false
+	})
+}
+
+func TestAppHidesCreateWhenCollectionListFails(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+		case r.URL.Path == "/api/v1/library/collections":
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = io.WriteString(w, `{"error":{"code":"INTERNAL","message":"nope"}}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && len(snap.Games) == 1
+	})
+	app.Press(CmdViewPicker, time.Now())
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		for _, row := range app.Snapshot().PickerRows {
+			if row.Create {
+				t.Fatal("create row should stay hidden while the collection list is failing")
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
 func TestAppCreateRenameDeleteCollectionWithOSK(t *testing.T) {
 	var mu sync.Mutex
 	collections := []Collection{}

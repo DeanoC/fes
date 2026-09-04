@@ -1,6 +1,13 @@
 package tenfoot
 
-import "testing"
+import (
+	"regexp"
+	"strconv"
+	"strings"
+	"testing"
+)
+
+var collectionIDSlug = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
 func TestUniqueCollectionIDAvoidsReservedAndCollisions(t *testing.T) {
 	t.Parallel()
@@ -24,6 +31,39 @@ func TestUniqueCollectionIDAvoidsReservedAndCollisions(t *testing.T) {
 		if got := uniqueCollectionID(tc.name, tc.existing); got != tc.want {
 			t.Fatalf("uniqueCollectionID(%q, %v) = %q want %q", tc.name, tc.existing, got, tc.want)
 		}
+	}
+}
+
+func TestUniqueCollectionIDTimestampFallbackIsSlugSafe(t *testing.T) {
+	t.Parallel()
+	existing := []string{"weekend-queue"}
+	for n := 2; n < 1000; n++ {
+		existing = append(existing, "weekend-queue-"+strconv.Itoa(n))
+	}
+	got := uniqueCollectionID("Weekend Queue", existing)
+	if strings.Contains(got, ".") {
+		t.Fatalf("fallback id %q contains a period", got)
+	}
+	if !strings.HasPrefix(got, "weekend-queue-") {
+		t.Fatalf("fallback id %q", got)
+	}
+	if !collectionIDSlug.MatchString(got) || len(got) > maxCollectionIDLen {
+		t.Fatalf("fallback id %q is not a host slug", got)
+	}
+	longExisting := make([]string, 0, 999)
+	longBase := strings.Repeat("a", maxCollectionIDLen)
+	longExisting = append(longExisting, collectionIDFromName(longBase))
+	for n := 2; n < 1000; n++ {
+		suffix := "-" + strconv.Itoa(n)
+		keep := maxCollectionIDLen - len(suffix)
+		longExisting = append(longExisting, longBase[:keep]+suffix)
+	}
+	got = uniqueCollectionID(longBase, longExisting)
+	if strings.Contains(got, ".") {
+		t.Fatalf("long fallback id %q contains a period", got)
+	}
+	if !collectionIDSlug.MatchString(got) || len(got) > maxCollectionIDLen {
+		t.Fatalf("long fallback id %q is not a host slug", got)
 	}
 }
 

@@ -113,15 +113,23 @@ func uniqueCollectionID(name string, existing []string) string {
 		}
 		return id
 	}
+	stamp := strings.ToLower(time.Now().UTC().Format("20060102150405"))
+	suffix := "-" + stamp
+	keep := maxCollectionIDLen - len(suffix)
+	if keep < 1 {
+		keep = 1
+	}
 	id := base
-	if len(id) > 55 {
-		id = id[:55]
+	if len(id) > keep {
+		id = strings.Trim(id[:keep], "-")
 	}
-	id = id + "-" + strings.ToLower(time.Now().UTC().Format("150405.000"))
-	if len(id) > maxCollectionIDLen {
-		id = id[:maxCollectionIDLen]
+	if id == "" {
+		id = "collection"
+		if len(id) > keep {
+			id = id[:keep]
+		}
 	}
-	return id
+	return id + suffix
 }
 
 func gameHasCollection(game Game, collectionID string) bool {
