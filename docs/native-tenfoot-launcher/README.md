@@ -108,13 +108,23 @@ parallel. Select/View layout cycle and overscan nudge are ignored while the
 OSK is open; Guide dismisses it and opens settings. Hold South/A (≥450ms) to
 open the library view list (All, Continue, Favorites, Recent, Unplayed,
 Recently added, then custom
-shelves); d-pad moves, South confirms, East cancels. Hold North/Y to
-favorite or unfavorite the focused title. While a host session is active,
+shelves, then **New collection...**); d-pad moves, South/A opens the
+highlighted view or starts a collection name OSK on New collection, East
+cancels. On a **custom** shelf, West/X adds or removes the focused title
+(optimistic; a failed host call reverts and shows a short status line).
+North/Y opens manage (Rename / Delete). Rename uses the same gamepad OSK,
+prefilled. Delete asks for South confirm / East cancel. Favorites and other
+smart rails are not renamed or deleted. After deleting the active custom
+shelf, the sofa returns to All. Attract does not arm while the view picker,
+manage/confirm, name OSK, search OSK, or settings overlay is open. Hold
+North/Y on the grid to favorite or unfavorite the focused title. While a host session is active,
 East/B stops it (`POST /api/v1/session/stop`); Start still quits the app.
 Keyboard is debug-only: arrows/WASD (S is stop, not down),
 Enter to launch (or confirm search), Esc/Backspace to back (or stop while a session is active),
-Q to quit, `[` / `]` for platform, `x` for sort, `/` or `f` for search,
-`c` / Shift+`c` to cycle views, `v` to favorite, `l` to cycle layout,
+Q to quit, `[` / `]` for platform, `x` for sort (or add/remove on a custom
+shelf while the view picker is open), `/` or `f` for search (or manage a
+custom shelf while the picker is open), `c` / Shift+`c` to cycle views,
+`v` to favorite, `l` to cycle layout,
 `o` to open settings, `-` / `=` to nudge the overscan inset. Down arrow still
 moves focus when idle.
 
@@ -158,6 +168,16 @@ make tenfoot-smoke
   shoulders retry immediately while that error is set.
 - `GET /api/v1/library/collections` for custom shelves. Smart rails are
   `continue`, `favorites`, `recents`, `unplayed`, and `recently_added`.
+- `PUT` / `DELETE /api/v1/library/collections/{id}/{gameId}` with an empty
+  body adds or removes the focused title on a custom shelf. Unmembership
+  while that shelf is the active view reloads the catalog, matching
+  Favorites unfavorite.
+- `PUT /api/v1/library/collections/{id}?name=...` with an empty body creates
+  or renames a custom shelf. The sofa derives a lowercase ASCII slug from
+  the OSK name (web `uniqueCollectionID`) and does not send reserved ids
+  (`all`, `favorites`, `recents`, `continue`, `unplayed`, `recently_added`,
+  `recently-added`).
+- `DELETE /api/v1/library/collections/{id}` removes a custom shelf.
 - `GET /api/v1/games?grouped=1&availability=ready` with optional `collection`,
   `platform`, `sort` (`title`, `recently_added`, `platform`), and `q`. Tenfoot
   keeps `availability=ready` even when the web home rails omit it, so an empty
@@ -219,9 +239,11 @@ make tenfoot-smoke
 ## Library views
 
 Library views cycle All and the web smart rails (Continue, Favorites, Recent,
-Unplayed, Recently added), then any custom collections from the host. Sofa
-create/rename of custom collections stays in the browser shell. The active
-layout only changes how that list is drawn and moved, not which titles load.
+Unplayed, Recently added), then any custom collections from the host. Hold A
+opens that list plus **New collection...**. Custom shelves can be created,
+renamed, and deleted from the sofa with the gamepad OSK; Favorites and other
+reserved smart ids stay non-renamable and non-deletable. The active layout
+only changes how that list is drawn and moved, not which titles load.
 
 ## GPU park
 
@@ -250,7 +272,6 @@ Attract does not run while parked; after idle it may start again.
   browser. Sofa settings can pick `selected_target` and show a read-only
   target list.
 
-Still out of tenfoot scope (web / later): sofa collection create/rename UI
-(the OSK text-entry widget is reusable; those screens are not shipped),
-library/target settings editor, session/events stream UI, development-rbf,
-media preview player, remote-input attach/detach chrome.
+Still out of tenfoot scope (web / later): library/target settings editor,
+session/events stream UI, development-rbf, media preview player, remote-input
+attach/detach chrome.

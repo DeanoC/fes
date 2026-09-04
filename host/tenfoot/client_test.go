@@ -403,6 +403,53 @@ func TestClientListsCollectionsAndSetFavorite(t *testing.T) {
 	}
 }
 
+func TestClientCollectionMembershipAndCRUD(t *testing.T) {
+	t.Parallel()
+	var methods []string
+	var upsertName string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		methods = append(methods, r.Method+" "+r.URL.Path)
+		switch {
+		case r.Method == http.MethodPut && r.URL.Path == "/api/v1/library/collections/weekend-queue/snes-mario":
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "snes-mario", "collection": "weekend-queue", "member": true})
+		case r.Method == http.MethodDelete && r.URL.Path == "/api/v1/library/collections/weekend-queue/snes-mario":
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "snes-mario", "collection": "weekend-queue", "member": false})
+		case r.Method == http.MethodPut && r.URL.Path == "/api/v1/library/collections/weekend-queue":
+			upsertName = r.URL.Query().Get("name")
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "weekend-queue", "name": upsertName})
+		case r.Method == http.MethodDelete && r.URL.Path == "/api/v1/library/collections/weekend-queue":
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "weekend-queue"})
+		case r.Method == http.MethodPut && r.URL.Path == "/api/v1/library/collections/favorites":
+			http.Error(w, `{"error":{"code":"BAD_REQUEST","message":"collection request is invalid"}}`, http.StatusBadRequest)
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	client := NewClient(server.URL, server.Client())
+	if err := client.SetCollectionMember(context.Background(), "weekend-queue", "snes-mario", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.SetCollectionMember(context.Background(), "weekend-queue", "snes-mario", false); err != nil {
+		t.Fatal(err)
+	}
+	got, err := client.UpsertCollection(context.Background(), "weekend-queue", "Weekend queue")
+	if err != nil || got.ID != "weekend-queue" || got.Name != "Weekend queue" || upsertName != "Weekend queue" {
+		t.Fatalf("upsert = %#v name=%q err=%v", got, upsertName, err)
+	}
+	if err := client.DeleteCollection(context.Background(), "weekend-queue"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.UpsertCollection(context.Background(), "favorites", "Favorites"); err == nil {
+		t.Fatal("reserved upsert should fail")
+	}
+	want := "PUT /api/v1/library/collections/weekend-queue/snes-mario,DELETE /api/v1/library/collections/weekend-queue/snes-mario,PUT /api/v1/library/collections/weekend-queue,DELETE /api/v1/library/collections/weekend-queue,PUT /api/v1/library/collections/favorites"
+	if strings.Join(methods, ",") != want {
+		t.Fatalf("methods = %#v", methods)
+	}
+}
+
 func TestPreferLaunchableCopiesFavorite(t *testing.T) {
 	t.Parallel()
 	game := preferLaunchable(Game{

@@ -148,7 +148,7 @@ func (a *App) openSettingsLocked() {
 		return
 	}
 	a.searchOpen = false
-	a.viewPickerOpen = false
+	a.closeCollectionOverlaysLocked()
 	a.settingsOpen = true
 	a.settingsIndex = 0
 	a.settingsStatus = ""

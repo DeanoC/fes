@@ -310,6 +310,71 @@ func (c *Client) Collections(ctx context.Context) ([]Collection, error) {
 	return page.Collections, nil
 }
 
+// SetCollectionMember calls PUT or DELETE /api/v1/library/collections/{id}/{gameId}.
+func (c *Client) SetCollectionMember(ctx context.Context, collectionID, gameID string, member bool) error {
+	collectionID = strings.TrimSpace(collectionID)
+	gameID = strings.TrimSpace(gameID)
+	if collectionID == "" {
+		return fmt.Errorf("collection id is empty")
+	}
+	if gameID == "" {
+		return fmt.Errorf("game id is empty")
+	}
+	method := http.MethodPut
+	if !member {
+		method = http.MethodDelete
+	}
+	path := "/api/v1/library/collections/" + url.PathEscape(collectionID) + "/" + url.PathEscape(gameID)
+	var result struct {
+		ID         string `json:"id"`
+		Collection string `json:"collection"`
+		Member     bool   `json:"member"`
+	}
+	if err := c.mutateJSON(ctx, method, path, &result); err != nil {
+		return err
+	}
+	if result.Member != member {
+		return fmt.Errorf("host API member = %v, want %v", result.Member, member)
+	}
+	return nil
+}
+
+// UpsertCollection calls PUT /api/v1/library/collections/{id}?name=... with an empty body.
+func (c *Client) UpsertCollection(ctx context.Context, id, name string) (Collection, error) {
+	id = strings.TrimSpace(id)
+	name = strings.TrimSpace(name)
+	if id == "" {
+		return Collection{}, fmt.Errorf("collection id is empty")
+	}
+	if name == "" {
+		return Collection{}, fmt.Errorf("collection name is empty")
+	}
+	path := "/api/v1/library/collections/" + url.PathEscape(id) + "?name=" + url.QueryEscape(name)
+	var result Collection
+	if err := c.mutateJSON(ctx, http.MethodPut, path, &result); err != nil {
+		return Collection{}, err
+	}
+	if strings.TrimSpace(result.ID) == "" {
+		result.ID = id
+	}
+	if strings.TrimSpace(result.Name) == "" {
+		result.Name = name
+	}
+	return result, nil
+}
+
+// DeleteCollection calls DELETE /api/v1/library/collections/{id}.
+func (c *Client) DeleteCollection(ctx context.Context, id string) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return fmt.Errorf("collection id is empty")
+	}
+	var result struct {
+		ID string `json:"id"`
+	}
+	return c.mutateJSON(ctx, http.MethodDelete, "/api/v1/library/collections/"+url.PathEscape(id), &result)
+}
+
 // SetFavorite calls PUT or DELETE /api/v1/library/favorites/{id}.
 func (c *Client) SetFavorite(ctx context.Context, gameID string, favorite bool) error {
 	gameID = strings.TrimSpace(gameID)

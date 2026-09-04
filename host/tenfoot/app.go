@@ -33,8 +33,11 @@ var recentlyAddedSorts = []string{"recently_added", "platform"}
 
 // LibraryView is one All / smart-rail / custom collection choice.
 type LibraryView struct {
-	ID    string
-	Label string
+	ID     string
+	Label  string
+	Create bool
+	Custom bool
+	Member bool
 }
 
 var smartLibraryViews = []LibraryView{
@@ -202,6 +205,8 @@ type Snapshot struct {
 	ViewPicker      bool
 	ViewPickerIndex int
 	Views           []LibraryView
+	PickerRows      []LibraryView
+	CollectionMenu  CollectionMenuSnapshot
 	Session         SessionSnapshot
 	GPUParked       bool
 	Attract         AttractSnapshot
@@ -232,54 +237,64 @@ type App struct {
 	maxGames  int
 	pageLimit int
 
-	platforms            []Platform
-	platformID           string
-	sort                 string
-	searchField          TextField
-	searchOpen           bool
-	searchPending        bool
-	searchDue            time.Time
-	details              map[string]FocusDetail
-	loadGen              int
-	keepFocusID          string
-	keepFocusIndex       int
-	navDirty             bool
-	platformErr          string
-	platformKick         chan struct{}
-	loadCancel           context.CancelFunc
-	jobCtx               context.Context
-	collectionID         string
-	collections          []Collection
-	collectionsErr       string
-	collectionsKick      chan struct{}
-	viewPickerOpen       bool
-	viewPickerIndex      int
-	settingsOpen         bool
-	settingsIndex        int
-	settingsGen          int
-	settingsWriteGen     int
-	settingsPatchSeq     int
-	settingsAppliedSeq   int
-	settingsLoading      bool
-	settingsBusy         bool
-	settingsHydrated     bool
-	settingsStatus       string
-	settingsDraftIdle    int
-	settingsDraftRegions []string
-	settingsDraftTarget  string
-	settingsRegionIndex  int
-	hostSettings         LibrarySettings
-	attractPrefEnabled   bool
-	attractForcedOff     bool
-	favoriteBusy         bool
-	hold                 HoldGate
-	session              SessionResult
-	sessionTitle         string
-	sessionGen           int
-	stopPhase            string
-	stopMessage          string
-	gpuParked            bool
-	sessionKick          chan struct{}
+	platforms             []Platform
+	platformID            string
+	sort                  string
+	searchField           TextField
+	searchOpen            bool
+	searchPending         bool
+	searchDue             time.Time
+	details               map[string]FocusDetail
+	loadGen               int
+	keepFocusID           string
+	keepFocusIndex        int
+	navDirty              bool
+	platformErr           string
+	platformKick          chan struct{}
+	loadCancel            context.CancelFunc
+	jobCtx                context.Context
+	collectionID          string
+	collections           []Collection
+	collectionsErr        string
+	collectionsKick       chan struct{}
+	viewPickerOpen        bool
+	viewPickerIndex       int
+	nameEntry             nameEntryKind
+	nameEntryID           string
+	nameField             TextField
+	collectionBusy        bool
+	membershipBusy        bool
+	collectionManageOpen  bool
+	collectionManageIndex int
+	collectionManageID    string
+	collectionManageName  string
+	collectionConfirmOpen bool
+	settingsOpen          bool
+	settingsIndex         int
+	settingsGen           int
+	settingsWriteGen      int
+	settingsPatchSeq      int
+	settingsAppliedSeq    int
+	settingsLoading       bool
+	settingsBusy          bool
+	settingsHydrated      bool
+	settingsStatus        string
+	settingsDraftIdle     int
+	settingsDraftRegions  []string
+	settingsDraftTarget   string
+	settingsRegionIndex   int
+	hostSettings          LibrarySettings
+	attractPrefEnabled    bool
+	attractForcedOff      bool
+	favoriteBusy          bool
+	hold                  HoldGate
+	session               SessionResult
+	sessionTitle          string
+	sessionGen            int
+	stopPhase             string
+	stopMessage           string
+	gpuParked             bool
+	sessionKick           chan struct{}
 
 	safeAreaPct        float64
 	prefsPath          string
@@ -398,7 +413,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	if a.consumeAttractLocked(cmd, now) {
 		return
 	}
-	if a.searchOpen {
+	if a.searchOpen || a.nameEntryOpenLocked() {
 		switch cmd {
 		case CmdSafeAreaIn, CmdSafeAreaOut, CmdLayoutCycle:
 			return
@@ -426,6 +441,10 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	}
 	if a.settingsOpen {
 		a.handleSettingsLocked(cmd)
+		return
+	}
+	if a.nameEntryOpenLocked() {
+		a.handleNameEntryLocked(cmd)
 		return
 	}
 	if a.viewPickerOpen {
@@ -544,6 +563,10 @@ func (a *App) TypeText(text string, now time.Time) {
 	if a.consumeAttractLocked(CmdNone, now) {
 		return
 	}
+	if a.nameEntryOpenLocked() {
+		a.nameField.Insert(text)
+		return
+	}
 	if !a.searchOpen {
 		return
 	}
@@ -559,6 +582,13 @@ func (a *App) SearchBackspace(now time.Time) {
 	if a.consumeAttractLocked(CmdBack, now) {
 		return
 	}
+	if a.nameEntryOpenLocked() {
+		if a.nameField.Buffer == "" {
+			return
+		}
+		a.nameField.Backspace()
+		return
+	}
 	if !a.searchOpen || a.searchField.Buffer == "" {
 		return
 	}
@@ -572,6 +602,10 @@ func (a *App) ConfirmSearch(now time.Time) {
 	defer a.mu.Unlock()
 	a.noteActivityLocked(now)
 	if a.consumeAttractLocked(CmdSelect, now) {
+		return
+	}
+	if a.nameEntryOpenLocked() {
+		a.submitNameEntryLocked()
 		return
 	}
 	if !a.searchOpen {
@@ -699,37 +733,12 @@ func (a *App) normalizeSortForCollectionLocked() {
 
 func (a *App) openViewPickerLocked() {
 	a.searchOpen = false
+	a.closeNameEntryLocked()
+	a.closeCollectionManageLocked()
 	a.viewPickerOpen = true
 	a.viewPickerIndex = a.currentViewIndexLocked()
 	if a.collectionsErr != "" {
 		a.requestCollectionsReloadLocked()
-	}
-}
-
-func (a *App) handleViewPickerLocked(cmd Command) {
-	views := a.viewChoicesLocked()
-	n := len(views)
-	if n == 0 {
-		a.viewPickerOpen = false
-		return
-	}
-	if a.viewPickerIndex < 0 {
-		a.viewPickerIndex = 0
-	}
-	if a.viewPickerIndex >= n {
-		a.viewPickerIndex = n - 1
-	}
-	switch cmd {
-	case CmdUp, CmdLeft, CmdViewPrev:
-		a.viewPickerIndex = (a.viewPickerIndex - 1 + n) % n
-	case CmdDown, CmdRight, CmdViewNext:
-		a.viewPickerIndex = (a.viewPickerIndex + 1) % n
-	case CmdSelect:
-		next := views[a.viewPickerIndex]
-		a.viewPickerOpen = false
-		a.setCollectionLocked(next.ID)
-	case CmdBack, CmdViewPicker:
-		a.viewPickerOpen = false
 	}
 }
 
@@ -989,6 +998,8 @@ func (a *App) Snapshot() Snapshot {
 		ViewPicker:      a.viewPickerOpen,
 		ViewPickerIndex: a.viewPickerIndex,
 		Views:           a.viewChoicesLocked(),
+		PickerRows:      a.pickerRowsLocked(),
+		CollectionMenu:  a.collectionMenuSnapshotLocked(),
 		Session:         a.sessionSnapshotLocked(),
 		GPUParked:       a.gpuParked,
 		Attract:         a.attractSnapshotLocked(),
@@ -1006,11 +1017,18 @@ func (a *App) SetGamepads(n int) {
 }
 
 func (a *App) oskSnapshotLocked() OSKSnapshot {
+	if a.nameEntryOpenLocked() {
+		snap := a.nameField.Snapshot()
+		snap.Open = true
+		snap.Prompt = "Collection name"
+		return snap
+	}
 	if !a.searchOpen {
 		return OSKSnapshot{}
 	}
 	snap := a.searchField.Snapshot()
 	snap.Open = true
+	snap.Prompt = "Search"
 	return snap
 }
 
@@ -1054,7 +1072,9 @@ func (s Snapshot) ChromeLine() string {
 		}
 	}
 	search := "Search"
-	if s.SearchOpen {
+	if s.OSK.Open && s.OSK.Prompt != "" && s.OSK.Prompt != "Search" {
+		search = s.OSK.Prompt + ": " + s.OSK.Buffer + "_"
+	} else if s.SearchOpen {
 		search = "Search: " + s.Query + "_"
 	} else if strings.TrimSpace(s.Query) != "" {
 		search = "Search: " + s.Query
@@ -1377,7 +1397,7 @@ func (a *App) syncGPUParkLocked() {
 	want := a.session.State == "active" || a.stopPhase == "stopping"
 	if want == a.gpuParked {
 		if want {
-			a.viewPickerOpen = false
+			a.closeCollectionOverlaysLocked()
 			a.searchOpen = false
 			a.closeSettingsLocked()
 		}
@@ -1388,7 +1408,7 @@ func (a *App) syncGPUParkLocked() {
 		return
 	}
 	a.hideAttractLocked()
-	a.viewPickerOpen = false
+	a.closeCollectionOverlaysLocked()
 	a.searchOpen = false
 	a.closeSettingsLocked()
 	a.inflight = map[string]workKind{}
@@ -1546,14 +1566,21 @@ func (a *App) loadCollections(ctx context.Context) {
 		if err == nil {
 			a.collections = collections
 			a.collectionsErr = ""
+			fails = 0
 			if a.viewPickerOpen {
-				n := len(a.viewChoicesLocked())
+				n := len(a.pickerRowsLocked())
 				if a.viewPickerIndex >= n {
 					a.viewPickerIndex = a.currentViewIndexLocked()
 				}
 			}
+			kick := a.collectionsKick
 			a.mu.Unlock()
-			return
+			select {
+			case <-ctx.Done():
+				return
+			case <-kick:
+			}
+			continue
 		}
 		fails++
 		a.collectionsErr = err.Error()

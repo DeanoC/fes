@@ -501,3 +501,383 @@ func TestChromeLineIncludesActiveView(t *testing.T) {
 		t.Fatalf("recently added chrome = %q", chrome)
 	}
 }
+
+func focusPickerRow(t *testing.T, app *App, create bool, id string) {
+	t.Helper()
+	app.Press(CmdViewPicker, time.Now())
+	if !app.ViewPickerOpen() {
+		t.Fatal("picker should open")
+	}
+	for i := 0; i < 16; i++ {
+		snap := app.Snapshot()
+		if snap.ViewPickerIndex >= 0 && snap.ViewPickerIndex < len(snap.PickerRows) {
+			row := snap.PickerRows[snap.ViewPickerIndex]
+			if create && row.Create {
+				return
+			}
+			if !create && row.ID == id {
+				return
+			}
+		}
+		app.Press(CmdDown, time.Now())
+	}
+	t.Fatalf("picker row not found create=%v id=%q rows=%#v", create, id, app.Snapshot().PickerRows)
+}
+
+func focusNameKey(t *testing.T, app *App, id string) {
+	t.Helper()
+	app.mu.Lock()
+	ok := app.nameField.OSK.SelectID(id)
+	app.mu.Unlock()
+	if !ok {
+		t.Fatalf("name osk key %q not found", id)
+	}
+}
+
+func oskTypeName(t *testing.T, app *App, text string, now time.Time) {
+	t.Helper()
+	for _, r := range text {
+		if r == ' ' {
+			focusNameKey(t, app, "space")
+			app.Press(CmdSelect, now)
+			continue
+		}
+		focusNameKey(t, app, "char-"+string(r))
+		app.Press(CmdSelect, now)
+	}
+}
+
+func TestAppCollectionMembershipToggleAndErrorRevert(t *testing.T) {
+	var mu sync.Mutex
+	fail := false
+	var methods []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v1/games":
+			game := availableGame("snes-mario", "Mario", "snes")
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{game}})
+		case r.URL.Path == "/api/v1/library/collections":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"collections": []Collection{{ID: "weekend-queue", Name: "Weekend queue"}},
+			})
+		case strings.HasPrefix(r.URL.Path, "/api/v1/library/collections/weekend-queue/"):
+			mu.Lock()
+			methods = append(methods, r.Method)
+			shouldFail := fail
+			mu.Unlock()
+			if shouldFail {
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = io.WriteString(w, `{"error":{"code":"INTERNAL","message":"nope"}}`)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "snes-mario", "collection": "weekend-queue", "member": r.Method == http.MethodPut,
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && len(snap.Games) == 1 && len(snap.Views) == 7
+	})
+	focusPickerRow(t, app, false, "weekend-queue")
+	app.Press(CmdSortCycle, time.Now())
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		mu.Lock()
+		n := len(methods)
+		mu.Unlock()
+		return n >= 1 && len(snap.Games) == 1 && gameHasCollection(snap.Games[0], "weekend-queue") && !strings.Contains(snap.Status, "collection failed")
+	})
+	mu.Lock()
+	fail = true
+	mu.Unlock()
+	app.Press(CmdSortCycle, time.Now())
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		mu.Lock()
+		n := len(methods)
+		mu.Unlock()
+		return n >= 2 && len(snap.Games) == 1 && gameHasCollection(snap.Games[0], "weekend-queue") && strings.Contains(snap.Status, "collection failed")
+	})
+	mu.Lock()
+	got := append([]string(nil), methods...)
+	mu.Unlock()
+	if strings.Join(got, ",") != "PUT,DELETE" {
+		t.Fatalf("methods = %#v", got)
+	}
+}
+
+func TestAppRemoveFromCustomCollectionReloadsView(t *testing.T) {
+	var mu sync.Mutex
+	member := true
+	var gameQueries []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v1/games":
+			mu.Lock()
+			gameQueries = append(gameQueries, r.URL.RawQuery)
+			in := member
+			mu.Unlock()
+			var games []Game
+			if r.URL.Query().Get("collection") != "weekend-queue" || in {
+				game := availableGame("snes-mario", "Mario", "snes")
+				if in {
+					game.Collections = []string{"weekend-queue"}
+				}
+				games = []Game{game}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": games})
+		case r.URL.Path == "/api/v1/library/collections":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"collections": []Collection{{ID: "weekend-queue", Name: "Weekend queue"}},
+			})
+		case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/api/v1/library/collections/weekend-queue/"):
+			mu.Lock()
+			member = false
+			mu.Unlock()
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "snes-mario", "collection": "weekend-queue", "member": false})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && len(snap.Games) == 1
+	})
+	for i := 0; i < 6; i++ {
+		app.Press(CmdViewNext, time.Now())
+	}
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && snap.Collection == "weekend-queue" && len(snap.Games) == 1
+	})
+	focusPickerRow(t, app, false, "weekend-queue")
+	app.Press(CmdSortCycle, time.Now())
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && snap.Collection == "weekend-queue" && len(snap.Games) == 0
+	})
+	found := false
+	mu.Lock()
+	got := append([]string(nil), gameQueries...)
+	mu.Unlock()
+	for _, query := range got {
+		if strings.Contains(query, "collection=weekend-queue") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("queries = %#v", got)
+	}
+}
+
+func TestAppCreateRenameDeleteCollectionWithOSK(t *testing.T) {
+	var mu sync.Mutex
+	collections := []Collection{}
+	var methods []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+		case r.URL.Path == "/api/v1/library/collections" && r.Method == http.MethodGet:
+			mu.Lock()
+			list := append([]Collection{}, collections...)
+			mu.Unlock()
+			_ = json.NewEncoder(w).Encode(map[string]any{"collections": list})
+		case strings.HasPrefix(r.URL.Path, "/api/v1/library/collections/"):
+			id := strings.TrimPrefix(r.URL.Path, "/api/v1/library/collections/")
+			if strings.Contains(id, "/") {
+				http.NotFound(w, r)
+				return
+			}
+			mu.Lock()
+			methods = append(methods, r.Method+" "+id+" "+r.URL.Query().Get("name"))
+			switch r.Method {
+			case http.MethodPut:
+				if id == "favorites" {
+					mu.Unlock()
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = io.WriteString(w, `{"error":{"code":"BAD_REQUEST","message":"collection request is invalid"}}`)
+					return
+				}
+				name := r.URL.Query().Get("name")
+				found := false
+				for i := range collections {
+					if collections[i].ID == id {
+						collections[i].Name = name
+						found = true
+						break
+					}
+				}
+				if !found {
+					collections = append(collections, Collection{ID: id, Name: name})
+				}
+				mu.Unlock()
+				_ = json.NewEncoder(w).Encode(map[string]any{"id": id, "name": name})
+				return
+			case http.MethodDelete:
+				next := collections[:0]
+				for _, collection := range collections {
+					if collection.ID != id {
+						next = append(next, collection)
+					}
+				}
+				collections = append([]Collection{}, next...)
+				mu.Unlock()
+				_ = json.NewEncoder(w).Encode(map[string]any{"id": id})
+				return
+			}
+			mu.Unlock()
+			http.NotFound(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && len(snap.Games) == 1
+	})
+
+	focusPickerRow(t, app, true, "")
+	app.Press(CmdSelect, time.Now())
+	waitSnapshot(t, app, time.Second, func(snap Snapshot) bool {
+		return snap.OSK.Open && snap.OSK.Prompt == "Collection name"
+	})
+	now := time.Now()
+	oskTypeName(t, app, "weekend queue", now)
+	focusNameKey(t, app, "done")
+	app.Press(CmdSelect, now)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.OSK.Open && !snap.ViewPicker && snap.Collection == "weekend-queue" && snap.ViewLabel == "weekend queue"
+	})
+
+	focusPickerRow(t, app, false, "weekend-queue")
+	app.Press(CmdSearch, time.Now())
+	waitSnapshot(t, app, time.Second, func(snap Snapshot) bool {
+		return snap.CollectionMenu.Open && !snap.CollectionMenu.Confirm
+	})
+	app.Press(CmdSelect, time.Now())
+	waitSnapshot(t, app, time.Second, func(snap Snapshot) bool {
+		return snap.OSK.Open && snap.OSK.Buffer == "weekend queue"
+	})
+	focusNameKey(t, app, "clear")
+	app.Press(CmdSelect, time.Now())
+	oskTypeName(t, app, "saturday", time.Now())
+	focusNameKey(t, app, "done")
+	app.Press(CmdSelect, time.Now())
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.OSK.Open && snap.ViewLabel == "saturday" && snap.Collection == "weekend-queue"
+	})
+
+	focusPickerRow(t, app, false, "weekend-queue")
+	app.Press(CmdSearch, time.Now())
+	app.Press(CmdDown, time.Now())
+	app.Press(CmdSelect, time.Now())
+	waitSnapshot(t, app, time.Second, func(snap Snapshot) bool {
+		return snap.CollectionMenu.Confirm
+	})
+	app.Press(CmdSelect, time.Now())
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.ViewPicker && snap.Collection == "" && snap.ViewLabel == "All"
+	})
+
+	app.Press(CmdViewPicker, time.Now())
+	app.Press(CmdDown, time.Now())
+	app.Press(CmdDown, time.Now())
+	app.Press(CmdSearch, time.Now())
+	snap := app.Snapshot()
+	if snap.CollectionMenu.Open {
+		t.Fatal("favorites manage should be rejected")
+	}
+	if !strings.Contains(snap.Status, "cannot be renamed") {
+		t.Fatalf("reserved status = %q", snap.Status)
+	}
+
+	mu.Lock()
+	got := append([]string(nil), methods...)
+	mu.Unlock()
+	if len(got) < 3 {
+		t.Fatalf("methods = %#v", got)
+	}
+}
+
+func TestAppNameOSKCancelKeepsPicker(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+		case r.URL.Path == "/api/v1/library/collections":
+			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []Collection{}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading
+	})
+	focusPickerRow(t, app, true, "")
+	app.Press(CmdSelect, time.Now())
+	if !app.OSKOpen() {
+		t.Fatal("name osk")
+	}
+	app.Press(CmdLayoutCycle, time.Now())
+	app.Press(CmdSafeAreaIn, time.Now())
+	if !app.OSKOpen() || !app.ViewPickerOpen() {
+		t.Fatal("layout/safe-area should be ignored")
+	}
+	app.Press(CmdBack, time.Now())
+	if app.OSKOpen() || !app.ViewPickerOpen() {
+		t.Fatalf("empty B should cancel name and keep picker osk=%v picker=%v", app.OSKOpen(), app.ViewPickerOpen())
+	}
+}
+
+func TestAppDeleteWhileBusyKeepsConfirm(t *testing.T) {
+	t.Parallel()
+	app := NewApp(nil, 800, 600, 10)
+	app.mu.Lock()
+	app.viewPickerOpen = true
+	app.collectionManageOpen = true
+	app.collectionConfirmOpen = true
+	app.collectionManageID = "weekend-queue"
+	app.collectionManageName = "Weekend"
+	app.collections = []Collection{{ID: "weekend-queue", Name: "Weekend"}}
+	app.collectionBusy = true
+	app.handleCollectionConfirmLocked(CmdSelect)
+	if !app.collectionConfirmOpen || !app.viewPickerOpen {
+		t.Fatalf("confirm closed while busy picker=%v confirm=%v", app.viewPickerOpen, app.collectionConfirmOpen)
+	}
+	if !strings.Contains(app.status, "busy") {
+		t.Fatalf("status = %q", app.status)
+	}
+	app.mu.Unlock()
+}
+
+func TestAppReservedCollectionRejectsRenameDelete(t *testing.T) {
+	t.Parallel()
+	app := NewApp(nil, 800, 600, 10)
+	app.mu.Lock()
+	app.deleteCollectionLocked("favorites")
+	if !strings.Contains(app.status, "cannot be deleted") {
+		t.Fatalf("delete status = %q", app.status)
+	}
+	app.nameEntry = nameEntryRename
+	app.nameEntryID = "favorites"
+	app.nameField.Buffer = "Favorites"
+	app.submitNameEntryLocked()
+	if !strings.Contains(app.status, "cannot be renamed") {
+		t.Fatalf("rename status = %q", app.status)
+	}
+	app.mu.Unlock()
+}

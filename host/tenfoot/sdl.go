@@ -269,7 +269,7 @@ func runWindow(ctx context.Context, opts Options) error {
 		}
 		app.Tick(now)
 		snap := app.Snapshot()
-		textInput = syncTextInput(window, snap.SearchOpen, textInput)
+		textInput = syncTextInput(window, snap.OSK.Open, textInput)
 		gpuParked = presentFrame(renderer, snap, textures, labels, gpuParked)
 		C.SDL_Delay(1)
 	}
@@ -608,11 +608,11 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 		return true
 	case evText:
 		text := takeEventText(ev)
-		if app.SearchOpen() {
+		if app.OSKOpen() {
 			app.TypeText(text, now)
 		}
 	case evKey:
-		if app.SearchOpen() {
+		if app.OSKOpen() {
 			return handleSearchKey(app, ev, now)
 		}
 		cmd := commandFromSDLKey(ev.code)
@@ -878,6 +878,7 @@ func drawFrame(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[str
 	}
 	drawDetail(renderer, snap, labels, used)
 	drawViewPicker(renderer, snap, labels, used)
+	drawCollectionMenu(renderer, snap, labels, used)
 	drawSettings(renderer, snap, labels, used)
 	drawOSK(renderer, snap, labels, used)
 	for key, item := range labels {
@@ -1005,6 +1006,10 @@ func drawHeader(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTe
 		hint = "B stop  START quit  SELECT layout"
 	} else if snap.OSK.Open {
 		hint = snap.OSK.Hint
+	} else if snap.CollectionMenu.Open {
+		hint = snap.CollectionMenu.Hint
+	} else if snap.ViewPicker {
+		hint = "A open  X add/remove  Y manage  B back"
 	}
 	drawDebug(renderer, x+24, y+72, hint, 1)
 }
@@ -1093,7 +1098,74 @@ func drawDetail(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTe
 }
 
 func drawViewPicker(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTexture, used map[string]struct{}) {
-	if !snap.ViewPicker || len(snap.Views) == 0 {
+	rows := snap.PickerRows
+	if len(rows) == 0 {
+		rows = snap.Views
+	}
+	if !snap.ViewPicker || len(rows) == 0 {
+		return
+	}
+	contentW := snap.Grid.contentWidth()
+	panelW := 480
+	if panelW > contentW-48 {
+		panelW = contentW - 48
+	}
+	if panelW < 200 {
+		panelW = contentW - 24
+	}
+	rowH := 28
+	headerH := 40
+	footerH := 24
+	maxRows := 10
+	if maxRows > len(rows) {
+		maxRows = len(rows)
+	}
+	panelH := headerH + maxRows*rowH + footerH
+	x := snap.Grid.contentLeft() + (contentW-panelW)/2
+	y := snap.Grid.headerY() + snap.Grid.HeaderHeight + 12
+	if y+panelH > snap.Grid.footerY()-8 {
+		y = snap.Grid.contentTop() + (snap.Grid.contentHeight()-panelH)/2
+	}
+	fillRect(renderer, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
+	fillRect(renderer, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
+	drawLabel(renderer, labels, used, "view-title", x+16, y+10, panelW-32, 18, "Library view")
+	start := snap.ViewPickerIndex - maxRows/2
+	if start < 0 {
+		start = 0
+	}
+	if start+maxRows > len(rows) {
+		start = len(rows) - maxRows
+	}
+	if start < 0 {
+		start = 0
+	}
+	for i := 0; i < maxRows; i++ {
+		idx := start + i
+		if idx >= len(rows) {
+			break
+		}
+		rowY := y + headerH + i*rowH
+		if idx == snap.ViewPickerIndex {
+			fillRect(renderer, float32(x+8), float32(rowY-2), float32(panelW-16), float32(rowH-2), 48, 56, 80, 255)
+		}
+		label := rows[idx].Label
+		if label == "" {
+			label = rows[idx].ID
+		}
+		if rows[idx].ID == snap.Collection && !rows[idx].Create {
+			label = label + "  *"
+		}
+		if rows[idx].Member {
+			label = label + "  +"
+		}
+		drawLabel(renderer, labels, used, fmt.Sprintf("view-%d", idx), x+20, rowY, panelW-40, 16, label)
+	}
+	drawLabel(renderer, labels, used, "view-hint", x+16, y+panelH-22, panelW-32, 14, "A open  X add/remove  Y manage")
+}
+
+func drawCollectionMenu(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTexture, used map[string]struct{}) {
+	menu := snap.CollectionMenu
+	if !menu.Open {
 		return
 	}
 	contentW := snap.Grid.contentWidth()
@@ -1105,45 +1177,37 @@ func drawViewPicker(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]s
 		panelW = contentW - 24
 	}
 	rowH := 28
-	headerH := 40
-	maxRows := 10
-	if maxRows > len(snap.Views) {
-		maxRows = len(snap.Views)
+	headerH := 44
+	footerH := 28
+	rows := menu.Rows
+	panelH := headerH + len(rows)*rowH + footerH
+	if panelH < headerH+footerH+rowH {
+		panelH = headerH + footerH + rowH
 	}
-	panelH := headerH + maxRows*rowH + 16
 	x := snap.Grid.contentLeft() + (contentW-panelW)/2
-	y := snap.Grid.headerY() + snap.Grid.HeaderHeight + 12
+	y := snap.Grid.headerY() + snap.Grid.HeaderHeight + 48
+	if y+panelH > snap.Grid.footerY()-8 {
+		y = snap.Grid.contentTop() + (snap.Grid.contentHeight()-panelH)/2
+	}
 	fillRect(renderer, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
 	fillRect(renderer, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
-	drawLabel(renderer, labels, used, "view-title", x+16, y+10, panelW-32, 18, "Library view")
-	start := snap.ViewPickerIndex - maxRows/2
-	if start < 0 {
-		start = 0
+	title := strings.TrimSpace(menu.Title)
+	if title == "" {
+		title = "Collection"
 	}
-	if start+maxRows > len(snap.Views) {
-		start = len(snap.Views) - maxRows
-	}
-	if start < 0 {
-		start = 0
-	}
-	for i := 0; i < maxRows; i++ {
-		idx := start + i
-		if idx >= len(snap.Views) {
-			break
-		}
+	drawLabel(renderer, labels, used, "cmenu-title", x+16, y+12, panelW-32, 18, title)
+	for i, row := range rows {
 		rowY := y + headerH + i*rowH
-		if idx == snap.ViewPickerIndex {
+		if !menu.Confirm && i == menu.Index {
 			fillRect(renderer, float32(x+8), float32(rowY-2), float32(panelW-16), float32(rowH-2), 48, 56, 80, 255)
 		}
-		label := snap.Views[idx].Label
-		if label == "" {
-			label = snap.Views[idx].ID
-		}
-		if snap.Views[idx].ID == snap.Collection {
-			label = label + "  *"
-		}
-		drawLabel(renderer, labels, used, fmt.Sprintf("view-%d", idx), x+20, rowY, panelW-40, 16, label)
+		drawLabel(renderer, labels, used, fmt.Sprintf("cmenu-%d", i), x+20, rowY, panelW-40, 16, row)
 	}
+	hint := strings.TrimSpace(menu.Hint)
+	if hint == "" {
+		hint = "A select  B back"
+	}
+	drawLabel(renderer, labels, used, "cmenu-hint", x+16, y+panelH-24, panelW-32, 14, hint)
 }
 
 func drawSettings(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTexture, used map[string]struct{}) {
@@ -1280,11 +1344,12 @@ func drawOSK(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTextu
 	}
 	fillRect(renderer, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
 	fillRect(renderer, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
-	query := snap.OSK.Buffer
-	if query == "" {
-		query = snap.Query
+	prompt := strings.TrimSpace(snap.OSK.Prompt)
+	if prompt == "" {
+		prompt = "Search"
 	}
-	drawLabel(renderer, labels, used, "osk-query", x+16, y+12, panelW-32, 18, "Search: "+query+"_")
+	query := snap.OSK.Buffer
+	drawLabel(renderer, labels, used, "osk-query", x+16, y+12, panelW-32, 18, prompt+": "+query+"_")
 	innerX := x + 12
 	innerW := panelW - 24
 	if innerW < 1 {

@@ -268,7 +268,7 @@ func isHoldable(cmd Command) bool {
 // navigation repeat continues (Repeater tracks only one command). Re-arm does
 // not call Press: that would walk focus and restart repeat after South/East.
 func applyPressed(app *App, pressed, held map[Command]bool, now time.Time) bool {
-	gate := !app.SearchOpen() && !app.ViewPickerOpen() && !app.SettingsOpen() && !app.AttractActive()
+	gate := !app.SearchOpen() && !app.ViewPickerOpen() && !app.SettingsOpen() && !app.AttractActive() && !app.OSKOpen() && !app.CollectionMenuOpen()
 	for cmd := range held {
 		if !pressed[cmd] {
 			if app.AttractActive() {

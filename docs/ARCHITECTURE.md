@@ -75,6 +75,8 @@ Native SDL3 UI
   -> GET /api/v1/library/collections
   -> GET /api/v1/games (grouped=1, availability=ready, optional collection/platform/sort/q)
   -> PUT or DELETE /api/v1/library/favorites/{id} for the focused title
+  -> PUT or DELETE /api/v1/library/collections/{id}/{gameId} for custom-shelf membership
+  -> PUT /api/v1/library/collections/{id}?name=... and DELETE /api/v1/library/collections/{id} for custom shelves
   -> GET /api/v1/presentation/artwork/{handle} from catalog cover handles
   -> GET /api/v1/presentation/games/{id} for the focused title
   -> GET /api/v1/library/attract (idle video then stills; artwork via the same presentation artwork GET)

@@ -56,6 +56,7 @@ type OSKSnapshot struct {
 	FocusID string
 	Rows    [][]OSKKey
 	Hint    string
+	Prompt  string
 }
 
 func oskLayouts() [][][]OSKKey {
