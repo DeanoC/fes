@@ -59,6 +59,9 @@ func TestCloseDetailDropsScreenshotInflight(t *testing.T) {
 	app.grid.SetCount(1)
 	app.details["snes-mario"] = FocusDetail{ScreenshotIDs: []string{handle}}
 	app.detailOpen = true
+	shotCtx, shotCancel := context.WithCancel(context.Background())
+	app.shotCtx = shotCtx
+	app.shotCancel = shotCancel
 	key := screenshotWorkKey(handle)
 	app.inflight[key] = workScreenshot
 	gen := app.shotGen
@@ -71,6 +74,227 @@ func TestCloseDetailDropsScreenshotInflight(t *testing.T) {
 	}
 	if _, busy := app.inflight[key]; busy {
 		t.Fatal("closed pane should release screenshot inflight")
+	}
+	if shotCtx.Err() == nil {
+		t.Fatal("closed pane should cancel screenshot context")
+	}
+	if app.shotCtx != nil || app.shotCancel != nil {
+		t.Fatal("closed pane should drop screenshot context")
+	}
+}
+
+func TestCloseDetailCancelsScreenshotHTTPAndUnblocksCoverWork(t *testing.T) {
+	marioShots := make([]string, maxScreenshotHandles)
+	for i := range marioShots {
+		marioShots[i] = strings.Repeat(fmt.Sprintf("%02x", i+1), 32)
+	}
+	sonicCover := strings.Repeat("aa", 32)
+	pngBytes := mustPNG(t, 8, 12, color.RGBA{R: 20, G: 80, B: 200, A: 255})
+	coverImg, err := DecodeCover(pngBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var shotStarts atomic.Int64
+	var coverGets atomic.Int64
+	blocked := make(chan struct{})
+	canceled := make(chan struct{}, maxInflight)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v1/games":
+			mario := availableGame("snes-mario", "Mario", "snes")
+			sonic := availableGame("snes-sonic", "Sonic", "snes")
+			sonic.Cover = sonicCover
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{mario, sonic}})
+		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
+			id := strings.TrimPrefix(r.URL.Path, "/api/v1/presentation/games/")
+			pres := Presentation{
+				GameID: id,
+				State:  "ready",
+				Presentation: &PresentationInfo{
+					Summary: id,
+					Studio:  "Nintendo",
+				},
+				Attribution: &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
+			}
+			if id == "snes-mario" {
+				pres.Presentation.ScreenshotIDs = append([]string(nil), marioShots...)
+			}
+			if id == "snes-sonic" {
+				pres.Presentation.CoverArtworkID = sonicCover
+			}
+			_ = json.NewEncoder(w).Encode(pres)
+		case r.URL.Path == "/api/v1/presentation/artwork/"+sonicCover:
+			coverGets.Add(1)
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(pngBytes)
+		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/artwork/"):
+			n := shotStarts.Add(1)
+			if n == int64(coverWorkers) {
+				select {
+				case <-blocked:
+				default:
+					close(blocked)
+				}
+			}
+			select {
+			case <-r.Context().Done():
+				select {
+				case canceled <- struct{}{}:
+				default:
+				}
+				return
+			case <-time.After(8 * time.Second):
+				http.Error(w, "stale screenshot GET was not canceled", http.StatusGatewayTimeout)
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && len(snap.Games) == 2 && len(snap.FocusDetail.ScreenshotIDs) == len(marioShots)
+	})
+	app.mu.Lock()
+	app.covers["snes-sonic"] = &coverSlot{phase: coverReady, handle: sonicCover, image: coverImg}
+	app.openDetailLocked()
+	app.mu.Unlock()
+	if !app.Snapshot().Detail.Open {
+		t.Fatal("detail should open")
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		app.Tick(time.Now())
+		select {
+		case <-blocked:
+			goto shotsStarted
+		default:
+		}
+		if !time.Now().Before(deadline) {
+			t.Fatalf("screenshot GETs did not fill workers, started=%d", shotStarts.Load())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+shotsStarted:
+	for i := 0; i < 8; i++ {
+		app.Tick(time.Now())
+		time.Sleep(5 * time.Millisecond)
+	}
+	beforeClose := shotStarts.Load()
+	app.HandleCommand(CmdBack, time.Now())
+	if app.Snapshot().Detail.Open {
+		t.Fatal("detail should close")
+	}
+	gotCancel := 0
+	cancelDeadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(cancelDeadline) && gotCancel < coverWorkers {
+		select {
+		case <-canceled:
+			gotCancel++
+		default:
+			app.Tick(time.Now())
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	if gotCancel < coverWorkers {
+		t.Fatalf("canceled %d screenshot GETs, want %d", gotCancel, coverWorkers)
+	}
+	if shotStarts.Load() > beforeClose {
+		t.Fatalf("queued stale screenshot GETs ran after close: before=%d after=%d", beforeClose, shotStarts.Load())
+	}
+	app.mu.Lock()
+	app.covers["snes-sonic"] = &coverSlot{phase: coverArtwork, handle: sonicCover}
+	app.mu.Unlock()
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return snap.Covers["snes-sonic"] != nil
+	})
+	if coverGets.Load() < 1 {
+		t.Fatal("cover work should run after screenshot cancel")
+	}
+}
+
+func TestWorkerRejectsStaleScreenshotJobBeforeIO(t *testing.T) {
+	handle := strings.Repeat("ab", 32)
+	var shotGets atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/artwork/"):
+			shotGets.Add(1)
+			http.NotFound(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && len(snap.Games) == 1
+	})
+	app.mu.Lock()
+	gen := app.loadGen
+	app.shotGen++
+	stale := app.shotGen - 1
+	app.mu.Unlock()
+	select {
+	case app.jobs <- workItem{kind: workScreenshot, gameID: "snes-mario", handle: handle, gen: gen, shotGen: stale}:
+	case <-time.After(time.Second):
+		t.Fatal("jobs channel blocked")
+	}
+	hold := time.Now().Add(200 * time.Millisecond)
+	for time.Now().Before(hold) {
+		app.Tick(time.Now())
+		time.Sleep(5 * time.Millisecond)
+	}
+	if shotGets.Load() != 0 {
+		t.Fatalf("stale screenshot job performed I/O, gets=%d", shotGets.Load())
+	}
+}
+
+func TestPresentationResultClearsEmptyShotIDs(t *testing.T) {
+	t.Parallel()
+	handle := strings.Repeat("ab", 32)
+	app := NewApp(nil, 800, 600, 10)
+	app.games = []Game{availableGame("snes-mario", "Mario", "snes")}
+	app.grid.SetCount(1)
+	app.applyResult(workResult{
+		kind:          workPresentation,
+		gameID:        "snes-mario",
+		state:         "offline",
+		screenshotIDs: []string{handle},
+		gen:           app.loadGen,
+	})
+	app.mu.Lock()
+	if got := app.focusDetailLocked().ScreenshotIDs; len(got) != 1 || got[0] != handle {
+		app.mu.Unlock()
+		t.Fatalf("incomplete shots = %#v", got)
+	}
+	app.mu.Unlock()
+	app.applyResult(workResult{
+		kind:          workPresentation,
+		gameID:        "snes-mario",
+		state:         "ready",
+		attribution:   "Data from IGDB.com",
+		summary:       "Jump on turtles.",
+		screenshotIDs: nil,
+		gen:           app.loadGen,
+	})
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if ids, ok := app.shotIDs["snes-mario"]; ok {
+		t.Fatalf("shotIDs still set: %#v", ids)
+	}
+	detail := app.focusDetailLocked()
+	if len(detail.ScreenshotIDs) != 0 {
+		t.Fatalf("stale overlay = %#v", detail.ScreenshotIDs)
+	}
+	if detail.Summary != "Jump on turtles." {
+		t.Fatalf("summary = %q", detail.Summary)
 	}
 }
 
@@ -399,7 +623,8 @@ func TestAppOfflinePresentationOmitsIncompleteDetail(t *testing.T) {
 	ready = true
 	mu.Unlock()
 	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
-		return snap.FocusDetail.Summary == "Jump on turtles." && snap.FocusDetail.Studio == "Nintendo" && snap.FocusDetail.Players == "1"
+		return snap.FocusDetail.Summary == "Jump on turtles." && snap.FocusDetail.Studio == "Nintendo" && snap.FocusDetail.Players == "1" &&
+			len(snap.FocusDetail.ScreenshotIDs) == 0
 	})
 }
 

@@ -1,6 +1,7 @@
 package tenfoot
 
 import (
+	"context"
 	"fmt"
 	"image"
 	"strings"
@@ -143,11 +144,37 @@ func (a *App) closeDetailLocked() {
 
 func (a *App) cancelScreenshotWorkLocked() {
 	a.shotGen++
+	a.cancelScreenshotContextLocked()
 	for key, kind := range a.inflight {
 		if kind == workScreenshot {
 			delete(a.inflight, key)
 		}
 	}
+}
+
+func (a *App) cancelScreenshotContextLocked() {
+	if a.shotCancel != nil {
+		a.shotCancel()
+		a.shotCancel = nil
+	}
+	a.shotCtx = nil
+}
+
+func (a *App) screenshotContextLocked() context.Context {
+	if a.shotCtx != nil && a.shotCtx.Err() == nil {
+		return a.shotCtx
+	}
+	parent := a.jobCtx
+	if parent == nil {
+		parent = a.ctx
+	}
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parent)
+	a.shotCancel = cancel
+	a.shotCtx = ctx
+	return ctx
 }
 
 func (a *App) handleDetailLocked(cmd Command) bool {
@@ -302,6 +329,7 @@ func (a *App) queueFocusedScreenshotsLocked(queue []pendingWork) []pendingWork {
 		}
 		slot.phase = coverArtwork
 		gameID := a.games[a.grid.Focus].ID
+		a.screenshotContextLocked()
 		a.inflight[key] = workScreenshot
 		queue = append(queue, pendingWork{
 			item: workItem{kind: workScreenshot, gameID: gameID, handle: handle, gen: a.loadGen, shotGen: a.shotGen},

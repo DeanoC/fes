@@ -284,6 +284,8 @@ type App struct {
 	detailOpen            bool
 	carouselIndex         int
 	shotGen               int
+	shotCtx               context.Context
+	shotCancel            context.CancelFunc
 	loadGen               int
 	keepFocusID           string
 	keepFocusIndex        int
@@ -968,6 +970,7 @@ func (a *App) replaceLoadContextLocked() context.Context {
 	if a.loadCancel != nil {
 		a.loadCancel()
 	}
+	a.cancelScreenshotContextLocked()
 	ctx, cancel := context.WithCancel(parent)
 	a.loadCancel = cancel
 	a.jobCtx = ctx
@@ -2258,6 +2261,8 @@ func (a *App) applyResult(result workResult) {
 	if result.kind == workPresentation && result.err == nil {
 		if shots := screenshotHandles(result.screenshotIDs); len(shots) > 0 {
 			a.shotIDs[result.gameID] = shots
+		} else {
+			delete(a.shotIDs, result.gameID)
 		}
 		if presentationComplete(result.state, result.attribution) {
 			a.details[result.gameID] = FocusDetail{
@@ -2490,26 +2495,33 @@ func (a *App) worker(ctx context.Context) {
 			jobCtx := a.jobCtx
 			gen := a.loadGen
 			parked := a.gpuParked
+			shotGen := a.shotGen
+			shotCtx := a.shotCtx
 			a.mu.Unlock()
 			if jobCtx == nil {
 				jobCtx = ctx
 			}
-			if item.gen != gen || parked {
-				a.mu.Lock()
-				if a.loadGen == item.gen {
-					delete(a.inflight, item.key())
-				}
-				a.mu.Unlock()
+			workCtx := jobCtx
+			if item.kind == workScreenshot && shotCtx != nil {
+				workCtx = shotCtx
+			}
+			if item.gen != gen || parked || (item.kind == workScreenshot && item.shotGen != shotGen) {
+				a.dropStaleWork(item)
 				continue
 			}
-			result := a.doWork(jobCtx, item)
-			if item.gen != gen || jobCtx.Err() != nil {
-				a.mu.Lock()
-				if a.loadGen == item.gen {
-					delete(a.inflight, item.key())
-				}
-				a.mu.Unlock()
+			result := a.doWork(workCtx, item)
+			if item.gen != gen || workCtx.Err() != nil {
+				a.dropStaleWork(item)
 				continue
+			}
+			if item.kind == workScreenshot {
+				a.mu.Lock()
+				staleShot := item.shotGen != a.shotGen
+				a.mu.Unlock()
+				if staleShot {
+					a.dropStaleWork(item)
+					continue
+				}
 			}
 			select {
 			case a.results <- result:
@@ -2518,6 +2530,18 @@ func (a *App) worker(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func (a *App) dropStaleWork(item workItem) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.loadGen != item.gen {
+		return
+	}
+	if item.kind == workScreenshot && a.shotGen != item.shotGen {
+		return
+	}
+	delete(a.inflight, item.key())
 }
 
 func (a *App) doWork(ctx context.Context, item workItem) workResult {
