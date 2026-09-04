@@ -93,7 +93,7 @@ TEST_HEADERS := $(wildcard \
 
 .PHONY: all clean test run-tests incremental-build-test version-build-test \
 	force-version sanitize tsan archive-audit active-tree-test \
-	profile-provenance-test target
+	profile-provenance-test hardware-support-truth-test target
 
 all: $(ARCHIVE) $(DAEMON)
 
@@ -270,6 +270,9 @@ active-tree-test: all
 profile-provenance-test:
 	@tests/profile_provenance_test.sh "$(CURDIR)"
 
+hardware-support-truth-test:
+	@tests/hardware_support_truth_test.sh "$(CURDIR)"
+
 incremental-build-test: run-tests
 	@tests/incremental_build_test.sh "$(CURDIR)" $(TEST_BINS)
 
@@ -278,6 +281,7 @@ version-build-test: incremental-build-test
 
 test: version-build-test
 	@$(MAKE) active-tree-test
+	@$(MAKE) hardware-support-truth-test
 
 sanitize:
 	@$(MAKE) BUILD_DIR="$(BUILD_DIR)/sanitize" \
