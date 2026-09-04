@@ -12,6 +12,8 @@ import (
 const (
 	coverMaxW = 256
 	coverMaxH = 320
+	shotMaxW  = 640
+	shotMaxH  = 360
 	stillMaxW = 1280
 	stillMaxH = 720
 	// Source decode limits. Cover cells are smaller; these bound allocations
@@ -28,6 +30,11 @@ func DecodeCover(data []byte) (*image.RGBA, error) {
 // DecodeStill decodes JPEG/PNG attract artwork and scales it to a 720p-class stage.
 func DecodeStill(data []byte) (*image.RGBA, error) {
 	return decodeArtwork(data, stillMaxW, stillMaxH)
+}
+
+// DecodeScreenshot decodes JPEG/PNG screenshot artwork for the detail carousel.
+func DecodeScreenshot(data []byte) (*image.RGBA, error) {
+	return decodeArtwork(data, shotMaxW, shotMaxH)
 }
 
 func decodeArtwork(data []byte, maxW, maxH int) (*image.RGBA, error) {

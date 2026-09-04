@@ -74,28 +74,39 @@ type workKind int
 const (
 	workPresentation workKind = iota
 	workArtwork
+	workScreenshot
 )
 
+type pendingWork struct {
+	item workItem
+	key  string
+}
+
 type workItem struct {
-	kind   workKind
-	gameID string
-	handle string
-	gen    int
+	kind    workKind
+	gameID  string
+	handle  string
+	gen     int
+	shotGen int
 }
 
 type workResult struct {
-	kind        workKind
-	gameID      string
-	handle      string
-	image       *image.RGBA
-	err         error
-	missing     bool
-	state       string
-	year        string
-	genre       string
-	summary     string
-	attribution string
-	gen         int
+	kind          workKind
+	gameID        string
+	handle        string
+	image         *image.RGBA
+	err           error
+	missing       bool
+	state         string
+	year          string
+	genre         string
+	summary       string
+	studio        string
+	players       string
+	screenshotIDs []string
+	attribution   string
+	gen           int
+	shotGen       int
 }
 
 // LaunchSnapshot is the current host launch attempt.
@@ -135,19 +146,22 @@ type HealthSnapshot struct {
 
 // FocusDetail is the focused title's metadata shown in the detail strip.
 type FocusDetail struct {
-	Title       string
-	Platform    string
-	Year        string
-	Genre       string
-	Summary     string
-	Attribution string
-	Favorite    bool
+	Title         string
+	Platform      string
+	Year          string
+	Genre         string
+	Studio        string
+	Players       string
+	Summary       string
+	Attribution   string
+	Favorite      bool
+	ScreenshotIDs []string
 }
 
-// MetaFacts joins platform, year, and genre for the detail strip.
+// MetaFacts joins platform, year, genre, studio, and players for the detail strip.
 func (d FocusDetail) MetaFacts() string {
-	parts := make([]string, 0, 3)
-	for _, part := range []string{d.Platform, d.Year, d.Genre} {
+	parts := make([]string, 0, 5)
+	for _, part := range []string{d.Platform, d.Year, d.Genre, d.Studio, d.Players} {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue
@@ -225,6 +239,8 @@ type Snapshot struct {
 	Settings        SettingsSnapshot
 	OSK             OSKSnapshot
 	Health          HealthSnapshot
+	Detail          DetailSnapshot
+	Screenshots     map[string]*image.RGBA
 }
 
 // App owns catalog, focus, async covers, and host launch. SDL stays out.
@@ -257,6 +273,11 @@ type App struct {
 	searchPending         bool
 	searchDue             time.Time
 	details               map[string]FocusDetail
+	shots                 map[string]*shotSlot
+	shotIDs               map[string][]string
+	detailOpen            bool
+	carouselIndex         int
+	shotGen               int
 	loadGen               int
 	keepFocusID           string
 	keepFocusIndex        int
@@ -372,6 +393,8 @@ func NewApp(client *Client, width, height, maxGames int) *App {
 		pageLimit:          defaultPageLimit,
 		sort:               "title",
 		details:            map[string]FocusDetail{},
+		shots:              map[string]*shotSlot{},
+		shotIDs:            map[string][]string{},
 		platformKick:       make(chan struct{}, 1),
 		collectionsKick:    make(chan struct{}, 1),
 		sessionKick:        make(chan struct{}, 1),
@@ -489,6 +512,9 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 			return
 		}
 	}
+	if a.handleDetailLocked(cmd) {
+		return
+	}
 	switch cmd {
 	case CmdUp:
 		a.moveFocusLocked(0, -1)
@@ -526,6 +552,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 }
 
 func (a *App) openSearchLocked() {
+	a.closeDetailLocked()
 	a.searchOpen = true
 	a.searchField.OSK.Reset()
 }
@@ -755,6 +782,7 @@ func (a *App) normalizeSortForCollectionLocked() {
 }
 
 func (a *App) openViewPickerLocked() {
+	a.closeDetailLocked()
 	a.searchOpen = false
 	a.closeNameEntryLocked()
 	a.closeCollectionManageLocked()
@@ -888,6 +916,7 @@ func (a *App) platformChoicesLocked() []string {
 }
 
 func (a *App) reloadLocked() {
+	a.closeDetailLocked()
 	a.captureCatalogFocusLocked()
 	a.searchPending = false
 	a.loadGen++
@@ -1038,6 +1067,8 @@ func (a *App) Snapshot() Snapshot {
 		Settings:        a.settingsSnapshotLocked(),
 		OSK:             a.oskSnapshotLocked(),
 		Health:          health,
+		Detail:          a.detailSnapshotLocked(),
+		Screenshots:     a.screenshotImagesLocked(),
 	}
 }
 
@@ -1188,7 +1219,15 @@ func (a *App) focusDetailLocked() FocusDetail {
 			detail.Genre = cached.Genre
 		}
 		detail.Summary = strings.TrimSpace(cached.Summary)
+		detail.Studio = strings.TrimSpace(cached.Studio)
+		detail.Players = strings.TrimSpace(cached.Players)
 		detail.Attribution = strings.TrimSpace(cached.Attribution)
+		if len(cached.ScreenshotIDs) > 0 {
+			detail.ScreenshotIDs = append([]string(nil), cached.ScreenshotIDs...)
+		}
+	}
+	if ids := a.shotIDs[game.ID]; len(ids) > 0 {
+		detail.ScreenshotIDs = append([]string(nil), ids...)
 	}
 	return detail
 }
@@ -1210,10 +1249,19 @@ func (a *App) platformLabelLocked(system string) string {
 }
 
 func (a *App) moveFocusLocked(dx, dy int) {
+	if dy > 0 && a.detailEnterFromBrowseLocked() {
+		a.openDetailLocked()
+		return
+	}
 	before := a.grid.Focus
 	a.grid.Move(dx, dy)
 	if a.grid.Focus != before {
 		a.navDirty = true
+		a.carouselIndex = 0
+		return
+	}
+	if dy > 0 && len(a.games) > 0 {
+		a.openDetailLocked()
 	}
 }
 
@@ -1225,6 +1273,7 @@ func (a *App) focusIndex(i int) bool {
 	}
 	if a.grid.Focus != i {
 		a.navDirty = true
+		a.carouselIndex = 0
 	}
 	a.grid.Focus = i
 	a.grid.ensureVisible()
@@ -1645,6 +1694,7 @@ func (a *App) syncGPUParkLocked() {
 			a.closeCollectionOverlaysLocked()
 			a.searchOpen = false
 			a.closeSettingsLocked()
+			a.closeDetailLocked()
 		}
 		return
 	}
@@ -1656,8 +1706,11 @@ func (a *App) syncGPUParkLocked() {
 	a.closeCollectionOverlaysLocked()
 	a.searchOpen = false
 	a.closeSettingsLocked()
+	a.closeDetailLocked()
 	a.inflight = map[string]workKind{}
 	a.covers = map[string]*coverSlot{}
+	a.shots = map[string]*shotSlot{}
+	a.shotIDs = map[string][]string{}
 	for {
 		select {
 		case <-a.jobs:
@@ -2105,20 +2158,39 @@ func (a *App) applyResult(result workResult) {
 		return
 	}
 	if a.gpuParked {
-		delete(a.inflight, result.gameID)
+		delete(a.inflight, result.key())
 		return
 	}
-	delete(a.inflight, result.gameID)
+	delete(a.inflight, result.key())
+	if result.kind == workScreenshot {
+		if result.shotGen != a.shotGen {
+			return
+		}
+		if result.err != nil && errors.Is(result.err, context.Canceled) {
+			return
+		}
+		a.applyScreenshotResultLocked(result)
+		return
+	}
 	if result.err != nil && (errors.Is(result.err, context.Canceled) || errors.Is(result.err, context.DeadlineExceeded)) {
 		return
 	}
-	if result.kind == workPresentation && result.err == nil && presentationComplete(result.state, result.attribution) {
-		a.details[result.gameID] = FocusDetail{
-			Year:        strings.TrimSpace(result.year),
-			Genre:       strings.TrimSpace(result.genre),
-			Summary:     strings.TrimSpace(result.summary),
-			Attribution: strings.TrimSpace(result.attribution),
+	if result.kind == workPresentation && result.err == nil {
+		if shots := screenshotHandles(result.screenshotIDs); len(shots) > 0 {
+			a.shotIDs[result.gameID] = shots
 		}
+		if presentationComplete(result.state, result.attribution) {
+			a.details[result.gameID] = FocusDetail{
+				Year:          strings.TrimSpace(result.year),
+				Genre:         strings.TrimSpace(result.genre),
+				Studio:        strings.TrimSpace(result.studio),
+				Players:       strings.TrimSpace(result.players),
+				Summary:       strings.TrimSpace(result.summary),
+				Attribution:   strings.TrimSpace(result.attribution),
+				ScreenshotIDs: screenshotHandles(result.screenshotIDs),
+			}
+		}
+		a.clampCarouselLocked()
 	}
 	if !a.inPrefetchLocked(result.gameID) {
 		delete(a.covers, result.gameID)
@@ -2222,11 +2294,7 @@ func (a *App) queueVisibleWork(now time.Time) {
 		return
 	}
 	start, end := a.prefetchSpanLocked()
-	type pending struct {
-		item workItem
-		key  string
-	}
-	var queue []pending
+	var queue []pendingWork
 	order := make([]int, 0, end-start)
 	if a.grid.Focus >= start && a.grid.Focus < end {
 		order = append(order, a.grid.Focus)
@@ -2254,7 +2322,7 @@ func (a *App) queueVisibleWork(now time.Time) {
 		if _, have := a.details[game.ID]; !have && slot.phase != coverIdle && slot.phase != coverArtwork {
 			if _, busy := a.inflight[game.ID]; !busy && i == a.grid.Focus && !now.Before(slot.detailNext) {
 				a.inflight[game.ID] = workPresentation
-				queue = append(queue, pending{item: workItem{kind: workPresentation, gameID: game.ID, handle: slot.handle, gen: a.loadGen}, key: game.ID})
+				queue = append(queue, pendingWork{item: workItem{kind: workPresentation, gameID: game.ID, handle: slot.handle, gen: a.loadGen}, key: game.ID})
 				if len(a.inflight) >= maxInflight {
 					break
 				}
@@ -2266,20 +2334,22 @@ func (a *App) queueVisibleWork(now time.Time) {
 		switch slot.phase {
 		case coverIdle:
 			a.inflight[game.ID] = workPresentation
-			queue = append(queue, pending{item: workItem{kind: workPresentation, gameID: game.ID, handle: slot.handle, gen: a.loadGen}, key: game.ID})
+			queue = append(queue, pendingWork{item: workItem{kind: workPresentation, gameID: game.ID, handle: slot.handle, gen: a.loadGen}, key: game.ID})
 		case coverArtwork:
 			if slot.handle == "" {
 				slot.phase = coverMissing
 				continue
 			}
 			a.inflight[game.ID] = workArtwork
-			queue = append(queue, pending{item: workItem{kind: workArtwork, gameID: game.ID, handle: slot.handle, gen: a.loadGen}, key: game.ID})
+			queue = append(queue, pendingWork{item: workItem{kind: workArtwork, gameID: game.ID, handle: slot.handle, gen: a.loadGen}, key: game.ID})
 		}
 		if len(a.inflight) >= maxInflight {
 			break
 		}
 	}
+	queue = a.queueFocusedScreenshotsLocked(queue)
 	a.evictCoversLocked()
+	a.evictShotsLocked()
 	a.mu.Unlock()
 	for _, item := range queue {
 		select {
@@ -2347,7 +2417,7 @@ func (a *App) worker(ctx context.Context) {
 			if item.gen != gen || parked {
 				a.mu.Lock()
 				if a.loadGen == item.gen {
-					delete(a.inflight, item.gameID)
+					delete(a.inflight, item.key())
 				}
 				a.mu.Unlock()
 				continue
@@ -2356,7 +2426,7 @@ func (a *App) worker(ctx context.Context) {
 			if item.gen != gen || jobCtx.Err() != nil {
 				a.mu.Lock()
 				if a.loadGen == item.gen {
-					delete(a.inflight, item.gameID)
+					delete(a.inflight, item.key())
 				}
 				a.mu.Unlock()
 				continue
@@ -2383,6 +2453,9 @@ func (a *App) doWork(ctx context.Context, item workItem) workResult {
 			result.year = pres.Presentation.Year
 			result.genre = pres.Presentation.Genre
 			result.summary = pres.Presentation.Summary
+			result.studio = pres.Presentation.Studio
+			result.players = pres.Presentation.Players
+			result.screenshotIDs = screenshotHandles(pres.Presentation.ScreenshotIDs)
 		}
 		result.attribution = pres.AttributionLabel()
 		return result
@@ -2396,6 +2469,16 @@ func (a *App) doWork(ctx context.Context, item workItem) workResult {
 			return workResult{kind: workArtwork, gameID: item.gameID, gen: item.gen, err: err}
 		}
 		return workResult{kind: workArtwork, gameID: item.gameID, handle: item.handle, image: img, gen: item.gen}
+	case workScreenshot:
+		data, _, err := a.client.Artwork(ctx, item.handle)
+		if err != nil {
+			return workResult{kind: workScreenshot, gameID: item.gameID, handle: item.handle, gen: item.gen, shotGen: item.shotGen, err: err}
+		}
+		img, err := DecodeScreenshot(data)
+		if err != nil {
+			return workResult{kind: workScreenshot, gameID: item.gameID, handle: item.handle, gen: item.gen, shotGen: item.shotGen, err: err}
+		}
+		return workResult{kind: workScreenshot, gameID: item.gameID, handle: item.handle, image: img, gen: item.gen, shotGen: item.shotGen}
 	default:
 		return workResult{kind: item.kind, gameID: item.gameID, gen: item.gen, err: fmt.Errorf("unknown work")}
 	}

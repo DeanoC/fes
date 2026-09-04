@@ -838,7 +838,31 @@ func syncTextures(renderer *C.SDL_Renderer, snap Snapshot, textures map[string]s
 		tex.src = img
 		textures[id] = tex
 	}
+	for handle, img := range snap.Screenshots {
+		if img == nil {
+			continue
+		}
+		id := screenshotWorkKey(handle)
+		needed[id] = struct{}{}
+		if existing, ok := textures[id]; ok && existing.src == img {
+			continue
+		}
+		if existing, ok := textures[id]; ok {
+			C.SDL_DestroyTexture(existing.tex)
+			delete(textures, id)
+		}
+		tex, err := uploadTexture(renderer, img)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "tenfoot: screenshot texture %s: %v\n", handle, err)
+			continue
+		}
+		tex.src = img
+		textures[id] = tex
+	}
 	for id, item := range textures {
+		if id == "attract" {
+			continue
+		}
 		if _, ok := needed[id]; ok {
 			continue
 		}
@@ -876,7 +900,7 @@ func drawFrame(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[str
 	} else {
 		drawCoverCells(renderer, snap, textures, labels, used)
 	}
-	drawDetail(renderer, snap, labels, used)
+	drawDetail(renderer, snap, labels, used, textures)
 	drawViewPicker(renderer, snap, labels, used)
 	drawCollectionMenu(renderer, snap, labels, used)
 	drawSettings(renderer, snap, labels, used)
@@ -1015,6 +1039,8 @@ func drawHeader(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTe
 		hint = snap.CollectionMenu.Hint
 	} else if snap.ViewPicker {
 		hint = "A open  X add/remove  Y manage  B back"
+	} else if snap.Detail.Open {
+		hint = snap.Detail.Hint
 	}
 	drawDebug(renderer, x+24, y+72, hint, 1)
 }
@@ -1065,14 +1091,28 @@ func drawNowPlaying(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]s
 	C.SDL_RenderPresent(renderer)
 }
 
-func drawDetail(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTexture, used map[string]struct{}) {
+func drawDetail(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTexture, used map[string]struct{}, textures map[string]sdlTexture) {
 	h := snap.Grid.FooterHeight
+	if snap.Detail.Open {
+		h = detailPaneHeight(snap.Grid)
+	}
 	if h < 1 {
 		return
 	}
-	y := snap.Grid.footerY()
 	x := snap.Grid.contentLeft()
 	w := snap.Grid.contentWidth()
+	y := snap.Grid.Height - snap.Grid.Safe.Bottom - h
+	minY := snap.Grid.headerY() + snap.Grid.HeaderHeight
+	if y < minY {
+		y = minY
+		h = snap.Grid.Height - snap.Grid.Safe.Bottom - y
+	}
+	if h < 1 {
+		return
+	}
+	if snap.Detail.Open {
+		fillRect(renderer, float32(x-4), float32(y-4), float32(w+8), float32(h+8), 255, 184, 48, 255)
+	}
 	fillRect(renderer, float32(x), float32(y), float32(w), float32(h), 16, 18, 26, 255)
 	detail := snap.FocusDetail
 	pad := 24
@@ -1083,22 +1123,73 @@ func drawDetail(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTe
 	if detail.Favorite {
 		title = "* " + title
 	}
-	drawLabel(renderer, labels, used, "d-title", x+pad, y+12, w-2*pad, 26, title)
-	metaWidth := w - 2*pad
-	facts, factsX, factsW, attr, attrX, attrW := layoutDetailMeta(detail, x+pad, metaWidth, 16)
+	textW := w - 2*pad
+	shotW := 0
+	if snap.Detail.Open && snap.Detail.Count > 0 {
+		shotW = w * 38 / 100
+		if shotW < 160 {
+			shotW = 160
+		}
+		if shotW > w/2 {
+			shotW = w / 2
+		}
+		textW = w - shotW - 3*pad
+		if textW < 160 {
+			textW = w - 2*pad
+			shotW = 0
+		}
+	}
+	drawLabel(renderer, labels, used, "d-title", x+pad, y+12, textW, 26, title)
+	facts, factsX, factsW, attr, attrX, attrW := layoutDetailMeta(detail, x+pad, textW, 16)
 	if facts != "" && factsW > 0 {
 		drawLabel(renderer, labels, used, "d-meta", factsX, y+44, factsW, 16, facts)
 	}
 	if attr != "" && attrW > 0 {
 		drawLabel(renderer, labels, used, "d-attr", attrX, y+44, attrW, 16, attr)
 	}
-	summaryWidth := w - 2*pad
-	maxChars := summaryWidth / 8
+	lineY := y + 68
+	summaryLines := 2
+	if snap.Detail.Open {
+		summaryLines = detailSummaryLines
+	}
+	maxChars := textW / 8
 	if maxChars < 20 {
 		maxChars = 20
 	}
-	for i, line := range wrapWords(detail.Summary, maxChars, 2) {
-		drawLabel(renderer, labels, used, fmt.Sprintf("d-sum-%d", i), x+pad, y+68+i*20, summaryWidth, 16, line)
+	for i, line := range wrapWords(detail.Summary, maxChars, summaryLines) {
+		drawLabel(renderer, labels, used, fmt.Sprintf("d-sum-%d", i), x+pad, lineY+i*20, textW, 16, line)
+	}
+	if shotW > 0 {
+		drawScreenshotCarousel(renderer, snap, labels, used, textures, x+w-pad-shotW, y+12, shotW, h-24)
+	}
+}
+
+func drawScreenshotCarousel(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTexture, used map[string]struct{}, textures map[string]sdlTexture, x, y, w, h int) {
+	if w < 1 || h < 1 {
+		return
+	}
+	fillRect(renderer, float32(x), float32(y), float32(w), float32(h), 28, 32, 44, 255)
+	ids := snap.FocusDetail.ScreenshotIDs
+	index := clampCarouselIndex(snap.Detail.Index, len(ids))
+	captionH := 22
+	innerH := h - captionH
+	if innerH < 1 {
+		innerH = h
+		captionH = 0
+	}
+	if index >= 0 && index < len(ids) {
+		handle := ids[index]
+		if tex, ok := textures[screenshotWorkKey(handle)]; ok {
+			dx, dy, dw, dh := coverDestRect(x+8, y+8, w-16, innerH-16, tex.w, tex.h)
+			dst := C.SDL_FRect{x: C.float(dx), y: C.float(dy), w: C.float(dw), h: C.float(dh)}
+			C.SDL_RenderTexture(renderer, tex.tex, nil, &dst)
+		} else {
+			drawLabel(renderer, labels, used, "d-shot-miss", x+12, y+innerH/2-8, w-24, 16, "…")
+		}
+	}
+	if captionH > 0 {
+		caption := carouselCaption(index, len(ids))
+		drawLabel(renderer, labels, used, "d-shot-cap", x+8, y+h-captionH, w-16, 16, caption)
 	}
 }
 

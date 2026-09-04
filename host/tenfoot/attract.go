@@ -244,7 +244,7 @@ func (a *App) attractBlockedLocked() bool {
 	case "launching":
 		return true
 	}
-	return a.attractDisabled || a.stopPhase == "stopping" || a.inputBusy || a.searchOpen || a.viewPickerOpen || a.settingsOpen || a.nameEntryOpenLocked() || a.collectionManageOpen || a.collectionConfirmOpen
+	return a.attractDisabled || a.stopPhase == "stopping" || a.inputBusy || a.searchOpen || a.viewPickerOpen || a.settingsOpen || a.nameEntryOpenLocked() || a.collectionManageOpen || a.collectionConfirmOpen || a.detailOpen
 }
 
 func (a *App) tickAttractLocked(now time.Time) {

@@ -84,13 +84,15 @@ func TestClientPresentationArtworkAndLaunch(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(Presentation{
 				GameID: "snes-mario",
 				State:  "ready",
-				Presentation: &struct {
-					CoverArtworkID string `json:"cover_artwork_id"`
-					Summary        string `json:"summary"`
-					Year           string `json:"year"`
-					Genre          string `json:"genre"`
-					Studio         string `json:"studio"`
-				}{CoverArtworkID: handle, Summary: "jump", Year: "1985", Genre: "Platform", Studio: "Nintendo"},
+				Presentation: &PresentationInfo{
+					CoverArtworkID: handle,
+					Summary:        "jump",
+					Year:           "1985",
+					Genre:          "Platform",
+					Studio:         "Nintendo",
+					Players:        "1-2",
+					ScreenshotIDs:  []string{handle, "bad", handle, strings.Repeat("cd", 32)},
+				},
 				Attribution: &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/presentation/artwork/"+handle:
@@ -114,6 +116,12 @@ func TestClientPresentationArtworkAndLaunch(t *testing.T) {
 	}
 	if got := pres.AttributionLabel(); got != "Data from IGDB.com" {
 		t.Fatalf("attribution = %q", got)
+	}
+	if pres.Presentation == nil || pres.Presentation.Studio != "Nintendo" || pres.Presentation.Players != "1-2" {
+		t.Fatalf("studio/players = %#v", pres.Presentation)
+	}
+	if got := screenshotHandles(pres.Presentation.ScreenshotIDs); len(got) != 2 || got[0] != handle {
+		t.Fatalf("screenshots = %#v", pres.Presentation.ScreenshotIDs)
 	}
 	data, ctype, err := client.Artwork(context.Background(), handle)
 	if err != nil || ctype != "image/png" || string(data) != "png-bytes" {

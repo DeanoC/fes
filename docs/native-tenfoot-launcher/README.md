@@ -71,7 +71,7 @@ in the same `tenfoot.json` as `layout`. Shelf is one row of larger covers:
 Left/Right move one title, Up/Down jump by a visible page of covers. List is
 vertical rows with a thumb, title, and system: Up/Down move one row, Left/Right
 jump by a visible page of rows. Launch, stop, browse, favorites, search, views,
-sort, platform, detail strip, GPU park, attract, and safe-area keep working in
+sort, platform, detail pane, GPU park, attract, and safe-area keep working in
 every layout.
 
 Attract mode starts after the host `idle_seconds` from
@@ -95,7 +95,11 @@ fallback; native video decode there is NEED.
 
 Gamepad is the intended control path (d-pad / left stick to move, South/A to
 launch, East/B to back, Start to quit, Select/View to cycle layout, Guide to
-open the sofa settings overlay).
+open the sofa settings overlay). Down from the last row (or last shelf/list
+page) opens the focused title's detail pane; Up or East/B returns to browse.
+Left/Right in the pane cycle screenshots. South/A still launches, East/B still
+stops a live session, Start still quits, Guide still opens settings, North/Y
+still opens search, and Select/View still cycles layout.
 Shoulders cycle the platform filter
 (All, then each host platform). West/X cycles sort (title, recently added,
 system) while browsing. While an FPGA-native session is now-playing, West/X
@@ -135,7 +139,7 @@ shelf while the view picker is open; attach/detach while now-playing), `/` or `f
 custom shelf while the picker is open), `c` / Shift+`c` to cycle views,
 `v` to favorite, `l` to cycle layout,
 `o` to open settings, `-` / `=` to nudge the overscan inset. Down arrow still
-moves focus when idle.
+moves focus when idle, and opens the detail pane from the last row.
 
 ## Sofa settings
 
@@ -200,13 +204,15 @@ make tenfoot-smoke
   generation. Each game may include `favorite` and `collections`.
 - `PUT` / `DELETE /api/v1/library/favorites/{id}` toggles the focused title.
   Unfavoriting while the Favorites view is active reloads that collection.
-- `GET /api/v1/presentation/games/{id}` for the focused title's detail strip
-  (title, platform, year, genre, summary, and provider attribution). HTTP 200
-  with `state: "offline"` is a temporary provider failure: details are not
-  cached, and the focused title retries with backoff. A local-media overlay of
+- `GET /api/v1/presentation/games/{id}` for the focused title's detail pane
+  (title, platform, year, genre, studio, players, summary, screenshot handles,
+  and provider attribution). Empty studio, players, and summary are omitted.
+  HTTP 200 with `state: "offline"` is a temporary provider failure: details are
+  not cached, and the focused title retries with backoff. A local-media overlay of
   offline arrives as `ready` without attribution and retries the same way.
   `disabled`, `unconfigured`, `no_match`, and `ambiguous` are complete even
-  when local cover or backdrop media is present.
+  when local cover or backdrop media is present. `screenshot_ids` are normalized
+  64-hex handles, de-duplicated, and capped at 8 (same as the browser shell).
 - `GET /api/v1/presentation/artwork/{handle}`. A failed GET or decode is
   terminal for that cover slot; a persistent 404 or corrupt image is not
   re-requested every frame, including while focused presentation details
@@ -214,7 +220,10 @@ make tenfoot-smoke
   replaces or removes the cover handle is adopted even when the previous
   cover has already decoded, so the slot can fetch the new artwork or go
   missing. The SDL cover texture is keyed by game ID and is replaced when
-  that decoded image changes.
+  that decoded image changes. Screenshot handles from the focused title use
+  the same artwork GET. Failed or missing screenshot handles are skipped in
+  the carousel and are not retried every frame; the pane stays interactive
+  while a handle is in flight.
 - `POST /api/v1/session/launch` with `{"game_id":"..."}`. The launch JSON
   (`state`, `game_id`, optional `execution` / `media` / `progress`) is adopted
   immediately; tenfoot still polls afterward.

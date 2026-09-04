@@ -52,16 +52,21 @@ type Game struct {
 
 // Presentation is GET /api/v1/presentation/games/{id}.
 type Presentation struct {
-	GameID       string `json:"game_id"`
-	State        string `json:"state"`
-	Presentation *struct {
-		CoverArtworkID string `json:"cover_artwork_id"`
-		Summary        string `json:"summary"`
-		Year           string `json:"year"`
-		Genre          string `json:"genre"`
-		Studio         string `json:"studio"`
-	} `json:"presentation"`
-	Attribution *PresentationAttribution `json:"attribution,omitempty"`
+	GameID       string                   `json:"game_id"`
+	State        string                   `json:"state"`
+	Presentation *PresentationInfo        `json:"presentation"`
+	Attribution  *PresentationAttribution `json:"attribution,omitempty"`
+}
+
+// PresentationInfo is the nested presentation object on a games/{id} payload.
+type PresentationInfo struct {
+	CoverArtworkID string   `json:"cover_artwork_id"`
+	Summary        string   `json:"summary"`
+	Year           string   `json:"year"`
+	Genre          string   `json:"genre"`
+	Studio         string   `json:"studio"`
+	Players        string   `json:"players"`
+	ScreenshotIDs  []string `json:"screenshot_ids,omitempty"`
 }
 
 // PresentationAttribution is the provider label the public API returns with ready metadata.
@@ -1113,4 +1118,31 @@ func normalizeHandle(value string) string {
 		}
 	}
 	return value
+}
+
+const maxScreenshotHandles = 8
+
+// screenshotHandles normalizes presentation screenshot_ids, drops invalid
+// entries, de-duplicates, and caps at the web limit of 8.
+func screenshotHandles(ids []string) []string {
+	if len(ids) == 0 {
+		return nil
+	}
+	out := make([]string, 0, maxScreenshotHandles)
+	seen := map[string]bool{}
+	for _, id := range ids {
+		handle := normalizeHandle(id)
+		if handle == "" || seen[handle] {
+			continue
+		}
+		seen[handle] = true
+		out = append(out, handle)
+		if len(out) >= maxScreenshotHandles {
+			break
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

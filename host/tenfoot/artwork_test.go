@@ -30,6 +30,13 @@ func TestDecodeCoverScalesJPEGSizedPNG(t *testing.T) {
 	if got.Bounds().Dx() > coverMaxW || got.Bounds().Dy() > coverMaxH {
 		t.Fatalf("size = %s", got.Bounds())
 	}
+	shot, err := DecodeScreenshot(buf.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if shot.Bounds().Dx() > shotMaxW || shot.Bounds().Dy() > shotMaxH {
+		t.Fatalf("screenshot size = %s", shot.Bounds())
+	}
 	r, g, b, a := got.At(0, 0).RGBA()
 	if r>>8 < 150 || g>>8 > 40 || b>>8 > 40 || a>>8 != 255 {
 		t.Fatalf("pixel = %d %d %d %d", r, g, b, a)

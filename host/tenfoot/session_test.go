@@ -58,13 +58,7 @@ func TestAppPollsSessionParksAndStops(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(Presentation{
 				GameID: id,
 				State:  "ready",
-				Presentation: &struct {
-					CoverArtworkID string `json:"cover_artwork_id"`
-					Summary        string `json:"summary"`
-					Year           string `json:"year"`
-					Genre          string `json:"genre"`
-					Studio         string `json:"studio"`
-				}{CoverArtworkID: handle},
+				Presentation: &PresentationInfo{CoverArtworkID: handle},
 			})
 		default:
 			http.NotFound(w, r)
