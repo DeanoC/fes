@@ -889,6 +889,178 @@ func TestAppSettingsRehydratesAfterSaveCompletesDuringReopen(t *testing.T) {
 	}
 }
 
+func TestAppSettingsStaleReopenGetRefreshesWhenPatchCompletes(t *testing.T) {
+	var mu sync.Mutex
+	idle := 60
+	var gets int
+	patchStarted := make(chan struct{})
+	patchRelease := make(chan struct{})
+	t.Cleanup(func() {
+		select {
+		case <-patchRelease:
+		default:
+			close(patchRelease)
+		}
+	})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/settings":
+			mu.Lock()
+			gets++
+			current := idle
+			mu.Unlock()
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"attract_idle_seconds": current,
+				"preferred_regions":    []string{"usa"},
+				"selected_target":      "dev",
+				"targets":              []map[string]any{{"name": "dev"}},
+			})
+		case r.Method == http.MethodPatch && r.URL.Path == "/api/v1/library/settings":
+			close(patchStarted)
+			<-patchRelease
+			mu.Lock()
+			idle = 75
+			current := idle
+			mu.Unlock()
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"attract_idle_seconds": current,
+				"preferred_regions":    []string{"usa"},
+				"selected_target":      "dev",
+				"targets":              []map[string]any{{"name": "dev"}},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
+	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.grid.SetCount(1)
+	now := time.Now()
+	app.HandleCommand(CmdSettings, now)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return snap.Settings.Open && !snap.Settings.Loading && snap.Settings.Rows[settingsRowIdle].Value == "60s"
+	})
+	for i := 0; i < settingsRowIdle; i++ {
+		app.HandleCommand(CmdDown, now)
+	}
+	app.HandleCommand(CmdRight, now)
+	app.HandleCommand(CmdSelect, now)
+	select {
+	case <-patchStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("PATCH did not start")
+	}
+	app.HandleCommand(CmdBack, now)
+	app.HandleCommand(CmdSettings, now)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		mu.Lock()
+		n := gets
+		mu.Unlock()
+		return n >= 2 && snap.Settings.Open && !snap.Settings.Loading && snap.Settings.Rows[settingsRowIdle].Value == "60s"
+	})
+	close(patchRelease)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		idle, hydrated := appSettingsCommitState(app)
+		return snap.Settings.Open && !snap.Settings.Loading && hydrated && idle == 75 && snap.Settings.Rows[settingsRowIdle].Value == "75s"
+	})
+}
+
+func TestAppSettingsStaleReopenGetKeepsNewerLocalDraft(t *testing.T) {
+	var mu sync.Mutex
+	idle := 60
+	var gets int
+	patchStarted := make(chan struct{})
+	patchRelease := make(chan struct{})
+	t.Cleanup(func() {
+		select {
+		case <-patchRelease:
+		default:
+			close(patchRelease)
+		}
+	})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/settings":
+			mu.Lock()
+			gets++
+			current := idle
+			mu.Unlock()
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"attract_idle_seconds": current,
+				"preferred_regions":    []string{"usa"},
+				"selected_target":      "dev",
+				"targets":              []map[string]any{{"name": "dev"}},
+			})
+		case r.Method == http.MethodPatch && r.URL.Path == "/api/v1/library/settings":
+			close(patchStarted)
+			<-patchRelease
+			mu.Lock()
+			idle = 75
+			current := idle
+			mu.Unlock()
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"attract_idle_seconds": current,
+				"preferred_regions":    []string{"usa"},
+				"selected_target":      "dev",
+				"targets":              []map[string]any{{"name": "dev"}},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
+	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.grid.SetCount(1)
+	now := time.Now()
+	app.HandleCommand(CmdSettings, now)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return snap.Settings.Open && !snap.Settings.Loading && snap.Settings.Rows[settingsRowIdle].Value == "60s"
+	})
+	for i := 0; i < settingsRowIdle; i++ {
+		app.HandleCommand(CmdDown, now)
+	}
+	app.HandleCommand(CmdRight, now)
+	app.HandleCommand(CmdSelect, now)
+	select {
+	case <-patchStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("PATCH did not start")
+	}
+	app.HandleCommand(CmdBack, now)
+	app.HandleCommand(CmdSettings, now)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		mu.Lock()
+		n := gets
+		mu.Unlock()
+		return n >= 2 && snap.Settings.Open && !snap.Settings.Loading && snap.Settings.Rows[settingsRowIdle].Value == "60s"
+	})
+	for i := 0; i < settingsRowIdle; i++ {
+		app.HandleCommand(CmdDown, now)
+	}
+	app.HandleCommand(CmdRight, now)
+	app.HandleCommand(CmdRight, now)
+	if got := app.Snapshot().Settings.Rows[settingsRowIdle].Value; got != "90s" {
+		t.Fatalf("local draft = %q", got)
+	}
+	close(patchRelease)
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		idle, _ := appSettingsCommitState(app)
+		if idle == 75 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if idle, _ := appSettingsCommitState(app); idle != 75 {
+		t.Fatalf("PATCH did not apply idle, got %d", idle)
+	}
+	if got := app.Snapshot().Settings.Rows[settingsRowIdle].Value; got != "90s" {
+		t.Fatalf("newer local draft overwritten = %q", got)
+	}
+}
+
 func TestAppSettingsPreservesHostIdleAboveTenMinutes(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v1/library/settings" {

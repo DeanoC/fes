@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 )
@@ -411,6 +412,34 @@ func (a *App) hydrateSettingsFromAppliedLocked() {
 	a.settingsStatus = ""
 }
 
+func (a *App) refreshSettingsDraftsFromAppliedLocked(prev LibrarySettings, seq int) {
+	if !a.settingsOpen {
+		return
+	}
+	if seq < a.settingsPatchSeq {
+		return
+	}
+	if a.settingsHydrated && !a.settingsDraftsMatchLocked(prev) {
+		return
+	}
+	a.applyHostSettingsLocked(a.hostSettings)
+	a.settingsStatus = ""
+}
+
+func (a *App) settingsDraftsMatchLocked(settings LibrarySettings) bool {
+	idle := settings.AttractIdleSeconds
+	if idle <= 0 {
+		idle = defaultAttractIdleSeconds
+	}
+	if a.settingsDraftIdle != idle {
+		return false
+	}
+	if strings.TrimSpace(a.settingsDraftTarget) != strings.TrimSpace(settings.SelectedTarget) {
+		return false
+	}
+	return slices.Equal(a.settingsDraftRegions, settings.PreferredRegions)
+}
+
 func (a *App) applyHostSettingsLocked(settings LibrarySettings) {
 	a.hostSettings = settings
 	a.settingsDraftIdle = settings.AttractIdleSeconds
@@ -458,6 +487,7 @@ func (a *App) commitLibrarySettings(ctx context.Context, gen, seq int, patch Lib
 		return
 	}
 	if seq > a.settingsAppliedSeq {
+		prev := a.hostSettings
 		a.settingsAppliedSeq = seq
 		a.hostSettings = settings
 		if patch.AttractIdleSeconds != nil {
@@ -470,7 +500,7 @@ func (a *App) commitLibrarySettings(ctx context.Context, gen, seq int, patch Lib
 		a.status = a.settingsSavedStatusLocked(patch)
 		if !current {
 			a.settingsLoading = false
-			a.hydrateSettingsFromAppliedLocked()
+			a.refreshSettingsDraftsFromAppliedLocked(prev, seq)
 		}
 	}
 	if !current {
