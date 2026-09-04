@@ -98,7 +98,10 @@ launch, East/B to back, Start to quit, Select/View to cycle layout, Guide to
 open the sofa settings overlay).
 Shoulders cycle the platform filter
 (All, then each host platform). West/X cycles sort (title, recently added,
-system). On Recent, West/X cycles last played, title, and system; on Recently
+system) while browsing. While an FPGA-native session is now-playing, West/X
+attaches or detaches remote input; East/B remains Stop, Start remains Quit,
+and Guide remains settings. On Recent, West/X cycles last played, title, and
+system; on Recently
 added it cycles recently added and system, matching the host. North/Y opens
 search with a gamepad on-screen keyboard (letters/digits, space, backspace,
 clear, done). D-pad moves keys, South/A types the focused key, shoulders
@@ -116,13 +119,19 @@ North/Y opens manage (Rename / Delete). Rename uses the same gamepad OSK,
 prefilled. Delete asks for South confirm / East cancel. Favorites and other
 smart rails are not renamed or deleted. After deleting the active custom
 shelf, the sofa returns to All. Attract does not arm while the view picker,
-manage/confirm, name OSK, search OSK, or settings overlay is open. Hold
+manage/confirm, name OSK, search OSK, settings overlay, or an in-flight
+remote-input attach/detach is open. Hold
 North/Y on the grid to favorite or unfavorite the focused title. While a host session is active,
 East/B stops it (`POST /api/v1/session/stop`); Start still quits the app.
+West/X attaches or detaches remote input when the session is `active` with
+`execution=fpga_native` and input is not `starting` or `reconnecting`. Browse
+header and now-playing chrome prefix `host unreachable`, `kit unreachable`, or
+`kit not ready` from `GET /api/v1/health` (and `GET /api/v1/status` 503
+`TARGET_UNAVAILABLE`) so a down kit is obvious inside the TV safe-area.
 Keyboard is debug-only: arrows/WASD (S is stop, not down),
 Enter to launch (or confirm search), Esc/Backspace to back (or stop while a session is active),
 Q to quit, `[` / `]` for platform, `x` for sort (or add/remove on a custom
-shelf while the view picker is open), `/` or `f` for search (or manage a
+shelf while the view picker is open; attach/detach while now-playing), `/` or `f` for search (or manage a
 custom shelf while the picker is open), `c` / Shift+`c` to cycle views,
 `v` to favorite, `l` to cycle layout,
 `o` to open settings, `-` / `=` to nudge the overscan inset. Down arrow still
@@ -220,8 +229,22 @@ make tenfoot-smoke
   from the local launch response only, not from later polls. `execution`, `media`, `progress`, and `input.state`
   are shown in now-playing chrome when present. Stop failures and live session
   progress replace a completed launch acknowledgement in the status line.
-  Tenfoot does not call session/events, preview, input attach/detach, or
-  development-rbf.
+  Tenfoot does not call session/events, preview, or development-rbf.
+- `GET /api/v1/health` polled about once a second with the session poll. Host
+  `ready` is the local API process. `target.reachable` / `target.ready` drive
+  kit chrome. A transport failure is **host unreachable**, distinct from
+  **kit unreachable** (`target.reachable=false`) and **kit not ready**.
+- `GET /api/v1/status` when health does not yield a kit snapshot. HTTP 503
+  `TARGET_UNAVAILABLE` is kit/target unavailable. Tenfoot does not draw a
+  full operator status panel.
+- `POST /api/v1/session/input/attach` / `/detach` with empty bodies. Input
+  state is the `input` object on `GET /api/v1/session` (the same
+  `RemoteInputStatus` shape as `GET /api/v1/session/input`). Attach/detach
+  are offered only while the session is `active` and `execution=fpga_native`.
+  Busy while `starting` / `reconnecting` or while a mutation is in flight. A
+  failed call keeps the prior `input.state` and shows a short status line
+  without host path text. Attract does not arm during an in-flight
+  attach/detach.
 - `POST /api/v1/session/stop` with an empty body. Offered only while the session
   is active or a stop is already in flight (East/B, Esc/Backspace, or `s`).
 - `GET /api/v1/library/attract?limit=24` after idle. `idle_seconds` sets the
@@ -273,5 +296,4 @@ Attract does not run while parked; after idle it may start again.
   target list.
 
 Still out of tenfoot scope (web / later): library/target settings editor,
-session/events stream UI, development-rbf, media preview player, remote-input
-attach/detach chrome.
+session/events stream UI, development-rbf, media preview player.

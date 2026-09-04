@@ -1004,6 +1004,11 @@ func drawHeader(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTe
 	hint := "LB/RB platform  X sort  Y search  hold A view  hold Y fav  SELECT layout  GUIDE settings"
 	if snap.GPUParked || snap.Session.State == "active" {
 		hint = "B stop  START quit  SELECT layout"
+		if h := strings.TrimSpace(snap.Session.InputHint); h != "" {
+			hint += "  " + h
+		} else if snap.Session.InputState != "" {
+			hint += "  X attach/detach"
+		}
 	} else if snap.OSK.Open {
 		hint = snap.OSK.Hint
 	} else if snap.CollectionMenu.Open {

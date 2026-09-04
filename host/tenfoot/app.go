@@ -118,8 +118,19 @@ type SessionSnapshot struct {
 	Execution  string
 	Media      string
 	InputState string
+	InputHint  string
+	InputBusy  bool
 	Progress   string
 	Stopping   bool
+}
+
+// HealthSnapshot is kit/host reachability from GET /api/v1/health.
+type HealthSnapshot struct {
+	HostUnreachable bool
+	Ready           bool
+	TargetReachable bool
+	TargetReady     bool
+	Line            string
 }
 
 // FocusDetail is the focused title's metadata shown in the detail strip.
@@ -213,6 +224,7 @@ type Snapshot struct {
 	SafeAreaPct     float64
 	Settings        SettingsSnapshot
 	OSK             OSKSnapshot
+	Health          HealthSnapshot
 }
 
 // App owns catalog, focus, async covers, and host launch. SDL stays out.
@@ -295,6 +307,13 @@ type App struct {
 	stopMessage           string
 	gpuParked             bool
 	sessionKick           chan struct{}
+	health                HealthResult
+	healthHave            bool
+	hostUnreachable       bool
+	inputBusy             bool
+	inputAction           string
+	inputMessage          string
+	stopQueued            bool
 
 	safeAreaPct        float64
 	prefsPath          string
@@ -462,7 +481,10 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 			return
 		case CmdSelect:
 			return
-		case CmdUp, CmdDown, CmdLeft, CmdRight, CmdFilterPrev, CmdFilterNext, CmdSortCycle, CmdSearch, CmdViewPrev, CmdViewNext, CmdViewPicker, CmdFavorite, CmdSafeAreaIn, CmdSafeAreaOut:
+		case CmdSortCycle:
+			a.startInputToggleLocked()
+			return
+		case CmdUp, CmdDown, CmdLeft, CmdRight, CmdFilterPrev, CmdFilterNext, CmdSearch, CmdViewPrev, CmdViewNext, CmdViewPicker, CmdFavorite, CmdSafeAreaIn, CmdSafeAreaOut:
 			return
 		}
 	}
@@ -956,12 +978,16 @@ func (a *App) Snapshot() Snapshot {
 	status := a.status
 	if line := a.stopStatusLocked(); line != "" {
 		status = line
+	} else if a.inputBusy && strings.TrimSpace(a.inputMessage) != "" {
+		status = a.inputMessage
 	} else if a.launch.Phase != "idle" && a.launch.Phase != "ok" && a.launch.Message != "" {
 		status = a.launch.Message
 	} else if line := a.nowPlayingStatusLocked(); line != "" {
 		status = line
 	} else if a.launch.Phase == "ok" && a.launch.Message != "" {
 		status = a.launch.Message
+	} else if line := strings.TrimSpace(a.inputMessage); line != "" {
+		status = line
 	}
 	if a.platformErr != "" {
 		if status == "" {
@@ -976,6 +1002,10 @@ func (a *App) Snapshot() Snapshot {
 		} else {
 			status = status + " · collection list failed"
 		}
+	}
+	health := a.healthSnapshotLocked()
+	if health.Line != "" && (status == "" || status == "connecting to host API") {
+		status = health.Line
 	}
 	return Snapshot{
 		Games:           games,
@@ -1006,6 +1036,7 @@ func (a *App) Snapshot() Snapshot {
 		SafeAreaPct:     a.safeAreaPct,
 		Settings:        a.settingsSnapshotLocked(),
 		OSK:             a.oskSnapshotLocked(),
+		Health:          health,
 	}
 }
 
@@ -1048,9 +1079,17 @@ func (a *App) ViewPickerOpen() bool {
 
 // ChromeLine is the header label: now-playing while a session is active, otherwise browse chrome.
 func (s Snapshot) ChromeLine() string {
+	line := s.chromeBody()
+	if health := strings.TrimSpace(s.Health.Line); health != "" && !strings.Contains(line, health) {
+		return health + "  ·  " + line
+	}
+	return line
+}
+
+func (s Snapshot) chromeBody() string {
 	if s.GPUParked || s.Session.State == "active" {
 		line := s.NowPlayingLine()
-		if strings.TrimSpace(s.Status) != "" && s.Status != line {
+		if strings.TrimSpace(s.Status) != "" && s.Status != line && s.Status != s.Health.Line {
 			return line + "  ·  " + s.Status
 		}
 		return line
@@ -1079,7 +1118,11 @@ func (s Snapshot) ChromeLine() string {
 	} else if strings.TrimSpace(s.Query) != "" {
 		search = "Search: " + s.Query
 	}
-	return fmt.Sprintf("%s  ·  %s  ·  %s  ·  %s  ·  %s", view, platform, sortLabel(s.Collection, s.Sort), search, s.Status)
+	status := s.Status
+	if health := strings.TrimSpace(s.Health.Line); health != "" && status == health {
+		return fmt.Sprintf("%s  ·  %s  ·  %s  ·  %s", view, platform, sortLabel(s.Collection, s.Sort), search)
+	}
+	return fmt.Sprintf("%s  ·  %s  ·  %s  ·  %s  ·  %s", view, platform, sortLabel(s.Collection, s.Sort), search, status)
 }
 
 // NowPlayingLine is the compact active-session chrome.
@@ -1104,6 +1147,9 @@ func (s Snapshot) NowPlayingLine() string {
 	}
 	if input := strings.TrimSpace(s.Session.InputState); input != "" {
 		parts = append(parts, "input "+input)
+	}
+	if hint := strings.TrimSpace(s.Session.InputHint); hint != "" {
+		parts = append(parts, hint)
 	}
 	if s.Session.Stopping {
 		parts = append(parts, "stopping")
@@ -1286,6 +1332,10 @@ func (a *App) startStopLocked() {
 	if a.session.State != "active" {
 		return
 	}
+	if a.inputBusy {
+		a.stopQueued = true
+		return
+	}
 	a.stopPhase = "stopping"
 	a.stopMessage = "stopping session"
 	a.bumpSessionGenLocked()
@@ -1325,6 +1375,7 @@ func (a *App) doStop(ctx context.Context) {
 
 func (a *App) pollSession(ctx context.Context) {
 	a.fetchSession(ctx)
+	a.fetchHealth(ctx)
 	ticker := time.NewTicker(sessionPollInterval)
 	defer ticker.Stop()
 	for {
@@ -1333,8 +1384,10 @@ func (a *App) pollSession(ctx context.Context) {
 			return
 		case <-ticker.C:
 			a.fetchSession(ctx)
+			a.fetchHealth(ctx)
 		case <-a.sessionKick:
 			a.fetchSession(ctx)
+			a.fetchHealth(ctx)
 		}
 	}
 }
@@ -1352,7 +1405,7 @@ func (a *App) fetchSession(ctx context.Context) {
 	if gen != a.sessionGen {
 		return
 	}
-	if a.launch.Phase == "launching" || a.stopPhase == "stopping" {
+	if a.launch.Phase == "launching" || a.stopPhase == "stopping" || a.inputBusy {
 		return
 	}
 	a.applySessionLocked(result)
@@ -1370,6 +1423,197 @@ func (a *App) kickSessionPollLocked() {
 	case a.sessionKick <- struct{}{}:
 	default:
 	}
+}
+
+func (a *App) fetchHealth(ctx context.Context) {
+	result, err := a.client.Health(ctx)
+	if ctx.Err() != nil {
+		return
+	}
+	if err == nil {
+		a.mu.Lock()
+		a.hostUnreachable = false
+		a.healthHave = true
+		a.health = result
+		a.mu.Unlock()
+		return
+	}
+	if isHostTransportError(err) {
+		a.mu.Lock()
+		a.hostUnreachable = true
+		a.mu.Unlock()
+		return
+	}
+	status, statusErr := a.client.Status(ctx)
+	if ctx.Err() != nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if statusErr == nil && status.Unavailable {
+		a.hostUnreachable = false
+		a.healthHave = true
+		a.health = HealthResult{Ready: true, TargetReachable: false, TargetReady: false}
+	}
+}
+
+func (a *App) healthSnapshotLocked() HealthSnapshot {
+	line := kitHealthLine(a.hostUnreachable, a.healthHave, a.health)
+	return HealthSnapshot{
+		HostUnreachable: a.hostUnreachable,
+		Ready:           a.health.Ready,
+		TargetReachable: a.health.TargetReachable,
+		TargetReady:     a.health.TargetReady,
+		Line:            line,
+	}
+}
+
+func kitHealthLine(hostUnreachable, have bool, health HealthResult) string {
+	if hostUnreachable {
+		return "host unreachable"
+	}
+	if !have {
+		return ""
+	}
+	if !health.Ready {
+		return "host not ready"
+	}
+	if !health.TargetReachable {
+		return "kit unreachable"
+	}
+	if !health.TargetReady {
+		return "kit not ready"
+	}
+	return ""
+}
+
+func remoteInputCanAttach(session SessionResult) bool {
+	state := remoteInputState(session)
+	if !remoteInputOffered(session) || state == "" {
+		return false
+	}
+	if remoteInputTransitioning(state) {
+		return false
+	}
+	return state != "attached"
+}
+
+func remoteInputCanDetach(session SessionResult) bool {
+	return remoteInputOffered(session) && remoteInputState(session) == "attached"
+}
+
+func remoteInputOffered(session SessionResult) bool {
+	return session.State == "active" && session.Execution == "fpga_native" && session.Input != nil
+}
+
+func remoteInputState(session SessionResult) string {
+	if session.Input == nil {
+		return ""
+	}
+	return strings.TrimSpace(session.Input.State)
+}
+
+func remoteInputTransitioning(state string) bool {
+	return state == "starting" || state == "reconnecting"
+}
+
+func remoteInputHint(session SessionResult, busy bool, action string) string {
+	if busy {
+		switch action {
+		case "detach":
+			return "X detaching"
+		default:
+			return "X attaching"
+		}
+	}
+	if remoteInputCanDetach(session) {
+		return "X detach"
+	}
+	if remoteInputCanAttach(session) {
+		return "X attach"
+	}
+	return ""
+}
+
+func (a *App) startInputToggleLocked() {
+	if a.inputBusy || a.stopPhase == "stopping" {
+		return
+	}
+	if !remoteInputOffered(a.session) {
+		return
+	}
+	state := remoteInputState(a.session)
+	if remoteInputTransitioning(state) {
+		a.inputMessage = "input busy"
+		return
+	}
+	action := "attach"
+	if remoteInputCanDetach(a.session) {
+		action = "detach"
+	} else if !remoteInputCanAttach(a.session) {
+		a.inputMessage = "input busy"
+		return
+	}
+	a.inputBusy = true
+	a.inputAction = action
+	if action == "detach" {
+		a.inputMessage = "detaching remote input"
+	} else {
+		a.inputMessage = "attaching remote input"
+	}
+	a.bumpSessionGenLocked()
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	go a.doInputMutation(ctx, action)
+}
+
+func (a *App) doInputMutation(ctx context.Context, action string) {
+	var result SessionResult
+	var err error
+	if action == "detach" {
+		result, err = a.client.DetachInput(ctx)
+	} else {
+		result, err = a.client.AttachInput(ctx)
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.inputAction != action || !a.inputBusy {
+		return
+	}
+	a.bumpSessionGenLocked()
+	a.inputBusy = false
+	a.inputAction = ""
+	if err != nil || result.ErrorCode != "" {
+		a.inputMessage = inputFailureStatus(action)
+		a.kickSessionPollLocked()
+		a.flushQueuedStopLocked()
+		return
+	}
+	a.applySessionLocked(result)
+	if action == "detach" {
+		a.inputMessage = "input detached"
+	} else {
+		a.inputMessage = "input attached"
+	}
+	a.kickSessionPollLocked()
+	a.flushQueuedStopLocked()
+}
+
+func (a *App) flushQueuedStopLocked() {
+	if !a.stopQueued {
+		return
+	}
+	a.stopQueued = false
+	a.startStopLocked()
+}
+
+func inputFailureStatus(action string) string {
+	if action == "detach" {
+		return "input detach failed"
+	}
+	return "input attach failed"
 }
 
 func (a *App) applySessionLocked(result SessionResult) {
@@ -1449,10 +1693,7 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 			progress = strings.TrimSpace(a.session.Progress.Stage)
 		}
 	}
-	inputState := ""
-	if a.session.Input != nil {
-		inputState = strings.TrimSpace(a.session.Input.State)
-	}
+	inputState := remoteInputState(a.session)
 	return SessionSnapshot{
 		State:      a.session.State,
 		GameID:     a.session.GameID,
@@ -1461,6 +1702,8 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 		Execution:  a.session.Execution,
 		Media:      a.session.Media,
 		InputState: inputState,
+		InputHint:  remoteInputHint(a.session, a.inputBusy, a.inputAction),
+		InputBusy:  a.inputBusy || remoteInputTransitioning(inputState),
 		Progress:   progress,
 		Stopping:   a.stopPhase == "stopping",
 	}

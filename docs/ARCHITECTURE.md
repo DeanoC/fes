@@ -84,6 +84,9 @@ Native SDL3 UI
   -> POST /api/v1/session/launch
   -> GET /api/v1/session (poll; now-playing)
   -> POST /api/v1/session/stop
+  -> GET /api/v1/health (poll; kit chrome)
+  -> GET /api/v1/status (503 TARGET_UNAVAILABLE treated as kit-down)
+  -> POST /api/v1/session/input/attach and /detach (empty body; FPGA-native now-playing)
   -> host session service
   -> existing FPGA launch path
 ```

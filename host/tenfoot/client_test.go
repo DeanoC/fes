@@ -3,9 +3,11 @@ package tenfoot
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -249,6 +251,101 @@ func TestClientStopRejectsNonIdleSuccess(t *testing.T) {
 	t.Cleanup(server.Close)
 	if _, err := NewClient(server.URL, server.Client()).Stop(context.Background()); err == nil {
 		t.Fatal("Stop accepted active success")
+	}
+}
+
+func TestClientHealthAndStatus(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/health":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"ready":  true,
+				"target": map[string]any{"reachable": false, "ready": false},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/status":
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = io.WriteString(w, `{"error":{"code":"TARGET_UNAVAILABLE","message":"target status is unavailable"}}`)
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	client := NewClient(server.URL, server.Client())
+	health, err := client.Health(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !health.Ready || health.TargetReachable || health.TargetReady {
+		t.Fatalf("health = %#v", health)
+	}
+	status, err := client.Status(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !status.Unavailable || status.HTTPStatus != 503 || status.ErrorCode != "TARGET_UNAVAILABLE" {
+		t.Fatalf("status = %#v", status)
+	}
+}
+
+func TestClientSessionInputAttachDetachEmptyBody(t *testing.T) {
+	t.Parallel()
+	var attachCT, detachCT, attachBody, detachBody string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session/input":
+			_, _ = io.WriteString(w, `{"state":"detached","ready":false}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/input/attach":
+			attachCT = r.Header.Get("Content-Type")
+			attachBody = string(raw)
+			_, _ = io.WriteString(w, `{"state":"active","game_id":"snes-mario","execution":"fpga_native","input":{"state":"attached","ready":true}}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/input/detach":
+			detachCT = r.Header.Get("Content-Type")
+			detachBody = string(raw)
+			_, _ = io.WriteString(w, `{"state":"active","game_id":"snes-mario","execution":"fpga_native","input":{"state":"detached","ready":false}}`)
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	client := NewClient(server.URL, server.Client())
+	got, err := client.SessionInput(context.Background())
+	if err != nil || got.State != "detached" {
+		t.Fatalf("session input = %#v, %v", got, err)
+	}
+	attached, err := client.AttachInput(context.Background())
+	if err != nil || attached.Input == nil || attached.Input.State != "attached" {
+		t.Fatalf("attach = %#v, %v", attached, err)
+	}
+	if attachBody != "" || attachCT != "" {
+		t.Fatalf("attach request body=%q ct=%q", attachBody, attachCT)
+	}
+	detached, err := client.DetachInput(context.Background())
+	if err != nil || detached.Input == nil || detached.Input.State != "detached" {
+		t.Fatalf("detach = %#v, %v", detached, err)
+	}
+	if detachBody != "" || detachCT != "" {
+		t.Fatalf("detach request body=%q ct=%q", detachBody, detachCT)
+	}
+}
+
+func TestHostTransportErrorIncludesClientTimeout(t *testing.T) {
+	t.Parallel()
+	if isHostTransportError(context.Canceled) || isHostTransportError(context.Cause(context.Background())) {
+		t.Fatal("canceled or nil should not be host transport")
+	}
+	timeout := &url.Error{Op: "Get", URL: "http://127.0.0.1:8787/api/v1/health", Err: context.DeadlineExceeded}
+	if !isHostTransportError(timeout) {
+		t.Fatal("http client timeout should be host unreachable")
+	}
+	if !isHostTransportError(context.DeadlineExceeded) {
+		t.Fatal("deadline exceeded without cancel should be host transport")
+	}
+	if isHostTransportError(errors.New("host API status 404")) {
+		t.Fatal("HTTP status error is not transport")
 	}
 }
 

@@ -941,6 +941,11 @@ func TestAttractBlockedIgnoresRejectedHostLaunchPhase(t *testing.T) {
 	if !app.attractBlockedLocked() {
 		t.Fatal("in-flight launch did not block attract")
 	}
+	app.launch.Phase = "idle"
+	app.inputBusy = true
+	if !app.attractBlockedLocked() {
+		t.Fatal("in-flight input attach/detach did not block attract")
+	}
 }
 
 func TestAppAllowsAttractAfterRejectedHostLaunch(t *testing.T) {

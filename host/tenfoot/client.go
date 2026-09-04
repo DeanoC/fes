@@ -8,8 +8,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -163,10 +165,31 @@ type SessionProgress struct {
 	Message string `json:"message"`
 }
 
-// SessionInput is the read-only remote-input object on sessionResult.
+// SessionInput is the read-only remote-input object on sessionResult
+// and GET /api/v1/session/input.
 type SessionInput struct {
 	State string `json:"state"`
 	Ready bool   `json:"ready"`
+}
+
+// HealthResult is GET /api/v1/health. HTTP 200 while the host process is up.
+type HealthResult struct {
+	Ready           bool
+	TargetReachable bool
+	TargetReady     bool
+}
+
+// TargetStatus is GET /api/v1/status. HTTP 503 TARGET_UNAVAILABLE means the kit
+// did not answer; that is not a host-process failure.
+type TargetStatus struct {
+	HTTPStatus   int
+	State        string
+	GameID       string
+	System       string
+	Core         string
+	ErrorCode    string
+	ErrorMessage string
+	Unavailable  bool
 }
 
 // SessionResult is sessionResult from GET /api/v1/session, POST launch, and POST stop.
@@ -819,6 +842,150 @@ func (c *Client) Stop(ctx context.Context) (SessionResult, error) {
 		return result, fmt.Errorf("stop response: expected idle session, got %q", result.State)
 	}
 	return result, nil
+}
+
+// Health loads GET /api/v1/health. A transport failure means the host process
+// is unreachable; HTTP 200 with target.reachable=false is a kit-down signal.
+func (c *Client) Health(ctx context.Context) (HealthResult, error) {
+	var wire struct {
+		Ready  bool `json:"ready"`
+		Target struct {
+			Reachable bool `json:"reachable"`
+			Ready     bool `json:"ready"`
+		} `json:"target"`
+	}
+	if err := c.getJSON(ctx, "/api/v1/health", &wire); err != nil {
+		return HealthResult{}, err
+	}
+	return HealthResult{
+		Ready:           wire.Ready,
+		TargetReachable: wire.Target.Reachable,
+		TargetReady:     wire.Target.Ready,
+	}, nil
+}
+
+// Status loads GET /api/v1/status. HTTP 503 TARGET_UNAVAILABLE is kit-down,
+// not a decode error.
+func (c *Client) Status(ctx context.Context) (TargetStatus, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/status", http.NoBody)
+	if err != nil {
+		return TargetStatus{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return TargetStatus{}, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponse))
+	if err != nil {
+		return TargetStatus{}, err
+	}
+	result := TargetStatus{HTTPStatus: resp.StatusCode}
+	var wire struct {
+		State  string  `json:"state"`
+		GameID *string `json:"game_id"`
+		System *string `json:"system"`
+		Core   *string `json:"core"`
+		Error  *struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	_ = json.Unmarshal(body, &wire)
+	result.State = strings.TrimSpace(wire.State)
+	if wire.GameID != nil {
+		result.GameID = strings.TrimSpace(*wire.GameID)
+	}
+	if wire.System != nil {
+		result.System = strings.TrimSpace(*wire.System)
+	}
+	if wire.Core != nil {
+		result.Core = strings.TrimSpace(*wire.Core)
+	}
+	if wire.Error != nil {
+		result.ErrorCode = strings.TrimSpace(wire.Error.Code)
+		result.ErrorMessage = strings.TrimSpace(wire.Error.Message)
+	}
+	if resp.StatusCode == http.StatusServiceUnavailable && result.ErrorCode == "TARGET_UNAVAILABLE" {
+		result.Unavailable = true
+		return result, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		if result.ErrorCode != "" {
+			return result, fmt.Errorf("host API %d %s: %s", resp.StatusCode, result.ErrorCode, result.ErrorMessage)
+		}
+		return result, apiStatusError(resp.StatusCode, body)
+	}
+	return result, nil
+}
+
+// SessionInput loads GET /api/v1/session/input.
+func (c *Client) SessionInput(ctx context.Context) (SessionInput, error) {
+	var result SessionInput
+	if err := c.getJSON(ctx, "/api/v1/session/input", &result); err != nil {
+		return SessionInput{}, err
+	}
+	return result, nil
+}
+
+// AttachInput posts an empty body to POST /api/v1/session/input/attach.
+func (c *Client) AttachInput(ctx context.Context) (SessionResult, error) {
+	return c.postSessionInput(ctx, "/api/v1/session/input/attach")
+}
+
+// DetachInput posts an empty body to POST /api/v1/session/input/detach.
+func (c *Client) DetachInput(ctx context.Context) (SessionResult, error) {
+	return c.postSessionInput(ctx, "/api/v1/session/input/detach")
+}
+
+func (c *Client) postSessionInput(ctx context.Context, path string) (SessionResult, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, http.NoBody)
+	if err != nil {
+		return SessionResult{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return SessionResult{}, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponse))
+	if err != nil {
+		return SessionResult{}, err
+	}
+	result, err := decodeSessionBody(resp.StatusCode, body)
+	if err != nil {
+		return result, fmt.Errorf("input response: %w", err)
+	}
+	if result.ErrorCode != "" {
+		return result, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return result, apiStatusError(resp.StatusCode, body)
+	}
+	if !validSessionState(result.State) {
+		return result, fmt.Errorf("input response: invalid session state %q", result.State)
+	}
+	return result, nil
+}
+
+func isHostTransportError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.Canceled) {
+		return false
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return true
+	}
+	return errors.Is(err, context.DeadlineExceeded)
 }
 
 func validSessionState(state string) bool {
