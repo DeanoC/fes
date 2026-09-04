@@ -14,6 +14,12 @@ import (
 	"time"
 )
 
+func appSettingsCommitState(app *App) (idleSeconds int, hydrated bool) {
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	return app.attractIdleSeconds, app.settingsHydrated
+}
+
 func TestTenfootPrefsAttractRoundTrip(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "FogCast", "tenfoot.json")
@@ -290,8 +296,8 @@ func TestAppSettingsPatchIdleRegionsAndTarget(t *testing.T) {
 	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
 		return !snap.Settings.Busy && strings.Contains(snap.Status, "idle 75s")
 	})
-	if app.attractIdleSeconds != 75 {
-		t.Fatalf("attract idle not hydrated: %d", app.attractIdleSeconds)
+	if idle, _ := appSettingsCommitState(app); idle != 75 {
+		t.Fatalf("attract idle not hydrated: %d", idle)
 	}
 	app.HandleCommand(CmdDown, now)
 	app.HandleCommand(CmdSelect, now)
@@ -551,12 +557,13 @@ func TestAppSettingsPatchAppliesAfterClose(t *testing.T) {
 	close(release)
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if app.attractIdleSeconds == 75 {
+		if idle, _ := appSettingsCommitState(app); idle == 75 {
 			return
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	t.Fatalf("idle after close = %d", app.attractIdleSeconds)
+	idle, _ := appSettingsCommitState(app)
+	t.Fatalf("idle after close = %d", idle)
 }
 
 func TestAppSettingsIdlePatchInvalidatesAttractFetch(t *testing.T) {
@@ -609,12 +616,13 @@ func TestAppSettingsIdlePatchInvalidatesAttractFetch(t *testing.T) {
 	app.HandleCommand(CmdRight, now)
 	app.HandleCommand(CmdSelect, now)
 	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
-		return !snap.Settings.Busy && app.attractIdleSeconds == 75
+		idle, _ := appSettingsCommitState(app)
+		return !snap.Settings.Busy && idle == 75
 	})
 	close(attractRelease)
 	time.Sleep(50 * time.Millisecond)
-	if app.attractIdleSeconds != 75 {
-		t.Fatalf("stale attract GET overwrote idle: %d", app.attractIdleSeconds)
+	if idle, _ := appSettingsCommitState(app); idle != 75 {
+		t.Fatalf("stale attract GET overwrote idle: %d", idle)
 	}
 }
 
@@ -715,7 +723,8 @@ func TestAppSettingsStalePatchDoesNotClearNewBusy(t *testing.T) {
 	}
 	close(secondRelease)
 	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
-		return !snap.Settings.Busy && app.attractIdleSeconds == 90
+		idle, _ := appSettingsCommitState(app)
+		return !snap.Settings.Busy && idle == 90
 	})
 }
 
@@ -862,17 +871,18 @@ func TestAppSettingsRehydratesAfterSaveCompletesDuringReopen(t *testing.T) {
 	close(patchRelease)
 	deadline = time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if app.attractIdleSeconds == 75 {
+		if idle, _ := appSettingsCommitState(app); idle == 75 {
 			break
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	if app.attractIdleSeconds != 75 {
-		t.Fatalf("PATCH did not apply idle, got %d", app.attractIdleSeconds)
+	if idle, _ := appSettingsCommitState(app); idle != 75 {
+		t.Fatalf("PATCH did not apply idle, got %d", idle)
 	}
 	close(getRelease)
 	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
-		return snap.Settings.Open && !snap.Settings.Loading && app.settingsHydrated && snap.Settings.Rows[settingsRowIdle].Value == "75s"
+		_, hydrated := appSettingsCommitState(app)
+		return snap.Settings.Open && !snap.Settings.Loading && hydrated && snap.Settings.Rows[settingsRowIdle].Value == "75s"
 	})
 	if got := app.Snapshot().Settings.Rows[settingsRowIdle].Value; got == "—" {
 		t.Fatal("overlay stayed unhydrated")
