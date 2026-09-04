@@ -237,6 +237,12 @@ type Snapshot struct {
 	Attract         AttractSnapshot
 	SafeAreaPct     float64
 	Settings        SettingsSnapshot
+	Filters         FilterSnapshot
+	Genre           string
+	Year            string
+	Region          string
+	HidePrerelease  bool
+	HideHacks       bool
 	OSK             OSKSnapshot
 	Health          HealthSnapshot
 	Detail          DetailSnapshot
@@ -303,6 +309,18 @@ type App struct {
 	collectionManageID    string
 	collectionManageName  string
 	collectionConfirmOpen bool
+	filtersOpen           bool
+	filterPane            int
+	filterIndex           int
+	filterGen             int
+	filtersLoading        bool
+	filterStatus          string
+	filterGenre           string
+	filterYear            string
+	filterRegion          string
+	hidePrerelease        bool
+	hideHacks             bool
+	facets                FacetValues
 	settingsOpen          bool
 	settingsIndex         int
 	settingsGen           int
@@ -392,6 +410,7 @@ func NewApp(client *Client, width, height, maxGames int) *App {
 		maxGames:           maxGames,
 		pageLimit:          defaultPageLimit,
 		sort:               "title",
+		facets:             FacetValues{Genres: []string{}, Years: []string{}},
 		details:            map[string]FocusDetail{},
 		shots:              map[string]*shotSlot{},
 		shotIDs:            map[string][]string{},
@@ -481,9 +500,20 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 			a.openSettingsLocked()
 		}
 		return
+	case CmdFilters:
+		if a.filtersOpen {
+			a.closeFiltersLocked()
+		} else {
+			a.openFiltersLocked()
+		}
+		return
 	}
 	if a.settingsOpen {
 		a.handleSettingsLocked(cmd)
+		return
+	}
+	if a.filtersOpen {
+		a.handleFiltersLocked(cmd)
 		return
 	}
 	if a.nameEntryOpenLocked() {
@@ -508,7 +538,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		case CmdSortCycle:
 			a.startInputToggleLocked()
 			return
-		case CmdUp, CmdDown, CmdLeft, CmdRight, CmdFilterPrev, CmdFilterNext, CmdSearch, CmdViewPrev, CmdViewNext, CmdViewPicker, CmdFavorite, CmdSafeAreaIn, CmdSafeAreaOut:
+		case CmdUp, CmdDown, CmdLeft, CmdRight, CmdFilterPrev, CmdFilterNext, CmdSearch, CmdViewPrev, CmdViewNext, CmdViewPicker, CmdFavorite, CmdFilters, CmdSafeAreaIn, CmdSafeAreaOut:
 			return
 		}
 	}
@@ -553,6 +583,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 
 func (a *App) openSearchLocked() {
 	a.closeDetailLocked()
+	a.closeFiltersLocked()
 	a.searchOpen = true
 	a.searchField.OSK.Reset()
 }
@@ -783,6 +814,7 @@ func (a *App) normalizeSortForCollectionLocked() {
 
 func (a *App) openViewPickerLocked() {
 	a.closeDetailLocked()
+	a.closeFiltersLocked()
 	a.searchOpen = false
 	a.closeNameEntryLocked()
 	a.closeCollectionManageLocked()
@@ -1065,6 +1097,12 @@ func (a *App) Snapshot() Snapshot {
 		Attract:         a.attractSnapshotLocked(),
 		SafeAreaPct:     a.safeAreaPct,
 		Settings:        a.settingsSnapshotLocked(),
+		Filters:         a.filtersSnapshotLocked(),
+		Genre:           a.filterGenre,
+		Year:            a.filterYear,
+		Region:          a.filterRegion,
+		HidePrerelease:  a.hidePrerelease,
+		HideHacks:       a.hideHacks,
 		OSK:             a.oskSnapshotLocked(),
 		Health:          health,
 		Detail:          a.detailSnapshotLocked(),
@@ -1109,6 +1147,20 @@ func (a *App) ViewPickerOpen() bool {
 	return a.viewPickerOpen
 }
 
+func (a *App) browseHoldEnabled() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.gpuParked || a.stopPhase == "stopping" {
+		return false
+	}
+	switch a.session.State {
+	case "active", "launching":
+		return false
+	default:
+		return true
+	}
+}
+
 // ChromeLine is the header label: now-playing while a session is active, otherwise browse chrome.
 func (s Snapshot) ChromeLine() string {
 	line := s.chromeBody()
@@ -1150,11 +1202,14 @@ func (s Snapshot) chromeBody() string {
 	} else if strings.TrimSpace(s.Query) != "" {
 		search = "Search: " + s.Query
 	}
+	parts := []string{view, platform, sortLabel(s.Collection, s.Sort)}
+	parts = append(parts, filterSummaryParts(s.Genre, s.Year, s.Region, s.HidePrerelease, s.HideHacks)...)
+	parts = append(parts, search)
 	status := s.Status
 	if health := strings.TrimSpace(s.Health.Line); health != "" && status == health {
-		return fmt.Sprintf("%s  ·  %s  ·  %s  ·  %s", view, platform, sortLabel(s.Collection, s.Sort), search)
+		return strings.Join(parts, "  ·  ")
 	}
-	return fmt.Sprintf("%s  ·  %s  ·  %s  ·  %s  ·  %s", view, platform, sortLabel(s.Collection, s.Sort), search, status)
+	return strings.Join(append(parts, status), "  ·  ")
 }
 
 // NowPlayingLine is the compact active-session chrome.
@@ -1694,6 +1749,7 @@ func (a *App) syncGPUParkLocked() {
 			a.closeCollectionOverlaysLocked()
 			a.searchOpen = false
 			a.closeSettingsLocked()
+			a.closeFiltersLocked()
 			a.closeDetailLocked()
 		}
 		return
@@ -1706,6 +1762,7 @@ func (a *App) syncGPUParkLocked() {
 	a.closeCollectionOverlaysLocked()
 	a.searchOpen = false
 	a.closeSettingsLocked()
+	a.closeFiltersLocked()
 	a.closeDetailLocked()
 	a.inflight = map[string]workKind{}
 	a.covers = map[string]*coverSlot{}
@@ -1904,11 +1961,16 @@ func (a *App) loadCollections(ctx context.Context) {
 
 func (a *App) currentQueryLocked() GameListQuery {
 	return GameListQuery{
-		Limit:      a.pageLimit,
-		Platform:   a.platformID,
-		Sort:       catalogQuerySort(a.collectionID, a.sort),
-		Q:          strings.TrimSpace(a.searchField.Buffer),
-		Collection: a.collectionID,
+		Limit:          a.pageLimit,
+		Platform:       a.platformID,
+		Sort:           catalogQuerySort(a.collectionID, a.sort),
+		Q:              strings.TrimSpace(a.searchField.Buffer),
+		Collection:     a.collectionID,
+		Genre:          a.filterGenre,
+		Year:           a.filterYear,
+		Region:         a.filterRegion,
+		HidePrerelease: a.hidePrerelease,
+		HideHacks:      a.hideHacks,
 	}
 }
 
@@ -1941,8 +2003,15 @@ func (a *App) libraryStatusLocked() string {
 		platform = a.platformLabelLocked(a.platformID)
 	}
 	sort := sortLabel(a.collectionID, a.sort)
+	filters := a.filterSummaryLocked()
 	if q := strings.TrimSpace(a.searchField.Buffer); q != "" {
+		if filters != "" {
+			return fmt.Sprintf("%d titles · %s · %s · %s · %s · %q", n, view, platform, sort, filters, q)
+		}
 		return fmt.Sprintf("%d titles · %s · %s · %s · %q", n, view, platform, sort, q)
+	}
+	if filters != "" {
+		return fmt.Sprintf("%d titles · %s · %s · %s · %s", n, view, platform, sort, filters)
 	}
 	return fmt.Sprintf("%d titles · %s · %s · %s", n, view, platform, sort)
 }
@@ -2120,7 +2189,7 @@ func (a *App) loadLibrary(ctx context.Context, gen int) {
 	a.loading = false
 	if len(a.games) == 0 {
 		a.status = "host API returned no titles"
-		if a.platformID != "" || strings.TrimSpace(a.searchField.Buffer) != "" || a.collectionID != "" {
+		if a.platformID != "" || strings.TrimSpace(a.searchField.Buffer) != "" || a.collectionID != "" || a.filtersActiveLocked() {
 			a.status = a.libraryStatusLocked()
 		}
 	} else {

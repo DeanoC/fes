@@ -76,7 +76,7 @@ every layout.
 
 Attract mode starts after the host `idle_seconds` from
 `GET /api/v1/library/attract` (default 60s) with no input, no modal search/view
-picker or settings overlay, and no active host session. The client hydrates that
+picker, filter overlay, or settings overlay, and no active host session. The client hydrates that
 idle threshold before arming the timer. A sofa settings PATCH of
 `attract_idle_seconds` updates the same idle timer. Playlist rows with a `video` handle play first (Darwin
 AVFoundation, including the track `preferredTransform`). Short clips play
@@ -101,10 +101,21 @@ Left/Right in the pane cycle screenshots. South/A still launches, East/B still
 stops a live session, Start still quits, Guide still opens settings, North/Y
 still opens search, and Select/View still cycles layout.
 Shoulders cycle the platform filter
-(All, then each host platform). West/X cycles sort (title, recently added,
-system) while browsing. While an FPGA-native session is now-playing, West/X
+(All, then each host platform). West/X tap cycles sort (title, recently added,
+system) while browsing. Hold West/X opens the sofa filter overlay (genre,
+year, region, hide prerelease, hide hacks). Debug keyboard `g` toggles the
+same overlay. D-pad moves rows, South/A confirms, East/B backs out of a list
+or closes. Genre and year options come from `GET /api/v1/library/facets`;
+region uses the web dump-region tokens (USA, Japan, Europe, …, Other). Empty
+facet lists still offer Any plus an honest empty hint. Changing a facet
+reloads the catalog; Clear restores unfiltered browse and keeps platform,
+collection, sort, and search. Hide toggles are session-local (not stored in
+`tenfoot.json`) and default off. Shoulders stay platforms; they are not
+rebound to filters. Select/View still cycles layout, Guide still opens
+settings, North/Y still opens search, and hold North still favorites.
+While an FPGA-native session is now-playing, West/X
 attaches or detaches remote input; East/B remains Stop, Start remains Quit,
-and Guide remains settings. On Recent, West/X cycles last played, title, and
+and Guide remains settings. Hold West does not open filters while now-playing. On Recent, West/X cycles last played, title, and
 system; on Recently
 added it cycles recently added and system, matching the host. North/Y opens
 search with a gamepad on-screen keyboard (letters/digits, space, backspace,
@@ -123,7 +134,7 @@ North/Y opens manage (Rename / Delete). Rename uses the same gamepad OSK,
 prefilled. Delete asks for South confirm / East cancel. Favorites and other
 smart rails are not renamed or deleted. After deleting the active custom
 shelf, the sofa returns to All. Attract does not arm while the view picker,
-manage/confirm, name OSK, search OSK, settings overlay, or an in-flight
+manage/confirm, name OSK, search OSK, filter overlay, settings overlay, or an in-flight
 remote-input attach/detach is open. Hold
 North/Y on the grid to favorite or unfavorite the focused title. While a host session is active,
 East/B stops it (`POST /api/v1/session/stop`); Start still quits the app.
@@ -138,7 +149,7 @@ Q to quit, `[` / `]` for platform, `x` for sort (or add/remove on a custom
 shelf while the view picker is open; attach/detach while now-playing), `/` or `f` for search (or manage a
 custom shelf while the picker is open), `c` / Shift+`c` to cycle views,
 `v` to favorite, `l` to cycle layout,
-`o` to open settings, `-` / `=` to nudge the overscan inset. Down arrow still
+`o` to open settings, `g` to open the filter overlay, `-` / `=` to nudge the overscan inset. Down arrow still
 moves focus when idle, and opens the detail pane from the last row.
 
 ## Sofa settings
@@ -191,15 +202,21 @@ make tenfoot-smoke
   (`all`, `favorites`, `recents`, `continue`, `unplayed`, `recently_added`,
   `recently-added`).
 - `DELETE /api/v1/library/collections/{id}` removes a custom shelf.
+- `GET /api/v1/library/facets` for genre and year lists (`{genres, years}`).
+  Empty or missing arrays are treated as empty. The endpoint does not return
+  regions; tenfoot uses the same dump-region tokens as the browser shell
+  (`usa`, `japan`, `europe`, `world`, `brazil`, `korea`, `asia`,
+  `australia`, `france`, `germany`, `spain`, `italy`, `canada`, `other`).
 - `GET /api/v1/games?grouped=1&availability=ready` with optional `collection`,
-  `platform`, `sort` (`title`, `recently_added`, `platform`), and `q`. Tenfoot
+  `platform`, `sort` (`title`, `recently_added`, `platform`), `q`, `genre`,
+  `year`, `region`, `hide_prerelease=1`, and `hide_hacks=1`. Tenfoot
   keeps `availability=ready` even when the web home rails omit it, so an empty
   sofa collection can still list titles in the browser. Recent (`collection=recents`)
   omits `sort` for last-played order; Title and System send `sort=title` /
   `sort=platform`. Recently added defaults to `sort=recently_added` (the host
   rewrites empty/title to that order) and still accepts System. Catalog `cover`
   handles load artwork directly; prefetched titles do not wait on presentation
-  metadata. A later view, platform, sort, or search reload cancels the in-flight
+  metadata. A later view, platform, sort, search, or filter reload cancels the in-flight
   games request and cover artwork/presentation work for the superseded
   generation. Each game may include `favorite` and `collections`.
 - `PUT` / `DELETE /api/v1/library/favorites/{id}` toggles the focused title.

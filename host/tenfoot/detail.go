@@ -203,6 +203,10 @@ func (a *App) handleDetailLocked(cmd Command) bool {
 	case CmdFavorite:
 		a.toggleFavoriteLocked()
 		return true
+	case CmdFilters:
+		a.closeDetailLocked()
+		a.openFiltersLocked()
+		return true
 	default:
 		return false
 	}

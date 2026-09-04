@@ -400,6 +400,98 @@ func TestClientListsGamesWithPlatformSortAndSearch(t *testing.T) {
 	}
 }
 
+func TestListGamesEncodesFacetsAndHideFlags(t *testing.T) {
+	t.Parallel()
+	var raw string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw = r.URL.RawQuery
+		_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{}})
+	}))
+	t.Cleanup(server.Close)
+	_, _, err := NewClient(server.URL, server.Client()).ListGames(context.Background(), GameListQuery{
+		Limit:          20,
+		Genre:          "Action",
+		Year:           "1991",
+		Region:         "japan",
+		HidePrerelease: true,
+		HideHacks:      true,
+		Collection:     "continue",
+		Platform:       "snes",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	values, err := url.ParseQuery(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if values.Get("grouped") != "1" || values.Get("availability") != "ready" {
+		t.Fatalf("defaults = %s", raw)
+	}
+	if values.Get("genre") != "Action" || values.Get("year") != "1991" || values.Get("region") != "japan" {
+		t.Fatalf("facets = %s", raw)
+	}
+	if values.Get("hide_prerelease") != "1" || values.Get("hide_hacks") != "1" {
+		t.Fatalf("hide = %s", raw)
+	}
+	if values.Get("collection") != "continue" || values.Get("platform") != "snes" {
+		t.Fatalf("browse = %s", raw)
+	}
+
+	raw = ""
+	_, _, err = NewClient(server.URL, server.Client()).ListGames(context.Background(), GameListQuery{Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	values, err = url.ParseQuery(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"genre", "year", "region", "hide_prerelease", "hide_hacks"} {
+		if values.Get(key) != "" {
+			t.Fatalf("omitted %s leaked in %s", key, raw)
+		}
+	}
+}
+
+func TestFacetsNilArraysDecodeEmpty(t *testing.T) {
+	t.Parallel()
+	cases := []string{`{}`, `{"genres":null,"years":null}`, `{"genres":[],"years":[]}`}
+	for _, body := range cases {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/api/v1/library/facets" {
+				t.Errorf("path = %s", r.URL.Path)
+				http.NotFound(w, r)
+				return
+			}
+			_, _ = io.WriteString(w, body)
+		}))
+		got, err := NewClient(server.URL, server.Client()).Facets(context.Background())
+		server.Close()
+		if err != nil {
+			t.Fatalf("body %s: %v", body, err)
+		}
+		if got.Genres == nil || got.Years == nil || len(got.Genres) != 0 || len(got.Years) != 0 {
+			t.Fatalf("body %s: %#v", body, got)
+		}
+	}
+}
+
+func TestFacetsDecodesGenresAndYears(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"genres": []string{"Action", "RPG"}, "years": []string{"1991", "1992"}})
+	}))
+	t.Cleanup(server.Close)
+	got, err := NewClient(server.URL, server.Client()).Facets(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Genres) != 2 || got.Genres[0] != "Action" || len(got.Years) != 2 || got.Years[1] != "1992" {
+		t.Fatalf("facets = %#v", got)
+	}
+}
+
 func TestClientListsPlatforms(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

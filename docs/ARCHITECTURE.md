@@ -75,7 +75,8 @@ path:
 Native SDL3 UI
   -> GET /api/v1/platforms
   -> GET /api/v1/library/collections
-  -> GET /api/v1/games (grouped=1, availability=ready, optional collection/platform/sort/q)
+  -> GET /api/v1/library/facets for genre and year lists
+  -> GET /api/v1/games (grouped=1, availability=ready, optional collection/platform/sort/q/genre/year/region/hide_prerelease/hide_hacks)
   -> PUT or DELETE /api/v1/library/favorites/{id} for the focused title
   -> PUT or DELETE /api/v1/library/collections/{id}/{gameId} for custom-shelf membership
   -> PUT /api/v1/library/collections/{id}?name=... and DELETE /api/v1/library/collections/{id} for custom shelves
