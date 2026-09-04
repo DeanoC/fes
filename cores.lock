@@ -1,0 +1,11 @@
+# Copied pin from mister-packages packages/source/megadrive_mister.yaml.
+# This file is data, not a clone recipe. make fetch-core checks it out.
+
+[core.megadrive]
+repo = "https://github.com/MiSTer-devel/MegaDrive_MiSTer"
+commit = "7365a137cfd8fa6f041e964d8b953159c0ec42d9"
+rbf_path = "releases/MegaDrive_20260603.rbf"
+rbf_sha256 = "0cd43ea2c96e726999f04924713ca090ae73829f3ab08109c6b552cebeba0839"
+rbf_size = 4296864
+project = "MegaDrive.qpf"
+rationale = "Release 20260603. Hashed release RBF is the oracle until Quartus rebuild bit-matches."

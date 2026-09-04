@@ -17,6 +17,7 @@ class RepositoryContractTests(unittest.TestCase):
             "oss",
             "oracle",
             "compare",
+            "fetch-core",
             "program",
         ):
             self.assertIn(target, result.stdout)

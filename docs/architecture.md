@@ -57,3 +57,12 @@ required.
 `make program` is an optional direct diagnostic. It is deliberately separate
 from `sim`, `oss`, `oracle`, and `compare`, so building an RBF never touches
 hardware.
+
+## Pinned core trees
+
+`cores.lock` records third-party FPGA core git identity (repo, commit,
+in-tree release RBF path, sha256, size, Quartus project). `make fetch-core`
+checks out that exact commit under `build/cores/<name>/` and hashes the
+locked RBF. It does not clone `HEAD`, does not reset dirty trees, and does
+not run Quartus. The hashed release remains the oracle until a later
+Quartus rebuild bit-matches.

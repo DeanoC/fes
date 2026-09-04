@@ -15,11 +15,17 @@ development possible with both the open-source Mistral toolchain and Quartus.
 - `010_blinky`, a small LED counter.
 - `020_linux_mailbox`, a small HPS GPI/GPO mailbox experiment.
 
+Pinned third-party cores live in `cores.lock`. `make fetch-core CORE=megadrive`
+checks out the locked Mega Drive git commit and hashes
+`releases/MegaDrive_20260603.rbf`. That is a fetch-and-hash gate, not a
+Quartus or OSS rebuild.
+
 The useful outputs are ordinary local files:
 
 ```text
 build/oss/<experiment>/top.rbf
 build/oracle/<experiment>/top.rbf
+build/cores/megadrive/
 ```
 
 FogCast owns choosing one of those files, transferring it to the disposable
