@@ -494,6 +494,146 @@ func TestAppSearchQueriesHost(t *testing.T) {
 	})
 }
 
+func focusSearchKey(t *testing.T, app *App, id string) {
+	t.Helper()
+	app.mu.Lock()
+	ok := app.searchField.OSK.SelectID(id)
+	app.mu.Unlock()
+	if !ok {
+		t.Fatalf("osk key %q not found", id)
+	}
+}
+
+func oskType(t *testing.T, app *App, text string, now time.Time) {
+	t.Helper()
+	for _, r := range text {
+		focusSearchKey(t, app, "char-"+string(r))
+		app.Press(CmdSelect, now)
+	}
+}
+
+func TestAppOSKTypesSearchQueryAndDoneCloses(t *testing.T) {
+	var mu sync.Mutex
+	var paths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/games" {
+			mu.Lock()
+			paths = append(paths, r.URL.RequestURI())
+			mu.Unlock()
+			q := r.URL.Query().Get("q")
+			games := []Game{availableGame("snes-mario", "Mario", "snes"), availableGame("megadrive-sonic", "Sonic", "megadrive")}
+			if q == "sonic" {
+				games = []Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}
+			}
+			if q != "" && q != "sonic" {
+				games = nil
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": games})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) == 2 && !snap.Loading
+	})
+	focusBefore := app.Snapshot().Grid.Focus
+	now := time.Now()
+	app.Press(CmdSearch, now)
+	snap := app.Snapshot()
+	if !snap.SearchOpen || !snap.OSK.Open || snap.OSK.FocusID != "char-q" {
+		t.Fatalf("osk open = %#v", snap.OSK)
+	}
+	app.Press(CmdRight, now)
+	if app.Snapshot().Grid.Focus != focusBefore {
+		t.Fatal("d-pad moved cover focus while OSK open")
+	}
+	if app.Snapshot().OSK.FocusID != "char-w" {
+		t.Fatalf("osk focus = %q", app.Snapshot().OSK.FocusID)
+	}
+	oskType(t, app, "sonic", now)
+	if got := app.Snapshot().Query; got != "sonic" {
+		t.Fatalf("query = %q", got)
+	}
+	app.TypeText("!", now)
+	if got := app.Snapshot().Query; got != "sonic!" {
+		t.Fatalf("physical type = %q", got)
+	}
+	focusSearchKey(t, app, "bksp")
+	app.Press(CmdSelect, now)
+	if got := app.Snapshot().Query; got != "sonic" {
+		t.Fatalf("bksp = %q", got)
+	}
+	app.Tick(now.Add(searchDebounce + time.Millisecond))
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return snap.Query == "sonic" && len(snap.Games) == 1 && snap.Games[0].ID == "megadrive-sonic" && !snap.Loading
+	})
+	focusSearchKey(t, app, "done")
+	app.Press(CmdSelect, time.Now())
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.SearchOpen && !snap.OSK.Open && snap.Query == "sonic"
+	})
+	found := false
+	mu.Lock()
+	snapshot := append([]string(nil), paths...)
+	mu.Unlock()
+	for _, path := range snapshot {
+		if strings.Contains(path, "q=sonic") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("paths = %#v", snapshot)
+	}
+}
+
+func TestAppOSKIgnoresLayoutAndPagesCharset(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/games" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) == 1 && !snap.Loading
+	})
+	now := time.Now()
+	layout := app.Snapshot().Grid.Mode
+	safe := app.Snapshot().SafeAreaPct
+	app.Press(CmdSearch, now)
+	app.Press(CmdLayoutCycle, now)
+	app.Press(CmdSafeAreaIn, now)
+	app.Press(CmdFilterNext, now)
+	snap := app.Snapshot()
+	if snap.Grid.Mode != layout {
+		t.Fatalf("layout changed while OSK open: %s", snap.Grid.Mode)
+	}
+	if snap.SafeAreaPct != safe {
+		t.Fatalf("safe-area changed while OSK open: %v", snap.SafeAreaPct)
+	}
+	if snap.PlatformID != "" {
+		t.Fatalf("shoulder cycled platform: %q", snap.PlatformID)
+	}
+	if snap.OSK.Page != oskPageSymbols {
+		t.Fatalf("shoulder should page OSK, page=%d", snap.OSK.Page)
+	}
+	app.Press(CmdBack, now)
+	if app.SearchOpen() {
+		t.Fatal("empty B should close OSK")
+	}
+}
+
 func TestAppReloadClearsPendingSearch(t *testing.T) {
 	var mu sync.Mutex
 	var paths []string
@@ -1933,6 +2073,7 @@ func TestAppSelectClosesSearchFlushesBeforeLaunch(t *testing.T) {
 	now := time.Now()
 	app.Press(CmdSearch, now)
 	app.TypeText("sonic", now)
+	focusSearchKey(t, app, "done")
 	app.Press(CmdSelect, now)
 	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
 		return !snap.SearchOpen && snap.Loading && snap.Query == "sonic"

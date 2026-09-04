@@ -718,7 +718,7 @@ func handleSearchKey(app *App, ev *C.FogcastEvent, now time.Time) bool {
 		case C.SDLK_ESCAPE:
 			app.Press(CmdBack, now)
 		case C.SDLK_RETURN:
-			app.Press(CmdSelect, now)
+			app.ConfirmSearch(now)
 		case C.SDLK_UP, C.SDLK_DOWN, C.SDLK_LEFT, C.SDLK_RIGHT:
 			app.Press(commandFromSDLKey(ev.code), now)
 		}
@@ -879,6 +879,7 @@ func drawFrame(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[str
 	drawDetail(renderer, snap, labels, used)
 	drawViewPicker(renderer, snap, labels, used)
 	drawSettings(renderer, snap, labels, used)
+	drawOSK(renderer, snap, labels, used)
 	for key, item := range labels {
 		if _, ok := used[key]; ok {
 			continue
@@ -1002,6 +1003,8 @@ func drawHeader(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTe
 	hint := "LB/RB platform  X sort  Y search  hold A view  hold Y fav  SELECT layout  GUIDE settings"
 	if snap.GPUParked || snap.Session.State == "active" {
 		hint = "B stop  START quit  SELECT layout"
+	} else if snap.OSK.Open {
+		hint = snap.OSK.Hint
 	}
 	drawDebug(renderer, x+24, y+72, hint, 1)
 }
@@ -1225,6 +1228,105 @@ func drawSettings(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdl
 		status = "loading host settings"
 	}
 	drawLabel(renderer, labels, used, "set-status", x+16, y+panelH-24, panelW-32, 14, status)
+}
+
+func drawOSK(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTexture, used map[string]struct{}) {
+	if !snap.OSK.Open || len(snap.OSK.Rows) == 0 {
+		return
+	}
+	contentW := snap.Grid.contentWidth()
+	contentH := snap.Grid.contentHeight()
+	C.SDL_SetRenderDrawBlendMode(renderer, C.SDL_BLENDMODE_BLEND)
+	fillRect(renderer, float32(snap.Grid.contentLeft()), float32(snap.Grid.contentTop()), float32(contentW), float32(contentH), 8, 8, 12, 180)
+	C.SDL_SetRenderDrawBlendMode(renderer, C.SDL_BLENDMODE_NONE)
+	panelW := contentW - 48
+	if panelW < 280 {
+		panelW = contentW - 24
+	}
+	if panelW < 1 {
+		panelW = contentW
+	}
+	headerH := 48
+	footerH := 28
+	gap := 6
+	rows := snap.OSK.Rows
+	maxH := contentH - 24
+	if maxH < 120 {
+		maxH = contentH
+	}
+	keyH := 40
+	panelH := headerH + len(rows)*keyH + (len(rows)-1)*gap + footerH + 16
+	if panelH > maxH {
+		remain := maxH - headerH - footerH - 16 - (len(rows)-1)*gap
+		if remain < len(rows)*24 {
+			remain = len(rows) * 24
+		}
+		keyH = remain / len(rows)
+		if keyH < 22 {
+			keyH = 22
+		}
+		panelH = headerH + len(rows)*keyH + (len(rows)-1)*gap + footerH + 16
+		if panelH > maxH {
+			panelH = maxH
+		}
+	}
+	x := snap.Grid.contentLeft() + (contentW-panelW)/2
+	y := snap.Grid.headerY() + snap.Grid.HeaderHeight + 12
+	if y+panelH > snap.Grid.footerY()-8 {
+		y = snap.Grid.contentTop() + (contentH-panelH)/2
+	}
+	if y < snap.Grid.contentTop()+8 {
+		y = snap.Grid.contentTop() + 8
+	}
+	fillRect(renderer, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
+	fillRect(renderer, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
+	query := snap.OSK.Buffer
+	if query == "" {
+		query = snap.Query
+	}
+	drawLabel(renderer, labels, used, "osk-query", x+16, y+12, panelW-32, 18, "Search: "+query+"_")
+	innerX := x + 12
+	innerW := panelW - 24
+	if innerW < 1 {
+		innerW = 1
+	}
+	refCols := 10
+	unitW := (innerW - (refCols-1)*gap) / refCols
+	if unitW < 8 {
+		unitW = 8
+	}
+	rowY := y + headerH
+	for r, row := range rows {
+		colX := innerX
+		for c, key := range row {
+			span := key.Span
+			if span < 1 {
+				span = 1
+			}
+			kw := span*unitW + (span-1)*gap
+			if r < 3 {
+				kw = unitW
+			}
+			if key.Focus {
+				fillRect(renderer, float32(colX-2), float32(rowY-2), float32(kw+4), float32(keyH+4), 255, 184, 48, 255)
+				fillRect(renderer, float32(colX), float32(rowY), float32(kw), float32(keyH), 48, 56, 80, 255)
+			} else {
+				fillRect(renderer, float32(colX), float32(rowY), float32(kw), float32(keyH), 32, 36, 48, 255)
+			}
+			labelSize := 16
+			if keyH < 28 {
+				labelSize = 12
+			}
+			drawLabel(renderer, labels, used, fmt.Sprintf("osk-%d-%d-%s", r, c, key.ID), colX+4, rowY+(keyH-labelSize)/2, kw-8, labelSize, key.Label)
+			colX += kw + gap
+		}
+		rowY += keyH + gap
+	}
+	hint := strings.TrimSpace(snap.OSK.Hint)
+	if hint == "" {
+		hint = oskHint(snap.OSK.Page)
+	}
+	drawLabel(renderer, labels, used, "osk-hint", x+16, y+panelH-24, panelW-32, 14, hint)
 }
 
 func drawAttract(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[string]sdlTexture) {

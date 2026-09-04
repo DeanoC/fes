@@ -207,6 +207,7 @@ type Snapshot struct {
 	Attract         AttractSnapshot
 	SafeAreaPct     float64
 	Settings        SettingsSnapshot
+	OSK             OSKSnapshot
 }
 
 // App owns catalog, focus, async covers, and host launch. SDL stays out.
@@ -234,7 +235,7 @@ type App struct {
 	platforms            []Platform
 	platformID           string
 	sort                 string
-	query                string
+	searchField          TextField
 	searchOpen           bool
 	searchPending        bool
 	searchDue            time.Time
@@ -397,6 +398,12 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	if a.consumeAttractLocked(cmd, now) {
 		return
 	}
+	if a.searchOpen {
+		switch cmd {
+		case CmdSafeAreaIn, CmdSafeAreaOut, CmdLayoutCycle:
+			return
+		}
+	}
 	switch cmd {
 	case CmdSafeAreaIn:
 		a.setSafeAreaPctLocked(a.safeAreaPct+safeAreaNudge, true)
@@ -425,6 +432,10 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.handleViewPickerLocked(cmd)
 		return
 	}
+	if a.searchOpen {
+		a.handleSearchLocked(cmd, now)
+		return
+	}
 	if a.sessionStopOfferedLocked() && !a.searchOpen {
 		switch cmd {
 		case CmdBack, CmdStop:
@@ -446,25 +457,10 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	case CmdRight:
 		a.moveFocusLocked(1, 0)
 	case CmdSelect:
-		if a.searchOpen {
-			a.searchOpen = false
-			a.applyPendingSearchLocked()
-			return
-		}
 		a.startLaunchLocked()
 	case CmdStop:
 		a.startStopLocked()
 	case CmdBack:
-		if a.searchOpen {
-			if strings.TrimSpace(a.query) != "" {
-				a.query = ""
-				a.searchPending = false
-				a.reloadLocked()
-				return
-			}
-			a.searchOpen = false
-			return
-		}
 		if a.launch.Phase == "launching" {
 			a.status = "launch in progress"
 		}
@@ -475,7 +471,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	case CmdSortCycle:
 		a.cycleSortLocked()
 	case CmdSearch:
-		a.searchOpen = !a.searchOpen
+		a.openSearchLocked()
 	case CmdViewPrev:
 		a.cycleViewLocked(-1)
 	case CmdViewNext:
@@ -487,10 +483,58 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	}
 }
 
-// TypeText appends into the on-screen search field.
+func (a *App) openSearchLocked() {
+	a.searchOpen = true
+	a.searchField.OSK.Reset()
+}
+
+func (a *App) closeSearchApplyLocked() {
+	a.searchOpen = false
+	a.applyPendingSearchLocked()
+}
+
+func (a *App) handleSearchLocked(cmd Command, now time.Time) {
+	switch cmd {
+	case CmdUp:
+		a.searchField.Move(0, -1)
+	case CmdDown:
+		a.searchField.Move(0, 1)
+	case CmdLeft:
+		a.searchField.Move(-1, 0)
+	case CmdRight:
+		a.searchField.Move(1, 0)
+	case CmdSelect:
+		result := a.searchField.Activate()
+		if result.Changed {
+			a.markSearchLocked(now)
+		}
+		if result.Done {
+			a.closeSearchApplyLocked()
+		}
+	case CmdBack:
+		if strings.TrimSpace(a.searchField.Buffer) != "" {
+			a.searchField.Clear()
+			a.searchPending = false
+			a.reloadLocked()
+			return
+		}
+		a.searchOpen = false
+	case CmdSearch:
+		a.searchOpen = false
+	case CmdFilterPrev:
+		a.searchField.CyclePage(-1)
+	case CmdFilterNext:
+		a.searchField.CyclePage(1)
+	case CmdSortCycle:
+		a.cycleSortLocked()
+	case CmdStop:
+		a.startStopLocked()
+	}
+}
+
+// TypeText appends into the on-screen search field from a physical keyboard.
 func (a *App) TypeText(text string, now time.Time) {
-	text = strings.ReplaceAll(text, "\n", "")
-	text = strings.ReplaceAll(text, "\r", "")
+	text = sanitizeFieldText(text)
 	if text == "" {
 		return
 	}
@@ -503,7 +547,7 @@ func (a *App) TypeText(text string, now time.Time) {
 	if !a.searchOpen {
 		return
 	}
-	a.query += text
+	a.searchField.Insert(text)
 	a.markSearchLocked(now)
 }
 
@@ -515,12 +559,25 @@ func (a *App) SearchBackspace(now time.Time) {
 	if a.consumeAttractLocked(CmdBack, now) {
 		return
 	}
-	if !a.searchOpen || a.query == "" {
+	if !a.searchOpen || a.searchField.Buffer == "" {
 		return
 	}
-	runes := []rune(a.query)
-	a.query = string(runes[:len(runes)-1])
+	a.searchField.Backspace()
 	a.markSearchLocked(now)
+}
+
+// ConfirmSearch closes the OSK and applies a pending query (physical Enter).
+func (a *App) ConfirmSearch(now time.Time) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.noteActivityLocked(now)
+	if a.consumeAttractLocked(CmdSelect, now) {
+		return
+	}
+	if !a.searchOpen {
+		return
+	}
+	a.closeSearchApplyLocked()
 }
 
 func (a *App) markSearchLocked(now time.Time) {
@@ -924,7 +981,7 @@ func (a *App) Snapshot() Snapshot {
 		Platforms:       a.platforms,
 		PlatformID:      a.platformID,
 		Sort:            a.sort,
-		Query:           a.query,
+		Query:           a.searchField.Buffer,
 		SearchOpen:      a.searchOpen,
 		FocusDetail:     a.focusDetailLocked(),
 		Collection:      a.collectionID,
@@ -937,6 +994,7 @@ func (a *App) Snapshot() Snapshot {
 		Attract:         a.attractSnapshotLocked(),
 		SafeAreaPct:     a.safeAreaPct,
 		Settings:        a.settingsSnapshotLocked(),
+		OSK:             a.oskSnapshotLocked(),
 	}
 }
 
@@ -945,6 +1003,15 @@ func (a *App) SetGamepads(n int) {
 	a.mu.Lock()
 	a.gamepads = n
 	a.mu.Unlock()
+}
+
+func (a *App) oskSnapshotLocked() OSKSnapshot {
+	if !a.searchOpen {
+		return OSKSnapshot{}
+	}
+	snap := a.searchField.Snapshot()
+	snap.Open = true
+	return snap
 }
 
 // SearchOpen reports whether the on-screen search field is active.
@@ -1515,7 +1582,7 @@ func (a *App) currentQueryLocked() GameListQuery {
 		Limit:      a.pageLimit,
 		Platform:   a.platformID,
 		Sort:       catalogQuerySort(a.collectionID, a.sort),
-		Q:          strings.TrimSpace(a.query),
+		Q:          strings.TrimSpace(a.searchField.Buffer),
 		Collection: a.collectionID,
 	}
 }
@@ -1549,7 +1616,7 @@ func (a *App) libraryStatusLocked() string {
 		platform = a.platformLabelLocked(a.platformID)
 	}
 	sort := sortLabel(a.collectionID, a.sort)
-	if q := strings.TrimSpace(a.query); q != "" {
+	if q := strings.TrimSpace(a.searchField.Buffer); q != "" {
 		return fmt.Sprintf("%d titles · %s · %s · %s · %q", n, view, platform, sort, q)
 	}
 	return fmt.Sprintf("%d titles · %s · %s · %s", n, view, platform, sort)
@@ -1728,7 +1795,7 @@ func (a *App) loadLibrary(ctx context.Context, gen int) {
 	a.loading = false
 	if len(a.games) == 0 {
 		a.status = "host API returned no titles"
-		if a.platformID != "" || strings.TrimSpace(a.query) != "" || a.collectionID != "" {
+		if a.platformID != "" || strings.TrimSpace(a.searchField.Buffer) != "" || a.collectionID != "" {
 			a.status = a.libraryStatusLocked()
 		}
 	} else {

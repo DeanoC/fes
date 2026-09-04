@@ -100,14 +100,19 @@ Shoulders cycle the platform filter
 (All, then each host platform). West/X cycles sort (title, recently added,
 system). On Recent, West/X cycles last played, title, and system; on Recently
 added it cycles recently added and system, matching the host. North/Y opens
-search; type with a keyboard, East/B clears or closes, South/A closes the
-field. Hold South/A (≥450ms) to open the library view list (All, Continue,
-Favorites, Recent, Unplayed, Recently added, then custom
+search with a gamepad on-screen keyboard (letters/digits, space, backspace,
+clear, done). D-pad moves keys, South/A types the focused key, shoulders
+switch letters/symbols, East/B clears a non-empty query or closes, Done or
+physical Enter applies the pending query. A physical keyboard still types in
+parallel. Select/View layout cycle and overscan nudge are ignored while the
+OSK is open; Guide dismisses it and opens settings. Hold South/A (≥450ms) to
+open the library view list (All, Continue, Favorites, Recent, Unplayed,
+Recently added, then custom
 shelves); d-pad moves, South confirms, East cancels. Hold North/Y to
 favorite or unfavorite the focused title. While a host session is active,
 East/B stops it (`POST /api/v1/session/stop`); Start still quits the app.
 Keyboard is debug-only: arrows/WASD (S is stop, not down),
-Enter to launch, Esc/Backspace to back (or stop while a session is active),
+Enter to launch (or confirm search), Esc/Backspace to back (or stop while a session is active),
 Q to quit, `[` / `]` for platform, `x` for sort, `/` or `f` for search,
 `c` / Shift+`c` to cycle views, `v` to favorite, `l` to cycle layout,
 `o` to open settings, `-` / `=` to nudge the overscan inset. Down arrow still
@@ -245,6 +250,7 @@ Attract does not run while parked; after idle it may start again.
   browser. Sofa settings can pick `selected_target` and show a read-only
   target list.
 
-Still out of tenfoot scope (web / later): sofa collection create/rename,
+Still out of tenfoot scope (web / later): sofa collection create/rename UI
+(the OSK text-entry widget is reusable; those screens are not shipped),
 library/target settings editor, session/events stream UI, development-rbf,
 media preview player, remote-input attach/detach chrome.
