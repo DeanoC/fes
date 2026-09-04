@@ -3,8 +3,11 @@ kind: core_source
 id: megadrive_mister
 description: >-
   Pinned MiSTer-devel Mega Drive git tree. This is not a clone recipe.
-  The hashed release RBF is the runtime/image oracle until a Quartus
-  rebuild bit-matches. misteross fetches and optionally builds.
+  The hashed release RBF is the upstream artifact. misteross also
+  compiles a Quartus Lite rebuild from this pin; that rebuild has been
+  loaded on real MiSTer hardware. misteross selects the rebuild by
+  default; the official RBF is the fallback. They are not required to
+  bit-match.
 
 repository: https://github.com/MiSTer-devel/MegaDrive_MiSTer
 commit: 7365a137cfd8fa6f041e964d8b953159c0ec42d9

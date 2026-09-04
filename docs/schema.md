@@ -145,8 +145,11 @@ rbf_size: 4296864
 project: MegaDrive.qpf
 ```
 
-The hashed `rbf_path` is the runtime/image oracle until a Quartus rebuild
-bit-matches. Fetch and compile belong in misteross.
+The hashed `rbf_path` is the upstream known-good RBF for that git commit.
+misteross also compiles a Quartus Lite rebuild from the same pin; that
+rebuild has been loaded on real MiSTer hardware. misteross selects the
+rebuild by default; the official RBF is the fallback. They are not
+required to bit-match. Fetch and compile belong in misteross.
 
 Emitted C++ is C++14 for the ARMv7 Linux HPS target, the dialect the
 runtime's Arm GNU toolchain uses. Namespace-scope `constexpr` integers

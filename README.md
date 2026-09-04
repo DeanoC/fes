@@ -18,7 +18,10 @@ an Overlord port.
 - One system package: `megadrive` (expected core, RBF role/artifact, media
   rules, reset words, input masks). FogCast product fields stay in FogCast.
 - Mega Drive `core_source` pin: MiSTer-devel git commit plus the hashed
-  release RBF. This tree does not clone or run Quartus.
+  official release RBF (the upstream artifact). This tree does not clone
+  or run Quartus. misteross fetches that pin, compiles a Quartus Lite
+  rebuild that has been loaded on real MiSTer hardware, and selects the
+  rebuild by default.
 - `mister-packages validate`, `report`, `emit-cpp`, `emit-go`, and
   `diff-oracle` on platform or system YAML. `emit-go` writes FogCast
   launch fields (expected core, cartridge index) from a system package.

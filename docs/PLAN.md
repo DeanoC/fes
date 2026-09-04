@@ -46,8 +46,11 @@ Go (`emit-go`) checked into FogCast. SNES is not part of this slice.
 
 `packages/source/megadrive_mister.yaml` pins
 `MiSTer-devel/MegaDrive_MiSTer` at the Release 20260603 commit and the
-known-good `releases/MegaDrive_20260603.rbf` hash. `validate` does not
-clone. Fetch and Quartus rebuild are misteross work, planned next.
+official `releases/MegaDrive_20260603.rbf` hash. That pin is the upstream
+artifact. `validate` does not clone. misteross fetches it and compiles a
+separate Quartus Lite rebuild that has been loaded on real MiSTer
+hardware. misteross selects the rebuild by default; upstream is the
+fallback.
 
 ## Working rules
 
