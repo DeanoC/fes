@@ -52,7 +52,9 @@ bin/fogcast-tenfoot -safe-area 0
 bin/fogcast-tenfoot -layout shelf
 bin/fogcast-tenfoot -layout list
 bin/fogcast-tenfoot -no-attract
+bin/fogcast-tenfoot -smoke -api http://host.docker.internal:8787
 FOGCAST_API=http://127.0.0.1:8787 bin/fogcast-tenfoot
+FOGCAST_API_HOST=127.0.0.1:8787 bin/fogcast-tenfoot -api http://host.docker.internal:8787
 FOGCAST_TENFOOT_NO_ATTRACT=1 bin/fogcast-tenfoot
 FOGCAST_TENFOOT_SAFE_AREA=0 bin/fogcast-tenfoot
 ```
@@ -79,8 +81,8 @@ Attract mode starts after the host `idle_seconds` from
 picker, filter overlay, or settings overlay, and no active host session. The client hydrates that
 idle threshold before arming the timer. A sofa settings PATCH of
 `attract_idle_seconds` updates the same idle timer. Playlist rows with a `video` handle play first (Darwin
-AVFoundation, including the track `preferredTransform`). Short clips play
-through, then the playlist advances; a single-item playlist restarts from the
+AVFoundation, including the track `preferredTransform`; Linux optional ffmpeg
+CLI when `ffmpeg` is on PATH). Short clips play through, then the playlist advances; a single-item playlist restarts from the
 already-fetched local file and keeps the last frame on screen. Clips longer
 than 60s are capped at 60s. Missing, failed, or unsupported video falls back
 to stills (backdrop, else cover, else marquee) for that row or the next
@@ -90,8 +92,8 @@ gamepad activity or debug key dismisses, tears down the decoder (including
 queued open results), and resets the idle timer. South/A on a launchable
 attract item dismisses and launches. A South/North hold that began before
 attract does not launch the attract title on release. `-smoke` implies
-`-no-attract`. Linux SDL3 builds skip the video download and keep the stills
-fallback; native video decode there is NEED.
+`-no-attract`. Linux without `ffmpeg` skips the video download and keeps the
+stills fallback. GUI video smoke on a Linux display is NEED.
 
 Gamepad is the intended control path (d-pad / left stick to move, South/A to
 launch, East/B to back, Start to quit, Select/View to cycle layout, Guide to
@@ -275,8 +277,9 @@ make tenfoot-smoke
   is active or a stop is already in flight (East/B, Esc/Backspace, or `s`).
 - `GET /api/v1/library/attract?limit=24` after idle. `idle_seconds` sets the
   client timer. On Darwin, video handles stream with `Accept: video/*` to a
-  temp file, then AVFoundation pulls frames. Linux and non-CGO builds do not
-  fetch video bytes. Stills still load with
+  temp file, then AVFoundation pulls frames. Linux does the same fetch when
+  `ffmpeg` is on PATH and decodes with the ffmpeg CLI (no libav cgo). Non-CGO
+  Darwin and Linux without ffmpeg do not fetch video bytes. Stills still load with
   `GET /api/v1/presentation/artwork/{handle}` and `Accept: image/*`. Attract
   does not run while the host session is `active`; dismiss/park/stop tears
   down the decoder and any queued player.
@@ -309,13 +312,15 @@ Attract does not run while parked; after idle it may start again.
 ## Known gaps / next
 
 - Attract **video** on Linux: Darwin plays host `video` handles in attract
-  (AVFoundation). Linux SDL3 builds compile without extra video libraries,
-  skip the video download, and fall back to stills. GUI video smoke on Linux
-  is NEED.
+  (AVFoundation). Linux uses optional `ffmpeg` on PATH (CLI, no extra cgo).
+  Missing ffmpeg skips the video download and falls back to stills. GUI video
+  smoke on a Linux display is NEED.
 - **Linux GUI / localhost smoke:** Makefile Linux `TENFOOT_CGO_ENV` is
   `CGO_ENABLED=1` with pkg-config `sdl3`. debian:sid `libsdl3-dev` compiled
-  an aarch64 binary on the mini (container). Windowed/fullscreen smoke and
-  `-smoke` against a loopback host API still need a Linux box (see
+  an aarch64 binary on the mini (container). Container `-smoke` against
+  `http://host.docker.internal:8787` now sends `Host: 127.0.0.1:8787` and
+  reaches the loopback API without `403 HOST_NOT_ALLOWED`. Windowed/fullscreen
+  X11/Wayland still needs a Linux box with a display (see
   [`LINUX.md`](./LINUX.md)). No Linux CI job.
 - Library-path / roots editor and target address/agent CRUD stay in the
   browser. Sofa settings can pick `selected_target` and show a read-only

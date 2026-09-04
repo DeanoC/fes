@@ -258,6 +258,85 @@ func NewClient(baseURL string, httpClient *http.Client) *Client {
 	return &Client{baseURL: baseURL, httpClient: httpClient, launchHTTP: &launchHTTP, stopHTTP: &stopHTTP, videoHTTP: &videoHTTP}
 }
 
+// withAPIHost returns a client that sends Host: host on every request.
+// The connection URL is unchanged. Empty host is a no-op.
+func (c *Client) withAPIHost(host string) *Client {
+	host = strings.TrimSpace(host)
+	if c == nil || host == "" {
+		return c
+	}
+	wrap := func(src *http.Client) *http.Client {
+		if src == nil {
+			src = &http.Client{Timeout: defaultHTTPTimeout}
+		}
+		clone := *src
+		base := clone.Transport
+		if base == nil {
+			base = http.DefaultTransport
+		}
+		clone.Transport = apiHostTransport{base: base, host: host}
+		return &clone
+	}
+	out := *c
+	out.httpClient = wrap(c.httpClient)
+	out.launchHTTP = wrap(c.launchHTTP)
+	out.stopHTTP = wrap(c.stopHTTP)
+	out.videoHTTP = wrap(c.videoHTTP)
+	return &out
+}
+
+type apiHostTransport struct {
+	base http.RoundTripper
+	host string
+}
+
+func (t apiHostTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	clone := req.Clone(req.Context())
+	clone.Host = t.host
+	return t.base.RoundTrip(clone)
+}
+
+func apiURLIsLoopback(baseURL string) bool {
+	u, err := url.Parse(strings.TrimSpace(baseURL))
+	if err != nil || u.Host == "" {
+		return false
+	}
+	host := u.Hostname()
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+func loopbackAPIHost(baseURL string) string {
+	u, err := url.Parse(strings.TrimSpace(baseURL))
+	port := "8787"
+	if err == nil {
+		if p := u.Port(); p != "" {
+			port = p
+		} else if u.Scheme == "https" {
+			port = "443"
+		} else if u.Scheme == "http" {
+			port = "80"
+		}
+	}
+	return net.JoinHostPort("127.0.0.1", port)
+}
+
+// smokeAPIHost is the Host header for -smoke against a non-loopback API URL.
+// The host API allowlist is loopback; Docker/host-gateway URLs still connect
+// but send Host: host.docker.internal and get 403 HOST_NOT_ALLOWED.
+func smokeAPIHost(baseURL, explicit string) string {
+	if host := strings.TrimSpace(explicit); host != "" {
+		return host
+	}
+	if apiURLIsLoopback(baseURL) {
+		return ""
+	}
+	return loopbackAPIHost(baseURL)
+}
+
 // ListGames fetches one catalog page. grouped=1 and availability=ready stay the default.
 func (c *Client) ListGames(ctx context.Context, query GameListQuery) ([]Game, string, error) {
 	limit := query.Limit

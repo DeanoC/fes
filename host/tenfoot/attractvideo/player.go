@@ -1,8 +1,8 @@
 // Package attractvideo decodes attract-mode clips for the native tenfoot UI.
 //
-// Darwin uses AVFoundation (AVAssetReader) to pull RGBA frames. Other
-// platforms return an error so attract can fall back to stills without
-// downloading video bytes.
+// Darwin CGO builds use AVFoundation (AVAssetReader). Linux uses an optional
+// ffmpeg CLI when it is on PATH; otherwise Open returns ErrUnavailable so
+// attract falls back to stills without downloading video bytes.
 package attractvideo
 
 import (

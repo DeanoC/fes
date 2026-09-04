@@ -47,6 +47,7 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 	fs := flag.NewFlagSet("fogcast-tenfoot", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	api := fs.String("api", envOr("FOGCAST_API", tenfoot.DefaultAPIBase), "FogCast host API base URL")
+	apiHost := fs.String("api-host", envOr("FOGCAST_API_HOST", ""), "optional HTTP Host header (loopback allowlist; -smoke defaults this when the API URL is not loopback)")
 	width := fs.Int("width", 1280, "window width")
 	height := fs.Int("height", 720, "window height")
 	fullscreen := fs.Bool("fullscreen", false, "run fullscreen")
@@ -76,6 +77,7 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 	})
 	return tenfoot.Options{
 		APIBase:      *api,
+		APIHost:      *apiHost,
 		Width:        *width,
 		Height:       *height,
 		Fullscreen:   *fullscreen,

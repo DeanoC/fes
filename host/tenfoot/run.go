@@ -24,6 +24,7 @@ type Options struct {
 	NoAttract    bool
 	NoAttractSet bool
 	PrefsPath    string
+	APIHost      string
 }
 
 func (o Options) prefsPath() string {
@@ -56,6 +57,9 @@ func (o Options) normalized() Options {
 		if o.MaxGames > 400 {
 			o.MaxGames = 400
 		}
+		o.APIHost = smokeAPIHost(o.APIBase, o.APIHost)
+	} else {
+		o.APIHost = strings.TrimSpace(o.APIHost)
 	}
 	prefs, prefsErr := loadTenfootPrefs(o.prefsPath())
 	if !o.SafeAreaSet {

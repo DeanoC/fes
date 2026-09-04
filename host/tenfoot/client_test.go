@@ -918,3 +918,40 @@ func TestClientLibrarySettingsGetError(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestClientWithAPIHostOverridesHostHeader(t *testing.T) {
+	t.Parallel()
+	var gotHost string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotHost = r.Host
+		_, _ = io.WriteString(w, `{"state":"idle"}`)
+	}))
+	t.Cleanup(server.Close)
+
+	client := NewClient(server.URL, server.Client()).withAPIHost("127.0.0.1:8787")
+	if _, err := client.Session(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if gotHost != "127.0.0.1:8787" {
+		t.Fatalf("Host = %q, want 127.0.0.1:8787", gotHost)
+	}
+}
+
+func TestSmokeAPIHostRewritesNonLoopback(t *testing.T) {
+	t.Parallel()
+	if got := smokeAPIHost("http://host.docker.internal:8787", ""); got != "127.0.0.1:8787" {
+		t.Fatalf("docker host = %q", got)
+	}
+	if got := smokeAPIHost("http://192.168.10.230:8787", ""); got != "127.0.0.1:8787" {
+		t.Fatalf("lan host = %q", got)
+	}
+	if got := smokeAPIHost("http://127.0.0.1:8787", ""); got != "" {
+		t.Fatalf("loopback rewrite = %q", got)
+	}
+	if got := smokeAPIHost("http://localhost:8787", ""); got != "" {
+		t.Fatalf("localhost rewrite = %q", got)
+	}
+	if got := smokeAPIHost("http://host.docker.internal:8787", "localhost"); got != "localhost" {
+		t.Fatalf("explicit = %q", got)
+	}
+}

@@ -120,8 +120,10 @@ stays in the browser shell.
 
 Attract prefers a playlist `video` handle when present. Darwin CGO builds
 decode with AVFoundation (`host/tenfoot/attractvideo`) after streaming
-`Accept: video/*` to a temp file (128 MiB cap). Linux and non-CGO builds skip
-that download and fall back to stills. Short clips play through, then the
+`Accept: video/*` to a temp file (128 MiB cap). Linux uses the same download
+when `ffmpeg` is on PATH and decodes with the ffmpeg CLI; otherwise it skips
+the download and falls back to stills. Non-CGO Darwin builds also skip video.
+Short clips play through, then the
 playlist advances or a single-item playlist restarts from the local file
 without re-fetching; clips longer than 60s are capped at 60s. Missing, failed,
 or unsupported video uses backdrop, else cover, else marquee. SDL re-uploads

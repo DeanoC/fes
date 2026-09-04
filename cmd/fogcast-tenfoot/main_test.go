@@ -33,6 +33,17 @@ func TestParseArgsSmokeAndAPI(t *testing.T) {
 	}
 }
 
+func TestParseArgsAPIHost(t *testing.T) {
+	t.Parallel()
+	opts, err := parseArgs([]string{"-api", "http://host.docker.internal:8787", "-api-host", "127.0.0.1:8787"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.APIBase != "http://host.docker.internal:8787" || opts.APIHost != "127.0.0.1:8787" {
+		t.Fatalf("opts = %#v", opts)
+	}
+}
+
 func TestParseArgsSafeAreaAndNoAttract(t *testing.T) {
 	t.Parallel()
 	opts, err := parseArgs([]string{"-safe-area", "0", "-no-attract"})

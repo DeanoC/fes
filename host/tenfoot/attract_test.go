@@ -232,6 +232,21 @@ func TestOptionsSmokeDisablesAttract(t *testing.T) {
 	if !opts.NoAttract || !opts.Hidden || !opts.NoAttractSet {
 		t.Fatalf("opts = %#v", opts)
 	}
+	if opts.APIHost != "" {
+		t.Fatalf("loopback smoke APIHost = %q", opts.APIHost)
+	}
+}
+
+func TestOptionsSmokeRewritesNonLoopbackAPIHost(t *testing.T) {
+	t.Parallel()
+	opts := Options{Smoke: true, APIBase: "http://host.docker.internal:8787"}.normalized()
+	if opts.APIHost != "127.0.0.1:8787" {
+		t.Fatalf("opts.APIHost = %q", opts.APIHost)
+	}
+	sofa := Options{APIBase: "http://host.docker.internal:8787"}.normalized()
+	if sofa.APIHost != "" {
+		t.Fatalf("non-smoke APIHost = %q", sofa.APIHost)
+	}
 }
 
 func armAttractSoon(app *App) {

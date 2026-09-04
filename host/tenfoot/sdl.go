@@ -214,7 +214,7 @@ func runWindow(ctx context.Context, opts Options) error {
 	C.SDL_SetRenderLogicalPresentation(renderer, C.int(opts.Width), C.int(opts.Height), C.SDL_LOGICAL_PRESENTATION_LETTERBOX)
 	C.SDL_SetRenderVSync(renderer, 1)
 
-	app := NewApp(NewClient(opts.APIBase, nil), opts.Width, opts.Height, opts.MaxGames)
+	app := NewApp(NewClient(opts.APIBase, nil).withAPIHost(opts.APIHost), opts.Width, opts.Height, opts.MaxGames)
 	app.SetPrefsPath(opts.prefsPath())
 	app.SetLayout(parseLayout(opts.Layout))
 	app.SetSafeAreaPct(opts.SafeAreaPct)
