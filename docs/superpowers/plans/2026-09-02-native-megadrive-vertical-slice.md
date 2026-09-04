@@ -2,6 +2,10 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Record status:** Implemented and physically accepted on 2026-09-03. The
+unchecked task boxes below preserve the original execution plan; completion
+and review history is recorded in the associated SDD ledger.
+
 **Goal:** Launch Sonic 2 through FogCast's public API on the native image with visible 720p60 HDMI, one three-button player, Stop to idle, and an immediate second launch.
 
 **Architecture:** Add one immutable production Mega Drive recipe to the runtime's sole profile table and execute it through focused core, video, and evdev-input components. FogCast keeps catalogue/cache/session ownership, translates the existing native launch request, creates one persistent native virtual gamepad, and packages one locked Mega Drive RBF. Development uses disposable diagnostic images; only the stabilized merged inputs receive a two-pass image build and formal hardware acceptance.

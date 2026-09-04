@@ -2,7 +2,8 @@
 
 **Date:** 2026-09-02
 
-**Status:** Approved design; implementation not started
+**Status:** Implemented and physically accepted on 2026-09-03. This document
+preserves the approved pre-implementation design and scope.
 
 ## Purpose
 

@@ -32,6 +32,34 @@ type transientReleaseErrorSink struct {
 	releaseCalls int
 }
 
+type firstApplyErrorSink struct {
+	mu           sync.Mutex
+	applyCalls   int
+	releaseCalls int
+	firstRelease chan struct{}
+	releaseOnce  sync.Once
+}
+
+func (s *firstApplyErrorSink) Apply(protocol.InputFrame) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.applyCalls++
+	if s.applyCalls == 1 {
+		return errors.New("injected sink write failure")
+	}
+	return nil
+}
+
+func (s *firstApplyErrorSink) ReleaseAll() error {
+	s.mu.Lock()
+	s.releaseCalls++
+	s.mu.Unlock()
+	s.releaseOnce.Do(func() { close(s.firstRelease) })
+	return nil
+}
+
+func (*firstApplyErrorSink) Close() error { return nil }
+
 func (*cleanupErrorSink) Apply(protocol.InputFrame) error { return nil }
 func (s *cleanupErrorSink) ReleaseAll() error             { return s.releaseErr }
 func (s *cleanupErrorSink) Close() error                  { return s.closeErr }
@@ -153,6 +181,77 @@ func TestServerRejectsStaleFrameAndCountsSequenceGap(t *testing.T) {
 		t.Fatalf("metrics=%v", metrics)
 	}
 	_ = s.Close()
+}
+
+func TestServerSinkFailureClosesStreamReleasesAndAllowsSuccessor(t *testing.T) {
+	token := []byte("0123456789abcdef")
+	sink := &firstApplyErrorSink{firstRelease: make(chan struct{})}
+	server, err := New(Config{Addr: "127.0.0.1:0", Token: token, Session: 9, Core: "MegaDrive", HeartbeatTimeout: 10 * time.Second}, sink)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { _ = server.ListenAndServe(ctx) }()
+	<-server.Ready()
+
+	connect := func() net.Conn {
+		connection, err := net.Dial("tcp", server.Addr().String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := fmt.Fprintf(connection, "{\"version\":1,\"session\":9,\"core\":\"MegaDrive\",\"proof\":\"%s\"}\n", hex.EncodeToString(token)); err != nil {
+			t.Fatal(err)
+		}
+		ack := make([]byte, len("{\"ok\":true}\n"))
+		if _, err := io.ReadFull(connection, ack); err != nil {
+			t.Fatal(err)
+		}
+		return connection
+	}
+
+	first := connect()
+	frame := protocol.InputFrame{Header: protocol.InputHeader{Type: protocol.InputTypeInput, Session: 9}, Seq: 1, Device: 1, Kind: 1, Action: 1, Code: 104}
+	if err := WriteFrame(first, frame); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-sink.firstRelease:
+	case <-time.After(time.Second):
+		t.Fatal("sink failure did not trigger disconnect release")
+	}
+	if err := first.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := first.Read(make([]byte, 1)); !errors.Is(err, io.EOF) {
+		t.Fatalf("failed stream read error = %v, want EOF", err)
+	}
+	_ = first.Close()
+
+	second := connect()
+	if err := WriteFrame(second, frame); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		sink.mu.Lock()
+		calls := sink.applyCalls
+		sink.mu.Unlock()
+		if calls == 2 {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	sink.mu.Lock()
+	applyCalls := sink.applyCalls
+	sink.mu.Unlock()
+	if applyCalls != 2 {
+		t.Fatalf("successor apply calls = %d, want 2", applyCalls)
+	}
+	_ = second.Close()
+	if err := server.Close(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestServerCloseReportsReleaseAndSinkCloseFailures(t *testing.T) {

@@ -149,18 +149,23 @@ func (s *UInputSink) Apply(f protocol.InputFrame) error {
 	default:
 		return errors.New("unsupported input action")
 	}
+	// A write error does not prove the kernel rejected the event record. Keep
+	// enough conservative state to neutralize any non-neutral record that may
+	// have arrived before a failed or short SYN_REPORT write.
+	if eventType == evKey && value != 0 {
+		s.pressed[f.Code] = true
+	}
+	if eventType == evAbs && value != 0 {
+		s.axes[f.Code] = value
+	}
 	if err := s.writeEvent(eventType, code, value); err != nil {
 		return err
 	}
-	switch f.Action {
-	case 0:
-		if eventType == evKey {
-			delete(s.pressed, f.Code)
-		}
-	case 1:
-		s.pressed[f.Code] = true
-	case 2:
-		s.axes[f.Code] = value
+	if eventType == evKey && value == 0 {
+		delete(s.pressed, f.Code)
+	}
+	if eventType == evAbs && value == 0 {
+		delete(s.axes, f.Code)
 	}
 	return nil
 }

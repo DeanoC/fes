@@ -271,7 +271,7 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 		}
 		if err := s.sink.Apply(f); err != nil {
 			s.metrics.Rejected.Add(1)
-			continue
+			return
 		}
 		s.metrics.Applied.Add(1)
 	}

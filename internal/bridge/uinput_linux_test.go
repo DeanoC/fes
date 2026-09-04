@@ -260,8 +260,15 @@ func TestUInputReleaseRetainsPressedStateUntilEventAndSyncSucceed(t *testing.T) 
 	}
 }
 
-func TestUInputAxisStateIsNotTrackedUntilEventAndSyncSucceed(t *testing.T) {
-	for _, failure := range []struct {
+func TestUInputNonNeutralStateIsRetainedForCleanupAfterWriteFailure(t *testing.T) {
+	frames := []struct {
+		name  string
+		frame protocol.InputFrame
+	}{
+		{name: "button", frame: protocol.InputFrame{Player: 0, Device: 1, Kind: 1, Action: 1, Code: 104}},
+		{name: "axis", frame: protocol.InputFrame{Player: 0, Device: 1, Kind: 2, Action: 2, Code: 200, Value: 123}},
+	}
+	failures := []struct {
 		name    string
 		failAt  int
 		shortAt int
@@ -270,37 +277,48 @@ func TestUInputAxisStateIsNotTrackedUntilEventAndSyncSucceed(t *testing.T) {
 		{name: "sync", failAt: 2},
 		{name: "short event", shortAt: 1},
 		{name: "short sync", shortAt: 2},
-	} {
-		t.Run(failure.name, func(t *testing.T) {
-			file, err := os.CreateTemp(t.TempDir(), "uinput")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer file.Close()
-			writer := &scriptedEventWriter{failAt: failure.failAt, shortAt: failure.shortAt}
-			sink := &UInputSink{
-				file:    file,
-				native:  true,
-				write:   writer.Write,
-				pressed: make(map[uint16]bool),
-				axes:    make(map[uint16]int32),
-			}
-			axis := protocol.InputFrame{Player: 0, Device: 1, Kind: 2, Action: 2, Code: 200, Value: 123}
-			if err := sink.Apply(axis); err == nil {
-				t.Fatal("failed axis write was accepted")
-			}
-			if _, tracked := sink.axes[200]; tracked {
-				t.Fatal("failed axis write committed tracked state")
-			}
-			writer.failAt = 0
-			writer.shortAt = 0
-			beforeRelease := writer.calls
-			if err := sink.ReleaseAll(); err != nil {
-				t.Fatal(err)
-			}
-			if writer.calls != beforeRelease {
-				t.Fatalf("uncommitted axis produced %d release writes", writer.calls-beforeRelease)
-			}
-		})
+	}
+	for _, frame := range frames {
+		for _, failure := range failures {
+			t.Run(frame.name+"/"+failure.name, func(t *testing.T) {
+				file, err := os.CreateTemp(t.TempDir(), "uinput")
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer file.Close()
+				writer := &scriptedEventWriter{failAt: failure.failAt, shortAt: failure.shortAt}
+				sink := &UInputSink{
+					file:    file,
+					native:  true,
+					write:   writer.Write,
+					pressed: make(map[uint16]bool),
+					axes:    make(map[uint16]int32),
+				}
+				if err := sink.Apply(frame.frame); err == nil {
+					t.Fatal("failed non-neutral write was accepted")
+				}
+				if frame.frame.Kind == 1 && !sink.pressed[frame.frame.Code] {
+					t.Fatal("possibly delivered press was not retained for cleanup")
+				}
+				if frame.frame.Kind == 2 && sink.axes[frame.frame.Code] != frame.frame.Value {
+					t.Fatal("possibly delivered axis value was not retained for cleanup")
+				}
+				writer.failAt = 0
+				writer.shortAt = 0
+				beforeRelease := writer.calls
+				if err := sink.ReleaseAll(); err != nil {
+					t.Fatal(err)
+				}
+				if writer.calls-beforeRelease != 2 {
+					t.Fatalf("cleanup writes = %d, want event plus SYN_REPORT", writer.calls-beforeRelease)
+				}
+				if sink.pressed[frame.frame.Code] {
+					t.Fatal("cleanup retained pressed state")
+				}
+				if _, tracked := sink.axes[frame.frame.Code]; tracked {
+					t.Fatal("cleanup retained axis state")
+				}
+			})
+		}
 	}
 }

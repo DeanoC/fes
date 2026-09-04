@@ -119,8 +119,6 @@ development-RBF loading/video, every other system, running-game restart
 preservation, conventional Main, transient MGLs, and automatic legacy fallback
 remain unsupported by the native path.
 
-The full uncommitted evidence set is retained outside Git at:
-
-```text
-/home/deano/fes/task-tmp/task9-native-megadrive-final.bwU5ti
-```
+The accepted identities and SHA-256 values above are the durable evidence
+record. Raw controller transcripts and captures were retained outside Git for
+the acceptance run and are not required to reproduce the locked images.
