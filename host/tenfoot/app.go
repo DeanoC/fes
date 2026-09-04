@@ -1743,6 +1743,9 @@ func (a *App) applySessionLocked(result SessionResult) {
 }
 
 func (a *App) syncGPUParkLocked() {
+	if a.session.State == "active" || a.session.State == "launching" || a.stopPhase == "stopping" {
+		a.hold.Clear()
+	}
 	want := a.session.State == "active" || a.stopPhase == "stopping"
 	if want == a.gpuParked {
 		if want {

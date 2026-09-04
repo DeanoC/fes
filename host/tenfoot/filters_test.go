@@ -253,6 +253,34 @@ func TestHoldWestOpensFiltersWithoutSorting(t *testing.T) {
 	}
 }
 
+func TestHoldWestReleaseAfterSessionStartDoesNotAttach(t *testing.T) {
+	app := catalogApp(3)
+	app.sort = "title"
+	held := map[Command]bool{}
+	now := time.Unix(0, 0)
+	if applyPressed(app, map[Command]bool{CmdSortCycle: true}, held, now) {
+		t.Fatal("quit")
+	}
+	app.mu.Lock()
+	app.session = SessionResult{
+		State:     "active",
+		Execution: "fpga_native",
+		Input:     &SessionInput{State: "detached"},
+	}
+	app.syncGPUParkLocked()
+	app.mu.Unlock()
+	if applyPressed(app, map[Command]bool{}, held, now.Add(40*time.Millisecond)) {
+		t.Fatal("quit")
+	}
+	snap := app.Snapshot()
+	if snap.Session.InputBusy || snap.Filters.Open {
+		t.Fatalf("deferred west leaked into session: busy=%v filters=%v", snap.Session.InputBusy, snap.Filters.Open)
+	}
+	if snap.Sort != "title" {
+		t.Fatalf("sort = %s", snap.Sort)
+	}
+}
+
 func TestHoldWestDoesNotOpenFiltersWhileViewPickerOpen(t *testing.T) {
 	app := catalogApp(5)
 	app.Press(CmdViewPicker, time.Now())

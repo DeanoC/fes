@@ -281,6 +281,12 @@ func applyPressed(app *App, pressed, held map[Command]bool, now time.Time) bool 
 				delete(held, cmd)
 				continue
 			}
+			if !app.browseHoldEnabled() {
+				app.hold.Cancel(cmd)
+				app.Release(cmd)
+				delete(held, cmd)
+				continue
+			}
 			if fired := app.hold.Release(cmd, now); fired != CmdNone {
 				app.Press(fired, now)
 			}
