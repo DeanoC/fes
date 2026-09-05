@@ -81,3 +81,14 @@ The [recorded acceptance](https://github.com/DeanoC/FogCast/blob/249988a7a4eb37e
 The parent uses standalone source copies so the agent embeds the selected FogCast revision correctly. Therefore the new image is not assumed to byte-match the historical image. `make verify` records `historical_baseline_match` in `verification.json` and independently requires matching hashes from both new build passes, structural verification and QEMU packaging checks. The first image's file-content manifest differs from the historical image only in `usr/sbin/mister-agent` and `usr/share/mister-runtime/build-inputs`; the latter differs only in its agent SHA-256. The runtime and both RBFs match the historical hashes. No new physical-hardware acceptance is claimed.
 
 See [design](docs/native-parent-design.md) and [implementation plan](docs/implementation-plan.md).
+
+## Validated on powerboat, 2026-09-05
+
+- Six parent tests pass, including source identity, lock compatibility, source staging and corrupt-output rejection.
+- Both independent native image passes produce SHA-256 `03197cb4fa867df1fa8fe6d0ef4f42eefecc2a7a47b8e87b73f0323e6a6a5a8d`.
+- Structural checks and QEMU startup packaging pass.
+- A subsequent `make build` reuses both verified outputs.
+- A fresh recursive clone passes doctor and tests and produces byte-identical Linux CLI/API binaries.
+- A forced host rebuild with ambient `GOAMD64=v3 GOFLAGS=-race VERSION=9.9.9` retains the profile's amd64/v1 target and version 0.1.0 and produces the same host hashes.
+
+Local logs and evidence are under `out/`; published build products and verification results are under `out/native-dev/`. The parent has not been published and the new image has not been deployed.
