@@ -2,6 +2,7 @@ package misterruntime_test
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -21,17 +22,21 @@ import (
 )
 
 type recordingControl struct {
-	mu        sync.Mutex
-	statuses  []misterruntime.Response
-	statusErr error
-	launch    misterruntime.Response
-	launchErr error
-	stop      misterruntime.Response
-	stopErr   error
-	statusN   int
-	launchN   int
-	stopN     int
-	requests  []misterruntime.LaunchRequest
+	mu               sync.Mutex
+	statuses         []misterruntime.Response
+	statusErr        error
+	launch           misterruntime.Response
+	launchErr        error
+	development      misterruntime.Response
+	developmentErr   error
+	stop             misterruntime.Response
+	stopErr          error
+	statusN          int
+	launchN          int
+	developmentN     int
+	stopN            int
+	requests         []misterruntime.LaunchRequest
+	developmentPaths []string
 }
 
 type blockingOwnedStopControl struct {
@@ -43,6 +48,10 @@ type blockingOwnedStopControl struct {
 
 func (*blockingOwnedStopControl) Launch(context.Context, misterruntime.LaunchRequest) (misterruntime.Response, error) {
 	return misterruntime.Response{}, errors.New("unexpected Launch")
+}
+
+func (*blockingOwnedStopControl) LoadDevelopmentRBF(context.Context, string) (misterruntime.Response, error) {
+	return misterruntime.Response{}, errors.New("unexpected LoadDevelopmentRBF")
 }
 
 func (*blockingOwnedStopControl) Status(context.Context) (misterruntime.Response, error) {
@@ -76,6 +85,17 @@ func (c *recordingControl) Launch(ctx context.Context, request misterruntime.Lau
 		return misterruntime.Response{}, c.launchErr
 	}
 	return c.launch, ctx.Err()
+}
+
+func (c *recordingControl) LoadDevelopmentRBF(ctx context.Context, path string) (misterruntime.Response, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.developmentN++
+	c.developmentPaths = append(c.developmentPaths, path)
+	if c.developmentErr != nil {
+		return misterruntime.Response{}, c.developmentErr
+	}
+	return c.development, ctx.Err()
 }
 
 func (c *recordingControl) Status(ctx context.Context) (misterruntime.Response, error) {
@@ -121,6 +141,12 @@ func (c *recordingControl) launchCalls() (int, []misterruntime.LaunchRequest) {
 		requests[i].Settings = cloneStringMap(request.Settings)
 	}
 	return c.launchN, requests
+}
+
+func (c *recordingControl) developmentCalls() (int, []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.developmentN, append([]string(nil), c.developmentPaths...)
 }
 
 func cloneStringMap(values map[string]string) map[string]string {
@@ -207,7 +233,7 @@ type stopReadyRuntime interface {
 	StopReady() bool
 }
 
-func TestNativeStopReadinessAcceptsOnlyIdleOrExactMegaDrive(t *testing.T) {
+func TestNativeStopReadinessAcceptsIdleExactMegaDriveOrDevelopment(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct {
 		name     string
@@ -234,7 +260,7 @@ func TestNativeStopReadinessAcceptsOnlyIdleOrExactMegaDrive(t *testing.T) {
 			response.Core = &wrong
 			return response
 		}(), ready: false},
-		{name: "running development", response: runtimeResponse("running_development", "development"), ready: false},
+		{name: "running development", response: runtimeResponse("running_development", "development"), ready: true},
 		{name: "reboot required", response: runtimeResponse("reboot_required", "none"), ready: false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -289,6 +315,10 @@ func (*blockingHealthControl) Stop(context.Context) (misterruntime.Response, err
 }
 
 func (*blockingHealthControl) Launch(context.Context, misterruntime.LaunchRequest) (misterruntime.Response, error) {
+	return misterruntime.Response{}, errors.New("unused")
+}
+
+func (*blockingHealthControl) LoadDevelopmentRBF(context.Context, string) (misterruntime.Response, error) {
 	return misterruntime.Response{}, errors.New("unused")
 }
 
@@ -409,7 +439,7 @@ func TestNativeReconcileWaitsThroughStartingAndHonorsContext(t *testing.T) {
 
 func TestNativeReconcileTreatsNonIdleStartupAsUnavailable(t *testing.T) {
 	t.Parallel()
-	for _, state := range []string{"running_game", "running_development"} {
+	for _, state := range []string{"running_game"} {
 		t.Run(state, func(t *testing.T) {
 			execution := "game"
 			if state == "running_development" {
@@ -555,6 +585,10 @@ func (c *blockingAdmissionControl) Launch(context.Context, misterruntime.LaunchR
 	return misterruntime.Response{}, errors.New("launch must not be dispatched")
 }
 
+func (*blockingAdmissionControl) LoadDevelopmentRBF(context.Context, string) (misterruntime.Response, error) {
+	return misterruntime.Response{}, errors.New("unused")
+}
+
 func (*blockingAdmissionControl) Stop(context.Context) (misterruntime.Response, error) {
 	return misterruntime.Response{}, errors.New("unused")
 }
@@ -605,6 +639,10 @@ func (c *ownedLaunchContextControl) Launch(ctx context.Context, _ misterruntime.
 	case <-ctx.Done():
 		return misterruntime.Response{}, ctx.Err()
 	}
+}
+
+func (*ownedLaunchContextControl) LoadDevelopmentRBF(context.Context, string) (misterruntime.Response, error) {
+	return misterruntime.Response{}, errors.New("unused")
 }
 
 func (*ownedLaunchContextControl) Stop(context.Context) (misterruntime.Response, error) {
@@ -719,6 +757,10 @@ func (c *deadlinePublicationRaceControl) Launch(ctx context.Context, _ misterrun
 	}
 }
 
+func (*deadlinePublicationRaceControl) LoadDevelopmentRBF(context.Context, string) (misterruntime.Response, error) {
+	return misterruntime.Response{}, errors.New("unused")
+}
+
 func (*deadlinePublicationRaceControl) Stop(context.Context) (misterruntime.Response, error) {
 	return misterruntime.Response{}, errors.New("unused")
 }
@@ -768,6 +810,10 @@ func (c *operationDeadlineLaunchControl) Launch(ctx context.Context, _ misterrun
 		c.expiredOnce.Do(func() { close(c.operationExpired) })
 		return misterruntime.Response{}, ctx.Err()
 	}
+}
+
+func (*operationDeadlineLaunchControl) LoadDevelopmentRBF(context.Context, string) (misterruntime.Response, error) {
+	return misterruntime.Response{}, errors.New("unused")
 }
 
 func (*operationDeadlineLaunchControl) Stop(context.Context) (misterruntime.Response, error) {
@@ -1225,7 +1271,7 @@ func (s *lostResponseSocketServer) serve() {
 		s.operations = append(s.operations, request.Operation)
 		s.mu.Unlock()
 		switch request.Operation {
-		case "launch":
+		case "launch", "load_development_rbf":
 			s.cancel()
 		case "status":
 			if s.statusIndex >= len(s.statuses) {
@@ -1409,30 +1455,642 @@ type failOnRead struct {
 	reads int
 }
 
+type cancelingDevelopmentBody struct {
+	cancel context.CancelFunc
+	reads  int
+}
+
+func (r *cancelingDevelopmentBody) Read(buffer []byte) (int, error) {
+	r.reads++
+	if r.reads == 1 {
+		buffer[0] = 'r'
+		r.cancel()
+		return 1, nil
+	}
+	copy(buffer, "bf")
+	return 2, io.EOF
+}
+
 func (r *failOnRead) Read([]byte) (int, error) {
 	r.reads++
 	return 0, errors.New("body must not be read")
 }
 
-func TestNativeDevelopmentRejectsWithoutReadingBodyOrCallingControl(t *testing.T) {
-	t.Parallel()
-	control := &recordingControl{}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
-	body := &failOnRead{}
-	_, attempted, apiErr := runtime.LoadDevelopmentRBF(context.Background(), 123, body)
-	if attempted || apiErr == nil || apiErr.Code != protocol.CodeUnsupportedOperation || apiErr.Message != "requested operation is unsupported" {
-		t.Fatalf("development load = attempted:%t error:%#v", attempted, apiErr)
+func TestNativeDevelopmentStagesBeforeOneIdleAdmissionAndOneDispatch(t *testing.T) {
+	stagedPath := filepath.Join(t.TempDir(), "development", "core.rbf")
+	response := runtimeResponse("running_development", "development")
+	coreName := "MegaDrive"
+	response.Core = &coreName
+	control := &recordingControl{
+		statuses:    []misterruntime.Response{runtimeResponse("idle", "none")},
+		development: response,
 	}
-	if body.reads != 0 {
-		t.Fatalf("development body reads = %d", body.reads)
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 25*time.Millisecond,
+		misterruntime.WithDevelopmentRBFPath(stagedPath))
+	payload := []byte("exact development rbf")
+
+	observed, attempted, apiErr := runtime.LoadDevelopmentRBF(context.Background(), int64(len(payload)), bytes.NewReader(payload))
+	if observed != "MegaDrive" || !attempted || apiErr != nil {
+		t.Fatalf("development load = observed:%q attempted:%t error:%#v", observed, attempted, apiErr)
 	}
-	_, apiErr = runtime.RecoverDevelopment(context.Background())
-	if apiErr == nil || apiErr.Code != protocol.CodeUnsupportedOperation || apiErr.Message != "requested operation is unsupported" {
-		t.Fatalf("development recovery error = %#v", apiErr)
+	staged, err := os.ReadFile(stagedPath)
+	if err != nil || !bytes.Equal(staged, payload) {
+		t.Fatalf("staged development RBF = %q, error %v", staged, err)
 	}
 	statusCalls, stopCalls := control.calls()
-	if statusCalls != 0 || stopCalls != 0 {
-		t.Fatalf("unsupported development mutated control: status:%d stop:%d", statusCalls, stopCalls)
+	launchCalls, _ := control.launchCalls()
+	developmentCalls, paths := control.developmentCalls()
+	if statusCalls != 1 || developmentCalls != 1 || len(paths) != 1 || paths[0] != stagedPath || launchCalls != 0 || stopCalls != 0 {
+		t.Fatalf("calls = status:%d development:%d paths:%v launch:%d stop:%d", statusCalls, developmentCalls, paths, launchCalls, stopCalls)
+	}
+}
+
+func TestNativeDevelopmentSuccessfulProvisionalResponsesEnterStatusObservation(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		response misterruntime.Response
+	}{
+		{name: "starting development", response: runtimeResponse("starting", "development")},
+		{name: "clean idle", response: runtimeResponse("idle", "none")},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			terminal := runtimeResponse("running_development", "development")
+			coreName := "MegaDrive"
+			terminal.Core = &coreName
+			control := &recordingControl{
+				statuses:    []misterruntime.Response{runtimeResponse("idle", "none"), terminal},
+				development: test.response,
+			}
+			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 50*time.Millisecond,
+				misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
+
+			observed, attempted, apiErr := runtime.LoadDevelopmentRBF(
+				context.Background(), 3, bytes.NewReader([]byte("rbf")))
+			if observed != "MegaDrive" || !attempted || apiErr != nil {
+				t.Fatalf("development load = observed:%q attempted:%t error:%#v", observed, attempted, apiErr)
+			}
+			statusCalls, _ := control.calls()
+			developmentCalls, _ := control.developmentCalls()
+			if statusCalls != 2 || developmentCalls != 1 {
+				t.Fatalf("calls = status:%d development:%d, want one dispatch and Status-only observation", statusCalls, developmentCalls)
+			}
+		})
+	}
+}
+
+func TestNativeDevelopmentRejectsBeforeReadingOrDialing(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name   string
+		path   string
+		size   int64
+		cancel bool
+	}{
+		{name: "empty path", path: "", size: 3},
+		{name: "relative path", path: "core.rbf", size: 3},
+		{name: "unclean path", path: "/tmp/dir/../core.rbf", size: 3},
+		{name: "NUL path", path: "/tmp/core.rbf\x00ignored", size: 3},
+		{name: "zero size", path: "/tmp/core.rbf", size: 0},
+		{name: "too large", path: "/tmp/core.rbf", size: protocol.MaxDevelopmentRBFBytes + 1},
+		{name: "canceled admission", path: "/tmp/core.rbf", size: 3, cancel: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			control := &recordingControl{}
+			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second,
+				misterruntime.WithDevelopmentRBFPath(test.path))
+			body := &failOnRead{}
+			ctx, cancel := context.WithCancel(context.Background())
+			if test.cancel {
+				cancel()
+			} else {
+				defer cancel()
+			}
+			_, attempted, apiErr := runtime.LoadDevelopmentRBF(ctx, test.size, body)
+			if attempted || apiErr == nil || body.reads != 0 {
+				t.Fatalf("development load = attempted:%t error:%#v reads:%d", attempted, apiErr, body.reads)
+			}
+			statusCalls, stopCalls := control.calls()
+			developmentCalls, _ := control.developmentCalls()
+			if statusCalls != 0 || developmentCalls != 0 || stopCalls != 0 {
+				t.Fatalf("control calls = status:%d development:%d stop:%d", statusCalls, developmentCalls, stopCalls)
+			}
+		})
+	}
+}
+
+func TestNativeDevelopmentCancellationDuringStagingStopsBeforeAdmission(t *testing.T) {
+	control := &recordingControl{}
+	stagedPath := filepath.Join(t.TempDir(), "core.rbf")
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second,
+		misterruntime.WithDevelopmentRBFPath(stagedPath))
+	ctx, cancel := context.WithCancel(context.Background())
+	body := &cancelingDevelopmentBody{cancel: cancel}
+
+	_, attempted, apiErr := runtime.LoadDevelopmentRBF(ctx, 3, body)
+	if attempted || apiErr == nil || body.reads != 1 {
+		t.Fatalf("canceled staging = attempted:%t error:%#v reads:%d", attempted, apiErr, body.reads)
+	}
+	if _, err := os.Stat(stagedPath); !os.IsNotExist(err) {
+		t.Fatalf("canceled staging installed a final file: %v", err)
+	}
+	statusCalls, _ := control.calls()
+	developmentCalls, _ := control.developmentCalls()
+	if statusCalls != 0 || developmentCalls != 0 {
+		t.Fatalf("canceled staging called control: status:%d development:%d", statusCalls, developmentCalls)
+	}
+}
+
+func TestNativeDevelopmentReconcilesLostResponseThroughStatusOnly(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	server := newLostResponseSocketServer(t, cancel,
+		`{"protocol":1,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"git-test"}`,
+		`{"protocol":1,"ok":true,"state":"starting","execution":"development","system":null,"core":null,"error":null,"version":"git-test"}`,
+		`{"protocol":1,"ok":true,"state":"running_development","execution":"development","system":null,"core":"MegaDrive","error":null,"version":"git-test"}`,
+	)
+	stagedPath := filepath.Join(t.TempDir(), "core.rbf")
+	runtime := misterruntime.NewRuntime(misterruntime.NewClient(server.listener.Addr().String()), "", time.Millisecond, 100*time.Millisecond,
+		misterruntime.WithDevelopmentRBFPath(stagedPath))
+
+	observed, attempted, apiErr := runtime.LoadDevelopmentRBF(ctx, 3, bytes.NewReader([]byte("rbf")))
+	operations := server.stop(t)
+	if observed != "MegaDrive" || !attempted || apiErr != nil {
+		t.Fatalf("development load = observed:%q attempted:%t error:%#v operations:%v", observed, attempted, apiErr, operations)
+	}
+	if got := strings.Join(operations, ","); got != "status,load_development_rbf,status,status" {
+		t.Fatalf("operations = %q, want one dispatch followed by Status only", got)
+	}
+}
+
+func TestNativeDevelopmentLostResponseRetainedErrorIdleIsFailure(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	server := newLostResponseSocketServer(t, cancel,
+		`{"protocol":1,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"git-test"}`,
+		`{"protocol":1,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":{"code":"io_failed","message":"private primary error"},"version":"git-test"}`,
+	)
+	runtime := misterruntime.NewRuntime(misterruntime.NewClient(server.listener.Addr().String()), "", time.Millisecond, 50*time.Millisecond,
+		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
+
+	observed, attempted, apiErr := runtime.LoadDevelopmentRBF(ctx, 3, bytes.NewReader([]byte("rbf")))
+	operations := server.stop(t)
+	if observed != "" || !attempted || apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable {
+		t.Fatalf("development load = observed:%q attempted:%t error:%#v", observed, attempted, apiErr)
+	}
+	if got := strings.Join(operations, ","); got != "status,load_development_rbf,status" {
+		t.Fatalf("operations = %q, want retained-error Status terminal", got)
+	}
+}
+
+func TestNativeOwnedDevelopmentLoadPreservesRebootRequiredRecoveryMarker(t *testing.T) {
+	t.Parallel()
+	response := runtimeResponse("reboot_required", "none")
+	control := &recordingControl{
+		statuses:    []misterruntime.Response{runtimeResponse("idle", "none")},
+		development: response,
+	}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second,
+		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
+	type recoveryLoader interface {
+		LoadDevelopmentRBFOwnedWithRecovery(context.Context, context.Context, context.Context, int64, io.Reader) (string, string, bool, *protocol.APIError)
+	}
+	loader, ok := any(runtime).(recoveryLoader)
+	if !ok {
+		t.Fatal("native runtime does not expose owned development recovery result")
+	}
+
+	observed, recovery, attempted, apiErr := loader.LoadDevelopmentRBFOwnedWithRecovery(
+		context.Background(), context.Background(), context.Background(), 3, bytes.NewReader([]byte("rbf")))
+	if observed != "" || recovery != protocol.RecoveryRebootRequired || !attempted ||
+		apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable {
+		t.Fatalf("owned development load = observed:%q recovery:%q attempted:%t error:%#v",
+			observed, recovery, attempted, apiErr)
+	}
+	statusCalls, stopCalls := control.calls()
+	developmentCalls, _ := control.developmentCalls()
+	if statusCalls != 1 || developmentCalls != 1 || stopCalls != 0 {
+		t.Fatalf("control calls = status:%d development:%d stop:%d, want one admission and one dispatch",
+			statusCalls, developmentCalls, stopCalls)
+	}
+}
+
+type ownedDevelopmentContextControl struct {
+	mu                 sync.Mutex
+	statusCalls        int
+	statusHadDeadlines []bool
+	developmentCalls   int
+	developmentStarted chan struct{}
+	observation        context.Context
+	terminal           misterruntime.Response
+}
+
+type admittedDevelopmentControl struct {
+	started chan struct{}
+	release chan struct{}
+}
+
+type gatedDevelopmentBody struct {
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+	sent    bool
+}
+
+func (r *gatedDevelopmentBody) Read(buffer []byte) (int, error) {
+	if r.sent {
+		return 0, io.EOF
+	}
+	r.once.Do(func() { close(r.started) })
+	<-r.release
+	copy(buffer, "rbf")
+	r.sent = true
+	return 3, io.EOF
+}
+
+type successfulProvisionalDevelopmentControl struct {
+	mu                 sync.Mutex
+	statusCalls        int
+	developmentCalls   int
+	statusHadDeadlines []bool
+	observation        context.Context
+	response           misterruntime.Response
+}
+
+func (c *successfulProvisionalDevelopmentControl) Status(ctx context.Context) (misterruntime.Response, error) {
+	c.mu.Lock()
+	c.statusCalls++
+	call := c.statusCalls
+	_, hadDeadline := ctx.Deadline()
+	c.statusHadDeadlines = append(c.statusHadDeadlines, hadDeadline)
+	c.mu.Unlock()
+	if call == 1 {
+		return runtimeResponse("idle", "none"), ctx.Err()
+	}
+	terminal := runtimeResponse("running_development", "development")
+	coreName := "MegaDrive"
+	terminal.Core = &coreName
+	return terminal, ctx.Err()
+}
+
+func (*successfulProvisionalDevelopmentControl) Launch(context.Context, misterruntime.LaunchRequest) (misterruntime.Response, error) {
+	return misterruntime.Response{}, errors.New("unexpected Launch")
+}
+
+func (c *successfulProvisionalDevelopmentControl) LoadDevelopmentRBF(context.Context, string) (misterruntime.Response, error) {
+	c.mu.Lock()
+	c.developmentCalls++
+	c.mu.Unlock()
+	if c.observation != nil {
+		<-c.observation.Done()
+	}
+	return c.response, nil
+}
+
+func (*successfulProvisionalDevelopmentControl) Stop(context.Context) (misterruntime.Response, error) {
+	return misterruntime.Response{}, errors.New("unexpected Stop")
+}
+
+func (*admittedDevelopmentControl) Status(ctx context.Context) (misterruntime.Response, error) {
+	return runtimeResponse("idle", "none"), ctx.Err()
+}
+
+func (*admittedDevelopmentControl) Launch(context.Context, misterruntime.LaunchRequest) (misterruntime.Response, error) {
+	return misterruntime.Response{}, errors.New("unexpected Launch")
+}
+
+func (c *admittedDevelopmentControl) LoadDevelopmentRBF(ctx context.Context, _ string) (misterruntime.Response, error) {
+	close(c.started)
+	select {
+	case <-ctx.Done():
+		return misterruntime.Response{}, ctx.Err()
+	case <-c.release:
+		response := runtimeResponse("running_development", "development")
+		coreName := "MegaDrive"
+		response.Core = &coreName
+		return response, nil
+	}
+}
+
+func (*admittedDevelopmentControl) Stop(context.Context) (misterruntime.Response, error) {
+	return misterruntime.Response{}, errors.New("unexpected Stop")
+}
+
+func (c *ownedDevelopmentContextControl) Status(ctx context.Context) (misterruntime.Response, error) {
+	c.mu.Lock()
+	c.statusCalls++
+	call := c.statusCalls
+	_, hadDeadline := ctx.Deadline()
+	c.statusHadDeadlines = append(c.statusHadDeadlines, hadDeadline)
+	c.mu.Unlock()
+	if call == 1 {
+		return runtimeResponse("idle", "none"), ctx.Err()
+	}
+	return c.terminal, ctx.Err()
+}
+
+func (*ownedDevelopmentContextControl) Launch(context.Context, misterruntime.LaunchRequest) (misterruntime.Response, error) {
+	return misterruntime.Response{}, errors.New("unexpected Launch")
+}
+
+func (c *ownedDevelopmentContextControl) LoadDevelopmentRBF(ctx context.Context, _ string) (misterruntime.Response, error) {
+	c.mu.Lock()
+	c.developmentCalls++
+	c.mu.Unlock()
+	close(c.developmentStarted)
+	<-c.observation.Done()
+	if ctx.Err() != nil {
+		return misterruntime.Response{}, ctx.Err()
+	}
+	return misterruntime.Response{}, errors.New("response lost after mutation")
+}
+
+func (*ownedDevelopmentContextControl) Stop(context.Context) (misterruntime.Response, error) {
+	return misterruntime.Response{}, errors.New("unexpected Stop")
+}
+
+func TestNativeOwnedDevelopmentUsesFreshProcessBoundWindowAfterObservationExpires(t *testing.T) {
+	observation, cancelObservation := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancelObservation()
+	terminal := runtimeResponse("running_development", "development")
+	coreName := "MegaDrive"
+	terminal.Core = &coreName
+	control := &ownedDevelopmentContextControl{
+		developmentStarted: make(chan struct{}), observation: observation, terminal: terminal,
+	}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 50*time.Millisecond,
+		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
+
+	observed, attempted, apiErr := runtime.LoadDevelopmentRBFOwned(
+		context.Background(), observation, context.Background(), 3, bytes.NewReader([]byte("rbf")))
+	if observed != "MegaDrive" || !attempted || apiErr != nil {
+		t.Fatalf("owned development load = observed:%q attempted:%t error:%#v", observed, attempted, apiErr)
+	}
+	control.mu.Lock()
+	defer control.mu.Unlock()
+	if control.developmentCalls != 1 || control.statusCalls != 2 ||
+		len(control.statusHadDeadlines) != 2 || !control.statusHadDeadlines[0] || !control.statusHadDeadlines[1] {
+		t.Fatalf("calls = development:%d status:%d deadlines:%v", control.developmentCalls, control.statusCalls, control.statusHadDeadlines)
+	}
+}
+
+func TestNativeOwnedDevelopmentDispatchesAfterStagingConsumesObservationWindow(t *testing.T) {
+	observation, cancelObservation := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancelObservation()
+	response := runtimeResponse("running_development", "development")
+	coreName := "MegaDrive"
+	response.Core = &coreName
+	control := &recordingControl{
+		statuses:    []misterruntime.Response{runtimeResponse("idle", "none")},
+		development: response,
+	}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 50*time.Millisecond,
+		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
+	body := &gatedDevelopmentBody{started: make(chan struct{}), release: make(chan struct{})}
+	done := make(chan struct {
+		observed  string
+		attempted bool
+		apiErr    *protocol.APIError
+	}, 1)
+	go func() {
+		observed, attempted, apiErr := runtime.LoadDevelopmentRBFOwned(
+			context.Background(), observation, context.Background(), 3, body)
+		done <- struct {
+			observed  string
+			attempted bool
+			apiErr    *protocol.APIError
+		}{observed: observed, attempted: attempted, apiErr: apiErr}
+	}()
+	<-body.started
+	<-observation.Done()
+	close(body.release)
+
+	result := <-done
+	if result.observed != "MegaDrive" || !result.attempted || result.apiErr != nil {
+		t.Fatalf("owned development after staging deadline = observed:%q attempted:%t error:%#v",
+			result.observed, result.attempted, result.apiErr)
+	}
+	statusCalls, _ := control.calls()
+	developmentCalls, _ := control.developmentCalls()
+	if statusCalls != 1 || developmentCalls != 1 {
+		t.Fatalf("calls = status:%d development:%d, want one admission and one dispatch", statusCalls, developmentCalls)
+	}
+}
+
+func TestNativeOwnedDevelopmentProvisionalAfterStagingObservationExpiryUsesFreshProcessWindow(t *testing.T) {
+	observation, cancelObservation := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancelObservation()
+	control := &successfulProvisionalDevelopmentControl{
+		observation: observation,
+		response:    runtimeResponse("idle", "none"),
+	}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 50*time.Millisecond,
+		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
+	body := &gatedDevelopmentBody{started: make(chan struct{}), release: make(chan struct{})}
+	done := make(chan struct {
+		observed  string
+		attempted bool
+		apiErr    *protocol.APIError
+	}, 1)
+	go func() {
+		observed, attempted, apiErr := runtime.LoadDevelopmentRBFOwned(
+			context.Background(), observation, context.Background(), 3, body)
+		done <- struct {
+			observed  string
+			attempted bool
+			apiErr    *protocol.APIError
+		}{observed: observed, attempted: attempted, apiErr: apiErr}
+	}()
+	<-body.started
+	<-observation.Done()
+	close(body.release)
+
+	result := <-done
+	if result.observed != "MegaDrive" || !result.attempted || result.apiErr != nil {
+		t.Fatalf("owned provisional development after staging deadline = observed:%q attempted:%t error:%#v",
+			result.observed, result.attempted, result.apiErr)
+	}
+	control.mu.Lock()
+	defer control.mu.Unlock()
+	if control.developmentCalls != 1 || control.statusCalls != 2 ||
+		len(control.statusHadDeadlines) != 2 || !control.statusHadDeadlines[0] || !control.statusHadDeadlines[1] {
+		t.Fatalf("calls = development:%d status:%d deadlines:%v, want one dispatch and bounded admission/reconciliation",
+			control.developmentCalls, control.statusCalls, control.statusHadDeadlines)
+	}
+}
+
+func TestNativeOwnedDevelopmentSuccessfulProvisionalResponsesUseStatusOnly(t *testing.T) {
+	t.Run("starting uses live observation", func(t *testing.T) {
+		control := &successfulProvisionalDevelopmentControl{response: runtimeResponse("starting", "development")}
+		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 50*time.Millisecond,
+			misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
+
+		observed, attempted, apiErr := runtime.LoadDevelopmentRBFOwned(
+			context.Background(), context.Background(), context.Background(), 3, bytes.NewReader([]byte("rbf")))
+		if observed != "MegaDrive" || !attempted || apiErr != nil {
+			t.Fatalf("owned development = observed:%q attempted:%t error:%#v", observed, attempted, apiErr)
+		}
+		control.mu.Lock()
+		defer control.mu.Unlock()
+		if control.developmentCalls != 1 || control.statusCalls != 2 {
+			t.Fatalf("calls = development:%d status:%d", control.developmentCalls, control.statusCalls)
+		}
+	})
+
+	t.Run("clean idle after exhausted observation uses fresh process window", func(t *testing.T) {
+		observation, cancelObservation := context.WithTimeout(context.Background(), 10*time.Millisecond)
+		defer cancelObservation()
+		control := &successfulProvisionalDevelopmentControl{
+			observation: observation,
+			response:    runtimeResponse("idle", "none"),
+		}
+		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 50*time.Millisecond,
+			misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
+
+		observed, attempted, apiErr := runtime.LoadDevelopmentRBFOwned(
+			context.Background(), observation, context.Background(), 3, bytes.NewReader([]byte("rbf")))
+		if observed != "MegaDrive" || !attempted || apiErr != nil {
+			t.Fatalf("owned development = observed:%q attempted:%t error:%#v", observed, attempted, apiErr)
+		}
+		control.mu.Lock()
+		defer control.mu.Unlock()
+		if control.developmentCalls != 1 || control.statusCalls != 2 ||
+			len(control.statusHadDeadlines) != 2 || !control.statusHadDeadlines[0] || !control.statusHadDeadlines[1] {
+			t.Fatalf("calls = development:%d status:%d deadlines:%v", control.developmentCalls, control.statusCalls, control.statusHadDeadlines)
+		}
+	})
+}
+
+func TestNativeOwnedDevelopmentSurvivesCallerCancellationAfterAdmission(t *testing.T) {
+	control := &admittedDevelopmentControl{started: make(chan struct{}), release: make(chan struct{})}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 50*time.Millisecond,
+		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
+	admission, cancelAdmission := context.WithCancel(context.Background())
+	done := make(chan struct {
+		observed  string
+		attempted bool
+		apiErr    *protocol.APIError
+	}, 1)
+	go func() {
+		observed, attempted, apiErr := runtime.LoadDevelopmentRBFOwned(
+			admission, context.Background(), context.Background(), 3, bytes.NewReader([]byte("rbf")))
+		done <- struct {
+			observed  string
+			attempted bool
+			apiErr    *protocol.APIError
+		}{observed: observed, attempted: attempted, apiErr: apiErr}
+	}()
+	<-control.started
+	cancelAdmission()
+	close(control.release)
+	result := <-done
+	if result.observed != "MegaDrive" || !result.attempted || result.apiErr != nil {
+		t.Fatalf("owned development = observed:%q attempted:%t error:%#v", result.observed, result.attempted, result.apiErr)
+	}
+}
+
+func TestNativeOwnedDevelopmentStopsWhenProcessOwnerIsCanceled(t *testing.T) {
+	observation, cancelObservation := context.WithTimeout(context.Background(), time.Second)
+	defer cancelObservation()
+	operationOwner, cancelOwner := context.WithCancel(context.Background())
+	control := &ownedDevelopmentContextControl{
+		developmentStarted: make(chan struct{}), observation: operationOwner,
+		terminal: runtimeResponse("running_development", "development"),
+	}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 25*time.Millisecond,
+		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
+	done := make(chan *protocol.APIError, 1)
+	go func() {
+		_, _, apiErr := runtime.LoadDevelopmentRBFOwned(context.Background(), observation, operationOwner, 3, bytes.NewReader([]byte("rbf")))
+		done <- apiErr
+	}()
+	<-control.developmentStarted
+	cancelOwner()
+	select {
+	case apiErr := <-done:
+		if apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable {
+			t.Fatalf("process cancellation error = %#v", apiErr)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("owned development ignored process cancellation")
+	}
+}
+
+func TestNativeReconcileReconstructsDevelopmentWithoutReplay(t *testing.T) {
+	server := newLostResponseSocketServer(t, func() {},
+		`{"protocol":1,"ok":true,"state":"running_development","execution":"development","system":null,"core":"MegaDrive","error":null,"version":"git-test"}`,
+	)
+	runtime := misterruntime.NewRuntime(misterruntime.NewClient(server.listener.Addr().String()), "", time.Millisecond, time.Second,
+		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
+
+	status := runtime.Reconcile(context.Background())
+	operations := server.stop(t)
+	if status.State != protocol.StateActive || !status.Development || status.GameID != nil || status.System != nil || status.ExpectedCore != nil || status.ObservedCore == nil || *status.ObservedCore != "MegaDrive" || status.LastError != nil {
+		t.Fatalf("reconciled status = %#v", status)
+	}
+	if got := strings.Join(operations, ","); got != "status" {
+		t.Fatalf("agent restart operations = %q, want Status only", got)
+	}
+}
+
+func TestNativeReconcileTreatsRuntimeRestartIdleAsIdleWithoutReplay(t *testing.T) {
+	server := newLostResponseSocketServer(t, func() {},
+		`{"protocol":1,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"git-test"}`,
+	)
+	runtime := misterruntime.NewRuntime(misterruntime.NewClient(server.listener.Addr().String()), "", time.Millisecond, time.Second,
+		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
+	status := runtime.Reconcile(context.Background())
+	operations := server.stop(t)
+	if status.State != protocol.StateIdle || status.Development || strings.Join(operations, ",") != "status" {
+		t.Fatalf("runtime-restart status = %#v, operations = %v", status, operations)
+	}
+}
+
+func TestNativeDevelopmentRejectsWrongIdentityBoundaries(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name     string
+		response misterruntime.Response
+	}{
+		{name: "non-null system", response: func() misterruntime.Response {
+			response := runtimeResponse("running_development", "development")
+			system := "megadrive"
+			response.System = &system
+			return response
+		}()},
+		{name: "empty core", response: func() misterruntime.Response {
+			response := runtimeResponse("running_development", "development")
+			empty := ""
+			response.Core = &empty
+			return response
+		}()},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			control := &recordingControl{statuses: []misterruntime.Response{test.response}}
+			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second,
+				misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
+			status := runtime.Reconcile(context.Background())
+			assertUnavailableStatus(t, status)
+			if runtime.StopReady() {
+				t.Fatal("wrong development identity admitted Stop")
+			}
+		})
+	}
+}
+
+func TestNativeReconcileRejectsDevelopmentStartingWithCoreIdentity(t *testing.T) {
+	response := runtimeResponse("starting", "development")
+	coreName := "MegaDrive"
+	response.Core = &coreName
+	control := &recordingControl{statuses: []misterruntime.Response{response}}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second,
+		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	status := runtime.Reconcile(ctx)
+	assertUnavailableStatus(t, status)
+	statusCalls, _ := control.calls()
+	if statusCalls != 1 {
+		t.Fatalf("malformed development starting used %d Status calls, want one conclusive rejection", statusCalls)
 	}
 }
 
@@ -1483,6 +2141,129 @@ func TestNativeDirectStopTranslationMapsControlResultForLaterMilestone(t *testin
 			t.Fatalf("stop detail leaked: %#v", apiErr)
 		}
 	})
+}
+
+func TestNativeOwnedStopPropagatesRebootRequiredRecovery(t *testing.T) {
+	t.Parallel()
+	control := &recordingControl{stop: runtimeResponse("reboot_required", "none")}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+
+	observed, recovery, apiErr := runtime.StopOwnedWithRecovery(context.Background(), context.Background())
+	if observed != "" || recovery != protocol.RecoveryRebootRequired || apiErr != nil {
+		t.Fatalf("owned stop = observed:%q recovery:%q error:%#v", observed, recovery, apiErr)
+	}
+	statusCalls, stopCalls := control.calls()
+	if statusCalls != 0 || stopCalls != 1 {
+		t.Fatalf("control calls = status:%d stop:%d", statusCalls, stopCalls)
+	}
+}
+
+func TestNativeDevelopmentRecoveryRequiresConfiguredExecutable(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name string
+		path func(string) string
+	}{
+		{name: "missing", path: func(dir string) string { return filepath.Join(dir, "missing-reboot") }},
+		{name: "directory", path: func(dir string) string { return dir }},
+		{name: "not executable", path: func(dir string) string { return filepath.Join(dir, "reboot") }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := test.path(dir)
+			if test.name == "not executable" {
+				if err := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			runtime := misterruntime.NewRuntime(nil, "", time.Millisecond, time.Second,
+				misterruntime.WithRebootCommand(path))
+
+			_, apiErr := runtime.RecoverDevelopment(context.Background())
+			if apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable {
+				t.Fatalf("recovery error = %#v", apiErr)
+			}
+		})
+	}
+}
+
+func TestNativeDevelopmentRecoveryHonorsCanceledContextBeforeStartingCommand(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "started")
+	reboot := filepath.Join(dir, "reboot")
+	script := "#!/bin/sh\n: > '" + marker + "'\n"
+	if err := os.WriteFile(reboot, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	runtime := misterruntime.NewRuntime(nil, "", time.Millisecond, time.Second,
+		misterruntime.WithRebootCommand(reboot))
+
+	_, apiErr := runtime.RecoverDevelopment(ctx)
+	if apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable {
+		t.Fatalf("canceled recovery error = %#v", apiErr)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("canceled recovery started command: %v", err)
+	}
+}
+
+func TestNativeDevelopmentRecoveryStartsConfiguredCommand(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "started")
+	reboot := filepath.Join(dir, "reboot")
+	script := "#!/bin/sh\n: > '" + marker + "'\n"
+	if err := os.WriteFile(reboot, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	runtime := misterruntime.NewRuntime(nil, "", time.Millisecond, time.Second,
+		misterruntime.WithRebootCommand(reboot))
+
+	observed, apiErr := runtime.RecoverDevelopment(context.Background())
+	if observed != "" || apiErr != nil {
+		t.Fatalf("recovery = observed:%q error:%#v", observed, apiErr)
+	}
+	deadline := time.Now().Add(250 * time.Millisecond)
+	for {
+		if _, err := os.Stat(marker); err == nil {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("configured recovery command was not started")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestNativeDevelopmentRecoverySurvivesCallerCancellationAfterStart(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "finished")
+	reboot := filepath.Join(dir, "reboot")
+	script := "#!/bin/sh\nsleep 0.05\n: > '" + marker + "'\n"
+	if err := os.WriteFile(reboot, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	runtime := misterruntime.NewRuntime(nil, "", time.Millisecond, time.Second,
+		misterruntime.WithRebootCommand(reboot))
+	if _, apiErr := runtime.RecoverDevelopment(ctx); apiErr != nil {
+		t.Fatalf("recovery error = %#v", apiErr)
+	}
+	cancel()
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for {
+		if _, err := os.Stat(marker); err == nil {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("recovery command did not survive caller cancellation")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
 func TestNativeOwnedStopKeepsAdmissionCallerBoundAndOperationOwnerBound(t *testing.T) {

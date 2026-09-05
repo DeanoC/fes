@@ -343,6 +343,10 @@ func (c *deadlineOwnedLaunchControl) Launch(ctx context.Context, request misterr
 	}
 }
 
+func (*deadlineOwnedLaunchControl) LoadDevelopmentRBF(context.Context, string) (misterruntime.Response, error) {
+	return misterruntime.Response{}, errors.New("unused")
+}
+
 func (c *deadlineOwnedLaunchControl) Stop(context.Context) (misterruntime.Response, error) {
 	return deadlineOwnedRuntimeResponse("idle", "none"), nil
 }

@@ -11,7 +11,7 @@ and content selection; the MiSTer is a small, directly controlled target.
 - Real FPGA game launches on the designated MiSTer Pi.
 - Target-side content caching, input, stop, and active-core observation.
 - Host API loading of arbitrary development RBF files, with automatic reboot
-  recovery back to Menu for non-MiSTer cores.
+  recovery back to Menu for non-MiSTer cores on the conventional Main backend.
 - Browser UI, local media previews, and host-emulator/remote-media modes.
 - Native SDL3 10-foot launcher (`cmd/fogcast-tenfoot`) with cover-grid, shelf,
   and list layouts that calls the same public host API. Mac is the primary
@@ -40,14 +40,21 @@ The normal FPGA launch path is:
 ## Development RBF path
 
 `POST /api/v1/session/development-rbf` accepts one bounded
-`application/octet-stream` body. FogCast streams it to the target, installs it
-as a temporary RBF, and loads it through `/dev/MiSTer_cmd`. A development Stop
-uses an explicit two-request target handshake, reboots the disposable kit,
-and reports idle only after health shows a new Linux boot ID and the target
-reports Menu idle.
+`application/octet-stream` body. On the conventional Main backend, FogCast
+installs it temporarily and loads it through `/dev/MiSTer_cmd`; Stop uses the
+existing reboot-required recovery handshake.
 
-The host API path works now. A browser file picker for the same endpoint is
-the next UI extension; it is not a second loading path.
+The native backend supports the same API path for the existing
+MiSTer-compatible development ABI. It atomically stages the upload at
+`/tmp/fogcast-development/core.rbf`, asks `mister-runtime` to power down HDMI,
+program the FPGA, synchronize the core, and report development state without a
+game or system identity. HDMI stays down until Stop reloads the locked idle
+RBF. Raw development uploads have no video or input guarantee. The native
+image packages no development RBF, and the upstream Mega Drive file used for
+physical acceptance is a fixture rather than a production-pinned core. The
+exact two-cycle acceptance and legacy rollback evidence is recorded in
+[native-development-rbf-baseline.md](docs/hardware/native-development-rbf-baseline.md).
+There is no browser file picker.
 
 ## Repository boundaries
 
@@ -63,11 +70,14 @@ history is the archive.
 
 The conventional `dev`/`prod` image remains the broad FPGA game and
 development-RBF path described above. The separate `native-dev` image supports
-only registry system `megadrive`: it sends the image-owned core and staged
-cartridge path to `mister-runtime` and rejects development RBFs and every other
-system. The accepted slice is one player with D-pad, A/B/C, and Start. Audio,
-saves, six-button input, multiplayer, remapping, hot-plug recovery, and native
-development-RBF loading remain unsupported.
+only registry system `megadrive` for catalogue launches: it sends the
+image-owned core and staged cartridge path to `mister-runtime` and rejects
+every other catalogue system. Its separate MiSTer-compatible development-RBF
+path is hardware-tested for the narrow MiSTer-compatible load/Stop lifecycle
+and subsequent game regression. The accepted game slice is one player with
+D-pad, A/B/C, and Start. Audio, saves, six-button input, multiplayer,
+remapping, hot-plug recovery, generalized RBF ABIs, and development video/input
+remain unsupported.
 
 ## Milestone status
 
@@ -76,6 +86,8 @@ legacy dev/prod = current game-capable path
 native-dev = hardware-tested Mega Drive launch/input/Stop/relaunch
 Milestone 2 = complete
 Milestone 3 = complete for the defined one-player Mega Drive vertical slice
+native development RBF = hardware-tested MiSTer-compatible load/Stop/game-regression path
+Milestone 4 = complete for the defined MiSTer-compatible development lifecycle
 ```
 
 ## Build and test

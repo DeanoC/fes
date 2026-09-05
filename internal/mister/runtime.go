@@ -139,7 +139,7 @@ func (r *Runtime) Launch(ctx context.Context, prepared PreparedLaunch) (string, 
 }
 
 func (r *Runtime) LoadDevelopmentRBF(ctx context.Context, size int64, content io.Reader) (string, bool, *protocol.APIError) {
-	if err := writeAtomicDevelopmentRBF(r.paths.DevelopmentRBF, size, content); err != nil {
+	if err := WriteAtomicDevelopmentRBF(r.paths.DevelopmentRBF, size, content); err != nil {
 		return r.currentCore(), false, &protocol.APIError{Code: protocol.CodeInternal, Message: "development RBF could not be installed"}
 	}
 	if err := r.writer.Write(ctx, "load_core "+r.paths.DevelopmentRBF+"\n"); err != nil {

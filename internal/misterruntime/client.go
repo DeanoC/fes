@@ -15,6 +15,7 @@ import (
 
 const DefaultSocketPath = "/run/mister-runtime.sock"
 const MaximumLineBytes = 65536
+const maximumRuntimePathBytes = 4095
 const megaDriveRBFPath = "/usr/share/mister-runtime/cores/megadrive.rbf"
 
 var (
@@ -54,6 +55,7 @@ type LaunchRequest struct {
 type Control interface {
 	Status(context.Context) (Response, error)
 	Launch(context.Context, LaunchRequest) (Response, error)
+	LoadDevelopmentRBF(context.Context, string) (Response, error)
 	Stop(context.Context) (Response, error)
 }
 
@@ -66,41 +68,49 @@ func NewClient(socketPath string) *Client {
 }
 
 func (client *Client) Status(ctx context.Context) (Response, error) {
-	return client.call(ctx, "status", nil)
+	return client.call(ctx, struct {
+		Protocol  int    `json:"protocol"`
+		Operation string `json:"operation"`
+	}{Protocol: 1, Operation: "status"})
 }
 
 func (client *Client) Launch(ctx context.Context, request LaunchRequest) (Response, error) {
 	if !validLaunchRequest(request) {
 		return Response{}, errInvalidRuntimeRequest
 	}
-	return client.call(ctx, "launch", &request)
+	return client.call(ctx, struct {
+		Protocol  int               `json:"protocol"`
+		Operation string            `json:"operation"`
+		System    string            `json:"system"`
+		RBF       string            `json:"rbf"`
+		Media     map[string]string `json:"media"`
+		Settings  map[string]string `json:"settings"`
+	}{
+		Protocol: 1, Operation: "launch", System: request.System,
+		RBF: request.RBF, Media: request.Media, Settings: request.Settings,
+	})
+}
+
+func (client *Client) LoadDevelopmentRBF(ctx context.Context, rbf string) (Response, error) {
+	if !validRuntimePath(rbf) {
+		return Response{}, errInvalidRuntimeRequest
+	}
+	return client.call(ctx, struct {
+		Protocol  int    `json:"protocol"`
+		Operation string `json:"operation"`
+		RBF       string `json:"rbf"`
+	}{Protocol: 1, Operation: "load_development_rbf", RBF: rbf})
 }
 
 func (client *Client) Stop(ctx context.Context) (Response, error) {
-	return client.call(ctx, "stop", nil)
+	return client.call(ctx, struct {
+		Protocol  int    `json:"protocol"`
+		Operation string `json:"operation"`
+	}{Protocol: 1, Operation: "stop"})
 }
 
-func (client *Client) call(ctx context.Context, operation string, launch *LaunchRequest) (Response, error) {
-	var payload []byte
-	var err error
-	if launch == nil {
-		payload, err = json.Marshal(struct {
-			Protocol  int    `json:"protocol"`
-			Operation string `json:"operation"`
-		}{Protocol: 1, Operation: operation})
-	} else {
-		payload, err = json.Marshal(struct {
-			Protocol  int               `json:"protocol"`
-			Operation string            `json:"operation"`
-			System    string            `json:"system"`
-			RBF       string            `json:"rbf"`
-			Media     map[string]string `json:"media"`
-			Settings  map[string]string `json:"settings"`
-		}{
-			Protocol: 1, Operation: operation, System: launch.System,
-			RBF: launch.RBF, Media: launch.Media, Settings: launch.Settings,
-		})
-	}
+func (client *Client) call(ctx context.Context, requestBody any) (Response, error) {
+	payload, err := json.Marshal(requestBody)
 	if err != nil {
 		return Response{}, errInvalidRuntimeResponse
 	}
@@ -146,6 +156,11 @@ func validLaunchRequest(request LaunchRequest) bool {
 	cartridge, ok := request.Media["cartridge"]
 	return ok && filepath.IsAbs(cartridge) && filepath.Clean(cartridge) == cartridge &&
 		strings.IndexByte(cartridge, 0) < 0
+}
+
+func validRuntimePath(path string) bool {
+	return filepath.IsAbs(path) && filepath.Clean(path) == path &&
+		len(path) <= maximumRuntimePathBytes && strings.IndexByte(path, 0) < 0
 }
 
 func writePayload(connection net.Conn, payload []byte) error {
@@ -271,7 +286,8 @@ func validateResponse(response Response) error {
 			return errInvalidRuntimeResponse
 		}
 	case "running_development":
-		if response.Execution != "development" || identity != identityNone {
+		if response.Execution != "development" ||
+			(identity != identityNone && identity != identityCore) {
 			return errInvalidRuntimeResponse
 		}
 	case "reboot_required":
@@ -290,12 +306,16 @@ type identityShape uint8
 const (
 	identityNone identityShape = iota
 	identityPair
+	identityCore
 	identityInvalid
 )
 
 func responseIdentity(response Response) identityShape {
 	if response.System == nil && response.Core == nil {
 		return identityNone
+	}
+	if response.System == nil && response.Core != nil && *response.Core != "" {
+		return identityCore
 	}
 	if response.System == nil || response.Core == nil || *response.System == "" || *response.Core == "" {
 		return identityInvalid

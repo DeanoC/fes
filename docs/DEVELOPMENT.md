@@ -50,9 +50,13 @@ twice and requires identical image digests. Verification inspects the locked
 idle RBF, build-input record, ARM runtime and static ARM agent, and the
 runtime's target-library closure. QEMU proves only the read-only root,
 volatile mounts, and init packaging. The designated-kit idle and one-player
-Mega Drive launch/input/Stop/relaunch paths are hardware-tested. `native-dev`
-supports no other game system and no development-RBF path. Continue to use the
-legacy `dev` image for broader game and development-RBF paths below.
+Mega Drive launch/input/Stop/relaunch paths are hardware-tested. The existing
+MiSTer-compatible native development-RBF load/Stop lifecycle and its subsequent
+game regression are also hardware-tested; exact evidence is in
+[native-development-rbf-baseline.md](hardware/native-development-rbf-baseline.md).
+`native-dev` supports no other catalogue game system, generalized RBF ABI, or
+generic development video/input guarantee. Continue to use the legacy `dev`
+image for the broader established game and development-RBF paths below.
 
 ### Fast target iteration policy
 
@@ -77,6 +81,8 @@ legacy dev/prod = current game-capable path
 native-dev = hardware-tested Mega Drive launch/input/Stop/relaunch
 Milestone 2 = complete
 Milestone 3 = complete for the defined one-player Mega Drive vertical slice
+native development RBF = hardware-tested MiSTer-compatible load/Stop/game-regression path
+Milestone 4 = complete for the defined MiSTer-compatible development lifecycle
 ```
 
 ## Dedicated fixture

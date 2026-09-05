@@ -159,6 +159,21 @@ func TestClientDevelopmentRBFRejectsMismatchedStatus(t *testing.T) {
 	}
 }
 
+func TestClientDevelopmentRBFLostResponsePreservesAmbiguousTransportCause(t *testing.T) {
+	transport := &developmentDeadlineTransport{}
+	_, err := contentClientWithTransport(transport).LoadDevelopmentRBF(context.Background(), 3, strings.NewReader("rbf"))
+	var apiErr *protocol.APIError
+	if !errors.Is(err, context.DeadlineExceeded) || !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeTransferFailed {
+		t.Fatalf("lost response error = %v", err)
+	}
+}
+
+type developmentDeadlineTransport struct{}
+
+func (*developmentDeadlineTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, context.DeadlineExceeded
+}
+
 func TestClientDevelopmentRebootUsesAuthenticatedEmptyPost(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

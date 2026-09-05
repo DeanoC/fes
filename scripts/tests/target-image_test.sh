@@ -378,6 +378,12 @@ make_root "$native_root" native-dev
 verify_fixture prod "$prod_root" "$fixture/prod.manifest" "$fixture/prod.libraries"
 verify_fixture dev "$dev_root" "$fixture/dev.manifest" "$fixture/dev.libraries"
 verify_fixture native-dev "$native_root" "$fixture/native.manifest" "$fixture/native.libraries"
+for prohibited_development_rbf in \
+  /usr/share/mister-runtime/development.rbf \
+  /usr/share/mister-runtime/cores/development.rbf \
+  /tmp/fogcast-development/core.rbf; do
+  test ! -e "$native_root$prohibited_development_rbf"
+done
 
 native_without_readlink=$fixture/native-without-readlink
 cp -R "$native_root" "$native_without_readlink"
@@ -486,6 +492,24 @@ if verify_fixture native-dev "$native_extra_rbf_symlink" \
   native_symlink_failures=$((native_symlink_failures + 1))
 fi
 [ "$native_symlink_failures" -eq 0 ] || exit 1
+
+for prohibited_development_rbf in \
+  /usr/share/mister-runtime/development.rbf \
+  /usr/share/mister-runtime/cores/development.rbf \
+  /tmp/fogcast-development/core.rbf; do
+  case_name=$(printf '%s' "$prohibited_development_rbf" | tr '/.' '__')
+  mutated_root=$fixture/native-prohibited-$case_name
+  cp -R "$native_root" "$mutated_root"
+  mkdir -p "$mutated_root$(dirname "$prohibited_development_rbf")"
+  cp "$mutated_root/usr/share/mister-runtime/idle.rbf" \
+    "$mutated_root$prohibited_development_rbf"
+  if verify_fixture native-dev "$mutated_root" \
+    "$fixture/native-prohibited-$case_name.manifest" \
+    "$fixture/native-prohibited-$case_name.libraries" >/dev/null 2>&1; then
+    echo "native verifier accepted prohibited development RBF: $prohibited_development_rbf" >&2
+    exit 1
+  fi
+done
 
 native_missing_megadrive=$fixture/native-missing-megadrive
 cp -R "$native_root" "$native_missing_megadrive"

@@ -76,7 +76,8 @@ func (f *fakeController) Stop(context.Context) (protocol.Status, *protocol.APIEr
 func TestDevelopmentRBFUploadStreamsToController(t *testing.T) {
 	t.Parallel()
 	payload := []byte("development-rbf")
-	development := &fakeDevelopmentController{status: protocol.Status{State: protocol.StateActive, Development: true}}
+	observed := "DEVCORE"
+	development := &fakeDevelopmentController{status: protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &observed}}
 	handler := httpapi.New(&fakeController{}, "test-token", "0.1.0", discardLogger(), httpapi.WithDevelopment(development))
 	request := httptest.NewRequest(http.MethodPost, "/v1/development/rbf", bytes.NewReader(payload))
 	request.ContentLength = int64(len(payload))
@@ -96,7 +97,7 @@ func TestDevelopmentRBFUploadStreamsToController(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &status); err != nil {
 		t.Fatal(err)
 	}
-	if status.State != protocol.StateActive || !status.Development {
+	if status.State != protocol.StateActive || !status.Development || status.GameID != nil || status.System != nil || status.ExpectedCore != nil || status.ObservedCore == nil || *status.ObservedCore != "DEVCORE" || status.LastError != nil || status.Recovery != "" {
 		t.Fatalf("response = %#v", status)
 	}
 }

@@ -105,13 +105,19 @@ func runtimeDependencies(backend runtimeBackend, nativeControl misterruntime.Con
 		nativeControl = misterruntime.NewClient(misterruntime.DefaultSocketPath)
 	}
 	dependencies.newRuntime = func(agentconfig.Config, core.Registry) agent.Runtime {
-		return misterruntime.NewRuntime(nativeControl, bootIDFile, 25*time.Millisecond, 250*time.Millisecond)
+		return newNativeRuntime(nativeControl, rebootCommand)
 	}
 	dependencies.newInput = func(cfg agentconfig.Config) (httpapi.InputController, error) {
 		return input.NewNativeTargetControllerWithConfig(cfg.InputListenAddress, cfg.InputUInputPath)
 	}
 	dependencies.inputBeforeInitialize = true
 	return dependencies, nil
+}
+
+func newNativeRuntime(control misterruntime.Control, rebootPath string) *misterruntime.Runtime {
+	return misterruntime.NewRuntime(control, bootIDFile, 25*time.Millisecond, 250*time.Millisecond,
+		misterruntime.WithDevelopmentRBFPath(developmentRBFPath),
+		misterruntime.WithRebootCommand(rebootPath))
 }
 
 func runWithDependencies(ctx context.Context, configPath string, logger *slog.Logger, dependencies runDependencies) (resultErr error) {

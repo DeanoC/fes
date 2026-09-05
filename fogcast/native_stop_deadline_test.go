@@ -197,6 +197,10 @@ func (c *deadlineOwnedStopControl) Launch(context.Context, misterruntime.LaunchR
 	return c.state, nil
 }
 
+func (*deadlineOwnedStopControl) LoadDevelopmentRBF(context.Context, string) (misterruntime.Response, error) {
+	return misterruntime.Response{}, errors.New("unused")
+}
+
 func (c *deadlineOwnedStopControl) Stop(ctx context.Context) (misterruntime.Response, error) {
 	c.mu.Lock()
 	c.stopCalls++

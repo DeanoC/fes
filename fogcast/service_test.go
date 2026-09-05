@@ -2302,6 +2302,220 @@ func TestServiceDevelopmentRBFUsesSelectedTargetAndStops(t *testing.T) {
 	}
 }
 
+func TestServiceDevelopmentStopUsesNativeRecoveryStatusOverHTTP(t *testing.T) {
+	var stopCalls, rebootCalls, healthCalls, statusCalls int
+	rebooted := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/health" && r.Header.Get("Authorization") != "Bearer target-token" {
+			t.Fatalf("authorization = %q", r.Header.Get("Authorization"))
+		}
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/stop":
+			stopCalls++
+			_ = json.NewEncoder(w).Encode(protocol.Status{
+				State: protocol.StateStopping, Development: true, Recovery: protocol.RecoveryRebootRequired,
+			})
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/development/reboot":
+			rebootCalls++
+			rebooted = true
+			_ = json.NewEncoder(w).Encode(protocol.Status{
+				State: protocol.StateStopping, Development: true, Recovery: protocol.RecoveryRebootRequired,
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/health":
+			healthCalls++
+			bootID := "boot-before"
+			if rebooted {
+				bootID = "boot-after"
+			}
+			_ = json.NewEncoder(w).Encode(protocol.Health{Ready: true, BootID: bootID})
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/status":
+			statusCalls++
+			if !rebooted {
+				_ = json.NewEncoder(w).Encode(protocol.Status{
+					State: protocol.StateStopping, Development: true, Recovery: protocol.RecoveryRebootRequired,
+				})
+				return
+			}
+			_ = json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	baseURL, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := host.NewClient(baseURL, "target-token", server.Client())
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+	service.activeExecution = ExecutionFPGADevelopment
+
+	status, err := service.Stop(context.Background())
+	if err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("HTTP native recovery stop = %#v, %v", status, err)
+	}
+	if stopCalls != 1 || rebootCalls != 1 || healthCalls < 2 || statusCalls != 1 || service.activeExecution != "" {
+		t.Fatalf("HTTP native recovery calls = stop:%d reboot:%d health:%d status:%d execution:%q", stopCalls, rebootCalls, healthCalls, statusCalls, service.activeExecution)
+	}
+}
+
+type noDevelopmentRecoveryClient struct {
+	serviceClient
+}
+
+func TestServiceDevelopmentStopRejectsTargetWithoutRecoveryCapability(t *testing.T) {
+	target := &fakeServiceClient{
+		stopResult: protocol.Status{
+			State: protocol.StateStopping, Development: true, Recovery: protocol.RecoveryRebootRequired,
+		},
+	}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, &noDevelopmentRecoveryClient{serviceClient: target})
+	service.activeExecution = ExecutionFPGADevelopment
+
+	_, err := service.Stop(context.Background())
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeInternal {
+		t.Fatalf("missing recovery capability error = %v", err)
+	}
+	if target.stopCalls != 1 || target.developmentReboots != 0 || service.activeExecution != ExecutionFPGADevelopment {
+		t.Fatalf("missing recovery calls = stop:%d reboot:%d execution:%q", target.stopCalls, target.developmentReboots, service.activeExecution)
+	}
+}
+
+func TestServiceDevelopmentStopBoundsFailedRecoveryHandshake(t *testing.T) {
+	target := &fakeServiceClient{
+		stopResult: protocol.Status{
+			State: protocol.StateStopping, Development: true, Recovery: protocol.RecoveryRebootRequired,
+		},
+		developmentReboot: func(context.Context) (protocol.Status, error) {
+			return protocol.Status{}, errors.New("reboot command failed")
+		},
+		healthFn: func(context.Context) (protocol.Health, error) {
+			return protocol.Health{Ready: true, BootID: "boot-before"}, nil
+		},
+	}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, target)
+	service.activeExecution = ExecutionFPGADevelopment
+	service.uploadTimeout = 50 * time.Millisecond
+
+	_, err := service.Stop(context.Background())
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeMiSTerUnavailable {
+		t.Fatalf("failed recovery error = %v", err)
+	}
+	if target.stopCalls != 1 || target.developmentReboots != 1 || service.activeExecution != ExecutionFPGADevelopment {
+		t.Fatalf("failed recovery calls = stop:%d reboot:%d execution:%q", target.stopCalls, target.developmentReboots, service.activeExecution)
+	}
+}
+
+func TestServiceDevelopmentRBFLostResponseUsesStatusOnlyOnce(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		status     protocol.Status
+		cancelLoop bool
+		wantCode   protocol.ErrorCode
+	}{
+		{name: "active development", status: protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: serviceStringPtr("DEVCORE")}},
+		{name: "retained operation error", status: protocol.Status{State: protocol.StateIdle, LastError: &protocol.APIError{Code: protocol.CodeCoreTimeout, Message: "runtime operation failed"}}, wantCode: protocol.CodeCoreTimeout},
+		{name: "wrong terminal state", status: protocol.Status{State: protocol.StateActive, ObservedCore: serviceStringPtr("MegaDrive")}, wantCode: protocol.CodeMiSTerUnavailable},
+		{name: "caller cancellation", status: protocol.Status{State: protocol.StateIdle}, cancelLoop: true, wantCode: protocol.CodeMiSTerUnavailable},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var mu sync.Mutex
+			uploads, statuses := 0, 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/v1/development/rbf":
+					_, _ = io.ReadAll(r.Body)
+					mu.Lock()
+					uploads++
+					mu.Unlock()
+					<-r.Context().Done()
+				case "/v1/status":
+					mu.Lock()
+					statuses++
+					mu.Unlock()
+					_ = json.NewEncoder(w).Encode(test.status)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+			baseURL, err := url.Parse(server.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			client := host.NewClient(baseURL, "test-token", server.Client())
+			service := newService(
+				Config{RequestTimeout: 20 * time.Millisecond, UploadTimeout: 30 * time.Millisecond},
+				Paths{Staging: "/private/staging"}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client,
+			)
+			parent, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+			if test.cancelLoop {
+				cancel()
+				parent, cancel = context.WithTimeout(context.Background(), 90*time.Millisecond)
+			}
+			defer cancel()
+			status, loadErr := service.LoadDevelopmentRBF(parent, 3, strings.NewReader("rbf"))
+			mu.Lock()
+			gotUploads, gotStatuses := uploads, statuses
+			mu.Unlock()
+			if gotUploads != 1 {
+				t.Fatalf("development uploads = %d, want exactly one", gotUploads)
+			}
+			if test.wantCode == "" {
+				if loadErr != nil || status.State != protocol.StateActive || !status.Development || gotStatuses == 0 {
+					t.Fatalf("status=%+v err=%v status calls=%d", status, loadErr, gotStatuses)
+				}
+				return
+			}
+			var apiErr *protocol.APIError
+			if !errors.As(loadErr, &apiErr) || apiErr.Code != test.wantCode || gotStatuses == 0 {
+				t.Fatalf("error=%v status calls=%d, want %s after observation", loadErr, gotStatuses, test.wantCode)
+			}
+		})
+	}
+}
+
+func serviceStringPtr(value string) *string { return &value }
+
+func TestServiceDevelopmentRBFLostResponseBoundsEachStatusCall(t *testing.T) {
+	var mu sync.Mutex
+	uploads, statuses := 0, 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/development/rbf":
+			_, _ = io.ReadAll(r.Body)
+			mu.Lock()
+			uploads++
+			mu.Unlock()
+			<-r.Context().Done()
+		case "/v1/status":
+			mu.Lock()
+			statuses++
+			mu.Unlock()
+			<-r.Context().Done()
+		}
+	}))
+	defer server.Close()
+	baseURL, _ := url.Parse(server.URL)
+	service := newService(
+		Config{RequestTimeout: 25 * time.Millisecond, UploadTimeout: 30 * time.Millisecond},
+		Paths{Staging: "/private/staging"}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, host.NewClient(baseURL, "test-token", server.Client()),
+	)
+	parent, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	_, err := service.LoadDevelopmentRBF(parent, 3, strings.NewReader("rbf"))
+	elapsed := time.Since(started)
+	mu.Lock()
+	gotUploads, gotStatuses := uploads, statuses
+	mu.Unlock()
+	if err == nil || gotUploads != 1 || gotStatuses != 1 || elapsed < 45*time.Millisecond || elapsed > 250*time.Millisecond {
+		t.Fatalf("err=%v uploads=%d statuses=%d elapsed=%s", err, gotUploads, gotStatuses, elapsed)
+	}
+}
+
 func TestServiceRejectsCatalogLaunchWhileDevelopmentRBFIsActive(t *testing.T) {
 	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, &fakeServiceClient{})
 	service.activeExecution = ExecutionFPGADevelopment
@@ -2327,6 +2541,22 @@ func TestServiceDevelopmentActiveReconstructsAfterHostRestart(t *testing.T) {
 	}
 	if service.activeExecution != ExecutionFPGADevelopment {
 		t.Fatalf("reconstructed execution = %q", service.activeExecution)
+	}
+}
+
+func TestServiceDevelopmentSessionStateReconstructsNativeGameAfterHostRestart(t *testing.T) {
+	gameID, system, core := "megadrive-reconstructed", protocol.SystemMegaDrive, "MegaDrive"
+	client := &fakeServiceClient{statusResult: protocol.Status{
+		State: protocol.StateActive, GameID: &gameID, System: &system, ExpectedCore: &core, ObservedCore: &core,
+	}}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+
+	development, execution, err := service.DevelopmentSessionState(context.Background())
+	if err != nil || development || execution != ExecutionFPGANative {
+		t.Fatalf("development=%t execution=%q err=%v", development, execution, err)
+	}
+	if client.statusCalls != 1 || service.activeExecution != ExecutionFPGANative {
+		t.Fatalf("status calls=%d active execution=%q", client.statusCalls, service.activeExecution)
 	}
 }
 
@@ -3236,11 +3466,11 @@ func (f *fakeHostExecutor) Status(context.Context) (hostexec.Status, error) {
 	return hostexec.Status{State: hostexec.Active}, nil
 }
 
-func newTestService(store *fakeServiceCatalog, preparer *fakeServicePreparer, client *fakeServiceClient) *Service {
+func newTestService(store *fakeServiceCatalog, preparer *fakeServicePreparer, client serviceClient) *Service {
 	return newTestServiceWithExecution(store, preparer, client, ExecutionPolicy{})
 }
 
-func newTestServiceWithExecution(store *fakeServiceCatalog, preparer *fakeServicePreparer, client *fakeServiceClient, policy ExecutionPolicy) *Service {
+func newTestServiceWithExecution(store *fakeServiceCatalog, preparer *fakeServicePreparer, client serviceClient, policy ExecutionPolicy) *Service {
 	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/private/library"}
 	return newService(
 		Config{Libraries: []catalog.Root{root}, RequestTimeout: time.Second, UploadTimeout: 2 * time.Second},

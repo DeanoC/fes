@@ -22,39 +22,42 @@ import (
 )
 
 type fakeService struct {
-	games           []catalog.Game
-	search          []catalog.Game
-	query           string
-	game            catalog.Game
-	gamesErr        error
-	gameErr         error
-	health          protocol.Health
-	healthErr       error
-	status          protocol.Status
-	statusErr       error
-	statusStarted   chan struct{}
-	statusRelease   chan struct{}
-	statusOnce      sync.Once
-	statusHook      func(context.Context) (protocol.Status, error)
-	launch          protocol.CachedLaunchResponse
-	launchCalls     int
-	launchErr       error
-	launchHook      func(context.Context)
-	development     protocol.Status
-	developmentErr  error
-	developmentBody []byte
-	developmentSize int64
-	stopped         protocol.Status
-	stopErr         error
-	stopResults     []error
-	stopCalled      chan struct{}
-	stopCtxErrs     []error
-	stopHasDeadline bool
-	stopHook        func(context.Context) (protocol.Status, error)
-	progress        []string
-	execution       string
-	executionErr    error
-	order           *[]string
+	games                  []catalog.Game
+	search                 []catalog.Game
+	query                  string
+	game                   catalog.Game
+	gamesErr               error
+	gameErr                error
+	health                 protocol.Health
+	healthErr              error
+	status                 protocol.Status
+	statusErr              error
+	statusStarted          chan struct{}
+	statusRelease          chan struct{}
+	statusOnce             sync.Once
+	statusHook             func(context.Context) (protocol.Status, error)
+	launch                 protocol.CachedLaunchResponse
+	launchCalls            int
+	launchErr              error
+	launchHook             func(context.Context)
+	development            protocol.Status
+	developmentErr         error
+	developmentCalls       int
+	developmentBody        []byte
+	developmentSize        int64
+	developmentHook        func(context.Context, int64, io.Reader) (protocol.Status, error)
+	stopped                protocol.Status
+	stopErr                error
+	stopResults            []error
+	stopCalled             chan struct{}
+	stopCtxErrs            []error
+	stopHasDeadline        bool
+	stopHook               func(context.Context) (protocol.Status, error)
+	progress               []string
+	execution              string
+	executionErr           error
+	reconstructedExecution string
+	order                  *[]string
 }
 
 func (s *fakeService) Games(context.Context) ([]catalog.Game, error) {
@@ -69,6 +72,9 @@ func (s *fakeService) SessionExecution(context.Context, string) (string, error) 
 }
 func (s *fakeService) DevelopmentActive(context.Context) (bool, error) {
 	return s.status.Development && s.status.State != protocol.StateIdle, s.statusErr
+}
+func (s *fakeService) DevelopmentSessionState(context.Context) (bool, string, error) {
+	return s.status.Development && s.status.State != protocol.StateIdle, s.reconstructedExecution, s.statusErr
 }
 func (s *fakeService) Game(context.Context, string) (catalog.Game, error) { return s.game, s.gameErr }
 func (s *fakeService) Health(context.Context) (protocol.Health, error)    { return s.health, s.healthErr }
@@ -98,7 +104,14 @@ func (s *fakeService) Launch(ctx context.Context, _ string, progress fogcast.Pro
 	}
 	return s.launch, s.launchErr
 }
-func (s *fakeService) LoadDevelopmentRBF(_ context.Context, size int64, body io.Reader) (protocol.Status, error) {
+func (s *fakeService) LoadDevelopmentRBF(ctx context.Context, size int64, body io.Reader) (protocol.Status, error) {
+	s.developmentCalls++
+	if s.order != nil {
+		*s.order = append(*s.order, "development.upload")
+	}
+	if s.developmentHook != nil {
+		return s.developmentHook(ctx, size, body)
+	}
 	s.developmentSize = size
 	content, err := io.ReadAll(body)
 	if err != nil {
@@ -205,6 +218,7 @@ type fakeRemoteInput struct {
 	attach    []string
 	detach    []string
 	attachErr error
+	order     *[]string
 }
 
 func (r *fakeRemoteInput) Attach(_ context.Context, core string) error {
@@ -219,6 +233,9 @@ func (r *fakeRemoteInput) Attach(_ context.Context, core string) error {
 func (r *fakeRemoteInput) Detach(_ context.Context, reason string) error {
 	if r.status.State == host.RemoteInputAttached {
 		r.detach = append(r.detach, reason)
+		if r.order != nil {
+			*r.order = append(*r.order, "input.detach")
+		}
 	}
 	r.status = host.RemoteInputStatus{State: host.RemoteInputDetached, Metrics: host.RemoteInputMetrics{ShutdownReason: reason}}
 	return nil
@@ -511,6 +528,173 @@ func TestSessionDevelopmentRBFStreamsWithoutMediaOrInput(t *testing.T) {
 	}
 }
 
+type forbiddenDevelopmentReader struct{ reads int }
+
+func (r *forbiddenDevelopmentReader) Read([]byte) (int, error) {
+	r.reads++
+	return 0, errors.New("development body must remain unread")
+}
+
+func TestSessionReplaceNativeGameStopsToExactIdleBeforeDevelopmentUpload(t *testing.T) {
+	gameID, system, core := "megadrive-active", protocol.SystemMegaDrive, "MegaDrive"
+	order := []string{}
+	service := &fakeService{
+		status:    protocol.Status{State: protocol.StateIdle},
+		execution: fogcast.ExecutionFPGANative,
+		launch: protocol.CachedLaunchResponse{Status: protocol.Status{
+			State: protocol.StateActive, GameID: &gameID, System: &system, ExpectedCore: &core, ObservedCore: &core,
+		}},
+		stopped:     protocol.Status{State: protocol.StateIdle},
+		development: protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core},
+		order:       &order,
+	}
+	remoteInput := &fakeRemoteInput{order: &order}
+	media := &fakeMediaSession{order: &order}
+	handler := hostapi.New(service, hostapi.WithRemoteInput(remoteInput), hostapi.WithMediaSession(media))
+	launchSession(t, handler, gameID)
+	order = order[:0]
+
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/development-rbf", strings.NewReader("rbf"))
+	request.Host = "127.0.0.1"
+	request.Header.Set("Content-Type", "application/octet-stream")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("development replacement = %d %s", response.Code, response.Body.String())
+	}
+	if got := strings.Join(order, ","); got != "input.detach,stop,service.stop,development.upload" {
+		t.Fatalf("replacement order = %q", got)
+	}
+	if service.developmentCalls != 1 || string(service.developmentBody) != "rbf" || !strings.Contains(response.Body.String(), `"execution":"fpga_development"`) {
+		t.Fatalf("replacement upload calls=%d body=%q response=%s", service.developmentCalls, service.developmentBody, response.Body.String())
+	}
+}
+
+func TestSessionReplaceNativeGameNeverReadsDevelopmentBodyWithoutConfirmedIdle(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		stopped protocol.Status
+		stopErr error
+		cancel  bool
+	}{
+		{name: "stop error", stopErr: errors.New("stop failed")},
+		{name: "ambiguous stop deadline followed by idle", stopErr: context.DeadlineExceeded},
+		{name: "non idle", stopped: protocol.Status{State: protocol.StateActive}},
+		{name: "parent canceled", stopped: protocol.Status{State: protocol.StateIdle}, cancel: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			gameID, system, core := "megadrive-active", protocol.SystemMegaDrive, "MegaDrive"
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			service := &fakeService{
+				status: protocol.Status{State: protocol.StateIdle}, execution: fogcast.ExecutionFPGANative,
+				launch:  protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ExpectedCore: &core, ObservedCore: &core}},
+				stopped: test.stopped, stopErr: test.stopErr,
+				development: protocol.Status{State: protocol.StateActive, Development: true},
+			}
+			if test.cancel {
+				service.stopHook = func(context.Context) (protocol.Status, error) {
+					cancel()
+					return protocol.Status{State: protocol.StateIdle}, nil
+				}
+			}
+			handler := hostapi.New(service, hostapi.WithMediaSession(&fakeMediaSession{}))
+			launchSession(t, handler, gameID)
+			body := &forbiddenDevelopmentReader{}
+			request := httptest.NewRequest(http.MethodPost, "/api/v1/session/development-rbf", body).WithContext(ctx)
+			request.Host = "127.0.0.1"
+			request.ContentLength = 3
+			request.Header.Set("Content-Type", "application/octet-stream")
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code == http.StatusOK || body.reads != 0 || service.developmentCalls != 0 {
+				t.Fatalf("response=%d %s reads=%d uploads=%d", response.Code, response.Body.String(), body.reads, service.developmentCalls)
+			}
+		})
+	}
+}
+
+func TestSessionReplaceDevelopmentIsBusyBeforeTeardownOrBodyRead(t *testing.T) {
+	core := "DEVCORE"
+	development := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core}
+	service := &fakeService{status: development, development: development}
+	order := []string{}
+	remoteInput := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputAttached, Ready: true}, order: &order}
+	media := &fakeMediaSession{order: &order}
+	body := &forbiddenDevelopmentReader{}
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/development-rbf", body)
+	request.Host = "127.0.0.1"
+	request.ContentLength = 3
+	request.Header.Set("Content-Type", "application/octet-stream")
+	response := httptest.NewRecorder()
+	hostapi.New(service, hostapi.WithRemoteInput(remoteInput), hostapi.WithMediaSession(media)).ServeHTTP(response, request)
+	if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), `"code":"BUSY"`) || body.reads != 0 || service.developmentCalls != 0 || len(order) != 0 {
+		t.Fatalf("response=%d %s reads=%d uploads=%d order=%v", response.Code, response.Body.String(), body.reads, service.developmentCalls, order)
+	}
+}
+
+func TestSessionReplaceReconstructedNativeGameStopsBeforeDevelopmentUpload(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		stopped protocol.Status
+		stopErr error
+		cancel  bool
+		wantOK  bool
+	}{
+		{name: "exact idle", stopped: protocol.Status{State: protocol.StateIdle}, wantOK: true},
+		{name: "stop error", stopErr: errors.New("stop failed")},
+		{name: "non idle", stopped: protocol.Status{State: protocol.StateActive}},
+		{name: "parent canceled", stopped: protocol.Status{State: protocol.StateIdle}, cancel: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			gameID, system, core := "megadrive-reconstructed", protocol.SystemMegaDrive, "MegaDrive"
+			order := []string{}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			service := &fakeService{
+				status:                 protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ExpectedCore: &core, ObservedCore: &core},
+				reconstructedExecution: fogcast.ExecutionFPGANative,
+				stopped:                test.stopped,
+				stopErr:                test.stopErr,
+				development:            protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core},
+				order:                  &order,
+			}
+			if test.cancel {
+				service.stopHook = func(context.Context) (protocol.Status, error) {
+					cancel()
+					return protocol.Status{State: protocol.StateIdle}, nil
+				}
+			}
+			remoteInput := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputAttached, Ready: true}, order: &order}
+			var body io.Reader = strings.NewReader("rbf")
+			forbidden := &forbiddenDevelopmentReader{}
+			if !test.wantOK {
+				body = forbidden
+			}
+			request := httptest.NewRequest(http.MethodPost, "/api/v1/session/development-rbf", body).WithContext(ctx)
+			request.Host = "127.0.0.1"
+			request.ContentLength = 3
+			request.Header.Set("Content-Type", "application/octet-stream")
+			response := httptest.NewRecorder()
+			hostapi.New(service, hostapi.WithRemoteInput(remoteInput)).ServeHTTP(response, request)
+
+			if test.wantOK {
+				if response.Code != http.StatusOK || service.developmentCalls != 1 || string(service.developmentBody) != "rbf" {
+					t.Fatalf("response=%d %s uploads=%d body=%q", response.Code, response.Body.String(), service.developmentCalls, service.developmentBody)
+				}
+				if got := strings.Join(order, ","); got != "input.detach,service.stop,development.upload" {
+					t.Fatalf("replacement order = %q", got)
+				}
+				return
+			}
+			if response.Code == http.StatusOK || forbidden.reads != 0 || service.developmentCalls != 0 {
+				t.Fatalf("response=%d %s reads=%d uploads=%d order=%v", response.Code, response.Body.String(), forbidden.reads, service.developmentCalls, order)
+			}
+		})
+	}
+}
+
 func TestSessionDevelopmentRBFMustStopBeforeCatalogLaunch(t *testing.T) {
 	for _, execution := range []string{fogcast.ExecutionFPGANative, fogcast.ExecutionHostOnly} {
 		t.Run(execution, func(t *testing.T) {
@@ -518,7 +702,7 @@ func TestSessionDevelopmentRBFMustStopBeforeCatalogLaunch(t *testing.T) {
 			development := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &observed}
 			service := &fakeService{
 				development: development,
-				status:      development,
+				status:      protocol.Status{State: protocol.StateIdle},
 				execution:   execution,
 				launch:      protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive}},
 			}
@@ -531,6 +715,7 @@ func TestSessionDevelopmentRBFMustStopBeforeCatalogLaunch(t *testing.T) {
 			if loadResponse.Code != http.StatusOK {
 				t.Fatalf("development load = %d %s", loadResponse.Code, loadResponse.Body.String())
 			}
+			service.status = development
 
 			launch := httptest.NewRequest(http.MethodPost, "/api/v1/session/launch", strings.NewReader(`{"game_id":"replacement"}`))
 			launch.Host = "127.0.0.1"

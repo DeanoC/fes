@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -19,14 +20,36 @@ const unsupportedOperationMessage = "requested operation is unsupported"
 const unsupportedSystemMessage = "system is unsupported by target runtime"
 
 type Runtime struct {
-	control       Control
-	bootIDFile    string
-	pollInterval  time.Duration
-	healthTimeout time.Duration
+	control            Control
+	bootIDFile         string
+	pollInterval       time.Duration
+	healthTimeout      time.Duration
+	developmentRBFPath string
+	rebootCommand      string
 }
 
-func NewRuntime(control Control, bootIDFile string, pollInterval, healthTimeout time.Duration) *Runtime {
-	return &Runtime{control: control, bootIDFile: bootIDFile, pollInterval: pollInterval, healthTimeout: healthTimeout}
+type RuntimeOption func(*Runtime)
+
+func WithDevelopmentRBFPath(path string) RuntimeOption {
+	return func(runtime *Runtime) {
+		runtime.developmentRBFPath = path
+	}
+}
+
+func WithRebootCommand(path string) RuntimeOption {
+	return func(runtime *Runtime) {
+		runtime.rebootCommand = path
+	}
+}
+
+func NewRuntime(control Control, bootIDFile string, pollInterval, healthTimeout time.Duration, options ...RuntimeOption) *Runtime {
+	runtime := &Runtime{control: control, bootIDFile: bootIDFile, pollInterval: pollInterval, healthTimeout: healthTimeout}
+	for _, option := range options {
+		if option != nil {
+			option(runtime)
+		}
+	}
+	return runtime
 }
 
 func (r *Runtime) Health(version string) protocol.Health {
@@ -41,7 +64,7 @@ func (r *Runtime) Health(version string) protocol.Health {
 
 func (r *Runtime) StopReady() bool {
 	response, err := r.boundedStatus(context.Background())
-	return err == nil && (validIdle(response) || validMegaDriveRunning(response))
+	return err == nil && (validIdle(response) || validMegaDriveRunning(response) || validDevelopmentRunning(response))
 }
 
 func (r *Runtime) Reconcile(ctx context.Context) protocol.Status {
@@ -54,6 +77,17 @@ func (r *Runtime) Reconcile(ctx context.Context) protocol.Status {
 					status.LastError = mapRemoteError(response.Error)
 				}
 				return status
+			}
+			if validDevelopmentRunning(response) {
+				status := protocol.Status{State: protocol.StateActive, Development: true}
+				if response.Core != nil {
+					observed := *response.Core
+					status.ObservedCore = &observed
+				}
+				return status
+			}
+			if response.State == "starting" && response.Execution == "development" && !validDevelopmentStarting(response) {
+				return unavailableStatus()
 			}
 			if !response.OK || response.State != "starting" {
 				return unavailableStatus()
@@ -204,12 +238,154 @@ func contextExhausted(ctx context.Context) bool {
 	return ok && !time.Now().Before(deadline)
 }
 
-func (r *Runtime) LoadDevelopmentRBF(context.Context, int64, io.Reader) (string, bool, *protocol.APIError) {
-	return "", false, unsupportedOperationError()
+func (r *Runtime) LoadDevelopmentRBF(ctx context.Context, size int64, content io.Reader) (string, bool, *protocol.APIError) {
+	observed, _, attempted, apiErr := r.loadDevelopmentRBF(ctx, ctx, ctx, size, content, false)
+	return observed, attempted, apiErr
 }
 
-func (r *Runtime) RecoverDevelopment(context.Context) (string, *protocol.APIError) {
-	return "", unsupportedOperationError()
+// LoadDevelopmentRBFOwned keeps staging and admission caller-bound, then
+// transfers the sole runtime mutation to the agent process owner. Observation
+// remains separately bounded and never replays the mutation.
+func (r *Runtime) LoadDevelopmentRBFOwned(admission, observation, operationOwner context.Context, size int64, content io.Reader) (string, bool, *protocol.APIError) {
+	observed, _, attempted, apiErr := r.LoadDevelopmentRBFOwnedWithRecovery(admission, observation, operationOwner, size, content)
+	return observed, attempted, apiErr
+}
+
+// LoadDevelopmentRBFOwnedWithRecovery preserves an explicit native recovery
+// marker while retaining the ordinary load API's unavailable error.
+func (r *Runtime) LoadDevelopmentRBFOwnedWithRecovery(admission, observation, operationOwner context.Context, size int64, content io.Reader) (string, string, bool, *protocol.APIError) {
+	return r.loadDevelopmentRBF(admission, observation, operationOwner, size, content, true)
+}
+
+func (r *Runtime) loadDevelopmentRBF(admission, observation, operationOwner context.Context, size int64, content io.Reader, owned bool) (string, string, bool, *protocol.APIError) {
+	if r.developmentRBFPath == "" {
+		return "", "", false, unsupportedOperationError()
+	}
+	if !validDevelopmentRBFPath(r.developmentRBFPath) || size < 1 || size > protocol.MaxDevelopmentRBFBytes || content == nil {
+		return "", "", false, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "development RBF input is invalid"}
+	}
+	if admission.Err() != nil {
+		return "", "", false, unavailableError()
+	}
+	if err := mister.WriteAtomicDevelopmentRBF(r.developmentRBFPath, size, &contextReader{ctx: admission, reader: content}); err != nil {
+		if admission.Err() != nil {
+			return "", "", false, unavailableError()
+		}
+		return "", "", false, &protocol.APIError{Code: protocol.CodeInternal, Message: "development RBF could not be installed"}
+	}
+	response, err := r.boundedStatus(admission)
+	if err != nil || !validIdle(response) {
+		return "", "", false, unavailableError()
+	}
+	// Observation only bounds post-dispatch reconciliation; staging may consume it.
+	if admission.Err() != nil || (owned && operationOwner.Err() != nil) {
+		return "", "", false, unavailableError()
+	}
+	dispatchContext := observation
+	if owned {
+		dispatchContext = operationOwner
+	}
+	response, err = r.control.LoadDevelopmentRBF(dispatchContext, r.developmentRBFPath)
+	if err != nil {
+		if owned {
+			observed, attempted, apiErr := r.reconcileOwnedLostDevelopment(observation, operationOwner)
+			return observed, "", attempted, apiErr
+		}
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(admission), r.healthTimeout)
+		defer cancel()
+		observed, attempted, apiErr := r.reconcileLostDevelopmentWithin(ctx)
+		return observed, "", attempted, apiErr
+	}
+	if validDevelopmentRunning(response) {
+		return developmentObservation(response), "", true, nil
+	}
+	if rebootRequiredResponse(response) {
+		return "", protocol.RecoveryRebootRequired, true, mapRemoteError(response.Error)
+	}
+	if response.Error != nil || !response.OK {
+		return "", "", true, mapRemoteError(response.Error)
+	}
+	if validDevelopmentStarting(response) || validCleanIdle(response) {
+		if owned {
+			observed, attempted, apiErr := r.reconcileOwnedLostDevelopment(observation, operationOwner)
+			return observed, "", attempted, apiErr
+		}
+		observed, attempted, apiErr := r.reconcileLostDevelopmentWithin(observation)
+		return observed, "", attempted, apiErr
+	}
+	return "", "", true, unavailableError()
+}
+
+type contextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (r *contextReader) Read(buffer []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.reader.Read(buffer)
+}
+
+func (r *Runtime) reconcileOwnedLostDevelopment(observation, operationOwner context.Context) (string, bool, *protocol.APIError) {
+	if operationOwner.Err() != nil {
+		return "", true, unavailableError()
+	}
+	if !contextExhausted(observation) {
+		observed, attempted, apiErr, exhausted := r.observeLostDevelopment(observation)
+		if !exhausted {
+			return observed, attempted, apiErr
+		}
+	}
+	if operationOwner.Err() != nil {
+		return "", true, unavailableError()
+	}
+	ctx, cancel := context.WithTimeout(operationOwner, r.healthTimeout)
+	defer cancel()
+	return r.reconcileLostDevelopmentWithin(ctx)
+}
+
+func (r *Runtime) reconcileLostDevelopmentWithin(ctx context.Context) (string, bool, *protocol.APIError) {
+	observed, attempted, apiErr, _ := r.observeLostDevelopment(ctx)
+	return observed, attempted, apiErr
+}
+
+func (r *Runtime) observeLostDevelopment(ctx context.Context) (observed string, attempted bool, apiErr *protocol.APIError, exhausted bool) {
+	for {
+		response, err := r.control.Status(ctx)
+		if err != nil {
+			return "", true, unavailableError(), contextExhausted(ctx)
+		}
+		if validDevelopmentRunning(response) {
+			return developmentObservation(response), true, nil, false
+		}
+		if validIdle(response) && response.Error != nil {
+			return "", true, mapRemoteError(response.Error), false
+		}
+		if !(validDevelopmentStarting(response) || validCleanIdle(response)) {
+			return "", true, unavailableError(), false
+		}
+		if !waitForPoll(ctx, r.pollInterval) {
+			return "", true, unavailableError(), true
+		}
+	}
+}
+
+func (r *Runtime) RecoverDevelopment(ctx context.Context) (string, *protocol.APIError) {
+	if err := ctx.Err(); err != nil {
+		return "", unavailableError()
+	}
+	info, err := os.Stat(r.rebootCommand)
+	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
+		return "", unavailableError()
+	}
+	command := exec.Command(r.rebootCommand)
+	if err := command.Start(); err != nil {
+		return "", unavailableError()
+	}
+	go func() { _ = command.Wait() }()
+	return "", nil
 }
 
 func (r *Runtime) Stop(ctx context.Context) (string, *protocol.APIError) {
@@ -222,19 +398,42 @@ func (r *Runtime) StopOwned(admission, operation context.Context) (string, *prot
 	return r.stop(admission, operation, true)
 }
 
+// StopOwnedWithRecovery preserves the native runtime's explicit reboot
+// requirement without making the coordinator infer it from an error string.
+func (r *Runtime) StopOwnedWithRecovery(admission, operation context.Context) (string, string, *protocol.APIError) {
+	return r.stopWithRecovery(admission, operation, true)
+}
+
 func (r *Runtime) stop(admission, operation context.Context, owned bool) (string, *protocol.APIError) {
+	observed, recovery, apiErr := r.stopWithRecovery(admission, operation, owned)
+	if apiErr == nil && recovery != "" {
+		return observed, unavailableError()
+	}
+	return observed, apiErr
+}
+
+func (r *Runtime) stopWithRecovery(admission, operation context.Context, owned bool) (string, string, *protocol.APIError) {
 	ctx := admission
 	if owned {
 		if admission.Err() != nil || operation.Err() != nil {
-			return "", unavailableError()
+			return "", "", unavailableError()
 		}
 		ctx = operation
 	}
 	response, err := r.control.Stop(ctx)
-	if err != nil || !response.OK || response.State != "idle" {
-		return "", unavailableError()
+	if err == nil && rebootRequiredResponse(response) {
+		return "", protocol.RecoveryRebootRequired, nil
 	}
-	return "", nil
+	if err != nil || !response.OK || response.State != "idle" {
+		return "", "", unavailableError()
+	}
+	return "", "", nil
+}
+
+func rebootRequiredResponse(response Response) bool {
+	return response.Protocol == 1 && !response.OK && response.State == "reboot_required" &&
+		response.Execution == "none" && response.System == nil && response.Core == nil &&
+		response.Error != nil && response.Error.Code == "idle_failed"
 }
 
 func waitForPoll(ctx context.Context, interval time.Duration) bool {
@@ -315,6 +514,34 @@ func validMegaDriveStarting(response Response) bool {
 		response.State == "starting" && response.Execution == "game" &&
 		response.System != nil && *response.System == "megadrive" &&
 		response.Core != nil && *response.Core == "MegaDrive"
+}
+
+func validDevelopmentStarting(response Response) bool {
+	return response.Protocol == 1 && response.OK && response.Error == nil &&
+		response.State == "starting" && response.Execution == "development" &&
+		response.System == nil && response.Core == nil
+}
+
+func validDevelopmentRunning(response Response) bool {
+	return response.Protocol == 1 && response.OK && response.Error == nil &&
+		response.State == "running_development" && response.Execution == "development" &&
+		response.System == nil && (response.Core == nil || *response.Core != "")
+}
+
+func validCleanIdle(response Response) bool {
+	return validIdle(response) && response.Error == nil
+}
+
+func developmentObservation(response Response) string {
+	if response.Core == nil {
+		return ""
+	}
+	return *response.Core
+}
+
+func validDevelopmentRBFPath(path string) bool {
+	return path != "" && len(path) <= 4095 && strings.IndexByte(path, 0) < 0 &&
+		filepath.IsAbs(path) && filepath.Clean(path) == path
 }
 
 func mapRemoteError(remote *RemoteError) *protocol.APIError {

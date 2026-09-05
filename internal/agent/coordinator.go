@@ -32,8 +32,20 @@ type ownedLaunchRuntime interface {
 	LaunchOwned(context.Context, context.Context, context.Context, mister.PreparedLaunch) (observed string, dispatchAttempted bool, apiErr *protocol.APIError)
 }
 
+type ownedDevelopmentRuntime interface {
+	LoadDevelopmentRBFOwned(context.Context, context.Context, context.Context, int64, io.Reader) (observed string, dispatchAttempted bool, apiErr *protocol.APIError)
+}
+
+type ownedDevelopmentRecoveryRuntime interface {
+	LoadDevelopmentRBFOwnedWithRecovery(context.Context, context.Context, context.Context, int64, io.Reader) (observed, recovery string, dispatchAttempted bool, apiErr *protocol.APIError)
+}
+
 type ownedStopRuntime interface {
 	StopOwned(context.Context, context.Context) (observed string, apiErr *protocol.APIError)
+}
+
+type ownedStopRecoveryRuntime interface {
+	StopOwnedWithRecovery(context.Context, context.Context) (observed, recovery string, apiErr *protocol.APIError)
 }
 
 type CoordinatorOption func(*Coordinator)
@@ -114,6 +126,10 @@ func (c *Coordinator) Health(version string) protocol.Health {
 
 func (c *Coordinator) Initialize(ctx context.Context) {
 	status := c.runtime.Reconcile(ctx)
+	if validActiveDevelopment(status) {
+		c.set(status)
+		return
+	}
 	verification, cancel := context.WithTimeout(context.WithoutCancel(ctx), durableActiveReconcileTimeout)
 	defer cancel()
 	status, selected, conclusive := c.reconcileDurableActive(verification, status)
@@ -293,9 +309,34 @@ func (c *Coordinator) LoadDevelopmentRBF(parent context.Context, size int64, con
 	}
 	previous := c.Status()
 	c.set(protocol.Status{State: protocol.StateLaunching, Development: true})
-	ctx, cancel := context.WithTimeout(parent, c.launchTimeout)
-	defer cancel()
-	observed, dispatchAttempted, apiErr := c.runtime.LoadDevelopmentRBF(ctx, size, content)
+	var observed string
+	var dispatchAttempted bool
+	var recovery string
+	var apiErr *protocol.APIError
+	if runtime, ok := c.runtime.(ownedDevelopmentRuntime); ok {
+		observation, cancel := context.WithTimeout(c.operationContext, c.launchTimeout)
+		defer cancel()
+		if recoveryRuntime, ok := c.runtime.(ownedDevelopmentRecoveryRuntime); ok {
+			observed, recovery, dispatchAttempted, apiErr = recoveryRuntime.LoadDevelopmentRBFOwnedWithRecovery(parent, observation, c.operationContext, size, content)
+		} else {
+			observed, dispatchAttempted, apiErr = runtime.LoadDevelopmentRBFOwned(parent, observation, c.operationContext, size, content)
+		}
+	} else {
+		ctx, cancel := context.WithTimeout(parent, c.launchTimeout)
+		defer cancel()
+		observed, dispatchAttempted, apiErr = c.runtime.LoadDevelopmentRBF(ctx, size, content)
+	}
+	if recovery == protocol.RecoveryRebootRequired {
+		pending := protocol.Status{State: protocol.StateStopping, Development: true, Recovery: recovery}
+		if observed != "" {
+			pending.ObservedCore = &observed
+		}
+		c.set(pending)
+		if apiErr == nil {
+			apiErr = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}
+		}
+		return c.Status(), apiErr
+	}
 	if apiErr != nil {
 		if !dispatchAttempted && apiErr.Code == protocol.CodeUnsupportedOperation {
 			c.set(previous)
@@ -325,13 +366,18 @@ func (c *Coordinator) Stop(parent context.Context) (protocol.Status, *protocol.A
 	if current.State == protocol.StateIdle {
 		return current, nil
 	}
+	if current.State == protocol.StateStopping && current.Development && current.Recovery == protocol.RecoveryRebootRequired {
+		return current, nil
+	}
 	if current.Development {
-		stopping := cloneStatus(current)
-		stopping.State = protocol.StateStopping
-		stopping.LastError = nil
-		stopping.Recovery = protocol.RecoveryRebootRequired
-		c.set(stopping)
-		return c.Status(), nil
+		if _, native := c.runtime.(ownedDevelopmentRuntime); !native {
+			stopping := cloneStatus(current)
+			stopping.State = protocol.StateStopping
+			stopping.LastError = nil
+			stopping.Recovery = protocol.RecoveryRebootRequired
+			c.set(stopping)
+			return c.Status(), nil
+		}
 	}
 	if !runtimeStopReady(c.runtime) {
 		return current, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}
@@ -341,15 +387,31 @@ func (c *Coordinator) Stop(parent context.Context) (protocol.Status, *protocol.A
 	stopping.LastError = nil
 	c.set(stopping)
 	var observed string
+	var recovery string
 	var apiErr *protocol.APIError
 	if runtime, ok := c.runtime.(ownedStopRuntime); ok {
 		operation, cancel := context.WithTimeout(c.operationContext, c.stopTimeout)
 		defer cancel()
-		observed, apiErr = runtime.StopOwned(parent, operation)
+		if recoveryRuntime, ok := c.runtime.(ownedStopRecoveryRuntime); ok {
+			observed, recovery, apiErr = recoveryRuntime.StopOwnedWithRecovery(parent, operation)
+		} else {
+			observed, apiErr = runtime.StopOwned(parent, operation)
+		}
 	} else {
 		ctx, cancel := context.WithTimeout(parent, c.stopTimeout)
 		defer cancel()
 		observed, apiErr = c.runtime.Stop(ctx)
+	}
+	if apiErr == nil && current.Development && recovery == protocol.RecoveryRebootRequired {
+		stopping.Recovery = recovery
+		if observed != "" {
+			stopping.ObservedCore = &observed
+		}
+		c.set(stopping)
+		return c.Status(), nil
+	}
+	if apiErr == nil && recovery != "" {
+		apiErr = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}
 	}
 	if apiErr != nil {
 		failed := cloneStatus(stopping)
@@ -386,6 +448,13 @@ func runtimeStopReady(runtime Runtime) bool {
 		return operationReady.StopReady()
 	}
 	return runtime.Health("").Ready
+}
+
+func validActiveDevelopment(status protocol.Status) bool {
+	return status.State == protocol.StateActive && status.Development &&
+		status.GameID == nil && status.System == nil && status.ExpectedCore == nil &&
+		(status.ObservedCore == nil || *status.ObservedCore != "") &&
+		status.LastError == nil && status.Recovery == ""
 }
 
 func (c *Coordinator) RebootDevelopment(parent context.Context) (protocol.Status, *protocol.APIError) {

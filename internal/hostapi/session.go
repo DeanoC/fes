@@ -38,6 +38,10 @@ type sessionDevelopmentService interface {
 	DevelopmentActive(context.Context) (bool, error)
 }
 
+type sessionDevelopmentStateService interface {
+	DevelopmentSessionState(context.Context) (bool, string, error)
+}
+
 type sessionProgress struct {
 	Stage   string `json:"stage"`
 	Message string `json:"message"`
@@ -396,6 +400,13 @@ func (s *sessionCoordinator) loadDevelopmentRBF(ctx context.Context, size int64,
 	defer s.end()
 	s.observationMu.Lock()
 	defer s.observationMu.Unlock()
+	development, err := s.developmentActive(ctx)
+	if err != nil {
+		return sessionResult{}, err
+	}
+	if development {
+		return sessionResult{}, developmentMustStopError()
+	}
 
 	if s.remoteInput != nil {
 		if err := s.remoteInput.Detach(ctx, "session_replace"); err != nil {
@@ -406,6 +417,19 @@ func (s *sessionCoordinator) loadDevelopmentRBF(ctx context.Context, size int64,
 	previousExecution := s.execution
 	s.mu.Unlock()
 	if err := s.stopMediaBounded(previousExecution); err != nil {
+		return sessionResult{}, err
+	}
+	if previousExecution == fogcast.ExecutionFPGANative {
+		stopped, err := s.stopServiceForReplacement()
+		if err != nil {
+			return sessionResult{}, err
+		}
+		if !exactIdleStatus(stopped) {
+			return sessionResult{}, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "native game did not stop to idle"}
+		}
+		s.restoreExecution("")
+	}
+	if err := ctx.Err(); err != nil {
 		return sessionResult{}, err
 	}
 
@@ -435,6 +459,12 @@ func (s *sessionCoordinator) loadDevelopmentRBF(ctx context.Context, size int64,
 	result.Execution = fogcast.ExecutionFPGADevelopment
 	s.record("session.development_rbf", result, nil)
 	return result, nil
+}
+
+func (s *sessionCoordinator) stopServiceForReplacement() (protocol.Status, error) {
+	stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return s.service.Stop(stopCtx)
 }
 
 func (s *sessionCoordinator) stopMedia(ctx context.Context, execution string) error {
@@ -608,21 +638,29 @@ func (s *sessionCoordinator) developmentActive(ctx context.Context) (bool, error
 	if execution != "" {
 		return false, nil
 	}
-	probe, ok := s.service.(sessionDevelopmentService)
-	if !ok {
+	var development bool
+	var reconstructedExecution string
+	var err error
+	if probe, ok := s.service.(sessionDevelopmentStateService); ok {
+		development, reconstructedExecution, err = probe.DevelopmentSessionState(ctx)
+	} else if probe, ok := s.service.(sessionDevelopmentService); ok {
+		development, err = probe.DevelopmentActive(ctx)
+	} else {
 		return false, nil
 	}
-	development, err := probe.DevelopmentActive(ctx)
 	if err != nil {
 		return false, err
 	}
-	if !development {
-		return false, nil
-	}
 	s.mu.Lock()
 	if s.execution == "" {
-		s.execution = fogcast.ExecutionFPGADevelopment
-		s.terminalStatus = nil
+		switch {
+		case development:
+			s.execution = fogcast.ExecutionFPGADevelopment
+			s.terminalStatus = nil
+		case reconstructedExecution == fogcast.ExecutionFPGANative:
+			s.execution = fogcast.ExecutionFPGANative
+			s.terminalStatus = nil
+		}
 	}
 	development = s.execution == fogcast.ExecutionFPGADevelopment
 	s.mu.Unlock()

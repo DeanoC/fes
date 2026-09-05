@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/internal/agentconfig"
@@ -462,6 +463,31 @@ func TestProductionRuntimeBackendSelectsNativeOnlyWhenExplicit(t *testing.T) {
 	}
 }
 
+func TestNativeCompositionWiresExplicitRecoveryCommand(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "started")
+	reboot := filepath.Join(dir, "reboot")
+	if err := os.WriteFile(reboot, []byte("#!/bin/sh\n: > '"+marker+"'\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	runtime := newNativeRuntime(&idleCompositionControl{}, reboot)
+	if _, apiErr := runtime.RecoverDevelopment(context.Background()); apiErr != nil {
+		t.Fatalf("recovery error = %#v", apiErr)
+	}
+	deadline := time.Now().Add(250 * time.Millisecond)
+	for {
+		if _, err := os.Stat(marker); err == nil {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("explicit recovery command was not started")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
 func TestProductionRuntimeBackendRejectsUnknownValueWithoutFallback(t *testing.T) {
 	t.Parallel()
 	if _, err := productionRunDependencies(runtimeBackend("automatic")); err == nil {
@@ -474,8 +500,10 @@ func TestProductionRuntimeBackendRejectsUnknownValueWithoutFallback(t *testing.T
 }
 
 type idleCompositionControl struct {
-	statusCalls int
-	stopCalls   int
+	statusCalls      int
+	stopCalls        int
+	developmentCalls int
+	developmentPath  string
 }
 
 func (c *idleCompositionControl) Status(context.Context) (misterruntime.Response, error) {
@@ -492,17 +520,24 @@ func (*idleCompositionControl) Launch(context.Context, misterruntime.LaunchReque
 	return misterruntime.Response{}, errors.New("unused")
 }
 
-type unreadCompositionBody struct {
-	reads int
+func (c *idleCompositionControl) LoadDevelopmentRBF(_ context.Context, path string) (misterruntime.Response, error) {
+	c.developmentCalls++
+	c.developmentPath = path
+	coreName := "MegaDrive"
+	return misterruntime.Response{Protocol: 1, OK: true, State: "running_development", Execution: "development", Core: &coreName, Version: "test"}, nil
 }
 
-func (r *unreadCompositionBody) Read([]byte) (int, error) {
-	r.reads++
-	return 0, errors.New("body must not be read")
-}
-
-func TestNativeCompositionReportsIdleAndUnsupportedDevelopment(t *testing.T) {
-	t.Parallel()
+func TestNativeCompositionReportsIdleAndLoadsDevelopmentAtTheVolatilePath(t *testing.T) {
+	if err := os.Remove(developmentRBFPath); err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	if err := os.Remove(developmentRBFPath + ".new"); err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = os.Remove(developmentRBFPath)
+		_ = os.Remove(developmentRBFPath + ".new")
+	})
 	control := &idleCompositionControl{}
 	dependencies, err := runtimeDependencies(runtimeNative, control)
 	if err != nil {
@@ -513,13 +548,17 @@ func TestNativeCompositionReportsIdleAndUnsupportedDevelopment(t *testing.T) {
 	if status.State != protocol.StateIdle || status.LastError != nil {
 		t.Fatalf("status = %#v", status)
 	}
-	body := &unreadCompositionBody{}
-	_, attempted, apiErr := runtime.LoadDevelopmentRBF(context.Background(), 3, body)
-	if attempted || apiErr == nil || apiErr.Code != protocol.CodeUnsupportedOperation || body.reads != 0 {
-		t.Fatalf("development = attempted:%t error:%#v reads:%d", attempted, apiErr, body.reads)
+	body := strings.NewReader("rbf")
+	observed, attempted, apiErr := runtime.LoadDevelopmentRBF(context.Background(), 3, body)
+	if observed != "MegaDrive" || !attempted || apiErr != nil {
+		t.Fatalf("development = observed:%q attempted:%t error:%#v", observed, attempted, apiErr)
 	}
-	if control.statusCalls != 1 || control.stopCalls != 0 {
-		t.Fatalf("control calls = status:%d stop:%d", control.statusCalls, control.stopCalls)
+	staged, err := os.ReadFile(developmentRBFPath)
+	if err != nil || string(staged) != "rbf" {
+		t.Fatalf("staged bytes = %q, error %v", staged, err)
+	}
+	if control.statusCalls != 2 || control.developmentCalls != 1 || control.developmentPath != developmentRBFPath || control.stopCalls != 0 {
+		t.Fatalf("control calls = status:%d development:%d path:%q stop:%d", control.statusCalls, control.developmentCalls, control.developmentPath, control.stopCalls)
 	}
 }
 

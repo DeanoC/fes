@@ -113,6 +113,7 @@ native_rootfs=$repo/buildroot/board/fogcast-target/native-rootfs-overlay
 native_runtime=$native_rootfs/etc/init.d/S40mister-runtime
 native_agent=$native_rootfs/etc/init.d/S50mister-agent
 native_post_build=$repo/buildroot/board/fogcast-target/native-post-build.sh
+native_agent_main=$repo/cmd/mister-agent/main.go
 
 test -f "$menu_blanking" || {
   printf '%s\n' 'legacy image is missing the Menu blanking policy helper' >&2
@@ -173,6 +174,9 @@ grep -Fq '/work/build/cache/target-image/native/megadrive.rbf' "$native_post_bui
 grep -Fq '"$target/usr/share/mister-runtime/cores/megadrive.rbf"' "$native_post_build"
 grep -Fq '"$target/usr/share/mister-runtime/build-inputs"' "$native_post_build"
 ! grep -Fq 'LIBMISTER_RUNTIME_DIR' "$native_post_build"
+grep -Fq 'developmentRBFPath      = "/tmp/fogcast-development/core.rbf"' \
+  "$native_agent_main"
+grep -Eq '^[^#]+[[:space:]]+/tmp[[:space:]]+tmpfs[[:space:]]' "$fstab"
 
 grep -Fq '/run/$name.pid' "$supervise"
 grep -Fq '/var/log/$name.log' "$supervise"
@@ -430,6 +434,12 @@ cmp "$native_cache/megadrive.rbf" "$native_target/usr/share/mister-runtime/cores
 test "$(stat -c %a "$native_target/usr/share/mister-runtime/idle.rbf")" = 644
 test "$(stat -c %a "$native_target/usr/share/mister-runtime/cores/megadrive.rbf")" = 644
 test "$(find "$native_target" -type f -iname '*.rbf' | wc -l | tr -d ' ')" -eq 2
+for prohibited_development_rbf in \
+  /usr/share/mister-runtime/development.rbf \
+  /usr/share/mister-runtime/cores/development.rbf \
+  /tmp/fogcast-development/core.rbf; do
+  test ! -e "$native_target$prohibited_development_rbf"
+done
 grep -Fqx "mister_runtime_commit=1111111111111111111111111111111111111111" \
   "$native_target/usr/share/mister-runtime/build-inputs"
 grep -Fqx "mister_agent_sha256=$native_agent_sha" \
@@ -466,6 +476,24 @@ if NATIVE_RUNTIME_INPUT_LOCK=$native_lock \
   native_post_build_symlink_failures=$((native_post_build_symlink_failures + 1))
 fi
 [ "$native_post_build_symlink_failures" -eq 0 ] || exit 1
+
+for prohibited_development_rbf in \
+  /usr/share/mister-runtime/development.rbf \
+  /usr/share/mister-runtime/cores/development.rbf \
+  /tmp/fogcast-development/core.rbf; do
+  case_name=$(printf '%s' "$prohibited_development_rbf" | tr '/.' '__')
+  mutated_target=$native_fixture/target-prohibited-$case_name
+  cp -R "$native_target" "$mutated_target"
+  mkdir -p "$mutated_target$(dirname "$prohibited_development_rbf")"
+  cp "$native_cache/idle.rbf" "$mutated_target$prohibited_development_rbf"
+  if NATIVE_RUNTIME_INPUT_LOCK=$native_lock \
+    NATIVE_RUNTIME_IDLE_FILE=$native_cache/idle.rbf \
+    NATIVE_RUNTIME_MEGADRIVE_FILE=$native_cache/megadrive.rbf \
+      "$native_post_build" "$mutated_target" >/dev/null 2>&1; then
+    echo "native post-build accepted prohibited development RBF: $prohibited_development_rbf" >&2
+    exit 1
+  fi
+done
 
 cp "$native_target/usr/share/mister-runtime/cores/megadrive.rbf" \
   "$native_target/usr/share/mister-runtime/cores/duplicate.rbf"

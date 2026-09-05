@@ -460,20 +460,30 @@ func (s *Service) SessionExecution(ctx context.Context, gameID string) (string, 
 // DevelopmentActive reconstructs development ownership from the selected
 // target after a host restart, when no local execution marker exists yet.
 func (s *Service) DevelopmentActive(ctx context.Context) (bool, error) {
+	development, _, err := s.DevelopmentSessionState(ctx)
+	return development, err
+}
+
+// DevelopmentSessionState returns both development admission and execution
+// ownership reconstructed by the same authoritative target observation.
+func (s *Service) DevelopmentSessionState(ctx context.Context) (bool, string, error) {
 	s.executionMu.Lock()
 	execution := s.activeExecution
 	s.executionMu.Unlock()
 	if execution == ExecutionFPGADevelopment {
-		return true, nil
+		return true, execution, nil
 	}
 	if execution != "" {
-		return false, nil
+		return false, execution, nil
 	}
 	status, err := s.Status(ctx)
 	if err != nil {
-		return false, err
+		return false, "", err
 	}
-	return status.Development && status.State != protocol.StateIdle, nil
+	s.executionMu.Lock()
+	execution = s.activeExecution
+	s.executionMu.Unlock()
+	return status.Development && status.State != protocol.StateIdle, execution, nil
 }
 
 func (s *Service) resolveExecution(ctx context.Context, game catalog.Game) (string, error) {
@@ -1043,9 +1053,17 @@ func (s *Service) LoadDevelopmentRBF(parent context.Context, size int64, content
 	}
 	status, err := developmentClient.LoadDevelopmentRBF(ctx, size, content)
 	if err != nil {
-		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeTransferFailed)
+		targetDeadlineExpired := errors.Is(ctx.Err(), context.DeadlineExceeded) && parent.Err() == nil
+		if targetDeadlineExpired && ambiguousTargetMutationError(err) {
+			status, err = s.reconcileLostDevelopmentLoad(parent, client, err)
+			if err != nil {
+				return protocol.Status{}, err
+			}
+		} else {
+			return protocol.Status{}, canonicalRemoteError(err, protocol.CodeTransferFailed)
+		}
 	}
-	if status.State != protocol.StateActive || !status.Development || status.GameID != nil || status.System != nil || status.ExpectedCore != nil || status.LastError != nil {
+	if !validServiceDevelopmentStatus(status) {
 		return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
 	}
 	s.executionMu.Lock()
@@ -1636,6 +1654,10 @@ func (s *Service) launchContent(parent context.Context, game catalog.Game, ident
 }
 
 func ambiguousTargetMutationError(err error) bool {
+	var ambiguous interface{ AmbiguousMutation() bool }
+	if errors.As(err, &ambiguous) && ambiguous.AmbiguousMutation() {
+		return true
+	}
 	var apiErr *protocol.APIError
 	if errors.As(err, &apiErr) {
 		return false
@@ -1643,6 +1665,49 @@ func ambiguousTargetMutationError(err error) bool {
 	var transportErr *url.Error
 	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) ||
 		errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.As(err, &transportErr)
+}
+
+func validServiceDevelopmentStatus(status protocol.Status) bool {
+	return status.State == protocol.StateActive && status.Development && status.GameID == nil && status.System == nil &&
+		status.ExpectedCore == nil && (status.ObservedCore == nil || *status.ObservedCore != "") && status.LastError == nil && status.Recovery == ""
+}
+
+func (s *Service) reconcileLostDevelopmentLoad(parent context.Context, client serviceClient, loadErr error) (protocol.Status, error) {
+	for {
+		if err := parent.Err(); err != nil {
+			return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, safeContextError(err))
+		}
+		statusContext, cancelStatus := serviceTimeout(parent, s.requestTimeout)
+		status, err := client.Status(statusContext)
+		cancelStatus()
+		if err != nil {
+			return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, safeContextError(err))
+		}
+		if validServiceDevelopmentStatus(status) {
+			return status, nil
+		}
+		if !provisionalLostDevelopmentLoad(status) {
+			if status.LastError != nil {
+				return protocol.Status{}, canonicalRemoteError(errors.Join(status.LastError, loadErr), protocol.CodeMiSTerUnavailable)
+			}
+			return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, safeContextError(loadErr))
+		}
+		timer := time.NewTimer(lostLaunchPollInterval)
+		select {
+		case <-parent.Done():
+			timer.Stop()
+			return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, safeContextError(parent.Err()))
+		case <-timer.C:
+		}
+	}
+}
+
+func provisionalLostDevelopmentLoad(status protocol.Status) bool {
+	if validRecoveredDevelopmentStatus(status) {
+		return true
+	}
+	return status.State == protocol.StateLaunching && status.Development && status.GameID == nil && status.System == nil &&
+		status.ExpectedCore == nil && status.ObservedCore == nil && status.LastError == nil && status.Recovery == ""
 }
 
 func (s *Service) reconcileLostContentLaunch(parent context.Context, client serviceClient, request protocol.CachedLaunchRequest, launchErr error) (protocol.CachedLaunchResponse, error) {

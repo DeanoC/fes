@@ -58,10 +58,19 @@ Native product support contains one hardware-tested system: registry
 `megadrive`. The path validates an absolute staged ROM and sends one local
 request using `/usr/share/mister-runtime/cores/megadrive.rbf` with semantic
 media role `cartridge`. Every other system returns an unsupported-system error;
-development loading and recovery return an unsupported-operation error. The
-separate `native-dev` image packages this composition. Its idle, visible Sonic
-2 launch, one-player input, Stop, and immediate relaunch paths are
-hardware-tested on the designated kit.
+the separate development operation accepts only the existing MiSTer-compatible
+ABI and has no catalogue identity. The native adapter atomically stages one
+bounded upload at `/tmp/fogcast-development/core.rbf`, dispatches it once to
+the runtime, and resolves ambiguous responses through Status without replay.
+Development Stop uses the ordinary native Stop-to-idle path; reboot recovery
+is reserved for an actual native cleanup failure. The separate `native-dev`
+image packages this composition. Its idle, visible Sonic 2 launch, one-player
+input, Stop, and immediate relaunch paths are hardware-tested on the designated
+kit. Native development loading is hardware-tested only for the existing
+MiSTer-compatible load/Stop lifecycle and subsequent game regression; exact
+two-cycle evidence is in
+[native-development-rbf-baseline.md](hardware/native-development-rbf-baseline.md).
+Raw development uploads still have no generic video or input guarantee.
 
 The native agent creates one `FogCast Virtual Gamepad` during startup before
 runtime reconciliation. Its Linux identity is `BUS_VIRTUAL`, vendor `0x0000`,
@@ -166,8 +175,12 @@ commit, agent binary, and both RBFs. Its QEMU smoke proves only root filesystem
 and init packaging; it does not emulate FPGA programming, prove target
 readiness, or establish game or development-RBF support. The designated-kit
 idle, Mega Drive launch/input/Stop/relaunch, and legacy rollback gates are
-hardware-tested. Native development-RBF support remains absent. Exact hashes
-and dated physical observations are in
+hardware-tested. The image contains no development RBF at either production
+path and relies on volatile `/tmp` staging for an admitted upload. Native
+development-RBF loading is hardware-tested for the existing MiSTer-compatible
+lifecycle. Exact hashes and dated physical observations are in
+[native-development-rbf-baseline.md](hardware/native-development-rbf-baseline.md);
+the game-only baseline remains in
 [native-megadrive-baseline.md](hardware/native-megadrive-baseline.md).
 
 ## Milestone status
@@ -177,6 +190,8 @@ legacy dev/prod = current game-capable path
 native-dev = hardware-tested Mega Drive launch/input/Stop/relaunch
 Milestone 2 = complete
 Milestone 3 = complete for the defined one-player Mega Drive vertical slice
+native development RBF = hardware-tested MiSTer-compatible load/Stop/game-regression path
+Milestone 4 = complete for the defined MiSTer-compatible development lifecycle
 ```
 
 ## Development RBF extension
@@ -187,13 +202,31 @@ Host tool
   -> host session service
   -> POST /v1/development/rbf (raw RBF)
   -> mister-agent atomically installs /tmp/fogcast-development/core.rbf
-  -> /dev/MiSTer_cmd: load_core /tmp/fogcast-development/core.rbf
+  -> selected backend
+       Main: /dev/MiSTer_cmd load_core /tmp/fogcast-development/core.rbf
+       native: /run/mister-runtime.sock load_development_rbf
+         -> HDMI power-down
+         -> program once and synchronize
   -> development FPGA image
 ```
 
 This path intentionally has no catalog entry, MGL, game identity, manifest,
 rollback store, or second programmer. The public session reports
 `execution: fpga_development` with no game or system.
+
+For the native backend, successful programming reports
+`running_development` with execution `development`, a null system, and an
+optional observed core name. HDMI remains powered down throughout development;
+the raw upload has no video or input guarantee. Stop reloads the locked idle
+RBF through the normal native lifecycle. The upload is never packaged into the
+image or replayed after an ambiguous response. The upstream Mega Drive RBF used
+by the physical plan is a test fixture, not a production-pinned development
+artifact. There is no browser file picker and no generalized RBF ABI.
+
+If a native upload reaches the mutation boundary but cannot recover to idle,
+the target preserves `stopping + development + recovery: reboot_required` and
+the upload reports `MISTER_UNAVAILABLE`. A later Stop reuses that marker without
+another FPGA operation so the host can retry the existing reboot handshake.
 
 Non-MiSTer development images, including the `misteross` blinky and mailbox
 experiments, do not implement the GPI signature expected by the current
@@ -214,3 +247,8 @@ Normal game Stop is unchanged and continues to load `menu.rbf` through
 `internal/hostapi/session.go`, `fogcast/service.go`,
 `host/development_client.go`, `internal/httpapi/development.go`,
 `internal/agent/coordinator.go`, and `internal/mister/runtime.go`.
+
+The exact reproducible native image passed the designated two-cycle
+development-to-idle-to-game acceptance and the legacy rollback gate. This is
+a narrow hardware capability for the existing MiSTer-compatible development
+ABI; it does not imply useful video or input for other RBFs.

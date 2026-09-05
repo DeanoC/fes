@@ -2,6 +2,7 @@ package host
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -144,4 +145,10 @@ func (e *transferError) Error() string {
 
 func (e *transferError) Unwrap() []error {
 	return []error{e.api, e.cause}
+}
+
+func (e *transferError) AmbiguousMutation() bool {
+	var transportErr *url.Error
+	return errors.Is(e.cause, context.DeadlineExceeded) || errors.Is(e.cause, context.Canceled) ||
+		errors.Is(e.cause, io.EOF) || errors.Is(e.cause, io.ErrUnexpectedEOF) || errors.As(e.cause, &transportErr)
 }

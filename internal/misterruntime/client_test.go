@@ -83,6 +83,93 @@ func TestClientLaunchUsesTheExactTypedMegaDriveRequest(t *testing.T) {
 	}
 }
 
+func TestClientLoadDevelopmentRBFUsesTheExactTypedRequest(t *testing.T) {
+	const response = `{"protocol":1,"ok":true,"state":"running_development","execution":"development","system":null,"core":"MegaDrive","error":null,"version":"git-test"}`
+	fixture := newSocketFixture(t, response+"\n", true)
+
+	result, err := NewClient(fixture.path).LoadDevelopmentRBF(
+		context.Background(), "/tmp/fogcast-development/core.rbf",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.State != "running_development" || result.Execution != "development" ||
+		result.System != nil || result.Core == nil || *result.Core != "MegaDrive" {
+		t.Fatalf("response = %#v", result)
+	}
+	if got := fixture.wait(t); got != `{"protocol":1,"operation":"load_development_rbf","rbf":"/tmp/fogcast-development/core.rbf"}` {
+		t.Fatalf("request = %q", got)
+	}
+}
+
+func TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial(t *testing.T) {
+	cases := []struct {
+		name string
+		path string
+	}{
+		{name: "empty"},
+		{name: "relative", path: "core.rbf"},
+		{name: "unclean", path: "/tmp/fogcast-development/../core.rbf"},
+		{name: "NUL", path: "/tmp/core\x00.rbf"},
+		{name: "overlong", path: "/" + strings.Repeat("a", 4095)},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			client := NewClient(filepath.Join(t.TempDir(), "must-not-be-dialed.sock"))
+			if _, err := client.LoadDevelopmentRBF(context.Background(), testCase.path); !errors.Is(err, errInvalidRuntimeRequest) {
+				t.Fatalf("LoadDevelopmentRBF error = %v, want invalid request", err)
+			}
+		})
+	}
+}
+
+func TestClientRequiresDevelopmentResponseIdentity(t *testing.T) {
+	cases := []struct {
+		name     string
+		response string
+		valid    bool
+	}{
+		{
+			name:     "unobserved core",
+			response: `{"protocol":1,"ok":true,"state":"running_development","execution":"development","system":null,"core":null,"error":null,"version":"git-test"}` + "\n",
+			valid:    true,
+		},
+		{
+			name:     "observed core",
+			response: `{"protocol":1,"ok":true,"state":"running_development","execution":"development","system":null,"core":"MegaDrive","error":null,"version":"git-test"}` + "\n",
+			valid:    true,
+		},
+		{
+			name:     "system identity",
+			response: `{"protocol":1,"ok":true,"state":"running_development","execution":"development","system":"megadrive","core":"MegaDrive","error":null,"version":"git-test"}` + "\n",
+		},
+		{
+			name:     "empty observed core",
+			response: `{"protocol":1,"ok":true,"state":"running_development","execution":"development","system":null,"core":"","error":null,"version":"git-test"}` + "\n",
+		},
+		{
+			name:     "wrong execution",
+			response: `{"protocol":1,"ok":true,"state":"running_development","execution":"game","system":null,"core":null,"error":null,"version":"git-test"}` + "\n",
+		},
+		{
+			name:     "failed without error",
+			response: `{"protocol":1,"ok":false,"state":"running_development","execution":"development","system":null,"core":null,"error":null,"version":"git-test"}` + "\n",
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			fixture := newSocketFixture(t, testCase.response, true)
+			_, err := NewClient(fixture.path).LoadDevelopmentRBF(context.Background(), "/tmp/core.rbf")
+			if (err == nil) != testCase.valid {
+				t.Fatalf("LoadDevelopmentRBF error = %v, want valid = %t", err, testCase.valid)
+			}
+			fixture.wait(t)
+		})
+	}
+}
+
 func TestClientRejectsLaunchShapesOutsideTheNativeMegaDriveContractBeforeDial(t *testing.T) {
 	valid := LaunchRequest{
 		System: "megadrive",
