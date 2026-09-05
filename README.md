@@ -1,8 +1,8 @@
 # FES
 
-FES builds a pinned FogCast Linux host and native MiSTer image from independent component repositories.
+Fogger Entertainment System builds a pinned FogCast Linux host and native MiSTer image from independent component repositories.
 
-The initial profile is `native-dev`: FogCast `cd85971bf0bffe36e69c381917f618620b901726` and libmister-runtime `443b603de991b56b5f4d0d11c5bc88a3f83fad13`. These are the source revisions recorded in FogCast's 2026-09-04 native Mega Drive hardware baseline. The upstream idle and Mega Drive RBFs remain pinned by FogCast. This parent does not build FPGA sources yet.
+The baseline profile is `native-dev`: FogCast `cd85971bf0bffe36e69c381917f618620b901726` and libmister-runtime `443b603de991b56b5f4d0d11c5bc88a3f83fad13`. The `native-source-dev` profile adds misteross `7912a3e7ee82a24c9aed82dfbb30a8974b7eec07`, rebuilds Mega Drive with Quartus 17.0.2, validates its sealed bundle, and packages that RBF with the same native image recipe. `native-dev` remains unchanged and continues to use the upstream RBF.
 
 ## Build
 
@@ -15,11 +15,28 @@ make build
 make verify
 ```
 
-For a new clone, use `git clone --recurse-submodules <parent-repository> fes`. This initial local repository has no published remote yet.
+For a new clone, use `git clone --recurse-submodules git@github.com:DeanoC/fes.git`. Access to this private repository and its component repositories is required.
 
 Go selects the toolchain from the pinned FogCast `go.mod` (currently Go 1.26.5). The image uses the child's pinned Debian container, Buildroot sources and ARM toolchain. The first build downloads those inputs and runs two independent image builds. Allow several GB for downloads, tools and intermediate outputs. Subsequent builds hash-check the recorded inputs and outputs before reuse.
 
 `CONTAINER_RUNTIME=podman make build` selects a Docker-compatible runtime; Docker is the validated choice. `make doctor` checks source pins, cleanliness, runtime-lock agreement, builder architecture, host tools and container-daemon access. It does not prove every upstream download is reachable.
+
+Source builds require the exact Quartus tree:
+
+```sh
+QUARTUS_ROOTDIR=/home/deano/intelFPGA_lite/17.0 \
+  make build PROFILE=native-source-dev
+QUARTUS_ROOTDIR=/home/deano/intelFPGA_lite/17.0 \
+  make verify PROFILE=native-source-dev
+```
+
+The source profile publishes under `out/native-source-dev/`, including
+`megadrive.rbf` and `megadrive-rbf.toml`. Failed image builds can reuse a
+validated bundle from the staged misteross revision. `make rebuild
+PROFILE=native-source-dev` forces Quartus and both clean image passes.
+The online fetch phase obtains Buildroot packages before compilation runs
+with container networking disabled. `doctor` does not check Quartus; a fresh
+FPGA build requires the tree above. Verification and output reuse do not.
 
 ## Commands
 
@@ -33,7 +50,7 @@ Go selects the toolchain from the pinned FogCast `go.mod` (currently Go 1.26.5).
 | `make test` | Test the parent's source-pin checks and output-reuse rules |
 | `make doctor` | Check prerequisites without building |
 
-Only `PROFILE=native-dev` is implemented. Version and host architecture live in `profiles/native-dev.toml`; ambient Go build flags, Go workspaces and inherited Make overrides are normalized so they cannot silently change cached products. The Go toolchain version is part of the cache fingerprint.
+Supported profiles are `native-dev` and `native-source-dev`. Version and host architecture live in their profile files; ambient Go build flags, Go workspaces and inherited Make overrides are normalized so they cannot silently change cached products. The Go toolchain version is part of the cache fingerprint.
 
 ## Outputs
 
@@ -72,7 +89,7 @@ The SDL tenfoot client is not included in this first slice. Neither build nor ve
 
 For a deliberate version update, check out the intended commits in both submodules and stage their gitlinks with `git add sources/FogCast sources/libmister-runtime`. Their runtime lock must already agree. The profile's baseline image hash is a historical comparison, reported separately from the mandatory two-pass, structural and QEMU gates. Updating it requires a newly established baseline; do not substitute a new build hash just to make the comparison match.
 
-The next integration slices are the source-built Mega Drive RBF bundle and complete legacy FAT-side assembly. Main_MiSTer, misteross and mister-packages will enter the parent when those slices actually consume them.
+The next integration slice is complete legacy FAT-side assembly. Main_MiSTer and mister-packages should enter the parent only when that slice consumes them.
 
 ## Historical image provenance
 
@@ -91,4 +108,11 @@ See [design](docs/native-parent-design.md) and [implementation plan](docs/implem
 - A fresh recursive clone passes doctor and tests and produces byte-identical Linux CLI/API binaries.
 - A forced host rebuild with ambient `GOAMD64=v3 GOFLAGS=-race VERSION=9.9.9` retains the profile's amd64/v1 target and version 0.1.0 and produces the same host hashes.
 
-Local logs and evidence are under `out/`; published build products and verification results are under `out/native-dev/`. The parent has not been published and the new image has not been deployed.
+Local logs and evidence are under `out/`; baseline build products and verification results are under `out/native-dev/`. The parent repository is [DeanoC/fes](https://github.com/DeanoC/fes).
+
+The source profile also passed ten parent tests, two identical image passes,
+structural checks, QEMU packaging smoke and output reuse. Its exact image was
+deployed to the designated MiSTer and passed a bounded Sonic 2 launch,
+direction/jump, Stop/relaunch and idle/reboot check. See
+[source build validation](docs/source-build-validation.md) for hashes,
+evidence paths and the distinction from the older hardware acceptance.

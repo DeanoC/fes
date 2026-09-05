@@ -3,7 +3,7 @@ from pathlib import Path
 import subprocess
 import tomllib
 
-COMPONENTS = ("FogCast", "libmister-runtime")
+COMPONENTS = ("FogCast", "libmister-runtime", "misteross")
 
 def git(root, *args):
     return subprocess.check_output(["git", "-C", str(root), *args], text=True).strip()

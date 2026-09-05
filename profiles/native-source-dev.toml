@@ -1,0 +1,7 @@
+host_os = "linux"
+host_arch = "amd64"
+image_variant = "native-dev"
+version = "0.1.0"
+fpga_source = "misteross"
+fpga_core = "megadrive"
+quartus_version = "17.0.2"

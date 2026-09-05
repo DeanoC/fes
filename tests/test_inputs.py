@@ -15,7 +15,7 @@ class InputsTest(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         git(self.root, "init", "-q")
-        for name in ("FogCast", "libmister-runtime"):
+        for name in ("FogCast", "libmister-runtime", "misteross"):
             child = self.root / "sources" / name
             child.mkdir(parents=True)
             git(child, "init", "-q")
@@ -31,7 +31,7 @@ class InputsTest(unittest.TestCase):
             "[mister_runtime]\ncommit = '" + git(runtime, "rev-parse", "HEAD") + "'\n")
         git(fogcast, "add", ".")
         git(fogcast, "commit", "-qm", "lock")
-        for name in ("FogCast", "libmister-runtime"):
+        for name in ("FogCast", "libmister-runtime", "misteross"):
             sha = git(self.root / "sources" / name, "rev-parse", "HEAD")
             git(self.root, "update-index", "--add", "--cacheinfo", "160000", sha, "sources/" + name)
 

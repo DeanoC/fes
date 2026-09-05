@@ -4,3 +4,7 @@
 [submodule "sources/libmister-runtime"]
 	path = sources/libmister-runtime
 	url = https://github.com/DeanoC/libmister-runtime.git
+[submodule "sources/misteross"]
+	path = sources/misteross
+	url = https://github.com/DeanoC/misteross.git
+	branch = feat/export-megadrive-rbf-bundle
