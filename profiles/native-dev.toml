@@ -1,0 +1,6 @@
+# This initial profile reproduces the dated native Mega Drive baseline.
+host_os = "linux"
+host_arch = "amd64"
+image_variant = "native-dev"
+baseline_image_sha256 = "95c9b4671e0d19781a6428d2168ab631453740215b194519f12788ade03c7c2e"
+version = "0.1.0"

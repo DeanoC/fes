@@ -1,0 +1,6 @@
+[submodule "sources/FogCast"]
+	path = sources/FogCast
+	url = https://github.com/DeanoC/FogCast.git
+[submodule "sources/libmister-runtime"]
+	path = sources/libmister-runtime
+	url = https://github.com/DeanoC/libmister-runtime.git
