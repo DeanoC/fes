@@ -3,6 +3,11 @@ set -eu
 
 repo=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 lock=$repo/build/native-runtime.inputs.lock.toml
+[ "$#" -le 1 ] || {
+  printf '%s\n' 'usage: native-runtime-smoke.sh [MEGADRIVE_SELECTION_FILE]' >&2
+  exit 2
+}
+selection_file=${1:-${NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE:-$repo/build/cache/target-image/native/megadrive.selection.toml}}
 
 host_api=${FOGCAST_HOST_API:-http://127.0.0.1:8787}
 target_api=${FOGCAST_TARGET_API:-http://192.168.10.239:8182}
@@ -25,7 +30,7 @@ fail() {
   exit 1
 }
 
-for required_command in awk cmp curl mktemp python3 sleep sshpass timeout; do
+for required_command in awk cmp curl mktemp python3 sleep sshpass stat timeout; do
   command -v "$required_command" >/dev/null 2>&1 ||
     fail 'required command is unavailable'
 done
@@ -91,6 +96,46 @@ read_lock_value() {
   ' "$lock"
 }
 
+read_selection_value() {
+  selection_key=$1
+  awk -v wanted_key="$selection_key" '
+    /^[[:space:]]*(#|$)/ { next }
+    $0 ~ "^[[:space:]]*" wanted_key "[[:space:]]*=" {
+      value=$0
+      sub(/^[^=]*=[[:space:]]*/, "", value)
+      quote=substr(value, 1, 1)
+      if ((quote == "\"" || quote == sprintf("%c", 39)) &&
+          substr(value, length(value), 1) == quote) {
+        value=substr(value, 2, length(value) - 2)
+      }
+      print value
+      exit
+    }
+  ' "$selection_file"
+}
+
+[ -f "$selection_file" ] && [ ! -L "$selection_file" ] || fail 'Mega Drive selection is not a regular non-symlink file'
+selection_mode=$(stat -c %a "$selection_file" 2>/dev/null || true)
+printf '%s\n' "$selection_mode" | grep -Eq '^[0145]{3,4}$' ||
+  fail 'Mega Drive selection must not be writable'
+awk '
+  /^[[:space:]]*(#|$)/ { next }
+  /^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=/ {
+    key=$0
+    sub(/^[[:space:]]*/, "", key)
+    sub(/[[:space:]]*=.*$/, "", key)
+    if (!(key == "format" || key == "origin" || key == "abi" ||
+          key == "system" || key == "repository" || key == "revision" ||
+          key == "artifact" || key == "sha256" || key == "size" ||
+          key == "install_path" || key == "recipe" ||
+          key == "recipe_sha256" || key == "toolchain" || key == "label")) bad=1
+    count[key]++
+    next
+  }
+  { bad=1 }
+  END { for (key in count) if (count[key] != 1) bad=1; exit bad ? 1 : 0 }
+' "$selection_file" || fail 'Mega Drive selection is not a closed normalized record'
+
 runtime_commit=$(read_lock_value mister_runtime commit)
 idle_repository=$(read_lock_value idle_rbf repository)
 idle_commit=$(read_lock_value idle_rbf commit)
@@ -104,6 +149,56 @@ megadrive_path=$(read_lock_value megadrive_rbf path)
 megadrive_sha=$(read_lock_value megadrive_rbf sha256)
 megadrive_size=$(read_lock_value megadrive_rbf size)
 megadrive_install_path=$(read_lock_value megadrive_rbf install_path)
+selection_format=$(read_selection_value format)
+selection_origin=$(read_selection_value origin)
+selection_abi=$(read_selection_value abi)
+selection_system=$(read_selection_value system)
+selection_repository=$(read_selection_value repository)
+selection_revision=$(read_selection_value revision)
+selection_artifact=$(read_selection_value artifact)
+selection_sha=$(read_selection_value sha256)
+selection_size=$(read_selection_value size)
+selection_install_path=$(read_selection_value install_path)
+selection_recipe=$(read_selection_value recipe)
+selection_recipe_sha=$(read_selection_value recipe_sha256)
+selection_toolchain=$(read_selection_value toolchain)
+selection_label=$(read_selection_value label)
+case "$selection_origin" in
+  source-built)
+    [ "$selection_format" = 1 ] && [ "$selection_abi" = mister ] && [ "$selection_system" = megadrive ] &&
+      [ "$selection_artifact" = megadrive.rbf ] &&
+      [ "$selection_install_path" = /usr/share/mister-runtime/cores/megadrive.rbf ] &&
+      [ -n "$selection_recipe" ] && [ -n "$selection_recipe_sha" ] && [ -n "$selection_toolchain" ] ||
+      fail 'Mega Drive source-built selection is invalid'
+    ;;
+  upstream)
+    [ "$selection_format" = 1 ] && [ "$selection_abi" = mister ] && [ "$selection_system" = megadrive ] &&
+      [ "$selection_install_path" = /usr/share/mister-runtime/cores/megadrive.rbf ] &&
+      [ -z "$selection_recipe" ] && [ -z "$selection_recipe_sha" ] &&
+      [ -z "$selection_toolchain" ] && [ -z "$selection_label" ] ||
+      fail 'Mega Drive upstream selection is invalid'
+    ;;
+  *) fail 'Mega Drive selection origin is invalid' ;;
+esac
+printf '%s\n' "$selection_revision" | grep -Eq '^[0-9a-f]{40}$' || fail 'Mega Drive selection revision is invalid'
+printf '%s\n' "$selection_sha" | grep -Eq '^[0-9a-f]{64}$' || fail 'Mega Drive selection SHA-256 is invalid'
+printf '%s\n' "$selection_size" | grep -Eq '^[1-9][0-9]*$' || fail 'Mega Drive selection size is invalid'
+printf '%s\n' "$selection_repository" | grep -Eq '^https://[^[:space:]]+$' || fail 'Mega Drive selection repository is invalid'
+for selection_value in "$selection_origin" "$selection_abi" "$selection_system" \
+  "$selection_repository" "$selection_revision" "$selection_artifact" \
+  "$selection_sha" "$selection_size" "$selection_install_path" \
+  "$selection_recipe" "$selection_recipe_sha" "$selection_toolchain" "$selection_label"; do
+  printf '%s' "$selection_value" | LC_ALL=C grep -q '[[:cntrl:]]' &&
+    fail 'Mega Drive selection contains a control character'
+done
+[ "$selection_origin" != upstream ] || {
+  [ "$selection_repository" = "$megadrive_repository" ] &&
+    [ "$selection_revision" = "$megadrive_commit" ] &&
+    [ "$selection_artifact" = "$megadrive_path" ] &&
+    [ "$selection_sha" = "$megadrive_sha" ] &&
+    [ "$selection_size" = "$megadrive_size" ] ||
+    fail 'Mega Drive upstream selection differs from lock'
+}
 for lock_value in "$runtime_commit" "$idle_repository" "$idle_commit" \
   "$idle_path" "$idle_sha" "$idle_size" "$idle_install_path" \
   "$megadrive_repository" "$megadrive_commit" "$megadrive_path" \
@@ -247,12 +342,21 @@ expected_build_inputs=$work_dir/expected-build-inputs
   printf 'idle_sha256=%s\n' "$idle_sha"
   printf 'idle_size=%s\n' "$idle_size"
   printf 'idle_install_path=%s\n' "$idle_install_path"
-  printf 'megadrive_repository=%s\n' "$megadrive_repository"
-  printf 'megadrive_commit=%s\n' "$megadrive_commit"
-  printf 'megadrive_path=%s\n' "$megadrive_path"
-  printf 'megadrive_sha256=%s\n' "$megadrive_sha"
-  printf 'megadrive_size=%s\n' "$megadrive_size"
-  printf 'megadrive_install_path=%s\n' "$megadrive_install_path"
+  printf 'megadrive_origin=%s\n' "$selection_origin"
+  printf 'megadrive_abi=%s\n' "$selection_abi"
+  printf 'megadrive_system=%s\n' "$selection_system"
+  printf 'megadrive_repository=%s\n' "$selection_repository"
+  printf 'megadrive_revision=%s\n' "$selection_revision"
+  printf 'megadrive_artifact=%s\n' "$selection_artifact"
+  printf 'megadrive_sha256=%s\n' "$selection_sha"
+  printf 'megadrive_size=%s\n' "$selection_size"
+  printf 'megadrive_install_path=%s\n' "$selection_install_path"
+  if [ "$selection_origin" = source-built ]; then
+    printf 'megadrive_recipe=%s\n' "$selection_recipe"
+    printf 'megadrive_recipe_sha256=%s\n' "$selection_recipe_sha"
+    printf 'megadrive_toolchain=%s\n' "$selection_toolchain"
+    [ -z "$selection_label" ] || printf 'megadrive_label=%s\n' "$selection_label"
+  fi
 } > "$expected_build_inputs"
 
 installed_build_inputs=$work_dir/installed-build-inputs
@@ -263,7 +367,7 @@ if ! timeout "$call_timeout" sshpass -p "$target_password" ssh $ssh_options \
   fail 'target inspection failed'
 fi
 cmp -s "$expected_build_inputs" "$installed_build_inputs" ||
-  fail 'installed build inputs differ from lock'
+  fail 'installed build inputs differ from selection'
 
 curl --fail --silent \
   --connect-timeout "$call_timeout" --max-time "$call_timeout" \

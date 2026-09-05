@@ -3,7 +3,7 @@ set -eu
 
 repo=$(CDPATH='' cd -- "$(dirname "$0")/../.." && pwd)
 fixture=$(mktemp -d "${TMPDIR:-/tmp}/fogcast-native-runtime-inputs.XXXXXX")
-trap 'rm -rf "$fixture"' EXIT INT TERM
+trap 'chmod -R u+w "$fixture" 2>/dev/null || :; rm -rf "$fixture"' EXIT INT TERM
 
 fail() {
   printf 'native runtime input test: %s\n' "$*" >&2
@@ -167,11 +167,31 @@ idle_sha=$(sha256sum "$idle" | awk '{print $1}')
 idle_size=$(wc -c <"$idle" | tr -d ' ')
 megadrive=$fixture/megadrive.rbf
 printf '%s' 'fixture Mega Drive rbf' >"$megadrive"
+chmod 0444 "$megadrive"
 megadrive_sha=$(sha256sum "$megadrive" | awk '{print $1}')
 megadrive_size=$(wc -c <"$megadrive" | tr -d ' ')
 lock=$fixture/native-runtime.inputs.lock.toml
 write_lock "$lock" "$runtime_commit" "$idle_sha" "$idle_size" \
   "$megadrive_sha" "$megadrive_size"
+
+selection=$fixture/megadrive.selection.toml
+cat >"$selection" <<EOF
+format = 1
+origin = 'source-built'
+abi = 'mister'
+system = 'megadrive'
+repository = 'https://fixture.invalid/source-built-megadrive'
+revision = '4444444444444444444444444444444444444444'
+artifact = 'megadrive.rbf'
+sha256 = '$megadrive_sha'
+size = $megadrive_size
+install_path = '/usr/share/mister-runtime/cores/megadrive.rbf'
+recipe = 'scripts/rebuild_core.py'
+recipe_sha256 = '5555555555555555555555555555555555555555555555555555555555555555'
+toolchain = 'fixture-toolchain'
+EOF
+chmod 0444 "$selection"
+export NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE="$selection"
 
 verified_output=$(
   sh "$verifier" "$lock" "$runtime_source" "$idle" "$megadrive"
@@ -182,6 +202,31 @@ printf '%s\n' "$verified_output" | grep -Fq "$megadrive_sha"
 if printf '%s\n' "$verified_output" | grep -Fq "$runtime_source"; then
   fail 'verifier printed a local runtime checkout path'
 fi
+
+wrong_selection=$fixture/wrong-selection.toml
+sed "s/$megadrive_sha/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/" \
+  "$selection" >"$wrong_selection"
+expect_rejected 'selection identity mismatch' \
+  env NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE="$wrong_selection" \
+    sh "$verifier" "$lock" "$runtime_source" "$idle" "$megadrive"
+
+upstream_selection=$fixture/upstream-selection.toml
+cat >"$upstream_selection" <<EOF
+format = 1
+origin = 'upstream'
+abi = 'mister'
+system = 'megadrive'
+repository = 'https://github.com/MiSTer-devel/MegaDrive_MiSTer'
+revision = '7365a137cfd8fa6f041e964d8b953159c0ec42d9'
+artifact = 'releases/MegaDrive_20260603.rbf'
+sha256 = '$megadrive_sha'
+size = $megadrive_size
+install_path = '/usr/share/mister-runtime/cores/megadrive.rbf'
+EOF
+chmod 0444 "$upstream_selection"
+upstream_output=$(NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE="$upstream_selection" \
+  sh "$verifier" "$lock" "$runtime_source" "$idle" "$megadrive")
+printf '%s\n' "$upstream_output" | grep -Fq 'megadrive_origin=upstream'
 
 printf '%s\n' second >"$runtime_source/SECOND"
 git -C "$runtime_source" add SECOND
@@ -253,14 +298,14 @@ expect_rejected 'wrong idle source path' \
   sh "$verifier" "$wrong_idle_path_lock" "$runtime_source" "$idle" "$megadrive"
 
 wrong_megadrive_digest_lock=$fixture/wrong-megadrive-digest.lock.toml
-sed "s/$megadrive_sha/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/" \
+sed "s/$megadrive_sha/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/" \
   "$lock" >"$wrong_megadrive_digest_lock"
 expect_rejected 'wrong Mega Drive digest' \
   sh "$verifier" "$wrong_megadrive_digest_lock" "$runtime_source" "$idle" "$megadrive"
 
 wrong_megadrive_size_lock=$fixture/wrong-megadrive-size.lock.toml
 write_lock "$wrong_megadrive_size_lock" "$runtime_commit" "$idle_sha" "$idle_size" \
-  "$megadrive_sha" "$((megadrive_size + 1))"
+  "$megadrive_sha" 0
 expect_rejected 'wrong Mega Drive size' \
   sh "$verifier" "$wrong_megadrive_size_lock" "$runtime_source" "$idle" "$megadrive"
 
@@ -326,6 +371,140 @@ cp "$source" "$output"
 EOF
 chmod 0755 "$fake_bin/wget"
 
+source_bundle=$fixture/source-built-bundle
+mkdir -p "$source_bundle"
+printf '%s' 'fixture source-built Mega Drive rbf' >"$source_bundle/megadrive.rbf"
+source_bundle_sha=$(sha256sum "$source_bundle/megadrive.rbf" | awk '{print $1}')
+source_bundle_size=$(wc -c <"$source_bundle/megadrive.rbf" | tr -d ' ')
+cat >"$source_bundle/megadrive-rbf.toml" <<EOF
+format = 1
+abi = 'mister'
+system = 'megadrive'
+artifact = 'megadrive.rbf'
+sha256 = '$source_bundle_sha'
+size = $source_bundle_size
+repository = 'https://github.com/MiSTer-devel/MegaDrive_MiSTer'
+revision = '7365a137cfd8fa6f041e964d8b953159c0ec42d9'
+recipe = 'scripts/rebuild_core.py'
+recipe_sha256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+toolchain = 'Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition'
+EOF
+chmod 0444 "$source_bundle/megadrive.rbf" "$source_bundle/megadrive-rbf.toml"
+chmod 0555 "$source_bundle"
+
+selector=$fixture/bin/target-image-lock
+selector_log=$fixture/selector.log
+cat >"$selector" <<'EOF'
+#!/bin/sh
+set -eu
+source=
+bundle=
+artifact=
+cache=
+output=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --source) source=$2; shift ;;
+    --bundle) bundle=$2; shift ;;
+    --artifact) artifact=$2; shift ;;
+    --cache) cache=$2; shift ;;
+    --output) output=$2; shift ;;
+  esac
+  shift
+done
+printf '%s\n' "$source|$bundle|$artifact|$cache|$output" >>"$NATIVE_RUNTIME_SELECTOR_LOG"
+if [ "${NATIVE_RUNTIME_SELECTOR_FAIL:-0}" = 1 ]; then
+  exit 31
+fi
+mkdir -p "$cache"
+if [ "$source" = source-built ]; then
+  cp "$bundle/megadrive.rbf" "$cache/megadrive.rbf"
+else
+  cp "$artifact" "$cache/megadrive.rbf"
+fi
+printf 'origin = %s\n' "$source" >"$output"
+EOF
+chmod 0755 "$selector"
+
+source_cache=$fixture/source-cache
+source_fetch_log=$fixture/source-fetch.log
+PATH="$fake_bin:$PATH" \
+NATIVE_RUNTIME_INPUT_LOCK=$lock \
+NATIVE_RUNTIME_CACHE=$source_cache \
+NATIVE_RUNTIME_FAKE_IDLE_DOWNLOAD=$idle \
+NATIVE_RUNTIME_FAKE_MEGADRIVE_DOWNLOAD=$megadrive \
+NATIVE_RUNTIME_FETCH_LOG=$source_fetch_log \
+NATIVE_RUNTIME_SELECTOR_LOG=$selector_log \
+TARGET_IMAGE_LOCK_BIN=$selector \
+MEGADRIVE_RBF_BUNDLE=$source_bundle \
+  sh "$fetcher"
+cmp "$source_bundle/megadrive.rbf" "$source_cache/megadrive.rbf"
+test -f "$source_cache/megadrive.selection.toml"
+grep -Fqx -- 'source-built|'"$source_bundle"'||'"$source_cache"'|'"$source_cache"'/megadrive.selection.toml' "$selector_log"
+grep -Fqx -- \
+  "https://raw.githubusercontent.com/MiSTer-devel/Distribution_MiSTer/f7bde4becb452ca28f604ad9802bbed5c6b58e01/menu.rbf" \
+  "$source_fetch_log"
+if grep -Fq 'MegaDrive_MiSTer' "$source_fetch_log"; then
+  fail 'default source-built selection invoked the upstream Mega Drive download'
+fi
+
+upstream_cache=$fixture/upstream-cache
+upstream_selector_log=$fixture/upstream-selector.log
+fetch_log=$fixture/upstream-fetch.log
+PATH="$fake_bin:$PATH" \
+NATIVE_RUNTIME_INPUT_LOCK=$lock \
+NATIVE_RUNTIME_CACHE=$upstream_cache \
+NATIVE_RUNTIME_FAKE_IDLE_DOWNLOAD=$idle \
+NATIVE_RUNTIME_FAKE_MEGADRIVE_DOWNLOAD=$megadrive \
+NATIVE_RUNTIME_FETCH_LOG=$fetch_log \
+NATIVE_RUNTIME_SELECTOR_LOG=$upstream_selector_log \
+TARGET_IMAGE_LOCK_BIN=$selector \
+MEGADRIVE_RBF_SOURCE=upstream \
+  sh "$fetcher"
+cmp "$megadrive" "$upstream_cache/megadrive.rbf"
+test -f "$upstream_cache/megadrive.selection.toml"
+grep -Fq 'upstream||' "$upstream_selector_log"
+
+expect_rejected 'missing default source-built bundle' \
+  env PATH="$fake_bin:$PATH" \
+    NATIVE_RUNTIME_INPUT_LOCK="$lock" \
+    NATIVE_RUNTIME_CACHE="$fixture/missing-cache" \
+    NATIVE_RUNTIME_FAKE_IDLE_DOWNLOAD="$idle" \
+    NATIVE_RUNTIME_FAKE_MEGADRIVE_DOWNLOAD="$megadrive" \
+    NATIVE_RUNTIME_FETCH_LOG="$fetch_log" \
+    NATIVE_RUNTIME_SELECTOR_LOG="$selector_log" \
+    TARGET_IMAGE_LOCK_BIN="$selector" \
+    MEGADRIVE_RBF_BUNDLE="$fixture/does-not-exist" \
+    sh "$fetcher"
+
+expect_rejected 'unknown Mega Drive source' \
+  env PATH="$fake_bin:$PATH" \
+    NATIVE_RUNTIME_INPUT_LOCK="$lock" \
+    NATIVE_RUNTIME_CACHE="$fixture/unknown-cache" \
+    NATIVE_RUNTIME_FAKE_IDLE_DOWNLOAD="$idle" \
+    NATIVE_RUNTIME_FAKE_MEGADRIVE_DOWNLOAD="$megadrive" \
+    NATIVE_RUNTIME_FETCH_LOG="$fetch_log" \
+    NATIVE_RUNTIME_SELECTOR_LOG="$selector_log" \
+    TARGET_IMAGE_LOCK_BIN="$selector" \
+    MEGADRIVE_RBF_SOURCE=other \
+    sh "$fetcher"
+
+expect_rejected 'source-built selector failure without upstream fallback' \
+  env PATH="$fake_bin:$PATH" \
+    NATIVE_RUNTIME_INPUT_LOCK="$lock" \
+    NATIVE_RUNTIME_CACHE="$fixture/failing-cache" \
+    NATIVE_RUNTIME_FAKE_IDLE_DOWNLOAD="$idle" \
+    NATIVE_RUNTIME_FAKE_MEGADRIVE_DOWNLOAD="$megadrive" \
+    NATIVE_RUNTIME_FETCH_LOG="$fixture/failing-fetch.log" \
+    NATIVE_RUNTIME_SELECTOR_LOG="$fixture/failing-selector.log" \
+    TARGET_IMAGE_LOCK_BIN="$selector" \
+    NATIVE_RUNTIME_SELECTOR_FAIL=1 \
+    MEGADRIVE_RBF_BUNDLE="$source_bundle" \
+    sh "$fetcher"
+if grep -Fq 'MegaDrive_MiSTer' "$fixture/failing-fetch.log" 2>/dev/null; then
+  fail 'source-built selector failure fell back to upstream download'
+fi
+
 fetch_cache=$fixture/cache
 fetch_log=$fixture/fetch.log
 PATH="$fake_bin:$PATH" \
@@ -334,6 +513,9 @@ NATIVE_RUNTIME_CACHE=$fetch_cache \
 NATIVE_RUNTIME_FAKE_IDLE_DOWNLOAD=$idle \
 NATIVE_RUNTIME_FAKE_MEGADRIVE_DOWNLOAD=$megadrive \
 NATIVE_RUNTIME_FETCH_LOG=$fetch_log \
+NATIVE_RUNTIME_SELECTOR_LOG=$fixture/legacy-selector.log \
+TARGET_IMAGE_LOCK_BIN=$selector \
+MEGADRIVE_RBF_SOURCE=upstream \
   sh "$fetcher"
 cmp "$idle" "$fetch_cache/idle.rbf"
 cmp "$megadrive" "$fetch_cache/megadrive.rbf"
@@ -354,6 +536,9 @@ expect_rejected 'fetch with wrong digest' \
     NATIVE_RUNTIME_FAKE_IDLE_DOWNLOAD="$bad_download" \
     NATIVE_RUNTIME_FAKE_MEGADRIVE_DOWNLOAD="$megadrive" \
     NATIVE_RUNTIME_FETCH_LOG="$fetch_log" \
+    NATIVE_RUNTIME_SELECTOR_LOG="$fixture/legacy-selector.log" \
+    TARGET_IMAGE_LOCK_BIN="$selector" \
+    MEGADRIVE_RBF_SOURCE=upstream \
     sh "$fetcher"
 test "$(cat "$fetch_cache/idle.rbf")" = prior || \
   fail 'failed fetch replaced the prior cached artifact'
@@ -368,6 +553,9 @@ expect_rejected 'fetch with wrong size' \
     NATIVE_RUNTIME_FAKE_IDLE_DOWNLOAD="$idle" \
     NATIVE_RUNTIME_FAKE_MEGADRIVE_DOWNLOAD="$megadrive" \
     NATIVE_RUNTIME_FETCH_LOG="$fetch_log" \
+    NATIVE_RUNTIME_SELECTOR_LOG="$fixture/legacy-selector.log" \
+    TARGET_IMAGE_LOCK_BIN="$selector" \
+    MEGADRIVE_RBF_SOURCE=upstream \
     sh "$fetcher"
 test "$(cat "$fetch_cache/idle.rbf")" = prior || \
   fail 'wrong-size fetch replaced the prior cached artifact'
@@ -382,6 +570,9 @@ expect_rejected 'fetch with wrong Mega Drive digest' \
     NATIVE_RUNTIME_FAKE_IDLE_DOWNLOAD="$idle" \
     NATIVE_RUNTIME_FAKE_MEGADRIVE_DOWNLOAD="$bad_megadrive" \
     NATIVE_RUNTIME_FETCH_LOG="$fetch_log" \
+    NATIVE_RUNTIME_SELECTOR_LOG="$fixture/legacy-selector.log" \
+    TARGET_IMAGE_LOCK_BIN="$selector" \
+    MEGADRIVE_RBF_SOURCE=upstream \
     sh "$fetcher"
 test "$(cat "$fetch_cache/megadrive.rbf")" = prior-megadrive || \
   fail 'failed fetch replaced the prior cached Mega Drive artifact'
@@ -627,6 +818,37 @@ fi
 if grep -Fq 'FOGCAST_MISTER_RUNTIME_COMMIT' "$container_log"; then
   fail 'legacy container command gained a runtime version environment value'
 fi
+
+: >"$container_log"
+NATIVE_RUNTIME_CONTAINER_LOG=$container_log \
+NATIVE_RUNTIME_BASE_DIGEST=$base_digest \
+NATIVE_RUNTIME_PACKAGE_DIGEST=$package_digest \
+TARGET_IMAGE_CONTAINER_RUNTIME=$fake_container \
+MEGADRIVE_RBF_SOURCE=upstream \
+  sh "$container" fetch true
+grep -Fq -- '--env MEGADRIVE_RBF_SOURCE=upstream' "$container_log"
+if grep -Fq '/runtime-source' "$container_log"; then
+  fail 'upstream fetch without runtime checkout gained a runtime-source mount'
+fi
+
+: >"$container_log"
+NATIVE_RUNTIME_CONTAINER_LOG=$container_log \
+NATIVE_RUNTIME_BASE_DIGEST=$base_digest \
+NATIVE_RUNTIME_PACKAGE_DIGEST=$package_digest \
+NATIVE_RUNTIME_REQUIRE_MOUNT=1 \
+NATIVE_RUNTIME_EXPECTED_SOURCE=$runtime_source \
+NATIVE_RUNTIME_EXPECTED_COMMIT=$runtime_commit \
+NATIVE_RUNTIME_INPUT_LOCK=$lock \
+NATIVE_RUNTIME_IDLE_FILE=$idle \
+NATIVE_RUNTIME_MEGADRIVE_FILE=$megadrive \
+NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=$upstream_selection \
+LIBMISTER_RUNTIME_DIR=$runtime_source \
+TARGET_IMAGE_CONTAINER_RUNTIME=$fake_container \
+MEGADRIVE_RBF_SOURCE=upstream \
+  sh "$container" fetch true
+grep -Fq -- "--volume $runtime_source:/runtime-source:ro" "$container_log"
+grep -Fq -- "--env FOGCAST_MISTER_RUNTIME_COMMIT=$runtime_commit" "$container_log"
+grep -Fq -- '--env MEGADRIVE_RBF_SOURCE=upstream' "$container_log"
 
 expect_rejected 'relative runtime checkout path' \
   env NATIVE_RUNTIME_CONTAINER_LOG="$container_log" \

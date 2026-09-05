@@ -179,13 +179,51 @@ idle_path=menu.rbf
 idle_sha256=821bcf66181a00ff550e4a4110dc11c9fa8e68d38e9cb5558b3ddb99ca938934
 idle_size=2452588
 idle_install_path=/usr/share/mister-runtime/idle.rbf
+megadrive_origin=upstream
+megadrive_abi=mister
+megadrive_system=megadrive
 megadrive_repository=https://github.com/MiSTer-devel/MegaDrive_MiSTer
-megadrive_commit=7365a137cfd8fa6f041e964d8b953159c0ec42d9
-megadrive_path=releases/MegaDrive_20260603.rbf
+megadrive_revision=7365a137cfd8fa6f041e964d8b953159c0ec42d9
+megadrive_artifact=releases/MegaDrive_20260603.rbf
 megadrive_sha256=0cd43ea2c96e726999f04924713ca090ae73829f3ab08109c6b552cebeba0839
 megadrive_size=4296864
 megadrive_install_path=/usr/share/mister-runtime/cores/megadrive.rbf
 EOF
+
+selection=$fixture/megadrive.selection.toml
+cat > "$selection" <<'EOF'
+format = 1
+origin = 'upstream'
+abi = 'mister'
+system = 'megadrive'
+repository = 'https://github.com/MiSTer-devel/MegaDrive_MiSTer'
+revision = '7365a137cfd8fa6f041e964d8b953159c0ec42d9'
+artifact = 'releases/MegaDrive_20260603.rbf'
+sha256 = '0cd43ea2c96e726999f04924713ca090ae73829f3ab08109c6b552cebeba0839'
+size = 4296864
+install_path = '/usr/share/mister-runtime/cores/megadrive.rbf'
+EOF
+chmod 0444 "$selection"
+upstream_label_selection=$fixture/upstream-label-selection.toml
+sed "/install_path/a label = 'unexpected'" "$selection" > "$upstream_label_selection"
+chmod 0444 "$upstream_label_selection"
+wrong_selection=$fixture/wrong-selection.toml
+cat > "$wrong_selection" <<'EOF'
+format = 1
+origin = 'source-built'
+abi = 'mister'
+system = 'megadrive'
+repository = 'https://fixture.invalid/source-built-megadrive'
+revision = '4444444444444444444444444444444444444444'
+artifact = 'megadrive.rbf'
+sha256 = '0cd43ea2c96e726999f04924713ca090ae73829f3ab08109c6b552cebeba0839'
+size = 4296864
+install_path = '/usr/share/mister-runtime/cores/megadrive.rbf'
+recipe = 'scripts/rebuild_core.py'
+recipe_sha256 = '5555555555555555555555555555555555555555555555555555555555555555'
+toolchain = 'fixture-toolchain'
+EOF
+chmod 0444 "$wrong_selection"
 
 reset_case() {
   : > "$fixture/curl.log"
@@ -198,6 +236,9 @@ reset_case() {
 run_smoke() {
   mode=$1
   output=$2
+  selection_file=$selection
+  [ "$mode" != upstream-label ] || selection_file=$upstream_label_selection
+  [ "$mode" != wrong-selection ] || selection_file=$wrong_selection
   FOGCAST_FAKE_MODE=$mode \
   FOGCAST_FAKE_CURL_LOG=$fixture/curl.log \
   FOGCAST_FAKE_SSH_LOG=$fixture/ssh.log \
@@ -216,6 +257,7 @@ run_smoke() {
   FOGCAST_POLL_ATTEMPTS=3 \
   FOGCAST_POLL_INTERVAL=0 \
   FOGCAST_CALL_TIMEOUT=2 \
+  NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=$selection_file \
   PATH="$fake_bin:$PATH" \
     sh "$smoke" > "$output" 2>&1
 }
@@ -320,13 +362,17 @@ run_failure deleted-main-process \
 run_failure command-pipe \
   'native-runtime-smoke: /dev/MiSTer_cmd is a FIFO' 0 0
 run_failure wrong-agent-identity \
-  'native-runtime-smoke: installed build inputs differ from lock' 0 0
+  'native-runtime-smoke: installed build inputs differ from selection' 0 0
 run_failure wrong-build-inputs \
-  'native-runtime-smoke: installed build inputs differ from lock' 0 0
+  'native-runtime-smoke: installed build inputs differ from selection' 0 0
+run_failure wrong-selection \
+  'native-runtime-smoke: installed build inputs differ from selection' 0 0
+run_failure upstream-label \
+  'native-runtime-smoke: Mega Drive upstream selection is invalid' 0 0
 run_failure missing-final-newline \
-  'native-runtime-smoke: installed build inputs differ from lock' 0 0
+  'native-runtime-smoke: installed build inputs differ from selection' 0 0
 run_failure extra-blank-line \
-  'native-runtime-smoke: installed build inputs differ from lock' 0 0
+  'native-runtime-smoke: installed build inputs differ from selection' 0 0
 run_failure inspection-error \
   'native-runtime-smoke: target inspection failed' 0 0
 run_failure inspection-stall \

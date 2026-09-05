@@ -47,7 +47,7 @@ make target-image-native-qemu-smoke
 
 This produces `build/output/target-image/native-dev/linux.img`. The build runs
 twice and requires identical image digests. Verification inspects the locked
-idle RBF, build-input record, ARM runtime and static ARM agent, and the
+idle RBF, selected Mega Drive RBF and normalized build-input record, ARM runtime and static ARM agent, and the
 runtime's target-library closure. QEMU proves only the read-only root,
 volatile mounts, and init packaging. The designated-kit idle and one-player
 Mega Drive launch/input/Stop/relaunch paths are hardware-tested. The existing
@@ -57,6 +57,25 @@ game regression are also hardware-tested; exact evidence is in
 `native-dev` supports no other catalogue game system, generalized RBF ABI, or
 generic development video/input guarantee. Continue to use the legacy `dev`
 image for the broader established game and development-RBF paths below.
+
+### Native Mega Drive RBF selection
+
+Source-built Mega Drive selection is the native image default; use the explicit upstream selection for fallback.
+
+For the default source-built path, provide a sealed bundle containing exactly
+`megadrive.rbf` and `megadrive-rbf.toml`:
+
+- `make target-image-native MEGADRIVE_RBF_BUNDLE=/absolute/sealed/bundle`
+
+To exercise the locked upstream fallback explicitly:
+
+- `make target-image-native MEGADRIVE_RBF_SOURCE=upstream`
+
+There is no automatic fallback between the two RBF selections. A source-built
+failure stops before Buildroot/image mutation, and the upstream mode resolves
+the locked release independently. Both selections use the MiSTer ABI; generalized/custom/non-MiSTer RBF ABI support is deferred. The selection and
+provenance flow is software-tested; source-built artifact qualification on the
+designated kit is a separate later hardware gate.
 
 ### Fast target iteration policy
 

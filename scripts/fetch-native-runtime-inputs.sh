@@ -4,6 +4,45 @@ set -eu
 repo_root=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 lock=${NATIVE_RUNTIME_INPUT_LOCK:-$repo_root/build/native-runtime.inputs.lock.toml}
 cache=${NATIVE_RUNTIME_CACHE:-$repo_root/build/cache/target-image/native}
+source=${MEGADRIVE_RBF_SOURCE:-source-built}
+bundle=${MEGADRIVE_RBF_BUNDLE:-}
+selector_bin=${TARGET_IMAGE_LOCK_BIN:-$repo_root/bin/target-image-lock-linux-amd64}
+
+case "$source" in
+  source-built)
+    [ -n "$bundle" ] || {
+      printf '%s\n' 'fetch-native-runtime-inputs: source-built requires MEGADRIVE_RBF_BUNDLE' >&2
+      exit 2
+    }
+    case "$bundle" in
+      /*) : ;;
+      *)
+        printf '%s\n' 'fetch-native-runtime-inputs: source-built bundle must be absolute' >&2
+        exit 2
+        ;;
+    esac
+    [ -d "$bundle" ] && [ ! -L "$bundle" ] || {
+      printf '%s\n' 'fetch-native-runtime-inputs: source-built bundle is not a directory' >&2
+      exit 2
+    }
+    bundle=$(CDPATH='' cd -- "$bundle" && pwd -P)
+    ;;
+  upstream)
+    [ -z "$bundle" ] || {
+      printf '%s\n' 'fetch-native-runtime-inputs: upstream forbids MEGADRIVE_RBF_BUNDLE' >&2
+      exit 2
+    }
+    ;;
+  *)
+    printf 'fetch-native-runtime-inputs: unsupported Mega Drive source: %s\n' "$source" >&2
+    exit 2
+    ;;
+esac
+
+[ -x "$selector_bin" ] || {
+  printf 'fetch-native-runtime-inputs: selector is not executable: %s\n' "$selector_bin" >&2
+  exit 2
+}
 
 [ -f "$lock" ] || {
   printf '%s\n' 'fetch-native-runtime-inputs: lock is not a regular file' >&2
@@ -85,7 +124,8 @@ fetch_locked_rbf() {
     exit 1
   }
 
-  /bin/mv "$temporary" "$cache/$cache_name"
+  destination=${7:-$cache/$cache_name}
+  /bin/mv "$temporary" "$destination"
   trap - EXIT INT TERM
   printf '%s_sha256=%s\n' "$fetch_section" "$actual_sha"
 }
@@ -98,10 +138,33 @@ fetch_locked_rbf \
   idle.rbf \
   idle
 
-fetch_locked_rbf \
-  megadrive_rbf \
-  https://github.com/MiSTer-devel/MegaDrive_MiSTer \
-  7365a137cfd8fa6f041e964d8b953159c0ec42d9 \
-  releases/MegaDrive_20260603.rbf \
-  megadrive.rbf \
-  'Mega Drive'
+case "$source" in
+  source-built)
+    "$selector_bin" select-megadrive \
+      --source source-built \
+      --bundle "$bundle" \
+      --upstream-lock "$lock" \
+      --cache "$cache" \
+      --output "$cache/megadrive.selection.toml"
+    ;;
+  upstream)
+    upstream_temporary=$(mktemp "$cache/.megadrive-upstream.XXXXXX")
+    fetch_locked_rbf \
+      megadrive_rbf \
+      https://github.com/MiSTer-devel/MegaDrive_MiSTer \
+      7365a137cfd8fa6f041e964d8b953159c0ec42d9 \
+      releases/MegaDrive_20260603.rbf \
+      megadrive.rbf \
+      'Mega Drive' \
+      "$upstream_temporary"
+    trap '/bin/rm -f -- "$upstream_temporary"' EXIT INT TERM
+    "$selector_bin" select-megadrive \
+      --source upstream \
+      --artifact "$upstream_temporary" \
+      --upstream-lock "$lock" \
+      --cache "$cache" \
+      --output "$cache/megadrive.selection.toml"
+    /bin/rm -f -- "$upstream_temporary"
+    trap - EXIT INT TERM
+    ;;
+esac

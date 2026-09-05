@@ -13,6 +13,15 @@ require_exact() {
 	}
 }
 
+require_contains() {
+	file=$1
+	text=$2
+	grep -Fq -- "$text" "$file" || {
+		printf 'native-megadrive-support-truth: missing from %s: %s\n' "$file" "$text" >&2
+		exit 1
+	}
+}
+
 [ -f "$baseline" ] || {
 	printf '%s\n' 'native-megadrive-support-truth: hardware baseline is missing' >&2
 	exit 1
@@ -38,8 +47,22 @@ require_exact "$baseline" 'preservation, conventional Main, transient MGLs, and 
 require_exact "$baseline" 'remain unsupported by the native path.'
 
 for file in "$root/README.md" "$root/docs/ARCHITECTURE.md" "$root/docs/DEVELOPMENT.md"; do
+	require_contains "$file" \
+		'Source-built Mega Drive selection is the native image default; use the explicit upstream selection for fallback.'
+	require_contains "$file" \
+		'make target-image-native MEGADRIVE_RBF_BUNDLE=/absolute/sealed/bundle'
+	require_contains "$file" \
+		'make target-image-native MEGADRIVE_RBF_SOURCE=upstream'
+	require_contains "$file" \
+		'There is no automatic fallback between the two RBF selections.'
+	require_contains "$file" \
+		'Both selections use the MiSTer ABI; generalized/custom/non-MiSTer RBF ABI support is deferred.'
 	if grep -Eq 'zero supported game systems|zero supported systems|no native game system is supported|Mega Drive candidate pending acceptance|exact-image hardware acceptance pending' "$file"; then
 		printf 'native-megadrive-support-truth: stale pre-acceptance claim in %s\n' "$file" >&2
+		exit 1
+	fi
+	if grep -Eiq '(generalized|custom|non-MiSTer)[^[:cntrl:].]{0,80}(is|are)?[[:space:]]+(supported|available|works)' "$file"; then
+		printf 'native-megadrive-support-truth: unsupported generalized/custom claim in %s\n' "$file" >&2
 		exit 1
 	fi
 done

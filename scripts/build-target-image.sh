@@ -48,7 +48,8 @@ verify_native_inputs() {
     "$repo/build/native-runtime.inputs.lock.toml" \
     "$LIBMISTER_RUNTIME_DIR" \
     "$repo/build/cache/target-image/native/idle.rbf" \
-    "$repo/build/cache/target-image/native/megadrive.rbf"
+    "$repo/build/cache/target-image/native/megadrive.rbf" \
+    "${NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE:-$repo/build/cache/target-image/native/megadrive.selection.toml}"
 }
 
 run_target_container() {
@@ -103,7 +104,8 @@ inside_build() {
       /work/build/native-runtime.inputs.lock.toml \
       /runtime-source \
       /work/build/cache/target-image/native/idle.rbf \
-      /work/build/cache/target-image/native/megadrive.rbf
+      /work/build/cache/target-image/native/megadrive.rbf \
+      /work/build/cache/target-image/native/megadrive.selection.toml
   fi
 
   /bin/rm -rf "$inside_output"
@@ -325,6 +327,22 @@ if [ "$promote_existing" -ne 1 ]; then
       printf 'build-target-image: build %s did not produce rootfs.ext4\n' "$run" >&2
       exit 1
     }
+    if [ "$variant" = native-dev ]; then
+      selection_source=${NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE:-$repo/build/cache/target-image/native/megadrive.selection.toml}
+      [ -f "$selection_source" ] && [ ! -L "$selection_source" ] || {
+        printf '%s\n' 'build-target-image: native Mega Drive selection record is unavailable' >&2
+        exit 1
+      }
+      selection_mode=$(stat -c %a "$selection_source" 2>/dev/null || true)
+      printf '%s\n' "$selection_mode" | grep -Eq '^[0145]{3,4}$' || {
+        printf '%s\n' 'build-target-image: native Mega Drive selection record must not be writable' >&2
+        exit 1
+      }
+      selection_tmp=$work/megadrive.selection.toml.new.$$
+      /bin/cp "$selection_source" "$selection_tmp"
+      /bin/chmod 0444 "$selection_tmp"
+      /bin/mv "$selection_tmp" "$work/megadrive.selection.toml"
+    fi
   done
 fi
 
@@ -337,15 +355,36 @@ if [ "$first_sha" != "$second_sha" ]; then
   exit 1
 fi
 
+if [ "$variant" = native-dev ]; then
+  [ -f "$output_root/work-1-$variant/megadrive.selection.toml" ] &&
+    [ -f "$output_root/work-2-$variant/megadrive.selection.toml" ] || {
+    printf '%s\n' 'build-target-image: native Mega Drive selection is missing beside a reproducible output' >&2
+    exit 1
+  }
+  cmp -s "$output_root/work-1-$variant/megadrive.selection.toml" \
+    "$output_root/work-2-$variant/megadrive.selection.toml" || {
+    printf '%s\n' 'build-target-image: native Mega Drive selection differs between reproducible outputs' >&2
+    exit 1
+  }
+fi
+
 final_dir=$output_root/$variant
 /bin/mkdir -p "$final_dir"
 image_tmp=$final_dir/linux.img.new.$$
 evidence_tmp=$final_dir/reproducibility.txt.new.$$
-trap '/bin/rm -f "$image_tmp" "$evidence_tmp"' EXIT INT TERM
+selection_final_tmp=
+trap '/bin/rm -f "$image_tmp" "$evidence_tmp" "$selection_final_tmp"' EXIT INT TERM
 /bin/cp "$second" "$image_tmp"
 printf 'source_date_epoch=%s\nrun_1_sha256=%s\nrun_2_sha256=%s\n' \
   "$epoch" "$first_sha" "$second_sha" > "$evidence_tmp"
-/bin/mv "$image_tmp" "$final_dir/linux.img"
+if [ "$variant" = native-dev ]; then
+  selection_final_tmp=$final_dir/megadrive.selection.toml.new.$$
+  /bin/cp "$output_root/work-2-$variant/megadrive.selection.toml" "$selection_final_tmp"
+  /bin/chmod 0444 "$selection_final_tmp"
+  /bin/mv "$selection_final_tmp" "$final_dir/megadrive.selection.toml"
+  selection_final_tmp=
+fi
 /bin/mv "$evidence_tmp" "$final_dir/reproducibility.txt"
+/bin/mv "$image_tmp" "$final_dir/linux.img"
 trap - EXIT INT TERM
 printf 'target image %s image: %s\n' "$variant" "$second_sha"

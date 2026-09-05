@@ -21,9 +21,11 @@ and content selection; the MiSTer is a small, directly controlled target.
 - A reproducible target image toolchain with a development image containing
   SSH and curl.
 - A separate reproducible `native-dev` image that packages the native runtime,
-  native agent backend, one locked idle RBF, and one locked Mega Drive RBF.
-  Its idle path and one-player Mega Drive launch, input, Stop, and immediate
-  relaunch path are hardware-tested on the designated kit. See the dated
+  native agent backend, one locked idle RBF, and one selected Mega Drive RBF.
+  Source-built Mega Drive selection is the native image default; use the
+  explicit upstream selection for fallback. Its idle path and one-player Mega
+  Drive launch, input, Stop, and immediate relaunch path are hardware-tested
+  on the designated kit. See the dated
   [native Mega Drive baseline](docs/hardware/native-megadrive-baseline.md).
 
 The normal FPGA launch path is:
@@ -50,11 +52,37 @@ MiSTer-compatible development ABI. It atomically stages the upload at
 program the FPGA, synchronize the core, and report development state without a
 game or system identity. HDMI stays down until Stop reloads the locked idle
 RBF. Raw development uploads have no video or input guarantee. The native
-image packages no development RBF, and the upstream Mega Drive file used for
-physical acceptance is a fixture rather than a production-pinned core. The
+image packages no development RBF. Its Mega Drive RBF is selected at build
+time as described below. The
 exact two-cycle acceptance and legacy rollback evidence is recorded in
 [native-development-rbf-baseline.md](docs/hardware/native-development-rbf-baseline.md).
 There is no browser file picker.
+
+## Native Mega Drive RBF selection
+
+Source-built Mega Drive selection is the native image default; use the explicit upstream selection for fallback.
+
+The native image resolves one sealed two-file bundle before Buildroot. The
+bundle contains `megadrive.rbf` and its closed `megadrive-rbf.toml` provenance
+record. Both files must be regular, sealed (no write bits), and byte-matched to
+the declared source revision, recipe, toolchain, size, and SHA-256. The bundle
+path is supplied by the operator and is never embedded in the image.
+
+Build with the source-built default:
+
+- `make target-image-native MEGADRIVE_RBF_BUNDLE=/absolute/sealed/bundle`
+
+Build using the locked upstream release explicitly:
+
+- `make target-image-native MEGADRIVE_RBF_SOURCE=upstream`
+
+There is no automatic fallback between the two RBF selections. Both modes
+install exactly one Mega Drive RBF at the same role path and keep runtime
+launch, Stop, video, media, and input behavior unchanged. Both selections use the MiSTer ABI; generalized/custom/non-MiSTer RBF ABI support is deferred.
+
+The selection and provenance path is software-tested. Qualification of the
+source-built artifact on the designated kit is a separate later hardware gate;
+the existing hardware baseline does not silently qualify a different RBF.
 
 ## Repository boundaries
 

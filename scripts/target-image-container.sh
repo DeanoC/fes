@@ -51,9 +51,46 @@ if [ -n "${LIBMISTER_RUNTIME_DIR:-}" ]; then
   native_lock=${NATIVE_RUNTIME_INPUT_LOCK:-$repo_root/build/native-runtime.inputs.lock.toml}
   native_idle=${NATIVE_RUNTIME_IDLE_FILE:-$repo_root/build/cache/target-image/native/idle.rbf}
   native_megadrive=${NATIVE_RUNTIME_MEGADRIVE_FILE:-$repo_root/build/cache/target-image/native/megadrive.rbf}
+  native_selection=${NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE:-$repo_root/build/cache/target-image/native/megadrive.selection.toml}
   "$repo_root/scripts/verify-native-runtime-inputs.sh" \
-    "$native_lock" "$native_runtime_source" "$native_idle" "$native_megadrive"
+    "$native_lock" "$native_runtime_source" "$native_idle" "$native_megadrive" \
+    "$native_selection"
   native_runtime_commit=$(git -C "$native_runtime_source" rev-parse --verify HEAD)
+fi
+
+native_megadrive_source=${MEGADRIVE_RBF_SOURCE:-}
+native_megadrive_bundle=
+if [ -n "$native_megadrive_source" ]; then
+  case "$native_megadrive_source" in
+    source-built)
+      [ -n "${MEGADRIVE_RBF_BUNDLE:-}" ] || {
+        printf '%s\n' 'target-image-container: source-built requires MEGADRIVE_RBF_BUNDLE' >&2
+        exit 2
+      }
+      case "$MEGADRIVE_RBF_BUNDLE" in
+        /*) : ;;
+        *)
+          printf '%s\n' 'target-image-container: source-built bundle must be absolute' >&2
+          exit 2
+          ;;
+      esac
+      [ -d "$MEGADRIVE_RBF_BUNDLE" ] && [ ! -L "$MEGADRIVE_RBF_BUNDLE" ] || {
+        printf '%s\n' 'target-image-container: source-built bundle is not a directory' >&2
+        exit 2
+      }
+      native_megadrive_bundle=$(CDPATH='' cd -- "$MEGADRIVE_RBF_BUNDLE" && pwd -P)
+      ;;
+    upstream)
+      [ -z "${MEGADRIVE_RBF_BUNDLE:-}" ] || {
+        printf '%s\n' 'target-image-container: upstream forbids MEGADRIVE_RBF_BUNDLE' >&2
+        exit 2
+      }
+      ;;
+    *)
+      printf 'target-image-container: unsupported Mega Drive source: %s\n' "$native_megadrive_source" >&2
+      exit 2
+      ;;
+  esac
 fi
 
 if [ "${TARGET_IMAGE_DEV_CONTAINER:-0}" = 1 ]; then
@@ -238,6 +275,23 @@ fi
 
 if [ "$mode" = run ]; then
   if [ -n "$native_runtime_source" ]; then
+    if [ -n "$native_megadrive_source" ] && [ -n "$native_megadrive_bundle" ]; then
+      exec "$runtime" run --rm \
+        --platform "$platform" \
+        --network none \
+        --ulimit core=0:0 \
+        --user "$host_uid:$host_gid" \
+        --volume "$repo_root:/work" \
+        --volume "$output_volume:/target-image-output" \
+        --volume "$native_runtime_source:/runtime-source:ro" \
+        --volume "$native_megadrive_bundle:/megadrive-rbf-bundle:ro" \
+        --env "FOGCAST_MISTER_RUNTIME_COMMIT=$native_runtime_commit" \
+        --env "MEGADRIVE_RBF_SOURCE=$native_megadrive_source" \
+        --env 'MEGADRIVE_RBF_BUNDLE=/megadrive-rbf-bundle' \
+        --env 'NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=/work/build/cache/target-image/native/megadrive.selection.toml' \
+        --workdir /work \
+        "$build_image_id" "$@"
+    fi
     exec "$runtime" run --rm \
       --platform "$platform" \
       --network none \
@@ -247,6 +301,36 @@ if [ "$mode" = run ]; then
       --volume "$output_volume:/target-image-output" \
       --volume "$native_runtime_source:/runtime-source:ro" \
       --env "FOGCAST_MISTER_RUNTIME_COMMIT=$native_runtime_commit" \
+      --env 'NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=/work/build/cache/target-image/native/megadrive.selection.toml' \
+      --env "MEGADRIVE_RBF_SOURCE=$native_megadrive_source" \
+      --workdir /work \
+      "$build_image_id" "$@"
+  fi
+  if [ -n "$native_megadrive_source" ] && [ -n "$native_megadrive_bundle" ]; then
+    exec "$runtime" run --rm \
+      --platform "$platform" \
+      --network none \
+      --ulimit core=0:0 \
+      --user "$host_uid:$host_gid" \
+      --volume "$repo_root:/work" \
+      --volume "$output_volume:/target-image-output" \
+      --volume "$native_megadrive_bundle:/megadrive-rbf-bundle:ro" \
+      --env "MEGADRIVE_RBF_SOURCE=$native_megadrive_source" \
+      --env 'MEGADRIVE_RBF_BUNDLE=/megadrive-rbf-bundle' \
+      --env 'NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=/work/build/cache/target-image/native/megadrive.selection.toml' \
+      --workdir /work \
+      "$build_image_id" "$@"
+  fi
+  if [ -n "$native_megadrive_source" ]; then
+    exec "$runtime" run --rm \
+      --platform "$platform" \
+      --network none \
+      --ulimit core=0:0 \
+      --user "$host_uid:$host_gid" \
+      --volume "$repo_root:/work" \
+      --volume "$output_volume:/target-image-output" \
+      --env "MEGADRIVE_RBF_SOURCE=$native_megadrive_source" \
+      --env 'NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=/work/build/cache/target-image/native/megadrive.selection.toml' \
       --workdir /work \
       "$build_image_id" "$@"
   fi
@@ -262,6 +346,36 @@ if [ "$mode" = run ]; then
 fi
 
 if [ -n "$native_runtime_source" ]; then
+  if [ -n "$native_megadrive_source" ] && [ -n "$native_megadrive_bundle" ]; then
+    exec "$runtime" run --rm \
+      --platform "$platform" \
+      --ulimit core=0:0 \
+      --user "$host_uid:$host_gid" \
+      --volume "$repo_root:/work" \
+      --volume "$output_volume:/target-image-output" \
+      --volume "$native_runtime_source:/runtime-source:ro" \
+      --volume "$native_megadrive_bundle:/megadrive-rbf-bundle:ro" \
+      --env "FOGCAST_MISTER_RUNTIME_COMMIT=$native_runtime_commit" \
+      --env "MEGADRIVE_RBF_SOURCE=$native_megadrive_source" \
+      --env 'MEGADRIVE_RBF_BUNDLE=/megadrive-rbf-bundle' \
+      --env 'NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=/work/build/cache/target-image/native/megadrive.selection.toml' \
+      --workdir /work \
+      "$build_image_id" "$@"
+  fi
+  if [ -n "$native_megadrive_source" ]; then
+    exec "$runtime" run --rm \
+      --platform "$platform" \
+      --ulimit core=0:0 \
+      --user "$host_uid:$host_gid" \
+      --volume "$repo_root:/work" \
+      --volume "$output_volume:/target-image-output" \
+      --volume "$native_runtime_source:/runtime-source:ro" \
+      --env "FOGCAST_MISTER_RUNTIME_COMMIT=$native_runtime_commit" \
+      --env "MEGADRIVE_RBF_SOURCE=$native_megadrive_source" \
+      --env 'NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=/work/build/cache/target-image/native/megadrive.selection.toml' \
+      --workdir /work \
+      "$build_image_id" "$@"
+  fi
   exec "$runtime" run --rm \
     --platform "$platform" \
     --ulimit core=0:0 \
@@ -270,6 +384,36 @@ if [ -n "$native_runtime_source" ]; then
     --volume "$output_volume:/target-image-output" \
     --volume "$native_runtime_source:/runtime-source:ro" \
     --env "FOGCAST_MISTER_RUNTIME_COMMIT=$native_runtime_commit" \
+    --env 'NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=/work/build/cache/target-image/native/megadrive.selection.toml' \
+    --env "MEGADRIVE_RBF_SOURCE=$native_megadrive_source" \
+    --workdir /work \
+    "$build_image_id" "$@"
+fi
+
+if [ -n "$native_megadrive_source" ] && [ -n "$native_megadrive_bundle" ]; then
+  exec "$runtime" run --rm \
+    --platform "$platform" \
+    --ulimit core=0:0 \
+    --user "$host_uid:$host_gid" \
+    --volume "$repo_root:/work" \
+    --volume "$output_volume:/target-image-output" \
+    --volume "$native_megadrive_bundle:/megadrive-rbf-bundle:ro" \
+    --env "MEGADRIVE_RBF_SOURCE=$native_megadrive_source" \
+    --env 'MEGADRIVE_RBF_BUNDLE=/megadrive-rbf-bundle' \
+    --env 'NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=/work/build/cache/target-image/native/megadrive.selection.toml' \
+    --workdir /work \
+    "$build_image_id" "$@"
+fi
+
+if [ -n "$native_megadrive_source" ]; then
+  exec "$runtime" run --rm \
+    --platform "$platform" \
+    --ulimit core=0:0 \
+    --user "$host_uid:$host_gid" \
+    --volume "$repo_root:/work" \
+    --volume "$output_volume:/target-image-output" \
+    --env "MEGADRIVE_RBF_SOURCE=$native_megadrive_source" \
+    --env 'NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=/work/build/cache/target-image/native/megadrive.selection.toml' \
     --workdir /work \
     "$build_image_id" "$@"
 fi

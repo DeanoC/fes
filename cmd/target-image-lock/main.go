@@ -36,10 +36,53 @@ func run(args []string, stdout, stderr io.Writer, runner commandRunner) int {
 		return runResolve(args[1:], stdout, stderr, runner)
 	case "verify-inputs":
 		return runVerifyInputs(args[1:], stdout, stderr)
+	case "select-megadrive":
+		return runSelectMegaDrive(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "target-image-lock: unknown command %q\n", args[0])
 		return 2
 	}
+}
+
+func runSelectMegaDrive(args []string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("select-megadrive", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	source := flags.String("source", "", "source-built or upstream")
+	bundle := flags.String("bundle", "", "sealed source-built bundle directory")
+	artifact := flags.String("artifact", "", "downloaded upstream artifact")
+	upstreamLock := flags.String("upstream-lock", "", "locked upstream runtime inputs")
+	cache := flags.String("cache", "", "native artifact cache directory")
+	output := flags.String("output", "", "normalized selection record")
+	if err := flags.Parse(args); err != nil {
+		return 2
+	}
+	if flags.NArg() != 0 || *source == "" || *cache == "" || *output == "" {
+		fmt.Fprintln(stderr, "target-image-lock select-megadrive: --source, --cache, and --output are required")
+		return 2
+	}
+	if *source != "source-built" && *source != "upstream" {
+		fmt.Fprintln(stderr, "target-image-lock select-megadrive: --source must be source-built or upstream")
+		return 2
+	}
+	if (*source == "source-built" && (*bundle == "" || *artifact != "")) ||
+		(*source == "upstream" && (*bundle != "" || *artifact == "" || *upstreamLock == "")) {
+		fmt.Fprintln(stderr, "target-image-lock select-megadrive: source-specific flags do not match --source")
+		return 2
+	}
+	selection, err := targetimage.PrepareMegaDriveSelection(targetimage.MegaDriveSelectionRequest{
+		Source:       *source,
+		Bundle:       *bundle,
+		Artifact:     *artifact,
+		UpstreamLock: *upstreamLock,
+		Cache:        *cache,
+		Output:       *output,
+	})
+	if err != nil {
+		fmt.Fprintf(stderr, "target-image-lock select-megadrive: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "selected %s Mega Drive RBF %s\n", selection.Origin, selection.SHA256)
+	return 0
 }
 
 func runResolve(args []string, stdout, stderr io.Writer, runner commandRunner) int {

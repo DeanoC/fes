@@ -8,6 +8,7 @@ cleanup_inspect_root=
 cleanup_native_inputs_tmp=
 canonical_native_input_lock=$repo/build/native-runtime.inputs.lock.toml
 native_input_lock=$canonical_native_input_lock
+native_selection_file=$repo/build/cache/target-image/native/megadrive.selection.toml
 
 cleanup() {
   [ -z "$cleanup_manifest_tmp" ] || /bin/rm -f "$cleanup_manifest_tmp"
@@ -36,7 +37,7 @@ required_libraries() {
 }
 
 usage() {
-  printf 'usage: verify-target-image.sh prod|dev|native-dev IMAGE MANIFEST LIBRARY_REPORT | --inside VARIANT IMAGE MANIFEST LIBRARY_REPORT | --root-fixture VARIANT ROOT MANIFEST LIBRARY_REPORT\n' >&2
+  printf 'usage: verify-target-image.sh prod|dev|native-dev IMAGE MANIFEST LIBRARY_REPORT [SELECTION] | --inside VARIANT IMAGE MANIFEST LIBRARY_REPORT [SELECTION] | --root-fixture VARIANT ROOT MANIFEST LIBRARY_REPORT [SELECTION]\n' >&2
   exit 2
 }
 
@@ -76,11 +77,31 @@ read_native_lock_value() {
   ' "$native_input_lock"
 }
 
+read_native_selection_value() {
+  selection_key=$1
+  awk -v wanted_key="$selection_key" '
+    /^[[:space:]]*(#|$)/ { next }
+    $0 ~ "^[[:space:]]*" wanted_key "[[:space:]]*=" {
+      value=$0
+      sub(/^[^=]*=[[:space:]]*/, "", value)
+      quote=substr(value, 1, 1)
+      if ((quote == "\"" || quote == sprintf("%c", 39)) &&
+          substr(value, length(value), 1) == quote) {
+        value=substr(value, 2, length(value) - 2)
+      }
+      print value
+      exit
+    }
+  ' "$native_selection_file"
+}
+
 verify_root() {
   variant=$1
   root=$2
   manifest=$3
   library_report=$4
+  selection_file=${5:-$native_selection_file}
+  native_selection_file=$selection_file
   validate_variant "$variant"
   root=$(CDPATH='' cd -- "$root" && pwd -P)
 
@@ -175,6 +196,82 @@ EOF
       exit 1
     fi
 
+    [ -f "$selection_file" ] && [ ! -L "$selection_file" ] || {
+      printf '%s\n' 'verify-target-image: Mega Drive selection is not a regular non-symlink file' >&2
+      exit 1
+    }
+    selection_mode=$(stat -c %a "$selection_file" 2>/dev/null || true)
+    printf '%s\n' "$selection_mode" | grep -Eq '^[0145]{3,4}$' || {
+      printf '%s\n' 'verify-target-image: Mega Drive selection must not be writable' >&2
+      exit 1
+    }
+    awk '
+      /^[[:space:]]*(#|$)/ { next }
+      /^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=/ {
+        key=$0
+        sub(/^[[:space:]]*/, "", key)
+        sub(/[[:space:]]*=.*$/, "", key)
+        if (!(key == "format" || key == "origin" || key == "abi" ||
+              key == "system" || key == "repository" || key == "revision" ||
+              key == "artifact" || key == "sha256" || key == "size" ||
+              key == "install_path" || key == "recipe" ||
+              key == "recipe_sha256" || key == "toolchain" || key == "label")) bad=1
+        count[key]++
+        next
+      }
+      { bad=1 }
+      END { for (key in count) if (count[key] != 1) bad=1; exit bad ? 1 : 0 }
+    ' "$selection_file" || {
+      printf '%s\n' 'verify-target-image: Mega Drive selection is not a closed normalized record' >&2
+      exit 1
+    }
+    selection_format=$(read_native_selection_value format)
+    selection_origin=$(read_native_selection_value origin)
+    selection_abi=$(read_native_selection_value abi)
+    selection_system=$(read_native_selection_value system)
+    selection_repository=$(read_native_selection_value repository)
+    selection_revision=$(read_native_selection_value revision)
+    selection_artifact=$(read_native_selection_value artifact)
+    selection_sha=$(read_native_selection_value sha256)
+    selection_size=$(read_native_selection_value size)
+    selection_install_path=$(read_native_selection_value install_path)
+    selection_recipe=$(read_native_selection_value recipe)
+    selection_recipe_sha=$(read_native_selection_value recipe_sha256)
+    selection_toolchain=$(read_native_selection_value toolchain)
+    selection_label=$(read_native_selection_value label)
+    [ "$selection_format" = 1 ] || exit 1
+    case "$selection_origin" in source-built|upstream) : ;; *) exit 1 ;; esac
+    [ "$selection_abi" = mister ] && [ "$selection_system" = megadrive ] || exit 1
+    printf '%s\n' "$selection_revision" | grep -Eq '^[0-9a-f]{40}$' || exit 1
+    printf '%s\n' "$selection_sha" | grep -Eq '^[0-9a-f]{64}$' || exit 1
+    printf '%s\n' "$selection_size" | grep -Eq '^[1-9][0-9]*$' || exit 1
+    printf '%s\n' "$selection_repository" | grep -Eq '^https://[^[:space:]]+$' || exit 1
+    [ "$selection_install_path" = /usr/share/mister-runtime/cores/megadrive.rbf ] || exit 1
+    for selection_value in "$selection_origin" "$selection_abi" "$selection_system" \
+      "$selection_repository" "$selection_revision" "$selection_artifact" \
+      "$selection_sha" "$selection_size" "$selection_install_path" \
+      "$selection_recipe" "$selection_recipe_sha" "$selection_toolchain" "$selection_label"; do
+      printf '%s' "$selection_value" | LC_ALL=C grep -q '[[:cntrl:]]' && exit 1
+    done
+    case "$selection_origin" in
+      source-built)
+        [ "$selection_artifact" = megadrive.rbf ] || exit 1
+        [ "$selection_recipe" = scripts/rebuild_core.py ] || exit 1
+        printf '%s\n' "$selection_recipe_sha" | grep -Eq '^[0-9a-f]{64}$' || exit 1
+        [ -n "$selection_toolchain" ] || exit 1
+        ;;
+      upstream)
+        [ "$selection_repository" = "$(read_native_lock_value megadrive_rbf repository)" ] &&
+          [ "$selection_revision" = "$(read_native_lock_value megadrive_rbf commit)" ] &&
+          [ "$selection_artifact" = "$(read_native_lock_value megadrive_rbf path)" ] &&
+          [ "$selection_sha" = "$(read_native_lock_value megadrive_rbf sha256)" ] &&
+          [ "$selection_size" = "$(read_native_lock_value megadrive_rbf size)" ] || exit 1
+        [ -z "$selection_recipe" ] &&
+          [ -z "$selection_recipe_sha" ] &&
+          [ -z "$selection_toolchain" ] && [ -z "$selection_label" ] || exit 1
+        ;;
+    esac
+
     idle=$root/usr/share/mister-runtime/idle.rbf
     expected_idle_sha=$(read_native_lock_value idle_rbf sha256)
     expected_idle_size=$(read_native_lock_value idle_rbf size)
@@ -191,8 +288,8 @@ EOF
       exit 1
     }
     megadrive=$root/usr/share/mister-runtime/cores/megadrive.rbf
-    expected_megadrive_sha=$(read_native_lock_value megadrive_rbf sha256)
-    expected_megadrive_size=$(read_native_lock_value megadrive_rbf size)
+    expected_megadrive_sha=$selection_sha
+    expected_megadrive_size=$selection_size
     [ -f "$megadrive" ] && [ ! -L "$megadrive" ] || {
       printf '%s\n' 'verify-target-image: native Mega Drive RBF must be a regular non-symlink file' >&2
       exit 1
@@ -223,15 +320,25 @@ EOF
       printf 'idle_sha256=%s\n' "$expected_idle_sha"
       printf 'idle_size=%s\n' "$expected_idle_size"
       printf 'idle_install_path=%s\n' "$(read_native_lock_value idle_rbf install_path)"
-      printf 'megadrive_repository=%s\n' "$(read_native_lock_value megadrive_rbf repository)"
-      printf 'megadrive_commit=%s\n' "$(read_native_lock_value megadrive_rbf commit)"
-      printf 'megadrive_path=%s\n' "$(read_native_lock_value megadrive_rbf path)"
+      printf 'megadrive_origin=%s\n' "$selection_origin"
+      printf 'megadrive_abi=%s\n' "$selection_abi"
+      printf 'megadrive_system=%s\n' "$selection_system"
+      printf 'megadrive_repository=%s\n' "$selection_repository"
+      printf 'megadrive_revision=%s\n' "$selection_revision"
+      printf 'megadrive_artifact=%s\n' "$selection_artifact"
       printf 'megadrive_sha256=%s\n' "$expected_megadrive_sha"
       printf 'megadrive_size=%s\n' "$expected_megadrive_size"
-      printf 'megadrive_install_path=%s\n' "$(read_native_lock_value megadrive_rbf install_path)"
+      printf 'megadrive_install_path=%s\n' "$selection_install_path"
+      if [ "$selection_origin" = source-built ]; then
+        printf 'megadrive_recipe=%s\n' "$selection_recipe"
+        printf 'megadrive_recipe_sha256=%s\n' "$selection_recipe_sha"
+        printf 'megadrive_toolchain=%s\n' "$selection_toolchain"
+        selection_label=$(read_native_selection_value label)
+        [ -z "$selection_label" ] || printf 'megadrive_label=%s\n' "$selection_label"
+      fi
     } > "$expected_inputs"
     cmp "$expected_inputs" "$root/usr/share/mister-runtime/build-inputs" >/dev/null 2>&1 || {
-      printf '%s\n' 'verify-target-image: native build-input record differs from the lock' >&2
+      printf '%s\n' 'verify-target-image: native build-input record differs from the selection' >&2
       exit 1
     }
     /bin/rm -f "$expected_inputs"
@@ -394,7 +501,7 @@ EOF
 
 case "${1:-}" in
   --root-fixture)
-    [ "$#" -eq 5 ] || usage
+    [ "$#" -eq 5 ] || [ "$#" -eq 6 ] || usage
     test "${TARGET_IMAGE_TEST_MODE:-0}" = 1 || {
       printf '%s\n' 'verify-target-image: root fixtures require test mode' >&2
       exit 2
@@ -406,16 +513,24 @@ case "${1:-}" in
       }
       native_input_lock=$TARGET_IMAGE_ROOT_FIXTURE_NATIVE_INPUT_LOCK
     fi
-    verify_root "$2" "$3" "$4" "$5"
+    if [ "$#" -eq 6 ]; then
+      native_selection_file=$6
+    else
+      native_selection_file=${TARGET_IMAGE_ROOT_FIXTURE_NATIVE_MEGA_DRIVE_SELECTION:-$native_selection_file}
+    fi
+    verify_root "$2" "$3" "$4" "$5" "$native_selection_file"
     exit
     ;;
   --inside)
-    [ "$#" -eq 5 ] || usage
+    [ "$#" -eq 5 ] || [ "$#" -eq 6 ] || usage
     reject_native_input_lock_override
     variant=$2
     image=$3
     manifest=$4
     library_report=$5
+    if [ "$#" -eq 6 ]; then
+      native_selection_file=$6
+    fi
     validate_variant "$variant"
     test -f "$image"
     image=$(readlink -f "$image")
@@ -437,21 +552,31 @@ case "${1:-}" in
     /bin/mkdir -p "$inspect_root"
     cleanup_inspect_root=$inspect_root
     /usr/sbin/debugfs -R "rdump / $inspect_root" "$image" >/dev/null
-    verify_root "$variant" "$inspect_root" "$manifest" "$library_report"
+    verify_root "$variant" "$inspect_root" "$manifest" "$library_report" "$native_selection_file"
     /bin/rm -rf "$inspect_root"
     cleanup_inspect_root=
     exit
     ;;
   prod|dev|native-dev)
-    [ "$#" -eq 4 ] || usage
+    [ "$#" -eq 4 ] || [ "$#" -eq 5 ] || usage
     reject_native_input_lock_override
     variant=$1
     image=$2
     manifest=$3
     library_report=$4
+    if [ "$variant" = native-dev ]; then
+      if [ "$#" -eq 5 ]; then
+        native_selection_file=$5
+      else
+        # Normal invocations run the verifier inside a container. The final
+        # selection copy is under the repository mount, unlike the host cache
+        # default used by the build steps.
+        native_selection_file=build/output/target-image/native-dev/megadrive.selection.toml
+      fi
+    fi
     exec "$repo/scripts/target-image-container.sh" run \
       /work/scripts/verify-target-image.sh --inside \
-      "$variant" "$image" "$manifest" "$library_report"
+      "$variant" "$image" "$manifest" "$library_report" "$native_selection_file"
     ;;
   *) usage ;;
 esac

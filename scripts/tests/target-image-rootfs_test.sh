@@ -420,10 +420,29 @@ install_path = '/usr/share/mister-runtime/idle.rbf'
 repository = 'https://fixture.invalid/megadrive'
 commit = '3333333333333333333333333333333333333333'
 path = 'MegaDrive.rbf'
+sha256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+size = 1
+install_path = '/usr/share/mister-runtime/cores/megadrive.rbf'
+EOF
+
+native_selection=$native_fixture/megadrive.selection.toml
+cat > "$native_selection" <<EOF
+format = 1
+origin = 'source-built'
+abi = 'mister'
+system = 'megadrive'
+repository = 'https://fixture.invalid/source-built-megadrive'
+revision = '4444444444444444444444444444444444444444'
+artifact = 'megadrive.rbf'
 sha256 = '$native_megadrive_sha'
 size = $native_megadrive_size
 install_path = '/usr/share/mister-runtime/cores/megadrive.rbf'
+recipe = 'scripts/rebuild_core.py'
+recipe_sha256 = '5555555555555555555555555555555555555555555555555555555555555555'
+toolchain = 'fixture-toolchain'
 EOF
+chmod 0444 "$native_selection"
+export NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE="$native_selection"
 
 NATIVE_RUNTIME_INPUT_LOCK=$native_lock \
 NATIVE_RUNTIME_IDLE_FILE=$native_cache/idle.rbf \
@@ -448,6 +467,73 @@ grep -Fqx "megadrive_sha256=$native_megadrive_sha" \
   "$native_target/usr/share/mister-runtime/build-inputs"
 grep -Fqx 'megadrive_install_path=/usr/share/mister-runtime/cores/megadrive.rbf' \
   "$native_target/usr/share/mister-runtime/build-inputs"
+grep -Fqx 'megadrive_origin=source-built' \
+  "$native_target/usr/share/mister-runtime/build-inputs"
+grep -Fqx 'megadrive_abi=mister' \
+  "$native_target/usr/share/mister-runtime/build-inputs"
+grep -Fqx 'megadrive_system=megadrive' \
+  "$native_target/usr/share/mister-runtime/build-inputs"
+grep -Fqx 'megadrive_artifact=megadrive.rbf' \
+  "$native_target/usr/share/mister-runtime/build-inputs"
+grep -Fqx 'megadrive_recipe=scripts/rebuild_core.py' \
+  "$native_target/usr/share/mister-runtime/build-inputs"
+grep -Fqx 'megadrive_recipe_sha256=5555555555555555555555555555555555555555555555555555555555555555' \
+  "$native_target/usr/share/mister-runtime/build-inputs"
+grep -Fqx 'megadrive_toolchain=fixture-toolchain' \
+  "$native_target/usr/share/mister-runtime/build-inputs"
+
+native_upstream_lock=$native_fixture/upstream-native-runtime.inputs.lock.toml
+sed \
+  -e "s/sha256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'/sha256 = '$native_megadrive_sha'/" \
+  -e "s/^size = 1$/size = $native_megadrive_size/" \
+  "$native_lock" > "$native_upstream_lock"
+native_upstream_selection=$native_fixture/upstream-megadrive.selection.toml
+cat > "$native_upstream_selection" <<EOF
+format = 1
+origin = 'upstream'
+abi = 'mister'
+system = 'megadrive'
+repository = 'https://fixture.invalid/megadrive'
+revision = '3333333333333333333333333333333333333333'
+artifact = 'MegaDrive.rbf'
+sha256 = '$native_megadrive_sha'
+size = $native_megadrive_size
+install_path = '/usr/share/mister-runtime/cores/megadrive.rbf'
+EOF
+chmod 0444 "$native_upstream_selection"
+native_upstream_target=$native_fixture/upstream-target
+cp -R "$native_fixture/target" "$native_upstream_target"
+NATIVE_RUNTIME_INPUT_LOCK=$native_upstream_lock \
+NATIVE_RUNTIME_IDLE_FILE=$native_cache/idle.rbf \
+NATIVE_RUNTIME_MEGADRIVE_FILE=$native_cache/megadrive.rbf \
+NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=$native_upstream_selection \
+  "$native_post_build" "$native_upstream_target"
+grep -Fqx 'megadrive_origin=upstream' \
+  "$native_upstream_target/usr/share/mister-runtime/build-inputs"
+grep -Fqx 'megadrive_artifact=MegaDrive.rbf' \
+  "$native_upstream_target/usr/share/mister-runtime/build-inputs"
+if grep -Eq '^megadrive_(recipe|recipe_sha256|toolchain)=' \
+  "$native_upstream_target/usr/share/mister-runtime/build-inputs"; then
+  echo 'native post-build emitted source-built provenance for upstream selection' >&2
+  exit 1
+fi
+
+native_wrong_selection=$native_fixture/wrong-selection.toml
+sed "s/$native_megadrive_sha/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/" \
+  "$native_selection" > "$native_wrong_selection"
+chmod 0444 "$native_wrong_selection"
+native_preserve_target=$native_fixture/preserve-target
+cp -R "$native_target" "$native_preserve_target"
+if NATIVE_RUNTIME_INPUT_LOCK=$native_lock \
+  NATIVE_RUNTIME_IDLE_FILE=$native_cache/idle.rbf \
+  NATIVE_RUNTIME_MEGADRIVE_FILE=$native_cache/megadrive.rbf \
+  NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=$native_wrong_selection \
+    "$native_post_build" "$native_preserve_target" >/dev/null 2>&1; then
+  echo 'native post-build accepted a selection digest mismatch' >&2
+  exit 1
+fi
+cmp "$native_target/usr/share/mister-runtime/build-inputs" \
+  "$native_preserve_target/usr/share/mister-runtime/build-inputs"
 
 native_post_build_symlink_failures=0
 native_moved_rbf_symlink=$native_fixture/target-moved-rbf-symlink

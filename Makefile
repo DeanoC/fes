@@ -2,6 +2,8 @@ VERSION ?= 0.1.0
 REVISION ?= $(shell git rev-parse --verify HEAD 2>/dev/null || printf unknown)
 CONTAINER_RUNTIME ?= docker
 LIBMISTER_RUNTIME_DIR ?= $(abspath ../libmister-runtime)
+MEGADRIVE_RBF_SOURCE ?= source-built
+MEGADRIVE_RBF_BUNDLE ?=
 LDFLAGS = -s -w -X github.com/DeanoC/FogCast/internal/version.Version=$(VERSION)
 FOGCAST_LDFLAGS = $(LDFLAGS) -X github.com/DeanoC/FogCast/internal/version.Revision=$(REVISION)
 FOGCAST_GOOS ?= darwin
@@ -158,20 +160,26 @@ target-image-qemu-smoke:
 
 target-image-native-fetch: build-target-image-lock-container build-agent
 	LIBMISTER_RUNTIME_DIR= \
+	  MEGADRIVE_RBF_SOURCE="$(MEGADRIVE_RBF_SOURCE)" \
+	  MEGADRIVE_RBF_BUNDLE="$(MEGADRIVE_RBF_BUNDLE)" \
 	  TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
 	  scripts/target-image-container.sh fetch \
 	  /work/scripts/fetch-native-runtime-inputs.sh
 	LIBMISTER_RUNTIME_DIR="$(LIBMISTER_RUNTIME_DIR)" \
+	  MEGADRIVE_RBF_SOURCE="$(MEGADRIVE_RBF_SOURCE)" \
+	  MEGADRIVE_RBF_BUNDLE="$(MEGADRIVE_RBF_BUNDLE)" \
 	  TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
 	  scripts/build-target-image.sh --fetch native-dev
 
 target-image-native: build-agent target-image-native-fetch
 	LIBMISTER_RUNTIME_DIR="$(LIBMISTER_RUNTIME_DIR)" \
+	  MEGADRIVE_RBF_SOURCE="$(MEGADRIVE_RBF_SOURCE)" \
+	  MEGADRIVE_RBF_BUNDLE="$(MEGADRIVE_RBF_BUNDLE)" \
 	  TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
 	  scripts/build-target-image.sh native-dev
 
 target-image-native-verify:
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-target-image.sh native-dev build/output/target-image/native-dev/linux.img build/output/target-image/native-dev/manifest.tsv build/output/target-image/native-dev/library-report.tsv
+	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-target-image.sh native-dev build/output/target-image/native-dev/linux.img build/output/target-image/native-dev/manifest.tsv build/output/target-image/native-dev/library-report.tsv build/output/target-image/native-dev/megadrive.selection.toml
 
 target-image-native-qemu-smoke:
 	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
@@ -185,7 +193,7 @@ target-smoke:
 	scripts/target-smoke.sh "$(GAME_ID)" "$(EXPECTED_CORE)"
 
 target-native-smoke:
-	scripts/native-runtime-smoke.sh
+	scripts/native-runtime-smoke.sh build/output/target-image/native-dev/megadrive.selection.toml
 
 target-kernel-test:
 	sh scripts/tests/target-kernel_test.sh

@@ -72,7 +72,7 @@ native_target_image_verify=$(
   ' "$repo/Makefile"
 )
 printf '%s\n' "$native_target_image_verify" | grep -Fq \
-  'scripts/verify-target-image.sh native-dev build/output/target-image/native-dev/linux.img build/output/target-image/native-dev/manifest.tsv build/output/target-image/native-dev/library-report.tsv'
+  'scripts/verify-target-image.sh native-dev build/output/target-image/native-dev/linux.img build/output/target-image/native-dev/manifest.tsv build/output/target-image/native-dev/library-report.tsv build/output/target-image/native-dev/megadrive.selection.toml'
 if grep -Fq 'readonly=on' "$repo/scripts/qemu-smoke-target-image.sh"; then
   echo 'QEMU smoke config uses unsupported read-only SD backing' >&2
   exit 1
@@ -134,6 +134,21 @@ printf '%s\n' "$payload" > "$output/images/rootfs.ext4"
 EOF
 chmod 0755 "$fake_build"
 
+fake_selection=$fixture/fake-megadrive.selection.toml
+cat > "$fake_selection" <<'EOF'
+format = 1
+origin = 'upstream'
+abi = 'mister'
+system = 'megadrive'
+repository = 'https://github.com/MiSTer-devel/MegaDrive_MiSTer'
+revision = '7365a137cfd8fa6f041e964d8b953159c0ec42d9'
+artifact = 'releases/MegaDrive_20260603.rbf'
+sha256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+size = 1
+install_path = '/usr/share/mister-runtime/cores/megadrive.rbf'
+EOF
+chmod 0444 "$fake_selection"
+
 build_log=$fixture/build.log
 output_root=$fixture/output
 TARGET_IMAGE_TEST_MODE=1 \
@@ -159,9 +174,14 @@ test "$(wc -l < "$build_log" | tr -d ' ')" -eq "$build_count"
 TARGET_IMAGE_TEST_MODE=1 \
 TARGET_IMAGE_BUILD_ONCE=$fake_build \
 TARGET_IMAGE_BUILD_LOG=$build_log \
+NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=$fake_selection \
 TARGET_IMAGE_OUTPUT_ROOT=$output_root \
   sh "$repo/scripts/build-target-image.sh" native-dev
 test -f "$output_root/native-dev/linux.img"
+cmp -s "$fake_selection" "$output_root/native-dev/megadrive.selection.toml"
+test "$(stat -c %a "$output_root/native-dev/megadrive.selection.toml")" = 444
+cmp -s "$fake_selection" "$output_root/work-1-native-dev/megadrive.selection.toml"
+cmp -s "$fake_selection" "$output_root/work-2-native-dev/megadrive.selection.toml"
 test "$(wc -l < "$build_log" | tr -d ' ')" -eq 2
 grep -Fq "native-dev|$output_root/work-1-native-dev|1751459412" "$build_log"
 grep -Fq "native-dev|$output_root/work-2-native-dev|1751459412" "$build_log"
@@ -240,6 +260,24 @@ sha256 = '$synthetic_megadrive_sha'
 size = $synthetic_megadrive_size
 install_path = '/usr/share/mister-runtime/cores/megadrive.rbf'
 EOF
+
+native_selection=$fixture/megadrive.selection.toml
+cat > "$native_selection" <<EOF
+format = 1
+origin = 'source-built'
+abi = 'mister'
+system = 'megadrive'
+repository = 'https://fixture.invalid/source-built-megadrive'
+revision = '4444444444444444444444444444444444444444'
+artifact = 'megadrive.rbf'
+sha256 = '$synthetic_megadrive_sha'
+size = $synthetic_megadrive_size
+install_path = '/usr/share/mister-runtime/cores/megadrive.rbf'
+recipe = 'scripts/rebuild_core.py'
+recipe_sha256 = '5555555555555555555555555555555555555555555555555555555555555555'
+toolchain = 'fixture-toolchain'
+EOF
+chmod 0444 "$native_selection"
 
 normal_override_log=$fixture/normal-lock-override.log
 set +e
@@ -348,12 +386,18 @@ idle_path=synthetic-idle.rbf
 idle_sha256=$synthetic_idle_sha
 idle_size=$synthetic_idle_size
 idle_install_path=/usr/share/mister-runtime/idle.rbf
-megadrive_repository=https://fixture.invalid/fogcast/synthetic-megadrive
-megadrive_commit=$synthetic_megadrive_commit
-megadrive_path=synthetic-megadrive.rbf
+megadrive_origin=source-built
+megadrive_abi=mister
+megadrive_system=megadrive
+megadrive_repository=https://fixture.invalid/source-built-megadrive
+megadrive_revision=4444444444444444444444444444444444444444
+megadrive_artifact=megadrive.rbf
 megadrive_sha256=$synthetic_megadrive_sha
 megadrive_size=$synthetic_megadrive_size
 megadrive_install_path=/usr/share/mister-runtime/cores/megadrive.rbf
+megadrive_recipe=scripts/rebuild_core.py
+megadrive_recipe_sha256=5555555555555555555555555555555555555555555555555555555555555555
+megadrive_toolchain=fixture-toolchain
 EOF
   fi
 }
@@ -363,8 +407,10 @@ verify_fixture() {
   verify_root=$2
   verify_manifest=$3
   verify_libraries=$4
+  verify_selection=${5:-$native_selection}
   PATH="$fake_bin:$PATH" TARGET_IMAGE_TEST_MODE=1 \
   TARGET_IMAGE_ROOT_FIXTURE_NATIVE_INPUT_LOCK=$native_input_lock \
+  TARGET_IMAGE_ROOT_FIXTURE_NATIVE_MEGA_DRIVE_SELECTION=$verify_selection \
     sh "$repo/scripts/verify-target-image.sh" --root-fixture \
       "$verify_variant" "$verify_root" "$verify_manifest" "$verify_libraries"
 }
@@ -407,6 +453,22 @@ grep -Eq "^usr/share/mister-runtime/cores/megadrive\\.rbf[[:space:]]+file[[:spac
   "$fixture/native.manifest"
 grep -Eq '^usr/share/mister-runtime/build-inputs[[:space:]]+file[[:space:]]+[0-9a-f]{64}$' \
   "$fixture/native.manifest"
+
+native_wrong_selection=$fixture/native-wrong-selection.toml
+sed 's/megadrive/other-system/' "$native_selection" > "$native_wrong_selection"
+if verify_fixture native-dev "$native_root" "$fixture/native-wrong-selection.manifest" \
+  "$fixture/native-wrong-selection.libraries" "$native_wrong_selection" >/dev/null 2>&1; then
+  echo 'native verifier accepted a selection with the wrong system' >&2
+  exit 1
+fi
+
+native_selection_symlink=$fixture/native-selection-symlink
+ln -s "$native_selection" "$native_selection_symlink"
+if verify_fixture native-dev "$native_root" "$fixture/native-selection-symlink.manifest" \
+  "$fixture/native-selection-symlink.libraries" "$native_selection_symlink" >/dev/null 2>&1; then
+  echo 'native verifier accepted a selection symlink' >&2
+  exit 1
+fi
 
 unreadable_root=$fixture/unreadable-root
 cp -R "$prod_root" "$unreadable_root"

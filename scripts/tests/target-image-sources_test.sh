@@ -15,18 +15,21 @@ grep -Fq '/work/scripts/verify-native-runtime-inputs.sh' "$repo/scripts/build-ta
 native_make_root=$fixture/native-make
 native_make_log=$fixture/native-make.log
 native_runtime_path=$fixture/runtime-source
-mkdir -p "$native_make_root/scripts" "$native_runtime_path"
+native_bundle_path=$fixture/native-bundle
+mkdir -p "$native_make_root/scripts" "$native_runtime_path" "$native_bundle_path"
 cat >"$native_make_root/scripts/target-image-container.sh" <<'EOF'
 #!/bin/sh
 set -eu
-printf 'container\truntime=%s\targc=%s\targ1=%s\targ2=%s\n' \
-  "${LIBMISTER_RUNTIME_DIR:-}" "$#" "$1" "$2" >>"$NATIVE_FETCH_RECIPE_LOG"
+printf 'container\truntime=%s\tsource=%s\tbundle=%s\targc=%s\targ1=%s\targ2=%s\n' \
+  "${LIBMISTER_RUNTIME_DIR:-}" "${MEGADRIVE_RBF_SOURCE:-}" "${MEGADRIVE_RBF_BUNDLE:-}" \
+  "$#" "$1" "$2" >>"$NATIVE_FETCH_RECIPE_LOG"
 EOF
 cat >"$native_make_root/scripts/build-target-image.sh" <<'EOF'
 #!/bin/sh
 set -eu
-printf 'build\truntime=%s\targc=%s\targ1=%s\targ2=%s\n' \
-  "${LIBMISTER_RUNTIME_DIR:-}" "$#" "$1" "$2" >>"$NATIVE_FETCH_RECIPE_LOG"
+printf 'build\truntime=%s\tsource=%s\tbundle=%s\targc=%s\targ1=%s\targ2=%s\n' \
+  "${LIBMISTER_RUNTIME_DIR:-}" "${MEGADRIVE_RBF_SOURCE:-}" "${MEGADRIVE_RBF_BUNDLE:-}" \
+  "$#" "$1" "$2" >>"$NATIVE_FETCH_RECIPE_LOG"
 EOF
 chmod 0755 "$native_make_root/scripts/target-image-container.sh" \
   "$native_make_root/scripts/build-target-image.sh"
@@ -34,14 +37,16 @@ chmod 0755 "$native_make_root/scripts/target-image-container.sh" \
   cd "$native_make_root"
   NATIVE_FETCH_RECIPE_LOG=$native_make_log \
   LIBMISTER_RUNTIME_DIR=$native_runtime_path \
+  MEGADRIVE_RBF_BUNDLE=$native_bundle_path \
     make --no-print-directory -f "$repo/Makefile" \
       -o build-target-image-lock-container -o build-agent \
       target-image-native-fetch
 )
 {
-  printf 'container\truntime=\targc=2\targ1=fetch\targ2=/work/scripts/fetch-native-runtime-inputs.sh\n'
-  printf 'build\truntime=%s\targc=2\targ1=--fetch\targ2=native-dev\n' \
-    "$native_runtime_path"
+  printf 'container\truntime=\tsource=source-built\tbundle=%s\targc=2\targ1=fetch\targ2=/work/scripts/fetch-native-runtime-inputs.sh\n' \
+    "$native_bundle_path"
+  printf 'build\truntime=%s\tsource=source-built\tbundle=%s\targc=2\targ1=--fetch\targ2=native-dev\n' \
+    "$native_runtime_path" "$native_bundle_path"
 } >"$fixture/native-make.expected"
 if ! cmp "$fixture/native-make.expected" "$native_make_log"; then
   printf '%s\n' \
@@ -214,6 +219,30 @@ grep -q -- '--ulimit core=0:0' "$docker_log"
 grep -q -- 'fogcast-target-image-output:/target-image-output' "$docker_log"
 ! grep -q 'must-not-cross-container-boundary' "$docker_log"
 grep -q 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc true' "$docker_log"
+
+container_bundle=$fixture/container-bundle
+mkdir -p "$container_bundle"
+: > "$docker_log"
+MEGADRIVE_RBF_SOURCE=source-built \
+MEGADRIVE_RBF_BUNDLE=$container_bundle \
+TARGET_IMAGE_CONTAINER_RUNTIME=$fake_docker \
+TARGET_IMAGE_DOCKER_LOG=$docker_log \
+TARGET_IMAGE_LOCK=$lock \
+  sh "$repo/scripts/target-image-container.sh" run true
+grep -q -- "$container_bundle:/megadrive-rbf-bundle:ro" "$docker_log"
+grep -q -- 'MEGADRIVE_RBF_SOURCE=source-built' "$docker_log"
+grep -q -- 'MEGADRIVE_RBF_BUNDLE=/megadrive-rbf-bundle' "$docker_log"
+grep -q -- 'NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=/work/build/cache/target-image/native/megadrive.selection.toml' "$docker_log"
+
+: > "$docker_log"
+MEGADRIVE_RBF_SOURCE=upstream \
+TARGET_IMAGE_CONTAINER_RUNTIME=$fake_docker \
+TARGET_IMAGE_DOCKER_LOG=$docker_log \
+TARGET_IMAGE_LOCK=$lock \
+  sh "$repo/scripts/target-image-container.sh" run true
+! grep -Fq -- "$container_bundle:/megadrive-rbf-bundle:ro" "$docker_log"
+grep -q -- 'MEGADRIVE_RBF_SOURCE=upstream' "$docker_log"
+grep -q -- 'NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=/work/build/cache/target-image/native/megadrive.selection.toml' "$docker_log"
 
 : > "$docker_log"
 TARGET_IMAGE_CONTAINER_RUNTIME=$fake_docker \
