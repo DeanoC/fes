@@ -25,7 +25,8 @@ The two artifacts are not required to bit-match (Lite cannot reproduce
 Standard). `make select-core CORE=megadrive` copies the hardware-verified
 rebuild to `build/current/megadrive.rbf`. `ARTIFACT=upstream` falls back
 to the official release. The fetch checkout is not modified. Rebuild
-identity is not a lock failure.
+identity is not a lock failure. Selection is an operator convenience, separate
+from compilation and from the immutable FogCast handoff.
 
 The useful outputs are ordinary local files:
 
@@ -35,11 +36,18 @@ build/oracle/<experiment>/top.rbf
 build/cores/megadrive/releases/MegaDrive_20260603.rbf   # upstream
 build/rebuild/megadrive/megadrive.rbf                   # our rebuild
 build/current/megadrive.rbf                             # selected
+build/bundles/megadrive/<rbf-sha256>/megadrive.rbf      # exported
+build/bundles/megadrive/<rbf-sha256>/megadrive-rbf.toml # manifest
 ```
 
-FogCast owns choosing one of those files, transferring it to the disposable
-MiSTer Pi, and loading it. This repository does not own FogCast deployment,
-target recovery, hardware ownership, or network policy.
+`make export-core-bundle CORE=megadrive` validates the rebuild and its
+comparison evidence, then seals those two files in the digest directory. It
+prints the completed absolute directory as the printed bundle path. FogCast
+receives that printed bundle path, not a mutable build path such as
+`build/rebuild/megadrive/megadrive.rbf` or `build/current/megadrive.rbf`.
+FogCast owns transferring the bundle's RBF to the disposable MiSTer Pi and
+loading it. This repository does not own FogCast deployment, target recovery,
+hardware ownership, or network policy.
 
 ## Quick start
 
@@ -71,15 +79,25 @@ make oracle EXP=020_linux_mailbox
 make compare EXP=020_linux_mailbox
 ```
 
-Fetch the upstream Mega Drive pin, rebuild it, and select the current RBF
-(rebuild is the default; upstream is the fallback):
+Fetch the upstream Mega Drive pin and compile the source-built RBF:
 
 ```sh
 make fetch-core CORE=megadrive
 make rebuild-core CORE=megadrive
+make export-core-bundle CORE=megadrive
+```
+
+The export command is the FogCast handoff. For local operator use, select the
+current RBF separately (rebuild is the default; upstream is the fallback):
+
+```sh
 make select-core CORE=megadrive
 make select-core CORE=megadrive ARTIFACT=upstream
 ```
+
+`build/current/megadrive.rbf` remains an operator selection and is not the
+FogCast release handoff. The handoff is the printed digest directory under
+`build/bundles/megadrive/`.
 
 See `docs/oracle-method.md` for the explicit Quartus path and
 `docs/linux-mailbox-development.md` for the mailbox experiment.
