@@ -66,10 +66,10 @@ QUARTUS_ROOTDIR=/absolute/path/to/intelFPGA_lite/17.0 make build
 make verify
 ```
 
-The default `native-integration-dev` selects FogCast `1adc7c3`, runtime
-`4398f41`, misteross `7912a3e` and mister-packages `a29f631` through submodule
-gitlinks. It includes the merged native development-RBF loader and uses
-FogCast's source-bundle interface without editing its input lock.
+The default `native-integration-dev` selects component revisions through the
+submodule gitlinks and packages source-built Mega Drive, Pong and SNES cores.
+Each core has its own validated bundle and installed selection record. Historical
+profiles retain their Mega Drive-only inputs.
 
 A fresh FPGA build requires Quartus Lite 17.0.2. A same-revision cached bundle
 can be reused after payload and pinned-recipe validation. Downloads are checked
@@ -81,9 +81,9 @@ out/native-integration-dev/
   fogcast-api                 Linux amd64 server with browser UI
   fogcast                     Linux amd64 CLI
   linux.img                   ARMv7 target root filesystem
-  megadrive.rbf                selected source-built core
-  megadrive-rbf.toml           FPGA build provenance
-  megadrive.selection.toml     child's installed-core selection record
+  {megadrive,pong,snes}.rbf    selected source-built cores
+  <core>-rbf.toml              FPGA build provenance for each core
+  <core>.selection.toml        installed-core selection for each core
   inputs.json                 selected sources, profile, Go and parent recipe
   host.json / image.json      input fingerprints and output hashes
   reproducibility.txt         independent image hashes
@@ -99,7 +99,7 @@ Run the host with an explicit local configuration:
 out/native-integration-dev/fogcast-api --config /absolute/path/config.toml --listen 127.0.0.1:8787
 ```
 
-The native product supports Mega Drive games and the existing MiSTer-compatible
+The native profiles support Mega Drive, ROM-less Pong, basic SNES and the existing MiSTer-compatible
 development-RBF lifecycle. It does not promise generalized/custom RBF ABIs or
 useful video/input from arbitrary development cores. The SDL tenfoot client
 remains a component build, not a parent output. This produces a root filesystem,
@@ -123,7 +123,7 @@ acceptance is separate. See [integration evidence](docs/integration-validation.m
 
 | Profile | Selected source combination |
 | --- | --- |
-| `native-integration-dev` (default) | Current gitlinks, source-built core, package consistency |
+| `native-integration-dev` (default) | Current gitlinks, three source-built cores, package consistency |
 | `native-dev` | Original FogCast `cd85971` / runtime `443b603`, upstream core |
 | `native-source-dev` | Same original pair, source-built core and historical lock overlay |
 
@@ -153,7 +153,7 @@ components; the default Actions token cannot read sibling private repositories.
 CI deliberately fails with an actionable message when this credential is absent.
 Quartus, full image builds and physical checks run on the development machine.
 
-Next system milestone: package [Pong and SNES](docs/multi-system-development.md)
-into the normal image and verify the assembled three-system artifact. The source
-implementations and diagnostic switching checks are complete. Whole-system image
-assembly migration and the native bootable media layout remain separate work.
+The normal profile includes [Pong and basic SNES](docs/multi-system-development.md)
+alongside Mega Drive. SNES enhancement chips and persistent saves remain outside
+this implementation. Whole-system image assembly migration and the native
+bootable media layout remain separate work.

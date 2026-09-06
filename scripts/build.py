@@ -85,27 +85,57 @@ def source_checkout(name, revision, suffix="", restore=()):
     return path
 
 
-def build_bundle(revisions, env, force=False):
+def selected_cores(profile):
+    cores = profile.get("fpga_cores", [profile.get("fpga_core", "megadrive")])
+    if cores not in (["megadrive"], ["megadrive", "pong", "snes"]):
+        raise ValueError("profile must select megadrive or megadrive, pong, snes")
+    return tuple(cores)
+
+
+def bundle_arguments(cores, bundles):
+    if set(cores) != set(bundles):
+        raise ValueError("bundle set differs from selected cores")
+    return ["NATIVE_RUNTIME_SYSTEMS=" + " ".join(cores), "MEGADRIVE_RBF_SOURCE=source-built"] + [
+        core.upper() + "_RBF_BUNDLE=" + str(bundles[core]) for core in cores]
+
+
+def validate_bundle(directory, source, revision, system):
+    recipe = "scripts/build_pong.py" if system == "pong" else "scripts/rebuild_core.py"
+    return core_bundle.load(directory, digest(source / recipe), system=system,
+                            expected_revision=revision if system == "pong" else None)
+
+
+def build_bundle(revisions, env, force=False, *, system="megadrive"):
+    if system not in ("megadrive", "pong", "snes"):
+        raise ValueError("unsupported FPGA core")
     source = source_checkout("misteross", revisions["misteross"])
-    bundles = list((source / "build/bundles/megadrive").glob("*/megadrive-rbf.toml"))
+    directory = source / "build/bundles" / system
+    bundles = list(directory.glob(f"*/{system}-rbf.toml"))
     if bundles and not force:
         if len(bundles) != 1:
-            raise ValueError("misteross has more than one cached Mega Drive bundle")
+            raise ValueError(f"misteross has more than one cached {system} bundle")
         bundle_dir = bundles[0].parent
-        core_bundle.load(bundle_dir, digest(source / "scripts/rebuild_core.py"))
+        validate_bundle(bundle_dir, source, revisions["misteross"], system)
         print(f"Reusing validated revision-scoped FPGA bundle: {bundle_dir}", flush=True)
         return bundle_dir
-    quartus = env.get("QUARTUS_ROOTDIR", "")
-    if not quartus:
-        raise ValueError("native-source-dev requires QUARTUS_ROOTDIR")
-    run(["make", "-C", source, "fetch-core", "CORE=megadrive"], env=env)
-    run(["make", "-C", source, "rebuild-core", "CORE=megadrive"], env=env)
-    run(["make", "-C", source, "export-core-bundle", "CORE=megadrive"], env=env)
-    bundles = list((source / "build/bundles/megadrive").glob("*/megadrive-rbf.toml"))
+    if not env.get("QUARTUS_ROOTDIR"):
+        raise ValueError("source-built cores require QUARTUS_ROOTDIR")
+    if system == "pong":
+        run(["make", "-C", source, "build-pong"], env=env)
+    else:
+        run(["make", "-C", source, "fetch-core", "CORE=" + system], env=env)
+        run(["make", "-C", source, "rebuild-core", "CORE=" + system], env=env)
+    run(["make", "-C", source, "export-core-bundle", "CORE=" + system], env=env)
+    bundles = list(directory.glob(f"*/{system}-rbf.toml"))
     if len(bundles) != 1:
-        raise ValueError("misteross did not produce exactly one Mega Drive bundle")
-    core_bundle.load(bundles[0].parent, digest(source / "scripts/rebuild_core.py"))
+        raise ValueError(f"misteross did not produce exactly one {system} bundle")
+    validate_bundle(bundles[0].parent, source, revisions["misteross"], system)
     return bundles[0].parent
+
+
+def build_bundles(revisions, env, cores, force=False):
+    return {core: build_bundle(revisions, env, force, system=core) for core in cores}
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -115,6 +145,7 @@ def main():
     args = parser.parse_args()
     profile = tomllib.loads((ROOT / "profiles" / (args.profile + ".toml")).read_text())
     revisions = validate(ROOT, profile)
+    cores = selected_cores(profile)
     if platform.system() != "Linux" or platform.machine() not in ("x86_64", "amd64"):
         raise ValueError("this initial image builder requires Linux amd64")
     container = os.environ.get("CONTAINER_RUNTIME", "docker")
@@ -167,9 +198,9 @@ def main():
                 raise ValueError("make dev requires native-integration-dev; historical profiles stay cold")
             from native_dev import build_development
             runtime = source_checkout("libmister-runtime", revisions["libmister-runtime"])
-            bundle_dir = build_bundle(revisions, env)
+            bundles = build_bundles(revisions, env, cores)
             build_development(ROOT, fogcast, runtime, args.profile, profile, info,
-                              fp, env, child_make, bundle_dir)
+                              fp, env, child_make, bundles)
             return
         if args.action in ("build", "host", "rebuild"):
             if args.action != "rebuild" and reusable(output, "host", fp):
@@ -192,7 +223,8 @@ def main():
                 print("Image: reusing verified output", flush=True)
                 if profile.get("fpga_source") == "misteross":
                     recipe_source = source_checkout("misteross", revisions["misteross"])
-                    core_bundle.load(output, digest(recipe_source / "scripts/rebuild_core.py"))
+                    for core in cores:
+                        validate_bundle(output, recipe_source, revisions["misteross"], core)
             else:
                 runtime = source_checkout("libmister-runtime", revisions["libmister-runtime"])
                 source_lock = tomllib.loads((fogcast / "build/target-image.sources.lock.toml").read_text())
@@ -205,15 +237,15 @@ def main():
                 run([fogcast / "scripts/target-image-container.sh", "fetch",
                      "/work/scripts/fetch-target-image-sources.sh"], env=env)
                 if profile.get("fpga_source") == "misteross":
-                    bundle_dir = build_bundle(revisions, env, args.action == "rebuild")
+                    bundles = build_bundles(revisions, env, cores, args.action == "rebuild")
+                    bundle_dir = bundles["megadrive"]
                     recipe_source = source_checkout("misteross", revisions["misteross"])
                     recipe_sha = digest(recipe_source / "scripts/rebuild_core.py")
                     manifest = core_bundle.load(bundle_dir, recipe_sha)
                     if profile.get("bundle_interface") == "selection":
                         run(child_make + ["target-image-native",
                             "LIBMISTER_RUNTIME_DIR=" + str(runtime),
-                            "MEGADRIVE_RBF_SOURCE=source-built",
-                            "MEGADRIVE_RBF_BUNDLE=" + str(bundle_dir)], env=env)
+                            *bundle_arguments(cores, bundles)], env=env)
                     else:
                         run([fogcast / "scripts/target-image-container.sh", "fetch",
                              "/work/scripts/fetch-native-runtime-inputs.sh"], env=env)
@@ -227,17 +259,19 @@ def main():
                     manifest = None
                     run(child_make + ["target-image-native", "LIBMISTER_RUNTIME_DIR=" + str(runtime)], env=env)
                 # Verification reads the runtime commit from the image/lock; no source mount required.
-                run(child_make + ["target-image-native-verify"], env=env)
+                run(child_make + ["target-image-native-verify"],
+                    env=dict(env, NATIVE_RUNTIME_SYSTEMS=" ".join(cores)))
                 built = fogcast / "build/output/target-image/native-dev"
                 names = ["linux.img", "reproducibility.txt", "manifest.tsv", "library-report.tsv"]
                 if profile.get("bundle_interface") == "selection":
-                    names.append("megadrive.selection.toml")
+                    names.extend(core + ".selection.toml" for core in cores)
                 for name in names:
                     publish_file(built / name, output / name)
                 if manifest is not None:
-                    publish_file(bundle_dir / "megadrive-rbf.toml", output / "megadrive-rbf.toml")
-                    publish_file(bundle_dir / "megadrive.rbf", output / "megadrive.rbf")
-                    names += ["megadrive-rbf.toml", "megadrive.rbf"]
+                    for core in cores:
+                        for name in (core + "-rbf.toml", core + ".rbf"):
+                            publish_file(bundles[core] / name, output / name)
+                            names.append(name)
                 write_receipt(output, "image", fp, names)
         if args.action == "verify":
             if not reusable(output, "host", fp) or not reusable(output, "image", fp):
@@ -245,7 +279,8 @@ def main():
             if profile.get("fpga_source") == "misteross":
                 recipe_source = source_checkout("misteross", revisions["misteross"])
                 recipe_sha = digest(recipe_source / "scripts/rebuild_core.py")
-                core_bundle.load(output, recipe_sha)
+                for core in cores:
+                    validate_bundle(output, recipe_source, revisions["misteross"], core)
                 # A new invocation starts from the pinned FogCast commit. Recreate the
                 # generated lock/cache overlay from the published bundle before asking
                 # FogCast to verify the already-built image.
@@ -254,8 +289,10 @@ def main():
             built = fogcast / "build/output/target-image/native-dev/linux.img"
             if not built.is_file() or digest(built) != digest(output / "linux.img"):
                 raise ValueError("child image differs from published image; run make rebuild")
-            run(child_make + ["target-image-native-verify"], env=env)
-            run(child_make + ["target-image-native-qemu-smoke"], env=env)
+            run(child_make + ["target-image-native-verify"],
+                    env=dict(env, NATIVE_RUNTIME_SYSTEMS=" ".join(cores)))
+            run(child_make + ["target-image-native-qemu-smoke"],
+                env=dict(env, NATIVE_RUNTIME_SYSTEMS=" ".join(cores)))
             actual = digest(output / "linux.img")
             evidence = dict(line.split("=", 1) for line in (output / "reproducibility.txt").read_text().splitlines())
             if evidence.get("run_1_sha256") != actual or evidence.get("run_2_sha256") != actual:

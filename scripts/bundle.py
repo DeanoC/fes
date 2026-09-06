@@ -15,17 +15,41 @@ def digest(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def load(directory, expected_recipe_sha256=None):
+def load(directory, expected_recipe_sha256=None, *, system="megadrive", expected_revision=None):
+    policies = {
+        "megadrive": (REPOSITORY, REVISION, "scripts/rebuild_core.py"),
+        "snes": ("https://github.com/MiSTer-devel/SNES_MiSTer",
+                 "93d359e6f23c734ae3928984e88bed1d9b53cbac", "scripts/rebuild_core.py"),
+        "pong": ("https://github.com/DeanoC/misteross", expected_revision, "scripts/build_pong.py"),
+    }
+    if system not in policies:
+        raise ValueError("unsupported bundle system")
+    repository, revision, recipe = policies[system]
+    if system == "pong" and (not isinstance(expected_revision, str) or
+                             not re.fullmatch(r"[0-9a-f]{40}", expected_revision)):
+        raise ValueError("Pong bundle requires the selected source revision")
+    if expected_revision is not None and expected_revision != revision:
+        raise ValueError("bundle expected revision differs from policy")
     directory = Path(directory)
-    artifact = directory / "megadrive.rbf"
-    manifest_path = directory / "megadrive-rbf.toml"
+    artifact = directory / f"{system}.rbf"
+    manifest_path = directory / f"{system}-rbf.toml"
     if artifact.is_symlink() or manifest_path.is_symlink():
         raise ValueError("bundle files must not be symlinks")
+    if not artifact.is_file() or not manifest_path.is_file():
+        raise ValueError("bundle files must be regular files")
+    if artifact.stat().st_size == 0:
+        raise ValueError("bundle artifact must not be empty")
     manifest = tomllib.loads(manifest_path.read_text())
+    fields = {"format", "abi", "system", "artifact", "repository", "revision",
+              "recipe", "toolchain", "sha256", "size", "recipe_sha256"}
+    if set(manifest) != fields:
+        raise ValueError("bundle manifest fields differ from schema")
+    if type(manifest["format"]) is not int or type(manifest["size"]) is not int:
+        raise ValueError("bundle manifest format and size must be integers")
     fixed = {
-        "format": 1, "abi": "mister", "system": "megadrive",
-        "artifact": "megadrive.rbf", "repository": REPOSITORY,
-        "revision": REVISION, "recipe": "scripts/rebuild_core.py",
+        "format": 1, "abi": "mister", "system": system,
+        "artifact": f"{system}.rbf", "repository": repository,
+        "revision": revision, "recipe": recipe,
         "toolchain": TOOLCHAIN,
     }
     for key, value in fixed.items():

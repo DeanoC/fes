@@ -97,6 +97,72 @@ toolchain = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
             with self.assertRaisesRegex(ValueError, "digest"):
                 self.module().load(bundle)
 
+    def test_all_systems_and_identity_drift(self):
+        module = self.module()
+        for system, repository, revision, recipe in (
+            ("megadrive", module.REPOSITORY, module.REVISION, "scripts/rebuild_core.py"),
+            ("snes", "https://github.com/MiSTer-devel/SNES_MiSTer",
+             "93d359e6f23c734ae3928984e88bed1d9b53cbac", "scripts/rebuild_core.py"),
+            ("pong", "https://github.com/DeanoC/misteross", "1" * 40, "scripts/build_pong.py"),
+        ):
+            with self.subTest(system=system), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                artifact = directory / f"{system}.rbf"
+                artifact.write_bytes(b"rbf")
+                manifest_path = directory / f"{system}-rbf.toml"
+                manifest = dict(format=1, abi="mister", system=system,
+                                artifact=artifact.name, repository=repository,
+                                revision=revision, recipe=recipe, toolchain=module.TOOLCHAIN,
+                                sha256=hashlib.sha256(b"rbf").hexdigest(), size=3,
+                                recipe_sha256="2" * 64)
+                def write(values):
+                    manifest_path.write_text("".join(f"{key} = {value!r}\n" for key, value in values.items()))
+                def load():
+                    return module.load(directory, "2" * 64, system=system, expected_revision=revision)
+                write(manifest)
+                self.assertEqual(load(), manifest)
+                for field, value in (("system", "other"), ("repository", "https://example.org/wrong"),
+                                     ("revision", "9" * 40), ("recipe", "scripts/wrong.py"),
+                                     ("recipe_sha256", "3" * 64), ("toolchain", "wrong"),
+                                     ("artifact", "../other.rbf"), ("sha256", "4" * 64),
+                                     ("size", 4), ("extra", "unexpected")):
+                    with self.subTest(field=field):
+                        write(dict(manifest, **{field: value}))
+                        with self.assertRaises(ValueError):
+                            load()
+                write(manifest)
+                artifact.write_bytes(b"bad")
+                with self.assertRaisesRegex(ValueError, "digest"):
+                    load()
+                artifact.write_bytes(b"")
+                with self.assertRaisesRegex(ValueError, "empty"):
+                    load()
+                artifact.unlink()
+                artifact.mkdir()
+                with self.assertRaisesRegex(ValueError, "regular"):
+                    load()
+                artifact.rmdir()
+                target = directory / "payload"
+                target.write_bytes(b"rbf")
+                artifact.symlink_to(target)
+                with self.assertRaisesRegex(ValueError, "symlink"):
+                    load()
+                artifact.unlink()
+                artifact.write_bytes(b"rbf")
+                if system == "pong":
+                    with self.assertRaisesRegex(ValueError, "requires.*revision"):
+                        module.load(directory, system="pong")
+                    with self.assertRaisesRegex(ValueError, "revision"):
+                        module.load(directory, system="pong", expected_revision="9" * 40)
+                else:
+                    with self.assertRaisesRegex(ValueError, "revision"):
+                        module.load(directory, system=system, expected_revision="9" * 40)
+                manifest_path.unlink()
+                target.write_text("irrelevant")
+                manifest_path.symlink_to(target)
+                with self.assertRaisesRegex(ValueError, "symlink"):
+                    load()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,9 +2,74 @@
 
 The selected sources implement Pong and basic SNES alongside Mega Drive.
 All three passed diagnostic hardware switching, video and input checks. The
-normal parent image assembly still packages Mega Drive only; packaging the new
-RBFs and producing a verified three-system image is the next integration step.
+normal parent profile now selects source-built bundles for all three systems,
+with per-core selection records and image-content verification.
 SNES persistent saves and enhancement chips remain outside this implementation.
+
+## Normal image inputs
+
+The default profile selects `megadrive`, `pong`, and `snes` together. FES validates
+each source-built bundle against its selected producer/source revision and recipe
+hash before passing it to the existing image builder. The image installs all
+three RBFs and retains per-core selection records; verification rejects missing,
+changed, or unexpected cores. Historical profiles retain Mega Drive only.
+
+Fresh normal builds reproduce the earlier hardware-tested RBF bytes:
+
+| Core | SHA-256 | Timing classification |
+| --- | --- | --- |
+| Mega Drive | `195fad26e792e4d023d3d73f2ab6ce94c9edfa93114d6da7ec008ee10dc72c6e` | Existing baseline; negative setup slack remains |
+| Pong | `1567e5ea4db1f18b9f23b48e7a4b7604024a998ddf1378bf77fe5968e00c64d1` | Checked timing passes |
+| SNES | `fdd6d3c51cf3662cb59c5250eee8d4aa48fdab14a272c756fb892677d5ff1226` | Checked seed 3; setup 0.240 ns, hold 0.243 ns |
+
+Mega Drive retains its existing artifact qualification, including setup slack
+of -3.114 ns and -1.214 ns in its timing summary. Identical hardware-tested bytes
+do not make that result timing-clean. Pong and SNES exports reject failed timing;
+all three exports bind the recipe used at build time. Pong also validates its
+committed local sources and pinned framework before export.
+
+## Normal assembled image validation (2026-09-06)
+
+The selected normal image passed two independent cold builds, structural checks,
+and the QEMU packaging smoke test. Both builds produced the 64 MiB root filesystem
+image SHA-256 `9af1a0140acb36a689e9de9101806d1ad6f879a7cbc8e307aca9df7b6b3bea03`.
+QEMU checks packaging and userspace boot, not FPGA behavior. This artifact is a
+root filesystem image for the existing board boot setup, not a complete SD-card layout.
+
+The tested component revisions are:
+
+| Component | Revision |
+| --- | --- |
+| FogCast | `02378114c25a4da26e424630b22146a88249cd4e` |
+| misteross | `830937d0ebb6f0bf6a0b83cf519843c3445d3c45` |
+| libmister-runtime | `960e61ece108d996eae4e09566b9fdc56c4ce952` |
+| mister-packages | `b5a92e511a111c428f1f39057e3c6386e9d19c81` |
+
+The first build was deployed under a kit lease while the second build ran. Its
+bytes match the final verified output exactly. On the designated kit, Pong →
+SNES LoROM → Mega Drive → SNES HiROM → Pong completed on one boot, with nonzero
+HDMI audio for each game and Stop returning to idle and releasing ownership.
+Extended interactive checks captured Super Mario World movement/B jump at Yoshi's
+House, Sonic 2 movement/A jump in Emerald Hill, and Fievel movement/B jump in stage
+one. These extended checks followed a separate reboot; the installed image hash
+was rechecked afterward. The kit was left ready with ownership free.
+
+Local evidence is in `out/three-system-image-evidence/`: `acceptance.json`,
+`hardware-results.json`, build/test logs, selection and verification records,
+and HDMI captures. The normal image is `out/native-integration-dev/linux.img`.
+Keep the evidence with its exact inputs rather than attributing acceptance to
+later component revisions. Raw captures and ROMs are not committed.
+
+Warm `make dev` reused the verified Buildroot tree, rebuilt the runtime package,
+and assembled a separate structurally checked diagnostic image. A second,
+unchanged invocation reused all three validated RBF bundles and reported
+“nothing to rebuild.” The container cache key also now ignores checkout location
+when its actual input files are identical. Cold `make build` still deliberately
+uses two independent passes to check reproducibility.
+
+Parent tests: 29 passed. FogCast's full `make test` passed, with its Chrome
+integration fixture skipped because Chrome was unavailable. The basic SNES
+scope and Mega Drive timing limitation above still apply.
 
 ## Working locations
 
@@ -79,7 +144,9 @@ This is a verified upstream source/artifact identity, not native support. The
 first local Quartus rebuild missed setup timing by 0.064 ns. Seed 2 also failed;
 a separate seed 3 trial passed with minimum setup slack 0.240 ns and hold slack
 0.243 ns. Only the staged fitter seed changed; RTL and constraints were retained.
-The passing artifact is a diagnostic override, not the unchanged recipe default. The selected runtime implements the bounded native
+The first passing artifact was a diagnostic override. The selected normal recipe
+now fixes SNES to seed 3 and rejects failed timing; a fresh build reproduced the
+same RBF bytes. The selected runtime implements the bounded native
 cartridge transform and one-player controller path.
 
 The native contract selects cartridge index 1 (the core also accepts index 0,
@@ -234,13 +301,15 @@ API was stopped; the normal host API was left untouched.
 
 Earlier attempts were interrupted by a user-confirmed manual reboot and an
 external Stop/development-RBF load. Those interruptions are not evidence of a
-runtime crash. [Kit sharing](kit-sharing.md) proposes session ownership for game
-and development-RBF operations; enforcement is not implemented yet.
+runtime crash. At that stage kit sharing was still proposed. The selected
+components now enforce renewable session ownership for game and development-RBF
+operations; see [kit sharing](kit-sharing.md).
 
 Evidence and frozen source archives are in `out/snes-native-diagnostic/`.
 The seed 3 receipt and timing summaries remain in
 `out/dev/pong-snes/misteross/build/rebuild/snes-seed3/`. This is an explicit
-staged seed override: the normal SNES recipe still uses seed 1. Making seed 3 a
-reviewed normal build option, multi-core image selection, and parent pin
-selection remain integration work. Preserve the old Pong recipe snapshot when
-changing the shared builder, since its hash is part of Pong provenance.
+staged seed override from the diagnostic phase. Subsequent integration made
+seed 3 the checked normal SNES recipe and added three-core image selection.
+The new normal builds reproduced all three diagnostic RBF hashes. The frozen
+Pong recipe snapshot remains preserved because its hash is part of that older
+artifact provenance.
