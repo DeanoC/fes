@@ -8,7 +8,8 @@ import shlex
 import subprocess
 import tomllib
 
-from build import digest, output_volume, publish_file, reusable, run, write_receipt
+from build import (digest, output_volume, publish_file, reusable, run, write_receipt,
+                   selected_cores, bundle_arguments)
 from inputs import git
 
 # Keep the clean builder's absolute path: Buildroot host tools are not relocatable.
@@ -86,13 +87,15 @@ mv /dest/seed-in-progress /dest/work-2-native-dev
 
 
 def build_development(root, fogcast, runtime, profile_name, profile, info,
-                      fingerprint, env, child_make, bundle_dir):
+                      fingerprint, env, child_make, bundles):
     if profile.get('bundle_interface') != 'selection':
         raise ValueError('make dev requires native-integration-dev; historical profiles stay cold')
     output = root / 'out' / profile_name / 'development'
     if reusable(output, 'development', fingerprint):
         print('Development: reusing checked output; nothing to rebuild', flush=True)
         return
+    cores = selected_cores(profile)
+    selection_args = bundle_arguments(cores, bundles)
     key = base_key(fogcast)
     volume = output_volume(root, profile_name + '-development-' + key)
     output.mkdir(parents=True, exist_ok=True)
@@ -112,10 +115,9 @@ def build_development(root, fogcast, runtime, profile_name, profile, info,
     run([fogcast / 'scripts/target-image-container.sh', 'fetch',
          '/work/scripts/fetch-target-image-sources.sh'], env=env)
     run(child_make + ['target-image-native-fetch', 'LIBMISTER_RUNTIME_DIR=' + str(runtime),
-                     'MEGADRIVE_RBF_SOURCE=source-built',
-                     'MEGADRIVE_RBF_BUNDLE=' + str(bundle_dir)], env=env)
-    env.update(LIBMISTER_RUNTIME_DIR=str(runtime), MEGADRIVE_RBF_SOURCE='source-built',
-               MEGADRIVE_RBF_BUNDLE=str(bundle_dir))
+                     *selection_args], env=env)
+    env.update(dict(argument.split('=', 1) for argument in selection_args))
+    env['LIBMISTER_RUNTIME_DIR'] = str(runtime)
     # Read the authoritative epoch; do not invent another image configuration.
     recipe = (fogcast / 'scripts/build-target-image.sh').read_text()
     epoch_match = re.search(r'^epoch=([0-9]+)$', recipe, re.MULTILINE)
@@ -128,6 +130,12 @@ def build_development(root, fogcast, runtime, profile_name, profile, info,
     runtime_revision = git(runtime, 'rev-parse', 'HEAD')
     if not re.fullmatch('[0-9a-f]{40}', runtime_revision):
         raise ValueError('runtime revision must be a full commit ID')
+    selection_copy = '\n'.join(
+        f'rm -f {EXPORT}/{core}.selection.toml.new\n'
+        f'cp /work/build/cache/target-image/native/{core}.selection.toml {EXPORT}/{core}.selection.toml.new\n'
+        f'chmod 0444 {EXPORT}/{core}.selection.toml.new\n'
+        f'mv {EXPORT}/{core}.selection.toml.new {EXPORT}/{core}.selection.toml'
+        for core in cores)
     script = f'''set -eu
 test "$(id -u)" -ne 0
 rm -rf /target-image-output/seed-in-progress
@@ -145,10 +153,7 @@ mv {WORK}/.fes-runtime-commit.new {WORK}/.fes-runtime-commit
 mkdir -p {EXPORT}
 cp {WORK}/images/rootfs.ext4 {EXPORT}/linux.img.new
 mv {EXPORT}/linux.img.new {EXPORT}/linux.img
-rm -f {EXPORT}/megadrive.selection.toml.new
-cp /work/build/cache/target-image/native/megadrive.selection.toml {EXPORT}/megadrive.selection.toml.new
-chmod 0444 {EXPORT}/megadrive.selection.toml.new
-mv {EXPORT}/megadrive.selection.toml.new {EXPORT}/megadrive.selection.toml
+{selection_copy}
 '''
     print(f'Development: persistent base {key[:16]} in {volume}', flush=True)
     run([fogcast / 'scripts/target-image-container.sh', 'run', 'sh', '-c', script], env=env)
@@ -157,12 +162,14 @@ mv {EXPORT}/megadrive.selection.toml.new {EXPORT}/megadrive.selection.toml
     run([fogcast / 'scripts/verify-target-image.sh', 'native-dev', exported / 'linux.img',
          exported / 'manifest.tsv', exported / 'library-report.tsv',
          exported / 'megadrive.selection.toml'], env=env)
-    names = ['linux.img', 'manifest.tsv', 'library-report.tsv', 'megadrive.selection.toml']
+    names = ['linux.img', 'manifest.tsv', 'library-report.tsv'] + [
+        core + '.selection.toml' for core in cores]
     for name in names:
         publish_file(built / name, output / name)
-    for name in ('megadrive.rbf', 'megadrive-rbf.toml'):
-        publish_file(bundle_dir / name, output / name)
-        names.append(name)
+    for core in cores:
+        for name in (core + '.rbf', core + '-rbf.toml'):
+            publish_file(bundles[core] / name, output / name)
+            names.append(name)
     record = dict(info, build_mode='incremental-development', base_key=key,
                   output_volume=volume, structural='pass', two_pass_reproducibility='not-run')
     (output / 'inputs.json').write_text(json.dumps(record, indent=2, sort_keys=True) + '\n')

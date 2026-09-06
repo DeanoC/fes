@@ -90,7 +90,8 @@ would distribute the existing coupling across more locations.
 The gitlinks select matching merged implementations of native Mega Drive,
 Pong, basic SNES and renewable kit ownership. Exact revisions are recorded by
 git; diagnostic artifact identities are in the multi-system and kit guides.
-The default image assembly still packages Mega Drive only.
+The default profile packages source-built Mega Drive, Pong and SNES, each with
+its own selection record. Historical profiles remain Mega Drive-only.
 
 `make check` validates source identity and cleanliness, the FogCast runtime
 lock, package YAML, seven generated consumer files, and copied Mega Drive/SNES
@@ -142,9 +143,9 @@ This does not require a fixed agent team for every change.
 
 ## Next integration milestone
 
-The next milestone is packaging [Pong and SNES](multi-system-development.md)
-into the normal image and verifying that assembled artifact. The selected source
-implementations have passed separate three-system hardware diagnostics.
+The normal profile selects [Mega Drive, Pong and SNES](multi-system-development.md).
+Exact assembled-artifact results must remain distinct from the earlier hardware
+diagnostics.
 The following assembly milestones remain separate future work:
 
 1. Use the incremental native development path for component integration; retain

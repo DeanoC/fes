@@ -90,7 +90,7 @@ The development Buildroot volume retains the compiler, libraries and package
 outputs. The Go agent uses Go's compilation cache; the runtime package is cleaned
 and rebuilt when its selected commit changes. An unchanged complete output is
 reused after receipt/hash checks. Otherwise, full Buildroot finalization runs to
-install the current agent, selected RBF and build-input record.
+install the current agent, selected RBF set and build-input record.
 A failed build leaves no development success receipt; the next invocation can
 resume package compilation.
 
@@ -105,8 +105,10 @@ The cache key covers the child's Buildroot tree (configuration, overlays,
 patches and package recipes), container inputs, source/package locks, scripts,
 Makefile, native input policy except the runtime commit, and the parent
 incremental runner. Changes to these inputs select a separate fresh volume.
-Application-source changes and runtime commit changes retain the base. RBF
-selection from a different source-built bundle is installed during finalization;
+Application-source changes and runtime commit changes retain the base. The child
+container cache identity uses input contents rather than checkout locations, so
+identical compiler containers are shared across component worktrees. RBF
+selection from different source-built bundles is installed during finalization;
 a change to the locked RBF policy selects a new base. This intentionally
 conservative key can be narrowed later with evidence.
 
