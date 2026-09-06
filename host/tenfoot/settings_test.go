@@ -115,7 +115,7 @@ func TestAppSettingsOverlayOpenCloseAndLocalPrefs(t *testing.T) {
 		t.Fatal("settings should open")
 	}
 	snap := app.Snapshot()
-	if !snap.Settings.Open || snap.Settings.Index != 0 || len(snap.Settings.Rows) != settingsRowCount {
+	if !snap.Settings.Open || snap.Settings.Index != 0 || len(snap.Settings.Rows) != settingsRowFixedCount+settingsTrailingCount {
 		t.Fatalf("snapshot = %#v", snap.Settings)
 	}
 	app.HandleCommand(CmdRight, now)
@@ -1193,4 +1193,392 @@ func TestAppSettingsRegionPatchReloadsCatalog(t *testing.T) {
 		defer mu.Unlock()
 		return games > before
 	})
+}
+
+func focusSettingsRow(t *testing.T, app *App, id string, now time.Time) {
+	t.Helper()
+	for i := 0; i < 32; i++ {
+		snap := app.Snapshot()
+		if snap.Settings.Open && snap.Settings.Index >= 0 && snap.Settings.Index < len(snap.Settings.Rows) && snap.Settings.Rows[snap.Settings.Index].ID == id {
+			return
+		}
+		app.HandleCommand(CmdDown, now)
+	}
+	t.Fatalf("settings row %q not found: %#v", id, app.Snapshot().Settings.Rows)
+}
+
+func TestAppSettingsListsLibrariesFromGet(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/library/settings" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"attract_idle_seconds": 60,
+			"preferred_regions":    []string{"usa"},
+			"selected_target":      "dev",
+			"targets":              []map[string]any{{"name": "dev"}},
+			"libraries":            []map[string]any{{"id": "snes", "system": "snes", "root": "/library/snes"}},
+			"systems":              []map[string]any{{"id": "snes", "label": "SNES"}, {"id": "nes", "label": "NES"}},
+		})
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
+	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.grid.SetCount(1)
+	now := time.Now()
+	app.HandleCommand(CmdSettings, now)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return snap.Settings.Open && !snap.Settings.Loading && snap.Settings.LibraryCount == 1
+	})
+	snap := app.Snapshot()
+	if snap.Settings.Rows[settingsRowIdle].Value != "60s" || snap.Settings.Rows[settingsRowTarget].Value != "dev" {
+		t.Fatalf("host rows = %#v", snap.Settings.Rows)
+	}
+	found := false
+	for _, row := range snap.Settings.Rows {
+		if row.ID == "library-0" {
+			found = true
+			if row.Label != "SNES" || row.Value != "/library/snes" {
+				t.Fatalf("library row = %#v", row)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("missing library row: %#v", snap.Settings.Rows)
+	}
+}
+
+func TestAppSettingsAddEditRemoveLibrariesAndPatch(t *testing.T) {
+	var mu sync.Mutex
+	state := map[string]any{
+		"attract_idle_seconds": 60,
+		"preferred_regions":    []string{"usa"},
+		"selected_target":      "dev",
+		"targets":              []map[string]any{{"name": "dev"}},
+		"libraries":            []map[string]any{{"id": "snes", "system": "snes", "root": "/library/snes"}},
+		"systems":              []map[string]any{{"id": "snes", "label": "SNES"}, {"id": "nes", "label": "NES"}},
+	}
+	var patches []string
+	var games int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v1/games":
+			mu.Lock()
+			games++
+			mu.Unlock()
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{{ID: "g0", Title: "Game", Launchable: true}},
+			})
+		case r.URL.Path != "/api/v1/library/settings":
+			http.NotFound(w, r)
+		case r.Method == http.MethodGet:
+			mu.Lock()
+			_ = json.NewEncoder(w).Encode(state)
+			mu.Unlock()
+		case r.Method == http.MethodPatch:
+			raw, _ := io.ReadAll(r.Body)
+			mu.Lock()
+			patches = append(patches, string(raw))
+			var body map[string]any
+			_ = json.Unmarshal(raw, &body)
+			if _, ok := body["attract_idle_seconds"]; ok {
+				t.Errorf("libraries patch included idle: %s", raw)
+			}
+			if _, ok := body["targets"]; ok {
+				t.Errorf("libraries patch included targets: %s", raw)
+			}
+			if _, ok := body["selected_target"]; ok {
+				t.Errorf("libraries patch included selected_target: %s", raw)
+			}
+			for k, v := range body {
+				state[k] = v
+			}
+			_ = json.NewEncoder(w).Encode(state)
+			mu.Unlock()
+		default:
+			http.Error(w, "method", http.StatusMethodNotAllowed)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
+	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.grid.SetCount(1)
+	now := time.Now()
+	app.HandleCommand(CmdSettings, now)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return snap.Settings.Open && !snap.Settings.Loading && snap.Settings.LibraryCount == 1
+	})
+	focusSettingsRow(t, app, "library-0", now)
+	app.HandleCommand(CmdSelect, now)
+	if !app.OSKOpen() || app.Snapshot().OSK.Prompt != "Library path" {
+		t.Fatalf("path OSK = %#v", app.Snapshot().OSK)
+	}
+	app.HandleCommand(CmdBack, now)
+	app.TypeText("/library/snes-2", now)
+	app.ConfirmSearch(now)
+	waitSnapshot(t, app, time.Second, func(snap Snapshot) bool {
+		return !snap.OSK.Open && snap.Settings.Open && snap.Settings.Rows[settingsRowFixedCount].Value == "/library/snes-2"
+	})
+	focusSettingsRow(t, app, "add-library", now)
+	app.HandleCommand(CmdSelect, now)
+	if !app.OSKOpen() {
+		t.Fatal("add should open path OSK")
+	}
+	addedIndex := settingsRowFixedCount + 1
+	if app.Snapshot().Settings.Index != addedIndex {
+		t.Fatalf("new library index = %d", app.Snapshot().Settings.Index)
+	}
+	app.HandleCommand(CmdRight, now)
+	if app.Snapshot().Settings.Index != addedIndex {
+		t.Fatalf("path OSK moved settings index: %d", app.Snapshot().Settings.Index)
+	}
+	app.TypeText("/library/nes", now)
+	app.ConfirmSearch(now)
+	focusSettingsRow(t, app, "library-1", now)
+	if app.Snapshot().Settings.Rows[addedIndex].Label != "NES" {
+		app.HandleCommand(CmdRight, now)
+	}
+	if app.Snapshot().Settings.Rows[addedIndex].Label != "NES" {
+		t.Fatalf("want NES, got %#v", app.Snapshot().Settings.Rows[addedIndex])
+	}
+	focusSettingsRow(t, app, "library-0", now)
+	app.HandleCommand(CmdSortCycle, now)
+	if app.Snapshot().Settings.LibraryCount != 1 {
+		t.Fatalf("remove draft = %d %#v", app.Snapshot().Settings.LibraryCount, app.Snapshot().Settings.Rows)
+	}
+	focusSettingsRow(t, app, "save-libraries", now)
+	mu.Lock()
+	gamesBefore := games
+	mu.Unlock()
+	app.HandleCommand(CmdSelect, now)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return !snap.Settings.Busy && len(patches) == 1 && games > gamesBefore
+	})
+	mu.Lock()
+	got := append([]string(nil), patches...)
+	gamesAfter := games
+	mu.Unlock()
+	if len(got) != 1 {
+		t.Fatalf("patches = %#v", got)
+	}
+	if got[0] != `{"libraries":[{"id":"","system":"nes","root":"/library/nes"}]}` && got[0] != `{"libraries":[{"id":"snes","system":"nes","root":"/library/nes"}]}` {
+		if !strings.Contains(got[0], `"libraries"`) || strings.Contains(got[0], "/library/snes") || strings.Contains(got[0], "attract_idle") {
+			t.Fatalf("libraries-only body = %q", got[0])
+		}
+	}
+	var body map[string]any
+	if err := json.Unmarshal([]byte(got[0]), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body) != 1 {
+		t.Fatalf("patch keys = %#v", body)
+	}
+	libs, _ := body["libraries"].([]any)
+	if len(libs) != 1 {
+		t.Fatalf("libraries = %#v", body["libraries"])
+	}
+	row, _ := libs[0].(map[string]any)
+	if row["system"] != "nes" || row["root"] != "/library/nes" {
+		t.Fatalf("saved row = %#v", row)
+	}
+	if gamesAfter <= gamesBefore {
+		t.Fatal("catalog did not refresh after library save")
+	}
+	if app.Snapshot().Settings.Rows[settingsRowIdle].Value != "60s" || app.Snapshot().Settings.Rows[settingsRowTarget].Value != "dev" {
+		t.Fatalf("other rows collided: %#v", app.Snapshot().Settings.Rows)
+	}
+}
+
+func TestAppSettingsLibraryOSKDoesNotStealIdleAndTarget(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/library/settings" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"attract_idle_seconds": 60,
+			"preferred_regions":    []string{"usa"},
+			"selected_target":      "dev",
+			"targets":              []map[string]any{{"name": "dev"}, {"name": "spare"}},
+			"libraries":            []map[string]any{{"id": "snes", "system": "snes", "root": "/snes"}},
+			"systems":              []map[string]any{{"id": "snes", "label": "SNES"}},
+		})
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
+	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.grid.SetCount(1)
+	now := time.Now()
+	app.HandleCommand(CmdSettings, now)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return snap.Settings.Open && !snap.Settings.Loading
+	})
+	focusSettingsRow(t, app, "library-0", now)
+	app.HandleCommand(CmdSelect, now)
+	if !app.OSKOpen() {
+		t.Fatal("osk")
+	}
+	app.HandleCommand(CmdLayoutCycle, now)
+	if app.Snapshot().Grid.Mode != LayoutGrid {
+		t.Fatalf("layout changed while path OSK open: %s", app.Snapshot().Grid.Mode)
+	}
+	app.HandleCommand(CmdBack, now)
+	app.HandleCommand(CmdBack, now)
+	if app.OSKOpen() {
+		t.Fatal("empty B should close path OSK")
+	}
+	if !app.SettingsOpen() {
+		t.Fatal("settings should stay open")
+	}
+	focusSettingsRow(t, app, "idle", now)
+	app.HandleCommand(CmdRight, now)
+	if app.Snapshot().Settings.Rows[settingsRowIdle].Value != "75s" {
+		t.Fatalf("idle = %q", app.Snapshot().Settings.Rows[settingsRowIdle].Value)
+	}
+	focusSettingsRow(t, app, "target", now)
+	app.HandleCommand(CmdRight, now)
+	if app.Snapshot().Settings.Rows[settingsRowTarget].Value != "spare" {
+		t.Fatalf("target = %q", app.Snapshot().Settings.Rows[settingsRowTarget].Value)
+	}
+}
+
+func TestAppSettingsFailedIdleKeepsLibraryDraft(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/settings":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"attract_idle_seconds": 60,
+				"preferred_regions":    []string{"usa"},
+				"selected_target":      "dev",
+				"targets":              []map[string]any{{"name": "dev"}},
+				"libraries":            []map[string]any{{"id": "snes", "system": "snes", "root": "/library/snes"}},
+				"systems":              []map[string]any{{"id": "snes", "label": "SNES"}},
+			})
+		case r.Method == http.MethodPatch && r.URL.Path == "/api/v1/library/settings":
+			w.WriteHeader(http.StatusConflict)
+			_, _ = io.WriteString(w, `{"error":{"code":"SESSION_ACTIVE","message":"settings cannot change while a session is active"}}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
+	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.grid.SetCount(1)
+	now := time.Now()
+	app.HandleCommand(CmdSettings, now)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return snap.Settings.Open && !snap.Settings.Loading && snap.Settings.LibraryCount == 1
+	})
+	focusSettingsRow(t, app, "library-0", now)
+	app.HandleCommand(CmdSelect, now)
+	app.HandleCommand(CmdBack, now)
+	app.TypeText("/library/snes-draft", now)
+	app.ConfirmSearch(now)
+	if got := app.Snapshot().Settings.Rows[settingsRowFixedCount].Value; got != "/library/snes-draft" {
+		t.Fatalf("draft = %q", got)
+	}
+	focusSettingsRow(t, app, "idle", now)
+	app.HandleCommand(CmdRight, now)
+	app.HandleCommand(CmdSelect, now)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Settings.Busy && strings.Contains(snap.Status, "settings cannot change")
+	})
+	if got := app.Snapshot().Settings.Rows[settingsRowIdle].Value; got != "60s" {
+		t.Fatalf("idle reverted = %q", got)
+	}
+	if got := app.Snapshot().Settings.Rows[settingsRowFixedCount].Value; got != "/library/snes-draft" {
+		t.Fatalf("library draft wiped = %q", got)
+	}
+	save := settingsRowFixedCount + 2
+	if got := app.Snapshot().Settings.Rows[save].Value; got != "A save" {
+		t.Fatalf("save row = %q", got)
+	}
+}
+
+func TestAppSettingsStaleLibrarySaveKeepsNewerDraft(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	t.Cleanup(func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/settings":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"attract_idle_seconds": 60,
+				"preferred_regions":    []string{"usa"},
+				"selected_target":      "dev",
+				"targets":              []map[string]any{{"name": "dev"}},
+				"libraries":            []map[string]any{{"id": "snes", "system": "snes", "root": "/library/snes"}},
+				"systems":              []map[string]any{{"id": "snes", "label": "SNES"}},
+			})
+		case r.Method == http.MethodPatch && r.URL.Path == "/api/v1/library/settings":
+			close(started)
+			<-release
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"attract_idle_seconds": 60,
+				"preferred_regions":    []string{"usa"},
+				"selected_target":      "dev",
+				"targets":              []map[string]any{{"name": "dev"}},
+				"libraries":            []map[string]any{{"id": "snes", "system": "snes", "root": "/library/snes"}},
+				"systems":              []map[string]any{{"id": "snes", "label": "SNES"}},
+			})
+		case r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{{ID: "g0", Title: "Game", Launchable: true}}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
+	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.grid.SetCount(1)
+	now := time.Now()
+	app.HandleCommand(CmdSettings, now)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return snap.Settings.Open && !snap.Settings.Loading
+	})
+	focusSettingsRow(t, app, "library-0", now)
+	app.HandleCommand(CmdSelect, now)
+	app.HandleCommand(CmdBack, now)
+	app.TypeText("/library/first", now)
+	app.ConfirmSearch(now)
+	focusSettingsRow(t, app, "save-libraries", now)
+	app.HandleCommand(CmdSelect, now)
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("PATCH did not start")
+	}
+	app.HandleCommand(CmdBack, now)
+	app.HandleCommand(CmdSettings, now)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return snap.Settings.Open && !snap.Settings.Loading
+	})
+	focusSettingsRow(t, app, "library-0", now)
+	app.HandleCommand(CmdSelect, now)
+	app.HandleCommand(CmdBack, now)
+	app.TypeText("/library/second", now)
+	app.ConfirmSearch(now)
+	close(release)
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		snap := app.Snapshot()
+		if snap.Settings.Rows[settingsRowFixedCount].Value != "/library/second" {
+			t.Fatalf("stale save overwrote draft: %q", snap.Settings.Rows[settingsRowFixedCount].Value)
+		}
+		save := settingsRowFixedCount + 2
+		if snap.Settings.Rows[save].Value != "A save" {
+			t.Fatalf("stale save cleared dirty: %q", snap.Settings.Rows[save].Value)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }

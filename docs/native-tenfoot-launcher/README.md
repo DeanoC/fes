@@ -171,10 +171,15 @@ Local prefs write immediately to `tenfoot.json`:
 
 Host fields load from `GET /api/v1/library/settings` and save with
 `PATCH /api/v1/library/settings` on confirm: attract idle seconds, preferred
-regions (usa / world / europe / japan), and selected target (from the GET
-target list). Library paths are shown as a count only; the path editor stays
-in the browser. A failed PATCH keeps the previous values and reports a short
-status line. Changing `selected_target` can fail while a session is active.
+regions (usa / world / europe / japan), selected target (from the GET
+target list), and library roots (full-array `libraries` replace). The overlay
+lists each root as system label plus path. South/A opens the gamepad OSK to
+edit a path, Left/Right cycle the GET `systems[]` list, West/X removes a
+draft row, Add library appends a row, and Save libraries PATCHes only
+`libraries`. A successful libraries save reloads the catalog. Tenfoot does
+not create, edit, or remove targets. A failed PATCH keeps the previous
+values and reports a short status line. Changing `selected_target` can fail
+while a session is active.
 
 On Mac, run from a GUI terminal for the Cocoa window. On Linux, use a session
 with X11 or Wayland for windowed/fullscreen. Headless agent sessions fall
@@ -285,8 +290,10 @@ make tenfoot-smoke
   down the decoder and any queued player.
 - `GET /api/v1/library/settings` hydrates sofa settings (idle seconds,
   preferred regions, selected target, read-only targets / systems /
-  library count). `PATCH /api/v1/library/settings` writes only the field the
-  operator confirmed. Tenfoot does not send `libraries` or target CRUD.
+  library roots). `PATCH /api/v1/library/settings` writes only the field the
+  operator confirmed. A libraries save sends `{libraries:[{id,system,root},…]}`
+  as a full-array replace and does not send `targets`. Tenfoot does not
+  implement target CRUD.
 
 ## Library views
 
