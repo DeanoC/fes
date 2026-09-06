@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -280,6 +281,40 @@ def compare_rbf(pin: CorePin, built: Path) -> dict[str, object]:
     }
 
 
+SNES_FITTER_SEED = 3
+
+
+def pin_fitter_seed(qsf: Path, seed: int) -> None:
+    text = qsf.read_text()
+    text, count = re.subn(r"(?m)^set_global_assignment -name SEED [0-9]+$",
+                         f"set_global_assignment -name SEED {seed}", text)
+    if count != 1:
+        raise RebuildError("expected exactly one fitter seed assignment")
+    qsf.write_text(text)
+
+
+def validate_timing(path: Path) -> list[dict[str, object]]:
+    """Require complete finite, nonnegative TimeQuest summary results."""
+    text = path.read_text()
+    blocks = re.findall(r"(?m)^Type\s*:\s*(.+)\nSlack\s*:\s*(\S+)\nTNS\s*:\s*(\S+)", text)
+    if len(blocks) != len(re.findall(r"(?m)^Type\s*:", text)):
+        raise RebuildError("malformed timing summary")
+    result, categories = [], set()
+    for kind, slack_text, tns_text in blocks:
+        category = next((name for name in ("Setup", "Hold", "Recovery", "Removal", "Minimum Pulse Width") if kind == name or kind.startswith(name + " ")), None)
+        try:
+            slack, tns = float(slack_text), float(tns_text)
+        except ValueError as exc:
+            raise RebuildError("invalid timing number") from exc
+        if category is None or not all(math.isfinite(x) and x >= 0 for x in (slack, tns)):
+            raise RebuildError("timing summary contains an unsupported or failing result")
+        categories.add(category)
+        result.append({"type": kind, "slack_ns": slack, "tns_ns": tns})
+    if not {"Setup", "Hold", "Recovery", "Removal", "Minimum Pulse Width"} <= categories:
+        raise RebuildError("timing summary lacks required analysis categories")
+    return result
+
+
 def rebuild(
     pin: CorePin,
     root: Path,
@@ -324,6 +359,9 @@ def rebuild(
     stage_project(source_dir, project_dir, root)
     if resolved_date:
         pin_staged_build_date(project_dir, resolved_date)
+    if pin.name == "snes":
+        pin_fitter_seed(project_dir / "SNES.qsf", SNES_FITTER_SEED)
+    compare_path.unlink(missing_ok=True)
     built = compile_project(
         pin,
         project_dir,
@@ -333,6 +371,8 @@ def rebuild(
         print_commands=False,
         build_date=resolved_date,
     )
+    timing_path = project_dir / "output_files" / f"{Path(pin.project).stem}.sta.summary"
+    timing = validate_timing(timing_path) if pin.name == "snes" else None
     shutil.copy2(built, artifact)
     report = compare_rbf(pin, artifact)
     report["quartus"] = str(quartus_sh)
@@ -341,6 +381,10 @@ def rebuild(
     report["source"] = str(source_dir)
     report["build_date"] = resolved_date
     report["identical"] = bool(report["match"])
+    if pin.name == "snes":
+        report.update(fitter_seed=SNES_FITTER_SEED, timing=timing,
+                      timing_sha256=hashlib.sha256(timing_path.read_bytes()).hexdigest(),
+                      recipe_sha256=hashlib.sha256((root / "scripts/rebuild_core.py").read_bytes()).hexdigest())
     compare_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     identical = "yes" if report["identical"] else "no"
     print(

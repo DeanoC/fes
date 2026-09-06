@@ -14,6 +14,8 @@ import shutil
 import stat
 import sys
 import tempfile
+import subprocess
+import tomllib
 from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlparse
@@ -21,6 +23,7 @@ from urllib.parse import urlparse
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from scripts.rebuild_core import validate_timing, RebuildError, SNES_FITTER_SEED
 from scripts.core_lock import CoreLockError, CorePin, DEFAULT_LOCK, load_lock
 
 
@@ -102,9 +105,9 @@ def encode_manifest(value: BundleManifest) -> bytes:
             raise BundleExportError(f"{field} must be 64 lowercase hexadecimal characters")
     if not isinstance(value.size, int) or isinstance(value.size, bool) or value.size <= 0:
         raise BundleExportError("size must be a positive integer")
-    if value.abi != ABI or value.system != CORE or value.artifact != ARTIFACT:
+    if value.abi != ABI or value.system not in ("megadrive", "snes", "pong") or value.artifact != value.system + ".rbf":
         raise BundleExportError("manifest ABI, system, and artifact are fixed")
-    if value.recipe != RECIPE:
+    if value.recipe != ("scripts/build_pong.py" if value.system == "pong" else RECIPE):
         raise BundleExportError("manifest recipe is fixed")
     lines = [
         "format = 1",
@@ -185,8 +188,15 @@ def _validate_compare(
         compare = json.loads(compare_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise BundleExportError(f"invalid comparison evidence: {compare_path}") from exc
-    if not isinstance(compare, dict) or set(compare) != COMPARE_FIELDS:
+    if not isinstance(compare, dict) or set(compare) != (COMPARE_FIELDS | {"fitter_seed", "timing", "timing_sha256", "recipe_sha256"} if pin.name == "snes" else COMPARE_FIELDS):
         raise BundleExportError("comparison evidence has missing or unrecognized fields")
+    if pin.name == "snes":
+        timing_path = artifact.parent / "project/output_files/SNES.sta.summary"
+        if (compare["fitter_seed"] != SNES_FITTER_SEED or
+                compare["recipe_sha256"] != _sha256(root / RECIPE) or
+                compare["timing_sha256"] != _sha256(timing_path) or
+                compare["timing"] != validate_timing(timing_path)):
+            raise BundleExportError("stale SNES recipe or timing evidence")
     expected_match = snapshot_digest == pin.rbf_sha256 and snapshot_size == pin.rbf_size
     fixed = {
         "core": pin.name,
@@ -246,12 +256,12 @@ def _publish_no_replace(temporary: Path, final: Path) -> None:
     raise OSError(error, os.strerror(error), final)
 
 
-def _reuse_existing(final: Path, snapshot: bytes, manifest: bytes) -> Path:
+def _reuse_existing(final: Path, snapshot: bytes, manifest: bytes, artifact_name: str = ARTIFACT, manifest_name: str = MANIFEST) -> Path:
     if final.is_symlink() or not final.is_dir():
         raise BundleExportError(f"bundle destination is not a directory: {final}")
     if stat.S_IMODE(final.stat().st_mode) & 0o222:
         raise BundleExportError(f"existing bundle directory is writable: {final}")
-    expected = {ARTIFACT, MANIFEST}
+    expected = {artifact_name, manifest_name}
     if {path.name for path in final.iterdir()} != expected:
         raise BundleExportError(f"existing bundle directory is partial or unexpected: {final}")
     for name in expected:
@@ -259,7 +269,7 @@ def _reuse_existing(final: Path, snapshot: bytes, manifest: bytes) -> Path:
         _regular_file(path, "existing bundle content")
         if stat.S_IMODE(path.stat().st_mode) & 0o222:
             raise BundleExportError(f"existing bundle content is writable: {path}")
-    if (final / ARTIFACT).read_bytes() != snapshot or (final / MANIFEST).read_bytes() != manifest:
+    if (final / artifact_name).read_bytes() != snapshot or (final / manifest_name).read_bytes() != manifest:
         raise BundleExportError(f"existing bundle content differs: {final}")
     return final
 
@@ -267,10 +277,11 @@ def _reuse_existing(final: Path, snapshot: bytes, manifest: bytes) -> Path:
 def export_bundle(pin: CorePin, root: Path) -> Path:
     """Validate a Mega Drive rebuild and export its sealed digest bundle."""
 
-    if pin.name != CORE or pin.repo != UPSTREAM_REPOSITORY or pin.commit != UPSTREAM_REVISION:
+    identities = {CORE: (UPSTREAM_REPOSITORY, UPSTREAM_REVISION), "snes": ("https://github.com/MiSTer-devel/SNES_MiSTer", "93d359e6f23c734ae3928984e88bed1d9b53cbac")}
+    if identities.get(pin.name) != (pin.repo, pin.commit):
         raise BundleExportError("pin does not name the authoritative Mega Drive upstream revision")
     root = Path(root).resolve()
-    artifact = root / "build" / "rebuild" / pin.name / ARTIFACT
+    artifact = root / "build" / "rebuild" / pin.name / f"{pin.name}.rbf"
     compare_path = artifact.with_name("compare.json")
     recipe_path = root / RECIPE
     _regular_file(artifact, "rebuild artifact")
@@ -282,8 +293,8 @@ def export_bundle(pin: CorePin, root: Path) -> Path:
         BundleManifest(
             format=1,
             abi=ABI,
-            system=CORE,
-            artifact=ARTIFACT,
+            system=pin.name,
+            artifact=f"{pin.name}.rbf",
             sha256=digest,
             size=len(snapshot),
             repository=pin.repo,
@@ -293,15 +304,20 @@ def export_bundle(pin: CorePin, root: Path) -> Path:
             toolchain=TOOLCHAIN,
         )
     )
-    parent = root / "build" / "bundles" / CORE
+    return publish_bundle(root, pin.name, snapshot, manifest)
+
+
+def publish_bundle(root: Path, system: str, snapshot: bytes, manifest: bytes) -> Path:
+    artifact_name, manifest_name = system + ".rbf", system + "-rbf.toml"
+    parent = root / "build" / "bundles" / system
     parent.mkdir(parents=True, exist_ok=True)
-    final = parent / digest
+    final = parent / _sha256_bytes(snapshot)
     if final.exists() or final.is_symlink():
-        return _reuse_existing(final, snapshot, manifest)
+        return _reuse_existing(final, snapshot, manifest, artifact_name, manifest_name)
     temporary = Path(tempfile.mkdtemp(prefix=".export-", dir=parent))
     try:
-        _write_file(temporary / ARTIFACT, snapshot)
-        _write_file(temporary / MANIFEST, manifest)
+        _write_file(temporary / artifact_name, snapshot)
+        _write_file(temporary / manifest_name, manifest)
         temporary.chmod(0o555)
         _publish_no_replace(temporary, final)
     except Exception:
@@ -312,6 +328,38 @@ def export_bundle(pin: CorePin, root: Path) -> Path:
     return final
 
 
+def export_pong(root: Path) -> Path:
+    root = Path(root).resolve()
+    if subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=all"], cwd=root).strip():
+        raise BundleExportError("Pong export requires a clean committed source tree")
+    revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+    from scripts.build_pong import LOCAL_SOURCES
+    work = root / "build/rebuild/pong"
+    inputs_path, receipt_path = work / "inputs.json", work / "build.json"
+    for path in (inputs_path, receipt_path, work / "pong.rbf"):
+        _regular_file(path, "Pong build evidence")
+    inputs = json.loads(inputs_path.read_text())
+    receipt = json.loads(receipt_path.read_text())
+    pin = tomllib.loads((root / "cores/pong/framework.toml").read_text())
+    if inputs.get("format") != 1 or inputs.get("system") != "pong" or inputs.get("abi") != ABI:
+        raise BundleExportError("invalid Pong input identity")
+    if inputs.get("sources") != {name: _sha256(root / name) for name in LOCAL_SOURCES}:
+        raise BundleExportError("Pong source inputs differ from committed source tree")
+    if inputs.get("framework") != pin or receipt.get("framework") != pin or receipt.get("inputs_sha256") != _sha256(inputs_path):
+        raise BundleExportError("stale Pong framework or input evidence")
+    snapshot = (work / "pong.rbf").read_bytes()
+    timing_path = work / "project/output_files/Pong.sta.summary"
+    if (receipt.get("artifact") != "pong.rbf" or receipt.get("sha256") != _sha256_bytes(snapshot)
+            or receipt.get("size") != len(snapshot) or receipt.get("quartus_version") != TOOLCHAIN
+            or receipt.get("timing_sha256") != _sha256(timing_path)
+            or receipt.get("timing") != validate_timing(timing_path)):
+        raise BundleExportError("stale Pong artifact or timing evidence")
+    manifest = encode_manifest(BundleManifest(1, ABI, "pong", "pong.rbf", _sha256_bytes(snapshot),
+        len(snapshot), "https://github.com/DeanoC/misteross", revision, "scripts/build_pong.py",
+        _sha256(root / "scripts/build_pong.py"), TOOLCHAIN))
+    return publish_bundle(root, "pong", snapshot, manifest)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--core", default=CORE)
@@ -320,10 +368,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         pins = load_lock(args.lock)
+        if args.core == "pong":
+            print(export_pong(args.root))
+            return 0
         if args.core not in pins:
             raise BundleExportError(f"unknown core {args.core}")
         print(export_bundle(pins[args.core], args.root))
-    except (CoreLockError, BundleExportError) as exc:
+    except (CoreLockError, BundleExportError, RebuildError, OSError, ValueError) as exc:
         print(f"export-core-bundle: {exc}", file=sys.stderr)
         return 1
     return 0

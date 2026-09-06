@@ -13,7 +13,7 @@ import tarfile
 import tomllib
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from rebuild_core import locate_quartus, quartus_version_line, RebuildError
+from rebuild_core import locate_quartus, quartus_version_line, RebuildError, validate_timing
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCAL_SOURCES = (
@@ -118,11 +118,14 @@ def main():
     built = work / "project/output_files/Pong.rbf"
     if not built.is_file() or built.stat().st_size == 0:
         raise ValueError("Quartus did not produce a nonempty Pong.rbf")
+    timing_path = work / "project/output_files/Pong.sta.summary"
+    timing = validate_timing(timing_path)
     artifact = work / "pong.rbf"
     shutil.copyfile(built, artifact)
     result = {"inputs_sha256": sha(work / "inputs.json"), "framework": inputs["framework"],
               "artifact": "pong.rbf", "sha256": sha(artifact), "size": artifact.stat().st_size,
-              "quartus_version": version, "command": command}
+              "quartus_version": version, "command": command,
+              "timing": timing, "timing_sha256": sha(timing_path)}
     receipt.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
     print(json.dumps(result, indent=2))
 

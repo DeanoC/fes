@@ -187,8 +187,8 @@ seed-3 diagnostic passed all timing checks (minimum setup 0.240 ns, hold
 checks in FES. Its 4,440,332-byte RBF SHA-256 is
 `fdd6d3c51cf3662cb59c5250eee8d4aa48fdab14a272c756fb892677d5ff1226`.
 The diagnostic changed only the staged QSF seed; the normal rebuild recipe
-retains seed 1 and does not reproduce that artifact. Bundle export still
-accepts only Mega Drive.
+now explicitly selects seed 3; the frozen diagnostic is still separate from
+a new normal build and its acceptance. Bundle export accepts all three systems.
 
 `cores.lock` is the upstream version pin: git identity plus the official
 release RBF hash. `make fetch-core` checks out that exact commit under
@@ -215,7 +215,7 @@ fallback if a later rebuild is broken.
 `ARTIFACT=upstream` falls back to the official release. This selection is for
 operator use and is not the FogCast release handoff.
 
-`make export-core-bundle CORE=megadrive` accepts only the pinned Mega Drive
+`make export-core-bundle CORE=megadrive` accepts the pinned Mega Drive
 revision and the MiSTer ABI. It rehashes the rebuild and recipe, validates the
 closed `compare.json`, writes the two-file bundle under its RBF digest, removes
 all write bits from the files and directory, and prints the absolute bundle
@@ -231,3 +231,20 @@ database. FogCast remains authoritative for expiry, takeover, serialization and
 cleanup; libmister-runtime performs the physical transition. See the README's
 shared-kit commands. Direct `make program` remains a maintenance bypass outside
 this protection, and compilation never acquires a lease.
+
+## Bundle validation for Pong and SNES
+
+The same eleven-field format-1 manifest serves all three systems. SNES identifies
+its pinned upstream repository/revision and `scripts/rebuild_core.py`. Pong
+identifies `https://github.com/DeanoC/misteross`, the clean checkout's exact HEAD,
+and `scripts/build_pong.py`; its build input record binds every local RTL/helper
+hash and the pinned framework. Export rechecks those hashes before publication.
+
+SNES's normal recipe selects fitter seed 3 in the staged QSF only. SNES and
+Pong builds require finite, nonnegative slack and TNS for every listed result,
+including setup, hold, recovery, removal and pulse-width analyses. Their build
+receipts include the timing rows and summary hash; export revalidates the report
+against the receipt and artifact. SNES also records its seed and recipe hash.
+A compiler success without these timing results cannot produce a new exportable
+receipt. Generated reports and bundles are local artifacts; FES owns selection
+and exact-image hardware acceptance.
