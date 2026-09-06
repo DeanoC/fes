@@ -108,3 +108,18 @@ class ConsistencyTest(unittest.TestCase):
         repository = Path(__file__).resolve().parents[1]
         for name, needle in required.items():
             self.assertIn(needle, (repository / name).read_text(), name)
+
+    def test_bootable_media_operator_guide_covers_rollback_config_and_installed_hashes(self):
+        guide = (Path(__file__).resolve().parents[1] / 'docs/bootable-media.md').read_text()
+        required = (
+            'ln -s "generations/$generation"',
+            'make verify-media',
+            '`scripts/media.py rejects stale',
+            '/media/fat/fogcast/agent.toml',
+            'installed rootfs, agent, runtime, kernel, idle artifact',
+            'megadrive.rbf',
+            'pong.rbf',
+            'snes.rbf',
+        )
+        for needle in required:
+            self.assertIn(needle, guide, needle)
