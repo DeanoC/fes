@@ -39,9 +39,12 @@ REQUIRED_HARD_BLOCKS = ("PLL", "BRAM/M10K", "MLAB/LUTRAM", "DSP", "HPS")
 MEASURED_HARD_BLOCKS = ("PLL", "BRAM/M10K", "DSP")
 STATIC_HARD_BLOCKS = ("MLAB/LUTRAM", "HPS")
 MAILBOX_ALLOWED_HARD_BLOCK = "cyclonev_hps_interface_mpu_general_purpose"
-HPS_GP_EXPERIMENTS = frozenset({"020_linux_mailbox", "040_mlab_ram", "050_lut_mul", "060_dsp_mul"})
+HPS_GP_EXPERIMENTS = frozenset(
+    {"020_linux_mailbox", "040_mlab_ram", "050_lut_mul", "060_dsp_mul", "070_mixed_mem"}
+)
 MLAB_LUTRAM_BITS = 256
 DSP_BLOCKS = 1
+MIXED_BLOCK_MEMORY_BITS = 2048
 SYNTHESIS_REPORT_SUFFIXES = {
     "oss": "timing.json",
     "oracle": "top.fit.rpt",
@@ -688,8 +691,9 @@ def _mailbox_hard_block_view(
         policy = policy_for(experiment)
     except PolicyError as exc:  # pragma: no cover - closed table regression.
         return {}, [f"{lane} experiment policy is unavailable: {exc}"]
-    measure_mlab = experiment == "040_mlab_ram"
+    measure_mlab = experiment in {"040_mlab_ram", "070_mixed_mem"}
     measure_dsp = experiment == "060_dsp_mul"
+    measure_m10k = experiment == "070_mixed_mem"
     if lane == "oracle":
         raw = build.get("hard_block_evidence")
         legacy = build.get("hard_blocks")
@@ -733,6 +737,13 @@ def _mailbox_hard_block_view(
                 failures.append("oracle DSP evidence kind/completeness is invalid")
             if used != DSP_BLOCKS:
                 failures.append(f"{lane} DSP must be used exactly {DSP_BLOCKS} time(s), got {used}")
+        elif name == "BRAM/M10K" and measure_m10k:
+            if lane == "oracle" and (
+                record.get("evidence_kind") != "fitter_summary" or record.get("measured") is not True
+            ):
+                failures.append("oracle BRAM/M10K evidence kind/completeness is invalid")
+            if used != 1:
+                failures.append(f"{lane} BRAM/M10K must be used exactly 1 time, got {used}")
         elif name in {"PLL", "BRAM/M10K", "DSP"}:
             if lane == "oracle" and (
                 record.get("evidence_kind") != "fitter_summary" or record.get("measured") is not True
@@ -1633,6 +1644,11 @@ def _lane_view(
         clock_name = timing_view.get("clock")
         if clock_name != expected_clock:
             failures.append(f"{lane} timing clock must be exactly {expected_clock}")
+    elif manifest_experiment == "070_mixed_mem":
+        expected_clock = "storage.FPGA_CLK1_50" if lane == "oss" else "FPGA_CLK1_50"
+        clock_name = timing_view.get("clock")
+        if clock_name != expected_clock:
+            failures.append(f"{lane} timing clock must be exactly {expected_clock}")
 
     hard_status = build.get("hard_block_status")
     if manifest_experiment in HPS_GP_EXPERIMENTS:
@@ -1681,6 +1697,21 @@ def _lane_view(
                     failures.append(f"{lane} resource_evidence.lutram_bits must be 0")
                 elif evidence.get("block_memory_bits") != 0:
                     failures.append(f"{lane} resource_evidence.block_memory_bits must be 0")
+            elif manifest_experiment == "070_mixed_mem":
+                if not isinstance(evidence, dict) or evidence.get("lutram_bits") != MLAB_LUTRAM_BITS:
+                    failures.append(
+                        f"{lane} resource_evidence.lutram_bits must be {MLAB_LUTRAM_BITS}"
+                    )
+                elif evidence.get("hps_general_purpose_interfaces") != 1:
+                    failures.append(
+                        f"{lane} resource_evidence.hps_general_purpose_interfaces must be 1"
+                    )
+                elif evidence.get("block_memory_bits") != MIXED_BLOCK_MEMORY_BITS:
+                    failures.append(
+                        f"{lane} resource_evidence.block_memory_bits must be {MIXED_BLOCK_MEMORY_BITS}"
+                    )
+                elif evidence.get("dsp_blocks") != 0:
+                    failures.append(f"{lane} resource_evidence.dsp_blocks must be 0")
             else:
                 failures.append(f"{lane} unsupported HPS GP experiment {manifest_experiment}")
         else:

@@ -69,6 +69,13 @@ emits one `MISTRAL_MUL9X9`. nextpnr-mistral has no DSP BELs for
 `5CSEBA6U23I7`, so the OSS lane cannot place this experiment. Quartus maps
 the same product to one DSP block. PLL, M10K, and MLAB remain forbidden.
 
+`070_mixed_mem` is a 32-by-8 lab table and a 256-by-8 block table on the HPS
+general-purpose interface. Linux peeks and pokes GPO/GPI; there is no LED.
+The lab table is marked `ramstyle = "mlab"` and the block table
+`ramstyle = "M10K"`. Yosys maps those to eight `MISTRAL_MLAB` cells and one
+`MISTRAL_M10K`. Quartus must measure 256 MLAB bits and one RAM block. PLL
+and DSP remain forbidden.
+
 ## Standalone Pong game
 
 `cores/pong/rtl/pong_game.sv` implements a deterministic 320x240 game module.

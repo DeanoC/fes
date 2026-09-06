@@ -212,6 +212,18 @@ class OracleBoundaryTests(unittest.TestCase):
             "Total DSP Blocks | 1 | 2 | 50%",
         )
 
+    @classmethod
+    def _mixed_fit_report(cls):
+        return (
+            cls._mlab_fit_report()
+            .replace("Total RAM Blocks | 0 | 10 | 0%", "Total RAM Blocks | 1 | 10 | 10%")
+            .replace(
+                "Total block memory bits | 0 | 524288 | 0%",
+                "Total block memory bits | 2048 | 524288 | 0%\n"
+                "Total block memory implementation bits | 10240 | 5662720 | 0%",
+            )
+        )
+
     @staticmethod
     def _fmax_report(*rows):
         body = [
@@ -479,6 +491,36 @@ class OracleBoundaryTests(unittest.TestCase):
             {
                 "cyclonev_hps_interface_mpu_general_purpose": 1,
                 "MISTRAL_MUL9X9": 1,
+            },
+        )
+
+    def test_mixed_mem_report_parser_measures_block_lab_and_hps(self):
+        temp, root, marker = self._quartus_real(
+            "17.0.2",
+            self._mixed_fit_report(),
+            self._fmax_report(("FPGA_CLK1_50", "100", "100")),
+        )
+        with temp:
+            result, summary, marker_seen = self._run_real(
+                root, marker, experiment="070_mixed_mem"
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(marker_seen)
+        self.assertEqual(summary["resource_evidence"]["lutram_bits"], 256)
+        self.assertEqual(summary["resource_evidence"]["block_memory_bits"], 2048)
+        self.assertEqual(summary["resource_evidence"]["hps_general_purpose_interfaces"], 1)
+        self.assertEqual(summary["hard_blocks"]["MLAB/LUTRAM"]["used"], 256)
+        self.assertEqual(summary["hard_blocks"]["BRAM/M10K"]["used"], 1)
+        self.assertEqual(
+            summary["hard_blocks"]["cyclonev_hps_interface_mpu_general_purpose"]["used"],
+            1,
+        )
+        self.assertEqual(
+            summary["allowed_hard_blocks"],
+            {
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 1,
             },
         )
 

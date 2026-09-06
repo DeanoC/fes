@@ -685,6 +685,46 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                 ),
             ),
         ),
+        "070_mixed_mem": ExperimentPolicy(
+            name="070_mixed_mem",
+            sources=("experiments/070_mixed_mem/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"MLAB", "M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            required_synth_cells={"MISTRAL_MLAB": 8},
+            nobram=False,
+            nolutram=False,
+            clock_evidence_names=("storage.FPGA_CLK1_50",),
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/070_mixed_mem/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                    ),
+                    tb="experiments/070_mixed_mem/sim/tb.cpp",
+                ),
+            ),
+        ),
     }
 )
 

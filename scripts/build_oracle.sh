@@ -399,9 +399,16 @@ timing_path = Path(sys.argv[2])
 summary_path = Path(sys.argv[3])
 rbf_path = Path(sys.argv[4])
 experiment = sys.argv[5]
-hps_gp = experiment in {"020_linux_mailbox", "040_mlab_ram", "050_lut_mul", "060_dsp_mul"}
-measure_mlab = experiment == "040_mlab_ram"
+hps_gp = experiment in {
+    "020_linux_mailbox",
+    "040_mlab_ram",
+    "050_lut_mul",
+    "060_dsp_mul",
+    "070_mixed_mem",
+}
+measure_mlab = experiment in {"040_mlab_ram", "070_mixed_mem"}
 measure_dsp = experiment == "060_dsp_mul"
+measure_m10k = experiment == "070_mixed_mem"
 target = sys.argv[6]
 rtl_path = Path(sys.argv[7])
 sdc_path = Path(sys.argv[8])
@@ -615,7 +622,11 @@ def hard_record(
     used, available = candidates[0]
     record: dict[str, object] = {"used": used, "available": available}
     record["utilization_percent"] = round(used * 100.0 / available, 6) if available else None
-    expected = 1 if measure_dsp and name == "DSP" else 0
+    expected = 0
+    if measure_dsp and name == "DSP":
+        expected = 1
+    if measure_m10k and name == "BRAM/M10K":
+        expected = 1
     if used != expected:
         return record, f"{name}: unexpected hard resource usage ({used})"
     return record, None
@@ -933,9 +944,30 @@ def optional_zero_record(
 
 if hps_gp:
     for name, pattern in mailbox_zero_fitted_rows:
+        if measure_m10k and name == "block memory implementation bits":
+            continue
         _record, error = optional_zero_record(name, pattern)
         if error is not None:
             hard_errors.append(error)
+
+if measure_m10k:
+    impl_record, impl_error = measured_report_record(
+        "block memory implementation bits",
+        (
+            re.compile(
+                r"^(?:total\s+)?block\s+memory\s+implementation\s+bits?$",
+                re.I,
+            ),
+        ),
+        require_zero=False,
+    )
+    if impl_error is not None:
+        hard_errors.append(impl_error)
+    elif impl_record is None or impl_record.get("used") != 10240:
+        hard_errors.append(
+            "block memory implementation bits: expected 10240, got "
+            + str(None if impl_record is None else impl_record.get("used"))
+        )
 
 
 def static_exclusion(
@@ -1256,6 +1288,8 @@ elif measure_mlab:
     hard_block_reason = "fitter summary rows measure RAM Blocks/M10K, DSP Blocks, PLLs, 256 MLAB/LUTRAM bits, and one allowed HPS general-purpose primitive"
 elif measure_dsp:
     hard_block_reason = "fitter summary rows measure RAM Blocks/M10K, one DSP block, PLLs, and one allowed HPS general-purpose primitive; MLAB/LUTRAM remains excluded by static source/project evidence (used=null)"
+elif measure_m10k:
+    hard_block_reason = "fitter summary rows measure one RAM Block/M10K, 256 MLAB/LUTRAM bits, DSP Blocks, PLLs, and one allowed HPS general-purpose primitive"
 elif hps_gp:
     hard_block_reason = "fitter summary rows measure RAM Blocks/M10K, DSP Blocks, PLLs, and one allowed HPS general-purpose primitive; MLAB/LUTRAM remains excluded by static source/project evidence (used=null)"
 else:
@@ -1347,7 +1381,10 @@ if hps_gp:
         measured, error = measured_report_record(
             semantic_name,
             patterns,
-            require_zero=not (measure_mlab and semantic_name == "lutram_bits"),
+            require_zero=not (
+                (measure_mlab and semantic_name == "lutram_bits")
+                or (measure_m10k and semantic_name == "block_memory_bits")
+            ),
             allow_missing_available=semantic_name == "lutram_bits",
         )
         if measured is not None:
@@ -1374,7 +1411,11 @@ if hps_gp:
             f"({semantic_resource_evidence['dsp_blocks']}), expected {expected_dsp}"
         )
     for semantic_name in ("block_memory_bits", "lutram_bits", "sdram_interfaces"):
-        expected_bits = 256 if measure_mlab and semantic_name == "lutram_bits" else 0
+        expected_bits = 0
+        if measure_mlab and semantic_name == "lutram_bits":
+            expected_bits = 256
+        elif measure_m10k and semantic_name == "block_memory_bits":
+            expected_bits = 2048
         if semantic_resource_evidence[semantic_name] != expected_bits:
             hard_errors.append(
                 f"{semantic_name}: unexpected resource usage "
@@ -1488,6 +1529,11 @@ summary = {
             "MISTRAL_MUL9X9": 1,
         }
         if measure_dsp
+        else {
+            "cyclonev_hps_interface_mpu_general_purpose": 1,
+            "MISTRAL_M10K": 1,
+        }
+        if measure_m10k
         else {"cyclonev_hps_interface_mpu_general_purpose": 1}
         if hps_gp
         else {}

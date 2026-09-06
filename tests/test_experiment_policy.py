@@ -206,6 +206,35 @@ class ExperimentPolicyTests(unittest.TestCase):
                 }
             )
 
+    def test_mixed_mem_requires_block_lab_and_hps(self) -> None:
+        policy = policy_for("070_mixed_mem")
+        self.assertFalse(policy.nobram)
+        self.assertFalse(policy.nolutram)
+        self.assertTrue(policy.nodsp)
+        self.assertEqual(policy.synth_intel_alm_flags, ("-nodsp",))
+        self.assertEqual(
+            dict(policy.allowed_hard_blocks),
+            {
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 1,
+            },
+        )
+        self.assertEqual(dict(policy.required_synth_cells), {"MISTRAL_MLAB": 8})
+        policy.validate_resources(
+            {
+                "MISTRAL_COMB": {"used": 20, "available": 83820},
+                "cyclonev_hps_interface_mpu_general_purpose": {"used": 1, "available": 1},
+                "MISTRAL_M10K": {"used": 1, "available": 553},
+            }
+        )
+        with self.assertRaisesRegex(PolicyError, "M10K"):
+            policy.validate_resources(
+                {
+                    "cyclonev_hps_interface_mpu_general_purpose": {"used": 1, "available": 1},
+                    "MISTRAL_M10K": {"used": 0, "available": 553},
+                }
+            )
+
     def test_wrong_top_and_source_list_are_rejected(self) -> None:
         policy = policy_for("010_blinky")
         with self.assertRaisesRegex(PolicyError, "top"):
