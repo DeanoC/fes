@@ -62,6 +62,13 @@ The product is marked `multstyle = "logic"` so both lanes keep it in ALMs.
 OSS synthesis keeps `-nodsp`; Yosys must not emit `MISTRAL_MUL*` cells.
 Quartus must measure zero DSP blocks. PLL, M10K, and MLAB remain forbidden.
 
+`060_dsp_mul` is an eight-by-eight unsigned product on the HPS
+general-purpose interface. Linux peeks and pokes GPO/GPI; there is no LED.
+The product is marked `multstyle = "dsp"`. OSS synthesis drops `-nodsp` and
+emits one `MISTRAL_MUL9X9`. nextpnr-mistral has no DSP BELs for
+`5CSEBA6U23I7`, so the OSS lane cannot place this experiment. Quartus maps
+the same product to one DSP block. PLL, M10K, and MLAB remain forbidden.
+
 ## Standalone Pong game
 
 `cores/pong/rtl/pong_game.sv` implements a deterministic 320x240 game module.
@@ -254,8 +261,10 @@ path. FogCast owns which exported RBF is installed on a target.
 `scripts/kit.py` is a thin operator client of FogCast's target lease and native
 RBF upload APIs. It retains one in-memory lease during an interactive session,
 renews every 20 seconds, streams regular RBF files with an explicit bounded
-length (1 byte–32 MiB), and releases on exit. It stores no credentials or lease
-database. FogCast remains authoritative for expiry, takeover, serialization and
-cleanup; libmister-runtime performs the physical transition. See the README's
-shared-kit commands. Direct `make program` remains a maintenance bypass outside
-this protection, and compilation never acquires a lease.
+length (1 byte–32 MiB), and releases on exit. A development-RBF `CORE_TIMEOUT`
+after programming keeps that lease so the operator can inspect a non-MiSTer
+image before Stop. It stores no credentials or lease database. FogCast remains
+authoritative for expiry, takeover, serialization and cleanup; libmister-runtime
+performs the physical transition. See the README's shared-kit commands. Direct
+`make program` remains a maintenance bypass outside this protection, and
+compilation never acquires a lease.

@@ -19,6 +19,8 @@ class KitTests(unittest.TestCase):
         self.reject_renew = False
         self.renew_override = None
         self.takeovers = 0
+        self.load_status = 200
+        self.load_error = None
         outer = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -44,11 +46,15 @@ class KitTests(unittest.TestCase):
                             status = 409
                 elif self.path != '/v1/kit/lease' and self.headers.get(kit.HEADER) != 'private-lease':
                     status = 409
+                elif self.path.endswith('/rbf') and outer.load_status != 200:
+                    status = outer.load_status
+                    if outer.load_error is not None:
+                        response = outer.load_error
                 elif self.path.endswith('renew') and outer.reject_renew:
                     status = 409
                 if self.path.endswith('renew') and status == 200:
                     response = outer.renew_override or {'status': response, 'token': 'private-lease'}
-                if status != 200:
+                if status != 200 and outer.load_error is None:
                     response = {'error': 'private-bearer private-lease'}
                 raw = json.dumps(response).encode()
                 self.send_response(status)
@@ -143,6 +149,61 @@ class KitTests(unittest.TestCase):
             session.deadline = time.monotonic() - .01
             with self.assertRaises(kit.KitError):
                 session.mutate('stop')
+        finally:
+            session.close()
+
+    def test_development_probe_timeout_keeps_lease(self):
+        session = kit.Session(self.client, 'agent', 'bringup', interval=20)
+        session.claim()
+        self.load_status = 503
+        self.load_error = {
+            'error': {'code': 'CORE_TIMEOUT', 'message': 'private-probe-secret'},
+        }
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / 'test.rbf'
+                path.write_bytes(b'rbf-bytes')
+                result = session.mutate('load', path)
+            self.assertEqual(result['state'], 'held')
+            self.assertEqual(result['reason'], 'development probe timed out')
+            session.mutate('stop')
+        finally:
+            session.close()
+        self.assertTrue(any(call[0].endswith('/rbf') for call in self.calls))
+        self.assertEqual(self.calls[-1][0], '/v1/kit/release')
+        self.assertNotIn('private-probe-secret', ''.join(str(call) for call in self.calls[-1]))
+
+    def test_development_load_http_503_without_code_keeps_lease(self):
+        session = kit.Session(self.client, 'agent', 'bringup', interval=20)
+        session.claim()
+        self.load_status = 503
+        self.load_error = {'state': 'failed'}
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / 'test.rbf'
+                path.write_bytes(b'rbf-bytes')
+                result = session.mutate('load', path)
+            self.assertEqual(result['reason'], 'development probe timed out')
+            session.mutate('stop')
+        finally:
+            session.close()
+
+    def test_blocked_development_load_still_fails(self):
+        session = kit.Session(self.client, 'agent', 'bringup', interval=20)
+        session.claim()
+        self.load_status = 503
+        self.load_error = {
+            'error': {'code': 'KIT_LEASE_BLOCKED', 'message': 'private-blocked-secret'},
+        }
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / 'test.rbf'
+                path.write_bytes(b'rbf-bytes')
+                with self.assertRaises(kit.KitError) as caught:
+                    session.mutate('load', path)
+            self.assertEqual(caught.exception.status, 503)
+            self.assertEqual(caught.exception.code, 'KIT_LEASE_BLOCKED')
+            self.assertNotIn('private', str(caught.exception))
         finally:
             session.close()
 

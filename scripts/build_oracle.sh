@@ -399,8 +399,9 @@ timing_path = Path(sys.argv[2])
 summary_path = Path(sys.argv[3])
 rbf_path = Path(sys.argv[4])
 experiment = sys.argv[5]
-hps_gp = experiment in {"020_linux_mailbox", "040_mlab_ram", "050_lut_mul"}
+hps_gp = experiment in {"020_linux_mailbox", "040_mlab_ram", "050_lut_mul", "060_dsp_mul"}
 measure_mlab = experiment == "040_mlab_ram"
+measure_dsp = experiment == "060_dsp_mul"
 target = sys.argv[6]
 rtl_path = Path(sys.argv[7])
 sdc_path = Path(sys.argv[8])
@@ -614,7 +615,8 @@ def hard_record(
     used, available = candidates[0]
     record: dict[str, object] = {"used": used, "available": available}
     record["utilization_percent"] = round(used * 100.0 / available, 6) if available else None
-    if used != 0:
+    expected = 1 if measure_dsp and name == "DSP" else 0
+    if used != expected:
         return record, f"{name}: unexpected hard resource usage ({used})"
     return record, None
 
@@ -1252,6 +1254,8 @@ if hard_errors:
     hard_block_reason = "; ".join(hard_errors)
 elif measure_mlab:
     hard_block_reason = "fitter summary rows measure RAM Blocks/M10K, DSP Blocks, PLLs, 256 MLAB/LUTRAM bits, and one allowed HPS general-purpose primitive"
+elif measure_dsp:
+    hard_block_reason = "fitter summary rows measure RAM Blocks/M10K, one DSP block, PLLs, and one allowed HPS general-purpose primitive; MLAB/LUTRAM remains excluded by static source/project evidence (used=null)"
 elif hps_gp:
     hard_block_reason = "fitter summary rows measure RAM Blocks/M10K, DSP Blocks, PLLs, and one allowed HPS general-purpose primitive; MLAB/LUTRAM remains excluded by static source/project evidence (used=null)"
 else:
@@ -1363,6 +1367,12 @@ if hps_gp:
             "sdram_interfaces": measured_used(resources, "sdram_interfaces"),
         }
     )
+    expected_dsp = 1 if measure_dsp else 0
+    if semantic_resource_evidence["dsp_blocks"] != expected_dsp:
+        hard_errors.append(
+            f"dsp_blocks: unexpected resource usage "
+            f"({semantic_resource_evidence['dsp_blocks']}), expected {expected_dsp}"
+        )
     for semantic_name in ("block_memory_bits", "lutram_bits", "sdram_interfaces"):
         expected_bits = 256 if measure_mlab and semantic_name == "lutram_bits" else 0
         if semantic_resource_evidence[semantic_name] != expected_bits:
@@ -1473,7 +1483,12 @@ summary = {
     "hard_block_reason": hard_block_reason,
     "clock_intent": clock_name,
     "allowed_hard_blocks": (
-        {"cyclonev_hps_interface_mpu_general_purpose": 1}
+        {
+            "cyclonev_hps_interface_mpu_general_purpose": 1,
+            "MISTRAL_MUL9X9": 1,
+        }
+        if measure_dsp
+        else {"cyclonev_hps_interface_mpu_general_purpose": 1}
         if hps_gp
         else {}
     ),

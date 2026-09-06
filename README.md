@@ -17,6 +17,9 @@ development possible with both the open-source Mistral toolchain and Quartus.
 - `030_m10k_rom`, an initialized table driving one LED through one M10K.
 - `040_mlab_ram`, a 32-by-8 writeable table on HPS GP, mapped to eight MLABs.
 - `050_lut_mul`, an eight-by-eight unsigned product on HPS GP, kept in logic cells.
+- `060_dsp_mul`, an eight-by-eight unsigned product on HPS GP. Yosys emits one
+  `MISTRAL_MUL9X9`; nextpnr-mistral cannot place DSP on this device. Quartus
+  measures one DSP block.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under
@@ -172,10 +175,13 @@ python3 scripts/kit.py --config /absolute/path/config.toml session \
 
 At the session prompt, enter `load build/oss/020_linux_mailbox/top.rbf`, `status`,
 `stop`, or `release`. Quote paths containing spaces. Repeat loads in the same
-session. Stop returns hardware to idle while retaining ownership; release,
-EOF, or Ctrl-C requests cleanup and frees ownership. Keep stdin open between
-commands (including when using an agent's persistent terminal session).
-`make kit-session` is a convenience using the environment configuration.
+session. A non-MiSTer development image programs, then fails the MiSTer SPI
+identity probe; `load` keeps the lease and reports `development probe timed out`
+so the operator can peek GPI before Stop. Stop returns hardware to idle while
+retaining ownership; release, EOF, or Ctrl-C requests cleanup and frees
+ownership. Keep stdin open between commands (including when using an agent's
+persistent terminal session). `make kit-session` is a convenience using the
+environment configuration.
 
 The client renews every 20 seconds and checks the held state, generation and
 token on each grant. It measures relative expiry against its monotonic clock,
