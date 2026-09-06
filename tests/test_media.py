@@ -71,6 +71,8 @@ class MediaTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        self.addCleanup(patch.stopall)
+        patch.object(cold_build, 'git', return_value='f' * 40).start()
         self.output = self.root / 'out/native-integration-dev'
         self.output.mkdir(parents=True)
         self.fogcast = self.root / 'fogcast'
@@ -94,7 +96,6 @@ class MediaTests(unittest.TestCase):
         (self.root / 'uboot').write_bytes(b'uboot')
         self.runner = FakeRunner()
         self.addCleanup(patch.stopall)
-        patch.object(media, 'current_revision', return_value='f' * 40).start()
         patch.object(media, 'select', return_value=('cold-fp', self.fogcast, ('megadrive', 'pong', 'snes'), {})).start()
         patch.object(media, 'resolve_payloads', return_value=Payloads(self.root / 'uboot', self.root / 'kernel')).start()
         patch.object(media, 'recipe_fingerprint', return_value={'scripts/media.py': 'recipe'}).start()
@@ -108,6 +109,44 @@ class MediaTests(unittest.TestCase):
 
     def build(self, config=None):
         return media.build(self.root, 'native-integration-dev', config, self.runner)
+
+    def test_docs_only_head_change_reuses_identical_media_generation(self):
+        first = self.build()
+        original_receipt = (first.generation / 'media.json').read_bytes()
+        original_manifest = (first.generation / 'fes-media.toml').read_bytes()
+        # The old implementation consults media.current_revision; the fixed
+        # implementation must not consult repository HEAD at all here.
+        with patch.object(media, 'current_revision', return_value='0' * 40, create=True), \
+             patch.object(cold_build, 'git', return_value='0' * 40):
+            try:
+                second = self.build()
+                verified = media.verify(self.root, runner=self.runner)
+            except ValueError as error:
+                self.fail('docs-only HEAD change must preserve artifact provenance: ' + str(error))
+        self.assertEqual(second.generation, first.generation)
+        self.assertEqual(verified.generation, first.generation)
+        self.assertEqual((first.generation / 'media.json').read_bytes(), original_receipt)
+        self.assertEqual((first.generation / 'fes-media.toml').read_bytes(), original_manifest)
+
+    def test_mismatched_artifact_revisions_rejected_before_media_assembly(self):
+        path = self.output / 'image.json'
+        receipt = json.loads(path.read_text())
+        receipt['fes_revision'] = '0' * 40
+        path.write_text(json.dumps(receipt))
+        with self.assertRaisesRegex(ValueError, 'revision'):
+            self.build()
+        self.assertEqual(self.runner.assemblies, 0)
+
+    def test_changed_cold_artifact_revision_rejects_existing_generation(self):
+        first = self.build()
+        for name in ('host', 'image'):
+            path = self.output / (name + '.json')
+            receipt = json.loads(path.read_text())
+            receipt['fes_revision'] = '0' * 40
+            path.write_text(json.dumps(receipt))
+        with self.assertRaises(ValueError):
+            self.build()
+        self.assertEqual((self.output / 'media/current').resolve(), first.generation)
 
     def test_host_outputs_are_prerequisites_and_bound_to_media_receipt(self):
         first = self.build()

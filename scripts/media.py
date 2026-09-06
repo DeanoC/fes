@@ -194,16 +194,13 @@ def select(root, profile):
     return fingerprint, fogcast, cold_build.selected_cores(configuration), env
 
 
-def current_revision(root):
-    return cold_build.git(root, 'rev-parse', 'HEAD')
-
 
 def provenance_for(root, fogcast, cold):
     try:
         idle = tomllib.loads((fogcast / 'build/native-runtime.inputs.lock.toml').read_text())['idle_rbf']
         if idle['install_path'] != '/usr/share/mister-runtime/idle.rbf':
             raise ValueError('noncanonical idle destination')
-        return Provenance(current_revision(root), PROFILE,
+        return Provenance(cold['fes_revision'], PROFILE,
             hashlib.sha256(json.dumps(recipe_fingerprint(cold_build.MEDIA_RECIPE_FILES), sort_keys=True).encode()).hexdigest(),
             cold['image_receipt_sha256'], cold['child_manifest_sha256'],
             idle['repository'], idle['commit'], idle['path'], idle['size'], idle['sha256'])
@@ -215,7 +212,10 @@ def prepare(root, profile):
     fingerprint, fogcast, cores, env = select(root, profile)
     output = root / 'out' / profile
     cold = cold_build.load_verified_image(output, fingerprint)
-    cold.update(cold_build.load_verified_host(output, fingerprint))
+    host = cold_build.load_verified_host(output, fingerprint)
+    if host['fes_revision'] != cold['fes_revision']:
+        raise ValueError('cold host and image artifact revisions differ; run make rebuild and make verify')
+    cold.update(host)
     try:
         child_manifest = output / 'manifest.tsv'
         if not stat.S_ISREG(child_manifest.lstat().st_mode):
@@ -239,7 +239,7 @@ def prepare(root, profile):
 
 
 def media_fingerprint(cold, lock_path, provision_sha):
-    data = {'cold': cold, 'boot_lock': digest(lock_path), 'fes_revision': current_revision(lock_path.parent),
+    data = {'cold': cold, 'boot_lock': digest(lock_path), 'fes_revision': cold['fes_revision'],
             'recipe': recipe_fingerprint(cold_build.MEDIA_RECIPE_FILES),
             'provision_sha256': provision_sha}
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest(), data

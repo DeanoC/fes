@@ -82,6 +82,25 @@ class ReceiptTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "run make verify"):
                 build.load_verified_image(output, "cold-fingerprint")
 
+    def test_image_receipt_requires_canonical_artifact_revision(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import build
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp)
+            self.make_verified_output(build, output)
+            path = output / 'image.json'
+            original = json.loads(path.read_text())
+            for revision in (None, '', 'a' * 39, 'A' * 40, 12):
+                with self.subTest(revision=revision):
+                    receipt = dict(original)
+                    receipt.pop('fes_revision', None)
+                    if revision is not None:
+                        receipt['fes_revision'] = revision
+                    path.write_text(json.dumps(receipt))
+                    with self.assertRaises(ValueError):
+                        build.load_verified_image(output, 'cold-fingerprint')
+                    self.assertFalse(build.reusable(output, 'image', 'cold-fingerprint'))
+
     def test_verified_image_returns_bound_evidence_digests(self):
         sys.path.insert(0, str(SCRIPTS))
         import build
@@ -89,6 +108,7 @@ class ReceiptTest(unittest.TestCase):
             output = Path(temp)
             image_sha256, qemu_log_sha256 = self.make_verified_output(build, output)
             self.assertEqual(build.load_verified_image(output, "cold-fingerprint"), {
+                "fes_revision": json.loads((output / "image.json").read_text())["fes_revision"],
                 "rootfs_sha256": image_sha256,
                 "image_receipt_sha256": hashlib.sha256((output / "image.json").read_bytes()).hexdigest(),
                 "verification_sha256": hashlib.sha256((output / "verification.json").read_bytes()).hexdigest(),

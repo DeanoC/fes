@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import stat
 import subprocess
@@ -49,13 +50,25 @@ def publish_file(source, destination):
 
 def write_receipt(output, kind, fingerprint, names):
     data = {"inputs": fingerprint, "files": {name: digest(output / name) for name in names}}
+    if kind in ('host', 'image'):
+        data['fes_revision'] = git(ROOT, 'rev-parse', 'HEAD')
+        receipt_revision(data)
     temporary = output / (kind + ".json.tmp")
     temporary.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
     temporary.replace(output / (kind + ".json"))
 
+def receipt_revision(receipt):
+    revision = receipt.get('fes_revision') if isinstance(receipt, dict) else None
+    if type(revision) is not str or not re.fullmatch('[0-9a-f]{40}', revision):
+        raise ValueError('cold artifact receipt requires a canonical FES revision')
+    return revision
+
+
 def reusable(output, kind, fingerprint):
     try:
         receipt = json.loads((output / (kind + ".json")).read_text())
+        if kind in ("host", "image"):
+            receipt_revision(receipt)
         return (receipt["inputs"] == fingerprint and bool(receipt["files"])
                 and all(digest(output / name) == sha for name, sha in receipt["files"].items()))
     except (OSError, ValueError, KeyError, TypeError):
@@ -98,9 +111,10 @@ def load_verified_host(output, fingerprint):
             return result
         receipt = json.loads((output / 'host.json').read_text(), object_pairs_hook=unique)
         hashes = {name: digest(output / name) for name in ('fogcast', 'fogcast-api')}
-        if receipt != {'inputs': fingerprint, 'files': hashes}:
+        revision = receipt_revision(receipt)
+        if receipt != {'inputs': fingerprint, 'files': hashes, 'fes_revision': revision}:
             raise ValueError('host receipt differs from selected inputs or binaries')
-        return {'host_receipt_sha256': digest(output / 'host.json'),
+        return {'fes_revision': revision, 'host_receipt_sha256': digest(output / 'host.json'),
                 'fogcast_sha256': hashes['fogcast'], 'fogcast_api_sha256': hashes['fogcast-api']}
     except (OSError, ValueError, TypeError):
         raise ValueError('cold host receipt is missing, changed, or stale; run make build and make verify') from None
@@ -125,7 +139,7 @@ def load_verified_image(output, fingerprint):
                     and evidence.get("run_1_sha256") == actual
                     and evidence.get("run_2_sha256") == actual)
         if required:
-            return {"rootfs_sha256": actual,
+            return {"fes_revision": receipt_revision(receipt), "rootfs_sha256": actual,
                     "image_receipt_sha256": digest(output / "image.json"),
                     "verification_sha256": digest(output / "verification.json"),
                     "qemu_log_sha256": qemu_log_sha256}

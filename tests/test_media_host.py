@@ -19,8 +19,23 @@ class MediaHostTests(unittest.TestCase):
         (self.output / 'fogcast-api').write_bytes(b'host api')
         build.write_receipt(self.output, 'host', 'cold-fingerprint', ['fogcast', 'fogcast-api'])
 
+    def test_legacy_and_noncanonical_artifact_revisions_are_stale(self):
+        path = self.output / 'host.json'
+        original = json.loads(path.read_text())
+        for revision in (None, '', 'a' * 39, 'A' * 40, 12):
+            with self.subTest(revision=revision):
+                receipt = dict(original)
+                receipt.pop('fes_revision', None)
+                if revision is not None:
+                    receipt['fes_revision'] = revision
+                path.write_text(json.dumps(receipt))
+                with self.assertRaises(ValueError):
+                    build.load_verified_host(self.output, 'cold-fingerprint')
+                self.assertFalse(build.reusable(self.output, 'host', 'cold-fingerprint'))
+
     def test_host_receipt_and_both_binary_hashes_are_bound(self):
         self.assertEqual(build.load_verified_host(self.output, 'cold-fingerprint'), {
+            'fes_revision': json.loads((self.output / 'host.json').read_text())['fes_revision'],
             'host_receipt_sha256': build.digest(self.output / 'host.json'),
             'fogcast_sha256': build.digest(self.output / 'fogcast'),
             'fogcast_api_sha256': build.digest(self.output / 'fogcast-api'),
