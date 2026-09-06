@@ -6,15 +6,15 @@ rationale = "Current upstream Intel ALM synthesis baseline sampled 2026-08-26; t
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
-commit = "328cfb8046d6bcb979fa69df7cfb95bd6f7e73f8"
+commit = "b28e30a36b5139aaed5a5d361a30b542e6b7c758"
 order = 20
-rationale = "DeanoC fork for nextpnr 9d9a027d Cyclone V MUL9X9 and 50-to-25 MHz PLL BELs: preserves DSP upper routing tiles on the bfa096c1 array-header baseline; fixed commit, not a moving branch."
+rationale = "DeanoC fork for nextpnr 0ab322bd Cyclone V MUL9X9, PLL BELs, and corrected LAB/MLAB CLKx_INV/CLKx_SEL addresses: preserves DSP upper routing tiles on the bfa096c1 array-header baseline; fixed commit, not a moving branch."
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "56b64126d2b55eac85c8f6ed369d4a8e76ed9ff4"
+commit = "0ab322bdc414c195bf1907875c2b6a8818d9f81a"
 order = 30
-rationale = "DeanoC fork: Cyclone V MUL9X9, checked integer altera_pll, and compatible dual outputs sharing 300/320/400 MHz feedback for 5CSEBA6U23I7, based on 7d4f72c0; PR merge of 8d159bb4 onto d386519a."
+rationale = "DeanoC mistral-stable: Cyclone V MUL9X9, integer/dual/fractional altera_pll, duty cycles, mixed-edge polarity, and checked 0/90 degree 25 MHz outputs for 5CSEBA6U23I7, based on 7d4f72c0; PR merge of 69d64ead onto bb48465d. Requires Mistral b28e30a."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

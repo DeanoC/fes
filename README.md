@@ -15,6 +15,12 @@ development possible with both the open-source Mistral toolchain and Quartus.
   PLL experiments below retain their 25 MHz output.
 - Dual-output PLL support for compatible whole-MHz pairs that share one checked
   300/320/400 MHz feedback configuration, including 25/40 MHz.
+- Exact integer PLL duty cycles (for example 25 MHz at 25%) with mixed-edge
+  fabric paths. Fractional-N profiles still require 50% duty.
+- A checked static 0°/90° pair: two 25 MHz outputs with `phase_shift1("10000 ps")`.
+- Checked fractional-N PLL profiles when `fractional_vco_multiplier` is
+  `"true"`: 50 MHz → 12.288 MHz, 50 MHz → 11.2896 MHz, and the dual
+  12.288/24.576 MHz pair.
 - An optional Quartus Prime Lite 17.0.2 reference build using the same RTL.
 - Semantic comparison between the OSS and Quartus outputs.
 - `010_blinky`, a small LED counter.
@@ -48,6 +54,23 @@ development possible with both the open-source Mistral toolchain and Quartus.
 - `170_pll_dual`, one PLL driving 25 MHz and 40 MHz together, measured through
   HPS GP. Run `make sim EXP=170_pll_dual` and `make oss EXP=170_pll_dual`; no
   Quartus comparison lane is implemented.
+- `180_pll_frac`, the checked 50→12.288 MHz fractional-N profile measured
+  through HPS GP. Run `make sim EXP=180_pll_frac` and `make oss EXP=180_pll_frac`;
+  no Quartus comparison lane is implemented.
+- `190_pll_frac_441`, the checked 50→11.2896 MHz fractional-N profile (256 ×
+  44.1 kHz) measured through HPS GP. Run `make sim EXP=190_pll_frac_441` and
+  `make oss EXP=190_pll_frac_441`; no Quartus comparison lane is implemented.
+- `200_pll_frac_dual`, one fractional PLL driving 12.288 MHz and 24.576 MHz
+  together, measured through HPS GP. Run `make sim EXP=200_pll_frac_dual` and
+  `make oss EXP=200_pll_frac_dual`; no Quartus comparison lane is implemented.
+- `210_pll_duty`, a 50→25 MHz integer PLL at 25% duty with mixed-edge capture
+  and a frequency meter through HPS GP. Run `make sim EXP=210_pll_duty` and
+  `make oss EXP=210_pll_duty`; no Quartus comparison lane is implemented. This
+  does not measure pulse width.
+- `220_pll_phase`, two 25 MHz outputs at 0° and +90°, with a 0-to-90 capture
+  path and a 0° frequency meter through HPS GP. Run `make sim EXP=220_pll_phase`
+  and `make oss EXP=220_pll_phase`; no Quartus comparison lane is implemented.
+  This does not measure analog phase accuracy.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under

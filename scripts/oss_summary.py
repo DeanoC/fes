@@ -102,7 +102,8 @@ def _timing(
 
     clock_name, values = matches[0]
     constraint = _number(values.get("constraint"), label=f"{clock_name} constraint")
-    if constraint != requested_mhz:
+    # nextpnr reports periods at picosecond resolution, so 12.288 MHz may appear as 12.28803158.
+    if abs(constraint - requested_mhz) > max(1e-9, requested_mhz * 5e-5):
         raise SummaryError(
             f"intended clock {clock_name} constraint is {constraint:g} MHz, expected {requested_mhz:g} MHz"
         )

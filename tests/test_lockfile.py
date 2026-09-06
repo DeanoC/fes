@@ -11,8 +11,8 @@ from scripts import lockfile
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_COMMITS = {
     "yosys": "13b43f8c85ec430a33ee55d058fb4c32b42b6910",
-    "mistral": "328cfb8046d6bcb979fa69df7cfb95bd6f7e73f8",
-    "nextpnr": "56b64126d2b55eac85c8f6ed369d4a8e76ed9ff4",
+    "mistral": "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
+    "nextpnr": "0ab322bdc414c195bf1907875c2b6a8818d9f81a",
     "verilator": "5e4151e3e0c8ecf11d9845a93495f37a31b2f667",
     "openfpgaloader": "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86",
 }
@@ -94,7 +94,7 @@ class LockfileTests(unittest.TestCase):
         lock = lockfile.load_lock(ROOT / "toolchain.lock")
         self.assertEqual(
             lock["mistral"].commit,
-            "328cfb8046d6bcb979fa69df7cfb95bd6f7e73f8",
+            "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
         )
         self.assertIn("nextpnr", lock["mistral"].rationale)
 
@@ -110,7 +110,7 @@ class LockfileTests(unittest.TestCase):
             capture_output=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, "56b64126d2b55eac85c8f6ed369d4a8e76ed9ff4\n")
+        self.assertEqual(result.stdout, "0ab322bdc414c195bf1907875c2b6a8818d9f81a\n")
         self.assertEqual(result.stderr, "")
 
     def test_cli_invalid_arguments_exit_two_without_traceback(self):

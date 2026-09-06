@@ -88,8 +88,7 @@ bits, and one RAM block. PLL remains forbidden.
 both `meter.refclk` at 50 MHz and `clk25` at 25 MHz to meet timing. Memory and
 DSP usage are forbidden. The nextpnr fork baseline
 `9d9a027d401e98a5b611ccc8a0c17a5e6b04e8cc` merged the supported fixed PLL
-profile on top of the existing DSP implementation; Mistral remains at
-`328cfb8046d6bcb979fa69df7cfb95bd6f7e73f8`.
+profile on top of the existing DSP implementation.
 
 The PLL experiment divides the output by 256 and counts synchronized rising
 edges over 2^20 reference cycles. GPI signature `0xD711` identifies the
@@ -146,16 +145,16 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current nextpnr pin `56b64126d2b55eac85c8f6ed369d4a8e76ed9ff4` extends the
-integer-frequency pin `bb3b589ba1d50ccb664eb907319da0550144f2e3` with compatible
-dual-output pairs. Both outputs must be whole MHz from 1–100 and share exact
-integer dividers from one checked feedback configuration, tried in order:
-reported 300, 320, then 400 MHz. The original 25/40 MHz pair still uses M=16
-N=2 (reported 400 MHz), C6=16 and C7=10. Reversed and equal outputs are
-supported; incompatible pairs such as 25/32 MHz fail. Single-output whole-MHz
-selection is unchanged. Phase shifts, duty cycles other than 50%, and more than
-two clocks remain rejected. The closed `090_pll_clock` and `110_pll_reset`
-experiments retain their 25 MHz output.
+The current nextpnr pin `0ab322bdc414c195bf1907875c2b6a8818d9f81a` on
+`mistral-stable` extends the duty-cycle pin
+`bb48465dfac053abe4fb15e7eefb8f768262b49c` with a checked static 0°/90° pair:
+two 25 MHz outputs, `phase_shift1("10000 ps")`, C7 `CNT_PRESET=4`. Related-clock
+setup windows are 10 ns (0°→90°) and 30 ns (90°→0°). It also requires Mistral
+`b28e30a36b5139aaed5a5d361a30b542e6b7c758`, which corrects LAB/MLAB `CLKx_INV`
+versus `CLKx_SEL` addresses so folded falling-edge FF clocks actually toggle.
+An older Mistral library now fails before inverted-clock RBF output. Integer
+duty cycles, fractional-N, and 50% 25 MHz experiments are unchanged. The closed
+`090_pll_clock` and `110_pll_reset` experiments retain their 25 MHz 50% output.
 
 Compiler fixtures under `mistral/tests/pll` in the nextpnr fork cover divider
 selection, malformed frequencies, emitted configuration, meter simulation and
@@ -165,7 +164,7 @@ while reset, then 1638–1639 / 3276–3277 / 8192 after relock. Their reference
 output Fmax values were 216.732 / 326.584 MHz against 50 MHz and the selected
 output constraint. Host pair regressions cover 25/40, 40/25, 20/100, 40/64,
 80/80 and 1/1 MHz. Artifact hashes and reproduction commands are in the
-[nextpnr PLL test documentation](https://github.com/DeanoC/nextpnr/blob/56b64126d2b55eac85c8f6ed369d4a8e76ed9ff4/mistral/tests/pll/README.md).
+[nextpnr PLL test documentation](https://github.com/DeanoC/nextpnr/blob/0ab322bdc414c195bf1907875c2b6a8818d9f81a/mistral/tests/pll/README.md).
 
 `120_pll_dsp` runs the eight-by-eight unsigned DSP product on the proven
 50-to-25 MHz PLL output. Linux peeks and pokes GPO/GPI on the 50 MHz
@@ -244,6 +243,98 @@ zero while reset and 2048 / 3277 after relock for three cycles on each output.
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
+
+`180_pll_frac` measures the checked 50→12.288 MHz fractional-N profile through
+HPS GP. GPI signature `0xD715` identifies the protocol. Simulation and OSS are
+supported; Quartus comparison is not implemented. See
+`experiments/180_pll_frac/expected.md`.
+
+The OSS `180_pll_frac` artifact has SHA-256
+`55b099c8f0230e7938c6444d11a767b675ef5b93d89e35194c1612a752bea891`
+and size 1,955,888 bytes. nextpnr selected 50→12.288 MHz fractional-N with M=8
+N=1 C6=33 and 32-bit K=472790000 (achieved 12288000.000019869 Hz). Its reported
+reference/output Fmax values are 195.274/340.716 MHz against 50/12.28803158 MHz
+constraints. Utilization is one `altera_pll`, two clock buffers, and one HPS GP.
+Exact-artifact kit diagnostics on 2026-09-06 returned zero while reset and
+1006–1007 after relock for ten cycles with GPI signature `0xD715`. The current
+`kit.py` close completed development reboot recovery and left the lease free.
+This is exact-artifact functional diagnostic acceptance; it does not establish
+native game acceptance.
+
+`190_pll_frac_441` measures the checked 50→11.2896 MHz fractional-N profile
+through HPS GP. GPI signature `0xD716` identifies the protocol. Simulation and
+OSS are supported; Quartus comparison is not implemented. See
+`experiments/190_pll_frac_441/expected.md`.
+
+The OSS `190_pll_frac_441` artifact has SHA-256
+`0d95fe235f42e2adc5e8d66771c136b1a608ce325e907da7ad945ae0535bfc02`
+and size 1,955,865 bytes. nextpnr selected 50→11.2896 MHz fractional-N with M=8
+N=1 C6=36 and 32-bit K=551954751 (achieved 11289599.972143253 Hz). Its reported
+reference/output Fmax values are 195.274/340.716 MHz against 50/11.28961182 MHz
+constraints. Utilization is one `altera_pll`, two clock buffers, and one HPS GP.
+Exact-artifact kit diagnostics on 2026-09-06 returned zero while reset and
+924–925 after relock for ten cycles with GPI signature `0xD716`. The current
+`kit.py` close completed development reboot recovery and left the lease free.
+This is exact-artifact functional diagnostic acceptance; it does not establish
+native game acceptance.
+
+`200_pll_frac_dual` measures both outputs of the checked 12.288/24.576 MHz
+fractional pair through HPS GP. GPI signature `0xD717` identifies the protocol;
+GPO bit3 selects the 24.576 MHz meter. Simulation and OSS are supported;
+Quartus comparison is not implemented. See
+`experiments/200_pll_frac_dual/expected.md`.
+
+The OSS `200_pll_frac_dual` artifact has SHA-256
+`4714712c158a24e3a7f7b52af22f039e1f62bb2f42063d7b3b630613d85f46ea`
+and size 1,958,269 bytes. nextpnr selected 50→12.288/24.576 MHz fractional-N with
+M=8 N=1 C6=34 C7=17 and 32-bit K=`0x5b18548b`. Its reported reference/12.288/24.576
+Fmax values are 197.824/288.600/325.521 MHz against 50/12.28803158/24.57606316 MHz
+constraints. Utilization is one `altera_pll`, three clock buffers, and one HPS GP.
+Exact-artifact kit diagnostics on 2026-09-06 returned zero while reset and
+1006–1007 / 2013–2014 after relock for three cycles on each output with GPI
+signature `0xD717`. The current `kit.py` close completed development reboot
+recovery and left the lease free. This is exact-artifact functional diagnostic
+acceptance; it does not establish native game acceptance.
+
+`210_pll_duty` measures a 50→25 MHz integer PLL at 25% duty through HPS GP and
+a mixed-edge capture of GPO bit0. GPI signature `0xD718` identifies the
+protocol. The frequency meter cannot observe pulse width. Simulation and OSS are
+supported; Quartus comparison is not implemented. See
+`experiments/210_pll_duty/expected.md`.
+
+The OSS `210_pll_duty` artifact has SHA-256
+`6c3add1f53fed4698b924ddbc6c0c9a93e4c34fb585e08dece0569c47c6a6f60`
+and size 1,956,173 bytes. nextpnr selected 50→25 MHz with M=12 N=2 C6=12 and a
+posedge→negedge `max_delay` of 10 ns on `duty_clock`. Its reported
+reference/output Fmax values are 225.581/233.209 MHz against 50/25 MHz
+constraints. Utilization is one `altera_pll`, two clock buffers, and one HPS GP.
+The previous Mistral pin produced SHA-256
+`e301c748d303769f3b603e736390e42913cb229ceae62aae3c47cc5b98ecbeb1` (1,956,174
+bytes) whose falling-edge capture stayed 0. Exact-artifact kit diagnostics of
+the corrected bitstream on 2026-09-06 returned zero while reset and 2048 after
+relock for ten cycles; launch and falling-edge capture both followed GPO bit0
+(`0xD7182308` / `0xD7182008`). This is exact-artifact functional diagnostic
+acceptance; it does not measure pulse width or establish native game
+acceptance. [misteross#9](https://github.com/DeanoC/misteross/issues/9) is
+closed on this evidence.
+
+`220_pll_phase` measures two 25 MHz outputs at 0° and +90° through HPS GP. GPI
+signature `0xD719` identifies the protocol. The 0° meter cannot observe analog
+phase. Simulation and OSS are supported; Quartus comparison is not implemented.
+See `experiments/220_pll_phase/expected.md`.
+
+The OSS `220_pll_phase` artifact has SHA-256
+`57cda8e448d9fd0fc9082eb4d32d2d9b439e11b8cb178e4669cc6d8c4cd57b48`
+and size 1,956,210 bytes. nextpnr selected 50→25/25 MHz with M=12 N=2 C6=12
+C7=12 and a 0°→90° related-clock `max_delay` of 10 ns. Its reported
+reference/0°/90° Fmax values are 224.517/233.427/668.003 MHz against 50/25/25 MHz
+constraints. Utilization is one `altera_pll`, three clock buffers, and one HPS GP.
+Exact-artifact kit diagnostics on 2026-09-06 returned zero while reset and 2048
+after relock for ten cycles; 0° launch and 90° capture both followed GPO bit0
+(`0xD7192308` / `0xD7192008`). The current `kit.py` close completed development
+reboot recovery and left the lease free. This is exact-artifact functional
+diagnostic acceptance; it does not measure analog phase or establish native
+game acceptance.
 
 ## Standalone Pong game
 
