@@ -69,6 +69,7 @@ class ExportCoreBundleTests(unittest.TestCase):
             "source": str(self.root / "build" / "cores" / "megadrive"),
             "build_date": "260603",
             "identical": False,
+            "recipe_sha256": hashlib.sha256(self.recipe.read_bytes()).hexdigest(),
         }
 
     def _write_compare(self, value=None):

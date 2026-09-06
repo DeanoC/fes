@@ -55,6 +55,7 @@ COMPARE_FIELDS = frozenset(
         "source",
         "build_date",
         "identical",
+        "recipe_sha256",
     }
 )
 
@@ -190,6 +191,8 @@ def _validate_compare(
         raise BundleExportError(f"invalid comparison evidence: {compare_path}") from exc
     if not isinstance(compare, dict) or set(compare) != (COMPARE_FIELDS | {"fitter_seed", "timing", "timing_sha256", "recipe_sha256"} if pin.name == "snes" else COMPARE_FIELDS):
         raise BundleExportError("comparison evidence has missing or unrecognized fields")
+    if compare["recipe_sha256"] != _sha256(root / RECIPE):
+        raise BundleExportError("rebuild recipe changed since compilation")
     if pin.name == "snes":
         timing_path = artifact.parent / "project/output_files/SNES.sta.summary"
         if (compare["fitter_seed"] != SNES_FITTER_SEED or
@@ -343,6 +346,8 @@ def export_pong(root: Path) -> Path:
     pin = tomllib.loads((root / "cores/pong/framework.toml").read_text())
     if inputs.get("format") != 1 or inputs.get("system") != "pong" or inputs.get("abi") != ABI:
         raise BundleExportError("invalid Pong input identity")
+    for name in LOCAL_SOURCES:
+        _regular_file(root / name, "Pong local input")
     if inputs.get("sources") != {name: _sha256(root / name) for name in LOCAL_SOURCES}:
         raise BundleExportError("Pong source inputs differ from committed source tree")
     if inputs.get("framework") != pin or receipt.get("framework") != pin or receipt.get("inputs_sha256") != _sha256(inputs_path):

@@ -322,6 +322,7 @@ def rebuild(
     print_commands: bool = False,
     build_date: str | None = None,
 ) -> dict[str, object]:
+    recipe_digest = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     source_dir = root / "build" / "cores" / pin.name
     work_dir = root / "build" / "rebuild" / pin.name
     project_dir = work_dir / "project"
@@ -381,10 +382,11 @@ def rebuild(
     report["source"] = str(source_dir)
     report["build_date"] = resolved_date
     report["identical"] = bool(report["match"])
+    report["recipe_sha256"] = recipe_digest
     if pin.name == "snes":
         report.update(fitter_seed=SNES_FITTER_SEED, timing=timing,
                       timing_sha256=hashlib.sha256(timing_path.read_bytes()).hexdigest(),
-                      recipe_sha256=hashlib.sha256((root / "scripts/rebuild_core.py").read_bytes()).hexdigest())
+                      recipe_sha256=recipe_digest)
     compare_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     identical = "yes" if report["identical"] else "no"
     print(
