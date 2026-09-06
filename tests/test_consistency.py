@@ -29,20 +29,26 @@ class ConsistencyTest(unittest.TestCase):
             path.write_bytes(b'generated\n')
         self.core = self.sources['misteross'] / 'cores.lock'
         self.core.write_text('[core.megadrive]\nrepo="https://example.org/core"\ncommit="abc"\nrbf_path="releases/core.rbf"\nrbf_sha256="def"\nrbf_size=123\nproject="MegaDrive.qpf"\n')
+        self.core.write_text(self.core.read_text() + self.core.read_text().replace('[core.megadrive]', '[core.snes]').replace('MegaDrive.qpf', 'SNES.qpf'))
         self.fog = self.sources['FogCast'] / 'build/native-runtime.inputs.lock.toml'
         self.fog.parent.mkdir()
         self.fog.write_text('[megadrive_rbf]\nrepository="https://example.org/core"\ncommit="abc"\npath="releases/core.rbf"\nsha256="def"\nsize=123\n')
         self.calls = []
         def run(packages, command, source):
             self.calls.append((command, source))
-            return REPORT if command == 'report' else b'generated\n'
+            if command == 'report':
+                return REPORT.replace(b'megadrive_mister', b'snes_mister').replace(b'MegaDrive.qpf', b'SNES.qpf') if 'snes' in source else REPORT
+            return b'generated\n'
         self.mock = patch.object(self.module, '_run', side_effect=run)
         self.mock.start()
         self.addCleanup(self.mock.stop)
 
     def test_selected_sources_and_validation_coverage(self):
-        self.module.check(self.root, self.sources)
-        self.assertEqual(sum(command == 'validate' for command, _ in self.calls), 3)
+        self.assertEqual(self.module.check(self.root, self.sources), {'generated_files': 7, 'source_pin_copies': 3})
+        self.assertEqual({source for command, source in self.calls if command == 'validate'}, {
+            'packages/platform/de10_nano.yaml', 'packages/system/megadrive.yaml',
+            'packages/system/pong.yaml', 'packages/system/snes.yaml',
+            'packages/source/megadrive_mister.yaml', 'packages/source/snes_mister.yaml'})
 
     def test_generated_consumer_drift(self):
         for _, _, component, destination in self.module.GENERATED:
@@ -61,6 +67,16 @@ class ConsistencyTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'commit.*differs'):
                     self.module.check(self.root, self.sources)
                 path.write_text(original)
+
+    def test_snes_copied_pin_drift(self):
+        original = self.core.read_text()
+        for field, value in (('commit', 'abc'), ('rbf_sha256', 'def'), ('project', 'SNES.qpf')):
+            with self.subTest(field=field):
+                md, snes = original.split('[core.snes]')
+                self.core.write_text(md + '[core.snes]' + snes.replace(f'{field}="{value}"', f'{field}="changed"'))
+                with self.assertRaisesRegex(ValueError, rf'core.snes.{field} differs'):
+                    self.module.check(self.root, self.sources)
+        self.core.write_text(original)
 
     def test_yaml_validation_failure_propagates(self):
         import subprocess
