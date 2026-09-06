@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DeanoC/FogCast/protocol"
 	"io"
 	"net"
 	"os"
@@ -819,4 +820,42 @@ func (ctx *deadlineGateContext) Deadline() (time.Time, bool) {
 		<-ctx.releaseDeadline
 	}
 	return ctx.Context.Deadline()
+}
+
+func TestClientSNESLaunchSerializesSavePathAndRejectsOtherSystems(t *testing.T) {
+	const response = `{"protocol":1,"ok":true,"state":"running_game","execution":"game","system":"snes","core":"SNES","error":null,"version":"git-test"}`
+	fixture := newSocketFixture(t, response+"\n", true)
+	request := LaunchRequest{System: "snes", RBF: "/usr/share/mister-runtime/cores/snes.rbf", Media: map[string]string{"cartridge": "/media/fat/game.sfc"}, Settings: map[string]string{}, SavePath: "/media/fat/fogcast/saves/snes/game/rom.srm"}
+	if _, err := NewClient(fixture.path).Launch(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	if got := fixture.wait(t); !strings.Contains(got, `"save_path":"/media/fat/fogcast/saves/snes/game/rom.srm"`) {
+		t.Fatalf("save path not serialized: %s", got)
+	}
+	for _, path := range []string{"relative", "/save/../game.srm", "/bad\x00path", "/" + strings.Repeat("a", 4096)} {
+		request.SavePath = path
+		if _, err := NewClient("/nonexistent").Launch(context.Background(), request); !errors.Is(err, errInvalidRuntimeRequest) {
+			t.Fatalf("accepted invalid path: %v", err)
+		}
+	}
+	request.SavePath = "/media/fat/save.srm"
+	for _, system := range []string{"megadrive", "pong"} {
+		request.System = system
+		request.RBF = nativeRBFPath(protocol.System(system))
+		if system == "pong" {
+			request.Media = map[string]string{}
+		}
+		if _, err := NewClient("/nonexistent").Launch(context.Background(), request); !errors.Is(err, errInvalidRuntimeRequest) {
+			t.Fatalf("accepted %s save: %v", system, err)
+		}
+	}
+}
+
+func TestClientAcceptsRetryableSaveFailure(t *testing.T) {
+	fixture := newSocketFixture(t, `{"protocol":1,"ok":false,"state":"running_game","execution":"game","system":"snes","core":"SNES","error":{"code":"save_failed","message":"write failed"},"version":"git-test"}`+"\n", true)
+	response, err := NewClient(fixture.path).Stop(context.Background())
+	if err != nil || response.Error == nil || response.Error.Code != "save_failed" {
+		t.Fatalf("save error lost: %+v %v", response, err)
+	}
+	fixture.wait(t)
 }

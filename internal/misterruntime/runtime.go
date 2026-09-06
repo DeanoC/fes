@@ -20,6 +20,7 @@ const unsupportedOperationMessage = "requested operation is unsupported"
 const unsupportedSystemMessage = "system is unsupported by target runtime"
 
 type Runtime struct {
+	saveRoot           string
 	control            Control
 	bootIDFile         string
 	pollInterval       time.Duration
@@ -64,7 +65,7 @@ func (r *Runtime) Health(version string) protocol.Health {
 
 func (r *Runtime) StopReady() bool {
 	response, err := r.boundedStatus(context.Background())
-	return err == nil && (validIdle(response) || validNativeRunning(response) || validDevelopmentRunning(response))
+	return err == nil && (validIdle(response) || validNativeRunning(response) || validDevelopmentRunning(response) || retryableSaveFailure(response))
 }
 
 func (r *Runtime) Reconcile(ctx context.Context) protocol.Status {
@@ -138,6 +139,10 @@ func (r *Runtime) launch(admission, observation, operationOwner context.Context,
 		}
 		return "", false, invalidROMPathError()
 	}
+	savePath, apiErr := r.prepareSavePath(admission, prepared)
+	if apiErr != nil {
+		return "", false, apiErr
+	}
 	response, err := r.boundedStatus(admission)
 	if err != nil || !validIdle(response) {
 		return "", false, unavailableError()
@@ -146,6 +151,7 @@ func (r *Runtime) launch(admission, observation, operationOwner context.Context,
 		return "", false, unavailableError()
 	}
 	request := LaunchRequest{
+		SavePath: savePath,
 		System:   string(prepared.Spec.System),
 		RBF:      nativeRBFPath(prepared.Spec.System),
 		Media:    map[string]string{},
@@ -425,7 +431,10 @@ func (r *Runtime) stopWithRecovery(admission, operation context.Context, owned b
 	if err == nil && rebootRequiredResponse(response) {
 		return "", protocol.RecoveryRebootRequired, nil
 	}
-	if err != nil || !response.OK || response.State != "idle" {
+	if err == nil && response.Error != nil {
+		return "", "", mapRemoteError(response.Error)
+	}
+	if err != nil || !validCleanIdle(response) {
 		return "", "", unavailableError()
 	}
 	return "", "", nil
@@ -578,6 +587,8 @@ func mapRemoteError(remote *RemoteError) *protocol.APIError {
 		return &protocol.APIError{Code: protocol.CodeROMNotFound, Message: "target runtime could not open the cartridge"}
 	case "busy":
 		return &protocol.APIError{Code: protocol.CodeBusy, Message: "target runtime is busy"}
+	case "save_failed":
+		return &protocol.APIError{Code: protocol.CodeInternal, Message: "SNES save could not be written; retry Stop before leaving the game"}
 	case "core_mismatch":
 		return &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Message: "target runtime observed an unexpected core"}
 	case "unsupported_protocol", "program_failed", "io_failed", "idle_failed":

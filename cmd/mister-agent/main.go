@@ -119,6 +119,7 @@ func runtimeDependencies(backend runtimeBackend, nativeControl misterruntime.Con
 func newNativeRuntime(control misterruntime.Control, rebootPath string) *misterruntime.Runtime {
 	return misterruntime.NewRuntime(control, bootIDFile, 25*time.Millisecond, 250*time.Millisecond,
 		misterruntime.WithDevelopmentRBFPath(developmentRBFPath),
+		misterruntime.WithSaveRoot("/media/fat/fogcast/saves/snes"),
 		misterruntime.WithRebootCommand(rebootPath))
 }
 

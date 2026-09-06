@@ -23,6 +23,7 @@ func mglROMPath(root, resolved, fallback string) string {
 }
 
 type PreparedLaunch struct {
+	GameID      string
 	Spec        core.Spec
 	AbsoluteROM string
 	RelativeROM string

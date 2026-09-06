@@ -66,7 +66,7 @@ the runtime validates cartridge bytes before hardware mutation and owns the
 512-byte metadata prefix. It does not modify the host cache or content hash.
 The native package index is 1; the Main MGL selector remains 0. Initial support
 is bounded ordinary LoROM/HiROM; enhancement chips, external firmware, expanded
-mappings, and persistent saves are outside this slice. Other systems remain
+mappings remain outside this slice. Other systems remain
 unsupported by this adapter. All admitted profiles reconcile lost responses
 only against the requested system/core identity, without replay, and use the
 ordinary Stop-to-idle lifecycle. SNES is software-tested; exact-artifact
@@ -104,6 +104,38 @@ determine which controls the core consumes. The same retained device spans
 MD and SNES leases; no per-game virtual-device churn or input coordinator is
 introduced. The host API exposes lease attach/detach/status; gamepad event
 producers continue using the existing host RemoteInput event interface.
+
+## Native SNES battery saves
+
+The target coordinator passes the validated game ID in `PreparedLaunch` for
+both direct and cached launches. The native adapter derives a save path under
+`/media/fat/fogcast/saves/snes/<sha256-game-id>/<sha256-raw-rom>.srm` and checks
+that its directory is writable before dispatch. This persistent FAT directory
+is separate from the evictable ROM cache and the read-only image. Renaming or
+re-uploading identical ROM bytes preserves a save; a different game ID or raw
+ROM revision, including a copier-header variant, selects a separate save.
+
+`internal/misterruntime/saves.go` owns that naming policy. The agent composition
+sets `WithSaveRoot`; standalone adapters without the option keep volatile
+behavior. The local runtime launch request adds optional top-level `save_path`
+for SNES only. Cartridge media and settings are unchanged. Main, Mega Drive and
+Pong keep their existing behavior. There is no new public save API.
+
+The runtime owns cartridge-derived battery RAM sizing, save-file admission,
+restore before input, and atomic snapshot persistence before idle programming.
+Admitted cartridges without battery RAM produce no save file. Successful Stop
+means the snapshot has been persisted; a `save_failed` response retains the
+SNES session for Stop retry and becomes a visible agent error. The coordinator
+cannot publish idle or permit successful lease cleanup until that retry
+succeeds. The same Stop path covers user Stop, replacement, and lease cleanup.
+After failed lease cleanup, ownership remains blocked under the existing
+operator takeover/retry policy.
+
+This supports clean Stop followed by switching or reboot. Unexpected power
+loss, host/cloud synchronization, save states, and enhancement-chip saves are
+outside scope. Focused tests cover identities, optional request validation,
+error propagation and retryable lease cleanup; physical acceptance is recorded
+by FES against its selected runtime and agent artifacts.
 
 ## Built-in Pong product
 
