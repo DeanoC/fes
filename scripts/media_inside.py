@@ -26,6 +26,9 @@ PART1_SIZE = 524288 * SECTOR_SIZE
 BOOT_OFFSET = 526336 * SECTOR_SIZE
 BOOT_SIZE = 2048 * SECTOR_SIZE
 DISK_SIZE = 528384 * SECTOR_SIZE
+# Entire 512-byte dosfstools 4.2 boot sector for this locked geometry/identity.
+# This also binds the OEM string, flags, boot code/message, and reserved bytes.
+FAT_BOOT_SHA256 = "48aecc331306e46ace816aab028fa9640682da537ab1feafe7ce3d2fc14f8507"
 ENV = {**os.environ, "TZ": "UTC", "SOURCE_DATE_EPOCH": str(SOURCE_DATE_EPOCH), "LC_ALL": "C",
        "MTOOLSRC": "/dev/null"}
 
@@ -213,7 +216,7 @@ def _verify_mbr(image, lock):
         require_zero(stream, BOOT_OFFSET + lock.uboot.size, BOOT_SIZE - lock.uboot.size, "boot partition tail")
 
 
-def _verify_fat_unused(fat, fat_sectors, clusters):
+def _verify_fat_unused(fat, fat_sectors, clusters, has_config):
     """Walk allocation metadata independently and require zero slack/free space."""
     stamp = datetime.datetime.fromtimestamp(SOURCE_DATE_EPOCH, datetime.timezone.utc)
     date = ((stamp.year - 1980) << 9) | (stamp.month << 5) | stamp.day
@@ -234,8 +237,24 @@ def _verify_fat_unused(fat, fat_sectors, clusters):
         if stream.read(len(table)) != table:
             raise ValueError("FAT allocation copies differ")
         entries = struct.unpack(f"<{len(table) // 4}I", table)
+        if any(value & 0xf0000000 for value in entries):
+            raise ValueError("reserved FAT allocation bits are nonzero")
+        if entries[:2] != (0x0ffffff8, 0x0fffffff):
+            raise ValueError("reserved FAT allocation entries differ")
         if any(entries[clusters + 2:]):
             raise ValueError("unused FAT table padding is nonzero")
+        allocated_clusters = [index for index in range(2, clusters + 2) if entries[index]]
+        # mtools updates only the primary FSInfo. The backup retains mkfs's
+        # initial root-only free count/hint; both complete records are canonical.
+        for sector, free_count, hint in ((1, clusters - len(allocated_clusters), max(allocated_clusters)),
+                                         (7, clusters - 1, 2)):
+            expected_info = bytearray(512)
+            struct.pack_into("<I", expected_info, 0, 0x41615252)
+            struct.pack_into("<III", expected_info, 484, 0x61417272, free_count, hint)
+            struct.pack_into("<I", expected_info, 508, 0xaa550000)
+            stream.seek(sector * 512)
+            if stream.read(512) != expected_info:
+                raise ValueError("FAT FSInfo metadata differs from canonical allocation")
 
         def chain(first):
             visited = set()
@@ -244,7 +263,7 @@ def _verify_fat_unused(fat, fat_sectors, clusters):
                     raise ValueError("invalid FAT allocation chain")
                 visited.add(first)
                 yield first
-                first = entries[first] & 0x0fffffff
+                first = entries[first]
 
         def position(cluster):
             return data_offset + (cluster - 2) * 512
@@ -259,49 +278,78 @@ def _verify_fat_unused(fat, fat_sectors, clusters):
                 free_start = None
         data_end = data_offset + clusters * 512
         require_zero(stream, data_end, PART1_SIZE - data_end, "unused FAT end padding")
-        directories, seen = [2], set()
+        # Exact short names, attribute/case bytes, and the one canonical VFAT
+        # record. Raw enumeration cannot hide entries through mtools filtering.
+        dot = (b".          \x10\x00", ".")
+        dotdot = (b"..         \x10\x00", "..")
+        schemas = {
+            "/": [(b"FESDATA    \x08\x00", "label"),
+                  (b"MENU    RBF\x20\x18", "/menu.rbf"),
+                  (b"LINUX      \x10\x08", "/linux"),
+                  (b"FOGCAST    \x10\x08", "/fogcast")],
+            "/linux": [dot, dotdot,
+                       (bytes.fromhex("417a0049006d00610067000f008465005f0064007400620000000000ffffffff"), "lfn"),
+                       (b"ZIMAGE~1   \x20\x00", "/linux/zImage_dtb"),
+                       (b"LINUX   IMG\x20\x18", "/linux/linux.img")],
+            "/fogcast": [dot, dotdot],
+        }
+        # agent.toml has a four-character extension, so mtools uses a VFAT alias.
+        if has_config:
+            schemas["/fogcast"] = [dot, dotdot,
+                (bytes.fromhex("416100670065006e0074000f00322e0074006f006d006c0000000000ffffffff"), "lfn"),
+                (b"AGENT~1 TOM\x20\x00", "/fogcast/agent.toml")]
+        directories, seen = [(2, "/", 0)], set()
         while directories:
-            first = directories.pop()
+            first, path, parent = directories.pop()
             if first in seen:
                 raise ValueError("duplicate FAT directory allocation")
             seen.add(first)
-            ended = False
-            for cluster in chain(first):
-                stream.seek(position(cluster))
-                block = stream.read(512)
-                for offset in range(0, 512, 32):
-                    entry = block[offset:offset + 32]
-                    if ended or entry[0] == 0:
-                        ended = True
-                        if any(entry):
-                            raise ValueError("unused FAT directory padding is nonzero")
-                        continue
-                    if entry[0] == 0xe5:
-                        raise ValueError("deleted FAT owned paths are forbidden")
-                    if entry[11] == 0x0f:  # VFAT long-name record; fsck validates its linkage.
-                        continue
-                    if (entry[13] != 0 or struct.unpack_from("<HHH", entry, 14) != (time, date, date)
-                            or struct.unpack_from("<HH", entry, 22) != (time, date)):
-                        raise ValueError("FAT timestamp differs from normalized epoch")
-                    first_cluster = (struct.unpack_from("<H", entry, 20)[0] << 16) | struct.unpack_from("<H", entry, 26)[0]
-                    if entry[11] & 0x10:
-                        if entry[0] != ord("."):
-                            directories.append(first_cluster)
-                    elif not entry[11] & 0x08:
-                        size = struct.unpack_from("<I", entry, 28)[0]
-                        allocated = list(chain(first_cluster)) if first_cluster else []
-                        if len(allocated) != (size + 511) // 512:
-                            raise ValueError("FAT payload allocation size differs")
-                        if size % 512:
-                            require_zero(stream, position(allocated[-1]) + size % 512, 512 - size % 512,
-                                         "FAT payload slack")
+            allocated = list(chain(first))
+            if len(allocated) != 1:
+                raise ValueError("FAT directory allocation differs from canonical paths")
+            stream.seek(position(first))
+            block = stream.read(512)
+            schema = schemas[path]
+            if any(block[len(schema) * 32:]):
+                raise ValueError("extra FAT directory paths or nonzero directory padding")
+            for index, (prefix, name) in enumerate(schema):
+                entry = block[index * 32:(index + 1) * 32]
+                if not entry.startswith(prefix):
+                    raise ValueError("FAT directory names/types/attributes differ from canonical paths")
+                if name == "lfn":
+                    continue
+                if (entry[13] != 0 or struct.unpack_from("<HHH", entry, 14) != (time, date, date)
+                        or struct.unpack_from("<HH", entry, 22) != (time, date)):
+                    raise ValueError("FAT timestamp differs from normalized epoch")
+                first_cluster = (struct.unpack_from("<H", entry, 20)[0] << 16) | struct.unpack_from("<H", entry, 26)[0]
+                size = struct.unpack_from("<I", entry, 28)[0]
+                if entry[11] == 0x10:
+                    if size:
+                        raise ValueError("FAT directory size is nonzero")
+                    if name in (".", ".."):
+                        if first_cluster != (first if name == "." else parent):
+                            raise ValueError("FAT directory link differs")
+                    else:
+                        directories.append((first_cluster, name, 0 if path == "/" else first))
+                elif entry[11] == 0x08:
+                    if first_cluster or size:
+                        raise ValueError("FAT volume label allocation differs")
+                else:
+                    allocated = list(chain(first_cluster)) if first_cluster else []
+                    if len(allocated) != (size + 511) // 512:
+                        raise ValueError("FAT payload allocation size differs")
+                    if size % 512:
+                        require_zero(stream, position(allocated[-1]) + size % 512, 512 - size % 512,
+                                     "FAT payload slack")
 
 
-def _verify_fat(image, lock, scratch):
+def _verify_fat(image, lock, scratch, has_config):
     fat = scratch / "fat.img"
     copy_region(image, fat, PART1_OFFSET, PART1_SIZE)
     with fat.open("rb") as stream:
         bpb = stream.read(512)
+        if hashlib.sha256(bpb).hexdigest() != FAT_BOOT_SHA256:
+            raise ValueError("FAT boot metadata differs from canonical pinned formatter output")
         sector_size = struct.unpack_from("<H", bpb, 11)[0]
         sectors_per_cluster = bpb[13]
         reserved = struct.unpack_from("<H", bpb, 14)[0]
@@ -320,7 +368,7 @@ def _verify_fat(image, lock, scratch):
         if stream.read(512) != bpb:
             raise ValueError("FAT backup boot metadata differs")
     run("fsck.fat", "-vn", fat)
-    _verify_fat_unused(fat, fat_sectors, clusters)
+    _verify_fat_unused(fat, fat_sectors, clusters, has_config)
     return fat
 
 
@@ -342,9 +390,9 @@ def verify_image(image, manifest, inputs, lock, agent_config_sha256=None):
     with tempfile.TemporaryDirectory(prefix="fes-media-verify-") as temporary:
         scratch = Path(temporary)
         check_inputs(inputs, lock, scratch)
-        _verify_fat(image, lock, scratch)
+        _verify_fat(image, lock, scratch, bool(agent_config_sha256))
         device = f"{image}@@{PART1_OFFSET}"
-        listing = run("mdir", "-b", "-s", "-i", device, "::/")
+        listing = run("mdir", "-a", "-b", "-s", "-i", device, "::/")
         paths = tuple(sorted(line.removeprefix("::").rstrip("/") for line in listing.splitlines() if line))
         owned = {"/menu.rbf": inputs.idle, "/linux/zImage_dtb": inputs.kernel, "/linux/linux.img": inputs.rootfs}
         expected_paths = set(owned) | {"/linux", "/fogcast"}

@@ -218,6 +218,57 @@ class RealImageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "paths"):
             self.verify()
 
+    def test_hidden_extra_file_rejected_with_rehashed_manifest(self):
+        device = f"{self.copy}@@1048576"
+        subprocess.run(["mcopy", "-i", device, str(self.idle), "::/fogcast/extra"], check=True)
+        subprocess.run(["mattrib", "-i", device, "+h", "+s", "::/fogcast/extra"], check=True)
+        with self.assertRaisesRegex(ValueError, "paths|directory"):
+            self.verify(self.rehash_manifest())
+
+    def test_hidden_extra_directory_rejected_with_rehashed_manifest(self):
+        device = f"{self.copy}@@1048576"
+        subprocess.run(["mmd", "-i", device, "::/fogcast/extra"], check=True)
+        subprocess.run(["mattrib", "-i", device, "+h", "+s", "::/fogcast/extra"], check=True)
+        with self.assertRaisesRegex(ValueError, "paths|directory"):
+            self.verify(self.rehash_manifest())
+
+    def test_owned_readonly_file_rejected_with_rehashed_manifest(self):
+        subprocess.run(["mattrib", "-i", f"{self.copy}@@1048576", "+r", "::/menu.rbf"], check=True)
+        with self.assertRaisesRegex(ValueError, "attributes|directory"):
+            self.verify(self.rehash_manifest())
+
+    def test_owned_system_directory_rejected_with_rehashed_manifest(self):
+        subprocess.run(["mattrib", "-i", f"{self.copy}@@1048576", "+s", "::/fogcast"], check=True)
+        with self.assertRaisesRegex(ValueError, "attributes|directory"):
+            self.verify(self.rehash_manifest())
+
+    def test_modified_boot_oem_rejected_with_rehashed_manifest(self):
+        for sector in (0, 6):
+            self.mutate(1048576 + sector * 512 + 3, b"CHANGED!")
+        with self.assertRaisesRegex(ValueError, "FAT.*metadata"):
+            self.verify(self.rehash_manifest())
+
+    def test_modified_backup_fsinfo_rejected_with_rehashed_manifest(self):
+        self.mutate(1048576 + 7 * 512, b"X")
+        with self.assertRaisesRegex(ValueError, "FAT.*metadata"):
+            self.verify(self.rehash_manifest())
+
+    def test_modified_primary_fsinfo_hint_rejected_with_rehashed_manifest(self):
+        self.mutate(1048576 + 512 + 492, struct.pack("<I", 2))
+        with self.assertRaisesRegex(ValueError, "FAT.*metadata"):
+            self.verify(self.rehash_manifest())
+
+    def test_reserved_fat_entry_bits_rejected_with_rehashed_manifest(self):
+        with self.copy.open("rb") as stream:
+            stream.seek(1048576 + 36)
+            fat_sectors = struct.unpack("<I", stream.read(4))[0]
+            stream.seek(1048576 + 32 * 512 + 2 * 4)
+            value = struct.unpack("<I", stream.read(4))[0]
+        for first_sector in (32, 32 + fat_sectors):
+            self.mutate(1048576 + first_sector * 512 + 2 * 4, struct.pack("<I", value | 0x10000000))
+        with self.assertRaisesRegex(ValueError, "reserved FAT.*bits"):
+            self.verify(self.rehash_manifest())
+
     def test_truncation_rejected(self):
         with self.copy.open("r+b") as f:
             f.truncate(self.copy.stat().st_size - 1)
