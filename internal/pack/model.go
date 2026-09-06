@@ -195,6 +195,7 @@ type MediaRule struct {
 	Required    bool          `yaml:"required"`
 	Extensions  []string      `yaml:"extensions"`
 	MaximumSize hexnum.Uint64 `yaml:"maximum_size"`
+	Transform   string        `yaml:"transform"`
 }
 
 type SettingRule struct {
@@ -220,6 +221,11 @@ type InputRecipe struct {
 	B             hexnum.Uint64 `yaml:"b"`
 	C             hexnum.Uint64 `yaml:"c"`
 	Start         hexnum.Uint64 `yaml:"start"`
+	X             hexnum.Uint64 `yaml:"x"`
+	Y             hexnum.Uint64 `yaml:"y"`
+	L             hexnum.Uint64 `yaml:"l"`
+	R             hexnum.Uint64 `yaml:"r"`
+	Select        hexnum.Uint64 `yaml:"select"`
 }
 
 type SystemOracleFile struct {

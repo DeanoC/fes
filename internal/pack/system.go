@@ -69,7 +69,18 @@ func (s *SystemFile) Validate() error {
 	return nil
 }
 
+// MediaTransform returns the explicit transfer recipe, including the raw default.
+func (r MediaRule) MediaTransform() string {
+	if r.Transform == "" {
+		return "raw"
+	}
+	return r.Transform
+}
+
 func (r MediaRule) validate() error {
+	if r.MediaTransform() != "raw" && r.MediaTransform() != "snes_cartridge" {
+		return fmt.Errorf("unsupported media transform %q", r.Transform)
+	}
 	if !validIdentifier(r.Role) {
 		return fmt.Errorf("invalid role %q", r.Role)
 	}
@@ -152,16 +163,21 @@ func (in InputRecipe) validate() error {
 		{"right", in.Right},
 		{"a", in.A},
 		{"b", in.B},
-		{"c", in.C},
 		{"start", in.Start},
+		{"c", in.C},
+		{"x", in.X},
+		{"y", in.Y},
+		{"l", in.L},
+		{"r", in.R},
+		{"select", in.Select},
 	}
 	var seen uint16
-	for _, mask := range masks {
+	for i, mask := range masks {
 		if err := requireUint16(mask.name, mask.value); err != nil {
 			return err
 		}
 		v := uint16(mask.value)
-		if v == 0 || v&(v-1) != 0 || seen&v != 0 {
+		if (v == 0 && i < 7) || v&(v-1) != 0 || seen&v != 0 {
 			return fmt.Errorf("invalid input recipe")
 		}
 		seen |= v
@@ -185,10 +201,10 @@ func (s *SystemFile) Report(w io.Writer) error {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "media:")
 	for _, rule := range s.Media {
-		fmt.Fprintf(w, "  %-12s index=%d required=%t %s max=%s\n",
+		fmt.Fprintf(w, "  %-12s index=%d required=%t %s max=%s transform=%s\n",
 			rule.Role, rule.Index, rule.Required,
 			strings.Join(rule.Extensions, ","),
-			hexnum.Format(uint64(rule.MaximumSize)))
+			hexnum.Format(uint64(rule.MaximumSize)), rule.MediaTransform())
 	}
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "core recipe:\n")
@@ -209,6 +225,7 @@ func (s *SystemFile) Report(w io.Writer) error {
 		hexnum.Format(uint64(s.Input.B)),
 		hexnum.Format(uint64(s.Input.C)),
 		hexnum.Format(uint64(s.Input.Start)))
+	fmt.Fprintf(w, "  x=%s y=%s l=%s r=%s select=%s\n", hexnum.Format(uint64(s.Input.X)), hexnum.Format(uint64(s.Input.Y)), hexnum.Format(uint64(s.Input.L)), hexnum.Format(uint64(s.Input.R)), hexnum.Format(uint64(s.Input.Select)))
 	return nil
 }
 
@@ -236,6 +253,7 @@ func DiffSystemOracle(sys *SystemFile, oracle *SystemOracleFile) []string {
 			prefix := fmt.Sprintf("media[%d]", i)
 			got, expected := sys.Media[i], want.Media[i]
 			eq(prefix+".role", got.Role, expected.Role)
+			eq(prefix+".transform", got.MediaTransform(), expected.MediaTransform())
 			if got.Index != expected.Index {
 				problems = append(problems, fmt.Sprintf("%s.index got %d want %d", prefix, got.Index, expected.Index))
 			}
@@ -266,6 +284,11 @@ func DiffSystemOracle(sys *SystemFile, oracle *SystemOracleFile) []string {
 	eqU("input.b", uint64(sys.Input.B), uint64(want.Input.B))
 	eqU("input.c", uint64(sys.Input.C), uint64(want.Input.C))
 	eqU("input.start", uint64(sys.Input.Start), uint64(want.Input.Start))
+	eqU("input.x", uint64(sys.Input.X), uint64(want.Input.X))
+	eqU("input.y", uint64(sys.Input.Y), uint64(want.Input.Y))
+	eqU("input.l", uint64(sys.Input.L), uint64(want.Input.L))
+	eqU("input.r", uint64(sys.Input.R), uint64(want.Input.R))
+	eqU("input.select", uint64(sys.Input.Select), uint64(want.Input.Select))
 	return problems
 }
 

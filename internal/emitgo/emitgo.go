@@ -11,10 +11,7 @@ import (
 )
 
 func GenerateSystem(sys *pack.SystemFile) (string, error) {
-	index, err := cartridgeIndex(sys)
-	if err != nil {
-		return "", err
-	}
+	index, hasCartridge := cartridgeIndex(sys)
 	prefix := exportedIdent(sys.ExpectedCore)
 	if prefix == "" {
 		return "", fmt.Errorf("expected_core %q is not a Go identifier", sys.ExpectedCore)
@@ -24,13 +21,19 @@ func GenerateSystem(sys *pack.SystemFile) (string, error) {
 	b.WriteString(sys.ID)
 	b.WriteString(".yaml.\n")
 	b.WriteString("// Do not edit.\n")
-	b.WriteString("// FogCast launch fields: expected core and cartridge file index.\n")
+	if hasCartridge {
+		b.WriteString("// FogCast launch fields: expected core and cartridge file index.\n")
+	} else {
+		b.WriteString("// FogCast launch fields: system and expected core identity.\n")
+	}
 	b.WriteString("// Product fields (aliases, covers, Main RBF path, library roots) stay in FogCast.\n\n")
 	b.WriteString("package generated\n\n")
 	b.WriteString("const (\n")
 	fmt.Fprintf(&b, "\t%sSystem = %q\n", prefix, sys.ID)
 	fmt.Fprintf(&b, "\t%sExpectedCore = %q\n", prefix, sys.ExpectedCore)
-	fmt.Fprintf(&b, "\t%sCartridgeIndex = %d\n", prefix, index)
+	if hasCartridge {
+		fmt.Fprintf(&b, "\t%sCartridgeIndex = %d\n", prefix, index)
+	}
 	b.WriteString(")\n")
 	formatted, err := format.Source([]byte(b.String()))
 	if err != nil {
@@ -39,13 +42,13 @@ func GenerateSystem(sys *pack.SystemFile) (string, error) {
 	return string(formatted), nil
 }
 
-func cartridgeIndex(sys *pack.SystemFile) (int, error) {
+func cartridgeIndex(sys *pack.SystemFile) (int, bool) {
 	for _, rule := range sys.Media {
 		if rule.Role == "cartridge" {
-			return rule.Index, nil
+			return rule.Index, true
 		}
 	}
-	return 0, fmt.Errorf("system %s: missing cartridge media", sys.ID)
+	return 0, false
 }
 
 func exportedIdent(value string) string {

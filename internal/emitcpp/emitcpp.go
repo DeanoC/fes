@@ -40,6 +40,8 @@ func GenerateSystem(sys *pack.SystemFile) (string, error) {
 	b.WriteString("namespace mister {\n")
 	b.WriteString("namespace native {\n")
 	b.WriteString("namespace generated {\n\n")
+	b.WriteString("#ifndef MISTER_PACKAGES_GENERATED_SYSTEM_TYPES_V2\n")
+	b.WriteString("#define MISTER_PACKAGES_GENERATED_SYSTEM_TYPES_V2\n\n")
 	b.WriteString("struct GeneratedMediaRule {\n")
 	b.WriteString("  const char* role;\n")
 	b.WriteString("  std::uint8_t index;\n")
@@ -47,6 +49,7 @@ func GenerateSystem(sys *pack.SystemFile) (string, error) {
 	b.WriteString("  const char* const* extensions;\n")
 	b.WriteString("  std::size_t extension_count;\n")
 	b.WriteString("  std::uint64_t maximum_size;\n")
+	b.WriteString("  const char* transform;\n")
 	b.WriteString("};\n\n")
 	b.WriteString("struct GeneratedCoreRecipe {\n")
 	b.WriteString("  std::uint16_t reset_assert_word;\n")
@@ -65,6 +68,12 @@ func GenerateSystem(sys *pack.SystemFile) (string, error) {
 	b.WriteString("  std::uint16_t b;\n")
 	b.WriteString("  std::uint16_t c;\n")
 	b.WriteString("  std::uint16_t start;\n")
+	b.WriteString("  std::uint16_t x;\n")
+	b.WriteString("  std::uint16_t y;\n")
+	b.WriteString("  std::uint16_t l;\n")
+	b.WriteString("  std::uint16_t r;\n")
+	b.WriteString("  std::uint16_t select;\n")
+
 	b.WriteString("};\n\n")
 	b.WriteString("struct GeneratedSystem {\n")
 	b.WriteString("  const char* system;\n")
@@ -77,6 +86,8 @@ func GenerateSystem(sys *pack.SystemFile) (string, error) {
 	b.WriteString("  GeneratedInputRecipe input;\n")
 	b.WriteString("};\n\n")
 
+	b.WriteString("#endif // MISTER_PACKAGES_GENERATED_SYSTEM_TYPES_V2\n\n")
+
 	for _, rule := range sys.Media {
 		name := prefix + cppIdent(rule.Role) + "Extensions"
 		fmt.Fprintf(&b, "static constexpr const char* const k%s[] = {", name)
@@ -88,27 +99,33 @@ func GenerateSystem(sys *pack.SystemFile) (string, error) {
 		}
 		b.WriteString("};\n")
 	}
-	fmt.Fprintf(&b, "static constexpr GeneratedMediaRule k%sMedia[] = {\n", prefix)
-	for _, rule := range sys.Media {
-		extName := "k" + prefix + cppIdent(rule.Role) + "Extensions"
-		fmt.Fprintf(&b, "    {%s, %d, %s, %s, %d, 0x%xu},\n",
-			cstring(rule.Role), rule.Index, boolLit(rule.Required),
-			extName, len(rule.Extensions), uint64(rule.MaximumSize))
+	if len(sys.Media) > 0 {
+		fmt.Fprintf(&b, "static constexpr GeneratedMediaRule k%sMedia[] = {\n", prefix)
+		for _, rule := range sys.Media {
+			extName := "k" + prefix + cppIdent(rule.Role) + "Extensions"
+			fmt.Fprintf(&b, "    {%s, %d, %s, %s, %d, 0x%xu, %s},\n",
+				cstring(rule.Role), rule.Index, boolLit(rule.Required),
+				extName, len(rule.Extensions), uint64(rule.MaximumSize), cstring(rule.MediaTransform()))
+		}
+		b.WriteString("};\n")
 	}
-	b.WriteString("};\n")
 	fmt.Fprintf(&b, "static constexpr GeneratedSystem k%s = {\n", prefix)
 	fmt.Fprintf(&b, "    %s,\n", cstring(sys.ID))
 	fmt.Fprintf(&b, "    %s,\n", cstring(sys.ExpectedCore))
 	fmt.Fprintf(&b, "    %s,\n", cstring(sys.RBF.Role))
 	fmt.Fprintf(&b, "    %s,\n", cstring(sys.RBF.Artifact))
-	fmt.Fprintf(&b, "    k%sMedia,\n", prefix)
+	if len(sys.Media) == 0 {
+		b.WriteString("    nullptr,\n")
+	} else {
+		fmt.Fprintf(&b, "    k%sMedia,\n", prefix)
+	}
 	fmt.Fprintf(&b, "    %d,\n", len(sys.Media))
 	fmt.Fprintf(&b, "    {0x%x, 0x%x, 0x%x, %s},\n",
 		uint64(sys.Core.ResetAssertWord),
 		uint64(sys.Core.InitialStatusWord),
 		uint64(sys.Core.ResetReleaseWord),
 		cstring(sys.Core.FileWire))
-	fmt.Fprintf(&b, "    {%d, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x},\n",
+	fmt.Fprintf(&b, "    {%d, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x},\n",
 		sys.Input.PlayerCount,
 		uint64(sys.Input.PlayerCommand),
 		uint64(sys.Input.Up),
@@ -118,7 +135,12 @@ func GenerateSystem(sys *pack.SystemFile) (string, error) {
 		uint64(sys.Input.A),
 		uint64(sys.Input.B),
 		uint64(sys.Input.C),
-		uint64(sys.Input.Start))
+		uint64(sys.Input.Start),
+		uint64(sys.Input.X),
+		uint64(sys.Input.Y),
+		uint64(sys.Input.L),
+		uint64(sys.Input.R),
+		uint64(sys.Input.Select))
 	b.WriteString("};\n\n")
 	b.WriteString("} // namespace generated\n")
 	b.WriteString("} // namespace native\n")

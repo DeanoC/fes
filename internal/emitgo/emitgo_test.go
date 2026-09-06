@@ -36,3 +36,23 @@ func TestGenerateSystemMegaDriveLaunchFields(t *testing.T) {
 		}
 	}
 }
+
+func TestGenerateSystemWithoutCartridge(t *testing.T) {
+	sys, err := pack.LoadSystem("../../packages/system/megadrive.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sys.Media = nil // Emitter fixture; does not declare hardware support.
+	text, err := GenerateSystem(sys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fragment := range []string{"MegaDriveSystem", "MegaDriveExpectedCore", `"megadrive"`, `"MegaDrive"`} {
+		if !strings.Contains(text, fragment) {
+			t.Errorf("missing %s", fragment)
+		}
+	}
+	if strings.Contains(text, "CartridgeIndex") {
+		t.Fatal("fabricated cartridge index")
+	}
+}
