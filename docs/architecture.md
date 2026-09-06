@@ -146,15 +146,16 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current nextpnr pin `bb3b589ba1d50ccb664eb907319da0550144f2e3` extends that reset
-baseline with configurable integer output frequencies. It selects an exact C
-counter from two checked feedback/analog configurations: M12/N2 at a reported
-300 MHz, or M32/N5 at a reported 320 MHz. The supported whole-MHz outputs are
-1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 16, 20, 25, 30, 32, 40, 50, 60, 64, 75, 80,
-and 100. The input remains PIN_V11 at exactly `"50.0 MHz"`, with one output,
-direct mode, zero phase and 50% duty. Fractional or unsupported frequencies
-fail explicitly; there is no general analog-setting solver. The closed
-`090_pll_clock` and `110_pll_reset` experiments retain their 25 MHz output.
+The current nextpnr pin `56b64126d2b55eac85c8f6ed369d4a8e76ed9ff4` extends the
+integer-frequency pin `bb3b589ba1d50ccb664eb907319da0550144f2e3` with compatible
+dual-output pairs. Both outputs must be whole MHz from 1–100 and share exact
+integer dividers from one checked feedback configuration, tried in order:
+reported 300, 320, then 400 MHz. The original 25/40 MHz pair still uses M=16
+N=2 (reported 400 MHz), C6=16 and C7=10. Reversed and equal outputs are
+supported; incompatible pairs such as 25/32 MHz fail. Single-output whole-MHz
+selection is unchanged. Phase shifts, duty cycles other than 50%, and more than
+two clocks remain rejected. The closed `090_pll_clock` and `110_pll_reset`
+experiments retain their 25 MHz output.
 
 Compiler fixtures under `mistral/tests/pll` in the nextpnr fork cover divider
 selection, malformed frequencies, emitted configuration, meter simulation and
@@ -162,9 +163,9 @@ reset/relock. Quartus 17.0.2 oracles cover 20/40/80/100 MHz. On 2026-09-06 the
 20/40/100 MHz OSS diagnostic artifacts each passed ten hardware cycles: zero
 while reset, then 1638–1639 / 3276–3277 / 8192 after relock. Their reference and
 output Fmax values were 216.732 / 326.584 MHz against 50 MHz and the selected
-output constraint. This pin update adds no new numbered experiment or runtime
-contract. Artifact hashes and reproduction commands are in the
-[nextpnr PLL test documentation](https://github.com/DeanoC/nextpnr/blob/bb3b589ba1d50ccb664eb907319da0550144f2e3/mistral/tests/pll/README.md).
+output constraint. Host pair regressions cover 25/40, 40/25, 20/100, 40/64,
+80/80 and 1/1 MHz. Artifact hashes and reproduction commands are in the
+[nextpnr PLL test documentation](https://github.com/DeanoC/nextpnr/blob/56b64126d2b55eac85c8f6ed369d4a8e76ed9ff4/mistral/tests/pll/README.md).
 
 `120_pll_dsp` runs the eight-by-eight unsigned DSP product on the proven
 50-to-25 MHz PLL output. Linux peeks and pokes GPO/GPI on the 50 MHz
@@ -186,6 +187,63 @@ diagnostics on 2026-09-06 returned lock and the expected products
 signature `0xDC10`. The current `kit.py` close completed development reboot
 recovery and left the lease free. This is exact-artifact functional
 diagnostic acceptance; it does not establish native game acceptance.
+
+`130_pll_dsp_40` is the same eight-by-eight unsigned DSP product on a 50-to-40
+MHz integer PLL output from the current configurable pin. Linux peeks and pokes
+GPO/GPI on the 50 MHz reference domain; there is no LED. Yosys maps one
+`altera_pll` and one `MISTRAL_MUL9X9`. Memory remains forbidden. The closed OSS
+policy requires `host_port.FPGA_CLK1_50` at 50 MHz and `clk40` at 40 MHz. Reset
+stays tied low. See `experiments/130_pll_dsp_40/expected.md`. Simulation and OSS
+are supported; Quartus comparison is not implemented.
+
+The OSS `130_pll_dsp_40` artifact has SHA-256
+`30eb112761e7ee5ea284a3087cf66057e1b4f559d48a6eed698f30a1aeae6edb`
+and size 1,956,439 bytes. nextpnr selected 50→40 MHz with M=32 N=5 C6=8.
+Its reported reference/output Fmax values are 419.815/150.625 MHz against
+50/40 MHz constraints. Utilization is one `altera_pll`, one `MISTRAL_MUL9X9`,
+and one HPS GP. Exact-artifact kit diagnostics on 2026-09-06 returned lock
+and the expected products (`0x0A*0x0C=0x0078`, `0x12*0x34=0x03A8`,
+`0xFF*0xFF=0xFE01`) with GPI signature `0xDC40`. The current `kit.py` close
+completed development reboot recovery and left the lease free. This is
+exact-artifact functional diagnostic acceptance; it does not establish native
+game acceptance.
+
+`140_pll_dsp_20`, `150_pll_dsp_80`, and `160_pll_dsp_100` are the same DSP
+product on the other integer PLL outputs that matter for cores: 20 MHz (Pong
+game/video), 80 MHz, and 100 MHz (the maximum checked output). Each uses one
+`altera_pll` and one `MISTRAL_MUL9X9`, HPS peek/poke on 50 MHz, and closed
+timing for `host_port.FPGA_CLK1_50` plus `clk20` / `clk80` / `clk100`. GPI
+signatures are `0xDC20`, `0xDC80`, and `0xDC64`. Simulation and OSS are
+supported; Quartus comparison is not implemented.
+
+The OSS artifacts are:
+
+| Experiment | PLL | Size | SHA-256 | Fmax 50/out MHz |
+| --- | --- | --- | --- | --- |
+| `140_pll_dsp_20` | M=12 N=2 C6=15 | 1,956,437 | `77caf629c39a77c2532a418b7fffdcbdb712893f1781fd6c9cfb544aae843867` | 419.815/150.625 vs 50/20 |
+| `150_pll_dsp_80` | M=32 N=5 C6=4 | 1,956,439 | `b37a1b186efa516d20addabc564a7739b6c8783bf7478eab9c6685aa587d4592` | 419.815/150.625 vs 50/80 |
+| `160_pll_dsp_100` | M=12 N=2 C6=3 | 1,956,025 | `27be8deeb08466d6e591a0b3980afb410323b2544d83a294444a48408f2723d8` | 432.900/144.592 vs 50/100 |
+
+Each uses one `altera_pll`, one `MISTRAL_MUL9X9`, and one HPS GP.
+Exact-artifact kit diagnostics on 2026-09-06 returned lock and the expected
+products for all three signatures. The current `kit.py` close completed
+development reboot recovery after each load and left the lease free.
+
+`170_pll_dual` measures both outputs of the original 25/40 MHz pair through
+HPS GP. GPI signature `0xD714` identifies the protocol; GPO bit3 selects the
+40 MHz meter. Simulation and OSS are supported; Quartus comparison is not
+implemented. See `experiments/170_pll_dual/expected.md`.
+
+The OSS `170_pll_dual` artifact has SHA-256
+`9db9ed4083e5dd5f81e590e2ed1d0d5cb03bbcca6a986482c71d575281887ee8`
+and size 1,958,858 bytes. nextpnr selected 50→25/40 MHz with M=16 N=2 C6=16
+C7=10. Its reported reference/25/40 Fmax values are 197.902/250.815/340.368 MHz
+against 50/25/40 MHz constraints. Utilization is one `altera_pll`, three clock
+buffers, and one HPS GP. Exact-artifact kit diagnostics on 2026-09-06 returned
+zero while reset and 2048 / 3277 after relock for three cycles on each output.
+The current `kit.py` close completed development reboot recovery and left the
+lease free. This is exact-artifact functional diagnostic acceptance; it does
+not establish native game acceptance.
 
 ## Standalone Pong game
 

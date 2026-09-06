@@ -68,6 +68,11 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/100_dsp_rom/rtl/top.v",
             "experiments/110_pll_reset/rtl/top.v",
             "experiments/120_pll_dsp/rtl/top.v",
+            "experiments/130_pll_dsp_40/rtl/top.v",
+            "experiments/140_pll_dsp_20/rtl/top.v",
+            "experiments/150_pll_dsp_80/rtl/top.v",
+            "experiments/160_pll_dsp_100/rtl/top.v",
+            "experiments/170_pll_dual/rtl/top.v",
         ):
             destination = repository / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -105,7 +110,7 @@ class OssPipelinePurityTests(unittest.TestCase):
 
         pins = {
             "yosys": "13b43f8c85ec430a33ee55d058fb4c32b42b6910",
-            "nextpnr": "bb3b589ba1d50ccb664eb907319da0550144f2e3",
+            "nextpnr": "56b64126d2b55eac85c8f6ed369d4a8e76ed9ff4",
         }
         for lock_name, commit in pins.items():
             evidence = external_build / lock_name if symlink_build_tools else build / lock_name
@@ -225,6 +230,18 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertIn("--compress-rbf", commands)
         self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
 
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_pll_dual(self) -> None:
+        result = self._run("--print-commands", "--experiment", "170_pll_dual")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/170_pll_dual/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("pll_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
     def test_print_commands_keeps_memory_and_dsp_disabled_for_pll_clock(self) -> None:
         result = self._run("--print-commands", "--experiment", "090_pll_clock")
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -236,6 +253,26 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertIn("--freq 50", commands)
         self.assertIn("--compress-rbf", commands)
         self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_pll_and_dsp_for_frequency_products(self) -> None:
+        for experiment in (
+            "130_pll_dsp_40",
+            "140_pll_dsp_20",
+            "150_pll_dsp_80",
+            "160_pll_dsp_100",
+        ):
+            with self.subTest(experiment=experiment):
+                result = self._run("--print-commands", "--experiment", experiment)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                commands = result.stdout
+                self.assertIn(f"experiments/{experiment}/rtl/top.v", commands)
+                self.assertIn("synth_intel_alm -nobram -nolutram -top top", commands)
+                self.assertNotIn("-nodsp", commands)
+                self.assertNotIn("hps_gp_model.v", commands)
+                self.assertNotIn("pll_model.v", commands)
+                self.assertIn("--freq 50", commands)
+                self.assertIn("--compress-rbf", commands)
+                self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
 
     def test_print_commands_enables_pll_and_dsp_for_pll_dsp(self) -> None:
         result = self._run("--print-commands", "--experiment", "120_pll_dsp")

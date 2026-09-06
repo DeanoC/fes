@@ -13,6 +13,8 @@ development possible with both the open-source Mistral toolchain and Quartus.
 - Single-output PLL support for checked whole-MHz frequencies from a 50 MHz
   reference, including 20, 40, and 100 MHz, with fabric reset/relock. The closed
   PLL experiments below retain their 25 MHz output.
+- Dual-output PLL support for compatible whole-MHz pairs that share one checked
+  300/320/400 MHz feedback configuration, including 25/40 MHz.
 - An optional Quartus Prime Lite 17.0.2 reference build using the same RTL.
 - Semantic comparison between the OSS and Quartus outputs.
 - `010_blinky`, a small LED counter.
@@ -37,6 +39,15 @@ development possible with both the open-source Mistral toolchain and Quartus.
 - `120_pll_dsp`, an eight-by-eight DSP product clocked by that 25 MHz PLL
   output and observed through HPS GP. Run `make sim EXP=120_pll_dsp` and
   `make oss EXP=120_pll_dsp`; no Quartus comparison lane is implemented.
+- `130_pll_dsp_40`, the same DSP product on a 50→40 MHz integer PLL output.
+  Run `make sim EXP=130_pll_dsp_40` and `make oss EXP=130_pll_dsp_40`; no
+  Quartus comparison lane is implemented.
+- `140_pll_dsp_20`, the same product on 20 MHz (Pong's game/video clock).
+- `150_pll_dsp_80` and `160_pll_dsp_100`, the same product on 80 MHz and
+  100 MHz, the other checked integer outputs used for faster fabric clocks.
+- `170_pll_dual`, one PLL driving 25 MHz and 40 MHz together, measured through
+  HPS GP. Run `make sim EXP=170_pll_dual` and `make oss EXP=170_pll_dual`; no
+  Quartus comparison lane is implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under

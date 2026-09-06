@@ -947,6 +947,220 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                 ),
             ),
         ),
+        "130_pll_dsp_40": ExperimentPolicy(
+            name="130_pll_dsp_40",
+            sources=("experiments/130_pll_dsp_40/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=("host_port.FPGA_CLK1_50",),
+            additional_clocks_mhz={"clk40": 40.0},
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "MISTRAL_MUL9X9": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"PLL", "phase_locked", "DSP", "MAC", "MUL"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+            },
+            required_synth_cells={"altera_pll": 1, "MISTRAL_MUL9X9": 1},
+            nodsp=False,
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/130_pll_dsp_40/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/130_pll_dsp_40/sim/pll_model.v",
+                    ),
+                    tb="experiments/130_pll_dsp_40/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "140_pll_dsp_20": ExperimentPolicy(
+            name="140_pll_dsp_20",
+            sources=("experiments/140_pll_dsp_20/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=("host_port.FPGA_CLK1_50",),
+            additional_clocks_mhz={"clk20": 20.0},
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "MISTRAL_MUL9X9": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"PLL", "phase_locked", "DSP", "MAC", "MUL"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+            },
+            required_synth_cells={"altera_pll": 1, "MISTRAL_MUL9X9": 1},
+            nodsp=False,
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/140_pll_dsp_20/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/140_pll_dsp_20/sim/pll_model.v",
+                    ),
+                    tb="experiments/140_pll_dsp_20/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "150_pll_dsp_80": ExperimentPolicy(
+            name="150_pll_dsp_80",
+            sources=("experiments/150_pll_dsp_80/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=("host_port.FPGA_CLK1_50",),
+            additional_clocks_mhz={"clk80": 80.0},
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "MISTRAL_MUL9X9": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"PLL", "phase_locked", "DSP", "MAC", "MUL"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+            },
+            required_synth_cells={"altera_pll": 1, "MISTRAL_MUL9X9": 1},
+            nodsp=False,
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/150_pll_dsp_80/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/150_pll_dsp_80/sim/pll_model.v",
+                    ),
+                    tb="experiments/150_pll_dsp_80/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "160_pll_dsp_100": ExperimentPolicy(
+            name="160_pll_dsp_100",
+            sources=("experiments/160_pll_dsp_100/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=("host_port.FPGA_CLK1_50",),
+            additional_clocks_mhz={"clk100": 100.0},
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "MISTRAL_MUL9X9": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"PLL", "phase_locked", "DSP", "MAC", "MUL"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+            },
+            required_synth_cells={"altera_pll": 1, "MISTRAL_MUL9X9": 1},
+            nodsp=False,
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/160_pll_dsp_100/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/160_pll_dsp_100/sim/pll_model.v",
+                    ),
+                    tb="experiments/160_pll_dsp_100/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "170_pll_dual": ExperimentPolicy(
+            name="170_pll_dual",
+            sources=("experiments/170_pll_dual/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=("meter.refclk",),
+            additional_clocks_mhz={"clocks[0]": 25.0, "clocks[1]": 40.0},
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+            },
+            forbidden_source_patterns=tuple(
+                pattern for pattern in _COMMON_SOURCE_PATTERNS
+                if pattern not in {"PLL", "phase_locked"}
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+            },
+            required_synth_cells={"altera_pll": 1},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/170_pll_dual/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/170_pll_dual/sim/pll_model.v",
+                    ),
+                    tb="experiments/170_pll_dual/sim/tb.cpp",
+                ),
+                SimJob(
+                    name="meter",
+                    top="pll_meter",
+                    sources=("experiments/170_pll_dual/rtl/top.v",),
+                    tb="experiments/090_pll_clock/sim/meter_sim.cpp",
+                    parameters={"WINDOW_BITS": "12"},
+                ),
+            ),
+        ),
     }
 )
 

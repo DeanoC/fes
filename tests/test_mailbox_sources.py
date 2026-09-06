@@ -131,6 +131,11 @@ class MailboxSourcePolicyTests(unittest.TestCase):
             "100_dsp_rom",
             "110_pll_reset",
             "120_pll_dsp",
+            "130_pll_dsp_40",
+            "140_pll_dsp_20",
+            "150_pll_dsp_80",
+            "160_pll_dsp_100",
+            "170_pll_dual",
         ):
             result = subprocess.run(
                 ["make", "-n", "sim", f"EXP={experiment}"],
