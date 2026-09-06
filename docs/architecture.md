@@ -41,6 +41,105 @@ the constant message `OSS FPGA OK\n`. It has no external FPGA output. The
 simulation substitutes a small HPS model; both synthesis lanes use the real
 HPS primitive boundary.
 
+## Standalone Pong game
+
+`cores/pong/rtl/pong_game.sv` implements a deterministic 320x240 game module.
+It is not a programmable MiSTer core: board timing, the HPS interface, HDMI
+and audio transport require a separate compatible wrapper.
+
+One player moves the left paddle with Up/Down (opposing inputs cancel), against
+an opponent moving at most one pixel per frame. Paddle impact position determines
+upward/downward return, with slower center shots and faster edge shots. Start
+begins a rally on a fresh press; a point returns the ball to its center serve position and waits for
+another press. Decimal scores wrap after nine. Reset clears scores and restores
+the same positions and initial left/down trajectory every time.
+
+The synchronous interface takes `clk`, `reset`, `frame_tick`, `up`, `down`,
+`start` and 10-bit `pixel_x`/`pixel_y`. A one-clock `frame_tick` advances game
+state; raster coordinates select RGB pixels independently. Outputs are 8-bit
+`red`/`green`/`blue`, `tone`, `playing`, integer top-left positions
+`ball_x`/`ball_y`/`player_y`/`ai_y`, and 4-bit decimal scores
+`player_score`/`ai_score`. Paddles are 4x32 at x=12 and x=304; the ball is 4x4.
+Out-of-range raster coordinates produce black. Seven-segment score glyphs
+appear above the playfield. `CLOCK_HZ` sets a 1 kHz square-wave collision/score
+tone lasting approximately 100 ms; set it to the wrapper's actual game clock
+(at least 2 kHz). The tone is a logic signal, not an audio device interface.
+
+Run `make sim-pong VERILATOR=/absolute/path/to/existing/verilator` (or omit
+the override when Verilator is on PATH). This uses the installed compiler,
+never bootstraps a toolchain, and writes `build/sim/pong/` and
+`build/sim/pong-video/`. Its real RTL harness checks reset, input bounds,
+frame gating, start/restart, wall and paddle
+bounces, both scoring sides, pixels and tone expiry. The test uses an 8 kHz
+clock parameter to exercise sound cheaply. The same target tests the separate
+`pong_video.sv` raster: 320x240 active pixels, 424x262 totals, and a pixel enable
+every three cycles of a 20 MHz clock (approximately 60.01 Hz). That module
+supplies coordinates, syncs, active-video indication and one frame tick. Neither
+module includes the board/HPS wrapper. Simulation is not hardware evidence.
+
+## Pong MiSTer wrapper and Quartus build
+
+`cores/pong/Pong.sv` connects the game/raster to the framework selected in
+`cores/pong/framework.toml`: Template_MiSTer revision
+`3ea1134cf05d62c2b1db30362277a823d739ced2`. This is a source-only framework pin,
+not a fabricated upstream game/release-RBF pin. `sys/` is staged unchanged,
+including the board pins, HPS I/O and video/audio infrastructure. Its existing
+PLL supplies the 20 MHz game/video clock.
+
+The wrapper reports core identity `Pong` and requests no media. The low word of
+MiSTer joystick command `0x02` drives Up bit 3 (`0x0008`), Down bit 2 (`0x0004`)
+and Start bit 7 (`0x0080`). Status bit 0, the framework reset input, or its user
+reset button resets the game; normal profile reset words are assert/initial
+`0x0001`, release `0x0000`. Raster synchronization continues through game reset.
+The game tone drives identical signed left/right samples (zero while silent).
+The native runtime remains responsible for enabling video/audio and lifecycle.
+
+```sh
+make stage-pong
+QUARTUS_ROOTDIR=/absolute/path/to/intelFPGA_lite/17.0 make build-pong
+```
+
+Both commands accept `PONG_FRAMEWORK=/absolute/path/to/clean/template-checkout`
+to reuse an existing checkout at the pin. Otherwise they clone into
+`build/frameworks/template/`. They reject a dirty or wrong-revision checkout.
+Staging archives the pinned Git tree, overlays the local Pong files, and fixes
+the build date to the value in `framework.toml` through a project-level pre-flow
+hook, without changing `sys/build_id.tcl`. It recreates only
+`build/rebuild/pong/project/`; do not edit that generated tree.
+
+`build/rebuild/pong/inputs.json` records hashes of local RTL and build helpers,
+the framework revision, and every staged source file. A successful Quartus run
+publishes `pong.rbf` and `build.json` there, with artifact size/hash, compiler
+version, command and the input-record hash. `quartus.log` records compiler
+diagnostics. A stage-only or failed compile produces no new success receipt.
+The command uses an explicitly configured installed Quartus 17.0.2; it does not
+bootstrap tools, deploy, or program hardware. Repeatable input staging is not
+a claim of independently reproduced RBF bytes. Hardware acceptance is separate.
+
+The 2026-09-06 local wrapper build completed full Quartus 17.0.2 Lite
+compilation in 2m46s with 0 errors and 56 warnings. The resulting `pong.rbf`
+is 2,437,696 bytes, SHA-256
+`1567e5ea4db1f18b9f23b48e7a4b7604024a998ddf1378bf77fe5968e00c64d1`.
+Its input record SHA-256 is
+`63624330d39067eaa46a266225918c0effdd0924ac830bed97a11d94b46648bb`.
+Those records identify the exact local sources used at build time. Parent
+component selection and image acceptance are tracked separately by FES.
+
+`project/output_files/Pong.fit.summary` reports 7,803/41,910 ALMs.
+`project/output_files/Pong.sta.summary` reports positive slack for every listed
+setup/hold/recovery/removal/pulse-width domain; worst setup is 0.399 ns and
+worst hold is 0.247 ns. Warnings include inherited framework connectivity,
+unused timing filters and PLL lock outputs, plus score-width narrowing in
+the game. These reports do not establish physical output or input behavior.
+
+Post-build hashing found all 57 staged `sys/` files unchanged and no local
+source drift. Quartus changed only the staged `Pong.qsf` input, replacing its
+`LAST_QUARTUS_VERSION` metadata from `17.0.2 Standard Edition` to
+`17.0.2 Lite Edition`. The input record deliberately retains the original
+staging hash. No second independent RBF build has been run. The diagnostic
+image subsequently passed native Pong gameplay, Up/Down/Start controls, HDMI
+audio, Stop/relaunch and switching with Mega Drive and SNES without rebooting.
+
 ## Artifact boundary
 
 The integration outputs are:
@@ -79,6 +178,18 @@ hardware.
 
 ## Pinned core trees
 
+The lock also selects SNES revision `93d359e6f23c734ae3928984e88bed1d9b53cbac`
+and its hashed upstream `SNES_20260823.rbf`, copied from mister-packages.
+`make fetch-core CORE=snes` uses the existing named-core fetch lane. The local
+SNES seed-1 rebuild completed compilation but failed timing. A separately staged
+seed-3 diagnostic passed all timing checks (minimum setup 0.240 ns, hold
+0.243 ns) and native LoROM/HiROM gameplay, controls, HDMI audio and switching
+checks in FES. Its 4,440,332-byte RBF SHA-256 is
+`fdd6d3c51cf3662cb59c5250eee8d4aa48fdab14a272c756fb892677d5ff1226`.
+The diagnostic changed only the staged QSF seed; the normal rebuild recipe
+retains seed 1 and does not reproduce that artifact. Bundle export still
+accepts only Mega Drive.
+
 `cores.lock` is the upstream version pin: git identity plus the official
 release RBF hash. `make fetch-core` checks out that exact commit under
 `build/cores/<name>/` and hashes the official RBF. That hash check is the
@@ -109,3 +220,14 @@ revision and the MiSTer ABI. It rehashes the rebuild and recipe, validates the
 closed `compare.json`, writes the two-file bundle under its RBF digest, removes
 all write bits from the files and directory, and prints the absolute bundle
 path. FogCast owns which exported RBF is installed on a target.
+
+## Shared native kit client
+
+`scripts/kit.py` is a thin operator client of FogCast's target lease and native
+RBF upload APIs. It retains one in-memory lease during an interactive session,
+renews every 20 seconds, streams regular RBF files with an explicit bounded
+length (1 byte–32 MiB), and releases on exit. It stores no credentials or lease
+database. FogCast remains authoritative for expiry, takeover, serialization and
+cleanup; libmister-runtime performs the physical transition. See the README's
+shared-kit commands. Direct `make program` remains a maintenance bypass outside
+this protection, and compilation never acquires a lease.

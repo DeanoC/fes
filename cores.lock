@@ -9,3 +9,13 @@ rbf_sha256 = "0cd43ea2c96e726999f04924713ca090ae73829f3ab08109c6b552cebeba0839"
 rbf_size = 4296864
 project = "MegaDrive.qpf"
 rationale = "Release 20260603. Upstream git pin plus the official RBF; our Quartus rebuild is a separate selectable artifact."
+
+# Copied from mister-packages packages/source/snes_mister.yaml.
+[core.snes]
+repo = "https://github.com/MiSTer-devel/SNES_MiSTer"
+commit = "93d359e6f23c734ae3928984e88bed1d9b53cbac"
+rbf_path = "releases/SNES_20260823.rbf"
+rbf_sha256 = "0c13347c0939f597ead5f1f835532d4508b10613e82e7316e902eabe712a9c83"
+rbf_size = 4446024
+project = "SNES.qpf"
+rationale = "Release 20260823. Upstream source/artifact identity verified. Local rebuild identity and hardware evidence are separate; see docs/architecture.md."
