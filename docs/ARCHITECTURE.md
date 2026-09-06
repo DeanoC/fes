@@ -212,7 +212,7 @@ the download and falls back to stills. Non-CGO Darwin builds also skip video.
 Short clips play through, then the
 playlist advances or a single-item playlist restarts from the local file
 without re-fetching; clips longer than 60s are capped at 60s. Missing, failed,
-or unsupported video uses backdrop, else cover, else marquee. SDL re-uploads
+or unsupported video uses backdrop, else cover, else marquee. The gfx device re-uploads
 the stage texture only when `FrameSeq` changes. Hide, dismiss, park, and
 process stop tear down the decoder and close any player still queued.
 
@@ -225,8 +225,15 @@ unpark, Stop, app close, attract entry, and GPU-using overlays cancel the HTTP
 stream, close the reader, and drop the preview texture so no background
 goroutine holds the stream.
 
-Source entry points are `host/tenfoot/` and `cmd/fogcast-tenfoot`. The browser
-shell remains the default UI. Mac is the primary sofa target; Linux builds
+Source entry points are `host/tenfoot/` and `cmd/fogcast-tenfoot`. UI draw
+helpers use `host/tenfoot/gfx.Device` (begin/clear/present, RGBA8 textures,
+textured quads, fill rects). The only backend is SDL3
+(`gfx.WrapSDLRenderer`), wrapping the existing `SDL_Renderer` path. Window,
+events, gamepad, and text input remain SDL in `host/tenfoot/sdl.go`. A future
+MiSTer FPGA 2D accelerator can implement the same Device; there is no FPGA
+gfx backend yet.
+
+The browser shell remains the default UI. Mac is the primary sofa target; Linux builds
 with the same `make build-fogcast-tenfoot` target (`CGO_ENABLED=1` and
 pkg-config `sdl3`). Build and run notes are in
 [native-tenfoot-launcher/README.md](native-tenfoot-launcher/README.md).

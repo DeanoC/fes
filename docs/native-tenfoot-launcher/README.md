@@ -34,6 +34,27 @@ make build-fogcast-tenfoot
 Do not cross-compile the SDL3 binary from macOS (`GOOS=linux` + cgo needs a
 Linux sysroot). Native-on-Linux is the supported path.
 
+## 2D graphics device
+
+Cover grid, labels, attract, now-playing, and session preview draw through
+`host/tenfoot/gfx.Device`, a small 2D bitmap API:
+
+- frame lifecycle: `BeginFrame` / `Clear` / `Present`
+- textures: create/update/destroy from `*image.RGBA` (RGBA8), opaque handles
+- draw: textured quad (dst rect, optional src rect) and solid fill rect
+- letterbox logical size and VSync are backend concerns
+- GPU park destroys textures individually (preview is the parked exception)
+
+The first and only backend is SDL3 (`gfx.WrapSDLRenderer` in
+`host/tenfoot/gfx/sdl3.go`, built with `-tags sdl3`). It wraps the process
+`SDL_Renderer` with `SDL_LOGICAL_PRESENTATION_LETTERBOX` and VSync. UI
+helpers in `host/tenfoot/draw.go` do not call `SDL_Render*` or
+`SDL_CreateTexture`. Window creation, events, gamepad, and text input stay
+in `host/tenfoot/sdl.go` until a later slice.
+
+A future MiSTer FPGA 2D accelerator can implement `gfx.Device` without
+changing sofa layout code. There is no FPGA gfx backend in this tree.
+
 ## Run
 
 The host API must already be listening. Default base URL:
@@ -255,7 +276,7 @@ make tenfoot-smoke
   retry for the same cover handle. A later presentation response that
   replaces or removes the cover handle is adopted even when the previous
   cover has already decoded, so the slot can fetch the new artwork or go
-  missing. The SDL cover texture is keyed by game ID and is replaced when
+  missing. The cover texture is keyed by game ID and is replaced when
   that decoded image changes. Screenshot handles from the focused title use
   the same artwork GET. Failed or missing screenshot handles are skipped in
   the carousel and are not retried every frame; the pane stays interactive
@@ -360,14 +381,17 @@ only changes how that list is drawn and moved, not which titles load.
 
 The SDL window and renderer stay up for the process lifetime. When the host
 session becomes `active` (launch response or `GET /api/v1/session`), tenfoot
-parks GPU cover work: it destroys cover and label textures, drops decoded
-cover bitmaps, cancels in-flight presentation and artwork work (advancing
-the cover generation so pre-park completions cannot apply after resume),
-and does not upload a cover atlas until the session is idle again. Now-playing chrome is a few CPU-rasterized status labels, not the
-library view, plus the recent session events list, kit lease strip, and an
-optional **Preview** MJPEG surface. Preview uses CPU JPEG decode and one
-texture; a park or unpark transition cancels any in-flight preview stream so
-it cannot fight the cover atlas or leak GPU after teardown. Stop
+parks GPU cover work through `gfx.Device`: it destroys cover and label
+textures, drops decoded cover bitmaps, cancels in-flight presentation and
+artwork work (advancing the cover generation so pre-park completions cannot
+apply after resume), and does not upload a cover atlas until the session is
+idle again. The **Preview** texture is the parked exception and is destroyed
+on unpark, attract entry, Stop, and app close. Now-playing chrome is a few
+CPU-rasterized status labels, not the library view, plus the recent session
+events list, kit lease strip, and an optional **Preview** MJPEG surface.
+Preview uses CPU JPEG decode and one texture; a park or unpark transition
+cancels any in-flight preview stream so it cannot fight the cover atlas or
+leak GPU after teardown. Stop
 and Quit still work while parked. Retry-Stop lockout after `save_failed` or a
 failed Stop keeps the GPU parked and launch locked until Stop succeeds. On
 idle (stop success, poll, or media exit observed through the status poll) the
