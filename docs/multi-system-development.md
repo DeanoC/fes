@@ -71,6 +71,13 @@ Parent tests: 29 passed. FogCast's full `make test` passed, with its Chrome
 integration fixture skipped because Chrome was unavailable. The basic SNES
 scope and Mega Drive timing limitation above still apply.
 
+The subsequent review fix selects the existing macOS host selector during
+host-side verification and ensures the native-fetch target builds it on Darwin.
+Linux/container selection retains its previous executable. The selected FogCast
+pin includes this portability fix, validated with simulated Darwin/Linux routing
+and real extra-core fixtures (no native macOS run); the cold-build and hardware record above remains tied to the listed
+pre-fix revision. No new hardware acceptance is inferred for a later revision.
+
 ## Working locations
 
 The initial implementation used parent branch `feat/pong-snes` and isolated
