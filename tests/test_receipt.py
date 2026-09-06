@@ -3,10 +3,33 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 
 class ReceiptTest(unittest.TestCase):
+    def test_media_sources_do_not_invalidate_cold_build_fingerprint(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import build
+        revisions = {"FogCast": "a" * 40}
+        profile = {"version": "test"}
+        before, _ = build.build_fingerprint(revisions, profile, "go test")
+        with mock.patch.object(build, "MEDIA_RECIPE_FILES", (Path("changed-media.py"),)):
+            after, _ = build.build_fingerprint(revisions, profile, "go test")
+        self.assertEqual(before, after)
+
+    def test_verified_image_rejects_missing_or_mismatched_evidence(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import build
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp)
+            (output / "linux.img").write_bytes(b"cold image")
+            (output / "reproducibility.txt").write_text("run_1_sha256=wrong\nrun_2_sha256=wrong\n")
+            build.write_receipt(output, "image", "cold-fingerprint",
+                                ["linux.img", "reproducibility.txt"])
+            with self.assertRaisesRegex(ValueError, "run make verify"):
+                build.load_verified_image(output, "cold-fingerprint")
+
     def test_republish_read_only_selection(self):
         sys.path.insert(0, str(SCRIPTS))
         import build

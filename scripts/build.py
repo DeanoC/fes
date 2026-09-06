@@ -18,6 +18,8 @@ import bundle as core_bundle
 from environment import build_environment
 
 ROOT = Path(__file__).resolve().parents[1]
+BUILD_RECIPE_FILES = tuple(sorted((ROOT / "scripts").glob("*.py")))
+MEDIA_RECIPE_FILES = ()
 
 def run(args, **kwargs):
     print("+ " + " ".join(map(str, args)), flush=True)
@@ -53,11 +55,44 @@ def reusable(output, kind, fingerprint):
     except (OSError, ValueError, KeyError, TypeError):
         return False
 
-def fingerprint(revisions, profile, toolchain):
+def recipe_fingerprint(paths):
+    return {str(path.relative_to(ROOT)): digest(path) for path in paths}
+
+
+def build_fingerprint(revisions, profile, toolchain):
     data = {"sources": revisions, "profile": profile, "go": toolchain,
-            "recipe": {str(p.relative_to(ROOT)): digest(p)
-                       for p in sorted((ROOT / "scripts").glob("*.py"))}}
+            "recipe": recipe_fingerprint(BUILD_RECIPE_FILES)}
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest(), data
+
+
+def fingerprint(revisions, profile, toolchain):
+    """Compatibility wrapper for callers of the original receipt API."""
+    return build_fingerprint(revisions, profile, toolchain)
+
+
+def load_verified_image(output, fingerprint):
+    if not reusable(output, "image", fingerprint):
+        raise ValueError("cold image receipt is missing or stale; run make build and make verify")
+    try:
+        verification = json.loads((output / "verification.json").read_text())
+        actual = digest(output / "linux.img")
+        evidence = dict(line.split("=", 1) for line in
+                        (output / "reproducibility.txt").read_text().splitlines())
+        required = (verification.get("image_sha256") == actual
+                    and verification.get("structural") == "pass"
+                    and verification.get("qemu_packaging") == "pass"
+                    and verification.get("two_pass_reproducibility") == "pass"
+                    and evidence.get("run_1_sha256") == actual
+                    and evidence.get("run_2_sha256") == actual
+                    and (output / "qemu-smoke.log").is_file())
+    except (OSError, ValueError, TypeError):
+        required = False
+    if not required:
+        raise ValueError("cold image verification is missing or stale; run make verify")
+    return {"rootfs_sha256": actual,
+            "image_receipt_sha256": digest(output / "image.json"),
+            "verification_sha256": digest(output / "verification.json"),
+            "qemu_log_sha256": digest(output / "qemu-smoke.log")}
 
 def output_volume(root, profile):
     identity = hashlib.sha256((str(root) + "\0" + profile).encode()).hexdigest()[:16]
@@ -185,7 +220,7 @@ def main():
         lock_path.write_bytes(subprocess.check_output([
             "git", "-C", str(fogcast), "show", "HEAD:build/native-runtime.inputs.lock.toml"
         ]))
-        fp, info = fingerprint(revisions, profile, toolchain)
+        fp, info = build_fingerprint(revisions, profile, toolchain)
         env["TARGET_IMAGE_CONTAINER_RUNTIME"] = container
         env["TARGET_IMAGE_OUTPUT_VOLUME"] = output_volume(ROOT, args.profile)
         # The host has a small /tmp tmpfs; Go temporary files belong in out/.
