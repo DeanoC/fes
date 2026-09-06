@@ -11,6 +11,8 @@ Point `QUARTUS_ROOTDIR` at either the Quartus directory containing
 export QUARTUS_ROOTDIR=/path/to/17.0/quartus
 make oracle EXP=010_blinky
 make oracle EXP=020_linux_mailbox
+make oracle EXP=050_lut_mul
+make oracle EXP=060_dsp_mul
 ```
 
 The wrapper accepts only version 17.0.2, stages the selected minimal project

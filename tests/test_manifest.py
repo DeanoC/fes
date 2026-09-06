@@ -180,7 +180,7 @@ class ManifestTests(unittest.TestCase):
                 "build/oss/020_linux_mailbox/synth.json --device 5CSEBA6U23I7 "
                 "--qsf boards/de10nano/pins.qsf --sdc boards/de10nano/clocks.sdc "
                 "--freq 50 --rbf build/oss/020_linux_mailbox/top.rbf "
-                "--write build/oss/020_linux_mailbox/routed.json "
+                "--compress-rbf --write build/oss/020_linux_mailbox/routed.json "
                 "--report build/oss/020_linux_mailbox/timing.json "
                 "--detailed-timing-report\n"
             ),
@@ -281,7 +281,7 @@ class ManifestTests(unittest.TestCase):
                 "build/oss/020_linux_mailbox/synth.json --device 5CSEBA6U23I7 "
                 "--qsf boards/de10nano/pins.qsf --sdc boards/de10nano/clocks.sdc "
                 "--freq 50 --rbf build/oss/020_linux_mailbox/top.rbf "
-                "--write build/oss/020_linux_mailbox/routed.json "
+                "--compress-rbf --write build/oss/020_linux_mailbox/routed.json "
                 "--report build/oss/020_linux_mailbox/timing.json "
                 "--detailed-timing-report\n"
             ),

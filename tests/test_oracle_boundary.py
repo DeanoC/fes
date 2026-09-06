@@ -195,6 +195,23 @@ class OracleBoundaryTests(unittest.TestCase):
             "; Fitter Settings ;",
         )
 
+    @classmethod
+    def _mlab_fit_report(cls):
+        return cls._complete_fit_report().replace(
+            "; Fitter Settings ;",
+            "cyclonev_hps_interface_mpu_general_purpose | 1 | 1 | 100%\n"
+            "Total MLAB memory bits | 256 | 524288 | 0.05%\n"
+            "SDRAM | 0 | 1 | 0%\n"
+            "; Fitter Settings ;",
+        )
+
+    @classmethod
+    def _dsp_fit_report(cls):
+        return cls._mailbox_fit_report().replace(
+            "Total DSP Blocks | 0 | 2 | 0%",
+            "Total DSP Blocks | 1 | 2 | 50%",
+        )
+
     @staticmethod
     def _fmax_report(*rows):
         body = [
@@ -375,6 +392,94 @@ class OracleBoundaryTests(unittest.TestCase):
         self.assertEqual(
             summary["hard_blocks"]["cyclonev_hps_interface_mpu_general_purpose"]["used"],
             1,
+        )
+
+    def test_mlab_report_parser_measures_lutram_bits_and_hps(self):
+        temp, root, marker = self._quartus_real(
+            "17.0.2",
+            self._mlab_fit_report(),
+            self._fmax_report(("FPGA_CLK1_50", "100", "100")),
+        )
+        with temp:
+            result, summary, marker_seen = self._run_real(
+                root, marker, experiment="040_mlab_ram"
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(marker_seen)
+        self.assertEqual(summary["resource_evidence"]["lutram_bits"], 256)
+        self.assertEqual(summary["resource_evidence"]["block_memory_bits"], 0)
+        self.assertEqual(summary["resource_evidence"]["hps_general_purpose_interfaces"], 1)
+        self.assertEqual(summary["hard_blocks"]["MLAB/LUTRAM"]["used"], 256)
+        self.assertEqual(summary["hard_blocks"]["MLAB/LUTRAM"]["evidence_kind"], "fitter_summary")
+        self.assertEqual(summary["hard_blocks"]["BRAM/M10K"]["used"], 0)
+        self.assertEqual(
+            summary["hard_blocks"]["cyclonev_hps_interface_mpu_general_purpose"]["used"],
+            1,
+        )
+        self.assertEqual(
+            summary["allowed_hard_blocks"],
+            {"cyclonev_hps_interface_mpu_general_purpose": 1},
+        )
+
+    def test_lut_mul_report_parser_measures_zero_dsp_and_hps(self):
+        temp, root, marker = self._quartus_real(
+            "17.0.2",
+            self._mailbox_fit_report(),
+            self._fmax_report(("FPGA_CLK1_50", "100", "100")),
+        )
+        with temp:
+            result, summary, marker_seen = self._run_real(
+                root, marker, experiment="050_lut_mul"
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(marker_seen)
+        self.assertEqual(summary["resource_evidence"]["dsp_blocks"], 0)
+        self.assertEqual(summary["resource_evidence"]["lutram_bits"], 0)
+        self.assertEqual(summary["resource_evidence"]["block_memory_bits"], 0)
+        self.assertEqual(summary["resource_evidence"]["hps_general_purpose_interfaces"], 1)
+        self.assertEqual(summary["hard_blocks"]["DSP"]["used"], 0)
+        self.assertEqual(summary["hard_blocks"]["MLAB/LUTRAM"]["evidence_kind"], "static_exclusion")
+        self.assertEqual(summary["hard_blocks"]["BRAM/M10K"]["used"], 0)
+        self.assertEqual(
+            summary["hard_blocks"]["cyclonev_hps_interface_mpu_general_purpose"]["used"],
+            1,
+        )
+        self.assertEqual(
+            summary["allowed_hard_blocks"],
+            {"cyclonev_hps_interface_mpu_general_purpose": 1},
+        )
+
+    def test_dsp_mul_report_parser_measures_one_dsp_and_hps(self):
+        temp, root, marker = self._quartus_real(
+            "17.0.2",
+            self._dsp_fit_report(),
+            self._fmax_report(("FPGA_CLK1_50", "100", "100")),
+        )
+        with temp:
+            result, summary, marker_seen = self._run_real(
+                root, marker, experiment="060_dsp_mul"
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(marker_seen)
+        self.assertEqual(summary["resource_evidence"]["dsp_blocks"], 1)
+        self.assertEqual(summary["resource_evidence"]["lutram_bits"], 0)
+        self.assertEqual(summary["resource_evidence"]["block_memory_bits"], 0)
+        self.assertEqual(summary["resource_evidence"]["hps_general_purpose_interfaces"], 1)
+        self.assertEqual(summary["hard_blocks"]["DSP"]["used"], 1)
+        self.assertEqual(summary["hard_blocks"]["MLAB/LUTRAM"]["evidence_kind"], "static_exclusion")
+        self.assertEqual(
+            summary["hard_blocks"]["cyclonev_hps_interface_mpu_general_purpose"]["used"],
+            1,
+        )
+        self.assertEqual(
+            summary["allowed_hard_blocks"],
+            {
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_MUL9X9": 1,
+            },
         )
 
     def test_mailbox_report_parser_accepts_real_single_value_mlab_row(self):

@@ -14,6 +14,12 @@ development possible with both the open-source Mistral toolchain and Quartus.
 - Semantic comparison between the OSS and Quartus outputs.
 - `010_blinky`, a small LED counter.
 - `020_linux_mailbox`, a small HPS GPI/GPO mailbox experiment.
+- `030_m10k_rom`, an initialized table driving one LED through one M10K.
+- `040_mlab_ram`, a 32-by-8 writeable table on HPS GP, mapped to eight MLABs.
+- `050_lut_mul`, an eight-by-eight unsigned product on HPS GP, kept in logic cells.
+- `060_dsp_mul`, an eight-by-eight unsigned product on HPS GP. Yosys emits one
+  `MISTRAL_MUL9X9`; nextpnr-mistral cannot place DSP on this device. Quartus
+  measures one DSP block.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under
@@ -119,12 +125,20 @@ FogCast release handoff. The handoff is the printed digest directory under
 See `docs/oracle-method.md` for the explicit Quartus path and
 `docs/linux-mailbox-development.md` for the mailbox experiment.
 
-## Optional direct programming
+## Loading an experiment
 
-`make program` remains an optional volatile diagnostic for a selected build.
-It can use the resident Main command FIFO on a MiSTer target or an external
-USB-Blaster/JTAG connection on a DE10-Nano. It is not the intended FogCast UI
-path and never writes flash or the SD card.
+FogCast owns transfer and FPGA load. The designated native kit has no
+`/dev/MiSTer_cmd`. Claim a lease and stream a local RBF with `scripts/kit.py`
+(see Shared native development kit below). Direct host
+`POST /api/v1/session/development-rbf` is the same physical path when the host
+already holds the lease. HDMI stays powered down. These experiments are not
+MiSTer-compatible cores: after programming, the runtime probes SPI identity on
+the FPGA-manager GPO/GPI pair, that probe fails, and Stop restores idle through
+the existing development reboot handshake.
+
+`make program` is a separate Main-FIFO or JTAG diagnostic for a conventional
+MiSTer or DE10-Nano. It is not the native kit path and never writes flash or
+the SD card.
 
 ```sh
 PROGRAM_DRY_RUN=1 MISTER_HOST=misterpi MISTER_USER=root \
@@ -162,10 +176,13 @@ python3 scripts/kit.py --config /absolute/path/config.toml session \
 
 At the session prompt, enter `load build/oss/020_linux_mailbox/top.rbf`, `status`,
 `stop`, or `release`. Quote paths containing spaces. Repeat loads in the same
-session. Stop returns hardware to idle while retaining ownership; release,
-EOF, or Ctrl-C requests cleanup and frees ownership. Keep stdin open between
-commands (including when using an agent's persistent terminal session).
-`make kit-session` is a convenience using the environment configuration.
+session. A non-MiSTer development image programs, then fails the MiSTer SPI
+identity probe; `load` keeps the lease and reports `development probe timed out`
+so the operator can peek GPI before Stop. Stop returns hardware to idle while
+retaining ownership; release, EOF, or Ctrl-C requests cleanup and frees
+ownership. Keep stdin open between commands (including when using an agent's
+persistent terminal session). `make kit-session` is a convenience using the
+environment configuration.
 
 The client renews every 20 seconds and checks the held state, generation and
 token on each grant. It measures relative expiry against its monotonic clock,

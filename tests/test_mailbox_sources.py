@@ -115,12 +115,17 @@ class MailboxSourcePolicyTests(unittest.TestCase):
         self.assertNotIn("$(EXP)", require_exp)
         self.assertIn('"$$EXP"', require_exp)
         sim = makefile[makefile.index("sim:") : makefile.index("oss:")]
-        self.assertRegex(sim, r"case\s+\"\$\$EXP\"\s+in")
-        self.assertRegex(sim, r"010_blinky\)")
-        self.assertRegex(sim, r"020_linux_mailbox\)")
+        self.assertIn("scripts/run_sim.sh --experiment", sim)
         self.assertNotIn("$(EXP)", sim)
 
-        for experiment in ("010_blinky", "020_linux_mailbox"):
+        for experiment in (
+            "010_blinky",
+            "020_linux_mailbox",
+            "030_m10k_rom",
+            "040_mlab_ram",
+            "050_lut_mul",
+            "060_dsp_mul",
+        ):
             result = subprocess.run(
                 ["make", "-n", "sim", f"EXP={experiment}"],
                 cwd=ROOT,
@@ -128,6 +133,7 @@ class MailboxSourcePolicyTests(unittest.TestCase):
                 capture_output=True,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("run_sim.sh", result.stdout)
 
     def test_simulation_selector_rejects_shell_hostile_experiment_without_execution(self):
         with tempfile.TemporaryDirectory(prefix="mailbox-selector-", dir="/dev/shm") as directory:

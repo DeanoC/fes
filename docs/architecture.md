@@ -14,12 +14,15 @@ experiment RTL + constraints
 oss manifest + oracle manifest -> compare report
 ```
 
-`sim` checks the experiment's logical behavior with Verilator. Simulation-only
-models never enter either synthesis lane.
+`sim` checks the experiment's logical behavior with Verilator. Simulation jobs,
+production source lists, and OSS synthesis flags come from the closed experiment
+policy. Simulation-only models never enter either synthesis lane.
 
 `oss` uses only the pinned repository-local tools described by
-`toolchain.lock`. Generated sources and tools live under `build/toolchain/`.
-Build output lives under `build/oss/<experiment>/`.
+`toolchain.lock`. nextpnr writes a compressed Cyclone V RBF
+(`--compress-rbf`) so the FPGA manager can reach CONF_DONE. Generated
+sources and tools live under `build/toolchain/`. Build output lives under
+`build/oss/<experiment>/`.
 
 `oracle` uses an explicitly configured Quartus Prime Lite 17.0.2 installation.
 It uses the same production RTL and timing intent as the OSS lane. Output lives
@@ -40,6 +43,31 @@ output test.
 the constant message `OSS FPGA OK\n`. It has no external FPGA output. The
 simulation substitutes a small HPS model; both synthesis lanes use the real
 HPS primitive boundary.
+
+`030_m10k_rom` walks an initialized 256-byte table on the 50 MHz clock and
+drives one LED from stored bit 0. OSS synthesis maps the table to exactly one
+M10K. PLL, DSP, MLAB, and HPS remain forbidden.
+
+`040_mlab_ram` is a 32-by-8 writeable table on the HPS general-purpose
+interface. Linux peeks and pokes GPO/GPI; there is no LED. The table is
+marked `ramstyle = "mlab"`. Yosys maps it to eight `MISTRAL_MLAB` cells.
+nextpnr packs those into LABs and does not report an MLAB utilization key,
+so the closed policy counts the Yosys cells and requires the HPS primitive
+in the route report. Quartus maps the same table to 256 MLAB bits and zero
+M10K. PLL, DSP, and M10K remain forbidden.
+
+`050_lut_mul` is an eight-by-eight unsigned product on the HPS
+general-purpose interface. Linux peeks and pokes GPO/GPI; there is no LED.
+The product is marked `multstyle = "logic"` so both lanes keep it in ALMs.
+OSS synthesis keeps `-nodsp`; Yosys must not emit `MISTRAL_MUL*` cells.
+Quartus must measure zero DSP blocks. PLL, M10K, and MLAB remain forbidden.
+
+`060_dsp_mul` is an eight-by-eight unsigned product on the HPS
+general-purpose interface. Linux peeks and pokes GPO/GPI; there is no LED.
+The product is marked `multstyle = "dsp"`. OSS synthesis drops `-nodsp` and
+emits one `MISTRAL_MUL9X9`. nextpnr-mistral has no DSP BELs for
+`5CSEBA6U23I7`, so the OSS lane cannot place this experiment. Quartus maps
+the same product to one DSP block. PLL, M10K, and MLAB remain forbidden.
 
 ## Standalone Pong game
 
@@ -172,9 +200,16 @@ content-addressed directory containing exactly `megadrive.rbf` and
 selection path. No attestation record, run ID, recovery journal, or
 fault-injection result is required.
 
-`make program` is an optional direct diagnostic. It is deliberately separate
-from `sim`, `oss`, `oracle`, and `compare`, so building an RBF never touches
-hardware.
+Building an RBF never touches hardware. Ordinary native bring-up claims the
+kit with `scripts/kit.py` and streams the RBF through the target
+`POST /v1/development/rbf` path (`load_development_rbf`) under a held lease.
+The FogCast host uses the same lease for launches and
+`POST /api/v1/session/development-rbf`. That path programs the FPGA manager,
+then probes MiSTer SPI identity on the same FPGA-manager GPO/GPI pair the HPS
+general-purpose experiments use. A non-MiSTer image does not satisfy the
+probe; Stop restores idle with the existing development reboot handshake.
+`make program` remains a separate Main-FIFO or JTAG diagnostic outside this
+protection and is not the native kit path.
 
 ## Pinned core trees
 
@@ -226,11 +261,13 @@ path. FogCast owns which exported RBF is installed on a target.
 `scripts/kit.py` is a thin operator client of FogCast's target lease and native
 RBF upload APIs. It retains one in-memory lease during an interactive session,
 renews every 20 seconds, streams regular RBF files with an explicit bounded
-length (1 byte–32 MiB), and releases on exit. It stores no credentials or lease
-database. FogCast remains authoritative for expiry, takeover, serialization and
-cleanup; libmister-runtime performs the physical transition. See the README's
-shared-kit commands. Direct `make program` remains a maintenance bypass outside
-this protection, and compilation never acquires a lease.
+length (1 byte–32 MiB), and releases on exit. A development-RBF `CORE_TIMEOUT`
+after programming keeps that lease so the operator can inspect a non-MiSTer
+image before Stop. It stores no credentials or lease database. FogCast remains
+authoritative for expiry, takeover, serialization and cleanup; libmister-runtime
+performs the physical transition. See the README's shared-kit commands. Direct
+`make program` remains a maintenance bypass outside this protection, and
+compilation never acquires a lease.
 
 ## Bundle validation for Pong and SNES
 

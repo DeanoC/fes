@@ -29,8 +29,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
-
 SCRIPT_ROOT = Path(__file__).resolve().parents[1]
+_SCRIPTS = Path(__file__).resolve().parent
+if str(_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS))
+from experiment_policy import PolicyError, policy_for  # noqa: E402
 TARGET_DEVICE = "5CSEBA6U23I7"
 LOADER_BOARD = "de10nano"
 EXPECTED_CABLE_VID = 0x09FB
@@ -362,7 +365,70 @@ def _validate_oracle_provenance(build: dict[str, Any]) -> None:
         raise _fail("oracle manifest quartus tool pin does not match authenticated provenance")
 
 
-def _validate_resources(build: dict[str, Any], lane: str) -> None:
+def _validate_oss_policy_resources(build: dict[str, Any], experiment: str) -> None:
+    """Classify OSS utilization with the closed experiment policy."""
+
+    try:
+        policy = policy_for(experiment)
+    except PolicyError as exc:
+        raise _fail(str(exc)) from exc
+
+    resources = build.get("resources")
+    if not isinstance(resources, dict):
+        raise _fail("oss manifest resources must be an object")
+    try:
+        policy.validate_resources(resources)
+    except PolicyError as exc:
+        raise _fail(f"oss manifest resources violate experiment policy: {exc}") from exc
+
+    resource_classes = build.get("resource_classes")
+    if not isinstance(resource_classes, dict):
+        raise _fail("oss manifest resource_classes must be an object")
+    if set(resource_classes) != set(resources):
+        raise _fail("oss manifest resource_classes must exactly match resources")
+    for name in resources:
+        expected = policy.classify_resource(name)
+        if resource_classes.get(name) != expected:
+            raise _fail(f"oss manifest resource {name} is classified {resource_classes.get(name)!r}, expected {expected!r}")
+
+    unknown = build.get("unknown_resources")
+    if not isinstance(unknown, dict):
+        raise _fail("manifest unknown resource evidence is missing or malformed")
+    if unknown:
+        raise _fail("manifest contains unknown resource utilization keys")
+
+    hard_blocks = build.get("hard_blocks")
+    if not isinstance(hard_blocks, dict):
+        raise _fail("oss manifest hard_blocks evidence is missing")
+    expected_hard = {
+        name for name, classification in resource_classes.items() if classification in {"allowed", "forbidden"}
+    }
+    if set(hard_blocks) != expected_hard:
+        raise _fail("oss manifest hard_blocks must represent every allowed or forbidden resource exactly")
+    for name, record in hard_blocks.items():
+        _validate_resource_record(record, f"oss.{name}")
+        used = _nonnegative_integer(record["used"], f"oss.{name}.used")
+        classification = resource_classes[name]
+        if classification == "forbidden" and used != 0:
+            raise _fail(f"manifest reports forbidden hard-block use for {name}: {used}")
+        if classification == "allowed" and used != policy.allowed_hard_blocks[name]:
+            raise _fail(
+                f"manifest reports {name} used {used}, expected exactly {policy.allowed_hard_blocks[name]}"
+            )
+        resource = resources[name]
+        if record.get("used") != resource.get("used") or record.get("available") != resource.get("available"):
+            raise _fail(f"oss hard-block evidence disagrees with resource record for {name}")
+
+
+def _validate_resources(build: dict[str, Any], lane: str, experiment: str) -> None:
+    if lane == "oss":
+        try:
+            policy_for(experiment)
+        except PolicyError:
+            pass
+        else:
+            _validate_oss_policy_resources(build, experiment)
+            return
     expected_classes = OSS_RESOURCE_CLASSES if lane == "oss" else ORACLE_RESOURCE_CLASSES
     resource_classes = build.get("resource_classes")
     if not isinstance(resource_classes, dict) or resource_classes != expected_classes:
@@ -507,7 +573,7 @@ def validate_artifact(
     clock = timing.get("clock")
     if not isinstance(clock, str) or not clock.startswith("FPGA_CLK1_50"):
         raise _fail(f"manifest timing clock is not the expected FPGA_CLK1_50 input: {clock!r}")
-    _validate_resources(build, lane)
+    _validate_resources(build, lane, experiment)
     if lane == "oracle":
         _validate_oracle_provenance(build)
 

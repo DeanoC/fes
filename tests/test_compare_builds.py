@@ -192,7 +192,7 @@ class CompareBuildsTests(unittest.TestCase):
                         "build/oss/020_linux_mailbox/synth.json --device 5CSEBA6U23I7 "
                         "--qsf boards/de10nano/pins.qsf --sdc boards/de10nano/clocks.sdc "
                         "--freq 50 --rbf build/oss/020_linux_mailbox/top.rbf "
-                        "--write build/oss/020_linux_mailbox/routed.json "
+                        "--compress-rbf --write build/oss/020_linux_mailbox/routed.json "
                         "--report build/oss/020_linux_mailbox/timing.json "
                         "--detailed-timing-report\n"
                     ),
@@ -514,6 +514,488 @@ class CompareBuildsTests(unittest.TestCase):
             "resource_evidence_provenance": resource_provenance,
         }
 
+    def _mlab_manifest(self, lane, rbf, *, lutram_bits=256, hps=1):
+        from scripts.experiment_policy import policy_for
+
+        digest = _sha256(rbf)
+        policy = policy_for("040_mlab_ram").as_dict()
+        source_hashes = {
+            path: _sha256(ROOT / path)
+            for path in (
+                "experiments/040_mlab_ram/rtl/top.v",
+                "boards/de10nano/pins.qsf",
+                "boards/de10nano/clocks.sdc",
+            )
+        }
+        hps_record = {
+            "used": hps,
+            "available": 1,
+            "evidence_kind": "fitter_summary",
+            "measured": True,
+        }
+        if lane == "oracle":
+            hard_blocks = {
+                "PLL": {
+                    "used": 0,
+                    "available": 6,
+                    "evidence_kind": "fitter_summary",
+                    "measured": True,
+                },
+                "BRAM/M10K": {
+                    "used": 0,
+                    "available": 553,
+                    "evidence_kind": "fitter_summary",
+                    "measured": True,
+                },
+                "DSP": {
+                    "used": 0,
+                    "available": 112,
+                    "evidence_kind": "fitter_summary",
+                    "measured": True,
+                },
+                "cyclonev_hps_interface_mpu_general_purpose": hps_record,
+                "MLAB/LUTRAM": {
+                    "used": lutram_bits,
+                    "available": None,
+                    "utilization_percent": None,
+                    "evidence_kind": "fitter_summary",
+                    "measured": True,
+                },
+            }
+            resource_evidence = {
+                "clock_inputs": 1,
+                "external_input_ports": 0,
+                "external_output_ports": 0,
+                "bidirectional_ports": 0,
+                "hps_general_purpose_interfaces": hps,
+                "pll_blocks": 0,
+                "dsp_blocks": 0,
+                "block_memory_bits": 0,
+                "lutram_bits": lutram_bits,
+                "sdram_interfaces": 0,
+            }
+            clock = "FPGA_CLK1_50"
+            clock_intent = "FPGA_CLK1_50"
+            experiment_policy = None
+        else:
+            hard_blocks = {
+                "cyclonev_hps_interface_mpu_general_purpose": {
+                    "used": hps,
+                    "available": 1,
+                    "utilization_percent": 100.0,
+                },
+                "MISTRAL_M10K": {"used": 0, "available": 553, "utilization_percent": 0.0},
+                "cyclonev_oscillator": {
+                    "used": 0,
+                    "available": 1,
+                    "utilization_percent": 0.0,
+                },
+            }
+            resource_evidence = None
+            clock = "storage.FPGA_CLK1_50"
+            clock_intent = None
+            experiment_policy = policy
+        provenance = {
+            "path": "/opt/quartus/17.0/quartus/bin/quartus_sh",
+            "executable": "/opt/quartus/17.0/quartus/bin/quartus_sh",
+            "sha256": "d" * 64,
+            "executable_sha256": "d" * 64,
+            "version": "Quartus Prime Version 17.0.2 Build 602",
+            "required_version": "17.0.2",
+            "version_output_sha256": "e" * 64,
+        }
+        build = {
+            "experiment": "040_mlab_ram",
+            "target": "5CSEBA6U23I7",
+            "status": "pass",
+            "build_status": "pass",
+            "route_status": "pass",
+            "route": {"status": "pass", "unrouted": False},
+            "timing": {
+                "status": "pass",
+                "requested_mhz": 50.0,
+                "achieved_mhz": 240.0,
+                "clock": clock,
+            },
+            "clock_constraint_mhz": 50.0 if lane == "oss" else None,
+            "clock_intent": clock_intent,
+            "resources": {"ALM": {"used": 12, "available": 41910}},
+            "source_hashes": source_hashes,
+            "hard_blocks": hard_blocks,
+            "hard_block_evidence": deepcopy(hard_blocks),
+            "hard_block_status": "pass",
+            "unknown_resources": {},
+            "simulation": {"status": "pass"},
+            "allowed_hard_blocks": {
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            "authenticated_tools": {"quartus_sh": provenance} if lane == "oracle" else {},
+            "tool_pins": {"quartus": provenance} if lane == "oracle" else {},
+            "reproducibility": {
+                "rbf_sha256": digest,
+                "rbf_size_bytes": rbf.stat().st_size,
+            },
+        }
+        if experiment_policy is not None:
+            build["experiment_policy"] = experiment_policy
+        if resource_evidence is not None:
+            build["resource_evidence"] = resource_evidence
+        if clock_intent is None:
+            build.pop("clock_intent")
+        if build["clock_constraint_mhz"] is None:
+            build.pop("clock_constraint_mhz")
+        return {
+            "schema": 2,
+            "experiment": "040_mlab_ram",
+            "lane": lane,
+            "target": "5CSEBA6U23I7",
+            "sources": [
+                {"path": path, "sha256": value}
+                for path, value in source_hashes.items()
+            ],
+            "artifacts": [
+                {
+                    "path": f"build/{lane}/040_mlab_ram/top.rbf",
+                    "sha256": digest,
+                }
+            ],
+            "build": build,
+        }
+
+    def _lut_mul_manifest(self, lane, rbf, *, dsp_blocks=0, hps=1):
+        from scripts.experiment_policy import policy_for
+
+        digest = _sha256(rbf)
+        policy = policy_for("050_lut_mul").as_dict()
+        source_hashes = {
+            path: _sha256(ROOT / path)
+            for path in (
+                "experiments/050_lut_mul/rtl/top.v",
+                "boards/de10nano/pins.qsf",
+                "boards/de10nano/clocks.sdc",
+            )
+        }
+        if lane == "oracle":
+            source_hashes["experiments/050_lut_mul/oracle/top.qsf"] = _sha256(
+                ROOT / "experiments/050_lut_mul/oracle/top.qsf"
+            )
+        hps_record = {
+            "used": hps,
+            "available": 1,
+            "evidence_kind": "fitter_summary",
+            "measured": True,
+        }
+        static_mlab = {
+            "used": None,
+            "available": None,
+            "status": "excluded",
+            "evidence_kind": "static_exclusion",
+            "measured": False,
+            "exclusion": {
+                "basis": "static source/project exclusion",
+                "patterns": [
+                    r"\bmlab(?:s)?\b",
+                    r"\blutram\b",
+                    r"\b(?:altsyncram|lpm_ram|mlab_cell)\b",
+                    r"\b(?:reg|wire|logic)\s*\[[^\]]+\]\s+\w+\s*\[",
+                ],
+                "sources": [
+                    {"path": path, "sha256": value}
+                    for path, value in source_hashes.items()
+                ],
+            },
+        }
+        if lane == "oracle":
+            hard_blocks = {
+                "PLL": {
+                    "used": 0,
+                    "available": 6,
+                    "evidence_kind": "fitter_summary",
+                    "measured": True,
+                },
+                "BRAM/M10K": {
+                    "used": 0,
+                    "available": 553,
+                    "evidence_kind": "fitter_summary",
+                    "measured": True,
+                },
+                "DSP": {
+                    "used": dsp_blocks,
+                    "available": 112,
+                    "evidence_kind": "fitter_summary",
+                    "measured": True,
+                },
+                "cyclonev_hps_interface_mpu_general_purpose": hps_record,
+                "MLAB/LUTRAM": static_mlab,
+            }
+            resource_evidence = {
+                "clock_inputs": 1,
+                "external_input_ports": 0,
+                "external_output_ports": 0,
+                "bidirectional_ports": 0,
+                "hps_general_purpose_interfaces": hps,
+                "pll_blocks": 0,
+                "dsp_blocks": dsp_blocks,
+                "block_memory_bits": 0,
+                "lutram_bits": 0,
+                "sdram_interfaces": 0,
+            }
+            clock = "FPGA_CLK1_50"
+            clock_intent = "FPGA_CLK1_50"
+            experiment_policy = None
+        else:
+            hard_blocks = {
+                "cyclonev_hps_interface_mpu_general_purpose": {
+                    "used": hps,
+                    "available": 1,
+                    "utilization_percent": 100.0,
+                },
+                "MISTRAL_M10K": {"used": 0, "available": 553, "utilization_percent": 0.0},
+                "cyclonev_oscillator": {
+                    "used": 0,
+                    "available": 1,
+                    "utilization_percent": 0.0,
+                },
+            }
+            resource_evidence = None
+            clock = "product.FPGA_CLK1_50"
+            clock_intent = None
+            experiment_policy = policy
+        provenance = {
+            "path": "/opt/quartus/17.0/quartus/bin/quartus_sh",
+            "executable": "/opt/quartus/17.0/quartus/bin/quartus_sh",
+            "sha256": "d" * 64,
+            "executable_sha256": "d" * 64,
+            "version": "Quartus Prime Version 17.0.2 Build 602",
+            "required_version": "17.0.2",
+            "version_output_sha256": "e" * 64,
+        }
+        build = {
+            "experiment": "050_lut_mul",
+            "target": "5CSEBA6U23I7",
+            "status": "pass",
+            "build_status": "pass",
+            "route_status": "pass",
+            "route": {"status": "pass", "unrouted": False},
+            "timing": {
+                "status": "pass",
+                "requested_mhz": 50.0,
+                "achieved_mhz": 180.0,
+                "clock": clock,
+            },
+            "clock_constraint_mhz": 50.0 if lane == "oss" else None,
+            "clock_intent": clock_intent,
+            "resources": {"ALM": {"used": 40, "available": 41910}},
+            "source_hashes": source_hashes,
+            "hard_blocks": hard_blocks,
+            "hard_block_evidence": deepcopy(hard_blocks),
+            "hard_block_status": "pass" if dsp_blocks == 0 and hps == 1 else "fail",
+            "unknown_resources": {},
+            "simulation": {"status": "pass"},
+            "allowed_hard_blocks": {
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            "authenticated_tools": {"quartus_sh": provenance} if lane == "oracle" else {},
+            "tool_pins": {"quartus": provenance} if lane == "oracle" else {},
+            "reproducibility": {
+                "rbf_sha256": digest,
+                "rbf_size_bytes": rbf.stat().st_size,
+            },
+        }
+        if experiment_policy is not None:
+            build["experiment_policy"] = experiment_policy
+        if resource_evidence is not None:
+            build["resource_evidence"] = resource_evidence
+        if clock_intent is None:
+            build.pop("clock_intent")
+        if build["clock_constraint_mhz"] is None:
+            build.pop("clock_constraint_mhz")
+        return {
+            "schema": 2,
+            "experiment": "050_lut_mul",
+            "lane": lane,
+            "target": "5CSEBA6U23I7",
+            "sources": [
+                {"path": path, "sha256": value}
+                for path, value in source_hashes.items()
+            ],
+            "artifacts": [
+                {
+                    "path": f"build/{lane}/050_lut_mul/top.rbf",
+                    "sha256": digest,
+                }
+            ],
+            "build": build,
+        }
+
+    def _dsp_mul_manifest(self, lane, rbf, *, dsp_blocks=1, hps=1):
+        from scripts.experiment_policy import policy_for
+
+        digest = _sha256(rbf)
+        policy = policy_for("060_dsp_mul").as_dict()
+        source_hashes = {
+            path: _sha256(ROOT / path)
+            for path in (
+                "experiments/060_dsp_mul/rtl/top.v",
+                "boards/de10nano/pins.qsf",
+                "boards/de10nano/clocks.sdc",
+            )
+        }
+        if lane == "oracle":
+            source_hashes["experiments/060_dsp_mul/oracle/top.qsf"] = _sha256(
+                ROOT / "experiments/060_dsp_mul/oracle/top.qsf"
+            )
+        hps_record = {
+            "used": hps,
+            "available": 1,
+            "evidence_kind": "fitter_summary",
+            "measured": True,
+        }
+        static_mlab = {
+            "used": None,
+            "available": None,
+            "status": "excluded",
+            "evidence_kind": "static_exclusion",
+            "measured": False,
+            "exclusion": {
+                "basis": "static source/project exclusion",
+                "patterns": [
+                    r"\bmlab(?:s)?\b",
+                    r"\blutram\b",
+                    r"\b(?:altsyncram|lpm_ram|mlab_cell)\b",
+                    r"\b(?:reg|wire|logic)\s*\[[^\]]+\]\s+\w+\s*\[",
+                ],
+                "sources": [
+                    {"path": path, "sha256": value}
+                    for path, value in source_hashes.items()
+                ],
+            },
+        }
+        if lane == "oracle":
+            hard_blocks = {
+                "PLL": {
+                    "used": 0,
+                    "available": 6,
+                    "evidence_kind": "fitter_summary",
+                    "measured": True,
+                },
+                "BRAM/M10K": {
+                    "used": 0,
+                    "available": 553,
+                    "evidence_kind": "fitter_summary",
+                    "measured": True,
+                },
+                "DSP": {
+                    "used": dsp_blocks,
+                    "available": 112,
+                    "evidence_kind": "fitter_summary",
+                    "measured": True,
+                },
+                "cyclonev_hps_interface_mpu_general_purpose": hps_record,
+                "MLAB/LUTRAM": static_mlab,
+            }
+            resource_evidence = {
+                "clock_inputs": 1,
+                "external_input_ports": 0,
+                "external_output_ports": 0,
+                "bidirectional_ports": 0,
+                "hps_general_purpose_interfaces": hps,
+                "pll_blocks": 0,
+                "dsp_blocks": dsp_blocks,
+                "block_memory_bits": 0,
+                "lutram_bits": 0,
+                "sdram_interfaces": 0,
+            }
+            clock = "FPGA_CLK1_50"
+            clock_intent = "FPGA_CLK1_50"
+            experiment_policy = None
+        else:
+            hard_blocks = {
+                "cyclonev_hps_interface_mpu_general_purpose": {
+                    "used": hps,
+                    "available": 1,
+                    "utilization_percent": 100.0,
+                },
+                "MISTRAL_MUL9X9": {"used": 1, "available": 112, "utilization_percent": 0.89},
+                "MISTRAL_M10K": {"used": 0, "available": 553, "utilization_percent": 0.0},
+                "cyclonev_oscillator": {
+                    "used": 0,
+                    "available": 1,
+                    "utilization_percent": 0.0,
+                },
+            }
+            resource_evidence = None
+            clock = "product.FPGA_CLK1_50"
+            clock_intent = None
+            experiment_policy = policy
+        provenance = {
+            "path": "/opt/quartus/17.0/quartus/bin/quartus_sh",
+            "executable": "/opt/quartus/17.0/quartus/bin/quartus_sh",
+            "sha256": "d" * 64,
+            "executable_sha256": "d" * 64,
+            "version": "Quartus Prime Version 17.0.2 Build 602",
+            "required_version": "17.0.2",
+            "version_output_sha256": "e" * 64,
+        }
+        build = {
+            "experiment": "060_dsp_mul",
+            "target": "5CSEBA6U23I7",
+            "status": "pass",
+            "build_status": "pass",
+            "route_status": "pass",
+            "route": {"status": "pass", "unrouted": False},
+            "timing": {
+                "status": "pass",
+                "requested_mhz": 50.0,
+                "achieved_mhz": 180.0,
+                "clock": clock,
+            },
+            "clock_constraint_mhz": 50.0 if lane == "oss" else None,
+            "clock_intent": clock_intent,
+            "resources": {"ALM": {"used": 20, "available": 41910}},
+            "source_hashes": source_hashes,
+            "hard_blocks": hard_blocks,
+            "hard_block_evidence": deepcopy(hard_blocks),
+            "hard_block_status": "pass" if dsp_blocks == 1 and hps == 1 else "fail",
+            "unknown_resources": {},
+            "simulation": {"status": "pass"},
+            "allowed_hard_blocks": {
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_MUL9X9": 1,
+            },
+            "authenticated_tools": {"quartus_sh": provenance} if lane == "oracle" else {},
+            "tool_pins": {"quartus": provenance} if lane == "oracle" else {},
+            "reproducibility": {
+                "rbf_sha256": digest,
+                "rbf_size_bytes": rbf.stat().st_size,
+            },
+        }
+        if experiment_policy is not None:
+            build["experiment_policy"] = experiment_policy
+        if resource_evidence is not None:
+            build["resource_evidence"] = resource_evidence
+        if clock_intent is None:
+            build.pop("clock_intent")
+        if build["clock_constraint_mhz"] is None:
+            build.pop("clock_constraint_mhz")
+        return {
+            "schema": 2,
+            "experiment": "060_dsp_mul",
+            "lane": lane,
+            "target": "5CSEBA6U23I7",
+            "sources": [
+                {"path": path, "sha256": value}
+                for path, value in source_hashes.items()
+            ],
+            "artifacts": [
+                {
+                    "path": f"build/{lane}/060_dsp_mul/top.rbf",
+                    "sha256": digest,
+                }
+            ],
+            "build": build,
+        }
+
     def test_oss_authenticated_tool_path_must_be_canonical_repo_toolchain_path(self):
         canonical_paths = {
             "yosys": ROOT / "build" / "toolchain" / "install" / "bin" / "yosys",
@@ -627,6 +1109,121 @@ class CompareBuildsTests(unittest.TestCase):
         self.assertNotEqual(
             comparison["lanes"]["oss"]["rbf_sha256"],
             comparison["lanes"]["oracle"]["rbf_sha256"],
+        )
+
+    def test_mlab_comparison_accepts_measured_lutram_bits_and_hps(self):
+        oss_rbf = self.root / "build" / "oss" / "040_mlab_ram" / "top.rbf"
+        oracle_rbf = self.root / "build" / "oracle" / "040_mlab_ram" / "top.rbf"
+        oss_rbf.parent.mkdir(parents=True, exist_ok=True)
+        oracle_rbf.parent.mkdir(parents=True, exist_ok=True)
+        oss_rbf.write_bytes(b"mlab-oss")
+        oracle_rbf.write_bytes(b"mlab-oracle")
+        oss = self._write_manifest("mlab-oss.json", self._mlab_manifest("oss", oss_rbf))
+        oracle = self._write_manifest(
+            "mlab-oracle.json", self._mlab_manifest("oracle", oracle_rbf)
+        )
+        result = self._run(oss, oracle, experiment="040_mlab_ram")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        comparison = json.loads((self.output / "comparison.json").read_text())
+        self.assertEqual(comparison["status"], "pass", comparison.get("failures"))
+        self.assertEqual(
+            comparison["lanes"]["oracle"]["hard_blocks"]["MLAB/LUTRAM"]["used"],
+            256,
+        )
+
+    def test_mlab_comparison_rejects_m10k_or_missing_lutram(self):
+        oss_rbf = self.root / "build" / "oss" / "040_mlab_ram" / "top.rbf"
+        oracle_rbf = self.root / "build" / "oracle" / "040_mlab_ram" / "top.rbf"
+        oss_rbf.parent.mkdir(parents=True, exist_ok=True)
+        oracle_rbf.parent.mkdir(parents=True, exist_ok=True)
+        oss_rbf.write_bytes(b"mlab-oss-fail")
+        oracle_rbf.write_bytes(b"mlab-oracle-fail")
+        oss_value = self._mlab_manifest("oss", oss_rbf)
+        oracle_value = self._mlab_manifest("oracle", oracle_rbf, lutram_bits=0)
+        oss = self._write_manifest("mlab-oss.json", oss_value)
+        oracle = self._write_manifest("mlab-oracle.json", oracle_value)
+        result = self._run(oss, oracle, experiment="040_mlab_ram")
+        self.assertNotEqual(result.returncode, 0)
+        comparison = json.loads((self.output / "comparison.json").read_text())
+        self.assertTrue(
+            any("lutram" in item.lower() or "mlab" in item.lower() for item in comparison["failures"]),
+            comparison["failures"],
+        )
+
+    def test_lut_mul_comparison_accepts_zero_dsp_and_hps(self):
+        oss_rbf = self.root / "build" / "oss" / "050_lut_mul" / "top.rbf"
+        oracle_rbf = self.root / "build" / "oracle" / "050_lut_mul" / "top.rbf"
+        oss_rbf.parent.mkdir(parents=True, exist_ok=True)
+        oracle_rbf.parent.mkdir(parents=True, exist_ok=True)
+        oss_rbf.write_bytes(b"lut-mul-oss")
+        oracle_rbf.write_bytes(b"lut-mul-oracle")
+        oss = self._write_manifest("lut-mul-oss.json", self._lut_mul_manifest("oss", oss_rbf))
+        oracle = self._write_manifest(
+            "lut-mul-oracle.json", self._lut_mul_manifest("oracle", oracle_rbf)
+        )
+        result = self._run(oss, oracle, experiment="050_lut_mul")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        comparison = json.loads((self.output / "comparison.json").read_text())
+        self.assertEqual(comparison["status"], "pass", comparison.get("failures"))
+        self.assertEqual(comparison["lanes"]["oracle"]["hard_blocks"]["DSP"]["used"], 0)
+        self.assertEqual(
+            comparison["lanes"]["oracle"]["hard_blocks"]["MLAB/LUTRAM"]["status"],
+            "excluded",
+        )
+
+    def test_lut_mul_comparison_rejects_measured_dsp(self):
+        oss_rbf = self.root / "build" / "oss" / "050_lut_mul" / "top.rbf"
+        oracle_rbf = self.root / "build" / "oracle" / "050_lut_mul" / "top.rbf"
+        oss_rbf.parent.mkdir(parents=True, exist_ok=True)
+        oracle_rbf.parent.mkdir(parents=True, exist_ok=True)
+        oss_rbf.write_bytes(b"lut-mul-oss-fail")
+        oracle_rbf.write_bytes(b"lut-mul-oracle-fail")
+        oss_value = self._lut_mul_manifest("oss", oss_rbf)
+        oracle_value = self._lut_mul_manifest("oracle", oracle_rbf, dsp_blocks=1)
+        oss = self._write_manifest("lut-mul-oss.json", oss_value)
+        oracle = self._write_manifest("lut-mul-oracle.json", oracle_value)
+        result = self._run(oss, oracle, experiment="050_lut_mul")
+        self.assertNotEqual(result.returncode, 0)
+        comparison = json.loads((self.output / "comparison.json").read_text())
+        self.assertTrue(
+            any("dsp" in item.lower() for item in comparison["failures"]),
+            comparison["failures"],
+        )
+
+    def test_dsp_mul_comparison_accepts_one_dsp_and_hps(self):
+        oss_rbf = self.root / "build" / "oss" / "060_dsp_mul" / "top.rbf"
+        oracle_rbf = self.root / "build" / "oracle" / "060_dsp_mul" / "top.rbf"
+        oss_rbf.parent.mkdir(parents=True, exist_ok=True)
+        oracle_rbf.parent.mkdir(parents=True, exist_ok=True)
+        oss_rbf.write_bytes(b"dsp-mul-oss")
+        oracle_rbf.write_bytes(b"dsp-mul-oracle")
+        oss = self._write_manifest("dsp-mul-oss.json", self._dsp_mul_manifest("oss", oss_rbf))
+        oracle = self._write_manifest(
+            "dsp-mul-oracle.json", self._dsp_mul_manifest("oracle", oracle_rbf)
+        )
+        result = self._run(oss, oracle, experiment="060_dsp_mul")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        comparison = json.loads((self.output / "comparison.json").read_text())
+        self.assertEqual(comparison["status"], "pass", comparison.get("failures"))
+        self.assertEqual(comparison["lanes"]["oracle"]["hard_blocks"]["DSP"]["used"], 1)
+
+    def test_dsp_mul_comparison_rejects_zero_dsp(self):
+        oss_rbf = self.root / "build" / "oss" / "060_dsp_mul" / "top.rbf"
+        oracle_rbf = self.root / "build" / "oracle" / "060_dsp_mul" / "top.rbf"
+        oss_rbf.parent.mkdir(parents=True, exist_ok=True)
+        oracle_rbf.parent.mkdir(parents=True, exist_ok=True)
+        oss_rbf.write_bytes(b"dsp-mul-oss-fail")
+        oracle_rbf.write_bytes(b"dsp-mul-oracle-fail")
+        oss_value = self._dsp_mul_manifest("oss", oss_rbf)
+        oracle_value = self._dsp_mul_manifest("oracle", oracle_rbf, dsp_blocks=0)
+        oss = self._write_manifest("dsp-mul-oss.json", oss_value)
+        oracle = self._write_manifest("dsp-mul-oracle.json", oracle_value)
+        result = self._run(oss, oracle, experiment="060_dsp_mul")
+        self.assertNotEqual(result.returncode, 0)
+        comparison = json.loads((self.output / "comparison.json").read_text())
+        self.assertTrue(
+            any("dsp" in item.lower() for item in comparison["failures"]),
+            comparison["failures"],
         )
 
     def test_mailbox_policy_protocol_target_clock_and_resource_mismatches_fail_closed(self):

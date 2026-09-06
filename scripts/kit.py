@@ -5,6 +5,7 @@ import http.client
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import select
 import shlex
@@ -16,13 +17,34 @@ import tomllib
 from urllib.parse import urlsplit
 
 MAX_RBF = 32 << 20
+LOAD_TIMEOUT = 60
 HEADER = 'X-FogCast-Kit-Lease'
+ERROR_CODE = re.compile(r'^[A-Z][A-Z0-9_]{0,63}$')
 
 
 class KitError(Exception):
-    def __init__(self, message, status=None):
+    def __init__(self, message, status=None, code=None):
         super().__init__(message)
         self.status = status
+        self.code = code
+
+
+def error_code(raw):
+    """Read a public error code without retaining the remote message."""
+
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError, UnicodeDecodeError):
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    for candidate in (parsed.get('error'), parsed.get('last_error'), parsed):
+        if not isinstance(candidate, dict):
+            continue
+        code = candidate.get('code')
+        if isinstance(code, str) and ERROR_CODE.fullmatch(code):
+            return code
+    return None
 
 
 class Client:
@@ -36,7 +58,7 @@ class Client:
             raise KitError('a valid FogCast bearer token is required')
         self.bearer, self.timeout = bearer, timeout
 
-    def request(self, path, body=None, token=None, stream=None, size=0):
+    def request(self, path, body=None, token=None, stream=None, size=0, timeout=None):
         headers = {'Authorization': 'Bearer ' + self.bearer}
         if token:
             headers[HEADER] = token
@@ -48,7 +70,7 @@ class Client:
             headers['Content-Type'] = 'application/json'
         connection = (http.client.HTTPSConnection if self.url.scheme == 'https'
                       else http.client.HTTPConnection)(self.url.hostname, self.url.port,
-                                                       timeout=self.timeout)
+                                                       timeout=self.timeout if timeout is None else timeout)
         try:
             connection.putrequest('GET' if path == '/v1/kit/lease' else 'POST', path)
             for key, value in headers.items():
@@ -68,7 +90,11 @@ class Client:
             # Never echo a remote body: it could include bearer or lease secrets.
             raw = response.read(65537)
             if response.status >= 300:
-                raise KitError(f'target rejected request (HTTP {response.status})', response.status)
+                raise KitError(
+                    f'target rejected request (HTTP {response.status})',
+                    response.status,
+                    code=error_code(raw),
+                )
             if len(raw) > 65536:
                 raise KitError('target response exceeds limit')
             result = json.loads(raw)
@@ -88,7 +114,7 @@ class Client:
             if not stat.S_ISREG(info.st_mode) or not 0 < info.st_size <= MAX_RBF:
                 raise KitError('RBF must be a regular file between 1 byte and 32 MiB')
             return self.request('/v1/development/rbf', token=token,
-                                stream=source, size=info.st_size)
+                                stream=source, size=info.st_size, timeout=LOAD_TIMEOUT)
 
 
 class Session:
@@ -165,7 +191,15 @@ class Session:
         if not self.token or self.failed.is_set() or time.monotonic() >= self.deadline:
             raise KitError('lease renewal lost; mutations disabled')
         if command == 'load':
-            return self.client.load(path, self.token)
+            try:
+                return self.client.load(path, self.token)
+            except KitError as error:
+                # Non-MiSTer development images program, then fail the SPI
+                # identity probe and often return HTTP 503. Keep the lease so
+                # the operator can peek and Stop, unless ownership is blocked.
+                if error.status == 503 and error.code != 'KIT_LEASE_BLOCKED':
+                    return {'state': 'held', 'reason': 'development probe timed out'}
+                raise
         return self.client.request('/v1/stop', token=self.token)
 
     def close(self):
