@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "capture_log.hpp"
+#include "snes_save_spi.hpp"
 #include "linux/production_hardware.hpp"
 #include "native/artifacts.hpp"
 #include "native/core_loader.hpp"
@@ -18,6 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include <cstdint>
 #include <functional>
@@ -294,11 +296,18 @@ public:
 		events_.push_back("core.sync");
 		return sync_error;
 	}
-	mister::Error Exchange(std::uint8_t,
+	mister::Error Exchange(std::uint8_t target,
 		const std::vector<std::uint16_t>& request,
 		std::vector<std::uint16_t>* response, std::uint64_t deadline) override
 	{
 		deadlines.push_back(deadline);
+		if (save_spi && !request.empty() && (request[0] == 0x53 || request[0] == 0x1e ||
+		    request[0] == 0x1c || request[0] == 0x1d || request[0] == 0x16 || request[0] == 0x17 || request[0] == 0x18)) {
+			if (request[0] == 0x18) events_.push_back("save.snapshot");
+			if (request[0] == 0x17) events_.push_back("save.restore");
+			auto error = save_spi->Exchange(target, request, response, deadline);
+			if (!error.ok()) return error;
+		}
 		if (request.empty()) return {mister::ErrorCode::io_failed, "empty"};
 		std::string event;
 		if (request[0] == 0x0014) {
@@ -360,6 +369,7 @@ public:
 	mister::Error sync_error;
 	std::string fail_event;
 	std::size_t status_calls = 0;
+	mister_test::SnesSaveSpi* save_spi = nullptr;
 };
 
 class RecordingInput final : public mister::native::InputSession {
@@ -1217,6 +1227,11 @@ void TestSnesProductionTransformPreflightAndLifecycle()
 	assert(prepared.expected_core == "SNES" && prepared.media.size() == 1);
 	assert(prepared.media[0].index == 1 && prepared.media[0].transform == mister::MediaTransform::snes_cartridge);
 	assert(prepared.input.c == 0 && prepared.input.x == 0x40 && prepared.input.start == 0x800);
+	request.save_path = "/saves/test.srm";
+	assert(production.Prepare(request, &prepared).ok() && prepared.save_path == request.save_path);
+	request.save_path = "relative.srm";
+	assert(!production.Prepare(request, &prepared).ok());
+	request.save_path.clear();
 
 	Fixture fixture;
 	std::string bytes(32768, 0);
@@ -1254,6 +1269,69 @@ void TestSnesProductionTransformPreflightAndLifecycle()
 	fixture.spi.fail_event = "core.media.data:all bytes once";
 	assert(runtime.LaunchGame(request).code == mister::ErrorCode::io_failed);
 	assert(runtime.status().state == mister::State::idle);
+}
+
+void TestNativeSaveStopAndWriteRetry()
+{
+	Fixture f;
+	mister_test::SnesSaveSpi backup;
+	backup.ram.assign(2048, 0xff);
+	f.spi.save_spi = &backup;
+	f.spi.observed_core = "SNES";
+	std::string bytes(32768, 0);
+	bytes[0] = 0x78; bytes[0x7fd5] = 0x20; bytes[0x7fd6] = 2;
+	bytes[0x7fd7] = 5; bytes[0x7fd8] = 1;
+	bytes[0x7fdc] = char(0xcb); bytes[0x7fdd] = char(0xed);
+	bytes[0x7fde] = 0x34; bytes[0x7fdf] = 0x12; bytes[0x7ffd] = char(0x80);
+	auto launch = f.MegaDriveLaunch();
+	launch.system = "snes"; launch.expected_core = "SNES";
+	launch.core = {1, 1, 0, mister::FileWireFormat::little_endian_byte_pairs};
+	launch.media = {{1, f.temporary.File("battery.sfc", bytes), 0x400200, mister::MediaTransform::snes_cartridge}};
+	launch.save_path = f.temporary.path + "/battery.srm";
+	const std::string rejected = f.temporary.File("wrong.srm", "truncated");
+	const auto destination = launch.save_path;
+	launch.save_path = rejected;
+	const int before = f.fpga.calls;
+	assert(!f.hardware.Launch(launch, 1).error.ok());
+	assert(f.fpga.calls == before);
+	launch.save_path = destination;
+	assert(f.hardware.Launch(launch, 1).error.ok());
+	assert(backup.mounted && backup.image_size == 0);
+	assert(access(launch.save_path.c_str(), F_OK) != 0);
+	backup.ram[0] = 0x42;
+	// Force atomic rename failure after the snapshot; retry must use retained bytes.
+	assert(mkdir(launch.save_path.c_str(), 0700) == 0);
+	assert(f.hardware.FlushSave().code == mister::ErrorCode::save_failed);
+	assert(backup.snapshots == 1);
+	assert(Find(f.events, "input.stop") < Find(f.events, "save.snapshot"));
+	const int programs = f.fpga.calls;
+	backup.ram[0] = 0x99;
+	assert(rmdir(launch.save_path.c_str()) == 0);
+	assert(f.hardware.FlushSave().ok());
+	f.temporary.files.push_back(launch.save_path);
+	assert(backup.snapshots == 1 && f.fpga.calls == programs);
+	mister::native::SaveFile saved;
+	assert(saved.Prepare(launch.save_path, 2048).ok() && saved.bytes()[0] == 0x42);
+	assert(f.hardware.LoadIdle().error.ok());
+	assert(f.hardware.FlushSave().ok() && backup.snapshots == 1);
+	backup = mister_test::SnesSaveSpi{};
+	backup.ram.assign(2048, 0xff);
+	f.events.clear();
+	assert(f.hardware.Launch(launch, 2).error.ok());
+	assert(backup.ram[0] == 0x42);
+	assert(Find(f.events, "save.restore") < Find(f.events, "input.start:2"));
+	// Generic fault/failed-launch cleanup never publishes SRAM.
+	backup.ram[0] = 0x77;
+	assert(f.hardware.LoadIdle().error.ok());
+	assert(backup.snapshots == 0);
+	mister::native::SaveFile intact;
+	assert(intact.Prepare(launch.save_path, 2048).ok() && intact.bytes()[0] == 0x42);
+	backup = mister_test::SnesSaveSpi{};
+	backup.ram.assign(2048, 0xff);
+	f.input.start_error = {mister::ErrorCode::io_failed, "input start failed"};
+	assert(!f.hardware.Launch(launch, 3).error.ok());
+	assert(f.hardware.LoadIdle().error.ok());
+	assert(f.hardware.FlushSave().ok() && backup.snapshots == 0);
 }
 
 void TestPongProductionProfileAndRomlessLifecycle()
@@ -1410,6 +1488,7 @@ void TestUnavailableHardwareRemainsFailureOnly()
 
 int main()
 {
+	TestNativeSaveStopAndWriteRetry();
 	TestEveryCoreTransitionQuiescesHdmiBeforeFpgaProgramming();
 	TestQuiesceFailureStopsBeforeFpgaMutationAndClosesLaunchInput();
 	TestLaunchUsesExactCoreRecipeAndExplicitMediaFormatInOrder();
@@ -1440,6 +1519,6 @@ int main()
 	TestPongProductionProfileAndRomlessLifecycle();
 	TestProductionConstructionOwnsRealIdleHardware();
 	TestUnavailableHardwareRemainsFailureOnly();
-	puts("native_hardware_test: 30 passed");
+	puts("native_hardware_test: 31 passed");
 	return 0;
 }

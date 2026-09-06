@@ -7,7 +7,7 @@ fixtures verify software mechanics and do not establish system support.
 | --- | --- | --- | --- |
 | `megadrive` | native fixed-video, one-player launch/Stop/relaunch | software: yes | hardware: yes |
 | `pong` | native ROM-less profile, fixed-video lifecycle and one-player packet | software: yes | hardware: no |
-| `snes` | basic LoROM/HiROM transform, one-player native lifecycle | software: yes | hardware: no |
+| `snes` | basic LoROM/HiROM transform, one-player lifecycle, optional battery RAM | software: yes | hardware: no |
 | `nes` | not implemented | software: no | hardware: no |
 | `sms` | not implemented | software: no | hardware: no |
 | `gb` | not implemented | software: no | hardware: no |
@@ -73,6 +73,9 @@ not accepted; the Mega Drive acceptance above also excludes native audio.
 Software tests cover the required cartridge transform before programming,
 512-byte metadata, copier stripping, retained-file streaming, full one-player
 button mapping and Stop/relaunch. Only basic power-of-two 32 KiB–4 MiB
-LoROM/HiROM images are admitted. RAM is volatile; persistent saves, enhancement
-chips, special formats and non-power-of-two mirroring are unsupported. Physical
+LoROM/HiROM images are admitted. Optional ordinary type-2 battery RAM saves
+(2–128 KiB) are software-tested through restore, clean Stop, atomic replacement
+and retryable save failure. Omission of `save_path` keeps RAM volatile. Autosave,
+power-loss capture, enhancement chips, special formats and non-power-of-two
+mirroring are unsupported. Physical save acceptance is pending. Physical
 SNES video/input/audio acceptance remains pending.

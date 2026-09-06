@@ -33,6 +33,17 @@ void ExpectError(const std::string& text, ErrorCode code)
 	assert(Parse(text, &request).code == code);
 }
 
+void TestOptionalSavePath()
+{
+	Request request;
+	assert(Parse(R"({"protocol":1,"operation":"launch","system":"snes","rbf":"/snes.rbf","media":{},"settings":{},"save_path":"/saves/game.srm"})", &request).ok());
+	assert(request.launch.save_path == "/saves/game.srm");
+	ExpectError(R"({"protocol":1,"operation":"launch","system":"pong","rbf":"/pong.rbf","media":{},"settings":{},"save_path":"/saves/game.srm"})", ErrorCode::invalid_request);
+	for (const std::string value : {"null", "42", "\"\"", "\"relative.srm\"", "\"/save\\u0000hidden\""}) {
+		ExpectError("{\"protocol\":1,\"operation\":\"launch\",\"system\":\"snes\",\"rbf\":\"/snes.rbf\",\"media\":{},\"settings\":{},\"save_path\":" + value + "}", ErrorCode::invalid_request);
+	}
+}
+
 void TestGoldenRequests()
 {
 	std::ifstream fixture("tests/fixtures/protocol-v1.jsonl");
@@ -248,6 +259,7 @@ void TestPongRomlessLaunchRequest()
 int main()
 {
 	TestPongRomlessLaunchRequest();
+	TestOptionalSavePath();
 	TestGoldenRequests();
 	TestProtocolVersion();
 	TestUnknownFields();
@@ -260,5 +272,5 @@ int main()
 	TestResponseEncoding();
 	TestErrorCodeNames();
 	TestStatusErrorIsIndependentOfResponseOk();
-	std::cout << "protocol_test: 13 tests passed\n";
+	std::cout << "protocol_test: 14 tests passed\n";
 }

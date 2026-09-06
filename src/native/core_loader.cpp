@@ -110,9 +110,9 @@ Error CoreLoader::ApplyInitialStatus(const CoreRecipe& recipe,
 }
 
 Error CoreLoader::Attach(const OpenedMedia& media, FileWireFormat format,
-	std::uint64_t deadline)
+	std::uint64_t deadline, SaveFile* save)
 {
-	return AttachContent(media.index, media.artifact, format, media.content, deadline);
+	return AttachContent(media.index, media.artifact, format, media.content, deadline, save);
 }
 
 Error CoreLoader::Attach(std::uint8_t index, const Artifact& artifact,
@@ -124,7 +124,7 @@ Error CoreLoader::Attach(std::uint8_t index, const Artifact& artifact,
 }
 
 Error CoreLoader::AttachContent(std::uint8_t index, const Artifact& artifact,
-	FileWireFormat wire_format, const MediaContentPlan& content, std::uint64_t deadline)
+	FileWireFormat wire_format, const MediaContentPlan& content, std::uint64_t deadline, SaveFile* save)
 {
 	if (wire_format != FileWireFormat::little_endian_byte_pairs)
 		return {ErrorCode::invalid_request, "unsupported file wire format"};
@@ -167,7 +167,112 @@ Error CoreLoader::AttachContent(std::uint8_t index, const Artifact& artifact,
 	}
 	error = Exchange(spi_, kUserIoTarget, {0x0029}, deadline);
 	if (!error.ok()) return error;
+	if (save != nullptr) {
+		const std::uint32_t size = static_cast<std::uint32_t>(save->bytes().size());
+		error = Exchange(spi_, kUserIoTarget, {0x001d, static_cast<std::uint16_t>(size),
+			static_cast<std::uint16_t>(size >> 16), 0, 0}, deadline);
+		if (!error.ok()) return error;
+		error = Exchange(spi_, kUserIoTarget, {0x001c, 1}, deadline);
+		if (!error.ok()) return error;
+	}
 	return Exchange(spi_, kFileIoTarget, {0x0053, 0}, deadline);
+}
+
+namespace {
+struct SaveRequest { unsigned operation = 0; std::uint32_t lba = 0; };
+Error PollSave(Spi& spi, Clock& clock, std::uint64_t deadline, SaveRequest* output)
+{
+	if (clock.NowMs() >= deadline) return {ErrorCode::save_failed, "save transfer deadline exceeded"};
+	std::vector<std::uint16_t> response;
+	Error error = spi.Exchange(kUserIoTarget, {0x16, 0, 0, 0}, &response, deadline);
+	if (!error.ok()) return error;
+	// Pinned SNES: modern protocol, slot zero, exactly one 512-byte block.
+	if (response.size() != 4 || (response[0] & 0xfffc) != 0x8080 || (response[0] & 3) == 3)
+		return {ErrorCode::save_failed, "unexpected SNES backup request"};
+	output->operation = response[0] & 3;
+	output->lba = response[2] | (std::uint32_t(response[3]) << 16);
+	return {};
+}
+Error SaveSector(Spi& spi, unsigned operation, std::vector<unsigned char>& bytes,
+		std::size_t offset, std::uint64_t deadline)
+{
+	std::vector<std::uint16_t> request(257, 0), response;
+	request[0] = operation == 1 ? 0x17 : 0x18;
+	if (operation == 1) for (unsigned word = 0; word < 256; ++word)
+		request[word + 1] = bytes[offset + word * 2] | (std::uint16_t(bytes[offset + word * 2 + 1]) << 8);
+	Error error = spi.Exchange(kUserIoTarget, request, &response, deadline);
+	if (!error.ok()) return error;
+	if (response.size() != request.size()) return {ErrorCode::save_failed, "incomplete save sector response"};
+	if (operation == 2) for (unsigned word = 0; word < 256; ++word) {
+		bytes[offset + word * 2] = response[word + 1];
+		bytes[offset + word * 2 + 1] = response[word + 1] >> 8;
+	}
+	return {};
+}
+Error TransferSave(Spi& spi, Clock& clock, unsigned operation,
+		std::vector<unsigned char>& bytes, std::uint64_t deadline)
+{
+	for (std::size_t offset = 0; offset < bytes.size(); offset += 512) {
+		SaveRequest request;
+		Error error;
+		do {
+			error = PollSave(spi, clock, deadline, &request);
+			if (!error.ok()) return error;
+		} while (!request.operation);
+		if (request.operation != operation || request.lba != offset / 512)
+			return {ErrorCode::save_failed, "unexpected save sector direction or sequence"};
+		error = SaveSector(spi, operation, bytes, offset, deadline);
+		if (!error.ok()) return error;
+	}
+	SaveRequest terminal;
+	Error error = PollSave(spi, clock, deadline, &terminal);
+	if (!error.ok()) return error;
+	if (terminal.operation) return {ErrorCode::save_failed, "save transfer exceeded cartridge RAM"};
+	return {};
+}
+}
+
+Error CoreLoader::RestoreSave(const SaveFile& save, Clock& clock, std::uint64_t deadline)
+{
+	if (save.bytes().empty()) return {};
+	auto bytes = save.bytes();
+	return TransferSave(spi_, clock, 1, bytes, deadline);
+}
+
+Error CoreLoader::CaptureSave(std::size_t size, Clock& clock, std::uint64_t deadline,
+		std::vector<unsigned char>* output)
+{
+	if (!output || size < 2048 || size > 131072 || (size & (size - 1)))
+		return {ErrorCode::save_failed, "invalid snapshot size"};
+	// Freeze execution and lower the trigger. A previous timed-out snapshot may
+	// still own the backup FSM; finish and discard it before triggering again.
+	Error error = ApplyStatus(spi_, 1, deadline);
+	if (!error.ok()) return error;
+	std::vector<unsigned char> discard(512);
+	std::uint32_t previous = 0;
+	bool draining = false;
+	for (;;) {
+		SaveRequest request;
+		error = PollSave(spi_, clock, deadline, &request);
+		if (!error.ok()) return error;
+		if (!request.operation) break;
+		if (request.operation != 2 || request.lba >= size / 512 ||
+		(draining && request.lba != previous + 1))
+			return {ErrorCode::save_failed, "invalid pending save transfer"};
+		previous = request.lba;
+		draining = true;
+		error = SaveSector(spi_, 2, discard, 0, deadline);
+		if (!error.ok()) return error;
+	}
+	error = ApplyStatus(spi_, 0x2001, deadline);
+	if (!error.ok()) return error;
+	std::vector<unsigned char> bytes(size);
+	error = TransferSave(spi_, clock, 2, bytes, deadline);
+	if (!error.ok()) return error;
+	error = ApplyStatus(spi_, 1, deadline);
+	if (!error.ok()) return error;
+	*output = std::move(bytes);
+	return {};
 }
 
 Error CoreLoader::ReleaseReset(const CoreRecipe& recipe, std::uint64_t deadline)

@@ -6,6 +6,7 @@
 #include "libmister-runtime/runtime.h"
 
 #include <condition_variable>
+#include <functional>
 #include <cstdint>
 #include <mutex>
 #include <string>
@@ -19,6 +20,10 @@ public:
 	FakeHardware();
 	void SetFaultSink(mister::HardwareFaultSink*) override;
 	mister::HardwareResult LoadIdle() override;
+	mister::Error FlushSave() override { ++flush_calls; if (on_flush) on_flush(); return flush_result; }
+	int flush_calls = 0;
+	std::function<void()> on_flush;
+	mister::Error flush_result;
 	mister::HardwareResult Launch(const mister::PreparedLaunch&,
 		std::uint64_t generation) override;
 	mister::HardwareResult LoadDevelopmentRBF(const std::string&) override;

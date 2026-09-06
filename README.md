@@ -62,11 +62,32 @@ copier header. It rejects malformed/ambiguous headers, enhancement cartridges,
 special mappings and unsupported sizes before FPGA mutation. The runtime
 streams a synthesized 512-byte core metadata prefix followed by the retained
 ROM file window; the host supplies the original ROM and never builds metadata.
-Ordinary cartridge types 0–2 and RAM exponents up to 7 are admitted. RAM is
-volatile; saves, enhancement chips and full-library compatibility are excluded.
+Ordinary cartridge types 0–2 and RAM exponents up to 7 are admitted. RAM defaults
+to volatile. Optional SNES `save_path` persists ordinary type-2
+battery cartridges on clean Stop; see below. Enhancement chips and full-library
+compatibility are excluded.
 
 The retained gamepad now accepts X/Y/L/R/Select in addition to existing controls.
 Zero-mask controls have no effect on Mega Drive/Pong and do not end sessions.
 Tests cover individual SNES masks and Stop neutralization. SNES physical
 video/input/audio acceptance is pending; this software profile is not evidence
 of a working hardware system.
+
+## SNES battery RAM saves
+
+Protocol-1 SNES launches may include an absolute `save_path`. FogCast owns the
+per-game path; the runtime derives eligibility and size from the retained ROM.
+Type-2 battery cartridges with RAM exponent 1–7 use 2–128 KiB files. Omit the
+field for volatile operation; nonbattery and zero-RAM cartridges create no file.
+The parent directory must already exist. Existing saves must be regular files
+of exactly the derived size; admission precedes FPGA mutation.
+
+The runtime mounts and restores SRAM through the existing SNES virtual SD
+backup interface before input starts. Clean Stop stops input, freezes the core,
+snapshots SRAM and atomically replaces the save before programming idle.
+A `save_failed` Stop leaves the session retained and frozen for Stop retry;
+a complete captured snapshot is retained if file publication fails. Fix the
+storage problem and retry Stop. Failed launch, startup and asynchronous fault
+cleanup do not publish SRAM. Sudden power loss, process crashes and forced
+reboot do not save current progress. This is software-tested behavior; hardware
+save acceptance is pending. It adds no save states or host synchronization.
