@@ -102,6 +102,7 @@ class ExperimentPolicy:
     nodsp: bool = True
     yosys_post_synth: str = ""
     sim_jobs: tuple[SimJob, ...] = ()
+    required_synth_cells: Mapping[str, int] = MappingProxyType({})
 
     def __post_init__(self) -> None:
         if not self.name or not isinstance(self.name, str):
@@ -134,6 +135,15 @@ class ExperimentPolicy:
         if len(names) != len(set(names)):
             raise PolicyError(f"{self.name}: sim job names must be unique")
         object.__setattr__(self, "sim_jobs", jobs)
+
+        synth_cells: dict[str, int] = {}
+        for cell, count in dict(self.required_synth_cells).items():
+            if not isinstance(cell, str) or not cell:
+                raise PolicyError(f"{self.name}: required synth cell names must be non-empty strings")
+            if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+                raise PolicyError(f"{self.name}: required synth cell count for {cell} must be non-negative")
+            synth_cells[cell] = count
+        object.__setattr__(self, "required_synth_cells", MappingProxyType(synth_cells))
 
         allowed: dict[str, int] = {}
         for resource, count in dict(self.allowed_hard_blocks).items():
@@ -284,6 +294,8 @@ class ExperimentPolicy:
             return "ordinary"
         if name in self.allowed_hard_blocks:
             return "allowed"
+        if name in self.required_synth_cells:
+            return "allowed"
         if self._matches_resource_pattern(name):
             return "forbidden"
         return "unknown"
@@ -316,9 +328,10 @@ class ExperimentPolicy:
                 raise PolicyError(f"unknown resource: {name}")
             if classification == "forbidden" and used != 0:
                 raise PolicyError(f"forbidden resource {name} used count {used}")
-            if classification == "allowed" and used != self.allowed_hard_blocks[name]:
-                expected = self.allowed_hard_blocks[name]
-                raise PolicyError(f"resource {name} must use exactly {expected}, got {used}")
+            if classification == "allowed":
+                expected = self.allowed_hard_blocks.get(name, self.required_synth_cells.get(name))
+                if expected is not None and used != expected:
+                    raise PolicyError(f"resource {name} must use exactly {expected}, got {used}")
 
         missing = [name for name in self.allowed_hard_blocks if name not in resources]
         if missing:
@@ -362,6 +375,40 @@ class ExperimentPolicy:
                     f"{expected} time(s), got {actual}"
                 )
 
+    def validate_synth_json(self, path: Path) -> None:
+        """Require exact Yosys cell counts that nextpnr utilization may omit."""
+
+        if not self.required_synth_cells:
+            return
+        try:
+            design = json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise PolicyError(f"cannot read synth json {path}: {exc}") from exc
+        if not isinstance(design, Mapping):
+            raise PolicyError("synth json must be an object")
+        modules = design.get("modules")
+        if not isinstance(modules, Mapping):
+            raise PolicyError("synth json has no modules")
+        counts: dict[str, int] = {}
+        for module in modules.values():
+            if not isinstance(module, Mapping):
+                continue
+            cells = module.get("cells")
+            if not isinstance(cells, Mapping):
+                continue
+            for cell in cells.values():
+                if not isinstance(cell, Mapping):
+                    continue
+                cell_type = cell.get("type")
+                if isinstance(cell_type, str) and cell_type:
+                    counts[cell_type] = counts.get(cell_type, 0) + 1
+        for name, expected in self.required_synth_cells.items():
+            actual = counts.get(name, 0)
+            if actual != expected:
+                raise PolicyError(
+                    f"synth cell {name} must occur exactly {expected} time(s), got {actual}"
+                )
+
     def validate_design(self, *, top: str, sources: Sequence[str]) -> None:
         """Validate the top and exact production source list."""
 
@@ -402,6 +449,7 @@ class ExperimentPolicy:
             "nodsp": self.nodsp,
             "yosys_post_synth": self.yosys_post_synth,
             "sim_jobs": [job.as_dict() for job in self.sim_jobs],
+            "required_synth_cells": dict(self.required_synth_cells),
         }
 
 
@@ -532,6 +580,35 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                 ),
             ),
         ),
+        "040_mlab_ram": ExperimentPolicy(
+            name="040_mlab_ram",
+            sources=("experiments/040_mlab_ram/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            forbidden_source_patterns=(*_COMMON_SOURCE_PATTERNS, "LED", "GPIO", "external_gpio"),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            required_synth_cells={"MISTRAL_MLAB": 8},
+            nolutram=False,
+            clock_evidence_names=("storage.FPGA_CLK1_50",),
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/040_mlab_ram/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                    ),
+                    tb="experiments/040_mlab_ram/sim/tb.cpp",
+                ),
+            ),
+        ),
     }
 )
 
@@ -623,6 +700,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--experiment", required=True)
     parser.add_argument("--format", choices=("json", "shell"), default="json")
     parser.add_argument("--check-sources", action="store_true")
+    parser.add_argument("--check-synth-json", type=Path)
     parser.add_argument("--repo-root", type=Path, default=_repo_root())
     return parser
 
@@ -633,6 +711,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         policy = policy_for(arguments.experiment)
         if arguments.check_sources:
             _check_sources(policy, arguments.repo_root)
+        if arguments.check_synth_json is not None:
+            policy.validate_synth_json(arguments.check_synth_json)
         if arguments.format == "shell":
             sys.stdout.write(_shell_lines(policy))
         else:

@@ -118,7 +118,7 @@ class MailboxSourcePolicyTests(unittest.TestCase):
         self.assertIn("scripts/run_sim.sh --experiment", sim)
         self.assertNotIn("$(EXP)", sim)
 
-        for experiment in ("010_blinky", "020_linux_mailbox", "030_m10k_rom"):
+        for experiment in ("010_blinky", "020_linux_mailbox", "030_m10k_rom", "040_mlab_ram"):
             result = subprocess.run(
                 ["make", "-n", "sim", f"EXP={experiment}"],
                 cwd=ROOT,

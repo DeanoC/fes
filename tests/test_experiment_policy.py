@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -104,6 +106,47 @@ class ExperimentPolicyTests(unittest.TestCase):
                     "MISTRAL_M10K": {"used": 0, "available": 553},
                 }
             )
+
+    def test_mlab_ram_requires_eight_tables_and_one_hps(self) -> None:
+        policy = policy_for("040_mlab_ram")
+        self.assertTrue(policy.nobram)
+        self.assertFalse(policy.nolutram)
+        self.assertTrue(policy.nodsp)
+        self.assertEqual(policy.synth_intel_alm_flags, ("-nobram", "-nodsp"))
+        self.assertEqual(
+            dict(policy.allowed_hard_blocks),
+            {"cyclonev_hps_interface_mpu_general_purpose": 1},
+        )
+        self.assertEqual(dict(policy.required_synth_cells), {"MISTRAL_MLAB": 8})
+        policy.validate_resources(
+            {
+                "MISTRAL_COMB": {"used": 1, "available": 10},
+                "cyclonev_hps_interface_mpu_general_purpose": {"used": 1, "available": 1},
+                "MISTRAL_M10K": {"used": 0, "available": 553},
+            }
+        )
+        with self.assertRaisesRegex(PolicyError, "MLAB"):
+            policy.validate_resources(
+                {
+                    "MISTRAL_MLAB": {"used": 1, "available": 41910},
+                    "cyclonev_hps_interface_mpu_general_purpose": {"used": 1, "available": 1},
+                }
+            )
+        with tempfile.TemporaryDirectory() as directory:
+            synth = Path(directory) / "synth.json"
+            cells = {f"cell{index}": {"type": "MISTRAL_MLAB"} for index in range(8)}
+            synth.write_text(
+                json.dumps({"modules": {"top": {"cells": cells}}}),
+                encoding="utf-8",
+            )
+            policy.validate_synth_json(synth)
+            cells["cell0"] = {"type": "MISTRAL_FF"}
+            synth.write_text(
+                json.dumps({"modules": {"top": {"cells": cells}}}),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(PolicyError, "MISTRAL_MLAB"):
+                policy.validate_synth_json(synth)
 
     def test_wrong_top_and_source_list_are_rejected(self) -> None:
         policy = policy_for("010_blinky")

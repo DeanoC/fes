@@ -396,6 +396,8 @@ fi
 
 "$run_logged" "$yosys_log" "${yosys_cmd[@]}"
 [[ -s "$out_synth" ]] || fail "synthesis did not produce a nonempty JSON design: $out_synth"
+"$PYTHON" "$policy_tool" --experiment "$EXP" --check-synth-json "$out_synth" >/dev/null \
+    || fail "synth json does not satisfy closed experiment policy: $EXP"
 
 "$run_logged" "$nextpnr_help_log" "${nextpnr_help_cmd[@]}"
 for required_flag in --json --device --qsf --sdc --freq --rbf --write --report --detailed-timing-report; do

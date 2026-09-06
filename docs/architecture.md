@@ -46,6 +46,13 @@ HPS primitive boundary.
 drives one LED from stored bit 0. OSS synthesis maps the table to exactly one
 M10K. PLL, DSP, MLAB, and HPS remain forbidden.
 
+`040_mlab_ram` is a 32-by-8 writeable table on the HPS general-purpose
+interface. Linux peeks and pokes GPO/GPI; there is no LED. Yosys maps the
+table to eight `MISTRAL_MLAB` cells. nextpnr packs those into LABs and does
+not report an MLAB utilization key, so the closed policy counts the Yosys
+cells and requires the HPS primitive in the route report. PLL, DSP, and M10K
+remain forbidden.
+
 ## Artifact boundary
 
 The integration outputs are:
