@@ -120,7 +120,7 @@ forbidden.
 
 
 `110_pll_reset` extends the fixed PLL measurement with active-high fabric reset.
-The pinned nextpnr revision `6abe1e9a0ef7673f5f840d0b1168f005a268fcbd` exposes the
+The reset baseline nextpnr revision `6abe1e9a0ef7673f5f840d0b1168f005a268fcbd` introduced the
 existing Mistral `NRESET0` endpoint. Its routed reset uses inverter bit0;
 folded-low reset retains bit1, matching the Quartus17 oracle. Mistral tables
 and pin stay unchanged. The experiment still requires one PLL, one HPS GP,
@@ -145,6 +145,26 @@ and output Fmax values are 214.684/331.126 MHz against 50/25 MHz constraints.
 The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
+
+The current nextpnr pin `bb3b589ba1d50ccb664eb907319da0550144f2e3` extends that reset
+baseline with configurable integer output frequencies. It selects an exact C
+counter from two checked feedback/analog configurations: M12/N2 at a reported
+300 MHz, or M32/N5 at a reported 320 MHz. The supported whole-MHz outputs are
+1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 16, 20, 25, 30, 32, 40, 50, 60, 64, 75, 80,
+and 100. The input remains PIN_V11 at exactly `"50.0 MHz"`, with one output,
+direct mode, zero phase and 50% duty. Fractional or unsupported frequencies
+fail explicitly; there is no general analog-setting solver. The closed
+`090_pll_clock` and `110_pll_reset` experiments retain their 25 MHz output.
+
+Compiler fixtures under `mistral/tests/pll` in the nextpnr fork cover divider
+selection, malformed frequencies, emitted configuration, meter simulation and
+reset/relock. Quartus 17.0.2 oracles cover 20/40/80/100 MHz. On 2026-09-06 the
+20/40/100 MHz OSS diagnostic artifacts each passed ten hardware cycles: zero
+while reset, then 1638–1639 / 3276–3277 / 8192 after relock. Their reference and
+output Fmax values were 216.732 / 326.584 MHz against 50 MHz and the selected
+output constraint. This pin update adds no new numbered experiment or runtime
+contract. Artifact hashes and reproduction commands are in the
+[nextpnr PLL test documentation](https://github.com/DeanoC/nextpnr/blob/bb3b589ba1d50ccb664eb907319da0550144f2e3/mistral/tests/pll/README.md).
 
 `120_pll_dsp` runs the eight-by-eight unsigned DSP product on the proven
 50-to-25 MHz PLL output. Linux peeks and pokes GPO/GPI on the 50 MHz
