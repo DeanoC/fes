@@ -70,29 +70,38 @@ def fingerprint(revisions, profile, toolchain):
     return build_fingerprint(revisions, profile, toolchain)
 
 
+def verification_record(output, image_sha256, baseline_match):
+    return {"image_sha256": image_sha256, "historical_baseline_match": baseline_match,
+            "two_pass_reproducibility": "pass", "structural": "pass", "qemu_packaging": "pass",
+            "qemu_log_sha256": digest(output / "qemu-smoke.log")}
+
+
 def load_verified_image(output, fingerprint):
     if not reusable(output, "image", fingerprint):
         raise ValueError("cold image receipt is missing or stale; run make build and make verify")
     try:
+        receipt = json.loads((output / "image.json").read_text())
         verification = json.loads((output / "verification.json").read_text())
         actual = digest(output / "linux.img")
+        qemu_log_sha256 = digest(output / "qemu-smoke.log")
         evidence = dict(line.split("=", 1) for line in
                         (output / "reproducibility.txt").read_text().splitlines())
-        required = (verification.get("image_sha256") == actual
+        required = (receipt["files"]["linux.img"] == actual
+                    and verification.get("image_sha256") == actual
                     and verification.get("structural") == "pass"
                     and verification.get("qemu_packaging") == "pass"
+                    and verification.get("qemu_log_sha256") == qemu_log_sha256
                     and verification.get("two_pass_reproducibility") == "pass"
                     and evidence.get("run_1_sha256") == actual
-                    and evidence.get("run_2_sha256") == actual
-                    and (output / "qemu-smoke.log").is_file())
-    except (OSError, ValueError, TypeError):
-        required = False
-    if not required:
-        raise ValueError("cold image verification is missing or stale; run make verify")
-    return {"rootfs_sha256": actual,
-            "image_receipt_sha256": digest(output / "image.json"),
-            "verification_sha256": digest(output / "verification.json"),
-            "qemu_log_sha256": digest(output / "qemu-smoke.log")}
+                    and evidence.get("run_2_sha256") == actual)
+        if required:
+            return {"rootfs_sha256": actual,
+                    "image_receipt_sha256": digest(output / "image.json"),
+                    "verification_sha256": digest(output / "verification.json"),
+                    "qemu_log_sha256": qemu_log_sha256}
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        pass
+    raise ValueError("cold image verification is missing or stale; run make verify")
 
 def output_volume(root, profile):
     identity = hashlib.sha256((str(root) + "\0" + profile).encode()).hexdigest()[:16]
@@ -328,16 +337,15 @@ def main():
                     env=dict(env, NATIVE_RUNTIME_SYSTEMS=" ".join(cores)))
             run(child_make + ["target-image-native-qemu-smoke"],
                 env=dict(env, NATIVE_RUNTIME_SYSTEMS=" ".join(cores)))
+            shutil.copy2(fogcast / "build/output/target-image/native-dev/qemu-smoke.log", output / "qemu-smoke.log")
             actual = digest(output / "linux.img")
             evidence = dict(line.split("=", 1) for line in (output / "reproducibility.txt").read_text().splitlines())
             if evidence.get("run_1_sha256") != actual or evidence.get("run_2_sha256") != actual:
                 raise ValueError("image does not match both recorded build passes")
             baseline = profile.get("baseline_image_sha256")
             matches = None if baseline is None else actual == baseline
-            result = {"image_sha256": actual, "historical_baseline_match": matches,
-                      "two_pass_reproducibility": "pass", "structural": "pass", "qemu_packaging": "pass"}
+            result = verification_record(output, actual, matches)
             (output / "verification.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
-            shutil.copy2(fogcast / "build/output/target-image/native-dev/qemu-smoke.log", output / "qemu-smoke.log")
             print("Two-pass reproducibility, structural and QEMU packaging checks passed.", flush=True)
             print(f"Historical image hash match: {matches} (see README provenance note)", flush=True)
         (output / "inputs.json").write_text(json.dumps(info, indent=2, sort_keys=True) + "\n")

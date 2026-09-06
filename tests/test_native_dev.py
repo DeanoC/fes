@@ -14,6 +14,16 @@ import native_dev
 
 
 class NativeDevTest(unittest.TestCase):
+    def test_verification_record_binds_qemu_log_digest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)
+            (output / 'qemu-smoke.log').write_bytes(b'qemu passed\n')
+            image_sha256 = hashlib.sha256(b'cold').hexdigest()
+            record = build.verification_record(output, image_sha256, None)
+            self.assertEqual(record['image_sha256'], image_sha256)
+            self.assertEqual(record['qemu_log_sha256'],
+                             hashlib.sha256(b'qemu passed\n').hexdigest())
+
     def test_base_key_tracks_recipes_not_application_revision(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
