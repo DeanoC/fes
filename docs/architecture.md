@@ -86,8 +86,8 @@ bits, and one RAM block. PLL remains forbidden.
 50 MHz on PIN_V11 and the single output is 25 MHz, direct mode, zero phase,
 50% duty, integer mode, with reset tied low. The closed OSS policy requires
 both `meter.refclk` at 50 MHz and `clk25` at 25 MHz to meet timing. Memory and
-DSP usage are forbidden. The pinned nextpnr fork revision
-`9d9a027d401e98a5b611ccc8a0c17a5e6b04e8cc` merges the supported fixed PLL
+DSP usage are forbidden. The nextpnr fork baseline
+`9d9a027d401e98a5b611ccc8a0c17a5e6b04e8cc` merged the supported fixed PLL
 profile on top of the existing DSP implementation; Mistral remains at
 `328cfb8046d6bcb979fa69df7cfb95bd6f7e73f8`.
 
@@ -110,6 +110,34 @@ returned 2048 on three successive measurements with lock asserted and no
 sampled lock loss. The current `kit.py stop` completed development reboot
 recovery and returned a free lease. This is hardware diagnostic acceptance of
 the fixed profile, not native game acceptance.
+
+
+`100_pll_reset` extends the fixed PLL measurement with active-high fabric reset.
+The pinned nextpnr revision `6abe1e9a0ef7673f5f840d0b1168f005a268fcbd` exposes the
+existing Mistral `NRESET0` endpoint. Its routed reset uses inverter bit0;
+folded-low reset retains bit1, matching the Quartus17 oracle. Mistral tables
+and pin stay unchanged. The experiment still requires one PLL, one HPS GP,
+no DSP or memory, and passing 50/25 MHz timing.
+
+GPI signature `0xD712` identifies this protocol. GPO bit2 requests reset through
+two reference-domain registers, and GPI bit11 echoes the applied reset. The
+reference clock and measurement handshake continue during reset. The hardware
+probe performs ten cycles, requiring reset echo=1, lock=0 and count=0 while held,
+then echo=0, lock=1 and count=2048 ±1 after release. Simulation checks the same
+sequence using a digital PLL model with a nominal acquisition delay, plus the
+existing meter fault tests. Neither simulation nor synchronous Fmax specifies
+analog lock time, minimum reset pulse width, recovery/removal, or jitter.
+See `experiments/100_pll_reset/expected.md`. Simulation and OSS are supported;
+Quartus comparison is not implemented for this experiment.
+
+On 2026-09-06 the integrated `100_pll_reset` OSS RBF (1,955,689 bytes) has
+SHA-256 `5e48f9643c85a94bafeaaec2076c002710b15a8eb2b811dd42f6809da34880a4`.
+It is byte-identical to the nextpnr diagnostic artifact tested on the designated
+kit: all ten cycles returned 0 while reset and 2048 after relock. The reference
+and output Fmax values are 214.684/331.126 MHz against 50/25 MHz constraints.
+The current `kit.py stop` completed development reboot recovery and left the
+lease free. This is exact-artifact functional diagnostic acceptance; it does
+not establish native game acceptance.
 
 ## Standalone Pong game
 
