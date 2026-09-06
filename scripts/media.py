@@ -10,6 +10,8 @@ import os
 from pathlib import Path
 import re
 import shutil
+import shlex
+import signal
 import socket
 import stat
 import subprocess
@@ -26,6 +28,45 @@ from media_inside import ImageInputs, PART1_OFFSET
 PROFILE = 'native-integration-dev'
 recipe_fingerprint = cold_build.recipe_fingerprint
 CHECKS = dict.fromkeys(('structural_media', 'rootfs_structural', 'rootfs_qemu', 'reproducibility'), 'pass')
+
+
+TERMINATION_SIGNALS = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
+
+
+class ChildShutdownError(Exception):
+    pass
+
+
+class TerminationRequested(Exception):
+    def __init__(self, signum):
+        self.signum = signum
+        super().__init__('terminated by ' + signal.Signals(signum).name)
+
+
+@contextmanager
+def termination_handling():
+    previous = {signum: signal.getsignal(signum) for signum in TERMINATION_SIGNALS}
+    def terminate(signum, frame):
+        # A second ordinary termination must not interrupt restoration.
+        for pending in TERMINATION_SIGNALS:
+            signal.signal(pending, signal.SIG_IGN)
+        raise TerminationRequested(signum)
+    try:
+        for signum in TERMINATION_SIGNALS:
+            signal.signal(signum, terminate)
+        yield
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+
+
+@contextmanager
+def defer_termination():
+    previous = signal.pthread_sigmask(signal.SIG_BLOCK, TERMINATION_SIGNALS)
+    try:
+        yield
+    finally:
+        signal.pthread_sigmask(signal.SIG_SETMASK, previous)
 
 
 @dataclass(frozen=True)
@@ -180,12 +221,14 @@ def child_scratch(fogcast):
     base.mkdir(parents=True, exist_ok=True)
     staged = base / 'media-verify'
     log = base / 'native-dev/qemu-smoke.log'
-    with tempfile.TemporaryDirectory(prefix='.media-restore-', dir=base) as temporary:
-        saved = Path(temporary)
-        moved_scratch = saved_log = created_scratch = False
-        had_log = log.exists()
-        had_log_parent = log.parent.exists()
-        try:
+    # Do not use TemporaryDirectory: failed restoration must retain originals.
+    saved = Path(tempfile.mkdtemp(prefix='.media-restore-', dir=base))
+    moved_scratch = saved_log = created_scratch = False
+    safe_to_restore = True
+    had_log = log.exists() or log.is_symlink()
+    had_log_parent = log.parent.exists()
+    try:
+        with defer_termination():
             if staged.is_symlink() or log.is_symlink():
                 raise ValueError('child scratch and QEMU log must not be symlinks')
             if staged.exists():
@@ -197,18 +240,33 @@ def child_scratch(fogcast):
                 saved_log = True
             staged.mkdir(mode=0o700)
             created_scratch = True
-            yield staged
-        finally:
+        yield staged
+    except ChildShutdownError:
+        safe_to_restore = False
+        raise
+    finally:
+        with defer_termination():
+            if not safe_to_restore:
+                raise ValueError('child shutdown could not be confirmed; backup retained at ' + str(saved))
+            failures = []
+            def restore(action):
+                try:
+                    action()
+                except OSError as error:
+                    failures.append(error)
             if created_scratch:
-                shutil.rmtree(staged)
+                restore(lambda: shutil.rmtree(staged))
             if moved_scratch:
-                os.replace(saved / 'scratch', staged)
+                restore(lambda: os.replace(saved / 'scratch', staged))
             if saved_log:
-                os.replace(saved / 'log', log)
+                restore(lambda: os.replace(saved / 'log', log))
             elif not had_log:
-                log.unlink(missing_ok=True)
+                restore(lambda: log.unlink(missing_ok=True))
             if not had_log_parent and log.parent.exists():
-                log.parent.rmdir()
+                restore(log.parent.rmdir)
+            if failures:
+                raise ValueError('child restoration failed; backup retained at ' + str(saved)) from failures[0]
+            shutil.rmtree(saved)
 
 
 def validate_artifact(generation, inputs, lock, provision_sha, runner, fogcast, env):
@@ -348,18 +406,65 @@ class Runner:
         self.runtime = env['TARGET_IMAGE_CONTAINER_RUNTIME']
         self.container = ensure_media_container(root, self.runtime, lock)
 
-    def run(self, command, **kwargs):
-        result = subprocess.run(list(map(str, command)), capture_output=True, text=True, **kwargs)
-        if result.returncode:
+    def run(self, command, *, container_cid=None, **kwargs):
+        process = subprocess.Popen(list(map(str, command)), stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, text=True, start_new_session=True, **kwargs)
+        try:
+            stdout, _ = process.communicate()
+        except BaseException:
+            # Wait before child_scratch restores paths a child could still write.
+            with defer_termination():
+                try:
+                    if container_cid is not None:
+                        self.remove_owned_container(container_cid)
+                finally:
+                    try:
+                        os.killpg(process.pid, signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+                    try:
+                        process.communicate(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        try:
+                            os.killpg(process.pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                        process.communicate()
+            raise
+        if process.returncode:
+            if container_cid is not None:
+                self.remove_owned_container(container_cid)
             # A tool could quote provisioned bytes in its diagnostics.
             raise ValueError('media verification or assembly failed; child output withheld')
-        return result.stdout
+        return stdout
+
+    def remove_owned_container(self, cidfile):
+        # Docker clients can exit while the daemon's container still runs.
+        # Remove only the exact container created by this invocation and wait
+        # for the runtime to confirm removal before restoring shared paths.
+        try:
+            if not cidfile.exists():
+                return
+            identity = cidfile.read_text().strip()
+            if not re.fullmatch('[0-9a-f]{64}', identity):
+                raise ChildShutdownError('invalid owned container identity')
+            result = subprocess.run([self.runtime, 'rm', '--force', identity],
+                                    capture_output=True, text=True, timeout=15)
+            if result.returncode and 'no such container' not in result.stderr.lower():
+                raise ChildShutdownError('owned container removal failed')
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise ChildShutdownError('owned container shutdown failed') from error
 
     def disk(self, command):
-        return self.run([self.runtime, 'run', '--rm', '--network=none', '--cap-drop=ALL',
-                         '--security-opt=no-new-privileges', '--volume', str(self.root) + ':/work',
-                         '--workdir', '/work', '--entrypoint', 'sh', self.container,
-                         '-c', 'umask 077; exec "$@"', 'media', *command])
+        temporary_root = self.root / 'out/tmp'
+        temporary_root.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix='media-container-', dir=temporary_root) as temporary:
+            cidfile = Path(temporary) / 'container.cid'
+            return self.run([self.runtime, 'run', '--rm', '--cidfile', str(cidfile),
+                             '--network=none', '--cap-drop=ALL', '--security-opt=no-new-privileges',
+                             '--volume', str(self.root) + ':/work', '--workdir', '/work',
+                             '--entrypoint', 'sh', self.container,
+                             '-c', 'umask 077; exec "$@"', 'media', *command], container_cid=cidfile)
 
     def path(self, path):
         return '/work/' + str(Path(path).relative_to(self.root))
@@ -391,9 +496,18 @@ class Runner:
         guard.mkdir(mode=0o700)
         write_private(guard / 'make', b'#!/bin/sh\necho "run make verify" >&2\nexit 1\n')
         (guard / 'make').chmod(0o700)
+        cidfile = staged / 'container.cid'
+        runtime_shim = staged / 'container-runtime'
+        runtime = shlex.quote(self.runtime)
+        write_private(runtime_shim, ('#!/bin/sh\nif [ "${1:-}" = run ]; then\n'
+                      '  shift\n  exec ' + runtime + ' run --cidfile ' + shlex.quote(str(cidfile))
+                      + ' "$@"\nfi\nexec ' + runtime + ' "$@"\n').encode())
+        runtime_shim.chmod(0o700)
         try:
             self.run([fogcast / 'scripts/target-image-container.sh', 'run', 'sh',
-                      '/work/build/output/target-image/media-verify/verify.sh'], env=env)
+                      '/work/build/output/target-image/media-verify/verify.sh'],
+                     env=dict(env, TARGET_IMAGE_CONTAINER_RUNTIME=str(runtime_shim)),
+                     container_cid=cidfile)
         except ValueError:
             raise ValueError('rootfs verification failed; if the pinned QEMU kernel cache is absent or stale, run make verify') from None
 
@@ -443,12 +557,15 @@ def main():
             child.add_argument('--agent-config', type=Path)
     args = parser.parse_args()
     try:
-        if args.command == 'build':
-            result = build(cold_build.ROOT, args.profile, args.agent_config)
-        else:
-            result = verify(cold_build.ROOT, args.profile)
+        with termination_handling():
+            if args.command == 'build':
+                result = build(cold_build.ROOT, args.profile, args.agent_config)
+            else:
+                result = verify(cold_build.ROOT, args.profile)
         print(str(result.image))
         print(result.log)
+    except TerminationRequested as error:
+        parser.exit(128 + error.signum, f'media: {error}; cleanup completed\n')
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         parser.exit(1, f'media: {error}\n')
 

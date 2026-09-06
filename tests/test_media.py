@@ -3,6 +3,8 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
+import time
 import stat
 import subprocess
 import sys
@@ -223,6 +225,136 @@ class MediaTests(unittest.TestCase):
         current.symlink_to(self.root)
         with self.assertRaisesRegex(ValueError, 'current'):
             media.verify(self.root, 'native-integration-dev', self.runner)
+
+    def test_dangling_child_log_symlink_is_preserved(self):
+        self.log.unlink()
+        self.log.symlink_to('missing-original-log')
+        with self.assertRaisesRegex(ValueError, 'symlinks'):
+            self.build()
+        self.assertTrue(self.log.is_symlink(), 'rejected original log entry must survive')
+        self.assertEqual(os.readlink(self.log), 'missing-original-log')
+
+    def test_failed_restoration_retains_recoverable_backup(self):
+        staged = self.fogcast / 'build/output/target-image/media-verify'
+        staged.mkdir(mode=0o750)
+        (staged / 'keep').write_text('preserved')
+        replace = os.replace
+        def fail_restore(source, destination):
+            if Path(source).name == 'scratch' and Path(destination) == staged:
+                raise OSError('restore denied')
+            return replace(source, destination)
+        with patch.object(media.os, 'replace', side_effect=fail_restore):
+            with self.assertRaises(Exception) as caught:
+                self.build()
+        self.assertIn('backup retained at', str(caught.exception))
+        backups = list(staged.parent.glob('.media-restore-*'))
+        self.assertEqual(len(backups), 1)
+        self.assertIn(str(backups[0]), str(caught.exception))
+        self.assertEqual((backups[0] / 'scratch/keep').read_text(), 'preserved')
+        self.assertEqual(stat.S_IMODE((backups[0] / 'scratch').stat().st_mode), 0o750)
+        self.assertEqual(self.log.read_text(), 'original smoke')
+
+    def test_cancelled_container_is_removed_before_scratch_restoration(self):
+        staged = self.fogcast / 'build/output/target-image/media-verify'
+        staged.mkdir()
+        (staged / 'keep').write_text('preserved')
+        cidfile = self.root / 'owned.cid'
+        cidfile.write_text('a' * 64)
+        runtime = self.root / 'runtime'
+        removed = self.root / 'removed'
+        runtime.write_text('#!/bin/sh\ntest "$1" = rm && test "$2" = --force || exit 9\ntest ! -e "' + str(staged / 'keep') + '" || exit 8\nprintf "%s" "$3" > "' + str(removed) + '"\n')
+        runtime.chmod(0o700)
+        runner = object.__new__(media.Runner)
+        runner.runtime = str(runtime)
+        with self.assertRaises(Exception) as caught:
+            with media.termination_handling(), media.child_scratch(self.fogcast):
+                runner.run([sys.executable, '-c', 'import os,signal,time; os.kill(os.getppid(),signal.SIGTERM); time.sleep(60)'], container_cid=cidfile)
+        self.assertIsInstance(caught.exception, media.TerminationRequested)
+        self.assertEqual(removed.read_text(), 'a' * 64)
+        self.assertEqual((staged / 'keep').read_text(), 'preserved')
+
+    def test_failed_container_client_removes_owned_container(self):
+        cidfile = self.root / 'owned.cid'
+        cidfile.write_text('b' * 64)
+        runtime = self.root / 'runtime'
+        removed = self.root / 'removed'
+        runtime.write_text('#!/bin/sh\ntest "$1" = rm && test "$2" = --force || exit 9\nprintf "%s" "$3" > "' + str(removed) + '"\n')
+        runtime.chmod(0o700)
+        runner = object.__new__(media.Runner)
+        runner.runtime = str(runtime)
+        with self.assertRaisesRegex(ValueError, 'child output withheld'):
+            runner.run([sys.executable, '-c', 'raise SystemExit(7)'], container_cid=cidfile)
+        self.assertTrue(removed.exists(), 'client failure must stop its owned container')
+        self.assertEqual(removed.read_text(), 'b' * 64)
+
+    def test_cli_signals_stop_live_child_before_restoring_scratch(self):
+        staged = self.fogcast / 'build/output/target-image/media-verify'
+        staged.mkdir(mode=0o750)
+        (staged / 'keep').write_text('preserved')
+        (staged / 'keep').chmod(0o640)
+        ready, stopped = self.root / 'ready', self.root / 'stopped'
+        child_code = r'''import os,signal,sys,time
+from pathlib import Path
+ready,stopped,scratch,log = map(Path,sys.argv[1:])
+def stop(signum, frame):
+    stopped.write_text('stopped-before-restore' if not (scratch/'keep').exists() and log.read_text() == 'live child' else 'restored-too-early')
+    sys.exit(0)
+signal.signal(signal.SIGTERM,stop)
+log.write_text('live child')
+ready.write_text(str(os.getpid()))
+while True: time.sleep(1)
+'''
+        parent_code = r'''import sys
+from pathlib import Path
+sys.path.insert(0,sys.argv[1])
+import media
+fogcast,ready,stopped=map(Path,sys.argv[2:5])
+child_code=sys.argv[5]
+def build(*args):
+    with media.child_scratch(fogcast) as scratch:
+        runner=object.__new__(media.Runner)
+        runner.run([sys.executable,'-c',child_code,ready,stopped,scratch,fogcast/'build/output/target-image/native-dev/qemu-smoke.log'])
+media.build=build
+sys.argv=['media.py','build']
+media.main()
+'''
+        for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+            with self.subTest(signal=signum):
+                ready.unlink(missing_ok=True)
+                stopped.unlink(missing_ok=True)
+                process = subprocess.Popen([sys.executable, '-c', parent_code, str(ROOT / 'scripts'), str(self.fogcast), str(ready), str(stopped), child_code], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+                child_pid = None
+                try:
+                    deadline = time.monotonic() + 5
+                    while not ready.exists() and process.poll() is None and time.monotonic() < deadline:
+                        time.sleep(0.01)
+                    self.assertTrue(ready.exists(), 'live child did not become ready')
+                    child_pid = int(ready.read_text())
+                    process.send_signal(signum)
+                    stdout, stderr = process.communicate(timeout=10)
+                    self.assertEqual(process.returncode, 128 + signum, stderr)
+                    self.assertIn("cleanup completed", stderr)
+                    self.assertTrue(stopped.exists(), 'termination must stop and wait for the active child')
+                    self.assertEqual(stopped.read_text(), 'stopped-before-restore')
+                    with self.assertRaises(ProcessLookupError):
+                        os.kill(child_pid, 0)
+                    self.assertEqual((staged / 'keep').read_text(), 'preserved')
+                    self.assertEqual(stat.S_IMODE(staged.stat().st_mode), 0o750)
+                    self.assertEqual(stat.S_IMODE((staged / 'keep').stat().st_mode), 0o640)
+                    self.assertEqual(self.log.read_text(), 'original smoke')
+                    self.assertEqual(stat.S_IMODE(self.log.stat().st_mode), 0o640)
+                    self.assertEqual(list(staged.parent.glob('.media-restore-*')), [])
+                finally:
+                    if process.poll() is None:
+                        process.kill()
+                    process.wait()
+                    process.stdout.close()
+                    process.stderr.close()
+                    if child_pid:
+                        try:
+                            os.kill(child_pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
 
     def test_child_failure_restores_existing_scratch_and_log(self):
         staged = self.fogcast / 'build/output/target-image/media-verify'
