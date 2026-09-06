@@ -321,3 +321,7 @@ seed 3 the checked normal SNES recipe and added three-core image selection.
 The new normal builds reproduced all three diagnostic RBF hashes. The frozen
 Pong recipe snapshot remains preserved because its hash is part of that older
 artifact provenance.
+
+A later parent pin of misteross `cb89517` reused those same three RBF hashes in
+a diagnostic `make dev` image. That selection's kit checks are in the
+[dual-PLL native diagnostic](dual-pll-native-diagnostic.md).

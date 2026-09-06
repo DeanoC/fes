@@ -15,7 +15,7 @@ host software and target root filesystem.
 | Decide where a change belongs or crosses a boundary | [Component boundaries](component-boundaries.md) |
 | Continue the Pong and SNES milestone | [Multi-system development](multi-system-development.md) |
 | Develop and validate SNES cartridge saves | [SNES saves](snes-saves.md) |
-| Share the kit between game and FPGA development sessions | [Kit sharing proposal](kit-sharing.md) |
+| Share the kit between game and FPGA development sessions | [Kit sharing](kit-sharing.md) |
 
 All shell examples in the parent guides start at the FES repository root unless
 specified otherwise. Commands inside a component use that component's Makefile
@@ -23,7 +23,10 @@ and instructions; the same target name can mean different things there.
 
 ## What has been verified
 
-- [Integration validation](integration-validation.md): selected component
+- [Dual-PLL native diagnostic](dual-pll-native-diagnostic.md): current gitlinks
+  including misteross `cb89517`, diagnostic `make dev` image and bounded kit
+  Pong/Mega Drive/SNES checks.
+- [Integration validation](integration-validation.md): earlier selected
   revisions, clean two-pass image, QEMU and bounded physical-kit checks.
 - [Incremental build validation](incremental-build-validation.md): cache reuse,
   development image checks, timing and interruption recovery.

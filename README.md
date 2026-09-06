@@ -105,7 +105,9 @@ useful video/input from arbitrary development cores. The SDL tenfoot client
 remains a component build, not a parent output. This produces a root filesystem,
 not yet a complete bootable SD-card layout. Build and verify do not deploy or
 contact the kit. QEMU checks packaging, not FPGA behavior; exact-image hardware
-acceptance is separate. See [integration evidence](docs/integration-validation.md).
+acceptance is separate. Current gitlink diagnostic evidence is in the
+[dual-PLL native diagnostic](docs/dual-pll-native-diagnostic.md). Earlier clean
+two-pass evidence is in [integration validation](docs/integration-validation.md).
 
 ## Commands and profiles
 
