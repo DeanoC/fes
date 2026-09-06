@@ -2,13 +2,14 @@
 from pathlib import Path
 import subprocess
 import tomllib
+import re
 
-COMPONENTS = ("FogCast", "libmister-runtime", "misteross")
+COMPONENTS = ("FogCast", "libmister-runtime", "misteross", "mister-packages")
 
 def git(root, *args):
     return subprocess.check_output(["git", "-C", str(root), *args], text=True).strip()
 
-def validate(root):
+def validate(root, profile=None):
     root = Path(root)
     revisions = {}
     for name in COMPONENTS:
@@ -27,7 +28,17 @@ def validate(root):
         if git(child, "status", "--porcelain", "--untracked-files=all"):
             raise ValueError(f"{path}: source checkout is dirty")
         revisions[name] = fields[1]
-    lock = tomllib.loads((root / "sources/FogCast/build/native-runtime.inputs.lock.toml").read_text())
+    for name, revision in (profile or {}).get("sources", {}).items():
+        if name not in revisions or not re.fullmatch(r"[0-9a-f]{40}", str(revision)):
+            raise ValueError(f"invalid profile source revision: {name}={revision}")
+        child = root / "sources" / name
+        exists = subprocess.run(["git", "-C", str(child), "cat-file", "-e", revision + "^{commit}"],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if exists.returncode:
+            raise ValueError(f"{name}: profile revision {revision} is unavailable; fetch component history")
+        revisions[name] = revision
+    lock = tomllib.loads(git(root / "sources/FogCast", "show",
+                           revisions["FogCast"] + ":build/native-runtime.inputs.lock.toml"))
     if lock["mister_runtime"]["commit"] != revisions["libmister-runtime"]:
         raise ValueError("FogCast runtime lock differs from parent runtime pin")
     return revisions

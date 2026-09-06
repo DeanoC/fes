@@ -7,6 +7,23 @@ import unittest
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 
 class ReceiptTest(unittest.TestCase):
+    def test_republish_read_only_selection(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import build
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / "selection"
+            dest = root / "published"
+            source.write_bytes(b"first")
+            source.chmod(0o444)
+            build.publish_file(source, dest)
+            source.unlink()
+            source.write_bytes(b"second")
+            source.chmod(0o444)
+            build.publish_file(source, dest)
+            self.assertEqual(dest.read_bytes(), b"second")
+            self.assertEqual(dest.stat().st_mode & 0o777, 0o444)
+
     def test_changed_inputs_and_corrupt_outputs_are_not_reused(self):
         self.assertTrue((SCRIPTS / "build.py").exists(), "build receipt is not implemented")
         sys.path.insert(0, str(SCRIPTS))

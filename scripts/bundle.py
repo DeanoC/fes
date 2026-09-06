@@ -15,7 +15,7 @@ def digest(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def load(directory):
+def load(directory, expected_recipe_sha256=None):
     directory = Path(directory)
     artifact = directory / "megadrive.rbf"
     manifest_path = directory / "megadrive-rbf.toml"
@@ -37,6 +37,8 @@ def load(directory):
         raise ValueError("bundle artifact size differs from manifest")
     if not re.fullmatch(r"[0-9a-f]{64}", str(manifest.get("recipe_sha256", ""))):
         raise ValueError("bundle recipe digest is invalid")
+    if expected_recipe_sha256 is not None and manifest["recipe_sha256"] != expected_recipe_sha256:
+        raise ValueError("bundle recipe digest differs from pinned recipe")
     return manifest
 
 
@@ -49,10 +51,10 @@ def _replace(text, key, value):
     return changed
 
 
-def prepare(fogcast, directory):
+def prepare(fogcast, directory, expected_recipe_sha256=None):
     fogcast = Path(fogcast)
     directory = Path(directory)
-    manifest = load(directory)
+    manifest = load(directory, expected_recipe_sha256)
     cache = fogcast / "build/cache/target-image/native"
     lock_path = fogcast / "build/native-runtime.inputs.lock.toml"
     lock = lock_path.read_text()

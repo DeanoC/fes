@@ -57,7 +57,18 @@ recipe_sha256 = "{'2' * 64}"
 toolchain = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
 """)
 
-            result = self.module().prepare(fogcast, bundle)
+            module = self.module()
+            original_lock = lock.read_text()
+            with self.assertRaisesRegex(ValueError, "recipe digest differs"):
+                module.load(bundle, expected_recipe_sha256="3" * 64)
+            with self.assertRaisesRegex(ValueError, "recipe digest differs"):
+                module.prepare(fogcast, bundle, expected_recipe_sha256="3" * 64)
+            self.assertEqual(lock.read_text(), original_lock)
+            self.assertEqual((cache / "megadrive.rbf").read_bytes(), b"upstream")
+            self.assertEqual(module.load(bundle)["recipe_sha256"], "2" * 64)
+            self.assertEqual(module.load(bundle, "2" * 64)["recipe_sha256"], "2" * 64)
+
+            result = module.prepare(fogcast, bundle, expected_recipe_sha256="2" * 64)
 
             self.assertEqual((cache / "megadrive.rbf").read_bytes(), payload)
             self.assertEqual((cache / "idle.rbf").read_bytes(), b"idle")

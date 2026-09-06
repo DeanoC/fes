@@ -1,0 +1,36 @@
+name: FES integration
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  parent-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: make test
+  components:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require component read access
+        env:
+          COMPONENT_TOKEN: ${{ secrets.FES_COMPONENTS_TOKEN }}
+        run: |
+          test -n "$COMPONENT_TOKEN" || {
+            echo 'Set FES_COMPONENTS_TOKEN to a read-only token for FES and its four private components.'
+            exit 1
+          }
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          token: ${{ secrets.FES_COMPONENTS_TOKEN }}
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: sources/FogCast/go.mod
+          cache-dependency-path: sources/FogCast/go.sum
+      - run: make check
+      - run: make host

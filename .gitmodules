@@ -8,3 +8,6 @@
 	path = sources/misteross
 	url = https://github.com/DeanoC/misteross.git
 	branch = feat/export-megadrive-rbf-bundle
+[submodule "sources/mister-packages"]
+	path = sources/mister-packages
+	url = https://github.com/DeanoC/mister-packages.git
