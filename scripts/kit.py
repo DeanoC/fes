@@ -18,7 +18,10 @@ from urllib.parse import urlsplit
 
 MAX_RBF = 32 << 20
 LOAD_TIMEOUT = 60
+REBOOT_TIMEOUT = 90
+REBOOT_POLL = 0.25
 HEADER = 'X-FogCast-Kit-Lease'
+GET_PATHS = frozenset(('/v1/kit/lease', '/v1/health', '/v1/status'))
 ERROR_CODE = re.compile(r'^[A-Z][A-Z0-9_]{0,63}$')
 
 
@@ -72,7 +75,7 @@ class Client:
                       else http.client.HTTPConnection)(self.url.hostname, self.url.port,
                                                        timeout=self.timeout if timeout is None else timeout)
         try:
-            connection.putrequest('GET' if path == '/v1/kit/lease' else 'POST', path)
+            connection.putrequest('GET' if path in GET_PATHS else 'POST', path)
             for key, value in headers.items():
                 connection.putheader(key, value)
             connection.endheaders()
@@ -200,12 +203,44 @@ class Session:
                 if error.status == 503 and error.code != 'KIT_LEASE_BLOCKED':
                     return {'state': 'held', 'reason': 'development probe timed out'}
                 raise
-        return self.client.request('/v1/stop', token=self.token)
+        stopped = self.client.request('/v1/stop', token=self.token)
+        if stopped.get('recovery') == 'reboot_required':
+            return self._recover_development()
+        return stopped
+
+    def _recover_development(self):
+        health = self.client.request('/v1/health')
+        boot_id = health.get('boot_id')
+        if not isinstance(boot_id, str) or not boot_id.strip():
+            raise KitError('target health is missing boot_id')
+        self.client.request('/v1/development/reboot', token=self.token)
+        self.done.set()
+        if self.thread:
+            self.thread.join()
+            self.thread = None
+        self.token = None
+        deadline = time.monotonic() + REBOOT_TIMEOUT
+        while time.monotonic() < deadline:
+            try:
+                health = self.client.request('/v1/health', timeout=2)
+                new_id = health.get('boot_id')
+                if (health.get('ready') is True and isinstance(new_id, str)
+                        and new_id.strip() and new_id != boot_id):
+                    lease = self.client.request('/v1/kit/lease')
+                    if lease.get('state') == 'free':
+                        recovered = dict(lease)
+                        recovered['reason'] = 'development reboot recovered'
+                        return recovered
+            except KitError:
+                pass
+            time.sleep(REBOOT_POLL)
+        raise KitError('development reboot did not return idle')
 
     def close(self):
         self.done.set()
         if self.thread:
             self.thread.join()
+            self.thread = None
         if self.token:
             token, self.token = self.token, None
             return self.client.request('/v1/kit/release', token=token)
@@ -214,7 +249,8 @@ class Session:
 
 def display(value):
     # Output only public status fields, never arbitrary grants or error bodies.
-    fields = ('state', 'generation', 'owner', 'purpose', 'expires_at', 'expires_in_ms', 'reason', 'core')
+    fields = ('state', 'generation', 'owner', 'purpose', 'expires_at', 'expires_in_ms',
+              'reason', 'core', 'recovery')
     print(json.dumps({key: value[key] for key in fields if key in value}), flush=True)
 
 

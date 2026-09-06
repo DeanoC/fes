@@ -21,6 +21,9 @@ class KitTests(unittest.TestCase):
         self.takeovers = 0
         self.load_status = 200
         self.load_error = None
+        self.stop_response = None
+        self.boot_id = 'boot-1'
+        self.rebooted = False
         outer = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -36,7 +39,9 @@ class KitTests(unittest.TestCase):
                 status = 200
                 response = {'state': 'held', 'generation': 'g1',
                             'expires_in_ms': 90000, 'expires_at': '1970-01-01T00:01:30Z'}
-                if self.headers.get('Authorization') != 'Bearer private-bearer':
+                if self.path == '/v1/health':
+                    response = {'ready': True, 'boot_id': outer.boot_id}
+                elif self.headers.get('Authorization') != 'Bearer private-bearer':
                     status = 401
                 elif self.path in ('/v1/kit/claim', '/v1/kit/takeover'):
                     response = {'status': response, 'token': 'private-lease'}
@@ -50,8 +55,18 @@ class KitTests(unittest.TestCase):
                     status = outer.load_status
                     if outer.load_error is not None:
                         response = outer.load_error
+                elif self.path == '/v1/stop' and outer.stop_response is not None:
+                    response = dict(outer.stop_response)
+                elif self.path == '/v1/development/reboot':
+                    outer.rebooted = True
+                    outer.boot_id = 'boot-2'
+                    response = {'state': 'stopping', 'development': True,
+                                'recovery': 'reboot_required'}
                 elif self.path.endswith('renew') and outer.reject_renew:
                     status = 409
+                if self.path == '/v1/kit/lease' and outer.rebooted:
+                    response = {'state': 'free', 'generation': 'g2',
+                                'expires_in_ms': 0, 'expires_at': '0001-01-01T00:00:00Z'}
                 if self.path.endswith('renew') and status == 200:
                     response = outer.renew_override or {'status': response, 'token': 'private-lease'}
                 if status != 200 and outer.load_error is None:
@@ -109,6 +124,7 @@ class KitTests(unittest.TestCase):
         self.assertNotIn('Transfer-Encoding', upload[1])
         self.assertTrue(any(call[0].endswith('/renew') for call in self.calls))
         self.assertEqual(self.calls[-1][0], '/v1/kit/release')
+        self.assertFalse(any(call[0].endswith('/reboot') for call in self.calls))
 
     def test_lost_renewal_disables_mutation(self):
         session = kit.Session(self.client, 'agent', 'bringup', interval=.01)
@@ -222,6 +238,39 @@ class KitTests(unittest.TestCase):
                 with self.assertRaises(kit.KitError):
                     self.client.load(path, 'private-lease')
         self.assertEqual(self.calls, [])
+
+    def test_stop_reboots_when_target_requires_development_recovery(self):
+        session = kit.Session(self.client, 'agent', 'bringup', interval=20)
+        session.claim()
+        self.stop_response = {
+            'state': 'stopping',
+            'development': True,
+            'recovery': 'reboot_required',
+        }
+        try:
+            result = session.mutate('stop')
+            self.assertEqual(result['state'], 'free')
+            self.assertEqual(result['reason'], 'development reboot recovered')
+            self.assertIsNone(session.token)
+        finally:
+            session.close()
+        paths = [call[0] for call in self.calls]
+        self.assertIn('/v1/stop', paths)
+        self.assertIn('/v1/health', paths)
+        self.assertIn('/v1/development/reboot', paths)
+        reboot = next(call for call in self.calls if call[0] == '/v1/development/reboot')
+        self.assertEqual(reboot[1].get(kit.HEADER), 'private-lease')
+        self.assertNotIn('/v1/kit/release', paths)
+
+    def test_stop_without_recovery_does_not_reboot(self):
+        session = kit.Session(self.client, 'agent', 'bringup', interval=20)
+        session.claim()
+        try:
+            session.mutate('stop')
+        finally:
+            session.close()
+        self.assertFalse(any(call[0].endswith('/reboot') for call in self.calls))
+        self.assertFalse(any(call[0] == '/v1/health' for call in self.calls))
 
     def test_takeover_retains_request_identity_while_busy(self):
         session = kit.Session(self.client, 'operator', 'recovery')

@@ -179,9 +179,12 @@ At the session prompt, enter `load build/oss/020_linux_mailbox/top.rbf`, `status
 `stop`, or `release`. Quote paths containing spaces. Repeat loads in the same
 session. A non-MiSTer development image programs, then fails the MiSTer SPI
 identity probe; `load` keeps the lease and reports `development probe timed out`
-so the operator can peek GPI before Stop. Stop returns hardware to idle while
-retaining ownership; release, EOF, or Ctrl-C requests cleanup and frees
-ownership. Keep stdin open between commands (including when using an agent's
+so the operator can peek GPI before Stop. Stop posts `/v1/stop`. When the
+target reports `recovery: reboot_required`, Stop records `/v1/health` `boot_id`,
+posts `/v1/development/reboot`, and waits for a new boot ID plus a free lease.
+That reboot restarts the target agent, so the current lease ends. Otherwise
+Stop returns to idle while retaining ownership. release, EOF, or Ctrl-C
+requests cleanup and frees ownership. Keep stdin open between commands (including when using an agent's
 persistent terminal session). `make kit-session` is a convenience using the
 environment configuration.
 
