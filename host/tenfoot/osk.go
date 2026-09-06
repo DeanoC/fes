@@ -69,7 +69,7 @@ func oskLayouts() [][][]OSKKey {
 		},
 		{
 			oskChars("1234567890"),
-			oskChars("-_.,'\""),
+			oskChars("-_.,'\"/\\:"),
 			oskChars("!?@#$%&"),
 			oskActionRow("ABC"),
 		},

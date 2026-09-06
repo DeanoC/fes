@@ -1368,7 +1368,7 @@ func drawSettings(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdl
 	if start < 0 {
 		start = 0
 	}
-	labelW := 140
+	labelW := 180
 	if labelW > panelW/3 {
 		labelW = panelW / 3
 	}
@@ -1386,6 +1386,9 @@ func drawSettings(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdl
 		drawLabel(renderer, labels, used, fmt.Sprintf("set-v-%s-%d", row.ID, idx), x+20+labelW, rowY+4, panelW-labelW-40, 16, row.Value)
 	}
 	status := strings.TrimSpace(snap.Settings.Status)
+	if status == "" {
+		status = strings.TrimSpace(snap.Settings.Hint)
+	}
 	if status == "" {
 		status = "A confirm  B close  Left/Right change"
 	}

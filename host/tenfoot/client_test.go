@@ -907,6 +907,91 @@ func TestClientLibrarySettingsPatchEmptyRejected(t *testing.T) {
 	}
 }
 
+func TestLibrarySettingsPatchPayloadLibraries(t *testing.T) {
+	t.Parallel()
+	if _, err := (LibrarySettingsPatch{}).payload(); err == nil {
+		t.Fatal("empty patch accepted")
+	}
+	idle := 60
+	raw, err := (LibrarySettingsPatch{AttractIdleSeconds: &idle}).payload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := raw["libraries"]; ok {
+		t.Fatalf("nil libraries included: %#v", raw)
+	}
+	libraries := []LibraryRoot{{ID: "snes", System: "snes", Root: "/library/snes"}}
+	raw, err = (LibrarySettingsPatch{Libraries: &libraries}).payload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := raw["attract_idle_seconds"]; ok {
+		t.Fatalf("libraries patch included idle: %#v", raw)
+	}
+	if _, ok := raw["targets"]; ok {
+		t.Fatalf("libraries patch included targets: %#v", raw)
+	}
+	data, err := json.Marshal(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != `{"libraries":[{"id":"snes","system":"snes","root":"/library/snes"}]}` {
+		t.Fatalf("full array = %s", data)
+	}
+	empty := []LibraryRoot{}
+	raw, err = (LibrarySettingsPatch{Libraries: &empty}).payload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err = json.Marshal(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != `{"libraries":[]}` {
+		t.Fatalf("empty array = %s", data)
+	}
+}
+
+func TestClientLibrarySettingsPatchLibraries(t *testing.T) {
+	t.Parallel()
+	var patches []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/library/settings" || r.Method != http.MethodPatch {
+			http.Error(w, "method", http.StatusMethodNotAllowed)
+			return
+		}
+		raw, _ := io.ReadAll(r.Body)
+		patches = append(patches, string(raw))
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"attract_idle_seconds": 60,
+			"preferred_regions":    []string{"usa"},
+			"selected_target":      "dev",
+			"targets":              []map[string]any{{"name": "dev"}},
+			"libraries":            []map[string]any{{"id": "snes", "system": "snes", "root": "/library/snes"}},
+			"systems":              []map[string]any{{"id": "snes", "label": "SNES"}},
+		})
+	}))
+	t.Cleanup(server.Close)
+	client := NewClient(server.URL, server.Client())
+	libraries := []LibraryRoot{{ID: "snes", System: "snes", Root: "/library/snes"}}
+	if _, err := client.PatchLibrarySettings(context.Background(), LibrarySettingsPatch{Libraries: &libraries}); err != nil {
+		t.Fatal(err)
+	}
+	empty := []LibraryRoot{}
+	if _, err := client.PatchLibrarySettings(context.Background(), LibrarySettingsPatch{Libraries: &empty}); err != nil {
+		t.Fatal(err)
+	}
+	if len(patches) != 2 {
+		t.Fatalf("patches = %#v", patches)
+	}
+	if patches[0] != `{"libraries":[{"id":"snes","system":"snes","root":"/library/snes"}]}` {
+		t.Fatalf("full array = %q", patches[0])
+	}
+	if patches[1] != `{"libraries":[]}` {
+		t.Fatalf("empty array = %q", patches[1])
+	}
+}
+
 func TestClientLibrarySettingsGetError(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

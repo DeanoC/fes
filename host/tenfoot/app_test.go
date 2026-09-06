@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"image"
 	"image/color"
@@ -12,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -2162,6 +2164,264 @@ artworkStarted:
 	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1 && snap.CoverHits >= 1 && snap.LoadErr == ""
 	})
+}
+
+func TestAppCancelsSupersededPresentationWork(t *testing.T) {
+	handle := strings.Repeat("cd", 32)
+	pngBytes := mustPNG(t, 8, 12, color.RGBA{R: 20, G: 80, B: 200, A: 255})
+	blocked := make(chan struct{})
+	canceled := make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-alpha", "Alpha", "snes")}})
+		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
+			select {
+			case <-blocked:
+			default:
+				close(blocked)
+				select {
+				case <-r.Context().Done():
+					select {
+					case canceled <- struct{}{}:
+					default:
+					}
+					return
+				case <-time.After(3 * time.Second):
+					http.Error(w, "superseded presentation GET was not canceled", http.StatusGatewayTimeout)
+					return
+				}
+			}
+			_ = json.NewEncoder(w).Encode(Presentation{
+				GameID: "snes-alpha",
+				State:  "ready",
+				Presentation: &PresentationInfo{
+					CoverArtworkID: handle,
+					Summary:        "Alpha",
+				},
+				Attribution: &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
+			})
+		case r.URL.Path == "/api/v1/presentation/artwork/"+handle:
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(pngBytes)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		app.Tick(time.Now())
+		select {
+		case <-blocked:
+			goto presentationStarted
+		default:
+		}
+		if !time.Now().Before(deadline) {
+			t.Fatal("cover work did not reach presentation GET")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+presentationStarted:
+	app.Press(CmdSortCycle, time.Now())
+	select {
+	case <-canceled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("superseded presentation GET was not canceled")
+	}
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && len(snap.Games) == 1 && snap.CoverHits >= 1 && snap.LoadErr == ""
+	})
+}
+
+func TestGPUParkCancelsInFlightPresentationWork(t *testing.T) {
+	handle := strings.Repeat("cd", 32)
+	pngBytes := mustPNG(t, 8, 12, color.RGBA{R: 20, G: 80, B: 200, A: 255})
+	blocked := make(chan struct{})
+	canceled := make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-alpha", "Alpha", "snes")}})
+		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
+			select {
+			case <-blocked:
+			default:
+				close(blocked)
+				select {
+				case <-r.Context().Done():
+					select {
+					case canceled <- struct{}{}:
+					default:
+					}
+					return
+				case <-time.After(3 * time.Second):
+					http.Error(w, "parked presentation GET was not canceled", http.StatusGatewayTimeout)
+					return
+				}
+			}
+			_ = json.NewEncoder(w).Encode(Presentation{
+				GameID: "snes-alpha",
+				State:  "ready",
+				Presentation: &PresentationInfo{
+					CoverArtworkID: handle,
+					Summary:        "Alpha",
+				},
+				Attribution: &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
+			})
+		case r.URL.Path == "/api/v1/presentation/artwork/"+handle:
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(pngBytes)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		app.Tick(time.Now())
+		select {
+		case <-blocked:
+			goto presentationStarted
+		default:
+		}
+		if !time.Now().Before(deadline) {
+			t.Fatal("cover work did not reach presentation GET")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+presentationStarted:
+	app.mu.Lock()
+	staleGen := app.loadGen
+	app.session.State = "active"
+	app.syncGPUParkLocked()
+	parkedGen := app.loadGen
+	app.mu.Unlock()
+	if parkedGen == staleGen {
+		t.Fatal("park should advance cover generation")
+	}
+	select {
+	case <-canceled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("parked presentation GET was not canceled")
+	}
+	app.mu.Lock()
+	app.session.State = "idle"
+	app.syncGPUParkLocked()
+	app.mu.Unlock()
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return !snap.GPUParked && !snap.Loading && len(snap.Games) == 1 && snap.CoverHits >= 1 && snap.LoadErr == ""
+	})
+}
+
+func TestReplaceLoadContextDrainsJobsAndCancelsMediaContext(t *testing.T) {
+	t.Parallel()
+	app := NewApp(nil, 800, 600, 10)
+	parent, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	app.ctx = parent
+	first := app.replaceLoadContextLocked()
+	if first.Err() != nil {
+		t.Fatal("fresh job ctx should be live")
+	}
+	for i := 0; i < coverJobBuffer; i++ {
+		select {
+		case app.jobs <- workItem{kind: workArtwork, gameID: "stale-" + strconv.Itoa(i), gen: 1}:
+		default:
+			t.Fatal("jobs buffer should accept fill")
+		}
+	}
+	if got := len(app.jobs); got != coverJobBuffer {
+		t.Fatalf("queued = %d want %d", got, coverJobBuffer)
+	}
+	second := app.replaceLoadContextLocked()
+	if first.Err() == nil {
+		t.Fatal("replaced job ctx should be canceled")
+	}
+	if second.Err() != nil {
+		t.Fatal("new job ctx should be live")
+	}
+	if second == first {
+		t.Fatal("replace should install a new job ctx")
+	}
+	if app.jobCtx != second {
+		t.Fatal("jobCtx should be the replacement")
+	}
+	if got := len(app.jobs); got != 0 {
+		t.Fatalf("stale jobs remaining = %d", got)
+	}
+	select {
+	case <-app.jobs:
+		t.Fatal("drained jobs channel still readable")
+	default:
+	}
+}
+
+func TestWorkerRejectsStaleMediaJobBeforeIO(t *testing.T) {
+	handle := strings.Repeat("ab", 32)
+	staleHandle := strings.Repeat("ef", 32)
+	stalePresID := "snes-stale-pres"
+	var staleArtworkGets, stalePresentationGets atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v1/games":
+			game := availableGame("snes-mario", "Mario", "snes")
+			game.Cover = handle
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{game}})
+		case r.URL.Path == "/api/v1/presentation/games/"+stalePresID:
+			stalePresentationGets.Add(1)
+			http.NotFound(w, r)
+		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
+			id := strings.TrimPrefix(r.URL.Path, "/api/v1/presentation/games/")
+			_ = json.NewEncoder(w).Encode(Presentation{GameID: id, State: "offline"})
+		case r.URL.Path == "/api/v1/presentation/artwork/"+staleHandle:
+			staleArtworkGets.Add(1)
+			http.NotFound(w, r)
+		case r.URL.Path == "/api/v1/presentation/artwork/"+handle:
+			http.NotFound(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && len(snap.Games) == 1
+	})
+	app.mu.Lock()
+	staleGen := app.loadGen
+	app.loadGen++
+	app.mu.Unlock()
+	jobs := []workItem{
+		{kind: workArtwork, gameID: "snes-stale-art", handle: staleHandle, gen: staleGen},
+		{kind: workPresentation, gameID: stalePresID, handle: staleHandle, gen: staleGen},
+	}
+	for _, item := range jobs {
+		select {
+		case app.jobs <- item:
+		case <-time.After(time.Second):
+			t.Fatal("jobs channel blocked")
+		}
+	}
+	hold := time.Now().Add(200 * time.Millisecond)
+	for time.Now().Before(hold) {
+		app.Tick(time.Now())
+		time.Sleep(5 * time.Millisecond)
+	}
+	if staleArtworkGets.Load() != 0 {
+		t.Fatalf("stale artwork job performed I/O, gets=%d", staleArtworkGets.Load())
+	}
+	if stalePresentationGets.Load() != 0 {
+		t.Fatalf("stale presentation job performed I/O, gets=%d", stalePresentationGets.Load())
+	}
 }
 
 func TestAppOverlappingReloadKeepsPreClearFocus(t *testing.T) {

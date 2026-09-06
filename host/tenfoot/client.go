@@ -629,7 +629,7 @@ type LibraryTarget struct {
 	AgentConfigured bool   `json:"agent_configured"`
 }
 
-// LibraryRoot is one library path row. Tenfoot does not edit these.
+// LibraryRoot is one library path row from GET /api/v1/library/settings.
 type LibraryRoot struct {
 	ID     string `json:"id"`
 	System string `json:"system"`
@@ -653,11 +653,13 @@ type LibrarySettings struct {
 }
 
 // LibrarySettingsPatch is a partial PATCH /api/v1/library/settings body.
-// Nil fields are omitted.
+// Nil fields are omitted. Libraries is a full-array replace when non-nil,
+// including an empty list.
 type LibrarySettingsPatch struct {
-	AttractIdleSeconds *int      `json:"attract_idle_seconds,omitempty"`
-	PreferredRegions   *[]string `json:"preferred_regions,omitempty"`
-	SelectedTarget     *string   `json:"selected_target,omitempty"`
+	AttractIdleSeconds *int           `json:"attract_idle_seconds,omitempty"`
+	PreferredRegions   *[]string      `json:"preferred_regions,omitempty"`
+	SelectedTarget     *string        `json:"selected_target,omitempty"`
+	Libraries          *[]LibraryRoot `json:"libraries,omitempty"`
 }
 
 func (p LibrarySettingsPatch) payload() (map[string]any, error) {
@@ -674,6 +676,13 @@ func (p LibrarySettingsPatch) payload() (map[string]any, error) {
 	}
 	if p.SelectedTarget != nil {
 		raw["selected_target"] = *p.SelectedTarget
+	}
+	if p.Libraries != nil {
+		libraries := append([]LibraryRoot(nil), *p.Libraries...)
+		if libraries == nil {
+			libraries = []LibraryRoot{}
+		}
+		raw["libraries"] = libraries
 	}
 	if len(raw) == 0 {
 		return nil, fmt.Errorf("settings patch is empty")

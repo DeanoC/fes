@@ -271,91 +271,97 @@ type App struct {
 	maxGames  int
 	pageLimit int
 
-	platforms             []Platform
-	platformID            string
-	sort                  string
-	searchField           TextField
-	searchOpen            bool
-	searchPending         bool
-	searchDue             time.Time
-	details               map[string]FocusDetail
-	shots                 map[string]*shotSlot
-	shotIDs               map[string][]string
-	detailOpen            bool
-	carouselIndex         int
-	shotGen               int
-	shotCtx               context.Context
-	shotCancel            context.CancelFunc
-	loadGen               int
-	keepFocusID           string
-	keepFocusIndex        int
-	navDirty              bool
-	platformErr           string
-	platformKick          chan struct{}
-	loadCancel            context.CancelFunc
-	jobCtx                context.Context
-	collectionID          string
-	collections           []Collection
-	collectionsErr        string
-	collectionsLoaded     bool
-	collectionsKick       chan struct{}
-	viewPickerOpen        bool
-	viewPickerIndex       int
-	nameEntry             nameEntryKind
-	nameEntryID           string
-	nameField             TextField
-	collectionBusy        bool
-	membershipBusy        bool
-	collectionManageOpen  bool
-	collectionManageIndex int
-	collectionManageID    string
-	collectionManageName  string
-	collectionConfirmOpen bool
-	filtersOpen           bool
-	filterPane            int
-	filterIndex           int
-	filterGen             int
-	filtersLoading        bool
-	filterStatus          string
-	filterGenre           string
-	filterYear            string
-	filterRegion          string
-	hidePrerelease        bool
-	hideHacks             bool
-	facets                FacetValues
-	settingsOpen          bool
-	settingsIndex         int
-	settingsGen           int
-	settingsWriteGen      int
-	settingsPatchSeq      int
-	settingsAppliedSeq    int
-	settingsLoading       bool
-	settingsBusy          bool
-	settingsHydrated      bool
-	settingsStatus        string
-	settingsDraftIdle     int
-	settingsDraftRegions  []string
-	settingsDraftTarget   string
-	settingsRegionIndex   int
-	hostSettings          LibrarySettings
-	attractPrefEnabled    bool
-	attractForcedOff      bool
-	favoriteBusy          bool
-	hold                  HoldGate
-	session               SessionResult
-	sessionTitle          string
-	sessionGen            int
-	stopPhase             string
-	stopMessage           string
-	gpuParked             bool
-	sessionKick           chan struct{}
-	health                HealthResult
-	healthHave            bool
-	hostUnreachable       bool
-	inputBusy             bool
-	inputAction           string
-	inputMessage          string
-	stopQueued            bool
+	platforms              []Platform
+	platformID             string
+	sort                   string
+	searchField            TextField
+	searchOpen             bool
+	searchPending          bool
+	searchDue              time.Time
+	details                map[string]FocusDetail
+	shots                  map[string]*shotSlot
+	shotIDs                map[string][]string
+	detailOpen             bool
+	carouselIndex          int
+	shotGen                int
+	shotCtx                context.Context
+	shotCancel             context.CancelFunc
+	loadGen                int
+	keepFocusID            string
+	keepFocusIndex         int
+	navDirty               bool
+	platformErr            string
+	platformKick           chan struct{}
+	loadCancel             context.CancelFunc
+	jobCtx                 context.Context
+	collectionID           string
+	collections            []Collection
+	collectionsErr         string
+	collectionsLoaded      bool
+	collectionsKick        chan struct{}
+	viewPickerOpen         bool
+	viewPickerIndex        int
+	nameEntry              nameEntryKind
+	nameEntryID            string
+	nameField              TextField
+	collectionBusy         bool
+	membershipBusy         bool
+	collectionManageOpen   bool
+	collectionManageIndex  int
+	collectionManageID     string
+	collectionManageName   string
+	collectionConfirmOpen  bool
+	filtersOpen            bool
+	filterPane             int
+	filterIndex            int
+	filterGen              int
+	filtersLoading         bool
+	filterStatus           string
+	filterGenre            string
+	filterYear             string
+	filterRegion           string
+	hidePrerelease         bool
+	hideHacks              bool
+	facets                 FacetValues
+	settingsOpen           bool
+	settingsIndex          int
+	settingsGen            int
+	settingsWriteGen       int
+	settingsPatchSeq       int
+	settingsAppliedSeq     int
+	settingsLoading        bool
+	settingsBusy           bool
+	settingsHydrated       bool
+	settingsStatus         string
+	settingsDraftIdle      int
+	settingsDraftRegions   []string
+	settingsDraftTarget    string
+	settingsDraftLibraries []LibraryRoot
+	settingsLibrariesDirty bool
+	settingsRegionIndex    int
+	settingsPathOpen       bool
+	settingsPathIndex      int
+	settingsPathIsAdd      bool
+	settingsPathField      TextField
+	hostSettings           LibrarySettings
+	attractPrefEnabled     bool
+	attractForcedOff       bool
+	favoriteBusy           bool
+	hold                   HoldGate
+	session                SessionResult
+	sessionTitle           string
+	sessionGen             int
+	stopPhase              string
+	stopMessage            string
+	gpuParked              bool
+	sessionKick            chan struct{}
+	health                 HealthResult
+	healthHave             bool
+	hostUnreachable        bool
+	inputBusy              bool
+	inputAction            string
+	inputMessage           string
+	stopQueued             bool
 
 	safeAreaPct        float64
 	prefsPath          string
@@ -477,7 +483,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	if a.consumeAttractLocked(cmd, now) {
 		return
 	}
-	if a.searchOpen || a.nameEntryOpenLocked() {
+	if a.searchOpen || a.nameEntryOpenLocked() || a.settingsPathOpen {
 		switch cmd {
 		case CmdSafeAreaIn, CmdSafeAreaOut, CmdLayoutCycle:
 			return
@@ -508,6 +514,10 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		} else {
 			a.openFiltersLocked()
 		}
+		return
+	}
+	if a.settingsPathOpen {
+		a.handleLibraryPathOSKLocked(cmd)
 		return
 	}
 	if a.settingsOpen {
@@ -646,6 +656,10 @@ func (a *App) TypeText(text string, now time.Time) {
 	if a.consumeAttractLocked(CmdNone, now) {
 		return
 	}
+	if a.settingsPathOpen {
+		a.settingsPathField.Insert(text)
+		return
+	}
 	if a.nameEntryOpenLocked() {
 		a.nameField.Insert(text)
 		return
@@ -663,6 +677,13 @@ func (a *App) SearchBackspace(now time.Time) {
 	defer a.mu.Unlock()
 	a.noteActivityLocked(now)
 	if a.consumeAttractLocked(CmdBack, now) {
+		return
+	}
+	if a.settingsPathOpen {
+		if a.settingsPathField.Buffer == "" {
+			return
+		}
+		a.settingsPathField.Backspace()
 		return
 	}
 	if a.nameEntryOpenLocked() {
@@ -685,6 +706,10 @@ func (a *App) ConfirmSearch(now time.Time) {
 	defer a.mu.Unlock()
 	a.noteActivityLocked(now)
 	if a.consumeAttractLocked(CmdSelect, now) {
+		return
+	}
+	if a.settingsPathOpen {
+		a.submitLibraryPathOSKLocked()
 		return
 	}
 	if a.nameEntryOpenLocked() {
@@ -924,7 +949,7 @@ func (a *App) doFavorite(ctx context.Context, gameID string, want bool) {
 		return
 	}
 	a.setGameFavoriteLocked(gameID, want)
-	if !want && a.collectionID == "favorites" {
+	if a.collectionID == "favorites" {
 		a.reloadLocked()
 		return
 	}
@@ -1123,6 +1148,12 @@ func (a *App) SetGamepads(n int) {
 }
 
 func (a *App) oskSnapshotLocked() OSKSnapshot {
+	if a.settingsPathOpen {
+		snap := a.settingsPathField.Snapshot()
+		snap.Open = true
+		snap.Prompt = "Library path"
+		return snap
+	}
 	if a.nameEntryOpenLocked() {
 		snap := a.nameField.Snapshot()
 		snap.Open = true
@@ -1778,17 +1809,15 @@ func (a *App) syncGPUParkLocked() {
 	a.closeSettingsLocked()
 	a.closeFiltersLocked()
 	a.closeDetailLocked()
-	a.inflight = map[string]workKind{}
+	a.loadGen++
+	wasLoading := a.loading
+	ctx := a.replaceLoadContextLocked()
+	if wasLoading {
+		go a.loadLibrary(ctx, a.loadGen)
+	}
 	a.covers = map[string]*coverSlot{}
 	a.shots = map[string]*shotSlot{}
 	a.shotIDs = map[string][]string{}
-	for {
-		select {
-		case <-a.jobs:
-		default:
-			return
-		}
-	}
 }
 
 func (a *App) sessionSnapshotLocked() SessionSnapshot {

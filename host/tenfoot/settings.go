@@ -15,8 +15,14 @@ const (
 	settingsRowIdle
 	settingsRowRegions
 	settingsRowTarget
+	settingsRowFixedCount
+)
+
+const (
+	settingsRowAddLibrary = iota
+	settingsRowSaveLibraries
 	settingsRowClose
-	settingsRowCount
+	settingsTrailingCount
 )
 
 const (
@@ -42,6 +48,7 @@ type SettingsSnapshot struct {
 	Loading      bool
 	Busy         bool
 	Status       string
+	Hint         string
 	LibraryCount int
 	SystemCount  int
 }
@@ -76,14 +83,22 @@ func (a *App) settingsSnapshotLocked() SettingsSnapshot {
 	if !a.settingsOpen {
 		return SettingsSnapshot{}
 	}
+	rows := a.settingsRowsLocked()
+	if a.settingsIndex < 0 {
+		a.settingsIndex = 0
+	}
+	if n := len(rows); n > 0 && a.settingsIndex >= n {
+		a.settingsIndex = n - 1
+	}
 	return SettingsSnapshot{
 		Open:         true,
 		Index:        a.settingsIndex,
-		Rows:         a.settingsRowsLocked(),
+		Rows:         rows,
 		Loading:      a.settingsLoading,
 		Busy:         a.settingsBusy,
 		Status:       a.settingsStatus,
-		LibraryCount: len(a.hostSettings.Libraries),
+		Hint:         a.settingsHintLocked(),
+		LibraryCount: len(a.settingsDraftLibraries),
 		SystemCount:  len(a.hostSettings.Systems),
 	}
 }
@@ -114,15 +129,35 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 			target = "(none)"
 		}
 	}
-	return []SettingsRow{
+	rows := []SettingsRow{
 		{ID: "layout", Label: "Layout", Value: a.grid.Mode.Label()},
 		{ID: "safe-area", Label: "Safe area", Value: fmt.Sprintf("%.1f%%", a.safeAreaPct*100)},
 		{ID: "attract", Label: "Attract", Value: attract},
 		{ID: "idle", Label: "Idle", Value: idle},
 		{ID: "regions", Label: "Regions", Value: regions},
 		{ID: "target", Label: "Target", Value: target},
-		{ID: "close", Label: "Close", Value: "B back"},
 	}
+	for i, library := range a.settingsDraftLibraries {
+		root := strings.TrimSpace(library.Root)
+		if root == "" {
+			root = "(empty)"
+		}
+		rows = append(rows, SettingsRow{
+			ID:    fmt.Sprintf("library-%d", i),
+			Label: a.settingsSystemLabelLocked(library.System),
+			Value: root,
+		})
+	}
+	save := "saved"
+	if a.settingsLibrariesDirty {
+		save = "A save"
+	}
+	rows = append(rows,
+		SettingsRow{ID: "add-library", Label: "Add library", Value: "A add"},
+		SettingsRow{ID: "save-libraries", Label: "Save libraries", Value: save},
+		SettingsRow{ID: "close", Label: "Close", Value: "B back"},
+	)
+	return rows
 }
 
 func formatSettingsRegions(selected []string, cursor int) string {
@@ -159,6 +194,7 @@ func (a *App) openSettingsLocked() {
 	a.settingsLoading = true
 	a.settingsHydrated = false
 	a.settingsRegionIndex = 0
+	a.closeLibraryPathOSKLocked()
 	a.settingsGen++
 	gen := a.settingsGen
 	ctx := a.ctx
@@ -176,25 +212,58 @@ func (a *App) closeSettingsLocked() {
 	a.settingsBusy = false
 	a.settingsLoading = false
 	a.settingsStatus = ""
+	a.closeLibraryPathOSKLocked()
 	a.settingsGen++
 	a.discardSettingsDraftsLocked()
 }
 
 func (a *App) discardSettingsDraftsLocked() {
+	a.settingsLibrariesDirty = false
+	a.closeLibraryPathOSKLocked()
 	if !a.settingsHydrated {
 		a.settingsDraftIdle = 0
 		a.settingsDraftRegions = nil
 		a.settingsDraftTarget = ""
+		a.settingsDraftLibraries = nil
 		return
 	}
 	a.settingsDraftIdle = a.hostSettings.AttractIdleSeconds
 	a.settingsDraftRegions = append([]string(nil), a.hostSettings.PreferredRegions...)
 	a.settingsDraftTarget = a.hostSettings.SelectedTarget
+	a.settingsDraftLibraries = cloneLibraryRoots(a.hostSettings.Libraries)
+}
+
+func (a *App) revertSettingsPatchDraftsLocked(patch LibrarySettingsPatch) {
+	if !a.settingsHydrated {
+		return
+	}
+	if patch.AttractIdleSeconds != nil {
+		idle := a.hostSettings.AttractIdleSeconds
+		if idle <= 0 {
+			idle = defaultAttractIdleSeconds
+		}
+		a.settingsDraftIdle = idle
+	}
+	if patch.PreferredRegions != nil {
+		a.settingsDraftRegions = append([]string(nil), a.hostSettings.PreferredRegions...)
+	}
+	if patch.SelectedTarget != nil {
+		a.settingsDraftTarget = a.hostSettings.SelectedTarget
+	}
+	if patch.Libraries != nil {
+		a.settingsLibrariesDirty = false
+		a.settingsDraftLibraries = cloneLibraryRoots(a.hostSettings.Libraries)
+		a.closeLibraryPathOSKLocked()
+	}
 }
 
 func (a *App) handleSettingsLocked(cmd Command) {
 	if !a.settingsOpen {
 		return
+	}
+	rows := a.settingsRowCountLocked()
+	if rows <= 0 {
+		rows = 1
 	}
 	switch cmd {
 	case CmdSettings:
@@ -204,16 +273,22 @@ func (a *App) handleSettingsLocked(cmd Command) {
 		a.closeSettingsLocked()
 		return
 	case CmdUp:
-		a.settingsIndex = (a.settingsIndex - 1 + settingsRowCount) % settingsRowCount
+		a.settingsIndex = (a.settingsIndex - 1 + rows) % rows
 		return
 	case CmdDown:
-		a.settingsIndex = (a.settingsIndex + 1) % settingsRowCount
+		a.settingsIndex = (a.settingsIndex + 1) % rows
 		return
 	}
 	if a.settingsBusy {
 		switch a.settingsIndex {
 		case settingsRowIdle, settingsRowRegions, settingsRowTarget:
 			return
+		}
+		if a.settingsIndex >= settingsRowFixedCount {
+			kind, _ := a.settingsLibraryRowLocked()
+			if kind != settingsRowClose {
+				return
+			}
 		}
 	}
 	switch a.settingsIndex {
@@ -301,11 +376,213 @@ func (a *App) handleSettingsLocked(cmd Command) {
 			}
 			a.patchSettingsLocked(LibrarySettingsPatch{SelectedTarget: strPtr(name)})
 		}
-	case settingsRowClose:
+	default:
+		a.handleSettingsLibraryRowsLocked(cmd)
+	}
+}
+
+func (a *App) settingsRowCountLocked() int {
+	return settingsRowFixedCount + len(a.settingsDraftLibraries) + settingsTrailingCount
+}
+
+func (a *App) settingsLibraryRowLocked() (int, int) {
+	rel := a.settingsIndex - settingsRowFixedCount
+	libCount := len(a.settingsDraftLibraries)
+	if rel < 0 {
+		return -1, -1
+	}
+	if rel < libCount {
+		return -1, rel
+	}
+	return rel - libCount, -1
+}
+
+func (a *App) clampSettingsIndexLocked() {
+	n := a.settingsRowCountLocked()
+	if n <= 0 {
+		a.settingsIndex = 0
+		return
+	}
+	if a.settingsIndex < 0 {
+		a.settingsIndex = 0
+	}
+	if a.settingsIndex >= n {
+		a.settingsIndex = n - 1
+	}
+}
+
+func (a *App) handleSettingsLibraryRowsLocked(cmd Command) {
+	kind, libIndex := a.settingsLibraryRowLocked()
+	switch {
+	case libIndex >= 0:
+		a.handleSettingsLibraryEntryLocked(cmd, libIndex)
+	case kind == settingsRowAddLibrary:
+		if cmd == CmdSelect {
+			a.addSettingsLibraryLocked()
+		}
+	case kind == settingsRowSaveLibraries:
+		if cmd == CmdSelect {
+			a.saveSettingsLibrariesLocked()
+		}
+	case kind == settingsRowClose:
 		if cmd == CmdSelect {
 			a.closeSettingsLocked()
 		}
 	}
+}
+
+func (a *App) handleSettingsLibraryEntryLocked(cmd Command, index int) {
+	if !a.settingsHydrated || index < 0 || index >= len(a.settingsDraftLibraries) {
+		return
+	}
+	switch cmd {
+	case CmdLeft, CmdRight:
+		ids := a.settingsSystemChoicesLocked(a.settingsDraftLibraries[index].System)
+		if len(ids) == 0 {
+			a.settingsStatus = "no systems"
+			a.status = a.settingsStatus
+			return
+		}
+		idx := indexOfString(ids, a.settingsDraftLibraries[index].System)
+		if idx < 0 {
+			idx = 0
+		}
+		if cmd == CmdLeft {
+			idx = (idx - 1 + len(ids)) % len(ids)
+		} else {
+			idx = (idx + 1) % len(ids)
+		}
+		next := ids[idx]
+		if next == a.settingsDraftLibraries[index].System {
+			return
+		}
+		a.settingsDraftLibraries[index].System = next
+		a.settingsLibrariesDirty = true
+	case CmdSelect:
+		a.openLibraryPathOSKLocked(index, false)
+	case CmdSortCycle:
+		a.removeSettingsLibraryLocked(index)
+	}
+}
+
+func (a *App) addSettingsLibraryLocked() {
+	if !a.settingsHydrated {
+		return
+	}
+	ids := a.settingsSystemIDsLocked()
+	if len(ids) == 0 {
+		a.settingsStatus = "no systems"
+		a.status = a.settingsStatus
+		return
+	}
+	a.settingsDraftLibraries = append(a.settingsDraftLibraries, LibraryRoot{System: ids[0]})
+	a.settingsIndex = settingsRowFixedCount + len(a.settingsDraftLibraries) - 1
+	a.openLibraryPathOSKLocked(len(a.settingsDraftLibraries)-1, true)
+}
+
+func (a *App) removeSettingsLibraryLocked(index int) {
+	if index < 0 || index >= len(a.settingsDraftLibraries) {
+		return
+	}
+	a.settingsDraftLibraries = append(a.settingsDraftLibraries[:index], a.settingsDraftLibraries[index+1:]...)
+	a.settingsLibrariesDirty = true
+	a.clampSettingsIndexLocked()
+}
+
+func (a *App) saveSettingsLibrariesLocked() {
+	if !a.settingsHydrated {
+		return
+	}
+	for _, library := range a.settingsDraftLibraries {
+		if strings.TrimSpace(library.System) == "" || strings.TrimSpace(library.Root) == "" {
+			a.settingsStatus = "library system and path are required"
+			a.status = a.settingsStatus
+			return
+		}
+	}
+	libraries := cloneLibraryRoots(a.settingsDraftLibraries)
+	a.patchSettingsLocked(LibrarySettingsPatch{Libraries: &libraries})
+}
+
+func (a *App) openLibraryPathOSKLocked(index int, isAdd bool) {
+	if !a.settingsHydrated || index < 0 || index >= len(a.settingsDraftLibraries) {
+		return
+	}
+	a.settingsPathOpen = true
+	a.settingsPathIndex = index
+	a.settingsPathIsAdd = isAdd
+	a.settingsPathField = TextField{Buffer: a.settingsDraftLibraries[index].Root}
+	a.settingsPathField.OSK.Reset()
+	a.settingsPathField.OSK.CyclePage(1)
+}
+
+func (a *App) closeLibraryPathOSKLocked() {
+	a.settingsPathOpen = false
+	a.settingsPathIndex = 0
+	a.settingsPathIsAdd = false
+	a.settingsPathField = TextField{}
+}
+
+func (a *App) handleLibraryPathOSKLocked(cmd Command) {
+	switch cmd {
+	case CmdUp:
+		a.settingsPathField.Move(0, -1)
+	case CmdDown:
+		a.settingsPathField.Move(0, 1)
+	case CmdLeft:
+		a.settingsPathField.Move(-1, 0)
+	case CmdRight:
+		a.settingsPathField.Move(1, 0)
+	case CmdSelect:
+		result := a.settingsPathField.Activate()
+		if result.Done {
+			a.submitLibraryPathOSKLocked()
+		}
+	case CmdBack:
+		if strings.TrimSpace(a.settingsPathField.Buffer) != "" {
+			a.settingsPathField.Clear()
+			return
+		}
+		a.cancelLibraryPathOSKLocked()
+	case CmdSearch:
+		a.cancelLibraryPathOSKLocked()
+	case CmdFilterPrev:
+		a.settingsPathField.CyclePage(-1)
+	case CmdFilterNext:
+		a.settingsPathField.CyclePage(1)
+	}
+}
+
+func (a *App) submitLibraryPathOSKLocked() {
+	index := a.settingsPathIndex
+	if index < 0 || index >= len(a.settingsDraftLibraries) {
+		a.closeLibraryPathOSKLocked()
+		return
+	}
+	path := strings.TrimSpace(a.settingsPathField.Buffer)
+	if path == "" {
+		a.settingsStatus = "library path is required"
+		a.status = a.settingsStatus
+		return
+	}
+	a.settingsDraftLibraries[index].Root = path
+	a.settingsLibrariesDirty = true
+	a.closeLibraryPathOSKLocked()
+	a.settingsStatus = ""
+}
+
+func (a *App) cancelLibraryPathOSKLocked() {
+	index := a.settingsPathIndex
+	isAdd := a.settingsPathIsAdd
+	a.closeLibraryPathOSKLocked()
+	if !isAdd || index < 0 || index >= len(a.settingsDraftLibraries) {
+		return
+	}
+	if strings.TrimSpace(a.settingsDraftLibraries[index].Root) != "" {
+		return
+	}
+	a.settingsDraftLibraries = append(a.settingsDraftLibraries[:index], a.settingsDraftLibraries[index+1:]...)
+	a.clampSettingsIndexLocked()
 }
 
 func prevLayout(mode LayoutKind) LayoutKind {
@@ -437,6 +714,9 @@ func (a *App) settingsDraftsMatchLocked(settings LibrarySettings) bool {
 	if strings.TrimSpace(a.settingsDraftTarget) != strings.TrimSpace(settings.SelectedTarget) {
 		return false
 	}
+	if !slices.Equal(a.settingsDraftLibraries, settings.Libraries) {
+		return false
+	}
 	return slices.Equal(a.settingsDraftRegions, settings.PreferredRegions)
 }
 
@@ -448,6 +728,9 @@ func (a *App) applyHostSettingsLocked(settings LibrarySettings) {
 	}
 	a.settingsDraftRegions = append([]string(nil), settings.PreferredRegions...)
 	a.settingsDraftTarget = strings.TrimSpace(settings.SelectedTarget)
+	if !a.settingsLibrariesDirty {
+		a.settingsDraftLibraries = cloneLibraryRoots(settings.Libraries)
+	}
 	a.settingsHydrated = true
 }
 
@@ -483,7 +766,7 @@ func (a *App) commitLibrarySettings(ctx context.Context, gen, seq int, patch Lib
 		a.settingsBusy = false
 		a.settingsStatus = settingsStatusError(err)
 		a.status = a.settingsStatus
-		a.discardSettingsDraftsLocked()
+		a.revertSettingsPatchDraftsLocked(patch)
 		return
 	}
 	if seq > a.settingsAppliedSeq {
@@ -494,6 +777,12 @@ func (a *App) commitLibrarySettings(ctx context.Context, gen, seq int, patch Lib
 			a.applyAttractIdleFromSettingsLocked(settings.AttractIdleSeconds)
 		}
 		if patch.PreferredRegions != nil {
+			a.reloadLocked()
+		}
+		if patch.Libraries != nil {
+			if current {
+				a.settingsLibrariesDirty = false
+			}
 			a.reloadLocked()
 		}
 		a.settingsWriteGen++
@@ -531,9 +820,79 @@ func (a *App) settingsSavedStatusLocked(patch LibrarySettingsPatch) string {
 		return "regions " + strings.Join(a.hostSettings.PreferredRegions, ", ")
 	case patch.SelectedTarget != nil:
 		return "target " + a.hostSettings.SelectedTarget
+	case patch.Libraries != nil:
+		return fmt.Sprintf("libraries %d", len(a.hostSettings.Libraries))
 	default:
 		return "settings saved"
 	}
+}
+
+func (a *App) settingsHintLocked() string {
+	if a.settingsPathOpen {
+		return ""
+	}
+	kind, libIndex := a.settingsLibraryRowLocked()
+	if libIndex >= 0 {
+		return "A path  X remove  Left/Right system  B close"
+	}
+	switch kind {
+	case settingsRowAddLibrary:
+		return "A add library  B close"
+	case settingsRowSaveLibraries:
+		return "A save libraries  B close"
+	default:
+		return "A confirm  B close  Left/Right change"
+	}
+}
+
+func (a *App) settingsSystemIDsLocked() []string {
+	ids := make([]string, 0, len(a.hostSettings.Systems))
+	seen := map[string]struct{}{}
+	for _, system := range a.hostSettings.Systems {
+		id := strings.TrimSpace(system.ID)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+func (a *App) settingsSystemChoicesLocked(current string) []string {
+	ids := a.settingsSystemIDsLocked()
+	current = strings.TrimSpace(current)
+	if current != "" && indexOfString(ids, current) < 0 {
+		ids = append([]string{current}, ids...)
+	}
+	return ids
+}
+
+func (a *App) settingsSystemLabelLocked(id string) string {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return "(system)"
+	}
+	for _, system := range a.hostSettings.Systems {
+		if strings.TrimSpace(system.ID) != id {
+			continue
+		}
+		if label := strings.TrimSpace(system.Label); label != "" {
+			return label
+		}
+		break
+	}
+	return id
+}
+
+func cloneLibraryRoots(in []LibraryRoot) []LibraryRoot {
+	if len(in) == 0 {
+		return []LibraryRoot{}
+	}
+	return append([]LibraryRoot(nil), in...)
 }
 
 func settingsStatusError(err error) string {

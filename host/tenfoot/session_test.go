@@ -1,7 +1,9 @@
 package tenfoot
 
 import (
+	"context"
 	"encoding/json"
+	"image"
 	"image/color"
 	"io"
 	"net/http"
@@ -174,6 +176,87 @@ func TestAppSessionPollObservesExternalStopAndPark(t *testing.T) {
 	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
 		return !snap.GPUParked && snap.Session.State != "active"
 	})
+}
+
+func TestGPUParkRejectsPreParkCoverResults(t *testing.T) {
+	t.Parallel()
+	staleHandle := strings.Repeat("ab", 32)
+	freshHandle := strings.Repeat("cd", 32)
+	staleImg := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	freshImg := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	app := NewApp(nil, 800, 600, 10)
+	parent, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	app.ctx = parent
+	jobCtx := app.replaceLoadContextLocked()
+	mario := availableGame("snes-mario", "Mario", "snes")
+	app.games = []Game{mario}
+	app.grid.SetCount(1)
+	app.covers[mario.ID] = &coverSlot{phase: coverArtwork, handle: staleHandle}
+	staleGen := app.loadGen
+
+	app.session.State = "active"
+	app.syncGPUParkLocked()
+	if !app.gpuParked {
+		t.Fatal("session active should park")
+	}
+	if app.loadGen == staleGen {
+		t.Fatal("park should advance cover generation")
+	}
+	if jobCtx.Err() == nil {
+		t.Fatal("park should cancel in-flight cover job context")
+	}
+	freshGen := app.loadGen
+
+	app.session.State = "idle"
+	app.syncGPUParkLocked()
+	if app.gpuParked {
+		t.Fatal("idle session should unpark")
+	}
+	if app.loadGen != freshGen {
+		t.Fatalf("unpark changed loadGen %d -> %d", freshGen, app.loadGen)
+	}
+
+	app.covers[mario.ID] = &coverSlot{phase: coverReady, handle: freshHandle, image: freshImg}
+	app.details[mario.ID] = FocusDetail{Summary: "fresh"}
+	app.applyResult(workResult{
+		kind:        workPresentation,
+		gameID:      mario.ID,
+		handle:      staleHandle,
+		state:       "ready",
+		summary:     "stale-pre-park",
+		attribution: "Data from IGDB.com",
+		gen:         staleGen,
+	})
+	app.applyResult(workResult{
+		kind:   workArtwork,
+		gameID: mario.ID,
+		handle: staleHandle,
+		image:  staleImg,
+		gen:    staleGen,
+	})
+	if got := app.details[mario.ID].Summary; got != "fresh" {
+		t.Fatalf("stale presentation applied after unpark: %q", got)
+	}
+	slot := app.covers[mario.ID]
+	if slot == nil || slot.handle != freshHandle || slot.image != freshImg || slot.phase != coverReady {
+		t.Fatalf("stale artwork applied after unpark: %#v", slot)
+	}
+
+	app.covers = map[string]*coverSlot{}
+	app.details = map[string]FocusDetail{}
+	app.queueVisibleWork(time.Now())
+	select {
+	case item := <-app.jobs:
+		if item.gen != freshGen {
+			t.Fatalf("post-unpark work gen = %d, want %d (pre-park %d)", item.gen, freshGen, staleGen)
+		}
+		if item.gameID != mario.ID {
+			t.Fatalf("queued game = %q", item.gameID)
+		}
+	default:
+		t.Fatal("unpark should queue replacement cover work")
+	}
 }
 
 func TestAppStopKeyboardBindingAndBlockedLaunch(t *testing.T) {

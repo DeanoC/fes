@@ -171,10 +171,15 @@ Local prefs write immediately to `tenfoot.json`:
 
 Host fields load from `GET /api/v1/library/settings` and save with
 `PATCH /api/v1/library/settings` on confirm: attract idle seconds, preferred
-regions (usa / world / europe / japan), and selected target (from the GET
-target list). Library paths are shown as a count only; the path editor stays
-in the browser. A failed PATCH keeps the previous values and reports a short
-status line. Changing `selected_target` can fail while a session is active.
+regions (usa / world / europe / japan), selected target (from the GET
+target list), and library roots (full-array `libraries` replace). The overlay
+lists each root as system label plus path. South/A opens the gamepad OSK to
+edit a path, Left/Right cycle the GET `systems[]` list, West/X removes a
+draft row, Add library appends a row, and Save libraries PATCHes only
+`libraries`. A successful libraries save reloads the catalog. Tenfoot does
+not create, edit, or remove targets. A failed PATCH keeps the previous
+values and reports a short status line. Changing `selected_target` can fail
+while a session is active.
 
 On Mac, run from a GUI terminal for the Cocoa window. On Linux, use a session
 with X11 or Wayland for windowed/fullscreen. Headless agent sessions fall
@@ -197,7 +202,7 @@ make tenfoot-smoke
 - `PUT` / `DELETE /api/v1/library/collections/{id}/{gameId}` with an empty
   body adds or removes the focused title on a custom shelf. Unmembership
   while that shelf is the active view reloads the catalog, matching
-  Favorites unfavorite.
+  Favorites after a successful add or remove.
 - `PUT /api/v1/library/collections/{id}?name=...` with an empty body creates
   or renames a custom shelf. The sofa derives a lowercase ASCII slug from
   the OSK name (web `uniqueCollectionID`) and does not send reserved ids
@@ -285,8 +290,10 @@ make tenfoot-smoke
   down the decoder and any queued player.
 - `GET /api/v1/library/settings` hydrates sofa settings (idle seconds,
   preferred regions, selected target, read-only targets / systems /
-  library count). `PATCH /api/v1/library/settings` writes only the field the
-  operator confirmed. Tenfoot does not send `libraries` or target CRUD.
+  library roots). `PATCH /api/v1/library/settings` writes only the field the
+  operator confirmed. A libraries save sends `{libraries:[{id,system,root},…]}`
+  as a full-array replace and does not send `targets`. Tenfoot does not
+  implement target CRUD.
 
 ## Library views
 
@@ -302,8 +309,9 @@ only changes how that list is drawn and moved, not which titles load.
 The SDL window and renderer stay up for the process lifetime. When the host
 session becomes `active` (launch response or `GET /api/v1/session`), tenfoot
 parks GPU cover work: it destroys cover and label textures, drops decoded
-cover bitmaps, and does not upload a cover atlas until the session is idle
-again. Now-playing chrome is a few CPU-rasterized status labels, not the
+cover bitmaps, cancels in-flight presentation and artwork work (advancing
+the cover generation so pre-park completions cannot apply after resume),
+and does not upload a cover atlas until the session is idle again. Now-playing chrome is a few CPU-rasterized status labels, not the
 library view. Stop and Quit still work while parked. On idle (stop success,
 poll, or media exit observed through the status poll) the current layout
 resumes and textures are uploaded again for the visible/prefetch window.
