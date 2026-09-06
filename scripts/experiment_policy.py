@@ -507,6 +507,31 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                 ),
             ),
         ),
+        "030_m10k_rom": ExperimentPolicy(
+            name="030_m10k_rom",
+            sources=("experiments/030_m10k_rom/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            allowed_hard_blocks={"MISTRAL_M10K": 1},
+            forbidden_source_patterns=(*_COMMON_SOURCE_PATTERNS, "HPS", "MPU", "ARM"),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            nobram=False,
+            yosys_post_synth=r"cd top; rename LED \LED[0]; ",
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=("experiments/030_m10k_rom/rtl/top.v",),
+                    tb="experiments/030_m10k_rom/sim/tb.cpp",
+                    parameters={"ADDR_BITS": "4"},
+                ),
+            ),
+        ),
     }
 )
 

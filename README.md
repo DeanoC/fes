@@ -14,6 +14,7 @@ development possible with both the open-source Mistral toolchain and Quartus.
 - Semantic comparison between the OSS and Quartus outputs.
 - `010_blinky`, a small LED counter.
 - `020_linux_mailbox`, a small HPS GPI/GPO mailbox experiment.
+- `030_m10k_rom`, an initialized table driving one LED through one M10K.
 
 Pinned third-party cores live in `cores.lock`. That file is the **upstream
 version**: exact git commit plus the official release RBF hash.

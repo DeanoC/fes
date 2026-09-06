@@ -79,6 +79,32 @@ class ExperimentPolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(PolicyError, "unknown resource"):
             policy.validate_resources({"MISTRAL_UNCLASSIFIED": {"used": 0, "available": 1}})
 
+    def test_m10k_rom_requires_exactly_one_block_and_drops_nobram(self) -> None:
+        policy = policy_for("030_m10k_rom")
+        self.assertEqual(policy.top, "top")
+        self.assertFalse(policy.nobram)
+        self.assertTrue(policy.nolutram)
+        self.assertTrue(policy.nodsp)
+        self.assertEqual(policy.synth_intel_alm_flags, ("-nolutram", "-nodsp"))
+        self.assertEqual(dict(policy.allowed_hard_blocks), {"MISTRAL_M10K": 1})
+        self.assertEqual(
+            policy.sources,
+            ("experiments/030_m10k_rom/rtl/top.v",),
+        )
+        policy.validate_resources(
+            {
+                "MISTRAL_COMB": {"used": 1, "available": 10},
+                "MISTRAL_M10K": {"used": 1, "available": 553},
+            }
+        )
+        with self.assertRaisesRegex(PolicyError, "M10K"):
+            policy.validate_resources(
+                {
+                    "MISTRAL_COMB": {"used": 1, "available": 10},
+                    "MISTRAL_M10K": {"used": 0, "available": 553},
+                }
+            )
+
     def test_wrong_top_and_source_list_are_rejected(self) -> None:
         policy = policy_for("010_blinky")
         with self.assertRaisesRegex(PolicyError, "top"):

@@ -42,6 +42,10 @@ the constant message `OSS FPGA OK\n`. It has no external FPGA output. The
 simulation substitutes a small HPS model; both synthesis lanes use the real
 HPS primitive boundary.
 
+`030_m10k_rom` walks an initialized 256-byte table on the 50 MHz clock and
+drives one LED from stored bit 0. OSS synthesis maps the table to exactly one
+M10K. PLL, DSP, MLAB, and HPS remain forbidden.
+
 ## Artifact boundary
 
 The integration outputs are:

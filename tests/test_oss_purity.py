@@ -58,6 +58,7 @@ class OssPipelinePurityTests(unittest.TestCase):
             "boards/de10nano/clocks.sdc",
             "experiments/010_blinky/rtl/top.v",
             "experiments/020_linux_mailbox/rtl/top.v",
+            "experiments/030_m10k_rom/rtl/top.v",
         ):
             destination = repository / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -151,6 +152,16 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertIn("-nobram -nolutram -nodsp", commands)
         self.assertIn("--freq 50", commands)
         self.assertNotIn("hps_gp_model.v", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_block_memory_only_for_m10k_rom(self) -> None:
+        result = self._run("--print-commands", "--experiment", "030_m10k_rom")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/030_m10k_rom/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", commands)
+        self.assertNotIn("-nobram", commands)
+        self.assertIn("--freq 50", commands)
         self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
 
     def test_script_and_commands_have_no_proprietary_lane_references(self) -> None:
