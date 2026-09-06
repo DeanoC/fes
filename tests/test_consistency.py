@@ -96,3 +96,15 @@ class ConsistencyTest(unittest.TestCase):
                 self.assertEqual(env.get('GOWORK'), 'off')
                 self.assertNotIn('GOOS', env)
                 self.assertNotIn('GOARCH', env)
+
+    def test_bootable_media_docs_and_agent_entrypoints_are_linked(self):
+        required = {
+            'README.md': 'docs/bootable-media.md',
+            'AGENTS.md': 'make verify-media',
+            'docs/README.md': 'bootable-media.md',
+            'docs/getting-started.md': 'make media',
+            'docs/development.md': 'media/current/fes.img',
+        }
+        repository = Path(__file__).resolve().parents[1]
+        for name, needle in required.items():
+            self.assertIn(needle, (repository / name).read_text(), name)
