@@ -25,6 +25,10 @@ type Options struct {
 	NoAttractSet bool
 	PrefsPath    string
 	APIHost      string
+	// GFX selects the 2D Device: sdl (default), software, or fpga-stub.
+	// Empty falls back to TENFOOT_GFX, then sdl. Production sofa runs
+	// keep WrapSDLRenderer.
+	GFX string
 }
 
 func (o Options) prefsPath() string {
@@ -86,6 +90,9 @@ func (o Options) normalized() Options {
 	}
 	if !o.NoAttractSet && prefsErr == nil && !prefsAttractEnabled(prefs) {
 		o.NoAttract = true
+	}
+	if strings.TrimSpace(o.GFX) == "" {
+		o.GFX = strings.TrimSpace(os.Getenv("TENFOOT_GFX"))
 	}
 	return o
 }

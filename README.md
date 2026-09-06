@@ -17,7 +17,9 @@ and content selection; the MiSTer is a small, directly controlled target.
   and list layouts that calls the same public host API, including a
   DIAGNOSTIC development-RBF path OSK (local file path, no browser picker).
   Mac is the primary sofa target; Linux uses the same Makefile target with
-  system SDL3 (`pkg-config sdl3`). See
+  system SDL3 (`pkg-config sdl3`). Draw goes through `gfx.Device`: SDL3 is
+  the production backend; Software is a pure-Go rasterizer for tests/CI;
+  FPGA stub delegates to Software as a future 2D-accel placeholder. See
   [docs/native-tenfoot-launcher/README.md](docs/native-tenfoot-launcher/README.md).
 - A reproducible target image toolchain with a development image containing
   SSH and curl.

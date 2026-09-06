@@ -227,11 +227,17 @@ goroutine holds the stream.
 
 Source entry points are `host/tenfoot/` and `cmd/fogcast-tenfoot`. UI draw
 helpers use `host/tenfoot/gfx.Device` (begin/clear/present, RGBA8 textures,
-textured quads, fill rects). The only backend is SDL3
-(`gfx.WrapSDLRenderer`), wrapping the existing `SDL_Renderer` path. Window,
-events, gamepad, and text input remain SDL in `host/tenfoot/sdl.go`. A future
-MiSTer FPGA 2D accelerator can implement the same Device; there is no FPGA
-gfx backend yet.
+textured quads, fill rects). Window, events, gamepad, and text input remain
+SDL in `host/tenfoot/sdl.go`. `TENFOOT_GFX` / `Options.GFX` may select
+`software` or `fpga-stub` for tests; the production sofa path stays SDL3.
+
+| Backend | Construction | Role |
+| --- | --- | --- |
+| SDL3 | `gfx.WrapSDLRenderer` (`host/tenfoot/gfx/sdl3.go`, build tag `sdl3`) | Default production path: wraps the process `SDL_Renderer` with letterbox logical presentation and VSync. |
+| Software | `gfx.NewSoftware` (`host/tenfoot/gfx/software.go`) | Pure-Go RGBA8 rasterizer for tests and CI (no cgo, no SDL). Nearest blit, `Snapshot` for golden pixels. |
+| FPGA stub | `gfx.NewFPGAStub` (`host/tenfoot/gfx/fpga.go`) | Placeholder for a future MiSTer custom 2D accelerator. Delegates to Software today; exposes `BackendName` / `IsStub`. Does not talk to kit, runtime, or RBF. |
+
+`gfx.Recorder` remains a call-order test double and does not draw pixels.
 
 The browser shell remains the default UI. Mac is the primary sofa target; Linux builds
 with the same `make build-fogcast-tenfoot` target (`CGO_ENABLED=1` and

@@ -45,15 +45,19 @@ Cover grid, labels, attract, now-playing, and session preview draw through
 - letterbox logical size and VSync are backend concerns
 - GPU park destroys textures individually (preview is the parked exception)
 
-The first and only backend is SDL3 (`gfx.WrapSDLRenderer` in
-`host/tenfoot/gfx/sdl3.go`, built with `-tags sdl3`). It wraps the process
-`SDL_Renderer` with `SDL_LOGICAL_PRESENTATION_LETTERBOX` and VSync. UI
-helpers in `host/tenfoot/draw.go` do not call `SDL_Render*` or
+UI helpers in `host/tenfoot/draw.go` do not call `SDL_Render*` or
 `SDL_CreateTexture`. Window creation, events, gamepad, and text input stay
 in `host/tenfoot/sdl.go` until a later slice.
 
-A future MiSTer FPGA 2D accelerator can implement `gfx.Device` without
-changing sofa layout code. There is no FPGA gfx backend in this tree.
+| Backend | Construction | Role |
+| --- | --- | --- |
+| SDL3 | `gfx.WrapSDLRenderer` (`sdl3.go`, `-tags sdl3`) | Default production path. Wraps the process `SDL_Renderer` with `SDL_LOGICAL_PRESENTATION_LETTERBOX` and VSync. |
+| Software | `gfx.NewSoftware` (`software.go`) | Pure-Go RGBA8 rasterizer for tests and CI (no cgo, no SDL). Nearest-neighbour blit; `Snapshot` for golden pixels. |
+| FPGA stub | `gfx.NewFPGAStub` (`fpga.go`) | Placeholder for a future MiSTer custom 2D accelerator. Delegates to Software; `BackendName` / `IsStub`. Does not talk to kit, runtime, or RBF. |
+
+`gfx.Recorder` is a call-order test double and does not draw pixels. Optional
+`TENFOOT_GFX=software|sdl|fpga-stub` (or `Options.GFX`) selects a Device
+inside the SDL window shell; unset keeps WrapSDLRenderer.
 
 ## Run
 

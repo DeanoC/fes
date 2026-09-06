@@ -204,11 +204,12 @@ func runWindow(ctx context.Context, opts Options) error {
 	}
 	// LIFO: close the gfx device (textures), then the renderer, then the window.
 	// Window, events, gamepad, and text input stay on SDL; draw/present/textures
-	// go through gfx.Device (SDL3 backend). A future MiSTer 2D FPGA backend can
-	// replace WrapSDLRenderer without changing UI helpers.
+	// go through gfx.Device. Default is SDL3 WrapSDLRenderer. TENFOOT_GFX /
+	// Options.GFX may select software or fpga-stub for tests; those still use
+	// this SDL window shell.
 	defer C.SDL_DestroyWindow(window)
 	defer C.SDL_DestroyRenderer(renderer)
-	dev, err := gfx.WrapSDLRenderer(unsafe.Pointer(renderer), opts.Width, opts.Height)
+	dev, err := openGFXDevice(opts, unsafe.Pointer(renderer))
 	if err != nil {
 		return fmt.Errorf("gfx device: %w", err)
 	}
@@ -305,6 +306,21 @@ func initSDLVideo() bool {
 	C.SDL_SetHint(hint, dummy)
 	C.SDL_SetHint(bg, one)
 	return bool(C.SDL_Init(C.SDL_INIT_VIDEO | C.SDL_INIT_GAMEPAD))
+}
+
+func openGFXDevice(opts Options, renderer unsafe.Pointer) (gfx.Device, error) {
+	backend, err := gfx.ParseBackend(opts.GFX)
+	if err != nil {
+		return nil, err
+	}
+	switch backend {
+	case gfx.BackendSoftware:
+		return gfx.NewSoftware(opts.Width, opts.Height)
+	case gfx.BackendFPGAStub:
+		return gfx.NewFPGAStub(opts.Width, opts.Height)
+	default:
+		return gfx.WrapSDLRenderer(renderer, opts.Width, opts.Height)
+	}
 }
 
 func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, textures, labels map[string]gpuTexture) error {

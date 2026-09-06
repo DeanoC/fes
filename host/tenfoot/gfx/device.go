@@ -1,9 +1,10 @@
 // Package gfx is the tenfoot 2D bitmap device.
 //
-// UI draw helpers talk only to Device. The first backend is SDL3
-// (WrapSDLRenderer, build tag sdl3), wrapping today's SDL_Renderer path.
-// A future MiSTer FPGA 2D accelerator can implement the same interface;
-// there is no FPGA backend in this package yet.
+// UI draw helpers talk only to Device. Production sofa runs use the SDL3
+// backend (WrapSDLRenderer, build tag sdl3). Software is a pure-Go
+// rasterizer for tests and CI. FPGAStub is a wireable placeholder that
+// currently delegates to Software; it does not talk to kit, runtime, or
+// RBF. Recorder is a call-order test double and does not draw pixels.
 //
 // Window creation, events, gamepad, and text input stay in the SDL shell
 // (host/tenfoot/sdl.go) until a later slice.
