@@ -924,7 +924,7 @@ func (a *App) doFavorite(ctx context.Context, gameID string, want bool) {
 		return
 	}
 	a.setGameFavoriteLocked(gameID, want)
-	if !want && a.collectionID == "favorites" {
+	if a.collectionID == "favorites" {
 		a.reloadLocked()
 		return
 	}
@@ -1778,17 +1778,15 @@ func (a *App) syncGPUParkLocked() {
 	a.closeSettingsLocked()
 	a.closeFiltersLocked()
 	a.closeDetailLocked()
-	a.inflight = map[string]workKind{}
+	a.loadGen++
+	wasLoading := a.loading
+	ctx := a.replaceLoadContextLocked()
+	if wasLoading {
+		go a.loadLibrary(ctx, a.loadGen)
+	}
 	a.covers = map[string]*coverSlot{}
 	a.shots = map[string]*shotSlot{}
 	a.shotIDs = map[string][]string{}
-	for {
-		select {
-		case <-a.jobs:
-		default:
-			return
-		}
-	}
 }
 
 func (a *App) sessionSnapshotLocked() SessionSnapshot {

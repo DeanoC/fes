@@ -272,6 +272,99 @@ func TestAppUnfavoriteReloadsFavoritesView(t *testing.T) {
 	}
 }
 
+func TestAppFavoriteAddReloadsFavoritesView(t *testing.T) {
+	var mu sync.Mutex
+	favorited := false
+	var gameQueries []string
+	putStarted := make(chan struct{})
+	releasePut := make(chan struct{})
+	t.Cleanup(func() {
+		select {
+		case <-releasePut:
+		default:
+			close(releasePut)
+		}
+	})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v1/games":
+			mu.Lock()
+			gameQueries = append(gameQueries, r.URL.RawQuery)
+			starred := favorited
+			mu.Unlock()
+			collection := r.URL.Query().Get("collection")
+			var games []Game
+			switch collection {
+			case "favorites":
+				if starred {
+					game := availableGame("snes-mario", "Mario", "snes")
+					game.Favorite = true
+					games = []Game{game}
+				}
+			case "continue", "recents", "unplayed", "recently_added":
+			default:
+				game := availableGame("snes-mario", "Mario", "snes")
+				game.Favorite = starred
+				games = []Game{game}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": games})
+		case r.URL.Path == "/api/v1/library/collections":
+			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []Collection{}})
+		case r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/api/v1/library/favorites/"):
+			select {
+			case <-putStarted:
+			default:
+				close(putStarted)
+			}
+			select {
+			case <-releasePut:
+			case <-r.Context().Done():
+				return
+			}
+			mu.Lock()
+			favorited = true
+			mu.Unlock()
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "snes-mario", "favorite": true})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && len(snap.Games) == 1 && snap.Collection == "" && !snap.Games[0].Favorite
+	})
+	app.Press(CmdFavorite, time.Now())
+	select {
+	case <-putStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("favorite PUT did not start")
+	}
+	app.Press(CmdViewNext, time.Now())
+	app.Press(CmdViewNext, time.Now())
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && snap.Collection == "favorites" && len(snap.Games) == 0
+	})
+	close(releasePut)
+	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		return !snap.Loading && snap.Collection == "favorites" && len(snap.Games) == 1 && snap.Games[0].ID == "snes-mario" && snap.Games[0].Favorite
+	})
+	favoritesGets := 0
+	mu.Lock()
+	got := append([]string(nil), gameQueries...)
+	mu.Unlock()
+	for _, query := range got {
+		if strings.Contains(query, "collection=favorites") {
+			favoritesGets++
+		}
+	}
+	if favoritesGets < 2 {
+		t.Fatalf("expected Favorites reload after add, queries = %#v", got)
+	}
+}
+
 func TestAppKeepsFiltersInsideCollection(t *testing.T) {
 	var mu sync.Mutex
 	var queries []string

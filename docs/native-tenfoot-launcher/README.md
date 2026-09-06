@@ -197,7 +197,7 @@ make tenfoot-smoke
 - `PUT` / `DELETE /api/v1/library/collections/{id}/{gameId}` with an empty
   body adds or removes the focused title on a custom shelf. Unmembership
   while that shelf is the active view reloads the catalog, matching
-  Favorites unfavorite.
+  Favorites after a successful add or remove.
 - `PUT /api/v1/library/collections/{id}?name=...` with an empty body creates
   or renames a custom shelf. The sofa derives a lowercase ASCII slug from
   the OSK name (web `uniqueCollectionID`) and does not send reserved ids
@@ -302,8 +302,9 @@ only changes how that list is drawn and moved, not which titles load.
 The SDL window and renderer stay up for the process lifetime. When the host
 session becomes `active` (launch response or `GET /api/v1/session`), tenfoot
 parks GPU cover work: it destroys cover and label textures, drops decoded
-cover bitmaps, and does not upload a cover atlas until the session is idle
-again. Now-playing chrome is a few CPU-rasterized status labels, not the
+cover bitmaps, cancels in-flight presentation and artwork work (advancing
+the cover generation so pre-park completions cannot apply after resume),
+and does not upload a cover atlas until the session is idle again. Now-playing chrome is a few CPU-rasterized status labels, not the
 library view. Stop and Quit still work while parked. On idle (stop success,
 poll, or media exit observed through the status poll) the current layout
 resumes and textures are uploaded again for the visible/prefetch window.
