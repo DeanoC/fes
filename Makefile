@@ -162,6 +162,10 @@ target-image-qemu-smoke:
 	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/qemu-smoke-target-image.sh prod build/output/target-image/prod/linux.img
 	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/qemu-smoke-target-image.sh dev build/output/target-image/dev/linux.img
 
+# Native input verification also runs on the host before container entry.
+ifeq ($(shell uname -s),Darwin)
+target-image-native-fetch: build-target-image-lock
+endif
 target-image-native-fetch: build-target-image-lock-container build-agent
 	LIBMISTER_RUNTIME_DIR= \
 	  MEGADRIVE_RBF_SOURCE="$(MEGADRIVE_RBF_SOURCE)" \

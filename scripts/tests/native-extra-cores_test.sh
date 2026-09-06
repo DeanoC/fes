@@ -3,6 +3,49 @@ set -eu
 repo=$(CDPATH='' cd -- "$(dirname "$0")/../.." && pwd)
 fixture=$(mktemp -d)
 trap 'chmod -R u+w "$fixture"; rm -rf "$fixture"' EXIT INT TERM
+# Host preflight and container verification must execute their own binary format.
+mkdir -p "$fixture/platform/scripts" "$fixture/platform/bin" "$fixture/path"
+cp "$repo/scripts/native-extra-cores.sh" "$fixture/platform/scripts/"
+cat > "$fixture/path/uname" <<'UNAME'
+#!/bin/sh
+printf '%s\n' "$TEST_OS"
+UNAME
+for binary in target-image-lock target-image-lock-linux-amd64 override; do
+  cat > "$fixture/platform/bin/$binary" <<'SELECTOR'
+#!/bin/sh
+printf '%s\n' "${0##*/}" >> "$SELECTOR_LOG"
+SELECTOR
+  chmod +x "$fixture/platform/bin/$binary"
+done
+chmod +x "$fixture/path/uname"
+for os in Darwin Linux; do
+  case "$os" in Darwin) expected=target-image-lock ;; Linux) expected=target-image-lock-linux-amd64 ;; esac
+  for override in default explicit; do
+    (
+      unset TARGET_IMAGE_LOCK_BIN
+      if [ "$override" = explicit ]; then
+        export TARGET_IMAGE_LOCK_BIN=$fixture/platform/bin/override
+        expected=override
+      fi
+      export TEST_OS=$os SELECTOR_LOG=$fixture/selector.log
+      : > "$SELECTOR_LOG"
+      PATH="$fixture/path:$PATH" NATIVE_RUNTIME_SYSTEMS='megadrive pong snes' \
+        "$fixture/platform/scripts/native-extra-cores.sh" verify "$fixture/cache"
+      [ "$(cat "$SELECTOR_LOG")" = "$(printf '%s\n%s' "$expected" "$expected")" ]
+    )
+  done
+done
+# The macOS entry point must build its host selector before preflight.
+for os in Darwin Linux; do
+  TEST_OS=$os PATH="$fixture/path:$PATH" make -s -C "$repo" -n target-image-native-fetch > "$fixture/make-$os"
+  grep -q 'GOOS=linux GOARCH=amd64.*target-image-lock-linux-amd64' "$fixture/make-$os"
+  if [ "$os" = Darwin ]; then
+    grep -q 'GOOS=darwin GOARCH=arm64.*target-image-lock' "$fixture/make-$os"
+  elif grep -q 'GOOS=darwin GOARCH=arm64.*target-image-lock' "$fixture/make-$os"; then
+    echo 'Linux native fetch unexpectedly builds a Darwin selector' >&2
+    exit 1
+  fi
+done
 selector=$fixture/selector
 (cd "$repo" && go build -o "$selector" ./cmd/target-image-lock)
 export TARGET_IMAGE_LOCK_BIN=$selector

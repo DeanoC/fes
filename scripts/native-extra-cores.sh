@@ -8,7 +8,12 @@ case "$systems" in
   'megadrive pong snes') extras='pong snes' ;;
   *) echo 'native-extra-cores: expected megadrive or megadrive pong snes' >&2; exit 2 ;;
 esac
-selector=${TARGET_IMAGE_LOCK_BIN:-$repo/bin/target-image-lock-linux-amd64}
+# Host preflight also calls this helper before entering the Linux container.
+case "$(uname -s)" in
+  Darwin) default_selector=$repo/bin/target-image-lock ;;
+  *) default_selector=$repo/bin/target-image-lock-linux-amd64 ;;
+esac
+selector=${TARGET_IMAGE_LOCK_BIN:-$default_selector}
 action=${1:-validate}
 case "$action" in
   validate) exit 0 ;;
