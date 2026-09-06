@@ -270,9 +270,21 @@ make tenfoot-smoke
   session that omits `game_id` keeps that omission, including when another
   client replaces a launched game with a development RBF; tenfoot copies an ID
   from the local launch response only, not from later polls. `execution`, `media`, `progress`, and `input.state`
-  are shown in now-playing chrome when present. Stop failures and live session
+  are shown in now-playing chrome when present. Sofa chrome maps the live
+  session to idle, active, stopping, failed, or development (`execution=fpga_development`).
+  Stop failures and live session
   progress replace a completed launch acknowledgement in the status line.
-  Tenfoot does not call session/events, preview, or development-rbf.
+- `GET /api/v1/session/events?after=` polled with the session poll. The sofa
+  shows a short readable list (event, state, game/system when present), not a
+  raw dump, and advances `after` from the last seen `sequence`. A `save_failed`
+  event or a Stop error that retains the session or kit lease shows **retry
+  Stop**, keeps launch/replace locked, and does not auto-takeover. Successful
+  Stop is the only clear path.
+- `GET /v1/kit/lease` on the selected target address (status-only: owner,
+  purpose, generation, remaining expiry, blocked+reason). Tenfoot does not add
+  a host lease proxy and does not offer claim/renew/takeover. A transport
+  failure is **kit unreachable**, matching the P4d kit-down chrome. Tenfoot
+  does not call preview or development-rbf.
 - `GET /api/v1/health` polled about once a second with the session poll. Host
   `ready` is the local API process. `target.reachable` / `target.ready` drive
   kit chrome. A transport failure is **host unreachable**, distinct from
@@ -288,8 +300,10 @@ make tenfoot-smoke
   failed call keeps the prior `input.state` and shows a short status line
   without host path text. Attract does not arm during an in-flight
   attach/detach.
-- `POST /api/v1/session/stop` with an empty body. Offered only while the session
-  is active or a stop is already in flight (East/B, Esc/Backspace, or `s`).
+- `POST /api/v1/session/stop` with an empty body. Offered while the session is
+  active, a stop is in flight, or retry-Stop lockout is set (East/B,
+  Esc/Backspace, or `s`). SNES `save_failed` and other Stop errors that keep
+  the session or lease retain launch lockout until a successful Stop.
 - `GET /api/v1/library/attract?limit=24` after idle. `idle_seconds` sets the
   client timer. On Darwin, video handles stream with `Accept: video/*` to a
   temp file, then AVFoundation pulls frames. Linux does the same fetch when
@@ -325,10 +339,12 @@ parks GPU cover work: it destroys cover and label textures, drops decoded
 cover bitmaps, cancels in-flight presentation and artwork work (advancing
 the cover generation so pre-park completions cannot apply after resume),
 and does not upload a cover atlas until the session is idle again. Now-playing chrome is a few CPU-rasterized status labels, not the
-library view. Stop and Quit still work while parked. On idle (stop success,
-poll, or media exit observed through the status poll) the current layout
-resumes and textures are uploaded again for the visible/prefetch window.
-Attract does not run while parked; after idle it may start again.
+library view, plus the recent session events list and kit lease strip. Stop
+and Quit still work while parked. Retry-Stop lockout after `save_failed` or a
+failed Stop keeps the GPU parked and launch locked until Stop succeeds. On
+idle (stop success, poll, or media exit observed through the status poll) the
+current layout resumes and textures are uploaded again for the visible/prefetch
+window. Attract does not run while parked; after idle it may start again.
 
 ## Known gaps / next
 
@@ -343,9 +359,7 @@ Attract does not run while parked; after idle it may start again.
   reaches the loopback API without `403 HOST_NOT_ALLOWED`. Windowed/fullscreen
   X11/Wayland still needs a Linux box with a display (see
   [`LINUX.md`](./LINUX.md)). No Linux CI job.
-- Library-path / roots editor and target address/agent CRUD stay in the
-  browser. Sofa settings can pick `selected_target` and show a read-only
-  target list.
 
-Still out of tenfoot scope (web / later): library/target settings editor,
-session/events stream UI, development-rbf, media preview player.
+Still out of tenfoot scope (web / later): development-rbf file load UI,
+MJPEG preview, save-management / save browser, and a full kit
+claim/renew/takeover operator panel.

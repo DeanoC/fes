@@ -1029,8 +1029,12 @@ func drawHeader(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTe
 	chrome := snap.ChromeLine()
 	drawLabel(renderer, labels, used, "chrome", x+24, y+52, w-48, 18, chrome)
 	hint := "LB/RB platform  X sort  hold X filter  Y search  hold A view  hold Y fav  SELECT layout  GUIDE settings"
-	if snap.GPUParked || snap.Session.State == "active" {
-		hint = "B stop  START quit  SELECT layout"
+	if snap.GPUParked || snap.Session.State == "active" || snap.Session.RetryStop {
+		if snap.Session.RetryStop {
+			hint = "B retry Stop  START quit  SELECT layout"
+		} else {
+			hint = "B stop  START quit  SELECT layout"
+		}
 		if h := strings.TrimSpace(snap.Session.InputHint); h != "" {
 			hint += "  " + h
 		} else if snap.Session.InputState != "" {
@@ -1083,8 +1087,28 @@ func drawNowPlaying(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]s
 		drawLabel(renderer, labels, used, "np-progress", x, y, maxW, 16, progress)
 		y += 28
 	}
+	if lease := strings.TrimSpace(snap.KitLease.Line); lease != "" {
+		drawLabel(renderer, labels, used, "np-lease", x, y, maxW, 16, lease)
+		y += 26
+	}
+	if snap.Session.RetryStop {
+		hint := strings.TrimSpace(snap.Session.RetryHint)
+		if hint == "" {
+			hint = "retry Stop"
+		}
+		drawLabel(renderer, labels, used, "np-retry", x, y, maxW, 16, hint)
+		y += 26
+	}
 	if status := strings.TrimSpace(snap.Status); status != "" && status != snap.NowPlayingLine() {
 		drawLabel(renderer, labels, used, "np-status", x, y, maxW, 16, status)
+		y += 26
+	}
+	for i, line := range snap.Session.Events {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		drawLabel(renderer, labels, used, fmt.Sprintf("np-ev-%d", i), x, y, maxW, 15, line)
+		y += 22
 	}
 	for key, item := range labels {
 		if _, ok := used[key]; ok {

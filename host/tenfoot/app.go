@@ -122,17 +122,34 @@ type LaunchSnapshot struct {
 
 // SessionSnapshot is the live host session from GET /api/v1/session (and launch/stop).
 type SessionSnapshot struct {
-	State      string
-	GameID     string
-	Title      string
-	System     string
-	Execution  string
-	Media      string
-	InputState string
-	InputHint  string
-	InputBusy  bool
-	Progress   string
-	Stopping   bool
+	State        string
+	Chrome       string
+	GameID       string
+	Title        string
+	System       string
+	Execution    string
+	Media        string
+	InputState   string
+	InputHint    string
+	InputBusy    bool
+	Progress     string
+	Stopping     bool
+	RetryStop    bool
+	RetryHint    string
+	LaunchLocked bool
+	Events       []string
+}
+
+// KitLeaseSnapshot is status-only kit ownership from GET /v1/kit/lease.
+type KitLeaseSnapshot struct {
+	Line        string
+	State       string
+	Owner       string
+	Purpose     string
+	Generation  string
+	Expires     string
+	Reason      string
+	Unreachable bool
 }
 
 // HealthSnapshot is kit/host reachability from GET /api/v1/health.
@@ -245,6 +262,7 @@ type Snapshot struct {
 	HideHacks       bool
 	OSK             OSKSnapshot
 	Health          HealthSnapshot
+	KitLease        KitLeaseSnapshot
 	Detail          DetailSnapshot
 	Screenshots     map[string]*image.RGBA
 }
@@ -364,6 +382,12 @@ type App struct {
 	inputAction            string
 	inputMessage           string
 	stopQueued             bool
+	retryStopLock          bool
+	retryStopHint          string
+	sessionEvents          []SessionEvent
+	sessionEventAfter      uint64
+	kitLease               KitLeaseStatus
+	kitLeaseHave           bool
 
 	safeAreaPct        float64
 	prefsPath          string
@@ -1072,6 +1096,8 @@ func (a *App) Snapshot() Snapshot {
 	status := a.status
 	if line := a.stopStatusLocked(); line != "" {
 		status = line
+	} else if a.retryStopLock && strings.TrimSpace(a.retryStopHint) != "" {
+		status = a.retryStopHint
 	} else if a.inputBusy && strings.TrimSpace(a.inputMessage) != "" {
 		status = a.inputMessage
 	} else if a.launch.Phase != "idle" && a.launch.Phase != "ok" && a.launch.Message != "" {
@@ -1137,6 +1163,7 @@ func (a *App) Snapshot() Snapshot {
 		HideHacks:       a.hideHacks,
 		OSK:             a.oskSnapshotLocked(),
 		Health:          health,
+		KitLease:        a.kitLeaseSnapshotLocked(),
 		Detail:          a.detailSnapshotLocked(),
 		Screenshots:     a.screenshotImagesLocked(),
 	}
@@ -1203,7 +1230,7 @@ func (a *App) browseHoldEnabled() bool {
 }
 
 func (a *App) browseHoldEnabledLocked() bool {
-	if a.gpuParked || a.stopPhase == "stopping" || a.launch.Phase == "launching" {
+	if a.gpuParked || a.stopPhase == "stopping" || a.launch.Phase == "launching" || a.retryStopLock {
 		return false
 	}
 	switch a.session.State {
@@ -1218,7 +1245,10 @@ func (a *App) browseHoldEnabledLocked() bool {
 func (s Snapshot) ChromeLine() string {
 	line := s.chromeBody()
 	if health := strings.TrimSpace(s.Health.Line); health != "" && !strings.Contains(line, health) {
-		return health + "  ·  " + line
+		line = health + "  ·  " + line
+	}
+	if lease := strings.TrimSpace(s.KitLease.Line); lease != "" && !strings.Contains(line, lease) {
+		line = line + "  ·  " + lease
 	}
 	return line
 }
@@ -1276,7 +1306,9 @@ func (s Snapshot) NowPlayingLine() string {
 	if title != "" {
 		parts = append(parts, title)
 	}
-	if state := strings.TrimSpace(s.Session.State); state != "" {
+	if chrome := strings.TrimSpace(s.Session.Chrome); chrome != "" {
+		parts = append(parts, chrome)
+	} else if state := strings.TrimSpace(s.Session.State); state != "" {
 		parts = append(parts, state)
 	}
 	if exec := strings.TrimSpace(s.Session.Execution); exec != "" {
@@ -1291,8 +1323,15 @@ func (s Snapshot) NowPlayingLine() string {
 	if hint := strings.TrimSpace(s.Session.InputHint); hint != "" {
 		parts = append(parts, hint)
 	}
-	if s.Session.Stopping {
+	if s.Session.Stopping && strings.TrimSpace(s.Session.Chrome) != sessionChromeStopping {
 		parts = append(parts, "stopping")
+	}
+	if s.Session.RetryStop {
+		hint := strings.TrimSpace(s.Session.RetryHint)
+		if hint == "" {
+			hint = "retry Stop"
+		}
+		parts = append(parts, hint)
 	}
 	return strings.Join(parts, "  ·  ")
 }
@@ -1482,14 +1521,14 @@ func (a *App) doLaunch(ctx context.Context, game Game) {
 }
 
 func (a *App) sessionStopOfferedLocked() bool {
-	return a.session.State == "active" || a.stopPhase == "stopping"
+	return a.retryStopLock || a.session.State == "active" || a.stopPhase == "stopping"
 }
 
 func (a *App) startStopLocked() {
 	if a.stopPhase == "stopping" {
 		return
 	}
-	if a.session.State != "active" {
+	if !a.retryStopLock && a.session.State != "active" {
 		return
 	}
 	if a.inputBusy {
@@ -1518,24 +1557,35 @@ func (a *App) doStop(ctx context.Context) {
 	if err != nil {
 		a.stopPhase = "error"
 		a.stopMessage = "stop failed: " + err.Error()
+		a.lockRetryStopLocked("", err.Error())
 		a.syncGPUParkLocked()
 		return
 	}
 	if result.ErrorCode != "" {
 		a.stopPhase = "host"
 		a.stopMessage = fmt.Sprintf("host stop %d %s: %s", result.HTTPStatus, result.ErrorCode, result.ErrorMessage)
+		a.lockRetryStopLocked(result.ErrorCode, result.ErrorMessage)
 		a.syncGPUParkLocked()
 		return
 	}
+	a.retryStopLock = false
+	a.retryStopHint = ""
 	a.stopPhase = "ok"
 	a.stopMessage = ""
 	a.applySessionLocked(result)
 	a.kickSessionPollLocked()
 }
 
+func (a *App) lockRetryStopLocked(code, message string) {
+	a.retryStopLock = true
+	a.retryStopHint = retryStopStatus(code, message)
+}
+
 func (a *App) pollSession(ctx context.Context) {
 	a.fetchSession(ctx)
+	a.fetchSessionEvents(ctx)
 	a.fetchHealth(ctx)
+	a.fetchKitLease(ctx)
 	ticker := time.NewTicker(sessionPollInterval)
 	defer ticker.Stop()
 	for {
@@ -1544,10 +1594,14 @@ func (a *App) pollSession(ctx context.Context) {
 			return
 		case <-ticker.C:
 			a.fetchSession(ctx)
+			a.fetchSessionEvents(ctx)
 			a.fetchHealth(ctx)
+			a.fetchKitLease(ctx)
 		case <-a.sessionKick:
 			a.fetchSession(ctx)
+			a.fetchSessionEvents(ctx)
 			a.fetchHealth(ctx)
+			a.fetchKitLease(ctx)
 		}
 	}
 }
@@ -1785,7 +1839,7 @@ func (a *App) applySessionLocked(result SessionResult) {
 		a.session.GameID = ""
 		a.session.System = ""
 	}
-	if a.session.State != "active" && a.stopPhase != "stopping" {
+	if a.session.State != "active" && a.stopPhase != "stopping" && !a.retryStopLock {
 		a.stopPhase = "idle"
 		a.stopMessage = ""
 		if a.launch.Phase == "ok" {
@@ -1798,10 +1852,10 @@ func (a *App) applySessionLocked(result SessionResult) {
 }
 
 func (a *App) syncGPUParkLocked() {
-	if a.session.State == "active" || a.session.State == "launching" || a.stopPhase == "stopping" {
+	if a.session.State == "active" || a.session.State == "launching" || a.stopPhase == "stopping" || a.retryStopLock {
 		a.hold.Clear()
 	}
-	want := a.session.State == "active" || a.stopPhase == "stopping"
+	want := a.session.State == "active" || a.stopPhase == "stopping" || a.retryStopLock
 	if want == a.gpuParked {
 		if want {
 			a.closeCollectionOverlaysLocked()
@@ -1861,19 +1915,139 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 		}
 	}
 	inputState := remoteInputState(a.session)
-	return SessionSnapshot{
-		State:      a.session.State,
-		GameID:     a.session.GameID,
-		Title:      title,
-		System:     a.session.System,
-		Execution:  a.session.Execution,
-		Media:      a.session.Media,
-		InputState: inputState,
-		InputHint:  remoteInputHint(a.session, a.inputBusy, a.inputAction),
-		InputBusy:  a.inputBusy || remoteInputTransitioning(inputState),
-		Progress:   progress,
-		Stopping:   a.stopPhase == "stopping",
+	events := make([]string, 0, len(a.sessionEvents))
+	for _, ev := range a.sessionEvents {
+		if line := formatSessionEvent(ev); line != "" {
+			events = append(events, line)
+		}
 	}
+	retry := a.retryStopLock
+	return SessionSnapshot{
+		State:        a.session.State,
+		Chrome:       sessionChromeState(a.session.State, a.session.Execution, a.stopPhase == "stopping", retry),
+		GameID:       a.session.GameID,
+		Title:        title,
+		System:       a.session.System,
+		Execution:    a.session.Execution,
+		Media:        a.session.Media,
+		InputState:   inputState,
+		InputHint:    remoteInputHint(a.session, a.inputBusy, a.inputAction),
+		InputBusy:    a.inputBusy || remoteInputTransitioning(inputState),
+		Progress:     progress,
+		Stopping:     a.stopPhase == "stopping",
+		RetryStop:    retry,
+		RetryHint:    strings.TrimSpace(a.retryStopHint),
+		LaunchLocked: a.sessionStopOfferedLocked() || a.launch.Phase == "launching",
+		Events:       events,
+	}
+}
+
+func (a *App) kitLeaseSnapshotLocked() KitLeaseSnapshot {
+	if !a.kitLeaseHave {
+		return KitLeaseSnapshot{}
+	}
+	status := a.kitLease
+	return KitLeaseSnapshot{
+		Line:        formatKitLeaseLine(status),
+		State:       status.State,
+		Owner:       status.Owner,
+		Purpose:     status.Purpose,
+		Generation:  status.Generation,
+		Expires:     formatLeaseExpiry(status),
+		Reason:      status.Reason,
+		Unreachable: status.Unavailable,
+	}
+}
+
+func (a *App) selectedTargetAddressLocked() string {
+	selected := strings.TrimSpace(a.hostSettings.SelectedTarget)
+	for _, target := range a.hostSettings.Targets {
+		if strings.TrimSpace(target.Name) != selected {
+			continue
+		}
+		return strings.TrimSpace(target.Address)
+	}
+	return ""
+}
+
+func (a *App) sessionLiveLocked() bool {
+	switch a.session.State {
+	case "active", "failed", "stopping", "launching":
+		return true
+	}
+	switch a.stopPhase {
+	case "stopping", "error", "host":
+		return true
+	}
+	return a.retryStopLock
+}
+
+func (a *App) fetchSessionEvents(ctx context.Context) {
+	a.mu.Lock()
+	after := a.sessionEventAfter
+	a.mu.Unlock()
+	events, err := a.client.SessionEvents(ctx, after)
+	if err != nil || ctx.Err() != nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.sessionEvents, a.sessionEventAfter = mergeSessionEvents(a.sessionEvents, events, after)
+	retain, ev := eventsRetainRetryStop(a.sessionEvents)
+	if !retain || !a.sessionLiveLocked() {
+		return
+	}
+	msg := ""
+	if ev.Progress != nil {
+		msg = ev.Progress.Message
+	}
+	a.lockRetryStopLocked(ev.Event, msg)
+	a.syncGPUParkLocked()
+}
+
+func (a *App) refreshTargetAddress(ctx context.Context) string {
+	a.mu.Lock()
+	target := a.selectedTargetAddressLocked()
+	open := a.settingsOpen
+	writeGen := a.settingsWriteGen
+	a.mu.Unlock()
+	if target != "" || open {
+		return target
+	}
+	settings, err := a.client.LibrarySettings(ctx)
+	if err != nil || ctx.Err() != nil {
+		return ""
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.settingsOpen || a.settingsWriteGen != writeGen {
+		return a.selectedTargetAddressLocked()
+	}
+	a.hostSettings = settings
+	return a.selectedTargetAddressLocked()
+}
+
+func (a *App) fetchKitLease(ctx context.Context) {
+	target := a.refreshTargetAddress(ctx)
+	if target == "" || ctx.Err() != nil {
+		return
+	}
+	status, err := a.client.KitLease(ctx, target)
+	if ctx.Err() != nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.kitLeaseHave = true
+	if err != nil {
+		if isHostTransportError(err) {
+			a.kitLease = KitLeaseStatus{Unavailable: true, ErrorMessage: "kit unreachable"}
+			return
+		}
+		a.kitLease = KitLeaseStatus{ErrorMessage: "kit lease unavailable"}
+		return
+	}
+	a.kitLease = status
 }
 
 func (a *App) stopStatusLocked() string {

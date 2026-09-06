@@ -222,6 +222,33 @@ type SessionResult struct {
 	ErrorMessage string
 }
 
+// SessionEvent is one row from GET /api/v1/session/events.
+type SessionEvent struct {
+	Sequence uint64           `json:"sequence"`
+	Event    string           `json:"event"`
+	State    string           `json:"state"`
+	GameID   string           `json:"game_id,omitempty"`
+	System   string           `json:"system,omitempty"`
+	Media    string           `json:"media,omitempty"`
+	Progress *SessionProgress `json:"progress,omitempty"`
+	Input    *SessionInput    `json:"input,omitempty"`
+}
+
+// KitLeaseStatus is GET /v1/kit/lease on the selected target (status-only).
+type KitLeaseStatus struct {
+	HTTPStatus   int
+	State        string
+	Owner        string
+	Purpose      string
+	Generation   string
+	ExpiresAt    string
+	ExpiresInMS  int64
+	Reason       string
+	ErrorCode    string
+	ErrorMessage string
+	Unavailable  bool
+}
+
 // LaunchResult is the host response to POST /api/v1/session/launch.
 type LaunchResult = SessionResult
 
@@ -942,6 +969,177 @@ func (c *Client) Launch(ctx context.Context, gameID string) (LaunchResult, error
 		return result, fmt.Errorf("launch response: expected active session, got %q", result.State)
 	}
 	return result, nil
+}
+
+// SessionEvents loads GET /api/v1/session/events?after=N (JSON poll, not SSE).
+func (c *Client) SessionEvents(ctx context.Context, after uint64) ([]SessionEvent, error) {
+	path := "/api/v1/session/events?after=" + strconv.FormatUint(after, 10)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, http.NoBody)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponse))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, apiStatusError(resp.StatusCode, body)
+	}
+	var wire struct {
+		Events []struct {
+			Sequence uint64           `json:"sequence"`
+			Event    string           `json:"event"`
+			State    string           `json:"state"`
+			GameID   *string          `json:"game_id"`
+			System   *string          `json:"system"`
+			Media    string           `json:"media"`
+			Progress *SessionProgress `json:"progress"`
+			Input    *SessionInput    `json:"input"`
+		} `json:"events"`
+	}
+	if err := json.Unmarshal(body, &wire); err != nil {
+		return nil, fmt.Errorf("session events: %w", err)
+	}
+	out := make([]SessionEvent, 0, len(wire.Events))
+	for _, row := range wire.Events {
+		ev := SessionEvent{
+			Sequence: row.Sequence,
+			Event:    strings.TrimSpace(row.Event),
+			State:    strings.TrimSpace(row.State),
+			Media:    strings.TrimSpace(row.Media),
+			Progress: row.Progress,
+			Input:    row.Input,
+		}
+		if row.GameID != nil {
+			ev.GameID = strings.TrimSpace(*row.GameID)
+		}
+		if row.System != nil {
+			ev.System = strings.TrimSpace(*row.System)
+		}
+		out = append(out, ev)
+	}
+	return out, nil
+}
+
+// KitLease loads GET /v1/kit/lease on the selected target agent.
+// This is a status-only read of the target kit API, not a host proxy.
+func (c *Client) KitLease(ctx context.Context, targetBase string) (KitLeaseStatus, error) {
+	targetBase = strings.TrimRight(strings.TrimSpace(targetBase), "/")
+	if targetBase == "" {
+		return KitLeaseStatus{}, nil
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetBase+"/v1/kit/lease", http.NoBody)
+	if err != nil {
+		return KitLeaseStatus{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		if isHostTransportError(err) {
+			return KitLeaseStatus{Unavailable: true, ErrorMessage: "kit unreachable"}, nil
+		}
+		return KitLeaseStatus{}, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponse))
+	if err != nil {
+		return KitLeaseStatus{}, err
+	}
+	result := decodeKitLeaseBody(resp.StatusCode, body)
+	if resp.StatusCode == http.StatusOK {
+		return result, nil
+	}
+	if result.Unavailable || result.ErrorCode != "" {
+		return result, nil
+	}
+	return result, apiStatusError(resp.StatusCode, body)
+}
+
+func decodeKitLeaseBody(status int, body []byte) KitLeaseStatus {
+	result := KitLeaseStatus{HTTPStatus: status}
+	var wire struct {
+		State       string `json:"state"`
+		Owner       string `json:"owner"`
+		Purpose     string `json:"purpose"`
+		Generation  string `json:"generation"`
+		ExpiresAt   string `json:"expires_at"`
+		ExpiresInMS int64  `json:"expires_in_ms"`
+		Reason      string `json:"reason"`
+		Error       *struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+		Status *struct {
+			State       string `json:"state"`
+			Owner       string `json:"owner"`
+			Purpose     string `json:"purpose"`
+			Generation  string `json:"generation"`
+			ExpiresAt   string `json:"expires_at"`
+			ExpiresInMS int64  `json:"expires_in_ms"`
+			Reason      string `json:"reason"`
+		} `json:"status"`
+	}
+	_ = json.Unmarshal(body, &wire)
+	if wire.Status != nil {
+		if wire.State == "" {
+			wire.State = wire.Status.State
+		}
+		if wire.Owner == "" {
+			wire.Owner = wire.Status.Owner
+		}
+		if wire.Purpose == "" {
+			wire.Purpose = wire.Status.Purpose
+		}
+		if wire.Generation == "" {
+			wire.Generation = wire.Status.Generation
+		}
+		if wire.ExpiresAt == "" {
+			wire.ExpiresAt = wire.Status.ExpiresAt
+		}
+		if wire.ExpiresInMS == 0 {
+			wire.ExpiresInMS = wire.Status.ExpiresInMS
+		}
+		if wire.Reason == "" {
+			wire.Reason = wire.Status.Reason
+		}
+	}
+	result.State = strings.TrimSpace(wire.State)
+	result.Owner = strings.TrimSpace(wire.Owner)
+	result.Purpose = strings.TrimSpace(wire.Purpose)
+	result.Generation = strings.TrimSpace(wire.Generation)
+	result.ExpiresAt = strings.TrimSpace(wire.ExpiresAt)
+	result.ExpiresInMS = wire.ExpiresInMS
+	result.Reason = strings.TrimSpace(wire.Reason)
+	if wire.Error != nil {
+		result.ErrorCode = strings.TrimSpace(wire.Error.Code)
+		result.ErrorMessage = strings.TrimSpace(wire.Error.Message)
+	}
+	switch {
+	case status == http.StatusServiceUnavailable && (result.ErrorCode == "TARGET_UNAVAILABLE" || result.ErrorCode == "KIT_LEASE_BLOCKED" || result.ErrorCode == "MISTER_UNAVAILABLE"):
+		result.Unavailable = result.ErrorCode != "KIT_LEASE_BLOCKED"
+		if result.ErrorCode == "KIT_LEASE_BLOCKED" && result.State == "" {
+			result.State = "blocked"
+		}
+		if result.Reason == "" {
+			result.Reason = result.ErrorMessage
+		}
+	case status == 0 || status >= 500:
+		result.Unavailable = true
+	case status == http.StatusUnauthorized || status == http.StatusForbidden:
+		if result.ErrorCode == "" {
+			result.ErrorCode = "UNAUTHORIZED"
+		}
+		if result.ErrorMessage == "" {
+			result.ErrorMessage = "kit lease unavailable"
+		}
+	}
+	return result
 }
 
 // Session loads GET /api/v1/session.

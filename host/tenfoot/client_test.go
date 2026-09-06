@@ -207,6 +207,132 @@ func TestClientSessionAndStop(t *testing.T) {
 	}
 }
 
+func TestClientSessionEventsPollsAfterCursor(t *testing.T) {
+	t.Parallel()
+	var gotAfter []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/session/events" {
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		gotAfter = append(gotAfter, r.URL.Query().Get("after"))
+		after := r.URL.Query().Get("after")
+		if after == "" || after == "0" {
+			gid := "snes-mario"
+			sys := "snes"
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"events": []map[string]any{
+					{"sequence": 1, "event": "session.launch", "state": "active", "game_id": gid, "system": sys},
+					{"sequence": 2, "event": "session.input.attach", "state": "active", "game_id": gid},
+				},
+			})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"events": []map[string]any{
+				{"sequence": 3, "event": "session.stop", "state": "idle", "media": "stopped"},
+			},
+		})
+	}))
+	t.Cleanup(server.Close)
+	client := NewClient(server.URL, server.Client())
+	first, err := client.SessionEvents(context.Background(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first) != 2 || first[0].Sequence != 1 || first[0].Event != "session.launch" || first[0].GameID != "snes-mario" || first[0].System != "snes" {
+		t.Fatalf("first events = %#v", first)
+	}
+	next, err := client.SessionEvents(context.Background(), first[len(first)-1].Sequence)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(next) != 1 || next[0].Sequence != 3 || next[0].Event != "session.stop" || next[0].State != "idle" {
+		t.Fatalf("next events = %#v", next)
+	}
+	if len(gotAfter) != 2 || gotAfter[0] != "0" || gotAfter[1] != "2" {
+		t.Fatalf("after query = %#v", gotAfter)
+	}
+}
+
+func TestClientKitLeaseStatusOnlyDecode(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/v1/kit/lease" {
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"state":         "held",
+			"owner":         "fogcast@powerboat",
+			"purpose":       "interactive game/development session",
+			"generation":    "abc123def456",
+			"expires_at":    "2026-09-06T12:00:00Z",
+			"expires_in_ms": 72000,
+		})
+	}))
+	t.Cleanup(server.Close)
+	got, err := NewClient(server.URL, server.Client()).KitLease(context.Background(), server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.State != "held" || got.Owner != "fogcast@powerboat" || got.Purpose == "" || got.Generation != "abc123def456" || got.ExpiresInMS != 72000 {
+		t.Fatalf("lease = %#v", got)
+	}
+	if got.Unavailable {
+		t.Fatal("held lease marked unavailable")
+	}
+
+	blocked := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"state":      "blocked",
+			"reason":     "kit cleanup failed or agent shutting down; operator recovery required",
+			"generation": "deadbeef",
+		})
+	}))
+	t.Cleanup(blocked.Close)
+	got, err = NewClient(blocked.URL, blocked.Client()).KitLease(context.Background(), blocked.URL)
+	if err != nil || got.State != "blocked" || !strings.Contains(got.Reason, "cleanup failed") {
+		t.Fatalf("blocked = %#v, %v", got, err)
+	}
+
+	down := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	down.Close()
+	got, err = NewClient(down.URL, down.Client()).KitLease(context.Background(), down.URL)
+	if err != nil || !got.Unavailable {
+		t.Fatalf("down kit = %#v, %v", got, err)
+	}
+
+	empty, err := NewClient(server.URL, server.Client()).KitLease(context.Background(), "")
+	if err != nil || empty.State != "" || empty.Unavailable {
+		t.Fatalf("empty target = %#v, %v", empty, err)
+	}
+
+	unauth := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = io.WriteString(w, `{"error":{"code":"UNAUTHORIZED","message":"missing or incorrect bearer token"}}`)
+	}))
+	t.Cleanup(unauth.Close)
+	got, err = NewClient(unauth.URL, unauth.Client()).KitLease(context.Background(), unauth.URL)
+	if err != nil || got.ErrorCode != "UNAUTHORIZED" || !strings.Contains(formatKitLeaseLine(got), "kit lease") {
+		t.Fatalf("unauthorized lease = %#v, %v", got, err)
+	}
+}
+
+func TestDecodeKitLeaseBlockedError(t *testing.T) {
+	t.Parallel()
+	got := decodeKitLeaseBody(503, []byte(`{"error":{"code":"KIT_LEASE_BLOCKED","message":"cleanup failed"}}`))
+	if got.State != "blocked" || got.Unavailable || got.ErrorCode != "KIT_LEASE_BLOCKED" {
+		t.Fatalf("blocked error = %#v", got)
+	}
+	down := decodeKitLeaseBody(503, []byte(`{"error":{"code":"MISTER_UNAVAILABLE","message":"target down"}}`))
+	if !down.Unavailable || down.ErrorCode != "MISTER_UNAVAILABLE" {
+		t.Fatalf("mister unavailable = %#v", down)
+	}
+}
+
 func TestClientRejectsMalformedSessionResponses(t *testing.T) {
 	t.Parallel()
 	cases := []struct {

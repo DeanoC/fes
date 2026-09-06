@@ -182,9 +182,11 @@ Native SDL3 UI
   -> GET /api/v1/library/settings and PATCH /api/v1/library/settings (idle seconds, preferred regions, selected target, library roots)
   -> POST /api/v1/session/launch
   -> GET /api/v1/session (poll; now-playing)
+  -> GET /api/v1/session/events?after= (poll; sofa event list)
   -> POST /api/v1/session/stop
   -> GET /api/v1/health (poll; kit chrome)
   -> GET /api/v1/status (503 TARGET_UNAVAILABLE treated as kit-down)
+  -> GET /v1/kit/lease on the selected target address (status-only lease strip)
   -> POST /api/v1/session/input/attach and /detach (empty body; FPGA-native now-playing)
   -> host session service
   -> existing FPGA launch path
