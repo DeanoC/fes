@@ -66,6 +66,8 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/080_dsp_mem/rtl/top.v",
             "experiments/090_pll_clock/rtl/top.v",
             "experiments/100_dsp_rom/rtl/top.v",
+            "experiments/110_pll_reset/rtl/top.v",
+            "experiments/120_pll_dsp/rtl/top.v",
         ):
             destination = repository / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -229,6 +231,19 @@ class OssPipelinePurityTests(unittest.TestCase):
         commands = result.stdout
         self.assertIn("experiments/090_pll_clock/rtl/top.v", commands)
         self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("pll_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_pll_and_dsp_for_pll_dsp(self) -> None:
+        result = self._run("--print-commands", "--experiment", "120_pll_dsp")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/120_pll_dsp/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -top top", commands)
+        self.assertNotIn("-nodsp", commands)
         self.assertNotIn("hps_gp_model.v", commands)
         self.assertNotIn("pll_model.v", commands)
         self.assertIn("--freq 50", commands)
