@@ -97,6 +97,11 @@ policy_top=""
 policy_clock=""
 policy_clock_mhz=""
 policy_artifact=""
+policy_sources_json=""
+policy_nobram=""
+policy_nolutram=""
+policy_nodsp=""
+policy_yosys_post_synth=""
 rtl=""
 qsf=""
 sdc=""
@@ -233,12 +238,17 @@ while IFS='=' read -r policy_key policy_value; do
     case "$policy_key" in
         name) policy_name=$policy_value ;;
         source) rtl_rel=$policy_value ;;
+        sources) policy_sources_json=$policy_value ;;
         top) policy_top=$policy_value ;;
         clock) policy_clock=$policy_value ;;
         clock_mhz) policy_clock_mhz=$policy_value ;;
         qsf) qsf_rel=$policy_value ;;
         sdc) sdc_rel=$policy_value ;;
         artifact) policy_artifact=$policy_value ;;
+        nobram) policy_nobram=$policy_value ;;
+        nolutram) policy_nolutram=$policy_value ;;
+        nodsp) policy_nodsp=$policy_value ;;
+        yosys_post_synth) policy_yosys_post_synth=$policy_value ;;
         allowed_hard_blocks) : ;; # Consumed by Python summary validation.
         "") : ;;
         *) fail "closed experiment policy emitted an unknown field: $policy_key" ;;
@@ -246,10 +256,16 @@ while IFS='=' read -r policy_key policy_value; do
 done <<< "$policy_output"
 
 [[ "$policy_name" == "$EXP" ]] || fail "closed experiment policy name mismatch"
-[[ -n "$rtl_rel" && -n "$policy_top" && -n "$policy_clock" ]] \
+[[ -n "$rtl_rel" && -n "$policy_sources_json" && -n "$policy_top" && -n "$policy_clock" ]] \
     || fail "closed experiment policy is missing source/top/clock"
 [[ "$policy_clock_mhz" == "50" ]] || fail "closed experiment policy must constrain 50 MHz"
 [[ "$policy_artifact" == "top.rbf" ]] || fail "closed experiment policy must emit top.rbf"
+[[ "$policy_nobram" == "0" || "$policy_nobram" == "1" ]] \
+    || fail "closed experiment policy nobram must be 0 or 1"
+[[ "$policy_nolutram" == "0" || "$policy_nolutram" == "1" ]] \
+    || fail "closed experiment policy nolutram must be 0 or 1"
+[[ "$policy_nodsp" == "0" || "$policy_nodsp" == "1" ]] \
+    || fail "closed experiment policy nodsp must be 0 or 1"
 
 rtl="$ROOT/$rtl_rel"
 qsf="$ROOT/$qsf_rel"
@@ -267,12 +283,27 @@ require_file "$collector"
 require_file "$lockfile"
 require_file "$summary_tool"
 
-if [[ "$policy_name" == "010_blinky" ]]; then
-    yosys_post_synth='cd top; rename LED \LED[0]; '
-else
-    yosys_post_synth=''
-fi
-yosys_program="read_verilog $rtl_rel; synth_intel_alm -nobram -nolutram -nodsp -top $policy_top; ${yosys_post_synth}stat; write_json $out_rel/synth.json"
+mapfile -t policy_source_list < <(
+    "$PYTHON" -c 'import json,sys; print("\n".join(json.loads(sys.argv[1])))' \
+        "$policy_sources_json"
+) || fail "closed experiment policy sources are not valid JSON"
+(( ${#policy_source_list[@]} > 0 )) || fail "closed experiment policy sources are empty"
+[[ "${policy_source_list[0]}" == "$rtl_rel" ]] \
+    || fail "closed experiment policy source list does not start with the primary source"
+
+read_verilog_cmds=""
+for source_rel in "${policy_source_list[@]}"; do
+    [[ -n "$source_rel" ]] || fail "closed experiment policy contains an empty source path"
+    require_file "$ROOT/$source_rel"
+    read_verilog_cmds+="read_verilog ${source_rel}; "
+done
+
+synth_flags=""
+[[ "$policy_nobram" == "1" ]] && synth_flags+=" -nobram"
+[[ "$policy_nolutram" == "1" ]] && synth_flags+=" -nolutram"
+[[ "$policy_nodsp" == "1" ]] && synth_flags+=" -nodsp"
+
+yosys_program="${read_verilog_cmds}synth_intel_alm${synth_flags} -top ${policy_top}; ${policy_yosys_post_synth}stat; write_json ${out_rel}/synth.json"
 yosys_cmd=("$yosys" -p "$yosys_program")
 nextpnr_help_cmd=("$nextpnr" --help)
 nextpnr_cmd=(

@@ -5,6 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MAKEFILE = ROOT / "Makefile"
+RUN_SIM = ROOT / "scripts" / "run_sim.sh"
 QSF = ROOT / "boards" / "de10nano" / "pins.qsf"
 SDC = ROOT / "boards" / "de10nano" / "clocks.sdc"
 BOARD_README = ROOT / "boards" / "de10nano" / "README.md"
@@ -71,14 +72,16 @@ class BlinkySourcePolicyTests(unittest.TestCase):
 
     def test_sim_authenticates_verilator_before_lint(self):
         makefile = MAKEFILE.read_text(encoding="utf-8")
+        self.assertIn("scripts/run_sim.sh --experiment", makefile)
+        sim_driver = RUN_SIM.read_text(encoding="utf-8")
         auth = re.search(
             r"doctor\.py[\"']?\s+--check-tool\s+verilator",
-            makefile,
+            sim_driver,
         )
         self.assertIsNotNone(auth)
         self.assertLess(
             auth.start(),
-            makefile.index("--lint-only"),
+            sim_driver.index("--lint-only"),
         )
 
     def test_board_readme_cites_both_pin_sources(self):

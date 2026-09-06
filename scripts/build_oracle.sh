@@ -237,12 +237,14 @@ while IFS='=' read -r policy_key policy_value; do
     case "$policy_key" in
         name) policy_name=$policy_value ;;
         source) policy_source=$policy_value ;;
+        sources) : ;; # OSS lane consumes the full production list.
         top) policy_top=$policy_value ;;
         clock) policy_clock=$policy_value ;;
         clock_mhz) policy_clock_mhz=$policy_value ;;
         qsf) policy_qsf=$policy_value ;;
         sdc) policy_sdc=$policy_value ;;
         artifact) policy_artifact=$policy_value ;;
+        nobram|nolutram|nodsp|yosys_post_synth) : ;; # OSS synthesis knobs.
         allowed_hard_blocks) : ;;
         "") : ;;
         *) fail "closed experiment policy emitted an unknown field: $policy_key" ;;

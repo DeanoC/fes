@@ -35,6 +35,52 @@ class PolicyError(ValueError):
 
 
 @dataclass(frozen=True)
+class SimJob:
+    """One Verilator lint/build/run job belonging to a closed experiment."""
+
+    name: str
+    top: str
+    sources: tuple[str, ...]
+    tb: str
+    parameters: Mapping[str, str] = MappingProxyType({})
+    cflags: tuple[str, ...] = ()
+    lint: bool = True
+
+    def __post_init__(self) -> None:
+        if not self.name or not re.fullmatch(r"[a-z][a-z0-9_]*", self.name):
+            raise PolicyError("sim job name must be a lowercase identifier")
+        if not self.top or not re.fullmatch(r"[A-Za-z_]\w*", self.top):
+            raise PolicyError(f"sim job {self.name}: top must be a Verilog identifier")
+        if not self.sources or any(not isinstance(path, str) or not path for path in self.sources):
+            raise PolicyError(f"sim job {self.name}: source list must contain non-empty paths")
+        if not self.tb or not isinstance(self.tb, str):
+            raise PolicyError(f"sim job {self.name}: tb must be a non-empty path")
+        parameters: dict[str, str] = {}
+        for key, value in dict(self.parameters).items():
+            if not isinstance(key, str) or not re.fullmatch(r"[A-Za-z_]\w*", key):
+                raise PolicyError(f"sim job {self.name}: parameter names must be Verilog identifiers")
+            if not isinstance(value, str) or not value:
+                raise PolicyError(f"sim job {self.name}: parameter {key} must be a non-empty string")
+            parameters[key] = value
+        object.__setattr__(self, "parameters", MappingProxyType(parameters))
+        if any(not isinstance(flag, str) or not flag for flag in self.cflags):
+            raise PolicyError(f"sim job {self.name}: cflags must be non-empty strings")
+        if not isinstance(self.lint, bool):
+            raise PolicyError(f"sim job {self.name}: lint must be a boolean")
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "top": self.top,
+            "sources": list(self.sources),
+            "tb": self.tb,
+            "parameters": dict(self.parameters),
+            "cflags": list(self.cflags),
+            "lint": self.lint,
+        }
+
+
+@dataclass(frozen=True)
 class ExperimentPolicy:
     """Immutable source, timing, and resource expectations for one experiment."""
 
@@ -51,6 +97,11 @@ class ExperimentPolicy:
     target: str = TARGET_DEVICE
     artifact: str = "top.rbf"
     clock_evidence_names: tuple[str, ...] = ()
+    nobram: bool = True
+    nolutram: bool = True
+    nodsp: bool = True
+    yosys_post_synth: str = ""
+    sim_jobs: tuple[SimJob, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.name or not isinstance(self.name, str):
@@ -71,6 +122,18 @@ class ExperimentPolicy:
             raise PolicyError(f"{self.name}: clock constraint must be positive and finite")
         if self.target != TARGET_DEVICE:
             raise PolicyError(f"{self.name}: target must be {TARGET_DEVICE}")
+        for flag_name, flag in (("nobram", self.nobram), ("nolutram", self.nolutram), ("nodsp", self.nodsp)):
+            if not isinstance(flag, bool):
+                raise PolicyError(f"{self.name}: {flag_name} must be a boolean")
+        if not isinstance(self.yosys_post_synth, str) or "\n" in self.yosys_post_synth:
+            raise PolicyError(f"{self.name}: yosys_post_synth must be a single-line string")
+        jobs = tuple(self.sim_jobs)
+        if any(not isinstance(job, SimJob) for job in jobs):
+            raise PolicyError(f"{self.name}: sim_jobs must contain SimJob values")
+        names = [job.name for job in jobs]
+        if len(names) != len(set(names)):
+            raise PolicyError(f"{self.name}: sim job names must be unique")
+        object.__setattr__(self, "sim_jobs", jobs)
 
         allowed: dict[str, int] = {}
         for resource, count in dict(self.allowed_hard_blocks).items():
@@ -307,6 +370,17 @@ class ExperimentPolicy:
         if tuple(sources) != self.sources:
             raise PolicyError(f"source list does not match policy for {self.name}")
 
+    @property
+    def synth_intel_alm_flags(self) -> tuple[str, ...]:
+        flags: list[str] = []
+        if self.nobram:
+            flags.append("-nobram")
+        if self.nolutram:
+            flags.append("-nolutram")
+        if self.nodsp:
+            flags.append("-nodsp")
+        return tuple(flags)
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
@@ -323,6 +397,11 @@ class ExperimentPolicy:
             "required_source_identifiers": dict(self.required_source_identifiers),
             "target": self.target,
             "artifact": self.artifact,
+            "nobram": self.nobram,
+            "nolutram": self.nolutram,
+            "nodsp": self.nodsp,
+            "yosys_post_synth": self.yosys_post_synth,
+            "sim_jobs": [job.as_dict() for job in self.sim_jobs],
         }
 
 
@@ -383,6 +462,16 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                 "FPGA_CLK1_50_MISTRAL",
                 "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
             ),
+            yosys_post_synth=r"cd top; rename LED \LED[0]; ",
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=("experiments/010_blinky/rtl/top.v",),
+                    tb="experiments/010_blinky/sim/tb.cpp",
+                    parameters={"COUNTER_BITS": "4"},
+                ),
+            ),
         ),
         "020_linux_mailbox": ExperimentPolicy(
             name="020_linux_mailbox",
@@ -397,6 +486,26 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                 "cyclonev_hps_interface_mpu_general_purpose": 1,
             },
             clock_evidence_names=("protocol.FPGA_CLK1_50",),
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/020_linux_mailbox/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                    ),
+                    tb="experiments/020_linux_mailbox/sim/tb.cpp",
+                ),
+                SimJob(
+                    name="wrap",
+                    top="mailbox_fsm",
+                    sources=("experiments/020_linux_mailbox/rtl/top.v",),
+                    tb="experiments/020_linux_mailbox/sim/tb.cpp",
+                    parameters={"START_SEQUENCE": "8'hff", "MESSAGE_BYTES": "2"},
+                    cflags=("-DMAILBOX_WRAP",),
+                    lint=False,
+                ),
+            ),
         ),
     }
 )
@@ -468,12 +577,17 @@ def _shell_lines(policy: ExperimentPolicy) -> str:
     lines = [
         f"name={policy.name}",
         f"source={policy.sources[0]}",
+        f"sources={json.dumps(list(policy.sources), separators=(',', ':'))}",
         f"top={policy.top}",
         f"clock={policy.clock}",
         f"clock_mhz={policy.clock_mhz:g}",
         f"qsf={policy.constraints[0]}",
         f"sdc={policy.constraints[1]}",
         f"artifact={policy.artifact}",
+        f"nobram={1 if policy.nobram else 0}",
+        f"nolutram={1 if policy.nolutram else 0}",
+        f"nodsp={1 if policy.nodsp else 0}",
+        f"yosys_post_synth={policy.yosys_post_synth}",
         "allowed_hard_blocks=" + json.dumps(dict(policy.allowed_hard_blocks), sort_keys=True, separators=(",", ":")),
     ]
     return "\n".join(lines) + "\n"

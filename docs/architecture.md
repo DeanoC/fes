@@ -14,8 +14,9 @@ experiment RTL + constraints
 oss manifest + oracle manifest -> compare report
 ```
 
-`sim` checks the experiment's logical behavior with Verilator. Simulation-only
-models never enter either synthesis lane.
+`sim` checks the experiment's logical behavior with Verilator. Simulation jobs,
+production source lists, and OSS synthesis flags come from the closed experiment
+policy. Simulation-only models never enter either synthesis lane.
 
 `oss` uses only the pinned repository-local tools described by
 `toolchain.lock`. Generated sources and tools live under `build/toolchain/`.

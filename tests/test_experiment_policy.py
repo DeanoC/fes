@@ -25,6 +25,11 @@ class ExperimentPolicyTests(unittest.TestCase):
             ("experiments/010_blinky/rtl/top.v",),
         )
         self.assertIn("M10K", policy.forbidden_resource_patterns)
+        self.assertEqual(policy.synth_intel_alm_flags, ("-nobram", "-nolutram", "-nodsp"))
+        self.assertEqual(policy.yosys_post_synth, r"cd top; rename LED \LED[0]; ")
+        self.assertEqual(len(policy.sim_jobs), 1)
+        self.assertEqual(policy.sim_jobs[0].name, "main")
+        self.assertEqual(policy.sim_jobs[0].parameters["COUNTER_BITS"], "4")
 
     def test_mailbox_requires_exactly_one_hps_general_purpose_primitive(self) -> None:
         policy = policy_for("020_linux_mailbox")
@@ -39,6 +44,10 @@ class ExperimentPolicyTests(unittest.TestCase):
             policy.sources,
             ("experiments/020_linux_mailbox/rtl/top.v",),
         )
+        self.assertEqual(policy.synth_intel_alm_flags, ("-nobram", "-nolutram", "-nodsp"))
+        self.assertEqual(policy.yosys_post_synth, "")
+        self.assertEqual([job.name for job in policy.sim_jobs], ["main", "wrap"])
+        self.assertFalse(policy.sim_jobs[1].lint)
 
     def test_forbidden_source_pattern_is_rejected(self) -> None:
         policy = policy_for("020_linux_mailbox")
