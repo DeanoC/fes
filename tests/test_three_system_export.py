@@ -55,7 +55,12 @@ class SnesExportTests(unittest.TestCase):
         (work / 'compare.json').write_text(json.dumps(report))
         bundle = export_bundle(pin, fixture.root)
         self.assertTrue((bundle / 'snes-rbf.toml').is_file())
+        original_recipe = fixture.recipe.read_bytes()
         fixture.recipe.write_text('changed')
+        with self.assertRaises(BundleExportError):
+            export_bundle(pin, fixture.root)
+        fixture.recipe.write_bytes(original_recipe)
+        timing.write_text(timing.read_text().replace('0.2', '0.3', 1))
         with self.assertRaises(BundleExportError):
             export_bundle(pin, fixture.root)
 
