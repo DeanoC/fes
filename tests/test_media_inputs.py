@@ -67,7 +67,8 @@ class MediaInputsTest(unittest.TestCase):
         self.git(self.source, "config", "user.email", "test@example.invalid")
         self.git(self.source, "config", "user.name", "Test")
         (self.source / "seed").write_text("seed")
-        self.git(self.source, "add", "seed")
+        (self.source / ".gitignore").write_text("ignored\n")
+        self.git(self.source, "add", "seed", ".gitignore")
         self.git(self.source, "commit", "-qm", "seed")
         self.uboot_bytes = (b"prefix\0mmcroot=/dev/mmcblk0p1\0"
                             b"bootimage=/linux/zImage_dtb\0core=menu.rbf\0"
@@ -127,6 +128,17 @@ class MediaInputsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "sector geometry"):
             self.module.MediaLock.loads(LOCK_TEXT.replace("total_sectors = 528384", "total_sectors = 1"))
 
+    def test_lock_rejects_noncanonical_scalar_types(self):
+        cases = (
+            ("format = 1", "format = true"),
+            ("active = true", "active = 1"),
+            ("fat_serial = 0xf35d0001", "fat_serial = 4082958337.0"),
+        )
+        for original, replacement in cases:
+            with self.subTest(replacement=replacement):
+                with self.assertRaises(ValueError):
+                    self.module.MediaLock.loads(LOCK_TEXT.replace(original, replacement))
+
     def test_cached_payloads_require_exact_revision_and_hash(self):
         cache = self.make_image_creator_cache(commit=self.commit)
         (cache / "uboot.img").write_bytes(b"changed")
@@ -141,6 +153,19 @@ class MediaInputsTest(unittest.TestCase):
         (cache / "untracked").unlink()
         self.git(cache, "checkout", "-q", "--detach", "HEAD^")
         with self.assertRaisesRegex(ValueError, "image-creator cache revision"):
+            self.module.resolve_payloads(self.root, self.module.MediaLock.loads(self.fixture_lock()), self.rejecting_run)
+
+    def test_cached_payloads_reject_ignored_untracked_files(self):
+        cache = self.make_image_creator_cache()
+        (cache / "ignored").write_text("dirt")
+        with self.assertRaisesRegex(ValueError, "image-creator cache is changed"):
+            self.module.resolve_payloads(self.root, self.module.MediaLock.loads(self.fixture_lock()), self.rejecting_run)
+
+    def test_cached_payloads_reject_symlinked_cache_path(self):
+        cache = self.cache()
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.symlink_to(self.source, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "cache path must not be a symlink"):
             self.module.resolve_payloads(self.root, self.module.MediaLock.loads(self.fixture_lock()), self.rejecting_run)
 
     def test_missing_cache_fetches_once_then_reuses_offline(self):

@@ -98,11 +98,14 @@ def _fields(data, expected):
 def _partition(data):
     fields = {"start_sector", "sector_count", "type", "active", "chs_start", "chs_end"}
     _fields(data, fields)
+    _types(data, {"start_sector": int, "sector_count": int, "type": int,
+                  "active": bool, "chs_start": str, "chs_end": str})
     return Partition(**data)
 
 
 def _payload(data, expected_path):
     _fields(data, {"path", "size", "sha256"})
+    _types(data, {"path": str, "size": int, "sha256": str})
     payload = Payload(**data)
     if payload.path != expected_path:
         raise ValueError(f"boot-media payload path must be {expected_path}")
@@ -117,7 +120,7 @@ def _uboot(data):
     _fields(data, {"path", "size", "sha256", "environment"})
     payload = _payload({key: value for key, value in data.items() if key != "environment"}, "uboot.img")
     environment = data["environment"]
-    if (not isinstance(environment, list) or any(not isinstance(value, str) for value in environment)
+    if (type(environment) is not list or any(type(value) is not str for value in environment)
             or tuple(environment) != EXPECTED_ENVIRONMENT):
         raise ValueError("U-Boot environment strings differ from boot-media lock policy")
     return payload, tuple(environment)
@@ -126,16 +129,18 @@ def _uboot(data):
 def _validate(lock):
     if type(lock.format) is not int or lock.format != 1:
         raise ValueError("boot-media lock format must be 1")
-    if not isinstance(lock.repository, str) or not lock.repository:
+    if type(lock.repository) is not str or not lock.repository:
         raise ValueError("boot-media repository is invalid")
-    if not isinstance(lock.commit, str) or not re.fullmatch(r"[0-9a-f]{40}", lock.commit):
+    if type(lock.commit) is not str or not re.fullmatch(r"[0-9a-f]{40}", lock.commit):
         raise ValueError("boot-media commit is invalid")
-    if lock.layout != EXPECTED_LAYOUT:
+    if type(lock.layout) is not str or lock.layout != EXPECTED_LAYOUT:
         raise ValueError("boot-media layout differs from policy")
     if (type(lock.sector_size) is not int or type(lock.total_sectors) is not int
             or lock.sector_size != 512 or lock.total_sectors != 528384):
         raise ValueError("boot-media sector geometry differs from policy")
-    if lock.disk_id != 0x46455331 or lock.fat_serial != 0xf35d0001 or lock.fat_label != "FESDATA":
+    if (type(lock.disk_id) is not int or type(lock.fat_serial) is not int
+            or type(lock.fat_label) is not str or lock.disk_id != 0x46455331
+            or lock.fat_serial != 0xf35d0001 or lock.fat_label != "FESDATA"):
         raise ValueError("boot-media disk identifiers differ from policy")
     expected = (
         (lock.partition_1, 2048, 524288, 0x0c, True),
@@ -145,6 +150,12 @@ def _validate(lock):
         if (partition.start_sector, partition.sector_count, partition.type, partition.active,
                 partition.chs_start, partition.chs_end) != (start, count, type_code, active, "feffff", "feffff"):
             raise ValueError("boot-media partition geometry differs from policy")
+
+
+def _types(data, expected):
+    for field, field_type in expected.items():
+        if type(data[field]) is not field_type:
+            raise ValueError(f"boot-media lock {field} has an invalid type")
 
 
 def digest(path):
@@ -178,7 +189,7 @@ def _validate_cache(cache, lock):
 
 
 def _require_clean(cache):
-    if _git(cache, "status", "--porcelain", "--untracked-files=all"):
+    if _git(cache, "status", "--porcelain", "--untracked-files=all", "--ignored"):
         raise ValueError("image-creator cache is changed")
 
 
@@ -198,6 +209,8 @@ def _populate_cache(cache, lock, run):
 def resolve_payloads(root: Path, lock: MediaLock, run):
     root = Path(root)
     cache = root / "out/work/boot-media" / ("image-creator-" + lock.commit)
+    if cache.is_symlink():
+        raise ValueError("image-creator cache path must not be a symlink")
     cache.parent.mkdir(parents=True, exist_ok=True)
     lock_path = cache.parent / (cache.name + ".lock")
     with lock_path.open("a+") as stream:
