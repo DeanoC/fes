@@ -621,12 +621,24 @@ func CoverHandle(game Game, presentation Presentation) string {
 	return normalizeHandle(presentation.Presentation.CoverArtworkID)
 }
 
-// LibraryTarget is one read-only target row from GET /api/v1/library/settings.
+// LibraryTarget is one target row from GET /api/v1/library/settings.
+// The host never returns the agent secret; AgentConfigured is the only
+// secret-related field the client stores.
 type LibraryTarget struct {
 	Name            string `json:"name"`
 	Address         string `json:"address"`
 	Enabled         bool   `json:"enabled"`
 	AgentConfigured bool   `json:"agent_configured"`
+}
+
+// LibraryTargetWrite is one target in a PATCH /api/v1/library/settings body.
+// Agent is omitted when nil (untouched). A pointer to "" clears the stored agent.
+type LibraryTargetWrite struct {
+	Name         string  `json:"name"`
+	OriginalName string  `json:"original_name,omitempty"`
+	Address      string  `json:"address"`
+	Enabled      bool    `json:"enabled"`
+	Agent        *string `json:"agent,omitempty"`
 }
 
 // LibraryRoot is one library path row from GET /api/v1/library/settings.
@@ -653,13 +665,14 @@ type LibrarySettings struct {
 }
 
 // LibrarySettingsPatch is a partial PATCH /api/v1/library/settings body.
-// Nil fields are omitted. Libraries is a full-array replace when non-nil,
-// including an empty list.
+// Nil fields are omitted. Libraries and Targets are full-array replaces when
+// non-nil, including an empty list.
 type LibrarySettingsPatch struct {
-	AttractIdleSeconds *int           `json:"attract_idle_seconds,omitempty"`
-	PreferredRegions   *[]string      `json:"preferred_regions,omitempty"`
-	SelectedTarget     *string        `json:"selected_target,omitempty"`
-	Libraries          *[]LibraryRoot `json:"libraries,omitempty"`
+	AttractIdleSeconds *int                  `json:"attract_idle_seconds,omitempty"`
+	PreferredRegions   *[]string             `json:"preferred_regions,omitempty"`
+	SelectedTarget     *string               `json:"selected_target,omitempty"`
+	Targets            *[]LibraryTargetWrite `json:"targets,omitempty"`
+	Libraries          *[]LibraryRoot        `json:"libraries,omitempty"`
 }
 
 func (p LibrarySettingsPatch) payload() (map[string]any, error) {
@@ -676,6 +689,13 @@ func (p LibrarySettingsPatch) payload() (map[string]any, error) {
 	}
 	if p.SelectedTarget != nil {
 		raw["selected_target"] = *p.SelectedTarget
+	}
+	if p.Targets != nil {
+		targets := append([]LibraryTargetWrite(nil), *p.Targets...)
+		if targets == nil {
+			targets = []LibraryTargetWrite{}
+		}
+		raw["targets"] = targets
 	}
 	if p.Libraries != nil {
 		libraries := append([]LibraryRoot(nil), *p.Libraries...)

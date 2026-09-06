@@ -336,13 +336,15 @@ type App struct {
 	settingsDraftIdle      int
 	settingsDraftRegions   []string
 	settingsDraftTarget    string
+	settingsDraftTargets   []settingsTargetDraft
+	settingsTargetsDirty   bool
 	settingsDraftLibraries []LibraryRoot
 	settingsLibrariesDirty bool
 	settingsRegionIndex    int
-	settingsPathOpen       bool
-	settingsPathIndex      int
-	settingsPathIsAdd      bool
-	settingsPathField      TextField
+	settingsOSKKind        settingsOSKKind
+	settingsOSKIndex       int
+	settingsOSKIsAdd       bool
+	settingsOSKField       TextField
 	hostSettings           LibrarySettings
 	attractPrefEnabled     bool
 	attractForcedOff       bool
@@ -483,7 +485,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	if a.consumeAttractLocked(cmd, now) {
 		return
 	}
-	if a.searchOpen || a.nameEntryOpenLocked() || a.settingsPathOpen {
+	if a.searchOpen || a.nameEntryOpenLocked() || a.settingsOSKOpenLocked() {
 		switch cmd {
 		case CmdSafeAreaIn, CmdSafeAreaOut, CmdLayoutCycle:
 			return
@@ -516,8 +518,8 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		}
 		return
 	}
-	if a.settingsPathOpen {
-		a.handleLibraryPathOSKLocked(cmd)
+	if a.settingsOSKOpenLocked() {
+		a.handleSettingsOSKLocked(cmd)
 		return
 	}
 	if a.settingsOpen {
@@ -656,8 +658,8 @@ func (a *App) TypeText(text string, now time.Time) {
 	if a.consumeAttractLocked(CmdNone, now) {
 		return
 	}
-	if a.settingsPathOpen {
-		a.settingsPathField.Insert(text)
+	if a.settingsOSKOpenLocked() {
+		a.settingsOSKField.Insert(text)
 		return
 	}
 	if a.nameEntryOpenLocked() {
@@ -679,11 +681,11 @@ func (a *App) SearchBackspace(now time.Time) {
 	if a.consumeAttractLocked(CmdBack, now) {
 		return
 	}
-	if a.settingsPathOpen {
-		if a.settingsPathField.Buffer == "" {
+	if a.settingsOSKOpenLocked() {
+		if a.settingsOSKField.Buffer == "" {
 			return
 		}
-		a.settingsPathField.Backspace()
+		a.settingsOSKField.Backspace()
 		return
 	}
 	if a.nameEntryOpenLocked() {
@@ -708,8 +710,8 @@ func (a *App) ConfirmSearch(now time.Time) {
 	if a.consumeAttractLocked(CmdSelect, now) {
 		return
 	}
-	if a.settingsPathOpen {
-		a.submitLibraryPathOSKLocked()
+	if a.settingsOSKOpenLocked() {
+		a.submitSettingsOSKLocked()
 		return
 	}
 	if a.nameEntryOpenLocked() {
@@ -1148,10 +1150,21 @@ func (a *App) SetGamepads(n int) {
 }
 
 func (a *App) oskSnapshotLocked() OSKSnapshot {
-	if a.settingsPathOpen {
-		snap := a.settingsPathField.Snapshot()
+	if a.settingsOSKOpenLocked() {
+		snap := a.settingsOSKField.Snapshot()
 		snap.Open = true
-		snap.Prompt = "Library path"
+		switch a.settingsOSKKind {
+		case settingsOSKLibraryPath:
+			snap.Prompt = "Library path"
+		case settingsOSKTargetName:
+			snap.Prompt = "Target name"
+		case settingsOSKTargetAddress:
+			snap.Prompt = "Target address"
+		case settingsOSKTargetAgent:
+			snap.Prompt = "Agent password"
+			snap.Masked = true
+			snap.Buffer = maskSecret(a.settingsOSKField.Buffer)
+		}
 		return snap
 	}
 	if a.nameEntryOpenLocked() {

@@ -863,6 +863,20 @@ func TestClientLibrarySettingsGetAndPatch(t *testing.T) {
 	if len(got.Targets) != 2 || got.Targets[0].Name != "dev" || !got.Targets[0].AgentConfigured || got.Targets[0].Address == "" {
 		t.Fatalf("targets = %#v", got.Targets)
 	}
+	encoded, err := json.Marshal(got.Targets[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var targetJSON map[string]any
+	if err := json.Unmarshal(encoded, &targetJSON); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := targetJSON["agent"]; ok {
+		t.Fatalf("GET target kept secret field: %s", encoded)
+	}
+	if strings.Contains(string(encoded), "secret") {
+		t.Fatalf("GET target echoed secret: %s", encoded)
+	}
 	if len(got.Libraries) != 1 || len(got.Systems) != 1 {
 		t.Fatalf("context = libs %#v systems %#v", got.Libraries, got.Systems)
 	}
@@ -952,6 +966,92 @@ func TestLibrarySettingsPatchPayloadLibraries(t *testing.T) {
 	}
 }
 
+func TestLibrarySettingsPatchPayloadTargets(t *testing.T) {
+	t.Parallel()
+	idle := 60
+	raw, err := (LibrarySettingsPatch{AttractIdleSeconds: &idle}).payload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := raw["targets"]; ok {
+		t.Fatalf("nil targets included: %#v", raw)
+	}
+	untouched := []LibraryTargetWrite{{
+		Name:    "dev",
+		Address: "http://192.0.2.10:8182",
+		Enabled: true,
+	}}
+	raw, err = (LibrarySettingsPatch{Targets: &untouched}).payload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := raw["libraries"]; ok {
+		t.Fatalf("targets patch included libraries: %#v", raw)
+	}
+	if _, ok := raw["selected_target"]; ok {
+		t.Fatalf("targets patch included selected_target: %#v", raw)
+	}
+	data, err := json.Marshal(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != `{"targets":[{"name":"dev","address":"http://192.0.2.10:8182","enabled":true}]}` {
+		t.Fatalf("omit agent = %s", data)
+	}
+	if strings.Contains(string(data), `"agent"`) {
+		t.Fatalf("untouched agent included: %s", data)
+	}
+	cleared := ""
+	clear := []LibraryTargetWrite{{
+		Name:    "dev",
+		Address: "",
+		Enabled: false,
+		Agent:   &cleared,
+	}}
+	raw, err = (LibrarySettingsPatch{Targets: &clear}).payload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err = json.Marshal(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != `{"targets":[{"name":"dev","address":"","enabled":false,"agent":""}]}` {
+		t.Fatalf("clear agent = %s", data)
+	}
+	secret := "s3cret"
+	set := []LibraryTargetWrite{{
+		Name:         "den",
+		OriginalName: "dev",
+		Address:      "http://192.0.2.10:8182",
+		Enabled:      true,
+		Agent:        &secret,
+	}}
+	raw, err = (LibrarySettingsPatch{Targets: &set}).payload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err = json.Marshal(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != `{"targets":[{"name":"den","original_name":"dev","address":"http://192.0.2.10:8182","enabled":true,"agent":"s3cret"}]}` {
+		t.Fatalf("set agent = %s", data)
+	}
+	empty := []LibraryTargetWrite{}
+	raw, err = (LibrarySettingsPatch{Targets: &empty}).payload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err = json.Marshal(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != `{"targets":[]}` {
+		t.Fatalf("empty array = %s", data)
+	}
+}
+
 func TestClientLibrarySettingsPatchLibraries(t *testing.T) {
 	t.Parallel()
 	var patches []string
@@ -989,6 +1089,54 @@ func TestClientLibrarySettingsPatchLibraries(t *testing.T) {
 	}
 	if patches[1] != `{"libraries":[]}` {
 		t.Fatalf("empty array = %q", patches[1])
+	}
+}
+
+func TestClientLibrarySettingsPatchTargets(t *testing.T) {
+	t.Parallel()
+	var patches []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/library/settings" || r.Method != http.MethodPatch {
+			http.Error(w, "method", http.StatusMethodNotAllowed)
+			return
+		}
+		raw, _ := io.ReadAll(r.Body)
+		patches = append(patches, string(raw))
+		var body map[string]any
+		if err := json.Unmarshal(raw, &body); err != nil {
+			t.Errorf("patch json: %v", err)
+		}
+		if _, ok := body["libraries"]; ok {
+			t.Errorf("targets patch included libraries: %s", raw)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"attract_idle_seconds": 60,
+			"preferred_regions":    []string{"usa"},
+			"selected_target":      "dev",
+			"targets":              []map[string]any{{"name": "dev", "address": "http://192.0.2.10:8182", "enabled": true, "agent_configured": true}},
+			"libraries":            []map[string]any{},
+			"systems":              []map[string]any{},
+		})
+	}))
+	t.Cleanup(server.Close)
+	client := NewClient(server.URL, server.Client())
+	untouched := []LibraryTargetWrite{{Name: "dev", Address: "http://192.0.2.10:8182", Enabled: true}}
+	if _, err := client.PatchLibrarySettings(context.Background(), LibrarySettingsPatch{Targets: &untouched}); err != nil {
+		t.Fatal(err)
+	}
+	cleared := ""
+	clear := []LibraryTargetWrite{{Name: "dev", Address: "", Enabled: false, Agent: &cleared}}
+	if _, err := client.PatchLibrarySettings(context.Background(), LibrarySettingsPatch{Targets: &clear}); err != nil {
+		t.Fatal(err)
+	}
+	if len(patches) != 2 {
+		t.Fatalf("patches = %#v", patches)
+	}
+	if patches[0] != `{"targets":[{"name":"dev","address":"http://192.0.2.10:8182","enabled":true}]}` {
+		t.Fatalf("omit agent = %q", patches[0])
+	}
+	if patches[1] != `{"targets":[{"name":"dev","address":"","enabled":false,"agent":""}]}` {
+		t.Fatalf("clear agent = %q", patches[1])
 	}
 }
 

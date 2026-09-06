@@ -1347,7 +1347,12 @@ func drawSettings(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdl
 	fillRect(renderer, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
 	fillRect(renderer, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
 	title := "Settings"
-	if snap.Settings.LibraryCount > 0 {
+	switch {
+	case snap.Settings.TargetCount > 0 && snap.Settings.LibraryCount > 0:
+		title = fmt.Sprintf("Settings  ·  %d targets  ·  %d libraries", snap.Settings.TargetCount, snap.Settings.LibraryCount)
+	case snap.Settings.TargetCount > 0:
+		title = fmt.Sprintf("Settings  ·  %d targets", snap.Settings.TargetCount)
+	case snap.Settings.LibraryCount > 0:
 		title = fmt.Sprintf("Settings  ·  %d libraries", snap.Settings.LibraryCount)
 	}
 	drawLabel(renderer, labels, used, "set-title", x+16, y+12, panelW-32, 18, title)

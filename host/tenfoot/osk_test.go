@@ -2,6 +2,16 @@ package tenfoot
 
 import "testing"
 
+func TestMaskSecretUsesBullets(t *testing.T) {
+	t.Parallel()
+	if got := maskSecret(""); got != "" {
+		t.Fatalf("empty = %q", got)
+	}
+	if got := maskSecret("s3cret"); got != "••••••" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestOSKMovesFocusAndWraps(t *testing.T) {
 	t.Parallel()
 	var k OSK

@@ -19,11 +19,46 @@ const (
 )
 
 const (
+	settingsTargetFieldName = iota
+	settingsTargetFieldAddress
+	settingsTargetFieldEnabled
+	settingsTargetFieldAgent
+	settingsTargetFieldCount
+)
+
+const (
+	settingsRowAddTarget = iota
+	settingsRowSaveTargets
+	settingsTargetTrailingCount
+)
+
+const (
 	settingsRowAddLibrary = iota
 	settingsRowSaveLibraries
 	settingsRowClose
 	settingsTrailingCount
 )
+
+type settingsOSKKind int
+
+const (
+	settingsOSKNone settingsOSKKind = iota
+	settingsOSKLibraryPath
+	settingsOSKTargetName
+	settingsOSKTargetAddress
+	settingsOSKTargetAgent
+)
+
+type settingsTargetDraft struct {
+	OriginalName    string
+	Name            string
+	Address         string
+	Enabled         bool
+	AgentConfigured bool
+	AgentDirty      bool
+	AgentClear      bool
+	AgentDraft      string
+}
 
 const (
 	minSettingsIdleSeconds = 1       // host library settings allow 1s (ui_shell min, config defaults only <=0)
@@ -50,6 +85,7 @@ type SettingsSnapshot struct {
 	Status       string
 	Hint         string
 	LibraryCount int
+	TargetCount  int
 	SystemCount  int
 }
 
@@ -99,6 +135,7 @@ func (a *App) settingsSnapshotLocked() SettingsSnapshot {
 		Status:       a.settingsStatus,
 		Hint:         a.settingsHintLocked(),
 		LibraryCount: len(a.settingsDraftLibraries),
+		TargetCount:  len(a.settingsDraftTargets),
 		SystemCount:  len(a.hostSettings.Systems),
 	}
 }
@@ -137,6 +174,38 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 		{ID: "regions", Label: "Regions", Value: regions},
 		{ID: "target", Label: "Target", Value: target},
 	}
+	for i, draft := range a.settingsDraftTargets {
+		name := strings.TrimSpace(draft.Name)
+		if name == "" {
+			name = "(new)"
+		}
+		label := name
+		if strings.TrimSpace(draft.Name) != "" && strings.TrimSpace(draft.Name) == strings.TrimSpace(a.settingsDraftTarget) {
+			label = "*" + name
+		}
+		address := strings.TrimSpace(draft.Address)
+		if address == "" {
+			address = "(empty)"
+		}
+		enabled := "Off"
+		if draft.Enabled {
+			enabled = "On"
+		}
+		rows = append(rows,
+			SettingsRow{ID: fmt.Sprintf("target-%d-name", i), Label: label + " · name", Value: name},
+			SettingsRow{ID: fmt.Sprintf("target-%d-address", i), Label: label + " · address", Value: address},
+			SettingsRow{ID: fmt.Sprintf("target-%d-enabled", i), Label: label + " · enabled", Value: enabled},
+			SettingsRow{ID: fmt.Sprintf("target-%d-agent", i), Label: label + " · agent", Value: settingsAgentValue(draft)},
+		)
+	}
+	saveTargets := "saved"
+	if a.settingsTargetsDirty {
+		saveTargets = "A save"
+	}
+	rows = append(rows,
+		SettingsRow{ID: "add-target", Label: "Add target", Value: "A add"},
+		SettingsRow{ID: "save-targets", Label: "Save targets", Value: saveTargets},
+	)
 	for i, library := range a.settingsDraftLibraries {
 		root := strings.TrimSpace(library.Root)
 		if root == "" {
@@ -194,7 +263,7 @@ func (a *App) openSettingsLocked() {
 	a.settingsLoading = true
 	a.settingsHydrated = false
 	a.settingsRegionIndex = 0
-	a.closeLibraryPathOSKLocked()
+	a.closeSettingsOSKLocked()
 	a.settingsGen++
 	gen := a.settingsGen
 	ctx := a.ctx
@@ -212,25 +281,28 @@ func (a *App) closeSettingsLocked() {
 	a.settingsBusy = false
 	a.settingsLoading = false
 	a.settingsStatus = ""
-	a.closeLibraryPathOSKLocked()
+	a.closeSettingsOSKLocked()
 	a.settingsGen++
 	a.discardSettingsDraftsLocked()
 }
 
 func (a *App) discardSettingsDraftsLocked() {
 	a.settingsLibrariesDirty = false
-	a.closeLibraryPathOSKLocked()
+	a.settingsTargetsDirty = false
+	a.closeSettingsOSKLocked()
 	if !a.settingsHydrated {
 		a.settingsDraftIdle = 0
 		a.settingsDraftRegions = nil
 		a.settingsDraftTarget = ""
 		a.settingsDraftLibraries = nil
+		a.settingsDraftTargets = nil
 		return
 	}
 	a.settingsDraftIdle = a.hostSettings.AttractIdleSeconds
 	a.settingsDraftRegions = append([]string(nil), a.hostSettings.PreferredRegions...)
 	a.settingsDraftTarget = a.hostSettings.SelectedTarget
 	a.settingsDraftLibraries = cloneLibraryRoots(a.hostSettings.Libraries)
+	a.settingsDraftTargets = cloneSettingsTargetsFromHost(a.hostSettings.Targets)
 }
 
 func (a *App) revertSettingsPatchDraftsLocked(patch LibrarySettingsPatch) {
@@ -250,10 +322,19 @@ func (a *App) revertSettingsPatchDraftsLocked(patch LibrarySettingsPatch) {
 	if patch.SelectedTarget != nil {
 		a.settingsDraftTarget = a.hostSettings.SelectedTarget
 	}
+	if patch.Targets != nil {
+		a.settingsTargetsDirty = false
+		a.settingsDraftTargets = cloneSettingsTargetsFromHost(a.hostSettings.Targets)
+		if a.settingsOSKKind == settingsOSKTargetName || a.settingsOSKKind == settingsOSKTargetAddress || a.settingsOSKKind == settingsOSKTargetAgent {
+			a.closeSettingsOSKLocked()
+		}
+	}
 	if patch.Libraries != nil {
 		a.settingsLibrariesDirty = false
 		a.settingsDraftLibraries = cloneLibraryRoots(a.hostSettings.Libraries)
-		a.closeLibraryPathOSKLocked()
+		if a.settingsOSKKind == settingsOSKLibraryPath {
+			a.closeSettingsOSKLocked()
+		}
 	}
 }
 
@@ -374,19 +455,54 @@ func (a *App) handleSettingsLocked(cmd Command) {
 				name = names[0]
 				a.settingsDraftTarget = name
 			}
+			if a.settingsSessionBlocksSelectedLocked() {
+				a.settingsStatus = "cannot change target while a session is active"
+				a.status = a.settingsStatus
+				a.settingsDraftTarget = a.hostSettings.SelectedTarget
+				return
+			}
+			if a.settingsTargetsDirty {
+				a.saveSettingsTargetsLocked()
+				return
+			}
 			a.patchSettingsLocked(LibrarySettingsPatch{SelectedTarget: strPtr(name)})
 		}
 	default:
+		if a.settingsIndex < a.settingsLibraryStartLocked() {
+			a.handleSettingsTargetRowsLocked(cmd)
+			return
+		}
 		a.handleSettingsLibraryRowsLocked(cmd)
 	}
 }
 
+func (a *App) settingsTargetBlockCountLocked() int {
+	return len(a.settingsDraftTargets)*settingsTargetFieldCount + settingsTargetTrailingCount
+}
+
+func (a *App) settingsLibraryStartLocked() int {
+	return settingsRowFixedCount + a.settingsTargetBlockCountLocked()
+}
+
 func (a *App) settingsRowCountLocked() int {
-	return settingsRowFixedCount + len(a.settingsDraftLibraries) + settingsTrailingCount
+	return a.settingsLibraryStartLocked() + len(a.settingsDraftLibraries) + settingsTrailingCount
+}
+
+func (a *App) settingsTargetRowLocked() (int, int, int) {
+	rel := a.settingsIndex - settingsRowFixedCount
+	count := len(a.settingsDraftTargets)
+	if rel < 0 {
+		return -1, -1, -1
+	}
+	fields := count * settingsTargetFieldCount
+	if rel < fields {
+		return -1, rel / settingsTargetFieldCount, rel % settingsTargetFieldCount
+	}
+	return rel - fields, -1, -1
 }
 
 func (a *App) settingsLibraryRowLocked() (int, int) {
-	rel := a.settingsIndex - settingsRowFixedCount
+	rel := a.settingsIndex - a.settingsLibraryStartLocked()
 	libCount := len(a.settingsDraftLibraries)
 	if rel < 0 {
 		return -1, -1
@@ -408,6 +524,324 @@ func (a *App) clampSettingsIndexLocked() {
 	}
 	if a.settingsIndex >= n {
 		a.settingsIndex = n - 1
+	}
+}
+
+func (a *App) handleSettingsTargetRowsLocked(cmd Command) {
+	kind, targetIndex, field := a.settingsTargetRowLocked()
+	switch {
+	case targetIndex >= 0:
+		a.handleSettingsTargetEntryLocked(cmd, targetIndex, field)
+	case kind == settingsRowAddTarget:
+		if cmd == CmdSelect {
+			a.addSettingsTargetLocked()
+		}
+	case kind == settingsRowSaveTargets:
+		if cmd == CmdSelect {
+			a.saveSettingsTargetsLocked()
+		}
+	}
+}
+
+func (a *App) handleSettingsTargetEntryLocked(cmd Command, index, field int) {
+	if !a.settingsHydrated || index < 0 || index >= len(a.settingsDraftTargets) {
+		return
+	}
+	switch cmd {
+	case CmdSortCycle:
+		a.removeSettingsTargetLocked(index)
+		return
+	}
+	switch field {
+	case settingsTargetFieldEnabled:
+		switch cmd {
+		case CmdLeft, CmdRight, CmdSelect:
+			a.toggleSettingsTargetEnabledLocked(index)
+		}
+	case settingsTargetFieldAgent:
+		switch cmd {
+		case CmdLeft, CmdRight:
+			a.toggleSettingsTargetAgentClearLocked(index)
+		case CmdSelect:
+			a.openTargetOSKLocked(index, settingsOSKTargetAgent, false)
+		}
+	case settingsTargetFieldName:
+		if cmd == CmdSelect {
+			a.openTargetOSKLocked(index, settingsOSKTargetName, false)
+		}
+	case settingsTargetFieldAddress:
+		if cmd == CmdSelect {
+			a.openTargetOSKLocked(index, settingsOSKTargetAddress, false)
+		}
+	}
+}
+
+func (a *App) toggleSettingsTargetEnabledLocked(index int) {
+	draft := a.settingsDraftTargets[index]
+	next := !draft.Enabled
+	if !next && a.settingsSessionBlocksSelectedLocked() && a.settingsDraftIsSelectedLocked(draft) {
+		a.settingsStatus = "cannot change target while a session is active"
+		a.status = a.settingsStatus
+		return
+	}
+	a.settingsDraftTargets[index].Enabled = next
+	a.settingsTargetsDirty = true
+	a.settingsStatus = ""
+}
+
+func (a *App) toggleSettingsTargetAgentClearLocked(index int) {
+	draft := &a.settingsDraftTargets[index]
+	if !draft.AgentConfigured && !draft.AgentClear {
+		return
+	}
+	if a.settingsSessionBlocksSelectedLocked() && a.settingsDraftIsSelectedLocked(*draft) {
+		a.settingsStatus = "cannot change target while a session is active"
+		a.status = a.settingsStatus
+		return
+	}
+	if draft.AgentClear {
+		draft.AgentClear = false
+		draft.AgentDirty = false
+		draft.AgentDraft = ""
+	} else {
+		draft.AgentClear = true
+		draft.AgentDirty = true
+		draft.AgentDraft = ""
+	}
+	a.settingsTargetsDirty = true
+	a.settingsStatus = ""
+}
+
+func (a *App) addSettingsTargetLocked() {
+	if !a.settingsHydrated {
+		return
+	}
+	name := a.settingsUniqueTargetNameLocked()
+	a.settingsDraftTargets = append(a.settingsDraftTargets, settingsTargetDraft{Name: name})
+	a.settingsIndex = settingsRowFixedCount + (len(a.settingsDraftTargets)-1)*settingsTargetFieldCount
+	a.openTargetOSKLocked(len(a.settingsDraftTargets)-1, settingsOSKTargetName, true)
+}
+
+func (a *App) removeSettingsTargetLocked(index int) {
+	if index < 0 || index >= len(a.settingsDraftTargets) {
+		return
+	}
+	if len(a.settingsDraftTargets) <= 1 {
+		a.settingsStatus = "keep at least one target"
+		a.status = a.settingsStatus
+		return
+	}
+	draft := a.settingsDraftTargets[index]
+	if a.settingsSessionBlocksSelectedLocked() && a.settingsDraftIsSelectedLocked(draft) {
+		a.settingsStatus = "cannot change target while a session is active"
+		a.status = a.settingsStatus
+		return
+	}
+	a.settingsDraftTargets = append(a.settingsDraftTargets[:index], a.settingsDraftTargets[index+1:]...)
+	a.settingsTargetsDirty = true
+	a.settingsPickSelectedLocked()
+	a.clampSettingsIndexLocked()
+}
+
+func (a *App) saveSettingsTargetsLocked() {
+	if !a.settingsHydrated {
+		return
+	}
+	if err := a.validateSettingsTargetsLocked(); err != nil {
+		a.settingsStatus = err.Error()
+		a.status = a.settingsStatus
+		return
+	}
+	if a.settingsSessionBlocksSelectedLocked() && a.settingsSelectedIdentityDirtyLocked() {
+		a.settingsStatus = "cannot change target while a session is active"
+		a.status = a.settingsStatus
+		return
+	}
+	writes := make([]LibraryTargetWrite, 0, len(a.settingsDraftTargets))
+	for _, draft := range a.settingsDraftTargets {
+		writes = append(writes, draft.write())
+	}
+	patch := LibrarySettingsPatch{Targets: &writes}
+	if a.settingsNeedSelectedPatchLocked() {
+		name := strings.TrimSpace(a.settingsDraftTarget)
+		patch.SelectedTarget = strPtr(name)
+	}
+	a.patchSettingsLocked(patch)
+}
+
+func (d settingsTargetDraft) write() LibraryTargetWrite {
+	out := LibraryTargetWrite{
+		Name:    strings.TrimSpace(d.Name),
+		Address: strings.TrimSpace(d.Address),
+		Enabled: d.Enabled,
+	}
+	orig := strings.TrimSpace(d.OriginalName)
+	if orig != "" && orig != out.Name {
+		out.OriginalName = orig
+	}
+	if d.AgentClear {
+		empty := ""
+		out.Agent = &empty
+	} else if d.AgentDirty {
+		out.Agent = strPtr(d.AgentDraft)
+	}
+	return out
+}
+
+func (a *App) validateSettingsTargetsLocked() error {
+	if len(a.settingsDraftTargets) == 0 {
+		return fmt.Errorf("keep at least one target")
+	}
+	seen := map[string]struct{}{}
+	for _, draft := range a.settingsDraftTargets {
+		name := strings.TrimSpace(draft.Name)
+		if name == "" {
+			return fmt.Errorf("target name is required")
+		}
+		if err := validateTargetName(name); err != nil {
+			return err
+		}
+		if _, dup := seen[name]; dup {
+			return fmt.Errorf("duplicate target name")
+		}
+		seen[name] = struct{}{}
+		address := strings.TrimSpace(draft.Address)
+		hasAgent := (draft.AgentConfigured && !draft.AgentClear) || (draft.AgentDirty && strings.TrimSpace(draft.AgentDraft) != "")
+		if address != "" && !hasAgent {
+			return fmt.Errorf("address and agent must both be set")
+		}
+		if hasAgent && address == "" {
+			return fmt.Errorf("address and agent must both be set")
+		}
+		if draft.Enabled && address == "" {
+			return fmt.Errorf("enabled target needs address and agent")
+		}
+	}
+	a.settingsPickSelectedLocked()
+	if strings.TrimSpace(a.settingsDraftTarget) == "" || indexOfString(a.settingsTargetNamesLocked(), a.settingsDraftTarget) < 0 {
+		return fmt.Errorf("selected target is required")
+	}
+	return nil
+}
+
+func validateTargetName(name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("target name is required")
+	}
+	for _, r := range name {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' {
+			continue
+		}
+		return fmt.Errorf("target name must be a lowercase slug")
+	}
+	if strings.HasPrefix(name, "-") || strings.HasSuffix(name, "-") || strings.Contains(name, "--") {
+		return fmt.Errorf("target name must be a lowercase slug")
+	}
+	return nil
+}
+
+func (a *App) settingsUniqueTargetNameLocked() string {
+	used := map[string]struct{}{}
+	for _, draft := range a.settingsDraftTargets {
+		used[strings.TrimSpace(draft.Name)] = struct{}{}
+	}
+	for i := 1; i < 1000; i++ {
+		name := fmt.Sprintf("target-%d", i)
+		if _, ok := used[name]; !ok {
+			return name
+		}
+	}
+	return "target-new"
+}
+
+func (a *App) settingsDraftIsSelectedLocked(draft settingsTargetDraft) bool {
+	selected := strings.TrimSpace(a.settingsDraftTarget)
+	if selected == "" {
+		selected = strings.TrimSpace(a.hostSettings.SelectedTarget)
+	}
+	name := strings.TrimSpace(draft.Name)
+	orig := strings.TrimSpace(draft.OriginalName)
+	return selected != "" && (selected == name || selected == orig)
+}
+
+func (a *App) settingsPickSelectedLocked() {
+	names := a.settingsTargetNamesLocked()
+	if indexOfString(names, a.settingsDraftTarget) >= 0 {
+		return
+	}
+	for _, draft := range a.settingsDraftTargets {
+		if draft.Enabled && strings.TrimSpace(draft.Name) != "" {
+			a.settingsDraftTarget = strings.TrimSpace(draft.Name)
+			return
+		}
+	}
+	if len(names) > 0 {
+		a.settingsDraftTarget = names[0]
+	}
+}
+
+func (a *App) settingsNeedSelectedPatchLocked() bool {
+	return strings.TrimSpace(a.settingsDraftTarget) != strings.TrimSpace(a.hostSettings.SelectedTarget)
+}
+
+func (a *App) settingsSessionBlocksSelectedLocked() bool {
+	return a.session.State == "active" || a.session.State == "launching" || a.stopPhase == "stopping"
+}
+
+func (a *App) settingsSelectedIdentityDirtyLocked() bool {
+	hostSelected := strings.TrimSpace(a.hostSettings.SelectedTarget)
+	draftSelected := strings.TrimSpace(a.settingsDraftTarget)
+	if draftSelected != hostSelected {
+		var renamedCurrent bool
+		for _, draft := range a.settingsDraftTargets {
+			if strings.TrimSpace(draft.OriginalName) == hostSelected && strings.TrimSpace(draft.Name) == draftSelected {
+				renamedCurrent = true
+				break
+			}
+		}
+		if !renamedCurrent {
+			return true
+		}
+	}
+	want := draftSelected
+	if want == "" {
+		want = hostSelected
+	}
+	var host LibraryTarget
+	for _, target := range a.hostSettings.Targets {
+		if strings.TrimSpace(target.Name) == hostSelected {
+			host = target
+			break
+		}
+	}
+	for _, draft := range a.settingsDraftTargets {
+		name := strings.TrimSpace(draft.Name)
+		orig := strings.TrimSpace(draft.OriginalName)
+		if name != want && orig != hostSelected {
+			continue
+		}
+		if draft.Enabled != host.Enabled || strings.TrimSpace(draft.Address) != strings.TrimSpace(host.Address) {
+			return true
+		}
+		if draft.AgentDirty || draft.AgentClear {
+			return true
+		}
+		return false
+	}
+	return true
+}
+
+func settingsAgentValue(draft settingsTargetDraft) string {
+	switch {
+	case draft.AgentClear:
+		return "will clear"
+	case draft.AgentDirty && strings.TrimSpace(draft.AgentDraft) != "":
+		return "will set"
+	case draft.AgentConfigured:
+		return "stored"
+	default:
+		return "not set"
 	}
 }
 
@@ -476,7 +910,7 @@ func (a *App) addSettingsLibraryLocked() {
 		return
 	}
 	a.settingsDraftLibraries = append(a.settingsDraftLibraries, LibraryRoot{System: ids[0]})
-	a.settingsIndex = settingsRowFixedCount + len(a.settingsDraftLibraries) - 1
+	a.settingsIndex = a.settingsLibraryStartLocked() + len(a.settingsDraftLibraries) - 1
 	a.openLibraryPathOSKLocked(len(a.settingsDraftLibraries)-1, true)
 }
 
@@ -504,62 +938,111 @@ func (a *App) saveSettingsLibrariesLocked() {
 	a.patchSettingsLocked(LibrarySettingsPatch{Libraries: &libraries})
 }
 
+func (a *App) settingsOSKOpenLocked() bool {
+	return a.settingsOSKKind != settingsOSKNone
+}
+
 func (a *App) openLibraryPathOSKLocked(index int, isAdd bool) {
 	if !a.settingsHydrated || index < 0 || index >= len(a.settingsDraftLibraries) {
 		return
 	}
-	a.settingsPathOpen = true
-	a.settingsPathIndex = index
-	a.settingsPathIsAdd = isAdd
-	a.settingsPathField = TextField{Buffer: a.settingsDraftLibraries[index].Root}
-	a.settingsPathField.OSK.Reset()
-	a.settingsPathField.OSK.CyclePage(1)
+	a.settingsOSKKind = settingsOSKLibraryPath
+	a.settingsOSKIndex = index
+	a.settingsOSKIsAdd = isAdd
+	a.settingsOSKField = TextField{Buffer: a.settingsDraftLibraries[index].Root}
+	a.settingsOSKField.OSK.Reset()
+	a.settingsOSKField.OSK.CyclePage(1)
 }
 
-func (a *App) closeLibraryPathOSKLocked() {
-	a.settingsPathOpen = false
-	a.settingsPathIndex = 0
-	a.settingsPathIsAdd = false
-	a.settingsPathField = TextField{}
+func (a *App) openTargetOSKLocked(index int, kind settingsOSKKind, isAdd bool) {
+	if !a.settingsHydrated || index < 0 || index >= len(a.settingsDraftTargets) {
+		return
+	}
+	if a.settingsSessionBlocksSelectedLocked() && a.settingsDraftIsSelectedLocked(a.settingsDraftTargets[index]) {
+		a.settingsStatus = "cannot change target while a session is active"
+		a.status = a.settingsStatus
+		return
+	}
+	buffer := ""
+	switch kind {
+	case settingsOSKTargetName:
+		buffer = a.settingsDraftTargets[index].Name
+	case settingsOSKTargetAddress:
+		buffer = a.settingsDraftTargets[index].Address
+	case settingsOSKTargetAgent:
+		buffer = ""
+	default:
+		return
+	}
+	a.settingsOSKKind = kind
+	a.settingsOSKIndex = index
+	a.settingsOSKIsAdd = isAdd
+	a.settingsOSKField = TextField{Buffer: buffer}
+	a.settingsOSKField.OSK.Reset()
+	if kind == settingsOSKTargetAddress {
+		a.settingsOSKField.OSK.CyclePage(1)
+	}
 }
 
-func (a *App) handleLibraryPathOSKLocked(cmd Command) {
+func (a *App) closeSettingsOSKLocked() {
+	a.settingsOSKKind = settingsOSKNone
+	a.settingsOSKIndex = 0
+	a.settingsOSKIsAdd = false
+	a.settingsOSKField = TextField{}
+}
+
+func (a *App) handleSettingsOSKLocked(cmd Command) {
 	switch cmd {
 	case CmdUp:
-		a.settingsPathField.Move(0, -1)
+		a.settingsOSKField.Move(0, -1)
 	case CmdDown:
-		a.settingsPathField.Move(0, 1)
+		a.settingsOSKField.Move(0, 1)
 	case CmdLeft:
-		a.settingsPathField.Move(-1, 0)
+		a.settingsOSKField.Move(-1, 0)
 	case CmdRight:
-		a.settingsPathField.Move(1, 0)
+		a.settingsOSKField.Move(1, 0)
 	case CmdSelect:
-		result := a.settingsPathField.Activate()
+		result := a.settingsOSKField.Activate()
 		if result.Done {
-			a.submitLibraryPathOSKLocked()
+			a.submitSettingsOSKLocked()
 		}
 	case CmdBack:
-		if strings.TrimSpace(a.settingsPathField.Buffer) != "" {
-			a.settingsPathField.Clear()
+		if strings.TrimSpace(a.settingsOSKField.Buffer) != "" {
+			a.settingsOSKField.Clear()
 			return
 		}
-		a.cancelLibraryPathOSKLocked()
+		a.cancelSettingsOSKLocked()
 	case CmdSearch:
-		a.cancelLibraryPathOSKLocked()
+		a.cancelSettingsOSKLocked()
 	case CmdFilterPrev:
-		a.settingsPathField.CyclePage(-1)
+		a.settingsOSKField.CyclePage(-1)
 	case CmdFilterNext:
-		a.settingsPathField.CyclePage(1)
+		a.settingsOSKField.CyclePage(1)
+	}
+}
+
+func (a *App) submitSettingsOSKLocked() {
+	switch a.settingsOSKKind {
+	case settingsOSKLibraryPath:
+		a.submitLibraryPathOSKLocked()
+	case settingsOSKTargetName:
+		a.submitTargetNameOSKLocked()
+	case settingsOSKTargetAddress:
+		a.submitTargetAddressOSKLocked()
+	case settingsOSKTargetAgent:
+		a.submitTargetAgentOSKLocked()
+	default:
+		a.closeSettingsOSKLocked()
 	}
 }
 
 func (a *App) submitLibraryPathOSKLocked() {
-	index := a.settingsPathIndex
+	index := a.settingsOSKIndex
 	if index < 0 || index >= len(a.settingsDraftLibraries) {
-		a.closeLibraryPathOSKLocked()
+		a.closeSettingsOSKLocked()
 		return
 	}
-	path := strings.TrimSpace(a.settingsPathField.Buffer)
+	path := strings.TrimSpace(a.settingsOSKField.Buffer)
 	if path == "" {
 		a.settingsStatus = "library path is required"
 		a.status = a.settingsStatus
@@ -567,22 +1050,116 @@ func (a *App) submitLibraryPathOSKLocked() {
 	}
 	a.settingsDraftLibraries[index].Root = path
 	a.settingsLibrariesDirty = true
-	a.closeLibraryPathOSKLocked()
+	a.closeSettingsOSKLocked()
 	a.settingsStatus = ""
 }
 
-func (a *App) cancelLibraryPathOSKLocked() {
-	index := a.settingsPathIndex
-	isAdd := a.settingsPathIsAdd
-	a.closeLibraryPathOSKLocked()
-	if !isAdd || index < 0 || index >= len(a.settingsDraftLibraries) {
+func (a *App) submitTargetNameOSKLocked() {
+	index := a.settingsOSKIndex
+	if index < 0 || index >= len(a.settingsDraftTargets) {
+		a.closeSettingsOSKLocked()
 		return
 	}
-	if strings.TrimSpace(a.settingsDraftLibraries[index].Root) != "" {
+	name := strings.TrimSpace(a.settingsOSKField.Buffer)
+	if err := validateTargetName(name); err != nil {
+		a.settingsStatus = err.Error()
+		a.status = a.settingsStatus
 		return
 	}
-	a.settingsDraftLibraries = append(a.settingsDraftLibraries[:index], a.settingsDraftLibraries[index+1:]...)
-	a.clampSettingsIndexLocked()
+	for i, draft := range a.settingsDraftTargets {
+		if i != index && strings.TrimSpace(draft.Name) == name {
+			a.settingsStatus = "duplicate target name"
+			a.status = a.settingsStatus
+			return
+		}
+	}
+	prev := strings.TrimSpace(a.settingsDraftTargets[index].Name)
+	if a.settingsSessionBlocksSelectedLocked() && a.settingsDraftIsSelectedLocked(a.settingsDraftTargets[index]) && name != prev {
+		a.settingsStatus = "cannot change target while a session is active"
+		a.status = a.settingsStatus
+		return
+	}
+	if strings.TrimSpace(a.settingsDraftTarget) == prev {
+		a.settingsDraftTarget = name
+	}
+	a.settingsDraftTargets[index].Name = name
+	a.settingsTargetsDirty = true
+	a.closeSettingsOSKLocked()
+	a.settingsStatus = ""
+}
+
+func (a *App) submitTargetAddressOSKLocked() {
+	index := a.settingsOSKIndex
+	if index < 0 || index >= len(a.settingsDraftTargets) {
+		a.closeSettingsOSKLocked()
+		return
+	}
+	if a.settingsSessionBlocksSelectedLocked() && a.settingsDraftIsSelectedLocked(a.settingsDraftTargets[index]) {
+		a.settingsStatus = "cannot change target while a session is active"
+		a.status = a.settingsStatus
+		return
+	}
+	a.settingsDraftTargets[index].Address = strings.TrimSpace(a.settingsOSKField.Buffer)
+	a.settingsTargetsDirty = true
+	a.closeSettingsOSKLocked()
+	a.settingsStatus = ""
+}
+
+func (a *App) submitTargetAgentOSKLocked() {
+	index := a.settingsOSKIndex
+	if index < 0 || index >= len(a.settingsDraftTargets) {
+		a.closeSettingsOSKLocked()
+		return
+	}
+	if a.settingsSessionBlocksSelectedLocked() && a.settingsDraftIsSelectedLocked(a.settingsDraftTargets[index]) {
+		a.settingsStatus = "cannot change target while a session is active"
+		a.status = a.settingsStatus
+		return
+	}
+	secret := a.settingsOSKField.Buffer
+	if strings.TrimSpace(secret) == "" {
+		a.closeSettingsOSKLocked()
+		a.settingsStatus = ""
+		return
+	}
+	a.settingsDraftTargets[index].AgentDraft = secret
+	a.settingsDraftTargets[index].AgentDirty = true
+	a.settingsDraftTargets[index].AgentClear = false
+	a.settingsTargetsDirty = true
+	a.closeSettingsOSKLocked()
+	a.settingsStatus = ""
+}
+
+func (a *App) cancelSettingsOSKLocked() {
+	kind := a.settingsOSKKind
+	index := a.settingsOSKIndex
+	isAdd := a.settingsOSKIsAdd
+	a.closeSettingsOSKLocked()
+	if !isAdd {
+		return
+	}
+	switch kind {
+	case settingsOSKLibraryPath:
+		if index < 0 || index >= len(a.settingsDraftLibraries) {
+			return
+		}
+		if strings.TrimSpace(a.settingsDraftLibraries[index].Root) != "" {
+			return
+		}
+		a.settingsDraftLibraries = append(a.settingsDraftLibraries[:index], a.settingsDraftLibraries[index+1:]...)
+		a.clampSettingsIndexLocked()
+	case settingsOSKTargetName:
+		if index < 0 || index >= len(a.settingsDraftTargets) {
+			return
+		}
+		if len(a.settingsDraftTargets) <= 1 {
+			return
+		}
+		a.settingsDraftTargets = append(a.settingsDraftTargets[:index], a.settingsDraftTargets[index+1:]...)
+		a.settingsPickSelectedLocked()
+		a.settingsTargetsDirty = !settingsTargetsMatchHost(a.settingsDraftTargets, a.hostSettings.Targets)
+		a.clampSettingsIndexLocked()
+	}
 }
 
 func prevLayout(mode LayoutKind) LayoutKind {
@@ -635,13 +1212,9 @@ func (a *App) setAttractPrefLocked(enabled bool, persist bool) {
 }
 
 func (a *App) settingsTargetNamesLocked() []string {
-	names := make([]string, 0, len(a.hostSettings.Targets)+1)
+	names := make([]string, 0, len(a.settingsDraftTargets))
 	seen := map[string]struct{}{}
-	if selected := strings.TrimSpace(a.hostSettings.SelectedTarget); selected != "" {
-		names = append(names, selected)
-		seen[selected] = struct{}{}
-	}
-	for _, target := range a.hostSettings.Targets {
+	for _, target := range a.settingsDraftTargets {
 		name := strings.TrimSpace(target.Name)
 		if name == "" {
 			continue
@@ -651,6 +1224,28 @@ func (a *App) settingsTargetNamesLocked() []string {
 		}
 		seen[name] = struct{}{}
 		names = append(names, name)
+	}
+	if len(names) == 0 {
+		if selected := strings.TrimSpace(a.hostSettings.SelectedTarget); selected != "" {
+			names = append(names, selected)
+			seen[selected] = struct{}{}
+		}
+		for _, target := range a.hostSettings.Targets {
+			name := strings.TrimSpace(target.Name)
+			if name == "" {
+				continue
+			}
+			if _, ok := seen[name]; ok {
+				continue
+			}
+			seen[name] = struct{}{}
+			names = append(names, name)
+		}
+		return names
+	}
+	selected := strings.TrimSpace(a.settingsDraftTarget)
+	if idx := indexOfString(names, selected); idx > 0 {
+		names = append([]string{selected}, append(names[:idx], names[idx+1:]...)...)
 	}
 	return names
 }
@@ -714,6 +1309,9 @@ func (a *App) settingsDraftsMatchLocked(settings LibrarySettings) bool {
 	if strings.TrimSpace(a.settingsDraftTarget) != strings.TrimSpace(settings.SelectedTarget) {
 		return false
 	}
+	if a.settingsTargetsDirty || !settingsTargetsMatchHost(a.settingsDraftTargets, settings.Targets) {
+		return false
+	}
 	if !slices.Equal(a.settingsDraftLibraries, settings.Libraries) {
 		return false
 	}
@@ -728,6 +1326,9 @@ func (a *App) applyHostSettingsLocked(settings LibrarySettings) {
 	}
 	a.settingsDraftRegions = append([]string(nil), settings.PreferredRegions...)
 	a.settingsDraftTarget = strings.TrimSpace(settings.SelectedTarget)
+	if !a.settingsTargetsDirty {
+		a.settingsDraftTargets = cloneSettingsTargetsFromHost(settings.Targets)
+	}
 	if !a.settingsLibrariesDirty {
 		a.settingsDraftLibraries = cloneLibraryRoots(settings.Libraries)
 	}
@@ -779,6 +1380,11 @@ func (a *App) commitLibrarySettings(ctx context.Context, gen, seq int, patch Lib
 		if patch.PreferredRegions != nil {
 			a.reloadLocked()
 		}
+		if patch.Targets != nil {
+			if current {
+				a.settingsTargetsDirty = false
+			}
+		}
 		if patch.Libraries != nil {
 			if current {
 				a.settingsLibrariesDirty = false
@@ -818,8 +1424,10 @@ func (a *App) settingsSavedStatusLocked(patch LibrarySettingsPatch) string {
 		return fmt.Sprintf("idle %ds", a.hostSettings.AttractIdleSeconds)
 	case patch.PreferredRegions != nil:
 		return "regions " + strings.Join(a.hostSettings.PreferredRegions, ", ")
-	case patch.SelectedTarget != nil:
+	case patch.SelectedTarget != nil && patch.Targets == nil:
 		return "target " + a.hostSettings.SelectedTarget
+	case patch.Targets != nil:
+		return fmt.Sprintf("targets %d", len(a.hostSettings.Targets))
 	case patch.Libraries != nil:
 		return fmt.Sprintf("libraries %d", len(a.hostSettings.Libraries))
 	default:
@@ -828,8 +1436,27 @@ func (a *App) settingsSavedStatusLocked(patch LibrarySettingsPatch) string {
 }
 
 func (a *App) settingsHintLocked() string {
-	if a.settingsPathOpen {
+	if a.settingsOSKOpenLocked() {
 		return ""
+	}
+	targetKind, targetIndex, field := a.settingsTargetRowLocked()
+	if targetIndex >= 0 {
+		switch field {
+		case settingsTargetFieldName:
+			return "A name  X remove  B close"
+		case settingsTargetFieldAddress:
+			return "A address  X remove  B close"
+		case settingsTargetFieldEnabled:
+			return "A/Left/Right enabled  X remove  B close"
+		case settingsTargetFieldAgent:
+			return "A set agent  Left/Right clear  X remove  B close"
+		}
+	}
+	switch targetKind {
+	case settingsRowAddTarget:
+		return "A add target  B close"
+	case settingsRowSaveTargets:
+		return "A save targets  B close"
 	}
 	kind, libIndex := a.settingsLibraryRowLocked()
 	if libIndex >= 0 {
@@ -893,6 +1520,42 @@ func cloneLibraryRoots(in []LibraryRoot) []LibraryRoot {
 		return []LibraryRoot{}
 	}
 	return append([]LibraryRoot(nil), in...)
+}
+
+func cloneSettingsTargetsFromHost(in []LibraryTarget) []settingsTargetDraft {
+	out := make([]settingsTargetDraft, 0, len(in))
+	for _, target := range in {
+		name := strings.TrimSpace(target.Name)
+		out = append(out, settingsTargetDraft{
+			OriginalName:    name,
+			Name:            name,
+			Address:         strings.TrimSpace(target.Address),
+			Enabled:         target.Enabled,
+			AgentConfigured: target.AgentConfigured,
+		})
+	}
+	return out
+}
+
+func settingsTargetsMatchHost(drafts []settingsTargetDraft, host []LibraryTarget) bool {
+	if len(drafts) != len(host) {
+		return false
+	}
+	for i, draft := range drafts {
+		if draft.AgentDirty || draft.AgentClear {
+			return false
+		}
+		if strings.TrimSpace(draft.Name) != strings.TrimSpace(host[i].Name) {
+			return false
+		}
+		if strings.TrimSpace(draft.Address) != strings.TrimSpace(host[i].Address) {
+			return false
+		}
+		if draft.Enabled != host[i].Enabled || draft.AgentConfigured != host[i].AgentConfigured {
+			return false
+		}
+	}
+	return true
 }
 
 func settingsStatusError(err error) string {

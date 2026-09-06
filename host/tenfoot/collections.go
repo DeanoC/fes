@@ -465,11 +465,11 @@ func (a *App) closeCollectionOverlaysLocked() {
 	a.viewPickerOpen = false
 }
 
-// OSKOpen reports search, collection-name, or library-path on-screen keyboard.
+// OSKOpen reports search, collection-name, or settings on-screen keyboard.
 func (a *App) OSKOpen() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.searchOpen || a.nameEntryOpenLocked() || a.settingsPathOpen
+	return a.searchOpen || a.nameEntryOpenLocked() || a.settingsOSKOpenLocked()
 }
 
 func (a *App) CollectionMenuOpen() bool {

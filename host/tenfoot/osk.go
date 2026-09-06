@@ -52,11 +52,20 @@ type TextFieldResult struct {
 type OSKSnapshot struct {
 	Open    bool
 	Buffer  string
+	Masked  bool
 	Page    int
 	FocusID string
 	Rows    [][]OSKKey
 	Hint    string
 	Prompt  string
+}
+
+func maskSecret(s string) string {
+	n := len([]rune(s))
+	if n == 0 {
+		return ""
+	}
+	return strings.Repeat("•", n)
 }
 
 func oskLayouts() [][][]OSKKey {

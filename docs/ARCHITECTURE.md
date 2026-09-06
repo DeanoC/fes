@@ -193,9 +193,12 @@ Native SDL3 UI
 TV overscan insets, sofa layout (`grid`, `shelf`, or `list`), and the local
 attract on/off gate are local to the tenfoot process (CLI `-safe-area` /
 `-layout` / `-no-attract` and optional `tenfoot.json` prefs). There is no host
-safe-area or layout API. Host attract idle, preferred regions, selected target, and library roots
-use the existing public library settings endpoints. Tenfoot does not create,
-edit, or remove targets.
+safe-area or layout API. Host attract idle, preferred regions, selected target, library roots, and
+targets use the existing public library settings endpoints. Tenfoot can add,
+edit, and remove targets from the sofa settings overlay. Agent secrets are
+write-only: GET exposes `agent_configured` only, the sofa never echoes a
+stored agent, and PATCH sends `agent` only when the operator edited or
+cleared it.
 
 Attract prefers a playlist `video` handle when present. Darwin CGO builds
 decode with AVFoundation (`host/tenfoot/attractvideo`) after streaming

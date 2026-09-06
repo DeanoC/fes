@@ -171,15 +171,25 @@ Local prefs write immediately to `tenfoot.json`:
 
 Host fields load from `GET /api/v1/library/settings` and save with
 `PATCH /api/v1/library/settings` on confirm: attract idle seconds, preferred
-regions (usa / world / europe / japan), selected target (from the GET
-target list), and library roots (full-array `libraries` replace). The overlay
-lists each root as system label plus path. South/A opens the gamepad OSK to
+regions (usa / world / europe / japan), selected target, target list, and
+library roots. The overlay lists each target as name, address, enabled, and
+agent status (`stored` / `not set` / `will set` / `will clear`). South/A
+edits name or address with the gamepad OSK, toggles enabled, or opens a
+password-style agent OSK (masked while typing; never shown after commit).
+Left/Right on agent marks a stored secret for clear (`agent: ""`). West/X
+removes a draft row. Add target appends a disabled row; Save targets PATCHes
+`targets` as a full-array replace and includes `selected_target` only when
+that name changed. PATCH omits `agent` unless the operator edited or cleared
+it. GET never returns the secret (`agent_configured` only). Removing or
+disabling the selected target while a session is active is blocked in the
+sofa so an active session is not stranded. The overlay still lists each
+library root as system label plus path. South/A opens the gamepad OSK to
 edit a path, Left/Right cycle the GET `systems[]` list, West/X removes a
 draft row, Add library appends a row, and Save libraries PATCHes only
-`libraries`. A successful libraries save reloads the catalog. Tenfoot does
-not create, edit, or remove targets. A failed PATCH keeps the previous
-values and reports a short status line. Changing `selected_target` can fail
-while a session is active.
+`libraries` (it does not send `targets`). A successful libraries save
+reloads the catalog. A failed PATCH keeps the previous values and reports a
+short status line. Changing `selected_target` can fail while a session is
+active.
 
 On Mac, run from a GUI terminal for the Cocoa window. On Linux, use a session
 with X11 or Wayland for windowed/fullscreen. Headless agent sessions fall
@@ -289,11 +299,14 @@ make tenfoot-smoke
   does not run while the host session is `active`; dismiss/park/stop tears
   down the decoder and any queued player.
 - `GET /api/v1/library/settings` hydrates sofa settings (idle seconds,
-  preferred regions, selected target, read-only targets / systems /
-  library roots). `PATCH /api/v1/library/settings` writes only the field the
-  operator confirmed. A libraries save sends `{libraries:[{id,system,root},…]}`
-  as a full-array replace and does not send `targets`. Tenfoot does not
-  implement target CRUD.
+  preferred regions, selected target, targets with `agent_configured` and
+  never an agent secret, systems, library roots). `PATCH /api/v1/library/settings`
+  writes only the field the operator confirmed. A targets save sends
+  `{targets:[{name, original_name?, address, enabled, agent?},…]}` as a
+  full-array replace, omits `agent` when untouched, sends `agent: ""` to
+  clear, and may include `selected_target`. A libraries save sends
+  `{libraries:[{id,system,root},…]}` as a full-array replace and does not
+  send `targets`.
 
 ## Library views
 
