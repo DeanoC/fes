@@ -1,5 +1,7 @@
 # Oracle extracted from libmister-runtime (not generated).
 # Source commit: 31f37f3c7b0e765109d5f4aa30984d6b091b1d12
+# Schema extension note: omitted media transform means raw; omitted
+# X/Y/L/R/Select masks mean unsupported (zero). No historical values changed.
 # Files:
 #   src/linux/production_hardware.cpp
 #   tests/fixtures/megadrive-profile-v1.txt

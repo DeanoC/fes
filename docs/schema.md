@@ -120,7 +120,9 @@ input:
 ```
 
 `file_wire` is currently only `little_endian_byte_pairs`. Input masks
-must be unique powers of two. `player_count` is 1 because that is what
+must be unique powers of two when nonzero. Up/Down/Left/Right/A/B/Start
+are required. C and X/Y/L/R/Select default to zero (unsupported); zero
+optional masks do not participate in overlap checks. `player_count` is 1 because that is what
 the runtime profile accepts today.
 
 The image prefix (`/usr/share/mister-runtime/cores/`) is not a package
@@ -157,13 +159,63 @@ and `static constexpr` tables; no inline variables. The emitter runs on
 a development host. The target image build does not compile this tree
 and does not use the host compiler.
 
+Generated system headers share declarations protected by
+`MISTER_PACKAGES_GENERATED_SYSTEM_TYPES_V2`, so distinct system headers can
+be included together. Regenerate all consumer system headers together when
+adopting this format; older unguarded headers cannot be mixed with it. The V2 layout appends media `transform` and input `x/y/l/r/select` fields;
+regenerate all headers together. Existing Mega Drive values are unchanged.
+
+A system may omit `media` or supply an empty list. Its C++ table contains
+`nullptr` and a zero media count, without a zero-length array. This describes
+media requirements; it does not establish a core's hardware compatibility.
+Emitter tests syntax-check generated text with a development-host C++ compiler
+(`CXX`, default `c++`) using `-std=c++14 -pedantic-errors`; they do not compile
+the runtime or produce target objects.
+
 `emit-go` writes FogCast launch constants for a `system` package:
-expected core identity and the cartridge media index. It does not emit
+system/expected core identity and, when a cartridge role exists, its media
+index. Without that role no `CartridgeIndex` symbol is emitted. Existing
+cartridge-bearing output is unchanged. It does not emit
 aliases, covers, Main RBF paths, or library roots.
+
+The SNES source package `packages/source/snes_mister.yaml` pins upstream
+Release20260823 and its verified official RBF. The matching `system/snes.yaml` declares native cartridge index 1 and
+the `snes_cartridge` transform; legacy Main index 0 remains a FogCast
+product selector. Neither package establishes hardware acceptance.
 
 ## What is intentionally missing
 
 - Connections, prefabs, wildcards, and bus address allocation.
-- SNES and further system packages.
+- SNES enhancement-chip/auxiliary-firmware profiles.
 - Actions, templates, and git clones. `core_source` is a pin, not a
   clone recipe. Fetch and Quartus rebuild belong in misteross.
+
+## Pong contract
+
+`packages/system/pong.yaml` describes the ROM-less misteross Pong wrapper:
+identity `Pong`, artifact `pong.rbf`, no media, reset assert/initial status 1
+and release 0. Joystick command 0x02 uses Up 0x08, Down 0x04 and Start 0x80.
+Left/Right/A/B/C preserve their existing packet bits as reserved inputs ignored
+by Pong. This is a software integration contract; wrapper build and physical
+video/input/audio acceptance remain separate. No guessed upstream core source
+is attached.
+
+## Native SNES transfer
+
+Media `transform` defaults to `raw`; the only other accepted value is
+`snes_cartridge`. It is a runtime transfer recipe, not a host-side ROM
+rewrite. The runtime validates ordinary LoROM/HiROM, strips a validated
+copier header, and sends one synthesized 512-byte metadata prefix followed
+by the original normalized ROM. The `maximum_size` of `0x400200` permits
+up to 4 MiB payload plus a 512-byte copier header; the runtime applies
+stricter format and mapping limits before hardware mutation. Unrecognized
+transform names fail validation. The oracle comparison includes transforms
+and optional input masks, with omitted transform interpreted as `raw`.
+
+SNES command 0x02 uses Right/Left/Down/Up bits 0/1/2/3, A/B/X/Y bits
+4/5/6/7, L/R bits 8/9, Select bit 10, and Start bit 11. C is absent. Reset
+assert and initial status are 1, release is 0: ROM mapping and region stay
+in Auto mode, using the synthesized metadata. Ordinary cartridges require
+no external coprocessor firmware. Enhancement chips, interleaved dumps,
+ExHiROM, BS-X/Sufami, and persistent saves remain outside this profile's
+initial runtime scope.

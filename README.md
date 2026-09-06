@@ -15,13 +15,19 @@ an Overlord port.
 - Register banks and bitfields for the MMIO the native runtime actually
   uses (FPGA manager, SYSMGR FPGA interface, SDR port reset, bridge reset,
   L3 remap, SPI GPO/GPI strobes).
-- One system package: `megadrive` (expected core, RBF role/artifact, media
-  rules, reset words, input masks). FogCast product fields stay in FogCast.
+- System packages: `megadrive`, ROM-less `pong`, and native `snes` (expected core, RBF
+  role/artifact, media rules, reset words, input masks). Pong defines the
+  agreed misteross wrapper contract; physical support is not established.
+  FogCast product fields stay in FogCast.
 - Mega Drive `core_source` pin: MiSTer-devel git commit plus the hashed
   official release RBF (the upstream artifact). This tree does not clone
   or run Quartus. misteross fetches that pin, compiles a Quartus Lite
   rebuild that has been loaded on real MiSTer hardware, and selects the
   rebuild by default.
+- SNES `core_source` pin: MiSTer-devel Release20260823 git commit and
+  verified official RBF hash/size. The native profile declares ordinary
+  cartridges with a runtime-owned metadata prefix and twelve SNES controls.
+  The profile does not establish hardware acceptance.
 - `mister-packages validate`, `report`, `emit-cpp`, `emit-go`, and
   `diff-oracle` on platform or system YAML. `emit-go` writes FogCast
   launch fields (expected core, cartridge index) from a system package.
@@ -36,7 +42,8 @@ run Go and does not use the host compiler. FogCast is not patched.
 
 ## What this is not (yet)
 
-- SNES or a second system package. Mega Drive is the format proof.
+- SNES enhancement chips, auxiliary firmware, expanded mappings, or
+  persistent save support.
 - ADV7513 I2C tables. Leave those in `adv7513.hpp` until the HPS map is
   consumed.
 - Connection solving, Verilog tops, XDC, Edalize, SVD, git-clone actions,
@@ -69,11 +76,15 @@ make emit-cpp
 ```
 
 `make test` runs unit tests, validates `packages/platform/de10_nano.yaml`,
-`packages/system/megadrive.yaml`, and
+`packages/system/megadrive.yaml`, `packages/system/pong.yaml`,
+`packages/system/snes.yaml`, and
 `packages/source/megadrive_mister.yaml`, and diffs them against the
-matching files in `testdata/oracles/`.
+matching Mega Drive/platform files in `testdata/oracles/`. Pong has no
+historical hardware oracle. It also validates the real
+`packages/source/snes_mister.yaml` source pin; this does not fetch or build it.
 
-Requires Go 1.22 or later.
+Requires Go 1.22 or later and a C++14 compiler (`CXX`, default `c++`)
+for generated-header syntax tests.
 
 ## Plan
 
@@ -83,7 +94,7 @@ See [docs/PLAN.md](docs/PLAN.md) and [docs/schema.md](docs/schema.md).
 2. **Milestone 2:** `system.megadrive` as data.
 3. **Milestone 3:** libmister-runtime checks in generated C++14 headers.
 4. **Milestone 4:** Mega Drive expected core and file index as generated
-   Go. SNES is later.
+   Go. Native SNES uses its own index; legacy Main selectors stay in FogCast.
 5. **Milestone 5 (this tree):** Mega Drive core git pin. Fetch/build in
    misteross.
 

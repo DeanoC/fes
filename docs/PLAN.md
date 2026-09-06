@@ -59,3 +59,12 @@ fallback.
 - Generated files are reviewed C++14 text, not a target-image build step.
 - One board (`de10_nano`) until a second kit exists.
 - Overlord stays frozen reference.
+
+## Native SNES contract
+
+The release source pin now has a native system profile. Media transform
+`raw` remains the default; `snes_cartridge` requests runtime-owned metadata
+preparation. V2 generated system structures append the transform and five
+optional input masks. The real MD/Pong/SNES headers compile together in the
+emitter's C++14 syntax test. Runtime implementation, FogCast admission, and
+exact-artifact hardware acceptance are separate consumer work.
