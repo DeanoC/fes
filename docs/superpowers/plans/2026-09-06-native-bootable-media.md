@@ -15,9 +15,10 @@
 - Only profile `native-integration-dev` supports `media` and `verify-media`; historical profiles and `development.json` cannot satisfy the prerequisite.
 - The rootfs input is the byte-identical verified `out/native-integration-dev/linux.img`; media assembly never rebuilds the host, FPGA cores, compiler, kernel, or rootfs.
 - Sector size is 512 bytes; partition 1 starts at sector 2,048 and has 524,288 sectors, type `0x0c`, active; partition 2 starts at sector 526,336 and has 2,048 sectors, type `0xa2`; total size is 528,384 sectors.
-- FAT label is `FESDATA`; assembly-owned paths are `/menu.rbf`, `/linux/zImage_dtb`, `/linux/linux.img`, `/fogcast/`, plus optional `/fogcast/agent.toml`.
+- MBR disk identifier is `0x46455331`; both partition entries use `fe ff ff` for start and end CHS; FAT serial is `0xf35d0001` and label is `FESDATA`.
+- Assembly-owned paths are `/menu.rbf`, `/linux/zImage_dtb`, `/linux/linux.img`, `/fogcast/`, plus optional `/fogcast/agent.toml`.
 - `uboot.img` is written byte-for-byte at the first byte of partition 2 and its remaining bytes are zero.
-- The exact pinned `uboot.img` SHA-256 is `e2d46cf9fe1ec40ca2c9c7409870249f267e06f70e5736dc6d30b4e21fe62a64`, size 515,141; `zImage_dtb` SHA-256 is `a6c7b1be0da9ba24a91bc1816737915d6a6cfba27c6c3025caded95167dc8dae`.
+- The exact pinned `uboot.img` SHA-256 is `e2d46cf9fe1ec40ca2c9c7409870249f267e06f70e5736dc6d30b4e21fe62a64`, size 515,141; `zImage_dtb` SHA-256 is `a6c7b1be0da9ba24a91bc1816737915d6a6cfba27c6c3025caded95167dc8dae`, size 7,380,857.
 - Assembly is unprivileged, uses no loop devices, never writes a host block device, runs twice independently, and publishes only identical results.
 - Provisioned configuration is snapshotted once, never logged, and all provisioned scratch/directories/files use owner-only permissions.
 - Verification may write only inside private disposable scratch; it cannot mutate published generations or hardware.

@@ -98,10 +98,11 @@ offsets are fixed in 512-byte sectors:
 | Partition 2 | 526,336 | 2,048 | 1 MiB raw Cyclone V boot partition, type `0xa2` |
 
 The disk contains 528,384 sectors (270,532,608 bytes, 258 MiB). It uses an MBR
-partition table with a fixed disk identifier, signature `0x55aa`, exactly two
-partition entries, and zeroed unused entries. Partition 1 has a fixed FAT serial
-and label `FESDATA`. Partition 2 is zero-filled before the exact locked
-`uboot.img` bytes are written at its first byte.
+partition table with disk identifier `0x46455331`, signature `0x55aa`, exactly
+two partition entries, and zeroed unused entries. Both entries use the canonical
+LBA-only CHS sentinel `fe ff ff` for their start and end. Partition 1 has FAT
+serial `0xf35d0001` and label `FESDATA`. Partition 2 is zero-filled before the
+exact locked `uboot.img` bytes are written at its first byte.
 
 The FAT filesystem contains exactly these assembly-owned boot paths:
 
@@ -134,7 +135,8 @@ FES adds a closed `boot-media.lock.toml`. It pins:
 - `uboot.img`, size 515,141 and SHA-256
   `e2d46cf9fe1ec40ca2c9c7409870249f267e06f70e5736dc6d30b4e21fe62a64`;
 - `zImage_dtb`, SHA-256
-  `a6c7b1be0da9ba24a91bc1816737915d6a6cfba27c6c3025caded95167dc8dae`;
+  `a6c7b1be0da9ba24a91bc1816737915d6a6cfba27c6c3025caded95167dc8dae`
+  and size 7,380,857;
 - the expected embedded U-Boot environment: FAT partition 1,
   `/linux/zImage_dtb`, `menu.rbf`, and the read-only `linux/linux.img` loop root;
 - the layout identifier, geometry, FAT identifier, and assembly-tool identity.
