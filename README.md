@@ -21,6 +21,7 @@ development possible with both the open-source Mistral toolchain and Quartus.
   `MISTRAL_MUL9X9`; nextpnr-mistral places one DSP BEL. Quartus measures one
   DSP block.
 - `070_mixed_mem`, lab and block tables on HPS GP (eight MLABs and one M10K).
+- `080_dsp_mem`, DSP product plus lab and block tables on HPS GP.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under

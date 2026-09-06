@@ -405,10 +405,11 @@ hps_gp = experiment in {
     "050_lut_mul",
     "060_dsp_mul",
     "070_mixed_mem",
+    "080_dsp_mem",
 }
-measure_mlab = experiment in {"040_mlab_ram", "070_mixed_mem"}
-measure_dsp = experiment == "060_dsp_mul"
-measure_m10k = experiment == "070_mixed_mem"
+measure_mlab = experiment in {"040_mlab_ram", "070_mixed_mem", "080_dsp_mem"}
+measure_dsp = experiment in {"060_dsp_mul", "080_dsp_mem"}
+measure_m10k = experiment in {"070_mixed_mem", "080_dsp_mem"}
 target = sys.argv[6]
 rtl_path = Path(sys.argv[7])
 sdc_path = Path(sys.argv[8])
@@ -1525,18 +1526,14 @@ summary = {
     "clock_intent": clock_name,
     "allowed_hard_blocks": (
         {
-            "cyclonev_hps_interface_mpu_general_purpose": 1,
-            "MISTRAL_MUL9X9": 1,
+            **(
+                {"cyclonev_hps_interface_mpu_general_purpose": 1}
+                if hps_gp
+                else {}
+            ),
+            **({"MISTRAL_MUL9X9": 1} if measure_dsp else {}),
+            **({"MISTRAL_M10K": 1} if measure_m10k else {}),
         }
-        if measure_dsp
-        else {
-            "cyclonev_hps_interface_mpu_general_purpose": 1,
-            "MISTRAL_M10K": 1,
-        }
-        if measure_m10k
-        else {"cyclonev_hps_interface_mpu_general_purpose": 1}
-        if hps_gp
-        else {}
     ),
     "resource_evidence": semantic_resource_evidence,
     "authenticated_tools": {"quartus_sh": provenance},

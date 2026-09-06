@@ -1410,6 +1410,85 @@ class CompareBuildsTests(unittest.TestCase):
         result = self._run(oss, oracle, experiment="070_mixed_mem")
         self.assertNotEqual(result.returncode, 0)
 
+    def _dsp_mem_manifest(self, lane, rbf, *, lutram_bits=256, block_memory_bits=2048, ram_blocks=1, dsp_blocks=1, hps=1):
+        from copy import deepcopy
+
+        from scripts.experiment_policy import policy_for
+
+        value = self._mixed_mem_manifest(
+            lane,
+            rbf,
+            lutram_bits=lutram_bits,
+            block_memory_bits=block_memory_bits,
+            ram_blocks=ram_blocks,
+            hps=hps,
+        )
+        value["experiment"] = "080_dsp_mem"
+        value["build"]["experiment"] = "080_dsp_mem"
+        for artifact in value["artifacts"]:
+            artifact["path"] = artifact["path"].replace("070_mixed_mem", "080_dsp_mem")
+        hashes = {
+            path.replace("070_mixed_mem", "080_dsp_mem"): _sha256(
+                ROOT / path.replace("070_mixed_mem", "080_dsp_mem")
+            )
+            if (ROOT / path.replace("070_mixed_mem", "080_dsp_mem")).is_file()
+            else digest
+            for path, digest in value["build"]["source_hashes"].items()
+        }
+        value["build"]["source_hashes"] = hashes
+        value["sources"] = [{"path": path, "sha256": digest} for path, digest in hashes.items()]
+        value["build"]["allowed_hard_blocks"] = {
+            "cyclonev_hps_interface_mpu_general_purpose": 1,
+            "MISTRAL_M10K": 1,
+            "MISTRAL_MUL9X9": 1,
+        }
+        if lane == "oracle":
+            value["build"]["hard_blocks"]["DSP"]["used"] = dsp_blocks
+            value["build"]["hard_block_evidence"] = deepcopy(value["build"]["hard_blocks"])
+            value["build"]["resource_evidence"]["dsp_blocks"] = dsp_blocks
+        else:
+            value["build"]["hard_blocks"]["MISTRAL_MUL9X9"] = {
+                "used": dsp_blocks,
+                "available": 112,
+                "utilization_percent": 0.89,
+            }
+            value["build"]["hard_block_evidence"] = deepcopy(value["build"]["hard_blocks"])
+            value["build"]["experiment_policy"] = policy_for("080_dsp_mem").as_dict()
+        return value
+
+    def test_dsp_mem_comparison_accepts_product_block_lab_and_hps(self):
+        oss_rbf = self.root / "build" / "oss" / "080_dsp_mem" / "top.rbf"
+        oracle_rbf = self.root / "build" / "oracle" / "080_dsp_mem" / "top.rbf"
+        oss_rbf.parent.mkdir(parents=True, exist_ok=True)
+        oracle_rbf.parent.mkdir(parents=True, exist_ok=True)
+        oss_rbf.write_bytes(b"dsp-mem-oss")
+        oracle_rbf.write_bytes(b"dsp-mem-oracle")
+        oss = self._write_manifest("dsp-mem-oss.json", self._dsp_mem_manifest("oss", oss_rbf))
+        oracle = self._write_manifest(
+            "dsp-mem-oracle.json", self._dsp_mem_manifest("oracle", oracle_rbf)
+        )
+        result = self._run(oss, oracle, experiment="080_dsp_mem")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        comparison = json.loads((self.output / "comparison.json").read_text())
+        self.assertEqual(comparison["status"], "pass", comparison.get("failures"))
+        self.assertEqual(comparison["lanes"]["oracle"]["hard_blocks"]["DSP"]["used"], 1)
+        self.assertEqual(comparison["lanes"]["oracle"]["hard_blocks"]["BRAM/M10K"]["used"], 1)
+
+    def test_dsp_mem_comparison_rejects_zero_dsp(self):
+        oss_rbf = self.root / "build" / "oss" / "080_dsp_mem" / "top.rbf"
+        oracle_rbf = self.root / "build" / "oracle" / "080_dsp_mem" / "top.rbf"
+        oss_rbf.parent.mkdir(parents=True, exist_ok=True)
+        oracle_rbf.parent.mkdir(parents=True, exist_ok=True)
+        oss_rbf.write_bytes(b"dsp-mem-oss-fail")
+        oracle_rbf.write_bytes(b"dsp-mem-oracle-fail")
+        oss = self._write_manifest("dsp-mem-oss-fail.json", self._dsp_mem_manifest("oss", oss_rbf))
+        oracle = self._write_manifest(
+            "dsp-mem-oracle-fail.json",
+            self._dsp_mem_manifest("oracle", oracle_rbf, dsp_blocks=0),
+        )
+        result = self._run(oss, oracle, experiment="080_dsp_mem")
+        self.assertNotEqual(result.returncode, 0)
+
     def test_mailbox_policy_protocol_target_clock_and_resource_mismatches_fail_closed(self):
         cases = (
             ("missing policy hash", lambda value: value["build"].pop("experiment_policy_sha256")),

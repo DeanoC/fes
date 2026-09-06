@@ -76,6 +76,12 @@ The lab table is marked `ramstyle = "mlab"` and the block table
 `MISTRAL_M10K`. Quartus must measure 256 MLAB bits and one RAM block. PLL
 and DSP remain forbidden.
 
+`080_dsp_mem` is an eight-by-eight unsigned DSP product plus those same lab
+and block tables on the HPS general-purpose interface. Linux peeks and pokes
+GPO/GPI; there is no LED. Yosys maps one `MISTRAL_MUL9X9`, eight `MISTRAL_MLAB`
+cells, and one `MISTRAL_M10K`. Quartus must measure one DSP block, 256 MLAB
+bits, and one RAM block. PLL remains forbidden.
+
 ## Standalone Pong game
 
 `cores/pong/rtl/pong_game.sv` implements a deterministic 320x240 game module.
