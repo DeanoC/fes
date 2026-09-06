@@ -181,7 +181,8 @@ Native SDL3 UI
   -> GET /api/v1/library/attract (idle video then stills; artwork via the same presentation artwork GET)
   -> GET /api/v1/library/settings and PATCH /api/v1/library/settings (idle seconds, preferred regions, selected target, library roots)
   -> POST /api/v1/session/launch
-  -> GET /api/v1/session (poll; now-playing)
+  -> POST /api/v1/session/development-rbf (raw octet-stream from a local path OSK)
+  -> GET /api/v1/session (poll; now-playing or DIAGNOSTIC development chrome)
   -> GET /api/v1/session/events?after= (poll; sofa event list)
   -> POST /api/v1/session/stop
   -> GET /api/v1/health (poll; kit chrome)
@@ -219,6 +220,12 @@ shell remains the default UI. Mac is the primary sofa target; Linux builds
 with the same `make build-fogcast-tenfoot` target (`CGO_ENABLED=1` and
 pkg-config `sdl3`). Build and run notes are in
 [native-tenfoot-launcher/README.md](native-tenfoot-launcher/README.md).
+
+Tenfoot can load a development RBF from a gamepad path OSK (type or paste a
+local file path; no browser file picker and no host file-list API). That POST
+is the same public `application/octet-stream` session endpoint. Sofa chrome
+labels the result DIAGNOSTIC: HDMI and input may be down, and it is not a
+playable game session. Stop uses the ordinary session Stop-to-idle path.
 
 ## Target image
 

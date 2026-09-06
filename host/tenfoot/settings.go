@@ -35,6 +35,7 @@ const (
 const (
 	settingsRowAddLibrary = iota
 	settingsRowSaveLibraries
+	settingsRowDevelopmentRBF
 	settingsRowClose
 	settingsTrailingCount
 )
@@ -47,6 +48,7 @@ const (
 	settingsOSKTargetName
 	settingsOSKTargetAddress
 	settingsOSKTargetAgent
+	settingsOSKDevelopmentPath
 )
 
 type settingsTargetDraft struct {
@@ -221,9 +223,14 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 	if a.settingsLibrariesDirty {
 		save = "A save"
 	}
+	devValue := "A type path · not a game"
+	if path := strings.TrimSpace(a.developmentRBFPath); path != "" {
+		devValue = path
+	}
 	rows = append(rows,
 		SettingsRow{ID: "add-library", Label: "Add library", Value: "A add"},
 		SettingsRow{ID: "save-libraries", Label: "Save libraries", Value: save},
+		SettingsRow{ID: "development-rbf", Label: "DIAGNOSTIC RBF", Value: devValue},
 		SettingsRow{ID: "close", Label: "Close", Value: "B back"},
 	)
 	return rows
@@ -249,7 +256,7 @@ func formatSettingsRegions(selected []string, cursor int) string {
 }
 
 func (a *App) openSettingsLocked() {
-	if a.gpuParked || a.session.State == "active" || a.session.State == "launching" || a.stopPhase == "stopping" {
+	if a.gpuParked || a.session.State == "active" || a.session.State == "launching" || a.stopPhase == "stopping" || a.developmentLoadingLocked() {
 		return
 	}
 	a.searchOpen = false
@@ -858,6 +865,10 @@ func (a *App) handleSettingsLibraryRowsLocked(cmd Command) {
 		if cmd == CmdSelect {
 			a.saveSettingsLibrariesLocked()
 		}
+	case kind == settingsRowDevelopmentRBF:
+		if cmd == CmdSelect {
+			a.openDevelopmentPathOSKLocked()
+		}
 	case kind == settingsRowClose:
 		if cmd == CmdSelect {
 			a.closeSettingsLocked()
@@ -1031,6 +1042,8 @@ func (a *App) submitSettingsOSKLocked() {
 		a.submitTargetAddressOSKLocked()
 	case settingsOSKTargetAgent:
 		a.submitTargetAgentOSKLocked()
+	case settingsOSKDevelopmentPath:
+		a.submitDevelopmentPathOSKLocked()
 	default:
 		a.closeSettingsOSKLocked()
 	}
@@ -1467,6 +1480,8 @@ func (a *App) settingsHintLocked() string {
 		return "A add library  B close"
 	case settingsRowSaveLibraries:
 		return "A save libraries  B close"
+	case settingsRowDevelopmentRBF:
+		return "A type path  B close · not a game session · HDMI/input may be down"
 	default:
 		return "A confirm  B close  Left/Right change"
 	}

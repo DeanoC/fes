@@ -207,6 +207,98 @@ func TestClientSessionAndStop(t *testing.T) {
 	}
 }
 
+func TestClientLoadDevelopmentRBFPostsOctetStream(t *testing.T) {
+	t.Parallel()
+	payload := []byte("development-rbf")
+	var gotLen int64
+	var gotCT, gotTE string
+	var gotBody []byte
+	var stopped bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/development-rbf":
+			gotCT = r.Header.Get("Content-Type")
+			gotTE = strings.Join(r.TransferEncoding, ",")
+			gotLen = r.ContentLength
+			raw, _ := io.ReadAll(r.Body)
+			gotBody = raw
+			_, _ = io.WriteString(w, `{"state":"active","execution":"fpga_development","development":true}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/stop":
+			stopped = true
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	client := NewClient(server.URL, server.Client())
+	got, err := client.LoadDevelopmentRBF(context.Background(), int64(len(payload)), strings.NewReader(string(payload)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.State != "active" || got.Execution != "fpga_development" || !got.Development {
+		t.Fatalf("result = %#v", got)
+	}
+	if gotCT != "application/octet-stream" || gotTE != "" || gotLen != int64(len(payload)) || string(gotBody) != string(payload) {
+		t.Fatalf("ct=%q te=%q len=%d body=%q", gotCT, gotTE, gotLen, gotBody)
+	}
+	idle, err := client.Stop(context.Background())
+	if err != nil || idle.State != "idle" || !stopped {
+		t.Fatalf("stop = %#v err=%v stopped=%v", idle, err, stopped)
+	}
+}
+
+func TestClientLoadDevelopmentRBFRejectsInvalidInputBeforeRequest(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		http.Error(w, "no request expected", http.StatusInternalServerError)
+	}))
+	t.Cleanup(server.Close)
+	client := NewClient(server.URL, server.Client())
+	if _, err := client.LoadDevelopmentRBF(context.Background(), 0, strings.NewReader("")); err == nil {
+		t.Fatal("empty accepted")
+	}
+	if _, err := client.LoadDevelopmentRBF(context.Background(), (32<<20)+1, strings.NewReader("rbf")); err == nil {
+		t.Fatal("oversize accepted")
+	}
+	if _, err := client.LoadDevelopmentRBF(context.Background(), 3, nil); err == nil {
+		t.Fatal("nil reader accepted")
+	}
+}
+
+func TestClientLoadDevelopmentRBFHostContentTypeError(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = io.WriteString(w, `{"error":{"code":"BAD_REQUEST","message":"development RBF upload requires a bounded application/octet-stream body"}}`)
+	}))
+	t.Cleanup(server.Close)
+	got, err := NewClient(server.URL, server.Client()).LoadDevelopmentRBF(context.Background(), 3, strings.NewReader("rbf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ErrorCode != "BAD_REQUEST" {
+		t.Fatalf("result = %#v", got)
+	}
+}
+
+func TestClientSessionDecodesDevelopmentFields(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"state":"active","development_active":true,"development_session_state":"fpga_development"}`)
+	}))
+	t.Cleanup(server.Close)
+	got, err := NewClient(server.URL, server.Client()).Session(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Development || got.DevelopmentSessionState != "fpga_development" || got.Execution != "fpga_development" {
+		t.Fatalf("session = %#v", got)
+	}
+}
+
 func TestClientSessionEventsPollsAfterCursor(t *testing.T) {
 	t.Parallel()
 	var gotAfter []string

@@ -135,9 +135,12 @@ type SessionSnapshot struct {
 	Progress     string
 	Stopping     bool
 	RetryStop    bool
-	RetryHint    string
-	LaunchLocked bool
-	Events       []string
+	RetryHint         string
+	LaunchLocked      bool
+	Events            []string
+	DevelopmentActive bool
+	DevelopmentState  string
+	Diagnostic        bool
 }
 
 // KitLeaseSnapshot is status-only kit ownership from GET /v1/kit/lease.
@@ -388,6 +391,9 @@ type App struct {
 	sessionEventAfter      uint64
 	kitLease               KitLeaseStatus
 	kitLeaseHave           bool
+	developmentRBFPath     string
+	devLoadPhase           string
+	devLoadMessage         string
 
 	safeAreaPct        float64
 	prefsPath          string
@@ -1100,6 +1106,10 @@ func (a *App) Snapshot() Snapshot {
 		status = a.retryStopHint
 	} else if a.inputBusy && strings.TrimSpace(a.inputMessage) != "" {
 		status = a.inputMessage
+	} else if a.developmentLoadingLocked() && strings.TrimSpace(a.devLoadMessage) != "" {
+		status = a.devLoadMessage
+	} else if (a.devLoadPhase == "error" || a.devLoadPhase == "host") && a.session.State != "active" && strings.TrimSpace(a.devLoadMessage) != "" {
+		status = a.devLoadMessage
 	} else if a.launch.Phase != "idle" && a.launch.Phase != "ok" && a.launch.Message != "" {
 		status = a.launch.Message
 	} else if line := a.nowPlayingStatusLocked(); line != "" {
@@ -1191,6 +1201,8 @@ func (a *App) oskSnapshotLocked() OSKSnapshot {
 			snap.Prompt = "Agent password"
 			snap.Masked = true
 			snap.Buffer = maskSecret(a.settingsOSKField.Buffer)
+		case settingsOSKDevelopmentPath:
+			snap.Prompt = "DIAGNOSTIC RBF path"
 		}
 		return snap
 	}
@@ -1230,7 +1242,7 @@ func (a *App) browseHoldEnabled() bool {
 }
 
 func (a *App) browseHoldEnabledLocked() bool {
-	if a.gpuParked || a.stopPhase == "stopping" || a.launch.Phase == "launching" || a.retryStopLock {
+	if a.gpuParked || a.stopPhase == "stopping" || a.launch.Phase == "launching" || a.retryStopLock || a.developmentLoadingLocked() {
 		return false
 	}
 	switch a.session.State {
@@ -1297,6 +1309,9 @@ func (s Snapshot) chromeBody() string {
 
 // NowPlayingLine is the compact active-session chrome.
 func (s Snapshot) NowPlayingLine() string {
+	if s.Session.Diagnostic {
+		return diagnosticNowPlayingLine(s.Session)
+	}
 	parts := make([]string, 0, 6)
 	parts = append(parts, "Now playing")
 	title := strings.TrimSpace(s.Session.Title)
@@ -1428,7 +1443,7 @@ func (a *App) focusIndex(i int) bool {
 }
 
 func (a *App) startLaunchLocked() {
-	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() {
+	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
 		return
 	}
 	if a.searchPending {
@@ -1446,9 +1461,10 @@ func (a *App) startLaunchLocked() {
 }
 
 func (a *App) startLaunchGameLocked(game Game) {
-	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() {
+	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
 		return
 	}
+	a.clearStaleDevelopmentLoadLocked()
 	if reason := launchBlockReason(game); reason != "" {
 		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: reason}
 		return
@@ -1619,7 +1635,7 @@ func (a *App) fetchSession(ctx context.Context) {
 	if gen != a.sessionGen {
 		return
 	}
-	if a.launch.Phase == "launching" || a.stopPhase == "stopping" || a.inputBusy {
+	if a.launch.Phase == "launching" || a.stopPhase == "stopping" || a.inputBusy || a.developmentLoadingLocked() {
 		return
 	}
 	a.applySessionLocked(result)
@@ -1839,6 +1855,9 @@ func (a *App) applySessionLocked(result SessionResult) {
 		a.session.GameID = ""
 		a.session.System = ""
 	}
+	if a.session.State == "active" && !a.developmentLoadingLocked() && !sessionDevelopmentActive(a.session) {
+		a.clearStaleDevelopmentLoadLocked()
+	}
 	if a.session.State != "active" && a.stopPhase != "stopping" && !a.retryStopLock {
 		a.stopPhase = "idle"
 		a.stopMessage = ""
@@ -1847,12 +1866,13 @@ func (a *App) applySessionLocked(result SessionResult) {
 			a.launch.Message = ""
 			a.launch.GameID = ""
 		}
+		a.clearCompletedDevelopmentLoadLocked()
 	}
 	a.syncGPUParkLocked()
 }
 
 func (a *App) syncGPUParkLocked() {
-	if a.session.State == "active" || a.session.State == "launching" || a.stopPhase == "stopping" || a.retryStopLock {
+	if a.session.State == "active" || a.session.State == "launching" || a.stopPhase == "stopping" || a.retryStopLock || a.developmentLoadingLocked() {
 		a.hold.Clear()
 	}
 	want := a.session.State == "active" || a.stopPhase == "stopping" || a.retryStopLock
@@ -1922,23 +1942,30 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 		}
 	}
 	retry := a.retryStopLock
+	devActive := sessionDevelopmentActive(a.session)
+	devState := sessionDevelopmentState(a.session)
+	chrome := sessionChromeState(a.session.State, a.session.Execution, a.stopPhase == "stopping", retry)
+	diagnostic := chrome == sessionChromeDevelopment || (devActive && (a.session.State == "active" || a.session.State == "launching"))
 	return SessionSnapshot{
-		State:        a.session.State,
-		Chrome:       sessionChromeState(a.session.State, a.session.Execution, a.stopPhase == "stopping", retry),
-		GameID:       a.session.GameID,
-		Title:        title,
-		System:       a.session.System,
-		Execution:    a.session.Execution,
-		Media:        a.session.Media,
-		InputState:   inputState,
-		InputHint:    remoteInputHint(a.session, a.inputBusy, a.inputAction),
-		InputBusy:    a.inputBusy || remoteInputTransitioning(inputState),
-		Progress:     progress,
-		Stopping:     a.stopPhase == "stopping",
-		RetryStop:    retry,
-		RetryHint:    strings.TrimSpace(a.retryStopHint),
-		LaunchLocked: a.sessionStopOfferedLocked() || a.launch.Phase == "launching",
-		Events:       events,
+		State:             a.session.State,
+		Chrome:            chrome,
+		GameID:            a.session.GameID,
+		Title:             title,
+		System:            a.session.System,
+		Execution:         a.session.Execution,
+		Media:             a.session.Media,
+		InputState:        inputState,
+		InputHint:         remoteInputHint(a.session, a.inputBusy, a.inputAction),
+		InputBusy:         a.inputBusy || remoteInputTransitioning(inputState),
+		Progress:          progress,
+		Stopping:          a.stopPhase == "stopping",
+		RetryStop:         retry,
+		RetryHint:         strings.TrimSpace(a.retryStopHint),
+		LaunchLocked:      a.sessionStopOfferedLocked() || a.launch.Phase == "launching" || a.developmentLoadingLocked(),
+		Events:            events,
+		DevelopmentActive: devActive,
+		DevelopmentState:  devState,
+		Diagnostic:        diagnostic,
 	}
 }
 

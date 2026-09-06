@@ -1037,7 +1037,7 @@ func drawHeader(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTe
 		}
 		if h := strings.TrimSpace(snap.Session.InputHint); h != "" {
 			hint += "  " + h
-		} else if snap.Session.InputState != "" {
+		} else if !snap.Session.Diagnostic && snap.Session.InputState != "" {
 			hint += "  X attach/detach"
 		}
 	} else if snap.OSK.Open {
@@ -1071,13 +1071,23 @@ func drawNowPlaying(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]s
 	if title == "" {
 		title = strings.TrimSpace(snap.Session.GameID)
 	}
-	if title == "" {
+	if snap.Session.Diagnostic {
+		title = "DIAGNOSTIC RBF"
+	} else if title == "" {
 		title = "Session active"
 	}
 	drawLabel(renderer, labels, used, "np-title", x, y, maxW, 28, title)
 	y += 40
+	if snap.Session.Diagnostic {
+		drawLabel(renderer, labels, used, "np-diag", x, y, maxW, 16, diagnosticHint)
+		y += 28
+	}
 	meta := strings.TrimSpace(strings.TrimPrefix(snap.NowPlayingLine(), "Now playing"))
 	meta = strings.TrimSpace(strings.TrimPrefix(meta, "  ·  "))
+	if snap.Session.Diagnostic {
+		meta = strings.TrimSpace(strings.TrimPrefix(snap.NowPlayingLine(), diagnosticLabel))
+		meta = strings.TrimSpace(strings.TrimPrefix(meta, "  ·  "))
+	}
 	if meta == "" {
 		meta = snap.Session.State
 	}

@@ -186,7 +186,9 @@ sofa so an active session is not stranded. The overlay still lists each
 library root as system label plus path. South/A opens the gamepad OSK to
 edit a path, Left/Right cycle the GET `systems[]` list, West/X removes a
 draft row, Add library appends a row, and Save libraries PATCHes only
-`libraries` (it does not send `targets`). A successful libraries save
+`libraries` (it does not send `targets`). **DIAGNOSTIC RBF** opens a path
+OSK; tenfoot reads that local file and POSTs `/api/v1/session/development-rbf`.
+That load is not a game session, and HDMI/input may be down. A successful libraries save
 reloads the catalog. A failed PATCH keeps the previous values and reports a
 short status line. Changing `selected_target` can fail while a session is
 active.
@@ -272,7 +274,10 @@ make tenfoot-smoke
   from the local launch response only, not from later polls. `execution`, `media`, `progress`, and `input.state`
   are shown in now-playing chrome when present. Sofa chrome maps the live
   session to idle, active, stopping, failed, or development (`execution=fpga_development`).
-  Stop failures and live session
+  When `execution=fpga_development`, or when `development` /
+  `development_active` / `development_session_state` are present on the
+  session JSON, sofa chrome is DIAGNOSTIC (not Now playing): HDMI/input may
+  be down and this is not a game session. Stop failures and live session
   progress replace a completed launch acknowledgement in the status line.
 - `GET /api/v1/session/events?after=` polled with the session poll. The sofa
   shows a short readable list (event, state, game/system when present), not a
@@ -284,7 +289,18 @@ make tenfoot-smoke
   purpose, generation, remaining expiry, blocked+reason). Tenfoot does not add
   a host lease proxy and does not offer claim/renew/takeover. A transport
   failure is **kit unreachable**, matching the P4d kit-down chrome. Tenfoot
-  does not call preview or development-rbf.
+  does not call preview. A blocked lease refuses DIAGNOSTIC RBF load and
+  does not open a takeover panel.
+- `POST /api/v1/session/development-rbf` with `Content-Type:
+  application/octet-stream` and `Content-Length` set. Settings overlay row
+  **DIAGNOSTIC RBF** opens a gamepad path OSK (symbols page; type or paste a
+  local host-reachable file path). Tenfoot stats the path, rejects empty and
+  >32MiB files before upload, then POSTs the file bytes. There is no browser
+  file picker and no host file-list API. Load is refused while retry-Stop
+  lockout is set, while a session is already active, or while the kit lease
+  is blocked. Successful load parks GPU and shows DIAGNOSTIC chrome. East/B
+  Stop-to-idle still works. HDMI/input may be down; this is not a playable
+  session.
 - `GET /api/v1/health` polled about once a second with the session poll. Host
   `ready` is the local API process. `target.reachable` / `target.ready` drive
   kit chrome. A transport failure is **host unreachable**, distinct from
@@ -360,6 +376,6 @@ window. Attract does not run while parked; after idle it may start again.
   X11/Wayland still needs a Linux box with a display (see
   [`LINUX.md`](./LINUX.md)). No Linux CI job.
 
-Still out of tenfoot scope (web / later): development-rbf file load UI,
-MJPEG preview, save-management / save browser, and a full kit
-claim/renew/takeover operator panel.
+Still out of tenfoot scope (web / later): MJPEG preview, save-management /
+save browser, and a full kit claim/renew/takeover operator panel. Development
+RBF load uses the settings path OSK only; there is no file picker.

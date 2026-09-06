@@ -14,9 +14,10 @@ and content selection; the MiSTer is a small, directly controlled target.
   recovery back to Menu for non-MiSTer cores on the conventional Main backend.
 - Browser UI, local media previews, and host-emulator/remote-media modes.
 - Native SDL3 10-foot launcher (`cmd/fogcast-tenfoot`) with cover-grid, shelf,
-  and list layouts that calls the same public host API. Mac is the primary
-  sofa target; Linux uses the same Makefile target with system SDL3
-  (`pkg-config sdl3`). See
+  and list layouts that calls the same public host API, including a
+  DIAGNOSTIC development-RBF path OSK (local file path, no browser picker).
+  Mac is the primary sofa target; Linux uses the same Makefile target with
+  system SDL3 (`pkg-config sdl3`). See
   [docs/native-tenfoot-launcher/README.md](docs/native-tenfoot-launcher/README.md).
 - A reproducible target image toolchain with a development image containing
   SSH and curl.
@@ -90,7 +91,8 @@ image packages no development RBF. Its Mega Drive RBF is selected at build
 time as described below. The
 exact two-cycle acceptance and legacy rollback evidence is recorded in
 [native-development-rbf-baseline.md](docs/hardware/native-development-rbf-baseline.md).
-There is no browser file picker.
+There is no browser file picker. Tenfoot types or pastes a local path with
+the gamepad OSK and POSTs the file bytes.
 
 ## Native Mega Drive RBF selection
 

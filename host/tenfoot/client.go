@@ -208,18 +208,21 @@ type TargetStatus struct {
 	Unavailable  bool
 }
 
-// SessionResult is sessionResult from GET /api/v1/session, POST launch, and POST stop.
+// SessionResult is sessionResult from GET /api/v1/session, POST launch, POST stop,
+// and POST /api/v1/session/development-rbf.
 type SessionResult struct {
-	HTTPStatus   int
-	State        string
-	GameID       string
-	System       string
-	Execution    string
-	Media        string
-	Progress     *SessionProgress
-	Input        *SessionInput
-	ErrorCode    string
-	ErrorMessage string
+	HTTPStatus              int
+	State                   string
+	GameID                  string
+	System                  string
+	Execution               string
+	Media                   string
+	Progress                *SessionProgress
+	Input                   *SessionInput
+	Development             bool
+	DevelopmentSessionState string
+	ErrorCode               string
+	ErrorMessage            string
 }
 
 // SessionEvent is one row from GET /api/v1/session/events.
@@ -1171,6 +1174,45 @@ func (c *Client) Session(ctx context.Context) (SessionResult, error) {
 	return result, nil
 }
 
+// LoadDevelopmentRBF posts a bounded application/octet-stream body to
+// POST /api/v1/session/development-rbf. Content-Length is required. Empty and
+// >32MiB payloads are rejected before the request.
+func (c *Client) LoadDevelopmentRBF(ctx context.Context, size int64, content io.Reader) (SessionResult, error) {
+	if err := developmentRBFSizeError(size); err != nil {
+		return SessionResult{}, err
+	}
+	if content == nil {
+		return SessionResult{}, fmt.Errorf("development RBF input is invalid")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/session/development-rbf", content)
+	if err != nil {
+		return SessionResult{}, err
+	}
+	req.ContentLength = size
+	req.Header.Set("Content-Type", "application/octet-stream")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.launchHTTP.Do(req)
+	if err != nil {
+		return SessionResult{}, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponse))
+	if err != nil {
+		return SessionResult{}, err
+	}
+	result, err := decodeSessionBody(resp.StatusCode, body)
+	if err != nil {
+		return result, fmt.Errorf("development RBF response: %w", err)
+	}
+	if result.ErrorCode != "" {
+		return result, nil
+	}
+	if result.State != "active" {
+		return result, fmt.Errorf("development RBF response: expected active session, got %q", result.State)
+	}
+	return result, nil
+}
+
 // Stop posts an empty body to POST /api/v1/session/stop.
 func (c *Client) Stop(ctx context.Context) (SessionResult, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/session/stop", http.NoBody)
@@ -1359,14 +1401,17 @@ func decodeSessionBody(status int, body []byte) (SessionResult, error) {
 		return result, fmt.Errorf("empty body")
 	}
 	var wire struct {
-		State     string           `json:"state"`
-		GameID    *string          `json:"game_id"`
-		System    *string          `json:"system"`
-		Execution string           `json:"execution"`
-		Media     string           `json:"media"`
-		Progress  *SessionProgress `json:"progress"`
-		Input     *SessionInput    `json:"input"`
-		Error     *struct {
+		State                   string           `json:"state"`
+		GameID                  *string          `json:"game_id"`
+		System                  *string          `json:"system"`
+		Execution               string           `json:"execution"`
+		Media                   string           `json:"media"`
+		Progress                *SessionProgress `json:"progress"`
+		Input                   *SessionInput    `json:"input"`
+		Development             *bool            `json:"development"`
+		DevelopmentActive       *bool            `json:"development_active"`
+		DevelopmentSessionState string           `json:"development_session_state"`
+		Error                   *struct {
 			Code    string `json:"code"`
 			Message string `json:"message"`
 		} `json:"error"`
@@ -1385,6 +1430,21 @@ func decodeSessionBody(status int, body []byte) (SessionResult, error) {
 	result.Media = strings.TrimSpace(wire.Media)
 	result.Progress = wire.Progress
 	result.Input = wire.Input
+	result.DevelopmentSessionState = strings.TrimSpace(wire.DevelopmentSessionState)
+	switch {
+	case wire.DevelopmentActive != nil:
+		result.Development = *wire.DevelopmentActive
+	case wire.Development != nil:
+		result.Development = *wire.Development
+	default:
+		result.Development = result.Execution == "fpga_development"
+	}
+	if result.Development && result.Execution == "" {
+		switch result.State {
+		case "active", "launching":
+			result.Execution = "fpga_development"
+		}
+	}
 	if wire.Error != nil {
 		result.ErrorCode = wire.Error.Code
 		result.ErrorMessage = wire.Error.Message
