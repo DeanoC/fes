@@ -5,16 +5,16 @@ order = 10
 rationale = "Current upstream Intel ALM synthesis baseline sampled 2026-08-26; this pin ships CMake rather than a Makefile."
 
 [tool.mistral]
-repo = "https://github.com/Ravenslofty/mistral.git"
-commit = "bfa096c1deac6180a3eee784693c28dac491ab18"
+repo = "https://github.com/DeanoC/mistral.git"
+commit = "328cfb8046d6bcb979fa69df7cfb95bd6f7e73f8"
 order = 20
-rationale = "Compatibility pin for nextpnr 7d4f72c0: follows its CI revision and includes the missing array header fix; fixed commit, not a moving branch."
+rationale = "DeanoC fork for nextpnr 99cf0efd Cyclone V MUL9X9 BELs: preserves DSP upper routing tiles on the bfa096c1 array-header baseline; fixed commit, not a moving branch."
 
 [tool.nextpnr]
-repo = "https://github.com/YosysHQ/nextpnr.git"
-commit = "7d4f72c0aabc15da932748a54e82a6ff7b41921e"
+repo = "https://github.com/DeanoC/nextpnr.git"
+commit = "99cf0efd724a07b0df3a8d91c29aaec6613bfa1f"
 order = 30
-rationale = "Current Mistral backend baseline sampled 2026-08-26."
+rationale = "DeanoC fork: Cyclone V MISTRAL_MUL9X9 BEL support for 5CSEBA6U23I7, based on 7d4f72c0."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

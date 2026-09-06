@@ -65,9 +65,9 @@ Quartus must measure zero DSP blocks. PLL, M10K, and MLAB remain forbidden.
 `060_dsp_mul` is an eight-by-eight unsigned product on the HPS
 general-purpose interface. Linux peeks and pokes GPO/GPI; there is no LED.
 The product is marked `multstyle = "dsp"`. OSS synthesis drops `-nodsp` and
-emits one `MISTRAL_MUL9X9`. nextpnr-mistral has no DSP BELs for
-`5CSEBA6U23I7`, so the OSS lane cannot place this experiment. Quartus maps
-the same product to one DSP block. PLL, M10K, and MLAB remain forbidden.
+emits one `MISTRAL_MUL9X9`. nextpnr-mistral places that cell on one DSP BEL.
+Quartus maps the same product to one DSP block. PLL, M10K, and MLAB remain
+forbidden.
 
 `070_mixed_mem` is a 32-by-8 lab table and a 256-by-8 block table on the HPS
 general-purpose interface. Linux peeks and pokes GPO/GPI; there is no LED.

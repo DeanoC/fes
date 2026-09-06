@@ -12,8 +12,8 @@ BOOTSTRAP = ROOT / "scripts" / "bootstrap.sh"
 ENV = ROOT / "scripts" / "env.sh"
 LOCK_COMMITS = {
     "yosys": "13b43f8c85ec430a33ee55d058fb4c32b42b6910",
-    "mistral": "bfa096c1deac6180a3eee784693c28dac491ab18",
-    "nextpnr": "7d4f72c0aabc15da932748a54e82a6ff7b41921e",
+    "mistral": "328cfb8046d6bcb979fa69df7cfb95bd6f7e73f8",
+    "nextpnr": "99cf0efd724a07b0df3a8d91c29aaec6613bfa1f",
     "verilator": "5e4151e3e0c8ecf11d9845a93495f37a31b2f667",
     "openfpgaloader": "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86",
 }
@@ -57,8 +57,8 @@ case "$1" in
     rev-parse)
         case "$(basename "$source_dir")" in
             yosys) commit="13b43f8c85ec430a33ee55d058fb4c32b42b6910" ;;
-            mistral) commit="bfa096c1deac6180a3eee784693c28dac491ab18" ;;
-            nextpnr) commit="7d4f72c0aabc15da932748a54e82a6ff7b41921e" ;;
+            mistral) commit="328cfb8046d6bcb979fa69df7cfb95bd6f7e73f8" ;;
+            nextpnr) commit="99cf0efd724a07b0df3a8d91c29aaec6613bfa1f" ;;
             verilator) commit="5e4151e3e0c8ecf11d9845a93495f37a31b2f667" ;;
             openfpgaloader) commit="0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86" ;;
             *) exit 1 ;;

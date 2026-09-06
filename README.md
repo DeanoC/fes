@@ -18,8 +18,8 @@ development possible with both the open-source Mistral toolchain and Quartus.
 - `040_mlab_ram`, a 32-by-8 writeable table on HPS GP, mapped to eight MLABs.
 - `050_lut_mul`, an eight-by-eight unsigned product on HPS GP, kept in logic cells.
 - `060_dsp_mul`, an eight-by-eight unsigned product on HPS GP. Yosys emits one
-  `MISTRAL_MUL9X9`; nextpnr-mistral cannot place DSP on this device. Quartus
-  measures one DSP block.
+  `MISTRAL_MUL9X9`; nextpnr-mistral places one DSP BEL. Quartus measures one
+  DSP block.
 - `070_mixed_mem`, lab and block tables on HPS GP (eight MLABs and one M10K).
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
