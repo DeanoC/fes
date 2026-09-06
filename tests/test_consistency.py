@@ -3,6 +3,8 @@ from pathlib import Path
 import tempfile
 import unittest
 import os
+import shlex
+import subprocess
 import sys
 from unittest.mock import patch
 
@@ -114,6 +116,11 @@ class ConsistencyTest(unittest.TestCase):
         required = (
             'ln -s "generations/$generation"',
             'make verify-media',
+            'set -eu',
+            'previous_target=$(readlink "$media/current")',
+            'trap restore_current EXIT',
+            "trap 'exit 1' HUP INT TERM",
+            'mv -Tf -- "$restore" "$media/current"',
             '`scripts/media.py rejects stale',
             '/media/fat/fogcast/agent.toml',
             'installed rootfs, agent, runtime, kernel, idle artifact',
@@ -123,3 +130,31 @@ class ConsistencyTest(unittest.TestCase):
         )
         for needle in required:
             self.assertIn(needle, guide, needle)
+
+    def test_bootable_media_rollback_shell_restores_current_on_verification_failure(self):
+        guide = (Path(__file__).resolve().parents[1] / 'docs/bootable-media.md').read_text()
+        start = guide.index('```sh\nset -eu\nmedia=out/native-integration-dev/media') + len('```sh\n')
+        end = guide.index('\n```', start)
+        snippet = guide[start:end]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            media = root / 'media'
+            previous = media / 'generations' / 'previous'
+            candidate = media / 'generations' / 'candidate'
+            previous.mkdir(parents=True)
+            candidate.mkdir()
+            (candidate / 'media.json').write_text('{}\n')
+            (media / 'current').symlink_to('generations/previous')
+            fake_bin = root / 'bin'
+            fake_bin.mkdir()
+            fake_make = fake_bin / 'make'
+            fake_make.write_text('#!/bin/sh\nexit 1\n')
+            fake_make.chmod(0o755)
+            script = snippet.replace('media=out/native-integration-dev/media',
+                                     'media=' + shlex.quote(str(media)))
+            script = script.replace('generation=<previous-image-sha256>', 'generation=candidate')
+            result = subprocess.run(['bash', '-c', script], env={
+                **os.environ, 'PATH': str(fake_bin) + os.pathsep + os.environ['PATH']},
+                check=False)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(os.readlink(media / 'current'), 'generations/previous')

@@ -43,22 +43,48 @@ from its retained `media.json`. It changes the local `current` symlink; it does
 not write a card or contact a kit.
 
 ```sh
+set -eu
 media=out/native-integration-dev/media
 generation=<previous-image-sha256>
 test -d "$media/generations/$generation"
 test -f "$media/generations/$generation/media.json"
-ln -s "generations/$generation" "$media/.next-current"
-mv -Tf "$media/.next-current" "$media/current"
+test -L "$media/current"
+previous_target=$(readlink "$media/current")
+test -n "$previous_target"
+next="$media/.next-current.$$"
+restore="$media/.restore-current.$$"
+
+restore_current() {
+  status=$?
+  trap - EXIT HUP INT TERM
+  rm -f -- "$next"
+  if [ "$status" -ne 0 ]; then
+    ln -s -- "$previous_target" "$restore"
+    mv -Tf -- "$restore" "$media/current"
+  fi
+  rm -f -- "$restore"
+  exit "$status"
+}
+
+trap restore_current EXIT
+trap 'exit 1' HUP INT TERM
+ln -s "generations/$generation" "$next"
+mv -Tf -- "$next" "$media/current"
 make verify-media
+trap - EXIT HUP INT TERM
+rm -f -- "$restore"
 ```
 
-Do not edit a generation in place or skip the final verification. A retained
-generation is usable only with the matching selected sources, media recipe and
-cold-build receipts (`host.json`, `image.json`, `verification.json`,
-`reproducibility.txt`, and QEMU evidence). `scripts/media.py rejects stale
-evidence`: if those inputs no longer match the generation receipt,
-`make verify-media` fails. Rebuild and verify the matching integration state
-rather than treating an old image directory as accepted.
+Do not edit a generation in place or skip the final verification. The trap is
+installed before `current` changes. It restores the preserved relative target
+with an atomic rename if selection, verification, or an interruption fails, so
+the failed candidate is never left selected. A retained generation is usable
+only with the matching selected sources, media recipe and cold-build receipts
+(`host.json`, `image.json`, `verification.json`, `reproducibility.txt`, and
+QEMU evidence). `scripts/media.py rejects stale evidence`: if those inputs no
+longer match the generation receipt, `make verify-media` fails. Rebuild and
+verify the matching integration state rather than treating an old image
+directory as accepted.
 
 ## Provision a local image
 
