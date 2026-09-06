@@ -4,6 +4,7 @@ set -eu
 repo_root=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 lock=${NATIVE_RUNTIME_INPUT_LOCK:-$repo_root/build/native-runtime.inputs.lock.toml}
 cache=${NATIVE_RUNTIME_CACHE:-$repo_root/build/cache/target-image/native}
+"$repo_root/scripts/native-extra-cores.sh" validate
 source=${MEGADRIVE_RBF_SOURCE:-source-built}
 bundle=${MEGADRIVE_RBF_BUNDLE:-}
 selector_bin=${TARGET_IMAGE_LOCK_BIN:-$repo_root/bin/target-image-lock-linux-amd64}
@@ -168,3 +169,5 @@ case "$source" in
     trap - EXIT INT TERM
     ;;
 esac
+
+"$repo_root/scripts/native-extra-cores.sh" fetch "$cache"

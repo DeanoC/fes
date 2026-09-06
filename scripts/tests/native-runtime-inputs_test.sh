@@ -737,7 +737,7 @@ fi
 grep -Fq 'sh scripts/tests/native-runtime-inputs_test.sh' "$repo/Makefile"
 
 real_lock=$repo/build/native-runtime.inputs.lock.toml
-grep -Fqx "commit = '4398f41bf504329e5c9b21f916cb37952bfb4cc7'" "$real_lock"
+grep -Fqx "commit = '960e61ece108d996eae4e09566b9fdc56c4ce952'" "$real_lock"
 grep -Fqx "sha256 = '821bcf66181a00ff550e4a4110dc11c9fa8e68d38e9cb5558b3ddb99ca938934'" "$real_lock"
 grep -Fqx 'size = 2452588' "$real_lock"
 grep -Fqx '[megadrive_rbf]' "$real_lock"
@@ -873,5 +873,21 @@ expect_rejected 'container with dirty runtime checkout' \
     TARGET_IMAGE_CONTAINER_RUNTIME="$fake_container" \
     sh "$container" run true
 rm "$runtime_source/untracked"
+
+# Moving an identical checkout must not rebuild the compiler/container packages.
+for copy_name in checkout-one checkout-two; do
+  copy_root=$fixture/$copy_name
+  mkdir -p "$copy_root/scripts" "$copy_root/containers/target-image" "$copy_root/build"
+  cp "$repo/scripts/target-image-container.sh" "$repo/scripts/native-extra-cores.sh" "$copy_root/scripts/"
+  cp "$repo/containers/target-image/Dockerfile" "$repo/containers/target-image/create-builder-user.sh" "$copy_root/containers/target-image/"
+  cp "$repo/build/target-image-container-packages.sha256" "$repo/build/target-image.sources.lock.toml" "$copy_root/build/"
+  NATIVE_RUNTIME_CONTAINER_LOG=$fixture/$copy_name.log \
+  NATIVE_RUNTIME_BASE_DIGEST=$base_digest \
+  NATIVE_RUNTIME_PACKAGE_DIGEST=$package_digest \
+  TARGET_IMAGE_CONTAINER_RUNTIME=$fake_container \
+    sh "$copy_root/scripts/target-image-container.sh" run true
+  awk '$1 == "image" && $2 == "inspect" && $3 ~ /^fogcast-target-image-build:/ {print $3; exit}' "$fixture/$copy_name.log" > "$fixture/$copy_name.tag"
+done
+cmp "$fixture/checkout-one.tag" "$fixture/checkout-two.tag" || fail 'container cache identity changes with checkout location'
 
 printf '%s\n' 'native runtime input tests passed'

@@ -424,6 +424,21 @@ make_root "$native_root" native-dev
 verify_fixture prod "$prod_root" "$fixture/prod.manifest" "$fixture/prod.libraries"
 verify_fixture dev "$dev_root" "$fixture/dev.manifest" "$fixture/dev.libraries"
 verify_fixture native-dev "$native_root" "$fixture/native.manifest" "$fixture/native.libraries"
+# The additional-core helper fixture supplies real externally selected pairs.
+if [ -n "${TARGET_IMAGE_EXTRA_CORE_CACHE:-}" ]; then
+  extra_root=$fixture/three-system-root
+  cp -R "$native_root" "$extra_root"
+  NATIVE_RUNTIME_SYSTEMS='megadrive pong snes' "$repo/scripts/native-extra-cores.sh" install "$TARGET_IMAGE_EXTRA_CORE_CACHE" "$extra_root"
+  NATIVE_RUNTIME_SYSTEMS='megadrive pong snes' "$repo/scripts/native-extra-cores.sh" copy-records "$TARGET_IMAGE_EXTRA_CORE_CACHE" "$(dirname "$native_selection")"
+  NATIVE_RUNTIME_SYSTEMS='megadrive pong snes' verify_fixture native-dev "$extra_root" "$fixture/extra.manifest" "$fixture/extra.libraries"
+  if verify_fixture native-dev "$extra_root" "$fixture/unselected.manifest" "$fixture/unselected.libraries" >/dev/null 2>&1; then
+    echo 'image accepted cores outside the caller-selected set' >&2; exit 1
+  fi
+  rm "$extra_root/usr/share/mister-runtime/cores/snes.rbf"
+  if NATIVE_RUNTIME_SYSTEMS='megadrive pong snes' verify_fixture native-dev "$extra_root" "$fixture/missing.manifest" "$fixture/missing.libraries" >/dev/null 2>&1; then
+    echo 'three-system image accepted a missing core' >&2; exit 1
+  fi
+fi
 for prohibited_development_rbf in \
   /usr/share/mister-runtime/development.rbf \
   /usr/share/mister-runtime/cores/development.rbf \

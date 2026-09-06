@@ -356,3 +356,6 @@ printf '%s\n' "$megadrive_mode" | grep -Eq '^[0145]{3,4}$' || {
 
 printf 'runtime_commit=%s\nidle_sha256=%s\nmegadrive_origin=%s\nmegadrive_sha256=%s\n' \
   "$actual_commit" "$actual_sha" "$selection_origin" "$actual_megadrive_sha"
+
+repo_root=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
+"$repo_root/scripts/native-extra-cores.sh" verify "$(dirname "$megadrive_file")"

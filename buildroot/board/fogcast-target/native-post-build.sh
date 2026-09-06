@@ -266,8 +266,11 @@ mister_agent_sha=$(/usr/bin/sha256sum "$target/usr/sbin/mister-agent" | /usr/bin
   fi
 } > "$build_inputs"
 
+extra_cores=$(CDPATH='' cd -- "$(dirname "$0")/../../.." && pwd)/scripts/native-extra-cores.sh
+"$extra_cores" install "$(dirname "$megadrive_input")" "$target"
+expected_rbf_count=$("$extra_cores" count)
 rbf_count=$(find "$target" -iname '*.rbf' | /usr/bin/wc -l | /usr/bin/tr -d ' ')
-[ "$rbf_count" -eq 2 ] || {
-  printf 'native-post-build: expected exactly two installed RBFs, found %s\n' "$rbf_count" >&2
+[ "$rbf_count" -eq "$expected_rbf_count" ] || {
+  printf 'native-post-build: installed RBF count differs from selected systems, found %s\n' "$rbf_count" >&2
   exit 1
 }

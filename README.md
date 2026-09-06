@@ -158,3 +158,12 @@ For the target image, fixture details, deployment, and live launch checks,
 read [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). The current process
 boundaries and source entry points are in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+Native image assembly defaults to Mega Drive; the explicit
+`NATIVE_RUNTIME_SYSTEMS="megadrive pong snes"` selection adds sealed Pong/SNES
+source bundles through the same builder and verifier. See the
+[image development guide](docs/DEVELOPMENT.md#optional-pong-and-snes-image-cores).
+
+Native image preflight selects the Darwin host verifier on macOS and the Linux
+verifier in the build container. `target-image-native-fetch` builds both when
+running on macOS; `TARGET_IMAGE_LOCK_BIN` remains an explicit verifier override.

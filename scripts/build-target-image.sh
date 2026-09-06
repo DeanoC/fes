@@ -3,6 +3,7 @@ set -eu
 
 repo=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 epoch=1751459412
+"$repo/scripts/native-extra-cores.sh" validate
 
 usage() {
   printf 'usage: build-target-image.sh prod|dev|native-dev|--fast-dev|--promote-existing VARIANT|--fetch VARIANT|--inside VARIANT OUTPUT EPOCH EXPORT|--inside-fast-dev OUTPUT EPOCH EXPORT|--inside-fetch VARIANT OUTPUT EPOCH|--validate-inside-path VARIANT OUTPUT EXPORT\n' >&2
@@ -342,6 +343,7 @@ if [ "$promote_existing" -ne 1 ]; then
       /bin/cp "$selection_source" "$selection_tmp"
       /bin/chmod 0444 "$selection_tmp"
       /bin/mv "$selection_tmp" "$work/megadrive.selection.toml"
+      "$repo/scripts/native-extra-cores.sh" copy-records "$(dirname "$selection_source")" "$work"
     fi
   done
 fi
@@ -366,6 +368,11 @@ if [ "$variant" = native-dev ]; then
     printf '%s\n' 'build-target-image: native Mega Drive selection differs between reproducible outputs' >&2
     exit 1
   }
+  if [ "${NATIVE_RUNTIME_SYSTEMS:-megadrive}" = 'megadrive pong snes' ]; then
+    for system in pong snes; do
+      cmp "$output_root/work-1-$variant/$system.selection.toml" "$output_root/work-2-$variant/$system.selection.toml"
+    done
+  fi
 fi
 
 final_dir=$output_root/$variant
@@ -383,6 +390,7 @@ if [ "$variant" = native-dev ]; then
   /bin/chmod 0444 "$selection_final_tmp"
   /bin/mv "$selection_final_tmp" "$final_dir/megadrive.selection.toml"
   selection_final_tmp=
+  "$repo/scripts/native-extra-cores.sh" copy-records "$output_root/work-2-$variant" "$final_dir"
 fi
 /bin/mv "$evidence_tmp" "$final_dir/reproducibility.txt"
 /bin/mv "$image_tmp" "$final_dir/linux.img"

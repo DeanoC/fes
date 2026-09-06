@@ -302,9 +302,11 @@ EOF
       printf '%s\n' 'verify-target-image: native Mega Drive RBF size differs from the lock' >&2
       exit 1
     }
+    "$repo/scripts/native-extra-cores.sh" verify-image "$(dirname "$native_selection_file")" "$root"
+    expected_rbf_count=$("$repo/scripts/native-extra-cores.sh" count)
     rbf_count=$(find "$root" -iname '*.rbf' | wc -l | tr -d ' ')
-    [ "$rbf_count" -eq 2 ] || {
-      printf 'verify-target-image: native image must contain exactly two RBFs, found %s\n' "$rbf_count" >&2
+    [ "$rbf_count" -eq "$expected_rbf_count" ] || {
+      printf 'verify-target-image: native image RBF count differs from selected systems, found %s\n' "$rbf_count" >&2
       exit 1
     }
 
