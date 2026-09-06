@@ -601,7 +601,7 @@ func TestCachedLaunchUsesResolvedRootAndPathThenCommitsObservedCore(t *testing.T
 		t.Fatalf("response JSON = %s, want %s", encoded, wantJSON)
 	}
 	prepareCalls, launchCalls, _, spec, path, launched := runtime.snapshot()
-	if prepareCalls != 1 || launchCalls != 1 || path != store.resolved.Path || launched.AbsoluteROM != store.resolved.Path {
+	if prepareCalls != 1 || launchCalls != 1 || path != store.resolved.Path || launched.AbsoluteROM != store.resolved.Path || launched.GameID != request.GameID {
 		t.Fatalf("runtime launch = prepare %d launch %d spec %#v path %q prepared %#v", prepareCalls, launchCalls, spec, path, launched)
 	}
 	if spec.ROMRoot != store.resolved.Root || spec.System != protocol.SystemMegaDrive || spec.ExpectedCore != "MegaDrive" || spec.RBFSelector != "_Console/MegaDrive" || spec.FileDelay != 1 || spec.FileType != "f" || spec.FileIndex != 1 {
@@ -939,7 +939,7 @@ func TestV1LaunchRemainsPathBasedAndStagesDirectIntentWithoutContentPin(t *testi
 		t.Fatalf("v1 launch = %#v, %#v", status, apiErr)
 	}
 	_, _, _, spec, preparedPath, launched := runtime.snapshot()
-	if preparedPath != path || launched.AbsoluteROM != path || spec.ROMRoot != "/media/fat/games/SNES" {
+	if preparedPath != path || launched.GameID != "snes-original" || launched.AbsoluteROM != path || spec.ROMRoot != "/media/fat/games/SNES" {
 		t.Fatalf("v1 runtime values = spec %#v path %q launched %#v", spec, preparedPath, launched)
 	}
 	if snapshot := store.snapshot(); snapshot.resolveCalls != 0 || snapshot.pinCalls != 0 || snapshot.abortCalls != 0 || snapshot.commitCalls != 0 || snapshot.directIntentCalls != 1 || snapshot.directAbortCalls != 0 || snapshot.directCommitCalls != 1 || snapshot.clearCalls != 0 || snapshot.directIntentSystem != protocol.SystemSNES || snapshot.directCommitSystem != protocol.SystemSNES {

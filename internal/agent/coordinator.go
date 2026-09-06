@@ -268,6 +268,7 @@ func (c *Coordinator) launchWithIntent(parent context.Context, gameID string, sp
 	if apiErr != nil {
 		return c.Status(), false, apiErr
 	}
+	prepared.GameID = gameID
 	if recordIntent != nil {
 		if apiErr := recordIntent(); apiErr != nil {
 			return c.Status(), false, apiErr

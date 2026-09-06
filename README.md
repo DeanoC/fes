@@ -56,8 +56,15 @@ runtime and installed `/usr/share/mister-runtime/cores/snes.rbf`. FogCast passes
 one unchanged cartridge path (`.sfc`, `.smc`, or `.bin`); the runtime owns format
 validation, copier-header handling, and the required metadata transfer prefix.
 The initial runtime contract is ordinary LoROM/HiROM up to 4 MiB; enhancement
-chips, external firmware, expanded mappings, and persistent saves are outside
-this slice. The native package uses cartridge index 1; the conventional Main
+chips, external firmware, and expanded mappings remain outside this slice.
+The native agent stores ordinary SNES battery saves per game and ROM beneath
+`/media/fat/fogcast/saves/snes`. The runtime restores them on launch and flushes
+them before a clean Stop, including system switching and lease cleanup. Saves
+survive cache eviction and target reboot; a write failure keeps Stop retryable
+and prevents successful lease release. Stop before rebooting: there is no
+power-loss autosaving, host synchronization, or save-state support. Cartridge
+copier-header variants have separate save identities. This persistence path is
+software-tested; hardware validation belongs to the selected FES integration. The native package uses cartridge index 1; the conventional Main
 selector remains index 0.
 
 The retained native gamepad includes A/B/X/Y/L/R/Select/Start and the D-pad.
@@ -130,7 +137,7 @@ image-owned core and staged cartridge path to `mister-runtime` and rejects
 every other catalogue system. Its separate MiSTer-compatible development-RBF
 path is hardware-tested for the narrow MiSTer-compatible load/Stop lifecycle
 and subsequent game regression. The accepted game slice is one player with
-D-pad, A/B/C, and Start. Audio, saves, six-button input, multiplayer,
+D-pad, A/B/C, and Start. Audio, Mega Drive saves, six-button input, multiplayer,
 remapping, hot-plug recovery, generalized RBF ABIs, and development video/input
 remain unsupported.
 

@@ -48,6 +48,7 @@ type Response struct {
 }
 
 type LaunchRequest struct {
+	SavePath string            `json:"save_path,omitempty"`
 	System   string            `json:"system"`
 	RBF      string            `json:"rbf"`
 	Media    map[string]string `json:"media"`
@@ -87,9 +88,10 @@ func (client *Client) Launch(ctx context.Context, request LaunchRequest) (Respon
 		RBF       string            `json:"rbf"`
 		Media     map[string]string `json:"media"`
 		Settings  map[string]string `json:"settings"`
+		SavePath  string            `json:"save_path,omitempty"`
 	}{
 		Protocol: 1, Operation: "launch", System: request.System,
-		RBF: request.RBF, Media: request.Media, Settings: request.Settings,
+		RBF: request.RBF, Media: request.Media, Settings: request.Settings, SavePath: request.SavePath,
 	})
 }
 
@@ -164,6 +166,9 @@ func nativeRBFPath(system protocol.System) string {
 }
 
 func validLaunchRequest(request LaunchRequest) bool {
+	if request.SavePath != "" && (request.System != "snes" || !validRuntimePath(request.SavePath)) {
+		return false
+	}
 	expected := nativeRBFPath(protocol.System(request.System))
 	if expected == "" || request.RBF != expected || request.Settings == nil || len(request.Settings) != 0 || request.Media == nil {
 		return false
@@ -346,7 +351,7 @@ func responseIdentity(response Response) identityShape {
 func validErrorCode(code string) bool {
 	switch code {
 	case "invalid_request", "unsupported_protocol", "unknown_system", "missing_media", "busy",
-		"program_failed", "core_mismatch", "io_failed", "idle_failed":
+		"program_failed", "core_mismatch", "io_failed", "idle_failed", "save_failed":
 		return true
 	default:
 		return false
