@@ -11,9 +11,11 @@ import shutil
 import subprocess
 import sys
 import tomllib
+import tempfile
 
 from inputs import git, validate
 import bundle as core_bundle
+from environment import build_environment
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -24,6 +26,18 @@ def run(args, **kwargs):
 def digest(path):
     with Path(path).open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
+
+def publish_file(source, destination):
+    # Child selection records are read-only. Replace the old inode instead of
+    # trying to open it for writing on the next integration build.
+    destination = Path(destination)
+    temporary = destination.with_name(destination.name + ".tmp")
+    try:
+        temporary.unlink(missing_ok=True)
+        shutil.copy2(source, temporary)
+        temporary.replace(destination)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 def write_receipt(output, kind, fingerprint, names):
     data = {"inputs": fingerprint, "files": {name: digest(output / name) for name in names}}
@@ -78,7 +92,7 @@ def build_bundle(revisions, env, force=False):
         if len(bundles) != 1:
             raise ValueError("misteross has more than one cached Mega Drive bundle")
         bundle_dir = bundles[0].parent
-        core_bundle.load(bundle_dir)
+        core_bundle.load(bundle_dir, digest(source / "scripts/rebuild_core.py"))
         print(f"Reusing validated revision-scoped FPGA bundle: {bundle_dir}", flush=True)
         return bundle_dir
     quartus = env.get("QUARTUS_ROOTDIR", "")
@@ -90,32 +104,30 @@ def build_bundle(revisions, env, force=False):
     bundles = list((source / "build/bundles/megadrive").glob("*/megadrive-rbf.toml"))
     if len(bundles) != 1:
         raise ValueError("misteross did not produce exactly one Mega Drive bundle")
+    core_bundle.load(bundles[0].parent, digest(source / "scripts/rebuild_core.py"))
     return bundles[0].parent
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["doctor", "build", "host", "image", "verify", "rebuild"])
-    parser.add_argument("--profile", default="native-dev", choices=["native-dev", "native-source-dev"])
+    parser.add_argument("action", choices=["doctor", "build", "host", "image", "verify", "rebuild", "dev"])
+    parser.add_argument("--profile", default="native-integration-dev",
+                        choices=["native-dev", "native-source-dev", "native-integration-dev"])
     args = parser.parse_args()
-    revisions = validate(ROOT)
     profile = tomllib.loads((ROOT / "profiles" / (args.profile + ".toml")).read_text())
+    revisions = validate(ROOT, profile)
     if platform.system() != "Linux" or platform.machine() not in ("x86_64", "amd64"):
         raise ValueError("this initial image builder requires Linux amd64")
     container = os.environ.get("CONTAINER_RUNTIME", "docker")
     for tool in ("git", "make", "go"):
         if not shutil.which(tool):
             raise ValueError(f"required executable is missing: {tool}")
-    fogcast = ROOT / "sources/FogCast"
-    env = os.environ.copy()
-    for name in tuple(env):
-        if (name.startswith(("TARGET_IMAGE_", "NATIVE_RUNTIME_"))
-                or name in ("LIBMISTER_RUNTIME_DIR", "MAKEFLAGS", "MAKEOVERRIDES", "MFLAGS",
-                            "GOFLAGS", "GOEXPERIMENT", "GOOS", "GOARCH", "GOARM", "GOAMD64",
-                            "GOWORK", "GOTOOLCHAIN", "GOENV", "GOFIPS140")):
-            del env[name]
-    env.update(GOENV="off", GOWORK="off", GOFLAGS="", GOEXPERIMENT="",
-               GOAMD64="v1", GOTOOLCHAIN="auto", GOFIPS140="off")
-    toolchain = subprocess.check_output(["go", "version"], cwd=fogcast, env=env, text=True).strip()
+    env = build_environment()
+    # Historical profiles may select a different go.mod from the current gitlink.
+    with tempfile.TemporaryDirectory(prefix="fes-go-version-") as temporary:
+        (Path(temporary) / "go.mod").write_text(git(ROOT / "sources/FogCast", "show",
+            revisions["FogCast"] + ":go.mod") + "\n")
+        toolchain = subprocess.check_output(["go", "version"], cwd=temporary,
+                                            env=env, text=True).strip()
     if args.action != "host":
         if not shutil.which(container):
             raise ValueError(f"required container runtime is missing: {container}")
@@ -133,6 +145,11 @@ def main():
             raise ValueError("another parent build is running in this workspace")
         restore = ("build/native-runtime.inputs.lock.toml",) if args.profile == "native-source-dev" else ()
         fogcast = source_checkout("FogCast", revisions["FogCast"], "-" + args.profile, restore)
+        if profile.get("check_packages"):
+            from consistency import check
+            selected = {name: source_checkout(name, revision)
+                        for name, revision in revisions.items() if name != "FogCast"}
+            check(ROOT, dict(selected, FogCast=fogcast))
         lock_path = fogcast / "build/native-runtime.inputs.lock.toml"
         lock_path.write_bytes(subprocess.check_output([
             "git", "-C", str(fogcast), "show", "HEAD:build/native-runtime.inputs.lock.toml"
@@ -145,6 +162,15 @@ def main():
         temp.mkdir(exist_ok=True)
         env["GOTMPDIR"] = str(temp)
         child_make = ["make", "-C", fogcast, "CONTAINER_RUNTIME=" + container, "VERSION=" + profile["version"]]
+        if args.action == "dev":
+            if profile.get("bundle_interface") != "selection":
+                raise ValueError("make dev requires native-integration-dev; historical profiles stay cold")
+            from native_dev import build_development
+            runtime = source_checkout("libmister-runtime", revisions["libmister-runtime"])
+            bundle_dir = build_bundle(revisions, env)
+            build_development(ROOT, fogcast, runtime, args.profile, profile, info,
+                              fp, env, child_make, bundle_dir)
+            return
         if args.action in ("build", "host", "rebuild"):
             if args.action != "rebuild" and reusable(output, "host", fp):
                 print("Host: reusing verified output", flush=True)
@@ -164,6 +190,9 @@ def main():
         if args.action in ("build", "image", "rebuild"):
             if args.action != "rebuild" and reusable(output, "image", fp):
                 print("Image: reusing verified output", flush=True)
+                if profile.get("fpga_source") == "misteross":
+                    recipe_source = source_checkout("misteross", revisions["misteross"])
+                    core_bundle.load(output, digest(recipe_source / "scripts/rebuild_core.py"))
             else:
                 runtime = source_checkout("libmister-runtime", revisions["libmister-runtime"])
                 source_lock = tomllib.loads((fogcast / "build/target-image.sources.lock.toml").read_text())
@@ -175,16 +204,25 @@ def main():
                 run(child_make + ["build-target-image-lock-container"], env=env)
                 run([fogcast / "scripts/target-image-container.sh", "fetch",
                      "/work/scripts/fetch-target-image-sources.sh"], env=env)
-                if args.profile == "native-source-dev":
+                if profile.get("fpga_source") == "misteross":
                     bundle_dir = build_bundle(revisions, env, args.action == "rebuild")
-                    run([fogcast / "scripts/target-image-container.sh", "fetch",
-                         "/work/scripts/fetch-native-runtime-inputs.sh"], env=env)
-                    manifest = core_bundle.prepare(fogcast, bundle_dir)
-                    run(child_make + ["build-agent"], env=env)
-                    run([fogcast / "scripts/build-target-image.sh", "--fetch", "native-dev"],
-                        env=dict(env, LIBMISTER_RUNTIME_DIR=str(runtime)))
-                    run([fogcast / "scripts/build-target-image.sh", "native-dev"],
-                        env=dict(env, LIBMISTER_RUNTIME_DIR=str(runtime)))
+                    recipe_source = source_checkout("misteross", revisions["misteross"])
+                    recipe_sha = digest(recipe_source / "scripts/rebuild_core.py")
+                    manifest = core_bundle.load(bundle_dir, recipe_sha)
+                    if profile.get("bundle_interface") == "selection":
+                        run(child_make + ["target-image-native",
+                            "LIBMISTER_RUNTIME_DIR=" + str(runtime),
+                            "MEGADRIVE_RBF_SOURCE=source-built",
+                            "MEGADRIVE_RBF_BUNDLE=" + str(bundle_dir)], env=env)
+                    else:
+                        run([fogcast / "scripts/target-image-container.sh", "fetch",
+                             "/work/scripts/fetch-native-runtime-inputs.sh"], env=env)
+                        core_bundle.prepare(fogcast, bundle_dir, recipe_sha)
+                        run(child_make + ["build-agent"], env=env)
+                        run([fogcast / "scripts/build-target-image.sh", "--fetch", "native-dev"],
+                            env=dict(env, LIBMISTER_RUNTIME_DIR=str(runtime)))
+                        run([fogcast / "scripts/build-target-image.sh", "native-dev"],
+                            env=dict(env, LIBMISTER_RUNTIME_DIR=str(runtime)))
                 else:
                     manifest = None
                     run(child_make + ["target-image-native", "LIBMISTER_RUNTIME_DIR=" + str(runtime)], env=env)
@@ -192,21 +230,27 @@ def main():
                 run(child_make + ["target-image-native-verify"], env=env)
                 built = fogcast / "build/output/target-image/native-dev"
                 names = ["linux.img", "reproducibility.txt", "manifest.tsv", "library-report.tsv"]
+                if profile.get("bundle_interface") == "selection":
+                    names.append("megadrive.selection.toml")
                 for name in names:
-                    shutil.copy2(built / name, output / name)
+                    publish_file(built / name, output / name)
                 if manifest is not None:
-                    shutil.copy2(bundle_dir / "megadrive-rbf.toml", output / "megadrive-rbf.toml")
-                    shutil.copy2(bundle_dir / "megadrive.rbf", output / "megadrive.rbf")
+                    publish_file(bundle_dir / "megadrive-rbf.toml", output / "megadrive-rbf.toml")
+                    publish_file(bundle_dir / "megadrive.rbf", output / "megadrive.rbf")
                     names += ["megadrive-rbf.toml", "megadrive.rbf"]
                 write_receipt(output, "image", fp, names)
         if args.action == "verify":
             if not reusable(output, "host", fp) or not reusable(output, "image", fp):
                 raise ValueError("build outputs are missing, changed, or stale; run make build")
             if profile.get("fpga_source") == "misteross":
+                recipe_source = source_checkout("misteross", revisions["misteross"])
+                recipe_sha = digest(recipe_source / "scripts/rebuild_core.py")
+                core_bundle.load(output, recipe_sha)
                 # A new invocation starts from the pinned FogCast commit. Recreate the
                 # generated lock/cache overlay from the published bundle before asking
                 # FogCast to verify the already-built image.
-                core_bundle.prepare(fogcast, output)
+                if profile.get("bundle_interface") != "selection":
+                    core_bundle.prepare(fogcast, output, recipe_sha)
             built = fogcast / "build/output/target-image/native-dev/linux.img"
             if not built.is_file() or digest(built) != digest(output / "linux.img"):
                 raise ValueError("child image differs from published image; run make rebuild")

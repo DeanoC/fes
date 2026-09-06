@@ -1,5 +1,8 @@
 # Native Parent Implementation Plan
 
+Historical implementation record. For current usage, start with the
+[documentation index](README.md) and [development guide](development.md).
+
 **Goal:** One command builds the pinned Linux host and native image.
 **Architecture:** Git submodules, GNU Make entry points and small Python standard-library scripts. Child image machinery owns compilation and verification.
 **Spec:** native-parent-design.md

@@ -2,8 +2,8 @@
 
 FES means Fogger Entertainment System. This document distinguishes the
 whole system from the narrower native build currently implemented in its
-parent repository. The user agreed to the ownership direction below. Code
-migrations and component revision changes remain separate implementation work.
+parent repository. The ownership direction below governs component work. The current integration
+profile consumes the component graph; image-assembly migration remains separate.
 
 ## Ownership
 
@@ -51,8 +51,8 @@ flowchart LR
   Assembly -.->|installed artifact| Runtime
 ```
 
-This diagram expresses the intended component graph, including package
-integration that the current FES pins do not yet fully consume.
+This diagram expresses the intended component graph, including the package
+integration checked by `make check`.
 
 For a Sonic 2 launch, the host resolves the selected game and arranges its
 content; the agent verifies/adopts the staged content and requests a native
@@ -85,78 +85,71 @@ whole-system image ownership from the FogCast product boundary through the
 separate migration below. Splitting repos before resolving that ownership
 would distribute the existing coupling across more locations.
 
-## Concrete gaps found
+## Integrated source set
 
-1. The parent includes FogCast, libmister-runtime and misteross but omits
-   mister-packages. Its tested build therefore does not cover the entire
-   intended FES dependency graph.
-2. mister-packages owns `packages/source/megadrive_mister.yaml`, while
-   misteross `cores.lock` identifies itself as a copied pin. FES currently
-   does not test agreement between those files.
-3. The local runtime checkout at `eafefd1` consumes generated HPS and
-   Mega Drive headers. The parent pins `443b603`, whose inspected staged
-   source has no `src/native/generated/` directory.
-4. Local FogCast branch `feat/megadrive-launch-fields` at `c7944a1` consumes
-   generated expected-core and cartridge-index definitions. The parent
-   pins `cd85971`. The mister-packages README still says FogCast is not
-   patched: branch implementation, integration and documentation need
-   reconciling. This review does not establish that those branches merged.
-5. FogCast currently owns Buildroot configuration, image scripts, native
-   input locks and packaging. The parent temporarily overlays a core lock
-   to package a source-built RBF. This works but leaves whole-system
-   assembly responsibilities divided between FogCast and FES.
+The current gitlinks select FogCast `1adc7c3`, libmister-runtime `4398f41`,
+misteross `7912a3e`, and mister-packages `a29f631`. FogCast contains the merged
+native development loader, source-bundle selector, and generated launch fields.
+The runtime consumes generated hardware and Mega Drive definitions.
+
+`make check` validates source identity and cleanliness, the FogCast runtime
+lock, package YAML, the three generated consumer files, and the copied upstream
+source/artifact pins in misteross and FogCast. It regenerates to temporary files;
+it never edits consumers. It covers the selected DE10-Nano/Mega Drive graph,
+not hypothetical future platforms or every handwritten hardware constant.
+
+The old review's unmerged-consumer concern is resolved: FogCast main consumes
+`generated.MegaDriveExpectedCore` and `generated.MegaDriveCartridgeIndex` through
+PR126. No component source changes were needed for parent reconciliation.
+The pinned mister-packages README still says “FogCast is not patched”; that
+sentence is stale relative to the selected consumers and the regeneration check.
+
+`native-integration-dev` uses FogCast's explicit source-bundle interface and
+publishes `megadrive.selection.toml`. Only the historical `native-source-dev`
+profile retains the lock overlay required by its older FogCast revision.
+Historical profiles select exact earlier commits recorded in their TOML files;
+current gitlinks remain the development starting point.
 
 ## Keep, combine, split and add
 
-Keep the four component repositories. Their current responsibilities are
-distinct; there is no demonstrated benefit to merging them now. Keep the
-package schema and its small emitter together, and keep the runtime library
-and daemon together. Keep the target agent with FogCast while they share an
-API and release lifecycle.
+Keep all four component repositories. Keep the package schema and small emitter
+together, and keep the runtime library and daemon together. Keep the target
+agent with FogCast while they share an API and release lifecycle. Do not split
+individual cores or introduce more repositories without an independent need.
 
-Combine duplicated definitions under mister-packages authority, rather than
-combining repositories. Retain checked-in generated consumer files so
-standalone target builds do not need Go. FES should regenerate to temporary
-files and compare them with the selected consumers, failing on drift.
+Combine duplicated definitions under mister-packages authority. Retain checked-in
+generated consumers so standalone target compilation does not require Go.
+Changes to package definitions and affected consumers must land as one compatible
+parent selection; `make check` detects drift.
 
-Propose moving whole-system Buildroot/image configuration and final SD-card
-assembly into FES, while each component retains its own compilation recipe.
-Do this as a separate migration after defining artifact inputs. Do not copy
-the scripts and leave two authoritative image builders. The existing
-validated FogCast recipe remains authoritative until migration is complete.
+Whole-system Buildroot/image configuration and final SD-card assembly should move
+into FES in a separate migration. Component compilation remains component-owned.
+Do not copy the scripts and leave two authoritative image builders: the selected
+FogCast recipe remains authoritative until the migration is complete.
 
-Add an explicit artifact interface for final assembly: agent, runtime,
-core bundle and package-derived definitions, with component identities and
-installation destinations recorded. Start as a small documented interface,
-not a new packaging framework or another repository.
+Use a small artifact interface: agent, runtime, core bundle and package-derived
+definitions with component identities, hashes and installation destinations.
+The present bundle/selection manifests already supply the FPGA part. Extend the
+existing evidence rather than inventing a package framework or coordinator.
+Main_MiSTer and frozen Overlord resources remain references or optional tests.
 
-Do not split individual cores, the emitter, or the target agent into more
-repositories without a concrete independent development/release need.
-Main_MiSTer and frozen Overlord resources belong only in reference/testing
-documentation or an explicitly optional test setup.
+## Work through the parent
 
-## Next bounded implementation
+All agents start with [AGENTS.md](../AGENTS.md) and
+[the development guide](development.md), then specialise in a component worktree.
+The integrator owns parent pins, shared-contract reconciliation and system builds.
+Component workers own disjoint implementation scopes and return a short handoff.
+This does not require a fixed agent team for every change.
 
-1. Pin mister-packages in FES as a first-class component.
-2. Check the live integration state of the generated-consumer branches.
-   Select reviewed compatible consumers; preserve the existing tested
-   profile until the replacement has equivalent evidence.
-3. Add a parent consistency command that validates package YAML, compares
-   generated C++ and Go with selected consumers, and compares the copied
-   misteross source pin with the package source definition.
-4. Run that command in lightweight CI, then validate the selected full
-   native build. CI scope follows the component graph.
-5. Separately migrate image assembly ownership and build the bootable FES
-   layout, without adding Main_MiSTer to the production graph.
+## Next integration milestone
 
-## Inspection evidence and limits
+1. Use the incremental native development path for component integration; retain
+   clean reproducibility checks at stabilized milestones. Extend its cache
+   granularity only when measurements justify it.
+2. Define the remaining assembly artifact inputs and move the image recipe once.
+3. Produce a bootable native FES media layout without Main as a production input.
+4. Extend supported systems/ABIs or package tenfoot only as separately scoped work.
 
-The review read mister-packages on the local Mac at `a29f631`, local runtime
-and FogCast development checkouts, and the saved parent component sources.
-Powerboat connectivity was restored for the follow-up. GitHub comparison
-confirmed runtime `eafefd1` is an ancestor of current main `4398f41`.
-FogCast `c7944a1` and current main `c1381c3` have diverged; ancestry alone
-does not establish whether equivalent changes landed by another commit.
-The pinned agent code in `internal/agent/coordinator.go` and
-`internal/misterruntime/{runtime,client}.go` confirms the local socket
-boundary. No component pins or production code changed during this review.
+Current checks and limitations are recorded in
+[integration validation](integration-validation.md). Original image and hardware
+records remain in the dated historical validation documents.

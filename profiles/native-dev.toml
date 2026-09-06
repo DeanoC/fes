@@ -4,3 +4,8 @@ host_arch = "amd64"
 image_variant = "native-dev"
 baseline_image_sha256 = "95c9b4671e0d19781a6428d2168ab631453740215b194519f12788ade03c7c2e"
 version = "0.1.0"
+
+[sources]
+FogCast = "cd85971bf0bffe36e69c381917f618620b901726"
+libmister-runtime = "443b603de991b56b5f4d0d11c5bc88a3f83fad13"
+misteross = "7912a3e7ee82a24c9aed82dfbb30a8974b7eec07"

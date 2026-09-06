@@ -15,7 +15,7 @@ class InputsTest(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         git(self.root, "init", "-q")
-        for name in ("FogCast", "libmister-runtime", "misteross"):
+        for name in ("FogCast", "libmister-runtime", "misteross", "mister-packages"):
             child = self.root / "sources" / name
             child.mkdir(parents=True)
             git(child, "init", "-q")
@@ -31,7 +31,7 @@ class InputsTest(unittest.TestCase):
             "[mister_runtime]\ncommit = '" + git(runtime, "rev-parse", "HEAD") + "'\n")
         git(fogcast, "add", ".")
         git(fogcast, "commit", "-qm", "lock")
-        for name in ("FogCast", "libmister-runtime", "misteross"):
+        for name in ("FogCast", "libmister-runtime", "misteross", "mister-packages"):
             sha = git(self.root / "sources" / name, "rev-parse", "HEAD")
             git(self.root, "update-index", "--add", "--cacheinfo", "160000", sha, "sources/" + name)
 
@@ -65,6 +65,22 @@ class InputsTest(unittest.TestCase):
         git(self.root, "update-index", "--cacheinfo", "160000", git(child, "rev-parse", "HEAD"), "sources/FogCast")
         with self.assertRaisesRegex(ValueError, "lock"):
             self.checker().validate(self.root)
+
+    def test_historical_profile_selects_matching_old_pair(self):
+        old = self.checker().validate(self.root)
+        runtime = self.root / "sources/libmister-runtime"
+        git(runtime, "commit", "--allow-empty", "-qm", "new runtime")
+        git(self.root, "update-index", "--cacheinfo", "160000",
+            git(runtime, "rev-parse", "HEAD"), "sources/libmister-runtime")
+        # The checkout now has the new runtime; historical validation must read
+        # the old selected commit's lock rather than require current HEADs match it.
+        self.assertEqual(self.checker().validate(self.root, {"sources": old}), old)
+        with self.assertRaisesRegex(ValueError, "lock"):
+            self.checker().validate(self.root)
+
+    def test_profile_rejects_missing_revision(self):
+        with self.assertRaisesRegex(ValueError, "revision"):
+            self.checker().validate(self.root, {"sources": {"FogCast": "0" * 40}})
 
 if __name__ == "__main__":
     unittest.main()
