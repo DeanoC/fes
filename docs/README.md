@@ -23,9 +23,10 @@ and instructions; the same target name can mean different things there.
 
 ## What has been verified
 
-- [Dual-PLL native diagnostic](dual-pll-native-diagnostic.md): current gitlinks
-  including misteross `cb89517`, diagnostic `make dev` image and bounded kit
-  Pong/Mega Drive/SNES checks.
+- [Dual-PLL native diagnostic](dual-pll-native-diagnostic.md): FES `f34c84c`
+  selecting misteross `cb89517`, diagnostic `make dev` image and bounded kit
+  Pong/Mega Drive/SNES checks. The current parent gitlink is later than that
+  record.
 - [Integration validation](integration-validation.md): earlier selected
   revisions, clean two-pass image, QEMU and bounded physical-kit checks.
 - [Incremental build validation](incremental-build-validation.md): cache reuse,
