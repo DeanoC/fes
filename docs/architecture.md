@@ -146,6 +146,27 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
+`120_pll_dsp` runs the eight-by-eight unsigned DSP product on the proven
+50-to-25 MHz PLL output. Linux peeks and pokes GPO/GPI on the 50 MHz
+reference domain; there is no LED. Operands and the selected product byte
+cross with two-flop synchronizers. Yosys maps one `altera_pll` and one
+`MISTRAL_MUL9X9`. Memory remains forbidden. The closed OSS policy requires
+`host_port.FPGA_CLK1_50` at 50 MHz and `clk25` at 25 MHz. Reset stays tied
+low; this experiment does not re-prove frequency ratio, reset/relock, or
+analog lock. See `experiments/120_pll_dsp/expected.md`. Simulation and OSS
+are supported; Quartus comparison is not implemented.
+
+The OSS `120_pll_dsp` artifact has SHA-256
+`f3253cd9bd4660e0094c249120f44e22b960e929b653a5c9a62f21481b17879b`
+and size 1,956,437 bytes. Its reported reference/output Fmax values are
+419.815/150.625 MHz against 50/25 MHz constraints. Utilization is one
+`altera_pll`, one `MISTRAL_MUL9X9`, and one HPS GP. Exact-artifact kit
+diagnostics on 2026-09-06 returned lock and the expected products
+(`0x0A*0x0C=0x0078`, `0x12*0x34=0x03A8`, `0xFF*0xFF=0xFE01`) with GPI
+signature `0xDC10`. The current `kit.py` close completed development reboot
+recovery and left the lease free. This is exact-artifact functional
+diagnostic acceptance; it does not establish native game acceptance.
+
 ## Standalone Pong game
 
 `cores/pong/rtl/pong_game.sv` implements a deterministic 320x240 game module.
