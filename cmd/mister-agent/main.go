@@ -18,10 +18,12 @@ import (
 	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/httpapi"
 	"github.com/DeanoC/FogCast/internal/input"
+	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/internal/mister"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/internal/targetcache"
 	"github.com/DeanoC/FogCast/internal/version"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 const (
@@ -149,6 +151,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	coordinator.Initialize(startup)
 	cancel()
 	options := []httpapi.Option{httpapi.WithContent(content), httpapi.WithDevelopment(coordinator)}
+	var leaseCast httpapi.CastController
 	if cfg.CastBinary != "" {
 		if dependencies.newCast == nil {
 			return errors.New("cast controller could not be configured")
@@ -157,6 +160,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		if castErr != nil {
 			return errors.New("cast controller could not be configured")
 		}
+		leaseCast = castController
 		options = append(options, httpapi.WithCast(castController))
 		defer func() {
 			status := castController.Status(context.Background())
@@ -186,6 +190,29 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	if inputController != nil {
 		options = append(options, httpapi.WithInput(inputController))
 	}
+	leases := kitlease.New(90*time.Second, func(cleanup context.Context) error {
+		var cleanupErr error
+		if inputController != nil {
+			if releaser, ok := inputController.(interface{ ReleaseAll(context.Context) error }); ok {
+				cleanupErr = errors.Join(cleanupErr, releaser.ReleaseAll(cleanup))
+			} else {
+				cleanupErr = errors.Join(cleanupErr, errors.New("input controller cannot release kit ownership"))
+			}
+		}
+		if leaseCast != nil {
+			status := leaseCast.Status(cleanup)
+			if status.State == cast.Active {
+				cleanupErr = errors.Join(cleanupErr, leaseCast.Stop(cleanup, status.Session, status.Generation))
+			}
+		}
+		status, stopErr := coordinator.Stop(cleanup)
+		if stopErr != nil || status.State != protocol.StateIdle {
+			cleanupErr = errors.Join(cleanupErr, errors.New("kit runtime did not become idle"))
+		}
+		return cleanupErr
+	})
+	defer leases.Close()
+	options = append(options, httpapi.WithKitLease(leases))
 	handler := httpapi.New(coordinator, cfg.Token, version.Version, logger, options...)
 	server := &http.Server{
 		Addr:              cfg.ListenAddress,

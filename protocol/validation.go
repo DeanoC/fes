@@ -20,7 +20,7 @@ func ValidateGameID(id string) error {
 
 func ValidateSystem(system System) error {
 	switch system {
-	case SystemMegaDrive, SystemSNES, SystemNES, SystemSMS, SystemGameBoy, SystemGameBoyColor,
+	case SystemPong, SystemMegaDrive, SystemSNES, SystemNES, SystemSMS, SystemGameBoy, SystemGameBoyColor,
 		SystemGBA, SystemPCE, SystemGameGear, SystemAtari2600, SystemAtari7800, SystemColecoVision,
 		SystemAtariLynx, SystemWonderSwan, SystemWonderSwanColor, SystemIntellivision:
 		return nil

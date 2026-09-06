@@ -23,6 +23,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/httpapi"
+	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/internal/mister"
 	"github.com/DeanoC/FogCast/internal/targetcache"
 	"github.com/DeanoC/FogCast/internal/version"
@@ -164,7 +165,9 @@ func TestFogCastContentEndToEnd(t *testing.T) {
 	secondObserver := &uploadObserver{}
 	secondServer, secondCoordinator := startContentServer(t, runtime, registry, reconstructed, secondObserver, logger)
 	defer secondServer.Close()
-	if secondCoordinator.Status().State != protocol.StateActive || secondCoordinator.Status().System == nil || *secondCoordinator.Status().System != protocol.SystemMegaDrive {
+	// Closing the host releases its lease and restores idle; the reconstructed
+	// cache must still serve the next launch without another upload.
+	if secondCoordinator.Status().State != protocol.StateIdle {
 		t.Fatalf("reconstructed status = %#v", secondCoordinator.Status())
 	}
 	writeFogCastIntegrationConfig(t, hostConfig, secondServer.URL, snesRoot, megaRoot)
@@ -214,7 +217,20 @@ func TestFogCastContentEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	v1Client := host.NewClient(baseURL, "test-token", secondServer.Client())
+	// A different application must not replace the current owner.
+	v1Lease := host.NewKitLease(baseURL, "test-token", secondServer.Client(), "integration-v1", "legacy launch")
+	defer v1Lease.Close(context.Background())
+	v1Client := host.NewClient(baseURL, "test-token", secondServer.Client()).WithKitLease(v1Lease)
+	commandsBeforeForeignLaunch := writer.count()
+	if _, err := v1Client.Launch(context.Background(), protocol.LaunchRequest{GameID: "snes-legacy", System: protocol.SystemSNES, ROMPath: v1ROM}); err == nil {
+		t.Fatal("foreign application replaced the current kit owner")
+	}
+	if writer.count() != commandsBeforeForeignLaunch {
+		t.Fatal("foreign lease claim mutated the core")
+	}
+	if err := service.Close(); err != nil {
+		t.Fatal(err)
+	}
 	v1Status, err := v1Client.Launch(context.Background(), protocol.LaunchRequest{GameID: "snes-legacy", System: protocol.SystemSNES, ROMPath: v1ROM})
 	if err != nil || v1Status.State != protocol.StateActive || v1Status.ObservedCore == nil || *v1Status.ObservedCore != "SNES" {
 		t.Fatalf("v1 launch = %#v, %v", v1Status, err)
@@ -223,7 +239,7 @@ func TestFogCastContentEndToEnd(t *testing.T) {
 	if err != nil || v1Status.State != protocol.StateIdle {
 		t.Fatalf("v1 stop = %#v, %v", v1Status, err)
 	}
-	if firstCoordinator.Status().State != protocol.StateActive {
+	if firstCoordinator.Status().State != protocol.StateIdle {
 		t.Fatalf("first agent coordinator unexpectedly mutated after reconstruction: %#v", firstCoordinator.Status())
 	}
 }
@@ -252,7 +268,18 @@ func startContentServer(t *testing.T, runtime agent.Runtime, registry core.Regis
 	coordinator := agent.New(runtime, registry, time.Second, time.Second)
 	content := agent.NewContentController(coordinator, store)
 	coordinator.Initialize(context.Background())
-	handler := httpapi.New(coordinator, "test-token", version.Version, logger, httpapi.WithContent(content))
+	leases := kitlease.New(90*time.Second, func(ctx context.Context) error {
+		status, err := coordinator.Stop(ctx)
+		if err != nil {
+			return err
+		}
+		if status.State != protocol.StateIdle {
+			return errors.New("kit did not reach idle")
+		}
+		return nil
+	})
+	t.Cleanup(leases.Close)
+	handler := httpapi.New(coordinator, "test-token", version.Version, logger, httpapi.WithContent(content), httpapi.WithKitLease(leases))
 	return httptest.NewServer(observer.wrap(handler)), coordinator
 }
 

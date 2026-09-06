@@ -174,6 +174,8 @@ func WithExecutionPolicy(policy ExecutionPolicy) ServiceOption {
 }
 
 type Service struct {
+	stoppedKitLease     *host.KitLease
+	closeKitLeases      func(context.Context) error
 	catalog             serviceCatalog
 	scanner             serviceScanner
 	preparer            servicePreparer
@@ -269,6 +271,9 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 		_ = store.Close()
 		return nil, safeOpenError(message, cause)
 	}
+	if err := store.EnsureBuiltinPong(ctx); err != nil {
+		return fail("register built-in Pong", err)
+	}
 	if err := ensurePrivateRegularFile(paths.Index); err != nil {
 		return fail("secure FogCast catalog", err)
 	}
@@ -282,6 +287,8 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 	}
 	operationClient := *httpClient
 	operationClient.Timeout = 0
+	var leaseMu sync.Mutex
+	var leases []*host.KitLease
 	targetClientFactory := func(target TargetConfig) (serviceClient, error) {
 		if !target.Enabled {
 			return nil, nil
@@ -290,14 +297,29 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 		if err != nil {
 			return nil, err
 		}
-		return host.NewClient(baseURL, target.Agent, &operationClient), nil
+		owner, _ := os.Hostname()
+		lease := host.NewKitLease(baseURL, target.Agent, &operationClient, "fogcast@"+owner, "interactive game/development session")
+		leaseMu.Lock()
+		leases = append(leases, lease)
+		leaseMu.Unlock()
+		return host.NewClient(baseURL, target.Agent, &operationClient).WithKitLease(lease), nil
 	}
 	selectedTarget := targetByName(config.Targets, config.SelectedTarget)
 	client, err := targetClientFactory(selectedTarget)
 	if err != nil {
 		return fail("configure FogCast target", err)
 	}
-	options := []ServiceOption{WithConfigPath(paths.Config), withTargetClientFactory(targetClientFactory)}
+	options := []ServiceOption{WithConfigPath(paths.Config), withTargetClientFactory(targetClientFactory), func(s *Service) {
+		s.closeKitLeases = func(ctx context.Context) error {
+			leaseMu.Lock()
+			defer leaseMu.Unlock()
+			var errs []error
+			for _, lease := range leases {
+				errs = append(errs, lease.Close(ctx))
+			}
+			return errors.Join(errs...)
+		}
+	}}
 	if config.HostEmulator.Binary != "" {
 		cores := make(map[protocol.System]string, len(config.HostEmulator.Cores))
 		for _, entry := range config.HostEmulator.Cores {
@@ -570,8 +592,15 @@ func (s *Service) Close() error {
 		s.closing = true
 		s.scanMu.Unlock()
 		var first error
+		if s.closeKitLeases != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			first = s.closeKitLeases(ctx)
+			cancel()
+		}
 		if s.media != nil {
-			first = s.media.Close()
+			if err := s.media.Close(); first == nil {
+				first = err
+			}
 		}
 		if s.users != nil {
 			if err := s.users.Close(); first == nil {
@@ -1196,6 +1225,14 @@ func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 	if !ok {
 		return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
+	// Preserve the exact ownership used for this Stop even when its response
+	// is lost and the public session layer later reconciles idle via Status.
+	s.executionMu.Lock()
+	s.stoppedKitLease = nil
+	if leased, ok := client.(interface{ KitLease() *host.KitLease }); ok {
+		s.stoppedKitLease = leased.KitLease()
+	}
+	s.executionMu.Unlock()
 	status, err := client.Stop(ctx)
 	if err != nil {
 		targetDeadlineExpired := errors.Is(ctx.Err(), context.DeadlineExceeded) && parent.Err() == nil
@@ -1303,6 +1340,13 @@ func (s *Service) acquireLifecycle(ctx context.Context) (func(), error) {
 }
 
 func (s *Service) launchGame(ctx context.Context, game catalog.Game, progress ProgressFunc) (protocol.CachedLaunchResponse, bool, error) {
+	if game.System == protocol.SystemPong || game.Kind == catalog.SourceKindBuiltin {
+		if !catalog.IsBuiltinPong(game) {
+			return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeBadRequest, nil)
+		}
+		return s.launchFPGANative(ctx, game, "", progress)
+	}
+
 	if !s.PlatformLaunchable(game.System) {
 		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeUnsupportedSystem, nil)
 	}
@@ -1758,7 +1802,7 @@ func (s *Service) launchFPGANative(parent context.Context, game catalog.Game, ro
 	if err := protocol.ValidateSystem(game.System); err != nil {
 		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeUnsupportedSystem, nil)
 	}
-	emitProgress(progress, "launch", "launching on-kit FPGA content")
+	emitProgress(progress, "launch", "launching FPGA game")
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 	defer cancel()
 	// Reconcile a prior host_only RetroArch session before this launch can
@@ -2086,4 +2130,29 @@ func safeOpenError(message string, err error) error {
 		return errors.Join(errors.New(message), cause)
 	}
 	return errors.New(message)
+}
+
+// KitLease returns the application-owned lease shared with the input bridge.
+// Input-enabled composition already fixes the target connection at startup.
+func (s *Service) KitLease() *host.KitLease {
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
+	client, ok := s.selectedClientLocked()
+	if !ok {
+		return nil
+	}
+	if leased, ok := client.(interface{ KitLease() *host.KitLease }); ok {
+		return leased.KitLease()
+	}
+	return nil
+}
+
+// ReleaseKitLease is for an explicit user Stop after input/media cleanup.
+// Replacement Stop retains ownership so the next launch uses the same grant.
+func (s *Service) ReleaseKitLease(ctx context.Context) error {
+	s.executionMu.Lock()
+	lease := s.stoppedKitLease
+	s.stoppedKitLease = nil
+	s.executionMu.Unlock()
+	return lease.Release(ctx)
 }

@@ -73,6 +73,9 @@ func (c *ContentController) LaunchContent(parent context.Context, request protoc
 	if !ok {
 		return response, unsupportedSystemError()
 	}
+	if spec.ROMless {
+		return response, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "ROM-less games do not accept cached content"}
+	}
 	if err := protocol.ValidateContentIdentity(request.Content); err != nil {
 		return response, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "content identity is invalid"}
 	}
@@ -117,5 +120,5 @@ func (c *ContentController) LaunchContent(parent context.Context, request protoc
 }
 
 func unsupportedSystemError() *protocol.APIError {
-	return &protocol.APIError{Code: protocol.CodeUnsupportedSystem, Message: "system is not Mega Drive or SNES"}
+	return &protocol.APIError{Code: protocol.CodeUnsupportedSystem, Message: "system is not registered"}
 }

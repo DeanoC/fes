@@ -25,6 +25,7 @@ const (
 // authenticated MiSTer agent API. The target agent owns the uinput device and
 // bridge process; the host only owns the session lease and data connection.
 type HTTPBridgeStarterConfig struct {
+	KitLease     *KitLease
 	BaseURL      *url.URL
 	Token        string
 	HTTPClient   *http.Client
@@ -33,6 +34,7 @@ type HTTPBridgeStarterConfig struct {
 }
 
 type HTTPBridgeStarter struct {
+	kitLease     *KitLease
 	baseURL      url.URL
 	token        string
 	httpClient   *http.Client
@@ -59,6 +61,7 @@ func NewHTTPBridgeStarter(config HTTPBridgeStarterConfig) (*HTTPBridgeStarter, e
 	baseURL := *config.BaseURL
 	return &HTTPBridgeStarter{
 		baseURL:      baseURL,
+		kitLease:     config.KitLease,
 		token:        config.Token,
 		httpClient:   config.HTTPClient,
 		readyTimeout: config.ReadyTimeout,
@@ -78,19 +81,27 @@ func (s *HTTPBridgeStarter) Start(ctx context.Context, spec BridgeSpec) (BridgeH
 	var response struct {
 		Ready bool `json:"ready"`
 	}
-	if err := s.doJSON(ctx, http.MethodPost, "/v1/input/attach", requestBody, &response); err != nil || !response.Ready {
+	var sentKitToken string
+	if err := s.doJSONRequest(ctx, http.MethodPost, "/v1/input/attach", requestBody, &response, "", &sentKitToken); err != nil || !response.Ready {
 		return nil, ErrRemoteInputInvalid
 	}
 	handle := &httpBridgeHandle{
-		starter: s,
-		session: spec.Session,
-		ready:   make(chan struct{}),
+		starter:  s,
+		kitToken: sentKitToken,
+		session:  spec.Session,
+		ready:    make(chan struct{}),
 	}
 	close(handle.ready)
 	return handle, nil
 }
 
 func (s *HTTPBridgeStarter) doJSON(ctx context.Context, method, path string, body any, result any) error {
+	return s.doJSONWithToken(ctx, method, path, body, result, "")
+}
+func (s *HTTPBridgeStarter) doJSONWithToken(ctx context.Context, method, path string, body any, result any, kitToken string) error {
+	return s.doJSONRequest(ctx, method, path, body, result, kitToken, nil)
+}
+func (s *HTTPBridgeStarter) doJSONRequest(ctx context.Context, method, path string, body any, result any, kitToken string, sentKitToken *string) error {
 	encoded, err := json.Marshal(body)
 	if err != nil {
 		return err
@@ -104,6 +115,18 @@ func (s *HTTPBridgeStarter) doJSON(ctx context.Context, method, path string, bod
 	}
 	request.Header.Set("Authorization", "Bearer "+s.token)
 	request.Header.Set("Content-Type", "application/json")
+	if kitToken != "" {
+		if err := s.kitLease.authorizeExisting(request, kitToken); err != nil {
+			return err
+		}
+	} else if err := s.kitLease.Authorize(request, path == "/v1/input/attach"); err != nil {
+		return err
+	}
+	// Bind an input handle to the exact grant used for dispatch, even when
+	// another session replaces ownership while the response is in flight.
+	if sentKitToken != nil {
+		*sentKitToken = request.Header.Get(KitLeaseHeader)
+	}
 	response, err := s.httpClient.Do(request)
 	if err != nil {
 		return err
@@ -132,11 +155,12 @@ func (s *HTTPBridgeStarter) endpoint(path string) *url.URL {
 }
 
 type httpBridgeHandle struct {
-	starter *HTTPBridgeStarter
-	session uint64
-	ready   chan struct{}
-	mu      sync.Mutex
-	stopped bool
+	kitToken string
+	starter  *HTTPBridgeStarter
+	session  uint64
+	ready    chan struct{}
+	mu       sync.Mutex
+	stopped  bool
 }
 
 func (h *httpBridgeHandle) Ready() <-chan struct{} { return h.ready }
@@ -169,6 +193,10 @@ func (h *httpBridgeHandle) Dial(ctx context.Context) (net.Conn, error) {
 	}
 	request.Header.Set("Authorization", "Bearer "+h.starter.token)
 	request.Header.Set("X-FogCast-Input-Session", strconv.FormatUint(h.session, 10))
+	if err := h.starter.kitLease.authorizeExisting(request, h.kitToken); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
 	if err := request.Write(conn); err != nil {
 		_ = conn.Close()
 		return nil, ErrRemoteInputInvalid
@@ -195,13 +223,16 @@ func (h *httpBridgeHandle) Stop(ctx context.Context) error {
 	}
 	h.stopped = true
 	h.mu.Unlock()
+	if h.starter.kitLease != nil && h.starter.kitLease.currentToken() != h.kitToken {
+		return ErrKitLeaseLost
+	}
 	requestBody := struct {
 		Session uint64 `json:"session"`
 		Reason  string `json:"reason"`
 	}{Session: h.session, Reason: "detach"}
-	if err := h.starter.doJSON(ctxOrBackground(ctx), http.MethodPost, "/v1/input/detach", requestBody, &struct {
+	if err := h.starter.doJSONWithToken(ctxOrBackground(ctx), http.MethodPost, "/v1/input/detach", requestBody, &struct {
 		Ready bool `json:"ready"`
-	}{}); err != nil {
+	}{}, h.kitToken); err != nil {
 		return ErrRemoteInputInvalid
 	}
 	return nil
@@ -223,3 +254,6 @@ type BridgeDialer interface {
 var _ BridgeStarter = (*HTTPBridgeStarter)(nil)
 var _ BridgeHandle = (*httpBridgeHandle)(nil)
 var _ BridgeDialer = (*httpBridgeHandle)(nil)
+
+// WithKitLease must be called at composition time before starting input.
+func (s *HTTPBridgeStarter) WithKitLease(lease *KitLease) { s.kitLease = lease }

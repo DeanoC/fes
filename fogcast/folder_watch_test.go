@@ -1007,7 +1007,7 @@ func TestServiceOpenRetiresMappedCatalogWhenNoMappedRootsRemain(t *testing.T) {
 		t.Fatalf("ReconcileFolderWatch(seed): %v", err)
 	}
 	seeded, err := seed.Games(ctx)
-	if err != nil || len(seeded) != 1 {
+	if err != nil || len(seeded) != 2 || !catalog.IsBuiltinPong(seeded[1]) {
 		t.Fatalf("seeded catalog = %+v err=%v", seeded, err)
 	}
 	if err := seed.Close(); err != nil {
@@ -1034,7 +1034,7 @@ upload_timeout_seconds = 2
 		t.Fatalf("ReconcileFolderWatch(unresolved) error = %v", err)
 	}
 	remaining, err := service.Games(ctx)
-	if err != nil || len(remaining) != 0 {
+	if err != nil || len(remaining) != 1 || !catalog.IsBuiltinPong(remaining[0]) {
 		t.Fatalf("catalog after mapped roots removed = %+v err=%v", remaining, err)
 	}
 	if _, err := service.Game(ctx, seeded[0].ID); err == nil {

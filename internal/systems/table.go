@@ -22,6 +22,7 @@ const (
 const CoverProviderIGDB = "igdb"
 
 type CoreSpec struct {
+	ROMless              bool // Installed native game with no Main RBF selector or external media.
 	ExpectedCore         string
 	ObservedFallback     bool
 	RequiresLaunchIntent bool
@@ -70,7 +71,7 @@ var table = []Row{
 	{
 		FolderAlias: "SNES", PlatformID: protocol.SystemSNES, LaunchSystem: protocol.SystemSNES, Label: "SNES",
 		Extensions: []string{".sfc", ".smc", ".bin"}, Capability: CapabilityFPGANative,
-		Core:       &CoreSpec{ExpectedCore: "SNES", RBF: "_Console/SNES", KitROMRoot: "/media/fat/games/SNES", MGLRoot: "/media/fat/games/SNES", FileDelay: 2, FileType: "f", FileIndex: 0},
+		Core:       &CoreSpec{ExpectedCore: generated.SNESExpectedCore, RBF: "_Console/SNES", KitROMRoot: "/media/fat/games/SNES", MGLRoot: "/media/fat/games/SNES", FileDelay: 2, FileType: "f", FileIndex: 0},
 		CoverSlugs: map[string]CoverSpec{CoverProviderIGDB: {Slug: "snes", Name: "Super Nintendo Entertainment System"}},
 	},
 	{
@@ -96,6 +97,10 @@ var table = []Row{
 		Extensions: []string{".gba"}, Capability: CapabilityFPGANative,
 		Core:       &CoreSpec{ExpectedCore: "GBA", RBF: "_Console/GBA", KitROMRoot: "/media/fat/games/GBA", MGLRoot: "/media/fat/games/GBA", FileDelay: 2, FileType: "f", FileIndex: 0},
 		CoverSlugs: map[string]CoverSpec{CoverProviderIGDB: {Slug: "gba", Name: "Game Boy Advance"}},
+	},
+	{
+		PlatformID: protocol.SystemPong, LaunchSystem: protocol.SystemPong, Label: "Pong", Capability: CapabilityFPGANative,
+		Core: &CoreSpec{ROMless: true, ExpectedCore: generated.PongExpectedCore},
 	},
 	{PlatformID: "n64", Label: "Nintendo 64", Extensions: []string{".n64", ".z64", ".v64"}, Capability: CapabilityCatalog},
 	{PlatformID: "psx", Label: "PlayStation", Extensions: []string{".cue", ".chd", ".pbp", ".iso", ".img"}, Capability: CapabilityCatalog},

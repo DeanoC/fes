@@ -20,6 +20,7 @@ const (
 )
 
 type Client struct {
+	kitLease   *KitLease
 	baseURL    *url.URL
 	token      string
 	httpClient *http.Client
@@ -135,6 +136,9 @@ func (c *Client) doJSONQuery(ctx context.Context, method, path string, query url
 	}
 	if method == http.MethodPost {
 		request.Header.Set("Content-Type", "application/json")
+	}
+	if err := c.authorizeMutation(request); err != nil {
+		return err
 	}
 	response, err := c.httpClient.Do(request)
 	if err != nil {

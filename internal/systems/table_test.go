@@ -15,7 +15,7 @@ func TestTableInvariants(t *testing.T) {
 	aliases := make(map[string]struct{})
 	fpga := 0
 	for _, row := range Rows() {
-		if row.PlatformID == "" || row.Label == "" || len(row.Extensions) == 0 {
+		if row.PlatformID == "" || row.Label == "" || (len(row.Extensions) == 0 && (row.Core == nil || !row.Core.ROMless)) {
 			t.Fatalf("incomplete row: %#v", row)
 		}
 		if _, exists := platforms[row.PlatformID]; exists {
@@ -49,7 +49,7 @@ func TestTableInvariants(t *testing.T) {
 			}
 		case CapabilityFPGANative:
 			fpga++
-			if row.Core == nil || row.Core.ExpectedCore == "" || row.Core.RBF == "" || row.Core.KitROMRoot == "" || row.Core.MGLRoot == "" || row.LaunchSystem == "" || row.LaunchSystem != row.PlatformID {
+			if row.Core == nil || row.Core.ExpectedCore == "" || (!row.Core.ROMless && (row.Core.RBF == "" || row.Core.KitROMRoot == "" || row.Core.MGLRoot == "")) || row.LaunchSystem == "" || row.LaunchSystem != row.PlatformID {
 				t.Fatalf("FPGA row %q lacks core data", row.PlatformID)
 			}
 			if err := protocol.ValidateSystem(row.PlatformID); err != nil {
@@ -76,8 +76,8 @@ func TestTableInvariants(t *testing.T) {
 			}
 		}
 	}
-	if fpga != 16 {
-		t.Fatalf("FPGA rows = %d, want 16", fpga)
+	if fpga != 17 {
+		t.Fatalf("FPGA rows = %d, want 17", fpga)
 	}
 }
 

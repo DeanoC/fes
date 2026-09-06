@@ -54,11 +54,25 @@ fallback.
 
 The native adapter reports ready only when `mister-runtime` reports `idle`.
 An idle Stop confirms that state without calling the runtime Stop operation.
-Native product support contains one hardware-tested system: registry
-`megadrive`. The path validates an absolute staged ROM and sends one local
-request using `/usr/share/mister-runtime/cores/megadrive.rbf` with semantic
-media role `cartridge`. Every other system returns an unsupported-system error;
-the separate development operation accepts only the existing MiSTer-compatible
+The native adapter admits Mega Drive, ordinary SNES cartridges, and the
+registered ROM-less Pong profile.
+Mega Drive validates an absolute staged ROM and sends one local request using
+`/usr/share/mister-runtime/cores/megadrive.rbf` and media role `cartridge`.
+Pong uses `/usr/share/mister-runtime/cores/pong.rbf` with `media: {}` and
+`settings: {}`; supplied ROM paths and cached-content launches are rejected.
+SNES uses `/usr/share/mister-runtime/cores/snes.rbf`, exactly one `cartridge`
+path, and empty settings. FogCast checks the staged file path and extension;
+the runtime validates cartridge bytes before hardware mutation and owns the
+512-byte metadata prefix. It does not modify the host cache or content hash.
+The native package index is 1; the Main MGL selector remains 0. Initial support
+is bounded ordinary LoROM/HiROM; enhancement chips, external firmware, expanded
+mappings, and persistent saves are outside this slice. Other systems remain
+unsupported by this adapter. All admitted profiles reconcile lost responses
+only against the requested system/core identity, without replay, and use the
+ordinary Stop-to-idle lifecycle. SNES is software-tested; exact-artifact
+hardware acceptance is a separate integration step.
+Mega Drive remains the hardware-tested native game. The separate development
+operation accepts only the existing MiSTer-compatible
 ABI and has no catalogue identity. The native adapter atomically stages one
 bounded upload at `/tmp/fogcast-development/core.rbf`, dispatches it once to
 the runtime, and resolves ambiguous responses through Status without replay.
@@ -75,13 +89,37 @@ Raw development uploads still have no generic video or input guarantee.
 The native agent creates one `FogCast Virtual Gamepad` during startup before
 runtime reconciliation. Its Linux identity is `BUS_VIRTUAL`, vendor `0x0000`,
 product `0x0001`, version `0x0001`; its capabilities are the one-player D-pad,
-A/B/C/Start, signed X/Y axes, and synchronized event reports consumed by the
+A/B/C/X/Y/L/R/Select/Start, signed X/Y axes, and synchronized event reports consumed by the
 native runtime. Authenticated input leases only gate delivery to that retained
 device: detach releases held state without destroying it, and agent shutdown
 destroys it once. The Main backend keeps the existing per-lease input-device
 path. Exact-image physical acceptance established playable D-pad and jump
 input for the one-player Mega Drive slice; it does not establish six-button,
 multiplayer, remapping, or hot-plug support.
+
+Remote input retains Select wire code 107 and MD C code 108; X/Y/L/R append
+codes 109/110/111/112. Linux events use BTN_X 307, BTN_Y 308, BTN_TL 310,
+BTN_TR 311, and BTN_SELECT 314. Optional masks in the active runtime profile
+determine which controls the core consumes. The same retained device spans
+MD and SNES leases; no per-game virtual-device churn or input coordinator is
+introduced. The host API exposes lease attach/detach/status; gamepad event
+producers continue using the existing host RemoteInput event interface.
+
+## Built-in Pong product
+
+Opening the host registers game ID `pong` in the ordinary SQL catalog as
+`source_kind: builtin`, with no relative path, ROM, content identity or source
+fingerprint. `builtin-pong` is a reserved logical collection with URI
+`builtin:pong`, excluded from filesystem scans and library retirement. It uses
+existing game filters, pagination, favorites, presentation and session APIs;
+no UI-specific launch coordinator is introduced. The native runtime is required.
+
+`POST /api/v1/session/launch` with `{"game_id":"pong"}` follows the existing
+host direct-launch path to target `/v1/launch` with empty `rom_path`. Only the
+exact registered built-in can omit media; rooted games retain their existing
+source/cache admission. Configured Pong library roots are rejected. The Main
+backend explicitly rejects ROM-less profiles. Host discoverability does not
+establish that a selected target image contains the required Pong RBF.
 
 ## Other modes
 
@@ -275,3 +313,50 @@ The exact reproducible native image passed the designated two-cycle
 development-to-idle-to-game acceptance and the legacy rollback gate. This is
 a narrow hardware capability for the existing MiSTer-compatible development
 ABI; it does not imply useful video or input for other RBFs.
+
+### Target kit ownership
+
+The production target agent enforces a renewable kit lease across game and
+native development sessions. Authenticated clients read `GET /v1/kit/lease`,
+claim with `POST /v1/kit/claim` (`request_id`, `owner`, `purpose`), and carry the
+returned secret in `X-FogCast-Kit-Lease` on every hardware mutation and input
+CONNECT. Request IDs are random hexadecimal strings of at least 32 characters;
+retries reuse the same ID. Cache transfer and status inspection do not reserve the kit. A Stop
+ends the current runtime session but retains ownership for another launch.
+
+Renew and release use empty POST bodies at `/v1/kit/renew` and
+`/v1/kit/release`. The production lease lasts 90 seconds; active clients renew
+before expiry. Expiry closes input streams and interrupts incomplete uploads,
+then waits for admitted operations and invokes input neutralization, cast Stop,
+and runtime Stop. Ownership becomes available only after successful cleanup;
+failed recovery leaves it blocked. Agent startup performs the same cleanup.
+The retained uinput device survives lease release.
+
+An operator using the configured bearer credential may explicitly request
+`POST /v1/kit/takeover` with `request_id`, `owner`, `purpose`,
+`expected_generation`, and a nonempty `reason`. Takeover revokes the previous
+lease through the same cleanup path; it never aborts FPGA programming halfway
+through a transition. Clients retry a busy takeover using the same request ID.
+Old lease credentials cannot stop or send input to the replacement owner.
+This protects agent API operations; direct root SSH or runtime socket access
+remains a maintenance escape outside the lease boundary.
+
+## Host kit lease
+
+The production service owns a renewable target kit lease, shared explicitly
+with its game/development client and target input bridge (including CONNECT).
+The first hardware mutation claims ownership; renewal runs every 20 seconds
+against the target's 90-second timeout. Client expiry uses the returned
+remaining duration and local monotonic time, so a kit without an RTC works;
+request round-trip time counts against that duration. Status and cache transfers do not claim
+hardware. Stop, input detach and reboot require an existing grant and never
+claim someone else's active session. Replacement operations retain the grant.
+Explicit public Stop releases its grant after input/media/hardware cleanup;
+replacement Stop retains ownership for the next launch. Application shutdown
+releases its grants after input/session cleanup.
+
+A renewal error or expired grant invalidates local ownership and stops renewal.
+The host does not automatically take over or fall back to an unguarded target
+when lease endpoints are unavailable. An operator must inspect ownership and
+start a fresh application session after lease loss. The target owns timeout,
+revocation and serialized physical cleanup; host lease tokens stay in memory.

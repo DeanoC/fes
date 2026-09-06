@@ -70,7 +70,12 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 	if settings.input != nil {
 		registerInputRoutes(mux, token, settings.input)
 	}
-	return requestLogger(logger, rejectInvalidV2RouteShapes(mux))
+	var handler http.Handler = mux
+	if settings.kitLease != nil {
+		registerKitLeaseRoutes(mux, token, settings.kitLease)
+		handler = guardKitLease(handler, token, settings.kitLease)
+	}
+	return requestLogger(logger, rejectInvalidV2RouteShapes(handler))
 }
 
 func registerInputRoutes(mux *http.ServeMux, token string, controller InputController) {
@@ -164,10 +169,14 @@ func inputStreamHandler(controller InputController) http.Handler {
 			_ = backend.Close()
 			return
 		}
+		closeConnections := func() { _ = client.Close(); _ = backend.Close() }
+		stopCancellation := context.AfterFunc(r.Context(), closeConnections)
+		defer stopCancellation()
+		defer closeConnections()
 		var wait sync.WaitGroup
 		wait.Add(2)
-		go func() { defer wait.Done(); _, _ = io.Copy(backend, client) }()
-		go func() { defer wait.Done(); _, _ = io.Copy(client, backend) }()
+		go func() { defer wait.Done(); defer closeConnections(); _, _ = io.Copy(backend, client) }()
+		go func() { defer wait.Done(); defer closeConnections(); _, _ = io.Copy(client, backend) }()
 		wait.Wait()
 		_ = client.Close()
 		_ = backend.Close()
@@ -450,6 +459,8 @@ func (w *statusWriter) Write(body []byte) (int, error) {
 	}
 	return w.ResponseWriter.Write(body)
 }
+
+func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 func (w *statusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	hijacker, ok := w.ResponseWriter.(http.Hijacker)

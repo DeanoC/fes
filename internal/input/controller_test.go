@@ -349,19 +349,19 @@ func TestPersistentTargetControllerDetachReleasesWithoutDestroyingDevice(t *test
 	controller := newTargetControllerWithSink("127.0.0.1:0", sink)
 	token := []byte("0123456789abcdef")
 
-	attachAndPress := func(session uint64) net.Conn {
+	attachAndPress := func(session uint64, core string, code uint16) net.Conn {
 		t.Helper()
-		if err := controller.Attach(context.Background(), Spec{Session: session, Token: token, Core: "MegaDrive"}); err != nil {
+		if err := controller.Attach(context.Background(), Spec{Session: session, Token: token, Core: core}); err != nil {
 			t.Fatal(err)
 		}
 		connection, err := controller.OpenStream(context.Background(), session)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := fmt.Fprintf(connection, "{\"version\":1,\"session\":%d,\"core\":\"MegaDrive\",\"proof\":\"%s\"}\n", session, hex.EncodeToString(token)); err != nil {
+		if _, err := fmt.Fprintf(connection, "{\"version\":1,\"session\":%d,\"core\":\"%s\",\"proof\":\"%s\"}\n", session, core, hex.EncodeToString(token)); err != nil {
 			t.Fatal(err)
 		}
-		frame := protocol.InputFrame{Header: protocol.InputHeader{Type: protocol.InputTypeInput, Session: session}, Seq: 1, Device: 1, Kind: 1, Action: 1, Code: protocol.InputCodeButtonC}
+		frame := protocol.InputFrame{Header: protocol.InputHeader{Type: protocol.InputTypeInput, Session: session}, Seq: 1, Device: 1, Kind: 1, Action: 1, Code: code}
 		if err := bridge.WriteFrame(connection, frame); err != nil {
 			t.Fatal(err)
 		}
@@ -369,7 +369,7 @@ func TestPersistentTargetControllerDetachReleasesWithoutDestroyingDevice(t *test
 		return connection
 	}
 
-	first := attachAndPress(1)
+	first := attachAndPress(1, "MegaDrive", protocol.InputCodeButtonC)
 	if err := controller.Detach(context.Background(), 1); err != nil {
 		t.Fatal(err)
 	}
@@ -382,8 +382,64 @@ func TestPersistentTargetControllerDetachReleasesWithoutDestroyingDevice(t *test
 		t.Fatalf("device close calls after detach = %d, want 0", closedAfterDetach)
 	}
 
-	second := attachAndPress(2)
+	second := attachAndPress(2, "SNES", protocol.InputCodeButtonX)
 	if err := controller.Detach(context.Background(), 2); err != nil {
+		t.Fatal(err)
+	}
+	_ = second.Close()
+	if err := controller.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := controller.Close(); err != nil {
+		t.Fatal(err)
+	}
+	sink.mu.Lock()
+	defer sink.mu.Unlock()
+	if sink.events != 2 || sink.closed != 1 {
+		t.Fatalf("persistent lifecycle = events:%d closes:%d, want 2 events and 1 close", sink.events, sink.closed)
+	}
+}
+
+func TestPersistentTargetControllerReleaseAllPreservesDeviceForNextOwner(t *testing.T) {
+	sink := &persistentTestSink{}
+	controller := newTargetControllerWithSink("127.0.0.1:0", sink)
+	token := []byte("0123456789abcdef")
+
+	attachAndPress := func(session uint64, core string, code uint16) net.Conn {
+		t.Helper()
+		if err := controller.Attach(context.Background(), Spec{Session: session, Token: token, Core: core}); err != nil {
+			t.Fatal(err)
+		}
+		connection, err := controller.OpenStream(context.Background(), session)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := fmt.Fprintf(connection, "{\"version\":1,\"session\":%d,\"core\":\"%s\",\"proof\":\"%s\"}\n", session, core, hex.EncodeToString(token)); err != nil {
+			t.Fatal(err)
+		}
+		frame := protocol.InputFrame{Header: protocol.InputHeader{Type: protocol.InputTypeInput, Session: session}, Seq: 1, Device: 1, Kind: 1, Action: 1, Code: code}
+		if err := bridge.WriteFrame(connection, frame); err != nil {
+			t.Fatal(err)
+		}
+		waitForSink(t, sink, func(s *persistentTestSink) bool { return s.pressed })
+		return connection
+	}
+
+	first := attachAndPress(1, "MegaDrive", protocol.InputCodeButtonC)
+	if err := controller.ReleaseAll(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	waitForSink(t, sink, func(s *persistentTestSink) bool { return !s.pressed && s.released > 0 })
+	_ = first.Close()
+	sink.mu.Lock()
+	closedAfterDetach := sink.closed
+	sink.mu.Unlock()
+	if closedAfterDetach != 0 {
+		t.Fatalf("device close calls after detach = %d, want 0", closedAfterDetach)
+	}
+
+	second := attachAndPress(2, "SNES", protocol.InputCodeButtonX)
+	if err := controller.ReleaseAll(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	_ = second.Close()

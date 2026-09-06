@@ -84,3 +84,26 @@ func TestStateRejectsUnsupportedEvent(t *testing.T) {
 		t.Fatal("unsupported device accepted")
 	}
 }
+
+func TestSNESAdditionalButtonsRetainWireCodes(t *testing.T) {
+	for name, want := range map[string]Code{"select": 107, "c": 108, "x": 109, "y": 110, "l": 111, "r": 112} {
+		event, err := NormalizeGamepad(name, true)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if event.Code != want || event.Device != DeviceGamepad || event.Kind != KindButton {
+			t.Fatalf("%s: %+v", name, event)
+		}
+		var state State
+		if err := state.Apply(event); err != nil {
+			t.Fatal(err)
+		}
+		if !state.Pressed(want) {
+			t.Fatal("button not retained")
+		}
+		state.ReleaseAll()
+		if len(state.Snapshot().Pressed) != 0 {
+			t.Fatal("button stuck after release")
+		}
+	}
+}

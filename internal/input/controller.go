@@ -261,6 +261,34 @@ func (c *TargetController) OpenStream(ctx context.Context, session uint64) (net.
 	return dialer.DialContext(ctx, "tcp", endpoint)
 }
 
+// ReleaseAll ends remote input without destroying the retained uinput device.
+// The kit lease calls this only after all admitted HTTP operations finish.
+func (c *TargetController) ReleaseAll(ctx context.Context) error {
+	c.mu.Lock()
+	pending, current := c.pending, c.active
+	c.mu.Unlock()
+	var result error
+	if pending != nil {
+		result = errors.Join(result, c.Detach(ctx, pending.session))
+	}
+	if current != nil {
+		result = errors.Join(result, c.Detach(ctx, current.session))
+	}
+	c.lifecycle.Lock()
+	defer c.lifecycle.Unlock()
+	c.mu.Lock()
+	persistent := c.persistent
+	c.mu.Unlock()
+	if persistent != nil {
+		releaseErr := persistent.ReleaseAll()
+		result = errors.Join(result, releaseErr)
+		c.mu.Lock()
+		c.needsRelease = releaseErr != nil
+		c.mu.Unlock()
+	}
+	return result
+}
+
 func (c *TargetController) Close() error {
 	if c == nil {
 		return nil

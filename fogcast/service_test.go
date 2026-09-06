@@ -1627,7 +1627,7 @@ func TestServiceOpenComposesCatalogScannerAndAuthenticatedClient(t *testing.T) {
 	if len(report.Roots) != 1 || report.Roots[0].RootID != "snes-main" || report.Roots[0].Offline {
 		t.Fatalf("scan report = %+v", report)
 	}
-	if games, err := service.Games(context.Background()); err != nil || len(games) != 0 {
+	if games, err := service.Games(context.Background()); err != nil || len(games) != 1 || !catalog.IsBuiltinPong(games[0]) {
 		t.Fatalf("Games = %+v, %v", games, err)
 	}
 	for _, path := range []string{indexParent, staging} {
@@ -1667,6 +1667,10 @@ func TestServiceOpenUsesOperationContextsInsteadOfCallerHTTPClientTimeout(t *tes
 	}
 	transport := serviceRoundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
+		case request.URL.Path == "/v1/kit/claim":
+			return serviceJSONResponse(request, map[string]any{"status": map[string]any{"state": "held", "generation": "test", "expires_at": time.Now().Add(time.Minute), "expires_in_ms": 60000}, "token": "test-lease"})
+		case request.URL.Path == "/v1/kit/release":
+			return serviceJSONResponse(request, map[string]string{"state": "free"})
 		case request.Method == http.MethodGet && strings.HasPrefix(request.URL.Path, "/v2/cache/"):
 			return serviceJSONResponse(request, protocol.CacheProbeResponse{Present: false})
 		case request.Method == http.MethodPut && strings.HasPrefix(request.URL.Path, "/v2/cache/"):
@@ -1714,7 +1718,7 @@ func TestServiceOpenUsesOperationContextsInsteadOfCallerHTTPClientTimeout(t *tes
 		t.Fatalf("Scan: %v", err)
 	}
 	games, err := service.Games(context.Background())
-	if err != nil || len(games) != 1 {
+	if err != nil || len(games) != 2 || !catalog.IsBuiltinPong(games[1]) {
 		t.Fatalf("Games = %+v, %v", games, err)
 	}
 
@@ -1775,7 +1779,7 @@ func TestServiceLaunchRejectsReconfiguredRootBeforeReadingOrTargetMutation(t *te
 		t.Fatalf("Scan(root A): %v", err)
 	}
 	games, err := seed.Games(context.Background())
-	if err != nil || len(games) != 1 {
+	if err != nil || len(games) != 2 || !catalog.IsBuiltinPong(games[1]) {
 		t.Fatalf("Games(root A) = %+v, %v", games, err)
 	}
 	gameID := games[0].ID

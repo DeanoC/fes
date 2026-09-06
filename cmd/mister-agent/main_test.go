@@ -113,6 +113,7 @@ func (*compositionCast) Status(context.Context) cast.Status {
 	return cast.Status{State: cast.Active, Session: "session", Generation: 9}
 }
 
+func (*compositionInput) ReleaseAll(context.Context) error         { return nil }
 func (*compositionInput) Attach(context.Context, input.Spec) error { return nil }
 func (*compositionInput) Detach(context.Context, uint64) error     { return nil }
 func (*compositionInput) OpenStream(context.Context, uint64) (net.Conn, error) {
@@ -204,11 +205,31 @@ func TestRunComposesFixedCacheContentHandlerAndUploadTimeouts(t *testing.T) {
 			if response.Code != http.StatusOK || response.Body.String() != "{\"present\":false}\n" {
 				t.Fatalf("content route = HTTP %d %q", response.Code, response.Body.String())
 			}
+			var kitToken string
+			claimDeadline := time.Now().Add(time.Second)
+			for kitToken == "" {
+				claim := httptest.NewRequest(http.MethodPost, "/v1/kit/claim", strings.NewReader(`{"request_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","owner":"test","purpose":"development"}`))
+				claim.Header.Set("Authorization", "Bearer test-token")
+				result := httptest.NewRecorder()
+				server.Handler.ServeHTTP(result, claim)
+				var grant struct {
+					Token string `json:"token"`
+				}
+				_ = json.Unmarshal(result.Body.Bytes(), &grant)
+				kitToken = grant.Token
+				if kitToken == "" && time.Now().After(claimDeadline) {
+					t.Fatalf("claim: %d %s", result.Code, result.Body.String())
+				}
+				if kitToken == "" {
+					time.Sleep(time.Millisecond)
+				}
+			}
 			payload := []byte("development-rbf")
 			request = httptest.NewRequest(http.MethodPost, "/v1/development/rbf", strings.NewReader(string(payload)))
 			request.ContentLength = int64(len(payload))
 			request.Header.Set("Authorization", "Bearer test-token")
 			request.Header.Set("Content-Type", "application/octet-stream")
+			request.Header.Set(httpapi.KitLeaseHeader, kitToken)
 			response = httptest.NewRecorder()
 			server.Handler.ServeHTTP(response, request)
 			if response.Code != http.StatusOK || rbfStatus(response.Body.Bytes()).State != protocol.StateActive {
@@ -340,7 +361,7 @@ func TestRunStopsCastControllerOnShutdown(t *testing.T) {
 
 func TestRunRetriesCastShutdownAndReturnsStableFailure(t *testing.T) {
 	configPath := writeCompositionConfig(t, "cast_binary = \"/tmp/fbbridge\"\ncast_rtp_address = \":5534\"\ncast_control_address = \":5535\"\ncast_framebuffer = \"/dev/fb0\"\ncast_native_cmd = \"/dev/MiSTer_cmd\"\ncast_native_mode = \"8888 1 1920 1080\"\ncast_token_file = \"/tmp/cast-token\"\ncast_generation = 9\n")
-	castController := &compositionCast{stopErrors: []error{errors.New("private-token first failure"), nil}}
+	castController := &compositionCast{}
 	ctx, cancel := context.WithCancel(context.Background())
 	deps := runDependencies{
 		openCache: func(targetcache.Config, core.Registry, ...targetcache.Option) (agent.ContentStore, error) {
@@ -348,7 +369,10 @@ func TestRunRetriesCastShutdownAndReturnsStableFailure(t *testing.T) {
 		},
 		newRuntime: func(agentconfig.Config, core.Registry) agent.Runtime { return &compositionRuntime{} },
 		newCast:    func(agentconfig.Config) (httpapi.CastController, error) { return castController, nil },
-		serve: func(*http.Server) error {
+		serve: func(server *http.Server) error {
+			waitForKitStartup(t, server.Handler)
+			castController.stopContexts = nil
+			castController.stopErrors = []error{errors.New("private-token first failure"), nil}
 			cancel()
 			return http.ErrServerClosed
 		},
@@ -577,4 +601,26 @@ mgl_directory = "/tmp/fogcast"
 		t.Fatal(err)
 	}
 	return path
+}
+
+func waitForKitStartup(t *testing.T, handler http.Handler) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for {
+		request := httptest.NewRequest(http.MethodGet, "/v1/kit/lease", nil)
+		request.Header.Set("Authorization", "Bearer test-token")
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		var status struct {
+			State string `json:"state"`
+		}
+		_ = json.Unmarshal(response.Body.Bytes(), &status)
+		if status.State == "free" {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("kit startup: %s", response.Body.String())
+		}
+		time.Sleep(time.Millisecond)
+	}
 }

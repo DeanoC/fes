@@ -38,8 +38,8 @@ func TestDefaultPlatformsIncludesLaunchableAndBrowseOnly(t *testing.T) {
 			launchable++
 		}
 	}
-	if launchable != 16 {
-		t.Fatalf("launchable rows = %d, want 16", launchable)
+	if launchable != 17 {
+		t.Fatalf("launchable rows = %d, want 17", launchable)
 	}
 	for _, system := range []protocol.System{protocol.SystemNES, protocol.SystemSMS} {
 		platform, ok := catalog.DefaultPlatforms().Lookup(system)

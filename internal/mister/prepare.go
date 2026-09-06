@@ -33,6 +33,9 @@ func PrepareLaunch(spec core.Spec, candidate string) (PreparedLaunch, *protocol.
 	fail := func(code protocol.ErrorCode, message string) (PreparedLaunch, *protocol.APIError) {
 		return PreparedLaunch{}, &protocol.APIError{Code: code, Message: message}
 	}
+	if spec.ROMless {
+		return fail(protocol.CodeUnsupportedSystem, "ROM-less Pong requires the native runtime")
+	}
 	if strings.IndexByte(candidate, 0) >= 0 || !filepath.IsAbs(candidate) {
 		return fail(protocol.CodeInvalidROMPath, "ROM path must be absolute and contain no NUL byte")
 	}
