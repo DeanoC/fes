@@ -78,12 +78,15 @@ struct Status {
 	Error error;
 };
 
+enum class MediaTransform { raw, snes_cartridge };
+
 struct MediaRule {
 	std::string role;
 	std::uint8_t index = 0;
 	bool required = false;
 	std::vector<std::string> extensions;
 	std::uint64_t maximum_size = 0;
+	MediaTransform transform = MediaTransform::raw;
 };
 
 struct SettingRule {
@@ -105,6 +108,7 @@ struct InputRecipe {
 	std::uint16_t player_command = 0;
 	std::uint16_t up = 0, down = 0, left = 0, right = 0;
 	std::uint16_t a = 0, b = 0, c = 0, start = 0;
+	std::uint16_t x = 0, y = 0, l = 0, r = 0, select = 0;
 };
 
 struct Profile {
@@ -121,6 +125,7 @@ struct PreparedMedia {
 	std::uint8_t index = 0;
 	std::string path;
 	std::uint64_t maximum_size = 0;
+	MediaTransform transform = MediaTransform::raw;
 };
 
 struct PreparedLaunch {

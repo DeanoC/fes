@@ -235,10 +235,19 @@ void TestStatusErrorIsIndependentOfResponseOk()
 	assert(response.find("\"error\":{\"code\":\"io_failed\",\"message\":\"prior failure\"}") != std::string::npos);
 }
 
+void TestPongRomlessLaunchRequest()
+{
+	Request pong;
+	assert(Parse(R"({"protocol":1,"operation":"launch","system":"pong","rbf":"/usr/share/mister-runtime/cores/pong.rbf","media":{},"settings":{}})", &pong).ok());
+	assert(pong.operation == Operation::launch && pong.launch.system == "pong");
+	assert(pong.launch.media.empty() && pong.launch.settings.empty());
+}
+
 } // namespace
 
 int main()
 {
+	TestPongRomlessLaunchRequest();
 	TestGoldenRequests();
 	TestProtocolVersion();
 	TestUnknownFields();
@@ -251,5 +260,5 @@ int main()
 	TestResponseEncoding();
 	TestErrorCodeNames();
 	TestStatusErrorIsIndependentOfResponseOk();
-	std::cout << "protocol_test: 12 tests passed\n";
+	std::cout << "protocol_test: 13 tests passed\n";
 }

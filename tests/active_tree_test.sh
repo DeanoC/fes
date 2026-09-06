@@ -30,7 +30,7 @@ grep -Fq 'kBksv2' "$root/src/native/adv7513.hpp" || {
 	echo 'ADV7513 BKSV2 register fixture is missing' >&2
 	exit 1
 }
-expect_guard_success 'ADV7513 BKSV2 register name' "$root"
+expect_guard_success 'ADV7513 BKSV2 register name and generated schema V2 guards' "$root"
 
 expect_guard_failure() {
 	local expected=$1
@@ -68,6 +68,10 @@ rm -f -- "$fixture/src/legacy.hpp"
 printf '%s\n' 'class mister_runtime_linux_v2;' >"$fixture/src/legacy.hpp"
 expect_guard_failure 'historic compatibility term remains in the active tree'
 rm -f -- "$fixture/src/legacy.hpp"
+mkdir -p "$fixture/src/native/generated"
+printf '%s\n' 'constexpr int unrelated_v2 = 2;' >"$fixture/src/native/generated/invalid.hpp"
+expect_guard_failure 'historic compatibility term remains in the active tree'
+rm -f -- "$fixture/src/native/generated/invalid.hpp"
 printf '%s\n' 'class NativeLinuxV2;' >"$fixture/src/legacy.hpp"
 expect_guard_failure 'historic compatibility term remains in the active tree'
 rm -f -- "$fixture/src/legacy.hpp"

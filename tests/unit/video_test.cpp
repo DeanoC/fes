@@ -245,6 +245,10 @@ public:
 			request == std::vector<std::uint16_t>({0x0001, 0x0000})) {
 			attempt = "spi:buttons.neutral";
 			ledger_.push_back("core.buttons.neutral");
+		} else if (target == mister::native::kUserIoTarget &&
+			request == std::vector<std::uint16_t>({0x0026, 0x0000})) {
+			attempt = "spi:audio.volume";
+			ledger_.push_back("audio.volume:0");
 		}
 		const mister::Error error = gate_.Call(attempt);
 		if (!error.ok()) return error;
@@ -1091,6 +1095,7 @@ void TestPostProgramComponentsUseExactMegaDriveChronologyWithoutRelease()
 		"video.adv.wake",
 		"core.buttons.neutral",
 		"video.link.ready",
+		"audio.volume:0",
 	};
 	assert(fixture.ledger == expected);
 	assert(fixture.i2c.writes.size() == 100);
@@ -1125,6 +1130,32 @@ void TestEveryPostProgramSpiI2cAndReadFailureStopsChronologyAtThatAttempt()
 			fixture.gate.attempts.end(), expected_attempts.begin()));
 		++scenarios;
 	}
+}
+
+void TestGameAudioVolumeIsBoundedAndMenuStaysMuted()
+{
+	Fixture fixture;
+	mister::native::FixedVideoBringup video(fixture.spi, fixture.i2c,
+		fixture.clock, fixture.log, mister::native::Menu720p60Recipe());
+	assert(video.BringUp(kDeadline).error.ok());
+	const auto& audio = fixture.spi.calls.back();
+	assert(audio.target == mister::native::kUserIoTarget);
+	assert(audio.request == std::vector<std::uint16_t>({0x0026, 0x0000}));
+	assert(audio.deadline == kDeadline);
+
+	Fixture failed;
+	failed.spi.fail_call_index = fixture.spi.calls.size() - 1;
+	mister::native::FixedVideoBringup failing(failed.spi, failed.i2c,
+		failed.clock, failed.log, mister::native::Menu720p60Recipe());
+	const auto result = failing.BringUp(kDeadline);
+	assert(result.error.code == mister::ErrorCode::io_failed);
+	assert(result.phase == "audio_volume");
+	assert(failed.spi.calls.size() == fixture.spi.calls.size());
+
+	Fixture menu;
+	assert(menu.video.BringUp("MENU", kDeadline).error.ok());
+	for (const auto& call : menu.spi.calls) assert(call.request[0] != 0x0026);
+	++scenarios;
 }
 
 void TestFixedVideoRequiresBothHpdAndMonitorSenseBeforeReady()
@@ -1168,6 +1199,7 @@ int main()
 	TestEveryFailurePhaseLogsItsDirectIoFailure();
 	TestPostProgramComponentsUseExactMegaDriveChronologyWithoutRelease();
 	TestEveryPostProgramSpiI2cAndReadFailureStopsChronologyAtThatAttempt();
+	TestGameAudioVolumeIsBoundedAndMenuStaysMuted();
 	TestFixedVideoRequiresBothHpdAndMonitorSenseBeforeReady();
 	printf("video_test: %zu scenarios passed\n", scenarios);
 	return 0;

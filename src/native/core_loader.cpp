@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <cstddef>
+#include <cstring>
 
 namespace mister {
 namespace native {
@@ -108,11 +109,31 @@ Error CoreLoader::ApplyInitialStatus(const CoreRecipe& recipe,
 	return ApplyStatus(spi_, recipe.initial_status_word, deadline);
 }
 
+Error CoreLoader::Attach(const OpenedMedia& media, FileWireFormat format,
+	std::uint64_t deadline)
+{
+	return AttachContent(media.index, media.artifact, format, media.content, deadline);
+}
+
 Error CoreLoader::Attach(std::uint8_t index, const Artifact& artifact,
 	FileWireFormat wire_format, std::uint64_t deadline)
 {
+	MediaContentPlan content;
+	content.source_size = artifact.size();
+	return AttachContent(index, artifact, wire_format, content, deadline);
+}
+
+Error CoreLoader::AttachContent(std::uint8_t index, const Artifact& artifact,
+	FileWireFormat wire_format, const MediaContentPlan& content, std::uint64_t deadline)
+{
 	if (wire_format != FileWireFormat::little_endian_byte_pairs)
 		return {ErrorCode::invalid_request, "unsupported file wire format"};
+	if (content.source_offset > artifact.size() || content.source_size == 0 ||
+		content.source_size > artifact.size() - content.source_offset ||
+		(content.prefix_size != 0 && content.prefix_size != content.prefix.size()) ||
+		content.source_size > UINT64_MAX - content.prefix_size)
+		return {ErrorCode::invalid_request, "invalid media content window"};
+	const std::uint64_t wire_size = content.source_size + content.prefix_size;
 	Error error = Exchange(spi_, kFileIoTarget, {0x0055, index}, deadline);
 	if (!error.ok()) return error;
 	error = Exchange(spi_, kFileIoTarget, ExtensionWords(artifact.path()), deadline);
@@ -121,11 +142,18 @@ Error CoreLoader::Attach(std::uint8_t index, const Artifact& artifact,
 	if (!error.ok()) return error;
 	std::uint64_t offset = 0;
 	unsigned char bytes[4096];
-	while (offset < artifact.size()) {
+	while (offset < wire_size) {
 		const std::size_t count = static_cast<std::size_t>(
-			std::min<std::uint64_t>(sizeof(bytes), artifact.size() - offset));
-		error = ReadArtifact(reader_, artifact, offset, bytes, count);
-		if (!error.ok()) return error;
+			std::min<std::uint64_t>(sizeof(bytes), wire_size - offset));
+		const std::size_t prefix_count = offset < content.prefix_size ?
+			static_cast<std::size_t>(std::min<std::uint64_t>(count, content.prefix_size - offset)) : 0;
+		if (prefix_count) std::memcpy(bytes, content.prefix.data() + offset, prefix_count);
+		if (prefix_count < count) {
+			error = ReadArtifact(reader_, artifact,
+				content.source_offset + offset + prefix_count - content.prefix_size,
+				bytes + prefix_count, count - prefix_count);
+			if (!error.ok()) return error;
+		}
 		std::vector<std::uint16_t> request(1, 0x0054);
 		for (std::size_t byte = 0; byte < count; byte += 2) {
 			std::uint16_t word = bytes[byte];

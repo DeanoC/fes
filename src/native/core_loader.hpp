@@ -13,6 +13,8 @@ namespace mister {
 namespace native {
 
 class Artifact;
+struct OpenedMedia;
+struct MediaContentPlan;
 class Spi;
 
 class ArtifactReader {
@@ -32,11 +34,13 @@ public:
 		std::uint64_t absolute_deadline_ms);
 	Error ApplyInitialStatus(const CoreRecipe&,
 		std::uint64_t absolute_deadline_ms);
+	Error Attach(const OpenedMedia&, FileWireFormat, std::uint64_t absolute_deadline_ms);
 	Error Attach(std::uint8_t index, const Artifact&, FileWireFormat,
 		std::uint64_t absolute_deadline_ms);
 	Error ReleaseReset(const CoreRecipe&, std::uint64_t absolute_deadline_ms);
 
 private:
+	Error AttachContent(std::uint8_t, const Artifact&, FileWireFormat, const MediaContentPlan&, std::uint64_t);
 	Spi& spi_;
 	ArtifactReader* reader_;
 };

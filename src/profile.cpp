@@ -68,11 +68,15 @@ bool ValidCoreRecipe(const CoreRecipe& recipe)
 bool ValidInputRecipe(const InputRecipe& recipe)
 {
 	if (recipe.player_count != 1 || recipe.player_command == 0) return false;
-	const std::array<std::uint16_t, 8> masks = {{recipe.up, recipe.down,
-		recipe.left, recipe.right, recipe.a, recipe.b, recipe.c, recipe.start}};
+	const std::array<std::uint16_t, 13> masks = {{recipe.up, recipe.down,
+		recipe.left, recipe.right, recipe.a, recipe.b, recipe.c, recipe.start,
+		recipe.x, recipe.y, recipe.l, recipe.r, recipe.select}};
+	if (!recipe.up || !recipe.down || !recipe.left || !recipe.right ||
+		!recipe.a || !recipe.b || !recipe.start) return false;
 	std::uint16_t seen = 0;
 	for (const std::uint16_t mask : masks) {
-		if (mask == 0 || (mask & (mask - 1u)) != 0 || (seen & mask) != 0)
+		if (mask == 0) continue;
+		if ((mask & (mask - 1u)) != 0 || (seen & mask) != 0)
 			return false;
 		seen = static_cast<std::uint16_t>(seen | mask);
 	}
@@ -151,6 +155,8 @@ Error Profiles::Add(Profile profile)
 	std::set<std::string> roles;
 	std::set<std::uint8_t> indices;
 	for (const MediaRule& rule : profile.media) {
+		if (rule.transform != MediaTransform::raw && rule.transform != MediaTransform::snes_cartridge)
+			return Invalid("invalid media transform");
 		if (!ValidIdentifier(rule.role)) return Invalid("invalid media role");
 		if (!roles.insert(rule.role).second) return Invalid("duplicate media role");
 		if (!indices.insert(rule.index).second) return Invalid("duplicate media index");
@@ -217,7 +223,7 @@ Error Profiles::Prepare(const Launch& launch, PreparedLaunch* output) const
 			}
 		}
 		if (!allowed_extension) return Invalid("media extension not allowed");
-		prepared.media.push_back({rule->index, media.path, rule->maximum_size});
+		prepared.media.push_back({rule->index, media.path, rule->maximum_size, rule->transform});
 	}
 	for (const MediaRule& rule : profile->media) {
 		if (rule.required && supplied_media.count(rule.role) == 0)
