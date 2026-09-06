@@ -12,9 +12,9 @@ rationale = "DeanoC fork for nextpnr 9d9a027d Cyclone V MUL9X9 and 50-to-25 MHz 
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "6abe1e9a0ef7673f5f840d0b1168f005a268fcbd"
+commit = "bb3b589ba1d50ccb664eb907319da0550144f2e3"
 order = 30
-rationale = "DeanoC fork: Cyclone V MUL9X9 and fixed 50-to-25 MHz altera_pll BEL support for 5CSEBA6U23I7, based on 7d4f72c0; adds fabric PLL reset/relock on merged PLL PR 1."
+rationale = "DeanoC fork: Cyclone V MUL9X9 and checked integer single-output altera_pll BEL support for 5CSEBA6U23I7, based on 7d4f72c0; whole-MHz outputs from checked 300/320 MHz configurations, with fabric reset/relock."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

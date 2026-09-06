@@ -10,6 +10,9 @@ development possible with both the open-source Mistral toolchain and Quartus.
 - A pinned repository-local Yosys, nextpnr-mistral, Mistral, and
   openFPGALoader toolchain.
 - Open-source synthesis, place-and-route, and RBF generation.
+- Single-output PLL support for checked whole-MHz frequencies from a 50 MHz
+  reference, including 20, 40, and 100 MHz, with fabric reset/relock. The closed
+  PLL experiments below retain their 25 MHz output.
 - An optional Quartus Prime Lite 17.0.2 reference build using the same RTL.
 - Semantic comparison between the OSS and Quartus outputs.
 - `010_blinky`, a small LED counter.
