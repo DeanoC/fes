@@ -12,11 +12,10 @@ and MiSTer's MemTest constraints
 Normal `sim`, `oss`, `oracle`, and `compare` targets only produce local files.
 They never program hardware.
 
-`make program` is an optional volatile diagnostic for an already-built RBF.
-The default MiSTer transport stages the selected file temporarily and sends
-`load_core <path>` to the resident `/dev/MiSTer_cmd` FIFO. A separate JTAG
-transport can use an external USB-Blaster on a DE10-Nano. Neither path writes
-flash, HPS storage, or the SD card.
+The designated native kit loads an already-built RBF through FogCast
+`POST /api/v1/session/development-rbf`. That kit has no `/dev/MiSTer_cmd`.
+`make program` is a separate Main-FIFO or JTAG diagnostic for a conventional
+MiSTer or DE10-Nano. Neither path writes flash, HPS storage, or the SD card.
 
 Start with a dry run:
 
@@ -32,6 +31,7 @@ openFPGALoader --board de10nano --scan-usb
 openFPGALoader --board de10nano --detect
 ```
 
-The MiSTer Pi is disposable development hardware. A minimal experiment may
-not implement the normal MiSTer framework and can make Main exit; rebooting or
-power-cycling restores the normal menu.
+The MiSTer Pi is disposable development hardware. A minimal experiment does
+not implement the MiSTer SPI identity the native runtime probes after a
+development load; FogCast Stop restores idle through the development reboot
+handshake.

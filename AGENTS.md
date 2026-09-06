@@ -36,8 +36,9 @@ artifact formats. The user's current request defines the scope.
 - `oss` uses the pinned Yosys/nextpnr-mistral/Mistral flow and must not depend
   on Quartus.
 - `oracle` uses only an explicitly configured Quartus 17.0.2 installation.
-- No build command programs hardware automatically. `make program` is a
-  separate operator-selected volatile diagnostic.
+- No build command programs hardware automatically. FogCast
+  `POST /api/v1/session/development-rbf` is the designated native-kit load
+  path. `make program` is a separate Main-FIFO or JTAG diagnostic.
 
 ## Disposable hardware
 

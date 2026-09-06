@@ -19,5 +19,8 @@ after a later clock with bit 16 clear and the same index. Writes to one index
 do not change another. The simulation checks three indexes, a later read in
 a different order, and a replacement write.
 
-Production uses the same 5-bit index. Linux can poke this map through the HPS
-GP registers; it does not use the mailbox HELLO/START/DATA transcript.
+Production uses the same 5-bit index. Linux peeks and pokes the Cyclone V
+FPGA-manager GPO/GPI pair (`0xFF706010` / `0xFF706014`, `h2f_gp` / `f2h_gp`).
+Those are the same wires native development load uses for MiSTer SPI identity
+after programming. This experiment does not implement that SPI probe. It does
+not use the mailbox HELLO/START/DATA transcript.

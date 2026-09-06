@@ -104,12 +104,26 @@ FogCast release handoff. The handoff is the printed digest directory under
 See `docs/oracle-method.md` for the explicit Quartus path and
 `docs/linux-mailbox-development.md` for the mailbox experiment.
 
-## Optional direct programming
+## Loading an experiment
 
-`make program` remains an optional volatile diagnostic for a selected build.
-It can use the resident Main command FIFO on a MiSTer target or an external
-USB-Blaster/JTAG connection on a DE10-Nano. It is not the intended FogCast UI
-path and never writes flash or the SD card.
+FogCast owns transfer and FPGA load. The designated native kit has no
+`/dev/MiSTer_cmd`. Load a local RBF through the host development endpoint:
+
+```sh
+curl --fail -H 'Content-Type: application/octet-stream' \
+  --data-binary @build/oracle/040_mlab_ram/top.rbf \
+  http://127.0.0.1:8787/api/v1/session/development-rbf
+```
+
+The host posts the body to the target agent, which calls native
+`load_development_rbf`. HDMI stays powered down. These experiments are not
+MiSTer-compatible cores: after programming, the runtime probes SPI identity on
+the FPGA-manager GPO/GPI pair, that probe fails, and Stop restores idle through
+the existing development reboot handshake.
+
+`make program` is a separate Main-FIFO or JTAG diagnostic for a conventional
+MiSTer or DE10-Nano. It is not the native kit path and never writes flash or
+the SD card.
 
 ```sh
 PROGRAM_DRY_RUN=1 MISTER_HOST=misterpi MISTER_USER=root \

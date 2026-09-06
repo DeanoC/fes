@@ -85,9 +85,14 @@ content-addressed directory containing exactly `megadrive.rbf` and
 selection path. No attestation record, run ID, recovery journal, or
 fault-injection result is required.
 
-`make program` is an optional direct diagnostic. It is deliberately separate
-from `sim`, `oss`, `oracle`, and `compare`, so building an RBF never touches
-hardware.
+Building an RBF never touches hardware. FogCast loads a local experiment RBF
+on the designated native kit through `POST /api/v1/session/development-rbf`
+(target `POST /v1/development/rbf` → native `load_development_rbf`). That path
+programs the FPGA manager, then probes MiSTer SPI identity on the same
+FPGA-manager GPO/GPI pair the HPS general-purpose experiments use. A
+non-MiSTer image does not satisfy the probe; Stop restores idle with the
+existing development reboot handshake. `make program` remains a separate
+Main-FIFO or JTAG diagnostic and is not the native kit path.
 
 ## Pinned core trees
 

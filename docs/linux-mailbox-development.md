@@ -43,19 +43,21 @@ build/compare/020_linux_mailbox/comparison.json
 
 ## Run on the MiSTer Pi
 
-The intended development flow is to select either local `top.rbf` in the
-FogCast host UI. FogCast transfers the file and loads it through the resident
-Main-compatible command path.
+FogCast loads the local RBF through the host development endpoint. There is no
+browser file picker and no Main command FIFO on the designated native kit:
 
-Until that UI action exists, `make program` is available as an optional direct
-diagnostic. It is volatile and a reboot restores the normal menu. The mailbox
-core may not implement enough of the normal MiSTer framework for Main to stay
-healthy; rebooting the disposable target is an acceptable recovery.
+```sh
+curl --fail -H 'Content-Type: application/octet-stream' \
+  --data-binary @build/oracle/020_linux_mailbox/top.rbf \
+  http://127.0.0.1:8787/api/v1/session/development-rbf
+```
 
-## Current status
+The agent stages `/tmp/fogcast-development/core.rbf` and the native runtime
+calls `load_development_rbf`. The mailbox uses the FPGA-manager GPO/GPI pair
+(`0xFF706010` / `0xFF706014`, `h2f_gp` / `f2h_gp`). Native development load
+probes MiSTer SPI identity on those same wires after programming, so this
+core does not stay in `running_development`. Stop restores idle through the
+development reboot handshake. A blank display is not a failure.
 
-Both toolchain lanes produce RBF artifacts and the logical simulation is
-available. Loading and reading the mailbox on the dedicated hardware is the
-next relevant physical check; it should be performed through the simple
-FogCast development-RBF path rather than recreating the removed bundle and
-recovery transport.
+`make program` is a separate Main-FIFO or JTAG diagnostic, not the native kit
+path.
