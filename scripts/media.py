@@ -319,28 +319,153 @@ def receipt_for(generation, fingerprint, info, assembly_hashes):
             'assembly_sha256': list(assembly_hashes), 'checks': CHECKS, 'hardware': 'not-run'}
 
 
-def validate_receipt(generation, cold, root):
+def read_receipt(generation):
+    """Validate retained evidence without treating it as current acceptance."""
     try:
         if generation.is_symlink() or not generation.is_dir() or stat.S_IMODE(generation.stat().st_mode) != 0o700:
             raise ValueError('generation directory differs')
-        if set(path.name for path in generation.iterdir()) != {'fes.img', 'fes-media.toml', 'media.json'}:
+        files = {'fes.img', 'fes-media.toml', 'media.json'}
+        entries = {path.name for path in generation.iterdir()}
+        legacy = generation.parent.name == 'generations'
+        if not files <= entries or (not legacy and entries != files):
             raise ValueError('generation files differ')
-        for path in generation.iterdir():
+        if legacy:
+            for name in entries - files:
+                path = generation / name
+                if not re.fullmatch('[0-9a-f]{64}', name) or path.is_symlink() or not path.is_dir():
+                    raise ValueError('legacy generation entries differ')
+        for name in files:
+            path = generation / name
             mode = path.lstat().st_mode
             if not stat.S_ISREG(mode) or stat.S_IMODE(mode) != 0o600:
                 raise ValueError('generation file permissions differ')
         receipt = json.loads((generation / 'media.json').read_text())
-        provision_sha = receipt['inputs']['provision_sha256']
+        info = receipt['inputs']
+        if set(info) != {'cold', 'boot_lock', 'fes_revision', 'recipe', 'provision_sha256'}:
+            raise ValueError('generation input schema differs')
+        provision_sha = info['provision_sha256']
         if provision_sha is not None and (not isinstance(provision_sha, str) or not re.fullmatch('[0-9a-f]{64}', provision_sha)):
             raise ValueError('invalid provision hash')
-        fp, info = media_fingerprint(cold, root / 'boot-media.lock.toml', provision_sha)
+        image_sha = generation.name if legacy else generation.parent.name
+        if digest(generation / 'fes.img') != image_sha:
+            raise ValueError('disk identity differs')
         hashes = load_manifest(generation / 'fes-media.toml')['assembly']['sha256']
-        if (type(hashes) is not list or len(hashes) != 2 or any(value != generation.name for value in hashes)
-                or receipt != receipt_for(generation, fp, info, hashes) or receipt['image_sha256'] != generation.name):
+        fp = hashlib.sha256(json.dumps(info, sort_keys=True).encode()).hexdigest()
+        if (type(hashes) is not list or hashes != [image_sha, image_sha]
+                or receipt != receipt_for(generation, fp, info, hashes)):
             raise ValueError('generation evidence differs')
-        return provision_sha
+        if generation.parent.name != 'generations' and generation.name != digest(generation / 'media.json'):
+            raise ValueError('evidence identity differs')
+        return receipt
     except (OSError, ValueError, KeyError, TypeError):
         raise ValueError('media receipt or artifact digest is missing or stale') from None
+
+
+def validate_receipt(generation, cold, root):
+    receipt = read_receipt(generation)
+    provision_sha = receipt['inputs']['provision_sha256']
+    fp, info = media_fingerprint(cold, root / 'boot-media.lock.toml', provision_sha)
+    if receipt['fingerprint'] != fp or receipt['inputs'] != info:
+        raise ValueError('media evidence requires current validation')
+    return provision_sha
+
+
+def generation_path(media_root, target):
+    # Legacy single-level generations are read-only refresh candidates. New
+    # publication always names both immutable disk and immutable evidence.
+    if not re.fullmatch(r'[0-9a-f]{64}(?:/[0-9a-f]{64})?', target):
+        raise ValueError('invalid media generation selector')
+    path = media_root
+    for part in ('generations', *target.split('/')):
+        if path.is_symlink():
+            raise ValueError('media generation directories must not be symlinks')
+        path = path / part
+    if path.is_symlink():
+        raise ValueError('media generation must not be a symlink')
+    return path
+
+
+def current_generation(media_root):
+    try:
+        target = os.readlink(media_root / 'current')
+        if not target.startswith('generations/'):
+            raise ValueError('invalid current link')
+        return generation_path(media_root, target.removeprefix('generations/'))
+    except (OSError, ValueError):
+        raise ValueError('media current is missing or invalid; run make media') from None
+
+
+def assemble_candidate(scratch, cold, root, inputs, lock, provision_sha, runner, fogcast, env, expected_image=None):
+    candidate = scratch / 'generation'
+    candidate.mkdir(mode=0o700)
+    hashes = runner.assemble(candidate, inputs, lock)
+    image_sha = digest(candidate / 'fes.img')
+    if hashes != [image_sha, image_sha]:
+        raise ValueError('independent media assembly hashes differ')
+    if expected_image is not None and image_sha != expected_image:
+        raise ValueError('retained disk differs from current assembly policy or selected inputs')
+    for path in candidate.iterdir():
+        path.chmod(0o600)
+    validate_artifact(candidate, inputs, lock, provision_sha, runner, fogcast, env, rootfs_verified=False)
+    write_manifest(candidate / 'fes-media.toml', manifest_data(candidate / 'fes.img', inputs, lock,
+                   provision_sha, hashes, rootfs_verified=True))
+    runner.verify(candidate, inputs, lock, provision_sha, rootfs_verified=True)
+    fp, info = media_fingerprint(cold, root / 'boot-media.lock.toml', provision_sha)
+    receipt = receipt_for(candidate, fp, info, hashes)
+    # Evidence identity includes the whole receipt and its manifest digest.
+    # media.json remains the last file created, after every check succeeds.
+    write_private(candidate / 'media.json', (json.dumps(receipt, indent=2, sort_keys=True) + '\n').encode())
+    for path in candidate.iterdir():
+        with path.open('rb') as stream:
+            os.fsync(stream.fileno())
+    fsync_dir(candidate)
+    return candidate
+
+
+def retain_candidate(candidate, media_root, cold, root, inputs, lock, runner, fogcast, env):
+    image_sha = digest(candidate / 'fes.img')
+    evidence_sha = digest(candidate / 'media.json')
+    generation = generation_path(media_root, image_sha + '/' + evidence_sha)
+    generation.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if stat.S_IMODE(generation.parent.stat().st_mode) != 0o700:
+        raise ValueError('media disk identity directory must be owner-only')
+    if generation.exists():
+        provision_sha = validate_receipt(generation, cold, root)
+        validate_artifact(generation, inputs, lock, provision_sha, runner, fogcast, env)
+    else:
+        os.rename(candidate, generation)
+        fsync_dir(generation.parent)
+        fsync_dir(generation.parent.parent)
+    return generation
+
+
+def publish_current(media_root, generation, scratch, *, previous_target=None):
+    """Called only under operation's lease, through selection and rollback."""
+    current = media_root / 'current'
+    previous_link = scratch / 'previous'
+    if previous_target is not None:
+        previous_link.symlink_to(previous_target)
+    elif current.is_symlink():
+        previous_link.symlink_to(os.readlink(current))
+    elif current.exists():
+        raise ValueError('media current must be a relative symlink')
+    temporary_link = scratch / 'current'
+    temporary_link.symlink_to(generation.relative_to(media_root))
+    fsync_dir(scratch)
+    fsync_dir(media_root)
+    try:
+        # A pending signal delivered on unmask is part of this transaction too.
+        with defer_termination():
+            os.replace(temporary_link, current)
+            fsync_dir(media_root)
+    except BaseException:
+        with defer_termination():
+            if previous_link.is_symlink():
+                os.replace(previous_link, current)
+            else:
+                current.unlink(missing_ok=True)
+            fsync_dir(media_root)
+        raise
 
 
 def build(root, profile=PROFILE, agent_config=None, runner=None):
@@ -349,66 +474,41 @@ def build(root, profile=PROFILE, agent_config=None, runner=None):
     with operation(root, profile):
         cold, fogcast, env, inputs, lock = prepare(root, profile)
         media_root = root / 'out' / profile / 'media'
-        generations = media_root / 'generations'
-        if media_root.is_symlink() or generations.is_symlink():
+        if media_root.is_symlink() or (media_root / 'generations').is_symlink():
             raise ValueError('media publication directories must not be symlinks')
-        generations.mkdir(parents=True, exist_ok=True, mode=0o700)
+        media_root.mkdir(parents=True, exist_ok=True, mode=0o700)
         with tempfile.TemporaryDirectory(prefix='.staging-', dir=media_root) as temporary:
             scratch = Path(temporary)
             snapshot, provision_sha = snapshot_config(agent_config, scratch)
             inputs = replace(inputs, agent_config=snapshot)
             runner = runner or Runner(root, lock, env)
-            candidate = scratch / 'generation'
-            candidate.mkdir(mode=0o700)
-            hashes = runner.assemble(candidate, inputs, lock)
-            image_sha = digest(candidate / 'fes.img')
-            if hashes != [image_sha, image_sha]:
-                raise ValueError('independent media assembly hashes differ')
-            for path in candidate.iterdir():
-                path.chmod(0o600)
-            validate_artifact(candidate, inputs, lock, provision_sha, runner, fogcast, env, rootfs_verified=False)
-            # Promote rootfs statuses only after both child checks have returned.
-            write_manifest(candidate / 'fes-media.toml', manifest_data(candidate / 'fes.img', inputs, lock,
-                           provision_sha, hashes, rootfs_verified=True))
-            runner.verify(candidate, inputs, lock, provision_sha, rootfs_verified=True)
-            fp, info = media_fingerprint(cold, root / 'boot-media.lock.toml', provision_sha)
-            receipt = receipt_for(candidate, fp, info, hashes)
-            # This is the last file created in a generation, after all checks pass.
-            write_private(candidate / 'media.json', (json.dumps(receipt, indent=2, sort_keys=True) + '\n').encode())
-            for path in candidate.iterdir():
-                with path.open('rb') as stream:
-                    os.fsync(stream.fileno())
-            fsync_dir(candidate)
-            generation = generations / image_sha
-            if generation.exists() or generation.is_symlink():
-                old_provision = validate_receipt(generation, cold, root)
-                if old_provision != provision_sha:
-                    raise ValueError('existing generation provision receipt differs')
-                validate_artifact(generation, inputs, lock, provision_sha, runner, fogcast, env)
-            else:
-                os.rename(candidate, generation)
-                fsync_dir(generations)
-            current = media_root / 'current'
-            previous_link = scratch / 'previous'
-            if current.is_symlink():
-                previous_link.symlink_to(os.readlink(current))
-            elif current.exists():
-                raise ValueError('media current must be a relative symlink')
-            temporary_link = scratch / 'current'
-            temporary_link.symlink_to(Path('generations') / image_sha)
-            fsync_dir(scratch)
-            fsync_dir(media_root)
-            os.replace(temporary_link, current)
-            try:
-                fsync_dir(media_root)
-            except OSError:
-                if previous_link.is_symlink():
-                    os.replace(previous_link, current)
-                else:
-                    current.unlink()
-                fsync_dir(media_root)
-                raise
+            candidate = assemble_candidate(scratch, cold, root, inputs, lock, provision_sha, runner, fogcast, env)
+            generation = retain_candidate(candidate, media_root, cold, root, inputs, lock, runner, fogcast, env)
+            publish_current(media_root, generation, scratch)
             return Result(generation)
+
+
+def verify_selected(root, media_root, generation, scratch, cold, fogcast, env, inputs, lock, runner):
+    receipt = read_receipt(generation)
+    provision_sha = receipt['inputs']['provision_sha256']
+    fp, info = media_fingerprint(cold, root / 'boot-media.lock.toml', provision_sha)
+    if generation.parent.name != 'generations' and receipt['fingerprint'] == fp and receipt['inputs'] == info:
+        validate_artifact(generation, inputs, lock, provision_sha, runner, fogcast, env)
+        return generation
+    # Historical evidence never authorizes current checks. Reassemble twice
+    # with the current recipe and require exactly the retained disk bytes.
+    snapshot = None
+    if provision_sha is not None:
+        snapshot = scratch / 'agent.toml'
+        runner.extract_config(generation, snapshot)
+        if (not stat.S_ISREG(snapshot.lstat().st_mode) or snapshot.stat().st_size > 65536
+                or digest(snapshot) != provision_sha):
+            raise ValueError('embedded agent config differs from retained evidence')
+        snapshot.chmod(0o600)
+    inputs = replace(inputs, agent_config=snapshot)
+    candidate = assemble_candidate(scratch, cold, root, inputs, lock, provision_sha, runner, fogcast, env,
+                                   expected_image=receipt['image_sha256'])
+    return retain_candidate(candidate, media_root, cold, root, inputs, lock, runner, fogcast, env)
 
 
 def verify(root, profile=PROFILE, runner=None):
@@ -417,22 +517,29 @@ def verify(root, profile=PROFILE, runner=None):
     with operation(root, profile):
         cold, fogcast, env, inputs, lock = prepare(root, profile)
         media_root = root / 'out' / profile / 'media'
-        try:
-            if media_root.is_symlink():
-                raise ValueError('invalid media directory')
-            target = os.readlink(media_root / 'current')
-            if not re.fullmatch(r'generations/[0-9a-f]{64}', target):
-                raise ValueError('invalid target')
-            # Read current once; every subsequent check uses this fixed generation.
-            generation = media_root / target
-            if generation.parent.is_symlink():
-                raise ValueError('invalid generations directory')
-        except (OSError, ValueError):
-            raise ValueError('media current is missing or invalid; run make media') from None
-        provision_sha = validate_receipt(generation, cold, root)
+        generation = current_generation(media_root)  # Resolve the selector once.
         runner = runner or Runner(root, lock, env)
-        validate_artifact(generation, inputs, lock, provision_sha, runner, fogcast, env)
-        return Result(generation)
+        with tempfile.TemporaryDirectory(prefix='.staging-', dir=media_root) as temporary:
+            scratch = Path(temporary)
+            selected = verify_selected(root, media_root, generation, scratch, cold, fogcast, env, inputs, lock, runner)
+            if selected != generation:
+                publish_current(media_root, selected, scratch, previous_target=generation.relative_to(media_root))
+            return Result(selected)
+
+
+def rollback(root, generation, profile=PROFILE, runner=None):
+    root = Path(root).resolve()
+    require_profile(profile)
+    with operation(root, profile):
+        cold, fogcast, env, inputs, lock = prepare(root, profile)
+        media_root = root / 'out' / profile / 'media'
+        candidate = generation_path(media_root, generation)
+        runner = runner or Runner(root, lock, env)
+        with tempfile.TemporaryDirectory(prefix='.staging-', dir=media_root) as temporary:
+            scratch = Path(temporary)
+            selected = verify_selected(root, media_root, candidate, scratch, cold, fogcast, env, inputs, lock, runner)
+            publish_current(media_root, selected, scratch)
+            return Result(selected)
 
 
 class Runner:
@@ -556,6 +663,10 @@ class Runner:
         self.disk(['mcopy', '-i', self.path(generation / 'fes.img') + '@@' + str(PART1_OFFSET),
                    '::/linux/linux.img', self.path(destination)])
 
+    def extract_config(self, generation, destination):
+        self.disk(['mcopy', '-i', self.path(generation / 'fes.img') + '@@' + str(PART1_OFFSET),
+                   '::/fogcast/agent.toml', self.path(destination)])
+
     def child_verify(self, fogcast, staged, env):
         write_private(staged / 'verify.sh', CHILD_VERIFY.encode())
         guard = staged / 'bin'
@@ -618,16 +729,20 @@ TARGET_IMAGE_TEST_MODE=1 /work/scripts/qemu-smoke-target-image.sh --verify-kerne
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest='command', required=True)
-    for command in ('build', 'verify'):
+    for command in ('build', 'verify', 'rollback'):
         child = subparsers.add_parser(command)
         child.add_argument('--profile', default=PROFILE, choices=[PROFILE])
         if command == 'build':
             child.add_argument('--agent-config', type=Path)
+        if command == 'rollback':
+            child.add_argument('--generation', required=True)
     args = parser.parse_args()
     try:
         with termination_handling():
             if args.command == 'build':
                 result = build(cold_build.ROOT, args.profile, args.agent_config)
+            elif args.command == 'rollback':
+                result = rollback(cold_build.ROOT, args.generation, args.profile)
             else:
                 result = verify(cold_build.ROOT, args.profile)
         print(str(result.image))

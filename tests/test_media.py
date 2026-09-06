@@ -57,6 +57,10 @@ class FakeRunner:
     def extract(self, generation, destination):
         destination.write_bytes(b'rootfs')
 
+    def extract_config(self, generation, destination):
+        destination.write_bytes((generation / 'fes.img').read_bytes()[len(b'rootfs'):])
+        destination.chmod(0o600)
+
     def child_verify(self, fogcast, staged, env):
         self.asserted_env = env
         (staged / 'manifest.tsv').write_text('manifest')
@@ -110,6 +114,179 @@ class MediaTests(unittest.TestCase):
     def build(self, config=None):
         return media.build(self.root, 'native-integration-dev', config, self.runner)
 
+    def test_refreshed_qemu_and_recipe_evidence_preserve_identical_disk_history(self):
+        for change in ('qemu', 'recipe'):
+            for action in ('build', 'verify'):
+                with self.subTest(change=change, action=action):
+                    shutil.rmtree(self.output / 'media', ignore_errors=True)
+                    first = self.build()
+                    retained = {path.name: path.read_bytes() for path in first.generation.iterdir()}
+                    if change == 'qemu':
+                        (self.output / 'qemu-smoke.log').write_text('refreshed smoke ' + action)
+                        sha = cold_build.digest(self.output / 'linux.img')
+                        (self.output / 'verification.json').write_text(json.dumps(cold_build.verification_record(self.output, sha, False)))
+                    recipe = {'scripts/media.py': 'new recipe ' + action} if change == 'recipe' else {'scripts/media.py': 'recipe'}
+                    with patch.object(media, 'recipe_fingerprint', return_value=recipe):
+                        try:
+                            result = self.build() if action == 'build' else media.verify(self.root, runner=self.runner)
+                        except ValueError as error:
+                            self.fail('valid refreshed evidence must support unchanged disk bytes: ' + str(error))
+                        self.assertEqual(cold_build.digest(result.image), cold_build.digest(first.image))
+                        self.assertNotEqual(result.generation, first.generation)
+                        self.assertEqual(result.generation.parent.name, cold_build.digest(result.image))
+                        self.assertEqual(result.generation.name, cold_build.digest(result.generation / 'media.json'))
+                        self.assertEqual(media.verify(self.root, runner=self.runner).generation, result.generation)
+                    self.assertEqual({path.name: path.read_bytes() for path in first.generation.iterdir()}, retained)
+
+    def test_provisioned_evidence_refresh_uses_private_embedded_snapshot(self):
+        config = self.root / 'config'
+        config.write_bytes(b'private embedded configuration')
+        config.chmod(0o600)
+        first = self.build(config)
+        config.unlink()
+        (self.output / 'qemu-smoke.log').write_text('refreshed valid smoke')
+        (self.output / 'verification.json').write_text(json.dumps(cold_build.verification_record(self.output, cold_build.digest(self.output / 'linux.img'), False)))
+        try:
+            refreshed = media.verify(self.root, runner=self.runner)
+        except ValueError as error:
+            self.fail('provisioned evidence must refresh from the verified embedded config: ' + str(error))
+        self.assertEqual(refreshed.image.read_bytes(), first.image.read_bytes())
+        self.assertNotEqual(refreshed.generation, first.generation)
+        self.assertEqual(sorted(path.name for path in refreshed.generation.iterdir()), ['fes-media.toml', 'fes.img', 'media.json'])
+
+    def test_termination_after_current_replace_restores_previous_selection(self):
+        for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+            with self.subTest(signal=signum):
+                first = self.build()
+                config = self.root / 'config'
+                config.write_bytes(str(signum).encode())
+                config.chmod(0o600)
+                sync = media.fsync_dir
+                fired = False
+                def terminate_after_replace(path):
+                    nonlocal fired
+                    current = self.output / 'media/current'
+                    if path == current.parent and current.resolve() != first.generation and not fired:
+                        fired = True
+                        signal.raise_signal(signum)
+                    return sync(path)
+                with media.termination_handling(), patch.object(media, 'fsync_dir', side_effect=terminate_after_replace):
+                    with self.assertRaises(media.TerminationRequested):
+                        self.build(config)
+                self.assertEqual((self.output / 'media/current').resolve(), first.generation)
+
+    def test_rollback_holds_lease_through_validation_and_selection(self):
+        self.assertTrue(hasattr(media, 'rollback'), 'leased rollback entrypoint is required')
+        first = self.build()
+        config = self.root / 'config'
+        config.write_bytes(b'another provisioned disk')
+        config.chmod(0o600)
+        second = self.build(config)
+        target = str(first.generation.relative_to(self.output / 'media/generations'))
+        with media.lease(self.root, 'native-integration-dev'):
+            with self.assertRaisesRegex(ValueError, 'another media'):
+                media.rollback(self.root, target, runner=self.runner)
+        self.assertEqual((self.output / 'media/current').resolve(), second.generation)
+        self.runner.fail = True
+        with self.assertRaisesRegex(ValueError, 'verification failed'):
+            media.rollback(self.root, target, runner=self.runner)
+        self.assertEqual((self.output / 'media/current').resolve(), second.generation)
+        self.runner.fail = False
+        original = self.runner.child_verify
+        def concurrent(fogcast, staged, env):
+            code = 'import sys;sys.path.insert(0,sys.argv[1]);from pathlib import Path;import media\nwith media.lease(Path(sys.argv[2]),"native-integration-dev"): pass'
+            competitor = subprocess.run([sys.executable, '-c', code, str(ROOT / 'scripts'), str(self.root)], capture_output=True, text=True)
+            self.assertNotEqual(competitor.returncode, 0)
+            self.assertIn('another media', competitor.stderr)
+            self.assertEqual((self.output / 'media/current').resolve(), second.generation)
+            original(fogcast, staged, env)
+        self.runner.child_verify = concurrent
+        selected = media.rollback(self.root, target, runner=self.runner)
+        self.assertEqual(selected.generation, first.generation)
+        self.assertEqual((self.output / 'media/current').resolve(), first.generation)
+
+    def test_legacy_flat_evidence_refreshes_without_overwriting_original_files(self):
+        first = self.build()
+        outer = first.generation.parent
+        for path in first.generation.iterdir():
+            shutil.copyfile(path, outer / path.name)
+            (outer / path.name).chmod(0o600)
+        original = {name: (outer / name).read_bytes() for name in ('fes.img', 'fes-media.toml', 'media.json')}
+        current = self.output / 'media/current'
+        current.unlink()
+        current.symlink_to('generations/' + outer.name)
+        try:
+            selected = media.verify(self.root, runner=self.runner)
+        except ValueError as error:
+            self.fail('legacy immutable files must remain usable as refresh candidates: ' + str(error))
+        self.assertEqual(selected.generation, first.generation)
+        self.assertEqual(current.resolve(), first.generation)
+        self.assertEqual(media.rollback(self.root, outer.name, runner=self.runner).generation, first.generation)
+        self.assertEqual({name: (outer / name).read_bytes() for name in original}, original)
+
+    def test_rehashed_evidence_cannot_change_its_outer_disk_identity(self):
+        first = self.build()
+        first.image.write_bytes(b'different disk')
+        receipt_path = first.generation / 'media.json'
+        receipt = json.loads(receipt_path.read_text())
+        receipt['image_sha256'] = cold_build.digest(first.image)
+        receipt_path.write_text(json.dumps(receipt))
+        renamed = first.generation.with_name(cold_build.digest(receipt_path))
+        first.generation.rename(renamed)
+        with self.assertRaisesRegex(ValueError, 'receipt|digest'):
+            media.read_receipt(renamed)
+
+    def test_current_recipe_cannot_refresh_to_different_disk_bytes(self):
+        first = self.build()
+        original = self.runner.assemble
+        def different(output, inputs, lock):
+            original(output, inputs, lock)
+            image = output / 'fes.img'
+            image.write_bytes(image.read_bytes() + b'new recipe bytes')
+            sha = cold_build.digest(image)
+            return [sha, sha]
+        self.runner.assemble = different
+        with patch.object(media, 'recipe_fingerprint', return_value={'scripts/media.py': 'new policy'}):
+            with self.assertRaisesRegex(ValueError, 'retained disk differs'):
+                media.verify(self.root, runner=self.runner)
+        self.assertEqual((self.output / 'media/current').resolve(), first.generation)
+
+    def test_rollback_termination_during_sync_restores_previous_selection(self):
+        first = self.build()
+        config = self.root / 'config'
+        config.write_bytes(b'current provisioned disk')
+        config.chmod(0o600)
+        second = self.build(config)
+        target = str(first.generation.relative_to(self.output / 'media/generations'))
+        for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+            with self.subTest(signal=signum):
+                sync = media.fsync_dir
+                fired = False
+                def terminate(path):
+                    nonlocal fired
+                    current = self.output / 'media/current'
+                    if path == current.parent and current.resolve() == first.generation and not fired:
+                        fired = True
+                        signal.raise_signal(signum)
+                    return sync(path)
+                with media.termination_handling(), patch.object(media, 'fsync_dir', side_effect=terminate):
+                    with self.assertRaises(media.TerminationRequested):
+                        media.rollback(self.root, target, runner=self.runner)
+                self.assertEqual((self.output / 'media/current').resolve(), second.generation)
+
+    def test_refresh_resolves_current_only_once(self):
+        self.build()
+        reads = []
+        readlink = os.readlink
+        def record(path, *args, **kwargs):
+            if Path(path) == self.output / 'media/current':
+                reads.append(path)
+            return readlink(path, *args, **kwargs)
+        with patch.object(media, 'recipe_fingerprint', return_value={'scripts/media.py': 'refreshed recipe'}), \
+             patch.object(media.os, 'readlink', side_effect=record):
+            media.verify(self.root, runner=self.runner)
+        self.assertEqual(len(reads), 1)
+
     def test_docs_only_head_change_reuses_identical_media_generation(self):
         first = self.build()
         original_receipt = (first.generation / 'media.json').read_bytes()
@@ -137,16 +314,18 @@ class MediaTests(unittest.TestCase):
             self.build()
         self.assertEqual(self.runner.assemblies, 0)
 
-    def test_changed_cold_artifact_revision_rejects_existing_generation(self):
+    def test_changed_valid_artifact_revision_preserves_existing_evidence(self):
         first = self.build()
         for name in ('host', 'image'):
             path = self.output / (name + '.json')
             receipt = json.loads(path.read_text())
             receipt['fes_revision'] = '0' * 40
             path.write_text(json.dumps(receipt))
-        with self.assertRaises(ValueError):
-            self.build()
-        self.assertEqual((self.output / 'media/current').resolve(), first.generation)
+        original = (first.generation / 'media.json').read_bytes()
+        refreshed = self.build()
+        self.assertEqual(refreshed.image.read_bytes(), first.image.read_bytes())
+        self.assertNotEqual(refreshed.generation, first.generation)
+        self.assertEqual((first.generation / 'media.json').read_bytes(), original)
 
     def test_host_outputs_are_prerequisites_and_bound_to_media_receipt(self):
         first = self.build()
@@ -165,9 +344,9 @@ class MediaTests(unittest.TestCase):
             path.write_bytes(original)
         (self.output / 'fogcast-api').write_bytes(b'changed host')
         cold_build.write_receipt(self.output, 'host', 'cold-fp', ['fogcast', 'fogcast-api'])
-        with self.assertRaisesRegex(ValueError, 'receipt'):
-            media.verify(self.root, runner=self.runner)
-        self.assertEqual((self.output / 'media/current').resolve(), first.generation)
+        refreshed = media.verify(self.root, runner=self.runner)
+        self.assertEqual(refreshed.image.read_bytes(), first.image.read_bytes())
+        self.assertNotEqual(refreshed.generation, first.generation)
 
     def test_published_manifest_promotes_only_successful_child_checks(self):
         before_child = []
@@ -209,10 +388,10 @@ class MediaTests(unittest.TestCase):
 
     def test_receipt_and_atomic_relative_generation(self):
         result = self.build()
-        self.assertEqual(result.generation.name, cold_build.digest(result.image))
-        self.assertEqual(os.readlink(self.output / 'media/current'), 'generations/' + result.generation.name)
+        self.assertEqual(result.generation.parent.name, cold_build.digest(result.image))
+        self.assertEqual(os.readlink(self.output / 'media/current'), 'generations/' + result.generation.parent.name + '/' + result.generation.name)
         receipt = json.loads((result.generation / 'media.json').read_text())
-        self.assertEqual(receipt['assembly_sha256'], [result.generation.name] * 2)
+        self.assertEqual(receipt['assembly_sha256'], [result.generation.parent.name] * 2)
         self.assertEqual(receipt['hardware'], 'not-run')
         self.assertEqual(receipt['checks'], dict.fromkeys(('structural_media', 'rootfs_structural', 'rootfs_qemu', 'reproducibility'), 'pass'))
         self.assertIn('reproducibility_sha256', receipt['inputs']['cold'])

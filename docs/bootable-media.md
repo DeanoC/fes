@@ -31,60 +31,48 @@ only the target root filesystem and cannot boot a blank card. The manifest is
 kept outside the disk so it can record the whole-image hash without making that
 hash self-referential.
 
-Each successful output lives in an immutable content-addressed directory under
-`media/generations/<image-sha256>/`. `media/current` changes atomically only
-after assembly and verification succeed. A failed assembly or verification
-leaves the previous current generation intact.
+Each successful output lives in an immutable evidence directory:
+`media/generations/<image-sha256>/<evidence-sha256>/`. The outer hash identifies
+exact disk bytes; the inner hash is the SHA-256 of `media.json`, which binds the
+manifest, current validated input evidence, and recipe. `media/current` is a
+relative symlink to one evidence directory. Identical disk bytes can therefore
+have multiple immutable records when valid cold QEMU evidence or the media
+recipe changes. Earlier records and image copies are retained.
+
+This is an explicit amendment to the original one-level image-hash layout:
+external verification evidence can change without changing disk bytes, so disk
+identity alone cannot identify immutable evidence. No prior evidence is edited
+or silently accepted as current. `make verify-media` validates current cold
+host/image receipts and source/boot inputs first. If the selected evidence is
+stale, it performs two independent media assemblies with the current recipe,
+requires both to match the retained disk SHA, and repeats the raw-media and
+rootfs structural/QEMU checks before publishing a new evidence directory.
+Provisioned refresh uses a private, hash-checked snapshot extracted from the
+retained disk; it does not require the original local config file. Changed cold
+inputs or policy that produce different disk bytes fail without moving current.
+Unchanged evidence is fully reverified and reused. Legacy one-level outputs
+can be read-only refresh candidates; new publication uses both hashes.
 
 ## Select and reverify a previous generation
 
-Use this host-only rollback only after identifying the prior generation SHA-256
-from its retained `media.json`. It changes the local `current` symlink; it does
-not write a card or contact a kit.
+Choose the retained disk/evidence hash pair from its directory and media.json:
 
 ```sh
-set -eu
-media=out/native-integration-dev/media
-generation=<previous-image-sha256>
-test -d "$media/generations/$generation"
-test -f "$media/generations/$generation/media.json"
-test -L "$media/current"
-previous_target=$(readlink "$media/current")
-test -n "$previous_target"
-next="$media/.next-current.$$"
-restore="$media/.restore-current.$$"
-
-restore_current() {
-  status=$?
-  trap - EXIT HUP INT TERM
-  rm -f -- "$next"
-  if [ "$status" -ne 0 ]; then
-    ln -s -- "$previous_target" "$restore"
-    mv -Tf -- "$restore" "$media/current"
-  fi
-  rm -f -- "$restore"
-  exit "$status"
-}
-
-trap restore_current EXIT
-trap 'exit 1' HUP INT TERM
-ln -s "generations/$generation" "$next"
-mv -Tf -- "$next" "$media/current"
-make verify-media
-trap - EXIT HUP INT TERM
-rm -f -- "$restore"
+make rollback-media GENERATION='<previous-image-sha256>/<previous-evidence-sha256>'
 ```
 
-Do not edit a generation in place or skip the final verification. The trap is
-installed before `current` changes. It restores the preserved relative target
-with an atomic rename if selection, verification, or an interruption fails, so
-the failed candidate is never left selected. A retained generation is usable
-only with the matching selected sources, media recipe and cold-build receipts
-(`host.json`, `image.json`, `verification.json`, `reproducibility.txt`, and
-QEMU evidence). `scripts/media.py rejects stale evidence`: if those inputs no
-longer match the generation receipt, `make verify-media` fails. Rebuild and
-verify the matching integration state rather than treating an old image
-directory as accepted.
+The command holds the same exclusive media lease as build and verification
+across candidate validation, evidence refresh when needed, atomic selection,
+directory sync, and failure rollback. A competing media operation fails while
+that lease is held. If validation, sync, or SIGTERM/SIGINT/SIGHUP interrupts
+selection, the previous current link is restored before the lease is released.
+Use this command instead of replacing the symlink from a shell script.
+
+Rollback must still satisfy the current selected cold inputs and media policy;
+a historical directory alone does not authorize acceptance. If its bytes no
+longer match the selected inputs, restore and verify the matching integration
+state first. The command changes only the local published selection, never a
+card or kit. Do not edit retained image or evidence files in place.
 
 ## Provision a local image
 
@@ -139,8 +127,8 @@ checks. It also verifies the manifest, receipts and the two matching assembly
 hashes. The resulting `media.json` records these host checks as passing and
 records hardware as `not-run`.
 
-Neither `make media` nor `make verify-media` writes a block device, deploys to
-a target, reboots a kit or claims a hardware lease. QEMU validates target
+`make media`, `make verify-media`, and `make rollback-media` never write a block device, deploy to
+a target, reboot a kit or claim a hardware lease. QEMU validates target
 userspace packaging; it does not emulate the DE10-Nano bootloader, FPGA, video,
 audio or input hardware.
 
@@ -162,8 +150,8 @@ card, verify all of the following before releasing the lease:
   rootfs (`/media/fat/linux/linux.img`), kernel
   (`/media/fat/linux/zImage_dtb`), FAT idle artifact (`/media/fat/menu.rbf`),
   and installed runtime idle artifact
-  (`/usr/share/mister-runtime/idle.rbf`) with `rootfs_sha256`, `kernel_sha256`,
-  and `idle_sha256` in `fes-media.toml`. The two idle hashes must both match
+  (`/usr/share/mister-runtime/idle.rbf`) with `rootfs.sha256`, `kernel.sha256`,
+  and `idle.sha256` in `fes-media.toml`. The two idle hashes must both match
   the pinned idle value.
 - Compare the installed rootfs, agent, runtime, kernel, idle artifact and all
   three cores before exact-artifact acceptance. Run:

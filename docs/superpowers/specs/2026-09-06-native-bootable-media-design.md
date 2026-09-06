@@ -65,7 +65,7 @@ manifest. `media.json` is the FES reuse receipt binding the current parent
 fingerprint, input receipts, assembly recipe, manifest, and disk image. The
 manifest stays outside the disk so its whole-image digest is not
 self-referential. Each successful result is published as an immutable
-`media/generations/<image-sha256>/` directory. Only after full verification does
+`media/generations/<image-sha256>/<evidence-sha256>/` directory. Only after full verification does
 the assembler atomically replace the `media/current` symlink with a relative
 link to that generation. Existing generations remain available for rollback;
 a failed assembly, verification, or republish cannot change `current`.
@@ -167,6 +167,31 @@ The normal build fingerprint is split so adding or changing the media assembler
 does not invalidate an otherwise unchanged host or rootfs receipt. Media
 fingerprints include the relevant parent profile, input receipt hashes, boot
 lock, assembler/verifier sources, and tool identity.
+
+## Generation/evidence ruling (final review amendment)
+
+The original one-level image-hash generation key cannot also identify mutable
+external verification evidence. Retain disk identity as the outer image SHA-256,
+and add an immutable evidence SHA-256 directory beneath it. The evidence hash
+is computed from the final media.json bytes, which bind the manifest and all
+current receipt/recipe hashes. The directory contains fes.img, fes-media.toml,
+and media.json; current points to that full relative path. Prior leaves are
+never rewritten or deleted by publication.
+
+Build may publish a new evidence leaf for identical bytes. Verify and rollback
+must first validate current cold evidence, then refresh stale media evidence by
+two independent current-recipe assemblies, exact retained-disk hash comparison,
+and all raw-media/rootfs structural/QEMU checks. Provisioned refresh privately
+extracts and hash-checks the embedded config. No historical assembly result is
+relabeled as evidence for a new recipe. If current assembly cannot reproduce
+the selected disk, selection fails. Legacy one-level files remain read-only
+refresh candidates; all new publication uses the two-level key.
+
+Rollback is a CLI/Make operation (`make rollback-media GENERATION=<image>/<evidence>`),
+not a shell symlink edit. It holds the same exclusive media lease through
+validation, selection, directory sync, and restoration on any publication
+exception, including handled termination. Replacement and sync form one
+protected transaction. Hardware remains not-run in every published leaf.
 
 ## Optional local provisioning
 

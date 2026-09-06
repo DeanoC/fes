@@ -3,7 +3,6 @@ from pathlib import Path
 import tempfile
 import unittest
 import os
-import shlex
 import subprocess
 import sys
 from unittest.mock import patch
@@ -114,47 +113,26 @@ class ConsistencyTest(unittest.TestCase):
     def test_bootable_media_operator_guide_covers_rollback_config_and_installed_hashes(self):
         guide = (Path(__file__).resolve().parents[1] / 'docs/bootable-media.md').read_text()
         required = (
-            'ln -s "generations/$generation"',
-            'make verify-media',
-            'set -eu',
-            'previous_target=$(readlink "$media/current")',
-            'trap restore_current EXIT',
-            "trap 'exit 1' HUP INT TERM",
-            'mv -Tf -- "$restore" "$media/current"',
-            '`scripts/media.py rejects stale',
+            'make rollback-media GENERATION=', 'make verify-media', 'exclusive media lease',
+            'generations/<image-sha256>/<evidence-sha256>', 'two independent',
+            'rootfs.sha256', 'kernel.sha256', 'idle.sha256',
             '/media/fat/fogcast/agent.toml',
             'installed rootfs, agent, runtime, kernel, idle artifact',
-            'megadrive.rbf',
-            'pong.rbf',
-            'snes.rbf',
+            'megadrive.rbf', 'pong.rbf', 'snes.rbf',
         )
         for needle in required:
             self.assertIn(needle, guide, needle)
+        for obsolete in ('rootfs_sha256', 'kernel_sha256', 'idle_sha256', 'mv -Tf', 'previous_target='):
+            self.assertNotIn(obsolete, guide)
 
-    def test_bootable_media_rollback_shell_restores_current_on_verification_failure(self):
-        guide = (Path(__file__).resolve().parents[1] / 'docs/bootable-media.md').read_text()
-        start = guide.index('```sh\nset -eu\nmedia=out/native-integration-dev/media') + len('```sh\n')
-        end = guide.index('\n```', start)
-        snippet = guide[start:end]
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            media = root / 'media'
-            previous = media / 'generations' / 'previous'
-            candidate = media / 'generations' / 'candidate'
-            previous.mkdir(parents=True)
-            candidate.mkdir()
-            (candidate / 'media.json').write_text('{}\n')
-            (media / 'current').symlink_to('generations/previous')
-            fake_bin = root / 'bin'
-            fake_bin.mkdir()
-            fake_make = fake_bin / 'make'
-            fake_make.write_text('#!/bin/sh\nexit 1\n')
-            fake_make.chmod(0o755)
-            script = snippet.replace('media=out/native-integration-dev/media',
-                                     'media=' + shlex.quote(str(media)))
-            script = script.replace('generation=<previous-image-sha256>', 'generation=candidate')
-            result = subprocess.run(['bash', '-c', script], env={
-                **os.environ, 'PATH': str(fake_bin) + os.pathsep + os.environ['PATH']},
-                check=False)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertEqual(os.readlink(media / 'current'), 'generations/previous')
+    def test_bootable_media_rollback_uses_leased_cli_entrypoint(self):
+        repository = Path(__file__).resolve().parents[1]
+        result = subprocess.run(['make', '-n', 'rollback-media', 'GENERATION=' + 'a' * 64 + '/' + 'b' * 64],
+                                cwd=repository, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('scripts/media.py rollback', result.stdout)
+        self.assertIn('--generation "' + 'a' * 64 + '/' + 'b' * 64 + '"', result.stdout)
+        self.assertIn('make rollback-media', (repository / 'AGENTS.md').read_text())
+        result = subprocess.run(['make', '-n', 'rollback-media', 'AGENT_CONFIG=/tmp/config'],
+                                cwd=repository, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
