@@ -154,6 +154,7 @@ CI deliberately fails with an actionable message when this credential is absent.
 Quartus, full image builds and physical checks run on the development machine.
 
 The normal profile includes [Pong and basic SNES](docs/multi-system-development.md)
-alongside Mega Drive. SNES enhancement chips and persistent saves remain outside
+alongside Mega Drive. Native [SNES cartridge saves](docs/snes-saves.md) retain
+battery RAM through clean Stop and relaunch. SNES enhancement chips remain outside
 this implementation. Whole-system image assembly migration and the native
 bootable media layout remain separate work.
