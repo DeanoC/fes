@@ -18,6 +18,7 @@ import subprocess
 import tempfile
 import time
 import tomllib
+import uuid
 
 import build as cold_build
 from environment import build_environment
@@ -406,7 +407,7 @@ class Runner:
         self.runtime = env['TARGET_IMAGE_CONTAINER_RUNTIME']
         self.container = ensure_media_container(root, self.runtime, lock)
 
-    def run(self, command, *, container_cid=None, **kwargs):
+    def run(self, command, *, container_id=None, **kwargs):
         process = subprocess.Popen(list(map(str, command)), stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE, text=True, start_new_session=True, **kwargs)
         try:
@@ -415,8 +416,8 @@ class Runner:
             # Wait before child_scratch restores paths a child could still write.
             with defer_termination():
                 try:
-                    if container_cid is not None:
-                        self.remove_owned_container(container_cid)
+                    if container_id is not None:
+                        self.remove_owned_container(container_id)
                 finally:
                     try:
                         os.killpg(process.pid, signal.SIGTERM)
@@ -432,39 +433,56 @@ class Runner:
                         process.communicate()
             raise
         if process.returncode:
-            if container_cid is not None:
-                self.remove_owned_container(container_cid)
+            if container_id is not None:
+                self.remove_owned_container(container_id)
             # A tool could quote provisioned bytes in its diagnostics.
             raise ValueError('media verification or assembly failed; child output withheld')
         return stdout
 
-    def remove_owned_container(self, cidfile):
-        # Docker clients can exit while the daemon's container still runs.
-        # Remove only the exact container created by this invocation and wait
-        # for the runtime to confirm removal before restoring shared paths.
+    def remove_owned_container(self, identity):
+        # The immutable ID (or unique name during create) is known before any
+        # attached process starts. Never infer ownership from a late CID file.
+        if not re.fullmatch(r'(?:[0-9a-f]{64}|fes-media-[0-9a-f]{32})', identity):
+            raise ChildShutdownError('invalid owned container identity')
         try:
-            if not cidfile.exists():
-                return
-            identity = cidfile.read_text().strip()
-            if not re.fullmatch('[0-9a-f]{64}', identity):
-                raise ChildShutdownError('invalid owned container identity')
             result = subprocess.run([self.runtime, 'rm', '--force', identity],
                                     capture_output=True, text=True, timeout=15)
             if result.returncode and 'no such container' not in result.stderr.lower():
                 raise ChildShutdownError('owned container removal failed')
+            absent = subprocess.run([self.runtime, 'inspect', '--type', 'container',
+                                     '--format', '{{.Id}}', identity],
+                                    capture_output=True, text=True, timeout=15)
+            if not absent.returncode or 'no such' not in absent.stderr.lower():
+                raise ChildShutdownError('owned container absence could not be confirmed')
         except (OSError, subprocess.TimeoutExpired) as error:
             raise ChildShutdownError('owned container shutdown failed') from error
 
+    def create_and_start(self, command, name, **kwargs):
+        identity = name
+        try:
+            # Create cannot execute the payload. Wait for its request to finish
+            # even when termination is pending, before removing this exact
+            # operation-owned name/ID. A pending signal then prevents start.
+            with defer_termination():
+                output = self.run(command, **kwargs)
+                returned = output.strip().splitlines()[-1] if output.strip() else ''
+                if not re.fullmatch('[0-9a-f]{64}', returned):
+                    raise ValueError('container create did not return an immutable identity')
+                identity = returned
+            return self.run([self.runtime, 'start', '--attach', identity],
+                            container_id=identity, **kwargs)
+        finally:
+            with defer_termination():
+                self.remove_owned_container(identity)
+
     def disk(self, command):
-        temporary_root = self.root / 'out/tmp'
-        temporary_root.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(prefix='media-container-', dir=temporary_root) as temporary:
-            cidfile = Path(temporary) / 'container.cid'
-            return self.run([self.runtime, 'run', '--rm', '--cidfile', str(cidfile),
-                             '--network=none', '--cap-drop=ALL', '--security-opt=no-new-privileges',
-                             '--volume', str(self.root) + ':/work', '--workdir', '/work',
-                             '--entrypoint', 'sh', self.container,
-                             '-c', 'umask 077; exec "$@"', 'media', *command], container_cid=cidfile)
+        name = 'fes-media-' + uuid.uuid4().hex
+        return self.create_and_start([
+            self.runtime, 'create', '--name', name, '--label', 'org.fes.media.operation=' + name,
+            '--network=none', '--cap-drop=ALL', '--security-opt=no-new-privileges',
+            '--volume', str(self.root) + ':/work', '--workdir', '/work',
+            '--entrypoint', 'sh', self.container,
+            '-c', 'umask 077; exec "$@"', 'media', *command], name)
 
     def path(self, path):
         return '/work/' + str(Path(path).relative_to(self.root))
@@ -496,18 +514,20 @@ class Runner:
         guard.mkdir(mode=0o700)
         write_private(guard / 'make', b'#!/bin/sh\necho "run make verify" >&2\nexit 1\n')
         (guard / 'make').chmod(0o700)
-        cidfile = staged / 'container.cid'
+        name = 'fes-media-' + uuid.uuid4().hex
         runtime_shim = staged / 'container-runtime'
         runtime = shlex.quote(self.runtime)
+        # The selected FogCast wrapper constructs its pinned container arguments;
+        # turn only its final run into create, then start the returned ID here.
         write_private(runtime_shim, ('#!/bin/sh\nif [ "${1:-}" = run ]; then\n'
-                      '  shift\n  exec ' + runtime + ' run --cidfile ' + shlex.quote(str(cidfile))
+                      '  shift\n  exec ' + runtime + ' create --name ' + name
+                      + ' --label org.fes.media.operation=' + name
                       + ' "$@"\nfi\nexec ' + runtime + ' "$@"\n').encode())
         runtime_shim.chmod(0o700)
         try:
-            self.run([fogcast / 'scripts/target-image-container.sh', 'run', 'sh',
-                      '/work/build/output/target-image/media-verify/verify.sh'],
-                     env=dict(env, TARGET_IMAGE_CONTAINER_RUNTIME=str(runtime_shim)),
-                     container_cid=cidfile)
+            self.create_and_start([fogcast / 'scripts/target-image-container.sh', 'run', 'sh',
+                      '/work/build/output/target-image/media-verify/verify.sh'], name,
+                     env=dict(env, TARGET_IMAGE_CONTAINER_RUNTIME=str(runtime_shim)))
         except ValueError:
             raise ValueError('rootfs verification failed; if the pinned QEMU kernel cache is absent or stale, run make verify') from None
 

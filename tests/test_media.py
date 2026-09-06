@@ -258,34 +258,163 @@ class MediaTests(unittest.TestCase):
         staged = self.fogcast / 'build/output/target-image/media-verify'
         staged.mkdir()
         (staged / 'keep').write_text('preserved')
-        cidfile = self.root / 'owned.cid'
-        cidfile.write_text('a' * 64)
         runtime = self.root / 'runtime'
         removed = self.root / 'removed'
-        runtime.write_text('#!/bin/sh\ntest "$1" = rm && test "$2" = --force || exit 9\ntest ! -e "' + str(staged / 'keep') + '" || exit 8\nprintf "%s" "$3" > "' + str(removed) + '"\n')
+        runtime.write_text('#!/bin/sh\nif [ "$1" = inspect ]; then echo "No such container" >&2; exit 1; fi\ntest "$1" = rm && test "$2" = --force || exit 9\ntest ! -e "' + str(staged / 'keep') + '" || exit 8\nprintf "%s" "$3" > "' + str(removed) + '"\n')
         runtime.chmod(0o700)
         runner = object.__new__(media.Runner)
         runner.runtime = str(runtime)
         with self.assertRaises(Exception) as caught:
             with media.termination_handling(), media.child_scratch(self.fogcast):
-                runner.run([sys.executable, '-c', 'import os,signal,time; os.kill(os.getppid(),signal.SIGTERM); time.sleep(60)'], container_cid=cidfile)
+                runner.run([sys.executable, '-c', 'import os,signal,time; os.kill(os.getppid(),signal.SIGTERM); time.sleep(60)'], container_id='a' * 64)
         self.assertIsInstance(caught.exception, media.TerminationRequested)
         self.assertEqual(removed.read_text(), 'a' * 64)
         self.assertEqual((staged / 'keep').read_text(), 'preserved')
 
     def test_failed_container_client_removes_owned_container(self):
-        cidfile = self.root / 'owned.cid'
-        cidfile.write_text('b' * 64)
         runtime = self.root / 'runtime'
         removed = self.root / 'removed'
-        runtime.write_text('#!/bin/sh\ntest "$1" = rm && test "$2" = --force || exit 9\nprintf "%s" "$3" > "' + str(removed) + '"\n')
+        runtime.write_text('#!/bin/sh\nif [ "$1" = inspect ]; then echo "No such container" >&2; exit 1; fi\ntest "$1" = rm && test "$2" = --force || exit 9\nprintf "%s" "$3" > "' + str(removed) + '"\n')
         runtime.chmod(0o700)
         runner = object.__new__(media.Runner)
         runner.runtime = str(runtime)
         with self.assertRaisesRegex(ValueError, 'child output withheld'):
-            runner.run([sys.executable, '-c', 'raise SystemExit(7)'], container_cid=cidfile)
+            runner.run([sys.executable, '-c', 'raise SystemExit(7)'], container_id='b' * 64)
         self.assertTrue(removed.exists(), 'client failure must stop its owned container')
         self.assertEqual(removed.read_text(), 'b' * 64)
+
+    def test_signal_before_container_identity_cannot_leave_daemon_writer(self):
+        staged = self.fogcast / 'build/output/target-image/media-verify'
+        staged.mkdir(mode=0o750)
+        (staged / 'keep').write_text('preserved')
+        scripts = self.fogcast / 'scripts'
+        scripts.mkdir()
+        wrapper = scripts / 'target-image-container.sh'
+        wrapper.write_text('#!/bin/sh\nexec "$TARGET_IMAGE_CONTAINER_RUNTIME" run --rm fixture-image true\n')
+        wrapper.chmod(0o700)
+        runtime = self.root / 'runtime'
+        fixture = self.root / 'daemon'
+        fixture.mkdir()
+        runtime_code = r'''import json,os,subprocess,sys,time
+from pathlib import Path
+state=Path(FIXTURE)
+args=sys.argv[1:]
+command=args[0]
+identity='c'*64
+with (state/'calls').open('a') as stream: stream.write(json.dumps(args)+'\n')
+if command in ('run','create'):
+    if command == 'run':
+        (state/'container').write_text(identity)
+        child_code="import time; from pathlib import Path; state=Path("+repr(str(state))+"); scratch=Path("+repr(SCRATCH)+"); log=Path("+repr(LOG)+");\nwhile (state/'container').exists():\n if (scratch/'keep').exists(): (state/'post-restore-write').write_text('late write'); log.write_text('daemon changed restored log')\n time.sleep(0.01)"
+        child=subprocess.Popen([sys.executable,'-c',child_code],start_new_session=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        (state/'pid').write_text(str(child.pid))
+    (state/'ready').write_text(command)
+    while not (state/'release').exists(): time.sleep(0.01)
+    if command == 'create':
+        (state/'container').write_text(identity)
+        (state/'name').write_text(args[args.index('--name')+1])
+    else:
+        Path(args[args.index('--cidfile')+1]).write_text(identity)
+    print(identity,flush=True)
+    if command == 'run':
+        while (state/'container').exists(): time.sleep(0.01)
+elif command == 'start':
+    (state/'started').write_text(args[-1])
+elif command == 'rm':
+    assert args[-1] == identity or args[-1] == (state/'name').read_text()
+    (state/'container').unlink(missing_ok=True)
+elif command == 'inspect':
+    if (state/'container').exists(): print(identity)
+    else: print('No such container',file=sys.stderr); sys.exit(1)
+else:
+    raise SystemExit(9)
+'''
+        runtime.write_text('#!' + sys.executable + '\n' + runtime_code.replace('FIXTURE', repr(str(fixture))).replace('SCRATCH', repr(str(staged))).replace('LOG', repr(str(self.log))))
+        runtime.chmod(0o700)
+        parent_code = r'''import sys
+from pathlib import Path
+sys.path.insert(0,sys.argv[1])
+import media
+root,fogcast,runtime=map(Path,sys.argv[2:5])
+mode=sys.argv[5]
+def build(*args):
+    with media.child_scratch(fogcast) as scratch:
+        runner=object.__new__(media.Runner)
+        runner.root=root; runner.runtime=str(runtime); runner.container='fixture-image'
+        if mode == 'disk': runner.disk(['true'])
+        else: runner.child_verify(fogcast,scratch,{})
+media.build=build
+sys.argv=['media.py','build']
+media.main()
+'''
+        for mode in ('disk', 'child'):
+            with self.subTest(mode=mode):
+                for path in fixture.iterdir(): path.unlink()
+                process = subprocess.Popen([sys.executable, '-c', parent_code, str(ROOT / 'scripts'), str(self.root), str(self.fogcast), str(runtime), mode], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+                try:
+                    deadline = time.monotonic() + 5
+                    while not (fixture / 'ready').exists() and process.poll() is None and time.monotonic() < deadline:
+                        time.sleep(0.01)
+                    self.assertTrue((fixture / 'ready').exists(), 'runtime did not reach pre-identity window')
+                    process.send_signal(signal.SIGTERM)
+                    # Let ordinary termination happen before the runtime returns ID.
+                    time.sleep(0.05)
+                    (fixture / 'release').touch()
+                    stdout, stderr = process.communicate(timeout=10)
+                    self.assertNotEqual(process.returncode, 0)
+                    time.sleep(0.05)
+                    self.assertFalse((fixture / 'container').exists(), 'owned daemon container survived startup termination')
+                    self.assertFalse((fixture / 'post-restore-write').exists(), 'daemon wrote after original paths were restored')
+                    self.assertFalse((fixture / 'started').exists(), 'signal during create must prevent start')
+                    self.assertEqual((staged / 'keep').read_text(), 'preserved')
+                    self.assertEqual(self.log.read_text(), 'original smoke')
+                    self.assertEqual(stat.S_IMODE(staged.stat().st_mode), 0o750)
+                    self.assertEqual(stat.S_IMODE(self.log.stat().st_mode), 0o640)
+                    self.assertEqual(list(staged.parent.glob('.media-restore-*')), [])
+                finally:
+                    (fixture / 'container').unlink(missing_ok=True)
+                    if process.poll() is None: process.kill()
+                    process.wait()
+                    process.stdout.close(); process.stderr.close()
+                    if (fixture / 'pid').exists():
+                        try: os.kill(int((fixture / 'pid').read_text()), signal.SIGKILL)
+                        except ProcessLookupError: pass
+                    self.log.write_text('original smoke')
+
+    def test_both_container_paths_start_only_known_identity_and_confirm_removal(self):
+        runtime = self.root / 'runtime'
+        calls = self.root / 'runtime-calls'
+        runtime.write_text('#!' + sys.executable + '\nimport json,sys\nfrom pathlib import Path\n'
+            + 'with Path(' + repr(str(calls)) + ').open("a") as stream: stream.write(json.dumps(sys.argv[1:])+"\\n")\n'
+            + 'if sys.argv[1] == "create": print("d"*64)\n'
+            + 'elif sys.argv[1] == "start": print("payload output")\n'
+            + 'elif sys.argv[1] == "inspect": print("No such container",file=sys.stderr); sys.exit(1)\n')
+        runtime.chmod(0o700)
+        scripts = self.fogcast / 'scripts'
+        scripts.mkdir()
+        wrapper = scripts / 'target-image-container.sh'
+        wrapper.write_text('#!/bin/sh\nexec "$TARGET_IMAGE_CONTAINER_RUNTIME" run --rm fixture-image true\n')
+        wrapper.chmod(0o700)
+        runner = object.__new__(media.Runner)
+        runner.root = self.root
+        runner.runtime = str(runtime)
+        runner.container = 'fixture-image'
+        for mode in ('disk', 'child'):
+            with self.subTest(mode=mode):
+                calls.unlink(missing_ok=True)
+                with media.child_scratch(self.fogcast) as staged:
+                    if mode == 'disk':
+                        self.assertEqual(runner.disk(['true']), 'payload output\n')
+                    else:
+                        runner.child_verify(self.fogcast, staged, {})
+                commands = [json.loads(line) for line in calls.read_text().splitlines()]
+                self.assertEqual([command[0] for command in commands], ['create', 'start', 'rm', 'inspect'])
+                name = commands[0][commands[0].index('--name') + 1]
+                self.assertRegex(name, '^fes-media-[0-9a-f]{32}$')
+                self.assertIn('org.fes.media.operation=' + name, commands[0])
+                self.assertEqual(commands[1], ['start', '--attach', 'd' * 64])
+                self.assertEqual(commands[2], ['rm', '--force', 'd' * 64])
+                self.assertEqual(commands[3][-1], 'd' * 64)
 
     def test_cli_signals_stop_live_child_before_restoring_scratch(self):
         staged = self.fogcast / 'build/output/target-image/media-verify'
