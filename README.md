@@ -34,9 +34,10 @@ produces a programmable RBF.
 
 `cores.lock` also selects SNES Release 20260823. `make fetch-core CORE=snes`
 uses the existing fetch/hash-check lane. A staged seed-3 Quartus diagnostic
-passed timing and native LoROM/HiROM hardware checks; the normal recipe retains
-seed 1 and does not reproduce that diagnostic. Bundle export currently admits
-Mega Drive only. See the architecture document for artifact identities.
+passed timing and native LoROM/HiROM hardware checks. The normal SNES recipe
+now explicitly selects fitter seed 3 and requires passing timing. Export admits
+Mega Drive, SNES and Pong; new builds require their own hardware acceptance.
+See the architecture document for artifact identities.
 
 Pinned third-party cores live in `cores.lock`. That file is the **upstream
 version**: exact git commit plus the official release RBF hash.
@@ -214,3 +215,12 @@ owner. Ordinary native bring-up uses `kit.py`; do not run both paths concurrentl
 No build target uploads an RBF automatically. The native development loader
 still requires a compatible MiSTer framework ABI; ownership does not make an
 arbitrary bare experimental RBF compatible.
+
+## Three-system bundles
+
+Run `make export-core-bundle CORE=snes` after `make rebuild-core CORE=snes`, or
+`make export-core-bundle CORE=pong` after `make build-pong`. Each prints a sealed
+`build/bundles/<system>/<sha256>/` directory containing `<system>.rbf` and
+`<system>-rbf.toml`. Pong export requires a clean committed source tree and
+checks its local/framework input record. SNES and Pong export reject failed,
+missing or stale timing evidence. Neither build nor export programs the kit.
