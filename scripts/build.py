@@ -18,8 +18,13 @@ import bundle as core_bundle
 from environment import build_environment
 
 ROOT = Path(__file__).resolve().parents[1]
-BUILD_RECIPE_FILES = tuple(sorted((ROOT / "scripts").glob("*.py")))
-MEDIA_RECIPE_FILES = ()
+MEDIA_RECIPE_FILES = tuple(ROOT / name for name in (
+    "scripts/media.py", "scripts/media_inputs.py", "scripts/media_container.py",
+    "scripts/media_inside.py", "boot-media.lock.toml",
+    "containers/boot-media/Dockerfile", "containers/boot-media/create-builder-user.sh",
+    "containers/boot-media/packages.sha256"))
+BUILD_RECIPE_FILES = tuple(path for path in sorted((ROOT / "scripts").glob("*.py"))
+                           if path not in MEDIA_RECIPE_FILES)
 
 def run(args, **kwargs):
     print("+ " + " ".join(map(str, args)), flush=True)
