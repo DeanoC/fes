@@ -589,7 +589,12 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
             allowed_hard_blocks={
                 "cyclonev_hps_interface_mpu_general_purpose": 1,
             },
-            forbidden_source_patterns=(*_COMMON_SOURCE_PATTERNS, "LED", "GPIO", "external_gpio"),
+            forbidden_source_patterns=(
+                *(pattern for pattern in _COMMON_SOURCE_PATTERNS if pattern != "MLAB"),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
             forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
             required_source_identifiers={
                 "cyclonev_hps_interface_mpu_general_purpose": 1,

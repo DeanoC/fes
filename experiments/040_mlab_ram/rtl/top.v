@@ -9,7 +9,7 @@ module storage_port #(
 );
     localparam integer DEPTH = 1 << ADDR_BITS;
 
-    reg [7:0] stored [0:DEPTH-1];
+    (* ramstyle = "mlab" *) reg [7:0] stored [0:DEPTH-1];
 
     initial rdata = 8'h00;
 

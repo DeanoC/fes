@@ -314,6 +314,7 @@ nextpnr_cmd=(
     --sdc "$sdc_rel"
     --freq "$policy_clock_mhz"
     --rbf "$out_rel/$policy_artifact"
+    --compress-rbf
     --write "$out_rel/routed.json"
     --report "$out_rel/timing.json"
     --detailed-timing-report
@@ -400,7 +401,7 @@ fi
     || fail "synth json does not satisfy closed experiment policy: $EXP"
 
 "$run_logged" "$nextpnr_help_log" "${nextpnr_help_cmd[@]}"
-for required_flag in --json --device --qsf --sdc --freq --rbf --write --report --detailed-timing-report; do
+for required_flag in --json --device --qsf --sdc --freq --rbf --compress-rbf --write --report --detailed-timing-report; do
     flag_found=0
     while IFS= read -r help_line; do
         if [[ "$help_line" == *"$required_flag"* ]]; then

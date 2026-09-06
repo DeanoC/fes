@@ -19,8 +19,10 @@ production source lists, and OSS synthesis flags come from the closed experiment
 policy. Simulation-only models never enter either synthesis lane.
 
 `oss` uses only the pinned repository-local tools described by
-`toolchain.lock`. Generated sources and tools live under `build/toolchain/`.
-Build output lives under `build/oss/<experiment>/`.
+`toolchain.lock`. nextpnr writes a compressed Cyclone V RBF
+(`--compress-rbf`) so the FPGA manager can reach CONF_DONE. Generated
+sources and tools live under `build/toolchain/`. Build output lives under
+`build/oss/<experiment>/`.
 
 `oracle` uses an explicitly configured Quartus Prime Lite 17.0.2 installation.
 It uses the same production RTL and timing intent as the OSS lane. Output lives
@@ -47,11 +49,12 @@ drives one LED from stored bit 0. OSS synthesis maps the table to exactly one
 M10K. PLL, DSP, MLAB, and HPS remain forbidden.
 
 `040_mlab_ram` is a 32-by-8 writeable table on the HPS general-purpose
-interface. Linux peeks and pokes GPO/GPI; there is no LED. Yosys maps the
-table to eight `MISTRAL_MLAB` cells. nextpnr packs those into LABs and does
-not report an MLAB utilization key, so the closed policy counts the Yosys
-cells and requires the HPS primitive in the route report. PLL, DSP, and M10K
-remain forbidden.
+interface. Linux peeks and pokes GPO/GPI; there is no LED. The table is
+marked `ramstyle = "mlab"`. Yosys maps it to eight `MISTRAL_MLAB` cells.
+nextpnr packs those into LABs and does not report an MLAB utilization key,
+so the closed policy counts the Yosys cells and requires the HPS primitive
+in the route report. Quartus maps the same table to 256 MLAB bits and zero
+M10K. PLL, DSP, and M10K remain forbidden.
 
 ## Artifact boundary
 

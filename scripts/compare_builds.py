@@ -869,6 +869,7 @@ def _oss_command_contract_failures(
         "50",
         "--rbf",
         "build/oss/020_linux_mailbox/top.rbf",
+        "--compress-rbf",
         "--write",
         "build/oss/020_linux_mailbox/routed.json",
         "--report",

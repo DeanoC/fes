@@ -35,14 +35,16 @@ class MlabSourcePolicyTests(unittest.TestCase):
             1,
         )
         self.assertIn("16'hD410", rtl)
-        self.assertRegex(rtl, r"reg\s+\[7:0\]\s+stored\s+\[0:DEPTH-1\]")
+        self.assertRegex(
+            rtl,
+            r'\(\*\s*ramstyle\s*=\s*"mlab"\s*\*\)\s*reg\s+\[7:0\]\s+stored\s+\[0:DEPTH-1\]',
+        )
         for forbidden in (
             "LED",
             "PLL",
             "BRAM",
             "M10K",
             "LUTRAM",
-            "MLAB",
             "DSP",
             "altsyncram",
             "HDMI",

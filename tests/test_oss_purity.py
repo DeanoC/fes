@@ -141,6 +141,7 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertIn("boards/de10nano/pins.qsf", commands)
         self.assertIn("boards/de10nano/clocks.sdc", commands)
         self.assertIn("top.rbf", commands)
+        self.assertIn("--compress-rbf", commands)
         self.assertIn("run_logged.sh", commands)
         self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
 

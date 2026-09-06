@@ -399,6 +399,8 @@ timing_path = Path(sys.argv[2])
 summary_path = Path(sys.argv[3])
 rbf_path = Path(sys.argv[4])
 experiment = sys.argv[5]
+hps_gp = experiment in {"020_linux_mailbox", "040_mlab_ram"}
+measure_mlab = experiment == "040_mlab_ram"
 target = sys.argv[6]
 rtl_path = Path(sys.argv[7])
 sdc_path = Path(sys.argv[8])
@@ -688,7 +690,7 @@ mailbox_hps_patterns = (
     ),
     re.compile(r"^mpu[ _-]+general[ _-]+purpose$", re.I),
 )
-if experiment == "020_linux_mailbox":
+if hps_gp:
     hps_candidates: list[tuple[int, int]] = []
     hps_malformed = False
     for line, _delimiter, label, _value_cells in fitted_rows:
@@ -927,7 +929,7 @@ def optional_zero_record(
     return record, None
 
 
-if experiment == "020_linux_mailbox":
+if hps_gp:
     for name, pattern in mailbox_zero_fitted_rows:
         _record, error = optional_zero_record(name, pattern)
         if error is not None:
@@ -1020,8 +1022,9 @@ def static_exclusion(
     return excluded_record(source_records), None
 
 
-static_hard_contracts = {
-    "MLAB/LUTRAM": (
+static_hard_contracts: dict[str, tuple[re.Pattern[str], tuple[str, ...]]] = {}
+if not measure_mlab:
+    static_hard_contracts["MLAB/LUTRAM"] = (
         re.compile(r"^(?:total\s+)?mlabs?$|^(?:total\s+)?mlab/lutram\s+blocks?$", re.I),
         (
             r"\bmlab(?:s)?\b",
@@ -1029,8 +1032,7 @@ static_hard_contracts = {
             r"\b(?:altsyncram|lpm_ram|mlab_cell)\b",
             r"\b(?:reg|wire|logic)\s*\[[^\]]+\]\s+\w+\s*\[",
         ),
-    ),
-}
+    )
 if experiment == "010_blinky":
     static_hard_contracts["HPS"] = (
         re.compile(r"^(?:total\s+)?(?:hps|hard\s+processor\s+system)\s+blocks?$", re.I),
@@ -1047,6 +1049,26 @@ for name, (report_pattern, source_patterns) in static_hard_contracts.items():
     hard_blocks[name] = record
     if error is not None:
         hard_errors.append(error)
+
+if measure_mlab:
+    mlab_record, mlab_error = measured_report_record(
+        "MLAB/LUTRAM",
+        (
+            re.compile(r"^(?:total\s+)?(?:mlab|lutram)\s+memory\s+bits?$", re.I),
+            re.compile(r"^(?:total\s+)?lutram\s+bits?$", re.I),
+        ),
+        require_zero=False,
+        allow_missing_available=True,
+    )
+    if mlab_record is not None:
+        hard_blocks["MLAB/LUTRAM"] = mlab_record
+        used = mlab_record.get("used")
+        if type(used) is not int or used != 256:
+            hard_errors.append(
+                f"MLAB/LUTRAM: expected 256 lutram bits, got {used}"
+            )
+    if mlab_error is not None:
+        hard_errors.append(mlab_error)
 
 # Catch a resource section whose spelling is not covered by the conservative
 # aliases above.  This is deliberately an error rather than silently calling
@@ -1077,13 +1099,15 @@ known_context_patterns = (
         re.I,
     ),
     re.compile(r"^(?:total\s+)?(?:mlab|lutram)\s+memory\s+bits?$", re.I),
+    re.compile(r"^memory alut usage$", re.I),
+    re.compile(r"^(?:64|32)-address deep$", re.I),
     re.compile(r"^(?:total\s+)?sdram(?:\s+(?:interfaces?|ports?))?$", re.I),
     *(
         pattern
         for _name, pattern in mailbox_zero_fitted_rows
-        if experiment == "020_linux_mailbox"
+        if hps_gp
     ),
-    *(mailbox_hps_patterns if experiment == "020_linux_mailbox" else ()),
+    *(mailbox_hps_patterns if hps_gp else ()),
 )
 unknown_markers = (
     "ram block",
@@ -1116,7 +1140,7 @@ unknown_markers = (
         "jtag",
         "dll",
     )
-    if experiment == "020_linux_mailbox"
+    if hps_gp
     else ()
 )
 ignored_prose = ("capability", "peripheral", "entity", "pin", "compilation", "diagnostic")
@@ -1135,7 +1159,7 @@ for line, _delimiter, label, _value_cells in fitted_rows:
         continue
     # The normal HPS peripheral-utilization heading is a context row; an
     # unrecognized HPS/MPU/ARM entity row is still hard-resource evidence.
-    if experiment != "020_linux_mailbox" and any(
+    if not hps_gp and any(
         word in lowered for word in ignored_prose
     ):
         continue
@@ -1143,13 +1167,13 @@ for line, _delimiter, label, _value_cells in fitted_rows:
     # physical resources.  A physical HPS aggregate is handled by the static
     # exclusion contract above.
     if (
-        experiment != "020_linux_mailbox"
+        not hps_gp
         and "processor" in lowered
         and not re.search(r"\bhps\b|hard\s+processor\s+system", lowered)
     ):
         continue
     if (
-        experiment != "020_linux_mailbox"
+        not hps_gp
         and not re.search(
             r"\b(?:total|blocks?|ram|m10k|m20k|bram|dsp|plls?|resources?|units?|count|usage)\b",
             lowered,
@@ -1169,7 +1193,7 @@ for line, _delimiter, label, _value_cells in fitted_rows:
 # In addition to the marker scan above, reject any remaining numeric row that
 # is not a known ordinary utilization row.  This catches a newly named hard
 # resource even if its label does not contain one of today's markers.
-if experiment == "020_linux_mailbox":
+if hps_gp:
     # Exact full-label vocabulary for ordinary Cyclone-V fitted resources.
     # Do not accept a row merely because its label contains a word such as
     # "logic", "clock", or "memory": new numeric rows are evidence that the
@@ -1206,7 +1230,7 @@ if experiment == "020_linux_mailbox":
         if any(pattern.fullmatch(label) for pattern in known_fitted_patterns):
             continue
         lowered = label.casefold()
-        if experiment != "020_linux_mailbox" and any(
+        if not hps_gp and any(
             word in lowered for word in ignored_prose
         ):
             continue
@@ -1226,7 +1250,9 @@ if unknown_resources:
 hard_block_status = "pass" if not hard_errors else "fail"
 if hard_errors:
     hard_block_reason = "; ".join(hard_errors)
-elif experiment == "020_linux_mailbox":
+elif measure_mlab:
+    hard_block_reason = "fitter summary rows measure RAM Blocks/M10K, DSP Blocks, PLLs, 256 MLAB/LUTRAM bits, and one allowed HPS general-purpose primitive"
+elif hps_gp:
     hard_block_reason = "fitter summary rows measure RAM Blocks/M10K, DSP Blocks, PLLs, and one allowed HPS general-purpose primitive; MLAB/LUTRAM remains excluded by static source/project evidence (used=null)"
 else:
     hard_block_reason = "fitter summary rows measure RAM Blocks/M10K, DSP Blocks, and PLLs; MLAB/LUTRAM and HPS are excluded by static source/project evidence (used=null)"
@@ -1274,7 +1300,7 @@ def top_port_evidence(path: Path) -> dict[str, int]:
 
 
 semantic_resource_evidence: dict[str, int] | None = None
-if experiment == "020_linux_mailbox":
+if hps_gp:
     try:
         semantic_resource_evidence = top_port_evidence(rtl_path)
     except (OSError, ValueError) as exc:
@@ -1317,6 +1343,7 @@ if experiment == "020_linux_mailbox":
         measured, error = measured_report_record(
             semantic_name,
             patterns,
+            require_zero=not (measure_mlab and semantic_name == "lutram_bits"),
             allow_missing_available=semantic_name == "lutram_bits",
         )
         if measured is not None:
@@ -1337,10 +1364,11 @@ if experiment == "020_linux_mailbox":
         }
     )
     for semantic_name in ("block_memory_bits", "lutram_bits", "sdram_interfaces"):
-        if semantic_resource_evidence[semantic_name] != 0:
+        expected_bits = 256 if measure_mlab and semantic_name == "lutram_bits" else 0
+        if semantic_resource_evidence[semantic_name] != expected_bits:
             hard_errors.append(
-                f"{semantic_name}: unexpected forbidden resource usage "
-                f"({semantic_resource_evidence[semantic_name]})"
+                f"{semantic_name}: unexpected resource usage "
+                f"({semantic_resource_evidence[semantic_name]}), expected {expected_bits}"
             )
     hard_block_status = "pass" if not hard_errors else "fail"
     hard_block_reason = "; ".join(hard_errors) if hard_errors else hard_block_reason
@@ -1446,7 +1474,7 @@ summary = {
     "clock_intent": clock_name,
     "allowed_hard_blocks": (
         {"cyclonev_hps_interface_mpu_general_purpose": 1}
-        if experiment == "020_linux_mailbox"
+        if hps_gp
         else {}
     ),
     "resource_evidence": semantic_resource_evidence,
