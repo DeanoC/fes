@@ -8,6 +8,7 @@ import (
 )
 
 type Spec struct {
+	ROMless              bool
 	System               protocol.System
 	ExpectedCore         string
 	ObservedFallback     bool
@@ -44,7 +45,7 @@ func DefaultRegistry() Registry {
 			continue
 		}
 		specs = append(specs, Spec{
-			System: row.LaunchSystem, ExpectedCore: row.Core.ExpectedCore, ObservedFallback: row.Core.ObservedFallback,
+			ROMless: row.Core.ROMless, System: row.LaunchSystem, ExpectedCore: row.Core.ExpectedCore, ObservedFallback: row.Core.ObservedFallback,
 			RequiresLaunchIntent: row.Core.RequiresLaunchIntent, RBFSelector: row.Core.RBF,
 			ROMRoot: row.Core.KitROMRoot, MGLRoot: row.Core.MGLRoot,
 			RequiredFiles: append([]string(nil), row.Core.RequiredFiles...), Extensions: extensionSet(row.Extensions...),

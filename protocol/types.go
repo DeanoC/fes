@@ -7,6 +7,7 @@ const RecoveryRebootRequired = "reboot_required"
 type System string
 
 const (
+	SystemPong            System = "pong"
 	SystemMegaDrive       System = "megadrive"
 	SystemSNES            System = "snes"
 	SystemNES             System = "nes"

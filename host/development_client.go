@@ -21,6 +21,9 @@ func (c *Client) LoadDevelopmentRBF(ctx context.Context, size int64, content io.
 	request.Header.Set("Authorization", "Bearer "+c.token)
 	request.Header.Set("Content-Type", "application/octet-stream")
 
+	if err := c.authorizeMutation(request); err != nil {
+		return protocol.Status{}, err
+	}
 	response, err := c.httpClient.Do(request)
 	if err != nil {
 		if response != nil && response.Body != nil {

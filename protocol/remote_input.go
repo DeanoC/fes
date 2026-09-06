@@ -13,6 +13,10 @@ const (
 	InputTypePing    uint8  = 2
 	InputTypePong    uint8  = 3
 	InputCodeButtonC uint16 = 108
+	InputCodeButtonX uint16 = 109
+	InputCodeButtonY uint16 = 110
+	InputCodeButtonL uint16 = 111
+	InputCodeButtonR uint16 = 112
 	inputMagic              = "MSTR"
 	inputHeaderSize         = 16
 	inputPayloadSize        = 32

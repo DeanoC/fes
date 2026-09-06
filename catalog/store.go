@@ -458,7 +458,7 @@ const reasonLibraryRebound = "library_path_changed"
 // Libraries returns stored library identities. Folder-watch uses this to
 // retire SNES rows that are no longer the configured source of truth.
 func (s *Store) Libraries(ctx context.Context) ([]Root, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, system, root FROM libraries ORDER BY id`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, system, root FROM libraries WHERE root != ? ORDER BY id`, builtinRoot)
 	if err != nil {
 		return nil, fmt.Errorf("list catalog libraries: %w", err)
 	}

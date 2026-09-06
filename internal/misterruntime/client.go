@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 const DefaultSocketPath = "/run/mister-runtime.sock"
@@ -148,14 +150,32 @@ func (client *Client) call(ctx context.Context, requestBody any) (Response, erro
 	return response, nil
 }
 
+func nativeRBFPath(system protocol.System) string {
+	switch system {
+	case protocol.SystemMegaDrive:
+		return megaDriveRBFPath
+	case protocol.SystemSNES:
+		return "/usr/share/mister-runtime/cores/snes.rbf"
+	case protocol.SystemPong:
+		return "/usr/share/mister-runtime/cores/pong.rbf"
+	default:
+		return ""
+	}
+}
+
 func validLaunchRequest(request LaunchRequest) bool {
-	if request.System != "megadrive" || request.RBF != megaDriveRBFPath ||
-		request.Settings == nil || len(request.Settings) != 0 || len(request.Media) != 1 {
+	expected := nativeRBFPath(protocol.System(request.System))
+	if expected == "" || request.RBF != expected || request.Settings == nil || len(request.Settings) != 0 || request.Media == nil {
+		return false
+	}
+	if request.System == string(protocol.SystemPong) {
+		return len(request.Media) == 0
+	}
+	if len(request.Media) != 1 {
 		return false
 	}
 	cartridge, ok := request.Media["cartridge"]
-	return ok && filepath.IsAbs(cartridge) && filepath.Clean(cartridge) == cartridge &&
-		strings.IndexByte(cartridge, 0) < 0
+	return ok && filepath.IsAbs(cartridge) && filepath.Clean(cartridge) == cartridge && strings.IndexByte(cartridge, 0) < 0
 }
 
 func validRuntimePath(path string) bool {

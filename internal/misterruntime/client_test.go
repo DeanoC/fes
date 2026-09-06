@@ -183,7 +183,7 @@ func TestClientRejectsLaunchShapesOutsideTheNativeMegaDriveContractBeforeDial(t 
 		name   string
 		mutate func(*LaunchRequest)
 	}{
-		{name: "unsupported system", mutate: func(request *LaunchRequest) { request.System = "snes" }},
+		{name: "unsupported system", mutate: func(request *LaunchRequest) { request.System = "nes" }},
 		{name: "FAT core", mutate: func(request *LaunchRequest) { request.RBF = "/media/fat/_Console/MegaDrive.rbf" }},
 		{name: "relative cartridge", mutate: func(request *LaunchRequest) { request.Media["cartridge"] = "sonic2.bin" }},
 		{name: "missing cartridge", mutate: func(request *LaunchRequest) { request.Media = map[string]string{} }},

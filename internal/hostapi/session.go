@@ -624,6 +624,16 @@ func (s *sessionCoordinator) stop(ctx context.Context) (sessionResult, error) {
 		}
 		s.mu.Unlock()
 	}
+	if st.State == protocol.StateIdle {
+		if owner, ok := s.service.(interface{ ReleaseKitLease(context.Context) error }); ok {
+			releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			err := owner.ReleaseKitLease(releaseCtx)
+			cancel()
+			if err != nil {
+				return sessionResult{}, err
+			}
+		}
+	}
 	s.record("session.stop", result, nil)
 	return result, nil
 }

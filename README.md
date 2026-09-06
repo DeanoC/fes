@@ -39,6 +39,33 @@ The normal FPGA launch path is:
 5. FogCast observes `/tmp/CORENAME` for the active core. Stopping sends
    `load_core <menu.rbf>` through the same command path.
 
+## Built-in native Pong (software integration)
+
+Pong appears in the host catalog as game ID `pong` without adding a library or
+ROM. Launch it through the existing browser/session path, or
+`POST /api/v1/session/launch` with `{"game_id":"pong"}`. It requires the native
+runtime and installed `/usr/share/mister-runtime/cores/pong.rbf`; the Main
+backend does not support this ROM-less profile. Supplied media is rejected.
+This integration is software-tested; Pong RBF/image packaging and playable
+hardware acceptance is recorded separately by the FES integration task.
+
+## Native SNES (software integration)
+
+SNES uses the existing library, cache, and session launch path with the native
+runtime and installed `/usr/share/mister-runtime/cores/snes.rbf`. FogCast passes
+one unchanged cartridge path (`.sfc`, `.smc`, or `.bin`); the runtime owns format
+validation, copier-header handling, and the required metadata transfer prefix.
+The initial runtime contract is ordinary LoROM/HiROM up to 4 MiB; enhancement
+chips, external firmware, expanded mappings, and persistent saves are outside
+this slice. The native package uses cartridge index 1; the conventional Main
+selector remains index 0.
+
+The retained native gamepad includes A/B/X/Y/L/R/Select/Start and the D-pad.
+Existing MD C and Start codes keep their meaning. Host event normalization,
+lease delivery, and disconnect/Stop neutralization use the existing input path;
+this does not add a browser gamepad-capture UI. Tests use fake runtime/target
+and uinput calls; exact-image SNES hardware acceptance remains separate.
+
 ## Development RBF path
 
 `POST /api/v1/session/development-rbf` accepts one bounded

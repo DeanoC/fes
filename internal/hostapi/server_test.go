@@ -538,7 +538,7 @@ func (r *forbiddenDevelopmentReader) Read([]byte) (int, error) {
 func TestSessionReplaceNativeGameStopsToExactIdleBeforeDevelopmentUpload(t *testing.T) {
 	gameID, system, core := "megadrive-active", protocol.SystemMegaDrive, "MegaDrive"
 	order := []string{}
-	service := &fakeService{
+	baseService := &fakeService{
 		status:    protocol.Status{State: protocol.StateIdle},
 		execution: fogcast.ExecutionFPGANative,
 		launch: protocol.CachedLaunchResponse{Status: protocol.Status{
@@ -548,6 +548,7 @@ func TestSessionReplaceNativeGameStopsToExactIdleBeforeDevelopmentUpload(t *test
 		development: protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core},
 		order:       &order,
 	}
+	service := &leasedService{fakeService: baseService}
 	remoteInput := &fakeRemoteInput{order: &order}
 	media := &fakeMediaSession{order: &order}
 	handler := hostapi.New(service, hostapi.WithRemoteInput(remoteInput), hostapi.WithMediaSession(media))
@@ -562,6 +563,9 @@ func TestSessionReplaceNativeGameStopsToExactIdleBeforeDevelopmentUpload(t *test
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("development replacement = %d %s", response.Code, response.Body.String())
+	}
+	if service.releases != 0 {
+		t.Fatal("replacement released kit ownership")
 	}
 	if got := strings.Join(order, ","); got != "input.detach,stop,service.stop,development.upload" {
 		t.Fatalf("replacement order = %q", got)

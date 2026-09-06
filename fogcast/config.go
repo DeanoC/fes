@@ -820,6 +820,9 @@ func normalizeLibraries(raw []fileLibrary) ([]catalog.Root, error) {
 	ids := make(map[string]struct{}, len(raw))
 	roots := make(map[string]struct{}, len(raw))
 	for _, library := range raw {
+		if library.ID == catalog.BuiltinLibraryID || library.System == protocol.SystemPong {
+			return nil, fmt.Errorf("Pong is built in and cannot have a library root")
+		}
 		if err := protocol.ValidateGameID(library.ID); err != nil {
 			return nil, fmt.Errorf("library id: %w", err)
 		}

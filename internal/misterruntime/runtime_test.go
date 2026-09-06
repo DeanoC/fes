@@ -487,12 +487,12 @@ func TestNativePrepareAcceptsOnlyTheRegisteredMegaDriveShapeAndAnAbsoluteROM(t *
 		t.Fatalf("prepared = %#v", prepared)
 	}
 
-	unsupported, ok := core.DefaultRegistry().Lookup(protocol.SystemSNES)
+	unsupported, ok := core.DefaultRegistry().Lookup(protocol.SystemNES)
 	if !ok {
-		t.Fatal("SNES registry entry is missing")
+		t.Fatal("NES registry entry is missing")
 	}
 	if _, apiErr := runtime.Prepare(unsupported, rom); apiErr == nil || apiErr.Code != protocol.CodeUnsupportedSystem {
-		t.Fatalf("SNES prepare error = %#v", apiErr)
+		t.Fatalf("NES prepare error = %#v", apiErr)
 	}
 	for _, test := range []struct {
 		name string
@@ -1072,7 +1072,7 @@ func TestNativeLaunchRejectsPreparedValuesOutsideTheMegaDriveContractWithoutCont
 		prepared mister.PreparedLaunch
 		code     protocol.ErrorCode
 	}{
-		{name: "unsupported system", prepared: mister.PreparedLaunch{Spec: core.Spec{System: protocol.SystemSNES, ExpectedCore: "SNES"}, AbsoluteROM: rom}, code: protocol.CodeUnsupportedSystem},
+		{name: "unsupported system", prepared: mister.PreparedLaunch{Spec: core.Spec{System: protocol.SystemNES, ExpectedCore: "NES"}, AbsoluteROM: rom}, code: protocol.CodeUnsupportedSystem},
 		{name: "wrong registry identity", prepared: mister.PreparedLaunch{Spec: core.Spec{System: protocol.SystemMegaDrive, ExpectedCore: "Wrong"}, AbsoluteROM: rom}, code: protocol.CodeUnsupportedSystem},
 		{name: "relative cartridge", prepared: mister.PreparedLaunch{Spec: spec, AbsoluteROM: "sonic2.bin"}, code: protocol.CodeInvalidROMPath},
 		{name: "FAT core smuggling", prepared: mister.PreparedLaunch{Spec: spec, AbsoluteROM: rom, RelativeROM: "/media/fat/_Console/MegaDrive.rbf"}, code: protocol.CodeInvalidROMPath},

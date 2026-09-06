@@ -61,6 +61,11 @@ func TestCreateUInputGamepadConfiguresExactIdentityCapabilitiesAndRecords(t *tes
 		{0x40045565, 0x131}, // BTN_B
 		{0x40045565, 0x132}, // BTN_C
 		{0x40045565, 0x13b}, // BTN_START
+		{0x40045565, 0x133}, // BTN_X
+		{0x40045565, 0x134}, // BTN_Y
+		{0x40045565, 0x136}, // BTN_TL
+		{0x40045565, 0x137}, // BTN_TR
+		{0x40045565, 0x13a}, // BTN_SELECT
 		{0x40045567, 0x00},  // UI_SET_ABSBIT, ABS_X
 		{0x40045567, 0x01},  // UI_SET_ABSBIT, ABS_Y
 		{0x00005501, 0x00},  // UI_DEV_CREATE
@@ -149,8 +154,7 @@ func TestNativeUInputRejectsFramesOutsideOnePlayerGamepadContract(t *testing.T) 
 		{name: "keyboard device", frame: protocol.InputFrame{Player: 0, Device: 0, Kind: 0, Action: 1, Code: 2}},
 		{name: "key kind on gamepad", frame: protocol.InputFrame{Player: 0, Device: 1, Kind: 0, Action: 1, Code: 104}},
 		{name: "system kind", frame: protocol.InputFrame{Player: 0, Device: 1, Kind: 3, Action: 1, Code: 104}},
-		{name: "select", frame: protocol.InputFrame{Player: 0, Device: 1, Kind: 1, Action: 1, Code: 107}},
-		{name: "unknown button", frame: protocol.InputFrame{Player: 0, Device: 1, Kind: 1, Action: 1, Code: 109}},
+		{name: "unknown button", frame: protocol.InputFrame{Player: 0, Device: 1, Kind: 1, Action: 1, Code: 113}},
 		{name: "button absolute", frame: protocol.InputFrame{Player: 0, Device: 1, Kind: 1, Action: 2, Code: 104}},
 		{name: "axis press", frame: protocol.InputFrame{Player: 0, Device: 1, Kind: 2, Action: 1, Code: 200}},
 		{name: "axis release", frame: protocol.InputFrame{Player: 0, Device: 1, Kind: 2, Action: 0, Code: 201}},
@@ -319,6 +323,32 @@ func TestUInputNonNeutralStateIsRetainedForCleanupAfterWriteFailure(t *testing.T
 					t.Fatal("cleanup retained axis state")
 				}
 			})
+		}
+	}
+}
+
+func TestSNESNativeButtonsEmitAndReleaseExactLinuxRecords(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "uinput")
+	if err := os.WriteFile(path, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	sink, err := createUInputGamepad(path, func(uintptr, uintptr, uintptr) error { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sink.Close()
+	for wire, linux := range map[uint16]uint16{107: 314, 109: 307, 110: 308, 111: 310, 112: 311} {
+		before, _ := os.ReadFile(path)
+		if err := sink.Apply(protocol.InputFrame{Device: 1, Kind: 1, Action: 1, Code: wire}); err != nil {
+			t.Fatalf("wire %d: %v", wire, err)
+		}
+		if err := sink.ReleaseAll(); err != nil {
+			t.Fatal(err)
+		}
+		after, _ := os.ReadFile(path)
+		events := after[len(before):]
+		if len(events) != 64 || binary.LittleEndian.Uint16(events[10:12]) != linux || binary.LittleEndian.Uint32(events[12:16]) != 1 || binary.LittleEndian.Uint16(events[42:44]) != linux || binary.LittleEndian.Uint32(events[44:48]) != 0 {
+			t.Fatalf("wire %d events %x", wire, events)
 		}
 	}
 }

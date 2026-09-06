@@ -9,6 +9,7 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/cast"
 	"github.com/DeanoC/FogCast/internal/core"
+	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -24,6 +25,7 @@ type ContentController interface {
 }
 
 type serverOptions struct {
+	kitLease    *kitlease.Manager
 	content     ContentController
 	input       InputController
 	cast        CastController

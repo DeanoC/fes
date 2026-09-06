@@ -80,6 +80,12 @@ func createUInputGamepad(path string, ioctl uinputIoctl) (Sink, error) {
 		{uiSetKeyBit, uintptr(btnB)},
 		{uiSetKeyBit, uintptr(btnC)},
 		{uiSetKeyBit, uintptr(btnStart)},
+		{uiSetKeyBit, uintptr(btnX)},
+		{uiSetKeyBit, uintptr(btnY)},
+		{uiSetKeyBit, uintptr(btnL)},
+		{uiSetKeyBit, uintptr(btnR)},
+		{uiSetKeyBit, uintptr(btnSelect)},
+
 		{uiSetAbsBit, uintptr(absX)},
 		{uiSetAbsBit, uintptr(absY)},
 	}
@@ -246,6 +252,10 @@ const (
 	btnA         uint16  = 304
 	btnB         uint16  = 305
 	btnC         uint16  = 306
+	btnX         uint16  = 307
+	btnY         uint16  = 308
+	btnL         uint16  = 310
+	btnR         uint16  = 311
 	btnDPadUp    uint16  = 544
 	btnDPadDn    uint16  = 545
 	btnDPadL     uint16  = 546
@@ -272,6 +282,10 @@ func linuxCode(f protocol.InputFrame) (uint16, uint16, bool) {
 		1: 1, 2: 30, 3: 105, 4: 106, 5: 103, 6: 108,
 		100: btnDPadUp, 101: btnDPadDn, 102: btnDPadL, 103: btnDPadR,
 		104: btnA, 105: btnB, 106: btnStart, 107: btnSelect, protocol.InputCodeButtonC: btnC,
+		protocol.InputCodeButtonX: btnX,
+		protocol.InputCodeButtonY: btnY,
+		protocol.InputCodeButtonL: btnL,
+		protocol.InputCodeButtonR: btnR,
 	}
 	code, ok := keys[f.Code]
 	return code, evKey, ok
@@ -299,7 +313,11 @@ func nativeLinuxCode(f protocol.InputFrame) (uint16, uint16, bool) {
 	}
 	keys := map[uint16]uint16{
 		100: btnDPadUp, 101: btnDPadDn, 102: btnDPadL, 103: btnDPadR,
-		104: btnA, 105: btnB, 106: btnStart, protocol.InputCodeButtonC: btnC,
+		104: btnA, 105: btnB, 106: btnStart, 107: btnSelect, protocol.InputCodeButtonC: btnC,
+		protocol.InputCodeButtonX: btnX,
+		protocol.InputCodeButtonY: btnY,
+		protocol.InputCodeButtonL: btnL,
+		protocol.InputCodeButtonR: btnR,
 	}
 	code, ok := keys[f.Code]
 	return code, evKey, ok

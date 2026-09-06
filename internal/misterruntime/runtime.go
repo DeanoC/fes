@@ -64,7 +64,7 @@ func (r *Runtime) Health(version string) protocol.Health {
 
 func (r *Runtime) StopReady() bool {
 	response, err := r.boundedStatus(context.Background())
-	return err == nil && (validIdle(response) || validMegaDriveRunning(response) || validDevelopmentRunning(response))
+	return err == nil && (validIdle(response) || validNativeRunning(response) || validDevelopmentRunning(response))
 }
 
 func (r *Runtime) Reconcile(ctx context.Context) protocol.Status {
@@ -102,10 +102,10 @@ func (r *Runtime) Reconcile(ctx context.Context) protocol.Status {
 }
 
 func (r *Runtime) Prepare(spec core.Spec, candidate string) (mister.PreparedLaunch, *protocol.APIError) {
-	if !validMegaDriveSpec(spec) {
+	if !validNativeSpec(spec) {
 		return mister.PreparedLaunch{}, unsupportedSystemError()
 	}
-	rom, apiErr := validateNativeROM(candidate)
+	rom, apiErr := validateNativeMedia(spec, candidate)
 	if apiErr != nil {
 		return mister.PreparedLaunch{}, apiErr
 	}
@@ -125,13 +125,13 @@ func (r *Runtime) LaunchOwned(admission, observation, operationOwner context.Con
 }
 
 func (r *Runtime) launch(admission, observation, operationOwner context.Context, prepared mister.PreparedLaunch, owned bool) (string, bool, *protocol.APIError) {
-	if !validMegaDriveSpec(prepared.Spec) {
+	if !validNativeSpec(prepared.Spec) {
 		return "", false, unsupportedSystemError()
 	}
 	if prepared.RelativeROM != "" || len(prepared.MGL) != 0 {
 		return "", false, invalidROMPathError()
 	}
-	rom, apiErr := validateNativeROM(prepared.AbsoluteROM)
+	rom, apiErr := validateNativeMedia(prepared.Spec, prepared.AbsoluteROM)
 	if apiErr != nil || rom != prepared.AbsoluteROM {
 		if apiErr != nil {
 			return "", false, apiErr
@@ -146,12 +146,13 @@ func (r *Runtime) launch(admission, observation, operationOwner context.Context,
 		return "", false, unavailableError()
 	}
 	request := LaunchRequest{
-		System: "megadrive",
-		RBF:    megaDriveRBFPath,
-		Media: map[string]string{
-			"cartridge": rom,
-		},
+		System:   string(prepared.Spec.System),
+		RBF:      nativeRBFPath(prepared.Spec.System),
+		Media:    map[string]string{},
 		Settings: map[string]string{},
+	}
+	if prepared.Spec.System != protocol.SystemPong {
+		request.Media["cartridge"] = rom
 	}
 	launchContext := observation
 	if owned {
@@ -161,22 +162,22 @@ func (r *Runtime) launch(admission, observation, operationOwner context.Context,
 	if err != nil {
 		var reconciled bool
 		if owned {
-			reconciled = r.reconcileOwnedLostLaunch(observation, operationOwner)
+			reconciled = r.reconcileOwnedLostLaunch(observation, operationOwner, prepared.Spec)
 		} else {
-			reconciled = r.reconcileLostLaunch(admission)
+			reconciled = r.reconcileLostLaunch(admission, prepared.Spec)
 		}
 		if reconciled {
-			return "MegaDrive", true, nil
+			return prepared.Spec.ExpectedCore, true, nil
 		}
 		return "", true, unavailableError()
 	}
 	if response.Error != nil || !response.OK {
 		return "", true, mapRemoteError(response.Error)
 	}
-	if !validMegaDriveRunning(response) {
+	if !validProfileState(response, prepared.Spec, "running_game") {
 		return "", true, unavailableError()
 	}
-	return "MegaDrive", true, nil
+	return prepared.Spec.ExpectedCore, true, nil
 }
 
 func (r *Runtime) boundedStatus(parent context.Context) (Response, error) {
@@ -185,19 +186,19 @@ func (r *Runtime) boundedStatus(parent context.Context) (Response, error) {
 	return r.control.Status(ctx)
 }
 
-func (r *Runtime) reconcileLostLaunch(parent context.Context) bool {
+func (r *Runtime) reconcileLostLaunch(parent context.Context, spec core.Spec) bool {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), r.healthTimeout)
 	defer cancel()
-	reconciled, _ := r.reconcileLostLaunchWithin(ctx)
+	reconciled, _ := r.reconcileLostLaunchWithin(ctx, spec)
 	return reconciled
 }
 
-func (r *Runtime) reconcileOwnedLostLaunch(observation, operationOwner context.Context) bool {
+func (r *Runtime) reconcileOwnedLostLaunch(observation, operationOwner context.Context, spec core.Spec) bool {
 	if operationOwner.Err() != nil {
 		return false
 	}
 	if !contextExhausted(observation) {
-		if reconciled, exhausted := r.reconcileLostLaunchWithin(observation); reconciled {
+		if reconciled, exhausted := r.reconcileLostLaunchWithin(observation, spec); reconciled {
 			return true
 		} else if !exhausted {
 			return false
@@ -208,20 +209,20 @@ func (r *Runtime) reconcileOwnedLostLaunch(observation, operationOwner context.C
 	}
 	ctx, cancel := context.WithTimeout(operationOwner, r.healthTimeout)
 	defer cancel()
-	reconciled, _ := r.reconcileLostLaunchWithin(ctx)
+	reconciled, _ := r.reconcileLostLaunchWithin(ctx, spec)
 	return reconciled
 }
 
-func (r *Runtime) reconcileLostLaunchWithin(ctx context.Context) (reconciled, exhausted bool) {
+func (r *Runtime) reconcileLostLaunchWithin(ctx context.Context, spec core.Spec) (reconciled, exhausted bool) {
 	for {
 		response, err := r.control.Status(ctx)
 		if err != nil {
 			return false, contextExhausted(ctx)
 		}
-		if validMegaDriveRunning(response) {
+		if validProfileState(response, spec, "running_game") {
 			return true, false
 		}
-		if !validIdle(response) && !validMegaDriveStarting(response) {
+		if !validIdle(response) && !validProfileState(response, spec, "starting") {
 			return false, false
 		}
 		if !waitForPoll(ctx, r.pollInterval) {
@@ -464,15 +465,18 @@ func unsupportedSystemError() *protocol.APIError {
 }
 
 func invalidROMPathError() *protocol.APIError {
-	return &protocol.APIError{Code: protocol.CodeInvalidROMPath, Message: "ROM path is invalid for native Mega Drive launch"}
+	return &protocol.APIError{Code: protocol.CodeInvalidROMPath, Message: "ROM path is invalid for native cartridge launch"}
 }
 
-func validMegaDriveSpec(spec core.Spec) bool {
-	registered, ok := core.DefaultRegistry().Lookup(protocol.SystemMegaDrive)
+func validNativeSpec(spec core.Spec) bool {
+	if nativeRBFPath(spec.System) == "" {
+		return false
+	}
+	registered, ok := core.DefaultRegistry().Lookup(spec.System)
 	return ok && spec.System == registered.System && spec.ExpectedCore == registered.ExpectedCore
 }
 
-func validateNativeROM(candidate string) (string, *protocol.APIError) {
+func validateNativeROM(system protocol.System, candidate string) (string, *protocol.APIError) {
 	if strings.IndexByte(candidate, 0) >= 0 || !filepath.IsAbs(candidate) || filepath.Clean(candidate) != candidate {
 		return "", invalidROMPathError()
 	}
@@ -487,19 +491,43 @@ func validateNativeROM(candidate string) (string, *protocol.APIError) {
 	if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
 		return "", &protocol.APIError{Code: protocol.CodeROMNotFound, Message: "ROM does not identify a non-empty regular file"}
 	}
-	switch strings.ToLower(filepath.Ext(resolved)) {
-	case ".md", ".gen", ".bin":
-		return resolved, nil
-	default:
-		return "", invalidROMPathError()
+	extension := strings.ToLower(filepath.Ext(resolved))
+	switch system {
+	case protocol.SystemMegaDrive:
+		if extension == ".md" || extension == ".gen" || extension == ".bin" {
+			return resolved, nil
+		}
+	case protocol.SystemSNES:
+		if extension == ".sfc" || extension == ".smc" || extension == ".bin" {
+			return resolved, nil
+		}
 	}
+	return "", invalidROMPathError()
 }
 
-func validMegaDriveRunning(response Response) bool {
+func validProfileState(response Response, spec core.Spec, state string) bool {
 	return response.Protocol == 1 && response.OK && response.Error == nil &&
-		response.State == "running_game" && response.Execution == "game" &&
-		response.System != nil && *response.System == "megadrive" &&
-		response.Core != nil && *response.Core == "MegaDrive"
+		response.State == state && response.Execution == "game" &&
+		response.System != nil && *response.System == string(spec.System) &&
+		response.Core != nil && *response.Core == spec.ExpectedCore
+}
+
+func validNativeRunning(response Response) bool {
+	if response.System == nil {
+		return false
+	}
+	spec, ok := core.DefaultRegistry().Lookup(protocol.System(*response.System))
+	return ok && validNativeSpec(spec) && validProfileState(response, spec, "running_game")
+}
+
+func validateNativeMedia(spec core.Spec, candidate string) (string, *protocol.APIError) {
+	if spec.System == protocol.SystemPong {
+		if candidate != "" {
+			return "", &protocol.APIError{Code: protocol.CodeInvalidROMPath, Message: "Pong does not accept media"}
+		}
+		return "", nil
+	}
+	return validateNativeROM(spec.System, candidate)
 }
 
 func validIdle(response Response) bool {
@@ -507,13 +535,6 @@ func validIdle(response Response) bool {
 		(response.Error == nil || validErrorCode(response.Error.Code)) &&
 		response.State == "idle" && response.Execution == "none" &&
 		response.System == nil && response.Core == nil
-}
-
-func validMegaDriveStarting(response Response) bool {
-	return response.Protocol == 1 && response.OK && response.Error == nil &&
-		response.State == "starting" && response.Execution == "game" &&
-		response.System != nil && *response.System == "megadrive" &&
-		response.Core != nil && *response.Core == "MegaDrive"
 }
 
 func validDevelopmentStarting(response Response) bool {

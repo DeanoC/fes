@@ -50,8 +50,13 @@ const (
 	ButtonStart     Code = 106
 	ButtonSelect    Code = 107
 	ButtonC         Code = Code(protocol.InputCodeButtonC)
-	AxisLeftX       Code = 200
-	AxisLeftY       Code = 201
+	ButtonX         Code = Code(protocol.InputCodeButtonX)
+	ButtonY         Code = Code(protocol.InputCodeButtonY)
+	ButtonL         Code = Code(protocol.InputCodeButtonL)
+	ButtonR         Code = Code(protocol.InputCodeButtonR)
+
+	AxisLeftX Code = 200
+	AxisLeftY Code = 201
 )
 
 type Event struct {
@@ -131,7 +136,7 @@ func NormalizeKeyboard(key string, pressed bool) (Event, error) {
 	return Event{Device: DeviceKeyboard, Kind: KindKey, Action: action(pressed), Code: c}, nil
 }
 func NormalizeGamepad(button string, pressed bool) (Event, error) {
-	m := map[string]Code{"dpad-up": ButtonDPadUp, "dpad-down": ButtonDPadDown, "dpad-left": ButtonDPadLeft, "dpad-right": ButtonDPadRight, "a": ButtonA, "b": ButtonB, "c": ButtonC, "start": ButtonStart, "select": ButtonSelect}
+	m := map[string]Code{"dpad-up": ButtonDPadUp, "dpad-down": ButtonDPadDown, "dpad-left": ButtonDPadLeft, "dpad-right": ButtonDPadRight, "a": ButtonA, "b": ButtonB, "c": ButtonC, "x": ButtonX, "y": ButtonY, "l": ButtonL, "r": ButtonR, "start": ButtonStart, "select": ButtonSelect}
 	c, ok := m[button]
 	if !ok {
 		return Event{}, fmt.Errorf("unsupported gamepad button %q", button)
