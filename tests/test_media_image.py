@@ -9,6 +9,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import tomllib
 import unittest
 from unittest import mock
 
@@ -68,7 +69,10 @@ class RealImageTests(unittest.TestCase):
         cls.lock = dataclasses.replace(lock,
             kernel=Payload("zImage_dtb", cls.kernel.stat().st_size, digest(cls.kernel)),
             uboot=Payload("uboot.img", cls.uboot.stat().st_size, digest(cls.uboot)))
-        cls.payloads = media_inside.ImageInputs(cls.rootfs, cls.idle, cls.kernel, cls.uboot)
+        cls.provenance = media_inside.Provenance('f' * 40, 'native-integration-dev', 'a' * 64,
+            'b' * 64, 'c' * 64, 'https://github.com/MiSTer-devel/Distribution_MiSTer',
+            'd' * 40, 'menu.rbf', cls.idle.stat().st_size, digest(cls.idle))
+        cls.payloads = media_inside.ImageInputs(cls.rootfs, cls.idle, cls.kernel, cls.uboot, provenance=cls.provenance)
         cls.image, cls.manifest = media_inside.assemble(cls.root / "original", cls.payloads, cls.lock)
 
     @classmethod
@@ -102,6 +106,80 @@ class RealImageTests(unittest.TestCase):
         self.assertEqual(mbr[440:446], struct.pack("<I", 0x46455331) + bytes(2))
         self.assertEqual(mbr[446:478], bytes.fromhex("80feffff0cfeffff000800000000080000feffffa2feffff0008080000080000"))
         self.assertEqual(mbr[478:], bytes(32) + b"\x55\xaa")
+
+    def test_manifest_has_complete_provenance_and_separate_checks(self):
+        data = tomllib.loads(self.manifest.read_text())
+        self.assertEqual(set(data), {'format', 'target', 'layout', 'source_date_epoch', 'provisioned',
+                         'hardware', 'fes', 'rootfs', 'kernel', 'uboot', 'idle', 'disk', 'fat',
+                         'partition_1', 'partition_2', 'output', 'assembly', 'checks'})
+        self.assertEqual(data['target'], 'de10-nano')
+        self.assertEqual(data['rootfs']['path'], 'out/native-integration-dev/linux.img')
+        self.assertEqual(data['rootfs']['destination'], '/linux/linux.img')
+        self.assertEqual(data['kernel']['destination'], '/linux/zImage_dtb')
+        self.assertEqual(data['uboot']['destination'], 'partition_2')
+        self.assertEqual(data['idle']['rootfs_destination'], '/usr/share/mister-runtime/idle.rbf')
+        self.assertEqual(data['idle']['fat_destination'], '/menu.rbf')
+        self.assertEqual(data['output'], {'path': 'fes.img', 'size': self.image.stat().st_size, 'sha256': digest(self.image)})
+        self.assertEqual(data['assembly']['sha256'], [digest(self.image)] * 2)
+        self.assertEqual(data['checks'], {'structural_media': 'pass', 'assembly_reproducibility': 'pass',
+                                        'rootfs_structural': 'not-run', 'rootfs_qemu': 'not-run'})
+        self.assertEqual(data['hardware'], 'not-run')
+        self.assertEqual(data['partition_1']['start_sector'], 2048)
+        self.assertEqual(data['partition_2']['type'], 0xa2)
+        for name in ('kernel', 'uboot', 'idle'):
+            self.assertTrue({'repository', 'revision', 'path', 'size', 'sha256'} <= set(data[name]))
+        self.assertEqual(set(data['fes']), {'revision', 'profile', 'media_recipe_sha256'})
+        self.assertTrue({'image_receipt_sha256', 'child_manifest_sha256'} <= set(data['rootfs']))
+
+    def test_manifest_rejects_stale_provenance_paths_status_and_pass_evidence(self):
+        original = tomllib.loads(self.manifest.read_text())
+        self.assertIn('fes', original, 'full provenance manifest required')
+        cases = [('fes', 'revision', '0' * 40), ('fes', 'profile', 'native-dev'),
+                 ('fes', 'media_recipe_sha256', '0' * 64),
+                 ('rootfs', 'path', '../linux.img'), ('rootfs', 'child_manifest_sha256', '0' * 64),
+                 ('rootfs', 'image_receipt_sha256', '0' * 64),
+                 ('kernel', 'repository', 'https://unselected.example'), ('kernel', 'destination', '/kernel'),
+                 ('uboot', 'revision', '0' * 40), ('idle', 'fat_destination', '/idle.rbf'),
+                 ('partition_1', 'active', False), ('partition_2', 'sector_count', 2047),
+                 ('fat', 'serial', 1), ('output', 'path', '../fes.img'),
+                 ('assembly', 'sha256', [digest(self.image), '0' * 64]),
+                 ('checks', 'rootfs_qemu', 'pass'), ('checks', 'structural_media', 'not-run'),
+                 ('rootfs', 'unknown', 'unexpected'), ('partition_1', 'active', 1)]
+        for table, key, value in cases:
+            with self.subTest(table=table, key=key):
+                data = json.loads(json.dumps(original))
+                data[table][key] = value
+                manifest = Path(self.scratch.name) / 'invalid.toml'
+                media_inside.write_manifest(manifest, data)
+                with self.assertRaisesRegex(ValueError, 'manifest|assembly'):
+                    self.verify(manifest)
+
+    def test_manifest_records_hashes_read_from_each_actual_assembly_pass(self):
+        observed = {}
+        original = media_inside._assemble_once
+        def assemble_once(image, inputs, lock, scratch):
+            original(image, inputs, lock, scratch)
+            observed[scratch.name] = digest(image)
+        with mock.patch.object(media_inside, '_assemble_once', side_effect=assemble_once):
+            _, manifest = media_inside.assemble(Path(self.scratch.name) / 'passes', self.payloads, self.lock)
+        data = tomllib.loads(manifest.read_text())
+        self.assertIn('assembly', data, 'actual pass evidence must be persisted')
+        self.assertEqual(data['assembly']['sha256'], [observed['first'], observed['second']])
+
+    def test_changed_second_pass_cannot_produce_assembly_evidence(self):
+        original = media_inside._assemble_once
+        def changed(image, inputs, lock, scratch):
+            original(image, inputs, lock, scratch)
+            if scratch.name == 'second':
+                with image.open('r+b') as stream:
+                    stream.seek(1024)
+                    stream.write(b'changed')
+        output = Path(self.scratch.name) / 'mismatched-passes'
+        with mock.patch.object(media_inside, '_assemble_once', side_effect=changed):
+            with self.assertRaisesRegex(ValueError, 'independent media assembly hashes differ'):
+                media_inside.assemble(output, self.payloads, self.lock)
+        self.assertFalse((output / 'fes.img').exists())
+        self.assertFalse((output / 'fes-media.toml').exists())
 
     def test_independent_assemblies_hash_identically(self):
         other, manifest = media_inside.assemble(Path(self.scratch.name) / "second", self.payloads, self.lock)
@@ -143,6 +221,9 @@ class RealImageTests(unittest.TestCase):
         common = ["--lock", str(lock_path)]
         for name in ("rootfs", "idle", "kernel", "uboot"):
             common.extend(["--" + name, str(getattr(self.payloads, name))])
+        provenance = Path(self.scratch.name) / 'provenance.json'
+        provenance.write_text(json.dumps(dataclasses.asdict(self.provenance)))
+        common += ['--provenance', str(provenance)]
         output = Path(self.scratch.name) / "cli"
         command = [sys.executable, str(ROOT / "scripts/media_inside.py")]
         assembled = json.loads(subprocess.check_output(command + ["assemble", "--output", str(output)] + common, text=True))
@@ -276,7 +357,7 @@ class RealImageTests(unittest.TestCase):
             self.verify()
 
     def test_manifest_is_closed_and_rejects_duplicates(self):
-        for extra in ('unknown = 1\n', 'format = 1\n'):
+        for extra in ('unknown = 1\n', 'format = 1\n', '[fes]\nrevision = "duplicate"\n'):
             with self.subTest(extra=extra):
                 manifest = Path(self.scratch.name) / "bad.toml"
                 manifest.write_text(extra + self.manifest.read_text())

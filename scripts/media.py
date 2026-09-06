@@ -2,7 +2,7 @@
 """Publish and reverify native boot media without accessing a physical device."""
 import argparse
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, replace
 import fcntl
 import hashlib
 import json
@@ -23,8 +23,8 @@ import uuid
 import build as cold_build
 from environment import build_environment
 from media_container import ensure_media_container
-from media_inputs import MediaLock, digest, resolve_payloads
-from media_inside import ImageInputs, PART1_OFFSET
+from media_inputs import MediaLock, digest, resolve_payloads, verify_file
+from media_inside import ImageInputs, PART1_OFFSET, Provenance, load_manifest, manifest_data, write_manifest
 
 PROFILE = 'native-integration-dev'
 recipe_fingerprint = cold_build.recipe_fingerprint
@@ -194,15 +194,44 @@ def select(root, profile):
     return fingerprint, fogcast, cold_build.selected_cores(configuration), env
 
 
+def current_revision(root):
+    return cold_build.git(root, 'rev-parse', 'HEAD')
+
+
+def provenance_for(root, fogcast, cold):
+    try:
+        idle = tomllib.loads((fogcast / 'build/native-runtime.inputs.lock.toml').read_text())['idle_rbf']
+        if idle['install_path'] != '/usr/share/mister-runtime/idle.rbf':
+            raise ValueError('noncanonical idle destination')
+        return Provenance(current_revision(root), PROFILE,
+            hashlib.sha256(json.dumps(recipe_fingerprint(cold_build.MEDIA_RECIPE_FILES), sort_keys=True).encode()).hexdigest(),
+            cold['image_receipt_sha256'], cold['child_manifest_sha256'],
+            idle['repository'], idle['commit'], idle['path'], idle['size'], idle['sha256'])
+    except (OSError, KeyError, TypeError, ValueError):
+        raise ValueError('selected media provenance or native idle lock is invalid') from None
+
+
 def prepare(root, profile):
     fingerprint, fogcast, cores, env = select(root, profile)
     output = root / 'out' / profile
     cold = cold_build.load_verified_image(output, fingerprint)
+    cold.update(cold_build.load_verified_host(output, fingerprint))
+    try:
+        child_manifest = output / 'manifest.tsv'
+        if not stat.S_ISREG(child_manifest.lstat().st_mode):
+            raise ValueError('child manifest must be regular')
+        cold['child_manifest_sha256'] = digest(child_manifest)
+        image_receipt = json.loads((output / 'image.json').read_text())
+        if image_receipt['files']['manifest.tsv'] != cold['child_manifest_sha256']:
+            raise ValueError('child manifest receipt differs')
+    except (OSError, ValueError, KeyError, TypeError):
+        raise ValueError('cold child manifest is missing or stale; run make build and make verify') from None
     cold['reproducibility_sha256'] = digest(output / 'reproducibility.txt')
     lock = MediaLock.load(root / 'boot-media.lock.toml')
     payloads = resolve_payloads(root, lock, cold_build.run)
     inputs = ImageInputs(output / 'linux.img', fogcast / 'build/cache/target-image/native/idle.rbf',
-                         payloads.kernel, payloads.uboot)
+                         payloads.kernel, payloads.uboot, provenance=provenance_for(root, fogcast, cold))
+    verify_file(inputs.idle, inputs.provenance.idle_size, inputs.provenance.idle_sha256, "idle provenance")
     env = dict(env, NATIVE_RUNTIME_SYSTEMS=' '.join(cores),
                TARGET_IMAGE_OUTPUT_VOLUME=cold_build.output_volume(root, profile),
                TARGET_IMAGE_CONTAINER_RUNTIME=os.environ.get('CONTAINER_RUNTIME', 'docker'))
@@ -210,7 +239,7 @@ def prepare(root, profile):
 
 
 def media_fingerprint(cold, lock_path, provision_sha):
-    data = {'cold': cold, 'boot_lock': digest(lock_path),
+    data = {'cold': cold, 'boot_lock': digest(lock_path), 'fes_revision': current_revision(lock_path.parent),
             'recipe': recipe_fingerprint(cold_build.MEDIA_RECIPE_FILES),
             'provision_sha256': provision_sha}
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest(), data
@@ -270,8 +299,8 @@ def child_scratch(fogcast):
             shutil.rmtree(saved)
 
 
-def validate_artifact(generation, inputs, lock, provision_sha, runner, fogcast, env):
-    runner.verify(generation, inputs, lock, provision_sha)
+def validate_artifact(generation, inputs, lock, provision_sha, runner, fogcast, env, *, rootfs_verified=True):
+    runner.verify(generation, inputs, lock, provision_sha, rootfs_verified=rootfs_verified)
     with child_scratch(fogcast) as staged:
         extracted = staged / 'linux.img'
         runner.extract(generation, extracted)
@@ -283,11 +312,11 @@ def validate_artifact(generation, inputs, lock, provision_sha, runner, fogcast, 
         runner.child_verify(fogcast, staged, env)
 
 
-def receipt_for(generation, fingerprint, info):
+def receipt_for(generation, fingerprint, info, assembly_hashes):
     image_sha = digest(generation / 'fes.img')
     return {'format': 1, 'fingerprint': fingerprint, 'inputs': info,
             'image_sha256': image_sha, 'manifest_sha256': digest(generation / 'fes-media.toml'),
-            'assembly_sha256': [image_sha, image_sha], 'checks': CHECKS, 'hardware': 'not-run'}
+            'assembly_sha256': list(assembly_hashes), 'checks': CHECKS, 'hardware': 'not-run'}
 
 
 def validate_receipt(generation, cold, root):
@@ -305,7 +334,9 @@ def validate_receipt(generation, cold, root):
         if provision_sha is not None and (not isinstance(provision_sha, str) or not re.fullmatch('[0-9a-f]{64}', provision_sha)):
             raise ValueError('invalid provision hash')
         fp, info = media_fingerprint(cold, root / 'boot-media.lock.toml', provision_sha)
-        if receipt != receipt_for(generation, fp, info) or receipt['image_sha256'] != generation.name:
+        hashes = load_manifest(generation / 'fes-media.toml')['assembly']['sha256']
+        if (type(hashes) is not list or len(hashes) != 2 or any(value != generation.name for value in hashes)
+                or receipt != receipt_for(generation, fp, info, hashes) or receipt['image_sha256'] != generation.name):
             raise ValueError('generation evidence differs')
         return provision_sha
     except (OSError, ValueError, KeyError, TypeError):
@@ -325,7 +356,7 @@ def build(root, profile=PROFILE, agent_config=None, runner=None):
         with tempfile.TemporaryDirectory(prefix='.staging-', dir=media_root) as temporary:
             scratch = Path(temporary)
             snapshot, provision_sha = snapshot_config(agent_config, scratch)
-            inputs = ImageInputs(inputs.rootfs, inputs.idle, inputs.kernel, inputs.uboot, snapshot)
+            inputs = replace(inputs, agent_config=snapshot)
             runner = runner or Runner(root, lock, env)
             candidate = scratch / 'generation'
             candidate.mkdir(mode=0o700)
@@ -335,9 +366,13 @@ def build(root, profile=PROFILE, agent_config=None, runner=None):
                 raise ValueError('independent media assembly hashes differ')
             for path in candidate.iterdir():
                 path.chmod(0o600)
-            validate_artifact(candidate, inputs, lock, provision_sha, runner, fogcast, env)
+            validate_artifact(candidate, inputs, lock, provision_sha, runner, fogcast, env, rootfs_verified=False)
+            # Promote rootfs statuses only after both child checks have returned.
+            write_manifest(candidate / 'fes-media.toml', manifest_data(candidate / 'fes.img', inputs, lock,
+                           provision_sha, hashes, rootfs_verified=True))
+            runner.verify(candidate, inputs, lock, provision_sha, rootfs_verified=True)
             fp, info = media_fingerprint(cold, root / 'boot-media.lock.toml', provision_sha)
-            receipt = receipt_for(candidate, fp, info)
+            receipt = receipt_for(candidate, fp, info, hashes)
             # This is the last file created in a generation, after all checks pass.
             write_private(candidate / 'media.json', (json.dumps(receipt, indent=2, sort_keys=True) + '\n').encode())
             for path in candidate.iterdir():
@@ -491,18 +526,31 @@ class Runner:
         return [item for name in ('rootfs', 'idle', 'kernel', 'uboot')
                 for item in ('--' + name, self.path(getattr(inputs, name)))]
 
+    @contextmanager
+    def provenance_file(self, inputs):
+        directory = self.root / 'out/tmp'
+        directory.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix='media-provenance-', dir=directory) as temporary:
+            path = Path(temporary) / 'provenance.json'
+            write_private(path, json.dumps(asdict(inputs.provenance), sort_keys=True).encode())
+            yield self.path(path)
+
     def assemble(self, output, inputs, lock):
         command = ['python3', '/work/scripts/media_inside.py', 'assemble', '--output', self.path(output), *self.arguments(inputs)]
         if inputs.agent_config:
             command += ['--agent-config', self.path(inputs.agent_config)]
-        return json.loads(self.disk(command))['assembly_sha256']
+        with self.provenance_file(inputs) as provenance:
+            return json.loads(self.disk(command + ['--provenance', provenance]))['assembly_sha256']
 
-    def verify(self, generation, inputs, lock, provision_sha):
+    def verify(self, generation, inputs, lock, provision_sha, *, rootfs_verified=True):
         command = ['python3', '/work/scripts/media_inside.py', 'verify', '--image', self.path(generation / 'fes.img'),
                    '--manifest', self.path(generation / 'fes-media.toml'), *self.arguments(inputs)]
         if provision_sha:
             command += ['--agent-config-sha256', provision_sha]
-        self.disk(command)
+        if rootfs_verified:
+            command += ['--rootfs-verified']
+        with self.provenance_file(inputs) as provenance:
+            self.disk(command + ['--provenance', provenance])
 
     def extract(self, generation, destination):
         self.disk(['mcopy', '-i', self.path(generation / 'fes.img') + '@@' + str(PART1_OFFSET),

@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import platform
 import shutil
+import stat
 import subprocess
 import sys
 import tomllib
@@ -79,6 +80,30 @@ def verification_record(output, image_sha256, baseline_match):
     return {"image_sha256": image_sha256, "historical_baseline_match": baseline_match,
             "two_pass_reproducibility": "pass", "structural": "pass", "qemu_packaging": "pass",
             "qemu_log_sha256": digest(output / "qemu-smoke.log")}
+
+
+def load_verified_host(output, fingerprint):
+    """Require the exact current host receipt and both regular binary files."""
+    output = Path(output)
+    try:
+        for name in ('host.json', 'fogcast', 'fogcast-api'):
+            if not stat.S_ISREG((output / name).lstat().st_mode):
+                raise ValueError('host output is not regular')
+        def unique(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError('duplicate host receipt field')
+                result[key] = value
+            return result
+        receipt = json.loads((output / 'host.json').read_text(), object_pairs_hook=unique)
+        hashes = {name: digest(output / name) for name in ('fogcast', 'fogcast-api')}
+        if receipt != {'inputs': fingerprint, 'files': hashes}:
+            raise ValueError('host receipt differs from selected inputs or binaries')
+        return {'host_receipt_sha256': digest(output / 'host.json'),
+                'fogcast_sha256': hashes['fogcast'], 'fogcast_api_sha256': hashes['fogcast-api']}
+    except (OSError, ValueError, TypeError):
+        raise ValueError('cold host receipt is missing, changed, or stale; run make build and make verify') from None
 
 
 def load_verified_image(output, fingerprint):

@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import build as cold_build
 from media_inputs import MediaLock, Payloads
+from media_inside import load_manifest, manifest_data, write_manifest
 
 try:
     import media
@@ -39,13 +40,19 @@ class FakeRunner:
         image = output / 'fes.img'
         image.write_bytes(inputs.rootfs.read_bytes() + config)
         sha = cold_build.digest(image)
-        (output / 'fes-media.toml').write_text('image_sha256 = "' + sha + '"\n')
+        config_sha = hashlib.sha256(config).hexdigest() if inputs.agent_config else None
+        write_manifest(output / 'fes-media.toml', manifest_data(image, inputs, lock, config_sha, [sha, sha]))
         return [sha, sha]
 
-    def verify(self, generation, inputs, lock, provision_sha):
+    def verify(self, generation, inputs, lock, provision_sha, *, rootfs_verified=True):
         self.checks += 1
         if self.fail:
             raise ValueError('verification failed')
+        data = load_manifest(generation / 'fes-media.toml')
+        expected = manifest_data(generation / 'fes.img', inputs, lock, provision_sha,
+                                 data['assembly']['sha256'], rootfs_verified=rootfs_verified)
+        if data != expected:
+            raise ValueError('manifest provenance or checks differ')
 
     def extract(self, generation, destination):
         destination.write_bytes(b'rootfs')
@@ -73,25 +80,86 @@ class MediaTests(unittest.TestCase):
         self.log.chmod(0o640)
         (self.output / 'linux.img').write_bytes(b'rootfs')
         (self.output / 'idle.rbf').write_bytes(b'idle')
+        (self.output / 'fogcast').write_bytes(b'host cli')
+        (self.output / 'fogcast-api').write_bytes(b'host api')
+        cold_build.write_receipt(self.output, 'host', 'cold-fp', ['fogcast', 'fogcast-api'])
+        (self.output / 'manifest.tsv').write_text('verified child manifest')
         (self.output / 'qemu-smoke.log').write_text('smoke')
         sha = cold_build.digest(self.output / 'linux.img')
         (self.output / 'reproducibility.txt').write_text(f'run_1_sha256={sha}\nrun_2_sha256={sha}\n')
-        cold_build.write_receipt(self.output, 'image', 'cold-fp', ['linux.img'])
+        cold_build.write_receipt(self.output, 'image', 'cold-fp', ['linux.img', 'manifest.tsv'])
         (self.output / 'verification.json').write_text(json.dumps(cold_build.verification_record(self.output, sha, False)))
         shutil.copyfile(ROOT / 'boot-media.lock.toml', self.root / 'boot-media.lock.toml')
         (self.root / 'kernel').write_bytes(b'kernel')
         (self.root / 'uboot').write_bytes(b'uboot')
         self.runner = FakeRunner()
         self.addCleanup(patch.stopall)
+        patch.object(media, 'current_revision', return_value='f' * 40).start()
         patch.object(media, 'select', return_value=('cold-fp', self.fogcast, ('megadrive', 'pong', 'snes'), {})).start()
         patch.object(media, 'resolve_payloads', return_value=Payloads(self.root / 'uboot', self.root / 'kernel')).start()
         patch.object(media, 'recipe_fingerprint', return_value={'scripts/media.py': 'recipe'}).start()
         # The pinned idle cache is separate from cold output publication.
         (self.fogcast / 'build/cache/target-image/native').mkdir(parents=True)
         (self.fogcast / 'build/cache/target-image/native/idle.rbf').write_bytes(b'idle')
+        (self.fogcast / 'build/native-runtime.inputs.lock.toml').write_text(
+            '[idle_rbf]\nrepository="https://github.com/MiSTer-devel/Distribution_MiSTer"\n'
+            'commit="' + 'd' * 40 + '"\npath="menu.rbf"\nsize=4\nsha256="' + hashlib.sha256(b'idle').hexdigest()
+            + '"\ninstall_path="/usr/share/mister-runtime/idle.rbf"\n')
 
     def build(self, config=None):
         return media.build(self.root, 'native-integration-dev', config, self.runner)
+
+    def test_host_outputs_are_prerequisites_and_bound_to_media_receipt(self):
+        first = self.build()
+        receipt = json.loads((first.generation / 'media.json').read_text())
+        for key, path in (('host_receipt_sha256', 'host.json'), ('fogcast_sha256', 'fogcast'),
+                          ('fogcast_api_sha256', 'fogcast-api')):
+            self.assertEqual(receipt['inputs']['cold'][key], cold_build.digest(self.output / path))
+        for name in ('host.json', 'fogcast', 'fogcast-api'):
+            path = self.output / name
+            original = path.read_bytes()
+            path.unlink()
+            with self.assertRaisesRegex(ValueError, 'host'):
+                self.build()
+            with self.assertRaisesRegex(ValueError, 'host'):
+                media.verify(self.root, runner=self.runner)
+            path.write_bytes(original)
+        (self.output / 'fogcast-api').write_bytes(b'changed host')
+        cold_build.write_receipt(self.output, 'host', 'cold-fp', ['fogcast', 'fogcast-api'])
+        with self.assertRaisesRegex(ValueError, 'receipt'):
+            media.verify(self.root, runner=self.runner)
+        self.assertEqual((self.output / 'media/current').resolve(), first.generation)
+
+    def test_published_manifest_promotes_only_successful_child_checks(self):
+        before_child = []
+        original = self.runner.child_verify
+        def child(fogcast, staged, env):
+            manifest, = (self.output / 'media').glob('.staging-*/generation/fes-media.toml')
+            data = load_manifest(manifest)
+            before_child.append(data['checks'].copy())
+            original(fogcast, staged, env)
+        self.runner.child_verify = child
+        result = self.build()
+        data = load_manifest(result.generation / 'fes-media.toml')
+        self.assertEqual(before_child[0]['rootfs_structural'], 'not-run')
+        self.assertEqual(before_child[0]['rootfs_qemu'], 'not-run')
+        self.assertEqual(set(data['checks'].values()), {'pass'})
+        self.assertEqual(data['fes']['revision'], 'f' * 40)
+        self.assertEqual(data['rootfs']['child_manifest_sha256'], cold_build.digest(self.output / 'manifest.tsv'))
+        self.assertEqual(data['rootfs']['image_receipt_sha256'], cold_build.digest(self.output / 'image.json'))
+        receipt = json.loads((result.generation / 'media.json').read_text())
+        self.assertEqual(receipt['assembly_sha256'], data['assembly']['sha256'])
+
+    def test_unequal_reported_assembly_passes_cannot_publish(self):
+        first = self.build()
+        original = self.runner.assemble
+        def unequal(output, inputs, lock):
+            hashes = original(output, inputs, lock)
+            return [hashes[0], '0' * 64]
+        self.runner.assemble = unequal
+        with self.assertRaisesRegex(ValueError, 'independent media assembly hashes'):
+            self.build()
+        self.assertEqual((self.output / 'media/current').resolve(), first.generation)
 
     def test_rejects_development_and_missing_verification(self):
         (self.output / 'image.json').unlink()

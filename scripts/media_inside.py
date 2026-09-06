@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Unprivileged, deterministic native media assembly and independent verification."""
 import argparse
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 import datetime
 import hashlib
 import json
 import os
 from pathlib import Path
 import shutil
+import re
 import stat
 import struct
 import subprocess
@@ -34,12 +35,54 @@ ENV = {**os.environ, "TZ": "UTC", "SOURCE_DATE_EPOCH": str(SOURCE_DATE_EPOCH), "
 
 
 @dataclass(frozen=True)
+class Provenance:
+    fes_revision: str
+    profile: str
+    media_recipe_sha256: str
+    image_receipt_sha256: str
+    child_manifest_sha256: str
+    idle_repository: str
+    idle_revision: str
+    idle_path: str
+    idle_size: int
+    idle_sha256: str
+
+    def __post_init__(self):
+        for name in ('fes_revision', 'idle_revision'):
+            if not isinstance(getattr(self, name), str) or not re.fullmatch('[0-9a-f]{40}', getattr(self, name)):
+                raise ValueError('invalid media provenance revision')
+        for name in ('media_recipe_sha256', 'image_receipt_sha256', 'child_manifest_sha256', 'idle_sha256'):
+            if not isinstance(getattr(self, name), str) or not re.fullmatch('[0-9a-f]{64}', getattr(self, name)):
+                raise ValueError('invalid media provenance digest')
+        if (self.profile != 'native-integration-dev' or self.idle_path != 'menu.rbf'
+                or not isinstance(self.idle_repository, str) or not self.idle_repository.startswith('https://')
+                or type(self.idle_size) is not int or self.idle_size <= 0):
+            raise ValueError('invalid media provenance profile or idle source')
+
+    @classmethod
+    def load(cls, path):
+        try:
+            def unique(pairs):
+                result = {}
+                for key, value in pairs:
+                    if key in result:
+                        raise ValueError('duplicate media provenance field')
+                    result[key] = value
+                return result
+            data = json.loads(Path(path).read_text(), object_pairs_hook=unique)
+            return cls(**data)
+        except (OSError, TypeError, ValueError):
+            raise ValueError('invalid closed media provenance input') from None
+
+
+@dataclass(frozen=True)
 class ImageInputs:
     rootfs: Path
     idle: Path
     kernel: Path
     uboot: Path
     agent_config: Path | None = None
+    provenance: Provenance | None = None
 
 
 @dataclass(frozen=True)
@@ -161,15 +204,71 @@ def _assemble_once(image, inputs, lock, scratch):
     write_region(image, inputs.uboot, BOOT_OFFSET)
 
 
-def manifest_data(image, inputs, lock, config_sha):
-    result = {"format": 1, "layout": lock.layout, "source_date_epoch": SOURCE_DATE_EPOCH,
-              "sector_size": SECTOR_SIZE, "disk_size": DISK_SIZE,
-              "image_sha256": digest(image), "agent_config_sha256": config_sha or ""}
-    for name in ("rootfs", "idle", "kernel", "uboot"):
-        path = getattr(inputs, name)
-        result[name + "_sha256"] = digest(path)
-        result[name + "_size"] = path.stat().st_size
+def manifest_data(image, inputs, lock, config_sha, assembly_hashes, *, rootfs_verified=False):
+    provenance = inputs.provenance
+    if not isinstance(provenance, Provenance):
+        raise ValueError('complete media provenance input is required')
+    verify_file(inputs.idle, provenance.idle_size, provenance.idle_sha256, 'idle provenance')
+    if (type(assembly_hashes) is not list or len(assembly_hashes) != 2
+            or any(type(value) is not str or not re.fullmatch('[0-9a-f]{64}', value) for value in assembly_hashes)):
+        raise ValueError('invalid independent assembly hashes')
+    if config_sha is not None and (type(config_sha) is not str or not re.fullmatch('[0-9a-f]{64}', config_sha)):
+        raise ValueError('invalid agent config hash')
+    result = {'format': 1, 'target': 'de10-nano', 'layout': lock.layout,
+              'source_date_epoch': SOURCE_DATE_EPOCH, 'provisioned': config_sha is not None,
+              'hardware': 'not-run',
+              'fes': {'revision': provenance.fes_revision, 'profile': provenance.profile,
+                      'media_recipe_sha256': provenance.media_recipe_sha256},
+              'rootfs': {'path': 'out/native-integration-dev/linux.img', 'destination': '/linux/linux.img',
+                         'size': inputs.rootfs.stat().st_size, 'sha256': digest(inputs.rootfs),
+                         'image_receipt_sha256': provenance.image_receipt_sha256,
+                         'child_manifest_sha256': provenance.child_manifest_sha256},
+              'idle': {'repository': provenance.idle_repository, 'revision': provenance.idle_revision,
+                       'path': provenance.idle_path, 'size': provenance.idle_size, 'sha256': provenance.idle_sha256,
+                       'rootfs_destination': '/usr/share/mister-runtime/idle.rbf', 'fat_destination': '/menu.rbf'},
+              'disk': {'sector_size': lock.sector_size, 'size': DISK_SIZE, 'identifier': lock.disk_id},
+              'fat': {'label': lock.fat_label, 'serial': lock.fat_serial},
+              'partition_1': asdict(lock.partition_1), 'partition_2': asdict(lock.partition_2),
+              'output': {'path': 'fes.img', 'size': Path(image).stat().st_size, 'sha256': digest(image)},
+              'assembly': {'sha256': list(assembly_hashes)},
+              'checks': {'structural_media': 'pass', 'assembly_reproducibility': 'pass',
+                         'rootfs_structural': 'pass' if rootfs_verified else 'not-run',
+                         'rootfs_qemu': 'pass' if rootfs_verified else 'not-run'}}
+    if config_sha is not None:
+        result['agent_config_sha256'] = config_sha
+    for name, destination in (('kernel', '/linux/zImage_dtb'), ('uboot', 'partition_2')):
+        source = getattr(lock, name)
+        result[name] = {'repository': lock.repository, 'revision': lock.commit, 'path': source.path,
+                        'size': source.size, 'sha256': source.sha256, 'destination': destination}
     return result
+
+
+def write_manifest(path, data):
+    # The schema uses scalar keys plus one level of tables; JSON scalars/arrays
+    # are valid TOML values and provide deterministic quoting and booleans.
+    lines = [f'{key} = {json.dumps(value)}\n' for key, value in sorted(data.items()) if not isinstance(value, dict)]
+    for name, table in sorted(data.items()):
+        if isinstance(table, dict):
+            lines.append(f'\n[{name}]\n')
+            lines.extend(f'{key} = {json.dumps(value)}\n' for key, value in sorted(table.items()))
+    Path(path).write_text(''.join(lines))
+
+
+def load_manifest(path):
+    try:
+        return tomllib.loads(regular(path, 'manifest').read_text())
+    except (OSError, tomllib.TOMLDecodeError) as error:
+        raise ValueError('invalid media manifest') from error
+
+
+def same_schema(actual, expected):
+    if type(actual) is not type(expected):
+        return False
+    if isinstance(expected, dict):
+        return set(actual) == set(expected) and all(same_schema(actual[key], value) for key, value in expected.items())
+    if isinstance(expected, list):
+        return len(actual) == len(expected) and all(same_schema(left, right) for left, right in zip(actual, expected))
+    return True
 
 
 def assemble(output, inputs, lock):
@@ -189,12 +288,13 @@ def assemble(output, inputs, lock):
             candidate = directory / "fes.img"
             _assemble_once(candidate, inputs, lock, directory)
             images.append(candidate)
-        if digest(images[0]) != digest(images[1]):
+        assembly_hashes = [digest(candidate) for candidate in images]
+        if assembly_hashes[0] != assembly_hashes[1]:
             raise ValueError("independent media assembly hashes differ")
         config_sha = digest(inputs.agent_config) if inputs.agent_config else None
-        data = manifest_data(images[0], inputs, lock, config_sha)
+        data = manifest_data(images[0], inputs, lock, config_sha, assembly_hashes)
         candidate_manifest = scratch / "fes-media.toml"
-        candidate_manifest.write_text("".join(f"{key} = {json.dumps(value)}\n" for key, value in sorted(data.items())))
+        write_manifest(candidate_manifest, data)
         verify_image(images[0], candidate_manifest, inputs, lock, config_sha)
         os.replace(images[0], image)
         os.replace(candidate_manifest, manifest)
@@ -372,20 +472,21 @@ def _verify_fat(image, lock, scratch, has_config):
     return fat
 
 
-def verify_image(image, manifest, inputs, lock, agent_config_sha256=None):
+def verify_image(image, manifest, inputs, lock, agent_config_sha256=None, *, rootfs_verified=False):
     """Verify disk structures and extracted bytes independently of assembly."""
     image = regular(image, "image")
     if image.stat().st_size != DISK_SIZE:
         raise ValueError("media image size differs from layout")
+    data = load_manifest(manifest)
     try:
-        data = tomllib.loads(Path(manifest).read_text())
-    except tomllib.TOMLDecodeError as error:
-        raise ValueError("invalid media manifest") from error
-    expected = manifest_data(image, inputs, lock, agent_config_sha256)
-    if set(data) != set(expected) or any(type(data[key]) is not type(value) for key, value in expected.items()):
-        raise ValueError("media manifest fields differ from closed schema")
-    if data["agent_config_sha256"] != expected["agent_config_sha256"]:
-        raise ValueError("agent config hash differs from manifest")
+        hashes = data['assembly']['sha256']
+    except (KeyError, TypeError):
+        raise ValueError('media manifest assembly evidence is missing') from None
+    expected = manifest_data(image, inputs, lock, agent_config_sha256, hashes, rootfs_verified=rootfs_verified)
+    if not same_schema(data, expected):
+        raise ValueError('media manifest fields differ from closed schema')
+    if data.get('agent_config_sha256') != expected.get('agent_config_sha256'):
+        raise ValueError('agent config hash differs from manifest')
     _verify_mbr(image, lock)
     with tempfile.TemporaryDirectory(prefix="fes-media-verify-") as temporary:
         scratch = Path(temporary)
@@ -414,9 +515,9 @@ def verify_image(image, manifest, inputs, lock, agent_config_sha256=None):
         copy_region(image, boot, BOOT_OFFSET, lock.uboot.size)
         if digest(boot) != lock.uboot.sha256:
             raise ValueError("boot payload differs from lock")
-    if data != expected:
-        raise ValueError("media manifest payload or image hash differs")
-    return Verification((0x0c, 0xa2), "FAT32", paths, expected["image_sha256"])
+    if data != expected or any(value != expected['output']['sha256'] for value in hashes):
+        raise ValueError('media manifest provenance, checks, payload or assembly hash differs')
+    return Verification((0x0c, 0xa2), "FAT32", paths, expected['output']['sha256'])
 
 
 def main():
@@ -425,6 +526,7 @@ def main():
     for name in ("assemble", "verify"):
         command = subparsers.add_parser(name)
         command.add_argument("--lock", type=Path, default=Path("/work/boot-media.lock.toml"))
+        command.add_argument("--provenance", type=Path, required=True)
         for payload in ("rootfs", "idle", "kernel", "uboot"):
             command.add_argument("--" + payload, type=Path, required=True)
         if name == "assemble":
@@ -434,15 +536,16 @@ def main():
             command.add_argument("--image", type=Path, required=True)
             command.add_argument("--manifest", type=Path, required=True)
             command.add_argument("--agent-config-sha256")
+            command.add_argument("--rootfs-verified", action="store_true")
     args = parser.parse_args()
     try:
         lock = MediaLock.load(args.lock)
-        inputs = ImageInputs(args.rootfs, args.idle, args.kernel, args.uboot, getattr(args, "agent_config", None))
+        inputs = ImageInputs(args.rootfs, args.idle, args.kernel, args.uboot, getattr(args, "agent_config", None), Provenance.load(args.provenance))
         if args.command == "assemble":
             image, manifest = assemble(args.output, inputs, lock)
-            print(json.dumps({"image_sha256": digest(image), "assembly_sha256": [digest(image), digest(image)]}, sort_keys=True))
+            print(json.dumps({"image_sha256": digest(image), "assembly_sha256": load_manifest(manifest)["assembly"]["sha256"]}, sort_keys=True))
         else:
-            result = verify_image(args.image, args.manifest, inputs, lock, args.agent_config_sha256)
+            result = verify_image(args.image, args.manifest, inputs, lock, args.agent_config_sha256, rootfs_verified=args.rootfs_verified)
             print(json.dumps({"fat_type": result.fat_type, "image_sha256": result.image_sha256, "paths": result.paths}, sort_keys=True))
     except (ValueError, OSError) as error:
         parser.exit(1, f"media: {error}\n")
