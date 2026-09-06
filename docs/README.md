@@ -14,6 +14,7 @@ host software and target root filesystem.
 | Create component worktrees and use incremental builds | [Development guide](development.md) |
 | Decide where a change belongs or crosses a boundary | [Component boundaries](component-boundaries.md) |
 | Continue the Pong and SNES milestone | [Multi-system development](multi-system-development.md) |
+| Develop and validate SNES cartridge saves | [SNES saves](snes-saves.md) |
 | Share the kit between game and FPGA development sessions | [Kit sharing proposal](kit-sharing.md) |
 
 All shell examples in the parent guides start at the FES repository root unless

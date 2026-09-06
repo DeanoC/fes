@@ -4,7 +4,8 @@ The selected sources implement Pong and basic SNES alongside Mega Drive.
 All three passed diagnostic hardware switching, video and input checks. The
 normal parent profile now selects source-built bundles for all three systems,
 with per-core selection records and image-content verification.
-SNES persistent saves and enhancement chips remain outside this implementation.
+Native cartridge save persistence is described in the [SNES save guide](snes-saves.md).
+Enhancement chips remain outside this implementation.
 
 ## Normal image inputs
 
