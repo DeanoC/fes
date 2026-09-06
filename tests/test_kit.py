@@ -262,6 +262,36 @@ class KitTests(unittest.TestCase):
         self.assertEqual(reboot[1].get(kit.HEADER), 'private-lease')
         self.assertNotIn('/v1/kit/release', paths)
 
+    def test_close_after_development_load_stops_instead_of_raw_release(self):
+        session = kit.Session(self.client, 'agent', 'bringup', interval=20)
+        session.claim()
+        self.load_status = 503
+        self.load_error = {'error': {'code': 'CORE_TIMEOUT'}}
+        self.stop_response = {
+            'state': 'stopping',
+            'development': True,
+            'recovery': 'reboot_required',
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'test.rbf'
+            path.write_bytes(b'rbf-bytes')
+            session.mutate('load', path)
+        result = session.close()
+        self.assertEqual(result['reason'], 'development reboot recovered')
+        paths = [call[0] for call in self.calls]
+        self.assertIn('/v1/stop', paths)
+        self.assertIn('/v1/development/reboot', paths)
+        self.assertNotIn('/v1/kit/release', paths)
+
+    def test_close_without_load_only_releases(self):
+        session = kit.Session(self.client, 'agent', 'bringup', interval=20)
+        session.claim()
+        session.close()
+        paths = [call[0] for call in self.calls]
+        self.assertIn('/v1/kit/release', paths)
+        self.assertNotIn('/v1/stop', paths)
+        self.assertFalse(any(call[0].endswith('/reboot') for call in self.calls))
+
     def test_stop_without_recovery_does_not_reboot(self):
         session = kit.Session(self.client, 'agent', 'bringup', interval=20)
         session.claim()

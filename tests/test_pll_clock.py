@@ -27,7 +27,7 @@ class PllClockTests(unittest.TestCase):
     def test_existing_policy_serialization_stays_unchanged(self):
         for name in ('010_blinky', '020_linux_mailbox', '030_m10k_rom',
                      '040_mlab_ram', '050_lut_mul', '060_dsp_mul',
-                     '070_mixed_mem', '080_dsp_mem'):
+                     '070_mixed_mem', '080_dsp_mem', '100_dsp_rom'):
             self.assertNotIn('additional_clocks_mhz', policy_for(name).as_dict())
 
     def test_both_clock_domains_required(self):

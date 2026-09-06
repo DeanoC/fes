@@ -8,7 +8,7 @@ rationale = "Current upstream Intel ALM synthesis baseline sampled 2026-08-26; t
 repo = "https://github.com/DeanoC/mistral.git"
 commit = "328cfb8046d6bcb979fa69df7cfb95bd6f7e73f8"
 order = 20
-rationale = "DeanoC fork for nextpnr 99cf0efd Cyclone V MUL9X9 BELs: preserves DSP upper routing tiles on the bfa096c1 array-header baseline; fixed commit, not a moving branch."
+rationale = "DeanoC fork for nextpnr 9d9a027d Cyclone V MUL9X9 and 50-to-25 MHz PLL BELs: preserves DSP upper routing tiles on the bfa096c1 array-header baseline; fixed commit, not a moving branch."
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"

@@ -111,6 +111,13 @@ sampled lock loss. The current `kit.py stop` completed development reboot
 recovery and returned a free lease. This is hardware diagnostic acceptance of
 the fixed profile, not native game acceptance.
 
+`100_dsp_rom` is an eight-by-eight unsigned DSP product of an HPS operand and
+one byte from an initialized 256-by-8 block table. Linux peeks and pokes
+GPO/GPI; there is no LED. The table is marked `ramstyle = "M10K"` and holds
+`index XOR 8'hA5`. Yosys maps one `MISTRAL_MUL9X9` and one `MISTRAL_M10K`.
+Quartus must measure one DSP block and one RAM block. PLL and MLAB remain
+forbidden.
+
 ## Standalone Pong game
 
 `cores/pong/rtl/pong_game.sv` implements a deterministic 320x240 game module.
@@ -308,7 +315,9 @@ after programming keeps that lease so the operator can inspect a non-MiSTer
 image before Stop. Stop follows FogCast's development reboot handshake when
 the target reports `reboot_required`: it records `boot_id`, posts
 `/v1/development/reboot`, and waits for a new boot ID and a free lease. A
-successful reboot ends that lease because the target agent restarts. It stores
+successful reboot ends that lease because the target agent restarts. Release,
+EOF, or Ctrl-C Stops first when a development image was loaded, so that
+handshake runs instead of a raw release after a non-MiSTer bitstream. It stores
 no credentials or lease database. FogCast remains authoritative for expiry,
 takeover, serialization and cleanup; libmister-runtime performs the physical
 transition. See the README's shared-kit commands. Direct `make program` remains

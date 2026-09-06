@@ -406,10 +406,11 @@ hps_gp = experiment in {
     "060_dsp_mul",
     "070_mixed_mem",
     "080_dsp_mem",
+    "100_dsp_rom",
 }
 measure_mlab = experiment in {"040_mlab_ram", "070_mixed_mem", "080_dsp_mem"}
-measure_dsp = experiment in {"060_dsp_mul", "080_dsp_mem"}
-measure_m10k = experiment in {"070_mixed_mem", "080_dsp_mem"}
+measure_dsp = experiment in {"060_dsp_mul", "080_dsp_mem", "100_dsp_rom"}
+measure_m10k = experiment in {"070_mixed_mem", "080_dsp_mem", "100_dsp_rom"}
 target = sys.argv[6]
 rtl_path = Path(sys.argv[7])
 sdc_path = Path(sys.argv[8])
@@ -1059,14 +1060,20 @@ def static_exclusion(
 
 static_hard_contracts: dict[str, tuple[re.Pattern[str], tuple[str, ...]]] = {}
 if not measure_mlab:
+    mlab_source_patterns = [
+        r"\bmlab(?:s)?\b",
+        r"\blutram\b",
+        r"\b(?:altsyncram|lpm_ram|mlab_cell)\b",
+    ]
+    # Initialized block memory is a Verilog array. Keep that shape out of the
+    # MLAB exclusion when this experiment measures M10K.
+    if not measure_m10k:
+        mlab_source_patterns.append(
+            r"\b(?:reg|wire|logic)\s*\[[^\]]+\]\s+\w+\s*\["
+        )
     static_hard_contracts["MLAB/LUTRAM"] = (
         re.compile(r"^(?:total\s+)?mlabs?$|^(?:total\s+)?mlab/lutram\s+blocks?$", re.I),
-        (
-            r"\bmlab(?:s)?\b",
-            r"\blutram\b",
-            r"\b(?:altsyncram|lpm_ram|mlab_cell)\b",
-            r"\b(?:reg|wire|logic)\s*\[[^\]]+\]\s+\w+\s*\[",
-        ),
+        tuple(mlab_source_patterns),
     )
 if experiment == "010_blinky":
     static_hard_contracts["HPS"] = (
@@ -1287,6 +1294,8 @@ if hard_errors:
     hard_block_reason = "; ".join(hard_errors)
 elif measure_mlab:
     hard_block_reason = "fitter summary rows measure RAM Blocks/M10K, DSP Blocks, PLLs, 256 MLAB/LUTRAM bits, and one allowed HPS general-purpose primitive"
+elif measure_dsp and measure_m10k:
+    hard_block_reason = "fitter summary rows measure one RAM Block/M10K, one DSP block, PLLs, and one allowed HPS general-purpose primitive; MLAB/LUTRAM remains excluded by static source/project evidence (used=null)"
 elif measure_dsp:
     hard_block_reason = "fitter summary rows measure RAM Blocks/M10K, one DSP block, PLLs, and one allowed HPS general-purpose primitive; MLAB/LUTRAM remains excluded by static source/project evidence (used=null)"
 elif measure_m10k:
@@ -1303,7 +1312,11 @@ def top_port_evidence(path: Path) -> dict[str, int]:
     """Parse only the production top declaration for semantic port counts."""
 
     text = path.read_text(encoding="utf-8", errors="replace")
-    match = re.search(r"\bmodule\s+top\s*\((?P<ports>.*?)\)\s*;", text, re.I | re.S)
+    match = re.search(
+        r"\bmodule\s+top(?:\s*#\s*\([^;]*\))?\s*\((?P<ports>.*?)\)\s*;",
+        text,
+        re.I | re.S,
+    )
     if match is None:
         raise ValueError("production top declaration is missing")
     counts = {"input": 0, "output": 0, "inout": 0}
@@ -1410,6 +1423,11 @@ if hps_gp:
         hard_errors.append(
             f"dsp_blocks: unexpected resource usage "
             f"({semantic_resource_evidence['dsp_blocks']}), expected {expected_dsp}"
+        )
+    if semantic_resource_evidence["pll_blocks"] != 0:
+        hard_errors.append(
+            f"pll_blocks: unexpected resource usage "
+            f"({semantic_resource_evidence['pll_blocks']}), expected 0"
         )
     for semantic_name in ("block_memory_bits", "lutram_bits", "sdram_interfaces"):
         expected_bits = 0
