@@ -97,6 +97,7 @@ class ExperimentPolicy:
     target: str = TARGET_DEVICE
     artifact: str = "top.rbf"
     clock_evidence_names: tuple[str, ...] = ()
+    additional_clocks_mhz: Mapping[str, float] = MappingProxyType({})
     nobram: bool = True
     nolutram: bool = True
     nodsp: bool = True
@@ -121,6 +122,13 @@ class ExperimentPolicy:
             raise PolicyError(f"{self.name}: clock constraint must be numeric")
         if not math.isfinite(float(self.clock_mhz)) or float(self.clock_mhz) <= 0:
             raise PolicyError(f"{self.name}: clock constraint must be positive and finite")
+        clocks = dict(self.additional_clocks_mhz)
+        for name, frequency in clocks.items():
+            if not isinstance(name, str) or not name or name in clock_evidence_names:
+                raise PolicyError(f"{self.name}: additional clock must have a distinct non-empty name")
+            if isinstance(frequency, bool) or not isinstance(frequency, (int, float)) or not math.isfinite(frequency) or frequency <= 0:
+                raise PolicyError(f"{self.name}: additional clock frequency must be positive and finite")
+        object.__setattr__(self, "additional_clocks_mhz", MappingProxyType(clocks))
         if self.target != TARGET_DEVICE:
             raise PolicyError(f"{self.name}: target must be {TARGET_DEVICE}")
         for flag_name, flag in (("nobram", self.nobram), ("nolutram", self.nolutram), ("nodsp", self.nodsp)):
@@ -438,6 +446,8 @@ class ExperimentPolicy:
             "clock_mhz": float(self.clock_mhz),
             "clock_period_ns": self.clock_period_ns,
             "clock_evidence_names": list(self.clock_evidence_names),
+            **({"additional_clocks_mhz": dict(self.additional_clocks_mhz)}
+               if self.additional_clocks_mhz else {}),
             "allowed_hard_blocks": dict(self.allowed_hard_blocks),
             "forbidden_source_patterns": list(self.forbidden_source_patterns),
             "forbidden_resource_patterns": list(self.forbidden_resource_patterns),
@@ -767,6 +777,46 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                         "experiments/020_linux_mailbox/sim/hps_gp_model.v",
                     ),
                     tb="experiments/080_dsp_mem/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "090_pll_clock": ExperimentPolicy(
+            name="090_pll_clock",
+            sources=("experiments/090_pll_clock/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=("meter.refclk",),
+            additional_clocks_mhz={"clk25": 25.0},
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+            },
+            forbidden_source_patterns=tuple(
+                pattern for pattern in _COMMON_SOURCE_PATTERNS
+                if pattern not in {"PLL", "phase_locked"}
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+            },
+            required_synth_cells={"altera_pll": 1},
+            sim_jobs=(
+                SimJob(
+                    name="main", top="top",
+                    sources=(
+                        "experiments/090_pll_clock/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/090_pll_clock/sim/pll_model.v",
+                    ),
+                    tb="experiments/090_pll_clock/sim/tb.cpp",
+                ),
+                SimJob(
+                    name="meter", top="pll_meter",
+                    sources=("experiments/090_pll_clock/rtl/top.v",),
+                    tb="experiments/090_pll_clock/sim/meter_sim.cpp",
+                    parameters={"WINDOW_BITS": "12"},
                 ),
             ),
         ),

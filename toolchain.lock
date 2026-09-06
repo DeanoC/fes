@@ -12,9 +12,9 @@ rationale = "DeanoC fork for nextpnr 99cf0efd Cyclone V MUL9X9 BELs: preserves D
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "99cf0efd724a07b0df3a8d91c29aaec6613bfa1f"
+commit = "9d9a027d401e98a5b611ccc8a0c17a5e6b04e8cc"
 order = 30
-rationale = "DeanoC fork: Cyclone V MISTRAL_MUL9X9 BEL support for 5CSEBA6U23I7, based on 7d4f72c0."
+rationale = "DeanoC fork: Cyclone V MUL9X9 and fixed 50-to-25 MHz altera_pll BEL support for 5CSEBA6U23I7, based on 7d4f72c0; merged PLL PR 1."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

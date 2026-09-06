@@ -111,6 +111,9 @@ def _timing(
         raise SummaryError(
             f"intended clock {clock_name} achieves {achieved:g} MHz, below {requested_mhz:g} MHz"
         )
+    if policy is not None:
+        for name, frequency in policy.additional_clocks_mhz.items():
+            _timing(path, frequency, name)
     return clock_name, achieved
 
 
@@ -456,6 +459,11 @@ def build_summary(
             "clock": clock_name,
             "requested_mhz": float(requested_mhz),
             "achieved_mhz": achieved_mhz,
+            **({"additional_clocks": {
+                name: {"requested_mhz": frequency,
+                       "achieved_mhz": _timing(timing_json, frequency, name)[1]}
+                for name, frequency in policy.additional_clocks_mhz.items()
+            }} if policy.additional_clocks_mhz else {}),
         },
         "resources": resources,
         "hard_blocks": hard_blocks,
@@ -492,6 +500,11 @@ def _write_timing(path: Path, summary: dict[str, Any]) -> None:
         f"rbf_size_bytes: {repro['rbf_size_bytes']}",
         f"rbf_sha256: {repro['rbf_sha256']}",
     ]
+    for name, clock in timing.get("additional_clocks", {}).items():
+        lines.append(
+            f"additional_clock: {name}; constraint: {clock['requested_mhz']:g} MHz; "
+            f"achieved: {clock['achieved_mhz']:.6f} MHz"
+        )
     if repro["previous_rbf_sha256"] is not None:
         lines.append(f"previous_rbf_sha256: {repro['previous_rbf_sha256']}")
     lines.append(f"rbf_stability_measured: {str(repro['rbf_stability_measured']).lower()}")

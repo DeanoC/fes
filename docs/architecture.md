@@ -82,6 +82,35 @@ GPO/GPI; there is no LED. Yosys maps one `MISTRAL_MUL9X9`, eight `MISTRAL_MLAB`
 cells, and one `MISTRAL_M10K`. Quartus must measure one DSP block, 256 MLAB
 bits, and one RAM block. PLL remains forbidden.
 
+`090_pll_clock` uses one `altera_pll` and one HPS GP interface. The input is
+50 MHz on PIN_V11 and the single output is 25 MHz, direct mode, zero phase,
+50% duty, integer mode, with reset tied low. The closed OSS policy requires
+both `meter.refclk` at 50 MHz and `clk25` at 25 MHz to meet timing. Memory and
+DSP usage are forbidden. The pinned nextpnr fork revision
+`9d9a027d401e98a5b611ccc8a0c17a5e6b04e8cc` merges the supported fixed PLL
+profile on top of the existing DSP implementation; Mistral remains at
+`328cfb8046d6bcb979fa69df7cfb95bd6f7e73f8`.
+
+The PLL experiment divides the output by 256 and counts synchronized rising
+edges over 2^20 reference cycles. GPI signature `0xD711` identifies the
+measurement protocol; the expected result is 2048 ±1. A request toggle starts
+one measurement, and its result remains stable for two byte reads. Simulation
+covers the HPS protocol and separately checks stopped/wrong clocks and sampled
+lock loss. The simulation PLL models only the fixed digital ratio, not analog
+lock acquisition. See `experiments/090_pll_clock/expected.md` for the register
+layout and manual probe. The experiment currently has simulation and OSS
+lanes; it has no Quartus comparison lane. This profile does not establish
+reset/relock, other frequencies, phase shifts, or jitter behavior.
+
+The OSS `090_pll_clock` artifact has SHA-256
+`2d5be08a315dd7e5e9f620954e588e40340dbcfff7c735da707c3f68b8eb0bcb`
+and size 1,955,735 bytes. Its reported reference/output Fmax values are
+218.866/341.064 MHz against 50/25 MHz constraints. Exact-artifact kit diagnostics on 2026-09-06
+returned 2048 on three successive measurements with lock asserted and no
+sampled lock loss. The current `kit.py stop` completed development reboot
+recovery and returned a free lease. This is hardware diagnostic acceptance of
+the fixed profile, not native game acceptance.
+
 ## Standalone Pong game
 
 `cores/pong/rtl/pong_game.sv` implements a deterministic 320x240 game module.
