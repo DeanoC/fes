@@ -1,0 +1,251 @@
+"""Real production-geometry tests run in the locked, unprivileged tool image."""
+import dataclasses
+import datetime
+import json
+import os
+from pathlib import Path
+import shutil
+import struct
+import subprocess
+import sys
+import tempfile
+import unittest
+from unittest import mock
+
+from scripts import media_container, media_inside
+from scripts.media_inputs import MediaLock, Payload, digest
+
+ROOT = Path(__file__).resolve().parents[1]
+INSIDE = os.environ.get("FES_MEDIA_TEST_INSIDE") == "1"
+
+
+@unittest.skipIf(INSIDE, "host container driver")
+class ContainerImageTests(unittest.TestCase):
+    def test_real_container_image_suite(self):
+        if not shutil.which("docker"):
+            self.skipTest("Docker required for real media tests")
+        if subprocess.run(["docker", "info"], capture_output=True).returncode:
+            self.skipTest("Docker daemon unavailable for real media tests")
+        lock = MediaLock.load(ROOT / "boot-media.lock.toml")
+        container = media_container.ensure_media_container(ROOT, "docker", lock)
+        self.assertTrue(container.startswith("sha256:"))
+        self.assertEqual(container, media_container.ensure_media_container(ROOT, "docker", lock))
+        record = json.loads(subprocess.check_output(["docker", "image", "inspect", container], text=True))[0]
+        for key in ("org.fes.media.base", "org.fes.media.context-sha256", "org.fes.media.packages-sha256"):
+            with self.subTest(label=key):
+                changed = json.loads(json.dumps(record))
+                changed["Config"]["Labels"][key] = "tampered"
+                inspected = subprocess.CompletedProcess([], 0, stdout=json.dumps([changed]), stderr="")
+                with mock.patch.object(media_container.subprocess, "run", return_value=inspected):
+                    with self.assertRaisesRegex(ValueError, "labels"):
+                        media_container.ensure_media_container(ROOT, "docker", lock)
+        subprocess.run(["docker", "run", "--rm", "--network=none", "--cap-drop=ALL",
+                        "--security-opt=no-new-privileges", "-e", "FES_MEDIA_TEST_INSIDE=1",
+                        "-v", f"{ROOT}:/work:ro", "--entrypoint", "python3", container,
+                        "-m", "unittest", "tests.test_media_image.RealImageTests", "-v"], check=True)
+
+
+@unittest.skipUnless(INSIDE, "executed by the real container driver")
+class RealImageTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.temp = tempfile.TemporaryDirectory(prefix="media-image-tests-")
+        cls.root = Path(cls.temp.name)
+        cls.idle = cls.root / "idle.rbf"
+        cls.idle.write_bytes(b"idle-rbf-fixture" * 1024)
+        tree = cls.root / "tree/usr/share/mister-runtime"
+        tree.mkdir(parents=True)
+        shutil.copyfile(cls.idle, tree / "idle.rbf")
+        cls.rootfs = cls.root / "linux.img"
+        with cls.rootfs.open("wb") as f:
+            f.truncate(8 * 1024 * 1024)
+        subprocess.run(["mkfs.ext4", "-q", "-F", "-d", str(cls.root / "tree"), str(cls.rootfs)], check=True)
+        cls.kernel = cls.root / "zImage_dtb"
+        cls.kernel.write_bytes(b"kernel-fixture" * 2048)
+        cls.uboot = cls.root / "uboot.img"
+        lock = MediaLock.load(ROOT / "boot-media.lock.toml")
+        cls.uboot.write_bytes(b"uboot-fixture" * 1024 + b"\0".join(value.encode() for value in lock.environment))
+        cls.lock = dataclasses.replace(lock,
+            kernel=Payload("zImage_dtb", cls.kernel.stat().st_size, digest(cls.kernel)),
+            uboot=Payload("uboot.img", cls.uboot.stat().st_size, digest(cls.uboot)))
+        cls.payloads = media_inside.ImageInputs(cls.rootfs, cls.idle, cls.kernel, cls.uboot)
+        cls.image, cls.manifest = media_inside.assemble(cls.root / "original", cls.payloads, cls.lock)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.temp.cleanup()
+
+    def setUp(self):
+        self.scratch = tempfile.TemporaryDirectory(dir=self.root)
+        self.addCleanup(self.scratch.cleanup)
+        self.copy = Path(self.scratch.name) / "fes.img"
+        shutil.copyfile(self.image, self.copy)
+
+    def mutate(self, offset, data=b"\x01"):
+        with self.copy.open("r+b") as f:
+            f.seek(offset)
+            f.write(data)
+
+    def verify(self, manifest=None):
+        return media_inside.verify_image(self.copy, manifest or self.manifest, self.payloads, self.lock)
+
+    def test_real_sparse_image_has_exact_mbr_fat32_and_payloads(self):
+        self.assertNotEqual(os.getuid(), 0)
+        self.assertEqual(self.image.stat().st_size, 528384 * 512)
+        result = self.verify()
+        self.assertEqual(result.partition_types, (0x0c, 0xa2))
+        self.assertEqual(result.fat_type, "FAT32")
+        self.assertEqual(result.paths, ("/fogcast", "/linux", "/linux/linux.img", "/linux/zImage_dtb", "/menu.rbf"))
+        with self.image.open("rb") as f:
+            mbr = f.read(512)
+        self.assertEqual(mbr[:440], bytes(440))
+        self.assertEqual(mbr[440:446], struct.pack("<I", 0x46455331) + bytes(2))
+        self.assertEqual(mbr[446:478], bytes.fromhex("80feffff0cfeffff000800000000080000feffffa2feffff0008080000080000"))
+        self.assertEqual(mbr[478:], bytes(32) + b"\x55\xaa")
+
+    def test_independent_assemblies_hash_identically(self):
+        other, manifest = media_inside.assemble(Path(self.scratch.name) / "second", self.payloads, self.lock)
+        self.assertEqual(digest(self.image), digest(other))
+        self.assertEqual(self.manifest.read_bytes(), manifest.read_bytes())
+
+    def test_fat_timestamps_are_normalized_to_epoch(self):
+        stamp = datetime.datetime.fromtimestamp(1751459412, datetime.timezone.utc)
+        date = ((stamp.year - 1980) << 9) | (stamp.month << 5) | stamp.day
+        time = (stamp.hour << 11) | (stamp.minute << 5) | (stamp.second // 2)
+        with self.image.open("rb") as stream:
+            stream.seek(1048576)
+            bpb = stream.read(512)
+            fat_sectors = struct.unpack_from("<I", bpb, 36)[0]
+            base = 1048576 + (32 + 2 * fat_sectors) * 512
+            pending = [2]
+            while pending:
+                cluster = pending.pop()
+                stream.seek(base + (cluster - 2) * 512)
+                entries = stream.read(512)
+                for offset in range(0, 512, 32):
+                    entry = entries[offset:offset + 32]
+                    if not entry[0]:
+                        break
+                    if entry[11] == 15:
+                        continue
+                    self.assertEqual(struct.unpack_from("<HHH", entry, 14), (time, date, date), entry[:11])
+                    self.assertEqual(struct.unpack_from("<HH", entry, 22), (time, date), entry[:11])
+                    if entry[11] & 16 and entry[0] != ord("."):
+                        pending.append(struct.unpack_from("<H", entry, 26)[0])
+
+    def test_container_cli_assembles_and_verifies(self):
+        original = MediaLock.load(ROOT / "boot-media.lock.toml")
+        text = (ROOT / "boot-media.lock.toml").read_text()
+        for old, new in ((original.kernel, self.lock.kernel), (original.uboot, self.lock.uboot)):
+            text = text.replace(old.sha256, new.sha256).replace(f"size = {old.size}", f"size = {new.size}")
+        lock_path = Path(self.scratch.name) / "fixture.lock.toml"
+        lock_path.write_text(text)
+        common = ["--lock", str(lock_path)]
+        for name in ("rootfs", "idle", "kernel", "uboot"):
+            common.extend(["--" + name, str(getattr(self.payloads, name))])
+        output = Path(self.scratch.name) / "cli"
+        command = [sys.executable, str(ROOT / "scripts/media_inside.py")]
+        assembled = json.loads(subprocess.check_output(command + ["assemble", "--output", str(output)] + common, text=True))
+        self.assertEqual(assembled["assembly_sha256"], [digest(output / "fes.img")] * 2)
+        verified = json.loads(subprocess.check_output(command + ["verify", "--image", str(output / "fes.img"),
+                              "--manifest", str(output / "fes-media.toml")] + common, text=True))
+        self.assertEqual(verified["fat_type"], "FAT32")
+        self.assertEqual(verified["image_sha256"], assembled["image_sha256"])
+
+    def test_changed_mbr_rejected(self):
+        self.mutate(450, b"\x0b")
+        with self.assertRaisesRegex(ValueError, "MBR"):
+            self.verify()
+
+    def test_changed_fat_metadata_rejected(self):
+        self.mutate(2048 * 512 + 67, b"\x02")
+        with self.assertRaisesRegex(ValueError, "FAT"):
+            self.verify()
+
+    def test_changed_payload_rejected(self):
+        with self.copy.open("rb") as stream:
+            stream.seek(1048576 + 36)
+            fat_sectors = struct.unpack("<I", stream.read(4))[0]
+            base = 1048576 + (32 + 2 * fat_sectors) * 512
+            stream.seek(base)
+            entries = stream.read(512)
+        menu = next(entries[n:n + 32] for n in range(0, 512, 32) if entries[n:n + 11] == b"MENU    RBF")
+        cluster = struct.unpack_from("<H", menu, 26)[0]
+        self.mutate(base + (cluster - 2) * 512)
+        with self.assertRaisesRegex(ValueError, "payload"):
+            self.verify()
+
+    def test_nonzero_padding_rejected(self):
+        self.mutate(1024)
+        with self.assertRaisesRegex(ValueError, "padding"):
+            self.verify()
+
+    def rehash_manifest(self):
+        manifest = Path(self.scratch.name) / "rehashed.toml"
+        manifest.write_text(self.manifest.read_text().replace(digest(self.image), digest(self.copy)))
+        return manifest
+
+    def test_nonzero_free_fat_space_rejected_even_with_rehashed_manifest(self):
+        self.mutate(526336 * 512 - 1)
+        with self.assertRaisesRegex(ValueError, "unused FAT"):
+            self.verify(self.rehash_manifest())
+
+    def test_changed_fat_timestamp_rejected_even_with_rehashed_manifest(self):
+        with self.copy.open("rb") as stream:
+            stream.seek(1048576 + 36)
+            fat_sectors = struct.unpack("<I", stream.read(4))[0]
+        self.mutate(1048576 + (32 + 2 * fat_sectors) * 512 + 14)
+        with self.assertRaisesRegex(ValueError, "FAT timestamp"):
+            self.verify(self.rehash_manifest())
+
+    def test_nonzero_fsinfo_reserved_padding_rejected(self):
+        self.mutate(1048576 + 512 + 10)
+        with self.assertRaisesRegex(ValueError, "FAT.*padding"):
+            self.verify(self.rehash_manifest())
+
+    def test_nonzero_boot_tail_rejected(self):
+        self.mutate(526336 * 512 + self.uboot.stat().st_size + 1)
+        with self.assertRaisesRegex(ValueError, "boot partition tail"):
+            self.verify()
+
+    def test_changed_boot_payload_rejected(self):
+        self.mutate(526336 * 512)
+        with self.assertRaisesRegex(ValueError, "boot payload"):
+            self.verify()
+
+    def test_extra_owned_path_rejected(self):
+        subprocess.run(["mcopy", "-i", f"{self.copy}@@1048576", str(self.idle), "::/fogcast/extra"], check=True)
+        with self.assertRaisesRegex(ValueError, "paths"):
+            self.verify()
+
+    def test_truncation_rejected(self):
+        with self.copy.open("r+b") as f:
+            f.truncate(self.copy.stat().st_size - 1)
+        with self.assertRaisesRegex(ValueError, "size"):
+            self.verify()
+
+    def test_manifest_is_closed_and_rejects_duplicates(self):
+        for extra in ('unknown = 1\n', 'format = 1\n'):
+            with self.subTest(extra=extra):
+                manifest = Path(self.scratch.name) / "bad.toml"
+                manifest.write_text(extra + self.manifest.read_text())
+                with self.assertRaisesRegex(ValueError, "manifest"):
+                    self.verify(manifest)
+
+    def test_optional_config_is_verified_by_hash(self):
+        config = Path(self.scratch.name) / "agent.toml"
+        config.write_bytes(b'token = "private-test-token"\n')
+        inputs = dataclasses.replace(self.payloads, agent_config=config)
+        image, manifest = media_inside.assemble(Path(self.scratch.name) / "provisioned", inputs, self.lock)
+        config_sha = digest(config)
+        self.assertNotIn("private-test-token", manifest.read_text())
+        result = media_inside.verify_image(image, manifest, self.payloads, self.lock, config_sha)
+        self.assertIn("/fogcast/agent.toml", result.paths)
+        with self.assertRaisesRegex(ValueError, "config"):
+            media_inside.verify_image(image, manifest, self.payloads, self.lock, "0" * 64)
+
+    def test_idle_must_match_embedded_rootfs(self):
+        wrong = Path(self.scratch.name) / "wrong.rbf"
+        wrong.write_bytes(b"wrong")
+        with self.assertRaisesRegex(ValueError, "idle"):
+            media_inside.assemble(Path(self.scratch.name) / "invalid", dataclasses.replace(self.payloads, idle=wrong), self.lock)
