@@ -13,7 +13,7 @@ ENV = ROOT / "scripts" / "env.sh"
 LOCK_COMMITS = {
     "yosys": "13b43f8c85ec430a33ee55d058fb4c32b42b6910",
     "mistral": "328cfb8046d6bcb979fa69df7cfb95bd6f7e73f8",
-    "nextpnr": "9d9a027d401e98a5b611ccc8a0c17a5e6b04e8cc",
+    "nextpnr": "6abe1e9a0ef7673f5f840d0b1168f005a268fcbd",
     "verilator": "5e4151e3e0c8ecf11d9845a93495f37a31b2f667",
     "openfpgaloader": "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86",
 }
@@ -58,7 +58,7 @@ case "$1" in
         case "$(basename "$source_dir")" in
             yosys) commit="13b43f8c85ec430a33ee55d058fb4c32b42b6910" ;;
             mistral) commit="328cfb8046d6bcb979fa69df7cfb95bd6f7e73f8" ;;
-            nextpnr) commit="9d9a027d401e98a5b611ccc8a0c17a5e6b04e8cc" ;;
+            nextpnr) commit="6abe1e9a0ef7673f5f840d0b1168f005a268fcbd" ;;
             verilator) commit="5e4151e3e0c8ecf11d9845a93495f37a31b2f667" ;;
             openfpgaloader) commit="0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86" ;;
             *) exit 1 ;;
