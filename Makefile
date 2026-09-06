@@ -5,6 +5,8 @@ BUILD ?= oss
 CORE ?= megadrive
 ARTIFACT ?= rebuild
 PYTHON ?= python3
+VERILATOR ?= verilator
+PONG_FRAMEWORK ?= $(CURDIR)/build/frameworks/template
 PROGRAM_TRANSPORT ?= mister
 MISTER_HOST ?=
 MISTER_USER ?=
@@ -31,6 +33,9 @@ help:
 		"  doctor     Report host, toolchain, oracle, and hardware readiness" \
 		"  doctor-strict  Require host and OSS readiness (Quartus/hardware optional)" \
 		"  sim        Simulate an experiment with the Verilator lane" \
+		"  sim-pong   Test the standalone Pong game logic (no board wrapper)" \
+		"  stage-pong Stage pinned MiSTer framework and local Pong sources" \
+		"  build-pong Build Pong with explicit Quartus 17.0.2 (no deployment)" \
 		"  oss        Build an experiment with the open-source FPGA lane" \
 		"  oracle     Build an experiment with the explicit Quartus oracle lane" \
 		"  compare    Compare OSS and oracle build results" \
@@ -54,7 +59,23 @@ define require_exp
 	fi
 endef
 
-.PHONY: toolchain toolchain-check doctor doctor-strict sim oss oracle compare fetch-core rebuild-core select-core export-core-bundle program clean
+.PHONY: toolchain toolchain-check doctor doctor-strict sim sim-pong stage-pong build-pong oss oracle compare fetch-core rebuild-core select-core export-core-bundle program clean
+
+stage-pong:
+	$(PYTHON) scripts/build_pong.py --framework "$(PONG_FRAMEWORK)" --stage-only
+
+build-pong:
+	$(PYTHON) scripts/build_pong.py --framework "$(PONG_FRAMEWORK)"
+
+sim-pong:
+	@mkdir -p build/sim/pong
+	$(VERILATOR) --cc --exe --build --top-module pong_game -Wall -GCLOCK_HZ=8000 \
+		--Mdir "$(CURDIR)/build/sim/pong" cores/pong/rtl/pong_game.sv "$(CURDIR)/cores/pong/sim/tb.cpp"
+	@build/sim/pong/Vpong_game
+	@mkdir -p build/sim/pong-video
+	$(VERILATOR) --cc --exe --build --top-module pong_video -Wall \
+		--Mdir "$(CURDIR)/build/sim/pong-video" cores/pong/rtl/pong_video.sv "$(CURDIR)/cores/pong/sim/video_tb.cpp"
+	@build/sim/pong-video/Vpong_video
 
 toolchain:
 	@scripts/bootstrap.sh
@@ -107,3 +128,7 @@ clean:
 	$(require_exp)
 	@printf 'target not implemented in this task\n' >&2
 	@exit 2
+
+.PHONY: kit-session
+kit-session:
+	$(PYTHON) scripts/kit.py session --owner "$${KIT_OWNER:?set KIT_OWNER}" --purpose "$${KIT_PURPOSE:?set KIT_PURPOSE}"
