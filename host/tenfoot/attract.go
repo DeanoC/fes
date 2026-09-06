@@ -365,6 +365,7 @@ func (a *App) fetchAttract(ctx context.Context, gen int, enter bool) {
 	a.attractIndex = 0
 	a.attractActive = true
 	a.hold.Clear()
+	a.syncPreviewLocked()
 	a.showAttractItemLocked(now)
 }
 

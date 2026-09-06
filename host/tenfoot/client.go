@@ -257,11 +257,12 @@ type LaunchResult = SessionResult
 
 // Client calls the FogCast public host API.
 type Client struct {
-	baseURL    string
-	httpClient *http.Client
-	launchHTTP *http.Client
-	stopHTTP   *http.Client
-	videoHTTP  *http.Client
+	baseURL     string
+	httpClient  *http.Client
+	launchHTTP  *http.Client
+	stopHTTP    *http.Client
+	videoHTTP   *http.Client
+	previewHTTP *http.Client
 }
 
 // NewClient builds a host API client. baseURL defaults to DefaultAPIBase.
@@ -285,7 +286,9 @@ func NewClient(baseURL string, httpClient *http.Client) *Client {
 	if videoHTTP.Timeout != 0 && videoHTTP.Timeout < videoHTTPTimeout {
 		videoHTTP.Timeout = videoHTTPTimeout
 	}
-	return &Client{baseURL: baseURL, httpClient: httpClient, launchHTTP: &launchHTTP, stopHTTP: &stopHTTP, videoHTTP: &videoHTTP}
+	previewHTTP := *httpClient
+	previewHTTP.Timeout = 0
+	return &Client{baseURL: baseURL, httpClient: httpClient, launchHTTP: &launchHTTP, stopHTTP: &stopHTTP, videoHTTP: &videoHTTP, previewHTTP: &previewHTTP}
 }
 
 // withAPIHost returns a client that sends Host: host on every request.
@@ -312,6 +315,7 @@ func (c *Client) withAPIHost(host string) *Client {
 	out.launchHTTP = wrap(c.launchHTTP)
 	out.stopHTTP = wrap(c.stopHTTP)
 	out.videoHTTP = wrap(c.videoHTTP)
+	out.previewHTTP = wrap(c.previewHTTP)
 	return &out
 }
 
@@ -1143,6 +1147,52 @@ func decodeKitLeaseBody(status int, body []byte) KitLeaseStatus {
 		}
 	}
 	return result
+}
+
+// OpenSessionPreview starts GET /api/v1/session/preview and returns an MJPEG
+// reader. 404 (no decoder route), 503 inactive, and transport failures are
+// PreviewUnavailable. The caller must Close the stream.
+func (c *Client) OpenSessionPreview(ctx context.Context) (*MJPEGStream, error) {
+	if c == nil {
+		return nil, PreviewUnavailable{Message: "session preview is unavailable"}
+	}
+	httpClient := c.previewHTTP
+	if httpClient == nil {
+		httpClient = c.httpClient
+	}
+	if httpClient == nil {
+		return nil, PreviewUnavailable{Message: "session preview is unavailable"}
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/session/preview", http.NoBody)
+	if err != nil {
+		return nil, PreviewUnavailable{Message: "session preview is unavailable"}
+	}
+	req.Header.Set("Accept", previewContentType)
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, PreviewUnavailable{Message: "session preview is unavailable"}
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		_ = resp.Body.Close()
+		msg := strings.TrimSpace(string(body))
+		if msg == "" {
+			msg = "session preview is unavailable"
+		}
+		return nil, PreviewUnavailable{Status: resp.StatusCode, Message: msg}
+	}
+	stream, err := NewMJPEGStream(resp.Body, resp.Header.Get("Content-Type"))
+	if err != nil {
+		_ = resp.Body.Close()
+		if IsPreviewUnavailable(err) {
+			return nil, err
+		}
+		return nil, PreviewUnavailable{Message: "session preview is unavailable"}
+	}
+	return stream, nil
 }
 
 // Session loads GET /api/v1/session.

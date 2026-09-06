@@ -288,9 +288,18 @@ make tenfoot-smoke
 - `GET /v1/kit/lease` on the selected target address (status-only: owner,
   purpose, generation, remaining expiry, blocked+reason). Tenfoot does not add
   a host lease proxy and does not offer claim/renew/takeover. A transport
-  failure is **kit unreachable**, matching the P4d kit-down chrome. Tenfoot
-  does not call preview. A blocked lease refuses DIAGNOSTIC RBF load and
-  does not open a takeover panel.
+  failure is **kit unreachable**, matching the P4d kit-down chrome. A blocked
+  lease refuses DIAGNOSTIC RBF load and does not open a takeover panel.
+- `GET /api/v1/session/preview` while the host session is `active`. The host
+  registers this route only with a media decoder (`WithMediaPreview`). Tenfoot
+  consumes `multipart/x-mixed-replace; boundary=fogcast-frame` JPEG parts with
+  CPU `image/jpeg` decode and one SDL texture upload (same spirit as attract
+  stills). The sofa labels it **Preview**; it does not claim full living-room
+  HDMI mirror quality. HTTP 404 (no route), 503 `"session preview is inactive"`,
+  kit/decoder down, and network errors are graceful unavailable: no panic, and
+  Launch/Stop never wait on preview. Park/unpark, session Stop, app close,
+  attract entry, and overlays that need GPU cancel the in-flight GET, close the
+  reader, and drop the texture so no goroutine holds the stream after teardown.
 - `POST /api/v1/session/development-rbf` with `Content-Type:
   application/octet-stream` and `Content-Length` set. Settings overlay row
   **DIAGNOSTIC RBF** opens a gamepad path OSK (symbols page; type or paste a
@@ -355,12 +364,17 @@ parks GPU cover work: it destroys cover and label textures, drops decoded
 cover bitmaps, cancels in-flight presentation and artwork work (advancing
 the cover generation so pre-park completions cannot apply after resume),
 and does not upload a cover atlas until the session is idle again. Now-playing chrome is a few CPU-rasterized status labels, not the
-library view, plus the recent session events list and kit lease strip. Stop
+library view, plus the recent session events list, kit lease strip, and an
+optional **Preview** MJPEG surface. Preview uses CPU JPEG decode and one
+texture; a park or unpark transition cancels any in-flight preview stream so
+it cannot fight the cover atlas or leak GPU after teardown. Stop
 and Quit still work while parked. Retry-Stop lockout after `save_failed` or a
 failed Stop keeps the GPU parked and launch locked until Stop succeeds. On
 idle (stop success, poll, or media exit observed through the status poll) the
 current layout resumes and textures are uploaded again for the visible/prefetch
 window. Attract does not run while parked; after idle it may start again.
+Preview stops on unpark, session Stop, app close, attract entry, and any
+overlay that needs GPU.
 
 ## Known gaps / next
 
@@ -376,6 +390,8 @@ window. Attract does not run while parked; after idle it may start again.
   X11/Wayland still needs a Linux box with a display (see
   [`LINUX.md`](./LINUX.md)). No Linux CI job.
 
-Still out of tenfoot scope (web / later): MJPEG preview, save-management /
-save browser, and a full kit claim/renew/takeover operator panel. Development
-RBF load uses the settings path OSK only; there is no file picker.
+Still out of tenfoot scope (web / later): save-management / save browser, a
+host lease proxy, and a full kit claim/renew/takeover operator panel.
+Development RBF load uses the settings path OSK only; there is no file picker.
+Session preview is optional host MJPEG, not a new encoder and not a full
+HDMI mirror.

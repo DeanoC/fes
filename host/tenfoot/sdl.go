@@ -796,18 +796,28 @@ func presentFrame(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[
 		C.SDL_DestroyTexture(item.tex)
 		delete(textures, "attract")
 	}
+	if !snap.GPUParked {
+		if item, ok := textures["preview"]; ok {
+			C.SDL_DestroyTexture(item.tex)
+			delete(textures, "preview")
+		}
+	}
 	return applyGPUPark(renderer, snap, textures, labels, parked)
 }
 
 func applyGPUPark(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[string]sdlTexture, parked bool) bool {
 	if snap.GPUParked {
-		if len(textures) > 0 {
-			destroyTextures(textures)
+		for id, item := range textures {
+			if id == "preview" {
+				continue
+			}
+			C.SDL_DestroyTexture(item.tex)
+			delete(textures, id)
 		}
 		if !parked {
 			destroyTextures(labels)
 		}
-		drawNowPlaying(renderer, snap, labels)
+		drawNowPlaying(renderer, snap, textures, labels)
 		return true
 	}
 	syncTextures(renderer, snap, textures)
@@ -862,7 +872,7 @@ func syncTextures(renderer *C.SDL_Renderer, snap Snapshot, textures map[string]s
 		textures[id] = tex
 	}
 	for id, item := range textures {
-		if id == "attract" {
+		if id == "attract" || id == "preview" {
 			continue
 		}
 		if _, ok := needed[id]; ok {
@@ -1054,7 +1064,70 @@ func drawHeader(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTe
 	drawDebug(renderer, x+24, y+72, hint, 1)
 }
 
-func drawNowPlaying(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]sdlTexture) {
+func drawSessionPreview(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[string]sdlTexture, used map[string]struct{}, x, y, maxW int) int {
+	show := snap.Preview.Live || snap.Preview.Image != nil
+	if !show {
+		if item, ok := textures["preview"]; ok {
+			C.SDL_DestroyTexture(item.tex)
+			delete(textures, "preview")
+		}
+		return y
+	}
+	label := strings.TrimSpace(snap.Preview.Label)
+	if label == "" {
+		label = previewLabel
+	}
+	drawLabel(renderer, labels, used, "np-preview-label", x, y, maxW, 16, label)
+	y += 24
+	img := snap.Preview.Image
+	if img == nil {
+		return y
+	}
+	b := img.Bounds()
+	tw, th := b.Dx(), b.Dy()
+	existing, ok := textures["preview"]
+	needUpload := !ok || existing.src != img || existing.w != tw || existing.h != th || existing.seq != snap.Preview.FrameSeq
+	if needUpload && ok && existing.tex != nil && existing.w == tw && existing.h == th && len(img.Pix) > 0 {
+		if bool(C.SDL_UpdateTexture(existing.tex, nil, unsafe.Pointer(&img.Pix[0]), C.int(img.Stride))) {
+			existing.src = img
+			existing.seq = snap.Preview.FrameSeq
+			textures["preview"] = existing
+			needUpload = false
+		} else {
+			C.SDL_DestroyTexture(existing.tex)
+			delete(textures, "preview")
+			ok = false
+		}
+	}
+	if needUpload {
+		if ok {
+			C.SDL_DestroyTexture(existing.tex)
+			delete(textures, "preview")
+		}
+		if tex, err := uploadTexture(renderer, img); err == nil {
+			tex.src = img
+			tex.seq = snap.Preview.FrameSeq
+			textures["preview"] = tex
+		}
+	}
+	if tex, ok := textures["preview"]; ok {
+		stageH := 280
+		remain := snap.Grid.Height - snap.Grid.Safe.Bottom - y - 160
+		if remain < stageH {
+			stageH = remain
+		}
+		if stageH < 80 {
+			stageH = 80
+		}
+		dx, dy, dw, dh := coverDestRect(x, y, maxW, stageH, tex.w, tex.h)
+		dst := C.SDL_FRect{x: C.float(dx), y: C.float(dy), w: C.float(dw), h: C.float(dh)}
+		C.SDL_RenderTexture(renderer, tex.tex, nil, &dst)
+		y += int(dh) + 16
+	}
+	return y
+}
+
+func drawNowPlaying(renderer *C.SDL_Renderer, snap Snapshot, textures, labels map[string]sdlTexture) {
 	C.SDL_SetRenderDrawColor(renderer, 12, 14, 20, 255)
 	C.SDL_RenderClear(renderer)
 	used := map[string]struct{}{}
@@ -1093,6 +1166,7 @@ func drawNowPlaying(renderer *C.SDL_Renderer, snap Snapshot, labels map[string]s
 	}
 	drawLabel(renderer, labels, used, "np-meta", x, y, maxW, 18, meta)
 	y += 32
+	y = drawSessionPreview(renderer, snap, textures, labels, used, x, y, maxW)
 	if progress := strings.TrimSpace(snap.Session.Progress); progress != "" {
 		drawLabel(renderer, labels, used, "np-progress", x, y, maxW, 16, progress)
 		y += 28

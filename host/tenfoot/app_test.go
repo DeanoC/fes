@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"image"
 	"image/color"
+	"image/jpeg"
 	"image/png"
 	"io"
 	"net/http"
@@ -34,8 +35,8 @@ func TestAppNavigatesAndLaunchesThroughHostAPI(t *testing.T) {
 		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
 			id := strings.TrimPrefix(r.URL.Path, "/api/v1/presentation/games/")
 			_ = json.NewEncoder(w).Encode(Presentation{
-				GameID: id,
-				State:  "ready",
+				GameID:       id,
+				State:        "ready",
 				Presentation: &PresentationInfo{CoverArtworkID: handle},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/presentation/artwork/"+handle:
@@ -716,10 +717,10 @@ func TestAppFocusDetailUsesPresentation(t *testing.T) {
 			})
 		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
 			_ = json.NewEncoder(w).Encode(Presentation{
-				GameID: "snes-mario",
-				State:  "ready",
+				GameID:       "snes-mario",
+				State:        "ready",
 				Presentation: &PresentationInfo{Summary: "Jump on turtles.", Year: "1985", Genre: "Platform"},
-				Attribution: &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
+				Attribution:  &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
 			})
 		default:
 			http.NotFound(w, r)
@@ -854,8 +855,8 @@ func TestAppDoesNotRequeueFailedArtwork(t *testing.T) {
 					})
 				case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
 					_ = json.NewEncoder(w).Encode(Presentation{
-						GameID: "snes-mario",
-						State:  "ready",
+						GameID:       "snes-mario",
+						State:        "ready",
 						Presentation: &PresentationInfo{CoverArtworkID: handle, Summary: "Jump on turtles."},
 					})
 				case r.URL.Path == "/api/v1/presentation/artwork/"+handle:
@@ -913,8 +914,8 @@ func TestAppDoesNotRequeueFailedArtworkDuringOfflineDetailRetry(t *testing.T) {
 			presentationGets++
 			mu.Unlock()
 			_ = json.NewEncoder(w).Encode(Presentation{
-				GameID: "snes-mario",
-				State:  "offline",
+				GameID:       "snes-mario",
+				State:        "offline",
 				Presentation: &PresentationInfo{CoverArtworkID: handle},
 			})
 		case r.URL.Path == "/api/v1/presentation/artwork/"+handle:
@@ -1002,10 +1003,10 @@ func TestAppAdoptsChangedPresentationCoverWhenReady(t *testing.T) {
 						return
 					}
 					pres := Presentation{
-						GameID: "snes-mario",
-						State:  "ready",
+						GameID:       "snes-mario",
+						State:        "ready",
 						Presentation: &PresentationInfo{CoverArtworkID: cover, Summary: "Jump on turtles."},
-						Attribution: &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
+						Attribution:  &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
 					}
 					_ = json.NewEncoder(w).Encode(pres)
 				case r.URL.Path == "/api/v1/presentation/artwork/"+oldHandle:
@@ -1108,8 +1109,8 @@ func TestAppAdoptsChangedPresentationCoverOnRetry(t *testing.T) {
 					}
 					mu.Unlock()
 					pres := Presentation{
-						GameID: "snes-mario",
-						State:  "ready",
+						GameID:       "snes-mario",
+						State:        "ready",
 						Presentation: &PresentationInfo{CoverArtworkID: cover},
 					}
 					if done {
@@ -1201,10 +1202,10 @@ func TestAppRetriesPresentationDetailsAfterFailedFetch(t *testing.T) {
 				return
 			}
 			_ = json.NewEncoder(w).Encode(Presentation{
-				GameID: "snes-mario",
-				State:  "ready",
+				GameID:       "snes-mario",
+				State:        "ready",
 				Presentation: &PresentationInfo{Summary: "Jump on turtles.", Year: "1985", Genre: "Platform"},
-				Attribution: &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
+				Attribution:  &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
 			})
 		default:
 			http.NotFound(w, r)
@@ -1249,10 +1250,10 @@ func TestAppRetriesPresentationDetailsAfterOfflineState(t *testing.T) {
 				return
 			}
 			_ = json.NewEncoder(w).Encode(Presentation{
-				GameID: "snes-mario",
-				State:  "ready",
+				GameID:       "snes-mario",
+				State:        "ready",
 				Presentation: &PresentationInfo{Summary: "Jump on turtles.", Year: "1985", Genre: "Platform"},
-				Attribution: &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
+				Attribution:  &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
 			})
 		default:
 			http.NotFound(w, r)
@@ -1295,8 +1296,8 @@ func TestAppRetriesReadyPresentationWithoutAttribution(t *testing.T) {
 			fallback := readyOffline
 			mu.Unlock()
 			pres := Presentation{
-				GameID: "snes-mario",
-				State:  "ready",
+				GameID:       "snes-mario",
+				State:        "ready",
 				Presentation: &PresentationInfo{CoverArtworkID: handle},
 			}
 			if !fallback {
@@ -1408,8 +1409,8 @@ func TestAppCachesTerminalPresentationWithLocalMediaWithoutRetry(t *testing.T) {
 					presentationGets++
 					mu.Unlock()
 					_ = json.NewEncoder(w).Encode(Presentation{
-						GameID: "snes-mario",
-						State:  state,
+						GameID:       "snes-mario",
+						State:        state,
 						Presentation: &PresentationInfo{CoverArtworkID: handle},
 					})
 				case r.URL.Path == "/api/v1/presentation/artwork/"+handle:
@@ -3030,6 +3031,21 @@ func mustPNG(t *testing.T, w, h int, c color.RGBA) []byte {
 	}
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+func mustJPEG(t *testing.T, w, h int, c color.RGBA) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			img.Set(x, y, c)
+		}
+	}
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90}); err != nil {
 		t.Fatal(err)
 	}
 	return buf.Bytes()

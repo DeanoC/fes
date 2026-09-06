@@ -122,19 +122,19 @@ type LaunchSnapshot struct {
 
 // SessionSnapshot is the live host session from GET /api/v1/session (and launch/stop).
 type SessionSnapshot struct {
-	State        string
-	Chrome       string
-	GameID       string
-	Title        string
-	System       string
-	Execution    string
-	Media        string
-	InputState   string
-	InputHint    string
-	InputBusy    bool
-	Progress     string
-	Stopping     bool
-	RetryStop    bool
+	State             string
+	Chrome            string
+	GameID            string
+	Title             string
+	System            string
+	Execution         string
+	Media             string
+	InputState        string
+	InputHint         string
+	InputBusy         bool
+	Progress          string
+	Stopping          bool
+	RetryStop         bool
 	RetryHint         string
 	LaunchLocked      bool
 	Events            []string
@@ -268,6 +268,7 @@ type Snapshot struct {
 	KitLease        KitLeaseSnapshot
 	Detail          DetailSnapshot
 	Screenshots     map[string]*image.RGBA
+	Preview         PreviewSnapshot
 }
 
 // App owns catalog, focus, async covers, and host launch. SDL stays out.
@@ -425,6 +426,15 @@ type App struct {
 	attractVideoPath   string
 	attractClosed      bool
 	attractMediaCancel context.CancelFunc
+
+	previewGen         int
+	previewCancel      context.CancelFunc
+	previewLive        bool
+	previewUnavailable bool
+	previewImage       *image.RGBA
+	previewSeq         int
+	previewFails       int
+	previewNext        time.Time
 }
 
 // NewApp builds a launcher model bound to the host API client.
@@ -495,6 +505,7 @@ func (a *App) Start(parent context.Context) {
 func (a *App) Stop() {
 	a.mu.Lock()
 	a.hideAttractLocked()
+	a.stopPreviewLocked()
 	a.attractClosed = true
 	cancel := a.cancel
 	a.mu.Unlock()
@@ -1069,6 +1080,7 @@ func (a *App) Tick(now time.Time) Command {
 	a.mu.Lock()
 	a.flushSearchLocked(now)
 	a.tickAttractLocked(now)
+	a.syncPreviewLocked()
 	a.mu.Unlock()
 	a.queueVisibleWork(now)
 	if a.browseHoldEnabled() {
@@ -1176,6 +1188,7 @@ func (a *App) Snapshot() Snapshot {
 		KitLease:        a.kitLeaseSnapshotLocked(),
 		Detail:          a.detailSnapshotLocked(),
 		Screenshots:     a.screenshotImagesLocked(),
+		Preview:         a.previewSnapshotLocked(),
 	}
 }
 
@@ -1884,10 +1897,13 @@ func (a *App) syncGPUParkLocked() {
 			a.closeFiltersLocked()
 			a.closeDetailLocked()
 		}
+		a.syncPreviewLocked()
 		return
 	}
 	a.gpuParked = want
+	a.stopPreviewLocked()
 	if !want {
+		a.syncPreviewLocked()
 		return
 	}
 	a.hideAttractLocked()
@@ -1905,6 +1921,7 @@ func (a *App) syncGPUParkLocked() {
 	a.covers = map[string]*coverSlot{}
 	a.shots = map[string]*shotSlot{}
 	a.shotIDs = map[string][]string{}
+	a.syncPreviewLocked()
 }
 
 func (a *App) sessionSnapshotLocked() SessionSnapshot {

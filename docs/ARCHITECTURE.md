@@ -184,6 +184,7 @@ Native SDL3 UI
   -> POST /api/v1/session/development-rbf (raw octet-stream from a local path OSK)
   -> GET /api/v1/session (poll; now-playing or DIAGNOSTIC development chrome)
   -> GET /api/v1/session/events?after= (poll; sofa event list)
+  -> GET /api/v1/session/preview (optional MJPEG; 404/503/inactive is unavailable)
   -> POST /api/v1/session/stop
   -> GET /api/v1/health (poll; kit chrome)
   -> GET /api/v1/status (503 TARGET_UNAVAILABLE treated as kit-down)
@@ -214,6 +215,15 @@ without re-fetching; clips longer than 60s are capped at 60s. Missing, failed,
 or unsupported video uses backdrop, else cover, else marquee. SDL re-uploads
 the stage texture only when `FrameSeq` changes. Hide, dismiss, park, and
 process stop tear down the decoder and close any player still queued.
+
+While a host session is `active`, tenfoot may open `GET /api/v1/session/preview`
+and CPU-decode JPEG parts from `multipart/x-mixed-replace; boundary=fogcast-frame`.
+The sofa labels that surface **Preview**; it is not a living-room HDMI mirror.
+404 (route absent), 503 `"session preview is inactive"`, kit/decoder down, and
+transport errors are graceful misses and never block Launch or Stop. Park,
+unpark, Stop, app close, attract entry, and GPU-using overlays cancel the HTTP
+stream, close the reader, and drop the preview texture so no background
+goroutine holds the stream.
 
 Source entry points are `host/tenfoot/` and `cmd/fogcast-tenfoot`. The browser
 shell remains the default UI. Mac is the primary sofa target; Linux builds
