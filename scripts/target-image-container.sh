@@ -239,12 +239,14 @@ fi
 short_digest=$(printf '%s' "$digest" | cut -c8-19)
 host_uid=$(id -u)
 host_gid=$(id -g)
+# Hash ordered content digests only; checkout paths do not affect the builder.
 context_digest=$(
   /usr/bin/shasum -a 256 \
     "$repo_root/containers/target-image/Dockerfile" \
     "$repo_root/containers/target-image/create-builder-user.sh" \
     "$package_lock" \
     "$lock" |
+    /usr/bin/awk '{print $1}' |
     /usr/bin/shasum -a 256 |
     /usr/bin/awk '{print substr($1, 1, 12)}'
 )
