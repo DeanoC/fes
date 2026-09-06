@@ -46,7 +46,7 @@ make host
 For an existing checkout, inspect local changes before running
 `git submodule update --init --recursive`; preserve component work first.
 `make check` verifies clean pinned sources, the runtime lock, package YAML,
-three generated consumers and both copied Mega Drive source pins. It needs Go,
+seven generated consumers and copied Mega Drive/SNES source pins. It needs Go,
 not Docker or Quartus. `make host` builds the Linux CLI and browser API server. Run `make doctor`
 when preparing for container/image builds. See [getting started](docs/getting-started.md)
 for Git authentication and a minimal host configuration.
@@ -153,6 +153,7 @@ components; the default Actions token cannot read sibling private repositories.
 CI deliberately fails with an actionable message when this credential is absent.
 Quartus, full image builds and physical checks run on the development machine.
 
-Next system milestone: move whole-system image assembly into FES through an
-explicit artifact interface and produce the native bootable media layout. Keep
-one authoritative image recipe during that migration.
+Next system milestone: package [Pong and SNES](docs/multi-system-development.md)
+into the normal image and verify the assembled three-system artifact. The source
+implementations and diagnostic switching checks are complete. Whole-system image
+assembly migration and the native bootable media layout remain separate work.

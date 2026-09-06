@@ -13,6 +13,8 @@ host software and target root filesystem.
 | Assign work to agents and integrate their results | [Agent workflow](agent-workflow.md), then [root AGENTS.md](../AGENTS.md) |
 | Create component worktrees and use incremental builds | [Development guide](development.md) |
 | Decide where a change belongs or crosses a boundary | [Component boundaries](component-boundaries.md) |
+| Continue the Pong and SNES milestone | [Multi-system development](multi-system-development.md) |
+| Share the kit between game and FPGA development sessions | [Kit sharing proposal](kit-sharing.md) |
 
 All shell examples in the parent guides start at the FES repository root unless
 specified otherwise. Commands inside a component use that component's Makefile

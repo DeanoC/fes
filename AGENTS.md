@@ -53,7 +53,10 @@ and base packages and writes separate diagnostic outputs. Reserve cold
 `make build` / `make verify` for stabilized integration. Do not have every
 agent run Quartus or rebuild the full image. Parent builds already serialize
 per checkout; coordinate a single operator for the designated kit during each
-hardware test. No additional lock service is needed.
+hardware test. Claim a session through
+the [kit sharing guide](docs/kit-sharing.md); never bypass another owner with
+direct programming. Expiry and explicit operator takeover handle abandoned
+sessions. The lease lives in the existing target agent, not an extra service.
 
 A build does not authorize deployment to an unknown device. Follow the exact
 kit designation and authorization in the selected FogCast

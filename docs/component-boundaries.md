@@ -87,16 +87,15 @@ would distribute the existing coupling across more locations.
 
 ## Integrated source set
 
-The current gitlinks select FogCast `1adc7c3`, libmister-runtime `4398f41`,
-misteross `7912a3e`, and mister-packages `a29f631`. FogCast contains the merged
-native development loader, source-bundle selector, and generated launch fields.
-The runtime consumes generated hardware and Mega Drive definitions.
+The gitlinks select matching merged implementations of native Mega Drive,
+Pong, basic SNES and renewable kit ownership. Exact revisions are recorded by
+git; diagnostic artifact identities are in the multi-system and kit guides.
+The default image assembly still packages Mega Drive only.
 
 `make check` validates source identity and cleanliness, the FogCast runtime
-lock, package YAML, the three generated consumer files, and the copied upstream
-source/artifact pins in misteross and FogCast. It regenerates to temporary files;
-it never edits consumers. It covers the selected DE10-Nano/Mega Drive graph,
-not hypothetical future platforms or every handwritten hardware constant.
+lock, package YAML, seven generated consumer files, and copied Mega Drive/SNES
+source pins. It regenerates to temporary files and never edits consumers.
+It covers the selected DE10-Nano and three system definitions.
 
 The old review's unmerged-consumer concern is resolved: FogCast main consumes
 `generated.MegaDriveExpectedCore` and `generated.MegaDriveCartridgeIndex` through
@@ -142,6 +141,11 @@ Component workers own disjoint implementation scopes and return a short handoff.
 This does not require a fixed agent team for every change.
 
 ## Next integration milestone
+
+The next milestone is packaging [Pong and SNES](multi-system-development.md)
+into the normal image and verifying that assembled artifact. The selected source
+implementations have passed separate three-system hardware diagnostics.
+The following assembly milestones remain separate future work:
 
 1. Use the incremental native development path for component integration; retain
    clean reproducibility checks at stabilized milestones. Extend its cache
