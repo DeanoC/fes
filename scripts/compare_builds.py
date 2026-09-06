@@ -39,7 +39,7 @@ REQUIRED_HARD_BLOCKS = ("PLL", "BRAM/M10K", "MLAB/LUTRAM", "DSP", "HPS")
 MEASURED_HARD_BLOCKS = ("PLL", "BRAM/M10K", "DSP")
 STATIC_HARD_BLOCKS = ("MLAB/LUTRAM", "HPS")
 MAILBOX_ALLOWED_HARD_BLOCK = "cyclonev_hps_interface_mpu_general_purpose"
-HPS_GP_EXPERIMENTS = frozenset({"020_linux_mailbox", "040_mlab_ram"})
+HPS_GP_EXPERIMENTS = frozenset({"020_linux_mailbox", "040_mlab_ram", "050_lut_mul"})
 MLAB_LUTRAM_BITS = 256
 SYNTHESIS_REPORT_SUFFIXES = {
     "oss": "timing.json",
@@ -1619,6 +1619,11 @@ def _lane_view(
         clock_name = timing_view.get("clock")
         if clock_name != expected_clock:
             failures.append(f"{lane} timing clock must be exactly {expected_clock}")
+    elif manifest_experiment == "050_lut_mul":
+        expected_clock = "product.FPGA_CLK1_50" if lane == "oss" else "FPGA_CLK1_50"
+        clock_name = timing_view.get("clock")
+        if clock_name != expected_clock:
+            failures.append(f"{lane} timing clock must be exactly {expected_clock}")
 
     hard_status = build.get("hard_block_status")
     if manifest_experiment in HPS_GP_EXPERIMENTS:
@@ -1634,14 +1639,30 @@ def _lane_view(
         elif lane == "oracle":
             evidence = build.get("resource_evidence")
             semantic = evidence if isinstance(evidence, dict) else {}
-            if not isinstance(evidence, dict) or evidence.get("lutram_bits") != MLAB_LUTRAM_BITS:
-                failures.append(
-                    f"{lane} resource_evidence.lutram_bits must be {MLAB_LUTRAM_BITS}"
-                )
-            elif evidence.get("hps_general_purpose_interfaces") != 1:
-                failures.append(f"{lane} resource_evidence.hps_general_purpose_interfaces must be 1")
-            elif evidence.get("block_memory_bits") != 0:
-                failures.append(f"{lane} resource_evidence.block_memory_bits must be 0")
+            if manifest_experiment == "040_mlab_ram":
+                if not isinstance(evidence, dict) or evidence.get("lutram_bits") != MLAB_LUTRAM_BITS:
+                    failures.append(
+                        f"{lane} resource_evidence.lutram_bits must be {MLAB_LUTRAM_BITS}"
+                    )
+                elif evidence.get("hps_general_purpose_interfaces") != 1:
+                    failures.append(
+                        f"{lane} resource_evidence.hps_general_purpose_interfaces must be 1"
+                    )
+                elif evidence.get("block_memory_bits") != 0:
+                    failures.append(f"{lane} resource_evidence.block_memory_bits must be 0")
+            elif manifest_experiment == "050_lut_mul":
+                if not isinstance(evidence, dict) or evidence.get("dsp_blocks") != 0:
+                    failures.append(f"{lane} resource_evidence.dsp_blocks must be 0")
+                elif evidence.get("hps_general_purpose_interfaces") != 1:
+                    failures.append(
+                        f"{lane} resource_evidence.hps_general_purpose_interfaces must be 1"
+                    )
+                elif evidence.get("lutram_bits") != 0:
+                    failures.append(f"{lane} resource_evidence.lutram_bits must be 0")
+                elif evidence.get("block_memory_bits") != 0:
+                    failures.append(f"{lane} resource_evidence.block_memory_bits must be 0")
+            else:
+                failures.append(f"{lane} unsupported HPS GP experiment {manifest_experiment}")
         else:
             semantic = {}
         hard_blocks, hard_failures = _mailbox_hard_block_view(

@@ -399,7 +399,7 @@ timing_path = Path(sys.argv[2])
 summary_path = Path(sys.argv[3])
 rbf_path = Path(sys.argv[4])
 experiment = sys.argv[5]
-hps_gp = experiment in {"020_linux_mailbox", "040_mlab_ram"}
+hps_gp = experiment in {"020_linux_mailbox", "040_mlab_ram", "050_lut_mul"}
 measure_mlab = experiment == "040_mlab_ram"
 target = sys.argv[6]
 rtl_path = Path(sys.argv[7])

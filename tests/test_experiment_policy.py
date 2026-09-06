@@ -148,6 +148,34 @@ class ExperimentPolicyTests(unittest.TestCase):
             with self.assertRaisesRegex(PolicyError, "MISTRAL_MLAB"):
                 policy.validate_synth_json(synth)
 
+    def test_lut_mul_requires_hps_keeps_nodsp_and_rejects_vendor_product_cells(self) -> None:
+        policy = policy_for("050_lut_mul")
+        self.assertTrue(policy.nobram)
+        self.assertTrue(policy.nolutram)
+        self.assertTrue(policy.nodsp)
+        self.assertEqual(policy.synth_intel_alm_flags, ("-nobram", "-nolutram", "-nodsp"))
+        self.assertEqual(
+            dict(policy.allowed_hard_blocks),
+            {"cyclonev_hps_interface_mpu_general_purpose": 1},
+        )
+        self.assertEqual(dict(policy.required_synth_cells), {})
+        self.assertEqual(policy.clock_evidence_names, ("product.FPGA_CLK1_50",))
+        policy.validate_resources(
+            {
+                "MISTRAL_COMB": {"used": 40, "available": 83820},
+                "cyclonev_hps_interface_mpu_general_purpose": {"used": 1, "available": 1},
+                "MISTRAL_M10K": {"used": 0, "available": 553},
+                "MISTRAL_MUL9X9": {"used": 0, "available": 112},
+            }
+        )
+        with self.assertRaisesRegex(PolicyError, "MUL"):
+            policy.validate_resources(
+                {
+                    "cyclonev_hps_interface_mpu_general_purpose": {"used": 1, "available": 1},
+                    "MISTRAL_MUL9X9": {"used": 1, "available": 112},
+                }
+            )
+
     def test_wrong_top_and_source_list_are_rejected(self) -> None:
         policy = policy_for("010_blinky")
         with self.assertRaisesRegex(PolicyError, "top"):

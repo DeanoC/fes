@@ -16,6 +16,7 @@ development possible with both the open-source Mistral toolchain and Quartus.
 - `020_linux_mailbox`, a small HPS GPI/GPO mailbox experiment.
 - `030_m10k_rom`, an initialized table driving one LED through one M10K.
 - `040_mlab_ram`, a 32-by-8 writeable table on HPS GP, mapped to eight MLABs.
+- `050_lut_mul`, an eight-by-eight unsigned product on HPS GP, kept in logic cells.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under

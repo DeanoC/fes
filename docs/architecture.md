@@ -56,6 +56,12 @@ so the closed policy counts the Yosys cells and requires the HPS primitive
 in the route report. Quartus maps the same table to 256 MLAB bits and zero
 M10K. PLL, DSP, and M10K remain forbidden.
 
+`050_lut_mul` is an eight-by-eight unsigned product on the HPS
+general-purpose interface. Linux peeks and pokes GPO/GPI; there is no LED.
+The product is marked `multstyle = "logic"` so both lanes keep it in ALMs.
+OSS synthesis keeps `-nodsp`; Yosys must not emit `MISTRAL_MUL*` cells.
+Quartus must measure zero DSP blocks. PLL, M10K, and MLAB remain forbidden.
+
 ## Standalone Pong game
 
 `cores/pong/rtl/pong_game.sv` implements a deterministic 320x240 game module.
