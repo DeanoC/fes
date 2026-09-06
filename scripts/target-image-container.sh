@@ -33,6 +33,24 @@ case "$mode" in
     ;;
 esac
 
+
+"$repo_root/scripts/native-extra-cores.sh" validate
+run_container() {
+  if [ "${NATIVE_RUNTIME_SYSTEMS:-megadrive}" = 'megadrive pong snes' ]; then
+    # Bundles are needed only for fetch; run/verify consume the sealed cache.
+    if [ "$mode" = fetch ]; then
+      for bundle in "${PONG_RBF_BUNDLE:-}" "${SNES_RBF_BUNDLE:-}"; do
+        case "$bundle" in /*) ;; *) echo 'absolute Pong/SNES bundles required' >&2; exit 2 ;; esac
+        [ -d "$bundle" ] && [ ! -L "$bundle" ] || exit 2
+      done
+      exec "$runtime" run --env 'NATIVE_RUNTIME_SYSTEMS=megadrive pong snes' \
+        --volume "$PONG_RBF_BUNDLE:/pong-rbf-bundle:ro" --env PONG_RBF_BUNDLE=/pong-rbf-bundle \
+        --volume "$SNES_RBF_BUNDLE:/snes-rbf-bundle:ro" --env SNES_RBF_BUNDLE=/snes-rbf-bundle "$@"
+    fi
+    exec "$runtime" run --env 'NATIVE_RUNTIME_SYSTEMS=megadrive pong snes' "$@"
+  fi
+  exec "$runtime" run "$@"
+}
 native_runtime_source=
 native_runtime_commit=
 if [ -n "${LIBMISTER_RUNTIME_DIR:-}" ]; then
@@ -133,7 +151,7 @@ if [ "${TARGET_IMAGE_DEV_CONTAINER:-0}" = 1 ]; then
   fi
   if [ "$mode" = run ]; then
     if [ -n "$native_runtime_source" ]; then
-      exec "$runtime" run --rm \
+      run_container --rm \
         --platform "$dev_platform" \
         --network none \
         --ulimit core=0:0 \
@@ -145,7 +163,7 @@ if [ "${TARGET_IMAGE_DEV_CONTAINER:-0}" = 1 ]; then
         --workdir /work \
         "$dev_image" "$@"
     fi
-    exec "$runtime" run --rm \
+    run_container --rm \
       --platform "$dev_platform" \
       --network none \
       --ulimit core=0:0 \
@@ -156,7 +174,7 @@ if [ "${TARGET_IMAGE_DEV_CONTAINER:-0}" = 1 ]; then
       "$dev_image" "$@"
   fi
   if [ -n "$native_runtime_source" ]; then
-    exec "$runtime" run --rm \
+    run_container --rm \
       --platform "$dev_platform" \
       --ulimit core=0:0 \
       --user "$host_uid:$host_gid" \
@@ -167,7 +185,7 @@ if [ "${TARGET_IMAGE_DEV_CONTAINER:-0}" = 1 ]; then
       --workdir /work \
       "$dev_image" "$@"
   fi
-  exec "$runtime" run --rm \
+  run_container --rm \
     --platform "$dev_platform" \
     --ulimit core=0:0 \
     --user "$host_uid:$host_gid" \
@@ -276,7 +294,7 @@ fi
 if [ "$mode" = run ]; then
   if [ -n "$native_runtime_source" ]; then
     if [ -n "$native_megadrive_source" ] && [ -n "$native_megadrive_bundle" ]; then
-      exec "$runtime" run --rm \
+      run_container --rm \
         --platform "$platform" \
         --network none \
         --ulimit core=0:0 \
@@ -292,7 +310,7 @@ if [ "$mode" = run ]; then
         --workdir /work \
         "$build_image_id" "$@"
     fi
-    exec "$runtime" run --rm \
+    run_container --rm \
       --platform "$platform" \
       --network none \
       --ulimit core=0:0 \
@@ -307,7 +325,7 @@ if [ "$mode" = run ]; then
       "$build_image_id" "$@"
   fi
   if [ -n "$native_megadrive_source" ] && [ -n "$native_megadrive_bundle" ]; then
-    exec "$runtime" run --rm \
+    run_container --rm \
       --platform "$platform" \
       --network none \
       --ulimit core=0:0 \
@@ -322,7 +340,7 @@ if [ "$mode" = run ]; then
       "$build_image_id" "$@"
   fi
   if [ -n "$native_megadrive_source" ]; then
-    exec "$runtime" run --rm \
+    run_container --rm \
       --platform "$platform" \
       --network none \
       --ulimit core=0:0 \
@@ -334,7 +352,7 @@ if [ "$mode" = run ]; then
       --workdir /work \
       "$build_image_id" "$@"
   fi
-  exec "$runtime" run --rm \
+  run_container --rm \
     --platform "$platform" \
     --network none \
     --ulimit core=0:0 \
@@ -347,7 +365,7 @@ fi
 
 if [ -n "$native_runtime_source" ]; then
   if [ -n "$native_megadrive_source" ] && [ -n "$native_megadrive_bundle" ]; then
-    exec "$runtime" run --rm \
+    run_container --rm \
       --platform "$platform" \
       --ulimit core=0:0 \
       --user "$host_uid:$host_gid" \
@@ -363,7 +381,7 @@ if [ -n "$native_runtime_source" ]; then
       "$build_image_id" "$@"
   fi
   if [ -n "$native_megadrive_source" ]; then
-    exec "$runtime" run --rm \
+    run_container --rm \
       --platform "$platform" \
       --ulimit core=0:0 \
       --user "$host_uid:$host_gid" \
@@ -376,7 +394,7 @@ if [ -n "$native_runtime_source" ]; then
       --workdir /work \
       "$build_image_id" "$@"
   fi
-  exec "$runtime" run --rm \
+  run_container --rm \
     --platform "$platform" \
     --ulimit core=0:0 \
     --user "$host_uid:$host_gid" \
@@ -391,7 +409,7 @@ if [ -n "$native_runtime_source" ]; then
 fi
 
 if [ -n "$native_megadrive_source" ] && [ -n "$native_megadrive_bundle" ]; then
-  exec "$runtime" run --rm \
+  run_container --rm \
     --platform "$platform" \
     --ulimit core=0:0 \
     --user "$host_uid:$host_gid" \
@@ -406,7 +424,7 @@ if [ -n "$native_megadrive_source" ] && [ -n "$native_megadrive_bundle" ]; then
 fi
 
 if [ -n "$native_megadrive_source" ]; then
-  exec "$runtime" run --rm \
+  run_container --rm \
     --platform "$platform" \
     --ulimit core=0:0 \
     --user "$host_uid:$host_gid" \
@@ -418,7 +436,7 @@ if [ -n "$native_megadrive_source" ]; then
     "$build_image_id" "$@"
 fi
 
-exec "$runtime" run --rm \
+run_container --rm \
   --platform "$platform" \
   --ulimit core=0:0 \
   --user "$host_uid:$host_gid" \

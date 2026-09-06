@@ -54,9 +54,48 @@ Mega Drive launch/input/Stop/relaunch paths are hardware-tested. The existing
 MiSTer-compatible native development-RBF load/Stop lifecycle and its subsequent
 game regression are also hardware-tested; exact evidence is in
 [native-development-rbf-baseline.md](hardware/native-development-rbf-baseline.md).
-`native-dev` supports no other catalogue game system, generalized RBF ABI, or
-generic development video/input guarantee. Continue to use the legacy `dev`
+`native-dev` defaults to the Mega Drive core set. It can also package the
+explicit three-system set described below. This does not establish a generalized
+RBF ABI or generic development video/input guarantee. Continue to use the legacy `dev`
 image for the broader established game and development-RBF paths below.
+
+### Optional Pong and SNES image cores
+
+For the FES three-system profile, keep the same selected runtime checkout and
+Mega Drive selection, and supply two sealed misteross bundles:
+
+```sh
+export NATIVE_RUNTIME_SYSTEMS='megadrive pong snes'
+export PONG_RBF_BUNDLE=/absolute/path/to/pong-bundle
+export SNES_RBF_BUNDLE=/absolute/path/to/snes-bundle
+make target-image-native
+make target-image-native-verify
+make target-image-native-qemu-smoke
+```
+
+The only admitted sets are `megadrive` (the unchanged default) and
+`megadrive pong snes`. Pong/SNES use source-built bundles only. Each contains
+exactly `<system>.rbf` and `<system>-rbf.toml`, using the existing closed format-1
+manifest. The selector validates system, source identity, recipe, digest and
+size before publishing a sealed artifact and selection pair. Pong identifies
+its exact misteross producer commit; SNES identifies source commit
+`93d359e6f23c734ae3928984e88bed1d9b53cbac`. FES additionally binds producer and
+recipe hashes to its selected component commits.
+
+The normal Buildroot post-build hook installs all selected cores and their
+provenance records. Returning to the default removes leftover Pong/SNES cores
+and records. Image verification takes the expected set from the caller and
+compares installed bytes and records with the external selection sidecars;
+it never infers acceptance from files found inside the image. Preserve the
+`pong.selection.toml` and `snes.selection.toml` files alongside the existing
+Mega Drive sidecar when moving an image. Both reproducible passes compare
+these sidecars, and the Make variables reach fetch, build, verification and
+QEMU consistently.
+
+These packaging checks are host-side evidence. QEMU checks init packaging;
+physical video, input and audio require acceptance of the exact assembled
+image. Basic SNES supports ordinary LoROM/HiROM cartridges, without enhancement
+chips or persistent saves.
 
 ### Native Mega Drive RBF selection
 

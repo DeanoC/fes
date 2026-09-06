@@ -1,3 +1,6 @@
+# Explicit native image selection applies consistently to fetch/build/verify/QEMU.
+export NATIVE_RUNTIME_SYSTEMS PONG_RBF_BUNDLE SNES_RBF_BUNDLE
+
 VERSION ?= 0.1.0
 REVISION ?= $(shell git rev-parse --verify HEAD 2>/dev/null || printf unknown)
 CONTAINER_RUNTIME ?= docker
@@ -30,6 +33,7 @@ test: build-agent test-ui
 	$(NATIVE_GO_ENV) go test -race ./...
 	sh scripts/tests/fogcast-build_test.sh
 	sh scripts/tests/native-runtime-inputs_test.sh
+	sh scripts/tests/native-extra-cores_test.sh
 	sh scripts/tests/native-megadrive-support-truth_test.sh
 	sh scripts/tests/native-development-rbf-support-truth_test.sh
 	sh scripts/tests/target-image-sources_test.sh

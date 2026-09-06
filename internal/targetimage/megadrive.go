@@ -225,6 +225,10 @@ func loadMegaDriveBundle(bundlePath string) (MegaDriveBundleManifest, string, er
 }
 
 func validateBundleDirectory(path string) error {
+	return validateCoreBundleDirectory(path, "megadrive")
+}
+
+func validateCoreBundleDirectory(path, system string) error {
 	if strings.TrimSpace(path) == "" || !filepath.IsAbs(path) {
 		return fmt.Errorf("bundle must be an absolute directory")
 	}
@@ -239,9 +243,10 @@ func validateBundleDirectory(path string) error {
 	if err != nil {
 		return fmt.Errorf("read bundle: %w", err)
 	}
-	wanted := map[string]bool{megaDriveBundleManifest: true, megaDriveArtifact: true}
+	manifestName, artifactName := system+"-rbf.toml", system+".rbf"
+	wanted := map[string]bool{manifestName: true, artifactName: true}
 	if len(entries) != len(wanted) {
-		return fmt.Errorf("bundle must contain exactly %s and %s", megaDriveBundleManifest, megaDriveArtifact)
+		return fmt.Errorf("bundle must contain exactly %s and %s", manifestName, artifactName)
 	}
 	for _, entry := range entries {
 		if !wanted[entry.Name()] {
@@ -259,6 +264,10 @@ func validateBundleDirectory(path string) error {
 }
 
 func validateMegaDriveBundleManifest(manifest MegaDriveBundleManifest) error {
+	return validateCoreManifest(manifest, "megadrive", megaDriveRecipe)
+}
+
+func validateCoreManifest(manifest MegaDriveBundleManifest, system, recipe string) error {
 	if manifest.Format != 1 {
 		return fmt.Errorf("manifest format must be 1")
 	}
@@ -278,10 +287,10 @@ func validateMegaDriveBundleManifest(manifest MegaDriveBundleManifest) error {
 			return fmt.Errorf("manifest %s contains a control character", name)
 		}
 	}
-	if manifest.ABI != "mister" || manifest.System != "megadrive" {
+	if manifest.ABI != "mister" || manifest.System != system {
 		return fmt.Errorf("manifest ABI and system must be mister/megadrive")
 	}
-	if manifest.Artifact != megaDriveArtifact || filepath.IsAbs(manifest.Artifact) || filepath.Clean(manifest.Artifact) != manifest.Artifact {
+	if manifest.Artifact != system+".rbf" || filepath.IsAbs(manifest.Artifact) || filepath.Clean(manifest.Artifact) != manifest.Artifact {
 		return fmt.Errorf("manifest artifact must be the relative file %q", megaDriveArtifact)
 	}
 	if !validSHA256(manifest.SHA256) || manifest.Size <= 0 {
@@ -294,7 +303,7 @@ func validateMegaDriveBundleManifest(manifest MegaDriveBundleManifest) error {
 	if !commitPattern.MatchString(manifest.Revision) {
 		return fmt.Errorf("manifest revision must be a 40-character lowercase hexadecimal SHA")
 	}
-	if manifest.Recipe != megaDriveRecipe || !validSHA256(manifest.RecipeSHA256) {
+	if manifest.Recipe != recipe || !validSHA256(manifest.RecipeSHA256) {
 		return fmt.Errorf("manifest recipe identity is invalid")
 	}
 	if strings.TrimSpace(manifest.Toolchain) == "" || len(manifest.Toolchain) > 256 {
@@ -357,7 +366,7 @@ func installMegaDriveSelection(source, expectedDigest string, expectedSize int64
 		return fmt.Errorf("selected artifact size mismatch: got %d, want %d", sourceInfo.Size(), expectedSize)
 	}
 
-	cachePath := filepath.Join(cache, megaDriveArtifact)
+	cachePath := filepath.Join(cache, selection.System+".rbf")
 	temporary, err := os.CreateTemp(cache, ".megadrive.rbf.*")
 	if err != nil {
 		return fmt.Errorf("create temporary artifact: %w", err)
@@ -607,6 +616,13 @@ func stageMegaDriveSelection(path string, selection MegaDriveSelection) (string,
 }
 
 func validateMegaDriveSelection(selection MegaDriveSelection) error {
+	if selection.System == "pong" || selection.System == "snes" {
+		if selection.Origin != "source-built" || selection.InstallPath != "/usr/share/mister-runtime/cores/"+selection.System+".rbf" {
+			return fmt.Errorf("invalid additional core selection")
+		}
+		return validateExtraCoreManifest(MegaDriveBundleManifest{Format: selection.Format, ABI: selection.ABI, System: selection.System, Artifact: selection.Artifact, SHA256: selection.SHA256, Size: selection.Size, Repository: selection.Repository, Revision: selection.Revision, Recipe: selection.Recipe, RecipeSHA256: selection.RecipeSHA256, Toolchain: selection.Toolchain, Label: selection.Label}, selection.System)
+	}
+
 	if selection.Format != 1 || (selection.Origin != "source-built" && selection.Origin != "upstream") ||
 		selection.ABI != "mister" || selection.System != "megadrive" || selection.InstallPath != megaDriveInstallPath ||
 		!validSHA256(selection.SHA256) || selection.Size <= 0 || hasControl(selection.Repository) || hasControl(selection.Revision) ||
