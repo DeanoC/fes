@@ -30,14 +30,17 @@ roles:
   all of the above -> NativeHardware
   ```
 
-  Its installed idle path is `/usr/share/mister-runtime/idle.rbf`. The one
-  production profile is `megadrive`, whose image-owned core path is
-  `/usr/share/mister-runtime/cores/megadrive.rbf`.
+  Its installed idle path is `/usr/share/mister-runtime/idle.rbf`. The
+  production profiles are `megadrive`, `pong` and `snes`, with image-owned paths
+  `/usr/share/mister-runtime/cores/megadrive.rbf` and
+  `/usr/share/mister-runtime/cores/pong.rbf` and
+  `/usr/share/mister-runtime/cores/snes.rbf`.
 
 FPGA-manager and SPI MMIO constants are checked-in generated C++14 text
 from mister-packages (`src/native/generated/de10_nano.hpp`). Production
-Mega Drive profile fields come from
-`src/native/generated/megadrive.hpp`. The image still owns the absolute
+Mega Drive, Pong and SNES profile fields come from
+`src/native/generated/megadrive.hpp`, `src/native/generated/pong.hpp` and
+`src/native/generated/snes.hpp`. The image still owns the absolute
 RBF directory prefix.
 
 mister-packages is host software. The generated headers are target
@@ -211,3 +214,66 @@ exclude fake and historic symbols, exercise test and production header
 dependency invalidation, verify incremental version embedding, and compare two
 clean archive hashes for determinism. Host and 32-bit Arm production builds
 use 64-bit file offsets for high-address MMIO mappings.
+
+## ROM-less Pong software integration
+
+Pong uses protocol-v1 `launch` with system `pong`, its profile-owned RBF path,
+`media: {}` and `settings: {}`. Extra media and a different RBF path are rejected
+before hardware mutation. The same lifecycle preflights input and the RBF,
+quiesces HDMI, programs/synchronizes, asserts reset, checks identity `Pong`,
+applies initial status, configures video, neutralizes input, releases reset and
+starts input. There is no media transfer. Stop restores the existing idle path.
+
+The wrapper contract uses reset assert/initial status 1 and release 0, joystick
+command 0x02, Up 0x08, Down 0x04 and Start 0x80. Existing Left/Right/A/B/C bits
+remain reserved in the packet and are ignored by Pong. No second protocol or
+hardware construction path is introduced. Software tests cover this ordering
+and relaunch; physical video/input/audio acceptance is pending. Game bringup writes MiSTer audio attenuation zero after HDMI link verification
+and before returning to input neutralization/reset release.
+
+## Game audio attenuation
+
+The pinned Pong Template framework (`3ea1134cf05d62c2b1db30362277a823d739ced2`)
+and Mega Drive framework (`7365a137cfd8fa6f041e964d8b953159c0ec42d9`)
+initialize `sys/sys_top.v` volume attenuation to 0x1f and accept user-I/O
+command 0x26 with the low five payload bits. Bit 4 mutes their audio output.
+`FixedVideoBringup` sends `{0x0026, 0x0000}` after HDMI link readiness, under
+the existing absolute video deadline, while the game remains held in reset.
+The `audio_volume` phase reports failure before running state; ordinary launch
+failure cleanup reloads idle. Menu bringup and raw development loading do not
+unmute. Stop reprograms the menu, restoring its default muted attenuation.
+
+This enables the existing framework audio stream at zero attenuation. It adds
+no mixer or audio service and is software-tested only; audible HDMI output
+still requires physical acceptance for each exact core/runtime/image pair.
+
+## SNES content and input
+
+`MediaTransform` describes content separately from `FileWireFormat` byte-pair
+encoding. Generated media rules select `raw` or `snes_cartridge`; preparation
+carries that choice into `OpenLaunchArtifacts`. The latter retains the opened
+ROM descriptor and validates its header before quiescing HDMI or programming.
+`MediaContentPlan` stores only a source window and 512 bytes of metadata.
+`CoreLoader::Attach` streams that prefix/window through the existing bounded
+4096-byte transfer buffer, using the retained descriptor. Short reads abort
+without sending completion; ordinary post-program failure cleanup reloads idle.
+
+The bounded SNES slice admits exactly one coherent LoROM (mapper 0x20/0x30,
+header 0x7fc0) or HiROM (0x21/0x31, header 0xffc0) candidate with valid reset
+vector/opcode, nonzero complementary checksum pair and matching declared ROM
+size. Payloads must be powers of two from 32 KiB to 4 MiB; HiROM needs at least
+64 KiB. An optional copier header is exactly 512 bytes. Types 0–2 are ordinary
+cartridges; RAM exponent is at most 7, without save persistence. Special
+mappings, BS-X/Sufami signatures, ambiguous candidates and enhancement types
+are rejected. No mirroring, patching or whole-ROM allocation is performed.
+Metadata fields follow Main_MiSTer `915ca339` and SNES_MiSTer `93d359e6`;
+source bytes stay unchanged. Maximum source admission includes the copier
+header (0x400200 bytes).
+
+The common required input masks are directions, A/B and Start. C and the
+appended X/Y/L/R/Select masks may be zero; nonzero masks must be unique single
+bits. An event mapped to zero is ignored without sending a packet or faulting.
+SNES uses bits 0–3 for Right/Left/Down/Up, bits 4–9 for A/B/X/Y/L/R, bit 10
+Select and bit 11 Start; C is unused. Linux BTN_X/BTN_Y/BTN_TL/BTN_TR/BTN_SELECT
+are decoded into the new controls. Existing Mega Drive C and Pong Start retain
+their original masks. All profiles use the same input worker and neutral Stop.

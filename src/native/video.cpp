@@ -186,6 +186,12 @@ VideoResult FixedVideoBringup::BringUp(std::uint64_t deadline)
 
 	error = RequireLink(i2c_, clock_, deadline, &result);
 	if (!error.ok()) return PhaseFailure("hdmi_verify", error, result);
+	// MiSTer sys_top initializes attenuation to 0x1f (mute). Games use
+	// zero attenuation; newly programmed menu cores retain their muted default.
+	error = spi_.Exchange(kUserIoTarget, {0x0026, 0x0000}, nullptr, deadline);
+	if (!error.ok()) return PhaseFailure("audio_volume", error, result);
+	PhaseSuccess("audio_volume", &result, log_);
+
 	CompleteVideo(recipe_, &result, log_);
 	return result;
 }

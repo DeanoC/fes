@@ -11,6 +11,8 @@
 #include <unistd.h>
 
 #include <string>
+#include <array>
+#include <algorithm>
 #include <vector>
 
 namespace {
@@ -254,10 +256,116 @@ void TestDirectSpiFailureIsReturnedWithoutLaterCommands()
 	assert(spi.calls.size() == 1);
 }
 
+std::vector<unsigned char> BasicSnes(bool hi, bool copier)
+{
+	const std::size_t offset = copier ? 512 : 0;
+	std::vector<unsigned char> bytes(65536 + offset, 0);
+	const std::size_t header = offset + (hi ? 0xffc0 : 0x7fc0);
+	bytes[offset + (hi ? 0x8000 : 0)] = 0x78;
+	bytes[header + 0x15] = hi ? 0x21 : 0x20;
+	bytes[header + 0x17] = 6;
+	bytes[header + 0x19] = 2;
+	bytes[header + 0x1c] = 0xcb;
+	bytes[header + 0x1d] = 0xed;
+	bytes[header + 0x1e] = 0x34;
+	bytes[header + 0x1f] = 0x12;
+	bytes[header + 0x3d] = 0x80;
+	return bytes;
+}
+
+void TestSnesPrefixAndRetainedCartridgeStream()
+{
+	for (bool hi : {false, true}) for (bool copier : {false, true}) {
+		const auto original = BasicSnes(hi, copier);
+		TempFile source(original);
+		mister::native::PosixArtifactOpener opener;
+		mister::native::OpenedMedia media;
+		media.index = 1;
+		assert(opener.Open(source.path, 0, &media.artifact).ok());
+		assert(mister::native::PrepareMediaContent(media.artifact,
+			mister::MediaTransform::snes_cartridge, &media.content).ok());
+		assert(media.content.source_offset == (copier ? 512u : 0u));
+		assert(media.content.source_size == 65536 && media.content.prefix_size == 512);
+		std::array<unsigned char, 512> expected = {};
+		expected[0] = 6;
+		expected[1] = hi ? 1 : 0;
+		expected[3] = 1;
+		expected[4] = 0xc0;
+		expected[5] = hi ? 0xff : 0x7f;
+		expected[10] = 1;
+		assert(media.content.prefix == expected);
+		mister_test::FakeSpi spi;
+		mister::native::CoreLoader loader(spi);
+		assert(loader.Attach(media, mister::FileWireFormat::little_endian_byte_pairs, 1234).ok());
+		std::vector<unsigned char> wire;
+		for (const auto& call : spi.calls) {
+			assert(call.deadline == 1234);
+			if (call.request[0] != 0x54) continue;
+			for (std::size_t i = 1; i < call.request.size(); ++i) {
+				wire.push_back(call.request[i] & 0xff);
+				wire.push_back(call.request[i] >> 8);
+			}
+		}
+		assert(wire.size() == 512 + 65536);
+		assert(std::equal(expected.begin(), expected.end(), wire.begin()));
+		assert(std::equal(original.begin() + (copier ? 512 : 0), original.end(), wire.begin() + 512));
+	}
+}
+
+void TestSnesRejectsUnsupportedOrAmbiguousBeforeTransfer()
+{
+	for (int bad = 0; bad < 10; ++bad) {
+		auto bytes = BasicSnes(false, false);
+		if (bad == 0) bytes.resize(65535);
+		if (bad == 1) bytes[0x7fd6] = 3; // Enhancement cartridge.
+		if (bad == 2) bytes[0x7fd5] = 0x23; // SA-1 mapping.
+		if (bad == 3) bytes[0x7ffd] = 0; // Invalid reset vector.
+		if (bad == 4) bytes[0x7fd7] = 7; // Declared size mismatch.
+		if (bad == 5) {
+			auto hi = BasicSnes(true, false);
+			std::copy(hi.begin() + 0xffc0, hi.end(), bytes.begin() + 0xffc0);
+			bytes[0x8000] = 0x78;
+		}
+		if (bad == 6) bytes[0x7fd8] = 8; // RAM above admitted cap.
+		if (bad == 7) bytes[0x7fdc] = 0; // Invalid checksum pair.
+		if (bad == 8) { bytes = BasicSnes(true, false); bytes[0x8000] = 0xff; }
+		if (bad == 9) bytes.resize(65536 + 513);
+		TempFile file(bytes);
+		mister::native::Artifact artifact;
+		mister::native::PosixArtifactOpener opener;
+		assert(opener.Open(file.path, 0, &artifact).ok());
+		mister::native::MediaContentPlan plan;
+		assert(mister::native::PrepareMediaContent(artifact,
+			mister::MediaTransform::snes_cartridge, &plan).code == mister::ErrorCode::invalid_request);
+	}
+}
+
+void TestSnesRetainedReadFailuresStopTransfer()
+{
+	TempFile source(BasicSnes(false, true));
+	mister::native::PosixArtifactOpener opener;
+	mister::native::OpenedMedia media;
+	media.index = 1;
+	assert(opener.Open(source.path, 0, &media.artifact).ok());
+	assert(mister::native::PrepareMediaContent(media.artifact,
+		mister::MediaTransform::snes_cartridge, &media.content).ok());
+	assert(truncate(source.path.c_str(), 512) == 0);
+	mister_test::FakeSpi spi;
+	mister::native::CoreLoader loader(spi);
+	assert(loader.Attach(media, mister::FileWireFormat::little_endian_byte_pairs, 123).code == mister::ErrorCode::io_failed);
+	for (const auto& call : spi.calls) assert(call.request[0] != 0x54 && call.request[0] != 0x29);
+	mister::native::MediaContentPlan plan;
+	assert(mister::native::PrepareMediaContent(media.artifact,
+		mister::MediaTransform::snes_cartridge, &plan).code == mister::ErrorCode::io_failed);
+}
+
 } // namespace
 
 int main()
 {
+	TestSnesRetainedReadFailuresStopTransfer();
+	TestSnesPrefixAndRetainedCartridgeStream();
+	TestSnesRejectsUnsupportedOrAmbiguousBeforeTransfer();
 	TestProbeUsesCoreNameCommandAndParsesPrintableName();
 	TestRecipeResetAndStatusPrimitivesUseExactWholeStatusWords();
 	TestEachRecipePrimitiveReturnsItsDirectFailureWithoutLaterCalls();
@@ -267,6 +375,6 @@ int main()
 	TestAttachStopsAtEveryFailedExchangeAndShortRead();
 	TestAttachStopsAfterFirstAndPerChunkArtifactReadFailures();
 	TestDirectSpiFailureIsReturnedWithoutLaterCommands();
-	puts("core_loader_test: 9 behaviors passed");
+	puts("core_loader_test: 12 behaviors passed");
 	return 0;
 }

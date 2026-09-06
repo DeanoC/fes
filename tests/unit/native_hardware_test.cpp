@@ -342,6 +342,9 @@ public:
 			std::vector<std::uint16_t>({0x0001, 0x0000})) {
 			event = "core.buttons.neutral";
 			events_.push_back(event);
+		} else if (request == std::vector<std::uint16_t>({0x0026, 0x0000})) {
+			event = "audio.volume:0";
+			events_.push_back(event);
 		}
 		if (!fail_event.empty() && event == fail_event) {
 			fail_event.clear();
@@ -583,6 +586,7 @@ const std::vector<std::string> kSuccessfulLaunch = {
 	"video.adv.mode",
 	"core.buttons.neutral",
 	"video.link.ready",
+	"audio.volume:0",
 	"input.neutral",
 	"core.reset.release",
 	"input.start:1",
@@ -777,7 +781,7 @@ void TestEveryPostProgramPhaseFailureGetsOneIdleCleanup()
 		"core.media.extension:.bin", "core.media.enable",
 		"core.media.data:all bytes once", "core.media.complete",
 		"video.adv.initialize", "video.timing:menu_720p60",
-		"video.adv.mode", "core.buttons.neutral", "video.link.ready",
+		"video.adv.mode", "core.buttons.neutral", "video.link.ready", "audio.volume:0",
 		"input.neutral",
 		"core.reset.release", "input.start",
 	};
@@ -860,7 +864,7 @@ void TestStopOrdersInputBeforeIdleAndImmediateRelaunchIsFresh()
 	}));
 	fixture.native.events.clear();
 	std::vector<std::string> second = kSuccessfulLaunch;
-	second[23] = "input.start:2";
+	second[Find(second, "input.start:1")] = "input.start:2";
 	assert(fixture.runtime.LaunchGame(fixture.Request()).ok());
 	assert(fixture.native.events == second);
 	assert(fixture.native.input.descriptors == std::vector<int>({1, 2}));
@@ -1201,6 +1205,123 @@ void TestNativeLoggingNamesPhasesAndConfirmedCore()
 	assert(preflight && program && sync && probe && configure && media);
 }
 
+void TestSnesProductionTransformPreflightAndLifecycle()
+{
+	mister::Launch request;
+	request.system = "snes";
+	request.rbf = "/usr/share/mister-runtime/cores/snes.rbf";
+	request.media.push_back({"cartridge", "/tmp/game.sfc"});
+	mister::PreparedLaunch prepared;
+	const auto& production = mister::ProductionProfiles();
+	assert(production.Prepare(request, &prepared).ok());
+	assert(prepared.expected_core == "SNES" && prepared.media.size() == 1);
+	assert(prepared.media[0].index == 1 && prepared.media[0].transform == mister::MediaTransform::snes_cartridge);
+	assert(prepared.input.c == 0 && prepared.input.x == 0x40 && prepared.input.start == 0x800);
+
+	Fixture fixture;
+	std::string bytes(32768, 0);
+	bytes[0] = 0x78;
+	bytes[0x7fd5] = 0x20; bytes[0x7fd7] = 5;
+	bytes[0x7fdc] = static_cast<char>(0xcb); bytes[0x7fdd] = static_cast<char>(0xed);
+	bytes[0x7fde] = 0x34; bytes[0x7fdf] = 0x12; bytes[0x7ffd] = static_cast<char>(0x80);
+	const std::string rom = fixture.temporary.File("snes.bin", bytes);
+	const std::string rbf = fixture.temporary.File("snes.rbf", "fixture");
+	mister::Profile profile;
+	profile.system = prepared.system; profile.expected_core = prepared.expected_core;
+	profile.rbf = rbf; profile.core = prepared.core; profile.input = prepared.input;
+	profile.media.push_back({"cartridge", 1, true, {".bin"}, 0x400200, mister::MediaTransform::snes_cartridge});
+	mister::Profiles profiles;
+	assert(profiles.Add(profile).ok());
+	mister::Runtime runtime(fixture.hardware, profiles, fixture.log);
+	assert(runtime.Start().ok());
+	fixture.spi.observed_core = "SNES";
+	request.rbf = rbf;
+	request.media[0].path = fixture.rom; // Too short, before programming.
+	const int calls = fixture.fpga.calls;
+	assert(runtime.LaunchGame(request).code == mister::ErrorCode::invalid_request);
+	assert(fixture.fpga.calls == calls);
+	assert(runtime.status().state == mister::State::idle);
+	request.media[0].path = rom;
+	for (int cycle = 0; cycle < 2; ++cycle) {
+		fixture.events.clear();
+		assert(runtime.LaunchGame(request).ok());
+		assert(runtime.status().system == "snes" && runtime.status().core == "SNES");
+		assert(Find(fixture.events, "core.media.select:1") < Find(fixture.events, "audio.volume:0"));
+		assert(Count(fixture.events, "core.media.data:all bytes once") == 9);
+		assert(runtime.Stop().ok());
+		assert(runtime.status().state == mister::State::idle);
+	}
+	fixture.spi.fail_event = "core.media.data:all bytes once";
+	assert(runtime.LaunchGame(request).code == mister::ErrorCode::io_failed);
+	assert(runtime.status().state == mister::State::idle);
+}
+
+void TestPongProductionProfileAndRomlessLifecycle()
+{
+	mister::Launch request;
+	request.system = "pong";
+	request.rbf = "/usr/share/mister-runtime/cores/pong.rbf";
+	mister::PreparedLaunch prepared;
+	const mister::Profiles& production = mister::ProductionProfiles();
+	assert(production.Prepare(request, &prepared).ok());
+	assert(prepared.expected_core == "Pong" && prepared.media.empty());
+	assert(prepared.core.reset_assert_word == 1 && prepared.core.initial_status_word == 1);
+	assert(prepared.core.reset_release_word == 0);
+	assert(prepared.input.player_command == 2 && prepared.input.up == 8);
+	assert(prepared.input.down == 4 && prepared.input.start == 0x80);
+	request.media.push_back({"cartridge", "/tmp/unused.bin"});
+	assert(production.Prepare(request, &prepared).code == mister::ErrorCode::invalid_request);
+	request.media.clear();
+	request.rbf = "/tmp/unowned.rbf";
+	assert(production.Prepare(request, &prepared).code == mister::ErrorCode::invalid_request);
+	request.rbf = "/usr/share/mister-runtime/cores/pong.rbf";
+	assert(production.Prepare(request, &prepared).ok());
+
+	Fixture fixture;
+	const std::string pong = fixture.temporary.File("pong.rbf", "software-fixture");
+	mister::Profile profile;
+	profile.system = prepared.system;
+	profile.expected_core = prepared.expected_core;
+	profile.rbf = pong; // Only the artifact location differs from production.
+	profile.core = prepared.core;
+	profile.input = prepared.input;
+	mister::Profiles profiles;
+	assert(profiles.Add(profile).ok());
+	mister::Runtime runtime(fixture.hardware, profiles, fixture.log);
+	assert(runtime.Start().ok());
+	fixture.spi.observed_core = "Pong";
+	request.rbf = pong;
+	const int before = fixture.fpga.calls;
+	request.media.push_back({"cartridge", fixture.rom});
+	assert(runtime.LaunchGame(request).code == mister::ErrorCode::invalid_request);
+	assert(fixture.fpga.calls == before);
+	request.media.clear();
+	request.rbf = fixture.rbf;
+	assert(runtime.LaunchGame(request).code == mister::ErrorCode::invalid_request);
+	assert(fixture.fpga.calls == before);
+	request.rbf = pong;
+	for (int cycle = 0; cycle < 2; ++cycle) {
+		fixture.events.clear();
+		assert(runtime.LaunchGame(request).ok());
+		assert(runtime.status().state == mister::State::running_game);
+		assert(runtime.status().system == "pong" && runtime.status().core == "Pong");
+		for (const std::string& event : fixture.events)
+			assert(event.find("core.media.") != 0);
+		const std::vector<std::string> ordered = {"artifact.open:pong.rbf", "video.quiesce",
+			"fpga.program", "core.sync", "core.reset.assert", "core.probe:Pong",
+			"core.status.initial", "video.adv.initialize", "audio.volume:0", "input.neutral",
+			"core.reset.release", "input.start:" + std::to_string(cycle + 1), "runtime.running_game"};
+		std::size_t previous = 0;
+		for (const std::string& event : ordered) {
+			const std::size_t index = Find(fixture.events, event);
+			assert(index < fixture.events.size() && index >= previous);
+			previous = index;
+		}
+		assert(runtime.Stop().ok());
+		assert(runtime.status().state == mister::State::idle);
+	}
+}
+
 void TestProductionConstructionOwnsRealIdleHardware()
 {
 	const mister::Profiles& profiles = mister::ProductionProfiles();
@@ -1231,7 +1352,7 @@ void TestProductionConstructionOwnsRealIdleHardware()
 
 	mister::PreparedLaunch unchanged;
 	unchanged.system = "sentinel";
-	launch.system = "snes";
+	launch.system = "nes";
 	assert(profiles.Prepare(launch, &unchanged).code ==
 		mister::ErrorCode::unknown_system);
 	assert(unchanged.system == "sentinel");
@@ -1315,8 +1436,10 @@ int main()
 	TestEveryConcretePreflightRejectionPerformsZeroHardwareWork();
 	TestProbeMismatchAndIoRetainObservedCoreAndMutation();
 	TestNativeLoggingNamesPhasesAndConfirmedCore();
+	TestSnesProductionTransformPreflightAndLifecycle();
+	TestPongProductionProfileAndRomlessLifecycle();
 	TestProductionConstructionOwnsRealIdleHardware();
 	TestUnavailableHardwareRemainsFailureOnly();
-	puts("native_hardware_test: 28 passed");
+	puts("native_hardware_test: 30 passed");
 	return 0;
 }

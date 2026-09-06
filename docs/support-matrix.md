@@ -6,7 +6,8 @@ fixtures verify software mechanics and do not establish system support.
 | System ID | Implementation | Software status | Hardware status |
 | --- | --- | --- | --- |
 | `megadrive` | native fixed-video, one-player launch/Stop/relaunch | software: yes | hardware: yes |
-| `snes` | not implemented | software: no | hardware: no |
+| `pong` | native ROM-less profile, fixed-video lifecycle and one-player packet | software: yes | hardware: no |
+| `snes` | basic LoROM/HiROM transform, one-player native lifecycle | software: yes | hardware: no |
 | `nes` | not implemented | software: no | hardware: no |
 | `sms` | not implemented | software: no | hardware: no |
 | `gb` | not implemented | software: no | hardware: no |
@@ -57,3 +58,21 @@ MiSTer-compatible development capability is software-implemented; its physical
 acceptance remains pending and it does not change the supported-system count.
 Change a row only in the same commit as its implementation and support
 evidence.
+
+## Pong software scope
+
+The generated Pong profile admits empty media, rejects extra media and RBF
+path changes, and follows the native launch/Stop/relaunch sequence in software
+tests. No physical Pong image, HDMI, input or audio acceptance is claimed.
+The matching misteross wrapper/RBF must be installed by image assembly. Game bringup now clears MiSTer framework mute after HDMI link verification,
+with software-tested bounded command and failure cleanup. Audible output is
+not accepted; the Mega Drive acceptance above also excludes native audio.
+
+## SNES software scope
+
+Software tests cover the required cartridge transform before programming,
+512-byte metadata, copier stripping, retained-file streaming, full one-player
+button mapping and Stop/relaunch. Only basic power-of-two 32 KiB–4 MiB
+LoROM/HiROM images are admitted. RAM is volatile; persistent saves, enhancement
+chips, special formats and non-power-of-two mirroring are unsupported. Physical
+SNES video/input/audio acceptance remains pending.

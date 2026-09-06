@@ -20,9 +20,12 @@ done
 
 historic_pattern='stage[-_ ]?c0|poc[0-9]*|fogcast-runtime|native[-_ ]personality|mister_runtime_linux_v2|NativeLinuxV2|HardwareBroker|OperationLease|CapabilityBundle|AuthorityView|BackendFence|ReplayTracker|native_recovery|native_containment|native_peripheral_session|native_resources|native_audio|native_av_io|native_video|native_input|native_save|native_scheduler|native_offload|native_snes|(^|[^[:alnum:]])v2([^[:alnum:]]|$)'
 
+# Package schema guard versions are not the removed runtime-v2 lifecycle.
+# Exempt only their exact generated preprocessor lines; other v2 names still fail.
 if grep -ERni --include='*.[ch]' --include='*.cpp' --include='*.hpp' \
 	--include='Makefile' "$historic_pattern" \
-	"$root/include" "$root/src" "$root/Makefile" >"$temporary/source-names.log"; then
+	"$root/include" "$root/src" "$root/Makefile" |
+	grep -Ev '/src/native/generated/[^/:]+\.hpp:[0-9]+:(#(ifndef|define) MISTER_PACKAGES_GENERATED_SYSTEM_TYPES_V2|#endif // MISTER_PACKAGES_GENERATED_SYSTEM_TYPES_V2)$' 	>"$temporary/source-names.log"; then
 	echo "historic compatibility term remains in the active tree" >&2
 	cat "$temporary/source-names.log" >&2
 	exit 1

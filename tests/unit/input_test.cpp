@@ -223,6 +223,12 @@ void TestLinuxAdapterRequiresWholeRecordsMapsSupportedEventsAndCancelsPoll()
 		{BTN_B, mister::native::InputControl::b},
 		{BTN_C, mister::native::InputControl::c},
 		{BTN_START, mister::native::InputControl::start},
+		{BTN_X, mister::native::InputControl::x},
+		{BTN_Y, mister::native::InputControl::y},
+		{BTN_TL, mister::native::InputControl::l},
+		{BTN_TR, mister::native::InputControl::r},
+		{BTN_SELECT, mister::native::InputControl::select},
+
 	};
 	for (const auto& key : keys) {
 		operations.QueueRecord(EV_KEY, key.first, 1);
@@ -266,7 +272,7 @@ void TestLinuxAdapterRejectsUnsupportedMalformedEofAndReadFailure()
 	assert(input.Open(Identity(), 100).ok());
 	mister::native::InputEvent event;
 	bool cancelled = false;
-	operations.QueueRecord(EV_KEY, BTN_SELECT, 1);
+	operations.QueueRecord(EV_KEY, BTN_THUMBL, 1);
 	assert(input.Read(&event, &cancelled).message == "unsupported input event");
 	operations.QueueRecord(EV_KEY, BTN_A, 3);
 	assert(input.Read(&event, &cancelled).message == "invalid key value");
@@ -294,6 +300,14 @@ void TestBatchesDigitalControlsAtSynAndSuppressesDuplicateMaps()
 	assert(session.Start(7, [&](std::uint64_t generation, mister::Error error) {
 		faults.Report(generation, std::move(error));
 	}).ok());
+	for (auto extra : {mister::native::InputControl::x, mister::native::InputControl::y,
+		mister::native::InputControl::l, mister::native::InputControl::r,
+		mister::native::InputControl::select}) {
+		device.Push({extra, 1});
+	}
+	device.Push({mister::native::InputControl::synchronize, 0});
+	assert(device.WaitForReads(6));
+	assert(spi.Calls().size() == 1); // Zero masks do not alias MD's C or Start.
 	device.Push({mister::native::InputControl::up, 1});
 	device.Push({mister::native::InputControl::a, 1});
 	device.Push({mister::native::InputControl::c, 1});
@@ -301,7 +315,7 @@ void TestBatchesDigitalControlsAtSynAndSuppressesDuplicateMaps()
 	assert(spi.WaitForCalls(2));
 	device.Push({mister::native::InputControl::up, 1});
 	device.Push({mister::native::InputControl::synchronize, 0});
-	assert(device.WaitForReads(6));
+	assert(device.WaitForReads(12));
 	assert(spi.Calls().size() == 2);
 	device.Push({mister::native::InputControl::up, 0});
 	device.Push({mister::native::InputControl::down, 1});
@@ -604,10 +618,43 @@ void TestInvalidRecipeStateAndDirectBoundaryFailuresAreContained()
 	assert(spi.Calls().size() == 1);
 }
 
+void TestSnesButtonsDeliverIndependentMasksAndStopNeutral()
+{
+	FixedClock clock(10);
+	mister_test::FakeInputDevice device;
+	RecordingSpi spi;
+	mister::native::NativeInputSession session(device, spi, clock, 25);
+	auto recipe = Recipe();
+	recipe.c = 0;
+	recipe.start = 0x800;
+	recipe.x = 0x40; recipe.y = 0x80; recipe.l = 0x100;
+	recipe.r = 0x200; recipe.select = 0x400;
+	assert(session.Open(Identity(), recipe, 100).ok());
+	assert(session.Neutralize(101).ok());
+	assert(session.Start(1, [](std::uint64_t, mister::Error) { assert(false); }).ok());
+	using C = mister::native::InputControl;
+	const std::vector<std::pair<C, std::uint16_t>> controls = {
+		{C::right, 1}, {C::left, 2}, {C::down, 4}, {C::up, 8},
+		{C::a, 0x10}, {C::b, 0x20}, {C::x, 0x40}, {C::y, 0x80},
+		{C::l, 0x100}, {C::r, 0x200}, {C::select, 0x400}, {C::start, 0x800}};
+	std::size_t calls = 1;
+	for (const auto& control : controls) {
+		device.Push({control.first, 1}); device.Push({C::synchronize, 0});
+		assert(spi.WaitForCalls(++calls));
+		assert(spi.Calls().back().request == std::vector<std::uint16_t>({2, control.second}));
+		device.Push({control.first, 0}); device.Push({C::synchronize, 0});
+		assert(spi.WaitForCalls(++calls));
+		assert(spi.Calls().back().request == std::vector<std::uint16_t>({2, 0}));
+	}
+	assert(session.Stop(102).ok());
+	assert(spi.Calls().back().request == std::vector<std::uint16_t>({2, 0}));
+}
+
 } // namespace
 
 int main()
 {
+	TestSnesButtonsDeliverIndependentMasksAndStopNeutral();
 	TestProductionIdentityAndEveryFieldSelectExactlyOneDevice();
 	TestAbsentDuplicateAndDeadlineDiscoveryRejectWithoutLeakingDescriptors();
 	TestLinuxAdapterRequiresWholeRecordsMapsSupportedEventsAndCancelsPoll();
@@ -621,6 +668,6 @@ int main()
 	TestLinuxCancellationRetriesEintrAndAcceptsReadableEventfd();
 	TestReadUnsupportedAndSpiFaultsReportOnceWithTheirGeneration();
 	TestInvalidRecipeStateAndDirectBoundaryFailuresAreContained();
-	puts("input_test: 13 passed");
+	puts("input_test: 14 passed");
 	return 0;
 }

@@ -6,6 +6,7 @@
 #include "libmister-runtime/runtime.h"
 
 #include <cstdint>
+#include <array>
 #include <string>
 #include <vector>
 
@@ -31,9 +32,18 @@ private:
 	std::string path_;
 };
 
+struct MediaContentPlan {
+	std::uint64_t source_offset = 0, source_size = 0;
+	std::size_t prefix_size = 0;
+	std::array<unsigned char, 512> prefix = {};
+};
+
+Error PrepareMediaContent(const Artifact&, MediaTransform, MediaContentPlan*);
+
 struct OpenedMedia {
 	std::uint8_t index = 0;
 	Artifact artifact;
+	MediaContentPlan content;
 };
 
 struct ArtifactSet {

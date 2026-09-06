@@ -179,7 +179,7 @@ HardwareResult NativeHardware::Launch(const PreparedLaunch& launch,
 	log_.Write({"launch", launch.system, observed, "configure", error});
 	if (!error.ok()) return {error, true, observed};
 	for (const OpenedMedia& media : artifacts.media) {
-		error = core_.Attach(media.index, media.artifact,
+		error = core_.Attach(media,
 			launch.core.file_wire, core_deadline);
 		if (!error.ok()) error = CoreIoError(error);
 		log_.Write({"launch", launch.system, observed, "media", error});

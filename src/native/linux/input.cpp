@@ -392,6 +392,11 @@ private:
 			case BTN_A: control = InputControl::a; break;
 			case BTN_B: control = InputControl::b; break;
 			case BTN_C: control = InputControl::c; break;
+			case BTN_X: control = InputControl::x; break;
+			case BTN_Y: control = InputControl::y; break;
+			case BTN_TL: control = InputControl::l; break;
+			case BTN_TR: control = InputControl::r; break;
+			case BTN_SELECT: control = InputControl::select; break;
 			case BTN_START: control = InputControl::start; break;
 			default: return {ErrorCode::io_failed, "unsupported input event"};
 			}

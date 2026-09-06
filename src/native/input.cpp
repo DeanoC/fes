@@ -27,11 +27,15 @@ Error Invalid(const char* message)
 bool ValidRecipe(const InputRecipe& recipe)
 {
 	if (recipe.player_count != 1 || recipe.player_command == 0) return false;
-	const std::array<std::uint16_t, 8> masks = {{recipe.up, recipe.down,
-		recipe.left, recipe.right, recipe.a, recipe.b, recipe.c, recipe.start}};
+	const std::array<std::uint16_t, 13> masks = {{recipe.up, recipe.down,
+		recipe.left, recipe.right, recipe.a, recipe.b, recipe.c, recipe.start,
+		recipe.x, recipe.y, recipe.l, recipe.r, recipe.select}};
+	if (!recipe.up || !recipe.down || !recipe.left || !recipe.right ||
+		!recipe.a || !recipe.b || !recipe.start) return false;
 	std::uint16_t seen = 0;
 	for (std::uint16_t mask : masks) {
-		if (mask == 0 || (mask & (mask - 1u)) != 0 || (seen & mask) != 0)
+		if (mask == 0) continue;
+		if ((mask & (mask - 1u)) != 0 || (seen & mask) != 0)
 			return false;
 		seen = static_cast<std::uint16_t>(seen | mask);
 	}
@@ -212,6 +216,16 @@ private:
 			return SetDigital(recipe_.b, event.value);
 		case InputControl::c:
 			return SetDigital(recipe_.c, event.value);
+		case InputControl::x:
+			return SetDigital(recipe_.x, event.value);
+		case InputControl::y:
+			return SetDigital(recipe_.y, event.value);
+		case InputControl::l:
+			return SetDigital(recipe_.l, event.value);
+		case InputControl::r:
+			return SetDigital(recipe_.r, event.value);
+		case InputControl::select:
+			return SetDigital(recipe_.select, event.value);
 		case InputControl::start:
 			return SetDigital(recipe_.start, event.value);
 		}
