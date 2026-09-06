@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export a sealed, content-addressed Mega Drive RBF bundle."""
+"""Export a sealed, content-addressed Mega Drive, SNES or Pong RBF bundle."""
 
 from __future__ import annotations
 
@@ -278,7 +278,7 @@ def _reuse_existing(final: Path, snapshot: bytes, manifest: bytes, artifact_name
 
 
 def export_bundle(pin: CorePin, root: Path) -> Path:
-    """Validate a Mega Drive rebuild and export its sealed digest bundle."""
+    """Validate a pinned upstream core rebuild and export its sealed digest bundle."""
 
     identities = {CORE: (UPSTREAM_REPOSITORY, UPSTREAM_REVISION), "snes": ("https://github.com/MiSTer-devel/SNES_MiSTer", "93d359e6f23c734ae3928984e88bed1d9b53cbac")}
     if identities.get(pin.name) != (pin.repo, pin.commit):
