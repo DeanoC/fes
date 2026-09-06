@@ -39,6 +39,8 @@ REQUIRED_HARD_BLOCKS = ("PLL", "BRAM/M10K", "MLAB/LUTRAM", "DSP", "HPS")
 MEASURED_HARD_BLOCKS = ("PLL", "BRAM/M10K", "DSP")
 STATIC_HARD_BLOCKS = ("MLAB/LUTRAM", "HPS")
 MAILBOX_ALLOWED_HARD_BLOCK = "cyclonev_hps_interface_mpu_general_purpose"
+HPS_GP_EXPERIMENTS = frozenset({"020_linux_mailbox", "040_mlab_ram"})
+MLAB_LUTRAM_BITS = 256
 SYNTHESIS_REPORT_SUFFIXES = {
     "oss": "timing.json",
     "oracle": "top.fit.rpt",
@@ -543,21 +545,25 @@ def _mailbox_policy_failures(
     build: Mapping[str, Any],
     source_hashes: Mapping[str, str],
     lane: str,
+    experiment: str = "020_linux_mailbox",
 ) -> tuple[Any | None, list[str]]:
-    """Validate immutable mailbox policy/protocol bindings in one lane."""
+    """Validate immutable HPS-GP policy/protocol bindings in one lane."""
 
     failures: list[str] = []
     try:
-        policy = policy_for("020_linux_mailbox")
+        policy = policy_for(experiment)
     except PolicyError as exc:  # pragma: no cover - closed table regression.
         return None, [f"{lane} mailbox policy is unavailable: {exc}"]
     expected_policy = policy.as_dict()
     expected_policy_hash = _canonical_policy_hash(policy)
-    protocol_path = "experiments/020_linux_mailbox/rtl/top.v"
+    protocol_path = f"experiments/{experiment}/rtl/top.v"
     expected_protocol_hash = source_hashes.get(protocol_path)
+    strict = experiment == "020_linux_mailbox"
     for label, record in (("manifest", manifest), ("build", build)):
         descriptor = record.get("experiment_policy")
-        if not isinstance(descriptor, dict):
+        if descriptor is None and not strict:
+            pass
+        elif not isinstance(descriptor, dict):
             failures.append(f"{lane} {label} experiment_policy is missing or malformed")
         elif descriptor != expected_policy:
             failures.append(f"{lane} {label} experiment_policy does not match the closed policy")
@@ -566,7 +572,9 @@ def _mailbox_policy_failures(
         alias_hash = record.get("policy_sha256")
         if declared_hash is None:
             declared_hash = alias_hash
-        if not isinstance(declared_hash, str) or SHA256_RE.fullmatch(declared_hash) is None:
+        if declared_hash is None and not strict:
+            pass
+        elif not isinstance(declared_hash, str) or SHA256_RE.fullmatch(declared_hash) is None:
             failures.append(f"{lane} {label} experiment policy hash is missing or invalid")
         elif declared_hash != expected_policy_hash:
             failures.append(f"{lane} {label} experiment policy hash does not match policy")
@@ -578,7 +586,9 @@ def _mailbox_policy_failures(
             failures.append(f"{lane} {label} policy_sha256 does not match policy")
 
         protocol_hash = record.get("protocol_source_sha256")
-        if not isinstance(protocol_hash, str) or SHA256_RE.fullmatch(protocol_hash) is None:
+        if protocol_hash is None and not strict:
+            pass
+        elif not isinstance(protocol_hash, str) or SHA256_RE.fullmatch(protocol_hash) is None:
             failures.append(f"{lane} {label} protocol_source_sha256 is missing or invalid")
         elif isinstance(expected_protocol_hash, str) and protocol_hash != expected_protocol_hash:
             failures.append(f"{lane} {label} protocol_source_sha256 disagrees with source")
@@ -593,15 +603,19 @@ def _mailbox_policy_failures(
             failures.append(f"{lane} build allowed_hard_blocks is missing")
 
         if label == "build":
-            if record.get("experiment") != "020_linux_mailbox":
-                failures.append(f"{lane} build experiment is not 020_linux_mailbox")
+            if record.get("experiment") != experiment:
+                failures.append(f"{lane} build experiment is not {experiment}")
             if record.get("target") != policy.target:
                 failures.append(f"{lane} build target is not {policy.target}")
             clock_intent = record.get("clock_intent")
-            if clock_intent != policy.clock:
+            if clock_intent is None and not strict:
+                pass
+            elif clock_intent != policy.clock:
                 failures.append(f"{lane} build clock intent is not {policy.clock}")
             clock_constraint = _number(record.get("clock_constraint_mhz"))
-            if clock_constraint != float(policy.clock_mhz):
+            if clock_constraint is None and not strict:
+                pass
+            elif clock_constraint != float(policy.clock_mhz):
                 failures.append(f"{lane} build clock constraint is not {policy.clock_mhz:g} MHz")
     return policy, failures
 
@@ -610,8 +624,9 @@ def _semantic_resource_failures(
     manifest: Mapping[str, Any],
     build: Mapping[str, Any],
     lane: str,
+    experiment: str = "020_linux_mailbox",
 ) -> tuple[dict[str, int], list[str]]:
-    """Validate the exact mailbox semantic resource evidence object."""
+    """Validate the exact HPS-GP semantic resource evidence object."""
 
     failures: list[str] = []
     candidates = (("manifest", manifest.get("resource_evidence")), ("build", build.get("resource_evidence")))
@@ -647,7 +662,7 @@ def _semantic_resource_failures(
         "pll_blocks": 0,
         "dsp_blocks": 0,
         "block_memory_bits": 0,
-        "lutram_bits": 0,
+        "lutram_bits": MLAB_LUTRAM_BITS if experiment == "040_mlab_ram" else 0,
         "sdram_interfaces": 0,
     }
     for field, expected_value in expected.items():
@@ -668,7 +683,11 @@ def _mailbox_hard_block_view(
     """Validate the mailbox's exact HPS primitive and forbidden-resource evidence."""
 
     failures: list[str] = []
-    policy = policy_for("020_linux_mailbox")
+    try:
+        policy = policy_for(experiment)
+    except PolicyError as exc:  # pragma: no cover - closed table regression.
+        return {}, [f"{lane} experiment policy is unavailable: {exc}"]
+    measure_mlab = experiment == "040_mlab_ram"
     if lane == "oracle":
         raw = build.get("hard_block_evidence")
         legacy = build.get("hard_blocks")
@@ -713,18 +732,30 @@ def _mailbox_hard_block_view(
             if used != 0:
                 failures.append(f"{lane} forbidden hard block in use: {name}={used}")
         elif name == "MLAB/LUTRAM" and lane == "oracle":
-            failures.extend(
-                _exclusion_failures(
-                    record,
-                    lane,
-                    name,
-                    experiment,
-                    manifest_sources,
-                    manifest_commands,
+            if measure_mlab:
+                if (
+                    used != MLAB_LUTRAM_BITS
+                    or record.get("evidence_kind") != "fitter_summary"
+                    or record.get("measured") is not True
+                ):
+                    failures.append(
+                        f"oracle MLAB/LUTRAM must measure {MLAB_LUTRAM_BITS} lutram bits"
+                    )
+            else:
+                failures.extend(
+                    _exclusion_failures(
+                        record,
+                        lane,
+                        name,
+                        experiment,
+                        manifest_sources,
+                        manifest_commands,
+                    )
                 )
-            )
         else:
             classification = policy.classify_resource(name)
+            if classification == "allowed" and used == policy.allowed_hard_blocks.get(name):
+                continue
             if classification == "forbidden" and used == 0:
                 continue
             failures.append(f"{lane} unexpected hard block evidence: {name}")
@@ -1583,15 +1614,36 @@ def _lane_view(
             manifest_experiment,
         )
         failures.extend(command_failures)
+    elif manifest_experiment == "040_mlab_ram":
+        expected_clock = "storage.FPGA_CLK1_50" if lane == "oss" else "FPGA_CLK1_50"
+        clock_name = timing_view.get("clock")
+        if clock_name != expected_clock:
+            failures.append(f"{lane} timing clock must be exactly {expected_clock}")
 
     hard_status = build.get("hard_block_status")
-    if manifest_experiment == "020_linux_mailbox":
+    if manifest_experiment in HPS_GP_EXPERIMENTS:
         _policy, policy_failures = _mailbox_policy_failures(
-            manifest, build, source_hashes, lane
+            manifest, build, source_hashes, lane, experiment=manifest_experiment
         )
         failures.extend(policy_failures)
-        semantic, semantic_failures = _semantic_resource_failures(manifest, build, lane)
-        failures.extend(semantic_failures)
+        if manifest_experiment == "020_linux_mailbox":
+            semantic, semantic_failures = _semantic_resource_failures(
+                manifest, build, lane, experiment=manifest_experiment
+            )
+            failures.extend(semantic_failures)
+        elif lane == "oracle":
+            evidence = build.get("resource_evidence")
+            semantic = evidence if isinstance(evidence, dict) else {}
+            if not isinstance(evidence, dict) or evidence.get("lutram_bits") != MLAB_LUTRAM_BITS:
+                failures.append(
+                    f"{lane} resource_evidence.lutram_bits must be {MLAB_LUTRAM_BITS}"
+                )
+            elif evidence.get("hps_general_purpose_interfaces") != 1:
+                failures.append(f"{lane} resource_evidence.hps_general_purpose_interfaces must be 1")
+            elif evidence.get("block_memory_bits") != 0:
+                failures.append(f"{lane} resource_evidence.block_memory_bits must be 0")
+        else:
+            semantic = {}
         hard_blocks, hard_failures = _mailbox_hard_block_view(
             build,
             lane,
@@ -1770,27 +1822,37 @@ def compare_manifests(
     if oss_manifest.get("target") != oracle_manifest.get("target"):
         failures.append("lane targets differ")
 
-    if expected_experiment == "020_linux_mailbox":
-        if oss.get("experiment_policy_sha256") != oracle.get("experiment_policy_sha256"):
-            failures.append("experiment policy hashes differ")
-        if oss.get("protocol_source_sha256") != oracle.get("protocol_source_sha256"):
-            failures.append("protocol source hashes differ")
-        if oss.get("experiment_policy") != oracle.get("experiment_policy"):
+    if expected_experiment in HPS_GP_EXPERIMENTS:
+        if expected_experiment == "020_linux_mailbox":
+            if oss.get("experiment_policy_sha256") != oracle.get("experiment_policy_sha256"):
+                failures.append("experiment policy hashes differ")
+            if oss.get("protocol_source_sha256") != oracle.get("protocol_source_sha256"):
+                failures.append("protocol source hashes differ")
+            if oss.get("experiment_policy") != oracle.get("experiment_policy"):
+                failures.append("experiment policy descriptors differ")
+        oss_policy = oss.get("experiment_policy")
+        oracle_policy = oracle.get("experiment_policy")
+        if (
+            isinstance(oss_policy, dict)
+            and isinstance(oracle_policy, dict)
+            and oss_policy != oracle_policy
+        ):
             failures.append("experiment policy descriptors differ")
-        oss_allowed = (
-            oss.get("experiment_policy", {}).get("allowed_hard_blocks")
-            if isinstance(oss.get("experiment_policy"), dict)
-            else None
-        )
-        oracle_allowed = (
-            oracle.get("experiment_policy", {}).get("allowed_hard_blocks")
-            if isinstance(oracle.get("experiment_policy"), dict)
-            else None
-        )
-        if oss_allowed != oracle_allowed:
-            failures.append("allowed hard-block policies differ")
-        if oss.get("clock_intent") != oracle.get("clock_intent"):
-            failures.append("clock intents differ")
+        if expected_experiment == "020_linux_mailbox":
+            oss_allowed = (
+                oss.get("experiment_policy", {}).get("allowed_hard_blocks")
+                if isinstance(oss.get("experiment_policy"), dict)
+                else None
+            )
+            oracle_allowed = (
+                oracle.get("experiment_policy", {}).get("allowed_hard_blocks")
+                if isinstance(oracle.get("experiment_policy"), dict)
+                else None
+            )
+            if oss_allowed != oracle_allowed:
+                failures.append("allowed hard-block policies differ")
+            if oss.get("clock_intent") != oracle.get("clock_intent"):
+                failures.append("clock intents differ")
 
     differences = _differences(oss, oracle)
     observation = hardware_observation
