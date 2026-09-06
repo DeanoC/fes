@@ -22,6 +22,10 @@ development possible with both the open-source Mistral toolchain and Quartus.
   DSP block.
 - `070_mixed_mem`, lab and block tables on HPS GP (eight MLABs and one M10K).
 - `080_dsp_mem`, DSP product plus lab and block tables on HPS GP.
+- `090_pll_clock`, a fixed 50→25 MHz PLL measured through HPS GP. Run
+  `make sim EXP=090_pll_clock` and `make oss EXP=090_pll_clock`.
+  This experiment supports the simulation and OSS lanes; its Quartus comparison
+  lane is not implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under
