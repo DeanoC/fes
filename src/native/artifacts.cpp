@@ -8,6 +8,8 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <atomic>
+#include <cstdio>
 #include <cstring>
 #include <limits>
 #include <utility>
@@ -103,6 +105,90 @@ Error PosixArtifactOpener::Open(const std::string& path,
 	return {};
 }
 
+namespace {
+Error SaveError(const char* action)
+{
+	return {ErrorCode::save_failed, std::string(action) + ": " + std::strerror(errno)};
+}
+}
+
+SaveFile::~SaveFile() { if (directory_ >= 0) close(directory_); }
+
+int SaveFile::Temporary(std::string* name)
+{
+	static std::atomic<unsigned long> sequence{0};
+	for (unsigned attempt = 0; attempt < 64; ++attempt) {
+		*name = ".mister-save-" + std::to_string(getpid()) + "-" + std::to_string(++sequence);
+		const int fd = openat(directory_, name->c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+		if (fd >= 0 || errno != EEXIST) return fd;
+	}
+	return -1;
+}
+
+Error SaveFile::Prepare(const std::string& path, std::size_t size)
+{
+	if (directory_ >= 0 || path.empty() || path[0] != '/' || path.find('\0') != std::string::npos ||
+		size < 2048 || size > 131072 || (size & (size - 1)))
+		return {ErrorCode::save_failed, "invalid save file admission"};
+	const std::size_t slash = path.find_last_of('/');
+	name_ = path.substr(slash + 1);
+	if (name_.empty() || name_ == "." || name_ == "..")
+		return {ErrorCode::save_failed, "invalid save filename"};
+	directory_ = open((slash ? path.substr(0, slash) : "/").c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+	if (directory_ < 0) return SaveError("open save directory");
+	const int fd = openat(directory_, name_.c_str(), O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
+	if (fd < 0 && errno != ENOENT) return SaveError("open save file");
+	if (fd >= 0) {
+		struct stat st = {};
+		if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) || st.st_size != static_cast<off_t>(size)) {
+			close(fd);
+			return {ErrorCode::save_failed, "save file must be regular and exactly match cartridge RAM size"};
+		}
+		std::vector<unsigned char> content(size);
+		std::size_t offset = 0;
+		while (offset < size) {
+			const ssize_t count = pread(fd, content.data() + offset, size - offset, offset);
+			if (count < 0 && errno == EINTR) continue;
+			if (count <= 0) { close(fd); return {ErrorCode::save_failed, "incomplete save file read"}; }
+			offset += static_cast<std::size_t>(count);
+		}
+		close(fd);
+		bytes_ = std::move(content);
+	}
+	std::string temporary;
+	const int probe = Temporary(&temporary);
+	if (probe < 0) return SaveError("create save temporary");
+	const int closed = close(probe);
+	const int removed = unlinkat(directory_, temporary.c_str(), 0);
+	if (closed != 0 || removed != 0) return SaveError("remove save temporary");
+	size_ = size;
+	return {};
+}
+
+Error SaveFile::Persist(const std::vector<unsigned char>& bytes)
+{
+	if (directory_ < 0 || size_ == 0 || bytes.size() != size_)
+		return {ErrorCode::save_failed, "snapshot does not match admitted save"};
+	std::string temporary;
+	const int fd = Temporary(&temporary);
+	if (fd < 0) return SaveError("create save temporary");
+	Error error;
+	std::size_t offset = 0;
+	while (offset < bytes.size()) {
+		const ssize_t count = write(fd, bytes.data() + offset, bytes.size() - offset);
+		if (count < 0 && errno == EINTR) continue;
+		if (count <= 0) { error = SaveError("write save temporary"); break; }
+		offset += static_cast<std::size_t>(count);
+	}
+	if (error.ok() && fsync(fd) != 0) error = SaveError("sync save temporary");
+	if (close(fd) != 0 && error.ok()) error = SaveError("close save temporary");
+	if (error.ok() && renameat(directory_, temporary.c_str(), directory_, name_.c_str()) != 0)
+		error = SaveError("replace save file");
+	if (!error.ok()) unlinkat(directory_, temporary.c_str(), 0);
+	else if (fsync(directory_) != 0) error = SaveError("sync save directory");
+	return error;
+}
+
 // Metadata contract: Main_MiSTer 915ca339 support/snes/snes.cpp and
 // SNES_MiSTer 93d359e6 SNES.sv (512-byte prefix, cartridge index 1).
 // Basic cartridges only: bounded retained-file reads, no mirroring or special chips.
@@ -158,6 +244,7 @@ Error PrepareMediaContent(const Artifact& artifact, MediaTransform transform,
 			return {ErrorCode::io_failed, "SNES reset opcode read failed"};
 		if (opcode == 0 || opcode == 2 || opcode == 0x42 || opcode == 0xdb || opcode == 0xff) continue;
 		++candidates;
+		plan.battery_ram_size = header[0x16] == 2 && header[0x18] ? (1024u << header[0x18]) : 0;
 		plan.prefix[0] = static_cast<unsigned char>((header[0x18] << 4) | exponent);
 		plan.prefix[1] = hi ? 1 : 0;
 		plan.prefix[3] = ((header[0x19] >= 2 && header[0x19] <= 12) || header[0x19] == 0x11) ? 1 : 0;
@@ -187,6 +274,17 @@ Error OpenLaunchArtifacts(const PreparedLaunch& launch, ArtifactOpener& opener,
 		error = PrepareMediaContent(opened.artifact, media.transform, &opened.content);
 		if (!error.ok()) return error;
 		candidate.media.push_back(std::move(opened));
+	}
+	if (!launch.save_path.empty()) {
+		if (launch.system != "snes") return {ErrorCode::invalid_request, "save_path is SNES-only"};
+		for (const OpenedMedia& media : candidate.media) {
+			if (!media.content.battery_ram_size) continue;
+			if (launch.save_path == media.artifact.path() || launch.save_path == launch.rbf)
+				return {ErrorCode::save_failed, "save path must not replace launch media"};
+			candidate.save.reset(new SaveFile);
+			error = candidate.save->Prepare(launch.save_path, media.content.battery_ram_size);
+			if (!error.ok()) return error;
+		}
 	}
 	*output = std::move(candidate);
 	return {};

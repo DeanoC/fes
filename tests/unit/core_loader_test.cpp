@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "fake_spi.hpp"
+#include "snes_save_spi.hpp"
 #include "native/artifacts.hpp"
 #include "native/core_loader.hpp"
 
@@ -273,6 +274,74 @@ std::vector<unsigned char> BasicSnes(bool hi, bool copier)
 	return bytes;
 }
 
+void TestSaveEligibility()
+{
+	for (bool hi : {false, true}) for (unsigned type : {0u, 1u, 2u}) for (unsigned ram : {0u, 1u, 7u}) {
+		if (!type && ram) continue;
+		auto bytes = BasicSnes(hi, false);
+		const unsigned header = hi ? 0xffc0 : 0x7fc0;
+		bytes[header + 0x16] = type; bytes[header + 0x18] = ram;
+		TempFile source(bytes);
+		mister::native::Artifact artifact;
+		mister::native::MediaContentPlan content;
+		mister::native::PosixArtifactOpener opener;
+		assert(opener.Open(source.path, 0, &artifact).ok());
+		assert(mister::native::PrepareMediaContent(artifact, mister::MediaTransform::snes_cartridge, &content).ok());
+		assert(content.battery_ram_size == (type == 2 && ram ? (1024u << ram) : 0));
+	}
+}
+
+void TestBatterySizeAndSaveTransport()
+{
+	for (bool hi : {false, true}) for (unsigned exponent : {1u, 7u}) {
+		auto rom = BasicSnes(hi, false);
+		const unsigned header = hi ? 0xffc0 : 0x7fc0;
+		rom[header + 0x16] = 2;
+		rom[header + 0x18] = exponent;
+		TempFile source(rom);
+		mister::native::OpenedMedia media;
+		media.index = 1;
+		mister::native::PosixArtifactOpener opener;
+		assert(opener.Open(source.path, 0, &media.artifact).ok());
+		assert(mister::native::PrepareMediaContent(media.artifact, mister::MediaTransform::snes_cartridge, &media.content).ok());
+		const unsigned size = 1024u << exponent;
+		assert(media.content.battery_ram_size == size);
+		std::vector<unsigned char> original(size);
+		for (unsigned i = 0; i < size; ++i) original[i] = (i * 7) ^ (i >> 8);
+		TempFile existing(original);
+		mister::native::SaveFile save;
+		assert(save.Prepare(existing.path, size).ok());
+		mister_test::SnesSaveSpi spi;
+		spi.ram.resize(size, 0xff);
+		mister_test::SaveClock clock;
+		mister::native::CoreLoader loader(spi);
+		assert(loader.Attach(media, mister::FileWireFormat::little_endian_byte_pairs, 10000, &save).ok());
+		assert(spi.mounted && !spi.downloading && spi.op == 1);
+		assert(loader.RestoreSave(save, clock, 10000).ok());
+		assert(spi.ram == original && spi.op == 0);
+		spi.ram[1] ^= 0xff;
+		std::vector<unsigned char> captured;
+		assert(loader.CaptureSave(size, clock, 10000, &captured).ok());
+		assert(captured == spi.ram && spi.snapshots == 1 && spi.status == 1);
+		// A prior interrupted write transaction is drained before a new complete capture.
+		spi.op = 2; spi.lba = 1;
+		assert(loader.CaptureSave(size, clock, 10000, &captured).ok());
+		assert(captured == spi.ram && spi.snapshots == 2);
+		for (unsigned bad : {4u, 0x40u, 0x200u}) {
+			spi.bad_status = bad;
+			const auto before = captured;
+			assert(!loader.CaptureSave(size, clock, 10000, &captured).ok());
+			assert(captured == before);
+		}
+		spi.bad_status = 0; spi.bad_lba = 1;
+		assert(!loader.CaptureSave(size, clock, 10000, &captured).ok());
+		spi.bad_lba = 0; spi.short_response = true;
+		assert(!loader.CaptureSave(size, clock, 10000, &captured).ok());
+		spi.short_response = false; spi.stall = true;
+		assert(!loader.CaptureSave(size, clock, clock.now + 10, &captured).ok());
+	}
+}
+
 void TestSnesPrefixAndRetainedCartridgeStream()
 {
 	for (bool hi : {false, true}) for (bool copier : {false, true}) {
@@ -363,6 +432,8 @@ void TestSnesRetainedReadFailuresStopTransfer()
 
 int main()
 {
+	TestSaveEligibility();
+	TestBatterySizeAndSaveTransport();
 	TestSnesRetainedReadFailuresStopTransfer();
 	TestSnesPrefixAndRetainedCartridgeStream();
 	TestSnesRejectsUnsupportedOrAmbiguousBeforeTransfer();
@@ -375,6 +446,6 @@ int main()
 	TestAttachStopsAtEveryFailedExchangeAndShortRead();
 	TestAttachStopsAfterFirstAndPerChunkArtifactReadFailures();
 	TestDirectSpiFailureIsReturnedWithoutLaterCommands();
-	puts("core_loader_test: 12 behaviors passed");
+	puts("core_loader_test: 14 behaviors passed");
 	return 0;
 }

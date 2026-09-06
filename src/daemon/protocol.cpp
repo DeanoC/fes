@@ -251,8 +251,8 @@ Error ParseRequest(const std::string& line, Request* request)
 		parsed.operation = Operation::load_development_rbf;
 		parsed.rbf = *rbf;
 	} else if (operation->string_value == "launch") {
-		const char* const fields[] = {"protocol", "operation", "system", "rbf", "media", "settings"};
-		if (!HasOnly(root, fields, 6, &error)) return error;
+		const char* const fields[] = {"protocol", "operation", "system", "rbf", "media", "settings", "save_path"};
+		if (!HasOnly(root, fields, 7, &error)) return error;
 		const std::string* system = nullptr;
 		const std::string* rbf = nullptr;
 		const json::Value* media = nullptr;
@@ -266,6 +266,12 @@ Error ParseRequest(const std::string& line, Request* request)
 		parsed.operation = Operation::launch;
 		parsed.launch.system = *system;
 		parsed.launch.rbf = *rbf;
+		const json::Value* save = Find(root, "save_path");
+		if (save != nullptr) {
+			if (save->type != json::Type::string || !Path(save->string_value) || *system != "snes")
+				return Invalid("save_path requires SNES and an absolute nonempty path");
+			parsed.launch.save_path = save->string_value;
+		}
 		if (!ParseMedia(*media, &parsed.launch.media, &error) ||
 			!ParseSettings(*settings, &parsed.launch.settings, &error)) return error;
 	} else {

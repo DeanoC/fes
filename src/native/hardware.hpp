@@ -7,12 +7,14 @@
 
 #include <cstdint>
 #include <mutex>
+#include <memory>
 #include <string>
 
 namespace mister {
 namespace native {
 
 class Artifact;
+class SaveFile;
 class ArtifactOpener;
 class CoreLoader;
 class FixedVideoBringup;
@@ -52,6 +54,7 @@ public:
 	~NativeHardware();
 	void SetFaultSink(HardwareFaultSink*) override;
 	HardwareResult LoadIdle() override;
+	Error FlushSave() override;
 	HardwareResult Launch(const PreparedLaunch&, std::uint64_t generation) override;
 	HardwareResult LoadDevelopmentRBF(const std::string&) override;
 
@@ -72,6 +75,9 @@ private:
 	std::mutex fault_sink_mutex_;
 	HardwareFaultSink* fault_sink_;
 	bool input_open_;
+	std::unique_ptr<SaveFile> save_;
+	std::vector<unsigned char> snapshot_;
+	bool save_flushed_ = false;
 };
 
 } // namespace native

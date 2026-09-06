@@ -21,6 +21,7 @@ enum class ErrorCode {
 	core_mismatch,
 	io_failed,
 	idle_failed,
+	save_failed,
 };
 
 enum class State {
@@ -68,6 +69,7 @@ struct Launch {
 	std::string rbf;
 	std::vector<Media> media;
 	std::vector<Setting> settings;
+	std::string save_path;
 };
 
 struct Status {
@@ -129,6 +131,7 @@ struct PreparedMedia {
 };
 
 struct PreparedLaunch {
+	std::string save_path;
 	std::string system;
 	std::string expected_core;
 	std::string rbf;
@@ -170,6 +173,7 @@ public:
 	virtual ~Hardware() {}
 	virtual void SetFaultSink(HardwareFaultSink*) = 0;
 	virtual HardwareResult LoadIdle() = 0;
+	virtual Error FlushSave() { return {}; }
 	virtual HardwareResult Launch(const PreparedLaunch&,
 		std::uint64_t generation) = 0;
 	virtual HardwareResult LoadDevelopmentRBF(const std::string&) = 0;

@@ -48,6 +48,48 @@ struct Fixture {
 	mister::Runtime runtime;
 };
 
+void TestSaveFailurePreservesSessionForStopRetry()
+{
+	Fixture f;
+	assert(f.runtime.Start().ok());
+	assert(f.runtime.LaunchGame(CartLaunch()).ok());
+	const auto before = f.runtime.status();
+	f.hardware.flush_result = {ErrorCode::save_failed, "disk full"};
+	assert(f.runtime.Stop().code == ErrorCode::save_failed);
+	const auto failed = f.runtime.status();
+	assert(failed.state == before.state && failed.execution == before.execution);
+	assert(failed.system == before.system && failed.core == before.core);
+	assert(failed.error.code == ErrorCode::save_failed);
+	assert(f.hardware.idle_calls == 1);
+	assert(f.hardware.flush_calls == 1);
+	assert(f.runtime.LaunchGame(CartLaunch()).code == ErrorCode::busy);
+	f.hardware.flush_result = {};
+	assert(f.runtime.Stop().ok());
+	assert(f.hardware.flush_calls == 2 && f.hardware.idle_calls == 2);
+	assert(f.runtime.status().state == State::idle);
+	assert(f.runtime.Stop().ok());
+	assert(f.hardware.flush_calls == 2);
+}
+
+void TestInputFaultDuringFailedSaveCannotDiscardSnapshot()
+{
+	Fixture f;
+	assert(f.runtime.Start().ok());
+	assert(f.runtime.LaunchGame(CartLaunch()).ok());
+	const auto generation = f.hardware.launch_generations.back();
+	f.hardware.on_flush = [&] {
+		f.hardware.ReportFault(generation, {ErrorCode::io_failed, "late input error"});
+	};
+	f.hardware.flush_result = {ErrorCode::save_failed, "disk full"};
+	assert(f.runtime.Stop().code == ErrorCode::save_failed);
+	assert(!f.hardware.WaitForIdleCalls(2));
+	assert(f.runtime.status().state == State::running_game);
+	f.hardware.on_flush = {};
+	f.hardware.flush_result = {};
+	assert(f.runtime.Stop().ok());
+	assert(f.hardware.idle_calls == 2);
+}
+
 void Start(Fixture& fixture)
 {
 	assert(fixture.runtime.Start().ok());
@@ -685,6 +727,8 @@ void TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError()
 
 int main()
 {
+	TestInputFaultDuringFailedSaveCannotDiscardSnapshot();
+	TestSaveFailurePreservesSessionForStopRetry();
 	TestStartLoadsIdleOnceAndPublishesIdle();
 	TestFailedStartRequiresReboot();
 	TestValidationPrecedesHardwareMutation();
@@ -718,6 +762,6 @@ int main()
 	TestStaleFaultCannotCleanOrOverwriteANewerGeneration();
 	TestActiveInputFaultCleanupFailureRequiresReboot();
 	TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError();
-	puts("runtime_test: 33 passed");
+	puts("runtime_test: 35 passed");
 	return 0;
 }

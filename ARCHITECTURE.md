@@ -67,7 +67,8 @@ The lifecycle states are `idle`, `starting`, `running_game`,
 asks the hardware boundary to establish idle. A game launch validates the
 entire request against the one runtime-owned profile table before mutation; a
 development launch validates its absolute RBF path without inventing a system
-profile. Stop returns the hardware to idle.
+profile. Stop flushes an active ordinary SNES battery save, then returns the hardware
+to idle.
 
 Native idle admission performs this exact sequence:
 
@@ -192,7 +193,8 @@ request and one JSON response per connection:
 - `stop`
 
 Requests reject unknown fields. `launch` accepts a stable system ID, an
-absolute RBF path, semantic media paths, and profile-declared settings.
+absolute RBF path, semantic media paths, profile-declared settings, and an
+optional SNES-only absolute `save_path`.
 Responses report `ok`, lifecycle state, execution type, system/core identity
 when present, a direct error when present, and the runtime version.
 
@@ -263,7 +265,8 @@ header 0x7fc0) or HiROM (0x21/0x31, header 0xffc0) candidate with valid reset
 vector/opcode, nonzero complementary checksum pair and matching declared ROM
 size. Payloads must be powers of two from 32 KiB to 4 MiB; HiROM needs at least
 64 KiB. An optional copier header is exactly 512 bytes. Types 0–2 are ordinary
-cartridges; RAM exponent is at most 7, without save persistence. Special
+cartridges; RAM exponent is at most 7. Optional ordinary battery RAM persistence is
+described below. Special
 mappings, BS-X/Sufami signatures, ambiguous candidates and enhancement types
 are rejected. No mirroring, patching or whole-ROM allocation is performed.
 Metadata fields follow Main_MiSTer `915ca339` and SNES_MiSTer `93d359e6`;
@@ -277,3 +280,40 @@ SNES uses bits 0–3 for Right/Left/Down/Up, bits 4–9 for A/B/X/Y/L/R, bit 10
 Select and bit 11 Start; C is unused. Linux BTN_X/BTN_Y/BTN_TL/BTN_TR/BTN_SELECT
 are decoded into the new controls. Existing Mega Drive C and Pong Start retain
 their original masks. All profiles use the same input worker and neutral Stop.
+
+## SNES save lifecycle
+
+`MediaContentPlan::battery_ram_size` is derived only for type-2 battery
+cartridges with nonzero RAM exponent. `OpenLaunchArtifacts` prepares a retained
+save directory, exact original bytes and writable temporary-file admission
+before programming. It never creates a final save for nonbattery cartridges.
+
+`CoreLoader::Attach` mounts slot zero with 0x1d/0x1c after the complete cartridge
+payload but before download completion. Zero image size represents a missing
+save and preserves the core's 0xff RAM initialization. Existing images trigger
+automatic restore after download completion. `RestoreSave` handles exact,
+sequential 512-byte sectors through commands 0x16 and 0x17 before reset release
+and input start. This is the existing pinned SNES_MiSTer 93d359e6 contract.
+
+The native hardware retains the save only after successful launch. Ordinary
+`Runtime::Stop` admits `Hardware::FlushSave` under the existing busy boundary
+while retaining running-game identity. It invalidates the input generation
+before the flush, so a late input fault cannot discard a retained snapshot after
+a save failure. It stops/joins
+input before SPI, asserts reset, pulses status bit13 and reads all sectors
+through 0x18. Each request must identify modern protocol, slot zero, one
+512-byte block, the expected direction and sequential LBA. One absolute
+core-I/O deadline bounds polling and transfer. A prior interrupted snapshot is
+drained under reset before a fresh snapshot; partial bytes are never published.
+
+`SaveFile::Persist` writes a sibling exclusive temporary file, fsyncs it,
+renames it atomically over the destination and fsyncs the retained directory.
+Failure preserves the complete snapshot for a later Stop retry. A failed flush
+returns `save_failed`, records that error in status and releases the busy flag,
+but retains the game session and does not load idle. Input remains stopped and
+the game may be frozen. Successful retry clears the error through ordinary idle
+completion. An explicit Stop while already idle acknowledges and clears any
+historical admission/launch error without touching hardware. Generic `LoadIdle` discards persistence state without flushing, so
+startup, failed launch and input-fault cleanup cannot replace a good save with
+partial or uninitialized SRAM. This deliberately excludes autosave, crash or
+power-loss capture, save states and host/cloud save synchronization.

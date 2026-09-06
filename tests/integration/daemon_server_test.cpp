@@ -443,6 +443,23 @@ void TestIncompleteAndOversizedRequestsAreInvalidThenClose()
 	}
 }
 
+void TestIdleStopAcknowledgesSaveAdmissionFailure()
+{
+	Fixture fixture;
+	fixture.Start();
+	fixture.hardware.launch_result = {{mister::ErrorCode::save_failed, "wrong save size"}, false, ""};
+	mister::daemon::Controller controller(fixture.runtime, "save-test");
+	const auto rejected = controller.Handle(kLaunch);
+	Contains(rejected, "\"ok\":false");
+	Contains(rejected, "\"state\":\"idle\"");
+	Contains(rejected, "\"code\":\"save_failed\"");
+	const auto acknowledged = controller.Handle(kStop);
+	Contains(acknowledged, "\"ok\":true");
+	Contains(acknowledged, "\"state\":\"idle\"");
+	Contains(acknowledged, "\"error\":null");
+	assert(fixture.hardware.idle_calls == 1 && fixture.hardware.flush_calls == 0);
+}
+
 void TestLaunchDevelopmentAndStopMapIdentityAndState()
 {
 	TempDirectory temporary;
@@ -910,6 +927,7 @@ void TestDevelopmentInventsNoIdentityAndStderrEscapesFields()
 
 int main()
 {
+	TestIdleStopAcknowledgesSaveAdmissionFailure();
 	TestStartupStatusReturnsIdle();
 	TestOneRequestGetsOneNewlineResponseAndEof();
 	TestSecondRequestOnAConnectionIsNeverProcessed();
@@ -932,6 +950,6 @@ int main()
 	TestOversizedVersionUsesBoundedValidFallback();
 	TestOversizedHardwareErrorUsesBoundedValidFallback();
 	TestDevelopmentInventsNoIdentityAndStderrEscapesFields();
-	puts("daemon_server_test: 22 passed");
+	puts("daemon_server_test: 23 passed");
 	return 0;
 }

@@ -270,6 +270,7 @@ public:
 						"reboot required" : status_.error.message}};
 				return_immediately = true;
 			} else if (status_.state == State::idle) {
+				status_.error = {};
 				immediate = {"stop", "", "", "idle", {}};
 				return_immediately = true;
 			} else if (status_.state != State::running_game &&
@@ -279,14 +280,30 @@ public:
 				return_immediately = true;
 			} else {
 				busy_ = true;
+				// Input is being retired even if persistence needs a later retry.
 				active_generation_ = 0;
-				status_.state = State::starting;
-				status_.execution = Execution::none;
 			}
 		}
 		if (return_immediately) {
 			log_.Write(immediate);
 			return immediate.error;
+		}
+		const Error saved = hardware_.FlushSave();
+		if (!saved.ok()) {
+			const Error error{ErrorCode::save_failed, saved.message};
+			{
+				std::lock_guard<std::mutex> lock(mutex_);
+				status_.error = error;
+				busy_ = false;
+			}
+			condition_.notify_all();
+			Log("stop", "", "", "save", error);
+			return error;
+		}
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			status_.state = State::starting;
+			status_.execution = Execution::none;
 		}
 		Log("stop", "", "", "starting");
 		const HardwareResult result = hardware_.LoadIdle();
@@ -460,6 +477,7 @@ const char* ErrorCodeName(ErrorCode code)
 	case ErrorCode::core_mismatch: return "core_mismatch";
 	case ErrorCode::io_failed: return "io_failed";
 	case ErrorCode::idle_failed: return "idle_failed";
+	case ErrorCode::save_failed: return "save_failed";
 	}
 	return "invalid";
 }

@@ -75,8 +75,29 @@ Error NativeHardware::StopInput(std::uint64_t deadline)
 	return error;
 }
 
+Error NativeHardware::FlushSave()
+{
+	if (!save_ || save_flushed_) return {};
+	Error error = StopInput(Deadline(clock_, timeouts_.core_io_ms));
+	if (error.ok() && snapshot_.empty())
+		error = core_.CaptureSave(save_->size(), clock_, Deadline(clock_, timeouts_.core_io_ms), &snapshot_);
+	if (error.ok()) error = save_->Persist(snapshot_);
+	if (!error.ok()) {
+		error.code = ErrorCode::save_failed;
+		log_.Write({"stop", "snes", "SNES", "save", error});
+		return error;
+	}
+	save_flushed_ = true;
+	log_.Write({"stop", "snes", "SNES", "save", {}});
+	return {};
+}
+
 HardwareResult NativeHardware::LoadIdle()
 {
+	// Startup/fault/failed-launch cleanup deliberately has no save side effect.
+	save_.reset();
+	snapshot_.clear();
+	save_flushed_ = false;
 	const Error input_error = StopInput(Deadline(clock_, timeouts_.core_io_ms));
 	Artifact artifact;
 	Error error = OpenRBFArtifact(idle_rbf_, opener_, &artifact);
@@ -180,9 +201,15 @@ HardwareResult NativeHardware::Launch(const PreparedLaunch& launch,
 	if (!error.ok()) return {error, true, observed};
 	for (const OpenedMedia& media : artifacts.media) {
 		error = core_.Attach(media,
-			launch.core.file_wire, core_deadline);
+			launch.core.file_wire, core_deadline, artifacts.save.get());
 		if (!error.ok()) error = CoreIoError(error);
 		log_.Write({"launch", launch.system, observed, "media", error});
+		if (!error.ok()) return {error, true, observed};
+	}
+
+	if (artifacts.save) {
+		error = core_.RestoreSave(*artifacts.save, clock_, Deadline(clock_, timeouts_.core_io_ms));
+		log_.Write({"launch", launch.system, observed, "save_restore", error});
 		if (!error.ok()) return {error, true, observed};
 	}
 
@@ -211,6 +238,9 @@ HardwareResult NativeHardware::Launch(const PreparedLaunch& launch,
 	if (!error.ok()) error = CoreIoError(error);
 	log_.Write({"launch", launch.system, observed, "input", error});
 	if (!error.ok()) return {error, true, observed};
+	save_ = std::move(artifacts.save);
+	snapshot_.clear();
+	save_flushed_ = false;
 	return {{}, true, observed};
 }
 

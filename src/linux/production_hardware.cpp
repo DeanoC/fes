@@ -146,6 +146,7 @@ public:
 		hardware_.SetFaultSink(sink);
 	}
 	HardwareResult LoadIdle() override { return hardware_.LoadIdle(); }
+	Error FlushSave() override { return hardware_.FlushSave(); }
 	HardwareResult Launch(const PreparedLaunch& launch,
 		std::uint64_t generation) override
 	{

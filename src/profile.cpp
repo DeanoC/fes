@@ -200,7 +200,11 @@ Error Profiles::Prepare(const Launch& launch, PreparedLaunch* output) const
 	}
 	if (profile == nullptr) return {ErrorCode::unknown_system, "unknown system"};
 
+	if (!launch.save_path.empty() &&
+		(launch.system != "snes" || !ValidAbsolutePath(launch.save_path)))
+		return Invalid("save_path requires SNES and an absolute path");
 	PreparedLaunch prepared;
+	prepared.save_path = launch.save_path;
 	prepared.system = profile->system;
 	prepared.expected_core = profile->expected_core;
 	prepared.rbf = launch.rbf;
