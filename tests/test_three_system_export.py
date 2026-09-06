@@ -58,3 +58,48 @@ class SnesExportTests(unittest.TestCase):
         fixture.recipe.write_text('changed')
         with self.assertRaises(BundleExportError):
             export_bundle(pin, fixture.root)
+
+class PongExportTests(unittest.TestCase):
+    def test_pong_commit_identity_and_source_drift(self):
+        import hashlib
+        import json
+        import subprocess
+        import tomllib
+        from scripts.build_pong import LOCAL_SOURCES
+        from scripts.export_core_bundle import export_pong, BundleExportError, TOOLCHAIN
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            original = Path(__file__).resolve().parents[1]
+            for name in LOCAL_SOURCES:
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes((original / name).read_bytes())
+            (root / '.gitignore').write_text('build/\n')
+            def git(*args):
+                return subprocess.check_output(['git', '-C', str(root), *args], stderr=subprocess.DEVNULL).decode().strip()
+            git('init', '-q')
+            git('add', '.')
+            git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'source')
+            work = root / 'build/rebuild/pong'
+            work.mkdir(parents=True)
+            sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+            pin = tomllib.loads((root / 'cores/pong/framework.toml').read_text())
+            inputs = {'format': 1, 'system': 'pong', 'abi': 'mister', 'framework': pin, 'sources': {name: sha(root / name) for name in LOCAL_SOURCES}, 'staged_sources': {}}
+            (work / 'inputs.json').write_text(json.dumps(inputs))
+            (work / 'pong.rbf').write_bytes(b'pong')
+            timing = work / 'project/output_files/Pong.sta.summary'
+            timing.parent.mkdir(parents=True)
+            timing.write_text(''.join(f'Type : {kind}\nSlack : 0.2\nTNS : 0\n' for kind in ('Setup x', 'Hold x', 'Recovery x', 'Removal x', 'Minimum Pulse Width x')))
+            receipt = dict(framework=pin, inputs_sha256=sha(work/'inputs.json'), artifact='pong.rbf', sha256=sha(work/'pong.rbf'), size=4, quartus_version=TOOLCHAIN, timing_sha256=sha(timing), timing=validate_timing(timing))
+            (work / 'build.json').write_text(json.dumps(receipt))
+            bundle = export_pong(root)
+            manifest = tomllib.loads((bundle / 'pong-rbf.toml').read_text())
+            self.assertEqual(manifest['revision'], git('rev-parse', 'HEAD'))
+            self.assertEqual(manifest['repository'], 'https://github.com/DeanoC/misteross')
+            (root / 'cores/pong/Pong.sv').write_text('changed')
+            with self.assertRaises(BundleExportError):
+                export_pong(root)
+            git('add', '.')
+            git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'changed')
+            with self.assertRaises(BundleExportError):
+                export_pong(root)
