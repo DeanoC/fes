@@ -111,8 +111,15 @@ sampled lock loss. The current `kit.py stop` completed development reboot
 recovery and returned a free lease. This is hardware diagnostic acceptance of
 the fixed profile, not native game acceptance.
 
+`100_dsp_rom` is an eight-by-eight unsigned DSP product of an HPS operand and
+one byte from an initialized 256-by-8 block table. Linux peeks and pokes
+GPO/GPI; there is no LED. The table is marked `ramstyle = "M10K"` and holds
+`index XOR 8'hA5`. Yosys maps one `MISTRAL_MUL9X9` and one `MISTRAL_M10K`.
+Quartus must measure one DSP block and one RAM block. PLL and MLAB remain
+forbidden.
 
-`100_pll_reset` extends the fixed PLL measurement with active-high fabric reset.
+
+`110_pll_reset` extends the fixed PLL measurement with active-high fabric reset.
 The pinned nextpnr revision `6abe1e9a0ef7673f5f840d0b1168f005a268fcbd` exposes the
 existing Mistral `NRESET0` endpoint. Its routed reset uses inverter bit0;
 folded-low reset retains bit1, matching the Quartus17 oracle. Mistral tables
@@ -127,10 +134,10 @@ then echo=0, lock=1 and count=2048 ±1 after release. Simulation checks the same
 sequence using a digital PLL model with a nominal acquisition delay, plus the
 existing meter fault tests. Neither simulation nor synchronous Fmax specifies
 analog lock time, minimum reset pulse width, recovery/removal, or jitter.
-See `experiments/100_pll_reset/expected.md`. Simulation and OSS are supported;
+See `experiments/110_pll_reset/expected.md`. Simulation and OSS are supported;
 Quartus comparison is not implemented for this experiment.
 
-On 2026-09-06 the integrated `100_pll_reset` OSS RBF (1,955,689 bytes) has
+On 2026-09-06 the integrated `110_pll_reset` OSS RBF (1,955,689 bytes) has
 SHA-256 `5e48f9643c85a94bafeaaec2076c002710b15a8eb2b811dd42f6809da34880a4`.
 It is byte-identical to the nextpnr diagnostic artifact tested on the designated
 kit: all ten cycles returned 0 while reset and 2048 after relock. The reference
@@ -336,7 +343,9 @@ after programming keeps that lease so the operator can inspect a non-MiSTer
 image before Stop. Stop follows FogCast's development reboot handshake when
 the target reports `reboot_required`: it records `boot_id`, posts
 `/v1/development/reboot`, and waits for a new boot ID and a free lease. A
-successful reboot ends that lease because the target agent restarts. It stores
+successful reboot ends that lease because the target agent restarts. Release,
+EOF, or Ctrl-C Stops first when a development image was loaded, so that
+handshake runs instead of a raw release after a non-MiSTer bitstream. It stores
 no credentials or lease database. FogCast remains authoritative for expiry,
 takeover, serialization and cleanup; libmister-runtime performs the physical
 transition. See the README's shared-kit commands. Direct `make program` remains

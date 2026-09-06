@@ -130,6 +130,7 @@ class Session:
         self.failed = threading.Event()
         self.done = threading.Event()
         self.thread = None
+        self.needs_stop = False
 
     def claim(self, generation=None, reason=None, wait=60):
         body = dict(request_id=secrets.token_hex(32), owner=self.owner, purpose=self.purpose)
@@ -195,15 +196,22 @@ class Session:
             raise KitError('lease renewal lost; mutations disabled')
         if command == 'load':
             try:
-                return self.client.load(path, self.token)
+                result = self.client.load(path, self.token)
             except KitError as error:
                 # Non-MiSTer development images program, then fail the SPI
                 # identity probe and often return HTTP 503. Keep the lease so
                 # the operator can peek and Stop, unless ownership is blocked.
                 if error.status == 503 and error.code != 'KIT_LEASE_BLOCKED':
+                    self.needs_stop = True
                     return {'state': 'held', 'reason': 'development probe timed out'}
                 raise
+            self.needs_stop = True
+            return result
+        return self._stop()
+
+    def _stop(self):
         stopped = self.client.request('/v1/stop', token=self.token)
+        self.needs_stop = False
         if stopped.get('recovery') == 'reboot_required':
             return self._recover_development()
         return stopped
@@ -241,10 +249,14 @@ class Session:
         if self.thread:
             self.thread.join()
             self.thread = None
-        if self.token:
-            token, self.token = self.token, None
-            return self.client.request('/v1/kit/release', token=token)
-        return {}
+        if not self.token:
+            return {}
+        if self.needs_stop:
+            result = self._stop()
+            if not self.token:
+                return result
+        token, self.token = self.token, None
+        return self.client.request('/v1/kit/release', token=token)
 
 
 def display(value):

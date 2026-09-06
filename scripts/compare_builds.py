@@ -47,6 +47,7 @@ HPS_GP_EXPERIMENTS = frozenset(
         "060_dsp_mul",
         "070_mixed_mem",
         "080_dsp_mem",
+        "100_dsp_rom",
     }
 )
 MLAB_LUTRAM_BITS = 256
@@ -90,15 +91,17 @@ SEMANTIC_RESOURCE_FIELDS = (
     "sdram_interfaces",
 )
 QUARTUS_VERSION_RE = re.compile(r"(^|[^0-9])17\.0\.2(?:\s|$)")
+MLAB_LUTRAM_STATIC_PATTERNS = (
+    r"\bmlab(?:s)?\b",
+    r"\blutram\b",
+    r"\b(?:altsyncram|lpm_ram|mlab_cell)\b",
+)
+MLAB_ARRAY_STATIC_PATTERN = r"\b(?:reg|wire|logic)\s*\[[^\]]+\]\s+\w+\s*\["
+MEASURE_M10K_EXPERIMENTS = frozenset({"070_mixed_mem", "080_dsp_mem", "100_dsp_rom"})
 STATIC_EXCLUSION_CONTRACTS = {
     "MLAB/LUTRAM": {
         "basis": "static source/project exclusion",
-        "patterns": (
-            r"\bmlab(?:s)?\b",
-            r"\blutram\b",
-            r"\b(?:altsyncram|lpm_ram|mlab_cell)\b",
-            r"\b(?:reg|wire|logic)\s*\[[^\]]+\]\s+\w+\s*\[",
-        ),
+        "patterns": (*MLAB_LUTRAM_STATIC_PATTERNS, MLAB_ARRAY_STATIC_PATTERN),
     },
     "HPS": {
         "basis": "static source/project exclusion",
@@ -111,6 +114,14 @@ STATIC_EXCLUSION_CONTRACTS = {
         ),
     },
 }
+
+
+def _mlab_static_exclusion_patterns(experiment: str) -> tuple[str, ...]:
+    # Initialized block memory is a Verilog array. Experiments that measure
+    # M10K omit that array shape from the MLAB static exclusion.
+    if experiment in MEASURE_M10K_EXPERIMENTS:
+        return MLAB_LUTRAM_STATIC_PATTERNS
+    return (*MLAB_LUTRAM_STATIC_PATTERNS, MLAB_ARRAY_STATIC_PATTERN)
 OSS_STATIC_FIELD_PATTERNS = {
     # Keep the serialized contracts field-specific.  Alphabetic identifiers
     # use experiment_policy.py's Verilog boundary semantics rather than
@@ -699,8 +710,8 @@ def _mailbox_hard_block_view(
     except PolicyError as exc:  # pragma: no cover - closed table regression.
         return {}, [f"{lane} experiment policy is unavailable: {exc}"]
     measure_mlab = experiment in {"040_mlab_ram", "070_mixed_mem", "080_dsp_mem"}
-    measure_dsp = experiment in {"060_dsp_mul", "080_dsp_mem"}
-    measure_m10k = experiment in {"070_mixed_mem", "080_dsp_mem"}
+    measure_dsp = experiment in {"060_dsp_mul", "080_dsp_mem", "100_dsp_rom"}
+    measure_m10k = experiment in MEASURE_M10K_EXPERIMENTS
     if lane == "oracle":
         raw = build.get("hard_block_evidence")
         legacy = build.get("hard_blocks")
@@ -1234,6 +1245,8 @@ def _exclusion_failures(
         failures.append(f"{lane} {name} static-exclusion basis is invalid")
     patterns = exclusion.get("patterns")
     expected_patterns = list(contract["patterns"])
+    if name == "MLAB/LUTRAM":
+        expected_patterns = list(_mlab_static_exclusion_patterns(experiment))
     if patterns != expected_patterns:
         failures.append(f"{lane} {name} static-exclusion patterns are not canonical")
 
@@ -1667,6 +1680,17 @@ def _lane_view(
             failures.append(
                 f"{lane} timing clock must be one of {', '.join(sorted(expected_clocks))}"
             )
+    elif manifest_experiment == "100_dsp_rom":
+        expected_clocks = (
+            {"rom_port.FPGA_CLK1_50", "product.FPGA_CLK1_50"}
+            if lane == "oss"
+            else {"FPGA_CLK1_50"}
+        )
+        clock_name = timing_view.get("clock")
+        if clock_name not in expected_clocks:
+            failures.append(
+                f"{lane} timing clock must be one of {', '.join(sorted(expected_clocks))}"
+            )
 
     hard_status = build.get("hard_block_status")
     if manifest_experiment in HPS_GP_EXPERIMENTS:
@@ -1745,6 +1769,19 @@ def _lane_view(
                     )
                 elif evidence.get("dsp_blocks") != DSP_BLOCKS:
                     failures.append(f"{lane} resource_evidence.dsp_blocks must be {DSP_BLOCKS}")
+            elif manifest_experiment == "100_dsp_rom":
+                if not isinstance(evidence, dict) or evidence.get("dsp_blocks") != DSP_BLOCKS:
+                    failures.append(f"{lane} resource_evidence.dsp_blocks must be {DSP_BLOCKS}")
+                elif evidence.get("hps_general_purpose_interfaces") != 1:
+                    failures.append(
+                        f"{lane} resource_evidence.hps_general_purpose_interfaces must be 1"
+                    )
+                elif evidence.get("lutram_bits") != 0:
+                    failures.append(f"{lane} resource_evidence.lutram_bits must be 0")
+                elif evidence.get("block_memory_bits") != MIXED_BLOCK_MEMORY_BITS:
+                    failures.append(
+                        f"{lane} resource_evidence.block_memory_bits must be {MIXED_BLOCK_MEMORY_BITS}"
+                    )
             else:
                 failures.append(f"{lane} unsupported HPS GP experiment {manifest_experiment}")
         else:

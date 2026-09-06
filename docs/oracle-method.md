@@ -15,6 +15,7 @@ make oracle EXP=050_lut_mul
 make oracle EXP=060_dsp_mul
 make oracle EXP=070_mixed_mem
 make oracle EXP=080_dsp_mem
+make oracle EXP=100_dsp_rom
 ```
 
 The wrapper accepts only version 17.0.2, stages the selected minimal project

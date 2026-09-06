@@ -26,9 +26,11 @@ development possible with both the open-source Mistral toolchain and Quartus.
   `make sim EXP=090_pll_clock` and `make oss EXP=090_pll_clock`.
   This experiment supports the simulation and OSS lanes; its Quartus comparison
   lane is not implemented.
-- `100_pll_reset`, fabric-driven reset and repeated relock of the same PLL,
-  observed through HPS GP. Run `make sim EXP=100_pll_reset` and
-  `make oss EXP=100_pll_reset`; no Quartus comparison lane is implemented.
+- `100_dsp_rom`, DSP product of an HPS operand and one byte from an initialized
+  M10K table on HPS GP.
+- `110_pll_reset`, fabric-driven reset and repeated relock of the same PLL,
+  observed through HPS GP. Run `make sim EXP=110_pll_reset` and
+  `make oss EXP=110_pll_reset`; no Quartus comparison lane is implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under
@@ -191,8 +193,9 @@ so the operator can peek GPI before Stop. Stop posts `/v1/stop`. When the
 target reports `recovery: reboot_required`, Stop records `/v1/health` `boot_id`,
 posts `/v1/development/reboot`, and waits for a new boot ID plus a free lease.
 That reboot restarts the target agent, so the current lease ends. Otherwise
-Stop returns to idle while retaining ownership. release, EOF, or Ctrl-C
-requests cleanup and frees ownership. Keep stdin open between commands (including when using an agent's
+Stop returns to idle while retaining ownership. release, EOF, or Ctrl-C first
+Stops if a development image was loaded, so a non-MiSTer bitstream takes the
+same reboot handshake instead of a raw release that can block the lease. Keep stdin open between commands (including when using an agent's
 persistent terminal session). `make kit-session` is a convenience using the
 environment configuration.
 

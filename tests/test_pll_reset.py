@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class PllResetTests(unittest.TestCase):
     def test_reset_experiment_policy(self):
-        policy = policy_for('100_pll_reset')
+        policy = policy_for('110_pll_reset')
         for relative in policy.all_source_paths:
             policy.validate_source_text(relative, (ROOT / relative).read_text())
         self.assertEqual(policy.additional_clocks_mhz, {'clk25': 25.0})

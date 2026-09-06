@@ -1,8 +1,8 @@
-# 100 PLL reset and relock
+# 110 PLL reset and relock
 
-`make sim EXP=100_pll_reset` tests ten reset/relock cycles with production-length
-measurement windows and reuses the meter fault tests. `make oss EXP=100_pll_reset`
-produces compressed `build/oss/100_pll_reset/top.rbf` using the authenticated
+`make sim EXP=110_pll_reset` tests ten reset/relock cycles with production-length
+measurement windows and reuses the meter fault tests. `make oss EXP=110_pll_reset`
+produces compressed `build/oss/110_pll_reset/top.rbf` using the authenticated
 reset-capable nextpnr pin. Quartus comparison is not implemented.
 
 The PLL remains the fixed PIN_V11 50→25 MHz integer/direct/zero-phase/50%-duty
