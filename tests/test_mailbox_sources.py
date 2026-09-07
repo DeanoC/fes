@@ -165,6 +165,7 @@ class MailboxSourcePolicyTests(unittest.TestCase):
             "440_dsp_preadder",
             "450_dsp_mac",
             "460_dsp_reg",
+            "470_mlab_init",
         ):
             result = subprocess.run(
                 ["make", "-n", "sim", f"EXP={experiment}"],

@@ -145,11 +145,12 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current nextpnr pin `39f194e8f26db1700edc3acf759f341e1b9fd90d` is
-`mistral-stable` with merged PR #30 DSP modes: three-lane 9×9 packing (336 logical `MISTRAL_MUL9X9` BELs on 112
+The current nextpnr pin `9632c85b84069acc8bb507165a48c348c70499eb` is
+`mistral-stable` with merged PR #31 MLAB INIT and merged PR #30 DSP modes: three-lane 9×9 packing (336 logical `MISTRAL_MUL9X9` BELs on 112
 physical DSP blocks, RESULT `0:17` / `18:35` / `37:54` with a one-bit gap at
 `RESULT.36`), `M18X18P36`, `M27X27`, M9 preadder subtract, M18 36-bit C addend
-mapped on BX groups `{8,9,6,7}`, and DSP input/output registers. Omitted
+mapped on BX groups `{8,9,6,7}`, and DSP input/output registers. Each
+`MISTRAL_MLAB` accepts a 32-bit numeric `INIT`; omitted bits stay zero. Omitted
 NEGATE/SUB/ACCUMULATE/LOADCONST encode low; unused fabric ACLR stays low.
 It retains PR #28 double-register clock enables, quarter-phase
 100 MHz outputs (`0`/`2500`/`5000`/`7500` ps), 45° steps on
@@ -178,7 +179,7 @@ while reset, then 1638–1639 / 3276–3277 / 8192 after relock. Their reference
 output Fmax values were 216.732 / 326.584 MHz against 50 MHz and the selected
 output constraint. Host pair regressions cover 25/40, 40/25, 20/100, 40/64,
 80/80 and 1/1 MHz. Artifact hashes and reproduction commands are in the
-[nextpnr PLL test documentation](https://github.com/DeanoC/nextpnr/blob/39f194e8f26db1700edc3acf759f341e1b9fd90d/mistral/tests/pll/README.md).
+[nextpnr PLL test documentation](https://github.com/DeanoC/nextpnr/blob/9632c85b84069acc8bb507165a48c348c70499eb/mistral/tests/pll/README.md).
 
 `120_pll_dsp` runs the eight-by-eight unsigned DSP product on the proven
 50-to-25 MHz PLL output. Linux peeks and pokes GPO/GPI on the 50 MHz
@@ -735,11 +736,27 @@ GP. Exact-artifact kit diagnostics on 2026-09-07 returned GPI signature
 `0xD616` and the expected registered products (`10*12` → `120`, `0x12*0x34` →
 `936`, `255*255` → `65025`).
 
+`470_mlab_init` exposes the 32-by-8 MLAB table with preserved power-up
+contents on HPS GP. GPO layout matches `040_mlab_ram`. GPI signature `0xD417`.
+Address `a` starts as `((a * 73) ^ (a >> 1) ^ 8'hA6)`, so address 0 is `0xA6`.
+Yosys still emits eight `MISTRAL_MLAB` cells without INIT; OSS writes the
+32-bit lane parameters after synthesis. Memory besides those MLABs, DSP, and
+PLL remain forbidden. Simulation and OSS are supported; Quartus comparison is
+not implemented. See `experiments/470_mlab_init/expected.md`.
+
+The OSS `470_mlab_init` artifact has SHA-256
+`900e120d33031695f7f53b2bb74b97c1721d4b6faf9226dfe9ae5b385e75b1f1`
+and size 1,953,488 bytes. Its reported Fmax is 407.664 MHz against the 50 MHz
+constraint. Utilization is eight `MISTRAL_MLAB` cells and one HPS GP. Exact-artifact
+kit diagnostics on 2026-09-08 returned GPI signature `0xD417` with address 0
+equal to `0xA6`, all 32 initialized bytes, then even-address writes that left
+odd addresses unchanged.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
-M18 `A*B+C`, and registered M18 with omitted enable/ACLR. It does not
-establish native game acceptance.
+M18 `A*B+C`, registered M18 with omitted enable/ACLR, and initialized MLAB
+contents. It does not establish native game acceptance.
 
 ## Standalone Pong game
 
