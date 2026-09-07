@@ -7,6 +7,7 @@
 #include "native/core_loader.hpp"
 #include "native/linux/spi.hpp"
 #include "native/video.hpp"
+#include "native/framebuffer.hpp"
 #include "native/video_recipe.hpp"
 
 #include <assert.h>
@@ -89,8 +90,8 @@ public:
 			request[1] == 0x0000) {
 			event = "spi:status_release";
 		} else {
-			event = "spi:unexpected";
-		}
+			event = request[0] == 0x002f ? "spi:framebuffer" : "spi:unexpected";
+  }
 		if (request.size() == 9 && request[0] == 0x001e &&
 			request[1] == 0x0000)
 			i2c_.MarkReleaseEvent();
@@ -99,6 +100,7 @@ public:
 		if (call_index == fail_call_index) return failure;
 		if (response != nullptr) {
 			response->assign(request.size(), terminate_identity ? 0 : 'X');
+   if (request[0] == 0x002f) (*response)[0] = framebuffer_supported ? 1 : 0;
 			if (!request.empty() && request[0] == 0x0014) {
 				std::size_t index = 1;
 				for (unsigned char byte : identity) {
@@ -126,6 +128,7 @@ public:
 	mister_test::FakeI2c& i2c_;
 	std::string identity = "MENU";
 	bool terminate_identity = true;
+ bool framebuffer_supported = true;
 	bool invalid_identity = false;
 	std::size_t fail_call_index = std::numeric_limits<std::size_t>::max();
 	mister::Error failure = {mister::ErrorCode::io_failed,
@@ -135,11 +138,22 @@ public:
 	std::vector<Call> calls;
 };
 
+class FakeFramebuffer final : public mister::native::Framebuffer {
+public:
+ mister::Error Prepare(std::uint64_t deadline, mister::native::FramebufferMode* out) override {
+  ++calls; last_deadline=deadline; *out=mode; return error;
+ }
+ mister::native::FramebufferMode mode={0x22001000,640*480*4,640,480,2560};
+ mister::Error error;
+ int calls=0;
+ std::uint64_t last_deadline=0;
+};
+
 struct Fixture {
 	explicit Fixture(std::vector<std::uint64_t> clock_values = {0, 1, 2, 3, 4})
 		: clock(std::move(clock_values)), i2c(&events, &ordered_calls),
 		spi(events, ordered_calls, i2c),
-		core(spi), video(core, spi, i2c, clock, log,
+		core(spi), video(core, spi, i2c, framebuffer, clock, log,
 			mister::native::Menu720p60Recipe()) {}
 	std::vector<std::string> events;
 	std::vector<std::string> ordered_calls;
@@ -148,6 +162,7 @@ struct Fixture {
 	RecordingSpi spi;
 	mister::native::CoreLoader core;
 	mister_test::CaptureLog log;
+	FakeFramebuffer framebuffer;
 	mister::native::MenuVideoBringup video;
 };
 
@@ -609,6 +624,7 @@ std::vector<std::string> ExpectedAfterCoreInput()
 std::vector<std::string> ExpectedAfterLinkReads(std::size_t count)
 {
 	std::vector<std::string> expected = ExpectedAfterCoreInput();
+ expected.push_back("spi:framebuffer");
 	for (std::size_t index = 0; index < count; ++index)
 		expected.push_back("i2c:read:0x42");
 	return expected;
@@ -642,6 +658,40 @@ void ExpectFailure(const Fixture& fixture, const mister::native::VideoResult& re
 	assert(records.back().error.message == result.error.message);
 }
 
+void TestFramebufferFailurePreventsIdleVerification()
+{
+ for(int index=0;index<4;++index) {
+  Fixture fixture;
+  if(index==0) fixture.framebuffer.error={mister::ErrorCode::io_failed,"framebuffer unavailable"};
+  if(index==1) fixture.framebuffer.mode.stride=2564;
+  if(index==2) fixture.spi.fail_call_index=5;
+  if(index==3) fixture.spi.framebuffer_supported=false;
+  const auto result=fixture.video.BringUp("MENU",kDeadline);
+  ExpectFailure(fixture,result,"framebuffer");
+  assert(CountEvent(fixture.events,"i2c:read:0x42")==0);
+  assert(fixture.framebuffer.last_deadline==kDeadline);
+ }
+ ++scenarios;
+}
+
+void TestIdleEnablesFramebufferOnEveryBringup()
+{
+ Fixture fixture;
+ for (int iteration=0; iteration<2; ++iteration) {
+  const auto before=fixture.spi.calls.size();
+  assert(fixture.video.BringUp("MENU", kDeadline).error.ok());
+  bool enabled=false;
+  for (std::size_t i=before; i<fixture.spi.calls.size(); ++i) {
+   if(fixture.spi.calls[i].request[0]==0x002f) {
+    assert(fixture.spi.calls[i].request == std::vector<std::uint16_t>({0x002f,0x8016,0x1000,0x2200,640,480,0,1279,0,719,2560}));
+    enabled=true;
+   }
+  }
+  assert(enabled);
+ }
+ ++scenarios;
+}
+
 void TestSuccessUsesExactOrderWireRequestsDeadlineDiagnosticsAndLogs()
 {
 	Fixture fixture;
@@ -651,6 +701,7 @@ void TestSuccessUsesExactOrderWireRequestsDeadlineDiagnosticsAndLogs()
 		"i2c:select:/dev/i2c-1:0x39:0x41", "i2c:initialization",
 		"i2c:read:0x41", "spi:timing", "i2c:mode",
 		"spi:status_release", "i2c:hdmi_wake", "spi:buttons",
+  "spi:framebuffer",
 		"i2c:read:0x42",
 	};
 	assert(fixture.events == expected);
@@ -689,7 +740,7 @@ void TestSuccessUsesExactOrderWireRequestsDeadlineDiagnosticsAndLogs()
 	const std::vector<mister::LogRecord> records = fixture.log.records();
 	const std::vector<std::string> phases = {"core_sync", "core_reset", "core_probe",
 		"hdmi_init", "video_timing", "core_release", "hdmi_wake",
-		"core_input", "hdmi_verify"};
+		"core_input", "framebuffer", "hdmi_verify"};
 	assert(records.size() == phases.size());
 	for (std::size_t index = 0; index < records.size(); ++index) {
 		assert(records[index].operation == "start");
@@ -1176,6 +1227,8 @@ void TestFixedVideoRequiresBothHpdAndMonitorSenseBeforeReady()
 
 int main()
 {
+ TestIdleEnablesFramebufferOnEveryBringup();
+ TestFramebufferFailurePreventsIdleVerification();
 	TestQuiesceUsesOneReadModifyWriteWithTheCallerDeadline();
 	TestQuiesceFailureStopsAtTheExactBoundedAttempt();
 	TestFixedGameVideoNeutralizesGenericResetBeforeStatusRelease();

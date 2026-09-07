@@ -11,6 +11,7 @@
 #include "native/hardware.hpp"
 #include "native/input.hpp"
 #include "native/linux/fpga_manager.hpp"
+#include "native/linux/framebuffer.hpp"
 #include "native/linux/i2c.hpp"
 #include "native/linux/input.hpp"
 #include "native/linux/mmio.hpp"
@@ -131,8 +132,8 @@ class ProductionHardware final : public Hardware {
 public:
 	explicit ProductionHardware(LogSink& log)
 		: opener_(), mmio_(), clock_(), fpga_(mmio_, clock_),
-		  spi_(mmio_, clock_), core_(spi_), i2c_(clock_),
-		  idle_video_(core_, spi_, i2c_, clock_, log,
+		  spi_(mmio_, clock_), core_(spi_), i2c_(clock_), framebuffer_(clock_),
+		  idle_video_(core_, spi_, i2c_, framebuffer_, clock_, log,
 			  native::Menu720p60Recipe()),
 		  game_video_(spi_, i2c_, clock_, log, native::Menu720p60Recipe()),
 		  input_device_(clock_), timeouts_(),
@@ -165,6 +166,7 @@ private:
 	native::LinuxSpi spi_;
 	native::CoreLoader core_;
 	native::LinuxI2c i2c_;
+	native::LinuxFramebuffer framebuffer_;
 	native::MenuVideoBringup idle_video_;
 	native::FixedVideoBringup game_video_;
 	native::LinuxInput input_device_;

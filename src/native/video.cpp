@@ -4,6 +4,7 @@
 #include "native/video.hpp"
 
 #include "native/core_loader.hpp"
+#include "native/framebuffer.hpp"
 #include "native/hardware.hpp"
 #include "native/linux/i2c.hpp"
 #include "native/linux/spi.hpp"
@@ -197,8 +198,8 @@ VideoResult FixedVideoBringup::BringUp(std::uint64_t deadline)
 }
 
 MenuVideoBringup::MenuVideoBringup(CoreLoader& core, Spi& spi, I2c& i2c,
-	Clock& clock, LogSink& log, const VideoRecipe& recipe)
-	: core_(core), spi_(spi), i2c_(i2c), clock_(clock), log_(log),
+	Framebuffer& framebuffer, Clock& clock, LogSink& log, const VideoRecipe& recipe)
+	: core_(core), framebuffer_(framebuffer), spi_(spi), i2c_(i2c), clock_(clock), log_(log),
 	  recipe_(recipe) {}
 
 VideoQuiesceResult MenuVideoBringup::Quiesce(std::uint64_t deadline)
@@ -260,6 +261,26 @@ VideoResult MenuVideoBringup::BringUp(const std::string& expected_core,
 	error = spi_.Exchange(kUserIoTarget, kNeutralButtons, nullptr, deadline);
 	if (!error.ok()) return PhaseFailure("core_input", error, result);
 	PhaseSuccess("core_input", &result, log_);
+
+	FramebufferMode mode;
+	error = framebuffer_.Prepare(deadline, &mode);
+	if (error.ok()) error = ValidateMenuFramebuffer(mode);
+	if (!error.ok()) return PhaseFailure("framebuffer", error, result);
+	// Main's Linux framebuffer is at reserved DDR + one metadata page. RxB
+	// selects the driver's 32-bit little-endian RGB layout. Scale to fixed HDMI.
+	std::vector<std::uint16_t> response;
+	error = spi_.Exchange(kUserIoTarget, {0x002f, 0x8016,
+		static_cast<std::uint16_t>(mode.address),
+		static_cast<std::uint16_t>(mode.address >> 16),
+		static_cast<std::uint16_t>(mode.width), static_cast<std::uint16_t>(mode.height),
+		0, 1279, 0, 719, static_cast<std::uint16_t>(mode.stride)}, &response, deadline);
+	if (!error.ok()) return PhaseFailure("framebuffer", error, result);
+	if (response.empty() || response[0] == 0)
+		return PhaseFailure("framebuffer", {ErrorCode::io_failed,
+			"menu core does not support HPS framebuffer"}, result);
+	// Menu remains in the already released status0. Main's status helper
+	// shifts and masks its framebuffer argument, leaving bits[8:5] zero.
+	PhaseSuccess("framebuffer", &result, log_);
 
 	error = RequireLink(i2c_, clock_, deadline, &result);
 	if (!error.ok()) return PhaseFailure("hdmi_verify", error, result);
