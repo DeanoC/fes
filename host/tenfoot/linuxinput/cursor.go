@@ -51,6 +51,9 @@ func (c *Cursor) Apply(m Mapped) {
 		}
 		return
 	}
+	if m.Action == ActionConfirm {
+		return
+	}
 	switch m.Action {
 	case ActionLeft, ActionRight:
 		dir := 1

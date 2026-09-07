@@ -1,5 +1,6 @@
 // Package linuxinput is a CGO-free Linux evdev and joystick reader for the
-// tenfoot linuxfb spike. Parse and map helpers have no device dependency.
+// tenfoot linuxfb spike and cover-grid. Parse and map helpers have no
+// device dependency.
 package linuxinput
 
 import (
@@ -37,7 +38,7 @@ func (k Kind) String() string {
 	}
 }
 
-// Action is one spike command: move a highlight or quit.
+// Action is one spike or cover-grid command: move a highlight, confirm, or quit.
 type Action int
 
 const (
@@ -46,6 +47,7 @@ const (
 	ActionDown
 	ActionLeft
 	ActionRight
+	ActionConfirm
 	ActionQuit
 )
 
@@ -59,6 +61,8 @@ func (a Action) String() string {
 		return "left"
 	case ActionRight:
 		return "right"
+	case ActionConfirm:
+		return "confirm"
 	case ActionQuit:
 		return "quit"
 	default:
@@ -88,6 +92,8 @@ const (
 
 	keyEsc   uint16 = 1
 	keyQ     uint16 = 16
+	keyEnter uint16 = 28
+	keySpace uint16 = 57
 	keyUp    uint16 = 103
 	keyLeft  uint16 = 105
 	keyRight uint16 = 106
@@ -110,11 +116,12 @@ const (
 	absHat0X uint16 = 16
 	absHat0Y uint16 = 17
 
-	axisGate    int32 = 16000
-	jsAxisGate  int16 = 16384
-	jsQuitBtn7  uint8 = 7
-	jsQuitBtn9  uint8 = 9
-	jsQuitBtn11 uint8 = 11
+	axisGate      int32 = 16000
+	jsAxisGate    int16 = 16384
+	jsConfirmBtn0 uint8 = 0
+	jsQuitBtn7    uint8 = 7
+	jsQuitBtn9    uint8 = 9
+	jsQuitBtn11   uint8 = 11
 )
 
 // JS event type bits (linux/joystick.h).
@@ -214,6 +221,8 @@ func mapKey(code uint16, value int32) Mapped {
 	switch code {
 	case keyEsc, keyQ, btnStart, btnMode:
 		m = Mapped{Action: ActionQuit, Active: active}
+	case keyEnter, keySpace, btnSouth:
+		m = Mapped{Action: ActionConfirm, Active: active}
 	case keyUp, btnDpadUp:
 		m = Mapped{Action: ActionUp, Active: active}
 	case keyDown, btnDpadDn:
@@ -244,6 +253,8 @@ func mapAbs(code uint16, value int32) Mapped {
 
 func mapJSButton(number uint8, active bool) Mapped {
 	switch number {
+	case jsConfirmBtn0:
+		return Mapped{Action: ActionConfirm, Active: active}
 	case jsQuitBtn7, jsQuitBtn9, jsQuitBtn11:
 		return Mapped{Action: ActionQuit, Active: active}
 	default:

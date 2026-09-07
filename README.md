@@ -29,7 +29,10 @@ and content selection; the MiSTer is a small, directly controlled target.
   FPGA stub delegates to Software as a future 2D-accel placeholder; linuxfb
   rasters with Software and Present-blits onto a 32bpp Linux framebuffer
   (`make build-tenfoot-linuxfb-spike`, CGO-free ARMv7, no SDL; the spike
-  also reads evdev/joystick and moves a cursor). See
+  also reads evdev/joystick and moves a cursor). A sibling
+  `make build-tenfoot-linuxfb-grid` paints a fake cover-grid on the same
+  path (d-pad/stick highlight, South/Enter confirm, Start/ESC/Q quit; no
+  catalog). See
   [docs/native-tenfoot-launcher/README.md](docs/native-tenfoot-launcher/README.md).
 - A reproducible target image toolchain with a development image containing
   SSH and curl.

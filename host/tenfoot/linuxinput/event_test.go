@@ -92,8 +92,35 @@ func TestParseMapJSMoveAndQuit(t *testing.T) {
 	if MapJS(JSEventButton|JSEventInit, 7, 1).Action != ActionNone {
 		t.Fatal("js init")
 	}
-	if MapJS(JSEventButton, 0, 1).Action != ActionNone {
-		t.Fatal("js south is not quit")
+	south := MapJS(JSEventButton, 0, 1)
+	if south.Action != ActionConfirm || !south.Active {
+		t.Fatalf("js south %+v", south)
+	}
+	if MapJS(JSEventButton, 1, 1).Action != ActionNone {
+		t.Fatal("js east is unused")
+	}
+}
+
+func TestParseMapConfirm(t *testing.T) {
+	t.Parallel()
+	enter := MapEvdev(evKey, keyEnter, 1)
+	if enter.Action != ActionConfirm || !enter.Active {
+		t.Fatalf("enter %+v", enter)
+	}
+	space := MapEvdev(evKey, keySpace, 1)
+	if space.Action != ActionConfirm || !space.Active {
+		t.Fatalf("space %+v", space)
+	}
+	a := MapEvdev(evKey, btnSouth, 1)
+	if a.Action != ActionConfirm || !a.Active {
+		t.Fatalf("south %+v", a)
+	}
+	rel := MapEvdev(evKey, btnSouth, 0)
+	if rel.Action != ActionConfirm || rel.Active {
+		t.Fatalf("south release %+v", rel)
+	}
+	if ActionConfirm.String() != "confirm" {
+		t.Fatalf("string %s", ActionConfirm)
 	}
 }
 

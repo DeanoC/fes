@@ -54,12 +54,13 @@ in `host/tenfoot/sdl.go` until a later slice.
 | SDL3 | `gfx.WrapSDLRenderer` (`sdl3.go`, `-tags sdl3`) | Default production path. Wraps the process `SDL_Renderer` with `SDL_LOGICAL_PRESENTATION_LETTERBOX` and VSync. |
 | Software | `gfx.NewSoftware` (`software.go`) | Pure-Go RGBA8 rasterizer for tests and CI (no cgo, no SDL). Nearest-neighbour blit; `Snapshot` for golden pixels. |
 | FPGA stub | `gfx.NewFPGAStub` (`fpga.go`) | Placeholder for a future MiSTer custom 2D accelerator. Delegates to Software; `BackendName` / `IsStub`. Does not talk to kit, runtime, or RBF. |
-| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`linuxfb.go`) | Software rasterizer; `Present` blits onto a 32bpp Linux framebuffer (`/dev/fb0`) with stride and BGRX. Kit spike: `make build-tenfoot-linuxfb-spike` (`CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7`, no SDL3 tag). The spike reads `/dev/input/event*` and `js*` through `host/tenfoot/linuxinput` (pure Go evdev/js) and moves a cursor; Start/ESC/Q (JS button 7/9) quits. |
+| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`linuxfb.go`) | Software rasterizer; `Present` blits onto a 32bpp Linux framebuffer (`/dev/fb0`) with stride and BGRX. Kit spike: `make build-tenfoot-linuxfb-spike` (`CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7`, no SDL3 tag). The spike reads `/dev/input/event*` and `js*` through `host/tenfoot/linuxinput` (pure Go evdev/js) and moves a cursor; Start/ESC/Q (JS button 7/9) quits. Fake cover-grid: `make build-tenfoot-linuxfb-grid` (`cmd/tenfoot-linuxfb-grid`) on the same path with hardcoded tiles; d-pad/stick moves highlight, South/Enter/JS 0 confirms, Start/ESC/Q quits. |
 
 `gfx.Recorder` is a call-order test double and does not draw pixels. Optional
 `TENFOOT_GFX=software|sdl|fpga-stub` (or `Options.GFX`) selects a Device
 inside the SDL window shell; unset keeps WrapSDLRenderer. `linuxfb` is not
-opened from that shell; run `cmd/tenfoot-linuxfb-spike` on the kit.
+opened from that shell; run `cmd/tenfoot-linuxfb-spike` or
+`cmd/tenfoot-linuxfb-grid` on the kit.
 
 ## Run
 

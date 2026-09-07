@@ -98,3 +98,13 @@ func TestCursorIgnoresNone(t *testing.T) {
 		t.Fatal("none mutated")
 	}
 }
+
+func TestCursorIgnoresConfirm(t *testing.T) {
+	t.Parallel()
+	c := NewCursor(100, 100, 8, 8)
+	x, y := c.X, c.Y
+	c.Apply(Mapped{Action: ActionConfirm, Active: true, Source: "a"})
+	if c.X != x || c.Y != y || c.Quit {
+		t.Fatal("confirm moved cursor")
+	}
+}
