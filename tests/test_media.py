@@ -38,7 +38,8 @@ class FakeRunner:
         config = inputs.agent_config.read_bytes() if inputs.agent_config else b''
         self.snapshot = config
         image = output / 'fes.img'
-        image.write_bytes(inputs.rootfs.read_bytes() + config)
+        image.write_bytes(inputs.rootfs.read_bytes() + config +
+            (b'\0LAUNCHER\0' + inputs.launcher_config.read_bytes() if inputs.launcher_config else b''))
         sha = cold_build.digest(image)
         config_sha = hashlib.sha256(config).hexdigest() if inputs.agent_config else None
         write_manifest(output / 'fes-media.toml', manifest_data(image, inputs, lock, config_sha, [sha, sha]))
@@ -58,7 +59,11 @@ class FakeRunner:
         destination.write_bytes(b'rootfs')
 
     def extract_config(self, generation, destination):
-        destination.write_bytes((generation / 'fes.img').read_bytes()[len(b'rootfs'):])
+        destination.write_bytes((generation / 'fes.img').read_bytes()[len(b'rootfs'):].split(b'\0LAUNCHER\0')[0])
+        destination.chmod(0o600)
+
+    def extract_launcher_config(self, generation, destination):
+        destination.write_bytes((generation / 'fes.img').read_bytes().split(b'\0LAUNCHER\0')[1])
         destination.chmod(0o600)
 
     def child_verify(self, fogcast, staged, env):
@@ -176,6 +181,24 @@ class MediaTests(unittest.TestCase):
         evidence = (result.generation / 'media.json').read_text()
         self.assertIn(hashlib.sha256(expected).hexdigest(), evidence)
         self.assertNotIn('auto-token', result.manifest_text + evidence)
+
+    def test_launcher_receipt_refresh_preserves_embedded_pair(self):
+        import prepare_launcher
+        host = self.root / 'config.toml'
+        media.write_private(host, b'token="agent-secret"\ntarget_id="73dc9f5f-1a12-4a95-a820-a9b4e600769a"\n')
+        _, kit = prepare_launcher.prepare(host, 'host.example')
+        secret = json.loads(kit.read_text())['token']
+        with patch.dict(os.environ, {'FES_HOST_CONFIG': str(host), 'CI': '', 'FES_UNPROVISIONED': ''}):
+            first = media.build(self.root, runner=self.runner, auto_agent_config=True)
+            self.assertNotIn(secret, (first.generation / 'media.json').read_text())
+            self.assertNotIn(secret, (first.generation / 'fes-media.toml').read_text())
+            self.assertEqual(media.verify(self.root, runner=self.runner).generation, first.generation)
+            kit.unlink()
+            with patch.object(media, 'recipe_fingerprint', return_value={'scripts/media.py': 'refreshed recipe'}):
+                refreshed = media.verify(self.root, runner=self.runner)
+                self.assertEqual(first.image.read_bytes(), refreshed.image.read_bytes())
+                self.assertNotEqual(first.generation, refreshed.generation)
+                self.assertEqual(media.verify(self.root, runner=self.runner).generation, refreshed.generation)
 
     def test_termination_after_current_replace_restores_previous_selection(self):
         for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):

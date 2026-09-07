@@ -376,6 +376,23 @@ class RealImageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "config"):
             media_inside.verify_image(image, manifest, self.payloads, self.lock, "0" * 64)
 
+    def test_launcher_payload_closed_paths_and_digest(self):
+        scratch = Path(self.scratch.name)
+        config = scratch / 'agent.toml'
+        config.write_bytes(b'token="agent-test-token"\n')
+        launcher = scratch / 'launcher.json'
+        launcher.write_bytes(b'{"token":"private-launcher-secret"}\n')
+        inputs = dataclasses.replace(self.payloads, agent_config=config,
+            launcher_config=launcher, launcher_config_sha256=digest(launcher))
+        image, manifest = media_inside.assemble(scratch / 'launcher-media', inputs, self.lock)
+        self.assertNotIn('private-launcher-secret', manifest.read_text())
+        verified = dataclasses.replace(inputs, agent_config=None, launcher_config=None)
+        result = media_inside.verify_image(image, manifest, verified, self.lock, digest(config))
+        self.assertIn('/fogcast/launcher.json', result.paths)
+        with self.assertRaises(ValueError):
+            media_inside.verify_image(image, manifest, dataclasses.replace(verified,
+                launcher_config_sha256='0' * 64), self.lock, digest(config))
+
     def test_idle_must_match_embedded_rootfs(self):
         wrong = Path(self.scratch.name) / "wrong.rbf"
         wrong.write_bytes(b"wrong")
