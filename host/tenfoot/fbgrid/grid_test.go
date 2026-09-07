@@ -3,6 +3,7 @@ package fbgrid
 import (
 	"testing"
 
+	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/linuxinput"
 )
 
@@ -26,6 +27,22 @@ func TestLayout640x480(t *testing.T) {
 	_, _, ok = g.CellOrigin(12)
 	if ok {
 		t.Fatal("tile 12")
+	}
+}
+
+func TestNewWithTilesRelayoutsAndCopies(t *testing.T) {
+	t.Parallel()
+	tiles := []Tile{
+		{Name: "ONE", Color: gfx.RGB(1, 2, 3)},
+		{Name: "TWO", Color: gfx.RGB(4, 5, 6)},
+	}
+	g := NewWithTiles(640, 480, tiles)
+	if g.count() != len(tiles) || g.CellW < 100 || g.CellH < 250 {
+		t.Fatalf("tiles=%d cell=%dx%d", g.count(), g.CellW, g.CellH)
+	}
+	tiles[0].Name = "mutated"
+	if g.Tiles[0].Name != "ONE" {
+		t.Fatalf("constructor retained caller slice: %q", g.Tiles[0].Name)
 	}
 }
 

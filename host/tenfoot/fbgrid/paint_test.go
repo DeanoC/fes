@@ -1,6 +1,7 @@
 package fbgrid
 
 import (
+	"bytes"
 	"image/color"
 	"testing"
 
@@ -77,6 +78,29 @@ func TestPaintFocusAndConfirm(t *testing.T) {
 	p := snap.RGBAAt(sx+g.CellW/2, sy+g.CellH/2)
 	if p != (color.RGBA{255, 255, 255, 255}) {
 		t.Fatalf("flash rgba %+v", p)
+	}
+}
+
+func TestPaintUsesOptionalHeaderAndFooter(t *testing.T) {
+	t.Parallel()
+	const w, h = 320, 240
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 1280, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	g := NewWithTiles(w, h, []Tile{{Name: "ONE", Color: gfx.RGB(20, 30, 40)}})
+	Paint(d, g)
+	d.Present()
+	defaultPixels := d.Snapshot().Pix
+	g.Header = "HEADER"
+	g.Footer = "FOOTER"
+	Paint(d, g)
+	d.Present()
+	if bytes.Equal(defaultPixels, d.Snapshot().Pix) {
+		t.Fatal("optional header/footer did not affect paint")
 	}
 }
 

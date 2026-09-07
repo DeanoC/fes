@@ -1,6 +1,6 @@
-// Package fbgrid is a fake cover-grid for the CGO-free linuxfb kit binary.
-// Titles and colours are hardcoded. There is no host API, catalog, or
-// /media/fat scan.
+// Package fbgrid contains the small cover-grid primitive used by CGO-free
+// linuxfb applications. New uses a deterministic fixture for the standalone
+// spike; NewWithTiles lets an application provide its own catalog rows.
 package fbgrid
 
 import (
@@ -56,6 +56,8 @@ func FakeTiles() []Tile {
 // the confirm flash.
 type Grid struct {
 	Tiles        []Tile
+	Header       string
+	Footer       string
 	Columns      int
 	Width        int
 	Height       int
@@ -101,6 +103,16 @@ func New(w, h int) Grid {
 		Border:       border,
 		ConfirmIndex: -1,
 	}
+	g.layout()
+	return g
+}
+
+// NewWithTiles lays out caller-supplied tiles for a w×h framebuffer. The
+// slice is copied so a catalog refresh cannot mutate a grid while it is being
+// painted.
+func NewWithTiles(w, h int, tiles []Tile) Grid {
+	g := New(w, h)
+	g.Tiles = append([]Tile(nil), tiles...)
 	g.layout()
 	return g
 }

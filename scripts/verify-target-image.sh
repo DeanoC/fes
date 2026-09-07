@@ -110,6 +110,7 @@ verify_root() {
 /usr/bin/busybox
 /usr/bin/readlink
 /usr/sbin/mister-runtime
+/usr/sbin/fogcast-kit
 /usr/sbin/mister-agent
 /usr/share/mister-runtime/idle.rbf
 /usr/share/mister-runtime/cores/megadrive.rbf
@@ -117,7 +118,8 @@ verify_root() {
 /etc/init.d/S20mister-network
 /etc/init.d/S40mister-runtime
 /etc/init.d/S49fogcast-target-smoke
-/etc/init.d/S50mister-agent'
+/etc/init.d/S50mister-agent
+/etc/init.d/S60fogcast-kit'
   else
     required_paths='/sbin/init
 /usr/bin/busybox
@@ -179,6 +181,15 @@ EOF
     }
     [ ! -e "$root/usr/sbin/mister-disable-menu-blanking" ] || {
       printf '%s\n' 'verify-target-image: native image contains the legacy Menu configuration helper' >&2
+      exit 1
+    }
+    [ -x "$root/usr/sbin/fogcast-kit" ] && [ -x "$root/etc/init.d/S60fogcast-kit" ] || {
+      printf '%s\n' 'verify-target-image: launcher binary and init must be executable' >&2
+      exit 1
+    }
+    cmp "$root/etc/init.d/S60fogcast-kit" \
+      "$repo/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S60fogcast-kit" || {
+      printf '%s\n' 'verify-target-image: launcher init differs from selected service' >&2
       exit 1
     }
     native_runtime_service=$root/etc/init.d/S40mister-runtime
@@ -316,6 +327,7 @@ EOF
       printf 'format=1\n'
       printf 'mister_runtime_commit=%s\n' "$(read_native_lock_value mister_runtime commit)"
       printf 'mister_agent_sha256=%s\n' "$(sha256sum "$root/usr/sbin/mister-agent" | awk '{print $1}')"
+      printf 'fogcast_kit_sha256=%s\n' "$(sha256sum "$root/usr/sbin/fogcast-kit" | awk '{print $1}')"
       printf 'idle_repository=%s\n' "$(read_native_lock_value idle_rbf repository)"
       printf 'idle_commit=%s\n' "$(read_native_lock_value idle_rbf commit)"
       printf 'idle_path=%s\n' "$(read_native_lock_value idle_rbf path)"
@@ -429,6 +441,13 @@ EOF
   fi
 
   if [ "$variant" = native-dev ]; then
+    launcher_type=$(file "$root/usr/sbin/fogcast-kit")
+    printf '%s\n' "$launcher_type" | grep -Eq 'ELF 32-bit.*ARM.*EABI5'
+    printf '%s\n' "$launcher_type" | grep -Fq 'statically linked'
+    printf '%s\n' "$launcher_type" | grep -Fq 'stripped'
+    launcher_header=$(readelf -h "$root/usr/sbin/fogcast-kit")
+    printf '%s\n' "$launcher_header" | grep -Eq 'Class:[[:space:]]+ELF32'
+    printf '%s\n' "$launcher_header" | grep -Eq 'Machine:[[:space:]]+ARM'
     runtime=$root/usr/sbin/mister-runtime
     runtime_type=$(file "$runtime")
     printf '%s\n' "$runtime_type" | grep -Eq 'ELF 32-bit.*ARM.*EABI5'

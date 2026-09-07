@@ -485,3 +485,19 @@ separate from runtime/game state. Busy responses include the public owner label.
 The browser and tenfoot target views show this state. Manual addresses remain
 usable where multicast is unavailable. This path has host/fake-peer regression
 coverage; physical reboot and DHCP acceptance belongs to the selected FES image.
+
+## Native kit launcher
+
+The native image packages `fogcast-kit`, a CGO-free controller/session adapter
+with a live 4×3 catalog grid renderer. A paired, authenticated host listener
+serves a restricted set of existing library and session operations and a
+session-bound input stream. The host keeps target and input lease ownership; the
+adapter sends physical USB events through that stream to the retained virtual
+pad. The native runtime enables the idle framebuffer and restores it after Stop.
+The launcher only paints memory and suspends rendering during gameplay; the
+grid consumes `kitlauncher.Model` and does not own those transitions.
+
+See [kit adapter](kit-launcher.md) and [host connection contract](launcher-host.md)
+for setup, controls, exact routes, timeouts and ownership. The existing browser
+listener remains loopback-only. The SDL sofa layout and the kit grid are separate
+renderers over the same session model and do not own physical transitions.

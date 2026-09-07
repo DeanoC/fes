@@ -24,7 +24,7 @@ else
 NATIVE_GO_ENV =
 endif
 
-.PHONY: fmt test test-ui test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-cgo-env tenfoot-smoke build-tenfoot-linuxfb-spike build-tenfoot-linuxfb-grid build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-agent build-bridge build-target-image-lock build-target-image-lock-container target-image-resolve target-image-fetch target-image-test target-images target-image-dev target-image-verify target-image-qemu-smoke target-image-native-fetch target-image-native target-image-native-verify target-image-native-qemu-smoke target-image-deploy target-smoke target-native-smoke target-kernel-test target-kernel target-kernel-verify
+.PHONY: fmt test test-ui test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-cgo-env tenfoot-smoke build-tenfoot-linuxfb-spike build-tenfoot-linuxfb-grid build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-fogcast-kit build-agent build-bridge build-target-image-lock build-target-image-lock-container target-image-resolve target-image-fetch target-image-test target-images target-image-dev target-image-verify target-image-qemu-smoke target-image-native-fetch target-image-native target-image-native-verify target-image-native-qemu-smoke target-image-deploy target-smoke target-native-smoke target-kernel-test target-kernel target-kernel-verify
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
@@ -37,6 +37,7 @@ test: build-agent test-ui
 	sh scripts/tests/native-megadrive-support-truth_test.sh
 	sh scripts/tests/native-development-rbf-support-truth_test.sh
 	sh scripts/tests/target-image-sources_test.sh
+	sh scripts/tests/kit-init_test.sh
 	sh scripts/tests/target-image-rootfs_test.sh
 	sh scripts/tests/target-image_test.sh
 	sh scripts/tests/target-image-dev_test.sh
@@ -130,7 +131,11 @@ build-remote-play-audiobridge:
 	mkdir -p bin
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/remote-play-audiobridge ./cmd/remote-play-audiobridge
 
-build-agent:
+build-fogcast-kit:
+	mkdir -p bin
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/fogcast-kit-linux-armv7 ./cmd/fogcast-kit
+
+build-agent: build-fogcast-kit
 	mkdir -p bin
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/mister-agent-linux-armv7 ./cmd/mister-agent
 
@@ -157,6 +162,7 @@ target-image-fetch: build-target-image-lock-container build-agent
 	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-target-image.sh --fetch dev
 
 target-image-test:
+	sh scripts/tests/kit-init_test.sh
 	sh scripts/tests/target-image_test.sh
 
 target-images: build-agent target-image-fetch

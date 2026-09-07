@@ -2,6 +2,8 @@
 set -eu
 
 target=${1:?TARGET_DIR is required}
+repo=$(CDPATH='' cd -- "$(dirname "$0")/../../.." && pwd)
+launcher=$repo/bin/fogcast-kit-linux-armv7
 lock=${NATIVE_RUNTIME_INPUT_LOCK:-/work/build/native-runtime.inputs.lock.toml}
 idle_input=${NATIVE_RUNTIME_IDLE_FILE:-/work/build/cache/target-image/native/idle.rbf}
 megadrive_input=${NATIVE_RUNTIME_MEGADRIVE_FILE:-/work/build/cache/target-image/native/megadrive.rbf}
@@ -64,6 +66,12 @@ target=$(CDPATH='' cd -- "$target" && pwd -P)
   printf '%s\n' 'native-post-build: mister-agent is missing or not executable' >&2
   exit 1
 }
+
+[ -f "$launcher" ] && [ ! -L "$launcher" ] && [ -x "$launcher" ] || {
+  printf '%s\n' 'native-post-build: run make build-fogcast-kit before image assembly' >&2
+  exit 1
+}
+/usr/bin/install -m 0755 "$launcher" "$target/usr/sbin/fogcast-kit"
 
 runtime_commit=$(read_lock_value mister_runtime commit)
 idle_repository=$(read_lock_value idle_rbf repository)
@@ -235,7 +243,8 @@ installed_megadrive=$target/usr/share/mister-runtime/cores/megadrive.rbf
 [ "$(/usr/bin/sha256sum "$installed_megadrive" | /usr/bin/awk '{print $1}')" = "$selection_sha" ]
 [ "$(/usr/bin/wc -c < "$installed_megadrive" | /usr/bin/tr -d ' ')" = "$selection_size" ]
 /bin/chmod 0755 "$target/etc/init.d/S40mister-runtime" \
-  "$target/etc/init.d/S50mister-agent"
+  "$target/etc/init.d/S50mister-agent" \
+  "$target/etc/init.d/S60fogcast-kit"
 
 build_inputs="$target/usr/share/mister-runtime/build-inputs"
 mister_agent_sha=$(/usr/bin/sha256sum "$target/usr/sbin/mister-agent" | /usr/bin/awk '{print $1}')
@@ -243,6 +252,7 @@ mister_agent_sha=$(/usr/bin/sha256sum "$target/usr/sbin/mister-agent" | /usr/bin
   printf 'format=1\n'
   printf 'mister_runtime_commit=%s\n' "$runtime_commit"
   printf 'mister_agent_sha256=%s\n' "$mister_agent_sha"
+  printf 'fogcast_kit_sha256=%s\n' "$(/usr/bin/sha256sum "$target/usr/sbin/fogcast-kit" | /usr/bin/awk '{print $1}')"
   printf 'idle_repository=%s\n' "$idle_repository"
   printf 'idle_commit=%s\n' "$idle_commit"
   printf 'idle_path=%s\n' "$idle_path"

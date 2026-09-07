@@ -887,10 +887,20 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 	flags.SetOutput(stderr)
 	listen := flags.String("listen", "127.0.0.1:8787", "loopback HTTP listen address")
 	configPath := flags.String("config", "", "FogCast configuration path")
+	launcherPath := flags.String("launcher-config", "", "private JSON configuration for the optional paired-kit listener")
 	metadataConfigPath := flags.String("metadata-config", "", "FogCast configuration path supplying the metadata section")
 	previewCaptureDevice := flags.String("preview-capture-device", "", "local capture device shown in the FPGA Play surface")
 	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
 		return 2
+	}
+	var launcherConfig *launcherListenerConfig
+	if *launcherPath != "" {
+		parsed, err := loadLauncherConfig(*launcherPath)
+		if err != nil {
+			fmt.Fprintln(stderr, "fogcast-api: launcher configuration load failed")
+			return 2
+		}
+		launcherConfig = &parsed
 	}
 	address, err := normalizeListenAddress(*listen)
 	if err != nil {
@@ -913,6 +923,13 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 	if err != nil {
 		fmt.Fprintln(stderr, "fogcast-api: configuration load failed")
 		return 1
+	}
+	if launcherConfig != nil {
+		if launcherConfig.Token == config.Token {
+			fmt.Fprintln(stderr, "fogcast-api: launcher requires a separate credential")
+			return 2
+		}
+		config.RemoteInput.Enabled = true
 	}
 	applyPreviewCaptureDevice(&config, *previewCaptureDevice)
 	config.MetadataRoot = paths.MetadataRoot
@@ -961,7 +978,26 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 		IdleTimeout:    30 * time.Second,
 		MaxHeaderBytes: 16 << 10,
 	}
-	serveErrors := make(chan error, 1)
+	defer server.Close()
+	serveErrors := make(chan error, 2)
+	var launcherServer *http.Server
+	if launcherConfig != nil {
+		launcherHandler, err := hostapi.NewLauncherHandler(handler, launcherConfig.LauncherConfig)
+		if err != nil {
+			fmt.Fprintln(stderr, "fogcast-api: launcher composition failed")
+			return 1
+		}
+		launcherListener, err := net.Listen("tcp", launcherConfig.Listen)
+		if err != nil {
+			fmt.Fprintln(stderr, "fogcast-api: launcher listen failed")
+			return 1
+		}
+		defer launcherListener.Close()
+		launcherServer = &http.Server{Handler: launcherHandler, BaseContext: func(net.Listener) context.Context { return ctx }, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
+		defer launcherServer.Close()
+		go func() { serveErrors <- launcherServer.Serve(launcherListener) }()
+		fmt.Fprintf(stdout, "FogCast launcher listening on http://%s\n", launcherListener.Addr())
+	}
 	go func() { serveErrors <- server.Serve(listener) }()
 	fmt.Fprintf(stdout, "FogCast API listening on http://%s\n", listener.Addr())
 
@@ -969,6 +1005,12 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 	case <-ctx.Done():
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+		if launcherServer != nil {
+			if err := launcherServer.Shutdown(shutdownCtx); err != nil {
+				fmt.Fprintln(stderr, "fogcast-api: launcher shutdown failed")
+				return 1
+			}
+		}
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			fmt.Fprintln(stderr, "fogcast-api: shutdown failed")
 			return 1

@@ -206,7 +206,7 @@ mkdir -p "$fake_bin"
 cat > "$fake_bin/file" <<'EOF'
 #!/bin/sh
 case "$*" in
-  *mister-agent*) printf '%s\n' 'ELF 32-bit LSB executable, ARM, EABI5 version 1 (SYSV), statically linked, stripped' ;;
+  *mister-agent*|*fogcast-kit*) printf '%s\n' 'ELF 32-bit LSB executable, ARM, EABI5 version 1 (SYSV), statically linked, stripped' ;;
   *mister-runtime*) printf '%s\n' 'ELF 32-bit LSB pie executable, ARM, EABI5 version 1 (SYSV), dynamically linked, stripped' ;;
   *) /usr/bin/file "$@" ;;
 esac
@@ -367,6 +367,9 @@ case "${1:-start}" in
 esac
 EOF
     chmod 0755 "$root/etc/init.d/S40mister-runtime" "$root/etc/init.d/S50mister-agent"
+    cp "$repo/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S60fogcast-kit" "$root/etc/init.d/S60fogcast-kit"
+    : > "$root/usr/sbin/fogcast-kit"
+    chmod 0755 "$root/usr/sbin/fogcast-kit"
     : > "$root/usr/sbin/mister-runtime"
     chmod 0755 "$root/usr/sbin/mister-runtime"
     mkdir -p "$root/usr/share/mister-runtime"
@@ -380,6 +383,7 @@ EOF
 format=1
 mister_runtime_commit=$synthetic_runtime_commit
 mister_agent_sha256=$synthetic_agent_sha
+fogcast_kit_sha256=$synthetic_agent_sha
 idle_repository=https://fixture.invalid/fogcast/synthetic-idle
 idle_commit=$synthetic_idle_commit
 idle_path=synthetic-idle.rbf

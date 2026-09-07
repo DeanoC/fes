@@ -484,7 +484,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 		defer opened.Reader.Close()
 		librarymediaServe(w, r, opened)
 	})
-	return noStore(rejectUnexpectedHost(mux))
+	return &applicationHandler{browser: noStore(rejectUnexpectedHost(mux)), routes: mux, service: service, remoteInput: config.remoteInput}
 }
 
 func rejectUnexpectedHost(next http.Handler) http.Handler {

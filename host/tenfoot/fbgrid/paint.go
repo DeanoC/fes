@@ -14,7 +14,11 @@ func Paint(d gfx.Device, g Grid) {
 	d.BeginFrame()
 	d.Clear(bg)
 	d.SetBlend(gfx.BlendNone)
-	d.DebugText(16, 10, "FOGCAST GRID", 2)
+	header := g.Header
+	if header == "" {
+		header = "FOGCAST GRID"
+	}
+	d.DebugText(16, 10, header, 2)
 	for i, tile := range g.Tiles {
 		x, y, ok := g.CellOrigin(i)
 		if !ok {
@@ -46,7 +50,10 @@ func Paint(d gfx.Device, g Grid) {
 		}
 		d.DebugText(x+4, labelY, tile.Name, 1)
 	}
-	status := g.Status()
+	status := g.Footer
+	if status == "" {
+		status = g.Status()
+	}
 	sy := g.Height - 22
 	if sy < 0 {
 		sy = 0

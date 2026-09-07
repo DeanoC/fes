@@ -12,6 +12,7 @@ import (
 	"io"
 	"net"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -100,9 +101,11 @@ type RemoteInputMetrics struct {
 }
 
 type RemoteInputStatus struct {
-	State   RemoteInputState   `json:"state"`
-	Ready   bool               `json:"ready"`
-	Metrics RemoteInputMetrics `json:"metrics"`
+	SessionID string             `json:"session_id,omitempty"`
+	Source    string             `json:"source,omitempty"`
+	State     RemoteInputState   `json:"state"`
+	Ready     bool               `json:"ready"`
+	Metrics   RemoteInputMetrics `json:"metrics"`
 }
 
 type RemoteInputConfig struct {
@@ -123,19 +126,21 @@ type RemoteInput struct {
 	random    io.Reader
 	now       func() time.Time
 
-	state           RemoteInputState
-	ready           bool
-	closed          bool
-	bridge          BridgeHandle
-	conn            net.Conn
-	reader          *bufio.Reader
-	heartbeatCancel context.CancelFunc
-	session         uint64
-	token           []byte
-	core            string
-	sequence        uint32
-	inputState      remoteinput.State
-	metrics         remoteInputCounters
+	state            RemoteInputState
+	ready            bool
+	closed           bool
+	bridge           BridgeHandle
+	conn             net.Conn
+	reader           *bufio.Reader
+	heartbeatCancel  context.CancelFunc
+	session          uint64
+	token            []byte
+	core             string
+	sequence         uint32
+	inputState       remoteinput.State
+	source           string
+	sourceGeneration uint64
+	metrics          remoteInputCounters
 }
 
 type remoteInputCounters struct {
@@ -210,6 +215,8 @@ func (r *RemoteInput) Attach(ctx context.Context, core string) error {
 	if err != nil {
 		return ErrRemoteInputInvalid
 	}
+	r.source = ""
+	r.sourceGeneration++
 	r.state = RemoteInputStarting
 	r.ready = false
 	r.metrics = remoteInputCounters{}
@@ -288,6 +295,20 @@ func (r *RemoteInput) SendEvent(ctx context.Context, event remoteinput.Event, ca
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.source != "" && r.source != "desktop" {
+		return ErrRemoteInputBusy
+	}
+	if r.closed {
+		return ErrRemoteInputClosed
+	}
+	if r.state != RemoteInputAttached && r.state != RemoteInputReconnecting {
+		return ErrRemoteInputInvalid
+	}
+	r.source = "desktop"
+	return r.sendEventLocked(ctx, event, capturedAt)
+}
+
+func (r *RemoteInput) sendEventLocked(ctx context.Context, event remoteinput.Event, capturedAt time.Time) error {
 	if r.closed {
 		return ErrRemoteInputClosed
 	}
@@ -363,8 +384,10 @@ func (r *RemoteInput) RecordRTT(duration time.Duration) {
 
 func (r *RemoteInput) statusLocked() RemoteInputStatus {
 	return RemoteInputStatus{
-		State: r.state,
-		Ready: r.ready,
+		State:     r.state,
+		Ready:     r.ready,
+		SessionID: r.sessionIDLocked(),
+		Source:    r.source,
 		Metrics: RemoteInputMetrics{
 			FramesSent:               r.metrics.framesSent,
 			StateResyncs:             r.metrics.stateResyncs,
@@ -693,6 +716,8 @@ func (r *RemoteInput) detachLocked(ctx context.Context, reason string) {
 	r.closeConnLocked()
 	r.stopBridgeLocked(ctx)
 	r.inputState.ReleaseAll()
+	r.source = ""
+	r.sourceGeneration++
 	r.session = 0
 	r.token = nil
 	r.core = ""
@@ -807,6 +832,8 @@ func (r *RemoteInput) Invalidate() {
 	r.bridge = nil
 	r.closeConnLocked()
 	r.inputState.ReleaseAll()
+	r.source = ""
+	r.sourceGeneration++
 	r.session = 0
 	r.token = nil
 	r.core = ""
@@ -814,4 +841,86 @@ func (r *RemoteInput) Invalidate() {
 	r.ready = false
 	r.state = RemoteInputDetached
 	r.metrics.shutdownReason = "target_changed"
+}
+
+// RemoteInputSource binds one input producer to one bridge attachment. Its
+// generation prevents a delayed close or event affecting a replacement source.
+type RemoteInputEventSource interface {
+	Check() error
+	SendEvent(context.Context, remoteinput.Event, time.Time) error
+	Close() error
+}
+
+type RemoteInputSource struct {
+	owner      *RemoteInput
+	session    uint64
+	generation uint64
+}
+
+func (r *RemoteInput) sessionIDLocked() string {
+	if r.session == 0 || (r.state != RemoteInputAttached && r.state != RemoteInputReconnecting) {
+		return ""
+	}
+	return strconv.FormatUint(r.session, 16)
+}
+
+func (r *RemoteInput) ClaimSource(sessionID string) (RemoteInputEventSource, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed || sessionID == "" || sessionID != r.sessionIDLocked() {
+		return nil, ErrRemoteInputInvalid
+	}
+	if r.source != "" {
+		return nil, ErrRemoteInputBusy
+	}
+	r.sourceGeneration++
+	r.source = "launcher"
+	return &RemoteInputSource{owner: r, session: r.session, generation: r.sourceGeneration}, nil
+}
+
+func (s *RemoteInputSource) validLocked() bool {
+	r := s.owner
+	return !r.closed && r.session == s.session && r.sourceGeneration == s.generation && r.source == "launcher" && (r.state == RemoteInputAttached || r.state == RemoteInputReconnecting)
+}
+
+func (s *RemoteInputSource) Check() error {
+	s.owner.mu.Lock()
+	defer s.owner.mu.Unlock()
+	if !s.validLocked() {
+		return ErrRemoteInputInvalid
+	}
+	return nil
+}
+
+func (s *RemoteInputSource) SendEvent(ctx context.Context, event remoteinput.Event, capturedAt time.Time) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	r := s.owner
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !s.validLocked() {
+		return ErrRemoteInputInvalid
+	}
+	return r.sendEventLocked(ctx, event, capturedAt)
+}
+
+// Close drops the authenticated bridge transport: the bridge releases every
+// held control on disconnect. Clear the local snapshot before a later producer
+// can reconnect, so no held state from this source is replayed.
+func (s *RemoteInputSource) Close() error {
+	r := s.owner
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !s.validLocked() {
+		return nil
+	}
+	r.closeConnLocked()
+	r.inputState.ReleaseAll()
+	r.source = ""
+	r.sourceGeneration++
+	r.state = RemoteInputReconnecting
+	r.ready = false
+	r.metrics.releases++
+	return nil
 }

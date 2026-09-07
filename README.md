@@ -55,6 +55,17 @@ The normal FPGA launch path is:
 5. FogCast observes `/tmp/CORENAME` for the active core. Stopping sends
    `load_core <menu.rbf>` through the same command path.
 
+## On-kit controller launcher
+
+The native image packages the CGO-free `fogcast-kit` adapter for the kit HDMI
+display and USB controller. It uses an explicitly paired host listener and the
+existing session/input ownership path; Select + Start held for one second requests
+Stop and returns to the library. Its live catalog is rendered as a small 4×3
+cover grid through `host/tenfoot/fbgrid`; the grid is a view of
+`kitlauncher.Model` and does not own host requests, input leases, or FPGA
+transitions. See [kit launcher](docs/kit-launcher.md). Exact image and hardware
+evidence belong to FES.
+
 ## Built-in native Pong (software integration)
 
 Pong appears in the host catalog as game ID `pong` without adding a library or

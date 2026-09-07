@@ -448,6 +448,9 @@ NATIVE_RUNTIME_INPUT_LOCK=$native_lock \
 NATIVE_RUNTIME_IDLE_FILE=$native_cache/idle.rbf \
 NATIVE_RUNTIME_MEGADRIVE_FILE=$native_cache/megadrive.rbf \
   "$native_post_build" "$native_target"
+cmp "$repo/bin/fogcast-kit-linux-armv7" "$native_target/usr/sbin/fogcast-kit"
+test -x "$native_target/etc/init.d/S60fogcast-kit"
+grep -Fqx "fogcast_kit_sha256=$(sha256sum "$repo/bin/fogcast-kit-linux-armv7" | awk '{print $1}')" "$native_target/usr/share/mister-runtime/build-inputs"
 cmp "$native_cache/idle.rbf" "$native_target/usr/share/mister-runtime/idle.rbf"
 cmp "$native_cache/megadrive.rbf" "$native_target/usr/share/mister-runtime/cores/megadrive.rbf"
 test "$(stat -c %a "$native_target/usr/share/mister-runtime/idle.rbf")" = 644
