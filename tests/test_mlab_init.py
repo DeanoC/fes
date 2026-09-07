@@ -34,8 +34,9 @@ class MlabInitLadderTests(unittest.TestCase):
         self.assertEqual(len(re.findall(r"\bcyclonev_hps_interface_mpu_general_purpose\b", rtl)), 1)
         self.assertIn("16'hD417", rtl)
         self.assertIn('ramstyle = "mlab"', rtl)
-        self.assertIn("`ifdef VERILATOR", rtl)
+        self.assertNotIn("`ifdef VERILATOR", rtl)
         self.assertIn("8'hA6", rtl)
+        self.assertIn("stored[i]", rtl)
 
     def test_init_formula_matches_address_zero(self) -> None:
         self.assertEqual(mlab_init_byte(0), 0xA6)
@@ -45,7 +46,7 @@ class MlabInitLadderTests(unittest.TestCase):
         self.assertEqual((mlab_init_lane(5) >> 0) & 1, 1)
         self.assertEqual((mlab_init_lane(7) >> 0) & 1, 1)
 
-    def test_policy_injects_lane_init(self) -> None:
+    def test_policy_requires_yosys_lane_init(self) -> None:
         policy = policy_for("470_mlab_init")
         self.assertTrue(policy.synth_json_mlab_init)
         self.assertFalse(policy.nolutram)
@@ -55,7 +56,10 @@ class MlabInitLadderTests(unittest.TestCase):
             "modules": {
                 "top": {
                     "cells": {
-                        f"storage.stored.{bit}.0.0": {"type": "MISTRAL_MLAB", "parameters": {}}
+                        f"storage.stored.{bit}.0.0": {
+                            "type": "MISTRAL_MLAB",
+                            "parameters": {"INIT": f"{mlab_init_lane(bit):032b}"},
+                        }
                         for bit in range(8)
                     }
                 }
@@ -72,6 +76,26 @@ class MlabInitLadderTests(unittest.TestCase):
                     cells[f"storage.stored.{bit}.0.0"]["parameters"]["INIT"],
                     f"{mlab_init_lane(bit):032b}",
                 )
+
+    def test_policy_does_not_inject_init(self) -> None:
+        policy = policy_for("470_mlab_init")
+        design = {
+            "modules": {
+                "top": {
+                    "cells": {
+                        f"storage.stored.{bit}.0.0": {"type": "MISTRAL_MLAB", "parameters": {}}
+                        for bit in range(8)
+                    }
+                }
+            }
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "synth.json"
+            path.write_text(json.dumps(design), encoding="utf-8")
+            policy.apply_synth_json(path)
+            cells = json.loads(path.read_text(encoding="utf-8"))["modules"]["top"]["cells"]
+            for bit in range(8):
+                self.assertEqual(cells[f"storage.stored.{bit}.0.0"].get("parameters", {}), {})
 
     def test_policy_rejects_missing_init(self) -> None:
         policy = policy_for("470_mlab_init")

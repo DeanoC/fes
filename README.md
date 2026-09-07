@@ -37,8 +37,7 @@ development possible with both the open-source Mistral toolchain and Quartus.
 - Cyclone V DSP `M18X18P36` and `M27X27` modes, M9 preadder subtract, M18 36-bit
   addend, and DSP input/output registers.
 - Cyclone V MLAB power-up contents through a numeric `INIT` on each
-  `MISTRAL_MLAB` lane. The locked Yosys revision still omits that parameter, so
-  OSS writes it after synthesis.
+  `MISTRAL_MLAB` lane. Yosys infers those parameters from initialized RTL.
 - Checked fractional-N PLL profiles when `fractional_vco_multiplier` is
   `"true"`: 50 MHz → 12.288 MHz, 50 MHz → 11.2896 MHz, and the dual
   12.288/24.576 MHz pair.

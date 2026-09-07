@@ -347,7 +347,7 @@ class ManifestTests(unittest.TestCase):
                 },
             "authenticated_tools": {
                 "yosys": {
-                    "commit": "13b43f8c85ec430a33ee55d058fb4c32b42b6910",
+                    "commit": "1e7fbaee2fa3e1fc2f68199bebd413061a4628fb",
                     "path": "build/toolchain/install/bin/yosys",
                     "sha256": hashlib.sha256(yosys.read_bytes()).hexdigest(),
                 },
@@ -358,7 +358,7 @@ class ManifestTests(unittest.TestCase):
                 },
             },
             "tool_pins": {
-                "yosys": "13b43f8c85ec430a33ee55d058fb4c32b42b6910",
+                "yosys": "1e7fbaee2fa3e1fc2f68199bebd413061a4628fb",
                 "nextpnr": "9632c85b84069acc8bb507165a48c348c70499eb",
             },
             "reproducibility": {
@@ -514,7 +514,7 @@ class ManifestTests(unittest.TestCase):
             "timing": {"clock": "FPGA_CLK1_50", "requested_mhz": 50.0, "achieved_mhz": 234.5, "status": "pass"},
             "resources": {"MISTRAL_COMB": {"used": 28, "available": 83820, "utilization_percent": 0.0}},
             "hard_blocks": {"MISTRAL_M10K": {"used": 0, "available": 553}},
-            "authenticated_tools": {"yosys": {"commit": "13b43f8c85ec430a33ee55d058fb4c32b42b6910", "sha256": "a" * 64}},
+            "authenticated_tools": {"yosys": {"commit": "1e7fbaee2fa3e1fc2f68199bebd413061a4628fb", "sha256": "a" * 64}},
             "reproducibility": {"rbf_sha256": "b" * 64, "rbf_size_bytes": 7, "rbf_stability_measured": True, "rbf_stable": True},
         }
         summary_path = self.output / "build-summary.json"

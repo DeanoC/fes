@@ -145,6 +145,10 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
+The current Yosys pin `1e7fbaee2fa3e1fc2f68199bebd413061a4628fb` is
+`mistral-stable` with merged PR #1: Intel ALM infers initialized Cyclone V MLAB
+memories. It is based on YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`.
+
 The current nextpnr pin `9632c85b84069acc8bb507165a48c348c70499eb` is
 `mistral-stable` with merged PR #31 MLAB INIT and merged PR #30 DSP modes: three-lane 9×9 packing (336 logical `MISTRAL_MUL9X9` BELs on 112
 physical DSP blocks, RESULT `0:17` / `18:35` / `37:54` with a one-bit gap at
@@ -739,18 +743,19 @@ GP. Exact-artifact kit diagnostics on 2026-09-07 returned GPI signature
 `470_mlab_init` exposes the 32-by-8 MLAB table with preserved power-up
 contents on HPS GP. GPO layout matches `040_mlab_ram`. GPI signature `0xD417`.
 Address `a` starts as `((a * 73) ^ (a >> 1) ^ 8'hA6)`, so address 0 is `0xA6`.
-Yosys still emits eight `MISTRAL_MLAB` cells without INIT; OSS writes the
-32-bit lane parameters after synthesis. Memory besides those MLABs, DSP, and
-PLL remain forbidden. Simulation and OSS are supported; Quartus comparison is
-not implemented. See `experiments/470_mlab_init/expected.md`.
+Yosys maps the initialized table to eight `MISTRAL_MLAB` cells with numeric
+INIT. OSS does not inject those parameters. Memory besides those MLABs, DSP,
+and PLL remain forbidden. Simulation and OSS are supported; Quartus comparison
+is not implemented. See `experiments/470_mlab_init/expected.md`.
 
 The OSS `470_mlab_init` artifact has SHA-256
 `900e120d33031695f7f53b2bb74b97c1721d4b6faf9226dfe9ae5b385e75b1f1`
 and size 1,953,488 bytes. Its reported Fmax is 407.664 MHz against the 50 MHz
-constraint. Utilization is eight `MISTRAL_MLAB` cells and one HPS GP. Exact-artifact
-kit diagnostics on 2026-09-08 returned GPI signature `0xD417` with address 0
-equal to `0xA6`, all 32 initialized bytes, then even-address writes that left
-odd addresses unchanged.
+constraint. Utilization is eight `MISTRAL_MLAB` cells and one HPS GP. The RBF is
+byte-identical to the earlier INIT-injected 470 artifact. Exact-artifact kit
+diagnostics on 2026-09-08 from native Yosys INIT returned GPI signature
+`0xD417` with address 0 equal to `0xA6`, all 32 initialized bytes, then
+even-address writes that left odd addresses unchanged.
 
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
