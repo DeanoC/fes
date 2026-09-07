@@ -145,11 +145,13 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current nextpnr pin `186e3c96327d5b1af37e91daae3a15fd2c7854d8` is
-`mistral-stable` at `bb2293b575a38b2b4a1326574aeea99ab2a0fd09` plus PR #29
-three-lane 9×9 DSP packing (336 logical `MISTRAL_MUL9X9` BELs on 112 physical
-DSP blocks, RESULT `0:17` / `18:35` / `37:54` with a one-bit gap at
-`RESULT.36`). It retains PR #28 double-register clock enables, quarter-phase
+The current nextpnr pin `39f194e8f26db1700edc3acf759f341e1b9fd90d` is
+`mistral-stable` with merged PR #30 DSP modes: three-lane 9×9 packing (336 logical `MISTRAL_MUL9X9` BELs on 112
+physical DSP blocks, RESULT `0:17` / `18:35` / `37:54` with a one-bit gap at
+`RESULT.36`), `M18X18P36`, `M27X27`, M9 preadder subtract, M18 36-bit C addend
+mapped on BX groups `{8,9,6,7}`, and DSP input/output registers. Omitted
+NEGATE/SUB/ACCUMULATE/LOADCONST encode low; unused fabric ACLR stays low.
+It retains PR #28 double-register clock enables, quarter-phase
 100 MHz outputs (`0`/`2500`/`5000`/`7500` ps), 45° steps on
 equal 50 MHz outputs, two independent `altera_pll` cells sharing V11, and
 `cyclonev_clkena` packing into `MISTRAL_CLKENA` with low startup, running/gated
@@ -176,7 +178,7 @@ while reset, then 1638–1639 / 3276–3277 / 8192 after relock. Their reference
 output Fmax values were 216.732 / 326.584 MHz against 50 MHz and the selected
 output constraint. Host pair regressions cover 25/40, 40/25, 20/100, 40/64,
 80/80 and 1/1 MHz. Artifact hashes and reproduction commands are in the
-[nextpnr PLL test documentation](https://github.com/DeanoC/nextpnr/blob/186e3c96327d5b1af37e91daae3a15fd2c7854d8/mistral/tests/pll/README.md).
+[nextpnr PLL test documentation](https://github.com/DeanoC/nextpnr/blob/39f194e8f26db1700edc3acf759f341e1b9fd90d/mistral/tests/pll/README.md).
 
 `120_pll_dsp` runs the eight-by-eight unsigned DSP product on the proven
 50-to-25 MHz PLL output. Linux peeks and pokes GPO/GPI on the 50 MHz
@@ -652,6 +654,92 @@ all three lanes (`0x0A*0x0C` → `0x0078` / `0x097E` / `0x0082`, `0x12*0x34`
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of three
 packed 9×9 lanes; it does not establish native game acceptance.
+
+`420_dsp_mul18` exposes a sixteen-by-sixteen unsigned DSP product on HPS GP.
+GPO `[15:0]` is the left operand and `[31:16]` is the right operand. GPI
+signature `0xD612`; `[15:0]` are the low 16 bits of the 32-bit product. Yosys
+emits one `MISTRAL_MUL18X18`. nextpnr-mistral places one `M18X18P36` DSP.
+Memory and PLL remain forbidden. Simulation and OSS are supported; Quartus
+comparison is not implemented. See `experiments/420_dsp_mul18/expected.md`.
+
+The OSS `420_dsp_mul18` artifact has SHA-256
+`c97928b4a4f67a0bacbc70f108b5350a7c48bbbcbc7739e5b0913c84065e14cf`
+and size 1,953,853 bytes. Its reported Fmax is 344.116 MHz against the 50 MHz
+constraint. Utilization is one `MISTRAL_MUL18X18` (112 available) and one HPS
+GP. Exact-artifact kit diagnostics on 2026-09-07 returned GPI signature
+`0xD612` and the expected low-16 products (`10*12` → `120`, `0x100*0x100` →
+`0`, `0xFFFF*2` → `65534`, `0xFFFF*0xFFFF` → `1`).
+
+`430_dsp_mul27` exposes a twenty-by-eight unsigned DSP product on HPS GP.
+GPO `[19:0]` is the left operand and `[27:20]` is the right operand. GPI
+signature `0xD613`; `[15:0]` are the low 16 bits of the 28-bit product. Yosys
+emits one `MISTRAL_MUL27X27`. nextpnr-mistral places one `M27X27` DSP.
+Omitted DSP controls encode low, so the native multiply is not negated.
+Memory and PLL remain forbidden. Simulation and OSS are supported; Quartus
+comparison is not implemented. See `experiments/430_dsp_mul27/expected.md`.
+
+The OSS `430_dsp_mul27` artifact has SHA-256
+`4a6fc04821a7ee23d286beafc57818678c4f6d38292e13ec37a280f9615adf8f`
+and size 1,953,793 bytes. Its reported Fmax is 415.110 MHz against the 50 MHz
+constraint. Utilization is one `MISTRAL_MUL27X27` (112 available) and one HPS
+GP. Exact-artifact kit diagnostics on 2026-09-07 returned GPI signature
+`0xD613` and the expected low-16 products (`10*12` → `120`, `0x10000*2` → `0`,
+`0x12345*3` → `27087`, `0xFFFFF*2` → `65534`).
+
+`440_dsp_preadder` exposes `left * (right - preadd)` on HPS GP using the M9
+preadder. GPO `[7:0]` is left, `[15:8]` is right, `[23:16]` is the preadd
+operand, and bit 24 selects the high product byte. GPI signature `0xD614`.
+OSS `chtype`s a blackbox `dsp9_preadder` cell to `MISTRAL_MUL9X9` with
+`PREADDER_EN`/`PREADDER_SUB`. Memory and PLL remain forbidden. Simulation and
+OSS are supported; Quartus comparison is not implemented. See
+`experiments/440_dsp_preadder/expected.md`.
+
+The OSS `440_dsp_preadder` artifact has SHA-256
+`0df11dd3639cd9ec9bc701c23c45cd9cd1a9ad62e8406ea6dd205b220bfcda53`
+and size 1,953,958 bytes. Its reported Fmax is 383.142 MHz against the 50 MHz
+constraint. Utilization is one `MISTRAL_MUL9X9` (336 available) and one HPS GP.
+Exact-artifact kit diagnostics on 2026-09-07 returned GPI signature `0xD614`
+and the expected products (`10*12` → `120`, `10*(12-2)` → `100`, `255*4` →
+`1020`, `16*0` → `0`).
+
+`450_dsp_mac` exposes an eight-by-eight unsigned M18 product plus the 36-bit C
+addend. GPO `[7:0]` is left, `[15:8]` is right, and `[31:16]` is the addend.
+GPI signature `0xD615`; `[15:0]` are the low 16 bits of `A*B+C`. OSS `chtype`s
+a blackbox `dsp18_mac` cell to `MISTRAL_MUL18X18`. nextpnr-mistral places one
+`M18X18P36` DSP and maps C on BX groups `{8,9,6,7}` without cascade. Memory
+and PLL remain forbidden. Simulation and OSS are supported; Quartus comparison
+is not implemented. See `experiments/450_dsp_mac/expected.md`.
+
+The OSS `450_dsp_mac` artifact has SHA-256
+`609120e142e5a7a1041a2a255e27c252870811622d3d2d7a29844088464a3ebf`
+and size 1,953,744 bytes. Its reported Fmax is 315.060 MHz against the 50 MHz
+constraint. Utilization is one `MISTRAL_MUL18X18` (112 available) and one HPS
+GP. Exact-artifact kit diagnostics on 2026-09-07 returned GPI signature
+`0xD615` and the expected `A*B+C` low-16 results (`10*12` → `120`, `10*12+5`
+→ `125`, `255*255+7` → `65032`, `16*16+256` → `512`).
+
+`460_dsp_reg` exposes an eight-by-eight unsigned M18 product with input and
+output registers on HPS GP. GPO layout matches `060_dsp_mul`. GPI signature
+`0xD616`. OSS `chtype`s `dsp18_reg` to `MISTRAL_MUL18X18` with
+`INREG_CTRL_AX`, `INREG_CTRL_AY`, and `OREG_CTRL`. Clock comes from
+`FPGA_CLK1_50`; enable and ACLR are omitted so the registers stay enabled and
+unused clear stays low. Memory and PLL remain forbidden. Simulation and OSS
+are supported; Quartus comparison is not implemented. See
+`experiments/460_dsp_reg/expected.md`.
+
+The OSS `460_dsp_reg` artifact has SHA-256
+`ae957391e444670a775f371b3261672caa33d76c1b60663ab5d46bc6c36133d1`
+and size 1,954,394 bytes. Its reported Fmax is 342.583 MHz against the 50 MHz
+constraint. Utilization is one `MISTRAL_MUL18X18` (112 available) and one HPS
+GP. Exact-artifact kit diagnostics on 2026-09-07 returned GPI signature
+`0xD616` and the expected registered products (`10*12` → `120`, `0x12*0x34` →
+`936`, `255*255` → `65025`).
+
+The current `kit.py` close completed development reboot recovery and left the
+lease free. This is exact-artifact functional diagnostic acceptance of M18
+multiply, native M27 multiply with omitted controls, M9 preadder subtract,
+M18 `A*B+C`, and registered M18 with omitted enable/ACLR. It does not
+establish native game acceptance.
 
 ## Standalone Pong game
 

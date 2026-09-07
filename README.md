@@ -34,6 +34,8 @@ development possible with both the open-source Mistral toolchain and Quartus.
   including low startup, running/gated branches, `enaout` status, and
   double-register mode.
 - Three parallel 9×9 multipliers packed into one physical Cyclone V DSP block.
+- Cyclone V DSP `M18X18P36` and `M27X27` modes, M9 preadder subtract, M18 36-bit
+  addend, and DSP input/output registers.
 - Checked fractional-N PLL profiles when `fractional_vco_multiplier` is
   `"true"`: 50 MHz → 12.288 MHz, 50 MHz → 11.2896 MHz, and the dual
   12.288/24.576 MHz pair.
@@ -147,6 +149,24 @@ development possible with both the open-source Mistral toolchain and Quartus.
   three `MISTRAL_MUL9X9`; nextpnr-mistral places them on z-lanes 0/1/2 of
   one DSP site. Run `make sim EXP=410_dsp_triple` and
   `make oss EXP=410_dsp_triple`; no Quartus comparison lane is implemented.
+- `420_dsp_mul18`, a sixteen-by-sixteen unsigned DSP product on HPS GP. Yosys
+  emits one `MISTRAL_MUL18X18`; nextpnr-mistral places one `M18X18P36` DSP.
+  Run `make sim EXP=420_dsp_mul18` and `make oss EXP=420_dsp_mul18`; no Quartus
+  comparison lane is implemented.
+- `430_dsp_mul27`, a twenty-by-eight unsigned DSP product on HPS GP. Yosys
+  emits one `MISTRAL_MUL27X27`; nextpnr-mistral places one `M27X27` DSP.
+  Omitted DSP controls encode low. Run `make sim EXP=430_dsp_mul27` and
+  `make oss EXP=430_dsp_mul27`; no Quartus comparison lane is implemented.
+- `440_dsp_preadder`, an eight-by-eight unsigned product with the M9 preadder
+  `left * (right - preadd)` on HPS GP. Run `make sim EXP=440_dsp_preadder` and
+  `make oss EXP=440_dsp_preadder`; no Quartus comparison lane is implemented.
+- `450_dsp_mac`, an M18 product plus the 36-bit C addend on HPS GP. Kit checks
+  `A*B+C` (`10*12+5` is 125). Run `make sim EXP=450_dsp_mac` and
+  `make oss EXP=450_dsp_mac`; no Quartus comparison lane is implemented.
+- `460_dsp_reg`, an eight-by-eight unsigned M18 product with input and output
+  registers on HPS GP. Clock is routed; enable and ACLR are omitted. Run
+  `make sim EXP=460_dsp_reg` and `make oss EXP=460_dsp_reg`; no Quartus
+  comparison lane is implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under

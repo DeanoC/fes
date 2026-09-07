@@ -160,6 +160,11 @@ class MailboxSourcePolicyTests(unittest.TestCase):
             "390_pll_clkena_status",
             "400_pll_clkena_reg2",
             "410_dsp_triple",
+            "420_dsp_mul18",
+            "430_dsp_mul27",
+            "440_dsp_preadder",
+            "450_dsp_mac",
+            "460_dsp_reg",
         ):
             result = subprocess.run(
                 ["make", "-n", "sim", f"EXP={experiment}"],

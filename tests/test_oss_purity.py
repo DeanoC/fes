@@ -99,6 +99,11 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/390_pll_clkena_status/rtl/top.v",
             "experiments/400_pll_clkena_reg2/rtl/top.v",
             "experiments/410_dsp_triple/rtl/top.v",
+            "experiments/420_dsp_mul18/rtl/top.v",
+            "experiments/430_dsp_mul27/rtl/top.v",
+            "experiments/440_dsp_preadder/rtl/top.v",
+            "experiments/450_dsp_mac/rtl/top.v",
+            "experiments/460_dsp_reg/rtl/top.v",
         ):
             destination = repository / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -136,7 +141,7 @@ class OssPipelinePurityTests(unittest.TestCase):
 
         pins = {
             "yosys": "13b43f8c85ec430a33ee55d058fb4c32b42b6910",
-            "nextpnr": "186e3c96327d5b1af37e91daae3a15fd2c7854d8",
+            "nextpnr": "39f194e8f26db1700edc3acf759f341e1b9fd90d",
         }
         for lock_name, commit in pins.items():
             evidence = external_build / lock_name if symlink_build_tools else build / lock_name
@@ -543,6 +548,27 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertIn("--freq 50", commands)
         self.assertIn("--compress-rbf", commands)
         self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_dsp_modes(self) -> None:
+        for experiment, extra in (
+            ("420_dsp_mul18", None),
+            ("430_dsp_mul27", None),
+            ("440_dsp_preadder", "setparam -set PREADDER_EN 1"),
+            ("450_dsp_mac", "chtype -set MISTRAL_MUL18X18 t:dsp18_mac"),
+            ("460_dsp_reg", "setparam -set INREG_CTRL_AX 1"),
+        ):
+            result = self._run("--print-commands", "--experiment", experiment)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            commands = result.stdout
+            self.assertIn(f"experiments/{experiment}/rtl/top.v", commands)
+            self.assertIn("synth_intel_alm -nobram -nolutram -top top", commands)
+            self.assertNotIn("-nodsp", commands)
+            self.assertNotIn("hps_gp_model.v", commands)
+            if extra is not None:
+                self.assertIn(extra, commands)
+            self.assertIn("--freq 50", commands)
+            self.assertIn("--compress-rbf", commands)
+            self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
 
     def test_print_commands_keeps_dsp_disabled_for_lut_mul(self) -> None:
         result = self._run("--print-commands", "--experiment", "050_lut_mul")

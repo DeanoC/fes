@@ -400,6 +400,8 @@ fi
 
 "$run_logged" "$yosys_log" "${yosys_cmd[@]}"
 [[ -s "$out_synth" ]] || fail "synthesis did not produce a nonempty JSON design: $out_synth"
+"$PYTHON" "$policy_tool" --experiment "$EXP" --fix-synth-json "$out_synth" >/dev/null \
+    || fail "cannot apply synth json port directions: $EXP"
 "$PYTHON" "$policy_tool" --experiment "$EXP" --check-synth-json "$out_synth" >/dev/null \
     || fail "synth json does not satisfy closed experiment policy: $EXP"
 

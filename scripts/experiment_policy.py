@@ -105,6 +105,8 @@ class ExperimentPolicy:
     sim_jobs: tuple[SimJob, ...] = ()
     required_synth_cells: Mapping[str, int] = MappingProxyType({})
     required_packed_sites: Mapping[str, int] = MappingProxyType({})
+    synth_json_input_ports: Mapping[str, tuple[str, ...]] = MappingProxyType({})
+    synth_json_tied_low: Mapping[str, tuple[str, ...]] = MappingProxyType({})
 
     def __post_init__(self) -> None:
         if not self.name or not isinstance(self.name, str):
@@ -169,6 +171,26 @@ class ExperimentPolicy:
                 )
             packed[cell] = count
         object.__setattr__(self, "required_packed_sites", MappingProxyType(packed))
+
+        input_ports: dict[str, tuple[str, ...]] = {}
+        for cell, ports in dict(self.synth_json_input_ports).items():
+            if not isinstance(cell, str) or not cell:
+                raise PolicyError(f"{self.name}: synth json input-port cell names must be non-empty strings")
+            names = tuple(ports)
+            if not names or any(not isinstance(port, str) or not re.fullmatch(r"[A-Za-z_]\w*", port) for port in names):
+                raise PolicyError(f"{self.name}: synth json input ports for {cell} must be Verilog identifiers")
+            input_ports[cell] = names
+        object.__setattr__(self, "synth_json_input_ports", MappingProxyType(input_ports))
+
+        tied_low: dict[str, tuple[str, ...]] = {}
+        for cell, ports in dict(self.synth_json_tied_low).items():
+            if not isinstance(cell, str) or not cell:
+                raise PolicyError(f"{self.name}: synth json tied-low cell names must be non-empty strings")
+            names = tuple(ports)
+            if not names or any(not isinstance(port, str) or not re.fullmatch(r"[A-Za-z_]\w*", port) for port in names):
+                raise PolicyError(f"{self.name}: synth json tied-low ports for {cell} must be Verilog identifiers")
+            tied_low[cell] = names
+        object.__setattr__(self, "synth_json_tied_low", MappingProxyType(tied_low))
 
         allowed: dict[str, int] = {}
         for resource, count in dict(self.allowed_hard_blocks).items():
@@ -434,6 +456,69 @@ class ExperimentPolicy:
                     f"synth cell {name} must occur exactly {expected} time(s), got {actual}"
                 )
 
+    def apply_synth_json(self, path: Path) -> None:
+        """Mark extra DSP control ports as inputs after Yosys chtype.
+
+        Yosys write_json defaults unknown ports on a known library cell to
+        output. nextpnr then treats Z/C/CLK/ENA as drivers.
+        """
+
+        if not self.synth_json_input_ports and not self.synth_json_tied_low:
+            return
+        try:
+            design = json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise PolicyError(f"cannot read synth json {path}: {exc}") from exc
+        if not isinstance(design, dict):
+            raise PolicyError("synth json must be an object")
+        modules = design.get("modules")
+        if not isinstance(modules, dict):
+            raise PolicyError("synth json has no modules")
+        changed = False
+        found: dict[str, int] = {}
+        for module in modules.values():
+            if not isinstance(module, dict):
+                continue
+            cells = module.get("cells")
+            if not isinstance(cells, dict):
+                continue
+            for cell in cells.values():
+                if not isinstance(cell, dict):
+                    continue
+                cell_type = cell.get("type")
+                extra = self.synth_json_input_ports.get(cell_type, ()) if isinstance(cell_type, str) else ()
+                tied = self.synth_json_tied_low.get(cell_type, ()) if isinstance(cell_type, str) else ()
+                if not extra and not tied:
+                    continue
+                found[cell_type] = found.get(cell_type, 0) + 1
+                connections = cell.get("connections")
+                if not isinstance(connections, dict):
+                    raise PolicyError(f"synth cell {cell_type} has no connections")
+                directions = cell.get("port_directions")
+                if not isinstance(directions, dict):
+                    directions = {}
+                    cell["port_directions"] = directions
+                for port in extra:
+                    if port not in connections:
+                        raise PolicyError(f"synth cell {cell_type} is missing input port {port}")
+                    if directions.get(port) != "input":
+                        directions[port] = "input"
+                        changed = True
+                for port in tied:
+                    if connections.get(port) != ["0"] or directions.get(port) != "input":
+                        connections[port] = ["0"]
+                        directions[port] = "input"
+                        changed = True
+        missing = [
+            name
+            for name in {**dict(self.synth_json_input_ports), **dict(self.synth_json_tied_low)}
+            if found.get(name, 0) == 0
+        ]
+        if missing:
+            raise PolicyError("synth json is missing cells that need extra input ports: " + ", ".join(missing))
+        if changed:
+            Path(path).write_text(json.dumps(design) + "\n", encoding="utf-8")
+
     def validate_routed_json(self, path: Path) -> None:
         """Require packed BEL co-location that utilization counts cannot express."""
 
@@ -541,6 +626,24 @@ class ExperimentPolicy:
             "required_synth_cells": dict(self.required_synth_cells),
             **({"required_packed_sites": dict(self.required_packed_sites)}
                if self.required_packed_sites else {}),
+            **(
+                {
+                    "synth_json_input_ports": {
+                        cell: list(ports) for cell, ports in self.synth_json_input_ports.items()
+                    }
+                }
+                if self.synth_json_input_ports
+                else {}
+            ),
+            **(
+                {
+                    "synth_json_tied_low": {
+                        cell: list(ports) for cell, ports in self.synth_json_tied_low.items()
+                    }
+                }
+                if self.synth_json_tied_low
+                else {}
+            ),
         }
 
 
@@ -2300,6 +2403,230 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                 ),
             ),
         ),
+        "420_dsp_mul18": ExperimentPolicy(
+            name="420_dsp_mul18",
+            sources=("experiments/420_dsp_mul18/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_MUL18X18": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"DSP", "MAC", "MUL"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            required_synth_cells={"MISTRAL_MUL18X18": 1},
+            nodsp=False,
+            clock_evidence_names=("product.FPGA_CLK1_50",),
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/420_dsp_mul18/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                    ),
+                    tb="experiments/420_dsp_mul18/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "430_dsp_mul27": ExperimentPolicy(
+            name="430_dsp_mul27",
+            sources=("experiments/430_dsp_mul27/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_MUL27X27": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"DSP", "MAC", "MUL"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            required_synth_cells={"MISTRAL_MUL27X27": 1},
+            nodsp=False,
+            clock_evidence_names=("product.FPGA_CLK1_50",),
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/430_dsp_mul27/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                    ),
+                    tb="experiments/430_dsp_mul27/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "440_dsp_preadder": ExperimentPolicy(
+            name="440_dsp_preadder",
+            sources=("experiments/440_dsp_preadder/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_MUL9X9": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"DSP", "MAC", "MUL"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "dsp9_preadder": 2,
+            },
+            required_synth_cells={"MISTRAL_MUL9X9": 1},
+            nodsp=False,
+            synth_json_input_ports={"MISTRAL_MUL9X9": ("Z",)},
+            yosys_post_synth=(
+                "chtype -set MISTRAL_MUL9X9 t:dsp9_preadder; "
+                "setparam -set PREADDER_EN 1 t:MISTRAL_MUL9X9; "
+                "setparam -set PREADDER_SUB 1 t:MISTRAL_MUL9X9; "
+                "setparam -set A_SIGNED 0 t:MISTRAL_MUL9X9; "
+                "setparam -set B_SIGNED 0 t:MISTRAL_MUL9X9; "
+            ),
+            clock_evidence_names=("product.FPGA_CLK1_50",),
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/440_dsp_preadder/rtl/top.v",
+                        "experiments/440_dsp_preadder/sim/dsp9_preadder.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                    ),
+                    tb="experiments/440_dsp_preadder/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "450_dsp_mac": ExperimentPolicy(
+            name="450_dsp_mac",
+            sources=("experiments/450_dsp_mac/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_MUL18X18": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"DSP", "MAC", "MUL"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "dsp18_mac": 2,
+            },
+            required_synth_cells={"MISTRAL_MUL18X18": 1},
+            nodsp=False,
+            synth_json_input_ports={"MISTRAL_MUL18X18": ("C",)},
+            yosys_post_synth=(
+                "chtype -set MISTRAL_MUL18X18 t:dsp18_mac; "
+                "setparam -set A_SIGNED 0 t:MISTRAL_MUL18X18; "
+                "setparam -set B_SIGNED 0 t:MISTRAL_MUL18X18; "
+            ),
+            clock_evidence_names=("product.FPGA_CLK1_50",),
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/450_dsp_mac/rtl/top.v",
+                        "experiments/450_dsp_mac/sim/dsp18_mac.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                    ),
+                    tb="experiments/450_dsp_mac/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "460_dsp_reg": ExperimentPolicy(
+            name="460_dsp_reg",
+            sources=("experiments/460_dsp_reg/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_MUL18X18": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"DSP", "MAC", "MUL"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "dsp18_reg": 2,
+            },
+            required_synth_cells={"MISTRAL_MUL18X18": 1},
+            nodsp=False,
+            synth_json_input_ports={"MISTRAL_MUL18X18": ("CLK",)},
+            yosys_post_synth=(
+                "chtype -set MISTRAL_MUL18X18 t:dsp18_reg; "
+                "setparam -set A_SIGNED 0 t:MISTRAL_MUL18X18; "
+                "setparam -set B_SIGNED 0 t:MISTRAL_MUL18X18; "
+                "setparam -set INREG_CTRL_AX 1 t:MISTRAL_MUL18X18; "
+                "setparam -set INREG_CTRL_AY 1 t:MISTRAL_MUL18X18; "
+                "setparam -set OREG_CTRL 1 t:MISTRAL_MUL18X18; "
+            ),
+            clock_evidence_names=("product.FPGA_CLK1_50",),
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/460_dsp_reg/rtl/top.v",
+                        "experiments/460_dsp_reg/sim/dsp18_reg.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                    ),
+                    tb="experiments/460_dsp_reg/sim/tb.cpp",
+                ),
+            ),
+        ),
     }
 )
 
@@ -2392,6 +2719,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--format", choices=("json", "shell"), default="json")
     parser.add_argument("--check-sources", action="store_true")
     parser.add_argument("--check-synth-json", type=Path)
+    parser.add_argument("--fix-synth-json", type=Path)
     parser.add_argument("--check-routed-json", type=Path)
     parser.add_argument("--repo-root", type=Path, default=_repo_root())
     return parser
@@ -2403,6 +2731,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         policy = policy_for(arguments.experiment)
         if arguments.check_sources:
             _check_sources(policy, arguments.repo_root)
+        if arguments.fix_synth_json is not None:
+            policy.apply_synth_json(arguments.fix_synth_json)
         if arguments.check_synth_json is not None:
             policy.validate_synth_json(arguments.check_synth_json)
         if arguments.check_routed_json is not None:
