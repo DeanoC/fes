@@ -12,6 +12,7 @@ namespace mister {
 namespace native {
 
 class Clock;
+class Framebuffer;
 class CoreLoader;
 class I2c;
 class Spi;
@@ -59,7 +60,7 @@ private:
 
 class MenuVideoBringup final : public VideoBringup {
 public:
-	MenuVideoBringup(CoreLoader&, Spi&, I2c&, Clock&, LogSink&,
+	MenuVideoBringup(CoreLoader&, Spi&, I2c&, Framebuffer&, Clock&, LogSink&,
 		const VideoRecipe&);
 	VideoQuiesceResult Quiesce(
 		std::uint64_t absolute_deadline_ms) override;
@@ -70,6 +71,7 @@ private:
 	VideoResult PhaseFailure(const char*, const Error&,
 		const VideoResult&) const;
 	CoreLoader& core_;
+	Framebuffer& framebuffer_;
 	Spi& spi_;
 	I2c& i2c_;
 	Clock& clock_;

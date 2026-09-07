@@ -48,6 +48,7 @@ LIB_SOURCES := \
 	src/native/video.cpp \
 	src/native/hardware.cpp \
 	src/native/linux/fpga_manager.cpp \
+	src/native/linux/framebuffer.cpp \
 	src/native/linux/i2c.cpp \
 	src/native/linux/mmio.cpp \
 	src/native/linux/spi.cpp \
@@ -79,6 +80,7 @@ TEST_BINS := \
 	$(BUILD_DIR)/tests/unit/i2c_test \
 	$(BUILD_DIR)/tests/unit/input_test \
 	$(BUILD_DIR)/tests/unit/video_test \
+	$(BUILD_DIR)/tests/unit/framebuffer_test \
 	$(BUILD_DIR)/tests/unit/protocol_test \
 	$(BUILD_DIR)/tests/integration/daemon_server_test
 TEST_HEADERS := $(wildcard \
@@ -188,13 +190,18 @@ $(BUILD_DIR)/tests/unit/video_test: tests/unit/video_test.cpp \
 		tests/support/fake_i2c.cpp tests/support/capture_log.cpp \
 		src/native/artifacts.cpp src/native/core_loader.cpp \
 		src/native/video_recipe.cpp \
-		src/native/video.hpp src/native/video.cpp
+		src/native/video.hpp src/native/video.cpp src/native/linux/framebuffer.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/video_test.cpp \
 		tests/support/fake_i2c.cpp tests/support/capture_log.cpp \
 		src/native/artifacts.cpp src/native/core_loader.cpp \
 		src/native/video_recipe.cpp \
-		src/native/video.cpp -o "$@"
+		src/native/video.cpp src/native/linux/framebuffer.cpp -o "$@"
+
+$(BUILD_DIR)/tests/unit/framebuffer_test: tests/unit/framebuffer_test.cpp src/native/linux/framebuffer.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) -DMISTER_RUNTIME_TESTING $(CXXFLAGS) \
+		tests/unit/framebuffer_test.cpp src/native/linux/framebuffer.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/fpga_manager_test: tests/unit/fpga_manager_test.cpp \
 		tests/support/fake_mmio.cpp src/native/artifacts.cpp \
@@ -221,6 +228,7 @@ $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cp
 		src/native/hardware.cpp src/profile.cpp src/runtime.cpp \
 		src/linux/production_hardware.cpp \
 		src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
+		src/native/linux/framebuffer.cpp \
 		src/native/linux/i2c.cpp src/native/linux/input.cpp \
 		src/native/linux/spi.cpp
 	@mkdir -p "$(dir $@)"
@@ -233,6 +241,7 @@ $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cp
 		src/native/hardware.cpp src/profile.cpp src/runtime.cpp \
 		src/linux/production_hardware.cpp \
 		src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
+		src/native/linux/framebuffer.cpp \
 		src/native/linux/i2c.cpp src/native/linux/input.cpp \
 		src/native/linux/spi.cpp -o "$@"
 
@@ -315,8 +324,8 @@ archive-audit: $(ARCHIVE)
 		exit 1; \
 	}; \
 	member_count="$$(printf '%s\n' "$$actual_members" | sed '/^$$/d' | wc -l | tr -d ' ')"; \
-	[[ "$$member_count" == 14 ]] || { \
-		echo "canonical archive must contain exactly 14 production members" >&2; \
+	[[ "$$member_count" == 15 ]] || { \
+		echo "canonical archive must contain exactly 15 production members" >&2; \
 		exit 1; \
 	}; \
 	archive_list="$$(find "$(BUILD_DIR)" -maxdepth 1 -type f -name '*.a' | sed 's|^.*/||' | LC_ALL=C sort)"; \
@@ -331,7 +340,7 @@ archive-audit: $(ARCHIVE)
 		exit 1; \
 	}; \
 	for required in runtime.o profile.o artifacts.o core_loader.o input.o hardware.o \
-		fpga_manager.o mmio.o spi.o production_hardware.o video_recipe.o \
+		fpga_manager.o framebuffer.o mmio.o spi.o production_hardware.o video_recipe.o \
 		video.o i2c.o linux_input.o; do \
 		grep -Fx "$$required" <<<"$$actual_members" >/dev/null || { \
 			echo "archive omits required native member: $$required" >&2; \
@@ -346,7 +355,7 @@ archive-audit: $(ARCHIVE)
 		else source="$${relative_object%.o}.cpp"; fi; \
 		[[ -f "$$source" ]] || { echo "object has no production source: $$relative_object" >&2; exit 1; }; \
 		case "$$source" in \
-			src/runtime.cpp|src/profile.cpp|src/native/artifacts.cpp|src/native/core_loader.cpp|src/native/input.cpp|src/native/video_recipe.cpp|src/native/video.cpp|src/native/hardware.cpp|src/native/linux/fpga_manager.cpp|src/native/linux/i2c.cpp|src/native/linux/input.cpp|src/native/linux/mmio.cpp|src/native/linux/spi.cpp|src/linux/production_hardware.cpp) ;; \
+			src/runtime.cpp|src/profile.cpp|src/native/artifacts.cpp|src/native/core_loader.cpp|src/native/input.cpp|src/native/video_recipe.cpp|src/native/video.cpp|src/native/hardware.cpp|src/native/linux/fpga_manager.cpp|src/native/linux/framebuffer.cpp|src/native/linux/i2c.cpp|src/native/linux/input.cpp|src/native/linux/mmio.cpp|src/native/linux/spi.cpp|src/linux/production_hardware.cpp) ;; \
 			*) echo "archive contains non-production source: $$source" >&2; exit 1 ;; \
 		esac; \
 		compiled_sources+="$$source"$$'\n'; \
@@ -356,7 +365,7 @@ archive-audit: $(ARCHIVE)
 			printf '%s\n' "$${object#"$(BUILD_DIR)/"}"; \
 		fi; \
 	done < <(printf '%s\n' $(LIB_OBJECTS) | LC_ALL=C sort))"; \
-	expected_raw_owners=$$'src/native/artifacts.o\nsrc/native/core_loader.o\nsrc/native/linux/fpga_manager.o\nsrc/native/linux/i2c.o\nsrc/native/linux/linux_input.o\nsrc/native/linux/mmio.o'; \
+	expected_raw_owners=$$'src/native/artifacts.o\nsrc/native/core_loader.o\nsrc/native/linux/fpga_manager.o\nsrc/native/linux/framebuffer.o\nsrc/native/linux/i2c.o\nsrc/native/linux/linux_input.o\nsrc/native/linux/mmio.o'; \
 	[[ "$$raw_owners" == "$$expected_raw_owners" ]] || { \
 		echo "raw I/O ownership differs from the canonical native boundary" >&2; \
 		diff -u <(printf '%s\n' "$$expected_raw_owners") \
@@ -370,7 +379,7 @@ archive-audit: $(ARCHIVE)
 		exit 1; \
 	fi; \
 	if $(NM) -g "$(ARCHIVE)" | $(CXXFILT) | \
-		grep -E 'LinuxMmioTestOperations|LinuxI2cTestOperations|LinuxInputTestOperations|FakeHardware|FakeMmio|FakeSpi|FakeI2c|FakeInput|CartProfile|BiosProfile|mister_test' >/dev/null; then \
+		grep -E 'LinuxFramebufferTestOperations|LinuxMmioTestOperations|LinuxI2cTestOperations|LinuxInputTestOperations|FakeHardware|FakeMmio|FakeSpi|FakeI2c|FakeInput|CartProfile|BiosProfile|mister_test' >/dev/null; then \
 		echo "archive exports test-only hardware or profile symbols" >&2; \
 		exit 1; \
 	fi; \

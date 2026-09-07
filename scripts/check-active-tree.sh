@@ -67,6 +67,7 @@ cat >"$temporary/expected-members" <<'EOF'
 artifacts.o
 core_loader.o
 fpga_manager.o
+framebuffer.o
 hardware.o
 i2c.o
 input.o
@@ -93,7 +94,7 @@ fi
 
 nm -g "$archive" >"$temporary/archive-symbols.raw"
 c++filt <"$temporary/archive-symbols.raw" >"$temporary/archive-symbols"
-if grep -E 'FakeHardware|FakeMmio|FakeSpi|FakeI2c|FakeInput|LinuxI2cTestOperations|LinuxInputTestOperations|CartProfile|BiosProfile|mister_test' \
+if grep -E 'FakeHardware|FakeMmio|FakeSpi|FakeI2c|FakeInput|LinuxFramebufferTestOperations|LinuxI2cTestOperations|LinuxInputTestOperations|CartProfile|BiosProfile|mister_test' \
 	"$temporary/archive-symbols" >/dev/null; then
 	echo "archive contains fake hardware or profile symbols" >&2
 	exit 1
@@ -114,7 +115,7 @@ fi
 
 nm -g "$daemon" >"$temporary/daemon-symbols.raw"
 c++filt <"$temporary/daemon-symbols.raw" >"$temporary/daemon-symbols"
-if grep -E '(^|[^[:alnum:]_])(fpga_load_rbf|user_io_|video_mode_adjust|scheduler_|offload_|Main|FakeHardware|FakeMmio|FakeSpi|FakeI2c|FakeInput|LinuxI2cTestOperations|LinuxInputTestOperations|CartProfile|BiosProfile|mister_test)($|[^[:alnum:]_])' \
+if grep -E '(^|[^[:alnum:]_])(fpga_load_rbf|user_io_|video_mode_adjust|scheduler_|offload_|Main|FakeHardware|FakeMmio|FakeSpi|FakeI2c|FakeInput|LinuxFramebufferTestOperations|LinuxI2cTestOperations|LinuxInputTestOperations|CartProfile|BiosProfile|mister_test)($|[^[:alnum:]_])' \
 	"$temporary/daemon-symbols" >/dev/null; then
 	echo "executable contains Main mutation or fake symbols" >&2
 	exit 1

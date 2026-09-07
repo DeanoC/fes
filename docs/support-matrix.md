@@ -27,6 +27,7 @@ fixtures verify software mechanics and do not establish system support.
 
 | Capability | Implementation | Software status | Hardware status |
 | --- | --- | --- | --- |
+| Native idle HPS framebuffer | 640×480 BGRX, validated Linux mode and Menu SPI enable, restored by Stop | software: yes | hardware: pending |
 | MiSTer-compatible development RBF | open, HDMI power-down, program, synchronize, optional core observation, Stop to idle | software: yes | hardware: pending |
 
 Production native construction is available for the image-owned idle baseline,

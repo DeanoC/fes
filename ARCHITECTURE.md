@@ -12,7 +12,7 @@ roles:
 - `src/native` and `src/linux` contain the Linux hardware primitives and the
   production construction boundary. `CreateProductionHardware` owns
   `PosixArtifactOpener`, `LinuxMmio`, `SteadyClock`, `LinuxFpgaManager`,
-  `LinuxSpi`, `CoreLoader`, `LinuxI2c`, `MenuVideoBringup`,
+  `LinuxSpi`, `CoreLoader`, `LinuxI2c`, `LinuxFramebuffer`, `MenuVideoBringup`,
   `FixedVideoBringup`, `LinuxInput`, `NativeInputSession`, and
   `NativeHardware`. The dependency graph is:
 
@@ -20,7 +20,7 @@ roles:
   LinuxMmio + SteadyClock -> LinuxFpgaManager + LinuxSpi
   LinuxSpi -> CoreLoader
   SteadyClock -> LinuxI2c
-  CoreLoader + LinuxSpi + LinuxI2c + SteadyClock + LogSink + fixed recipe
+  CoreLoader + LinuxSpi + LinuxI2c + LinuxFramebuffer + SteadyClock + LogSink + fixed recipe
     -> MenuVideoBringup
   LinuxSpi + LinuxI2c + SteadyClock + LogSink + fixed recipe
     -> FixedVideoBringup
@@ -85,6 +85,7 @@ open locked idle RBF
   -> apply the fixed 720p ADV7513 mode registers
   -> release menu-core software reset
   -> emit the bounded ADV7513 wake edge and neutral core-input packet
+  -> configure and validate the Linux framebuffer, enable HPS framebuffer over SPI
   -> require ADV7513 HPD and monitor-sense status
   -> publish idle
 ```
@@ -317,3 +318,27 @@ historical admission/launch error without touching hardware. Generic `LoadIdle` 
 startup, failed launch and input-fault cleanup cannot replace a good save with
 partial or uninitialized SRAM. This deliberately excludes autosave, crash or
 power-loss capture, save states and host/cloud save synchronization.
+
+## Idle framebuffer ownership
+
+`LinuxFramebuffer`, injected through `Framebuffer` into `MenuVideoBringup`,
+writes `8888 1 640 480 2560` to the MiSTer_fb module mode parameter on each
+idle bring-up. It reads fixed/variable framebuffer ioctls, requires packed
+truecolor 32-bit BGRX, no panning, 640×480 visible and virtual geometry, stride
+2560, sufficient backing bytes, and the reserved physical address 0x22001000.
+No fallback framebuffer or separately allocated DDR buffer is admitted.
+
+After neutral input, Menu bring-up sends user-I/O command 0x2f with enable/format
+0x8016, the validated address and geometry, scaling bounds (0,1279,0,719), and
+stride. A zero capability response is rejected. The already released Menu status remains zero. Main's framebuffer status
+helper shifts and masks its argument, leaving bits[8:5] zero; the apparent
+0x160 call-site argument is not a raw status word. All SPI operations share the existing absolute video deadline; Linux
+configuration checks that deadline before and after device operations. Device
+syscalls have no additional userspace interruption mechanism.
+
+Stop already reloads Menu through this same path, so it restores framebuffer
+selection without a second display authority. Game video bring-up is unchanged.
+The launcher must pause presentation while a core owns HDMI and reopen/recheck
+its framebuffer mapping on confirmed return to idle. These words are derived
+from Main_MiSTer video_fb_enable and remain hardware-unaccepted until a dated
+exact-artifact diagnostic validates the selected Menu core and kernel.
