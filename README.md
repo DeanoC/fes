@@ -40,6 +40,13 @@ headers checked in under `src/native/generated/`. They are target text
 for the ARMv7 Linux HPS, not host objects. The target build does not run
 Go.
 
+Native launches keep short deadlines for core control, video, and input setup,
+then give each cartridge transfer its own 120-second deadline. The HPS SPI
+bridge performs an MMIO handshake for every 16-bit media word, so using the
+control deadline for a multi-megabyte cartridge would reject valid content
+before the core can start. The media bound is still finite; a transfer that
+stalls leaves the ordinary failure and idle-recovery path.
+
 ## Build and test
 
 ```sh

@@ -32,6 +32,10 @@ struct NativeTimeouts {
 	std::uint32_t program_ms = 30000;
 	std::uint32_t core_io_ms = 10000;
 	std::uint32_t video_ms = 10000;
+	// Cartridge transfers use one deadline per media item. The Linux HPS SPI
+	// path performs a bounded MMIO handshake for every 16-bit word, so a
+	// normal core-control timeout is too short for larger ROMs.
+	std::uint32_t media_io_ms = 120000;
 };
 
 struct NativeResult {

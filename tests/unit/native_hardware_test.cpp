@@ -1107,8 +1107,22 @@ void TestOneAbsoluteDeadlinePerNativeStage()
 	assert(fixture.fpga.deadlines.size() == 1);
 	assert(fixture.fpga.deadlines[0] == 30100);
 	assert(!fixture.spi.deadlines.empty());
-	for (std::uint64_t deadline : fixture.spi.deadlines) assert(deadline == 10100);
+	for (std::uint64_t deadline : fixture.spi.deadlines)
+		assert(deadline == 10100 || deadline == 120100);
 	assert(fixture.idle_video.calls == 0);
+}
+
+void TestMediaTransferGetsDedicatedDeadline()
+{
+	Fixture fixture;
+	assert(fixture.hardware.Launch(fixture.MegaDriveLaunch(), 1).error.ok());
+	assert(fixture.spi.deadlines.size() > 4);
+	for (std::size_t index = 0; index < 4; ++index)
+		assert(fixture.spi.deadlines[index] == 10100);
+	std::uint64_t largest = 0;
+	for (std::uint64_t deadline : fixture.spi.deadlines)
+		largest = std::max(largest, deadline);
+	assert(largest == 120100);
 }
 
 void TestPostVideoCoreStageGetsFreshDeadline()
@@ -1510,6 +1524,7 @@ int main()
 	TestIdleVideoFailureIsAttemptedIoFailureWithoutCleanup();
 	TestLaunchNeverCallsIdleVideo();
 	TestOneAbsoluteDeadlinePerNativeStage();
+	TestMediaTransferGetsDedicatedDeadline();
 	TestPostVideoCoreStageGetsFreshDeadline();
 	TestPreflightAndProgramFailuresIncludeQuiesceMutation();
 	TestEveryConcretePreflightRejectionPerformsZeroHardwareWork();
