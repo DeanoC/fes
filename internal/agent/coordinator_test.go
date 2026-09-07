@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1718,4 +1720,126 @@ func stringPtr(value string) *string {
 
 func systemPtr(value protocol.System) *protocol.System {
 	return &value
+}
+
+type lostStopLifecycleControl struct{ nativeLifecycleControl }
+
+func (c *lostStopLifecycleControl) Stop(ctx context.Context) (misterruntime.Response, error) {
+	_, _ = c.nativeLifecycleControl.Stop(ctx)
+	return misterruntime.Response{}, io.EOF
+}
+
+func TestCoordinatorRelaunchesAfterLostSuccessfulNativeStop(t *testing.T) {
+	rom := filepath.Join(t.TempDir(), "game.bin")
+	if err := os.WriteFile(rom, []byte("rom"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	control := &lostStopLifecycleControl{}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	coordinator.Initialize(context.Background())
+	request := protocol.LaunchRequest{GameID: "recovery-game", System: protocol.SystemMegaDrive, ROMPath: rom}
+	if _, err := coordinator.Launch(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	stopped, err := coordinator.Stop(context.Background())
+	if err != nil || stopped.State != protocol.StateIdle || stopped.LastError != nil {
+		t.Fatalf("Stop = %#v, %#v", stopped, err)
+	}
+	if !coordinator.Health("test").Ready {
+		t.Fatal("confirmed idle is not ready")
+	}
+	launched, err := coordinator.Launch(context.Background(), request)
+	if err != nil || launched.State != protocol.StateActive {
+		t.Fatalf("relaunch = %#v, %#v", launched, err)
+	}
+	if control.stopCalls != 1 || control.launchCalls != 2 {
+		t.Fatalf("Stop=%d Launch=%d", control.stopCalls, control.launchCalls)
+	}
+}
+
+type recoveredLaunchControl struct {
+	nativeLifecycleControl
+	fail        bool
+	failureCode string
+}
+
+func (c *recoveredLaunchControl) Launch(ctx context.Context, request misterruntime.LaunchRequest) (misterruntime.Response, error) {
+	if !c.fail {
+		return c.nativeLifecycleControl.Launch(ctx, request)
+	}
+	c.launchCalls++
+	c.state = "idle"
+	code := c.failureCode
+	if code == "" {
+		code = "io_failed"
+	}
+	return misterruntime.Response{Protocol: 1, OK: false, State: "idle", Execution: "none", Version: "test", Error: &misterruntime.RemoteError{Code: code, Message: "private launch failure"}}, nil
+}
+
+func TestCoordinatorFailedNativeLaunchRecoveredToIdleAllowsNextLaunch(t *testing.T) {
+	rom := filepath.Join(t.TempDir(), "game.bin")
+	if err := os.WriteFile(rom, []byte("rom"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	control := &recoveredLaunchControl{fail: true}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	request := protocol.LaunchRequest{GameID: "recovery", System: protocol.SystemMegaDrive, ROMPath: rom}
+	status, err := coordinator.Launch(context.Background(), request)
+	if err == nil || status.State != protocol.StateIdle || status.LastError == nil || status.GameID != nil {
+		t.Fatalf("failed launch = %#v, %#v", status, err)
+	}
+	if !coordinator.Health("test").Ready {
+		t.Fatal("safe idle remains unavailable")
+	}
+	control.fail = false
+	status, err = coordinator.Launch(context.Background(), request)
+	if err != nil || status.State != protocol.StateActive {
+		t.Fatalf("next launch = %#v, %#v", status, err)
+	}
+	if control.launchCalls != 2 || control.stopCalls != 0 {
+		t.Fatalf("launch=%d stop=%d", control.launchCalls, control.stopCalls)
+	}
+}
+
+func TestFailedNativeLaunchClearsContentOnlyAfterConfirmedIdle(t *testing.T) {
+	for _, cleanupFails := range []bool{false, true} {
+		t.Run(fmt.Sprint("cleanupFails=", cleanupFails), func(t *testing.T) {
+			control := &recoveredLaunchControl{fail: true, failureCode: "invalid_request"}
+			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+			coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+			store := &recordingContentStore{pinned: true}
+			if cleanupFails {
+				store.clearErr = &protocol.APIError{Code: protocol.CodeInternal, Message: "cannot clear active record"}
+			}
+			agent.NewContentController(coordinator, store)
+			status, err := coordinator.Launch(context.Background(), protocol.LaunchRequest{GameID: "pong", System: protocol.SystemPong})
+			if err == nil || status.LastError == nil {
+				t.Fatalf("launch = %#v, %#v", status, err)
+			}
+			if store.clearCalls != 1 || store.pinned != cleanupFails {
+				t.Fatalf("clear=%d pinned=%v", store.clearCalls, store.pinned)
+			}
+			if cleanupFails {
+				if status.State != protocol.StateFailed || coordinator.Health("test").Ready {
+					t.Fatalf("cleanup failure reported ready: %#v", status)
+				}
+				control.fail = false
+				if _, nextErr := coordinator.Launch(context.Background(), protocol.LaunchRequest{GameID: "pong", System: protocol.SystemPong}); nextErr == nil || control.launchCalls != 1 {
+					t.Fatal("new launch bypassed failed content cleanup")
+				}
+				if _, devErr := coordinator.LoadDevelopmentRBF(context.Background(), 1, strings.NewReader("x")); devErr == nil || devErr.Code != protocol.CodeMiSTerUnavailable {
+					t.Fatalf("development bypassed cleanup: %#v", devErr)
+				}
+				store.clearErr = nil
+				if stopped, stopErr := coordinator.Stop(context.Background()); stopErr != nil || stopped.State != protocol.StateIdle || !coordinator.Health("test").Ready {
+					t.Fatalf("cleanup retry = %#v, %#v", stopped, stopErr)
+				}
+
+			} else if status.State != protocol.StateIdle || !coordinator.Health("test").Ready {
+				t.Fatalf("confirmed cleanup not ready: %#v", status)
+			}
+		})
+	}
 }

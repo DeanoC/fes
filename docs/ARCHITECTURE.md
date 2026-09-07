@@ -105,6 +105,38 @@ MD and SNES leases; no per-game virtual-device churn or input coordinator is
 introduced. The host API exposes lease attach/detach/status; gamepad event
 producers continue using the existing host RemoteInput event interface.
 
+## Native Stop response loss
+
+If the runtime Stop reply is lost while the operation context remains live,
+`internal/misterruntime/runtime.go` makes one read-only Status request, bounded
+by the existing health timeout and remaining operation lifetime. It never
+replays Stop. A clean valid idle response confirms cleanup, allowing the agent
+to clear active content and a later launch to proceed. Running, malformed or
+retained-error idle responses do not prove successful Stop and remain unavailable.
+An explicit retryable SNES save failure retains its mapped error; an explicit
+reboot-required result retains the existing recovery marker. Normal Stop replies
+and the existing game/development recovery policies are unchanged. Cancellation
+of the operation owner also cancels observation.
+
+This behavior has adapter, real Unix-socket dropped-response and coordinator
+Stop/relaunch regression coverage. Dated diagnostic hardware validation is in
+[the session recovery report](testing/session-recovery-2026-09-07.md).
+
+## Failed native launch recovery
+
+A failed native launch is observed once under the coordinator's exclusive
+transition. A valid native idle status (including a retained launch error, but
+excluding `save_failed`) permits clearing the durable active-content record.
+Only successful cleanup publishes idle. The launch still returns its original
+error, also retained in `last_error`; a subsequent successful launch clears it.
+This observation uses the existing health timeout and operation-owner context.
+It does not replay launch or issue an automatic Stop.
+
+An unresolved native failed state remains unready, including failure to clear
+the content record. Both game and development launch admission use coordinator
+readiness, so callers cannot bypass that block. Explicit Stop can retry cleanup
+and restore readiness. Legacy runtimes do not opt into native idle observation.
+
 ## Native SNES battery saves
 
 The target coordinator passes the validated game ID in `PreparedLaunch` for

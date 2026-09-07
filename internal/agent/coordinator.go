@@ -24,6 +24,10 @@ type Runtime interface {
 	Stop(context.Context) (string, *protocol.APIError)
 }
 
+type idleConfirmingRuntime interface {
+	ConfirmIdle(context.Context) bool
+}
+
 type stopReadyRuntime interface {
 	StopReady() bool
 }
@@ -118,7 +122,8 @@ func (c *Coordinator) Status() protocol.Status {
 func (c *Coordinator) Health(version string) protocol.Health {
 	health := c.runtime.Health(version)
 	status := c.Status()
-	if status.State == protocol.StateFailed && status.LastError != nil && status.LastError.Code == protocol.CodeMiSTerUnavailable {
+	_, nativeIdle := c.runtime.(idleConfirmingRuntime)
+	if status.State == protocol.StateFailed && (nativeIdle || (status.LastError != nil && status.LastError.Code == protocol.CodeMiSTerUnavailable)) {
 		health.Ready = false
 	}
 	return health
@@ -261,7 +266,7 @@ func (c *Coordinator) Launch(parent context.Context, request protocol.LaunchRequ
 }
 
 func (c *Coordinator) launchWithIntent(parent context.Context, gameID string, spec core.Spec, romPath string, recordIntent func() *protocol.APIError) (protocol.Status, bool, *protocol.APIError) {
-	if !c.runtime.Health("").Ready {
+	if !c.Health("").Ready {
 		return c.Status(), false, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}
 	}
 	prepared, apiErr := c.runtime.Prepare(spec, romPath)
@@ -292,6 +297,15 @@ func (c *Coordinator) launchWithIntent(parent context.Context, gameID string, sp
 		if observed != "" {
 			failed.ObservedCore = &observed
 		}
+		// The runtime may already have recovered from this failed attempt.
+		// Keep the launch error, but publish idle only after physical and
+		// durable-content cleanup are both confirmed under this transition.
+		if runtime, ok := c.runtime.(idleConfirmingRuntime); ok && runtime.ConfirmIdle(c.operationContext) {
+			if c.content == nil || c.content.ClearActive() == nil {
+				c.set(protocol.Status{State: protocol.StateIdle, LastError: cloneAPIError(apiErr)})
+				return c.Status(), dispatchAttempted, apiErr
+			}
+		}
 		c.set(failed)
 		return c.Status(), dispatchAttempted, apiErr
 	}
@@ -305,7 +319,7 @@ func (c *Coordinator) LoadDevelopmentRBF(parent context.Context, size int64, con
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
 	}
 	defer c.end()
-	if !c.runtime.Health("").Ready {
+	if !c.Health("").Ready {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}
 	}
 	previous := c.Status()
