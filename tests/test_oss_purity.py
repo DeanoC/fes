@@ -104,6 +104,7 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/440_dsp_preadder/rtl/top.v",
             "experiments/450_dsp_mac/rtl/top.v",
             "experiments/460_dsp_reg/rtl/top.v",
+            "experiments/470_mlab_init/rtl/top.v",
         ):
             destination = repository / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -141,7 +142,7 @@ class OssPipelinePurityTests(unittest.TestCase):
 
         pins = {
             "yosys": "13b43f8c85ec430a33ee55d058fb4c32b42b6910",
-            "nextpnr": "39f194e8f26db1700edc3acf759f341e1b9fd90d",
+            "nextpnr": "9632c85b84069acc8bb507165a48c348c70499eb",
         }
         for lock_name, commit in pins.items():
             evidence = external_build / lock_name if symlink_build_tools else build / lock_name
@@ -211,15 +212,16 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
 
     def test_print_commands_enables_lut_memory_only_for_mlab_ram(self) -> None:
-        result = self._run("--print-commands", "--experiment", "040_mlab_ram")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        commands = result.stdout
-        self.assertIn("experiments/040_mlab_ram/rtl/top.v", commands)
-        self.assertIn("synth_intel_alm -nobram -nodsp -top top", commands)
-        self.assertNotIn("-nolutram", commands)
-        self.assertNotIn("hps_gp_model.v", commands)
-        self.assertIn("--freq 50", commands)
-        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+        for experiment in ("040_mlab_ram", "470_mlab_init"):
+            result = self._run("--print-commands", "--experiment", experiment)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            commands = result.stdout
+            self.assertIn(f"experiments/{experiment}/rtl/top.v", commands)
+            self.assertIn("synth_intel_alm -nobram -nodsp -top top", commands)
+            self.assertNotIn("-nolutram", commands)
+            self.assertNotIn("hps_gp_model.v", commands)
+            self.assertIn("--freq 50", commands)
+            self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
 
     def test_print_commands_enables_block_and_lab_memory_for_mixed_mem(self) -> None:
         result = self._run("--print-commands", "--experiment", "070_mixed_mem")

@@ -28,6 +28,19 @@ BOARD_CONSTRAINTS = (
 ORDINARY_RESOURCES = frozenset(
     {"MISTRAL_BUF", "MISTRAL_CLKENA", "MISTRAL_COMB", "MISTRAL_FF", "MISTRAL_IO"}
 )
+MLAB_INIT_CELL = re.compile(r"^storage\.stored\.([0-7])\.0\.0$")
+
+
+def mlab_init_byte(address: int) -> int:
+    """Return the closed 32-by-8 MLAB power-up byte at *address*."""
+
+    return ((int(address) * 73) ^ (int(address) >> 1) ^ 0xA6) & 0xFF
+
+
+def mlab_init_lane(bit: int) -> int:
+    """Return the 32-bit INIT word for MLAB lane *bit*."""
+
+    return sum(((mlab_init_byte(address) >> int(bit)) & 1) << address for address in range(32))
 
 
 class PolicyError(ValueError):
@@ -107,6 +120,7 @@ class ExperimentPolicy:
     required_packed_sites: Mapping[str, int] = MappingProxyType({})
     synth_json_input_ports: Mapping[str, tuple[str, ...]] = MappingProxyType({})
     synth_json_tied_low: Mapping[str, tuple[str, ...]] = MappingProxyType({})
+    synth_json_mlab_init: bool = False
 
     def __post_init__(self) -> None:
         if not self.name or not isinstance(self.name, str):
@@ -134,7 +148,12 @@ class ExperimentPolicy:
         object.__setattr__(self, "additional_clocks_mhz", MappingProxyType(clocks))
         if self.target != TARGET_DEVICE:
             raise PolicyError(f"{self.name}: target must be {TARGET_DEVICE}")
-        for flag_name, flag in (("nobram", self.nobram), ("nolutram", self.nolutram), ("nodsp", self.nodsp)):
+        for flag_name, flag in (
+            ("nobram", self.nobram),
+            ("nolutram", self.nolutram),
+            ("nodsp", self.nodsp),
+            ("synth_json_mlab_init", self.synth_json_mlab_init),
+        ):
             if not isinstance(flag, bool):
                 raise PolicyError(f"{self.name}: {flag_name} must be a boolean")
         if not isinstance(self.yosys_post_synth, str) or "\n" in self.yosys_post_synth:
@@ -455,15 +474,56 @@ class ExperimentPolicy:
                 raise PolicyError(
                     f"synth cell {name} must occur exactly {expected} time(s), got {actual}"
                 )
+        if self.synth_json_mlab_init:
+            self._require_mlab_init(design)
+
+    def _mlab_init_cells(self, design: Mapping[str, Any]) -> dict[int, dict[str, Any]]:
+        modules = design.get("modules")
+        if not isinstance(modules, Mapping):
+            raise PolicyError("synth json has no modules")
+        found: dict[int, dict[str, Any]] = {}
+        for module in modules.values():
+            if not isinstance(module, Mapping):
+                continue
+            cells = module.get("cells")
+            if not isinstance(cells, Mapping):
+                continue
+            for name, cell in cells.items():
+                if not isinstance(name, str) or not isinstance(cell, Mapping):
+                    continue
+                if cell.get("type") != "MISTRAL_MLAB":
+                    continue
+                match = MLAB_INIT_CELL.fullmatch(name)
+                if match is None:
+                    raise PolicyError(f"unexpected MLAB cell name {name!r}")
+                bit = int(match.group(1))
+                if bit in found:
+                    raise PolicyError(f"duplicate MLAB init lane {bit}")
+                found[bit] = cell
+        if set(found) != set(range(8)):
+            raise PolicyError(
+                "synth json must contain MLAB lanes 0-7, got " + ",".join(str(bit) for bit in sorted(found))
+            )
+        return found
+
+    def _require_mlab_init(self, design: Mapping[str, Any]) -> None:
+        for bit, cell in self._mlab_init_cells(design).items():
+            parameters = cell.get("parameters")
+            if not isinstance(parameters, Mapping):
+                raise PolicyError(f"MLAB lane {bit} has no parameters")
+            expected = f"{mlab_init_lane(bit):032b}"
+            actual = parameters.get("INIT")
+            if actual != expected:
+                raise PolicyError(f"MLAB lane {bit} INIT must be {expected}, got {actual!r}")
 
     def apply_synth_json(self, path: Path) -> None:
-        """Mark extra DSP control ports as inputs after Yosys chtype.
+        """Fix Yosys JSON extras that nextpnr cannot consume as-is.
 
-        Yosys write_json defaults unknown ports on a known library cell to
-        output. nextpnr then treats Z/C/CLK/ENA as drivers.
+        Unknown ports on known library cells default to output. MLAB INIT is
+        omitted by the locked Yosys MLAB mapper and must be written here.
         """
 
-        if not self.synth_json_input_ports and not self.synth_json_tied_low:
+        if not self.synth_json_input_ports and not self.synth_json_tied_low and not self.synth_json_mlab_init:
             return
         try:
             design = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -516,6 +576,16 @@ class ExperimentPolicy:
         ]
         if missing:
             raise PolicyError("synth json is missing cells that need extra input ports: " + ", ".join(missing))
+        if self.synth_json_mlab_init:
+            for bit, cell in self._mlab_init_cells(design).items():
+                parameters = cell.get("parameters")
+                if not isinstance(parameters, dict):
+                    parameters = {}
+                    cell["parameters"] = parameters
+                expected = f"{mlab_init_lane(bit):032b}"
+                if parameters.get("INIT") != expected:
+                    parameters["INIT"] = expected
+                    changed = True
         if changed:
             Path(path).write_text(json.dumps(design) + "\n", encoding="utf-8")
 
@@ -644,6 +714,7 @@ class ExperimentPolicy:
                 if self.synth_json_tied_low
                 else {}
             ),
+            **({"synth_json_mlab_init": True} if self.synth_json_mlab_init else {}),
         }
 
 
@@ -2624,6 +2695,41 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                         "experiments/020_linux_mailbox/sim/hps_gp_model.v",
                     ),
                     tb="experiments/460_dsp_reg/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "470_mlab_init": ExperimentPolicy(
+            name="470_mlab_init",
+            sources=("experiments/470_mlab_init/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            forbidden_source_patterns=(
+                *(pattern for pattern in _COMMON_SOURCE_PATTERNS if pattern != "MLAB"),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            required_synth_cells={"MISTRAL_MLAB": 8},
+            nolutram=False,
+            synth_json_mlab_init=True,
+            clock_evidence_names=("storage.FPGA_CLK1_50",),
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/470_mlab_init/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                    ),
+                    tb="experiments/470_mlab_init/sim/tb.cpp",
                 ),
             ),
         ),
