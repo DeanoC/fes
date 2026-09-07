@@ -4,14 +4,18 @@
 package fbgrid
 
 import (
+	"image"
+
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/linuxinput"
 )
 
-// Tile is one fake cover: a short label and a solid colour.
+// Tile is one catalog cell: a short label, a solid colour fallback, and
+// optional decoded cover pixels.
 type Tile struct {
 	Name  string
 	Color gfx.Color
+	Cover *image.RGBA
 }
 
 const (
@@ -36,18 +40,18 @@ var Flash = gfx.RGB(255, 255, 255)
 // FakeTiles is the static 4×3 kit catalog.
 func FakeTiles() []Tile {
 	return []Tile{
-		{"SONIC 2", gfx.RGB(40, 90, 200)},
-		{"STREETS", gfx.RGB(200, 40, 40)},
-		{"GUNSTAR", gfx.RGB(40, 180, 80)},
-		{"CASTLE", gfx.RGB(140, 40, 180)},
-		{"PONG", gfx.RGB(220, 180, 40)},
-		{"CONTRA", gfx.RGB(40, 140, 160)},
-		{"METROID", gfx.RGB(180, 80, 40)},
-		{"OUTRUN", gfx.RGB(80, 80, 200)},
-		{"R-TYPE", gfx.RGB(200, 40, 120)},
-		{"SIMCITY", gfx.RGB(40, 160, 120)},
-		{"TETRIS", gfx.RGB(60, 60, 60)},
-		{"DOOM", gfx.RGB(160, 20, 20)},
+		{Name: "SONIC 2", Color: gfx.RGB(40, 90, 200)},
+		{Name: "STREETS", Color: gfx.RGB(200, 40, 40)},
+		{Name: "GUNSTAR", Color: gfx.RGB(40, 180, 80)},
+		{Name: "CASTLE", Color: gfx.RGB(140, 40, 180)},
+		{Name: "PONG", Color: gfx.RGB(220, 180, 40)},
+		{Name: "CONTRA", Color: gfx.RGB(40, 140, 160)},
+		{Name: "METROID", Color: gfx.RGB(180, 80, 40)},
+		{Name: "OUTRUN", Color: gfx.RGB(80, 80, 200)},
+		{Name: "R-TYPE", Color: gfx.RGB(200, 40, 120)},
+		{Name: "SIMCITY", Color: gfx.RGB(40, 160, 120)},
+		{Name: "TETRIS", Color: gfx.RGB(60, 60, 60)},
+		{Name: "DOOM", Color: gfx.RGB(160, 20, 20)},
 	}
 }
 

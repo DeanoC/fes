@@ -2,6 +2,7 @@ package fbgrid
 
 import (
 	"bytes"
+	"image"
 	"image/color"
 	"testing"
 
@@ -79,6 +80,54 @@ func TestPaintFocusAndConfirm(t *testing.T) {
 	if p != (color.RGBA{255, 255, 255, 255}) {
 		t.Fatalf("flash rgba %+v", p)
 	}
+}
+
+func TestPaintCoverDrawsRGBAAndFallsBack(t *testing.T) {
+	t.Parallel()
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	cover := image.NewRGBA(image.Rect(0, 0, 8, 8))
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 8; x++ {
+			cover.Set(x, y, color.RGBA{R: 255, G: 0, B: 200, A: 255})
+		}
+	}
+	fallback := gfx.RGB(44, 96, 156)
+	g := NewWithTiles(w, h, []Tile{
+		{Name: "ART", Color: fallback, Cover: cover},
+		{Name: "FLAT", Color: fallback},
+	})
+	Paint(d, g)
+	d.Present()
+	ix, iy, ok := g.InteriorSample()
+	if !ok {
+		t.Fatal("interior")
+	}
+	assertBGRX(t, dst, cfg, ix, iy, 200, 0, 255, 0)
+	hx, hy, ok := g.HighlightSample()
+	if !ok {
+		t.Fatal("highlight")
+	}
+	assertBGRX(t, dst, cfg, hx, hy, 0, 220, 255, 0)
+	ox, oy, ok := g.CellOrigin(1)
+	if !ok {
+		t.Fatal("fallback origin")
+	}
+	assertBGRX(t, dst, cfg, ox+g.CellW/2, oy+g.CellH/2, fallback.B, fallback.G, fallback.R, 0)
+
+	g.Focus = 1
+	g.ConfirmIndex = 0
+	g.ConfirmLeft = ConfirmFrames
+	Paint(d, g)
+	d.Present()
+	sx, sy, _ := g.CellOrigin(0)
+	assertBGRX(t, dst, cfg, sx+g.CellW/2, sy+g.CellH/2, 255, 255, 255, 0)
 }
 
 func TestPaintUsesOptionalHeaderAndFooter(t *testing.T) {

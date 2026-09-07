@@ -82,17 +82,41 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the selected target")
 			return
 		}
-		allowed := false
-		switch r.Method + " " + r.URL.Path {
-		case "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "POST /api/v1/session/launch", "POST /api/v1/session/stop":
-			allowed = true
-		}
+		allowed := launcherOperation(r.Method, r.URL.Path)
 		if !allowed {
 			writeError(w, http.StatusNotFound, "NOT_FOUND", "launcher operation is unavailable")
 			return
 		}
 		a.routes.ServeHTTP(w, r)
 	})), nil
+}
+
+func launcherOperation(method, path string) bool {
+	switch method + " " + path {
+	case "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "POST /api/v1/session/launch", "POST /api/v1/session/stop":
+		return true
+	}
+	return method == http.MethodGet && launcherArtworkPath(path)
+}
+
+func launcherArtworkPath(path string) bool {
+	const prefix = "/api/v1/presentation/artwork/"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	handle := path[len(prefix):]
+	if len(handle) != 64 {
+		return false
+	}
+	for _, r := range handle {
+		if r >= 'A' && r <= 'F' {
+			r += 'a' - 'A'
+		}
+		if r < '0' || (r > '9' && r < 'a') || r > 'f' {
+			return false
+		}
+	}
+	return true
 }
 
 func (a *applicationHandler) selectedTargetID() string {

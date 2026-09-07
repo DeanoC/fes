@@ -61,9 +61,10 @@ The native image packages the CGO-free `fogcast-kit` adapter for the kit HDMI
 display and USB controller. It uses an explicitly paired host listener and the
 existing session/input ownership path; Select + Start held for one second requests
 Stop and returns to the library. Its live catalog is rendered as a small 4×3
-cover grid through `host/tenfoot/fbgrid`; the grid is a view of
-`kitlauncher.Model` and does not own host requests, input leases, or FPGA
-transitions. See [kit launcher](docs/kit-launcher.md). Exact image and hardware
+cover grid through `host/tenfoot/fbgrid`; cells show host cover art when
+`Game.Cover` is available and keep the system-color fallback otherwise. The
+grid is a view of `kitlauncher.Model` and does not own host requests, input
+leases, or FPGA transitions. See [kit launcher](docs/kit-launcher.md). Exact image and hardware
 evidence belong to FES.
 
 ## Built-in native Pong (software integration)

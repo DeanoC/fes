@@ -521,8 +521,10 @@ coverage; physical reboot and DHCP acceptance belongs to the selected FES image.
 ## Native kit launcher
 
 The native image packages `fogcast-kit`, a CGO-free controller/session adapter
-with a live 4×3 catalog grid renderer. A paired, authenticated host listener
-serves a restricted set of existing library and session operations and a
+with a live 4×3 catalog grid renderer. Catalog cells paint decoded box-art from
+`GET /api/v1/presentation/artwork/{handle}` when `Game.Cover` is present, and
+keep the system-color fallback otherwise. A paired, authenticated host listener
+serves a restricted set of existing library, artwork, and session operations and a
 session-bound input stream. The host keeps target and input lease ownership; the
 adapter sends physical USB events through that stream to the retained virtual
 pad. The native runtime enables the idle framebuffer and restores it after Stop.

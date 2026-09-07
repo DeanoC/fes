@@ -102,9 +102,9 @@ func fitSize(srcW, srcH, maxW, maxH int) (int, int) {
 	return w, h
 }
 
-// coverDestRect returns a centered, aspect-preserving destination inside a
+// CoverDestRect returns a centered, aspect-preserving destination inside a
 // cover cell. texW/texH are the stored texture pixel size.
-func coverDestRect(cellX, cellY, cellW, cellH, texW, texH int) (x, y, w, h float32) {
+func CoverDestRect(cellX, cellY, cellW, cellH, texW, texH int) (x, y, w, h float32) {
 	cw, ch := float32(cellW), float32(cellH)
 	if cw < 1 {
 		cw = 1
@@ -125,4 +125,8 @@ func coverDestRect(cellX, cellY, cellW, cellH, texW, texH int) (x, y, w, h float
 	x = float32(cellX) + (cw-w)/2
 	y = float32(cellY) + (ch-h)/2
 	return x, y, w, h
+}
+
+func coverDestRect(cellX, cellY, cellW, cellH, texW, texH int) (x, y, w, h float32) {
+	return CoverDestRect(cellX, cellY, cellW, cellH, texW, texH)
 }

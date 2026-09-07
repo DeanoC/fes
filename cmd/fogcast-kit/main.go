@@ -41,10 +41,20 @@ func run() error {
 	defer d.Close()
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+	client := kitlauncher.NewClient(c)
+	covers := tenfoot.NewCoverCache()
 	last := time.Time{}
 	var lastKey renderKey
 	present := func(m kitlauncher.Model) {
-		key := modelRenderKey(m)
+		start, end := catalogPage(m.Focus, len(m.Games))
+		prefetch := end + gridPageSize
+		if prefetch > len(m.Games) {
+			prefetch = len(m.Games)
+		}
+		handles := tenfoot.PageHandles(m.Games, start, prefetch)
+		covers.Keep(handles)
+		covers.Request(ctx, client.Library, handles)
+		key := modelRenderKey(m, covers.Generation())
 		if time.Since(last) < 100*time.Millisecond && key == lastKey {
 			return
 		}
@@ -52,11 +62,11 @@ func run() error {
 		lastKey = key
 		cfg := d.Config()
 		w, h := cfg.Width, cfg.Height
-		grid := modelGrid(m, w, h)
+		grid := modelGrid(m, w, h, covers)
 		fbgrid.Paint(d, grid)
 		d.Present()
 	}
-	return kitlauncher.Run(ctx, kitlauncher.NewClient(c), present, func() (kitlauncher.Pad, error) { return controller.Open() })
+	return kitlauncher.Run(ctx, client, present, func() (kitlauncher.Pad, error) { return controller.Open() })
 }
 
 type renderKey struct {
@@ -64,9 +74,10 @@ type renderKey struct {
 	FocusID, Message                                  string
 	SessionState, Execution, GameID                   string
 	Busy, Connected, TargetReady, ControllerConnected bool
+	Covers                                            uint64
 }
 
-func modelRenderKey(m kitlauncher.Model) renderKey {
+func modelRenderKey(m kitlauncher.Model, covers uint64) renderKey {
 	focusID := ""
 	if m.Focus >= 0 && m.Focus < len(m.Games) {
 		focusID = m.Games[m.Focus].ID
@@ -76,26 +87,34 @@ func modelRenderKey(m kitlauncher.Model) renderKey {
 		Message: m.Message, SessionState: m.Session.State, Execution: m.Session.Execution,
 		GameID: m.Session.GameID, Busy: m.Busy, Connected: m.Connected,
 		TargetReady: m.TargetReady, ControllerConnected: m.ControllerConnected,
+		Covers: covers,
 	}
+}
+
+func catalogPage(focus, n int) (start, end int) {
+	if n <= 0 {
+		return 0, 0
+	}
+	if focus > 0 {
+		start = (focus / gridPageSize) * gridPageSize
+	}
+	if start >= n {
+		start = 0
+	}
+	end = start + gridPageSize
+	if end > n {
+		end = n
+	}
+	return start, end
 }
 
 // modelGrid maps the live catalog to one visible 4×3 page. Model.Focus remains
 // an index into the complete catalog; the grid focus is page-local.
-func modelGrid(m kitlauncher.Model, width, height int) fbgrid.Grid {
-	start := 0
-	if m.Focus > 0 {
-		start = (m.Focus / gridPageSize) * gridPageSize
-	}
-	if start >= len(m.Games) {
-		start = 0
-	}
-	end := start + gridPageSize
-	if end > len(m.Games) {
-		end = len(m.Games)
-	}
+func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCache) fbgrid.Grid {
+	start, end := catalogPage(m.Focus, len(m.Games))
 	tiles := make([]fbgrid.Tile, 0, end-start)
 	for _, game := range m.Games[start:end] {
-		tiles = append(tiles, gameTile(game))
+		tiles = append(tiles, gameTile(game, covers))
 	}
 	g := fbgrid.NewWithTiles(width, height, tiles)
 	g.Header = "FOGCAST"
@@ -106,7 +125,7 @@ func modelGrid(m kitlauncher.Model, width, height int) fbgrid.Grid {
 	return g
 }
 
-func gameTile(game tenfoot.Game) fbgrid.Tile {
+func gameTile(game tenfoot.Game, covers *tenfoot.CoverCache) fbgrid.Tile {
 	name := asciiLabel(game.Title)
 	if name == "" {
 		name = asciiLabel(game.System)
@@ -114,7 +133,11 @@ func gameTile(game tenfoot.Game) fbgrid.Tile {
 	if name == "" {
 		name = "UNTITLED"
 	}
-	return fbgrid.Tile{Name: truncateLabel(name, 18), Color: systemColor(game.System)}
+	tile := fbgrid.Tile{Name: truncateLabel(name, 18), Color: systemColor(game.System)}
+	if handle := tenfoot.CoverHandle(game, tenfoot.Presentation{}); handle != "" {
+		tile.Cover = covers.Image(handle)
+	}
+	return tile
 }
 
 func systemColor(system string) gfx.Color {

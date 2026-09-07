@@ -45,9 +45,12 @@ The native runtime enables the MiSTer HPS framebuffer on Menu bring-up and every
 successful return to idle. The launcher only renders memory; it never issues SPI,
 programs the FPGA, or claims a kit lease. Rendering pauses while a game is active.
 The connecting/library screen uses the existing pure-Go linuxfb backend and the
-shared `fbgrid` paint path. Tiles are a bounded page of live catalog rows with
-system-specific colors and ASCII-safe labels; no artwork or extra host route is
-introduced in this slice.
+shared `fbgrid` paint path. Tiles are a bounded page of live catalog rows. When
+`Game.Cover` is present, the kit fetches `GET /api/v1/presentation/artwork/{handle}`
+on the paired listener, decodes it with `DecodeCover`, and aspect-fits the RGBA
+into the cell. Missing, failed, or still-loading art keeps the system-color
+tile and ASCII label. Fetching is asynchronous and does not block the present
+loop.
 
 Run `go test -race ./kitlauncher/... ./cmd/fogcast-kit` for adapter tests. They
 exercise real HTTP transports with isolated servers and never open real input or

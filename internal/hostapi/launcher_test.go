@@ -48,6 +48,7 @@ func TestLauncherRestrictionAndAuthentication(t *testing.T) {
 		want                          int
 	}{
 		{"catalogue", "GET", "/api/v1/games", launcherToken, launcherID, 200},
+		{"presentation", "GET", "/api/v1/presentation/games/snes-mario", launcherToken, launcherID, 404},
 		{"no token", "GET", "/api/v1/games", "", launcherID, 401},
 		{"wrong token", "GET", "/api/v1/games", "wrong", launcherID, 401},
 		{"wrong identity", "GET", "/api/v1/games", launcherToken, "different", 403},
@@ -73,6 +74,21 @@ func TestLauncherRestrictionAndAuthentication(t *testing.T) {
 	api.ServeHTTP(w, launcherRequest("GET", "http://192.0.2.1/api/v1/games", nil))
 	if w.Code != 403 {
 		t.Fatalf("browser API exposed: %d", w.Code)
+	}
+}
+
+func TestLauncherAllowsArtworkGET(t *testing.T) {
+	handler := launcherHandler(t, nil)
+	handle := strings.Repeat("ab", 32)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, launcherRequest("GET", "http://192.0.2.1:8789/api/v1/presentation/artwork/"+handle, nil))
+	if w.Code != 404 || !strings.Contains(w.Body.String(), "ARTWORK_UNAVAILABLE") {
+		t.Fatalf("admitted artwork: %d %s", w.Code, w.Body.String())
+	}
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, launcherRequest("GET", "http://192.0.2.1:8789/api/v1/presentation/artwork/nope", nil))
+	if w.Code != 404 || !strings.Contains(w.Body.String(), "launcher operation is unavailable") {
+		t.Fatalf("rejected artwork: %d %s", w.Code, w.Body.String())
 	}
 }
 
