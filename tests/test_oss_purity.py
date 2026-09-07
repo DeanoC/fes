@@ -78,6 +78,18 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/200_pll_frac_dual/rtl/top.v",
             "experiments/210_pll_duty/rtl/top.v",
             "experiments/220_pll_phase/rtl/top.v",
+            "experiments/230_pll_phase_180/rtl/top.v",
+            "experiments/240_pll_phase_270/rtl/top.v",
+            "experiments/250_pll_triple/rtl/top.v",
+            "experiments/260_pll_quad/rtl/top.v",
+            "experiments/270_pll_multi_duty/rtl/top.v",
+            "experiments/280_pll_quadrature/rtl/top.v",
+            "experiments/290_pll_phase_select/rtl/top.v",
+            "experiments/300_pll_ref25/rtl/top.v",
+            "experiments/300_pll_ref25/clocks.sdc",
+            "experiments/310_pll_ref100/rtl/top.v",
+            "experiments/310_pll_ref100/clocks.sdc",
+            "experiments/320_pll_phase50/rtl/top.v",
         ):
             destination = repository / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -115,7 +127,7 @@ class OssPipelinePurityTests(unittest.TestCase):
 
         pins = {
             "yosys": "13b43f8c85ec430a33ee55d058fb4c32b42b6910",
-            "nextpnr": "0ab322bdc414c195bf1907875c2b6a8818d9f81a",
+            "nextpnr": "aab1330c73ba432ee7066a652907826d84cde747",
         }
         for lock_name, commit in pins.items():
             evidence = external_build / lock_name if symlink_build_tools else build / lock_name
@@ -300,6 +312,128 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         commands = result.stdout
         self.assertIn("experiments/220_pll_phase/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("pll_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_pll_phase_180(self) -> None:
+        result = self._run("--print-commands", "--experiment", "230_pll_phase_180")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/230_pll_phase_180/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("pll_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_pll_phase_270(self) -> None:
+        result = self._run("--print-commands", "--experiment", "240_pll_phase_270")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/240_pll_phase_270/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("pll_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_pll_triple(self) -> None:
+        result = self._run("--print-commands", "--experiment", "250_pll_triple")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/250_pll_triple/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("pll_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_pll_quad(self) -> None:
+        result = self._run("--print-commands", "--experiment", "260_pll_quad")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/260_pll_quad/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("pll_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_pll_multi_duty(self) -> None:
+        result = self._run("--print-commands", "--experiment", "270_pll_multi_duty")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/270_pll_multi_duty/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("pll_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_pll_quadrature(self) -> None:
+        result = self._run("--print-commands", "--experiment", "280_pll_quadrature")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/280_pll_quadrature/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("pll_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_pll_phase_select(self) -> None:
+        result = self._run("--print-commands", "--experiment", "290_pll_phase_select")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/290_pll_phase_select/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("pll_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_pll_ref25(self) -> None:
+        result = self._run("--print-commands", "--experiment", "300_pll_ref25")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/300_pll_ref25/rtl/top.v", commands)
+        self.assertIn("experiments/300_pll_ref25/clocks.sdc", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("pll_model.v", commands)
+        self.assertIn("--freq 25", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_pll_ref100(self) -> None:
+        result = self._run("--print-commands", "--experiment", "310_pll_ref100")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/310_pll_ref100/rtl/top.v", commands)
+        self.assertIn("experiments/310_pll_ref100/clocks.sdc", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("pll_model.v", commands)
+        self.assertIn("--freq 100", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_pll_phase50(self) -> None:
+        result = self._run("--print-commands", "--experiment", "320_pll_phase50")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/320_pll_phase50/rtl/top.v", commands)
         self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
         self.assertNotIn("hps_gp_model.v", commands)
         self.assertNotIn("pll_model.v", commands)

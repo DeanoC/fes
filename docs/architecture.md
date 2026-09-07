@@ -145,15 +145,22 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current nextpnr pin `0ab322bdc414c195bf1907875c2b6a8818d9f81a` on
-`mistral-stable` extends the duty-cycle pin
-`bb48465dfac053abe4fb15e7eefb8f768262b49c` with a checked static 0°/90° pair:
-two 25 MHz outputs, `phase_shift1("10000 ps")`, C7 `CNT_PRESET=4`. Related-clock
-setup windows are 10 ns (0°→90°) and 30 ns (90°→0°). It also requires Mistral
-`b28e30a36b5139aaed5a5d361a30b542e6b7c758`, which corrects LAB/MLAB `CLKx_INV`
-versus `CLKx_SEL` addresses so folded falling-edge FF clocks actually toggle.
-An older Mistral library now fails before inverted-clock RBF output. Integer
-duty cycles, fractional-N, and 50% 25 MHz experiments are unchanged. The closed
+The current nextpnr pin `aab1330c73ba432ee7066a652907826d84cde747` on
+`mistral-stable` extends the 25/100 MHz reference pin
+`87dc2aaf4a7d479c29eb95fa2f9c0f1c4f0d02ed` with quarter-cycle phase on equal
+25 MHz outputs from 25/50/100 MHz references and on equal 50 MHz outputs from
+a 50 MHz reference. 50 MHz 90°/270° shifts use `CNT_PH_MUX_PRESET` as well as
+the counter preset (`0`/`5000`/`10000`/`15000` ps). Compatible exact decimal
+frequencies from 1 to 100 MHz still share one 300/320/400 MHz configuration
+for the selected reference. The closed 50 MHz 25/50/100 MHz triple uses
+C6=12, C7=6 and C5=3; the 25/50/100/75 MHz quad adds C8=4. Mixed 25/50/25
+duties on 25/50/100 MHz force the 400 MHz configuration. A 25 MHz reference
+with the same 25/50/100 MHz 50% triple uses M=24 N=2; a 100 MHz reference uses
+M=6 N=2. Shifted 50 MHz outputs still require a 50 MHz reference. It also
+requires Mistral `b28e30a36b5139aaed5a5d361a30b542e6b7c758`, which corrects
+LAB/MLAB `CLKx_INV` versus `CLKx_SEL` addresses so folded falling-edge FF
+clocks actually toggle. An older Mistral library now fails before inverted-clock
+RBF output. Fractional-N profiles still require 50% duty. The closed
 `090_pll_clock` and `110_pll_reset` experiments retain their 25 MHz 50% output.
 
 Compiler fixtures under `mistral/tests/pll` in the nextpnr fork cover divider
@@ -164,7 +171,7 @@ while reset, then 1638–1639 / 3276–3277 / 8192 after relock. Their reference
 output Fmax values were 216.732 / 326.584 MHz against 50 MHz and the selected
 output constraint. Host pair regressions cover 25/40, 40/25, 20/100, 40/64,
 80/80 and 1/1 MHz. Artifact hashes and reproduction commands are in the
-[nextpnr PLL test documentation](https://github.com/DeanoC/nextpnr/blob/0ab322bdc414c195bf1907875c2b6a8818d9f81a/mistral/tests/pll/README.md).
+[nextpnr PLL test documentation](https://github.com/DeanoC/nextpnr/blob/aab1330c73ba432ee7066a652907826d84cde747/mistral/tests/pll/README.md).
 
 `120_pll_dsp` runs the eight-by-eight unsigned DSP product on the proven
 50-to-25 MHz PLL output. Linux peeks and pokes GPO/GPI on the 50 MHz
@@ -335,6 +342,163 @@ after relock for ten cycles; 0° launch and 90° capture both followed GPO bit0
 reboot recovery and left the lease free. This is exact-artifact functional
 diagnostic acceptance; it does not measure analog phase or establish native
 game acceptance.
+
+`230_pll_phase_180` measures two 25 MHz outputs at 0° and +180° through HPS GP.
+GPI signature `0xD71A` identifies the protocol. The 0° meter cannot observe
+analog phase. Simulation and OSS are supported; Quartus comparison is not
+implemented. See `experiments/230_pll_phase_180/expected.md`.
+
+The OSS `230_pll_phase_180` artifact has SHA-256
+`89ac5cb017517497fcda92c67b24149352a8164741fbd04b660be8377bc21f2a`
+and size 1,956,250 bytes. nextpnr selected 50→25/25 MHz with M=12 N=2 C6=12
+C7=12. Its reported reference/0°/180° Fmax values are 196.078/297.442/668.003
+MHz against 50/25/25 MHz constraints. Utilization is one `altera_pll`, three
+clock buffers, and one HPS GP. Exact-artifact kit diagnostics on 2026-09-06
+returned zero while reset and 2048 after relock for ten cycles; 0° launch and
+180° capture both followed GPO bit0 (`0xD71A2308` / `0xD71A2008`).
+
+`240_pll_phase_270` measures two 25 MHz outputs at 0° and +270° through HPS GP.
+GPI signature `0xD71B` identifies the protocol. The 0° meter cannot observe
+analog phase. Simulation and OSS are supported; Quartus comparison is not
+implemented. See `experiments/240_pll_phase_270/expected.md`.
+
+The OSS `240_pll_phase_270` artifact has SHA-256
+`4c61e94a3ddaf21a8edbaa120087493efd1211f95a2112cd3d72fc37f001d449`
+and size 1,956,348 bytes. nextpnr selected 50→25/25 MHz with M=12 N=2 C6=12
+C7=12. Its reported reference/0°/270° Fmax values are 197.746/334.560/942.507
+MHz against 50/25/25 MHz constraints. Utilization is one `altera_pll`, three
+clock buffers, and one HPS GP. Exact-artifact kit diagnostics on 2026-09-06
+returned zero while reset and 2048 after relock for ten cycles; 0° launch and
+270° capture both followed GPO bit0 (`0xD71B2308` / `0xD71B2008`). The current
+`kit.py` close completed development reboot recovery and left the lease free.
+This is exact-artifact functional diagnostic acceptance; it does not measure
+analog phase or establish native game acceptance.
+
+`250_pll_triple` measures 25, 50 and 100 MHz outputs of one integer PLL through
+HPS GP. GPI signature `0xD71C` identifies the protocol; GPO bits 4:3 select
+the meter. Simulation and OSS are supported; Quartus comparison is not
+implemented. See `experiments/250_pll_triple/expected.md`.
+
+The OSS `250_pll_triple` artifact has SHA-256
+`e028ddd025162f4ec80b94625162aa8386dc03828e52ea26c6fd53bb7ffa85c9`
+and size 1,961,364 bytes. nextpnr selected 50→25/50/100 MHz with M=12 N=2
+C6=12 C7=6. Its reported reference/25/50/100 Fmax values are
+181.884/322.477/340.832/361.141 MHz against 50/25/50/100 MHz constraints.
+Utilization is one `altera_pll`, four clock buffers, and one HPS GP.
+Exact-artifact kit diagnostics on 2026-09-06 returned zero while reset and
+2048/4096/8192 after relock for three cycles on each output.
+
+`260_pll_quad` measures 25, 50, 100 and 75 MHz outputs of one integer PLL
+through HPS GP. GPI signature `0xD71D` identifies the protocol; GPO bits 4:3
+select the meter. Simulation and OSS are supported; Quartus comparison is not
+implemented. See `experiments/260_pll_quad/expected.md`.
+
+The OSS `260_pll_quad` artifact has SHA-256
+`01b57cc1c257d70e5e77f94280d821726464808c36095123926c8ca592e06a98`
+and size 1,961,927 bytes. nextpnr selected 50→25/50/100/75 MHz with M=12 N=2
+C6=12 C7=6. Its reported reference/25/50/100/75 Fmax values are
+148.214/268.745/331.895/335.458/331.455 MHz against 50/25/50/100/75 MHz
+constraints. Utilization is one `altera_pll`, five clock buffers, and one HPS GP.
+Exact-artifact kit diagnostics on 2026-09-06 returned zero while reset and
+2048/4096/8192/6144 after relock for three cycles on each output. The current
+`kit.py` close completed development reboot recovery and left the lease free.
+This is exact-artifact functional diagnostic acceptance; it does not establish
+native game acceptance.
+
+`270_pll_multi_duty` measures the 25/50/100 MHz triple with independent
+25/50/25 duties through HPS GP. GPI signature `0xD71E` identifies the
+protocol; GPO bits 4:3 select the meter. Simulation and OSS are supported;
+Quartus comparison is not implemented. The meters cannot observe pulse width.
+See `experiments/270_pll_multi_duty/expected.md`.
+
+The OSS `270_pll_multi_duty` artifact has SHA-256
+`475d62f76c87e3b934200b45ecdb36215e1c1f93a44a2c179dcd7ad4e1ceaae9`
+and size 1,961,408 bytes. nextpnr selected the 400 MHz configuration
+50→25/50/100 MHz with M=16 N=2 C6=16 C7=8. Its reported reference/25/50/100
+Fmax values are 189.215/322.477/340.832/361.141 MHz against 50/25/50/100 MHz
+constraints. Utilization is one `altera_pll`, four clock buffers, and one
+HPS GP. Exact-artifact kit diagnostics on 2026-09-07 returned zero while
+reset and 2048/4096/8192 after relock for three cycles on each output.
+
+`280_pll_quadrature` measures four 25 MHz outputs at 0°/90°/180°/270° through
+HPS GP. GPI signature `0xD71F` identifies the protocol; GPO bits 4:3 select
+the meter. Simulation and OSS are supported; Quartus comparison is not
+implemented. The meters cannot observe analog phase. See
+`experiments/280_pll_quadrature/expected.md`.
+
+The OSS `280_pll_quadrature` artifact has SHA-256
+`281761251e3f6d973d9a9b53b9c5f2003746c1ca97dbbba75ba8a74c2c4b5a23`
+and size 1,962,620 bytes. nextpnr selected 50→25/25/25/25 MHz with M=12 N=2
+C6=12 C7=12. Its reported reference/0°/90°/180°/270° Fmax values are
+145.773/347.584/268.962/319.693/338.983 MHz against 50/25/25/25/25 MHz
+constraints. Utilization is one `altera_pll`, five clock buffers, and one
+HPS GP. Exact-artifact kit diagnostics on 2026-09-07 returned zero while
+reset and 2048 after relock for three cycles on each output.
+
+`290_pll_phase_select` measures four 25 MHz outputs at 0°/180°/180°/0° through
+HPS GP. GPI signature `0xD720` identifies the protocol; GPO bits 4:3 select
+the meter. Simulation and OSS are supported; Quartus comparison is not
+implemented. The meters cannot observe analog phase. See
+`experiments/290_pll_phase_select/expected.md`.
+
+The OSS `290_pll_phase_select` artifact has SHA-256
+`94d25ccf007accbb8ab466f7060f209586fcaf2127b5bd0f7025f8070983bc07`
+and size 1,962,812 bytes. nextpnr selected 50→25/25/25/25 MHz with M=12 N=2
+C6=12 C7=12. Its reported reference/0°/180°/180°/0° Fmax values are
+146.606/255.428/242.189/347.584/341.413 MHz against 50/25/25/25/25 MHz
+constraints. Utilization is one `altera_pll`, five clock buffers, and one
+HPS GP. Exact-artifact kit diagnostics on 2026-09-07 returned zero while
+reset and 2048 after relock for three cycles on each output. The current
+`kit.py` close completed development reboot recovery and left the lease free.
+This is exact-artifact functional diagnostic acceptance; it does not measure
+analog phase or pulse width, or establish native game acceptance.
+
+`300_pll_ref25` measures 25/50/100 MHz outputs of one integer PLL whose
+reference parameter is 25 MHz. GPI signature `0xD721` identifies the protocol;
+GPO bits 4:3 select the meter. Simulation and OSS are supported; Quartus
+comparison is not implemented. Analog kit measurement needs a physical 25 MHz
+V11 clock. See `experiments/300_pll_ref25/expected.md`.
+
+The OSS `300_pll_ref25` artifact has SHA-256
+`f8b65f631864982a62e42fa59b58b4e2c5dcdcf1fa9e3ad08d6a8f00cbfba342`
+and size 1,961,334 bytes. nextpnr selected 25→25/50/100 MHz with M=24 N=2
+C6=12 C7=6. Its reported reference/25/50/100 Fmax values are
+177.809/322.477/340.832/361.141 MHz against 25/25/50/100 MHz constraints.
+Utilization is one `altera_pll`, four clock buffers, and one HPS GP.
+
+`310_pll_ref100` measures 25/50/100 MHz outputs of one integer PLL whose
+reference parameter is 100 MHz. GPI signature `0xD722` identifies the protocol;
+GPO bits 4:3 select the meter. Simulation and OSS are supported; Quartus
+comparison is not implemented. Analog kit measurement needs a physical 100 MHz
+V11 clock. See `experiments/310_pll_ref100/expected.md`.
+
+The OSS `310_pll_ref100` artifact has SHA-256
+`47a52dc1b089aad17ebdbdd3e5ad84246a1bc5b59e80223d5052fa5ca97e25cd`
+and size 1,961,320 bytes. nextpnr selected 100→25/50/100 MHz with M=6 N=2
+C6=12 C7=6. Its reported reference/25/50/100 Fmax values are
+170.097/322.477/340.832/361.141 MHz against 100/25/50/100 MHz constraints.
+Utilization is one `altera_pll`, four clock buffers, and one HPS GP. Analog
+kit measurement of either new reference is host-only on the designated
+DE10-Nano: the onboard oscillator remains 50 MHz. This is OSS packing and
+simulation evidence; it does not establish native game acceptance.
+
+`320_pll_phase50` measures four 50 MHz outputs at 0°/90°/180°/270° through
+HPS GP. GPI signature `0xD723` identifies the protocol; GPO bits 4:3 select
+the meter. Simulation and OSS are supported; Quartus comparison is not
+implemented. The meters cannot observe analog phase. See
+`experiments/320_pll_phase50/expected.md`.
+
+The OSS `320_pll_phase50` artifact has SHA-256
+`f27254b131d950a59df4dbf16b47e6292175270a38c380d51bbe5eea139b35d9`
+and size 1,961,842 bytes. nextpnr selected 50→50/50/50/50 MHz with M=12 N=2
+C6=6 C7=6. Its reported reference/0°/90°/180°/270° Fmax values are
+164.690/325.309/331.675/349.162/343.997 MHz against 50/50/50/50/50 MHz
+constraints. Utilization is one `altera_pll`, five clock buffers, and one
+HPS GP. Exact-artifact kit diagnostics on 2026-09-07 returned zero while
+reset and 4096 after relock for three cycles on each output. The current
+`kit.py` close completed development reboot recovery and left the lease free.
+This is exact-artifact functional diagnostic acceptance; it does not measure
+analog phase or establish native game acceptance.
 
 ## Standalone Pong game
 

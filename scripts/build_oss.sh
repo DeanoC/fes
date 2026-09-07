@@ -258,7 +258,10 @@ done <<< "$policy_output"
 [[ "$policy_name" == "$EXP" ]] || fail "closed experiment policy name mismatch"
 [[ -n "$rtl_rel" && -n "$policy_sources_json" && -n "$policy_top" && -n "$policy_clock" ]] \
     || fail "closed experiment policy is missing source/top/clock"
-[[ "$policy_clock_mhz" == "50" ]] || fail "closed experiment policy must constrain 50 MHz"
+case "$policy_clock_mhz" in
+    25|50|100) ;;
+    *) fail "closed experiment policy must constrain 25, 50 or 100 MHz" ;;
+esac
 [[ "$policy_artifact" == "top.rbf" ]] || fail "closed experiment policy must emit top.rbf"
 [[ "$policy_nobram" == "0" || "$policy_nobram" == "1" ]] \
     || fail "closed experiment policy nobram must be 0 or 1"

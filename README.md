@@ -15,9 +15,19 @@ development possible with both the open-source Mistral toolchain and Quartus.
   PLL experiments below retain their 25 MHz output.
 - Dual-output PLL support for compatible whole-MHz pairs that share one checked
   300/320/400 MHz feedback configuration, including 25/40 MHz.
-- Exact integer PLL duty cycles (for example 25 MHz at 25%) with mixed-edge
-  fabric paths. Fractional-N profiles still require 50% duty.
-- A checked static 0°/90° pair: two 25 MHz outputs with `phase_shift1("10000 ps")`.
+- Three- and four-output integer PLL support for compatible exact decimal
+  frequencies from one checked 300/320/400 MHz configuration, including
+  25/50/100 MHz and 25/50/100/75 MHz. Zero-phase multi-output profiles also
+  accept 25 and 100 MHz V11 references; the DE10-Nano onboard oscillator is
+  50 MHz.
+- Exact integer PLL duty cycles on one or several outputs (for example 25 MHz
+  at 25%, or 25/50/100 MHz at 25/50/25) with mixed-edge fabric paths.
+  Fractional-N profiles still require 50% duty.
+- Checked static 0°/90°, 0°/180° and 0°/270° pairs, four-output 25 MHz
+  quadrature, selectable 0°/90°/180°/270° repeats on three- and four-output
+  25 MHz profiles, and four-output 50 MHz 0°/90°/180°/270° from a 50 MHz
+  reference (`0`/`5000`/`10000`/`15000` ps). 25 MHz phase profiles also accept
+  25 and 100 MHz V11 references.
 - Checked fractional-N PLL profiles when `fractional_vco_multiplier` is
   `"true"`: 50 MHz → 12.288 MHz, 50 MHz → 11.2896 MHz, and the dual
   12.288/24.576 MHz pair.
@@ -71,6 +81,37 @@ development possible with both the open-source Mistral toolchain and Quartus.
   path and a 0° frequency meter through HPS GP. Run `make sim EXP=220_pll_phase`
   and `make oss EXP=220_pll_phase`; no Quartus comparison lane is implemented.
   This does not measure analog phase accuracy.
+- `230_pll_phase_180` and `240_pll_phase_270`, the same meter and capture
+  protocol at +180° and +270°. Run `make sim EXP=230_pll_phase_180` /
+  `make oss EXP=230_pll_phase_180` and the 270 equivalents; no Quartus
+  comparison lane is implemented. This does not measure analog phase accuracy.
+- `250_pll_triple`, one PLL driving 25, 50 and 100 MHz together, measured
+  through HPS GP. Run `make sim EXP=250_pll_triple` and
+  `make oss EXP=250_pll_triple`; no Quartus comparison lane is implemented.
+- `260_pll_quad`, one PLL driving 25, 50, 100 and 75 MHz together, measured
+  through HPS GP. Run `make sim EXP=260_pll_quad` and
+  `make oss EXP=260_pll_quad`; no Quartus comparison lane is implemented.
+- `270_pll_multi_duty`, the 25/50/100 MHz triple with independent 25/50/25
+  duties, measured through HPS GP. Run `make sim EXP=270_pll_multi_duty` and
+  `make oss EXP=270_pll_multi_duty`; no Quartus comparison lane is implemented.
+  This does not measure pulse width.
+- `280_pll_quadrature`, four 25 MHz outputs at 0°/90°/180°/270°, measured
+  through HPS GP. Run `make sim EXP=280_pll_quadrature` and
+  `make oss EXP=280_pll_quadrature`; no Quartus comparison lane is implemented.
+  This does not measure analog phase accuracy.
+- `290_pll_phase_select`, four 25 MHz outputs at 0°/180°/180°/0°, measured
+  through HPS GP. Run `make sim EXP=290_pll_phase_select` and
+  `make oss EXP=290_pll_phase_select`; no Quartus comparison lane is
+  implemented. This does not measure analog phase accuracy.
+- `300_pll_ref25` and `310_pll_ref100`, the 25/50/100 MHz triple from a 25 MHz
+  or 100 MHz V11 reference. Run `make sim EXP=300_pll_ref25` /
+  `make oss EXP=300_pll_ref25` and the 100 MHz-reference equivalents. Analog
+  kit measurement needs that physical reference; the onboard oscillator is
+  50 MHz. No Quartus comparison lane is implemented.
+- `320_pll_phase50`, four 50 MHz outputs at 0°/90°/180°/270° from the 50 MHz
+  V11 reference, measured through HPS GP. Run `make sim EXP=320_pll_phase50`
+  and `make oss EXP=320_pll_phase50`; no Quartus comparison lane is
+  implemented. This does not measure analog phase accuracy.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under

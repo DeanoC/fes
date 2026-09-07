@@ -141,6 +141,16 @@ class MailboxSourcePolicyTests(unittest.TestCase):
             "200_pll_frac_dual",
             "210_pll_duty",
             "220_pll_phase",
+            "230_pll_phase_180",
+            "240_pll_phase_270",
+            "250_pll_triple",
+            "260_pll_quad",
+            "270_pll_multi_duty",
+            "280_pll_quadrature",
+            "290_pll_phase_select",
+            "300_pll_ref25",
+            "310_pll_ref100",
+            "320_pll_phase50",
         ):
             result = subprocess.run(
                 ["make", "-n", "sim", f"EXP={experiment}"],
