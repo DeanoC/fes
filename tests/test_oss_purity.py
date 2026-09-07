@@ -94,6 +94,10 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/340_pll_phase45/rtl/top.v",
             "experiments/350_pll_two/rtl/top.v",
             "experiments/360_pll_clkena/rtl/top.v",
+            "experiments/370_pll_clkena_low/rtl/top.v",
+            "experiments/380_pll_clkena_branch/rtl/top.v",
+            "experiments/390_pll_clkena_status/rtl/top.v",
+            "experiments/400_pll_clkena_reg2/rtl/top.v",
         ):
             destination = repository / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -131,7 +135,7 @@ class OssPipelinePurityTests(unittest.TestCase):
 
         pins = {
             "yosys": "13b43f8c85ec430a33ee55d058fb4c32b42b6910",
-            "nextpnr": "c1be2ecce6b68a3b141c2fff9ab586e4169c7c67",
+            "nextpnr": "ea40b08ae2871396d3f8c4062cf5f2690c1ac2c4",
         }
         for lock_name, commit in pins.items():
             evidence = external_build / lock_name if symlink_build_tools else build / lock_name
@@ -451,6 +455,10 @@ class OssPipelinePurityTests(unittest.TestCase):
             "340_pll_phase45",
             "350_pll_two",
             "360_pll_clkena",
+            "370_pll_clkena_low",
+            "380_pll_clkena_branch",
+            "390_pll_clkena_status",
+            "400_pll_clkena_reg2",
         ):
             with self.subTest(experiment=experiment):
                 result = self._run("--print-commands", "--experiment", experiment)

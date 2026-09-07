@@ -30,7 +30,9 @@ development possible with both the open-source Mistral toolchain and Quartus.
   0°/90°/180°/270° (`0`/`2500`/`5000`/`7500` ps), and 45° steps on 50 MHz
   outputs. 25 MHz phase profiles also accept 25 and 100 MHz V11 references.
 - Two independent `altera_pll` cells on the 50 MHz V11 reference, and a
-  fabric-controlled `cyclonev_clkena` between a PLL output and clocked logic.
+  fabric-controlled `cyclonev_clkena` between a PLL output and clocked logic,
+  including low startup, running/gated branches, `enaout` status, and
+  double-register mode.
 - Checked fractional-N PLL profiles when `fractional_vco_multiplier` is
   `"true"`: 50 MHz → 12.288 MHz, 50 MHz → 11.2896 MHz, and the dual
   12.288/24.576 MHz pair.
@@ -130,6 +132,15 @@ development possible with both the open-source Mistral toolchain and Quartus.
   on the output, measured through HPS GP. Run `make sim EXP=360_pll_clkena`
   and `make oss EXP=360_pll_clkena`; no Quartus comparison lane is implemented.
   This does not characterize enable setup/hold.
+- `370_pll_clkena_low`, the same gated 25 MHz meter with enable power-up low.
+- `380_pll_clkena_branch`, an always-running 25 MHz PLL output plus a gated
+  branch of the same counter.
+- `390_pll_clkena_status`, sampled `enaout` status from the gated clock enable.
+- `400_pll_clkena_reg2`, two-stage falling-edge (`double register`) clock
+  enable with sampled `enaout`. Run `make sim EXP=370_pll_clkena_low` /
+  `make oss EXP=370_pll_clkena_low` and the 380/390/400 equivalents; no
+  Quartus comparison lane is implemented. This does not characterize enable
+  setup/hold.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under

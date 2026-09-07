@@ -8,13 +8,13 @@ rationale = "Current upstream Intel ALM synthesis baseline sampled 2026-08-26; t
 repo = "https://github.com/DeanoC/mistral.git"
 commit = "b28e30a36b5139aaed5a5d361a30b542e6b7c758"
 order = 20
-rationale = "DeanoC fork for nextpnr c1be2ecc Cyclone V MUL9X9, PLL BELs, and corrected LAB/MLAB CLKx_INV/CLKx_SEL addresses: preserves DSP upper routing tiles on the bfa096c1 array-header baseline; fixed commit, not a moving branch."
+rationale = "DeanoC fork for nextpnr ea40b08a Cyclone V MUL9X9, PLL BELs, and corrected LAB/MLAB CLKx_INV/CLKx_SEL addresses: preserves DSP upper routing tiles on the bfa096c1 array-header baseline; fixed commit, not a moving branch."
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "c1be2ecce6b68a3b141c2fff9ab586e4169c7c67"
+commit = "ea40b08ae2871396d3f8c4062cf5f2690c1ac2c4"
 order = 30
-rationale = "DeanoC mistral-stable plus PR #24: Cyclone V MUL9X9, integer/dual/fractional altera_pll, independent multi-output duties, 0/90/180/270 phase on 25/50/100 MHz outputs, 45-degree steps on 50 MHz outputs, two independent PLLs on V11, and fabric-controlled cyclonev_clkena packing for 5CSEBA6U23I7, based on 7d4f72c0; PR #24 c1be2ecc on de029494 (merged PRs #21-#23). Requires Mistral b28e30a."
+rationale = "DeanoC mistral-stable plus PR #28: Cyclone V MUL9X9, integer/dual/fractional altera_pll, multi-output phase, two independent PLLs on V11, cyclonev_clkena packing with low startup, running/gated branches, enaout status, and double-register mode for 5CSEBA6U23I7, based on 7d4f72c0; PR #28 ea40b08a on 880be337 (merged PRs #21-#27). Requires Mistral b28e30a."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

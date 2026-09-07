@@ -2002,6 +2002,182 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                 ),
             ),
         ),
+        "370_pll_clkena_low": ExperimentPolicy(
+            name="370_pll_clkena_low",
+            sources=("experiments/370_pll_clkena_low/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=("meter.refclk",),
+            additional_clocks_mhz={"gated_clock": 25.0},
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+            },
+            forbidden_source_patterns=tuple(
+                pattern for pattern in _COMMON_SOURCE_PATTERNS
+                if pattern not in {"PLL", "phase_locked"}
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            required_synth_cells={"altera_pll": 1, "cyclonev_clkena": 1},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/370_pll_clkena_low/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/370_pll_clkena_low/sim/pll_model.v",
+                        "experiments/370_pll_clkena_low/sim/clkena_model.v",
+                    ),
+                    tb="experiments/370_pll_clkena_low/sim/tb.cpp",
+                ),
+                SimJob(
+                    name="meter",
+                    top="pll_meter",
+                    sources=("experiments/370_pll_clkena_low/rtl/top.v",),
+                    tb="experiments/090_pll_clock/sim/meter_sim.cpp",
+                    parameters={"WINDOW_BITS": "12"},
+                ),
+            ),
+        ),
+        "380_pll_clkena_branch": ExperimentPolicy(
+            name="380_pll_clkena_branch",
+            sources=("experiments/380_pll_clkena_branch/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=("meter.refclk",),
+            additional_clocks_mhz={"meter.testclk": 25.0, "gated_clock": 25.0},
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+            },
+            forbidden_source_patterns=tuple(
+                pattern for pattern in _COMMON_SOURCE_PATTERNS
+                if pattern not in {"PLL", "phase_locked"}
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            required_synth_cells={"altera_pll": 1, "cyclonev_clkena": 1},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/380_pll_clkena_branch/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/380_pll_clkena_branch/sim/pll_model.v",
+                        "experiments/380_pll_clkena_branch/sim/clkena_model.v",
+                    ),
+                    tb="experiments/380_pll_clkena_branch/sim/tb.cpp",
+                ),
+                SimJob(
+                    name="meter",
+                    top="pll_meter",
+                    sources=("experiments/380_pll_clkena_branch/rtl/top.v",),
+                    tb="experiments/090_pll_clock/sim/meter_sim.cpp",
+                    parameters={"WINDOW_BITS": "12"},
+                ),
+            ),
+        ),
+        "390_pll_clkena_status": ExperimentPolicy(
+            name="390_pll_clkena_status",
+            sources=("experiments/390_pll_clkena_status/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=("meter.refclk",),
+            additional_clocks_mhz={"gated_clock": 25.0},
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+            },
+            forbidden_source_patterns=tuple(
+                pattern for pattern in _COMMON_SOURCE_PATTERNS
+                if pattern not in {"PLL", "phase_locked"}
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            required_synth_cells={"altera_pll": 1, "cyclonev_clkena": 1},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/390_pll_clkena_status/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/390_pll_clkena_status/sim/pll_model.v",
+                        "experiments/390_pll_clkena_status/sim/clkena_model.v",
+                    ),
+                    tb="experiments/390_pll_clkena_status/sim/tb.cpp",
+                ),
+                SimJob(
+                    name="meter",
+                    top="pll_meter",
+                    sources=("experiments/390_pll_clkena_status/rtl/top.v",),
+                    tb="experiments/090_pll_clock/sim/meter_sim.cpp",
+                    parameters={"WINDOW_BITS": "12"},
+                ),
+            ),
+        ),
+        "400_pll_clkena_reg2": ExperimentPolicy(
+            name="400_pll_clkena_reg2",
+            sources=("experiments/400_pll_clkena_reg2/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=("meter.refclk",),
+            additional_clocks_mhz={"gated_clock": 25.0},
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+            },
+            forbidden_source_patterns=tuple(
+                pattern for pattern in _COMMON_SOURCE_PATTERNS
+                if pattern not in {"PLL", "phase_locked"}
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            required_synth_cells={"altera_pll": 1, "cyclonev_clkena": 1},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/400_pll_clkena_reg2/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/400_pll_clkena_reg2/sim/pll_model.v",
+                        "experiments/400_pll_clkena_reg2/sim/clkena_model.v",
+                    ),
+                    tb="experiments/400_pll_clkena_reg2/sim/tb.cpp",
+                ),
+                SimJob(
+                    name="meter",
+                    top="pll_meter",
+                    sources=("experiments/400_pll_clkena_reg2/rtl/top.v",),
+                    tb="experiments/090_pll_clock/sim/meter_sim.cpp",
+                    parameters={"WINDOW_BITS": "12"},
+                ),
+            ),
+        ),
     }
 )
 

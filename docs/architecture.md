@@ -145,11 +145,12 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current nextpnr pin `c1be2ecce6b68a3b141c2fff9ab586e4169c7c67` is
-`mistral-stable` at `de029494` plus PR #24 clock-enable packing. It adds
-quarter-phase 100 MHz outputs (`0`/`2500`/`5000`/`7500` ps), 45° steps on
+The current nextpnr pin `ea40b08ae2871396d3f8c4062cf5f2690c1ac2c4` is
+`mistral-stable` at `880be337` plus PR #28 double-register clock enables. It
+adds quarter-phase 100 MHz outputs (`0`/`2500`/`5000`/`7500` ps), 45° steps on
 equal 50 MHz outputs, two independent `altera_pll` cells sharing V11, and
-`cyclonev_clkena` packing into `MISTRAL_CLKENA`. 50 MHz 90°/270° shifts use
+`cyclonev_clkena` packing into `MISTRAL_CLKENA` with low startup, running/gated
+branches, `enaout` status, and `REG2_ENOUT`. 50 MHz 90°/270° shifts use
 `CNT_PH_MUX_PRESET` as well as the counter preset. Compatible exact decimal
 frequencies from 1 to 100 MHz still share one 300/320/400 MHz configuration
 for the selected reference. The closed 50 MHz 25/50/100 MHz triple uses
@@ -172,7 +173,7 @@ while reset, then 1638–1639 / 3276–3277 / 8192 after relock. Their reference
 output Fmax values were 216.732 / 326.584 MHz against 50 MHz and the selected
 output constraint. Host pair regressions cover 25/40, 40/25, 20/100, 40/64,
 80/80 and 1/1 MHz. Artifact hashes and reproduction commands are in the
-[nextpnr PLL test documentation](https://github.com/DeanoC/nextpnr/blob/c1be2ecce6b68a3b141c2fff9ab586e4169c7c67/mistral/tests/pll/README.md).
+[nextpnr PLL test documentation](https://github.com/DeanoC/nextpnr/blob/ea40b08ae2871396d3f8c4062cf5f2690c1ac2c4/mistral/tests/pll/README.md).
 
 `120_pll_dsp` runs the eight-by-eight unsigned DSP product on the proven
 50-to-25 MHz PLL output. Linux peeks and pokes GPO/GPI on the 50 MHz
@@ -565,6 +566,66 @@ three cycles. The current `kit.py` close completed development reboot
 recovery and left the lease free. This is exact-artifact functional
 diagnostic acceptance; it does not measure analog phase, enable setup/hold,
 or establish native game acceptance.
+
+`370_pll_clkena_low` measures the same gated 25 MHz output with enable
+power-up low. GPI signature `0xD728` identifies the protocol. Simulation and
+OSS are supported; Quartus comparison is not implemented. See
+`experiments/370_pll_clkena_low/expected.md`.
+
+The OSS `370_pll_clkena_low` artifact has SHA-256
+`6bbf95059d349b3b175b4d608d66f2814e32201949ae7dab447e1ab7520afbd0`
+and size 1,955,801 bytes. nextpnr selected 50→25 MHz with M=12 N=2 C6=12.
+Its reported reference/gated Fmax values are 199.840/324.781 MHz against
+50/25 MHz constraints. Utilization is one `altera_pll`, two clock enables,
+and one HPS GP. Exact-artifact kit diagnostics on 2026-09-07 returned zero
+while reset and at low startup, and 2048 with enable asserted, for three
+cycles.
+
+`380_pll_clkena_branch` measures an always-running 25 MHz PLL output and a
+gated branch of the same counter. GPI signature `0xD729` identifies the
+protocol; GPO bit 4 selects the meter. Simulation and OSS are supported;
+Quartus comparison is not implemented. See
+`experiments/380_pll_clkena_branch/expected.md`.
+
+The OSS `380_pll_clkena_branch` artifact has SHA-256
+`678c63018b2a5bfc54c379835a6b484b7726addeabd100cfe8cd03da4b6bad65`
+and size 1,958,267 bytes. nextpnr selected 50→25 MHz with M=12 N=2 C6=12.
+Its reported reference/running/gated Fmax values are 191.278/353.232/358.551
+MHz against 50/25/25 MHz constraints. Utilization is one `altera_pll`, three
+clock enables, and one HPS GP. Exact-artifact kit diagnostics on 2026-09-07
+returned zero while reset, 2048 on the running branch with the gate off, and
+zero on the gated branch with the gate off, for three cycles each.
+
+`390_pll_clkena_status` measures a gated 25 MHz output and samples `enaout`
+on the 50 MHz reference. GPI signature `0xD72A` identifies the protocol.
+Simulation and OSS are supported; Quartus comparison is not implemented. See
+`experiments/390_pll_clkena_status/expected.md`.
+
+The OSS `390_pll_clkena_status` artifact has SHA-256
+`a3ef0e1526723ab50e459cb6645c320a51f7f9a52af7d5bb12be4734a60b6f95`
+and size 1,955,725 bytes. nextpnr selected 50→25 MHz with M=12 N=2 C6=12.
+Its reported reference/gated Fmax values are 201.572/344.590 MHz against
+50/25 MHz constraints. Utilization is one `altera_pll`, two clock enables,
+and one HPS GP. Exact-artifact kit diagnostics on 2026-09-07 returned zero
+while reset and at low startup, 2048 with enable asserted, and matching
+sampled `enaout`, for three cycles.
+
+`400_pll_clkena_reg2` measures a two-stage falling-edge clock enable with
+sampled `enaout`. GPI signature `0xD72B` identifies the protocol. Simulation
+and OSS are supported; Quartus comparison is not implemented. See
+`experiments/400_pll_clkena_reg2/expected.md`.
+
+The OSS `400_pll_clkena_reg2` artifact has SHA-256
+`bb2a465d23a7a48505e4bce1184c65289f5acfdb76b235d6bf2bd3f1053ea468`
+and size 1,955,725 bytes. nextpnr selected 50→25 MHz with M=12 N=2 C6=12.
+Its reported reference/gated Fmax values are 201.572/344.590 MHz against
+50/25 MHz constraints. Utilization is one `altera_pll`, two clock enables,
+and one HPS GP. Exact-artifact kit diagnostics on 2026-09-07 returned zero
+while reset and at low startup, and 2048 with enable asserted, for three
+cycles. The current `kit.py` close completed development reboot recovery
+and left the lease free. This is exact-artifact functional diagnostic
+acceptance; it does not characterize enable setup/hold or establish native
+game acceptance.
 
 ## Standalone Pong game
 
