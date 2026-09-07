@@ -20,7 +20,7 @@ watchdog-bounded trial, authenticated lease-owned update operations.
 - [x] Implement/test stable bootstrap and independent watchdog guard.
 - [x] Implement/test target endpoints and coordinator update admission.
 - [x] Implement/test host upload, activation, discovery and confirmation.
-- [ ] Assemble reproducible bootstrap/release media with external manifests.
+- [x] Assemble reproducible bootstrap/release media with external manifests.
 - [ ] Run independent review, complete checks and physical fault acceptance.
 
 Each implementation task receives a concrete file/interface checklist before
@@ -74,4 +74,9 @@ The operator reported no additional manual power-cycle during an intervening
 boot. Post-release reboots remain unattributed; identified idle cleanup code does
 not request reboot. These results prove the controlled watchdog primitives,
 not the complete new bootstrap/update path. The final source-selected cold build
-is running against the reset fix.
+and QEMU verification pass against the reset fix. Both image passes match
+`2607d27a70ced3fa6c9cc97cd0ad4b1114d374472d9ee426ee6cbfce98ea0f6c`.
+Release, bootstrap, card assembly and independent card reconstruction pass;
+see [the candidate record](../../validation/2026-09-08-appliance-release.md).
+Physical migration awaits the kit card in the USB reader after the current
+development-RBF owner releases its lease. Existing data is backed up privately.

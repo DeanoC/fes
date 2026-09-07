@@ -10,6 +10,8 @@ production watchdog helper passes five consecutive physical recoveries, a
 three-minute stability check, and confirmation-close with three-minute stability.
 Complete prepared-card update/fallback acceptance remains in progress. Do not
 treat these artifacts as a physically accepted recovery release.
+The [current candidate record](validation/2026-09-08-appliance-release.md) lists
+the exact verified outputs and remaining physical checks.
 
 ## Build once from selected inputs
 
