@@ -127,12 +127,14 @@ kernel. Unused development volumes may consume several GB each; their exact
 names are recorded in the development `inputs.json`.
 
 After those cold receipts pass, `make media` can assemble
-`out/native-integration-dev/media/current/fes.img`. It reads the verified cold
+`out/native-integration-dev/media/current/fes.img`. On a local checkout it
+automatically embeds a target agent configuration derived from the private host
+config, so the generated card is ready to boot. It reads the verified cold
 rootfs and does not rebuild it; `make verify-media` revalidates the current
 immutable media generation, including the embedded rootfs and QEMU packaging
 check. Both commands operate on files under `out/` and never write a block
-device. See [bootable media](bootable-media.md) for provisioning, rollback and
-the physical acceptance boundary.
+device. See [bootable media](bootable-media.md) for the unprovisioned override,
+rollback and the physical acceptance boundary.
 
 ## Hardware and handoff
 

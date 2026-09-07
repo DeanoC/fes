@@ -76,20 +76,37 @@ card or kit. Do not edit retained image or evidence files in place.
 
 ## Provision a local image
 
-The default media image is intentionally unprovisioned. It can reach runtime
-idle, but it contains no target-agent credentials and therefore cannot reach
-agent ready/idle. For a designated local kit, create an owner-only private
-configuration file and build a separate provisioned generation:
+`make media` creates a ready-to-boot local image by deriving the target
+`/fogcast/agent.toml` from the owner-only host configuration at
+`~/.config/fogcast/config.toml`. Set `FES_HOST_CONFIG=/absolute/path/config.toml`
+to use another private host file. The host file is read once, and only the
+target token and fixed MiSTer runtime paths are copied; host library paths and
+other settings never enter the image.
+
+```sh
+make media
+```
+
+The generated target file is embedded in the FAT partition, so inserting the
+resulting card starts the target agent without a hand-created file. FES records
+only its SHA-256 digest in the manifest and receipt. The host configuration and
+the provisioned disk image stay private and are never printed or committed.
+
+For a deliberately unprovisioned artifact, use the explicit CI/recovery mode:
+
+```sh
+make media FES_UNPROVISIONED=1
+```
+
+An explicit target configuration remains available for a nonstandard kit:
 
 ```sh
 make media AGENT_CONFIG=/absolute/private/path/agent.toml
 ```
 
-The configuration path must be absolute and private. FES snapshots it locally,
-copies it into the disk at `/fogcast/agent.toml`, and records only its digest in
-the manifest and receipt. Do not commit, print or share the configuration or
-its contents. A provisioned generation is distinct from an unprovisioned one;
-keep the generated disk image private as well.
+That path must be absolute, regular, non-symlink and owner-only. `CI=true`
+also suppresses automatic provisioning so credentials cannot be picked up from
+a runner's home directory.
 
 ### Add or replace configuration on a flashed card
 
