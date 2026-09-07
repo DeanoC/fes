@@ -64,17 +64,46 @@ board gating, register readbacks, focused tests and independent MMIO review.
 A diagnostic executable calling the production helper and guard returned to a
 new idle boot in 64.23 seconds; the preloader index stayed at 0. Its SHA-256 is
 `d847b042f182d7c89b403513d940b23e90457324ccf28c70503ba24302dfe52a`.
-Repeated-reset and sustained-stability validation remain pending. A subsequent
+Initially, a subsequent
 lease claim was refused because `yosys-mlab-init` owned the kit for development-
 RBF acceptance; no takeover or further reset was attempted. The operator
 confirmed no additional manual power-cycle during an intervening boot, so that
 boot cannot be attributed to manual recovery and may belong to the other task.
-These diagnostics do not accept the full bootstrap/update path.
+After the kit became free, five more resets ran consecutively under fresh leases:
+
+| Cycle | New boot ID | Seconds to ready/idle | Preloader index |
+| --- | --- | --- | --- |
+| 1 | `868034be-e0e6-4055-b170-88db48fcc867` | 64.18 | 0 |
+| 2 | `de3eb2d7-e143-4ebc-8903-6f9366f60d54` | 67.18 | 0 |
+| 3 | `56cbfcf7-a24c-4a4f-9484-cb84a8daf2dd` | 88.24 | 0 |
+| 4 | `ad8087fc-77c2-4d82-ab58-bfeb6b752f10` | 88.38 | 0 |
+| 5 | `ddadeff6-ca14-46cf-bb24-76679e2f0a77` | 88.46 | 0 |
+
+Each cycle's starting boot matches the preceding cycle's new boot; there were
+no intervening resets in this sequence. The last boot stayed ready for another
+180 seconds while held under a fresh lease. A separate diagnostic called the
+production guard with a confirmation callback that immediately returns true:
+the physical watchdog closed successfully and boot
+`2a2f3a53-3748-43df-b0dc-6fa11021be28` stayed ready for 180 seconds. This test
+isolates the watchdog device close; it does not exercise durable update-state
+confirmation. Its executable SHA-256 is
+`aa507f842ce3925e95e6bc1c030e79404fcf3a1adc0be867ffaf12aa02bd3ec4`.
+
+An additional boot occurred after releasing the stability lease. Local inspection
+of the identified agent code found no reboot in ordinary idle lease cleanup.
+Development sessions can explicitly reboot for recovery, but no observation
+attributes this particular reboot to a session or watchdog. The controlled
+same-boot stability windows above are the limit of the evidence.
+
+These diagnostics pass the hardware reset and close primitives. They do not
+accept the full new bootstrap/update path or new 1 GiB card layout.
 
 Raw local diagnostic records are retained under
 `out/dev/appliance-release/watchdog-diagnostic.json` and
 `out/dev/appliance-release/watchdog-production-timeout.json` in the original
 integration checkout; the successful controlled test is `watchdog-sd-boot.json`
-in the same directory. They contain health identity and lease metadata, not an
+in the same directory. Consecutive results are `watchdog-helper-2.json` through
+`watchdog-helper-6.json`, `watchdog-repeated-stability.json`, and
+`watchdog-confirm-2.json`. They contain health identity and lease metadata, not an
 authentication token. New source-bound card artifacts separately retain
 `hardware: not-run` until exact-artifact acceptance is performed.

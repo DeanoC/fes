@@ -5,10 +5,11 @@ network updates and watchdog-bounded trial boots. FES assembles the files; the
 selected FogCast agent manages transfers and the existing kit lease. It adds no
 UI. Physical acceptance is recorded separately against exact artifact hashes.
 
-**Hardware status:** bootstrap root switching passes isolated Linux tests. A
-controlled watchdog diagnostic recovered after disabling retained-RAM warm boot;
-production integration and complete update/fallback acceptance remain in
-progress. Do not treat these artifacts as a physically accepted recovery release.
+**Hardware status:** bootstrap root switching passes isolated Linux tests. The
+production watchdog helper passes five consecutive physical recoveries, a
+three-minute stability check, and confirmation-close with three-minute stability.
+Complete prepared-card update/fallback acceptance remains in progress. Do not
+treat these artifacts as a physically accepted recovery release.
 
 ## Build once from selected inputs
 

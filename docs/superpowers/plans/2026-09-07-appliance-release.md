@@ -15,7 +15,7 @@ watchdog-bounded trial, authenticated lease-owned update operations.
 - [x] Restore the missing runtime media-timeout lock and stale test fixtures.
 - [x] Reproduce and clear the existing discovery vet warning; run focused tests.
 - [x] Select clean checkpoint inputs in isolated FES; run consistency and host build.
-- [ ] Prove watchdog reset and return with the unchanged kernel (root switching passed).
+- [x] Prove watchdog reset and return with the unchanged kernel (root switching passed).
 - [x] Implement/test immutable release storage and consumed-trial selection.
 - [x] Implement/test stable bootstrap and independent watchdog guard.
 - [x] Implement/test target endpoints and coordinator update admission.
@@ -66,6 +66,12 @@ FogCast `980be19710a5e1ab3d5f98ab74d01eb51509844d` adds reviewed ARM DE10-nano
 reset preparation before opening the watchdog: completed-preloader marker and
 retained-RAM disable, with ordered readbacks. Its first physical guard diagnostic
 returned to a new idle boot in 64.23 seconds and retained preloader index 0.
-Repeated and sustained stability checks remain pending; another task now owns
-the kit lease for development-RBF acceptance. The operator reported no additional
-manual power-cycle during the observed intervening boot.
+After the other development task released its lease, five consecutive watchdog
+recoveries passed with an uninterrupted boot-ID chain and preloader index 0.
+The final boot stayed ready for 180 seconds under a fresh lease. A separate
+confirmation-close diagnostic also kept the same boot ready for 180 seconds.
+The operator reported no additional manual power-cycle during an intervening
+boot. Post-release reboots remain unattributed; identified idle cleanup code does
+not request reboot. These results prove the controlled watchdog primitives,
+not the complete new bootstrap/update path. The final source-selected cold build
+is running against the reset fix.
