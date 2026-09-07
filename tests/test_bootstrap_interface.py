@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BOOTSTRAP = ROOT / "scripts" / "bootstrap.sh"
 ENV = ROOT / "scripts" / "env.sh"
 LOCK_COMMITS = {
-    "yosys": "13b43f8c85ec430a33ee55d058fb4c32b42b6910",
+    "yosys": "1e7fbaee2fa3e1fc2f68199bebd413061a4628fb",
     "mistral": "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
     "nextpnr": "9632c85b84069acc8bb507165a48c348c70499eb",
     "verilator": "5e4151e3e0c8ecf11d9845a93495f37a31b2f667",
@@ -56,7 +56,7 @@ case "$1" in
     status|submodule) exit 0 ;;
     rev-parse)
         case "$(basename "$source_dir")" in
-            yosys) commit="13b43f8c85ec430a33ee55d058fb4c32b42b6910" ;;
+            yosys) commit="1e7fbaee2fa3e1fc2f68199bebd413061a4628fb" ;;
             mistral) commit="b28e30a36b5139aaed5a5d361a30b542e6b7c758" ;;
             nextpnr) commit="9632c85b84069acc8bb507165a48c348c70499eb" ;;
             verilator) commit="5e4151e3e0c8ecf11d9845a93495f37a31b2f667" ;;

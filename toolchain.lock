@@ -1,8 +1,8 @@
 [tool.yosys]
-repo = "https://github.com/YosysHQ/yosys.git"
-commit = "13b43f8c85ec430a33ee55d058fb4c32b42b6910"
+repo = "https://github.com/DeanoC/yosys.git"
+commit = "1e7fbaee2fa3e1fc2f68199bebd413061a4628fb"
 order = 10
-rationale = "Current upstream Intel ALM synthesis baseline sampled 2026-08-26; this pin ships CMake rather than a Makefile."
+rationale = "DeanoC mistral-stable including merged PR #1: Intel ALM infers initialized Cyclone V MLAB memories (lutram_mlab init 1 and MISTRAL_MLAB INIT). Base is YosysHQ 13b43f8c CMake pin; 1e7fbaee merges 04bdc4f9. Pair with nextpnr 9632c85 (merged PR #31)."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
@@ -14,7 +14,7 @@ rationale = "DeanoC fork for nextpnr 9632c85 Cyclone V MUL9X9/MUL18X18/MUL27X27,
 repo = "https://github.com/DeanoC/nextpnr.git"
 commit = "9632c85b84069acc8bb507165a48c348c70499eb"
 order = 30
-rationale = "DeanoC mistral-stable including merged PR #31: Cyclone V MLAB numeric INIT on each MISTRAL_MLAB lane, plus merged PR #30 MUL9X9/MUL18X18/MUL27X27, DSP registers, M9 preadder, M18 C as {8,9,6,7}, omitted-control defaults, integer/dual/fractional altera_pll, and cyclonev_clkena packing for 5CSEBA6U23I7; 9632c85 merges bc089702 onto 39f194e (PRs #21-#31). Requires Mistral b28e30a. Locked Yosys still omits MLAB INIT, so misteross writes it after synth."
+rationale = "DeanoC mistral-stable including merged PR #31: Cyclone V MLAB numeric INIT on each MISTRAL_MLAB lane, plus merged PR #30 MUL9X9/MUL18X18/MUL27X27, DSP registers, M9 preadder, M18 C as {8,9,6,7}, omitted-control defaults, integer/dual/fractional altera_pll, and cyclonev_clkena packing for 5CSEBA6U23I7; 9632c85 merges bc089702 onto 39f194e (PRs #21-#31). Requires Mistral b28e30a and Yosys 1e7fbaee (merged PR #1) so initialized RTL maps to MLAB INIT."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

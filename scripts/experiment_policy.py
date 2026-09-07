@@ -43,6 +43,24 @@ def mlab_init_lane(bit: int) -> int:
     return sum(((mlab_init_byte(address) >> int(bit)) & 1) << address for address in range(32))
 
 
+def mlab_init_parameter(value: Any) -> int | None:
+    """Parse a Yosys JSON INIT value as a 32-bit integer."""
+
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, int):
+        return value & 0xFFFFFFFF
+    if isinstance(value, str):
+        text = value.strip().lower().replace("_", "")
+        if text.startswith("0x"):
+            return int(text, 16) & 0xFFFFFFFF
+        if text and set(text) <= set("01xz"):
+            return int(text.replace("x", "0").replace("z", "0"), 2) & 0xFFFFFFFF
+        if text.isdigit():
+            return int(text, 10) & 0xFFFFFFFF
+    return None
+
+
 class PolicyError(ValueError):
     """Raised when an experiment or its evidence violates the closed policy."""
 
@@ -511,19 +529,20 @@ class ExperimentPolicy:
             parameters = cell.get("parameters")
             if not isinstance(parameters, Mapping):
                 raise PolicyError(f"MLAB lane {bit} has no parameters")
-            expected = f"{mlab_init_lane(bit):032b}"
-            actual = parameters.get("INIT")
+            actual = mlab_init_parameter(parameters.get("INIT"))
+            expected = mlab_init_lane(bit)
             if actual != expected:
-                raise PolicyError(f"MLAB lane {bit} INIT must be {expected}, got {actual!r}")
+                raise PolicyError(
+                    f"MLAB lane {bit} INIT must be {expected:032b}, got {parameters.get('INIT')!r}"
+                )
 
     def apply_synth_json(self, path: Path) -> None:
         """Fix Yosys JSON extras that nextpnr cannot consume as-is.
 
-        Unknown ports on known library cells default to output. MLAB INIT is
-        omitted by the locked Yosys MLAB mapper and must be written here.
+        Unknown ports on known library cells default to output.
         """
 
-        if not self.synth_json_input_ports and not self.synth_json_tied_low and not self.synth_json_mlab_init:
+        if not self.synth_json_input_ports and not self.synth_json_tied_low:
             return
         try:
             design = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -576,16 +595,6 @@ class ExperimentPolicy:
         ]
         if missing:
             raise PolicyError("synth json is missing cells that need extra input ports: " + ", ".join(missing))
-        if self.synth_json_mlab_init:
-            for bit, cell in self._mlab_init_cells(design).items():
-                parameters = cell.get("parameters")
-                if not isinstance(parameters, dict):
-                    parameters = {}
-                    cell["parameters"] = parameters
-                expected = f"{mlab_init_lane(bit):032b}"
-                if parameters.get("INIT") != expected:
-                    parameters["INIT"] = expected
-                    changed = True
         if changed:
             Path(path).write_text(json.dumps(design) + "\n", encoding="utf-8")
 

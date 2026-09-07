@@ -141,7 +141,7 @@ class OssPipelinePurityTests(unittest.TestCase):
                 shim(bin_dir / name, name)
 
         pins = {
-            "yosys": "13b43f8c85ec430a33ee55d058fb4c32b42b6910",
+            "yosys": "1e7fbaee2fa3e1fc2f68199bebd413061a4628fb",
             "nextpnr": "9632c85b84069acc8bb507165a48c348c70499eb",
         }
         for lock_name, commit in pins.items():

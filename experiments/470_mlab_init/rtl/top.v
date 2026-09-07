@@ -10,16 +10,14 @@ module storage_port #(
     localparam integer DEPTH = 1 << ADDR_BITS;
 
     (* ramstyle = "mlab" *) reg [7:0] stored [0:DEPTH-1];
-
-    initial rdata = 8'h00;
-`ifdef VERILATOR
     integer i;
+
     initial begin
+        rdata = 8'h00;
         for (i = 0; i < DEPTH; i = i + 1) begin
             stored[i] = (i[7:0] * 8'd73) ^ (i[7:0] >> 1) ^ 8'hA6;
         end
     end
-`endif
 
     always @(posedge FPGA_CLK1_50) begin
         if (we) begin
