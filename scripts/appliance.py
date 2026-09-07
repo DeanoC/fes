@@ -26,6 +26,8 @@ BOOT_ABI = 'fes-bootstrap-v1'
 MAX_IMAGE_SIZE = (4 << 30) - 1
 MAX_MANIFEST_SIZE = 8192
 MANIFEST_FIELDS = {'format','board','boot_abi','version','kernel_sha256','image_sha256','image_size','fes_revision','fogcast_revision','runtime_revision'}
+BOOTSTRAP_RECIPE_FILES = ('scripts/appliance.py','scripts/appliance_inside.py','scripts/media.py',
+                          'scripts/media_container.py','scripts/media_inputs.py')
 
 
 def canonical(data):
@@ -190,6 +192,27 @@ def publish(scratch,output):
     sync_directory(output.parent)
 
 
+def require_sealed_bundle(path,names):
+    path=Path(path)
+    info=path.lstat()
+    if not stat.S_ISDIR(info.st_mode) or stat.S_IMODE(info.st_mode)!=0o555:
+        raise ValueError('existing artifact directory is not sealed')
+    if {child.name for child in path.iterdir()}!=set(names):
+        raise ValueError('existing artifact has unexpected entries')
+    for name in names:
+        if stat.S_IMODE(regular(path/name).stat().st_mode)!=0o444:
+            raise ValueError('existing artifact file is not sealed: '+name)
+
+
+def bootstrap_recipe(root):
+    return {name:digest(regular(Path(root)/name)) for name in BOOTSTRAP_RECIPE_FILES}
+
+
+def bootstrap_identity(binary_sha,factory,container,assembly_revision,recipe):
+    return hashlib.sha256(canonical({'binary':binary_sha,'factory':factory,'container_identity':container,
+        'assembly_revision':assembly_revision,'assembly_recipe':recipe})).hexdigest()
+
+
 def release_manifest(rootfs,*,version,provenance):
     return validate_manifest({'format':FORMAT,'board':BOARD,'boot_abi':BOOT_ABI,'version':version,
         'kernel_sha256':provenance.kernel_sha256,'image_sha256':provenance.rootfs_sha256,
@@ -212,7 +235,7 @@ def export_release(output,rootfs,kernel,*,version,provenance):
         'manifest_sha256':hashlib.sha256(canonical(manifest)).hexdigest(),'ext4_features':features,'hardware':'not-run'}
     result = ReleaseResult(output)
     if output.exists() or output.is_symlink():
-        if output.is_symlink() or not output.is_dir(): raise ValueError('release destination is not an immutable directory')
+        require_sealed_bundle(output,('rootfs.img','release.json','evidence.json'))
         if (regular(result.manifest).read_bytes()!=canonical(manifest) or regular(result.evidence).read_bytes()!=canonical(evidence)
                 or digest(regular(result.image))!=provenance.rootfs_sha256):
             raise ValueError('immutable release destination differs')
@@ -261,17 +284,22 @@ def cached_media_container(root,runtime,lock):
     return image
 
 
-def assemble_bootstrap(output,bootstrap_binary,factory_manifest,kernel,*,runner,binary_source_revision=None):
+def assemble_bootstrap(output,bootstrap_binary,factory_manifest,kernel,*,runner,binary_source_revision=None,assembly_revision=None):
     """Build two independent bootstrap files using a supplied pinned media Runner.
 
     binary_source_revision is supplied only by an integrator that built this
     binary from that clean selected revision. Otherwise evidence says unproven.
+    assembly_revision similarly identifies the selected FES assembly source.
+    Output and temporary paths must be inside the supplied Runner filesystem.
     """
     output=Path(output); binary_sha=validate_static_arm(bootstrap_binary)
     factory=load_manifest(factory_manifest)
     if digest(regular(kernel))!=factory['kernel_sha256']: raise ValueError('factory and bootstrap kernel differ')
     if binary_source_revision is not None and binary_source_revision!=factory['fogcast_revision']:
         raise ValueError('bootstrap source revision differs from factory FogCast revision')
+    if assembly_revision is not None and not re.fullmatch('[0-9a-f]{40}',assembly_revision):
+        raise ValueError('invalid bootstrap assembly revision')
+    recipe=bootstrap_recipe(runner.root)
     output.parent.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.bootstrap-',dir=output.parent) as temporary:
         scratch=Path(temporary)
@@ -287,16 +315,20 @@ def assemble_bootstrap(output,bootstrap_binary,factory_manifest,kernel,*,runner,
         first,second=results
         if first!=second or digest(scratch/'first.img')!=first['image_sha256'] or digest(scratch/'second.img')!=first['image_sha256']:
             raise ValueError('bootstrap two-pass reproducibility failed')
+        if bootstrap_recipe(runner.root)!=recipe:
+            raise ValueError('bootstrap assembly recipe changed during construction')
         evidence={'format':1,'kind':'fes-stable-bootstrap','boot_abi':BOOT_ABI,'bootstrap_sha256':first['image_sha256'],
             'bootstrap_binary_sha256':binary_sha,'binary_source_revision':binary_source_revision,
             'binary_source_proven':binary_source_revision is not None,
-            'classification':'source-bound-host-artifact' if binary_source_revision else 'diagnostic-unproven-binary',
+            'assembly_revision':assembly_revision,'assembly_recipe':recipe,'assembly_source_proven':assembly_revision is not None,
+            'classification':'source-bound-host-artifact' if binary_source_revision and assembly_revision else 'diagnostic-unproven-source',
             'kernel_sha256':factory['kernel_sha256'],
             'factory_image_sha256':factory['image_sha256'],'factory_manifest_sha256':digest(factory_path),
             'container_identity':runner.container,'tool_evidence':first,'two_pass_reproducibility':'pass','hardware':'not-run'}
         result=BootstrapResult(output)
         if output.exists() or output.is_symlink():
-            if output.is_symlink() or not output.is_dir() or regular(result.evidence).read_bytes()!=canonical(evidence) or digest(regular(result.image))!=first['image_sha256']:
+            require_sealed_bundle(output,('linux.img','evidence.json'))
+            if regular(result.evidence).read_bytes()!=canonical(evidence) or digest(regular(result.image))!=first['image_sha256']:
                 raise ValueError('immutable bootstrap destination differs')
             return result
         bundle=scratch/'bundle';bundle.mkdir();shutil.move(scratch/'first.img',bundle/'linux.img')
@@ -336,6 +368,10 @@ def main():
             child.add_argument('--release',type=Path,required=True)
     args=parser.parse_args();root=Path(__file__).resolve().parents[1]
     try:
+        if args.output is not None:
+            args.output=args.output.resolve()
+            if args.command=='bootstrap' and not args.output.is_relative_to(root):
+                raise ValueError('bootstrap output must be inside the FES checkout')
         sys.path.insert(0,str(root/'scripts'));import media
         with media.operation(root,args.profile):
             rootfs,kernel,p,fogcast,env,lock=verified_inputs(root,args.profile)
@@ -353,14 +389,18 @@ def main():
                 scratch_root=root/'out/tmp';scratch_root.mkdir(parents=True,exist_ok=True)
                 with tempfile.TemporaryDirectory(prefix='fes-boot-build-',dir=scratch_root) as temporary:
                     binary=Path(temporary)/'fes-boot'
+                    factory_snapshot=Path(temporary)/'factory.json'
+                    factory_snapshot.write_bytes(canonical(factory))
                     # Resolve the already-cached selected Go toolchain first;
                     # then invoke it directly with all dependency fetches off.
                     goroot=subprocess.check_output(['go','env','GOROOT'],cwd=fogcast,env=dict(env,GOPROXY='off'),text=True).strip()
                     build_env=dict(env,GOOS='linux',GOARCH='arm',GOARM='7',CGO_ENABLED='0',GOPROXY='off',GOSUMDB='off',GOTOOLCHAIN='local')
                     subprocess.run([str(Path(goroot)/'bin/go'),'build','-trimpath','-buildvcs=false','-ldflags=-s -w -buildid=','-o',str(binary),'./cmd/fes-boot'],cwd=fogcast,env=build_env,check=True)
-                    identity=hashlib.sha256(canonical({'binary':digest(binary),'factory':factory})).hexdigest()
+                    assembly_revision=media.cold_build.git(root,'rev-parse','HEAD')
+                    identity=bootstrap_identity(digest(binary),factory,container,assembly_revision,bootstrap_recipe(root))
                     output=args.output or root/'out'/args.profile/'appliance/bootstrap'/identity
-                    result=assemble_bootstrap(output,binary,args.release/'release.json',kernel,runner=runner,binary_source_revision=p.fogcast_revision)
+                    result=assemble_bootstrap(output,binary,factory_snapshot,kernel,runner=runner,
+                        binary_source_revision=p.fogcast_revision,assembly_revision=assembly_revision)
         print(result.directory)
         print('Host-only artifact; hardware acceptance not run.')
     except (OSError,ValueError,subprocess.CalledProcessError) as error:

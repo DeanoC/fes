@@ -83,6 +83,19 @@ the manifest stores only the generated file's digest. Use
 `CI=true` suppresses automatic discovery. An explicit `AGENT_CONFIG` remains
 available for a nonstandard target.
 
+## Versioned appliance images
+
+For versioned native updates, read the [appliance release guide](docs/appliance-releases.md).
+`make release` exports the verified rootfs with its closed manifest; `make bootstrap`
+builds the fixed boot selector from selected FogCast sources. `make appliance-media`
+and `make verify-appliance-media` generate/reconstruct private card files using the
+media lease and automatic configuration provisioning. These commands never write
+block devices. Kernel/U-Boot/bootstrap changes require media provisioning; ordinary
+network updates change only the immutable system image. Use the existing kit lease
+and verify actual boot/image identity after reboot. Preserve factory, known-good,
+previous and any image still referenced by a loop device. Distinguish isolated
+root-switch tests, watchdog diagnostics and exact-artifact hardware acceptance.
+
 ## Finish with a handoff
 
 Handoff: state scope, base and result commit (or uncommitted diff), tests and
