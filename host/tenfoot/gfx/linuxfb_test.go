@@ -68,6 +68,23 @@ func TestPaintLinuxFBSpikePattern(t *testing.T) {
 	}
 }
 
+func TestPaintLinuxFBInputCursor(t *testing.T) {
+	const w, h = 640, 480
+	cfg := FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	cx, cy := (w-LinuxFBCursorSize)/2, (h-LinuxFBCursorSize)/2
+	PaintLinuxFBInput(d, w, h, cx, cy, "X=308 Y=228")
+	d.Present()
+	sx, sy := cx+LinuxFBCursorSize/2, cy+LinuxFBCursorSize/2
+	assertBGRX(t, dst, cfg, sx, sy, 0, 220, 255, 0)
+	assertBGRX(t, dst, cfg, 40, 40, 255, 255, 255, 0)
+}
+
 func TestOpenLinuxFBNonLinux(t *testing.T) {
 	if runtime.GOOS == "linux" {
 		t.Skip("OpenLinuxFB talks to a real device on linux")

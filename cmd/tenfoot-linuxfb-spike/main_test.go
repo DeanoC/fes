@@ -15,6 +15,19 @@ func TestRunRejectsUnknownFlag(t *testing.T) {
 	}
 }
 
+func TestResolveInputPathsNone(t *testing.T) {
+	if got := resolveInputPaths("none"); len(got) != 0 {
+		t.Fatalf("none: %v", got)
+	}
+	if got := resolveInputPaths(""); len(got) != 0 {
+		t.Fatalf("empty: %v", got)
+	}
+	got := resolveInputPaths("/dev/input/js0,/dev/input/js0")
+	if len(got) != 1 || got[0] != "/dev/input/js0" {
+		t.Fatalf("dedup %v", got)
+	}
+}
+
 func TestRunOpenFailsOffKit(t *testing.T) {
 	if runtime.GOOS == "linux" && runtime.GOARCH == "arm" {
 		t.Skip("would open a real framebuffer")

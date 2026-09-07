@@ -96,7 +96,8 @@ tenfoot-cgo-env:
 tenfoot-smoke: build-fogcast-tenfoot
 	bin/fogcast-tenfoot -smoke -no-attract -api http://127.0.0.1:8787
 
-# CGO-free ARMv7 linuxfb spike: software rasterizer Present-blits to /dev/fb0.
+# CGO-free ARMv7 linuxfb spike: software rasterizer Present-blits to /dev/fb0
+# and reads evdev/joystick input (move cursor, quit on Start/ESC/Q).
 # No SDL3 tag. Same GOOS/GOARCH/GOARM lane as mister-agent-linux-armv7.
 build-tenfoot-linuxfb-spike:
 	mkdir -p bin

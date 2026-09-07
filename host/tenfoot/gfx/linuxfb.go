@@ -160,6 +160,52 @@ func PaintLinuxFBSpike(d Device, w, h int) {
 	d.DebugText(tx, ty, label, scale)
 }
 
+// LinuxFBCursorSize is the input-spike highlight in pixels.
+const LinuxFBCursorSize = 24
+
+// LinuxFBCursorColor is opaque yellow, sampled as BGRX 0,220,255,0.
+var LinuxFBCursorColor = RGB(255, 220, 0)
+
+// PaintLinuxFBInput draws the linuxfb spike pattern plus a cursor and status.
+func PaintLinuxFBInput(d Device, w, h, cx, cy int, status string) {
+	PaintLinuxFBSpike(d, w, h)
+	if d == nil || w < 1 || h < 1 {
+		return
+	}
+	if cx < 0 {
+		cx = 0
+	}
+	if cy < 0 {
+		cy = 0
+	}
+	if cx > w-LinuxFBCursorSize {
+		cx = w - LinuxFBCursorSize
+		if cx < 0 {
+			cx = 0
+		}
+	}
+	if cy > h-LinuxFBCursorSize {
+		cy = h - LinuxFBCursorSize
+		if cy < 0 {
+			cy = 0
+		}
+	}
+	d.SetBlend(BlendNone)
+	d.FillRect(Rect{
+		X: float32(cx),
+		Y: float32(cy),
+		W: float32(LinuxFBCursorSize),
+		H: float32(LinuxFBCursorSize),
+	}, LinuxFBCursorColor)
+	if status != "" {
+		y := h - 20
+		if y < 0 {
+			y = 0
+		}
+		d.DebugText(8, y, status, 2)
+	}
+}
+
 func attachLinuxFB(sw *Software, dst []byte, cfg FBConfig, f *os.File, unmap func() error) *LinuxFB {
 	d := &LinuxFB{sw: sw, dst: dst, cfg: cfg, unmap: unmap}
 	if f != nil {
