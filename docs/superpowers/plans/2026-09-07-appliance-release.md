@@ -35,8 +35,9 @@ runtime timeout pin, bootstrap/store/HTTP/operator client, source guides and tes
 FES checkpoint `1c18e79` selects it. Full Go tests, affected race tests, vet,
 static ARM builds and parent consistency pass. The stable ext4-to-ext4 pivot,
 PID 1 execution, read-only root and retained guard namespace passed a real isolated
-container test. The cold two-pass rootfs build is running with locked kernel and
-reused validated FPGA bundles.
+container test. The initial cold two-pass rootfs build and structural/QEMU
+packaging checks pass with locked kernel and reused validated FPGA bundles. Both
+passes produced `5ca866def7d1f2652c734b43064ae972599974bfada49a33a025cdb08981ee5d`.
 
 Independent review fixed visible-versus-durable confirmation, rejected-trial
 cleanup, truthful known-good/previous state after factory fallback, cancellation,
@@ -59,3 +60,12 @@ The 1 GiB appliance geometry and recipe-change checks pass 3 real pinned-contain
 appliance tests and 8 host tests. All 31 original-media container tests pass;
 side-by-side assembly with the original function produced identical original-
 layout bytes. This validates host assembly, not physical boot of the new layout.
+
+The controlled warm-boot test isolated retained-OCRAM boot as the recovery issue.
+FogCast `980be19710a5e1ab3d5f98ab74d01eb51509844d` adds reviewed ARM DE10-nano
+reset preparation before opening the watchdog: completed-preloader marker and
+retained-RAM disable, with ordered readbacks. Its first physical guard diagnostic
+returned to a new idle boot in 64.23 seconds and retained preloader index 0.
+Repeated and sustained stability checks remain pending; another task now owns
+the kit lease for development-RBF acceptance. The operator reported no additional
+manual power-cycle during the observed intervening boot.
