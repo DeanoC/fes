@@ -1,6 +1,7 @@
 .DEFAULT_GOAL := help
 PROFILE ?= native-integration-dev
 PYTHON ?= python3
+RELEASE_VERSION ?= 0.2.0-dev.1
 
 ifneq ($(strip $(AGENT_CONFIG)),)
 ifneq ($(strip $(filter-out media,$(MAKECMDGOALS))),)
@@ -35,3 +36,10 @@ verify-media:
 rollback-media:
 	$(if $(strip $(GENERATION)),,$(error rollback-media requires GENERATION=<image-sha256>/<evidence-sha256>))
 	$(PYTHON) scripts/media.py rollback --profile "$(PROFILE)" --generation "$(GENERATION)"
+
+.PHONY: release bootstrap
+release:
+	$(PYTHON) scripts/appliance.py release --profile "$(PROFILE)" --version "$(RELEASE_VERSION)"
+bootstrap:
+	$(if $(strip $(RELEASE)),,$(error bootstrap requires RELEASE=/absolute/path/to/release-directory))
+	$(PYTHON) scripts/appliance.py bootstrap --profile "$(PROFILE)" --release "$(RELEASE)"
