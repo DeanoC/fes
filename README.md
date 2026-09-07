@@ -25,9 +25,12 @@ development possible with both the open-source Mistral toolchain and Quartus.
   Fractional-N profiles still require 50% duty.
 - Checked static 0°/90°, 0°/180° and 0°/270° pairs, four-output 25 MHz
   quadrature, selectable 0°/90°/180°/270° repeats on three- and four-output
-  25 MHz profiles, and four-output 50 MHz 0°/90°/180°/270° from a 50 MHz
-  reference (`0`/`5000`/`10000`/`15000` ps). 25 MHz phase profiles also accept
-  25 and 100 MHz V11 references.
+  25 MHz profiles, four-output 50 MHz 0°/90°/180°/270° from a 50 MHz
+  reference (`0`/`5000`/`10000`/`15000` ps), four-output 100 MHz
+  0°/90°/180°/270° (`0`/`2500`/`5000`/`7500` ps), and 45° steps on 50 MHz
+  outputs. 25 MHz phase profiles also accept 25 and 100 MHz V11 references.
+- Two independent `altera_pll` cells on the 50 MHz V11 reference, and a
+  fabric-controlled `cyclonev_clkena` between a PLL output and clocked logic.
 - Checked fractional-N PLL profiles when `fractional_vco_multiplier` is
   `"true"`: 50 MHz → 12.288 MHz, 50 MHz → 11.2896 MHz, and the dual
   12.288/24.576 MHz pair.
@@ -112,6 +115,21 @@ development possible with both the open-source Mistral toolchain and Quartus.
   V11 reference, measured through HPS GP. Run `make sim EXP=320_pll_phase50`
   and `make oss EXP=320_pll_phase50`; no Quartus comparison lane is
   implemented. This does not measure analog phase accuracy.
+- `330_pll_phase100`, four 100 MHz outputs at 0°/90°/180°/270° from the 50 MHz
+  V11 reference. Run `make sim EXP=330_pll_phase100` and
+  `make oss EXP=330_pll_phase100`; no Quartus comparison lane is implemented.
+  This does not measure analog phase accuracy.
+- `340_pll_phase45`, four 50 MHz outputs at 0°/90°/270°/315° from the 50 MHz
+  V11 reference. Run `make sim EXP=340_pll_phase45` and
+  `make oss EXP=340_pll_phase45`; no Quartus comparison lane is implemented.
+  This does not measure analog phase accuracy.
+- `350_pll_two`, two independent PLLs on V11: 25 MHz integer and 12.288 MHz
+  fractional-N, measured through HPS GP. Run `make sim EXP=350_pll_two` and
+  `make oss EXP=350_pll_two`; no Quartus comparison lane is implemented.
+- `360_pll_clkena`, a 50→25 MHz PLL with a fabric-controlled `cyclonev_clkena`
+  on the output, measured through HPS GP. Run `make sim EXP=360_pll_clkena`
+  and `make oss EXP=360_pll_clkena`; no Quartus comparison lane is implemented.
+  This does not characterize enable setup/hold.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under

@@ -90,6 +90,10 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/310_pll_ref100/rtl/top.v",
             "experiments/310_pll_ref100/clocks.sdc",
             "experiments/320_pll_phase50/rtl/top.v",
+            "experiments/330_pll_phase100/rtl/top.v",
+            "experiments/340_pll_phase45/rtl/top.v",
+            "experiments/350_pll_two/rtl/top.v",
+            "experiments/360_pll_clkena/rtl/top.v",
         ):
             destination = repository / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -127,7 +131,7 @@ class OssPipelinePurityTests(unittest.TestCase):
 
         pins = {
             "yosys": "13b43f8c85ec430a33ee55d058fb4c32b42b6910",
-            "nextpnr": "aab1330c73ba432ee7066a652907826d84cde747",
+            "nextpnr": "c1be2ecce6b68a3b141c2fff9ab586e4169c7c67",
         }
         for lock_name, commit in pins.items():
             evidence = external_build / lock_name if symlink_build_tools else build / lock_name
@@ -440,6 +444,26 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertIn("--freq 50", commands)
         self.assertIn("--compress-rbf", commands)
         self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_new_pll_ladder(self) -> None:
+        for experiment in (
+            "330_pll_phase100",
+            "340_pll_phase45",
+            "350_pll_two",
+            "360_pll_clkena",
+        ):
+            with self.subTest(experiment=experiment):
+                result = self._run("--print-commands", "--experiment", experiment)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                commands = result.stdout
+                self.assertIn(f"experiments/{experiment}/rtl/top.v", commands)
+                self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+                self.assertNotIn("hps_gp_model.v", commands)
+                self.assertNotIn("pll_model.v", commands)
+                self.assertNotIn("clkena_model.v", commands)
+                self.assertIn("--freq 50", commands)
+                self.assertIn("--compress-rbf", commands)
+                self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
 
     def test_print_commands_keeps_memory_and_dsp_disabled_for_pll_clock(self) -> None:
         result = self._run("--print-commands", "--experiment", "090_pll_clock")
