@@ -87,6 +87,11 @@ make doctor PROFILE=native-source-dev
 `make verify` requires both host and clean-image receipts, so run `make host`
 as well if you previously built only `make image`.
 
+`make media` expects the private host FogCast configuration described in step 3
+so it can embed the selected target agent automatically. Set up that file before
+publishing media, or set `FES_UNPROVISIONED=1` when an image without an agent
+configuration is deliberately required.
+
 `make dev` supports only the current integration profile. The word `dev` in a
 historical profile name does not imply that it supports incremental builds.
 

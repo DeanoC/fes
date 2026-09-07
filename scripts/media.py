@@ -29,6 +29,8 @@ from media_inside import ImageInputs, PART1_OFFSET, Provenance, load_manifest, m
 PROFILE = 'native-integration-dev'
 MAX_CONFIG_BYTES = 65536
 DEFAULT_HOST_CONFIG = Path.home() / '.config' / 'fogcast' / 'config.toml'
+BEARER_TOKEN_PATTERN = re.compile(r'[A-Za-z0-9._~+/-]+={0,}')
+TARGET_NAME_PATTERN = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*')
 recipe_fingerprint = cold_build.recipe_fingerprint
 CHECKS = dict.fromkeys(('structural_media', 'rootfs_structural', 'rootfs_qemu', 'reproducibility'), 'pass')
 
@@ -198,15 +200,40 @@ def _host_token(raw):
         selected = raw.get('selected_target')
         if not isinstance(selected, str) or not selected.strip() or not isinstance(targets, list):
             raise ValueError('selected target is required for automatic media provisioning')
-        matches = [target for target in targets
-                   if isinstance(target, dict) and target.get('name') == selected]
+        selected = selected.strip()
+        normalized = []
+        seen = set()
+        for target in targets:
+            if not isinstance(target, dict):
+                raise ValueError('target entries must be tables for automatic media provisioning')
+            name = target.get('name')
+            if not isinstance(name, str):
+                raise ValueError('target names must be strings for automatic media provisioning')
+            name = name.strip()
+            if not TARGET_NAME_PATTERN.fullmatch(name):
+                raise ValueError('target names must be lowercase ASCII slugs for automatic media provisioning')
+            if name in seen:
+                raise ValueError('target names must be unique for automatic media provisioning')
+            seen.add(name)
+            enabled = target.get('enabled', False)
+            if not isinstance(enabled, bool):
+                raise ValueError('target enabled values must be booleans for automatic media provisioning')
+            address = target.get('address', '')
+            agent = target.get('agent', '')
+            if not isinstance(address, str) or not isinstance(agent, str):
+                raise ValueError('target address and agent must be strings for automatic media provisioning')
+            has_address = bool(address.strip())
+            has_agent = bool(agent.strip())
+            if has_address != has_agent or (enabled and not has_address):
+                raise ValueError('enabled targets must have both address and agent for automatic media provisioning')
+            normalized.append((name, target))
+        matches = [target for name, target in normalized if name == selected]
         if len(matches) != 1 or matches[0].get('enabled') is not True:
             raise ValueError('selected target must be enabled for automatic media provisioning')
         token = matches[0].get('agent')
     else:
         token = raw.get('token')
-    if (not isinstance(token, str) or not token.strip()
-            or any(ord(character) < 33 or ord(character) > 126 for character in token)):
+    if not isinstance(token, str) or not BEARER_TOKEN_PATTERN.fullmatch(token):
         raise ValueError('host configuration has no usable target token')
     return token
 
@@ -226,6 +253,8 @@ def generate_agent_config(host_config, scratch):
             'menu_rbf = "/media/fat/menu.rbf"\n'
             'mgl_directory = "/tmp/fogcast"\n'
         ).encode('utf-8')
+        if len(content) > MAX_CONFIG_BYTES:
+            raise ValueError('generated target agent configuration exceeds size limit')
         destination = Path(scratch) / 'agent.toml'
         write_private(destination, content)
         return destination, hashlib.sha256(content).hexdigest()
