@@ -63,6 +63,14 @@ func (r *Runtime) Health(version string) protocol.Health {
 	return health
 }
 
+// ConfirmIdle observes physical idle for failed-launch reconciliation only.
+// Unlike legacy process health, native idle proves no game remains active.
+func (r *Runtime) ConfirmIdle(ctx context.Context) bool {
+	response, err := r.boundedStatus(ctx)
+	return err == nil && ctx.Err() == nil && validIdle(response) &&
+		(response.Error == nil || response.Error.Code != "save_failed")
+}
+
 func (r *Runtime) StopReady() bool {
 	response, err := r.boundedStatus(context.Background())
 	return err == nil && (validIdle(response) || validNativeRunning(response) || validDevelopmentRunning(response) || retryableSaveFailure(response))
@@ -428,6 +436,20 @@ func (r *Runtime) stopWithRecovery(admission, operation context.Context, owned b
 		ctx = operation
 	}
 	response, err := r.control.Stop(ctx)
+	if err != nil {
+		// The mutation may have completed before its reply was lost. Observe
+		// once under the remaining operation budget; never replay Stop.
+		if ctx.Err() != nil {
+			return "", "", unavailableError()
+		}
+		response, err = r.boundedStatus(ctx)
+		if err != nil || ctx.Err() != nil {
+			return "", "", unavailableError()
+		}
+		if !validCleanIdle(response) && !rebootRequiredResponse(response) && !retryableSaveFailure(response) {
+			return "", "", unavailableError()
+		}
+	}
 	if err == nil && rebootRequiredResponse(response) {
 		return "", protocol.RecoveryRebootRequired, nil
 	}
