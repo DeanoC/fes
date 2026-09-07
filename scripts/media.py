@@ -31,6 +31,7 @@ MAX_CONFIG_BYTES = 65536
 DEFAULT_HOST_CONFIG = Path.home() / '.config' / 'fogcast' / 'config.toml'
 BEARER_TOKEN_PATTERN = re.compile(r'[A-Za-z0-9._~+/-]+={0,}')
 TARGET_NAME_PATTERN = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*')
+TARGET_ID_PATTERN = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
 recipe_fingerprint = cold_build.recipe_fingerprint
 CHECKS = dict.fromkeys(('structural_media', 'rootfs_structural', 'rootfs_qemu', 'reproducibility'), 'pass')
 
@@ -194,7 +195,14 @@ def _truthy_environment(name):
     return os.environ.get(name, '').strip().lower() in {'1', 'true', 'yes', 'on'}
 
 
-def _host_token(raw):
+def _target_id(raw):
+    target_id = raw.get('target_id', '')
+    if not isinstance(target_id, str) or (target_id and not TARGET_ID_PATTERN.fullmatch(target_id)):
+        raise ValueError('target identity must be a canonical lowercase UUID')
+    return target_id
+
+
+def _host_provisioning(raw):
     targets = raw.get('targets')
     if targets:
         selected = raw.get('selected_target')
@@ -226,16 +234,19 @@ def _host_token(raw):
             has_agent = bool(agent.strip())
             if has_address != has_agent or (enabled and not has_address):
                 raise ValueError('enabled targets must have both address and agent for automatic media provisioning')
+            _target_id(target)
             normalized.append((name, target))
         matches = [target for name, target in normalized if name == selected]
         if len(matches) != 1 or matches[0].get('enabled') is not True:
             raise ValueError('selected target must be enabled for automatic media provisioning')
-        token = matches[0].get('agent')
+        selected_config = matches[0]
+        token = selected_config.get('agent')
     else:
+        selected_config = raw
         token = raw.get('token')
     if not isinstance(token, str) or not BEARER_TOKEN_PATTERN.fullmatch(token):
         raise ValueError('host configuration has no usable target token')
-    return token
+    return token, _target_id(selected_config)
 
 
 def generate_agent_config(host_config, scratch):
@@ -243,7 +254,7 @@ def generate_agent_config(host_config, scratch):
     try:
         data = _read_private_config(host_config, 'host configuration')
         raw = tomllib.loads(data.decode('utf-8'))
-        token = _host_token(raw)
+        token, target_id = _host_provisioning(raw)
         content = (
             'listen_address = "0.0.0.0:8182"\n'
             f'token = {json.dumps(token, ensure_ascii=True)}\n'
@@ -253,6 +264,8 @@ def generate_agent_config(host_config, scratch):
             'menu_rbf = "/media/fat/menu.rbf"\n'
             'mgl_directory = "/tmp/fogcast"\n'
         ).encode('utf-8')
+        if target_id:
+            content += f'target_id = "{target_id}"\n'.encode('ascii')
         if len(content) > MAX_CONFIG_BYTES:
             raise ValueError('generated target agent configuration exceeds size limit')
         destination = Path(scratch) / 'agent.toml'

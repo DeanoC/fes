@@ -1068,6 +1068,66 @@ class AgentConfigTests(unittest.TestCase):
         config, _ = media.generate_agent_config(host, scratch)
         self.assertIn(b'token = "selected-token"\n', config.read_bytes())
 
+    def test_target_identity_provisioning_is_selected_and_deterministic(self):
+        target_id = 'd3e3d60f-bdf7-4e50-8e6d-325d1e7a52a6'
+        for legacy in (False, True):
+            with self.subTest(legacy=legacy):
+                host = self.root / 'identity-host.toml'
+                if legacy:
+                    content = f'token = "selected-token"\ntarget_id = "{target_id}"\n'
+                else:
+                    content = (
+                        'selected_target = "kit"\n'
+                        '[[targets]]\nname = "other"\nenabled = false\n'
+                        'target_id = "00000000-0000-4000-8000-000000000001"\n'
+                        '[[targets]]\nname = " kit "\nenabled = true\n'
+                        'address = "http://192.0.2.10:8182"\nagent = "selected-token"\n'
+                        f'target_id = "{target_id}"\n'
+                    )
+                host.write_text(content)
+                host.chmod(0o600)
+                before = host.stat()
+                snapshots = []
+                for index in range(2):
+                    scratch = self.root / f'identity-{legacy}-{index}'
+                    scratch.mkdir()
+                    config, digest = media.generate_agent_config(host, scratch)
+                    snapshots.append((config.read_bytes(), digest))
+                    self.assertIn(f'target_id = "{target_id}"\n'.encode(), config.read_bytes())
+                    self.assertNotIn(b'00000000-0000-4000-8000-000000000001', config.read_bytes())
+                    self.assertEqual(stat.S_IMODE(config.stat().st_mode), 0o600)
+                self.assertEqual(snapshots[0], snapshots[1])
+                self.assertEqual(host.read_text(), content)
+                self.assertEqual(host.stat().st_mtime_ns, before.st_mtime_ns)
+                self.assertEqual(host.stat().st_ino, before.st_ino)
+
+    def test_target_identity_rejects_invalid_unselected_target(self):
+        host = self.root / 'invalid-unselected.toml'
+        host.write_text(
+            'selected_target = "kit"\n'
+            '[[targets]]\nname = "other"\nenabled = false\ntarget_id = "invalid"\n'
+            '[[targets]]\nname = "kit"\nenabled = true\n'
+            'address = "http://192.0.2.10:8182"\nagent = "token"\n')
+        host.chmod(0o600)
+        with tempfile.TemporaryDirectory(dir=self.root) as scratch:
+            with self.assertRaisesRegex(ValueError, 'could not be converted'):
+                media.generate_agent_config(host, Path(scratch))
+
+    def test_target_identity_rejects_malformed_values(self):
+        for value in ('"invalid"', '42', '[]', '"D3E3D60F-BDF7-4E50-8E6D-325D1E7A52A6"',
+                      '" d3e3d60f-bdf7-4e50-8e6d-325d1e7a52a6 "'):
+            for legacy in (True, False):
+                with self.subTest(value=value, legacy=legacy):
+                    host = self.root / 'bad-identity.toml'
+                    prefix = 'token = "token"\n' if legacy else (
+                        'selected_target = "kit"\n[[targets]]\nname = "kit"\n'
+                        'enabled = true\naddress = "http://192.0.2.10:8182"\nagent = "token"\n')
+                    host.write_text(prefix + f'target_id = {value}\n')
+                    host.chmod(0o600)
+                    with tempfile.TemporaryDirectory(dir=self.root) as scratch:
+                        with self.assertRaisesRegex(ValueError, 'could not be converted'):
+                            media.generate_agent_config(host, Path(scratch))
+
     def test_generate_agent_config_rejects_duplicate_normalized_target_names(self):
         host = self.root / 'duplicate-targets.toml'
         host.write_text(

@@ -92,6 +92,28 @@ resulting card starts the target agent without a hand-created file. FES records
 only its SHA-256 digest in the manifest and receipt. The host configuration and
 the provisioned disk image stay private and are never printed or committed.
 
+### Preserve the kit's discovery identity
+
+With a discovery-capable FogCast host and agent, prepare the selected target's
+identity in FogCast target settings before assembling its card. FogCast saves
+an opaque `target_id` in that target's private host configuration. FES copies
+the selected ID into `agent.toml`, allowing the host to find the same provisioned
+kit after its network address changes. Keep the existing agent credential.
+
+The ID is a canonical lowercase UUID. It is separate from the target's name,
+address and boot ID, and stays unchanged across repeated builds and reboots.
+For legacy host files, the optional top-level `target_id` is supported too.
+Media assembly reads the host configuration without rewriting it or generating
+an identity. Configurations without an ID retain their existing output; a
+discovery-capable agent can persist its own ID and the host can learn it through
+the configured address.
+
+Prepare a separate target identity for each kit; cloning one provisioned card
+onto two running kits makes discovery ambiguous. Explicit address configuration
+remains available when the local network blocks multicast. The identity fields
+require a matching FogCast version; this parent provisioning change alone does
+not add discovery to an older agent image.
+
 For a deliberately unprovisioned artifact, use the explicit CI/recovery mode:
 
 ```sh
