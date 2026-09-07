@@ -11,6 +11,7 @@ Agents: read [AGENTS.md](AGENTS.md), then the
 ## Documentation
 
 - [Getting started](docs/getting-started.md): setup, build choices, running the host and common failures.
+- [Bootable media](docs/bootable-media.md): build, provision and verify a flashable native image.
 - [Project map](docs/project-map.md): what runs where, component responsibilities and directory layout.
 - [Agent workflow](docs/agent-workflow.md): assignments, worktrees, integration and handoffs.
 - [Documentation index](docs/README.md): current guides, validation records and historical plans.
@@ -91,6 +92,9 @@ out/native-integration-dev/
   library-report.tsv          target library closure
   verification.json           explicit verification results
   qemu-smoke.log              packaging smoke evidence
+  media/current/fes.img       flashable raw DE10-Nano disk image
+  media/current/fes-media.toml closed external media manifest
+  media/current/media.json    media receipt and host-check statuses
 ```
 
 Run the host with an explicit local configuration:
@@ -102,10 +106,11 @@ out/native-integration-dev/fogcast-api --config /absolute/path/config.toml --lis
 The native profiles support Mega Drive, ROM-less Pong, basic SNES and the existing MiSTer-compatible
 development-RBF lifecycle. It does not promise generalized/custom RBF ABIs or
 useful video/input from arbitrary development cores. The SDL tenfoot client
-remains a component build, not a parent output. This produces a root filesystem,
-not yet a complete bootable SD-card layout. Build and verify do not deploy or
+remains a component build, not a parent output. `linux.img` is the target root
+filesystem; run `make media` after a verified cold build to publish the
+flashable disk image. Build, media assembly and verification do not deploy or
 contact the kit. QEMU checks packaging, not FPGA behavior; exact-image hardware
-acceptance is separate. Current gitlink diagnostic evidence is in the
+acceptance is separate; see [bootable media](docs/bootable-media.md). Current gitlink diagnostic evidence is in the
 [dual-PLL native diagnostic](docs/dual-pll-native-diagnostic.md). Earlier clean
 two-pass evidence is in [integration validation](docs/integration-validation.md).
 
@@ -121,6 +126,8 @@ two-pass evidence is in [integration validation](docs/integration-validation.md)
 | `make build` | Host and two-pass native image, reusing matching checked outputs |
 | `make image` | Image only with structural checks |
 | `make verify` | Require host/image receipts, verify image, two-pass hashes and QEMU packaging |
+| `make media` | Publish a verified flashable disk image from current cold-build receipts |
+| `make verify-media` | Reverify the published disk image and embedded root filesystem; no device writes |
 | `make rebuild` | Force host, Quartus and both image passes |
 
 | Profile | Selected source combination |
@@ -158,5 +165,4 @@ Quartus, full image builds and physical checks run on the development machine.
 The normal profile includes [Pong and basic SNES](docs/multi-system-development.md)
 alongside Mega Drive. Native [SNES cartridge saves](docs/snes-saves.md) retain
 battery RAM through clean Stop and relaunch. SNES enhancement chips remain outside
-this implementation. Whole-system image assembly migration and the native
-bootable media layout remain separate work.
+this implementation.

@@ -12,6 +12,7 @@ host software and target root filesystem.
 | Understand the parts, directories and terminology | [Project map](project-map.md) |
 | Assign work to agents and integrate their results | [Agent workflow](agent-workflow.md), then [root AGENTS.md](../AGENTS.md) |
 | Create component worktrees and use incremental builds | [Development guide](development.md) |
+| Build, provision or verify a flashable native disk image | [Bootable media](bootable-media.md) |
 | Decide where a change belongs or crosses a boundary | [Component boundaries](component-boundaries.md) |
 | Continue the Pong and SNES milestone | [Multi-system development](multi-system-development.md) |
 | Develop and validate SNES cartridge saves | [SNES saves](snes-saves.md) |

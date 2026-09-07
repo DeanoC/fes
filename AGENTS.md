@@ -64,6 +64,17 @@ kit designation and authorization in the selected FogCast
 diagnostics, and exact-artifact hardware acceptance; the new integration
 profile does not inherit acceptance from a historical profile.
 
+`make media` publishes a flashable file under the selected profile's `out/`
+directory. `make verify-media` revalidates that disk and can publish refreshed
+immutable evidence after two current-recipe assemblies match its bytes.
+`make rollback-media GENERATION=<image-sha>/<evidence-sha>` validates and selects
+a retained candidate under the same exclusive media lease; never change
+`media/current` through an unleased shell rollback. All three commands keep the
+lease through validation, selection, sync, and failure rollback, and none writes
+a block device. Read [the bootable-media guide](docs/bootable-media.md)
+before a separately authorized physical-card operation; that operation needs
+the exact device authorization and the existing kit lease.
+
 ## Finish with a handoff
 
 Handoff: state scope, base and result commit (or uncommitted diff), tests and

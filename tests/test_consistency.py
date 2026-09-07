@@ -3,6 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 import os
+import subprocess
 import sys
 from unittest.mock import patch
 
@@ -96,3 +97,42 @@ class ConsistencyTest(unittest.TestCase):
                 self.assertEqual(env.get('GOWORK'), 'off')
                 self.assertNotIn('GOOS', env)
                 self.assertNotIn('GOARCH', env)
+
+    def test_bootable_media_docs_and_agent_entrypoints_are_linked(self):
+        required = {
+            'README.md': 'docs/bootable-media.md',
+            'AGENTS.md': 'make verify-media',
+            'docs/README.md': 'bootable-media.md',
+            'docs/getting-started.md': 'make media',
+            'docs/development.md': 'media/current/fes.img',
+        }
+        repository = Path(__file__).resolve().parents[1]
+        for name, needle in required.items():
+            self.assertIn(needle, (repository / name).read_text(), name)
+
+    def test_bootable_media_operator_guide_covers_rollback_config_and_installed_hashes(self):
+        guide = (Path(__file__).resolve().parents[1] / 'docs/bootable-media.md').read_text()
+        required = (
+            'make rollback-media GENERATION=', 'make verify-media', 'exclusive media lease',
+            'generations/<image-sha256>/<evidence-sha256>', 'two independent',
+            'rootfs.sha256', 'kernel.sha256', 'idle.sha256',
+            '/media/fat/fogcast/agent.toml',
+            'installed rootfs, agent, runtime, kernel, idle artifact',
+            'megadrive.rbf', 'pong.rbf', 'snes.rbf',
+        )
+        for needle in required:
+            self.assertIn(needle, guide, needle)
+        for obsolete in ('rootfs_sha256', 'kernel_sha256', 'idle_sha256', 'mv -Tf', 'previous_target='):
+            self.assertNotIn(obsolete, guide)
+
+    def test_bootable_media_rollback_uses_leased_cli_entrypoint(self):
+        repository = Path(__file__).resolve().parents[1]
+        result = subprocess.run(['make', '-n', 'rollback-media', 'GENERATION=' + 'a' * 64 + '/' + 'b' * 64],
+                                cwd=repository, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('scripts/media.py rollback', result.stdout)
+        self.assertIn('--generation "' + 'a' * 64 + '/' + 'b' * 64 + '"', result.stdout)
+        self.assertIn('make rollback-media', (repository / 'AGENTS.md').read_text())
+        result = subprocess.run(['make', '-n', 'rollback-media', 'AGENT_CONFIG=/tmp/config'],
+                                cwd=repository, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)

@@ -47,6 +47,8 @@ pinned commits, not whichever branch tips are newest.
 | Build only the clean two-pass image | `make image` | `out/native-integration-dev/linux.img` and image evidence |
 | Build a stabilized host/image combination | `make build` | Host binaries and clean two-pass image under `out/native-integration-dev/` |
 | Verify that clean combination | `make verify` | Receipt checks, structural checks and QEMU packaging smoke |
+| Publish flashable native media | `make media` | `out/native-integration-dev/media/current/fes.img` and receipts |
+| Reverify published native media | `make verify-media` | Media, payload, embedded-rootfs and QEMU checks |
 
 On the first source-built image run, set your installed toolchain location:
 
@@ -66,6 +68,8 @@ For clean integration verification:
 ```sh
 QUARTUS_ROOTDIR=/absolute/path/to/intelFPGA_lite/17.0 make build
 make verify
+make media
+make verify-media
 ```
 
 `make build` also reuses matching complete outputs. When it must assemble a new
@@ -145,11 +149,29 @@ These commands update/read the host's local library index. The SDL tenfoot
 launcher has its
 own [component build guide](../sources/FogCast/docs/native-tenfoot-launcher/README.md).
 
-## 4. Understand the target output
+## 4. Build bootable media
+
+`linux.img` is an ARMv7 root filesystem, not a flashable SD-card image. After a
+successful cold `make build` and `make verify`, run `make media` to publish the
+flashable raw disk image at `out/native-integration-dev/media/current/fes.img`.
+`make verify-media` rechecks the media without writing a block device. For
+local target-agent credentials, use the owner-only private configuration path:
+
+```sh
+make media AGENT_CONFIG=/absolute/private/path/agent.toml
+```
+
+Keep that file out of the repository. The default image is unprovisioned: it
+can reach runtime idle, but it has no agent credentials. Only the locally
+provisioned image can reach agent ready/idle. Read [bootable media](bootable-media.md)
+for immutable generation rollback and the separately authorized physical-card
+acceptance procedure.
+
+## 5. Understand the target output
 
 `linux.img` is an ARMv7 root filesystem for the MiSTer target, not a complete
-bootable SD-card image. It contains the native agent/runtime and selected RBFs.
-Full bootable-media assembly remains future work. The parent currently supports
+bootable SD-card image. It contains the native runtime and selected RBFs; use
+the media command above for the complete flashable layout. The parent supports
 the native Mega Drive path and the existing MiSTer-compatible development-RBF
 lifecycle; other systems and arbitrary custom core protocols are not implied.
 

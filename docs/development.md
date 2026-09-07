@@ -63,6 +63,8 @@ component remote; a local-only commit will break recursive clones elsewhere.
 | `make dev` | Incremental diagnostic native image using a persistent base |
 | `make build` | Build selected host and cold two-pass native image outputs |
 | `make verify` | Verify published outputs against receipts and child checks |
+| `make media` | Assemble a flashable disk image from verified cold outputs |
+| `make verify-media` | Verify `media/current/fes.img` and its host-side evidence without deployment |
 
 The default is `native-integration-dev`. Select a historical profile explicitly
 with `PROFILE=native-dev` or `PROFILE=native-source-dev`; their evidence applies
@@ -123,6 +125,14 @@ commands' release receipts. `make rebuild` still forces the full cold build,
 including Quartus. Native development does not build the separate QEMU test
 kernel. Unused development volumes may consume several GB each; their exact
 names are recorded in the development `inputs.json`.
+
+After those cold receipts pass, `make media` can assemble
+`out/native-integration-dev/media/current/fes.img`. It reads the verified cold
+rootfs and does not rebuild it; `make verify-media` revalidates the current
+immutable media generation, including the embedded rootfs and QEMU packaging
+check. Both commands operate on files under `out/` and never write a block
+device. See [bootable media](bootable-media.md) for provisioning, rollback and
+the physical acceptance boundary.
 
 ## Hardware and handoff
 

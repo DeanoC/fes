@@ -7,7 +7,9 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
+import stat
 import subprocess
 import sys
 import tomllib
@@ -18,6 +20,13 @@ import bundle as core_bundle
 from environment import build_environment
 
 ROOT = Path(__file__).resolve().parents[1]
+MEDIA_RECIPE_FILES = tuple(ROOT / name for name in (
+    "scripts/media.py", "scripts/media_inputs.py", "scripts/media_container.py",
+    "scripts/media_inside.py", "boot-media.lock.toml",
+    "containers/boot-media/Dockerfile", "containers/boot-media/create-builder-user.sh",
+    "containers/boot-media/packages.sha256"))
+BUILD_RECIPE_FILES = tuple(path for path in sorted((ROOT / "scripts").glob("*.py"))
+                           if path not in MEDIA_RECIPE_FILES)
 
 def run(args, **kwargs):
     print("+ " + " ".join(map(str, args)), flush=True)
@@ -41,23 +50,102 @@ def publish_file(source, destination):
 
 def write_receipt(output, kind, fingerprint, names):
     data = {"inputs": fingerprint, "files": {name: digest(output / name) for name in names}}
+    if kind in ('host', 'image'):
+        data['fes_revision'] = git(ROOT, 'rev-parse', 'HEAD')
+        receipt_revision(data)
     temporary = output / (kind + ".json.tmp")
     temporary.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
     temporary.replace(output / (kind + ".json"))
 
+def receipt_revision(receipt):
+    revision = receipt.get('fes_revision') if isinstance(receipt, dict) else None
+    if type(revision) is not str or not re.fullmatch('[0-9a-f]{40}', revision):
+        raise ValueError('cold artifact receipt requires a canonical FES revision')
+    return revision
+
+
 def reusable(output, kind, fingerprint):
     try:
         receipt = json.loads((output / (kind + ".json")).read_text())
+        if kind in ("host", "image"):
+            receipt_revision(receipt)
         return (receipt["inputs"] == fingerprint and bool(receipt["files"])
                 and all(digest(output / name) == sha for name, sha in receipt["files"].items()))
     except (OSError, ValueError, KeyError, TypeError):
         return False
 
-def fingerprint(revisions, profile, toolchain):
+def recipe_fingerprint(paths):
+    return {str(path.relative_to(ROOT)): digest(path) for path in paths}
+
+
+def build_fingerprint(revisions, profile, toolchain):
     data = {"sources": revisions, "profile": profile, "go": toolchain,
-            "recipe": {str(p.relative_to(ROOT)): digest(p)
-                       for p in sorted((ROOT / "scripts").glob("*.py"))}}
+            "recipe": recipe_fingerprint(BUILD_RECIPE_FILES)}
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest(), data
+
+
+def fingerprint(revisions, profile, toolchain):
+    """Compatibility wrapper for callers of the original receipt API."""
+    return build_fingerprint(revisions, profile, toolchain)
+
+
+def verification_record(output, image_sha256, baseline_match):
+    return {"image_sha256": image_sha256, "historical_baseline_match": baseline_match,
+            "two_pass_reproducibility": "pass", "structural": "pass", "qemu_packaging": "pass",
+            "qemu_log_sha256": digest(output / "qemu-smoke.log")}
+
+
+def load_verified_host(output, fingerprint):
+    """Require the exact current host receipt and both regular binary files."""
+    output = Path(output)
+    try:
+        for name in ('host.json', 'fogcast', 'fogcast-api'):
+            if not stat.S_ISREG((output / name).lstat().st_mode):
+                raise ValueError('host output is not regular')
+        def unique(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError('duplicate host receipt field')
+                result[key] = value
+            return result
+        receipt = json.loads((output / 'host.json').read_text(), object_pairs_hook=unique)
+        hashes = {name: digest(output / name) for name in ('fogcast', 'fogcast-api')}
+        revision = receipt_revision(receipt)
+        if receipt != {'inputs': fingerprint, 'files': hashes, 'fes_revision': revision}:
+            raise ValueError('host receipt differs from selected inputs or binaries')
+        return {'fes_revision': revision, 'host_receipt_sha256': digest(output / 'host.json'),
+                'fogcast_sha256': hashes['fogcast'], 'fogcast_api_sha256': hashes['fogcast-api']}
+    except (OSError, ValueError, TypeError):
+        raise ValueError('cold host receipt is missing, changed, or stale; run make build and make verify') from None
+
+
+def load_verified_image(output, fingerprint):
+    if not reusable(output, "image", fingerprint):
+        raise ValueError("cold image receipt is missing or stale; run make build and make verify")
+    try:
+        receipt = json.loads((output / "image.json").read_text())
+        verification = json.loads((output / "verification.json").read_text())
+        actual = digest(output / "linux.img")
+        qemu_log_sha256 = digest(output / "qemu-smoke.log")
+        evidence = dict(line.split("=", 1) for line in
+                        (output / "reproducibility.txt").read_text().splitlines())
+        required = (receipt["files"]["linux.img"] == actual
+                    and verification.get("image_sha256") == actual
+                    and verification.get("structural") == "pass"
+                    and verification.get("qemu_packaging") == "pass"
+                    and verification.get("qemu_log_sha256") == qemu_log_sha256
+                    and verification.get("two_pass_reproducibility") == "pass"
+                    and evidence.get("run_1_sha256") == actual
+                    and evidence.get("run_2_sha256") == actual)
+        if required:
+            return {"fes_revision": receipt_revision(receipt), "rootfs_sha256": actual,
+                    "image_receipt_sha256": digest(output / "image.json"),
+                    "verification_sha256": digest(output / "verification.json"),
+                    "qemu_log_sha256": qemu_log_sha256}
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        pass
+    raise ValueError("cold image verification is missing or stale; run make verify")
 
 def output_volume(root, profile):
     identity = hashlib.sha256((str(root) + "\0" + profile).encode()).hexdigest()[:16]
@@ -185,7 +273,7 @@ def main():
         lock_path.write_bytes(subprocess.check_output([
             "git", "-C", str(fogcast), "show", "HEAD:build/native-runtime.inputs.lock.toml"
         ]))
-        fp, info = fingerprint(revisions, profile, toolchain)
+        fp, info = build_fingerprint(revisions, profile, toolchain)
         env["TARGET_IMAGE_CONTAINER_RUNTIME"] = container
         env["TARGET_IMAGE_OUTPUT_VOLUME"] = output_volume(ROOT, args.profile)
         # The host has a small /tmp tmpfs; Go temporary files belong in out/.
@@ -293,16 +381,15 @@ def main():
                     env=dict(env, NATIVE_RUNTIME_SYSTEMS=" ".join(cores)))
             run(child_make + ["target-image-native-qemu-smoke"],
                 env=dict(env, NATIVE_RUNTIME_SYSTEMS=" ".join(cores)))
+            shutil.copy2(fogcast / "build/output/target-image/native-dev/qemu-smoke.log", output / "qemu-smoke.log")
             actual = digest(output / "linux.img")
             evidence = dict(line.split("=", 1) for line in (output / "reproducibility.txt").read_text().splitlines())
             if evidence.get("run_1_sha256") != actual or evidence.get("run_2_sha256") != actual:
                 raise ValueError("image does not match both recorded build passes")
             baseline = profile.get("baseline_image_sha256")
             matches = None if baseline is None else actual == baseline
-            result = {"image_sha256": actual, "historical_baseline_match": matches,
-                      "two_pass_reproducibility": "pass", "structural": "pass", "qemu_packaging": "pass"}
+            result = verification_record(output, actual, matches)
             (output / "verification.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
-            shutil.copy2(fogcast / "build/output/target-image/native-dev/qemu-smoke.log", output / "qemu-smoke.log")
             print("Two-pass reproducibility, structural and QEMU packaging checks passed.", flush=True)
             print(f"Historical image hash match: {matches} (see README provenance note)", flush=True)
         (output / "inputs.json").write_text(json.dumps(info, indent=2, sort_keys=True) + "\n")

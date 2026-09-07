@@ -1,0 +1,41 @@
+format = 1
+repository = "https://github.com/MiSTer-devel/Linux_Image_creator_MiSTer"
+commit = "8aba321b2162e54b56522aa30758b22d97eec8da"
+layout = "de10-nano-mister-v1"
+sector_size = 512
+total_sectors = 528384
+disk_id = 0x46455331
+fat_serial = 0xf35d0001
+fat_label = "FESDATA"
+
+[partition_1]
+start_sector = 2048
+sector_count = 524288
+type = 0x0c
+active = true
+chs_start = "feffff"
+chs_end = "feffff"
+
+[partition_2]
+start_sector = 526336
+sector_count = 2048
+type = 0xa2
+active = false
+chs_start = "feffff"
+chs_end = "feffff"
+
+[uboot]
+path = "uboot.img"
+size = 515141
+sha256 = "e2d46cf9fe1ec40ca2c9c7409870249f267e06f70e5736dc6d30b4e21fe62a64"
+environment = [
+  "mmcroot=/dev/mmcblk0p1",
+  "bootimage=/linux/zImage_dtb",
+  "core=menu.rbf",
+  "loop=linux/linux.img ro rootwait",
+]
+
+[kernel]
+path = "zImage_dtb"
+size = 7380857
+sha256 = "a6c7b1be0da9ba24a91bc1816737915d6a6cfba27c6c3025caded95167dc8dae"
