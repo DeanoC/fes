@@ -145,9 +145,12 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current nextpnr pin `ea40b08ae2871396d3f8c4062cf5f2690c1ac2c4` is
-`mistral-stable` at `880be337` plus PR #28 double-register clock enables. It
-adds quarter-phase 100 MHz outputs (`0`/`2500`/`5000`/`7500` ps), 45° steps on
+The current nextpnr pin `186e3c96327d5b1af37e91daae3a15fd2c7854d8` is
+`mistral-stable` at `bb2293b575a38b2b4a1326574aeea99ab2a0fd09` plus PR #29
+three-lane 9×9 DSP packing (336 logical `MISTRAL_MUL9X9` BELs on 112 physical
+DSP blocks, RESULT `0:17` / `18:35` / `37:54` with a one-bit gap at
+`RESULT.36`). It retains PR #28 double-register clock enables, quarter-phase
+100 MHz outputs (`0`/`2500`/`5000`/`7500` ps), 45° steps on
 equal 50 MHz outputs, two independent `altera_pll` cells sharing V11, and
 `cyclonev_clkena` packing into `MISTRAL_CLKENA` with low startup, running/gated
 branches, `enaout` status, and `REG2_ENOUT`. 50 MHz 90°/270° shifts use
@@ -173,7 +176,7 @@ while reset, then 1638–1639 / 3276–3277 / 8192 after relock. Their reference
 output Fmax values were 216.732 / 326.584 MHz against 50 MHz and the selected
 output constraint. Host pair regressions cover 25/40, 40/25, 20/100, 40/64,
 80/80 and 1/1 MHz. Artifact hashes and reproduction commands are in the
-[nextpnr PLL test documentation](https://github.com/DeanoC/nextpnr/blob/ea40b08ae2871396d3f8c4062cf5f2690c1ac2c4/mistral/tests/pll/README.md).
+[nextpnr PLL test documentation](https://github.com/DeanoC/nextpnr/blob/186e3c96327d5b1af37e91daae3a15fd2c7854d8/mistral/tests/pll/README.md).
 
 `120_pll_dsp` runs the eight-by-eight unsigned DSP product on the proven
 50-to-25 MHz PLL output. Linux peeks and pokes GPO/GPI on the 50 MHz
@@ -626,6 +629,29 @@ cycles. The current `kit.py` close completed development reboot recovery
 and left the lease free. This is exact-artifact functional diagnostic
 acceptance; it does not characterize enable setup/hold or establish native
 game acceptance.
+
+`410_dsp_triple` exposes three eight-by-eight unsigned DSP products on the HPS
+general-purpose interface: `left * right`, `left * ~right`, and
+`left * (right ^ 8'h01)`.
+Linux peeks and pokes GPO/GPI; there is no LED. GPO bits `[18:17]` select the
+lane and bit 16 selects the high product byte. GPI signature `0xD611`
+identifies the protocol. Yosys emits three `MISTRAL_MUL9X9` cells. nextpnr-mistral
+places those cells on z-lanes 0/1/2 of one physical DSP site, with RESULT
+`0:17` / `18:35` / `37:54`. Memory and PLL remain forbidden. Simulation and
+OSS are supported; Quartus comparison is not implemented. See
+`experiments/410_dsp_triple/expected.md`.
+
+The OSS `410_dsp_triple` artifact has SHA-256
+`135284a611feb26b3da9d2c352b2f601099a8d62d0c3c832d1ca4ae7dbc9ae12`
+and size 1,955,082 bytes. Its reported Fmax is 387.747 MHz against the 50 MHz
+constraint. Utilization is three `MISTRAL_MUL9X9` (336 available) packed at
+`MISTRAL_MUL9X9.32.2.{0,1,2}`, and one HPS GP. Exact-artifact kit diagnostics
+on 2026-09-07 returned GPI signature `0xD611` and the expected products for
+all three lanes (`0x0A*0x0C` → `0x0078` / `0x097E` / `0x0082`, `0x12*0x34`
+→ `0x03A8` / `0x0E46` / `0x03BA`, `0xFF*0xFF` → `0xFE01` / `0` / `0xFD02`).
+The current `kit.py` close completed development reboot recovery and left the
+lease free. This is exact-artifact functional diagnostic acceptance of three
+packed 9×9 lanes; it does not establish native game acceptance.
 
 ## Standalone Pong game
 

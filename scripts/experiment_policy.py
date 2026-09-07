@@ -104,6 +104,7 @@ class ExperimentPolicy:
     yosys_post_synth: str = ""
     sim_jobs: tuple[SimJob, ...] = ()
     required_synth_cells: Mapping[str, int] = MappingProxyType({})
+    required_packed_sites: Mapping[str, int] = MappingProxyType({})
 
     def __post_init__(self) -> None:
         if not self.name or not isinstance(self.name, str):
@@ -152,6 +153,22 @@ class ExperimentPolicy:
                 raise PolicyError(f"{self.name}: required synth cell count for {cell} must be non-negative")
             synth_cells[cell] = count
         object.__setattr__(self, "required_synth_cells", MappingProxyType(synth_cells))
+
+        packed: dict[str, int] = {}
+        for cell, count in dict(self.required_packed_sites).items():
+            if not isinstance(cell, str) or not cell:
+                raise PolicyError(f"{self.name}: packed site names must be non-empty strings")
+            if not isinstance(count, int) or isinstance(count, bool) or count <= 0:
+                raise PolicyError(f"{self.name}: packed site count for {cell} must be a positive integer")
+            expected_cells = synth_cells.get(cell)
+            if expected_cells is None:
+                raise PolicyError(f"{self.name}: packed site {cell} must also be a required synth cell")
+            if count > expected_cells:
+                raise PolicyError(
+                    f"{self.name}: packed site count for {cell} cannot exceed the required synth cell count"
+                )
+            packed[cell] = count
+        object.__setattr__(self, "required_packed_sites", MappingProxyType(packed))
 
         allowed: dict[str, int] = {}
         for resource, count in dict(self.allowed_hard_blocks).items():
@@ -417,6 +434,68 @@ class ExperimentPolicy:
                     f"synth cell {name} must occur exactly {expected} time(s), got {actual}"
                 )
 
+    def validate_routed_json(self, path: Path) -> None:
+        """Require packed BEL co-location that utilization counts cannot express."""
+
+        if not self.required_packed_sites:
+            return
+        try:
+            design = json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise PolicyError(f"cannot read routed json {path}: {exc}") from exc
+        if not isinstance(design, Mapping):
+            raise PolicyError("routed json must be an object")
+        modules = design.get("modules")
+        if not isinstance(modules, Mapping):
+            raise PolicyError("routed json has no modules")
+        cells_by_type: dict[str, list[str]] = {name: [] for name in self.required_packed_sites}
+        for module in modules.values():
+            if not isinstance(module, Mapping):
+                continue
+            cells = module.get("cells")
+            if not isinstance(cells, Mapping):
+                continue
+            for cell in cells.values():
+                if not isinstance(cell, Mapping):
+                    continue
+                cell_type = cell.get("type")
+                if not isinstance(cell_type, str) or cell_type not in cells_by_type:
+                    continue
+                attributes = cell.get("attributes")
+                if not isinstance(attributes, Mapping):
+                    raise PolicyError(f"routed {cell_type} cell has no attributes")
+                bel = attributes.get("NEXTPNR_BEL")
+                if not isinstance(bel, str) or not bel:
+                    raise PolicyError(f"routed {cell_type} cell is missing NEXTPNR_BEL")
+                cells_by_type[cell_type].append(bel)
+        for name, expected_sites in self.required_packed_sites.items():
+            bels = cells_by_type[name]
+            expected_cells = self.required_synth_cells[name]
+            if len(bels) != expected_cells:
+                raise PolicyError(
+                    f"routed {name} must occur exactly {expected_cells} time(s), got {len(bels)}"
+                )
+            sites: set[str] = set()
+            lanes: set[int] = set()
+            for bel in bels:
+                parts = bel.split(".")
+                if len(parts) < 4:
+                    raise PolicyError(f"routed {name} BEL {bel!r} is not a site.lane coordinate")
+                try:
+                    lane = int(parts[-1])
+                except ValueError as exc:
+                    raise PolicyError(f"routed {name} BEL {bel!r} has a non-integer lane") from exc
+                sites.add(".".join(parts[:3]))
+                lanes.add(lane)
+            if len(sites) != expected_sites:
+                raise PolicyError(
+                    f"routed {name} must occupy exactly {expected_sites} physical site(s), got {len(sites)}"
+                )
+            if expected_sites == 1 and lanes != set(range(expected_cells)):
+                raise PolicyError(
+                    f"routed {name} lanes must be {list(range(expected_cells))}, got {sorted(lanes)}"
+                )
+
     def validate_design(self, *, top: str, sources: Sequence[str]) -> None:
         """Validate the top and exact production source list."""
 
@@ -460,6 +539,8 @@ class ExperimentPolicy:
             "yosys_post_synth": self.yosys_post_synth,
             "sim_jobs": [job.as_dict() for job in self.sim_jobs],
             "required_synth_cells": dict(self.required_synth_cells),
+            **({"required_packed_sites": dict(self.required_packed_sites)}
+               if self.required_packed_sites else {}),
         }
 
 
@@ -2178,6 +2259,47 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                 ),
             ),
         ),
+        "410_dsp_triple": ExperimentPolicy(
+            name="410_dsp_triple",
+            sources=("experiments/410_dsp_triple/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_MUL9X9": 3,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"DSP", "MAC", "MUL"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            required_synth_cells={"MISTRAL_MUL9X9": 3},
+            required_packed_sites={"MISTRAL_MUL9X9": 1},
+            nodsp=False,
+            yosys_post_synth="setattr -mod -unset keep_hierarchy packed_product; flatten; ",
+            clock_evidence_names=("product.FPGA_CLK1_50",),
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/410_dsp_triple/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                    ),
+                    tb="experiments/410_dsp_triple/sim/tb.cpp",
+                ),
+            ),
+        ),
     }
 )
 
@@ -2270,6 +2392,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--format", choices=("json", "shell"), default="json")
     parser.add_argument("--check-sources", action="store_true")
     parser.add_argument("--check-synth-json", type=Path)
+    parser.add_argument("--check-routed-json", type=Path)
     parser.add_argument("--repo-root", type=Path, default=_repo_root())
     return parser
 
@@ -2282,6 +2405,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             _check_sources(policy, arguments.repo_root)
         if arguments.check_synth_json is not None:
             policy.validate_synth_json(arguments.check_synth_json)
+        if arguments.check_routed_json is not None:
+            policy.validate_routed_json(arguments.check_routed_json)
         if arguments.format == "shell":
             sys.stdout.write(_shell_lines(policy))
         else:

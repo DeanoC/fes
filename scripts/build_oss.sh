@@ -417,6 +417,8 @@ done
 
 "$run_logged" "$nextpnr_log" "${nextpnr_cmd[@]}"
 [[ -s "$out_routed" ]] || fail "place-and-route did not produce a nonempty routed JSON: $out_routed"
+"$PYTHON" "$policy_tool" --experiment "$EXP" --check-routed-json "$out_routed" >/dev/null \
+    || fail "routed json does not satisfy closed experiment policy: $EXP"
 [[ -s "$out_rbf" ]] || fail "place-and-route did not produce a nonempty RBF: $out_rbf"
 [[ -s "$out_timing_json" ]] || fail "place-and-route did not produce a nonempty timing report: $out_timing_json"
 

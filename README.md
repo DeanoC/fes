@@ -33,6 +33,7 @@ development possible with both the open-source Mistral toolchain and Quartus.
   fabric-controlled `cyclonev_clkena` between a PLL output and clocked logic,
   including low startup, running/gated branches, `enaout` status, and
   double-register mode.
+- Three parallel 9×9 multipliers packed into one physical Cyclone V DSP block.
 - Checked fractional-N PLL profiles when `fractional_vco_multiplier` is
   `"true"`: 50 MHz → 12.288 MHz, 50 MHz → 11.2896 MHz, and the dual
   12.288/24.576 MHz pair.
@@ -141,6 +142,11 @@ development possible with both the open-source Mistral toolchain and Quartus.
   `make oss EXP=370_pll_clkena_low` and the 380/390/400 equivalents; no
   Quartus comparison lane is implemented. This does not characterize enable
   setup/hold.
+- `410_dsp_triple`, three eight-by-eight unsigned DSP products (`a*b`,
+  `a*~b`, `a*(b^1)`) on HPS GP packed into one physical DSP block. Yosys emits
+  three `MISTRAL_MUL9X9`; nextpnr-mistral places them on z-lanes 0/1/2 of
+  one DSP site. Run `make sim EXP=410_dsp_triple` and
+  `make oss EXP=410_dsp_triple`; no Quartus comparison lane is implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under

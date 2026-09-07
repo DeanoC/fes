@@ -98,6 +98,7 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/380_pll_clkena_branch/rtl/top.v",
             "experiments/390_pll_clkena_status/rtl/top.v",
             "experiments/400_pll_clkena_reg2/rtl/top.v",
+            "experiments/410_dsp_triple/rtl/top.v",
         ):
             destination = repository / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -135,7 +136,7 @@ class OssPipelinePurityTests(unittest.TestCase):
 
         pins = {
             "yosys": "13b43f8c85ec430a33ee55d058fb4c32b42b6910",
-            "nextpnr": "ea40b08ae2871396d3f8c4062cf5f2690c1ac2c4",
+            "nextpnr": "186e3c96327d5b1af37e91daae3a15fd2c7854d8",
         }
         for lock_name, commit in pins.items():
             evidence = external_build / lock_name if symlink_build_tools else build / lock_name
@@ -524,6 +525,19 @@ class OssPipelinePurityTests(unittest.TestCase):
         commands = result.stdout
         self.assertIn("experiments/060_dsp_mul/rtl/top.v", commands)
         self.assertIn("synth_intel_alm -nobram -nolutram -top top", commands)
+        self.assertNotIn("-nodsp", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_dsp_only_for_dsp_triple(self) -> None:
+        result = self._run("--print-commands", "--experiment", "410_dsp_triple")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/410_dsp_triple/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -top top", commands)
+        self.assertIn("setattr -mod -unset keep_hierarchy packed_product; flatten;", commands)
         self.assertNotIn("-nodsp", commands)
         self.assertNotIn("hps_gp_model.v", commands)
         self.assertIn("--freq 50", commands)
