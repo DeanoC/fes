@@ -487,11 +487,11 @@ func TestClientHealthAndStatus(t *testing.T) {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/health":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"ready":  true,
-				"target": map[string]any{"reachable": false, "ready": false},
+				"target": map[string]any{"reachable": false, "ready": false, "connection": map[string]any{"state": "connecting", "message": "looking for den", "target_id": "target-123"}},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/status":
 			w.WriteHeader(http.StatusServiceUnavailable)
-			_, _ = io.WriteString(w, `{"error":{"code":"TARGET_UNAVAILABLE","message":"target status is unavailable"}}`)
+			_, _ = io.WriteString(w, `{"connection":{"state":"disconnected","message":"target not found","target_id":"target-123"},"error":{"code":"TARGET_UNAVAILABLE","message":"target status is unavailable"}}`)
 		default:
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 			http.NotFound(w, r)
@@ -503,14 +503,14 @@ func TestClientHealthAndStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !health.Ready || health.TargetReachable || health.TargetReady {
+	if !health.Ready || health.TargetReachable || health.TargetReady || health.Connection.State != "connecting" || health.Connection.TargetID != "target-123" {
 		t.Fatalf("health = %#v", health)
 	}
 	status, err := client.Status(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !status.Unavailable || status.HTTPStatus != 503 || status.ErrorCode != "TARGET_UNAVAILABLE" {
+	if !status.Unavailable || status.HTTPStatus != 503 || status.ErrorCode != "TARGET_UNAVAILABLE" || status.Connection.State != "disconnected" {
 		t.Fatalf("status = %#v", status)
 	}
 }
@@ -1367,6 +1367,29 @@ func TestClientLibrarySettingsGetError(t *testing.T) {
 	t.Cleanup(server.Close)
 	if _, err := NewClient(server.URL, server.Client()).LibrarySettings(context.Background()); err == nil || !strings.Contains(err.Error(), "SETTINGS_UNAVAILABLE") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestClientPatchLibrarySettingsPreparesNamedTargetWithoutCredentials(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch || r.URL.Path != "/api/v1/library/settings" {
+			t.Fatalf("request = %s %s", r.Method, r.URL.Path)
+		}
+		raw, _ := io.ReadAll(r.Body)
+		if string(raw) != `{"prepare_target":"den"}` {
+			t.Fatalf("body = %s", raw)
+		}
+		_, _ = io.WriteString(w, `{"selected_target":"den","targets":[{"name":"den","address":"mister.local:8182","enabled":true,"agent_configured":true,"target_id":"target-123"}]}`)
+	}))
+	defer server.Close()
+	name := "den"
+	settings, err := NewClient(server.URL, server.Client()).PatchLibrarySettings(t.Context(), LibrarySettingsPatch{PrepareTarget: &name})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(settings.Targets) != 1 || settings.Targets[0].TargetID != "target-123" {
+		t.Fatalf("targets = %#v", settings.Targets)
 	}
 }
 

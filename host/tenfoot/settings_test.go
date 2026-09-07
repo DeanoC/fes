@@ -2132,3 +2132,23 @@ func TestAppSettingsCancelAddTargetDoesNotMarkDirty(t *testing.T) {
 		t.Fatalf("cancel marked dirty: %q", settingsRowByID(t, app, "save-targets").Value)
 	}
 }
+
+func TestPrepareIdentityPreservesUnsavedTargetEdits(t *testing.T) {
+	app := NewApp(NewClient("http://127.0.0.1:1", nil), 1280, 720, 0)
+	app.settingsOpen = true
+	app.settingsHydrated = true
+	app.settingsIndex = settingsRowPrepareTarget
+	app.hostSettings = LibrarySettings{SelectedTarget: "dev", Targets: []LibraryTarget{{Name: "dev"}}}
+	app.settingsDraftTarget = "renamed"
+	app.settingsDraftTargets = []settingsTargetDraft{{OriginalName: "dev", Name: "renamed"}}
+	app.settingsTargetsDirty = true
+	app.HandleCommand(CmdSelect, time.Now())
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if app.settingsBusy || app.settingsStatus != "save target edits before preparing identity" {
+		t.Fatalf("busy=%v status=%q", app.settingsBusy, app.settingsStatus)
+	}
+	if !app.settingsTargetsDirty || app.settingsDraftTargets[0].Name != "renamed" || app.settingsDraftTarget != "renamed" {
+		t.Fatal("preparation discarded target draft")
+	}
+}

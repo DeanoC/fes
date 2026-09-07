@@ -75,16 +75,18 @@ type healthResult struct {
 }
 
 type statusResult struct {
-	State  protocol.State   `json:"state"`
-	GameID *string          `json:"game_id,omitempty"`
-	System *protocol.System `json:"system,omitempty"`
-	Core   *string          `json:"core,omitempty"`
-	Error  *apiError        `json:"error,omitempty"`
+	Connection *fogcast.TargetConnection `json:"connection,omitempty"`
+	State      protocol.State            `json:"state"`
+	GameID     *string                   `json:"game_id,omitempty"`
+	System     *protocol.System          `json:"system,omitempty"`
+	Core       *string                   `json:"core,omitempty"`
+	Error      *apiError                 `json:"error,omitempty"`
 }
 
 type targetHealth struct {
-	Reachable bool `json:"reachable"`
-	Ready     bool `json:"ready"`
+	Connection *fogcast.TargetConnection `json:"connection,omitempty"`
+	Reachable  bool                      `json:"reachable"`
+	Ready      bool                      `json:"ready"`
 }
 
 type errorResult struct {
@@ -174,7 +176,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 	mux.HandleFunc("GET /api/v1/session", func(w http.ResponseWriter, r *http.Request) {
 		result, err := session.status(r.Context())
 		if err != nil {
-			writeError(w, http.StatusServiceUnavailable, "TARGET_UNAVAILABLE", "target status is unavailable")
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": apiError{Code: "TARGET_UNAVAILABLE", Message: "target status is unavailable"}, "connection": targetConnection(service)})
 			return
 		}
 		writeJSON(w, http.StatusOK, result)
@@ -272,16 +274,16 @@ func New(service Service, options ...ServerOption) http.Handler {
 
 	mux.HandleFunc("GET /api/v1/health", func(w http.ResponseWriter, r *http.Request) {
 		target, err := service.Health(r.Context())
-		result := healthResult{Ready: true, Target: targetHealth{Reachable: err == nil, Ready: err == nil && target.Ready}}
+		result := healthResult{Ready: true, Target: targetHealth{Reachable: err == nil, Ready: err == nil && target.Ready, Connection: targetConnection(service)}}
 		writeJSON(w, http.StatusOK, result)
 	})
 	mux.HandleFunc("GET /api/v1/status", func(w http.ResponseWriter, r *http.Request) {
 		status, err := service.Status(r.Context())
 		if err != nil {
-			writeError(w, http.StatusServiceUnavailable, "TARGET_UNAVAILABLE", "target status is unavailable")
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": apiError{Code: "TARGET_UNAVAILABLE", Message: "target status is unavailable"}, "connection": targetConnection(service)})
 			return
 		}
-		result := statusResult{State: status.State, GameID: status.GameID, System: status.System}
+		result := statusResult{State: status.State, GameID: status.GameID, System: status.System, Connection: targetConnection(service)}
 		if status.ObservedCore != nil {
 			result.Core = status.ObservedCore
 		} else {
@@ -768,4 +770,14 @@ func writeSessionError(w http.ResponseWriter, err error) {
 		return
 	}
 	writeError(w, http.StatusServiceUnavailable, "TARGET_UNAVAILABLE", "session operation failed")
+}
+
+func targetConnection(service Service) *fogcast.TargetConnection {
+	if provider, ok := service.(interface {
+		TargetConnection() fogcast.TargetConnection
+	}); ok {
+		connection := provider.TargetConnection()
+		return &connection
+	}
+	return nil
 }

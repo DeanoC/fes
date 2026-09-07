@@ -19,6 +19,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/agentconfig"
 	"github.com/DeanoC/FogCast/internal/cast"
 	"github.com/DeanoC/FogCast/internal/core"
+	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/httpapi"
 	"github.com/DeanoC/FogCast/internal/input"
 	"github.com/DeanoC/FogCast/internal/mister"
@@ -40,6 +41,41 @@ func TestRunDoesNotExposeMalformedConfigurationContents(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "real-secret-token") {
 		t.Fatalf("configuration content leaked in error: %v", err)
+	}
+}
+
+func TestLoadOrCreateTargetIDPersistsAndReusesIdentity(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "fogcast", "target-id")
+	first, err := loadOrCreateTargetID(path, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !discovery.ValidID(first) {
+		t.Fatalf("ID = %q", first)
+	}
+	second, err := loadOrCreateTargetID(path, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second != first {
+		t.Fatalf("second ID = %q, want %q", second, first)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("mode = %o", info.Mode().Perm())
+	}
+}
+
+func TestLoadOrCreateTargetIDRejectsMalformedPersistedIdentity(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "target-id")
+	if err := os.WriteFile(path, []byte("not-an-id\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadOrCreateTargetID(path, ""); err == nil {
+		t.Fatal("malformed persisted ID accepted")
 	}
 }
 
@@ -173,11 +209,21 @@ func (s *compositionStore) ReconcileActive(context.Context, protocol.Status, *ta
 }
 
 func TestRunComposesFixedCacheContentHandlerAndUploadTimeouts(t *testing.T) {
-	configPath := writeCompositionConfig(t, "cache_max_bytes = 67108864\n")
+	const targetID = "01234567-89ab-cdef-0123-456789abcdef"
+	configPath := writeCompositionConfig(t, "cache_max_bytes = 67108864\ntarget_id = \""+targetID+"\"\n")
+	configBytes, configErr := os.ReadFile(configPath)
+	if configErr != nil {
+		t.Fatal(configErr)
+	}
+	configBytes = []byte(strings.Replace(string(configBytes), "127.0.0.1:8182", "0.0.0.0:8182", 1))
+	if err := os.WriteFile(configPath, configBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	runtime := &compositionRuntime{}
 	store := &compositionStore{}
 	var opened targetcache.Config
 	listened := false
+	advertised := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	deps := runDependencies{
@@ -192,10 +238,29 @@ func TestRunComposesFixedCacheContentHandlerAndUploadTimeouts(t *testing.T) {
 			return store, nil
 		},
 		newRuntime: func(agentconfig.Config, core.Registry) agent.Runtime { return runtime },
+		advertise: func(ctx context.Context, id string, port int) error {
+			if id != targetID || port != 8182 {
+				t.Errorf("advertisement = %q:%d", id, port)
+			}
+			close(advertised)
+			return errors.New("multicast unavailable")
+		},
 		serve: func(server *http.Server) error {
 			listened = true
+			select {
+			case <-advertised:
+			case <-time.After(time.Second):
+				t.Fatal("advertisement did not start")
+			}
 			if server.ReadHeaderTimeout.String() != "2s" || server.ReadTimeout.String() != "1m15s" || server.WriteTimeout.String() != "1m15s" {
 				t.Fatalf("server timeouts = header %s read %s write %s", server.ReadHeaderTimeout, server.ReadTimeout, server.WriteTimeout)
+			}
+			healthRequest := httptest.NewRequest(http.MethodGet, "/v1/health", nil)
+			healthRequest.Header.Set("Authorization", "Bearer test-token")
+			healthResponse := httptest.NewRecorder()
+			server.Handler.ServeHTTP(healthResponse, healthRequest)
+			if !strings.Contains(healthResponse.Body.String(), `"target_id":"`+targetID+`"`) {
+				t.Fatalf("authenticated health = %s", healthResponse.Body.String())
 			}
 			digest := strings.Repeat("a", 64)
 			request := httptest.NewRequest(http.MethodGet, "/v2/cache/snes/"+digest+"?extension=sfc", nil)
@@ -250,6 +315,37 @@ func TestRunComposesFixedCacheContentHandlerAndUploadTimeouts(t *testing.T) {
 	}
 	if runtime.developmentSize != int64(len("development-rbf")) || string(runtime.developmentBody) != "development-rbf" {
 		t.Fatalf("development runtime = size %d body %q", runtime.developmentSize, runtime.developmentBody)
+	}
+}
+
+func TestDiscoveryListenerUsesConfiguredPortAndSkipsLoopback(t *testing.T) {
+	for _, tc := range []struct {
+		address   string
+		port      int
+		advertise bool
+	}{{"0.0.0.0:9191", 9191, true}, {"[::]:8282", 8282, true}, {"127.0.0.1:8182", 8182, false}, {"[::1]:8182", 8182, false}} {
+		port, advertise := discoveryListener(tc.address)
+		if port != tc.port || advertise != tc.advertise {
+			t.Errorf("discoveryListener(%q) = (%d, %t), want (%d, %t)", tc.address, port, advertise, tc.port, tc.advertise)
+		}
+	}
+}
+
+func TestAdvertisementCleanupCancelsAndJoinsWorker(t *testing.T) {
+	started := make(chan struct{})
+	stopped := make(chan struct{})
+	cleanup := startAdvertisement(context.Background(), "01234567-89ab-cdef-0123-456789abcdef", 9191, slog.New(slog.NewTextHandler(io.Discard, nil)), func(ctx context.Context, _ string, _ int) error {
+		close(started)
+		<-ctx.Done()
+		close(stopped)
+		return ctx.Err()
+	})
+	<-started
+	cleanup()
+	select {
+	case <-stopped:
+	default:
+		t.Fatal("cleanup returned before advertisement worker stopped")
 	}
 }
 

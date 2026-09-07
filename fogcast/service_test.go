@@ -1502,7 +1502,7 @@ func TestServiceFPGANativeClientUsesAgentLaunchAndEmptyStop(t *testing.T) {
 	if _, err := service.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop: %v", err)
 	}
-	if got := strings.Join(paths, ","); got != "GET /v1/health,POST /v1/launch,GET /v1/status,POST /v1/stop" {
+	if got := strings.Join(paths, ","); got != "GET /v1/health,GET /v1/status,GET /v1/kit/lease,POST /v1/launch,GET /v1/status,POST /v1/stop" {
 		t.Fatalf("paths = %q", got)
 	}
 	wantLaunch := `{"game_id":"snes-synthetic","system":"snes","rom_path":"/media/fat/games/SNES/ActRaiser.smc"}`

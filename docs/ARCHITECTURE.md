@@ -429,3 +429,59 @@ The host does not automatically take over or fall back to an unguarded target
 when lease endpoints are unavailable. An operator must inspect ownership and
 start a fresh application session after lease loss. The target owns timeout,
 revocation and serialized physical cleanup; host lease tokens stay in memory.
+
+## Target identity and reconnection
+
+Each named host target may have a persistent `target_id`, a lowercase UUID copied
+into the target's private agent configuration during media provisioning. Legacy
+`base_url`/`token` configurations may also carry a top-level `target_id`. Target
+settings expose the ID without exposing the bearer credential. An explicit
+`PATCH /api/v1/library/settings` with `{"prepare_target":"dev"}` creates and
+atomically saves an ID only when that named target has none. Normal settings
+updates and target renames preserve it. Preparing an ID requires a writable
+private canonical config. The existing browser target settings provide this action.
+
+The agent uses the configured identity, or persists one in
+`/media/fat/fogcast/target-id` when no identity is configured. Authenticated
+health reports it; anonymous health omits it. Advertisement runs independently
+of HTTP startup, waits for an addressed multicast interface, and recreates its
+listeners when interfaces or addresses change. Failed setup retries with capped
+backoff. This handles the kit starting its agent before Ethernet is ready.
+DNS-SD TXT contains only `target_id` and discovery protocol version. A random
+service instance and hostname distinguish cloned identities on the same link;
+the persistent TXT identity remains stable across reboots.
+
+The host authenticates health at its configured or last validated endpoint. A
+legacy address-only target can bind a discovery-capable agent's existing ID
+through the same private write path. A bound target may resolve matching
+`_fogcast._tcp.local.` DNS-SD announcements after a read-only connection failure.
+Health must confirm the expected ID and API version before endpoint adoption;
+HTTP redirects are rejected. One DNS-SD instance may publish multiple addresses,
+but multiple distinct matching instances/endpoints are ambiguous and are not
+chosen automatically. Discovered DHCP addresses stay in memory.
+
+The service's existing lifecycle admission serializes validation with launch,
+Stop and development operations. A one-second host monitor provides retry
+opportunities; failed lookups back off for 1, 2, 4, 8 and then 15 seconds.
+Individual health probes and multicast browse windows are bounded and cancellable.
+Settings changes cancel an in-progress lookup, and shutdown cancels and joins the
+monitor before releasing leases. Explicit development reboot recovery uses the
+same read-only validation while retaining its existing lifecycle admission.
+
+Endpoint adoption reads public lease ownership and runtime status before reporting
+ready. The shared host lease object moves game requests, lease renewal, input
+attach and input CONNECT to the validated endpoint. On an unchanged boot, a
+locally held grant is retained only when its live generation still matches the
+agent. An address change closes the old local input stream without replaying held
+input; the user can attach input again through the existing session action.
+On a changed boot the host forgets its old grant and session and closes local input handles without remote Stop, release, or input cleanup. A new user
+launch may claim a free lease; discovery never claims or takes over a kit, and
+never replays a launch, upload, Stop, reboot, or input operation.
+
+The existing public health response includes `target.connection`; status responses
+include `connection`, including unavailable responses. Its states are
+`disconnected`, `connecting`, `ready`, `active`, `busy` and `recovery-required`,
+separate from runtime/game state. Busy responses include the public owner label.
+The browser and tenfoot target views show this state. Manual addresses remain
+usable where multicast is unavailable. This path has host/fake-peer regression
+coverage; physical reboot and DHCP acceptance belongs to the selected FES image.

@@ -126,6 +126,14 @@ preserving the verified source image and recording the derived hash. Derived
 image results are diagnostic only; they do not establish reproducibility,
 release readiness, or hardware acceptance.
 
+When replacing a root image on the running kit, keep the old image under a
+backup filename until after reboot. Never overwrite its contents or rename a
+replacement directly over its last filename: the loop device still holds it
+open, and reboot can leave orphaned FAT allocation chains. Stage and verify the
+new image, rename the running image to an unused backup name, install the staged
+image, sync and reboot; delete the backup only after verifying the new boot.
+Keep power stable during the two renames.
+
 Use the full two-pass `target-images` or `target-image-native` build after a
 change has stabilized and immediately before a major PR, merge, release, or
 formal hardware acceptance. The full build is also required for any change to

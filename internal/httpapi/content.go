@@ -25,6 +25,7 @@ type ContentController interface {
 }
 
 type serverOptions struct {
+	targetID    string
 	kitLease    *kitlease.Manager
 	content     ContentController
 	input       InputController
@@ -33,6 +34,10 @@ type serverOptions struct {
 }
 
 type Option func(*serverOptions)
+
+func WithTargetID(targetID string) Option {
+	return func(options *serverOptions) { options.targetID = targetID }
+}
 
 func WithContent(controller ContentController) Option {
 	return func(options *serverOptions) {

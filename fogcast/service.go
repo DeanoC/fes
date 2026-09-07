@@ -174,6 +174,16 @@ func WithExecutionPolicy(policy ExecutionPolicy) ServiceOption {
 }
 
 type Service struct {
+	targetReset    func()
+	connectionMu   sync.Mutex
+	connection     TargetConnection
+	resolveTarget  func(context.Context, string) ([]string, error)
+	lookupCancel   context.CancelFunc
+	monitorCancel  context.CancelFunc
+	monitorDone    chan struct{}
+	nextLookup     time.Time
+	lookupFailures uint
+
 	stoppedKitLease     *host.KitLease
 	closeKitLeases      func(context.Context) error
 	catalog             serviceCatalog
@@ -384,6 +394,7 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 	if err := service.retireSupersededLibraries(ctx); err != nil {
 		return fail("retire superseded mapped libraries", err)
 	}
+	service.startTargetMonitor()
 	return service, nil
 }
 
@@ -549,6 +560,18 @@ func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFu
 		return protocol.CachedLaunchResponse{}, err
 	}
 	defer releaseLifecycle()
+	if s.discoveryEnabled() {
+		execution, err := s.SessionExecution(ctx, gameID)
+		if err != nil {
+			return protocol.CachedLaunchResponse{}, err
+		}
+		if execution != ExecutionHostOnly {
+			if _, err := s.refreshTargetConnection(ctx); err != nil {
+				return protocol.CachedLaunchResponse{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
+			}
+		}
+	}
+
 	s.executionMu.Lock()
 	developmentActive := s.activeExecution == ExecutionFPGADevelopment
 	s.executionMu.Unlock()
@@ -588,6 +611,13 @@ func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFu
 
 func (s *Service) Close() error {
 	s.closeOnce.Do(func() {
+		if s.monitorCancel != nil {
+			s.monitorCancel()
+		}
+		s.cancelTargetLookup()
+		if s.monitorDone != nil {
+			<-s.monitorDone
+		}
 		s.scanMu.Lock()
 		s.closing = true
 		s.scanMu.Unlock()
@@ -1045,11 +1075,12 @@ func (s *Service) hostLaunchable(system protocol.System) bool {
 func (s *Service) Health(parent context.Context) (protocol.Health, error) {
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 	defer cancel()
-	client, ok := s.selectedClientSnapshot()
-	if !ok {
-		return protocol.Health{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
+	release, err := s.acquireLifecycle(ctx)
+	if err != nil {
+		return protocol.Health{}, err
 	}
-	health, err := client.Health(ctx)
+	defer release()
+	health, err := s.refreshTargetConnection(ctx)
 	if err != nil {
 		return protocol.Health{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 	}
@@ -1067,6 +1098,12 @@ func (s *Service) LoadDevelopmentRBF(parent context.Context, size int64, content
 		return protocol.Status{}, err
 	}
 	defer releaseLifecycle()
+	if s.discoveryEnabled() {
+		if _, err := s.refreshTargetConnection(ctx); err != nil {
+			return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
+		}
+	}
+
 	if err := s.stopHostOnlyIfActive(ctx); err != nil {
 		return protocol.Status{}, err
 	}
@@ -1113,6 +1150,14 @@ func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 		return protocol.Status{}, err
 	}
 	defer releaseLifecycle()
+	s.executionMu.Lock()
+	localExecution := s.activeExecution == ExecutionHostOnly
+	s.executionMu.Unlock()
+	if !localExecution && s.discoveryEnabled() {
+		if _, err := s.refreshTargetConnection(ctx); err != nil {
+			return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
+		}
+	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
 	s.executionMu.Lock()
@@ -1212,6 +1257,12 @@ func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 		return protocol.Status{}, err
 	}
 	defer releaseLifecycle()
+	if activeExecution != ExecutionHostOnly && s.discoveryEnabled() {
+		if _, err := s.refreshTargetConnection(ctx); err != nil {
+			return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
+		}
+	}
+
 	hostOnly := activeExecution == ExecutionHostOnly
 	if hostOnly {
 		if err := s.stopHostOnlyIfActive(ctx); err != nil {
@@ -1255,7 +1306,7 @@ func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 			return protocol.Status{}, canonicalRemoteError(healthErr, protocol.CodeMiSTerUnavailable)
 		}
 		_, _ = recoveryClient.RebootDevelopment(ctx)
-		status, err = waitForDevelopmentRecovery(ctx, client, health.BootID)
+		status, err = waitForDevelopmentRecovery(ctx, client, health.BootID, s.developmentRecoveryHealth(client, health.BootID))
 		if err != nil {
 			return protocol.Status{}, err
 		}
@@ -1302,11 +1353,15 @@ func provisionalLostStop(status protocol.Status) bool {
 		status.LastError == nil && !status.Development && status.Recovery == ""
 }
 
-func waitForDevelopmentRecovery(ctx context.Context, client serviceClient, previousBootID string) (protocol.Status, error) {
+func waitForDevelopmentRecovery(ctx context.Context, client serviceClient, previousBootID string, poll ...func(context.Context) (protocol.Health, error)) (protocol.Status, error) {
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
+	healthPoll := client.Health
+	if len(poll) > 0 {
+		healthPoll = poll[0]
+	}
 	for {
-		health, healthErr := client.Health(ctx)
+		health, healthErr := healthPoll(ctx)
 		if healthErr == nil && health.Ready && health.BootID != "" && health.BootID != previousBootID {
 			status, statusErr := client.Status(ctx)
 			if statusErr == nil && validRecoveredDevelopmentStatus(status) {

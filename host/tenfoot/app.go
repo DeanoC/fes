@@ -162,6 +162,7 @@ type HealthSnapshot struct {
 	TargetReachable bool
 	TargetReady     bool
 	Line            string
+	Connection      TargetConnection
 }
 
 // FocusDetail is the focused title's metadata shown in the detail strip.
@@ -1708,6 +1709,7 @@ func (a *App) healthSnapshotLocked() HealthSnapshot {
 		TargetReachable: a.health.TargetReachable,
 		TargetReady:     a.health.TargetReady,
 		Line:            line,
+		Connection:      a.health.Connection,
 	}
 }
 
@@ -1721,6 +1723,9 @@ func kitHealthLine(hostUnreachable, have bool, health HealthResult) string {
 	if !health.Ready {
 		return "host not ready"
 	}
+	if health.Connection.State != "" {
+		return connectionLine(health.Connection)
+	}
 	if !health.TargetReachable {
 		return "kit unreachable"
 	}
@@ -1728,6 +1733,21 @@ func kitHealthLine(hostUnreachable, have bool, health HealthResult) string {
 		return "kit not ready"
 	}
 	return ""
+}
+
+func connectionLine(connection TargetConnection) string {
+	state := strings.TrimSpace(connection.State)
+	label := strings.ReplaceAll(state, "-", " ")
+	parts := []string{label}
+	if state == "busy" && strings.TrimSpace(connection.Owner) != "" {
+		parts = append(parts, "owned by "+strings.TrimSpace(connection.Owner))
+	} else if strings.TrimSpace(connection.Message) != "" {
+		parts = append(parts, strings.TrimSpace(connection.Message))
+	}
+	if (state == "ready" || state == "active") && strings.TrimSpace(connection.Address) != "" {
+		parts = append(parts, strings.TrimSpace(connection.Address))
+	}
+	return strings.Join(parts, " · ")
 }
 
 func remoteInputCanAttach(session SessionResult) bool {

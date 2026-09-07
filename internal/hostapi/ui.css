@@ -546,7 +546,12 @@ img.cover-art { display: block; width: 100%; object-fit: contain; object-positio
 .settings-help { margin: 0; color: var(--muted); font-size: .75rem; }
 .settings-list { display: grid; gap: 8px; }
 .settings-row { display: grid; grid-template-columns: minmax(120px, .8fr) minmax(220px, 1.7fr) auto; gap: 8px; align-items: end; }
-.settings-target-row { grid-template-columns: minmax(100px, .7fr) minmax(180px, 1.2fr) minmax(140px, 1fr) auto auto auto; }
+.settings-target-row { grid-template-columns: minmax(100px, .7fr) minmax(180px, 1.2fr) minmax(140px, 1fr) auto auto auto auto; }
+.connection-disconnected { color: var(--danger); }
+.connection-connecting { color: var(--accent-cool); }
+.connection-ready { color: var(--success); }
+.connection-active { color: var(--accent); }
+.connection-busy, .connection-recovery-required { color: var(--danger); }
 .settings-row .filter-label { min-width: 0; }
 .settings-row input, .settings-row select, #settings-selected-target { width: 100%; }
 .settings-enabled { display: flex; align-items: center; gap: 6px; min-height: 40px; color: var(--muted); font-size: .75rem; }

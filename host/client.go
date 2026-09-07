@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/DeanoC/FogCast/protocol"
@@ -20,6 +21,7 @@ const (
 )
 
 type Client struct {
+	endpointMu sync.RWMutex
 	kitLease   *KitLease
 	baseURL    *url.URL
 	token      string
@@ -31,7 +33,10 @@ func NewClient(baseURL *url.URL, token string, httpClient *http.Client) *Client 
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: defaultHTTPClientTimeout}
 	}
-	return &Client{baseURL: &baseCopy, token: token, httpClient: httpClient}
+	boundedClient := *httpClient
+	// An agent redirect is not an authenticated endpoint selection.
+	boundedClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	return &Client{baseURL: &baseCopy, token: token, httpClient: &boundedClient}
 }
 
 func (c *Client) Health(ctx context.Context) (protocol.Health, error) {
@@ -131,9 +136,7 @@ func (c *Client) doJSONQuery(ctx context.Context, method, path string, query url
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
-	if path != "/v1/health" {
-		request.Header.Set("Authorization", "Bearer "+c.token)
-	}
+	request.Header.Set("Authorization", "Bearer "+c.token)
 	if method == http.MethodPost {
 		request.Header.Set("Content-Type", "application/json")
 	}
@@ -149,7 +152,9 @@ func (c *Client) doJSONQuery(ctx context.Context, method, path string, query url
 }
 
 func (c *Client) endpoint(path string, query url.Values) *url.URL {
+	c.endpointMu.RLock()
 	endpoint := *c.baseURL
+	c.endpointMu.RUnlock()
 	endpoint.Path = path
 	endpoint.RawPath = ""
 	endpoint.RawQuery = query.Encode()

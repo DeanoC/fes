@@ -51,7 +51,7 @@ func writeCanonicalConfig(path string, libraries []catalog.Root, targets []Targe
 	raw.Targets = make([]fileTarget, 0, len(normalizedTargets))
 	for _, target := range normalizedTargets {
 		raw.Targets = append(raw.Targets, fileTarget{
-			Name: target.Name, Enabled: target.Enabled, Address: target.Address, Agent: target.Agent,
+			Name: target.Name, Enabled: target.Enabled, Address: target.Address, Agent: target.Agent, TargetID: target.TargetID,
 		})
 	}
 	raw.SelectedTarget = normalizedSelected
@@ -72,6 +72,7 @@ func writeCanonicalConfig(path string, libraries []catalog.Root, targets []Targe
 	// Once named targets exist, the legacy singleton fields must not retain a
 	// duplicate credential. LoadConfig still projects the selection into the
 	// compatibility Config.BaseURL and Config.Token fields.
+	raw.TargetID = ""
 	raw.BaseURL = ""
 	raw.Token = ""
 

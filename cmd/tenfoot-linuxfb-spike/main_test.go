@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"io"
-	"runtime"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -28,12 +28,9 @@ func TestResolveInputPathsNone(t *testing.T) {
 	}
 }
 
-func TestRunOpenFailsOffKit(t *testing.T) {
-	if runtime.GOOS == "linux" && runtime.GOARCH == "arm" {
-		t.Skip("would open a real framebuffer")
-	}
+func TestRunOpenFailsForMissingFramebuffer(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"-fb", "/dev/fb0", "-hold", "0"}, &stdout, &stderr)
+	code := run([]string{"-fb", filepath.Join(t.TempDir(), "missing-fb"), "-hold", "0"}, &stdout, &stderr)
 	if code != 1 {
 		t.Fatalf("code %d stdout %s stderr %s", code, stdout.String(), stderr.String())
 	}

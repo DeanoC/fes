@@ -7,12 +7,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/pelletier/go-toml/v2"
 )
 
 const DefaultCacheMaxBytes int64 = 2 << 30
 
 type Config struct {
+	TargetID           string
 	ListenAddress      string
 	Token              string
 	MiSTerProcessComm  string
@@ -34,6 +36,7 @@ type Config struct {
 }
 
 type fileConfig struct {
+	TargetID           string `toml:"target_id"`
 	ListenAddress      string `toml:"listen_address"`
 	Token              string `toml:"token"`
 	MiSTerProcessComm  string `toml:"mister_process_comm"`
@@ -71,6 +74,7 @@ func Load(path string) (Config, error) {
 		cacheMaxBytes = *raw.CacheMaxBytes
 	}
 	cfg := Config{
+		TargetID:           raw.TargetID,
 		ListenAddress:      raw.ListenAddress,
 		Token:              raw.Token,
 		MiSTerProcessComm:  raw.MiSTerProcessComm,
@@ -119,12 +123,12 @@ func Load(path string) (Config, error) {
 	if cfg.CacheMaxBytes <= 0 {
 		return Config{}, fmt.Errorf("cache_max_bytes must be positive")
 	}
-	_, port, err := net.SplitHostPort(cfg.ListenAddress)
+	if cfg.TargetID != "" && !discovery.ValidID(cfg.TargetID) {
+		return Config{}, fmt.Errorf("target_id must be a canonical lowercase UUID")
+	}
+	_, _, err = net.SplitHostPort(cfg.ListenAddress)
 	if err != nil {
 		return Config{}, fmt.Errorf("listen_address: %w", err)
-	}
-	if port != "8182" {
-		return Config{}, fmt.Errorf("listen_address must use port 8182")
 	}
 	if strings.TrimSpace(cfg.Token) == "" || strings.TrimSpace(cfg.MiSTerProcessComm) == "" {
 		return Config{}, fmt.Errorf("token and mister_process_comm must not be empty")

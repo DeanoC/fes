@@ -238,6 +238,32 @@
     };
   }
 
+  const CONNECTION_STATES = new Set(['disconnected', 'connecting', 'ready', 'active', 'busy', 'recovery-required']);
+
+  function parseConnection(value) {
+    if (!value || typeof value !== 'object' || !CONNECTION_STATES.has(value.state)) {
+      throw createError('MALFORMED_RESPONSE', 'The local host returned an invalid target connection.');
+    }
+    const result = { state: value.state };
+    for (const key of ['message', 'address', 'target_id', 'boot_id', 'owner']) {
+      if (typeof value[key] === 'string' && value[key].trim()) result[key] = value[key].trim();
+    }
+    return Object.freeze(result);
+  }
+
+  function connectionPresentation(connection) {
+    if (!connection) return { state: 'connecting', text: 'Checking target connection…' };
+    const labels = {
+      disconnected: 'Target disconnected', connecting: 'Target connecting', ready: 'Target ready',
+      active: 'Target active', busy: 'Target busy', 'recovery-required': 'Target recovery required',
+    };
+    const parts = [labels[connection.state]];
+    if (connection.state === 'busy' && connection.owner) parts.push(`owned by ${connection.owner}`);
+    else if (connection.message) parts.push(connection.message);
+    if ((connection.state === 'ready' || connection.state === 'active' || connection.state === 'busy') && connection.address) parts.push(connection.address);
+    return { state: connection.state, text: parts.join(' · ') };
+  }
+
   function primitiveSnapshotValue(value) {
     return value === null || (typeof value !== 'object' && typeof value !== 'function')
       ? value
@@ -1254,6 +1280,7 @@
       detailState: 'idle',
       detailError: null,
       hostState: 'unknown',
+	  connection: null,
     };
 
     let retainedSessionTitleID = '';
@@ -2514,6 +2541,7 @@
           address: typeof item.address === 'string' ? item.address : '',
           enabled: item.enabled === true,
           agent_configured: item.agent_configured === true,
+		  target_id: typeof item.target_id === 'string' ? item.target_id : '',
         }))
         : [];
       const systems = payload && Array.isArray(payload.systems)
@@ -2544,6 +2572,16 @@
       return emit();
     }
 
+    async function refreshConnection() {
+      try {
+        const payload = await request(fetchImpl, '/api/v1/health');
+        state.connection = parseConnection(payload && payload.target && payload.target.connection);
+      } catch (_) {
+        state.connection = Object.freeze({ state: 'disconnected', message: 'connection status unavailable' });
+      }
+      return emit();
+    }
+
     let settingsWriteChain = Promise.resolve();
 
     async function writeLibrarySettings(next) {
@@ -2567,17 +2605,39 @@
       return reloadVisibleCatalog(state.query);
     }
 
-    async function saveSettings(next) {
+    async function enqueueSettingsWrite(operation) {
       const previous = settingsWriteChain;
       let release;
       settingsWriteChain = new Promise(resolve => { release = resolve; });
       try {
         await previous;
-        return await writeLibrarySettings(next);
+		return await operation();
       } finally {
         release();
       }
     }
+
+    function saveSettings(next) {
+	  return enqueueSettingsWrite(() => writeLibrarySettings(next));
+	}
+
+    async function writePreparedTarget(name) {
+      const target = String(name || '').trim();
+      if (!target) throw createError('INVALID_TARGET', 'Choose a named target to prepare.');
+	  const sequence = state.settingsSequence;
+      const payload = await request(fetchImpl, '/api/v1/library/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prepare_target: target }),
+      });
+	  if (!applyLibrarySettings(parseLibrarySettings(payload), sequence)) return snapshot();
+	  if (sequence === state.settingsSequence) state.settingsSequence += 1;
+      return emit();
+    }
+
+	function prepareTarget(name) {
+	  return enqueueSettingsWrite(() => writePreparedTarget(name));
+	}
 
     async function loadAttract(limit) {
       const size = Number(limit) > 0 ? Number(limit) : 24;
@@ -2772,7 +2832,9 @@
       loadPlatforms,
       loadAttract,
       loadSettings,
+      refreshConnection,
       saveSettings,
+      prepareTarget,
       loadSession,
       selectGame,
       refreshDetail,
@@ -2814,6 +2876,8 @@
     detailHeading,
     catalogViewState,
     createAppController,
+    parseConnection,
+    connectionPresentation,
     catalogRegion,
     catalogGenre,
     catalogStudio,
@@ -2865,6 +2929,7 @@
   let collectionEditor = null;
   let forceKeyboardRestore = false;
   let settingsGeneration = 0;
+  let settingsCleanGeneration = 0;
   let settingsSelectedTargetRow = null;
   let searchTimer = null;
   let attractIdleHydrated = false;
@@ -4519,7 +4584,10 @@
     if (gameActionsMenuIsOpen() && libraryNavChanged(previous, next)) {
       closeGameActionsMenu({ restoreFocus: false });
     }
-    if (next.hostState === 'ready') setHealth('Local host ready', 'host-status');
+    if (next.connection) {
+      const presentation = connectionPresentation(next.connection);
+      setHealth(presentation.text, `host-status connection-${presentation.state}`);
+    } else if (next.hostState === 'ready') setHealth('Local host ready', 'host-status');
     if (next.hostState === 'unavailable') setHealth('Catalog unavailable', 'host-status');
     syncHomeFocus(next);
     renderCatalog();
@@ -4863,13 +4931,37 @@
       bumpSettingsGeneration();
     });
     enabled.addEventListener('change', bumpSettingsGeneration);
-    row._fogcastFields = { name, address, agent, clearAgent, enabled };
+    const prepare = element('button', 'button secondary compact settings-prepare', target && target.target_id ? 'Identity ready' : 'Prepare identity');
+    prepare.type = 'button';
+    prepare.disabled = Boolean(target && target.target_id);
+    prepare.addEventListener('click', async () => {
+	  if (settingsGeneration !== settingsCleanGeneration) {
+		if (nodes.settingsMessage) nodes.settingsMessage.textContent = 'Save settings before preparing a target identity.';
+		return;
+	  }
+      const generation = settingsGeneration;
+      prepare.disabled = true;
+      if (nodes.settingsMessage) nodes.settingsMessage.textContent = '';
+      try {
+        await controller.prepareTarget(name.value);
+        if (settingsRequestExpired(generation)) return;
+        fillSettingsForm(controller.getState().librarySettings);
+        if (nodes.settingsMessage) nodes.settingsMessage.textContent = 'Target identity prepared.';
+      } catch (error) {
+        if (!settingsRequestExpired(generation) && nodes.settingsMessage) {
+          nodes.settingsMessage.textContent = privacyMessage(error, 'Target identity could not be prepared.');
+          prepare.disabled = false;
+        }
+      }
+    });
+    row._fogcastFields = { name, address, agent, clearAgent, enabled, prepare };
     row._fogcastOriginalName = target && target.name ? target.name : '';
     row.appendChild(settingsField('Name', name));
     row.appendChild(settingsField('Address', address));
     row.appendChild(settingsField('Agent', agent));
     row.appendChild(clearAgent);
     row.appendChild(enabledLabel);
+    row.appendChild(prepare);
     row.appendChild(remove);
     return row;
   }
@@ -4922,6 +5014,7 @@
       nodes.settingsHostHealth.textContent = nodes.health ? nodes.health.textContent : '';
     }
     if (nodes.settingsMessage) nodes.settingsMessage.textContent = '';
+	settingsCleanGeneration = settingsGeneration;
   }
 
   async function openSettings() {
@@ -5672,6 +5765,10 @@
   renderSession();
   writePaneAttribute();
   void loadSession();
+  if (root.FogCastConnectionPollingEnabled === true) {
+    void controller.refreshConnection();
+    root.setInterval?.(() => { void controller.refreshConnection(); }, 2000);
+  }
   void controller.openHome();
   void controller.loadPlatforms();
   void hydrateAttractIdle();

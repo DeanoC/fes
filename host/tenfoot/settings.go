@@ -15,6 +15,7 @@ const (
 	settingsRowIdle
 	settingsRowRegions
 	settingsRowTarget
+	settingsRowPrepareTarget
 	settingsRowFixedCount
 )
 
@@ -175,6 +176,7 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 		{ID: "idle", Label: "Idle", Value: idle},
 		{ID: "regions", Label: "Regions", Value: regions},
 		{ID: "target", Label: "Target", Value: target},
+		{ID: "prepare-target", Label: "Prepare target", Value: "A generate identity"},
 	}
 	for i, draft := range a.settingsDraftTargets {
 		name := strings.TrimSpace(draft.Name)
@@ -369,7 +371,7 @@ func (a *App) handleSettingsLocked(cmd Command) {
 	}
 	if a.settingsBusy {
 		switch a.settingsIndex {
-		case settingsRowIdle, settingsRowRegions, settingsRowTarget:
+		case settingsRowIdle, settingsRowRegions, settingsRowTarget, settingsRowPrepareTarget:
 			return
 		}
 		if a.settingsIndex >= settingsRowFixedCount {
@@ -473,6 +475,24 @@ func (a *App) handleSettingsLocked(cmd Command) {
 				return
 			}
 			a.patchSettingsLocked(LibrarySettingsPatch{SelectedTarget: strPtr(name)})
+		}
+	case settingsRowPrepareTarget:
+		if !a.settingsHydrated {
+			return
+		}
+		if cmd == CmdSelect {
+			if a.settingsTargetsDirty {
+				a.settingsStatus = "save target edits before preparing identity"
+				a.status = a.settingsStatus
+				return
+			}
+			name := strings.TrimSpace(a.settingsDraftTarget)
+			if name == "" {
+				a.settingsStatus = "select a target first"
+				a.status = a.settingsStatus
+				return
+			}
+			a.patchSettingsLocked(LibrarySettingsPatch{PrepareTarget: strPtr(name)})
 		}
 	default:
 		if a.settingsIndex < a.settingsLibraryStartLocked() {
@@ -1439,6 +1459,8 @@ func (a *App) settingsSavedStatusLocked(patch LibrarySettingsPatch) string {
 		return "regions " + strings.Join(a.hostSettings.PreferredRegions, ", ")
 	case patch.SelectedTarget != nil && patch.Targets == nil:
 		return "target " + a.hostSettings.SelectedTarget
+	case patch.PrepareTarget != nil:
+		return "target identity prepared"
 	case patch.Targets != nil:
 		return fmt.Sprintf("targets %d", len(a.hostSettings.Targets))
 	case patch.Libraries != nil:

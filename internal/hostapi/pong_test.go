@@ -35,6 +35,16 @@ func testPongPublicSession(t *testing.T, delayedStop bool) {
 		statusMu.Lock()
 		defer statusMu.Unlock()
 		switch r.URL.Path {
+		case "/v1/health":
+			json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", Ready: true})
+			return
+		case "/v1/kit/lease":
+			state := "free"
+			if launches > 0 && releases.Load() == 0 {
+				state = "held"
+			}
+			json.NewEncoder(w).Encode(map[string]string{"state": state, "generation": "test"})
+			return
 		case "/v1/kit/claim":
 			json.NewEncoder(w).Encode(map[string]any{"status": map[string]any{"state": "held", "generation": "test", "expires_at": time.Now().Add(time.Minute), "expires_in_ms": 60000}, "token": "test-lease"})
 			return

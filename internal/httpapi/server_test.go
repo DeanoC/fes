@@ -416,6 +416,29 @@ func TestV1GoldenResponsesRemainUnchangedWithContentOption(t *testing.T) {
 	}
 }
 
+func TestHealthRevealsTargetIdentityOnlyToAuthenticatedCaller(t *testing.T) {
+	handler := httpapi.New(&fakeController{health: protocol.Health{Ready: true}}, "test-token", "0.1.0", discardLogger(), httpapi.WithTargetID("01234567-89ab-cdef-0123-456789abcdef"))
+	for _, tc := range []struct {
+		name, auth string
+		wantID     bool
+	}{{"anonymous", "", false}, {"authenticated", "Bearer test-token", true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/v1/health", nil)
+			req.Header.Set("Authorization", tc.auth)
+			res := httptest.NewRecorder()
+			handler.ServeHTTP(res, req)
+			var health protocol.Health
+			if err := json.Unmarshal(res.Body.Bytes(), &health); err != nil {
+				t.Fatal(err)
+			}
+			if (health.TargetID != "") == tc.wantID {
+				return
+			}
+			t.Fatalf("target ID = %q, want exposed=%t", health.TargetID, tc.wantID)
+		})
+	}
+}
+
 func TestTokenAndBodyNeverAppearInLogs(t *testing.T) {
 	var logs bytes.Buffer
 	handler := httpapi.New(&fakeController{status: protocol.Status{State: protocol.StateActive}}, "test-token", "0.1.0", slog.New(slog.NewJSONHandler(&logs, nil)))

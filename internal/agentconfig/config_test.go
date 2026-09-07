@@ -52,13 +52,28 @@ func TestLoadAgentConfigAcceptsExplicitPositiveCacheMaximum(t *testing.T) {
 	}
 }
 
+func TestLoadAgentConfigAcceptsCanonicalTargetID(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "agent.toml")
+	content := validAgentConfig + "target_id = \"01234567-89ab-cdef-0123-456789abcdef\"\n"
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := agentconfig.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.TargetID != "01234567-89ab-cdef-0123-456789abcdef" {
+		t.Fatalf("target ID = %q", got.TargetID)
+	}
+}
+
 func TestLoadAgentConfigRejectsUnknownUnsafeAndInvalidCacheValues(t *testing.T) {
 	t.Parallel()
 	tests := map[string]string{
 		"unknown":          validAgentConfig + "extra = true\n",
 		"empty token":      strings.Replace(validAgentConfig, `token = "test-token"`, `token = ""`, 1),
 		"empty process":    strings.Replace(validAgentConfig, `mister_process_comm = "MiSTer"`, `mister_process_comm = ""`, 1),
-		"wrong port":       strings.Replace(validAgentConfig, `0.0.0.0:8182`, `0.0.0.0:8183`, 1),
 		"malformed listen": strings.Replace(validAgentConfig, `0.0.0.0:8182`, `0.0.0.0`, 1),
 		"relative pipe":    strings.Replace(validAgentConfig, `command_pipe = "/dev/MiSTer_cmd"`, `command_pipe = "MiSTer_cmd"`, 1),
 		"relative core":    strings.Replace(validAgentConfig, `core_name_file = "/tmp/CORENAME"`, `core_name_file = "CORENAME"`, 1),
@@ -68,6 +83,7 @@ func TestLoadAgentConfigRejectsUnknownUnsafeAndInvalidCacheValues(t *testing.T) 
 		"negative cache":   validAgentConfig + "cache_max_bytes = -1\n",
 		"overflow cache":   validAgentConfig + "cache_max_bytes = 9223372036854775808\n",
 		"cache root":       validAgentConfig + "cache_root = \"/private/cache\"\n",
+		"malformed target": validAgentConfig + "target_id = \"NOT-A-UUID\"\n",
 	}
 	for name, content := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -79,5 +95,21 @@ func TestLoadAgentConfigRejectsUnknownUnsafeAndInvalidCacheValues(t *testing.T) 
 				t.Fatal("invalid config loaded")
 			}
 		})
+	}
+}
+
+func TestLoadAgentConfigAcceptsConfiguredHTTPPort(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "agent.toml")
+	content := strings.Replace(validAgentConfig, `0.0.0.0:8182`, `0.0.0.0:9191`, 1)
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := agentconfig.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ListenAddress != "0.0.0.0:9191" {
+		t.Fatalf("listen address = %q", got.ListenAddress)
 	}
 }

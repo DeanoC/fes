@@ -381,6 +381,9 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 		_ = closeComposition(cleanup)
 		return nil, nil, errors.New("fogcast-api: remote input configuration failed")
 	}
+	if provider, ok := service.(interface{ SetTargetReset(func()) }); ok {
+		provider.SetTargetReset(remoteInput.Invalidate)
+	}
 	serverOptions = append(serverOptions, hostapi.WithRemoteInput(remoteInput))
 	return hostapi.New(service, serverOptions...), func() error {
 		return closeAPIComposition(remoteInput.Close, cleanup)

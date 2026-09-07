@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/remotemedia"
 	"github.com/DeanoC/FogCast/internal/systems"
 	"github.com/DeanoC/FogCast/librarymedia"
@@ -86,6 +87,7 @@ type Config struct {
 // Address and Agent so an operator can add them before they are online.
 // AgentSet and PreviousName are in-memory write markers and are never persisted.
 type TargetConfig struct {
+	TargetID     string
 	Name         string
 	Enabled      bool
 	Address      string
@@ -106,6 +108,7 @@ type LibraryConfig struct {
 }
 
 type LibraryConfigPatch struct {
+	PrepareTarget      *string
 	AttractIdleSeconds *int
 	PreferredRegions   *[]string
 	Libraries          *[]catalog.Root
@@ -194,6 +197,7 @@ type MediaConfig struct {
 }
 
 type fileConfig struct {
+	TargetID              string               `toml:"target_id,omitempty"`
 	BaseURL               string               `toml:"base_url"`
 	Token                 string               `toml:"token"`
 	SelectedTarget        string               `toml:"selected_target"`
@@ -211,10 +215,11 @@ type fileConfig struct {
 }
 
 type fileTarget struct {
-	Name    string `toml:"name"`
-	Enabled bool   `toml:"enabled"`
-	Address string `toml:"address"`
-	Agent   string `toml:"agent"`
+	TargetID string `toml:"target_id,omitempty"`
+	Name     string `toml:"name"`
+	Enabled  bool   `toml:"enabled"`
+	Address  string `toml:"address"`
+	Agent    string `toml:"agent"`
 }
 
 type fileLibraryMedia struct {
@@ -403,12 +408,12 @@ func normalizeLoadedTargets(raw fileConfig) ([]TargetConfig, string, error) {
 		if strings.TrimSpace(raw.Token) == "" {
 			return nil, "", fmt.Errorf("token must not be empty")
 		}
-		return []TargetConfig{{Name: "dev", Enabled: true, Address: address, Agent: raw.Token}}, "dev", nil
+		return normalizeTargets([]TargetConfig{{Name: "dev", Enabled: true, Address: address, Agent: raw.Token, TargetID: raw.TargetID}}, "dev")
 	}
 	targets := make([]TargetConfig, 0, len(raw.Targets))
 	for _, target := range raw.Targets {
 		targets = append(targets, TargetConfig{
-			Name: target.Name, Enabled: target.Enabled, Address: target.Address, Agent: target.Agent,
+			Name: target.Name, Enabled: target.Enabled, Address: target.Address, Agent: target.Agent, TargetID: target.TargetID,
 		})
 	}
 	return normalizeTargets(targets, raw.SelectedTarget)
@@ -442,8 +447,11 @@ func normalizeTargets(raw []TargetConfig, selected string) ([]TargetConfig, stri
 				return nil, "", fmt.Errorf("target %q address: %w", name, err)
 			}
 		}
+		if target.TargetID != "" && !discovery.ValidID(target.TargetID) {
+			return nil, "", fmt.Errorf("target %q has invalid target_id", name)
+		}
 		seen[name] = struct{}{}
-		targets = append(targets, TargetConfig{Name: name, Enabled: target.Enabled, Address: address, Agent: agent})
+		targets = append(targets, TargetConfig{Name: name, Enabled: target.Enabled, Address: address, Agent: agent, TargetID: target.TargetID})
 	}
 	selected = strings.TrimSpace(selected)
 	if len(targets) == 0 {

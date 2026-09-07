@@ -33,6 +33,26 @@ func TestKitHealthLine(t *testing.T) {
 	}
 }
 
+func TestConnectionLineKeepsTargetLifecycleDistinct(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		connection TargetConnection
+		want       string
+	}{
+		{TargetConnection{State: "connecting", Message: "looking for den-kit"}, "connecting · looking for den-kit"},
+		{TargetConnection{State: "disconnected", Message: "target not found"}, "disconnected · target not found"},
+		{TargetConnection{State: "ready", Address: "192.0.2.4:8182"}, "ready · 192.0.2.4:8182"},
+		{TargetConnection{State: "active", Address: "192.0.2.4:8182"}, "active · 192.0.2.4:8182"},
+		{TargetConnection{State: "busy", Owner: "living-room"}, "busy · owned by living-room"},
+		{TargetConnection{State: "recovery-required", Message: "cleanup failed"}, "recovery required · cleanup failed"},
+	}
+	for _, tt := range tests {
+		if got := connectionLine(tt.connection); got != tt.want {
+			t.Errorf("connectionLine(%#v) = %q, want %q", tt.connection, got, tt.want)
+		}
+	}
+}
+
 func TestChromeLinePrefixesKitHealth(t *testing.T) {
 	t.Parallel()
 	browse := Snapshot{

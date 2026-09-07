@@ -72,6 +72,7 @@ type ErrorEnvelope struct {
 }
 
 type Health struct {
+	TargetID      string `json:"target_id,omitempty"`
 	APIVersion    string `json:"api_version"`
 	AgentVersion  string `json:"agent_version"`
 	Ready         bool   `json:"ready"`

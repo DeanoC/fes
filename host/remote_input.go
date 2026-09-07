@@ -794,3 +794,24 @@ func minDuration(a, b time.Duration) time.Duration {
 	}
 	return b
 }
+
+// Invalidate discards a previous target boot/session locally. It intentionally
+// does not call bridge Stop or emit input against a replacement target session.
+func (r *RemoteInput) Invalidate() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.heartbeatCancel != nil {
+		r.heartbeatCancel()
+		r.heartbeatCancel = nil
+	}
+	r.bridge = nil
+	r.closeConnLocked()
+	r.inputState.ReleaseAll()
+	r.session = 0
+	r.token = nil
+	r.core = ""
+	r.sequence = 0
+	r.ready = false
+	r.state = RemoteInputDetached
+	r.metrics.shutdownReason = "target_changed"
+}

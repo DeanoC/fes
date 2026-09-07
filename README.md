@@ -10,6 +10,13 @@ and content selection; the MiSTer is a small, directly controlled target.
   `internal/systems/table.go`.
 - Real FPGA game launches on the designated MiSTer Pi.
 - Target-side content caching, input, stop, and active-core observation.
+- Stable target identity and local DNS-SD reconnection after reboot/address
+  changes. In browser target settings, choose **Prepare identity**
+  before assembling new media; the existing settings API accepts
+  `PATCH /api/v1/library/settings` with `{"prepare_target":"dev"}`. An already
+  running agent can bind its identity through authenticated health at the
+  configured address. The browser and tenfoot distinguish connection state
+  from game state. See [target reconnection](docs/ARCHITECTURE.md#target-identity-and-reconnection).
 - Host API loading of arbitrary development RBF files, with automatic reboot
   recovery back to Menu for non-MiSTer cores on the conventional Main backend.
 - Browser UI, local media previews, and host-emulator/remote-media modes.

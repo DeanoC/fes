@@ -147,6 +147,9 @@ func (s *HTTPBridgeStarter) doJSONRequest(ctx context.Context, method, path stri
 
 func (s *HTTPBridgeStarter) endpoint(path string) *url.URL {
 	endpoint := s.baseURL
+	if s.kitLease != nil {
+		endpoint = *s.kitLease.Endpoint()
+	}
 	endpoint.Path = path
 	endpoint.RawPath = ""
 	endpoint.RawQuery = ""
@@ -164,7 +167,7 @@ type httpBridgeHandle struct {
 }
 
 func (h *httpBridgeHandle) Ready() <-chan struct{} { return h.ready }
-func (h *httpBridgeHandle) Endpoint() string       { return h.starter.baseURL.Host }
+func (h *httpBridgeHandle) Endpoint() string       { return h.starter.endpoint("").Host }
 
 // Dial opens an authenticated CONNECT stream through the already-managed
 // agent tunnel. The target API proxies the stream to its target-owned bridge.
@@ -181,14 +184,14 @@ func (h *httpBridgeHandle) Dial(ctx context.Context) (net.Conn, error) {
 	dialer := net.Dialer{Timeout: h.starter.dialTimeout}
 	dialCtx, cancel := context.WithTimeout(ctx, h.starter.dialTimeout)
 	defer cancel()
-	conn, err := dialer.DialContext(dialCtx, "tcp", h.starter.baseURL.Host)
+	conn, err := dialer.DialContext(dialCtx, "tcp", h.starter.endpoint("").Host)
 	if err != nil {
 		return nil, ErrRemoteInputInvalid
 	}
 	request := &http.Request{
 		Method: http.MethodConnect,
 		URL:    &url.URL{Path: "/v1/input/stream"},
-		Host:   h.starter.baseURL.Host,
+		Host:   h.starter.endpoint("").Host,
 		Header: make(http.Header),
 	}
 	request.Header.Set("Authorization", "Bearer "+h.starter.token)

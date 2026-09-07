@@ -19,6 +19,8 @@ const {
   isSelectedGame,
   detailHeading,
   createAppController,
+  parseConnection,
+  connectionPresentation,
   catalogViewState,
   presentationPath,
   parsePresentation,
@@ -57,6 +59,43 @@ const {
   catalogSortOverrideLabel,
   catalogSortControlHidden,
 } = require('./ui_app.js');
+
+test('connection presentation keeps discovery separate from game state', () => {
+  const busy = parseConnection({state: 'busy', message: 'in use', address: 'mister.local:8182', target_id: 'target-1', boot_id: 'boot-2', owner: 'living-room'});
+  assert.deepEqual(connectionPresentation(busy), {
+    state: 'busy',
+    text: 'Target busy · owned by living-room · mister.local:8182',
+  });
+  assert.deepEqual(connectionPresentation(parseConnection({state: 'recovery-required', message: 'cleanup failed'})), {
+    state: 'recovery-required',
+    text: 'Target recovery required · cleanup failed',
+  });
+});
+
+test('connection parser rejects unknown state and never retains extra fields', () => {
+  assert.throws(() => parseConnection({state: 'idle'}), /invalid target connection/);
+  const parsed = parseConnection({state: 'ready', address: '192.0.2.4:8182', token: 'secret'});
+  assert.equal(parsed.address, '192.0.2.4:8182');
+  assert.equal(Object.hasOwn(parsed, 'token'), false);
+});
+
+test('prepareTarget patches only the selected name and retains returned target id', async () => {
+  const calls = [];
+  const controller = createAppController({fetchImpl: async (path, options = {}) => {
+    calls.push({path, options});
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({selected_target: 'den', targets: [{name: 'den', address: 'mister.local:8182', enabled: true, agent_configured: true, target_id: 'target-123'}]}),
+    };
+  }});
+  const state = await controller.prepareTarget('den');
+  assert.equal(calls[0].path, '/api/v1/library/settings');
+  assert.equal(calls[0].options.method, 'PATCH');
+  assert.equal(calls[0].options.body, '{"prepare_target":"den"}');
+  assert.equal(state.librarySettings.targets[0].target_id, 'target-123');
+  assert.equal(calls[0].options.body.includes('agent'), false);
+});
 const FogCastMetadata = require('./ui_metadata.js');
 
 const readAsset = name => fs.readFileSync(path.join(__dirname, name), 'utf8');
@@ -3194,6 +3233,31 @@ test('overlapping settings saves persist in start order', async () => {
   assert.deepEqual(controller.getState().librarySettings.preferred_regions, ['europe']);
 });
 
+test('target preparation is serialized after an earlier settings save', async () => {
+  let releaseSave;
+  const held = new Promise(resolve => { releaseSave = resolve; });
+  const methods = [];
+  const controller = createAppController({fetchImpl: async (requestPath, options = {}) => {
+    if (requestPath === '/api/v1/library/settings') {
+      methods.push(options.method);
+      if (options.method === 'PUT') await held;
+      return jsonResponse({attract_idle_seconds: 60, selected_target: 'dev', targets: [{name: 'dev', enabled: true, target_id: options.method === 'PATCH' ? 'target-123' : ''}]});
+    }
+    if (String(requestPath).startsWith('/api/v1/games')) return jsonResponse({games: []});
+    if (requestPath === '/api/v1/platforms') return jsonResponse({platforms: []});
+    throw new Error(`unexpected path ${requestPath}`);
+  }});
+  const saving = controller.saveSettings({attract_idle_seconds: 60, targets: [], selected_target: 'dev'});
+  const preparing = controller.prepareTarget('dev');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(methods, ['PUT']);
+  releaseSave();
+  await saving;
+  const state = await preparing;
+  assert.deepEqual(methods, ['PUT', 'PATCH']);
+  assert.equal(state.librarySettings.targets[0].target_id, 'target-123');
+});
+
 test('failed later settings save does not drop an earlier successful save', async () => {
   let releaseFirst;
   const held = new Promise(resolve => { releaseFirst = resolve; });
@@ -4099,6 +4163,25 @@ test('stale settings save does not overwrite dynamic library and target edits', 
   assert.equal(currentTarget.address.value, 'http://192.0.2.11:8182');
   assert.equal(currentTarget.agent.value, 'fixture-agent');
   assert.equal(currentTarget.enabled.checked, true);
+});
+
+test('prepare identity refuses to discard unsaved settings fields', async () => {
+  let patches = 0;
+  const {document} = await runKeyboardApp({
+    settings: {attract_idle_seconds: 60, preferred_regions: ['usa'], libraries: [], targets: [{name: 'dev', address: 'http://192.0.2.10:8182', enabled: true, agent_configured: true}], selected_target: 'dev', systems: []},
+    onSettings: async ({options}) => { if (options && options.method === 'PATCH') patches += 1; },
+  });
+  await settleBrowser();
+  await document.nodes.get('open-settings').click();
+  await waitForCondition(() => document.nodes.get('settings-targets').children.length === 1, 'target row did not render');
+  const idle = document.nodes.get('settings-attract-idle');
+  idle.value = '75';
+  idle.dispatchEvent({type: 'input'});
+  await document.nodes.get('settings-targets').children[0]._fogcastFields.prepare.click();
+  await settleBrowser();
+  assert.equal(patches, 0);
+  assert.equal(idle.value, '75');
+  assert.match(document.nodes.get('settings-message').textContent, /Save settings before preparing/i);
 });
 
 test('settings overlay opens from the header and Escape returns to the previous pane', async () => {

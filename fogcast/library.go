@@ -8,8 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/metadata"
 	"github.com/DeanoC/FogCast/librarymedia"
 	"github.com/DeanoC/FogCast/libraryuser"
@@ -551,6 +553,7 @@ func (s *Service) applyPersistedLibraryOverlay() {
 }
 
 func (s *Service) SetLibrarySettings(ctx context.Context, next LibraryConfig) error {
+	s.cancelTargetLookup()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -579,6 +582,7 @@ func (s *Service) SetLibrarySettings(ctx context.Context, next LibraryConfig) er
 var librarySettingsPatchStartHook func()
 
 func (s *Service) PatchLibrarySettings(ctx context.Context, patch LibraryConfigPatch) error {
+	s.cancelTargetLookup()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -610,6 +614,23 @@ func (s *Service) PatchLibrarySettings(ctx context.Context, patch LibraryConfigP
 	}
 	if patch.SelectedTarget != nil {
 		next.SelectedTarget = *patch.SelectedTarget
+	}
+	if patch.PrepareTarget != nil {
+		found := false
+		for i := range next.Targets {
+			if next.Targets[i].Name != *patch.PrepareTarget {
+				continue
+			}
+			found = true
+			if next.Targets[i].TargetID == "" {
+				next.Targets[i].TargetID, err = discovery.NewID()
+			}
+		}
+		if !found || s.configPath == "" || err != nil {
+			s.libraryMu.Unlock()
+			s.targetMu.Unlock()
+			return canonicalError(protocol.CodeBadRequest, nil)
+		}
 	}
 	rootsChanged, err := s.setLibrarySettingsLocked(next)
 	s.libraryMu.Unlock()
@@ -656,12 +677,22 @@ func (s *Service) setLibrarySettingsLocked(next LibraryConfig) (bool, error) {
 	s.executionMu.Unlock()
 	selectedNameChanged := normalized.SelectedTarget != s.selectedTarget
 	selectedRenamesCurrent := selectedNameChanged && strings.TrimSpace(selectedWrite.PreviousName) == s.selectedTarget
-	selectedConnectionChanged := selected.Enabled != currentSelected.Enabled || selected.Address != currentSelected.Address || selected.Agent != currentSelected.Agent
+	selectedConnectionChanged := selected.Enabled != currentSelected.Enabled || selected.Address != currentSelected.Address || selected.Agent != currentSelected.Agent || (currentSelected.TargetID != "" && selected.TargetID != currentSelected.TargetID)
 	selectedIdentityChanged := (!selectedRenamesCurrent && selectedNameChanged) || selectedConnectionChanged
 	sameEnabledTargetRepair := repairAllowed && !selectedNameChanged && selected.Enabled && currentSelected.Enabled &&
 		(selected.Address != currentSelected.Address || selected.Agent != currentSelected.Agent)
-	if selectedIdentityChanged && !reconciled && !sameEnabledTargetRepair {
+	offlineUnowned := !active && s.TargetConnection().State == "disconnected"
+	if existing, ok := s.targetClients[s.selectedTarget].(interface{ HasKitGrant() bool }); ok {
+		offlineUnowned = offlineUnowned && !existing.HasKitGrant()
+	} else {
+		// Legacy clients cannot establish absence of local lease authority.
+		offlineUnowned = false
+	}
+	if selectedIdentityChanged && !reconciled && !sameEnabledTargetRepair && !offlineUnowned {
 		return false, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	if active && selected.TargetID != currentSelected.TargetID {
+		return false, canonicalError(protocol.CodeBusy, nil)
 	}
 	if active && (selectedNameChanged || selectedConnectionChanged) {
 		return false, canonicalError(protocol.CodeBadRequest, nil)
@@ -671,7 +702,9 @@ func (s *Service) setLibrarySettingsLocked(next LibraryConfig) (bool, error) {
 	}
 	var selectedClient serviceClient
 	if selected.Enabled {
-		if s.targetClientFactory == nil {
+		if !selectedConnectionChanged && (!selectedNameChanged || selectedRenamesCurrent) {
+			selectedClient = s.targetClients[s.selectedTarget]
+		} else if s.targetClientFactory == nil {
 			if normalized.SelectedTarget == s.selectedTarget || selectedRenamesCurrent {
 				selectedClient = s.targetClients[s.selectedTarget]
 			}
@@ -718,6 +751,9 @@ func (s *Service) mergeTargetAgentsLocked(next []TargetConfig) ([]TargetConfig, 
 			return nil, errors.New("current target identity is claimed more than once")
 		}
 		claimedCurrentNames[currentName] = struct{}{}
+		if merged[index].TargetID == "" {
+			merged[index].TargetID = targetByName(s.targets, currentName).TargetID
+		}
 		if !merged[index].AgentSet {
 			merged[index].Agent = agent
 		}
@@ -803,6 +839,11 @@ func (s *Service) persistAndPublishLibrarySettingsLocked(normalized LibraryConfi
 		s.targetClients[s.selectedTarget] = selectedClient
 	}
 	if selectedIdentityChanged {
+		s.connectionMu.Lock()
+		s.connection = TargetConnection{}
+		s.nextLookup = time.Time{}
+		s.lookupFailures = 0
+		s.connectionMu.Unlock()
 		s.executionMu.Lock()
 		s.selectedTargetReconciled = !targetByName(s.targets, s.selectedTarget).Enabled
 		s.selectedTargetRepairAllowed = false

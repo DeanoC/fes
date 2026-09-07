@@ -41,10 +41,10 @@ func TestClientAddsBearerAndDecodesStatus(t *testing.T) {
 	}
 }
 
-func TestClientHealthOmitsAuthorization(t *testing.T) {
+func TestClientHealthAuthenticatesIdentity(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/health" || r.Header.Get("Authorization") != "" {
+		if r.URL.Path != "/v1/health" || r.Header.Get("Authorization") != "Bearer test-token" {
 			t.Errorf("path = %q, authorization = %q", r.URL.Path, r.Header.Get("Authorization"))
 		}
 		_, _ = io.WriteString(w, `{"api_version":"v1","agent_version":"0.1.0","ready":true,"mister_process":true,"command_pipe":true}`)

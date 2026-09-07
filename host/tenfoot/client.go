@@ -193,6 +193,17 @@ type HealthResult struct {
 	Ready           bool
 	TargetReachable bool
 	TargetReady     bool
+	Connection      TargetConnection
+}
+
+// TargetConnection is discovery and reconciliation state, independent of game state.
+type TargetConnection struct {
+	State    string `json:"state"`
+	Message  string `json:"message,omitempty"`
+	Address  string `json:"address,omitempty"`
+	TargetID string `json:"target_id,omitempty"`
+	BootID   string `json:"boot_id,omitempty"`
+	Owner    string `json:"owner,omitempty"`
 }
 
 // TargetStatus is GET /api/v1/status. HTTP 503 TARGET_UNAVAILABLE means the kit
@@ -206,6 +217,7 @@ type TargetStatus struct {
 	ErrorCode    string
 	ErrorMessage string
 	Unavailable  bool
+	Connection   TargetConnection
 }
 
 // SessionResult is sessionResult from GET /api/v1/session, POST launch, POST stop,
@@ -663,6 +675,7 @@ type LibraryTarget struct {
 	Address         string `json:"address"`
 	Enabled         bool   `json:"enabled"`
 	AgentConfigured bool   `json:"agent_configured"`
+	TargetID        string `json:"target_id,omitempty"`
 }
 
 // LibraryTargetWrite is one target in a PATCH /api/v1/library/settings body.
@@ -707,6 +720,7 @@ type LibrarySettingsPatch struct {
 	SelectedTarget     *string               `json:"selected_target,omitempty"`
 	Targets            *[]LibraryTargetWrite `json:"targets,omitempty"`
 	Libraries          *[]LibraryRoot        `json:"libraries,omitempty"`
+	PrepareTarget      *string               `json:"prepare_target,omitempty"`
 }
 
 func (p LibrarySettingsPatch) payload() (map[string]any, error) {
@@ -737,6 +751,9 @@ func (p LibrarySettingsPatch) payload() (map[string]any, error) {
 			libraries = []LibraryRoot{}
 		}
 		raw["libraries"] = libraries
+	}
+	if p.PrepareTarget != nil {
+		raw["prepare_target"] = *p.PrepareTarget
 	}
 	if len(raw) == 0 {
 		return nil, fmt.Errorf("settings patch is empty")
@@ -1298,8 +1315,9 @@ func (c *Client) Health(ctx context.Context) (HealthResult, error) {
 	var wire struct {
 		Ready  bool `json:"ready"`
 		Target struct {
-			Reachable bool `json:"reachable"`
-			Ready     bool `json:"ready"`
+			Reachable  bool             `json:"reachable"`
+			Ready      bool             `json:"ready"`
+			Connection TargetConnection `json:"connection"`
 		} `json:"target"`
 	}
 	if err := c.getJSON(ctx, "/api/v1/health", &wire); err != nil {
@@ -1309,6 +1327,7 @@ func (c *Client) Health(ctx context.Context) (HealthResult, error) {
 		Ready:           wire.Ready,
 		TargetReachable: wire.Target.Reachable,
 		TargetReady:     wire.Target.Ready,
+		Connection:      wire.Target.Connection,
 	}, nil
 }
 
@@ -1339,9 +1358,11 @@ func (c *Client) Status(ctx context.Context) (TargetStatus, error) {
 			Code    string `json:"code"`
 			Message string `json:"message"`
 		} `json:"error"`
+		Connection TargetConnection `json:"connection"`
 	}
 	_ = json.Unmarshal(body, &wire)
 	result.State = strings.TrimSpace(wire.State)
+	result.Connection = wire.Connection
 	if wire.GameID != nil {
 		result.GameID = strings.TrimSpace(*wire.GameID)
 	}

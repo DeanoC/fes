@@ -73,13 +73,23 @@ func TestUIUsesOnlyExistingAPIEndpointFamilies(t *testing.T) {
 		"/api/v1/library/attract",
 		"/api/v1/library/settings",
 		"/api/v1/presentation/media/",
+		"/api/v1/health",
 	} {
 		if !strings.Contains(html, token) {
 			t.Fatalf("assembled UI is missing API endpoint family %q", token)
 		}
 	}
-	if strings.Contains(html, "/api/v1/health") || strings.Contains(html, "/api/v1/status") {
+	if strings.Contains(html, "/api/v1/targets") || strings.Contains(html, "/api/v1/status") {
 		t.Fatal("assembled UI references an API endpoint outside the approved families")
+	}
+}
+
+func TestUIShowsTargetConnectionAndPreparationWithoutCredentials(t *testing.T) {
+	html := hostapi.UIHTMLForTest()
+	for _, token := range []string{"disconnected", "connecting", "ready", "active", "busy", "recovery-required", "prepare_target", "target_id"} {
+		if !strings.Contains(html, token) {
+			t.Fatalf("assembled UI is missing discovery token %q", token)
+		}
 	}
 }
 

@@ -59,6 +59,7 @@ type librarySettingsService interface {
 }
 
 type settingsWrite struct {
+	PrepareTarget      *string                 `json:"prepare_target"`
 	AttractIdleSeconds *int                    `json:"attract_idle_seconds"`
 	PreferredRegions   *[]string               `json:"preferred_regions"`
 	Libraries          *[]settingsLibraryWrite `json:"libraries"`
@@ -73,6 +74,7 @@ type settingsLibraryWrite struct {
 }
 
 type settingsTargetWrite struct {
+	TargetID     string  `json:"target_id"`
 	Name         string  `json:"name"`
 	PreviousName string  `json:"original_name"`
 	Address      string  `json:"address"`
@@ -135,7 +137,7 @@ func applyLibrarySettingsWrite(r *http.Request, writer librarySettingsService, p
 	if patch.Targets != nil {
 		next.Targets = make([]fogcast.TargetConfig, 0, len(*patch.Targets))
 		for _, entry := range *patch.Targets {
-			target := fogcast.TargetConfig{Name: entry.Name, PreviousName: entry.PreviousName, Address: entry.Address, Enabled: entry.Enabled}
+			target := fogcast.TargetConfig{Name: entry.Name, PreviousName: entry.PreviousName, Address: entry.Address, Enabled: entry.Enabled, TargetID: entry.TargetID}
 			if entry.Agent != nil {
 				target.Agent = *entry.Agent
 				target.AgentSet = true
@@ -150,6 +152,7 @@ func applyLibrarySettingsWrite(r *http.Request, writer librarySettingsService, p
 		return errInvalidLibrarySettings
 	}
 	return writer.PatchLibrarySettings(r.Context(), fogcast.LibraryConfigPatch{
+		PrepareTarget:      patch.PrepareTarget,
 		AttractIdleSeconds: patch.AttractIdleSeconds,
 		PreferredRegions:   patch.PreferredRegions,
 		Libraries:          libraryRootsPointer(next.Libraries, patch.Libraries != nil),
@@ -202,7 +205,7 @@ func publicLibrarySettings(settings fogcast.LibraryConfig) map[string]any {
 	targets := make([]map[string]any, 0, len(settings.Targets))
 	for _, target := range settings.Targets {
 		targets = append(targets, map[string]any{
-			"name": target.Name, "address": target.Address, "enabled": target.Enabled,
+			"name": target.Name, "address": target.Address, "enabled": target.Enabled, "target_id": target.TargetID,
 			"agent_configured": strings.TrimSpace(target.Agent) != "",
 		})
 	}

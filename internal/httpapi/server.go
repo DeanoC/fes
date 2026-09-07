@@ -48,8 +48,13 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 		}
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1/health", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, controller.Health(version))
+	mux.HandleFunc("GET /v1/health", func(w http.ResponseWriter, r *http.Request) {
+		health := controller.Health(version)
+		health.TargetID = ""
+		if authenticatedRequest(r, token) {
+			health.TargetID = settings.targetID
+		}
+		writeJSON(w, http.StatusOK, health)
 	})
 	mux.Handle("GET /v1/status", authenticate(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		status := controller.Status()
@@ -270,6 +275,20 @@ func authenticate(token string, next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func authenticatedRequest(r *http.Request, token string) bool {
+	authorizations := r.Header.Values("Authorization")
+	if len(authorizations) != 1 {
+		return false
+	}
+	provided, ok := parseBearerToken(authorizations[0])
+	if !ok {
+		return false
+	}
+	expected := sha256.Sum256([]byte(token))
+	actual := sha256.Sum256([]byte(provided))
+	return subtle.ConstantTimeCompare(actual[:], expected[:]) == 1
 }
 
 func parseBearerToken(authorization string) (string, bool) {
