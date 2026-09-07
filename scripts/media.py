@@ -294,6 +294,43 @@ def resolve_agent_config(config, scratch, *, auto=False):
     return generate_agent_config(host_config, scratch)
 
 
+def validate_launcher_token(token, agent_token):
+    """Match the restricted host listener's bounds and separate credentials."""
+    if (not isinstance(token, str) or not 32 <= len(token) <= 256
+            or not BEARER_TOKEN_PATTERN.fullmatch(token) or token == agent_token):
+        raise ValueError('launcher token must be 32–256 bearer characters and distinct from the agent token')
+
+
+def resolve_launcher_config(agent_config, scratch, *, auto=False):
+    """Snapshot prepared companion only for automatic local provisioning."""
+    if not auto or agent_config is None or _truthy_environment('CI') or _truthy_environment('FES_UNPROVISIONED'):
+        return None, None
+    path = Path(os.environ.get('FES_HOST_CONFIG', str(DEFAULT_HOST_CONFIG))).parent / 'launcher.json'
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return None, None
+    try:
+        data = _read_private_config(path, 'launcher configuration')
+        value = json.loads(data)
+        agent = tomllib.loads(Path(agent_config).read_text())
+        from urllib.parse import urlsplit
+        from prepare_launcher import validate_address
+        endpoint = urlsplit(value['api'])
+        validate_launcher_token(value['token'], agent.get('token'))
+        if (set(value) != {'api', 'token', 'target_id'} or endpoint.scheme != 'http'
+                or endpoint.port != 8789 or endpoint.path or endpoint.query or endpoint.fragment
+                or endpoint.username or endpoint.password or not endpoint.hostname
+                or not value['target_id'] or value['target_id'] != agent.get('target_id')):
+            raise ValueError()
+        validate_address(endpoint.hostname)
+    except (ValueError, TypeError, KeyError, UnicodeError):
+        raise ValueError('prepared launcher configuration is invalid or differs from the agent target identity') from None
+    destination = Path(scratch) / 'launcher.json'
+    write_private(destination, data)
+    return destination, hashlib.sha256(data).hexdigest()
+
+
 def select(root, profile):
     configuration = tomllib.loads((root / 'profiles' / (profile + '.toml')).read_text())
     revisions = cold_build.validate(root, configuration)
@@ -351,10 +388,12 @@ def prepare(root, profile):
     return cold, fogcast, env, inputs, lock
 
 
-def media_fingerprint(cold, lock_path, provision_sha):
+def media_fingerprint(cold, lock_path, provision_sha, launcher_sha=None):
     data = {'cold': cold, 'boot_lock': digest(lock_path), 'fes_revision': cold['fes_revision'],
             'recipe': recipe_fingerprint(cold_build.MEDIA_RECIPE_FILES),
             'provision_sha256': provision_sha}
+    if launcher_sha is not None:
+        data['launcher_config_sha256'] = launcher_sha
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest(), data
 
 
@@ -454,8 +493,12 @@ def read_receipt(generation):
                 raise ValueError('generation file permissions differ')
         receipt = json.loads((generation / 'media.json').read_text())
         info = receipt['inputs']
-        if set(info) != {'cold', 'boot_lock', 'fes_revision', 'recipe', 'provision_sha256'}:
+        if set(info) not in ({'cold', 'boot_lock', 'fes_revision', 'recipe', 'provision_sha256'},
+                             {'cold', 'boot_lock', 'fes_revision', 'recipe', 'provision_sha256', 'launcher_config_sha256'}):
             raise ValueError('generation input schema differs')
+        if 'launcher_config_sha256' in info and (not isinstance(info['launcher_config_sha256'], str)
+                or not re.fullmatch('[0-9a-f]{64}', info['launcher_config_sha256'])):
+            raise ValueError('invalid launcher config hash')
         provision_sha = info['provision_sha256']
         if provision_sha is not None and (not isinstance(provision_sha, str) or not re.fullmatch('[0-9a-f]{64}', provision_sha)):
             raise ValueError('invalid provision hash')
@@ -477,7 +520,7 @@ def read_receipt(generation):
 def validate_receipt(generation, cold, root):
     receipt = read_receipt(generation)
     provision_sha = receipt['inputs']['provision_sha256']
-    fp, info = media_fingerprint(cold, root / 'boot-media.lock.toml', provision_sha)
+    fp, info = media_fingerprint(cold, root / 'boot-media.lock.toml', provision_sha, receipt['inputs'].get('launcher_config_sha256'))
     if receipt['fingerprint'] != fp or receipt['inputs'] != info:
         raise ValueError('media evidence requires current validation')
     return provision_sha
@@ -523,7 +566,7 @@ def assemble_candidate(scratch, cold, root, inputs, lock, provision_sha, runner,
     write_manifest(candidate / 'fes-media.toml', manifest_data(candidate / 'fes.img', inputs, lock,
                    provision_sha, hashes, rootfs_verified=True))
     runner.verify(candidate, inputs, lock, provision_sha, rootfs_verified=True)
-    fp, info = media_fingerprint(cold, root / 'boot-media.lock.toml', provision_sha)
+    fp, info = media_fingerprint(cold, root / 'boot-media.lock.toml', provision_sha, inputs.launcher_config_sha256)
     receipt = receipt_for(candidate, fp, info, hashes)
     # Evidence identity includes the whole receipt and its manifest digest.
     # media.json remains the last file created, after every check succeeds.
@@ -593,7 +636,8 @@ def build(root, profile=PROFILE, agent_config=None, runner=None, *, auto_agent_c
         with tempfile.TemporaryDirectory(prefix='.staging-', dir=media_root) as temporary:
             scratch = Path(temporary)
             snapshot, provision_sha = resolve_agent_config(agent_config, scratch, auto=auto_agent_config)
-            inputs = replace(inputs, agent_config=snapshot)
+            launcher, launcher_sha = resolve_launcher_config(snapshot, scratch, auto=auto_agent_config and agent_config is None)
+            inputs = replace(inputs, agent_config=snapshot, launcher_config=launcher, launcher_config_sha256=launcher_sha)
             runner = runner or Runner(root, lock, env)
             candidate = assemble_candidate(scratch, cold, root, inputs, lock, provision_sha, runner, fogcast, env)
             generation = retain_candidate(candidate, media_root, cold, root, inputs, lock, runner, fogcast, env)
@@ -604,7 +648,8 @@ def build(root, profile=PROFILE, agent_config=None, runner=None, *, auto_agent_c
 def verify_selected(root, media_root, generation, scratch, cold, fogcast, env, inputs, lock, runner):
     receipt = read_receipt(generation)
     provision_sha = receipt['inputs']['provision_sha256']
-    fp, info = media_fingerprint(cold, root / 'boot-media.lock.toml', provision_sha)
+    fp, info = media_fingerprint(cold, root / 'boot-media.lock.toml', provision_sha, receipt['inputs'].get('launcher_config_sha256'))
+    inputs = replace(inputs, launcher_config_sha256=receipt['inputs'].get('launcher_config_sha256'))
     if generation.parent.name != 'generations' and receipt['fingerprint'] == fp and receipt['inputs'] == info:
         validate_artifact(generation, inputs, lock, provision_sha, runner, fogcast, env)
         return generation
@@ -618,7 +663,14 @@ def verify_selected(root, media_root, generation, scratch, cold, fogcast, env, i
                 or digest(snapshot) != provision_sha):
             raise ValueError('embedded agent config differs from retained evidence')
         snapshot.chmod(0o600)
-    inputs = replace(inputs, agent_config=snapshot)
+    launcher = None
+    if inputs.launcher_config_sha256:
+        launcher = scratch / 'launcher.json'
+        runner.extract_launcher_config(generation, launcher)
+        if not stat.S_ISREG(launcher.lstat().st_mode) or launcher.stat().st_size > 65536 or digest(launcher) != inputs.launcher_config_sha256:
+            raise ValueError('embedded launcher config differs from retained evidence')
+        launcher.chmod(0o600)
+    inputs = replace(inputs, agent_config=snapshot, launcher_config=launcher)
     candidate = assemble_candidate(scratch, cold, root, inputs, lock, provision_sha, runner, fogcast, env,
                                    expected_image=receipt['image_sha256'])
     return retain_candidate(candidate, media_root, cold, root, inputs, lock, runner, fogcast, env)
@@ -759,6 +811,10 @@ class Runner:
         command = ['python3', '/work/scripts/media_inside.py', 'assemble', '--output', self.path(output), *self.arguments(inputs)]
         if inputs.agent_config:
             command += ['--agent-config', self.path(inputs.agent_config)]
+        if inputs.launcher_config:
+            command += ['--launcher-config', self.path(inputs.launcher_config)]
+        if inputs.launcher_config_sha256:
+            command += ['--launcher-config-sha256', inputs.launcher_config_sha256]
         with self.provenance_file(inputs) as provenance:
             return json.loads(self.disk(command + ['--provenance', provenance]))['assembly_sha256']
 
@@ -767,6 +823,8 @@ class Runner:
                    '--manifest', self.path(generation / 'fes-media.toml'), *self.arguments(inputs)]
         if provision_sha:
             command += ['--agent-config-sha256', provision_sha]
+        if inputs.launcher_config_sha256:
+            command += ['--launcher-config-sha256', inputs.launcher_config_sha256]
         if rootfs_verified:
             command += ['--rootfs-verified']
         with self.provenance_file(inputs) as provenance:
@@ -779,6 +837,10 @@ class Runner:
     def extract_config(self, generation, destination):
         self.disk(['mcopy', '-i', self.path(generation / 'fes.img') + '@@' + str(PART1_OFFSET),
                    '::/fogcast/agent.toml', self.path(destination)])
+
+    def extract_launcher_config(self, generation, destination):
+        self.disk(['mcopy', '-i', self.path(generation / 'fes.img') + '@@' + str(PART1_OFFSET),
+                   '::/fogcast/launcher.json', self.path(destination)])
 
     def child_verify(self, fogcast, staged, env):
         write_private(staged / 'verify.sh', CHILD_VERIFY.encode())

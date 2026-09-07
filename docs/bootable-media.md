@@ -219,3 +219,38 @@ card, verify all of the following before releasing the lease:
 Hardware remains `not-run` in the immutable media receipt. Store separate
 dated acceptance evidence for the exact artifact instead of changing that
 receipt or treating earlier image evidence as current acceptance.
+
+## Prepare the on-kit launcher
+
+The launcher uses the workstation's library and session service. Prepare the
+selected target's stable identity in FogCast first, then run:
+
+```sh
+python3 scripts/prepare_launcher.py --host-address 192.168.10.2
+```
+
+Replace the example with the workstation's reachable LAN IPv4 address or DNS
+name. `--host-config /absolute/path/config.toml` selects a nondefault private
+FogCast configuration. The command writes `launcher-host.json` and
+`launcher.json` beside that configuration, both mode 0600. They contain a
+separate shared launcher token and the selected target UUID. Repeating setup
+preserves the token and updates the host address; it rejects incomplete pairs
+and identity changes. Keep the pair private. Setup prints no credentials.
+
+Configure the FogCast host launcher listener with `launcher-host.json`. The
+listener is `0.0.0.0:8789`; the kit companion points to the explicit workstation
+address on port 8789. The existing browser listener remains separate. The host
+must be running and reachable for browsing and launch services.
+
+Normal local `make media` automatically embeds the prepared companion as
+`/fogcast/launcher.json` beside the generated agent configuration. When using a
+nondefault host configuration, pass the same absolute `FES_HOST_CONFIG` to media
+assembly. Assembly requires the launcher and agent target identities to match.
+`CI=true`, `FES_UNPROVISIONED=1`, and explicit `AGENT_CONFIG` do not discover a
+launcher companion. Without a prepared companion, existing agent-only media
+behavior is preserved.
+
+Only the launcher's SHA-256 enters the closed media manifest and receipt. Media
+verification checks the exact FAT path and embedded bytes, including when
+refreshing retained generations; it does not consult today's host companion to
+change a retained card. Generated images contain credentials and remain private.

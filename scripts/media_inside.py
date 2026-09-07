@@ -83,6 +83,8 @@ class ImageInputs:
     uboot: Path
     agent_config: Path | None = None
     provenance: Provenance | None = None
+    launcher_config: Path | None = None
+    launcher_config_sha256: str | None = None
 
 
 @dataclass(frozen=True)
@@ -122,6 +124,10 @@ def check_inputs(inputs, lock, scratch):
     run("debugfs", "-R", f'dump /usr/share/mister-runtime/idle.rbf "{extracted}"', inputs.rootfs)
     if not extracted.is_file() or digest(extracted) != digest(inputs.idle):
         raise ValueError("idle payload differs from embedded rootfs idle.rbf")
+    if inputs.launcher_config is not None:
+        regular(inputs.launcher_config, "launcher config")
+        if inputs.launcher_config.stat().st_size > 65536 or digest(inputs.launcher_config) != inputs.launcher_config_sha256:
+            raise ValueError("launcher config hash or size differs")
     if inputs.agent_config is not None:
         regular(inputs.agent_config, "agent config")
         if inputs.agent_config.stat().st_size > 65536:
@@ -201,6 +207,12 @@ def _assemble_once(image, inputs, lock, scratch):
         os.chmod(config, 0o600)
         os.utime(config, (SOURCE_DATE_EPOCH, SOURCE_DATE_EPOCH))
         run("mcopy", "-m", "-i", device, config, "::/fogcast/agent.toml")
+    if inputs.launcher_config is not None:
+        config = staged / "launcher.json"
+        shutil.copyfile(inputs.launcher_config, config)
+        os.chmod(config, 0o600)
+        os.utime(config, (SOURCE_DATE_EPOCH, SOURCE_DATE_EPOCH))
+        run("mcopy", "-m", "-i", device, config, "::/fogcast/launcher.json")
     write_region(image, inputs.uboot, BOOT_OFFSET)
 
 
@@ -236,6 +248,11 @@ def manifest_data(image, inputs, lock, config_sha, assembly_hashes, *, rootfs_ve
                          'rootfs_qemu': 'pass' if rootfs_verified else 'not-run'}}
     if config_sha is not None:
         result['agent_config_sha256'] = config_sha
+    launcher_sha = inputs.launcher_config_sha256
+    if launcher_sha is not None:
+        if not config_sha or not re.fullmatch('[0-9a-f]{64}', launcher_sha):
+            raise ValueError('invalid launcher config hash')
+        result['launcher_config_sha256'] = launcher_sha
     for name, destination in (('kernel', '/linux/zImage_dtb'), ('uboot', 'partition_2')):
         source = getattr(lock, name)
         result[name] = {'repository': lock.repository, 'revision': lock.commit, 'path': source.path,
@@ -316,7 +333,7 @@ def _verify_mbr(image, lock):
         require_zero(stream, BOOT_OFFSET + lock.uboot.size, BOOT_SIZE - lock.uboot.size, "boot partition tail")
 
 
-def _verify_fat_unused(fat, fat_sectors, clusters, has_config):
+def _verify_fat_unused(fat, fat_sectors, clusters, has_config, has_launcher=False):
     """Walk allocation metadata independently and require zero slack/free space."""
     stamp = datetime.datetime.fromtimestamp(SOURCE_DATE_EPOCH, datetime.timezone.utc)
     date = ((stamp.year - 1980) << 9) | (stamp.month << 5) | stamp.day
@@ -398,6 +415,9 @@ def _verify_fat_unused(fat, fat_sectors, clusters, has_config):
             schemas["/fogcast"] = [dot, dotdot,
                 (bytes.fromhex("416100670065006e0074000f00322e0074006f006d006c0000000000ffffffff"), "lfn"),
                 (b"AGENT~1 TOM\x20\x00", "/fogcast/agent.toml")]
+        if has_launcher:
+            schemas["/fogcast"] += [(bytes.fromhex("416c00610075006e0063000f00ec6800650072002e006a00730000006f006e00"), "lfn"),
+                (b"LAUNCH~1JSO\x20\x00", "/fogcast/launcher.json")]
         directories, seen = [(2, "/", 0)], set()
         while directories:
             first, path, parent = directories.pop()
@@ -443,7 +463,7 @@ def _verify_fat_unused(fat, fat_sectors, clusters, has_config):
                                      "FAT payload slack")
 
 
-def _verify_fat(image, lock, scratch, has_config):
+def _verify_fat(image, lock, scratch, has_config, has_launcher=False):
     fat = scratch / "fat.img"
     copy_region(image, fat, PART1_OFFSET, PART1_SIZE)
     with fat.open("rb") as stream:
@@ -468,7 +488,7 @@ def _verify_fat(image, lock, scratch, has_config):
         if stream.read(512) != bpb:
             raise ValueError("FAT backup boot metadata differs")
     run("fsck.fat", "-vn", fat)
-    _verify_fat_unused(fat, fat_sectors, clusters, has_config)
+    _verify_fat_unused(fat, fat_sectors, clusters, has_config, has_launcher)
     return fat
 
 
@@ -491,7 +511,7 @@ def verify_image(image, manifest, inputs, lock, agent_config_sha256=None, *, roo
     with tempfile.TemporaryDirectory(prefix="fes-media-verify-") as temporary:
         scratch = Path(temporary)
         check_inputs(inputs, lock, scratch)
-        _verify_fat(image, lock, scratch, bool(agent_config_sha256))
+        _verify_fat(image, lock, scratch, bool(agent_config_sha256), bool(inputs.launcher_config_sha256))
         device = f"{image}@@{PART1_OFFSET}"
         listing = run("mdir", "-a", "-b", "-s", "-i", device, "::/")
         paths = tuple(sorted(line.removeprefix("::").rstrip("/") for line in listing.splitlines() if line))
@@ -499,6 +519,8 @@ def verify_image(image, manifest, inputs, lock, agent_config_sha256=None, *, roo
         expected_paths = set(owned) | {"/linux", "/fogcast"}
         if agent_config_sha256:
             expected_paths.add("/fogcast/agent.toml")
+        if inputs.launcher_config_sha256:
+            expected_paths.add("/fogcast/launcher.json")
         if set(paths) != expected_paths or len(paths) != len(expected_paths):
             raise ValueError("FAT owned paths differ from policy")
         for index, (name, source) in enumerate(sorted(owned.items())):
@@ -511,6 +533,11 @@ def verify_image(image, manifest, inputs, lock, agent_config_sha256=None, *, roo
             run("mcopy", "-i", device, "::/fogcast/agent.toml", extracted)
             if extracted.stat().st_size > 65536 or digest(extracted) != agent_config_sha256:
                 raise ValueError("agent config payload differs")
+        if inputs.launcher_config_sha256:
+            extracted = scratch / "launcher.json"
+            run("mcopy", "-i", device, "::/fogcast/launcher.json", extracted)
+            if extracted.stat().st_size > 65536 or digest(extracted) != inputs.launcher_config_sha256:
+                raise ValueError("launcher config payload differs")
         boot = scratch / "boot.img"
         copy_region(image, boot, BOOT_OFFSET, lock.uboot.size)
         if digest(boot) != lock.uboot.sha256:
@@ -529,6 +556,8 @@ def main():
         command.add_argument("--provenance", type=Path, required=True)
         for payload in ("rootfs", "idle", "kernel", "uboot"):
             command.add_argument("--" + payload, type=Path, required=True)
+        command.add_argument("--launcher-config", type=Path)
+        command.add_argument("--launcher-config-sha256")
         if name == "assemble":
             command.add_argument("--output", type=Path, required=True)
             command.add_argument("--agent-config", type=Path)
@@ -540,7 +569,7 @@ def main():
     args = parser.parse_args()
     try:
         lock = MediaLock.load(args.lock)
-        inputs = ImageInputs(args.rootfs, args.idle, args.kernel, args.uboot, getattr(args, "agent_config", None), Provenance.load(args.provenance))
+        inputs = ImageInputs(args.rootfs, args.idle, args.kernel, args.uboot, getattr(args, "agent_config", None), Provenance.load(args.provenance), args.launcher_config, args.launcher_config_sha256)
         if args.command == "assemble":
             image, manifest = assemble(args.output, inputs, lock)
             print(json.dumps({"image_sha256": digest(image), "assembly_sha256": load_manifest(manifest)["assembly"]["sha256"]}, sort_keys=True))
