@@ -990,10 +990,77 @@ class InterfaceTests(unittest.TestCase):
         command = subprocess.run(['make', '-n', 'media', 'AGENT_CONFIG=/tmp/private'], cwd=ROOT, capture_output=True, text=True)
         self.assertEqual(command.returncode, 0, command.stderr)
         self.assertIn('--agent-config "/tmp/private"', command.stdout)
+        command = subprocess.run(['make', '-n', 'media'], cwd=ROOT, capture_output=True, text=True)
+        self.assertEqual(command.returncode, 0, command.stderr)
+        self.assertIn('--auto-agent-config', command.stdout)
+        command = subprocess.run(['make', '-n', 'media', 'FES_UNPROVISIONED=1'], cwd=ROOT, capture_output=True, text=True)
+        self.assertEqual(command.returncode, 0, command.stderr)
+        self.assertIn('--unprovisioned', command.stdout)
         command = subprocess.run(['make', '-n', 'verify-media', 'AGENT_CONFIG=/tmp/private'], cwd=ROOT, capture_output=True, text=True)
         self.assertNotEqual(command.returncode, 0)
         command = subprocess.run([sys.executable, str(ROOT / 'scripts/media.py'), '--help'], capture_output=True, text=True)
         self.assertEqual(command.returncode, 0, command.stderr)
+
+
+
+class AgentConfigTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+
+    def test_generate_agent_config_from_private_legacy_host_config(self):
+        host = self.root / 'host.toml'
+        host.write_text('base_url = "http://192.0.2.10:8182"\ntoken = "host-token"\n')
+        host.chmod(0o600)
+        scratch = self.root / 'scratch'
+        scratch.mkdir()
+        config, config_sha = media.generate_agent_config(host, scratch)
+        expected = (
+            'listen_address = "0.0.0.0:8182"\n'
+            'token = "host-token"\n'
+            'mister_process_comm = "MiSTer"\n'
+            'command_pipe = "/dev/MiSTer_cmd"\n'
+            'core_name_file = "/tmp/CORENAME"\n'
+            'menu_rbf = "/media/fat/menu.rbf"\n'
+            'mgl_directory = "/tmp/fogcast"\n'
+        ).encode()
+        self.assertEqual(config.read_bytes(), expected)
+        self.assertEqual(config_sha, hashlib.sha256(expected).hexdigest())
+        self.assertEqual(stat.S_IMODE(config.stat().st_mode), 0o600)
+
+    def test_generate_agent_config_uses_selected_enabled_target(self):
+        host = self.root / 'host-targets.toml'
+        host.write_text(
+            'selected_target = "kit"\n'
+            '[[targets]]\n'
+            'name = "kit"\n'
+            'enabled = true\n'
+            'address = "http://192.0.2.10:8182"\n'
+            'agent = "selected-token"\n'
+        )
+        host.chmod(0o600)
+        scratch = self.root / 'scratch-targets'
+        scratch.mkdir()
+        config, _ = media.generate_agent_config(host, scratch)
+        self.assertIn(b'token = "selected-token"\n', config.read_bytes())
+
+    def test_auto_agent_config_requires_private_host_config_and_allows_explicit_unprovisioned(self):
+        scratch = self.root / 'auto-scratch'
+        scratch.mkdir()
+        with patch.dict(os.environ, {'FES_HOST_CONFIG': str(self.root / 'missing.toml')}, clear=True):
+            with self.assertRaisesRegex(ValueError, 'automatic media provisioning requires'):
+                media.resolve_agent_config(None, scratch, auto=True)
+            self.assertEqual(media.resolve_agent_config(None, scratch, auto=False), (None, None))
+
+    def test_auto_agent_config_suppressed_in_ci(self):
+        host = self.root / 'host-ci.toml'
+        host.write_text('base_url = "http://192.0.2.10:8182"\ntoken = "host-token"\n')
+        host.chmod(0o600)
+        scratch = self.root / 'ci-scratch'
+        scratch.mkdir()
+        with patch.dict(os.environ, {'FES_HOST_CONFIG': str(host), 'CI': 'true'}, clear=True):
+            self.assertEqual(media.resolve_agent_config(None, scratch, auto=True), (None, None))
 
 
 if __name__ == '__main__':

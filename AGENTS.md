@@ -75,6 +75,14 @@ a block device. Read [the bootable-media guide](docs/bootable-media.md)
 before a separately authorized physical-card operation; that operation needs
 the exact device authorization and the existing kit lease.
 
+For a local card, `make media` automatically derives and embeds
+`/fogcast/agent.toml` from the owner-only `~/.config/fogcast/config.toml` (or
+`FES_HOST_CONFIG`). It copies only the target token and fixed MiSTer paths;
+the manifest stores only the generated file's digest. Use
+`make media FES_UNPROVISIONED=1` for an intentional credential-free image;
+`CI=true` suppresses automatic discovery. An explicit `AGENT_CONFIG` remains
+available for a nonstandard target.
+
 ## Finish with a handoff
 
 Handoff: state scope, base and result commit (or uncommitted diff), tests and

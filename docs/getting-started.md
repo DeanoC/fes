@@ -154,18 +154,22 @@ own [component build guide](../sources/FogCast/docs/native-tenfoot-launcher/READ
 `linux.img` is an ARMv7 root filesystem, not a flashable SD-card image. After a
 successful cold `make build` and `make verify`, run `make media` to publish the
 flashable raw disk image at `out/native-integration-dev/media/current/fes.img`.
-`make verify-media` rechecks the media without writing a block device. For
-local target-agent credentials, use the owner-only private configuration path:
+When the private host configuration exists, this command automatically embeds
+the target agent file, so the card can be inserted and booted without creating
+files by hand. `make verify-media` rechecks the media without writing a block
+device. The default host file is `~/.config/fogcast/config.toml`; override it
+with `FES_HOST_CONFIG=/absolute/path/config.toml`.
 
 ```sh
-make media AGENT_CONFIG=/absolute/private/path/agent.toml
+make media
 ```
 
-Keep that file out of the repository. The default image is unprovisioned: it
-can reach runtime idle, but it has no agent credentials. Only the locally
-provisioned image can reach agent ready/idle. Read [bootable media](bootable-media.md)
-for immutable generation rollback and the separately authorized physical-card
-acceptance procedure.
+The generated target config contains only the token and fixed MiSTer paths; its
+contents are never logged or committed. Use `make media FES_UNPROVISIONED=1`
+only when an unprovisioned image is intentional (CI sets `CI=true` automatically
+to prevent host credentials from being picked up). Read [bootable media](bootable-media.md)
+for explicit custom configurations, immutable generation rollback and the
+separately authorized physical-card acceptance procedure.
 
 ## 5. Understand the target output
 

@@ -27,6 +27,8 @@ from media_inputs import MediaLock, digest, resolve_payloads, verify_file
 from media_inside import ImageInputs, PART1_OFFSET, Provenance, load_manifest, manifest_data, write_manifest
 
 PROFILE = 'native-integration-dev'
+MAX_CONFIG_BYTES = 65536
+DEFAULT_HOST_CONFIG = Path.home() / '.config' / 'fogcast' / 'config.toml'
 recipe_fingerprint = cold_build.recipe_fingerprint
 CHECKS = dict.fromkeys(('structural_media', 'rootfs_structural', 'rootfs_qemu', 'reproducibility'), 'pass')
 
@@ -152,33 +154,102 @@ def operation(root, profile):
             os.close(descriptor)
 
 
-def snapshot_config(config, scratch):
-    if config is None:
-        return None, None
+def _read_private_config(config, description):
     config = Path(config)
     try:
         if not config.is_absolute():
-            raise ValueError('agent config must be absolute')
+            raise ValueError(f'{description} must be absolute')
         before = config.lstat()
         if not stat.S_ISREG(before.st_mode):
-            raise ValueError('agent config must be a regular non-symlink file')
+            raise ValueError(f'{description} must be a regular non-symlink file')
         descriptor = os.open(config, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
         with os.fdopen(descriptor, 'rb') as stream:
             opened = os.fstat(stream.fileno())
             if ((opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino)
                     or not stat.S_ISREG(opened.st_mode) or opened.st_mode & 0o077
-                    or opened.st_size > 65536):
-                raise ValueError('agent config must be owner-only and at most 65536 bytes')
+                    or opened.st_size > MAX_CONFIG_BYTES):
+                raise ValueError(f'{description} must be owner-only and at most {MAX_CONFIG_BYTES} bytes')
             data = stream.read(65537)
             after = os.fstat(stream.fileno())
-            if len(data) > 65536 or (opened.st_size, opened.st_mtime_ns, opened.st_ctime_ns) != (
+            if len(data) > MAX_CONFIG_BYTES or (opened.st_size, opened.st_mtime_ns, opened.st_ctime_ns) != (
                     after.st_size, after.st_mtime_ns, after.st_ctime_ns):
-                raise ValueError('agent config changed during snapshot')
-        destination = scratch / 'agent.toml'
-        write_private(destination, data)
-        return destination, hashlib.sha256(data).hexdigest()
+                raise ValueError(f'{description} changed during snapshot')
+        return data
     except OSError:
-        raise ValueError('agent config could not be securely opened') from None
+        raise ValueError(f'{description} could not be securely opened') from None
+
+
+def snapshot_config(config, scratch):
+    if config is None:
+        return None, None
+    data = _read_private_config(config, 'agent config')
+    destination = scratch / 'agent.toml'
+    write_private(destination, data)
+    return destination, hashlib.sha256(data).hexdigest()
+
+
+def _truthy_environment(name):
+    return os.environ.get(name, '').strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+def _host_token(raw):
+    targets = raw.get('targets')
+    if targets:
+        selected = raw.get('selected_target')
+        if not isinstance(selected, str) or not selected.strip() or not isinstance(targets, list):
+            raise ValueError('selected target is required for automatic media provisioning')
+        matches = [target for target in targets
+                   if isinstance(target, dict) and target.get('name') == selected]
+        if len(matches) != 1 or matches[0].get('enabled') is not True:
+            raise ValueError('selected target must be enabled for automatic media provisioning')
+        token = matches[0].get('agent')
+    else:
+        token = raw.get('token')
+    if (not isinstance(token, str) or not token.strip()
+            or any(ord(character) < 33 or ord(character) > 126 for character in token)):
+        raise ValueError('host configuration has no usable target token')
+    return token
+
+
+def generate_agent_config(host_config, scratch):
+    """Derive a target agent config from a private host FogCast config."""
+    try:
+        data = _read_private_config(host_config, 'host configuration')
+        raw = tomllib.loads(data.decode('utf-8'))
+        token = _host_token(raw)
+        content = (
+            'listen_address = "0.0.0.0:8182"\n'
+            f'token = {json.dumps(token, ensure_ascii=True)}\n'
+            'mister_process_comm = "MiSTer"\n'
+            'command_pipe = "/dev/MiSTer_cmd"\n'
+            'core_name_file = "/tmp/CORENAME"\n'
+            'menu_rbf = "/media/fat/menu.rbf"\n'
+            'mgl_directory = "/tmp/fogcast"\n'
+        ).encode('utf-8')
+        destination = Path(scratch) / 'agent.toml'
+        write_private(destination, content)
+        return destination, hashlib.sha256(content).hexdigest()
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError, TypeError, ValueError):
+        raise ValueError('host configuration could not be converted to a target agent configuration') from None
+
+
+def resolve_agent_config(config, scratch, *, auto=False):
+    """Select an explicit, automatically derived, or unprovisioned config."""
+    if config is not None:
+        return snapshot_config(config, scratch)
+    if not auto or _truthy_environment('CI') or _truthy_environment('FES_UNPROVISIONED'):
+        return None, None
+    configured_path = os.environ.get('FES_HOST_CONFIG', str(DEFAULT_HOST_CONFIG))
+    host_config = Path(configured_path)
+    if not host_config.is_absolute():
+        raise ValueError('automatic media provisioning requires an absolute FES_HOST_CONFIG')
+    try:
+        host_config.lstat()
+    except FileNotFoundError:
+        raise ValueError('automatic media provisioning requires private host configuration at ' + str(host_config)) from None
+    except OSError:
+        raise ValueError('automatic media provisioning could not inspect host configuration') from None
+    return generate_agent_config(host_config, scratch)
 
 
 def select(root, profile):
@@ -468,7 +539,7 @@ def publish_current(media_root, generation, scratch, *, previous_target=None):
         raise
 
 
-def build(root, profile=PROFILE, agent_config=None, runner=None):
+def build(root, profile=PROFILE, agent_config=None, runner=None, *, auto_agent_config=False):
     root = Path(root).resolve()
     require_profile(profile)
     with operation(root, profile):
@@ -479,7 +550,7 @@ def build(root, profile=PROFILE, agent_config=None, runner=None):
         media_root.mkdir(parents=True, exist_ok=True, mode=0o700)
         with tempfile.TemporaryDirectory(prefix='.staging-', dir=media_root) as temporary:
             scratch = Path(temporary)
-            snapshot, provision_sha = snapshot_config(agent_config, scratch)
+            snapshot, provision_sha = resolve_agent_config(agent_config, scratch, auto=auto_agent_config)
             inputs = replace(inputs, agent_config=snapshot)
             runner = runner or Runner(root, lock, env)
             candidate = assemble_candidate(scratch, cold, root, inputs, lock, provision_sha, runner, fogcast, env)
@@ -733,14 +804,24 @@ def main():
         child = subparsers.add_parser(command)
         child.add_argument('--profile', default=PROFILE, choices=[PROFILE])
         if command == 'build':
-            child.add_argument('--agent-config', type=Path)
+            config = child.add_mutually_exclusive_group()
+            config.add_argument('--agent-config', type=Path,
+                                help='private target agent TOML to embed')
+            config.add_argument('--auto-agent-config', action='store_true',
+                                help='derive target agent TOML from the private host config')
+            config.add_argument('--unprovisioned', action='store_true',
+                                help='omit target agent configuration')
         if command == 'rollback':
             child.add_argument('--generation', required=True)
     args = parser.parse_args()
     try:
         with termination_handling():
             if args.command == 'build':
-                result = build(cold_build.ROOT, args.profile, args.agent_config)
+                if args.auto_agent_config:
+                    result = build(cold_build.ROOT, args.profile, args.agent_config,
+                                   auto_agent_config=True)
+                else:
+                    result = build(cold_build.ROOT, args.profile, args.agent_config)
             elif args.command == 'rollback':
                 result = rollback(cold_build.ROOT, args.generation, args.profile)
             else:

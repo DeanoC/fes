@@ -126,7 +126,7 @@ two-pass evidence is in [integration validation](docs/integration-validation.md)
 | `make build` | Host and two-pass native image, reusing matching checked outputs |
 | `make image` | Image only with structural checks |
 | `make verify` | Require host/image receipts, verify image, two-pass hashes and QEMU packaging |
-| `make media` | Publish a verified flashable disk image from current cold-build receipts |
+| `make media` | Publish a verified flashable disk image, auto-embedding the local target agent config |
 | `make verify-media` | Reverify the published disk image and embedded root filesystem; no device writes |
 | `make rebuild` | Force host, Quartus and both image passes |
 
