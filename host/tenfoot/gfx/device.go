@@ -4,7 +4,9 @@
 // backend (WrapSDLRenderer, build tag sdl3). Software is a pure-Go
 // rasterizer for tests and CI. FPGAStub is a wireable placeholder that
 // currently delegates to Software; it does not talk to kit, runtime, or
-// RBF. Recorder is a call-order test double and does not draw pixels.
+// RBF. LinuxFB rasters with Software and Present-blits onto a 32bpp
+// Linux framebuffer. Recorder is a call-order test double and does not
+// draw pixels.
 //
 // Window creation, events, gamepad, and text input stay in the SDL shell
 // (host/tenfoot/sdl.go) until a later slice.

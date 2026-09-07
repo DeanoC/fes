@@ -19,7 +19,9 @@ and content selection; the MiSTer is a small, directly controlled target.
   Mac is the primary sofa target; Linux uses the same Makefile target with
   system SDL3 (`pkg-config sdl3`). Draw goes through `gfx.Device`: SDL3 is
   the production backend; Software is a pure-Go rasterizer for tests/CI;
-  FPGA stub delegates to Software as a future 2D-accel placeholder. See
+  FPGA stub delegates to Software as a future 2D-accel placeholder; linuxfb
+  rasters with Software and Present-blits onto a 32bpp Linux framebuffer
+  (`make build-tenfoot-linuxfb-spike`, CGO-free ARMv7, no SDL). See
   [docs/native-tenfoot-launcher/README.md](docs/native-tenfoot-launcher/README.md).
 - A reproducible target image toolchain with a development image containing
   SSH and curl.

@@ -151,6 +151,8 @@ func TestParseBackend(t *testing.T) {
 		{"sw", BackendSoftware},
 		{"fpga-stub", BackendFPGAStub},
 		{"FPGA", BackendFPGAStub},
+		{"linuxfb", BackendLinuxFB},
+		{"fb0", BackendLinuxFB},
 	}
 	for _, tc := range cases {
 		got, err := ParseBackend(tc.in)

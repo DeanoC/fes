@@ -27,7 +27,8 @@ type Options struct {
 	APIHost      string
 	// GFX selects the 2D Device: sdl (default), software, or fpga-stub.
 	// Empty falls back to TENFOOT_GFX, then sdl. Production sofa runs
-	// keep WrapSDLRenderer.
+	// keep WrapSDLRenderer. linuxfb is the kit framebuffer Device and
+	// is not opened from the SDL sofa shell.
 	GFX string
 }
 

@@ -11,6 +11,7 @@ const (
 	BackendSDL      = "sdl"
 	BackendSoftware = "software"
 	BackendFPGAStub = "fpga-stub"
+	BackendLinuxFB  = "linuxfb"
 )
 
 // ParseBackend maps a name or TENFOOT_GFX value to a canonical backend.
@@ -24,7 +25,9 @@ func ParseBackend(name string) (string, error) {
 		return BackendSoftware, nil
 	case "fpga-stub", "fpga", "stub":
 		return BackendFPGAStub, nil
+	case "linuxfb", "fb", "fb0":
+		return BackendLinuxFB, nil
 	default:
-		return "", fmt.Errorf("unknown gfx backend %q (want sdl, software, or fpga-stub)", name)
+		return "", fmt.Errorf("unknown gfx backend %q (want sdl, software, fpga-stub, or linuxfb)", name)
 	}
 }

@@ -24,7 +24,7 @@ else
 NATIVE_GO_ENV =
 endif
 
-.PHONY: fmt test test-ui test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-cgo-env tenfoot-smoke build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-agent build-bridge build-target-image-lock build-target-image-lock-container target-image-resolve target-image-fetch target-image-test target-images target-image-dev target-image-verify target-image-qemu-smoke target-image-native-fetch target-image-native target-image-native-verify target-image-native-qemu-smoke target-image-deploy target-smoke target-native-smoke target-kernel-test target-kernel target-kernel-verify
+.PHONY: fmt test test-ui test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-cgo-env tenfoot-smoke build-tenfoot-linuxfb-spike build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-agent build-bridge build-target-image-lock build-target-image-lock-container target-image-resolve target-image-fetch target-image-test target-images target-image-dev target-image-verify target-image-qemu-smoke target-image-native-fetch target-image-native target-image-native-verify target-image-native-qemu-smoke target-image-deploy target-smoke target-native-smoke target-kernel-test target-kernel target-kernel-verify
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
@@ -95,6 +95,12 @@ tenfoot-cgo-env:
 
 tenfoot-smoke: build-fogcast-tenfoot
 	bin/fogcast-tenfoot -smoke -no-attract -api http://127.0.0.1:8787
+
+# CGO-free ARMv7 linuxfb spike: software rasterizer Present-blits to /dev/fb0.
+# No SDL3 tag. Same GOOS/GOARCH/GOARM lane as mister-agent-linux-armv7.
+build-tenfoot-linuxfb-spike:
+	mkdir -p bin
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -buildvcs=false -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/tenfoot-linuxfb-spike-linux-armv7 ./cmd/tenfoot-linuxfb-spike
 
 build-cli:
 	mkdir -p bin

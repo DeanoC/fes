@@ -206,7 +206,8 @@ func runWindow(ctx context.Context, opts Options) error {
 	// Window, events, gamepad, and text input stay on SDL; draw/present/textures
 	// go through gfx.Device. Default is SDL3 WrapSDLRenderer. TENFOOT_GFX /
 	// Options.GFX may select software or fpga-stub for tests; those still use
-	// this SDL window shell.
+	// this SDL window shell. linuxfb is the kit framebuffer Device and is
+	// rejected here.
 	defer C.SDL_DestroyWindow(window)
 	defer C.SDL_DestroyRenderer(renderer)
 	dev, err := openGFXDevice(opts, unsafe.Pointer(renderer))
@@ -318,6 +319,8 @@ func openGFXDevice(opts Options, renderer unsafe.Pointer) (gfx.Device, error) {
 		return gfx.NewSoftware(opts.Width, opts.Height)
 	case gfx.BackendFPGAStub:
 		return gfx.NewFPGAStub(opts.Width, opts.Height)
+	case gfx.BackendLinuxFB:
+		return nil, fmt.Errorf("linuxfb is the kit framebuffer Device; use cmd/tenfoot-linuxfb-spike")
 	default:
 		return gfx.WrapSDLRenderer(renderer, opts.Width, opts.Height)
 	}
