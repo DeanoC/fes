@@ -54,7 +54,7 @@ in `host/tenfoot/sdl.go` until a later slice.
 | SDL3 | `gfx.WrapSDLRenderer` (`sdl3.go`, `-tags sdl3`) | Default production path. Wraps the process `SDL_Renderer` with `SDL_LOGICAL_PRESENTATION_LETTERBOX` and VSync. |
 | Software | `gfx.NewSoftware` (`software.go`) | Pure-Go RGBA8 rasterizer for tests and CI (no cgo, no SDL). Nearest-neighbour blit; `Snapshot` for golden pixels. |
 | FPGA stub | `gfx.NewFPGAStub` (`fpga.go`) | Placeholder for a future MiSTer custom 2D accelerator. Delegates to Software; `BackendName` / `IsStub`. Does not talk to kit, runtime, or RBF. |
-| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`linuxfb.go`) | Software rasterizer; `Present` blits onto a 32bpp Linux framebuffer (`/dev/fb0`) with stride and BGRX. Kit spike: `make build-tenfoot-linuxfb-spike` (`CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7`, no SDL3 tag). The spike reads `/dev/input/event*` and `js*` through `host/tenfoot/linuxinput` (pure Go evdev/js) and moves a cursor; Start/ESC/Q (JS button 7/9) quits. Fake cover-grid: `make build-tenfoot-linuxfb-grid` (`cmd/tenfoot-linuxfb-grid`) on the same path with hardcoded tiles; d-pad/stick moves highlight, South/Enter/JS 0 confirms, Start/ESC/Q quits. |
+| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`linuxfb.go`) | Software rasterizer; `Present` blits onto a 32bpp Linux framebuffer (`/dev/fb0`) with stride and BGRX. Kit spike: `make build-tenfoot-linuxfb-spike` (`CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7`, no SDL3 tag). The spike reads `/dev/input/event*` and `js*` through `host/tenfoot/linuxinput` (pure Go evdev/js) and moves a cursor; Start/ESC/Q (JS button 7/9) quits. Fake cover-grid: `make build-tenfoot-linuxfb-grid` (`cmd/tenfoot-linuxfb-grid`) on the same path with hardcoded tiles; d-pad/stick moves highlight, South/Enter/JS 0 confirms, Start/ESC/Q quits; `-theme` selects the shared look tokens. |
 
 `gfx.Recorder` is a call-order test double and does not draw pixels. Optional
 `TENFOOT_GFX=software|sdl|fpga-stub` (or `Options.GFX`) selects a Device
@@ -87,7 +87,16 @@ FOGCAST_TENFOOT_NO_ATTRACT=1 bin/fogcast-tenfoot
 FOGCAST_TENFOOT_SAFE_AREA=0 bin/fogcast-tenfoot
 bin/fogcast-tenfoot -input-profile identity
 FOGCAST_INPUT_PROFILE=swap-ab bin/fogcast-tenfoot
+bin/fogcast-tenfoot -theme arcade
+FOGCAST_THEME=night bin/fogcast-tenfoot
 ```
+
+Look tokens (`host/tenfoot/theme`) are shared with the kit grid. `-theme`
+selects a built-in name (`default`, `arcade`, `night`) or a JSON/TOML file;
+`tenfoot.json` may store `theme`, and `FOGCAST_THEME` is the env fallback.
+`default` keeps the sofa and attract clear colours. This slice applies the
+loaded theme to those `Clear` sites; kit `fbgrid.Paint` consumes the full
+token set.
 
 Default overscan inset is **5% of each edge** (`-safe-area 0.05`). Windowed debug
 can pass `-safe-area 0`. `-` / `=` nudge the inset by 0.5 percentage points

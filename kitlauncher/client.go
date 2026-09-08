@@ -23,6 +23,7 @@ type Config struct {
 	TargetID     string `json:"target_id"`
 	Framebuffer  string `json:"framebuffer,omitempty"`
 	InputProfile string `json:"input_profile,omitempty"`
+	Theme        string `json:"theme,omitempty"`
 }
 
 func LoadConfig(path string) (Config, error) {

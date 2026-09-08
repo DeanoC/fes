@@ -8,6 +8,7 @@ import (
 
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/linuxinput"
+	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 )
 
 // Tile is one catalog cell: a short label, a solid colour fallback, and
@@ -32,11 +33,11 @@ const (
 	repeatRate    = 8
 )
 
-// Highlight is the focus border, sampled as BGRX 0,220,255,0.
-var Highlight = gfx.RGB(255, 220, 0)
+// Highlight is the default-theme focus border, sampled as BGRX 0,220,255,0.
+var Highlight = theme.Default().Highlight
 
-// Flash is the confirm fill, sampled as BGRX 255,255,255,0.
-var Flash = gfx.RGB(255, 255, 255)
+// Flash is the default-theme confirm fill, sampled as BGRX 255,255,255,0.
+var Flash = theme.Default().Flash
 
 // FakeTiles is the static 4×3 kit catalog.
 func FakeTiles() []Tile {
@@ -79,6 +80,7 @@ type Grid struct {
 	ConfirmLeft  int
 	Quit         bool
 	Last         string
+	Theme        theme.Theme
 	holdX        int
 	holdY        int
 	analogX      bool
@@ -120,6 +122,22 @@ func NewWithTiles(w, h int, tiles []Tile) Grid {
 	g.Tiles = append([]Tile(nil), tiles...)
 	g.layout()
 	return g
+}
+
+// ApplyTheme copies colour, spacing, and chrome tokens onto g and relayouts.
+// Zero Theme selects Default, which matches New's built-in spacing.
+func ApplyTheme(g *Grid, th theme.Theme) {
+	if g == nil {
+		return
+	}
+	th = th.Complete()
+	g.Theme = th
+	g.Pad = th.Pad
+	g.Gap = th.Gap
+	g.Border = th.Border
+	g.HeaderH = th.HeaderH
+	g.FooterH = th.FooterH
+	g.layout()
 }
 
 func (g *Grid) layout() {

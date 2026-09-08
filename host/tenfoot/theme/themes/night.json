@@ -1,0 +1,30 @@
+{
+  "name": "night",
+  "background": "#05070c",
+  "sofa_background": "#05070c",
+  "attract_background": "#030508",
+  "highlight": "#3db8ff",
+  "flash": "#e8f4ff",
+  "label_bar": "#0a1018",
+  "label": "#dce6f0",
+  "status": "#dce6f0",
+  "header": "#dce6f0",
+  "header_bar": "#0a2040",
+  "footer_bar": "#0a2040",
+  "cover_frame": "#3db8ff",
+  "cover_frame_width": 2,
+  "pad": 16,
+  "gap": 8,
+  "border": 4,
+  "header_height": 36,
+  "footer_height": 28,
+  "header_scale": 2,
+  "label_scale": 1,
+  "status_scale": 2,
+  "systems": {
+    "pong": "#c8a028",
+    "megadrive": "#285aa0",
+    "snes": "#a0465a",
+    "default": "#465a82"
+  }
+}

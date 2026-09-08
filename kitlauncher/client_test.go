@@ -56,6 +56,21 @@ func TestLoadConfigAcceptsOptionalInputProfile(t *testing.T) {
 	}
 }
 
+func TestLoadConfigAcceptsOptionalTheme(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "launcher.json")
+	body := `{"api":"http://127.0.0.1:8789","token":"12345678901234567890123456789012","target_id":"73dc9f5f-1a12-4a95-a820-a9b4e600769a","theme":"arcade"}`
+	if err := os.WriteFile(p, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := LoadConfig(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Theme != "arcade" {
+		t.Fatalf("theme %q", c.Theme)
+	}
+}
+
 func TestLoadConfigRejectsInvalidLauncherToken(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "launcher.json")
 	base := `{"api":"http://127.0.0.1:8789","token":"%s","target_id":"73dc9f5f-1a12-4a95-a820-a9b4e600769a"}`

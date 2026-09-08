@@ -18,6 +18,7 @@ import (
 	"github.com/DeanoC/FogCast/host/tenfoot/fbgrid"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/linuxinput"
+	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 )
 
 func main() {
@@ -31,6 +32,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	hold := fs.Duration("hold", 30*time.Second, "leave the grid on screen")
 	inputFlag := fs.String("input", "auto", "comma-separated input nodes, auto, or none")
 	selftest := fs.Bool("selftest", false, "inject js right+confirm+quit through a pipe (no live pads)")
+	themeSpec := fs.String("theme", "", "default, arcade, night, or JSON/TOML path (default default)")
 	if err := fs.Parse(args); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
@@ -50,7 +52,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 		defer reader.Close()
 	}
 
+	th, err := theme.Resolve(*themeSpec)
+	if err != nil {
+		fmt.Fprintf(stderr, "tenfoot-linuxfb-grid: %v\n", err)
+		return 1
+	}
 	g := fbgrid.New(cfg.Width, cfg.Height)
+	fbgrid.ApplyTheme(&g, th)
 	paint := func() {
 		fbgrid.Paint(d, g)
 		d.Present()
@@ -280,9 +288,10 @@ func reportSamples(w io.Writer, d *gfx.LinuxFB, g fbgrid.Grid, tag string) error
 	if err != nil {
 		return err
 	}
-	okHL := b == 0 && gv == 220 && r == 255 && xx == 0
-	fmt.Fprintf(w, "sample highlight-%s (%d,%d) bgrx=%d,%d,%d,%d want=0,220,255,0 ok=%v\n",
-		tag, hx, hy, b, gv, r, xx, okHL)
+	th := g.Theme.Complete()
+	okHL := b == th.Highlight.B && gv == th.Highlight.G && r == th.Highlight.R && xx == 0
+	fmt.Fprintf(w, "sample highlight-%s (%d,%d) bgrx=%d,%d,%d,%d want=%d,%d,%d,0 ok=%v theme=%s\n",
+		tag, hx, hy, b, gv, r, xx, th.Highlight.B, th.Highlight.G, th.Highlight.R, okHL, th.Name)
 	if !okHL {
 		return fmt.Errorf("sample highlight-%s mismatch", tag)
 	}
@@ -296,7 +305,7 @@ func reportSamples(w io.Writer, d *gfx.LinuxFB, g fbgrid.Grid, tag string) error
 	}
 	want := g.Tiles[g.Focus].Color
 	if g.ConfirmLeft > 0 {
-		want = fbgrid.Flash
+		want = th.Flash
 	}
 	okIn := b == want.B && gv == want.G && r == want.R && xx == 0
 	fmt.Fprintf(w, "sample interior-%s (%d,%d) bgrx=%d,%d,%d,%d want=%d,%d,%d,0 ok=%v focus=%d selected=%q\n",

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
+	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 )
 
 func testDrawGrid() Grid {
@@ -222,5 +223,35 @@ func TestUploadTextureRejectsEmpty(t *testing.T) {
 	rec := gfx.NewRecorder()
 	if _, err := uploadTexture(rec, image.NewRGBA(image.Rect(0, 0, 0, 0))); err == nil {
 		t.Fatal("expected empty image error")
+	}
+}
+
+func TestDrawFrameClearsWithThemeBackground(t *testing.T) {
+	rec := gfx.NewRecorder()
+	snap := Snapshot{Grid: testDrawGrid()}
+	drawFrame(rec, snap, map[string]gpuTexture{}, map[string]gpuTexture{})
+	if len(rec.Calls) < 2 || rec.Calls[0].Op != "BeginFrame" || rec.Calls[1].Op != "Clear" {
+		t.Fatalf("ops %#v", rec.Ops())
+	}
+	if rec.Calls[1].Color != theme.Default().SofaBackground {
+		t.Fatalf("default sofa clear %+v", rec.Calls[1].Color)
+	}
+	rec = gfx.NewRecorder()
+	snap.Theme = theme.Arcade()
+	drawFrame(rec, snap, map[string]gpuTexture{}, map[string]gpuTexture{})
+	if rec.Calls[1].Color != theme.Arcade().SofaBackground {
+		t.Fatalf("arcade sofa clear %+v", rec.Calls[1].Color)
+	}
+	if theme.Arcade().SofaBackground == theme.Default().SofaBackground {
+		t.Fatal("arcade sofa must differ")
+	}
+}
+
+func TestDrawAttractClearsWithTheme(t *testing.T) {
+	rec := gfx.NewRecorder()
+	snap := Snapshot{Grid: testDrawGrid(), Theme: theme.Arcade(), Attract: AttractSnapshot{Active: true}}
+	drawAttract(rec, snap, map[string]gpuTexture{}, map[string]gpuTexture{})
+	if len(rec.Calls) < 2 || rec.Calls[1].Op != "Clear" || rec.Calls[1].Color != theme.Arcade().AttractBackground {
+		t.Fatalf("ops %#v color %+v", rec.Ops(), rec.Calls)
 	}
 }

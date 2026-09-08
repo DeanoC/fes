@@ -12,6 +12,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 )
 
 func appSettingsCommitState(app *App) (idleSeconds int, hydrated bool) {
@@ -49,6 +51,42 @@ func TestTenfootPrefsAttractRoundTrip(t *testing.T) {
 	}
 	if !prefsAttractEnabled(got) {
 		t.Fatalf("missing attract_enabled should default on: %#v", got)
+	}
+}
+
+func TestOptionsNormalizedLoadsThemePref(t *testing.T) {
+	t.Setenv("FOGCAST_THEME", "")
+	path := filepath.Join(t.TempDir(), "tenfoot.json")
+	if err := saveTenfootPrefs(path, tenfootPrefs{SafeAreaPct: 0.05, Layout: "grid", Theme: "arcade"}); err != nil {
+		t.Fatal(err)
+	}
+	opts := Options{PrefsPath: path}.normalized()
+	if opts.Theme != "arcade" {
+		t.Fatalf("pref theme %q", opts.Theme)
+	}
+	opts = Options{PrefsPath: path, Theme: "night"}.normalized()
+	if opts.Theme != "night" {
+		t.Fatalf("flag override %q", opts.Theme)
+	}
+	t.Setenv("FOGCAST_THEME", "night")
+	opts = Options{PrefsPath: path}.normalized()
+	if opts.Theme != "arcade" {
+		t.Fatalf("prefs should beat env, got %q", opts.Theme)
+	}
+	opts = Options{PrefsPath: filepath.Join(t.TempDir(), "missing.json")}.normalized()
+	if opts.Theme != "night" {
+		t.Fatalf("env fallback %q", opts.Theme)
+	}
+}
+
+func TestAppSetThemeAppearsInSnapshot(t *testing.T) {
+	app := NewApp(nil, 1280, 720, 10)
+	if app.Snapshot().Theme.Name != theme.NameDefault {
+		t.Fatalf("default %+v", app.Snapshot().Theme)
+	}
+	app.SetTheme(theme.Arcade())
+	if !app.Snapshot().Theme.Equal(theme.Arcade()) {
+		t.Fatalf("arcade %+v", app.Snapshot().Theme)
 	}
 }
 

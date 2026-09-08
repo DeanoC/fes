@@ -8,6 +8,7 @@ import (
 	"github.com/DeanoC/FogCast/host/tenfoot/fbgrid"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
+	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 	"github.com/DeanoC/FogCast/kitlauncher"
 	"github.com/DeanoC/FogCast/kitlauncher/controller"
 	"github.com/DeanoC/FogCast/remoteinput"
@@ -40,18 +41,30 @@ func runPadsSelftest(remap *inputmap.Remapper) error {
 	return nil
 }
 
-func runNavSelftest(fbPath string) error {
+func runNavSelftest(fbPath string, th theme.Theme) error {
 	d, err := gfx.OpenLinuxFB(fbPath)
 	if err != nil {
 		return err
 	}
 	defer d.Close()
-	report, err := exerciseNavGrid(d)
+	report, err := exerciseNavGrid(d, th)
 	fmt.Print(report)
 	return err
 }
 
-func exerciseNavGrid(d *gfx.LinuxFB) (string, error) {
+func runThemeSelftest(fbPath string) error {
+	d, err := gfx.OpenLinuxFB(fbPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	report, err := exerciseThemeGrid(d)
+	fmt.Print(report)
+	return err
+}
+
+func exerciseNavGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
+	th = th.Complete()
 	games := make([]tenfoot.Game, 25)
 	for i := range games {
 		games[i] = tenfoot.Game{
@@ -64,7 +77,7 @@ func exerciseNavGrid(d *gfx.LinuxFB) (string, error) {
 	m := kitlauncher.Model{Games: games, Connected: true, TargetReady: true, ControllerConnected: true}
 	var b strings.Builder
 	step := func(name string, wantFocus, wantPage int) error {
-		g := paintModel(d, m)
+		g := paintModel(d, m, th)
 		start, end := catalogPage(m.Focus, len(m.Games))
 		hx, hy, ok := g.HighlightSample()
 		if !ok {
@@ -74,16 +87,16 @@ func exerciseNavGrid(d *gfx.LinuxFB) (string, error) {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(&b, "%s focus=%d page=%d:%d highlight=(%d,%d) bgrx=%d,%d,%d,%d local=%d\n",
-			name, m.Focus, start, end, hx, hy, gotB, gotG, gotR, gotX, g.Focus)
+		fmt.Fprintf(&b, "%s focus=%d page=%d:%d highlight=(%d,%d) bgrx=%d,%d,%d,%d local=%d theme=%s\n",
+			name, m.Focus, start, end, hx, hy, gotB, gotG, gotR, gotX, g.Focus, th.Name)
 		if m.Focus != wantFocus {
 			return fmt.Errorf("%s: focus %d want %d", name, m.Focus, wantFocus)
 		}
 		if start != wantPage {
 			return fmt.Errorf("%s: page start %d want %d", name, start, wantPage)
 		}
-		if gotB != 0 || gotG != 220 || gotR != 255 || gotX != 0 {
-			return fmt.Errorf("%s: highlight bgrx %d,%d,%d,%d", name, gotB, gotG, gotR, gotX)
+		if gotB != th.Highlight.B || gotG != th.Highlight.G || gotR != th.Highlight.R || gotX != 0 {
+			return fmt.Errorf("%s: highlight bgrx %d,%d,%d,%d want %d,%d,%d,0", name, gotB, gotG, gotR, gotX, th.Highlight.B, th.Highlight.G, th.Highlight.R)
 		}
 		return nil
 	}
@@ -123,12 +136,62 @@ func exerciseNavGrid(d *gfx.LinuxFB) (string, error) {
 	return b.String(), nil
 }
 
-func paintModel(d *gfx.LinuxFB, m kitlauncher.Model) fbgrid.Grid {
+func paintModel(d *gfx.LinuxFB, m kitlauncher.Model, th theme.Theme) fbgrid.Grid {
 	cfg := d.Config()
-	g := modelGrid(m, cfg.Width, cfg.Height, nil)
+	g := modelGrid(m, cfg.Width, cfg.Height, nil, th)
 	fbgrid.Paint(d, g)
 	d.Present()
 	return g
+}
+
+func exerciseThemeGrid(d *gfx.LinuxFB) (string, error) {
+	games := []tenfoot.Game{{ID: "g0", Title: "Title 00", System: "snes", Launchable: true}}
+	m := kitlauncher.Model{Games: games, Connected: true, TargetReady: true, ControllerConnected: true}
+	var b strings.Builder
+	sample := func(name string, th theme.Theme) (hlB, hlG, hlR, bgB, bgG, bgR byte, err error) {
+		g := paintModel(d, m, th)
+		hx, hy, ok := g.HighlightSample()
+		if !ok {
+			return 0, 0, 0, 0, 0, 0, fmt.Errorf("%s: no highlight", name)
+		}
+		hlB, hlG, hlR, _, err = gfx.SampleBGRX(d.Destination(), d.Config(), hx, hy)
+		if err != nil {
+			return 0, 0, 0, 0, 0, 0, err
+		}
+		bgY := g.HeaderH + 2
+		if bgY < 0 {
+			bgY = 0
+		}
+		bgB, bgG, bgR, _, err = gfx.SampleBGRX(d.Destination(), d.Config(), 2, bgY)
+		if err != nil {
+			return 0, 0, 0, 0, 0, 0, err
+		}
+		if hlB != th.Highlight.B || hlG != th.Highlight.G || hlR != th.Highlight.R {
+			return 0, 0, 0, 0, 0, 0, fmt.Errorf("%s: highlight bgrx %d,%d,%d want %d,%d,%d", name, hlB, hlG, hlR, th.Highlight.B, th.Highlight.G, th.Highlight.R)
+		}
+		if bgB != th.Background.B || bgG != th.Background.G || bgR != th.Background.R {
+			return 0, 0, 0, 0, 0, 0, fmt.Errorf("%s: background bgrx %d,%d,%d want %d,%d,%d", name, bgB, bgG, bgR, th.Background.B, th.Background.G, th.Background.R)
+		}
+		fmt.Fprintf(&b, "theme=%s highlight=(%d,%d) hl_bgrx=%d,%d,%d bg=(2,%d) bg_bgrx=%d,%d,%d header=%s\n",
+			th.Name, hx, hy, hlB, hlG, hlR, bgY, bgB, bgG, bgR, theme.FormatColor(th.HeaderBar))
+		return hlB, hlG, hlR, bgB, bgG, bgR, nil
+	}
+	def := theme.Default()
+	arcade := theme.Arcade()
+	dHLB, dHLG, dHLR, dBGB, dBGG, dBGR, err := sample("default", def)
+	if err != nil {
+		return b.String(), err
+	}
+	aHLB, aHLG, aHLR, aBGB, aBGG, aBGR, err := sample("arcade", arcade)
+	if err != nil {
+		return b.String(), err
+	}
+	if dHLB == aHLB && dHLG == aHLG && dHLR == aHLR && dBGB == aBGB && dBGG == aBGG && dBGR == aBGR {
+		return b.String(), fmt.Errorf("default and arcade sampled the same pixels")
+	}
+	fmt.Fprintf(&b, "selftest-theme PASS default_hl=%d,%d,%d arcade_hl=%d,%d,%d default_bg=%d,%d,%d arcade_bg=%d,%d,%d\n",
+		dHLB, dHLG, dHLR, aHLB, aHLG, aHLR, dBGB, dBGG, dBGR, aBGB, aBGG, aBGR)
+	return b.String(), nil
 }
 
 func press(m *kitlauncher.Model, name string) {

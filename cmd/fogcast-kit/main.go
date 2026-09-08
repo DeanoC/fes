@@ -13,6 +13,7 @@ import (
 	"github.com/DeanoC/FogCast/host/tenfoot/fbgrid"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
+	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 	"github.com/DeanoC/FogCast/kitlauncher"
 	"github.com/DeanoC/FogCast/kitlauncher/controller"
 	"os"
@@ -31,8 +32,10 @@ func main() {
 func run() error {
 	configPath := flag.String("config", "/media/fat/fogcast/launcher.json", "provisioned launcher configuration")
 	inputProfile := flag.String("input-profile", "", "identity, swap-ab, or JSON profile path (default identity)")
+	themeSpec := flag.String("theme", "", "default, arcade, night, or JSON/TOML path (default default)")
 	selftestNav := flag.Bool("selftest-nav", false, "paint 4x3 catalog navigation on the framebuffer and exit")
 	selftestPads := flag.Bool("selftest-pads", false, "open eligible USB pads, print them, and exit")
+	selftestTheme := flag.Bool("selftest-theme", false, "paint default and arcade and sample pixels, then exit")
 	flag.Parse()
 	if *selftestPads {
 		remap, err := loadKitRemapper(*inputProfile, "")
@@ -41,14 +44,33 @@ func run() error {
 		}
 		return runPadsSelftest(remap)
 	}
-	if *selftestNav {
+	if *selftestTheme {
 		fb := "/dev/fb0"
 		if c, err := kitlauncher.LoadConfig(*configPath); err == nil && c.Framebuffer != "" {
 			fb = c.Framebuffer
 		}
-		return runNavSelftest(fb)
+		return runThemeSelftest(fb)
+	}
+	if *selftestNav {
+		fb := "/dev/fb0"
+		configTheme := ""
+		if c, err := kitlauncher.LoadConfig(*configPath); err == nil {
+			if c.Framebuffer != "" {
+				fb = c.Framebuffer
+			}
+			configTheme = c.Theme
+		}
+		th, err := loadKitTheme(*themeSpec, configTheme)
+		if err != nil {
+			return err
+		}
+		return runNavSelftest(fb, th)
 	}
 	c, err := kitlauncher.LoadConfig(*configPath)
+	if err != nil {
+		return err
+	}
+	th, err := loadKitTheme(*themeSpec, c.Theme)
 	if err != nil {
 		return err
 	}
@@ -80,7 +102,7 @@ func run() error {
 		lastKey = key
 		cfg := d.Config()
 		w, h := cfg.Width, cfg.Height
-		grid := modelGrid(m, w, h, covers)
+		grid := modelGrid(m, w, h, covers, th)
 		fbgrid.Paint(d, grid)
 		d.Present()
 	}
@@ -89,6 +111,17 @@ func run() error {
 		return err
 	}
 	return kitlauncher.Run(ctx, client, present, func() (kitlauncher.Pad, error) { return controller.OpenWith(remap) })
+}
+
+func loadKitTheme(flagSpec, configSpec string) (theme.Theme, error) {
+	spec := strings.TrimSpace(flagSpec)
+	if spec == "" {
+		spec = strings.TrimSpace(configSpec)
+	}
+	if spec == "" {
+		spec = strings.TrimSpace(os.Getenv("FOGCAST_THEME"))
+	}
+	return theme.Resolve(spec)
 }
 
 func loadKitRemapper(flagSpec, configSpec string) (*inputmap.Remapper, error) {
@@ -147,13 +180,14 @@ func catalogPage(focus, n int) (start, end int) {
 
 // modelGrid maps the live catalog to one visible 4×3 page. Model.Focus remains
 // an index into the complete catalog; the grid focus is page-local.
-func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCache) fbgrid.Grid {
+func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCache, th theme.Theme) fbgrid.Grid {
 	start, end := catalogPage(m.Focus, len(m.Games))
 	tiles := make([]fbgrid.Tile, 0, end-start)
 	for _, game := range m.Games[start:end] {
-		tiles = append(tiles, gameTile(game, covers))
+		tiles = append(tiles, gameTile(game, covers, th))
 	}
 	g := fbgrid.NewWithTiles(width, height, tiles)
+	fbgrid.ApplyTheme(&g, th)
 	g.Header = "FOGCAST"
 	if m.Focus >= start && m.Focus < end {
 		g.Focus = m.Focus - start
@@ -162,7 +196,7 @@ func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCach
 	return g
 }
 
-func gameTile(game tenfoot.Game, covers *tenfoot.CoverCache) fbgrid.Tile {
+func gameTile(game tenfoot.Game, covers *tenfoot.CoverCache, th theme.Theme) fbgrid.Tile {
 	name := asciiLabel(game.Title)
 	if name == "" {
 		name = asciiLabel(game.System)
@@ -170,24 +204,11 @@ func gameTile(game tenfoot.Game, covers *tenfoot.CoverCache) fbgrid.Tile {
 	if name == "" {
 		name = "UNTITLED"
 	}
-	tile := fbgrid.Tile{Name: truncateLabel(name, 18), Color: systemColor(game.System)}
+	tile := fbgrid.Tile{Name: truncateLabel(name, 18), Color: th.SystemColor(game.System)}
 	if handle := tenfoot.CoverHandle(game, tenfoot.Presentation{}); handle != "" {
 		tile.Cover = covers.Image(handle)
 	}
 	return tile
-}
-
-func systemColor(system string) gfx.Color {
-	switch strings.ToLower(strings.TrimSpace(system)) {
-	case "pong":
-		return gfx.RGB(196, 148, 36)
-	case "megadrive":
-		return gfx.RGB(44, 96, 156)
-	case "snes":
-		return gfx.RGB(156, 52, 60)
-	default:
-		return gfx.RGB(84, 76, 132)
-	}
 }
 
 func modelFooter(m kitlauncher.Model) string {

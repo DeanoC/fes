@@ -33,6 +33,9 @@ type Options struct {
 	// InputProfile is a built-in name (identity, swap-ab) or a JSON file
 	// path. Empty is identity.
 	InputProfile string
+	// Theme is a built-in name (default, arcade, night) or a JSON/TOML
+	// file path. Empty is default.
+	Theme string
 }
 
 func (o Options) prefsPath() string {
@@ -97,6 +100,12 @@ func (o Options) normalized() Options {
 	}
 	if strings.TrimSpace(o.GFX) == "" {
 		o.GFX = strings.TrimSpace(os.Getenv("TENFOOT_GFX"))
+	}
+	if strings.TrimSpace(o.Theme) == "" && prefsErr == nil {
+		o.Theme = strings.TrimSpace(prefs.Theme)
+	}
+	if strings.TrimSpace(o.Theme) == "" {
+		o.Theme = strings.TrimSpace(os.Getenv("FOGCAST_THEME"))
 	}
 	return o
 }

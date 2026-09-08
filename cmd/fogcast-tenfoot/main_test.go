@@ -66,6 +66,17 @@ func TestParseArgsInputProfile(t *testing.T) {
 	}
 }
 
+func TestParseArgsTheme(t *testing.T) {
+	t.Parallel()
+	opts, err := parseArgs([]string{"-theme", "arcade"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.Theme != "arcade" {
+		t.Fatalf("opts = %#v", opts)
+	}
+}
+
 func TestParseArgsLayout(t *testing.T) {
 	t.Parallel()
 	opts, err := parseArgs([]string{"-layout", "shelf"})

@@ -1,0 +1,30 @@
+{
+  "name": "arcade",
+  "background": "#1a0008",
+  "sofa_background": "#1a0008",
+  "attract_background": "#100006",
+  "highlight": "#ff00aa",
+  "flash": "#00fff0",
+  "label_bar": "#400018",
+  "label": "#fff0dc",
+  "status": "#fff0dc",
+  "header": "#fff0dc",
+  "header_bar": "#ff3300",
+  "footer_bar": "#ff2200",
+  "cover_frame": "#ffe600",
+  "cover_frame_width": 3,
+  "pad": 16,
+  "gap": 8,
+  "border": 6,
+  "header_height": 36,
+  "footer_height": 28,
+  "header_scale": 2,
+  "label_scale": 1,
+  "status_scale": 2,
+  "systems": {
+    "pong": "#39ff14",
+    "megadrive": "#ff8c00",
+    "snes": "#bf40bf",
+    "default": "#ff5577"
+  }
+}

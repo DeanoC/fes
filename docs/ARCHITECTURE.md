@@ -230,9 +230,9 @@ Native SDL3 UI
   -> existing FPGA launch path
 ```
 
-TV overscan insets, sofa layout (`grid`, `shelf`, or `list`), and the local
-attract on/off gate are local to the tenfoot process (CLI `-safe-area` /
-`-layout` / `-no-attract` and optional `tenfoot.json` prefs). There is no host
+TV overscan insets, sofa layout (`grid`, `shelf`, or `list`), the local
+attract on/off gate, and the look name are local to the tenfoot process (CLI `-safe-area` /
+`-layout` / `-no-attract` / `-theme` and optional `tenfoot.json` prefs). There is no host
 safe-area or layout API. Host attract idle, preferred regions, selected target, library roots, and
 targets use the existing public library settings endpoints. Tenfoot can add,
 edit, and remove targets from the sofa settings overlay. Agent secrets are
@@ -273,9 +273,16 @@ linuxfb is a kit framebuffer Device, not the SDL sofa shell.
 | SDL3 | `gfx.WrapSDLRenderer` (`host/tenfoot/gfx/sdl3.go`, build tag `sdl3`) | Default production path: wraps the process `SDL_Renderer` with letterbox logical presentation and VSync. |
 | Software | `gfx.NewSoftware` (`host/tenfoot/gfx/software.go`) | Pure-Go RGBA8 rasterizer for tests and CI (no cgo, no SDL). Nearest blit, `Snapshot` for golden pixels. |
 | FPGA stub | `gfx.NewFPGAStub` (`host/tenfoot/gfx/fpga.go`) | Placeholder for a future MiSTer custom 2D accelerator. Delegates to Software today; exposes `BackendName` / `IsStub`. Does not talk to kit, runtime, or RBF. |
-| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`host/tenfoot/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `host/tenfoot/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `host/tenfoot/inputmap`; linuxinput can apply a `Remapper` to gamepad records. |
+| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`host/tenfoot/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `host/tenfoot/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `host/tenfoot/inputmap`; linuxinput can apply a `Remapper` to gamepad records. Look tokens live in `host/tenfoot/theme` and are consumed by `fbgrid.Paint` and the sofa `Clear` sites. |
 
 `gfx.Recorder` remains a call-order test double and does not draw pixels.
+
+Tenfoot looks are data-driven. `host/tenfoot/theme` loads colour, spacing, font
+scale, and cover-chrome tokens from a built-in name (`default`, `arcade`,
+`night`) or a JSON/TOML file. `default` preserves the current kit grid pixels
+and the sofa/attract clear colours. `fogcast-kit` and `fogcast-tenfoot` share
+`theme.Resolve` (`-theme`, then `launcher.json` / `tenfoot.json` `theme`, then
+`FOGCAST_THEME`). There is no scripted theme VM; derived colours stay in Go.
 
 The browser shell remains the default UI. Mac is the primary sofa target; Linux builds
 with the same `make build-fogcast-tenfoot` target (`CGO_ENABLED=1` and

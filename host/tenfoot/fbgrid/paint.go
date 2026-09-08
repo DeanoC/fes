@@ -7,23 +7,31 @@ import (
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 )
 
-var bg = gfx.RGB(16, 16, 24)
-
-var labelBar = gfx.RGB(8, 8, 12)
-
-// Paint draws the cover-grid onto d. It does not Present.
+// Paint draws the cover-grid onto d using g.Theme, or theme.Default when
+// Theme is zero. It does not Present.
 func Paint(d gfx.Device, g Grid) {
 	if d == nil || g.Width < 1 || g.Height < 1 {
 		return
 	}
+	th := g.Theme.Complete()
 	d.BeginFrame()
-	d.Clear(bg)
+	d.Clear(th.Background)
 	d.SetBlend(gfx.BlendNone)
+	if g.HeaderH > 0 {
+		d.FillRect(gfx.Rect{X: 0, Y: 0, W: float32(g.Width), H: float32(g.HeaderH)}, th.HeaderBar)
+	}
+	if g.FooterH > 0 {
+		fy := g.Height - g.FooterH
+		if fy < 0 {
+			fy = 0
+		}
+		d.FillRect(gfx.Rect{X: 0, Y: float32(fy), W: float32(g.Width), H: float32(g.Height - fy)}, th.FooterBar)
+	}
 	header := g.Header
 	if header == "" {
 		header = "FOGCAST GRID"
 	}
-	d.DebugText(16, 10, header, 2)
+	d.DebugText(16, chromeTextY(0, g.HeaderH, th.HeaderScale, true), header, th.HeaderScale)
 	for i, tile := range g.Tiles {
 		x, y, ok := g.CellOrigin(i)
 		if !ok {
@@ -32,12 +40,12 @@ func Paint(d gfx.Device, g Grid) {
 		fill := tile.Color
 		flashing := g.ConfirmLeft > 0 && i == g.ConfirmIndex
 		if flashing {
-			fill = Flash
+			fill = th.Flash
 		}
 		r := gfx.Rect{X: float32(x), Y: float32(y), W: float32(g.CellW), H: float32(g.CellH)}
 		inner := r
 		if i == g.Focus {
-			d.FillRect(r, Highlight)
+			d.FillRect(r, th.Highlight)
 			inset := float32(g.Border)
 			if inset < 1 {
 				inset = 1
@@ -52,6 +60,17 @@ func Paint(d gfx.Device, g Grid) {
 		} else {
 			d.FillRect(r, fill)
 		}
+		if th.CoverFrameWidth > 0 && inner.W > float32(2*th.CoverFrameWidth) && inner.H > float32(2*th.CoverFrameWidth) {
+			d.FillRect(inner, th.CoverFrame)
+			fw := float32(th.CoverFrameWidth)
+			inner = gfx.Rect{
+				X: inner.X + fw,
+				Y: inner.Y + fw,
+				W: inner.W - 2*fw,
+				H: inner.H - 2*fw,
+			}
+			d.FillRect(inner, fill)
+		}
 		if !flashing {
 			paintCover(d, tile.Cover, inner)
 		}
@@ -64,22 +83,53 @@ func Paint(d gfx.Device, g Grid) {
 			Y: inner.Y + inner.H - barH,
 			W: inner.W,
 			H: barH,
-		}, labelBar)
-		labelY := y + g.CellH - 16
-		if labelY < y {
-			labelY = y
+		}, th.LabelBar)
+		textX, textY := x+4, y+g.CellH-16
+		if th.CoverFrameWidth > 0 {
+			textX = int(inner.X) + 4
+			textY = int(inner.Y+inner.H) - 16
+			if textY < int(inner.Y) {
+				textY = int(inner.Y)
+			}
+		} else if textY < y {
+			textY = y
 		}
-		d.DebugText(x+4, labelY, tile.Name, 1)
+		d.DebugText(textX, textY, tile.Name, th.LabelScale)
 	}
 	status := g.Footer
 	if status == "" {
 		status = g.Status()
 	}
-	sy := g.Height - 22
-	if sy < 0 {
-		sy = 0
+	footerTop := g.Height - g.FooterH
+	if footerTop < 0 {
+		footerTop = 0
 	}
-	d.DebugText(8, sy, status, 2)
+	d.DebugText(8, chromeTextY(footerTop, g.Height-footerTop, th.StatusScale, false), status, th.StatusScale)
+}
+
+// debugGlyphPx is the DebugText glyph size used by gfx backends.
+const debugGlyphPx = 8
+
+// chromeTextY vertically centers an 8×scale glyph in a chrome bar. When the
+// glyph is taller than the bar, it overflows away from the tile row.
+func chromeTextY(barTop, barH, scale int, overflowUp bool) int {
+	if scale < 1 {
+		scale = 1
+	}
+	textH := debugGlyphPx * scale
+	if barH < 1 {
+		if overflowUp {
+			return barTop - textH
+		}
+		return barTop
+	}
+	if textH <= barH {
+		return barTop + (barH-textH)/2
+	}
+	if overflowUp {
+		return barTop + barH - textH
+	}
+	return barTop
 }
 
 func paintCover(d gfx.Device, img *image.RGBA, cell gfx.Rect) {

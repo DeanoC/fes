@@ -7,6 +7,7 @@ import (
 	"github.com/DeanoC/FogCast/host/tenfoot"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
+	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 	"github.com/DeanoC/FogCast/kitlauncher"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"time"
@@ -53,7 +54,7 @@ func TestModelGridUsesLiveGamesAndPages(t *testing.T) {
 		games[i] = tenfoot.Game{ID: "game-" + string(rune('a'+i)), Title: "Title " + string(rune('A'+i)), System: "snes", Launchable: true}
 	}
 	m := kitlauncher.Model{Games: games, Focus: 12, Connected: true, TargetReady: true, ControllerConnected: true}
-	g := modelGrid(m, 640, 480, nil)
+	g := modelGrid(m, 640, 480, nil, theme.Default())
 	if len(g.Tiles) != 1 || g.Focus != 0 {
 		t.Fatalf("page tiles=%d focus=%d", len(g.Tiles), g.Focus)
 	}
@@ -75,14 +76,14 @@ func TestModelGridFollowsTwoDimensionalFocus(t *testing.T) {
 	down, _ := remoteinput.NormalizeGamepad("dpad-down", true)
 	now := time.Now()
 	m.Input(right, now)
-	g := modelGrid(m, 640, 480, nil)
+	g := modelGrid(m, 640, 480, nil, theme.Default())
 	if m.Focus != 1 || g.Focus != 1 || len(g.Tiles) != 12 {
 		t.Fatalf("right focus=%d local=%d tiles=%d", m.Focus, g.Focus, len(g.Tiles))
 	}
 	m.Focus = 11
 	m.Input(down, now)
 	start, end := catalogPage(m.Focus, len(m.Games))
-	g = modelGrid(m, 640, 480, nil)
+	g = modelGrid(m, 640, 480, nil, theme.Default())
 	if m.Focus != 15 || start != 12 || end != 24 || g.Focus != 3 || len(g.Tiles) != 12 {
 		t.Fatalf("page-cross focus=%d page=%d:%d local=%d tiles=%d", m.Focus, start, end, g.Focus, len(g.Tiles))
 	}
@@ -97,7 +98,7 @@ func TestExerciseNavGridSamplesHighlight(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer d.Close()
-	report, err := exerciseNavGrid(d)
+	report, err := exerciseNavGrid(d, theme.Default())
 	if err != nil {
 		t.Fatalf("%v\n%s", err, report)
 	}
@@ -126,11 +127,11 @@ func TestCatalogPageAndPrefetchWindow(t *testing.T) {
 
 func TestGameTileLeavesCoverEmptyUntilCached(t *testing.T) {
 	handle := strings.Repeat("ab", 32)
-	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive", Cover: handle}, tenfoot.NewCoverCache())
+	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive", Cover: handle}, tenfoot.NewCoverCache(), theme.Default())
 	if tile.Cover != nil {
 		t.Fatal("uncached cover should stay fallback")
 	}
-	flat := gameTile(tenfoot.Game{Title: "Pong", System: "pong"}, tenfoot.NewCoverCache())
+	flat := gameTile(tenfoot.Game{Title: "Pong", System: "pong"}, tenfoot.NewCoverCache(), theme.Default())
 	if flat.Cover != nil {
 		t.Fatal("missing handle should stay fallback")
 	}
@@ -148,11 +149,69 @@ func TestModelFooterReportsConnectionBeforeController(t *testing.T) {
 }
 
 func TestGameTileUsesSystemPaletteAndASCIILabel(t *testing.T) {
-	tile := gameTile(tenfoot.Game{Title: "Márío", System: "snes"}, nil)
+	tile := gameTile(tenfoot.Game{Title: "Márío", System: "snes"}, nil, theme.Default())
 	if tile.Name != "M?r?o" {
 		t.Fatalf("label %q", tile.Name)
 	}
 	if tile.Color != gfx.RGB(156, 52, 60) {
 		t.Fatalf("color %+v", tile.Color)
+	}
+	arcade := gameTile(tenfoot.Game{Title: "Márío", System: "snes"}, nil, theme.Arcade())
+	if arcade.Color != theme.Arcade().SystemColor("snes") {
+		t.Fatalf("arcade color %+v", arcade.Color)
+	}
+	if arcade.Color == tile.Color {
+		t.Fatal("arcade palette must differ")
+	}
+}
+
+func TestLoadKitThemeFlagBeatsConfigAndEnv(t *testing.T) {
+	t.Setenv("FOGCAST_THEME", "night")
+	th, err := loadKitTheme("arcade", "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if th.Name != theme.NameArcade {
+		t.Fatalf("flag %q", th.Name)
+	}
+	th, err = loadKitTheme("", "night")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if th.Name != theme.NameNight {
+		t.Fatalf("config %q", th.Name)
+	}
+	th, err = loadKitTheme("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if th.Name != theme.NameNight {
+		t.Fatalf("env %q", th.Name)
+	}
+}
+
+func TestLoadKitThemeMissingFile(t *testing.T) {
+	t.Setenv("FOGCAST_THEME", "")
+	_, err := loadKitTheme("/no/such/theme.json", "")
+	if err == nil {
+		t.Fatal("missing theme")
+	}
+}
+
+func TestExerciseThemeGridSamplesBothLooks(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseThemeGrid(d)
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-theme PASS") || !strings.Contains(report, "theme=default") || !strings.Contains(report, "theme=arcade") {
+		t.Fatalf("report %s", report)
 	}
 }

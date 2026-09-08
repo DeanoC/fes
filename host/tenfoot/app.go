@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
+	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 )
 
 const (
@@ -272,6 +273,7 @@ type Snapshot struct {
 	Detail          DetailSnapshot
 	Screenshots     map[string]*image.RGBA
 	Preview         PreviewSnapshot
+	Theme           theme.Theme
 }
 
 // App owns catalog, focus, async covers, and host launch. SDL stays out.
@@ -292,6 +294,7 @@ type App struct {
 	gamepads  int
 	repeat    Repeater
 	remap     *inputmap.Remapper
+	theme     theme.Theme
 	jobs      chan workItem
 	results   chan workResult
 	maxGames  int
@@ -449,6 +452,16 @@ func (a *App) SetRemapper(r *inputmap.Remapper) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.remap = r
+}
+
+// SetTheme installs the sofa look. Zero Theme is Default.
+func (a *App) SetTheme(th theme.Theme) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.theme = th.Complete()
 }
 
 func (a *App) remapper() *inputmap.Remapper {
@@ -1212,6 +1225,7 @@ func (a *App) Snapshot() Snapshot {
 		Detail:          a.detailSnapshotLocked(),
 		Screenshots:     a.screenshotImagesLocked(),
 		Preview:         a.previewSnapshotLocked(),
+		Theme:           a.theme.Complete(),
 	}
 }
 

@@ -1,0 +1,29 @@
+{
+  "name": "default",
+  "background": "#101018",
+  "sofa_background": "#0c0e14",
+  "attract_background": "#08080c",
+  "highlight": "#ffdc00",
+  "flash": "#ffffff",
+  "label_bar": "#08080c",
+  "label": "#ecf0f8",
+  "status": "#ecf0f8",
+  "header": "#ecf0f8",
+  "header_bar": "#101018",
+  "footer_bar": "#101018",
+  "cover_frame_width": 0,
+  "pad": 16,
+  "gap": 8,
+  "border": 4,
+  "header_height": 36,
+  "footer_height": 28,
+  "header_scale": 2,
+  "label_scale": 1,
+  "status_scale": 2,
+  "systems": {
+    "pong": "#c49424",
+    "megadrive": "#2c609c",
+    "snes": "#9c343c",
+    "default": "#544c84"
+  }
+}

@@ -87,6 +87,7 @@ type tenfootPrefs struct {
 	SafeAreaPct    float64 `json:"safe_area_pct"`
 	Layout         string  `json:"layout"`
 	AttractEnabled *bool   `json:"attract_enabled,omitempty"`
+	Theme          string  `json:"theme,omitempty"`
 }
 
 func defaultPrefsPath() string {

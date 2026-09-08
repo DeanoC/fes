@@ -51,6 +51,15 @@ Bindings are a single lookup of logical names (`a`, `b`, `start`, `select`,
 names. The same remapper is what linuxinput-derived paths and the tenfoot
 `CommandFromLogical` adapter apply. There is no on-screen editor in this slice.
 
+Look tokens live in `host/tenfoot/theme`. Built-in **default** keeps the current
+kit pixels (highlight BGRX 0,220,255,0, flash white, system palette). **arcade**
+and **night** are named alternates. `-theme` (then optional `theme` in
+`launcher.json`, then `FOGCAST_THEME`) selects a built-in name or a JSON/TOML
+file. `fbgrid.Paint` and the system-color fallback consume those tokens (fills,
+highlight, flash, chrome, spacing). Debug glyphs keep the software font
+colour. The catalog, input, and launch path stay the same. There is no
+on-screen theme picker in this slice.
+
 The grid uses the D-pad and left stick in two dimensions to select, and A to
 launch. Left/right move one cell and clamp at the ends of the current row;
 up/down move by four cells (one row of the 4×3 page) and clamp at the first
@@ -81,11 +90,13 @@ into the cell. Missing, failed, or still-loading art keeps the system-color
 tile and ASCII label. Fetching is asynchronous and does not block the present
 loop.
 
-Run `go test -race ./kitlauncher/... ./host/tenfoot/inputmap ./cmd/fogcast-kit` for adapter tests. They
+Run `go test -race ./kitlauncher/... ./host/tenfoot/inputmap ./host/tenfoot/theme ./host/tenfoot/fbgrid ./cmd/fogcast-kit` for adapter tests. They
 exercise real HTTP transports with isolated servers and never open real input or
 framebuffer devices. On the kit, `fogcast-kit -selftest-nav` paints a 25-title
 catalog, moves focus right/down across a 4×3 page, samples the highlight, and
-exits without talking to the host. `fogcast-kit -selftest-pads` opens every
+exits without talking to the host. `fogcast-kit -selftest-theme` paints **default**
+then **arcade**, samples highlight and background, and requires the pixels to
+differ. `fogcast-kit -selftest-pads` opens every
 eligible USB pad under the identity profile, prints device id/name, and exits.
 Runtime and host tests cover their respective boundaries.
 Use FES for selected image assembly and exact-artifact evidence. A diagnostic

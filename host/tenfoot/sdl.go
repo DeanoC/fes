@@ -170,6 +170,7 @@ import (
 
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
+	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
@@ -231,6 +232,11 @@ func runWindow(ctx context.Context, opts Options) error {
 		}
 		app.SetRemapper(remap)
 	}
+	look, err := theme.Resolve(opts.Theme)
+	if err != nil {
+		return fmt.Errorf("theme: %w", err)
+	}
+	app.SetTheme(look)
 	app.SetPrefsPath(opts.prefsPath())
 	app.SetLayout(parseLayout(opts.Layout))
 	app.SetSafeAreaPct(opts.SafeAreaPct)

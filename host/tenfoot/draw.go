@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
+	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 )
 
 // gpuTexture is a Device-backed bitmap plus the CPU source used to decide
@@ -134,9 +135,13 @@ func drawGPU(dev gfx.Device, tex gpuTexture, x, y, w, h float32) {
 	dev.Draw(tex.tex, nil, gfx.Rect{X: x, Y: y, W: w, H: h})
 }
 
+func drawTheme(snap Snapshot) theme.Theme {
+	return snap.Theme.Complete()
+}
+
 func drawFrame(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuTexture) {
 	dev.BeginFrame()
-	dev.Clear(gfx.RGB(12, 14, 20))
+	dev.Clear(drawTheme(snap).SofaBackground)
 	used := map[string]struct{}{}
 	drawHeader(dev, snap, labels, used)
 	if snap.Grid.Mode == LayoutList {
@@ -357,7 +362,7 @@ func drawSessionPreview(dev gfx.Device, snap Snapshot, textures, labels map[stri
 
 func drawNowPlaying(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuTexture) {
 	dev.BeginFrame()
-	dev.Clear(gfx.RGB(12, 14, 20))
+	dev.Clear(drawTheme(snap).SofaBackground)
 	used := map[string]struct{}{}
 	drawHeader(dev, snap, labels, used)
 	pad := 48
@@ -933,7 +938,7 @@ func drawOSK(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used m
 
 func drawAttract(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuTexture) {
 	dev.BeginFrame()
-	dev.Clear(gfx.RGB(8, 8, 12))
+	dev.Clear(drawTheme(snap).AttractBackground)
 	used := map[string]struct{}{}
 	x := snap.Grid.contentLeft()
 	y := snap.Grid.contentTop()

@@ -72,7 +72,12 @@ Stop and returns to the library. Its live catalog is rendered as a small 4×3
 cover grid through `host/tenfoot/fbgrid`. D-pad and left stick move focus in
 two dimensions (left/right clamp on the row; up/down by four cells, paging
 when `Focus` leaves the visible 12). Cells show host cover art when
-`Game.Cover` is available and keep the system-color fallback otherwise. The
+`Game.Cover` is available and keep the system-color fallback otherwise. Paint
+tokens (background, highlight, flash, system palette, header/footer chrome)
+come from `host/tenfoot/theme`: built-in `default` matches today's kit look,
+and `arcade` / `night` (or a JSON/TOML file) swap the look without forking
+UI code. Select with `-theme`, `theme` in `launcher.json`, or
+`FOGCAST_THEME`. The
 grid is a view of `kitlauncher.Model` and does not own host requests, input
 leases, or FPGA transitions. Kit input opens every eligible USB pad, merges
 their polls, and applies a JSON remap profile from
