@@ -80,12 +80,16 @@ system shelves (`All` plus each system present in the loaded catalog); the
 header shows the active shelf and counts (`MEGADRIVE 12/40`). D-pad and left
 stick move focus in
 two dimensions (left/right clamp on the row; up/down by four cells, paging
-when `Focus` leaves the visible 12). East/B opens a focused title pane
+when `Focus` leaves the visible 12). A short ease-in-out pop grows the
+focused tile's highlight ring (~1.06 scale, ~160ms) when focus changes;
+confirm is a white pulse that eases out over `ConfirmFrames` rather than a
+flat flash. East/B opens a focused title pane
 (large cover, title, and platform/year/genre/studio when presentation has
 them); Down that cannot move focus further (last catalog row) does the same.
 A/South still launches from the grid. The pane's A plays the title, East/B
 and Up return to the same shelf and focus, and L/R (or shoulders) cycle
-screenshots when `screenshot_ids` has two or more. Attract does not arm
+screenshots when `screenshot_ids` has two or more. Opening the pane uses a
+short fade-from-black overlay. Attract does not arm
 while the pane is open. Cells show host cover art when
 `Game.Cover` is available, Catmull–Rom downscaled at decode, with a theme-tinted
 placeholder (lettermark when missing, a distinct panel while loading) instead of

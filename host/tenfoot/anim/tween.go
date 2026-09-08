@@ -37,6 +37,14 @@ func EaseInOut(t float64) float64 {
 	return t * t * (3 - 2*t)
 }
 
+// Pulse01 is 0 at the ends of [0, 1] and 1 at mid, with EaseInOut on the
+// triangle envelope. A focus pop or confirm pulse uses this over a Tween.
+func Pulse01(t float64) float64 {
+	t = Clamp01(t)
+	tri := 1 - math.Abs(2*t-1)
+	return EaseInOut(tri)
+}
+
 // Lerp interpolates a to b by t.
 func Lerp(a, b, t float64) float64 {
 	t = Clamp01(t)
@@ -89,6 +97,18 @@ func Move(from, to gfx.Rect, t float64) gfx.Rect {
 		W: LerpF32(from.W, to.W, t),
 		H: LerpF32(from.H, to.H, t),
 	}
+}
+
+// Scale grows or shrinks r about its centre. factor 1 leaves r unchanged.
+func Scale(r gfx.Rect, factor float64) gfx.Rect {
+	if factor == 1 {
+		return r
+	}
+	cx := r.X + r.W/2
+	cy := r.Y + r.H/2
+	w := float32(float64(r.W) * factor)
+	h := float32(float64(r.H) * factor)
+	return gfx.Rect{X: cx - w/2, Y: cy - h/2, W: w, H: h}
 }
 
 // Sprite is a textured quad that travels from From to To.

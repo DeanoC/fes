@@ -42,6 +42,7 @@ func run() error {
 	selftestCover := flag.Bool("selftest-cover", false, "paint cover decode, placeholder, and chrome polish, then exit")
 	selftestAttract := flag.Bool("selftest-attract", false, "arm short idle stills attract, paint a still, dismiss, then exit")
 	selftestDetail := flag.Bool("selftest-detail", false, "open/close title detail, paint cover and title ink, then exit")
+	selftestMotion := flag.Bool("selftest-motion", false, "prove focus pop and confirm pulse over ticks, then exit")
 	flag.Parse()
 	if *selftestFPGA {
 		fb := "/dev/fb0"
@@ -64,7 +65,7 @@ func run() error {
 		}
 		return runThemeSelftest(fb)
 	}
-	if *selftestNav || *selftestShelf || *selftestText || *selftestCover || *selftestAttract || *selftestDetail {
+	if *selftestNav || *selftestShelf || *selftestText || *selftestCover || *selftestAttract || *selftestDetail || *selftestMotion {
 		fb := "/dev/fb0"
 		configTheme := ""
 		if c, err := kitlauncher.LoadConfig(*configPath); err == nil {
@@ -76,6 +77,9 @@ func run() error {
 		th, err := loadKitTheme(*themeSpec, configTheme)
 		if err != nil {
 			return err
+		}
+		if *selftestMotion {
+			return runMotionSelftest(fb, th)
 		}
 		if *selftestDetail {
 			return runDetailSelftest(fb, th)
@@ -114,9 +118,15 @@ func run() error {
 	stills := tenfoot.NewStillCache()
 	last := time.Time{}
 	var lastKey renderKey
+	lastFocus := -1
+	var popAt time.Time
+	detailWas := false
+	var detailAt time.Time
 	present := func(m kitlauncher.Model) {
 		now := time.Now()
 		if m.AttractActive && !m.Busy {
+			lastFocus = -1
+			detailWas = false
 			handles := m.AttractPrefetchHandles()
 			stills.Keep(handles)
 			stills.Request(ctx, client.Library, handles)
@@ -148,20 +158,37 @@ func run() error {
 		}
 		covers.Keep(handles)
 		covers.Request(ctx, client.Library, handles)
+		cfg := d.Config()
+		w, h := cfg.Width, cfg.Height
+		grid := modelGrid(m, w, h, covers, th)
+		if lastFocus >= 0 && grid.Focus != lastFocus {
+			popAt = now
+		}
+		lastFocus = grid.Focus
+		fbgrid.ArmPop(&grid, popAt, now)
+		fade := 0.0
+		if m.DetailOpen {
+			if !detailWas {
+				detailAt = now
+			}
+			detailWas = true
+			fade = fbgrid.DetailFadeFromBlack(now.Sub(detailAt))
+		} else {
+			detailWas = false
+		}
 		key := modelRenderKey(m, covers.Generation())
-		if now.Sub(last) < 100*time.Millisecond && key == lastKey {
+		if !grid.MotionActive() && fade <= 0 && now.Sub(last) < 100*time.Millisecond && key == lastKey {
 			return
 		}
 		last = now
 		lastKey = key
-		cfg := d.Config()
-		w, h := cfg.Width, cfg.Height
 		if m.DetailOpen {
-			fbgrid.PaintDetail(d, modelDetailFrame(m, covers, th, w, h))
+			frame := modelDetailFrame(m, covers, th, w, h)
+			frame.FadeFromBlack = fade
+			fbgrid.PaintDetail(d, frame)
 			d.Present()
 			return
 		}
-		grid := modelGrid(m, w, h, covers, th)
 		fbgrid.Paint(d, grid)
 		d.Present()
 	}

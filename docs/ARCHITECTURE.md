@@ -605,13 +605,15 @@ filter the grid; the themed header shows `FOGCAST  MEGADRIVE 12/40`. D-pad
 and left-stick focus moves in two
 dimensions through `fbgrid.MoveFocus`: left/right clamp on the current row,
 up/down step by four cells, and leaving a page of 12 changes the painted page.
-East/B opens a focused title pane through `fbgrid.PaintDetail` (large cover,
+Focus changes play a short `anim.Tween` / `EaseInOut` pop (highlight ring
+scale ~1.06 over ~160ms); confirm eases a white pulse out over
+`ConfirmFrames` ticks. Unfocused cells keep their layout origins. East/B opens a focused title pane through `fbgrid.PaintDetail` (large cover,
 title at `TitlePx`, meta from catalog plus `GET /api/v1/presentation/games/{id}`
 when the pane is open). Down that cannot move focus further (last catalog row)
 does the same; A/South still launches from the grid. The pane's A plays the
 focused title, East/B and Up return to the same shelf and focus, and
 shoulder or D-pad L/R cycle `screenshot_ids` when two or more are present.
-Attract does not arm while the pane is open. Catalog cells paint decoded box-art from
+The pane opens with a cheap fade-from-black overlay. Attract does not arm while the pane is open. Catalog cells paint decoded box-art from
 `GET /api/v1/presentation/artwork/{handle}` when `Game.Cover` is present.
 `DecodeCover` Catmull–Rom downscales once to the cover cell so Software Draw
 stays a cheap nearest blit. Missing or still-loading art paints a theme-tinted

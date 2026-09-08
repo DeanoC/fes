@@ -262,6 +262,27 @@ func TestExerciseFPGAAnimProof(t *testing.T) {
 	}
 }
 
+func TestExerciseMotionGridPopsAndPulsesThenNestsDetail(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseMotionGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-motion PASS") || !strings.Contains(report, "selftest-detail PASS") || !strings.Contains(report, "selftest-attract PASS") || !strings.Contains(report, "selftest-nav PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "motion pop-mid") || !strings.Contains(report, "motion confirm-mid") {
+		t.Fatalf("missing motion evidence: %s", report)
+	}
+}
+
 func TestExerciseDetailGridOpensPaintsAndNestsAttract(t *testing.T) {
 	const w, h = 640, 480
 	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
