@@ -8,10 +8,14 @@ UI. Physical acceptance is recorded separately against exact artifact hashes.
 **Hardware status:** bootstrap root switching passes isolated Linux tests. The
 production watchdog helper passes five consecutive physical recoveries, a
 three-minute stability check, and confirmation-close with three-minute stability.
-Complete prepared-card update/fallback acceptance remains in progress. Do not
-treat these artifacts as a physically accepted recovery release.
+The prepared 1 GiB card was subsequently booted on the designated kit; a good
+network update and confirmation, invalid-init fallback, and rollback to factory
+all passed. The exact live-card evidence is in
+[the appliance release record](validation/2026-09-08-appliance-release.md).
+The deterministic assembly receipts still mark their artifact hardware field
+`not-run`; they do not replace the live-card record.
 The [current candidate record](validation/2026-09-08-appliance-release.md) lists
-the exact verified outputs and remaining physical checks.
+the exact verified outputs and live acceptance scope.
 
 ## Build once from selected inputs
 

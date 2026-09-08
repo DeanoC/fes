@@ -1,11 +1,14 @@
-# Appliance release candidate: host verification complete
+# Appliance release candidate: physical acceptance complete
 
 Version `0.2.0-dev.1` is a locally built candidate for the native three-system
-appliance. Source and artifacts have not been published. The complete card has
-not yet been installed or booted; update and fault-fallback acceptance remain
-pending. The separate [watchdog diagnostic record](2026-09-08-appliance-watchdog.md)
-documents the physical reset and confirmation-close primitives that passed on
-the existing card.
+appliance. Source and artifacts have not been published. The prepared card was
+installed in the designated kit and accepted on 2026-09-08. It booted the
+stable bootstrap, completed a network update and confirmation, rejected an
+unbootable candidate before candidate init, fell back to the confirmed image,
+and completed a rollback to the factory release. The separate
+[watchdog diagnostic record](2026-09-08-appliance-watchdog.md) documents the
+physical reset and confirmation-close primitives that passed before this card
+was installed.
 
 ## Exact inputs and outputs
 
@@ -41,9 +44,10 @@ the previously validated source-built FPGA bundles retain their locked bytes.
   `make verify-appliance-media` separately reconstructed them and matched the
   retained card and its external evidence.
 
-All artifact hardware fields remain `not-run`. The card directory is mode 0700,
-with card/evidence files mode 0600 because provisioning includes credentials.
-Do not commit or share the private card.
+The assembly evidence retains `hardware: not-run`; that field describes the
+reproducible artifact and is separate from the live-card acceptance below. The
+card directory is mode 0700, with card/evidence files mode 0600 because
+provisioning includes credentials. Do not commit or share the private card.
 
 ## Local artifact locations
 
@@ -66,14 +70,15 @@ with the existing kit backup preserved all existing agent values and all launche
 values; the added explicit `target_id` matches the saved kit identity. No manual
 configuration-file creation is required.
 
-## Physical migration still required
+## Physical installation
 
 The old card's 256 MiB FAT partition is too small for bootstrap, factory,
 retained old image and update candidates. A private verified backup retains the
 existing identity, configuration, cache and both SNES save files. Installation
 requires the kit card in the USB reader, exact-device identification and the
-existing kit-sharing procedure. At artifact completion another task held the
-kit lease (`nextpnr-m10k-dual`); it was not displaced.
+existing kit-sharing procedure. The migration used the exact removable device
+described below; no system disk was touched and the backed-up state was restored
+only under `fogcast/cache` and `fogcast/saves`.
 
 ## Card write receipt
 
@@ -92,11 +97,22 @@ then overlaid under `fogcast/cache` and `fogcast/saves`; all seven restored file
 were byte-verified against the private backup. The immutable source image hash
 above still describes the generated artifact; the physical card intentionally
 differs in those mutable state paths after restoration. The card was flushed and
-unmounted cleanly. This verifies the write and state restoration; it does not
-verify booting the card in the kit.
+unmounted cleanly.
 
-After the owner releases the kit, install the generated disk, preserve the
-relevant backed-up data, and verify the new boot's actual bootstrap/rootfs
-identity. Then exercise update, confirmation, rollback, failed-init and
-unconfirmed/hung-candidate fallback, plus native idle/Pong and save preservation.
-An HTTP 200 from the old working card is not acceptance of this artifact.
+## Live-card acceptance
+
+All transitions used the normal authenticated `fes-update` client and a fresh
+kit lease. The client never replayed an activation after a lost response.
+
+| Check | Result |
+| --- | --- |
+| Initial boot | Boot ID `423d9fb8-a115-4c28-a8f9-6d4879a34685`; bootstrap `b228e509…`; root `2607d27…`; health ready and native idle |
+| Good network update | Diagnostic image `f277c11c…` (`0.2.0-dev.2-diagnostic`) uploaded once, activated once, rebooted as `ea470ffe-cc3d-4737-b08d-c48df8ba8029`, and was durably confirmed; previous became factory `2607d27…` |
+| Invalid-init fallback | Candidate `b3795759…` (`0.2.0-dev.3-bad-init`) was a valid ext4 upload with a non-executable `/sbin/init`; activation returned a new boot `6be52daa-e80a-45aa-b59f-e1135f783813` on confirmed `f277c11c…`; the client refused to confirm the rejected candidate |
+| Rollback | Previous factory `2607d27…` was selected, rebooted as `62a3031e-235f-46b3-95bc-f6f259c5606e`, and durably confirmed |
+| Final state | `/v1/update`: good factory, no pending/trial/corruption, raw idle ready; `/v1/status`: idle; root read-only with `/.fes-bootstrap` retained; all five cache files and two SNES saves present |
+
+The invalid-init result demonstrates fallback before candidate init and network
+startup. The diagnostic images remain content-addressed but unreferenced on the
+card for post-test inspection; they do not replace the factory release. Native
+game-launch and UI acceptance remain the separate runtime/UI checks.
