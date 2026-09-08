@@ -143,6 +143,17 @@ func runAttractSelftest(fbPath string, th theme.Theme) error {
 	return err
 }
 
+func runDetailSelftest(fbPath string, th theme.Theme) error {
+	d, err := gfx.OpenLinuxFB(fbPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	report, err := exerciseDetailGrid(d, th)
+	fmt.Print(report)
+	return err
+}
+
 func exerciseNavGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	th = th.Complete()
 	games := make([]tenfoot.Game, 25)
@@ -524,6 +535,165 @@ func exerciseTextGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	fmt.Fprintf(&b, "selftest-text PASS font=goregular drawtext=1 debugtext=0 title_px=%d body_px=%d caption_px=%d status_px=%d\n",
 		arcade.TitlePx(), arcade.BodyPx(), arcade.CaptionPx(), arcade.StatusPx())
 	return b.String(), nil
+}
+
+func exerciseDetailGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
+	th = th.Complete()
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	m.SetCatalog(mixedShelfGames())
+	m.Focus = 1
+	keepShelf, keepFocus, keepID := m.Shelf, m.Focus, m.Games[m.Focus].ID
+	now := time.Now()
+	var b strings.Builder
+
+	a, _ := remoteinput.NormalizeGamepad("a", true)
+	if action := m.Input(a, now); action != "launch" {
+		return b.String(), fmt.Errorf("grid A %q", action)
+	}
+	if m.DetailOpen {
+		return b.String(), fmt.Errorf("grid A opened detail")
+	}
+
+	press(&m, "b")
+	if !m.DetailOpen || m.Shelf != keepShelf || m.Focus != keepFocus || m.Games[m.Focus].ID != keepID {
+		return b.String(), fmt.Errorf("B open shelf=%s focus=%d id=%s open=%v", m.Shelf, m.Focus, focusedSelftestID(m), m.DetailOpen)
+	}
+
+	cover := image.NewRGBA(image.Rect(0, 0, 8, 8))
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 8; x++ {
+			cover.Set(x, y, color.RGBA{R: 255, G: 32, B: 160, A: 255})
+		}
+	}
+	cfg := d.Config()
+	frame := modelDetailFrame(m, nil, th, cfg.Width, cfg.Height)
+	frame.Cover = cover
+	frame.CoverKind = fbgrid.CoverPresent
+	fbgrid.PaintDetail(d, frame)
+	d.Present()
+	cx, cy, ok := fbgrid.DetailCoverSample(cfg.Width, cfg.Height, th)
+	if !ok {
+		return b.String(), fmt.Errorf("detail cover sample")
+	}
+	gotB, gotG, gotR, gotX, err := gfx.SampleBGRX(d.Destination(), cfg, cx, cy)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "detail cover=(%d,%d) bgrx=%d,%d,%d,%d title=%q meta=%q\n", cx, cy, gotB, gotG, gotR, gotX, frame.Title, frame.Meta)
+	if gotB != 160 || gotG != 32 || gotR != 255 || gotX != 0 {
+		return b.String(), fmt.Errorf("detail cover bgrx %d,%d,%d,%d want 160,32,255,0", gotB, gotG, gotR, gotX)
+	}
+
+	rec := gfx.NewRecorder()
+	fbgrid.PaintDetail(rec, frame)
+	var sawTitle, sawDebug bool
+	for _, c := range rec.Calls {
+		if c.Op == "DebugText" {
+			sawDebug = true
+		}
+		if c.Op == "DrawText" && c.Text == frame.Title && c.SizePx == th.TitlePx() {
+			sawTitle = true
+		}
+	}
+	if sawDebug || !sawTitle {
+		return b.String(), fmt.Errorf("detail paint debug=%v title=%v ops=%v", sawDebug, sawTitle, rec.Ops())
+	}
+	snap := d.Snapshot()
+	tx, ty, ok := fbgrid.DetailTitleOrigin(cfg.Width, cfg.Height, th)
+	if !ok {
+		return b.String(), fmt.Errorf("title origin")
+	}
+	titleH := gfx.TextHeight(th.TitlePx()) + 4
+	if !regionHasThemedInk(snap, tx, ty, 240, titleH, th.Header) {
+		return b.String(), fmt.Errorf("detail missing title ink at %d,%d", tx, ty)
+	}
+	fmt.Fprintf(&b, "detail title-ink=1 title_px=%d hint=%q\n", th.TitlePx(), frame.Hint)
+
+	if action := m.Input(a, now); action != "launch" {
+		return b.String(), fmt.Errorf("detail A %q", action)
+	}
+
+	press(&m, "b")
+	if m.DetailOpen || m.Shelf != keepShelf || m.Focus != keepFocus || m.Games[m.Focus].ID != keepID {
+		return b.String(), fmt.Errorf("B close shelf=%s focus=%d id=%s open=%v", m.Shelf, m.Focus, focusedSelftestID(m), m.DetailOpen)
+	}
+
+	m.Focus = len(m.Games) - 1
+	last := m.Focus
+	press(&m, "dpad-down")
+	if !m.DetailOpen || m.Focus != last {
+		return b.String(), fmt.Errorf("last-row down open=%v focus=%d want %d", m.DetailOpen, m.Focus, last)
+	}
+	press(&m, "dpad-up")
+	if m.DetailOpen || m.Focus != last {
+		return b.String(), fmt.Errorf("Up close open=%v focus=%d", m.DetailOpen, m.Focus)
+	}
+
+	m.SetAttractIdle(10 * time.Millisecond)
+	press(&m, "b")
+	t0 := time.Now()
+	m.Tick(t0)
+	m.Tick(t0.Add(40 * time.Millisecond))
+	if !m.DetailOpen || m.AttractActive {
+		return b.String(), fmt.Errorf("attract while detail open=%v attract=%v", m.DetailOpen, m.AttractActive)
+	}
+	press(&m, "b")
+
+	shotAA := strings.Repeat("aa", 32)
+	shotBB := strings.Repeat("bb", 32)
+	press(&m, "b")
+	m.ApplyPresentation(m.Games[m.Focus].ID, tenfoot.Presentation{
+		Presentation: &tenfoot.PresentationInfo{
+			Studio:        "Nintendo",
+			Year:          "1985",
+			ScreenshotIDs: []string{shotAA, shotBB},
+		},
+	})
+	if m.FocusDetail().Studio != "Nintendo" {
+		return b.String(), fmt.Errorf("presentation studio %q", m.FocusDetail().Studio)
+	}
+	press(&m, "r")
+	if m.ShotIndex() != 1 {
+		return b.String(), fmt.Errorf("shot index %d", m.ShotIndex())
+	}
+	press(&m, "b")
+
+	attract, err := exerciseAttractGrid(d, th)
+	b.WriteString(attract)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "selftest-detail PASS open=1 close=1 title-ink=1 launch=1 attract-hold=1 nested-attract=1\n")
+	return b.String(), nil
+}
+
+func focusedSelftestID(m kitlauncher.Model) string {
+	if m.Focus < 0 || m.Focus >= len(m.Games) {
+		return ""
+	}
+	return m.Games[m.Focus].ID
+}
+
+func regionHasThemedInk(img *image.RGBA, x, y, w, h int, c gfx.Color) bool {
+	if img == nil || w < 1 || h < 1 {
+		return false
+	}
+	b := img.Bounds()
+	for yy := y; yy < y+h && yy < b.Max.Y; yy++ {
+		if yy < b.Min.Y {
+			continue
+		}
+		for xx := x; xx < x+w && xx < b.Max.X; xx++ {
+			if xx < b.Min.X {
+				continue
+			}
+			p := img.RGBAAt(xx, yy)
+			if absByte(int(p.R)-int(c.R)) <= 40 && absByte(int(p.G)-int(c.G)) <= 40 && absByte(int(p.B)-int(c.B)) <= 40 && p.A > 128 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func solidStill(r, g, b uint8, w, h int) *image.RGBA {

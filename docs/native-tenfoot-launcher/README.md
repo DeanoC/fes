@@ -139,7 +139,9 @@ attract does not launch the attract title on release. `-smoke` implies
 `-no-attract`. Linux without `ffmpeg` skips the video download and keeps the
 stills fallback. GUI video smoke on a Linux display is NEED. The on-kit
 `fogcast-kit` adapter arms the same host idle and paints stills only (no video
-decode); any pad input returns to the catalog grid.
+decode); any pad input returns to the catalog grid. The kit title pane is a
+sibling `fbgrid.PaintDetail` over the same catalog focus: East/B or last-row
+Down opens it, East/B and Up return, and A still launches.
 
 Gamepad is the intended control path (d-pad / left stick to move, South/A to
 launch, East/B to back, Start to quit, Select/View to cycle layout, Guide to

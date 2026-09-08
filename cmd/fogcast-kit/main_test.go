@@ -155,7 +155,7 @@ func TestModelFooterReportsConnectionBeforeController(t *testing.T) {
 		t.Fatalf("controller footer %q", got)
 	}
 	m = kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
-	if got := modelFooter(m); got != "A play | L/R shelf" {
+	if got := modelFooter(m); got != "A play | B detail | L/R shelf" {
 		t.Fatalf("play footer %q", got)
 	}
 }
@@ -179,7 +179,7 @@ func TestModelGridShowsActiveShelfChrome(t *testing.T) {
 	if g.Header != "FOGCAST  MEGADRIVE 1/3" {
 		t.Fatalf("header %q", g.Header)
 	}
-	if g.Footer != "A play | L/R shelf" {
+	if g.Footer != "A play | B detail | L/R shelf" {
 		t.Fatalf("footer %q", g.Footer)
 	}
 }
@@ -259,6 +259,27 @@ func TestExerciseFPGAAnimProof(t *testing.T) {
 	}
 	if !strings.Contains(report, "selftest-fpga PASS") || !strings.Contains(report, "HW=not-yet") || !strings.Contains(report, "backend=fpga") {
 		t.Fatalf("report %s", report)
+	}
+}
+
+func TestExerciseDetailGridOpensPaintsAndNestsAttract(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseDetailGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-detail PASS") || !strings.Contains(report, "selftest-attract PASS") || !strings.Contains(report, "selftest-cover PASS") || !strings.Contains(report, "selftest-text PASS") || !strings.Contains(report, "selftest-nav PASS") || !strings.Contains(report, "selftest-shelf PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "detail title-ink=1") || !strings.Contains(report, "detail cover=") {
+		t.Fatalf("missing detail paint evidence: %s", report)
 	}
 }
 

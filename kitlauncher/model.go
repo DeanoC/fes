@@ -22,7 +22,11 @@ type Model struct {
 	Connected, TargetReady, Busy, ControllerConnected bool
 	Message                                           string
 	AttractActive                                     bool
+	DetailOpen                                        bool
 	chord                                             controller.Chord
+	presentationID                                    string
+	presentation                                      tenfoot.Presentation
+	shotIndex                                         int
 	axisX, axisY                                      int
 	lastInput                                         time.Time
 	attractIdle                                       time.Duration
@@ -53,6 +57,9 @@ func (m *Model) Input(e remoteinput.Event, now time.Time) string {
 	if m.AttractActive {
 		return m.inputAttract(e, dx, dy, now)
 	}
+	if m.DetailOpen {
+		return m.inputDetail(e, dx, dy, now)
+	}
 	if significantPad(e, dx, dy) {
 		m.noteActivity(now)
 	}
@@ -66,10 +73,18 @@ func (m *Model) Input(e remoteinput.Event, now time.Time) string {
 			if len(m.Games) > 0 && m.Focus >= 0 && m.Focus < len(m.Games) && m.Games[m.Focus].Launchable {
 				return "launch"
 			}
+		case remoteinput.ButtonB:
+			m.openDetail(now)
+			return ""
 		}
 	}
 	if len(m.Games) > 0 && (dx != 0 || dy != 0) {
-		m.Focus = fbgrid.MoveFocus(m.Focus, len(m.Games), fbgrid.DefaultColumns, dx, dy)
+		next := fbgrid.MoveFocus(m.Focus, len(m.Games), fbgrid.DefaultColumns, dx, dy)
+		if dy > 0 && next == m.Focus {
+			m.openDetail(now)
+			return ""
+		}
+		m.Focus = next
 	}
 	return ""
 }

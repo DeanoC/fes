@@ -364,6 +364,36 @@ func TestCarouselIndexClampAndFailedSkip(t *testing.T) {
 	}
 }
 
+func TestGameDetailMergesCatalogAndPresentation(t *testing.T) {
+	t.Parallel()
+	game := Game{ID: "snes-mario", Title: "Mario", System: "snes", Year: "1990", Genre: "Action", Favorite: true}
+	d := GameDetail(game, Presentation{})
+	if d.Title != "Mario" || d.Platform != "snes" || d.Year != "1990" || d.Genre != "Action" || !d.Favorite {
+		t.Fatalf("catalog %+v", d)
+	}
+	if d.Studio != "" || d.Summary != "" || len(d.ScreenshotIDs) != 0 {
+		t.Fatalf("empty presentation leaked %+v", d)
+	}
+	shot := strings.Repeat("ab", 32)
+	d = GameDetail(game, Presentation{
+		Presentation: &PresentationInfo{
+			Year:          "1985",
+			Genre:         "Platform",
+			Studio:        "Nintendo",
+			Players:       "1-2",
+			Summary:       "Jump.",
+			ScreenshotIDs: []string{shot, "nope", shot},
+		},
+		Attribution: &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
+	})
+	if d.Year != "1985" || d.Genre != "Platform" || d.Studio != "Nintendo" || d.Players != "1-2" || d.Summary != "Jump." {
+		t.Fatalf("merged %+v", d)
+	}
+	if d.Attribution != "Data from IGDB.com" || len(d.ScreenshotIDs) != 1 || d.ScreenshotIDs[0] != shot {
+		t.Fatalf("shots/attr %+v", d)
+	}
+}
+
 func TestFocusDetailOmitsEmptyStudioPlayersAndScreenshots(t *testing.T) {
 	t.Parallel()
 	d := FocusDetail{Platform: "Super NES", Year: "1985", Genre: "Platform"}

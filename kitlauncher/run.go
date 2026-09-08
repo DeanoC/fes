@@ -21,6 +21,9 @@ type observation struct {
 	attract        tenfoot.AttractPlaylist
 	haveAttract    bool
 	hydrateAttract bool
+	detailID       string
+	presentation   tenfoot.Presentation
+	haveDetail     bool
 	err            error
 	mutation       bool
 	message        string
@@ -70,6 +73,12 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		e := epoch
 		load := !catalogLoaded || time.Since(lastCatalog) > 30*time.Second
 		loadAttract := !attractLoaded || time.Since(lastAttract) > attractIdleRefresh
+		detailID := ""
+		if m.DetailOpen {
+			if game, ok := m.focusedGame(); ok {
+				detailID = game.ID
+			}
+		}
 		go func() {
 			o := observation{epoch: e}
 			o.session, o.err = c.Session(ctx)
@@ -86,6 +95,14 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					o.haveAttract = true
 				} else {
 					o.hydrateAttract = true
+				}
+			}
+			if o.err == nil && detailID != "" {
+				p, err := c.Library.GamePresentation(ctx, detailID)
+				if err == nil {
+					o.detailID = detailID
+					o.presentation = p
+					o.haveDetail = true
 				}
 			}
 			send(o)
@@ -190,6 +207,9 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.HydrateAttractIdle()
 					attractLoaded = true
 					lastAttract = time.Now()
+				}
+				if o.haveDetail {
+					m.ApplyPresentation(o.detailID, o.presentation)
 				}
 			}
 		case now := <-tick.C:
