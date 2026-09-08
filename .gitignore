@@ -10,7 +10,11 @@ __pycache__/
 *.log
 *.json
 !cores/fes-pong/generated/exchanges.json
+# Canonical format-2 conformance inputs use generated-output extensions.
+!tests/fixtures/core-bundle-v2/cases.json
 *.rbf
+!tests/fixtures/core-bundle-v2/payloads/empty.rbf
+!tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf
 *.sof
 *.smsg
 *.rpt

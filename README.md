@@ -396,6 +396,10 @@ checkout at the manifest revision, tracked recipe and ABI-definition files with
 the recorded digests, and clean dependency checkouts at their recorded commits.
 It cannot seal artifacts from an uncommitted implementation tree.
 
+The shared reader conformance corpus under `tests/fixtures/core-bundle-v2/` is
+checked-in test input, including its `cases.json` index and two `.rbf` payloads;
+the repository ignore rules exempt those exact paths from output-file patterns.
+
 See `docs/oracle-method.md` for the explicit Quartus path and
 `docs/linux-mailbox-development.md` for the mailbox experiment.
 
