@@ -371,15 +371,24 @@ make -C sources/libmister-runtime test
 make test
 ```
 
-Expected: all software tests pass. If Quartus is unavailable, record `fetch/hash verified; source rebuild not run` rather than inventing a bundle.
+Expected: all software tests pass. If Quartus is unavailable, record
+`fetch/hash verified; source rebuild not run` rather than inventing a bundle.
 
-- [x] **Step 3: Check the NES source bundle when Quartus is unavailable**
+- [x] **Step 3: Build and check the NES source bundle**
 
-Run `make -C sources/misteross fetch-core CORE=nes`; then, only with an installed exact Quartus 17.0.2, run `rebuild-core` and `export-core-bundle`. Verify the resulting sealed directory contains only `nes.rbf` and `nes-rbf.toml`, and pass it to FogCast as `NES_RBF_BUNDLE`. Here the locked checkout and official RBF hash were verified; Quartus was unavailable, so rebuild/export remains deferred.
+Run `make -C sources/misteross fetch-core CORE=nes`; with the installed exact
+Quartus 17.0.2, run `rebuild-core` and `export-core-bundle`. Verify the sealed
+directory contains only `nes.rbf` and `nes-rbf.toml`, and pass it to FogCast as
+`NES_RBF_BUNDLE`. Here the locked checkout and official RBF hash were verified,
+the rebuild passed timing, and the exported source-built bundle is available.
 
 - [x] **Step 4: Run image preflight without a cold rebuild**
 
-Use the existing native development/image cache and run the target-image source/fixture checks with `NATIVE_RUNTIME_SYSTEMS='megadrive pong snes nes'` and sealed synthetic fixtures when no NES rebuild is available. The fixture confirms a five-RBF manifest, exact sidecars and missing-core rejection; an assembled image remains pending the bundle.
+Use the existing native development/image cache and run the target-image
+source/fixture checks with `NATIVE_RUNTIME_SYSTEMS='megadrive pong snes nes'` and
+sealed fixtures. The fixture confirms a five-RBF manifest, exact sidecars and
+missing-core rejection; an assembled image containing the exact upstream RBF
+remains pending the designated-kit test.
 
 - [x] **Step 5: Record software evidence and verify clean state**
 
