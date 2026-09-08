@@ -50,6 +50,10 @@ development possible with both the open-source Mistral toolchain and Quartus.
   `ram_style="m10k_tdp_byte"`: 512×20 (two 10-bit lanes) and 512×16 (two
   padded 8-bit bytes). Each port has an independent two-bit write mask.
   Place-and-route uses default router2.
+- Cyclone V mixed-width true dual-port M10K RAM through
+  `ram_style="m10k_tdp_mixed"`: physical 20/10 and 10/20, including padded
+  16/8 and 8/16. A wide word maps to two adjacent narrow lanes; a narrow
+  write preserves the neighbor. Place-and-route uses default router2.
 - Checked fractional-N PLL profiles when `fractional_vco_multiplier` is
   `"true"`: 50 MHz → 12.288 MHz, 50 MHz → 11.2896 MHz, and the dual
   12.288/24.576 MHz pair.
@@ -218,6 +222,23 @@ development possible with both the open-source Mistral toolchain and Quartus.
 - `560_m10k_tdp_be16`, the 512-by-16 padded-byte true dual-port table on the
   same protocol. Run `make sim EXP=560_m10k_tdp_be16` and
   `make oss EXP=560_m10k_tdp_be16`; no Quartus comparison lane is implemented.
+- `570_m10k_tdp_mix20_10`, a mixed-width true dual-port table with 512-by-20
+  port A and 1024-by-10 port B. Address 0 reads `0xA6` after configuration.
+  Run `make sim EXP=570_m10k_tdp_mix20_10` and
+  `make oss EXP=570_m10k_tdp_mix20_10`; no Quartus comparison lane is
+  implemented.
+- `580_m10k_tdp_mix10_20`, the reverse 1024-by-10 / 512-by-20 mixed-width
+  true dual-port table. Run `make sim EXP=580_m10k_tdp_mix10_20` and
+  `make oss EXP=580_m10k_tdp_mix10_20`; no Quartus comparison lane is
+  implemented.
+- `590_m10k_tdp_mix16_8`, the padded 512-by-16 / 1024-by-8 mixed-width true
+  dual-port table. Run `make sim EXP=590_m10k_tdp_mix16_8` and
+  `make oss EXP=590_m10k_tdp_mix16_8`; no Quartus comparison lane is
+  implemented.
+- `600_m10k_tdp_mix8_16`, the reverse padded 1024-by-8 / 512-by-16 mixed-width
+  true dual-port table. Run `make sim EXP=600_m10k_tdp_mix8_16` and
+  `make oss EXP=600_m10k_tdp_mix8_16`; no Quartus comparison lane is
+  implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under

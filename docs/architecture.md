@@ -145,18 +145,20 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current Yosys pin `f1beec777bf5a12f0249b9ff1698dbc4191ed2a5` is
-`mistral-stable` including merged PR #6: Intel ALM infers byte-masked Cyclone V M10K
-true dual-port RAM through `ram_style="m10k_tdp_byte"` as `MISTRAL_M10K_TDP`
-with `CFG_BYTE_ENABLE=1` (512×20 two 10-bit lanes or 512×16 padded 8-bit
-bytes), including merged PR #5 unmasked TDP, merged PR #4 mixed-width SDP,
-merged PR #3 20-bit byte enables, merged PR #2 independent CLK1/CLK2 and
-merged PR #1 initialized MLAB. The CMake base is
+The current Yosys pin `10891a9e0256a0eac70c329aa64c633902fc6bc6` is
+`mistral-stable` including merged PR #7: Intel ALM infers mixed-width Cyclone V M10K
+true dual-port RAM through `ram_style="m10k_tdp_mixed"` as `MISTRAL_M10K_TDP`
+with `CFG_MIXED_WIDTH=1` (physical 20/10 and 10/20, padded 16/8 and 8/16),
+including merged PR #6 byte-masked TDP, merged PR #5 unmasked TDP, merged PR #4
+mixed-width SDP, merged PR #3 20-bit byte enables, merged PR #2 independent
+CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair it with nextpnr
-`04901d02`.
+`5c12b204`.
 
-The current nextpnr pin `04901d02c3469707fccd45d6991f2905327f6352` is
-`mistral-stable` including merged PR #37 true dual-port M10K byte enables
+The current nextpnr pin `5c12b20429bccc206cf1dfbb726c95bbb30f51d8` is
+`mistral-stable` including merged PR #38 mixed-width true dual-port M10K packing
+(`CFG_MIXED_WIDTH=1`, per-port 1024×10 or 512×20, `CFG_RD_ABITS`/`CFG_RD_DBITS`)
+on merged PR #37 true dual-port M10K byte enables
 (`CFG_BYTE_ENABLE=1`, `A1BE`/`B1BE` onto `BYTEENABLEA`/`BYTEENABLEB`) on merged PR
 #36 unmasked TDP packing (`MISTRAL_M10K_TDP` into the existing M10K BEL with `CFG_TDP=1`) on merged PR
 #35 `expandBoundingBox` / default router2, merged PR #34 mixed-width M10K packing on merged PR #33 20-bit M10K byte-enable packing, merged PR #32 dual-clock M10K, merged PR #31 MLAB INIT and merged PR #30 DSP modes: three-lane 9×9 packing (336 logical `MISTRAL_MUL9X9` BELs on 112
@@ -916,6 +918,59 @@ through both ports, low/high/zero/full masks on both writers with preserved
 storage, inferred output hold during writes, simultaneous disjoint masked
 writes, and enable hold with disabled write suppression.
 
+`570_m10k_tdp_mix20_10` exposes a mixed-width M10K true dual-port table on
+HPS GP: 512-by-20 port A and 1024-by-10 port B. Port A uses `FPGA_CLK1_50`.
+Port B uses a 25 MHz PLL output gated by `cyclonev_clkena`. GPI signature
+`0xD421`. Canonical 10-bit lane `a` starts as
+`((a * 73) ^ (a >> 1) ^ 10'hA6)`, so address 0 is `0xA6`. Yosys maps one
+`MISTRAL_M10K_TDP` with `CFG_MIXED_WIDTH=1` and physical 20/10 ports (Yosys
+may exchange primitive A/B). nextpnr packs it as one `MISTRAL_M10K` with
+`CFG_TDP=1`. DSP and MLAB remain forbidden. Simulation and OSS are
+supported; Quartus comparison is not implemented. See
+`experiments/570_m10k_tdp_mix20_10/expected.md`.
+
+The OSS `570_m10k_tdp_mix20_10` artifact has SHA-256
+`af567581d02b4a5ef60d4d8fb43ebf88e180c428de215d78d3d70731968ae49d`
+and size 1,959,036 bytes. Its reported write-clock Fmax is 313.283 MHz against
+the 50 MHz constraint. Utilization is one `MISTRAL_M10K`, one `altera_pll`,
+and one HPS GP. Exact-artifact kit diagnostics on 2026-09-08 returned GPI
+signature `0xD421`, initialized words through both port widths, NEW_DATA with
+cross-width readback and preserved neighbors, simultaneous disjoint writes,
+and enable hold with disabled write suppression.
+
+`580_m10k_tdp_mix10_20` is the reverse 1024-by-10 / 512-by-20 mixed-width
+true dual-port table. GPI signature `0xD422`. Simulation and OSS are
+supported; Quartus comparison is not implemented. See
+`experiments/580_m10k_tdp_mix10_20/expected.md`.
+
+The OSS `580_m10k_tdp_mix10_20` artifact has SHA-256
+`27b7d348eef7466fd48467d2459e273cd31b90fdfcbdd9a9d978e8c2c17ac4ea`
+and size 1,959,043 bytes. Its reported write-clock Fmax is 311.526 MHz against
+the 50 MHz constraint. Exact-artifact kit diagnostics on 2026-09-08 returned
+GPI signature `0xD422` with the same mixed-width probe set.
+
+`590_m10k_tdp_mix16_8` is the padded 512-by-16 / 1024-by-8 mixed-width true
+dual-port table. GPI signature `0xD423`. Simulation and OSS are supported;
+Quartus comparison is not implemented. See
+`experiments/590_m10k_tdp_mix16_8/expected.md`.
+
+The OSS `590_m10k_tdp_mix16_8` artifact has SHA-256
+`5b95fd2c63370395e9a57346cc1395f0eeb99727baec7c677ef49fdd25c3abbd`
+and size 1,959,209 bytes. Its reported write-clock Fmax is 332.005 MHz against
+the 50 MHz constraint. Exact-artifact kit diagnostics on 2026-09-08 returned
+GPI signature `0xD423` with the same mixed-width probe set.
+
+`600_m10k_tdp_mix8_16` is the reverse padded 1024-by-8 / 512-by-16
+mixed-width true dual-port table. GPI signature `0xD424`. Simulation and OSS
+are supported; Quartus comparison is not implemented. See
+`experiments/600_m10k_tdp_mix8_16/expected.md`.
+
+The OSS `600_m10k_tdp_mix8_16` artifact has SHA-256
+`90c0a149ac9799e94ba6666a88a768d8a4814d9129f7fce1cf4b3c5d9356e8b2`
+and size 1,959,145 bytes. Its reported write-clock Fmax is 287.853 MHz against
+the 50 MHz constraint. Exact-artifact kit diagnostics on 2026-09-08 returned
+GPI signature `0xD424` with the same mixed-width probe set.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
@@ -923,8 +978,9 @@ M18 `A*B+C`, registered M18 with omitted enable/ACLR, initialized MLAB
 contents, independent-clock 20-bit and 40-bit M10K simple dual-port RAM,
 20-bit M10K byte-enable lanes with independent clocks, mixed-width 40↔10
 M10K simple dual-port RAM, independent-clock 10-bit and 20-bit M10K true
-dual-port RAM, and independent-clock byte-masked 20-bit and 16-bit TDP M10K
-RAM. It does not establish native game acceptance.
+dual-port RAM, independent-clock byte-masked 20-bit and 16-bit TDP M10K RAM,
+and independent-clock mixed-width 20/10, 10/20, 16/8 and 8/16 TDP M10K RAM.
+It does not establish native game acceptance.
 
 ## Standalone Pong game
 

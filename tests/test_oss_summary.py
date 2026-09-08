@@ -11,8 +11,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SUMMARY = ROOT / "scripts" / "oss_summary.py"
-YOSYS_COMMIT = "f1beec777bf5a12f0249b9ff1698dbc4191ed2a5"
-NEXTPNR_COMMIT = "04901d02c3469707fccd45d6991f2905327f6352"
+YOSYS_COMMIT = "10891a9e0256a0eac70c329aa64c633902fc6bc6"
+NEXTPNR_COMMIT = "5c12b20429bccc206cf1dfbb726c95bbb30f51d8"
 YOSYS_DIGEST = "a" * 64
 NEXTPNR_DIGEST = "b" * 64
 SOURCE_HASHES = {
@@ -188,7 +188,7 @@ class OssSummaryTests(unittest.TestCase):
         self.assertNotIn("MISTRAL_BUF", summary["hard_blocks"])
         self.assertEqual(summary["hard_blocks"]["MISTRAL_M10K"]["used"], 0)
         self.assertEqual(summary["hard_block_status"], "pass")
-        self.assertEqual(summary["authenticated_tools"]["yosys"]["commit"], "f1beec777bf5a12f0249b9ff1698dbc4191ed2a5")
+        self.assertEqual(summary["authenticated_tools"]["yosys"]["commit"], "10891a9e0256a0eac70c329aa64c633902fc6bc6")
         self.assertTrue(summary["reproducibility"]["rbf_stability_measured"])
         self.assertTrue(summary["reproducibility"]["rbf_stable"])
 

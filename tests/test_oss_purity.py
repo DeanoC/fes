@@ -142,8 +142,8 @@ class OssPipelinePurityTests(unittest.TestCase):
                 shim(bin_dir / name, name)
 
         pins = {
-            "yosys": "f1beec777bf5a12f0249b9ff1698dbc4191ed2a5",
-            "nextpnr": "04901d02c3469707fccd45d6991f2905327f6352",
+            "yosys": "10891a9e0256a0eac70c329aa64c633902fc6bc6",
+            "nextpnr": "5c12b20429bccc206cf1dfbb726c95bbb30f51d8",
         }
         for lock_name, commit in pins.items():
             evidence = external_build / lock_name if symlink_build_tools else build / lock_name
@@ -201,6 +201,25 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertIn("--freq 50", commands)
         self.assertNotIn("hps_gp_model.v", commands)
         self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_block_memory_and_pll_for_m10k_tdp_mixed(self) -> None:
+        for experiment in (
+            "570_m10k_tdp_mix20_10",
+            "580_m10k_tdp_mix10_20",
+            "590_m10k_tdp_mix16_8",
+            "600_m10k_tdp_mix8_16",
+        ):
+            result = self._run("--print-commands", "--experiment", experiment)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            commands = result.stdout
+            self.assertIn(f"experiments/{experiment}/rtl/top.v", commands)
+            self.assertIn("synth_intel_alm -nolutram -nodsp -top top", commands)
+            self.assertNotIn("-nobram", commands)
+            self.assertNotIn("--router", commands)
+            self.assertNotIn("hps_gp_model.v", commands)
+            self.assertIn("--freq 50", commands)
+            self.assertIn("--compress-rbf", commands)
+            self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
 
     def test_print_commands_enables_block_memory_and_pll_for_m10k_tdp_byte(self) -> None:
         for experiment in ("550_m10k_tdp_be20", "560_m10k_tdp_be16"):
