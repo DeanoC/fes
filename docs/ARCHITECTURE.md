@@ -603,19 +603,29 @@ coverage; physical reboot and DHCP acceptance belongs to the selected FES image.
 ## Native kit launcher
 
 The native image packages `fogcast-kit`, a CGO-free controller/session adapter
-with a live 4×3 catalog grid renderer. Catalog rows are grouped into system
+with a living-room platform wheel and a live 4×3 catalog grid renderer.
+The wheel is the top-level browse view: a horizontal clear-logo / wordmark
+strip plus a hero for the focused system. Catalog rows are grouped into system
 shelves (`All` plus each system present in the loaded games, typically pong,
-Mega Drive, and SNES). Shoulder L/R and Select cycle the active shelf and
-filter the grid; the themed header shows `FOGCAST  MEGADRIVE 12/40`. D-pad
-and left-stick focus moves in two
+Mega Drive, and SNES). On the wheel, D-pad, left stick, shoulder L/R, and
+Select cycle platforms; A/South enters the filtered 4×3 grid for that system.
+East/B on the grid returns to the wheel. In the grid, shoulder L/R and Select
+still cycle shelves as a secondary filter; the themed header shows
+`FOGCAST  MEGADRIVE 12/40`. The hero paints an attract still, presentation
+`backdrop_artwork_id`, or representative cover when a handle exists, otherwise
+a theme-tinted placeholder, with game-count chrome and a representative title
+when one is cheap from the loaded catalog. Wheel cells use a representative
+`logo_id` when presentation has one, else a bold wordmark. D-pad
+and left-stick focus in the grid moves in two
 dimensions through `fbgrid.MoveFocus`: left/right clamp on the current row,
 up/down step by four cells, and leaving a page of 12 changes the painted page.
 Focus changes play a short `anim.Tween` / `EaseInOut` pop (highlight ring
 scale ~1.06 over ~160ms); confirm eases a white pulse out over
-`ConfirmFrames` ticks. Unfocused cells keep their layout origins. East/B opens a focused title pane through `fbgrid.PaintDetail` (large cover,
-title at `TitlePx`, meta from catalog plus `GET /api/v1/presentation/games/{id}`
-when the pane is open). Down that cannot move focus further (last catalog row)
-does the same; A/South still launches from the grid. The pane's A plays the
+`ConfirmFrames` ticks. Unfocused cells keep their layout origins. Down that
+cannot move focus further (last catalog row) opens a focused title pane
+through `fbgrid.PaintDetail` (large cover, title at `TitlePx`, meta from
+catalog plus `GET /api/v1/presentation/games/{id}` when the pane is open).
+A/South still launches from the grid. The pane's A plays the
 focused title, East/B and Up return to the same shelf and focus, and
 shoulder or D-pad L/R cycle `screenshot_ids` when two or more are present.
 The pane opens with a cheap fade-from-black overlay. Attract does not arm while the pane is open. Catalog cells paint decoded box-art from

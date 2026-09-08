@@ -177,6 +177,143 @@ func runMotionSelftest(fbPath string, th theme.Theme) error {
 	return err
 }
 
+func runWheelSelftest(fbPath string, th theme.Theme) error {
+	d, err := gfx.OpenLinuxFB(fbPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	report, err := exerciseWheelGrid(d, th)
+	fmt.Print(report)
+	return err
+}
+
+func exerciseWheelGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
+	th = th.Complete()
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true, WheelOpen: true}
+	m.SetCatalog(mixedShelfGames())
+	cfg := d.Config()
+	var b strings.Builder
+	step := func(name, wantShelf string, wantCount int, wantWheel bool) error {
+		frame := paintWheel(d, m, th)
+		hx, hy, ok := fbgrid.WheelFocusSample(cfg.Width, cfg.Height, th, len(frame.Items), frame.Focus)
+		if !ok {
+			return fmt.Errorf("%s: no wheel focus", name)
+		}
+		gotB, gotG, gotR, gotX, err := gfx.SampleBGRX(d.Destination(), cfg, hx, hy)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(&b, "%s shelf=%s games=%d wheel=%v header=%q stats=%q focus=(%d,%d) bgrx=%d,%d,%d,%d items=%d\n",
+			name, m.Shelf, len(m.Games), m.WheelOpen, frame.Header, frame.Stats, hx, hy, gotB, gotG, gotR, gotX, len(frame.Items))
+		if m.WheelOpen != wantWheel {
+			return fmt.Errorf("%s: wheel %v want %v", name, m.WheelOpen, wantWheel)
+		}
+		if m.Shelf != wantShelf {
+			return fmt.Errorf("%s: shelf %q want %q", name, m.Shelf, wantShelf)
+		}
+		if len(m.Games) != wantCount {
+			return fmt.Errorf("%s: games %d want %d", name, len(m.Games), wantCount)
+		}
+		if gotB != th.Highlight.B || gotG != th.Highlight.G || gotR != th.Highlight.R || gotX != 0 {
+			return fmt.Errorf("%s: highlight bgrx %d,%d,%d,%d", name, gotB, gotG, gotR, gotX)
+		}
+		return nil
+	}
+	if err := step("origin", kitlauncher.ShelfAll, 15, true); err != nil {
+		return b.String(), err
+	}
+	press(&m, "r")
+	if err := step("shoulder-r-pong", "pong", 2, true); err != nil {
+		return b.String(), err
+	}
+	press(&m, "r")
+	if err := step("shoulder-r-megadrive", "megadrive", 5, true); err != nil {
+		return b.String(), err
+	}
+	hero := solidStill(255, 32, 160, 16, 12)
+	frame := modelWheelFrame(m, nil, nil, nil, th, cfg.Width, cfg.Height)
+	frame.Hero = hero
+	frame.HeroKind = fbgrid.CoverPresent
+	fbgrid.PaintWheel(d, frame)
+	d.Present()
+	hx, hy, ok := fbgrid.WheelHeroSample(cfg.Width, cfg.Height, th)
+	if !ok {
+		return b.String(), fmt.Errorf("hero sample")
+	}
+	gotB, gotG, gotR, gotX, err := gfx.SampleBGRX(d.Destination(), cfg, hx, hy)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "hero=(%d,%d) bgrx=%d,%d,%d,%d title=%q stats=%q featured=%q\n",
+		hx, hy, gotB, gotG, gotR, gotX, frame.Title, frame.Stats, frame.Featured)
+	if gotB != 160 || gotG != 32 || gotR != 255 || gotX != 0 {
+		return b.String(), fmt.Errorf("hero bgrx %d,%d,%d,%d want 160,32,255,0", gotB, gotG, gotR, gotX)
+	}
+	if frame.Title != "MEGADRIVE" || frame.Stats != "5 games" {
+		return b.String(), fmt.Errorf("hero chrome title=%q stats=%q", frame.Title, frame.Stats)
+	}
+	rec := gfx.NewRecorder()
+	fbgrid.PaintWheel(rec, frame)
+	var sawTitle, sawStats bool
+	for _, c := range rec.Calls {
+		if c.Op == "DrawText" && c.Text == "MEGADRIVE" && c.SizePx == th.TitlePx() {
+			if c.Weight != th.TitleWeight() {
+				return b.String(), fmt.Errorf("wheel title weight %s", c.Weight)
+			}
+			sawTitle = true
+		}
+		if c.Op == "DrawText" && strings.Contains(c.Text, "5 games") {
+			sawStats = true
+		}
+		if c.Op == "DebugText" {
+			return b.String(), fmt.Errorf("wheel DebugText")
+		}
+	}
+	if !sawTitle || !sawStats {
+		return b.String(), fmt.Errorf("wheel text title=%v stats=%v ops=%v", sawTitle, sawStats, rec.Ops())
+	}
+
+	a, _ := remoteinput.NormalizeGamepad("a", true)
+	if action := m.Input(a, time.Now()); action != "" {
+		return b.String(), fmt.Errorf("wheel A %q", action)
+	}
+	if m.WheelOpen || m.Shelf != "megadrive" || len(m.Games) != 5 {
+		return b.String(), fmt.Errorf("enter wheel=%v shelf=%s n=%d", m.WheelOpen, m.Shelf, len(m.Games))
+	}
+	g := paintModel(d, m, th)
+	if len(g.Tiles) != 5 || g.Header != "FOGCAST  MEGADRIVE 5/15" {
+		return b.String(), fmt.Errorf("grid header=%q tiles=%d", g.Header, len(g.Tiles))
+	}
+	if g.Footer != "A play | B platforms | L/R shelf" {
+		return b.String(), fmt.Errorf("grid footer %q", g.Footer)
+	}
+	fmt.Fprintf(&b, "enter-grid header=%q tiles=%d footer=%q\n", g.Header, len(g.Tiles), g.Footer)
+	press(&m, "b")
+	if !m.WheelOpen || m.DetailOpen || m.Shelf != "megadrive" {
+		return b.String(), fmt.Errorf("back wheel=%v detail=%v shelf=%s", m.WheelOpen, m.DetailOpen, m.Shelf)
+	}
+	if err := step("back-wheel-megadrive", "megadrive", 5, true); err != nil {
+		return b.String(), err
+	}
+
+	motion, err := exerciseMotionGrid(d, th)
+	b.WriteString(motion)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "selftest-wheel PASS enter=1 back=1 hero=1 nested-motion=1\n")
+	return b.String(), nil
+}
+
+func paintWheel(d *gfx.LinuxFB, m kitlauncher.Model, th theme.Theme) fbgrid.WheelFrame {
+	cfg := d.Config()
+	frame := modelWheelFrame(m, nil, nil, nil, th, cfg.Width, cfg.Height)
+	fbgrid.PaintWheel(d, frame)
+	d.Present()
+	return frame
+}
+
 func exerciseMotionGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	th = th.Complete()
 	cfg := d.Config()

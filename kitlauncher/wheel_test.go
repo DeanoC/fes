@@ -1,0 +1,179 @@
+package kitlauncher
+
+import (
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/DeanoC/FogCast/host/tenfoot"
+	"github.com/DeanoC/FogCast/remoteinput"
+)
+
+func TestWheelFocusCyclesPlatformsAndEnterOpensGrid(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true, WheelOpen: true}
+	m.SetCatalog(mixedCatalog())
+	now := time.Unix(1, 0)
+	if m.Shelf != ShelfAll || !m.WheelOpen {
+		t.Fatalf("origin shelf=%q wheel=%v", m.Shelf, m.WheelOpen)
+	}
+	if items := m.WheelItems(); len(items) != 4 || items[0].ID != ShelfAll || items[1].ID != "pong" {
+		t.Fatalf("items %#v", items)
+	}
+	pressNamed(&m, "dpad-right", now)
+	if m.Shelf != "pong" || !m.WheelOpen || m.WheelIndex() != 1 {
+		t.Fatalf("right shelf=%q wheel=%v idx=%d", m.Shelf, m.WheelOpen, m.WheelIndex())
+	}
+	if m.WheelStats() != "1 game" || m.WheelFeaturedTitle() != "Pong" {
+		t.Fatalf("pong stats=%q featured=%q", m.WheelStats(), m.WheelFeaturedTitle())
+	}
+	pressNamed(&m, "r", now)
+	if m.Shelf != "megadrive" || len(m.Games) != 3 {
+		t.Fatalf("shoulder shelf=%q n=%d", m.Shelf, len(m.Games))
+	}
+	if action := pressNamed(&m, "a", now); action != "" {
+		t.Fatalf("enter launched %q", action)
+	}
+	if m.WheelOpen || !m.fromWheel || m.Shelf != "megadrive" {
+		t.Fatalf("enter wheel=%v from=%v shelf=%q", m.WheelOpen, m.fromWheel, m.Shelf)
+	}
+	right, _ := remoteinput.NormalizeGamepad("dpad-right", true)
+	m.Input(right, now)
+	if m.Focus != 1 || m.Games[m.Focus].ID != "streets" {
+		t.Fatalf("grid nav focus=%d games=%v", m.Focus, ids(m.Games))
+	}
+	if action := pressNamed(&m, "a", now); action != "launch" {
+		t.Fatalf("grid A %q", action)
+	}
+	pressNamed(&m, "b", now)
+	if !m.WheelOpen || m.fromWheel || m.Shelf != "megadrive" {
+		t.Fatalf("back wheel=%v from=%v shelf=%q", m.WheelOpen, m.fromWheel, m.Shelf)
+	}
+	if m.DetailOpen {
+		t.Fatal("back opened detail")
+	}
+}
+
+func TestWheelBackDoesNotStealGridDetailWhenNotFromWheel(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true}
+	m.SetCatalog(mixedCatalog())
+	now := time.Unix(1, 0)
+	if m.WheelOpen {
+		t.Fatal("grid tests start on wheel")
+	}
+	pressNamed(&m, "b", now)
+	if !m.DetailOpen || m.WheelOpen {
+		t.Fatalf("B detail open=%v wheel=%v", m.DetailOpen, m.WheelOpen)
+	}
+}
+
+func TestWheelLastRowDownStillOpensDetailFromGrid(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true, WheelOpen: true}
+	m.SetCatalog(mixedCatalog())
+	now := time.Unix(1, 0)
+	pressNamed(&m, "r", now)
+	pressNamed(&m, "r", now)
+	pressNamed(&m, "a", now)
+	if m.WheelOpen || m.Shelf != "megadrive" {
+		t.Fatalf("enter shelf=%q wheel=%v", m.Shelf, m.WheelOpen)
+	}
+	m.Focus = len(m.Games) - 1
+	pressNamed(&m, "dpad-down", now)
+	if !m.DetailOpen || m.WheelOpen {
+		t.Fatalf("last-row down open=%v wheel=%v", m.DetailOpen, m.WheelOpen)
+	}
+	pressNamed(&m, "b", now)
+	if m.DetailOpen || m.WheelOpen || m.Shelf != "megadrive" {
+		t.Fatalf("detail B wheel=%v open=%v shelf=%q", m.WheelOpen, m.DetailOpen, m.Shelf)
+	}
+	pressNamed(&m, "b", now)
+	if !m.WheelOpen || m.DetailOpen {
+		t.Fatalf("grid B wheel=%v open=%v", m.WheelOpen, m.DetailOpen)
+	}
+}
+
+func TestWheelShouldersWrapAndSelectCycles(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true, WheelOpen: true}
+	m.SetCatalog(mixedCatalog())
+	now := time.Unix(1, 0)
+	pressNamed(&m, "l", now)
+	if m.Shelf != "snes" || !m.WheelOpen {
+		t.Fatalf("left wrap %q", m.Shelf)
+	}
+	pressNamed(&m, "select", now)
+	if m.Shelf != ShelfAll {
+		t.Fatalf("select %q", m.Shelf)
+	}
+	pressNamed(&m, "dpad-down", now)
+	if m.Shelf != "pong" {
+		t.Fatalf("down %q", m.Shelf)
+	}
+}
+
+func TestWheelADoesNotLaunch(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true, WheelOpen: true}
+	m.SetCatalog(mixedCatalog())
+	now := time.Unix(1, 0)
+	if action := pressNamed(&m, "a", now); action != "" {
+		t.Fatalf("wheel A %q", action)
+	}
+	if m.WheelOpen {
+		t.Fatal("A did not enter")
+	}
+}
+
+func TestWheelHeroPrefersAttractThenBackdropThenCover(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true, WheelOpen: true}
+	m.SetCatalog(mixedCatalog())
+	m.CycleShelf(1)
+	m.CycleShelf(1)
+	if m.Shelf != "megadrive" {
+		t.Fatalf("shelf %q", m.Shelf)
+	}
+	cover := strings.Repeat("11", 32)
+	backdrop := strings.Repeat("22", 32)
+	still := strings.Repeat("33", 32)
+	pres := tenfoot.Presentation{Presentation: &tenfoot.PresentationInfo{
+		CoverArtworkID:    cover,
+		BackdropArtworkID: backdrop,
+		LogoID:            strings.Repeat("44", 32),
+	}}
+	if got := m.WheelHeroHandle(pres); got != backdrop {
+		t.Fatalf("backdrop hero %q", got)
+	}
+	if got := m.WheelLogoHandle(pres); got != strings.Repeat("44", 32) {
+		t.Fatalf("logo %q", got)
+	}
+	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{{
+		GameID: "sonic", Title: "Sonic", Platform: "megadrive", Backdrop: still, Launchable: true,
+	}}})
+	if got := m.WheelHeroHandle(pres); got != still {
+		t.Fatalf("attract hero %q", got)
+	}
+	m.Shelf = "snes"
+	m.applyFilter("")
+	if got := m.WheelHeroHandle(tenfoot.Presentation{}); got != "" {
+		t.Fatalf("other shelf used md still %q", got)
+	}
+}
+
+func TestWheelPrefetchIDsFocusFirst(t *testing.T) {
+	m := Model{}
+	m.SetCatalog(mixedCatalog())
+	m.Shelf = "snes"
+	m.applyFilter("")
+	ids := m.WheelPrefetchIDs()
+	if len(ids) < 3 || ids[0] != "mario" {
+		t.Fatalf("prefetch %v", ids)
+	}
+}
+
+func TestWheelEmptyCatalogIsIdle(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true, WheelOpen: true}
+	now := time.Unix(1, 0)
+	if action := pressNamed(&m, "a", now); action != "" {
+		t.Fatalf("empty A %q", action)
+	}
+	if !m.WheelOpen || m.WheelStats() != "0 games" {
+		t.Fatalf("empty wheel=%v stats=%q", m.WheelOpen, m.WheelStats())
+	}
+}

@@ -44,6 +44,7 @@ func run() error {
 	selftestAttract := flag.Bool("selftest-attract", false, "arm short idle stills attract, paint a still, dismiss, then exit")
 	selftestDetail := flag.Bool("selftest-detail", false, "open/close title detail, paint cover and title ink, then exit")
 	selftestMotion := flag.Bool("selftest-motion", false, "prove focus pop and confirm pulse over ticks, then exit")
+	selftestWheel := flag.Bool("selftest-wheel", false, "paint platform wheel and hero, enter a system grid, then exit")
 	flag.Parse()
 	if *selftestFPGA {
 		fb := "/dev/fb0"
@@ -66,7 +67,7 @@ func run() error {
 		}
 		return runThemeSelftest(fb)
 	}
-	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestMotion {
+	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestMotion || *selftestWheel {
 		fb := "/dev/fb0"
 		configTheme := ""
 		if c, err := kitlauncher.LoadConfig(*configPath); err == nil {
@@ -81,6 +82,9 @@ func run() error {
 		}
 		if *selftestMotion {
 			return runMotionSelftest(fb, th)
+		}
+		if *selftestWheel {
+			return runWheelSelftest(fb, th)
 		}
 		if *selftestBold {
 			return runBoldSelftest(fb, th)
@@ -149,6 +153,55 @@ func run() error {
 			lastKey = key
 			cfg := d.Config()
 			fbgrid.PaintAttract(d, attractFrame(view, stills, th, cfg.Width, cfg.Height))
+			d.Present()
+			return
+		}
+		if m.WheelOpen && !m.Busy {
+			detailWas = false
+			ids := m.WheelPrefetchIDs()
+			presentations.Keep(ids)
+			presentations.Request(ctx, client.Library, ids)
+			heroHandles := make([]string, 0, 2)
+			logoHandles := make([]string, 0, len(ids))
+			for _, id := range ids {
+				pres := presentations.Get(id)
+				if handle := tenfoot.LogoHandle(pres); handle != "" {
+					logoHandles = append(logoHandles, handle)
+				}
+			}
+			focusedPres := tenfoot.Presentation{}
+			if game, ok := m.WheelGame(m.Shelf); ok {
+				focusedPres = presentations.Get(game.ID)
+			}
+			if handle := m.WheelHeroHandle(focusedPres); handle != "" {
+				heroHandles = append(heroHandles, handle)
+			}
+			if handle := m.WheelLogoHandle(focusedPres); handle != "" {
+				logoHandles = append(logoHandles, handle)
+			}
+			stills.Keep(heroHandles)
+			stills.Request(ctx, client.Library, heroHandles)
+			covers.Keep(logoHandles)
+			covers.Request(ctx, client.Library, logoHandles)
+			cfg := d.Config()
+			w, h := cfg.Width, cfg.Height
+			frame := modelWheelFrame(m, covers, stills, presentations, th, w, h)
+			wheelFocus := m.WheelIndex()
+			if lastFocus >= 0 && wheelFocus != lastFocus {
+				popAt = now
+			}
+			lastFocus = wheelFocus
+			frame.Now = now
+			frame.PopAt = popAt
+			key := modelRenderKey(m, covers.Generation(), presentations.Generation())
+			key.Wheel = true
+			key.Stills = stills.Generation()
+			if !frame.MotionActive() && now.Sub(last) < 100*time.Millisecond && key == lastKey {
+				return
+			}
+			last = now
+			lastKey = key
+			fbgrid.PaintWheel(d, frame)
 			d.Present()
 			return
 		}
@@ -248,7 +301,7 @@ type renderKey struct {
 	FocusID, Message, Shelf, AttractHandle            string
 	SessionState, Execution, GameID                   string
 	Busy, Connected, TargetReady, ControllerConnected bool
-	Attract, Detail                                   bool
+	Attract, Detail, Wheel                            bool
 	Covers, Stills, Presentations                     uint64
 }
 
@@ -262,7 +315,7 @@ func modelRenderKey(m kitlauncher.Model, covers, presentations uint64) renderKey
 		Message: m.Message, Shelf: m.Shelf, SessionState: m.Session.State, Execution: m.Session.Execution,
 		GameID: m.Session.GameID, Busy: m.Busy, Connected: m.Connected,
 		TargetReady: m.TargetReady, ControllerConnected: m.ControllerConnected,
-		Detail: m.DetailOpen, Shot: m.ShotIndex(),
+		Detail: m.DetailOpen, Wheel: m.WheelOpen, Shot: m.ShotIndex(),
 		Covers: covers, Presentations: presentations,
 	}
 }
@@ -461,11 +514,61 @@ func modelFooter(m kitlauncher.Model) string {
 			status = "Connect USB gamepad"
 		case m.Session.State == "active":
 			status = "Select+Start stop"
+		case m.WheelOpen:
+			status = m.WheelHint()
 		default:
-			status = "A play | B detail | L/R shelf"
+			status = m.GridHint()
 		}
 	}
 	return truncateLabel(asciiLabel(status), 36)
+}
+
+func modelWheelFrame(m kitlauncher.Model, covers, stills *tenfoot.CoverCache, presentations *tenfoot.PresentationCache, th theme.Theme, width, height int) fbgrid.WheelFrame {
+	th = th.Complete()
+	items := m.WheelItems()
+	frame := fbgrid.WheelFrame{
+		Width:    width,
+		Height:   height,
+		Header:   truncateLabel(asciiLabel(m.HeaderChrome()), 36),
+		Footer:   modelFooter(m),
+		Title:    asciiLabel(m.ShelfLabel()),
+		Stats:    asciiLabel(m.WheelStats()),
+		Featured: asciiLabel(m.WheelFeaturedTitle()),
+		Color:    th.SystemColor(m.Shelf),
+		Focus:    m.WheelIndex(),
+		Theme:    th,
+	}
+	frame.Items = make([]fbgrid.WheelItem, 0, len(items))
+	for _, item := range items {
+		cell := fbgrid.WheelItem{ID: item.ID, Label: asciiLabel(item.Label), Color: th.SystemColor(item.ID)}
+		if game, ok := m.WheelGame(item.ID); ok && presentations != nil && covers != nil {
+			if handle := tenfoot.LogoHandle(presentations.Get(game.ID)); handle != "" && covers.Status(handle) == tenfoot.CoverReady {
+				cell.Logo = covers.Image(handle)
+			}
+		}
+		frame.Items = append(frame.Items, cell)
+	}
+	focusedPres := tenfoot.Presentation{}
+	if game, ok := m.WheelGame(m.Shelf); ok && presentations != nil {
+		focusedPres = presentations.Get(game.ID)
+	}
+	if handle := m.WheelHeroHandle(focusedPres); handle != "" && stills != nil {
+		frame.Hero = stills.Image(handle)
+		switch stills.Status(handle) {
+		case tenfoot.CoverReady:
+			frame.HeroKind = fbgrid.CoverPresent
+		case tenfoot.CoverLoading:
+			frame.HeroKind = fbgrid.CoverLoading
+		default:
+			frame.HeroKind = fbgrid.CoverMissing
+		}
+	} else {
+		frame.HeroKind = fbgrid.CoverMissing
+	}
+	if handle := m.WheelLogoHandle(focusedPres); handle != "" && covers != nil && covers.Status(handle) == tenfoot.CoverReady {
+		frame.Logo = covers.Image(handle)
+	}
+	return frame
 }
 
 func asciiLabel(s string) string {

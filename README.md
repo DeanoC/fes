@@ -74,18 +74,27 @@ The normal FPGA launch path is:
 The native image packages the CGO-free `fogcast-kit` adapter for the kit HDMI
 display and USB controller. It uses an explicitly paired host listener and the
 existing session/input ownership path; Select + Start held for one second requests
-Stop and returns to the library. Its live catalog is rendered as a small 4×3
-cover grid through `host/tenfoot/fbgrid`. Shoulder L/R (and Select) cycle
-system shelves (`All` plus each system present in the loaded catalog); the
-header shows the active shelf and counts (`MEGADRIVE 12/40`). D-pad and left
+Stop and returns to the library. Its live catalog opens as a living-room platform wheel
+(horizontal clear-logo / wordmark strip plus a platform hero) and drops into
+a small 4×3 cover grid through `host/tenfoot/fbgrid`. Shoulder L/R (and Select)
+cycle platforms on the wheel and still cycle system shelves in the grid
+(`All` plus each system present in the loaded catalog); the
+header shows the active shelf and counts (`MEGADRIVE 12/40`). A/South on the
+wheel enters that system's grid; East/B on the grid returns to the wheel.
+The focused platform paints hardware/fanart/backdrop when attract, presentation
+`backdrop_artwork_id`, or a representative cover handle exists, otherwise a
+theme-tinted placeholder, with game-count chrome. Wheel cells use a
+representative clear logo when presentation has `logo_id`, else a bold
+wordmark. D-pad and left
 stick move focus in
 two dimensions (left/right clamp on the row; up/down by four cells, paging
 when `Focus` leaves the visible 12). A short ease-in-out pop grows the
 focused tile's highlight ring (~1.06 scale, ~160ms) when focus changes;
 confirm is a white pulse that eases out over `ConfirmFrames` rather than a
-flat flash. East/B opens a focused title pane
+flat flash. Down that cannot move focus further (last catalog row) opens a
+focused title pane
 (large cover, title, and platform/year/genre/studio when presentation has
-them); Down that cannot move focus further (last catalog row) does the same.
+them).
 A/South still launches from the grid. The pane's A plays the title, East/B
 and Up return to the same shelf and focus, and L/R (or shoulders) cycle
 screenshots when `screenshot_ids` has two or more. Opening the pane uses a

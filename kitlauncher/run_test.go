@@ -84,13 +84,13 @@ func TestUnavailableHostStillRendersAndExits(t *testing.T) {
 	}
 }
 
-type pressPad struct{ sent bool }
+type pressPad struct{ n int }
 
 func (p *pressPad) Poll() ([]remoteinput.Event, error) {
-	if p.sent {
+	if p.n >= 2 {
 		return nil, nil
 	}
-	p.sent = true
+	p.n++
 	e, _ := remoteinput.NormalizeGamepad("a", true)
 	return []remoteinput.Event{e}, nil
 }
@@ -240,14 +240,18 @@ func TestRunDismissesAttractOnPadAndKeepsFocus(t *testing.T) {
 	}
 }
 
-type bPressPad struct{ sent atomic.Bool }
+type bPressPad struct{ n int }
 
 func (p *bPressPad) Poll() ([]remoteinput.Event, error) {
-	if p.sent.Load() {
+	if p.n >= 2 {
 		return nil, nil
 	}
-	p.sent.Store(true)
-	e, _ := remoteinput.NormalizeGamepad("b", true)
+	name := "a"
+	if p.n == 1 {
+		name = "dpad-down"
+	}
+	p.n++
+	e, _ := remoteinput.NormalizeGamepad(name, true)
 	return []remoteinput.Event{e}, nil
 }
 func (*bPressPad) Close() error { return nil }

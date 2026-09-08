@@ -82,12 +82,22 @@ eases out over `ConfirmFrames` (launch path unchanged). The present loop
 paints while pop or a title-pane open fade is active instead of waiting for
 the usual 100ms same-key skip.
 
-The grid uses the D-pad and left stick in two dimensions to select, Shoulder L/R
-(or Select) to cycle system shelves, and A to launch. East/B opens a focused
+Browse starts on a platform wheel: a horizontal clear-logo / wordmark strip
+and a hero for the focused system. D-pad, left stick, Shoulder L/R, and Select
+cycle platforms; A/South enters the existing filtered 4×3 grid. East/B on the
+grid returns to the wheel. The hero paints an attract still for that system,
+then presentation `backdrop_artwork_id`, then a representative catalog/presentation
+cover; missing art uses the same theme-tinted placeholder as the grid. Light
+stats chrome is the shelf game count plus a representative title when the
+catalog already has one. Wheel cells use a representative `logo_id` when
+presentation has one, else a bold text label. The grid uses the D-pad and left
+stick in two dimensions to select, Shoulder L/R
+(or Select) to cycle system shelves as a secondary filter, and A to launch.
+Down that cannot move
+focus further (last catalog row, including analog down) opens a focused
 title pane (large cover from CoverCache/DecodeCover, title at the theme title
 role, meta from catalog year/genre plus presentation studio/players when the
-host `GET /api/v1/presentation/games/{id}` succeeds). Down that cannot move
-focus further (last catalog row, including analog down) also opens the pane.
+host `GET /api/v1/presentation/games/{id}` succeeds).
 A stays launch on the grid and is not used to enter the pane. The pane closes
 on East/B or Up and restores the same shelf and focus. A on the pane launches
 the focused title through the same session path as the grid. Shoulder L/R and
@@ -97,8 +107,10 @@ on the grid). Attract does not arm while the pane is open; opening it notes
 activity so idle does not fire underneath. The pane uses a short
 fade-from-black overlay (`DetailFadeDuration`) that settles to the existing
 paint. Missing cover art uses the same
-placeholder path as the grid. The idle footer hint is
-`A play | B detail | L/R shelf`; the pane footer is `A play | B back`
+placeholder path as the grid. The wheel footer hint is
+`A open | L/R platform`; the grid footer after entering from the wheel is
+`A play | B platforms | L/R shelf`; a grid that never used the wheel (selftests)
+keeps `A play | B detail | L/R shelf`; the pane footer is `A play | B back`
 (or `A play | B back | L/R shots` when screenshots can cycle). Shelves are `All` plus
 each system present in the loaded catalog. Changing shelf filters the 4×3 page
 and keeps focus when that game is still visible; otherwise focus lands on the
@@ -156,7 +168,10 @@ paint a themed idle panel instead of hanging on the grid.
 
 Run `go test -race ./kitlauncher/... ./host/tenfoot/inputmap ./host/tenfoot/theme ./host/tenfoot/fbgrid ./host/tenfoot/gfx ./host/tenfoot/anim ./cmd/fogcast-kit` for adapter tests. They
 exercise real HTTP transports with isolated servers and never open real input or
-framebuffer devices. On the kit, `fogcast-kit -selftest-nav` paints a 25-title
+framebuffer devices. On the kit, `fogcast-kit -selftest-wheel` paints the platform
+wheel and hero, cycles systems, enters the Mega Drive grid, returns on B, and
+re-runs motion (which re-runs detail, attract, cover, text, nav, and shelf).
+`fogcast-kit -selftest-nav` paints a 25-title
 catalog, moves focus right/down across a 4×3 page, samples the highlight, and
 exits without talking to the host. `fogcast-kit -selftest-shelf` paints a mixed
 pong/Mega Drive/SNES catalog, cycles shelves with L/R and Select, checks the

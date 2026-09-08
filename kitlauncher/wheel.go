@@ -1,0 +1,201 @@
+package kitlauncher
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/DeanoC/FogCast/host/tenfoot"
+	"github.com/DeanoC/FogCast/remoteinput"
+)
+
+// WheelItem is one platform on the living-room wheel.
+type WheelItem struct {
+	ID    string
+	Label string
+	Count int
+}
+
+func (m *Model) inputWheel(e remoteinput.Event, dx, dy int, now time.Time) string {
+	if significantPad(e, dx, dy) {
+		m.noteActivity(now)
+	}
+	if e.Kind == remoteinput.KindButton && e.Action == remoteinput.ActionPress {
+		switch e.Code {
+		case remoteinput.ButtonL:
+			m.CycleShelf(-1)
+			return ""
+		case remoteinput.ButtonR, remoteinput.ButtonSelect:
+			m.CycleShelf(1)
+			return ""
+		case remoteinput.ButtonA:
+			m.enterPlatform()
+			return ""
+		}
+	}
+	if dx != 0 {
+		m.CycleShelf(dx)
+		return ""
+	}
+	if dy != 0 {
+		m.CycleShelf(dy)
+	}
+	return ""
+}
+
+func (m *Model) enterPlatform() {
+	if m == nil || !m.WheelOpen || len(m.Shelves) == 0 {
+		return
+	}
+	m.WheelOpen = false
+	m.fromWheel = true
+}
+
+func (m *Model) showWheel(now time.Time) {
+	if m == nil {
+		return
+	}
+	m.closeDetail()
+	m.WheelOpen = true
+	m.fromWheel = false
+	m.noteActivity(now)
+}
+
+func (m *Model) leavePlatform(now time.Time) {
+	if m == nil || !m.fromWheel {
+		return
+	}
+	m.showWheel(now)
+}
+
+// WheelIndex is the focused platform in Shelves.
+func (m Model) WheelIndex() int {
+	shelf := m.activeShelf()
+	for i, id := range m.Shelves {
+		if id == shelf {
+			return i
+		}
+	}
+	if len(m.Shelves) == 0 {
+		return 0
+	}
+	return 0
+}
+
+// WheelItems is All plus each system, with per-shelf game counts.
+func (m Model) WheelItems() []WheelItem {
+	items := make([]WheelItem, 0, len(m.Shelves))
+	for _, id := range m.Shelves {
+		games := filterGames(m.Catalog, id)
+		label := strings.ToUpper(id)
+		if id == ShelfAll {
+			label = "ALL"
+		}
+		items = append(items, WheelItem{ID: id, Label: label, Count: len(games)})
+	}
+	return items
+}
+
+// WheelStats is the light hero chrome: "12 games".
+func (m Model) WheelStats() string {
+	n, _ := m.ShelfCounts()
+	if n == 1 {
+		return "1 game"
+	}
+	return fmt.Sprintf("%d games", n)
+}
+
+// WheelFeaturedTitle is a cheap title from the focused shelf, when one exists.
+func (m Model) WheelFeaturedTitle() string {
+	game, ok := m.WheelGame(m.activeShelf())
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(game.Title)
+}
+
+// WheelGame is the first launchable title on shelf, else the first row.
+func (m Model) WheelGame(shelf string) (tenfoot.Game, bool) {
+	games := filterGames(m.Catalog, shelf)
+	for _, game := range games {
+		if game.Launchable {
+			return game, true
+		}
+	}
+	if len(games) > 0 {
+		return games[0], true
+	}
+	return tenfoot.Game{}, false
+}
+
+// WheelPrefetchIDs is one representative game per shelf, focused first.
+func (m Model) WheelPrefetchIDs() []string {
+	ids := make([]string, 0, len(m.Shelves))
+	seen := map[string]struct{}{}
+	add := func(id string) {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			return
+		}
+		if _, ok := seen[id]; ok {
+			return
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if game, ok := m.WheelGame(m.activeShelf()); ok {
+		add(game.ID)
+	}
+	for _, shelf := range m.Shelves {
+		if game, ok := m.WheelGame(shelf); ok {
+			add(game.ID)
+		}
+	}
+	return ids
+}
+
+// WheelHeroHandle prefers an attract still for the focused platform, then a
+// presentation backdrop, then the representative cover. Empty means placeholder.
+func (m Model) WheelHeroHandle(pres tenfoot.Presentation) string {
+	if handle := m.wheelAttractHandle(); handle != "" {
+		return handle
+	}
+	if handle := tenfoot.BackdropHandle(pres); handle != "" {
+		return handle
+	}
+	if game, ok := m.WheelGame(m.activeShelf()); ok {
+		return tenfoot.CoverHandle(game, pres)
+	}
+	return ""
+}
+
+// WheelLogoHandle is a representative-title clear logo when presentation has one.
+func (m Model) WheelLogoHandle(pres tenfoot.Presentation) string {
+	return tenfoot.LogoHandle(pres)
+}
+
+func (m Model) wheelAttractHandle() string {
+	shelf := m.activeShelf()
+	for _, item := range m.attractItems {
+		if shelf != ShelfAll && !strings.EqualFold(strings.TrimSpace(item.Platform), shelf) {
+			continue
+		}
+		if handle := item.StillHandle(); handle != "" {
+			return handle
+		}
+	}
+	return ""
+}
+
+// WheelHint is the idle footer on the platform wheel.
+func (m Model) WheelHint() string {
+	return "A open | L/R platform"
+}
+
+// GridHint is the idle footer on the filtered game grid.
+func (m Model) GridHint() string {
+	if m.fromWheel {
+		return "A play | B platforms | L/R shelf"
+	}
+	return "A play | B detail | L/R shelf"
+}
