@@ -428,6 +428,12 @@ def build_summary(
         )
     _route_status(route_log)
     clock_name, achieved_mhz = _timing(timing_json, requested_mhz, clock_prefix, policy)
+    try:
+        policy.validate_timing_report(
+            json.loads(_regular_file(timing_json, "timing report").read_text(encoding="utf-8"))
+        )
+    except (OSError, json.JSONDecodeError, PolicyError) as exc:
+        raise SummaryError(str(exc)) from exc
     resources, hard_blocks, unknown_resources, resource_classes, hard_block_status, hard_block_reason = _resources(
         timing_json, policy
     )
