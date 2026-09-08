@@ -46,6 +46,10 @@ type fakeService struct {
 	developmentBody        []byte
 	developmentSize        int64
 	developmentHook        func(context.Context, int64, io.Reader) (protocol.Status, error)
+	core                   protocol.Status
+	coreErr                error
+	coreCalls              int
+	coreHook               func(context.Context, int64, io.Reader) (protocol.Status, error)
 	stopped                protocol.Status
 	stopErr                error
 	stopResults            []error
@@ -119,6 +123,13 @@ func (s *fakeService) LoadDevelopmentRBF(ctx context.Context, size int64, body i
 	}
 	s.developmentBody = content
 	return s.development, s.developmentErr
+}
+func (s *fakeService) LoadCore(ctx context.Context, size int64, body io.Reader) (protocol.Status, error) {
+	s.coreCalls++
+	if s.coreHook != nil {
+		return s.coreHook(ctx, size, body)
+	}
+	return s.core, s.coreErr
 }
 func (s *fakeService) Stop(ctx context.Context) (protocol.Status, error) {
 	s.stopCtxErrs = append(s.stopCtxErrs, ctx.Err())
@@ -218,6 +229,7 @@ type fakeRemoteInput struct {
 	attach    []string
 	detach    []string
 	attachErr error
+	detachErr error
 	order     *[]string
 }
 
@@ -236,6 +248,9 @@ func (r *fakeRemoteInput) Detach(_ context.Context, reason string) error {
 		if r.order != nil {
 			*r.order = append(*r.order, "input.detach")
 		}
+	}
+	if r.detachErr != nil {
+		return r.detachErr
 	}
 	r.status = host.RemoteInputStatus{State: host.RemoteInputDetached, Metrics: host.RemoteInputMetrics{ShutdownReason: reason}}
 	return nil
@@ -525,6 +540,223 @@ func TestSessionDevelopmentRBFStreamsWithoutMediaOrInput(t *testing.T) {
 	idle := serve(t, handler, http.MethodGet, "/api/v1/session")
 	if idle.Code != http.StatusOK || strings.Contains(idle.Body.String(), "execution") {
 		t.Fatalf("idle development session = %d %s", idle.Code, idle.Body.String())
+	}
+}
+
+func TestSessionDevelopmentCorePreservesPriorInputUntilAdmissionThenReplacesIt(t *testing.T) {
+	payload := []byte("fcore")
+	core := "fes.pong"
+	packageStatus := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core,
+		CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 9,
+			ABI: protocol.RuntimeContract{ID: "fes.simple-game", Major: 1}, BuildID: strings.Repeat("b", 32),
+			ActiveInterfaces: []protocol.RuntimeInterface{{ID: "fes.gamepad", Major: 1}}, Gamepad: true}}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputAttached, Ready: true}}
+	service := &fakeService{core: packageStatus, status: packageStatus}
+	service.coreHook = func(_ context.Context, size int64, body io.Reader) (protocol.Status, error) {
+		if len(input.detach) != 0 {
+			t.Fatal("prior input detached before package admission")
+		}
+		got, _ := io.ReadAll(body)
+		if size != int64(len(payload)) || !bytes.Equal(got, payload) {
+			t.Fatalf("size=%d body=%q", size, got)
+		}
+		return packageStatus, nil
+	}
+	handler := hostapi.New(service, hostapi.WithRemoteInput(input))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/development-core", bytes.NewReader(payload))
+	request.Host = "127.0.0.1"
+	request.Header.Set("Content-Type", "application/octet-stream")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || service.coreCalls != 1 || len(input.detach) != 1 || len(input.attach) != 1 || input.attach[0] != core {
+		t.Fatalf("response=%d %s calls=%d detach=%v attach=%v", response.Code, response.Body.String(), service.coreCalls, input.detach, input.attach)
+	}
+	if !strings.Contains(response.Body.String(), `"execution":"fpga_development"`) ||
+		!strings.Contains(response.Body.String(), `"generation":9`) ||
+		!strings.Contains(response.Body.String(), `"input":{"state":"attached","ready":true`) {
+		t.Fatalf("session=%s", response.Body.String())
+	}
+}
+
+func TestSessionDevelopmentCoreAdmissionFailurePreservesPriorInput(t *testing.T) {
+	priorCore := "SNES"
+	service := &fakeService{status: protocol.Status{State: protocol.StateActive, ObservedCore: &priorCore},
+		coreErr: &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "invalid", Phase: "admission"}}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputAttached, Ready: true}}
+	handler := hostapi.New(service, hostapi.WithRemoteInput(input))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/development-core", strings.NewReader("bad"))
+	request.Host = "127.0.0.1"
+	request.Header.Set("Content-Type", "application/octet-stream")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code == http.StatusOK || len(input.detach) != 0 || len(input.attach) != 0 {
+		t.Fatalf("response=%d %s detach=%v attach=%v", response.Code, response.Body.String(), input.detach, input.attach)
+	}
+}
+
+func TestSessionDevelopmentCorePredispatchFailurePreservesPriorInputAndMedia(t *testing.T) {
+	gameID, system, core := "host-game", protocol.SystemSNES, "SNES"
+	service := &fakeService{
+		launch:  protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core}},
+		status:  protocol.Status{State: protocol.StateIdle},
+		coreErr: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "status unavailable", Phase: "request"}}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
+	media := &fakeMediaSession{}
+	handler := hostapi.New(service, hostapi.WithRemoteInput(input), hostapi.WithMediaSession(media))
+	if launched := launchSession(t, handler, gameID); launched.Code != http.StatusOK || len(input.attach) != 1 || len(media.start) != 1 {
+		t.Fatalf("launch=%d %s attach=%v media=%v", launched.Code, launched.Body.String(), input.attach, media.start)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/development-core", strings.NewReader("fcore"))
+	request.Host = "127.0.0.1"
+	request.Header.Set("Content-Type", "application/octet-stream")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code == http.StatusOK || !strings.Contains(response.Body.String(), `"phase":"request"`) ||
+		len(input.detach) != 0 || len(media.stop) != 0 || input.status.State != host.RemoteInputAttached {
+		t.Fatalf("response=%d %s detach=%v media.stop=%v input=%+v", response.Code, response.Body.String(), input.detach, media.stop, input.status)
+	}
+}
+
+func TestSessionDevelopmentCorePublishesNewOwnerBeforeMediaCleanupFailure(t *testing.T) {
+	gameID, system := "host-game", protocol.SystemSNES
+	core := "fes.pong"
+	packageStatus := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core,
+		CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 14,
+			ABI: protocol.RuntimeContract{ID: "fes.simple-game", Major: 1}, BuildID: strings.Repeat("b", 32), Gamepad: true}}
+	service := &fakeService{
+		launch: protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system}},
+		core:   packageStatus}
+	service.coreHook = func(context.Context, int64, io.Reader) (protocol.Status, error) {
+		service.status = packageStatus
+		return packageStatus, nil
+	}
+	media := &fakeMediaSession{stopErr: errors.New("media stop failed")}
+	handler := hostapi.New(service, hostapi.WithMediaSession(media))
+	launched := launchSession(t, handler, gameID)
+	if launched.Code != http.StatusOK || len(media.start) != 1 {
+		t.Fatalf("launch=%d %s media=%v", launched.Code, launched.Body.String(), media.start)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/development-core", strings.NewReader("fcore"))
+	request.Host = "127.0.0.1"
+	request.Header.Set("Content-Type", "application/octet-stream")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code == http.StatusOK || !strings.Contains(response.Body.String(), `"phase":"recovery"`) {
+		t.Fatalf("cleanup failure hidden: %s", response.Body.String())
+	}
+	media.stopErr = nil
+	observed := serve(t, handler, http.MethodGet, "/api/v1/session")
+	if observed.Code != http.StatusOK || !strings.Contains(observed.Body.String(), `"execution":"fpga_development"`) ||
+		!strings.Contains(observed.Body.String(), `"generation":14`) || strings.Contains(observed.Body.String(), `"game_id"`) {
+		t.Fatalf("truthful session=%d %s", observed.Code, observed.Body.String())
+	}
+}
+
+func TestSessionDevelopmentCoreRetiresGenerationBindingAfterInputCleanupFailure(t *testing.T) {
+	gameID, system, nativeCore := "native-game", protocol.SystemSNES, "SNES"
+	packageCore := "fes.pong"
+	packageStatus := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &packageCore,
+		CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 15,
+			ABI: protocol.RuntimeContract{ID: "fes.simple-game", Major: 1}, BuildID: strings.Repeat("b", 32), Gamepad: true}}
+	service := &fakeService{
+		launch: protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &nativeCore}},
+		status: protocol.Status{State: protocol.StateIdle}}
+	service.coreHook = func(context.Context, int64, io.Reader) (protocol.Status, error) {
+		service.status = packageStatus
+		return packageStatus, nil
+	}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
+	handler := hostapi.New(service, hostapi.WithRemoteInput(input))
+	if launched := launchSession(t, handler, gameID); launched.Code != http.StatusOK || len(input.attach) != 1 {
+		t.Fatalf("launch=%d %s attach=%v", launched.Code, launched.Body.String(), input.attach)
+	}
+	input.detachErr = errors.New("input detach failed")
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/development-core", strings.NewReader("fcore"))
+	request.Host = "127.0.0.1"
+	request.Header.Set("Content-Type", "application/octet-stream")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code == http.StatusOK || !strings.Contains(response.Body.String(), `"phase":"recovery"`) || len(input.attach) != 1 {
+		t.Fatalf("response=%d %s attach=%v detach=%v", response.Code, response.Body.String(), input.attach, input.detach)
+	}
+	input.detachErr = nil
+	observed := serve(t, handler, http.MethodGet, "/api/v1/session")
+	if observed.Code != http.StatusOK || len(input.attach) != 2 || input.attach[1] != packageCore ||
+		!strings.Contains(observed.Body.String(), `"generation":15`) {
+		t.Fatalf("observed=%d %s attach=%v detach=%v", observed.Code, observed.Body.String(), input.attach, input.detach)
+	}
+}
+
+func TestSessionManualInputRejectsRawDevelopmentWithoutGamepadCapability(t *testing.T) {
+	core := "DEVCORE"
+	service := &fakeService{status: protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core}}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
+	response := serve(t, hostapi.New(service, hostapi.WithRemoteInput(input)), http.MethodPost, "/api/v1/session/input/attach")
+	if response.Code == http.StatusOK || len(input.attach) != 0 {
+		t.Fatalf("response=%d %s attach=%v", response.Code, response.Body.String(), input.attach)
+	}
+}
+
+func TestSessionStatusReconstructsCapablePackageInputAfterHostRestart(t *testing.T) {
+	core := "fes.pong"
+	status := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core,
+		CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 11,
+			ABI: protocol.RuntimeContract{ID: "fes.simple-game", Major: 1}, BuildID: strings.Repeat("b", 32),
+			ActiveInterfaces: []protocol.RuntimeInterface{{ID: "fes.gamepad", Major: 1}}, Gamepad: true}}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
+	response := serve(t, hostapi.New(&fakeService{status: status}, hostapi.WithRemoteInput(input)), http.MethodGet, "/api/v1/session")
+	if response.Code != http.StatusOK || len(input.attach) != 1 || input.attach[0] != core ||
+		!strings.Contains(response.Body.String(), `"generation":11`) ||
+		!strings.Contains(response.Body.String(), `"input":{"state":"attached","ready":true`) {
+		t.Fatalf("response=%d %s attach=%v", response.Code, response.Body.String(), input.attach)
+	}
+}
+
+func TestSessionStatusRetiresInputWhenReconstructedDevelopmentLacksCapability(t *testing.T) {
+	core := "RAWDEV"
+	status := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputAttached, Ready: true}}
+	response := serve(t, hostapi.New(&fakeService{status: status}, hostapi.WithRemoteInput(input)), http.MethodGet, "/api/v1/session")
+	if response.Code != http.StatusOK || len(input.detach) != 1 ||
+		strings.Contains(response.Body.String(), `"ready":true`) {
+		t.Fatalf("response=%d %s detach=%v", response.Code, response.Body.String(), input.detach)
+	}
+}
+
+func TestSessionStatusDoesNotReplaceEligibleInputWhileItReconnects(t *testing.T) {
+	core := "fes.pong"
+	status := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core,
+		CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 12,
+			ABI: protocol.RuntimeContract{ID: "fes.simple-game", Major: 1}, BuildID: strings.Repeat("b", 32), Gamepad: true}}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
+	handler := hostapi.New(&fakeService{status: status}, hostapi.WithRemoteInput(input))
+	if response := serve(t, handler, http.MethodGet, "/api/v1/session"); response.Code != http.StatusOK || len(input.attach) != 1 {
+		t.Fatalf("initial response=%d %s attach=%v", response.Code, response.Body.String(), input.attach)
+	}
+	input.status = host.RemoteInputStatus{State: host.RemoteInputReconnecting, SessionID: "retained-session"}
+	response := serve(t, handler, http.MethodGet, "/api/v1/session")
+	if response.Code != http.StatusOK || len(input.attach) != 1 ||
+		!strings.Contains(response.Body.String(), `"state":"reconnecting"`) {
+		t.Fatalf("response=%d %s attach=%v", response.Code, response.Body.String(), input.attach)
+	}
+}
+
+func TestSessionStatusReplacesInputWhenPackageGenerationChanges(t *testing.T) {
+	core := "fes.pong"
+	status := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core,
+		CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 12,
+			ABI: protocol.RuntimeContract{ID: "fes.simple-game", Major: 1}, BuildID: strings.Repeat("b", 32), Gamepad: true}}
+	service := &fakeService{status: status}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
+	handler := hostapi.New(service, hostapi.WithRemoteInput(input))
+	if response := serve(t, handler, http.MethodGet, "/api/v1/session"); response.Code != http.StatusOK || len(input.attach) != 1 {
+		t.Fatalf("initial response=%d %s attach=%v", response.Code, response.Body.String(), input.attach)
+	}
+	input.status.SessionID = "generation-12"
+	service.status.CorePackage.Generation = 13
+	response := serve(t, handler, http.MethodGet, "/api/v1/session")
+	if response.Code != http.StatusOK || len(input.detach) != 1 || len(input.attach) != 2 {
+		t.Fatalf("replacement response=%d %s detach=%v attach=%v", response.Code, response.Body.String(), input.detach, input.attach)
 	}
 }
 

@@ -2218,12 +2218,14 @@ type fakeServiceClient struct {
 	launch             func(context.Context, protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, error)
 	nativeLaunch       func(context.Context, protocol.LaunchRequest) (protocol.Status, error)
 	developmentLoad    func(context.Context, int64, io.Reader) (protocol.Status, error)
+	coreLoad           func(context.Context, int64, io.Reader) (protocol.Status, error)
 	developmentReboot  func(context.Context) (protocol.Status, error)
 	probeCalls         int
 	uploadCalls        int
 	launchCalls        int
 	nativeLaunchCalls  int
 	developmentCalls   int
+	coreCalls          int
 	developmentReboots int
 	developmentSize    int64
 	developmentBody    []byte
@@ -2241,6 +2243,119 @@ type fakeServiceClient struct {
 	healthErr          error
 	statusErr          error
 	stopErr            error
+}
+
+func TestServiceCorePackageMutatesOnlyAfterTargetAdmission(t *testing.T) {
+	payload := []byte("fcore")
+	packageStatus := protocol.Status{State: protocol.StateActive, Development: true,
+		CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 3,
+			ABI: protocol.RuntimeContract{ID: "fes.simple-game", Major: 1}, BuildID: strings.Repeat("b", 32),
+			ActiveInterfaces: []protocol.RuntimeInterface{{ID: "fes.gamepad", Major: 1}}, Gamepad: true}}
+	client := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateActive},
+		coreLoad: func(_ context.Context, size int64, body io.Reader) (protocol.Status, error) {
+			if size != int64(len(payload)) {
+				t.Fatalf("size=%d", size)
+			}
+			got, _ := io.ReadAll(body)
+			if !bytes.Equal(got, payload) {
+				t.Fatalf("body=%q", got)
+			}
+			return packageStatus, nil
+		}}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+	service.activeExecution = ExecutionFPGANative
+	service.activeGameID = "prior"
+
+	status, err := service.LoadCore(context.Background(), int64(len(payload)), bytes.NewReader(payload))
+	if err != nil || status.CorePackage == nil || status.CorePackage.Generation != 3 || client.coreCalls != 1 {
+		t.Fatalf("status=%#v calls=%d error=%v", status, client.coreCalls, err)
+	}
+	if service.activeExecution != ExecutionFPGADevelopment || service.activeGameID != "" {
+		t.Fatalf("execution=%q game=%q", service.activeExecution, service.activeGameID)
+	}
+
+	service.activeExecution, service.activeGameID = ExecutionFPGANative, "prior"
+	client.coreLoad = func(context.Context, int64, io.Reader) (protocol.Status, error) {
+		return protocol.Status{}, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "invalid", Phase: "admission"}
+	}
+	_, err = service.LoadCore(context.Background(), int64(len(payload)), bytes.NewReader(payload))
+	if err == nil || service.activeExecution != ExecutionFPGANative || service.activeGameID != "prior" || client.stopCalls != 0 {
+		t.Fatalf("execution=%q game=%q stops=%d error=%v", service.activeExecution, service.activeGameID, client.stopCalls, err)
+	}
+}
+
+func TestServiceCorePackageMarksPriorStatusFailureAsPredispatch(t *testing.T) {
+	client := &fakeServiceClient{statusErr: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable,
+		Message: "status unavailable", Phase: "recovery"}}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+	service.activeExecution, service.activeGameID = ExecutionHostOnly, "prior-host-game"
+	_, err := service.LoadCore(context.Background(), 5, strings.NewReader("fcore"))
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Phase != "request" || client.coreCalls != 0 ||
+		service.activeExecution != ExecutionHostOnly || service.activeGameID != "prior-host-game" {
+		t.Fatalf("error=%v core calls=%d execution=%q game=%q", err, client.coreCalls, service.activeExecution, service.activeGameID)
+	}
+}
+
+func TestServiceCorePackageReconcilesLostReplyBeforePublishingExecution(t *testing.T) {
+	prior := protocol.Status{State: protocol.StateIdle}
+	active := protocol.Status{State: protocol.StateActive, Development: true,
+		CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 8,
+			ABI: protocol.RuntimeContract{ID: "fes.simple-game", Major: 1}, BuildID: strings.Repeat("b", 32)}}
+	client := &fakeServiceClient{coreLoad: func(context.Context, int64, io.Reader) (protocol.Status, error) {
+		return protocol.Status{}, errors.New("lost target HTTP reply")
+	}}
+	client.statusFn = func(context.Context) (protocol.Status, error) {
+		if client.statusCalls == 1 {
+			return prior, nil
+		}
+		return active, nil
+	}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+	status, err := service.LoadCore(context.Background(), 5, strings.NewReader("fcore"))
+	if err != nil || status.CorePackage == nil || status.CorePackage.Generation != 8 ||
+		service.activeExecution != ExecutionFPGADevelopment || client.coreCalls != 1 || client.statusCalls < 2 {
+		t.Fatalf("status=%+v error=%v execution=%q core=%d status=%d", status, err, service.activeExecution, client.coreCalls, client.statusCalls)
+	}
+}
+
+func TestServiceCorePackageLostReplyReconciliationHasOverallDeadline(t *testing.T) {
+	prior := protocol.Status{State: protocol.StateIdle}
+	launching := protocol.Status{State: protocol.StateLaunching, Development: true}
+	client := &fakeServiceClient{coreLoad: func(context.Context, int64, io.Reader) (protocol.Status, error) {
+		return protocol.Status{}, errors.New("lost target HTTP reply")
+	}}
+	client.statusFn = func(context.Context) (protocol.Status, error) {
+		if client.statusCalls == 1 {
+			return prior, nil
+		}
+		return launching, nil
+	}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+	service.coreLoadReconcileTimeout = 40 * time.Millisecond
+	started := time.Now()
+	_, err := service.LoadCore(context.Background(), 5, strings.NewReader("fcore"))
+	elapsed := time.Since(started)
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeMiSTerUnavailable || apiErr.Phase != "recovery" ||
+		elapsed > 500*time.Millisecond || client.statusCalls < 2 {
+		t.Fatalf("error=%v elapsed=%s status calls=%d", err, elapsed, client.statusCalls)
+	}
+}
+
+func TestServiceCorePackagePublishesTargetBeforeHostCleanupFailure(t *testing.T) {
+	active := protocol.Status{State: protocol.StateActive, Development: true,
+		CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 8,
+			ABI: protocol.RuntimeContract{ID: "fes.simple-game", Major: 1}, BuildID: strings.Repeat("b", 32)}}
+	client := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle},
+		coreLoad: func(context.Context, int64, io.Reader) (protocol.Status, error) { return active, nil }}
+	hostExecutor := &fakeHostExecutor{stopErr: errors.New("host stop failed")}
+	service := newTestServiceWithExecution(&fakeServiceCatalog{}, &fakeServicePreparer{}, client, ExecutionPolicy{Host: hostExecutor})
+	service.activeExecution, service.activeGameID = ExecutionHostOnly, "prior-host-game"
+	status, err := service.LoadCore(context.Background(), 5, strings.NewReader("fcore"))
+	if err == nil || status.CorePackage == nil || service.activeExecution != ExecutionFPGADevelopment || service.activeGameID != "" {
+		t.Fatalf("status=%+v error=%v execution=%q game=%q", status, err, service.activeExecution, service.activeGameID)
+	}
 }
 
 func TestServiceDevelopmentRBFUsesSelectedTargetAndStops(t *testing.T) {
@@ -3409,6 +3524,14 @@ func (f *fakeServiceClient) LoadDevelopmentRBF(ctx context.Context, size int64, 
 	return f.developmentLoad(ctx, size, body)
 }
 
+func (f *fakeServiceClient) LoadCore(ctx context.Context, size int64, body io.Reader) (protocol.Status, error) {
+	f.coreCalls++
+	if f.coreLoad == nil {
+		return protocol.Status{}, errors.New("unexpected core package load")
+	}
+	return f.coreLoad(ctx, size, body)
+}
+
 func (f *fakeServiceClient) RebootDevelopment(ctx context.Context) (protocol.Status, error) {
 	f.developmentReboots++
 	if f.developmentReboot == nil {
@@ -3446,6 +3569,7 @@ type fakeHostExecutor struct {
 	stopCalls   int
 	statusCalls int
 	contentPath string
+	stopErr     error
 }
 
 func (f *fakeHostExecutor) ID() string { return "fake" }
@@ -3464,7 +3588,7 @@ func (f *fakeHostExecutor) Launch(_ context.Context, content io.Reader, identity
 	f.contentPath = string(body)
 	return hostexec.Status{State: hostexec.Active}, nil
 }
-func (f *fakeHostExecutor) Stop(context.Context) error { f.stopCalls++; return nil }
+func (f *fakeHostExecutor) Stop(context.Context) error { f.stopCalls++; return f.stopErr }
 func (f *fakeHostExecutor) Status(context.Context) (hostexec.Status, error) {
 	f.statusCalls++
 	return hostexec.Status{State: hostexec.Active}, nil

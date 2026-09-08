@@ -207,8 +207,43 @@ the incomplete directory, including cancellation observed after rename and
 before ownership handoff. The caller owns the returned directory lifetime and
 must release it with `Staged.Cleanup`, which reopens and verifies the retained
 root and publication identities before removing the sealed directory.
-This package currently has no HTTP, coordinator, kit, protocol, or image call
-site; those integrations require the separately versioned runtime protocol.
+
+The target package lifecycle uses runtime protocol 2. A read-only
+`inspect_package` exchange negotiates the exact ABI registry and programming
+profiles before mutation; protocol 1 fallback is permitted only after its
+explicit `unsupported_protocol` response and cannot activate custom packages.
+`load_core` carries a rooted staged directory and package ID. The target retains
+active and in-flight `Staged` ownership, reconciles a lost mutation reply by
+observing identity plus a new generation, and retries failed cleanup only at a
+safe lifecycle boundary. Startup adopts every still-valid publication through
+the same opened trusted root, selecting only the package that exactly matches
+the active runtime status.
+
+The authenticated target route `POST /v1/development/core` accepts one bounded
+`application/octet-stream` archive under the normal kit lease and update
+exclusion. The host route `POST /api/v1/session/development-core` passes the
+same mutation through the service and session coordinator. Rejected admission
+leaves the prior media and input session intact. After confirmed activation,
+the coordinator retires prior input and publishes the package ID, ABI, build
+ID, active interfaces, generation, and derived gamepad capability in
+`GET /api/v1/session`. Status reconstruction after a host restart attaches
+input only for native games or active custom packages with `fes.gamepad`; raw
+development RBF sessions remain input-disabled. Manual input attachment uses
+the same predicate.
+
+The kit launcher opens a stream only for a ready, nonempty input session that
+is native or a capable custom development package. Its stream identity includes
+the package generation, so readiness, capability, session, execution, or
+generation changes close the old stream before another event can be sent.
+`fogcast core-inspect PATH` validates locally without opening the FogCast
+service. `fogcast core-load PATH` validates and streams an archive through the
+running host-owned session and reports package/build identity or the public
+failure phase. Its API origin precedence is `--api`, `FOGCAST_API`, then
+`http://127.0.0.1:8787`. Inspection and upload derive from one bounded immutable
+archive snapshot, and the command never opens or closes a target-owning
+`Service`. It accepts success only when the returned active package has the
+same package, ABI, and build identities, a positive generation, and a valid
+descriptor-consistent active-interface set.
 
 ## Other modes
 

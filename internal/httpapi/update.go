@@ -182,7 +182,7 @@ func guardUpdateAdmission(next http.Handler, token string, s *applianceupdate.Se
 	}))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/v1/launch", "/v2/launch", "/v1/development/rbf", "/v1/development/reboot", "/v1/input/attach", "/v1/input/detach", "/v1/input/stream", "/v1/cast/start", "/v1/cast/stop":
+		case "/v1/launch", "/v2/launch", "/v1/development/rbf", "/v1/development/core", "/v1/development/reboot", "/v1/input/attach", "/v1/input/detach", "/v1/input/stream", "/v1/cast/start", "/v1/cast/stop":
 			guarded.ServeHTTP(w, r)
 		default:
 			next.ServeHTTP(w, r)

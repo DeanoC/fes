@@ -5,11 +5,13 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/DeanoC/FogCast/internal/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
 type DevelopmentController interface {
 	LoadDevelopmentRBF(context.Context, int64, io.Reader) (protocol.Status, *protocol.APIError)
+	LoadCore(context.Context, int64, io.Reader) (protocol.Status, *protocol.APIError)
 	RebootDevelopment(context.Context) (protocol.Status, *protocol.APIError)
 }
 
@@ -19,7 +21,27 @@ func WithDevelopment(controller DevelopmentController) Option {
 
 func registerDevelopmentRoutes(mux *http.ServeMux, token string, controller DevelopmentController) {
 	mux.Handle("/v1/development/rbf", authenticate(token, exactMethod(http.MethodPost, developmentRBFHandler(controller))))
+	mux.Handle("/v1/development/core", authenticate(token, exactMethod(http.MethodPost, developmentCoreHandler(controller))))
 	mux.Handle("/v1/development/reboot", authenticate(token, exactMethod(http.MethodPost, developmentRebootHandler(controller))))
+}
+
+func developmentCoreHandler(controller DevelopmentController) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !exactContentType(r, "application/octet-stream") || len(r.TransferEncoding) != 0 ||
+			r.ContentLength < 1 || r.ContentLength > corepackage.MaxArchiveSize {
+			writeBadRequest(w, r, "development core upload requires a bounded application/octet-stream body")
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, corepackage.MaxArchiveSize)
+		status, apiErr := controller.LoadCore(r.Context(), r.ContentLength, r.Body)
+		setRequestState(r, status)
+		if apiErr != nil {
+			setRequestError(r, apiErr.Code)
+			writeAPIError(w, statusForError(apiErr.Code), apiErr)
+			return
+		}
+		writeJSON(w, http.StatusOK, status)
+	})
 }
 
 func developmentRebootHandler(controller DevelopmentController) http.Handler {

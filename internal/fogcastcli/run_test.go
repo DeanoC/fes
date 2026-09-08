@@ -5,13 +5,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/fogcast"
+	"github.com/DeanoC/FogCast/internal/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -118,6 +123,220 @@ func TestRunAcceptsEveryCommandAndRejectsEveryWrongArityBeforeOpen(t *testing.T)
 			}
 		})
 	}
+}
+
+func TestCoreInspectIsLocalAndReportsClosedIdentity(t *testing.T) {
+	path := writeCLIPackage(t, false)
+	opened := false
+	var stdout, stderr bytes.Buffer
+	exit := Run(context.Background(), []string{"--json", "core-inspect", path}, &stdout, &stderr, func(context.Context, fogcast.Paths) (Service, error) {
+		opened = true
+		return &fakeService{}, nil
+	})
+	if exit != 0 || opened || stderr.Len() != 0 ||
+		!strings.Contains(stdout.String(), `"package_id":"`) ||
+		!strings.Contains(stdout.String(), `"id":"fes.simple-game"`) ||
+		!strings.Contains(stdout.String(), `"repository":"https://example.invalid/fes-pong"`) {
+		t.Fatalf("exit=%d opened=%v stdout=%s stderr=%s", exit, opened, stdout.String(), stderr.String())
+	}
+}
+
+func TestCoreLoadUsesPersistentHostSessionAPIAndLeavesOwnershipActive(t *testing.T) {
+	path := writeCLIPackage(t, true)
+	inspection, err := corepackage.InspectPackage(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var active, inputAttached bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/development-core":
+			body, _ := io.ReadAll(r.Body)
+			if !bytes.Equal(body, data) {
+				t.Errorf("uploaded body differs from inspected archive")
+			}
+			active, inputAttached = true, true
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprintf(w, `{"state":"active","execution":"fpga_development","input":{"state":"attached","ready":true},"core_package":{"package_id":%q,"generation":4,"abi":{"id":"fes.simple-game","major":1,"minor":0},"build_id":"0123456789abcdef0123456789abcdef","active_interfaces":[{"id":"fes.gamepad","major":1,"minor":0},{"id":"fes.video.fixed-720p60","major":1,"minor":0}],"gamepad":true}}`, inspection.PackageID)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			fmt.Fprintf(w, `{"active":%t,"input_attached":%t}`, active, inputAttached)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	opened := false
+	var stdout, stderr bytes.Buffer
+	exit := Run(context.Background(), []string{"--json", "--api", server.URL, "core-load", path}, &stdout, &stderr, func(context.Context, fogcast.Paths) (Service, error) {
+		opened = true
+		return &fakeService{}, nil
+	})
+	if exit != 0 || stderr.Len() != 0 || opened || !active || !inputAttached ||
+		!strings.Contains(stdout.String(), `"package_id":"`+inspection.PackageID+`"`) ||
+		!strings.Contains(stdout.String(), `"build_id":"0123456789abcdef0123456789abcdef"`) {
+		t.Fatalf("exit=%d opened=%v active=%v input=%v stdout=%s stderr=%s", exit, opened, active, inputAttached, stdout.String(), stderr.String())
+	}
+}
+
+func TestCoreLoadRejectsContradictoryHostPackageStatus(t *testing.T) {
+	path := writeCLIPackage(t, true)
+	inspection, err := corepackage.InspectPackage(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	valid := fmt.Sprintf(`{"state":"active","execution":"fpga_development","core_package":{"package_id":%q,"generation":4,"abi":{"id":"fes.simple-game","major":1,"minor":0},"build_id":"0123456789abcdef0123456789abcdef","active_interfaces":[{"id":"fes.gamepad","major":1,"minor":0},{"id":"fes.video.fixed-720p60","major":1,"minor":0}],"gamepad":true}}`, inspection.PackageID)
+	for name, body := range map[string]string{
+		"abi":          strings.Replace(valid, `"id":"fes.simple-game"`, `"id":"other.abi"`, 1),
+		"build":        strings.Replace(valid, `"build_id":"0123456789abcdef0123456789abcdef"`, `"build_id":"ffffffffffffffffffffffffffffffff"`, 1),
+		"generation":   strings.Replace(valid, `"generation":4`, `"generation":0`, 1),
+		"capabilities": strings.Replace(valid, `[{"id":"fes.gamepad","major":1,"minor":0},{"id":"fes.video.fixed-720p60","major":1,"minor":0}]`, `[]`, 1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = io.WriteString(w, body)
+			}))
+			defer server.Close()
+			var stdout, stderr bytes.Buffer
+			if exit := Run(context.Background(), []string{"--json", "--api", server.URL, "core-load", path}, &stdout, &stderr, nil); exit != 1 ||
+				!strings.Contains(stdout.String(), `"phase":"recovery"`) {
+				t.Fatalf("exit=%d stdout=%s stderr=%s", exit, stdout.String(), stderr.String())
+			}
+		})
+	}
+}
+
+func TestCoreLoadReportsFailurePhaseInJSONAndHumanOutput(t *testing.T) {
+	path := writeCLIPackage(t, true)
+	for _, jsonOutput := range []bool{false, true} {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = io.WriteString(w, `{"error":{"code":"CORE_TIMEOUT","message":"private","phase":"programming"}}`)
+		}))
+		args := []string{"--api", server.URL, "core-load", path}
+		if jsonOutput {
+			args = append([]string{"--json"}, args...)
+		}
+		var stdout, stderr bytes.Buffer
+		if exit := Run(context.Background(), args, &stdout, &stderr, nil); exit != 1 {
+			t.Fatalf("json=%v exit=%d", jsonOutput, exit)
+		}
+		server.Close()
+		output := stdout.String() + stderr.String()
+		if !strings.Contains(output, "programming") || strings.Contains(output, "private") {
+			t.Fatalf("json=%v output=%q", jsonOutput, output)
+		}
+	}
+}
+
+func TestCoreAPIOriginPrecedenceAndValidation(t *testing.T) {
+	t.Setenv("FOGCAST_API", "https://env.example:8443")
+	for _, test := range []struct {
+		flag string
+		want string
+	}{
+		{"https://flag.example:9443", "https://flag.example:9443"},
+		{"", "https://env.example:8443"},
+	} {
+		got, err := coreAPIOrigin(test.flag)
+		if err != nil || got != test.want {
+			t.Fatalf("flag=%q got=%q err=%v", test.flag, got, err)
+		}
+	}
+	for _, invalid := range []string{"ftp://example.test", "https://", "https://user@example.test", "https://example.test/path", "https://example.test?q=1", "https://example.test#fragment"} {
+		if _, err := validateCoreAPIOrigin(invalid); err == nil {
+			t.Errorf("accepted invalid API origin %q", invalid)
+		}
+	}
+}
+
+func TestOpenedCoreArchiveSnapshotSurvivesPathReplacement(t *testing.T) {
+	path := writeCLIPackage(t, true)
+	want, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	if err := os.WriteFile(path+".replacement", []byte("different"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(path+".replacement", path); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := snapshotOpenedCoreArchive(file, before)
+	if err != nil || !bytes.Equal(snapshot.data, want) || snapshot.inspection.PackageID == "" {
+		t.Fatalf("snapshot err=%v bytes=%d want=%d inspection=%+v", err, len(snapshot.data), len(want), snapshot.inspection)
+	}
+}
+
+func writeCLIPackage(t *testing.T, archive bool) string {
+	t.Helper()
+	manifest, err := os.ReadFile(filepath.Join("..", "corepackage", "testdata", "core-bundle-v2", "manifests", "valid-basic.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := os.ReadFile(filepath.Join("..", "corepackage", "testdata", "core-bundle-v2", "payloads", "fes-fixture.rbf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !archive {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "manifest.toml"), manifest, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "core.rbf"), payload, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return dir
+	}
+	path := filepath.Join(t.TempDir(), "fixture.fcore")
+	var archiveBytes bytes.Buffer
+	for _, entry := range []struct {
+		name string
+		data []byte
+	}{{"manifest.toml", manifest}, {"core.rbf", payload}} {
+		archiveBytes.Write(cliCanonicalHeader(entry.name, int64(len(entry.data))))
+		archiveBytes.Write(entry.data)
+		archiveBytes.Write(make([]byte, (512-len(entry.data)%512)%512))
+	}
+	archiveBytes.Write(make([]byte, 1024))
+	if err := os.WriteFile(path, archiveBytes.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func cliCanonicalHeader(name string, size int64) []byte {
+	header := make([]byte, 512)
+	copy(header[0:100], name)
+	copy(header[100:108], []byte("0000644\x00"))
+	copy(header[108:116], []byte("0000000\x00"))
+	copy(header[116:124], []byte("0000000\x00"))
+	copy(header[124:136], []byte(fmt.Sprintf("%011o\x00", size)))
+	copy(header[136:148], []byte("00000000000\x00"))
+	for i := 148; i < 156; i++ {
+		header[i] = ' '
+	}
+	header[156] = '0'
+	copy(header[257:263], []byte("ustar\x00"))
+	copy(header[263:265], []byte("00"))
+	var sum int
+	for _, value := range header {
+		sum += int(value)
+	}
+	copy(header[148:156], []byte(fmt.Sprintf("%06o\x00 ", sum)))
+	return header
 }
 
 func TestPublicCoreRecognizesSharedSMSCore(t *testing.T) {

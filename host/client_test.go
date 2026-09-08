@@ -137,6 +137,27 @@ func TestClientDevelopmentRBFRejectsInvalidInputBeforeRequest(t *testing.T) {
 	}
 }
 
+func TestClientDevelopmentCoreStreamsLeasedPackageAndRequiresCustomStatus(t *testing.T) {
+	payload := []byte("fcore")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/development/core" || r.ContentLength != int64(len(payload)) ||
+			r.Header.Get("Content-Type") != "application/octet-stream" {
+			t.Errorf("request=%s %s length=%d type=%q", r.Method, r.URL.Path, r.ContentLength, r.Header.Get("Content-Type"))
+		}
+		body, _ := io.ReadAll(r.Body)
+		if !bytes.Equal(body, payload) {
+			t.Errorf("body=%q", body)
+		}
+		_, _ = io.WriteString(w, `{"state":"active","game_id":null,"system":null,"expected_core":null,"observed_core":"fes.pong","last_error":null,"development":true,"core_package":{"package_id":"`+strings.Repeat("a", 64)+`","generation":7,"abi":{"id":"fes.simple-game","major":1,"minor":0},"build_id":"0123456789abcdef0123456789abcdef","active_interfaces":[{"id":"fes.gamepad","major":1,"minor":0}],"gamepad":true}}`)
+	}))
+	defer server.Close()
+	baseURL, _ := url.Parse(server.URL)
+	status, err := host.NewClient(baseURL, "test-token", server.Client()).LoadCore(context.Background(), int64(len(payload)), bytes.NewReader(payload))
+	if err != nil || status.CorePackage == nil || status.CorePackage.Generation != 7 || !status.CorePackage.Gamepad {
+		t.Fatalf("status=%#v error=%v", status, err)
+	}
+}
+
 func TestClientDevelopmentRBFRejectsMismatchedStatus(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

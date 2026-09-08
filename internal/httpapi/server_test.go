@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DeanoC/FogCast/internal/corepackage"
 	"github.com/DeanoC/FogCast/internal/httpapi"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -34,6 +35,19 @@ type fakeDevelopmentController struct {
 	body        []byte
 	calls       int
 	rebootCalls int
+	coreCalls   int
+	coreErr     *protocol.APIError
+}
+
+func (f *fakeDevelopmentController) LoadCore(_ context.Context, size int64, content io.Reader) (protocol.Status, *protocol.APIError) {
+	body, err := io.ReadAll(content)
+	if err != nil {
+		return protocol.Status{}, &protocol.APIError{Code: protocol.CodeInternal, Message: "test reader failed"}
+	}
+	f.coreCalls++
+	f.size = size
+	f.body = append([]byte(nil), body...)
+	return f.status, f.coreErr
 }
 
 func (f *fakeDevelopmentController) RebootDevelopment(context.Context) (protocol.Status, *protocol.APIError) {
@@ -138,6 +152,47 @@ func TestDevelopmentRBFUploadRejectsInvalidStreamMetadata(t *testing.T) {
 				t.Fatalf("invalid upload reached controller: calls=%d reads=%d", development.calls, body.reads)
 			}
 		})
+	}
+}
+
+func TestDevelopmentCoreUploadStreamsToControllerAndPreservesStructuredError(t *testing.T) {
+	payload := []byte("canonical-fcore")
+	development := &fakeDevelopmentController{status: protocol.Status{State: protocol.StateActive, Development: true,
+		CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 7}},
+		coreErr: &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "unsupported ABI", Phase: "compatibility", Expected: "fes.simple-game@1.0", Observed: "vendor.other@1.0"}}
+	handler := httpapi.New(&fakeController{}, "test-token", "0.1.0", discardLogger(), httpapi.WithDevelopment(development))
+	request := httptest.NewRequest(http.MethodPost, "/v1/development/core", bytes.NewReader(payload))
+	request.ContentLength = int64(len(payload))
+	request.Header.Set("Authorization", "Bearer test-token")
+	request.Header.Set("Content-Type", "application/octet-stream")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if development.coreCalls != 1 || development.size != int64(len(payload)) || !bytes.Equal(development.body, payload) {
+		t.Fatalf("core call = count %d size %d body %q", development.coreCalls, development.size, development.body)
+	}
+	if response.Code != http.StatusUnprocessableEntity || !strings.Contains(response.Body.String(), `"phase":"compatibility"`) ||
+		!strings.Contains(response.Body.String(), `"expected":"fes.simple-game@1.0"`) {
+		t.Fatalf("response=%d %s", response.Code, response.Body.String())
+	}
+}
+
+func TestDevelopmentCoreUploadRejectsInvalidStreamMetadataBeforeRead(t *testing.T) {
+	for _, size := range []int64{-1, 0, corepackage.MaxArchiveSize + 1} {
+		development := &fakeDevelopmentController{}
+		handler := httpapi.New(&fakeController{}, "test-token", "0.1.0", discardLogger(), httpapi.WithDevelopment(development))
+		body := &observedReader{data: []byte("fcore"), err: io.EOF}
+		request := httptest.NewRequest(http.MethodPost, "/v1/development/core", body)
+		request.ContentLength = size
+		request.Header.Set("Authorization", "Bearer test-token")
+		request.Header.Set("Content-Type", "application/octet-stream")
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		assertAPIError(t, response, http.StatusBadRequest, protocol.CodeBadRequest)
+		if development.coreCalls != 0 || body.reads != 0 {
+			t.Fatalf("size %d reached controller: calls=%d reads=%d", size, development.coreCalls, body.reads)
+		}
 	}
 }
 

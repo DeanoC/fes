@@ -35,6 +35,7 @@ const (
 	targetCacheRoot         = "/media/fat/fogcast/cache"
 	targetCacheActiveRecord = "/run/fogcast-active.json"
 	developmentRBFPath      = "/tmp/fogcast-development/core.rbf"
+	developmentCoreRoot     = "/tmp/fogcast-development/core-packages"
 	targetIDFile            = "/media/fat/fogcast/target-id"
 	rebootCommand           = "/sbin/reboot"
 	bootIDFile              = "/proc/sys/kernel/random/boot_id"
@@ -133,8 +134,10 @@ func runtimeDependencies(backend runtimeBackend, nativeControl misterruntime.Con
 }
 
 func newNativeRuntime(control misterruntime.Control, rebootPath string) *misterruntime.Runtime {
+	_ = os.MkdirAll(developmentCoreRoot, 0o700)
 	return misterruntime.NewRuntime(control, bootIDFile, 25*time.Millisecond, 250*time.Millisecond,
 		misterruntime.WithDevelopmentRBFPath(developmentRBFPath),
+		misterruntime.WithCorePackageRoot(developmentCoreRoot),
 		misterruntime.WithSaveRoot("/media/fat/fogcast/saves/snes"),
 		misterruntime.WithRebootCommand(rebootPath))
 }

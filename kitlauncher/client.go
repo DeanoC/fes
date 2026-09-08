@@ -136,6 +136,12 @@ type Session struct {
 		Ready     bool   `json:"ready"`
 		SessionID string `json:"session_id"`
 	} `json:"input"`
+	CorePackage *CorePackageSession `json:"core_package,omitempty"`
+}
+
+type CorePackageSession struct {
+	Generation uint64 `json:"generation"`
+	Gamepad    bool   `json:"gamepad"`
 }
 
 func (c *Client) Session(ctx context.Context) (Session, error) {

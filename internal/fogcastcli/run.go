@@ -2,25 +2,31 @@
 package fogcastcli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
+	"os"
 	"slices"
 	"strings"
 	"sync"
 	"text/tabwriter"
+	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/internal/core"
+	"github.com/DeanoC/FogCast/internal/corepackage"
 	"github.com/DeanoC/FogCast/internal/version"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const usageText = "usage: fogcast [--config path] [--json] {scan|games|search <text>|launch <game-id>|favorite <game-id>|unfavorite <game-id>|recents|media-scan|facets-sync|health|status|stop}\n       fogcast --version [--json]\n"
+const usageText = "usage: fogcast [--config path] [--api origin] [--json] {scan|games|search <text>|launch <game-id>|favorite <game-id>|unfavorite <game-id>|recents|media-scan|facets-sync|health|status|stop|core-inspect <path>|core-load <path>}\n       fogcast --version [--json]\n"
 
 const maxPublicGameIDBytes = 128
 
@@ -69,11 +75,19 @@ type gamesResult struct {
 }
 
 type statusResult struct {
-	State  protocol.State   `json:"state"`
-	GameID *string          `json:"game_id,omitempty"`
-	System *protocol.System `json:"system,omitempty"`
-	Core   *string          `json:"core,omitempty"`
-	Error  *commandError    `json:"error,omitempty"`
+	State       protocol.State              `json:"state"`
+	GameID      *string                     `json:"game_id,omitempty"`
+	System      *protocol.System            `json:"system,omitempty"`
+	Core        *string                     `json:"core,omitempty"`
+	Error       *commandError               `json:"error,omitempty"`
+	CorePackage *protocol.CorePackageStatus `json:"core_package,omitempty"`
+}
+
+type coreInspectionResult struct {
+	PackageID string               `json:"package_id"`
+	Core      corepackage.Core     `json:"core"`
+	ABI       corepackage.Contract `json:"abi"`
+	Build     corepackage.Build    `json:"build"`
 }
 
 type versionResult struct {
@@ -84,6 +98,7 @@ type versionResult struct {
 type commandError struct {
 	Code    protocol.ErrorCode `json:"code"`
 	Message string             `json:"message"`
+	Phase   string             `json:"phase,omitempty"`
 }
 
 type errorResult struct {
@@ -102,6 +117,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, open Open
 	flags := flag.NewFlagSet("fogcast", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	configPath := flags.String("config", "", "host configuration path")
+	apiOrigin := flags.String("api", "", "running FogCast host API origin")
 	jsonOutput := flags.Bool("json", false, "emit JSON")
 	versionOutput := flags.Bool("version", false, "emit version metadata")
 	if err := flags.Parse(args); err != nil {
@@ -141,6 +157,16 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, open Open
 	}
 	if err := ctx.Err(); err != nil {
 		return writeFailure(*jsonOutput, stdout, stderr, err)
+	}
+	if commandArgs[0] == "core-inspect" {
+		return writeResult(*jsonOutput, stdout, stderr, inspectCore(commandArgs[1]))
+	}
+	if commandArgs[0] == "core-load" {
+		origin, err := coreAPIOrigin(*apiOrigin)
+		if err != nil {
+			return writeFailure(*jsonOutput, stdout, stderr, err)
+		}
+		return writeResult(*jsonOutput, stdout, stderr, loadCoreThroughHostAPI(ctx, origin, commandArgs[1]))
 	}
 	paths, err := fogcast.DefaultPaths()
 	if err != nil {
@@ -203,7 +229,7 @@ func validCommand(args []string) bool {
 	switch args[0] {
 	case "scan", "games", "health", "status", "stop", "recents", "media-scan", "facets-sync":
 		return len(args) == 1
-	case "search", "launch", "favorite", "unfavorite":
+	case "search", "launch", "favorite", "unfavorite", "core-inspect", "core-load":
 		return len(args) == 2
 	default:
 		return false
@@ -331,6 +357,184 @@ func execute(ctx context.Context, args []string, service Service, progress fogca
 	}
 }
 
+func inspectCore(path string) commandResult {
+	inspection, err := corepackage.InspectPackage(path)
+	if err != nil {
+		return commandResult{err: &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "core package is invalid", Phase: "admission"}, exit: 1}
+	}
+	result := coreInspectionResult{PackageID: inspection.PackageID, Core: inspection.Descriptor.Core, ABI: inspection.Descriptor.ABI, Build: inspection.Descriptor.Build}
+	return commandResult{jsonValue: result, human: func(output io.Writer) error {
+		_, err := fmt.Fprintf(output, "package=%s core=%s version=%s abi=%s/%d.%d build=%s repository=%s revision=%s\n",
+			result.PackageID, result.Core.ID, result.Core.Version, result.ABI.ID, result.ABI.Major, result.ABI.Minor,
+			result.Build.ID, result.Build.Repository, result.Build.Revision)
+		return err
+	}}
+}
+
+type coreArchiveSnapshot struct {
+	inspection corepackage.Inspection
+	data       []byte
+}
+
+func snapshotCoreArchive(path string) (coreArchiveSnapshot, error) {
+	before, err := os.Lstat(path)
+	if err != nil || !before.Mode().IsRegular() || before.Mode()&os.ModeSymlink != 0 || before.Size() < 1 || before.Size() > corepackage.MaxArchiveSize {
+		return coreArchiveSnapshot{}, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "core package archive is invalid", Phase: "admission"}
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return coreArchiveSnapshot{}, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "core package archive is unavailable", Phase: "admission"}
+	}
+	defer file.Close()
+	return snapshotOpenedCoreArchive(file, before)
+}
+
+func snapshotOpenedCoreArchive(file *os.File, before os.FileInfo) (coreArchiveSnapshot, error) {
+	opened, err := file.Stat()
+	if err != nil || !os.SameFile(before, opened) {
+		return coreArchiveSnapshot{}, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "core package archive changed while opening", Phase: "admission"}
+	}
+	data, err := io.ReadAll(io.LimitReader(file, corepackage.MaxArchiveSize+1))
+	if err != nil || int64(len(data)) != opened.Size() || len(data) == 0 || int64(len(data)) > corepackage.MaxArchiveSize {
+		return coreArchiveSnapshot{}, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "core package archive changed while reading", Phase: "admission"}
+	}
+	temporary, err := os.CreateTemp("", "fogcast-core-snapshot-*.fcore")
+	if err != nil {
+		return coreArchiveSnapshot{}, &protocol.APIError{Code: protocol.CodeInternal, Message: "core package snapshot could not be created", Phase: "admission"}
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+	if err := temporary.Chmod(0o600); err == nil {
+		_, err = temporary.Write(data)
+	}
+	closeErr := temporary.Close()
+	if err != nil || closeErr != nil {
+		return coreArchiveSnapshot{}, &protocol.APIError{Code: protocol.CodeInternal, Message: "core package snapshot could not be written", Phase: "admission"}
+	}
+	inspection, err := corepackage.InspectPackage(temporaryPath)
+	if err != nil {
+		return coreArchiveSnapshot{}, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "core package is invalid", Phase: "admission"}
+	}
+	return coreArchiveSnapshot{inspection: inspection, data: data}, nil
+}
+
+func coreAPIOrigin(flagValue string) (string, error) {
+	raw := flagValue
+	if raw == "" {
+		raw = os.Getenv("FOGCAST_API")
+	}
+	if raw == "" {
+		raw = "http://127.0.0.1:8787"
+	}
+	return validateCoreAPIOrigin(raw)
+}
+
+func validateCoreAPIOrigin(raw string) (string, error) {
+	parsed, err := url.Parse(raw)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil ||
+		(parsed.Path != "" && parsed.Path != "/") || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", &protocol.APIError{Code: protocol.CodeBadRequest, Message: "FogCast API origin is invalid", Phase: "request"}
+	}
+	return parsed.Scheme + "://" + parsed.Host, nil
+}
+
+type developmentCoreSession struct {
+	State       protocol.State              `json:"state"`
+	Execution   string                      `json:"execution"`
+	CorePackage *protocol.CorePackageStatus `json:"core_package"`
+}
+
+func loadCoreThroughHostAPI(ctx context.Context, origin, path string) commandResult {
+	snapshot, err := snapshotCoreArchive(path)
+	if err != nil {
+		return commandResult{err: err, exit: 1}
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, origin+"/api/v1/session/development-core", bytes.NewReader(snapshot.data))
+	if err != nil {
+		return commandResult{err: &protocol.APIError{Code: protocol.CodeBadRequest, Message: "FogCast API request is invalid", Phase: "request"}, exit: 1}
+	}
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("Content-Type", "application/octet-stream")
+	client := &http.Client{Timeout: 2 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error {
+		return errors.New("redirects are not accepted")
+	}}
+	response, err := client.Do(request)
+	if err != nil {
+		return commandResult{err: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "running FogCast host API is unavailable", Phase: "request"}, exit: 1}
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	if err != nil {
+		return commandResult{err: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "FogCast host API response is unavailable", Phase: "request"}, exit: 1}
+	}
+	if response.StatusCode != http.StatusOK {
+		var envelope struct {
+			Error commandError `json:"error"`
+		}
+		if json.Unmarshal(body, &envelope) == nil && envelope.Error.Code != "" {
+			return commandResult{err: &protocol.APIError{Code: envelope.Error.Code, Message: envelope.Error.Message, Phase: envelope.Error.Phase}, exit: 1}
+		}
+		return commandResult{err: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "FogCast host session request failed", Phase: "request"}, exit: 1}
+	}
+	var session developmentCoreSession
+	if json.Unmarshal(body, &session) != nil || session.State != protocol.StateActive || session.Execution != fogcast.ExecutionFPGADevelopment ||
+		!corePackageMatchesInspection(session.CorePackage, snapshot.inspection) {
+		return commandResult{err: &protocol.APIError{Code: protocol.CodeInternal, Message: "FogCast host returned an invalid core package session", Phase: "recovery"}, exit: 1}
+	}
+	result := statusResult{State: session.State, CorePackage: session.CorePackage}
+	return commandResult{jsonValue: result, human: func(output io.Writer) error { return writeHumanStatusResult(output, result) }}
+}
+
+func corePackageMatchesInspection(status *protocol.CorePackageStatus, inspection corepackage.Inspection) bool {
+	descriptor := inspection.Descriptor
+	if status == nil || status.PackageID != inspection.PackageID || status.Generation == 0 ||
+		status.ABI.ID != descriptor.ABI.ID || int64(status.ABI.Major) != descriptor.ABI.Major ||
+		int64(status.ABI.Minor) != descriptor.ABI.Minor || status.BuildID != descriptor.Build.ID {
+		return false
+	}
+	descriptorInterfaces := make(map[string]corepackage.Interface, len(descriptor.Interfaces))
+	for _, contract := range descriptor.Interfaces {
+		descriptorInterfaces[contract.ID] = contract
+	}
+	active := make(map[string]bool, len(status.ActiveInterfaces))
+	gamepad := false
+	for index, contract := range status.ActiveInterfaces {
+		declared, ok := descriptorInterfaces[contract.ID]
+		if !ok || int64(contract.Major) != declared.Major || int64(contract.Minor) != declared.Minor ||
+			(index > 0 && status.ActiveInterfaces[index-1].ID >= contract.ID) {
+			return false
+		}
+		active[contract.ID] = true
+		if contract.ID == "fes.gamepad" && contract.Major == 1 && contract.Minor == 0 {
+			gamepad = true
+		}
+	}
+	for _, contract := range descriptor.Interfaces {
+		if contract.Required && !active[contract.ID] {
+			return false
+		}
+	}
+	return status.Gamepad == gamepad
+}
+
+func writeResult(jsonOutput bool, stdout, stderr io.Writer, result commandResult) int {
+	if result.err != nil {
+		return writeFailure(jsonOutput, stdout, stderr, result.err)
+	}
+	if jsonOutput {
+		if err := json.NewEncoder(stdout).Encode(result.jsonValue); err != nil {
+			writeHumanError(stderr, safeCommandError(err))
+			return 1
+		}
+	} else if result.human != nil {
+		if err := result.human(stdout); err != nil {
+			writeHumanError(stderr, safeCommandError(err))
+			return 1
+		}
+	}
+	return result.exit
+}
+
 func makeScanResult(report catalog.ScanReport) scanResult {
 	result := scanResult{Roots: make([]rootResult, 0, len(report.Roots))}
 	for _, root := range report.Roots {
@@ -440,7 +644,7 @@ func writeHumanStatus(output io.Writer, status protocol.Status, fallbackGameID s
 }
 
 func makeStatusResult(status protocol.Status) (statusResult, error) {
-	result := statusResult{State: status.State}
+	result := statusResult{State: status.State, CorePackage: status.CorePackage}
 	switch status.State {
 	case protocol.StateIdle:
 		return result, nil
@@ -505,6 +709,12 @@ func writeHumanStatusResult(output io.Writer, status statusResult) error {
 	}
 	if status.Error != nil {
 		if _, err := fmt.Fprintf(output, " error=%s", status.Error.Code); err != nil {
+			return err
+		}
+	}
+	if status.CorePackage != nil {
+		if _, err := fmt.Fprintf(output, " package=%s abi=%s/%d.%d build=%s generation=%d", status.CorePackage.PackageID,
+			status.CorePackage.ABI.ID, status.CorePackage.ABI.Major, status.CorePackage.ABI.Minor, status.CorePackage.BuildID, status.CorePackage.Generation); err != nil {
 			return err
 		}
 	}
@@ -581,7 +791,9 @@ func safeCommandError(err error) commandError {
 	}
 	var apiErr *protocol.APIError
 	if errors.As(err, &apiErr) {
-		return publicAPIError(apiErr.Code)
+		result := publicAPIError(apiErr.Code)
+		result.Phase = apiErr.Phase
+		return result
 	}
 	return commandError{Code: protocol.CodeInternal, Message: "FogCast operation failed internally"}
 }
@@ -613,5 +825,9 @@ func publicAPIError(code protocol.ErrorCode) commandError {
 }
 
 func writeHumanError(output io.Writer, err commandError) {
+	if err.Phase != "" {
+		_, _ = fmt.Fprintf(output, "%s[%s]: %s\n", err.Code, err.Phase, err.Message)
+		return
+	}
 	_, _ = fmt.Fprintf(output, "%s: %s\n", err.Code, err.Message)
 }
