@@ -335,12 +335,12 @@ class CompareBuildsTests(unittest.TestCase):
                 if lane == "oracle"
                 else {
                     "yosys": {
-                        "commit": "acdebf05aa6fa8a21cd1aeb7a412422b11764a18",
+                        "commit": "ea0c44fc0dda595abee4cc27981ecf173628fc5c",
                         "path": "build/toolchain/install/bin/yosys",
                         "sha256": _sha256(oss_yosys),
                     },
                     "nextpnr-mistral": {
-                        "commit": "131f880a856ee7f4b9b6379aa9b2c3e7fb001fe5",
+                        "commit": "06747fec1cb02405c3400ceac54d15c0845dcc0b",
                         "path": "build/toolchain/install/bin/nextpnr-mistral",
                         "sha256": _sha256(oss_nextpnr),
                     },
@@ -350,8 +350,8 @@ class CompareBuildsTests(unittest.TestCase):
                 {"quartus": provenance}
                 if lane == "oracle"
                 else {
-                    "yosys": "acdebf05aa6fa8a21cd1aeb7a412422b11764a18",
-                    "nextpnr": "131f880a856ee7f4b9b6379aa9b2c3e7fb001fe5",
+                    "yosys": "ea0c44fc0dda595abee4cc27981ecf173628fc5c",
+                    "nextpnr": "06747fec1cb02405c3400ceac54d15c0845dcc0b",
                 }
             ),
             "reproducibility": {"rbf_sha256": digest, "rbf_size_bytes": rbf.stat().st_size},

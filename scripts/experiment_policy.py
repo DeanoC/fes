@@ -69,11 +69,13 @@ def mlab_init_parameter(value: Any) -> int | None:
 
 
 def m10k_init_word(address: int, width: int) -> int:
-    """Return the closed M10K power-up word at *address* for 20- or 40-bit tables."""
+    """Return the closed M10K power-up word at *address* for 10-, 20- or 40-bit tables."""
 
-    if width not in (20, 40):
+    if width not in (10, 20, 40):
         raise PolicyError(f"unsupported M10K width {width}")
     low = ((int(address) * 73) ^ (int(address) >> 1) ^ 0xA6) & 0xFFFFF
+    if width == 10:
+        return low & 0x3FF
     if width == 40:
         return ((~low & 0xFFFFF) << 20) | low
     return low
@@ -83,6 +85,16 @@ def m10k_mixed_lane(address: int) -> int:
     """Return the closed mixed-width 10-bit power-up lane at *address*."""
 
     return ((int(address) * 73) ^ (int(address) >> 1) ^ 0xA6) & 0x3FF
+
+
+def m10k_tdp_abits(width: int) -> int:
+    """Return CFG_ABITS for an equal-width 10- or 20-bit true dual-port M10K."""
+
+    if width == 10:
+        return 10
+    if width == 20:
+        return 9
+    raise PolicyError(f"unsupported TDP M10K width {width}")
 
 
 def m10k_mixed_abits(dbits: int) -> int:
@@ -179,6 +191,7 @@ class ExperimentPolicy:
     m10k_dual_clock_width: int = 0
     m10k_mixed_write_dbits: int = 0
     m10k_mixed_read_dbits: int = 0
+    m10k_tdp_width: int = 0
     nextpnr_router: str = ""
     require_read_clock_arc: bool = False
 
@@ -229,8 +242,12 @@ class ExperimentPolicy:
             raise PolicyError(
                 f"{self.name}: mixed-width ports must be an unequal pair of 10, 20, or 40 bits"
             )
-        if self.m10k_mixed_write_dbits and (self.m10k_byte_enable or self.m10k_dual_clock_width):
-            raise PolicyError(f"{self.name}: mixed-width M10K cannot combine byte-enable or equal-width dual-clock policy")
+        if self.m10k_tdp_width not in (0, 10, 20):
+            raise PolicyError(f"{self.name}: m10k_tdp_width must be 0, 10, or 20")
+        if self.m10k_mixed_write_dbits and (self.m10k_byte_enable or self.m10k_dual_clock_width or self.m10k_tdp_width):
+            raise PolicyError(f"{self.name}: mixed-width M10K cannot combine byte-enable, equal-width dual-clock, or TDP policy")
+        if self.m10k_tdp_width and (self.m10k_byte_enable or self.m10k_dual_clock_width):
+            raise PolicyError(f"{self.name}: TDP M10K cannot combine byte-enable or equal-width dual-clock policy")
         if self.nextpnr_router not in ("", "router1"):
             raise PolicyError(f"{self.name}: nextpnr_router must be empty or router1")
         if not isinstance(self.yosys_post_synth, str) or "\n" in self.yosys_post_synth:
@@ -559,6 +576,8 @@ class ExperimentPolicy:
             self._require_m10k_dual_clock(design)
         if self.m10k_mixed_write_dbits:
             self._require_m10k_mixed_width(design)
+        if self.m10k_tdp_width:
+            self._require_m10k_tdp(design)
 
     def _mlab_init_cells(self, design: Mapping[str, Any]) -> dict[int, dict[str, Any]]:
         modules = design.get("modules")
@@ -601,7 +620,7 @@ class ExperimentPolicy:
                     f"MLAB lane {bit} INIT must be {expected:032b}, got {parameters.get('INIT')!r}"
                 )
 
-    def _m10k_cells(self, design: Mapping[str, Any]) -> list[dict[str, Any]]:
+    def _m10k_cells(self, design: Mapping[str, Any], cell_type: str = "MISTRAL_M10K") -> list[dict[str, Any]]:
         modules = design.get("modules")
         if not isinstance(modules, Mapping):
             raise PolicyError("synth json has no modules")
@@ -613,7 +632,7 @@ class ExperimentPolicy:
             if not isinstance(cells, Mapping):
                 continue
             for cell in cells.values():
-                if isinstance(cell, Mapping) and cell.get("type") == "MISTRAL_M10K":
+                if isinstance(cell, Mapping) and cell.get("type") == cell_type:
                     found.append(cell)
         return found
 
@@ -771,6 +790,66 @@ class ExperimentPolicy:
             if actual != expected:
                 raise PolicyError(
                     f"M10K INIT lane {address} must be {expected:#x}, got {actual:#x}"
+                )
+
+    def _require_m10k_tdp(self, design: Mapping[str, Any]) -> None:
+        width = self.m10k_tdp_width
+        cells = self._m10k_cells(design, "MISTRAL_M10K_TDP")
+        if len(cells) != 1:
+            raise PolicyError(f"synth json must contain exactly one MISTRAL_M10K_TDP, got {len(cells)}")
+        cell = cells[0]
+        parameters = cell.get("parameters")
+        connections = cell.get("connections")
+        if not isinstance(parameters, Mapping) or not isinstance(connections, Mapping):
+            raise PolicyError("TDP M10K cell is missing parameters or connections")
+        mixed = json_bit_parameter(parameters.get("CFG_MIXED_WIDTH"))
+        if mixed not in (None, 0):
+            raise PolicyError(
+                f"TDP M10K CFG_MIXED_WIDTH must be omitted or 0, got {parameters.get('CFG_MIXED_WIDTH')!r}"
+            )
+        byte_enable = json_bit_parameter(parameters.get("CFG_BYTE_ENABLE"))
+        if byte_enable not in (None, 0):
+            raise PolicyError(
+                f"TDP M10K CFG_BYTE_ENABLE must be omitted or 0, got {parameters.get('CFG_BYTE_ENABLE')!r}"
+            )
+        if json_bit_parameter(parameters.get("CFG_DBITS")) != width:
+            raise PolicyError(f"TDP M10K CFG_DBITS must be {width}, got {parameters.get('CFG_DBITS')!r}")
+        expected_abits = m10k_tdp_abits(width)
+        if json_bit_parameter(parameters.get("CFG_ABITS")) != expected_abits:
+            raise PolicyError(
+                f"TDP M10K CFG_ABITS must be {expected_abits}, got {parameters.get('CFG_ABITS')!r}"
+            )
+        clk1 = connections.get("CLK1")
+        clk2 = connections.get("CLK2")
+        if not isinstance(clk1, list) or not clk1:
+            raise PolicyError("TDP M10K CLK1 must be connected")
+        if not isinstance(clk2, list) or not clk2:
+            raise PolicyError("TDP M10K CLK2 must be connected")
+        if clk1 == clk2:
+            raise PolicyError("TDP M10K CLK1 and CLK2 must be independent")
+        for port in ("A1EN", "B1EN", "A1WE", "B1WE"):
+            nets = connections.get(port)
+            if not isinstance(nets, list) or not nets:
+                raise PolicyError(f"TDP M10K {port} must be connected")
+        write_a = connections.get("A1DATA")
+        write_b = connections.get("B1DATA")
+        if not isinstance(write_a, list) or len(write_a) != width:
+            raise PolicyError(f"TDP M10K A1DATA must be {width} bits")
+        if not isinstance(write_b, list) or len(write_b) != width:
+            raise PolicyError(f"TDP M10K B1DATA must be {width} bits")
+        init = json_bit_parameter(parameters.get("INIT"))
+        if init is None:
+            raise PolicyError("TDP M10K INIT is missing")
+        mask = (1 << width) - 1
+        addresses = [0, 1, 2, 7, 15, 31, 63, 127, 255]
+        if width == 10:
+            addresses.extend((512, 1023))
+        for address in addresses:
+            actual = (init >> (address * width)) & mask
+            expected = m10k_init_word(address, width)
+            if actual != expected:
+                raise PolicyError(
+                    f"TDP M10K INIT address {address} must be {expected:#x}, got {actual:#x}"
                 )
 
     def validate_timing_report(self, timing: Mapping[str, Any]) -> None:
@@ -994,6 +1073,7 @@ class ExperimentPolicy:
                 if self.m10k_mixed_write_dbits
                 else {}
             ),
+            **({"m10k_tdp_width": self.m10k_tdp_width} if self.m10k_tdp_width else {}),
             **({"nextpnr_router": self.nextpnr_router} if self.nextpnr_router else {}),
             **({"require_read_clock_arc": True} if self.require_read_clock_arc else {}),
         }
@@ -3283,6 +3363,118 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                         "experiments/360_pll_clkena/sim/clkena_model.v",
                     ),
                     tb="experiments/520_m10k_mix10r40/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "530_m10k_tdp10": ExperimentPolicy(
+            name="530_m10k_tdp10",
+            sources=("experiments/530_m10k_tdp10/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"PLL", "M10K", "RAM"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            required_synth_cells={
+                "MISTRAL_M10K_TDP": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            nobram=False,
+            m10k_tdp_width=10,
+            require_read_clock_arc=True,
+            synth_json_input_ports={
+                "MISTRAL_M10K_TDP": ("CLK1", "CLK2", "A1EN", "B1EN", "A1WE", "B1WE")
+            },
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/530_m10k_tdp10/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/360_pll_clkena/sim/pll_model.v",
+                        "experiments/360_pll_clkena/sim/clkena_model.v",
+                    ),
+                    tb="experiments/530_m10k_tdp10/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "540_m10k_tdp20": ExperimentPolicy(
+            name="540_m10k_tdp20",
+            sources=("experiments/540_m10k_tdp20/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"PLL", "M10K", "RAM"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            required_synth_cells={
+                "MISTRAL_M10K_TDP": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            nobram=False,
+            m10k_tdp_width=20,
+            require_read_clock_arc=True,
+            synth_json_input_ports={
+                "MISTRAL_M10K_TDP": ("CLK1", "CLK2", "A1EN", "B1EN", "A1WE", "B1WE")
+            },
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/540_m10k_tdp20/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/360_pll_clkena/sim/pll_model.v",
+                        "experiments/360_pll_clkena/sim/clkena_model.v",
+                    ),
+                    tb="experiments/540_m10k_tdp20/sim/tb.cpp",
                 ),
             ),
         ),

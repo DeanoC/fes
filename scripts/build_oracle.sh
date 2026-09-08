@@ -244,7 +244,7 @@ while IFS='=' read -r policy_key policy_value; do
         qsf) policy_qsf=$policy_value ;;
         sdc) policy_sdc=$policy_value ;;
         artifact) policy_artifact=$policy_value ;;
-        nobram|nolutram|nodsp|yosys_post_synth) : ;; # OSS synthesis knobs.
+        nobram|nolutram|nodsp|yosys_post_synth|nextpnr_router) : ;; # OSS synthesis knobs.
         allowed_hard_blocks) : ;;
         "") : ;;
         *) fail "closed experiment policy emitted an unknown field: $policy_key" ;;

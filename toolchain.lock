@@ -1,20 +1,20 @@
 [tool.yosys]
 repo = "https://github.com/DeanoC/yosys.git"
-commit = "acdebf05aa6fa8a21cd1aeb7a412422b11764a18"
+commit = "ea0c44fc0dda595abee4cc27981ecf173628fc5c"
 order = 10
-rationale = "DeanoC mistral-stable including merged PR #4: Intel ALM infers mixed-width Cyclone V M10K SDP through ram_style=\"m10k_mixed\" (CFG_MIXED_WIDTH=1 and independent CFG_RD_ABITS/CFG_RD_DBITS), keeping merged PRs #1-#3 (MLAB INIT, dual-clock M10K, 20-bit byte enables). Base is CMake pin 4722ee98 on YosysHQ 13b43f8c; acdebf05 merges a18445dc. Pair with nextpnr 131f880a (merged PR #34); old Yosys maps mixed-width RAM without CFG_RD_DBITS."
+rationale = "DeanoC mistral-stable including merged PR #5: Intel ALM infers equal-width Cyclone V M10K true dual-port RAM through ram_style=\"m10k_tdp\" as MISTRAL_M10K_TDP (CFG_ABITS/CFG_DBITS 10/10 or 9/20, own-port NEW_DATA), keeping merged PRs #1-#4 (MLAB INIT, dual-clock M10K, 20-bit byte enables, mixed-width SDP). Base is CMake pin acdebf05 on YosysHQ 13b43f8c; ea0c44fc merges 67b53613. Pair with nextpnr 06747fec (merged PR #36); old Yosys maps two-port RAM as SDP without A1WE/B1WE."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
 commit = "b28e30a36b5139aaed5a5d361a30b542e6b7c758"
 order = 20
-rationale = "DeanoC fork for nextpnr 131f880a Cyclone V MUL9X9/MUL18X18/MUL27X27, PLL BELs, MLAB INIT, M10K dual-clock packing, 20-bit M10K byte enables, mixed-width M10K SDP, and corrected LAB/MLAB CLKx_INV/CLKx_SEL addresses: preserves DSP upper routing tiles on the bfa096c1 array-header baseline; fixed commit, not a moving branch."
+rationale = "DeanoC fork for nextpnr 06747fec Cyclone V MUL9X9/MUL18X18/MUL27X27, PLL BELs, MLAB INIT, M10K dual-clock packing, 20-bit M10K byte enables, mixed-width M10K SDP, true dual-port M10K packing into existing tables, and corrected LAB/MLAB CLKx_INV/CLKx_SEL addresses: preserves DSP upper routing tiles on the bfa096c1 array-header baseline; fixed commit, not a moving branch."
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "131f880a856ee7f4b9b6379aa9b2c3e7fb001fe5"
+commit = "06747fec1cb02405c3400ceac54d15c0845dcc0b"
 order = 30
-rationale = "DeanoC mistral-stable including merged PR #34: Cyclone V mixed-width M10K CFG_MIXED_WIDTH maps independent CFG_ABITS/CFG_DBITS and CFG_RD_ABITS/CFG_RD_DBITS onto ADDRA/ADDRB and DATAA/DATAB, keeping dual-clock CLKIN[0:1]. Base 71d2ffdb is merged PRs #21-#33 for 5CSEBA6U23I7; 131f880a merges 071d60ca onto 71d2ffdb. Requires Mistral b28e30a and Yosys acdebf05 (merged PR #4); old nextpnr ignores CFG_RD_DBITS. Mixed-width experiments select router1."
+rationale = "DeanoC mistral-stable including merged PR #36: Cyclone V packs MISTRAL_M10K_TDP into the existing M10K BEL with CFG_TDP=1, CLK2 onto CLKIN.1, A1EN/B1EN onto ENABLE.1/ENABLE.0, and A1WE/B1WE onto WREN.0/WREN.1. Base b1064ce2 is merged PR #35 expandBoundingBox on mixed-width 131f880a; 06747fec merges d28a896f (cfea71d9 plus hardware-acceptance retain). Requires Mistral b28e30a and Yosys ea0c44fc (merged PR #5); old nextpnr has no BEL for MISTRAL_M10K_TDP. TDP experiments use default router2."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
