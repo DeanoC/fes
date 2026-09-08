@@ -30,7 +30,7 @@ class ConsistencyTest(unittest.TestCase):
             path.write_bytes(b'generated\n')
         self.core = self.sources['misteross'] / 'cores.lock'
         self.core.write_text('[core.megadrive]\nrepo="https://example.org/core"\ncommit="abc"\nrbf_path="releases/core.rbf"\nrbf_sha256="def"\nrbf_size=123\nproject="MegaDrive.qpf"\n')
-        self.core.write_text(self.core.read_text() + self.core.read_text().replace('[core.megadrive]', '[core.snes]').replace('MegaDrive.qpf', 'SNES.qpf'))
+        self.core.write_text(self.core.read_text() + self.core.read_text().replace('[core.megadrive]', '[core.snes]').replace('MegaDrive.qpf', 'SNES.qpf') + self.core.read_text().replace('[core.megadrive]', '[core.nes]').replace('MegaDrive.qpf', 'NES.qpf'))
         self.fog = self.sources['FogCast'] / 'build/native-runtime.inputs.lock.toml'
         self.fog.parent.mkdir()
         self.fog.write_text('[megadrive_rbf]\nrepository="https://example.org/core"\ncommit="abc"\npath="releases/core.rbf"\nsha256="def"\nsize=123\n')
@@ -38,18 +38,21 @@ class ConsistencyTest(unittest.TestCase):
         def run(packages, command, source):
             self.calls.append((command, source))
             if command == 'report':
-                return REPORT.replace(b'megadrive_mister', b'snes_mister').replace(b'MegaDrive.qpf', b'SNES.qpf') if 'snes' in source else REPORT
+                for core, project in (('nes', 'NES.qpf'), ('snes', 'SNES.qpf')):
+                    if f'/{core}_mister.yaml' in source:
+                        return REPORT.replace(b'megadrive_mister', f'{core}_mister'.encode()).replace(b'MegaDrive.qpf', project.encode())
+                return REPORT
             return b'generated\n'
         self.mock = patch.object(self.module, '_run', side_effect=run)
         self.mock.start()
         self.addCleanup(self.mock.stop)
 
     def test_selected_sources_and_validation_coverage(self):
-        self.assertEqual(self.module.check(self.root, self.sources), {'generated_files': 7, 'source_pin_copies': 3})
+        self.assertEqual(self.module.check(self.root, self.sources), {'generated_files': 9, 'source_pin_copies': 4})
         self.assertEqual({source for command, source in self.calls if command == 'validate'}, {
             'packages/platform/de10_nano.yaml', 'packages/system/megadrive.yaml',
-            'packages/system/pong.yaml', 'packages/system/snes.yaml',
-            'packages/source/megadrive_mister.yaml', 'packages/source/snes_mister.yaml'})
+            'packages/system/pong.yaml', 'packages/system/snes.yaml', 'packages/system/nes.yaml',
+            'packages/source/megadrive_mister.yaml', 'packages/source/snes_mister.yaml', 'packages/source/nes_mister.yaml'})
 
     def test_generated_consumer_drift(self):
         for _, _, component, destination in self.module.GENERATED:
@@ -118,7 +121,7 @@ class ConsistencyTest(unittest.TestCase):
             'rootfs.sha256', 'kernel.sha256', 'idle.sha256',
             '/media/fat/fogcast/agent.toml',
             'installed rootfs, agent, runtime, kernel, idle artifact',
-            'megadrive.rbf', 'pong.rbf', 'snes.rbf',
+            'megadrive.rbf', 'pong.rbf', 'snes.rbf', 'nes.rbf',
         )
         for needle in required:
             self.assertIn(needle, guide, needle)

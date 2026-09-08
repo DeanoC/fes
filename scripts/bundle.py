@@ -20,6 +20,8 @@ def load(directory, expected_recipe_sha256=None, *, system="megadrive", expected
         "megadrive": (REPOSITORY, REVISION, "scripts/rebuild_core.py"),
         "snes": ("https://github.com/MiSTer-devel/SNES_MiSTer",
                  "93d359e6f23c734ae3928984e88bed1d9b53cbac", "scripts/rebuild_core.py"),
+        "nes": ("https://github.com/MiSTer-devel/NES_MiSTer",
+                "9a63821173b6da4d6e95dcbe2e2a322ec8171144", "scripts/rebuild_core.py"),
         "pong": ("https://github.com/DeanoC/misteross", expected_revision, "scripts/build_pong.py"),
     }
     if system not in policies:

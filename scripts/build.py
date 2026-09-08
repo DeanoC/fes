@@ -177,8 +177,8 @@ def source_checkout(name, revision, suffix="", restore=()):
 
 def selected_cores(profile):
     cores = profile.get("fpga_cores", [profile.get("fpga_core", "megadrive")])
-    if cores not in (["megadrive"], ["megadrive", "pong", "snes"]):
-        raise ValueError("profile must select megadrive or megadrive, pong, snes")
+    if cores not in (["megadrive"], ["megadrive", "pong", "snes", "nes"]):
+        raise ValueError("profile must select megadrive or megadrive, pong, snes, nes")
     return tuple(cores)
 
 
@@ -196,7 +196,7 @@ def validate_bundle(directory, source, revision, system):
 
 
 def build_bundle(revisions, env, force=False, *, system="megadrive"):
-    if system not in ("megadrive", "pong", "snes"):
+    if system not in ("megadrive", "pong", "snes", "nes"):
         raise ValueError("unsupported FPGA core")
     source = source_checkout("misteross", revisions["misteross"])
     directory = source / "build/bundles" / system

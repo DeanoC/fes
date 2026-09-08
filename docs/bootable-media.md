@@ -193,7 +193,7 @@ card, verify all of the following before releasing the lease:
   and `idle.sha256` in `fes-media.toml`. The two idle hashes must both match
   the pinned idle value.
 - Compare the installed rootfs, agent, runtime, kernel, idle artifact and all
-  three cores before exact-artifact acceptance. Run:
+  four selected cores before exact-artifact acceptance. Run:
 
   ```sh
   sha256sum /media/fat/linux/linux.img /media/fat/linux/zImage_dtb \
@@ -201,16 +201,20 @@ card, verify all of the following before releasing the lease:
   sha256sum /usr/sbin/mister-agent /usr/sbin/mister-runtime \
     /usr/share/mister-runtime/cores/megadrive.rbf \
     /usr/share/mister-runtime/cores/pong.rbf \
-    /usr/share/mister-runtime/cores/snes.rbf
+    /usr/share/mister-runtime/cores/snes.rbf \
+    /usr/share/mister-runtime/cores/nes.rbf
   ```
 
   Compare the first line to the external `fes-media.toml`; compare the agent,
-  runtime and all three core digests to the retained cold `manifest.tsv` bound
+  runtime and all four core digests to the retained cold `manifest.tsv` bound
   by that generation's `image.json`. Do not use a manifest from a different
   source revision, recipe or cold receipt.
 - `/media/fat` is writable and the loop-mounted root is read-only.
 - Pong, Mega Drive and SNES each launch, accept input, emit audio, and Stop
   returns the system to idle.
+- NES remains hardware-pending until this exact assembled image and its locked
+  `nes.rbf` are exercised; software validation does not substitute for that
+  acceptance.
 - An SNES save survives a full reboot.
 - No Main process or `/dev/MiSTer_cmd` is present.
 - Reboot produces a new boot ID and reaches ready/idle again.

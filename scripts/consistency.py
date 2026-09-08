@@ -10,11 +10,13 @@ GENERATED = (
     ('emit-cpp', 'packages/system/megadrive.yaml', 'libmister-runtime', 'src/native/generated/megadrive.hpp'),
     ('emit-go', 'packages/system/pong.yaml', 'FogCast', 'internal/systems/generated/pong.go'),
     ('emit-go', 'packages/system/snes.yaml', 'FogCast', 'internal/systems/generated/snes.go'),
+    ('emit-go', 'packages/system/nes.yaml', 'FogCast', 'internal/systems/generated/nes.go'),
     ('emit-cpp', 'packages/system/pong.yaml', 'libmister-runtime', 'src/native/generated/pong.hpp'),
     ('emit-cpp', 'packages/system/snes.yaml', 'libmister-runtime', 'src/native/generated/snes.hpp'),
+    ('emit-cpp', 'packages/system/nes.yaml', 'libmister-runtime', 'src/native/generated/nes.hpp'),
     ('emit-cpp', 'packages/platform/de10_nano.yaml', 'libmister-runtime', 'src/native/generated/de10_nano.hpp'),
 )
-CORE_SOURCES = ('megadrive', 'snes')
+CORE_SOURCES = ('megadrive', 'snes', 'nes')
 
 
 def _run(packages, command, source):

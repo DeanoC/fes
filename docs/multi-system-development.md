@@ -1,21 +1,50 @@
-# Pong and SNES development
+# Pong, SNES and NES development
 
-The selected sources implement Pong and basic SNES alongside Mega Drive.
-All three passed diagnostic hardware switching, video and input checks. The
-normal parent profile now selects source-built bundles for all three systems,
-with per-core selection records and image-content verification.
+The selected sources implement Pong, basic SNES and a bounded native NES slice
+alongside Mega Drive. Pong and SNES have dated diagnostic hardware evidence;
+NES is software-supported and hardware-pending until an exact assembled image
+is exercised on the designated kit. The normal parent profile selects
+source-built bundles for all four systems, with per-core selection records and
+image-content verification.
 Native cartridge save persistence is described in the [SNES save guide](snes-saves.md).
 Enhancement chips remain outside this implementation.
 
 ## Normal image inputs
 
-The default profile selects `megadrive`, `pong`, and `snes` together. FES validates
+The default profile selects `megadrive`, `pong`, `snes`, and `nes` together. FES validates
 each source-built bundle against its selected producer/source revision and recipe
 hash before passing it to the existing image builder. The image installs all
-three RBFs and retains per-core selection records; verification rejects missing,
+four RBFs and retains per-core selection records; verification rejects missing,
 changed, or unexpected cores. Historical profiles retain Mega Drive only.
 
-Fresh normal builds reproduce the earlier hardware-tested RBF bytes:
+The parent `native-integration-dev` profile is the starting point for this
+four-system software slice. Use the same selected runtime checkout and Mega
+Drive bundle, then provide the three additional sealed bundles:
+
+```sh
+export NATIVE_RUNTIME_SYSTEMS='megadrive pong snes nes'
+export PONG_RBF_BUNDLE=/absolute/path/to/pong-bundle
+export SNES_RBF_BUNDLE=/absolute/path/to/snes-bundle
+export NES_RBF_BUNDLE=/absolute/path/to/nes-bundle
+make target-image-native
+make target-image-native-verify
+```
+
+The NES producer is pinned to
+`https://github.com/MiSTer-devel/NES_MiSTer` commit
+`9a63821173b6da4d6e95dcbe2e2a322ec8171144`, project `NES.qpf`, artifact
+`releases/NES_20260823.rbf`, SHA-256
+`a4c023defa4f7856585e5dba429a3b61aee3e01eb3de2c731bb0036c12f11701`, and size
+`3282472` bytes. Its native contract accepts `.nes` files only, at most 32 MiB,
+with one cartridge at index 0. The runtime validates iNES 1.0 and NES2 headers,
+rejects trainers, zero PRG, impossible sizes and truncated payloads before
+programming, then transfers the source bytes unchanged. FDS, UNIF/UNF, NSF,
+saves, cheats and accessory peripherals are outside this slice.
+
+## Historical three-system source-build evidence
+
+The following three-system records predate the NES slice and remain useful only
+for the exact artifact revisions listed there:
 
 | Core | SHA-256 | Timing classification |
 | --- | --- | --- |
@@ -183,7 +212,17 @@ The pinned core's digital joystick masks are:
 These require matching package fields, runtime input decoding and FogCast virtual
 gamepad capabilities. Preserve the existing Mega Drive button mapping.
 
-## Next integration work
+## Current next integration step
+
+The NES software path is complete in the selected child worktrees. The next
+gate is to assemble the four-system image from the exact pinned bundles, reuse
+the retained native image/compiler cache, and verify the installed five-RBF
+manifest and selection records. If Quartus 17.0.2 is unavailable, keep the
+official NES RBF source/hash evidence and do not claim a source rebuild. Exact
+NES video/input acceptance remains a separate kit gate against that assembled
+image.
+
+## Historical next integration work
 
 1. Complete the bounded SNES cartridge adapter and full controller map, with
    rejection before programming for unsupported or malformed cartridges.

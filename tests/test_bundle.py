@@ -103,6 +103,8 @@ toolchain = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
             ("megadrive", module.REPOSITORY, module.REVISION, "scripts/rebuild_core.py"),
             ("snes", "https://github.com/MiSTer-devel/SNES_MiSTer",
              "93d359e6f23c734ae3928984e88bed1d9b53cbac", "scripts/rebuild_core.py"),
+            ("nes", "https://github.com/MiSTer-devel/NES_MiSTer",
+             "9a63821173b6da4d6e95dcbe2e2a322ec8171144", "scripts/rebuild_core.py"),
             ("pong", "https://github.com/DeanoC/misteross", "1" * 40, "scripts/build_pong.py"),
         ):
             with self.subTest(system=system), tempfile.TemporaryDirectory() as temporary:

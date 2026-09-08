@@ -88,15 +88,16 @@ would distribute the existing coupling across more locations.
 ## Integrated source set
 
 The gitlinks select matching merged implementations of native Mega Drive,
-Pong, basic SNES and renewable kit ownership. Exact revisions are recorded by
+Pong, basic SNES, NES and renewable kit ownership. Exact revisions are recorded by
 git; diagnostic artifact identities are in the multi-system and kit guides.
-The default profile packages source-built Mega Drive, Pong and SNES, each with
-its own selection record. Historical profiles remain Mega Drive-only.
+The default profile packages source-built Mega Drive, Pong, SNES and NES, each
+with its own selection record. NES is software-supported and hardware-pending;
+historical profiles remain Mega Drive-only.
 
 `make check` validates source identity and cleanliness, the FogCast runtime
-lock, package YAML, seven generated consumer files, and copied Mega Drive/SNES
-source pins. It regenerates to temporary files and never edits consumers.
-It covers the selected DE10-Nano and three system definitions.
+lock, package YAML, nine generated consumer files, and copied Mega Drive/SNES/NES
+source pins. It regenerates to temporary files and never edits consumers. It
+covers the selected DE10-Nano and four system definitions.
 
 The old review's unmerged-consumer concern is resolved: FogCast main consumes
 `generated.MegaDriveExpectedCore` and `generated.MegaDriveCartridgeIndex` through
@@ -143,7 +144,9 @@ This does not require a fixed agent team for every change.
 
 ## Next integration milestone
 
-The normal profile selects [Mega Drive, Pong and SNES](multi-system-development.md).
+The normal profile selects [Mega Drive, Pong, SNES and NES](multi-system-development.md).
+NES remains software-supported and hardware-pending until an exact assembled
+image is exercised on the designated kit.
 Exact assembled-artifact results must remain distinct from the earlier hardware
 diagnostics.
 The following assembly milestones remain separate future work:
