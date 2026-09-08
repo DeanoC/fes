@@ -46,6 +46,10 @@ development possible with both the open-source Mistral toolchain and Quartus.
   `ram_style="m10k_tdp"`: 1024×10 and 512×20 with two enabled read/write
   ports, independent clocks, and own-port NEW_DATA. Place-and-route uses
   default router2.
+- Cyclone V byte-masked true dual-port M10K RAM through
+  `ram_style="m10k_tdp_byte"`: 512×20 (two 10-bit lanes) and 512×16 (two
+  padded 8-bit bytes). Each port has an independent two-bit write mask.
+  Place-and-route uses default router2.
 - Checked fractional-N PLL profiles when `fractional_vco_multiplier` is
   `"true"`: 50 MHz → 12.288 MHz, 50 MHz → 11.2896 MHz, and the dual
   12.288/24.576 MHz pair.
@@ -207,6 +211,13 @@ development possible with both the open-source Mistral toolchain and Quartus.
 - `540_m10k_tdp20`, the 512-by-20 true dual-port table on the same protocol.
   Run `make sim EXP=540_m10k_tdp20` and `make oss EXP=540_m10k_tdp20`; no
   Quartus comparison lane is implemented.
+- `550_m10k_tdp_be20`, a 512-by-20 true dual-port table with two 10-bit write
+  lanes on HPS GP. Address 0 reads `0xA6` after configuration. Run
+  `make sim EXP=550_m10k_tdp_be20` and `make oss EXP=550_m10k_tdp_be20`; no
+  Quartus comparison lane is implemented.
+- `560_m10k_tdp_be16`, the 512-by-16 padded-byte true dual-port table on the
+  same protocol. Run `make sim EXP=560_m10k_tdp_be16` and
+  `make oss EXP=560_m10k_tdp_be16`; no Quartus comparison lane is implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under
