@@ -1,0 +1,69 @@
+{
+  "source": "Task4 runtime tests, differential checked against Task1 Draft202012Validator+FormatChecker/rfc3986-validator0.1.1; Task3 review extends empty-authority cases, total16 schema differential verified",
+  "cases": [
+    {
+      "repository": "https://example.invalid/repo@rev",
+      "valid": true
+    },
+    {
+      "repository": "https://example.invalid/a?x=@ok#f/@",
+      "valid": true
+    },
+    {
+      "repository": "https://[::1]/repo",
+      "valid": true
+    },
+    {
+      "repository": "https://[v1.alpha]/repo",
+      "valid": true
+    },
+    {
+      "repository": "https://:80/path",
+      "valid": true
+    },
+    {
+      "repository": "https://example.invalid:/path",
+      "valid": true
+    },
+    {
+      "repository": "https://example.invalid/path[bad]",
+      "valid": false
+    },
+    {
+      "repository": "https://example.invalid/a#b#c",
+      "valid": false
+    },
+    {
+      "repository": "https://example.invalid:port/path",
+      "valid": false
+    },
+    {
+      "repository": "https://example.invalid/%zz",
+      "valid": false
+    },
+    {
+      "repository": "https://[",
+      "valid": false
+    },
+    {
+      "repository": "https://user@example.invalid/repo",
+      "valid": false
+    },
+    {
+      "repository": "https://",
+      "valid": false
+    },
+    {
+      "repository": "https:///path",
+      "valid": false
+    },
+    {
+      "repository": "https://?q",
+      "valid": false
+    },
+    {
+      "repository": "https://#fragment",
+      "valid": false
+    }
+  ]
+}

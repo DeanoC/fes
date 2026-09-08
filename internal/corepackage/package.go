@@ -1,0 +1,836 @@
+// Package corepackage validates and privately stages FES format-2 core packages.
+package corepackage
+
+import (
+	"bytes"
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"unicode/utf8"
+
+	"github.com/pelletier/go-toml/v2"
+)
+
+const (
+	MaxManifestSize = 65_536
+	MaxPayloadSize  = 33_554_432
+	MaxArchiveSize  = 33 * 1024 * 1024
+)
+
+var (
+	identifierRE = regexp.MustCompile(`^[a-z][a-z0-9_.-]{0,95}$`)
+	hex32RE      = regexp.MustCompile(`^[0-9a-f]{32}$`)
+	hex40RE      = regexp.MustCompile(`^[0-9A-Fa-f]{40}$`)
+	hex64RE      = regexp.MustCompile(`^[0-9a-f]{64}$`)
+	semverRE     = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$`)
+	ipvFutureRE  = regexp.MustCompile(`^v[0-9A-Fa-f]+\.[A-Za-z0-9_.~!$&'()*+,;=:-]+$`)
+)
+
+type Descriptor struct {
+	Format     int64       `toml:"format" json:"format"`
+	Core       Core        `toml:"core" json:"core"`
+	Target     Target      `toml:"target" json:"target"`
+	Payload    Payload     `toml:"payload" json:"payload"`
+	ABI        Contract    `toml:"abi" json:"abi"`
+	Interfaces []Interface `toml:"interfaces" json:"interfaces"`
+	Build      Build       `toml:"build" json:"build"`
+}
+
+type Core struct {
+	ID          string `toml:"id" json:"id"`
+	Name        string `toml:"name" json:"name"`
+	Description string `toml:"description" json:"description"`
+	Version     string `toml:"version" json:"version"`
+	System      string `toml:"system" json:"system,omitempty"`
+}
+
+type Target struct {
+	Platform           string `toml:"platform" json:"platform"`
+	Device             string `toml:"device" json:"device"`
+	ProgrammingProfile string `toml:"programming_profile" json:"programming_profile"`
+}
+
+type Payload struct {
+	File   string `toml:"file" json:"file"`
+	Size   int64  `toml:"size" json:"size"`
+	SHA256 string `toml:"sha256" json:"sha256"`
+}
+
+type Contract struct {
+	ID    string `toml:"id" json:"id"`
+	Major int64  `toml:"major" json:"major"`
+	Minor int64  `toml:"minor" json:"minor"`
+}
+
+type Interface struct {
+	ID       string `toml:"id" json:"id"`
+	Major    int64  `toml:"major" json:"major"`
+	Minor    int64  `toml:"minor" json:"minor"`
+	Required bool   `toml:"required" json:"required"`
+}
+
+type Build struct {
+	ID           string `toml:"id" json:"id"`
+	Repository   string `toml:"repository" json:"repository"`
+	Revision     string `toml:"revision" json:"revision"`
+	RecipeSHA256 string `toml:"recipe_sha256" json:"recipe_sha256"`
+	Toolchain    string `toml:"toolchain" json:"toolchain"`
+}
+
+type Staged struct {
+	Directory       string     `json:"directory"`
+	PackageID       string     `json:"package_id"`
+	Descriptor      Descriptor `json:"descriptor"`
+	root            string
+	rootInfo        os.FileInfo
+	publication     string
+	publicationInfo os.FileInfo
+}
+
+// Cleanup removes this caller-owned private publication through its retained
+// staging root. It is safe to call again after successful removal.
+func (s Staged) Cleanup() error {
+	if s.root == "" || s.rootInfo == nil || s.publication == "" ||
+		s.publicationInfo == nil {
+		return errors.New("core package: staged package has no cleanup ownership")
+	}
+	root, err := os.OpenRoot(s.root)
+	if err != nil {
+		return fmt.Errorf("core package: open cleanup root: %w", err)
+	}
+	defer root.Close()
+	openedRoot, err := root.Stat(".")
+	if err != nil || !os.SameFile(s.rootInfo, openedRoot) {
+		return errors.New("core package: cleanup root changed while opening")
+	}
+	publication, err := root.Lstat(s.publication)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("core package: inspect staged publication: %w", err)
+	}
+	if publication.Mode()&os.ModeSymlink != 0 || !publication.IsDir() ||
+		!os.SameFile(s.publicationInfo, publication) {
+		return errors.New("core package: staged publication changed before cleanup")
+	}
+	if err := root.Chmod(s.publication, 0o700); err != nil {
+		return fmt.Errorf("core package: unseal staged publication: %w", err)
+	}
+	if err := root.RemoveAll(s.publication); err != nil {
+		return fmt.Errorf("core package: remove staged publication: %w", err)
+	}
+	return nil
+}
+
+// Inspection is the identity and closed manifest projection derived from one
+// pinned read of a package directory or archive.
+type Inspection struct {
+	PackageID  string     `json:"package_id"`
+	Descriptor Descriptor `json:"descriptor"`
+}
+
+// InspectPackage validates a package and returns its identity and descriptor
+// from the same pinned manifest and payload bytes.
+func InspectPackage(path string) (Inspection, error) {
+	manifest, payload, err := readPath(path)
+	if err != nil {
+		return Inspection{}, err
+	}
+	descriptor, err := decode(manifest, payload)
+	if err != nil {
+		return Inspection{}, err
+	}
+	return Inspection{PackageID: packageIdentity(manifest, payload),
+		Descriptor: descriptor}, nil
+}
+
+// Inspect validates a package and returns its closed manifest projection.
+func Inspect(path string) (Descriptor, error) {
+	inspection, err := InspectPackage(path)
+	return inspection.Descriptor, err
+}
+
+func Stage(ctx context.Context, root string, length int64, reader io.Reader) (Staged, error) {
+	if ctx == nil || reader == nil {
+		return Staged{}, errors.New("core package: missing staging input")
+	}
+	if length < 1 || length > MaxArchiveSize {
+		return Staged{}, fmt.Errorf("core package: archive size must be 1 through %d bytes", MaxArchiveSize)
+	}
+	if !filepath.IsAbs(root) {
+		return Staged{}, errors.New("core package: staging root must be absolute")
+	}
+	rootInfo, err := os.Lstat(root)
+	if err != nil || !rootInfo.IsDir() || rootInfo.Mode()&os.ModeSymlink != 0 {
+		return Staged{}, errors.New("core package: staging root must be an existing non-symlink directory")
+	}
+	if err := ctx.Err(); err != nil {
+		return Staged{}, err
+	}
+	data, err := io.ReadAll(io.LimitReader(&contextReader{ctx: ctx, reader: reader}, length+1))
+	if err != nil {
+		return Staged{}, err
+	}
+	if int64(len(data)) != length {
+		return Staged{}, errors.New("core package: upload length does not match the declared length")
+	}
+	manifest, payload, err := readArchive(data)
+	if err != nil {
+		return Staged{}, err
+	}
+	descriptor, err := decode(manifest, payload)
+	if err != nil {
+		return Staged{}, err
+	}
+	id := packageIdentity(manifest, payload)
+	rootHandle, err := os.OpenRoot(root)
+	if err != nil {
+		return Staged{}, fmt.Errorf("core package: open staging root: %w", err)
+	}
+	defer rootHandle.Close()
+	openedRoot, err := rootHandle.Stat(".")
+	if err != nil || !os.SameFile(rootInfo, openedRoot) {
+		return Staged{}, errors.New("core package: staging root changed while opening")
+	}
+	token, err := randomToken()
+	if err != nil {
+		return Staged{}, err
+	}
+	temporary := ".corepackage-" + token
+	if err := rootHandle.Mkdir(temporary, 0o700); err != nil {
+		return Staged{}, fmt.Errorf("core package: create private staging directory: %w", err)
+	}
+	ownedName := temporary
+	handedOff := false
+	defer func() {
+		if !handedOff {
+			_ = rootHandle.Chmod(ownedName, 0o700)
+			_ = rootHandle.RemoveAll(ownedName)
+		}
+	}()
+	if err := writePrivate(rootHandle, filepath.Join(temporary, "manifest.toml"), manifest); err != nil {
+		return Staged{}, err
+	}
+	if err := writePrivate(rootHandle, filepath.Join(temporary, "core.rbf"), payload); err != nil {
+		return Staged{}, err
+	}
+	if err := rootHandle.Chmod(temporary, 0o500); err != nil {
+		return Staged{}, fmt.Errorf("core package: seal staging directory: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return Staged{}, err
+	}
+	publication := id + "-" + token
+	if _, err := rootHandle.Lstat(publication); !errors.Is(err, os.ErrNotExist) {
+		if err == nil {
+			return Staged{}, errors.New("core package: staging publication already exists")
+		}
+		return Staged{}, fmt.Errorf("core package: inspect publication path: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return Staged{}, err
+	}
+	if err := rootHandle.Rename(temporary, publication); err != nil {
+		return Staged{}, fmt.Errorf("core package: publish staging directory: %w", err)
+	}
+	ownedName = publication
+	publicationInfo, err := rootHandle.Lstat(publication)
+	if err != nil {
+		return Staged{}, fmt.Errorf("core package: retain staged publication: %w", err)
+	}
+	// Cancellation observed through this point retains no publication. Once
+	// handedOff becomes true, the returned Staged value owns cleanup.
+	if err := ctx.Err(); err != nil {
+		return Staged{}, err
+	}
+	handedOff = true
+	return Staged{Directory: filepath.Join(root, publication), PackageID: id,
+		Descriptor: descriptor, root: root, rootInfo: openedRoot,
+		publication: publication, publicationInfo: publicationInfo}, nil
+}
+
+type contextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (r *contextReader) Read(p []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.reader.Read(p)
+}
+
+func writePrivate(root *os.Root, name string, data []byte) error {
+	file, err := root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o400)
+	if err != nil {
+		return fmt.Errorf("core package: create staged member: %w", err)
+	}
+	if _, err = file.Write(data); err == nil {
+		err = file.Sync()
+	}
+	closeErr := file.Close()
+	if err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return fmt.Errorf("core package: write staged member: %w", err)
+	}
+	return nil
+}
+
+func randomToken() (string, error) {
+	var value [16]byte
+	if _, err := rand.Read(value[:]); err != nil {
+		return "", fmt.Errorf("core package: generate staging identity: %w", err)
+	}
+	return hex.EncodeToString(value[:]), nil
+}
+
+func readPath(path string) ([]byte, []byte, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("core package: inspect path: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return nil, nil, errors.New("core package: package path must not be a symlink")
+	}
+	if info.IsDir() {
+		return readDirectory(path, info)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, nil, errors.New("core package: path must be a directory or regular archive")
+	}
+	data, err := readRegular(path, info, MaxArchiveSize, "archive")
+	if err != nil {
+		return nil, nil, err
+	}
+	return readArchive(data)
+}
+
+func readDirectory(path string, expected os.FileInfo) ([]byte, []byte, error) {
+	root, err := os.OpenRoot(path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("core package: open directory: %w", err)
+	}
+	defer root.Close()
+	opened, err := root.Stat(".")
+	if err != nil || !os.SameFile(expected, opened) {
+		return nil, nil, errors.New("core package: directory changed while opening")
+	}
+	if err := exactDirectoryEntries(root); err != nil {
+		return nil, nil, errors.New("core package: directory must contain exactly manifest.toml and core.rbf")
+	}
+	manifest, err := readRootMember(root, "manifest.toml", MaxManifestSize)
+	if err != nil {
+		return nil, nil, err
+	}
+	payload, err := readRootMember(root, "core.rbf", MaxPayloadSize)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := exactDirectoryEntries(root); err != nil {
+		return nil, nil, errors.New("core package: directory changed while reading")
+	}
+	return manifest, payload, nil
+}
+
+func exactDirectoryEntries(root *os.Root) error {
+	directory, err := root.Open(".")
+	if err != nil {
+		return err
+	}
+	entries, readErr := directory.ReadDir(-1)
+	closeErr := directory.Close()
+	if readErr != nil {
+		return readErr
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	if len(entries) != 2 {
+		return errors.New("wrong entry count")
+	}
+	found := map[string]bool{}
+	for _, entry := range entries {
+		found[entry.Name()] = true
+	}
+	if !found["manifest.toml"] || !found["core.rbf"] {
+		return errors.New("wrong entries")
+	}
+	return nil
+}
+
+func readRootMember(root *os.Root, name string, maximum int64) ([]byte, error) {
+	before, err := root.Lstat(name)
+	if err != nil || before.Mode()&os.ModeSymlink != 0 || !before.Mode().IsRegular() {
+		return nil, fmt.Errorf("core package: %s must be a regular non-symlink file", name)
+	}
+	file, err := root.Open(name)
+	if err != nil {
+		return nil, fmt.Errorf("core package: open %s: %w", name, err)
+	}
+	opened, err := file.Stat()
+	if err != nil || !os.SameFile(before, opened) {
+		_ = file.Close()
+		return nil, fmt.Errorf("core package: %s changed while opening", name)
+	}
+	data, err := readOpenFile(file, opened.Size(), maximum, name)
+	closeErr := file.Close()
+	if err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return nil, err
+	}
+	after, err := root.Lstat(name)
+	if err != nil || !os.SameFile(opened, after) {
+		return nil, fmt.Errorf("core package: %s changed while reading", name)
+	}
+	return data, nil
+}
+
+func readRegular(path string, expected os.FileInfo, maximum int64, field string) ([]byte, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("core package: open %s: %w", field, err)
+	}
+	opened, err := file.Stat()
+	if err != nil || !opened.Mode().IsRegular() || !os.SameFile(expected, opened) {
+		_ = file.Close()
+		return nil, fmt.Errorf("core package: %s changed while opening", field)
+	}
+	data, err := readOpenFile(file, opened.Size(), maximum, field)
+	closeErr := file.Close()
+	if err == nil {
+		err = closeErr
+	}
+	return data, err
+}
+
+func readOpenFile(file *os.File, size, maximum int64, field string) ([]byte, error) {
+	if size < 1 || size > maximum {
+		return nil, fmt.Errorf("core package: %s size must be 1 through %d bytes", field, maximum)
+	}
+	data := make([]byte, size)
+	if _, err := io.ReadFull(file, data); err != nil {
+		return nil, fmt.Errorf("core package: %s was truncated: %w", field, err)
+	}
+	var extra [1]byte
+	if count, err := file.Read(extra[:]); count != 0 || (err != nil && !errors.Is(err, io.EOF)) {
+		return nil, fmt.Errorf("core package: %s changed while reading", field)
+	}
+	return data, nil
+}
+
+func readArchive(data []byte) ([]byte, []byte, error) {
+	offset := 0
+	values := make([][]byte, 0, 2)
+	for _, member := range []struct {
+		name    string
+		maximum int64
+	}{{"manifest.toml", MaxManifestSize}, {"core.rbf", MaxPayloadSize}} {
+		if len(data)-offset < 512 {
+			return nil, nil, fmt.Errorf("core package: archive is missing %s header", member.name)
+		}
+		header := data[offset : offset+512]
+		size, err := canonicalSize(header[124:136])
+		if err != nil || size < 1 || size > member.maximum {
+			return nil, nil, fmt.Errorf("core package: invalid %s archive size", member.name)
+		}
+		if !bytes.Equal(header, canonicalHeader(member.name, size)) {
+			return nil, nil, fmt.Errorf("core package: %s header is not canonical restricted ustar", member.name)
+		}
+		offset += 512
+		padded := (size + 511) &^ 511
+		if padded > int64(len(data)-offset) {
+			return nil, nil, fmt.Errorf("core package: archive member %s is truncated", member.name)
+		}
+		value := append([]byte(nil), data[offset:offset+int(size)]...)
+		for _, padding := range data[offset+int(size) : offset+int(padded)] {
+			if padding != 0 {
+				return nil, nil, fmt.Errorf("core package: archive member %s has nonzero padding", member.name)
+			}
+		}
+		values = append(values, value)
+		offset += int(padded)
+	}
+	if len(data)-offset != 1024 || !allZero(data[offset:]) {
+		return nil, nil, errors.New("core package: archive must end with exactly two zero blocks")
+	}
+	return values[0], values[1], nil
+}
+
+func canonicalSize(field []byte) (int64, error) {
+	if len(field) != 12 || field[11] != 0 {
+		return 0, errors.New("invalid size")
+	}
+	var value int64
+	for _, digit := range field[:11] {
+		if digit < '0' || digit > '7' {
+			return 0, errors.New("invalid size")
+		}
+		value = value*8 + int64(digit-'0')
+	}
+	return value, nil
+}
+
+func canonicalHeader(name string, size int64) []byte {
+	header := make([]byte, 512)
+	copy(header[0:100], name)
+	copy(header[100:108], "0000644\x00")
+	copy(header[108:116], "0000000\x00")
+	copy(header[116:124], "0000000\x00")
+	copy(header[124:136], fmt.Sprintf("%011o\x00", size))
+	copy(header[136:148], "00000000000\x00")
+	for index := 148; index < 156; index++ {
+		header[index] = ' '
+	}
+	header[156] = '0'
+	copy(header[257:263], "ustar\x00")
+	copy(header[263:265], "00")
+	var checksum int
+	for _, value := range header {
+		checksum += int(value)
+	}
+	copy(header[148:156], fmt.Sprintf("%06o\x00 ", checksum))
+	return header
+}
+
+func allZero(data []byte) bool {
+	for _, value := range data {
+		if value != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func decode(manifest, payload []byte) (Descriptor, error) {
+	if len(manifest) < 1 || len(manifest) > MaxManifestSize || !utf8.Valid(manifest) {
+		return Descriptor{}, errors.New("core package: manifest must be 1 through 65536 valid UTF-8 bytes")
+	}
+	var descriptor Descriptor
+	decoder := toml.NewDecoder(bytes.NewReader(manifest))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&descriptor); err != nil {
+		return Descriptor{}, fmt.Errorf("core package: invalid manifest: %w", err)
+	}
+	var fields map[string]any
+	if err := toml.Unmarshal(manifest, &fields); err != nil {
+		return Descriptor{}, fmt.Errorf("core package: invalid manifest shape: %w", err)
+	}
+	if err := validateShape(fields); err != nil {
+		return Descriptor{}, err
+	}
+	if err := validateDescriptor(descriptor, payload); err != nil {
+		return Descriptor{}, err
+	}
+	return descriptor, nil
+}
+
+func validateShape(root map[string]any) error {
+	if err := exactKeys(root, []string{"format", "core", "target", "payload", "abi", "interfaces", "build"}, nil, "manifest"); err != nil {
+		return err
+	}
+	tables := []struct {
+		name     string
+		required []string
+		optional []string
+	}{
+		{"core", []string{"id", "name", "description", "version"}, []string{"system"}},
+		{"target", []string{"platform", "device", "programming_profile"}, nil},
+		{"payload", []string{"file", "size", "sha256"}, nil},
+		{"abi", []string{"id", "major", "minor"}, nil},
+		{"build", []string{"id", "repository", "revision", "recipe_sha256", "toolchain"}, nil},
+	}
+	for _, item := range tables {
+		table, ok := root[item.name].(map[string]any)
+		if !ok {
+			return fmt.Errorf("core package: %s must be a TOML table", item.name)
+		}
+		if err := exactKeys(table, item.required, item.optional, item.name); err != nil {
+			return err
+		}
+	}
+	interfaces, ok := root["interfaces"].([]any)
+	if !ok {
+		return errors.New("core package: interfaces must be an array of tables")
+	}
+	for index, value := range interfaces {
+		table, ok := value.(map[string]any)
+		if !ok {
+			return fmt.Errorf("core package: interfaces[%d] must be a TOML table", index)
+		}
+		if err := exactKeys(table, []string{"id", "major", "minor", "required"}, nil,
+			fmt.Sprintf("interfaces[%d]", index)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func exactKeys(table map[string]any, required, optional []string, field string) error {
+	allowed := make(map[string]bool, len(required)+len(optional))
+	for _, key := range required {
+		allowed[key] = true
+		if _, exists := table[key]; !exists {
+			return fmt.Errorf("core package: %s is missing required field %s", field, key)
+		}
+	}
+	for _, key := range optional {
+		allowed[key] = true
+	}
+	for key := range table {
+		if !allowed[key] {
+			return fmt.Errorf("core package: %s has unknown field %s", field, key)
+		}
+	}
+	return nil
+}
+
+func validateDescriptor(d Descriptor, payload []byte) error {
+	if d.Format != 2 {
+		return errors.New("core package: format must be 2")
+	}
+	if err := identifier(d.Core.ID, "core.id"); err != nil {
+		return err
+	}
+	if err := text(d.Core.Name, "core.name", true, 128); err != nil {
+		return err
+	}
+	if err := text(d.Core.Description, "core.description", false, 2048); err != nil {
+		return err
+	}
+	if !semverRE.MatchString(d.Core.Version) {
+		return errors.New("core package: core.version must be full SemVer")
+	}
+	if d.Core.System != "" {
+		if err := identifier(d.Core.System, "core.system"); err != nil {
+			return err
+		}
+	}
+	if err := identifier(d.Target.Platform, "target.platform"); err != nil {
+		return err
+	}
+	if err := text(d.Target.Device, "target.device", true, 0); err != nil {
+		return err
+	}
+	if err := identifier(d.Target.ProgrammingProfile, "target.programming_profile"); err != nil {
+		return err
+	}
+	if d.Target.Platform != "de10_nano" || d.Target.Device != "5CSEBA6U23I7" {
+		return errors.New("core package: unsupported target")
+	}
+	if d.Payload.File != "core.rbf" {
+		return errors.New("core package: payload.file must be core.rbf")
+	}
+	if d.Payload.Size < 1 || d.Payload.Size > MaxPayloadSize {
+		return errors.New("core package: payload.size is out of bounds")
+	}
+	if !hex64RE.MatchString(d.Payload.SHA256) {
+		return errors.New("core package: invalid payload.sha256")
+	}
+	if int64(len(payload)) != d.Payload.Size {
+		return errors.New("core package: payload size does not match manifest")
+	}
+	digest := sha256.Sum256(payload)
+	if hex.EncodeToString(digest[:]) != d.Payload.SHA256 {
+		return errors.New("core package: payload digest does not match manifest")
+	}
+	if err := contract(d.ABI, "abi"); err != nil {
+		return err
+	}
+	seen := make(map[string]struct{}, len(d.Interfaces))
+	for index, value := range d.Interfaces {
+		field := fmt.Sprintf("interfaces[%d]", index)
+		if err := identifier(value.ID, field+".id"); err != nil {
+			return err
+		}
+		if value.Major < 1 || value.Major > 65535 || value.Minor < 0 || value.Minor > 65535 {
+			return fmt.Errorf("core package: %s version is out of bounds", field)
+		}
+		if _, exists := seen[value.ID]; exists {
+			return fmt.Errorf("core package: duplicate interface id %s", value.ID)
+		}
+		seen[value.ID] = struct{}{}
+	}
+	if !hex32RE.MatchString(d.Build.ID) {
+		return errors.New("core package: invalid build.id")
+	}
+	if !validRepository(d.Build.Repository) {
+		return errors.New("core package: invalid build.repository")
+	}
+	if !hex40RE.MatchString(d.Build.Revision) {
+		return errors.New("core package: invalid build.revision")
+	}
+	if !hex64RE.MatchString(d.Build.RecipeSHA256) {
+		return errors.New("core package: invalid build.recipe_sha256")
+	}
+	if err := text(d.Build.Toolchain, "build.toolchain", true, 1024); err != nil {
+		return err
+	}
+	return nil
+}
+
+func contract(value Contract, field string) error {
+	if err := identifier(value.ID, field+".id"); err != nil {
+		return err
+	}
+	if value.Major < 1 || value.Major > 65535 || value.Minor < 0 || value.Minor > 65535 {
+		return fmt.Errorf("core package: %s version is out of bounds", field)
+	}
+	return nil
+}
+
+func identifier(value, field string) error {
+	if !identifierRE.MatchString(value) {
+		return fmt.Errorf("core package: invalid %s", field)
+	}
+	return nil
+}
+
+func text(value, field string, nonempty bool, maximum int) error {
+	if nonempty && value == "" {
+		return fmt.Errorf("core package: %s must not be empty", field)
+	}
+	if maximum > 0 && len([]byte(value)) > maximum {
+		return fmt.Errorf("core package: %s exceeds %d UTF-8 bytes", field, maximum)
+	}
+	for _, character := range value {
+		if character < 32 || (character >= 127 && character <= 159) {
+			return fmt.Errorf("core package: %s contains a control character", field)
+		}
+	}
+	return nil
+}
+
+func validRepository(value string) bool {
+	if !strings.HasPrefix(value, "https://") {
+		return false
+	}
+	rest := value[len("https://"):]
+	end := strings.IndexAny(rest, "/?#")
+	authority := rest
+	suffix := ""
+	if end >= 0 {
+		authority, suffix = rest[:end], rest[end:]
+	}
+	if authority == "" || strings.Contains(authority, "@") || !validAuthority(authority) {
+		return false
+	}
+	path, query, fragment, ok := splitSuffix(suffix)
+	return ok && validURIText(path, false) && validURIText(query, true) && validURIText(fragment, true)
+}
+
+func validAuthority(authority string) bool {
+	host, port := authority, ""
+	literal := false
+	if strings.HasPrefix(authority, "[") {
+		closing := strings.IndexByte(authority, ']')
+		if closing < 0 {
+			return false
+		}
+		host = authority[:closing+1]
+		remaining := authority[closing+1:]
+		if remaining != "" {
+			if !strings.HasPrefix(remaining, ":") {
+				return false
+			}
+			port = remaining[1:]
+		}
+		inside := host[1 : len(host)-1]
+		parsed := net.ParseIP(inside)
+		if (parsed == nil || !strings.Contains(inside, ":")) &&
+			!ipvFutureRE.MatchString(inside) {
+			return false
+		}
+		literal = true
+	} else if colon := strings.LastIndexByte(authority, ':'); colon >= 0 {
+		host, port = authority[:colon], authority[colon+1:]
+		if strings.Contains(host, ":") {
+			return false
+		}
+	}
+	for _, digit := range port {
+		if digit < '0' || digit > '9' {
+			return false
+		}
+	}
+	if literal {
+		return true
+	}
+	return validComponent(host, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.~-!$&'()*+,;=%", true)
+}
+
+func splitSuffix(value string) (string, string, string, bool) {
+	if strings.Count(value, "#") > 1 {
+		return "", "", "", false
+	}
+	fragment := ""
+	if at := strings.IndexByte(value, '#'); at >= 0 {
+		fragment, value = value[at+1:], value[:at]
+	}
+	query := ""
+	if at := strings.IndexByte(value, '?'); at >= 0 {
+		query, value = value[at+1:], value[:at]
+	}
+	if value != "" && value[0] != '/' {
+		return "", "", "", false
+	}
+	return value, query, fragment, true
+}
+
+func validURIText(value string, query bool) bool {
+	allowed := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.~-!$&'()*+,;=:@"
+	if query {
+		allowed += "/?"
+	} else {
+		allowed += "/"
+	}
+	return validComponent(value, allowed, true)
+}
+
+func validComponent(value, allowed string, percent bool) bool {
+	for index := 0; index < len(value); index++ {
+		if value[index] == '%' && percent {
+			if index+2 >= len(value) || !isHex(value[index+1]) || !isHex(value[index+2]) {
+				return false
+			}
+			index += 2
+			continue
+		}
+		if value[index] >= utf8.RuneSelf || !strings.ContainsRune(allowed, rune(value[index])) {
+			return false
+		}
+	}
+	return true
+}
+
+func isHex(value byte) bool {
+	return value >= '0' && value <= '9' || value >= 'a' && value <= 'f' || value >= 'A' && value <= 'F'
+}
+
+func packageIdentity(manifest, payload []byte) string {
+	digest := sha256.New()
+	_, _ = digest.Write([]byte("FES-CORE-PACKAGE-2\n"))
+	var length [8]byte
+	binary.LittleEndian.PutUint64(length[:], uint64(len(manifest)))
+	_, _ = digest.Write(length[:])
+	_, _ = digest.Write(manifest)
+	binary.LittleEndian.PutUint64(length[:], uint64(len(payload)))
+	_, _ = digest.Write(length[:])
+	_, _ = digest.Write(payload)
+	return hex.EncodeToString(digest.Sum(nil))
+}

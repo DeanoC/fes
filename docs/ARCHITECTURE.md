@@ -189,6 +189,27 @@ source/cache admission. Configured Pong library roots are rejected. The Main
 backend explicitly rejects ROM-less profiles. Host discoverability does not
 establish that a selected target image contains the required Pong RBF.
 
+## Format-2 core package inspection and staging
+
+`internal/corepackage` is the shared, hardware-independent format-2 reader. It
+inspects exact two-file directories or restricted uncompressed ustar archives,
+validates the closed typed manifest and payload bytes, and computes package
+identity from the original manifest and payload. Unknown but well-formed ABIs
+remain inspectable; hardware compatibility belongs to the native runtime.
+`corepackage.InspectPackage` returns the package ID and closed `Descriptor`
+from the same pinned read for identity-reporting consumers such as
+`core-inspect`; the smaller `Inspect` wrapper returns only the descriptor.
+
+`corepackage.Stage` accepts a caller-bounded archive stream and publishes only
+validated `manifest.toml` and `core.rbf` bytes into a distinct sealed directory
+beneath an absolute private root. Cancellation or validation failure removes
+the incomplete directory, including cancellation observed after rename and
+before ownership handoff. The caller owns the returned directory lifetime and
+must release it with `Staged.Cleanup`, which reopens and verifies the retained
+root and publication identities before removing the sealed directory.
+This package currently has no HTTP, coordinator, kit, protocol, or image call
+site; those integrations require the separately versioned runtime protocol.
+
 ## Other modes
 
 Host-emulator execution, remote input, capture, and host-to-target media are
