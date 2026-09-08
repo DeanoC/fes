@@ -75,6 +75,21 @@ requires the kit card in the USB reader, exact-device identification and the
 existing kit-sharing procedure. At artifact completion another task held the
 kit lease (`nextpnr-m10k-dual`); it was not displaced.
 
+## Card write receipt
+
+On 2026-09-08 the verified image was written to the removable device
+`/dev/disk/by-id/usb-Generic_STORAGE_DEVICE_000000000819-0:0` (USB model
+`STORAGE DEVICE`, serial `000000000819`). The device was 28.8 GiB, unmounted,
+and its pre-write MBR matched the old FESDATA/A2 layout. The write used `dd`
+with a 4 MiB block size and an `fsync` completion. It transferred 1,075,838,976
+bytes at 16.8 MiB/s.
+
+The written region was then compared byte-for-byte against `card.img`; the
+comparison passed. The new MBR has disk ID `0x46455331`, FAT partition 1 at
+sector 2048 with 2,097,152 sectors, and A2 partition 2 at sector 2,099,200
+with 2,048 sectors. No system disk was touched, and the card remains unmounted.
+This verifies the write itself; it does not verify booting the card in the kit.
+
 After the owner releases the kit, install the generated disk, preserve the
 relevant backed-up data, and verify the new boot's actual bootstrap/rootfs
 identity. Then exercise update, confirmation, rollback, failed-init and
