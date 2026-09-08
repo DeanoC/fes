@@ -76,6 +76,7 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/180_pll_frac/rtl/top.v",
             "experiments/190_pll_frac_441/rtl/top.v",
             "experiments/200_pll_frac_dual/rtl/top.v",
+            "experiments/610_pll_frac_7425/rtl/top.v",
             "experiments/210_pll_duty/rtl/top.v",
             "experiments/220_pll_phase/rtl/top.v",
             "experiments/230_pll_phase_180/rtl/top.v",
@@ -143,7 +144,7 @@ class OssPipelinePurityTests(unittest.TestCase):
 
         pins = {
             "yosys": "10891a9e0256a0eac70c329aa64c633902fc6bc6",
-            "nextpnr": "5c12b20429bccc206cf1dfbb726c95bbb30f51d8",
+            "nextpnr": "ef294430c57b1d64c52f15129adcc6236ecbce01",
         }
         for lock_name, commit in pins.items():
             evidence = external_build / lock_name if symlink_build_tools else build / lock_name
@@ -364,6 +365,18 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         commands = result.stdout
         self.assertIn("experiments/200_pll_frac_dual/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("pll_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_pll_frac_7425(self) -> None:
+        result = self._run("--print-commands", "--experiment", "610_pll_frac_7425")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/610_pll_frac_7425/rtl/top.v", commands)
         self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
         self.assertNotIn("hps_gp_model.v", commands)
         self.assertNotIn("pll_model.v", commands)

@@ -153,10 +153,13 @@ including merged PR #6 byte-masked TDP, merged PR #5 unmasked TDP, merged PR #4
 mixed-width SDP, merged PR #3 20-bit byte enables, merged PR #2 independent
 CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair it with nextpnr
-`5c12b204`.
+`ef29443`.
 
-The current nextpnr pin `5c12b20429bccc206cf1dfbb726c95bbb30f51d8` is
-`mistral-stable` including merged PR #38 mixed-width true dual-port M10K packing
+The current nextpnr pin `ef294430c57b1d64c52f15129adcc6236ecbce01` is
+`mistral-stable` including merged PR #39: a single 50→74.25 MHz fractional-N
+output (`fractional_vco_multiplier="true"`, direct mode, 0 phase, 50% duty,
+M=8 N=1 C6=6, K=`0xe8f5c239`, calculated 74,249,999.83243954 Hz). Integer
+mode still rejects 74.25 MHz. That sits on merged PR #38 mixed-width true dual-port M10K packing
 (`CFG_MIXED_WIDTH=1`, per-port 1024×10 or 512×20, `CFG_RD_ABITS`/`CFG_RD_DBITS`)
 on merged PR #37 true dual-port M10K byte enables
 (`CFG_BYTE_ENABLE=1`, `A1BE`/`B1BE` onto `BYTEENABLEA`/`BYTEENABLEB`) on merged PR
@@ -185,6 +188,8 @@ The second PLL site also requires 50 MHz. It also requires Mistral
 actually toggle. An older Mistral library now fails before inverted-clock
 RBF output. Fractional-N profiles still require 50% duty. The closed
 `090_pll_clock` and `110_pll_reset` experiments retain their 25 MHz 50% output.
+The 74.25 MHz single-output profile is accepted only with
+`fractional_vco_multiplier="true"`.
 
 Compiler fixtures under `mistral/tests/pll` in the nextpnr fork cover divider
 selection, malformed frequencies, emitted configuration, meter simulation and
@@ -971,6 +976,23 @@ and size 1,959,145 bytes. Its reported write-clock Fmax is 287.853 MHz against
 the 50 MHz constraint. Exact-artifact kit diagnostics on 2026-09-08 returned
 GPI signature `0xD424` with the same mixed-width probe set.
 
+`610_pll_frac_7425` measures the checked 50→74.25 MHz fractional-N profile
+through HPS GP. GPI signature `0xD742` identifies the protocol. Simulation
+models a 25 MHz digital stand-in and a lock delay, not the analog 74.25 MHz
+ratio. nextpnr programs M=8 N=1 C6=6 and 32-bit K=`0xe8f5c239`. Simulation
+and OSS are supported; Quartus comparison is not implemented. See
+`experiments/610_pll_frac_7425/expected.md`.
+
+The OSS `610_pll_frac_7425` artifact has SHA-256
+`233511d0a10b02480b41468f4785a762c1dd50e9c4c66908891f351906ec378c`
+and size 1,955,855 bytes. nextpnr selected 50→74.25 MHz fractional-N with M=8
+N=1 C6=6 and 32-bit K=`0xe8f5c239` (achieved 74249999.83243954 Hz). Its
+reported reference/output Fmax values are 195.274/343.879 MHz against
+50/74.25006866 MHz constraints. Utilization is one `altera_pll`, two clock
+buffers, and one HPS GP. Exact-artifact kit diagnostics on 2026-09-08 returned
+zero while reset and 6082–6083 after relock for ten cycles with GPI signature
+`0xD742`.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
@@ -979,8 +1001,9 @@ contents, independent-clock 20-bit and 40-bit M10K simple dual-port RAM,
 20-bit M10K byte-enable lanes with independent clocks, mixed-width 40↔10
 M10K simple dual-port RAM, independent-clock 10-bit and 20-bit M10K true
 dual-port RAM, independent-clock byte-masked 20-bit and 16-bit TDP M10K RAM,
-and independent-clock mixed-width 20/10, 10/20, 16/8 and 8/16 TDP M10K RAM.
-It does not establish native game acceptance.
+independent-clock mixed-width 20/10, 10/20, 16/8 and 8/16 TDP M10K RAM, and
+the 50→74.25 MHz fractional-N PLL profile. It does not establish native game
+acceptance.
 
 ## Standalone Pong game
 
