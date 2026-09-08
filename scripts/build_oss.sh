@@ -102,6 +102,7 @@ policy_nobram=""
 policy_nolutram=""
 policy_nodsp=""
 policy_yosys_post_synth=""
+policy_nextpnr_router=""
 rtl=""
 qsf=""
 sdc=""
@@ -249,6 +250,7 @@ while IFS='=' read -r policy_key policy_value; do
         nolutram) policy_nolutram=$policy_value ;;
         nodsp) policy_nodsp=$policy_value ;;
         yosys_post_synth) policy_yosys_post_synth=$policy_value ;;
+        nextpnr_router) policy_nextpnr_router=$policy_value ;;
         allowed_hard_blocks) : ;; # Consumed by Python summary validation.
         "") : ;;
         *) fail "closed experiment policy emitted an unknown field: $policy_key" ;;
@@ -322,6 +324,11 @@ nextpnr_cmd=(
     --report "$out_rel/timing.json"
     --detailed-timing-report
 )
+if [[ -n "$policy_nextpnr_router" ]]; then
+    [[ "$policy_nextpnr_router" == "router1" ]] \
+        || fail "closed experiment policy nextpnr_router must be empty or router1"
+    nextpnr_cmd+=(--router "$policy_nextpnr_router")
+fi
 
 print_cmd() {
     printf 'command:'
@@ -406,7 +413,11 @@ fi
     || fail "synth json does not satisfy closed experiment policy: $EXP"
 
 "$run_logged" "$nextpnr_help_log" "${nextpnr_help_cmd[@]}"
-for required_flag in --json --device --qsf --sdc --freq --rbf --compress-rbf --write --report --detailed-timing-report; do
+required_flags=(--json --device --qsf --sdc --freq --rbf --compress-rbf --write --report --detailed-timing-report)
+if [[ "$policy_nextpnr_router" == "router1" ]]; then
+    required_flags+=(--router)
+fi
+for required_flag in "${required_flags[@]}"; do
     flag_found=0
     while IFS= read -r help_line; do
         if [[ "$help_line" == *"$required_flag"* ]]; then

@@ -1,20 +1,20 @@
 [tool.yosys]
 repo = "https://github.com/DeanoC/yosys.git"
-commit = "4722ee98b2d658adc82504112573a712d40dacf1"
+commit = "acdebf05aa6fa8a21cd1aeb7a412422b11764a18"
 order = 10
-rationale = "DeanoC mistral-stable including merged PR #3: Intel ALM infers Cyclone V 512x20 M10K byte enables as two 10-bit write lanes (CFG_BYTE_ENABLE=1 and A1BE[1:0]), keeping independent CLK1/CLK2. Base is CMake pin a044a8ea (merged PRs #1-#2 on YosysHQ 13b43f8c); 4722ee98 merges e9fbe56. Pair with nextpnr 71d2ffdb (merged PR #33); old Yosys maps 20-bit byte-enable RAM without A1BE."
+rationale = "DeanoC mistral-stable including merged PR #4: Intel ALM infers mixed-width Cyclone V M10K SDP through ram_style=\"m10k_mixed\" (CFG_MIXED_WIDTH=1 and independent CFG_RD_ABITS/CFG_RD_DBITS), keeping merged PRs #1-#3 (MLAB INIT, dual-clock M10K, 20-bit byte enables). Base is CMake pin 4722ee98 on YosysHQ 13b43f8c; acdebf05 merges a18445dc. Pair with nextpnr 131f880a (merged PR #34); old Yosys maps mixed-width RAM without CFG_RD_DBITS."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
 commit = "b28e30a36b5139aaed5a5d361a30b542e6b7c758"
 order = 20
-rationale = "DeanoC fork for nextpnr 71d2ffdb Cyclone V MUL9X9/MUL18X18/MUL27X27, PLL BELs, MLAB INIT, M10K dual-clock packing, 20-bit M10K byte enables, and corrected LAB/MLAB CLKx_INV/CLKx_SEL addresses: preserves DSP upper routing tiles on the bfa096c1 array-header baseline; fixed commit, not a moving branch."
+rationale = "DeanoC fork for nextpnr 131f880a Cyclone V MUL9X9/MUL18X18/MUL27X27, PLL BELs, MLAB INIT, M10K dual-clock packing, 20-bit M10K byte enables, mixed-width M10K SDP, and corrected LAB/MLAB CLKx_INV/CLKx_SEL addresses: preserves DSP upper routing tiles on the bfa096c1 array-header baseline; fixed commit, not a moving branch."
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "71d2ffdbdf669475d6596352990f4d22d90a9092"
+commit = "131f880a856ee7f4b9b6379aa9b2c3e7fb001fe5"
 order = 30
-rationale = "DeanoC mistral-stable including merged PR #33: Cyclone V 20-bit M10K CFG_BYTE_ENABLE maps A1BE to BYTEENABLEA and the logical write enable to positive WREN[0] plus ENABLE[1], keeping independent CLKIN[0:1]. Base 79daad71 is merged PRs #21-#32 for 5CSEBA6U23I7; 71d2ffdb merges e677fc48 onto 79daad71. Requires Mistral b28e30a and Yosys 4722ee98 (merged PR #3); old nextpnr ignores A1BE JSON."
+rationale = "DeanoC mistral-stable including merged PR #34: Cyclone V mixed-width M10K CFG_MIXED_WIDTH maps independent CFG_ABITS/CFG_DBITS and CFG_RD_ABITS/CFG_RD_DBITS onto ADDRA/ADDRB and DATAA/DATAB, keeping dual-clock CLKIN[0:1]. Base 71d2ffdb is merged PRs #21-#33 for 5CSEBA6U23I7; 131f880a merges 071d60ca onto 71d2ffdb. Requires Mistral b28e30a and Yosys acdebf05 (merged PR #4); old nextpnr ignores CFG_RD_DBITS. Mixed-width experiments select router1."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
