@@ -12,6 +12,7 @@ Agents: read [AGENTS.md](AGENTS.md), then the
 
 - [Getting started](docs/getting-started.md): setup, build choices, running the host and common failures.
 - [Bootable media](docs/bootable-media.md): build, provision and verify a flashable native image.
+- [Appliance releases](docs/appliance-releases.md): versioned images, prepared cards, network updates and automatic fallback.
 - [Project map](docs/project-map.md): what runs where, component responsibilities and directory layout.
 - [Agent workflow](docs/agent-workflow.md): assignments, worktrees, integration and handoffs.
 - [Documentation index](docs/README.md): current guides, validation records and historical plans.

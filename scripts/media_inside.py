@@ -161,8 +161,13 @@ def require_zero(stream, start, length, label):
 
 
 def _assemble_once(image, inputs, lock, scratch):
+    # Callers validate their layout; the original media lock retains its exact
+    # geometry. Appliance media derives a larger FAT with identical boot bytes.
+    part1_offset = lock.partition_1.start_sector * lock.sector_size
+    part1_size = lock.partition_1.sector_count * lock.sector_size
+    boot_offset = lock.partition_2.start_sector * lock.sector_size
     with image.open("xb") as stream:
-        stream.truncate(DISK_SIZE)
+        stream.truncate(lock.total_sectors * lock.sector_size)
         mbr = bytearray(512)
         struct.pack_into("<I", mbr, 440, lock.disk_id)
         for offset, partition in ((446, lock.partition_1), (462, lock.partition_2)):
@@ -172,20 +177,20 @@ def _assemble_once(image, inputs, lock, scratch):
         mbr[510:512] = b"\x55\xaa"
         stream.seek(0)
         stream.write(mbr)
-    run("mkfs.fat", "--invariant", "-F", "32", "-S", "512", "-s", "1", "-g", "1/1", "-h", "2048",
+    run("mkfs.fat", "--invariant", "-F", "32", "-S", str(lock.sector_size), "-s", "1", "-g", "1/1", "-h", str(lock.partition_1.start_sector),
         "-i", f"{lock.fat_serial:08x}", "-n", lock.fat_label,
-        "--offset=2048", image, str(PART1_SIZE // 1024))
-    device = f"{image}@@{PART1_OFFSET}"
+        f"--offset={lock.partition_1.start_sector}", image, str(part1_size // 1024))
+    device = f"{image}@@{part1_offset}"
     # mkfs invariant mode uses its own label date. Normalize that one record;
     # mtools honors SOURCE_DATE_EPOCH for every subsequently created entry.
     stamp = datetime.datetime.fromtimestamp(SOURCE_DATE_EPOCH, datetime.timezone.utc)
     date = ((stamp.year - 1980) << 9) | (stamp.month << 5) | stamp.day
     time = (stamp.hour << 11) | (stamp.minute << 5) | (stamp.second // 2)
     with image.open("r+b") as stream:
-        stream.seek(PART1_OFFSET)
+        stream.seek(part1_offset)
         bpb = stream.read(512)
         fat_sectors = struct.unpack_from("<I", bpb, 36)[0]
-        label_offset = PART1_OFFSET + (32 + 2 * fat_sectors) * 512
+        label_offset = part1_offset + (32 + 2 * fat_sectors) * 512
         stream.seek(label_offset + 13)
         stream.write(struct.pack("<BHHH", 0, time, date, date))
         stream.seek(label_offset + 22)
@@ -213,7 +218,7 @@ def _assemble_once(image, inputs, lock, scratch):
         os.chmod(config, 0o600)
         os.utime(config, (SOURCE_DATE_EPOCH, SOURCE_DATE_EPOCH))
         run("mcopy", "-m", "-i", device, config, "::/fogcast/launcher.json")
-    write_region(image, inputs.uboot, BOOT_OFFSET)
+    write_region(image, inputs.uboot, boot_offset)
 
 
 def manifest_data(image, inputs, lock, config_sha, assembly_hashes, *, rootfs_verified=False):

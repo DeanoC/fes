@@ -10,6 +10,16 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Provision pinned boot-media test container
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          from scripts.media_container import ensure_media_container
+          from scripts.media_inputs import MediaLock
+
+          ensure_media_container(Path('.'), 'docker', MediaLock.load(Path('boot-media.lock.toml')))
+          PY
       - run: make test
   components:
     runs-on: ubuntu-24.04
