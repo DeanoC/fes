@@ -6,6 +6,7 @@
 #include "libmister-runtime/runtime.h"
 #include "native/core_driver.hpp"
 
+#include <atomic>
 #include <cstdint>
 #include <mutex>
 #include <memory>
@@ -99,6 +100,7 @@ private:
 	std::mutex fault_sink_mutex_;
 	HardwareFaultSink* fault_sink_;
 	bool input_open_;
+	std::shared_ptr<std::atomic<bool>> input_delivery_enabled_;
 	std::unique_ptr<SaveFile> save_;
 	std::vector<unsigned char> snapshot_;
 	bool save_flushed_ = false;

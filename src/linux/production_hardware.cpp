@@ -6,6 +6,7 @@
 #include "native/artifacts.hpp"
 #include "native/core_loader.hpp"
 #include "native/core_driver.hpp"
+#include "native/fes_gp.hpp"
 #include "native/generated/megadrive.hpp"
 #include "native/generated/nes.hpp"
 #include "native/generated/pong.hpp"
@@ -147,6 +148,7 @@ public:
 	explicit ProductionHardware(LogSink& log)
 		: opener_(), mmio_(), clock_(), fpga_(mmio_, clock_),
 		  spi_(mmio_, clock_), core_(spi_), i2c_(clock_), framebuffer_(clock_),
+		  fes_gp_(mmio_, clock_), fes_gp_driver_(fes_gp_),
 		  mister_driver_(mmio_, core_, clock_),
 		  idle_video_(core_, spi_, i2c_, framebuffer_, clock_, log,
 			  native::Menu720p60Recipe()),
@@ -155,7 +157,7 @@ public:
 		  input_session_(input_device_, spi_, clock_, timeouts_.core_io_ms),
 		  hardware_(opener_, fpga_, core_, idle_video_, game_video_,
 			  input_session_, native::FogCastGamepadIdentity(), clock_, log,
-			  MISTER_RUNTIME_IDLE_RBF, timeouts_, mister_driver_, nullptr,
+			  MISTER_RUNTIME_IDLE_RBF, timeouts_, mister_driver_, &fes_gp_driver_,
 			  &ProductionProfiles()) {}
 
 	void SetFaultSink(HardwareFaultSink* sink) override
@@ -194,6 +196,8 @@ private:
 	native::CoreLoader core_;
 	native::LinuxI2c i2c_;
 	native::LinuxFramebuffer framebuffer_;
+	native::FesGp fes_gp_;
+	native::FesGpCoreDriver fes_gp_driver_;
 	native::MisterCoreDriver mister_driver_;
 	native::MenuVideoBringup idle_video_;
 	native::FixedVideoBringup game_video_;

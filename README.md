@@ -49,10 +49,12 @@ before the runtime flushes save data or changes visible state, then consume
 that retained object with a new generation at the mutation boundary. Packaged
 MiSTer cores run as explicit development loads: an optional declared system is
 checked against the compiled Profiles table, while media and input are never
-inferred. FES GP package parsing and lifecycle dispatch are software-tested
-with an injected fake driver; production construction rejects them until the
-separate GP transport driver exists. The local protocol has no package command
-in this slice. Replacing a running game with a package first joins and
+inferred. FES GP package activation is software-tested through the production
+MMIO driver, fixed ADV7513-only video path, and generation-bound normalized
+gamepad sink. It verifies all 16 identity/build words before controls, then
+brings up video, sends neutral input, releases gameplay, and starts input. The
+local protocol has no package command in this slice. Replacing a running game
+with a package first joins and
 neutralizes the old input session; an ambiguously failed outgoing-driver
 quiesce is not repeated during the one bounded Menu recovery.
 

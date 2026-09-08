@@ -62,6 +62,17 @@ CoreDriverResult MisterCoreDriver::NeutralizeButtons(const CoreDriverContext&,
 		DriverFailure(error, true);
 }
 
+CoreDriverResult MisterCoreDriver::SetButtons(const CoreDriverContext& context,
+	std::uint16_t map, std::uint64_t deadline)
+{
+	if (context.player_command == 0)
+		return DriverFailure({ErrorCode::invalid_request,
+			"MiSTer input command is unavailable"}, false);
+	const Error error = core_.SetButtons(context.player_command, map, deadline);
+	return error.ok() ? CoreDriverResult{{}, true, ""} :
+		DriverFailure(error, true);
+}
+
 CoreDriverResult MisterCoreDriver::Start(const CoreDriverContext& context,
 	std::uint64_t deadline)
 {
@@ -77,6 +88,8 @@ CoreDriverResult ContainedCoreDriver::Identify(const CoreDriverContext&,
 	std::uint64_t) { return {}; }
 CoreDriverResult ContainedCoreDriver::NeutralizeButtons(const CoreDriverContext&,
 	std::uint64_t) { return {}; }
+CoreDriverResult ContainedCoreDriver::SetButtons(const CoreDriverContext&,
+	std::uint16_t, std::uint64_t) { return {}; }
 CoreDriverResult ContainedCoreDriver::Start(const CoreDriverContext&,
 	std::uint64_t) { return {}; }
 

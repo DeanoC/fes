@@ -2,12 +2,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "capture_log.hpp"
+#include "fake_input.hpp"
 #include "fake_mmio.hpp"
 #include "snes_save_spi.hpp"
 #include "linux/production_hardware.hpp"
 #include "native/artifacts.hpp"
 #include "native/core_loader.hpp"
 #include "native/core_package.hpp"
+#include "native/fes_gp.hpp"
+#include "native/generated/fes_gp.hpp"
 #include "native/hardware.hpp"
 #include "native/input.hpp"
 #include "native/linux/i2c.hpp"
@@ -437,11 +440,13 @@ public:
 	RecordingInput(std::vector<std::string>& events,
 		const mister::native::Clock& clock) : events_(events), clock_(clock) {}
 	mister::Error Open(const mister::native::InputDeviceIdentity& identity,
-		const mister::InputRecipe& recipe, std::uint64_t deadline) override
+		const mister::InputRecipe& recipe, std::uint64_t deadline,
+		mister::native::ButtonWriter writer = {}) override
 	{
 		events_.push_back("input.resolve:" + identity.name);
 		identities.push_back(identity);
 		recipes.push_back(recipe);
+		writer_ = std::move(writer);
 		open_deadlines.push_back(deadline);
 		++open_calls;
 		if (!open_error.ok()) return open_error;
@@ -466,7 +471,11 @@ public:
 		neutral_deadlines.push_back(deadline);
 		if (reject_expired_deadline && clock_.NowMs() >= deadline)
 			return {mister::ErrorCode::io_failed, "input deadline expired"};
-		return neutral_error;
+		if (!neutral_error.ok()) return neutral_error;
+		if (writer_ && recipes.back().player_command ==
+			mister::native::generated::FesGpOpcodeButtons)
+			return writer_(0, deadline);
+		return {};
 	}
 	mister::Error Stop(std::uint64_t deadline) override
 	{
@@ -475,9 +484,14 @@ public:
 		events_.push_back("input.final-neutral");
 		stop_deadlines.push_back(deadline);
 		++stop_calls;
+		mister::Error result = stop_error;
+		if (result.ok() && writer_ && recipes.back().player_command ==
+			mister::native::generated::FesGpOpcodeButtons)
+			result = writer_(0, deadline);
 		opened_ = false;
 		callback_ = {};
-		return stop_error;
+		writer_ = {};
+		return result;
 	}
 	void Report(mister::Error error)
 	{
@@ -507,6 +521,40 @@ private:
 	const mister::native::Clock& clock_;
 	bool opened_ = false;
 	std::function<void(std::uint64_t, mister::Error)> callback_;
+	mister::native::ButtonWriter writer_;
+};
+
+class RetainingNativeInput final : public mister::native::InputSession {
+public:
+	RetainingNativeInput(mister::native::InputDevice& device,
+		mister::native::Spi& spi, mister::native::Clock& clock)
+		: native_(device, spi, clock, 25) {}
+	mister::Error Open(const mister::native::InputDeviceIdentity& identity,
+		const mister::InputRecipe& recipe, std::uint64_t deadline,
+		mister::native::ButtonWriter writer = {}) override
+	{
+		writers.push_back(writer);
+		return native_.Open(identity, recipe, deadline, std::move(writer));
+	}
+	mister::Error Start(std::uint64_t generation,
+		std::function<void(std::uint64_t, mister::Error)> callback) override
+	{
+		callbacks.push_back(callback);
+		return native_.Start(generation, std::move(callback));
+	}
+	mister::Error Neutralize(std::uint64_t deadline) override
+	{
+		return native_.Neutralize(deadline);
+	}
+	mister::Error Stop(std::uint64_t deadline) override
+	{
+		return native_.Stop(deadline);
+	}
+	std::vector<mister::native::ButtonWriter> writers;
+	std::vector<std::function<void(std::uint64_t, mister::Error)>> callbacks;
+
+private:
+	mister::native::NativeInputSession native_;
 };
 
 class RecordingFaultSink final : public mister::HardwareFaultSink {
@@ -521,6 +569,7 @@ public:
 class RecordingDriver final : public mister::native::CoreDriver {
 public:
 	explicit RecordingDriver(std::vector<std::string>& events) : events_(events) {}
+	void BeginSession() override { events_.push_back("driver.begin"); }
 	mister::native::CoreDriverResult Quiesce(
 		const mister::native::CoreDriverContext& context, std::uint64_t) override
 	{
@@ -545,10 +594,20 @@ public:
 		events_.push_back("driver.buttons");
 		return buttons_result;
 	}
+	mister::native::CoreDriverResult SetButtons(
+		const mister::native::CoreDriverContext&, std::uint16_t map,
+		std::uint64_t) override
+	{
+		events_.push_back("driver.buttons");
+		button_maps.push_back(map);
+		if (on_buttons) on_buttons();
+		return buttons_result;
+	}
 	mister::native::CoreDriverResult Start(
 		const mister::native::CoreDriverContext& context, std::uint64_t) override
 	{
 		events_.push_back("driver.start");
+		if (on_start) on_start();
 		start_generations.push_back(context.generation);
 		fault_ = context.report_fault;
 		return start_result;
@@ -567,7 +626,10 @@ public:
 	std::vector<std::uint64_t> quiesce_generations;
 	std::vector<std::uint64_t> identify_generations;
 	std::vector<std::uint64_t> start_generations;
+	std::vector<std::uint16_t> button_maps;
 	std::function<void(std::uint64_t, mister::Error)> fault_;
+	std::function<void()> on_buttons;
+	std::function<void()> on_start;
 };
 
 struct Fixture {
@@ -651,6 +713,48 @@ std::size_t Count(const std::vector<std::string>& values,
 		if (value == wanted) ++count;
 	}
 	return count;
+}
+
+void PushFesGpResponse(mister_test::FakeMmio* mmio, bool toggle,
+	std::uint16_t response)
+{
+	using namespace mister::native::generated;
+	const std::uint32_t completed = FesGpSignature |
+		(toggle ? FesGpAckMask : 0u) | response;
+	mmio->PushRead(kSpiGpiAddress, completed ^ FesGpAckMask);
+	mmio->PushRead(kSpiGpiAddress, completed);
+	mmio->PushRead(kSpiGpiAddress, completed);
+}
+
+void ScriptFesGpActivation(mister_test::FakeMmio* mmio)
+{
+	using namespace mister::native::generated;
+	std::vector<std::uint16_t> words(FesGpIdentityWordCount);
+	words[FesGpIdentityMagic0Index] = FesGpIdentityMagic0;
+	words[FesGpIdentityMagic1Index] = FesGpIdentityMagic1;
+	words[FesGpIdentityTransportMajorIndex] = FesGpTransportMajor;
+	words[FesGpIdentityTransportMinorIndex] = FesGpTransportMinor;
+	words[FesGpIdentityAbiTagIndex] = FesGpAbiTag;
+	words[FesGpIdentityAbiMajorIndex] = FesGpAbiMajor;
+	words[FesGpIdentityAbiMinorIndex] = FesGpAbiMinor;
+	words[FesGpIdentityCapabilitiesIndex] =
+		FesGpCapabilityGamepad | FesGpCapabilityVideoFixed720p60;
+	const std::string build = "0123456789abcdef0123456789abcdef";
+	std::size_t word = FesGpIdentityBuildIDStartIndex;
+	for (std::size_t offset = 0; offset < build.size(); offset += 4) {
+		const unsigned first = static_cast<unsigned>(std::stoul(
+			build.substr(offset, 2), nullptr, 16));
+		const unsigned second = static_cast<unsigned>(std::stoul(
+			build.substr(offset + 2, 2), nullptr, 16));
+		words[word++] = static_cast<std::uint16_t>(first | (second << 8));
+	}
+	bool toggle = false;
+	for (std::uint16_t value : words) {
+		toggle = !toggle;
+		PushFesGpResponse(mmio, toggle, value);
+	}
+	PushFesGpResponse(mmio, true, 0);  // initial neutral after 16 words
+	PushFesGpResponse(mmio, false, 0); // gameplay release
 }
 
 bool WaitForState(mister::Runtime& runtime, mister::State state)
@@ -762,6 +866,15 @@ void TestFesGpPackageUsesSelectedDriverAndReturnsToMenuThroughThatDriver()
 	RecordingDriver gp(driver_events);
 	IntegratedFixture fixture(&gp);
 	fixture.Start();
+	gp.on_buttons = [&] {
+		assert(Find(fixture.native.events, "video.adv.initialize") <
+			fixture.native.events.size());
+		assert(Find(fixture.native.events, "video.timing:menu_720p60") ==
+			fixture.native.events.size());
+	};
+	gp.on_start = [&] {
+		assert(gp.button_maps == std::vector<std::uint16_t>({0}));
+	};
 	TempDirectory package;
 	PopulateFesGpPackage(&package);
 	bool outgoing_reset_seen = false;
@@ -777,7 +890,11 @@ void TestFesGpPackageUsesSelectedDriverAndReturnsToMenuThroughThatDriver()
 	assert(fixture.native.fpga.profiles.back() ==
 		mister::native::ProgrammingProfile::fes_gp_v1);
 	assert(driver_events == std::vector<std::string>({
-		"driver.identify", "driver.buttons", "driver.start"}));
+		"driver.begin", "driver.identify", "driver.buttons", "driver.start"}));
+	assert(fixture.native.input.open_calls == 1);
+	assert(fixture.native.input.start_calls == 1);
+	assert(fixture.native.input.HasActiveCallback());
+	assert(gp.button_maps == std::vector<std::uint16_t>({0}));
 	const mister::Status running = fixture.runtime.status();
 	assert(running.state == mister::State::running_development);
 	assert(running.package_id == package_id);
@@ -788,11 +905,91 @@ void TestFesGpPackageUsesSelectedDriverAndReturnsToMenuThroughThatDriver()
 	driver_events.clear();
 	fixture.native.fpga.on_program = [&] {
 		if (fixture.native.fpga.calls == 3)
-			assert(driver_events == std::vector<std::string>({"driver.quiesce"}));
+			assert(driver_events == std::vector<std::string>({
+				"driver.buttons", "driver.quiesce"}));
 	};
 	assert(fixture.runtime.Stop().ok());
 	assert(fixture.native.fpga.profiles.back() ==
 		mister::native::ProgrammingProfile::mister_v1);
+}
+
+void TestProductionFesInputDisconnectAndGenerationRetirement()
+{
+	using namespace mister::native;
+	using namespace mister::native::generated;
+	TempDirectory temporary;
+	TempDirectory package;
+	PopulateFesGpPackage(&package);
+	std::vector<std::string> events;
+	RecordingOpener opener(events);
+	mister_test::FakeMmio mmio;
+	RecordingFpga fpga(events);
+	RecordingI2c i2c(events);
+	RecordingSpi spi(events, i2c);
+	CoreLoader core(spi);
+	RecordingVideo idle_video(events);
+	FixedClock clock(100);
+	MisterCoreDriver mister_driver(mmio, core, clock);
+	LedgerLog log(events);
+	FixedVideoBringup game_video(spi, i2c, clock, log,
+		Menu720p60Recipe());
+	mister_test::FakeInputDevice device;
+	RetainingNativeInput input(device, spi, clock);
+	const InputDeviceIdentity identity = {
+		"FogCast Virtual Gamepad", 0x0006, 0x0000, 0x0001, 0x0001};
+	FesGp transport(mmio, clock);
+	FesGpCoreDriver gp_driver(transport);
+	RecordingFaultSink sink;
+	const std::string idle = temporary.File("idle.rbf", "idle");
+	NativeHardware hardware(opener, fpga, core, idle_video, game_video,
+		input, identity, clock, log, idle, {30000, 10000, 10000},
+		mister_driver, &gp_driver);
+	hardware.SetFaultSink(&sink);
+	const std::string package_id =
+		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0";
+
+	std::unique_ptr<mister::AdmittedCorePackage> first;
+	assert(hardware.AdmitCorePackage(package.path, package_id, &first).ok());
+	ScriptFesGpActivation(&mmio);
+	const mister::HardwareResult activated = hardware.LoadCore(std::move(first), 1);
+	assert(activated.error.ok() && activated.observed_core == "fes.pong");
+	assert(mmio.writes.size() == 36);
+
+	PushFesGpResponse(&mmio, true, FesGpButtonUp);
+	device.Push({InputControl::up, 1});
+	device.Push({InputControl::synchronize, 0});
+	assert(device.WaitForReads(2));
+	device.PushError({mister::ErrorCode::io_failed, "gamepad disconnected"});
+	assert(device.WaitForReads(3));
+
+	// The replacement joins the failed worker, sends its final neutral, then
+	// quiesces the outgoing fabric before resetting the new GP session.
+	PushFesGpResponse(&mmio, false, 0);
+	PushFesGpResponse(&mmio, true, FesGpGameplayHoldReset);
+	ScriptFesGpActivation(&mmio);
+	std::unique_ptr<mister::AdmittedCorePackage> replacement;
+	assert(hardware.AdmitCorePackage(package.path, package_id, &replacement).ok());
+	const mister::HardwareResult replaced =
+		hardware.LoadCore(std::move(replacement), 2);
+	assert(replaced.error.ok() && replaced.observed_core == "fes.pong");
+	assert(input.writers.size() == 2 && input.callbacks.size() == 2);
+	assert(mmio.writes.size() == 78);
+	assert((mmio.writes[37].value & FesGpOpcodeMask) ==
+		FesGpOpcodeButtons * (FesGpOpcodeMask & (~FesGpOpcodeMask + 1u)));
+	assert((mmio.writes[37].value & FesGpArgumentMask) == FesGpButtonUp);
+	assert((mmio.writes[39].value & FesGpArgumentMask) == 0);
+	assert(sink.faults.size() == 1 && sink.faults[0].generation == 1);
+
+	const std::size_t replacement_writes = mmio.writes.size();
+	assert(input.writers[0](FesGpButtonUp, 1000).ok());
+	input.callbacks[0](1,
+		{mister::ErrorCode::io_failed, "retained old-generation callback"});
+	assert(mmio.writes.size() == replacement_writes);
+	assert(sink.faults.size() == 2 && sink.faults[1].generation == 1);
+
+	// Satisfy destruction's final neutral without weakening the stale-writer
+	// assertion above.
+	PushFesGpResponse(&mmio, true, 0);
 }
 
 void TestUnknownAndContainedFabricReceiveNoMisterQuiesceWords()
@@ -874,7 +1071,8 @@ void TestDriverIdentifyStartAndQuiesceFailuresHaveOneRecoveryDecision()
 		assert(fixture.native.fpga.calls == 3);
 		assert(fixture.runtime.status().state == mister::State::idle);
 		assert(Count(events, "driver.identify") == 1);
-		assert(Count(events, "driver.quiesce") == 1);
+		assert(Count(events, "driver.buttons") == 0);
+		assert(Count(events, "driver.quiesce") == 0);
 	}
 	{
 		std::vector<std::string> events;
@@ -931,16 +1129,16 @@ void TestRunningGameInputIsRetiredBeforePackageProgramming()
 		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0";
 	assert(fixture.runtime.LoadCore(package.path, package_id).ok());
 	assert(fixture.native.input.stop_calls == 1);
-	assert(!fixture.native.input.HasActiveCallback());
+	assert(fixture.native.input.HasActiveCallback());
 	assert(fixture.runtime.status().state == mister::State::running_development);
 
 	fixture.native.fpga.on_program = {};
 	assert(fixture.runtime.Stop().ok());
 	assert(fixture.runtime.LaunchGame(fixture.Request()).ok());
-	assert(fixture.native.input.open_calls == 2);
-	assert(fixture.native.input.start_calls == 2);
+	assert(fixture.native.input.open_calls == 3);
+	assert(fixture.native.input.start_calls == 3);
 	assert(fixture.native.input.generations ==
-		std::vector<std::uint64_t>({1, 3}));
+		std::vector<std::uint64_t>({1, 2, 3}));
 	assert(fixture.native.input.HasActiveCallback());
 }
 
@@ -1963,8 +2161,8 @@ void TestProductionConstructionOwnsRealIdleHardware()
 	std::unique_ptr<mister::AdmittedCorePackage> admitted;
 	assert(hardware->AdmitCorePackage(package.path,
 		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0",
-		&admitted).code == mister::ErrorCode::unsupported_protocol);
-	assert(!admitted);
+		&admitted).ok());
+	assert(admitted);
 }
 
 void TestUnavailableHardwareRemainsFailureOnly()
@@ -1992,6 +2190,7 @@ int main()
 	TestQuiesceFailureStopsBeforeFpgaMutationAndClosesLaunchInput();
 	TestLaunchUsesExactCoreRecipeAndExplicitMediaFormatInOrder();
 	TestFesGpPackageUsesSelectedDriverAndReturnsToMenuThroughThatDriver();
+	TestProductionFesInputDisconnectAndGenerationRetirement();
 	TestUnknownAndContainedFabricReceiveNoMisterQuiesceWords();
 	TestPackagedMisterIsExplicitDevelopmentAndValidatesDeclaredSystem();
 	TestDriverIdentifyStartAndQuiesceFailuresHaveOneRecoveryDecision();

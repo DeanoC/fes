@@ -7,11 +7,14 @@
 #include "native/core_driver.hpp"
 #include "native/core_package.hpp"
 #include "native/core_loader.hpp"
+#include "native/generated/fes_gp.hpp"
 #include "native/input.hpp"
 #include "native/video.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <limits>
+#include <memory>
 #include <utility>
 
 namespace mister {
@@ -36,6 +39,23 @@ Error CoreIoError(const Error& error)
 {
 	return {ErrorCode::io_failed,
 		error.message.empty() ? "core I/O failed" : error.message};
+}
+
+InputRecipe FesGpInputRecipe()
+{
+	InputRecipe recipe;
+	recipe.player_count = 1;
+	recipe.player_command = static_cast<std::uint16_t>(
+		generated::FesGpOpcodeButtons);
+	recipe.up = generated::FesGpButtonUp;
+	recipe.down = generated::FesGpButtonDown;
+	recipe.left = generated::FesGpButtonLeft;
+	recipe.right = generated::FesGpButtonRight;
+	recipe.a = generated::FesGpButtonA;
+	recipe.b = generated::FesGpButtonB;
+	recipe.select = generated::FesGpButtonSelect;
+	recipe.start = generated::FesGpButtonStart;
+	return recipe;
 }
 
 class NativeAdmittedCore final : public AdmittedCorePackage {
@@ -70,7 +90,7 @@ NativeHardware::NativeHardware(ArtifactOpener& opener, FpgaManager& fpga,
 	  profiles_(profiles),
 	  active_driver_(nullptr), active_context_(), active_package_(),
 	  fault_sink_mutex_(), fault_sink_(nullptr),
-	  input_open_(false) {}
+	  input_open_(false), input_delivery_enabled_() {}
 
 NativeHardware::~NativeHardware()
 {
@@ -93,8 +113,16 @@ void NativeHardware::ForwardInputFault(std::uint64_t generation, Error error)
 
 Error NativeHardware::StopInput(std::uint64_t deadline)
 {
-	if (!input_open_) return {};
+	if (!input_open_) {
+		if (input_delivery_enabled_)
+			input_delivery_enabled_->store(false);
+		input_delivery_enabled_.reset();
+		return {};
+	}
 	const Error error = input_.Stop(deadline);
+	if (input_delivery_enabled_)
+		input_delivery_enabled_->store(false);
+	input_delivery_enabled_.reset();
 	input_open_ = false;
 	return error;
 }
@@ -217,21 +245,47 @@ HardwareResult NativeHardware::LoadCore(
 		return {{ErrorCode::unsupported_protocol,
 			"admitted core driver changed before activation"}, false, ""};
 
+	const bool fes_gp = admitted->profile_ == ProgrammingProfile::fes_gp_v1;
 	error = StopInput(Deadline(clock_, timeouts_.core_io_ms));
 	log_.Write({"load_core", admitted->opened_.descriptor.core.system,
 		admitted->opened_.descriptor.core.id, "input_stop", error});
 	if (!error.ok()) return {error, true, ""};
+	std::shared_ptr<std::atomic<bool>> identity_verified;
+	if (fes_gp) {
+		identity_verified = std::make_shared<std::atomic<bool>>(false);
+		CoreDriver* const input_driver = admitted->driver_;
+		CoreDriverContext input_context;
+		input_context.generation = generation;
+		error = input_.Open(input_identity_, FesGpInputRecipe(),
+			Deadline(clock_, timeouts_.core_io_ms),
+			[input_driver, input_context, identity_verified](std::uint16_t map,
+				std::uint64_t deadline) {
+				if (!identity_verified->load()) return Error{};
+				return input_driver->SetButtons(input_context, map, deadline).error;
+			});
+		log_.Write({"load_core", admitted->opened_.descriptor.core.system,
+			admitted->opened_.descriptor.core.id, "input_open", error});
+		if (!error.ok()) return {error, true, ""};
+		input_open_ = true;
+		input_delivery_enabled_ = identity_verified;
+	}
 	const HardwareResult quiesced = QuiesceForReplacement("load_core",
 		admitted->opened_.descriptor.core.system,
 		admitted->opened_.descriptor.core.id);
-	if (!quiesced.error.ok()) return quiesced;
+	if (!quiesced.error.ok()) {
+		const Error stopped = StopInput(Deadline(clock_, timeouts_.core_io_ms));
+		return {stopped.ok() ? quiesced.error : stopped,
+			quiesced.mutation_attempted, quiesced.observed_core};
+	}
 	const NativeResult programmed = fpga_.Program(admitted->opened_.payload,
 		admitted->profile_, Deadline(clock_, timeouts_.program_ms));
 	if (!programmed.error.ok()) {
+		const Error stopped = StopInput(Deadline(clock_, timeouts_.core_io_ms));
 		if (programmed.mutation_attempted) ForgetActiveCore();
-		return {ProgramError(programmed.error),
+		return {stopped.ok() ? ProgramError(programmed.error) : stopped,
 			quiesced.mutation_attempted || programmed.mutation_attempted, ""};
 	}
+	admitted->driver_->BeginSession();
 	admitted->context_.generation = generation;
 	active_driver_ = admitted->driver_;
 	active_package_ = std::move(package);
@@ -245,15 +299,33 @@ HardwareResult NativeHardware::LoadCore(
 	}
 	CoreDriverResult identified = admitted->driver_->Identify(
 		admitted->context_, Deadline(clock_, timeouts_.core_io_ms));
-	if (!identified.error.ok())
+	if (!identified.error.ok()) {
+		const Error stopped = StopInput(Deadline(clock_, timeouts_.core_io_ms));
+		if (fes_gp) ForgetActiveCore();
+		if (!stopped.ok()) identified.error = stopped;
 		return {identified.error, true, identified.observed_core};
-	if (admitted->profile_ == ProgrammingProfile::fes_gp_v1) {
-		CoreDriverResult buttons = admitted->driver_->NeutralizeButtons(
-			admitted->context_, Deadline(clock_, timeouts_.core_io_ms));
-		if (!buttons.error.ok()) return {buttons.error, true, identified.observed_core};
+	}
+	if (fes_gp) {
+		identity_verified->store(true);
+		const VideoResult video = game_video_.BringUpCustom(
+			Deadline(clock_, timeouts_.video_ms));
+		log_.Write({"load_core", admitted->opened_.descriptor.core.system,
+			identified.observed_core, "video", video.error});
+		if (!video.error.ok()) {
+			const Error stopped = StopInput(Deadline(clock_, timeouts_.core_io_ms));
+			return {stopped.ok() ? CoreIoError(video.error) : stopped,
+				true, identified.observed_core};
+		}
+		error = input_.Neutralize(Deadline(clock_, timeouts_.core_io_ms));
+		if (!error.ok()) return {CoreIoError(error), true, identified.observed_core};
 		CoreDriverResult started = admitted->driver_->Start(admitted->context_,
 			Deadline(clock_, timeouts_.core_io_ms));
 		if (!started.error.ok()) return {started.error, true, identified.observed_core};
+		error = input_.Start(generation,
+			[this](std::uint64_t reported_generation, Error fault) {
+				ForwardInputFault(reported_generation, std::move(fault));
+			});
+		if (!error.ok()) return {CoreIoError(error), true, identified.observed_core};
 	}
 	return {{}, true, identified.observed_core};
 }
@@ -310,15 +382,28 @@ HardwareResult NativeHardware::LoadIdle()
 HardwareResult NativeHardware::Launch(const PreparedLaunch& launch,
 	std::uint64_t generation)
 {
+	CoreDriverContext driver_context;
+	driver_context.mister_recipe = &launch.core;
+	driver_context.expected_core = launch.expected_core;
+	driver_context.generation = generation;
+	driver_context.player_command = launch.input.player_command;
 	const std::uint64_t input_deadline =
 		Deadline(clock_, timeouts_.core_io_ms);
-	Error error = input_.Open(input_identity_, launch.input, input_deadline);
+	const std::shared_ptr<std::atomic<bool>> input_delivery_enabled =
+		std::make_shared<std::atomic<bool>>(false);
+	Error error = input_.Open(input_identity_, launch.input, input_deadline,
+		[this, driver_context, input_delivery_enabled](std::uint16_t map,
+			std::uint64_t deadline) {
+			if (!input_delivery_enabled->load()) return Error{};
+			return mister_driver_.SetButtons(driver_context, map, deadline).error;
+		});
 	if (!error.ok()) {
 		log_.Write({"launch", launch.system, launch.expected_core,
 			"preflight", error});
 		return {error, false, ""};
 	}
 	input_open_ = true;
+	input_delivery_enabled_ = input_delivery_enabled;
 
 	ArtifactSet artifacts;
 	error = OpenLaunchArtifacts(launch, opener_, &artifacts);
@@ -368,10 +453,6 @@ HardwareResult NativeHardware::Launch(const PreparedLaunch& launch,
 	log_.Write({"launch", launch.system, launch.expected_core, "reset", error});
 	if (!error.ok()) return {error, true, ""};
 
-	CoreDriverContext driver_context;
-	driver_context.mister_recipe = &launch.core;
-	driver_context.expected_core = launch.expected_core;
-	driver_context.generation = generation;
 	CoreDriverResult identified = mister_driver_.Identify(driver_context,
 		core_deadline);
 	error = identified.error;
@@ -411,6 +492,7 @@ HardwareResult NativeHardware::Launch(const PreparedLaunch& launch,
 
 	const std::uint64_t post_video_deadline =
 		Deadline(clock_, timeouts_.core_io_ms);
+	input_delivery_enabled->store(true);
 	error = input_.Neutralize(post_video_deadline);
 	if (!error.ok()) error = CoreIoError(error);
 	log_.Write({"launch", launch.system, observed, "input-neutral", error});

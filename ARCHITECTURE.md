@@ -20,6 +20,7 @@ roles:
   LinuxMmio + SteadyClock -> LinuxFpgaManager + LinuxSpi
   LinuxSpi -> CoreLoader
   LinuxMmio + CoreLoader + SteadyClock -> MisterCoreDriver
+  LinuxMmio + SteadyClock -> FesGp -> FesGpCoreDriver
   SteadyClock -> LinuxI2c
   CoreLoader + LinuxSpi + LinuxI2c + LinuxFramebuffer + SteadyClock + LogSink + fixed recipe
     -> MenuVideoBringup
@@ -73,11 +74,21 @@ descriptor/profile/driver pairing, stops and joins any outgoing game input
 session, and only then quiesces the outgoing driver and programs the package.
 
 `CoreDriver` owns outgoing protocol quiesce and destination identity, button,
-and start operations. `MisterCoreDriver` is the production MiSTer adapter. The
-FES GP driver remains absent from production construction until the separately
-scoped transport is implemented, so FES GP packages fail admission before
-save, input, state, video, or FPGA changes. Tests inject a fake GP driver to
-verify lifecycle dispatch without claiming a wire driver.
+and start operations. `MisterCoreDriver` is the production MiSTer adapter.
+`FesGpCoreDriver` is the production `fes-gp-v1` adapter over the bounded GPO/GPI
+transport. Package admission requires that registered driver before save,
+input, state, video, or FPGA changes.
+
+After programming a FES package, activation resets the transport session and
+reads all 16 identity words under a two-second deadline, with each exchange
+bounded to 100 ms. It sends no destination control until the descriptor ABI,
+capabilities, and build ID match. The fixed custom video path configures and
+validates the ADV7513 entirely over I2C, without issuing a MiSTer SPI timing or
+audio command. It then sends a neutral normalized button map, releases
+gameplay, and starts the input worker with the activation generation. Stop
+retires and joins that worker, sends its final neutral map, and only then asks
+the outgoing driver to hold gameplay reset. Opposite directions resolve to a
+neutral pair, and a retired generation cannot deliver to a replacement core.
 
 The package registry consumes checked-in generated C++14 headers
 `src/native/generated/fes_gp.hpp` and

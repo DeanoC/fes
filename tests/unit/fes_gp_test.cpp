@@ -218,6 +218,11 @@ void TestExchangeRejectsMalformedAndUnstableResponsesWithoutRetry()
 		assert(gp.Exchange(FesGpOpcodeIdentity, 0, 0, 1000, &response).code ==
 			mister::ErrorCode::io_failed);
 		assert(mmio.writes.size() == 2);
+		gp.BeginSession();
+		PushCompleted(&mmio, true, 0x4546u);
+		assert(gp.Exchange(FesGpOpcodeIdentity, 0, 0, 1000, &response).ok());
+		assert(response == 0x4546u);
+		assert(mmio.writes.size() == 4);
 	}
 }
 
@@ -248,6 +253,36 @@ void TestIdentifyReadsAllWordsThenRejectsEveryIdentityOrBuildMismatch()
 	assert(gp.Identify(descriptor, 10000).ok());
 }
 
+void TestCoreDriverRoutesGeneratedControlsAndChecksResponses()
+{
+	mister_test::FakeMmio mmio;
+	TickClock clock;
+	mister::native::FesGp gp(mmio, clock);
+	mister::native::FesGpCoreDriver driver(gp);
+	mister::native::CoreDriverContext context;
+	driver.BeginSession();
+	PushCompleted(&mmio, true, FesGpButtonUp);
+	assert(driver.SetButtons(context, FesGpButtonUp, 1000).error.ok());
+	PushCompleted(&mmio, false, 0);
+	assert(driver.Start(context, 1000).error.ok());
+	PushCompleted(&mmio, true, 0);
+	assert(driver.Quiesce(context, 1000).error.ok());
+	assert(mmio.writes.size() == 6);
+	assert(driver.SetButtons(context,
+		static_cast<std::uint16_t>(FesGpButtonMask + 1u), 1000).error.code ==
+		mister::ErrorCode::invalid_request);
+	assert(mmio.writes.size() == 6);
+
+	mister_test::FakeMmio rejected_mmio;
+	TickClock rejected_clock;
+	mister::native::FesGp rejected_gp(rejected_mmio, rejected_clock);
+	mister::native::FesGpCoreDriver rejected(rejected_gp);
+	PushCompleted(&rejected_mmio, true,
+		static_cast<std::uint16_t>(FesGpButtonUp | FesGpButtonDown));
+	assert(rejected.SetButtons(context, FesGpButtonUp, 1000).error.code ==
+		mister::ErrorCode::io_failed);
+}
+
 } // namespace
 
 int main()
@@ -255,6 +290,7 @@ int main()
 	TestReplaysSharedGoldenExchangeSequence();
 	TestExchangeRejectsMalformedAndUnstableResponsesWithoutRetry();
 	TestIdentifyReadsAllWordsThenRejectsEveryIdentityOrBuildMismatch();
-	puts("fes_gp_test: 3 groups passed");
+	TestCoreDriverRoutesGeneratedControlsAndChecksResponses();
+	puts("fes_gp_test: 4 groups passed");
 	return 0;
 }

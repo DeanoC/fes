@@ -28,6 +28,7 @@ struct CoreDriverContext {
 	const CoreRecipe* mister_recipe = nullptr;
 	std::string expected_core;
 	std::uint64_t generation = 0;
+	std::uint16_t player_command = 0;
 	std::function<void(std::uint64_t, Error)> report_fault;
 };
 
@@ -40,11 +41,14 @@ struct CoreDriverResult {
 class CoreDriver {
 public:
 	virtual ~CoreDriver() {}
+	virtual void BeginSession() {}
 	virtual CoreDriverResult Quiesce(const CoreDriverContext&,
 		std::uint64_t absolute_deadline_ms) = 0;
 	virtual CoreDriverResult Identify(const CoreDriverContext&,
 		std::uint64_t absolute_deadline_ms) = 0;
 	virtual CoreDriverResult NeutralizeButtons(const CoreDriverContext&,
+		std::uint64_t absolute_deadline_ms) = 0;
+	virtual CoreDriverResult SetButtons(const CoreDriverContext&, std::uint16_t,
 		std::uint64_t absolute_deadline_ms) = 0;
 	virtual CoreDriverResult Start(const CoreDriverContext&,
 		std::uint64_t absolute_deadline_ms) = 0;
@@ -56,6 +60,8 @@ public:
 	CoreDriverResult Quiesce(const CoreDriverContext&, std::uint64_t) override;
 	CoreDriverResult Identify(const CoreDriverContext&, std::uint64_t) override;
 	CoreDriverResult NeutralizeButtons(const CoreDriverContext&, std::uint64_t) override;
+	CoreDriverResult SetButtons(const CoreDriverContext&, std::uint16_t,
+		std::uint64_t) override;
 	CoreDriverResult Start(const CoreDriverContext&, std::uint64_t) override;
 
 private:
@@ -69,6 +75,8 @@ public:
 	CoreDriverResult Quiesce(const CoreDriverContext&, std::uint64_t) override;
 	CoreDriverResult Identify(const CoreDriverContext&, std::uint64_t) override;
 	CoreDriverResult NeutralizeButtons(const CoreDriverContext&, std::uint64_t) override;
+	CoreDriverResult SetButtons(const CoreDriverContext&, std::uint16_t,
+		std::uint64_t) override;
 	CoreDriverResult Start(const CoreDriverContext&, std::uint64_t) override;
 };
 

@@ -63,7 +63,7 @@ public:
 	}
 
 	Error Open(const InputDeviceIdentity& identity, const InputRecipe& recipe,
-		std::uint64_t deadline)
+		std::uint64_t deadline, ButtonWriter writer)
 	{
 		std::lock_guard<std::mutex> lock(mutex_);
 		if (opened_ || worker_.joinable()) return Invalid("input session is already open");
@@ -73,6 +73,7 @@ public:
 		Error error = device_.Open(identity, deadline);
 		if (!error.ok()) return error;
 		recipe_ = recipe;
+		writer_ = std::move(writer);
 		opened_ = true;
 		accepting_ = false;
 		core_addressable_ = false;
@@ -152,6 +153,7 @@ public:
 			accepting_ = false;
 			active_generation_ = 0;
 			on_fault_ = {};
+			writer_ = {};
 			digital_map_ = 0;
 			committed_map_ = 0;
 			horizontal_ = 0;
@@ -248,11 +250,16 @@ private:
 		if (horizontal_ >= kAxisThreshold) map = static_cast<std::uint16_t>(map | recipe_.right);
 		if (vertical_ <= -kAxisThreshold) map = static_cast<std::uint16_t>(map | recipe_.up);
 		if (vertical_ >= kAxisThreshold) map = static_cast<std::uint16_t>(map | recipe_.down);
+		if ((map & recipe_.left) != 0 && (map & recipe_.right) != 0)
+			map = static_cast<std::uint16_t>(map & ~(recipe_.left | recipe_.right));
+		if ((map & recipe_.up) != 0 && (map & recipe_.down) != 0)
+			map = static_cast<std::uint16_t>(map & ~(recipe_.up | recipe_.down));
 		return map;
 	}
 
 	Error Send(std::uint16_t map, std::uint64_t deadline)
 	{
+		if (writer_) return writer_(map, deadline);
 		return spi_.Exchange(kUserIoTarget, {recipe_.player_command, map},
 			nullptr, deadline);
 	}
@@ -286,6 +293,7 @@ private:
 		std::lock_guard<std::mutex> lock(mutex_);
 		if (opened_) (void)device_.Close();
 		opened_ = false;
+		writer_ = {};
 	}
 
 	InputDevice& device_;
@@ -295,6 +303,7 @@ private:
 	std::mutex mutex_;
 	std::thread worker_;
 	InputRecipe recipe_;
+	ButtonWriter writer_;
 	std::function<void(std::uint64_t, Error)> on_fault_;
 	bool opened_ = false;
 	bool accepting_ = false;
@@ -315,9 +324,9 @@ NativeInputSession::NativeInputSession(InputDevice& device, Spi& spi,
 NativeInputSession::~NativeInputSession() = default;
 
 Error NativeInputSession::Open(const InputDeviceIdentity& identity,
-	const InputRecipe& recipe, std::uint64_t deadline)
+	const InputRecipe& recipe, std::uint64_t deadline, ButtonWriter writer)
 {
-	return impl_->Open(identity, recipe, deadline);
+	return impl_->Open(identity, recipe, deadline, std::move(writer));
 }
 
 Error NativeInputSession::Start(std::uint64_t generation,

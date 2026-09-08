@@ -288,7 +288,13 @@ Error CoreLoader::ReleaseReset(const CoreRecipe& recipe, std::uint64_t deadline)
 
 Error CoreLoader::NeutralizeButtons(std::uint64_t deadline)
 {
-	return Exchange(spi_, kUserIoTarget, {0x0001, 0x0000}, deadline);
+	return SetButtons(0x01, 0, deadline);
+}
+
+Error CoreLoader::SetButtons(std::uint16_t command, std::uint16_t map,
+	std::uint64_t deadline)
+{
+	return Exchange(spi_, kUserIoTarget, {command, map}, deadline);
 }
 
 } // namespace native

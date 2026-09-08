@@ -103,6 +103,16 @@ Error ApplyMode(Spi& spi, I2c& i2c, const VideoRecipe& recipe,
 	return {};
 }
 
+Error ApplyFixedMode(I2c& i2c, const VideoRecipe& recipe,
+	std::uint64_t deadline)
+{
+	for (const RegisterWrite& write : recipe.adv_mode) {
+		const Error error = i2c.WriteByte(write.address, write.value, deadline);
+		if (!error.ok()) return error;
+	}
+	return {};
+}
+
 Error WakeAdv(I2c& i2c, std::uint64_t deadline)
 {
 	for (const RegisterWrite& write : kHdmiWake) {
@@ -193,6 +203,27 @@ VideoResult FixedVideoBringup::BringUp(std::uint64_t deadline)
 	if (!error.ok()) return PhaseFailure("audio_volume", error, result);
 	PhaseSuccess("audio_volume", &result, log_);
 
+	CompleteVideo(recipe_, &result, log_);
+	return result;
+}
+
+VideoResult FixedVideoBringup::BringUpCustom(std::uint64_t deadline)
+{
+	VideoResult result;
+	if (clock_.NowMs() >= deadline)
+		return PhaseFailure("hdmi_init",
+			{ErrorCode::io_failed, "deadline exceeded"}, result);
+	Error error = InitializeAdv(i2c_, recipe_, deadline, &result);
+	if (!error.ok()) return PhaseFailure("hdmi_init", error, result);
+	PhaseSuccess("hdmi_init", &result, log_);
+	error = ApplyFixedMode(i2c_, recipe_, deadline);
+	if (!error.ok()) return PhaseFailure("video_timing", error, result);
+	PhaseSuccess("video_timing", &result, log_);
+	error = WakeAdv(i2c_, deadline);
+	if (!error.ok()) return PhaseFailure("hdmi_wake", error, result);
+	PhaseSuccess("hdmi_wake", &result, log_);
+	error = RequireLink(i2c_, clock_, deadline, &result);
+	if (!error.ok()) return PhaseFailure("hdmi_verify", error, result);
 	CompleteVideo(recipe_, &result, log_);
 	return result;
 }

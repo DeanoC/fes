@@ -97,9 +97,17 @@ bool BuildWords(const std::string& build_id, std::vector<std::uint16_t>* words)
 
 FesGp::FesGp(Mmio& mmio, Clock& clock) : mmio_(mmio), clock_(clock) {}
 
+void FesGp::BeginSession()
+{
+	std::lock_guard<std::mutex> lock(mutex_);
+	request_toggle_ = false;
+	poisoned_ = false;
+}
+
 Error FesGp::Exchange(std::uint8_t opcode, std::uint8_t index,
 	std::uint16_t argument, std::uint64_t deadline, std::uint16_t* response)
 {
+	std::lock_guard<std::mutex> lock(mutex_);
 	if (response == nullptr) return Io("missing FES GP response output");
 	if (opcode > FieldMaximum(FesGpOpcodeMask))
 		return Io("FES GP opcode exceeds the wire field");
@@ -209,6 +217,66 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline)
 		}
 	}
 	return {};
+}
+
+FesGpCoreDriver::FesGpCoreDriver(FesGp& gp) : gp_(gp) {}
+
+void FesGpCoreDriver::BeginSession()
+{
+	gp_.BeginSession();
+}
+
+CoreDriverResult FesGpCoreDriver::Quiesce(const CoreDriverContext&,
+	std::uint64_t deadline)
+{
+	return Gameplay(static_cast<std::uint16_t>(FesGpGameplayHoldReset), deadline);
+}
+
+CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
+	std::uint64_t deadline)
+{
+	if (context.descriptor == nullptr)
+		return {{ErrorCode::invalid_request, "missing FES GP descriptor"}, false, ""};
+	const Error error = gp_.Identify(*context.descriptor, deadline);
+	return {error, false, error.ok() ? context.descriptor->core.id : ""};
+}
+
+CoreDriverResult FesGpCoreDriver::NeutralizeButtons(
+	const CoreDriverContext& context, std::uint64_t deadline)
+{
+	return SetButtons(context, 0, deadline);
+}
+
+CoreDriverResult FesGpCoreDriver::SetButtons(const CoreDriverContext&,
+	std::uint16_t map, std::uint64_t deadline)
+{
+	if ((map & ~static_cast<std::uint16_t>(FesGpButtonMask)) != 0)
+		return {{ErrorCode::invalid_request, "FES GP button mask is invalid"}, false, ""};
+	std::uint16_t response = 0;
+	const Error error = gp_.Exchange(static_cast<std::uint8_t>(FesGpOpcodeButtons),
+		static_cast<std::uint8_t>(FesGpControlIndex), map, deadline, &response);
+	if (!error.ok()) return {error, true, ""};
+	if (response != map)
+		return {{ErrorCode::io_failed, "FES GP accepted button mask is invalid"}, true, ""};
+	return {{}, true, ""};
+}
+
+CoreDriverResult FesGpCoreDriver::Gameplay(std::uint16_t argument,
+	std::uint64_t deadline)
+{
+	std::uint16_t response = 0;
+	const Error error = gp_.Exchange(static_cast<std::uint8_t>(FesGpOpcodeGameplay),
+		static_cast<std::uint8_t>(FesGpControlIndex), argument, deadline, &response);
+	if (!error.ok()) return {error, true, ""};
+	if (response != 0)
+		return {{ErrorCode::io_failed, "FES GP gameplay response is invalid"}, true, ""};
+	return {{}, true, ""};
+}
+
+CoreDriverResult FesGpCoreDriver::Start(const CoreDriverContext&,
+	std::uint64_t deadline)
+{
+	return Gameplay(static_cast<std::uint16_t>(FesGpGameplayRelease), deadline);
 }
 
 } // namespace native

@@ -68,6 +68,7 @@ artifacts.o
 core_driver.o
 core_loader.o
 core_package.o
+fes_gp.o
 fpga_manager.o
 framebuffer.o
 hardware.o

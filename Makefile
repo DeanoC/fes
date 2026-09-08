@@ -243,9 +243,11 @@ $(BUILD_DIR)/tests/unit/off_t_test: tests/unit/off_t_test.cpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tests/unit/off_t_test.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cpp \
-		tests/support/capture_log.cpp tests/support/fake_mmio.cpp \
+		tests/support/capture_log.cpp tests/support/fake_input.cpp \
+		tests/support/fake_mmio.cpp \
 		src/native/artifacts.cpp src/native/core_package.cpp src/native/sha256.cpp \
 		src/native/core_driver.cpp src/native/core_loader.cpp src/native/input.cpp \
+		src/native/fes_gp.cpp \
 		src/native/video_recipe.cpp src/native/video.cpp \
 		src/native/hardware.cpp src/profile.cpp src/runtime.cpp \
 		src/linux/production_hardware.cpp \
@@ -257,9 +259,11 @@ $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cp
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) \
 		-DMISTER_RUNTIME_IDLE_RBF=\"/definitely-missing/libmister-runtime/idle.rbf\" \
 		tests/unit/native_hardware_test.cpp \
-		tests/support/capture_log.cpp tests/support/fake_mmio.cpp \
+		tests/support/capture_log.cpp tests/support/fake_input.cpp \
+		tests/support/fake_mmio.cpp \
 		src/native/artifacts.cpp src/native/core_package.cpp src/native/sha256.cpp \
 		src/native/core_driver.cpp src/native/core_loader.cpp src/native/input.cpp \
+		src/native/fes_gp.cpp \
 		src/native/video_recipe.cpp src/native/video.cpp \
 		src/native/hardware.cpp src/profile.cpp src/runtime.cpp \
 		src/linux/production_hardware.cpp \
@@ -347,8 +351,8 @@ archive-audit: $(ARCHIVE)
 		exit 1; \
 	}; \
 	member_count="$$(printf '%s\n' "$$actual_members" | sed '/^$$/d' | wc -l | tr -d ' ')"; \
-	[[ "$$member_count" == 18 ]] || { \
-		echo "canonical archive must contain exactly 18 production members" >&2; \
+	[[ "$$member_count" == 19 ]] || { \
+		echo "canonical archive must contain exactly 19 production members" >&2; \
 		exit 1; \
 	}; \
 	archive_list="$$(find "$(BUILD_DIR)" -maxdepth 1 -type f -name '*.a' | sed 's|^.*/||' | LC_ALL=C sort)"; \
@@ -362,7 +366,7 @@ archive-audit: $(ARCHIVE)
 		echo "archive members differ from production objects" >&2; \
 		exit 1; \
 	}; \
-	for required in runtime.o profile.o artifacts.o core_package.o core_driver.o core_loader.o \
+	for required in runtime.o profile.o artifacts.o core_package.o core_driver.o fes_gp.o core_loader.o \
 		sha256.o input.o hardware.o \
 		fpga_manager.o framebuffer.o mmio.o spi.o production_hardware.o video_recipe.o \
 		video.o i2c.o linux_input.o; do \
@@ -379,7 +383,7 @@ archive-audit: $(ARCHIVE)
 		else source="$${relative_object%.o}.cpp"; fi; \
 		[[ -f "$$source" ]] || { echo "object has no production source: $$relative_object" >&2; exit 1; }; \
 		case "$$source" in \
-			src/runtime.cpp|src/profile.cpp|src/native/artifacts.cpp|src/native/core_package.cpp|src/native/core_driver.cpp|src/native/core_loader.cpp|src/native/sha256.cpp|src/native/input.cpp|src/native/video_recipe.cpp|src/native/video.cpp|src/native/hardware.cpp|src/native/linux/fpga_manager.cpp|src/native/linux/framebuffer.cpp|src/native/linux/i2c.cpp|src/native/linux/input.cpp|src/native/linux/mmio.cpp|src/native/linux/spi.cpp|src/linux/production_hardware.cpp) ;; \
+			src/runtime.cpp|src/profile.cpp|src/native/artifacts.cpp|src/native/core_package.cpp|src/native/core_driver.cpp|src/native/fes_gp.cpp|src/native/core_loader.cpp|src/native/sha256.cpp|src/native/input.cpp|src/native/video_recipe.cpp|src/native/video.cpp|src/native/hardware.cpp|src/native/linux/fpga_manager.cpp|src/native/linux/framebuffer.cpp|src/native/linux/i2c.cpp|src/native/linux/input.cpp|src/native/linux/mmio.cpp|src/native/linux/spi.cpp|src/linux/production_hardware.cpp) ;; \
 			*) echo "archive contains non-production source: $$source" >&2; exit 1 ;; \
 		esac; \
 		compiled_sources+="$$source"$$'\n'; \
@@ -428,7 +432,7 @@ archive-audit: $(ARCHIVE)
 		echo "video recipe dependency closure omits adv7513" >&2; \
 		exit 1; \
 	}; \
-	for header in src/native/linux/i2c.hpp src/native/video.hpp \
+	for header in src/native/fes_gp.hpp src/native/linux/i2c.hpp src/native/video.hpp \
 		src/native/video_recipe.hpp; do \
 		grep -F "$$header" "$(BUILD_DIR)/src/linux/production_hardware.d" >/dev/null || { \
 			echo "production hardware dependency closure omits $$header" >&2; \
