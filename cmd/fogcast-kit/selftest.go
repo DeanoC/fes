@@ -409,7 +409,7 @@ func exerciseNavGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 
 func paintModel(d *gfx.LinuxFB, m kitlauncher.Model, th theme.Theme) fbgrid.Grid {
 	cfg := d.Config()
-	g := modelGrid(m, cfg.Width, cfg.Height, nil, th)
+	g := modelGrid(m, cfg.Width, cfg.Height, nil, nil, th)
 	fbgrid.Paint(d, g)
 	d.Present()
 	return g
@@ -502,7 +502,7 @@ func exerciseThemeGrid(d *gfx.LinuxFB) (string, error) {
 }
 
 func paintModelGrid(m kitlauncher.Model, th theme.Theme, w, h int) fbgrid.Grid {
-	return modelGrid(m, w, h, nil, th)
+	return modelGrid(m, w, h, nil, nil, th)
 }
 
 func paintRoleSizes(rec *gfx.Recorder) (title, body, caption, status int) {
@@ -776,7 +776,7 @@ func exerciseBoldGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	m.Focus = 1
 	press(&m, "b")
 	cfg := d.Config()
-	frame := modelDetailFrame(m, nil, th, cfg.Width, cfg.Height)
+	frame := modelDetailFrame(m, nil, nil, th, cfg.Width, cfg.Height)
 	rec := gfx.NewRecorder()
 	fbgrid.PaintDetail(rec, frame)
 	var sawTitle bool
@@ -849,7 +849,7 @@ func exerciseDetailGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 		}
 	}
 	cfg := d.Config()
-	frame := modelDetailFrame(m, nil, th, cfg.Width, cfg.Height)
+	frame := modelDetailFrame(m, nil, nil, th, cfg.Width, cfg.Height)
 	frame.Cover = cover
 	frame.CoverKind = fbgrid.CoverPresent
 	fbgrid.PaintDetail(d, frame)

@@ -166,6 +166,12 @@ The designated disposable kit is:
 - Host API: `http://127.0.0.1:8787`
 - Target API: `http://192.168.10.239:8182`
 
+The Powerboat kit host (`192.168.10.203:8789`, `fogcast-api-sofa` plus
+`launcher-host.json`) uses the same private `config.toml`. Enable LaunchBox
+metadata there with `[metadata] provider = "launchbox"` and an absolute archive
+path; see [kit launcher HOW_TO_RUN](kit-launcher.md#how_to_run-launchbox-covers-on-the-kit-host).
+Do not commit credentials or print them in logs.
+
 The target boots `/media/fat/linux/linux.img`. Its boot scripts start the
 MiSTer/Main-compatible process and then the FAT-side agent using
 `/media/fat/fogcast/agent.toml` and `/media/fat/fogcast/mister-agent`. Before

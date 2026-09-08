@@ -120,6 +120,7 @@ func run() error {
 	client := kitlauncher.NewClient(c)
 	covers := tenfoot.NewCoverCache()
 	stills := tenfoot.NewStillCache()
+	presentations := tenfoot.NewPresentationCache()
 	last := time.Time{}
 	var lastKey renderKey
 	lastFocus := -1
@@ -135,7 +136,7 @@ func run() error {
 			stills.Keep(handles)
 			stills.Request(ctx, client.Library, handles)
 			view := m.AttractView(now)
-			key := modelRenderKey(m, covers.Generation())
+			key := modelRenderKey(m, covers.Generation(), 0)
 			key.Attract = true
 			key.AttractIndex = view.Index
 			key.AttractHandle = view.Handle
@@ -156,15 +157,23 @@ func run() error {
 		if prefetch > len(m.Games) {
 			prefetch = len(m.Games)
 		}
-		handles := tenfoot.PageHandles(m.Games, start, prefetch)
+		ids := tenfoot.PageIDs(m.Games, start, prefetch)
+		presentations.Keep(ids)
+		presentations.Request(ctx, client.Library, ids)
+		handles := tenfoot.CollectCoverHandles(m.Games, start, prefetch, presentations.Get)
 		if m.DetailOpen {
 			handles = append(handles, m.DetailPrefetchHandles()...)
+			if game, ok := focusedGame(m); ok {
+				if handle := tenfoot.CoverHandle(game, presentations.Get(game.ID)); handle != "" {
+					handles = append(handles, handle)
+				}
+			}
 		}
 		covers.Keep(handles)
 		covers.Request(ctx, client.Library, handles)
 		cfg := d.Config()
 		w, h := cfg.Width, cfg.Height
-		grid := modelGrid(m, w, h, covers, th)
+		grid := modelGrid(m, w, h, covers, presentations, th)
 		if lastFocus >= 0 && grid.Focus != lastFocus {
 			popAt = now
 		}
@@ -180,14 +189,14 @@ func run() error {
 		} else {
 			detailWas = false
 		}
-		key := modelRenderKey(m, covers.Generation())
+		key := modelRenderKey(m, covers.Generation(), presentations.Generation())
 		if !grid.MotionActive() && fade <= 0 && now.Sub(last) < 100*time.Millisecond && key == lastKey {
 			return
 		}
 		last = now
 		lastKey = key
 		if m.DetailOpen {
-			frame := modelDetailFrame(m, covers, th, w, h)
+			frame := modelDetailFrame(m, covers, presentations, th, w, h)
 			frame.FadeFromBlack = fade
 			fbgrid.PaintDetail(d, frame)
 			d.Present()
@@ -235,10 +244,10 @@ type renderKey struct {
 	SessionState, Execution, GameID                   string
 	Busy, Connected, TargetReady, ControllerConnected bool
 	Attract, Detail                                   bool
-	Covers, Stills                                    uint64
+	Covers, Stills, Presentations                     uint64
 }
 
-func modelRenderKey(m kitlauncher.Model, covers uint64) renderKey {
+func modelRenderKey(m kitlauncher.Model, covers, presentations uint64) renderKey {
 	focusID := ""
 	if m.Focus >= 0 && m.Focus < len(m.Games) {
 		focusID = m.Games[m.Focus].ID
@@ -249,7 +258,7 @@ func modelRenderKey(m kitlauncher.Model, covers uint64) renderKey {
 		GameID: m.Session.GameID, Busy: m.Busy, Connected: m.Connected,
 		TargetReady: m.TargetReady, ControllerConnected: m.ControllerConnected,
 		Detail: m.DetailOpen, Shot: m.ShotIndex(),
-		Covers: covers,
+		Covers: covers, Presentations: presentations,
 	}
 }
 
@@ -272,11 +281,15 @@ func catalogPage(focus, n int) (start, end int) {
 
 // modelGrid maps the live catalog to one visible 4×3 page. Model.Focus remains
 // an index into the complete catalog; the grid focus is page-local.
-func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCache, th theme.Theme) fbgrid.Grid {
+func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCache, presentations *tenfoot.PresentationCache, th theme.Theme) fbgrid.Grid {
 	start, end := catalogPage(m.Focus, len(m.Games))
 	tiles := make([]fbgrid.Tile, 0, end-start)
 	for _, game := range m.Games[start:end] {
-		tiles = append(tiles, gameTile(game, covers, th))
+		pres := tenfoot.Presentation{}
+		if presentations != nil {
+			pres = presentations.Get(game.ID)
+		}
+		tiles = append(tiles, gameTile(game, covers, pres, th))
 	}
 	g := fbgrid.NewWithTiles(width, height, tiles)
 	fbgrid.ApplyTheme(&g, th)
@@ -288,7 +301,7 @@ func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCach
 	return g
 }
 
-func modelDetailFrame(m kitlauncher.Model, covers *tenfoot.CoverCache, th theme.Theme, width, height int) fbgrid.DetailFrame {
+func modelDetailFrame(m kitlauncher.Model, covers *tenfoot.CoverCache, presentations *tenfoot.PresentationCache, th theme.Theme, width, height int) fbgrid.DetailFrame {
 	detail := m.FocusDetail()
 	title := asciiLabel(detail.Title)
 	if title == "" {
@@ -307,6 +320,9 @@ func modelDetailFrame(m kitlauncher.Model, covers *tenfoot.CoverCache, th theme.
 	if game, ok := focusedGame(m); ok {
 		frame.Color = th.SystemColor(game.System)
 		handle := m.FocusCoverHandle()
+		if handle == "" && presentations != nil {
+			handle = tenfoot.CoverHandle(game, presentations.Get(game.ID))
+		}
 		if handle != "" && covers != nil {
 			frame.Cover = covers.Image(handle)
 			switch covers.Status(handle) {
@@ -387,7 +403,7 @@ func attractFrame(view kitlauncher.AttractView, stills *tenfoot.CoverCache, th t
 	return frame
 }
 
-func gameTile(game tenfoot.Game, covers *tenfoot.CoverCache, th theme.Theme) fbgrid.Tile {
+func gameTile(game tenfoot.Game, covers *tenfoot.CoverCache, pres tenfoot.Presentation, th theme.Theme) fbgrid.Tile {
 	name := asciiLabel(game.Title)
 	if name == "" {
 		name = asciiLabel(game.System)
@@ -396,7 +412,7 @@ func gameTile(game tenfoot.Game, covers *tenfoot.CoverCache, th theme.Theme) fbg
 		name = "UNTITLED"
 	}
 	tile := fbgrid.Tile{Name: truncateLabel(name, 18), Color: th.SystemColor(game.System), CoverKind: fbgrid.CoverMissing}
-	if handle := tenfoot.CoverHandle(game, tenfoot.Presentation{}); handle != "" {
+	if handle := tenfoot.CoverHandle(game, pres); handle != "" {
 		if covers != nil {
 			tile.Cover = covers.Image(handle)
 			switch covers.Status(handle) {
