@@ -2,8 +2,9 @@
 
 The selected sources implement Pong, basic SNES and a bounded native NES slice
 alongside Mega Drive. Pong and SNES have dated diagnostic hardware evidence;
-NES is software-supported and hardware-pending until an exact assembled image
-is exercised on the designated kit. The normal parent profile selects
+the selected NES image has exact assembled-image video and session-lifecycle
+acceptance in the [narrow-wire record](validation/2026-09-08-native-nes-wire-acceptance.md).
+The normal parent profile selects
 source-built bundles for all four systems, with per-core selection records and
 image-content verification.
 Native cartridge save persistence is described in the [SNES save guide](snes-saves.md).
@@ -36,9 +37,10 @@ The NES producer is pinned to
 `releases/NES_20260823.rbf`, SHA-256
 `a4c023defa4f7856585e5dba429a3b61aee3e01eb3de2c731bb0036c12f11701`, and size
 `3282472` bytes. Its native contract accepts `.nes` files only, at most 32 MiB,
-with one cartridge at index 0. The runtime validates iNES 1.0 and NES2 headers,
-rejects trainers, zero PRG, impossible sizes and truncated payloads before
-programming, then transfers the source bytes unchanged. FDS, UNIF/UNF, NSF,
+with one cartridge at native filetype index `0x40`. The runtime validates iNES
+1.0 and NES2 headers, rejects trainers, zero PRG, impossible sizes and truncated
+payloads before programming, then transfers each source byte in the narrow
+`WIDE=0` wire format. FDS, UNIF/UNF, NSF,
 saves, cheats and accessory peripherals are outside this slice.
 
 ## Historical three-system source-build evidence
@@ -214,13 +216,11 @@ gamepad capabilities. Preserve the existing Mega Drive button mapping.
 
 ## Current next integration step
 
-The NES software path is complete in the selected child worktrees. The next
-gate is to assemble the four-system image from the exact pinned bundles, reuse
-the retained native image/compiler cache, and verify the installed five-RBF
-manifest and selection records. If Quartus 17.0.2 is unavailable, keep the
-official NES RBF source/hash evidence and do not claim a source rebuild. Exact
-NES video/input acceptance remains a separate kit gate against that assembled
-image.
+The four-system image and corrected NES wire path are now integrated and
+accepted on the designated kit. The next work should extend the NES slice only
+after choosing a bounded feature (for example explicit controller movement or
+additional mapper support) and should keep exact-image evidence separate from
+the current record.
 
 ## Historical next integration work
 

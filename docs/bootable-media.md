@@ -212,9 +212,10 @@ card, verify all of the following before releasing the lease:
 - `/media/fat` is writable and the loop-mounted root is read-only.
 - Pong, Mega Drive and SNES each launch, accept input, emit audio, and Stop
   returns the system to idle.
-- NES remains hardware-pending until this exact assembled image and its locked
-  `nes.rbf` are exercised; software validation does not substitute for that
-  acceptance.
+- The selected four-system image has exact NES video and session-lifecycle
+  acceptance in [the dated FES record](validation/2026-09-08-native-nes-wire-acceptance.md).
+  A later image or changed `nes.rbf` remains pending until that exact artifact
+  is exercised.
 - An SNES save survives a full reboot.
 - No Main process or `/dev/MiSTer_cmd` is present.
 - Reboot produces a new boot ID and reaches ready/idle again.

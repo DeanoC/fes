@@ -71,8 +71,9 @@ make verify
 The default `native-integration-dev` selects component revisions through the
 submodule gitlinks and packages source-built Mega Drive, Pong, SNES and NES
 cores. Each core has its own validated bundle and installed selection record;
-NES is software-supported and remains hardware-pending. Historical profiles
-retain their Mega Drive-only inputs.
+the selected NES image has exact video and session-lifecycle acceptance recorded
+in [the dated FES validation](docs/validation/2026-09-08-native-nes-wire-acceptance.md).
+Historical profiles retain their Mega Drive-only inputs.
 
 A fresh FPGA build requires Quartus Lite 17.0.2. A same-revision cached bundle
 can be reused after payload and pinned-recipe validation. Downloads are checked
