@@ -2,13 +2,15 @@ package kitlauncher
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
-	"github.com/DeanoC/FogCast/remoteinput"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/DeanoC/FogCast/remoteinput"
 )
 
 func TestCatalogSystemsUsesPlatformsThenFallback(t *testing.T) {
@@ -133,5 +135,106 @@ func TestLaunchPresentsLoadingBeforeDispatch(t *testing.T) {
 	case <-launched:
 	default:
 		t.Fatal("launch not attempted")
+	}
+}
+
+type silentPad struct{}
+
+func (*silentPad) Poll() ([]remoteinput.Event, error) { return nil, nil }
+func (*silentPad) Close() error                       { return nil }
+
+type gatedPad struct {
+	release *atomic.Bool
+	sent    atomic.Bool
+}
+
+func (p *gatedPad) Poll() ([]remoteinput.Event, error) {
+	if !p.release.Load() || p.sent.Load() {
+		return nil, nil
+	}
+	p.sent.Store(true)
+	e, _ := remoteinput.NormalizeGamepad("dpad-right", true)
+	return []remoteinput.Event{e}, nil
+}
+func (*gatedPad) Close() error { return nil }
+
+func attractTestHandler(handle string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/session":
+			_, _ = w.Write([]byte(`{"state":"idle"}`))
+		case "/api/v1/health":
+			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
+		case "/api/v1/platforms":
+			_, _ = w.Write([]byte(`{"platforms":[{"id":"snes","game_count":1},{"id":"megadrive","game_count":1}]}`))
+		case "/api/v1/games":
+			_, _ = w.Write([]byte(`{"games":[{"id":"mario","title":"Mario","system":"snes","launchable":true},{"id":"sonic","title":"Sonic","system":"megadrive","launchable":true}]}`))
+		case "/api/v1/library/attract":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"idle_seconds": 1,
+				"items": []map[string]any{{
+					"game_id": "mario", "title": "Mario", "platform": "snes",
+					"backdrop": handle, "launchable": true,
+				}},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}
+}
+
+func TestRunEntersAttractFromHostPlaylist(t *testing.T) {
+	handle := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	server := httptest.NewServer(attractTestHandler(handle))
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	var once atomic.Bool
+	var title atomic.Value
+	_ = Run(ctx, NewClient(Config{API: server.URL}), func(m Model) {
+		if !m.AttractActive {
+			return
+		}
+		view := m.AttractView(time.Now())
+		title.Store(view.Title)
+		if view.Title == "Mario" && once.CompareAndSwap(false, true) {
+			cancel()
+		}
+	}, func() (Pad, error) { return &silentPad{}, nil })
+	if !once.Load() {
+		t.Fatalf("attract did not arm from host idle_seconds title=%v", title.Load())
+	}
+}
+
+func TestRunDismissesAttractOnPadAndKeepsFocus(t *testing.T) {
+	handle := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	server := httptest.NewServer(attractTestHandler(handle))
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+	var release atomic.Bool
+	var armed, dismissed atomic.Bool
+	var focusBefore, focusAfter atomic.Int64
+	focusBefore.Store(-1)
+	_ = Run(ctx, NewClient(Config{API: server.URL}), func(m Model) {
+		if m.AttractActive && !armed.Load() {
+			focusBefore.Store(int64(m.Focus))
+			armed.Store(true)
+			release.Store(true)
+		}
+		if armed.Load() && !m.AttractActive && !m.Busy {
+			focusAfter.Store(int64(m.Focus))
+			dismissed.Store(true)
+			cancel()
+		}
+	}, func() (Pad, error) { return &gatedPad{release: &release}, nil })
+	if !armed.Load() {
+		t.Fatal("attract did not arm")
+	}
+	if !dismissed.Load() {
+		t.Fatal("pad did not dismiss attract")
+	}
+	if focusBefore.Load() != focusAfter.Load() {
+		t.Fatalf("focus %d -> %d", focusBefore.Load(), focusAfter.Load())
 	}
 }

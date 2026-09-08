@@ -133,11 +133,16 @@ type AttractPlaylist struct {
 
 // StillHandle prefers backdrop, then cover, then marquee. Video is ignored.
 func (item AttractItem) StillHandle() string {
-	handles := item.stillHandles()
+	handles := item.StillHandles()
 	if len(handles) == 0 {
 		return ""
 	}
 	return handles[0]
+}
+
+// StillHandles is backdrop, then cover, then marquee, de-duplicated. Video is ignored.
+func (item AttractItem) StillHandles() []string {
+	return item.stillHandles()
 }
 
 func (item AttractItem) stillHandles() []string {

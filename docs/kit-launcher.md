@@ -85,7 +85,17 @@ leased virtual pad. Hold Select + Start together for one second to request
 ordinary Stop; both must release before rearming. Individual Start and Select
 remain game controls while a session can stop; B does not stop gameplay.
 Stop/save errors retain the retry operation. The idle footer hint is
-`A play | L/R shelf`.
+`A play | L/R shelf`. After the host `idle_seconds` from
+`GET /api/v1/library/attract` (default 60s; 1s is allowed) with no pad input,
+no busy/session transition, and a ready host, the kit leaves the grid for a
+stills attract: backdrop, then cover, then marquee, decoded with `DecodeStill`
+and cycled with `anim` fade-through-black. Title chrome uses the theme
+`AttractBackground` and title/status roles. A/South on a launchable still
+launches that title when a game id is present; any other pad input dismisses
+and returns to the same shelf and focus. Kit attract is stills-only; video
+handles are ignored. An empty playlist (or video-only rows) still enters a
+themed idle panel (`Idle` / `No attract stills`) so the grid is not frozen;
+any input returns to the grid.
 
 The host source stream releases controls on close/timeout, and an attachment ID
 prevents old input affecting a new session. Its source is exclusive; the launcher
@@ -106,7 +116,9 @@ the cover cell; Software Draw stays nearest), and aspect-fits the RGBA into the
 cell over theme-tinted letterbox bars. Missing or failed art paints a
 theme-tinted placeholder with a lettermark; still-loading art uses a distinct
 panel without a letter. Fetching is asynchronous and does not block the present
-loop.
+loop. After idle, attract stills use the same artwork GET with `DecodeStill`
+(Catmull–Rom to a 720p-class stage) and `fbgrid.PaintAttract`. Empty playlists
+paint a themed idle panel instead of hanging on the grid.
 
 Run `go test -race ./kitlauncher/... ./host/tenfoot/inputmap ./host/tenfoot/theme ./host/tenfoot/fbgrid ./host/tenfoot/gfx ./host/tenfoot/anim ./cmd/fogcast-kit` for adapter tests. They
 exercise real HTTP transports with isolated servers and never open real input or
@@ -122,7 +134,10 @@ override). `fogcast-kit -selftest-text` paints UI-face header/tile/footer chrome
 requires the header pixels to differ from a DebugText-only baseline, checks
 themed glyph ink, and re-runs nav plus shelf. `fogcast-kit -selftest-cover`
 decodes a cover, paints missing and loading placeholders, samples the art and
-panel pixels, and re-runs text (which re-runs nav plus shelf). `fogcast-kit -selftest-fpga` records a timed attract still/crossfade
+panel pixels, and re-runs text (which re-runs nav plus shelf). `fogcast-kit -selftest-attract`
+arms a short idle, paints a decoded still plus an empty idle panel, dismisses on
+pad input with shelf and focus unchanged, and re-runs cover (which re-runs text,
+nav, and shelf). `fogcast-kit -selftest-fpga` records a timed attract still/crossfade
 and sprite move through `gfx.NewFPGA` (FC2D software-replay, `IsStub` true,
 `HW=not-yet`) and, when `/dev/fb0` opens, Replays the stream onto linuxfb.
 It does not claim a programmed 2D core. `fogcast-kit -selftest-pads` opens every

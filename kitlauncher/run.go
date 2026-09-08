@@ -14,13 +14,16 @@ type Pad interface {
 	Close() error
 }
 type observation struct {
-	epoch    uint64
-	session  Session
-	health   tenfoot.HealthResult
-	games    []tenfoot.Game
-	err      error
-	mutation bool
-	message  string
+	epoch          uint64
+	session        Session
+	health         tenfoot.HealthResult
+	games          []tenfoot.Game
+	attract        tenfoot.AttractPlaylist
+	haveAttract    bool
+	hydrateAttract bool
+	err            error
+	mutation       bool
+	message        string
 }
 
 // Run keeps device/UI work on one loop. Slow host requests run outside that loop;
@@ -51,6 +54,8 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	polling := false
 	catalogLoaded := false
 	lastCatalog := time.Time{}
+	attractLoaded := false
+	lastAttract := time.Time{}
 	send := func(o observation) {
 		select {
 		case results <- o:
@@ -64,6 +69,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		polling = true
 		e := epoch
 		load := !catalogLoaded || time.Since(lastCatalog) > 30*time.Second
+		loadAttract := !attractLoaded || time.Since(lastAttract) > attractIdleRefresh
 		go func() {
 			o := observation{epoch: e}
 			o.session, o.err = c.Session(ctx)
@@ -72,6 +78,15 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			}
 			if o.err == nil && load {
 				o.games, o.err = loadCatalog(ctx, c)
+			}
+			if o.err == nil && loadAttract {
+				p, err := c.Library.Attract(ctx, defaultAttractLimit)
+				if err == nil {
+					o.attract = p
+					o.haveAttract = true
+				} else {
+					o.hydrateAttract = true
+				}
 			}
 			send(o)
 		}()
@@ -84,14 +99,17 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		e := epoch
 		m.Busy = true
 		closeInput()
+		if m.AttractActive {
+			m.hideAttract()
+		}
 		m.Message = "Loading game"
 		id := ""
 		if action == "launch" {
-			if len(m.Games) == 0 {
+			id = m.consumeLaunchID()
+			if id == "" {
 				m.Busy = false
 				return
 			}
-			id = m.Games[m.Focus].ID
 			// Publish feedback while Menu still owns the display, before the
 			// asynchronous request can hand HDMI to the game.
 			present(m)
@@ -163,6 +181,15 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.SetCatalog(o.games)
 					catalogLoaded = true
 					lastCatalog = time.Now()
+				}
+				if o.haveAttract {
+					m.SetAttractPlaylist(o.attract)
+					attractLoaded = true
+					lastAttract = time.Now()
+				} else if o.hydrateAttract {
+					m.HydrateAttractIdle()
+					attractLoaded = true
+					lastAttract = time.Now()
 				}
 			}
 		case now := <-tick.C:

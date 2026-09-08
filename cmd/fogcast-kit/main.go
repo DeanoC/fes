@@ -40,6 +40,7 @@ func run() error {
 	selftestShelf := flag.Bool("selftest-shelf", false, "paint system shelves, cycle L/R, sample header, and exit")
 	selftestText := flag.Bool("selftest-text", false, "paint UI-face chrome and prove it is not DebugText, then exit")
 	selftestCover := flag.Bool("selftest-cover", false, "paint cover decode, placeholder, and chrome polish, then exit")
+	selftestAttract := flag.Bool("selftest-attract", false, "arm short idle stills attract, paint a still, dismiss, then exit")
 	flag.Parse()
 	if *selftestFPGA {
 		fb := "/dev/fb0"
@@ -62,7 +63,7 @@ func run() error {
 		}
 		return runThemeSelftest(fb)
 	}
-	if *selftestNav || *selftestShelf || *selftestText || *selftestCover {
+	if *selftestNav || *selftestShelf || *selftestText || *selftestCover || *selftestAttract {
 		fb := "/dev/fb0"
 		configTheme := ""
 		if c, err := kitlauncher.LoadConfig(*configPath); err == nil {
@@ -74,6 +75,9 @@ func run() error {
 		th, err := loadKitTheme(*themeSpec, configTheme)
 		if err != nil {
 			return err
+		}
+		if *selftestAttract {
+			return runAttractSelftest(fb, th)
 		}
 		if *selftestCover {
 			return runCoverSelftest(fb, th)
@@ -103,9 +107,32 @@ func run() error {
 	defer cancel()
 	client := kitlauncher.NewClient(c)
 	covers := tenfoot.NewCoverCache()
+	stills := tenfoot.NewStillCache()
 	last := time.Time{}
 	var lastKey renderKey
 	present := func(m kitlauncher.Model) {
+		now := time.Now()
+		if m.AttractActive && !m.Busy {
+			handles := m.AttractPrefetchHandles()
+			stills.Keep(handles)
+			stills.Request(ctx, client.Library, handles)
+			view := m.AttractView(now)
+			key := modelRenderKey(m, covers.Generation())
+			key.Attract = true
+			key.AttractIndex = view.Index
+			key.AttractHandle = view.Handle
+			key.AttractFade = int(view.FadeT * 10)
+			key.Stills = stills.Generation()
+			if now.Sub(last) < 100*time.Millisecond && key == lastKey {
+				return
+			}
+			last = now
+			lastKey = key
+			cfg := d.Config()
+			fbgrid.PaintAttract(d, attractFrame(view, stills, th, cfg.Width, cfg.Height))
+			d.Present()
+			return
+		}
 		start, end := catalogPage(m.Focus, len(m.Games))
 		prefetch := end + gridPageSize
 		if prefetch > len(m.Games) {
@@ -115,10 +142,10 @@ func run() error {
 		covers.Keep(handles)
 		covers.Request(ctx, client.Library, handles)
 		key := modelRenderKey(m, covers.Generation())
-		if time.Since(last) < 100*time.Millisecond && key == lastKey {
+		if now.Sub(last) < 100*time.Millisecond && key == lastKey {
 			return
 		}
-		last = time.Now()
+		last = now
 		lastKey = key
 		cfg := d.Config()
 		w, h := cfg.Width, cfg.Height
@@ -160,11 +187,12 @@ func loadKitRemapper(flagSpec, configSpec string) (*inputmap.Remapper, error) {
 }
 
 type renderKey struct {
-	Focus, GameCount                                  int
-	FocusID, Message, Shelf                           string
+	Focus, GameCount, AttractIndex, AttractFade       int
+	FocusID, Message, Shelf, AttractHandle            string
 	SessionState, Execution, GameID                   string
 	Busy, Connected, TargetReady, ControllerConnected bool
-	Covers                                            uint64
+	Attract                                           bool
+	Covers, Stills                                    uint64
 }
 
 func modelRenderKey(m kitlauncher.Model, covers uint64) renderKey {
@@ -214,6 +242,35 @@ func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCach
 	}
 	g.Footer = modelFooter(m)
 	return g
+}
+
+func attractFrame(view kitlauncher.AttractView, stills *tenfoot.CoverCache, th theme.Theme, width, height int) fbgrid.AttractFrame {
+	frame := fbgrid.AttractFrame{
+		Width:  width,
+		Height: height,
+		Title:  asciiLabel(view.Title),
+		Empty:  view.Empty,
+		FadeT:  view.FadeT,
+		Theme:  th,
+	}
+	if view.Empty {
+		frame.Hint = "any back"
+		if frame.Title == "" {
+			frame.Title = "FOGCAST"
+		}
+		return frame
+	}
+	frame.Hint = "A play | any back"
+	if stills != nil {
+		frame.Image = stills.Image(view.Handle)
+		if view.NextHandle != "" && view.FadeT > 0 {
+			frame.Next = stills.Image(view.NextHandle)
+		}
+	}
+	if frame.Title == "" {
+		frame.Title = "FOGCAST"
+	}
+	return frame
 }
 
 func gameTile(game tenfoot.Game, covers *tenfoot.CoverCache, th theme.Theme) fbgrid.Tile {
