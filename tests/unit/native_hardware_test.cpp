@@ -83,6 +83,14 @@ std::string BaseName(const std::string& path)
 	return slash == std::string::npos ? path : path.substr(slash + 1);
 }
 
+std::string BasicNesRom()
+{
+	std::string bytes(16u + 2u * 16384u + 1u * 8192u, '\0');
+	bytes[0] = 'N'; bytes[1] = 'E'; bytes[2] = 'S'; bytes[3] = 0x1a;
+	bytes[4] = 2; bytes[5] = 1;
+	return bytes;
+}
+
 class LedgerLog final : public mister::LogSink {
 public:
 	explicit LedgerLog(std::vector<std::string>& events) : events_(events) {}
@@ -1414,6 +1422,49 @@ void TestPongProductionProfileAndRomlessLifecycle()
 	}
 }
 
+void TestNesProductionProfileAndPreflight()
+{
+	mister::Launch request;
+	request.system = "nes";
+	request.rbf = "/usr/share/mister-runtime/cores/nes.rbf";
+	request.media.push_back({"cartridge", "/tmp/game.nes"});
+	mister::PreparedLaunch prepared;
+	const mister::Profiles& production = mister::ProductionProfiles();
+	assert(production.Prepare(request, &prepared).ok());
+	assert(prepared.expected_core == "NES" && prepared.media.size() == 1);
+	assert(prepared.media[0].index == 0 &&
+		prepared.media[0].transform == mister::MediaTransform::nes_cartridge);
+	assert(prepared.input.a == 0x10 && prepared.input.b == 0x20 &&
+		prepared.input.select == 0x400 && prepared.input.start == 0x800);
+
+	Fixture fixture;
+	const std::string nes_rbf = fixture.temporary.File("nes.rbf", "software-fixture");
+	const std::string malformed = fixture.temporary.File("game.nes", "bad");
+	const std::string valid = fixture.temporary.File("valid.nes", BasicNesRom());
+	mister::Profile profile;
+	profile.system = prepared.system;
+	profile.expected_core = prepared.expected_core;
+	profile.rbf = nes_rbf;
+	profile.core = prepared.core;
+	profile.input = prepared.input;
+	profile.media.push_back({"cartridge", 0, true, {".nes"},
+		32u * 1024u * 1024u, mister::MediaTransform::nes_cartridge});
+	mister::Profiles profiles;
+	assert(profiles.Add(profile).ok());
+	mister::Runtime runtime(fixture.hardware, profiles, fixture.log);
+	assert(runtime.Start().ok());
+	fixture.spi.observed_core = "NES";
+	request.rbf = nes_rbf;
+	request.media[0].path = malformed;
+	const int before = fixture.fpga.calls;
+	assert(runtime.LaunchGame(request).code == mister::ErrorCode::invalid_request);
+	assert(fixture.fpga.calls == before);
+	request.media[0].path = valid;
+	assert(runtime.LaunchGame(request).ok());
+	assert(runtime.status().system == "nes" && runtime.status().core == "NES");
+	assert(runtime.Stop().ok());
+}
+
 void TestProductionConstructionOwnsRealIdleHardware()
 {
 	const mister::Profiles& profiles = mister::ProductionProfiles();
@@ -1444,7 +1495,7 @@ void TestProductionConstructionOwnsRealIdleHardware()
 
 	mister::PreparedLaunch unchanged;
 	unchanged.system = "sentinel";
-	launch.system = "nes";
+	launch.system = "sms";
 	assert(profiles.Prepare(launch, &unchanged).code ==
 		mister::ErrorCode::unknown_system);
 	assert(unchanged.system == "sentinel");
@@ -1532,8 +1583,9 @@ int main()
 	TestNativeLoggingNamesPhasesAndConfirmedCore();
 	TestSnesProductionTransformPreflightAndLifecycle();
 	TestPongProductionProfileAndRomlessLifecycle();
+	TestNesProductionProfileAndPreflight();
 	TestProductionConstructionOwnsRealIdleHardware();
 	TestUnavailableHardwareRemainsFailureOnly();
-	puts("native_hardware_test: 31 passed");
+	puts("native_hardware_test: 32 passed");
 	return 0;
 }

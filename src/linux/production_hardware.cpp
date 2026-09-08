@@ -6,6 +6,7 @@
 #include "native/artifacts.hpp"
 #include "native/core_loader.hpp"
 #include "native/generated/megadrive.hpp"
+#include "native/generated/nes.hpp"
 #include "native/generated/pong.hpp"
 #include "native/generated/snes.hpp"
 #include "native/hardware.hpp"
@@ -54,6 +55,7 @@ Profile ProfileFromGenerated(const native::generated::GeneratedSystem& sys)
 		media.maximum_size = rule.maximum_size;
 		if (std::strcmp(rule.transform, "raw") == 0) media.transform = MediaTransform::raw;
 		else if (std::strcmp(rule.transform, "snes_cartridge") == 0) media.transform = MediaTransform::snes_cartridge;
+		else if (std::strcmp(rule.transform, "nes_cartridge") == 0) media.transform = MediaTransform::nes_cartridge;
 		else std::abort();
 		for (std::size_t j = 0; j < rule.extension_count; ++j)
 			media.extensions.push_back(rule.extensions[j]);
@@ -90,6 +92,8 @@ Profiles BuildProductionProfiles()
 	if (!profiles.Add(ProfileFromGenerated(native::generated::kPong)).ok())
 		std::abort();
 	if (!profiles.Add(ProfileFromGenerated(native::generated::kSNES)).ok())
+		std::abort();
+	if (!profiles.Add(ProfileFromGenerated(native::generated::kNES)).ok())
 		std::abort();
 	return profiles;
 }

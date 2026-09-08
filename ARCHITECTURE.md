@@ -31,16 +31,17 @@ roles:
   ```
 
   Its installed idle path is `/usr/share/mister-runtime/idle.rbf`. The
-  production profiles are `megadrive`, `pong` and `snes`, with image-owned paths
+  production profiles are `megadrive`, `pong`, `snes` and `nes`, with image-owned paths
   `/usr/share/mister-runtime/cores/megadrive.rbf` and
   `/usr/share/mister-runtime/cores/pong.rbf` and
-  `/usr/share/mister-runtime/cores/snes.rbf`.
+  `/usr/share/mister-runtime/cores/snes.rbf` and
+  `/usr/share/mister-runtime/cores/nes.rbf`.
 
 FPGA-manager and SPI MMIO constants are checked-in generated C++14 text
 from mister-packages (`src/native/generated/de10_nano.hpp`). Production
-Mega Drive, Pong and SNES profile fields come from
-`src/native/generated/megadrive.hpp`, `src/native/generated/pong.hpp` and
-`src/native/generated/snes.hpp`. The image still owns the absolute
+Mega Drive, Pong, SNES and NES profile fields come from
+`src/native/generated/megadrive.hpp`, `src/native/generated/pong.hpp`,
+`src/native/generated/snes.hpp` and `src/native/generated/nes.hpp`. The image still owns the absolute
 RBF directory prefix.
 
 mister-packages is host software. The generated headers are target
@@ -178,8 +179,9 @@ software-versus-physical record is the [support matrix](docs/support-matrix.md).
 The MiSTer-compatible development RBF path is software-implemented with
 physical-hardware status pending. It does not promise development video.
 Native audio, save RAM, save states, six-button X/Y/Z/Mode input, multiplayer,
-remapping, and hot-plug recovery are outside this slice. Every other game
-system remains unsupported. The runtime does not preserve a running game
+remapping, and hot-plug recovery are outside this slice. FES currently admits
+the basic NES slice described below; every other game system remains
+unsupported. The runtime does not preserve a running game
 across restart and does not add conventional Main, transient MGLs, or automatic
 legacy fallback.
 
@@ -281,6 +283,19 @@ SNES uses bits 0–3 for Right/Left/Down/Up, bits 4–9 for A/B/X/Y/L/R, bit 10
 Select and bit 11 Start; C is unused. Linux BTN_X/BTN_Y/BTN_TL/BTN_TR/BTN_SELECT
 are decoded into the new controls. Existing Mega Drive C and Pong Start retain
 their original masks. All profiles use the same input worker and neutral Stop.
+
+## NES content and input
+
+`MediaTransform::nes_cartridge` validates the retained file before HDMI
+quiesce or FPGA programming. The 16-byte header must carry `NES\x1a`, clear the
+trainer flag, and declare a nonzero PRG payload. Both iNES 1.0 page counts and
+NES2 linear or exponent/multiplier sizes are decoded with checked arithmetic;
+the declared payload must fit the file and the 32 MiB profile bound. The
+artifact plan has no prefix or save data, so `CoreLoader::Attach` streams the
+original bytes unchanged at file index 0. Mapper selection remains in the
+upstream core. The production row uses the generated NES input masks for one
+standard controller; FDS, UNIF/UNF, NSF, trainers, saves, cheats and extra
+peripherals are not admitted.
 
 ## SNES save lifecycle
 

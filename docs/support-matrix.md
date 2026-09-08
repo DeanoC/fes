@@ -8,7 +8,7 @@ fixtures verify software mechanics and do not establish system support.
 | `megadrive` | native fixed-video, one-player launch/Stop/relaunch | software: yes | hardware: yes |
 | `pong` | native ROM-less profile, fixed-video lifecycle and one-player packet | software: yes | hardware: no |
 | `snes` | basic LoROM/HiROM transform, one-player lifecycle, optional battery RAM | software: yes | hardware: no |
-| `nes` | not implemented | software: no | hardware: no |
+| `nes` | native iNES/NES2 cartridge preflight, one-player lifecycle | software: yes | hardware: pending |
 | `sms` | not implemented | software: no | hardware: no |
 | `gb` | not implemented | software: no | hardware: no |
 | `gbc` | not implemented | software: no | hardware: no |
@@ -80,3 +80,13 @@ and retryable save failure. Omission of `save_path` keeps RAM volatile. Autosave
 power-loss capture, enhancement chips, special formats and non-power-of-two
 mirroring are unsupported. Physical save acceptance is pending. Physical
 SNES video/input/audio acceptance remains pending.
+
+## NES software scope
+
+Software tests cover generated profile admission, index-0 cartridge delivery,
+iNES 1.0 and NES2 header validation, trainer rejection, bounded payload checks,
+and preflight rejection before FPGA programming. Only standard `.nes` files up
+to 32 MiB are admitted; source bytes are streamed unchanged. FDS, UNIF/UNF,
+NSF, trainers, saves, cheats, mapper-specific policy and extra peripherals are
+unsupported. Physical NES video/input/audio acceptance remains pending, so the
+hardware-supported count stays at one.

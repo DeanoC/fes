@@ -80,7 +80,7 @@ struct Status {
 	Error error;
 };
 
-enum class MediaTransform { raw, snes_cartridge };
+enum class MediaTransform { raw, snes_cartridge, nes_cartridge };
 
 struct MediaRule {
 	std::string role;
