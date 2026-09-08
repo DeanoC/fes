@@ -23,9 +23,9 @@ All shell examples in the parent guides start at the FES repository root unless
 specified otherwise. Commands inside a component use that component's Makefile
 and instructions; the same target name can mean different things there.
 
-The current integration profile selects Mega Drive, Pong, SNES and NES. NES is
-software-supported with exact source and artifact provenance; hardware acceptance
-still requires the assembled image and a dedicated kit test.
+The current integration profile selects Mega Drive, Pong, SNES and NES. Exact
+NES video and native session lifecycle acceptance for the selected image is
+recorded in [the narrow-wire acceptance record](validation/2026-09-08-native-nes-wire-acceptance.md).
 
 ## What has been verified
 
@@ -42,7 +42,10 @@ still requires the assembled image and a dedicated kit test.
 - [Historical parent validation](historical-parent-validation.md): original
   parent build and provenance caveats.
 - [Native NES software integration](validation/2026-09-08-native-nes-software.md):
-  exact NES provenance, four-system contract checks and hardware-pending status.
+  exact NES provenance, four-system contract checks and the earlier pending
+  hardware gate.
+- [Native NES narrow-wire acceptance](validation/2026-09-08-native-nes-wire-acceptance.md):
+  the corrected byte transfer, reproducible image and exact-kit colour captures.
 
 Evidence describes the exact artifacts tested. It does not automatically apply
 to later source edits, another profile or a different device.
