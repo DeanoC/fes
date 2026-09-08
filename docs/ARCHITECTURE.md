@@ -267,7 +267,8 @@ goroutine holds the stream.
 
 Source entry points are `host/tenfoot/` and `cmd/fogcast-tenfoot`. UI draw
 helpers use `host/tenfoot/gfx.Device` (begin/clear/present, RGBA8 textures,
-textured quads, fill rects, CGO-free `DrawText` with embedded Go Regular, and
+textured quads, fill rects, CGO-free `DrawText` / `DrawTextWeight` with
+embedded Go Regular and Go Bold, and
 `DebugText` for the 8×8 HUD / FC2D opcode). Window, events, gamepad, and text input remain
 SDL in `host/tenfoot/sdl.go`. `TENFOOT_GFX` / `Options.GFX` / `-gfx` may select
 `software`, `fpga`, or `fpga-stub` for tests; the production sofa path stays SDL3.
@@ -279,7 +280,7 @@ linuxfb is a kit framebuffer Device, not the SDL sofa shell.
 | Software | `gfx.NewSoftware` (`host/tenfoot/gfx/software.go`) | Pure-Go RGBA8 rasterizer for tests and CI (no cgo, no SDL). Nearest blit, `Snapshot` for golden pixels. Cover/screenshot/still downscale is Catmull–Rom at decode. |
 | FPGA | `gfx.NewFPGA` (`host/tenfoot/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`host/tenfoot/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. Timed still/crossfade and sprite helpers live in `host/tenfoot/anim`. |
 | FPGA stub | `gfx.NewFPGAStub` (`host/tenfoot/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
-| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`host/tenfoot/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `host/tenfoot/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `host/tenfoot/inputmap`; linuxinput can apply a `Remapper` to gamepad records. Look tokens live in `host/tenfoot/theme` and are consumed by `fbgrid.Paint` and the sofa `Clear` sites. Kit chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. `DebugText` stays the FPGA/debug path. |
+| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`host/tenfoot/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `host/tenfoot/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `host/tenfoot/inputmap`; linuxinput can apply a `Remapper` to gamepad records. Look tokens live in `host/tenfoot/theme` and are consumed by `fbgrid.Paint` and the sofa `Clear` sites. Kit chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
 
 `gfx.Recorder` remains a call-order test double and does not draw pixels.
 `gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.
@@ -292,10 +293,14 @@ typography roles, and cover-chrome tokens from a built-in name (`default`,
 package: an unset role uses `gfx.ScalePx` of `header_scale` / `label_scale` /
 `status_scale` (the former 8× DebugText hierarchy). Built-in `default` and
 `night` use 20/13/12/14 on a 640×480 grid; `arcade` uses 22/13/12/15.
-`default` still preserves the sofa/attract clear colours. `fogcast-kit` and
+`default` still preserves the sofa/attract clear colours. Built-in themes
+mark `title_bold` (and chrome `header_bold`) true so grid headers and detail
+titles raster with embedded Go Bold; body/caption/status stay Regular unless
+the matching `*_bold` token is set. Incomplete files inherit those defaults.
+`fogcast-kit` and
 `fogcast-tenfoot` share `theme.Resolve` (`-theme`, then `launcher.json` /
-`tenfoot.json` `theme`, then `FOGCAST_THEME`). There is no scripted theme VM,
-font-family picker, or second UI face; derived colours stay in Go.
+`tenfoot.json` `theme`, then `FOGCAST_THEME`). There is no scripted theme VM
+or font-family picker; derived colours stay in Go.
 
 The browser shell remains the default UI. Mac is the primary sofa target; Linux builds
 with the same `make build-fogcast-tenfoot` target (`CGO_ENABLED=1` and

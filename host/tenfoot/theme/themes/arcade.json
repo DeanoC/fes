@@ -25,6 +25,11 @@
   "body_px": 13,
   "caption_px": 12,
   "status_px": 15,
+  "title_bold": true,
+  "header_bold": true,
+  "body_bold": false,
+  "caption_bold": false,
+  "status_bold": false,
   "systems": {
     "pong": "#39ff14",
     "megadrive": "#ff8c00",

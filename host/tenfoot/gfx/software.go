@@ -198,7 +198,11 @@ func (s *Software) DebugText(x, y int, text string, scale int) {
 }
 
 func (s *Software) DrawText(x, y int, text string, sizePx int, c Color) {
-	blitText(s, x, y, RasterizeText(text, sizePx, c, 0))
+	s.DrawTextWeight(x, y, text, sizePx, WeightRegular, c)
+}
+
+func (s *Software) DrawTextWeight(x, y int, text string, sizePx int, w Weight, c Color) {
+	blitText(s, x, y, RasterizeTextWeight(text, sizePx, w, c, 0))
 }
 
 func (s *Software) Close() {

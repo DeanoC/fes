@@ -34,8 +34,9 @@ func Paint(d gfx.Device, g Grid) {
 		header = "FOGCAST GRID"
 	}
 	headerSize := th.TitlePx()
-	header = gfx.FitText(header, headerSize, g.Width-24)
-	d.DrawText(16, chromeTextY(0, g.HeaderH, gfx.TextHeight(headerSize), true), header, headerSize, th.Header)
+	headerW := th.HeaderWeight()
+	header = gfx.FitTextWeight(header, headerSize, g.Width-24, headerW)
+	d.DrawTextWeight(16, chromeTextY(0, g.HeaderH, gfx.TextHeightWeight(headerSize, headerW), true), header, headerSize, headerW, th.Header)
 	for _, i := range paintOrder(g) {
 		if i < 0 || i >= len(g.Tiles) {
 			continue
@@ -51,8 +52,9 @@ func Paint(d gfx.Device, g Grid) {
 		footerTop = 0
 	}
 	statusSize := th.StatusPx()
-	status = gfx.FitText(status, statusSize, g.Width-16)
-	d.DrawText(8, chromeTextY(footerTop, g.Height-footerTop, gfx.TextHeight(statusSize), false), status, statusSize, th.Status)
+	statusW := th.StatusWeight()
+	status = gfx.FitTextWeight(status, statusSize, g.Width-16, statusW)
+	d.DrawTextWeight(8, chromeTextY(footerTop, g.Height-footerTop, gfx.TextHeightWeight(statusSize, statusW), false), status, statusSize, statusW, th.Status)
 }
 
 func paintOrder(g Grid) []int {
@@ -121,7 +123,8 @@ func paintTile(d gfx.Device, g Grid, th theme.Theme, i int, tile Tile) {
 		}
 	}
 	labelSize := th.BodyPx()
-	textH := gfx.TextHeight(labelSize)
+	labelW := th.BodyWeight()
+	textH := gfx.TextHeightWeight(labelSize, labelW)
 	barH := float32(textH + 4)
 	if barH < 16 {
 		barH = 16
@@ -140,12 +143,12 @@ func paintTile(d gfx.Device, g Grid, th theme.Theme, i int, tile Tile) {
 	if maxW < 1 {
 		maxW = 1
 	}
-	name := gfx.FitText(tile.Name, labelSize, maxW)
+	name := gfx.FitTextWeight(tile.Name, labelSize, maxW, labelW)
 	textY := int(inner.Y+inner.H) - textH - 2
 	if textY < int(inner.Y) {
 		textY = int(inner.Y)
 	}
-	d.DrawText(textX, textY, name, labelSize, th.Label)
+	d.DrawTextWeight(textX, textY, name, labelSize, labelW, th.Label)
 }
 
 // chromeTextY vertically centers a textH-pixel label in a chrome bar. When the
@@ -207,20 +210,22 @@ func paintPlaceholder(d gfx.Device, cell gfx.Rect, name string, fill gfx.Color, 
 		return
 	}
 	size := th.CaptionPx()
+	letterW := th.CaptionWeight()
 	if size > int(cell.H)/2 && int(cell.H) > 0 {
 		size = th.BodyPx()
+		letterW = th.BodyWeight()
 	}
 	if size < 1 {
 		size = 1
 	}
-	tw := gfx.MeasureText(letter, size)
-	textH := gfx.TextHeight(size)
+	tw := gfx.MeasureTextWeight(letter, size, letterW)
+	textH := gfx.TextHeightWeight(size, letterW)
 	x := int(cell.X) + (int(cell.W)-tw)/2
 	y := int(cell.Y) + (int(cell.H)-textH)*2/5
 	if y < int(cell.Y)+4 {
 		y = int(cell.Y) + 4
 	}
-	d.DrawText(x, y, letter, size, th.Label)
+	d.DrawTextWeight(x, y, letter, size, letterW, th.Label)
 }
 
 func paintRectOutline(d gfx.Device, r gfx.Rect, width float32, c gfx.Color) {

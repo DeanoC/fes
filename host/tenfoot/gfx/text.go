@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"golang.org/x/image/font"
+	"golang.org/x/image/font/gofont/gobold"
 	"golang.org/x/image/font/gofont/goregular"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
@@ -26,42 +27,55 @@ func ScalePx(scale int) int {
 	return GlyphPx * scale
 }
 
+type faceKey struct {
+	size   int
+	weight Weight
+}
+
 var (
-	uiMu    sync.Mutex
-	uiTTF   []byte
-	uiFont  *opentype.Font
-	uiFaces = map[int]font.Face{}
-	uiReady bool
+	uiMu      sync.Mutex
+	uiTTF     []byte
+	uiBoldTTF []byte
+	uiFonts   = map[Weight]*opentype.Font{}
+	uiFaces   = map[faceKey]font.Face{}
 )
 
-func uiTTFBytes() []byte {
+func uiTTFBytes(w Weight) []byte {
+	if NormalizeWeight(w) == WeightBold {
+		if len(uiBoldTTF) > 0 {
+			return uiBoldTTF
+		}
+		return gobold.TTF
+	}
 	if len(uiTTF) > 0 {
 		return uiTTF
 	}
 	return goregular.TTF
 }
 
-func ensureUIFont() *opentype.Font {
-	if uiReady && uiFont != nil {
-		return uiFont
+func ensureUIFont(w Weight) *opentype.Font {
+	w = NormalizeWeight(w)
+	if parsed, ok := uiFonts[w]; ok && parsed != nil {
+		return parsed
 	}
-	uiReady = true
-	parsed, err := opentype.Parse(uiTTFBytes())
+	parsed, err := opentype.Parse(uiTTFBytes(w))
 	if err != nil || parsed == nil {
 		return nil
 	}
-	uiFont = parsed
-	return uiFont
+	uiFonts[w] = parsed
+	return parsed
 }
 
-func uiFaceLocked(sizePx int) font.Face {
+func uiFaceLocked(sizePx int, w Weight) font.Face {
 	if sizePx < 1 {
 		sizePx = 1
 	}
-	if face, ok := uiFaces[sizePx]; ok {
+	w = NormalizeWeight(w)
+	key := faceKey{size: sizePx, weight: w}
+	if face, ok := uiFaces[key]; ok {
 		return face
 	}
-	parsed := ensureUIFont()
+	parsed := ensureUIFont(w)
 	if parsed == nil {
 		return nil
 	}
@@ -73,31 +87,41 @@ func uiFaceLocked(sizePx int) font.Face {
 	if err != nil {
 		return nil
 	}
-	uiFaces[sizePx] = face
+	uiFaces[key] = face
 	return face
 }
 
-// MeasureText returns the pixel width of text at sizePx in the embedded UI
+// MeasureText returns the pixel width of text at sizePx in the Regular UI
 // face. Empty text is 0.
 func MeasureText(text string, sizePx int) int {
+	return MeasureTextWeight(text, sizePx, WeightRegular)
+}
+
+// MeasureTextWeight is MeasureText with an explicit face weight.
+func MeasureTextWeight(text string, sizePx int, w Weight) int {
 	if text == "" {
 		return 0
 	}
 	uiMu.Lock()
 	defer uiMu.Unlock()
-	face := uiFaceLocked(sizePx)
+	face := uiFaceLocked(sizePx, w)
 	if face == nil {
 		return 0
 	}
 	return font.MeasureString(face, text).Ceil()
 }
 
-// TextHeight is the pixel line height (ascent+descent) of the UI face at
-// sizePx. It is used to vertically center chrome labels.
+// TextHeight is the pixel line height (ascent+descent) of the Regular UI
+// face at sizePx. It is used to vertically center chrome labels.
 func TextHeight(sizePx int) int {
+	return TextHeightWeight(sizePx, WeightRegular)
+}
+
+// TextHeightWeight is TextHeight with an explicit face weight.
+func TextHeightWeight(sizePx int, w Weight) int {
 	uiMu.Lock()
 	defer uiMu.Unlock()
-	face := uiFaceLocked(sizePx)
+	face := uiFaceLocked(sizePx, w)
 	if face == nil {
 		if sizePx < 1 {
 			return 1
@@ -115,15 +139,20 @@ func TextHeight(sizePx int) int {
 	return h
 }
 
-// FitText truncates text with an ASCII ellipsis so its UI-face width is at
-// most maxWidth pixels. maxWidth < 1 leaves the string unchanged.
+// FitText truncates text with an ASCII ellipsis so its Regular UI-face
+// width is at most maxWidth pixels. maxWidth < 1 leaves the string unchanged.
 func FitText(text string, sizePx, maxWidth int) string {
+	return FitTextWeight(text, sizePx, maxWidth, WeightRegular)
+}
+
+// FitTextWeight is FitText with an explicit face weight.
+func FitTextWeight(text string, sizePx, maxWidth int, w Weight) string {
 	if text == "" || maxWidth < 1 {
 		return text
 	}
 	uiMu.Lock()
 	defer uiMu.Unlock()
-	face := uiFaceLocked(sizePx)
+	face := uiFaceLocked(sizePx, w)
 	if face == nil {
 		return text
 	}
@@ -149,10 +178,15 @@ func fitText(face font.Face, text string, maxWidth int) string {
 	return ""
 }
 
-// RasterizeText draws text in c with the embedded UI face. maxWidth > 0
+// RasterizeText draws text in c with the Regular UI face. maxWidth > 0
 // truncates with an ellipsis. The result is straight-alpha RGBA so Software
 // blendOver and SDL blend match. Nil means nothing to draw.
 func RasterizeText(text string, sizePx int, c Color, maxWidth int) *image.RGBA {
+	return RasterizeTextWeight(text, sizePx, WeightRegular, c, maxWidth)
+}
+
+// RasterizeTextWeight is RasterizeText with an explicit face weight.
+func RasterizeTextWeight(text string, sizePx int, w Weight, c Color, maxWidth int) *image.RGBA {
 	if text == "" {
 		return nil
 	}
@@ -161,7 +195,7 @@ func RasterizeText(text string, sizePx int, c Color, maxWidth int) *image.RGBA {
 	}
 	uiMu.Lock()
 	defer uiMu.Unlock()
-	face := uiFaceLocked(sizePx)
+	face := uiFaceLocked(sizePx, w)
 	if face == nil {
 		return nil
 	}
@@ -175,21 +209,21 @@ func RasterizeText(text string, sizePx int, c Color, maxWidth int) *image.RGBA {
 	bounds, advance := font.BoundString(face, display)
 	left := bounds.Min.X.Floor()
 	top := bounds.Min.Y.Floor()
-	w := bounds.Max.X.Ceil() - left
+	width := bounds.Max.X.Ceil() - left
 	h := bounds.Max.Y.Ceil() - top
-	if adv := advance.Ceil() - left; adv > w {
-		w = adv
+	if adv := advance.Ceil() - left; adv > width {
+		width = adv
 	}
-	if w < 1 {
-		w = 1
+	if width < 1 {
+		width = 1
 	}
 	if h < 1 {
 		h = sizePx
 	}
 	// Glyph masks can extend one pixel past the integer bounds.
-	w++
+	width++
 	h++
-	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	img := image.NewRGBA(image.Rect(0, 0, width, h))
 	src := straightToPremult(c)
 	d := font.Drawer{
 		Dst:  img,

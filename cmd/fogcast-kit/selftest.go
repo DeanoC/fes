@@ -122,6 +122,17 @@ func runTextSelftest(fbPath string, th theme.Theme) error {
 	return err
 }
 
+func runBoldSelftest(fbPath string, th theme.Theme) error {
+	d, err := gfx.OpenLinuxFB(fbPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	report, err := exerciseBoldGrid(d, th)
+	fmt.Print(report)
+	return err
+}
+
 func runCoverSelftest(fbPath string, th theme.Theme) error {
 	d, err := gfx.OpenLinuxFB(fbPath)
 	if err != nil {
@@ -679,17 +690,54 @@ func exerciseTextGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	rec := gfx.NewRecorder()
 	fbgrid.Paint(rec, g)
 	var sawDebug, sawDraw bool
+	var headerWeight, footerWeight gfx.Weight
+	var sawHeader, sawFooter bool
 	for _, c := range rec.Calls {
 		if c.Op == "DebugText" {
 			sawDebug = true
 		}
 		if c.Op == "DrawText" {
 			sawDraw = true
+			if c.Text == g.Header {
+				headerWeight = c.Weight
+				sawHeader = true
+			}
+			if c.Text == g.Footer {
+				footerWeight = c.Weight
+				sawFooter = true
+			}
 		}
 	}
 	if sawDebug || !sawDraw {
 		return b.String(), fmt.Errorf("paint ops debug=%v drawtext=%v ops=%v", sawDebug, sawDraw, rec.Ops())
 	}
+	if !sawHeader || headerWeight != gfx.WeightBold {
+		return b.String(), fmt.Errorf("header weight %s saw=%v want bold", headerWeight, sawHeader)
+	}
+	if !sawFooter || footerWeight != gfx.WeightRegular {
+		return b.String(), fmt.Errorf("footer weight %s saw=%v want regular", footerWeight, sawFooter)
+	}
+
+	regImg := gfx.RasterizeText("FOGCAST", arcade.TitlePx(), arcade.Header, 0)
+	boldImg := gfx.RasterizeTextWeight("FOGCAST", arcade.TitlePx(), gfx.WeightBold, arcade.Header, 0)
+	if !textImagesDiffer(regImg, boldImg) {
+		return b.String(), fmt.Errorf("bold raster matched regular at title_px=%d", arcade.TitlePx())
+	}
+
+	regularTheme := arcade
+	regularTheme.TitleBold = false
+	regularTheme.HeaderBold = false
+	regSoft, err := gfx.NewSoftware(w, h)
+	if err != nil {
+		return b.String(), err
+	}
+	regGrid := g
+	regGrid.Theme = regularTheme
+	fbgrid.Paint(regSoft, regGrid)
+	if headerBytesEqual(snap, regSoft.Snapshot(), g.HeaderH) {
+		return b.String(), fmt.Errorf("header ink matched regular-weight paint")
+	}
+	fmt.Fprintf(&b, "header-bold=1 header-weight=%s footer-weight=%s\n", headerWeight, footerWeight)
 
 	nav, err := exerciseNavGrid(d, th)
 	b.WriteString(nav)
@@ -701,9 +749,75 @@ func exerciseTextGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	if err != nil {
 		return b.String(), err
 	}
-	fmt.Fprintf(&b, "selftest-text PASS font=goregular drawtext=1 debugtext=0 title_px=%d body_px=%d caption_px=%d status_px=%d\n",
+	fmt.Fprintf(&b, "selftest-text PASS font=goregular+gobold drawtext=1 debugtext=0 title_bold=1 title_px=%d body_px=%d caption_px=%d status_px=%d\n",
 		arcade.TitlePx(), arcade.BodyPx(), arcade.CaptionPx(), arcade.StatusPx())
 	return b.String(), nil
+}
+
+func exerciseBoldGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
+	th = th.Complete()
+	var b strings.Builder
+	reg := gfx.RasterizeText("TITLE", th.TitlePx(), th.Header, 0)
+	bold := gfx.RasterizeTextWeight("TITLE", th.TitlePx(), gfx.WeightBold, th.Header, 0)
+	if !textImagesDiffer(reg, bold) {
+		return b.String(), fmt.Errorf("gobold raster matched goregular")
+	}
+	fmt.Fprintf(&b, "bold-raster=1 title_weight=%s header_weight=%s body_weight=%s\n",
+		th.TitleWeight(), th.HeaderWeight(), th.BodyWeight())
+	if th.TitleWeight() != gfx.WeightBold || th.HeaderWeight() != gfx.WeightBold {
+		return b.String(), fmt.Errorf("built-in title/header should be bold")
+	}
+	if th.BodyWeight() != gfx.WeightRegular || th.StatusWeight() != gfx.WeightRegular {
+		return b.String(), fmt.Errorf("body/status should stay regular")
+	}
+
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	m.SetCatalog(mixedShelfGames())
+	m.Focus = 1
+	press(&m, "b")
+	cfg := d.Config()
+	frame := modelDetailFrame(m, nil, th, cfg.Width, cfg.Height)
+	rec := gfx.NewRecorder()
+	fbgrid.PaintDetail(rec, frame)
+	var sawTitle bool
+	for _, c := range rec.Calls {
+		if c.Op == "DrawText" && c.Text == frame.Title && c.SizePx == th.TitlePx() {
+			if c.Weight != gfx.WeightBold {
+				return b.String(), fmt.Errorf("detail title weight %s", c.Weight)
+			}
+			sawTitle = true
+		}
+		if c.Op == "DrawText" && c.Text == frame.Hint && c.Weight != gfx.WeightRegular {
+			return b.String(), fmt.Errorf("detail hint weight %s", c.Weight)
+		}
+	}
+	if !sawTitle {
+		return b.String(), fmt.Errorf("missing detail title DrawText")
+	}
+	fmt.Fprintf(&b, "detail-title-bold=1 title=%q\n", frame.Title)
+
+	detail, err := exerciseDetailGrid(d, th)
+	b.WriteString(detail)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "selftest-bold PASS font=goregular+gobold title_bold=1 nested-detail=1\n")
+	return b.String(), nil
+}
+
+func textImagesDiffer(a, b *image.RGBA) bool {
+	if a == nil || b == nil {
+		return a != b
+	}
+	if a.Bounds() != b.Bounds() || len(a.Pix) != len(b.Pix) {
+		return true
+	}
+	for i := range a.Pix {
+		if a.Pix[i] != b.Pix[i] {
+			return true
+		}
+	}
+	return false
 }
 
 func exerciseDetailGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
@@ -761,6 +875,9 @@ func exerciseDetailGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 			sawDebug = true
 		}
 		if c.Op == "DrawText" && c.Text == frame.Title && c.SizePx == th.TitlePx() {
+			if c.Weight != th.TitleWeight() {
+				return b.String(), fmt.Errorf("detail title weight %s want %s", c.Weight, th.TitleWeight())
+			}
 			sawTitle = true
 		}
 	}
@@ -776,7 +893,7 @@ func exerciseDetailGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	if !regionHasThemedInk(snap, tx, ty, 240, titleH, th.Header) {
 		return b.String(), fmt.Errorf("detail missing title ink at %d,%d", tx, ty)
 	}
-	fmt.Fprintf(&b, "detail title-ink=1 title_px=%d hint=%q\n", th.TitlePx(), frame.Hint)
+	fmt.Fprintf(&b, "detail title-ink=1 title_px=%d title_weight=%s hint=%q\n", th.TitlePx(), th.TitleWeight(), frame.Hint)
 
 	if action := m.Input(a, now); action != "launch" {
 		return b.String(), fmt.Errorf("detail A %q", action)

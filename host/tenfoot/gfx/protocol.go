@@ -120,6 +120,7 @@ type Command struct {
 	X, Y   int
 	Scale  int
 	SizePx int
+	Weight Weight
 	Frame  uint32
 }
 
@@ -275,7 +276,7 @@ func replayOne(d Device, ids map[uint32]Texture, c Command) error {
 	case OpDebugText:
 		d.DebugText(c.X, c.Y, c.Text, c.Scale)
 	case OpDrawText:
-		d.DrawText(c.X, c.Y, c.Text, c.SizePx, c.Color)
+		d.DrawTextWeight(c.X, c.Y, c.Text, c.SizePx, c.Weight, c.Color)
 	case OpClose:
 		d.Close()
 	default:
@@ -366,7 +367,7 @@ func encodePayload(c Command) ([]byte, byte, error) {
 			size = 65535
 		}
 		p = appendU16(p, uint16(size))
-		p = append(p, 0, 0)
+		p = append(p, byte(NormalizeWeight(c.Weight)), 0)
 		p = append(p, c.Color.R, c.Color.G, c.Color.B, c.Color.A)
 		p = append(p, []byte(c.Text)...)
 		return p, 0, nil
@@ -455,6 +456,7 @@ func decodePayload(op Op, flags byte, p []byte) (Command, error) {
 		c.X = int(int32(binary.LittleEndian.Uint32(p[0:4])))
 		c.Y = int(int32(binary.LittleEndian.Uint32(p[4:8])))
 		c.SizePx = int(binary.LittleEndian.Uint16(p[8:10]))
+		c.Weight = NormalizeWeight(Weight(p[10]))
 		c.Color = Color{R: p[12], G: p[13], B: p[14], A: p[15]}
 		c.Text = string(p[16:])
 	default:

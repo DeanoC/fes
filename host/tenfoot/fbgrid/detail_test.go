@@ -47,7 +47,13 @@ func TestPaintDetailDrawsTitleCoverAndHint(t *testing.T) {
 	var sawTitle bool
 	for _, c := range rec.Calls {
 		if c.Op == "DrawText" && c.Text == "Mario" && c.SizePx == th.TitlePx() {
+			if c.Weight != th.TitleWeight() {
+				t.Fatalf("title weight %s want %s", c.Weight, th.TitleWeight())
+			}
 			sawTitle = true
+		}
+		if c.Op == "DrawText" && c.Text == "A play | B back" && c.Weight != th.StatusWeight() {
+			t.Fatalf("hint weight %s want %s", c.Weight, th.StatusWeight())
 		}
 		if c.Op == "DebugText" {
 			t.Fatalf("detail used DebugText: %+v", rec.Ops())
@@ -55,6 +61,9 @@ func TestPaintDetailDrawsTitleCoverAndHint(t *testing.T) {
 	}
 	if !sawTitle {
 		t.Fatalf("missing title DrawText ops=%v", rec.Ops())
+	}
+	if th.TitleWeight() != gfx.WeightBold {
+		t.Fatal("default detail title should be bold")
 	}
 
 	PaintDetail(d, DetailFrame{

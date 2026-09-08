@@ -61,7 +61,11 @@ func (f *FPGAStub) DebugText(x, y int, text string, scale int) {
 }
 
 func (f *FPGAStub) DrawText(x, y int, text string, sizePx int, c Color) {
-	f.sw.DrawText(x, y, text, sizePx, c)
+	f.DrawTextWeight(x, y, text, sizePx, WeightRegular, c)
+}
+
+func (f *FPGAStub) DrawTextWeight(x, y int, text string, sizePx int, w Weight, c Color) {
+	f.sw.DrawTextWeight(x, y, text, sizePx, w, c)
 }
 
 func (f *FPGAStub) Close() { f.sw.Close() }

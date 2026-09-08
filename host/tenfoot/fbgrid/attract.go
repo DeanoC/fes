@@ -66,8 +66,9 @@ func PaintAttract(d gfx.Device, f AttractFrame) {
 		title = "FOGCAST"
 	}
 	titleSize := th.TitlePx()
-	title = gfx.FitText(title, titleSize, f.Width-24)
-	d.DrawText(16, chromeTextY(0, headerH, gfx.TextHeight(titleSize), true), title, titleSize, th.Header)
+	titleW := th.HeaderWeight()
+	title = gfx.FitTextWeight(title, titleSize, f.Width-24, titleW)
+	d.DrawTextWeight(16, chromeTextY(0, headerH, gfx.TextHeightWeight(titleSize, titleW), true), title, titleSize, titleW, th.Header)
 	hint := f.Hint
 	if hint == "" {
 		if f.Empty {
@@ -77,12 +78,13 @@ func PaintAttract(d gfx.Device, f AttractFrame) {
 		}
 	}
 	statusSize := th.StatusPx()
+	statusW := th.StatusWeight()
 	footerTop := f.Height - footerH
 	if footerTop < 0 {
 		footerTop = 0
 	}
-	hint = gfx.FitText(hint, statusSize, f.Width-16)
-	d.DrawText(8, chromeTextY(footerTop, footerH, gfx.TextHeight(statusSize), false), hint, statusSize, th.Status)
+	hint = gfx.FitTextWeight(hint, statusSize, f.Width-16, statusW)
+	d.DrawTextWeight(8, chromeTextY(footerTop, footerH, gfx.TextHeightWeight(statusSize, statusW), false), hint, statusSize, statusW, th.Status)
 }
 
 func paintAttractIdlePanel(d gfx.Device, stage gfx.Rect, th theme.Theme) {
@@ -90,8 +92,10 @@ func paintAttractIdlePanel(d gfx.Device, stage gfx.Rect, th theme.Theme) {
 	caption := "No attract stills"
 	titleSize := th.TitlePx()
 	captionSize := th.BodyPx()
-	titleH := gfx.TextHeight(titleSize)
-	captionH := gfx.TextHeight(captionSize)
+	titleW := th.TitleWeight()
+	captionW := th.BodyWeight()
+	titleH := gfx.TextHeightWeight(titleSize, titleW)
+	captionH := gfx.TextHeightWeight(captionSize, captionW)
 	gap := 8
 	blockH := titleH + gap + captionH
 	x0 := int(stage.X)
@@ -99,12 +103,12 @@ func paintAttractIdlePanel(d gfx.Device, stage gfx.Rect, th theme.Theme) {
 	if y0 < int(stage.Y)+8 {
 		y0 = int(stage.Y) + 8
 	}
-	title = gfx.FitText(title, titleSize, int(stage.W)-32)
-	tw := gfx.MeasureText(title, titleSize)
-	d.DrawText(x0+(int(stage.W)-tw)/2, y0, title, titleSize, th.Header)
-	caption = gfx.FitText(caption, captionSize, int(stage.W)-32)
-	cw := gfx.MeasureText(caption, captionSize)
-	d.DrawText(x0+(int(stage.W)-cw)/2, y0+titleH+gap, caption, captionSize, th.Label)
+	title = gfx.FitTextWeight(title, titleSize, int(stage.W)-32, titleW)
+	tw := gfx.MeasureTextWeight(title, titleSize, titleW)
+	d.DrawTextWeight(x0+(int(stage.W)-tw)/2, y0, title, titleSize, titleW, th.Header)
+	caption = gfx.FitTextWeight(caption, captionSize, int(stage.W)-32, captionW)
+	cw := gfx.MeasureTextWeight(caption, captionSize, captionW)
+	d.DrawTextWeight(x0+(int(stage.W)-cw)/2, y0+titleH+gap, caption, captionSize, captionW, th.Label)
 }
 
 func paintAttractStill(d gfx.Device, stage gfx.Rect, img, next *image.RGBA, fadeT float64) {

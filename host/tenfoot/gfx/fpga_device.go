@@ -172,8 +172,13 @@ func (f *FPGA) DebugText(x, y int, text string, scale int) {
 }
 
 func (f *FPGA) DrawText(x, y int, text string, sizePx int, c Color) {
-	f.record(Command{Op: OpDrawText, X: x, Y: y, SizePx: sizePx, Color: c, Text: text})
-	f.sw.DrawText(x, y, text, sizePx, c)
+	f.DrawTextWeight(x, y, text, sizePx, WeightRegular, c)
+}
+
+func (f *FPGA) DrawTextWeight(x, y int, text string, sizePx int, w Weight, c Color) {
+	w = NormalizeWeight(w)
+	f.record(Command{Op: OpDrawText, X: x, Y: y, SizePx: sizePx, Weight: w, Color: c, Text: text})
+	f.sw.DrawTextWeight(x, y, text, sizePx, w, c)
 }
 
 func (f *FPGA) Close() {

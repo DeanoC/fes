@@ -45,7 +45,10 @@ type Theme struct {
 	// when it is set; otherwise they map 8*scale (the former DebugText glyph
 	// height) so older theme JSON that only set *scale keeps that hierarchy.
 	// A theme with no type tokens at all inherits Default's pixel roles.
-	// There is no font-family picker or second face in this slice.
+	// TitleBold (default true on built-ins) selects the embedded Go Bold
+	// face for the title role. HeaderBold follows TitleBold when unset.
+	// Body, caption, and status stay Regular unless the matching *_bold
+	// token is set. There is no font-family picker, italic, or medium.
 	HeaderScale int
 	LabelScale  int
 	StatusScale int
@@ -53,6 +56,17 @@ type Theme struct {
 	BodySize    int
 	CaptionSize int
 	StatusSize  int
+	TitleBold   bool
+	HeaderBold  bool
+	BodyBold    bool
+	CaptionBold bool
+	StatusBold  bool
+
+	titleBoldSet   bool
+	headerBoldSet  bool
+	bodyBoldSet    bool
+	captionBoldSet bool
+	statusBoldSet  bool
 
 	Systems map[string]gfx.Color
 }
@@ -87,6 +101,13 @@ func Default() Theme {
 		BodySize:          13,
 		CaptionSize:       12,
 		StatusSize:        14,
+		TitleBold:         true,
+		HeaderBold:        true,
+		titleBoldSet:      true,
+		headerBoldSet:     true,
+		bodyBoldSet:       true,
+		captionBoldSet:    true,
+		statusBoldSet:     true,
 		Systems:           defaultSystems(),
 	}
 }
@@ -122,6 +143,13 @@ func Arcade() Theme {
 		BodySize:          13,
 		CaptionSize:       12,
 		StatusSize:        15,
+		TitleBold:         true,
+		HeaderBold:        true,
+		titleBoldSet:      true,
+		headerBoldSet:     true,
+		bodyBoldSet:       true,
+		captionBoldSet:    true,
+		statusBoldSet:     true,
 		Systems: map[string]gfx.Color{
 			"pong":      gfx.RGB(57, 255, 20),
 			"megadrive": gfx.RGB(255, 140, 0),
@@ -161,6 +189,13 @@ func Night() Theme {
 		BodySize:          13,
 		CaptionSize:       12,
 		StatusSize:        14,
+		TitleBold:         true,
+		HeaderBold:        true,
+		titleBoldSet:      true,
+		headerBoldSet:     true,
+		bodyBoldSet:       true,
+		captionBoldSet:    true,
+		statusBoldSet:     true,
 		Systems: map[string]gfx.Color{
 			"pong":      gfx.RGB(200, 160, 40),
 			"megadrive": gfx.RGB(40, 90, 160),
@@ -251,6 +286,26 @@ func (t Theme) Complete() Theme {
 		t.CaptionSize = d.CaptionSize
 		t.StatusSize = d.StatusSize
 	}
+	if !t.titleBoldSet {
+		t.TitleBold = d.TitleBold
+		t.titleBoldSet = true
+	}
+	if !t.headerBoldSet {
+		t.HeaderBold = t.TitleBold
+		t.headerBoldSet = true
+	}
+	if !t.bodyBoldSet {
+		t.BodyBold = d.BodyBold
+		t.bodyBoldSet = true
+	}
+	if !t.captionBoldSet {
+		t.CaptionBold = d.CaptionBold
+		t.captionBoldSet = true
+	}
+	if !t.statusBoldSet {
+		t.StatusBold = d.StatusBold
+		t.statusBoldSet = true
+	}
 	t.Systems = mergeSystems(d.Systems, t.Systems)
 	return t
 }
@@ -298,6 +353,45 @@ func (t Theme) StatusPx() int {
 	return gfx.ScalePx(t.StatusScale)
 }
 
+func faceWeight(bold bool) gfx.Weight {
+	if bold {
+		return gfx.WeightBold
+	}
+	return gfx.WeightRegular
+}
+
+// TitleWeight is the UI-face weight for the title role (detail title and
+// attract title). Built-ins use Bold.
+func (t Theme) TitleWeight() gfx.Weight {
+	t = t.Complete()
+	return faceWeight(t.TitleBold)
+}
+
+// HeaderWeight is the UI-face weight for chrome headers. It follows
+// TitleWeight when header_bold is omitted.
+func (t Theme) HeaderWeight() gfx.Weight {
+	t = t.Complete()
+	return faceWeight(t.HeaderBold)
+}
+
+// BodyWeight is the UI-face weight for tile names and detail meta.
+func (t Theme) BodyWeight() gfx.Weight {
+	t = t.Complete()
+	return faceWeight(t.BodyBold)
+}
+
+// CaptionWeight is the UI-face weight for placeholder lettermarks.
+func (t Theme) CaptionWeight() gfx.Weight {
+	t = t.Complete()
+	return faceWeight(t.CaptionBold)
+}
+
+// StatusWeight is the UI-face weight for footer chrome.
+func (t Theme) StatusWeight() gfx.Weight {
+	t = t.Complete()
+	return faceWeight(t.StatusBold)
+}
+
 // SystemColor is the solid-tile fallback for a catalog system id.
 func (t Theme) SystemColor(system string) gfx.Color {
 	t = t.Complete()
@@ -339,7 +433,12 @@ func (t Theme) Equal(o Theme) bool {
 		t.TitleSize != o.TitleSize ||
 		t.BodySize != o.BodySize ||
 		t.CaptionSize != o.CaptionSize ||
-		t.StatusSize != o.StatusSize {
+		t.StatusSize != o.StatusSize ||
+		t.TitleBold != o.TitleBold ||
+		t.HeaderBold != o.HeaderBold ||
+		t.BodyBold != o.BodyBold ||
+		t.CaptionBold != o.CaptionBold ||
+		t.StatusBold != o.StatusBold {
 		return false
 	}
 	if len(t.Systems) != len(o.Systems) {

@@ -184,8 +184,10 @@ func TestPaintChromeTextUsesThemeMetrics(t *testing.T) {
 	Paint(rec, g)
 	headerSize := def.TitlePx()
 	statusSize := def.StatusPx()
-	assertChromeText(t, rec, "TITLE", 16, chromeTextY(0, g.HeaderH, gfx.TextHeight(headerSize), true), headerSize, def.Header)
-	assertChromeText(t, rec, "STATUS", 8, chromeTextY(h-g.FooterH, g.FooterH, gfx.TextHeight(statusSize), false), statusSize, def.Status)
+	headerW := def.HeaderWeight()
+	statusW := def.StatusWeight()
+	assertChromeText(t, rec, "TITLE", 16, chromeTextY(0, g.HeaderH, gfx.TextHeightWeight(headerSize, headerW), true), headerSize, def.Header, headerW)
+	assertChromeText(t, rec, "STATUS", 8, chromeTextY(h-g.FooterH, g.FooterH, gfx.TextHeightWeight(statusSize, statusW), false), statusSize, def.Status, statusW)
 	assertNoDebugText(t, rec)
 
 	th := theme.Default()
@@ -200,12 +202,14 @@ func TestPaintChromeTextUsesThemeMetrics(t *testing.T) {
 	Paint(rec, g)
 	headerSize = gfx.ScalePx(3)
 	statusSize = gfx.ScalePx(4)
-	headerY := chromeTextY(0, g.HeaderH, gfx.TextHeight(headerSize), true)
-	footerY := chromeTextY(h-g.FooterH, g.FooterH, gfx.TextHeight(statusSize), false)
-	assertChromeText(t, rec, "TITLE", 16, headerY, headerSize, th.Complete().Header)
-	assertChromeText(t, rec, "STATUS", 8, footerY, statusSize, th.Complete().Status)
-	if headerY+gfx.TextHeight(headerSize) > g.HeaderH {
-		t.Fatalf("header glyph [%d,%d) crosses HeaderH=%d", headerY, headerY+gfx.TextHeight(headerSize), g.HeaderH)
+	headerW = th.Complete().HeaderWeight()
+	statusW = th.Complete().StatusWeight()
+	headerY := chromeTextY(0, g.HeaderH, gfx.TextHeightWeight(headerSize, headerW), true)
+	footerY := chromeTextY(h-g.FooterH, g.FooterH, gfx.TextHeightWeight(statusSize, statusW), false)
+	assertChromeText(t, rec, "TITLE", 16, headerY, headerSize, th.Complete().Header, headerW)
+	assertChromeText(t, rec, "STATUS", 8, footerY, statusSize, th.Complete().Status, statusW)
+	if headerY+gfx.TextHeightWeight(headerSize, headerW) > g.HeaderH {
+		t.Fatalf("header glyph [%d,%d) crosses HeaderH=%d", headerY, headerY+gfx.TextHeightWeight(headerSize, headerW), g.HeaderH)
 	}
 	if footerY < h-g.FooterH {
 		t.Fatalf("footer glyph y=%d is above footer top %d", footerY, h-g.FooterH)
@@ -222,12 +226,14 @@ func TestPaintChromeTextUsesThemeMetrics(t *testing.T) {
 	Paint(rec, g)
 	headerSize = gfx.ScalePx(8)
 	statusSize = gfx.ScalePx(8)
-	headerY = chromeTextY(0, g.HeaderH, gfx.TextHeight(headerSize), true)
-	footerY = chromeTextY(h-g.FooterH, g.FooterH, gfx.TextHeight(statusSize), false)
-	assertChromeText(t, rec, "TITLE", 16, headerY, headerSize, th.Complete().Header)
-	assertChromeText(t, rec, "STATUS", 8, footerY, statusSize, th.Complete().Status)
-	if headerY+gfx.TextHeight(headerSize) > g.HeaderH && headerY >= 0 {
-		t.Fatalf("oversized header should overflow upward, y=%d height=%d", headerY, gfx.TextHeight(headerSize))
+	headerW = th.Complete().HeaderWeight()
+	statusW = th.Complete().StatusWeight()
+	headerY = chromeTextY(0, g.HeaderH, gfx.TextHeightWeight(headerSize, headerW), true)
+	footerY = chromeTextY(h-g.FooterH, g.FooterH, gfx.TextHeightWeight(statusSize, statusW), false)
+	assertChromeText(t, rec, "TITLE", 16, headerY, headerSize, th.Complete().Header, headerW)
+	assertChromeText(t, rec, "STATUS", 8, footerY, statusSize, th.Complete().Status, statusW)
+	if headerY+gfx.TextHeightWeight(headerSize, headerW) > g.HeaderH && headerY >= 0 {
+		t.Fatalf("oversized header should overflow upward, y=%d height=%d", headerY, gfx.TextHeightWeight(headerSize, headerW))
 	}
 	if footerY < h-g.FooterH {
 		t.Fatalf("oversized footer glyph y=%d is above footer top %d", footerY, h-g.FooterH)
@@ -248,8 +254,8 @@ func TestPaintChromeTextUsesPixelRolesOverScale(t *testing.T) {
 	ApplyTheme(&g, th)
 	rec := gfx.NewRecorder()
 	Paint(rec, g)
-	assertChromeText(t, rec, "TITLE", 16, chromeTextY(0, g.HeaderH, gfx.TextHeight(20), true), 20, th.Complete().Header)
-	assertChromeText(t, rec, "STATUS", 8, chromeTextY(h-g.FooterH, g.FooterH, gfx.TextHeight(14), false), 14, th.Complete().Status)
+	assertChromeText(t, rec, "TITLE", 16, chromeTextY(0, g.HeaderH, gfx.TextHeightWeight(20, th.Complete().HeaderWeight()), true), 20, th.Complete().Header, th.Complete().HeaderWeight())
+	assertChromeText(t, rec, "STATUS", 8, chromeTextY(h-g.FooterH, g.FooterH, gfx.TextHeightWeight(14, th.Complete().StatusWeight()), false), 14, th.Complete().Status, th.Complete().StatusWeight())
 	if recSize(rec, "TITLE") == gfx.ScalePx(8) {
 		t.Fatal("header still used header_scale instead of title_px")
 	}
@@ -279,7 +285,7 @@ func TestPaintChromeTextLeavesTilesWhenHeaderIsTall(t *testing.T) {
 	assertPanel(t, dst, cfg, g, 0, g.Tiles[0].Color)
 }
 
-func assertChromeText(t *testing.T, rec *gfx.Recorder, text string, x, y, sizePx int, col gfx.Color) {
+func assertChromeText(t *testing.T, rec *gfx.Recorder, text string, x, y, sizePx int, col gfx.Color, w gfx.Weight) {
 	t.Helper()
 	for _, c := range rec.Calls {
 		if c.Op == "DrawText" && c.Text == text {
@@ -288,6 +294,9 @@ func assertChromeText(t *testing.T, rec *gfx.Recorder, text string, x, y, sizePx
 			}
 			if c.Color != col {
 				t.Fatalf("%q DrawText color %+v want %+v", text, c.Color, col)
+			}
+			if c.Weight != w {
+				t.Fatalf("%q DrawText weight %s want %s", text, c.Weight, w)
 			}
 			return
 		}
@@ -369,8 +378,59 @@ func TestPaintTileLabelsUseThemeColorAndTruncate(t *testing.T) {
 		t.Fatalf("expected truncated tile label, got %q", label.Text)
 	}
 	maxW := g.CellW - 8
-	if gfx.MeasureText(label.Text, label.SizePx) > maxW {
+	if gfx.MeasureTextWeight(label.Text, label.SizePx, th.BodyWeight()) > maxW {
 		t.Fatalf("label %q still wider than cell", label.Text)
+	}
+	if label.Weight != th.BodyWeight() {
+		t.Fatalf("tile label weight %s want %s", label.Weight, th.BodyWeight())
+	}
+}
+
+func TestPaintHeaderUsesBoldAndFooterStaysRegular(t *testing.T) {
+	t.Parallel()
+	const w, h = 640, 480
+	g := New(w, h)
+	g.Header = "TITLE"
+	g.Footer = "STATUS"
+	th := theme.Default()
+	ApplyTheme(&g, th)
+	rec := gfx.NewRecorder()
+	Paint(rec, g)
+	assertChromeText(t, rec, "TITLE", 16, chromeTextY(0, g.HeaderH, gfx.TextHeightWeight(th.TitlePx(), th.HeaderWeight()), true), th.TitlePx(), th.Complete().Header, gfx.WeightBold)
+	assertChromeText(t, rec, "STATUS", 8, chromeTextY(h-g.FooterH, g.FooterH, gfx.TextHeightWeight(th.StatusPx(), th.StatusWeight()), false), th.StatusPx(), th.Complete().Status, gfx.WeightRegular)
+
+	regular := theme.Default()
+	regular.TitleBold = false
+	regular.HeaderBold = false
+	ApplyTheme(&g, regular)
+	regRec := gfx.NewRecorder()
+	Paint(regRec, g)
+	var header gfx.Call
+	for _, c := range regRec.Calls {
+		if c.Op == "DrawText" && c.Text == "TITLE" {
+			header = c
+			break
+		}
+	}
+	if header.Weight != gfx.WeightRegular {
+		t.Fatalf("title_bold false still painted %s", header.Weight)
+	}
+
+	ui, err := gfx.NewSoftware(w, h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ApplyTheme(&g, th)
+	Paint(ui, g)
+	boldSnap := ui.Snapshot()
+	reg, err := gfx.NewSoftware(w, h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ApplyTheme(&g, regular)
+	Paint(reg, g)
+	if bytes.Equal(headerStrip(boldSnap, g.HeaderH), headerStrip(reg.Snapshot(), g.HeaderH)) {
+		t.Fatal("bold header matched regular header pixels")
 	}
 }
 
