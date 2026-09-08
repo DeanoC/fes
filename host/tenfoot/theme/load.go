@@ -41,6 +41,10 @@ type fileTheme struct {
 	HeaderScale       int               `json:"header_scale" toml:"header_scale"`
 	LabelScale        int               `json:"label_scale" toml:"label_scale"`
 	StatusScale       int               `json:"status_scale" toml:"status_scale"`
+	TitleSize         int               `json:"title_px" toml:"title_px"`
+	BodySize          int               `json:"body_px" toml:"body_px"`
+	CaptionSize       int               `json:"caption_px" toml:"caption_px"`
+	StatusSize        int               `json:"status_px" toml:"status_px"`
 	Systems           map[string]string `json:"systems" toml:"systems"`
 }
 
@@ -118,6 +122,10 @@ func (raw fileTheme) theme() (Theme, error) {
 		HeaderScale:     raw.HeaderScale,
 		LabelScale:      raw.LabelScale,
 		StatusScale:     raw.StatusScale,
+		TitleSize:       raw.TitleSize,
+		BodySize:        raw.BodySize,
+		CaptionSize:     raw.CaptionSize,
+		StatusSize:      raw.StatusSize,
 	}
 	var err error
 	if t.Background, err = parseHex(raw.Background); err != nil {

@@ -258,9 +258,75 @@ func exerciseThemeGrid(d *gfx.LinuxFB) (string, error) {
 	if dHLB == aHLB && dHLG == aHLG && dHLR == aHLR && dBGB == aBGB && dBGG == aBGG && dBGR == aBGR {
 		return b.String(), fmt.Errorf("default and arcade sampled the same pixels")
 	}
-	fmt.Fprintf(&b, "selftest-theme PASS default_hl=%d,%d,%d arcade_hl=%d,%d,%d default_bg=%d,%d,%d arcade_bg=%d,%d,%d\n",
-		dHLB, dHLG, dHLR, aHLB, aHLG, aHLR, dBGB, dBGG, dBGR, aBGB, aBGG, aBGR)
+	defRec := gfx.NewRecorder()
+	fbgrid.Paint(defRec, paintModelGrid(m, def, d.Config().Width, d.Config().Height))
+	arcadeRec := gfx.NewRecorder()
+	fbgrid.Paint(arcadeRec, paintModelGrid(m, arcade, d.Config().Width, d.Config().Height))
+	defTitle, defBody, defCaption, defStatus := paintRoleSizes(defRec)
+	arcTitle, arcBody, arcCaption, arcStatus := paintRoleSizes(arcadeRec)
+	fmt.Fprintf(&b, "roles theme=default title_px=%d body_px=%d caption_px=%d status_px=%d paint_title=%d paint_body=%d paint_caption=%d paint_status=%d\n",
+		def.TitlePx(), def.BodyPx(), def.CaptionPx(), def.StatusPx(), defTitle, defBody, defCaption, defStatus)
+	fmt.Fprintf(&b, "roles theme=arcade title_px=%d body_px=%d caption_px=%d status_px=%d paint_title=%d paint_body=%d paint_caption=%d paint_status=%d\n",
+		arcade.TitlePx(), arcade.BodyPx(), arcade.CaptionPx(), arcade.StatusPx(), arcTitle, arcBody, arcCaption, arcStatus)
+	if defTitle == arcTitle && defStatus == arcStatus {
+		return b.String(), fmt.Errorf("default and arcade painted the same type sizes title=%d status=%d", defTitle, defStatus)
+	}
+	if defTitle != def.TitlePx() || arcTitle != arcade.TitlePx() || defBody != def.BodyPx() || arcBody != arcade.BodyPx() {
+		return b.String(), fmt.Errorf("paint sizes missed theme roles default=%d/%d arcade=%d/%d", defTitle, defBody, arcTitle, arcBody)
+	}
+
+	scaleTh := theme.Theme{HeaderScale: 2, LabelScale: 1, StatusScale: 2}.Complete()
+	pxTh := theme.Theme{HeaderScale: 2, LabelScale: 1, StatusScale: 2, TitleSize: 24, BodySize: 12, CaptionSize: 10, StatusSize: 16}.Complete()
+	scaleRec := gfx.NewRecorder()
+	fbgrid.Paint(scaleRec, paintModelGrid(m, scaleTh, d.Config().Width, d.Config().Height))
+	pxRec := gfx.NewRecorder()
+	fbgrid.Paint(pxRec, paintModelGrid(m, pxTh, d.Config().Width, d.Config().Height))
+	scaleTitle, _, _, scaleStatus := paintRoleSizes(scaleRec)
+	pxTitle, _, _, pxStatus := paintRoleSizes(pxRec)
+	fmt.Fprintf(&b, "compat scale-only title_px=%d status_px=%d paint_title=%d paint_status=%d\n",
+		scaleTh.TitlePx(), scaleTh.StatusPx(), scaleTitle, scaleStatus)
+	fmt.Fprintf(&b, "compat px-override title_px=%d status_px=%d paint_title=%d paint_status=%d\n",
+		pxTh.TitlePx(), pxTh.StatusPx(), pxTitle, pxStatus)
+	if scaleTitle != gfx.ScalePx(2) || scaleStatus != gfx.ScalePx(2) {
+		return b.String(), fmt.Errorf("scale-only fallback title=%d status=%d want %d/%d", scaleTitle, scaleStatus, gfx.ScalePx(2), gfx.ScalePx(2))
+	}
+	if pxTitle != 24 || pxStatus != 16 || pxTitle == scaleTitle {
+		return b.String(), fmt.Errorf("px override title=%d status=%d vs scale title=%d", pxTitle, pxStatus, scaleTitle)
+	}
+
+	fmt.Fprintf(&b, "selftest-theme PASS default_hl=%d,%d,%d arcade_hl=%d,%d,%d default_bg=%d,%d,%d arcade_bg=%d,%d,%d default_title_px=%d arcade_title_px=%d scale_title_px=%d px_title_px=%d\n",
+		dHLB, dHLG, dHLR, aHLB, aHLG, aHLR, dBGB, dBGG, dBGR, aBGB, aBGG, aBGR, defTitle, arcTitle, scaleTitle, pxTitle)
 	return b.String(), nil
+}
+
+func paintModelGrid(m kitlauncher.Model, th theme.Theme, w, h int) fbgrid.Grid {
+	return modelGrid(m, w, h, nil, th)
+}
+
+func paintRoleSizes(rec *gfx.Recorder) (title, body, caption, status int) {
+	var texts []gfx.Call
+	for _, c := range rec.Calls {
+		if c.Op == "DrawText" {
+			texts = append(texts, c)
+		}
+	}
+	if len(texts) == 0 {
+		return 0, 0, 0, 0
+	}
+	title = texts[0].SizePx
+	status = texts[len(texts)-1].SizePx
+	for _, c := range texts[1 : len(texts)-1] {
+		if len([]rune(c.Text)) == 1 {
+			if caption == 0 {
+				caption = c.SizePx
+			}
+			continue
+		}
+		if body == 0 {
+			body = c.SizePx
+		}
+	}
+	return title, body, caption, status
 }
 
 func press(m *kitlauncher.Model, name string) {
@@ -444,7 +510,8 @@ func exerciseTextGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	if err != nil {
 		return b.String(), err
 	}
-	fmt.Fprintf(&b, "selftest-text PASS font=goregular drawtext=1 debugtext=0\n")
+	fmt.Fprintf(&b, "selftest-text PASS font=goregular drawtext=1 debugtext=0 title_px=%d body_px=%d caption_px=%d status_px=%d\n",
+		arcade.TitlePx(), arcade.BodyPx(), arcade.CaptionPx(), arcade.StatusPx())
 	return b.String(), nil
 }
 

@@ -20,6 +20,10 @@
   "header_scale": 2,
   "label_scale": 1,
   "status_scale": 2,
+  "title_px": 20,
+  "body_px": 13,
+  "caption_px": 12,
+  "status_px": 14,
   "systems": {
     "pong": "#c49424",
     "megadrive": "#2c609c",

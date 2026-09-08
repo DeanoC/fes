@@ -12,11 +12,13 @@ import (
 )
 
 // GlyphPx is the DebugText glyph size. Theme HeaderScale / LabelScale /
-// StatusScale map to pixel size GlyphPx*scale so existing theme JSON keeps
-// the same hierarchy without a font-family picker.
+// StatusScale map to pixel size GlyphPx*scale when the matching title_px /
+// body_px / caption_px / status_px role is unset, so existing theme JSON
+// keeps the same hierarchy without a font-family picker.
 const GlyphPx = 8
 
-// ScalePx maps a theme *Scale token to a UI-face pixel size.
+// ScalePx maps a theme *Scale token to a UI-face pixel size. Prefer
+// theme.TitlePx and the other role helpers at paint sites.
 func ScalePx(scale int) int {
 	if scale < 1 {
 		scale = 1

@@ -33,7 +33,7 @@ func Paint(d gfx.Device, g Grid) {
 	if header == "" {
 		header = "FOGCAST GRID"
 	}
-	headerSize := gfx.ScalePx(th.HeaderScale)
+	headerSize := th.TitlePx()
 	header = gfx.FitText(header, headerSize, g.Width-24)
 	d.DrawText(16, chromeTextY(0, g.HeaderH, gfx.TextHeight(headerSize), true), header, headerSize, th.Header)
 	for i, tile := range g.Tiles {
@@ -86,7 +86,7 @@ func Paint(d gfx.Device, g Grid) {
 				paintRectOutline(d, inner, 1, th.Highlight)
 			}
 		}
-		labelSize := gfx.ScalePx(th.LabelScale)
+		labelSize := th.BodyPx()
 		textH := gfx.TextHeight(labelSize)
 		barH := float32(textH + 4)
 		if barH < 16 {
@@ -121,7 +121,7 @@ func Paint(d gfx.Device, g Grid) {
 	if footerTop < 0 {
 		footerTop = 0
 	}
-	statusSize := gfx.ScalePx(th.StatusScale)
+	statusSize := th.StatusPx()
 	status = gfx.FitText(status, statusSize, g.Width-16)
 	d.DrawText(8, chromeTextY(footerTop, g.Height-footerTop, gfx.TextHeight(statusSize), false), status, statusSize, th.Status)
 }
@@ -184,9 +184,9 @@ func paintPlaceholder(d gfx.Device, cell gfx.Rect, name string, fill gfx.Color, 
 	if letter == "" {
 		return
 	}
-	size := gfx.ScalePx(th.HeaderScale)
+	size := th.CaptionPx()
 	if size > int(cell.H)/2 && int(cell.H) > 0 {
-		size = gfx.ScalePx(th.LabelScale)
+		size = th.BodyPx()
 	}
 	if size < 1 {
 		size = 1

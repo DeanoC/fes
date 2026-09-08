@@ -20,6 +20,10 @@ footer_height = 28
 header_scale = 2
 label_scale = 1
 status_scale = 2
+title_px = 22
+body_px = 13
+caption_px = 12
+status_px = 15
 
 [systems]
 pong = "#39ff14"

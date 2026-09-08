@@ -279,17 +279,23 @@ linuxfb is a kit framebuffer Device, not the SDL sofa shell.
 | Software | `gfx.NewSoftware` (`host/tenfoot/gfx/software.go`) | Pure-Go RGBA8 rasterizer for tests and CI (no cgo, no SDL). Nearest blit, `Snapshot` for golden pixels. Cover/screenshot/still downscale is Catmull–Rom at decode. |
 | FPGA | `gfx.NewFPGA` (`host/tenfoot/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`host/tenfoot/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. Timed still/crossfade and sprite helpers live in `host/tenfoot/anim`. |
 | FPGA stub | `gfx.NewFPGAStub` (`host/tenfoot/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
-| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`host/tenfoot/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `host/tenfoot/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `host/tenfoot/inputmap`; linuxinput can apply a `Remapper` to gamepad records. Look tokens live in `host/tenfoot/theme` and are consumed by `fbgrid.Paint` and the sofa `Clear` sites. Kit chrome maps `header_scale` / `label_scale` / `status_scale` to pixel size `8*scale` and draws through `DrawText`; `DebugText` stays the FPGA/debug path. |
+| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`host/tenfoot/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `host/tenfoot/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `host/tenfoot/inputmap`; linuxinput can apply a `Remapper` to gamepad records. Look tokens live in `host/tenfoot/theme` and are consumed by `fbgrid.Paint` and the sofa `Clear` sites. Kit chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. `DebugText` stays the FPGA/debug path. |
 
 `gfx.Recorder` remains a call-order test double and does not draw pixels.
 `gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.
 
-Tenfoot looks are data-driven. `host/tenfoot/theme` loads colour, spacing, font
-scale, and cover-chrome tokens from a built-in name (`default`, `arcade`,
-`night`) or a JSON/TOML file. `default` preserves the current kit grid pixels
-and the sofa/attract clear colours. `fogcast-kit` and `fogcast-tenfoot` share
-`theme.Resolve` (`-theme`, then `launcher.json` / `tenfoot.json` `theme`, then
-`FOGCAST_THEME`). There is no scripted theme VM; derived colours stay in Go.
+Tenfoot looks are data-driven. `host/tenfoot/theme` loads colour, spacing,
+typography roles, and cover-chrome tokens from a built-in name (`default`,
+`arcade`, `night`) or a JSON/TOML file. Roles are explicit pixel sizes
+(`title_px`, `body_px`, `caption_px`, `status_px`). Paint calls `TitlePx`,
+`BodyPx`, `CaptionPx`, and `StatusPx` so fallback math stays in the theme
+package: an unset role uses `gfx.ScalePx` of `header_scale` / `label_scale` /
+`status_scale` (the former 8× DebugText hierarchy). Built-in `default` and
+`night` use 20/13/12/14 on a 640×480 grid; `arcade` uses 22/13/12/15.
+`default` still preserves the sofa/attract clear colours. `fogcast-kit` and
+`fogcast-tenfoot` share `theme.Resolve` (`-theme`, then `launcher.json` /
+`tenfoot.json` `theme`, then `FOGCAST_THEME`). There is no scripted theme VM,
+font-family picker, or second UI face; derived colours stay in Go.
 
 The browser shell remains the default UI. Mac is the primary sofa target; Linux builds
 with the same `make build-fogcast-tenfoot` target (`CGO_ENABLED=1` and
@@ -605,9 +611,10 @@ Catalog cells paint decoded box-art from
 stays a cheap nearest blit. Missing or still-loading art paints a theme-tinted
 placeholder (lettermark when missing; a distinct panel while loading) instead
 of a flat system fill. Aspect-fit letterbox bars mix the system colour toward
-the theme label bar; focused cells add a 1px inner highlight. Header, tile names, and footer
-rasterize the embedded Go Regular face (no kit system fonts) and truncate with
-an ellipsis when the string exceeds the chrome or cell width. A paired, authenticated host listener
+the theme label bar; focused cells add a 1px inner highlight. Header uses the title role, tile names use body, placeholder
+lettermarks use caption, and the footer uses status. They rasterize the
+embedded Go Regular face (no kit system fonts) and truncate with an ellipsis
+when the string exceeds the chrome or cell width. A paired, authenticated host listener
 serves a restricted set of existing library, artwork, and session operations and a
 session-bound input stream. The host keeps target and input lease ownership; the
 adapter sends physical USB events through that stream to the retained virtual

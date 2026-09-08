@@ -35,7 +35,7 @@ func run() error {
 	themeSpec := flag.String("theme", "", "default, arcade, night, or JSON/TOML path (default default)")
 	selftestNav := flag.Bool("selftest-nav", false, "paint 4x3 catalog navigation on the framebuffer and exit")
 	selftestPads := flag.Bool("selftest-pads", false, "open eligible USB pads, print them, and exit")
-	selftestTheme := flag.Bool("selftest-theme", false, "paint default and arcade and sample pixels, then exit")
+	selftestTheme := flag.Bool("selftest-theme", false, "paint default and arcade, prove type-role sizes, and sample pixels, then exit")
 	selftestFPGA := flag.Bool("selftest-fpga", false, "record FC2D attract still/anim on the FPGA software-replay backend and exit")
 	selftestShelf := flag.Bool("selftest-shelf", false, "paint system shelves, cycle L/R, sample header, and exit")
 	selftestText := flag.Bool("selftest-text", false, "paint UI-face chrome and prove it is not DebugText, then exit")

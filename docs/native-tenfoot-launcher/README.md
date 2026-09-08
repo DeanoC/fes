@@ -100,7 +100,8 @@ selects a built-in name (`default`, `arcade`, `night`) or a JSON/TOML file;
 `tenfoot.json` may store `theme`, and `FOGCAST_THEME` is the env fallback.
 `default` keeps the sofa and attract clear colours. This slice applies the
 loaded theme to those `Clear` sites; kit `fbgrid.Paint` consumes the full
-token set.
+token set, including typography roles (`title_px` / `body_px` / `caption_px` /
+`status_px`, with `*_scale` fallback).
 
 Default overscan inset is **5% of each edge** (`-safe-area 0.05`). Windowed debug
 can pass `-safe-area 0`. `-` / `=` nudge the inset by 0.5 percentage points
