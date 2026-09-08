@@ -28,6 +28,22 @@ public:
 	mutable std::uint64_t now_;
 };
 
+class ScriptClock final : public mister::native::Clock {
+public:
+	explicit ScriptClock(std::vector<std::uint64_t> values) : values_(std::move(values))
+	{
+		assert(!values_.empty());
+	}
+	std::uint64_t NowMs() const override
+	{
+		const std::size_t selected = std::min(index_, values_.size() - 1);
+		++index_;
+		return values_[selected];
+	}
+	mutable std::size_t index_ = 0;
+	std::vector<std::uint64_t> values_;
+};
+
 struct GoldenExchange {
 	std::string name;
 	std::uint32_t settled;
@@ -226,6 +242,47 @@ void TestExchangeRejectsMalformedAndUnstableResponsesWithoutRetry()
 	}
 }
 
+void TestExchangeAndIdentityUseExactDeadlineBoundaries()
+{
+	{
+		mister_test::FakeMmio mmio;
+		TickClock clock(50);
+		mister::native::FesGp gp(mmio, clock);
+		mmio.values[kSpiGpiAddress] = FesGpSignature;
+		std::uint16_t response = 0;
+		assert(gp.Exchange(FesGpOpcodeIdentity, 0, 0, 1000, &response).code ==
+			mister::ErrorCode::io_failed);
+		assert(clock.now_ == 151);
+		assert(mmio.reads.size() == 99);
+		assert(mmio.writes.size() == 2);
+	}
+	{
+		mister_test::FakeMmio mmio;
+		TickClock clock(50);
+		mister::native::FesGp gp(mmio, clock);
+		mmio.values[kSpiGpiAddress] = FesGpSignature;
+		std::uint16_t response = 0;
+		assert(gp.Exchange(FesGpOpcodeIdentity, 0, 0, 75, &response).code ==
+			mister::ErrorCode::io_failed);
+		assert(clock.now_ == 76);
+		assert(mmio.reads.size() == 24);
+		assert(mmio.writes.size() == 2);
+	}
+	{
+		mister_test::FakeMmio mmio;
+		ScriptClock clock({0, 1999, 1999, 2000});
+		mister::native::FesGp gp(mmio, clock);
+		mmio.values[kSpiGpiAddress] = FesGpSignature;
+		const mister::Error error = gp.Identify(
+			Descriptor("00112233445566778899aabbccddeeff"), 10000);
+		assert(error.code == mister::ErrorCode::io_failed);
+		assert(error.phase == "transport");
+		assert(clock.index_ == 4);
+		assert(mmio.reads.size() == 1);
+		assert(mmio.writes.size() == 2);
+	}
+}
+
 void TestIdentifyReadsAllWordsThenRejectsEveryIdentityOrBuildMismatch()
 {
 	const std::string build_id = "00112233445566778899aabbccddeeff";
@@ -291,8 +348,9 @@ int main()
 {
 	TestReplaysSharedGoldenExchangeSequence();
 	TestExchangeRejectsMalformedAndUnstableResponsesWithoutRetry();
+	TestExchangeAndIdentityUseExactDeadlineBoundaries();
 	TestIdentifyReadsAllWordsThenRejectsEveryIdentityOrBuildMismatch();
 	TestCoreDriverRoutesGeneratedControlsAndChecksResponses();
-	puts("fes_gp_test: 4 groups passed");
+	puts("fes_gp_test: 5 groups passed");
 	return 0;
 }
