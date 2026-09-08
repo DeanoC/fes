@@ -25,10 +25,11 @@ type Options struct {
 	NoAttractSet bool
 	PrefsPath    string
 	APIHost      string
-	// GFX selects the 2D Device: sdl (default), software, or fpga-stub.
-	// Empty falls back to TENFOOT_GFX, then sdl. Production sofa runs
-	// keep WrapSDLRenderer. linuxfb is the kit framebuffer Device and
-	// is not opened from the SDL sofa shell.
+	// GFX selects the 2D Device: sdl (default), software, fpga, or
+	// fpga-stub. Empty falls back to TENFOOT_GFX, then sdl. fpga records
+	// the FC2D command stream and rasters with Software (not HDMI FPGA
+	// UI). Production sofa runs keep WrapSDLRenderer. linuxfb is the kit
+	// framebuffer Device and is not opened from the SDL sofa shell.
 	GFX string
 	// InputProfile is a built-in name (identity, swap-ab) or a JSON file
 	// path. Empty is identity.

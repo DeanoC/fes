@@ -90,13 +90,16 @@ into the cell. Missing, failed, or still-loading art keeps the system-color
 tile and ASCII label. Fetching is asynchronous and does not block the present
 loop.
 
-Run `go test -race ./kitlauncher/... ./host/tenfoot/inputmap ./host/tenfoot/theme ./host/tenfoot/fbgrid ./cmd/fogcast-kit` for adapter tests. They
+Run `go test -race ./kitlauncher/... ./host/tenfoot/inputmap ./host/tenfoot/theme ./host/tenfoot/fbgrid ./host/tenfoot/anim ./cmd/fogcast-kit` for adapter tests. They
 exercise real HTTP transports with isolated servers and never open real input or
 framebuffer devices. On the kit, `fogcast-kit -selftest-nav` paints a 25-title
 catalog, moves focus right/down across a 4×3 page, samples the highlight, and
 exits without talking to the host. `fogcast-kit -selftest-theme` paints **default**
 then **arcade**, samples highlight and background, and requires the pixels to
-differ. `fogcast-kit -selftest-pads` opens every
+differ. `fogcast-kit -selftest-fpga` records a timed attract still/crossfade
+and sprite move through `gfx.NewFPGA` (FC2D software-replay, `IsStub` true,
+`HW=not-yet`) and, when `/dev/fb0` opens, Replays the stream onto linuxfb.
+It does not claim a programmed 2D core. `fogcast-kit -selftest-pads` opens every
 eligible USB pad under the identity profile, prints device id/name, and exits.
 Runtime and host tests cover their respective boundaries.
 Use FES for selected image assembly and exact-artifact evidence. A diagnostic

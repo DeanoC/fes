@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
+	"github.com/DeanoC/FogCast/host/tenfoot/anim"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
@@ -195,6 +196,16 @@ func TestLoadKitThemeMissingFile(t *testing.T) {
 	_, err := loadKitTheme("/no/such/theme.json", "")
 	if err == nil {
 		t.Fatal("missing theme")
+	}
+}
+
+func TestExerciseFPGAAnimProof(t *testing.T) {
+	report, err := anim.RunFPGAProof()
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-fpga PASS") || !strings.Contains(report, "HW=not-yet") || !strings.Contains(report, "backend=fpga") {
+		t.Fatalf("report %s", report)
 	}
 }
 

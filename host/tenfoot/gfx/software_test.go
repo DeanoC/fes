@@ -150,7 +150,10 @@ func TestParseBackend(t *testing.T) {
 		{"software", BackendSoftware},
 		{"sw", BackendSoftware},
 		{"fpga-stub", BackendFPGAStub},
-		{"FPGA", BackendFPGAStub},
+		{"stub", BackendFPGAStub},
+		{"FPGA", BackendFPGA},
+		{"fpga", BackendFPGA},
+		{"fpga-recorder", BackendFPGA},
 		{"linuxfb", BackendLinuxFB},
 		{"fb0", BackendLinuxFB},
 	}

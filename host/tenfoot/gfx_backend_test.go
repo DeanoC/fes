@@ -30,3 +30,19 @@ func TestNormalizedGFXFromEnv(t *testing.T) {
 		t.Fatalf("explicit GFX should win over env, got %q", opts.GFX)
 	}
 }
+
+func TestNormalizedGFXFPGA(t *testing.T) {
+	t.Setenv("TENFOOT_GFX", "fpga")
+	opts := Options{PrefsPath: t.TempDir() + "/missing.json"}.normalized()
+	name, err := gfx.ParseBackend(opts.GFX)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != gfx.BackendFPGA {
+		t.Fatalf("fpga gfx %q", name)
+	}
+	stub, err := gfx.ParseBackend("fpga-stub")
+	if err != nil || stub != gfx.BackendFPGAStub {
+		t.Fatalf("fpga-stub %q %v", stub, err)
+	}
+}

@@ -77,6 +77,24 @@ func TestParseArgsTheme(t *testing.T) {
 	}
 }
 
+func TestParseArgsGFX(t *testing.T) {
+	t.Parallel()
+	opts, err := parseArgs([]string{"-gfx", "fpga"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.GFX != "fpga" {
+		t.Fatalf("opts = %#v", opts)
+	}
+	opts, err = parseArgs([]string{"-gfx", "fpga-stub"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.GFX != "fpga-stub" {
+		t.Fatalf("stub opts = %#v", opts)
+	}
+}
+
 func TestParseArgsLayout(t *testing.T) {
 	t.Parallel()
 	opts, err := parseArgs([]string{"-layout", "shelf"})

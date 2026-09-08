@@ -60,6 +60,7 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 	noAttract := fs.Bool("no-attract", envNoAttract, "disable attract mode")
 	inputProfile := fs.String("input-profile", envOr("FOGCAST_INPUT_PROFILE", ""), "identity, swap-ab, or JSON profile path (default identity)")
 	themeSpec := fs.String("theme", "", "default, arcade, night, or JSON/TOML path (default default)")
+	gfxName := fs.String("gfx", envOr("TENFOOT_GFX", ""), "sdl (default), software, fpga, or fpga-stub")
 	if err := fs.Parse(args); err != nil {
 		return tenfoot.Options{}, err
 	}
@@ -94,6 +95,7 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 		NoAttractSet: noAttractSet,
 		InputProfile: *inputProfile,
 		Theme:        *themeSpec,
+		GFX:          *gfxName,
 	}, nil
 }
 

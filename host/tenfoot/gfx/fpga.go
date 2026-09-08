@@ -2,18 +2,11 @@ package gfx
 
 import "image"
 
-// FPGAStub is a wireable placeholder for a future MiSTer custom 2D
-// accelerator. This slice does not talk to kit, runtime, or RBF, and it
-// does not define an FPGA protocol.
-//
-// Current policy: thin wrapper over Software. Device methods raster on
-// the CPU today. A later hardware path would replace the inner
-// rasterizer with mailbox/register setup and DMA of the RGBA8
-// framebuffer or a command list; Device and draw.go stay unchanged.
+// FPGAStub is a thin Software wrapper kept for TENFOOT_GFX=fpga-stub
+// compatibility. It does not record a command stream and does not talk
+// to kit, runtime, or RBF. The FC2D encoder lives on FPGA (NewFPGA,
+// BackendName "fpga"); see fpga_protocol.md.
 type FPGAStub struct {
-	// sw is the current CPU stand-in. Future HW: drop this and submit
-	// the same BeginFrame/Clear/FillRect/Draw/Present sequence through
-	// a mailbox, with textures staged by DMA.
 	sw *Software
 }
 
@@ -43,8 +36,6 @@ func (f *FPGAStub) BeginFrame() { f.sw.BeginFrame() }
 
 func (f *FPGAStub) Clear(c Color) { f.sw.Clear(c) }
 
-// Present currently no-ops through Software. Future HW would flush a
-// command list over a mailbox and wait for a frame interrupt.
 func (f *FPGAStub) Present() { f.sw.Present() }
 
 func (f *FPGAStub) CreateRGBA(img *image.RGBA) (Texture, error) {
@@ -59,9 +50,6 @@ func (f *FPGAStub) Destroy(tex Texture) { f.sw.Destroy(tex) }
 
 func (f *FPGAStub) FillRect(rect Rect, c Color) { f.sw.FillRect(rect, c) }
 
-// Draw currently nearest-blits on the CPU. Future HW would enqueue a
-// textured blit with source/dest rects through registers or a command
-// ring, with bitmap bytes already in DMA-visible memory.
 func (f *FPGAStub) Draw(tex Texture, src *Rect, dst Rect) {
 	f.sw.Draw(tex, src, dst)
 }

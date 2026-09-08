@@ -264,18 +264,20 @@ goroutine holds the stream.
 Source entry points are `host/tenfoot/` and `cmd/fogcast-tenfoot`. UI draw
 helpers use `host/tenfoot/gfx.Device` (begin/clear/present, RGBA8 textures,
 textured quads, fill rects). Window, events, gamepad, and text input remain
-SDL in `host/tenfoot/sdl.go`. `TENFOOT_GFX` / `Options.GFX` may select
-`software` or `fpga-stub` for tests; the production sofa path stays SDL3.
+SDL in `host/tenfoot/sdl.go`. `TENFOOT_GFX` / `Options.GFX` / `-gfx` may select
+`software`, `fpga`, or `fpga-stub` for tests; the production sofa path stays SDL3.
 linuxfb is a kit framebuffer Device, not the SDL sofa shell.
 
 | Backend | Construction | Role |
 | --- | --- | --- |
 | SDL3 | `gfx.WrapSDLRenderer` (`host/tenfoot/gfx/sdl3.go`, build tag `sdl3`) | Default production path: wraps the process `SDL_Renderer` with letterbox logical presentation and VSync. |
 | Software | `gfx.NewSoftware` (`host/tenfoot/gfx/software.go`) | Pure-Go RGBA8 rasterizer for tests and CI (no cgo, no SDL). Nearest blit, `Snapshot` for golden pixels. |
-| FPGA stub | `gfx.NewFPGAStub` (`host/tenfoot/gfx/fpga.go`) | Placeholder for a future MiSTer custom 2D accelerator. Delegates to Software today; exposes `BackendName` / `IsStub`. Does not talk to kit, runtime, or RBF. |
+| FPGA | `gfx.NewFPGA` (`host/tenfoot/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`host/tenfoot/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. Timed still/crossfade and sprite helpers live in `host/tenfoot/anim`. |
+| FPGA stub | `gfx.NewFPGAStub` (`host/tenfoot/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
 | linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`host/tenfoot/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `host/tenfoot/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `host/tenfoot/inputmap`; linuxinput can apply a `Remapper` to gamepad records. Look tokens live in `host/tenfoot/theme` and are consumed by `fbgrid.Paint` and the sofa `Clear` sites. |
 
 `gfx.Recorder` remains a call-order test double and does not draw pixels.
+`gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.
 
 Tenfoot looks are data-driven. `host/tenfoot/theme` loads colour, spacing, font
 scale, and cover-chrome tokens from a built-in name (`default`, `arcade`,

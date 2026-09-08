@@ -36,7 +36,15 @@ func run() error {
 	selftestNav := flag.Bool("selftest-nav", false, "paint 4x3 catalog navigation on the framebuffer and exit")
 	selftestPads := flag.Bool("selftest-pads", false, "open eligible USB pads, print them, and exit")
 	selftestTheme := flag.Bool("selftest-theme", false, "paint default and arcade and sample pixels, then exit")
+	selftestFPGA := flag.Bool("selftest-fpga", false, "record FC2D attract still/anim on the FPGA software-replay backend and exit")
 	flag.Parse()
+	if *selftestFPGA {
+		fb := "/dev/fb0"
+		if c, err := kitlauncher.LoadConfig(*configPath); err == nil && c.Framebuffer != "" {
+			fb = c.Framebuffer
+		}
+		return runFPGASelftest(fb)
+	}
 	if *selftestPads {
 		remap, err := loadKitRemapper(*inputProfile, "")
 		if err != nil {

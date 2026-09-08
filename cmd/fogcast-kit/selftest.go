@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
+	"github.com/DeanoC/FogCast/host/tenfoot/anim"
 	"github.com/DeanoC/FogCast/host/tenfoot/fbgrid"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
@@ -14,6 +15,37 @@ import (
 	"github.com/DeanoC/FogCast/remoteinput"
 	"time"
 )
+
+func runFPGASelftest(fbPath string) error {
+	report, err := anim.RunFPGAProof()
+	fmt.Print(report)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(fbPath) == "" {
+		return nil
+	}
+	d, err := gfx.OpenLinuxFB(fbPath)
+	if err != nil {
+		fmt.Printf("linuxfb skip: %v HW=not-yet\n", err)
+		return nil
+	}
+	defer d.Close()
+	cfg := d.Config()
+	fpga, err := gfx.NewFPGA(cfg.Width, cfg.Height)
+	if err != nil {
+		return err
+	}
+	defer fpga.Close()
+	anim.PaintStillCycle(fpga, cfg.Width, cfg.Height, anim.StillHold/2)
+	if err := gfx.Replay(d, fpga.Commands()); err != nil {
+		return err
+	}
+	d.Present()
+	fmt.Printf("linuxfb present %s kit-backend=%s fpga-backend=%s stub=%v raster=%s HW=not-yet\n",
+		cfg, d.BackendName(), fpga.BackendName(), fpga.IsStub(), fpga.RasterMode())
+	return nil
+}
 
 func runPadsSelftest(remap *inputmap.Remapper) error {
 	if remap == nil {

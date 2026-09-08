@@ -2,11 +2,12 @@
 //
 // UI draw helpers talk only to Device. Production sofa runs use the SDL3
 // backend (WrapSDLRenderer, build tag sdl3). Software is a pure-Go
-// rasterizer for tests and CI. FPGAStub is a wireable placeholder that
-// currently delegates to Software; it does not talk to kit, runtime, or
-// RBF. LinuxFB rasters with Software and Present-blits onto a 32bpp
-// Linux framebuffer. Recorder is a call-order test double and does not
-// draw pixels.
+// rasterizer for tests and CI. FPGA records the versioned FC2D command
+// stream and rasters through Software until a programmed 2D core exists
+// (IsStub stays true; see fpga_protocol.md). FPGAStub is the older thin
+// Software wrapper without a stream. LinuxFB rasters with Software and
+// Present-blits onto a 32bpp Linux framebuffer. Recorder is a call-order
+// test double and does not draw pixels.
 //
 // Window creation, events, gamepad, and text input stay in the SDL shell
 // (host/tenfoot/sdl.go) until a later slice.

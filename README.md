@@ -26,7 +26,10 @@ and content selection; the MiSTer is a small, directly controlled target.
   Mac is the primary sofa target; Linux uses the same Makefile target with
   system SDL3 (`pkg-config sdl3`). Draw goes through `gfx.Device`: SDL3 is
   the production backend; Software is a pure-Go rasterizer for tests/CI;
-  FPGA stub delegates to Software as a future 2D-accel placeholder; linuxfb
+  FPGA records a versioned FC2D command stream and rasters through Software
+  (`-gfx fpga` / `TENFOOT_GFX=fpga`; `IsStub` true until a programmed 2D
+  core exists — not HDMI FPGA UI); FPGA stub remains the thin Software
+  wrapper without a stream (`fpga-stub`); linuxfb
   rasters with Software and Present-blits onto a 32bpp Linux framebuffer
   (`make build-tenfoot-linuxfb-spike`, CGO-free ARMv7, no SDL; the spike
   also reads evdev/joystick and moves a cursor). A sibling
