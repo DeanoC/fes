@@ -18,7 +18,7 @@ VERSION_INPUT := $(BUILD_DIR)/.mister-runtime-version
 VERSION_DIRTY = $(shell test -z "$$(git status --porcelain --untracked-files=normal)" || printf '%s' -dirty)
 MISTER_RUNTIME_VERSION ?= git-$(shell git rev-parse --short=12 HEAD)$(VERSION_DIRTY)
 
-CPPFLAGS := -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc
+CPPFLAGS := -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include
 TEST_CPPFLAGS := $(CPPFLAGS) -Itests/support
 CXXFLAGS ?= -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP
 
@@ -42,7 +42,10 @@ LIB_SOURCES := \
 	src/runtime.cpp \
 	src/profile.cpp \
 	src/native/artifacts.cpp \
+	src/native/core_package.cpp \
+	src/native/core_driver.cpp \
 	src/native/core_loader.cpp \
+	src/native/sha256.cpp \
 	src/native/input.cpp \
 	src/native/video_recipe.cpp \
 	src/native/video.cpp \
@@ -69,6 +72,7 @@ TEST_BINS := \
 	$(BUILD_DIR)/tests/unit/profile_test \
 	$(BUILD_DIR)/tests/unit/runtime_test \
 	$(BUILD_DIR)/tests/unit/artifacts_test \
+	$(BUILD_DIR)/tests/unit/core_package_test \
 	$(BUILD_DIR)/tests/unit/native_hardware_test \
 	$(BUILD_DIR)/tests/unit/core_loader_test \
 	$(BUILD_DIR)/tests/unit/fpga_manager_test \
@@ -91,6 +95,8 @@ TEST_HEADERS := $(wildcard \
 	src/native/linux/*.hpp \
 	src/daemon/*.hpp \
 	src/linux/*.hpp \
+	third_party/toml11/include/*.hpp \
+	third_party/toml11/include/toml/*.hpp \
 	tests/support/*.hpp)
 
 .PHONY: all clean test run-tests incremental-build-test version-build-test \
@@ -145,6 +151,13 @@ $(BUILD_DIR)/tests/unit/artifacts_test: tests/unit/artifacts_test.cpp \
 		src/native/artifacts.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/artifacts_test.cpp \
+		src/native/artifacts.cpp -o "$@"
+
+$(BUILD_DIR)/tests/unit/core_package_test: tests/unit/core_package_test.cpp \
+		src/native/core_package.cpp src/native/sha256.cpp src/native/artifacts.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/core_package_test.cpp \
+		src/native/core_package.cpp src/native/sha256.cpp \
 		src/native/artifacts.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/core_loader_test: tests/unit/core_loader_test.cpp \
@@ -222,8 +235,9 @@ $(BUILD_DIR)/tests/unit/off_t_test: tests/unit/off_t_test.cpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tests/unit/off_t_test.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cpp \
-		tests/support/capture_log.cpp src/native/artifacts.cpp \
-		src/native/core_loader.cpp src/native/input.cpp \
+		tests/support/capture_log.cpp tests/support/fake_mmio.cpp \
+		src/native/artifacts.cpp src/native/core_package.cpp src/native/sha256.cpp \
+		src/native/core_driver.cpp src/native/core_loader.cpp src/native/input.cpp \
 		src/native/video_recipe.cpp src/native/video.cpp \
 		src/native/hardware.cpp src/profile.cpp src/runtime.cpp \
 		src/linux/production_hardware.cpp \
@@ -235,8 +249,9 @@ $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cp
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) \
 		-DMISTER_RUNTIME_IDLE_RBF=\"/definitely-missing/libmister-runtime/idle.rbf\" \
 		tests/unit/native_hardware_test.cpp \
-		tests/support/capture_log.cpp src/native/artifacts.cpp \
-		src/native/core_loader.cpp src/native/input.cpp \
+		tests/support/capture_log.cpp tests/support/fake_mmio.cpp \
+		src/native/artifacts.cpp src/native/core_package.cpp src/native/sha256.cpp \
+		src/native/core_driver.cpp src/native/core_loader.cpp src/native/input.cpp \
 		src/native/video_recipe.cpp src/native/video.cpp \
 		src/native/hardware.cpp src/profile.cpp src/runtime.cpp \
 		src/linux/production_hardware.cpp \
@@ -324,8 +339,8 @@ archive-audit: $(ARCHIVE)
 		exit 1; \
 	}; \
 	member_count="$$(printf '%s\n' "$$actual_members" | sed '/^$$/d' | wc -l | tr -d ' ')"; \
-	[[ "$$member_count" == 15 ]] || { \
-		echo "canonical archive must contain exactly 15 production members" >&2; \
+	[[ "$$member_count" == 18 ]] || { \
+		echo "canonical archive must contain exactly 18 production members" >&2; \
 		exit 1; \
 	}; \
 	archive_list="$$(find "$(BUILD_DIR)" -maxdepth 1 -type f -name '*.a' | sed 's|^.*/||' | LC_ALL=C sort)"; \
@@ -339,7 +354,8 @@ archive-audit: $(ARCHIVE)
 		echo "archive members differ from production objects" >&2; \
 		exit 1; \
 	}; \
-	for required in runtime.o profile.o artifacts.o core_loader.o input.o hardware.o \
+	for required in runtime.o profile.o artifacts.o core_package.o core_driver.o core_loader.o \
+		sha256.o input.o hardware.o \
 		fpga_manager.o framebuffer.o mmio.o spi.o production_hardware.o video_recipe.o \
 		video.o i2c.o linux_input.o; do \
 		grep -Fx "$$required" <<<"$$actual_members" >/dev/null || { \
@@ -355,7 +371,7 @@ archive-audit: $(ARCHIVE)
 		else source="$${relative_object%.o}.cpp"; fi; \
 		[[ -f "$$source" ]] || { echo "object has no production source: $$relative_object" >&2; exit 1; }; \
 		case "$$source" in \
-			src/runtime.cpp|src/profile.cpp|src/native/artifacts.cpp|src/native/core_loader.cpp|src/native/input.cpp|src/native/video_recipe.cpp|src/native/video.cpp|src/native/hardware.cpp|src/native/linux/fpga_manager.cpp|src/native/linux/framebuffer.cpp|src/native/linux/i2c.cpp|src/native/linux/input.cpp|src/native/linux/mmio.cpp|src/native/linux/spi.cpp|src/linux/production_hardware.cpp) ;; \
+			src/runtime.cpp|src/profile.cpp|src/native/artifacts.cpp|src/native/core_package.cpp|src/native/core_driver.cpp|src/native/core_loader.cpp|src/native/sha256.cpp|src/native/input.cpp|src/native/video_recipe.cpp|src/native/video.cpp|src/native/hardware.cpp|src/native/linux/fpga_manager.cpp|src/native/linux/framebuffer.cpp|src/native/linux/i2c.cpp|src/native/linux/input.cpp|src/native/linux/mmio.cpp|src/native/linux/spi.cpp|src/linux/production_hardware.cpp) ;; \
 			*) echo "archive contains non-production source: $$source" >&2; exit 1 ;; \
 		esac; \
 		compiled_sources+="$$source"$$'\n'; \
@@ -365,7 +381,7 @@ archive-audit: $(ARCHIVE)
 			printf '%s\n' "$${object#"$(BUILD_DIR)/"}"; \
 		fi; \
 	done < <(printf '%s\n' $(LIB_OBJECTS) | LC_ALL=C sort))"; \
-	expected_raw_owners=$$'src/native/artifacts.o\nsrc/native/core_loader.o\nsrc/native/linux/fpga_manager.o\nsrc/native/linux/framebuffer.o\nsrc/native/linux/i2c.o\nsrc/native/linux/linux_input.o\nsrc/native/linux/mmio.o'; \
+	expected_raw_owners=$$'src/native/artifacts.o\nsrc/native/core_loader.o\nsrc/native/core_package.o\nsrc/native/linux/fpga_manager.o\nsrc/native/linux/framebuffer.o\nsrc/native/linux/i2c.o\nsrc/native/linux/linux_input.o\nsrc/native/linux/mmio.o'; \
 	[[ "$$raw_owners" == "$$expected_raw_owners" ]] || { \
 		echo "raw I/O ownership differs from the canonical native boundary" >&2; \
 		diff -u <(printf '%s\n' "$$expected_raw_owners") \

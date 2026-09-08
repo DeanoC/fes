@@ -21,6 +21,10 @@ public:
 	void SetFaultSink(mister::HardwareFaultSink*) override;
 	mister::HardwareResult LoadIdle() override;
 	mister::Error FlushSave() override { ++flush_calls; if (on_flush) on_flush(); return flush_result; }
+	mister::Error AdmitCorePackage(const std::string&, const std::string&,
+		std::unique_ptr<mister::AdmittedCorePackage>*) override;
+	mister::HardwareResult LoadCore(
+		std::unique_ptr<mister::AdmittedCorePackage>, std::uint64_t) override;
 	int flush_calls = 0;
 	std::function<void()> on_flush;
 	mister::Error flush_result;
@@ -36,15 +40,23 @@ public:
 	mister::HardwareResult idle_result;
 	mister::HardwareResult launch_result;
 	mister::HardwareResult development_result;
+	mister::Error admission_result;
+	mister::HardwareResult core_result;
+	mister::CorePackageInfo core_info = {
+		std::string(64, 'a'), "custom-core", ""};
 	int idle_calls;
 	int launch_calls;
 	int development_calls;
+	int admission_calls = 0;
+	int core_calls = 0;
 	int fault_sink_sets;
 	bool idle_without_fault_sink;
 	std::vector<mister::PreparedLaunch> launches;
 	std::vector<std::uint64_t> launch_generations;
 	std::vector<std::string> development_rbfs;
 	std::vector<std::thread::id> idle_threads;
+	std::vector<std::string> events;
+	std::vector<std::uint64_t> core_generations;
 
 private:
 	std::mutex mutex_;

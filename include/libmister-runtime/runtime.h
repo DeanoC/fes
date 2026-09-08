@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace mister {
@@ -77,6 +78,8 @@ struct Status {
 	Execution execution = Execution::none;
 	std::string system;
 	std::string core;
+	std::string package_id;
+	std::string declared_core;
 	Error error;
 };
 
@@ -150,6 +153,7 @@ class Profiles {
 public:
 	Error Add(Profile);
 	Error Prepare(const Launch&, PreparedLaunch*) const;
+	Error Describe(const std::string& system, Profile*) const;
 	bool empty() const;
 
 private:
@@ -167,6 +171,25 @@ struct HardwareFault {
 	Error error;
 };
 
+struct CorePackageInfo {
+	std::string package_id;
+	std::string declared_core;
+	std::string system;
+};
+
+class AdmittedCorePackage {
+public:
+	virtual ~AdmittedCorePackage() {}
+	const CorePackageInfo& info() const { return info_; }
+
+protected:
+	explicit AdmittedCorePackage(CorePackageInfo info)
+		: info_(std::move(info)) {}
+
+private:
+	CorePackageInfo info_;
+};
+
 class HardwareFaultSink {
 public:
 	virtual ~HardwareFaultSink() = default;
@@ -179,6 +202,18 @@ public:
 	virtual void SetFaultSink(HardwareFaultSink*) = 0;
 	virtual HardwareResult LoadIdle() = 0;
 	virtual Error FlushSave() { return {}; }
+	virtual Error AdmitCorePackage(const std::string&, const std::string&,
+		std::unique_ptr<AdmittedCorePackage>*)
+	{
+		return {ErrorCode::unsupported_protocol,
+			"core package loading is unavailable"};
+	}
+	virtual HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage>,
+		std::uint64_t)
+	{
+		return {{ErrorCode::unsupported_protocol,
+			"core package loading is unavailable"}, false, ""};
+	}
 	virtual HardwareResult Launch(const PreparedLaunch&,
 		std::uint64_t generation) = 0;
 	virtual HardwareResult LoadDevelopmentRBF(const std::string&) = 0;
@@ -193,6 +228,8 @@ public:
 	Error Start();
 	Status status() const;
 	Error LaunchGame(const Launch&);
+	Error LoadCore(const std::string& directory,
+		const std::string& expected_package_id);
 	Error LoadDevelopmentRBF(const std::string&);
 	Error Stop();
 

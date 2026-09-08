@@ -65,7 +65,9 @@ done
 
 cat >"$temporary/expected-members" <<'EOF'
 artifacts.o
+core_driver.o
 core_loader.o
+core_package.o
 fpga_manager.o
 framebuffer.o
 hardware.o
@@ -76,6 +78,7 @@ mmio.o
 production_hardware.o
 profile.o
 runtime.o
+sha256.o
 spi.o
 video.o
 video_recipe.o

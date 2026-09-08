@@ -5,6 +5,7 @@
 
 #include "native/artifacts.hpp"
 #include "native/core_loader.hpp"
+#include "native/core_driver.hpp"
 #include "native/generated/megadrive.hpp"
 #include "native/generated/nes.hpp"
 #include "native/generated/pong.hpp"
@@ -113,6 +114,10 @@ public:
 	}
 	void SetFaultSink(HardwareFaultSink*) override {}
 	HardwareResult LoadIdle() override { return {reason_, false, ""}; }
+	Error AdmitCorePackage(const std::string&, const std::string&,
+		std::unique_ptr<AdmittedCorePackage>*) override { return reason_; }
+	HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage>,
+		std::uint64_t) override { return {reason_, false, ""}; }
 	HardwareResult Launch(const PreparedLaunch&, std::uint64_t) override
 	{
 		return {reason_, false, ""};
@@ -142,6 +147,7 @@ public:
 	explicit ProductionHardware(LogSink& log)
 		: opener_(), mmio_(), clock_(), fpga_(mmio_, clock_),
 		  spi_(mmio_, clock_), core_(spi_), i2c_(clock_), framebuffer_(clock_),
+		  mister_driver_(mmio_, core_, clock_),
 		  idle_video_(core_, spi_, i2c_, framebuffer_, clock_, log,
 			  native::Menu720p60Recipe()),
 		  game_video_(spi_, i2c_, clock_, log, native::Menu720p60Recipe()),
@@ -149,7 +155,8 @@ public:
 		  input_session_(input_device_, spi_, clock_, timeouts_.core_io_ms),
 		  hardware_(opener_, fpga_, core_, idle_video_, game_video_,
 			  input_session_, native::FogCastGamepadIdentity(), clock_, log,
-			  MISTER_RUNTIME_IDLE_RBF, timeouts_) {}
+			  MISTER_RUNTIME_IDLE_RBF, timeouts_, mister_driver_, nullptr,
+			  &ProductionProfiles()) {}
 
 	void SetFaultSink(HardwareFaultSink* sink) override
 	{
@@ -157,6 +164,17 @@ public:
 	}
 	HardwareResult LoadIdle() override { return hardware_.LoadIdle(); }
 	Error FlushSave() override { return hardware_.FlushSave(); }
+	Error AdmitCorePackage(const std::string& directory,
+		const std::string& expected_id,
+		std::unique_ptr<AdmittedCorePackage>* package) override
+	{
+		return hardware_.AdmitCorePackage(directory, expected_id, package);
+	}
+	HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage> package,
+		std::uint64_t generation) override
+	{
+		return hardware_.LoadCore(std::move(package), generation);
+	}
 	HardwareResult Launch(const PreparedLaunch& launch,
 		std::uint64_t generation) override
 	{
@@ -176,6 +194,7 @@ private:
 	native::CoreLoader core_;
 	native::LinuxI2c i2c_;
 	native::LinuxFramebuffer framebuffer_;
+	native::MisterCoreDriver mister_driver_;
 	native::MenuVideoBringup idle_video_;
 	native::FixedVideoBringup game_video_;
 	native::LinuxInput input_device_;

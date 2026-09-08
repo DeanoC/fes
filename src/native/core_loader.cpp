@@ -286,5 +286,10 @@ Error CoreLoader::ReleaseReset(const CoreRecipe& recipe, std::uint64_t deadline)
 	return ApplyStatus(spi_, recipe.reset_release_word, deadline);
 }
 
+Error CoreLoader::NeutralizeButtons(std::uint64_t deadline)
+{
+	return Exchange(spi_, kUserIoTarget, {0x0001, 0x0000}, deadline);
+}
+
 } // namespace native
 } // namespace mister

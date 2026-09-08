@@ -71,6 +71,28 @@ Error PosixArtifactOpener::Open(const std::string& path,
 	errno = 0;
 	const int descriptor = open(path.c_str(), O_RDONLY | O_CLOEXEC);
 	if (descriptor < 0) return IoError("open failed", path);
+	return ValidateAndAdopt(descriptor, path, maximum_size, output);
+}
+
+Error PosixArtifactOpener::OpenRelative(int directory_fd,
+	const std::string& directory_path, const std::string& name,
+	std::uint64_t maximum_size, Artifact* output)
+{
+	if (output == nullptr) return {ErrorCode::io_failed, "missing artifact output"};
+	if (directory_fd < 0 || name.empty() || name == "." || name == ".." ||
+		name.find('/') != std::string::npos || name.find('\0') != std::string::npos)
+		return {ErrorCode::io_failed, "invalid directory-relative artifact name"};
+	errno = 0;
+	const int descriptor = openat(directory_fd, name.c_str(),
+		O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
+	const std::string path = directory_path + "/" + name;
+	if (descriptor < 0) return IoError("open failed", path);
+	return ValidateAndAdopt(descriptor, path, maximum_size, output);
+}
+
+Error PosixArtifactOpener::ValidateAndAdopt(int descriptor,
+	const std::string& path, std::uint64_t maximum_size, Artifact* output)
+{
 	struct stat metadata = {};
 	if (fstat(descriptor, &metadata) != 0) {
 		const Error error = IoError("stat failed", path);
@@ -79,7 +101,8 @@ Error PosixArtifactOpener::Open(const std::string& path,
 	}
 	if (!S_ISREG(metadata.st_mode) || metadata.st_size <= 0) {
 		close(descriptor);
-		return {ErrorCode::io_failed, "artifact is not a non-empty regular file: " + path};
+		return {ErrorCode::io_failed,
+			"artifact is not a non-empty regular file: " + path};
 	}
 	if (static_cast<std::uintmax_t>(metadata.st_size) >
 		static_cast<std::uintmax_t>(std::numeric_limits<std::uint64_t>::max())) {

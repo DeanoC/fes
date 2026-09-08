@@ -243,6 +243,64 @@ void TestValidationPrecedesHardwareMutation()
 	assert(fixture.hardware.launch_calls == 0);
 }
 
+void TestUnsupportedPackageLeavesRunningSessionExactlyUntouched()
+{
+	Fixture fixture;
+	Start(fixture);
+	assert(fixture.runtime.LaunchGame(CartLaunch()).ok());
+	const mister::Status before = fixture.runtime.status();
+	const std::vector<std::string> events = fixture.hardware.events;
+	fixture.hardware.admission_result = {
+		ErrorCode::unsupported_protocol, "package driver unavailable"};
+	const mister::Error error = fixture.runtime.LoadCore(
+		"/packages/custom", std::string(64, 'a'));
+	assert(error.code == ErrorCode::unsupported_protocol);
+	const mister::Status after = fixture.runtime.status();
+	assert(after.state == before.state && after.execution == before.execution);
+	assert(after.system == before.system && after.core == before.core);
+	assert(after.error.code == before.error.code &&
+		after.error.message == before.error.message);
+	assert(fixture.hardware.events == events);
+	assert(fixture.hardware.flush_calls == 0);
+	assert(fixture.hardware.core_calls == 0);
+}
+
+void TestPackageSaveFailurePreventsProgrammingAndRetainsActiveGeneration()
+{
+	Fixture fixture;
+	Start(fixture);
+	assert(fixture.runtime.LaunchGame(CartLaunch()).ok());
+	const std::uint64_t generation = fixture.hardware.launch_generations.back();
+	fixture.hardware.flush_result = {ErrorCode::save_failed, "disk full"};
+	assert(fixture.runtime.LoadCore("/packages/custom", std::string(64, 'a')).code ==
+		ErrorCode::save_failed);
+	assert(fixture.hardware.core_calls == 0);
+	assert(fixture.runtime.status().state == State::running_game);
+	fixture.hardware.ReportFault(generation,
+		{ErrorCode::io_failed, "still active after failed save"});
+	assert(fixture.hardware.WaitForIdleCalls(2));
+	assert(WaitForState(fixture.runtime, State::idle));
+}
+
+void TestPackageGenerationsRejectOldFaultsAndAcceptTheActiveFault()
+{
+	Fixture fixture;
+	Start(fixture);
+	const std::string id(64, 'a');
+	assert(fixture.runtime.LoadCore("/packages/custom", id).ok());
+	assert(fixture.runtime.Stop().ok());
+	assert(fixture.runtime.LoadCore("/packages/custom", id).ok());
+	assert(fixture.hardware.core_generations ==
+		std::vector<std::uint64_t>({1, 2}));
+	fixture.hardware.ReportFault(1,
+		{ErrorCode::io_failed, "stale package input fault"});
+	fixture.hardware.ReportFault(2,
+		{ErrorCode::io_failed, "active package input fault"});
+	assert(fixture.hardware.WaitForIdleCalls(3));
+	assert(WaitForState(fixture.runtime, State::idle));
+	assert(fixture.runtime.status().error.message == "active package input fault");
+}
+
 void TestDevelopmentPathRejectsEmbeddedNulBeforeHardwareMutation()
 {
 	Fixture fixture;
@@ -732,6 +790,9 @@ int main()
 	TestStartLoadsIdleOnceAndPublishesIdle();
 	TestFailedStartRequiresReboot();
 	TestValidationPrecedesHardwareMutation();
+	TestUnsupportedPackageLeavesRunningSessionExactlyUntouched();
+	TestPackageSaveFailurePreventsProgrammingAndRetainsActiveGeneration();
+	TestPackageGenerationsRejectOldFaultsAndAcceptTheActiveFault();
 	TestDevelopmentPathRejectsEmbeddedNulBeforeHardwareMutation();
 	TestBlockedLaunchPublishesStarting();
 	TestConcurrentMutationReturnsBusyWithoutQueueing();
@@ -762,6 +823,6 @@ int main()
 	TestStaleFaultCannotCleanOrOverwriteANewerGeneration();
 	TestActiveInputFaultCleanupFailureRequiresReboot();
 	TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError();
-	puts("runtime_test: 35 passed");
+	puts("runtime_test: 38 passed");
 	return 0;
 }

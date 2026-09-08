@@ -40,6 +40,7 @@ public:
 	Error Attach(const OpenedMedia&, FileWireFormat, std::uint64_t absolute_deadline_ms, SaveFile* = nullptr);
 	Error RestoreSave(const SaveFile&, Clock&, std::uint64_t absolute_deadline_ms);
 	Error CaptureSave(std::size_t, Clock&, std::uint64_t absolute_deadline_ms, std::vector<unsigned char>*);
+	Error NeutralizeButtons(std::uint64_t absolute_deadline_ms);
 	Error Attach(std::uint8_t index, const Artifact&, FileWireFormat,
 		std::uint64_t absolute_deadline_ms);
 	Error ReleaseReset(const CoreRecipe&, std::uint64_t absolute_deadline_ms);

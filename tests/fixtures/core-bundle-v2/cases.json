@@ -1,0 +1,205 @@
+[
+  {
+    "name": "valid-basic",
+    "manifest": "manifests/valid-basic.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": true,
+    "package_id": "b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0"
+  },
+  {
+    "name": "valid-semver-prerelease-build",
+    "manifest": "manifests/valid-semver-prerelease-build.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": true,
+    "package_id": "03e7a0f933040eb392f73e14e37c4be9fa710249e47a24e49d67bc764a7e20a9"
+  },
+  {
+    "name": "valid-unknown-abi",
+    "manifest": "manifests/valid-unknown-abi.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": true,
+    "package_id": "033fd02cab5ca1533d617e9adecbb2e975182672aebf669b9b9b7485f2a5d4ae"
+  },
+  {
+    "name": "valid-multibyte-bounds",
+    "manifest": "manifests/valid-multibyte-bounds.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": true,
+    "package_id": "4e96d5f93d7c3477f8107e1a708e64c0daf607e8f6b628b9edfd15b784779d34"
+  },
+  {
+    "name": "valid-literal-strings",
+    "manifest": "manifests/valid-literal-strings.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": true,
+    "package_id": "5b3ec8ce5c12e347f1cce73ea858090c5204777a666d864a5b30672a34cbf2ab"
+  },
+  {
+    "name": "valid-dotted-keys",
+    "manifest": "manifests/valid-dotted-keys.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": true,
+    "package_id": "ee3cedac57cfa50585540b8a8909aedb636a09c36dd9240b82a48305ae8b1a83"
+  },
+  {
+    "name": "valid-inline-tables",
+    "manifest": "manifests/valid-inline-tables.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": true,
+    "package_id": "ab48a770796990d08f3e8ba0404335af2f99cd06c4f6b1790f4e03db62f6b299"
+  },
+  {
+    "name": "invalid-missing-field",
+    "manifest": "manifests/invalid-missing-field.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": false,
+    "reason": "required core.description is missing"
+  },
+  {
+    "name": "invalid-wrong-type",
+    "manifest": "manifests/invalid-wrong-type.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": false,
+    "reason": "core.name has the wrong TOML type"
+  },
+  {
+    "name": "invalid-unknown-field",
+    "manifest": "manifests/invalid-unknown-field.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": false,
+    "reason": "unknown root fields are rejected"
+  },
+  {
+    "name": "invalid-duplicate-key",
+    "manifest": "manifests/invalid-duplicate-key.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": false,
+    "reason": "duplicate TOML keys are rejected"
+  },
+  {
+    "name": "invalid-duplicate-interface",
+    "manifest": "manifests/invalid-duplicate-interface.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": false,
+    "reason": "interface IDs must be unique"
+  },
+  {
+    "name": "invalid-utf8",
+    "manifest": "manifests/invalid-utf8.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": false,
+    "reason": "manifest bytes must be valid UTF-8"
+  },
+  {
+    "name": "invalid-empty-name",
+    "manifest": "manifests/invalid-empty-name.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": false,
+    "reason": "core.name must not be empty"
+  },
+  {
+    "name": "invalid-oversized-name-utf8",
+    "manifest": "manifests/invalid-oversized-name-utf8.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": false,
+    "reason": "core.name exceeds 128 UTF-8 bytes"
+  },
+  {
+    "name": "invalid-oversized-description-utf8",
+    "manifest": "manifests/invalid-oversized-description-utf8.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": false,
+    "reason": "core.description exceeds 2048 UTF-8 bytes"
+  },
+  {
+    "name": "invalid-boolean-size",
+    "manifest": "manifests/invalid-boolean-size.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": false,
+    "reason": "payload.size must be a TOML integer, not Boolean"
+  },
+  {
+    "name": "invalid-boolean-version",
+    "manifest": "manifests/invalid-boolean-version.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": false,
+    "reason": "ABI major must be a TOML integer, not Boolean"
+  },
+  {
+    "name": "invalid-float-size",
+    "manifest": "manifests/invalid-float-size.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": false,
+    "reason": "payload.size must be a TOML integer, not a float"
+  },
+  {
+    "name": "invalid-float-version",
+    "manifest": "manifests/invalid-float-version.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": false,
+    "reason": "ABI major must be a TOML integer, not a float"
+  },
+  {
+    "name": "invalid-payload-file",
+    "manifest": "manifests/invalid-payload-file.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": false,
+    "reason": "payload.file must be core.rbf"
+  },
+  {
+    "name": "invalid-payload-digest",
+    "manifest": "manifests/invalid-payload-digest.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": false,
+    "reason": "payload digest does not match the fixture bytes"
+  },
+  {
+    "name": "invalid-payload-size",
+    "manifest": "manifests/invalid-payload-size.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": false,
+    "reason": "payload size does not match the fixture bytes"
+  },
+  {
+    "name": "invalid-control-character",
+    "manifest": "manifests/invalid-control-character.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": false,
+    "reason": "manifest strings exclude control characters"
+  },
+  {
+    "name": "invalid-malformed-repository",
+    "manifest": "manifests/invalid-malformed-repository.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": false,
+    "reason": "build.repository must be HTTPS without credentials"
+  },
+  {
+    "name": "invalid-malformed-repository-uri",
+    "manifest": "manifests/invalid-malformed-repository-uri.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": false,
+    "reason": "build.repository must be a valid RFC 3986 URI"
+  },
+  {
+    "name": "invalid-malformed-revision",
+    "manifest": "manifests/invalid-malformed-revision.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": false,
+    "reason": "build.revision must be a full 40-hex commit"
+  },
+  {
+    "name": "invalid-oversized-manifest",
+    "manifest": "manifests/invalid-oversized-manifest.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "valid": false,
+    "reason": "manifest exceeds 65,536 bytes"
+  },
+  {
+    "name": "invalid-empty-payload",
+    "manifest": "manifests/invalid-empty-payload.toml",
+    "payload": "payloads/empty.rbf",
+    "valid": false,
+    "reason": "payload must contain at least one byte"
+  }
+]

@@ -4,6 +4,7 @@
 #pragma once
 
 #include "libmister-runtime/runtime.h"
+#include "native/core_driver.hpp"
 
 #include <cstdint>
 #include <mutex>
@@ -47,6 +48,7 @@ class FpgaManager {
 public:
 	virtual ~FpgaManager() {}
 	virtual NativeResult Program(const Artifact&,
+		ProgrammingProfile,
 		std::uint64_t absolute_deadline_ms) = 0;
 };
 
@@ -54,16 +56,26 @@ class NativeHardware final : public Hardware {
 public:
 	NativeHardware(ArtifactOpener&, FpgaManager&, CoreLoader&, VideoBringup&,
 		FixedVideoBringup&, InputSession&, const InputDeviceIdentity&, Clock&,
-		LogSink&, std::string idle_rbf, NativeTimeouts);
+		LogSink&, std::string idle_rbf, NativeTimeouts, CoreDriver& mister_driver,
+		CoreDriver* fes_gp_driver = nullptr, const Profiles* profiles = nullptr);
 	~NativeHardware();
 	void SetFaultSink(HardwareFaultSink*) override;
 	HardwareResult LoadIdle() override;
 	Error FlushSave() override;
+	Error AdmitCorePackage(const std::string&, const std::string&,
+		std::unique_ptr<AdmittedCorePackage>*) override;
+	HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage>,
+		std::uint64_t generation) override;
 	HardwareResult Launch(const PreparedLaunch&, std::uint64_t generation) override;
 	HardwareResult LoadDevelopmentRBF(const std::string&) override;
+	HardwareResult LoadDevelopmentRBF(const std::string&, ProgrammingProfile);
 
 private:
 	Error StopInput(std::uint64_t absolute_deadline_ms);
+	HardwareResult QuiesceForReplacement(const char* operation,
+		const std::string& system, const std::string& core);
+	CoreDriver* ResolveDriver(ProgrammingProfile) const;
+	void ForgetActiveCore();
 	void ForwardInputFault(std::uint64_t generation, Error);
 	ArtifactOpener& opener_;
 	FpgaManager& fpga_;
@@ -76,6 +88,14 @@ private:
 	LogSink& log_;
 	std::string idle_rbf_;
 	NativeTimeouts timeouts_;
+	CoreDriver& mister_driver_;
+	CoreDriver* fes_gp_driver_;
+	ContainedCoreDriver contained_driver_;
+	CoreDriverRegistry driver_registry_;
+	const Profiles* profiles_;
+	CoreDriver* active_driver_;
+	CoreDriverContext active_context_;
+	std::unique_ptr<AdmittedCorePackage> active_package_;
 	std::mutex fault_sink_mutex_;
 	HardwareFaultSink* fault_sink_;
 	bool input_open_;

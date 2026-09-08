@@ -42,6 +42,20 @@ headers checked in under `src/native/generated/`. They are target text
 for the ARMv7 Linux HPS, not host objects. The target build does not run
 Go.
 
+The library API also exposes
+`Runtime::LoadCore(directory, expected_package_id)`. Hardware implementations
+admit the exact format-2 package into an owned opaque `AdmittedCorePackage`
+before the runtime flushes save data or changes visible state, then consume
+that retained object with a new generation at the mutation boundary. Packaged
+MiSTer cores run as explicit development loads: an optional declared system is
+checked against the compiled Profiles table, while media and input are never
+inferred. FES GP package parsing and lifecycle dispatch are software-tested
+with an injected fake driver; production construction rejects them until the
+separate GP transport driver exists. The local protocol has no package command
+in this slice. Replacing a running game with a package first joins and
+neutralizes the old input session; an ambiguously failed outgoing-driver
+quiesce is not repeated during the one bounded Menu recovery.
+
 Native launches keep short deadlines for core control, video, and input setup,
 then give each cartridge transfer its own 120-second deadline. The HPS SPI
 bridge performs an MMIO handshake for every 16-bit media word, so using the

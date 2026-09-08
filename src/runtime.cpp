@@ -34,6 +34,15 @@ bool ValidAbsolutePath(const std::string& path)
 		path.find('\0') == std::string::npos;
 }
 
+bool ValidPackageId(const std::string& value)
+{
+	if (value.size() != 64) return false;
+	for (const unsigned char byte : value)
+		if (!((byte >= '0' && byte <= '9') ||
+			(byte >= 'a' && byte <= 'f'))) return false;
+	return true;
+}
+
 } // namespace
 
 class Runtime::Impl final : public HardwareFaultSink {
@@ -202,6 +211,116 @@ public:
 			result);
 	}
 
+	Error LoadCore(const std::string& directory,
+		const std::string& expected_package_id)
+	{
+		LogRecord rejection;
+		bool rejected = false;
+		bool replacing = false;
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			if (busy_ || !started_ || status_.state == State::starting ||
+				status_.state == State::reboot_required) {
+				rejection = {"load_core", "", "", "validate",
+					Busy("runtime mutation is busy")};
+				rejected = true;
+			} else {
+				busy_ = true;
+				replacing = status_.state == State::running_game ||
+					status_.state == State::running_development;
+			}
+		}
+		if (rejected) {
+			log_.Write(rejection);
+			return rejection.error;
+		}
+		if (!ValidAbsolutePath(directory) || !ValidPackageId(expected_package_id)) {
+			const Error error = Invalid("invalid core package request");
+			{
+				std::lock_guard<std::mutex> lock(mutex_);
+				busy_ = false;
+			}
+			Log("load_core", "", "", "validate", error);
+			return error;
+		}
+
+		std::unique_ptr<AdmittedCorePackage> package;
+		const Error admitted = hardware_.AdmitCorePackage(directory,
+			expected_package_id, &package);
+		if (!admitted.ok() || !package) {
+			const Error error = admitted.ok() ?
+				Error{ErrorCode::invalid_request, "hardware returned no admitted package"} :
+				admitted;
+			{
+				std::lock_guard<std::mutex> lock(mutex_);
+				busy_ = false;
+			}
+			condition_.notify_all();
+			Log("load_core", "", "", "validate", error);
+			return error;
+		}
+		const CorePackageInfo info = package->info();
+		Log("load_core", info.system, info.declared_core, "validate");
+
+		std::uint64_t retired_generation = 0;
+		if (replacing) {
+			{
+				std::lock_guard<std::mutex> lock(mutex_);
+				retired_generation = active_generation_;
+				active_generation_ = 0;
+			}
+			const Error saved = hardware_.FlushSave();
+			if (!saved.ok()) {
+				const Error error{ErrorCode::save_failed, saved.message};
+				{
+					std::lock_guard<std::mutex> lock(mutex_);
+					active_generation_ = retired_generation;
+					status_.error = error;
+					busy_ = false;
+				}
+				condition_.notify_all();
+				Log("load_core", info.system, info.declared_core, "save", error);
+				return error;
+			}
+		}
+
+		std::uint64_t generation = 0;
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			generation = ++next_generation_;
+			active_generation_ = generation;
+			pending_fault_generation_ = 0;
+			status_ = {};
+			status_.state = State::starting;
+			status_.execution = Execution::development;
+			status_.system = info.system;
+			status_.declared_core = info.declared_core;
+			status_.package_id = info.package_id;
+		}
+		Log("load_core", info.system, info.declared_core, "starting");
+		HardwareResult result = hardware_.LoadCore(std::move(package), generation);
+		if (!result.error.ok() && replacing && !result.mutation_attempted)
+			result.mutation_attempted = true;
+		if (!result.error.ok())
+			return FinishLaunchFailure("load_core", info.system,
+				result.observed_core.empty() ? info.declared_core : result.observed_core,
+				result);
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			status_.state = State::running_development;
+			status_.execution = Execution::development;
+			status_.system = info.system;
+			status_.core = result.observed_core;
+			status_.declared_core = info.declared_core;
+			status_.package_id = info.package_id;
+			status_.error = {};
+			busy_ = false;
+		}
+		condition_.notify_all();
+		Log("load_core", info.system, result.observed_core, "running");
+		return {};
+	}
+
 	Error LoadDevelopmentRBF(const std::string& rbf)
 	{
 		LogRecord rejection;
@@ -258,6 +377,7 @@ public:
 	{
 		LogRecord immediate;
 		bool return_immediately = false;
+		std::uint64_t retired_generation = 0;
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
 			if (busy_ || pending_fault_generation_ != 0 || !started_) {
@@ -281,6 +401,7 @@ public:
 			} else {
 				busy_ = true;
 				// Input is being retired even if persistence needs a later retry.
+				retired_generation = active_generation_;
 				active_generation_ = 0;
 			}
 		}
@@ -293,6 +414,7 @@ public:
 			const Error error{ErrorCode::save_failed, saved.message};
 			{
 				std::lock_guard<std::mutex> lock(mutex_);
+				active_generation_ = retired_generation;
 				status_.error = error;
 				busy_ = false;
 			}
@@ -394,7 +516,8 @@ private:
 				if (fault.generation == 0 ||
 					fault.generation != active_generation_ ||
 					fault.generation != pending_fault_generation_ ||
-					status_.state != State::running_game)
+					(status_.state != State::running_game &&
+					 status_.state != State::running_development))
 					continue;
 				busy_ = true;
 				active_generation_ = 0;
@@ -458,6 +581,11 @@ Runtime::~Runtime() = default;
 Error Runtime::Start() { return impl_->Start(); }
 Status Runtime::status() const { return impl_->status(); }
 Error Runtime::LaunchGame(const Launch& launch) { return impl_->LaunchGame(launch); }
+Error Runtime::LoadCore(const std::string& directory,
+	const std::string& expected_package_id)
+{
+	return impl_->LoadCore(directory, expected_package_id);
+}
 Error Runtime::LoadDevelopmentRBF(const std::string& rbf)
 {
 	return impl_->LoadDevelopmentRBF(rbf);

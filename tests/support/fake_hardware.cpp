@@ -8,6 +8,14 @@
 
 namespace mister_test {
 
+namespace {
+class FakeAdmittedCore final : public mister::AdmittedCorePackage {
+public:
+	explicit FakeAdmittedCore(mister::CorePackageInfo info)
+		: AdmittedCorePackage(std::move(info)) {}
+};
+}
+
 FakeHardware::FakeHardware()
 	: idle_result(), launch_result(), development_result(), idle_calls(0),
 	  launch_calls(0), development_calls(0), fault_sink_sets(0),
@@ -24,6 +32,39 @@ void FakeHardware::SetFaultSink(mister::HardwareFaultSink* sink)
 	fault_sink_ = sink;
 	++fault_sink_sets;
 	condition_.notify_all();
+}
+
+mister::Error FakeHardware::AdmitCorePackage(const std::string& directory,
+	const std::string& expected_id,
+	std::unique_ptr<mister::AdmittedCorePackage>* output)
+{
+	std::lock_guard<std::mutex> lock(mutex_);
+	++admission_calls;
+	if (!admission_result.ok()) return admission_result;
+	if (output == nullptr)
+		return {mister::ErrorCode::invalid_request, "missing admitted package output"};
+	mister::CorePackageInfo info = core_info;
+	info.package_id = expected_id;
+	output->reset(new FakeAdmittedCore(std::move(info)));
+	events.push_back("admit:" + directory);
+	return {};
+}
+
+mister::HardwareResult FakeHardware::LoadCore(
+	std::unique_ptr<mister::AdmittedCorePackage> package,
+	std::uint64_t generation)
+{
+	std::lock_guard<std::mutex> lock(mutex_);
+	++core_calls;
+	core_generations.push_back(generation);
+	events.push_back("load_core:" + package->info().package_id);
+	mister::HardwareResult result = core_result;
+	if (result.error.ok()) {
+		result.mutation_attempted = true;
+		if (result.observed_core.empty())
+			result.observed_core = package->info().declared_core;
+	}
+	return result;
 }
 
 mister::HardwareResult FakeHardware::LoadIdle()

@@ -1,0 +1,36 @@
+# toml11 source receipt
+
+This directory vendors the header-only toml11 v3.8.1 parser from commit
+`d4eb5f3c9d8557b3820c80d55c41068839341b27`. The source was copied from the
+prepared read-only checkout supplied for the RBF ABI work. toml11 is licensed
+under the MIT license in `LICENSE`.
+
+SHA-256 digests of the copied upstream files:
+
+```text
+b547d41695cdfbc1d054b5044578e476a0e9d756849f1e0cb3864cfc83e50a9e  LICENSE
+023617ee6e235b759fc1cfc87df974f4b2fa29b876ed188593fd83cee3027f02  include/toml.hpp
+b30dbab4ff8cc4d256f3d448810d52bbe93c5706df0a23818603bed5c7707bfe  include/toml/color.hpp
+f7ae1701d0d457ccfbe4c1c90e1f96cb0fd12fc58c7af56bfa75a706e00c8b44  include/toml/combinator.hpp
+5f136abf464e5cebcd65106bd51e872d22b0220bed197f7b4cd911a0e80c43e9  include/toml/comments.hpp
+10e1064a4e17c9f4865f2fed856f13085e4df07ae755966e2b0ab91b77132585  include/toml/datetime.hpp
+d159b3b5295c2dde002eed570cead2dd67db10ed68029b4cfed01aeddecade48  include/toml/exception.hpp
+12abebe6150df08be34da768a4383a054961e411a05f65267c5d0de03beea0fe  include/toml/from.hpp
+5574a7c0b4dbe2577df537d733c63e9f3b701466be42bece64dacc32624d08ce  include/toml/get.hpp
+4585a517af0d7c6d7d82560c5c5e12cdf95d74d48535f520b83825f6eedd0fa5  include/toml/into.hpp
+94efb48b2830ce67400a52bdcdafcb693cf0c511f2dfebd4a9cea30571434b5a  include/toml/lexer.hpp
+6710d0e31bb52c65840af35cba334d8234f8a672e75c38010db6e38c259d5a4c  include/toml/literal.hpp
+df5802725cc46241e45436bdcab16c9f34a02705d0e49bfaf0b7fe408525d229  include/toml/macros.hpp
+000695be5744ffcddfd9137acf831ba0add55a8759025601816792ad59e303d2  include/toml/parser.hpp
+fa2195b051671211bdc202d22ed9c927003101537d79400e45e44aa776473651  include/toml/region.hpp
+260d6eeb944e073a90880b62acb3392a7a1236f3240fa30263368f6ee98099fa  include/toml/result.hpp
+0c57bfadc8e20d29483ed7b4b8466e26a978cf39ae2dc4cff1a52cddefcf067d  include/toml/serializer.hpp
+44fee38d7718ace0fcdc2e7372f2d886c1a8265853752ccf4dca0a565fbdf165  include/toml/source_location.hpp
+19b1bfe3f06cd1027cebd6351a347f531bcc5273ef9b416bc928572e9cba1ae8  include/toml/storage.hpp
+c9c1feac95b4d8ffa44409de5480f38b0acc6bed05166a808c9545ed1df23a7c  include/toml/string.hpp
+ac064816753665ce8b835c6253b7ee024a8c062f0eaac20fbb3a02d2012d6d7c  include/toml/traits.hpp
+043e446457d838f03b3ad8cc3ae08ee1f7c863373cd96adffbeba550a6902632  include/toml/types.hpp
+e2552d8dd2f34cfa06583353c1467a7d5ed552940e93b215fecb888d1ce3c45d  include/toml/utility.hpp
+17842e402b2d71f90480b459e8893401f93b050764eb79a5d8b4dec6ea99bb9f  include/toml/value.hpp
+bb3632c1ee14e563fbcb343b843a6d09659a959a23ab3928dcbdbdf6e7e0dc40  include/toml/version.hpp
+```

@@ -83,6 +83,11 @@ public:
 class PosixArtifactOpener final : public ArtifactOpener {
 public:
 	Error Open(const std::string&, std::uint64_t, Artifact*) override;
+	Error OpenRelative(int directory_fd, const std::string& directory_path,
+		const std::string& name, std::uint64_t maximum_size, Artifact*);
+private:
+	Error ValidateAndAdopt(int descriptor, const std::string& path,
+		std::uint64_t maximum_size, Artifact*);
 };
 
 Error OpenLaunchArtifacts(const PreparedLaunch&, ArtifactOpener&, ArtifactSet*);

@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "capture_log.hpp"
+#include "fake_mmio.hpp"
 #include "snes_save_spi.hpp"
 #include "linux/production_hardware.hpp"
 #include "native/artifacts.hpp"
 #include "native/core_loader.hpp"
+#include "native/core_package.hpp"
 #include "native/hardware.hpp"
 #include "native/input.hpp"
 #include "native/linux/i2c.hpp"
@@ -22,11 +24,14 @@
 #include <sys/stat.h>
 
 #include <cstdint>
+#include <chrono>
 #include <functional>
+#include <fstream>
 #include <limits>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -91,6 +96,50 @@ std::string BasicNesRom()
 	return bytes;
 }
 
+std::string ReadText(const std::string& path)
+{
+	std::ifstream input(path, std::ios::binary);
+	assert(input.good());
+	return std::string(std::istreambuf_iterator<char>(input),
+		std::istreambuf_iterator<char>());
+}
+
+void PopulateFesGpPackage(TempDirectory* package)
+{
+	package->File("manifest.toml", ReadText(
+		"tests/fixtures/core-bundle-v2/manifests/valid-basic.toml"));
+	package->File("core.rbf", ReadText(
+		"tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+}
+
+void ReplaceAll(std::string* text, const std::string& from,
+	const std::string& to)
+{
+	std::size_t position = 0;
+	while ((position = text->find(from, position)) != std::string::npos) {
+		text->replace(position, from.size(), to);
+		position += to.size();
+	}
+}
+
+void PopulateMisterPackage(TempDirectory* package, bool with_system)
+{
+	std::string manifest = ReadText(
+		"tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+	ReplaceAll(&manifest, "fes-gp-v1", "mister-v1");
+	ReplaceAll(&manifest, "fes.simple-game", "mister");
+	ReplaceAll(&manifest, "required = true", "required = false");
+	if (with_system) {
+		const std::string version = "version = \"0.1.0\"";
+		const std::size_t position = manifest.find(version);
+		assert(position != std::string::npos);
+		manifest.insert(position + version.size(), "\nsystem = \"megadrive\"");
+	}
+	package->File("manifest.toml", manifest);
+	package->File("core.rbf", ReadText(
+		"tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+}
+
 class LedgerLog final : public mister::LogSink {
 public:
 	explicit LedgerLog(std::vector<std::string>& events) : events_(events) {}
@@ -149,9 +198,11 @@ class RecordingFpga final : public mister::native::FpgaManager {
 public:
 	explicit RecordingFpga(std::vector<std::string>& events) : events_(events) {}
 	mister::native::NativeResult Program(const mister::native::Artifact& artifact,
+		mister::native::ProgrammingProfile profile,
 		std::uint64_t deadline) override
 	{
 		events_.push_back("fpga.program");
+		profiles.push_back(profile);
 		programmed.push_back(BaseName(artifact.path()));
 		deadlines.push_back(deadline);
 		++calls;
@@ -165,6 +216,7 @@ public:
 		{mister::ErrorCode::program_failed, "injected program failure"}, true};
 	std::vector<std::string> programmed;
 	std::vector<std::uint64_t> deadlines;
+	std::vector<mister::native::ProgrammingProfile> profiles;
 	std::function<void()> on_program;
 	int calls = 0;
 	int fail_call = 0;
@@ -432,6 +484,7 @@ public:
 		assert(static_cast<bool>(callback_));
 		callback_(generations.back(), std::move(error));
 	}
+	bool HasActiveCallback() const { return static_cast<bool>(callback_); }
 	std::vector<std::string>& events_;
 	mister::Error open_error;
 	mister::Error neutral_error;
@@ -465,20 +518,75 @@ public:
 	std::vector<mister::HardwareFault> faults;
 };
 
+class RecordingDriver final : public mister::native::CoreDriver {
+public:
+	explicit RecordingDriver(std::vector<std::string>& events) : events_(events) {}
+	mister::native::CoreDriverResult Quiesce(
+		const mister::native::CoreDriverContext& context, std::uint64_t) override
+	{
+		events_.push_back("driver.quiesce");
+		quiesce_generations.push_back(context.generation);
+		return quiesce_result;
+	}
+	mister::native::CoreDriverResult Identify(
+		const mister::native::CoreDriverContext& context, std::uint64_t) override
+	{
+		events_.push_back("driver.identify");
+		identify_generations.push_back(context.generation);
+		mister::native::CoreDriverResult result = identify_result;
+		if (result.error.ok() && result.observed_core.empty() &&
+			context.descriptor != nullptr)
+			result.observed_core = context.descriptor->core.id;
+		return result;
+	}
+	mister::native::CoreDriverResult NeutralizeButtons(
+		const mister::native::CoreDriverContext&, std::uint64_t) override
+	{
+		events_.push_back("driver.buttons");
+		return buttons_result;
+	}
+	mister::native::CoreDriverResult Start(
+		const mister::native::CoreDriverContext& context, std::uint64_t) override
+	{
+		events_.push_back("driver.start");
+		start_generations.push_back(context.generation);
+		fault_ = context.report_fault;
+		return start_result;
+	}
+	void Report(std::uint64_t generation, mister::Error error)
+	{
+		assert(static_cast<bool>(fault_));
+		fault_(generation, std::move(error));
+	}
+
+	std::vector<std::string>& events_;
+	mister::native::CoreDriverResult quiesce_result;
+	mister::native::CoreDriverResult identify_result;
+	mister::native::CoreDriverResult buttons_result;
+	mister::native::CoreDriverResult start_result;
+	std::vector<std::uint64_t> quiesce_generations;
+	std::vector<std::uint64_t> identify_generations;
+	std::vector<std::uint64_t> start_generations;
+	std::function<void(std::uint64_t, mister::Error)> fault_;
+};
+
 struct Fixture {
-	Fixture()
+	explicit Fixture(mister::native::CoreDriver* gp_driver = nullptr,
+		const mister::Profiles* profiles = nullptr)
 		: temporary(), events(), idle(temporary.File("idle.rbf", "idle")),
 		  rbf(temporary.File("megadrive.rbf", "game")),
 		  media_two(temporary.File("two.bin", "22")),
 		  media_zero(temporary.File("zero.bin", "0")),
-		  rom(temporary.File("sonic2.bin", "sonic")), opener(events), fpga(events),
+		  rom(temporary.File("sonic2.bin", "sonic")), opener(events), mmio(), fpga(events),
 		  i2c(events), spi(events, i2c), core(spi), idle_video(events), clock(100),
+		  driver(mmio, core, clock),
 		  log(events), game_video(spi, i2c, clock, log,
 			mister::native::Menu720p60Recipe()), input(events, clock),
 		  input_identity({"FogCast Virtual Gamepad", 0x0006, 0x0000, 0x0001,
 			0x0001}), sink(),
 		  hardware(opener, fpga, core, idle_video, game_video, input,
-			input_identity, clock, log, idle, {30000, 10000, 10000})
+			input_identity, clock, log, idle, {30000, 10000, 10000}, driver,
+			gp_driver, profiles)
 	{
 		hardware.SetFaultSink(&sink);
 	}
@@ -511,12 +619,14 @@ struct Fixture {
 	std::string media_zero;
 	std::string rom;
 	RecordingOpener opener;
+	mister_test::FakeMmio mmio;
 	RecordingFpga fpga;
 	RecordingI2c i2c;
 	RecordingSpi spi;
 	mister::native::CoreLoader core;
 	RecordingVideo idle_video;
 	FixedClock clock;
+	mister::native::MisterCoreDriver driver;
 	LedgerLog log;
 	mister::native::FixedVideoBringup game_video;
 	RecordingInput input;
@@ -543,9 +653,20 @@ std::size_t Count(const std::vector<std::string>& values,
 	return count;
 }
 
+bool WaitForState(mister::Runtime& runtime, mister::State state)
+{
+	const auto deadline = std::chrono::steady_clock::now() +
+		std::chrono::seconds(2);
+	do {
+		if (runtime.status().state == state) return true;
+		std::this_thread::yield();
+	} while (std::chrono::steady_clock::now() < deadline);
+	return runtime.status().state == state;
+}
+
 struct IntegratedFixture {
-	IntegratedFixture()
-		: native(), profiles(BuildProfiles(native)),
+	explicit IntegratedFixture(mister::native::CoreDriver* gp_driver = nullptr)
+		: native(gp_driver), profiles(BuildProfiles(native)),
 		  runtime(native.hardware, profiles, native.log) {}
 	static mister::Profiles BuildProfiles(const Fixture& native)
 	{
@@ -633,6 +754,307 @@ void TestLaunchUsesExactCoreRecipeAndExplicitMediaFormatInOrder()
 		Find(fixture.events, "core.reset.release"));
 	assert(Find(fixture.events, "core.reset.release") <
 		Find(fixture.events, "input.start:1"));
+}
+
+void TestFesGpPackageUsesSelectedDriverAndReturnsToMenuThroughThatDriver()
+{
+	std::vector<std::string> driver_events;
+	RecordingDriver gp(driver_events);
+	IntegratedFixture fixture(&gp);
+	fixture.Start();
+	TempDirectory package;
+	PopulateFesGpPackage(&package);
+	bool outgoing_reset_seen = false;
+	fixture.native.fpga.on_program = [&] {
+		if (fixture.native.fpga.calls == 2)
+			outgoing_reset_seen = !fixture.native.mmio.writes.empty() &&
+				driver_events.empty();
+	};
+	const std::string package_id =
+		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0";
+	assert(fixture.runtime.LoadCore(package.path, package_id).ok());
+	assert(outgoing_reset_seen);
+	assert(fixture.native.fpga.profiles.back() ==
+		mister::native::ProgrammingProfile::fes_gp_v1);
+	assert(driver_events == std::vector<std::string>({
+		"driver.identify", "driver.buttons", "driver.start"}));
+	const mister::Status running = fixture.runtime.status();
+	assert(running.state == mister::State::running_development);
+	assert(running.package_id == package_id);
+	assert(running.declared_core == "fes.pong");
+	assert(running.core == "fes.pong");
+	assert(gp.start_generations == std::vector<std::uint64_t>({1}));
+
+	driver_events.clear();
+	fixture.native.fpga.on_program = [&] {
+		if (fixture.native.fpga.calls == 3)
+			assert(driver_events == std::vector<std::string>({"driver.quiesce"}));
+	};
+	assert(fixture.runtime.Stop().ok());
+	assert(fixture.native.fpga.profiles.back() ==
+		mister::native::ProgrammingProfile::mister_v1);
+}
+
+void TestUnknownAndContainedFabricReceiveNoMisterQuiesceWords()
+{
+	Fixture startup;
+	assert(startup.hardware.LoadIdle().error.ok());
+	assert(startup.mmio.writes.empty());
+
+	Fixture contained;
+	assert(contained.hardware.LoadDevelopmentRBF(contained.rbf,
+		mister::native::ProgrammingProfile::development_contained_v1).error.ok());
+	contained.mmio.writes.clear();
+	assert(contained.hardware.LoadIdle().error.ok());
+	assert(contained.mmio.writes.empty());
+}
+
+void TestPackagedMisterIsExplicitDevelopmentAndValidatesDeclaredSystem()
+{
+	mister::Profile profile;
+	profile.system = "megadrive";
+	profile.expected_core = "MegaDrive";
+	profile.rbf = "/cores/megadrive.rbf";
+	profile.core = {0x1111, 0x2222, 0x3333,
+		mister::FileWireFormat::little_endian_byte_pairs};
+	profile.input = {1, 0x02, 0x0008, 0x0004, 0x0002, 0x0001,
+		0x0010, 0x0020, 0x0040, 0x0080};
+	mister::Profiles profiles;
+	assert(profiles.Add(profile).ok());
+	Fixture fixture(nullptr, &profiles);
+	mister::Runtime runtime(fixture.hardware, profiles, fixture.log);
+	assert(runtime.Start().ok());
+	TempDirectory package;
+	PopulateMisterPackage(&package, true);
+	mister::native::OpenedCorePackage inspected;
+	assert(mister::native::OpenCorePackage(package.path, "", &inspected).ok());
+	assert(runtime.LoadCore(package.path, inspected.package_id).ok());
+	const mister::Status status = runtime.status();
+	assert(status.state == mister::State::running_development);
+	assert(status.execution == mister::Execution::development);
+	assert(status.system == "megadrive");
+	assert(status.declared_core == "fes.pong");
+	assert(status.core == "MegaDrive");
+	assert(fixture.input.open_calls == 0);
+	assert(fixture.fpga.profiles.back() ==
+		mister::native::ProgrammingProfile::mister_v1);
+
+	TempDirectory unknown_package;
+	PopulateMisterPackage(&unknown_package, true);
+	std::string manifest = ReadText(unknown_package.path + "/manifest.toml");
+	ReplaceAll(&manifest, "system = \"megadrive\"", "system = \"unknown\"");
+	assert(unlink((unknown_package.path + "/manifest.toml").c_str()) == 0);
+	unknown_package.files.erase(unknown_package.files.begin());
+	unknown_package.File("manifest.toml", manifest);
+	mister::native::OpenedCorePackage unknown_inspection;
+	assert(mister::native::OpenCorePackage(unknown_package.path, "",
+		&unknown_inspection).ok());
+	std::unique_ptr<mister::AdmittedCorePackage> admitted;
+	assert(fixture.hardware.AdmitCorePackage(unknown_package.path,
+		unknown_inspection.package_id, &admitted).code ==
+		mister::ErrorCode::unknown_system);
+	assert(!admitted);
+}
+
+void TestDriverIdentifyStartAndQuiesceFailuresHaveOneRecoveryDecision()
+{
+	const std::string package_id =
+		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0";
+	{
+		std::vector<std::string> events;
+		RecordingDriver gp(events);
+		gp.identify_result.error = {mister::ErrorCode::io_failed,
+			"injected identify failure"};
+		IntegratedFixture fixture(&gp);
+		fixture.Start();
+		TempDirectory package;
+		PopulateFesGpPackage(&package);
+		assert(fixture.runtime.LoadCore(package.path, package_id).code ==
+			mister::ErrorCode::io_failed);
+		assert(fixture.native.fpga.calls == 3);
+		assert(fixture.runtime.status().state == mister::State::idle);
+		assert(Count(events, "driver.identify") == 1);
+		assert(Count(events, "driver.quiesce") == 1);
+	}
+	{
+		std::vector<std::string> events;
+		RecordingDriver gp(events);
+		gp.start_result.error = {mister::ErrorCode::io_failed,
+			"injected start failure"};
+		IntegratedFixture fixture(&gp);
+		fixture.Start();
+		TempDirectory package;
+		PopulateFesGpPackage(&package);
+		assert(fixture.runtime.LoadCore(package.path, package_id).code ==
+			mister::ErrorCode::io_failed);
+		assert(fixture.native.fpga.calls == 3);
+		assert(Count(events, "driver.start") == 1);
+		assert(Count(events, "driver.quiesce") == 1);
+	}
+	{
+		std::vector<std::string> events;
+		RecordingDriver gp(events);
+		IntegratedFixture fixture(&gp);
+		fixture.Start();
+		TempDirectory package;
+		PopulateFesGpPackage(&package);
+		assert(fixture.runtime.LoadCore(package.path, package_id).ok());
+		gp.quiesce_result = {{mister::ErrorCode::io_failed,
+			"injected quiesce failure"}, true, ""};
+		assert(fixture.runtime.Stop().code == mister::ErrorCode::idle_failed);
+		assert(fixture.runtime.status().state == mister::State::reboot_required);
+		assert(fixture.native.fpga.calls == 2);
+		assert(Count(events, "driver.quiesce") == 1);
+	}
+}
+
+void TestRunningGameInputIsRetiredBeforePackageProgramming()
+{
+	std::vector<std::string> driver_events;
+	RecordingDriver gp(driver_events);
+	IntegratedFixture fixture(&gp);
+	fixture.Start();
+	assert(fixture.runtime.LaunchGame(fixture.Request()).ok());
+	assert(fixture.native.input.HasActiveCallback());
+	fixture.native.events.clear();
+	TempDirectory package;
+	PopulateFesGpPackage(&package);
+	fixture.native.fpga.on_program = [&] {
+		if (fixture.native.fpga.calls != 3) return;
+		assert(Find(fixture.native.events, "input.stop") <
+			Find(fixture.native.events, "video.quiesce"));
+		assert(Find(fixture.native.events, "input.final-neutral") <
+			Find(fixture.native.events, "video.quiesce"));
+		assert(!fixture.native.input.HasActiveCallback());
+	};
+	const std::string package_id =
+		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0";
+	assert(fixture.runtime.LoadCore(package.path, package_id).ok());
+	assert(fixture.native.input.stop_calls == 1);
+	assert(!fixture.native.input.HasActiveCallback());
+	assert(fixture.runtime.status().state == mister::State::running_development);
+
+	fixture.native.fpga.on_program = {};
+	assert(fixture.runtime.Stop().ok());
+	assert(fixture.runtime.LaunchGame(fixture.Request()).ok());
+	assert(fixture.native.input.open_calls == 2);
+	assert(fixture.native.input.start_calls == 2);
+	assert(fixture.native.input.generations ==
+		std::vector<std::uint64_t>({1, 3}));
+	assert(fixture.native.input.HasActiveCallback());
+}
+
+void TestPackageReplacementInputStopFailureUsesOneMenuRecovery()
+{
+	std::vector<std::string> driver_events;
+	RecordingDriver gp(driver_events);
+	IntegratedFixture fixture(&gp);
+	fixture.Start();
+	assert(fixture.runtime.LaunchGame(fixture.Request()).ok());
+	fixture.native.input.stop_error = {
+		mister::ErrorCode::io_failed, "injected replacement input stop failure"};
+	TempDirectory package;
+	PopulateFesGpPackage(&package);
+	const mister::Error error = fixture.runtime.LoadCore(package.path,
+		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0");
+	assert(error.code == mister::ErrorCode::io_failed);
+	assert(error.message == "injected replacement input stop failure");
+	assert(fixture.runtime.status().state == mister::State::idle);
+	assert(fixture.native.input.stop_calls == 1);
+	assert(!fixture.native.input.HasActiveCallback());
+	assert(fixture.native.fpga.calls == 3);
+	assert(driver_events.empty());
+	assert(fixture.native.fpga.profiles.back() ==
+		mister::native::ProgrammingProfile::mister_v1);
+}
+
+void TestPackageReplacementQuiesceFailureRespectsMutationBoundary()
+{
+	const std::string package_id =
+		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0";
+	{
+		std::vector<std::string> events;
+		RecordingDriver gp(events);
+		IntegratedFixture fixture(&gp);
+		fixture.Start();
+		TempDirectory package;
+		PopulateFesGpPackage(&package);
+		assert(fixture.runtime.LoadCore(package.path, package_id).ok());
+		events.clear();
+		gp.quiesce_generations.clear();
+		gp.quiesce_result = {{mister::ErrorCode::io_failed,
+			"injected pre-mutation quiesce failure"}, false, ""};
+		const mister::Error error = fixture.runtime.LoadCore(package.path, package_id);
+		assert(error.code == mister::ErrorCode::idle_failed);
+		assert(fixture.runtime.status().state == mister::State::reboot_required);
+		assert(fixture.native.fpga.calls == 2);
+		assert(Count(events, "driver.quiesce") == 2);
+		assert(gp.quiesce_generations ==
+			std::vector<std::uint64_t>({1, 1}));
+		assert(gp.start_generations == std::vector<std::uint64_t>({1}));
+	}
+	{
+		std::vector<std::string> events;
+		RecordingDriver gp(events);
+		IntegratedFixture fixture(&gp);
+		fixture.Start();
+		TempDirectory package;
+		PopulateFesGpPackage(&package);
+		assert(fixture.runtime.LoadCore(package.path, package_id).ok());
+		events.clear();
+		gp.quiesce_generations.clear();
+		gp.quiesce_result = {{mister::ErrorCode::io_failed,
+			"injected ambiguous quiesce failure"}, true, ""};
+		const mister::Error error = fixture.runtime.LoadCore(package.path, package_id);
+		assert(error.code == mister::ErrorCode::io_failed);
+		assert(fixture.runtime.status().state == mister::State::idle);
+		assert(fixture.native.fpga.calls == 3);
+		assert(Count(events, "driver.quiesce") == 1);
+		assert(gp.quiesce_generations == std::vector<std::uint64_t>({1}));
+		assert(gp.start_generations == std::vector<std::uint64_t>({1}));
+		assert(fixture.native.fpga.profiles.back() ==
+			mister::native::ProgrammingProfile::mister_v1);
+	}
+}
+
+void TestMutatingProgramFailureForgetsOutgoingDriverBeforeRecovery()
+{
+	std::vector<std::string> events;
+	RecordingDriver gp(events);
+	IntegratedFixture fixture(&gp);
+	fixture.Start();
+	fixture.native.fpga.fail_call = 2;
+	TempDirectory package;
+	PopulateFesGpPackage(&package);
+	const mister::Error error = fixture.runtime.LoadCore(package.path,
+		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0");
+	assert(error.code == mister::ErrorCode::program_failed);
+	assert(fixture.native.fpga.calls == 3);
+	assert(fixture.native.mmio.writes.size() == 1);
+	assert(events.empty());
+	assert(fixture.runtime.status().state == mister::State::idle);
+}
+
+void TestDriverFaultCallbackRejectsOldPackageGeneration()
+{
+	std::vector<std::string> events;
+	RecordingDriver gp(events);
+	IntegratedFixture fixture(&gp);
+	fixture.Start();
+	TempDirectory package;
+	PopulateFesGpPackage(&package);
+	const std::string package_id =
+		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0";
+	assert(fixture.runtime.LoadCore(package.path, package_id).ok());
+	assert(fixture.runtime.Stop().ok());
+	assert(fixture.runtime.LoadCore(package.path, package_id).ok());
+	assert(gp.start_generations == std::vector<std::uint64_t>({1, 2}));
+	gp.Report(1, {mister::ErrorCode::io_failed, "stale GP input fault"});
+	assert(fixture.runtime.status().state == mister::State::running_development);
+	gp.Report(2, {mister::ErrorCode::io_failed, "active GP input fault"});
+	assert(WaitForState(fixture.runtime, mister::State::idle));
+	assert(fixture.runtime.status().error.message == "active GP input fault");
+	assert(fixture.native.fpga.calls == 5);
 }
 
 void TestEveryCoreTransitionQuiescesHdmiBeforeFpgaProgramming()
@@ -1536,6 +1958,13 @@ void TestProductionConstructionOwnsRealIdleHardware()
 	assert(idle.error.message.find(
 		"/definitely-missing/libmister-runtime/idle.rbf") != std::string::npos);
 	assert(!idle.mutation_attempted);
+	TempDirectory package;
+	PopulateFesGpPackage(&package);
+	std::unique_ptr<mister::AdmittedCorePackage> admitted;
+	assert(hardware->AdmitCorePackage(package.path,
+		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0",
+		&admitted).code == mister::ErrorCode::unsupported_protocol);
+	assert(!admitted);
 }
 
 void TestUnavailableHardwareRemainsFailureOnly()
@@ -1549,6 +1978,9 @@ void TestUnavailableHardwareRemainsFailureOnly()
 	assert(hardware->Launch({}, 1).error.code == mister::ErrorCode::io_failed);
 	assert(hardware->LoadDevelopmentRBF("/x").error.code ==
 		mister::ErrorCode::io_failed);
+	std::unique_ptr<mister::AdmittedCorePackage> package;
+	assert(hardware->AdmitCorePackage("/x", std::string(64, 'a'), &package).code ==
+		mister::ErrorCode::io_failed);
 }
 
 } // namespace
@@ -1559,6 +1991,15 @@ int main()
 	TestEveryCoreTransitionQuiescesHdmiBeforeFpgaProgramming();
 	TestQuiesceFailureStopsBeforeFpgaMutationAndClosesLaunchInput();
 	TestLaunchUsesExactCoreRecipeAndExplicitMediaFormatInOrder();
+	TestFesGpPackageUsesSelectedDriverAndReturnsToMenuThroughThatDriver();
+	TestUnknownAndContainedFabricReceiveNoMisterQuiesceWords();
+	TestPackagedMisterIsExplicitDevelopmentAndValidatesDeclaredSystem();
+	TestDriverIdentifyStartAndQuiesceFailuresHaveOneRecoveryDecision();
+	TestPackageReplacementQuiesceFailureRespectsMutationBoundary();
+	TestRunningGameInputIsRetiredBeforePackageProgramming();
+	TestPackageReplacementInputStopFailureUsesOneMenuRecovery();
+	TestMutatingProgramFailureForgetsOutgoingDriverBeforeRecovery();
+	TestDriverFaultCallbackRejectsOldPackageGeneration();
 	TestLaunchSynchronizesTheProgrammedCoreBeforeAnyCoreIo();
 	TestRuntimeLaunchUsesTheCompleteProductionOrderBeforePublishingRunning();
 	TestAllInputAndArtifactPreflightCompletesBeforeProgramming();
@@ -1588,6 +2029,6 @@ int main()
 	TestNesProductionProfileAndPreflight();
 	TestProductionConstructionOwnsRealIdleHardware();
 	TestUnavailableHardwareRemainsFailureOnly();
-	puts("native_hardware_test: 32 passed");
+	puts("native_hardware_test: 41 passed");
 	return 0;
 }
