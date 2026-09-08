@@ -97,6 +97,35 @@ func skipFailedCarousel(ids []string, failed func(string) bool, index int) int {
 	return stepCarousel(ids, failed, index, 1)
 }
 
+// GameDetail builds focused-title metadata from a catalog row and an optional
+// presentation payload. Catalog title/system/year/genre/favorite are always
+// present; studio, players, summary, attribution, and screenshot_ids come from
+// presentation when that object is present.
+func GameDetail(game Game, p Presentation) FocusDetail {
+	d := FocusDetail{
+		Title:    strings.TrimSpace(game.Title),
+		Platform: strings.TrimSpace(game.System),
+		Year:     strings.TrimSpace(game.Year),
+		Genre:    strings.TrimSpace(game.Genre),
+		Favorite: game.Favorite,
+	}
+	if p.Presentation != nil {
+		info := p.Presentation
+		if year := strings.TrimSpace(info.Year); year != "" {
+			d.Year = year
+		}
+		if genre := strings.TrimSpace(info.Genre); genre != "" {
+			d.Genre = genre
+		}
+		d.Studio = strings.TrimSpace(info.Studio)
+		d.Players = strings.TrimSpace(info.Players)
+		d.Summary = strings.TrimSpace(info.Summary)
+		d.ScreenshotIDs = screenshotHandles(info.ScreenshotIDs)
+	}
+	d.Attribution = strings.TrimSpace(p.AttributionLabel())
+	return d
+}
+
 func (d FocusDetail) studioLine() string {
 	return strings.TrimSpace(d.Studio)
 }

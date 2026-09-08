@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -236,5 +237,68 @@ func TestRunDismissesAttractOnPadAndKeepsFocus(t *testing.T) {
 	}
 	if focusBefore.Load() != focusAfter.Load() {
 		t.Fatalf("focus %d -> %d", focusBefore.Load(), focusAfter.Load())
+	}
+}
+
+type bPressPad struct{ sent atomic.Bool }
+
+func (p *bPressPad) Poll() ([]remoteinput.Event, error) {
+	if p.sent.Load() {
+		return nil, nil
+	}
+	p.sent.Store(true)
+	e, _ := remoteinput.NormalizeGamepad("b", true)
+	return []remoteinput.Event{e}, nil
+}
+func (*bPressPad) Close() error { return nil }
+
+func TestRunFetchesPresentationWhileDetailOpen(t *testing.T) {
+	handle := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v1/session":
+			_, _ = w.Write([]byte(`{"state":"idle"}`))
+		case r.URL.Path == "/api/v1/health":
+			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
+		case r.URL.Path == "/api/v1/platforms":
+			_, _ = w.Write([]byte(`{"platforms":[{"id":"snes","game_count":1}]}`))
+		case r.URL.Path == "/api/v1/games":
+			_, _ = w.Write([]byte(`{"games":[{"id":"mario","title":"Mario","system":"snes","year":"1990","genre":"Action","launchable":true}]}`))
+		case r.URL.Path == "/api/v1/library/attract":
+			_, _ = w.Write([]byte(`{"idle_seconds":60,"items":[]}`))
+		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"game_id": "mario",
+				"state":   "ready",
+				"presentation": map[string]any{
+					"year": "1985", "genre": "Platform", "studio": "Nintendo",
+					"screenshot_ids": []string{handle},
+				},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+	var ready atomic.Bool
+	var gotStudio atomic.Bool
+	_ = Run(ctx, NewClient(Config{API: server.URL}), func(m Model) {
+		if len(m.Games) > 0 {
+			ready.Store(true)
+		}
+		if m.DetailOpen && m.FocusDetail().Studio == "Nintendo" && m.FocusDetail().Year == "1985" {
+			gotStudio.Store(true)
+			cancel()
+		}
+	}, func() (Pad, error) {
+		if !ready.Load() {
+			return nil, errors.New("wait")
+		}
+		return &bPressPad{}, nil
+	})
+	if !gotStudio.Load() {
+		t.Fatal("detail presentation was not applied")
 	}
 }

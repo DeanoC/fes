@@ -87,6 +87,13 @@ func TestCatalogGridNavigationClamps(t *testing.T) {
 	if m.Focus != 24 {
 		t.Fatalf("last-row down clamp %d", m.Focus)
 	}
+	if !m.DetailOpen {
+		t.Fatal("last-row down should open detail")
+	}
+	press("dpad-up")
+	if m.DetailOpen || m.Focus != 24 {
+		t.Fatalf("up closed detail focus=%d open=%v", m.Focus, m.DetailOpen)
+	}
 	press("dpad-up")
 	if m.Focus != 20 {
 		t.Fatalf("up from last row %d", m.Focus)

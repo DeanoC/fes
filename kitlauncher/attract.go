@@ -113,7 +113,7 @@ func (m *Model) hideAttract() {
 }
 
 func (m *Model) attractBlocked() bool {
-	if m.Busy || !m.Connected || !m.TargetReady {
+	if m.Busy || !m.Connected || !m.TargetReady || m.DetailOpen {
 		return true
 	}
 	switch m.Session.State {

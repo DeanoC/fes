@@ -1,0 +1,194 @@
+package kitlauncher
+
+import (
+	"strings"
+	"time"
+
+	"github.com/DeanoC/FogCast/host/tenfoot"
+	"github.com/DeanoC/FogCast/remoteinput"
+)
+
+func (m *Model) focusedGame() (tenfoot.Game, bool) {
+	if m == nil || m.Focus < 0 || m.Focus >= len(m.Games) {
+		return tenfoot.Game{}, false
+	}
+	return m.Games[m.Focus], true
+}
+
+func (m *Model) openDetail(now time.Time) {
+	if _, ok := m.focusedGame(); !ok {
+		return
+	}
+	if m.AttractActive {
+		m.hideAttract()
+	}
+	m.DetailOpen = true
+	m.shotIndex = 0
+	m.noteActivity(now)
+}
+
+func (m *Model) closeDetail() {
+	if !m.DetailOpen {
+		return
+	}
+	m.DetailOpen = false
+	m.shotIndex = 0
+}
+
+func (m *Model) inputDetail(e remoteinput.Event, dx, dy int, now time.Time) string {
+	if !significantPad(e, dx, dy) {
+		return ""
+	}
+	m.noteActivity(now)
+	if e.Kind == remoteinput.KindButton && e.Action == remoteinput.ActionPress {
+		switch e.Code {
+		case remoteinput.ButtonA:
+			if game, ok := m.focusedGame(); ok && game.Launchable {
+				return "launch"
+			}
+			return ""
+		case remoteinput.ButtonB:
+			m.closeDetail()
+			m.noteActivity(now)
+			return ""
+		case remoteinput.ButtonL:
+			m.stepShot(-1)
+			return ""
+		case remoteinput.ButtonR:
+			m.stepShot(1)
+			return ""
+		}
+	}
+	if dx != 0 {
+		m.stepShot(dx)
+		return ""
+	}
+	if dy < 0 {
+		m.closeDetail()
+		m.noteActivity(now)
+	}
+	return ""
+}
+
+// FocusDetail is catalog metadata plus any presentation fetched for the
+// focused title. Platform is the catalog system in living-room case.
+func (m Model) FocusDetail() tenfoot.FocusDetail {
+	game, ok := m.focusedGame()
+	if !ok {
+		return tenfoot.FocusDetail{}
+	}
+	p := tenfoot.Presentation{}
+	if m.presentationID == game.ID {
+		p = m.presentation
+	}
+	d := tenfoot.GameDetail(game, p)
+	if d.Platform != "" {
+		d.Platform = strings.ToUpper(d.Platform)
+	}
+	return d
+}
+
+// ApplyPresentation stores host presentation for the currently focused title.
+func (m *Model) ApplyPresentation(id string, p tenfoot.Presentation) {
+	id = strings.TrimSpace(id)
+	if id == "" || focusedID(m.Games, m.Focus) != id {
+		return
+	}
+	m.presentationID = id
+	m.presentation = p
+	m.clampShot()
+}
+
+func (m *Model) clampShot() {
+	n := len(m.FocusDetail().ScreenshotIDs)
+	if n < 1 {
+		m.shotIndex = 0
+		return
+	}
+	if m.shotIndex < 0 {
+		m.shotIndex = 0
+	}
+	if m.shotIndex >= n {
+		m.shotIndex = n - 1
+	}
+}
+
+func (m *Model) stepShot(delta int) {
+	ids := m.FocusDetail().ScreenshotIDs
+	n := len(ids)
+	if n < 2 || delta == 0 {
+		return
+	}
+	m.shotIndex = (m.shotIndex + delta) % n
+	if m.shotIndex < 0 {
+		m.shotIndex += n
+	}
+}
+
+// ShotIndex is the current screenshot carousel index.
+func (m Model) ShotIndex() int {
+	n := len(m.FocusDetail().ScreenshotIDs)
+	if n < 1 {
+		return 0
+	}
+	if m.shotIndex < 0 {
+		return 0
+	}
+	if m.shotIndex >= n {
+		return n - 1
+	}
+	return m.shotIndex
+}
+
+// ShotHandle is the current screenshot artwork handle, if any.
+func (m Model) ShotHandle() string {
+	ids := m.FocusDetail().ScreenshotIDs
+	if len(ids) == 0 {
+		return ""
+	}
+	return ids[m.ShotIndex()]
+}
+
+// DetailHint is the footer for the title pane.
+func (m Model) DetailHint() string {
+	if len(m.FocusDetail().ScreenshotIDs) > 1 {
+		return "A play | B back | L/R shots"
+	}
+	return "A play | B back"
+}
+
+// FocusCoverHandle is the catalog or presentation cover for the focused title.
+func (m Model) FocusCoverHandle() string {
+	game, ok := m.focusedGame()
+	if !ok {
+		return ""
+	}
+	return tenfoot.CoverHandle(game, m.presentationFor(game.ID))
+}
+
+// DetailPrefetchHandles is the focused cover plus the current screenshot.
+func (m Model) DetailPrefetchHandles() []string {
+	out := make([]string, 0, 2)
+	seen := map[string]struct{}{}
+	add := func(handle string) {
+		handle = strings.TrimSpace(handle)
+		if handle == "" {
+			return
+		}
+		if _, ok := seen[handle]; ok {
+			return
+		}
+		seen[handle] = struct{}{}
+		out = append(out, handle)
+	}
+	add(m.FocusCoverHandle())
+	add(m.ShotHandle())
+	return out
+}
+
+func (m Model) presentationFor(id string) tenfoot.Presentation {
+	if m.presentationID == id {
+		return m.presentation
+	}
+	return tenfoot.Presentation{}
+}

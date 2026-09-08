@@ -41,6 +41,7 @@ func run() error {
 	selftestText := flag.Bool("selftest-text", false, "paint UI-face chrome and prove it is not DebugText, then exit")
 	selftestCover := flag.Bool("selftest-cover", false, "paint cover decode, placeholder, and chrome polish, then exit")
 	selftestAttract := flag.Bool("selftest-attract", false, "arm short idle stills attract, paint a still, dismiss, then exit")
+	selftestDetail := flag.Bool("selftest-detail", false, "open/close title detail, paint cover and title ink, then exit")
 	flag.Parse()
 	if *selftestFPGA {
 		fb := "/dev/fb0"
@@ -63,7 +64,7 @@ func run() error {
 		}
 		return runThemeSelftest(fb)
 	}
-	if *selftestNav || *selftestShelf || *selftestText || *selftestCover || *selftestAttract {
+	if *selftestNav || *selftestShelf || *selftestText || *selftestCover || *selftestAttract || *selftestDetail {
 		fb := "/dev/fb0"
 		configTheme := ""
 		if c, err := kitlauncher.LoadConfig(*configPath); err == nil {
@@ -75,6 +76,9 @@ func run() error {
 		th, err := loadKitTheme(*themeSpec, configTheme)
 		if err != nil {
 			return err
+		}
+		if *selftestDetail {
+			return runDetailSelftest(fb, th)
 		}
 		if *selftestAttract {
 			return runAttractSelftest(fb, th)
@@ -139,6 +143,9 @@ func run() error {
 			prefetch = len(m.Games)
 		}
 		handles := tenfoot.PageHandles(m.Games, start, prefetch)
+		if m.DetailOpen {
+			handles = append(handles, m.DetailPrefetchHandles()...)
+		}
 		covers.Keep(handles)
 		covers.Request(ctx, client.Library, handles)
 		key := modelRenderKey(m, covers.Generation())
@@ -149,6 +156,11 @@ func run() error {
 		lastKey = key
 		cfg := d.Config()
 		w, h := cfg.Width, cfg.Height
+		if m.DetailOpen {
+			fbgrid.PaintDetail(d, modelDetailFrame(m, covers, th, w, h))
+			d.Present()
+			return
+		}
 		grid := modelGrid(m, w, h, covers, th)
 		fbgrid.Paint(d, grid)
 		d.Present()
@@ -187,11 +199,11 @@ func loadKitRemapper(flagSpec, configSpec string) (*inputmap.Remapper, error) {
 }
 
 type renderKey struct {
-	Focus, GameCount, AttractIndex, AttractFade       int
+	Focus, GameCount, AttractIndex, AttractFade, Shot int
 	FocusID, Message, Shelf, AttractHandle            string
 	SessionState, Execution, GameID                   string
 	Busy, Connected, TargetReady, ControllerConnected bool
-	Attract                                           bool
+	Attract, Detail                                   bool
 	Covers, Stills                                    uint64
 }
 
@@ -205,6 +217,7 @@ func modelRenderKey(m kitlauncher.Model, covers uint64) renderKey {
 		Message: m.Message, Shelf: m.Shelf, SessionState: m.Session.State, Execution: m.Session.Execution,
 		GameID: m.Session.GameID, Busy: m.Busy, Connected: m.Connected,
 		TargetReady: m.TargetReady, ControllerConnected: m.ControllerConnected,
+		Detail: m.DetailOpen, Shot: m.ShotIndex(),
 		Covers: covers,
 	}
 }
@@ -242,6 +255,76 @@ func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCach
 	}
 	g.Footer = modelFooter(m)
 	return g
+}
+
+func modelDetailFrame(m kitlauncher.Model, covers *tenfoot.CoverCache, th theme.Theme, width, height int) fbgrid.DetailFrame {
+	detail := m.FocusDetail()
+	title := asciiLabel(detail.Title)
+	if title == "" {
+		title = "UNTITLED"
+	}
+	frame := fbgrid.DetailFrame{
+		Width:  width,
+		Height: height,
+		Header: truncateLabel(asciiLabel(m.HeaderChrome()), 36),
+		Title:  title,
+		Meta:   asciiLabel(detail.MetaFacts()),
+		Hint:   asciiLabel(detailFooter(m)),
+		Theme:  th,
+		Color:  th.SystemColor(detail.Platform),
+	}
+	if game, ok := focusedGame(m); ok {
+		frame.Color = th.SystemColor(game.System)
+		handle := m.FocusCoverHandle()
+		if handle != "" && covers != nil {
+			frame.Cover = covers.Image(handle)
+			switch covers.Status(handle) {
+			case tenfoot.CoverReady:
+				frame.CoverKind = fbgrid.CoverPresent
+			case tenfoot.CoverLoading:
+				frame.CoverKind = fbgrid.CoverLoading
+			default:
+				frame.CoverKind = fbgrid.CoverMissing
+			}
+		} else {
+			frame.CoverKind = fbgrid.CoverMissing
+		}
+	}
+	if shot := m.ShotHandle(); shot != "" {
+		n := len(detail.ScreenshotIDs)
+		frame.ShotCaption = asciiLabel(shotCaption(m.ShotIndex(), n))
+		if covers != nil {
+			frame.Shot = covers.Image(shot)
+		}
+	}
+	return frame
+}
+
+func detailFooter(m kitlauncher.Model) string {
+	if msg := strings.TrimSpace(m.Message); msg != "" {
+		return msg
+	}
+	return m.DetailHint()
+}
+
+func focusedGame(m kitlauncher.Model) (tenfoot.Game, bool) {
+	if m.Focus < 0 || m.Focus >= len(m.Games) {
+		return tenfoot.Game{}, false
+	}
+	return m.Games[m.Focus], true
+}
+
+func shotCaption(index, count int) string {
+	if count < 1 {
+		return ""
+	}
+	if index < 0 {
+		index = 0
+	}
+	if index >= count {
+		index = count - 1
+	}
+	return fmt.Sprintf("%d / %d", index+1, count)
 }
 
 func attractFrame(view kitlauncher.AttractView, stills *tenfoot.CoverCache, th theme.Theme, width, height int) fbgrid.AttractFrame {
@@ -313,7 +396,7 @@ func modelFooter(m kitlauncher.Model) string {
 		case m.Session.State == "active":
 			status = "Select+Start stop"
 		default:
-			status = "A play | L/R shelf"
+			status = "A play | B detail | L/R shelf"
 		}
 	}
 	return truncateLabel(asciiLabel(status), 36)

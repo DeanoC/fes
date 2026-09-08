@@ -71,7 +71,21 @@ picker in this slice. The catalog, input, and launch path stay the same. There i
 on-screen theme picker in this slice.
 
 The grid uses the D-pad and left stick in two dimensions to select, Shoulder L/R
-(or Select) to cycle system shelves, and A to launch. Shelves are `All` plus
+(or Select) to cycle system shelves, and A to launch. East/B opens a focused
+title pane (large cover from CoverCache/DecodeCover, title at the theme title
+role, meta from catalog year/genre plus presentation studio/players when the
+host `GET /api/v1/presentation/games/{id}` succeeds). Down that cannot move
+focus further (last catalog row, including analog down) also opens the pane.
+A stays launch on the grid and is not used to enter the pane. The pane closes
+on East/B or Up and restores the same shelf and focus. A on the pane launches
+the focused title through the same session path as the grid. Shoulder L/R and
+D-pad L/R cycle presentation `screenshot_ids` when two or more handles are
+present; otherwise those controls do nothing in the pane (shelf cycling stays
+on the grid). Attract does not arm while the pane is open; opening it notes
+activity so idle does not fire underneath. Missing cover art uses the same
+placeholder path as the grid. The idle footer hint is
+`A play | B detail | L/R shelf`; the pane footer is `A play | B back`
+(or `A play | B back | L/R shots` when screenshots can cycle). Shelves are `All` plus
 each system present in the loaded catalog. Changing shelf filters the 4×3 page
 and keeps focus when that game is still visible; otherwise focus lands on the
 first launchable title. The last shelf is stored in `launcher.json` when that
@@ -84,8 +98,7 @@ native play, events flow through the authenticated host stream into the existing
 leased virtual pad. Hold Select + Start together for one second to request
 ordinary Stop; both must release before rearming. Individual Start and Select
 remain game controls while a session can stop; B does not stop gameplay.
-Stop/save errors retain the retry operation. The idle footer hint is
-`A play | L/R shelf`. After the host `idle_seconds` from
+Stop/save errors retain the retry operation. After the host `idle_seconds` from
 `GET /api/v1/library/attract` (default 60s; 1s is allowed) with no pad input,
 no busy/session transition, and a ready host, the kit leaves the grid for a
 stills attract: backdrop, then cover, then marquee, decoded with `DecodeStill`
@@ -116,7 +129,8 @@ the cover cell; Software Draw stays nearest), and aspect-fits the RGBA into the
 cell over theme-tinted letterbox bars. Missing or failed art paints a
 theme-tinted placeholder with a lettermark; still-loading art uses a distinct
 panel without a letter. Fetching is asynchronous and does not block the present
-loop. After idle, attract stills use the same artwork GET with `DecodeStill`
+loop. The title pane paints the focused cover (and current screenshot, when
+present) through the same cache. After idle, attract stills use the same artwork GET with `DecodeStill`
 (Catmull–Rom to a 720p-class stage) and `fbgrid.PaintAttract`. Empty playlists
 paint a themed idle panel instead of hanging on the grid.
 
@@ -137,7 +151,10 @@ decodes a cover, paints missing and loading placeholders, samples the art and
 panel pixels, and re-runs text (which re-runs nav plus shelf). `fogcast-kit -selftest-attract`
 arms a short idle, paints a decoded still plus an empty idle panel, dismisses on
 pad input with shelf and focus unchanged, and re-runs cover (which re-runs text,
-nav, and shelf). `fogcast-kit -selftest-fpga` records a timed attract still/crossfade
+nav, and shelf). `fogcast-kit -selftest-detail` opens and closes the title pane
+(East/B, last-row Down, Up), paints a large cover plus title ink at `TitlePx`,
+launches from the pane, holds attract while open, and re-runs attract (which
+re-runs cover, text, nav, and shelf). `fogcast-kit -selftest-fpga` records a timed attract still/crossfade
 and sprite move through `gfx.NewFPGA` (FC2D software-replay, `IsStub` true,
 `HW=not-yet`) and, when `/dev/fb0` opens, Replays the stream onto linuxfb.
 It does not claim a programmed 2D core. `fogcast-kit -selftest-pads` opens every
