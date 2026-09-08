@@ -79,6 +79,24 @@ def m10k_init_word(address: int, width: int) -> int:
     return low
 
 
+def m10k_mixed_lane(address: int) -> int:
+    """Return the closed mixed-width 10-bit power-up lane at *address*."""
+
+    return ((int(address) * 73) ^ (int(address) >> 1) ^ 0xA6) & 0x3FF
+
+
+def m10k_mixed_abits(dbits: int) -> int:
+    """Return CFG_ABITS / CFG_RD_ABITS for a 10-, 20- or 40-bit mixed-width port."""
+
+    if dbits == 10:
+        return 10
+    if dbits == 20:
+        return 9
+    if dbits == 40:
+        return 8
+    raise PolicyError(f"unsupported mixed-width M10K port {dbits}")
+
+
 class PolicyError(ValueError):
     """Raised when an experiment or its evidence violates the closed policy."""
 
@@ -159,6 +177,9 @@ class ExperimentPolicy:
     synth_json_mlab_init: bool = False
     m10k_byte_enable: bool = False
     m10k_dual_clock_width: int = 0
+    m10k_mixed_write_dbits: int = 0
+    m10k_mixed_read_dbits: int = 0
+    nextpnr_router: str = ""
     require_read_clock_arc: bool = False
 
     def __post_init__(self) -> None:
@@ -199,6 +220,19 @@ class ExperimentPolicy:
                 raise PolicyError(f"{self.name}: {flag_name} must be a boolean")
         if self.m10k_dual_clock_width not in (0, 20, 40):
             raise PolicyError(f"{self.name}: m10k_dual_clock_width must be 0, 20, or 40")
+        mixed_ports = (self.m10k_mixed_write_dbits, self.m10k_mixed_read_dbits)
+        if mixed_ports == (0, 0):
+            pass
+        elif mixed_ports[0] in (10, 20, 40) and mixed_ports[1] in (10, 20, 40) and mixed_ports[0] != mixed_ports[1]:
+            pass
+        else:
+            raise PolicyError(
+                f"{self.name}: mixed-width ports must be an unequal pair of 10, 20, or 40 bits"
+            )
+        if self.m10k_mixed_write_dbits and (self.m10k_byte_enable or self.m10k_dual_clock_width):
+            raise PolicyError(f"{self.name}: mixed-width M10K cannot combine byte-enable or equal-width dual-clock policy")
+        if self.nextpnr_router not in ("", "router1"):
+            raise PolicyError(f"{self.name}: nextpnr_router must be empty or router1")
         if not isinstance(self.yosys_post_synth, str) or "\n" in self.yosys_post_synth:
             raise PolicyError(f"{self.name}: yosys_post_synth must be a single-line string")
         jobs = tuple(self.sim_jobs)
@@ -523,6 +557,8 @@ class ExperimentPolicy:
             self._require_m10k_byte_enable(design)
         if self.m10k_dual_clock_width:
             self._require_m10k_dual_clock(design)
+        if self.m10k_mixed_write_dbits:
+            self._require_m10k_mixed_width(design)
 
     def _mlab_init_cells(self, design: Mapping[str, Any]) -> dict[int, dict[str, Any]]:
         modules = design.get("modules")
@@ -670,6 +706,71 @@ class ExperimentPolicy:
             if actual != expected:
                 raise PolicyError(
                     f"M10K INIT address {address} must be {expected:#x}, got {actual:#x}"
+                )
+
+    def _require_m10k_mixed_width(self, design: Mapping[str, Any]) -> None:
+        write_bits = self.m10k_mixed_write_dbits
+        read_bits = self.m10k_mixed_read_dbits
+        cells = self._m10k_cells(design)
+        if len(cells) != 1:
+            raise PolicyError(f"synth json must contain exactly one MISTRAL_M10K, got {len(cells)}")
+        cell = cells[0]
+        parameters = cell.get("parameters")
+        connections = cell.get("connections")
+        if not isinstance(parameters, Mapping) or not isinstance(connections, Mapping):
+            raise PolicyError("M10K cell is missing parameters or connections")
+        if json_bit_parameter(parameters.get("CFG_MIXED_WIDTH")) != 1:
+            raise PolicyError(
+                f"M10K CFG_MIXED_WIDTH must be 1, got {parameters.get('CFG_MIXED_WIDTH')!r}"
+            )
+        if json_bit_parameter(parameters.get("CFG_DUAL_CLOCK")) != 1:
+            raise PolicyError(
+                f"M10K CFG_DUAL_CLOCK must be 1, got {parameters.get('CFG_DUAL_CLOCK')!r}"
+            )
+        byte_enable = json_bit_parameter(parameters.get("CFG_BYTE_ENABLE"))
+        if byte_enable not in (None, 0):
+            raise PolicyError(
+                f"M10K CFG_BYTE_ENABLE must be omitted or 0, got {parameters.get('CFG_BYTE_ENABLE')!r}"
+            )
+        if json_bit_parameter(parameters.get("CFG_DBITS")) != write_bits:
+            raise PolicyError(f"M10K CFG_DBITS must be {write_bits}, got {parameters.get('CFG_DBITS')!r}")
+        if json_bit_parameter(parameters.get("CFG_RD_DBITS")) != read_bits:
+            raise PolicyError(
+                f"M10K CFG_RD_DBITS must be {read_bits}, got {parameters.get('CFG_RD_DBITS')!r}"
+            )
+        expected_abits = m10k_mixed_abits(write_bits)
+        expected_rd_abits = m10k_mixed_abits(read_bits)
+        if json_bit_parameter(parameters.get("CFG_ABITS")) != expected_abits:
+            raise PolicyError(
+                f"M10K CFG_ABITS must be {expected_abits}, got {parameters.get('CFG_ABITS')!r}"
+            )
+        if json_bit_parameter(parameters.get("CFG_RD_ABITS")) != expected_rd_abits:
+            raise PolicyError(
+                f"M10K CFG_RD_ABITS must be {expected_rd_abits}, got {parameters.get('CFG_RD_ABITS')!r}"
+            )
+        clk1 = connections.get("CLK1")
+        clk2 = connections.get("CLK2")
+        if not isinstance(clk1, list) or not clk1:
+            raise PolicyError("M10K CLK1 must be connected")
+        if not isinstance(clk2, list) or not clk2:
+            raise PolicyError("M10K CLK2 must be connected")
+        if clk1 == clk2:
+            raise PolicyError("M10K CLK1 and CLK2 must be independent")
+        write_data = connections.get("A1DATA")
+        read_data = connections.get("B1DATA")
+        if not isinstance(write_data, list) or len(write_data) != write_bits:
+            raise PolicyError(f"M10K A1DATA must be {write_bits} bits")
+        if not isinstance(read_data, list) or len(read_data) != read_bits:
+            raise PolicyError(f"M10K B1DATA must be {read_bits} bits")
+        init = json_bit_parameter(parameters.get("INIT"))
+        if init is None:
+            raise PolicyError("M10K INIT is missing")
+        for address in (0, 1, 2, 7, 15, 31, 63, 127, 255, 512, 1023):
+            actual = (init >> (address * 10)) & 0x3FF
+            expected = m10k_mixed_lane(address)
+            if actual != expected:
+                raise PolicyError(
+                    f"M10K INIT lane {address} must be {expected:#x}, got {actual:#x}"
                 )
 
     def validate_timing_report(self, timing: Mapping[str, Any]) -> None:
@@ -885,6 +986,15 @@ class ExperimentPolicy:
             **({"m10k_byte_enable": True} if self.m10k_byte_enable else {}),
             **({"m10k_dual_clock_width": self.m10k_dual_clock_width}
                if self.m10k_dual_clock_width else {}),
+            **(
+                {
+                    "m10k_mixed_write_dbits": self.m10k_mixed_write_dbits,
+                    "m10k_mixed_read_dbits": self.m10k_mixed_read_dbits,
+                }
+                if self.m10k_mixed_write_dbits
+                else {}
+            ),
+            **({"nextpnr_router": self.nextpnr_router} if self.nextpnr_router else {}),
             **({"require_read_clock_arc": True} if self.require_read_clock_arc else {}),
         }
 
@@ -3064,6 +3174,118 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                 ),
             ),
         ),
+        "510_m10k_mix40r10": ExperimentPolicy(
+            name="510_m10k_mix40r10",
+            sources=("experiments/510_m10k_mix40r10/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"PLL", "M10K", "RAM"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            required_synth_cells={
+                "MISTRAL_M10K": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            nobram=False,
+            m10k_mixed_write_dbits=40,
+            m10k_mixed_read_dbits=10,
+            nextpnr_router="router1",
+            require_read_clock_arc=True,
+            synth_json_input_ports={"MISTRAL_M10K": ("CLK1", "CLK2", "A1EN", "B1EN")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/510_m10k_mix40r10/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/360_pll_clkena/sim/pll_model.v",
+                        "experiments/360_pll_clkena/sim/clkena_model.v",
+                    ),
+                    tb="experiments/510_m10k_mix40r10/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "520_m10k_mix10r40": ExperimentPolicy(
+            name="520_m10k_mix10r40",
+            sources=("experiments/520_m10k_mix10r40/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"PLL", "M10K", "RAM"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            required_synth_cells={
+                "MISTRAL_M10K": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            nobram=False,
+            m10k_mixed_write_dbits=10,
+            m10k_mixed_read_dbits=40,
+            nextpnr_router="router1",
+            require_read_clock_arc=True,
+            synth_json_input_ports={"MISTRAL_M10K": ("CLK1", "CLK2", "A1EN", "B1EN")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/520_m10k_mix10r40/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/360_pll_clkena/sim/pll_model.v",
+                        "experiments/360_pll_clkena/sim/clkena_model.v",
+                    ),
+                    tb="experiments/520_m10k_mix10r40/sim/tb.cpp",
+                ),
+            ),
+        ),
     }
 )
 
@@ -3145,6 +3367,7 @@ def _shell_lines(policy: ExperimentPolicy) -> str:
         f"nolutram={1 if policy.nolutram else 0}",
         f"nodsp={1 if policy.nodsp else 0}",
         f"yosys_post_synth={policy.yosys_post_synth}",
+        f"nextpnr_router={policy.nextpnr_router}",
         "allowed_hard_blocks=" + json.dumps(dict(policy.allowed_hard_blocks), sort_keys=True, separators=(",", ":")),
     ]
     return "\n".join(lines) + "\n"

@@ -38,6 +38,10 @@ development possible with both the open-source Mistral toolchain and Quartus.
   addend, and DSP input/output registers.
 - Cyclone V MLAB power-up contents through a numeric `INIT` on each
   `MISTRAL_MLAB` lane. Yosys infers those parameters from initialized RTL.
+- Cyclone V mixed-width M10K simple dual-port RAM through
+  `ram_style="m10k_mixed"`: independent 10/20/40-bit write and read ports on
+  one block, including 40↔10. Place-and-route uses router1 for those
+  experiments.
 - Checked fractional-N PLL profiles when `fractional_vco_multiplier` is
   `"true"`: 50 MHz → 12.288 MHz, 50 MHz → 11.2896 MHz, and the dual
   12.288/24.576 MHz pair.
@@ -185,6 +189,13 @@ development possible with both the open-source Mistral toolchain and Quartus.
   writable 10-bit lanes, a 50 MHz write clock, and a gated 25 MHz read clock.
   Run `make sim EXP=500_m10k_be20` and `make oss EXP=500_m10k_be20`; no Quartus
   comparison lane is implemented.
+- `510_m10k_mix40r10`, a mixed-width M10K table on HPS GP with 256-by-40 writes
+  and 1024-by-10 reads. Address 0 reads `0xA6` after configuration. Run
+  `make sim EXP=510_m10k_mix40r10` and `make oss EXP=510_m10k_mix40r10`; no
+  Quartus comparison lane is implemented.
+- `520_m10k_mix10r40`, the reverse mixed-width table: 1024-by-10 writes and
+  256-by-40 reads. Run `make sim EXP=520_m10k_mix10r40` and
+  `make oss EXP=520_m10k_mix10r40`; no Quartus comparison lane is implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under

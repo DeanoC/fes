@@ -145,15 +145,16 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current Yosys pin `4722ee98b2d658adc82504112573a712d40dacf1` is
-`mistral-stable` including merged PR #3: Intel ALM infers Cyclone V 512x20 M10K byte
-enables as two 10-bit write lanes (`CFG_BYTE_ENABLE=1`, `A1BE[1:0]`), including
-merged PR #2 independent CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake
-base is YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair it with
-nextpnr `71d2ffdb`.
+The current Yosys pin `acdebf05aa6fa8a21cd1aeb7a412422b11764a18` is
+`mistral-stable` including merged PR #4: Intel ALM infers mixed-width Cyclone V M10K
+simple dual-port RAM through `ram_style="m10k_mixed"` (`CFG_MIXED_WIDTH=1`,
+independent `CFG_RD_ABITS`/`CFG_RD_DBITS`), including merged PR #3 20-bit byte
+enables, merged PR #2 independent CLK1/CLK2 and merged PR #1 initialized MLAB.
+The CMake base is YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair it
+with nextpnr `131f880a`.
 
-The current nextpnr pin `71d2ffdbdf669475d6596352990f4d22d90a9092` is
-`mistral-stable` including merged PR #33 20-bit M10K byte-enable packing on merged PR #32 dual-clock M10K, merged PR #31 MLAB INIT and merged PR #30 DSP modes: three-lane 9×9 packing (336 logical `MISTRAL_MUL9X9` BELs on 112
+The current nextpnr pin `131f880a856ee7f4b9b6379aa9b2c3e7fb001fe5` is
+`mistral-stable` including merged PR #34 mixed-width M10K packing on merged PR #33 20-bit M10K byte-enable packing, merged PR #32 dual-clock M10K, merged PR #31 MLAB INIT and merged PR #30 DSP modes: three-lane 9×9 packing (336 logical `MISTRAL_MUL9X9` BELs on 112
 physical DSP blocks, RESULT `0:17` / `18:35` / `37:54` with a one-bit gap at
 `RESULT.36`), `M18X18P36`, `M27X27`, M9 preadder subtract, M18 36-bit C addend
 mapped on BX groups `{8,9,6,7}`, and DSP input/output registers. Each
@@ -186,7 +187,7 @@ while reset, then 1638–1639 / 3276–3277 / 8192 after relock. Their reference
 output Fmax values were 216.732 / 326.584 MHz against 50 MHz and the selected
 output constraint. Host pair regressions cover 25/40, 40/25, 20/100, 40/64,
 80/80 and 1/1 MHz. Artifact hashes and reproduction commands are in the
-[nextpnr PLL test documentation](https://github.com/DeanoC/nextpnr/blob/71d2ffdbdf669475d6596352990f4d22d90a9092/mistral/tests/pll/README.md).
+[nextpnr PLL test documentation](https://github.com/DeanoC/nextpnr/blob/131f880a856ee7f4b9b6379aa9b2c3e7fb001fe5/mistral/tests/pll/README.md).
 
 `120_pll_dsp` runs the eight-by-eight unsigned DSP product on the proven
 50-to-25 MHz PLL output. Linux peeks and pokes GPO/GPI on the 50 MHz
@@ -812,13 +813,45 @@ reads, independent low and high 10-bit lane writes, a zero mask that left
 both lanes unchanged, and a full write while the 25 MHz read clock was
 stopped.
 
+`510_m10k_mix40r10` exposes a mixed-width M10K table on HPS GP: 256-by-40
+writes and 1024-by-10 reads. Writes use `FPGA_CLK1_50`. Reads use a 25 MHz
+PLL output gated by `cyclonev_clkena`. GPI signature `0xD41B`. Each 10-bit
+lane `a` starts as `((a * 73) ^ (a >> 1) ^ 10'hA6)`. Yosys maps one
+`MISTRAL_M10K` with `CFG_MIXED_WIDTH=1`, write `CFG_DBITS=40` and read
+`CFG_RD_DBITS=10`. Place-and-route uses router1. DSP and MLAB remain
+forbidden. Simulation and OSS are supported; Quartus comparison is not
+implemented. See `experiments/510_m10k_mix40r10/expected.md`.
+
+The OSS `510_m10k_mix40r10` artifact has SHA-256
+`74f55f5309d4377b7271f78c5c5666360b858693f55b22205f4c8af80ffcb3a1`
+and size 1,957,964 bytes. Its reported write-clock Fmax is 523.560 MHz against
+the 50 MHz constraint. Utilization is one `MISTRAL_M10K`, one `altera_pll`,
+and one HPS GP. Exact-artifact kit diagnostics on 2026-09-08 returned GPI
+signature `0xD41B` with address 0 equal to `0xA6`, initialized 10-bit lanes,
+a 40-bit write of four lanes in address order while the read clock was
+stopped, an unchanged neighbor, and read-enable hold.
+
+`520_m10k_mix10r40` is the reverse mixed-width table: 1024-by-10 writes and
+256-by-40 reads. GPI signature `0xD41C`. Simulation and OSS are supported;
+Quartus comparison is not implemented. See
+`experiments/520_m10k_mix10r40/expected.md`.
+
+The OSS `520_m10k_mix10r40` artifact has SHA-256
+`2db1e33d7c1dd227e2a40f4c505936680bef01542fb9c5a462b1fd4cc23ef2fb`
+and size 1,958,633 bytes. Its reported write-clock Fmax is 632.911 MHz against
+the 50 MHz constraint. Utilization is one `MISTRAL_M10K`, one `altera_pll`,
+and one HPS GP. Exact-artifact kit diagnostics on 2026-09-08 returned GPI
+signature `0xD41C` with address 0 equal to `0xA6`, initialized 40-bit words,
+a 10-bit write of one lane while the read clock was stopped, an unchanged
+neighbor, and read-enable hold.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
 M18 `A*B+C`, registered M18 with omitted enable/ACLR, initialized MLAB
-contents, independent-clock 20-bit and 40-bit M10K simple dual-port RAM, and
-20-bit M10K byte-enable lanes with independent clocks. It does not establish
-native game acceptance.
+contents, independent-clock 20-bit and 40-bit M10K simple dual-port RAM,
+20-bit M10K byte-enable lanes with independent clocks, and mixed-width 40↔10
+M10K simple dual-port RAM. It does not establish native game acceptance.
 
 ## Standalone Pong game
 
