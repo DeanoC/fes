@@ -490,7 +490,10 @@ checks in FES. Its 4,440,332-byte RBF SHA-256 is
 `fdd6d3c51cf3662cb59c5250eee8d4aa48fdab14a272c756fb892677d5ff1226`.
 The diagnostic changed only the staged QSF seed; the normal rebuild recipe
 now explicitly selects seed 3; the frozen diagnostic is still separate from
-a new normal build and its acceptance. Bundle export accepts all three systems.
+a new normal build and its acceptance. Bundle export accepts Mega Drive, SNES,
+Pong and the native NES cartridge slice. NES uses the locked upstream `NES.qpf`
+project and the generic rebuild recipe; its source and release RBF are verified
+here, while timing and hardware acceptance remain a separate step.
 
 `cores.lock` is the upstream version pin: git identity plus the official
 release RBF hash. `make fetch-core` checks out that exact commit under
@@ -542,13 +545,14 @@ transition. See the README's shared-kit commands. Direct `make program` remains
 a maintenance bypass outside this protection, and compilation never acquires a
 lease.
 
-## Bundle validation for Pong and SNES
+## Bundle validation for Pong, SNES and NES
 
-The same eleven-field format-1 manifest serves all three systems. SNES identifies
-its pinned upstream repository/revision and `scripts/rebuild_core.py`. Pong
-identifies `https://github.com/DeanoC/misteross`, the clean checkout's exact HEAD,
-and `scripts/build_pong.py`; its build input record binds every local RTL/helper
-hash and the pinned framework. Export rechecks those hashes before publication.
+The same eleven-field format-1 manifest serves all four systems. SNES and NES
+identify their pinned upstream repository/revision and
+`scripts/rebuild_core.py`. Pong identifies `https://github.com/DeanoC/misteross`,
+the clean checkout's exact HEAD, and `scripts/build_pong.py`; its build input
+record binds every local RTL/helper hash and the pinned framework. Export
+rechecks those hashes before publication.
 
 SNES's normal recipe selects fitter seed 3 in the staged QSF only. SNES and
 Pong builds require finite, nonnegative slack and TNS for every listed result,

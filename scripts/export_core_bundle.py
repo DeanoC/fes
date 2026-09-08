@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export a sealed, content-addressed Mega Drive, SNES or Pong RBF bundle."""
+"""Export a sealed, content-addressed native RBF bundle."""
 
 from __future__ import annotations
 
@@ -106,7 +106,7 @@ def encode_manifest(value: BundleManifest) -> bytes:
             raise BundleExportError(f"{field} must be 64 lowercase hexadecimal characters")
     if not isinstance(value.size, int) or isinstance(value.size, bool) or value.size <= 0:
         raise BundleExportError("size must be a positive integer")
-    if value.abi != ABI or value.system not in ("megadrive", "snes", "pong") or value.artifact != value.system + ".rbf":
+    if value.abi != ABI or value.system not in ("megadrive", "snes", "nes", "pong") or value.artifact != value.system + ".rbf":
         raise BundleExportError("manifest ABI, system, and artifact are fixed")
     if value.recipe != ("scripts/build_pong.py" if value.system == "pong" else RECIPE):
         raise BundleExportError("manifest recipe is fixed")
@@ -280,7 +280,11 @@ def _reuse_existing(final: Path, snapshot: bytes, manifest: bytes, artifact_name
 def export_bundle(pin: CorePin, root: Path) -> Path:
     """Validate a pinned upstream core rebuild and export its sealed digest bundle."""
 
-    identities = {CORE: (UPSTREAM_REPOSITORY, UPSTREAM_REVISION), "snes": ("https://github.com/MiSTer-devel/SNES_MiSTer", "93d359e6f23c734ae3928984e88bed1d9b53cbac")}
+    identities = {
+        CORE: (UPSTREAM_REPOSITORY, UPSTREAM_REVISION),
+        "snes": ("https://github.com/MiSTer-devel/SNES_MiSTer", "93d359e6f23c734ae3928984e88bed1d9b53cbac"),
+        "nes": ("https://github.com/MiSTer-devel/NES_MiSTer", "9a63821173b6da4d6e95dcbe2e2a322ec8171144"),
+    }
     if identities.get(pin.name) != (pin.repo, pin.commit):
         raise BundleExportError("pin does not name the authoritative Mega Drive upstream revision")
     root = Path(root).resolve()

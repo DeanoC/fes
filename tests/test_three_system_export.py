@@ -28,7 +28,7 @@ class ThreeSystemTests(unittest.TestCase):
                 pin_fitter_seed(path, 3)
 
     def test_new_system_manifests_keep_eleven_fields(self):
-        for system, recipe in [('snes', 'scripts/rebuild_core.py'), ('pong', 'scripts/build_pong.py')]:
+        for system, recipe in [('snes', 'scripts/rebuild_core.py'), ('nes', 'scripts/rebuild_core.py'), ('pong', 'scripts/build_pong.py')]:
             value = BundleManifest(1, 'mister', system, system+'.rbf', 'a'*64, 123, 'https://example.org/source', 'b'*40, recipe, 'c'*64, 'Quartus')
             self.assertEqual(encode_manifest(value).count(b'\n'), 11)
 

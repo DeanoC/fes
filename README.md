@@ -82,11 +82,14 @@ development possible with both the open-source Mistral toolchain and Quartus.
 reuse an installed tool. `make build-pong` adds the MiSTer board wrapper and
 produces a programmable RBF.
 
-`cores.lock` also selects SNES Release 20260823. `make fetch-core CORE=snes`
-uses the existing fetch/hash-check lane. A staged seed-3 Quartus diagnostic
-passed timing and native LoROM/HiROM hardware checks. The normal SNES recipe
-now explicitly selects fitter seed 3 and requires passing timing. Export admits
-Mega Drive, SNES and Pong; new builds require their own hardware acceptance.
+`cores.lock` also selects SNES and NES Release 20260823. `make fetch-core
+CORE=snes` and `make fetch-core CORE=nes` use the existing fetch/hash-check
+lane. A staged seed-3 Quartus diagnostic passed timing and native LoROM/HiROM
+hardware checks for SNES. The normal SNES recipe now explicitly selects fitter
+seed 3 and requires passing timing. Export admits Mega Drive, SNES, NES and
+Pong; new builds require their own hardware acceptance. The NES slice accepts
+standard `.nes` cartridges through the generic `scripts/rebuild_core.py` lane;
+FDS, UNIF and other NES peripherals remain outside this contract.
 See the architecture document for artifact identities.
 
 Pinned third-party cores live in `cores.lock`. That file is the **upstream
@@ -112,6 +115,10 @@ build/rebuild/megadrive/megadrive.rbf                   # our rebuild
 build/current/megadrive.rbf                             # selected
 build/bundles/megadrive/<rbf-sha256>/megadrive.rbf      # exported
 build/bundles/megadrive/<rbf-sha256>/megadrive-rbf.toml # manifest
+build/cores/nes/releases/NES_20260823.rbf              # upstream
+build/rebuild/nes/nes.rbf                               # our rebuild
+build/bundles/nes/<rbf-sha256>/nes.rbf                 # exported
+build/bundles/nes/<rbf-sha256>/nes-rbf.toml             # manifest
 ```
 
 `make export-core-bundle CORE=megadrive` validates the rebuild and its
@@ -159,6 +166,15 @@ Fetch the upstream Mega Drive pin and compile the source-built RBF:
 make fetch-core CORE=megadrive
 make rebuild-core CORE=megadrive
 make export-core-bundle CORE=megadrive
+```
+
+The same sequence works for the native NES slice once Quartus Prime Lite
+17.0.2 is installed:
+
+```sh
+make fetch-core CORE=nes
+make rebuild-core CORE=nes
+make export-core-bundle CORE=nes
 ```
 
 The export command is the FogCast handoff. For local operator use, select the
@@ -270,11 +286,13 @@ No build target uploads an RBF automatically. The native development loader
 still requires a compatible MiSTer framework ABI; ownership does not make an
 arbitrary bare experimental RBF compatible.
 
-## Three-system bundles
+## Four-system bundles
 
 Run `make export-core-bundle CORE=snes` after `make rebuild-core CORE=snes`, or
+`make export-core-bundle CORE=nes` after `make rebuild-core CORE=nes`, or
 `make export-core-bundle CORE=pong` after `make build-pong`. Each prints a sealed
 `build/bundles/<system>/<sha256>/` directory containing `<system>.rbf` and
 `<system>-rbf.toml`. Pong export requires a clean committed source tree and
-checks its local/framework input record. SNES and Pong export reject failed,
-missing or stale timing evidence. Neither build nor export programs the kit.
+checks its local/framework input record. SNES and NES source exports reject
+failed, missing or stale timing evidence when a build receipt is present.
+Neither build nor export programs the kit.
