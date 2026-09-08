@@ -105,7 +105,7 @@ class MediaTests(unittest.TestCase):
         (self.root / 'uboot').write_bytes(b'uboot')
         self.runner = FakeRunner()
         self.addCleanup(patch.stopall)
-        patch.object(media, 'select', return_value=('cold-fp', self.fogcast, ('megadrive', 'pong', 'snes'), {})).start()
+        patch.object(media, 'select', return_value=('cold-fp', self.fogcast, ('megadrive', 'pong', 'snes', 'nes'), {})).start()
         patch.object(media, 'resolve_payloads', return_value=Payloads(self.root / 'uboot', self.root / 'kernel')).start()
         patch.object(media, 'recipe_fingerprint', return_value={'scripts/media.py': 'recipe'}).start()
         # The pinned idle cache is separate from cold output publication.
@@ -443,7 +443,7 @@ class MediaTests(unittest.TestCase):
         self.assertIn('reproducibility_sha256', receipt['inputs']['cold'])
         self.assertEqual(media.verify(self.root, 'native-integration-dev', self.runner).generation, result.generation)
         self.assertEqual(self.log.read_text(), 'original smoke')
-        self.assertEqual(self.runner.asserted_env['NATIVE_RUNTIME_SYSTEMS'], 'megadrive pong snes')
+        self.assertEqual(self.runner.asserted_env['NATIVE_RUNTIME_SYSTEMS'], 'megadrive pong snes nes')
         self.assertEqual(self.runner.asserted_env['TARGET_IMAGE_OUTPUT_VOLUME'], cold_build.output_volume(self.root, 'native-integration-dev'))
         self.assertEqual(stat.S_IMODE(self.log.stat().st_mode), 0o640)
         self.assertFalse((self.fogcast / 'build/output/target-image/media-verify').exists())

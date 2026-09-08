@@ -15,13 +15,17 @@ host software and target root filesystem.
 | Build, provision or verify a flashable native disk image | [Bootable media](bootable-media.md) |
 | Build versioned appliance releases and use automatic update fallback | [Appliance releases](appliance-releases.md) |
 | Decide where a change belongs or crosses a boundary | [Component boundaries](component-boundaries.md) |
-| Continue the Pong and SNES milestone | [Multi-system development](multi-system-development.md) |
+| Continue the Pong, SNES and NES milestone | [Multi-system development](multi-system-development.md) |
 | Develop and validate SNES cartridge saves | [SNES saves](snes-saves.md) |
 | Share the kit between game and FPGA development sessions | [Kit sharing](kit-sharing.md) |
 
 All shell examples in the parent guides start at the FES repository root unless
 specified otherwise. Commands inside a component use that component's Makefile
 and instructions; the same target name can mean different things there.
+
+The current integration profile selects Mega Drive, Pong, SNES and NES. NES is
+software-supported with exact source and artifact provenance; hardware acceptance
+still requires the assembled image and a dedicated kit test.
 
 ## What has been verified
 
@@ -37,6 +41,8 @@ and instructions; the same target name can mean different things there.
   FPGA/image combination and its hardware observations.
 - [Historical parent validation](historical-parent-validation.md): original
   parent build and provenance caveats.
+- [Native NES software integration](validation/2026-09-08-native-nes-software.md):
+  exact NES provenance, four-system contract checks and hardware-pending status.
 
 Evidence describes the exact artifacts tested. It does not automatically apply
 to later source edits, another profile or a different device.

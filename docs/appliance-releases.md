@@ -1,6 +1,6 @@
 # Appliance releases and automatic fallback
 
-This extends the native three-system appliance with versioned system images,
+This extends the native appliance with versioned system images,
 network updates and watchdog-bounded trial boots. FES assembles the files; the
 selected FogCast agent manages transfers and the existing kit lease. It adds no
 UI. Physical acceptance is recorded separately against exact artifact hashes.

@@ -48,7 +48,7 @@ make host
 For an existing checkout, inspect local changes before running
 `git submodule update --init --recursive`; preserve component work first.
 `make check` verifies clean pinned sources, the runtime lock, package YAML,
-seven generated consumers and copied Mega Drive/SNES source pins. It needs Go,
+nine generated consumers and copied Mega Drive/SNES/NES source pins. It needs Go,
 not Docker or Quartus. `make host` builds the Linux CLI and browser API server. Run `make doctor`
 when preparing for container/image builds. See [getting started](docs/getting-started.md)
 for Git authentication and a minimal host configuration.
@@ -69,9 +69,10 @@ make verify
 ```
 
 The default `native-integration-dev` selects component revisions through the
-submodule gitlinks and packages source-built Mega Drive, Pong and SNES cores.
-Each core has its own validated bundle and installed selection record. Historical
-profiles retain their Mega Drive-only inputs.
+submodule gitlinks and packages source-built Mega Drive, Pong, SNES and NES
+cores. Each core has its own validated bundle and installed selection record;
+NES is software-supported and remains hardware-pending. Historical profiles
+retain their Mega Drive-only inputs.
 
 A fresh FPGA build requires Quartus Lite 17.0.2. A same-revision cached bundle
 can be reused after payload and pinned-recipe validation. Downloads are checked
@@ -83,7 +84,7 @@ out/native-integration-dev/
   fogcast-api                 Linux amd64 server with browser UI
   fogcast                     Linux amd64 CLI
   linux.img                   ARMv7 target root filesystem
-  {megadrive,pong,snes}.rbf    selected source-built cores
+  {megadrive,pong,snes,nes}.rbf selected source-built cores
   <core>-rbf.toml              FPGA build provenance for each core
   <core>.selection.toml        installed-core selection for each core
   inputs.json                 selected sources, profile, Go and parent recipe

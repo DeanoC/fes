@@ -93,7 +93,7 @@ class NativeDevTest(unittest.TestCase):
                 native_dev.build_development(root, None, None, 'native-integration-dev',
                     {'bundle_interface': 'selection'}, {}, 'same-inputs', {}, [], None)
 
-    def test_three_core_build_receipts_cover_every_selected_artifact(self):
+    def test_four_core_build_receipts_cover_every_selected_artifact(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             fogcast = root / 'FogCast'
@@ -102,7 +102,7 @@ class NativeDevTest(unittest.TestCase):
             (fogcast / 'scripts/build-target-image.sh').write_text('epoch=1234567890\n')
             (fogcast / 'build/target-image.sources.lock.toml').write_text(
                 '[container]\nimage="base"\ndigest="sha256:abc"\nplatform="linux/amd64"\n')
-            cores = ('megadrive', 'pong', 'snes')
+            cores = ('megadrive', 'pong', 'snes', 'nes')
             bundles = {core: root / core for core in cores}
             built = fogcast / 'build/output/target-image/fes-development'
             built.mkdir(parents=True)
@@ -123,7 +123,7 @@ class NativeDevTest(unittest.TestCase):
                     {'TARGET_IMAGE_CONTAINER_RUNTIME': 'docker'}, ['make'], bundles)
             for call in run.call_args_list:
                 if str(call.args[0][0]).endswith('verify-target-image.sh'):
-                    self.assertEqual(call.kwargs['env']['NATIVE_RUNTIME_SYSTEMS'], 'megadrive pong snes')
+                    self.assertEqual(call.kwargs['env']['NATIVE_RUNTIME_SYSTEMS'], 'megadrive pong snes nes')
             output = root / 'out/native-integration-dev/development'
             self.assertTrue(build.reusable(output, 'development', 'candidate'))
             # A changed extra core, not only the original Mega Drive, invalidates reuse.
