@@ -18,6 +18,9 @@ type observation struct {
 	session        Session
 	health         tenfoot.HealthResult
 	games          []tenfoot.Game
+	strip          []tenfoot.Game
+	stripLabel     string
+	haveStrip      bool
 	attract        tenfoot.AttractPlaylist
 	haveAttract    bool
 	hydrateAttract bool
@@ -87,6 +90,10 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			}
 			if o.err == nil && load {
 				o.games, o.err = loadCatalog(ctx, c)
+				if o.err == nil {
+					o.strip, o.stripLabel = loadStrip(ctx, c)
+					o.haveStrip = true
+				}
 			}
 			if o.err == nil && loadAttract {
 				p, err := c.Library.Attract(ctx, defaultAttractLimit)
@@ -198,6 +205,9 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.SetCatalog(o.games)
 					catalogLoaded = true
 					lastCatalog = time.Now()
+				}
+				if o.haveStrip {
+					m.SetStrip(o.strip, o.stripLabel)
 				}
 				if o.haveAttract {
 					m.SetAttractPlaylist(o.attract)
@@ -314,6 +324,21 @@ func catalogSystems(ctx context.Context, c *Client) []string {
 		return append([]string(nil), fallbackCatalogSystems...)
 	}
 	return ids
+}
+
+func loadStrip(ctx context.Context, c *Client) ([]tenfoot.Game, string) {
+	if c == nil || c.Library == nil {
+		return nil, ""
+	}
+	recents, err := c.Library.FetchLibrary(ctx, tenfoot.GameListQuery{Collection: "recents", Limit: stripMax}, stripMax)
+	if err != nil {
+		recents = nil
+	}
+	favorites, err := c.Library.FetchLibrary(ctx, tenfoot.GameListQuery{Collection: "favorites", Limit: stripMax}, stripMax)
+	if err != nil {
+		favorites = nil
+	}
+	return ComposeStrip(recents, favorites)
 }
 
 func persistShelf(c *Client, shelf string) {

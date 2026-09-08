@@ -39,6 +39,54 @@ func TestCatalogSystemsUsesPlatformsThenFallback(t *testing.T) {
 	}
 }
 
+func TestLoadStripUsesRecentsAndFavorites(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/games" {
+			http.NotFound(w, r)
+			return
+		}
+		switch r.URL.Query().Get("collection") {
+		case "recents":
+			_, _ = w.Write([]byte(`{"games":[{"id":"sonic","title":"Sonic","system":"megadrive","launchable":true},{"id":"mario","title":"Mario","system":"snes","launchable":true}]}`))
+		case "favorites":
+			_, _ = w.Write([]byte(`{"games":[{"id":"mario","title":"Mario","system":"snes","favorite":true,"launchable":true},{"id":"pong","title":"Pong","system":"pong","favorite":true,"launchable":true}]}`))
+		default:
+			t.Errorf("unexpected collection %q", r.URL.Query().Get("collection"))
+			_, _ = w.Write([]byte(`{"games":[]}`))
+		}
+	}))
+	defer server.Close()
+	games, label := loadStrip(context.Background(), NewClient(Config{API: server.URL}))
+	if label != "Recent / Favorites" || len(games) != 3 {
+		t.Fatalf("strip %q n=%d ids=%v", label, len(games), ids(games))
+	}
+	if games[0].ID != "sonic" || games[1].ID != "mario" || games[2].ID != "pong" {
+		t.Fatalf("order %v", ids(games))
+	}
+
+	empty := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"games":[]}`))
+	}))
+	defer empty.Close()
+	games, label = loadStrip(context.Background(), NewClient(Config{API: empty.URL}))
+	if label != "" || len(games) != 0 {
+		t.Fatalf("empty strip %q n=%d", label, len(games))
+	}
+
+	recentOnly := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("collection") == "recents" {
+			_, _ = w.Write([]byte(`{"games":[{"id":"sonic","title":"Sonic","launchable":true}]}`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer recentOnly.Close()
+	games, label = loadStrip(context.Background(), NewClient(Config{API: recentOnly.URL}))
+	if label != "Recent" || len(games) != 1 || games[0].ID != "sonic" {
+		t.Fatalf("recent-only %q n=%d", label, len(games))
+	}
+}
+
 func TestLoadCatalogFiltersByPlatform(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -267,6 +315,10 @@ func TestRunFetchesPresentationWhileDetailOpen(t *testing.T) {
 		case r.URL.Path == "/api/v1/platforms":
 			_, _ = w.Write([]byte(`{"platforms":[{"id":"snes","game_count":1}]}`))
 		case r.URL.Path == "/api/v1/games":
+			if r.URL.Query().Get("collection") != "" {
+				_, _ = w.Write([]byte(`{"games":[]}`))
+				return
+			}
 			_, _ = w.Write([]byte(`{"games":[{"id":"mario","title":"Mario","system":"snes","year":"1990","genre":"Action","launchable":true}]}`))
 		case r.URL.Path == "/api/v1/library/attract":
 			_, _ = w.Write([]byte(`{"idle_seconds":60,"items":[]}`))

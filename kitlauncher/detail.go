@@ -9,10 +9,21 @@ import (
 )
 
 func (m *Model) focusedGame() (tenfoot.Game, bool) {
-	if m == nil || m.Focus < 0 || m.Focus >= len(m.Games) {
+	if m == nil {
+		return tenfoot.Game{}, false
+	}
+	if (m.StripActive || m.detailFromStrip) && m.StripFocus >= 0 && m.StripFocus < len(m.Strip) {
+		return m.Strip[m.StripFocus], true
+	}
+	if m.Focus < 0 || m.Focus >= len(m.Games) {
 		return tenfoot.Game{}, false
 	}
 	return m.Games[m.Focus], true
+}
+
+// FocusedGame is the strip title when that row is active, otherwise the grid cell.
+func (m Model) FocusedGame() (tenfoot.Game, bool) {
+	return m.focusedGame()
 }
 
 func (m *Model) openDetail(now time.Time) {
@@ -22,6 +33,7 @@ func (m *Model) openDetail(now time.Time) {
 	if m.AttractActive {
 		m.hideAttract()
 	}
+	m.detailFromStrip = m.StripActive
 	m.DetailOpen = true
 	m.shotIndex = 0
 	m.previewAt = time.Time{}
@@ -93,7 +105,8 @@ func (m Model) FocusDetail() tenfoot.FocusDetail {
 // ApplyPresentation stores host presentation for the currently focused title.
 func (m *Model) ApplyPresentation(id string, p tenfoot.Presentation) {
 	id = strings.TrimSpace(id)
-	if id == "" || focusedID(m.Games, m.Focus) != id {
+	game, ok := m.focusedGame()
+	if id == "" || !ok || game.ID != id {
 		return
 	}
 	m.presentationID = id

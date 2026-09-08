@@ -621,9 +621,14 @@ dimensions through `fbgrid.MoveFocus`: left/right clamp on the current row,
 up/down step by four cells, and leaving a page of 12 changes the painted page.
 Focus changes play a short `anim.Tween` / `EaseInOut` pop (highlight ring
 scale ~1.06 over ~160ms); confirm eases a white pulse out over
-`ConfirmFrames` ticks. Unfocused cells keep their layout origins. Down that
+`ConfirmFrames` ticks. Unfocused cells keep their layout origins. The kit
+also loads `GET /api/v1/games` with `collection=recents` and
+`collection=favorites` (best-effort; a miss hides the row) and paints a
+single horizontal strip under the grid when at least one title exists.
+Last-row Down enters that strip; L/R move among tiles; A opens the title
+pane; B or Up return to the grid. Down that
 cannot move focus further (last catalog row) opens a focused title pane
-through `fbgrid.PaintDetail` (large cover, title at `TitlePx`, meta from
+through `fbgrid.PaintDetail` when the strip is hidden (large cover, title at `TitlePx`, meta from
 catalog plus `GET /api/v1/presentation/games/{id}` when the pane is open).
 Admitted facts are platform, year, genre, studio, players, and region when
 those fields are present; `summary` wraps as caption-role description and is

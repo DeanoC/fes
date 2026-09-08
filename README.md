@@ -91,12 +91,16 @@ two dimensions (left/right clamp on the row; up/down by four cells, paging
 when `Focus` leaves the visible 12). A short ease-in-out pop grows the
 focused tile's highlight ring (~1.06 scale, ~160ms) when focus changes;
 confirm is a white pulse that eases out over `ConfirmFrames` rather than a
-flat flash. Down that cannot move focus further (last catalog row) opens a
-focused title pane
+flat flash. A Recent / Favorites strip paints under the grid when host
+`collection=recents` or `collection=favorites` returns at least one title
+(recents first, then favorites, labeled honestly); an empty row is omitted.
+Down that cannot move focus further (last catalog row) enters that strip, or
+opens a focused title pane when the strip is hidden
 (large cover, title, and platform/year/genre/studio/players/region when the
 catalog or presentation already carries them, plus a wrapped `summary`
 description). Series, last-played, and play-count are omitted: they are not
-on the public games or presentation payloads.
+on the public games or presentation payloads. D-pad L/R move among strip
+tiles, A opens that title's pane, and B or Up return to the grid.
 A/South still launches from the grid. The pane's A plays the title, East/B
 and Up return to the same shelf and focus, and L/R (or shoulders) cycle
 screenshots when `screenshot_ids` has two or more. When presentation

@@ -142,9 +142,11 @@ stills fallback. GUI video smoke on a Linux display is NEED. The on-kit
 `fogcast-kit` adapter arms the same host idle and paints stills only (no video
 decode); any pad input returns to the platform wheel or catalog grid. The kit
 opens on a platform wheel (`fbgrid.PaintWheel`) and A enters the 4×3 grid; East/B
-on the grid returns to the wheel. The kit title pane is a
+on the grid returns to the wheel. A Recent / Favorites strip paints under the grid when those host collections
+return titles, and hides when they are empty. Last-row Down enters the
+strip; A opens the title pane; B or Up return to the grid. The kit title pane is a
 sibling `fbgrid.PaintDetail` over the same catalog focus: last-row
-Down opens it, East/B and Up return, and A still launches. The pane
+Down opens it when the strip is hidden, East/B and Up return, and A still launches. The pane
 shows admitted genre/year/players/region/studio plus wrapped `summary`
 description when those fields exist; it omits empty copy and does not
 invent series, last-played, or play-count. A presentation `video_id`

@@ -189,6 +189,143 @@ func runWheelSelftest(fbPath string, th theme.Theme) error {
 	return err
 }
 
+func runStripSelftest(fbPath string, th theme.Theme) error {
+	d, err := gfx.OpenLinuxFB(fbPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	report, err := exerciseStripGrid(d, th)
+	fmt.Print(report)
+	return err
+}
+
+func exerciseStripGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
+	th = th.Complete()
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	m.SetCatalog(mixedShelfGames())
+	recents := []tenfoot.Game{
+		{ID: "megadrive-02", Title: "MEGADRIVE 02", System: "megadrive", Launchable: true},
+		{ID: "snes-07", Title: "SNES 07", System: "snes", Launchable: true},
+	}
+	m.SetStrip(recents, "Recent")
+	cfg := d.Config()
+	var b strings.Builder
+	g := paintModel(d, m, th)
+	if len(g.Strip) != 2 || g.StripLabel != "Recent" || g.StripActive {
+		return b.String(), fmt.Errorf("idle strip tiles=%d label=%q active=%v", len(g.Strip), g.StripLabel, g.StripActive)
+	}
+	if g.CellH < 60 {
+		return b.String(), fmt.Errorf("strip crushed grid cell %d", g.CellH)
+	}
+	rec := gfx.NewRecorder()
+	fbgrid.Paint(rec, g)
+	var sawLabel bool
+	for _, c := range rec.Calls {
+		if c.Op == "DrawText" && c.Text == "Recent" && c.SizePx == th.CaptionPx() {
+			sawLabel = true
+		}
+		if c.Op == "DebugText" {
+			return b.String(), fmt.Errorf("strip DebugText")
+		}
+	}
+	if !sawLabel {
+		return b.String(), fmt.Errorf("missing Recent caption ops=%v", rec.Ops())
+	}
+	hx, hy, ok := g.HighlightSample()
+	if !ok {
+		return b.String(), fmt.Errorf("grid highlight")
+	}
+	hlB, hlG, hlR, _, err := gfx.SampleBGRX(d.Destination(), cfg, hx, hy)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "idle-grid strip=%d label=%q highlight=(%d,%d) bgrx=%d,%d,%d cellh=%d\n",
+		len(g.Strip), g.StripLabel, hx, hy, hlB, hlG, hlR, g.CellH)
+
+	m.Focus = len(m.Games) - 1
+	press(&m, "dpad-down")
+	if !m.StripActive || m.DetailOpen || m.StripFocus != 0 {
+		return b.String(), fmt.Errorf("enter strip active=%v detail=%v focus=%d", m.StripActive, m.DetailOpen, m.StripFocus)
+	}
+	g = paintModel(d, m, th)
+	sx, sy, ok := g.StripHighlightSample()
+	if !ok {
+		return b.String(), fmt.Errorf("strip highlight")
+	}
+	sB, sG, sR, sX, err := gfx.SampleBGRX(d.Destination(), cfg, sx, sy)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "enter-strip focus=%d highlight=(%d,%d) bgrx=%d,%d,%d,%d footer=%q\n",
+		m.StripFocus, sx, sy, sB, sG, sR, sX, g.Footer)
+	if sB != th.Highlight.B || sG != th.Highlight.G || sR != th.Highlight.R || sX != 0 {
+		return b.String(), fmt.Errorf("strip highlight bgrx %d,%d,%d,%d", sB, sG, sR, sX)
+	}
+	if g.Footer != "A detail | B grid | L/R" {
+		return b.String(), fmt.Errorf("strip footer %q", g.Footer)
+	}
+
+	press(&m, "dpad-right")
+	if m.StripFocus != 1 {
+		return b.String(), fmt.Errorf("strip right %d", m.StripFocus)
+	}
+	press(&m, "dpad-right")
+	if m.StripFocus != 1 {
+		return b.String(), fmt.Errorf("strip right clamp %d", m.StripFocus)
+	}
+	a, _ := remoteinput.NormalizeGamepad("a", true)
+	if action := m.Input(a, time.Now()); action != "" || !m.DetailOpen {
+		return b.String(), fmt.Errorf("strip A action=%q detail=%v", action, m.DetailOpen)
+	}
+	game, ok := m.FocusedGame()
+	if !ok || game.ID != "snes-07" {
+		return b.String(), fmt.Errorf("strip detail game %+v ok=%v", game, ok)
+	}
+	fmt.Fprintf(&b, "strip-detail id=%s title=%q\n", game.ID, game.Title)
+	press(&m, "b")
+	if m.DetailOpen || !m.StripActive || m.StripFocus != 1 {
+		return b.String(), fmt.Errorf("detail B strip active=%v detail=%v focus=%d", m.StripActive, m.DetailOpen, m.StripFocus)
+	}
+	press(&m, "b")
+	if m.StripActive || m.DetailOpen || m.Focus != len(m.Games)-1 {
+		return b.String(), fmt.Errorf("strip B grid active=%v detail=%v focus=%d", m.StripActive, m.DetailOpen, m.Focus)
+	}
+	fmt.Fprintf(&b, "back-grid focus=%d strip=%v\n", m.Focus, m.StripActive)
+
+	emptyGames := make([]tenfoot.Game, 8)
+	for i := range emptyGames {
+		emptyGames[i] = tenfoot.Game{ID: fmt.Sprintf("g%d", i), Title: "T", System: "snes", Launchable: true}
+	}
+	empty := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true, Games: emptyGames}
+	empty.Focus = 7
+	press(&empty, "dpad-down")
+	if !empty.DetailOpen || empty.StripActive {
+		return b.String(), fmt.Errorf("empty strip last-row down detail=%v strip=%v", empty.DetailOpen, empty.StripActive)
+	}
+	m.SetStrip(nil, "Recent")
+	hidden := paintModelGrid(m, th, cfg.Width, cfg.Height)
+	if len(hidden.Strip) != 0 {
+		return b.String(), fmt.Errorf("hidden strip still has %d tiles", len(hidden.Strip))
+	}
+	hideRec := gfx.NewRecorder()
+	fbgrid.Paint(hideRec, hidden)
+	for _, c := range hideRec.Calls {
+		if c.Op == "DrawText" && c.Text == "Recent" {
+			return b.String(), fmt.Errorf("hidden strip painted Recent")
+		}
+	}
+	fmt.Fprintf(&b, "hide-empty tiles=%d\n", len(hidden.Strip))
+
+	wheel, err := exerciseWheelGrid(d, th)
+	b.WriteString(wheel)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "selftest-strip PASS enter=1 nav=1 detail=1 back=1 hide=1 nested-wheel=1\n")
+	return b.String(), nil
+}
+
 func exerciseWheelGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	th = th.Complete()
 	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true, WheelOpen: true}

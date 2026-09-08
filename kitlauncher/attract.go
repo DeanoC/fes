@@ -249,10 +249,10 @@ func (m *Model) consumeLaunchID() string {
 	if id != "" {
 		return id
 	}
-	if len(m.Games) == 0 || m.Focus < 0 || m.Focus >= len(m.Games) {
-		return ""
+	if game, ok := m.focusedGame(); ok {
+		return game.ID
 	}
-	return m.Games[m.Focus].ID
+	return ""
 }
 
 // AttractView is the current stills stage, including crossfade progress.

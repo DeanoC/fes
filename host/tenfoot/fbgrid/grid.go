@@ -112,6 +112,12 @@ type Grid struct {
 	confirmElapsed time.Duration
 	popIndex       int
 	popLive        bool
+	Strip          []Tile
+	StripLabel     string
+	StripFocus     int
+	StripActive    bool
+	StripCellW     int
+	StripCellH     int
 }
 
 // New lays out FakeTiles for a w×h framebuffer.
@@ -178,11 +184,12 @@ func (g *Grid) layout() {
 	if rows < 1 {
 		rows = 1
 	}
-	innerH := g.Height - g.HeaderH - g.FooterH - 2*g.Pad - (rows-1)*g.Gap
+	innerH := g.Height - g.HeaderH - g.FooterH - 2*g.Pad - (rows-1)*g.Gap - g.stripReserve()
 	g.CellH = innerH / rows
 	if g.CellH < 1 {
 		g.CellH = 1
 	}
+	g.layoutStrip()
 }
 
 func (g Grid) rows() int {

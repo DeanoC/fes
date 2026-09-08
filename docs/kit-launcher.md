@@ -93,9 +93,15 @@ catalog already has one. Wheel cells use a representative `logo_id` when
 presentation has one, else a bold text label. The grid uses the D-pad and left
 stick in two dimensions to select, Shoulder L/R
 (or Select) to cycle system shelves as a secondary filter, and A to launch.
-Down that cannot move
-focus further (last catalog row, including analog down) opens a focused
-title pane (large cover from CoverCache/DecodeCover, title at the theme title
+When host `GET /api/v1/games?collection=recents` or `collection=favorites`
+returns titles, a single horizontal Recent / Favorites row paints under the
+4×3 grid (covers and clear logos when those handles exist). Recents win on
+duplicates; the caption is `Recent`, `Favorites`, or `Recent / Favorites`.
+An empty result hides the row and keeps today's full grid height. Down that
+cannot move focus further enters that strip; L/R move among its tiles; A
+opens the title pane for the strip game; B or Up return to the same grid
+cell. Last-row Down still opens a focused
+title pane when the strip is hidden (large cover from CoverCache/DecodeCover, title at the theme title
 role, meta from catalog year/genre/region plus presentation studio/players
 when the host `GET /api/v1/presentation/games/{id}` succeeds, and wrapped
 `summary` prose at the caption role). Empty summary draws no description
@@ -118,7 +124,8 @@ paint. Missing cover art uses the same
 placeholder path as the grid. The wheel footer hint is
 `A open | L/R platform`; the grid footer after entering from the wheel is
 `A play | B platforms | L/R shelf`; a grid that never used the wheel (selftests)
-keeps `A play | B detail | L/R shelf`; the pane footer is `A play | B back`
+keeps `A play | B detail | L/R shelf`; the strip footer is
+`A detail | B grid | L/R`; the pane footer is `A play | B back`
 (or `A play | B back | L/R shots` when screenshots can cycle, or
 `A play | B back | L/R preview` when a video preview can cycle). Shelves are `All` plus
 each system present in the loaded catalog. Changing shelf filters the 4×3 page
@@ -178,7 +185,10 @@ paint a themed idle panel instead of hanging on the grid.
 
 Run `go test -race ./kitlauncher/... ./host/tenfoot/inputmap ./host/tenfoot/theme ./host/tenfoot/fbgrid ./host/tenfoot/gfx ./host/tenfoot/anim ./cmd/fogcast-kit` for adapter tests. They
 exercise real HTTP transports with isolated servers and never open real input or
-framebuffer devices. On the kit, `fogcast-kit -selftest-wheel` paints the platform
+framebuffer devices. On the kit, `fogcast-kit -selftest-strip` paints a Recent row under the grid, enters it
+from last-row Down, moves L/R, opens detail on A, returns on B, hides the
+row when empty, and re-runs wheel (which re-runs motion, detail, attract,
+cover, text, nav, and shelf). `fogcast-kit -selftest-wheel` paints the platform
 wheel and hero, cycles systems, enters the Mega Drive grid, returns on B, and
 re-runs motion (which re-runs detail, attract, cover, text, nav, and shelf).
 `fogcast-kit -selftest-nav` paints a 25-title
