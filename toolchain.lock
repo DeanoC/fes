@@ -1,20 +1,20 @@
 [tool.yosys]
 repo = "https://github.com/DeanoC/yosys.git"
-commit = "f1beec777bf5a12f0249b9ff1698dbc4191ed2a5"
+commit = "10891a9e0256a0eac70c329aa64c633902fc6bc6"
 order = 10
-rationale = "DeanoC mistral-stable including merged PR #6: Intel ALM infers byte-masked Cyclone V M10K true dual-port RAM through ram_style=\"m10k_tdp_byte\" as MISTRAL_M10K_TDP with CFG_BYTE_ENABLE=1 (512x20 two 10-bit lanes or 512x16 padded 8-bit bytes, A1BE/B1BE). Keeps merged PRs #1-#5 (MLAB INIT, dual-clock M10K, SDP byte enables, mixed-width SDP, unmasked TDP). Base is CMake pin ea0c44fc on YosysHQ 13b43f8c; f1beec77 merges 0a413c9e. Pair with nextpnr 04901d02 (merged PR #37); old Yosys maps masked TDP without A1BE/B1BE."
+rationale = "DeanoC mistral-stable including merged PR #7: Intel ALM infers mixed-width Cyclone V M10K true dual-port RAM through ram_style=\"m10k_tdp_mixed\" as MISTRAL_M10K_TDP with CFG_MIXED_WIDTH=1 (physical 20/10 and 10/20, padded 16/8 and 8/16, CFG_RD_ABITS/CFG_RD_DBITS for port B). Keeps merged PRs #1-#6 (MLAB INIT, dual-clock M10K, SDP byte enables, mixed-width SDP, unmasked TDP, TDP byte enables). Base is CMake pin f1beec77 on YosysHQ 13b43f8c; 10891a9e merges 9a89681. Pair with nextpnr 5c12b204 (merged PR #38); old Yosys maps mixed TDP as equal-width or SDP."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
 commit = "b28e30a36b5139aaed5a5d361a30b542e6b7c758"
 order = 20
-rationale = "DeanoC fork for nextpnr 04901d02 Cyclone V MUL9X9/MUL18X18/MUL27X27, PLL BELs, MLAB INIT, M10K dual-clock packing, 20-bit M10K byte enables, mixed-width M10K SDP, true dual-port M10K packing including byte masks into existing tables, and corrected LAB/MLAB CLKx_INV/CLKx_SEL addresses: preserves DSP upper routing tiles on the bfa096c1 array-header baseline; fixed commit, not a moving branch."
+rationale = "DeanoC fork for nextpnr 5c12b204 Cyclone V MUL9X9/MUL18X18/MUL27X27, PLL BELs, MLAB INIT, M10K dual-clock packing, 20-bit M10K byte enables, mixed-width M10K SDP, true dual-port M10K packing including byte masks and mixed-width TDP into existing tables, and corrected LAB/MLAB CLKx_INV/CLKx_SEL addresses: preserves DSP upper routing tiles on the bfa096c1 array-header baseline; fixed commit, not a moving branch."
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "04901d02c3469707fccd45d6991f2905327f6352"
+commit = "5c12b20429bccc206cf1dfbb726c95bbb30f51d8"
 order = 30
-rationale = "DeanoC mistral-stable including merged PR #37: Cyclone V TDP M10K byte enables (CFG_BYTE_ENABLE=1, A1BE/B1BE onto BYTEENABLEA/B) on merged PR #36 unmasked TDP packing. Base 06747fec is merged PRs #21-#36 for 5CSEBA6U23I7; 04901d02 merges 7be615ce. Requires Mistral b28e30a and Yosys f1beec77 (merged PR #6); old nextpnr ignores TDP byte masks. TDP byte-enable experiments use default router2."
+rationale = "DeanoC mistral-stable including merged PR #38: Cyclone V mixed-width TDP M10K (CFG_MIXED_WIDTH=1, per-port 1024x10 or 512x20, CFG_RD_ABITS/CFG_RD_DBITS, width-specific ENABLE/WREN and Quartus 17.0.2 TOP/BOT selectors) on merged PR #37 TDP byte enables. Base 04901d02 is merged PRs #21-#37 for 5CSEBA6U23I7; 5c12b204 merges 6668547f. Requires Mistral b28e30a and Yosys 10891a9e (merged PR #7); old nextpnr rejects mixed TDP geometry. Mixed-TDP experiments use default router2."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
