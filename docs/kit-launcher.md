@@ -97,9 +97,11 @@ programs the FPGA, or claims a kit lease. Rendering pauses while a game is activ
 The connecting/library screen uses the existing pure-Go linuxfb backend and the
 shared `fbgrid` paint path. Tiles are a bounded page of live catalog rows. When
 `Game.Cover` is present, the kit fetches `GET /api/v1/presentation/artwork/{handle}`
-on the paired listener, decodes it with `DecodeCover`, and aspect-fits the RGBA
-into the cell. Missing, failed, or still-loading art keeps the system-color
-tile and ASCII label. Fetching is asynchronous and does not block the present
+on the paired listener, decodes it with `DecodeCover` (Catmull–Rom downscale to
+the cover cell; Software Draw stays nearest), and aspect-fits the RGBA into the
+cell over theme-tinted letterbox bars. Missing or failed art paints a
+theme-tinted placeholder with a lettermark; still-loading art uses a distinct
+panel without a letter. Fetching is asynchronous and does not block the present
 loop.
 
 Run `go test -race ./kitlauncher/... ./host/tenfoot/inputmap ./host/tenfoot/theme ./host/tenfoot/fbgrid ./host/tenfoot/gfx ./host/tenfoot/anim ./cmd/fogcast-kit` for adapter tests. They
@@ -112,7 +114,9 @@ header counts and visible set, and samples the highlight. `fogcast-kit -selftest
 then **arcade**, samples highlight and background, and requires the pixels to
 differ. `fogcast-kit -selftest-text` paints UI-face header/tile/footer chrome,
 requires the header pixels to differ from a DebugText-only baseline, checks
-themed glyph ink, and re-runs nav plus shelf. `fogcast-kit -selftest-fpga` records a timed attract still/crossfade
+themed glyph ink, and re-runs nav plus shelf. `fogcast-kit -selftest-cover`
+decodes a cover, paints missing and loading placeholders, samples the art and
+panel pixels, and re-runs text (which re-runs nav plus shelf). `fogcast-kit -selftest-fpga` records a timed attract still/crossfade
 and sprite move through `gfx.NewFPGA` (FC2D software-replay, `IsStub` true,
 `HW=not-yet`) and, when `/dev/fb0` opens, Replays the stream onto linuxfb.
 It does not claim a programmed 2D core. `fogcast-kit -selftest-pads` opens every

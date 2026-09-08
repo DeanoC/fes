@@ -11,12 +11,25 @@ import (
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 )
 
-// Tile is one catalog cell: a short label, a solid colour fallback, and
-// optional decoded cover pixels.
+// CoverKind is the cheap cover-fetch state painted when Cover is nil.
+type CoverKind int
+
+const (
+	// CoverMissing is no handle, a failed fetch, or art that will not arrive.
+	CoverMissing CoverKind = iota
+	// CoverLoading is an in-flight GET/decode.
+	CoverLoading
+	// CoverPresent is a decoded image in Tile.Cover.
+	CoverPresent
+)
+
+// Tile is one catalog cell: a short label, a solid colour fallback, optional
+// decoded cover pixels, and the cover-fetch kind used for placeholders.
 type Tile struct {
-	Name  string
-	Color gfx.Color
-	Cover *image.RGBA
+	Name      string
+	Color     gfx.Color
+	Cover     *image.RGBA
+	CoverKind CoverKind
 }
 
 const (
@@ -248,6 +261,23 @@ func (g Grid) InteriorSample() (x, y int, ok bool) {
 		return 0, 0, false
 	}
 	return ox + g.CellW/2, oy + g.CellH/2, true
+}
+
+// PanelSample is a pixel on tile i's placeholder or letterbox panel: inside
+// the focus border and 1px outline, above the label bar.
+func (g Grid) PanelSample(i int) (x, y int, ok bool) {
+	ox, oy, ok := g.CellOrigin(i)
+	if !ok {
+		return 0, 0, false
+	}
+	inset := 4
+	if i == g.Focus {
+		inset = g.Border + 4
+		if inset < 5 {
+			inset = 5
+		}
+	}
+	return ox + inset, oy + inset, true
 }
 
 // Apply updates hold state, steps on a rising edge, and confirms or quits.

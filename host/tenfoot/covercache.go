@@ -35,6 +35,44 @@ func NewCoverCache() *CoverCache {
 	}
 }
 
+// CoverStatus is the cheap fetch state for one artwork handle.
+type CoverStatus uint8
+
+const (
+	// CoverAbsent is an empty handle, or a handle not yet requested.
+	CoverAbsent CoverStatus = iota
+	// CoverReady is a decoded image in the cache.
+	CoverReady
+	// CoverLoading is an in-flight GET/decode.
+	CoverLoading
+	// CoverFailed is a fetch or decode that will not be retried until Keep drops it.
+	CoverFailed
+)
+
+// Status reports whether handle is ready, in flight, failed, or absent.
+// It does not wait on the network.
+func (c *CoverCache) Status(handle string) CoverStatus {
+	if c == nil {
+		return CoverAbsent
+	}
+	handle = normalizeHandle(handle)
+	if handle == "" {
+		return CoverAbsent
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, ok := c.images[handle]; ok {
+		return CoverReady
+	}
+	if _, ok := c.failed[handle]; ok {
+		return CoverFailed
+	}
+	if _, ok := c.inflight[handle]; ok {
+		return CoverLoading
+	}
+	return CoverAbsent
+}
+
 // Image returns a decoded cover, or nil when missing, in flight, or failed.
 func (c *CoverCache) Image(handle string) *image.RGBA {
 	if c == nil {

@@ -2,9 +2,11 @@ package fbgrid
 
 import (
 	"image"
+	"unicode"
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
+	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 )
 
 // Paint draws the cover-grid onto d using g.Theme, or theme.Default when
@@ -74,7 +76,15 @@ func Paint(d gfx.Device, g Grid) {
 			d.FillRect(inner, fill)
 		}
 		if !flashing {
-			paintCover(d, tile.Cover, inner)
+			if tile.Cover != nil {
+				d.FillRect(inner, letterboxFill(fill, th))
+				paintCover(d, tile.Cover, inner)
+			} else {
+				paintPlaceholder(d, inner, tile.Name, fill, th, tile.CoverKind == CoverLoading)
+			}
+			if i == g.Focus {
+				paintRectOutline(d, inner, 1, th.Highlight)
+			}
 		}
 		labelSize := gfx.ScalePx(th.LabelScale)
 		textH := gfx.TextHeight(labelSize)
@@ -153,4 +163,94 @@ func paintCover(d gfx.Device, img *image.RGBA, cell gfx.Rect) {
 	dx, dy, dw, dh := tenfoot.CoverDestRect(int(cell.X), int(cell.Y), int(cell.W), int(cell.H), tw, th)
 	d.Draw(tex, nil, gfx.Rect{X: dx, Y: dy, W: dw, H: dh})
 	d.Destroy(tex)
+}
+
+func paintPlaceholder(d gfx.Device, cell gfx.Rect, name string, fill gfx.Color, th theme.Theme, loading bool) {
+	if d == nil || cell.W < 1 || cell.H < 1 {
+		return
+	}
+	panel := placeholderPanel(fill, th, loading)
+	d.FillRect(cell, panel)
+	accent := placeholderAccent(panel, th)
+	paintRectOutline(d, cell, 1, accent)
+	if cell.W > 8 && cell.H > 16 {
+		d.FillRect(gfx.Rect{X: cell.X + 4, Y: cell.Y + cell.H*0.28, W: cell.W - 8, H: 1}, accent)
+		d.FillRect(gfx.Rect{X: cell.X + 4, Y: cell.Y + cell.H*0.48, W: cell.W - 8, H: 1}, accent)
+	}
+	if loading {
+		return
+	}
+	letter := placeholderLetter(name)
+	if letter == "" {
+		return
+	}
+	size := gfx.ScalePx(th.HeaderScale)
+	if size > int(cell.H)/2 && int(cell.H) > 0 {
+		size = gfx.ScalePx(th.LabelScale)
+	}
+	if size < 1 {
+		size = 1
+	}
+	tw := gfx.MeasureText(letter, size)
+	textH := gfx.TextHeight(size)
+	x := int(cell.X) + (int(cell.W)-tw)/2
+	y := int(cell.Y) + (int(cell.H)-textH)*2/5
+	if y < int(cell.Y)+4 {
+		y = int(cell.Y) + 4
+	}
+	d.DrawText(x, y, letter, size, th.Label)
+}
+
+func paintRectOutline(d gfx.Device, r gfx.Rect, width float32, c gfx.Color) {
+	if d == nil || width < 1 || r.W < 2*width || r.H < 2*width {
+		return
+	}
+	d.FillRect(gfx.Rect{X: r.X, Y: r.Y, W: r.W, H: width}, c)
+	d.FillRect(gfx.Rect{X: r.X, Y: r.Y + r.H - width, W: r.W, H: width}, c)
+	d.FillRect(gfx.Rect{X: r.X, Y: r.Y, W: width, H: r.H}, c)
+	d.FillRect(gfx.Rect{X: r.X + r.W - width, Y: r.Y, W: width, H: r.H}, c)
+}
+
+func letterboxFill(fill gfx.Color, th theme.Theme) gfx.Color {
+	return mixRGB(fill, th.LabelBar, 0.55)
+}
+
+// PlaceholderPanel is the solid fill under missing or loading cover art.
+func PlaceholderPanel(fill gfx.Color, th theme.Theme, loading bool) gfx.Color {
+	return placeholderPanel(fill, th, loading)
+}
+
+func placeholderPanel(fill gfx.Color, th theme.Theme, loading bool) gfx.Color {
+	if loading {
+		return mixRGB(fill, th.HeaderBar, 0.30)
+	}
+	return mixRGB(fill, th.LabelBar, 0.45)
+}
+
+func placeholderAccent(panel gfx.Color, th theme.Theme) gfx.Color {
+	return mixRGB(panel, th.Header, 0.22)
+}
+
+func placeholderLetter(name string) string {
+	for _, r := range name {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return string(unicode.ToUpper(r))
+		}
+	}
+	return ""
+}
+
+func mixRGB(a, b gfx.Color, t float32) gfx.Color {
+	if t < 0 {
+		t = 0
+	}
+	if t > 1 {
+		t = 1
+	}
+	u := 1 - t
+	return gfx.RGB(
+		uint8(float32(a.R)*u+float32(b.R)*t+0.5),
+		uint8(float32(a.G)*u+float32(b.G)*t+0.5),
+		uint8(float32(a.B)*u+float32(b.B)*t+0.5),
+	)
 }

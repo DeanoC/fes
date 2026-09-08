@@ -39,6 +39,7 @@ func run() error {
 	selftestFPGA := flag.Bool("selftest-fpga", false, "record FC2D attract still/anim on the FPGA software-replay backend and exit")
 	selftestShelf := flag.Bool("selftest-shelf", false, "paint system shelves, cycle L/R, sample header, and exit")
 	selftestText := flag.Bool("selftest-text", false, "paint UI-face chrome and prove it is not DebugText, then exit")
+	selftestCover := flag.Bool("selftest-cover", false, "paint cover decode, placeholder, and chrome polish, then exit")
 	flag.Parse()
 	if *selftestFPGA {
 		fb := "/dev/fb0"
@@ -61,7 +62,7 @@ func run() error {
 		}
 		return runThemeSelftest(fb)
 	}
-	if *selftestNav || *selftestShelf || *selftestText {
+	if *selftestNav || *selftestShelf || *selftestText || *selftestCover {
 		fb := "/dev/fb0"
 		configTheme := ""
 		if c, err := kitlauncher.LoadConfig(*configPath); err == nil {
@@ -73,6 +74,9 @@ func run() error {
 		th, err := loadKitTheme(*themeSpec, configTheme)
 		if err != nil {
 			return err
+		}
+		if *selftestCover {
+			return runCoverSelftest(fb, th)
 		}
 		if *selftestText {
 			return runTextSelftest(fb, th)
@@ -220,9 +224,19 @@ func gameTile(game tenfoot.Game, covers *tenfoot.CoverCache, th theme.Theme) fbg
 	if name == "" {
 		name = "UNTITLED"
 	}
-	tile := fbgrid.Tile{Name: truncateLabel(name, 18), Color: th.SystemColor(game.System)}
+	tile := fbgrid.Tile{Name: truncateLabel(name, 18), Color: th.SystemColor(game.System), CoverKind: fbgrid.CoverMissing}
 	if handle := tenfoot.CoverHandle(game, tenfoot.Presentation{}); handle != "" {
-		tile.Cover = covers.Image(handle)
+		if covers != nil {
+			tile.Cover = covers.Image(handle)
+			switch covers.Status(handle) {
+			case tenfoot.CoverReady:
+				tile.CoverKind = fbgrid.CoverPresent
+			case tenfoot.CoverLoading:
+				tile.CoverKind = fbgrid.CoverLoading
+			default:
+				tile.CoverKind = fbgrid.CoverMissing
+			}
+		}
 	}
 	return tile
 }
