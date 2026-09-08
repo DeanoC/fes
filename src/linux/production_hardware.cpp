@@ -117,16 +117,20 @@ public:
 	HardwareResult LoadIdle() override { return {reason_, false, ""}; }
 	Error AdmitCorePackage(const std::string&, const std::string&,
 		std::unique_ptr<AdmittedCorePackage>*) override { return reason_; }
+	Error InspectCorePackage(const std::string&, const std::string&,
+		CorePackageInspection*) override { return reason_; }
 	HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage>,
 		std::uint64_t) override { return {reason_, false, ""}; }
 	HardwareResult Launch(const PreparedLaunch&, std::uint64_t) override
 	{
 		return {reason_, false, ""};
 	}
-	HardwareResult LoadDevelopmentRBF(const std::string&) override
+	HardwareResult LoadDevelopmentRBF(const std::string&, std::uint64_t) override
 	{
 		return {reason_, false, ""};
 	}
+	HardwareResult LoadContainedDevelopmentRBF(const std::string&,
+		std::uint64_t) override { return {reason_, false, ""}; }
 
 private:
 	Error reason_;
@@ -158,7 +162,9 @@ public:
 		  hardware_(opener_, fpga_, core_, idle_video_, game_video_,
 			  input_session_, native::FogCastGamepadIdentity(), clock_, log,
 			  MISTER_RUNTIME_IDLE_RBF, timeouts_, mister_driver_, &fes_gp_driver_,
-			  &ProductionProfiles()) {}
+			  &ProductionProfiles(),
+			  {"/tmp/fogcast-development/core-packages",
+			   "/usr/share/mister-runtime/core-packages"}) {}
 
 	void SetFaultSink(HardwareFaultSink* sink) override
 	{
@@ -172,6 +178,12 @@ public:
 	{
 		return hardware_.AdmitCorePackage(directory, expected_id, package);
 	}
+	Error InspectCorePackage(const std::string& directory,
+		const std::string& expected_id, CorePackageInspection* inspection) override
+	{
+		return hardware_.InspectCorePackage(directory, expected_id, inspection);
+	}
+	Capabilities capabilities() const override { return hardware_.capabilities(); }
 	HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage> package,
 		std::uint64_t generation) override
 	{
@@ -182,9 +194,15 @@ public:
 	{
 		return hardware_.Launch(launch, generation);
 	}
-	HardwareResult LoadDevelopmentRBF(const std::string& path) override
+	HardwareResult LoadDevelopmentRBF(const std::string& path,
+		std::uint64_t generation) override
 	{
-		return hardware_.LoadDevelopmentRBF(path);
+		return hardware_.LoadDevelopmentRBF(path, generation);
+	}
+	HardwareResult LoadContainedDevelopmentRBF(const std::string& path,
+		std::uint64_t generation) override
+	{
+		return hardware_.LoadContainedDevelopmentRBF(path, generation);
 	}
 
 private:

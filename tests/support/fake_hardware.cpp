@@ -24,6 +24,22 @@ FakeHardware::FakeHardware()
 	  mutex_(), condition_(), block_launch_(false), launch_entered_(false),
 	  release_launch_(false), fault_sink_(nullptr)
 {
+	supported.programming_profiles = {
+		"development-contained-v1", "fes-gp-v1", "mister-v1"};
+	supported.abis = {
+		{"fes.simple-game", 1, 0,
+			{{"fes.gamepad", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}},
+		{"mister", 1, 0, {}}};
+	core_info.descriptor.format = 2;
+	core_info.descriptor.core = {"custom-core", "Custom Core", "test", "1.0.0", ""};
+	core_info.descriptor.target = {"de10_nano", "5CSEBA6U23I7", "fes-gp-v1"};
+	core_info.descriptor.payload = {"core.rbf", 1, std::string(64, 'b')};
+	core_info.descriptor.abi = {"fes.simple-game", 1, 0};
+	core_info.descriptor.interfaces = {
+		{"fes.gamepad", 1, 0, true},
+		{"fes.video.fixed-720p60", 1, 0, true}};
+	core_info.descriptor.build = {std::string(32, 'c'), "https://example.invalid/core",
+		std::string(40, 'd'), std::string(64, 'e'), "test toolchain"};
 }
 
 void FakeHardware::SetFaultSink(mister::HardwareFaultSink* sink)
@@ -50,6 +66,22 @@ mister::Error FakeHardware::AdmitCorePackage(const std::string& directory,
 	return {};
 }
 
+mister::Error FakeHardware::InspectCorePackage(const std::string& directory,
+	const std::string& expected_id, mister::CorePackageInspection* output)
+{
+	std::lock_guard<std::mutex> lock(mutex_);
+	++inspection_calls;
+	if (!inspection_result.ok()) return inspection_result;
+	if (output == nullptr)
+		return {mister::ErrorCode::invalid_request, "missing inspection output"};
+	output->package_id = expected_id;
+	output->descriptor = core_info.descriptor;
+	output->compatible = inspection_compatible;
+	output->compatibility_error = compatibility_error;
+	events.push_back("inspect:" + directory);
+	return {};
+}
+
 mister::HardwareResult FakeHardware::LoadCore(
 	std::unique_ptr<mister::AdmittedCorePackage> package,
 	std::uint64_t generation)
@@ -69,11 +101,14 @@ mister::HardwareResult FakeHardware::LoadCore(
 
 mister::HardwareResult FakeHardware::LoadIdle()
 {
-	std::lock_guard<std::mutex> lock(mutex_);
+	std::unique_lock<std::mutex> lock(mutex_);
 	++idle_calls;
 	idle_threads.push_back(std::this_thread::get_id());
 	idle_without_fault_sink = idle_without_fault_sink || fault_sink_ == nullptr;
+	idle_entered_ = true;
 	condition_.notify_all();
+	while (block_idle_ && !release_idle_) condition_.wait(lock);
+	block_idle_ = false;
 	if (idle_result.error.ok()) idle_result.mutation_attempted = true;
 	return idle_result;
 }
@@ -97,13 +132,23 @@ mister::HardwareResult FakeHardware::Launch(
 }
 
 mister::HardwareResult FakeHardware::LoadDevelopmentRBF(
-	const std::string& rbf)
+	const std::string& rbf, std::uint64_t generation)
 {
 	std::lock_guard<std::mutex> lock(mutex_);
 	++development_calls;
 	development_rbfs.push_back(rbf);
+	development_generations.push_back(generation);
 	mister::HardwareResult result = development_result;
 	if (result.error.ok()) result.mutation_attempted = true;
+	return result;
+}
+
+mister::HardwareResult FakeHardware::LoadContainedDevelopmentRBF(
+	const std::string& rbf, std::uint64_t generation)
+{
+	mister::HardwareResult result = LoadDevelopmentRBF(rbf, generation);
+	std::lock_guard<std::mutex> lock(mutex_);
+	++contained_development_calls;
 	return result;
 }
 
@@ -125,6 +170,27 @@ void FakeHardware::ReleaseLaunch()
 {
 	std::lock_guard<std::mutex> lock(mutex_);
 	release_launch_ = true;
+	condition_.notify_all();
+}
+
+void FakeHardware::BlockNextIdle()
+{
+	std::lock_guard<std::mutex> lock(mutex_);
+	block_idle_ = true;
+	idle_entered_ = false;
+	release_idle_ = false;
+}
+
+void FakeHardware::WaitUntilIdleEntered()
+{
+	std::unique_lock<std::mutex> lock(mutex_);
+	while (!idle_entered_) condition_.wait(lock);
+}
+
+void FakeHardware::ReleaseIdle()
+{
+	std::lock_guard<std::mutex> lock(mutex_);
+	release_idle_ = true;
 	condition_.notify_all();
 }
 

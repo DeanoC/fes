@@ -3,6 +3,7 @@
 
 #include "libmister-runtime/runtime.h"
 
+#include <algorithm>
 #include <condition_variable>
 #include <deque>
 #include <mutex>
@@ -14,18 +15,26 @@ namespace {
 
 Error Busy(const char* message)
 {
-	return {ErrorCode::busy, message};
+	return {ErrorCode::busy, message, "lifecycle"};
 }
 
 Error Invalid(const char* message)
 {
-	return {ErrorCode::invalid_request, message};
+	return {ErrorCode::invalid_request, message, "request"};
 }
 
 Error IdleFailure(const Error& cause)
 {
 	return {ErrorCode::idle_failed,
-		cause.message.empty() ? "idle load failed" : cause.message};
+		cause.message.empty() ? "idle load failed" : cause.message,
+		"recovery", cause.expected, cause.observed};
+}
+
+Error SaveFailure(const Error& cause)
+{
+	return {ErrorCode::save_failed,
+		cause.message.empty() ? "save persistence failed" : cause.message,
+		"save", cause.expected, cause.observed};
 }
 
 bool ValidAbsolutePath(const std::string& path)
@@ -43,6 +52,30 @@ bool ValidPackageId(const std::string& value)
 	return true;
 }
 
+std::vector<SupportedInterface> ActiveInterfaces(
+	const CoreDescriptor& descriptor, const Capabilities& capabilities)
+{
+	std::vector<SupportedInterface> result;
+	for (const SupportedABI& abi : capabilities.abis) {
+		if (abi.id != descriptor.abi.id || abi.major != descriptor.abi.major ||
+			abi.minor != descriptor.abi.minor) continue;
+		for (const CoreInterface& declared : descriptor.interfaces) {
+			for (const SupportedInterface& supported : abi.interfaces) {
+				if (declared.id == supported.id &&
+					declared.major == supported.major &&
+					declared.minor == supported.minor)
+					result.push_back(supported);
+			}
+		}
+		break;
+	}
+	std::sort(result.begin(), result.end(),
+		[](const SupportedInterface& left, const SupportedInterface& right) {
+			return left.id < right.id;
+		});
+	return result;
+}
+
 } // namespace
 
 class Runtime::Impl final : public HardwareFaultSink {
@@ -54,6 +87,7 @@ public:
 		  pending_fault_generation_(0), fault_thread_(&Impl::DrainFaults, this)
 	{
 		hardware_.SetFaultSink(this);
+		status_.capabilities = hardware_.capabilities();
 	}
 
 	~Impl()
@@ -70,6 +104,8 @@ public:
 
 	void ReportHardwareFault(HardwareFault fault) override
 	{
+		if (!fault.error.ok() && fault.error.phase.empty())
+			fault.error.phase = "input";
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
 			if (stopping_) return;
@@ -100,8 +136,7 @@ public:
 			} else {
 				busy_ = true;
 				started_ = true;
-				status_ = {};
-				status_.state = State::starting;
+				status_ = FreshStatus(State::starting);
 			}
 		}
 		if (rejected) {
@@ -124,8 +159,7 @@ public:
 		}
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
-			status_ = {};
-			status_.state = State::idle;
+			status_ = FreshStatus(State::idle);
 			busy_ = false;
 		}
 		condition_.notify_all();
@@ -137,6 +171,22 @@ public:
 	{
 		std::lock_guard<std::mutex> lock(mutex_);
 		return status_;
+	}
+
+	Error InspectCore(const std::string& directory,
+		const std::string& expected_package_id, CorePackageInspection* output)
+	{
+		if (output == nullptr || !ValidAbsolutePath(directory) ||
+			!ValidPackageId(expected_package_id))
+			return Invalid("invalid core package inspection request");
+		CorePackageInspection inspection;
+		const Error error = hardware_.InspectCorePackage(directory,
+			expected_package_id, &inspection);
+		Log("inspect_core", "", "", error.ok() ? "admission" :
+			(error.phase.empty() ? "admission" : error.phase), error);
+		if (!error.ok()) return error;
+		*output = std::move(inspection);
+		return {};
 	}
 
 	Error LaunchGame(const mister::Launch& launch)
@@ -186,7 +236,8 @@ public:
 		HardwareResult result = hardware_.Launch(prepared, generation);
 		if (result.error.ok() && result.observed_core != prepared.expected_core) {
 			result.error = {ErrorCode::core_mismatch,
-				"observed core does not match profile"};
+				"observed core does not match profile", "identity",
+				prepared.expected_core, result.observed_core};
 			result.mutation_attempted = true;
 		}
 		if (result.error.ok()) {
@@ -196,6 +247,7 @@ public:
 				status_.execution = Execution::game;
 				status_.system = prepared.system;
 				status_.core = result.observed_core;
+				status_.generation = generation;
 				status_.error = {};
 			}
 			Log("launch", prepared.system, result.observed_core, "running");
@@ -271,7 +323,7 @@ public:
 			}
 			const Error saved = hardware_.FlushSave();
 			if (!saved.ok()) {
-				const Error error{ErrorCode::save_failed, saved.message};
+				const Error error = SaveFailure(saved);
 				{
 					std::lock_guard<std::mutex> lock(mutex_);
 					active_generation_ = retired_generation;
@@ -290,10 +342,8 @@ public:
 			generation = ++next_generation_;
 			active_generation_ = generation;
 			pending_fault_generation_ = 0;
-			status_ = {};
-			status_.state = State::starting;
+			status_ = FreshStatus(State::starting);
 			status_.execution = Execution::development;
-			status_.system = info.system;
 			status_.declared_core = info.declared_core;
 			status_.package_id = info.package_id;
 		}
@@ -309,10 +359,18 @@ public:
 			std::lock_guard<std::mutex> lock(mutex_);
 			status_.state = State::running_development;
 			status_.execution = Execution::development;
-			status_.system = info.system;
 			status_.core = result.observed_core;
 			status_.declared_core = info.declared_core;
 			status_.package_id = info.package_id;
+			status_.generation = generation;
+			status_.active_package.package_id = info.package_id;
+			status_.active_package.descriptor = info.descriptor;
+			if (info.descriptor.abi.id == "fes.simple-game") {
+				status_.active_package.observed.abi = info.descriptor.abi;
+				status_.active_package.observed.build_id = info.descriptor.build.id;
+			}
+			status_.capabilities.active_interfaces = ActiveInterfaces(
+				info.descriptor, status_.capabilities);
 			status_.error = {};
 			busy_ = false;
 		}
@@ -321,7 +379,7 @@ public:
 		return {};
 	}
 
-	Error LoadDevelopmentRBF(const std::string& rbf)
+	Error LoadDevelopmentRBF(const std::string& rbf, bool contained = false)
 	{
 		LogRecord rejection;
 		bool rejected = false;
@@ -350,21 +408,26 @@ public:
 			return error;
 		}
 		Log("load_development_rbf", "", "", "validate");
+		std::uint64_t generation = 0;
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
-			status_ = {};
-			status_.state = State::starting;
+			generation = ++next_generation_;
+			active_generation_ = generation;
+			pending_fault_generation_ = 0;
+			status_ = FreshStatus(State::starting);
 			status_.execution = Execution::development;
 		}
 		Log("load_development_rbf", "", "", "starting");
-		const HardwareResult result = hardware_.LoadDevelopmentRBF(rbf);
+		const HardwareResult result = contained ?
+			hardware_.LoadContainedDevelopmentRBF(rbf, generation) :
+			hardware_.LoadDevelopmentRBF(rbf, generation);
 		if (result.error.ok()) {
 			{
 				std::lock_guard<std::mutex> lock(mutex_);
-				status_ = {};
-				status_.state = State::running_development;
+				status_ = FreshStatus(State::running_development);
 				status_.execution = Execution::development;
 				status_.core = result.observed_core;
+				status_.generation = generation;
 				busy_ = false;
 			}
 			Log("load_development_rbf", "", "", "running");
@@ -386,8 +449,7 @@ public:
 				return_immediately = true;
 			} else if (status_.state == State::reboot_required) {
 				immediate = {"stop", "", "", "validate",
-					{ErrorCode::idle_failed, status_.error.message.empty() ?
-						"reboot required" : status_.error.message}};
+					status_.error};
 				return_immediately = true;
 			} else if (status_.state == State::idle) {
 				status_.error = {};
@@ -411,7 +473,7 @@ public:
 		}
 		const Error saved = hardware_.FlushSave();
 		if (!saved.ok()) {
-			const Error error{ErrorCode::save_failed, saved.message};
+			const Error error = SaveFailure(saved);
 			{
 				std::lock_guard<std::mutex> lock(mutex_);
 				active_generation_ = retired_generation;
@@ -424,7 +486,7 @@ public:
 		}
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
-			status_.state = State::starting;
+			status_ = FreshStatus(State::starting);
 			status_.execution = Execution::none;
 		}
 		Log("stop", "", "", "starting");
@@ -433,8 +495,7 @@ public:
 			const Error error = IdleFailure(result.error);
 			{
 				std::lock_guard<std::mutex> lock(mutex_);
-				status_ = {};
-				status_.state = State::reboot_required;
+				status_ = FreshStatus(State::reboot_required);
 				status_.error = error;
 				busy_ = false;
 			}
@@ -443,8 +504,7 @@ public:
 		}
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
-			status_ = {};
-			status_.state = State::idle;
+			status_ = FreshStatus(State::idle);
 			busy_ = false;
 		}
 		condition_.notify_all();
@@ -452,7 +512,15 @@ public:
 		return {};
 	}
 
-private:
+	private:
+	Status FreshStatus(State state) const
+	{
+		Status result;
+		result.state = state;
+		result.capabilities = hardware_.capabilities();
+		return result;
+	}
+
 	Error FinishLaunchFailure(const std::string& operation,
 		const std::string& system, const std::string& core,
 		const HardwareResult& result)
@@ -466,8 +534,7 @@ private:
 		Log(operation, system, core, "failure", primary);
 		if (!result.mutation_attempted) {
 			std::lock_guard<std::mutex> lock(mutex_);
-			status_ = {};
-			status_.state = State::idle;
+			status_ = FreshStatus(State::idle);
 			status_.error = primary;
 			busy_ = false;
 			condition_.notify_all();
@@ -478,8 +545,7 @@ private:
 		if (cleanup.error.ok()) {
 			{
 				std::lock_guard<std::mutex> lock(mutex_);
-				status_ = {};
-				status_.state = State::idle;
+				status_ = FreshStatus(State::idle);
 				status_.error = primary;
 				busy_ = false;
 			}
@@ -489,8 +555,7 @@ private:
 		const Error idle_error = IdleFailure(cleanup.error);
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
-			status_ = {};
-			status_.state = State::reboot_required;
+			status_ = FreshStatus(State::reboot_required);
 			status_.error = idle_error;
 			busy_ = false;
 		}
@@ -524,7 +589,7 @@ private:
 				pending_fault_generation_ = 0;
 				system = status_.system;
 				core = status_.core;
-				status_.state = State::starting;
+				status_ = FreshStatus(State::starting);
 				status_.execution = Execution::none;
 			}
 
@@ -534,8 +599,7 @@ private:
 			if (cleanup.error.ok()) {
 				{
 					std::lock_guard<std::mutex> lock(mutex_);
-					status_ = {};
-					status_.state = State::idle;
+					status_ = FreshStatus(State::idle);
 					status_.error = fault.error;
 					busy_ = false;
 				}
@@ -547,8 +611,7 @@ private:
 			const Error idle_error = IdleFailure(cleanup.error);
 			{
 				std::lock_guard<std::mutex> lock(mutex_);
-				status_ = {};
-				status_.state = State::reboot_required;
+				status_ = FreshStatus(State::reboot_required);
 				status_.error = idle_error;
 				busy_ = false;
 			}
@@ -586,9 +649,18 @@ Error Runtime::LoadCore(const std::string& directory,
 {
 	return impl_->LoadCore(directory, expected_package_id);
 }
+Error Runtime::InspectCore(const std::string& directory,
+	const std::string& expected_package_id, CorePackageInspection* output)
+{
+	return impl_->InspectCore(directory, expected_package_id, output);
+}
 Error Runtime::LoadDevelopmentRBF(const std::string& rbf)
 {
 	return impl_->LoadDevelopmentRBF(rbf);
+}
+Error Runtime::LoadContainedDevelopmentRBF(const std::string& rbf)
+{
+	return impl_->LoadDevelopmentRBF(rbf, true);
 }
 Error Runtime::Stop() { return impl_->Stop(); }
 
@@ -606,6 +678,11 @@ const char* ErrorCodeName(ErrorCode code)
 	case ErrorCode::io_failed: return "io_failed";
 	case ErrorCode::idle_failed: return "idle_failed";
 	case ErrorCode::save_failed: return "save_failed";
+	case ErrorCode::invalid_package: return "invalid_package";
+	case ErrorCode::unsupported_target: return "unsupported_target";
+	case ErrorCode::unsupported_programming_profile: return "unsupported_programming_profile";
+	case ErrorCode::unsupported_abi: return "unsupported_abi";
+	case ErrorCode::unsupported_interface: return "unsupported_interface";
 	}
 	return "invalid";
 }

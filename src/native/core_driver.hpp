@@ -15,8 +15,6 @@ namespace native {
 class Clock;
 class CoreLoader;
 class Mmio;
-struct CoreDescriptor;
-
 enum class ProgrammingProfile {
 	mister_v1,
 	fes_gp_v1,

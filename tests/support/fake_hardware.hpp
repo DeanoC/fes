@@ -23,6 +23,9 @@ public:
 	mister::Error FlushSave() override { ++flush_calls; if (on_flush) on_flush(); return flush_result; }
 	mister::Error AdmitCorePackage(const std::string&, const std::string&,
 		std::unique_ptr<mister::AdmittedCorePackage>*) override;
+	mister::Error InspectCorePackage(const std::string&, const std::string&,
+		mister::CorePackageInspection*) override;
+	mister::Capabilities capabilities() const override { return supported; }
 	mister::HardwareResult LoadCore(
 		std::unique_ptr<mister::AdmittedCorePackage>, std::uint64_t) override;
 	int flush_calls = 0;
@@ -30,10 +33,16 @@ public:
 	mister::Error flush_result;
 	mister::HardwareResult Launch(const mister::PreparedLaunch&,
 		std::uint64_t generation) override;
-	mister::HardwareResult LoadDevelopmentRBF(const std::string&) override;
+	mister::HardwareResult LoadDevelopmentRBF(const std::string&,
+		std::uint64_t generation) override;
+	mister::HardwareResult LoadContainedDevelopmentRBF(const std::string&,
+		std::uint64_t generation) override;
 	void BlockLaunch();
 	void WaitUntilLaunchEntered();
 	void ReleaseLaunch();
+	void BlockNextIdle();
+	void WaitUntilIdleEntered();
+	void ReleaseIdle();
 	void ReportFault(std::uint64_t generation, mister::Error);
 	bool WaitForIdleCalls(int count);
 
@@ -42,18 +51,25 @@ public:
 	mister::HardwareResult development_result;
 	mister::Error admission_result;
 	mister::HardwareResult core_result;
+	mister::Error inspection_result;
+	bool inspection_compatible = true;
+	mister::Error compatibility_error;
+	mister::Capabilities supported;
 	mister::CorePackageInfo core_info = {
-		std::string(64, 'a'), "custom-core", ""};
+		std::string(64, 'a'), "custom-core", "", {}};
 	int idle_calls;
 	int launch_calls;
 	int development_calls;
 	int admission_calls = 0;
 	int core_calls = 0;
+	int inspection_calls = 0;
+	int contained_development_calls = 0;
 	int fault_sink_sets;
 	bool idle_without_fault_sink;
 	std::vector<mister::PreparedLaunch> launches;
 	std::vector<std::uint64_t> launch_generations;
 	std::vector<std::string> development_rbfs;
+	std::vector<std::uint64_t> development_generations;
 	std::vector<std::thread::id> idle_threads;
 	std::vector<std::string> events;
 	std::vector<std::uint64_t> core_generations;
@@ -64,6 +80,9 @@ private:
 	bool block_launch_;
 	bool launch_entered_;
 	bool release_launch_;
+	bool block_idle_ = false;
+	bool idle_entered_ = false;
+	bool release_idle_ = false;
 	mister::HardwareFaultSink* fault_sink_;
 };
 

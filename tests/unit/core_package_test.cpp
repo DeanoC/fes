@@ -195,7 +195,7 @@ void TestDescriptorFieldsAndCompatibilityAreSeparate()
 	mister::native::OpenedCorePackage unknown;
 	assert(mister::native::OpenCorePackage(future.path, "", &unknown).ok());
 	assert(mister::native::CheckCoreCompatibility(unknown.descriptor).code ==
-		mister::ErrorCode::invalid_request);
+		mister::ErrorCode::unsupported_abi);
 
 	auto incompatible = descriptor;
 	incompatible.abi.minor = 1;
@@ -203,6 +203,10 @@ void TestDescriptorFieldsAndCompatibilityAreSeparate()
 	incompatible = descriptor;
 	incompatible.target.platform = "vendor.board";
 	assert(!mister::native::CheckCoreCompatibility(incompatible).ok());
+	incompatible = descriptor;
+	incompatible.target.programming_profile = "development-contained-v1";
+	assert(mister::native::CheckCoreCompatibility(incompatible).code ==
+		mister::ErrorCode::unsupported_programming_profile);
 	incompatible = descriptor;
 	incompatible.target.programming_profile = "mister-v1";
 	incompatible.abi = {"mister", 1, 0};
@@ -226,6 +230,28 @@ void TestDescriptorFieldsAndCompatibilityAreSeparate()
 
 void TestDirectoryAdmissionAndRetainedPayload()
 {
+	TempDirectory rooted = PackageFromFixture("valid-basic");
+	mister::native::OpenedCorePackage rooted_opened;
+	assert(mister::native::OpenCorePackage({"/tmp"}, rooted.path, "",
+		&rooted_opened).ok());
+	assert(mister::native::OpenCorePackage({"/usr/share/mister-runtime/core-packages"},
+		rooted.path, "", &rooted_opened).code ==
+		mister::ErrorCode::invalid_package);
+	assert(mister::native::OpenCorePackage({rooted.path}, rooted.path,
+		"", &rooted_opened).code == mister::ErrorCode::invalid_package);
+	assert(mister::native::OpenCorePackage({"/tmp"},
+		"/tmp/../tmp/" + rooted.path.substr(5), "", &rooted_opened).code ==
+		mister::ErrorCode::invalid_package);
+	assert(mister::native::OpenCorePackage({"/tmp"}, rooted.path + "/",
+		"", &rooted_opened).code == mister::ErrorCode::invalid_package);
+	TempDirectory symlink_root;
+	assert(symlink(rooted.path.c_str(),
+		(symlink_root.path + "/linked").c_str()) == 0);
+	symlink_root.entries.push_back("linked");
+	assert(mister::native::OpenCorePackage({symlink_root.path},
+		symlink_root.path + "/linked", "", &rooted_opened).code ==
+		mister::ErrorCode::invalid_package);
+
 	TempDirectory extra = PackageFromFixture("valid-basic");
 	extra.Add("unexpected", "x");
 	mister::native::OpenedCorePackage opened;
@@ -354,7 +380,7 @@ void TestCoreSystemPresenceIsValidatedAndFesGpRequiresOmission()
 		assert(mister::native::OpenCorePackage(package.path, "", &opened).ok());
 		assert(opened.descriptor.core.system == "pong");
 		assert(mister::native::CheckCoreCompatibility(opened.descriptor).code ==
-			mister::ErrorCode::invalid_request);
+			mister::ErrorCode::unsupported_abi);
 	}
 }
 

@@ -646,9 +646,9 @@ struct Fixture {
 			mister::native::Menu720p60Recipe()), input(events, clock),
 		  input_identity({"FogCast Virtual Gamepad", 0x0006, 0x0000, 0x0001,
 			0x0001}), sink(),
-		  hardware(opener, fpga, core, idle_video, game_video, input,
+			hardware(opener, fpga, core, idle_video, game_video, input,
 			input_identity, clock, log, idle, {30000, 10000, 10000}, driver,
-			gp_driver, profiles)
+			gp_driver, profiles, {"/tmp"})
 	{
 		hardware.SetFaultSink(&sink);
 	}
@@ -943,7 +943,7 @@ void TestProductionFesInputDisconnectAndGenerationRetirement()
 	const std::string idle = temporary.File("idle.rbf", "idle");
 	NativeHardware hardware(opener, fpga, core, idle_video, game_video,
 		input, identity, clock, log, idle, {30000, 10000, 10000},
-		mister_driver, &gp_driver);
+		mister_driver, &gp_driver, nullptr, {"/tmp"});
 	hardware.SetFaultSink(&sink);
 	const std::string package_id =
 		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0";
@@ -1029,7 +1029,8 @@ void TestPackagedMisterIsExplicitDevelopmentAndValidatesDeclaredSystem()
 	const mister::Status status = runtime.status();
 	assert(status.state == mister::State::running_development);
 	assert(status.execution == mister::Execution::development);
-	assert(status.system == "megadrive");
+	assert(status.system.empty());
+	assert(status.active_package.descriptor.core.system == "megadrive");
 	assert(status.declared_core == "fes.pong");
 	assert(status.core == "MegaDrive");
 	assert(fixture.input.open_calls == 0);
@@ -1448,6 +1449,13 @@ void TestEveryPostProgramPhaseFailureGetsOneIdleCleanup()
 		}
 		const mister::Error result = fixture.runtime.LaunchGame(fixture.Request());
 		assert(!result.ok());
+		const std::string expected_phase =
+			phase == "video.quiesce" ? "quiesce" :
+			phase == "program" ? "programming" :
+			phase.find("video.") == 0 || phase == "core.buttons.neutral" ||
+				phase == "audio.volume:0" ? "video" :
+			phase.find("input.") == 0 ? "input" : "transport";
+		assert(result.phase == expected_phase);
 		assert(fixture.runtime.status().state == mister::State::idle);
 		assert(Count(fixture.native.fpga.programmed, "idle.rbf") == 2);
 		assert(Count(fixture.native.fpga.programmed, "megadrive.rbf") ==
@@ -1825,12 +1833,16 @@ void TestProbeMismatchAndIoRetainObservedCoreAndMutation()
 	mismatch.spi.observed_core = "OTHER";
 	const auto mismatch_result = mismatch.hardware.Launch(mismatch.Launch(), 1);
 	assert(mismatch_result.error.code == mister::ErrorCode::core_mismatch);
+	assert(mismatch_result.error.phase == "identity");
+	assert(mismatch_result.error.expected == "MegaDrive");
+	assert(mismatch_result.error.observed == "OTHER");
 	assert(mismatch_result.mutation_attempted);
 	assert(mismatch_result.observed_core == "OTHER");
 	Fixture io;
 	io.spi.probe_error = {mister::ErrorCode::io_failed, "probe"};
 	const auto io_result = io.hardware.Launch(io.Launch(), 1);
 	assert(io_result.error.code == mister::ErrorCode::io_failed);
+	assert(io_result.error.phase == "transport");
 	assert(io_result.mutation_attempted);
 	assert(io_result.observed_core.empty());
 }
@@ -2161,8 +2173,8 @@ void TestProductionConstructionOwnsRealIdleHardware()
 	std::unique_ptr<mister::AdmittedCorePackage> admitted;
 	assert(hardware->AdmitCorePackage(package.path,
 		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0",
-		&admitted).ok());
-	assert(admitted);
+		&admitted).code == mister::ErrorCode::invalid_package);
+	assert(!admitted);
 }
 
 void TestUnavailableHardwareRemainsFailureOnly()
@@ -2176,9 +2188,72 @@ void TestUnavailableHardwareRemainsFailureOnly()
 	assert(hardware->Launch({}, 1).error.code == mister::ErrorCode::io_failed);
 	assert(hardware->LoadDevelopmentRBF("/x").error.code ==
 		mister::ErrorCode::io_failed);
+	assert(hardware->LoadContainedDevelopmentRBF("/x", 1).error.code ==
+		mister::ErrorCode::io_failed);
 	std::unique_ptr<mister::AdmittedCorePackage> package;
 	assert(hardware->AdmitCorePackage("/x", std::string(64, 'a'), &package).code ==
 		mister::ErrorCode::io_failed);
+	mister::CorePackageInspection inspection;
+	assert(hardware->InspectCorePackage("/x", std::string(64, 'a'),
+		&inspection).code == mister::ErrorCode::io_failed);
+}
+
+void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
+{
+	std::vector<std::string> gp_events;
+	RecordingDriver gp_driver(gp_events);
+	Fixture available(&gp_driver);
+	TempDirectory package;
+	PopulateFesGpPackage(&package);
+	const std::string id =
+		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0";
+	mister::CorePackageInspection inspection;
+	assert(available.hardware.InspectCorePackage(package.path, id,
+		&inspection).ok());
+	assert(inspection.compatible && inspection.compatibility_error.ok());
+	assert(inspection.package_id == id);
+	assert(available.fpga.programmed.empty() && gp_events.empty());
+	const mister::Capabilities capabilities = available.hardware.capabilities();
+	assert(capabilities.programming_profiles == std::vector<std::string>({
+		"development-contained-v1", "fes-gp-v1", "mister-v1"}));
+	assert(capabilities.abis.size() == 2);
+
+	Fixture unavailable;
+	assert(unavailable.hardware.InspectCorePackage(package.path, id,
+		&inspection).ok());
+	assert(!inspection.compatible);
+	assert(inspection.compatibility_error.code == mister::ErrorCode::unsupported_abi);
+	assert(inspection.compatibility_error.phase == "compatibility");
+	assert(unavailable.hardware.capabilities().programming_profiles ==
+		std::vector<std::string>({"development-contained-v1", "mister-v1"}));
+	assert(unavailable.hardware.InspectCorePackage(package.path,
+		std::string(64, '0'), &inspection).code ==
+		mister::ErrorCode::invalid_package);
+}
+
+void TestActivationRechecksRetainedPayloadIdentityBeforeMutation()
+{
+	std::vector<std::string> gp_events;
+	RecordingDriver gp_driver(gp_events);
+	Fixture fixture(&gp_driver);
+	TempDirectory package;
+	PopulateFesGpPackage(&package);
+	const std::string id =
+		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0";
+	std::unique_ptr<mister::AdmittedCorePackage> admitted;
+	assert(fixture.hardware.AdmitCorePackage(package.path, id, &admitted).ok());
+	const int payload = open((package.path + "/core.rbf").c_str(), O_WRONLY);
+	assert(payload >= 0);
+	const char replacement[] = "changed-data";
+	static_assert(sizeof(replacement) - 1 == 12, "fixture payload size");
+	assert(write(payload, replacement, sizeof(replacement) - 1) == 12);
+	assert(close(payload) == 0);
+	const mister::HardwareResult result =
+		fixture.hardware.LoadCore(std::move(admitted), 1);
+	assert(result.error.code == mister::ErrorCode::invalid_package);
+	assert(result.error.phase == "admission");
+	assert(!result.mutation_attempted);
+	assert(fixture.fpga.programmed.empty() && gp_events.empty());
 }
 
 } // namespace
@@ -2228,6 +2303,8 @@ int main()
 	TestNesProductionProfileAndPreflight();
 	TestProductionConstructionOwnsRealIdleHardware();
 	TestUnavailableHardwareRemainsFailureOnly();
-	puts("native_hardware_test: 41 passed");
+	TestInspectionReportsActualDriverCompatibilityWithoutMutation();
+	TestActivationRechecksRetainedPayloadIdentityBeforeMutation();
+	puts("native_hardware_test: 43 passed");
 	return 0;
 }

@@ -12,56 +12,13 @@
 namespace mister {
 namespace native {
 
-struct CoreMetadata {
-	std::string id;
-	std::string name;
-	std::string description;
-	std::string version;
-	std::string system;
-};
-
-struct CoreTarget {
-	std::string platform;
-	std::string device;
-	std::string programming_profile;
-};
-
-struct CorePayload {
-	std::string file;
-	std::uint64_t size = 0;
-	std::string sha256;
-};
-
-struct VersionedContract {
-	std::string id;
-	std::uint16_t major = 0;
-	std::uint16_t minor = 0;
-};
-
-struct CoreInterface {
-	std::string id;
-	std::uint16_t major = 0;
-	std::uint16_t minor = 0;
-	bool required = false;
-};
-
-struct CoreBuild {
-	std::string id;
-	std::string repository;
-	std::string revision;
-	std::string recipe_sha256;
-	std::string toolchain;
-};
-
-struct CoreDescriptor {
-	std::uint16_t format = 0;
-	CoreMetadata core;
-	CoreTarget target;
-	CorePayload payload;
-	VersionedContract abi;
-	std::vector<CoreInterface> interfaces;
-	CoreBuild build;
-};
+using CoreMetadata = mister::CoreMetadata;
+using CoreTarget = mister::CoreTarget;
+using CorePayload = mister::CorePayload;
+using VersionedContract = mister::VersionedContract;
+using CoreInterface = mister::CoreInterface;
+using CoreBuild = mister::CoreBuild;
+using CoreDescriptor = mister::CoreDescriptor;
 
 struct OpenedCorePackage {
 	CoreDescriptor descriptor;
@@ -72,6 +29,10 @@ struct OpenedCorePackage {
 
 Error OpenCorePackage(const std::string& directory,
 	const std::string& expected_id, OpenedCorePackage* result);
+Error OpenCorePackage(const std::vector<std::string>& trusted_roots,
+	const std::string& directory, const std::string& expected_id,
+	OpenedCorePackage* result);
+Error RecheckCorePackage(const OpenedCorePackage& package);
 Error CheckCoreCompatibility(const CoreDescriptor& descriptor);
 
 } // namespace native

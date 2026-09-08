@@ -5,6 +5,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -21,6 +22,16 @@ using mister::Status;
 using mister::daemon::Operation;
 using mister::daemon::ParseRequest;
 using mister::daemon::Request;
+
+std::vector<std::string> ReadLines(const std::string& path)
+{
+	std::ifstream fixture(path);
+	assert(fixture.good());
+	std::vector<std::string> lines;
+	std::string line;
+	while (std::getline(fixture, line)) lines.push_back(line);
+	return lines;
+}
 
 Error Parse(const std::string& text, Request* request)
 {
@@ -46,11 +57,8 @@ void TestOptionalSavePath()
 
 void TestGoldenRequests()
 {
-	std::ifstream fixture("tests/fixtures/protocol-v1.jsonl");
-	assert(fixture.good());
-	std::vector<std::string> lines;
-	std::string line;
-	while (std::getline(fixture, line)) lines.push_back(line);
+	const std::vector<std::string> lines =
+		ReadLines("tests/fixtures/protocol-v1.jsonl");
 	assert(lines.size() == 4);
 
 	Request request;
@@ -73,13 +81,181 @@ void TestGoldenRequests()
 	assert(request.operation == Operation::stop);
 }
 
+mister::CoreDescriptor FixtureDescriptor()
+{
+	mister::CoreDescriptor descriptor;
+	descriptor.format = 2;
+	descriptor.core = {"fes.pong", "FES Pong",
+		"Synthetic test-only core bundle fixture; never deploy.", "0.1.0", ""};
+	descriptor.target = {"de10_nano", "5CSEBA6U23I7", "fes-gp-v1"};
+	descriptor.payload = {"core.rbf", 12,
+		"e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1"};
+	descriptor.abi = {"fes.simple-game", 1, 0};
+	descriptor.interfaces = {
+		{"fes.gamepad", 1, 0, true},
+		{"fes.video.fixed-720p60", 1, 0, true}};
+	descriptor.build = {"0123456789abcdef0123456789abcdef",
+		"https://example.invalid/fes-pong",
+		"1111111111111111111111111111111111111111",
+		"2222222222222222222222222222222222222222222222222222222222222222",
+		"synthetic fixture generator 1.0 (test-only)"};
+	return descriptor;
+}
+
+mister::Capabilities FixtureCapabilities()
+{
+	mister::Capabilities capabilities;
+	capabilities.programming_profiles = {
+		"development-contained-v1", "fes-gp-v1", "mister-v1"};
+	capabilities.abis = {
+		{"fes.simple-game", 1, 0,
+			{{"fes.gamepad", 1, 0},
+			 {"fes.video.fixed-720p60", 1, 0}}},
+		{"mister", 1, 0, {}}};
+	return capabilities;
+}
+
+void TestProtocol2GoldenRequestsAndResponses()
+{
+	const std::vector<std::string> lines =
+		ReadLines("tests/fixtures/protocol-v2.jsonl");
+	assert(lines.size() == 10);
+	Request request;
+	assert(Parse(lines[0], &request).ok());
+	assert(request.protocol == 2 && request.operation == Operation::status);
+	assert(Parse(lines[2], &request).ok());
+	assert(request.operation == Operation::inspect_core);
+	assert(request.package_path ==
+		"/tmp/fogcast-development/core-packages/fixture");
+	assert(request.package_id ==
+		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0");
+	assert(Parse(lines[4], &request).ok());
+	assert(request.operation == Operation::load_core);
+	assert(Parse(lines[6], &request).ok());
+	assert(request.operation == Operation::load_development_rbf);
+	assert(request.programming_profile == "development-contained-v1");
+	assert(Parse(lines[8], &request).ok() && request.operation == Operation::stop);
+
+	Status status;
+	status.state = State::idle;
+	status.capabilities = FixtureCapabilities();
+	assert(mister::daemon::EncodeResponse(2, true, status, "fixture") == lines[1]);
+
+	mister::CorePackageInspection inspection;
+	inspection.package_id = request.package_id =
+		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0";
+	inspection.descriptor = FixtureDescriptor();
+	inspection.compatible = true;
+	assert(mister::daemon::EncodeResponse(2, true, status, "fixture", &inspection) ==
+		lines[3]);
+
+	status.state = State::running_development;
+	status.execution = Execution::development;
+	status.core = "fes.pong";
+	status.generation = 1;
+	status.active_package.package_id = inspection.package_id;
+	status.active_package.descriptor = inspection.descriptor;
+	status.active_package.observed.abi = {"fes.simple-game", 1, 0};
+	status.active_package.observed.build_id =
+		"0123456789abcdef0123456789abcdef";
+	status.capabilities.active_interfaces = {{"fes.gamepad", 1, 0}};
+	assert(mister::daemon::EncodeResponse(2, true, status, "fixture") == lines[5]);
+
+	status.core.clear();
+	status.generation = 2;
+	status.active_package = {};
+	status.capabilities.active_interfaces.clear();
+	assert(mister::daemon::EncodeResponse(2, true, status, "fixture") == lines[7]);
+	status = {};
+	status.state = State::idle;
+	status.capabilities = FixtureCapabilities();
+	assert(mister::daemon::EncodeResponse(2, true, status, "fixture") == lines[9]);
+}
+
+void TestProtocolResponseEdgeFixturesAndV1Projection()
+{
+	const std::vector<std::string> v1 =
+		ReadLines("tests/fixtures/protocol-v1-responses.jsonl");
+	assert(v1.size() == 2);
+	Status status;
+	status.state = State::idle;
+	assert(mister::daemon::EncodeResponse(true, status, "fixture") == v1[0]);
+	for (ErrorCode code : {ErrorCode::invalid_package,
+		ErrorCode::unsupported_target,
+		ErrorCode::unsupported_programming_profile,
+		ErrorCode::unsupported_abi,
+		ErrorCode::unsupported_interface}) {
+		status.error = {code, "fixture failure", "compatibility", "expected", "observed"};
+		assert(mister::daemon::EncodeResponse(false, status, "fixture") == v1[1]);
+	}
+
+	const std::vector<std::string> edges =
+		ReadLines("tests/fixtures/protocol-v2-edge-responses.jsonl");
+	assert(edges.size() == 5);
+	status = {};
+	status.state = State::idle;
+	status.capabilities = FixtureCapabilities();
+	mister::CorePackageInspection inspection;
+	inspection.package_id =
+		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0";
+	inspection.descriptor = FixtureDescriptor();
+	inspection.compatibility_error = {ErrorCode::unsupported_abi,
+		"incompatible core package: ABI driver is unavailable", "compatibility"};
+	assert(mister::daemon::EncodeResponse(2, true, status, "fixture", &inspection) ==
+		edges[0]);
+	status.error = {ErrorCode::unsupported_target, "unsupported board",
+		"compatibility", "de10_nano", "vendor.board"};
+	assert(mister::daemon::EncodeResponse(2, false, status, "fixture") == edges[1]);
+	status.error = {ErrorCode::invalid_package,
+		"package identity mismatch", "admission"};
+	assert(mister::daemon::EncodeResponse(2, false, status, "fixture") == edges[2]);
+
+	status = {};
+	status.state = State::running_development;
+	status.execution = Execution::development;
+	status.core = "PONG";
+	status.generation = 9;
+	status.capabilities = FixtureCapabilities();
+	status.active_package.package_id = inspection.package_id;
+	status.active_package.descriptor = FixtureDescriptor();
+	status.active_package.descriptor.core.system = "pong";
+	status.active_package.descriptor.target.programming_profile = "mister-v1";
+	status.active_package.descriptor.abi = {"mister", 1, 0};
+	status.active_package.descriptor.interfaces.clear();
+	assert(mister::daemon::EncodeResponse(2, true, status, "fixture") == edges[3]);
+	status = {};
+	status.state = State::running_development;
+	status.execution = Execution::development;
+	status.capabilities = FixtureCapabilities();
+	status.generation = std::numeric_limits<std::uint64_t>::max();
+	assert(mister::daemon::EncodeResponse(2, true, status, "fixture") == edges[4]);
+}
+
+void TestProtocol2RequestBoundaries()
+{
+	const std::string id(64, 'a');
+	const std::vector<std::string> invalid = {
+		"{\"protocol\":2,\"operation\":\"inspect_core\",\"package_id\":\"" + id + "\"}",
+		"{\"protocol\":2,\"operation\":\"inspect_core\",\"package_path\":3,\"package_id\":\"" + id + "\"}",
+		"{\"protocol\":2,\"operation\":\"inspect_core\",\"package_path\":\"relative\",\"package_id\":\"" + id + "\"}",
+		"{\"protocol\":2,\"operation\":\"inspect_core\",\"package_path\":\"/tmp/x\\u0000y\",\"package_id\":\"" + id + "\"}",
+		"{\"protocol\":2,\"operation\":\"load_core\",\"package_path\":\"/tmp/x\",\"package_id\":\"abc\"}",
+		"{\"protocol\":2,\"operation\":\"load_core\",\"package_path\":\"/tmp/x\",\"package_id\":\"" + std::string(64, 'A') + "\"}",
+		"{\"protocol\":2,\"operation\":\"load_development_rbf\",\"rbf\":\"/tmp/core.rbf\"}",
+		"{\"protocol\":2,\"operation\":\"load_development_rbf\",\"rbf\":\"/tmp/core.rbf\",\"programming_profile\":3}",
+		"{\"protocol\":2,\"operation\":\"load_development_rbf\",\"rbf\":\"/tmp/core.rbf\",\"programming_profile\":\"mister-v1\"}",
+		"{\"protocol\":2,\"operation\":\"load_development_rbf\",\"rbf\":\"relative\",\"programming_profile\":\"development-contained-v1\"}"};
+	for (const std::string& request : invalid)
+		ExpectError(request, ErrorCode::invalid_request);
+}
+
 void TestProtocolVersion()
 {
 	ExpectError("{\"operation\":\"status\"}", ErrorCode::invalid_request);
 	ExpectError("{\"protocol\":0,\"operation\":\"status\"}",
 		ErrorCode::unsupported_protocol);
-	ExpectError("{\"protocol\":2,\"operation\":\"status\"}",
-		ErrorCode::unsupported_protocol);
+	Request v2;
+	assert(Parse("{\"protocol\":2,\"operation\":\"status\"}", &v2).ok());
 	ExpectError("{\"protocol\":\"1\",\"operation\":\"status\"}",
 		ErrorCode::invalid_request);
 	ExpectError("{\"protocol\":1.0,\"operation\":\"status\"}",
@@ -92,7 +268,7 @@ void TestProtocolVersion()
 	ExpectError("{\"protocol\":2,\"operation\":\"status\",\"extra\":true}",
 		ErrorCode::invalid_request);
 	ExpectError("{\"protocol\":2,\"operation\":\"launch\",\"system\":\"test\",\"rbf\":\"/a\",\"media\":{},\"settings\":{}}",
-		ErrorCode::unsupported_protocol);
+		ErrorCode::invalid_request);
 }
 
 void TestUnknownFields()
@@ -261,6 +437,9 @@ int main()
 	TestPongRomlessLaunchRequest();
 	TestOptionalSavePath();
 	TestGoldenRequests();
+	TestProtocol2GoldenRequestsAndResponses();
+	TestProtocolResponseEdgeFixturesAndV1Projection();
+	TestProtocol2RequestBoundaries();
 	TestProtocolVersion();
 	TestUnknownFields();
 	TestJsonAcceptedValueKinds();
@@ -272,5 +451,5 @@ int main()
 	TestResponseEncoding();
 	TestErrorCodeNames();
 	TestStatusErrorIsIndependentOfResponseOk();
-	std::cout << "protocol_test: 14 tests passed\n";
+	std::cout << "protocol_test: 17 tests passed\n";
 }

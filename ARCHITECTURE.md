@@ -62,6 +62,15 @@ replacement after preflight cannot redirect activation. Structural admission
 does not select hardware: `CheckCoreCompatibility` separately checks the
 compiled target/profile/ABI/interface registry.
 
+Production package admission and inspection first traverse one of the fixed
+roots `/tmp/fogcast-development/core-packages` or
+`/usr/share/mister-runtime/core-packages`. Each relative component is opened
+from a retained parent descriptor with `O_NOFOLLOW`; empty components,
+traversal, the root itself, and symlink components fail before package bytes
+are read. This policy is part of `NativeHardware`, so direct library calls and
+daemon requests use the same boundary. Tests and embedders can inject their
+own trusted roots when constructing that hardware boundary.
+
 `Runtime::LoadCore(directory, expected_package_id)` calls
 `Hardware::AdmitCorePackage` while the current Status and session remain
 unchanged. Admission returns an owned opaque `AdmittedCorePackage` only after
@@ -72,6 +81,12 @@ retained object to `Hardware::LoadCore`; the package path is not reopened at
 the mutation boundary. Native activation rechecks the
 descriptor/profile/driver pairing, stops and joins any outgoing game input
 session, and only then quiesces the outgoing driver and programs the package.
+`Runtime::InspectCore(directory, expected_package_id, output)` uses the same
+rooted byte and registry checks without consuming a generation, changing
+status, or invoking FPGA, input, video, or driver operations. A structurally
+valid unsupported package returns a successful inspection with a structured
+compatibility error; malformed bytes or the wrong claimed package identity
+fail inspection.
 
 `CoreDriver` owns outgoing protocol quiesce and destination identity, button,
 and start operations. `MisterCoreDriver` is the production MiSTer adapter.
@@ -205,8 +220,10 @@ declared `core.system` must resolve in the compiled Profiles table and selects
 its expected MiSTer identity and recipe metadata; omission remains valid for
 an explicit development package. Package loading never infers media, launches
 a game, opens input, or fabricates live build capabilities. Status records the
-verified package ID, declared core ID, optional system, and separately observed
-MiSTer identity. Existing raw `LoadDevelopmentRBF` remains a `mister-v1`
+verified package ID and declared core metadata (including the optional system)
+inside `active_package`, plus the separately observed MiSTer identity. The
+top-level system remains absent for every development execution, preserving
+the protocol-1 state shape. Existing raw `LoadDevelopmentRBF` remains a `mister-v1`
 compatibility adapter. Native-only explicit contained loading selects
 `development-contained-v1` and performs no identity or controller operation.
 
@@ -244,7 +261,9 @@ generation-tagged error and returns. Enqueuing an active-generation fault also
 reserves that generation under the runtime mutex, so Stop is rejected as busy
 until the drain owns cleanup. A private runtime drain thread admits the fault
 through the same mutation boundary, then invokes `LoadIdle()` exactly once; it
-never joins input from the input worker itself.
+never joins input from the input worker itself. Before that blocking recovery
+call, it publishes fresh `starting` status with no retired generation, package,
+system/core identity, or active interfaces.
 Cleanup success preserves the direct input fault in idle status, cleanup
 failure publishes `reboot_required`, and stale generations perform no work.
 
@@ -279,6 +298,25 @@ absolute RBF path, semantic media paths, profile-declared settings, and an
 optional SNES-only absolute `save_path`.
 Responses report `ok`, lifecycle state, execution type, system/core identity
 when present, a direct error when present, and the runtime version.
+
+Protocol 2 accepts `status`, `inspect_core`, `load_core`,
+`load_development_rbf`, and `stop`; it deliberately has no game `launch`.
+Package requests carry one absolute package path and the exact 64-character
+lowercase package ID. Raw diagnostic loading requires the literal
+`development-contained-v1` profile and never advertises an ABI, package, video,
+or input capability. Each v2 response always has twelve closed top-level
+fields. In addition to the v1 lifecycle fields it reports the sorted installed
+profile/ABI registry, currently active interfaces, the confirmed active package
+and observed ABI/build identity, the positive active generation or null, and a
+separate successful inspection result or null. MiSTer package observation has
+null ABI and build identity because its probe proves neither. Errors add a
+bounded phase and omit unavailable expected/observed strings. The active
+interface list is the sorted exact descriptor/installed-registry intersection
+verified by the live driver. Save, quiesce, programming, transport, identity,
+video, input, and recovery producers retain their concrete phase; identity
+mismatches include bounded safe expected/observed evidence. Protocol-2-only
+error codes project to `invalid_request` when old protocol-1 clients reconcile
+the same lifecycle error; no v2 fields or error members enter a v1 response.
 
 The maximum request frame is 65,536 bytes including its newline terminator.
 Decoded path strings reject embedded NUL bytes at the protocol, lifecycle,

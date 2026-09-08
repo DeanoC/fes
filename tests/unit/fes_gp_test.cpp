@@ -240,6 +240,8 @@ void TestIdentifyReadsAllWordsThenRejectsEveryIdentityOrBuildMismatch()
 		ScriptIdentity(&mmio, words);
 		const mister::Error error = gp.Identify(descriptor, 10000);
 		assert(error.code == mister::ErrorCode::core_mismatch);
+		assert(error.phase == "identity");
+		assert(!error.expected.empty() && !error.observed.empty());
 		assert(mmio.writes.size() == FesGpIdentityWordCount * 2);
 	}
 

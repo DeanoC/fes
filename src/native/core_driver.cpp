@@ -22,6 +22,12 @@ CoreDriverResult DriverFailure(Error error, bool attempted)
 	return {std::move(error), attempted, ""};
 }
 
+Error WithPhase(Error error, const char* phase)
+{
+	if (!error.ok() && error.phase.empty()) error.phase = phase;
+	return error;
+}
+
 } // namespace
 
 MisterCoreDriver::MisterCoreDriver(Mmio& mmio, CoreLoader& core, Clock& clock)
@@ -34,11 +40,11 @@ CoreDriverResult MisterCoreDriver::Quiesce(const CoreDriverContext&,
 		return DriverFailure({ErrorCode::io_failed, "MiSTer quiesce deadline exceeded"}, false);
 	std::uint32_t gpo = 0;
 	Error error = mmio_.Read32(generated::kFpgaGpoAddress, &gpo);
-	if (!error.ok()) return DriverFailure(error, false);
+	if (!error.ok()) return DriverFailure(WithPhase(error, "quiesce"), false);
 	const std::uint32_t reset = (gpo & ~generated::kFpgaCoreStateMask) |
 		generated::kFpgaCoreReset;
 	error = mmio_.Write32(generated::kFpgaGpoAddress, reset);
-	if (!error.ok()) return DriverFailure(error, true);
+	if (!error.ok()) return DriverFailure(WithPhase(error, "quiesce"), true);
 	return {{}, true, ""};
 }
 
@@ -47,10 +53,11 @@ CoreDriverResult MisterCoreDriver::Identify(const CoreDriverContext& context,
 {
 	std::string observed;
 	Error error = core_.Probe(&observed, deadline);
-	if (!error.ok()) return DriverFailure(error, false);
+	if (!error.ok()) return DriverFailure(WithPhase(error, "transport"), false);
 	if (!context.expected_core.empty() && observed != context.expected_core)
 		return {{ErrorCode::core_mismatch,
-			"observed core does not match package or profile"}, false, observed};
+			"observed core does not match package or profile", "identity",
+			context.expected_core, observed}, false, observed};
 	return {{}, false, observed};
 }
 
@@ -59,7 +66,7 @@ CoreDriverResult MisterCoreDriver::NeutralizeButtons(const CoreDriverContext&,
 {
 	const Error error = core_.NeutralizeButtons(deadline);
 	return error.ok() ? CoreDriverResult{{}, true, ""} :
-		DriverFailure(error, true);
+		DriverFailure(WithPhase(error, "input"), true);
 }
 
 CoreDriverResult MisterCoreDriver::SetButtons(const CoreDriverContext& context,
@@ -70,7 +77,7 @@ CoreDriverResult MisterCoreDriver::SetButtons(const CoreDriverContext& context,
 			"MiSTer input command is unavailable"}, false);
 	const Error error = core_.SetButtons(context.player_command, map, deadline);
 	return error.ok() ? CoreDriverResult{{}, true, ""} :
-		DriverFailure(error, true);
+		DriverFailure(WithPhase(error, "input"), true);
 }
 
 CoreDriverResult MisterCoreDriver::Start(const CoreDriverContext& context,
@@ -79,7 +86,7 @@ CoreDriverResult MisterCoreDriver::Start(const CoreDriverContext& context,
 	if (context.mister_recipe == nullptr) return {};
 	const Error error = core_.ReleaseReset(*context.mister_recipe, deadline);
 	return error.ok() ? CoreDriverResult{{}, true, ""} :
-		DriverFailure(error, true);
+		DriverFailure(WithPhase(error, "transport"), true);
 }
 
 CoreDriverResult ContainedCoreDriver::Quiesce(const CoreDriverContext&,
@@ -116,8 +123,8 @@ Error CoreDriverRegistry::Resolve(const CoreDescriptor& descriptor,
 	if (!error.ok()) return error;
 	*driver = Resolve(*profile);
 	if (*driver == nullptr)
-		return {ErrorCode::unsupported_protocol,
-			"registered core driver is unavailable"};
+		return {ErrorCode::unsupported_abi,
+			"registered core driver is unavailable", "compatibility"};
 	return {};
 }
 
@@ -130,7 +137,8 @@ Error ParseProgrammingProfile(const std::string& value,
 	else if (value == "fes-gp-v1") *output = ProgrammingProfile::fes_gp_v1;
 	else if (value == "development-contained-v1")
 		*output = ProgrammingProfile::development_contained_v1;
-	else return {ErrorCode::unsupported_protocol, "unsupported programming profile"};
+	else return {ErrorCode::unsupported_programming_profile,
+		"unsupported programming profile", "compatibility"};
 	return {};
 }
 

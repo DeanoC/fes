@@ -58,18 +58,26 @@ public:
 	NativeHardware(ArtifactOpener&, FpgaManager&, CoreLoader&, VideoBringup&,
 		FixedVideoBringup&, InputSession&, const InputDeviceIdentity&, Clock&,
 		LogSink&, std::string idle_rbf, NativeTimeouts, CoreDriver& mister_driver,
-		CoreDriver* fes_gp_driver = nullptr, const Profiles* profiles = nullptr);
+		CoreDriver* fes_gp_driver = nullptr, const Profiles* profiles = nullptr,
+		std::vector<std::string> package_roots = {});
 	~NativeHardware();
 	void SetFaultSink(HardwareFaultSink*) override;
 	HardwareResult LoadIdle() override;
 	Error FlushSave() override;
 	Error AdmitCorePackage(const std::string&, const std::string&,
 		std::unique_ptr<AdmittedCorePackage>*) override;
+	Error InspectCorePackage(const std::string&, const std::string&,
+		CorePackageInspection*) override;
+	Capabilities capabilities() const override;
 	HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage>,
 		std::uint64_t generation) override;
 	HardwareResult Launch(const PreparedLaunch&, std::uint64_t generation) override;
-	HardwareResult LoadDevelopmentRBF(const std::string&) override;
-	HardwareResult LoadDevelopmentRBF(const std::string&, ProgrammingProfile);
+	HardwareResult LoadDevelopmentRBF(const std::string&,
+		std::uint64_t generation = 0) override;
+	HardwareResult LoadContainedDevelopmentRBF(const std::string&,
+		std::uint64_t generation) override;
+	HardwareResult LoadDevelopmentRBF(const std::string&, ProgrammingProfile,
+		std::uint64_t generation = 0);
 
 private:
 	Error StopInput(std::uint64_t absolute_deadline_ms);
@@ -94,6 +102,7 @@ private:
 	ContainedCoreDriver contained_driver_;
 	CoreDriverRegistry driver_registry_;
 	const Profiles* profiles_;
+	std::vector<std::string> package_roots_;
 	CoreDriver* active_driver_;
 	CoreDriverContext active_context_;
 	std::unique_ptr<AdmittedCorePackage> active_package_;

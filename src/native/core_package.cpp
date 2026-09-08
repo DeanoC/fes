@@ -497,24 +497,21 @@ Error ParseManifest(const std::string& bytes, CoreDescriptor* descriptor)
 	}
 }
 
-Error CompatibilityError(const char* message)
+Error CompatibilityError(ErrorCode code, const char* message,
+	const std::string& expected = {}, const std::string& observed = {})
 {
-	return Invalid(std::string("incompatible core package: ") + message);
+	return {code, std::string("incompatible core package: ") + message,
+		"compatibility", expected, observed};
 }
 
 } // namespace
 
-Error OpenCorePackage(const std::string& directory,
+Error OpenVerifiedCorePackage(int raw_directory, const std::string& directory,
 	const std::string& expected_id, OpenedCorePackage* result)
 {
 	if (result == nullptr) return Invalid("missing core package output");
-	if (directory.empty() || directory.find('\0') != std::string::npos)
-		return Invalid("invalid core package directory");
 	if (!expected_id.empty() && !ValidHex(expected_id, 64, true))
 		return Invalid("invalid expected package identity");
-	const int raw_directory = open(directory.c_str(),
-		O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
-	if (raw_directory < 0) return Invalid("cannot open core package directory");
 	DirectoryDescriptor directory_descriptor(raw_directory);
 	Error error = CheckDirectoryEntries(directory_descriptor.get());
 	if (!error.ok()) return error;
@@ -562,7 +559,110 @@ Error OpenCorePackage(const std::string& directory,
 	opened.manifest_bytes = std::move(manifest_bytes);
 	opened.payload = std::move(payload);
 	opened.package_id = package_id;
+	error = RecheckCorePackage(opened);
+	if (!error.ok()) return Invalid("package changed during admission");
 	*result = std::move(opened);
+	return {};
+}
+
+Error OpenCorePackage(const std::string& directory,
+	const std::string& expected_id, OpenedCorePackage* result)
+{
+	if (result == nullptr) return Invalid("missing core package output");
+	if (directory.empty() || directory.find('\0') != std::string::npos)
+		return Invalid("invalid core package directory");
+	const int raw_directory = open(directory.c_str(),
+		O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
+	if (raw_directory < 0) return Invalid("cannot open core package directory");
+	return OpenVerifiedCorePackage(raw_directory, directory, expected_id, result);
+}
+
+Error OpenCorePackage(const std::vector<std::string>& trusted_roots,
+	const std::string& directory, const std::string& expected_id,
+	OpenedCorePackage* result)
+{
+	auto denied = [] {
+		return Error{ErrorCode::invalid_package,
+			"core package path is outside trusted roots", "admission"};
+	};
+	if (result == nullptr)
+		return {ErrorCode::invalid_request, "missing core package output", "request"};
+	if (directory.empty() || directory[0] != '/' ||
+		directory.find('\0') != std::string::npos) return denied();
+	for (std::string root : trusted_roots) {
+		if (root.empty() || root[0] != '/' || root.find('\0') != std::string::npos)
+			continue;
+		while (root.size() > 1 && root.back() == '/') root.pop_back();
+		std::string relative;
+		if (root == "/") relative = directory.substr(1);
+		else if (directory.size() > root.size() &&
+			directory.compare(0, root.size(), root) == 0 &&
+			directory[root.size()] == '/')
+			relative = directory.substr(root.size() + 1);
+		else continue;
+		if (relative.empty() || relative.back() == '/' ||
+			relative.find("//") != std::string::npos) continue;
+		int current = open(root.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW |
+			O_NONBLOCK | O_CLOEXEC);
+		if (current < 0) continue;
+		bool valid = true;
+		std::size_t begin = 0;
+		while (begin < relative.size()) {
+			const std::size_t slash = relative.find('/', begin);
+			const std::string component = relative.substr(begin, slash - begin);
+			if (component.empty() || component == "." || component == "..") {
+				valid = false;
+				break;
+			}
+			const int next = openat(current, component.c_str(),
+				O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
+			close(current);
+			current = next;
+			if (current < 0) {
+				valid = false;
+				break;
+			}
+			if (slash == std::string::npos) break;
+			begin = slash + 1;
+		}
+		if (!valid) {
+			if (current >= 0) close(current);
+			continue;
+		}
+		Error error = OpenVerifiedCorePackage(current, directory,
+			expected_id, result);
+		if (!error.ok() && error.phase.empty()) error.phase = "admission";
+		if (!error.ok() && error.code == ErrorCode::invalid_request)
+			error.code = ErrorCode::invalid_package;
+		return error;
+	}
+	return denied();
+}
+
+Error RecheckCorePackage(const OpenedCorePackage& package)
+{
+	auto changed = [] {
+		return Error{ErrorCode::invalid_package,
+			"core package bytes changed after admission", "admission"};
+	};
+	struct stat metadata = {};
+	if (fstat(package.payload.fd(), &metadata) != 0 ||
+		!S_ISREG(metadata.st_mode) || metadata.st_size < 0 ||
+		static_cast<std::uint64_t>(metadata.st_size) != package.payload.size())
+		return changed();
+	Sha256 payload_hash;
+	if (!HashArtifact(package.payload, &payload_hash).ok() ||
+		Sha256Hex(payload_hash.Final()) != package.descriptor.payload.sha256)
+		return changed();
+	Sha256 package_hash;
+	static constexpr char domain[] = "FES-CORE-PACKAGE-2\n";
+	package_hash.Update(domain, sizeof(domain) - 1);
+	HashLittleEndian64(&package_hash, package.manifest_bytes.size());
+	package_hash.Update(package.manifest_bytes.data(), package.manifest_bytes.size());
+	HashLittleEndian64(&package_hash, package.payload.size());
+	if (!HashArtifact(package.payload, &package_hash).ok() ||
+		Sha256Hex(package_hash.Final()) != package.package_id)
+		return changed();
 	return {};
 }
 
@@ -570,12 +670,22 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 {
 	using namespace generated;
 	if (descriptor.target.platform != kDe10NanoProgrammingPlatform)
-		return CompatibilityError("unsupported target platform");
+		return CompatibilityError(ErrorCode::unsupported_target,
+			"unsupported target platform", kDe10NanoProgrammingPlatform,
+			descriptor.target.platform);
 	if (descriptor.target.device != kDe10NanoProgrammingDevice)
-		return CompatibilityError("unsupported target device");
+		return CompatibilityError(ErrorCode::unsupported_target,
+			"unsupported target device", kDe10NanoProgrammingDevice,
+			descriptor.target.device);
+	bool known_profile = false;
+	bool activatable_profile = false;
 	bool paired = false;
 	for (std::size_t index = 0; index < kDe10NanoProgrammingProfilePairCount; ++index) {
 		const GeneratedProgrammingProfilePair& row = kDe10NanoProgrammingProfilePairs[index];
+		if (descriptor.target.programming_profile == row.profile) known_profile = true;
+		if (!row.diagnostic_only &&
+			descriptor.target.programming_profile == row.profile)
+			activatable_profile = true;
 		if (!row.diagnostic_only && descriptor.target.programming_profile == row.profile &&
 			row.abi != nullptr && descriptor.abi.id == row.abi &&
 			descriptor.abi.major == row.major) {
@@ -583,41 +693,55 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			break;
 		}
 	}
-	if (!paired) return CompatibilityError("unsupported profile and ABI pairing");
+	if (!known_profile || !activatable_profile)
+		return CompatibilityError(ErrorCode::unsupported_programming_profile,
+			"unsupported programming profile", "registered profile",
+			descriptor.target.programming_profile);
+	if (!paired) return CompatibilityError(ErrorCode::unsupported_abi,
+		"unsupported profile and ABI pairing");
 	if (descriptor.abi.id == "mister" && descriptor.abi.major == 1) {
 		if (descriptor.abi.minor != 0)
-			return CompatibilityError("MiSTer ABI minor is newer than the tested driver");
+			return CompatibilityError(ErrorCode::unsupported_abi,
+				"MiSTer ABI minor is newer than the tested driver");
 		for (const CoreInterface& interface : descriptor.interfaces)
 			if (interface.required)
-				return CompatibilityError("required MiSTer interface is unsupported");
+				return CompatibilityError(ErrorCode::unsupported_interface,
+					"required MiSTer interface is unsupported");
 		return {};
 	}
 	if (descriptor.abi.id != FesGpABIID || descriptor.abi.major != FesGpABIMajor)
-		return CompatibilityError("ABI driver is unavailable");
+		return CompatibilityError(ErrorCode::unsupported_abi,
+			"ABI driver is unavailable");
 	if (descriptor.abi.minor > FesGpABIMinor)
-		return CompatibilityError("ABI minor is newer than the tested driver");
+		return CompatibilityError(ErrorCode::unsupported_abi,
+			"ABI minor is newer than the tested driver");
 	if (!descriptor.core.system.empty())
-		return CompatibilityError("FES GP packages must omit core.system");
+		return CompatibilityError(ErrorCode::unsupported_abi,
+			"FES GP packages must omit core.system");
 	bool gamepad = false, video = false;
 	for (const CoreInterface& interface : descriptor.interfaces) {
 		if (interface.id == FesGpInterfaceGamepadID) {
 			const bool supported = interface.major == FesGpInterfaceGamepadMajor &&
 				interface.minor <= FesGpInterfaceGamepadMinor;
 			if (!supported && interface.required)
-				return CompatibilityError("required gamepad interface is unsupported");
+				return CompatibilityError(ErrorCode::unsupported_interface,
+					"required gamepad interface is unsupported");
 			gamepad = supported && interface.required;
 		} else if (interface.id == FesGpInterfaceVideoFixed720p60ID) {
 			const bool supported = interface.major == FesGpInterfaceVideoFixed720p60Major &&
 				interface.minor <= FesGpInterfaceVideoFixed720p60Minor;
 			if (!supported && interface.required)
-				return CompatibilityError("required fixed-video interface is unsupported");
+				return CompatibilityError(ErrorCode::unsupported_interface,
+					"required fixed-video interface is unsupported");
 			video = supported && interface.required;
 		} else if (interface.required) {
-			return CompatibilityError("required interface is unsupported");
+			return CompatibilityError(ErrorCode::unsupported_interface,
+				"required interface is unsupported");
 		}
 	}
 	if (!gamepad || !video)
-		return CompatibilityError("required FES GP interfaces are missing");
+		return CompatibilityError(ErrorCode::unsupported_interface,
+			"required FES GP interfaces are missing");
 	return {};
 }
 

@@ -13,7 +13,6 @@ namespace mister {
 namespace native {
 
 class Clock;
-struct CoreDescriptor;
 class Mmio;
 
 class FesGp final {

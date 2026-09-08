@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <limits>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace mister {
@@ -63,9 +64,17 @@ Error Io(const std::string& message)
 	return {ErrorCode::io_failed, message};
 }
 
-Error Mismatch(const std::string& message)
+Error WithPhase(Error error, const char* phase)
 {
-	return {ErrorCode::core_mismatch, message};
+	if (!error.ok() && error.phase.empty()) error.phase = phase;
+	return error;
+}
+
+Error Mismatch(const std::string& message, std::string expected = {},
+	std::string observed = {})
+{
+	return {ErrorCode::core_mismatch, message, "identity",
+		std::move(expected), std::move(observed)};
 }
 
 bool HexNibble(char value, unsigned* output)
@@ -91,6 +100,28 @@ bool BuildWords(const std::string& build_id, std::vector<std::uint16_t>* words)
 		words->push_back(static_cast<std::uint16_t>(first | (second << 8)));
 	}
 	return true;
+}
+
+std::string BuildId(const std::vector<std::uint16_t>& words)
+{
+	static const char hex[] = "0123456789abcdef";
+	std::string result;
+	for (std::size_t index = FesGpIdentityBuildIDStartIndex;
+		index < words.size(); ++index) {
+		const std::uint16_t word = words[index];
+		for (unsigned shift : {0u, 8u}) {
+			const unsigned byte = (word >> shift) & 0xffu;
+			result.push_back(hex[byte >> 4]);
+			result.push_back(hex[byte & 0x0fu]);
+		}
+	}
+	return result;
+}
+
+std::string WordEvidence(std::size_t index, std::uint16_t value)
+{
+	return "identity[" + std::to_string(index) + "]=" +
+		std::to_string(value);
 }
 
 } // namespace
@@ -179,7 +210,7 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline)
 		std::uint16_t word = 0;
 		const Error error = Exchange(static_cast<std::uint8_t>(FesGpOpcodeIdentity),
 			static_cast<std::uint8_t>(index), 0, discovery_deadline, &word);
-		if (!error.ok()) return error;
+		if (!error.ok()) return WithPhase(error, "transport");
 		observed.push_back(word);
 	}
 
@@ -205,15 +236,23 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline)
 	expected[FesGpIdentityCapabilitiesIndex] = capabilities;
 	std::vector<std::uint16_t> build;
 	if (!BuildWords(descriptor.build.id, &build))
-		return Mismatch("package build ID is invalid for FES GP discovery");
+		return Mismatch("package build ID is invalid for FES GP discovery",
+			"32 lowercase hexadecimal characters", descriptor.build.id);
 	for (std::size_t index = 0; index < build.size(); ++index)
 		expected[FesGpIdentityBuildIDStartIndex + index] = build[index];
 	for (std::size_t index = 0; index < expected.size(); ++index) {
 		if (index == FesGpIdentityCapabilitiesIndex) {
 			if ((observed[index] & expected[index]) != expected[index])
-				return Mismatch("live FES GP capabilities do not match package interfaces");
+				return Mismatch("live FES GP capabilities do not match package interfaces",
+					"capabilities=" + std::to_string(expected[index]),
+					"capabilities=" + std::to_string(observed[index]));
 		} else if (observed[index] != expected[index]) {
-			return Mismatch("live FES GP identity or build ID does not match package");
+			if (index >= FesGpIdentityBuildIDStartIndex)
+				return Mismatch("live FES GP build ID does not match package",
+					descriptor.build.id, BuildId(observed));
+			return Mismatch("live FES GP identity does not match package",
+				WordEvidence(index, expected[index]),
+				WordEvidence(index, observed[index]));
 		}
 	}
 	return {};
@@ -229,14 +268,18 @@ void FesGpCoreDriver::BeginSession()
 CoreDriverResult FesGpCoreDriver::Quiesce(const CoreDriverContext&,
 	std::uint64_t deadline)
 {
-	return Gameplay(static_cast<std::uint16_t>(FesGpGameplayHoldReset), deadline);
+	CoreDriverResult result = Gameplay(
+		static_cast<std::uint16_t>(FesGpGameplayHoldReset), deadline);
+	result.error = WithPhase(std::move(result.error), "quiesce");
+	return result;
 }
 
 CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 	std::uint64_t deadline)
 {
 	if (context.descriptor == nullptr)
-		return {{ErrorCode::invalid_request, "missing FES GP descriptor"}, false, ""};
+		return {{ErrorCode::invalid_request, "missing FES GP descriptor",
+			"request"}, false, ""};
 	const Error error = gp_.Identify(*context.descriptor, deadline);
 	return {error, false, error.ok() ? context.descriptor->core.id : ""};
 }
@@ -255,9 +298,10 @@ CoreDriverResult FesGpCoreDriver::SetButtons(const CoreDriverContext&,
 	std::uint16_t response = 0;
 	const Error error = gp_.Exchange(static_cast<std::uint8_t>(FesGpOpcodeButtons),
 		static_cast<std::uint8_t>(FesGpControlIndex), map, deadline, &response);
-	if (!error.ok()) return {error, true, ""};
+	if (!error.ok()) return {WithPhase(error, "input"), true, ""};
 	if (response != map)
-		return {{ErrorCode::io_failed, "FES GP accepted button mask is invalid"}, true, ""};
+		return {{ErrorCode::io_failed, "FES GP accepted button mask is invalid",
+			"input"}, true, ""};
 	return {{}, true, ""};
 }
 
@@ -276,7 +320,10 @@ CoreDriverResult FesGpCoreDriver::Gameplay(std::uint16_t argument,
 CoreDriverResult FesGpCoreDriver::Start(const CoreDriverContext&,
 	std::uint64_t deadline)
 {
-	return Gameplay(static_cast<std::uint16_t>(FesGpGameplayRelease), deadline);
+	CoreDriverResult result = Gameplay(
+		static_cast<std::uint16_t>(FesGpGameplayRelease), deadline);
+	result.error = WithPhase(std::move(result.error), "transport");
+	return result;
 }
 
 } // namespace native

@@ -23,6 +23,11 @@ enum class ErrorCode {
 	io_failed,
 	idle_failed,
 	save_failed,
+	invalid_package,
+	unsupported_target,
+	unsupported_programming_profile,
+	unsupported_abi,
+	unsupported_interface,
 };
 
 enum class State {
@@ -36,8 +41,18 @@ enum class State {
 enum class Execution { none, game, development };
 
 struct Error {
+	Error() = default;
+	Error(ErrorCode code_value, std::string message_value,
+		std::string phase_value = {}, std::string expected_value = {},
+		std::string observed_value = {})
+		: code(code_value), message(std::move(message_value)),
+		  phase(std::move(phase_value)), expected(std::move(expected_value)),
+		  observed(std::move(observed_value)) {}
 	ErrorCode code = ErrorCode::none;
 	std::string message;
+	std::string phase;
+	std::string expected;
+	std::string observed;
 	bool ok() const { return code == ErrorCode::none; }
 };
 
@@ -73,6 +88,94 @@ struct Launch {
 	std::string save_path;
 };
 
+struct CoreMetadata {
+	std::string id;
+	std::string name;
+	std::string description;
+	std::string version;
+	std::string system;
+};
+
+struct CoreTarget {
+	std::string platform;
+	std::string device;
+	std::string programming_profile;
+};
+
+struct CorePayload {
+	std::string file;
+	std::uint64_t size = 0;
+	std::string sha256;
+};
+
+struct VersionedContract {
+	std::string id;
+	std::uint16_t major = 0;
+	std::uint16_t minor = 0;
+};
+
+struct CoreInterface {
+	std::string id;
+	std::uint16_t major = 0;
+	std::uint16_t minor = 0;
+	bool required = false;
+};
+
+struct CoreBuild {
+	std::string id;
+	std::string repository;
+	std::string revision;
+	std::string recipe_sha256;
+	std::string toolchain;
+};
+
+struct CoreDescriptor {
+	std::uint16_t format = 0;
+	CoreMetadata core;
+	CoreTarget target;
+	CorePayload payload;
+	VersionedContract abi;
+	std::vector<CoreInterface> interfaces;
+	CoreBuild build;
+};
+
+struct SupportedInterface {
+	std::string id;
+	std::uint16_t major = 0;
+	std::uint16_t minor = 0;
+};
+
+struct SupportedABI {
+	std::string id;
+	std::uint16_t major = 0;
+	std::uint16_t minor = 0;
+	std::vector<SupportedInterface> interfaces;
+};
+
+struct Capabilities {
+	std::vector<std::string> programming_profiles;
+	std::vector<SupportedABI> abis;
+	std::vector<SupportedInterface> active_interfaces;
+};
+
+struct ObservedIdentity {
+	VersionedContract abi;
+	std::string build_id;
+};
+
+struct ActiveCorePackage {
+	std::string package_id;
+	CoreDescriptor descriptor;
+	ObservedIdentity observed;
+};
+
+struct CorePackageInspection {
+	std::string package_id;
+	CoreDescriptor descriptor;
+	bool compatible = false;
+	Error compatibility_error;
+};
+
 struct Status {
 	State state = State::starting;
 	Execution execution = Execution::none;
@@ -80,6 +183,9 @@ struct Status {
 	std::string core;
 	std::string package_id;
 	std::string declared_core;
+	Capabilities capabilities;
+	ActiveCorePackage active_package;
+	std::uint64_t generation = 0;
 	Error error;
 };
 
@@ -175,6 +281,7 @@ struct CorePackageInfo {
 	std::string package_id;
 	std::string declared_core;
 	std::string system;
+	CoreDescriptor descriptor;
 };
 
 class AdmittedCorePackage {
@@ -208,6 +315,13 @@ public:
 		return {ErrorCode::unsupported_protocol,
 			"core package loading is unavailable"};
 	}
+	virtual Error InspectCorePackage(const std::string&, const std::string&,
+		CorePackageInspection*)
+	{
+		return {ErrorCode::unsupported_protocol,
+			"core package inspection is unavailable"};
+	}
+	virtual Capabilities capabilities() const { return {}; }
 	virtual HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage>,
 		std::uint64_t)
 	{
@@ -216,7 +330,15 @@ public:
 	}
 	virtual HardwareResult Launch(const PreparedLaunch&,
 		std::uint64_t generation) = 0;
-	virtual HardwareResult LoadDevelopmentRBF(const std::string&) = 0;
+	virtual HardwareResult LoadDevelopmentRBF(const std::string&,
+		std::uint64_t generation = 0) = 0;
+	virtual HardwareResult LoadContainedDevelopmentRBF(const std::string&,
+		std::uint64_t)
+	{
+		return {{ErrorCode::unsupported_programming_profile,
+			"contained development loading is unavailable", "compatibility"},
+			false, ""};
+	}
 };
 
 class Runtime {
@@ -230,7 +352,10 @@ public:
 	Error LaunchGame(const Launch&);
 	Error LoadCore(const std::string& directory,
 		const std::string& expected_package_id);
+	Error InspectCore(const std::string& directory,
+		const std::string& expected_package_id, CorePackageInspection*);
 	Error LoadDevelopmentRBF(const std::string&);
+	Error LoadContainedDevelopmentRBF(const std::string&);
 	Error Stop();
 
 private:

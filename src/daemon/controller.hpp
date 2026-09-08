@@ -17,7 +17,8 @@ public:
 	std::string InvalidRequest(const std::string& message);
 
 private:
-	std::string Respond(const Error& result);
+	std::string Respond(std::int64_t protocol, const Error& result,
+		const CorePackageInspection* inspection = nullptr);
 
 	Runtime& runtime_;
 	const std::string version_;
