@@ -73,6 +73,12 @@ func TestDefaultPreservesKitTokens(t *testing.T) {
 	if th.TitlePx() != 20 || th.BodyPx() != 13 || th.CaptionPx() != 12 || th.StatusPx() != 14 {
 		t.Fatalf("type roles title=%d body=%d caption=%d status=%d", th.TitlePx(), th.BodyPx(), th.CaptionPx(), th.StatusPx())
 	}
+	if th.TitleWeight() != gfx.WeightBold || th.HeaderWeight() != gfx.WeightBold {
+		t.Fatalf("default title/header weight %s/%s", th.TitleWeight(), th.HeaderWeight())
+	}
+	if th.BodyWeight() != gfx.WeightRegular || th.CaptionWeight() != gfx.WeightRegular || th.StatusWeight() != gfx.WeightRegular {
+		t.Fatalf("default body/caption/status should stay regular")
+	}
 }
 
 func TestArcadeDiffersFromDefault(t *testing.T) {
@@ -112,6 +118,9 @@ func TestCompleteFillsMissingTokens(t *testing.T) {
 	}
 	if th.TitlePx() != Default().TitlePx() || th.BodyPx() != Default().BodyPx() || th.CaptionPx() != Default().CaptionPx() || th.StatusPx() != Default().StatusPx() {
 		t.Fatalf("incomplete roles title=%d body=%d caption=%d status=%d", th.TitlePx(), th.BodyPx(), th.CaptionPx(), th.StatusPx())
+	}
+	if th.TitleWeight() != gfx.WeightBold || th.HeaderWeight() != gfx.WeightBold || th.BodyWeight() != gfx.WeightRegular {
+		t.Fatalf("incomplete weights title=%s header=%s body=%s", th.TitleWeight(), th.HeaderWeight(), th.BodyWeight())
 	}
 }
 
@@ -201,6 +210,9 @@ func TestLoadPartialJSONInheritsDefault(t *testing.T) {
 	if th.TitlePx() != Default().TitlePx() || th.BodyPx() != Default().BodyPx() {
 		t.Fatalf("partial type roles title=%d body=%d", th.TitlePx(), th.BodyPx())
 	}
+	if th.TitleWeight() != gfx.WeightBold || th.StatusWeight() != gfx.WeightRegular {
+		t.Fatalf("partial weights title=%s status=%s", th.TitleWeight(), th.StatusWeight())
+	}
 }
 
 func TestLoadRejectsUnknownFieldsAndBadColor(t *testing.T) {
@@ -257,6 +269,39 @@ func TestTypeRolesPreferPxThenScale(t *testing.T) {
 	def, arcade := Default(), Arcade()
 	if def.TitlePx() == arcade.TitlePx() && def.StatusPx() == arcade.StatusPx() {
 		t.Fatal("arcade type roles should differ from default")
+	}
+}
+
+func TestTitleBoldTokens(t *testing.T) {
+	t.Parallel()
+	regular, err := Load(filepath.Join("testdata", "title_regular.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if regular.TitleWeight() != gfx.WeightRegular || regular.HeaderWeight() != gfx.WeightRegular {
+		t.Fatalf("title_bold false should keep title and header regular, got %s/%s", regular.TitleWeight(), regular.HeaderWeight())
+	}
+	if regular.BodyWeight() != gfx.WeightRegular {
+		t.Fatal("body should stay regular")
+	}
+
+	headerOnly, err := Load(filepath.Join("testdata", "header_bold.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if headerOnly.TitleWeight() != gfx.WeightRegular {
+		t.Fatalf("title_bold false: %s", headerOnly.TitleWeight())
+	}
+	if headerOnly.HeaderWeight() != gfx.WeightBold {
+		t.Fatalf("header_bold true: %s", headerOnly.HeaderWeight())
+	}
+
+	bodyBold, err := Load(filepath.Join("testdata", "body_bold.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bodyBold.TitleWeight() != gfx.WeightBold || bodyBold.BodyWeight() != gfx.WeightBold || bodyBold.StatusWeight() != gfx.WeightRegular {
+		t.Fatalf("body_bold title=%s body=%s status=%s", bodyBold.TitleWeight(), bodyBold.BodyWeight(), bodyBold.StatusWeight())
 	}
 }
 

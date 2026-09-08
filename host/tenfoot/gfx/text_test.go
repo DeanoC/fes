@@ -43,6 +43,39 @@ func TestSoftwareDrawTextTintsWithColor(t *testing.T) {
 	}
 }
 
+func TestSoftwareDrawTextWeightBoldDiffersFromRegular(t *testing.T) {
+	t.Parallel()
+	const w, h = 96, 32
+	regular, err := NewSoftware(w, h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bold, err := NewSoftware(w, h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	regular.Clear(RGB(16, 16, 24))
+	bold.Clear(RGB(16, 16, 24))
+	col := RGB(236, 240, 248)
+	regular.DrawText(2, 2, "FOGCAST", 20, col)
+	bold.DrawTextWeight(2, 2, "FOGCAST", 20, WeightBold, col)
+	if sameOpaquePixels(regular.Snapshot(), bold.Snapshot()) {
+		t.Fatal("bold raster matched regular at the same size")
+	}
+	if !snapshotHasInk(bold.Snapshot()) {
+		t.Fatal("bold face produced no ink")
+	}
+	if MeasureTextWeight("FOGCAST", 20, WeightBold) < MeasureText("FOGCAST", 20) {
+		t.Fatal("expected bold advance to be at least as wide as regular")
+	}
+	if FitTextWeight("Super Nintendo Entertainment System", 16, 40, WeightBold) == "Super Nintendo Entertainment System" {
+		t.Fatal("bold FitText should still truncate")
+	}
+	if TextHeightWeight(20, WeightBold) < 1 {
+		t.Fatal("bold line height")
+	}
+}
+
 func TestSoftwareDrawTextDiffersFromDebugText(t *testing.T) {
 	t.Parallel()
 	const w, h = 80, 24
@@ -114,7 +147,7 @@ func TestFPGADrawTextRecordsAndReplays(t *testing.T) {
 	f.Present()
 	var saw bool
 	for _, c := range f.Commands() {
-		if c.Op == OpDrawText && c.Text == "KIT" && c.SizePx == 16 && c.Color == RGB(255, 0, 170) {
+		if c.Op == OpDrawText && c.Text == "KIT" && c.SizePx == 16 && c.Color == RGB(255, 0, 170) && c.Weight == WeightRegular {
 			saw = true
 		}
 		if c.Op == OpDebugText {
@@ -137,6 +170,55 @@ func TestFPGADrawTextRecordsAndReplays(t *testing.T) {
 	}
 	if !sameOpaquePixels(f.Snapshot(), sw.Snapshot()) {
 		t.Fatal("replay pixels differ from FPGA software raster")
+	}
+}
+
+func TestFPGADrawTextWeightRecordsBold(t *testing.T) {
+	t.Parallel()
+	f, err := NewFPGA(64, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	f.BeginFrame()
+	f.Clear(RGB(8, 8, 12))
+	f.DrawTextWeight(2, 2, "KIT", 16, WeightBold, RGB(255, 0, 170))
+	f.Present()
+	var saw bool
+	for _, c := range f.Commands() {
+		if c.Op == OpDrawText && c.Text == "KIT" && c.Weight == WeightBold {
+			saw = true
+		}
+	}
+	if !saw {
+		t.Fatalf("missing bold OpDrawText in %v", f.Commands())
+	}
+	raw, err := f.Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, cmds, err := DecodeStream(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded bool
+	for _, c := range cmds {
+		if c.Op == OpDrawText && c.Weight == WeightBold && c.Text == "KIT" {
+			decoded = true
+		}
+	}
+	if !decoded {
+		t.Fatalf("decoded weight missing in %v", cmds)
+	}
+	sw, err := NewSoftware(64, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReplayBytes(sw, raw); err != nil {
+		t.Fatal(err)
+	}
+	if !sameOpaquePixels(f.Snapshot(), sw.Snapshot()) {
+		t.Fatal("bold replay pixels differ from FPGA software raster")
 	}
 }
 

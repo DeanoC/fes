@@ -79,14 +79,16 @@ func PaintDetail(d gfx.Device, f DetailFrame) {
 		title = "No title"
 	}
 	titleSize := th.TitlePx()
-	title = gfx.FitText(title, titleSize, int(text.W))
-	d.DrawText(int(text.X), int(text.Y), title, titleSize, th.Header)
+	titleW := th.TitleWeight()
+	title = gfx.FitTextWeight(title, titleSize, int(text.W), titleW)
+	d.DrawTextWeight(int(text.X), int(text.Y), title, titleSize, titleW, th.Header)
 	meta := f.Meta
 	if meta != "" {
 		metaSize := th.BodyPx()
-		meta = gfx.FitText(meta, metaSize, int(text.W))
-		metaY := int(text.Y) + gfx.TextHeight(titleSize) + 8
-		d.DrawText(int(text.X), metaY, meta, metaSize, th.Label)
+		metaW := th.BodyWeight()
+		meta = gfx.FitTextWeight(meta, metaSize, int(text.W), metaW)
+		metaY := int(text.Y) + gfx.TextHeightWeight(titleSize, titleW) + 8
+		d.DrawTextWeight(int(text.X), metaY, meta, metaSize, metaW, th.Label)
 	}
 	if shot.W > 0 && shot.H > 0 {
 		if f.Shot != nil {
@@ -95,8 +97,9 @@ func PaintDetail(d gfx.Device, f DetailFrame) {
 		}
 		if f.ShotCaption != "" {
 			capSize := th.CaptionPx()
-			cap := gfx.FitText(f.ShotCaption, capSize, int(shot.W))
-			d.DrawText(int(shot.X), int(shot.Y+shot.H)+4, cap, capSize, th.Status)
+			capW := th.CaptionWeight()
+			cap := gfx.FitTextWeight(f.ShotCaption, capSize, int(shot.W), capW)
+			d.DrawTextWeight(int(shot.X), int(shot.Y+shot.H)+4, cap, capSize, capW, th.Status)
 		}
 	}
 	header := f.Header
@@ -104,19 +107,21 @@ func PaintDetail(d gfx.Device, f DetailFrame) {
 		header = "FOGCAST"
 	}
 	headerSize := th.TitlePx()
-	header = gfx.FitText(header, headerSize, f.Width-24)
-	d.DrawText(16, chromeTextY(0, headerH, gfx.TextHeight(headerSize), true), header, headerSize, th.Header)
+	headerW := th.HeaderWeight()
+	header = gfx.FitTextWeight(header, headerSize, f.Width-24, headerW)
+	d.DrawTextWeight(16, chromeTextY(0, headerH, gfx.TextHeightWeight(headerSize, headerW), true), header, headerSize, headerW, th.Header)
 	hint := f.Hint
 	if hint == "" {
 		hint = "A play | B back"
 	}
 	statusSize := th.StatusPx()
+	statusW := th.StatusWeight()
 	footerTop := f.Height - footerH
 	if footerTop < 0 {
 		footerTop = 0
 	}
-	hint = gfx.FitText(hint, statusSize, f.Width-16)
-	d.DrawText(8, chromeTextY(footerTop, footerH, gfx.TextHeight(statusSize), false), hint, statusSize, th.Status)
+	hint = gfx.FitTextWeight(hint, statusSize, f.Width-16, statusW)
+	d.DrawTextWeight(8, chromeTextY(footerTop, footerH, gfx.TextHeightWeight(statusSize, statusW), false), hint, statusSize, statusW, th.Status)
 	if f.FadeFromBlack > 0 {
 		anim.FadeOverlay(d, gfx.Rect{X: 0, Y: 0, W: float32(f.Width), H: float32(f.Height)}, f.FadeFromBlack)
 	}
@@ -166,7 +171,7 @@ func DetailLayout(width, height int, th theme.Theme, withShot bool) (cover, text
 	if textW < 1 {
 		textW = 1
 	}
-	titleH := gfx.TextHeight(th.TitlePx()) + 8 + gfx.TextHeight(th.BodyPx())
+	titleH := gfx.TextHeightWeight(th.TitlePx(), th.TitleWeight()) + 8 + gfx.TextHeightWeight(th.BodyPx(), th.BodyWeight())
 	textH := titleH + 8
 	if textH > stageH {
 		textH = stageH

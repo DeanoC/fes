@@ -58,16 +58,21 @@ and **night** are named alternates. `-theme` (then optional `theme` in
 `launcher.json`, then `FOGCAST_THEME`) selects a built-in name or a JSON/TOML
 file. `fbgrid.Paint` and the system-color fallback consume those tokens (fills,
 highlight, flash, chrome, spacing). Header, tile names, and footer/status draw
-through `gfx.DrawText` with the embedded Go Regular face (`golang.org/x/image/font/gofont/goregular`);
+through `gfx.DrawText` / `gfx.DrawTextWeight` with the embedded Go Regular and
+Go Bold faces (`golang.org/x/image/font/gofont/goregular` and `gobold`);
 the kit does not read system fonts. Typography roles `title_px` / `body_px` /
 `caption_px` / `status_px` are explicit UI-face pixel sizes (header, tile name,
 placeholder lettermark, footer). When a role is omitted, `header_scale` /
 `label_scale` / `status_scale` still map to pixel size `8*scale` (the former
 DebugText glyph height) so existing JSON keeps the same hierarchy. Paint uses
-`theme.TitlePx` and siblings rather than repeating that fallback. Overlong
+`theme.TitlePx` and siblings rather than repeating that fallback. Built-in
+themes set `title_bold` (and chrome `header_bold`) true so grid headers and
+detail titles use Bold; body, caption, and status stay Regular unless a
+matching `*_bold` token is set. Incomplete themes inherit those defaults.
+Overlong
 chrome and tile labels truncate with an ellipsis. `DebugText` remains the 8×8
-HUD path for FPGA protocol and spikes. There is no second face or font-family
-picker in this slice. The catalog, input, and launch path stay the same. There is no
+HUD path for FPGA protocol and spikes. There is no italic, medium, or
+font-family picker in this slice. The catalog, input, and launch path stay the same. There is no
 on-screen theme picker in this slice.
 
 Focus changes play a short ease-in-out pop: the focused highlight ring
@@ -155,7 +160,11 @@ differ, and checks that title/body/caption/status pixel roles change the
 painted `DrawText` sizes (including a scale-only fallback versus a px
 override). `fogcast-kit -selftest-text` paints UI-face header/tile/footer chrome,
 requires the header pixels to differ from a DebugText-only baseline, checks
-themed glyph ink, and re-runs nav plus shelf. `fogcast-kit -selftest-cover`
+themed glyph ink, proves the header uses Bold (and differs from a Regular
+paint of the same chrome), and re-runs nav plus shelf. `fogcast-kit -selftest-bold`
+proves gobold rasters differ from goregular at the same size, checks detail
+title ink uses Bold, and re-runs detail (which re-runs attract, cover, text,
+nav, and shelf). `fogcast-kit -selftest-cover`
 decodes a cover, paints missing and loading placeholders, samples the art and
 panel pixels, and re-runs text (which re-runs nav plus shelf). `fogcast-kit -selftest-attract`
 arms a short idle, paints a decoded still plus an empty idle panel, dismisses on

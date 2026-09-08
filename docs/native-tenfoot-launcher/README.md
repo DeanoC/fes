@@ -41,7 +41,7 @@ Cover grid, labels, attract, now-playing, and session preview draw through
 
 - frame lifecycle: `BeginFrame` / `Clear` / `Present`
 - textures: create/update/destroy from `*image.RGBA` (RGBA8), opaque handles
-- draw: textured quad (dst rect, optional src rect), solid fill rect, CGO-free `DrawText` (embedded Go Regular), and `DebugText` (8×8 HUD)
+- draw: textured quad (dst rect, optional src rect), solid fill rect, CGO-free `DrawText` / `DrawTextWeight` (embedded Go Regular and Go Bold), and `DebugText` (8×8 HUD)
 - letterbox logical size and VSync are backend concerns
 - GPU park destroys textures individually (preview is the parked exception)
 
@@ -101,7 +101,8 @@ selects a built-in name (`default`, `arcade`, `night`) or a JSON/TOML file;
 `default` keeps the sofa and attract clear colours. This slice applies the
 loaded theme to those `Clear` sites; kit `fbgrid.Paint` consumes the full
 token set, including typography roles (`title_px` / `body_px` / `caption_px` /
-`status_px`, with `*_scale` fallback).
+`status_px`, with `*_scale` fallback) and title/header Bold (`title_bold`,
+default true on built-ins).
 
 Default overscan inset is **5% of each edge** (`-safe-area 0.05`). Windowed debug
 can pass `-safe-area 0`. `-` / `=` nudge the inset by 0.5 percentage points

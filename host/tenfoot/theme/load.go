@@ -45,6 +45,11 @@ type fileTheme struct {
 	BodySize          int               `json:"body_px" toml:"body_px"`
 	CaptionSize       int               `json:"caption_px" toml:"caption_px"`
 	StatusSize        int               `json:"status_px" toml:"status_px"`
+	TitleBold         *bool             `json:"title_bold" toml:"title_bold"`
+	HeaderBold        *bool             `json:"header_bold" toml:"header_bold"`
+	BodyBold          *bool             `json:"body_bold" toml:"body_bold"`
+	CaptionBold       *bool             `json:"caption_bold" toml:"caption_bold"`
+	StatusBold        *bool             `json:"status_bold" toml:"status_bold"`
 	Systems           map[string]string `json:"systems" toml:"systems"`
 }
 
@@ -126,6 +131,26 @@ func (raw fileTheme) theme() (Theme, error) {
 		BodySize:        raw.BodySize,
 		CaptionSize:     raw.CaptionSize,
 		StatusSize:      raw.StatusSize,
+	}
+	if raw.TitleBold != nil {
+		t.TitleBold = *raw.TitleBold
+		t.titleBoldSet = true
+	}
+	if raw.HeaderBold != nil {
+		t.HeaderBold = *raw.HeaderBold
+		t.headerBoldSet = true
+	}
+	if raw.BodyBold != nil {
+		t.BodyBold = *raw.BodyBold
+		t.bodyBoldSet = true
+	}
+	if raw.CaptionBold != nil {
+		t.CaptionBold = *raw.CaptionBold
+		t.captionBoldSet = true
+	}
+	if raw.StatusBold != nil {
+		t.StatusBold = *raw.StatusBold
+		t.statusBoldSet = true
 	}
 	var err error
 	if t.Background, err = parseHex(raw.Background); err != nil {

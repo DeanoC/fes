@@ -97,10 +97,13 @@ a flat system fill. After the host attract `idle_seconds` with no pad input, the
 kit shows a stills attract (title chrome plus backdrop/cover/marquee artwork)
 and returns to the same shelf and focus on any input. Video is not decoded on
 kit; an empty playlist uses a themed idle panel instead of a frozen grid. Header, tile names, placeholder lettermarks, and footer use the embedded Go
-Regular UI face through `gfx.DrawText` (CGO-free; no system fonts on the kit)
-at theme typography roles `title_px` / `body_px` / `caption_px` / `status_px`
-(legacy `header_scale` / `label_scale` / `status_scale` still map to `8*scale`
-when a role is unset). Paint
+UI faces through `gfx.DrawText` / `gfx.DrawTextWeight` (CGO-free; no system
+fonts on the kit) at theme typography roles `title_px` / `body_px` /
+`caption_px` / `status_px` (legacy `header_scale` / `label_scale` /
+`status_scale` still map to `8*scale` when a role is unset). Built-in themes
+paint title and chrome header with Go Bold (`title_bold`, default true);
+body, caption, and status stay Go Regular unless a matching `*_bold` token
+is set. Paint
 tokens (background, highlight, flash, system palette, header/footer chrome)
 come from `host/tenfoot/theme`: built-in `default` matches today's kit look,
 and `arcade` / `night` (or a JSON/TOML file) swap the look without forking

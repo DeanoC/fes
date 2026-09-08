@@ -148,7 +148,11 @@ func (s *SDLBackend) DebugText(x, y int, text string, scale int) {
 }
 
 func (s *SDLBackend) DrawText(x, y int, text string, sizePx int, c Color) {
-	img := RasterizeText(text, sizePx, c, 0)
+	s.DrawTextWeight(x, y, text, sizePx, WeightRegular, c)
+}
+
+func (s *SDLBackend) DrawTextWeight(x, y int, text string, sizePx int, w Weight, c Color) {
+	img := RasterizeTextWeight(text, sizePx, w, c, 0)
 	if img == nil {
 		return
 	}
