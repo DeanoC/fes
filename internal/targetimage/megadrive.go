@@ -616,7 +616,7 @@ func stageMegaDriveSelection(path string, selection MegaDriveSelection) (string,
 }
 
 func validateMegaDriveSelection(selection MegaDriveSelection) error {
-	if selection.System == "pong" || selection.System == "snes" {
+	if selection.System == "pong" || selection.System == "snes" || selection.System == "nes" {
 		if selection.Origin != "source-built" || selection.InstallPath != "/usr/share/mister-runtime/cores/"+selection.System+".rbf" {
 			return fmt.Errorf("invalid additional core selection")
 		}

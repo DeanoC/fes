@@ -114,6 +114,19 @@ func TestMegaDriveLaunchFieldsComeFromPackage(t *testing.T) {
 	}
 }
 
+func TestNESLaunchFieldsComeFromPackage(t *testing.T) {
+	row, ok := Lookup(protocol.SystemNES)
+	if !ok || row.Core == nil {
+		t.Fatal("missing NES FPGA row")
+	}
+	if row.Core.ExpectedCore != generated.NESExpectedCore || generated.NESExpectedCore != "NES" {
+		t.Fatalf("expected core %q", row.Core.ExpectedCore)
+	}
+	if row.Core.FileIndex != generated.NESCartridgeIndex || generated.NESCartridgeIndex != 0 {
+		t.Fatalf("file index %d", row.Core.FileIndex)
+	}
+}
+
 func TestRowsAndLookupReturnDefensiveCopies(t *testing.T) {
 	rows := Rows()
 	rows[0].Extensions[0] = ".changed"
@@ -177,7 +190,7 @@ func TestFPGAExtensionAndCoverRows(t *testing.T) {
 		delay, index                        int
 		slug, name                          string
 	}{
-		{protocol.SystemNES, "NES", []string{".nes", ".unf", ".unif", ".fds"}, "NES", "_Console/NES", "/media/fat/games/NES", "/media/fat/games/NES", 1, 0, "nes", "Nintendo Entertainment System"},
+		{protocol.SystemNES, "NES", []string{".nes"}, "NES", "_Console/NES", "/media/fat/games/NES", "/media/fat/games/NES", 1, 0, "nes", "Nintendo Entertainment System"},
 		{protocol.SystemSMS, "SMS", []string{".sms"}, "SMS", "_Console/SMS", "/media/fat/games/SMS", "/media/fat/games/SMS", 1, 1, "sms", "Sega Master System/Mark III"},
 		{protocol.SystemGameBoy, "gb", []string{".gb"}, "GAMEBOY", "_Console/Gameboy", "/media/fat/games/Gameboy", "/media/fat/games/Gameboy", 2, 1, "gb", "Game Boy"},
 		{protocol.SystemGBA, "gba", []string{".gba"}, "GBA", "_Console/GBA", "/media/fat/games/GBA", "/media/fat/games/GBA", 2, 0, "gba", "Game Boy Advance"},

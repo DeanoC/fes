@@ -468,7 +468,7 @@ func TestNativeReconcileTreatsNonIdleStartupAsUnavailable(t *testing.T) {
 	})
 }
 
-func TestNativePrepareAcceptsOnlyTheRegisteredMegaDriveShapeAndAnAbsoluteROM(t *testing.T) {
+func TestNativePrepareAcceptsRegisteredNativeShapesAndAbsoluteROMs(t *testing.T) {
 	t.Parallel()
 	control := &recordingControl{}
 	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
@@ -491,8 +491,10 @@ func TestNativePrepareAcceptsOnlyTheRegisteredMegaDriveShapeAndAnAbsoluteROM(t *
 	if !ok {
 		t.Fatal("NES registry entry is missing")
 	}
-	if _, apiErr := runtime.Prepare(unsupported, rom); apiErr == nil || apiErr.Code != protocol.CodeUnsupportedSystem {
-		t.Fatalf("NES prepare error = %#v", apiErr)
+	nesROM := writeNativeROM(t, ".nes")
+	nesPrepared, apiErr := runtime.Prepare(unsupported, nesROM)
+	if apiErr != nil || nesPrepared.Spec.System != protocol.SystemNES || nesPrepared.AbsoluteROM != nesROM {
+		t.Fatalf("NES prepare = %#v, error = %#v", nesPrepared, apiErr)
 	}
 	for _, test := range []struct {
 		name string
@@ -1072,7 +1074,7 @@ func TestNativeLaunchRejectsPreparedValuesOutsideTheMegaDriveContractWithoutCont
 		prepared mister.PreparedLaunch
 		code     protocol.ErrorCode
 	}{
-		{name: "unsupported system", prepared: mister.PreparedLaunch{Spec: core.Spec{System: protocol.SystemNES, ExpectedCore: "NES"}, AbsoluteROM: rom}, code: protocol.CodeUnsupportedSystem},
+		{name: "unsupported system", prepared: mister.PreparedLaunch{Spec: core.Spec{System: protocol.SystemSMS, ExpectedCore: "SMS"}, AbsoluteROM: rom}, code: protocol.CodeUnsupportedSystem},
 		{name: "wrong registry identity", prepared: mister.PreparedLaunch{Spec: core.Spec{System: protocol.SystemMegaDrive, ExpectedCore: "Wrong"}, AbsoluteROM: rom}, code: protocol.CodeUnsupportedSystem},
 		{name: "relative cartridge", prepared: mister.PreparedLaunch{Spec: spec, AbsoluteROM: "sonic2.bin"}, code: protocol.CodeInvalidROMPath},
 		{name: "FAT core smuggling", prepared: mister.PreparedLaunch{Spec: spec, AbsoluteROM: rom, RelativeROM: "/media/fat/_Console/MegaDrive.rbf"}, code: protocol.CodeInvalidROMPath},

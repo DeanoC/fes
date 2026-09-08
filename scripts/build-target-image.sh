@@ -368,8 +368,8 @@ if [ "$variant" = native-dev ]; then
     printf '%s\n' 'build-target-image: native Mega Drive selection differs between reproducible outputs' >&2
     exit 1
   }
-  if [ "${NATIVE_RUNTIME_SYSTEMS:-megadrive}" = 'megadrive pong snes' ]; then
-    for system in pong snes; do
+  if [ "${NATIVE_RUNTIME_SYSTEMS:-megadrive}" = 'megadrive pong snes nes' ]; then
+    for system in pong snes nes; do
       cmp "$output_root/work-1-$variant/$system.selection.toml" "$output_root/work-2-$variant/$system.selection.toml"
     done
   fi

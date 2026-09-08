@@ -19,6 +19,7 @@ const DefaultSocketPath = "/run/mister-runtime.sock"
 const MaximumLineBytes = 65536
 const maximumRuntimePathBytes = 4095
 const megaDriveRBFPath = "/usr/share/mister-runtime/cores/megadrive.rbf"
+const nesRBFPath = "/usr/share/mister-runtime/cores/nes.rbf"
 
 var (
 	errRuntimeConnection      = errors.New("runtime connection failed")
@@ -158,6 +159,8 @@ func nativeRBFPath(system protocol.System) string {
 		return megaDriveRBFPath
 	case protocol.SystemSNES:
 		return "/usr/share/mister-runtime/cores/snes.rbf"
+	case protocol.SystemNES:
+		return nesRBFPath
 	case protocol.SystemPong:
 		return "/usr/share/mister-runtime/cores/pong.rbf"
 	default:

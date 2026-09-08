@@ -37,7 +37,8 @@ and content selection; the MiSTer is a small, directly controlled target.
 - A reproducible target image toolchain with a development image containing
   SSH and curl.
 - A separate reproducible `native-dev` image that packages the native runtime,
-  native agent backend, one locked idle RBF, and one selected Mega Drive RBF.
+  native agent backend, one locked idle RBF, and the selected Mega Drive RBF
+  with optional sealed Pong, SNES and NES RBFs.
   Source-built Mega Drive selection is the native image default; use the
   explicit upstream selection for fallback. Its idle path and one-player Mega
   Drive launch, input, Stop, and immediate relaunch path are hardware-tested
@@ -209,9 +210,9 @@ boundaries and source entry points are in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 Native image assembly defaults to Mega Drive; the explicit
-`NATIVE_RUNTIME_SYSTEMS="megadrive pong snes"` selection adds sealed Pong/SNES
-source bundles through the same builder and verifier. See the
-[image development guide](docs/DEVELOPMENT.md#optional-pong-and-snes-image-cores).
+`NATIVE_RUNTIME_SYSTEMS="megadrive pong snes nes"` selection adds sealed
+Pong/SNES/NES source bundles through the same builder and verifier. See the
+[image development guide](docs/DEVELOPMENT.md#optional-pong-snes-and-nes-image-cores).
 
 Native image preflight selects the Darwin host verifier on macOS and the Linux
 verifier in the build container. `target-image-native-fetch` builds both when

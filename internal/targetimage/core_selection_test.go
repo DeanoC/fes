@@ -22,6 +22,9 @@ func extraBundle(t *testing.T, system string, mutate func(*MegaDriveBundleManife
 	if system == "snes" {
 		revision = "93d359e6f23c734ae3928984e88bed1d9b53cbac"
 	}
+	if system == "nes" {
+		revision = "9a63821173b6da4d6e95dcbe2e2a322ec8171144"
+	}
 	m := MegaDriveBundleManifest{Format: 1, ABI: "mister", System: system, Artifact: system + ".rbf", SHA256: fmt.Sprintf("%x", sha256.Sum256(payload)), Size: int64(len(payload)), Repository: repository, Revision: revision, Recipe: recipe, RecipeSHA256: strings.Repeat("b", 64), Toolchain: "Quartus 17.0.2 Lite"}
 	if mutate != nil {
 		mutate(&m)
@@ -43,7 +46,7 @@ func extraBundle(t *testing.T, system string, mutate func(*MegaDriveBundleManife
 	return dir
 }
 func TestAdditionalCoreSelectionAndInstalledVerification(t *testing.T) {
-	for _, system := range []string{"pong", "snes"} {
+	for _, system := range []string{"pong", "snes", "nes"} {
 		t.Run(system, func(t *testing.T) {
 			bundle := extraBundle(t, system, nil)
 			cache := t.TempDir()

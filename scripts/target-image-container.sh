@@ -36,18 +36,19 @@ esac
 
 "$repo_root/scripts/native-extra-cores.sh" validate
 run_container() {
-  if [ "${NATIVE_RUNTIME_SYSTEMS:-megadrive}" = 'megadrive pong snes' ]; then
+  if [ "${NATIVE_RUNTIME_SYSTEMS:-megadrive}" = 'megadrive pong snes nes' ]; then
     # Bundles are needed only for fetch; run/verify consume the sealed cache.
     if [ "$mode" = fetch ]; then
-      for bundle in "${PONG_RBF_BUNDLE:-}" "${SNES_RBF_BUNDLE:-}"; do
-        case "$bundle" in /*) ;; *) echo 'absolute Pong/SNES bundles required' >&2; exit 2 ;; esac
+      for bundle in "${PONG_RBF_BUNDLE:-}" "${SNES_RBF_BUNDLE:-}" "${NES_RBF_BUNDLE:-}"; do
+        case "$bundle" in /*) ;; *) echo 'absolute native extra-core bundles required' >&2; exit 2 ;; esac
         [ -d "$bundle" ] && [ ! -L "$bundle" ] || exit 2
       done
-      exec "$runtime" run --env 'NATIVE_RUNTIME_SYSTEMS=megadrive pong snes' \
+      exec "$runtime" run --env 'NATIVE_RUNTIME_SYSTEMS=megadrive pong snes nes' \
         --volume "$PONG_RBF_BUNDLE:/pong-rbf-bundle:ro" --env PONG_RBF_BUNDLE=/pong-rbf-bundle \
-        --volume "$SNES_RBF_BUNDLE:/snes-rbf-bundle:ro" --env SNES_RBF_BUNDLE=/snes-rbf-bundle "$@"
+        --volume "$SNES_RBF_BUNDLE:/snes-rbf-bundle:ro" --env SNES_RBF_BUNDLE=/snes-rbf-bundle \
+        --volume "$NES_RBF_BUNDLE:/nes-rbf-bundle:ro" --env NES_RBF_BUNDLE=/nes-rbf-bundle "$@"
     fi
-    exec "$runtime" run --env 'NATIVE_RUNTIME_SYSTEMS=megadrive pong snes' "$@"
+    exec "$runtime" run --env 'NATIVE_RUNTIME_SYSTEMS=megadrive pong snes nes' "$@"
   fi
   exec "$runtime" run "$@"
 }

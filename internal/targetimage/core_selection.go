@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 )
 
-// extraCoreRecipe keeps image admission bounded to the two explicitly supported
+// extraCoreRecipe keeps image admission bounded to the explicitly supported
 // source-built additions. Mega Drive retains its existing upstream selector.
 func extraCoreRecipe(system string) (string, string, error) {
 	switch system {
@@ -17,8 +17,10 @@ func extraCoreRecipe(system string) (string, string, error) {
 		return "scripts/build_pong.py", "https://github.com/DeanoC/misteross", nil
 	case "snes":
 		return "scripts/rebuild_core.py", "https://github.com/MiSTer-devel/SNES_MiSTer", nil
+	case "nes":
+		return "scripts/rebuild_core.py", "https://github.com/MiSTer-devel/NES_MiSTer", nil
 	default:
-		return "", "", fmt.Errorf("additional core must be pong or snes")
+		return "", "", fmt.Errorf("additional core must be pong, snes or nes")
 	}
 }
 
@@ -35,6 +37,9 @@ func validateExtraCoreManifest(m MegaDriveBundleManifest, system string) error {
 	}
 	if system == "snes" && m.Revision != "93d359e6f23c734ae3928984e88bed1d9b53cbac" {
 		return fmt.Errorf("unexpected SNES source revision")
+	}
+	if system == "nes" && m.Revision != "9a63821173b6da4d6e95dcbe2e2a322ec8171144" {
+		return fmt.Errorf("unexpected NES source revision")
 	}
 	return nil
 }

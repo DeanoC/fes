@@ -84,6 +84,30 @@ func TestClientLaunchUsesTheExactTypedMegaDriveRequest(t *testing.T) {
 	}
 }
 
+func TestClientLaunchUsesTheExactTypedNESRequest(t *testing.T) {
+	const response = `{"protocol":1,"ok":true,"state":"running_game","execution":"game","system":"nes","core":"NES","error":null,"version":"git-test"}`
+	fixture := newSocketFixture(t, response+"\n", true)
+	request := LaunchRequest{
+		System: "nes",
+		RBF:    "/usr/share/mister-runtime/cores/nes.rbf",
+		Media: map[string]string{
+			"cartridge": "/media/fat/fogcast/cache/mario.nes",
+		},
+		Settings: map[string]string{},
+	}
+	result, err := NewClient(fixture.path).Launch(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.State != "running_game" || result.System == nil || *result.System != "nes" ||
+		result.Core == nil || *result.Core != "NES" {
+		t.Fatalf("response = %#v", result)
+	}
+	if got := fixture.wait(t); got != `{"protocol":1,"operation":"launch","system":"nes","rbf":"/usr/share/mister-runtime/cores/nes.rbf","media":{"cartridge":"/media/fat/fogcast/cache/mario.nes"},"settings":{}}` {
+		t.Fatalf("request = %q", got)
+	}
+}
+
 func TestClientLoadDevelopmentRBFUsesTheExactTypedRequest(t *testing.T) {
 	const response = `{"protocol":1,"ok":true,"state":"running_development","execution":"development","system":null,"core":"MegaDrive","error":null,"version":"git-test"}`
 	fixture := newSocketFixture(t, response+"\n", true)
@@ -184,7 +208,7 @@ func TestClientRejectsLaunchShapesOutsideTheNativeMegaDriveContractBeforeDial(t 
 		name   string
 		mutate func(*LaunchRequest)
 	}{
-		{name: "unsupported system", mutate: func(request *LaunchRequest) { request.System = "nes" }},
+		{name: "unsupported system", mutate: func(request *LaunchRequest) { request.System = "sms" }},
 		{name: "FAT core", mutate: func(request *LaunchRequest) { request.RBF = "/media/fat/_Console/MegaDrive.rbf" }},
 		{name: "relative cartridge", mutate: func(request *LaunchRequest) { request.Media["cartridge"] = "sonic2.bin" }},
 		{name: "missing cartridge", mutate: func(request *LaunchRequest) { request.Media = map[string]string{} }},

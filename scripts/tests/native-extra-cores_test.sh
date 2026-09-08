@@ -29,9 +29,9 @@ for os in Darwin Linux; do
       fi
       export TEST_OS=$os SELECTOR_LOG=$fixture/selector.log
       : > "$SELECTOR_LOG"
-      PATH="$fixture/path:$PATH" NATIVE_RUNTIME_SYSTEMS='megadrive pong snes' \
+      PATH="$fixture/path:$PATH" NATIVE_RUNTIME_SYSTEMS='megadrive pong snes nes' \
         "$fixture/platform/scripts/native-extra-cores.sh" verify "$fixture/cache"
-      [ "$(cat "$SELECTOR_LOG")" = "$(printf '%s\n%s' "$expected" "$expected")" ]
+      [ "$(cat "$SELECTOR_LOG")" = "$(printf '%s\n%s\n%s' "$expected" "$expected" "$expected")" ]
     )
   done
 done
@@ -50,8 +50,8 @@ selector=$fixture/selector
 (cd "$repo" && go build -o "$selector" ./cmd/target-image-lock)
 export TARGET_IMAGE_LOCK_BIN=$selector
 helper=$repo/scripts/native-extra-cores.sh
-export NATIVE_RUNTIME_SYSTEMS='megadrive pong snes'
-for system in pong snes; do
+export NATIVE_RUNTIME_SYSTEMS='megadrive pong snes nes'
+for system in pong snes nes; do
   bundle=$fixture/$system
   mkdir "$bundle"
   printf 'synthetic %s core' "$system" > "$bundle/$system.rbf"
@@ -60,6 +60,7 @@ for system in pong snes; do
   case "$system" in
     pong) source=https://github.com/DeanoC/misteross; revision=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; recipe=scripts/build_pong.py ;;
     snes) source=https://github.com/MiSTer-devel/SNES_MiSTer; revision=93d359e6f23c734ae3928984e88bed1d9b53cbac; recipe=scripts/rebuild_core.py ;;
+    nes) source=https://github.com/MiSTer-devel/NES_MiSTer; revision=9a63821173b6da4d6e95dcbe2e2a322ec8171144; recipe=scripts/rebuild_core.py ;;
   esac
   cat > "$bundle/$system-rbf.toml" <<MANIFEST
 format = 1
@@ -77,7 +78,7 @@ MANIFEST
   chmod 0444 "$bundle"/*
   chmod 0555 "$bundle"
 done
-export PONG_RBF_BUNDLE=$fixture/pong SNES_RBF_BUNDLE=$fixture/snes
+export PONG_RBF_BUNDLE=$fixture/pong SNES_RBF_BUNDLE=$fixture/snes NES_RBF_BUNDLE=$fixture/nes
 cat > "$fixture/container" <<'CONTAINER'
 #!/bin/sh
 case "$1" in
@@ -89,14 +90,15 @@ CONTAINER
 chmod +x "$fixture/container"
 export CORE_CONTAINER_LOG=$fixture/container.log
 TARGET_IMAGE_DEV_CONTAINER=1 TARGET_IMAGE_CONTAINER_RUNTIME="$fixture/container" "$repo/scripts/target-image-container.sh" fetch /work/test-fetch
-for arg in 'NATIVE_RUNTIME_SYSTEMS=megadrive pong snes' 'PONG_RBF_BUNDLE=/pong-rbf-bundle' 'SNES_RBF_BUNDLE=/snes-rbf-bundle' "$fixture/pong:/pong-rbf-bundle:ro" "$fixture/snes:/snes-rbf-bundle:ro"; do
+for arg in 'NATIVE_RUNTIME_SYSTEMS=megadrive pong snes nes' 'PONG_RBF_BUNDLE=/pong-rbf-bundle' 'SNES_RBF_BUNDLE=/snes-rbf-bundle' 'NES_RBF_BUNDLE=/nes-rbf-bundle' "$fixture/pong:/pong-rbf-bundle:ro" "$fixture/snes:/snes-rbf-bundle:ro" "$fixture/nes:/nes-rbf-bundle:ro"; do
   grep -Fqx -- "$arg" "$CORE_CONTAINER_LOG"
 done
 TARGET_IMAGE_DEV_CONTAINER=1 TARGET_IMAGE_CONTAINER_RUNTIME="$fixture/container" "$repo/scripts/target-image-container.sh" run /work/test-verify
-grep -Fqx 'NATIVE_RUNTIME_SYSTEMS=megadrive pong snes' "$CORE_CONTAINER_LOG"
+grep -Fqx 'NATIVE_RUNTIME_SYSTEMS=megadrive pong snes nes' "$CORE_CONTAINER_LOG"
 "$helper" fetch "$fixture/cache"
 "$helper" verify "$fixture/cache"
 NATIVE_RUNTIME_SYSTEMS=megadrive TARGET_IMAGE_EXTRA_CORE_CACHE="$fixture/cache" sh "$repo/scripts/tests/target-image_test.sh"
+NATIVE_RUNTIME_SYSTEMS='megadrive pong snes nes' TARGET_IMAGE_EXTRA_CORE_CACHE="$fixture/cache" sh "$repo/scripts/tests/target-image_test.sh"
 "$helper" install "$fixture/cache" "$fixture/target"
 "$helper" copy-records "$fixture/cache" "$fixture/sidecars"
 "$helper" verify-image "$fixture/sidecars" "$fixture/target"

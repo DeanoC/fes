@@ -54,7 +54,7 @@ fallback.
 
 The native adapter reports ready only when `mister-runtime` reports `idle`.
 An idle Stop confirms that state without calling the runtime Stop operation.
-The native adapter admits Mega Drive, ordinary SNES cartridges, and the
+The native adapter admits Mega Drive, ordinary SNES and NES cartridges, and the
 registered ROM-less Pong profile.
 Mega Drive validates an absolute staged ROM and sends one local request using
 `/usr/share/mister-runtime/cores/megadrive.rbf` and media role `cartridge`.
@@ -64,13 +64,17 @@ SNES uses `/usr/share/mister-runtime/cores/snes.rbf`, exactly one `cartridge`
 path, and empty settings. FogCast checks the staged file path and extension;
 the runtime validates cartridge bytes before hardware mutation and owns the
 512-byte metadata prefix. It does not modify the host cache or content hash.
-The native package index is 1; the Main MGL selector remains 0. Initial support
-is bounded ordinary LoROM/HiROM; enhancement chips, external firmware, expanded
-mappings remain outside this slice. Other systems remain
+NES uses `/usr/share/mister-runtime/cores/nes.rbf`, exactly one `.nes`
+`cartridge` path at native index 0, and empty settings. The runtime validates
+iNES/NES2 headers, rejects trainers and truncated payloads, and streams source
+bytes unchanged. The native SNES package index remains 1 and the Main MGL
+selector remains 0. Initial support is bounded ordinary LoROM/HiROM and NES
+iNES/NES2 cartridges; enhancement chips, external firmware, expanded mappings,
+FDS/UNIF/NSF and other peripherals remain outside this slice. Other systems remain
 unsupported by this adapter. All admitted profiles reconcile lost responses
 only against the requested system/core identity, without replay, and use the
-ordinary Stop-to-idle lifecycle. SNES is software-tested; exact-artifact
-hardware acceptance is a separate integration step.
+ordinary Stop-to-idle lifecycle. SNES and NES are software-tested;
+exact-artifact hardware acceptance is a separate integration step.
 Mega Drive remains the hardware-tested native game. The separate development
 operation accepts only the existing MiSTer-compatible
 ABI and has no catalogue identity. The native adapter atomically stages one
@@ -359,14 +363,15 @@ development-RBF path.
 The `native-dev` image instead starts image-owned `mister-runtime` and
 then image-owned `mister-agent --runtime native`. It contains exactly one
 locked idle RBF and one selected Mega Drive RBF under `/usr/share/mister-runtime`,
+plus the explicitly selected sealed Pong, SNES and NES RBFs when the four-system
+profile is requested,
 has no Main startup or legacy Menu-configuration helper, has no
 `/dev/MiSTer_cmd` wait, and retains the same read-only root with volatile
 `/run`, `/tmp`, and `/var/log`. Its build-input record identifies the runtime
-commit, agent binary, and both RBFs. Its QEMU smoke proves only root filesystem
-and init packaging; it does not emulate FPGA programming, prove target
-readiness, or establish game or development-RBF support. Its build-input record
-identifies the runtime commit, agent binary, idle RBF, and selected Mega Drive
-RBF provenance. The designated-kit idle, Mega Drive launch/input/Stop/relaunch,
+commit, agent binary, idle RBF, and selected Mega Drive RBF provenance. Its QEMU
+smoke proves only root filesystem and init packaging; it does not emulate FPGA
+programming, prove target readiness, or establish game or development-RBF
+support. The designated-kit idle, Mega Drive launch/input/Stop/relaunch,
 and legacy rollback gates are
 hardware-tested. The image contains no development RBF at either production
 path and relies on volatile `/tmp` staging for an admitted upload. Native

@@ -532,6 +532,10 @@ func validateNativeROM(system protocol.System, candidate string) (string, *proto
 		if extension == ".sfc" || extension == ".smc" || extension == ".bin" {
 			return resolved, nil
 		}
+	case protocol.SystemNES:
+		if extension == ".nes" {
+			return resolved, nil
+		}
 	}
 	return "", invalidROMPathError()
 }
