@@ -266,6 +266,75 @@ func TestPaintDetailOmitsEmptyDescription(t *testing.T) {
 	}
 }
 
+func TestPaintDetailVideoBadgeAndPreviewCaption(t *testing.T) {
+	t.Parallel()
+	const w, h = 640, 480
+	th := theme.Default()
+	shot := image.NewRGBA(image.Rect(0, 0, 8, 8))
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 8; x++ {
+			shot.Set(x, y, color.RGBA{R: 32, G: 200, B: 64, A: 255})
+		}
+	}
+	frame := DetailFrame{
+		Width: w, Height: h, Header: "FOGCAST", Title: "Sonic",
+		Meta: "MEGADRIVE", Hint: "A play | B back | L/R preview",
+		Shot: shot, ShotCaption: "preview 1 / 2", VideoBadge: true, Theme: th,
+	}
+	rec := gfx.NewRecorder()
+	PaintDetail(rec, frame)
+	var sawVideo, sawPreview bool
+	for _, c := range rec.Calls {
+		if c.Op != "DrawText" {
+			continue
+		}
+		if c.Text == "VIDEO" {
+			sawVideo = true
+			if c.SizePx != th.CaptionPx() {
+				t.Fatalf("badge size %d", c.SizePx)
+			}
+		}
+		if strings.Contains(c.Text, "preview") {
+			sawPreview = true
+		}
+	}
+	if !sawVideo || !sawPreview {
+		t.Fatalf("video paint video=%v preview=%v ops=%v", sawVideo, sawPreview, rec.Ops())
+	}
+
+	neighbour := DetailFrame{
+		Width: w, Height: h, Header: "FOGCAST", Title: "Pong",
+		Hint: "A play | B back | L/R shots", Shot: shot, ShotCaption: "1 / 2", Theme: th,
+	}
+	stillRec := gfx.NewRecorder()
+	PaintDetail(stillRec, neighbour)
+	for _, c := range stillRec.Calls {
+		if c.Op == "DrawText" && (c.Text == "VIDEO" || strings.Contains(c.Text, "preview")) {
+			t.Fatalf("still-only painted %q", c.Text)
+		}
+	}
+
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	PaintDetail(d, frame)
+	d.Present()
+	bx, by, ok := DetailVideoBadgeSample(w, h, th, frame)
+	if !ok {
+		t.Fatal("badge sample")
+	}
+	assertBGRX(t, dst, cfg, bx, by, 0, 220, 255, 0)
+	sx, sy, ok := DetailShotSample(w, h, th, frame)
+	if !ok {
+		t.Fatal("shot sample")
+	}
+	assertBGRX(t, dst, cfg, sx, sy, 64, 200, 32, 0)
+}
+
 func descriptionCopy(rec *gfx.Recorder, th theme.Theme) string {
 	var b strings.Builder
 	for _, c := range rec.Calls {

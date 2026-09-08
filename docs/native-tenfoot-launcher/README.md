@@ -147,7 +147,9 @@ sibling `fbgrid.PaintDetail` over the same catalog focus: last-row
 Down opens it, East/B and Up return, and A still launches. The pane
 shows admitted genre/year/players/region/studio plus wrapped `summary`
 description when those fields exist; it omits empty copy and does not
-invent series, last-played, or play-count.
+invent series, last-played, or play-count. A presentation `video_id`
+paints a VIDEO badge and cycles screenshot/poster stills as an honest
+motion preview (no H.264 decode on the CGO-free kit).
 
 Gamepad is the intended control path (d-pad / left stick to move, South/A to
 launch, East/B to back, Start to quit, Select/View to cycle layout, Guide to

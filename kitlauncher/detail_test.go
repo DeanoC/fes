@@ -273,6 +273,93 @@ func TestDetailHintMentionsShotsWhenPresent(t *testing.T) {
 	}
 }
 
+func TestDetailVideoPreviewCyclesStillsAndFallsBackToPoster(t *testing.T) {
+	aa := handleAA()
+	bb := handleBB()
+	cover := strings.Repeat("cc", 32)
+	backdrop := strings.Repeat("dd", 32)
+	video := strings.Repeat("ee", 32)
+	m := Model{Connected: true, TargetReady: true}
+	games := mixedCatalog()
+	games[0].Cover = cover
+	m.SetCatalog(games)
+	now := time.Unix(1, 0)
+	pressNamed(&m, "b", now)
+	if !m.DetailOpen {
+		t.Fatal("expected detail")
+	}
+
+	m.ApplyPresentation("pong", tenfoot.Presentation{
+		Presentation: &tenfoot.PresentationInfo{ScreenshotIDs: []string{aa, bb}},
+	})
+	if m.HasVideoPreview() || m.ShotHandle() != aa {
+		t.Fatalf("still-only video=%v shot=%q", m.HasVideoPreview(), m.ShotHandle())
+	}
+	m.Tick(now.Add(3 * time.Second))
+	if m.ShotHandle() != aa {
+		t.Fatalf("still-only auto-cycled to %q", m.ShotHandle())
+	}
+	if strings.Contains(m.DetailHint(), "preview") {
+		t.Fatalf("still-only hint %q", m.DetailHint())
+	}
+
+	m.ApplyPresentation("pong", tenfoot.Presentation{
+		Presentation: &tenfoot.PresentationInfo{
+			VideoID:           video,
+			ScreenshotIDs:     []string{aa, bb},
+			BackdropArtworkID: backdrop,
+		},
+	})
+	if !m.HasVideoPreview() || m.FocusVideoHandle() != video {
+		t.Fatalf("video handle %q", m.FocusVideoHandle())
+	}
+	if m.ShotHandle() != aa {
+		t.Fatalf("video shot0 %q", m.ShotHandle())
+	}
+	if !strings.Contains(m.DetailHint(), "L/R preview") {
+		t.Fatalf("video hint %q", m.DetailHint())
+	}
+	handles := m.PreviewHandles()
+	if len(handles) != 4 || handles[0] != aa || handles[1] != bb || handles[2] != backdrop || handles[3] != cover {
+		t.Fatalf("preview handles %#v", handles)
+	}
+	m.Tick(now)
+	m.Tick(now.Add(defaultPreviewCycle + time.Millisecond))
+	if m.ShotHandle() != bb {
+		t.Fatalf("auto-cycle %q want %q", m.ShotHandle(), bb)
+	}
+	pressNamed(&m, "r", now.Add(2*defaultPreviewCycle))
+	if m.ShotHandle() != backdrop {
+		t.Fatalf("manual step %q", m.ShotHandle())
+	}
+	m.Tick(now.Add(2*defaultPreviewCycle + time.Millisecond))
+	if m.ShotHandle() != backdrop {
+		t.Fatalf("manual step was overwritten %q", m.ShotHandle())
+	}
+
+	m.ApplyPresentation("pong", tenfoot.Presentation{
+		Presentation: &tenfoot.PresentationInfo{VideoID: video, CoverArtworkID: cover},
+	})
+	if m.ShotHandle() != cover {
+		t.Fatalf("poster %q", m.ShotHandle())
+	}
+	m.Tick(now.Add(5 * time.Second))
+	if m.ShotHandle() != cover {
+		t.Fatalf("single poster cycled %q", m.ShotHandle())
+	}
+
+	prefetch := m.DetailPrefetchHandles()
+	foundVideoStill := false
+	for _, h := range prefetch {
+		if h == cover {
+			foundVideoStill = true
+		}
+	}
+	if !foundVideoStill {
+		t.Fatalf("prefetch %#v", prefetch)
+	}
+}
+
 func TestSetCatalogClosesDetailWhenFocusLeaves(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetCatalog(mixedCatalog())

@@ -298,10 +298,10 @@ func loadKitRemapper(flagSpec, configSpec string) (*inputmap.Remapper, error) {
 
 type renderKey struct {
 	Focus, GameCount, AttractIndex, AttractFade, Shot int
-	FocusID, Message, Shelf, AttractHandle            string
+	FocusID, Message, Shelf, AttractHandle, Preview   string
 	SessionState, Execution, GameID                   string
 	Busy, Connected, TargetReady, ControllerConnected bool
-	Attract, Detail, Wheel                            bool
+	Attract, Detail, Wheel, Video                     bool
 	Covers, Stills, Presentations                     uint64
 }
 
@@ -316,6 +316,7 @@ func modelRenderKey(m kitlauncher.Model, covers, presentations uint64) renderKey
 		GameID: m.Session.GameID, Busy: m.Busy, Connected: m.Connected,
 		TargetReady: m.TargetReady, ControllerConnected: m.ControllerConnected,
 		Detail: m.DetailOpen, Wheel: m.WheelOpen, Shot: m.ShotIndex(),
+		Preview: m.ShotHandle(), Video: m.HasVideoPreview(),
 		Covers: covers, Presentations: presentations,
 	}
 }
@@ -407,10 +408,16 @@ func modelDetailFrame(m kitlauncher.Model, covers *tenfoot.CoverCache, presentat
 			frame.Logo = covers.Image(logo)
 		}
 	}
-	if shot := m.ShotHandle(); shot != "" {
-		n := len(detail.ScreenshotIDs)
-		frame.ShotCaption = asciiLabel(shotCaption(m.ShotIndex(), n))
-		if covers != nil {
+	ids := m.PreviewHandles()
+	if shot := m.ShotHandle(); shot != "" || m.HasVideoPreview() {
+		n := len(ids)
+		if m.HasVideoPreview() {
+			frame.VideoBadge = true
+			frame.ShotCaption = asciiLabel(previewCaption(m.ShotIndex(), n))
+		} else {
+			frame.ShotCaption = asciiLabel(shotCaption(m.ShotIndex(), n))
+		}
+		if covers != nil && shot != "" {
 			frame.Shot = covers.Image(shot)
 		}
 	}
@@ -442,6 +449,13 @@ func shotCaption(index, count int) string {
 		index = count - 1
 	}
 	return fmt.Sprintf("%d / %d", index+1, count)
+}
+
+func previewCaption(index, count int) string {
+	if count < 2 {
+		return "preview"
+	}
+	return "preview " + shotCaption(index, count)
 }
 
 func attractFrame(view kitlauncher.AttractView, stills *tenfoot.CoverCache, th theme.Theme, width, height int) fbgrid.AttractFrame {

@@ -24,6 +24,7 @@ func (m *Model) openDetail(now time.Time) {
 	}
 	m.DetailOpen = true
 	m.shotIndex = 0
+	m.previewAt = time.Time{}
 	m.noteActivity(now)
 }
 
@@ -33,6 +34,7 @@ func (m *Model) closeDetail() {
 	}
 	m.DetailOpen = false
 	m.shotIndex = 0
+	m.previewAt = time.Time{}
 }
 
 func (m *Model) inputDetail(e remoteinput.Event, dx, dy int, now time.Time) string {
@@ -100,7 +102,7 @@ func (m *Model) ApplyPresentation(id string, p tenfoot.Presentation) {
 }
 
 func (m *Model) clampShot() {
-	n := len(m.FocusDetail().ScreenshotIDs)
+	n := len(m.previewHandles())
 	if n < 1 {
 		m.shotIndex = 0
 		return
@@ -114,7 +116,7 @@ func (m *Model) clampShot() {
 }
 
 func (m *Model) stepShot(delta int) {
-	ids := m.FocusDetail().ScreenshotIDs
+	ids := m.previewHandles()
 	n := len(ids)
 	if n < 2 || delta == 0 {
 		return
@@ -123,11 +125,51 @@ func (m *Model) stepShot(delta int) {
 	if m.shotIndex < 0 {
 		m.shotIndex += n
 	}
+	m.previewAt = time.Time{}
 }
 
-// ShotIndex is the current screenshot carousel index.
+const defaultPreviewCycle = 2 * time.Second
+
+func (m *Model) tickPreview(now time.Time) {
+	if m == nil || !m.DetailOpen || m.FocusVideoHandle() == "" {
+		return
+	}
+	ids := m.previewHandles()
+	if len(ids) < 2 {
+		return
+	}
+	if now.IsZero() {
+		now = time.Now()
+	}
+	if m.previewAt.IsZero() {
+		m.previewAt = now
+		return
+	}
+	if now.Sub(m.previewAt) < defaultPreviewCycle {
+		return
+	}
+	n := len(ids)
+	m.shotIndex = (m.shotIndex + 1) % n
+	m.previewAt = now
+}
+
+func (m Model) previewHandles() []string {
+	game, ok := m.focusedGame()
+	if !ok {
+		return nil
+	}
+	p := m.presentationFor(game.ID)
+	return tenfoot.DetailPreviewHandles(p, tenfoot.CoverHandle(game, p))
+}
+
+// PreviewHandles is the current title's screenshot/poster stills.
+func (m Model) PreviewHandles() []string {
+	return m.previewHandles()
+}
+
+// ShotIndex is the current screenshot / preview carousel index.
 func (m Model) ShotIndex() int {
-	n := len(m.FocusDetail().ScreenshotIDs)
+	n := len(m.previewHandles())
 	if n < 1 {
 		return 0
 	}
@@ -140,17 +182,34 @@ func (m Model) ShotIndex() int {
 	return m.shotIndex
 }
 
-// ShotHandle is the current screenshot artwork handle, if any.
+// ShotHandle is the current screenshot or preview-poster artwork handle.
 func (m Model) ShotHandle() string {
-	ids := m.FocusDetail().ScreenshotIDs
+	ids := m.previewHandles()
 	if len(ids) == 0 {
 		return ""
 	}
 	return ids[m.ShotIndex()]
 }
 
+// FocusVideoHandle is the presentation video handle for the focused title.
+func (m Model) FocusVideoHandle() string {
+	game, ok := m.focusedGame()
+	if !ok {
+		return ""
+	}
+	return tenfoot.VideoHandle(m.presentationFor(game.ID))
+}
+
+// HasVideoPreview reports a video handle that the pane previews with stills.
+func (m Model) HasVideoPreview() bool {
+	return m.FocusVideoHandle() != ""
+}
+
 // DetailHint is the footer for the title pane.
 func (m Model) DetailHint() string {
+	if m.HasVideoPreview() && len(m.previewHandles()) > 1 {
+		return "A play | B back | L/R preview"
+	}
 	if len(m.FocusDetail().ScreenshotIDs) > 1 {
 		return "A play | B back | L/R shots"
 	}
@@ -192,7 +251,9 @@ func (m Model) DetailPrefetchHandles() []string {
 	}
 	add(m.FocusCoverHandle())
 	add(m.FocusLogoHandle())
-	add(m.ShotHandle())
+	for _, handle := range m.previewHandles() {
+		add(handle)
+	}
 	return out
 }
 

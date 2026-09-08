@@ -180,6 +180,7 @@ type FocusDetail struct {
 	Summary       string
 	Attribution   string
 	Favorite      bool
+	VideoID       string
 	ScreenshotIDs []string
 }
 

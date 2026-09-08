@@ -106,7 +106,12 @@ on East/B or Up and restores the same shelf and focus. A on the pane launches
 the focused title through the same session path as the grid. Shoulder L/R and
 D-pad L/R cycle presentation `screenshot_ids` when two or more handles are
 present; otherwise those controls do nothing in the pane (shelf cycling stays
-on the grid). Attract does not arm while the pane is open; opening it notes
+on the grid). When presentation `video_id` is present, the screenshot slot
+becomes a kit-safe motion preview: it auto-cycles screenshots then unique
+backdrop/cover posters every two seconds, paints a VIDEO badge, and captions
+the slot `preview` (or `preview N / M`). That path does not decode H.264 on
+the CGO-free ARMv7 binary; full clip playback is a follow-up. Titles without
+a video handle keep today's still carousel. Attract does not arm while the pane is open; opening it notes
 activity so idle does not fire underneath. The pane uses a short
 fade-from-black overlay (`DetailFadeDuration`) that settles to the existing
 paint. Missing cover art uses the same
@@ -114,7 +119,8 @@ placeholder path as the grid. The wheel footer hint is
 `A open | L/R platform`; the grid footer after entering from the wheel is
 `A play | B platforms | L/R shelf`; a grid that never used the wheel (selftests)
 keeps `A play | B detail | L/R shelf`; the pane footer is `A play | B back`
-(or `A play | B back | L/R shots` when screenshots can cycle). Shelves are `All` plus
+(or `A play | B back | L/R shots` when screenshots can cycle, or
+`A play | B back | L/R preview` when a video preview can cycle). Shelves are `All` plus
 each system present in the loaded catalog. Changing shelf filters the 4×3 page
 and keeps focus when that game is still visible; otherwise focus lands on the
 first launchable title. The last shelf is stored in `launcher.json` when that
@@ -164,8 +170,9 @@ theme-tinted placeholder with a lettermark; still-loading art uses a distinct
 panel without a letter. Ready logos replace the grid label-bar text and the
 detail title; missing or still-loading logos keep today's text labels.
 Presentation and artwork fetching are asynchronous and
-do not block the present loop. The title pane paints the focused cover (and current screenshot, when
-present) through the same cache. After idle, attract stills use the same artwork GET with `DecodeStill`
+do not block the present loop. The title pane paints the focused cover (and current screenshot or
+video-preview still, when present) through the same cache. Video bytes are
+not fetched on kit; the preview uses already-admitted still artwork. After idle, attract stills use the same artwork GET with `DecodeStill`
 (Catmull–Rom to a 720p-class stage) and `fbgrid.PaintAttract`. Empty playlists
 paint a themed idle panel instead of hanging on the grid.
 
@@ -196,6 +203,8 @@ pad input with shelf and focus unchanged, and re-runs cover (which re-runs text,
 nav, and shelf). `fogcast-kit -selftest-detail` opens and closes the title pane
 (East/B, last-row Down, Up), paints a large cover plus title ink at `TitlePx`,
 paints admitted meta and wrapped description (and omits empty description),
+paints a VIDEO preview badge and `preview` caption when `video_id` is present
+(and keeps a neighbour still-only carousel without that badge),
 launches from the pane, holds attract while open, and re-runs attract (which
 re-runs cover, text, nav, and shelf). `fogcast-kit -selftest-motion` moves
 focus, ticks a mid-pop, samples a gap pixel that the highlight ring grows
