@@ -90,10 +90,12 @@ A/South still launches from the grid. The pane's A plays the title, East/B
 and Up return to the same shelf and focus, and L/R (or shoulders) cycle
 screenshots when `screenshot_ids` has two or more. Opening the pane uses a
 short fade-from-black overlay. Attract does not arm
-while the pane is open. Cells show host cover art when
-`Game.Cover` is available, Catmull–Rom downscaled at decode, with a theme-tinted
+while the pane is open. Cells show host cover art when a catalog
+`Game.Cover` or LaunchBox/IGDB presentation cover handle is available,
+Catmull–Rom downscaled at decode, with a theme-tinted
 placeholder (lettermark when missing, a distinct panel while loading) instead of
-a flat system fill. After the host attract `idle_seconds` with no pad input, the
+a flat system fill. The visible 4×3 page and the next page prefetch those
+handles asynchronously; missing metadata still uses the placeholder. After the host attract `idle_seconds` with no pad input, the
 kit shows a stills attract (title chrome plus backdrop/cover/marquee artwork)
 and returns to the same shelf and focus on any input. Video is not decoded on
 kit; an empty playlist uses a themed idle panel instead of a frozen grid. Header, tile names, placeholder lettermarks, and footer use the embedded Go

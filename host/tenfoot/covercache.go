@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"context"
 	"image"
+	"strings"
 	"sync"
 )
 
@@ -113,19 +114,41 @@ func (c *CoverCache) Generation() uint64 {
 
 // PageHandles returns unique catalog cover handles in games[start:end].
 func PageHandles(games []Game, start, end int) []string {
-	if start < 0 {
-		start = 0
+	return CollectCoverHandles(games, start, end, nil)
+}
+
+// PageIDs returns game IDs in games[start:end] for presentation prefetch.
+func PageIDs(games []Game, start, end int) []string {
+	start, end = clampPage(games, start, end)
+	if start >= end {
+		return nil
 	}
-	if end > len(games) {
-		end = len(games)
+	out := make([]string, 0, end-start)
+	for _, game := range games[start:end] {
+		id := strings.TrimSpace(game.ID)
+		if id == "" {
+			continue
+		}
+		out = append(out, id)
 	}
+	return out
+}
+
+// CollectCoverHandles returns unique 64-hex cover handles from catalog rows
+// and optional presentation lookups. presentation may be nil.
+func CollectCoverHandles(games []Game, start, end int, presentation func(string) Presentation) []string {
+	start, end = clampPage(games, start, end)
 	if start >= end {
 		return nil
 	}
 	out := make([]string, 0, end-start)
 	seen := make(map[string]struct{}, end-start)
 	for _, game := range games[start:end] {
-		handle := CoverHandle(game, Presentation{})
+		var pres Presentation
+		if presentation != nil {
+			pres = presentation(game.ID)
+		}
+		handle := CoverHandle(game, pres)
 		if handle == "" {
 			continue
 		}
@@ -136,6 +159,16 @@ func PageHandles(games []Game, start, end int) []string {
 		out = append(out, handle)
 	}
 	return out
+}
+
+func clampPage(games []Game, start, end int) (int, int) {
+	if start < 0 {
+		start = 0
+	}
+	if end > len(games) {
+		end = len(games)
+	}
+	return start, end
 }
 
 // Request starts fetches for unknown handles and returns immediately.

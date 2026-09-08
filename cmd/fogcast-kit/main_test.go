@@ -56,7 +56,7 @@ func TestModelGridUsesLiveGamesAndPages(t *testing.T) {
 		games[i] = tenfoot.Game{ID: "game-" + string(rune('a'+i)), Title: "Title " + string(rune('A'+i)), System: "snes", Launchable: true}
 	}
 	m := kitlauncher.Model{Games: games, Focus: 12, Connected: true, TargetReady: true, ControllerConnected: true}
-	g := modelGrid(m, 640, 480, nil, theme.Default())
+	g := modelGrid(m, 640, 480, nil, nil, theme.Default())
 	if len(g.Tiles) != 1 || g.Focus != 0 {
 		t.Fatalf("page tiles=%d focus=%d", len(g.Tiles), g.Focus)
 	}
@@ -78,14 +78,14 @@ func TestModelGridFollowsTwoDimensionalFocus(t *testing.T) {
 	down, _ := remoteinput.NormalizeGamepad("dpad-down", true)
 	now := time.Now()
 	m.Input(right, now)
-	g := modelGrid(m, 640, 480, nil, theme.Default())
+	g := modelGrid(m, 640, 480, nil, nil, theme.Default())
 	if m.Focus != 1 || g.Focus != 1 || len(g.Tiles) != 12 {
 		t.Fatalf("right focus=%d local=%d tiles=%d", m.Focus, g.Focus, len(g.Tiles))
 	}
 	m.Focus = 11
 	m.Input(down, now)
 	start, end := catalogPage(m.Focus, len(m.Games))
-	g = modelGrid(m, 640, 480, nil, theme.Default())
+	g = modelGrid(m, 640, 480, nil, nil, theme.Default())
 	if m.Focus != 15 || start != 12 || end != 24 || g.Focus != 3 || len(g.Tiles) != 12 {
 		t.Fatalf("page-cross focus=%d page=%d:%d local=%d tiles=%d", m.Focus, start, end, g.Focus, len(g.Tiles))
 	}
@@ -129,19 +129,27 @@ func TestCatalogPageAndPrefetchWindow(t *testing.T) {
 
 func TestGameTileLeavesCoverEmptyUntilCached(t *testing.T) {
 	handle := strings.Repeat("ab", 32)
-	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive", Cover: handle}, tenfoot.NewCoverCache(), theme.Default())
+	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive", Cover: handle}, tenfoot.NewCoverCache(), tenfoot.Presentation{}, theme.Default())
 	if tile.Cover != nil {
 		t.Fatal("uncached cover should stay fallback")
 	}
 	if tile.CoverKind != fbgrid.CoverMissing {
 		t.Fatalf("uncached kind %d", tile.CoverKind)
 	}
-	flat := gameTile(tenfoot.Game{Title: "Pong", System: "pong"}, tenfoot.NewCoverCache(), theme.Default())
+	flat := gameTile(tenfoot.Game{Title: "Pong", System: "pong"}, tenfoot.NewCoverCache(), tenfoot.Presentation{}, theme.Default())
 	if flat.Cover != nil {
 		t.Fatal("missing handle should stay fallback")
 	}
 	if flat.CoverKind != fbgrid.CoverMissing {
 		t.Fatalf("missing kind %d", flat.CoverKind)
+	}
+	pres := tenfoot.Presentation{Presentation: &tenfoot.PresentationInfo{CoverArtworkID: handle}}
+	fromMeta := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive"}, tenfoot.NewCoverCache(), pres, theme.Default())
+	if fromMeta.Cover != nil {
+		t.Fatal("uncached presentation cover should stay fallback")
+	}
+	if fromMeta.CoverKind != fbgrid.CoverMissing {
+		t.Fatalf("presentation kind %d", fromMeta.CoverKind)
 	}
 }
 
@@ -172,7 +180,7 @@ func TestModelGridShowsActiveShelfChrome(t *testing.T) {
 	now := time.Now()
 	m.Input(r, now)
 	m.Input(r2, now)
-	g := modelGrid(m, 640, 480, nil, theme.Default())
+	g := modelGrid(m, 640, 480, nil, nil, theme.Default())
 	if m.Shelf != "megadrive" || len(g.Tiles) != 1 || g.Tiles[0].Name != "Sonic" {
 		t.Fatalf("shelf=%q tiles=%d name=%v", m.Shelf, len(g.Tiles), g.Tiles)
 	}
@@ -203,14 +211,14 @@ func TestExerciseShelfGridCyclesVisibleSet(t *testing.T) {
 }
 
 func TestGameTileUsesSystemPaletteAndASCIILabel(t *testing.T) {
-	tile := gameTile(tenfoot.Game{Title: "Márío", System: "snes"}, nil, theme.Default())
+	tile := gameTile(tenfoot.Game{Title: "Márío", System: "snes"}, nil, tenfoot.Presentation{}, theme.Default())
 	if tile.Name != "M?r?o" {
 		t.Fatalf("label %q", tile.Name)
 	}
 	if tile.Color != gfx.RGB(156, 52, 60) {
 		t.Fatalf("color %+v", tile.Color)
 	}
-	arcade := gameTile(tenfoot.Game{Title: "Márío", System: "snes"}, nil, theme.Arcade())
+	arcade := gameTile(tenfoot.Game{Title: "Márío", System: "snes"}, nil, tenfoot.Presentation{}, theme.Arcade())
 	if arcade.Color != theme.Arcade().SystemColor("snes") {
 		t.Fatalf("arcade color %+v", arcade.Color)
 	}

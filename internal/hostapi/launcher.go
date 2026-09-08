@@ -15,6 +15,7 @@ import (
 
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/discovery"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
@@ -96,7 +97,7 @@ func launcherOperation(method, path string) bool {
 	case "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "POST /api/v1/session/launch", "POST /api/v1/session/stop":
 		return true
 	}
-	return method == http.MethodGet && launcherArtworkPath(path)
+	return method == http.MethodGet && (launcherArtworkPath(path) || launcherPresentationGamePath(path))
 }
 
 func launcherArtworkPath(path string) bool {
@@ -117,6 +118,14 @@ func launcherArtworkPath(path string) bool {
 		}
 	}
 	return true
+}
+
+func launcherPresentationGamePath(path string) bool {
+	const prefix = "/api/v1/presentation/games/"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	return protocol.ValidateGameID(path[len(prefix):]) == nil
 }
 
 func (a *applicationHandler) selectedTargetID() string {

@@ -136,14 +136,16 @@ The native runtime enables the MiSTer HPS framebuffer on Menu bring-up and every
 successful return to idle. The launcher only renders memory; it never issues SPI,
 programs the FPGA, or claims a kit lease. Rendering pauses while a game is active.
 The connecting/library screen uses the existing pure-Go linuxfb backend and the
-shared `fbgrid` paint path. Tiles are a bounded page of live catalog rows. When
-`Game.Cover` is present, the kit fetches `GET /api/v1/presentation/artwork/{handle}`
-on the paired listener, decodes it with `DecodeCover` (Catmull–Rom downscale to
+shared `fbgrid` paint path. Tiles are a bounded page of live catalog rows. Cover handles come from catalog
+`Game.Cover` when present, otherwise from `GET /api/v1/presentation/games/{id}`
+(`cover_artwork_id`) for the visible page and the cheap next page. The kit
+fetches `GET /api/v1/presentation/artwork/{handle}` on the paired listener,
+decodes it with `DecodeCover` (Catmull–Rom downscale to
 the cover cell; Software Draw stays nearest), and aspect-fits the RGBA into the
 cell over theme-tinted letterbox bars. Missing or failed art paints a
 theme-tinted placeholder with a lettermark; still-loading art uses a distinct
-panel without a letter. Fetching is asynchronous and does not block the present
-loop. The title pane paints the focused cover (and current screenshot, when
+panel without a letter. Presentation and artwork fetching are asynchronous and
+do not block the present loop. The title pane paints the focused cover (and current screenshot, when
 present) through the same cache. After idle, attract stills use the same artwork GET with `DecodeStill`
 (Catmull–Rom to a 720p-class stage) and `fbgrid.PaintAttract`. Empty playlists
 paint a themed idle panel instead of hanging on the grid.
@@ -184,3 +186,29 @@ eligible USB pad under the identity profile, prints device id/name, and exits.
 Runtime and host tests cover their respective boundaries.
 Use FES for selected image assembly and exact-artifact evidence. A diagnostic
 binary or modified image does not establish reproducible-image acceptance.
+
+## HOW_TO_RUN: LaunchBox covers on the kit host
+
+The paired kit host (`fogcast-api` with `--launcher-config`) needs the same
+opt-in `[metadata]` section the sofa host already uses. LaunchBox does not take
+credentials. On the kit host:
+
+1. Place official `Metadata.zip` at a private path (copy the sofa archive, or
+   download `https://gamesdb.launchbox-app.com/Metadata.zip`).
+2. Add to the host `config.toml` (mode `0600`; no `client_id` / `client_secret`):
+
+```toml
+[metadata]
+enabled = true
+provider = "launchbox"
+archive = "/absolute/path/to/Metadata.zip"
+```
+
+3. Restart the kit-host API so it reloads metadata. Cover files land under
+   `~/.cache/fogcast/metadata/launchbox-covers`.
+4. Rebuild and run `fogcast-kit` (`make build-fogcast-kit`, CGO-free ARMv7).
+   Visible tiles prefetch presentation then artwork; titles without a match keep
+   the existing placeholder.
+
+Do not put provider secrets in launcher JSON, logs, or pull requests. Local
+`library_media` covers still win when `Game.Cover` is set.
