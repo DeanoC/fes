@@ -137,7 +137,9 @@ queued open results), and resets the idle timer. South/A on a launchable
 attract item dismisses and launches. A South/North hold that began before
 attract does not launch the attract title on release. `-smoke` implies
 `-no-attract`. Linux without `ffmpeg` skips the video download and keeps the
-stills fallback. GUI video smoke on a Linux display is NEED.
+stills fallback. GUI video smoke on a Linux display is NEED. The on-kit
+`fogcast-kit` adapter arms the same host idle and paints stills only (no video
+decode); any pad input returns to the catalog grid.
 
 Gamepad is the intended control path (d-pad / left stick to move, South/A to
 launch, East/B to back, Start to quit, Select/View to cycle layout, Guide to

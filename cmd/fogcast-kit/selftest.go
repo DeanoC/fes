@@ -132,6 +132,17 @@ func runCoverSelftest(fbPath string, th theme.Theme) error {
 	return err
 }
 
+func runAttractSelftest(fbPath string, th theme.Theme) error {
+	d, err := gfx.OpenLinuxFB(fbPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	report, err := exerciseAttractGrid(d, th)
+	fmt.Print(report)
+	return err
+}
+
 func exerciseNavGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	th = th.Complete()
 	games := make([]tenfoot.Game, 25)
@@ -513,6 +524,155 @@ func exerciseTextGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	fmt.Fprintf(&b, "selftest-text PASS font=goregular drawtext=1 debugtext=0 title_px=%d body_px=%d caption_px=%d status_px=%d\n",
 		arcade.TitlePx(), arcade.BodyPx(), arcade.CaptionPx(), arcade.StatusPx())
 	return b.String(), nil
+}
+
+func solidStill(r, g, b uint8, w, h int) *image.RGBA {
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+		}
+	}
+	return img
+}
+
+func exerciseAttractGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
+	th = th.Complete()
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	m.SetCatalog(mixedShelfGames())
+	m.Focus = 1
+	keepShelf, keepFocus, keepID := m.Shelf, m.Focus, m.Games[m.Focus].ID
+	aa := strings.Repeat("aa", 32)
+	bb := strings.Repeat("bb", 32)
+	mario := solidStill(255, 32, 160, 40, 8)
+	sonic := solidStill(40, 80, 200, 40, 8)
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, mario); err != nil {
+		return "", err
+	}
+	decoded, err := tenfoot.DecodeStill(buf.Bytes())
+	if err != nil {
+		return "", err
+	}
+	stills := map[string]*image.RGBA{aa: decoded, bb: sonic}
+	m.SetAttractPlaylist(tenfoot.AttractPlaylist{
+		Items: []tenfoot.AttractItem{
+			{GameID: "mario", Title: "Mario", Platform: "snes", Backdrop: aa, Launchable: true},
+			{GameID: "sonic", Title: "Sonic", Platform: "megadrive", Backdrop: bb, Launchable: true},
+		},
+	})
+	m.SetAttractIdle(20 * time.Millisecond)
+	m.SetAttractCycle(80 * time.Millisecond)
+	t0 := time.Now()
+	m.Tick(t0)
+	var b strings.Builder
+	g := paintModel(d, m, th)
+	hx, hy, ok := g.HighlightSample()
+	if !ok {
+		return b.String(), fmt.Errorf("grid highlight before attract")
+	}
+	hlB, hlG, hlR, _, err := gfx.SampleBGRX(d.Destination(), d.Config(), hx, hy)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "pre-attract shelf=%s focus=%d highlight=(%d,%d) bgrx=%d,%d,%d\n", m.Shelf, m.Focus, hx, hy, hlB, hlG, hlR)
+
+	m.Tick(t0.Add(40 * time.Millisecond))
+	if !m.AttractActive {
+		return b.String(), fmt.Errorf("idle did not arm attract")
+	}
+	view := m.AttractView(t0.Add(40 * time.Millisecond))
+	if view.Title != "Mario" || view.Empty {
+		return b.String(), fmt.Errorf("attract view %+v", view)
+	}
+	paintAttractModel(d, view, stills, th)
+	cfg := d.Config()
+	dest := fbgrid.AttractStillDest(cfg.Width, cfg.Height, decoded, th)
+	sx := int(dest.X + dest.W/2)
+	sy := int(dest.Y + dest.H/2)
+	gotB, gotG, gotR, gotX, err := gfx.SampleBGRX(d.Destination(), cfg, sx, sy)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "attract still=(%d,%d) bgrx=%d,%d,%d,%d title=%q\n", sx, sy, gotB, gotG, gotR, gotX, view.Title)
+	if gotB != 160 || gotG != 32 || gotR != 255 || gotX != 0 {
+		return b.String(), fmt.Errorf("still bgrx %d,%d,%d,%d want 160,32,255,0", gotB, gotG, gotR, gotX)
+	}
+	lx, ly, ok := fbgrid.AttractLetterboxSample(cfg.Width, cfg.Height, th)
+	if !ok {
+		return b.String(), fmt.Errorf("letterbox sample")
+	}
+	lbB, lbG, lbR, _, err := gfx.SampleBGRX(d.Destination(), cfg, lx, ly)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "attract bg=(%d,%d) bgrx=%d,%d,%d want=%d,%d,%d\n", lx, ly, lbB, lbG, lbR, th.AttractBackground.B, th.AttractBackground.G, th.AttractBackground.R)
+	if lbB != th.AttractBackground.B || lbG != th.AttractBackground.G || lbR != th.AttractBackground.R {
+		return b.String(), fmt.Errorf("attract background bgrx %d,%d,%d", lbB, lbG, lbR)
+	}
+
+	empty := kitlauncher.Model{Connected: true, TargetReady: true, AttractActive: true}
+	empty.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: nil})
+	empty.AttractActive = true
+	emptyView := empty.AttractView(t0)
+	paintAttractModel(d, emptyView, nil, th)
+	cx, cy, ok := fbgrid.AttractStageSample(cfg.Width, cfg.Height, th)
+	if !ok {
+		return b.String(), fmt.Errorf("empty stage sample")
+	}
+	eB, eG, eR, _, err := gfx.SampleBGRX(d.Destination(), cfg, cx, cy)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "empty-panel stage=(%d,%d) bgrx=%d,%d,%d empty=%v\n", cx, cy, eB, eG, eR, emptyView.Empty)
+	if !emptyView.Empty {
+		return b.String(), fmt.Errorf("empty playlist was not empty panel")
+	}
+	if eB == 160 && eG == 32 && eR == 255 {
+		return b.String(), fmt.Errorf("empty panel kept still pixels")
+	}
+
+	press(&m, "dpad-right")
+	if m.AttractActive {
+		return b.String(), fmt.Errorf("input did not dismiss attract")
+	}
+	if m.Shelf != keepShelf || m.Focus != keepFocus || m.Games[m.Focus].ID != keepID {
+		return b.String(), fmt.Errorf("dismiss moved focus shelf=%s focus=%d id=%s", m.Shelf, m.Focus, m.Games[m.Focus].ID)
+	}
+	g = paintModel(d, m, th)
+	hx, hy, ok = g.HighlightSample()
+	if !ok {
+		return b.String(), fmt.Errorf("grid highlight after dismiss")
+	}
+	hlB, hlG, hlR, _, err = gfx.SampleBGRX(d.Destination(), d.Config(), hx, hy)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "post-dismiss shelf=%s focus=%d highlight=(%d,%d) bgrx=%d,%d,%d\n", m.Shelf, m.Focus, hx, hy, hlB, hlG, hlR)
+	if hlB != th.Highlight.B || hlG != th.Highlight.G || hlR != th.Highlight.R {
+		return b.String(), fmt.Errorf("post-dismiss highlight")
+	}
+
+	cover, err := exerciseCoverGrid(d, th)
+	b.WriteString(cover)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "selftest-attract PASS idle=1 dismiss=1 still=1 empty-panel=1 nested-cover=1\n")
+	return b.String(), nil
+}
+
+func paintAttractModel(d *gfx.LinuxFB, view kitlauncher.AttractView, stills map[string]*image.RGBA, th theme.Theme) {
+	cfg := d.Config()
+	cache := tenfoot.NewStillCache()
+	frame := attractFrame(view, cache, th, cfg.Width, cfg.Height)
+	if stills != nil {
+		frame.Image = stills[view.Handle]
+		frame.Next = stills[view.NextHandle]
+	}
+	frame.Empty = view.Empty
+	fbgrid.PaintAttract(d, frame)
+	d.Present()
 }
 
 func exerciseCoverGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {

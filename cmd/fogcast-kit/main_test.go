@@ -262,6 +262,27 @@ func TestExerciseFPGAAnimProof(t *testing.T) {
 	}
 }
 
+func TestExerciseAttractGridPaintsStillAndDismisses(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseAttractGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-attract PASS") || !strings.Contains(report, "selftest-cover PASS") || !strings.Contains(report, "selftest-text PASS") || !strings.Contains(report, "selftest-nav PASS") || !strings.Contains(report, "selftest-shelf PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "attract still=") || !strings.Contains(report, "empty-panel") {
+		t.Fatalf("missing still/empty evidence: %s", report)
+	}
+}
+
 func TestExerciseCoverGridPaintsArtAndPlaceholder(t *testing.T) {
 	const w, h = 640, 480
 	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}

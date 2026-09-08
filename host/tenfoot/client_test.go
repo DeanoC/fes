@@ -993,6 +993,11 @@ func TestAttractStillHandlePrefersBackdropThenCoverThenMarquee(t *testing.T) {
 	if item.StillHandle() != "" {
 		t.Fatalf("video must not be a still handle, got %q", item.StillHandle())
 	}
+	item = AttractItem{Video: video, Cover: cover, Backdrop: backdrop, Marquee: marquee}
+	handles := item.StillHandles()
+	if len(handles) != 3 || handles[0] != backdrop || handles[1] != cover || handles[2] != marquee {
+		t.Fatalf("still handles %v", handles)
+	}
 }
 
 func TestNormalizeHandleRejectsShortValues(t *testing.T) {

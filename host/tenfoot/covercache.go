@@ -23,15 +23,29 @@ type CoverCache struct {
 	inflight map[string]struct{}
 	wanted   map[string]struct{}
 	gen      uint64
+	decode   func([]byte) (*image.RGBA, error)
 }
 
-// NewCoverCache returns an empty handle cache.
+// NewCoverCache returns an empty handle cache that decodes catalog covers.
 func NewCoverCache() *CoverCache {
+	return newArtworkCache(DecodeCover)
+}
+
+// NewStillCache returns an empty handle cache that decodes attract stills.
+func NewStillCache() *CoverCache {
+	return newArtworkCache(DecodeStill)
+}
+
+func newArtworkCache(decode func([]byte) (*image.RGBA, error)) *CoverCache {
+	if decode == nil {
+		decode = DecodeCover
+	}
 	return &CoverCache{
 		images:   map[string]*image.RGBA{},
 		failed:   map[string]struct{}{},
 		inflight: map[string]struct{}{},
 		wanted:   map[string]struct{}{},
+		decode:   decode,
 	}
 }
 
@@ -190,7 +204,11 @@ func (c *CoverCache) fetch(ctx context.Context, client ArtworkFetcher, handle st
 	data, _, err := client.Artwork(ctx, handle)
 	var img *image.RGBA
 	if err == nil {
-		img, err = DecodeCover(data)
+		decode := c.decode
+		if decode == nil {
+			decode = DecodeCover
+		}
+		img, err = decode(data)
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()

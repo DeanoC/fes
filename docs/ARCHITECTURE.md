@@ -610,7 +610,12 @@ Catalog cells paint decoded box-art from
 `DecodeCover` Catmull–Rom downscales once to the cover cell so Software Draw
 stays a cheap nearest blit. Missing or still-loading art paints a theme-tinted
 placeholder (lettermark when missing; a distinct panel while loading) instead
-of a flat system fill. Aspect-fit letterbox bars mix the system colour toward
+of a flat system fill. After host `idle_seconds` from
+`GET /api/v1/library/attract` with no pad input, the kit paints a stills attract
+(backdrop, then cover, then marquee) through `DecodeStill` and
+`fbgrid.PaintAttract`; video handles are not decoded on kit. Any pad input
+returns to the same shelf and focus; A/South may launch the current attract
+title. An empty playlist shows a themed idle panel rather than a frozen grid. Aspect-fit letterbox bars mix the system colour toward
 the theme label bar; focused cells add a 1px inner highlight. Header uses the title role, tile names use body, placeholder
 lettermarks use caption, and the footer uses status. They rasterize the
 embedded Go Regular face (no kit system fonts) and truncate with an ellipsis

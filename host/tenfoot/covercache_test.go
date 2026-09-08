@@ -172,6 +172,47 @@ func TestCoverCacheRequestDoesNotBlock(t *testing.T) {
 	}
 }
 
+func TestStillCacheDecodesToStillStage(t *testing.T) {
+	t.Parallel()
+	handle := strings.Repeat("ab", 32)
+	src := image.NewRGBA(image.Rect(0, 0, 400, 400))
+	for y := 0; y < 400; y++ {
+		for x := 0; x < 400; x++ {
+			src.Set(x, y, color.RGBA{R: 200, G: 20, B: 20, A: 255})
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, src); err != nil {
+		t.Fatal(err)
+	}
+	pngBytes := buf.Bytes()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(pngBytes)
+	}))
+	t.Cleanup(server.Close)
+	client := NewClient(server.URL, server.Client())
+	covers := NewCoverCache()
+	stills := NewStillCache()
+	covers.Keep([]string{handle})
+	stills.Keep([]string{handle})
+	covers.Request(context.Background(), client, []string{handle})
+	stills.Request(context.Background(), client, []string{handle})
+	waitCover(t, covers, handle)
+	waitCover(t, stills, handle)
+	cover := covers.Image(handle)
+	still := stills.Image(handle)
+	if cover == nil || still == nil {
+		t.Fatal("missing decode")
+	}
+	if cover.Bounds().Dx() > coverMaxW || cover.Bounds().Dy() > coverMaxH {
+		t.Fatalf("cover stayed large %s", cover.Bounds())
+	}
+	if still.Bounds().Dx() != 400 || still.Bounds().Dy() != 400 {
+		t.Fatalf("still scaled %s want 400x400", still.Bounds())
+	}
+}
+
 func writeSolidPNG(t *testing.T, w http.ResponseWriter, c color.RGBA) {
 	t.Helper()
 	src := image.NewRGBA(image.Rect(0, 0, 8, 8))
