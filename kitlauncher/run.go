@@ -34,7 +34,7 @@ type observation struct {
 func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pad, error)) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	m := Model{Message: "Connecting to FogCast", Shelf: normalizeShelf(c.config.Shelf)}
+	m := Model{Message: "Connecting to FogCast", Shelf: normalizeShelf(c.config.Shelf), WheelOpen: true}
 	var pad Pad
 	var stream *InputStream
 	streamID := ""

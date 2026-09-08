@@ -23,6 +23,8 @@ type Model struct {
 	Message                                           string
 	AttractActive                                     bool
 	DetailOpen                                        bool
+	WheelOpen                                         bool
+	fromWheel                                         bool
 	chord                                             controller.Chord
 	presentationID                                    string
 	presentation                                      tenfoot.Presentation
@@ -60,6 +62,9 @@ func (m *Model) Input(e remoteinput.Event, now time.Time) string {
 	if m.DetailOpen {
 		return m.inputDetail(e, dx, dy, now)
 	}
+	if m.WheelOpen {
+		return m.inputWheel(e, dx, dy, now)
+	}
 	if significantPad(e, dx, dy) {
 		m.noteActivity(now)
 	}
@@ -74,6 +79,10 @@ func (m *Model) Input(e remoteinput.Event, now time.Time) string {
 				return "launch"
 			}
 		case remoteinput.ButtonB:
+			if m.fromWheel {
+				m.leavePlatform(now)
+				return ""
+			}
 			m.openDetail(now)
 			return ""
 		}

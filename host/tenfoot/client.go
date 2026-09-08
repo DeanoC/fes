@@ -60,14 +60,15 @@ type Presentation struct {
 
 // PresentationInfo is the nested presentation object on a games/{id} payload.
 type PresentationInfo struct {
-	CoverArtworkID string   `json:"cover_artwork_id"`
-	LogoID         string   `json:"logo_id,omitempty"`
-	Summary        string   `json:"summary"`
-	Year           string   `json:"year"`
-	Genre          string   `json:"genre"`
-	Studio         string   `json:"studio"`
-	Players        string   `json:"players"`
-	ScreenshotIDs  []string `json:"screenshot_ids,omitempty"`
+	CoverArtworkID    string   `json:"cover_artwork_id"`
+	BackdropArtworkID string   `json:"backdrop_artwork_id,omitempty"`
+	LogoID            string   `json:"logo_id,omitempty"`
+	Summary           string   `json:"summary"`
+	Year              string   `json:"year"`
+	Genre             string   `json:"genre"`
+	Studio            string   `json:"studio"`
+	Players           string   `json:"players"`
+	ScreenshotIDs     []string `json:"screenshot_ids,omitempty"`
 }
 
 // PresentationAttribution is the provider label the public API returns with ready metadata.
@@ -679,6 +680,14 @@ func LogoHandle(presentation Presentation) string {
 		return ""
 	}
 	return normalizeHandle(presentation.Presentation.LogoID)
+}
+
+// BackdropHandle returns a 64-hex fanart/backdrop handle from presentation.
+func BackdropHandle(presentation Presentation) string {
+	if presentation.Presentation == nil {
+		return ""
+	}
+	return normalizeHandle(presentation.Presentation.BackdropArtworkID)
 }
 
 // LibraryTarget is one target row from GET /api/v1/library/settings.
