@@ -3,6 +3,7 @@ package fbgrid
 import (
 	"image"
 
+	"github.com/DeanoC/FogCast/host/tenfoot"
 	"github.com/DeanoC/FogCast/host/tenfoot/anim"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
@@ -17,6 +18,7 @@ type DetailFrame struct {
 	Hint          string
 	Cover         *image.RGBA
 	CoverKind     CoverKind
+	Logo          *image.RGBA
 	Color         gfx.Color
 	Shot          *image.RGBA
 	ShotCaption   string
@@ -52,7 +54,13 @@ func PaintDetail(d gfx.Device, f DetailFrame) {
 		}
 		d.FillRect(gfx.Rect{X: 0, Y: float32(fy), W: float32(f.Width), H: float32(f.Height - fy)}, th.FooterBar)
 	}
-	cover, text, shot := DetailLayout(f.Width, f.Height, th, f.Shot != nil || f.ShotCaption != "")
+	withShot := f.Shot != nil || f.ShotCaption != ""
+	cover, text, shot := DetailLayout(f.Width, f.Height, th, withShot, 0)
+	logoH := 0
+	if f.Logo != nil {
+		logoH = logoFitHeight(f.Logo, int(text.W), detailLogoMaxH)
+		cover, text, shot = DetailLayout(f.Width, f.Height, th, withShot, logoH)
+	}
 	fill := f.Color
 	if fill == (gfx.Color{}) {
 		fill = th.SystemColor("")
@@ -80,14 +88,21 @@ func PaintDetail(d gfx.Device, f DetailFrame) {
 	}
 	titleSize := th.TitlePx()
 	titleW := th.TitleWeight()
-	title = gfx.FitTextWeight(title, titleSize, int(text.W), titleW)
-	d.DrawTextWeight(int(text.X), int(text.Y), title, titleSize, titleW, th.Header)
+	titleBlockH := gfx.TextHeightWeight(titleSize, titleW)
+	if f.Logo != nil && logoH > 0 {
+		logoCell := gfx.Rect{X: text.X, Y: text.Y, W: text.W, H: float32(logoH)}
+		paintCover(d, f.Logo, logoCell)
+		titleBlockH = logoH
+	} else {
+		title = gfx.FitTextWeight(title, titleSize, int(text.W), titleW)
+		d.DrawTextWeight(int(text.X), int(text.Y), title, titleSize, titleW, th.Header)
+	}
 	meta := f.Meta
 	if meta != "" {
 		metaSize := th.BodyPx()
 		metaW := th.BodyWeight()
 		meta = gfx.FitTextWeight(meta, metaSize, int(text.W), metaW)
-		metaY := int(text.Y) + gfx.TextHeightWeight(titleSize, titleW) + 8
+		metaY := int(text.Y) + titleBlockH + 8
 		d.DrawTextWeight(int(text.X), metaY, meta, metaSize, metaW, th.Label)
 	}
 	if shot.W > 0 && shot.H > 0 {
@@ -127,8 +142,10 @@ func PaintDetail(d gfx.Device, f DetailFrame) {
 	}
 }
 
+const detailLogoMaxH = 56
+
 // DetailLayout is the cover, title/meta, and optional screenshot rects.
-func DetailLayout(width, height int, th theme.Theme, withShot bool) (cover, text, shot gfx.Rect) {
+func DetailLayout(width, height int, th theme.Theme, withShot bool, logoH int) (cover, text, shot gfx.Rect) {
 	th = th.Complete()
 	pad := th.Pad
 	if pad < 8 {
@@ -171,7 +188,11 @@ func DetailLayout(width, height int, th theme.Theme, withShot bool) (cover, text
 	if textW < 1 {
 		textW = 1
 	}
-	titleH := gfx.TextHeightWeight(th.TitlePx(), th.TitleWeight()) + 8 + gfx.TextHeightWeight(th.BodyPx(), th.BodyWeight())
+	titleBlock := gfx.TextHeightWeight(th.TitlePx(), th.TitleWeight())
+	if logoH > titleBlock {
+		titleBlock = logoH
+	}
+	titleH := titleBlock + 8 + gfx.TextHeightWeight(th.BodyPx(), th.BodyWeight())
 	textH := titleH + 8
 	if textH > stageH {
 		textH = stageH
@@ -194,7 +215,7 @@ func DetailLayout(width, height int, th theme.Theme, withShot bool) (cover, text
 
 // DetailCoverSample is a pixel inside the large cover cell.
 func DetailCoverSample(width, height int, th theme.Theme) (x, y int, ok bool) {
-	cover, _, _ := DetailLayout(width, height, th, false)
+	cover, _, _ := DetailLayout(width, height, th, false, 0)
 	if cover.W < 4 || cover.H < 4 {
 		return 0, 0, false
 	}
@@ -203,11 +224,39 @@ func DetailCoverSample(width, height int, th theme.Theme) (x, y int, ok bool) {
 	return x, y, true
 }
 
-// DetailTitleOrigin is the top-left of the title DrawText.
+// DetailTitleOrigin is the top-left of the title DrawText or logo slot.
 func DetailTitleOrigin(width, height int, th theme.Theme) (x, y int, ok bool) {
-	_, text, _ := DetailLayout(width, height, th, false)
+	_, text, _ := DetailLayout(width, height, th, false, 0)
 	if text.W < 1 || text.H < 1 {
 		return 0, 0, false
 	}
 	return int(text.X), int(text.Y), true
+}
+
+// DetailLogoSample is a pixel inside the title-slot logo.
+func DetailLogoSample(width, height int, th theme.Theme, logo *image.RGBA) (x, y int, ok bool) {
+	if logo == nil {
+		return 0, 0, false
+	}
+	b := logo.Bounds()
+	_, text, _ := DetailLayout(width, height, th, false, 0)
+	logoH := logoFitHeight(logo, int(text.W), detailLogoMaxH)
+	_, text, _ = DetailLayout(width, height, th, false, logoH)
+	dx, dy, dw, dh := tenfoot.CoverDestRect(int(text.X), int(text.Y), int(text.W), logoH, b.Dx(), b.Dy())
+	if dw < 2 || dh < 2 {
+		return 0, 0, false
+	}
+	return int(dx + dw/2), int(dy + dh/2), true
+}
+
+func logoFitHeight(img *image.RGBA, maxW, maxH int) int {
+	if img == nil || maxW < 1 || maxH < 1 {
+		return 0
+	}
+	b := img.Bounds()
+	_, _, _, h := tenfoot.CoverDestRect(0, 0, maxW, maxH, b.Dx(), b.Dy())
+	if h < 1 {
+		return 0
+	}
+	return int(h)
 }

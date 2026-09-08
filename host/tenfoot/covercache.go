@@ -161,6 +161,29 @@ func CollectCoverHandles(games []Game, start, end int, presentation func(string)
 	return out
 }
 
+// CollectLogoHandles returns unique 64-hex clear-logo handles from optional
+// presentation lookups. presentation may be nil.
+func CollectLogoHandles(games []Game, start, end int, presentation func(string) Presentation) []string {
+	start, end = clampPage(games, start, end)
+	if start >= end || presentation == nil {
+		return nil
+	}
+	out := make([]string, 0, end-start)
+	seen := make(map[string]struct{}, end-start)
+	for _, game := range games[start:end] {
+		handle := LogoHandle(presentation(game.ID))
+		if handle == "" {
+			continue
+		}
+		if _, ok := seen[handle]; ok {
+			continue
+		}
+		seen[handle] = struct{}{}
+		out = append(out, handle)
+	}
+	return out
+}
+
 func clampPage(games []Game, start, end int) (int, int) {
 	if start < 0 {
 		start = 0

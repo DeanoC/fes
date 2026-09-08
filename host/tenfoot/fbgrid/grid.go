@@ -25,12 +25,14 @@ const (
 )
 
 // Tile is one catalog cell: a short label, a solid colour fallback, optional
-// decoded cover pixels, and the cover-fetch kind used for placeholders.
+// decoded cover pixels, the cover-fetch kind used for placeholders, and an
+// optional clear logo for the label bar.
 type Tile struct {
 	Name      string
 	Color     gfx.Color
 	Cover     *image.RGBA
 	CoverKind CoverKind
+	Logo      *image.RGBA
 }
 
 const (
@@ -276,6 +278,35 @@ func (g Grid) InteriorSample() (x, y int, ok bool) {
 		return 0, 0, false
 	}
 	return ox + g.CellW/2, oy + g.CellH/2, true
+}
+
+// LabelBarSample is a pixel in tile i's label bar, centered horizontally.
+func (g Grid) LabelBarSample(i int) (x, y int, ok bool) {
+	r, ok := g.tileInner(i)
+	if !ok {
+		r, ok = g.tileRect(i)
+		if !ok {
+			return 0, 0, false
+		}
+	}
+	th := g.Theme.Complete()
+	textH := gfx.TextHeightWeight(th.BodyPx(), th.BodyWeight())
+	barH := float32(textH + 4)
+	if barH < 16 {
+		barH = 16
+	}
+	if i >= 0 && i < len(g.Tiles) && g.Tiles[i].Logo != nil && barH < 24 {
+		barH = 24
+	}
+	if barH > r.H {
+		barH = r.H
+	}
+	if barH < 2 || r.W < 2 {
+		return 0, 0, false
+	}
+	x = int(r.X + r.W/2)
+	y = int(r.Y + r.H - barH/2)
+	return x, y, true
 }
 
 // PanelSample is a pixel on tile i's placeholder or letterbox panel: inside

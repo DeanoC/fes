@@ -127,6 +127,26 @@ func TestCatalogPageAndPrefetchWindow(t *testing.T) {
 	}
 }
 
+func TestGameTileLeavesLogoEmptyUntilReady(t *testing.T) {
+	handle := strings.Repeat("ab", 32)
+	cache := tenfoot.NewCoverCache()
+	pres := tenfoot.Presentation{Presentation: &tenfoot.PresentationInfo{LogoID: handle}}
+	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive"}, cache, pres, theme.Default())
+	if tile.Logo != nil {
+		t.Fatal("uncached logo should keep text fallback")
+	}
+	if tile.Name != "Sonic" {
+		t.Fatalf("name %q", tile.Name)
+	}
+	plain := gameTile(tenfoot.Game{Title: "Pong", System: "pong"}, cache, tenfoot.Presentation{}, theme.Default())
+	if plain.Logo != nil {
+		t.Fatal("text-fallback tile gained a logo")
+	}
+	if plain.Name != "Pong" {
+		t.Fatalf("plain name %q", plain.Name)
+	}
+}
+
 func TestGameTileLeavesCoverEmptyUntilCached(t *testing.T) {
 	handle := strings.Repeat("ab", 32)
 	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive", Cover: handle}, tenfoot.NewCoverCache(), tenfoot.Presentation{}, theme.Default())
@@ -307,7 +327,7 @@ func TestExerciseDetailGridOpensPaintsAndNestsAttract(t *testing.T) {
 	if !strings.Contains(report, "selftest-detail PASS") || !strings.Contains(report, "selftest-attract PASS") || !strings.Contains(report, "selftest-cover PASS") || !strings.Contains(report, "selftest-text PASS") || !strings.Contains(report, "selftest-nav PASS") || !strings.Contains(report, "selftest-shelf PASS") {
 		t.Fatalf("report %s", report)
 	}
-	if !strings.Contains(report, "detail title-ink=1") || !strings.Contains(report, "detail cover=") {
+	if !strings.Contains(report, "detail title-ink=1") || !strings.Contains(report, "detail cover=") || !strings.Contains(report, "detail logo=") || !strings.Contains(report, "logo=1") {
 		t.Fatalf("missing detail paint evidence: %s", report)
 	}
 }

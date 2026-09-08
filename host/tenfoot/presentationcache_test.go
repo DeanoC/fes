@@ -60,6 +60,36 @@ func TestCoverHandlePrefersCatalogThenPresentation(t *testing.T) {
 	}
 }
 
+func TestLogoHandleAndCollectLogoHandles(t *testing.T) {
+	t.Parallel()
+	logo := strings.Repeat("ab", 32)
+	dup := strings.Repeat("ab", 32)
+	other := strings.Repeat("cd", 32)
+	games := []Game{{ID: "sonic"}, {ID: "pong"}, {ID: "mario"}, {ID: "sonic-dup"}}
+	pres := map[string]Presentation{
+		"sonic":     {Presentation: &PresentationInfo{LogoID: logo, CoverArtworkID: strings.Repeat("11", 32)}},
+		"pong":      {Presentation: &PresentationInfo{CoverArtworkID: strings.Repeat("22", 32)}},
+		"mario":     {Presentation: &PresentationInfo{LogoID: other}},
+		"sonic-dup": {Presentation: &PresentationInfo{LogoID: dup}},
+	}
+	if got := LogoHandle(pres["sonic"]); got != logo {
+		t.Fatalf("logo = %q", got)
+	}
+	if got := LogoHandle(pres["pong"]); got != "" {
+		t.Fatalf("cover-only logo = %q", got)
+	}
+	if got := LogoHandle(Presentation{}); got != "" {
+		t.Fatalf("empty = %q", got)
+	}
+	got := CollectLogoHandles(games, 0, len(games), func(id string) Presentation { return pres[id] })
+	if len(got) != 2 || got[0] != logo || got[1] != other {
+		t.Fatalf("handles = %#v", got)
+	}
+	if got := CollectLogoHandles(games, 0, len(games), nil); got != nil {
+		t.Fatalf("nil presentation = %#v", got)
+	}
+}
+
 func TestPresentationCacheFetchesEvictsAndSkipsRetry(t *testing.T) {
 	t.Parallel()
 	keep := strings.Repeat("ab", 32)

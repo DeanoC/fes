@@ -10,6 +10,21 @@ import (
 	"testing"
 )
 
+func TestValidLaunchBoxImageTypeAdmitsClearLogo(t *testing.T) {
+	if !validLaunchBoxImageType("Clear Logo") {
+		t.Fatal("Clear Logo rejected")
+	}
+	if validLaunchBoxImageTypeRank("logo", "Clear Logo") != 0 {
+		t.Fatalf("Clear Logo rank = %d", validLaunchBoxImageTypeRank("logo", "Clear Logo"))
+	}
+	if validLaunchBoxImageTypeRank("cover", "Clear Logo") >= 0 {
+		t.Fatal("Clear Logo ranked as cover")
+	}
+	if validLaunchBoxImageType("Banner") {
+		t.Fatal("Banner admitted")
+	}
+}
+
 func TestFramedXMLReaderRejectsOversizedOrdinaryTextBeforeEmission(t *testing.T) {
 	input := `<?xml version="1.0" standalone="yes"?><LaunchBox><Game><Overview>` + strings.Repeat("x", launchBoxXMLMaxTextBytes+1) + `</Overview></Game></LaunchBox>`
 	reader := newFramedXMLReader(strings.NewReader(input))

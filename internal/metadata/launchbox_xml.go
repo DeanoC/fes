@@ -1062,7 +1062,8 @@ func validLaunchBoxCRC32(value string) bool {
 func validLaunchBoxImageType(value string) bool {
 	switch value {
 	case "Box - Front", "Box - Front - Reconstructed", "Fanart - Box - Front",
-		"Fanart - Background", "Screenshot - Gameplay", "Screenshot - Game Title":
+		"Fanart - Background", "Screenshot - Gameplay", "Screenshot - Game Title",
+		"Clear Logo":
 		return true
 	default:
 		return false
@@ -1087,6 +1088,11 @@ func validLaunchBoxImageTypeRank(role, value string) int {
 			return 1
 		case "Screenshot - Game Title":
 			return 2
+		}
+	} else if role == "logo" {
+		switch value {
+		case "Clear Logo":
+			return 0
 		}
 	}
 	return -1

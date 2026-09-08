@@ -88,3 +88,63 @@ func TestPaintDetailDrawsTitleCoverAndHint(t *testing.T) {
 		t.Fatalf("placeholder bgrx %d,%d,%d want %d,%d,%d", gotB, gotG, gotR, panel.B, panel.G, panel.R)
 	}
 }
+
+func TestPaintDetailLogoReplacesTitleText(t *testing.T) {
+	t.Parallel()
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	th := theme.Default()
+	logo := image.NewRGBA(image.Rect(0, 0, 48, 12))
+	for y := 0; y < 12; y++ {
+		for x := 0; x < 48; x++ {
+			logo.Set(x, y, color.RGBA{R: 255, G: 32, B: 160, A: 255})
+		}
+	}
+	PaintDetail(d, DetailFrame{
+		Width: w, Height: h, Header: "FOGCAST", Title: "Sonic",
+		Meta: "MEGADRIVE  ·  1991", Hint: "A play | B back",
+		Logo: logo, Theme: th,
+	})
+	d.Present()
+	sx, sy, ok := DetailLogoSample(w, h, th, logo)
+	if !ok {
+		t.Fatal("logo sample")
+	}
+	assertBGRX(t, dst, cfg, sx, sy, 160, 32, 255, 0)
+
+	rec := gfx.NewRecorder()
+	PaintDetail(rec, DetailFrame{
+		Width: w, Height: h, Header: "FOGCAST", Title: "Sonic",
+		Meta: "MEGADRIVE  ·  1991", Logo: logo, Theme: th,
+	})
+	var sawTitle bool
+	for _, c := range rec.Calls {
+		if c.Op == "DrawText" && c.Text == "Sonic" {
+			sawTitle = true
+		}
+	}
+	if sawTitle {
+		t.Fatal("detail still drew title text over logo")
+	}
+
+	rec = gfx.NewRecorder()
+	PaintDetail(rec, DetailFrame{
+		Width: w, Height: h, Header: "FOGCAST", Title: "Pong",
+		Meta: "PONG", Theme: th,
+	})
+	sawTitle = false
+	for _, c := range rec.Calls {
+		if c.Op == "DrawText" && c.Text == "Pong" && c.SizePx == th.TitlePx() {
+			sawTitle = true
+		}
+	}
+	if !sawTitle {
+		t.Fatal("detail without logo dropped title text")
+	}
+}

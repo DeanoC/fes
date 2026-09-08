@@ -895,6 +895,30 @@ func exerciseDetailGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	}
 	fmt.Fprintf(&b, "detail title-ink=1 title_px=%d title_weight=%s hint=%q\n", th.TitlePx(), th.TitleWeight(), frame.Hint)
 
+	logo := solidStill(255, 32, 160, 48, 12)
+	frame.Logo = logo
+	fbgrid.PaintDetail(d, frame)
+	d.Present()
+	lx, ly, ok := fbgrid.DetailLogoSample(cfg.Width, cfg.Height, th, logo)
+	if !ok {
+		return b.String(), fmt.Errorf("detail logo sample")
+	}
+	gotB, gotG, gotR, gotX, err = gfx.SampleBGRX(d.Destination(), cfg, lx, ly)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "detail logo=(%d,%d) bgrx=%d,%d,%d,%d\n", lx, ly, gotB, gotG, gotR, gotX)
+	if gotB != 160 || gotG != 32 || gotR != 255 || gotX != 0 {
+		return b.String(), fmt.Errorf("detail logo bgrx %d,%d,%d,%d want 160,32,255,0", gotB, gotG, gotR, gotX)
+	}
+	logoRec := gfx.NewRecorder()
+	fbgrid.PaintDetail(logoRec, frame)
+	for _, c := range logoRec.Calls {
+		if c.Op == "DrawText" && c.Text == frame.Title {
+			return b.String(), fmt.Errorf("detail logo still drew title text")
+		}
+	}
+
 	if action := m.Input(a, now); action != "launch" {
 		return b.String(), fmt.Errorf("detail A %q", action)
 	}
@@ -949,7 +973,7 @@ func exerciseDetailGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	if err != nil {
 		return b.String(), err
 	}
-	fmt.Fprintf(&b, "selftest-detail PASS open=1 close=1 title-ink=1 launch=1 attract-hold=1 nested-attract=1\n")
+	fmt.Fprintf(&b, "selftest-detail PASS open=1 close=1 title-ink=1 logo=1 launch=1 attract-hold=1 nested-attract=1\n")
 	return b.String(), nil
 }
 

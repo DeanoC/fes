@@ -185,6 +185,37 @@ func TestDetailShouldersCycleScreenshots(t *testing.T) {
 	}
 }
 
+func TestFocusLogoHandleAndDetailPrefetchIncludesLogo(t *testing.T) {
+	logo := strings.Repeat("ee", 32)
+	cover := strings.Repeat("ff", 32)
+	m := Model{Connected: true, TargetReady: true}
+	m.SetCatalog(mixedCatalog())
+	now := time.Unix(1, 0)
+	pressNamed(&m, "dpad-right", now)
+	if m.Games[m.Focus].ID != "sonic" {
+		t.Fatalf("focus %s", m.Games[m.Focus].ID)
+	}
+	m.ApplyPresentation("sonic", tenfoot.Presentation{
+		Presentation: &tenfoot.PresentationInfo{LogoID: logo, CoverArtworkID: cover},
+	})
+	if got := m.FocusLogoHandle(); got != logo {
+		t.Fatalf("logo %q", got)
+	}
+	handles := m.DetailPrefetchHandles()
+	foundLogo, foundCover := false, false
+	for _, h := range handles {
+		if h == logo {
+			foundLogo = true
+		}
+		if h == cover {
+			foundCover = true
+		}
+	}
+	if !foundLogo || !foundCover {
+		t.Fatalf("prefetch %#v", handles)
+	}
+}
+
 func TestDetailHintMentionsShotsWhenPresent(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetCatalog(mixedCatalog())

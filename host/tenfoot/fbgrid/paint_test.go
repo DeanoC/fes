@@ -127,6 +127,69 @@ func TestPaintCoverDrawsRGBAAndFallsBack(t *testing.T) {
 	assertBGRX(t, dst, cfg, sx+g.CellW/2, sy+g.CellH/2, 255, 255, 255, 0)
 }
 
+func TestPaintLogoReplacesLabelTextAndFallsBack(t *testing.T) {
+	t.Parallel()
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	logo := image.NewRGBA(image.Rect(0, 0, 24, 8))
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 24; x++ {
+			logo.Set(x, y, color.RGBA{R: 255, G: 32, B: 160, A: 255})
+		}
+	}
+	th := theme.Default()
+	cover := image.NewRGBA(image.Rect(0, 0, 8, 8))
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 8; x++ {
+			cover.Set(x, y, color.RGBA{R: 40, G: 90, B: 200, A: 255})
+		}
+	}
+	g := NewWithTiles(w, h, []Tile{
+		{Name: "SONIC", Color: th.SystemColor("megadrive"), Cover: cover, CoverKind: CoverPresent, Logo: logo},
+		{Name: "PONG", Color: th.SystemColor("pong")},
+	})
+	if g.Tiles[0].Logo == nil {
+		t.Fatal("logo missing from grid tile")
+	}
+	Paint(d, g)
+	d.Present()
+	lx, ly, ok := g.LabelBarSample(0)
+	if !ok {
+		t.Fatal("logo bar sample")
+	}
+	assertBGRX(t, dst, cfg, lx, ly, 160, 32, 255, 0)
+
+	rec := gfx.NewRecorder()
+	Paint(rec, g)
+	labelPx := th.BodyPx()
+	var sawSonic, sawPong bool
+	var texts []string
+	for _, c := range rec.Calls {
+		if c.Op != "DrawText" {
+			continue
+		}
+		texts = append(texts, c.Text)
+		if c.Text == "SONIC" && c.SizePx == labelPx {
+			sawSonic = true
+		}
+		if c.Text == "PONG" && c.SizePx == labelPx {
+			sawPong = true
+		}
+	}
+	if sawSonic {
+		t.Fatalf("logo tile still drew truncated title text ops=%v", texts)
+	}
+	if !sawPong {
+		t.Fatalf("neighbour without logo dropped text fallback ops=%v", texts)
+	}
+}
+
 func TestPaintUsesOptionalHeaderAndFooter(t *testing.T) {
 	t.Parallel()
 	const w, h = 320, 240
