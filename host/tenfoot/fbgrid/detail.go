@@ -24,6 +24,7 @@ type DetailFrame struct {
 	Color         gfx.Color
 	Shot          *image.RGBA
 	ShotCaption   string
+	VideoBadge    bool
 	Theme         theme.Theme
 	// FadeFromBlack is overlay alpha in [0, 1]. Zero (default) is fully visible.
 	FadeFromBlack float64
@@ -56,7 +57,7 @@ func PaintDetail(d gfx.Device, f DetailFrame) {
 		}
 		d.FillRect(gfx.Rect{X: 0, Y: float32(fy), W: float32(f.Width), H: float32(f.Height - fy)}, th.FooterBar)
 	}
-	withShot := f.Shot != nil || f.ShotCaption != ""
+	withShot := f.Shot != nil || f.ShotCaption != "" || f.VideoBadge
 	_, text0, _ := DetailLayout(f.Width, f.Height, th, withShot, 0, 0)
 	logoH := 0
 	if f.Logo != nil {
@@ -125,6 +126,9 @@ func PaintDetail(d gfx.Device, f DetailFrame) {
 		if f.Shot != nil {
 			d.FillRect(shot, letterboxFill(fill, th))
 			paintCover(d, f.Shot, shot)
+		}
+		if f.VideoBadge {
+			paintVideoBadge(d, shot, th)
 		}
 		if f.ShotCaption != "" {
 			capSize := th.CaptionPx()
@@ -342,6 +346,72 @@ func DetailLogoSample(width, height int, th theme.Theme, logo *image.RGBA) (x, y
 		return 0, 0, false
 	}
 	return int(dx + dw/2), int(dy + dh/2), true
+}
+
+func paintVideoBadge(d gfx.Device, shot gfx.Rect, th theme.Theme) {
+	if d == nil || shot.W < 24 || shot.H < 12 {
+		return
+	}
+	label := "VIDEO"
+	size := th.CaptionPx()
+	weight := th.CaptionWeight()
+	if size < 1 {
+		size = 8
+	}
+	tw := gfx.MeasureTextWeight(label, size, weight)
+	thgt := gfx.TextHeightWeight(size, weight)
+	padX := 4
+	padY := 2
+	bw := float32(tw + 2*padX)
+	bh := float32(thgt + 2*padY)
+	if bw > shot.W-4 {
+		bw = shot.W - 4
+	}
+	if bh > shot.H-4 {
+		bh = shot.H - 4
+	}
+	if bw < 8 || bh < 8 {
+		return
+	}
+	r := gfx.Rect{X: shot.X + 4, Y: shot.Y + 4, W: bw, H: bh}
+	d.FillRect(r, th.Highlight)
+	text := gfx.FitTextWeight(label, size, int(r.W)-2*padX, weight)
+	if text == "" {
+		return
+	}
+	d.DrawTextWeight(int(r.X)+padX, int(r.Y)+padY, text, size, weight, th.Background)
+}
+
+// DetailShotSample is a pixel inside the screenshot / preview cell.
+func DetailShotSample(width, height int, th theme.Theme, f DetailFrame) (x, y int, ok bool) {
+	_, _, shot := detailShotRect(width, height, th, f)
+	if shot.W < 4 || shot.H < 4 {
+		return 0, 0, false
+	}
+	return int(shot.X + shot.W/2), int(shot.Y + shot.H/2), true
+}
+
+// DetailVideoBadgeSample is a pixel inside the VIDEO badge fill.
+func DetailVideoBadgeSample(width, height int, th theme.Theme, f DetailFrame) (x, y int, ok bool) {
+	_, _, shot := detailShotRect(width, height, th, f)
+	if shot.W < 24 || shot.H < 12 {
+		return 0, 0, false
+	}
+	return int(shot.X + 5), int(shot.Y + 5), true
+}
+
+func detailShotRect(width, height int, th theme.Theme, f DetailFrame) (cover, text, shot gfx.Rect) {
+	f.Width = width
+	f.Height = height
+	f.Theme = th
+	withShot := f.Shot != nil || f.ShotCaption != "" || f.VideoBadge
+	_, text0, _ := DetailLayout(width, height, th, withShot, 0, 0)
+	logoH := 0
+	if f.Logo != nil {
+		logoH = logoFitHeight(f.Logo, int(text0.W), detailLogoMaxH)
+	}
+	_, _, bodyH := wrapDetailCopy(f, th, int(text0.W), logoH, withShot, height)
+	return DetailLayout(width, height, th, withShot, logoH, bodyH)
 }
 
 func logoFitHeight(img *image.RGBA, maxW, maxH int) int {

@@ -64,6 +64,7 @@ type PresentationInfo struct {
 	CoverArtworkID    string   `json:"cover_artwork_id"`
 	BackdropArtworkID string   `json:"backdrop_artwork_id,omitempty"`
 	LogoID            string   `json:"logo_id,omitempty"`
+	VideoID           string   `json:"video_id,omitempty"`
 	Summary           string   `json:"summary"`
 	Year              string   `json:"year"`
 	Genre             string   `json:"genre"`
@@ -689,6 +690,60 @@ func BackdropHandle(presentation Presentation) string {
 		return ""
 	}
 	return normalizeHandle(presentation.Presentation.BackdropArtworkID)
+}
+
+// VideoHandle returns a 64-hex library_media / presentation video handle.
+func VideoHandle(presentation Presentation) string {
+	if presentation.Presentation == nil {
+		return ""
+	}
+	return normalizeHandle(presentation.Presentation.VideoID)
+}
+
+// DetailPreviewHandles selects kit-safe stills for the title pane.
+// Without a video handle this is screenshot_ids only. With video_id it
+// appends unique backdrop then cover as a poster so the pane can cycle a
+// motion preview without decoding H.264 on the CGO-free kit path.
+func DetailPreviewHandles(p Presentation, cover string) []string {
+	var shots []string
+	video := ""
+	backdrop := ""
+	if p.Presentation != nil {
+		shots = screenshotHandles(p.Presentation.ScreenshotIDs)
+		video = normalizeHandle(p.Presentation.VideoID)
+		backdrop = normalizeHandle(p.Presentation.BackdropArtworkID)
+		if cover == "" {
+			cover = normalizeHandle(p.Presentation.CoverArtworkID)
+		}
+	}
+	cover = normalizeHandle(cover)
+	if video == "" {
+		return shots
+	}
+	return appendUniqueHandles(shots, backdrop, cover)
+}
+
+func appendUniqueHandles(base []string, extra ...string) []string {
+	seen := make(map[string]bool, len(base)+len(extra))
+	out := make([]string, 0, len(base)+len(extra))
+	add := func(handle string) {
+		handle = normalizeHandle(handle)
+		if handle == "" || seen[handle] {
+			return
+		}
+		seen[handle] = true
+		out = append(out, handle)
+	}
+	for _, handle := range base {
+		add(handle)
+	}
+	for _, handle := range extra {
+		add(handle)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // LibraryTarget is one target row from GET /api/v1/library/settings.

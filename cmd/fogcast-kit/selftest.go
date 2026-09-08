@@ -1171,6 +1171,99 @@ func exerciseDetailGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	if m.ShotIndex() != 1 {
 		return b.String(), fmt.Errorf("shot index %d", m.ShotIndex())
 	}
+
+	stillShot := image.NewRGBA(image.Rect(0, 0, 8, 8))
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 8; x++ {
+			stillShot.Set(x, y, color.RGBA{R: 32, G: 200, B: 64, A: 255})
+		}
+	}
+	stillFrame := modelDetailFrame(m, nil, nil, th, cfg.Width, cfg.Height)
+	stillFrame.Shot = stillShot
+	if stillFrame.VideoBadge || strings.Contains(stillFrame.ShotCaption, "preview") {
+		return b.String(), fmt.Errorf("still-only badge=%v caption=%q", stillFrame.VideoBadge, stillFrame.ShotCaption)
+	}
+	stillRec := gfx.NewRecorder()
+	fbgrid.PaintDetail(stillRec, stillFrame)
+	for _, c := range stillRec.Calls {
+		if c.Op == "DrawText" && (c.Text == "VIDEO" || strings.Contains(c.Text, "preview")) {
+			return b.String(), fmt.Errorf("still-only painted %q", c.Text)
+		}
+	}
+	fmt.Fprintf(&b, "detail still-only caption=%q video=0\n", stillFrame.ShotCaption)
+
+	press(&m, "b")
+	press(&m, "b")
+	if !m.DetailOpen {
+		return b.String(), fmt.Errorf("reopen detail for video preview")
+	}
+	videoID := strings.Repeat("ee", 32)
+	coverID := strings.Repeat("cc", 32)
+	m.ApplyPresentation(m.Games[m.Focus].ID, tenfoot.Presentation{
+		Presentation: &tenfoot.PresentationInfo{
+			VideoID:           videoID,
+			ScreenshotIDs:     []string{shotAA, shotBB},
+			BackdropArtworkID: coverID,
+		},
+	})
+	if !m.HasVideoPreview() || m.FocusVideoHandle() != videoID {
+		return b.String(), fmt.Errorf("video handle %q", m.FocusVideoHandle())
+	}
+	tPreview := time.Now()
+	m.Tick(tPreview)
+	m.Tick(tPreview.Add(2*time.Second + time.Millisecond))
+	if m.ShotIndex() != 1 {
+		return b.String(), fmt.Errorf("preview cycle index %d", m.ShotIndex())
+	}
+	videoFrame := modelDetailFrame(m, nil, nil, th, cfg.Width, cfg.Height)
+	videoFrame.Shot = stillShot
+	if !videoFrame.VideoBadge || !strings.Contains(videoFrame.ShotCaption, "preview") {
+		return b.String(), fmt.Errorf("video frame badge=%v caption=%q", videoFrame.VideoBadge, videoFrame.ShotCaption)
+	}
+	videoRec := gfx.NewRecorder()
+	fbgrid.PaintDetail(videoRec, videoFrame)
+	var sawVideo, sawPreview bool
+	for _, c := range videoRec.Calls {
+		if c.Op != "DrawText" {
+			continue
+		}
+		if c.Text == "VIDEO" {
+			sawVideo = true
+		}
+		if strings.Contains(c.Text, "preview") {
+			sawPreview = true
+		}
+	}
+	if !sawVideo || !sawPreview {
+		return b.String(), fmt.Errorf("video paint video=%v preview=%v ops=%v", sawVideo, sawPreview, videoRec.Ops())
+	}
+	fbgrid.PaintDetail(d, videoFrame)
+	d.Present()
+	bx, by, ok := fbgrid.DetailVideoBadgeSample(cfg.Width, cfg.Height, th, videoFrame)
+	if !ok {
+		return b.String(), fmt.Errorf("video badge sample")
+	}
+	gotB, gotG, gotR, gotX, err = gfx.SampleBGRX(d.Destination(), cfg, bx, by)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "detail video-preview caption=%q cycle=1 badge=(%d,%d) bgrx=%d,%d,%d,%d\n", videoFrame.ShotCaption, bx, by, gotB, gotG, gotR, gotX)
+	if gotB != 0 || gotG != 220 || gotR != 255 || gotX != 0 {
+		return b.String(), fmt.Errorf("video badge bgrx %d,%d,%d,%d want 0,220,255,0", gotB, gotG, gotR, gotX)
+	}
+
+	m.ApplyPresentation(m.Games[m.Focus].ID, tenfoot.Presentation{
+		Presentation: &tenfoot.PresentationInfo{VideoID: videoID, CoverArtworkID: coverID},
+	})
+	if m.ShotHandle() != coverID {
+		return b.String(), fmt.Errorf("poster handle %q", m.ShotHandle())
+	}
+	poster := modelDetailFrame(m, nil, nil, th, cfg.Width, cfg.Height)
+	if !poster.VideoBadge || poster.ShotCaption != "preview" {
+		return b.String(), fmt.Errorf("poster badge=%v caption=%q", poster.VideoBadge, poster.ShotCaption)
+	}
+	fmt.Fprintf(&b, "detail video-poster=1 caption=%q\n", poster.ShotCaption)
+
 	press(&m, "b")
 
 	attract, err := exerciseAttractGrid(d, th)
@@ -1178,7 +1271,7 @@ func exerciseDetailGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	if err != nil {
 		return b.String(), err
 	}
-	fmt.Fprintf(&b, "selftest-detail PASS open=1 close=1 title-ink=1 logo=1 launch=1 attract-hold=1 nested-attract=1 meta=1 description=1 omit-empty=1\n")
+	fmt.Fprintf(&b, "selftest-detail PASS open=1 close=1 title-ink=1 logo=1 launch=1 attract-hold=1 nested-attract=1 meta=1 description=1 omit-empty=1 video-preview=1 still-only=1 poster=1\n")
 	return b.String(), nil
 }
 

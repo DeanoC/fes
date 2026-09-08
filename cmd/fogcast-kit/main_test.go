@@ -354,6 +354,9 @@ func TestExerciseDetailGridOpensPaintsAndNestsAttract(t *testing.T) {
 	if !strings.Contains(report, "meta=1") || !strings.Contains(report, "description=1") || !strings.Contains(report, "omit-empty=1") || !strings.Contains(report, "hedgehog=1") {
 		t.Fatalf("missing detail meta evidence: %s", report)
 	}
+	if !strings.Contains(report, "video-preview=1") || !strings.Contains(report, "still-only=1") || !strings.Contains(report, "poster=1") || !strings.Contains(report, "detail video-preview") {
+		t.Fatalf("missing detail video evidence: %s", report)
+	}
 }
 
 func TestExerciseAttractGridPaintsStillAndDismisses(t *testing.T) {
@@ -449,6 +452,44 @@ func TestExerciseThemeGridSamplesBothLooks(t *testing.T) {
 	}
 	if !strings.Contains(report, "roles theme=default") || !strings.Contains(report, "compat scale-only") || !strings.Contains(report, "compat px-override") {
 		t.Fatalf("missing type-role evidence: %s", report)
+	}
+}
+
+func TestModelDetailFrameVideoPreviewVersusStillOnly(t *testing.T) {
+	th := theme.Default()
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	m.SetCatalog([]tenfoot.Game{
+		{ID: "pong", Title: "Pong", System: "pong", Launchable: true},
+	})
+	now := time.Unix(1, 0)
+	b, _ := remoteinput.NormalizeGamepad("b", true)
+	m.Input(b, now)
+	if !m.DetailOpen {
+		t.Fatal("expected detail")
+	}
+	m.ApplyPresentation("pong", tenfoot.Presentation{
+		Presentation: &tenfoot.PresentationInfo{ScreenshotIDs: []string{strings.Repeat("aa", 32), strings.Repeat("bb", 32)}},
+	})
+	still := modelDetailFrame(m, nil, nil, th, 640, 480)
+	if still.VideoBadge || strings.Contains(still.ShotCaption, "preview") {
+		t.Fatalf("still-only frame %+v", still)
+	}
+	if still.ShotCaption != "1 / 2" {
+		t.Fatalf("still caption %q", still.ShotCaption)
+	}
+
+	m.ApplyPresentation("pong", tenfoot.Presentation{
+		Presentation: &tenfoot.PresentationInfo{
+			VideoID:       strings.Repeat("ee", 32),
+			ScreenshotIDs: []string{strings.Repeat("aa", 32), strings.Repeat("bb", 32)},
+		},
+	})
+	video := modelDetailFrame(m, nil, nil, th, 640, 480)
+	if !video.VideoBadge || video.ShotCaption != "preview 1 / 2" {
+		t.Fatalf("video frame badge=%v caption=%q", video.VideoBadge, video.ShotCaption)
+	}
+	if previewCaption(0, 1) != "preview" || previewCaption(1, 3) != "preview 2 / 3" {
+		t.Fatalf("previewCaption %q %q", previewCaption(0, 1), previewCaption(1, 3))
 	}
 }
 

@@ -33,7 +33,7 @@ Allowed operations are:
 
 - `GET /api/v1/games`, `/api/v1/platforms`, `/api/v1/health`, `/api/v1/status`.
 - `GET /api/v1/presentation/games/{id}` for a validated catalog game ID (cover
-  handles, `logo_id`, studio, screenshots).
+  handles, `logo_id`, studio, screenshots, `video_id`).
 - `GET /api/v1/presentation/artwork/{handle}` for 64-hex catalog or metadata cover and logo handles.
 - `GET /api/v1/session` and `/api/v1/session/input`.
 - `POST /api/v1/session/launch` with the existing `{"game_id":"pong"}` body.

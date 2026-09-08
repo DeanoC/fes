@@ -111,6 +111,7 @@ func TestClientPresentationArtworkAndLaunch(t *testing.T) {
 				State:  "ready",
 				Presentation: &PresentationInfo{
 					CoverArtworkID: handle,
+					VideoID:        strings.Repeat("ef", 32),
 					Summary:        "jump",
 					Year:           "1985",
 					Genre:          "Platform",
@@ -147,6 +148,9 @@ func TestClientPresentationArtworkAndLaunch(t *testing.T) {
 	}
 	if got := screenshotHandles(pres.Presentation.ScreenshotIDs); len(got) != 2 || got[0] != handle {
 		t.Fatalf("screenshots = %#v", pres.Presentation.ScreenshotIDs)
+	}
+	if got := VideoHandle(pres); got != strings.Repeat("ef", 32) {
+		t.Fatalf("video = %q", got)
 	}
 	data, ctype, err := client.Artwork(context.Background(), handle)
 	if err != nil || ctype != "image/png" || string(data) != "png-bytes" {
@@ -1032,6 +1036,52 @@ func TestNormalizeHandleRejectsShortValues(t *testing.T) {
 	}
 	if got := CoverHandle(Game{Cover: "not-a-handle"}, Presentation{}); got != "" {
 		t.Fatalf("cover handle = %q", got)
+	}
+}
+
+func TestDetailPreviewHandlesSelectsShotsThenPoster(t *testing.T) {
+	t.Parallel()
+	shot := strings.Repeat("aa", 32)
+	shot2 := strings.Repeat("bb", 32)
+	backdrop := strings.Repeat("cc", 32)
+	cover := strings.Repeat("dd", 32)
+	video := strings.Repeat("ee", 32)
+	dupShot := shot
+
+	stills := DetailPreviewHandles(Presentation{
+		Presentation: &PresentationInfo{ScreenshotIDs: []string{shot, shot2, "nope"}},
+	}, cover)
+	if len(stills) != 2 || stills[0] != shot || stills[1] != shot2 {
+		t.Fatalf("stills-only %#v", stills)
+	}
+
+	preview := DetailPreviewHandles(Presentation{
+		Presentation: &PresentationInfo{
+			VideoID:           video,
+			ScreenshotIDs:     []string{shot, dupShot, "bad"},
+			BackdropArtworkID: backdrop,
+			CoverArtworkID:    strings.Repeat("ff", 32),
+		},
+	}, cover)
+	if len(preview) != 3 || preview[0] != shot || preview[1] != backdrop || preview[2] != cover {
+		t.Fatalf("video preview %#v", preview)
+	}
+
+	poster := DetailPreviewHandles(Presentation{
+		Presentation: &PresentationInfo{VideoID: video, CoverArtworkID: cover},
+	}, "")
+	if len(poster) != 1 || poster[0] != cover {
+		t.Fatalf("poster %#v", poster)
+	}
+
+	empty := DetailPreviewHandles(Presentation{
+		Presentation: &PresentationInfo{VideoID: video},
+	}, "")
+	if empty != nil {
+		t.Fatalf("video without stills %#v", empty)
+	}
+	if VideoHandle(Presentation{}) != "" {
+		t.Fatal("empty presentation grew a video handle")
 	}
 }
 

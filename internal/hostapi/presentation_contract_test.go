@@ -321,6 +321,38 @@ func TestPresentationOverlayLogoWinsWhenPresentKeepsMetadataWhenMissing(t *testi
 	})
 }
 
+func TestPresentationOverlayExposesLibraryVideoHandle(t *testing.T) {
+	video := strings.Repeat("ab", 32)
+	cover := strings.Repeat("cc", 32)
+	type videoWire struct {
+		State        string `json:"state"`
+		Presentation *struct {
+			CoverArtworkID string `json:"cover_artwork_id"`
+			VideoID        string `json:"video_id"`
+		} `json:"presentation"`
+	}
+	base := overlayMediaService{
+		fakeService: &fakeService{game: catalog.Game{ID: "sonic", Title: "Sonic", System: protocol.SystemMegaDrive}},
+		media:       librarymedia.GameMedia{Cover: cover, Video: video},
+	}
+	handler := hostapi.New(base, hostapi.WithMetadata(presentationMetadata{result: metadata.Result{
+		Outcome:      metadata.OutcomeExact,
+		Presentation: metadata.Presentation{CoverArtworkID: cover, Year: "1991"},
+	}}, metadata.StateReady))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://127.0.0.1/api/v1/presentation/games/sonic", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var wire videoWire
+	if err := json.Unmarshal(response.Body.Bytes(), &wire); err != nil {
+		t.Fatal(err)
+	}
+	if wire.Presentation == nil || wire.Presentation.VideoID != video || wire.Presentation.CoverArtworkID != cover {
+		t.Fatalf("video overlay %#v body=%s", wire.Presentation, response.Body.String())
+	}
+}
+
 func TestPresentationWireDisabledAndUnconfiguredRemainSuccessfulFallbackStates(t *testing.T) {
 	service := &fakeService{game: catalog.Game{ID: "sonic", Title: "Sonic", System: protocol.SystemMegaDrive}}
 	for _, state := range []struct {

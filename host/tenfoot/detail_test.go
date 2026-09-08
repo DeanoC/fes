@@ -428,10 +428,17 @@ func TestGameDetailCopiesCatalogRegionAndOmitsMissingCopy(t *testing.T) {
 		t.Fatalf("empty %+v facts=%q", empty, empty.MetaFacts())
 	}
 	ready := GameDetail(Game{Title: "Sonic", System: "megadrive", Region: "japan"}, Presentation{
-		Presentation: &PresentationInfo{Year: "1991", Genre: "Platform", Studio: "SEGA", Players: "1-2", Summary: "Jump."},
+		Presentation: &PresentationInfo{Year: "1991", Genre: "Platform", Studio: "SEGA", Players: "1-2", Summary: "Jump.", VideoID: strings.Repeat("ab", 32)},
 	})
 	if ready.Year != "1991" || ready.Genre != "Platform" || ready.Studio != "SEGA" || ready.Players != "1-2" || ready.Region != "Japan" || ready.Summary != "Jump." {
 		t.Fatalf("presentation %+v", ready)
+	}
+	if ready.VideoID != strings.Repeat("ab", 32) {
+		t.Fatalf("video %q", ready.VideoID)
+	}
+	plain := GameDetail(Game{Title: "Pong"}, Presentation{Presentation: &PresentationInfo{Summary: "Ball."}})
+	if plain.VideoID != "" {
+		t.Fatalf("still-only grew video %q", plain.VideoID)
 	}
 }
 

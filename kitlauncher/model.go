@@ -29,6 +29,7 @@ type Model struct {
 	presentationID                                    string
 	presentation                                      tenfoot.Presentation
 	shotIndex                                         int
+	previewAt                                         time.Time
 	axisX, axisY                                      int
 	lastInput                                         time.Time
 	attractIdle                                       time.Duration
@@ -121,6 +122,7 @@ func (m *Model) Tick(now time.Time) string {
 		return "stop"
 	}
 	m.tickAttract(now)
+	m.tickPreview(now)
 	return ""
 }
 

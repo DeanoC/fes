@@ -217,7 +217,7 @@ Native SDL3 UI
   -> GET /api/v1/presentation/artwork/{handle} from catalog cover handles
     and focused-title screenshot handles
   -> GET /api/v1/presentation/games/{id} for the focused title (studio,
-    players, summary, screenshot_ids, year, genre, attribution)
+    players, summary, screenshot_ids, video_id, year, genre, attribution)
   -> GET /api/v1/library/attract (idle video then stills; artwork via the same presentation artwork GET)
   -> GET /api/v1/library/settings and PATCH /api/v1/library/settings (idle seconds, preferred regions, selected target, library roots)
   -> POST /api/v1/session/launch
@@ -629,9 +629,14 @@ Admitted facts are platform, year, genre, studio, players, and region when
 those fields are present; `summary` wraps as caption-role description and is
 omitted when empty. Series, last-played, and play-count are not on the public
 games or presentation payloads, so the pane does not invent them.
+When `video_id` is present (library_media overlay on the same presentation
+payload), the pane paints an honest motion preview: it auto-cycles
+`screenshot_ids` then unique backdrop/cover posters under a VIDEO badge and
+a `preview` caption. The CGO-free kit binary does not decode H.264; titles
+without a video handle keep the still screenshot carousel.
 A/South still launches from the grid. The pane's A plays the
 focused title, East/B and Up return to the same shelf and focus, and
-shoulder or D-pad L/R cycle `screenshot_ids` when two or more are present.
+shoulder or D-pad L/R cycle `screenshot_ids` (or preview stills) when two or more are present.
 The pane opens with a cheap fade-from-black overlay. Attract does not arm while the pane is open. Catalog cells paint decoded box-art from
 `GET /api/v1/presentation/artwork/{handle}` when a catalog `Game.Cover` or a
 presentation `cover_artwork_id` is present. Presentation `logo_id` (LaunchBox

@@ -99,7 +99,12 @@ description). Series, last-played, and play-count are omitted: they are not
 on the public games or presentation payloads.
 A/South still launches from the grid. The pane's A plays the title, East/B
 and Up return to the same shelf and focus, and L/R (or shoulders) cycle
-screenshots when `screenshot_ids` has two or more. Opening the pane uses a
+screenshots when `screenshot_ids` has two or more. When presentation
+`video_id` (library_media video overlay) is present, the pane shows an honest
+motion preview: it auto-cycles those screenshots plus backdrop/cover posters
+under a VIDEO badge and a `preview` caption. The CGO-free kit path does not
+decode H.264. Titles without a video handle keep today's still carousel.
+Opening the pane uses a
 short fade-from-black overlay. Attract does not arm
 while the pane is open. Missing description copy is omitted rather than
 drawn as an empty box. Cells show host cover art when a catalog
@@ -111,8 +116,9 @@ a flat system fill. Presentation `logo_id` (LaunchBox Clear Logo, or a
 bar; missing logos keep the existing bold/regular text labels. The visible 4×3 page and the next page prefetch those
 handles asynchronously; missing metadata still uses the placeholder. After the host attract `idle_seconds` with no pad input, the
 kit shows a stills attract (title chrome plus backdrop/cover/marquee artwork)
-and returns to the same shelf and focus on any input. Video is not decoded on
-kit; an empty playlist uses a themed idle panel instead of a frozen grid. Header, tile names, placeholder lettermarks, and footer use the embedded Go
+and returns to the same shelf and focus on any input. Attract does not decode
+video on kit; an empty playlist uses a themed idle panel instead of a frozen
+grid. Title-detail video handles use the screenshot/poster preview above. Header, tile names, placeholder lettermarks, and footer use the embedded Go
 UI faces through `gfx.DrawText` / `gfx.DrawTextWeight` (CGO-free; no system
 fonts on the kit) at theme typography roles `title_px` / `body_px` /
 `caption_px` / `status_px` (legacy `header_scale` / `label_scale` /
