@@ -158,6 +158,7 @@ class ExperimentPolicy:
     synth_json_tied_low: Mapping[str, tuple[str, ...]] = MappingProxyType({})
     synth_json_mlab_init: bool = False
     m10k_byte_enable: bool = False
+    m10k_dual_clock_width: int = 0
     require_read_clock_arc: bool = False
 
     def __post_init__(self) -> None:
@@ -196,6 +197,8 @@ class ExperimentPolicy:
         ):
             if not isinstance(flag, bool):
                 raise PolicyError(f"{self.name}: {flag_name} must be a boolean")
+        if self.m10k_dual_clock_width not in (0, 20, 40):
+            raise PolicyError(f"{self.name}: m10k_dual_clock_width must be 0, 20, or 40")
         if not isinstance(self.yosys_post_synth, str) or "\n" in self.yosys_post_synth:
             raise PolicyError(f"{self.name}: yosys_post_synth must be a single-line string")
         jobs = tuple(self.sim_jobs)
@@ -518,6 +521,8 @@ class ExperimentPolicy:
             self._require_mlab_init(design)
         if self.m10k_byte_enable:
             self._require_m10k_byte_enable(design)
+        if self.m10k_dual_clock_width:
+            self._require_m10k_dual_clock(design)
 
     def _mlab_init_cells(self, design: Mapping[str, Any]) -> dict[int, dict[str, Any]]:
         modules = design.get("modules")
@@ -620,6 +625,48 @@ class ExperimentPolicy:
         for address in (0, 1, 2, 7, 15, 31, 63, 127, 255):
             actual = (init >> (address * 20)) & mask
             expected = m10k_init_word(address, 20)
+            if actual != expected:
+                raise PolicyError(
+                    f"M10K INIT address {address} must be {expected:#x}, got {actual:#x}"
+                )
+
+    def _require_m10k_dual_clock(self, design: Mapping[str, Any]) -> None:
+        width = self.m10k_dual_clock_width
+        cells = self._m10k_cells(design)
+        if len(cells) != 1:
+            raise PolicyError(f"synth json must contain exactly one MISTRAL_M10K, got {len(cells)}")
+        cell = cells[0]
+        parameters = cell.get("parameters")
+        connections = cell.get("connections")
+        if not isinstance(parameters, Mapping) or not isinstance(connections, Mapping):
+            raise PolicyError("M10K cell is missing parameters or connections")
+        dual = json_bit_parameter(parameters.get("CFG_DUAL_CLOCK"))
+        dbits = json_bit_parameter(parameters.get("CFG_DBITS"))
+        abits = json_bit_parameter(parameters.get("CFG_ABITS"))
+        init = json_bit_parameter(parameters.get("INIT"))
+        if dual != 1:
+            raise PolicyError(f"M10K CFG_DUAL_CLOCK must be 1, got {parameters.get('CFG_DUAL_CLOCK')!r}")
+        if dbits != width:
+            raise PolicyError(f"M10K CFG_DBITS must be {width}, got {parameters.get('CFG_DBITS')!r}")
+        expected_abits = 8 if width == 40 else 9
+        if abits != expected_abits:
+            raise PolicyError(
+                f"M10K CFG_ABITS must be {expected_abits}, got {parameters.get('CFG_ABITS')!r}"
+            )
+        clk1 = connections.get("CLK1")
+        clk2 = connections.get("CLK2")
+        if not isinstance(clk1, list) or not clk1:
+            raise PolicyError("M10K CLK1 must be connected")
+        if not isinstance(clk2, list) or not clk2:
+            raise PolicyError("M10K CLK2 must be connected")
+        if clk1 == clk2:
+            raise PolicyError("M10K CLK1 and CLK2 must be independent")
+        if init is None:
+            raise PolicyError("M10K INIT is missing")
+        mask = (1 << width) - 1
+        for address in (0, 1, 2, 7, 15, 31, 63, 127, 255):
+            actual = (init >> (address * width)) & mask
+            expected = m10k_init_word(address, width)
             if actual != expected:
                 raise PolicyError(
                     f"M10K INIT address {address} must be {expected:#x}, got {actual:#x}"
@@ -836,6 +883,8 @@ class ExperimentPolicy:
             ),
             **({"synth_json_mlab_init": True} if self.synth_json_mlab_init else {}),
             **({"m10k_byte_enable": True} if self.m10k_byte_enable else {}),
+            **({"m10k_dual_clock_width": self.m10k_dual_clock_width}
+               if self.m10k_dual_clock_width else {}),
             **({"require_read_clock_arc": True} if self.require_read_clock_arc else {}),
         }
 
@@ -2852,6 +2901,112 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                         "experiments/020_linux_mailbox/sim/hps_gp_model.v",
                     ),
                     tb="experiments/470_mlab_init/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "480_m10k_sdp20": ExperimentPolicy(
+            name="480_m10k_sdp20",
+            sources=("experiments/480_m10k_sdp20/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"PLL", "M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            required_synth_cells={
+                "MISTRAL_M10K": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            nobram=False,
+            m10k_dual_clock_width=20,
+            require_read_clock_arc=True,
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/480_m10k_sdp20/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/360_pll_clkena/sim/pll_model.v",
+                        "experiments/360_pll_clkena/sim/clkena_model.v",
+                    ),
+                    tb="experiments/480_m10k_sdp20/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "490_m10k_sdp40": ExperimentPolicy(
+            name="490_m10k_sdp40",
+            sources=("experiments/490_m10k_sdp40/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"PLL", "M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            required_synth_cells={
+                "MISTRAL_M10K": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            nobram=False,
+            m10k_dual_clock_width=40,
+            require_read_clock_arc=True,
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/490_m10k_sdp40/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/360_pll_clkena/sim/pll_model.v",
+                        "experiments/360_pll_clkena/sim/clkena_model.v",
+                    ),
+                    tb="experiments/490_m10k_sdp40/sim/tb.cpp",
                 ),
             ),
         ),

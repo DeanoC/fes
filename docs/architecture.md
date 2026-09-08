@@ -760,6 +760,39 @@ diagnostics on 2026-09-08 from native Yosys INIT returned GPI signature
 `0xD417` with address 0 equal to `0xA6`, all 32 initialized bytes, then
 even-address writes that left odd addresses unchanged.
 
+`480_m10k_sdp20` exposes a 512-by-20 M10K simple dual-port table on HPS GP.
+Writes use `FPGA_CLK1_50`. Reads use a 25 MHz PLL output gated by
+`cyclonev_clkena`. GPI signature `0xD418`. Address `a` starts as
+`((a * 73) ^ (a >> 1) ^ 20'hA6)`, so address 0 is `0xA6`. Yosys maps one
+`MISTRAL_M10K` with `CFG_DUAL_CLOCK=1`, write `CLK1` and read `CLK2`. nextpnr
+packs CLK2 onto CLKIN.1. DSP and MLAB remain forbidden. Simulation and OSS
+are supported; Quartus comparison is not implemented. See
+`experiments/480_m10k_sdp20/expected.md`.
+
+The OSS `480_m10k_sdp20` artifact has SHA-256
+`eaaf1fa9ef298bcf219e4fd70a818563e3f9e6f3a79e3896a6f1baf7a92dfd5e`
+and size 1,959,276 bytes. Its reported write-clock Fmax is 495.786 MHz against
+the 50 MHz constraint. Utilization is one `MISTRAL_M10K`, one `altera_pll`,
+and one HPS GP. Exact-artifact kit diagnostics on 2026-09-08 returned GPI
+signature `0xD418` with address 0 equal to `0xA6`, full-width initialized
+reads, a write while the 25 MHz read clock was stopped, resume of the new
+value, and both enable holds.
+
+`490_m10k_sdp40` is the 256-by-40 independent-clock table on the same
+protocol. GPI signature `0xD419`. Stored words are `{ ~low, low }` so the
+second physical data group is covered. The 40-bit input half keeps the write
+clock. Simulation and OSS are supported; Quartus comparison is not
+implemented. See `experiments/490_m10k_sdp40/expected.md`.
+
+The OSS `490_m10k_sdp40` artifact has SHA-256
+`7d626b16ea1aed53358de40abb2a35b7cede1a216d7805ceafba986507d8b76d`
+and size 1,958,836 bytes. Its reported write-clock Fmax is 361.402 MHz against
+the 50 MHz constraint. Utilization is one `MISTRAL_M10K`, one `altera_pll`,
+and one HPS GP. Exact-artifact kit diagnostics on 2026-09-08 returned GPI
+signature `0xD419` with address 0 low half equal to `0xA6`, all 40 data bits
+initialized, a write while the read clock was stopped, resume, and both
+enable holds.
+
 `500_m10k_be20` exposes a 512-by-20 M10K simple dual-port table on HPS GP with
 two independently writable 10-bit lanes. Writes use `FPGA_CLK1_50`. Reads use
 a 25 MHz PLL output gated by `cyclonev_clkena`. GPI signature `0xD41A`.
@@ -783,8 +816,9 @@ The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
 M18 `A*B+C`, registered M18 with omitted enable/ACLR, initialized MLAB
-contents, and 20-bit M10K byte-enable lanes with independent clocks. It does
-not establish native game acceptance.
+contents, independent-clock 20-bit and 40-bit M10K simple dual-port RAM, and
+20-bit M10K byte-enable lanes with independent clocks. It does not establish
+native game acceptance.
 
 ## Standalone Pong game
 
