@@ -155,7 +155,9 @@ Error Profiles::Add(Profile profile)
 	std::set<std::string> roles;
 	std::set<std::uint8_t> indices;
 	for (const MediaRule& rule : profile.media) {
-		if (rule.transform != MediaTransform::raw && rule.transform != MediaTransform::snes_cartridge)
+		if (rule.transform != MediaTransform::raw &&
+			rule.transform != MediaTransform::snes_cartridge &&
+			rule.transform != MediaTransform::nes_cartridge)
 			return Invalid("invalid media transform");
 		if (!ValidIdentifier(rule.role)) return Invalid("invalid media role");
 		if (!roles.insert(rule.role).second) return Invalid("duplicate media role");

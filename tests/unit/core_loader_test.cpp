@@ -274,6 +274,20 @@ std::vector<unsigned char> BasicSnes(bool hi, bool copier)
 	return bytes;
 }
 
+std::vector<unsigned char> BasicNes(bool nes2, unsigned prg_pages = 2,
+	unsigned chr_pages = 1)
+{
+	std::vector<unsigned char> bytes(16u + prg_pages * 16384u + chr_pages * 8192u, 0);
+	bytes[0] = 'N'; bytes[1] = 'E'; bytes[2] = 'S'; bytes[3] = 0x1a;
+	bytes[4] = static_cast<unsigned char>(prg_pages);
+	bytes[5] = static_cast<unsigned char>(chr_pages);
+	bytes[6] = 0;
+	bytes[7] = nes2 ? 0x08 : 0;
+	if (nes2) bytes[9] = static_cast<unsigned char>((prg_pages >> 8) |
+		((chr_pages >> 4) & 0xf0));
+	return bytes;
+}
+
 void TestSaveEligibility()
 {
 	for (bool hi : {false, true}) for (unsigned type : {0u, 1u, 2u}) for (unsigned ram : {0u, 1u, 7u}) {
@@ -428,6 +442,52 @@ void TestSnesRetainedReadFailuresStopTransfer()
 		mister::MediaTransform::snes_cartridge, &plan).code == mister::ErrorCode::io_failed);
 }
 
+void TestNesCartridgePreflightAcceptsINesAndNes2()
+{
+	for (bool nes2 : {false, true}) {
+		const std::vector<unsigned char> bytes = BasicNes(nes2);
+		TempFile file(bytes);
+		mister::native::Artifact artifact;
+		mister::native::PosixArtifactOpener opener;
+		assert(opener.Open(file.path, 0, &artifact).ok());
+		mister::native::MediaContentPlan plan;
+		assert(mister::native::PrepareMediaContent(artifact,
+			mister::MediaTransform::nes_cartridge, &plan).ok());
+		assert(plan.source_offset == 0);
+		assert(plan.source_size == artifact.size());
+		assert(plan.prefix_size == 0);
+		assert(plan.battery_ram_size == 0);
+	}
+}
+
+void TestNesCartridgePreflightRejectsMalformedContent()
+{
+	std::vector<std::vector<unsigned char>> malformed;
+	{
+		auto bytes = BasicNes(false); bytes[0] = 'X'; malformed.push_back(std::move(bytes));
+	}
+	{
+		auto bytes = BasicNes(false); bytes[6] = 0x04; malformed.push_back(std::move(bytes));
+	}
+	malformed.push_back(BasicNes(false, 0, 1));
+	{
+		auto bytes = BasicNes(false); bytes.resize(bytes.size() - 1); malformed.push_back(std::move(bytes));
+	}
+	{
+		auto bytes = BasicNes(false); bytes.resize(32u * 1024u * 1024u + 1u); malformed.push_back(std::move(bytes));
+	}
+	for (const auto& bytes : malformed) {
+		TempFile file(bytes);
+		mister::native::Artifact artifact;
+		mister::native::PosixArtifactOpener opener;
+		assert(opener.Open(file.path, 0, &artifact).ok());
+		mister::native::MediaContentPlan plan;
+		assert(mister::native::PrepareMediaContent(artifact,
+			mister::MediaTransform::nes_cartridge, &plan).code ==
+			mister::ErrorCode::invalid_request);
+	}
+}
+
 } // namespace
 
 int main()
@@ -437,6 +497,8 @@ int main()
 	TestSnesRetainedReadFailuresStopTransfer();
 	TestSnesPrefixAndRetainedCartridgeStream();
 	TestSnesRejectsUnsupportedOrAmbiguousBeforeTransfer();
+	TestNesCartridgePreflightAcceptsINesAndNes2();
+	TestNesCartridgePreflightRejectsMalformedContent();
 	TestProbeUsesCoreNameCommandAndParsesPrintableName();
 	TestRecipeResetAndStatusPrimitivesUseExactWholeStatusWords();
 	TestEachRecipePrimitiveReturnsItsDirectFailureWithoutLaterCalls();
@@ -446,6 +508,6 @@ int main()
 	TestAttachStopsAtEveryFailedExchangeAndShortRead();
 	TestAttachStopsAfterFirstAndPerChunkArtifactReadFailures();
 	TestDirectSpiFailureIsReturnedWithoutLaterCommands();
-	puts("core_loader_test: 14 behaviors passed");
+	puts("core_loader_test: 16 behaviors passed");
 	return 0;
 }

@@ -200,8 +200,10 @@ HardwareResult NativeHardware::Launch(const PreparedLaunch& launch,
 	log_.Write({"launch", launch.system, observed, "configure", error});
 	if (!error.ok()) return {error, true, observed};
 	for (const OpenedMedia& media : artifacts.media) {
+		const std::uint64_t media_deadline =
+			Deadline(clock_, timeouts_.media_io_ms);
 		error = core_.Attach(media,
-			launch.core.file_wire, core_deadline, artifacts.save.get());
+			launch.core.file_wire, media_deadline, artifacts.save.get());
 		if (!error.ok()) error = CoreIoError(error);
 		log_.Write({"launch", launch.system, observed, "media", error});
 		if (!error.ok()) return {error, true, observed};

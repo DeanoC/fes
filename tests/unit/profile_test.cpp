@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "libmister-runtime/runtime.h"
+#include "native/generated/nes.hpp"
 #include "test_profiles.hpp"
 
 #include <assert.h>
@@ -233,6 +234,17 @@ void TestFreshRegistryStartsEmpty()
 	assert(profiles.empty());
 }
 
+void TestGeneratedNESContract()
+{
+	using mister::native::generated::kNES;
+	assert(std::string(kNES.system) == "nes");
+	assert(std::string(kNES.expected_core) == "NES");
+	assert(std::string(kNES.rbf_artifact) == "nes.rbf");
+	assert(kNES.media_count == 1);
+	assert(kNES.media[0].index == 0);
+	assert(std::string(kNES.media[0].transform) == "nes_cartridge");
+}
+
 } // namespace
 
 int main()
@@ -251,6 +263,7 @@ int main()
 	TestMalformedRecipeAndMediaMetadataAreRejectedAtomically();
 	TestUnsupportedFileWireFormatIsRejectedAtomically();
 	TestMultiBitInputMaskIsRejectedAtomically();
-	puts("profile_test: 14 passed");
+	TestGeneratedNESContract();
+	puts("profile_test: 15 passed");
 	return 0;
 }

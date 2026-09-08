@@ -189,9 +189,9 @@ Error SaveFile::Persist(const std::vector<unsigned char>& bytes)
 	return error;
 }
 
-// Metadata contract: Main_MiSTer 915ca339 support/snes/snes.cpp and
-// SNES_MiSTer 93d359e6 SNES.sv (512-byte prefix, cartridge index 1).
-// Basic cartridges only: bounded retained-file reads, no mirroring or special chips.
+// Metadata contract: SNES_MiSTer 93d359e6 uses a synthesized 512-byte prefix;
+// NES_MiSTer 9a638211 receives an unchanged iNES/NES2 file. Basic cartridges
+// only: bounded retained-file reads, no mirroring or special chips.
 Error PrepareMediaContent(const Artifact& artifact, MediaTransform transform,
 	MediaContentPlan* output)
 {
@@ -199,6 +199,75 @@ Error PrepareMediaContent(const Artifact& artifact, MediaTransform transform,
 	MediaContentPlan plan;
 	plan.source_size = artifact.size();
 	if (transform == MediaTransform::raw) { *output = plan; return {}; }
+	if (transform == MediaTransform::nes_cartridge) {
+		auto invalid = [] {
+			return Error{ErrorCode::invalid_request,
+				"unsupported or malformed NES cartridge"};
+		};
+		constexpr std::uint64_t kMaximumSize = 32u * 1024u * 1024u;
+		if (plan.source_size < 16 || plan.source_size > kMaximumSize)
+			return invalid();
+		unsigned char header[16] = {};
+		if (pread(artifact.fd(), header, sizeof(header), 0) !=
+			static_cast<ssize_t>(sizeof(header)))
+			return {ErrorCode::io_failed, "NES header read failed"};
+		if (std::memcmp(header, "NES\x1a", 4) != 0 || (header[6] & 0x04u) != 0)
+			return invalid();
+
+		auto decode_exponent_size = [&](unsigned encoded, unsigned unit,
+			std::uint64_t* size) {
+			const unsigned exponent = encoded >> 2;
+			const unsigned multiplier = ((encoded & 3u) * 2u) + 1u;
+			if (exponent >= 63 || multiplier >
+				std::numeric_limits<std::uint64_t>::max() >> exponent)
+				return false;
+			const std::uint64_t bytes = static_cast<std::uint64_t>(multiplier) << exponent;
+			if (unit != 0 && bytes > std::numeric_limits<std::uint64_t>::max() / unit)
+				return false;
+			*size = bytes * unit;
+			return true;
+		};
+		auto decode_linear_size = [](unsigned low, unsigned high, unsigned unit,
+			std::uint64_t* size) {
+			const std::uint64_t pages = static_cast<std::uint64_t>(low) |
+				(static_cast<std::uint64_t>(high) << 8);
+			if (unit != 0 && pages > std::numeric_limits<std::uint64_t>::max() / unit)
+				return false;
+			*size = pages * unit;
+			return true;
+		};
+
+		std::uint64_t prg_size = 0;
+		std::uint64_t chr_size = 0;
+		const bool nes2 = (header[7] & 0x0cu) == 0x08u;
+		if (nes2) {
+			const unsigned prg_high = header[9] & 0x0fu;
+			const unsigned chr_high = (header[9] >> 4) & 0x0fu;
+			if ((prg_high == 0x0fu &&
+				!decode_exponent_size(header[4], 1, &prg_size)) ||
+				(prg_high != 0x0fu &&
+				!decode_linear_size(header[4], prg_high, 16384, &prg_size)) ||
+				(chr_high == 0x0fu &&
+				!decode_exponent_size(header[5], 1, &chr_size)) ||
+				(chr_high != 0x0fu &&
+				!decode_linear_size(header[5], chr_high, 8192, &chr_size)))
+				return invalid();
+		} else {
+			if (header[4] == 0 ||
+				!decode_linear_size(header[4], 0, 16384, &prg_size) ||
+				!decode_linear_size(header[5], 0, 8192, &chr_size))
+				return invalid();
+		}
+		if (prg_size == 0 || prg_size > kMaximumSize || chr_size > kMaximumSize ||
+			prg_size > kMaximumSize - chr_size ||
+			16u > kMaximumSize - prg_size - chr_size)
+			return invalid();
+		const std::uint64_t declared = 16u + prg_size + chr_size;
+		if (declared > plan.source_size)
+			return invalid();
+		*output = plan;
+		return {};
+	}
 	if (transform != MediaTransform::snes_cartridge)
 		return {ErrorCode::invalid_request, "unknown media transform"};
 	auto invalid = [] { return Error{ErrorCode::invalid_request, "unsupported or malformed SNES cartridge"}; };

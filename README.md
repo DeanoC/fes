@@ -7,7 +7,7 @@ the lifecycle API, native Linux primitives, profile model, and
 
 ## Current status
 
-Production native construction includes Mega Drive, ROM-less Pong and basic SNES profiles, fixed
+Production native construction includes Mega Drive, ROM-less Pong, basic SNES and native NES profiles, fixed
 1280x720@60 game and menu video paths, and one exact FogCast virtual-gamepad
 input session. Host tests cover complete launch, Stop, idle cleanup,
 asynchronous input-fault cleanup, and immediate relaunch. Dated exact-image
@@ -18,8 +18,10 @@ Mega Drive is software- and hardware-supported on the designated FogCast kit.
 The accepted slice proves visible HDMI and playable one-player D-pad and jump
 input on a physical MiSTer. Native audio, save RAM, save states, six-button
 X/Y/Z/Mode input, multiplayer, remapping, hot-plug recovery, and
-development-RBF loading/video acceptance remain outside this slice. Pong, SNES and
-every other production system remain unsupported. The native path does not
+development-RBF loading/video acceptance remain outside this slice. Pong, SNES
+and NES are software-supported while their exact-image hardware acceptance is
+pending. The remaining rows are unchanged; every other production system remain unsupported.
+The native path does not
 preserve a running game across restart and does not start conventional Main,
 transient MGLs, or an automatic legacy fallback. Fakes under `tests/` verify
 software contracts only and are not physical evidence. See the
@@ -35,10 +37,17 @@ acceptance; native audio remains unaccepted for Mega Drive as well. Game
 bringup now clears the MiSTer framework mute after HDMI link verification;
 software tests cover its command, deadline and cleanup, not audible output.
 
-HPS MMIO constants and the Mega Drive/Pong/SNES profile tables are generated C++14
+HPS MMIO constants and the Mega Drive/Pong/SNES/NES profile tables are generated C++14
 headers checked in under `src/native/generated/`. They are target text
 for the ARMv7 Linux HPS, not host objects. The target build does not run
 Go.
+
+Native launches keep short deadlines for core control, video, and input setup,
+then give each cartridge transfer its own 120-second deadline. The HPS SPI
+bridge performs an MMIO handshake for every 16-bit media word, so using the
+control deadline for a multi-megabyte cartridge would reject valid content
+before the core can start. The media bound is still finite; a transfer that
+stalls leaves the ordinary failure and idle-recovery path.
 
 ## Build and test
 
@@ -72,6 +81,17 @@ Zero-mask controls have no effect on Mega Drive/Pong and do not end sessions.
 Tests cover individual SNES masks and Stop neutralization. SNES physical
 video/input/audio acceptance is pending; this software profile is not evidence
 of a working hardware system.
+
+## Basic NES software integration
+
+The `nes` profile uses `/usr/share/mister-runtime/cores/nes.rbf`, core identity
+`NES`, and required `.nes` cartridge media at index 0. Artifact preflight accepts
+iNES 1.0 and NES2 headers with a nonzero PRG payload, no trainer, and a declared
+payload that fits the supplied file and 32 MiB bound. Source bytes are retained
+and streamed unchanged through the existing little-endian byte-pair loader; no
+mapper or battery interpretation is added here. FDS, UNIF/UNF, NSF, trainers,
+cheats, saves, special peripherals and four-player accessories remain outside
+this slice. NES video/input acceptance is pending for the exact assembled image.
 
 ## SNES battery RAM saves
 
