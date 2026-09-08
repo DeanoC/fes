@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -181,9 +180,6 @@ func withTargetCast(controller targetCast) compositionOption {
 }
 
 func defaultCaptureSource(config fogcast.MediaConfig) (remotemedia.CaptureSource, error) {
-	if runtime.GOOS != "darwin" {
-		return nil, errors.New("physical capture is unavailable on this platform")
-	}
 	capture, err := remotemedia.OpenNativeCapture(remotemedia.CaptureConfig{
 		Device: config.CaptureDevice, Width: config.Width, Height: config.Height, FPS: remotemedia.FrameRate{Numerator: config.FPSNumerator, Denominator: config.FPSDenominator}, Bitrate: config.Bitrate, GOP: config.GOP,
 	})

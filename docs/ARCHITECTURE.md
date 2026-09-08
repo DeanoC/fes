@@ -193,7 +193,11 @@ establish that a selected target image contains the required Pong RBF.
 
 Host-emulator execution, remote input, capture, and host-to-target media are
 existing optional modes. They share the host session UI but do not replace or
-precede the direct FPGA launch path.
+precede the direct FPGA launch path. Local session preview on Linux uses the
+configured absolute V4L2 device path and the installed FFmpeg command to
+produce H.264 frames for the existing MJPEG preview endpoint. macOS keeps its
+native AVFoundation capture adapter; other platforms report capture as
+unavailable.
 
 ## Native 10-foot launcher
 

@@ -20,6 +20,9 @@ and content selection; the MiSTer is a small, directly controlled target.
 - Host API loading of arbitrary development RBF files, with automatic reboot
   recovery back to Menu for non-MiSTer cores on the conventional Main backend.
 - Browser UI, local media previews, and host-emulator/remote-media modes.
+- Linux hosts can provide the optional local session preview from a V4L2
+  capture device through FFmpeg; configure the absolute device path in the
+  private `media.capture_device` setting.
 - Native SDL3 10-foot launcher (`cmd/fogcast-tenfoot`) with cover-grid, shelf,
   and list layouts that calls the same public host API, including a
   DIAGNOSTIC development-RBF path OSK (local file path, no browser picker).
