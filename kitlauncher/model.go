@@ -13,7 +13,10 @@ const axisDeadzone int32 = 8000
 // Model is the kit/UI boundary. A renderer consumes it without owning network,
 // framebuffer enablement, controller capture, or the target session lease.
 type Model struct {
+	Catalog                                           []tenfoot.Game
 	Games                                             []tenfoot.Game
+	Shelves                                           []string
+	Shelf                                             string
 	Focus                                             int
 	Session                                           Session
 	Connected, TargetReady, Busy, ControllerConnected bool
@@ -52,8 +55,12 @@ func (m *Model) Input(e remoteinput.Event, now time.Time) string {
 			dx = -1
 		case remoteinput.ButtonDPadRight:
 			dx = 1
+		case remoteinput.ButtonL:
+			m.CycleShelf(-1)
+		case remoteinput.ButtonR, remoteinput.ButtonSelect:
+			m.CycleShelf(1)
 		case remoteinput.ButtonA:
-			if len(m.Games) > 0 && m.Games[m.Focus].Launchable {
+			if len(m.Games) > 0 && m.Focus >= 0 && m.Focus < len(m.Games) && m.Games[m.Focus].Launchable {
 				return "launch"
 			}
 		}

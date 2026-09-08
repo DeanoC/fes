@@ -2,7 +2,8 @@
 
 `cmd/fogcast-kit` is the CGO-free ARMv7 controller/session shell. It uses
 `kitlauncher.Run` with a renderer callback and physical controller factory.
-The callback receives `kitlauncher.Model`: games, selected index, connection and
+The callback receives `kitlauncher.Model`: the loaded catalog, the active system
+shelf, the filtered games list, selected index, connection and
 session status, controller presence and a readable message. This boundary lets
 the renderer use the shared `host/tenfoot/fbgrid` primitive without owning
 network, input leases, or FPGA transitions. The kit view pages the live catalog
@@ -60,16 +61,22 @@ highlight, flash, chrome, spacing). Debug glyphs keep the software font
 colour. The catalog, input, and launch path stay the same. There is no
 on-screen theme picker in this slice.
 
-The grid uses the D-pad and left stick in two dimensions to select, and A to
-launch. Left/right move one cell and clamp at the ends of the current row;
-up/down move by four cells (one row of the 4×3 page) and clamp at the first
-and last catalog rows. Crossing a page of 12 updates the painted page because
-`Model.Focus` stays an index into the full catalog. Stick motion steps on the
-rising edge only; holding a deflection does not repeat. During native play,
-events flow through the authenticated host stream into the existing leased
-virtual pad. Hold Select + Start together for one second to request ordinary
-Stop; both must release before rearming. Individual Start and Select remain game
-controls; B does not stop gameplay. Stop/save errors retain the retry operation.
+The grid uses the D-pad and left stick in two dimensions to select, Shoulder L/R
+(or Select) to cycle system shelves, and A to launch. Shelves are `All` plus
+each system present in the loaded catalog. Changing shelf filters the 4×3 page
+and keeps focus when that game is still visible; otherwise focus lands on the
+first launchable title. The last shelf is stored in `launcher.json` when that
+file was loaded from disk. Left/right move one cell and clamp at the ends of
+the current row; up/down move by four cells (one row of the 4×3 page) and clamp
+at the first and last catalog rows. Crossing a page of 12 updates the painted
+page because `Model.Focus` stays an index into the visible shelf. Stick motion
+steps on the rising edge only; holding a deflection does not repeat. During
+native play, events flow through the authenticated host stream into the existing
+leased virtual pad. Hold Select + Start together for one second to request
+ordinary Stop; both must release before rearming. Individual Start and Select
+remain game controls while a session can stop; B does not stop gameplay.
+Stop/save errors retain the retry operation. The idle footer hint is
+`A play | L/R shelf`.
 
 The host source stream releases controls on close/timeout, and an attachment ID
 prevents old input affecting a new session. Its source is exclusive; the launcher
@@ -94,7 +101,9 @@ Run `go test -race ./kitlauncher/... ./host/tenfoot/inputmap ./host/tenfoot/them
 exercise real HTTP transports with isolated servers and never open real input or
 framebuffer devices. On the kit, `fogcast-kit -selftest-nav` paints a 25-title
 catalog, moves focus right/down across a 4×3 page, samples the highlight, and
-exits without talking to the host. `fogcast-kit -selftest-theme` paints **default**
+exits without talking to the host. `fogcast-kit -selftest-shelf` paints a mixed
+pong/Mega Drive/SNES catalog, cycles shelves with L/R and Select, checks the
+header counts and visible set, and samples the highlight. `fogcast-kit -selftest-theme` paints **default**
 then **arcade**, samples highlight and background, and requires the pixels to
 differ. `fogcast-kit -selftest-fpga` records a timed attract still/crossfade
 and sprite move through `gfx.NewFPGA` (FC2D software-replay, `IsStub` true,

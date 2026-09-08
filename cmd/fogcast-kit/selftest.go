@@ -95,6 +95,17 @@ func runThemeSelftest(fbPath string) error {
 	return err
 }
 
+func runShelfSelftest(fbPath string, th theme.Theme) error {
+	d, err := gfx.OpenLinuxFB(fbPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	report, err := exerciseShelfGrid(d, th)
+	fmt.Print(report)
+	return err
+}
+
 func exerciseNavGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	th = th.Complete()
 	games := make([]tenfoot.Game, 25)
@@ -229,4 +240,125 @@ func exerciseThemeGrid(d *gfx.LinuxFB) (string, error) {
 func press(m *kitlauncher.Model, name string) {
 	e, _ := remoteinput.NormalizeGamepad(name, true)
 	m.Input(e, time.Now())
+}
+
+func mixedShelfGames() []tenfoot.Game {
+	systems := []string{
+		"pong", "pong",
+		"megadrive", "megadrive", "megadrive", "megadrive", "megadrive",
+		"snes", "snes", "snes", "snes", "snes", "snes", "snes", "snes",
+	}
+	games := make([]tenfoot.Game, len(systems))
+	for i, system := range systems {
+		games[i] = tenfoot.Game{
+			ID:         fmt.Sprintf("%s-%02d", system, i),
+			Title:      fmt.Sprintf("%s %02d", strings.ToUpper(system), i),
+			System:     system,
+			Launchable: true,
+		}
+	}
+	return games
+}
+
+func exerciseShelfGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
+	th = th.Complete()
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	m.SetCatalog(mixedShelfGames())
+	var b strings.Builder
+	step := func(name, wantShelf string, wantCount, wantFocus int) error {
+		g := paintModel(d, m, th)
+		start, end := catalogPage(m.Focus, len(m.Games))
+		hx, hy, ok := g.HighlightSample()
+		if !ok {
+			return fmt.Errorf("%s: no highlight", name)
+		}
+		gotB, gotG, gotR, gotX, err := gfx.SampleBGRX(d.Destination(), d.Config(), hx, hy)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(&b, "%s shelf=%s games=%d focus=%d header=%q page=%d:%d highlight=(%d,%d) bgrx=%d,%d,%d,%d\n",
+			name, m.Shelf, len(m.Games), m.Focus, g.Header, start, end, hx, hy, gotB, gotG, gotR, gotX)
+		if m.Shelf != wantShelf {
+			return fmt.Errorf("%s: shelf %q want %q", name, m.Shelf, wantShelf)
+		}
+		if len(m.Games) != wantCount {
+			return fmt.Errorf("%s: games %d want %d", name, len(m.Games), wantCount)
+		}
+		if m.Focus != wantFocus {
+			return fmt.Errorf("%s: focus %d want %d", name, m.Focus, wantFocus)
+		}
+		if !strings.Contains(g.Header, strings.ToUpper(wantShelf)) && !(wantShelf == kitlauncher.ShelfAll && strings.Contains(g.Header, "ALL")) {
+			return fmt.Errorf("%s: header %q missing shelf", name, g.Header)
+		}
+		if !strings.Contains(g.Header, fmt.Sprintf("%d/15", wantCount)) {
+			return fmt.Errorf("%s: header %q missing count", name, g.Header)
+		}
+		for _, game := range m.Games {
+			if wantShelf != kitlauncher.ShelfAll && game.System != wantShelf {
+				return fmt.Errorf("%s: visible %s on %s", name, game.System, wantShelf)
+			}
+		}
+		if gotB != th.Highlight.B || gotG != th.Highlight.G || gotR != th.Highlight.R || gotX != 0 {
+			return fmt.Errorf("%s: highlight bgrx %d,%d,%d,%d want %d,%d,%d,0", name, gotB, gotG, gotR, gotX, th.Highlight.B, th.Highlight.G, th.Highlight.R)
+		}
+		return nil
+	}
+	if err := step("origin", kitlauncher.ShelfAll, 15, 0); err != nil {
+		return b.String(), err
+	}
+	press(&m, "r")
+	if err := step("shoulder-r-pong", "pong", 2, 0); err != nil {
+		return b.String(), err
+	}
+	press(&m, "r")
+	if err := step("shoulder-r-megadrive", "megadrive", 5, 0); err != nil {
+		return b.String(), err
+	}
+	press(&m, "r")
+	if err := step("shoulder-r-snes", "snes", 8, 0); err != nil {
+		return b.String(), err
+	}
+	press(&m, "r")
+	if err := step("shoulder-r-wrap-all", kitlauncher.ShelfAll, 15, 7); err != nil {
+		return b.String(), err
+	}
+	press(&m, "l")
+	if err := step("shoulder-l-snes", "snes", 8, 0); err != nil {
+		return b.String(), err
+	}
+	m.Shelf = kitlauncher.ShelfAll
+	m.SetCatalog(mixedShelfGames())
+	m.Focus = 1
+	keepID := m.Games[m.Focus].ID
+	press(&m, "r")
+	if m.Games[m.Focus].ID != keepID {
+		return b.String(), fmt.Errorf("keep-pong id %q want %q", m.Games[m.Focus].ID, keepID)
+	}
+	if err := step("keep-pong", "pong", 2, 1); err != nil {
+		return b.String(), err
+	}
+	press(&m, "r")
+	if err := step("leave-to-megadrive", "megadrive", 5, 0); err != nil {
+		return b.String(), err
+	}
+	press(&m, "select")
+	if err := step("select-snes", "snes", 8, 0); err != nil {
+		return b.String(), err
+	}
+	press(&m, "select")
+	if err := step("select-all", kitlauncher.ShelfAll, 15, 7); err != nil {
+		return b.String(), err
+	}
+	m.Focus = 0
+	press(&m, "dpad-right")
+	if err := step("dpad-after-shelf", kitlauncher.ShelfAll, 15, 1); err != nil {
+		return b.String(), err
+	}
+	a, _ := remoteinput.NormalizeGamepad("a", true)
+	if action := m.Input(a, time.Now()); action != "launch" {
+		return b.String(), fmt.Errorf("a launch %q", action)
+	}
+	fmt.Fprintf(&b, "selftest-shelf PASS header=%q footer=%q shelves=%s\n",
+		m.HeaderChrome(), modelFooter(m), strings.Join(m.Shelves, ","))
+	return b.String(), nil
 }

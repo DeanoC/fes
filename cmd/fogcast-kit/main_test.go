@@ -62,7 +62,7 @@ func TestModelGridUsesLiveGamesAndPages(t *testing.T) {
 	if g.Tiles[0].Name != "Title M" {
 		t.Fatalf("tile %q", g.Tiles[0].Name)
 	}
-	if g.Header != "FOGCAST" || g.Footer == "" {
+	if g.Header != "FOGCAST  ALL 13/13" || g.Footer == "" {
 		t.Fatalf("header=%q footer=%q", g.Header, g.Footer)
 	}
 }
@@ -146,6 +146,52 @@ func TestModelFooterReportsConnectionBeforeController(t *testing.T) {
 	m = kitlauncher.Model{Connected: true, TargetReady: true, Message: "", ControllerConnected: false}
 	if got := modelFooter(m); got != "Connect USB gamepad" {
 		t.Fatalf("controller footer %q", got)
+	}
+	m = kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	if got := modelFooter(m); got != "A play | L/R shelf" {
+		t.Fatalf("play footer %q", got)
+	}
+}
+
+func TestModelGridShowsActiveShelfChrome(t *testing.T) {
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	m.SetCatalog([]tenfoot.Game{
+		{ID: "pong", Title: "Pong", System: "pong", Launchable: true},
+		{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true},
+		{ID: "mario", Title: "Mario", System: "snes", Launchable: true},
+	})
+	r, _ := remoteinput.NormalizeGamepad("r", true)
+	r2, _ := remoteinput.NormalizeGamepad("r", true)
+	now := time.Now()
+	m.Input(r, now)
+	m.Input(r2, now)
+	g := modelGrid(m, 640, 480, nil, theme.Default())
+	if m.Shelf != "megadrive" || len(g.Tiles) != 1 || g.Tiles[0].Name != "Sonic" {
+		t.Fatalf("shelf=%q tiles=%d name=%v", m.Shelf, len(g.Tiles), g.Tiles)
+	}
+	if g.Header != "FOGCAST  MEGADRIVE 1/3" {
+		t.Fatalf("header %q", g.Header)
+	}
+	if g.Footer != "A play | L/R shelf" {
+		t.Fatalf("footer %q", g.Footer)
+	}
+}
+
+func TestExerciseShelfGridCyclesVisibleSet(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseShelfGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-shelf PASS") || !strings.Contains(report, "shoulder-r-megadrive") || !strings.Contains(report, "header=\"FOGCAST  MEGADRIVE 5/15\"") {
+		t.Fatalf("report %s", report)
 	}
 }
 

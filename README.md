@@ -75,7 +75,10 @@ The native image packages the CGO-free `fogcast-kit` adapter for the kit HDMI
 display and USB controller. It uses an explicitly paired host listener and the
 existing session/input ownership path; Select + Start held for one second requests
 Stop and returns to the library. Its live catalog is rendered as a small 4×3
-cover grid through `host/tenfoot/fbgrid`. D-pad and left stick move focus in
+cover grid through `host/tenfoot/fbgrid`. Shoulder L/R (and Select) cycle
+system shelves (`All` plus each system present in the loaded catalog); the
+header shows the active shelf and counts (`MEGADRIVE 12/40`). D-pad and left
+stick move focus in
 two dimensions (left/right clamp on the row; up/down by four cells, paging
 when `Focus` leaves the visible 12). Cells show host cover art when
 `Game.Cover` is available and keep the system-color fallback otherwise. Paint

@@ -11,6 +11,61 @@ import (
 	"time"
 )
 
+func TestCatalogSystemsUsesPlatformsThenFallback(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/platforms":
+			_, _ = w.Write([]byte(`{"platforms":[{"id":"megadrive","game_count":2},{"id":"snes","game_count":0},{"id":"pong","game_count":1}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	ids := catalogSystems(context.Background(), NewClient(Config{API: server.URL}))
+	if len(ids) != 2 || ids[0] != "megadrive" || ids[1] != "pong" {
+		t.Fatalf("platforms %v", ids)
+	}
+
+	fallback := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer fallback.Close()
+	ids = catalogSystems(context.Background(), NewClient(Config{API: fallback.URL}))
+	if len(ids) != 3 || ids[0] != "pong" || ids[1] != "megadrive" || ids[2] != "snes" {
+		t.Fatalf("fallback %v", ids)
+	}
+}
+
+func TestLoadCatalogFiltersByPlatform(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/platforms":
+			_, _ = w.Write([]byte(`{"platforms":[{"id":"pong","game_count":1},{"id":"megadrive","game_count":1}]}`))
+		case "/api/v1/games":
+			platform := r.URL.Query().Get("platform")
+			switch platform {
+			case "pong":
+				_, _ = w.Write([]byte(`{"games":[{"id":"pong","title":"Pong","system":"pong","launchable":true}]}`))
+			case "megadrive":
+				_, _ = w.Write([]byte(`{"games":[{"id":"sonic","title":"Sonic","system":"megadrive","launchable":true}]}`))
+			default:
+				t.Errorf("unexpected platform %q", platform)
+				_, _ = w.Write([]byte(`{"games":[]}`))
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	games, err := loadCatalog(context.Background(), NewClient(Config{API: server.URL}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(games) != 2 || games[0].ID != "pong" || games[1].ID != "sonic" {
+		t.Fatalf("games %v", games)
+	}
+}
+
 func TestUnavailableHostStillRendersAndExits(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { <-r.Context().Done() }))
 	defer server.Close()

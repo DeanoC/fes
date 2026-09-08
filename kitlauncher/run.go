@@ -2,9 +2,11 @@ package kitlauncher
 
 import (
 	"context"
+	"strings"
+	"time"
+
 	"github.com/DeanoC/FogCast/host/tenfoot"
 	"github.com/DeanoC/FogCast/remoteinput"
-	"time"
 )
 
 type Pad interface {
@@ -26,7 +28,7 @@ type observation struct {
 func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pad, error)) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	m := Model{Message: "Connecting to FogCast"}
+	m := Model{Message: "Connecting to FogCast", Shelf: normalizeShelf(c.config.Shelf)}
 	var pad Pad
 	var stream *InputStream
 	streamID := ""
@@ -69,17 +71,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				o.health, o.err = c.Library.Health(ctx)
 			}
 			if o.err == nil && load {
-				for _, system := range []string{"pong", "megadrive", "snes"} {
-					games, err := c.Library.FetchLibrary(ctx, tenfoot.GameListQuery{Platform: system}, 10000)
-					if err != nil {
-						o.err = err
-						break
-					}
-					o.games = append(o.games, games...)
-				}
-				if o.games == nil && o.err == nil {
-					o.games = []tenfoot.Game{}
-				}
+				o.games, o.err = loadCatalog(ctx, c)
 			}
 			send(o)
 		}()
@@ -168,18 +160,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.Message = ""
 				}
 				if o.games != nil {
-					focused := ""
-					if len(m.Games) > 0 {
-						focused = m.Games[m.Focus].ID
-					}
-					m.Games = o.games
-					m.Focus = 0
-					for i, g := range m.Games {
-						if g.ID == focused {
-							m.Focus = i
-							break
-						}
-					}
+					m.SetCatalog(o.games)
 					catalogLoaded = true
 					lastCatalog = time.Now()
 				}
@@ -220,7 +201,11 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 						nextPad = now.Add(time.Second)
 					}
 					for _, e := range events {
+						prevShelf := m.Shelf
 						action := m.Input(e, now)
+						if m.Shelf != prevShelf {
+							persistShelf(c, m.activeShelf())
+						}
 						if stream != nil && streamID == m.Session.Input.SessionID {
 							select {
 							case <-stream.Ready:
@@ -242,5 +227,59 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				present(m)
 			}
 		}
+	}
+}
+
+func loadCatalog(ctx context.Context, c *Client) ([]tenfoot.Game, error) {
+	var games []tenfoot.Game
+	for _, system := range catalogSystems(ctx, c) {
+		page, err := c.Library.FetchLibrary(ctx, tenfoot.GameListQuery{Platform: system}, 10000)
+		if err != nil {
+			return nil, err
+		}
+		games = append(games, page...)
+	}
+	if games == nil {
+		games = []tenfoot.Game{}
+	}
+	return games, nil
+}
+
+func catalogSystems(ctx context.Context, c *Client) []string {
+	platforms, err := c.Library.Platforms(ctx)
+	if err != nil {
+		return append([]string(nil), fallbackCatalogSystems...)
+	}
+	ids := make([]string, 0, len(platforms))
+	seen := map[string]struct{}{}
+	for _, p := range platforms {
+		id := strings.ToLower(strings.TrimSpace(p.ID))
+		if id == "" || p.GameCount <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return append([]string(nil), fallbackCatalogSystems...)
+	}
+	return ids
+}
+
+func persistShelf(c *Client, shelf string) {
+	if c == nil {
+		return
+	}
+	shelf = normalizeShelf(shelf)
+	if shelf == normalizeShelf(c.config.Shelf) || c.config.path == "" {
+		return
+	}
+	cfg := c.config
+	cfg.Shelf = shelf
+	if err := SaveConfig(cfg); err == nil {
+		c.config.Shelf = shelf
 	}
 }

@@ -24,6 +24,8 @@ type Config struct {
 	Framebuffer  string `json:"framebuffer,omitempty"`
 	InputProfile string `json:"input_profile,omitempty"`
 	Theme        string `json:"theme,omitempty"`
+	Shelf        string `json:"shelf,omitempty"`
+	path         string `json:"-"`
 }
 
 func LoadConfig(path string) (Config, error) {
@@ -47,7 +49,45 @@ func LoadConfig(path string) (Config, error) {
 		return Config{}, errors.New("invalid launcher configuration")
 	}
 	c.API = strings.TrimRight(c.API, "/")
+	c.Shelf = normalizeShelf(c.Shelf)
+	c.path = path
 	return c, nil
+}
+
+func SaveConfig(c Config) error {
+	if strings.TrimSpace(c.path) == "" {
+		return nil
+	}
+	out := struct {
+		API          string `json:"api"`
+		Token        string `json:"token"`
+		TargetID     string `json:"target_id"`
+		Framebuffer  string `json:"framebuffer,omitempty"`
+		InputProfile string `json:"input_profile,omitempty"`
+		Theme        string `json:"theme,omitempty"`
+		Shelf        string `json:"shelf,omitempty"`
+	}{
+		API:          c.API,
+		Token:        c.Token,
+		TargetID:     c.TargetID,
+		Framebuffer:  c.Framebuffer,
+		InputProfile: c.InputProfile,
+		Theme:        c.Theme,
+		Shelf:        normalizeShelf(c.Shelf),
+	}
+	data, err := json.MarshalIndent(out, "", "  ")
+	if err != nil {
+		return errors.New("invalid launcher configuration")
+	}
+	tmp := c.path + ".tmp"
+	if err := os.WriteFile(tmp, append(data, '\n'), 0o600); err != nil {
+		return errors.New("launcher configuration unavailable")
+	}
+	if err := os.Rename(tmp, c.path); err != nil {
+		_ = os.Remove(tmp)
+		return errors.New("launcher configuration unavailable")
+	}
+	return nil
 }
 
 func validLauncherToken(token string) bool {

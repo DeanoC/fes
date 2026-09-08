@@ -37,6 +37,7 @@ func run() error {
 	selftestPads := flag.Bool("selftest-pads", false, "open eligible USB pads, print them, and exit")
 	selftestTheme := flag.Bool("selftest-theme", false, "paint default and arcade and sample pixels, then exit")
 	selftestFPGA := flag.Bool("selftest-fpga", false, "record FC2D attract still/anim on the FPGA software-replay backend and exit")
+	selftestShelf := flag.Bool("selftest-shelf", false, "paint system shelves, cycle L/R, sample header, and exit")
 	flag.Parse()
 	if *selftestFPGA {
 		fb := "/dev/fb0"
@@ -59,7 +60,7 @@ func run() error {
 		}
 		return runThemeSelftest(fb)
 	}
-	if *selftestNav {
+	if *selftestNav || *selftestShelf {
 		fb := "/dev/fb0"
 		configTheme := ""
 		if c, err := kitlauncher.LoadConfig(*configPath); err == nil {
@@ -71,6 +72,9 @@ func run() error {
 		th, err := loadKitTheme(*themeSpec, configTheme)
 		if err != nil {
 			return err
+		}
+		if *selftestShelf {
+			return runShelfSelftest(fb, th)
 		}
 		return runNavSelftest(fb, th)
 	}
@@ -149,7 +153,7 @@ func loadKitRemapper(flagSpec, configSpec string) (*inputmap.Remapper, error) {
 
 type renderKey struct {
 	Focus, GameCount                                  int
-	FocusID, Message                                  string
+	FocusID, Message, Shelf                           string
 	SessionState, Execution, GameID                   string
 	Busy, Connected, TargetReady, ControllerConnected bool
 	Covers                                            uint64
@@ -162,7 +166,7 @@ func modelRenderKey(m kitlauncher.Model, covers uint64) renderKey {
 	}
 	return renderKey{
 		Focus: m.Focus, GameCount: len(m.Games), FocusID: focusID,
-		Message: m.Message, SessionState: m.Session.State, Execution: m.Session.Execution,
+		Message: m.Message, Shelf: m.Shelf, SessionState: m.Session.State, Execution: m.Session.Execution,
 		GameID: m.Session.GameID, Busy: m.Busy, Connected: m.Connected,
 		TargetReady: m.TargetReady, ControllerConnected: m.ControllerConnected,
 		Covers: covers,
@@ -196,7 +200,7 @@ func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCach
 	}
 	g := fbgrid.NewWithTiles(width, height, tiles)
 	fbgrid.ApplyTheme(&g, th)
-	g.Header = "FOGCAST"
+	g.Header = truncateLabel(asciiLabel(m.HeaderChrome()), 36)
 	if m.Focus >= start && m.Focus < end {
 		g.Focus = m.Focus - start
 	}
@@ -234,7 +238,7 @@ func modelFooter(m kitlauncher.Model) string {
 		case m.Session.State == "active":
 			status = "Select+Start stop"
 		default:
-			status = "A play | D-pad/stick move"
+			status = "A play | L/R shelf"
 		}
 	}
 	return truncateLabel(asciiLabel(status), 36)

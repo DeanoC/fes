@@ -163,6 +163,216 @@ func mustRemapper(t *testing.T, spec string) *inputmap.Remapper {
 	return r
 }
 
+func mixedCatalog() []tenfoot.Game {
+	return []tenfoot.Game{
+		{ID: "pong", Title: "Pong", System: "pong", Launchable: true},
+		{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true},
+		{ID: "streets", Title: "Streets", System: "megadrive", Launchable: true},
+		{ID: "blocked-md", Title: "Blocked", System: "megadrive", Launchable: false},
+		{ID: "mario", Title: "Mario", System: "snes", Launchable: true},
+		{ID: "zelda", Title: "Zelda", System: "snes", Launchable: true},
+	}
+}
+
+func TestShelvesDeriveFromLoadedGames(t *testing.T) {
+	m := Model{}
+	m.SetCatalog(mixedCatalog())
+	want := []string{ShelfAll, "pong", "megadrive", "snes"}
+	if len(m.Shelves) != len(want) {
+		t.Fatalf("shelves %v", m.Shelves)
+	}
+	for i, id := range want {
+		if m.Shelves[i] != id {
+			t.Fatalf("shelves %v want %v", m.Shelves, want)
+		}
+	}
+	if m.Shelf != ShelfAll || len(m.Games) != 6 {
+		t.Fatalf("all shelf=%q n=%d", m.Shelf, len(m.Games))
+	}
+	if chrome := m.ShelfChrome(); chrome != "ALL 6/6" {
+		t.Fatalf("chrome %q", chrome)
+	}
+}
+
+func TestCycleShelfFiltersVisibleGames(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true}
+	m.SetCatalog(mixedCatalog())
+	now := time.Now()
+	press := func(name string) {
+		e, err := remoteinput.NormalizeGamepad(name, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		m.Input(e, now)
+	}
+	press("r")
+	if m.Shelf != "pong" || len(m.Games) != 1 || m.Games[0].ID != "pong" {
+		t.Fatalf("pong shelf=%q games=%v", m.Shelf, ids(m.Games))
+	}
+	if chrome := m.ShelfChrome(); chrome != "PONG 1/6" {
+		t.Fatalf("pong chrome %q", chrome)
+	}
+	press("r")
+	if m.Shelf != "megadrive" || len(m.Games) != 3 || m.Games[0].ID != "sonic" {
+		t.Fatalf("md shelf=%q games=%v", m.Shelf, ids(m.Games))
+	}
+	if chrome := m.ShelfChrome(); chrome != "MEGADRIVE 3/6" {
+		t.Fatalf("md chrome %q", chrome)
+	}
+	press("r")
+	if m.Shelf != "snes" || len(m.Games) != 2 {
+		t.Fatalf("snes shelf=%q n=%d", m.Shelf, len(m.Games))
+	}
+	press("r")
+	if m.Shelf != ShelfAll || len(m.Games) != 6 {
+		t.Fatalf("wrap all shelf=%q n=%d", m.Shelf, len(m.Games))
+	}
+	press("l")
+	if m.Shelf != "snes" {
+		t.Fatalf("left wrap %q", m.Shelf)
+	}
+	press("select")
+	if m.Shelf != ShelfAll {
+		t.Fatalf("select %q", m.Shelf)
+	}
+}
+
+func TestCycleShelfKeepsVisibleFocus(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true}
+	m.SetCatalog(mixedCatalog())
+	m.Focus = 0
+	now := time.Now()
+	r, _ := remoteinput.NormalizeGamepad("r", true)
+	m.Input(r, now)
+	if m.Shelf != "pong" || m.Focus != 0 || m.Games[0].ID != "pong" {
+		t.Fatalf("keep pong shelf=%q focus=%d games=%v", m.Shelf, m.Focus, ids(m.Games))
+	}
+	l, _ := remoteinput.NormalizeGamepad("l", true)
+	m.Input(l, now)
+	if m.Shelf != ShelfAll || m.Games[m.Focus].ID != "pong" {
+		t.Fatalf("back to all focus=%s", m.Games[m.Focus].ID)
+	}
+}
+
+func TestCycleShelfResetsWhenFocusLeaves(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true}
+	m.SetCatalog(mixedCatalog())
+	m.Focus = 1
+	now := time.Now()
+	r, _ := remoteinput.NormalizeGamepad("r", true)
+	m.Input(r, now)
+	if m.Shelf != "pong" || m.Games[m.Focus].ID != "pong" {
+		t.Fatalf("left megadrive onto pong focus=%d games=%v", m.Focus, ids(m.Games))
+	}
+}
+
+func TestCycleShelfLandsOnFirstLaunchable(t *testing.T) {
+	games := []tenfoot.Game{
+		{ID: "locked", System: "snes", Launchable: false},
+		{ID: "mario", System: "snes", Launchable: true},
+	}
+	m := Model{Connected: true, TargetReady: true}
+	m.SetCatalog(append([]tenfoot.Game{{ID: "pong", System: "pong", Launchable: true}}, games...))
+	now := time.Now()
+	r, _ := remoteinput.NormalizeGamepad("r", true)
+	m.Input(r, now)
+	m.Input(r, now)
+	if m.Shelf != "snes" || m.Games[m.Focus].ID != "mario" {
+		t.Fatalf("shelf=%q focus=%d id=%s", m.Shelf, m.Focus, m.Games[m.Focus].ID)
+	}
+}
+
+func TestShoulderDoesNotBreakGridNavOrLaunch(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true}
+	m.SetCatalog(mixedCatalog())
+	now := time.Now()
+	right, _ := remoteinput.NormalizeGamepad("dpad-right", true)
+	m.Input(right, now)
+	if m.Focus != 1 {
+		t.Fatalf("grid right %d", m.Focus)
+	}
+	l, _ := remoteinput.NormalizeGamepad("l", true)
+	m.Input(l, now)
+	if m.Shelf != "snes" {
+		t.Fatalf("l shelf %q", m.Shelf)
+	}
+	m.Input(right, now)
+	if m.Focus != 1 || m.Games[m.Focus].ID != "zelda" {
+		t.Fatalf("nav after shelf focus=%d games=%v", m.Focus, ids(m.Games))
+	}
+	a, _ := remoteinput.NormalizeGamepad("a", true)
+	if action := m.Input(a, now); action != "launch" {
+		t.Fatalf("launch %q", action)
+	}
+}
+
+func TestSelectDoesNotCycleDuringPlay(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true, Session: Session{State: "active"}}
+	m.SetCatalog(mixedCatalog())
+	selectPress, _ := remoteinput.NormalizeGamepad("select", true)
+	r, _ := remoteinput.NormalizeGamepad("r", true)
+	now := time.Now()
+	m.Input(selectPress, now)
+	m.Input(r, now)
+	if m.Shelf != ShelfAll {
+		t.Fatalf("play shelf %q", m.Shelf)
+	}
+}
+
+func TestInitialShelfFromConfig(t *testing.T) {
+	m := Model{Shelf: "megadrive"}
+	m.SetCatalog(mixedCatalog())
+	if m.Shelf != "megadrive" || len(m.Games) != 3 || m.Games[0].ID != "sonic" {
+		t.Fatalf("initial shelf=%q n=%d games=%v", m.Shelf, len(m.Games), ids(m.Games))
+	}
+}
+
+func TestSetCatalogKeepsShelfAndFocus(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true}
+	m.SetCatalog(mixedCatalog())
+	r, _ := remoteinput.NormalizeGamepad("r", true)
+	now := time.Now()
+	m.Input(r, now)
+	m.Input(r, now)
+	m.Focus = 1
+	if m.Shelf != "megadrive" || m.Games[m.Focus].ID != "streets" {
+		t.Fatalf("setup shelf=%q focus=%s", m.Shelf, m.Games[m.Focus].ID)
+	}
+	m.SetCatalog(mixedCatalog())
+	if m.Shelf != "megadrive" || m.Games[m.Focus].ID != "streets" || len(m.Games) != 3 {
+		t.Fatalf("reload shelf=%q focus=%s n=%d", m.Shelf, m.Games[m.Focus].ID, len(m.Games))
+	}
+}
+
+func TestSetCatalogDropsMissingShelf(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true}
+	m.SetCatalog(mixedCatalog())
+	m.Shelf = "nes"
+	m.SetCatalog(mixedCatalog())
+	if m.Shelf != ShelfAll || len(m.Games) != 6 {
+		t.Fatalf("missing shelf=%q n=%d", m.Shelf, len(m.Games))
+	}
+}
+
+func TestHeaderChromeEmptyCatalog(t *testing.T) {
+	m := Model{}
+	if got := m.HeaderChrome(); got != "FOGCAST" {
+		t.Fatalf("empty %q", got)
+	}
+	m.SetCatalog(mixedCatalog())
+	if got := m.HeaderChrome(); got != "FOGCAST  ALL 6/6" {
+		t.Fatalf("all %q", got)
+	}
+}
+
+func ids(games []tenfoot.Game) []string {
+	out := make([]string, len(games))
+	for i, game := range games {
+		out[i] = game.ID
+	}
+	return out
+}
+
 func TestFailedSessionCanRequestRecoveryStop(t *testing.T) {
 	now := time.Now()
 	m := Model{Session: Session{State: "failed"}}

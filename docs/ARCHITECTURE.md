@@ -591,7 +591,11 @@ coverage; physical reboot and DHCP acceptance belongs to the selected FES image.
 ## Native kit launcher
 
 The native image packages `fogcast-kit`, a CGO-free controller/session adapter
-with a live 4×3 catalog grid renderer. D-pad and left-stick focus moves in two
+with a live 4×3 catalog grid renderer. Catalog rows are grouped into system
+shelves (`All` plus each system present in the loaded games, typically pong,
+Mega Drive, and SNES). Shoulder L/R and Select cycle the active shelf and
+filter the grid; the themed header shows `FOGCAST  MEGADRIVE 12/40`. D-pad
+and left-stick focus moves in two
 dimensions through `fbgrid.MoveFocus`: left/right clamp on the current row,
 up/down step by four cells, and leaving a page of 12 changes the painted page.
 Catalog cells paint decoded box-art from
