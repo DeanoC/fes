@@ -70,6 +70,13 @@ HUD path for FPGA protocol and spikes. There is no second face or font-family
 picker in this slice. The catalog, input, and launch path stay the same. There is no
 on-screen theme picker in this slice.
 
+Focus changes play a short ease-in-out pop: the focused highlight ring
+grows about its cell (~1.06 scale, ~160ms via `anim.Tween`) while unfocused
+tiles keep their `CellOrigin` layout. South/A confirm is a white pulse that
+eases out over `ConfirmFrames` (launch path unchanged). The present loop
+paints while pop or a title-pane open fade is active instead of waiting for
+the usual 100ms same-key skip.
+
 The grid uses the D-pad and left stick in two dimensions to select, Shoulder L/R
 (or Select) to cycle system shelves, and A to launch. East/B opens a focused
 title pane (large cover from CoverCache/DecodeCover, title at the theme title
@@ -82,7 +89,9 @@ the focused title through the same session path as the grid. Shoulder L/R and
 D-pad L/R cycle presentation `screenshot_ids` when two or more handles are
 present; otherwise those controls do nothing in the pane (shelf cycling stays
 on the grid). Attract does not arm while the pane is open; opening it notes
-activity so idle does not fire underneath. Missing cover art uses the same
+activity so idle does not fire underneath. The pane uses a short
+fade-from-black overlay (`DetailFadeDuration`) that settles to the existing
+paint. Missing cover art uses the same
 placeholder path as the grid. The idle footer hint is
 `A play | B detail | L/R shelf`; the pane footer is `A play | B back`
 (or `A play | B back | L/R shots` when screenshots can cycle). Shelves are `All` plus
@@ -154,7 +163,11 @@ pad input with shelf and focus unchanged, and re-runs cover (which re-runs text,
 nav, and shelf). `fogcast-kit -selftest-detail` opens and closes the title pane
 (East/B, last-row Down, Up), paints a large cover plus title ink at `TitlePx`,
 launches from the pane, holds attract while open, and re-runs attract (which
-re-runs cover, text, nav, and shelf). `fogcast-kit -selftest-fpga` records a timed attract still/crossfade
+re-runs cover, text, nav, and shelf). `fogcast-kit -selftest-motion` moves
+focus, ticks a mid-pop, samples a gap pixel that the highlight ring grows
+into, confirms and samples a mid-pulse interior that is neither full flash
+nor the tile fill, and re-runs detail (which re-runs attract, cover, text,
+nav, and shelf). `fogcast-kit -selftest-fpga` records a timed attract still/crossfade
 and sprite move through `gfx.NewFPGA` (FC2D software-replay, `IsStub` true,
 `HW=not-yet`) and, when `/dev/fb0` opens, Replays the stream onto linuxfb.
 It does not claim a programmed 2D core. `fogcast-kit -selftest-pads` opens every

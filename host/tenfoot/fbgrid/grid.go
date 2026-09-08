@@ -5,6 +5,7 @@ package fbgrid
 
 import (
 	"image"
+	"time"
 
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/linuxinput"
@@ -40,7 +41,7 @@ const (
 	pad            = 16
 	gap            = 8
 	border         = 4
-	// ConfirmFrames is how long the selected tile stays flashed.
+	// ConfirmFrames is how long the selected tile's confirm pulse runs.
 	ConfirmFrames = 45
 	repeatDelay   = 18
 	repeatRate    = 8
@@ -71,36 +72,43 @@ func FakeTiles() []Tile {
 }
 
 // Grid is a 2D focus over FakeTiles. Apply consumes mapped linuxinput
-// events; Tick repeats a held direction after a short delay and decays
-// the confirm flash.
+// events; Tick repeats a held direction after a short delay and advances
+// the focus pop and confirm pulse. Now, when set, drives those tweens from
+// wall-clock instead of TickPeriod.
 type Grid struct {
-	Tiles        []Tile
-	Header       string
-	Footer       string
-	Columns      int
-	Width        int
-	Height       int
-	HeaderH      int
-	FooterH      int
-	Pad          int
-	Gap          int
-	Border       int
-	CellW        int
-	CellH        int
-	Focus        int
-	Selected     string
-	ConfirmIndex int
-	ConfirmLeft  int
-	Quit         bool
-	Last         string
-	Theme        theme.Theme
-	holdX        int
-	holdY        int
-	analogX      bool
-	analogY      bool
-	waitX        int
-	waitY        int
-	confirmHeld  bool
+	Tiles          []Tile
+	Header         string
+	Footer         string
+	Columns        int
+	Width          int
+	Height         int
+	HeaderH        int
+	FooterH        int
+	Pad            int
+	Gap            int
+	Border         int
+	CellW          int
+	CellH          int
+	Focus          int
+	Selected       string
+	ConfirmIndex   int
+	ConfirmLeft    int
+	Quit           bool
+	Last           string
+	Theme          theme.Theme
+	Now            time.Time
+	holdX          int
+	holdY          int
+	analogX        bool
+	analogY        bool
+	waitX          int
+	waitY          int
+	confirmHeld    bool
+	popAt          time.Time
+	confirmAt      time.Time
+	popElapsed     time.Duration
+	confirmElapsed time.Duration
+	popIndex       int
 }
 
 // New lays out FakeTiles for a w×h framebuffer.
@@ -228,9 +236,15 @@ func MoveFocus(focus, count, columns, dx, dy int) int {
 	return focus
 }
 
-// Move shifts focus by cells. Left/right stay on the current row.
+// Move shifts focus by cells. Left/right stay on the current row. A change
+// starts the focus pop; the catalog layout (CellOrigin) is unchanged.
 func (g *Grid) Move(dx, dy int) {
-	g.Focus = MoveFocus(g.Focus, g.count(), g.Columns, dx, dy)
+	next := MoveFocus(g.Focus, g.count(), g.Columns, dx, dy)
+	if next == g.Focus {
+		return
+	}
+	g.Focus = next
+	g.startFocusPop()
 }
 
 // CellOrigin is the top-left pixel of tile i.
@@ -315,6 +329,7 @@ func (g *Grid) applyConfirm(m linuxinput.Mapped) {
 			g.Selected = g.Tiles[g.Focus].Name
 			g.ConfirmIndex = g.Focus
 			g.ConfirmLeft = ConfirmFrames
+			g.startConfirmPulse()
 		}
 		return
 	}
@@ -357,11 +372,13 @@ func (g *Grid) step(dir int, horizontal bool) {
 	g.Move(0, dir)
 }
 
-// Tick repeats motion while a direction is held and decays confirm flash.
+// Tick repeats motion while a direction is held and advances focus pop and
+// confirm pulse by TickPeriod.
 func (g *Grid) Tick() {
 	if g.ConfirmLeft > 0 {
 		g.ConfirmLeft--
 	}
+	g.advanceMotion()
 	g.tickAxis(g.holdX, &g.waitX, true)
 	g.tickAxis(g.holdY, &g.waitY, false)
 }

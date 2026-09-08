@@ -42,6 +42,38 @@ func TestLerpAndMove(t *testing.T) {
 	}
 }
 
+func TestPulse01(t *testing.T) {
+	if Pulse01(0) != 0 || Pulse01(1) != 0 {
+		t.Fatal("pulse ends")
+	}
+	if math.Abs(Pulse01(0.5)-1) > 1e-9 {
+		t.Fatalf("pulse mid %v", Pulse01(0.5))
+	}
+	if Pulse01(0.25) <= 0 || Pulse01(0.25) >= 1 {
+		t.Fatalf("pulse quarter %v", Pulse01(0.25))
+	}
+	if math.Abs(Pulse01(0.25)-Pulse01(0.75)) > 1e-9 {
+		t.Fatal("pulse should be symmetric")
+	}
+}
+
+func TestScaleFromCenter(t *testing.T) {
+	r := gfx.Rect{X: 10, Y: 20, W: 100, H: 50}
+	if Scale(r, 1) != r {
+		t.Fatal("identity")
+	}
+	got := Scale(r, 1.06)
+	if math.Abs(float64(got.X+got.W/2-(r.X+r.W/2))) > 1e-4 {
+		t.Fatalf("cx %+v from %+v", got, r)
+	}
+	if math.Abs(float64(got.Y+got.H/2-(r.Y+r.H/2))) > 1e-4 {
+		t.Fatalf("cy %+v from %+v", got, r)
+	}
+	if got.W <= r.W || got.H <= r.H {
+		t.Fatalf("did not grow %+v", got)
+	}
+}
+
 func TestTweenProgress(t *testing.T) {
 	tw := Tween{Duration: time.Second, Ease: EaseLinear}
 	if tw.Progress(0) != 0 || tw.Progress(500*time.Millisecond) != 0.5 || tw.Progress(2*time.Second) != 1 {

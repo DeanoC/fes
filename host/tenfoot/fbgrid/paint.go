@@ -36,82 +36,11 @@ func Paint(d gfx.Device, g Grid) {
 	headerSize := th.TitlePx()
 	header = gfx.FitText(header, headerSize, g.Width-24)
 	d.DrawText(16, chromeTextY(0, g.HeaderH, gfx.TextHeight(headerSize), true), header, headerSize, th.Header)
-	for i, tile := range g.Tiles {
-		x, y, ok := g.CellOrigin(i)
-		if !ok {
+	for _, i := range paintOrder(g) {
+		if i < 0 || i >= len(g.Tiles) {
 			continue
 		}
-		fill := tile.Color
-		flashing := g.ConfirmLeft > 0 && i == g.ConfirmIndex
-		if flashing {
-			fill = th.Flash
-		}
-		r := gfx.Rect{X: float32(x), Y: float32(y), W: float32(g.CellW), H: float32(g.CellH)}
-		inner := r
-		if i == g.Focus {
-			d.FillRect(r, th.Highlight)
-			inset := float32(g.Border)
-			if inset < 1 {
-				inset = 1
-			}
-			inner = gfx.Rect{
-				X: r.X + inset,
-				Y: r.Y + inset,
-				W: r.W - 2*inset,
-				H: r.H - 2*inset,
-			}
-			d.FillRect(inner, fill)
-		} else {
-			d.FillRect(r, fill)
-		}
-		if th.CoverFrameWidth > 0 && inner.W > float32(2*th.CoverFrameWidth) && inner.H > float32(2*th.CoverFrameWidth) {
-			d.FillRect(inner, th.CoverFrame)
-			fw := float32(th.CoverFrameWidth)
-			inner = gfx.Rect{
-				X: inner.X + fw,
-				Y: inner.Y + fw,
-				W: inner.W - 2*fw,
-				H: inner.H - 2*fw,
-			}
-			d.FillRect(inner, fill)
-		}
-		if !flashing {
-			if tile.Cover != nil {
-				d.FillRect(inner, letterboxFill(fill, th))
-				paintCover(d, tile.Cover, inner)
-			} else {
-				paintPlaceholder(d, inner, tile.Name, fill, th, tile.CoverKind == CoverLoading)
-			}
-			if i == g.Focus {
-				paintRectOutline(d, inner, 1, th.Highlight)
-			}
-		}
-		labelSize := th.BodyPx()
-		textH := gfx.TextHeight(labelSize)
-		barH := float32(textH + 4)
-		if barH < 16 {
-			barH = 16
-		}
-		if barH > inner.H {
-			barH = inner.H
-		}
-		d.FillRect(gfx.Rect{
-			X: inner.X,
-			Y: inner.Y + inner.H - barH,
-			W: inner.W,
-			H: barH,
-		}, th.LabelBar)
-		textX := int(inner.X) + 4
-		maxW := int(inner.W) - 8
-		if maxW < 1 {
-			maxW = 1
-		}
-		name := gfx.FitText(tile.Name, labelSize, maxW)
-		textY := int(inner.Y+inner.H) - textH - 2
-		if textY < int(inner.Y) {
-			textY = int(inner.Y)
-		}
-		d.DrawText(textX, textY, name, labelSize, th.Label)
+		paintTile(d, g, th, i, g.Tiles[i])
 	}
 	status := g.Footer
 	if status == "" {
@@ -124,6 +53,103 @@ func Paint(d gfx.Device, g Grid) {
 	statusSize := th.StatusPx()
 	status = gfx.FitText(status, statusSize, g.Width-16)
 	d.DrawText(8, chromeTextY(footerTop, g.Height-footerTop, gfx.TextHeight(statusSize), false), status, statusSize, th.Status)
+}
+
+func paintOrder(g Grid) []int {
+	n := len(g.Tiles)
+	order := make([]int, 0, n)
+	focus, confirm := -1, -1
+	for i := range g.Tiles {
+		switch {
+		case i == g.Focus:
+			focus = i
+		case g.ConfirmLeft > 0 && i == g.ConfirmIndex:
+			confirm = i
+		default:
+			order = append(order, i)
+		}
+	}
+	if confirm >= 0 && confirm != focus {
+		order = append(order, confirm)
+	}
+	if focus >= 0 {
+		order = append(order, focus)
+	}
+	return order
+}
+
+func paintTile(d gfx.Device, g Grid, th theme.Theme, i int, tile Tile) {
+	r, ok := g.tileRect(i)
+	if !ok {
+		return
+	}
+	fill := tile.Color
+	flashing := g.ConfirmLeft > 0 && i == g.ConfirmIndex
+	if flashing {
+		fill = g.confirmFill(tile.Color, th.Flash)
+	}
+	inner := r
+	if i == g.Focus {
+		d.FillRect(r, th.Highlight)
+		inset := g.tileBorder(i)
+		inner = gfx.Rect{
+			X: r.X + inset,
+			Y: r.Y + inset,
+			W: r.W - 2*inset,
+			H: r.H - 2*inset,
+		}
+		d.FillRect(inner, fill)
+	} else {
+		d.FillRect(r, fill)
+	}
+	if th.CoverFrameWidth > 0 && inner.W > float32(2*th.CoverFrameWidth) && inner.H > float32(2*th.CoverFrameWidth) {
+		d.FillRect(inner, th.CoverFrame)
+		fw := float32(th.CoverFrameWidth)
+		inner = gfx.Rect{
+			X: inner.X + fw,
+			Y: inner.Y + fw,
+			W: inner.W - 2*fw,
+			H: inner.H - 2*fw,
+		}
+		d.FillRect(inner, fill)
+	}
+	if !flashing {
+		if tile.Cover != nil {
+			d.FillRect(inner, letterboxFill(fill, th))
+			paintCover(d, tile.Cover, inner)
+		} else {
+			paintPlaceholder(d, inner, tile.Name, fill, th, tile.CoverKind == CoverLoading)
+		}
+		if i == g.Focus {
+			paintRectOutline(d, inner, 1, th.Highlight)
+		}
+	}
+	labelSize := th.BodyPx()
+	textH := gfx.TextHeight(labelSize)
+	barH := float32(textH + 4)
+	if barH < 16 {
+		barH = 16
+	}
+	if barH > inner.H {
+		barH = inner.H
+	}
+	d.FillRect(gfx.Rect{
+		X: inner.X,
+		Y: inner.Y + inner.H - barH,
+		W: inner.W,
+		H: barH,
+	}, th.LabelBar)
+	textX := int(inner.X) + 4
+	maxW := int(inner.W) - 8
+	if maxW < 1 {
+		maxW = 1
+	}
+	name := gfx.FitText(tile.Name, labelSize, maxW)
+	textY := int(inner.Y+inner.H) - textH - 2
+	if textY < int(inner.Y) {
+		textY = int(inner.Y)
+	}
+	d.DrawText(textX, textY, name, labelSize, th.Label)
 }
 
 // chromeTextY vertically centers a textH-pixel label in a chrome bar. When the

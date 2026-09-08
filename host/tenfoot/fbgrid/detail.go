@@ -3,6 +3,7 @@ package fbgrid
 import (
 	"image"
 
+	"github.com/DeanoC/FogCast/host/tenfoot/anim"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 )
@@ -20,6 +21,8 @@ type DetailFrame struct {
 	Shot          *image.RGBA
 	ShotCaption   string
 	Theme         theme.Theme
+	// FadeFromBlack is overlay alpha in [0, 1]. Zero (default) is fully visible.
+	FadeFromBlack float64
 }
 
 // PaintDetail draws a living-room title pane. It does not Present.
@@ -114,6 +117,9 @@ func PaintDetail(d gfx.Device, f DetailFrame) {
 	}
 	hint = gfx.FitText(hint, statusSize, f.Width-16)
 	d.DrawText(8, chromeTextY(footerTop, footerH, gfx.TextHeight(statusSize), false), hint, statusSize, th.Status)
+	if f.FadeFromBlack > 0 {
+		anim.FadeOverlay(d, gfx.Rect{X: 0, Y: 0, W: float32(f.Width), H: float32(f.Height)}, f.FadeFromBlack)
+	}
 }
 
 // DetailLayout is the cover, title/meta, and optional screenshot rects.

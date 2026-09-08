@@ -14,6 +14,7 @@ import (
 	"github.com/DeanoC/FogCast/host/tenfoot/fbgrid"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
+	"github.com/DeanoC/FogCast/host/tenfoot/linuxinput"
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 	"github.com/DeanoC/FogCast/kitlauncher"
 	"github.com/DeanoC/FogCast/kitlauncher/controller"
@@ -152,6 +153,174 @@ func runDetailSelftest(fbPath string, th theme.Theme) error {
 	report, err := exerciseDetailGrid(d, th)
 	fmt.Print(report)
 	return err
+}
+
+func runMotionSelftest(fbPath string, th theme.Theme) error {
+	d, err := gfx.OpenLinuxFB(fbPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	report, err := exerciseMotionGrid(d, th)
+	fmt.Print(report)
+	return err
+}
+
+func exerciseMotionGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
+	th = th.Complete()
+	cfg := d.Config()
+	g := fbgrid.New(cfg.Width, cfg.Height)
+	fbgrid.ApplyTheme(&g, th)
+	var b strings.Builder
+
+	fbgrid.Paint(d, g)
+	d.Present()
+	hx, hy, ok := g.HighlightSample()
+	if !ok {
+		return b.String(), fmt.Errorf("origin highlight")
+	}
+	gotB, gotG, gotR, gotX, err := gfx.SampleBGRX(d.Destination(), cfg, hx, hy)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "motion origin focus=%d highlight=(%d,%d) bgrx=%d,%d,%d,%d\n", g.Focus, hx, hy, gotB, gotG, gotR, gotX)
+	if gotB != th.Highlight.B || gotG != th.Highlight.G || gotR != th.Highlight.R || gotX != 0 {
+		return b.String(), fmt.Errorf("origin highlight")
+	}
+
+	g.Apply(linuxinput.Mapped{Action: linuxinput.ActionRight, Active: true})
+	g.Apply(linuxinput.Mapped{Action: linuxinput.ActionRight, Active: false})
+	if g.Focus != 1 {
+		return b.String(), fmt.Errorf("right focus %d", g.Focus)
+	}
+	fbgrid.Paint(d, g)
+	d.Present()
+	rest := append([]byte(nil), d.Destination()...)
+	hx, hy, ok = g.HighlightSample()
+	if !ok {
+		return b.String(), fmt.Errorf("moved highlight")
+	}
+	gotB, gotG, gotR, gotX, err = gfx.SampleBGRX(d.Destination(), cfg, hx, hy)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "motion pop-t0 focus=%d highlight=(%d,%d) bgrx=%d,%d,%d,%d amount=%.3f\n", g.Focus, hx, hy, gotB, gotG, gotR, gotX, g.FocusPopAmount())
+	if gotB != th.Highlight.B || gotG != th.Highlight.G || gotR != th.Highlight.R || gotX != 0 {
+		return b.String(), fmt.Errorf("pop-t0 highlight")
+	}
+	if g.FocusPopAmount() != 0 {
+		return b.String(), fmt.Errorf("pop-t0 amount %v", g.FocusPopAmount())
+	}
+
+	ox, oy, ok := g.CellOrigin(g.Focus)
+	if !ok {
+		return b.String(), fmt.Errorf("pop origin")
+	}
+	gapX, gapY := ox-2, oy+g.CellH/2
+	restGapB, restGapG, restGapR, _, err := gfx.SampleBGRX(d.Destination(), cfg, gapX, gapY)
+	if err != nil {
+		return b.String(), err
+	}
+	x0, _, _ := g.CellOrigin(0)
+
+	midPop := int(fbgrid.FocusPopDuration / fbgrid.TickPeriod / 2)
+	for i := 0; i < midPop; i++ {
+		g.Tick()
+	}
+	if g.FocusPopAmount() <= 0.5 {
+		return b.String(), fmt.Errorf("mid-pop amount %v", g.FocusPopAmount())
+	}
+	fbgrid.Paint(d, g)
+	d.Present()
+	if bytes.Equal(rest, d.Destination()) {
+		return b.String(), fmt.Errorf("mid-pop paint matched rest")
+	}
+	popB, popG, popR, _, err := gfx.SampleBGRX(d.Destination(), cfg, gapX, gapY)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "motion pop-mid focus=%d amount=%.3f scale=%.3f gap=(%d,%d) bgrx=%d,%d,%d rest-gap=%d,%d,%d origin0=%d\n",
+		g.Focus, g.FocusPopAmount(), g.FocusScale(), gapX, gapY, popB, popG, popR, restGapB, restGapG, restGapR, x0)
+	if popB == restGapB && popG == restGapG && popR == restGapR {
+		return b.String(), fmt.Errorf("mid-pop gap pixel unchanged")
+	}
+	hx, hy, ok = g.HighlightSample()
+	if !ok {
+		return b.String(), fmt.Errorf("mid-pop highlight")
+	}
+	gotB, gotG, gotR, gotX, err = gfx.SampleBGRX(d.Destination(), cfg, hx, hy)
+	if err != nil {
+		return b.String(), err
+	}
+	if gotB != th.Highlight.B || gotG != th.Highlight.G || gotR != th.Highlight.R || gotX != 0 {
+		return b.String(), fmt.Errorf("mid-pop highlight bgrx %d,%d,%d,%d", gotB, gotG, gotR, gotX)
+	}
+	x0b, _, _ := g.CellOrigin(0)
+	if x0b != x0 {
+		return b.String(), fmt.Errorf("unfocused origin moved %d -> %d", x0, x0b)
+	}
+
+	g.Apply(linuxinput.Mapped{Action: linuxinput.ActionConfirm, Active: true})
+	g.Apply(linuxinput.Mapped{Action: linuxinput.ActionConfirm, Active: false})
+	if g.ConfirmLeft != fbgrid.ConfirmFrames || g.Selected == "" {
+		return b.String(), fmt.Errorf("confirm left=%d selected=%q", g.ConfirmLeft, g.Selected)
+	}
+	fbgrid.Paint(d, g)
+	d.Present()
+	sx, sy, ok := g.CellOrigin(g.ConfirmIndex)
+	if !ok {
+		return b.String(), fmt.Errorf("confirm origin")
+	}
+	ix, iy := sx+g.CellW/2, sy+g.CellH/2
+	gotB, gotG, gotR, gotX, err = gfx.SampleBGRX(d.Destination(), cfg, ix, iy)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "motion confirm-t0 index=%d interior=(%d,%d) bgrx=%d,%d,%d,%d amount=%.3f\n",
+		g.ConfirmIndex, ix, iy, gotB, gotG, gotR, gotX, g.ConfirmPulseAmount())
+	if gotB != th.Flash.B || gotG != th.Flash.G || gotR != th.Flash.R || gotX != 0 {
+		return b.String(), fmt.Errorf("confirm-t0 interior %d,%d,%d,%d want flash", gotB, gotG, gotR, gotX)
+	}
+	if g.ConfirmPulseAmount() != 1 {
+		return b.String(), fmt.Errorf("confirm-t0 amount %v", g.ConfirmPulseAmount())
+	}
+
+	midPulse := fbgrid.ConfirmFrames / 2
+	for i := 0; i < midPulse; i++ {
+		g.Tick()
+	}
+	fbgrid.Paint(d, g)
+	d.Present()
+	midB, midG, midR, _, err := gfx.SampleBGRX(d.Destination(), cfg, ix, iy)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "motion confirm-mid left=%d amount=%.3f interior bgrx=%d,%d,%d\n", g.ConfirmLeft, g.ConfirmPulseAmount(), midB, midG, midR)
+	if midB == th.Flash.B && midG == th.Flash.G && midR == th.Flash.R {
+		return b.String(), fmt.Errorf("confirm-mid still full flash")
+	}
+	tile := g.Tiles[g.ConfirmIndex].Color
+	if midB == tile.B && midG == tile.G && midR == tile.R {
+		return b.String(), fmt.Errorf("confirm-mid already tile fill")
+	}
+	if g.ConfirmPulseAmount() <= 0.2 || g.ConfirmPulseAmount() >= 0.95 {
+		return b.String(), fmt.Errorf("confirm-mid amount %v", g.ConfirmPulseAmount())
+	}
+
+	fade0 := fbgrid.DetailFadeFromBlack(0)
+	fade1 := fbgrid.DetailFadeFromBlack(fbgrid.DetailFadeDuration)
+	if fade0 <= fade1 || fade1 != 0 {
+		return b.String(), fmt.Errorf("detail fade open=%v settled=%v", fade0, fade1)
+	}
+	fmt.Fprintf(&b, "motion detail-fade open=%.3f settled=%.3f\n", fade0, fade1)
+
+	detail, err := exerciseDetailGrid(d, th)
+	b.WriteString(detail)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "selftest-motion PASS pop=1 confirm=1 nested-detail=1\n")
+	return b.String(), nil
 }
 
 func exerciseNavGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
