@@ -13,6 +13,16 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class CoreLockTests(unittest.TestCase):
+    def test_repository_lock_loads_nes_pin(self):
+        pins = core_lock.load_lock(ROOT / "cores.lock")
+        pin = pins["nes"]
+        self.assertEqual(pin.repo, "https://github.com/MiSTer-devel/NES_MiSTer")
+        self.assertEqual(pin.commit, "9a63821173b6da4d6e95dcbe2e2a322ec8171144")
+        self.assertEqual(pin.rbf_path, "releases/NES_20260823.rbf")
+        self.assertEqual(pin.rbf_sha256, "a4c023defa4f7856585e5dba429a3b61aee3e01eb3de2c731bb0036c12f11701")
+        self.assertEqual(pin.rbf_size, 3282472)
+        self.assertEqual(pin.project, "NES.qpf")
+
     def test_repository_lock_loads_megadrive_pin(self):
         pins = core_lock.load_lock(ROOT / "cores.lock")
         pin = pins["megadrive"]

@@ -309,6 +309,22 @@ class ExportCoreBundleTests(unittest.TestCase):
                 with self.assertRaises(BundleExportError):
                     encode_manifest(value)
 
+    def test_nes_manifest_uses_the_generic_rebuild_recipe(self):
+        value = BundleManifest(
+            1,
+            "mister",
+            "nes",
+            "nes.rbf",
+            "a" * 64,
+            123,
+            "https://github.com/MiSTer-devel/NES_MiSTer",
+            "9a63821173b6da4d6e95dcbe2e2a322ec8171144",
+            "scripts/rebuild_core.py",
+            "c" * 64,
+            TOOLCHAIN,
+        )
+        self.assertEqual(encode_manifest(value).count(b"\n"), 11)
+
 
 if __name__ == "__main__":
     unittest.main()
