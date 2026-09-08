@@ -10,6 +10,46 @@ import (
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 )
 
+func TestIdleTicksDoNotStartFocusPop(t *testing.T) {
+	t.Parallel()
+	g := New(640, 480)
+	n := int(FocusPopDuration/TickPeriod) + 2
+	for i := 0; i < n; i++ {
+		g.Tick()
+		if g.FocusPopAmount() != 0 || g.FocusScale() != 1 || g.MotionActive() {
+			t.Fatalf("idle tick %d popped amount=%v scale=%v", i, g.FocusPopAmount(), g.FocusScale())
+		}
+	}
+	if g.Focus != 0 {
+		t.Fatalf("focus %d", g.Focus)
+	}
+}
+
+func TestFocusPopKeepsInnerCell(t *testing.T) {
+	t.Parallel()
+	g := New(640, 480)
+	g.Move(1, 0)
+	rest, ok := g.tileInner(1)
+	if !ok {
+		t.Fatal("inner")
+	}
+	mid := int(FocusPopDuration / TickPeriod / 2)
+	for i := 0; i < mid; i++ {
+		g.Tick()
+	}
+	if g.FocusPopAmount() <= 0.5 {
+		t.Fatalf("mid amount %v", g.FocusPopAmount())
+	}
+	got, ok := g.tileInner(1)
+	if !ok || got != rest {
+		t.Fatalf("inner moved %+v -> %+v", rest, got)
+	}
+	x, y, _ := g.CellOrigin(1)
+	if got.X != float32(x+g.Border) || got.Y != float32(y+g.Border) {
+		t.Fatalf("inner not on CellOrigin %+v origin=%d,%d border=%d", got, x, y, g.Border)
+	}
+}
+
 func TestFocusPopAdvancesWithTickAndNow(t *testing.T) {
 	t.Parallel()
 	g := New(640, 480)
@@ -192,6 +232,7 @@ func TestPaintFocusPopChangesPixels(t *testing.T) {
 	x0, y0, _ := g.CellOrigin(0)
 	c0 := g.Tiles[0].Color
 	assertPanel(t, dst, cfg, g, 0, c0)
+	assertPanel(t, dst, cfg, g, 1, g.Tiles[1].Color)
 	if x0 != g.Pad {
 		t.Fatalf("unfocused origin %d", x0)
 	}

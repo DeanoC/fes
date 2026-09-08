@@ -24,6 +24,7 @@ const (
 )
 
 func (g *Grid) startFocusPop() {
+	g.popLive = true
 	g.popIndex = g.Focus
 	g.popElapsed = 0
 	if !g.Now.IsZero() {
@@ -43,7 +44,7 @@ func (g *Grid) startConfirmPulse() {
 }
 
 func (g *Grid) advanceMotion() {
-	if g.popElapsed < FocusPopDuration {
+	if g.popLive && g.popElapsed < FocusPopDuration {
 		g.popElapsed += TickPeriod
 	}
 	if g.confirmElapsed < ConfirmPulseDuration {
@@ -60,6 +61,7 @@ func ArmPop(g *Grid, popAt, now time.Time) {
 	g.Now = now
 	g.popAt = popAt
 	g.popIndex = g.Focus
+	g.popLive = !popAt.IsZero()
 }
 
 func (g Grid) popElapsedNow() time.Duration {
@@ -79,9 +81,10 @@ func (g Grid) confirmElapsedNow() time.Duration {
 	return g.confirmElapsed
 }
 
-// FocusPopT is 0 at pop start and 1 when the pop has settled.
+// FocusPopT is 0 at pop start and 1 when the pop has settled. Idle grids
+// (no startFocusPop / ArmPop) stay at 1 so Tick cannot start a pop.
 func (g Grid) FocusPopT() float64 {
-	if g.popIndex != g.Focus {
+	if !g.popLive || g.popIndex != g.Focus {
 		return 1
 	}
 	return (anim.Tween{Duration: FocusPopDuration}).Progress(g.popElapsedNow())
@@ -158,22 +161,24 @@ func (g Grid) tileRect(i int) (gfx.Rect, bool) {
 	return r, true
 }
 
-func (g Grid) tileGrow(i int) float32 {
-	scale := g.tileScale(i)
-	if scale <= 1 || g.CellW < 1 {
-		return 0
+func (g Grid) tileInner(i int) (gfx.Rect, bool) {
+	x, y, ok := g.CellOrigin(i)
+	if !ok {
+		return gfx.Rect{}, false
 	}
-	return float32(scale-1) * float32(g.CellW) / 2
-}
-
-func (g Grid) tileBorder(i int) float32 {
-	b := float32(g.Border)
-	if b < 1 {
-		b = 1
+	inset := float32(g.Border)
+	if inset < 1 {
+		inset = 1
 	}
-	// Grow the highlight ring outward so CellOrigin samples stay on the ring
-	// and inner cover layout does not move.
-	return b + g.tileGrow(i)
+	w := float32(g.CellW) - 2*inset
+	h := float32(g.CellH) - 2*inset
+	if w < 1 {
+		w = 1
+	}
+	if h < 1 {
+		h = 1
+	}
+	return gfx.Rect{X: float32(x) + inset, Y: float32(y) + inset, W: w, H: h}, true
 }
 
 func (g Grid) confirmFill(base, flash gfx.Color) gfx.Color {

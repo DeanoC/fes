@@ -91,12 +91,8 @@ func paintTile(d gfx.Device, g Grid, th theme.Theme, i int, tile Tile) {
 	inner := r
 	if i == g.Focus {
 		d.FillRect(r, th.Highlight)
-		inset := g.tileBorder(i)
-		inner = gfx.Rect{
-			X: r.X + inset,
-			Y: r.Y + inset,
-			W: r.W - 2*inset,
-			H: r.H - 2*inset,
+		if in, ok := g.tileInner(i); ok {
+			inner = in
 		}
 		d.FillRect(inner, fill)
 	} else {

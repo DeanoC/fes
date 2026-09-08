@@ -109,6 +109,7 @@ type Grid struct {
 	popElapsed     time.Duration
 	confirmElapsed time.Duration
 	popIndex       int
+	popLive        bool
 }
 
 // New lays out FakeTiles for a w×h framebuffer.
