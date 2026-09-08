@@ -8,6 +8,7 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/mister"
+	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/internal/targetcache"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -42,6 +43,10 @@ type ownedDevelopmentRuntime interface {
 
 type ownedDevelopmentRecoveryRuntime interface {
 	LoadDevelopmentRBFOwnedWithRecovery(context.Context, context.Context, context.Context, int64, io.Reader) (observed, recovery string, dispatchAttempted bool, apiErr *protocol.APIError)
+}
+
+type ownedCoreRuntime interface {
+	LoadCoreOwned(context.Context, context.Context, context.Context, int64, io.Reader) (misterruntime.CoreActivation, bool, *protocol.APIError)
 }
 
 type ownedStopRuntime interface {
@@ -379,6 +384,53 @@ func (c *Coordinator) LoadDevelopmentRBF(parent context.Context, size int64, con
 	return c.Status(), nil
 }
 
+func (c *Coordinator) LoadCore(parent context.Context, size int64, content io.Reader) (protocol.Status, *protocol.APIError) {
+	if !c.begin() {
+		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
+	}
+	defer c.end()
+	runtime, ok := c.runtime.(ownedCoreRuntime)
+	if !ok {
+		return c.Status(), &protocol.APIError{Code: protocol.CodeUnsupportedOperation,
+			Message: "requested operation is unsupported"}
+	}
+	previous := c.Status()
+	observation, cancel := context.WithTimeout(c.operationContext, c.launchTimeout)
+	defer cancel()
+	activation, attempted, apiErr := runtime.LoadCoreOwned(parent, observation,
+		c.operationContext, size, content)
+	if apiErr != nil {
+		if !attempted {
+			c.set(previous)
+			return c.Status(), apiErr
+		}
+		failed := protocol.Status{State: protocol.StateFailed, Development: true,
+			LastError: cloneAPIError(apiErr)}
+		if activation.ObservedCore != "" {
+			failed.ObservedCore = &activation.ObservedCore
+		}
+		c.set(failed)
+		return c.Status(), apiErr
+	}
+	active := protocol.Status{State: protocol.StateActive, Development: true}
+	if activation.ObservedCore != "" {
+		active.ObservedCore = &activation.ObservedCore
+	}
+	interfaces := make([]protocol.RuntimeInterface, len(activation.ActiveInterfaces))
+	for index, value := range activation.ActiveInterfaces {
+		interfaces[index] = protocol.RuntimeInterface{ID: value.ID, Major: value.Major, Minor: value.Minor}
+	}
+	active.CorePackage = &protocol.CorePackageStatus{
+		PackageID: activation.PackageID, Generation: activation.Generation,
+		ABI: protocol.RuntimeContract{ID: activation.Descriptor.ABI.ID,
+			Major: uint16(activation.Descriptor.ABI.Major), Minor: uint16(activation.Descriptor.ABI.Minor)},
+		BuildID: activation.Descriptor.Build.ID, ActiveInterfaces: interfaces,
+		Gamepad: activation.Gamepad,
+	}
+	c.set(active)
+	return c.Status(), nil
+}
+
 func (c *Coordinator) Stop(parent context.Context) (protocol.Status, *protocol.APIError) {
 	if !c.begin() {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
@@ -536,6 +588,11 @@ func cloneStatus(status protocol.Status) protocol.Status {
 		copy.ObservedCore = &value
 	}
 	copy.LastError = cloneAPIError(status.LastError)
+	if status.CorePackage != nil {
+		packageCopy := *status.CorePackage
+		packageCopy.ActiveInterfaces = append([]protocol.RuntimeInterface(nil), status.CorePackage.ActiveInterfaces...)
+		copy.CorePackage = &packageCopy
+	}
 	return copy
 }
 

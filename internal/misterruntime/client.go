@@ -115,42 +115,62 @@ func (client *Client) Stop(ctx context.Context) (Response, error) {
 }
 
 func (client *Client) call(ctx context.Context, requestBody any) (Response, error) {
-	payload, err := json.Marshal(requestBody)
+	line, err := client.callRaw(ctx, requestBody)
 	if err != nil {
-		return Response{}, errInvalidRuntimeResponse
-	}
-
-	connection, err := (&net.Dialer{}).DialContext(ctx, "unix", client.socketPath)
-	if err != nil {
-		return Response{}, contextOr(ctx, errRuntimeConnection)
-	}
-	defer connection.Close()
-
-	if deadline, ok := ctx.Deadline(); ok {
-		if err := connection.SetDeadline(deadline); err != nil {
-			return Response{}, contextOr(ctx, errRuntimeDeadline)
-		}
-	}
-	if err := ctx.Err(); err != nil {
 		return Response{}, err
-	}
-	stopCancellationRelay := relayContextCancellation(ctx, connection)
-	defer stopCancellationRelay()
-
-	request := append(payload, '\n')
-	if err := writePayload(connection, request); err != nil {
-		return Response{}, contextOr(ctx, errRuntimeRequestWrite)
-	}
-
-	line, err := readResponseLine(connection)
-	if err != nil {
-		return Response{}, contextOr(ctx, err)
 	}
 	response, err := decodeResponse(line)
 	if err != nil {
 		return Response{}, err
 	}
 	return response, nil
+}
+
+func (client *Client) callRaw(ctx context.Context, requestBody any) ([]byte, error) {
+	line, _, err := client.callRawTracked(ctx, requestBody)
+	return line, err
+}
+
+// callRawTracked reports whether any request byte crossed the transport write
+// boundary. Once that happens, an error is sent-or-ambiguous to callers.
+func (client *Client) callRawTracked(ctx context.Context, requestBody any) ([]byte, bool, error) {
+	payload, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, false, errInvalidRuntimeResponse
+	}
+
+	connection, err := (&net.Dialer{}).DialContext(ctx, "unix", client.socketPath)
+	if err != nil {
+		return nil, false, contextOr(ctx, errRuntimeConnection)
+	}
+	defer connection.Close()
+
+	if deadline, ok := ctx.Deadline(); ok {
+		if err := connection.SetDeadline(deadline); err != nil {
+			return nil, false, contextOr(ctx, errRuntimeDeadline)
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
+	}
+	stopCancellationRelay := relayContextCancellation(ctx, connection)
+	defer stopCancellationRelay()
+
+	request := append(payload, '\n')
+	written, err := writePayloadCount(connection, request)
+	if err != nil {
+		return nil, protocol2FrameDispatched(written, len(request)), contextOr(ctx, errRuntimeRequestWrite)
+	}
+
+	line, err := readResponseLine(connection)
+	if err != nil {
+		return nil, true, contextOr(ctx, err)
+	}
+	return line, true, nil
+}
+
+func protocol2FrameDispatched(written, frameSize int) bool {
+	return frameSize > 0 && written == frameSize
 }
 
 func nativeRBFPath(system protocol.System) string {
@@ -192,17 +212,24 @@ func validRuntimePath(path string) bool {
 }
 
 func writePayload(connection net.Conn, payload []byte) error {
+	_, err := writePayloadCount(connection, payload)
+	return err
+}
+
+func writePayloadCount(connection net.Conn, payload []byte) (int, error) {
+	written := 0
 	for len(payload) > 0 {
 		count, err := connection.Write(payload)
 		payload = payload[count:]
+		written += count
 		if err != nil {
-			return err
+			return written, err
 		}
 		if count == 0 {
-			return io.ErrShortWrite
+			return written, io.ErrShortWrite
 		}
 	}
-	return nil
+	return written, nil
 }
 
 func readResponseLine(connection net.Conn) ([]byte, error) {

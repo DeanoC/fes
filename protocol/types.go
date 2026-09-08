@@ -59,8 +59,11 @@ const (
 )
 
 type APIError struct {
-	Code    ErrorCode `json:"code"`
-	Message string    `json:"message"`
+	Code     ErrorCode `json:"code"`
+	Message  string    `json:"message"`
+	Phase    string    `json:"phase,omitempty"`
+	Expected string    `json:"expected,omitempty"`
+	Observed string    `json:"observed,omitempty"`
 }
 
 func (e *APIError) Error() string {
@@ -81,15 +84,37 @@ type Health struct {
 	BootID        string `json:"boot_id,omitempty"`
 }
 
+type RuntimeContract struct {
+	ID    string `json:"id"`
+	Major uint16 `json:"major"`
+	Minor uint16 `json:"minor"`
+}
+
+type RuntimeInterface struct {
+	ID    string `json:"id"`
+	Major uint16 `json:"major"`
+	Minor uint16 `json:"minor"`
+}
+
+type CorePackageStatus struct {
+	PackageID        string             `json:"package_id"`
+	Generation       uint64             `json:"generation"`
+	ABI              RuntimeContract    `json:"abi"`
+	BuildID          string             `json:"build_id"`
+	ActiveInterfaces []RuntimeInterface `json:"active_interfaces"`
+	Gamepad          bool               `json:"gamepad"`
+}
+
 type Status struct {
-	State        State     `json:"state"`
-	GameID       *string   `json:"game_id"`
-	System       *System   `json:"system"`
-	ExpectedCore *string   `json:"expected_core"`
-	ObservedCore *string   `json:"observed_core"`
-	LastError    *APIError `json:"last_error"`
-	Development  bool      `json:"development,omitempty"`
-	Recovery     string    `json:"recovery,omitempty"`
+	State        State              `json:"state"`
+	GameID       *string            `json:"game_id"`
+	System       *System            `json:"system"`
+	ExpectedCore *string            `json:"expected_core"`
+	ObservedCore *string            `json:"observed_core"`
+	LastError    *APIError          `json:"last_error"`
+	Development  bool               `json:"development,omitempty"`
+	Recovery     string             `json:"recovery,omitempty"`
+	CorePackage  *CorePackageStatus `json:"core_package,omitempty"`
 }
 
 type LaunchRequest struct {

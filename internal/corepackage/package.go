@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"unicode/utf8"
 
@@ -28,12 +29,13 @@ const (
 )
 
 var (
-	identifierRE = regexp.MustCompile(`^[a-z][a-z0-9_.-]{0,95}$`)
-	hex32RE      = regexp.MustCompile(`^[0-9a-f]{32}$`)
-	hex40RE      = regexp.MustCompile(`^[0-9A-Fa-f]{40}$`)
-	hex64RE      = regexp.MustCompile(`^[0-9a-f]{64}$`)
-	semverRE     = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$`)
-	ipvFutureRE  = regexp.MustCompile(`^v[0-9A-Fa-f]+\.[A-Za-z0-9_.~!$&'()*+,;=:-]+$`)
+	identifierRE  = regexp.MustCompile(`^[a-z][a-z0-9_.-]{0,95}$`)
+	hex32RE       = regexp.MustCompile(`^[0-9a-f]{32}$`)
+	hex40RE       = regexp.MustCompile(`^[0-9A-Fa-f]{40}$`)
+	hex64RE       = regexp.MustCompile(`^[0-9a-f]{64}$`)
+	publicationRE = regexp.MustCompile(`^([0-9a-f]{64})-([0-9a-f]{32})$`)
+	semverRE      = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$`)
+	ipvFutureRE   = regexp.MustCompile(`^v[0-9A-Fa-f]+\.[A-Za-z0-9_.~!$&'()*+,;=:-]+$`)
 )
 
 type Descriptor struct {
@@ -159,6 +161,106 @@ func InspectPackage(path string) (Inspection, error) {
 func Inspect(path string) (Descriptor, error) {
 	inspection, err := InspectPackage(path)
 	return inspection.Descriptor, err
+}
+
+// Adopt reconstructs cleanup ownership for every valid private publication
+// beneath a trusted staging root. It accepts only names and filesystem objects
+// that Stage itself could have published.
+func Adopt(root string) ([]Staged, error) {
+	if !filepath.IsAbs(root) {
+		return nil, errors.New("core package: invalid adoption request")
+	}
+	rootInfo, err := os.Lstat(root)
+	if err != nil || !rootInfo.IsDir() || rootInfo.Mode()&os.ModeSymlink != 0 {
+		return nil, errors.New("core package: adoption root must be an existing non-symlink directory")
+	}
+	rootHandle, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, fmt.Errorf("core package: open adoption root: %w", err)
+	}
+	defer rootHandle.Close()
+	return adoptOpenedRoot(root, rootHandle, rootInfo)
+}
+
+func adoptOpenedRoot(root string, rootHandle *os.Root, rootInfo os.FileInfo) ([]Staged, error) {
+	openedRoot, err := rootHandle.Stat(".")
+	if err != nil || !os.SameFile(rootInfo, openedRoot) {
+		return nil, errors.New("core package: adoption root changed while opening")
+	}
+	directory, err := rootHandle.Open(".")
+	if err != nil {
+		return nil, fmt.Errorf("core package: read adoption root: %w", err)
+	}
+	entries, err := directory.ReadDir(-1)
+	_ = directory.Close()
+	if err != nil {
+		return nil, fmt.Errorf("core package: read adoption root: %w", err)
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+	var adopted []Staged
+	for _, entry := range entries {
+		name := entry.Name()
+		match := publicationRE.FindStringSubmatch(name)
+		if match == nil {
+			continue
+		}
+		packageID := match[1]
+		publicationInfo, err := rootHandle.Lstat(name)
+		if err != nil || publicationInfo.Mode()&os.ModeSymlink != 0 ||
+			!publicationInfo.IsDir() || publicationInfo.Mode().Perm() != 0o500 {
+			return nil, errors.New("core package: invalid matching publication")
+		}
+		inspection, err := inspectRootedPublication(rootHandle, name, publicationInfo)
+		if err != nil || inspection.PackageID != packageID {
+			return nil, errors.New("core package: matching publication content is invalid")
+		}
+		after, err := rootHandle.Lstat(name)
+		currentRoot, rootErr := rootHandle.Stat(".")
+		if err != nil || rootErr != nil || !os.SameFile(publicationInfo, after) ||
+			!os.SameFile(openedRoot, currentRoot) {
+			return nil, errors.New("core package: matching publication changed while adopting")
+		}
+		adopted = append(adopted, Staged{Directory: filepath.Join(root, name),
+			PackageID: packageID, Descriptor: inspection.Descriptor,
+			root: root, rootInfo: openedRoot, publication: name,
+			publicationInfo: publicationInfo})
+	}
+	return adopted, nil
+}
+
+func inspectRootedPublication(parent *os.Root, name string, expected os.FileInfo) (Inspection, error) {
+	root, err := parent.OpenRoot(name)
+	if err != nil {
+		return Inspection{}, fmt.Errorf("core package: open staged publication: %w", err)
+	}
+	defer root.Close()
+	opened, err := root.Stat(".")
+	if err != nil || !os.SameFile(expected, opened) {
+		return Inspection{}, errors.New("core package: staged publication changed while opening")
+	}
+	if err := exactDirectoryEntries(root); err != nil {
+		return Inspection{}, errors.New("core package: staged publication must contain exactly manifest.toml and core.rbf")
+	}
+	manifest, err := readRootMember(root, "manifest.toml", MaxManifestSize)
+	if err != nil {
+		return Inspection{}, err
+	}
+	payload, err := readRootMember(root, "core.rbf", MaxPayloadSize)
+	if err != nil {
+		return Inspection{}, err
+	}
+	if err := exactDirectoryEntries(root); err != nil {
+		return Inspection{}, errors.New("core package: staged publication changed while reading")
+	}
+	after, err := parent.Lstat(name)
+	if err != nil || !os.SameFile(opened, after) {
+		return Inspection{}, errors.New("core package: staged publication changed while inspecting")
+	}
+	descriptor, err := decode(manifest, payload)
+	if err != nil {
+		return Inspection{}, err
+	}
+	return Inspection{PackageID: packageIdentity(manifest, payload), Descriptor: descriptor}, nil
 }
 
 func Stage(ctx context.Context, root string, length int64, reader io.Reader) (Staged, error) {
@@ -600,7 +702,11 @@ func exactKeys(table map[string]any, required, optional []string, field string) 
 	return nil
 }
 
-func validateDescriptor(d Descriptor, payload []byte) error {
+// ValidateDescriptor applies every payload-independent field rule from the
+// format-2 manifest contract. Readers use it before binding the declared
+// payload size and digest to the bytes they opened; protocol projections reuse
+// it so they cannot drift from package admission semantics.
+func ValidateDescriptor(d Descriptor) error {
 	if d.Format != 2 {
 		return errors.New("core package: format must be 2")
 	}
@@ -642,13 +748,6 @@ func validateDescriptor(d Descriptor, payload []byte) error {
 	if !hex64RE.MatchString(d.Payload.SHA256) {
 		return errors.New("core package: invalid payload.sha256")
 	}
-	if int64(len(payload)) != d.Payload.Size {
-		return errors.New("core package: payload size does not match manifest")
-	}
-	digest := sha256.Sum256(payload)
-	if hex.EncodeToString(digest[:]) != d.Payload.SHA256 {
-		return errors.New("core package: payload digest does not match manifest")
-	}
 	if err := contract(d.ABI, "abi"); err != nil {
 		return err
 	}
@@ -680,6 +779,20 @@ func validateDescriptor(d Descriptor, payload []byte) error {
 	}
 	if err := text(d.Build.Toolchain, "build.toolchain", true, 1024); err != nil {
 		return err
+	}
+	return nil
+}
+
+func validateDescriptor(d Descriptor, payload []byte) error {
+	if err := ValidateDescriptor(d); err != nil {
+		return err
+	}
+	if int64(len(payload)) != d.Payload.Size {
+		return errors.New("core package: payload size does not match manifest")
+	}
+	digest := sha256.Sum256(payload)
+	if hex.EncodeToString(digest[:]) != d.Payload.SHA256 {
+		return errors.New("core package: payload digest does not match manifest")
 	}
 	return nil
 }
