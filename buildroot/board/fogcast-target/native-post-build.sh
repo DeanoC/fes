@@ -246,6 +246,10 @@ installed_megadrive=$target/usr/share/mister-runtime/cores/megadrive.rbf
   "$target/etc/init.d/S50mister-agent" \
   "$target/etc/init.d/S60fogcast-kit"
 
+# The stable FES bootstrap retains its root here after pivot_root. This must
+# exist in the immutable candidate; boot cannot create it on a read-only image.
+/bin/mkdir -p "$target/.fes-bootstrap"
+
 build_inputs="$target/usr/share/mister-runtime/build-inputs"
 mister_agent_sha=$(/usr/bin/sha256sum "$target/usr/sbin/mister-agent" | /usr/bin/awk '{print $1}')
 {

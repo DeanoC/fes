@@ -252,7 +252,7 @@ func TestRunComposesFixedCacheContentHandlerAndUploadTimeouts(t *testing.T) {
 			case <-time.After(time.Second):
 				t.Fatal("advertisement did not start")
 			}
-			if server.ReadHeaderTimeout.String() != "2s" || server.ReadTimeout.String() != "1m15s" || server.WriteTimeout.String() != "1m15s" {
+			if server.ReadHeaderTimeout != 2*time.Second || server.ReadTimeout != 6*time.Minute || server.WriteTimeout != 6*time.Minute {
 				t.Fatalf("server timeouts = header %s read %s write %s", server.ReadHeaderTimeout, server.ReadTimeout, server.WriteTimeout)
 			}
 			healthRequest := httptest.NewRequest(http.MethodGet, "/v1/health", nil)

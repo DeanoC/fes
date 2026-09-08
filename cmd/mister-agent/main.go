@@ -17,6 +17,7 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/internal/agentconfig"
+	"github.com/DeanoC/FogCast/internal/applianceupdate"
 	"github.com/DeanoC/FogCast/internal/cast"
 	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/discovery"
@@ -38,6 +39,10 @@ const (
 	rebootCommand           = "/sbin/reboot"
 	bootIDFile              = "/proc/sys/kernel/random/boot_id"
 	castShutdownTimeout     = 2 * time.Second
+	// Release staging accepts multi-gigabyte raw images; this exceeds the
+	// operator's five-minute transport timeout by a bounded margin while the
+	// header timeout still limits slow request setup.
+	applianceRequestTimeout = 6 * time.Minute
 )
 
 var errCastShutdown = errors.New("cast controller could not be stopped")
@@ -58,6 +63,7 @@ type runDependencies struct {
 	serve                 func(*http.Server) error
 	advertise             func(context.Context, string, int) error
 	targetIDPath          string
+	newUpdate             func(*agent.Coordinator, func(context.Context) error) (*applianceupdate.Service, error)
 }
 
 func run(ctx context.Context, configPath string, backend runtimeBackend, logger *slog.Logger) error {
@@ -122,6 +128,7 @@ func runtimeDependencies(backend runtimeBackend, nativeControl misterruntime.Con
 		return input.NewNativeTargetControllerWithConfig(cfg.InputListenAddress, cfg.InputUInputPath)
 	}
 	dependencies.inputBeforeInitialize = true
+	dependencies.newUpdate = loadApplianceUpdate
 	return dependencies, nil
 }
 
@@ -211,7 +218,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	if inputController != nil {
 		options = append(options, httpapi.WithInput(inputController))
 	}
-	leases := kitlease.New(90*time.Second, func(cleanup context.Context) error {
+	cleanupPeripherals := func(cleanup context.Context) error {
 		var cleanupErr error
 		if inputController != nil {
 			if releaser, ok := inputController.(interface{ ReleaseAll(context.Context) error }); ok {
@@ -226,6 +233,19 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 				cleanupErr = errors.Join(cleanupErr, leaseCast.Stop(cleanup, status.Session, status.Generation))
 			}
 		}
+		return cleanupErr
+	}
+	if dependencies.newUpdate != nil {
+		updater, updateErr := dependencies.newUpdate(coordinator, cleanupPeripherals)
+		if updateErr != nil {
+			return errors.New("appliance boot identity could not be verified")
+		}
+		if updater != nil {
+			options = append(options, httpapi.WithUpdate(updater))
+		}
+	}
+	leases := kitlease.New(90*time.Second, func(cleanup context.Context) error {
+		cleanupErr := cleanupPeripherals(cleanup)
 		status, stopErr := coordinator.Stop(cleanup)
 		if stopErr != nil || status.State != protocol.StateIdle {
 			cleanupErr = errors.Join(cleanupErr, errors.New("kit runtime did not become idle"))
@@ -239,8 +259,8 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		Addr:              cfg.ListenAddress,
 		Handler:           handler,
 		ReadHeaderTimeout: 2 * time.Second,
-		ReadTimeout:       75 * time.Second,
-		WriteTimeout:      75 * time.Second,
+		ReadTimeout:       applianceRequestTimeout,
+		WriteTimeout:      applianceRequestTimeout,
 		IdleTimeout:       30 * time.Second,
 	}
 	advertisePort, advertiseOnLAN := discoveryListener(cfg.ListenAddress)

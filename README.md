@@ -44,6 +44,13 @@ and content selection; the MiSTer is a small, directly controlled target.
   on the designated kit. See the dated
   [native Mega Drive baseline](docs/hardware/native-megadrive-baseline.md).
 
+The native FES appliance also has a release/update client and a fixed bootstrap
+with watchdog-bounded trial boots. These require FES bootstrap media; ordinary
+direct-root images do not expose the update API. Build the operator client with
+`make build-fes-update`, then use `bin/fes-update --action status` with the existing
+private host configuration. See [appliance updates](docs/appliance-updates.md).
+Hardware acceptance of this new boot path is tracked separately from game tests.
+
 The normal FPGA launch path is:
 
 1. The browser sends a game ID to `POST /api/v1/session/launch`.

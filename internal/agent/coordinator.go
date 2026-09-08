@@ -74,6 +74,7 @@ type Coordinator struct {
 	transition       chan struct{}
 	mu               sync.RWMutex
 	status           protocol.Status
+	updateBlocked    bool
 }
 
 func New(runtime Runtime, registry core.Registry, launchTimeout, stopTimeout time.Duration, options ...CoordinatorOption) *Coordinator {
@@ -121,6 +122,12 @@ func (c *Coordinator) Status() protocol.Status {
 
 func (c *Coordinator) Health(version string) protocol.Health {
 	health := c.runtime.Health(version)
+	c.mu.RLock()
+	blocked := c.updateBlocked
+	c.mu.RUnlock()
+	if blocked {
+		health.Ready = false
+	}
 	status := c.Status()
 	_, nativeIdle := c.runtime.(idleConfirmingRuntime)
 	if status.State == protocol.StateFailed && (nativeIdle || (status.LastError != nil && status.LastError.Code == protocol.CodeMiSTerUnavailable)) {
@@ -377,6 +384,10 @@ func (c *Coordinator) Stop(parent context.Context) (protocol.Status, *protocol.A
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
 	}
 	defer c.end()
+	return c.stopLocked(parent)
+}
+
+func (c *Coordinator) stopLocked(parent context.Context) (protocol.Status, *protocol.APIError) {
 	current := c.Status()
 	if current.State == protocol.StateIdle {
 		return current, nil

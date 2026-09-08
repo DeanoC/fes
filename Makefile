@@ -135,6 +135,15 @@ build-fogcast-kit:
 	mkdir -p bin
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/fogcast-kit-linux-armv7 ./cmd/fogcast-kit
 
+.PHONY: build-fes-boot build-fes-update
+build-fes-update:
+	mkdir -p bin
+	CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/fes-update ./cmd/fes-update
+
+build-fes-boot:
+	mkdir -p bin
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -buildvcs=false -trimpath -ldflags '$(LDFLAGS)' -o bin/fes-boot-linux-armv7 ./cmd/fes-boot
+
 build-agent: build-fogcast-kit
 	mkdir -p bin
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/mister-agent-linux-armv7 ./cmd/mister-agent

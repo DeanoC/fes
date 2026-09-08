@@ -284,6 +284,58 @@ is the same public `application/octet-stream` session endpoint. Sofa chrome
 labels the result DIAGNOSTIC: HDMI and input may be down, and it is not a
 playable game session. Stop uses the ordinary session Stop-to-idle path.
 
+## FES appliance releases
+
+FES owns compatible source selection and release/media assembly. FogCast supplies
+`cmd/fes-boot`, the target update API, and `cmd/fes-update`. Online releases replace
+only a content-addressed read-only ext4 system image. The locked kernel, U-Boot,
+and fixed `/linux/linux.img` bootstrap stay outside that operation. Configurations,
+target identity, cache, and SNES saves remain on FAT outside every rootfs.
+
+The kernel loop-mounts the bootstrap as before. Its PID 1 verifies the selected
+image, consumes a pending trial durably, attaches another read-only loop, and uses
+`pivot_root` followed by exec of the selected `/sbin/init`. The old bootstrap
+remains at `/.fes-bootstrap`. Preparation failures select verified known-good or
+factory; failures after starting root switching require reboot. No trial is
+repeated on a later boot without another explicit activation.
+
+For a trial, an independent bootstrap process first verifies the ARM DE10-nano
+device tree and prepares Cyclone V warm reset: it marks the completed preloader
+valid and disables the retained-OCRAM boot enabled by the locked U-Boot. Ordered
+32-bit SYSMGR writes and matching readback are required before opening the
+watchdog, so a reset reloads the same valid SD preloader instead of retained RAM
+or the next preloader copy. This does not confirm the appliance trial. The process
+then opens the DesignWare hardware watchdog and acknowledges arming before
+candidate init executes. Its separate
+mount namespace retains the bootstrap and FAT views through pivot. Its deadline
+is 180 seconds. Only a durably synced confirmation matching the actual boot ID
+and selected image permits magic-close. Failure, deadline, or process death
+leaves reset armed. Known-good boots do not require the host to be online.
+
+`internal/appliance` owns bounded raw-image admission, immutable publication,
+cross-process locking, checksummed state, and consumed-trial selection.
+`internal/applianceboot` owns fallback ordering; `internal/bootlinux` owns the
+Linux mounts, loops and watchdog. The bootstrap records its selected image in
+`/media/fat/fogcast/releases/boot.json`; the native agent accepts that ticket only
+for the current kernel boot ID and retained factory manifest.
+
+`internal/applianceupdate` uses the existing kit lease and coordinator transition.
+Activation drains launch/development/input/cast requests, stops the runtime so
+battery saves persist, neutralizes peripherals, records pending selection, flushes
+the HTTP response and requests reboot. During an unconfirmed trial these normal
+operations are blocked; status, Stop, lease management and confirmation remain
+available. A failed response/reboot leaves pending visible and releases admission
+on the current known-good image. Confirmation requires actual native idle.
+
+The host uploads once and activates once. It resolves response loss by reading
+authenticated boot/image identity, rediscovers a changed address using the existing
+target ID, waits for startup lease cleanup, obtains a new lease and confirms only
+the expected trial. The operator client does not add a UI or take over another
+owner. The [operator guide](appliance-updates.md) describes routes and commands.
+
+Host tests and a real isolated ext4-to-ext4 root-switch test cover this composition.
+They do not establish physical watchdog reset or exact-image kit acceptance.
+
 ## Target image
 
 The active image toolchain is under `buildroot/`, `containers/target-image/`,

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/DeanoC/FogCast/internal/applianceupdate"
 	"github.com/DeanoC/FogCast/internal/cast"
 	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/kitlease"
@@ -31,6 +32,7 @@ type serverOptions struct {
 	input       InputController
 	cast        CastController
 	development DevelopmentController
+	update      *applianceupdate.Service
 }
 
 type Option func(*serverOptions)

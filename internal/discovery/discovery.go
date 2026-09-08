@@ -253,6 +253,8 @@ func Advertise(ctx context.Context, id string, port int) error {
 				}
 			}
 		}
+		// Keep cleanup explicit at the retry boundary as well as on returns.
+		cancel()
 	}
 }
 

@@ -76,6 +76,10 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 		registerInputRoutes(mux, token, settings.input)
 	}
 	var handler http.Handler = mux
+	if settings.update != nil {
+		registerUpdateRoutes(mux, token, settings.update, settings.kitLease != nil)
+		handler = guardUpdateAdmission(handler, token, settings.update)
+	}
 	if settings.kitLease != nil {
 		registerKitLeaseRoutes(mux, token, settings.kitLease)
 		handler = guardKitLease(handler, token, settings.kitLease)
@@ -496,6 +500,10 @@ func (w *statusWriter) Flush() {
 	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
 		flusher.Flush()
 	}
+}
+
+func (w *statusWriter) FlushError() error {
+	return http.NewResponseController(w.ResponseWriter).Flush()
 }
 
 func requestLogger(logger *slog.Logger, next http.Handler) http.Handler {
