@@ -248,11 +248,11 @@ development possible with both the open-source Mistral toolchain and Quartus.
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under
   `build/rebuild/pong/`. The diagnostic build has passed native gameplay,
   controls and HDMI audio checks.
-- Simulation-only FES GP mailbox and fixed 1280x720p60 Pong shell with
-  `make sim-fes-pong`. Its board top requires the Task-10 74.25 MHz `pixel_pll`;
-  the pinned nextpnr-mistral now supports that fractional-N clock, but the
-  FES build recipe is not integrated yet. This target provides no RBF or
-  hardware-support evidence.
+- FES GP mailbox and fixed 1280x720p60 Pong shell with `make sim-fes-pong`.
+  `make build-fes-pong` uses the pinned OSS tools and the checked 50→74.25 MHz
+  fractional PLL to build and seal its format-2 package. The build requires a
+  clean committed source tree; recipe presence alone is no RBF, timing, video
+  or hardware-support evidence.
 
 `make sim-pong` tests the standalone digital-control Pong game and continuous
 320x240 raster with Verilator. Set `VERILATOR=/absolute/path/to/verilator` to
@@ -263,6 +263,14 @@ produces a programmable RBF.
 74.25 MHz-domain 720p raster model. It reuses only `pong_game.sv` from the
 MiSTer Pong and simulates the board top with independently driven,
 simulation-only HPS and PLL boundaries.
+
+`make build-fes-pong` authenticates the repository-local Yosys,
+nextpnr-mistral and Mistral cache against `toolchain.lock`, constructs canonical
+`build/fes-pong/build-inputs.json` before synthesis, and passes its 128-bit ID
+as `top.BUILD_ID`. It rejects missing or failing 50/74.25 MHz timing, incomplete
+routing, unexpected hard resources, a changed tool identity, or a dirty source
+checkout before calling the format-2 exporter. The command never programs a
+kit.
 
 `cores.lock` also selects SNES and NES Release 20260823. `make fetch-core
 CORE=snes` and `make fetch-core CORE=nes` use the existing fetch/hash-check
@@ -301,6 +309,10 @@ build/cores/nes/releases/NES_20260823.rbf              # upstream
 build/rebuild/nes/nes.rbf                               # our rebuild
 build/bundles/nes/<rbf-sha256>/nes.rbf                 # exported
 build/bundles/nes/<rbf-sha256>/nes-rbf.toml             # manifest
+build/fes-pong/core.rbf                                 # standalone FES Pong build
+build/fes-pong/build-inputs.json                        # pre-synthesis canonical inputs
+build/fes-pong/build-summary.json                       # timing/resource/tool evidence
+build/fes-pong/manifest.toml                            # generated format-2 manifest
 build/packages/<package-id>/manifest.toml               # format-2 manifest
 build/packages/<package-id>/core.rbf                    # unchanged payload
 build/packages/<package-id>.fcore                       # restricted ustar package

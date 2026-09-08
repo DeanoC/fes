@@ -1,0 +1,360 @@
+from __future__ import annotations
+
+import json
+import subprocess
+import tempfile
+import tomllib
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from scripts import build_fes_pong
+from scripts.build_fes_pong import (
+    AuthenticatedTool,
+    BuildError,
+    build,
+    build_commands,
+    create_build_record,
+    validate_build_evidence,
+)
+from scripts.export_core_package import build_identity
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class BuildFesPongTests(unittest.TestCase):
+    def test_make_entrypoint_uses_the_fixed_recipe(self) -> None:
+        result = subprocess.run(
+            ["make", "-n", "build-fes-pong"],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            result.stdout.strip(),
+            f'python3 scripts/build_fes_pong.py --root "{ROOT}"',
+        )
+
+    def test_commands_pin_exact_design_build_id_clock_and_outputs(self) -> None:
+        build_id = "00112233445566778899aabbccddeeff"
+        tools = {
+            "yosys": Path("/authenticated/bin/yosys"),
+            "nextpnr-mistral": Path("/authenticated/bin/nextpnr-mistral"),
+        }
+        yosys, nextpnr = build_commands(ROOT, ROOT / "build/fes-pong", build_id, tools)
+
+        self.assertEqual(yosys[0], "/authenticated/bin/yosys")
+        self.assertEqual(yosys[1], "-p")
+        program = yosys[2]
+        self.assertIn("read_verilog -sv -I cores/fes-pong/generated", program)
+        for source in build_fes_pong.RTL_SOURCES:
+            self.assertIn(source, program)
+        self.assertIn("chparam -set BUILD_ID 128'h00112233445566778899aabbccddeeff top", program)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", program)
+        self.assertIn("write_json build/fes-pong/synth.json", program)
+
+        self.assertEqual(nextpnr[0], "/authenticated/bin/nextpnr-mistral")
+        self.assertEqual(nextpnr[nextpnr.index("--device") + 1], "5CSEBA6U23I7")
+        self.assertEqual(nextpnr[nextpnr.index("--json") + 1], "build/fes-pong/synth.json")
+        self.assertEqual(nextpnr[nextpnr.index("--qsf") + 1], "cores/fes-pong/constraints.qsf")
+        self.assertEqual(nextpnr[nextpnr.index("--sdc") + 1], "boards/de10nano/clocks.sdc")
+        self.assertEqual(nextpnr[nextpnr.index("--freq") + 1], "74.25")
+        self.assertEqual(nextpnr[nextpnr.index("--seed") + 1], "1")
+        self.assertEqual(nextpnr[nextpnr.index("--rbf") + 1], "build/fes-pong/core.rbf")
+        self.assertEqual(nextpnr[nextpnr.index("--write") + 1], "build/fes-pong/routed.json")
+        self.assertEqual(nextpnr[nextpnr.index("--report") + 1], "build/fes-pong/timing.json")
+        self.assertIn("--compress-rbf", nextpnr)
+        self.assertIn("--detailed-timing-report", nextpnr)
+
+    def test_pll_and_pin_constraints_are_exact(self) -> None:
+        pll = (ROOT / "cores/fes-pong/rtl/pixel_pll.v").read_text(encoding="utf-8")
+        for declaration in (
+            '.reference_clock_frequency("50.0 MHz")',
+            ".number_of_clocks(1)",
+            '.output_clock_frequency0("74.25 MHz")',
+            '.phase_shift0("0 ps")',
+            ".duty_cycle0(50)",
+            '.operation_mode("direct")',
+            '.fractional_vco_multiplier("true")',
+        ):
+            self.assertEqual(pll.count(declaration), 1, declaration)
+
+        qsf = (ROOT / "cores/fes-pong/constraints.qsf").read_text(encoding="utf-8")
+        expected_pins = {
+            "FPGA_CLK1_50": "PIN_V11",
+            "HDMI_TX_CLK": "PIN_AG5",
+            "HDMI_TX_DE": "PIN_AD19",
+            "HDMI_TX_HS": "PIN_T8",
+            "HDMI_TX_VS": "PIN_V13",
+            "HDMI_TX_D[0]": "PIN_AD12",
+            "HDMI_TX_D[1]": "PIN_AE12",
+            "HDMI_TX_D[2]": "PIN_W8",
+            "HDMI_TX_D[3]": "PIN_Y8",
+            "HDMI_TX_D[4]": "PIN_AD11",
+            "HDMI_TX_D[5]": "PIN_AD10",
+            "HDMI_TX_D[6]": "PIN_AE11",
+            "HDMI_TX_D[7]": "PIN_Y5",
+            "HDMI_TX_D[8]": "PIN_AF10",
+            "HDMI_TX_D[9]": "PIN_Y4",
+            "HDMI_TX_D[10]": "PIN_AE9",
+            "HDMI_TX_D[11]": "PIN_AB4",
+            "HDMI_TX_D[12]": "PIN_AE7",
+            "HDMI_TX_D[13]": "PIN_AF6",
+            "HDMI_TX_D[14]": "PIN_AF8",
+            "HDMI_TX_D[15]": "PIN_AF5",
+            "HDMI_TX_D[16]": "PIN_AE4",
+            "HDMI_TX_D[17]": "PIN_AH2",
+            "HDMI_TX_D[18]": "PIN_AH4",
+            "HDMI_TX_D[19]": "PIN_AH5",
+            "HDMI_TX_D[20]": "PIN_AH6",
+            "HDMI_TX_D[21]": "PIN_AG6",
+            "HDMI_TX_D[22]": "PIN_AF9",
+            "HDMI_TX_D[23]": "PIN_AE8",
+        }
+        for signal, pin in expected_pins.items():
+            self.assertEqual(qsf.count(f"set_location_assignment {pin} -to {signal}\n"), 1)
+        self.assertEqual(qsf.count('set_instance_assignment -name IO_STANDARD "3.3-V LVTTL"'), 6)
+
+    def test_build_record_is_canonical_and_self_contained(self) -> None:
+        identities = {
+            "mistral": "commit=" + "b" * 40 + "; sha256=" + "1" * 64,
+            "nextpnr-mistral": "commit=" + "c" * 40 + "; sha256=" + "2" * 64,
+            "yosys": "commit=" + "d" * 40 + "; sha256=" + "3" * 64,
+        }
+        record = create_build_record(
+            ROOT,
+            "https://github.com/DeanoC/misteross.git",
+            "a" * 40,
+            identities,
+        )
+        fields = json.loads(record)
+
+        self.assertEqual(record, json.dumps(fields, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode() + b"\n")
+        self.assertEqual(fields["format"], 1)
+        self.assertEqual(fields["dependencies"], {})
+        self.assertEqual(fields["recipe"], "scripts/build_fes_pong.py")
+        self.assertEqual(fields["abi_definition"], "cores/fes-pong/generated/fes_gp.vh")
+        self.assertEqual(fields["tools"], identities)
+        self.assertEqual(
+            fields["parameters"],
+            {
+                "device": "5CSEBA6U23I7",
+                "pixel_clock_hz": 74250000,
+                "pll_fractional_vco_multiplier": True,
+                "reference_clock_hz": 50000000,
+                "seed": 1,
+                "top": "top",
+            },
+        )
+
+    def _write_passing_outputs(self, output: Path, *, achieved: float = 90.0) -> None:
+        output.mkdir(parents=True, exist_ok=True)
+        (output / "synth.json").write_text(
+            json.dumps(
+                {
+                    "modules": {
+                        "top": {
+                            "cells": {
+                                "pll": {"type": "altera_pll"},
+                                "hps": {"type": "cyclonev_hps_interface_mpu_general_purpose"},
+                            }
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        (output / "routed.json").write_text(
+            json.dumps({"modules": {"top": {"cells": {}}}}) + "\n",
+            encoding="utf-8",
+        )
+        (output / "core.rbf").write_bytes(b"rbf\n")
+        (output / "nextpnr.log").write_text("Info: Program finished normally.\n", encoding="utf-8")
+        (output / "timing.json").write_text(
+            json.dumps(
+                {
+                    "fmax": {
+                        "FPGA_CLK1_50": {"constraint": 50.0, "achieved": 120.0},
+                        "pixel_clk": {"constraint": 74.25, "achieved": achieved},
+                    },
+                    "utilization": {
+                        "MISTRAL_COMB": {"used": 100, "available": 83820},
+                        "MISTRAL_FF": {"used": 80, "available": 167640},
+                        "MISTRAL_IO": {"used": 30, "available": 472},
+                        "MISTRAL_BUF": {"used": 8, "available": 0},
+                        "MISTRAL_CLKENA": {"used": 2, "available": 2},
+                        "altera_pll": {"used": 1, "available": 2},
+                        "cyclonev_hps_interface_mpu_general_purpose": {"used": 1, "available": 1},
+                        "cyclonev_oscillator": {"used": 0, "available": 1},
+                        "MISTRAL_M10K": {"used": 0, "available": 553},
+                        "MISTRAL_MUL9X9": {"used": 0, "available": 112},
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def test_evidence_requires_exact_resources_route_and_both_clocks(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            self._write_passing_outputs(output)
+            summary = validate_build_evidence(output)
+            self.assertEqual(summary["status"], "pass")
+            self.assertEqual(summary["timing"]["pixel"]["requested_mhz"], 74.25)
+            self.assertEqual(summary["resources"]["altera_pll"]["used"], 1)
+            self.assertEqual(summary["resources"]["cyclonev_oscillator"]["used"], 0)
+
+            self._write_passing_outputs(output, achieved=74.249)
+            with self.assertRaisesRegex(BuildError, "74.25"):
+                validate_build_evidence(output)
+
+            self._write_passing_outputs(output)
+            timing = json.loads((output / "timing.json").read_text(encoding="utf-8"))
+            timing["utilization"]["MISTRAL_M10K"]["used"] = 1
+            (output / "timing.json").write_text(json.dumps(timing), encoding="utf-8")
+            with self.assertRaisesRegex(BuildError, "MISTRAL_M10K"):
+                validate_build_evidence(output)
+
+            self._write_passing_outputs(output)
+            timing = json.loads((output / "timing.json").read_text(encoding="utf-8"))
+            timing["utilization"]["cyclonev_oscillator"]["used"] = 1
+            (output / "timing.json").write_text(json.dumps(timing), encoding="utf-8")
+            with self.assertRaisesRegex(BuildError, "cyclonev_oscillator"):
+                validate_build_evidence(output)
+
+            self._write_passing_outputs(output)
+            timing = json.loads((output / "timing.json").read_text(encoding="utf-8"))
+            del timing["utilization"]["cyclonev_oscillator"]
+            (output / "timing.json").write_text(json.dumps(timing), encoding="utf-8")
+            with self.assertRaisesRegex(BuildError, "cyclonev_oscillator"):
+                validate_build_evidence(output)
+
+            self._write_passing_outputs(output)
+            (output / "routed.json").write_text("{}\n", encoding="utf-8")
+            with self.assertRaisesRegex(BuildError, "routed design"):
+                validate_build_evidence(output)
+
+    def test_forbidden_synthesis_cells_are_rejected_without_utilization_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            for resource in (
+                "MISTRAL_MLAB",
+                "MISTRAL_M10K",
+                "MISTRAL_MUL9X9",
+                "MISTRAL_MUL18X18",
+                "MISTRAL_MUL27X27",
+            ):
+                with self.subTest(resource=resource):
+                    self._write_passing_outputs(output)
+                    synthesis = json.loads(
+                        (output / "synth.json").read_text(encoding="utf-8")
+                    )
+                    synthesis["modules"]["top"]["cells"]["forbidden"] = {
+                        "type": resource
+                    }
+                    (output / "synth.json").write_text(
+                        json.dumps(synthesis), encoding="utf-8"
+                    )
+                    with self.assertRaisesRegex(BuildError, resource):
+                        validate_build_evidence(output)
+
+    def test_recipe_pins_the_integrated_fractional_pll_toolchain(self) -> None:
+        self.assertEqual(
+            build_fes_pong.EXPECTED_TOOL_COMMITS,
+            {
+                "mistral": "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
+                "nextpnr": "ef294430c57b1d64c52f15129adcc6236ecbce01",
+                "yosys": "10891a9e0256a0eac70c329aa64c633902fc6bc6",
+            },
+        )
+
+    def test_record_exists_before_synthesis_and_export_waits_for_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in set(build_fes_pong.PINNED_INPUTS):
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(f"fixture {relative}\n", encoding="utf-8")
+            output = root / "build/fes-pong"
+            package_store = root / "build/packages"
+            revision = "a" * 40
+            tools = {
+                "mistral": AuthenticatedTool(Path("/tool/mistral-cv"), "mistral identity"),
+                "nextpnr-mistral": AuthenticatedTool(Path("/tool/nextpnr-mistral"), "nextpnr identity"),
+                "yosys": AuthenticatedTool(Path("/tool/yosys"), "yosys identity"),
+            }
+            events: list[str] = []
+
+            def run_tool(command: tuple[str, ...], cwd: Path, log: Path) -> None:
+                self.assertTrue((output / "build-inputs.json").is_file())
+                events.append(Path(command[0]).name)
+                if Path(command[0]).name == "yosys":
+                    self.assertIn(
+                        build_identity((output / "build-inputs.json").read_bytes()),
+                        " ".join(command),
+                    )
+                    log.write_text("ok\n", encoding="utf-8")
+                    self._write_passing_outputs(output)
+                else:
+                    log.write_text("Info: Program finished normally.\n", encoding="utf-8")
+
+            def exporter(manifest: bytes, payload: Path, destination: Path) -> Path:
+                self.assertEqual(events, ["yosys", "nextpnr-mistral"])
+                self.assertEqual(validate_build_evidence(output)["status"], "pass")
+                decoded = tomllib.loads(manifest.decode("utf-8"))
+                self.assertEqual(decoded["build"]["id"], build_identity((output / "build-inputs.json").read_bytes()))
+                self.assertEqual(payload, output / "core.rbf")
+                self.assertEqual(destination, package_store)
+                return package_store / ("f" * 64)
+
+            with (
+                patch.object(build_fes_pong, "_require_clean_source", return_value=("https://github.com/DeanoC/misteross.git", revision)),
+                patch.object(build_fes_pong, "_authenticate_tools", return_value=tools),
+                patch.object(build_fes_pong, "_run_tool", side_effect=run_tool),
+                patch.object(build_fes_pong, "export_package", side_effect=exporter) as export_mock,
+            ):
+                result = build(root, package_store)
+
+            self.assertEqual(result, package_store / ("f" * 64))
+            export_mock.assert_called_once()
+
+    def test_failed_timing_never_exports(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in set(build_fes_pong.PINNED_INPUTS):
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(f"fixture {relative}\n", encoding="utf-8")
+            output = root / "build/fes-pong"
+            tools = {
+                "mistral": AuthenticatedTool(Path("/tool/mistral-cv"), "mistral identity"),
+                "nextpnr-mistral": AuthenticatedTool(Path("/tool/nextpnr-mistral"), "nextpnr identity"),
+                "yosys": AuthenticatedTool(Path("/tool/yosys"), "yosys identity"),
+            }
+
+            def run_tool(command: tuple[str, ...], cwd: Path, log: Path) -> None:
+                log.write_text("ok\n", encoding="utf-8")
+                if Path(command[0]).name == "yosys":
+                    self._write_passing_outputs(output, achieved=70.0)
+
+            with (
+                patch.object(build_fes_pong, "_require_clean_source", return_value=("https://github.com/DeanoC/misteross.git", "a" * 40)),
+                patch.object(build_fes_pong, "_authenticate_tools", return_value=tools),
+                patch.object(build_fes_pong, "_run_tool", side_effect=run_tool),
+                patch.object(build_fes_pong, "export_package") as export_mock,
+            ):
+                with self.assertRaises(BuildError):
+                    build(root, root / "build/packages")
+            export_mock.assert_not_called()
+            self.assertTrue((output / "build-inputs.json").is_file())
+            self.assertFalse((output / "core.rbf").exists())
+            self.assertFalse((output / "manifest.toml").exists())
+            self.assertFalse((output / "build-summary.json").exists())
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1084,8 +1084,8 @@ ACK-zero, reset and neutral-button state remains visible, but new requests do
 not ACK. Activation consequently fails instead of accepting a core whose video
 clock is stopped.
 
-Top has the synthesis parameter `BUILD_ID[127:0]`. Task 10 must override that
-parameter with the 32 hexadecimal digits of the build-record ID; identity
+Top has the synthesis parameter `BUILD_ID[127:0]`. The standalone build recipe
+overrides that parameter with the 32 hexadecimal digits of the build-record ID; identity
 indices 8 through 15 expose successive source-order byte pairs with the low byte
 first. The all-zero default identifies an unset simulation/build integration
 value rather than an accepted artifact.
@@ -1096,12 +1096,42 @@ clocks with independent phases and exposes the HPS GP boundary so `board_tb.cpp`
 can test the production top. It verifies that reference-only clocks cannot
 advance the pixel-domain mailbox, then commits multi-bit buttons and a
 reset/button-clear vector immediately around frame tick. This model does not
-model 74.25 MHz, PLL lock, or hardware. `top.v` intentionally references Task
-10's `pixel_pll`, which does not yet exist here. The selected nextpnr-mistral
-pin now supports the checked 50→74.25 MHz fractional-N profile used by
-`610_pll_frac_7425`; the FES build recipe has not yet integrated it. This source
-currently has simulation and lint evidence only: there is no FES Pong RBF,
-synthesis, timing closure, physical-video result or hardware-support claim.
+model 74.25 MHz, PLL lock, or hardware. Production `pixel_pll.v` uses the same
+checked 50→74.25 MHz single-output fractional-N declaration as
+`610_pll_frac_7425`: direct operation, zero phase, 50% duty and
+`fractional_vco_multiplier="true"`. Integer mode is not accepted for this
+rate. `constraints.qsf` assigns the DE10-Nano 50 MHz input and the ADV7513
+RGB888, DE, sync and pixel-clock pins.
+
+`scripts/build_fes_pong.py`, invoked by `make build-fes-pong`, is the sole
+standalone recipe. Its source set is `pixel_pll.v`, `top.v`, `fes_gp.v`,
+`video_720p.v` and the existing `pong_game.sv`, with the generated ABI include
+directory. Yosys receives the build-record-derived 128-bit `BUILD_ID` and
+forbids BRAM, LUTRAM and DSP inference. nextpnr targets `5CSEBA6U23I7` with
+seed 1, the task-local QSF, the 50 MHz board SDC and an explicit 74.25 MHz
+target; all outputs stay under `build/fes-pong/`.
+
+Before synthesis, the recipe requires a clean source checkout, checks every
+recipe/source/constraint/ABI/lock input is tracked and non-symlinked,
+authenticates Yosys `10891a9e0256a0eac70c329aa64c633902fc6bc6`, Mistral
+`b28e30a36b5139aaed5a5d361a30b542e6b7c758` and nextpnr-mistral
+`ef294430c57b1d64c52f15129adcc6236ecbce01` through their canonical cache
+stamps and executable digests, then writes canonical `build-inputs.json`.
+The record uses `scripts/build_fes_pong.py` as its recipe,
+`cores/fes-pong/generated/fes_gp.vh` as its tracked ABI definition, and an empty
+dependency map because the build is self-contained in this checkout.
+
+Export remains unreachable until the routed JSON contains top, synthesis and
+utilization each show exactly one `altera_pll` and one HPS GP primitive, no
+forbidden memory/DSP synthesis cell or utilization resource is used, the known
+`cyclonev_oscillator` utilization row is present with zero use, the route log proves normal completion,
+and the timing JSON contains unique passing 50 MHz reference and 74.25 MHz
+pixel constraints. After creating the deterministic manifest, the recipe
+reauthenticates tools and the clean source before calling the Task-3 exporter. A failed
+build retains the pre-synthesis input record and diagnostic reports but removes
+the RBF, manifest and passing summary so they cannot be mistaken for an
+exportable result. The recipe checkpoint itself has no FES Pong RBF, physical
+video result or hardware-support claim.
 
 ## Pong MiSTer wrapper and Quartus build
 
