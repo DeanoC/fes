@@ -248,11 +248,21 @@ development possible with both the open-source Mistral toolchain and Quartus.
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under
   `build/rebuild/pong/`. The diagnostic build has passed native gameplay,
   controls and HDMI audio checks.
+- Simulation-only FES GP mailbox and fixed 1280x720p60 Pong shell with
+  `make sim-fes-pong`. Its board top requires the Task-10 74.25 MHz `pixel_pll`;
+  the pinned nextpnr-mistral now supports that fractional-N clock, but the
+  FES build recipe is not integrated yet. This target provides no RBF or
+  hardware-support evidence.
 
 `make sim-pong` tests the standalone digital-control Pong game and continuous
 320x240 raster with Verilator. Set `VERILATOR=/absolute/path/to/verilator` to
 reuse an installed tool. `make build-pong` adds the MiSTer board wrapper and
 produces a programmable RBF.
+
+`make sim-fes-pong` tests the separate `fes.simple-game` GP transport and exact
+74.25 MHz-domain 720p raster model. It reuses only `pong_game.sv` from the
+MiSTer Pong and simulates the board top with independently driven,
+simulation-only HPS and PLL boundaries.
 
 `cores.lock` also selects SNES and NES Release 20260823. `make fetch-core
 CORE=snes` and `make fetch-core CORE=nes` use the existing fetch/hash-check
@@ -291,6 +301,10 @@ build/cores/nes/releases/NES_20260823.rbf              # upstream
 build/rebuild/nes/nes.rbf                               # our rebuild
 build/bundles/nes/<rbf-sha256>/nes.rbf                 # exported
 build/bundles/nes/<rbf-sha256>/nes-rbf.toml             # manifest
+build/packages/<package-id>/manifest.toml               # format-2 manifest
+build/packages/<package-id>/core.rbf                    # unchanged payload
+build/packages/<package-id>.fcore                       # restricted ustar package
+build/packages/<package-id>.build-inputs.json           # external build evidence
 ```
 
 `make export-core-bundle CORE=megadrive` validates the rebuild and its
@@ -360,6 +374,27 @@ make select-core CORE=megadrive ARTIFACT=upstream
 `build/current/megadrive.rbf` remains an operator selection and is not the
 FogCast release handoff. The handoff is the printed digest directory under
 `build/bundles/megadrive/`.
+
+Format-2 packages use a separate exporter and do not change the format-1
+`export-core-bundle` command. Put canonical `build-inputs.json` beside the RBF,
+then export it with:
+
+```sh
+make export-core-package \
+  PACKAGE_MANIFEST=/absolute/path/manifest.toml \
+  PACKAGE_RBF=/absolute/path/core.rbf \
+  PACKAGE_OUTPUT="$PWD/build/packages"
+python3 scripts/core_package.py inspect \
+  build/packages/<package-id>.fcore
+```
+
+The command prints the sealed package directory. The matching `.fcore` contains
+only `manifest.toml` followed by `core.rbf` in deterministic, uncompressed POSIX
+ustar framing. The `.build-inputs.json` file stays outside the package because it
+is build evidence rather than runtime metadata. Export requires a clean source
+checkout at the manifest revision, tracked recipe and ABI-definition files with
+the recorded digests, and clean dependency checkouts at their recorded commits.
+It cannot seal artifacts from an uncommitted implementation tree.
 
 See `docs/oracle-method.md` for the explicit Quartus path and
 `docs/linux-mailbox-development.md` for the mailbox experiment.

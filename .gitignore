@@ -9,6 +9,7 @@ __pycache__/
 *.fst
 *.log
 *.json
+!cores/fes-pong/generated/exchanges.json
 *.rbf
 *.sof
 *.smsg
