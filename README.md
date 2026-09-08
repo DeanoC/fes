@@ -239,6 +239,10 @@ development possible with both the open-source Mistral toolchain and Quartus.
   true dual-port table. Run `make sim EXP=600_m10k_tdp_mix8_16` and
   `make oss EXP=600_m10k_tdp_mix8_16`; no Quartus comparison lane is
   implemented.
+- `610_pll_frac_7425`, the checked 50→74.25 MHz fractional-N profile measured
+  through HPS GP. Simulation uses a 25 MHz digital stand-in; the analog ratio
+  is kit-only. Run `make sim EXP=610_pll_frac_7425` and
+  `make oss EXP=610_pll_frac_7425`; no Quartus comparison lane is implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under
