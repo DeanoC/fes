@@ -127,7 +127,7 @@ func TestSystemHeadersCompileTogether(t *testing.T) {
 
 func TestRealSystemHeadersV2CompileTogether(t *testing.T) {
 	dir := t.TempDir()
-	for _, name := range []string{"megadrive", "pong", "snes"} {
+	for _, name := range []string{"megadrive", "pong", "snes", "nes"} {
 		sys, err := pack.LoadSystem("../../packages/system/" + name + ".yaml")
 		if err != nil {
 			t.Fatal(err)
@@ -146,6 +146,7 @@ func TestRealSystemHeadersV2CompileTogether(t *testing.T) {
 	source := `#include "megadrive.hpp"
 #include "pong.hpp"
 #include "snes.hpp"
+#include "nes.hpp"
 using namespace mister::native::generated;
 static_assert(kMegaDrive.input.c == 0x40 && kMegaDrive.input.x == 0 && kMegaDrive.input.select == 0, "MD unchanged");
 static_assert(kMegaDrive.media[0].transform[0] == 'r', "raw default");
@@ -153,6 +154,7 @@ static_assert(kPong.media == nullptr && kPong.media_count == 0 && kPong.input.x 
 static_assert(kSNES.media[0].index == 1 && kSNES.media[0].maximum_size == 0x400200, "SNES native cartridge");
 static_assert(kSNES.media[0].transform[0] == 's', "SNES transform");
 static_assert(kSNES.input.c == 0 && kSNES.input.x == 0x40 && kSNES.input.y == 0x80 && kSNES.input.l == 0x100 && kSNES.input.r == 0x200 && kSNES.input.select == 0x400 && kSNES.input.start == 0x800, "SNES buttons");
+static_assert(kNES.media[0].index == 0x40 && kNES.core.file_wire[14] == 'b', "NES native file contract");
 `
 	if err := os.WriteFile(filepath.Join(dir, "test.cpp"), []byte(source), 0600); err != nil {
 		t.Fatal(err)

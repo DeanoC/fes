@@ -119,7 +119,10 @@ input:
   start: 0x0080
 ```
 
-`file_wire` is currently only `little_endian_byte_pairs`. Input masks
+`file_wire` selects how the runtime places media bytes in the 16-bit SPI
+transport. `little_endian_byte_pairs` sends two adjacent bytes in each word;
+`little_endian_bytes` sends one byte in the low eight bits of each word. The
+NES core uses the latter because its `hps_io` instance has `WIDE=0`. Input masks
 must be unique powers of two when nonzero. Up/Down/Left/Right/A/B/Start
 are required. C and X/Y/L/R/Select default to zero (unsupported); zero
 optional masks do not participate in overlap checks. `player_count` is 1 because that is what
@@ -177,6 +180,13 @@ system/expected core identity and, when a cartridge role exists, its media
 index. Without that role no `CartridgeIndex` symbol is emitted. Existing
 cartridge-bearing output is unchanged. It does not emit
 aliases, covers, Main RBF paths, or library roots.
+
+The NES source package `packages/source/nes_mister.yaml` pins upstream
+Release20260823 and its verified official RBF. The matching
+`system/nes.yaml` declares the first `FS,NESFDSNSF` entry using native
+filetype index `0x40`: bits 7:6 select an NES cartridge and bits 5:0 select
+the filesystem slot. This differs from the product library's zero-based
+selector and is required by the core's `filetype` decoder.
 
 The SNES source package `packages/source/snes_mister.yaml` pins upstream
 Release20260823 and its verified official RBF. The matching `system/snes.yaml` declares native cartridge index 1 and

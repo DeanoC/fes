@@ -13,7 +13,9 @@ rbf:
   source: source/nes_mister.yaml
 media:
   - role: cartridge
-    index: 0
+    # MiSTer's NES core encodes the first FS entry as filetype 0x40:
+    # bits 7:6 select NES and bits 5:0 select the FS slot.
+    index: 0x40
     required: true
     extensions: [.nes]
     maximum_size: 0x2000000
@@ -22,7 +24,9 @@ core:
   reset_assert_word: 0x0001
   initial_status_word: 0x0001
   reset_release_word: 0x0000
-  file_wire: little_endian_byte_pairs
+  # The NES core instantiates hps_io with WIDE=0, so each byte is carried in
+  # the low byte of its own 16-bit SPI word.
+  file_wire: little_endian_bytes
 input:
   player_count: 1
   player_command: 0x02

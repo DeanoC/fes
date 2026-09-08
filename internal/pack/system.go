@@ -11,6 +11,7 @@ import (
 
 const (
 	FileWireLittleEndianBytePairs = "little_endian_byte_pairs"
+	FileWireLittleEndianBytes     = "little_endian_bytes"
 	maxMediaRules                 = 8
 	maxSettingRules               = 16
 	maxMediaSize                  = 32 * 1024 * 1024
@@ -137,7 +138,8 @@ func (c CoreRecipe) validate() error {
 	if uint64(c.ResetAssertWord) == 0 || uint64(c.InitialStatusWord) == 0 {
 		return fmt.Errorf("invalid core recipe")
 	}
-	if c.FileWire != FileWireLittleEndianBytePairs {
+	if c.FileWire != FileWireLittleEndianBytePairs &&
+		c.FileWire != FileWireLittleEndianBytes {
 		return fmt.Errorf("unsupported file_wire %q", c.FileWire)
 	}
 	return nil
