@@ -43,22 +43,40 @@ def mlab_init_lane(bit: int) -> int:
     return sum(((mlab_init_byte(address) >> int(bit)) & 1) << address for address in range(32))
 
 
-def mlab_init_parameter(value: Any) -> int | None:
-    """Parse a Yosys JSON INIT value as a 32-bit integer."""
+def json_bit_parameter(value: Any) -> int | None:
+    """Parse a Yosys JSON binary/hex/decimal parameter as an unbounded integer."""
 
     if isinstance(value, bool) or value is None:
         return None
     if isinstance(value, int):
-        return value & 0xFFFFFFFF
+        return int(value)
     if isinstance(value, str):
         text = value.strip().lower().replace("_", "")
         if text.startswith("0x"):
-            return int(text, 16) & 0xFFFFFFFF
+            return int(text, 16)
         if text and set(text) <= set("01xz"):
-            return int(text.replace("x", "0").replace("z", "0"), 2) & 0xFFFFFFFF
+            return int(text.replace("x", "0").replace("z", "0"), 2)
         if text.isdigit():
-            return int(text, 10) & 0xFFFFFFFF
+            return int(text, 10)
     return None
+
+
+def mlab_init_parameter(value: Any) -> int | None:
+    """Parse a Yosys JSON INIT value as a 32-bit integer."""
+
+    parsed = json_bit_parameter(value)
+    return None if parsed is None else parsed & 0xFFFFFFFF
+
+
+def m10k_init_word(address: int, width: int) -> int:
+    """Return the closed M10K power-up word at *address* for 20- or 40-bit tables."""
+
+    if width not in (20, 40):
+        raise PolicyError(f"unsupported M10K width {width}")
+    low = ((int(address) * 73) ^ (int(address) >> 1) ^ 0xA6) & 0xFFFFF
+    if width == 40:
+        return ((~low & 0xFFFFF) << 20) | low
+    return low
 
 
 class PolicyError(ValueError):
@@ -139,6 +157,8 @@ class ExperimentPolicy:
     synth_json_input_ports: Mapping[str, tuple[str, ...]] = MappingProxyType({})
     synth_json_tied_low: Mapping[str, tuple[str, ...]] = MappingProxyType({})
     synth_json_mlab_init: bool = False
+    m10k_byte_enable: bool = False
+    require_read_clock_arc: bool = False
 
     def __post_init__(self) -> None:
         if not self.name or not isinstance(self.name, str):
@@ -171,6 +191,8 @@ class ExperimentPolicy:
             ("nolutram", self.nolutram),
             ("nodsp", self.nodsp),
             ("synth_json_mlab_init", self.synth_json_mlab_init),
+            ("m10k_byte_enable", self.m10k_byte_enable),
+            ("require_read_clock_arc", self.require_read_clock_arc),
         ):
             if not isinstance(flag, bool):
                 raise PolicyError(f"{self.name}: {flag_name} must be a boolean")
@@ -494,6 +516,8 @@ class ExperimentPolicy:
                 )
         if self.synth_json_mlab_init:
             self._require_mlab_init(design)
+        if self.m10k_byte_enable:
+            self._require_m10k_byte_enable(design)
 
     def _mlab_init_cells(self, design: Mapping[str, Any]) -> dict[int, dict[str, Any]]:
         modules = design.get("modules")
@@ -535,6 +559,93 @@ class ExperimentPolicy:
                 raise PolicyError(
                     f"MLAB lane {bit} INIT must be {expected:032b}, got {parameters.get('INIT')!r}"
                 )
+
+    def _m10k_cells(self, design: Mapping[str, Any]) -> list[dict[str, Any]]:
+        modules = design.get("modules")
+        if not isinstance(modules, Mapping):
+            raise PolicyError("synth json has no modules")
+        found: list[dict[str, Any]] = []
+        for module in modules.values():
+            if not isinstance(module, Mapping):
+                continue
+            cells = module.get("cells")
+            if not isinstance(cells, Mapping):
+                continue
+            for cell in cells.values():
+                if isinstance(cell, Mapping) and cell.get("type") == "MISTRAL_M10K":
+                    found.append(cell)
+        return found
+
+    def _require_m10k_byte_enable(self, design: Mapping[str, Any]) -> None:
+        cells = self._m10k_cells(design)
+        if len(cells) != 1:
+            raise PolicyError(f"synth json must contain exactly one MISTRAL_M10K, got {len(cells)}")
+        cell = cells[0]
+        parameters = cell.get("parameters")
+        connections = cell.get("connections")
+        if not isinstance(parameters, Mapping) or not isinstance(connections, Mapping):
+            raise PolicyError("M10K cell is missing parameters or connections")
+        if json_bit_parameter(parameters.get("CFG_BYTE_ENABLE")) != 1:
+            raise PolicyError(
+                f"M10K CFG_BYTE_ENABLE must be 1, got {parameters.get('CFG_BYTE_ENABLE')!r}"
+            )
+        if json_bit_parameter(parameters.get("CFG_DUAL_CLOCK")) != 1:
+            raise PolicyError(
+                f"M10K CFG_DUAL_CLOCK must be 1, got {parameters.get('CFG_DUAL_CLOCK')!r}"
+            )
+        if json_bit_parameter(parameters.get("CFG_DBITS")) != 20:
+            raise PolicyError(f"M10K CFG_DBITS must be 20, got {parameters.get('CFG_DBITS')!r}")
+        if json_bit_parameter(parameters.get("CFG_ABITS")) != 9:
+            raise PolicyError(f"M10K CFG_ABITS must be 9, got {parameters.get('CFG_ABITS')!r}")
+        clk1 = connections.get("CLK1")
+        clk2 = connections.get("CLK2")
+        if not isinstance(clk1, list) or not clk1:
+            raise PolicyError("M10K CLK1 must be connected")
+        if not isinstance(clk2, list) or not clk2:
+            raise PolicyError("M10K CLK2 must be connected")
+        if clk1 == clk2:
+            raise PolicyError("M10K CLK1 and CLK2 must be independent")
+        byte_enables = connections.get("A1BE")
+        if not isinstance(byte_enables, list) or len(byte_enables) != 2:
+            raise PolicyError("M10K A1BE must be a two-bit connected port")
+        if byte_enables[0] == byte_enables[1]:
+            raise PolicyError("M10K A1BE lanes must be independent")
+        write_enable = connections.get("A1EN")
+        if not isinstance(write_enable, list) or not write_enable:
+            raise PolicyError("M10K A1EN must be connected")
+        init = json_bit_parameter(parameters.get("INIT"))
+        if init is None:
+            raise PolicyError("M10K INIT is missing")
+        mask = (1 << 20) - 1
+        for address in (0, 1, 2, 7, 15, 31, 63, 127, 255):
+            actual = (init >> (address * 20)) & mask
+            expected = m10k_init_word(address, 20)
+            if actual != expected:
+                raise PolicyError(
+                    f"M10K INIT address {address} must be {expected:#x}, got {actual:#x}"
+                )
+
+    def validate_timing_report(self, timing: Mapping[str, Any]) -> None:
+        """Require the independent 25 MHz read-clock arc when the closed policy asks for it."""
+
+        if not self.require_read_clock_arc:
+            return
+        if not isinstance(timing, Mapping):
+            raise PolicyError("timing report must be an object")
+        paths = timing.get("critical_paths")
+        if not isinstance(paths, list):
+            raise PolicyError("timing report has no critical_paths")
+        for path in paths:
+            if not isinstance(path, Mapping):
+                continue
+            if path.get("from") != "posedge read_clock":
+                continue
+            delay = path.get("max_delay")
+            if isinstance(delay, bool) or not isinstance(delay, (int, float)):
+                continue
+            if abs(float(delay) - 40.0) <= 1e-6:
+                return
+        raise PolicyError("timing report must include a 25 MHz read_clock critical path")
 
     def apply_synth_json(self, path: Path) -> None:
         """Fix Yosys JSON extras that nextpnr cannot consume as-is.
@@ -724,6 +835,8 @@ class ExperimentPolicy:
                 else {}
             ),
             **({"synth_json_mlab_init": True} if self.synth_json_mlab_init else {}),
+            **({"m10k_byte_enable": True} if self.m10k_byte_enable else {}),
+            **({"require_read_clock_arc": True} if self.require_read_clock_arc else {}),
         }
 
 
@@ -2739,6 +2852,60 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                         "experiments/020_linux_mailbox/sim/hps_gp_model.v",
                     ),
                     tb="experiments/470_mlab_init/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "500_m10k_be20": ExperimentPolicy(
+            name="500_m10k_be20",
+            sources=("experiments/500_m10k_be20/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"PLL", "M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            required_synth_cells={
+                "MISTRAL_M10K": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            nobram=False,
+            m10k_byte_enable=True,
+            require_read_clock_arc=True,
+            synth_json_input_ports={"MISTRAL_M10K": ("CLK1", "CLK2", "A1EN", "A1BE")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/500_m10k_be20/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/360_pll_clkena/sim/pll_model.v",
+                        "experiments/360_pll_clkena/sim/clkena_model.v",
+                    ),
+                    tb="experiments/500_m10k_be20/sim/tb.cpp",
                 ),
             ),
         ),

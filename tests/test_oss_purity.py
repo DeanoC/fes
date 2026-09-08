@@ -105,6 +105,7 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/450_dsp_mac/rtl/top.v",
             "experiments/460_dsp_reg/rtl/top.v",
             "experiments/470_mlab_init/rtl/top.v",
+            "experiments/500_m10k_be20/rtl/top.v",
         ):
             destination = repository / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -141,8 +142,8 @@ class OssPipelinePurityTests(unittest.TestCase):
                 shim(bin_dir / name, name)
 
         pins = {
-            "yosys": "1e7fbaee2fa3e1fc2f68199bebd413061a4628fb",
-            "nextpnr": "9632c85b84069acc8bb507165a48c348c70499eb",
+            "yosys": "4722ee98b2d658adc82504112573a712d40dacf1",
+            "nextpnr": "71d2ffdbdf669475d6596352990f4d22d90a9092",
         }
         for lock_name, commit in pins.items():
             evidence = external_build / lock_name if symlink_build_tools else build / lock_name
@@ -199,6 +200,18 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertIn("-nobram -nolutram -nodsp", commands)
         self.assertIn("--freq 50", commands)
         self.assertNotIn("hps_gp_model.v", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_block_memory_and_pll_for_m10k_byte_enable(self) -> None:
+        result = self._run("--print-commands", "--experiment", "500_m10k_be20")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/500_m10k_be20/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", commands)
+        self.assertNotIn("-nobram", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
         self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
 
     def test_print_commands_enables_block_memory_only_for_m10k_rom(self) -> None:

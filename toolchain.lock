@@ -1,20 +1,20 @@
 [tool.yosys]
 repo = "https://github.com/DeanoC/yosys.git"
-commit = "1e7fbaee2fa3e1fc2f68199bebd413061a4628fb"
+commit = "4722ee98b2d658adc82504112573a712d40dacf1"
 order = 10
-rationale = "DeanoC mistral-stable including merged PR #1: Intel ALM infers initialized Cyclone V MLAB memories (lutram_mlab init 1 and MISTRAL_MLAB INIT). Base is YosysHQ 13b43f8c CMake pin; 1e7fbaee merges 04bdc4f9. Pair with nextpnr 9632c85 (merged PR #31)."
+rationale = "DeanoC mistral-stable including merged PR #3: Intel ALM infers Cyclone V 512x20 M10K byte enables as two 10-bit write lanes (CFG_BYTE_ENABLE=1 and A1BE[1:0]), keeping independent CLK1/CLK2. Base is CMake pin a044a8ea (merged PRs #1-#2 on YosysHQ 13b43f8c); 4722ee98 merges e9fbe56. Pair with nextpnr 71d2ffdb (merged PR #33); old Yosys maps 20-bit byte-enable RAM without A1BE."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
 commit = "b28e30a36b5139aaed5a5d361a30b542e6b7c758"
 order = 20
-rationale = "DeanoC fork for nextpnr 9632c85 Cyclone V MUL9X9/MUL18X18/MUL27X27, PLL BELs, MLAB INIT, and corrected LAB/MLAB CLKx_INV/CLKx_SEL addresses: preserves DSP upper routing tiles on the bfa096c1 array-header baseline; fixed commit, not a moving branch."
+rationale = "DeanoC fork for nextpnr 71d2ffdb Cyclone V MUL9X9/MUL18X18/MUL27X27, PLL BELs, MLAB INIT, M10K dual-clock packing, 20-bit M10K byte enables, and corrected LAB/MLAB CLKx_INV/CLKx_SEL addresses: preserves DSP upper routing tiles on the bfa096c1 array-header baseline; fixed commit, not a moving branch."
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "9632c85b84069acc8bb507165a48c348c70499eb"
+commit = "71d2ffdbdf669475d6596352990f4d22d90a9092"
 order = 30
-rationale = "DeanoC mistral-stable including merged PR #31: Cyclone V MLAB numeric INIT on each MISTRAL_MLAB lane, plus merged PR #30 MUL9X9/MUL18X18/MUL27X27, DSP registers, M9 preadder, M18 C as {8,9,6,7}, omitted-control defaults, integer/dual/fractional altera_pll, and cyclonev_clkena packing for 5CSEBA6U23I7; 9632c85 merges bc089702 onto 39f194e (PRs #21-#31). Requires Mistral b28e30a and Yosys 1e7fbaee (merged PR #1) so initialized RTL maps to MLAB INIT."
+rationale = "DeanoC mistral-stable including merged PR #33: Cyclone V 20-bit M10K CFG_BYTE_ENABLE maps A1BE to BYTEENABLEA and the logical write enable to positive WREN[0] plus ENABLE[1], keeping independent CLKIN[0:1]. Base 79daad71 is merged PRs #21-#32 for 5CSEBA6U23I7; 71d2ffdb merges e677fc48 onto 79daad71. Requires Mistral b28e30a and Yosys 4722ee98 (merged PR #3); old nextpnr ignores A1BE JSON."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

@@ -145,12 +145,15 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current Yosys pin `1e7fbaee2fa3e1fc2f68199bebd413061a4628fb` is
-`mistral-stable` with merged PR #1: Intel ALM infers initialized Cyclone V MLAB
-memories. It is based on YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`.
+The current Yosys pin `4722ee98b2d658adc82504112573a712d40dacf1` is
+`mistral-stable` including merged PR #3: Intel ALM infers Cyclone V 512x20 M10K byte
+enables as two 10-bit write lanes (`CFG_BYTE_ENABLE=1`, `A1BE[1:0]`), including
+merged PR #2 independent CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake
+base is YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair it with
+nextpnr `71d2ffdb`.
 
-The current nextpnr pin `9632c85b84069acc8bb507165a48c348c70499eb` is
-`mistral-stable` with merged PR #31 MLAB INIT and merged PR #30 DSP modes: three-lane 9×9 packing (336 logical `MISTRAL_MUL9X9` BELs on 112
+The current nextpnr pin `71d2ffdbdf669475d6596352990f4d22d90a9092` is
+`mistral-stable` including merged PR #33 20-bit M10K byte-enable packing on merged PR #32 dual-clock M10K, merged PR #31 MLAB INIT and merged PR #30 DSP modes: three-lane 9×9 packing (336 logical `MISTRAL_MUL9X9` BELs on 112
 physical DSP blocks, RESULT `0:17` / `18:35` / `37:54` with a one-bit gap at
 `RESULT.36`), `M18X18P36`, `M27X27`, M9 preadder subtract, M18 36-bit C addend
 mapped on BX groups `{8,9,6,7}`, and DSP input/output registers. Each
@@ -183,7 +186,7 @@ while reset, then 1638–1639 / 3276–3277 / 8192 after relock. Their reference
 output Fmax values were 216.732 / 326.584 MHz against 50 MHz and the selected
 output constraint. Host pair regressions cover 25/40, 40/25, 20/100, 40/64,
 80/80 and 1/1 MHz. Artifact hashes and reproduction commands are in the
-[nextpnr PLL test documentation](https://github.com/DeanoC/nextpnr/blob/9632c85b84069acc8bb507165a48c348c70499eb/mistral/tests/pll/README.md).
+[nextpnr PLL test documentation](https://github.com/DeanoC/nextpnr/blob/71d2ffdbdf669475d6596352990f4d22d90a9092/mistral/tests/pll/README.md).
 
 `120_pll_dsp` runs the eight-by-eight unsigned DSP product on the proven
 50-to-25 MHz PLL output. Linux peeks and pokes GPO/GPI on the 50 MHz
@@ -757,11 +760,31 @@ diagnostics on 2026-09-08 from native Yosys INIT returned GPI signature
 `0xD417` with address 0 equal to `0xA6`, all 32 initialized bytes, then
 even-address writes that left odd addresses unchanged.
 
+`500_m10k_be20` exposes a 512-by-20 M10K simple dual-port table on HPS GP with
+two independently writable 10-bit lanes. Writes use `FPGA_CLK1_50`. Reads use
+a 25 MHz PLL output gated by `cyclonev_clkena`. GPI signature `0xD41A`.
+Address `a` starts as `((a * 73) ^ (a >> 1) ^ 20'hA6)`. Yosys maps one
+`MISTRAL_M10K` with `CFG_BYTE_ENABLE=1`, `CFG_DUAL_CLOCK=1`, and two `A1BE`
+lanes. DSP and MLAB remain forbidden. Simulation and OSS are supported;
+Quartus comparison is not implemented. See
+`experiments/500_m10k_be20/expected.md`.
+
+The OSS `500_m10k_be20` artifact has SHA-256
+`8a03587f198259e3eb5029576bb347a6885c98d904c48b986815cf59be5fb710`
+and size 1,959,304 bytes. Its reported write-clock Fmax is 371.747 MHz against
+the 50 MHz constraint. Utilization is one `MISTRAL_M10K`, one `altera_pll`,
+and one HPS GP. Exact-artifact kit diagnostics on 2026-09-08 returned GPI
+signature `0xD41A` with address 0 equal to `0xA6`, full-width initialized
+reads, independent low and high 10-bit lane writes, a zero mask that left
+both lanes unchanged, and a full write while the 25 MHz read clock was
+stopped.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
-M18 `A*B+C`, registered M18 with omitted enable/ACLR, and initialized MLAB
-contents. It does not establish native game acceptance.
+M18 `A*B+C`, registered M18 with omitted enable/ACLR, initialized MLAB
+contents, and 20-bit M10K byte-enable lanes with independent clocks. It does
+not establish native game acceptance.
 
 ## Standalone Pong game
 
