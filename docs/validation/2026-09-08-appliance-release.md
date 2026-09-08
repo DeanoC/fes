@@ -87,8 +87,13 @@ bytes at 16.8 MiB/s.
 The written region was then compared byte-for-byte against `card.img`; the
 comparison passed. The new MBR has disk ID `0x46455331`, FAT partition 1 at
 sector 2048 with 2,097,152 sectors, and A2 partition 2 at sector 2,099,200
-with 2,048 sectors. No system disk was touched, and the card remains unmounted.
-This verifies the write itself; it does not verify booting the card in the kit.
+with 2,048 sectors. No system disk was touched. The backed-up user state was
+then overlaid under `fogcast/cache` and `fogcast/saves`; all seven restored files
+were byte-verified against the private backup. The immutable source image hash
+above still describes the generated artifact; the physical card intentionally
+differs in those mutable state paths after restoration. The card was flushed and
+unmounted cleanly. This verifies the write and state restoration; it does not
+verify booting the card in the kit.
 
 After the owner releases the kit, install the generated disk, preserve the
 relevant backed-up data, and verify the new boot's actual bootstrap/rootfs
