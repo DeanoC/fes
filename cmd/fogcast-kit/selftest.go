@@ -8,6 +8,7 @@ import (
 	"image/png"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
 	"github.com/DeanoC/FogCast/host/tenfoot/anim"
@@ -1056,6 +1057,73 @@ func exerciseDetailGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 		}
 	}
 
+	m.Games[m.Focus].Region = "usa"
+	m.Games[m.Focus].Year = "1990"
+	m.Games[m.Focus].Genre = "Action"
+	m.ApplyPresentation(m.Games[m.Focus].ID, tenfoot.Presentation{
+		Presentation: &tenfoot.PresentationInfo{
+			Year:    "1991",
+			Genre:   "Platform",
+			Studio:  "SEGA",
+			Players: "1-2",
+			Summary: "A blue hedgehog dashes through Green Hill Zone collecting rings.",
+		},
+	})
+	rich := modelDetailFrame(m, nil, nil, th, cfg.Width, cfg.Height)
+	if !strings.Contains(rich.Meta, "1991") || !strings.Contains(rich.Meta, "USA") || !strings.Contains(rich.Meta, "1-2") {
+		return b.String(), fmt.Errorf("rich meta %q", rich.Meta)
+	}
+	if !strings.Contains(rich.Description, "hedgehog") {
+		return b.String(), fmt.Errorf("rich description %q", rich.Description)
+	}
+	richRec := gfx.NewRecorder()
+	fbgrid.PaintDetail(richRec, rich)
+	var sawYear, sawUSA, sawPlayers, sawHedgehog bool
+	var descLines int
+	for _, c := range richRec.Calls {
+		if c.Op != "DrawText" {
+			continue
+		}
+		if c.SizePx == th.BodyPx() {
+			if strings.Contains(c.Text, "1991") {
+				sawYear = true
+			}
+			if strings.Contains(c.Text, "USA") {
+				sawUSA = true
+			}
+			if strings.Contains(c.Text, "1-2") {
+				sawPlayers = true
+			}
+		}
+		if c.SizePx == th.CaptionPx() {
+			descLines++
+			if strings.Contains(strings.ToLower(c.Text), "hedgehog") {
+				sawHedgehog = true
+			}
+		}
+	}
+	if !sawYear || !sawUSA || !sawPlayers || !sawHedgehog || descLines < 1 {
+		return b.String(), fmt.Errorf("rich paint year=%v usa=%v players=%v hedgehog=%v descLines=%d ops=%v", sawYear, sawUSA, sawPlayers, sawHedgehog, descLines, richRec.Ops())
+	}
+	fmt.Fprintf(&b, "detail meta=%q desc-lines=%d hedgehog=1\n", rich.Meta, descLines)
+
+	m.ApplyPresentation(m.Games[m.Focus].ID, tenfoot.Presentation{})
+	m.Games[m.Focus].Region = ""
+	m.Games[m.Focus].Year = ""
+	m.Games[m.Focus].Genre = ""
+	empty := modelDetailFrame(m, nil, nil, th, cfg.Width, cfg.Height)
+	if empty.Description != "" {
+		return b.String(), fmt.Errorf("empty description %q", empty.Description)
+	}
+	emptyRec := gfx.NewRecorder()
+	fbgrid.PaintDetail(emptyRec, empty)
+	for _, c := range emptyRec.Calls {
+		if c.Op == "DrawText" && c.SizePx == th.CaptionPx() && utf8.RuneCountInString(c.Text) > 1 {
+			return b.String(), fmt.Errorf("empty description painted %q", c.Text)
+		}
+	}
+	fmt.Fprintf(&b, "detail omit-empty=1\n")
+
 	if action := m.Input(a, now); action != "launch" {
 		return b.String(), fmt.Errorf("detail A %q", action)
 	}
@@ -1110,7 +1178,7 @@ func exerciseDetailGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	if err != nil {
 		return b.String(), err
 	}
-	fmt.Fprintf(&b, "selftest-detail PASS open=1 close=1 title-ink=1 logo=1 launch=1 attract-hold=1 nested-attract=1\n")
+	fmt.Fprintf(&b, "selftest-detail PASS open=1 close=1 title-ink=1 logo=1 launch=1 attract-hold=1 nested-attract=1 meta=1 description=1 omit-empty=1\n")
 	return b.String(), nil
 }
 

@@ -366,14 +366,15 @@ func modelDetailFrame(m kitlauncher.Model, covers *tenfoot.CoverCache, presentat
 		title = "UNTITLED"
 	}
 	frame := fbgrid.DetailFrame{
-		Width:  width,
-		Height: height,
-		Header: truncateLabel(asciiLabel(m.HeaderChrome()), 36),
-		Title:  title,
-		Meta:   asciiLabel(detail.MetaFacts()),
-		Hint:   asciiLabel(detailFooter(m)),
-		Theme:  th,
-		Color:  th.SystemColor(detail.Platform),
+		Width:       width,
+		Height:      height,
+		Header:      truncateLabel(asciiLabel(m.HeaderChrome()), 36),
+		Title:       title,
+		Meta:        kitMetaLine(detail.MetaFacts()),
+		Description: asciiLabel(detail.Summary),
+		Hint:        asciiLabel(detailFooter(m)),
+		Theme:       th,
+		Color:       th.SystemColor(detail.Platform),
 	}
 	if game, ok := focusedGame(m); ok {
 		frame.Color = th.SystemColor(game.System)
@@ -569,6 +570,10 @@ func modelWheelFrame(m kitlauncher.Model, covers, stills *tenfoot.CoverCache, pr
 		frame.Logo = covers.Image(handle)
 	}
 	return frame
+}
+
+func kitMetaLine(facts string) string {
+	return asciiLabel(strings.ReplaceAll(facts, "  \u00b7  ", " | "))
 }
 
 func asciiLabel(s string) string {

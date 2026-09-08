@@ -3,6 +3,7 @@ package gfx
 import (
 	"image"
 	"image/color"
+	"strings"
 	"sync"
 
 	"golang.org/x/image/font"
@@ -176,6 +177,81 @@ func fitText(face font.Face, text string, maxWidth int) string {
 		}
 	}
 	return ""
+}
+
+// WrapText word-wraps text to maxWidth pixels in the Regular UI face.
+// maxLines < 1 keeps every line; otherwise the last kept line is truncated
+// with an ellipsis. Empty text returns nil.
+func WrapText(text string, sizePx, maxWidth, maxLines int) []string {
+	return WrapTextWeight(text, sizePx, maxWidth, maxLines, WeightRegular)
+}
+
+// WrapTextWeight is WrapText with an explicit face weight.
+func WrapTextWeight(text string, sizePx, maxWidth, maxLines int, w Weight) []string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil
+	}
+	if maxWidth < 1 {
+		return []string{text}
+	}
+	uiMu.Lock()
+	defer uiMu.Unlock()
+	face := uiFaceLocked(sizePx, w)
+	if face == nil {
+		return []string{text}
+	}
+	return wrapText(face, text, maxWidth, maxLines)
+}
+
+func wrapText(face font.Face, text string, maxWidth, maxLines int) []string {
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return nil
+	}
+	lines := make([]string, 0, 4)
+	var cur string
+	flush := func() {
+		if cur == "" {
+			return
+		}
+		lines = append(lines, cur)
+		cur = ""
+	}
+	for _, word := range words {
+		if font.MeasureString(face, word).Ceil() > maxWidth {
+			flush()
+			word = fitText(face, word, maxWidth)
+			if word == "" {
+				continue
+			}
+			lines = append(lines, word)
+			continue
+		}
+		next := word
+		if cur != "" {
+			next = cur + " " + word
+		}
+		if font.MeasureString(face, next).Ceil() <= maxWidth {
+			cur = next
+			continue
+		}
+		flush()
+		cur = word
+	}
+	flush()
+	if maxLines < 1 || len(lines) <= maxLines {
+		return lines
+	}
+	kept := append([]string{}, lines[:maxLines-1]...)
+	rest := strings.Join(lines[maxLines-1:], " ")
+	if last := fitText(face, rest, maxWidth); last != "" {
+		kept = append(kept, last)
+	}
+	if len(kept) == 0 {
+		return nil
+	}
+	return kept
 }
 
 // RasterizeText draws text in c with the Regular UI face. maxWidth > 0

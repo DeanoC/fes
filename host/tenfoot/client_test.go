@@ -13,6 +13,31 @@ import (
 	"testing"
 )
 
+func TestClientDecodesGameRegion(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"games": []Game{{
+				ID:         "megadrive-sonic",
+				Title:      "Sonic",
+				System:     "megadrive",
+				Year:       "1991",
+				Genre:      "Platform",
+				Region:     "usa",
+				Launchable: true,
+			}},
+		})
+	}))
+	t.Cleanup(server.Close)
+	games, _, err := NewClient(server.URL, server.Client()).ListGames(context.Background(), GameListQuery{Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(games) != 1 || games[0].Region != "usa" || games[0].Year != "1991" || games[0].Genre != "Platform" {
+		t.Fatalf("games = %#v", games)
+	}
+}
+
 func TestClientListsGamesAndFollowsCursor(t *testing.T) {
 	t.Parallel()
 	var paths []string

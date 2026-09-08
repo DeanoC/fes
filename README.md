@@ -93,13 +93,16 @@ focused tile's highlight ring (~1.06 scale, ~160ms) when focus changes;
 confirm is a white pulse that eases out over `ConfirmFrames` rather than a
 flat flash. Down that cannot move focus further (last catalog row) opens a
 focused title pane
-(large cover, title, and platform/year/genre/studio when presentation has
-them).
+(large cover, title, and platform/year/genre/studio/players/region when the
+catalog or presentation already carries them, plus a wrapped `summary`
+description). Series, last-played, and play-count are omitted: they are not
+on the public games or presentation payloads.
 A/South still launches from the grid. The pane's A plays the title, East/B
 and Up return to the same shelf and focus, and L/R (or shoulders) cycle
 screenshots when `screenshot_ids` has two or more. Opening the pane uses a
 short fade-from-black overlay. Attract does not arm
-while the pane is open. Cells show host cover art when a catalog
+while the pane is open. Missing description copy is omitted rather than
+drawn as an empty box. Cells show host cover art when a catalog
 `Game.Cover` or LaunchBox/IGDB presentation cover handle is available,
 Catmull–Rom downscaled at decode, with a theme-tinted
 placeholder (lettermark when missing, a distinct panel while loading) instead of

@@ -2,6 +2,7 @@ package fbgrid
 
 import (
 	"image"
+	"strings"
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
 	"github.com/DeanoC/FogCast/host/tenfoot/anim"
@@ -15,6 +16,7 @@ type DetailFrame struct {
 	Header        string
 	Title         string
 	Meta          string
+	Description   string
 	Hint          string
 	Cover         *image.RGBA
 	CoverKind     CoverKind
@@ -55,12 +57,13 @@ func PaintDetail(d gfx.Device, f DetailFrame) {
 		d.FillRect(gfx.Rect{X: 0, Y: float32(fy), W: float32(f.Width), H: float32(f.Height - fy)}, th.FooterBar)
 	}
 	withShot := f.Shot != nil || f.ShotCaption != ""
-	cover, text, shot := DetailLayout(f.Width, f.Height, th, withShot, 0)
+	_, text0, _ := DetailLayout(f.Width, f.Height, th, withShot, 0, 0)
 	logoH := 0
 	if f.Logo != nil {
-		logoH = logoFitHeight(f.Logo, int(text.W), detailLogoMaxH)
-		cover, text, shot = DetailLayout(f.Width, f.Height, th, withShot, logoH)
+		logoH = logoFitHeight(f.Logo, int(text0.W), detailLogoMaxH)
 	}
+	metaLines, descLines, bodyH := wrapDetailCopy(f, th, int(text0.W), logoH, withShot, f.Height)
+	cover, text, shot := DetailLayout(f.Width, f.Height, th, withShot, logoH, bodyH)
 	fill := f.Color
 	if fill == (gfx.Color{}) {
 		fill = th.SystemColor("")
@@ -97,13 +100,26 @@ func PaintDetail(d gfx.Device, f DetailFrame) {
 		title = gfx.FitTextWeight(title, titleSize, int(text.W), titleW)
 		d.DrawTextWeight(int(text.X), int(text.Y), title, titleSize, titleW, th.Header)
 	}
-	meta := f.Meta
-	if meta != "" {
+	copyY := int(text.Y) + titleBlockH
+	if len(metaLines) > 0 {
 		metaSize := th.BodyPx()
 		metaW := th.BodyWeight()
-		meta = gfx.FitTextWeight(meta, metaSize, int(text.W), metaW)
-		metaY := int(text.Y) + titleBlockH + 8
-		d.DrawTextWeight(int(text.X), metaY, meta, metaSize, metaW, th.Label)
+		metaLineH := gfx.TextHeightWeight(metaSize, metaW)
+		copyY += detailCopyGap
+		for _, line := range metaLines {
+			d.DrawTextWeight(int(text.X), copyY, line, metaSize, metaW, th.Label)
+			copyY += metaLineH
+		}
+	}
+	if len(descLines) > 0 {
+		descSize := th.CaptionPx()
+		descW := th.CaptionWeight()
+		descLineH := gfx.TextHeightWeight(descSize, descW)
+		copyY += detailCopyGap
+		for _, line := range descLines {
+			d.DrawTextWeight(int(text.X), copyY, line, descSize, descW, th.Label)
+			copyY += descLineH
+		}
 	}
 	if shot.W > 0 && shot.H > 0 {
 		if f.Shot != nil {
@@ -142,10 +158,86 @@ func PaintDetail(d gfx.Device, f DetailFrame) {
 	}
 }
 
-const detailLogoMaxH = 56
+const (
+	detailLogoMaxH     = 56
+	detailMetaMaxLines = 2
+	detailDescMaxLines = 8
+	detailShotMinH     = 48
+	detailCopyGap      = 8
+)
+
+func wrapDetailCopy(f DetailFrame, th theme.Theme, textW, logoH int, withShot bool, height int) (metaLines, descLines []string, bodyH int) {
+	th = th.Complete()
+	titleBlock := gfx.TextHeightWeight(th.TitlePx(), th.TitleWeight())
+	if logoH > titleBlock {
+		titleBlock = logoH
+	}
+	metaSize := th.BodyPx()
+	metaWeight := th.BodyWeight()
+	metaLineH := gfx.TextHeightWeight(metaSize, metaWeight)
+	descSize := th.CaptionPx()
+	descWeight := th.CaptionWeight()
+	descLineH := gfx.TextHeightWeight(descSize, descWeight)
+
+	pad := th.Pad
+	if pad < 8 {
+		pad = 8
+	}
+	headerH := th.HeaderH
+	footerH := th.FooterH
+	if headerH < 0 {
+		headerH = 0
+	}
+	if footerH < 0 {
+		footerH = 0
+	}
+	stageH := height - headerH - footerH - 2*pad
+	if stageH < 1 {
+		stageH = height - headerH - footerH
+		if stageH < 1 {
+			stageH = height
+		}
+	}
+
+	metaLines = gfx.WrapTextWeight(strings.TrimSpace(f.Meta), metaSize, textW, detailMetaMaxLines, metaWeight)
+	used := titleBlock
+	if len(metaLines) > 0 {
+		used += detailCopyGap + len(metaLines)*metaLineH
+	}
+
+	desc := strings.TrimSpace(f.Description)
+	if desc != "" && descLineH > 0 {
+		remain := stageH - used - detailCopyGap
+		if withShot {
+			remain -= pad + detailShotMinH
+		}
+		maxLines := 0
+		if remain >= descLineH {
+			maxLines = remain / descLineH
+		}
+		if maxLines > detailDescMaxLines {
+			maxLines = detailDescMaxLines
+		}
+		if maxLines > 0 {
+			descLines = gfx.WrapTextWeight(desc, descSize, textW, maxLines, descWeight)
+			if len(descLines) > 0 {
+				used += detailCopyGap + len(descLines)*descLineH
+			}
+		}
+	}
+	bodyH = used + detailCopyGap
+	if bodyH > stageH {
+		bodyH = stageH
+	}
+	if bodyH < 1 {
+		bodyH = 1
+	}
+	return metaLines, descLines, bodyH
+}
 
 // DetailLayout is the cover, title/meta, and optional screenshot rects.
-func DetailLayout(width, height int, th theme.Theme, withShot bool, logoH int) (cover, text, shot gfx.Rect) {
+// bodyH is the title-column height in pixels; 0 uses title plus one body line.
+func DetailLayout(width, height int, th theme.Theme, withShot bool, logoH, bodyH int) (cover, text, shot gfx.Rect) {
 	th = th.Complete()
 	pad := th.Pad
 	if pad < 8 {
@@ -192,8 +284,11 @@ func DetailLayout(width, height int, th theme.Theme, withShot bool, logoH int) (
 	if logoH > titleBlock {
 		titleBlock = logoH
 	}
-	titleH := titleBlock + 8 + gfx.TextHeightWeight(th.BodyPx(), th.BodyWeight())
-	textH := titleH + 8
+	titleH := titleBlock + detailCopyGap + gfx.TextHeightWeight(th.BodyPx(), th.BodyWeight())
+	textH := titleH + detailCopyGap
+	if bodyH > 0 {
+		textH = bodyH
+	}
 	if textH > stageH {
 		textH = stageH
 	}
@@ -203,7 +298,7 @@ func DetailLayout(width, height int, th theme.Theme, withShot bool, logoH int) (
 	}
 	shotY := stageY + textH + pad
 	shotH := height - footerH - pad - shotY
-	if shotH < 48 {
+	if shotH < detailShotMinH {
 		return cover, text, gfx.Rect{}
 	}
 	if shotH > 180 {
@@ -215,7 +310,7 @@ func DetailLayout(width, height int, th theme.Theme, withShot bool, logoH int) (
 
 // DetailCoverSample is a pixel inside the large cover cell.
 func DetailCoverSample(width, height int, th theme.Theme) (x, y int, ok bool) {
-	cover, _, _ := DetailLayout(width, height, th, false, 0)
+	cover, _, _ := DetailLayout(width, height, th, false, 0, 0)
 	if cover.W < 4 || cover.H < 4 {
 		return 0, 0, false
 	}
@@ -226,7 +321,7 @@ func DetailCoverSample(width, height int, th theme.Theme) (x, y int, ok bool) {
 
 // DetailTitleOrigin is the top-left of the title DrawText or logo slot.
 func DetailTitleOrigin(width, height int, th theme.Theme) (x, y int, ok bool) {
-	_, text, _ := DetailLayout(width, height, th, false, 0)
+	_, text, _ := DetailLayout(width, height, th, false, 0, 0)
 	if text.W < 1 || text.H < 1 {
 		return 0, 0, false
 	}
@@ -239,9 +334,9 @@ func DetailLogoSample(width, height int, th theme.Theme, logo *image.RGBA) (x, y
 		return 0, 0, false
 	}
 	b := logo.Bounds()
-	_, text, _ := DetailLayout(width, height, th, false, 0)
+	_, text, _ := DetailLayout(width, height, th, false, 0, 0)
 	logoH := logoFitHeight(logo, int(text.W), detailLogoMaxH)
-	_, text, _ = DetailLayout(width, height, th, false, logoH)
+	_, text, _ = DetailLayout(width, height, th, false, logoH, 0)
 	dx, dy, dw, dh := tenfoot.CoverDestRect(int(text.X), int(text.Y), int(text.W), logoH, b.Dx(), b.Dy())
 	if dw < 2 || dh < 2 {
 		return 0, 0, false

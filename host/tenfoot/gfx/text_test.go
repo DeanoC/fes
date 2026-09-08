@@ -96,6 +96,41 @@ func TestSoftwareDrawTextDiffersFromDebugText(t *testing.T) {
 	}
 }
 
+func TestWrapTextWrapsAndTruncates(t *testing.T) {
+	t.Parallel()
+	const size = 16
+	if WrapText("", size, 80, 3) != nil {
+		t.Fatal("empty")
+	}
+	if got := WrapText("Sonic", size, 400, 3); len(got) != 1 || got[0] != "Sonic" {
+		t.Fatalf("short = %#v", got)
+	}
+	long := "A blue hedgehog dashes through Green Hill Zone collecting rings and leaping loops."
+	lines := WrapText(long, size, 120, 8)
+	if len(lines) < 2 {
+		t.Fatalf("expected wrap, got %#v", lines)
+	}
+	for _, line := range lines {
+		if MeasureText(line, size) > 120 {
+			t.Fatalf("line overflows: %q width %d", line, MeasureText(line, size))
+		}
+	}
+	capped := WrapText(long, size, 120, 2)
+	if len(capped) != 2 {
+		t.Fatalf("capped = %#v", capped)
+	}
+	if !strings.HasSuffix(capped[1], "...") {
+		t.Fatalf("last line should ellipsize: %#v", capped)
+	}
+	if MeasureText(capped[1], size) > 120 {
+		t.Fatalf("ellipsis overflows: %q", capped[1])
+	}
+	joined := strings.Join(capped, " ")
+	if !strings.Contains(joined, "hedgehog") {
+		t.Fatalf("lost leading copy: %#v", capped)
+	}
+}
+
 func TestFitTextTruncatesWithEllipsis(t *testing.T) {
 	t.Parallel()
 	const size = 16
