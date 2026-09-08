@@ -78,7 +78,7 @@ func (r MediaRule) MediaTransform() string {
 }
 
 func (r MediaRule) validate() error {
-	if r.MediaTransform() != "raw" && r.MediaTransform() != "snes_cartridge" {
+	if r.MediaTransform() != "raw" && r.MediaTransform() != "snes_cartridge" && r.MediaTransform() != "nes_cartridge" {
 		return fmt.Errorf("unsupported media transform %q", r.Transform)
 	}
 	if !validIdentifier(r.Role) {
