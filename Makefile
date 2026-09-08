@@ -44,6 +44,7 @@ LIB_SOURCES := \
 	src/native/artifacts.cpp \
 	src/native/core_package.cpp \
 	src/native/core_driver.cpp \
+	src/native/fes_gp.cpp \
 	src/native/core_loader.cpp \
 	src/native/sha256.cpp \
 	src/native/input.cpp \
@@ -73,6 +74,7 @@ TEST_BINS := \
 	$(BUILD_DIR)/tests/unit/runtime_test \
 	$(BUILD_DIR)/tests/unit/artifacts_test \
 	$(BUILD_DIR)/tests/unit/core_package_test \
+	$(BUILD_DIR)/tests/unit/fes_gp_test \
 	$(BUILD_DIR)/tests/unit/native_hardware_test \
 	$(BUILD_DIR)/tests/unit/core_loader_test \
 	$(BUILD_DIR)/tests/unit/fpga_manager_test \
@@ -159,6 +161,12 @@ $(BUILD_DIR)/tests/unit/core_package_test: tests/unit/core_package_test.cpp \
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/core_package_test.cpp \
 		src/native/core_package.cpp src/native/sha256.cpp \
 		src/native/artifacts.cpp -o "$@"
+
+$(BUILD_DIR)/tests/unit/fes_gp_test: tests/unit/fes_gp_test.cpp \
+		tests/support/fake_mmio.cpp src/native/fes_gp.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/fes_gp_test.cpp \
+		tests/support/fake_mmio.cpp src/native/fes_gp.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/core_loader_test: tests/unit/core_loader_test.cpp \
 		tests/support/fake_spi.cpp src/native/artifacts.cpp src/native/core_loader.cpp
