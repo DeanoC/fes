@@ -10,7 +10,10 @@ an Overlord port.
 ## What works now
 
 - Schema `mister-packages.v1` for `platform`, `board`, `soc`, `cpu`,
-  `register_bank`, `system`, and `core_source`.
+  `register_bank`, `system`, `core_source`, `abi`, and `programming_profiles`.
+- JSON Schema and language-neutral conformance fixtures for format-2 `.fcore`
+  manifests. These describe package structure and reader semantics; they do not
+  emit or load bitstreams.
 - One platform: DE10-Nano / Cyclone V HPS.
 - Register banks and bitfields for the MMIO the native runtime actually
   uses (FPGA manager, SYSMGR FPGA interface, SDR port reset, bridge reset,
@@ -28,9 +31,13 @@ an Overlord port.
   verified official RBF hash/size. The native profile declares ordinary
   cartridges with a runtime-owned metadata prefix and twelve SNES controls.
   The profile does not establish hardware acceptance.
-- `mister-packages validate`, `report`, `emit-cpp`, `emit-go`, and
+- `mister-packages validate`, `report`, `emit-cpp`, `emit-go`, `emit-verilog`, and
   `diff-oracle` on platform or system YAML. `emit-go` writes FogCast
   launch fields (expected core, cartridge index) from a system package.
+- Declarative FES GP mailbox constants and the DE10-Nano programming
+  profile/ABI-major registry. Emitters produce reviewed C++14, Go, and guarded
+  Verilog constant text; they do not produce modules, netlists, MMIO maps, or
+  lifecycle recipes.
 - Oracles extracted from libmister-runtime FPGA-manager/SPI headers and
   from the production Mega Drive profile. `make test` requires both to
   match.
@@ -70,21 +77,42 @@ Do not call this tree a catalog. FogCast already uses that word for games.
 ## Build and test
 
 ```sh
-make test
-make report
-make emit-cpp
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-test.txt
+make test PYTHON=.venv/bin/python
 ```
 
-`make test` runs unit tests, validates `packages/platform/de10_nano.yaml`,
+The Python dependencies are host/test-only. They validate the checked-in JSON
+Schema with Draft 2020-12, including registered RFC 3986 URI format checking,
+and are not used by generated consumers or target images.
+Regenerate or check the synthetic, never-deployed cross-language fixtures with:
+
+```sh
+make fixtures PYTHON=.venv/bin/python
+make check-fixtures PYTHON=.venv/bin/python
+```
+
+The package reports and emitters can be run separately with:
+
+```sh
+make report
+make emit-cpp
+make emit-go
+make emit-verilog
+```
+
+`make test` validates the format-2 schema and fixtures, runs Go unit tests,
+validates `packages/platform/de10_nano.yaml`,
 `packages/system/megadrive.yaml`, `packages/system/pong.yaml`,
 `packages/system/snes.yaml`, and
 `packages/source/megadrive_mister.yaml`, and diffs them against the
 matching Mega Drive/platform files in `testdata/oracles/`. Pong has no
 historical hardware oracle. It also validates the real
 `packages/source/snes_mister.yaml` source pin; this does not fetch or build it.
+It also validates the ABI definitions and DE10-Nano programming profile registry.
 
-Requires Go 1.22 or later and a C++14 compiler (`CXX`, default `c++`)
-for generated-header syntax tests.
+Requires Python 3.11 or later, Go 1.22 or later, and a C++14 compiler (`CXX`,
+default `c++`) for generated-header syntax tests.
 
 ## Plan
 

@@ -2,8 +2,10 @@ package pack
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -201,6 +203,26 @@ func readYAML(path string, dest interface{}) error {
 		return err
 	}
 	if err := yaml.Unmarshal(data, dest); err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+	return nil
+}
+
+func readStrictYAML(path string, dest interface{}) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	decoder := yaml.NewDecoder(strings.NewReader(string(data)))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(dest); err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+	var extra interface{}
+	if err := decoder.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return fmt.Errorf("%s: multiple YAML documents", path)
+		}
 		return fmt.Errorf("%s: %w", path, err)
 	}
 	return nil

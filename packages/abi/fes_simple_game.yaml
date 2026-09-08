@@ -1,0 +1,106 @@
+schema: mister-packages.v1
+kind: abi
+id: fes.simple-game
+description: >-
+  FES general-purpose HPS/FPGA mailbox for standalone simple games. The
+  runtime uses the declared constants; this file does not contain MMIO or
+  lifecycle programming instructions.
+major: 1
+minor: 0
+tag: 1
+constants:
+  - name: FesGpSignature
+    value: 0xf5000000
+  - name: FesGpRequestMask
+    value: 0x80000000
+  - name: FesGpOpcodeMask
+    value: 0x7f000000
+  - name: FesGpIndexMask
+    value: 0x00ff0000
+  - name: FesGpArgumentMask
+    value: 0x0000ffff
+  - name: FesGpAckMask
+    value: 0x00800000
+  - name: FesGpErrorMask
+    value: 0x00400000
+  - name: FesGpResponseMask
+    value: 0x0000ffff
+  - name: FesGpIdentityMagic0
+    value: 0x4546
+  - name: FesGpIdentityMagic1
+    value: 0x3153
+  - name: FesGpTransportMajor
+    value: 1
+  - name: FesGpTransportMinor
+    value: 0
+  - name: FesGpAbiTag
+    value: 1
+  - name: FesGpAbiMajor
+    value: 1
+  - name: FesGpAbiMinor
+    value: 0
+  - name: FesGpIdentityMagic0Index
+    value: 0
+  - name: FesGpIdentityMagic1Index
+    value: 1
+  - name: FesGpIdentityTransportMajorIndex
+    value: 2
+  - name: FesGpIdentityTransportMinorIndex
+    value: 3
+  - name: FesGpIdentityAbiTagIndex
+    value: 4
+  - name: FesGpIdentityAbiMajorIndex
+    value: 5
+  - name: FesGpIdentityAbiMinorIndex
+    value: 6
+  - name: FesGpIdentityCapabilitiesIndex
+    value: 7
+  - name: FesGpIdentityBuildIDStartIndex
+    value: 8
+  - name: FesGpIdentityWordCount
+    value: 16
+  - name: FesGpOpcodeIdentity
+    value: 1
+  - name: FesGpOpcodeGameplay
+    value: 2
+  - name: FesGpOpcodeButtons
+    value: 3
+  - name: FesGpControlIndex
+    value: 0
+  - name: FesGpGameplayHoldReset
+    value: 0
+  - name: FesGpGameplayRelease
+    value: 1
+  - name: FesGpErrorInvalidOpcode
+    value: 1
+  - name: FesGpErrorInvalidIndex
+    value: 2
+  - name: FesGpErrorInvalidArgument
+    value: 3
+  - name: FesGpButtonUp
+    value: 0x01
+  - name: FesGpButtonDown
+    value: 0x02
+  - name: FesGpButtonLeft
+    value: 0x04
+  - name: FesGpButtonRight
+    value: 0x08
+  - name: FesGpButtonA
+    value: 0x10
+  - name: FesGpButtonB
+    value: 0x20
+  - name: FesGpButtonSelect
+    value: 0x40
+  - name: FesGpButtonStart
+    value: 0x80
+  - name: FesGpButtonMask
+    value: 0x00ff
+interfaces:
+  - id: fes.gamepad
+    major: 1
+    minor: 0
+    capability_bit: 0
+  - id: fes.video.fixed-720p60
+    major: 1
+    minor: 0
+    capability_bit: 1
