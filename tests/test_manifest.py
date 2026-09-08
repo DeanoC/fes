@@ -347,19 +347,19 @@ class ManifestTests(unittest.TestCase):
                 },
             "authenticated_tools": {
                 "yosys": {
-                    "commit": "acdebf05aa6fa8a21cd1aeb7a412422b11764a18",
+                    "commit": "ea0c44fc0dda595abee4cc27981ecf173628fc5c",
                     "path": "build/toolchain/install/bin/yosys",
                     "sha256": hashlib.sha256(yosys.read_bytes()).hexdigest(),
                 },
                 "nextpnr-mistral": {
-                    "commit": "131f880a856ee7f4b9b6379aa9b2c3e7fb001fe5",
+                    "commit": "06747fec1cb02405c3400ceac54d15c0845dcc0b",
                     "path": "build/toolchain/install/bin/nextpnr-mistral",
                     "sha256": hashlib.sha256(nextpnr.read_bytes()).hexdigest(),
                 },
             },
             "tool_pins": {
-                "yosys": "acdebf05aa6fa8a21cd1aeb7a412422b11764a18",
-                "nextpnr": "131f880a856ee7f4b9b6379aa9b2c3e7fb001fe5",
+                "yosys": "ea0c44fc0dda595abee4cc27981ecf173628fc5c",
+                "nextpnr": "06747fec1cb02405c3400ceac54d15c0845dcc0b",
             },
             "reproducibility": {
                 "rbf_sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
@@ -514,7 +514,7 @@ class ManifestTests(unittest.TestCase):
             "timing": {"clock": "FPGA_CLK1_50", "requested_mhz": 50.0, "achieved_mhz": 234.5, "status": "pass"},
             "resources": {"MISTRAL_COMB": {"used": 28, "available": 83820, "utilization_percent": 0.0}},
             "hard_blocks": {"MISTRAL_M10K": {"used": 0, "available": 553}},
-            "authenticated_tools": {"yosys": {"commit": "acdebf05aa6fa8a21cd1aeb7a412422b11764a18", "sha256": "a" * 64}},
+            "authenticated_tools": {"yosys": {"commit": "ea0c44fc0dda595abee4cc27981ecf173628fc5c", "sha256": "a" * 64}},
             "reproducibility": {"rbf_sha256": "b" * 64, "rbf_size_bytes": 7, "rbf_stability_measured": True, "rbf_stable": True},
         }
         summary_path = self.output / "build-summary.json"
