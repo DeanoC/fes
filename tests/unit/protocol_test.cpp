@@ -158,7 +158,8 @@ void TestProtocol2GoldenRequestsAndResponses()
 	status.active_package.observed.abi = {"fes.simple-game", 1, 0};
 	status.active_package.observed.build_id =
 		"0123456789abcdef0123456789abcdef";
-	status.capabilities.active_interfaces = {{"fes.gamepad", 1, 0}};
+	status.capabilities.active_interfaces = {
+		{"fes.gamepad", 1, 0}, {"fes.video.fixed-720p60", 1, 0}};
 	assert(mister::daemon::EncodeResponse(2, true, status, "fixture") == lines[5]);
 
 	status.core.clear();
