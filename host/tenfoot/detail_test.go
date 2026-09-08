@@ -405,11 +405,33 @@ func TestFocusDetailOmitsEmptyStudioPlayersAndScreenshots(t *testing.T) {
 	}
 	d.Studio = "Nintendo"
 	d.Players = "1-2"
-	if d.MetaFacts() != "Super NES  ·  1985  ·  Platform  ·  Nintendo  ·  1-2" {
+	d.Region = "USA"
+	if d.MetaFacts() != "Super NES  ·  1985  ·  Platform  ·  Nintendo  ·  1-2  ·  USA" {
 		t.Fatalf("rich facts = %q", d.MetaFacts())
 	}
 	if d.studioLine() != "Nintendo" || d.playersLine() != "1-2" {
 		t.Fatalf("lines studio=%q players=%q", d.studioLine(), d.playersLine())
+	}
+}
+
+func TestGameDetailCopiesCatalogRegionAndOmitsMissingCopy(t *testing.T) {
+	t.Parallel()
+	d := GameDetail(Game{Title: "Sonic", System: "megadrive", Year: "1990", Genre: "Action", Region: "usa"}, Presentation{})
+	if d.Year != "1990" || d.Genre != "Action" || d.Region != "USA" || d.Summary != "" || d.Players != "" {
+		t.Fatalf("catalog-only %+v", d)
+	}
+	if d.MetaFacts() != "megadrive  ·  1990  ·  Action  ·  USA" {
+		t.Fatalf("facts = %q", d.MetaFacts())
+	}
+	empty := GameDetail(Game{Title: "Pong", System: "pong"}, Presentation{})
+	if empty.Region != "" || empty.Summary != "" || empty.Players != "" || empty.MetaFacts() != "pong" {
+		t.Fatalf("empty %+v facts=%q", empty, empty.MetaFacts())
+	}
+	ready := GameDetail(Game{Title: "Sonic", System: "megadrive", Region: "japan"}, Presentation{
+		Presentation: &PresentationInfo{Year: "1991", Genre: "Platform", Studio: "SEGA", Players: "1-2", Summary: "Jump."},
+	})
+	if ready.Year != "1991" || ready.Genre != "Platform" || ready.Studio != "SEGA" || ready.Players != "1-2" || ready.Region != "Japan" || ready.Summary != "Jump." {
+		t.Fatalf("presentation %+v", ready)
 	}
 }
 

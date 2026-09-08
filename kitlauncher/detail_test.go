@@ -216,6 +216,49 @@ func TestFocusLogoHandleAndDetailPrefetchIncludesLogo(t *testing.T) {
 	}
 }
 
+func TestFocusDetailSurfacesRegionPlayersAndSummary(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true}
+	games := mixedCatalog()
+	games[1].Region = "usa"
+	games[1].Year = "1990"
+	games[1].Genre = "Action"
+	m.SetCatalog(games)
+	now := time.Now()
+	pressNamed(&m, "dpad-right", now)
+	if m.Games[m.Focus].ID != "sonic" {
+		t.Fatalf("focus %s", m.Games[m.Focus].ID)
+	}
+	d := m.FocusDetail()
+	if d.Region != "USA" || d.Year != "1990" || d.Genre != "Action" || d.Summary != "" || d.Players != "" {
+		t.Fatalf("catalog-only %+v", d)
+	}
+	if !strings.Contains(d.MetaFacts(), "USA") || strings.Contains(d.MetaFacts(), "1-2") {
+		t.Fatalf("catalog facts %q", d.MetaFacts())
+	}
+	m.ApplyPresentation("sonic", tenfoot.Presentation{
+		Presentation: &tenfoot.PresentationInfo{
+			Year:    "1991",
+			Genre:   "Platform",
+			Studio:  "SEGA",
+			Players: "1-2",
+			Summary: "A blue hedgehog dashes through Green Hill Zone.",
+		},
+	})
+	d = m.FocusDetail()
+	if d.Year != "1991" || d.Genre != "Platform" || d.Studio != "SEGA" || d.Players != "1-2" || d.Region != "USA" {
+		t.Fatalf("ready %+v", d)
+	}
+	if d.Summary != "A blue hedgehog dashes through Green Hill Zone." {
+		t.Fatalf("summary %q", d.Summary)
+	}
+	facts := d.MetaFacts()
+	for _, part := range []string{"1991", "Platform", "SEGA", "1-2", "USA"} {
+		if !strings.Contains(facts, part) {
+			t.Fatalf("facts missing %q: %q", part, facts)
+		}
+	}
+}
+
 func TestDetailHintMentionsShotsWhenPresent(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetCatalog(mixedCatalog())

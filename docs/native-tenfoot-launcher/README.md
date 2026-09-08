@@ -144,7 +144,10 @@ decode); any pad input returns to the platform wheel or catalog grid. The kit
 opens on a platform wheel (`fbgrid.PaintWheel`) and A enters the 4×3 grid; East/B
 on the grid returns to the wheel. The kit title pane is a
 sibling `fbgrid.PaintDetail` over the same catalog focus: last-row
-Down opens it, East/B and Up return, and A still launches.
+Down opens it, East/B and Up return, and A still launches. The pane
+shows admitted genre/year/players/region/studio plus wrapped `summary`
+description when those fields exist; it omits empty copy and does not
+invent series, last-played, or play-count.
 
 Gamepad is the intended control path (d-pad / left stick to move, South/A to
 launch, East/B to back, Start to quit, Select/View to cycle layout, Guide to
@@ -297,6 +300,8 @@ make tenfoot-smoke
 - `GET /api/v1/presentation/games/{id}` for the focused title's detail pane
   (title, platform, year, genre, studio, players, summary, screenshot handles,
   and provider attribution). Empty studio, players, and summary are omitted.
+  Catalog `region` from `GET /api/v1/games` joins the meta line when present.
+  Series, last-played, and play-count are not on these public payloads.
   HTTP 200 with `state: "offline"` is a temporary provider failure: details are
   not cached, and the focused title retries with backoff. A local-media overlay of
   offline arrives as `ready` without attribution and retries the same way.

@@ -98,9 +98,10 @@ func skipFailedCarousel(ids []string, failed func(string) bool, index int) int {
 }
 
 // GameDetail builds focused-title metadata from a catalog row and an optional
-// presentation payload. Catalog title/system/year/genre/favorite are always
-// present; studio, players, summary, attribution, and screenshot_ids come from
-// presentation when that object is present.
+// presentation payload. Catalog title/system/year/genre/region/favorite come
+// from the games row; studio, players, summary, attribution, and
+// screenshot_ids come from presentation when that object is present. Series,
+// last-played, and play-count are not admitted on those public payloads.
 func GameDetail(game Game, p Presentation) FocusDetail {
 	d := FocusDetail{
 		Title:    strings.TrimSpace(game.Title),
@@ -108,6 +109,9 @@ func GameDetail(game Game, p Presentation) FocusDetail {
 		Year:     strings.TrimSpace(game.Year),
 		Genre:    strings.TrimSpace(game.Genre),
 		Favorite: game.Favorite,
+	}
+	if region := strings.TrimSpace(game.Region); region != "" {
+		d.Region = dumpRegionLabel(region)
 	}
 	if p.Presentation != nil {
 		info := p.Presentation

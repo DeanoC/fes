@@ -351,6 +351,9 @@ func TestExerciseDetailGridOpensPaintsAndNestsAttract(t *testing.T) {
 	if !strings.Contains(report, "detail title-ink=1") || !strings.Contains(report, "detail cover=") || !strings.Contains(report, "detail logo=") || !strings.Contains(report, "logo=1") {
 		t.Fatalf("missing detail paint evidence: %s", report)
 	}
+	if !strings.Contains(report, "meta=1") || !strings.Contains(report, "description=1") || !strings.Contains(report, "omit-empty=1") || !strings.Contains(report, "hedgehog=1") {
+		t.Fatalf("missing detail meta evidence: %s", report)
+	}
 }
 
 func TestExerciseAttractGridPaintsStillAndDismisses(t *testing.T) {
@@ -446,5 +449,15 @@ func TestExerciseThemeGridSamplesBothLooks(t *testing.T) {
 	}
 	if !strings.Contains(report, "roles theme=default") || !strings.Contains(report, "compat scale-only") || !strings.Contains(report, "compat px-override") {
 		t.Fatalf("missing type-role evidence: %s", report)
+	}
+}
+
+func TestKitMetaLineUsesASCIISeparator(t *testing.T) {
+	got := kitMetaLine("MEGADRIVE  \u00b7  1991  \u00b7  USA")
+	if got != "MEGADRIVE | 1991 | USA" {
+		t.Fatalf("kit meta %q", got)
+	}
+	if kitMetaLine("") != "" {
+		t.Fatal("empty")
 	}
 }

@@ -96,8 +96,11 @@ stick in two dimensions to select, Shoulder L/R
 Down that cannot move
 focus further (last catalog row, including analog down) opens a focused
 title pane (large cover from CoverCache/DecodeCover, title at the theme title
-role, meta from catalog year/genre plus presentation studio/players when the
-host `GET /api/v1/presentation/games/{id}` succeeds).
+role, meta from catalog year/genre/region plus presentation studio/players
+when the host `GET /api/v1/presentation/games/{id}` succeeds, and wrapped
+`summary` prose at the caption role). Empty summary draws no description
+block. Series, last-played, and play-count are not on those public payloads
+and stay omitted.
 A stays launch on the grid and is not used to enter the pane. The pane closes
 on East/B or Up and restores the same shelf and focus. A on the pane launches
 the focused title through the same session path as the grid. Shoulder L/R and
@@ -192,6 +195,7 @@ arms a short idle, paints a decoded still plus an empty idle panel, dismisses on
 pad input with shelf and focus unchanged, and re-runs cover (which re-runs text,
 nav, and shelf). `fogcast-kit -selftest-detail` opens and closes the title pane
 (East/B, last-row Down, Up), paints a large cover plus title ink at `TitlePx`,
+paints admitted meta and wrapped description (and omits empty description),
 launches from the pane, holds attract while open, and re-runs attract (which
 re-runs cover, text, nav, and shelf). `fogcast-kit -selftest-motion` moves
 focus, ticks a mid-pop, samples a gap pixel that the highlight ring grows

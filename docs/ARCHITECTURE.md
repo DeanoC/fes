@@ -625,6 +625,10 @@ scale ~1.06 over ~160ms); confirm eases a white pulse out over
 cannot move focus further (last catalog row) opens a focused title pane
 through `fbgrid.PaintDetail` (large cover, title at `TitlePx`, meta from
 catalog plus `GET /api/v1/presentation/games/{id}` when the pane is open).
+Admitted facts are platform, year, genre, studio, players, and region when
+those fields are present; `summary` wraps as caption-role description and is
+omitted when empty. Series, last-played, and play-count are not on the public
+games or presentation payloads, so the pane does not invent them.
 A/South still launches from the grid. The pane's A plays the
 focused title, East/B and Up return to the same shelf and focus, and
 shoulder or D-pad L/R cycle `screenshot_ids` when two or more are present.
