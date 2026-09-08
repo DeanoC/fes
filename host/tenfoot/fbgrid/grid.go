@@ -19,7 +19,8 @@ type Tile struct {
 }
 
 const (
-	defaultColumns = 4
+	// DefaultColumns is the kit catalog row width (4×3 pages of 12).
+	DefaultColumns = 4
 	headerH        = 36
 	footerH        = 28
 	pad            = 16
@@ -97,7 +98,7 @@ func New(w, h int) Grid {
 	}
 	g := Grid{
 		Tiles:        FakeTiles(),
-		Columns:      defaultColumns,
+		Columns:      DefaultColumns,
 		Width:        w,
 		Height:       h,
 		HeaderH:      headerH,
@@ -152,39 +153,53 @@ func (g Grid) rows() int {
 
 func (g Grid) count() int { return len(g.Tiles) }
 
-// Move shifts focus by cells. Left/right stay on the current row.
-func (g *Grid) Move(dx, dy int) {
-	if g.count() == 0 {
-		return
+// MoveFocus shifts a flat catalog index by cells. Left/right stay on the
+// current row and clamp at the row ends. Up/down move by columns and clamp
+// at the first and last rows. An incomplete last row clamps onto the last
+// item instead of wrapping.
+func MoveFocus(focus, count, columns, dx, dy int) int {
+	if count <= 0 {
+		return 0
 	}
-	if g.Columns < 1 {
-		g.Columns = 1
+	if columns < 1 {
+		columns = 1
 	}
-	col := g.Focus % g.Columns
-	row := g.Focus / g.Columns
+	if focus < 0 {
+		focus = 0
+	}
+	if focus >= count {
+		focus = count - 1
+	}
+	col := focus % columns
+	row := focus / columns
 	col += dx
 	row += dy
 	if col < 0 {
 		col = 0
 	}
-	if col >= g.Columns {
-		col = g.Columns - 1
+	if col >= columns {
+		col = columns - 1
 	}
 	if row < 0 {
 		row = 0
 	}
-	maxRow := (g.count() - 1) / g.Columns
+	maxRow := (count - 1) / columns
 	if row > maxRow {
 		row = maxRow
 	}
-	focus := row*g.Columns + col
-	if focus >= g.count() {
-		focus = g.count() - 1
+	focus = row*columns + col
+	if focus >= count {
+		focus = count - 1
 	}
 	if focus < 0 {
 		focus = 0
 	}
-	g.Focus = focus
+	return focus
+}
+
+// Move shifts focus by cells. Left/right stay on the current row.
+func (g *Grid) Move(dx, dy int) {
+	g.Focus = MoveFocus(g.Focus, g.count(), g.Columns, dx, dy)
 }
 
 // CellOrigin is the top-left pixel of tile i.

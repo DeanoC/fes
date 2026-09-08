@@ -9,12 +9,12 @@ import (
 
 func TestMenuAndGameControlsRemainSeparate(t *testing.T) {
 	m := Model{Games: []tenfoot.Game{{ID: "pong", Launchable: true}, {ID: "sonic", Launchable: true}}, Connected: true, TargetReady: true}
-	down, _ := remoteinput.NormalizeAxis("left-y", 32767)
-	m.Input(down, time.Now())
+	right, _ := remoteinput.NormalizeAxis("left-x", 32767)
+	m.Input(right, time.Now())
 	if m.Focus != 1 {
 		t.Fatal("navigation lost")
 	}
-	m.Input(down, time.Now())
+	m.Input(right, time.Now())
 	if m.Focus != 1 {
 		t.Fatal("held axis repeated")
 	}
@@ -32,6 +32,98 @@ func TestMenuAndGameControlsRemainSeparate(t *testing.T) {
 	if m.Input(a, time.Now()) != "" {
 		t.Fatal("offline launch")
 	}
+}
+
+func TestCatalogGridNavigationClamps(t *testing.T) {
+	m := Model{Games: makeGames(25), Connected: true, TargetReady: true}
+	now := time.Now()
+	press := func(name string) {
+		e, err := remoteinput.NormalizeGamepad(name, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		m.Input(e, now)
+	}
+	press("dpad-right")
+	if m.Focus != 1 {
+		t.Fatalf("right %d", m.Focus)
+	}
+	for i := 0; i < 8; i++ {
+		press("dpad-right")
+	}
+	if m.Focus != 3 {
+		t.Fatalf("row clamp %d", m.Focus)
+	}
+	press("dpad-left")
+	if m.Focus != 2 {
+		t.Fatalf("left %d", m.Focus)
+	}
+	m.Focus = 0
+	press("dpad-left")
+	if m.Focus != 0 {
+		t.Fatalf("left catalog clamp wrapped %d", m.Focus)
+	}
+	press("dpad-up")
+	if m.Focus != 0 {
+		t.Fatalf("up catalog clamp wrapped %d", m.Focus)
+	}
+	press("dpad-down")
+	if m.Focus != 4 {
+		t.Fatalf("down by columns %d", m.Focus)
+	}
+	m.Focus = 11
+	press("dpad-down")
+	if m.Focus != 15 {
+		t.Fatalf("page boundary %d", m.Focus)
+	}
+	m.Focus = 24
+	press("dpad-right")
+	if m.Focus != 24 {
+		t.Fatalf("last-row clamp %d", m.Focus)
+	}
+	press("dpad-down")
+	if m.Focus != 24 {
+		t.Fatalf("last-row down clamp %d", m.Focus)
+	}
+	press("dpad-up")
+	if m.Focus != 20 {
+		t.Fatalf("up from last row %d", m.Focus)
+	}
+}
+
+func TestAnalogStickRisingEdgeDoesNotSpam(t *testing.T) {
+	m := Model{Games: makeGames(25), Connected: true, TargetReady: true}
+	now := time.Now()
+	right, _ := remoteinput.NormalizeAxis("left-x", 32767)
+	down, _ := remoteinput.NormalizeAxis("left-y", 32767)
+	idleX, _ := remoteinput.NormalizeAxis("left-x", 0)
+	idleY, _ := remoteinput.NormalizeAxis("left-y", 0)
+	m.Input(right, now)
+	m.Input(right, now)
+	m.Input(right, now)
+	if m.Focus != 1 {
+		t.Fatalf("held X %d", m.Focus)
+	}
+	m.Input(idleX, now)
+	m.Input(down, now)
+	m.Input(down, now)
+	if m.Focus != 5 {
+		t.Fatalf("held Y %d", m.Focus)
+	}
+	m.Input(idleY, now)
+	left, _ := remoteinput.NormalizeAxis("left-x", -32767)
+	m.Input(left, now)
+	if m.Focus != 4 {
+		t.Fatalf("left stick %d", m.Focus)
+	}
+}
+
+func makeGames(n int) []tenfoot.Game {
+	games := make([]tenfoot.Game, n)
+	for i := range games {
+		games[i] = tenfoot.Game{ID: "g" + string(rune('a'+i%26)), Launchable: true}
+	}
+	return games
 }
 
 func TestFailedSessionCanRequestRecoveryStop(t *testing.T) {

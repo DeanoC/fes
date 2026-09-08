@@ -29,7 +29,15 @@ func main() {
 }
 func run() error {
 	configPath := flag.String("config", "/media/fat/fogcast/launcher.json", "provisioned launcher configuration")
+	selftestNav := flag.Bool("selftest-nav", false, "paint 4x3 catalog navigation on the framebuffer and exit")
 	flag.Parse()
+	if *selftestNav {
+		fb := "/dev/fb0"
+		if c, err := kitlauncher.LoadConfig(*configPath); err == nil && c.Framebuffer != "" {
+			fb = c.Framebuffer
+		}
+		return runNavSelftest(fb)
+	}
 	c, err := kitlauncher.LoadConfig(*configPath)
 	if err != nil {
 		return err
@@ -168,7 +176,7 @@ func modelFooter(m kitlauncher.Model) string {
 		case m.Session.State == "active":
 			status = "Select+Start stop"
 		default:
-			status = "A play | D-pad move"
+			status = "A play | D-pad/stick move"
 		}
 	}
 	return truncateLabel(asciiLabel(status), 36)

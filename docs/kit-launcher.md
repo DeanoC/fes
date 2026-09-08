@@ -27,7 +27,12 @@ joystick interface are excluded. Standard Linux gamepad buttons and the kit's
 unsigned 0–255 fixture axes. Buttons held on opening are suppressed until release.
 Unplug/replug reopens a physical device and closes the old input stream.
 
-The grid uses D-pad/vertical axis to select and A to launch. During native play,
+The grid uses the D-pad and left stick in two dimensions to select, and A to
+launch. Left/right move one cell and clamp at the ends of the current row;
+up/down move by four cells (one row of the 4×3 page) and clamp at the first
+and last catalog rows. Crossing a page of 12 updates the painted page because
+`Model.Focus` stays an index into the full catalog. Stick motion steps on the
+rising edge only; holding a deflection does not repeat. During native play,
 events flow through the authenticated host stream into the existing leased
 virtual pad. Hold Select + Start together for one second to request ordinary
 Stop; both must release before rearming. Individual Start and Select remain game
@@ -54,6 +59,8 @@ loop.
 
 Run `go test -race ./kitlauncher/... ./cmd/fogcast-kit` for adapter tests. They
 exercise real HTTP transports with isolated servers and never open real input or
-framebuffer devices. Runtime and host tests cover their respective boundaries.
+framebuffer devices. On the kit, `fogcast-kit -selftest-nav` paints a 25-title
+catalog, moves focus right/down across a 4×3 page, samples the highlight, and
+exits without talking to the host. Runtime and host tests cover their respective boundaries.
 Use FES for selected image assembly and exact-artifact evidence. A diagnostic
 binary or modified image does not establish reproducible-image acceptance.

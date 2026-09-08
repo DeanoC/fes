@@ -7,6 +7,8 @@ import (
 	"github.com/DeanoC/FogCast/host/tenfoot"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/kitlauncher"
+	"github.com/DeanoC/FogCast/remoteinput"
+	"time"
 )
 
 func TestModelGridUsesLiveGamesAndPages(t *testing.T) {
@@ -24,6 +26,50 @@ func TestModelGridUsesLiveGamesAndPages(t *testing.T) {
 	}
 	if g.Header != "FOGCAST" || g.Footer == "" {
 		t.Fatalf("header=%q footer=%q", g.Header, g.Footer)
+	}
+}
+
+func TestModelGridFollowsTwoDimensionalFocus(t *testing.T) {
+	games := make([]tenfoot.Game, 25)
+	for i := range games {
+		games[i] = tenfoot.Game{ID: "g", Title: "T", System: "snes", Launchable: true}
+	}
+	m := kitlauncher.Model{Games: games, Connected: true, TargetReady: true}
+	right, _ := remoteinput.NormalizeGamepad("dpad-right", true)
+	down, _ := remoteinput.NormalizeGamepad("dpad-down", true)
+	now := time.Now()
+	m.Input(right, now)
+	g := modelGrid(m, 640, 480, nil)
+	if m.Focus != 1 || g.Focus != 1 || len(g.Tiles) != 12 {
+		t.Fatalf("right focus=%d local=%d tiles=%d", m.Focus, g.Focus, len(g.Tiles))
+	}
+	m.Focus = 11
+	m.Input(down, now)
+	start, end := catalogPage(m.Focus, len(m.Games))
+	g = modelGrid(m, 640, 480, nil)
+	if m.Focus != 15 || start != 12 || end != 24 || g.Focus != 3 || len(g.Tiles) != 12 {
+		t.Fatalf("page-cross focus=%d page=%d:%d local=%d tiles=%d", m.Focus, start, end, g.Focus, len(g.Tiles))
+	}
+}
+
+func TestExerciseNavGridSamplesHighlight(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseNavGrid(d)
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "right focus=1") || !strings.Contains(report, "page-cross focus=15 page=12:24") || !strings.Contains(report, "stick-right focus=13") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "selftest-nav PASS") {
+		t.Fatalf("missing pass: %s", report)
 	}
 }
 

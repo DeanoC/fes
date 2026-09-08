@@ -46,6 +46,41 @@ func TestNewWithTilesRelayoutsAndCopies(t *testing.T) {
 	}
 }
 
+func TestMoveFocusCatalogPagesAndEnds(t *testing.T) {
+	t.Parallel()
+	const cols = DefaultColumns
+	if got := MoveFocus(0, 25, cols, 1, 0); got != 1 {
+		t.Fatalf("right %d", got)
+	}
+	if got := MoveFocus(0, 25, cols, 10, 0); got != 3 {
+		t.Fatalf("row clamp %d", got)
+	}
+	if got := MoveFocus(0, 25, cols, -1, 0); got != 0 {
+		t.Fatalf("left end %d", got)
+	}
+	if got := MoveFocus(0, 25, cols, 0, -1); got != 0 {
+		t.Fatalf("up end %d", got)
+	}
+	if got := MoveFocus(0, 25, cols, 0, 1); got != 4 {
+		t.Fatalf("down %d", got)
+	}
+	if got := MoveFocus(11, 25, cols, 0, 1); got != 15 {
+		t.Fatalf("page cross %d", got)
+	}
+	if got := MoveFocus(24, 25, cols, 1, 0); got != 24 {
+		t.Fatalf("last row right %d", got)
+	}
+	if got := MoveFocus(24, 25, cols, 0, 1); got != 24 {
+		t.Fatalf("last row down %d", got)
+	}
+	if got := MoveFocus(23, 25, cols, 0, 1); got != 24 {
+		t.Fatalf("short last row %d", got)
+	}
+	if got := MoveFocus(0, 0, cols, 1, 1); got != 0 {
+		t.Fatalf("empty %d", got)
+	}
+}
+
 func TestMoveStaysOnRowAndClamps(t *testing.T) {
 	t.Parallel()
 	g := New(640, 480)

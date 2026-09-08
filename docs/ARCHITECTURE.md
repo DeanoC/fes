@@ -573,7 +573,10 @@ coverage; physical reboot and DHCP acceptance belongs to the selected FES image.
 ## Native kit launcher
 
 The native image packages `fogcast-kit`, a CGO-free controller/session adapter
-with a live 4×3 catalog grid renderer. Catalog cells paint decoded box-art from
+with a live 4×3 catalog grid renderer. D-pad and left-stick focus moves in two
+dimensions through `fbgrid.MoveFocus`: left/right clamp on the current row,
+up/down step by four cells, and leaving a page of 12 changes the painted page.
+Catalog cells paint decoded box-art from
 `GET /api/v1/presentation/artwork/{handle}` when `Game.Cover` is present, and
 keep the system-color fallback otherwise. A paired, authenticated host listener
 serves a restricted set of existing library, artwork, and session operations and a
