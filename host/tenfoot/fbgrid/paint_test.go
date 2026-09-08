@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"image"
 	"image/color"
+	"strings"
 	"testing"
 
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
@@ -156,22 +157,22 @@ func TestPaintUsesOptionalHeaderAndFooter(t *testing.T) {
 
 func TestChromeTextYCentersAndOverflowsAwayFromTiles(t *testing.T) {
 	t.Parallel()
-	if got := chromeTextY(0, 36, 2, true); got != 10 {
+	if got := chromeTextY(0, 36, 16, true); got != 10 {
 		t.Fatalf("default header y=%d want 10", got)
 	}
-	if got := chromeTextY(480-28, 28, 2, false); got != 480-22 {
+	if got := chromeTextY(480-28, 28, 16, false); got != 480-22 {
 		t.Fatalf("default footer y=%d want %d", got, 480-22)
 	}
-	if got := chromeTextY(0, 80, 2, true); got != 32 {
+	if got := chromeTextY(0, 80, 16, true); got != 32 {
 		t.Fatalf("tall header y=%d want 32", got)
 	}
-	if got := chromeTextY(480-64, 64, 2, false); got != 440 {
+	if got := chromeTextY(480-64, 64, 16, false); got != 440 {
 		t.Fatalf("tall footer y=%d want 440", got)
 	}
-	if got := chromeTextY(0, 36, 8, true); got != 36-64 {
+	if got := chromeTextY(0, 36, 64, true); got != 36-64 {
 		t.Fatalf("scaled header overflow y=%d want %d", got, 36-64)
 	}
-	if got := chromeTextY(480-28, 28, 8, false); got != 480-28 {
+	if got := chromeTextY(480-28, 28, 64, false); got != 480-28 {
 		t.Fatalf("scaled footer overflow y=%d want %d", got, 480-28)
 	}
 }
@@ -182,11 +183,15 @@ func TestPaintChromeTextUsesThemeMetrics(t *testing.T) {
 	g := New(w, h)
 	g.Header = "TITLE"
 	g.Footer = "STATUS"
+	def := theme.Default().Complete()
 
 	rec := gfx.NewRecorder()
 	Paint(rec, g)
-	assertChromeText(t, rec, "TITLE", 16, 10, 2)
-	assertChromeText(t, rec, "STATUS", 8, h-22, 2)
+	headerSize := gfx.ScalePx(def.HeaderScale)
+	statusSize := gfx.ScalePx(def.StatusScale)
+	assertChromeText(t, rec, "TITLE", 16, chromeTextY(0, g.HeaderH, gfx.TextHeight(headerSize), true), headerSize, def.Header)
+	assertChromeText(t, rec, "STATUS", 8, chromeTextY(h-g.FooterH, g.FooterH, gfx.TextHeight(statusSize), false), statusSize, def.Status)
+	assertNoDebugText(t, rec)
 
 	th := theme.Default()
 	th.HeaderH = 80
@@ -196,18 +201,14 @@ func TestPaintChromeTextUsesThemeMetrics(t *testing.T) {
 	ApplyTheme(&g, th)
 	rec = gfx.NewRecorder()
 	Paint(rec, g)
-	headerY := chromeTextY(0, g.HeaderH, 3, true)
-	footerY := chromeTextY(h-g.FooterH, g.FooterH, 4, false)
-	if headerY != 28 {
-		t.Fatalf("expected centered tall header y=28 got %d", headerY)
-	}
-	if footerY != 432 {
-		t.Fatalf("expected centered tall footer y=432 got %d", footerY)
-	}
-	assertChromeText(t, rec, "TITLE", 16, headerY, 3)
-	assertChromeText(t, rec, "STATUS", 8, footerY, 4)
-	if headerY+debugGlyphPx*3 > g.HeaderH {
-		t.Fatalf("header glyph [%d,%d) crosses HeaderH=%d", headerY, headerY+debugGlyphPx*3, g.HeaderH)
+	headerSize = gfx.ScalePx(3)
+	statusSize = gfx.ScalePx(4)
+	headerY := chromeTextY(0, g.HeaderH, gfx.TextHeight(headerSize), true)
+	footerY := chromeTextY(h-g.FooterH, g.FooterH, gfx.TextHeight(statusSize), false)
+	assertChromeText(t, rec, "TITLE", 16, headerY, headerSize, th.Complete().Header)
+	assertChromeText(t, rec, "STATUS", 8, footerY, statusSize, th.Complete().Status)
+	if headerY+gfx.TextHeight(headerSize) > g.HeaderH {
+		t.Fatalf("header glyph [%d,%d) crosses HeaderH=%d", headerY, headerY+gfx.TextHeight(headerSize), g.HeaderH)
 	}
 	if footerY < h-g.FooterH {
 		t.Fatalf("footer glyph y=%d is above footer top %d", footerY, h-g.FooterH)
@@ -220,12 +221,14 @@ func TestPaintChromeTextUsesThemeMetrics(t *testing.T) {
 	ApplyTheme(&g, th)
 	rec = gfx.NewRecorder()
 	Paint(rec, g)
-	headerY = chromeTextY(0, g.HeaderH, 8, true)
-	footerY = chromeTextY(h-g.FooterH, g.FooterH, 8, false)
-	assertChromeText(t, rec, "TITLE", 16, headerY, 8)
-	assertChromeText(t, rec, "STATUS", 8, footerY, 8)
-	if headerY+debugGlyphPx*8 > g.HeaderH {
-		t.Fatalf("oversized header glyph [%d,%d) still crosses HeaderH=%d", headerY, headerY+debugGlyphPx*8, g.HeaderH)
+	headerSize = gfx.ScalePx(8)
+	statusSize = gfx.ScalePx(8)
+	headerY = chromeTextY(0, g.HeaderH, gfx.TextHeight(headerSize), true)
+	footerY = chromeTextY(h-g.FooterH, g.FooterH, gfx.TextHeight(statusSize), false)
+	assertChromeText(t, rec, "TITLE", 16, headerY, headerSize, th.Complete().Header)
+	assertChromeText(t, rec, "STATUS", 8, footerY, statusSize, th.Complete().Status)
+	if headerY+gfx.TextHeight(headerSize) > g.HeaderH && headerY >= 0 {
+		t.Fatalf("oversized header should overflow upward, y=%d height=%d", headerY, gfx.TextHeight(headerSize))
 	}
 	if footerY < h-g.FooterH {
 		t.Fatalf("oversized footer glyph y=%d is above footer top %d", footerY, h-g.FooterH)
@@ -261,17 +264,29 @@ func TestPaintChromeTextLeavesTilesWhenHeaderIsTall(t *testing.T) {
 	assertBGRX(t, dst, cfg, ix, iy, c0.B, c0.G, c0.R, 0)
 }
 
-func assertChromeText(t *testing.T, rec *gfx.Recorder, text string, x, y, scale int) {
+func assertChromeText(t *testing.T, rec *gfx.Recorder, text string, x, y, sizePx int, col gfx.Color) {
 	t.Helper()
 	for _, c := range rec.Calls {
-		if c.Op == "DebugText" && c.Text == text {
-			if c.X != x || c.Y != y || c.Scale != scale {
-				t.Fatalf("%q DebugText x,y,scale=%d,%d,%d want %d,%d,%d", text, c.X, c.Y, c.Scale, x, y, scale)
+		if c.Op == "DrawText" && c.Text == text {
+			if c.X != x || c.Y != y || c.SizePx != sizePx {
+				t.Fatalf("%q DrawText x,y,size=%d,%d,%d want %d,%d,%d", text, c.X, c.Y, c.SizePx, x, y, sizePx)
+			}
+			if c.Color != col {
+				t.Fatalf("%q DrawText color %+v want %+v", text, c.Color, col)
 			}
 			return
 		}
 	}
-	t.Fatalf("missing DebugText %q in %v", text, rec.Ops())
+	t.Fatalf("missing DrawText %q in %v", text, rec.Ops())
+}
+
+func assertNoDebugText(t *testing.T, rec *gfx.Recorder) {
+	t.Helper()
+	for _, c := range rec.Calls {
+		if c.Op == "DebugText" {
+			t.Fatalf("fbgrid chrome still used DebugText: %v", rec.Ops())
+		}
+	}
 }
 
 func TestPaintAppliesThemeTokens(t *testing.T) {
@@ -310,6 +325,106 @@ func TestPaintAppliesThemeTokens(t *testing.T) {
 	if theme.Arcade().Highlight == theme.Default().Highlight {
 		t.Fatal("arcade highlight must differ")
 	}
+}
+
+func TestPaintTileLabelsUseThemeColorAndTruncate(t *testing.T) {
+	t.Parallel()
+	const w, h = 640, 480
+	g := NewWithTiles(w, h, []Tile{
+		{Name: "SONIC THE HEDGEHOG 2 EXTRA LONG TITLE", Color: gfx.RGB(44, 96, 156)},
+	})
+	th := theme.Arcade()
+	ApplyTheme(&g, th)
+	rec := gfx.NewRecorder()
+	Paint(rec, g)
+	assertNoDebugText(t, rec)
+	var label gfx.Call
+	found := false
+	for _, c := range rec.Calls {
+		if c.Op == "DrawText" && c.Color == th.Label && c.SizePx == gfx.ScalePx(th.LabelScale) {
+			label = c
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("missing tile DrawText in %v", rec.Ops())
+	}
+	if label.Text == "SONIC THE HEDGEHOG 2 EXTRA LONG TITLE" || !strings.HasSuffix(label.Text, "...") {
+		t.Fatalf("expected truncated tile label, got %q", label.Text)
+	}
+	maxW := g.CellW - 8
+	if gfx.MeasureText(label.Text, label.SizePx) > maxW {
+		t.Fatalf("label %q still wider than cell", label.Text)
+	}
+}
+
+func TestPaintUIFaceDiffersFromDebugTextAndTintsHeader(t *testing.T) {
+	t.Parallel()
+	const w, h = 640, 480
+	g := New(w, h)
+	g.Header = "FOGCAST  MEGADRIVE 5/15"
+	g.Footer = "A play | L/R shelf"
+	th := theme.Arcade()
+	ApplyTheme(&g, th)
+
+	ui, err := gfx.NewSoftware(w, h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	Paint(ui, g)
+	uiSnap := ui.Snapshot()
+
+	debug, err := gfx.NewSoftware(w, h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	debug.BeginFrame()
+	debug.Clear(th.Background)
+	debug.FillRect(gfx.Rect{X: 0, Y: 0, W: float32(w), H: float32(g.HeaderH)}, th.HeaderBar)
+	debug.DebugText(16, chromeTextY(0, g.HeaderH, gfx.ScalePx(th.HeaderScale), true), g.Header, th.HeaderScale)
+	debugSnap := debug.Snapshot()
+	if bytes.Equal(headerStrip(uiSnap, g.HeaderH), headerStrip(debugSnap, g.HeaderH)) {
+		t.Fatal("header still matches DebugText 8x8 HUD")
+	}
+	if !headerHasNear(uiSnap, g.HeaderH, color.RGBA{th.Header.R, th.Header.G, th.Header.B, 255}) {
+		t.Fatal("arcade header missing themed glyph ink")
+	}
+}
+
+func headerStrip(img *image.RGBA, headerH int) []byte {
+	if headerH < 1 {
+		headerH = 1
+	}
+	w := img.Bounds().Dx()
+	out := make([]byte, w*headerH*4)
+	for y := 0; y < headerH; y++ {
+		off := img.PixOffset(0, y)
+		copy(out[y*w*4:(y+1)*w*4], img.Pix[off:off+w*4])
+	}
+	return out
+}
+
+func headerHasNear(img *image.RGBA, headerH int, want color.RGBA) bool {
+	for y := 0; y < headerH && y < img.Bounds().Dy(); y++ {
+		for x := 0; x < img.Bounds().Dx(); x++ {
+			p := img.RGBAAt(x, y)
+			dr := absInt(int(p.R) - int(want.R))
+			dg := absInt(int(p.G) - int(want.G))
+			db := absInt(int(p.B) - int(want.B))
+			if dr <= 40 && dg <= 40 && db <= 40 && p.A > 128 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func absInt(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 func assertBGRX(t *testing.T, dst []byte, cfg gfx.FBConfig, x, y int, b, g, r, xx byte) {

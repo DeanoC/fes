@@ -41,7 +41,7 @@ Cover grid, labels, attract, now-playing, and session preview draw through
 
 - frame lifecycle: `BeginFrame` / `Clear` / `Present`
 - textures: create/update/destroy from `*image.RGBA` (RGBA8), opaque handles
-- draw: textured quad (dst rect, optional src rect) and solid fill rect
+- draw: textured quad (dst rect, optional src rect), solid fill rect, CGO-free `DrawText` (embedded Go Regular), and `DebugText` (8×8 HUD)
 - letterbox logical size and VSync are backend concerns
 - GPU park destroys textures individually (preview is the parked exception)
 

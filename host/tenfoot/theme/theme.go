@@ -35,11 +35,15 @@ type Theme struct {
 	CoverFrame        gfx.Color
 	CoverFrameWidth   int
 
-	Pad         int
-	Gap         int
-	Border      int
-	HeaderH     int
-	FooterH     int
+	Pad     int
+	Gap     int
+	Border  int
+	HeaderH int
+	FooterH int
+	// HeaderScale, LabelScale and StatusScale are size multipliers. Kit
+	// chrome maps them to pixel size 8*scale (the former DebugText glyph
+	// height) so existing theme JSON keeps the same hierarchy. There is
+	// no font-family picker in this slice.
 	HeaderScale int
 	LabelScale  int
 	StatusScale int

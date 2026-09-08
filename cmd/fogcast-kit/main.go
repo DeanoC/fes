@@ -38,6 +38,7 @@ func run() error {
 	selftestTheme := flag.Bool("selftest-theme", false, "paint default and arcade and sample pixels, then exit")
 	selftestFPGA := flag.Bool("selftest-fpga", false, "record FC2D attract still/anim on the FPGA software-replay backend and exit")
 	selftestShelf := flag.Bool("selftest-shelf", false, "paint system shelves, cycle L/R, sample header, and exit")
+	selftestText := flag.Bool("selftest-text", false, "paint UI-face chrome and prove it is not DebugText, then exit")
 	flag.Parse()
 	if *selftestFPGA {
 		fb := "/dev/fb0"
@@ -60,7 +61,7 @@ func run() error {
 		}
 		return runThemeSelftest(fb)
 	}
-	if *selftestNav || *selftestShelf {
+	if *selftestNav || *selftestShelf || *selftestText {
 		fb := "/dev/fb0"
 		configTheme := ""
 		if c, err := kitlauncher.LoadConfig(*configPath); err == nil {
@@ -72,6 +73,9 @@ func run() error {
 		th, err := loadKitTheme(*themeSpec, configTheme)
 		if err != nil {
 			return err
+		}
+		if *selftestText {
+			return runTextSelftest(fb, th)
 		}
 		if *selftestShelf {
 			return runShelfSelftest(fb, th)

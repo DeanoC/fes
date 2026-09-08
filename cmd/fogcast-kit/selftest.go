@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"image"
 	"strings"
+	"time"
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
 	"github.com/DeanoC/FogCast/host/tenfoot/anim"
@@ -13,7 +15,6 @@ import (
 	"github.com/DeanoC/FogCast/kitlauncher"
 	"github.com/DeanoC/FogCast/kitlauncher/controller"
 	"github.com/DeanoC/FogCast/remoteinput"
-	"time"
 )
 
 func runFPGASelftest(fbPath string) error {
@@ -102,6 +103,17 @@ func runShelfSelftest(fbPath string, th theme.Theme) error {
 	}
 	defer d.Close()
 	report, err := exerciseShelfGrid(d, th)
+	fmt.Print(report)
+	return err
+}
+
+func runTextSelftest(fbPath string, th theme.Theme) error {
+	d, err := gfx.OpenLinuxFB(fbPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	report, err := exerciseTextGrid(d, th)
 	fmt.Print(report)
 	return err
 }
@@ -361,4 +373,108 @@ func exerciseShelfGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	fmt.Fprintf(&b, "selftest-shelf PASS header=%q footer=%q shelves=%s\n",
 		m.HeaderChrome(), modelFooter(m), strings.Join(m.Shelves, ","))
 	return b.String(), nil
+}
+
+func exerciseTextGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
+	th = th.Complete()
+	arcade := theme.Arcade().Complete()
+	cfg := d.Config()
+	w, h := cfg.Width, cfg.Height
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	m.SetCatalog(mixedShelfGames())
+	g := paintModel(d, m, arcade)
+	snap := d.Snapshot()
+	var b strings.Builder
+	fmt.Fprintf(&b, "text-paint header=%q footer=%q tiles=%d theme=%s size=%dx%d\n",
+		g.Header, g.Footer, len(g.Tiles), arcade.Name, w, h)
+
+	debug, err := gfx.NewSoftware(w, h)
+	if err != nil {
+		return b.String(), err
+	}
+	debug.BeginFrame()
+	debug.Clear(arcade.Background)
+	debug.FillRect(gfx.Rect{X: 0, Y: 0, W: float32(w), H: float32(g.HeaderH)}, arcade.HeaderBar)
+	debug.DebugText(16, (g.HeaderH-gfx.ScalePx(arcade.HeaderScale))/2, g.Header, arcade.HeaderScale)
+	debugSnap := debug.Snapshot()
+	if headerBytesEqual(snap, debugSnap, g.HeaderH) {
+		return b.String(), fmt.Errorf("header still matches DebugText 8x8 HUD")
+	}
+	if !headerHasThemedInk(snap, g.HeaderH, arcade.Header) {
+		return b.String(), fmt.Errorf("header missing themed UI-face ink")
+	}
+	fmt.Fprintf(&b, "header-not-debug=1 header-ink=1 header_color=%s\n", theme.FormatColor(arcade.Header))
+
+	rec := gfx.NewRecorder()
+	fbgrid.Paint(rec, g)
+	var sawDebug, sawDraw bool
+	for _, c := range rec.Calls {
+		if c.Op == "DebugText" {
+			sawDebug = true
+		}
+		if c.Op == "DrawText" {
+			sawDraw = true
+		}
+	}
+	if sawDebug || !sawDraw {
+		return b.String(), fmt.Errorf("paint ops debug=%v drawtext=%v ops=%v", sawDebug, sawDraw, rec.Ops())
+	}
+
+	nav, err := exerciseNavGrid(d, th)
+	b.WriteString(nav)
+	if err != nil {
+		return b.String(), err
+	}
+	shelf, err := exerciseShelfGrid(d, th)
+	b.WriteString(shelf)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "selftest-text PASS font=goregular drawtext=1 debugtext=0\n")
+	return b.String(), nil
+}
+
+func headerBytesEqual(a, b *image.RGBA, headerH int) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	if headerH < 1 {
+		headerH = 1
+	}
+	wa, wb := a.Bounds().Dx(), b.Bounds().Dx()
+	if wa != wb {
+		return false
+	}
+	for y := 0; y < headerH && y < a.Bounds().Dy() && y < b.Bounds().Dy(); y++ {
+		ao := a.PixOffset(0, y)
+		bo := b.PixOffset(0, y)
+		for i := 0; i < wa*4; i++ {
+			if a.Pix[ao+i] != b.Pix[bo+i] {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func headerHasThemedInk(img *image.RGBA, headerH int, c gfx.Color) bool {
+	if img == nil {
+		return false
+	}
+	for y := 0; y < headerH && y < img.Bounds().Dy(); y++ {
+		for x := 0; x < img.Bounds().Dx(); x++ {
+			p := img.RGBAAt(x, y)
+			if absByte(int(p.R)-int(c.R)) <= 40 && absByte(int(p.G)-int(c.G)) <= 40 && absByte(int(p.B)-int(c.B)) <= 40 && p.A > 128 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func absByte(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
 }

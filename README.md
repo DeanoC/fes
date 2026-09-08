@@ -81,7 +81,8 @@ header shows the active shelf and counts (`MEGADRIVE 12/40`). D-pad and left
 stick move focus in
 two dimensions (left/right clamp on the row; up/down by four cells, paging
 when `Focus` leaves the visible 12). Cells show host cover art when
-`Game.Cover` is available and keep the system-color fallback otherwise. Paint
+`Game.Cover` is available and keep the system-color fallback otherwise. Header, tile names, and footer use the embedded Go Regular UI face through
+`gfx.DrawText` (CGO-free; no system fonts on the kit). Paint
 tokens (background, highlight, flash, system palette, header/footer chrome)
 come from `host/tenfoot/theme`: built-in `default` matches today's kit look,
 and `arcade` / `night` (or a JSON/TOML file) swap the look without forking

@@ -25,6 +25,7 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 		{Op: OpDraw, TexID: 7, Src: &src, Dst: Rect{X: 10, Y: 11, W: 12, H: 13}},
 		{Op: OpUpdateTexture, TexID: 7, Width: 2, Height: 2, Format: FormatRGBA8, Pixels: pix, CRC32: crc32.ChecksumIEEE(pix)},
 		{Op: OpDebugText, X: -3, Y: 9, Scale: 2, Text: "FC2D"},
+		{Op: OpDrawText, X: 4, Y: 5, SizePx: 16, Color: RGB(255, 240, 220), Text: "KIT"},
 		{Op: OpDestroyTexture, TexID: 7},
 		{Op: OpPresent},
 		{Op: OpClose},
@@ -82,6 +83,10 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 		case OpDebugText:
 			if c.X != want.X || c.Y != want.Y || c.Scale != want.Scale || c.Text != want.Text {
 				t.Fatalf("text %+v", c)
+			}
+		case OpDrawText:
+			if c.X != want.X || c.Y != want.Y || c.SizePx != want.SizePx || c.Text != want.Text || c.Color != want.Color {
+				t.Fatalf("drawtext %+v", c)
 			}
 		case OpDestroyTexture:
 			if c.TexID != want.TexID {

@@ -6,8 +6,10 @@
 // stream and rasters through Software until a programmed 2D core exists
 // (IsStub stays true; see fpga_protocol.md). FPGAStub is the older thin
 // Software wrapper without a stream. LinuxFB rasters with Software and
-// Present-blits onto a 32bpp Linux framebuffer. Recorder is a call-order
-// test double and does not draw pixels.
+// Present-blits onto a 32bpp Linux framebuffer. DrawText rasterizes the
+// embedded Go Regular UI face (no system fonts). DebugText stays the 8×8
+// HUD path and FC2D opcode. Recorder is a call-order test double and does
+// not draw pixels.
 //
 // Window creation, events, gamepad, and text input stay in the SDL shell
 // (host/tenfoot/sdl.go) until a later slice.
@@ -76,6 +78,9 @@ type Device interface {
 	SetBlend(mode BlendMode)
 
 	DebugText(x, y int, text string, scale int)
+	// DrawText rasterizes the embedded UI face (Go Regular) at sizePx.
+	// Color tints the glyphs. DebugText stays the 8×8 debug HUD path.
+	DrawText(x, y int, text string, sizePx int, c Color)
 
 	Close()
 }

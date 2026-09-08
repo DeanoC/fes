@@ -31,7 +31,9 @@ func Paint(d gfx.Device, g Grid) {
 	if header == "" {
 		header = "FOGCAST GRID"
 	}
-	d.DebugText(16, chromeTextY(0, g.HeaderH, th.HeaderScale, true), header, th.HeaderScale)
+	headerSize := gfx.ScalePx(th.HeaderScale)
+	header = gfx.FitText(header, headerSize, g.Width-24)
+	d.DrawText(16, chromeTextY(0, g.HeaderH, gfx.TextHeight(headerSize), true), header, headerSize, th.Header)
 	for i, tile := range g.Tiles {
 		x, y, ok := g.CellOrigin(i)
 		if !ok {
@@ -74,7 +76,12 @@ func Paint(d gfx.Device, g Grid) {
 		if !flashing {
 			paintCover(d, tile.Cover, inner)
 		}
-		barH := float32(16)
+		labelSize := gfx.ScalePx(th.LabelScale)
+		textH := gfx.TextHeight(labelSize)
+		barH := float32(textH + 4)
+		if barH < 16 {
+			barH = 16
+		}
 		if barH > inner.H {
 			barH = inner.H
 		}
@@ -84,17 +91,17 @@ func Paint(d gfx.Device, g Grid) {
 			W: inner.W,
 			H: barH,
 		}, th.LabelBar)
-		textX, textY := x+4, y+g.CellH-16
-		if th.CoverFrameWidth > 0 {
-			textX = int(inner.X) + 4
-			textY = int(inner.Y+inner.H) - 16
-			if textY < int(inner.Y) {
-				textY = int(inner.Y)
-			}
-		} else if textY < y {
-			textY = y
+		textX := int(inner.X) + 4
+		maxW := int(inner.W) - 8
+		if maxW < 1 {
+			maxW = 1
 		}
-		d.DebugText(textX, textY, tile.Name, th.LabelScale)
+		name := gfx.FitText(tile.Name, labelSize, maxW)
+		textY := int(inner.Y+inner.H) - textH - 2
+		if textY < int(inner.Y) {
+			textY = int(inner.Y)
+		}
+		d.DrawText(textX, textY, name, labelSize, th.Label)
 	}
 	status := g.Footer
 	if status == "" {
@@ -104,19 +111,17 @@ func Paint(d gfx.Device, g Grid) {
 	if footerTop < 0 {
 		footerTop = 0
 	}
-	d.DebugText(8, chromeTextY(footerTop, g.Height-footerTop, th.StatusScale, false), status, th.StatusScale)
+	statusSize := gfx.ScalePx(th.StatusScale)
+	status = gfx.FitText(status, statusSize, g.Width-16)
+	d.DrawText(8, chromeTextY(footerTop, g.Height-footerTop, gfx.TextHeight(statusSize), false), status, statusSize, th.Status)
 }
 
-// debugGlyphPx is the DebugText glyph size used by gfx backends.
-const debugGlyphPx = 8
-
-// chromeTextY vertically centers an 8×scale glyph in a chrome bar. When the
+// chromeTextY vertically centers a textH-pixel label in a chrome bar. When the
 // glyph is taller than the bar, it overflows away from the tile row.
-func chromeTextY(barTop, barH, scale int, overflowUp bool) int {
-	if scale < 1 {
-		scale = 1
+func chromeTextY(barTop, barH, textH int, overflowUp bool) int {
+	if textH < 1 {
+		textH = 1
 	}
-	textH := debugGlyphPx * scale
 	if barH < 1 {
 		if overflowUp {
 			return barTop - textH

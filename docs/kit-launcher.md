@@ -57,8 +57,13 @@ kit pixels (highlight BGRX 0,220,255,0, flash white, system palette). **arcade**
 and **night** are named alternates. `-theme` (then optional `theme` in
 `launcher.json`, then `FOGCAST_THEME`) selects a built-in name or a JSON/TOML
 file. `fbgrid.Paint` and the system-color fallback consume those tokens (fills,
-highlight, flash, chrome, spacing). Debug glyphs keep the software font
-colour. The catalog, input, and launch path stay the same. There is no
+highlight, flash, chrome, spacing). Header, tile names, and footer/status draw
+through `gfx.DrawText` with the embedded Go Regular face (`golang.org/x/image/font/gofont/goregular`);
+the kit does not read system fonts. Theme `header_scale` / `label_scale` /
+`status_scale` map to pixel size `8*scale` (the former DebugText glyph height)
+so existing JSON keeps the same hierarchy. Overlong chrome and tile labels
+truncate with an ellipsis. `DebugText` remains the 8×8 HUD path for FPGA
+protocol and spikes. The catalog, input, and launch path stay the same. There is no
 on-screen theme picker in this slice.
 
 The grid uses the D-pad and left stick in two dimensions to select, Shoulder L/R
@@ -97,7 +102,7 @@ into the cell. Missing, failed, or still-loading art keeps the system-color
 tile and ASCII label. Fetching is asynchronous and does not block the present
 loop.
 
-Run `go test -race ./kitlauncher/... ./host/tenfoot/inputmap ./host/tenfoot/theme ./host/tenfoot/fbgrid ./host/tenfoot/anim ./cmd/fogcast-kit` for adapter tests. They
+Run `go test -race ./kitlauncher/... ./host/tenfoot/inputmap ./host/tenfoot/theme ./host/tenfoot/fbgrid ./host/tenfoot/gfx ./host/tenfoot/anim ./cmd/fogcast-kit` for adapter tests. They
 exercise real HTTP transports with isolated servers and never open real input or
 framebuffer devices. On the kit, `fogcast-kit -selftest-nav` paints a 25-title
 catalog, moves focus right/down across a 4×3 page, samples the highlight, and
@@ -105,7 +110,9 @@ exits without talking to the host. `fogcast-kit -selftest-shelf` paints a mixed
 pong/Mega Drive/SNES catalog, cycles shelves with L/R and Select, checks the
 header counts and visible set, and samples the highlight. `fogcast-kit -selftest-theme` paints **default**
 then **arcade**, samples highlight and background, and requires the pixels to
-differ. `fogcast-kit -selftest-fpga` records a timed attract still/crossfade
+differ. `fogcast-kit -selftest-text` paints UI-face header/tile/footer chrome,
+requires the header pixels to differ from a DebugText-only baseline, checks
+themed glyph ink, and re-runs nav plus shelf. `fogcast-kit -selftest-fpga` records a timed attract still/crossfade
 and sprite move through `gfx.NewFPGA` (FC2D software-replay, `IsStub` true,
 `HW=not-yet`) and, when `/dev/fb0` opens, Replays the stream onto linuxfb.
 It does not claim a programmed 2D core. `fogcast-kit -selftest-pads` opens every

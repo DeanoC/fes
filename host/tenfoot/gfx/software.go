@@ -195,6 +195,10 @@ func (s *Software) DebugText(x, y int, text string, scale int) {
 	}
 }
 
+func (s *Software) DrawText(x, y int, text string, sizePx int, c Color) {
+	blitText(s, x, y, RasterizeText(text, sizePx, c, 0))
+}
+
 func (s *Software) Close() {
 	for id := range s.textures {
 		delete(s.textures, id)

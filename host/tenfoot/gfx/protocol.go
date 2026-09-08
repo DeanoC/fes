@@ -37,6 +37,7 @@ const (
 	OpUpdateTexture  Op = 0x11
 	OpDestroyTexture Op = 0x12
 	OpDebugText      Op = 0x20
+	OpDrawText       Op = 0x21
 	OpClose          Op = 0xFF
 )
 
@@ -62,6 +63,8 @@ func (op Op) String() string {
 		return "DestroyTexture"
 	case OpDebugText:
 		return "DebugText"
+	case OpDrawText:
+		return "DrawText"
 	case OpClose:
 		return "Close"
 	default:
@@ -116,6 +119,7 @@ type Command struct {
 	Text   string
 	X, Y   int
 	Scale  int
+	SizePx int
 	Frame  uint32
 }
 
@@ -270,6 +274,8 @@ func replayOne(d Device, ids map[uint32]Texture, c Command) error {
 		}
 	case OpDebugText:
 		d.DebugText(c.X, c.Y, c.Text, c.Scale)
+	case OpDrawText:
+		d.DrawText(c.X, c.Y, c.Text, c.SizePx, c.Color)
 	case OpClose:
 		d.Close()
 	default:
@@ -346,6 +352,22 @@ func encodePayload(c Command) ([]byte, byte, error) {
 			scale = 255
 		}
 		p = append(p, byte(scale), 0, 0, 0)
+		p = append(p, []byte(c.Text)...)
+		return p, 0, nil
+	case OpDrawText:
+		p := make([]byte, 0, 16+len(c.Text))
+		p = appendI32(p, int32(c.X))
+		p = appendI32(p, int32(c.Y))
+		size := c.SizePx
+		if size < 0 {
+			size = 0
+		}
+		if size > 65535 {
+			size = 65535
+		}
+		p = appendU16(p, uint16(size))
+		p = append(p, 0, 0)
+		p = append(p, c.Color.R, c.Color.G, c.Color.B, c.Color.A)
 		p = append(p, []byte(c.Text)...)
 		return p, 0, nil
 	default:
@@ -426,6 +448,15 @@ func decodePayload(op Op, flags byte, p []byte) (Command, error) {
 		c.Y = int(int32(binary.LittleEndian.Uint32(p[4:8])))
 		c.Scale = int(p[8])
 		c.Text = string(p[12:])
+	case OpDrawText:
+		if err := need(16); err != nil {
+			return Command{}, err
+		}
+		c.X = int(int32(binary.LittleEndian.Uint32(p[0:4])))
+		c.Y = int(int32(binary.LittleEndian.Uint32(p[4:8])))
+		c.SizePx = int(binary.LittleEndian.Uint16(p[8:10]))
+		c.Color = Color{R: p[12], G: p[13], B: p[14], A: p[15]}
+		c.Text = string(p[16:])
 	default:
 		return Command{}, fmt.Errorf("fc2d: unknown op 0x%02x", uint8(op))
 	}

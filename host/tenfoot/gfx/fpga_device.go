@@ -171,6 +171,11 @@ func (f *FPGA) DebugText(x, y int, text string, scale int) {
 	f.sw.DebugText(x, y, text, scale)
 }
 
+func (f *FPGA) DrawText(x, y int, text string, sizePx int, c Color) {
+	f.record(Command{Op: OpDrawText, X: x, Y: y, SizePx: sizePx, Color: c, Text: text})
+	f.sw.DrawText(x, y, text, sizePx, c)
+}
+
 func (f *FPGA) Close() {
 	f.record(Command{Op: OpClose})
 	f.sw.Close()

@@ -147,6 +147,20 @@ func (s *SDLBackend) DebugText(x, y int, text string, scale int) {
 	C.SDL_SetRenderScale(s.r, 1, 1)
 }
 
+func (s *SDLBackend) DrawText(x, y int, text string, sizePx int, c Color) {
+	img := RasterizeText(text, sizePx, c, 0)
+	if img == nil {
+		return
+	}
+	tex, err := s.CreateRGBA(img)
+	if err != nil {
+		return
+	}
+	b := img.Bounds()
+	s.Draw(tex, nil, Rect{X: float32(x), Y: float32(y), W: float32(b.Dx()), H: float32(b.Dy())})
+	s.Destroy(tex)
+}
+
 func (s *SDLBackend) Close() {
 	for id, tex := range s.textures {
 		C.SDL_DestroyTexture(tex)

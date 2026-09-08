@@ -90,6 +90,7 @@ Texture ids are `u32` and match the Device handle the encoder assigned.
 | `0x11` | UpdateTexture | same as CreateTexture |
 | `0x12` | DestroyTexture | `tex_id u32` |
 | `0x20` | DebugText | `x i32`, `y i32`, `scale u8`, `pad[3]`, UTF-8 bytes |
+| `0x21` | DrawText | `x i32`, `y i32`, `size_px u16`, `pad[2]`, `rgba[4]`, UTF-8 bytes |
 | `0xFF` | Close | empty |
 
 `format` `0` is RGBA8. `crc32` is IEEE CRC of the tightly packed pixel bytes.
@@ -98,6 +99,11 @@ Replay rejects a mismatch. An unknown `op` is an error.
 `CreateTexture` / `UpdateTexture` inline pixels so encode/decode and CI work
 without a DMA heap. That is a software convenience. A programmed core may
 refuse large inline payloads; see proposed v2 below.
+
+`DrawText` is the CGO-free UI face (embedded Go Regular, `size_px`, RGBA). It
+is recorded for software replay. It is not a hardware text accelerator; a
+programmed 2D core may raster it through Software until a later opcode exists.
+`DebugText` stays the 8×8 HUD path.
 
 `FillRect` honours the last `SetBlend`. Textured `Draw` uses source-over of
 the texture's alpha, matching Software and SDL today.
@@ -116,6 +122,7 @@ the texture's alpha, matching Software and SDL today.
 | `UpdateRGBA` | `UpdateTexture` |
 | `Destroy` | `DestroyTexture` |
 | `DebugText` | `DebugText` |
+| `DrawText` | `DrawText` |
 | `Close` | `Close` |
 
 `gfx.Replay` / `ReplayBytes` apply a decoded stream to any Device (Software
