@@ -1,9 +1,11 @@
 package controller
 
 import (
-	"github.com/DeanoC/FogCast/remoteinput"
 	"testing"
 	"time"
+
+	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
+	"github.com/DeanoC/FogCast/remoteinput"
 )
 
 func TestFixtureUnsignedAxisAndButtons(t *testing.T) {
@@ -38,6 +40,22 @@ func TestInitialHeldButtonRequiresRelease(t *testing.T) {
 	}
 	if _, ok := m.Map(1, 304, 1); !ok {
 		t.Fatal("fresh press lost")
+	}
+}
+
+func TestPhysicalEvdevOverrideBeatsDefaultSouth(t *testing.T) {
+	r, err := inputmap.NewRemapper(inputmap.Profile{Name: "evdev-select", Bindings: map[string]string{"evdev:304": "select"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := NewMapper(0, 0, nil)
+	e, ok := m.mapWith(r, 1, 304, 1)
+	if !ok || e.Code != remoteinput.ButtonSelect {
+		t.Fatalf("physical override %+v %v", e, ok)
+	}
+	e, ok = m.mapWith(nil, 1, 304, 1)
+	if !ok || e.Code != remoteinput.ButtonA {
+		t.Fatalf("default south %+v %v", e, ok)
 	}
 }
 

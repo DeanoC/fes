@@ -1,10 +1,12 @@
 package kitlauncher
 
 import (
-	"github.com/DeanoC/FogCast/host/tenfoot"
-	"github.com/DeanoC/FogCast/remoteinput"
 	"testing"
 	"time"
+
+	"github.com/DeanoC/FogCast/host/tenfoot"
+	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
+	"github.com/DeanoC/FogCast/remoteinput"
 )
 
 func TestMenuAndGameControlsRemainSeparate(t *testing.T) {
@@ -124,6 +126,41 @@ func makeGames(n int) []tenfoot.Game {
 		games[i] = tenfoot.Game{ID: "g" + string(rune('a'+i%26)), Launchable: true}
 	}
 	return games
+}
+
+func TestIdentityRemapStillLaunchesOnA(t *testing.T) {
+	r := mustRemapper(t, "")
+	m := Model{Games: []tenfoot.Game{{ID: "pong", Launchable: true}}, Connected: true, TargetReady: true}
+	a, _ := remoteinput.NormalizeGamepad("a", true)
+	if action := m.Input(r.Apply(a), time.Now()); action != "launch" {
+		t.Fatalf("identity launch %q", action)
+	}
+}
+
+func TestSwapABRemapLaunchesOnB(t *testing.T) {
+	r := mustRemapper(t, "swap-ab")
+	m := Model{Games: []tenfoot.Game{{ID: "pong", Launchable: true}}, Connected: true, TargetReady: true}
+	a, _ := remoteinput.NormalizeGamepad("a", true)
+	if action := m.Input(r.Apply(a), time.Now()); action != "" {
+		t.Fatalf("A launched under swap-ab: %q", action)
+	}
+	b, _ := remoteinput.NormalizeGamepad("b", true)
+	if action := m.Input(r.Apply(b), time.Now()); action != "launch" {
+		t.Fatalf("B launch %q", action)
+	}
+}
+
+func mustRemapper(t *testing.T, spec string) *inputmap.Remapper {
+	t.Helper()
+	p, err := inputmap.Resolve(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := inputmap.NewRemapper(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
 }
 
 func TestFailedSessionCanRequestRecoveryStop(t *testing.T) {

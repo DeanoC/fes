@@ -30,6 +30,9 @@ type Options struct {
 	// keep WrapSDLRenderer. linuxfb is the kit framebuffer Device and
 	// is not opened from the SDL sofa shell.
 	GFX string
+	// InputProfile is a built-in name (identity, swap-ab) or a JSON file
+	// path. Empty is identity.
+	InputProfile string
 }
 
 func (o Options) prefsPath() string {

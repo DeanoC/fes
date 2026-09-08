@@ -58,6 +58,7 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 	layout := fs.String("layout", "grid", "sofa layout: grid, shelf, or list")
 	envNoAttract := envTruthy("FOGCAST_TENFOOT_NO_ATTRACT")
 	noAttract := fs.Bool("no-attract", envNoAttract, "disable attract mode")
+	inputProfile := fs.String("input-profile", envOr("FOGCAST_INPUT_PROFILE", ""), "identity, swap-ab, or JSON profile path (default identity)")
 	if err := fs.Parse(args); err != nil {
 		return tenfoot.Options{}, err
 	}
@@ -90,6 +91,7 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 		LayoutSet:    layoutSet,
 		NoAttract:    *noAttract,
 		NoAttractSet: noAttractSet,
+		InputProfile: *inputProfile,
 	}, nil
 }
 

@@ -4,6 +4,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
 )
 
 func TestReaderPipeJS(t *testing.T) {
@@ -72,6 +74,31 @@ func TestReaderCloseUnblocks(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("Close hung")
+	}
+}
+
+func TestReaderAppliesRemapper(t *testing.T) {
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := NewReader()
+	defer r.Close()
+	remap, err := inputmap.NewRemapper(inputmap.SwapAB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.SetRemapper(remap)
+	if err := r.Add(pr, KindEvdev, "event0", "pad"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pw.Write(EncodeEvdev(evKey, btnEast, 1)); err != nil {
+		t.Fatal(err)
+	}
+	got := waitPoll(t, r, 2*time.Second)
+	_ = pw.Close()
+	if len(got) != 1 || got[0].Action != ActionConfirm || !got[0].Active {
+		t.Fatalf("swap-ab east %+v", got)
 	}
 }
 

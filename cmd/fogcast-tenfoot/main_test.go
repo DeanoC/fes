@@ -55,6 +55,17 @@ func TestParseArgsSafeAreaAndNoAttract(t *testing.T) {
 	}
 }
 
+func TestParseArgsInputProfile(t *testing.T) {
+	t.Parallel()
+	opts, err := parseArgs([]string{"-input-profile", "swap-ab"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.InputProfile != "swap-ab" {
+		t.Fatalf("opts = %#v", opts)
+	}
+}
+
 func TestParseArgsLayout(t *testing.T) {
 	t.Parallel()
 	opts, err := parseArgs([]string{"-layout", "shelf"})

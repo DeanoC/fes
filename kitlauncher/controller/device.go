@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// eligible rejects the retained virtual pad (BUS_VIRTUAL) and non-gamepads.
 func eligible(bus uint16, name string, buttons bool) bool {
 	return bus != 6 && name != "FogCast Virtual Gamepad" && buttons
 }

@@ -21,11 +21,35 @@ launch. Host endpoint configuration is explicit; target discovery is separate.
 
 ## Physical controls
 
-One physical evdev gamepad is selected; the virtual FogCast device and duplicate
-joystick interface are excluded. Standard Linux gamepad buttons and the kit's
-081f:e401 USB pad are normalized. Axis range comes from EVIOCGABS, including
-unsigned 0–255 fixture axes. Buttons held on opening are suppressed until release.
-Unplug/replug reopens a physical device and closes the old input stream.
+Every eligible physical evdev gamepad is opened; polls merge in stable device
+path order into one `remoteinput.Event` stream. The virtual FogCast device
+(`BUS_VIRTUAL` / name `FogCast Virtual Gamepad`), other virtual-bus nodes, devices
+without gamepad buttons, and duplicate `/dev/input/js*` joystick interfaces are
+excluded. Standard Linux gamepad buttons and the kit's 081f:e401 USB pad are
+normalized. Axis range comes from EVIOCGABS, including unsigned 0–255 fixture
+axes. Buttons held on opening are suppressed until release. Unplug drops that
+pad and keeps any remaining pads; a one-second rescan from the 16ms loop picks
+up a newly plugged pad without blocking present. When the last pad disconnects,
+the launcher reopens as before.
+
+Remapping lives in `host/tenfoot/inputmap`. The default **identity** profile
+leaves codes unchanged, so A still launches and Select+Start still stops.
+`-input-profile` (then optional `input_profile` in `launcher.json`, then
+`FOGCAST_INPUT_PROFILE`) selects a built-in name (`identity`, `swap-ab`) or a
+JSON file:
+
+```json
+{
+  "name": "swap-ab",
+  "description": "Swap A and B after device normalization.",
+  "bindings": { "a": "b", "b": "a" }
+}
+```
+
+Bindings are a single lookup of logical names (`a`, `b`, `start`, `select`,
+`dpad-up`, `left-x`, …) or raw `evdev:<code>` / `js:<n>` keys onto those logical
+names. The same remapper is what linuxinput-derived paths and the tenfoot
+`CommandFromLogical` adapter apply. There is no on-screen editor in this slice.
 
 The grid uses the D-pad and left stick in two dimensions to select, and A to
 launch. Left/right move one cell and clamp at the ends of the current row;
@@ -57,10 +81,12 @@ into the cell. Missing, failed, or still-loading art keeps the system-color
 tile and ASCII label. Fetching is asynchronous and does not block the present
 loop.
 
-Run `go test -race ./kitlauncher/... ./cmd/fogcast-kit` for adapter tests. They
+Run `go test -race ./kitlauncher/... ./host/tenfoot/inputmap ./cmd/fogcast-kit` for adapter tests. They
 exercise real HTTP transports with isolated servers and never open real input or
 framebuffer devices. On the kit, `fogcast-kit -selftest-nav` paints a 25-title
 catalog, moves focus right/down across a 4×3 page, samples the highlight, and
-exits without talking to the host. Runtime and host tests cover their respective boundaries.
+exits without talking to the host. `fogcast-kit -selftest-pads` opens every
+eligible USB pad under the identity profile, prints device id/name, and exits.
+Runtime and host tests cover their respective boundaries.
 Use FES for selected image assembly and exact-artifact evidence. A diagnostic
 binary or modified image does not establish reproducible-image acceptance.

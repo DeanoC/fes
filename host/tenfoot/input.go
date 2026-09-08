@@ -3,6 +3,8 @@ package tenfoot
 import (
 	"sync"
 	"time"
+
+	"github.com/DeanoC/FogCast/remoteinput"
 )
 
 // Command is one focus-graph action from a gamepad or debug keyboard.
@@ -59,6 +61,79 @@ const (
 	stickGate       = 16000
 	stickHysteresis = 8000
 )
+
+// ButtonFromLogical maps a remapped remoteinput code onto a tenfoot Button.
+func ButtonFromLogical(code remoteinput.Code) Button {
+	switch code {
+	case remoteinput.ButtonDPadUp:
+		return ButtonDPadUp
+	case remoteinput.ButtonDPadDown:
+		return ButtonDPadDown
+	case remoteinput.ButtonDPadLeft:
+		return ButtonDPadLeft
+	case remoteinput.ButtonDPadRight:
+		return ButtonDPadRight
+	case remoteinput.ButtonA:
+		return ButtonSouth
+	case remoteinput.ButtonB:
+		return ButtonEast
+	case remoteinput.ButtonX:
+		return ButtonWest
+	case remoteinput.ButtonY:
+		return ButtonNorth
+	case remoteinput.ButtonL:
+		return ButtonLeftShoulder
+	case remoteinput.ButtonR:
+		return ButtonRightShoulder
+	case remoteinput.ButtonStart:
+		return ButtonStart
+	case remoteinput.ButtonSelect:
+		return ButtonBack
+	default:
+		return ButtonNone
+	}
+}
+
+// LogicalFromButton is the inverse of ButtonFromLogical.
+func LogicalFromButton(button Button) remoteinput.Code {
+	switch button {
+	case ButtonDPadUp:
+		return remoteinput.ButtonDPadUp
+	case ButtonDPadDown:
+		return remoteinput.ButtonDPadDown
+	case ButtonDPadLeft:
+		return remoteinput.ButtonDPadLeft
+	case ButtonDPadRight:
+		return remoteinput.ButtonDPadRight
+	case ButtonSouth:
+		return remoteinput.ButtonA
+	case ButtonEast:
+		return remoteinput.ButtonB
+	case ButtonWest:
+		return remoteinput.ButtonX
+	case ButtonNorth:
+		return remoteinput.ButtonY
+	case ButtonLeftShoulder:
+		return remoteinput.ButtonL
+	case ButtonRightShoulder:
+		return remoteinput.ButtonR
+	case ButtonStart:
+		return remoteinput.ButtonStart
+	case ButtonBack:
+		return remoteinput.ButtonSelect
+	default:
+		return 0
+	}
+}
+
+// CommandFromLogical maps a remapped logical event onto a focus command.
+// Axis samples stay on CommandFromStickHeld; this adapter covers buttons.
+func CommandFromLogical(e remoteinput.Event) Command {
+	if e.Kind != remoteinput.KindButton {
+		return CmdNone
+	}
+	return CommandFromButton(ButtonFromLogical(e.Code))
+}
 
 // CommandFromButton maps a gamepad button to a focus command.
 func CommandFromButton(button Button) Command {

@@ -6,19 +6,21 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"golang.org/x/sys/unix"
-	"path/filepath"
 	"unsafe"
 )
 
-// Device reads only one physical evdev interface. The caller retries Open after
-// a disconnect; discovery never opens js duplicates or the retained virtual pad.
+// Device reads one physical evdev interface. Hub opens every eligible pad;
+// discovery never opens js duplicates or the retained virtual pad.
 type Device struct {
 	fd      int
 	mapper  *Mapper
 	pending []byte
 	Name    string
+	Path    string
+	remap   *inputmap.Remapper
 }
 
 func ioctl(fd int, nr byte, b []byte) error {
@@ -33,19 +35,6 @@ func ioctl(fd int, nr byte, b []byte) error {
 	return nil
 }
 func bit(b []byte, n int) bool { return n/8 < len(b) && b[n/8]&(1<<uint(n%8)) != 0 }
-func Open() (*Device, error) {
-	paths, err := filepath.Glob("/dev/input/event*")
-	if err != nil {
-		return nil, err
-	}
-	for _, path := range paths {
-		d, err := openDevice(path)
-		if err == nil {
-			return d, nil
-		}
-	}
-	return nil, errors.New("connect a USB gamepad")
-}
 func openDevice(path string) (*Device, error) {
 	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
 	if err != nil {
@@ -91,7 +80,18 @@ func openDevice(path string) (*Device, error) {
 		}
 	}
 	success = true
-	return &Device{fd: fd, mapper: mapper, Name: cstring(name)}, nil
+	return &Device{fd: fd, mapper: mapper, Name: cstring(name), Path: path}, nil
+}
+
+func (d *Device) Info() (string, string) {
+	if d == nil {
+		return "", ""
+	}
+	return d.Path, d.Name
+}
+
+func (d *Device) mapEvent(typ, code uint16, value int32) (remoteinput.Event, bool) {
+	return d.mapper.mapWith(d.remap, typ, code, value)
 }
 func (d *Device) Close() error {
 	if d.fd < 0 {
@@ -130,7 +130,7 @@ func (d *Device) Poll() ([]remoteinput.Event, error) {
 			if typ == 0 && code == 3 {
 				return nil, fmt.Errorf("controller events lost; reconnecting")
 			}
-			if e, ok := d.mapper.Map(typ, code, value); ok {
+			if e, ok := d.mapEvent(typ, code, value); ok {
 				out = append(out, e)
 			}
 		}

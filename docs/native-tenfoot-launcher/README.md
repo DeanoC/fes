@@ -85,6 +85,8 @@ FOGCAST_API=http://127.0.0.1:8787 bin/fogcast-tenfoot
 FOGCAST_API_HOST=127.0.0.1:8787 bin/fogcast-tenfoot -api http://host.docker.internal:8787
 FOGCAST_TENFOOT_NO_ATTRACT=1 bin/fogcast-tenfoot
 FOGCAST_TENFOOT_SAFE_AREA=0 bin/fogcast-tenfoot
+bin/fogcast-tenfoot -input-profile identity
+FOGCAST_INPUT_PROFILE=swap-ab bin/fogcast-tenfoot
 ```
 
 Default overscan inset is **5% of each edge** (`-safe-area 0.05`). Windowed debug
@@ -125,7 +127,10 @@ stills fallback. GUI video smoke on a Linux display is NEED.
 
 Gamepad is the intended control path (d-pad / left stick to move, South/A to
 launch, East/B to back, Start to quit, Select/View to cycle layout, Guide to
-open the sofa settings overlay). Down from the last row (or last shelf/list
+open the sofa settings overlay). `-input-profile identity|swap-ab|/path.json`
+applies the shared `host/tenfoot/inputmap` remapper after SDL button
+normalization (`CommandFromLogical`); empty is identity. Kit multi-device
+merge is the HIL proof; sofa still opens every SDL gamepad. Down from the last row (or last shelf/list
 page) opens the focused title's detail pane; Up or East/B returns to browse.
 Left/Right in the pane cycle screenshots. South/A still launches, East/B still
 stops a live session, Start still quits, Guide still opens settings, North/Y

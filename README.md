@@ -73,7 +73,11 @@ two dimensions (left/right clamp on the row; up/down by four cells, paging
 when `Focus` leaves the visible 12). Cells show host cover art when
 `Game.Cover` is available and keep the system-color fallback otherwise. The
 grid is a view of `kitlauncher.Model` and does not own host requests, input
-leases, or FPGA transitions. See [kit launcher](docs/kit-launcher.md). Exact image and hardware
+leases, or FPGA transitions. Kit input opens every eligible USB pad, merges
+their polls, and applies a JSON remap profile from
+`host/tenfoot/inputmap` (default **identity** preserves A=launch and
+Select+Start=stop). The FogCast virtual pad, virtual-bus devices, and
+`/dev/input/js*` duplicates stay excluded. See [kit launcher](docs/kit-launcher.md). Exact image and hardware
 evidence belong to FES.
 
 ## Built-in native Pong (software integration)

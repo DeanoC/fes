@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
 )
 
 const (
@@ -289,6 +291,7 @@ type App struct {
 	launch    LaunchSnapshot
 	gamepads  int
 	repeat    Repeater
+	remap     *inputmap.Remapper
 	jobs      chan workItem
 	results   chan workResult
 	maxGames  int
@@ -436,6 +439,25 @@ type App struct {
 	previewSeq         int
 	previewFails       int
 	previewNext        time.Time
+}
+
+// SetRemapper installs a shared input profile. A nil remapper is identity.
+func (a *App) SetRemapper(r *inputmap.Remapper) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.remap = r
+}
+
+func (a *App) remapper() *inputmap.Remapper {
+	if a == nil {
+		return nil
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.remap
 }
 
 // NewApp builds a launcher model bound to the host API client.

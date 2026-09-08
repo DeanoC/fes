@@ -12,6 +12,7 @@ import (
 	"github.com/DeanoC/FogCast/host/tenfoot"
 	"github.com/DeanoC/FogCast/host/tenfoot/fbgrid"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
+	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
 	"github.com/DeanoC/FogCast/kitlauncher"
 	"github.com/DeanoC/FogCast/kitlauncher/controller"
 	"os"
@@ -29,8 +30,17 @@ func main() {
 }
 func run() error {
 	configPath := flag.String("config", "/media/fat/fogcast/launcher.json", "provisioned launcher configuration")
+	inputProfile := flag.String("input-profile", "", "identity, swap-ab, or JSON profile path (default identity)")
 	selftestNav := flag.Bool("selftest-nav", false, "paint 4x3 catalog navigation on the framebuffer and exit")
+	selftestPads := flag.Bool("selftest-pads", false, "open eligible USB pads, print them, and exit")
 	flag.Parse()
+	if *selftestPads {
+		remap, err := loadKitRemapper(*inputProfile, "")
+		if err != nil {
+			return err
+		}
+		return runPadsSelftest(remap)
+	}
 	if *selftestNav {
 		fb := "/dev/fb0"
 		if c, err := kitlauncher.LoadConfig(*configPath); err == nil && c.Framebuffer != "" {
@@ -74,7 +84,26 @@ func run() error {
 		fbgrid.Paint(d, grid)
 		d.Present()
 	}
-	return kitlauncher.Run(ctx, client, present, func() (kitlauncher.Pad, error) { return controller.Open() })
+	remap, err := loadKitRemapper(*inputProfile, c.InputProfile)
+	if err != nil {
+		return err
+	}
+	return kitlauncher.Run(ctx, client, present, func() (kitlauncher.Pad, error) { return controller.OpenWith(remap) })
+}
+
+func loadKitRemapper(flagSpec, configSpec string) (*inputmap.Remapper, error) {
+	spec := strings.TrimSpace(flagSpec)
+	if spec == "" {
+		spec = strings.TrimSpace(configSpec)
+	}
+	if spec == "" {
+		spec = strings.TrimSpace(os.Getenv("FOGCAST_INPUT_PROFILE"))
+	}
+	profile, err := inputmap.Resolve(spec)
+	if err != nil {
+		return nil, err
+	}
+	return inputmap.NewRemapper(profile)
 }
 
 type renderKey struct {

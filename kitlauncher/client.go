@@ -18,10 +18,11 @@ import (
 )
 
 type Config struct {
-	API         string `json:"api"`
-	Token       string `json:"token"`
-	TargetID    string `json:"target_id"`
-	Framebuffer string `json:"framebuffer,omitempty"`
+	API          string `json:"api"`
+	Token        string `json:"token"`
+	TargetID     string `json:"target_id"`
+	Framebuffer  string `json:"framebuffer,omitempty"`
+	InputProfile string `json:"input_profile,omitempty"`
 }
 
 func LoadConfig(path string) (Config, error) {

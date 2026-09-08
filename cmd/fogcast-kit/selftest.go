@@ -7,10 +7,38 @@ import (
 	"github.com/DeanoC/FogCast/host/tenfoot"
 	"github.com/DeanoC/FogCast/host/tenfoot/fbgrid"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
+	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
 	"github.com/DeanoC/FogCast/kitlauncher"
+	"github.com/DeanoC/FogCast/kitlauncher/controller"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"time"
 )
+
+func runPadsSelftest(remap *inputmap.Remapper) error {
+	if remap == nil {
+		remap = inputmap.IdentityRemapper()
+	}
+	a, _ := remoteinput.NormalizeGamepad("a", true)
+	mapped := remap.Apply(a)
+	fmt.Printf("profile=%s a->%d identity=%v\n", remap.Profile().Name, mapped.Code, mapped.Code == remoteinput.ButtonA)
+	hub, err := controller.OpenWith(remap)
+	if err != nil {
+		return err
+	}
+	defer hub.Close()
+	devs := hub.Devices()
+	fmt.Printf("pads=%d\n", len(devs))
+	for i, d := range devs {
+		fmt.Printf("pad[%d] id=%s name=%q\n", i, d.ID, d.Name)
+	}
+	events, err := hub.Poll()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("poll_events=%d\n", len(events))
+	fmt.Printf("selftest-pads PASS\n")
+	return nil
+}
 
 func runNavSelftest(fbPath string) error {
 	d, err := gfx.OpenLinuxFB(fbPath)

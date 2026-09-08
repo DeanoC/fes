@@ -2,6 +2,7 @@
 package controller
 
 import (
+	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"time"
 )
@@ -70,6 +71,28 @@ func (m *Mapper) Map(typ, code uint16, value int32) (remoteinput.Event, bool) {
 	}
 	e, err := remoteinput.NormalizeAxis(name, int32(normalized))
 	return e, err == nil
+}
+
+func (m *Mapper) mapWith(remap *inputmap.Remapper, typ, code uint16, value int32) (remoteinput.Event, bool) {
+	if typ == 1 && remap != nil {
+		if dst, ok := remap.PhysicalButton(code); ok {
+			if m.suppressed[code] {
+				if value == 0 {
+					delete(m.suppressed, code)
+				}
+				return remoteinput.Event{}, false
+			}
+			if value != 0 && value != 1 {
+				return remoteinput.Event{}, false
+			}
+			action := remoteinput.ActionRelease
+			if value == 1 {
+				action = remoteinput.ActionPress
+			}
+			return remoteinput.Event{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Action: action, Code: dst}, true
+		}
+	}
+	return m.Map(typ, code, value)
 }
 
 // Chord fires once after a continuous one-second Select+Start hold. Both

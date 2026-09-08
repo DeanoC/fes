@@ -269,7 +269,7 @@ linuxfb is a kit framebuffer Device, not the SDL sofa shell.
 | SDL3 | `gfx.WrapSDLRenderer` (`host/tenfoot/gfx/sdl3.go`, build tag `sdl3`) | Default production path: wraps the process `SDL_Renderer` with letterbox logical presentation and VSync. |
 | Software | `gfx.NewSoftware` (`host/tenfoot/gfx/software.go`) | Pure-Go RGBA8 rasterizer for tests and CI (no cgo, no SDL). Nearest blit, `Snapshot` for golden pixels. |
 | FPGA stub | `gfx.NewFPGAStub` (`host/tenfoot/gfx/fpga.go`) | Placeholder for a future MiSTer custom 2D accelerator. Delegates to Software today; exposes `BackendName` / `IsStub`. Does not talk to kit, runtime, or RBF. |
-| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`host/tenfoot/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `host/tenfoot/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). |
+| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`host/tenfoot/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `host/tenfoot/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `host/tenfoot/inputmap`; linuxinput can apply a `Remapper` to gamepad records. |
 
 `gfx.Recorder` remains a call-order test double and does not draw pixels.
 
@@ -582,9 +582,14 @@ keep the system-color fallback otherwise. A paired, authenticated host listener
 serves a restricted set of existing library, artwork, and session operations and a
 session-bound input stream. The host keeps target and input lease ownership; the
 adapter sends physical USB events through that stream to the retained virtual
-pad. The native runtime enables the idle framebuffer and restores it after Stop.
+pad. Kit input discovers every eligible USB gamepad (`event*` only), merges
+polls in stable device-id order through `host/tenfoot/inputmap`, and remaps
+logical codes with a JSON profile (default identity). Hotplug rescan runs from
+the existing 16ms poll on a one-second interval. The native runtime enables the
+idle framebuffer and restores it after Stop.
 The launcher only paints memory and suspends rendering during gameplay; the
-grid consumes `kitlauncher.Model` and does not own those transitions.
+grid consumes `kitlauncher.Model` and does not own those transitions. The SDL
+sofa maps remapped logical codes onto the existing `tenfoot.Command` set.
 
 See [kit adapter](kit-launcher.md) and [host connection contract](launcher-host.md)
 for setup, controls, exact routes, timeouts and ownership. The existing browser

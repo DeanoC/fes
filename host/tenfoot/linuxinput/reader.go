@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
 	"golang.org/x/sys/unix"
 )
 
@@ -20,6 +21,7 @@ type Reader struct {
 	wg        sync.WaitGroup
 	mu        sync.Mutex
 	devs      []*device
+	remap     *inputmap.Remapper
 }
 
 type device struct {
@@ -66,6 +68,17 @@ func (r *Reader) Add(f *os.File, kind Kind, path, name string) error {
 	r.wg.Add(1)
 	go r.readLoop(d)
 	return nil
+}
+
+// SetRemapper applies a shared profile to gamepad records. Keyboard keys keep
+// the existing MapEvdev path. A nil remapper is identity.
+func (r *Reader) SetRemapper(remap *inputmap.Remapper) {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	r.remap = remap
+	r.mu.Unlock()
 }
 
 // OpenPaths opens every path that can be opened. It succeeds if at least
@@ -183,7 +196,10 @@ func (r *Reader) readLoop(d *device) {
 			for len(pending) >= recSize {
 				rec := pending[:recSize]
 				pending = pending[recSize:]
-				m := mapRecord(d.kind, rec)
+				r.mu.Lock()
+				remap := r.remap
+				r.mu.Unlock()
+				m := mapRecordRemapped(d.kind, rec, remap)
 				if m.Action == ActionNone {
 					continue
 				}

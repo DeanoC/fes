@@ -164,10 +164,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime"
+	"strings"
 	"time"
 	"unsafe"
 
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
+	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
+	"github.com/DeanoC/FogCast/remoteinput"
 )
 
 const (
@@ -217,6 +220,17 @@ func runWindow(ctx context.Context, opts Options) error {
 	defer dev.Close()
 
 	app := NewApp(NewClient(opts.APIBase, nil).withAPIHost(opts.APIHost), opts.Width, opts.Height, opts.MaxGames)
+	if spec := strings.TrimSpace(opts.InputProfile); spec != "" {
+		profile, err := inputmap.Resolve(spec)
+		if err != nil {
+			return fmt.Errorf("input profile: %w", err)
+		}
+		remap, err := inputmap.NewRemapper(profile)
+		if err != nil {
+			return fmt.Errorf("input profile: %w", err)
+		}
+		app.SetRemapper(remap)
+	}
 	app.SetPrefsPath(opts.prefsPath())
 	app.SetLayout(parseLayout(opts.Layout))
 	app.SetSafeAreaPct(opts.SafeAreaPct)
@@ -568,6 +582,7 @@ func pollGamepads(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, held map[C
 		prevStick = stick.cmd
 	}
 	stickCmd := CmdNone
+	remap := app.remapper()
 	for _, pad := range pads {
 		if pad == nil {
 			continue
@@ -588,7 +603,7 @@ func pollGamepads(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, held map[C
 			C.SDL_GAMEPAD_BUTTON_GUIDE,
 		} {
 			if bool(C.SDL_GetGamepadButton(pad, C.SDL_GamepadButton(button))) {
-				pressed[commandFromSDLButton(button)] = true
+				pressed[remapSDLCommand(remap, commandFromSDLButton(button))] = true
 			}
 		}
 		x := int(C.SDL_GetGamepadAxis(pad, C.SDL_GAMEPAD_AXIS_LEFTX))
@@ -686,6 +701,54 @@ func openExistingGamepads(pads map[C.SDL_JoystickID]*C.SDL_Gamepad, app *App) {
 		}
 	}
 	app.SetGamepads(len(pads))
+}
+
+func remapSDLCommand(remap *inputmap.Remapper, cmd Command) Command {
+	if cmd == CmdNone || cmd == CmdSettings || remap == nil {
+		return cmd
+	}
+	button := buttonFromCommand(cmd)
+	if button == ButtonNone {
+		return cmd
+	}
+	e := remoteinput.Event{
+		Device: remoteinput.DeviceGamepad,
+		Kind:   remoteinput.KindButton,
+		Action: remoteinput.ActionPress,
+		Code:   LogicalFromButton(button),
+	}
+	return CommandFromLogical(remap.Apply(e))
+}
+
+func buttonFromCommand(cmd Command) Button {
+	switch cmd {
+	case CmdUp:
+		return ButtonDPadUp
+	case CmdDown:
+		return ButtonDPadDown
+	case CmdLeft:
+		return ButtonDPadLeft
+	case CmdRight:
+		return ButtonDPadRight
+	case CmdSelect:
+		return ButtonSouth
+	case CmdBack:
+		return ButtonEast
+	case CmdQuit:
+		return ButtonStart
+	case CmdLayoutCycle:
+		return ButtonBack
+	case CmdSortCycle:
+		return ButtonWest
+	case CmdSearch:
+		return ButtonNorth
+	case CmdFilterPrev:
+		return ButtonLeftShoulder
+	case CmdFilterNext:
+		return ButtonRightShoulder
+	default:
+		return ButtonNone
+	}
 }
 
 func commandFromSDLButton(code C.int) Command {

@@ -1,6 +1,11 @@
 package linuxinput
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
+	"github.com/DeanoC/FogCast/remoteinput"
+)
 
 func TestKindFromPath(t *testing.T) {
 	t.Parallel()
@@ -121,6 +126,60 @@ func TestParseMapConfirm(t *testing.T) {
 	}
 	if ActionConfirm.String() != "confirm" {
 		t.Fatalf("string %s", ActionConfirm)
+	}
+}
+
+func TestEventFromEvdevAndActionFromEvent(t *testing.T) {
+	t.Parallel()
+	e, ok := EventFromEvdev(evKey, btnSouth, 1)
+	if !ok || e.Code != remoteinput.ButtonA {
+		t.Fatalf("south %+v %v", e, ok)
+	}
+	m := ActionFromEvent(e)
+	if m.Action != ActionConfirm || !m.Active {
+		t.Fatalf("confirm %+v", m)
+	}
+	start, ok := EventFromEvdev(evKey, btnStart, 1)
+	if !ok || ActionFromEvent(start).Action != ActionQuit {
+		t.Fatalf("start %+v %v", start, ok)
+	}
+	axis, ok := EventFromEvdev(evAbs, absX, 20000)
+	if !ok || axis.Code != remoteinput.AxisLeftX {
+		t.Fatalf("axis %+v %v", axis, ok)
+	}
+	mapped := ActionFromEvent(axis)
+	if mapped.Action != ActionRight || !mapped.Active || !mapped.Analog {
+		t.Fatalf("axis action %+v", mapped)
+	}
+	if _, ok := EventFromEvdev(evKey, keyEsc, 1); ok {
+		t.Fatal("keyboard became gamepad")
+	}
+}
+
+func TestLinuxinputSwapABRemap(t *testing.T) {
+	t.Parallel()
+	r, err := inputmap.NewRemapper(inputmap.SwapAB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	south := EncodeEvdev(evKey, btnSouth, 1)
+	m := mapRecordRemapped(KindEvdev, south, r)
+	if m.Action != ActionNone {
+		t.Fatalf("swapped A should not confirm %+v", m)
+	}
+	east := EncodeEvdev(evKey, btnEast, 1)
+	m = mapRecordRemapped(KindEvdev, east, r)
+	if m.Action != ActionConfirm || !m.Active {
+		t.Fatalf("swapped B should confirm %+v", m)
+	}
+	identity := mapRecordRemapped(KindEvdev, south, nil)
+	if identity.Action != ActionConfirm {
+		t.Fatalf("nil remapper %v", identity)
+	}
+	repeat := EncodeEvdev(evKey, btnSouth, 2)
+	m = mapRecordRemapped(KindEvdev, repeat, r)
+	if m.Action != ActionNone {
+		t.Fatalf("repeat south under swap-ab %+v", m)
 	}
 }
 

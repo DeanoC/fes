@@ -6,10 +6,46 @@ import (
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
+	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
 	"github.com/DeanoC/FogCast/kitlauncher"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"time"
 )
+
+func TestPadsSelftestReportsIdentityBeforeOpen(t *testing.T) {
+	r := inputmap.IdentityRemapper()
+	err := runPadsSelftest(r)
+	if err == nil {
+		return
+	}
+	if !strings.Contains(err.Error(), "Linux") && !strings.Contains(err.Error(), "gamepad") {
+		t.Fatalf("err %v", err)
+	}
+}
+
+func TestLoadKitRemapperDefaultsToIdentity(t *testing.T) {
+	r, err := loadKitRemapper("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Profile().Name != inputmap.NameIdentity {
+		t.Fatalf("profile %q", r.Profile().Name)
+	}
+	a, _ := remoteinput.NormalizeGamepad("a", true)
+	if r.Apply(a).Code != remoteinput.ButtonA {
+		t.Fatal("identity mutated A")
+	}
+}
+
+func TestLoadKitRemapperFlagBeatsConfig(t *testing.T) {
+	r, err := loadKitRemapper("swap-ab", "identity")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Profile().Name != inputmap.NameSwapAB {
+		t.Fatalf("profile %q", r.Profile().Name)
+	}
+}
 
 func TestModelGridUsesLiveGamesAndPages(t *testing.T) {
 	games := make([]tenfoot.Game, 13)
