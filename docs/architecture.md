@@ -1124,9 +1124,12 @@ dependency map because the build is self-contained in this checkout.
 Export remains unreachable until the routed JSON contains top, synthesis and
 utilization each show exactly one `altera_pll` and one HPS GP primitive, no
 forbidden memory/DSP synthesis cell or utilization resource is used, the known
-`cyclonev_oscillator` utilization row is present with zero use, the route log proves normal completion,
-and the timing JSON contains unique passing 50 MHz reference and 74.25 MHz
-pixel constraints. After creating the deterministic manifest, the recipe
+`cyclonev_oscillator` utilization row is present with zero use, and the route
+log proves normal completion. The single sequential timing domain must meet its
+74.25 MHz pixel constraint. The 50 MHz reference has no sequential Fmax row;
+the recipe instead requires the tracked SDC's exact 20.000 ns constraint, its
+application in the route log, and identical fixed fractional PLL parameters in
+the synthesized and routed designs. After creating the deterministic manifest, the recipe
 reauthenticates tools and the clean source before calling the Task-3 exporter. A failed
 build retains the pre-synthesis input record and diagnostic reports but removes
 the RBF, manifest and passing summary so they cannot be mistaken for an

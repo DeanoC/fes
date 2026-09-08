@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import subprocess
@@ -76,6 +77,24 @@ FORBIDDEN_RESOURCES = frozenset(
     }
 )
 REQUIRED_ZERO_RESOURCES = frozenset({"cyclonev_oscillator"})
+REFERENCE_SDC_BYTES = (
+    b"# 50 MHz DE10-Nano input clock.\n"
+    b"create_clock -name FPGA_CLK1_50 -period 20.000 [get_ports {FPGA_CLK1_50}]\n"
+)
+PLL_PARAMETERS = {
+    "duty_cycle0": "00000000000000000000000000110010",
+    "fractional_vco_multiplier": "true",
+    "number_of_clocks": "00000000000000000000000000000001",
+    "operation_mode": "direct",
+    "output_clock_frequency0": "74.25 MHz",
+    "phase_shift0": "0 ps",
+    "reference_clock_frequency": "50.0 MHz",
+}
+REFERENCE_CONSTRAINT_LOG = "Info: constraining clock net 'FPGA_CLK1_50' to 50.00 MHz"
+PLL_ROUTE_LOG = (
+    "Info: PLL 'video_clock.pll': 50 MHz -> 74.25 MHz, direct, "
+    "M=8 N=1 C6=6, bel altera_pll.0.14.0"
+)
 EXPECTED_TOOL_COMMITS = {
     "mistral": "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
     "nextpnr": "ef294430c57b1d64c52f15129adcc6236ecbce01",
@@ -378,24 +397,61 @@ def _frequency_rows(fmax: object, expected: float, label: str) -> tuple[str, flo
             or not isinstance(achieved, (int, float))
         ):
             continue
+        if not math.isfinite(float(constraint)) or not math.isfinite(float(achieved)):
+            raise BuildError(f"{label} timing frequencies must be finite")
         tolerance = max(1e-6, expected * 5e-5)
         if abs(float(constraint) - expected) <= tolerance:
             matches.append((name, float(constraint), float(achieved)))
     if len(matches) != 1:
         raise BuildError(f"timing report must contain exactly one {label} {expected:g} MHz constraint")
     name, constraint, achieved = matches[0]
-    if achieved < expected:
-        raise BuildError(f"{label} timing achieved {achieved:g} MHz, below required {expected:g} MHz")
+    if achieved < constraint:
+        raise BuildError(
+            f"{label} timing achieved {achieved:g} MHz, below reported constraint {constraint!r} MHz"
+        )
     return name, constraint, achieved
 
 
-def validate_build_evidence(output: Path) -> dict:
+def _pll_cell_parameters(design: dict, label: str) -> None:
+    modules = design.get("modules")
+    top = modules.get(TOP) if isinstance(modules, dict) else None
+    cells = top.get("cells") if isinstance(top, dict) else None
+    matches = [
+        cell
+        for cell in cells.values()
+        if isinstance(cell, dict) and cell.get("type") == "altera_pll"
+    ] if isinstance(cells, dict) else []
+    if len(matches) != 1 or matches[0].get("parameters") != PLL_PARAMETERS:
+        raise BuildError(f"{label} PLL parameters do not match the fixed 50-to-74.25 MHz profile")
+
+
+def _reference_clock_evidence(source_root: Path, route_text: str) -> dict[str, object]:
+    sdc = _regular_input(source_root, SDC)
+    if sdc.read_bytes() != REFERENCE_SDC_BYTES:
+        raise BuildError("tracked SDC does not contain the exact FPGA_CLK1_50 20.000 ns constraint")
+    if route_text.count(REFERENCE_CONSTRAINT_LOG) != 1:
+        raise BuildError("route log must apply the FPGA_CLK1_50 50.00 MHz constraint exactly once")
+    if route_text.count(PLL_ROUTE_LOG) != 1:
+        raise BuildError("route log does not contain the expected fixed fractional PLL mapping")
+    return {
+        "clock": "FPGA_CLK1_50",
+        "constraint_mhz": 50.0,
+        "evidence": "boards/de10nano/clocks.sdc and routed PLL",
+        "requested_mhz": 50.0,
+        "status": "pass",
+    }
+
+
+def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     output = Path(output)
+    source_root = Path(source_root)
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
     routed = _read_json(output / "routed.json", "routed design")
     routed_modules = routed.get("modules")
     if not isinstance(routed_modules, dict) or not isinstance(routed_modules.get(TOP), dict):
         raise BuildError("routed design does not contain the top module")
+    _pll_cell_parameters(synthesis, "synthesized")
+    _pll_cell_parameters(routed, "routed")
     counts = _cell_counts(synthesis)
     for name, expected in REQUIRED_RESOURCES.items():
         if counts.get(name, 0) != expected:
@@ -410,10 +466,13 @@ def validate_build_evidence(output: Path) -> dict:
     route_text = route_log.read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
+    reference = _reference_clock_evidence(source_root, route_text)
 
     timing = _read_json(output / "timing.json", "timing report")
-    reference = _frequency_rows(timing.get("fmax"), 50.0, "reference clock")
-    pixel = _frequency_rows(timing.get("fmax"), 74.25, "pixel clock")
+    fmax = timing.get("fmax")
+    if not isinstance(fmax, dict) or len(fmax) != 1:
+        raise BuildError("timing report must contain the single pixel sequential domain")
+    pixel = _frequency_rows(fmax, 74.25, "pixel clock")
     utilization = timing.get("utilization")
     if not isinstance(utilization, dict):
         raise BuildError("timing report has no structured utilization data")
@@ -468,13 +527,7 @@ def validate_build_evidence(output: Path) -> dict:
                 "achieved_mhz": pixel[2],
                 "status": "pass",
             },
-            "reference": {
-                "clock": reference[0],
-                "constraint_mhz": reference[1],
-                "requested_mhz": 50.0,
-                "achieved_mhz": reference[2],
-                "status": "pass",
-            },
+            "reference": reference,
             "status": "pass",
         },
         "resources": resources,
@@ -538,7 +591,7 @@ def _build_after_record(
     if not (output / "synth.json").is_file():
         raise BuildError("Yosys did not produce synthesis evidence")
     _run_tool(commands[1], root, output / "nextpnr.log")
-    evidence = validate_build_evidence(output)
+    evidence = validate_build_evidence(output, root)
     evidence.update(
         {
             "build_id": build_id,

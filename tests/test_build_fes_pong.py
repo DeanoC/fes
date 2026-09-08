@@ -21,6 +21,15 @@ from scripts.export_core_package import build_identity
 
 
 ROOT = Path(__file__).resolve().parents[1]
+PLL_PARAMETERS = {
+    "duty_cycle0": "00000000000000000000000000110010",
+    "fractional_vco_multiplier": "true",
+    "number_of_clocks": "00000000000000000000000000000001",
+    "operation_mode": "direct",
+    "output_clock_frequency0": "74.25 MHz",
+    "phase_shift0": "0 ps",
+    "reference_clock_frequency": "50.0 MHz",
+}
 
 
 class BuildFesPongTests(unittest.TestCase):
@@ -119,6 +128,12 @@ class BuildFesPongTests(unittest.TestCase):
             self.assertEqual(qsf.count(f"set_location_assignment {pin} -to {signal}\n"), 1)
         self.assertEqual(qsf.count('set_instance_assignment -name IO_STANDARD "3.3-V LVTTL"'), 6)
 
+        game = (ROOT / "cores/pong/rtl/pong_game.sv").read_text(encoding="utf-8")
+        self.assertIn("output logic signed [9:0] ball_x, ball_y, player_y, ai_y", game)
+        self.assertIn("logic signed [2:0] vertical_speed", game)
+        self.assertIn("logic signed [9:0] next_x, next_y", game)
+        self.assertNotIn("output integer ball_x", game)
+
     def test_build_record_is_canonical_and_self_contained(self) -> None:
         identities = {
             "mistral": "commit=" + "b" * 40 + "; sha256=" + "1" * 64,
@@ -159,7 +174,10 @@ class BuildFesPongTests(unittest.TestCase):
                     "modules": {
                         "top": {
                             "cells": {
-                                "pll": {"type": "altera_pll"},
+                                "pll": {
+                                    "type": "altera_pll",
+                                    "parameters": dict(PLL_PARAMETERS),
+                                },
                                 "hps": {"type": "cyclonev_hps_interface_mpu_general_purpose"},
                             }
                         }
@@ -169,16 +187,37 @@ class BuildFesPongTests(unittest.TestCase):
             encoding="utf-8",
         )
         (output / "routed.json").write_text(
-            json.dumps({"modules": {"top": {"cells": {}}}}) + "\n",
+            json.dumps(
+                {
+                    "modules": {
+                        "top": {
+                            "cells": {
+                                "pll": {
+                                    "type": "altera_pll",
+                                    "parameters": dict(PLL_PARAMETERS),
+                                }
+                            }
+                        }
+                    }
+                }
+            )
+            + "\n",
             encoding="utf-8",
         )
         (output / "core.rbf").write_bytes(b"rbf\n")
-        (output / "nextpnr.log").write_text("Info: Program finished normally.\n", encoding="utf-8")
+        (output / "nextpnr.log").write_text(
+            "Info: constraining clock net 'FPGA_CLK1_50' to 50.00 MHz\n"
+            "Info: PLL 'video_clock.pll': fractional-N requested 74250000.000000 Hz, "
+            "achieved 74249999.832439542 Hz, error -0.00225670649 ppm.\n"
+            "Info: PLL 'video_clock.pll': 50 MHz -> 74.25 MHz, direct, M=8 N=1 C6=6, "
+            "bel altera_pll.0.14.0\n"
+            "Info: Program finished normally.\n",
+            encoding="utf-8",
+        )
         (output / "timing.json").write_text(
             json.dumps(
                 {
                     "fmax": {
-                        "FPGA_CLK1_50": {"constraint": 50.0, "achieved": 120.0},
                         "pixel_clk": {"constraint": 74.25, "achieved": achieved},
                     },
                     "utilization": {
@@ -205,11 +244,28 @@ class BuildFesPongTests(unittest.TestCase):
             summary = validate_build_evidence(output)
             self.assertEqual(summary["status"], "pass")
             self.assertEqual(summary["timing"]["pixel"]["requested_mhz"], 74.25)
+            self.assertEqual(
+                summary["timing"]["reference"],
+                {
+                    "clock": "FPGA_CLK1_50",
+                    "constraint_mhz": 50.0,
+                    "evidence": "boards/de10nano/clocks.sdc and routed PLL",
+                    "requested_mhz": 50.0,
+                    "status": "pass",
+                },
+            )
             self.assertEqual(summary["resources"]["altera_pll"]["used"], 1)
             self.assertEqual(summary["resources"]["cyclonev_oscillator"]["used"], 0)
 
             self._write_passing_outputs(output, achieved=74.249)
             with self.assertRaisesRegex(BuildError, "74.25"):
+                validate_build_evidence(output)
+
+            self._write_passing_outputs(output, achieved=74.25001)
+            timing = json.loads((output / "timing.json").read_text(encoding="utf-8"))
+            timing["fmax"]["pixel_clk"]["constraint"] = 74.25005
+            (output / "timing.json").write_text(json.dumps(timing), encoding="utf-8")
+            with self.assertRaisesRegex(BuildError, "74.25005"):
                 validate_build_evidence(output)
 
             self._write_passing_outputs(output)
@@ -237,6 +293,83 @@ class BuildFesPongTests(unittest.TestCase):
             (output / "routed.json").write_text("{}\n", encoding="utf-8")
             with self.assertRaisesRegex(BuildError, "routed design"):
                 validate_build_evidence(output)
+
+    def test_reference_and_pll_evidence_is_complete_and_consistent(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            self._write_passing_outputs(output)
+            route_log = output / "nextpnr.log"
+            route_log.write_text("Info: Program finished normally.\n", encoding="utf-8")
+            with self.assertRaisesRegex(BuildError, "50.00 MHz"):
+                validate_build_evidence(output)
+
+            for filename, label in (("synth.json", "synthesized"), ("routed.json", "routed")):
+                with self.subTest(pll_evidence=label):
+                    self._write_passing_outputs(output)
+                    design = json.loads((output / filename).read_text(encoding="utf-8"))
+                    design["modules"]["top"]["cells"]["pll"]["parameters"][
+                        "output_clock_frequency0"
+                    ] = "75 MHz"
+                    (output / filename).write_text(json.dumps(design), encoding="utf-8")
+                    with self.assertRaisesRegex(BuildError, f"{label} PLL"):
+                        validate_build_evidence(output)
+
+            self._write_passing_outputs(output)
+            route_log.write_text(
+                "Info: constraining clock net 'FPGA_CLK1_50' to 50.00 MHz\n"
+                "Info: Program finished normally.\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(BuildError, "fractional PLL mapping"):
+                validate_build_evidence(output)
+
+            self._write_passing_outputs(output)
+            timing = json.loads((output / "timing.json").read_text(encoding="utf-8"))
+            timing["fmax"]["invented_reference_domain"] = {
+                "constraint": 50.0,
+                "achieved": 120.0,
+            }
+            (output / "timing.json").write_text(json.dumps(timing), encoding="utf-8")
+            with self.assertRaisesRegex(BuildError, "single pixel"):
+                validate_build_evidence(output)
+
+            source = output / "source"
+            sdc = source / "boards/de10nano/clocks.sdc"
+            sdc.parent.mkdir(parents=True)
+            sdc.write_text(
+                "create_clock -name FPGA_CLK1_50 -period 19.999 "
+                "[get_ports {FPGA_CLK1_50}]\n",
+                encoding="utf-8",
+            )
+            self._write_passing_outputs(output)
+            with self.assertRaisesRegex(BuildError, "20.000 ns"):
+                validate_build_evidence(output, source)
+
+    def test_timing_frequencies_must_be_finite(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            for field in ("constraint", "achieved"):
+                for value in (float("nan"), float("inf"), float("-inf")):
+                    with self.subTest(field=field, value=value):
+                        self._write_passing_outputs(output)
+                        timing = json.loads(
+                            (output / "timing.json").read_text(encoding="utf-8")
+                        )
+                        timing["fmax"]["pixel_clk"][field] = value
+                        (output / "timing.json").write_text(
+                            json.dumps(timing), encoding="utf-8"
+                        )
+                        with self.assertRaisesRegex(BuildError, "finite"):
+                            validate_build_evidence(output)
+
+            self._write_passing_outputs(output, achieved=74.25005)
+            timing = json.loads((output / "timing.json").read_text(encoding="utf-8"))
+            timing["fmax"]["pixel_clk"]["constraint"] = 74.25005
+            (output / "timing.json").write_text(json.dumps(timing), encoding="utf-8")
+            self.assertEqual(
+                validate_build_evidence(output)["timing"]["pixel"]["achieved_mhz"],
+                74.25005,
+            )
 
     def test_forbidden_synthesis_cells_are_rejected_without_utilization_rows(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -278,7 +411,11 @@ class BuildFesPongTests(unittest.TestCase):
             for relative in set(build_fes_pong.PINNED_INPUTS):
                 path = root / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(f"fixture {relative}\n", encoding="utf-8")
+                path.write_bytes(
+                    build_fes_pong.REFERENCE_SDC_BYTES
+                    if relative == build_fes_pong.SDC
+                    else f"fixture {relative}\n".encode()
+                )
             output = root / "build/fes-pong"
             package_store = root / "build/packages"
             revision = "a" * 40
@@ -299,8 +436,6 @@ class BuildFesPongTests(unittest.TestCase):
                     )
                     log.write_text("ok\n", encoding="utf-8")
                     self._write_passing_outputs(output)
-                else:
-                    log.write_text("Info: Program finished normally.\n", encoding="utf-8")
 
             def exporter(manifest: bytes, payload: Path, destination: Path) -> Path:
                 self.assertEqual(events, ["yosys", "nextpnr-mistral"])
@@ -328,7 +463,11 @@ class BuildFesPongTests(unittest.TestCase):
             for relative in set(build_fes_pong.PINNED_INPUTS):
                 path = root / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(f"fixture {relative}\n", encoding="utf-8")
+                path.write_bytes(
+                    build_fes_pong.REFERENCE_SDC_BYTES
+                    if relative == build_fes_pong.SDC
+                    else f"fixture {relative}\n".encode()
+                )
             output = root / "build/fes-pong"
             tools = {
                 "mistral": AuthenticatedTool(Path("/tool/mistral-cv"), "mistral identity"),
@@ -337,8 +476,8 @@ class BuildFesPongTests(unittest.TestCase):
             }
 
             def run_tool(command: tuple[str, ...], cwd: Path, log: Path) -> None:
-                log.write_text("ok\n", encoding="utf-8")
                 if Path(command[0]).name == "yosys":
+                    log.write_text("ok\n", encoding="utf-8")
                     self._write_passing_outputs(output, achieved=70.0)
 
             with (
