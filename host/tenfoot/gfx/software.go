@@ -8,9 +8,11 @@ import (
 
 // Software is a pure-Go Device. It rasters into an RGBA8 framebuffer of
 // logical size and stores textures as CPU bitmaps. There is no cgo and no
-// SDL. Draw uses nearest-neighbour sampling (v1; bilinear is not used).
-// FillRect honors BlendNone and BlendAlpha. Textured Draw always uses
-// source-over alpha, matching the SDL backend's texture blend mode.
+// SDL. Draw uses nearest-neighbour sampling so present-loop blits stay cheap.
+// Cover, screenshot, and still downscale uses Catmull–Rom once at decode
+// (host/tenfoot.DecodeCover and siblings), not here. FillRect honors
+// BlendNone and BlendAlpha. Textured Draw always uses source-over alpha,
+// matching the SDL backend's texture blend mode.
 //
 // Present is a no-op: the framebuffer is already current. Snapshot copies
 // it for golden tests. Loops are stride-aware and do not allocate per pixel.

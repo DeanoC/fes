@@ -276,7 +276,7 @@ linuxfb is a kit framebuffer Device, not the SDL sofa shell.
 | Backend | Construction | Role |
 | --- | --- | --- |
 | SDL3 | `gfx.WrapSDLRenderer` (`host/tenfoot/gfx/sdl3.go`, build tag `sdl3`) | Default production path: wraps the process `SDL_Renderer` with letterbox logical presentation and VSync. |
-| Software | `gfx.NewSoftware` (`host/tenfoot/gfx/software.go`) | Pure-Go RGBA8 rasterizer for tests and CI (no cgo, no SDL). Nearest blit, `Snapshot` for golden pixels. |
+| Software | `gfx.NewSoftware` (`host/tenfoot/gfx/software.go`) | Pure-Go RGBA8 rasterizer for tests and CI (no cgo, no SDL). Nearest blit, `Snapshot` for golden pixels. Cover/screenshot/still downscale is Catmull–Rom at decode. |
 | FPGA | `gfx.NewFPGA` (`host/tenfoot/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`host/tenfoot/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. Timed still/crossfade and sprite helpers live in `host/tenfoot/anim`. |
 | FPGA stub | `gfx.NewFPGAStub` (`host/tenfoot/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
 | linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`host/tenfoot/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `host/tenfoot/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `host/tenfoot/inputmap`; linuxinput can apply a `Remapper` to gamepad records. Look tokens live in `host/tenfoot/theme` and are consumed by `fbgrid.Paint` and the sofa `Clear` sites. Kit chrome maps `header_scale` / `label_scale` / `status_scale` to pixel size `8*scale` and draws through `DrawText`; `DebugText` stays the FPGA/debug path. |
@@ -600,8 +600,12 @@ and left-stick focus moves in two
 dimensions through `fbgrid.MoveFocus`: left/right clamp on the current row,
 up/down step by four cells, and leaving a page of 12 changes the painted page.
 Catalog cells paint decoded box-art from
-`GET /api/v1/presentation/artwork/{handle}` when `Game.Cover` is present, and
-keep the system-color fallback otherwise. Header, tile names, and footer
+`GET /api/v1/presentation/artwork/{handle}` when `Game.Cover` is present.
+`DecodeCover` Catmull–Rom downscales once to the cover cell so Software Draw
+stays a cheap nearest blit. Missing or still-loading art paints a theme-tinted
+placeholder (lettermark when missing; a distinct panel while loading) instead
+of a flat system fill. Aspect-fit letterbox bars mix the system colour toward
+the theme label bar; focused cells add a 1px inner highlight. Header, tile names, and footer
 rasterize the embedded Go Regular face (no kit system fonts) and truncate with
 an ellipsis when the string exceeds the chrome or cell width. A paired, authenticated host listener
 serves a restricted set of existing library, artwork, and session operations and a

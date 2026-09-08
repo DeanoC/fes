@@ -6,6 +6,7 @@ import (
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
 	"github.com/DeanoC/FogCast/host/tenfoot/anim"
+	"github.com/DeanoC/FogCast/host/tenfoot/fbgrid"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
@@ -132,9 +133,15 @@ func TestGameTileLeavesCoverEmptyUntilCached(t *testing.T) {
 	if tile.Cover != nil {
 		t.Fatal("uncached cover should stay fallback")
 	}
+	if tile.CoverKind != fbgrid.CoverMissing {
+		t.Fatalf("uncached kind %d", tile.CoverKind)
+	}
 	flat := gameTile(tenfoot.Game{Title: "Pong", System: "pong"}, tenfoot.NewCoverCache(), theme.Default())
 	if flat.Cover != nil {
 		t.Fatal("missing handle should stay fallback")
+	}
+	if flat.CoverKind != fbgrid.CoverMissing {
+		t.Fatalf("missing kind %d", flat.CoverKind)
 	}
 }
 
@@ -251,6 +258,24 @@ func TestExerciseFPGAAnimProof(t *testing.T) {
 		t.Fatalf("%v\n%s", err, report)
 	}
 	if !strings.Contains(report, "selftest-fpga PASS") || !strings.Contains(report, "HW=not-yet") || !strings.Contains(report, "backend=fpga") {
+		t.Fatalf("report %s", report)
+	}
+}
+
+func TestExerciseCoverGridPaintsArtAndPlaceholder(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseCoverGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-cover PASS") || !strings.Contains(report, "selftest-text PASS") || !strings.Contains(report, "selftest-nav PASS") || !strings.Contains(report, "selftest-shelf PASS") {
 		t.Fatalf("report %s", report)
 	}
 }

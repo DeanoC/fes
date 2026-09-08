@@ -32,12 +32,8 @@ func TestPaintFocusAndConfirm(t *testing.T) {
 	}
 	assertBGRX(t, dst, cfg, hx, hy, 0, 220, 255, 0)
 
-	ix, iy, ok := g.InteriorSample()
-	if !ok {
-		t.Fatal("interior sample")
-	}
 	c0 := g.Tiles[0].Color
-	assertBGRX(t, dst, cfg, ix, iy, c0.B, c0.G, c0.R, 0)
+	assertPanel(t, dst, cfg, g, 0, c0)
 
 	g.Apply(linuxinput.Mapped{Action: linuxinput.ActionRight, Active: true})
 	g.Apply(linuxinput.Mapped{Action: linuxinput.ActionRight, Active: false})
@@ -48,12 +44,9 @@ func TestPaintFocusAndConfirm(t *testing.T) {
 		t.Fatal("moved highlight")
 	}
 	assertBGRX(t, dst, cfg, hx, hy, 0, 220, 255, 0)
-	ix, iy, _ = g.InteriorSample()
 	c1 := g.Tiles[1].Color
-	assertBGRX(t, dst, cfg, ix, iy, c1.B, c1.G, c1.R, 0)
-
-	ox, oy, _ := g.CellOrigin(0)
-	assertBGRX(t, dst, cfg, ox+1, oy+1, c0.B, c0.G, c0.R, 0)
+	assertPanel(t, dst, cfg, g, 1, c1)
+	assertPanel(t, dst, cfg, g, 0, c0)
 
 	g.Apply(linuxinput.Mapped{Action: linuxinput.ActionConfirm, Active: true})
 	g.Apply(linuxinput.Mapped{Action: linuxinput.ActionConfirm, Active: false})
@@ -74,9 +67,8 @@ func TestPaintFocusAndConfirm(t *testing.T) {
 		t.Fatal("new highlight")
 	}
 	assertBGRX(t, dst, cfg, hx, hy, 0, 220, 255, 0)
-	ix, iy, _ = g.InteriorSample()
 	c2 := g.Tiles[2].Color
-	assertBGRX(t, dst, cfg, ix, iy, c2.B, c2.G, c2.R, 0)
+	assertPanel(t, dst, cfg, g, 2, c2)
 	snap := d.Snapshot()
 	p := snap.RGBAAt(sx+g.CellW/2, sy+g.CellH/2)
 	if p != (color.RGBA{255, 255, 255, 255}) {
@@ -117,11 +109,14 @@ func TestPaintCoverDrawsRGBAAndFallsBack(t *testing.T) {
 		t.Fatal("highlight")
 	}
 	assertBGRX(t, dst, cfg, hx, hy, 0, 220, 255, 0)
-	ox, oy, ok := g.CellOrigin(1)
+	assertPanel(t, dst, cfg, g, 1, fallback)
+	px, py, ok := g.PanelSample(1)
 	if !ok {
-		t.Fatal("fallback origin")
+		t.Fatal("fallback panel")
 	}
-	assertBGRX(t, dst, cfg, ox+g.CellW/2, oy+g.CellH/2, fallback.B, fallback.G, fallback.R, 0)
+	if gfxEqualBGRX(dst, cfg, px, py, fallback.B, fallback.G, fallback.R, 0) {
+		t.Fatal("missing-art tile stayed a flat system fill")
+	}
 
 	g.Focus = 1
 	g.ConfirmIndex = 0
@@ -256,12 +251,7 @@ func TestPaintChromeTextLeavesTilesWhenHeaderIsTall(t *testing.T) {
 	d.Present()
 	chrome := th.Complete().HeaderBar
 	assertBGRX(t, dst, cfg, 18, 12, chrome.B, chrome.G, chrome.R, 0)
-	ix, iy, ok := g.InteriorSample()
-	if !ok {
-		t.Fatal("tile interior")
-	}
-	c0 := g.Tiles[0].Color
-	assertBGRX(t, dst, cfg, ix, iy, c0.B, c0.G, c0.R, 0)
+	assertPanel(t, dst, cfg, g, 0, g.Tiles[0].Color)
 }
 
 func assertChromeText(t *testing.T, rec *gfx.Recorder, text string, x, y, sizePx int, col gfx.Color) {
@@ -425,6 +415,131 @@ func absInt(v int) int {
 		return -v
 	}
 	return v
+}
+
+func TestPaintPlaceholderDiffersFromFlatFillAndLoading(t *testing.T) {
+	t.Parallel()
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	fallback := gfx.RGB(44, 96, 156)
+	g := NewWithTiles(w, h, []Tile{
+		{Name: "SONIC", Color: fallback, CoverKind: CoverMissing},
+		{Name: "WAIT", Color: fallback, CoverKind: CoverLoading},
+	})
+	Paint(d, g)
+	d.Present()
+	th := g.Theme.Complete()
+	missing := placeholderPanel(fallback, th, false)
+	loading := placeholderPanel(fallback, th, true)
+	if missing == fallback || loading == fallback || missing == loading {
+		t.Fatalf("placeholder panels must differ from fill and each other: miss=%+v load=%+v fill=%+v", missing, loading, fallback)
+	}
+	assertPanel(t, dst, cfg, g, 0, fallback)
+	g.Focus = 1
+	Paint(d, g)
+	d.Present()
+	assertPanel(t, dst, cfg, g, 1, fallback)
+	mx, my, _ := g.PanelSample(0)
+	lx, ly, _ := g.PanelSample(1)
+	assertBGRX(t, dst, cfg, mx, my, missing.B, missing.G, missing.R, 0)
+	assertBGRX(t, dst, cfg, lx, ly, loading.B, loading.G, loading.R, 0)
+
+	rec := gfx.NewRecorder()
+	g.Focus = 0
+	Paint(rec, g)
+	sawLetter := false
+	for _, c := range rec.Calls {
+		if c.Op == "DrawText" && c.Text == "S" {
+			sawLetter = true
+			break
+		}
+	}
+	if !sawLetter {
+		t.Fatalf("missing-art placeholder omitted lettermark in %v", rec.Ops())
+	}
+}
+
+func TestPaintCoverLetterboxUsesThemeMix(t *testing.T) {
+	t.Parallel()
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	cover := image.NewRGBA(image.Rect(0, 0, 8, 16))
+	for y := 0; y < 16; y++ {
+		for x := 0; x < 8; x++ {
+			cover.Set(x, y, color.RGBA{R: 255, G: 0, B: 200, A: 255})
+		}
+	}
+	fallback := gfx.RGB(44, 96, 156)
+	g := NewWithTiles(w, h, []Tile{
+		{Name: "ART", Color: fallback, Cover: cover, CoverKind: CoverPresent},
+	})
+	Paint(d, g)
+	d.Present()
+	th := g.Theme.Complete()
+	box := letterboxFill(fallback, th)
+	px, py, ok := g.PanelSample(0)
+	if !ok {
+		t.Fatal("letterbox sample")
+	}
+	assertBGRX(t, dst, cfg, px, py, box.B, box.G, box.R, 0)
+	ix, iy, ok := g.InteriorSample()
+	if !ok {
+		t.Fatal("cover interior")
+	}
+	assertBGRX(t, dst, cfg, ix, iy, 200, 0, 255, 0)
+	if gfxEqualBGRX(dst, cfg, px, py, fallback.B, fallback.G, fallback.R, 0) {
+		t.Fatal("letterbox stayed the raw system fill")
+	}
+	hx, hy, ok := g.HighlightSample()
+	if !ok {
+		t.Fatal("highlight")
+	}
+	assertBGRX(t, dst, cfg, hx, hy, 0, 220, 255, 0)
+}
+
+func TestPlaceholderLetterUsesFirstAlnum(t *testing.T) {
+	t.Parallel()
+	if got := placeholderLetter("sonic"); got != "S" {
+		t.Fatalf("letter %q", got)
+	}
+	if got := placeholderLetter("  2fast"); got != "2" {
+		t.Fatalf("digit %q", got)
+	}
+	if got := placeholderLetter("..."); got != "" {
+		t.Fatalf("punct %q", got)
+	}
+}
+
+func assertPanel(t *testing.T, dst []byte, cfg gfx.FBConfig, g Grid, i int, fill gfx.Color) {
+	t.Helper()
+	th := g.Theme.Complete()
+	x, y, ok := g.PanelSample(i)
+	if !ok {
+		t.Fatal("panel sample")
+	}
+	loading := i >= 0 && i < len(g.Tiles) && g.Tiles[i].CoverKind == CoverLoading
+	p := placeholderPanel(fill, th, loading)
+	assertBGRX(t, dst, cfg, x, y, p.B, p.G, p.R, 0)
+}
+
+func gfxEqualBGRX(dst []byte, cfg gfx.FBConfig, x, y int, b, g, r, xx byte) bool {
+	gotB, gotG, gotR, gotX, err := gfx.SampleBGRX(dst, cfg, x, y)
+	if err != nil {
+		return false
+	}
+	return gotB == b && gotG == g && gotR == r && gotX == xx
 }
 
 func assertBGRX(t *testing.T, dst []byte, cfg gfx.FBConfig, x, y int, b, g, r, xx byte) {

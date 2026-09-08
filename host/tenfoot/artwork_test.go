@@ -9,6 +9,8 @@ import (
 	"image/png"
 	"strings"
 	"testing"
+
+	xdraw "golang.org/x/image/draw"
 )
 
 func TestDecodeCoverScalesJPEGSizedPNG(t *testing.T) {
@@ -133,6 +135,105 @@ func TestDecodeStillScalesBackdropLargerThanCover(t *testing.T) {
 	if got.Bounds().Dx() <= coverMaxW {
 		t.Fatalf("still was clamped to cover size %s", got.Bounds())
 	}
+}
+
+func TestScaleToFitDiffersFromNearestOnCheckerboard(t *testing.T) {
+	t.Parallel()
+	const srcN, dstN = 32, 16
+	src := image.NewRGBA(image.Rect(0, 0, srcN, srcN))
+	black := color.RGBA{0, 0, 0, 255}
+	white := color.RGBA{255, 255, 255, 255}
+	for y := 0; y < srcN; y++ {
+		for x := 0; x < srcN; x++ {
+			if (x+y)%2 == 0 {
+				src.Set(x, y, white)
+			} else {
+				src.Set(x, y, black)
+			}
+		}
+	}
+	got := scaleToFit(src, dstN, dstN)
+	near := scaleToFitWith(src, dstN, dstN, xdraw.NearestNeighbor)
+	if got.Bounds() != near.Bounds() || got.Bounds().Dx() != dstN {
+		t.Fatalf("size got=%s near=%s", got.Bounds(), near.Bounds())
+	}
+	// Integer nearest of a 1px checkerboard at 2× downscale samples only even
+	// source pixels, so every dest pixel is white. Catmull–Rom mixes neighbours.
+	r, g, b, a := near.At(0, 0).RGBA()
+	if r>>8 != 255 || g>>8 != 255 || b>>8 != 255 || a>>8 != 255 {
+		t.Fatalf("nearest (0,0) = %d %d %d %d want white", r, g, b, a)
+	}
+	identical := true
+	var mse float64
+	n := 0
+	for y := 0; y < dstN; y++ {
+		for x := 0; x < dstN; x++ {
+			pg := got.RGBAAt(x, y)
+			pn := near.RGBAAt(x, y)
+			if pg != pn {
+				identical = false
+			}
+			dr := float64(pg.R) - float64(pn.R)
+			dg := float64(pg.G) - float64(pn.G)
+			db := float64(pg.B) - float64(pn.B)
+			mse += dr*dr + dg*dg + db*db
+			n++
+		}
+	}
+	mse /= float64(n)
+	if identical {
+		t.Fatal("Catmull-Rom downscale matched nearest-neighbour")
+	}
+	if mse < 100 {
+		t.Fatalf("MSE vs nearest = %v, want a clear filter difference", mse)
+	}
+	cr, cg, cb, _ := got.At(dstN/2, dstN/2).RGBA()
+	if cr>>8 == 255 && cg>>8 == 255 && cb>>8 == 255 {
+		t.Fatal("quality downscale still sampled only even checkerboard pixels")
+	}
+}
+
+func TestDecodeCoverDownscaleDiffersFromNearest(t *testing.T) {
+	t.Parallel()
+	src := image.NewRGBA(image.Rect(0, 0, 512, 640))
+	for y := 0; y < 640; y++ {
+		for x := 0; x < 512; x++ {
+			if (x/8+y/8)%2 == 0 {
+				src.Set(x, y, color.RGBA{R: 240, G: 20, B: 20, A: 255})
+			} else {
+				src.Set(x, y, color.RGBA{R: 20, G: 20, B: 240, A: 255})
+			}
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, src); err != nil {
+		t.Fatal(err)
+	}
+	got, err := DecodeCover(buf.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Bounds().Dx() != coverMaxW || got.Bounds().Dy() != coverMaxH {
+		t.Fatalf("size = %s want %dx%d", got.Bounds(), coverMaxW, coverMaxH)
+	}
+	near := scaleToFitWith(src, coverMaxW, coverMaxH, xdraw.NearestNeighbor)
+	if pixelsEqual(got, near) {
+		t.Fatal("DecodeCover matched nearest-neighbour downscale")
+	}
+}
+
+func pixelsEqual(a, b *image.RGBA) bool {
+	if a == nil || b == nil || a.Bounds() != b.Bounds() {
+		return false
+	}
+	for y := 0; y < a.Bounds().Dy(); y++ {
+		for x := 0; x < a.Bounds().Dx(); x++ {
+			if a.RGBAAt(x, y) != b.RGBAAt(x, y) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func TestCoverDestRectPreservesAspect(t *testing.T) {

@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"image"
+	"image/color"
+	"image/png"
 	"strings"
 	"time"
 
@@ -114,6 +117,17 @@ func runTextSelftest(fbPath string, th theme.Theme) error {
 	}
 	defer d.Close()
 	report, err := exerciseTextGrid(d, th)
+	fmt.Print(report)
+	return err
+}
+
+func runCoverSelftest(fbPath string, th theme.Theme) error {
+	d, err := gfx.OpenLinuxFB(fbPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	report, err := exerciseCoverGrid(d, th)
 	fmt.Print(report)
 	return err
 }
@@ -431,6 +445,109 @@ func exerciseTextGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 		return b.String(), err
 	}
 	fmt.Fprintf(&b, "selftest-text PASS font=goregular drawtext=1 debugtext=0\n")
+	return b.String(), nil
+}
+
+func exerciseCoverGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
+	th = th.Complete()
+	src := image.NewRGBA(image.Rect(0, 0, 40, 80))
+	for y := 0; y < 80; y++ {
+		for x := 0; x < 40; x++ {
+			src.Set(x, y, color.RGBA{R: 255, G: 32, B: 160, A: 255})
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, src); err != nil {
+		return "", err
+	}
+	cover, err := tenfoot.DecodeCover(buf.Bytes())
+	if err != nil {
+		return "", err
+	}
+	fallback := th.SystemColor("megadrive")
+	g := fbgrid.NewWithTiles(d.Config().Width, d.Config().Height, []fbgrid.Tile{
+		{Name: "ART", Color: fallback, Cover: cover, CoverKind: fbgrid.CoverPresent},
+		{Name: "FLAT", Color: fallback, CoverKind: fbgrid.CoverMissing},
+		{Name: "WAIT", Color: fallback, CoverKind: fbgrid.CoverLoading},
+	})
+	fbgrid.ApplyTheme(&g, th)
+	g.Header = "FOGCAST  COVER"
+	g.Footer = "cover quality"
+	fbgrid.Paint(d, g)
+	d.Present()
+
+	var b strings.Builder
+	ix, iy, ok := g.InteriorSample()
+	if !ok {
+		return b.String(), fmt.Errorf("cover interior")
+	}
+	gotB, gotG, gotR, gotX, err := gfx.SampleBGRX(d.Destination(), d.Config(), ix, iy)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "cover interior=(%d,%d) bgrx=%d,%d,%d,%d\n", ix, iy, gotB, gotG, gotR, gotX)
+	if gotB != 160 || gotG != 32 || gotR != 255 || gotX != 0 {
+		return b.String(), fmt.Errorf("cover interior bgrx %d,%d,%d,%d want 160,32,255,0", gotB, gotG, gotR, gotX)
+	}
+
+	hx, hy, ok := g.HighlightSample()
+	if !ok {
+		return b.String(), fmt.Errorf("cover highlight")
+	}
+	hlB, hlG, hlR, _, err := gfx.SampleBGRX(d.Destination(), d.Config(), hx, hy)
+	if err != nil {
+		return b.String(), err
+	}
+	if hlB != th.Highlight.B || hlG != th.Highlight.G || hlR != th.Highlight.R {
+		return b.String(), fmt.Errorf("cover highlight bgrx %d,%d,%d want %d,%d,%d", hlB, hlG, hlR, th.Highlight.B, th.Highlight.G, th.Highlight.R)
+	}
+
+	missing := fbgrid.PlaceholderPanel(fallback, th, false)
+	loading := fbgrid.PlaceholderPanel(fallback, th, true)
+	g.Focus = 1
+	fbgrid.Paint(d, g)
+	d.Present()
+	mx, my, ok := g.PanelSample(1)
+	if !ok {
+		return b.String(), fmt.Errorf("missing panel")
+	}
+	mB, mG, mR, _, err := gfx.SampleBGRX(d.Destination(), d.Config(), mx, my)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "placeholder missing=(%d,%d) bgrx=%d,%d,%d panel=%d,%d,%d\n", mx, my, mB, mG, mR, missing.B, missing.G, missing.R)
+	if mB != missing.B || mG != missing.G || mR != missing.R {
+		return b.String(), fmt.Errorf("missing placeholder bgrx %d,%d,%d want %d,%d,%d", mB, mG, mR, missing.B, missing.G, missing.R)
+	}
+	if mB == fallback.B && mG == fallback.G && mR == fallback.R {
+		return b.String(), fmt.Errorf("missing placeholder stayed system fill")
+	}
+
+	g.Focus = 2
+	fbgrid.Paint(d, g)
+	d.Present()
+	lx, ly, ok := g.PanelSample(2)
+	if !ok {
+		return b.String(), fmt.Errorf("loading panel")
+	}
+	lB, lG, lR, _, err := gfx.SampleBGRX(d.Destination(), d.Config(), lx, ly)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "placeholder loading=(%d,%d) bgrx=%d,%d,%d panel=%d,%d,%d\n", lx, ly, lB, lG, lR, loading.B, loading.G, loading.R)
+	if lB != loading.B || lG != loading.G || lR != loading.R {
+		return b.String(), fmt.Errorf("loading placeholder bgrx %d,%d,%d want %d,%d,%d", lB, lG, lR, loading.B, loading.G, loading.R)
+	}
+	if lB == mB && lG == mG && lR == mR {
+		return b.String(), fmt.Errorf("loading placeholder matched missing")
+	}
+
+	text, err := exerciseTextGrid(d, th)
+	b.WriteString(text)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "selftest-cover PASS decode=1 placeholder=1 loading=1 letterbox=theme\n")
 	return b.String(), nil
 }
 
