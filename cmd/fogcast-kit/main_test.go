@@ -314,4 +314,7 @@ func TestExerciseThemeGridSamplesBothLooks(t *testing.T) {
 	if !strings.Contains(report, "selftest-theme PASS") || !strings.Contains(report, "theme=default") || !strings.Contains(report, "theme=arcade") {
 		t.Fatalf("report %s", report)
 	}
+	if !strings.Contains(report, "roles theme=default") || !strings.Contains(report, "compat scale-only") || !strings.Contains(report, "compat px-override") {
+		t.Fatalf("missing type-role evidence: %s", report)
+	}
 }

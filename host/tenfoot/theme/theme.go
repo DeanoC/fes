@@ -40,13 +40,19 @@ type Theme struct {
 	Border  int
 	HeaderH int
 	FooterH int
-	// HeaderScale, LabelScale and StatusScale are size multipliers. Kit
-	// chrome maps them to pixel size 8*scale (the former DebugText glyph
-	// height) so existing theme JSON keeps the same hierarchy. There is
-	// no font-family picker in this slice.
+	// HeaderScale, LabelScale and StatusScale are legacy size multipliers.
+	// TitlePx / BodyPx / CaptionPx / StatusPx prefer the matching *_px token
+	// when it is set; otherwise they map 8*scale (the former DebugText glyph
+	// height) so older theme JSON that only set *scale keeps that hierarchy.
+	// A theme with no type tokens at all inherits Default's pixel roles.
+	// There is no font-family picker or second face in this slice.
 	HeaderScale int
 	LabelScale  int
 	StatusScale int
+	TitleSize   int
+	BodySize    int
+	CaptionSize int
+	StatusSize  int
 
 	Systems map[string]gfx.Color
 }
@@ -77,6 +83,10 @@ func Default() Theme {
 		HeaderScale:       2,
 		LabelScale:        1,
 		StatusScale:       2,
+		TitleSize:         20,
+		BodySize:          13,
+		CaptionSize:       12,
+		StatusSize:        14,
 		Systems:           defaultSystems(),
 	}
 }
@@ -108,6 +118,10 @@ func Arcade() Theme {
 		HeaderScale:       2,
 		LabelScale:        1,
 		StatusScale:       2,
+		TitleSize:         22,
+		BodySize:          13,
+		CaptionSize:       12,
+		StatusSize:        15,
 		Systems: map[string]gfx.Color{
 			"pong":      gfx.RGB(57, 255, 20),
 			"megadrive": gfx.RGB(255, 140, 0),
@@ -143,6 +157,10 @@ func Night() Theme {
 		HeaderScale:       2,
 		LabelScale:        1,
 		StatusScale:       2,
+		TitleSize:         20,
+		BodySize:          13,
+		CaptionSize:       12,
+		StatusSize:        14,
 		Systems: map[string]gfx.Color{
 			"pong":      gfx.RGB(200, 160, 40),
 			"megadrive": gfx.RGB(40, 90, 160),
@@ -214,6 +232,10 @@ func (t Theme) Complete() Theme {
 	if t.FooterH <= 0 {
 		t.FooterH = d.FooterH
 	}
+	// A file that only set *scale must keep ScalePx fallback. A theme with
+	// no type tokens at all inherits Default's pixel roles.
+	hadTypeTokens := t.HeaderScale > 0 || t.LabelScale > 0 || t.StatusScale > 0 ||
+		t.TitleSize > 0 || t.BodySize > 0 || t.CaptionSize > 0 || t.StatusSize > 0
 	if t.HeaderScale <= 0 {
 		t.HeaderScale = d.HeaderScale
 	}
@@ -223,8 +245,57 @@ func (t Theme) Complete() Theme {
 	if t.StatusScale <= 0 {
 		t.StatusScale = d.StatusScale
 	}
+	if !hadTypeTokens {
+		t.TitleSize = d.TitleSize
+		t.BodySize = d.BodySize
+		t.CaptionSize = d.CaptionSize
+		t.StatusSize = d.StatusSize
+	}
 	t.Systems = mergeSystems(d.Systems, t.Systems)
 	return t
+}
+
+// TitlePx is the header UI-face size. An explicit title_px wins; otherwise
+// the completed header_scale maps through gfx.ScalePx.
+func (t Theme) TitlePx() int {
+	t = t.Complete()
+	if t.TitleSize > 0 {
+		return t.TitleSize
+	}
+	return gfx.ScalePx(t.HeaderScale)
+}
+
+// BodyPx is the tile-name UI-face size. An explicit body_px wins; otherwise
+// the completed label_scale maps through gfx.ScalePx.
+func (t Theme) BodyPx() int {
+	t = t.Complete()
+	if t.BodySize > 0 {
+		return t.BodySize
+	}
+	return gfx.ScalePx(t.LabelScale)
+}
+
+// CaptionPx is the placeholder-lettermark size. caption_px wins, then body_px,
+// then label_scale through gfx.ScalePx.
+func (t Theme) CaptionPx() int {
+	t = t.Complete()
+	if t.CaptionSize > 0 {
+		return t.CaptionSize
+	}
+	if t.BodySize > 0 {
+		return t.BodySize
+	}
+	return gfx.ScalePx(t.LabelScale)
+}
+
+// StatusPx is the footer UI-face size. An explicit status_px wins; otherwise
+// the completed status_scale maps through gfx.ScalePx.
+func (t Theme) StatusPx() int {
+	t = t.Complete()
+	if t.StatusSize > 0 {
+		return t.StatusSize
+	}
+	return gfx.ScalePx(t.StatusScale)
 }
 
 // SystemColor is the solid-tile fallback for a catalog system id.
@@ -264,7 +335,11 @@ func (t Theme) Equal(o Theme) bool {
 		t.FooterH != o.FooterH ||
 		t.HeaderScale != o.HeaderScale ||
 		t.LabelScale != o.LabelScale ||
-		t.StatusScale != o.StatusScale {
+		t.StatusScale != o.StatusScale ||
+		t.TitleSize != o.TitleSize ||
+		t.BodySize != o.BodySize ||
+		t.CaptionSize != o.CaptionSize ||
+		t.StatusSize != o.StatusSize {
 		return false
 	}
 	if len(t.Systems) != len(o.Systems) {

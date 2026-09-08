@@ -59,11 +59,15 @@ and **night** are named alternates. `-theme` (then optional `theme` in
 file. `fbgrid.Paint` and the system-color fallback consume those tokens (fills,
 highlight, flash, chrome, spacing). Header, tile names, and footer/status draw
 through `gfx.DrawText` with the embedded Go Regular face (`golang.org/x/image/font/gofont/goregular`);
-the kit does not read system fonts. Theme `header_scale` / `label_scale` /
-`status_scale` map to pixel size `8*scale` (the former DebugText glyph height)
-so existing JSON keeps the same hierarchy. Overlong chrome and tile labels
-truncate with an ellipsis. `DebugText` remains the 8×8 HUD path for FPGA
-protocol and spikes. The catalog, input, and launch path stay the same. There is no
+the kit does not read system fonts. Typography roles `title_px` / `body_px` /
+`caption_px` / `status_px` are explicit UI-face pixel sizes (header, tile name,
+placeholder lettermark, footer). When a role is omitted, `header_scale` /
+`label_scale` / `status_scale` still map to pixel size `8*scale` (the former
+DebugText glyph height) so existing JSON keeps the same hierarchy. Paint uses
+`theme.TitlePx` and siblings rather than repeating that fallback. Overlong
+chrome and tile labels truncate with an ellipsis. `DebugText` remains the 8×8
+HUD path for FPGA protocol and spikes. There is no second face or font-family
+picker in this slice. The catalog, input, and launch path stay the same. There is no
 on-screen theme picker in this slice.
 
 The grid uses the D-pad and left stick in two dimensions to select, Shoulder L/R
@@ -111,8 +115,10 @@ catalog, moves focus right/down across a 4×3 page, samples the highlight, and
 exits without talking to the host. `fogcast-kit -selftest-shelf` paints a mixed
 pong/Mega Drive/SNES catalog, cycles shelves with L/R and Select, checks the
 header counts and visible set, and samples the highlight. `fogcast-kit -selftest-theme` paints **default**
-then **arcade**, samples highlight and background, and requires the pixels to
-differ. `fogcast-kit -selftest-text` paints UI-face header/tile/footer chrome,
+then **arcade**, samples highlight and background, requires the pixels to
+differ, and checks that title/body/caption/status pixel roles change the
+painted `DrawText` sizes (including a scale-only fallback versus a px
+override). `fogcast-kit -selftest-text` paints UI-face header/tile/footer chrome,
 requires the header pixels to differ from a DebugText-only baseline, checks
 themed glyph ink, and re-runs nav plus shelf. `fogcast-kit -selftest-cover`
 decodes a cover, paints missing and loading placeholders, samples the art and

@@ -83,8 +83,11 @@ two dimensions (left/right clamp on the row; up/down by four cells, paging
 when `Focus` leaves the visible 12). Cells show host cover art when
 `Game.Cover` is available, Catmull–Rom downscaled at decode, with a theme-tinted
 placeholder (lettermark when missing, a distinct panel while loading) instead of
-a flat system fill. Header, tile names, and footer use the embedded Go Regular UI face through
-`gfx.DrawText` (CGO-free; no system fonts on the kit). Paint
+a flat system fill. Header, tile names, placeholder lettermarks, and footer use the embedded Go
+Regular UI face through `gfx.DrawText` (CGO-free; no system fonts on the kit)
+at theme typography roles `title_px` / `body_px` / `caption_px` / `status_px`
+(legacy `header_scale` / `label_scale` / `status_scale` still map to `8*scale`
+when a role is unset). Paint
 tokens (background, highlight, flash, system palette, header/footer chrome)
 come from `host/tenfoot/theme`: built-in `default` matches today's kit look,
 and `arcade` / `night` (or a JSON/TOML file) swap the look without forking

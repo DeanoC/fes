@@ -182,8 +182,8 @@ func TestPaintChromeTextUsesThemeMetrics(t *testing.T) {
 
 	rec := gfx.NewRecorder()
 	Paint(rec, g)
-	headerSize := gfx.ScalePx(def.HeaderScale)
-	statusSize := gfx.ScalePx(def.StatusScale)
+	headerSize := def.TitlePx()
+	statusSize := def.StatusPx()
 	assertChromeText(t, rec, "TITLE", 16, chromeTextY(0, g.HeaderH, gfx.TextHeight(headerSize), true), headerSize, def.Header)
 	assertChromeText(t, rec, "STATUS", 8, chromeTextY(h-g.FooterH, g.FooterH, gfx.TextHeight(statusSize), false), statusSize, def.Status)
 	assertNoDebugText(t, rec)
@@ -191,6 +191,8 @@ func TestPaintChromeTextUsesThemeMetrics(t *testing.T) {
 	th := theme.Default()
 	th.HeaderH = 80
 	th.FooterH = 64
+	th.TitleSize = 0
+	th.StatusSize = 0
 	th.HeaderScale = 3
 	th.StatusScale = 4
 	ApplyTheme(&g, th)
@@ -211,6 +213,8 @@ func TestPaintChromeTextUsesThemeMetrics(t *testing.T) {
 
 	th.HeaderH = 36
 	th.FooterH = 28
+	th.TitleSize = 0
+	th.StatusSize = 0
 	th.HeaderScale = 8
 	th.StatusScale = 8
 	ApplyTheme(&g, th)
@@ -227,6 +231,27 @@ func TestPaintChromeTextUsesThemeMetrics(t *testing.T) {
 	}
 	if footerY < h-g.FooterH {
 		t.Fatalf("oversized footer glyph y=%d is above footer top %d", footerY, h-g.FooterH)
+	}
+}
+
+func TestPaintChromeTextUsesPixelRolesOverScale(t *testing.T) {
+	t.Parallel()
+	const w, h = 640, 480
+	g := New(w, h)
+	g.Header = "TITLE"
+	g.Footer = "STATUS"
+	th := theme.Default()
+	th.HeaderScale = 8
+	th.StatusScale = 8
+	th.TitleSize = 20
+	th.StatusSize = 14
+	ApplyTheme(&g, th)
+	rec := gfx.NewRecorder()
+	Paint(rec, g)
+	assertChromeText(t, rec, "TITLE", 16, chromeTextY(0, g.HeaderH, gfx.TextHeight(20), true), 20, th.Complete().Header)
+	assertChromeText(t, rec, "STATUS", 8, chromeTextY(h-g.FooterH, g.FooterH, gfx.TextHeight(14), false), 14, th.Complete().Status)
+	if recSize(rec, "TITLE") == gfx.ScalePx(8) {
+		t.Fatal("header still used header_scale instead of title_px")
 	}
 }
 
@@ -331,7 +356,7 @@ func TestPaintTileLabelsUseThemeColorAndTruncate(t *testing.T) {
 	var label gfx.Call
 	found := false
 	for _, c := range rec.Calls {
-		if c.Op == "DrawText" && c.Color == th.Label && c.SizePx == gfx.ScalePx(th.LabelScale) {
+		if c.Op == "DrawText" && c.Color == th.Label && c.SizePx == th.BodyPx() {
 			label = c
 			found = true
 			break
@@ -463,6 +488,18 @@ func TestPaintPlaceholderDiffersFromFlatFillAndLoading(t *testing.T) {
 	if !sawLetter {
 		t.Fatalf("missing-art placeholder omitted lettermark in %v", rec.Ops())
 	}
+	if recSize(rec, "S") != th.CaptionPx() {
+		t.Fatalf("lettermark size %d want caption %d", recSize(rec, "S"), th.CaptionPx())
+	}
+}
+
+func recSize(rec *gfx.Recorder, text string) int {
+	for _, c := range rec.Calls {
+		if c.Op == "DrawText" && c.Text == text {
+			return c.SizePx
+		}
+	}
+	return 0
 }
 
 func TestPaintCoverLetterboxUsesThemeMix(t *testing.T) {
