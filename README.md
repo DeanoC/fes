@@ -120,8 +120,9 @@ survive cache eviction and target reboot; a write failure keeps Stop retryable
 and prevents successful lease release. Stop before rebooting: there is no
 power-loss autosaving, host synchronization, or save-state support. Cartridge
 copier-header variants have separate save identities. This persistence path is
-software-tested; hardware validation belongs to the selected FES integration. The native package uses cartridge index 1; the conventional Main
-selector remains index 0.
+software-tested; hardware validation belongs to the selected FES integration. The native SNES package uses cartridge index 1; the native NES
+package uses filetype index `0x40`. The conventional Main selectors remain
+zero based (including index 0 for NES).
 
 The retained native gamepad includes A/B/X/Y/L/R/Select/Start and the D-pad.
 Existing MD C and Start codes keep their meaning. Host event normalization,

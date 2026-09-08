@@ -8,5 +8,5 @@ package generated
 const (
 	NESSystem         = "nes"
 	NESExpectedCore   = "NES"
-	NESCartridgeIndex = 0
+	NESCartridgeIndex = 64
 )

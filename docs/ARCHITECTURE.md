@@ -65,12 +65,12 @@ path, and empty settings. FogCast checks the staged file path and extension;
 the runtime validates cartridge bytes before hardware mutation and owns the
 512-byte metadata prefix. It does not modify the host cache or content hash.
 NES uses `/usr/share/mister-runtime/cores/nes.rbf`, exactly one `.nes`
-`cartridge` path at native index 0, and empty settings. The runtime validates
+`cartridge` path at native filetype index `0x40`, and empty settings. The runtime validates
 iNES/NES2 headers, rejects trainers and truncated payloads, and streams source
-bytes unchanged. The native SNES package index remains 1 and the Main MGL
-selector remains 0. Initial support is bounded ordinary LoROM/HiROM and NES
-iNES/NES2 cartridges; enhancement chips, external firmware, expanded mappings,
-FDS/UNIF/NSF and other peripherals remain outside this slice. Other systems remain
+bytes unchanged. The native SNES package index remains 1; legacy Main MGL
+selectors remain zero based. Initial support is bounded ordinary LoROM/HiROM and
+NES iNES/NES2 cartridges; enhancement chips, external firmware, expanded
+mappings, FDS/UNIF/NSF and other peripherals remain outside this slice. Other systems remain
 unsupported by this adapter. All admitted profiles reconcile lost responses
 only against the requested system/core identity, without replay, and use the
 ordinary Stop-to-idle lifecycle. SNES and NES are software-tested;

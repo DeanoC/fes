@@ -122,8 +122,11 @@ func TestNESLaunchFieldsComeFromPackage(t *testing.T) {
 	if row.Core.ExpectedCore != generated.NESExpectedCore || generated.NESExpectedCore != "NES" {
 		t.Fatalf("expected core %q", row.Core.ExpectedCore)
 	}
-	if row.Core.FileIndex != generated.NESCartridgeIndex || generated.NESCartridgeIndex != 0 {
-		t.Fatalf("file index %d", row.Core.FileIndex)
+	if generated.NESCartridgeIndex != 0x40 {
+		t.Fatalf("native filetype index %d, want 0x40", generated.NESCartridgeIndex)
+	}
+	if row.Core.FileIndex != 0 {
+		t.Fatalf("legacy Main selector %d, want 0", row.Core.FileIndex)
 	}
 }
 

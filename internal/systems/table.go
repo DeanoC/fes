@@ -77,7 +77,9 @@ var table = []Row{
 	{
 		FolderAlias: "NES", PlatformID: protocol.SystemNES, LaunchSystem: protocol.SystemNES, Label: "NES",
 		Extensions: []string{".nes"}, Capability: CapabilityFPGANative,
-		Core:       &CoreSpec{ExpectedCore: generated.NESExpectedCore, RBF: "_Console/NES", KitROMRoot: "/media/fat/games/NES", MGLRoot: "/media/fat/games/NES", FileDelay: 1, FileType: "f", FileIndex: generated.NESCartridgeIndex},
+		// FileIndex is the legacy Main MGL selector. Native launches use the
+		// generated NES filetype index (0x40) in the runtime profile.
+		Core:       &CoreSpec{ExpectedCore: generated.NESExpectedCore, RBF: "_Console/NES", KitROMRoot: "/media/fat/games/NES", MGLRoot: "/media/fat/games/NES", FileDelay: 1, FileType: "f", FileIndex: 0},
 		CoverSlugs: map[string]CoverSpec{CoverProviderIGDB: {Slug: "nes", Name: "Nintendo Entertainment System"}},
 	},
 	{
