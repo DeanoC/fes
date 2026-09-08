@@ -88,5 +88,8 @@ iNES 1.0 and NES2 header validation, trainer rejection, bounded payload checks,
 and preflight rejection before FPGA programming. Only standard `.nes` files up
 to 32 MiB are admitted; source bytes are streamed unchanged. FDS, UNIF/UNF,
 NSF, trainers, saves, cheats, mapper-specific policy and extra peripherals are
-unsupported. Physical NES video/input/audio acceptance remains pending, so the
-hardware-supported count stays at one.
+unsupported. The designated kit has loaded the upstream NES release RBF and
+reported the `NES` core identity; this validates programming and observation,
+not the exact assembled-image game/video/input path. Physical NES
+video/input/audio acceptance remains pending, so the hardware-supported count
+stays at one.
