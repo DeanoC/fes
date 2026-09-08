@@ -292,7 +292,13 @@ trainer flag, and declare a nonzero PRG payload. Both iNES 1.0 page counts and
 NES2 linear or exponent/multiplier sizes are decoded with checked arithmetic;
 the declared payload must fit the file and the 32 MiB profile bound. The
 artifact plan has no prefix or save data, so `CoreLoader::Attach` streams the
-original bytes unchanged at file index 0. Mapper selection remains in the
+original bytes unchanged at native filetype index `0x40`. The NES core encodes
+the first `FS,NESFDSNSF` entry as `0x40` (NES type in bits 7:6 and slot zero in
+bits 5:0); the legacy Main selector remains a separate zero-based value.
+Because this core instantiates `hps_io` without `WIDE`, each cartridge byte is
+sent in the low eight bits of its own 16-bit SPI word. Wide cores use the
+little-endian byte-pair format instead.
+Mapper selection remains in the
 upstream core. The production row uses the generated NES input masks for one
 standard controller; FDS, UNIF/UNF, NSF, trainers, saves, cheats and extra
 peripherals are not admitted.

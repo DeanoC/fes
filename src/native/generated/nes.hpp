@@ -68,7 +68,7 @@ struct GeneratedSystem {
 
 static constexpr const char* const kNESCartridgeExtensions[] = {".nes"};
 static constexpr GeneratedMediaRule kNESMedia[] = {
-    {"cartridge", 0, true, kNESCartridgeExtensions, 1, 0x2000000u, "nes_cartridge"},
+    {"cartridge", 64, true, kNESCartridgeExtensions, 1, 0x2000000u, "nes_cartridge"},
 };
 static constexpr GeneratedSystem kNES = {
     "nes",
@@ -77,7 +77,7 @@ static constexpr GeneratedSystem kNES = {
     "nes.rbf",
     kNESMedia,
     1,
-    {0x1, 0x1, 0x0, "little_endian_byte_pairs"},
+    {0x1, 0x1, 0x0, "little_endian_bytes"},
     {1, 0x2, 0x8, 0x4, 0x2, 0x1, 0x10, 0x20, 0x0, 0x800, 0x0, 0x0, 0x0, 0x0, 0x400},
 };
 

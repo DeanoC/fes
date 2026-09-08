@@ -62,7 +62,8 @@ bool HasExtension(const std::string& path, const std::string& extension)
 bool ValidCoreRecipe(const CoreRecipe& recipe)
 {
 	return recipe.reset_assert_word != 0 && recipe.initial_status_word != 0 &&
-		recipe.file_wire == FileWireFormat::little_endian_byte_pairs;
+		(recipe.file_wire == FileWireFormat::little_endian_byte_pairs ||
+		 recipe.file_wire == FileWireFormat::little_endian_bytes);
 }
 
 bool ValidInputRecipe(const InputRecipe& recipe)

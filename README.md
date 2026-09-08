@@ -85,10 +85,12 @@ of a working hardware system.
 ## Basic NES software integration
 
 The `nes` profile uses `/usr/share/mister-runtime/cores/nes.rbf`, core identity
-`NES`, and required `.nes` cartridge media at index 0. Artifact preflight accepts
+`NES`, and required `.nes` cartridge media at native filetype index `0x40`.
+The index encodes the first `FS,NESFDSNSF` entry (NES type in bits 7:6, slot
+zero in bits 5:0); it is separate from the legacy Main selector. Artifact preflight accepts
 iNES 1.0 and NES2 headers with a nonzero PRG payload, no trainer, and a declared
 payload that fits the supplied file and 32 MiB bound. Source bytes are retained
-and streamed unchanged through the existing little-endian byte-pair loader; no
+and streamed unchanged through the narrow low-byte loader; no
 mapper or battery interpretation is added here. FDS, UNIF/UNF, NSF, trainers,
 cheats, saves, special peripherals and four-player accessories remain outside
 this slice. NES video/input acceptance is pending for the exact assembled image.

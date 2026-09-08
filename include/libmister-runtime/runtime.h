@@ -96,7 +96,12 @@ struct SettingRule {
 	std::vector<std::string> allowed_values;
 };
 
-enum class FileWireFormat { little_endian_byte_pairs };
+// MiSTer's hps_io can expose downloaded bytes as either 16-bit words or
+// individual 8-bit values carried in the low byte of each SPI word.
+enum class FileWireFormat {
+	little_endian_byte_pairs,
+	little_endian_bytes
+};
 
 struct CoreRecipe {
 	std::uint16_t reset_assert_word = 0;

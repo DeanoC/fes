@@ -1432,8 +1432,10 @@ void TestNesProductionProfileAndPreflight()
 	const mister::Profiles& production = mister::ProductionProfiles();
 	assert(production.Prepare(request, &prepared).ok());
 	assert(prepared.expected_core == "NES" && prepared.media.size() == 1);
-	assert(prepared.media[0].index == 0 &&
+	assert(prepared.media[0].index == 0x40 &&
 		prepared.media[0].transform == mister::MediaTransform::nes_cartridge);
+	assert(prepared.core.file_wire ==
+		mister::FileWireFormat::little_endian_bytes);
 	assert(prepared.input.a == 0x10 && prepared.input.b == 0x20 &&
 		prepared.input.select == 0x400 && prepared.input.start == 0x800);
 
@@ -1447,7 +1449,7 @@ void TestNesProductionProfileAndPreflight()
 	profile.rbf = nes_rbf;
 	profile.core = prepared.core;
 	profile.input = prepared.input;
-	profile.media.push_back({"cartridge", 0, true, {".nes"},
+	profile.media.push_back({"cartridge", 0x40, true, {".nes"},
 		32u * 1024u * 1024u, mister::MediaTransform::nes_cartridge});
 	mister::Profiles profiles;
 	assert(profiles.Add(profile).ok());

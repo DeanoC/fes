@@ -241,8 +241,9 @@ void TestGeneratedNESContract()
 	assert(std::string(kNES.expected_core) == "NES");
 	assert(std::string(kNES.rbf_artifact) == "nes.rbf");
 	assert(kNES.media_count == 1);
-	assert(kNES.media[0].index == 0);
+	assert(kNES.media[0].index == 0x40);
 	assert(std::string(kNES.media[0].transform) == "nes_cartridge");
+	assert(std::string(kNES.core.file_wire) == "little_endian_bytes");
 }
 
 } // namespace

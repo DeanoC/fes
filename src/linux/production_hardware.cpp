@@ -40,7 +40,12 @@ namespace {
 
 Profile ProfileFromGenerated(const native::generated::GeneratedSystem& sys)
 {
-	if (std::strcmp(sys.core.file_wire, "little_endian_byte_pairs") != 0)
+	FileWireFormat file_wire;
+	if (std::strcmp(sys.core.file_wire, "little_endian_byte_pairs") == 0)
+		file_wire = FileWireFormat::little_endian_byte_pairs;
+	else if (std::strcmp(sys.core.file_wire, "little_endian_bytes") == 0)
+		file_wire = FileWireFormat::little_endian_bytes;
+	else
 		std::abort();
 	Profile profile;
 	profile.system = sys.system;
@@ -64,7 +69,7 @@ Profile ProfileFromGenerated(const native::generated::GeneratedSystem& sys)
 	profile.core.reset_assert_word = sys.core.reset_assert_word;
 	profile.core.initial_status_word = sys.core.initial_status_word;
 	profile.core.reset_release_word = sys.core.reset_release_word;
-	profile.core.file_wire = FileWireFormat::little_endian_byte_pairs;
+	profile.core.file_wire = file_wire;
 	profile.input.player_count = sys.input.player_count;
 	profile.input.player_command = sys.input.player_command;
 	profile.input.up = sys.input.up;

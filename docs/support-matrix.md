@@ -83,7 +83,8 @@ SNES video/input/audio acceptance remains pending.
 
 ## NES software scope
 
-Software tests cover generated profile admission, index-0 cartridge delivery,
+Software tests cover generated profile admission, native filetype-index `0x40`
+cartridge delivery with the narrow low-byte SPI wire,
 iNES 1.0 and NES2 header validation, trainer rejection, bounded payload checks,
 and preflight rejection before FPGA programming. Only standard `.nes` files up
 to 32 MiB are admitted; source bytes are streamed unchanged. FDS, UNIF/UNF,

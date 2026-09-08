@@ -170,6 +170,28 @@ void TestAttachPairsBytesLittleEndianAcrossThe4096ByteChunkBoundary()
 		std::vector<std::uint16_t>({0x0054, 0x4433}));
 }
 
+void TestAttachSendsOneLowBytePerWordForNarrowFileIo()
+{
+	const std::vector<unsigned char> bytes = {
+		'N', 'E', 'S', 0x1a, 0x02, 0x01, 0x00};
+	TempFile file(bytes);
+	mister::native::PosixArtifactOpener opener;
+	mister::native::Artifact artifact;
+	assert(opener.Open(file.path, 0, &artifact).ok());
+	mister_test::FakeSpi spi;
+	mister::native::CoreLoader loader(spi);
+	assert(loader.Attach(0x40, artifact,
+		mister::FileWireFormat::little_endian_bytes, 92).ok());
+	assert(spi.calls.size() == 6);
+	assert((spi.calls[0].request == std::vector<std::uint16_t>{0x0055, 0x40}));
+	assert(spi.calls[3].request == std::vector<std::uint16_t>({
+		0x0054, 'N', 'E', 'S', 0x1a, 0x02, 0x01, 0x00}));
+	assert((spi.calls[4].request == std::vector<std::uint16_t>{0x0029}));
+	assert((spi.calls[5].request == std::vector<std::uint16_t>{0x0053, 0}));
+	for (std::size_t i = 1; i < spi.calls[3].request.size(); ++i)
+		assert((spi.calls[3].request[i] & 0xff00) == 0);
+}
+
 void TestAttachRejectsUnsupportedWireFormatBeforeSelectingFileIo()
 {
 	TempFile file;
@@ -504,6 +526,7 @@ int main()
 	TestEachRecipePrimitiveReturnsItsDirectFailureWithoutLaterCalls();
 	TestAttachKeepsExactFileCommandOrderingAndBoundedFrames();
 	TestAttachPairsBytesLittleEndianAcrossThe4096ByteChunkBoundary();
+	TestAttachSendsOneLowBytePerWordForNarrowFileIo();
 	TestAttachRejectsUnsupportedWireFormatBeforeSelectingFileIo();
 	TestAttachStopsAtEveryFailedExchangeAndShortRead();
 	TestAttachStopsAfterFirstAndPerChunkArtifactReadFailures();

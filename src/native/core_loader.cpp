@@ -126,7 +126,8 @@ Error CoreLoader::Attach(std::uint8_t index, const Artifact& artifact,
 Error CoreLoader::AttachContent(std::uint8_t index, const Artifact& artifact,
 	FileWireFormat wire_format, const MediaContentPlan& content, std::uint64_t deadline, SaveFile* save)
 {
-	if (wire_format != FileWireFormat::little_endian_byte_pairs)
+	if (wire_format != FileWireFormat::little_endian_byte_pairs &&
+		wire_format != FileWireFormat::little_endian_bytes)
 		return {ErrorCode::invalid_request, "unsupported file wire format"};
 	if (content.source_offset > artifact.size() || content.source_size == 0 ||
 		content.source_size > artifact.size() - content.source_offset ||
@@ -155,11 +156,16 @@ Error CoreLoader::AttachContent(std::uint8_t index, const Artifact& artifact,
 			if (!error.ok()) return error;
 		}
 		std::vector<std::uint16_t> request(1, 0x0054);
-		for (std::size_t byte = 0; byte < count; byte += 2) {
-			std::uint16_t word = bytes[byte];
-			if (byte + 1 < count)
-				word |= static_cast<std::uint16_t>(bytes[byte + 1]) << 8;
-			request.push_back(word);
+		if (wire_format == FileWireFormat::little_endian_byte_pairs) {
+			for (std::size_t byte = 0; byte < count; byte += 2) {
+				std::uint16_t word = bytes[byte];
+				if (byte + 1 < count)
+					word |= static_cast<std::uint16_t>(bytes[byte + 1]) << 8;
+				request.push_back(word);
+			}
+		} else {
+			for (std::size_t byte = 0; byte < count; ++byte)
+				request.push_back(bytes[byte]);
 		}
 		error = Exchange(spi_, kFileIoTarget, request, deadline);
 		if (!error.ok()) return error;
