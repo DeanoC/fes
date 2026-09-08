@@ -173,6 +173,14 @@ development possible with both the open-source Mistral toolchain and Quartus.
   HPS GP. Address 0 reads `0xA6` after configuration. Run
   `make sim EXP=470_mlab_init` and `make oss EXP=470_mlab_init`; no Quartus
   comparison lane is implemented.
+- `480_m10k_sdp20`, a 512-by-20 M10K simple dual-port table on HPS GP with a
+  50 MHz write clock and an independently gated 25 MHz read clock. Address 0
+  reads `0xA6` after configuration. Run `make sim EXP=480_m10k_sdp20` and
+  `make oss EXP=480_m10k_sdp20`; no Quartus comparison lane is implemented.
+- `490_m10k_sdp40`, the 256-by-40 independent-clock M10K table on HPS GP. The
+  high 20 bits are the complement of the low 20 bits. Run
+  `make sim EXP=490_m10k_sdp40` and `make oss EXP=490_m10k_sdp40`; no Quartus
+  comparison lane is implemented.
 - `500_m10k_be20`, a 512-by-20 M10K table on HPS GP with two independently
   writable 10-bit lanes, a 50 MHz write clock, and a gated 25 MHz read clock.
   Run `make sim EXP=500_m10k_be20` and `make oss EXP=500_m10k_be20`; no Quartus
