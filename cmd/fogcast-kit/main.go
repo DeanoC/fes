@@ -161,10 +161,15 @@ func run() error {
 		presentations.Keep(ids)
 		presentations.Request(ctx, client.Library, ids)
 		handles := tenfoot.CollectCoverHandles(m.Games, start, prefetch, presentations.Get)
+		handles = append(handles, tenfoot.CollectLogoHandles(m.Games, start, prefetch, presentations.Get)...)
 		if m.DetailOpen {
 			handles = append(handles, m.DetailPrefetchHandles()...)
 			if game, ok := focusedGame(m); ok {
-				if handle := tenfoot.CoverHandle(game, presentations.Get(game.ID)); handle != "" {
+				pres := presentations.Get(game.ID)
+				if handle := tenfoot.CoverHandle(game, pres); handle != "" {
+					handles = append(handles, handle)
+				}
+				if handle := tenfoot.LogoHandle(pres); handle != "" {
 					handles = append(handles, handle)
 				}
 			}
@@ -319,9 +324,13 @@ func modelDetailFrame(m kitlauncher.Model, covers *tenfoot.CoverCache, presentat
 	}
 	if game, ok := focusedGame(m); ok {
 		frame.Color = th.SystemColor(game.System)
+		pres := tenfoot.Presentation{}
+		if presentations != nil {
+			pres = presentations.Get(game.ID)
+		}
 		handle := m.FocusCoverHandle()
-		if handle == "" && presentations != nil {
-			handle = tenfoot.CoverHandle(game, presentations.Get(game.ID))
+		if handle == "" {
+			handle = tenfoot.CoverHandle(game, pres)
 		}
 		if handle != "" && covers != nil {
 			frame.Cover = covers.Image(handle)
@@ -335,6 +344,13 @@ func modelDetailFrame(m kitlauncher.Model, covers *tenfoot.CoverCache, presentat
 			}
 		} else {
 			frame.CoverKind = fbgrid.CoverMissing
+		}
+		logo := m.FocusLogoHandle()
+		if logo == "" {
+			logo = tenfoot.LogoHandle(pres)
+		}
+		if logo != "" && covers != nil && covers.Status(logo) == tenfoot.CoverReady {
+			frame.Logo = covers.Image(logo)
 		}
 	}
 	if shot := m.ShotHandle(); shot != "" {
@@ -424,6 +440,9 @@ func gameTile(game tenfoot.Game, covers *tenfoot.CoverCache, pres tenfoot.Presen
 				tile.CoverKind = fbgrid.CoverMissing
 			}
 		}
+	}
+	if handle := tenfoot.LogoHandle(pres); handle != "" && covers != nil && covers.Status(handle) == tenfoot.CoverReady {
+		tile.Logo = covers.Image(handle)
 	}
 	return tile
 }

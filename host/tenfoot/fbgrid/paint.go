@@ -129,15 +129,37 @@ func paintTile(d gfx.Device, g Grid, th theme.Theme, i int, tile Tile) {
 	if barH < 16 {
 		barH = 16
 	}
+	if tile.Logo != nil && barH < 24 {
+		barH = 24
+	}
 	if barH > inner.H {
 		barH = inner.H
 	}
-	d.FillRect(gfx.Rect{
+	bar := gfx.Rect{
 		X: inner.X,
 		Y: inner.Y + inner.H - barH,
 		W: inner.W,
 		H: barH,
-	}, th.LabelBar)
+	}
+	d.FillRect(bar, th.LabelBar)
+	if tile.Logo != nil {
+		padX := float32(4)
+		padY := float32(2)
+		logoCell := gfx.Rect{
+			X: bar.X + padX,
+			Y: bar.Y + padY,
+			W: bar.W - 2*padX,
+			H: bar.H - 2*padY,
+		}
+		if logoCell.W < 1 {
+			logoCell.W = 1
+		}
+		if logoCell.H < 1 {
+			logoCell.H = 1
+		}
+		paintCover(d, tile.Logo, logoCell)
+		return
+	}
 	textX := int(inner.X) + 4
 	maxW := int(inner.W) - 8
 	if maxW < 1 {

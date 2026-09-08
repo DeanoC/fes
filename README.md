@@ -94,7 +94,9 @@ while the pane is open. Cells show host cover art when a catalog
 `Game.Cover` or LaunchBox/IGDB presentation cover handle is available,
 Catmull–Rom downscaled at decode, with a theme-tinted
 placeholder (lettermark when missing, a distinct panel while loading) instead of
-a flat system fill. The visible 4×3 page and the next page prefetch those
+a flat system fill. Presentation `logo_id` (LaunchBox Clear Logo, or a
+`library_media` RoleLogo overlay) paints on the detail title and grid label
+bar; missing logos keep the existing bold/regular text labels. The visible 4×3 page and the next page prefetch those
 handles asynchronously; missing metadata still uses the placeholder. After the host attract `idle_seconds` with no pad input, the
 kit shows a stills attract (title chrome plus backdrop/cover/marquee artwork)
 and returns to the same shelf and focus on any input. Video is not decoded on

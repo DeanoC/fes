@@ -620,7 +620,10 @@ focused title, East/B and Up return to the same shelf and focus, and
 shoulder or D-pad L/R cycle `screenshot_ids` when two or more are present.
 The pane opens with a cheap fade-from-black overlay. Attract does not arm while the pane is open. Catalog cells paint decoded box-art from
 `GET /api/v1/presentation/artwork/{handle}` when a catalog `Game.Cover` or a
-presentation `cover_artwork_id` is present. The kit prefetches
+presentation `cover_artwork_id` is present. Presentation `logo_id` (LaunchBox
+Clear Logo, or a `library_media` RoleLogo overlay that wins when present)
+paints on the detail title and grid label bar; tiles and titles without a
+logo keep the existing text labels. The kit prefetches
 `GET /api/v1/presentation/games/{id}` for the visible 4×3 page and the next
 page without blocking present; missing or failed lookups keep the placeholder.
 `DecodeCover` Catmull–Rom downscales once to the cover cell so Software Draw

@@ -166,9 +166,18 @@ func (m Model) FocusCoverHandle() string {
 	return tenfoot.CoverHandle(game, m.presentationFor(game.ID))
 }
 
-// DetailPrefetchHandles is the focused cover plus the current screenshot.
+// FocusLogoHandle is the presentation clear-logo for the focused title.
+func (m Model) FocusLogoHandle() string {
+	game, ok := m.focusedGame()
+	if !ok {
+		return ""
+	}
+	return tenfoot.LogoHandle(m.presentationFor(game.ID))
+}
+
+// DetailPrefetchHandles is the focused cover, logo, and current screenshot.
 func (m Model) DetailPrefetchHandles() []string {
-	out := make([]string, 0, 2)
+	out := make([]string, 0, 3)
 	seen := map[string]struct{}{}
 	add := func(handle string) {
 		handle = strings.TrimSpace(handle)
@@ -182,6 +191,7 @@ func (m Model) DetailPrefetchHandles() []string {
 		out = append(out, handle)
 	}
 	add(m.FocusCoverHandle())
+	add(m.FocusLogoHandle())
 	add(m.ShotHandle())
 	return out
 }

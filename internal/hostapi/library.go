@@ -631,12 +631,14 @@ func overlayPresentation(ctx context.Context, service Service, game catalog.Game
 	if media.Backdrop != "" {
 		payload.BackdropArtworkHandle = media.Backdrop
 	}
-	payload.LogoHandle = media.Logo
+	if media.Logo != "" {
+		payload.LogoHandle = media.Logo
+	}
 	payload.MarqueeHandle = media.Marquee
 	payload.VideoHandle = media.Video
 	payload.ScreenshotHandles = media.Screenshot
 	result.Presentation = &payload
-	if strings.EqualFold(result.State, "offline") && (media.Cover != "" || media.Backdrop != "") {
+	if strings.EqualFold(result.State, "offline") && (media.Cover != "" || media.Backdrop != "" || media.Logo != "") {
 		result.State = "ready"
 	}
 	return result

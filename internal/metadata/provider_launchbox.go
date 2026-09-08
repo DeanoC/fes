@@ -58,6 +58,8 @@ type launchBoxIndexedGame struct {
 	aliases   []string
 	cover     string
 	coverType string
+	logo      string
+	logoType  string
 	system    protocol.System
 }
 
@@ -162,8 +164,13 @@ func LoadLaunchBoxCatalog(reader io.Reader) (*LaunchBoxCatalog, error) {
 		}
 		if game.cover != "" {
 			handle := launchBoxArtworkHandle(game.cover)
-			candidate.Artwork = []ArtworkRef{{Role: ArtworkCover, ID: handle}}
+			candidate.Artwork = append(candidate.Artwork, ArtworkRef{Role: ArtworkCover, ID: handle})
 			catalog.covers[handle] = game.cover
+		}
+		if game.logo != "" {
+			handle := launchBoxArtworkHandle(game.logo)
+			candidate.Artwork = append(candidate.Artwork, ArtworkRef{Role: ArtworkLogo, ID: handle})
+			catalog.covers[handle] = game.logo
 		}
 		catalog.candidates[game.system] = append(catalog.candidates[game.system], candidate)
 	}
@@ -248,13 +255,18 @@ func (b *launchBoxCatalogBatch) putLaunchBoxRecord(record launchBoxRecord) error
 			current.aliases = append(current.aliases, record.alias.alternateName)
 		}
 	case "GameImage":
-		if validLaunchBoxImageTypeRank("cover", record.image.typeName) < 0 {
-			return nil
-		}
 		current := b.ensure(record.image.databaseID)
-		if current.cover == "" || validLaunchBoxImageTypeRank("cover", record.image.typeName) < validLaunchBoxImageTypeRank("cover", current.coverType) {
-			current.cover = record.image.fileName
-			current.coverType = record.image.typeName
+		if rank := validLaunchBoxImageTypeRank("cover", record.image.typeName); rank >= 0 {
+			if current.cover == "" || rank < validLaunchBoxImageTypeRank("cover", current.coverType) {
+				current.cover = record.image.fileName
+				current.coverType = record.image.typeName
+			}
+		}
+		if rank := validLaunchBoxImageTypeRank("logo", record.image.typeName); rank >= 0 {
+			if current.logo == "" || rank < validLaunchBoxImageTypeRank("logo", current.logoType) {
+				current.logo = record.image.fileName
+				current.logoType = record.image.typeName
+			}
 		}
 	}
 	return nil
@@ -292,7 +304,7 @@ type cachedLaunchBoxCover struct {
 	body []byte
 }
 
-// NewLaunchBoxRuntime serves catalog text and official covers.
+// NewLaunchBoxRuntime serves catalog text and official covers and logos.
 func NewLaunchBoxRuntime(catalog *LaunchBoxCatalog, client *http.Client) Runtime {
 	return newLaunchBoxCatalogRuntime(catalog, client, "")
 }
@@ -350,9 +362,15 @@ func (r *launchBoxCatalogRuntime) Lookup(_ context.Context, input LookupInput) (
 		result.Presentation.Year = itoaYear(decision.Candidate.FirstReleaseYear)
 	}
 	for _, art := range decision.Candidate.Artwork {
-		if art.Role == ArtworkCover {
-			result.Presentation.CoverArtworkID = art.ID
-			break
+		switch art.Role {
+		case ArtworkCover:
+			if result.Presentation.CoverArtworkID == "" {
+				result.Presentation.CoverArtworkID = art.ID
+			}
+		case ArtworkLogo:
+			if result.Presentation.LogoArtworkID == "" {
+				result.Presentation.LogoArtworkID = art.ID
+			}
 		}
 	}
 	return result, nil
@@ -624,7 +642,7 @@ func OpenLaunchBoxArchive(path string, client *http.Client) (Runtime, error) {
 	return OpenLaunchBoxArchiveWithCache(path, client, "")
 }
 
-// OpenLaunchBoxArchiveWithCache loads the zip and stores covers under cacheDir.
+// OpenLaunchBoxArchiveWithCache loads the zip and stores covers and logos under cacheDir.
 func OpenLaunchBoxArchiveWithCache(path string, client *http.Client, cacheDir string) (Runtime, error) {
 	file, err := os.Open(path)
 	if err != nil {

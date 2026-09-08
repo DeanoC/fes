@@ -61,6 +61,7 @@ type Presentation struct {
 // PresentationInfo is the nested presentation object on a games/{id} payload.
 type PresentationInfo struct {
 	CoverArtworkID string   `json:"cover_artwork_id"`
+	LogoID         string   `json:"logo_id,omitempty"`
 	Summary        string   `json:"summary"`
 	Year           string   `json:"year"`
 	Genre          string   `json:"genre"`
@@ -670,6 +671,14 @@ func CoverHandle(game Game, presentation Presentation) string {
 		return ""
 	}
 	return normalizeHandle(presentation.Presentation.CoverArtworkID)
+}
+
+// LogoHandle returns a 64-hex clear-logo handle from presentation.
+func LogoHandle(presentation Presentation) string {
+	if presentation.Presentation == nil {
+		return ""
+	}
+	return normalizeHandle(presentation.Presentation.LogoID)
 }
 
 // LibraryTarget is one target row from GET /api/v1/library/settings.

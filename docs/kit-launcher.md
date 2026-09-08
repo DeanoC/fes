@@ -138,13 +138,17 @@ programs the FPGA, or claims a kit lease. Rendering pauses while a game is activ
 The connecting/library screen uses the existing pure-Go linuxfb backend and the
 shared `fbgrid` paint path. Tiles are a bounded page of live catalog rows. Cover handles come from catalog
 `Game.Cover` when present, otherwise from `GET /api/v1/presentation/games/{id}`
-(`cover_artwork_id`) for the visible page and the cheap next page. The kit
+(`cover_artwork_id`) for the visible page and the cheap next page. The same
+presentation payload may include `logo_id` from LaunchBox Clear Logo art, with
+`library_media` RoleLogo winning when that overlay is present. The kit
 fetches `GET /api/v1/presentation/artwork/{handle}` on the paired listener,
 decodes it with `DecodeCover` (Catmull–Rom downscale to
 the cover cell; Software Draw stays nearest), and aspect-fits the RGBA into the
 cell over theme-tinted letterbox bars. Missing or failed art paints a
 theme-tinted placeholder with a lettermark; still-loading art uses a distinct
-panel without a letter. Presentation and artwork fetching are asynchronous and
+panel without a letter. Ready logos replace the grid label-bar text and the
+detail title; missing or still-loading logos keep today's text labels.
+Presentation and artwork fetching are asynchronous and
 do not block the present loop. The title pane paints the focused cover (and current screenshot, when
 present) through the same cache. After idle, attract stills use the same artwork GET with `DecodeStill`
 (Catmull–Rom to a 720p-class stage) and `fbgrid.PaintAttract`. Empty playlists
@@ -208,7 +212,8 @@ archive = "/absolute/path/to/Metadata.zip"
    `~/.cache/fogcast/metadata/launchbox-covers`.
 4. Rebuild and run `fogcast-kit` (`make build-fogcast-kit`, CGO-free ARMv7).
    Visible tiles prefetch presentation then artwork; titles without a match keep
-   the existing placeholder.
+   the existing placeholder. Clear logos use the same artwork GET via `logo_id`
+   and fall back to text labels when the handle is missing.
 
 Do not put provider secrets in launcher JSON, logs, or pull requests. Local
 `library_media` covers still win when `Game.Cover` is set.
