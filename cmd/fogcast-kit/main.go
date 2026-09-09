@@ -62,6 +62,7 @@ func run() error {
 	selftestSearch := flag.Bool("selftest-search", false, "paint catalog search OSK, filter, empty, restore, then exit")
 	selftestBezel := flag.Bool("selftest-bezel", false, "paint soft vignette, optional bezel, and pause chrome, then exit")
 	selftestAudio := flag.Bool("selftest-audio-chrome", false, "paint attract edge chrome from injected levels, then exit")
+	selftestBoxes := flag.Bool("selftest-boxes", false, "paint focused 3D box art, cover perspective, and cabinet chrome, then exit")
 	noTransition := flag.Bool("no-transition", false, "disable kit scene transition overlays")
 	audioChrome := flag.Bool("audio-chrome", false, "paint attract edge chrome from a measured level file, or a labeled idle pulse when none exists")
 	audioLevelFile := flag.String("audio-level-file", "", "optional 0..1 level file used as a measured injector")
@@ -93,7 +94,7 @@ func run() error {
 		}
 		return runThemeSelftest(fb)
 	}
-	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestSeries || *selftestMotion || *selftestWheel || *selftestStrip || *selftestAtmosphere || *selftestLayouts || *selftestPacks || *selftestBadges || *selftestTransition || *selftestMarquee || *selftestSearch || *selftestBezel || *selftestAudio {
+	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestSeries || *selftestMotion || *selftestWheel || *selftestStrip || *selftestAtmosphere || *selftestLayouts || *selftestPacks || *selftestBadges || *selftestTransition || *selftestMarquee || *selftestSearch || *selftestBezel || *selftestAudio || *selftestBoxes {
 		fb := "/dev/fb0"
 		configTheme := ""
 		if c, err := kitlauncher.LoadConfig(*configPath); err == nil {
@@ -105,6 +106,9 @@ func run() error {
 		th, err := loadKitTheme(*themeSpec, configTheme)
 		if err != nil {
 			return err
+		}
+		if *selftestBoxes {
+			return runBoxesSelftest(fb, th)
 		}
 		if *selftestBezel {
 			return runBezelSelftest(fb, th)
@@ -310,10 +314,13 @@ func run() error {
 		presentations.Request(ctx, client.Library, ids)
 		handles := tenfoot.CollectCoverHandles(m.Games, start, prefetch, presentations.Get)
 		handles = append(handles, tenfoot.CollectLogoHandles(m.Games, start, prefetch, presentations.Get)...)
+		handles = append(handles, tenfoot.CollectBox3DHandles(m.Games, start, prefetch, presentations.Get)...)
 		handles = append(handles, tenfoot.CollectCoverHandles(m.Strip, 0, len(m.Strip), presentations.Get)...)
 		handles = append(handles, tenfoot.CollectLogoHandles(m.Strip, 0, len(m.Strip), presentations.Get)...)
+		handles = append(handles, tenfoot.CollectBox3DHandles(m.Strip, 0, len(m.Strip), presentations.Get)...)
 		handles = append(handles, tenfoot.CollectCoverHandles(m.Series, 0, len(m.Series), presentations.Get)...)
 		handles = append(handles, tenfoot.CollectLogoHandles(m.Series, 0, len(m.Series), presentations.Get)...)
+		handles = append(handles, tenfoot.CollectBox3DHandles(m.Series, 0, len(m.Series), presentations.Get)...)
 		backdropHandles := atmospherePrefetchHandles(m, presentations, start, prefetch)
 		if m.DetailOpen {
 			handles = append(handles, m.DetailPrefetchHandles()...)
@@ -323,6 +330,9 @@ func run() error {
 					handles = append(handles, handle)
 				}
 				if handle := tenfoot.LogoHandle(pres); handle != "" {
+					handles = append(handles, handle)
+				}
+				if handle := tenfoot.Box3DHandle(pres); handle != "" {
 					handles = append(handles, handle)
 				}
 				if handle := tenfoot.MarqueeHandle(pres); handle != "" {
@@ -740,6 +750,13 @@ func modelDetailFrame(m kitlauncher.Model, covers *tenfoot.CoverCache, presentat
 		if logo != "" && covers != nil && covers.Status(logo) == tenfoot.CoverReady {
 			frame.Logo = covers.Image(logo)
 		}
+		box := m.FocusBox3DHandle()
+		if box == "" {
+			box = tenfoot.Box3DHandle(pres)
+		}
+		if box != "" && covers != nil && covers.Status(box) == tenfoot.CoverReady {
+			frame.Box = covers.Image(box)
+		}
 	}
 	ids := m.PreviewHandles()
 	if shot := m.ShotHandle(); shot != "" || m.HasVideoPreview() {
@@ -869,6 +886,9 @@ func gameTile(game tenfoot.Game, covers *tenfoot.CoverCache, pres tenfoot.Presen
 	}
 	if handle := tenfoot.LogoHandle(pres); handle != "" && covers != nil && covers.Status(handle) == tenfoot.CoverReady {
 		tile.Logo = covers.Image(handle)
+	}
+	if handle := tenfoot.Box3DHandle(pres); handle != "" && covers != nil && covers.Status(handle) == tenfoot.CoverReady {
+		tile.Box = covers.Image(handle)
 	}
 	return tile
 }

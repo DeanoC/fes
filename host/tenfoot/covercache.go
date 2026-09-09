@@ -184,6 +184,29 @@ func CollectLogoHandles(games []Game, start, end int, presentation func(string) 
 	return out
 }
 
+// CollectBox3DHandles returns unique 64-hex 3D box/cart handles from optional
+// presentation lookups. presentation may be nil.
+func CollectBox3DHandles(games []Game, start, end int, presentation func(string) Presentation) []string {
+	start, end = clampPage(games, start, end)
+	if start >= end || presentation == nil {
+		return nil
+	}
+	out := make([]string, 0, end-start)
+	seen := make(map[string]struct{}, end-start)
+	for _, game := range games[start:end] {
+		handle := Box3DHandle(presentation(game.ID))
+		if handle == "" {
+			continue
+		}
+		if _, ok := seen[handle]; ok {
+			continue
+		}
+		seen[handle] = struct{}{}
+		out = append(out, handle)
+	}
+	return out
+}
+
 // CollectBackdropHandles returns unique 64-hex fanart/backdrop handles from
 // optional presentation lookups. presentation may be nil.
 func CollectBackdropHandles(games []Game, start, end int, presentation func(string) Presentation) []string {

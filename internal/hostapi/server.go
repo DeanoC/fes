@@ -113,6 +113,7 @@ type presentationPayload struct {
 	BackdropArtworkHandle string   `json:"backdrop_artwork_id,omitempty"`
 	LogoHandle            string   `json:"logo_id,omitempty"`
 	MarqueeHandle         string   `json:"marquee_id,omitempty"`
+	Box3DHandle           string   `json:"box3d_id,omitempty"`
 	VideoHandle           string   `json:"video_id,omitempty"`
 	ScreenshotHandles     []string `json:"screenshot_ids,omitempty"`
 }
@@ -551,6 +552,7 @@ func safePresentation(result metadata.Result) (presentationPayload, presentation
 		BackdropArtworkHandle: safePresentationHandle(result.Presentation.BackdropArtworkID),
 		LogoHandle:            safePresentationHandle(result.Presentation.LogoArtworkID),
 		MarqueeHandle:         safePresentationHandle(result.Presentation.MarqueeArtworkID),
+		Box3DHandle:           safePresentationHandle(result.Presentation.Box3DArtworkID),
 	}, presentationAttribution{Provider: string(result.Attribution.Provider), Label: label}, true
 }
 

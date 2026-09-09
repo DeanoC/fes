@@ -418,6 +418,205 @@ func runPacksSelftest(fbPath string, th theme.Theme) error {
 	return err
 }
 
+func runBoxesSelftest(fbPath string, th theme.Theme) error {
+	d, err := gfx.OpenLinuxFB(fbPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	report, err := exerciseBoxesGrid(d, th)
+	fmt.Print(report)
+	return err
+}
+
+func exerciseBoxesGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
+	th = th.Complete()
+	cfg := d.Config()
+	var b strings.Builder
+	cover := solidStill(255, 32, 160, 16, 20)
+	box := solidStill(16, 200, 48, 20, 24)
+	fallback := th.SystemColor("megadrive")
+	g := fbgrid.NewWithTiles(cfg.Width, cfg.Height, []fbgrid.Tile{
+		{Name: "SONIC", Color: fallback, Cover: cover, CoverKind: fbgrid.CoverPresent, Box: box},
+		{Name: "STREETS", Color: fallback, Cover: cover, CoverKind: fbgrid.CoverPresent, Box: box},
+		{Name: "PONG", Color: fallback, CoverKind: fbgrid.CoverMissing},
+	})
+	g.Theme = th
+	g.Focus = 0
+	fbgrid.Paint(d, g)
+	d.Present()
+	ix, iy, ok := g.InteriorSample()
+	if !ok {
+		return b.String(), fmt.Errorf("focus interior")
+	}
+	gotB, gotG, gotR, gotX, err := gfx.SampleBGRX(d.Destination(), cfg, ix, iy)
+	if err != nil {
+		return b.String(), err
+	}
+	if gotB != 48 || gotG != 200 || gotR != 16 || gotX != 0 {
+		return b.String(), fmt.Errorf("focus 3d bgrx %d,%d,%d,%d", gotB, gotG, gotR, gotX)
+	}
+	ox, oy, ok := g.CellOrigin(1)
+	if !ok {
+		return b.String(), fmt.Errorf("unfocused origin")
+	}
+	px, py := ox+g.CellW/2, oy+g.CellH/2
+	uB, uG, uR, uX, err := gfx.SampleBGRX(d.Destination(), cfg, px, py)
+	if err != nil {
+		return b.String(), err
+	}
+	if uB != 160 || uG != 32 || uR != 255 || uX != 0 {
+		return b.String(), fmt.Errorf("unfocused kept 3d bgrx %d,%d,%d,%d", uB, uG, uR, uX)
+	}
+	fmt.Fprintf(&b, "focus-3d=(%d,%d) bgrx=%d,%d,%d,%d unfocused-cover=1\n", ix, iy, gotB, gotG, gotR, gotX)
+
+	g.Focus = 2
+	fbgrid.Paint(d, g)
+	d.Present()
+	hx, hy, ok := g.InteriorSample()
+	if !ok {
+		return b.String(), fmt.Errorf("missing interior")
+	}
+	mB, mG, mR, _, err := gfx.SampleBGRX(d.Destination(), cfg, hx, hy)
+	if err != nil {
+		return b.String(), err
+	}
+	if mB == 48 && mG == 200 && mR == 16 {
+		return b.String(), fmt.Errorf("missing art invented 3d pixels")
+	}
+	if mB == 160 && mG == 32 && mR == 255 {
+		return b.String(), fmt.Errorf("missing art invented cover pixels")
+	}
+	fmt.Fprintf(&b, "hide-missing=1\n")
+
+	g.Focus = 1
+	g.Tiles[1].Box = nil
+	fbgrid.Paint(d, g)
+	d.Present()
+	fx, fy, ok := g.InteriorSample()
+	if !ok {
+		return b.String(), fmt.Errorf("faux interior")
+	}
+	fB, fG, fR, fX, err := gfx.SampleBGRX(d.Destination(), cfg, fx, fy)
+	if err != nil {
+		return b.String(), err
+	}
+	if fB != 160 || fG != 32 || fR != 255 || fX != 0 {
+		return b.String(), fmt.Errorf("faux cover bgrx %d,%d,%d,%d", fB, fG, fR, fX)
+	}
+	fmt.Fprintf(&b, "faux-cover=(%d,%d) bgrx=%d,%d,%d,%d\n", fx, fy, fB, fG, fR, fX)
+
+	arcade := theme.Arcade().Complete()
+	ag := fbgrid.NewWithTiles(cfg.Width, cfg.Height, []fbgrid.Tile{
+		{Name: "SONIC", Color: arcade.SystemColor("megadrive"), Cover: cover, CoverKind: fbgrid.CoverPresent, Box: box},
+	})
+	ag.Theme = arcade
+	ag.Focus = 0
+	fbgrid.Paint(d, ag)
+	d.Present()
+	ox, oy, ok = ag.CellOrigin(0)
+	if !ok {
+		return b.String(), fmt.Errorf("arcade cell")
+	}
+	cell := gfx.Rect{X: float32(ox), Y: float32(oy), W: float32(ag.CellW), H: float32(ag.CellH)}
+	cx, cy, ok := fbgrid.CabinetSample(cell, arcade)
+	if !ok {
+		return b.String(), fmt.Errorf("arcade cabinet sample")
+	}
+	cB, cG, cR, cX, err := gfx.SampleBGRX(d.Destination(), cfg, cx, cy)
+	if err != nil {
+		return b.String(), err
+	}
+	if cB != arcade.CoverFrame.B || cG != arcade.CoverFrame.G || cR != arcade.CoverFrame.R || cX != 0 {
+		return b.String(), fmt.Errorf("arcade cabinet bgrx %d,%d,%d,%d want trim %+v", cB, cG, cR, cX, arcade.CoverFrame)
+	}
+	if _, _, ok := fbgrid.CabinetSample(cell, th); ok {
+		return b.String(), fmt.Errorf("classic cabinet should stay off")
+	}
+	fmt.Fprintf(&b, "cabinet arcade=(%d,%d) classic=0\n", cx, cy)
+
+	dframe := fbgrid.DetailFrame{
+		Width: cfg.Width, Height: cfg.Height, Title: "SONIC", Cover: cover, CoverKind: fbgrid.CoverPresent, Box: box, Color: fallback, Theme: th,
+	}
+	fbgrid.PaintDetail(d, dframe)
+	d.Present()
+	dx, dy, ok := fbgrid.DetailCoverSampleFor(cfg.Width, cfg.Height, th, dframe)
+	if !ok {
+		return b.String(), fmt.Errorf("detail cover sample")
+	}
+	dB, dG, dR, dX, err := gfx.SampleBGRX(d.Destination(), cfg, dx, dy)
+	if err != nil {
+		return b.String(), err
+	}
+	if dB != 48 || dG != 200 || dR != 16 || dX != 0 {
+		return b.String(), fmt.Errorf("detail 3d bgrx %d,%d,%d,%d", dB, dG, dR, dX)
+	}
+	plain := dframe
+	plain.Box = nil
+	fbgrid.PaintDetail(d, plain)
+	d.Present()
+	pB, pG, pR, _, err := gfx.SampleBGRX(d.Destination(), cfg, dx, dy)
+	if err != nil {
+		return b.String(), err
+	}
+	if pB != 160 || pG != 32 || pR != 255 {
+		return b.String(), fmt.Errorf("detail faux bgrx %d,%d,%d", pB, pG, pR)
+	}
+	fmt.Fprintf(&b, "detail 3d=(%d,%d) faux=1\n", dx, dy)
+
+	sg := fbgrid.NewWithTiles(cfg.Width, cfg.Height, []fbgrid.Tile{
+		{Name: "SONIC", Color: fallback, Cover: cover, CoverKind: fbgrid.CoverPresent, Box: box, Meta: "MEGADRIVE 1991"},
+	})
+	sg.Theme = th
+	sg.Kind = fbgrid.BrowseSplit
+	sg.Focus = 0
+	fbgrid.Paint(d, sg)
+	d.Present()
+	sx, sy, ok := sg.SplitHeroCoverSample()
+	if !ok {
+		return b.String(), fmt.Errorf("split hero sample")
+	}
+	sB, sG, sR, sX, err := gfx.SampleBGRX(d.Destination(), cfg, sx, sy)
+	if err != nil {
+		return b.String(), err
+	}
+	if sB != 48 || sG != 200 || sR != 16 || sX != 0 {
+		return b.String(), fmt.Errorf("split 3d bgrx %d,%d,%d,%d", sB, sG, sR, sX)
+	}
+	fmt.Fprintf(&b, "split-hero 3d=(%d,%d)\n", sx, sy)
+
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	m.SetCatalog(mixedShelfGames())
+	m.Focus = 1
+	m.ApplyPresentation(m.Games[m.Focus].ID, tenfoot.Presentation{
+		Presentation: &tenfoot.PresentationInfo{Box3DID: strings.Repeat("aa", 32), CoverArtworkID: strings.Repeat("bb", 32)},
+	})
+	if m.FocusBox3DHandle() != strings.Repeat("aa", 32) {
+		return b.String(), fmt.Errorf("focus box3d %q", m.FocusBox3DHandle())
+	}
+	press(&m, "y")
+	if m.Browse != fbgrid.BrowseCoverflow {
+		return b.String(), fmt.Errorf("y stole browse %s", m.Browse)
+	}
+	press(&m, "x")
+	if m.Pack != theme.PackNeon {
+		return b.String(), fmt.Errorf("x stole pack %s", m.Pack)
+	}
+	a, _ := remoteinput.NormalizeGamepad("a", true)
+	if action := m.Input(a, time.Now()); action != "launch" {
+		return b.String(), fmt.Errorf("A after boxes %q", action)
+	}
+	fmt.Fprintf(&b, "nav-still y=%s x=%s launch=1\n", m.Browse, m.Pack)
+
+	nested, err := exerciseSearchGrid(d, th)
+	b.WriteString(nested)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "selftest-boxes PASS focus-3d=1 faux=1 hide=1 cabinet=1 detail=1 split=1 nested-search=1\n")
+	return b.String(), nil
+}
+
 func runMarqueeSelftest(fbPath string, th theme.Theme) error {
 	d, err := gfx.OpenLinuxFB(fbPath)
 	if err != nil {

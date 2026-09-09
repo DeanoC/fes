@@ -41,6 +41,10 @@ type Theme struct {
 	// Bezel is the optional thin TV-ish frame. BezelWidth 0 hides it.
 	Bezel      gfx.Color
 	BezelWidth int
+	// Cabinet is the optional focus-only hardware/bezel fill. CabinetWidth 0
+	// leaves focus art unframed beyond the existing highlight ring.
+	Cabinet      gfx.Color
+	CabinetWidth int
 	// Transition is none, curtain, wipe, or glitch. Empty inherits Default
 	// (curtain) in Complete. "none" is an honest no-op overlay.
 	Transition string
@@ -110,6 +114,8 @@ func Default() Theme {
 		Bezel:             gfx.RGB(255, 220, 0),
 		BezelWidth:        0,
 		vignetteASet:      true,
+		Cabinet:           gfx.Color{},
+		CabinetWidth:      0,
 		Transition:        "curtain",
 		Pad:               16,
 		Gap:               8,
@@ -159,6 +165,8 @@ func Arcade() Theme {
 		Bezel:             gfx.RGB(255, 230, 0),
 		BezelWidth:        2,
 		vignetteASet:      true,
+		Cabinet:           gfx.RGB(42, 0, 16),
+		CabinetWidth:      8,
 		Transition:        "glitch",
 		Pad:               16,
 		Gap:               8,
@@ -212,6 +220,8 @@ func Night() Theme {
 		Bezel:             gfx.RGB(61, 184, 255),
 		BezelWidth:        2,
 		vignetteASet:      true,
+		Cabinet:           gfx.RGB(8, 16, 24),
+		CabinetWidth:      6,
 		Transition:        "wipe",
 		Pad:               16,
 		Gap:               8,
@@ -305,6 +315,10 @@ func (t Theme) Complete() Theme {
 	t.Bezel = completeColor(t.Bezel, d.Bezel)
 	if t.BezelWidth < 0 {
 		t.BezelWidth = d.BezelWidth
+	}
+	t.Cabinet = completeColor(t.Cabinet, d.Cabinet)
+	if t.CabinetWidth < 0 {
+		t.CabinetWidth = d.CabinetWidth
 	}
 	if strings.TrimSpace(t.Transition) == "" {
 		t.Transition = d.Transition
@@ -489,6 +503,8 @@ func (t Theme) Equal(o Theme) bool {
 		t.VignetteA != o.VignetteA ||
 		t.Bezel != o.Bezel ||
 		t.BezelWidth != o.BezelWidth ||
+		t.Cabinet != o.Cabinet ||
+		t.CabinetWidth != o.CabinetWidth ||
 		t.Transition != o.Transition ||
 		t.Pad != o.Pad ||
 		t.Gap != o.Gap ||

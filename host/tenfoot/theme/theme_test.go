@@ -111,6 +111,12 @@ func TestArcadeDiffersFromDefault(t *testing.T) {
 	if Night().BezelWidth == 0 || Night().VignetteA <= d.VignetteA {
 		t.Fatalf("night vignette/bezel a=%d w=%d", Night().VignetteA, Night().BezelWidth)
 	}
+	if a.CabinetWidth == 0 || a.CabinetWidth == d.CabinetWidth || a.Cabinet == d.Cabinet {
+		t.Fatal("arcade cabinet")
+	}
+	if Night().CabinetWidth == 0 || Night().CabinetWidth == d.CabinetWidth {
+		t.Fatal("night cabinet")
+	}
 	if a.Transition != "glitch" || Night().Transition != "wipe" {
 		t.Fatalf("pack transitions arcade=%q night=%q", a.Transition, Night().Transition)
 	}

@@ -35,6 +35,7 @@ const (
 	RoleScreenshot = "screenshot"
 	RoleBackdrop   = "backdrop"
 	RoleVideo      = "video"
+	RoleBox3D      = "box3d"
 	MIMEJPEG       = "image/jpeg"
 	MIMEPNG        = "image/png"
 	MIMEMP4        = "video/mp4"
@@ -79,6 +80,7 @@ type GameMedia struct {
 	Marquee    string
 	Backdrop   string
 	Video      string
+	Box3D      string
 	Screenshot []string
 }
 
@@ -269,21 +271,75 @@ func parseMediaPath(relative string) (platform, key, role, ext string, ok bool) 
 	if len(parts) != 3 {
 		return "", "", "", "", false
 	}
-	platform, key, file := parts[0], parts[1], parts[2]
+	platform, mid, file := parts[0], parts[1], parts[2]
 	ext = strings.ToLower(path.Ext(file))
-	role = strings.ToLower(strings.TrimSuffix(file, ext))
-	if !validRole(role) || platform == "" || key == "" {
+	stem := strings.ToLower(strings.TrimSuffix(file, ext))
+	if platform == "" || mid == "" || stem == "" {
 		return "", "", "", "", false
 	}
-	return platform, key, role, ext, true
+	if role, ok = mediaFileRole(stem); ok {
+		return platform, mid, role, ext, true
+	}
+	if role, ok = box3DFolderRole(mid); ok {
+		return platform, strings.TrimSuffix(file, path.Ext(file)), role, ext, true
+	}
+	return "", "", "", "", false
 }
 
 func validRole(role string) bool {
 	switch role {
-	case RoleCover, RoleLogo, RoleMarquee, RoleScreenshot, RoleBackdrop, RoleVideo:
+	case RoleCover, RoleLogo, RoleMarquee, RoleScreenshot, RoleBackdrop, RoleVideo, RoleBox3D:
 		return true
 	default:
 		return false
+	}
+}
+
+func mediaFileRole(stem string) (string, bool) {
+	switch stem {
+	case RoleCover, RoleLogo, RoleMarquee, RoleScreenshot, RoleBackdrop, RoleVideo:
+		return stem, true
+	case "box3d", "box-3d", "box_3d", "cart3d", "cart-3d", "cart_3d", "spine", "box-spine", "box_spine":
+		return RoleBox3D, true
+	default:
+		if strings.HasSuffix(stem, "_3d") || strings.HasSuffix(stem, "-3d") {
+			return RoleBox3D, true
+		}
+		return "", false
+	}
+}
+
+func box3DFolderRole(folder string) (string, bool) {
+	switch compactMediaToken(folder) {
+	case "box3d", "cart3d", "boxspine", "spine":
+		return RoleBox3D, true
+	default:
+		return "", false
+	}
+}
+
+func compactMediaToken(value string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(strings.TrimSpace(value)) {
+		if r == ' ' || r == '_' || r == '-' {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+func box3DPreference(rel string) int {
+	n := compactMediaToken(rel)
+	switch {
+	case strings.Contains(n, "box3d"):
+		return 0
+	case strings.Contains(n, "cart3d"):
+		return 1
+	case strings.Contains(n, "spine"):
+		return 2
+	default:
+		return 1
 	}
 }
 
@@ -448,6 +504,12 @@ func (x *Index) GameMedia(ctx context.Context, gameID string) (GameMedia, error)
 		if next.kind != current.kind {
 			return next.kind < current.kind
 		}
+		if next.role == RoleBox3D {
+			nRank, cRank := box3DPreference(next.rel), box3DPreference(current.rel)
+			if nRank != cRank {
+				return nRank < cRank
+			}
+		}
 		if next.rootIdx != current.rootIdx {
 			return next.rootIdx < current.rootIdx
 		}
@@ -490,6 +552,7 @@ func (x *Index) GameMedia(ctx context.Context, gameID string) (GameMedia, error)
 		Marquee:  best[RoleMarquee].handle,
 		Backdrop: best[RoleBackdrop].handle,
 		Video:    best[RoleVideo].handle,
+		Box3D:    best[RoleBox3D].handle,
 	}
 	for _, shot := range screenshots {
 		media.Screenshot = append(media.Screenshot, shot.handle)

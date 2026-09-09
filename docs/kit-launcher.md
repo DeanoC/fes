@@ -254,7 +254,13 @@ presentation payload may include `logo_id` from LaunchBox Clear Logo art, with
 fetches `GET /api/v1/presentation/artwork/{handle}` on the paired listener,
 decodes it with `DecodeCover` (Catmull–Rom downscale to
 the cover cell; Software Draw stays nearest), and aspect-fits the RGBA into the
-cell over theme-tinted letterbox bars. Missing or failed art paints a
+cell over theme-tinted letterbox bars. The focused tile, split hero, and title
+pane prefer `box3d_id` when that handle is ready (LaunchBox Box-3D / Cart-3D /
+Box-Spine, or `library_media` files named `box3d` / `cart-3d` / `*_3d`, or a
+`Box - 3D` folder next to the ROM stem). Missing 3D art skews the 2D cover;
+missing both hides the 3D look. Unfocused tiles keep 2D covers. Neon and Sofa
+Dim add a thin cabinet bezel around focus (`cabinet_width`); Classic leaves it
+off. Missing or failed art paints a
 theme-tinted placeholder with a lettermark; still-loading art uses a distinct
 panel without a letter. Ready logos replace the grid label-bar text and the
 detail title; missing or still-loading logos keep today's text labels.
@@ -273,7 +279,12 @@ fetched on kit.
 
 Run `go test -race ./kitlauncher/... ./host/tenfoot/inputmap ./host/tenfoot/theme ./host/tenfoot/fbgrid ./host/tenfoot/gfx ./host/tenfoot/anim ./cmd/fogcast-kit` for adapter tests. They
 exercise real HTTP transports with isolated servers and never open real input or
-framebuffer devices. On the kit, `fogcast-kit -selftest-bezel` paints the
+framebuffer devices. On the kit, `fogcast-kit -selftest-boxes` paints a focused 3D box over a 2D
+cover, a cover perspective when the 3D handle is missing, hides both when no
+art exists, samples Neon cabinet chrome (Classic stays off), paints the same
+3D art on the title pane and split hero, keeps Y/X/A, and re-runs search
+(which re-runs transition, packs, layouts, atmosphere, strip, wheel, motion,
+detail, attract, cover, text, nav, and shelf). On the kit, `fogcast-kit -selftest-bezel` paints the
 soft vignette, an Arcade bezel frame, and pause chrome over an active
 session, proves East/B and Start do not stop, keeps split layout, and
 re-runs search (which re-runs transition, packs, layouts, atmosphere,
@@ -381,6 +392,10 @@ archive = "/absolute/path/to/Metadata.zip"
    the existing placeholder. Clear logos use the same artwork GET via `logo_id`
    and fall back to text labels when the handle is missing. Arcade-Marquee and
 Banner files use the same artwork GET via `marquee_id` and hide when absent.
+   Box-3D, Cart-3D, and Box-Spine files use the same artwork GET via `box3d_id`
+   on the focused tile; local `library_media` RoleBox3D (including a `Box - 3D`
+   folder or `*_3d` still) wins when present. Missing 3D handles hide rather
+   than invent geometry.
 
 Do not put provider secrets in launcher JSON, logs, or pull requests. Local
 `library_media` covers still win when `Game.Cover` is set.

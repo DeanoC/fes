@@ -34,8 +34,11 @@ type Tile struct {
 	Color     gfx.Color
 	Cover     *image.RGBA
 	CoverKind CoverKind
-	Logo      *image.RGBA
-	Badges    []Badge
+	// Box is optional 3D box/cart art. Focused cells prefer it over Cover;
+	// unfocused cells keep Cover and only use Box when Cover is missing.
+	Box    *image.RGBA
+	Logo   *image.RGBA
+	Badges []Badge
 	// Meta is optional short catalog/presentation facts for split hero copy.
 	Meta string
 }

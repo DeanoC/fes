@@ -286,7 +286,7 @@ linuxfb is a kit framebuffer Device, not the SDL sofa shell.
 `gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.
 
 Tenfoot looks are data-driven. `host/tenfoot/theme` loads colour, spacing,
-typography roles, cover-chrome, vignette, and bezel tokens from a built-in name (`default`,
+typography roles, cover-chrome, vignette, bezel, and cabinet tokens from a built-in name (`default`,
 `arcade`, `night`) or a JSON/TOML file. Roles are explicit pixel sizes
 (`title_px`, `body_px`, `caption_px`, `status_px`). Paint calls `TitlePx`,
 `BodyPx`, `CaptionPx`, and `StatusPx` so fallback math stays in the theme
@@ -699,7 +699,14 @@ Neon a glitch/static burst, Sofa Dim a wipe. Overlays settle in under
 400ms and do not block pad input. `transition` `none`, `-no-transition`,
 or `FOGCAST_NO_TRANSITION=1` is an honest no-op. Attract does not arm while the pane or search OSK is open. Catalog cells paint decoded box-art from
 `GET /api/v1/presentation/artwork/{handle}` when a catalog `Game.Cover` or a
-presentation `cover_artwork_id` is present. Presentation `logo_id` (LaunchBox
+presentation `cover_artwork_id` is present. The focused browse tile, split hero,
+and title-detail cover prefer presentation `box3d_id` (LaunchBox Box-3D, then
+Cart-3D, then Box-Spine, with a `library_media` RoleBox3D overlay that wins
+when present). Missing 3D art uses a cheap CPU 3/4 perspective of the 2D cover
+(`tenfoot.FauxBox`); missing both keeps the placeholder. Unfocused tiles stay
+2D covers. Theme tokens `cabinet` / `cabinet_width` paint a thin hardware bezel
+around that focused art (Neon and Sofa Dim set a width; Classic stays 0).
+Presentation `logo_id` (LaunchBox
 Clear Logo, or a `library_media` RoleLogo overlay that wins when present)
 paints on the detail title, grid label bar, and split list rows; tiles and titles without a
 logo keep the existing text labels. Split paints the focused cover and

@@ -79,6 +79,56 @@ func TestScanIndexesGameIDAndStemAndIgnoresSymlinks(t *testing.T) {
 	}
 }
 
+func TestScanIndexesBox3DFileAndLaunchBoxFolder(t *testing.T) {
+	ctx := context.Background()
+	mediaRoot := t.TempDir()
+	pngBytes := tinyPNG(t)
+	gameDir := filepath.Join(mediaRoot, "megadrive", "sonic")
+	if err := os.MkdirAll(gameDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(gameDir, "box3d.png"), pngBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	folder := filepath.Join(mediaRoot, "snes", "Box - 3D")
+	if err := os.MkdirAll(folder, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(folder, "mario.png"), pngBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	aliasDir := filepath.Join(mediaRoot, "megadrive", "streets")
+	if err := os.MkdirAll(aliasDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(aliasDir, "cart-3d.png"), pngBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	index, err := librarymedia.Open(ctx, filepath.Join(t.TempDir(), "media.sqlite3"), t.TempDir(), []librarymedia.Root{{ID: "media-main", Path: mediaRoot}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = index.Close() })
+	sonic := catalog.Game{ID: "sonic", Title: "Sonic", System: protocol.SystemMegaDrive, RelativePath: "sonic.md"}
+	mario := catalog.Game{ID: "snes-mario-test", Title: "Mario", System: protocol.SystemSNES, RelativePath: "mario.sfc"}
+	streets := catalog.Game{ID: "streets", Title: "Streets", System: protocol.SystemMegaDrive, RelativePath: "streets.md"}
+	if err := index.Scan(ctx, []catalog.Game{sonic, mario, streets}); err != nil {
+		t.Fatal(err)
+	}
+	sonicMedia, err := index.GameMedia(ctx, sonic.ID)
+	if err != nil || sonicMedia.Box3D == "" {
+		t.Fatalf("sonic box3d = %+v, %v", sonicMedia, err)
+	}
+	marioMedia, err := index.GameMedia(ctx, mario.ID)
+	if err != nil || marioMedia.Box3D == "" {
+		t.Fatalf("mario folder box3d = %+v, %v", marioMedia, err)
+	}
+	streetsMedia, err := index.GameMedia(ctx, streets.ID)
+	if err != nil || streetsMedia.Box3D == "" {
+		t.Fatalf("streets cart-3d = %+v, %v", streetsMedia, err)
+	}
+}
+
 func TestScanAssignsIDPathOverCollidingStem(t *testing.T) {
 	ctx := context.Background()
 	mediaRoot := t.TempDir()

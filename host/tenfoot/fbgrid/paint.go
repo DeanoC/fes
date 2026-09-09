@@ -108,6 +108,7 @@ func paintTile(d gfx.Device, g Grid, th theme.Theme, i int, tile Tile) {
 	inner := r
 	focused := i == g.Focus && !g.StripActive && !g.SeriesActive
 	if focused {
+		paintFocusCabinet(d, r, th)
 		d.FillRect(r, th.Highlight)
 		if in, ok := g.tileInner(i); ok {
 			inner = in
@@ -128,9 +129,9 @@ func paintTile(d gfx.Device, g Grid, th theme.Theme, i int, tile Tile) {
 		d.FillRect(inner, fill)
 	}
 	if !flashing {
-		if tile.Cover != nil {
+		if art := tileBoxArt(tile, focused); art != nil {
 			d.FillRect(inner, letterboxFill(fill, th))
-			paintCover(d, tile.Cover, inner)
+			paintCover(d, art, inner)
 		} else {
 			paintPlaceholder(d, inner, tile.Name, fill, th, tile.CoverKind == CoverLoading)
 		}
@@ -273,6 +274,7 @@ func paintSplitHero(d gfx.Device, g Grid, th theme.Theme) {
 		fill = th.SystemColor("")
 	}
 	inner := cover
+	paintFocusCabinet(d, cover, th)
 	if th.CoverFrameWidth > 0 && inner.W > float32(2*th.CoverFrameWidth) && inner.H > float32(2*th.CoverFrameWidth) {
 		d.FillRect(inner, th.CoverFrame)
 		fw := float32(th.CoverFrameWidth)
@@ -283,9 +285,9 @@ func paintSplitHero(d gfx.Device, g Grid, th theme.Theme) {
 			H: inner.H - 2*fw,
 		}
 	}
-	if tile.Cover != nil {
+	if art := heroBoxArt(tile.Box, tile.Cover); art != nil {
 		d.FillRect(inner, letterboxFill(fill, th))
-		paintCover(d, tile.Cover, inner)
+		paintCover(d, art, inner)
 	} else {
 		paintPlaceholder(d, inner, tile.Name, fill, th, tile.CoverKind == CoverLoading)
 	}
