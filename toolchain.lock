@@ -2,7 +2,7 @@
 repo = "https://github.com/DeanoC/yosys.git"
 commit = "fca8ca0a5354e52ce0e158bc6e1eed481e590ed8"
 order = 10
-rationale = "Adds the kept Cyclone V HPS peripheral I2C declaration and synthesis regression on 10891a9e0256a0eac70c329aa64c633902fc6bc6. Preserves that base's CMake build surface, mixed-width TDP M10K and earlier ALM support. Pair with nextpnr 2c9f9c5 for HDMI I2C, dedicated DDR clock forwarding, and dedicated SDR output registers; fixed reviewed local commit."
+rationale = "Adds the kept Cyclone V HPS peripheral I2C declaration and synthesis regression on 10891a9e0256a0eac70c329aa64c633902fc6bc6. Preserves that base's CMake build surface, mixed-width TDP M10K and earlier ALM support. Pair with nextpnr a1f8dbb5 for HDMI I2C, dedicated DDR clock forwarding, and dedicated SDR output/input registers; fixed reviewed local commit."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
@@ -12,9 +12,9 @@ rationale = "DeanoC fork for nextpnr ef29443 Cyclone V MUL9X9/MUL18X18/MUL27X27,
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "2c9f9c5cf06615affdefc8c346bbd7d26a47f6b6"
+commit = "a1f8dbb5434fd88bc014ce059dd6b7ca74512693"
 order = 30
-rationale = "Adds dedicated Cyclone V SDR output registers (merged PR #42 2c9f9c5: FAST_OUTPUT_REGISTER ON absorbs a directly connected MISTRAL_FF into MISTRAL_OB as MISTRAL_SDROUT; unsupported controls, inverted clocks and Q fanout fail closed) on eefa26d3. Feature commit 8c0c8e7. Preserves dedicated DDR clock forwarding, HPS I2C, bidirectional GPIO input-buffer, and constant FF data routing. Uses unchanged Mistral b28e30a and Yosys fca8ca0a; published DeanoC/nextpnr mistral-stable merge."
+rationale = "Adds dedicated Cyclone V SDR input registers (merged PR #43 a1f8dbb5: FAST_INPUT_REGISTER ON absorbs a directly connected MISTRAL_FF driven by MISTRAL_IB into MISTRAL_SDRIN on GPIO DATAIN.3/CLKIN.0; unsupported controls, inverted clocks and data fanout fail closed) on 2c9f9c5. Feature commit 298e7588. Preserves dedicated SDR output registers, DDR clock forwarding, HPS I2C, bidirectional GPIO input-buffer, and constant FF data routing. Uses unchanged Mistral b28e30a and Yosys fca8ca0a; published DeanoC/nextpnr mistral-stable merge."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
