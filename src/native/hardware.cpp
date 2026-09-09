@@ -431,7 +431,8 @@ HardwareResult NativeHardware::LoadCore(
 		admitted->context_, Deadline(clock_, timeouts_.core_io_ms));
 	if (!identified.error.ok()) {
 		const Error stopped = StopInput(Deadline(clock_, timeouts_.core_io_ms));
-		if (fes_gp) ForgetActiveCore();
+		if (fes_gp && !identified.safe_to_quiesce)
+			ForgetActiveCore();
 		if (!stopped.ok()) identified.error = WithPhase(stopped, "input");
 		else {
 			const char* const phase =

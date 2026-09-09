@@ -735,7 +735,7 @@ void PushFesGpResponse(mister_test::FakeMmio* mmio, bool toggle,
 	mmio->PushRead(kSpiGpiAddress, completed);
 }
 
-void ScriptFesGpActivation(mister_test::FakeMmio* mmio)
+std::vector<std::uint16_t> FesGpIdentityWords()
 {
 	using namespace mister::native::generated;
 	std::vector<std::uint16_t> words(FesGpIdentityWordCount);
@@ -757,11 +757,22 @@ void ScriptFesGpActivation(mister_test::FakeMmio* mmio)
 			build.substr(offset + 2, 2), nullptr, 16));
 		words[word++] = static_cast<std::uint16_t>(first | (second << 8));
 	}
+	return words;
+}
+
+void ScriptFesGpIdentity(mister_test::FakeMmio* mmio,
+	const std::vector<std::uint16_t>& words)
+{
 	bool toggle = false;
 	for (std::uint16_t value : words) {
 		toggle = !toggle;
 		PushFesGpResponse(mmio, toggle, value);
 	}
+}
+
+void ScriptFesGpActivation(mister_test::FakeMmio* mmio)
+{
+	ScriptFesGpIdentity(mmio, FesGpIdentityWords());
 	PushFesGpResponse(mmio, true, 0);  // initial neutral after 16 words
 	PushFesGpResponse(mmio, false, 0); // gameplay release
 }
@@ -1001,6 +1012,74 @@ void TestProductionFesInputDisconnectAndGenerationRetirement()
 	PushFesGpResponse(&mmio, true, 0);
 }
 
+void TestOnlyVerifiedFesGpMismatchIsQuiescedDuringIdleRecovery()
+{
+	using namespace mister::native;
+	using namespace mister::native::generated;
+	auto run = [](std::vector<std::uint16_t> words, bool expect_quiesce) {
+		TempDirectory temporary;
+		TempDirectory package;
+		PopulateFesGpPackage(&package);
+		std::vector<std::string> events;
+		RecordingOpener opener(events);
+		mister_test::FakeMmio mmio;
+		RecordingFpga fpga(events);
+		RecordingI2c i2c(events);
+		RecordingSpi spi(events, i2c);
+		CoreLoader core(spi);
+		RecordingVideo idle_video(events);
+		FixedClock clock(100);
+		MisterCoreDriver mister_driver(mmio, core, clock);
+		LedgerLog log(events);
+		FixedVideoBringup game_video(spi, i2c, clock, log,
+			Menu720p60Recipe());
+		RecordingInput input(events, clock);
+		const InputDeviceIdentity identity = {
+			"FogCast Virtual Gamepad", 0x0006, 0x0000, 0x0001, 0x0001};
+		FesGp transport(mmio, clock);
+		FesGpCoreDriver gp_driver(transport);
+		NativeHardware hardware(opener, fpga, core, idle_video, game_video,
+			input, identity, clock, log, temporary.File("idle.rbf", "idle"),
+			{30000, 10000, 10000}, mister_driver, &gp_driver, nullptr, {"/tmp"});
+		const std::string package_id =
+			"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0";
+		std::unique_ptr<mister::AdmittedCorePackage> admitted;
+		assert(hardware.AdmitCorePackage(package.path, package_id, &admitted).ok());
+		ScriptFesGpIdentity(&mmio, words);
+		if (expect_quiesce) PushFesGpResponse(&mmio, true, 0);
+		const mister::HardwareResult loaded = hardware.LoadCore(std::move(admitted), 1);
+		assert(loaded.error.code == mister::ErrorCode::core_mismatch);
+		assert(mmio.writes.size() == FesGpIdentityWordCount * 2);
+		const std::size_t expected_writes = FesGpIdentityWordCount * 2 +
+			(expect_quiesce ? 2 : 0);
+		fpga.on_program = [&] {
+			if (fpga.calls == 2) assert(mmio.writes.size() == expected_writes);
+		};
+		assert(hardware.LoadIdle().error.ok());
+		assert(fpga.calls == 2);
+		assert(mmio.writes.size() == expected_writes);
+		if (expect_quiesce) {
+			const auto& command = mmio.writes[expected_writes - 1].value;
+			assert((command & FesGpOpcodeMask) ==
+				FesGpOpcodeGameplay * (FesGpOpcodeMask & (~FesGpOpcodeMask + 1u)));
+			assert((command & FesGpArgumentMask) == FesGpGameplayHoldReset);
+		}
+	};
+
+	std::vector<std::uint16_t> wrong_magic = FesGpIdentityWords();
+	wrong_magic[FesGpIdentityMagic0Index] ^= 1u;
+	run(std::move(wrong_magic), false);
+	std::vector<std::uint16_t> wrong_abi = FesGpIdentityWords();
+	wrong_abi[FesGpIdentityAbiMajorIndex] ^= 1u;
+	run(std::move(wrong_abi), false);
+	std::vector<std::uint16_t> missing_capability = FesGpIdentityWords();
+	missing_capability[FesGpIdentityCapabilitiesIndex] = 0;
+	run(std::move(missing_capability), false);
+	std::vector<std::uint16_t> wrong_build = FesGpIdentityWords();
+	wrong_build[FesGpIdentityBuildIDStartIndex] ^= 1u;
+	run(std::move(wrong_build), true);
+}
+
 void TestUnknownAndContainedFabricReceiveNoMisterQuiesceWords()
 {
 	Fixture startup;
@@ -1067,6 +1146,41 @@ void TestDriverIdentifyStartAndQuiesceFailuresHaveOneRecoveryDecision()
 {
 	const std::string package_id =
 		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0";
+	{
+		std::vector<std::string> events;
+		RecordingDriver gp(events);
+		gp.identify_result.error = {mister::ErrorCode::core_mismatch,
+			"injected stable identity mismatch"};
+		gp.identify_result.safe_to_quiesce = true;
+		IntegratedFixture fixture(&gp);
+		fixture.Start();
+		TempDirectory package;
+		PopulateFesGpPackage(&package);
+		assert(fixture.runtime.LoadCore(package.path, package_id).code ==
+			mister::ErrorCode::core_mismatch);
+		assert(fixture.native.fpga.calls == 3);
+		assert(fixture.runtime.status().state == mister::State::idle);
+		assert(Count(events, "driver.identify") == 1);
+		assert(Count(events, "driver.buttons") == 0);
+		assert(Count(events, "driver.quiesce") == 1);
+		assert(gp.quiesce_generations == std::vector<std::uint64_t>({1}));
+	}
+	{
+		std::vector<std::string> events;
+		RecordingDriver gp(events);
+		gp.identify_result.error = {mister::ErrorCode::core_mismatch,
+			"injected unverified identity mismatch"};
+		IntegratedFixture fixture(&gp);
+		fixture.Start();
+		TempDirectory package;
+		PopulateFesGpPackage(&package);
+		assert(fixture.runtime.LoadCore(package.path, package_id).code ==
+			mister::ErrorCode::core_mismatch);
+		assert(fixture.native.fpga.calls == 3);
+		assert(fixture.runtime.status().state == mister::State::idle);
+		assert(Count(events, "driver.identify") == 1);
+		assert(Count(events, "driver.quiesce") == 0);
+	}
 	{
 		std::vector<std::string> events;
 		RecordingDriver gp(events);
@@ -2290,6 +2404,7 @@ int main()
 	TestLaunchUsesExactCoreRecipeAndExplicitMediaFormatInOrder();
 	TestFesGpPackageUsesSelectedDriverAndReturnsToMenuThroughThatDriver();
 	TestProductionFesInputDisconnectAndGenerationRetirement();
+	TestOnlyVerifiedFesGpMismatchIsQuiescedDuringIdleRecovery();
 	TestUnknownAndContainedFabricReceiveNoMisterQuiesceWords();
 	TestPackagedMisterIsExplicitDevelopmentAndValidatesDeclaredSystem();
 	TestDriverIdentifyStartAndQuiesceFailuresHaveOneRecoveryDecision();
@@ -2329,6 +2444,6 @@ int main()
 	TestUnavailableHardwareRemainsFailureOnly();
 	TestInspectionReportsActualDriverCompatibilityWithoutMutation();
 	TestActivationRechecksRetainedPayloadIdentityBeforeMutation();
-	puts("native_hardware_test: 43 passed");
+	puts("native_hardware_test: 44 passed");
 	return 0;
 }

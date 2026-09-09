@@ -251,6 +251,12 @@ that driver identity before cleanup, so the containment/Menu recovery does not
 repeat an ambiguously completed protocol command. A failure known to precede
 protocol mutation retains the driver and lets the single cleanup attempt make
 its ordinary quiesce decision.
+FES GP discovery authorizes that cleanup command only after all identity words
+arrive through a stable transport and the protocol header, ABI, and required
+capabilities match. A later build-ID mismatch retains the programmed driver's
+context for one hold-reset command before Menu programming. A transport,
+header, ABI, or required-capability failure retires it, so recovery sends no
+command to an unverified fabric.
 There is no retry loop, failover path, recovery coordinator, or second
 ownership database.
 

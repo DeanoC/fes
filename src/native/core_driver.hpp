@@ -34,6 +34,9 @@ struct CoreDriverResult {
 	Error error;
 	bool mutation_attempted = false;
 	std::string observed_core;
+	// Identify may authorize one bounded cleanup command only after the
+	// destination protocol and ABI have been verified.
+	bool safe_to_quiesce = false;
 };
 
 class CoreDriver {

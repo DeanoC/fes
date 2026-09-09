@@ -199,8 +199,10 @@ Error FesGp::Exchange(std::uint8_t opcode, std::uint8_t index,
 	}
 }
 
-Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline)
+Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
+	bool* safe_to_quiesce)
 {
+	if (safe_to_quiesce != nullptr) *safe_to_quiesce = false;
 	const std::uint64_t now = clock_.NowMs();
 	if (now >= deadline) return Io("FES GP discovery deadline exceeded");
 	const std::uint64_t discovery_deadline = std::min(deadline,
@@ -254,6 +256,8 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline)
 				WordEvidence(index, expected[index]),
 				WordEvidence(index, observed[index]));
 		}
+		if (index == FesGpIdentityCapabilitiesIndex && safe_to_quiesce != nullptr)
+			*safe_to_quiesce = true;
 	}
 	return {};
 }
@@ -280,8 +284,11 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 	if (context.descriptor == nullptr)
 		return {{ErrorCode::invalid_request, "missing FES GP descriptor",
 			"request"}, false, ""};
-	const Error error = gp_.Identify(*context.descriptor, deadline);
-	return {error, false, error.ok() ? context.descriptor->core.id : ""};
+	bool safe_to_quiesce = false;
+	const Error error = gp_.Identify(*context.descriptor, deadline,
+		&safe_to_quiesce);
+	return {error, false, error.ok() ? context.descriptor->core.id : "",
+		safe_to_quiesce};
 }
 
 CoreDriverResult FesGpCoreDriver::NeutralizeButtons(

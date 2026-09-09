@@ -295,10 +295,14 @@ void TestIdentifyReadsAllWordsThenRejectsEveryIdentityOrBuildMismatch()
 		std::vector<std::uint16_t> words = expected;
 		words[changed] ^= 1u;
 		ScriptIdentity(&mmio, words);
-		const mister::Error error = gp.Identify(descriptor, 10000);
+		bool safe_to_quiesce = true;
+		const mister::Error error = gp.Identify(descriptor, 10000,
+			&safe_to_quiesce);
 		assert(error.code == mister::ErrorCode::core_mismatch);
 		assert(error.phase == "identity");
 		assert(!error.expected.empty() && !error.observed.empty());
+		assert(safe_to_quiesce ==
+			(changed > FesGpIdentityCapabilitiesIndex));
 		assert(mmio.writes.size() == FesGpIdentityWordCount * 2);
 	}
 
@@ -309,7 +313,43 @@ void TestIdentifyReadsAllWordsThenRejectsEveryIdentityOrBuildMismatch()
 	words[FesGpIdentityCapabilitiesIndex] = static_cast<std::uint16_t>(
 		words[FesGpIdentityCapabilitiesIndex] | 0x8000u);
 	ScriptIdentity(&mmio, words);
-	assert(gp.Identify(descriptor, 10000).ok());
+	bool safe_to_quiesce = false;
+	assert(gp.Identify(descriptor, 10000, &safe_to_quiesce).ok());
+	assert(safe_to_quiesce);
+}
+
+void TestCoreDriverExposesOnlyVerifiedFesGpSessionsForCleanup()
+{
+	const std::string build_id = "00112233445566778899aabbccddeeff";
+	const mister::native::CoreDescriptor descriptor = Descriptor(build_id);
+	mister::native::CoreDriverContext context;
+	context.descriptor = &descriptor;
+	{
+		mister_test::FakeMmio mmio;
+		TickClock clock;
+		mister::native::FesGp gp(mmio, clock);
+		mister::native::FesGpCoreDriver driver(gp);
+		std::vector<std::uint16_t> words = IdentityWords(build_id);
+		words[FesGpIdentityMagic0Index] ^= 1u;
+		ScriptIdentity(&mmio, words);
+		const mister::native::CoreDriverResult result =
+			driver.Identify(context, 10000);
+		assert(result.error.code == mister::ErrorCode::core_mismatch);
+		assert(!result.safe_to_quiesce);
+	}
+	{
+		mister_test::FakeMmio mmio;
+		TickClock clock;
+		mister::native::FesGp gp(mmio, clock);
+		mister::native::FesGpCoreDriver driver(gp);
+		std::vector<std::uint16_t> words = IdentityWords(build_id);
+		words[FesGpIdentityBuildIDStartIndex] ^= 1u;
+		ScriptIdentity(&mmio, words);
+		const mister::native::CoreDriverResult result =
+			driver.Identify(context, 10000);
+		assert(result.error.code == mister::ErrorCode::core_mismatch);
+		assert(result.safe_to_quiesce);
+	}
 }
 
 void TestCoreDriverRoutesGeneratedControlsAndChecksResponses()
@@ -350,7 +390,8 @@ int main()
 	TestExchangeRejectsMalformedAndUnstableResponsesWithoutRetry();
 	TestExchangeAndIdentityUseExactDeadlineBoundaries();
 	TestIdentifyReadsAllWordsThenRejectsEveryIdentityOrBuildMismatch();
+	TestCoreDriverExposesOnlyVerifiedFesGpSessionsForCleanup();
 	TestCoreDriverRoutesGeneratedControlsAndChecksResponses();
-	puts("fes_gp_test: 5 groups passed");
+	puts("fes_gp_test: 6 groups passed");
 	return 0;
 }

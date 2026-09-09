@@ -22,7 +22,8 @@ public:
 	Error Exchange(std::uint8_t opcode, std::uint8_t index,
 		std::uint16_t argument, std::uint64_t absolute_deadline_ms,
 		std::uint16_t* response);
-	Error Identify(const CoreDescriptor&, std::uint64_t absolute_deadline_ms);
+	Error Identify(const CoreDescriptor&, std::uint64_t absolute_deadline_ms,
+		bool* safe_to_quiesce = nullptr);
 
 private:
 	Mmio& mmio_;
