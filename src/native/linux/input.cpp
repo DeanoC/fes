@@ -23,7 +23,9 @@ namespace mister {
 namespace native {
 namespace {
 
+#if defined(__linux__)
 constexpr int kCancellationFallbackPollMs = 100;
+#endif
 
 class Operations {
 public:

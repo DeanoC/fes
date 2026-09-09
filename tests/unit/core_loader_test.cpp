@@ -1,6 +1,7 @@
 // Copyright 2026 FogCast contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "capture_diagnostic.hpp"
 #include "fake_spi.hpp"
 #include "snes_save_spi.hpp"
 #include "native/artifacts.hpp"
@@ -74,6 +75,26 @@ void TestProbeUsesCoreNameCommandAndParsesPrintableName()
 	assert(spi.calls[0].request.front() == 0x0014);
 	assert(spi.calls[0].request.size() == 66);
 	assert(spi.calls[0].deadline == 1234);
+}
+
+void TestProbeEmitsCoreNameLeaveMenu()
+{
+	mister_test::CaptureDiagnostic capture;
+	mister::DiagnosticInstall install(&capture);
+	mister_test::FakeSpi spi;
+	mister::native::CoreLoader loader(spi);
+	std::string observed;
+	spi.observed_core = "MENU";
+	assert(loader.Probe(&observed, 10).ok());
+	spi.observed_core = "MegaDrive";
+	assert(loader.Probe(&observed, 11).ok());
+	assert(capture.Count("corename.change") == 2);
+	const std::vector<mister::DiagnosticEvent> events = capture.events();
+	assert(mister_test::HasString(events[0], "observed", "MENU"));
+	assert(mister_test::HasBool(events[0], "left_menu", false));
+	assert(mister_test::HasString(events[1], "observed", "MegaDrive"));
+	assert(mister_test::HasBool(events[1], "left_menu", true));
+	assert(mister_test::HasString(events[1], "previous", "MENU"));
 }
 
 void TestRecipeResetAndStatusPrimitivesUseExactWholeStatusWords()
@@ -522,6 +543,7 @@ int main()
 	TestNesCartridgePreflightAcceptsINesAndNes2();
 	TestNesCartridgePreflightRejectsMalformedContent();
 	TestProbeUsesCoreNameCommandAndParsesPrintableName();
+	TestProbeEmitsCoreNameLeaveMenu();
 	TestRecipeResetAndStatusPrimitivesUseExactWholeStatusWords();
 	TestEachRecipePrimitiveReturnsItsDirectFailureWithoutLaterCalls();
 	TestAttachKeepsExactFileCommandOrderingAndBoundedFrames();
@@ -531,6 +553,6 @@ int main()
 	TestAttachStopsAtEveryFailedExchangeAndShortRead();
 	TestAttachStopsAfterFirstAndPerChunkArtifactReadFailures();
 	TestDirectSpiFailureIsReturnedWithoutLaterCommands();
-	puts("core_loader_test: 16 behaviors passed");
+	puts("core_loader_test: 17 behaviors passed");
 	return 0;
 }

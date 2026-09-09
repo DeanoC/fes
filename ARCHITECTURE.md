@@ -128,6 +128,33 @@ The library does not own a network API, catalogue, transfer cache, or host
 session. A future target agent integration belongs outside this repository
 and will call the daemon over `/run/mister-runtime.sock`.
 
+## Diagnostic event ring
+
+The production daemon keeps one bounded in-memory diagnostic ring and publishes
+the same window to `/run/mister-runtime.events.json` using the FogCast
+mister-agent #206 event shape `{ts_utc, mono_ms, flight_id?, lease_gen?,
+run_id?, layer, kind, severity, detail}`. `flight_id` is copied only when a
+caller supplies the canonical host UUID v4; `lease_gen` and `run_id` remain
+opaque join strings. The runtime never invents those fields.
+
+Native sites emit the Main/FIFO/fpga_manager/CORENAME phases the agent ring
+already names:
+
+- `fifo.consume` when the daemon handles `launch`, `load_core`,
+  `load_development_rbf`, or `stop`
+- `cap.fd.open` when an artifact descriptor is admitted or rejected
+- `fpga_manager.state` on MMIO preflight/reset/configuration/initialization/user
+  transitions, plus sysfs `state`/`status` only when those files are present
+- `corename.change` from the SPI core-name probe (native authority; `/tmp/CORENAME`
+  is attached as `file_observed` only when readable)
+- `main.start` / `main.exit` / `main.app_restart` for the `mister-runtime`
+  process
+- typed fences `fence.ownership`, `fence.handoff`, `fence.program`,
+  `fence.abi`, and `fence.recovery`
+
+Unavailable Main FIFO or sysfs observations stay absent. The dump is
+read-mostly and never bypasses the lifecycle or FPGA ownership path.
+
 ## Lifecycle and ownership
 
 The lifecycle states are `idle`, `starting`, `running_game`,

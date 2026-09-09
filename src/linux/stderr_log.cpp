@@ -5,6 +5,7 @@
 
 #include <cstdio>
 #include <string>
+#include <unistd.h>
 
 namespace mister {
 namespace {
@@ -46,6 +47,34 @@ void StderrLogSink::Write(const LogRecord& record)
 	std::lock_guard<std::mutex> lock(mutex_);
 	(void)std::fwrite(line.data(), 1, line.size(), stderr);
 	(void)std::fflush(stderr);
+}
+
+DiagnosticFileSink::DiagnosticFileSink(DiagnosticRing& ring, std::string path)
+	: ring_(ring), path_(std::move(path)) {}
+
+void DiagnosticFileSink::Append(DiagnosticEvent event)
+{
+	std::lock_guard<std::mutex> lock(mutex_);
+	ring_.Append(std::move(event));
+	PublishLocked();
+}
+
+void DiagnosticFileSink::PublishLocked()
+{
+	if (path_.empty()) return;
+	const std::string body = EncodeDiagnosticEvents(ring_.Snapshot(0));
+	const std::string temporary = path_ + ".tmp";
+	FILE* file = std::fopen(temporary.c_str(), "w");
+	if (file == nullptr) return;
+	const bool wrote = std::fwrite(body.data(), 1, body.size(), file) == body.size() &&
+		std::fflush(file) == 0;
+	std::fclose(file);
+	if (!wrote) {
+		(void)unlink(temporary.c_str());
+		return;
+	}
+	if (std::rename(temporary.c_str(), path_.c_str()) != 0)
+		(void)unlink(temporary.c_str());
 }
 
 } // namespace mister
