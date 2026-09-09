@@ -34,6 +34,7 @@ Error OpenCorePackage(const std::vector<std::string>& trusted_roots,
 	OpenedCorePackage* result);
 Error RecheckCorePackage(const OpenedCorePackage& package);
 Error CheckCoreCompatibility(const CoreDescriptor& descriptor);
+Error CorePersistenceLayout(const CoreDescriptor&, VersionedContract*);
 
 } // namespace native
 } // namespace mister

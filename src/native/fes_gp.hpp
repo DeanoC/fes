@@ -37,6 +37,11 @@ class FesGpCoreDriver final : public CoreDriver {
 public:
 	explicit FesGpCoreDriver(FesGp&);
 	void BeginSession() override;
+	Error CaptureData(
+		const CoreDriverContext&, std::uint64_t, std::vector<std::uint16_t>*) override;
+	Error RestoreData(
+		const CoreDriverContext&, const std::vector<std::uint16_t>&, std::uint64_t) override;
+	Error ResumeData(const CoreDriverContext&, std::uint64_t) override;
 	CoreDriverResult Quiesce(const CoreDriverContext&, std::uint64_t) override;
 	CoreDriverResult Identify(const CoreDriverContext&, std::uint64_t) override;
 	CoreDriverResult NeutralizeButtons(const CoreDriverContext&, std::uint64_t) override;
@@ -46,7 +51,11 @@ public:
 
 private:
 	CoreDriverResult Gameplay(std::uint16_t, std::uint64_t);
+	Error DataControl(std::uint16_t, std::uint64_t);
 	FesGp& gp_;
+	bool persistence_verified_ = false;
+	bool reset_held_ = true;
+	bool freeze_attempted_ = false;
 };
 
 } // namespace native

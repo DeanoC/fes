@@ -15,6 +15,9 @@ enum class Operation {
 	launch,
 	inspect_core,
 	load_core,
+	load_library_core,
+	inspect_core_data,
+	update_core_settings,
 	load_development_rbf,
 	stop,
 };
@@ -27,6 +30,9 @@ struct Request {
 	std::string package_path;
 	std::string package_id;
 	std::string programming_profile;
+	std::string data_root;
+	std::string expected_revision;
+	std::uint16_t paddle_speed = 1;
 };
 
 Error ParseRequest(const std::string& line, Request* request);
@@ -34,8 +40,8 @@ Error ParseRequest(const std::string& line, Request* request);
 // is intentionally encoded even when a later status request itself succeeds.
 std::string EncodeResponse(bool ok, const Status& status, const std::string& version);
 std::string EncodeResponse(std::int64_t protocol, bool ok, const Status& status,
-	const std::string& version,
-	const CorePackageInspection* inspected_package = nullptr);
+	const std::string& version, const CorePackageInspection* inspected_package = nullptr,
+	const CoreData* core_data = nullptr);
 
 } // namespace daemon
 } // namespace mister

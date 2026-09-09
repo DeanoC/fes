@@ -12,6 +12,7 @@
 #include "native/fes_gp.hpp"
 #include "native/generated/fes_gp.hpp"
 #include "native/hardware.hpp"
+#include "native/core_data.hpp"
 #include "native/input.hpp"
 #include "native/linux/i2c.hpp"
 #include "native/linux/input.hpp"
@@ -20,6 +21,7 @@
 #include "native/video_recipe.hpp"
 
 #include <assert.h>
+#include <algorithm>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -627,6 +629,32 @@ public:
 		fault_(generation, std::move(error));
 	}
 
+	mister::Error CaptureData(const mister::native::CoreDriverContext&, std::uint64_t,
+		std::vector<std::uint16_t>* output) override
+	{
+		events_.push_back("driver.capture");
+		*output = live_data;
+		if (on_capture)
+			on_capture();
+		return {};
+	}
+	mister::Error RestoreData(const mister::native::CoreDriverContext&,
+		const std::vector<std::uint16_t>& words, std::uint64_t) override
+	{
+		events_.push_back("driver.restore");
+		live_data = words;
+		restored_data.push_back(words);
+		return {};
+	}
+	mister::Error ResumeData(const mister::native::CoreDriverContext&, std::uint64_t) override
+	{
+		events_.push_back("driver.resume");
+		return resume_error;
+	}
+	std::vector<std::uint16_t> live_data{1, 0};
+	std::vector<std::vector<std::uint16_t>> restored_data;
+	std::function<void()> on_capture;
+	mister::Error resume_error;
 	std::vector<std::string>& events_;
 	mister::native::CoreDriverResult quiesce_result;
 	mister::native::CoreDriverResult identify_result;
@@ -2394,10 +2422,170 @@ void TestActivationRechecksRetainedPayloadIdentityBeforeMutation()
 	assert(fixture.fpga.programmed.empty() && gp_events.empty());
 }
 
+std::string PersistentPackage(TempDirectory* package, const std::string& suffix = "")
+{
+	std::string manifest = ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+	manifest +=
+		"\n[[interfaces]]\nid = \"fes.persistence.words\"\nmajor = 1\nminor = 0\nrequired = "
+		"true\n[[interfaces]]\nid = \"fes.pong.progress\"\nmajor = 1\nminor = 0\nrequired = true\n";
+	manifest += suffix;
+	package->File("manifest.toml", manifest);
+	package->File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	mister::native::OpenedCorePackage opened;
+	assert(mister::native::OpenCorePackage(package->path, "", &opened).ok());
+	return opened.package_id;
+}
+void TestPersistentReplacementRefreshAndSaveFailureResume()
+{
+	std::vector<std::string> events;
+	RecordingDriver gp(events);
+	IntegratedFixture fixture(&gp);
+	fixture.Start();
+	TempDirectory a, b, data;
+	auto aid = PersistentPackage(&a);
+	auto bid = PersistentPackage(&b, "# next compatible version\n");
+	mister::CoreData preflight;
+	assert(fixture.runtime.InspectCoreData(a.path, aid, data.path, &preflight).ok());
+	const std::string namespace_path =
+		data.path + "/" + mister::native::CoreDataNamespace("fes.pong");
+	assert(chmod(namespace_path.c_str(), 0500) == 0);
+	const auto before_program = fixture.native.fpga.calls;
+	assert(fixture.runtime.LoadLibraryCore(a.path, aid, data.path).code ==
+		   mister::ErrorCode::save_failed);
+	assert(fixture.native.fpga.calls == before_program && fixture.native.input.open_calls == 0);
+	assert(chmod(namespace_path.c_str(), 0700) == 0);
+	assert(fixture.runtime.LoadLibraryCore(a.path, aid, data.path).ok());
+	assert(gp.restored_data.back() == std::vector<std::uint16_t>({1, 0}));
+	gp.live_data = {2, 17};
+	assert(fixture.runtime.LoadLibraryCore(b.path, bid, data.path).ok());
+	assert(gp.restored_data.back() == std::vector<std::uint16_t>({2, 17}));
+	assert(fixture.runtime.status().core_data.mode == "persistent");
+	mister::CoreData inspected;
+	assert(fixture.runtime.InspectCoreData(b.path, bid, data.path, &inspected).ok());
+	assert(inspected.paddle_speed == 2 && inspected.best_rally == 17);
+	assert(fixture.runtime
+			   .UpdateCoreSettings(b.path, bid, data.path, inspected.revision, 0, &inspected)
+			   .code == mister::ErrorCode::busy);
+	const std::string dir = data.path + "/" + mister::native::CoreDataNamespace("fes.pong");
+	gp.on_capture = [&] { assert(chmod(dir.c_str(), 0500) == 0); };
+	gp.live_data = {2, 19};
+	const auto generation = fixture.runtime.status().generation;
+	const auto programs = fixture.native.fpga.calls;
+	events.clear();
+	assert(fixture.runtime.Stop().code == mister::ErrorCode::save_failed);
+	assert(fixture.runtime.status().generation == generation &&
+		   fixture.native.input.HasActiveCallback());
+	assert(fixture.native.fpga.calls == programs);
+	assert(Find(events, "driver.capture") < Find(events, "driver.resume"));
+	assert(events.back() == "driver.buttons");
+	assert(Find(events, "driver.quiesce") == events.size());
+	assert(chmod(dir.c_str(), 0700) == 0);
+	gp.on_capture = {};
+	assert(fixture.runtime.InspectCoreData(b.path, bid, data.path, &inspected).ok() &&
+		   inspected.best_rally == 17);
+	gp.live_data = {2, 25};
+	assert(fixture.runtime.Stop().ok());
+	assert(fixture.runtime.InspectCoreData(b.path, bid, data.path, &inspected).ok() &&
+		   inspected.best_rally == 25);
+	assert(
+		fixture.runtime.UpdateCoreSettings(b.path, bid, data.path, "absent", 0, &inspected).code ==
+		mister::ErrorCode::stale_revision);
+	auto revision = inspected.revision;
+	assert(
+		fixture.runtime.UpdateCoreSettings(b.path, bid, data.path, revision, 0, &inspected).ok() &&
+		inspected.best_rally == 25 && inspected.paddle_speed == 0);
+	TempDirectory old;
+	PopulateFesGpPackage(&old);
+	assert(fixture.runtime
+			   .InspectCoreData(old.path,
+				   "b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0", data.path,
+				   &inspected)
+			   .code == mister::ErrorCode::incompatible_data);
+	assert(unlink((dir + "/record.bin").c_str()) == 0);
+	assert(rmdir(dir.c_str()) == 0);
+}
+
+void TestPersistenceUnsafeResumeRetainsRecoveryOwnership()
+{
+	std::vector<std::string> events;
+	RecordingDriver gp(events);
+	IntegratedFixture fixture(&gp);
+	fixture.Start();
+	TempDirectory package, data;
+	auto id = PersistentPackage(&package);
+	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path).ok());
+	const auto generation = fixture.runtime.status().generation;
+	const auto programs = fixture.native.fpga.calls;
+	const std::string dir = data.path + "/" + mister::native::CoreDataNamespace("fes.pong");
+	gp.live_data = {2, 17};
+	gp.on_capture = [&] { assert(chmod(dir.c_str(), 0500) == 0); };
+	gp.resume_error = {mister::ErrorCode::io_failed, "ambiguous resume", "core_data"};
+	events.clear();
+	auto error = fixture.runtime.Stop();
+	assert(error.code == mister::ErrorCode::idle_failed && error.phase == "recovery");
+	const auto status = fixture.runtime.status();
+	assert(status.state == mister::State::reboot_required && status.generation == generation &&
+		   status.package_id == id && status.core_data.mode == "persistent");
+	assert(fixture.native.fpga.calls == programs && !fixture.native.input.HasActiveCallback());
+	assert(Find(events, "driver.quiesce") == events.size());
+	mister::CoreData inspected;
+	assert(fixture.runtime.UpdateCoreSettings(package.path, id, data.path, "absent", 0, &inspected)
+			   .code == mister::ErrorCode::busy);
+	assert(chmod(dir.c_str(), 0700) == 0);
+	assert(rmdir(dir.c_str()) == 0);
+}
+void TestPersistenceContractAdmissionAndVolatileIsolation()
+{
+	std::vector<std::string> events;
+	RecordingDriver gp(events);
+	IntegratedFixture fixture(&gp);
+	fixture.Start();
+	const auto capabilities = fixture.native.hardware.capabilities();
+	assert(std::is_sorted(capabilities.abis[0].interfaces.begin(),
+		capabilities.abis[0].interfaces.end(),
+		[](const mister::SupportedInterface& a, const mister::SupportedInterface& b) {
+			return a.id < b.id;
+		}));
+	TempDirectory package, data, old;
+	auto id = PersistentPackage(&package);
+	PopulateFesGpPackage(&old);
+	mister::native::OpenedCorePackage opened;
+	assert(mister::native::OpenCorePackage(package.path, id, &opened).ok());
+	auto incomplete = opened.descriptor;
+	incomplete.interfaces.pop_back();
+	assert(!mister::native::CheckCoreCompatibility(incomplete).ok());
+	auto multiple = opened.descriptor;
+	multiple.interfaces.push_back(multiple.interfaces.back());
+	assert(!mister::native::CheckCoreCompatibility(multiple).ok());
+	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path).ok());
+	mister::CoreData inspected;
+	assert(fixture.runtime
+			   .InspectCoreData(old.path,
+				   "b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0", data.path,
+				   &inspected)
+			   .code == mister::ErrorCode::incompatible_data);
+	gp.live_data = {2, 17};
+	assert(fixture.runtime.Stop().ok());
+	assert(fixture.runtime.InspectCoreData(package.path, id, data.path, &inspected).ok());
+	auto revision = inspected.revision;
+	assert(fixture.runtime.LoadCore(package.path, id).ok());
+	assert(fixture.runtime.status().core_data.mode == "volatile");
+	gp.live_data = {0, 99};
+	assert(fixture.runtime.Stop().ok());
+	assert(fixture.runtime.InspectCoreData(package.path, id, data.path, &inspected).ok() &&
+		   inspected.revision == revision && inspected.best_rally == 17);
+	const std::string dir = data.path + "/" + mister::native::CoreDataNamespace("fes.pong");
+	assert(unlink((dir + "/record.bin").c_str()) == 0);
+	assert(rmdir(dir.c_str()) == 0);
+}
+
 } // namespace
 
 int main()
 {
+	TestPersistentReplacementRefreshAndSaveFailureResume();
+	TestPersistenceUnsafeResumeRetainsRecoveryOwnership();
+	TestPersistenceContractAdmissionAndVolatileIsolation();
 	TestNativeSaveStopAndWriteRetry();
 	TestEveryCoreTransitionQuiescesHdmiBeforeFpgaProgramming();
 	TestQuiesceFailureStopsBeforeFpgaMutationAndClosesLaunchInput();
@@ -2444,6 +2632,6 @@ int main()
 	TestUnavailableHardwareRemainsFailureOnly();
 	TestInspectionReportsActualDriverCompatibilityWithoutMutation();
 	TestActivationRechecksRetainedPayloadIdentityBeforeMutation();
-	puts("native_hardware_test: 44 passed");
+	puts("native_hardware_test: 47 passed");
 	return 0;
 }

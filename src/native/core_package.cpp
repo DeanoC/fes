@@ -734,14 +734,55 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"required fixed-video interface is unsupported");
 			video = supported && interface.required;
+		} else if (interface.id == FesGpInterfacePersistenceWordsID ||
+				   interface.id == FesGpInterfacePongProgressID) {
+			if (!interface.required || interface.major != 1 || interface.minor != 0)
+				return CompatibilityError(ErrorCode::unsupported_interface,
+					"unsupported persistence interface version or requirement");
 		} else if (interface.required) {
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"required interface is unsupported");
 		}
 	}
+	VersionedContract layout;
+	Error persistence = CorePersistenceLayout(descriptor, &layout);
+	if (!persistence.ok())
+		return persistence;
 	if (!gamepad || !video)
 		return CompatibilityError(ErrorCode::unsupported_interface,
 			"required FES GP interfaces are missing");
+	return {};
+}
+
+Error CorePersistenceLayout(const CoreDescriptor& descriptor, VersionedContract* output)
+{
+	if (!output)
+		return {ErrorCode::invalid_request, "missing persistence layout output"};
+	*output = {};
+	bool words = false;
+	unsigned layouts = 0;
+	for (const auto& interface : descriptor.interfaces) {
+		if (interface.id == generated::FesGpInterfacePersistenceWordsID) {
+			if (words || !interface.required ||
+				interface.major != generated::FesGpInterfacePersistenceWordsMajor ||
+				interface.minor != generated::FesGpInterfacePersistenceWordsMinor)
+				return {ErrorCode::unsupported_interface,
+					"unsupported persistence transport declaration", "compatibility"};
+			words = true;
+		}
+		if (interface.id == generated::FesGpInterfacePongProgressID) {
+			++layouts;
+			if (!interface.required ||
+				interface.major != generated::FesGpInterfacePongProgressMajor ||
+				interface.minor != generated::FesGpInterfacePongProgressMinor)
+				return {ErrorCode::unsupported_interface,
+					"unsupported persistence layout declaration", "compatibility"};
+			*output = {interface.id, interface.major, interface.minor};
+		}
+	}
+	if ((words && layouts != 1) || (!words && layouts != 0))
+		return {ErrorCode::unsupported_interface,
+			"persistence requires exactly one registered layout", "compatibility"};
 	return {};
 }
 

@@ -677,10 +677,16 @@ void TestFesSinkNeutralizesOppositeDirectionsAndRetiresGeneration()
 	assert(session.Open(Identity(), recipe, 100, sink).ok());
 	assert(session.Neutralize(101).ok());
 	unsigned faults = 0;
+	std::mutex fault_mutex;
+	std::condition_variable fault_ready;
 	assert(session.Start(11, [&](std::uint64_t generation, mister::Error error) {
 		assert(generation == 11);
 		assert(error.code == mister::ErrorCode::io_failed);
-		++faults;
+		{
+			std::lock_guard<std::mutex> lock(fault_mutex);
+			++faults;
+		}
+		fault_ready.notify_all();
 	}).ok());
 	device.Push({mister::native::InputControl::up, 1});
 	device.Push({mister::native::InputControl::synchronize, 0});
@@ -690,6 +696,10 @@ void TestFesSinkNeutralizesOppositeDirectionsAndRetiresGeneration()
 	assert(device.WaitForReads(4));
 	device.PushError({mister::ErrorCode::io_failed, "gamepad disconnected"});
 	assert(device.WaitForReads(5));
+	{
+		std::unique_lock<std::mutex> lock(fault_mutex);
+		assert(fault_ready.wait_for(lock, std::chrono::seconds(2), [&] { return faults == 1; }));
+	}
 	assert(session.Stop(102).ok());
 	assert(faults == 1);
 	assert((maps == std::vector<std::uint16_t>{0,

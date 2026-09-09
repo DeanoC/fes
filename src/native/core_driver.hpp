@@ -43,6 +43,19 @@ class CoreDriver {
 public:
 	virtual ~CoreDriver() {}
 	virtual void BeginSession() {}
+	virtual Error CaptureData(const CoreDriverContext&, std::uint64_t, std::vector<std::uint16_t>*)
+	{
+		return {ErrorCode::unsupported_interface, "persistence unavailable"};
+	}
+	virtual Error RestoreData(
+		const CoreDriverContext&, const std::vector<std::uint16_t>&, std::uint64_t)
+	{
+		return {ErrorCode::unsupported_interface, "persistence unavailable"};
+	}
+	virtual Error ResumeData(const CoreDriverContext&, std::uint64_t)
+	{
+		return {ErrorCode::unsupported_interface, "persistence unavailable"};
+	}
 	virtual CoreDriverResult Quiesce(const CoreDriverContext&,
 		std::uint64_t absolute_deadline_ms) = 0;
 	virtual CoreDriverResult Identify(const CoreDriverContext&,

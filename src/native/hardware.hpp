@@ -17,6 +17,7 @@ namespace native {
 
 class Artifact;
 class SaveFile;
+class CoreDataFile;
 class ArtifactOpener;
 class CoreLoader;
 class FixedVideoBringup;
@@ -69,6 +70,12 @@ public:
 		std::unique_ptr<AdmittedCorePackage>*) override;
 	Error InspectCorePackage(const std::string&, const std::string&,
 		CorePackageInspection*) override;
+	Error PrepareCoreData(AdmittedCorePackage*, const std::string&, CoreData*) override;
+	Error RefreshCoreData(AdmittedCorePackage*, CoreData*) override;
+	Error InspectCoreData(
+		const std::string&, const std::string&, const std::string&, CoreData*) override;
+	Error UpdateCoreSettings(const std::string&, const std::string&, const std::string&,
+		const std::string&, std::uint16_t, CoreData*) override;
 	Capabilities capabilities() const override;
 	HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage>,
 		std::uint64_t generation) override;
@@ -81,6 +88,7 @@ public:
 		std::uint64_t generation = 0);
 
 private:
+	Error PrepareCoreDataInternal(AdmittedCorePackage*, const std::string&, CoreData*, bool);
 	Error StopInput(std::uint64_t absolute_deadline_ms);
 	HardwareResult QuiesceForReplacement(const char* operation,
 		const std::string& system, const std::string& core);
@@ -113,6 +121,10 @@ private:
 	std::shared_ptr<std::atomic<bool>> input_delivery_enabled_;
 	InputRecipe active_input_recipe_;
 	bool has_active_input_recipe_ = false;
+	std::unique_ptr<CoreDataFile> core_data_file_;
+	CoreData durable_data_;
+	std::vector<std::uint16_t> core_snapshot_;
+	bool core_data_flushed_ = false;
 	std::unique_ptr<SaveFile> save_;
 	std::vector<unsigned char> snapshot_;
 	bool save_flushed_ = false;

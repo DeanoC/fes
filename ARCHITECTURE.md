@@ -107,9 +107,10 @@ neutral pair, and a retired generation cannot deliver to a replacement core.
 
 The package registry consumes checked-in generated C++14 headers
 `src/native/generated/fes_gp.hpp` and
-`src/native/generated/de10_nano_programming.hpp`. They were emitted from the
-reviewed mister-packages Task-2 tree
-`85a7771470ef0ff872e7a27d9fbf87d102e4a30f`; target builds do not run Go.
+`src/native/generated/de10_nano_programming.hpp`. The programming-profile header retains the reviewed mister-packages tree
+`85a7771470ef0ff872e7a27d9fbf87d102e4a30f`. The GP header and persistence
+fixtures are generated from mister-packages
+`bfc4b2bc8232c93d67f88bd452223986768bfe4f`; target builds do not run Go.
 The language-neutral conformance corpus under
 `tests/fixtures/core-bundle-v2/` is an exact copy of the reviewed Task-1 corpus;
 its sorted file-digest-list SHA-256 is
@@ -486,3 +487,35 @@ The launcher must pause presentation while a core owns HDMI and reopen/recheck
 its framebuffer mapping on confirmed return to idle. These words are derived
 from Main_MiSTer video_fb_enable and remain hardware-unaccepted until a dated
 exact-artifact diagnostic validates the selected Menu core and kernel.
+
+## Described-core persistence
+
+`native/core_data` owns the bounded canonical record codec and retained
+no-follow namespace directories, separate from cartridge `SaveFile` and its
+power-of-two SRAM constraints. `CoreDataFile::Read` reopens `record.bin` on every
+read. Publication validates the current record and exact revision while holding
+a namespace file lock, writes private complete bytes, syncs, renames and syncs
+the directory. Library admission probes writable storage before input
+retirement; read-only inspection skips this probe. Generated shared fixtures
+under `tests/fixtures/core-persistence-v1` define exact record and GP bytes.
+
+The existing Runtime busy boundary now also serializes inactive inspection and
+settings compare-and-swap with lifecycle operations. `PrepareCoreData` binds
+trusted library context to an admitted package; ordinary `LoadCore` has no such
+binding. Following outgoing `FlushSave`, `RefreshCoreData` rereads the incoming
+record before activation. Native hardware restores after the driver verifies
+identity and data-info, before Start/input. Core driver methods `CaptureData`,
+`RestoreData` and `ResumeData` remain bounded by the same GP exchange deadlines.
+The persistence interfaces keep base ABI and transport version 1.0 unchanged.
+
+`FlushSave` retains a complete host snapshot through publication failure.
+`RestoreInput` explicitly resumes GP before reopening the same generation;
+snapshots are invalidated only after input restoration succeeds. Unsafe resume
+retains persistent package/generation metadata in `reboot_required` and leaves
+the complete snapshot owned by native hardware. No fault/startup cleanup saves.
+The existing SNES transport, `.srm` identity and byte format are unchanged.
+
+See [the complete local protocol and error contract](docs/core-persistence.md)
+for derived layout metadata, persistence modes, downgrade rejection, CAS,
+volatile development behavior and recovery envelopes. This implementation has
+software coverage only; no physical support claim is added.
