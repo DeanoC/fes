@@ -96,13 +96,15 @@ TENFOOT_GFX=fpga-stub bin/fogcast-tenfoot
 ```
 
 Look tokens (`host/tenfoot/theme`) are shared with the kit grid. `-theme`
-selects a built-in name (`default`, `arcade`, `night`) or a JSON/TOML file;
+selects a built-in or pack name (`default`/`classic`, `arcade`/`neon`,
+`night`/`sofa-dim`) or a JSON/TOML file;
 `tenfoot.json` may store `theme`, and `FOGCAST_THEME` is the env fallback.
-`default` keeps the sofa and attract clear colours. This slice applies the
+`default` / Classic keeps the sofa and attract clear colours. This slice applies the
 loaded theme to those `Clear` sites; kit `fbgrid.Paint` consumes the full
 token set, including typography roles (`title_px` / `body_px` / `caption_px` /
 `status_px`, with `*_scale` fallback) and title/header Bold (`title_bold`,
-default true on built-ins).
+default true on built-ins). On the kit, X (West) cycles the three packs at
+runtime and writes the last pack to `launcher.json`.
 
 Default overscan inset is **5% of each edge** (`-safe-area 0.05`). Windowed debug
 can pass `-safe-area 0`. `-` / `=` nudge the inset by 0.5 percentage points
@@ -146,7 +148,9 @@ titles with a video handle paint a 2×2 attract wall. Any pad input returns to
 the platform wheel or catalog grid. The kit
 opens on a platform wheel (`fbgrid.PaintWheel`) and A enters catalog browse
 (default 4×3 grid); East/B on browse returns to the wheel. Y cycles Grid →
-Coverflow → Wall → Grid. A Recent / Favorites strip paints under the grid when those host collections
+Coverflow → Wall → Grid. X (West) cycles theme packs Classic → Neon → Sofa Dim
+without stealing Y or D-pad; the last pack is stored in `launcher.json`.
+A Recent / Favorites strip paints under the grid when those host collections
 return titles, and hides when they are empty. Last-row Down enters the
 strip; A opens the title pane; B or Up return to the grid. The kit title pane is a
 sibling `fbgrid.PaintDetail` over the same catalog focus: last-row

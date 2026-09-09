@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
+	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
@@ -37,7 +38,7 @@ type observation struct {
 func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pad, error)) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	m := Model{Message: "Connecting to FogCast", Shelf: normalizeShelf(c.config.Shelf), WheelOpen: true}
+	m := Model{Message: "Connecting to FogCast", Shelf: normalizeShelf(c.config.Shelf), Pack: theme.NormalizePack(c.config.Theme), WheelOpen: true}
 	var pad Pad
 	var stream *InputStream
 	streamID := ""
@@ -267,9 +268,13 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					}
 					for _, e := range events {
 						prevShelf := m.Shelf
+						prevPack := m.Pack
 						action := m.Input(e, now)
 						if m.Shelf != prevShelf {
 							persistShelf(c, m.activeShelf())
+						}
+						if m.Pack != prevPack {
+							persistPack(c, m.Pack)
 						}
 						if stream != nil && streamID == m.Session.Input.SessionID {
 							select {
@@ -361,5 +366,20 @@ func persistShelf(c *Client, shelf string) {
 	cfg.Shelf = shelf
 	if err := SaveConfig(cfg); err == nil {
 		c.config.Shelf = shelf
+	}
+}
+
+func persistPack(c *Client, pack string) {
+	if c == nil || c.config.path == "" {
+		return
+	}
+	pack = theme.NormalizePack(pack)
+	if pack == "" || theme.NormalizePack(c.config.Theme) == pack {
+		return
+	}
+	cfg := c.config
+	cfg.Theme = pack
+	if err := SaveConfig(cfg); err == nil {
+		c.config.Theme = pack
 	}
 }

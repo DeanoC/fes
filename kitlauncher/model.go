@@ -50,6 +50,7 @@ type Model struct {
 	StripActive                                       bool
 	detailFromStrip                                   bool
 	Browse                                            fbgrid.BrowseKind
+	Pack                                              string
 }
 
 func (m *Model) ResetControls() { m.chord = controller.Chord{}; m.axisX = 0; m.axisY = 0 }
@@ -87,6 +88,9 @@ func (m *Model) Input(e remoteinput.Event, now time.Time) string {
 			m.CycleShelf(1)
 		case remoteinput.ButtonY:
 			m.CycleBrowse()
+			return ""
+		case remoteinput.ButtonX:
+			m.CyclePack()
 			return ""
 		case remoteinput.ButtonA:
 			if m.StripActive {

@@ -280,6 +280,49 @@ func TestLoadKitThemeFlagBeatsConfigAndEnv(t *testing.T) {
 	}
 }
 
+func TestLoadKitThemePackAliases(t *testing.T) {
+	t.Setenv("FOGCAST_THEME", "")
+	th, err := loadKitTheme("neon", "")
+	if err != nil || th.Name != theme.NameArcade {
+		t.Fatalf("neon: %+v %v", th, err)
+	}
+	th, err = loadKitTheme("sofa-dim", "")
+	if err != nil || th.Name != theme.NameNight {
+		t.Fatalf("sofa-dim: %+v %v", th, err)
+	}
+	th, err = loadKitTheme("classic", "")
+	if err != nil || th.Name != theme.NameDefault {
+		t.Fatalf("classic: %+v %v", th, err)
+	}
+}
+
+func TestKitLookPrefersPackOverFallback(t *testing.T) {
+	m := kitlauncher.Model{Pack: theme.PackNeon}
+	look := kitLook(m, theme.Default())
+	if !look.Equal(theme.Arcade()) {
+		t.Fatalf("neon look %+v", look)
+	}
+	m.Pack = ""
+	look = kitLook(m, theme.Night())
+	if !look.Equal(theme.Night()) {
+		t.Fatal("empty pack should keep fallback")
+	}
+}
+
+func TestPackHeaderTagsNonClassic(t *testing.T) {
+	m := kitlauncher.Model{Pack: theme.PackNeon, Browse: fbgrid.BrowseCoverflow}
+	m.SetCatalog([]tenfoot.Game{{ID: "g", Title: "G", System: "snes", Launchable: true}})
+	got := packHeader(m)
+	if !strings.Contains(got, "FLOW") || !strings.Contains(got, "NEON") {
+		t.Fatalf("header %q", got)
+	}
+	m.Pack = theme.PackClassic
+	got = packHeader(m)
+	if strings.Contains(got, "NEON") || strings.Contains(got, "DIM") {
+		t.Fatalf("classic header %q", got)
+	}
+}
+
 func TestLoadKitThemeMissingFile(t *testing.T) {
 	t.Setenv("FOGCAST_THEME", "")
 	_, err := loadKitTheme("/no/such/theme.json", "")
@@ -295,6 +338,30 @@ func TestExerciseFPGAAnimProof(t *testing.T) {
 	}
 	if !strings.Contains(report, "selftest-fpga PASS") || !strings.Contains(report, "HW=not-yet") || !strings.Contains(report, "backend=fpga") {
 		t.Fatalf("report %s", report)
+	}
+}
+
+func TestExercisePacksGridPaintsClassicNeonSofaDimAndNestsLayouts(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exercisePacksGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-packs PASS") || !strings.Contains(report, "selftest-layouts PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "pack=classic") || !strings.Contains(report, "pack=neon") || !strings.Contains(report, "pack=sofa-dim") {
+		t.Fatalf("missing pack evidence: %s", report)
+	}
+	if !strings.Contains(report, "coverflow-neon") || !strings.Contains(report, "wheel-neon") {
+		t.Fatalf("missing chrome evidence: %s", report)
 	}
 }
 

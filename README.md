@@ -78,7 +78,9 @@ Stop and returns to the library. Its live catalog opens as a living-room platfor
 (horizontal clear-logo / wordmark strip plus a platform hero) and drops into
 a catalog browse view through `host/tenfoot/fbgrid`. The default is a small
 4×3 cover grid; Y (North) cycles Grid → Coverflow (scaled focus row) →
-Wall (6×3 mosaic) → Grid without stealing D-pad browse. Coverflow keeps the
+Wall (6×3 mosaic) → Grid without stealing D-pad browse. X (West) cycles
+theme packs Classic → Neon → Sofa Dim → Classic without stealing Y or
+D-pad; the last pack is stored in `launcher.json` `theme`. Coverflow keeps the
 focused title largest and paints its name at the title role (or a clear logo
 when one is ready). Wall uses caption labels on denser cells. Empty catalogs
 hide tiles and keep chrome. Shoulder L/R (and Select)
@@ -148,10 +150,12 @@ paint title and chrome header with Go Bold (`title_bold`, default true);
 body, caption, and status stay Go Regular unless a matching `*_bold` token
 is set. Paint
 tokens (background, highlight, flash, system palette, header/footer chrome)
-come from `host/tenfoot/theme`: built-in `default` matches today's kit look,
-and `arcade` / `night` (or a JSON/TOML file) swap the look without forking
+come from `host/tenfoot/theme`: built-in `default` / pack **Classic** match
+today's kit look, and **Neon** (`arcade`) / **Sofa Dim** (`night`) (or a
+JSON/TOML file) swap colours, type roles, and chrome accents without forking
 UI code. Select with `-theme`, `theme` in `launcher.json`, or
-`FOGCAST_THEME`. The
+`FOGCAST_THEME`; on the kit, X (West) cycles the three packs at runtime.
+The
 grid is a view of `kitlauncher.Model` and does not own host requests, input
 leases, or FPGA transitions. Kit input opens every eligible USB pad, merges
 their polls, and applies a JSON remap profile from

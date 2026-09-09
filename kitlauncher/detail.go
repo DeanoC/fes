@@ -65,6 +65,9 @@ func (m *Model) inputDetail(e remoteinput.Event, dx, dy int, now time.Time) stri
 			m.closeDetail()
 			m.noteActivity(now)
 			return ""
+		case remoteinput.ButtonX:
+			m.CyclePack()
+			return ""
 		case remoteinput.ButtonL:
 			m.stepShot(-1)
 			return ""
