@@ -610,15 +610,17 @@ shelves (`All` plus each system present in the loaded games, typically pong,
 Mega Drive, and SNES). On the wheel, D-pad, left stick, shoulder L/R, and
 Select cycle platforms; A/South enters the filtered browse view for that system
 (default 4×3 grid). East/B on browse returns to the wheel. Y (North) on browse
-cycles Grid → Coverflow → Wall → Grid; it is ignored on the wheel, title pane,
-and attract (any pad input still dismisses attract). X (West) cycles theme
+cycles Grid → Coverflow → Wall → Split → Grid; it is ignored on the wheel, title pane,
+and attract (any pad input still dismisses attract). That Y chord is the
+layout switch; X (West) still cycles theme
 packs Classic → Neon → Sofa Dim → Classic on the wheel, browse, strip, and
 title pane; attract still dismisses on X like any pad input. The last pack is
 stored in `launcher.json` `theme` so a kit restart (and a host reconnect of
 the same process) keeps it. Coverflow is a scaled
-focus row of five titles; wall is a denser 6×3 mosaic. In browse, shoulder L/R and Select
+focus row of five titles; wall is a denser 6×3 mosaic; split is a vertical
+clear-logo (or title) list with a focused cover and short meta. In browse, shoulder L/R and Select
 still cycle shelves as a secondary filter; the themed header shows
-`FOGCAST  MEGADRIVE 12/40`, plus `FLOW` or `WALL` when that layout is active,
+`FOGCAST  MEGADRIVE 12/40`, plus `FLOW`, `WALL`, or `SPLIT` when that layout is active,
 and `NEON` or `DIM` when that pack is active. Classic stays untagged. The hero paints an attract still, presentation
 `backdrop_artwork_id`, or representative cover when a handle exists, otherwise
 a theme-tinted placeholder, with game-count chrome plus a play-count and
@@ -630,6 +632,8 @@ dimensions through `fbgrid.MoveFocus`: left/right clamp on the current row,
 up/down step by the layout column count (4 on the grid, 6 on the wall), and
 leaving a page changes the painted window. Coverflow uses one row of the
 whole shelf so left/right walk titles and down opens the strip or title pane.
+Split uses one column so up/down walk titles, left/right clamp, and last-item
+down opens the strip or title pane.
 Focus changes play a short `anim.Tween` / `EaseInOut` pop (highlight ring
 scale ~1.06 over ~160ms); confirm eases a white pulse out over
 `ConfirmFrames` ticks. Unfocused cells keep their layout origins. The kit
@@ -664,8 +668,11 @@ The pane opens with a cheap fade-from-black overlay. Attract does not arm while 
 `GET /api/v1/presentation/artwork/{handle}` when a catalog `Game.Cover` or a
 presentation `cover_artwork_id` is present. Presentation `logo_id` (LaunchBox
 Clear Logo, or a `library_media` RoleLogo overlay that wins when present)
-paints on the detail title and grid label bar; tiles and titles without a
-logo keep the existing text labels. The kit prefetches
+paints on the detail title, grid label bar, and split list rows; tiles and titles without a
+logo keep the existing text labels. Split paints the focused cover and
+admitted short meta (platform, year, genre, studio, players, region) in the
+right column; it omits summary, series, last-played, and play-count there.
+The kit prefetches
 `GET /api/v1/presentation/games/{id}` for the visible browse page and a cheap
 next window without blocking present; missing or failed lookups keep the placeholder.
 `DecodeCover` Catmull–Rom downscales once to the cover cell so Software Draw

@@ -122,6 +122,9 @@ func (g Grid) tileBaseRect(i int) (gfx.Rect, bool) {
 	if g.Kind == BrowseCoverflow {
 		return g.coverflowRect(i)
 	}
+	if g.Kind == BrowseSplit {
+		return g.splitListRect(i)
+	}
 	x, y, ok := g.gridCellOrigin(i)
 	if !ok {
 		return gfx.Rect{}, false

@@ -42,6 +42,10 @@ func TestXCyclesPacksWithoutStealingDpadOrY(t *testing.T) {
 	if m.Browse != fbgrid.BrowseWall || m.Pack != theme.PackClassic {
 		t.Fatalf("y2 browse=%s pack=%q", m.Browse, m.Pack)
 	}
+	pressNamed(&m, "y", now)
+	if m.Browse != fbgrid.BrowseSplit || m.Pack != theme.PackClassic {
+		t.Fatalf("y3 browse=%s pack=%q", m.Browse, m.Pack)
+	}
 }
 
 func TestXCyclesOnWheelAndDetail(t *testing.T) {

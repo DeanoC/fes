@@ -668,11 +668,74 @@ func exerciseLayoutsGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 		g.Kind, len(g.Tiles), g.Columns, g.CellW, g.Header, g.Footer)
 
 	press(&m, "y")
-	if m.Browse != fbgrid.BrowseGrid {
+	if m.Browse != fbgrid.BrowseSplit {
 		return b.String(), fmt.Errorf("y3 browse %s", m.Browse)
 	}
 	g = paintModel(d, m, th)
-	if g.Kind != fbgrid.BrowseGrid || strings.Contains(g.Header, "FLOW") || strings.Contains(g.Header, "WALL") {
+	if g.Kind != fbgrid.BrowseSplit || g.Columns != 1 || !strings.Contains(g.Header, "SPLIT") {
+		return b.String(), fmt.Errorf("split kind=%s cols=%d header=%q", g.Kind, g.Columns, g.Header)
+	}
+	if g.Footer != "A play | B detail | L/R | Y grid" {
+		return b.String(), fmt.Errorf("split footer %q", g.Footer)
+	}
+	row, ok := g.TileRect(g.Focus)
+	if !ok {
+		return b.String(), fmt.Errorf("split list row")
+	}
+	hero, ok := g.SplitHeroCover()
+	if !ok || hero.W <= row.W || hero.H <= row.H {
+		return b.String(), fmt.Errorf("split hero %+v row %+v", hero, row)
+	}
+	hx, hy, ok = g.HighlightSample()
+	if !ok {
+		return b.String(), fmt.Errorf("split highlight")
+	}
+	hlB, hlG, hlR, hlX, err = gfx.SampleBGRX(d.Destination(), cfg, hx, hy)
+	if err != nil {
+		return b.String(), err
+	}
+	if hlB != th.Highlight.B || hlG != th.Highlight.G || hlR != th.Highlight.R || hlX != 0 {
+		return b.String(), fmt.Errorf("split highlight bgrx %d,%d,%d,%d", hlB, hlG, hlR, hlX)
+	}
+	if g.Focus < 0 || g.Focus >= len(g.Tiles) || g.Tiles[g.Focus].Meta == "" {
+		return b.String(), fmt.Errorf("split missing meta")
+	}
+	rec = gfx.NewRecorder()
+	fbgrid.Paint(rec, g)
+	var sawHeroTitle, sawMeta bool
+	for _, c := range rec.Calls {
+		if c.Op == "DrawText" && c.SizePx == th.TitlePx() && c.Weight == th.TitleWeight() && c.Text != g.Header {
+			sawHeroTitle = true
+		}
+		if c.Op == "DrawText" && c.SizePx == th.BodyPx() && c.Text == g.Tiles[g.Focus].Meta {
+			sawMeta = true
+		}
+		if c.Op == "DebugText" {
+			return b.String(), fmt.Errorf("split DebugText")
+		}
+	}
+	if !sawHeroTitle || !sawMeta {
+		return b.String(), fmt.Errorf("split chrome title=%v meta=%v ops=%v", sawHeroTitle, sawMeta, rec.Ops())
+	}
+	fmt.Fprintf(&b, "split kind=%s tiles=%d heroW=%d rowW=%d meta=%q header=%q footer=%q\n",
+		g.Kind, len(g.Tiles), int(hero.W), int(row.W), g.Tiles[g.Focus].Meta, g.Header, g.Footer)
+
+	press(&m, "dpad-down")
+	if m.Focus != 2 || m.Browse != fbgrid.BrowseSplit {
+		return b.String(), fmt.Errorf("split dpad focus=%d browse=%s", m.Focus, m.Browse)
+	}
+	g = paintModel(d, m, th)
+	if g.Focus != 2 {
+		return b.String(), fmt.Errorf("split local focus %d", g.Focus)
+	}
+	fmt.Fprintf(&b, "split-down focus=%d local=%d\n", m.Focus, g.Focus)
+
+	press(&m, "y")
+	if m.Browse != fbgrid.BrowseGrid {
+		return b.String(), fmt.Errorf("y4 browse %s", m.Browse)
+	}
+	g = paintModel(d, m, th)
+	if g.Kind != fbgrid.BrowseGrid || strings.Contains(g.Header, "FLOW") || strings.Contains(g.Header, "WALL") || strings.Contains(g.Header, "SPLIT") {
 		return b.String(), fmt.Errorf("back grid kind=%s header=%q", g.Kind, g.Header)
 	}
 	fmt.Fprintf(&b, "back-grid kind=%s focus=%d header=%q\n", g.Kind, m.Focus, g.Header)
@@ -687,6 +750,16 @@ func exerciseLayoutsGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	}
 	fmt.Fprintf(&b, "empty-coverflow tiles=%d header=%q\n", len(hidden.Tiles), hidden.Header)
 
+	emptySplit := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true, Browse: fbgrid.BrowseSplit}
+	hiddenSplit := paintModel(d, emptySplit, th)
+	if len(hiddenSplit.Tiles) != 0 {
+		return b.String(), fmt.Errorf("empty split tiles %d", len(hiddenSplit.Tiles))
+	}
+	if _, _, ok := hiddenSplit.HighlightSample(); ok {
+		return b.String(), fmt.Errorf("empty split highlight")
+	}
+	fmt.Fprintf(&b, "empty-split tiles=%d header=%q\n", len(hiddenSplit.Tiles), hiddenSplit.Header)
+
 	a, _ := remoteinput.NormalizeGamepad("a", true)
 	if action := m.Input(a, time.Now()); action != "launch" {
 		return b.String(), fmt.Errorf("grid A after layouts %q", action)
@@ -698,7 +771,7 @@ func exerciseLayoutsGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	if err != nil {
 		return b.String(), err
 	}
-	fmt.Fprintf(&b, "selftest-layouts PASS coverflow=1 wall=1 cycle=1 empty=1 nested-atmosphere=1\n")
+	fmt.Fprintf(&b, "selftest-layouts PASS coverflow=1 wall=1 split=1 cycle=1 empty=1 nested-atmosphere=1\n")
 	return b.String(), nil
 }
 

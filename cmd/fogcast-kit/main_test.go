@@ -133,20 +133,24 @@ func TestCatalogPageAndPrefetchWindow(t *testing.T) {
 	if start != 0 || end != 18 {
 		t.Fatalf("wall page0 %d:%d", start, end)
 	}
+	start, end = catalogPage(10, 25, fbgrid.BrowseSplit)
+	if start != 6 || end != 14 {
+		t.Fatalf("split window %d:%d", start, end)
+	}
 }
 
 func TestGameTileLeavesLogoEmptyUntilReady(t *testing.T) {
 	handle := strings.Repeat("ab", 32)
 	cache := tenfoot.NewCoverCache()
 	pres := tenfoot.Presentation{Presentation: &tenfoot.PresentationInfo{LogoID: handle}}
-	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive"}, cache, pres, theme.Default())
+	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive"}, cache, pres, theme.Default(), 18)
 	if tile.Logo != nil {
 		t.Fatal("uncached logo should keep text fallback")
 	}
 	if tile.Name != "Sonic" {
 		t.Fatalf("name %q", tile.Name)
 	}
-	plain := gameTile(tenfoot.Game{Title: "Pong", System: "pong"}, cache, tenfoot.Presentation{}, theme.Default())
+	plain := gameTile(tenfoot.Game{Title: "Pong", System: "pong"}, cache, tenfoot.Presentation{}, theme.Default(), 18)
 	if plain.Logo != nil {
 		t.Fatal("text-fallback tile gained a logo")
 	}
@@ -157,16 +161,16 @@ func TestGameTileLeavesLogoEmptyUntilReady(t *testing.T) {
 
 func TestGameTileBadgesFromPresentationAndHidesEmpty(t *testing.T) {
 	th := theme.Default()
-	plain := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive"}, nil, tenfoot.Presentation{}, th)
+	plain := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive"}, nil, tenfoot.Presentation{}, th, 18)
 	if len(plain.Badges) != 0 {
 		t.Fatalf("empty badges %+v", plain.Badges)
 	}
 	pres := tenfoot.Presentation{Presentation: &tenfoot.PresentationInfo{Players: "2", Rating: "4.5"}}
-	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive"}, nil, pres, th)
+	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive"}, nil, pres, th, 18)
 	if len(tile.Badges) != 2 || tile.Badges[0].Label != "2P" || tile.Badges[1].Label != "4.5" {
 		t.Fatalf("badges %+v", tile.Badges)
 	}
-	gb := gameTile(tenfoot.Game{Title: "Zelda", System: "gb"}, nil, tenfoot.Presentation{}, th)
+	gb := gameTile(tenfoot.Game{Title: "Zelda", System: "gb"}, nil, tenfoot.Presentation{}, th, 18)
 	if len(gb.Badges) != 1 || gb.Badges[0].Label != "PORT" {
 		t.Fatalf("gb badges %+v", gb.Badges)
 	}
@@ -174,14 +178,14 @@ func TestGameTileBadgesFromPresentationAndHidesEmpty(t *testing.T) {
 
 func TestGameTileLeavesCoverEmptyUntilCached(t *testing.T) {
 	handle := strings.Repeat("ab", 32)
-	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive", Cover: handle}, tenfoot.NewCoverCache(), tenfoot.Presentation{}, theme.Default())
+	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive", Cover: handle}, tenfoot.NewCoverCache(), tenfoot.Presentation{}, theme.Default(), 18)
 	if tile.Cover != nil {
 		t.Fatal("uncached cover should stay fallback")
 	}
 	if tile.CoverKind != fbgrid.CoverMissing {
 		t.Fatalf("uncached kind %d", tile.CoverKind)
 	}
-	flat := gameTile(tenfoot.Game{Title: "Pong", System: "pong"}, tenfoot.NewCoverCache(), tenfoot.Presentation{}, theme.Default())
+	flat := gameTile(tenfoot.Game{Title: "Pong", System: "pong"}, tenfoot.NewCoverCache(), tenfoot.Presentation{}, theme.Default(), 18)
 	if flat.Cover != nil {
 		t.Fatal("missing handle should stay fallback")
 	}
@@ -189,7 +193,7 @@ func TestGameTileLeavesCoverEmptyUntilCached(t *testing.T) {
 		t.Fatalf("missing kind %d", flat.CoverKind)
 	}
 	pres := tenfoot.Presentation{Presentation: &tenfoot.PresentationInfo{CoverArtworkID: handle}}
-	fromMeta := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive"}, tenfoot.NewCoverCache(), pres, theme.Default())
+	fromMeta := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive"}, tenfoot.NewCoverCache(), pres, theme.Default(), 18)
 	if fromMeta.Cover != nil {
 		t.Fatal("uncached presentation cover should stay fallback")
 	}
@@ -256,19 +260,30 @@ func TestExerciseShelfGridCyclesVisibleSet(t *testing.T) {
 }
 
 func TestGameTileUsesSystemPaletteAndASCIILabel(t *testing.T) {
-	tile := gameTile(tenfoot.Game{Title: "Márío", System: "snes"}, nil, tenfoot.Presentation{}, theme.Default())
+	tile := gameTile(tenfoot.Game{Title: "Márío", System: "snes"}, nil, tenfoot.Presentation{}, theme.Default(), 18)
 	if tile.Name != "M?r?o" {
 		t.Fatalf("label %q", tile.Name)
 	}
 	if tile.Color != gfx.RGB(156, 52, 60) {
 		t.Fatalf("color %+v", tile.Color)
 	}
-	arcade := gameTile(tenfoot.Game{Title: "Márío", System: "snes"}, nil, tenfoot.Presentation{}, theme.Arcade())
+	arcade := gameTile(tenfoot.Game{Title: "Márío", System: "snes"}, nil, tenfoot.Presentation{}, theme.Arcade(), 18)
 	if arcade.Color != theme.Arcade().SystemColor("snes") {
 		t.Fatalf("arcade color %+v", arcade.Color)
 	}
 	if arcade.Color == tile.Color {
 		t.Fatal("arcade palette must differ")
+	}
+}
+
+func TestGameTileMetaJoinsCatalogFacts(t *testing.T) {
+	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive", Year: "1991", Genre: "Action", Region: "usa"}, nil, tenfoot.Presentation{}, theme.Default(), 18)
+	if tile.Meta != "MEGADRIVE | 1991 | Action | USA" {
+		t.Fatalf("meta %q", tile.Meta)
+	}
+	plain := gameTile(tenfoot.Game{Title: "Pong", System: "pong"}, nil, tenfoot.Presentation{}, theme.Default(), 18)
+	if plain.Meta != "PONG" {
+		t.Fatalf("plain meta %q", plain.Meta)
 	}
 }
 
@@ -419,7 +434,7 @@ func TestExerciseLayoutsGridPaintsCoverflowWallAndNestsAtmosphere(t *testing.T) 
 	if !strings.Contains(report, "selftest-layouts PASS") || !strings.Contains(report, "selftest-atmosphere PASS") {
 		t.Fatalf("report %s", report)
 	}
-	if !strings.Contains(report, "coverflow kind=coverflow") || !strings.Contains(report, "wall kind=wall") || !strings.Contains(report, "empty-coverflow") {
+	if !strings.Contains(report, "coverflow kind=coverflow") || !strings.Contains(report, "wall kind=wall") || !strings.Contains(report, "split kind=split") || !strings.Contains(report, "empty-coverflow") || !strings.Contains(report, "empty-split") {
 		t.Fatalf("missing layout evidence: %s", report)
 	}
 }

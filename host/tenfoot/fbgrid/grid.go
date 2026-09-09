@@ -26,7 +26,8 @@ const (
 
 // Tile is one catalog cell: a short label, a solid colour fallback, optional
 // decoded cover pixels, the cover-fetch kind used for placeholders, an
-// optional clear logo for the label bar, and optional metadata chips.
+// optional clear logo for the label bar, optional metadata chips, and
+// optional short catalog facts for split hero copy.
 type Tile struct {
 	Name      string
 	Color     gfx.Color
@@ -34,6 +35,8 @@ type Tile struct {
 	CoverKind CoverKind
 	Logo      *image.RGBA
 	Badges    []Badge
+	// Meta is optional short catalog/presentation facts for split hero copy.
+	Meta string
 }
 
 const (
@@ -194,6 +197,26 @@ func (g *Grid) layout() {
 		} else {
 			g.CellW = coverflowFocusW
 			g.CellH = coverflowFocusH
+		}
+		if g.CellW < 1 {
+			g.CellW = 1
+		}
+		if g.CellH < 1 {
+			g.CellH = 1
+		}
+		return
+	case BrowseSplit:
+		g.Columns = 1
+		g.layoutStrip()
+		if r, ok := g.splitListRect(g.Focus); ok {
+			g.CellW = int(r.W)
+			g.CellH = int(r.H)
+		} else if r, ok := g.splitListRect(0); ok {
+			g.CellW = int(r.W)
+			g.CellH = int(r.H)
+		} else {
+			g.CellW = splitListMinW
+			g.CellH = splitRowMaxH
 		}
 		if g.CellW < 1 {
 			g.CellW = 1
