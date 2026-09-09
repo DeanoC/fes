@@ -2,8 +2,9 @@
 
 The default `native-integration-dev` profile installs the standalone FES Pong
 format-2 package alongside the four existing format-1 catalog cores. This is an
-explicit development-core path. It does not add `fes.pong` to the game catalog,
-infer ROM or media inputs, or replace the existing `pong` catalog system.
+package that can be installed on the host and given an explicit ROM-less
+library entry. It does not infer ROM or media inputs or replace the existing
+`pong` catalog system.
 
 ## Build and inspect
 
@@ -75,6 +76,36 @@ diagnostic selection with contained bridges and SDRAM. Its live identity is
 unverified, so it infers no ABI and exposes no controller or video service.
 Format-1 catalog bundles and `NATIVE_RUNTIME_SYSTEMS` are unchanged.
 
+## Install and select a library package
+
+The producer writes an installable archive at
+`out/work/misteross-<selected-revision>/build/packages/<package-id>.fcore`.
+Use the package ID in `fes-pong.package-selection.toml` to select the matching
+archive. The image directory and the host archive store have separate roles:
+installation on the host retains the archive used for future library launches.
+
+With the running host API:
+
+```sh
+out/native-integration-dev/fogcast --api http://127.0.0.1:8787 core-install /absolute/path/core.fcore
+out/native-integration-dev/fogcast --api http://127.0.0.1:8787 core-list
+out/native-integration-dev/fogcast --api http://127.0.0.1:8787 core-check PACKAGE_ID
+out/native-integration-dev/fogcast --api http://127.0.0.1:8787 core-entry 'Standalone FES Pong' PACKAGE_ID
+out/native-integration-dev/fogcast --api http://127.0.0.1:8787 core-select GAME_ID CURRENT_PACKAGE_ID NEXT_PACKAGE_ID
+```
+
+Import works offline and never activates hardware. Creating an entry or changing
+its selected version requires current target compatibility. Selection is an
+explicit checked update for the next launch; the currently running package keeps
+its actual identity. Select a retained older package to roll back. Neither
+import nor selection rebuilds compilers or FPGA payloads.
+
+The host retains all versions under `~/.local/share/fogcast/core-packages/`;
+back up that directory together with its catalog database. Appliance image
+recovery remains independent of these host files. See the selected
+[FogCast operator/API guide](../sources/FogCast/docs/core-package-library.md)
+for response contracts, persistence and recovery behavior.
+
 ## Package and ABI compatibility
 
 `mister-packages` owns the format-2 schema, FES GP ABI and DE10-Nano programming
@@ -92,9 +123,8 @@ FogCast consumes that advertised registry generically; it does not carry a
 second generated Go allowlist. The runtime C++ and misteross Verilog consumers
 are regenerated from the shared FES GP definition.
 
-The browser and tenfoot menu do not yet expose a package-launch accelerator.
-The CLI and host API are the supported development entrypoints for this
-milestone. Parent tests and component tests cover package admission, lifecycle,
+Installed packages can appear under **FPGA cores** in the ordinary library.
+The existing session launch, controller input and Stop paths handle these entries. Parent tests and component tests cover package admission, lifecycle,
 input retirement, fixed HDMI setup and image placement. Physical acceptance of
 the newly assembled image remains a separate exact-artifact kit operation.
 
@@ -107,3 +137,9 @@ the newly assembled image remains a separate exact-artifact kit operation.
 | Hardware admission and lifecycle | `sources/libmister-runtime/src/native/` and the runtime daemon protocol |
 | Host session, transfer and CLI | `sources/FogCast/internal/corepackage`, `internal/misterruntime`, and `internal/fogcastcli` |
 | Selection, receipts and assembly | `scripts/bundle.py`, `scripts/build.py`, and `scripts/native_dev.py` |
+
+## Integration evidence
+
+See [core package library validation](validation/2026-09-09-core-package-library.md)
+for selected revisions, software checks and the distinction between diagnostic
+and exact-image hardware acceptance.
