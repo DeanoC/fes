@@ -92,16 +92,18 @@ the usual 100ms same-key skip.
 Browse starts on a platform wheel: a horizontal clear-logo / wordmark strip
 and a hero for the focused system. D-pad, left stick, Shoulder L/R, and Select
 cycle platforms; A/South enters the filtered catalog browse (default 4×3 grid).
-East/B on browse returns to the wheel. Start is the search chord on browse
-(and from the wheel or title pane): it opens the existing gamepad OSK from
-`host/tenfoot` and filters the current shelf by a case-insensitive substring of
-the title, or of the clear-logo wordmark fallback (system id) when the title is
-empty. D-pad moves keys while the OSK is open; A types; L/R page letters and
-symbols; B clears a non-empty query or closes; Start or Done commits and leaves
-the filter on the shelf. An empty query restores the full shelf; no matches hide
-tiles and paint `No matches`. After the OSK closes, D-pad and A/B match browse
-on the filtered results; closing search restores the prior focus when that title
-is still visible. Y, X, and Select are ignored while the OSK is open so they
+East/B on browse returns to the wheel and closes search. Start is the search
+chord on browse (and from the wheel or title pane): it opens the existing
+gamepad OSK from `host/tenfoot` and filters the current shelf by a
+case-insensitive substring of the title, or of the clear-logo wordmark fallback
+(system id) when the title is empty. D-pad moves keys while the OSK is open; A
+types; L/R page letters and symbols; B clears a non-empty query or closes; Start
+or Done commits and leaves the filter on the shelf. An empty query restores the
+full shelf; no matches hide tiles (including the recent strip) and paint `No
+matches`. A committed query keeps the recent strip hidden so Down stays on the
+filtered shelf. After the OSK closes, D-pad and A/B match browse on the filtered
+results; closing search restores the prior focus when that title is still
+visible. Y, X, and Select are ignored while the OSK is open so they
 cannot steal layout, pack, or shelf. Y (North) is the layout switch chord
 on browse: Grid → Coverflow → Wall → Split → Grid. Coverflow is a scaled focus row of five titles
 with the focused cover largest and its name (or ready clear logo) at the title

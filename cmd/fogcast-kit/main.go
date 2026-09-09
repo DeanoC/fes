@@ -585,7 +585,7 @@ func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCach
 	if strings.TrimSpace(m.SearchQuery) != "" && len(m.Games) == 0 {
 		g.EmptyLabel = "No matches"
 	}
-	if len(m.Strip) > 0 && !m.SearchOpen {
+	if len(m.Strip) > 0 && m.SearchTag() == "" {
 		strip := make([]fbgrid.Tile, 0, len(m.Strip))
 		for _, game := range m.Strip {
 			pres := tenfoot.Presentation{}

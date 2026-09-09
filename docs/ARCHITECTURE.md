@@ -609,7 +609,7 @@ strip plus a hero for the focused system. Catalog rows are grouped into system
 shelves (`All` plus each system present in the loaded games, typically pong,
 Mega Drive, and SNES). On the wheel, D-pad, left stick, shoulder L/R, and
 Select cycle platforms; A/South enters the filtered browse view for that system
-(default 4×3 grid). East/B on browse returns to the wheel. Start opens catalog search on the current
+(default 4×3 grid). East/B on browse returns to the wheel and closes search. Start opens catalog search on the current
 shelf (from the wheel it enters that system's browse first) with the existing
 gamepad OSK; Y (North) on browse
 cycles Grid → Coverflow → Wall → Split → Grid; it is ignored on the wheel, title pane,
@@ -619,8 +619,9 @@ packs Classic → Neon → Sofa Dim → Classic on the wheel, browse, strip, and
 title pane; attract still dismisses on X like any pad input, and X is ignored
 while the search OSK is open. Search filters the loaded shelf by a case-insensitive
 title substring (clear-logo wordmark / system id when the title is empty). An empty
-query restores the shelf; no matches hide tiles and paint `No matches`. After Done
-or Start commits the OSK, D-pad and A/B match browse on the filtered results.
+query restores the shelf; no matches hide tiles (including the recent strip) and paint `No matches`.
+A committed query keeps the recent strip hidden so Down stays on the filtered shelf.
+After Done or Start commits the OSK, D-pad and A/B match browse on the filtered results.
 Closing search restores the prior focus when that title is still visible. Select
 still cycles shelves; Select+Start still stops. The last pack is
 stored in `launcher.json` `theme` so a kit restart (and a host reconnect of

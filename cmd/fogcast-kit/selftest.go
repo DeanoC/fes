@@ -862,6 +862,21 @@ func exerciseSearchGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	press(&m, "b")
 	press(&m, "b")
 
+	stripM := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	stripM.SetCatalog(mixedCatalog())
+	stripM.SetStrip([]tenfoot.Game{{ID: "recent", Title: "Recent", Launchable: true}}, "Recent")
+	press(&stripM, "start")
+	oskType(&stripM, "zzzz")
+	if !stripM.FocusSearchKey("done") {
+		return b.String(), fmt.Errorf("strip-hide done")
+	}
+	press(&stripM, "a")
+	g = paintModel(d, stripM, th)
+	if g.EmptyLabel != "No matches" || len(g.Tiles) != 0 || len(g.Strip) != 0 {
+		return b.String(), fmt.Errorf("strip-hide label=%q tiles=%d strip=%d", g.EmptyLabel, len(g.Tiles), len(g.Strip))
+	}
+	fmt.Fprintf(&b, "strip-hide label=%q tiles=%d strip=%d\n", g.EmptyLabel, len(g.Tiles), len(g.Strip))
+
 	untitled := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
 	untitled.SetCatalog([]tenfoot.Game{
 		{ID: "logo-md", Title: "", System: "megadrive", Launchable: true},
@@ -885,7 +900,24 @@ func exerciseSearchGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	if wheel.WheelOpen || !wheel.SearchOpen || wheel.Shelf != "megadrive" {
 		return b.String(), fmt.Errorf("wheel start open=%v search=%v shelf=%q", wheel.WheelOpen, wheel.SearchOpen, wheel.Shelf)
 	}
-	fmt.Fprintf(&b, "wheel-start shelf=%q search=1\n", wheel.Shelf)
+	oskType(&wheel, "sonic")
+	if !wheel.FocusSearchKey("done") {
+		return b.String(), fmt.Errorf("wheel done")
+	}
+	press(&wheel, "a")
+	press(&wheel, "b")
+	if !wheel.WheelOpen || strings.TrimSpace(wheel.SearchQuery) != "" || wheel.SearchTag() != "" {
+		return b.String(), fmt.Errorf("wheel back search q=%q tag=%q wheel=%v", wheel.SearchQuery, wheel.SearchTag(), wheel.WheelOpen)
+	}
+	if wheel.WheelStats() != "3 games" {
+		return b.String(), fmt.Errorf("wheel back stats %q", wheel.WheelStats())
+	}
+	press(&wheel, "r")
+	press(&wheel, "a")
+	if wheel.WheelOpen || wheel.Shelf != "snes" || len(wheel.Games) != 2 || wheel.SearchTag() != "" {
+		return b.String(), fmt.Errorf("snes after search wheel=%v shelf=%q n=%d tag=%q", wheel.WheelOpen, wheel.Shelf, len(wheel.Games), wheel.SearchTag())
+	}
+	fmt.Fprintf(&b, "wheel-start shelf=megadrive search=1 wheel-back=1 snes n=%d\n", len(wheel.Games))
 
 	press(&m, "y")
 	if m.Browse != fbgrid.BrowseCoverflow {

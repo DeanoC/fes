@@ -455,6 +455,38 @@ func TestExerciseMarqueeGridPaintsStripAndNestsTransition(t *testing.T) {
 	}
 }
 
+func TestModelGridSearchMissHidesStripAndEmptyLabel(t *testing.T) {
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	m.SetCatalog([]tenfoot.Game{
+		{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true},
+		{ID: "mario", Title: "Mario", System: "snes", Launchable: true},
+	})
+	m.SetStrip([]tenfoot.Game{{ID: "recent", Title: "Recent", Launchable: true}}, "Recent")
+	g := modelGrid(m, 640, 480, nil, nil, theme.Default())
+	if len(g.Strip) != 1 || g.EmptyLabel != "" {
+		t.Fatalf("browse strip=%d label=%q", len(g.Strip), g.EmptyLabel)
+	}
+	now := time.Now()
+	start, _ := remoteinput.NormalizeGamepad("start", true)
+	m.Input(start, now)
+	if !m.FocusSearchKey("char-z") {
+		t.Fatal("z")
+	}
+	a, _ := remoteinput.NormalizeGamepad("a", true)
+	m.Input(a, now)
+	m.Input(a, now)
+	m.Input(a, now)
+	m.Input(a, now)
+	if !m.FocusSearchKey("done") {
+		t.Fatal("done")
+	}
+	m.Input(a, now)
+	g = modelGrid(m, 640, 480, nil, nil, theme.Default())
+	if g.EmptyLabel != "No matches" || len(g.Tiles) != 0 || len(g.Strip) != 0 {
+		t.Fatalf("miss label=%q tiles=%d strip=%d", g.EmptyLabel, len(g.Tiles), len(g.Strip))
+	}
+}
+
 func TestExerciseSearchGridFiltersEmptyRestoresAndNestsTransition(t *testing.T) {
 	const w, h = 640, 480
 	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
@@ -476,6 +508,9 @@ func TestExerciseSearchGridFiltersEmptyRestoresAndNestsTransition(t *testing.T) 
 	}
 	if !strings.Contains(report, "logo-fallback") || !strings.Contains(report, "wheel-start") {
 		t.Fatalf("missing fallback/wheel evidence: %s", report)
+	}
+	if !strings.Contains(report, "wheel-back") || !strings.Contains(report, "strip-hide") {
+		t.Fatalf("missing wheel-back/strip evidence: %s", report)
 	}
 }
 

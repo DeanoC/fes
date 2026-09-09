@@ -156,6 +156,75 @@ func TestStartOnWheelEntersShelfSearch(t *testing.T) {
 	}
 }
 
+func TestWheelBackClearsCommittedSearch(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true, WheelOpen: true}
+	m.SetCatalog(mixedCatalog())
+	now := time.Unix(1, 0)
+	pressNamed(&m, "r", now)
+	pressNamed(&m, "r", now)
+	pressNamed(&m, "start", now)
+	typeOSK(&m, "sonic", now)
+	if !m.FocusSearchKey("done") {
+		t.Fatal("done")
+	}
+	pressNamed(&m, "a", now)
+	if m.SearchOpen || foldSearch(m.SearchQuery) != "sonic" || len(m.Games) != 1 {
+		t.Fatalf("committed open=%v q=%q n=%d", m.SearchOpen, m.SearchQuery, len(m.Games))
+	}
+	if action := pressNamed(&m, "b", now); action != "" || !m.WheelOpen {
+		t.Fatalf("back action=%q wheel=%v", action, m.WheelOpen)
+	}
+	if m.SearchOpen || m.SearchQuery != "" || m.SearchTag() != "" {
+		t.Fatalf("wheel kept search open=%v q=%q tag=%q", m.SearchOpen, m.SearchQuery, m.SearchTag())
+	}
+	if m.WheelStats() != "3 games" {
+		t.Fatalf("wheel stats %q", m.WheelStats())
+	}
+	pressNamed(&m, "r", now)
+	pressNamed(&m, "a", now)
+	if m.WheelOpen || m.Shelf != "snes" || len(m.Games) != 2 || m.SearchTag() != "" {
+		t.Fatalf("snes wheel=%v shelf=%q n=%d tag=%q", m.WheelOpen, m.Shelf, len(m.Games), m.SearchTag())
+	}
+}
+
+func TestCommittedSearchHidesStripAndLastRowOpensDetail(t *testing.T) {
+	now := time.Unix(1, 0)
+	miss := Model{Connected: true, TargetReady: true}
+	miss.SetCatalog(mixedCatalog())
+	miss.SetStrip([]tenfoot.Game{{ID: "recent", Title: "Recent", Launchable: true}}, "Recent")
+	pressNamed(&miss, "start", now)
+	typeOSK(&miss, "zzzz", now)
+	if !miss.FocusSearchKey("done") {
+		t.Fatal("done")
+	}
+	pressNamed(&miss, "a", now)
+	if miss.SearchOpen || len(miss.Games) != 0 || miss.SearchTag() != "SEARCH" {
+		t.Fatalf("miss open=%v n=%d tag=%q", miss.SearchOpen, len(miss.Games), miss.SearchTag())
+	}
+	pressNamed(&miss, "dpad-down", now)
+	if miss.StripActive || miss.DetailOpen {
+		t.Fatalf("empty miss strip=%v detail=%v", miss.StripActive, miss.DetailOpen)
+	}
+
+	hit := Model{Connected: true, TargetReady: true}
+	hit.SetCatalog(mixedCatalog())
+	hit.SetStrip([]tenfoot.Game{{ID: "recent", Title: "Recent", Launchable: true}}, "Recent")
+	pressNamed(&hit, "start", now)
+	typeOSK(&hit, "s", now)
+	if !hit.FocusSearchKey("done") {
+		t.Fatal("done hit")
+	}
+	pressNamed(&hit, "a", now)
+	if hit.SearchOpen || foldSearch(hit.SearchQuery) != "s" || len(hit.Games) < 2 {
+		t.Fatalf("hit open=%v q=%q n=%d", hit.SearchOpen, hit.SearchQuery, len(hit.Games))
+	}
+	hit.Focus = len(hit.Games) - 1
+	pressNamed(&hit, "dpad-down", now)
+	if hit.StripActive || !hit.DetailOpen {
+		t.Fatalf("filtered down strip=%v detail=%v", hit.StripActive, hit.DetailOpen)
+	}
+}
+
 func TestSearchDoesNotArmAttractOrStealStop(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetCatalog(mixedCatalog())
@@ -170,6 +239,21 @@ func TestSearchDoesNotArmAttractOrStealStop(t *testing.T) {
 	m.SearchOpen = false
 	if action := pressNamed(&m, "start", now); action != "" || m.SearchOpen {
 		t.Fatalf("start during game action=%q open=%v", action, m.SearchOpen)
+	}
+}
+
+func TestSelectStartStopsWhileSearchOpen(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true, SearchOpen: true}
+	m.SetCatalog(mixedCatalog())
+	now := time.Unix(10, 0)
+	m.Session.State = "active"
+	pressNamed(&m, "select", now)
+	pressNamed(&m, "start", now)
+	if !m.SearchOpen {
+		t.Fatal("start closed search during game")
+	}
+	if action := m.Tick(now.Add(time.Second)); action != "stop" {
+		t.Fatalf("stop %q", action)
 	}
 }
 

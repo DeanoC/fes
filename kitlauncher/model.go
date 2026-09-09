@@ -142,7 +142,7 @@ func (m *Model) Input(e remoteinput.Event, now time.Time) string {
 	if len(m.Games) > 0 && (dx != 0 || dy != 0) {
 		next := fbgrid.MoveFocus(m.Focus, len(m.Games), m.BrowseColumns(), dx, dy)
 		if dy > 0 && next == m.Focus {
-			if len(m.Strip) > 0 {
+			if len(m.Strip) > 0 && m.SearchTag() == "" {
 				m.enterStrip()
 				return ""
 			}

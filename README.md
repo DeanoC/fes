@@ -92,16 +92,18 @@ cycle platforms on the wheel and still cycle system shelves in the grid
 header shows the active shelf and counts (`MEGADRIVE 12/40`), plus `SEARCH`
 when a query is filtering the shelf, plus `FLOW`,
 `WALL`, or `SPLIT` when that layout is active. A/South on the
-wheel enters that system's browse view; East/B on the browse view returns to the wheel.
-Start opens living-room search on the current shelf (from the wheel it enters that
-system's browse first) and reuses the existing gamepad OSK (`host/tenfoot` TextField):
-D-pad moves keys, A types, L/R page letters/symbols, B clears a non-empty query or
-closes, and Start/Done commits. The query is a case-insensitive substring of the
-title, or of the clear-logo wordmark fallback (system id) when the title is empty.
-An empty query restores the full shelf; no matches paint an honest `No matches`
-stage and hide tiles. After the OSK closes, D-pad and A/B match browse on the
-filtered results; exiting search restores the prior focus when that title is still
-on the shelf. Start does not steal Y (layout), X (theme pack), Select (shelf), or
+wheel enters that system's browse view; East/B on the browse view returns to the wheel
+and closes search. Start opens living-room search on the current shelf (from the
+wheel it enters that system's browse first) and reuses the existing gamepad OSK
+(`host/tenfoot` TextField): D-pad moves keys, A types, L/R page letters/symbols, B
+clears a non-empty query or closes, and Start/Done commits. The query is a
+case-insensitive substring of the title, or of the clear-logo wordmark fallback
+(system id) when the title is empty. An empty query restores the full shelf; no
+matches paint an honest `No matches` stage and hide tiles, including the recent
+strip. A committed query keeps that strip hidden so Down stays on the filtered
+shelf. After the OSK closes, D-pad and A/B match browse on the filtered results;
+exiting search restores the prior focus when that title is still on the shelf.
+Start does not steal Y (layout), X (theme pack), Select (shelf), or
 Select+Start (stop).
 The focused platform paints hardware/fanart/backdrop when attract, presentation
 `backdrop_artwork_id`, or a representative cover handle exists, otherwise a

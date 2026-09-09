@@ -61,6 +61,9 @@ func (m *Model) showWheel(now time.Time) {
 	}
 	m.closeDetail()
 	m.leaveStrip()
+	if m.SearchTag() != "" {
+		m.exitSearch(now)
+	}
 	m.WheelOpen = true
 	m.fromWheel = false
 	m.noteActivity(now)
