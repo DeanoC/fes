@@ -39,6 +39,7 @@ test: build-agent test-ui
 	sh scripts/tests/target-image-sources_test.sh
 	sh scripts/tests/kit-init_test.sh
 	sh scripts/tests/target-image-rootfs_test.sh
+	sh scripts/tests/rootfs-package-cleanup_test.sh
 	sh scripts/tests/target-image_test.sh
 	sh scripts/tests/target-image-dev_test.sh
 	sh scripts/tests/target-image-dev-container_test.sh

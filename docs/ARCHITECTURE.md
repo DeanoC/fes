@@ -445,6 +445,9 @@ format-2 package is selected, the record also identifies the exact selection
 digest, package and payload IDs, producer/schema revisions, and install path.
 The verifier reconstructs that projection from the installed package and
 external selection; it does not infer selection from cache or image contents.
+The per-filesystem Buildroot copy retains the installed 0555 package directory
+and 0444 member modes through image creation, then an external rootfs hook makes
+only the copied directories removable when the fakeroot command exits.
 Its QEMU
 smoke proves only root filesystem and init packaging; it does not emulate FPGA
 programming, prove target readiness, or establish game or development-RBF
