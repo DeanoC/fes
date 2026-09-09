@@ -103,7 +103,8 @@ selects a built-in or pack name (`default`/`classic`, `arcade`/`neon`,
 loaded theme to those `Clear` sites; kit `fbgrid.Paint` consumes the full
 token set, including typography roles (`title_px` / `body_px` / `caption_px` /
 `status_px`, with `*_scale` fallback) and title/header Bold (`title_bold`,
-default true on built-ins). On the kit, X (West) cycles the three packs at
+default true on built-ins). Packs also select a kit scene overlay
+(`transition`: Classic curtain, Neon glitch, Sofa Dim wipe). On the kit, X (West) cycles the three packs at
 runtime and writes the last pack to `launcher.json`.
 
 Default overscan inset is **5% of each edge** (`-safe-area 0.05`). Windowed debug
@@ -150,6 +151,9 @@ opens on a platform wheel (`fbgrid.PaintWheel`) and A enters catalog browse
 (default 4×3 grid); East/B on browse returns to the wheel. Y cycles Grid →
 Coverflow → Wall → Grid. X (West) cycles theme packs Classic → Neon → Sofa Dim
 without stealing Y or D-pad; the last pack is stored in `launcher.json`.
+Detail, attract, wheel, layout, and pack cuts play that pack's short overlay
+(curtain, wipe, or glitch) without holding pad input; `transition` `none`
+disables it.
 A Recent / Favorites strip paints under the grid when those host collections
 return titles, and hides when they are empty. Last-row Down enters the
 strip; A opens the title pane; B or Up return to the grid. The kit title pane is a

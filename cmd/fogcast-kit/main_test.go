@@ -379,6 +379,70 @@ func TestExerciseBadgesGridPaintsChipsWheelStatsAndNestsPacks(t *testing.T) {
 	}
 }
 
+func TestSceneFXStartsOnMeaningfulCutsAndHonorsNone(t *testing.T) {
+	now := time.Unix(50, 0)
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true, Pack: theme.PackClassic}
+	m.SetCatalog([]tenfoot.Game{{ID: "g", Title: "G", System: "snes", Launchable: true}})
+	var fx sceneFX
+	fx.observe(modelScene(m), anim.StyleCurtain, now)
+	if fx.active(now) {
+		t.Fatal("first frame should not overlay")
+	}
+	m.Browse = fbgrid.BrowseCoverflow
+	fx.observe(modelScene(m), anim.StyleCurtain, now)
+	if !fx.active(now) || fx.style != anim.StyleCurtain {
+		t.Fatalf("layout cut active=%v style=%s", fx.active(now), fx.style)
+	}
+	if fx.active(now.Add(anim.CurtainDuration)) {
+		t.Fatal("overlay should settle at duration")
+	}
+	m.Pack = theme.PackNeon
+	later := now.Add(time.Second)
+	fx.observe(modelScene(m), anim.StyleGlitch, later)
+	if fx.style != anim.StyleGlitch || !fx.active(later) {
+		t.Fatalf("pack cut style=%s active=%v", fx.style, fx.active(later))
+	}
+	m.DetailOpen = true
+	cleared := later.Add(time.Millisecond)
+	fx.observe(modelScene(m), anim.StyleNone, cleared)
+	if fx.active(cleared) || fx.style != anim.StyleNone {
+		t.Fatalf("none should clear in-flight overlay style=%s", fx.style)
+	}
+	if kitTransitionStyle(theme.Default(), true) != anim.StyleNone {
+		t.Fatal("disabled")
+	}
+	if kitTransitionStyle(theme.Arcade(), false) != anim.StyleGlitch {
+		t.Fatal("neon style")
+	}
+	if kitTransitionStyle(theme.Theme{Transition: "none"}.Complete(), false) != anim.StyleNone {
+		t.Fatal("theme none")
+	}
+}
+
+func TestExerciseTransitionGridPaintsCurtainWipeGlitchAndNestsPacks(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseTransitionGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-transition PASS") || !strings.Contains(report, "selftest-packs PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "curtain-t0") || !strings.Contains(report, "wipe-mid") || !strings.Contains(report, "glitch-mid") || !strings.Contains(report, "none-noop") {
+		t.Fatalf("missing overlay evidence: %s", report)
+	}
+	if !strings.Contains(report, "launch-still-a=1") || !strings.Contains(report, "nested-packs=1") {
+		t.Fatalf("missing hook evidence: %s", report)
+	}
+}
+
 func TestExercisePacksGridPaintsClassicNeonSofaDimAndNestsLayouts(t *testing.T) {
 	const w, h = 640, 480
 	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}

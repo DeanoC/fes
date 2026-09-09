@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
+	"github.com/DeanoC/FogCast/host/tenfoot/anim"
 	"github.com/DeanoC/FogCast/host/tenfoot/fbgrid"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
@@ -51,7 +52,15 @@ func run() error {
 	selftestLayouts := flag.Bool("selftest-layouts", false, "paint coverflow and cover-wall browse, cycle Y, then exit")
 	selftestPacks := flag.Bool("selftest-packs", false, "paint Classic/Neon/Sofa Dim packs, cycle X, then exit")
 	selftestBadges := flag.Bool("selftest-badges", false, "paint tile/detail badges and wheel play-stats, then exit")
+	selftestTransition := flag.Bool("selftest-transition", false, "paint curtain, wipe, and glitch scene overlays, then exit")
+	noTransition := flag.Bool("no-transition", false, "disable kit scene transition overlays")
 	flag.Parse()
+	if !*noTransition {
+		switch strings.ToLower(strings.TrimSpace(os.Getenv("FOGCAST_NO_TRANSITION"))) {
+		case "1", "true", "yes":
+			*noTransition = true
+		}
+	}
 	if *selftestFPGA {
 		fb := "/dev/fb0"
 		if c, err := kitlauncher.LoadConfig(*configPath); err == nil && c.Framebuffer != "" {
@@ -73,7 +82,7 @@ func run() error {
 		}
 		return runThemeSelftest(fb)
 	}
-	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestMotion || *selftestWheel || *selftestStrip || *selftestAtmosphere || *selftestLayouts || *selftestPacks || *selftestBadges {
+	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestMotion || *selftestWheel || *selftestStrip || *selftestAtmosphere || *selftestLayouts || *selftestPacks || *selftestBadges || *selftestTransition {
 		fb := "/dev/fb0"
 		configTheme := ""
 		if c, err := kitlauncher.LoadConfig(*configPath); err == nil {
@@ -91,6 +100,9 @@ func run() error {
 		}
 		if *selftestBadges {
 			return runBadgesSelftest(fb, th)
+		}
+		if *selftestTransition {
+			return runTransitionSelftest(fb, th)
 		}
 		if *selftestPacks {
 			return runPacksSelftest(fb, th)
@@ -155,14 +167,14 @@ func run() error {
 	var lastKey renderKey
 	lastFocus := -1
 	var popAt time.Time
-	detailWas := false
-	var detailAt time.Time
+	var fx sceneFX
+	fxOff := *noTransition
 	present := func(m kitlauncher.Model) {
 		now := time.Now()
 		look := kitLook(m, th)
+		fx.observe(modelScene(m), kitTransitionStyle(look, fxOff), now)
 		if m.AttractActive && !m.Busy {
 			lastFocus = -1
-			detailWas = false
 			handles := m.AttractPrefetchHandles()
 			stills.Keep(handles)
 			stills.Request(ctx, client.Library, handles)
@@ -176,18 +188,18 @@ func run() error {
 			key.Preview = view.Caption
 			key.Video = view.Motion
 			key.Stills = stills.Generation()
-			if now.Sub(last) < 100*time.Millisecond && key == lastKey {
+			if !fx.active(now) && now.Sub(last) < 100*time.Millisecond && key == lastKey {
 				return
 			}
 			last = now
 			lastKey = key
 			cfg := d.Config()
 			fbgrid.PaintAttract(d, attractFrame(view, stills, look, cfg.Width, cfg.Height))
+			paintSceneFX(d, cfg.Width, cfg.Height, fx, now, look)
 			d.Present()
 			return
 		}
 		if m.WheelOpen && !m.Busy {
-			detailWas = false
 			ids := m.WheelPrefetchIDs()
 			presentations.Keep(ids)
 			presentations.Request(ctx, client.Library, ids)
@@ -226,12 +238,13 @@ func run() error {
 			key := modelRenderKey(m, covers.Generation(), presentations.Generation())
 			key.Wheel = true
 			key.Stills = stills.Generation()
-			if !frame.MotionActive() && now.Sub(last) < 100*time.Millisecond && key == lastKey {
+			if !frame.MotionActive() && !fx.active(now) && now.Sub(last) < 100*time.Millisecond && key == lastKey {
 				return
 			}
 			last = now
 			lastKey = key
 			fbgrid.PaintWheel(d, frame)
+			paintSceneFX(d, w, h, fx, now, look)
 			d.Present()
 			return
 		}
@@ -277,19 +290,9 @@ func run() error {
 		}
 		lastFocus = grid.Focus
 		fbgrid.ArmPop(&grid, popAt, now)
-		fade := 0.0
-		if m.DetailOpen {
-			if !detailWas {
-				detailAt = now
-			}
-			detailWas = true
-			fade = fbgrid.DetailFadeFromBlack(now.Sub(detailAt))
-		} else {
-			detailWas = false
-		}
 		key := modelRenderKey(m, covers.Generation(), presentations.Generation())
 		key.Stills = stills.Generation()
-		if !grid.MotionActive() && fade <= 0 && now.Sub(last) < 100*time.Millisecond && key == lastKey {
+		if !grid.MotionActive() && !fx.active(now) && now.Sub(last) < 100*time.Millisecond && key == lastKey {
 			return
 		}
 		last = now
@@ -297,12 +300,13 @@ func run() error {
 		if m.DetailOpen {
 			frame := modelDetailFrame(m, covers, presentations, look, w, h)
 			frame.Atmosphere = stillImage(stills, atmosphereHandle(m, presentations))
-			frame.FadeFromBlack = fade
 			fbgrid.PaintDetail(d, frame)
+			paintSceneFX(d, w, h, fx, now, look)
 			d.Present()
 			return
 		}
 		fbgrid.Paint(d, grid)
+		paintSceneFX(d, w, h, fx, now, look)
 		d.Present()
 	}
 	remap, err := loadKitRemapper(*inputProfile, c.InputProfile)
@@ -439,6 +443,86 @@ func stillImage(stills *tenfoot.CoverCache, handle string) *image.RGBA {
 
 func catalogPage(focus, n int, kind fbgrid.BrowseKind) (start, end int) {
 	return fbgrid.CatalogPage(focus, n, kind)
+}
+
+type sceneSig struct {
+	attract bool
+	detail  bool
+	wheel   bool
+	browse  fbgrid.BrowseKind
+	pack    string
+}
+
+func modelScene(m kitlauncher.Model) sceneSig {
+	return sceneSig{
+		attract: m.AttractActive,
+		detail:  m.DetailOpen,
+		wheel:   m.WheelOpen,
+		browse:  m.Browse,
+		pack:    m.Pack,
+	}
+}
+
+type sceneFX struct {
+	sig   sceneSig
+	style anim.Style
+	at    time.Time
+	armed bool
+}
+
+func (fx *sceneFX) observe(sig sceneSig, style anim.Style, now time.Time) {
+	if fx == nil {
+		return
+	}
+	if !fx.armed {
+		fx.sig = sig
+		fx.armed = true
+		return
+	}
+	if sig == fx.sig {
+		return
+	}
+	fx.sig = sig
+	if style == anim.StyleNone {
+		fx.style = anim.StyleNone
+		fx.at = time.Time{}
+		return
+	}
+	fx.style = style
+	fx.at = now
+}
+
+func (fx sceneFX) active(now time.Time) bool {
+	if fx.style == anim.StyleNone || fx.at.IsZero() {
+		return false
+	}
+	return now.Sub(fx.at) < fx.style.Duration()
+}
+
+func (fx sceneFX) progress(now time.Time) float64 {
+	if fx.style == anim.StyleNone || fx.at.IsZero() {
+		return 1
+	}
+	return anim.Progress(fx.style, now.Sub(fx.at))
+}
+
+func kitTransitionStyle(th theme.Theme, disabled bool) anim.Style {
+	if disabled {
+		return anim.StyleNone
+	}
+	return anim.ParseStyle(th.Complete().Transition)
+}
+
+func transitionColors(th theme.Theme) anim.Colors {
+	th = th.Complete()
+	return anim.Colors{Fill: th.HeaderBar, Edge: th.Highlight, Flash: th.Flash}
+}
+
+func paintSceneFX(d gfx.Device, w, h int, fx sceneFX, now time.Time, th theme.Theme) {
+	if d == nil || !fx.active(now) || w < 1 || h < 1 {
+		return
+	}
+	anim.PaintTransition(d, gfx.Rect{X: 0, Y: 0, W: float32(w), H: float32(h)}, fx.style, fx.progress(now), transitionColors(th))
 }
 
 // modelGrid maps the live catalog to one visible page. Model.Focus remains

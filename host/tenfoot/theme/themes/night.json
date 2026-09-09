@@ -13,6 +13,7 @@
   "footer_bar": "#0a2040",
   "cover_frame": "#3db8ff",
   "cover_frame_width": 2,
+  "transition": "wipe",
   "pad": 16,
   "gap": 8,
   "border": 4,

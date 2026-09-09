@@ -17,10 +17,6 @@ const (
 	TickPeriod = 16 * time.Millisecond
 	// ConfirmPulseDuration matches ConfirmFrames ticks at TickPeriod.
 	ConfirmPulseDuration = time.Duration(ConfirmFrames) * TickPeriod
-	// DetailFadeDuration is the title-pane open fade from a light overlay.
-	DetailFadeDuration = 140 * time.Millisecond
-	// DetailFadePeak is the opening overlay alpha (subtle, not a black frame).
-	DetailFadePeak = 0.35
 )
 
 func (g *Grid) startFocusPop() {
@@ -194,11 +190,4 @@ func (g Grid) confirmFill(base, flash gfx.Color) gfx.Color {
 		return flash
 	}
 	return anim.LerpColor(base, flash, a)
-}
-
-// DetailFadeFromBlack is overlay alpha for an opening title pane. elapsed 0
-// is DetailFadePeak; elapsed >= DetailFadeDuration is 0 (fully visible).
-func DetailFadeFromBlack(elapsed time.Duration) float64 {
-	t := (anim.Tween{Duration: DetailFadeDuration, Ease: anim.EaseInOut}).Progress(elapsed)
-	return (1 - t) * DetailFadePeak
 }

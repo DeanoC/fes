@@ -12,6 +12,7 @@
   "header_bar": "#101018",
   "footer_bar": "#101018",
   "cover_frame_width": 0,
+  "transition": "curtain",
   "pad": 16,
   "gap": 8,
   "border": 4,

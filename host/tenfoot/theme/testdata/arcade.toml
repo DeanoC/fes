@@ -12,6 +12,7 @@ header_bar = "#ff3300"
 footer_bar = "#ff2200"
 cover_frame = "#ffe600"
 cover_frame_width = 3
+transition = "glitch"
 pad = 16
 gap = 8
 border = 6
