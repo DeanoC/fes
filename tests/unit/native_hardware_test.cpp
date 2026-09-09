@@ -43,10 +43,12 @@
 namespace {
 
 struct TempDirectory {
-	TempDirectory()
+	explicit TempDirectory(const std::string& parent = "/tmp")
 	{
-		char pattern[] = "/tmp/libmister-native-hardware.XXXXXX";
-		char* created = mkdtemp(pattern);
+		const std::string name = parent + "/libmister-native-hardware.XXXXXX";
+		std::vector<char> pattern(name.begin(), name.end());
+		pattern.push_back(0);
+		char* created = mkdtemp(pattern.data());
 		assert(created != nullptr);
 		path = created;
 	}
@@ -2435,6 +2437,67 @@ std::string PersistentPackage(TempDirectory* package, const std::string& suffix 
 	assert(mister::native::OpenCorePackage(package->path, "", &opened).ok());
 	return opened.package_id;
 }
+void TestProductionFactoryForwardsCoreDataWithoutHardwareMutation()
+{
+	const char* development_root = "/tmp/fogcast-development";
+	const char* package_root = "/tmp/fogcast-development/core-packages";
+	const bool created_development = mkdir(development_root, 0700) == 0;
+	assert(created_development || errno == EEXIST);
+	const bool created_packages = mkdir(package_root, 0700) == 0;
+	assert(created_packages || errno == EEXIST);
+	bool inspected = false, prepared = false, refreshed = false, updated = false;
+	{
+		TempDirectory package(package_root), data;
+		const std::string id = PersistentPackage(&package);
+		mister_test::CaptureLog log;
+		std::unique_ptr<mister::Hardware> hardware;
+		assert(mister::CreateProductionHardware(log, &hardware).ok());
+		// Creation and data operations are lazy with respect to all physical devices.
+		// Do not call Start/LoadIdle/LoadCore: this exercises only production admission/storage.
+		mister::CoreData observed;
+		auto result = hardware->InspectCoreData(package.path, id, data.path, &observed);
+		inspected = result.ok() && observed.package_id == id && observed.mode == "persistent" &&
+					observed.revision == "absent" && observed.paddle_speed == 1 &&
+					observed.best_rally == 0;
+		std::unique_ptr<mister::AdmittedCorePackage> admitted;
+		assert(hardware->AdmitCorePackage(package.path, id, &admitted).ok());
+		result = hardware->PrepareCoreData(admitted.get(), data.path, &observed);
+		prepared = result.ok() && observed.package_id == id && observed.revision == "absent";
+		std::unique_ptr<mister::native::CoreDataFile> file;
+		assert(mister::native::CoreDataFile::Open(data.path, "fes.pong", &file).ok());
+		mister::CoreData saved;
+		saved.core_id = "fes.pong";
+		saved.layout = {"fes.pong.progress", 1, 0};
+		saved.paddle_speed = 2;
+		saved.best_rally = 17;
+		assert(file->Persist(saved, "absent", &saved).ok());
+		observed = {};
+		result = hardware->RefreshCoreData(admitted.get(), &observed);
+		refreshed = result.ok() && observed.package_id == id &&
+					observed.revision == saved.revision && observed.paddle_speed == 2 &&
+					observed.best_rally == 17;
+		result =
+			hardware->UpdateCoreSettings(package.path, id, data.path, saved.revision, 0, &observed);
+		mister::CoreData reread;
+		assert(file->Read(&reread).ok());
+		updated = result.ok() && observed.package_id == id && observed.revision != saved.revision &&
+				  observed.revision == reread.revision && reread.paddle_speed == 0 &&
+				  reread.best_rally == 17;
+		const std::string directory =
+			data.path + "/" + mister::native::CoreDataNamespace("fes.pong");
+		hardware.reset();
+		admitted.reset();
+		file.reset();
+		assert(unlink((directory + "/record.bin").c_str()) == 0);
+		assert(rmdir(directory.c_str()) == 0);
+	}
+	if (created_packages)
+		assert(rmdir(package_root) == 0 || errno == ENOTEMPTY);
+	if (created_development)
+		assert(rmdir(development_root) == 0 || errno == ENOTEMPTY);
+	assert(inspected && prepared && refreshed && updated);
+}
+
 void TestPersistentReplacementRefreshAndSaveFailureResume()
 {
 	std::vector<std::string> events;
@@ -2583,6 +2646,7 @@ void TestPersistenceContractAdmissionAndVolatileIsolation()
 
 int main()
 {
+	TestProductionFactoryForwardsCoreDataWithoutHardwareMutation();
 	TestPersistentReplacementRefreshAndSaveFailureResume();
 	TestPersistenceUnsafeResumeRetainsRecoveryOwnership();
 	TestPersistenceContractAdmissionAndVolatileIsolation();
@@ -2632,6 +2696,6 @@ int main()
 	TestUnavailableHardwareRemainsFailureOnly();
 	TestInspectionReportsActualDriverCompatibilityWithoutMutation();
 	TestActivationRechecksRetainedPayloadIdentityBeforeMutation();
-	puts("native_hardware_test: 47 passed");
+	puts("native_hardware_test: 48 passed");
 	return 0;
 }

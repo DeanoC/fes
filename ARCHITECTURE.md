@@ -490,6 +490,12 @@ exact-artifact diagnostic validates the selected Menu core and kernel.
 
 ## Described-core persistence
 
+The `CreateProductionHardware` facade forwards preparation, refresh, inspection,
+and settings updates to its owned `NativeHardware`, alongside the existing
+admission and lifecycle methods. A host regression enters through this factory
+and validates durable data operations without starting hardware; direct
+`NativeHardware` tests alone do not verify production API forwarding.
+
 `native/core_data` owns the bounded canonical record codec and retained
 no-follow namespace directories, separate from cartridge `SaveFile` and its
 power-of-two SRAM constraints. `CoreDataFile::Read` reopens `record.bin` on every

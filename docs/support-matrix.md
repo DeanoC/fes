@@ -32,7 +32,7 @@ fixtures verify software mechanics and do not establish system support.
 | Format-2 core-package preflight | strict manifest/payload admission, retained descriptor, package identity and compiled compatibility check | software: yes | hardware: not applicable |
 | Format-2 MiSTer development activation | owned admission, retired outgoing input, optional system/profile identity, explicit `mister-v1` programming, no inferred media/input or ambiguous quiesce retry | software: yes | hardware: pending |
 | Explicit programming profiles | containment-first `mister-v1`, `fes-gp-v1`, and `development-contained-v1` manager recipes | software: yes | hardware: pending |
-| Described-core persistence | FES Pong 1.0 settings/progress codec, atomic records, library restore/flush, CAS and explicit failed-save resume | software: yes | hardware: pending |
+| Described-core persistence | FES Pong 1.0 settings/progress codec, production-factory data operations, atomic records, library restore/flush, CAS and explicit failed-save resume | software: yes | hardware: pending |
 | FES GP core driver | production bounded GPO/GPI identity and controls, fixed ADV7513-only video, normalized generation-bound input | software: yes | hardware: pending |
 
 Production native construction is available for the image-owned idle baseline,
