@@ -6,8 +6,9 @@ launch starts a new game with settings and progress restored, rather than the
 previous ball position. Best rally counts player-paddle returns in one rally,
 including an unfinished rally when you exit.
 
-This feature is being integrated. The implementation plan tracks software and
-hardware acceptance; an older image's validation does not cover these changes.
+See the [validation record](validation/2026-09-09-core-persistence.md) for tested
+artifacts and hardware acceptance status. An older image's validation does not
+cover these changes.
 
 ## Use it
 

@@ -105,6 +105,10 @@ assert old complete record survives and no reset/program command occurred
 - [x] Select reviewed package/runtime/RTL/FogCast commits, regenerate/compare every consumer and fixture. Update native input lock with runtime commit. Run `make check`, `make test`, `make host`.
 - [x] Run `make dev` once per necessary integration change. Build the changed standalone RBF using pinned compiler tools; reuse unchanged compiler/Linux/console artifacts. Validate synthesized Pong behavior before kit deployment.
 - [x] Claim the designated kit with existing lease API, inspect current image/boot/device identity and preserve working rollback artifact. Deploy diagnostic combination using documented workflow and private host/config/catalog.
-- [ ] Set speed, launch Pong, exercise actual rally events, Stop, inspect record/revision, relaunch and reboot to verify persistence. Test compatible version switch/back, incompatible/removing rejection, controlled write failure/retry, usable launcher return and SNES regression.
-- [ ] Once stable, run required reproducible build/verify and exact-image acceptance; distinguish from diagnostic evidence. Restore ordinary host pairing, release lease and preserve raw evidence privately.
-- [ ] Update guides and validation with tested hashes/revisions and limitations. Commit integrated pins/docs; report completion and any hardware acceptance requiring user observation. Do not merge or publish without applicable user authorization.
+- [x] Set speed, launch Pong, exercise actual rally events, Stop, inspect record/revision, relaunch and reboot to verify persistence. Test compatible version switch/back, incompatible/removing rejection, controlled write failure/retry, usable launcher return and SNES regression.
+- [x] Once stable, run required reproducible build/verify and exact-image acceptance; distinguish from diagnostic evidence. Restore ordinary host pairing, release lease and preserve raw evidence privately.
+- [x] Update guides and validation with tested hashes/revisions and limitations. Commit integrated pins/docs; report completion and any hardware acceptance requiring user observation. Do not merge or publish without applicable user authorization.
+
+Completed against FES integration `47bf36e3b821202a1daed52240913d355c02a89e`;
+see the [dated acceptance record](../../validation/2026-09-09-core-persistence.md).
+The final documentation commit records acceptance without changing image inputs.

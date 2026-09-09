@@ -31,6 +31,8 @@ recorded in [the narrow-wire acceptance record](validation/2026-09-08-native-nes
 
 ## What has been verified
 
+- [Core persistence](validation/2026-09-09-core-persistence.md): settings, progress,
+  version compatibility and save-failure recovery; see the record for acceptance status.
 - [Core package library](validation/2026-09-09-core-package-library.md):
   installed versions, normal library launch, checked selection and rollback.
 - [RBF ABI acceptance](validation/2026-09-09-rbf-abi-acceptance.md):
@@ -73,9 +75,9 @@ ROM-less library selections. The operator commands and UI-facing API contract
 are linked from the [core package guide](core-packages.md).
 
 [Persistent core settings and progress](superpowers/specs/2026-09-09-core-persistence-design.md)
-is the approved contract now being implemented: stable target-local data across compatible
-package versions, starting with standalone Pong. Implementation and hardware acceptance are tracked in the
-[implementation plan](superpowers/plans/2026-09-09-core-persistence.md).
+is implemented: stable target-local data across compatible package versions,
+starting with standalone Pong. See the [implementation plan](superpowers/plans/2026-09-09-core-persistence.md)
+and [acceptance record](validation/2026-09-09-core-persistence.md).
 
 ## Earlier designs and plans
 

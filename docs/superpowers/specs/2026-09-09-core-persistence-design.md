@@ -1,6 +1,6 @@
 # Persistent settings and progress for described cores
 
-Status: approved; implementation in progress under the paired implementation plan.
+Status: implemented and validated. See the [acceptance record](../../validation/2026-09-09-core-persistence.md) for exact artifacts and limitations.
 
 ## Outcome and first slice
 
