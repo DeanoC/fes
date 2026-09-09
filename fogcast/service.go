@@ -1191,7 +1191,10 @@ func (s *Service) LoadCore(parent context.Context, size int64, content io.Reader
 		}
 		status, err = s.reconcileLostCoreLoad(parent, client, prior, err)
 		if err != nil {
-			return protocol.Status{}, err
+			if confirmedIdleCorePackageFailure(status, err) {
+				return s.retireExecutionAfterConfirmedIdleCorePackageFailure(ctx, status, err)
+			}
+			return status, err
 		}
 	}
 	if !validServiceCorePackageStatus(status) {
@@ -1211,6 +1214,29 @@ func (s *Service) LoadCore(parent context.Context, size int64, content io.Reader
 		}
 	}
 	return status, nil
+}
+
+func (s *Service) retireExecutionAfterConfirmedIdleCorePackageFailure(ctx context.Context, status protocol.Status, loadErr error) (protocol.Status, error) {
+	s.executionMu.Lock()
+	previousHostOnly := s.activeExecution == ExecutionHostOnly
+	s.selectedTargetReconciled = true
+	s.selectedTargetRepairAllowed = false
+	if s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment {
+		s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
+	}
+	s.executionMu.Unlock()
+	if !previousHostOnly {
+		return status, loadErr
+	}
+	if s.hostExecutor == nil || s.hostExecutor.Stop(ctx) != nil {
+		return status, &protocol.APIError{Code: protocol.CodeInternal, Message: "host cleanup failed after core package rejection", Phase: "recovery"}
+	}
+	s.executionMu.Lock()
+	if s.activeExecution == ExecutionHostOnly {
+		s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
+	}
+	s.executionMu.Unlock()
+	return status, loadErr
 }
 
 func corePackageRequestFailure(err error) error {
@@ -1255,6 +1281,9 @@ func (s *Service) reconcileLostCoreLoad(parent context.Context, client serviceCl
 		if validServiceCorePackageStatus(status) && !reflect.DeepEqual(status, prior) {
 			return status, nil
 		}
+		if confirmedIdleCorePackageFailure(status, loadErr) {
+			return status, preserveCorePackageError(loadErr)
+		}
 		if reflect.DeepEqual(status, prior) {
 			preserved := preserveCorePackageError(loadErr)
 			var apiErr *protocol.APIError
@@ -1274,6 +1303,21 @@ func (s *Service) reconcileLostCoreLoad(parent context.Context, client serviceCl
 		case <-timer.C:
 		}
 	}
+}
+
+func confirmedIdleCorePackageFailure(status protocol.Status, loadErr error) bool {
+	if ambiguousTargetMutationError(loadErr) {
+		return false
+	}
+	var dispatched *protocol.APIError
+	if !errors.As(loadErr, &dispatched) || status.LastError == nil {
+		return false
+	}
+	return status.State == protocol.StateIdle && status.GameID == nil && status.System == nil &&
+		status.ExpectedCore == nil && status.ObservedCore == nil && !status.Development &&
+		status.Recovery == "" && status.CorePackage == nil &&
+		status.LastError.Code == dispatched.Code && status.LastError.Phase == dispatched.Phase &&
+		status.LastError.Expected == dispatched.Expected && status.LastError.Observed == dispatched.Observed
 }
 
 func preserveCorePackageError(err error) error {

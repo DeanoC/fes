@@ -538,16 +538,21 @@ func (s *sessionCoordinator) loadDevelopmentCore(ctx context.Context, size int64
 		return sessionResult{}, err
 	}
 	if !corePackageInputStatus(status) {
-		// The target result is ambiguous or post-mutation. Retire stale host
-		// ownership even if bounded cleanup itself fails; a later status request
-		// will reconstruct whatever target state can be observed.
+		// The target result is ambiguous or post-mutation. Retire stale target
+		// input ownership. Preserve a still-running host-only owner when the
+		// service proves target idle but cannot stop that executor.
 		_ = s.detachInputBounded("session_replace_ambiguous")
 		s.mu.Lock()
 		previousExecution := s.execution
-		s.execution = ""
-		s.terminalStatus = nil
+		preserveHostOnly := hostOnlyCorePackageCleanupFailure(previousExecution, status, err)
+		if !preserveHostOnly {
+			s.execution = ""
+			s.terminalStatus = nil
+		}
 		s.mu.Unlock()
-		_ = s.stopMediaBounded(previousExecution)
+		if !preserveHostOnly {
+			_ = s.stopMediaBounded(previousExecution)
+		}
 		if err != nil {
 			return sessionResult{}, err
 		}
@@ -607,6 +612,19 @@ func corePackagePreMutationFailure(err error) bool {
 	default:
 		return false
 	}
+}
+
+func hostOnlyCorePackageCleanupFailure(execution string, status protocol.Status, err error) bool {
+	if execution != fogcast.ExecutionHostOnly || status.LastError == nil {
+		return false
+	}
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeInternal || apiErr.Phase != "recovery" {
+		return false
+	}
+	return status.State == protocol.StateIdle && status.GameID == nil && status.System == nil &&
+		status.ExpectedCore == nil && status.ObservedCore == nil && !status.Development &&
+		status.Recovery == "" && status.CorePackage == nil
 }
 
 func (s *sessionCoordinator) clearInputBinding() {

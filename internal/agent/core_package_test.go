@@ -22,6 +22,19 @@ type packageRuntime struct {
 	calls      int
 }
 
+type confirmingPackageRuntime struct {
+	packageRuntime
+	idle           bool
+	confirmCalls   int
+	confirmContext context.Context
+}
+
+func (r *confirmingPackageRuntime) ConfirmIdle(ctx context.Context) bool {
+	r.confirmCalls++
+	r.confirmContext = ctx
+	return r.idle
+}
+
 func (r *packageRuntime) LoadCoreOwned(_ context.Context, _ context.Context, _ context.Context, size int64, body io.Reader) (misterruntime.CoreActivation, bool, *protocol.APIError) {
 	r.calls++
 	data, err := io.ReadAll(body)
@@ -78,5 +91,34 @@ func TestCoordinatorPublishesPostMutationPackageFailureMetadata(t *testing.T) {
 	if apiErr == nil || status.State != protocol.StateFailed || !status.Development || status.LastError == nil ||
 		status.LastError.Phase != "identity" || status.LastError.Expected != "0123" || status.LastError.Observed != "4567" {
 		t.Fatalf("status=%#v err=%#v", status, apiErr)
+	}
+}
+
+func TestCoordinatorPublishesPostMutationPackageFailureOnlyAfterConfirmedIdle(t *testing.T) {
+	for _, confirmed := range []bool{false, true} {
+		t.Run(map[bool]string{false: "unconfirmed", true: "confirmed"}[confirmed], func(t *testing.T) {
+			operation := context.WithValue(context.Background(), "scope", "operation")
+			request := context.WithValue(context.Background(), "scope", "request")
+			runtime := &confirmingPackageRuntime{idle: confirmed, packageRuntime: packageRuntime{
+				attempted: true, packageErr: &protocol.APIError{
+					Code: protocol.CodeUnrecognizedCore, Message: "identity mismatch", Phase: "identity",
+					Expected: "0123", Observed: "4567",
+				},
+			}}
+			coordinator := agent.New(runtime, core.DefaultRegistry(), 0, 0, agent.WithOperationContext(operation))
+			status, apiErr := coordinator.LoadCore(request, 7, strings.NewReader("package"))
+			if apiErr == nil || runtime.confirmCalls != 1 || status.LastError == nil ||
+				status.LastError.Code != protocol.CodeUnrecognizedCore || status.LastError.Phase != "identity" ||
+				status.LastError.Expected != "0123" || status.LastError.Observed != "4567" ||
+				runtime.confirmContext.Value("scope") != "operation" {
+				t.Fatalf("status=%#v err=%#v confirms=%d", status, apiErr, runtime.confirmCalls)
+			}
+			if confirmed && (status.State != protocol.StateIdle || status.Development) {
+				t.Fatalf("confirmed idle status=%#v", status)
+			}
+			if !confirmed && (status.State != protocol.StateFailed || !status.Development) {
+				t.Fatalf("unconfirmed failure status=%#v", status)
+			}
+		})
 	}
 }

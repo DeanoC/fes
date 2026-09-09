@@ -229,6 +229,13 @@ proven pre-mutation failure reconstructs the same logical lease; failure to
 pause or reconstruct it is a recovery failure and leaves input gated. Startup
 adopts every still-valid publication through the same opened trusted root,
 selecting only the package that exactly matches the active runtime status.
+After an attempted activation failure, the target publishes idle only when the
+runtime confirms exact operational idle and retains the structured failure in
+that status. The host returns the original failure only when the observed idle
+status has matching code, phase, expected, and observed evidence; any mismatch
+or ambiguous transport result remains an unavailable recovery result. Confirmed
+idle failure retires the old service execution, input, and media ownership; a
+host-only executor must stop successfully before its ownership is retired.
 
 The authenticated target route `POST /v1/development/core` accepts one bounded
 `application/octet-stream` archive under the normal kit lease and update

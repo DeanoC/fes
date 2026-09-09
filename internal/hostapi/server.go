@@ -123,9 +123,11 @@ type presentationAttribution struct {
 }
 
 type apiError struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Phase   string `json:"phase,omitempty"`
+	Code     string `json:"code"`
+	Message  string `json:"message"`
+	Phase    string `json:"phase,omitempty"`
+	Expected string `json:"expected,omitempty"`
+	Observed string `json:"observed,omitempty"`
 }
 
 type serverOptions struct {
@@ -787,7 +789,10 @@ func writeSessionError(w http.ResponseWriter, err error) {
 		if apiErr.Code == protocol.CodeBadRequest || apiErr.Code == protocol.CodeUnsupportedSystem || apiErr.Code == protocol.CodeUnsupportedOperation {
 			status = http.StatusBadRequest
 		}
-		writeJSON(w, status, map[string]any{"error": apiError{Code: string(apiErr.Code), Message: publicErrorMessage(apiErr.Code), Phase: apiErr.Phase}})
+		writeJSON(w, status, map[string]any{"error": apiError{
+			Code: string(apiErr.Code), Message: publicErrorMessage(apiErr.Code), Phase: apiErr.Phase,
+			Expected: apiErr.Expected, Observed: apiErr.Observed,
+		}})
 		return
 	}
 	writeError(w, http.StatusServiceUnavailable, "TARGET_UNAVAILABLE", "session operation failed")

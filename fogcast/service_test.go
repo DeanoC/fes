@@ -2343,6 +2343,170 @@ func TestServiceCorePackageLostReplyReconciliationHasOverallDeadline(t *testing.
 	}
 }
 
+func TestServiceCorePackagePreservesConfirmedIdleFailureEvidence(t *testing.T) {
+	loadErr := &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Message: "identity mismatch", Phase: "identity",
+		Expected: "0123", Observed: "4567"}
+	prior := protocol.Status{State: protocol.StateIdle}
+	client := &fakeServiceClient{coreLoad: func(context.Context, int64, io.Reader) (protocol.Status, error) {
+		return protocol.Status{}, loadErr
+	}}
+	client.statusFn = func(context.Context) (protocol.Status, error) {
+		if client.statusCalls == 1 {
+			return prior, nil
+		}
+		return protocol.Status{State: protocol.StateIdle, LastError: &protocol.APIError{
+			Code: loadErr.Code, Message: "public identity mismatch", Phase: loadErr.Phase,
+			Expected: loadErr.Expected, Observed: loadErr.Observed,
+		}}, nil
+	}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+	service.activeExecution, service.activeTarget = ExecutionFPGANative, "dev"
+	service.activeGameID, service.activeSystem = "prior-game", protocol.SystemSNES
+	status, err := service.LoadCore(context.Background(), 5, strings.NewReader("fcore"))
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != loadErr.Code || apiErr.Phase != loadErr.Phase ||
+		apiErr.Expected != loadErr.Expected || apiErr.Observed != loadErr.Observed ||
+		status.State != protocol.StateIdle || status.LastError == nil || client.coreCalls != 1 || client.statusCalls != 2 ||
+		service.activeExecution != "" || service.activeTarget != "" || service.activeGameID != "" || service.activeSystem != "" ||
+		!service.selectedTargetReconciled || service.selectedTargetRepairAllowed {
+		t.Fatalf("status=%+v error=%v core=%d status_calls=%d execution=%q target=%q game=%q system=%q reconciled=%t repair=%t",
+			status, err, client.coreCalls, client.statusCalls, service.activeExecution, service.activeTarget,
+			service.activeGameID, service.activeSystem, service.selectedTargetReconciled, service.selectedTargetRepairAllowed)
+	}
+}
+
+func TestServiceCorePackageConfirmedIdleStopsPriorHostOnlyExecution(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		stopErr    error
+		wantCode   protocol.ErrorCode
+		wantPhase  string
+		wantActive string
+	}{
+		{name: "stopped", wantCode: protocol.CodeUnrecognizedCore, wantPhase: "identity"},
+		{name: "cleanup failure", stopErr: errors.New("host stop failed"), wantCode: protocol.CodeInternal,
+			wantPhase: "recovery", wantActive: ExecutionHostOnly},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			loadErr := &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Message: "identity mismatch", Phase: "identity",
+				Expected: "0123", Observed: "4567"}
+			idleFailure := protocol.Status{State: protocol.StateIdle, LastError: &protocol.APIError{
+				Code: loadErr.Code, Message: "public identity mismatch", Phase: loadErr.Phase,
+				Expected: loadErr.Expected, Observed: loadErr.Observed,
+			}}
+			client := &fakeServiceClient{coreLoad: func(context.Context, int64, io.Reader) (protocol.Status, error) {
+				return protocol.Status{}, loadErr
+			}}
+			client.statusFn = func(context.Context) (protocol.Status, error) {
+				if client.statusCalls == 1 {
+					return protocol.Status{State: protocol.StateIdle}, nil
+				}
+				return idleFailure, nil
+			}
+			hostExecutor := &fakeHostExecutor{stopErr: test.stopErr}
+			service := newTestServiceWithExecution(&fakeServiceCatalog{}, &fakeServicePreparer{}, client,
+				ExecutionPolicy{Host: hostExecutor})
+			service.activeExecution, service.activeTarget = ExecutionHostOnly, "host"
+			service.activeGameID, service.activeSystem = "prior-host-game", protocol.SystemSNES
+
+			status, err := service.LoadCore(context.Background(), 5, strings.NewReader("fcore"))
+			var apiErr *protocol.APIError
+			if !errors.As(err, &apiErr) || apiErr.Code != test.wantCode || apiErr.Phase != test.wantPhase ||
+				status.State != protocol.StateIdle || hostExecutor.stopCalls != 1 || service.activeExecution != test.wantActive ||
+				!service.selectedTargetReconciled || service.selectedTargetRepairAllowed {
+				t.Fatalf("status=%+v error=%v stops=%d execution=%q target=%q game=%q system=%q reconciled=%t repair=%t",
+					status, err, hostExecutor.stopCalls, service.activeExecution, service.activeTarget,
+					service.activeGameID, service.activeSystem, service.selectedTargetReconciled, service.selectedTargetRepairAllowed)
+			}
+			if test.wantActive == "" && (service.activeTarget != "" || service.activeGameID != "" || service.activeSystem != "") {
+				t.Fatalf("retired host ownership target=%q game=%q system=%q", service.activeTarget, service.activeGameID, service.activeSystem)
+			}
+			if test.wantActive != "" && (service.activeTarget != "host" || service.activeGameID != "prior-host-game" || service.activeSystem != protocol.SystemSNES) {
+				t.Fatalf("lost host ownership target=%q game=%q system=%q", service.activeTarget, service.activeGameID, service.activeSystem)
+			}
+		})
+	}
+}
+
+func TestServiceCorePackagePreservesRepeatedConfirmedIdleFailureEvidence(t *testing.T) {
+	loadErr := &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Message: "identity mismatch", Phase: "identity",
+		Expected: "0123", Observed: "4567"}
+	retained := &protocol.APIError{Code: loadErr.Code, Message: "public identity mismatch", Phase: loadErr.Phase,
+		Expected: loadErr.Expected, Observed: loadErr.Observed}
+	prior := protocol.Status{State: protocol.StateIdle, LastError: retained}
+	client := &fakeServiceClient{coreLoad: func(context.Context, int64, io.Reader) (protocol.Status, error) {
+		return protocol.Status{}, loadErr
+	}, statusResult: prior}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+
+	status, err := service.LoadCore(context.Background(), 5, strings.NewReader("fcore"))
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != loadErr.Code || apiErr.Phase != loadErr.Phase ||
+		apiErr.Expected != loadErr.Expected || apiErr.Observed != loadErr.Observed || status.State != protocol.StateIdle ||
+		status.LastError == nil || client.coreCalls != 1 || client.statusCalls != 2 {
+		t.Fatalf("status=%+v error=%v core=%d status_calls=%d", status, err, client.coreCalls, client.statusCalls)
+	}
+}
+
+func TestServiceCorePackageRejectsMismatchedIdleFailureEvidence(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(*protocol.APIError)
+	}{
+		{name: "code", mutate: func(err *protocol.APIError) { err.Code = protocol.CodeMiSTerUnavailable }},
+		{name: "phase", mutate: func(err *protocol.APIError) { err.Phase = "video" }},
+		{name: "expected", mutate: func(err *protocol.APIError) { err.Expected = "different" }},
+		{name: "observed", mutate: func(err *protocol.APIError) { err.Observed = "different" }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			loadErr := &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Message: "identity mismatch", Phase: "identity",
+				Expected: "0123", Observed: "4567"}
+			retained := *loadErr
+			test.mutate(&retained)
+			client := &fakeServiceClient{coreLoad: func(context.Context, int64, io.Reader) (protocol.Status, error) {
+				return protocol.Status{}, loadErr
+			}}
+			client.statusFn = func(context.Context) (protocol.Status, error) {
+				if client.statusCalls == 1 {
+					return protocol.Status{State: protocol.StateIdle}, nil
+				}
+				return protocol.Status{State: protocol.StateIdle, LastError: &retained}, nil
+			}
+			service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+			status, err := service.LoadCore(context.Background(), 5, strings.NewReader("fcore"))
+			var apiErr *protocol.APIError
+			if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeMiSTerUnavailable || apiErr.Phase != "recovery" ||
+				status != (protocol.Status{}) || client.coreCalls != 1 || client.statusCalls != 2 {
+				t.Fatalf("status=%+v error=%v core=%d status_calls=%d", status, err, client.coreCalls, client.statusCalls)
+			}
+		})
+	}
+}
+
+func TestServiceCorePackageDoesNotTreatAmbiguousTransferAsConfirmedIdleFailure(t *testing.T) {
+	loadAPIError := &protocol.APIError{Code: protocol.CodeTransferFailed, Message: "target reply lost", Phase: "transfer"}
+	loadErr := &ambiguousPackageLoadError{cause: loadAPIError}
+	client := &fakeServiceClient{coreLoad: func(context.Context, int64, io.Reader) (protocol.Status, error) {
+		return protocol.Status{}, loadErr
+	}}
+	client.statusFn = func(context.Context) (protocol.Status, error) {
+		if client.statusCalls == 1 {
+			return protocol.Status{State: protocol.StateIdle}, nil
+		}
+		return protocol.Status{State: protocol.StateIdle, LastError: &protocol.APIError{
+			Code: loadAPIError.Code, Message: "retained transfer failure", Phase: loadAPIError.Phase,
+		}}, nil
+	}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+
+	status, err := service.LoadCore(context.Background(), 5, strings.NewReader("fcore"))
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeMiSTerUnavailable || apiErr.Phase != "recovery" ||
+		status != (protocol.Status{}) || client.coreCalls != 1 || client.statusCalls != 2 {
+		t.Fatalf("status=%+v error=%v core=%d status_calls=%d", status, err, client.coreCalls, client.statusCalls)
+	}
+}
+
 func TestServiceCorePackagePublishesTargetBeforeHostCleanupFailure(t *testing.T) {
 	active := protocol.Status{State: protocol.StateActive, Development: true,
 		CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 8,
@@ -3571,6 +3735,14 @@ type fakeHostExecutor struct {
 	contentPath string
 	stopErr     error
 }
+
+type ambiguousPackageLoadError struct {
+	cause *protocol.APIError
+}
+
+func (e *ambiguousPackageLoadError) Error() string           { return e.cause.Error() }
+func (e *ambiguousPackageLoadError) Unwrap() error           { return e.cause }
+func (e *ambiguousPackageLoadError) AmbiguousMutation() bool { return true }
 
 func (f *fakeHostExecutor) ID() string { return "fake" }
 func (f *fakeHostExecutor) Capabilities() []hostexec.Capability {

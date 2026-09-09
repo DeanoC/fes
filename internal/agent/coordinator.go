@@ -404,6 +404,10 @@ func (c *Coordinator) LoadCore(parent context.Context, size int64, content io.Re
 			c.set(previous)
 			return c.Status(), apiErr
 		}
+		if runtime, ok := c.runtime.(idleConfirmingRuntime); ok && runtime.ConfirmIdle(c.operationContext) {
+			c.set(protocol.Status{State: protocol.StateIdle, LastError: cloneAPIError(apiErr)})
+			return c.Status(), apiErr
+		}
 		failed := protocol.Status{State: protocol.StateFailed, Development: true,
 			LastError: cloneAPIError(apiErr)}
 		if activation.ObservedCore != "" {

@@ -617,6 +617,84 @@ func TestSessionDevelopmentCorePredispatchFailurePreservesPriorInputAndMedia(t *
 	}
 }
 
+func TestSessionDevelopmentCoreReturnsConfirmedFailureAndRetiresPriorOwnership(t *testing.T) {
+	gameID, system, nativeCore := "native-game", protocol.SystemSNES, "SNES"
+	coreErr := &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Message: "identity mismatch", Phase: "identity",
+		Expected: "0123", Observed: "4567"}
+	service := &fakeService{
+		launch: protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive,
+			GameID: &gameID, System: &system, ObservedCore: &nativeCore}},
+		core:    protocol.Status{State: protocol.StateIdle, LastError: coreErr},
+		coreErr: coreErr,
+	}
+	service.status = service.core
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
+	media := &fakeMediaSession{}
+	handler := hostapi.New(service, hostapi.WithRemoteInput(input), hostapi.WithMediaSession(media))
+	if launched := launchSession(t, handler, gameID); launched.Code != http.StatusOK || len(input.attach) != 1 || len(media.start) != 1 {
+		t.Fatalf("launch=%d %s attach=%v media=%v", launched.Code, launched.Body.String(), input.attach, media.start)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/development-core", strings.NewReader("fcore"))
+	request.Host = "127.0.0.1"
+	request.Header.Set("Content-Type", "application/octet-stream")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code == http.StatusOK || !strings.Contains(response.Body.String(), `"code":"UNRECOGNIZED_CORE"`) ||
+		!strings.Contains(response.Body.String(), `"phase":"identity"`) ||
+		!strings.Contains(response.Body.String(), `"expected":"0123"`) ||
+		!strings.Contains(response.Body.String(), `"observed":"4567"`) ||
+		len(input.detach) != 1 || len(media.stop) != 1 || input.status.State != host.RemoteInputDetached {
+		t.Fatalf("response=%d %s detach=%v media.stop=%v input=%+v", response.Code, response.Body.String(), input.detach, media.stop, input.status)
+	}
+	status := serve(t, handler, http.MethodGet, "/api/v1/session")
+	if status.Code != http.StatusOK || !strings.Contains(status.Body.String(), `"state":"idle"`) ||
+		strings.Contains(status.Body.String(), `"execution":"fpga_native"`) {
+		t.Fatalf("retired ownership status=%d %s", status.Code, status.Body.String())
+	}
+}
+
+func TestSessionDevelopmentCorePreservesRunningHostOnlyOwnerWhenCleanupFails(t *testing.T) {
+	gameID, system := "host-game", protocol.SystemSNES
+	identityErr := &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Message: "identity mismatch", Phase: "identity",
+		Expected: "0123", Observed: "4567"}
+	service := &fakeService{
+		execution: fogcast.ExecutionHostOnly,
+		launch: protocol.CachedLaunchResponse{Status: protocol.Status{
+			State: protocol.StateActive, GameID: &gameID, System: &system,
+		}},
+		status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system},
+		core:   protocol.Status{State: protocol.StateIdle, LastError: identityErr},
+		coreErr: &protocol.APIError{Code: protocol.CodeInternal,
+			Message: "host cleanup failed after core package rejection", Phase: "recovery"},
+	}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
+	media := &fakeMediaSession{}
+	handler := hostapi.New(service, hostapi.WithRemoteInput(input), hostapi.WithMediaSession(media))
+	if launched := launchSession(t, handler, gameID); launched.Code != http.StatusOK || len(media.start) != 1 {
+		t.Fatalf("launch=%d %s media.start=%v", launched.Code, launched.Body.String(), media.start)
+	}
+	input.status = host.RemoteInputStatus{State: host.RemoteInputAttached, Ready: true}
+
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/development-core", strings.NewReader("fcore"))
+	request.Host = "127.0.0.1"
+	request.Header.Set("Content-Type", "application/octet-stream")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code == http.StatusOK || !strings.Contains(response.Body.String(), `"code":"INTERNAL"`) ||
+		!strings.Contains(response.Body.String(), `"phase":"recovery"`) || len(input.detach) != 1 ||
+		input.status.State != host.RemoteInputDetached || len(media.stop) != 0 {
+		t.Fatalf("response=%d %s detach=%v input=%+v media.stop=%v", response.Code, response.Body.String(), input.detach, input.status, media.stop)
+	}
+
+	status := serve(t, handler, http.MethodGet, "/api/v1/session")
+	if status.Code != http.StatusOK || !strings.Contains(status.Body.String(), `"state":"active"`) ||
+		!strings.Contains(status.Body.String(), `"execution":"host_only"`) ||
+		!strings.Contains(status.Body.String(), `"game_id":"host-game"`) ||
+		!strings.Contains(status.Body.String(), `"media":"active"`) {
+		t.Fatalf("preserved host ownership status=%d %s", status.Code, status.Body.String())
+	}
+}
+
 func TestSessionDevelopmentCorePublishesNewOwnerBeforeMediaCleanupFailure(t *testing.T) {
 	gameID, system := "host-game", protocol.SystemSNES
 	core := "fes.pong"
