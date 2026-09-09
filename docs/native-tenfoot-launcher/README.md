@@ -91,9 +91,18 @@ bin/fogcast-tenfoot -input-profile identity
 FOGCAST_INPUT_PROFILE=swap-ab bin/fogcast-tenfoot
 bin/fogcast-tenfoot -theme arcade
 FOGCAST_THEME=night bin/fogcast-tenfoot
+bin/fogcast-tenfoot -debug-hud
+FOGCAST_DEBUG_HUD=1 bin/fogcast-tenfoot
 bin/fogcast-tenfoot -gfx fpga
 TENFOOT_GFX=fpga-stub bin/fogcast-tenfoot
 ```
+
+`-debug-hud` (or `FOGCAST_DEBUG_HUD=1`, or `tenfoot.json` `debug_hud`) paints
+an optional corner overlay with the current `flight_id`, kit lease generation
+and TTL, and last launch/stop error. It is off by default and uses the active
+theme's status/caption tokens. Launch, stop, focus, and nav actions send
+client wall + monotonic clocks on the existing host session path and to
+`POST /api/v1/debug/ui-events`.
 
 Look tokens (`host/tenfoot/theme`) are shared with the kit grid. `-theme`
 selects a built-in or pack name (`default`/`classic`, `arcade`/`neon`,

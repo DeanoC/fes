@@ -158,12 +158,39 @@
     return `/api/v1/presentation/media/${value}`;
   }
 
-  function launchRequest(game) {
+  function clientStamp(flightId) {
+    const mono = (typeof performance !== 'undefined' && typeof performance.now === 'function')
+      ? Math.round(performance.now())
+      : 0;
+    const stamp = {
+      ts_utc: new Date().toISOString(),
+      mono_ms: Number.isFinite(mono) && mono >= 0 ? mono : 0,
+    };
+    const flight = typeof flightId === 'string' ? flightId.trim() : '';
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(flight)) {
+      stamp.flight_id = flight.toLowerCase();
+    }
+    return Object.freeze(stamp);
+  }
+
+  function stampHeaders(stamp) {
+    const headers = {};
+    if (!stamp || typeof stamp !== 'object') return headers;
+    if (stamp.ts_utc) headers['X-FogCast-Client-Ts-Utc'] = String(stamp.ts_utc);
+    if (Number.isFinite(stamp.mono_ms) && stamp.mono_ms >= 0) {
+      headers['X-FogCast-Client-Mono-Ms'] = String(Math.round(stamp.mono_ms));
+    }
+    if (stamp.flight_id) headers['X-FogCast-Flight-Id'] = String(stamp.flight_id);
+    return headers;
+  }
+
+  function launchRequest(game, stamp) {
+    const headers = Object.assign({ 'Content-Type': 'application/json' }, stampHeaders(stamp));
     return {
       path: '/api/v1/session/launch',
       options: {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ game_id: game.id }),
       },
     };
@@ -829,6 +856,10 @@
     const media = optionalSessionString(payload, 'media', 'The local host returned an invalid session media state.');
     const progress = own(payload, 'progress') ? parseSessionProgress(payload.progress) : undefined;
     const input = own(payload, 'input') ? parseSessionInput(payload.input) : undefined;
+    const flightRaw = optionalSessionString(payload, 'flight_id', 'The local host returned an invalid session flight id.');
+    const flightID = flightRaw && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(flightRaw)
+      ? flightRaw.toLowerCase()
+      : undefined;
     const result = { state: payload.state };
     if (gameID !== undefined) result.game_id = gameID;
     if (system !== undefined) result.system = system;
@@ -836,6 +867,7 @@
     if (media !== undefined) result.media = media;
     if (progress !== undefined) result.progress = progress;
     if (input !== undefined) result.input = input;
+    if (flightID !== undefined) result.flight_id = flightID;
     return Object.freeze(result);
   }
 
@@ -851,8 +883,32 @@
     return { path: '/api/v1/session', options: { method: 'GET' } };
   }
 
-  function stopRequest() {
-    return { path: '/api/v1/session/stop', options: { method: 'POST' } };
+  function stopRequest(stamp) {
+    const options = { method: 'POST' };
+    const headers = stampHeaders(stamp);
+    if (Object.keys(headers).length) options.headers = headers;
+    return { path: '/api/v1/session/stop', options };
+  }
+
+  function uiEventRequest(kind, detail, stamp) {
+    const clocks = stamp || clientStamp();
+    const payload = {
+      ts_utc: clocks.ts_utc,
+      mono_ms: clocks.mono_ms,
+      layer: 'ui',
+      kind,
+      severity: 'ok',
+      detail: detail && typeof detail === 'object' ? detail : {},
+    };
+    if (clocks.flight_id) payload.flight_id = clocks.flight_id;
+    return {
+      path: '/api/v1/debug/ui-events',
+      options: {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+    };
   }
 
   function attachInputRequest() {
@@ -1216,6 +1272,7 @@
   function createAppController(options = {}) {
     const fetchImpl = options.fetchImpl
       || (typeof root.fetch === 'function' ? root.fetch.bind(root) : null);
+    const uiStampsEnabled = options.uiStamps === true;
     const metadataAdapter = options.metadataAdapter || root.FogCastMetadata;
     const presentationEnabled = options.presentationEnabled === true || root.FogCastPresentationEnabled === true;
     const prefetchVisibleCovers = options.prefetchVisibleCovers === true || root.FogCastPrefetchVisibleCovers === true;
@@ -1267,6 +1324,7 @@
       sessionMessage: '',
       sessionGameTitle: '',
       sessionLiveGame: null,
+      flightId: '',
       activeMutation: null,
       mutationMessage: '',
       catalogState: 'loading',
@@ -1483,7 +1541,44 @@
       if (wasMutating && !state.selectedLiveGame) state.selectedGameView = null;
     }
 
+    function rememberFlight(session) {
+      if (session && typeof session.flight_id === 'string' && session.flight_id) {
+        state.flightId = session.flight_id;
+      }
+    }
+
+    function postUIEvent(kind, detail) {
+      if (!uiStampsEnabled || !fetchImpl) return;
+      const spec = uiEventRequest(kind, detail, clientStamp(state.flightId));
+      Promise.resolve(request(fetchImpl, spec.path, spec.options)).catch(() => {});
+    }
+
+    let lastFocusKey = '';
+    let lastNavKey = '';
+
+    function stampFocus(game) {
+      const id = game && game.id ? String(game.id) : '';
+      if (!id || id === lastFocusKey) return;
+      lastFocusKey = id;
+      postUIEvent('ui.focus', { game_id: id, title: game.title || '' });
+    }
+
+    function stampNav(reason, extra) {
+      const key = [reason, state.libraryView || '', state.catalogLayout || '', state.collection || '', state.platformQuery || ''].join('|');
+      if (key === lastNavKey) return;
+      lastNavKey = key;
+      const detail = Object.assign({
+        reason: String(reason || ''),
+        view: state.libraryView || '',
+        layout: state.catalogLayout || '',
+        collection: state.collection || '',
+        platform: state.platformQuery || '',
+      }, extra && typeof extra === 'object' ? extra : {});
+      postUIEvent('ui.nav', detail);
+    }
+
     function acceptSession(session) {
+      rememberFlight(session);
       state.session = session;
       state.sessionAuthority = 'authoritative';
       state.sessionPhase = sessionViewState(session);
@@ -1750,8 +1845,14 @@
       try {
         const payload = await operation();
         mutation.stopResponseValid = mutation.kind === 'stop';
-        if (mutation.kind === 'launch') mutation.launchResponse = validateLaunchSuccess(payload, mutation.requestedID);
-        else if (mutation.kind === 'stop') mutation.stopResponseValid = Boolean(validateStopSuccess(payload));
+        if (mutation.kind === 'launch') {
+          mutation.launchResponse = validateLaunchSuccess(payload, mutation.requestedID);
+          rememberFlight(mutation.launchResponse);
+        } else if (mutation.kind === 'stop') {
+          const stopped = validateStopSuccess(payload);
+          mutation.stopResponseValid = Boolean(stopped);
+          rememberFlight(stopped);
+        }
         else mutation.inputResponseValid = Boolean(validateInputMutationSuccess(payload));
       } catch (error) {
         operationError = error;
@@ -1782,7 +1883,9 @@
       state.launchMessage = '';
       emit();
       try {
-        const requestSpec = launchRequest(selected);
+        const stamp = clientStamp(state.flightId);
+        postUIEvent('ui.launch', { game_id: selected.id, title: selected.title || '' });
+        const requestSpec = launchRequest(selected, stamp);
         const response = await request(fetchImpl, requestSpec.path, requestSpec.options);
         validateLaunchSuccess(response, selected.id);
         if (sequence !== state.launchSequence || selectionRevision !== state.selectionRevision) return snapshot();
@@ -1814,7 +1917,9 @@
       };
       state.statusSequence += 1;
       return runMutation(mutation, async () => {
-        const requestSpec = launchRequest(selected);
+        const stamp = clientStamp(state.flightId);
+        postUIEvent('ui.launch', { game_id: selected.id, title: selected.title || '' });
+        const requestSpec = launchRequest(selected, stamp);
         return request(fetchImpl, requestSpec.path, requestSpec.options);
       });
     }
@@ -1834,7 +1939,9 @@
       };
       state.statusSequence += 1;
       return runMutation(mutation, async () => {
-        const spec = stopRequest();
+        const stamp = clientStamp(state.flightId);
+        postUIEvent('ui.stop', { game_id: state.session && state.session.game_id ? state.session.game_id : '' });
+        const spec = stopRequest(stamp);
         return request(fetchImpl, spec.path, spec.options);
       });
     }
@@ -2329,6 +2436,7 @@
       state.collection = '';
       clearHomePlatformFilter();
       state.homeRails = Object.freeze([]);
+      stampNav('home');
       return loadHomeRails();
     }
 
@@ -2348,6 +2456,7 @@
         ...state.filters,
         system: state.platformQuery,
       });
+      stampNav('library');
       return loadCatalog(state.query);
     }
 
@@ -2777,6 +2886,7 @@
       state.selectedLiveGame = fresh;
       state.selectedGameView = index >= 0 ? state.gameViews[index] : Object.freeze({ live: fresh, presentation: enrich(fresh).presentation });
       state.detailState = 'loading';
+      stampFocus(fresh);
       emit();
       if (!presentationEnabled) return refreshDetail(id);
       await Promise.all([refreshDetail(id), refreshPresentation(id)]);
@@ -2819,6 +2929,7 @@
       if (layout !== 'cover' && layout !== 'list') return snapshot();
       if (state.catalogLayout === layout) return snapshot();
       state.catalogLayout = layout;
+      stampNav('layout', { layout });
       return emit();
     }
 
@@ -2865,6 +2976,9 @@
     mediaPath,
     parsePresentation,
     launchRequest,
+    clientStamp,
+    stampHeaders,
+    uiEventRequest,
     sessionRequest,
     stopRequest,
     attachInputRequest,
@@ -5522,6 +5636,7 @@
   controller = createAppController({
     metadataAdapter: root.FogCastMetadata,
     onStateChange: handleStateChange,
+    uiStamps: true,
   });
   state = controller.getState();
   nodes.refresh.addEventListener('click', loadCatalog);

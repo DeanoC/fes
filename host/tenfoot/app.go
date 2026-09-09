@@ -281,6 +281,13 @@ type Snapshot struct {
 	Screenshots     map[string]*image.RGBA
 	Preview         PreviewSnapshot
 	Theme           theme.Theme
+	DebugHUD        DebugHUDSnapshot
+}
+
+// DebugHUDSnapshot is the optional corner overlay (off by default).
+type DebugHUDSnapshot struct {
+	Enabled bool
+	Lines   []string
 }
 
 // App owns catalog, focus, async covers, and host launch. SDL stays out.
@@ -404,6 +411,10 @@ type App struct {
 	retryStopHint          string
 	sessionEvents          []SessionEvent
 	sessionEventAfter      uint64
+	flightID               string
+	lastFocusKey           string
+	lastNavKey             string
+	debugHUD               bool
 	kitLease               KitLeaseStatus
 	kitLeaseHave           bool
 	developmentRBFPath     string
@@ -855,6 +866,7 @@ func (a *App) cyclePlatformLocked(delta int) {
 		return
 	}
 	a.platformID = next
+	a.stampNavLocked("platform")
 	a.reloadLocked()
 }
 
@@ -901,6 +913,7 @@ func (a *App) setCollectionLocked(id string) {
 	}
 	a.collectionID = id
 	a.normalizeSortForCollectionLocked()
+	a.stampNavLocked("collection")
 	a.reloadLocked()
 }
 
@@ -1233,7 +1246,18 @@ func (a *App) Snapshot() Snapshot {
 		Screenshots:     a.screenshotImagesLocked(),
 		Preview:         a.previewSnapshotLocked(),
 		Theme:           a.theme.Complete(),
+		DebugHUD:        a.debugHUDSnapshotLocked(),
 	}
+}
+
+// SetDebugHUD enables the optional corner overlay (gen, lease ttl, last error).
+func (a *App) SetDebugHUD(on bool) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.debugHUD = on
 }
 
 // SetGamepads records how many gamepads SDL currently has open.
@@ -1477,6 +1501,7 @@ func (a *App) moveFocusLocked(dx, dy int) {
 	if a.grid.Focus != before {
 		a.navDirty = true
 		a.carouselIndex = 0
+		a.stampFocusLocked()
 		return
 	}
 	if dy > 0 && len(a.games) > 0 {
@@ -1493,6 +1518,10 @@ func (a *App) focusIndex(i int) bool {
 	if a.grid.Focus != i {
 		a.navDirty = true
 		a.carouselIndex = 0
+		a.grid.Focus = i
+		a.grid.ensureVisible()
+		a.stampFocusLocked()
+		return true
 	}
 	a.grid.Focus = i
 	a.grid.ensureVisible()
@@ -1539,7 +1568,12 @@ func (a *App) startLaunchGameLocked(game Game) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	go a.doLaunch(ctx, game)
+	stamp := a.clientStampLocked()
+	a.postUIEventLocked("ui.launch", map[string]string{
+		"game_id": game.ID,
+		"title":   game.Title,
+	})
+	go a.doLaunch(ctx, game, stamp)
 }
 
 // launchBlockReason mirrors ui_shell launchBlockReason: unavailable titles
@@ -1560,8 +1594,8 @@ func launchBlockReason(game Game) string {
 	return ""
 }
 
-func (a *App) doLaunch(ctx context.Context, game Game) {
-	result, err := a.client.Launch(ctx, game.ID)
+func (a *App) doLaunch(ctx context.Context, game Game, stamp ClientStamp) {
+	result, err := a.client.LaunchStamped(ctx, game.ID, stamp)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.launch.GameID != game.ID {
@@ -1616,11 +1650,16 @@ func (a *App) startStopLocked() {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	go a.doStop(ctx)
+	stamp := a.clientStampLocked()
+	a.postUIEventLocked("ui.stop", map[string]string{
+		"game_id": a.session.GameID,
+		"state":   a.session.State,
+	})
+	go a.doStop(ctx, stamp)
 }
 
-func (a *App) doStop(ctx context.Context) {
-	result, err := a.client.Stop(ctx)
+func (a *App) doStop(ctx context.Context, stamp ClientStamp) {
+	result, err := a.client.StopStamped(ctx, stamp)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.stopPhase != "stopping" {
@@ -1927,6 +1966,7 @@ func (a *App) applySessionLocked(result SessionResult) {
 		return
 	}
 	a.session = result
+	a.rememberFlightLocked(result.FlightID)
 	if result.State != "active" {
 		a.session.GameID = ""
 		a.session.System = ""
@@ -2100,6 +2140,7 @@ func (a *App) fetchSessionEvents(ctx context.Context) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.sessionEvents, a.sessionEventAfter = mergeSessionEvents(a.sessionEvents, events, after)
+	a.rememberFlightsFromEventsLocked(events)
 	retain, ev := eventsRetainRetryStop(a.sessionEvents)
 	if !retain || !a.sessionLiveLocked() {
 		return

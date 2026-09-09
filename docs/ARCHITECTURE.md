@@ -307,12 +307,13 @@ Native SDL3 UI
     players, summary, screenshot_ids, video_id, year, genre, attribution)
   -> GET /api/v1/library/attract (idle video then stills; artwork via the same presentation artwork GET)
   -> GET /api/v1/library/settings and PATCH /api/v1/library/settings (idle seconds, preferred regions, selected target, library roots)
-  -> POST /api/v1/session/launch
+  -> POST /api/v1/session/launch (optional client_ts_utc / client_mono_ms JSON or X-FogCast-Client-* headers)
   -> POST /api/v1/session/development-rbf (raw octet-stream from a local path OSK)
-  -> GET /api/v1/session (poll; now-playing or DIAGNOSTIC development chrome)
-  -> GET /api/v1/session/events?after= (poll; sofa event list; additive flight_id)
+  -> GET /api/v1/session (poll; now-playing or DIAGNOSTIC development chrome; additive flight_id)
+  -> GET /api/v1/session/events?after= (poll; sofa event list; additive flight_id plus host/client clocks)
+  -> POST /api/v1/debug/ui-events and GET /api/v1/debug/ui-events?after= (sofa/tenfoot focus/nav/launch/stop stamps; not a kit mutation)
   -> GET /api/v1/session/preview (optional MJPEG; 404/503/inactive is unavailable)
-  -> POST /api/v1/session/stop
+  -> POST /api/v1/session/stop (empty body or optional client stamp JSON; X-FogCast-Client-* headers)
   -> GET /api/v1/health (poll; kit chrome)
   -> GET /api/v1/status (503 TARGET_UNAVAILABLE treated as kit-down)
   -> GET /v1/kit/lease on the selected target address (status-only lease strip)
@@ -327,11 +328,19 @@ per session launch, development-RBF or described-package load, and per
 orphaned stop. Related events in that flight (launch through active through
 stop of that session) repeat the same id. User stop of an active session
 reuses the launch id. A failed launch leaves the previous id in place. The
-field is omitted until a flight has been allocated.
+field is omitted until a flight has been allocated. Every event also carries
+host `ts_utc` and `mono_ms`. When tenfoot or the sofa browser stamps a
+launch/stop, the matching event repeats `client_ts_utc` and `client_mono_ms`.
+Invalid client clocks are ignored and do not fail the mutation. The current
+`flight_id` is also additive on `GET /api/v1/session` and on launch/stop
+responses. Focus and nav stamps, plus a copy of launch/stop actions, go to
+`POST /api/v1/debug/ui-events` (`layer=ui`, kinds `ui.launch` / `ui.stop` /
+`ui.focus` / `ui.nav`); fog-flight joins those rows to host and target events
+by `flight_id` when it is present. Token-like detail keys are dropped.
 
 TV overscan insets, sofa layout (`grid`, `shelf`, or `list`), the local
-attract on/off gate, and the look name are local to the tenfoot process (CLI `-safe-area` /
-`-layout` / `-no-attract` / `-theme` and optional `tenfoot.json` prefs). There is no host
+attract on/off gate, the look name, and the optional debug HUD are local to the tenfoot process (CLI `-safe-area` /
+`-layout` / `-no-attract` / `-theme` / `-debug-hud` and optional `tenfoot.json` prefs). There is no host
 safe-area or layout API. Host attract idle, preferred regions, selected target, library roots, and
 targets use the existing public library settings endpoints. Tenfoot can add,
 edit, and remove targets from the sofa settings overlay. Agent secrets are
