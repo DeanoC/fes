@@ -10,6 +10,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/applianceupdate"
 	"github.com/DeanoC/FogCast/internal/cast"
 	"github.com/DeanoC/FogCast/internal/core"
+	"github.com/DeanoC/FogCast/internal/flightdiag"
 	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -32,6 +33,7 @@ type serverOptions struct {
 	input       InputController
 	cast        CastController
 	development DevelopmentController
+	diagnostics DiagnosticController
 	update      *applianceupdate.Service
 }
 
@@ -45,6 +47,17 @@ func WithContent(controller ContentController) Option {
 	return func(options *serverOptions) {
 		options.content = controller
 	}
+}
+
+// DiagnosticController is the read-mostly target debug surface. The
+// pre-reboot snapshot is separately admitted by the current kit lease.
+type DiagnosticController interface {
+	Events(limit int) []flightdiag.Event
+	SnapshotBeforeReboot(flightdiag.SnapshotRequest) (flightdiag.SnapshotResult, error)
+}
+
+func WithDiagnostics(controller DiagnosticController) Option {
+	return func(options *serverOptions) { options.diagnostics = controller }
 }
 
 func WithInput(controller InputController) Option {

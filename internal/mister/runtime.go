@@ -7,9 +7,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/core"
+	"github.com/DeanoC/FogCast/internal/flightdiag"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -38,10 +40,45 @@ type Runtime struct {
 	writer       CommandWriter
 	process      ProcessChecker
 	pollInterval time.Duration
+	events       flightdiag.Sink
+	processMu    sync.Mutex
+	processKnown bool
+	processState bool
 }
 
-func NewRuntime(paths Paths, registry core.Registry, writer CommandWriter, process ProcessChecker, pollInterval time.Duration) *Runtime {
-	return &Runtime{paths: paths, registry: registry, writer: writer, process: process, pollInterval: pollInterval}
+func NewRuntime(paths Paths, registry core.Registry, writer CommandWriter, process ProcessChecker, pollInterval time.Duration, options ...RuntimeOption) *Runtime {
+	runtime := &Runtime{paths: paths, registry: registry, writer: writer, process: process, pollInterval: pollInterval}
+	for _, option := range options {
+		if option != nil {
+			option(runtime)
+		}
+	}
+	return runtime
+}
+
+type RuntimeOption func(*Runtime)
+
+func WithEventSink(sink flightdiag.Sink) RuntimeOption {
+	return func(runtime *Runtime) { runtime.ConfigureDiagnostics(sink) }
+}
+
+func (r *Runtime) ConfigureDiagnostics(sink flightdiag.Sink) {
+	r.events = sink
+	if writer, ok := r.writer.(interface{ ConfigureDiagnostics(flightdiag.Sink) }); ok {
+		writer.ConfigureDiagnostics(sink)
+	}
+}
+
+func (r *Runtime) record(kind, severity string, detail map[string]any) {
+	if r.events == nil {
+		return
+	}
+	r.events.Append(flightdiag.Event{
+		Layer:    flightdiag.LayerRuntime,
+		Kind:     kind,
+		Severity: severity,
+		Detail:   detail,
+	})
 }
 
 func (r *Runtime) Prepare(spec core.Spec, romPath string) (PreparedLaunch, *protocol.APIError) {
@@ -69,13 +106,35 @@ func (r *Runtime) prerequisitesReady(spec core.Spec) bool {
 }
 
 type FileCommandWriter struct {
-	Path string
+	Path   string
+	events flightdiag.Sink
+}
+
+func (w *FileCommandWriter) ConfigureDiagnostics(sink flightdiag.Sink) {
+	w.events = sink
 }
 
 func (w FileCommandWriter) Write(ctx context.Context, command string) error {
 	done := make(chan error, 1)
 	go func() {
 		f, err := os.OpenFile(w.Path, os.O_WRONLY, 0)
+		if err != nil {
+			if w.events != nil {
+				w.events.Append(flightdiag.Event{
+					Layer:    flightdiag.LayerRuntime,
+					Kind:     flightdiag.KindCapFDOpen,
+					Severity: "error",
+					Detail:   map[string]any{"ok": false},
+				})
+			}
+		} else if w.events != nil {
+			w.events.Append(flightdiag.Event{
+				Layer:    flightdiag.LayerRuntime,
+				Kind:     flightdiag.KindCapFDOpen,
+				Severity: "ok",
+				Detail:   map[string]any{"ok": true},
+			})
+		}
 		if err == nil {
 			var written int
 			written, err = f.WriteString(command)
@@ -110,6 +169,9 @@ func (r *Runtime) observe(ctx context.Context, expected string) (string, *protoc
 	last := ""
 	for {
 		if current, err := r.readCoreName(); err == nil {
+			if current != last {
+				r.record(flightdiag.KindCoreNameChange, "ok", map[string]any{"observed": current, "expected": expected})
+			}
 			last = current
 			if current == expected {
 				return current, nil
@@ -132,8 +194,10 @@ func (r *Runtime) Launch(ctx context.Context, prepared PreparedLaunch) (string, 
 		return r.currentCore(), false, &protocol.APIError{Code: protocol.CodeInternal, Message: "transient MGL could not be installed"}
 	}
 	if err := r.writer.Write(ctx, "load_core "+path+"\n"); err != nil {
+		r.record(flightdiag.KindFIFODispatch, "error", map[string]any{"operation": "launch", "ok": false})
 		return r.currentCore(), true, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "MiSTer command could not be dispatched"}
 	}
+	r.record(flightdiag.KindFIFODispatch, "ok", map[string]any{"operation": "launch", "ok": true})
 	observed, apiErr := r.observe(ctx, prepared.Spec.ExpectedCore)
 	return observed, true, apiErr
 }
@@ -143,19 +207,24 @@ func (r *Runtime) LoadDevelopmentRBF(ctx context.Context, size int64, content io
 		return r.currentCore(), false, &protocol.APIError{Code: protocol.CodeInternal, Message: "development RBF could not be installed"}
 	}
 	if err := r.writer.Write(ctx, "load_core "+r.paths.DevelopmentRBF+"\n"); err != nil {
+		r.record(flightdiag.KindFIFODispatch, "error", map[string]any{"operation": "development_rbf", "ok": false})
 		return r.currentCore(), true, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "MiSTer command could not be dispatched"}
 	}
+	r.record(flightdiag.KindFIFODispatch, "ok", map[string]any{"operation": "development_rbf", "ok": true})
 	return r.currentCore(), true, nil
 }
 
 func (r *Runtime) Stop(ctx context.Context) (string, *protocol.APIError) {
 	if err := r.writer.Write(ctx, "load_core "+r.paths.MenuRBF+"\n"); err != nil {
+		r.record(flightdiag.KindFIFODispatch, "error", map[string]any{"operation": "stop", "ok": false})
 		return r.currentCore(), &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "Menu-core command could not be dispatched"}
 	}
+	r.record(flightdiag.KindFIFODispatch, "ok", map[string]any{"operation": "stop", "ok": true})
 	return r.observe(ctx, "MENU")
 }
 
 func (r *Runtime) RecoverDevelopment(ctx context.Context) (string, *protocol.APIError) {
+	r.record(flightdiag.KindFenceRecovery, "warn", map[string]any{"operation": "development_reboot"})
 	if err := ctx.Err(); err != nil {
 		return r.currentCore(), &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "development-core recovery was cancelled"}
 	}
@@ -178,10 +247,33 @@ func (r *Runtime) currentCore() string {
 
 func (r *Runtime) Health(version string) protocol.Health {
 	process := r.process.Running(r.paths.MiSTerProcessComm)
+	r.observeProcess(process)
 	_, pipeErr := os.Stat(r.paths.CommandPipe)
 	pipe := pipeErr == nil
 	bootID, _ := os.ReadFile(r.paths.BootIDFile)
 	return protocol.Health{APIVersion: "v1", AgentVersion: version, Ready: process && pipe, MiSTerProcess: process, CommandPipe: pipe, BootID: strings.TrimSpace(string(bootID))}
+}
+
+func (r *Runtime) observeProcess(running bool) {
+	r.processMu.Lock()
+	defer r.processMu.Unlock()
+	if !r.processKnown {
+		r.processKnown = true
+		r.processState = running
+		if running {
+			r.record(flightdiag.KindMainStart, "ok", map[string]any{"observed": true})
+		}
+		return
+	}
+	if running == r.processState {
+		return
+	}
+	r.processState = running
+	if running {
+		r.record(flightdiag.KindMainAppRestart, "warn", map[string]any{"observed": true})
+	} else {
+		r.record(flightdiag.KindMainExit, "warn", map[string]any{"observed": false})
+	}
 }
 
 func (r *Runtime) Reconcile(ctx context.Context) protocol.Status {

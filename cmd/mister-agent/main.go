@@ -21,6 +21,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/cast"
 	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/discovery"
+	"github.com/DeanoC/FogCast/internal/flightdiag"
 	"github.com/DeanoC/FogCast/internal/httpapi"
 	"github.com/DeanoC/FogCast/internal/input"
 	"github.com/DeanoC/FogCast/internal/kitlease"
@@ -116,7 +117,7 @@ func runtimeDependencies(backend runtimeBackend, nativeControl misterruntime.Con
 				DevelopmentRBF:    developmentRBFPath,
 				RebootCommand:     rebootCommand,
 			}
-			return mister.NewRuntime(paths, registry, mister.FileCommandWriter{Path: cfg.CommandPipe}, mister.ProcProcessChecker{Root: "/proc"}, 25*time.Millisecond)
+			return mister.NewRuntime(paths, registry, &mister.FileCommandWriter{Path: cfg.CommandPipe}, mister.ProcProcessChecker{Root: "/proc"}, 25*time.Millisecond)
 		}
 		return dependencies, nil
 	}
@@ -185,13 +186,18 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		}
 		defer inputController.Close()
 	}
+	diagnostics := flightdiag.NewRecorder(flightdiag.DefaultVaultRoot)
 	runtime := dependencies.newRuntime(cfg, registry)
+	if configurable, ok := runtime.(interface{ ConfigureDiagnostics(flightdiag.Sink) }); ok {
+		configurable.ConfigureDiagnostics(diagnostics)
+	}
 	if dependencies.configureRuntime != nil {
 		if err := dependencies.configureRuntime(runtime, inputController); err != nil {
 			return errors.New("native input replacement barrier could not be configured")
 		}
 	}
-	coordinator := agent.New(runtime, registry, 10*time.Second, 5*time.Second, agent.WithOperationContext(ctx))
+	coordinator := agent.New(runtime, registry, 10*time.Second, 5*time.Second,
+		agent.WithOperationContext(ctx), agent.WithEventSink(diagnostics))
 	content := agent.NewContentController(coordinator, cache)
 	startup, cancel := context.WithTimeout(ctx, 40*time.Second)
 	coordinator.Initialize(startup)
@@ -272,9 +278,9 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 			cleanupErr = errors.Join(cleanupErr, errors.New("kit runtime did not become idle"))
 		}
 		return cleanupErr
-	})
+	}, kitlease.WithEventSink(diagnostics))
 	defer leases.Close()
-	options = append(options, httpapi.WithKitLease(leases))
+	options = append(options, httpapi.WithKitLease(leases), httpapi.WithDiagnostics(diagnostics))
 	handler := httpapi.New(coordinator, cfg.Token, version.Version, logger, options...)
 	server := &http.Server{
 		Addr:              cfg.ListenAddress,

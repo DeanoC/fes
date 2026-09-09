@@ -41,6 +41,18 @@ media. The target agent owns its HTTP API, cache, transient MGLs, and launch
 requests. The MiSTer/Main-compatible process owns FPGA programming and the
 MiSTer core services.
 
+The target agent also exposes an authenticated, read-mostly diagnostic surface
+on the existing kit listener: `GET /v1/kit/debug/events` returns the bounded
+target event ring, and the lease-admitted
+`POST /v1/kit/debug/snapshot-before-reboot` writes a diagnostic evidence
+directory before an intentional reboot. The latter records the ring window and
+bounded evidence for the journal, owner, `/tmp/CORENAME`, FPGA-manager state,
+and a FAT-side note. It reuses the current kit lease and does not create a
+third process or bypass the existing runtime path. `flight_id` is the optional
+canonical host UUID v4 from #205 and is retained only when a caller already has
+one; `lease_gen` and `run_id` remain opaque join strings. The target never
+invents host event schema or joins through the launcher listener.
+
 These are simple process boundaries on a local, disposable development kit;
 they are not a distributed ownership, failover, or recovery protocol.
 
