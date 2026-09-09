@@ -2,10 +2,13 @@ package tenfoot
 
 import (
 	"context"
+	"errors"
 	"image"
 	"strings"
 	"sync"
 )
+
+var errNoArtwork = errors.New("artwork is unavailable")
 
 const maxCoverFetches = 3
 
@@ -14,9 +17,17 @@ type ArtworkFetcher interface {
 	Artwork(ctx context.Context, handle string) ([]byte, string, error)
 }
 
+// ArtworkStore is an optional durable cache of raw artwork bytes keyed by
+// 64-hex handle. Request reads it before HTTP and writes successful fetches.
+type ArtworkStore interface {
+	LoadArtwork(handle string) ([]byte, bool)
+	SaveArtwork(handle string, data []byte) error
+}
+
 // CoverCache holds decoded catalog covers by artwork handle. Request never
 // waits on the network; Keep drops handles that are no longer on the visible
-// page or the following prefetch page.
+// page or the following prefetch page. Disk hits stay in RAM until Keep drops
+// them the same way network hits do.
 type CoverCache struct {
 	mu       sync.Mutex
 	images   map[string]*image.RGBA
@@ -25,6 +36,7 @@ type CoverCache struct {
 	wanted   map[string]struct{}
 	gen      uint64
 	decode   func([]byte) (*image.RGBA, error)
+	store    ArtworkStore
 }
 
 // NewCoverCache returns an empty handle cache that decodes catalog covers.
@@ -110,6 +122,32 @@ func (c *CoverCache) Generation() uint64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.gen
+}
+
+// SetStore attaches a durable artwork blob store. Request reads it before
+// HTTP. A nil store returns CoverCache to RAM-only fetches.
+func (c *CoverCache) SetStore(store ArtworkStore) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	c.store = store
+	c.mu.Unlock()
+}
+
+// ClearFailed drops fetch failures so the next Request can retry, including
+// after the host becomes reachable again.
+func (c *CoverCache) ClearFailed() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.failed) == 0 {
+		return
+	}
+	c.failed = map[string]struct{}{}
+	c.gen++
 }
 
 // PageHandles returns unique catalog cover handles in games[start:end].
@@ -241,8 +279,9 @@ func clampPage(games []Game, start, end int) (int, int) {
 }
 
 // Request starts fetches for unknown handles and returns immediately.
+// A nil client is allowed when a store can still satisfy disk hits.
 func (c *CoverCache) Request(ctx context.Context, client ArtworkFetcher, handles []string) {
-	if c == nil || client == nil {
+	if c == nil {
 		return
 	}
 	for _, handle := range handles {
@@ -251,11 +290,12 @@ func (c *CoverCache) Request(ctx context.Context, client ArtworkFetcher, handles
 			continue
 		}
 		c.mu.Lock()
+		store := c.store
 		_, have := c.images[handle]
 		_, failed := c.failed[handle]
 		_, busy := c.inflight[handle]
 		slots := len(c.inflight)
-		if have || failed || busy || slots >= maxCoverFetches {
+		if have || failed || busy || slots >= maxCoverFetches || (client == nil && store == nil) {
 			c.mu.Unlock()
 			continue
 		}
@@ -303,15 +343,45 @@ func (c *CoverCache) Keep(handles []string) {
 }
 
 func (c *CoverCache) fetch(ctx context.Context, client ArtworkFetcher, handle string) {
-	data, _, err := client.Artwork(ctx, handle)
-	var img *image.RGBA
-	if err == nil {
-		decode := c.decode
-		if decode == nil {
-			decode = DecodeCover
+	c.mu.Lock()
+	store := c.store
+	decode := c.decode
+	c.mu.Unlock()
+	if decode == nil {
+		decode = DecodeCover
+	}
+
+	var (
+		data []byte
+		img  *image.RGBA
+		err  error
+	)
+	if store != nil {
+		if blob, ok := store.LoadArtwork(handle); ok {
+			img, err = decode(blob)
+			if err == nil && img != nil {
+				c.finishFetch(handle, img, nil)
+				return
+			}
+			err = nil
+			img = nil
 		}
+	}
+	if client == nil {
+		c.finishFetch(handle, nil, errNoArtwork)
+		return
+	}
+	data, _, err = client.Artwork(ctx, handle)
+	if err == nil {
 		img, err = decode(data)
 	}
+	if err == nil && img != nil && store != nil && len(data) > 0 {
+		_ = store.SaveArtwork(handle, data)
+	}
+	c.finishFetch(handle, img, err)
+}
+
+func (c *CoverCache) finishFetch(handle string, img *image.RGBA, err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.inflight, handle)

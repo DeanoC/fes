@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -172,6 +173,97 @@ func TestCoverCacheRequestDoesNotBlock(t *testing.T) {
 	}
 }
 
+func TestCoverCacheLoadsFromStoreWithoutHTTP(t *testing.T) {
+	t.Parallel()
+	handle := strings.Repeat("ab", 32)
+	store := &memArtworkStore{blobs: map[string][]byte{handle: solidPNG(t, color.RGBA{R: 10, G: 200, B: 30, A: 255})}}
+	cache := NewCoverCache()
+	cache.SetStore(store)
+	cache.Keep([]string{handle})
+	cache.Request(context.Background(), nil, []string{handle})
+	waitCover(t, cache, handle)
+	img := cache.Image(handle)
+	if img == nil {
+		t.Fatal("disk cover missing")
+	}
+	r, g, b, a := img.At(0, 0).RGBA()
+	if r>>8 > 40 || g>>8 < 150 || b>>8 > 50 || a>>8 != 255 {
+		t.Fatalf("decoded pixel = %d %d %d %d", r, g, b, a)
+	}
+	if store.loads.Load() != 1 {
+		t.Fatalf("loads = %d", store.loads.Load())
+	}
+	if store.saves.Load() != 0 {
+		t.Fatalf("disk hit rewrote cover saves=%d", store.saves.Load())
+	}
+}
+
+func TestCoverCachePersistsFetchedArtwork(t *testing.T) {
+	t.Parallel()
+	handle := strings.Repeat("cd", 32)
+	var gets atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gets.Add(1)
+		writeSolidPNG(t, w, color.RGBA{R: 200, G: 10, B: 30, A: 255})
+	}))
+	t.Cleanup(server.Close)
+	store := &memArtworkStore{blobs: map[string][]byte{}}
+	cache := NewCoverCache()
+	cache.SetStore(store)
+	cache.Keep([]string{handle})
+	cache.Request(context.Background(), NewClient(server.URL, server.Client()), []string{handle})
+	waitCover(t, cache, handle)
+	if gets.Load() != 1 {
+		t.Fatalf("gets = %d", gets.Load())
+	}
+	if store.saves.Load() != 1 {
+		t.Fatalf("saves = %d", store.saves.Load())
+	}
+	if _, ok := store.LoadArtwork(handle); !ok {
+		t.Fatal("fetched cover was not stored")
+	}
+	cache.Keep([]string{})
+	if cache.Image(handle) != nil {
+		t.Fatal("RAM cover should evict")
+	}
+	cache.Keep([]string{handle})
+	cache.Request(context.Background(), NewClient(server.URL, server.Client()), []string{handle})
+	waitCover(t, cache, handle)
+	if gets.Load() != 1 {
+		t.Fatalf("disk hit used HTTP gets=%d", gets.Load())
+	}
+}
+
+func TestCoverCacheClearFailedRetries(t *testing.T) {
+	t.Parallel()
+	handle := strings.Repeat("ef", 32)
+	var gets atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := gets.Add(1)
+		if n == 1 {
+			http.Error(w, "down", http.StatusBadGateway)
+			return
+		}
+		writeSolidPNG(t, w, color.RGBA{R: 10, G: 20, B: 200, A: 255})
+	}))
+	t.Cleanup(server.Close)
+	cache := NewCoverCache()
+	cache.Keep([]string{handle})
+	cache.Request(context.Background(), NewClient(server.URL, server.Client()), []string{handle})
+	waitGeneration(t, cache, func(c *CoverCache) bool { return c.Status(handle) == CoverFailed })
+	cache.Request(context.Background(), NewClient(server.URL, server.Client()), []string{handle})
+	time.Sleep(20 * time.Millisecond)
+	if gets.Load() != 1 {
+		t.Fatalf("retried failed handle gets=%d", gets.Load())
+	}
+	cache.ClearFailed()
+	cache.Request(context.Background(), NewClient(server.URL, server.Client()), []string{handle})
+	waitCover(t, cache, handle)
+	if gets.Load() != 2 {
+		t.Fatalf("clear failed gets=%d", gets.Load())
+	}
+}
+
 func TestStillCacheDecodesToStillStage(t *testing.T) {
 	t.Parallel()
 	handle := strings.Repeat("ab", 32)
@@ -213,7 +305,46 @@ func TestStillCacheDecodesToStillStage(t *testing.T) {
 	}
 }
 
+type memArtworkStore struct {
+	mu    sync.Mutex
+	blobs map[string][]byte
+	loads atomic.Int64
+	saves atomic.Int64
+}
+
+func (s *memArtworkStore) LoadArtwork(handle string) ([]byte, bool) {
+	s.loads.Add(1)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	data, ok := s.blobs[handle]
+	if !ok {
+		return nil, false
+	}
+	out := make([]byte, len(data))
+	copy(out, data)
+	return out, true
+}
+
+func (s *memArtworkStore) SaveArtwork(handle string, data []byte) error {
+	s.saves.Add(1)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.blobs == nil {
+		s.blobs = map[string][]byte{}
+	}
+	out := make([]byte, len(data))
+	copy(out, data)
+	s.blobs[handle] = out
+	return nil
+}
+
 func writeSolidPNG(t *testing.T, w http.ResponseWriter, c color.RGBA) {
+	t.Helper()
+	w.Header().Set("Content-Type", "image/png")
+	_, _ = w.Write(solidPNG(t, c))
+}
+
+func solidPNG(t *testing.T, c color.RGBA) []byte {
 	t.Helper()
 	src := image.NewRGBA(image.Rect(0, 0, 8, 8))
 	for y := 0; y < 8; y++ {
@@ -225,8 +356,7 @@ func writeSolidPNG(t *testing.T, w http.ResponseWriter, c color.RGBA) {
 	if err := png.Encode(&buf, src); err != nil {
 		t.Fatal(err)
 	}
-	w.Header().Set("Content-Type", "image/png")
-	_, _ = w.Write(buf.Bytes())
+	return buf.Bytes()
 }
 
 func waitCover(t *testing.T, cache *CoverCache, handle string) {

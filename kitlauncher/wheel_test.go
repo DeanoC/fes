@@ -9,6 +9,52 @@ import (
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
+func TestOfflineLocalCatalogBrowsesButDoesNotLaunch(t *testing.T) {
+	m := Model{Connected: false, TargetReady: false, WheelOpen: true}
+	m.SetCatalog(mixedCatalog())
+	now := time.Unix(1, 0)
+	if action := pressNamed(&m, "dpad-right", now); action != "" {
+		t.Fatalf("offline wheel nav launched %q", action)
+	}
+	if m.Shelf != "pong" || !m.WheelOpen {
+		t.Fatalf("offline wheel shelf=%q wheel=%v", m.Shelf, m.WheelOpen)
+	}
+	if action := pressNamed(&m, "r", now); action != "" {
+		t.Fatalf("offline shoulder launched %q", action)
+	}
+	if action := pressNamed(&m, "a", now); action != "" {
+		t.Fatalf("offline wheel A launched %q", action)
+	}
+	if m.WheelOpen || !m.fromWheel || m.Shelf != "megadrive" {
+		t.Fatalf("offline enter wheel=%v from=%v shelf=%q", m.WheelOpen, m.fromWheel, m.Shelf)
+	}
+	right, _ := remoteinput.NormalizeGamepad("dpad-right", true)
+	if action := m.Input(right, now); action != "" {
+		t.Fatalf("offline grid nav launched %q", action)
+	}
+	if m.Focus != 1 || m.Games[m.Focus].ID != "streets" {
+		t.Fatalf("offline grid focus=%d games=%v", m.Focus, ids(m.Games))
+	}
+	if action := pressNamed(&m, "a", now); action != "" {
+		t.Fatalf("offline grid A launched %q", action)
+	}
+	m.fromWheel = false
+	if action := pressNamed(&m, "b", now); action != "" {
+		t.Fatalf("offline detail open launched %q", action)
+	}
+	if !m.DetailOpen {
+		t.Fatal("offline B did not open detail")
+	}
+	if action := pressNamed(&m, "a", now); action != "" {
+		t.Fatalf("offline detail launch %q", action)
+	}
+	m.Connected = true
+	m.TargetReady = true
+	if action := pressNamed(&m, "a", now); action != "launch" {
+		t.Fatalf("online detail A %q", action)
+	}
+}
+
 func TestWheelFocusCyclesPlatformsAndEnterOpensGrid(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true, WheelOpen: true}
 	m.SetCatalog(mixedCatalog())

@@ -193,6 +193,10 @@ func run() error {
 	covers := tenfoot.NewCoverCache()
 	stills := tenfoot.NewStillCache()
 	presentations := tenfoot.NewPresentationCache()
+	if client.Cache != nil {
+		covers.SetStore(client.Cache)
+		stills.SetStore(client.Cache)
+	}
 	last := time.Time{}
 	var lastKey renderKey
 	lastFocus := -1
@@ -209,7 +213,14 @@ func run() error {
 		measured = audioreact.FileSource{Path: levelFile}
 	}
 	audioSource := audioreact.Combined{Measured: measured, Idle: audioreact.IdlePulse{Enabled: audioEnabled}}
+	wasConnected := false
 	present := func(m kitlauncher.Model) {
+		if m.Connected && !wasConnected {
+			covers.ClearFailed()
+			stills.ClearFailed()
+			presentations.ClearFailed()
+		}
+		wasConnected = m.Connected
 		now := time.Now()
 		look := kitLook(m, th)
 		sample := audioreact.Sample{}
@@ -271,8 +282,16 @@ func run() error {
 			}
 			stills.Keep(heroHandles)
 			stills.Request(ctx, client.Library, heroHandles)
-			covers.Keep(logoHandles)
-			covers.Request(ctx, client.Library, logoHandles)
+			start, end := catalogPage(m.Focus, len(m.Games), m.Browse)
+			prefetch := end + fbgrid.BrowsePageSize(m.Browse)
+			if prefetch > len(m.Games) {
+				prefetch = len(m.Games)
+			}
+			coverHandles := append([]string{}, logoHandles...)
+			coverHandles = append(coverHandles, tenfoot.CollectCoverHandles(m.Games, start, prefetch, presentations.Get)...)
+			coverHandles = append(coverHandles, tenfoot.CollectCoverHandles(m.Strip, 0, len(m.Strip), presentations.Get)...)
+			covers.Keep(coverHandles)
+			covers.Request(ctx, client.Library, coverHandles)
 			cfg := d.Config()
 			w, h := cfg.Width, cfg.Height
 			frame := modelWheelFrame(m, covers, stills, presentations, look, w, h)
@@ -900,7 +919,7 @@ func modelFooter(m kitlauncher.Model) string {
 		case m.Busy:
 			status = "Working"
 		case !m.Connected:
-			status = "Host unavailable"
+			status = kitlauncher.OfflineMessage
 		case !m.TargetReady:
 			status = "Kit not ready"
 		case !m.ControllerConnected:

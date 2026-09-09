@@ -76,7 +76,7 @@ func (m *Model) Input(e remoteinput.Event, now time.Time) string {
 		}
 		return ""
 	}
-	if m.Busy || !m.Connected || !m.TargetReady {
+	if m.Busy {
 		return ""
 	}
 	dx, dy := m.padDelta(e)
@@ -126,7 +126,7 @@ func (m *Model) Input(e remoteinput.Event, now time.Time) string {
 				m.openDetail(now)
 				return ""
 			}
-			if len(m.Games) > 0 && m.Focus >= 0 && m.Focus < len(m.Games) && m.Games[m.Focus].Launchable {
+			if len(m.Games) > 0 && m.Focus >= 0 && m.Focus < len(m.Games) && m.Games[m.Focus].Launchable && m.canLaunch() {
 				return "launch"
 			}
 		case remoteinput.ButtonB:
@@ -183,6 +183,12 @@ func (m *Model) axisStep(hold *int, value int32) int {
 	*hold = dir
 	return move
 }
+
+// canLaunch is a host session mutation. Local catalog browse does not need it.
+func (m Model) canLaunch() bool {
+	return m.Connected && m.TargetReady
+}
+
 func (m *Model) Tick(now time.Time) string {
 	if now.IsZero() {
 		now = time.Now()
