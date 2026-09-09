@@ -1,14 +1,15 @@
 # RBF ABI hardware validation — 2026-09-09
 
-Status: **final image built, verified and booted; interactive acceptance pending**.
+Status: **final-image gameplay confirmed; identity-mismatch recovery fix pending**.
 The assembled development image passed structural verification, but standalone
 FES Pong initially failed HDMI initialization, followed by faulty ball motion.
 Hardware diagnostics now verify a nextpnr correction with the original Pong
 RTL: smooth motion, both paddle bounces, and return to centre after a point.
 The final pinned package passed its separate gameplay diagnostic. The final
 image now passes two-pass reproducibility, structural and QEMU checks and boots
-its own matching launcher. Interactive acceptance against that exact image
-remains pending; see the final-image checkpoint below.
+its own matching launcher. The user confirmed both catalog Pong and standalone
+FES Pong play and return to the menu. Negative recovery acceptance remains
+pending; see the checkpoints below.
 
 ## Tested source and artifact identity
 
@@ -208,3 +209,38 @@ inequality before replacement. It retains the previous image as
 Published review dependencies are mister-packages #6, libmister-runtime #19,
 misteross #22, FogCast #200, Yosys #8 and nextpnr #41. FES #12 remains a draft
 until the outstanding exact-image hardware checks finish.
+
+
+## Interactive acceptance and recovery follow-up
+
+On image `866d43a6915b2d6c7fbbddb109ab307d5be9b3d72ed616a9826dac42872cfcbf`,
+the user confirmed catalog Pong launch, play, exit and subsequent menu navigation.
+The user separately confirmed standalone FES Pong play and return to the menu.
+The timed standalone video capture preceded the user's play and does not by
+itself establish the ball's motion during this confirmation.
+
+An unsupported ABI package was rejected during compatibility without replacing
+the active standalone package or its input session. A package with the same
+payload but a deliberately different declared build ID was correctly rejected
+by live identity verification, but automatic MENU recovery failed. An operator
+reboot restored the ordinary launcher; this is not a successful automatic
+recovery result. The runtime cleanup correction remains pending verification.
+
+A separate raw-load failure occurred after explicit Stop: the host redundantly
+attempted Stop after releasing its lease. FogCast
+`e74caf212471bc67befb10df5304fb093e614541` corrects this. A diagnostic host built
+from that commit passed catalog Pong launch, explicit Stop, raw MiSTer RBF load,
+and Stop back to idle against the image above. This verifies the host correction
+on hardware, but does not establish an integrated image containing that commit.
+Evidence: `out/acceptance/20260909-raw-stop-fix-e74caf2`.
+
+
+Runtime `04b20509a5501c1fdf6400e21a8dd6567d6c5e33` was subsequently tested
+through a temporary executable bind mount against the same installed image.
+Its ARM diagnostic SHA-256 is
+`5d4d9b630d7a9731e1a98909f1cd7eade1246822dc522bf79dcb5c29eed83c9a`.
+The mismatch cleanup now quiesces the verified FES GP driver, probes MENU, and
+verifies HDMI successfully. The installed target agent still publishes failed
+state for an attempted package error, causing the host to report a recovery
+error. Explicit Stop restores idle without reboot. Target/host reconciliation
+requires correction before this negative test can pass end to end.
