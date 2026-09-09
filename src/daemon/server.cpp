@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstring>
 #include <fcntl.h>
+#include <poll.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>
@@ -206,6 +207,21 @@ Error Server::Serve()
 			listener = listener_;
 		}
 		if (listener < 0) break;
+		pollfd wait;
+		wait.fd = listener;
+		wait.events = POLLIN;
+		wait.revents = 0;
+		// Bounded poll so RequestStop is observed on platforms where
+		// shutdown(2) does not unblock a listening AF_UNIX accept(2).
+		const int ready = poll(&wait, 1, 50);
+		if (stop_requested_.load()) break;
+		if (ready == 0) continue;
+		if (ready < 0) {
+			if (errno == EINTR) continue;
+			result = IoError("wait for Unix socket connection", errno);
+			RequestStop();
+			break;
+		}
 		const int connection = accept(listener, nullptr, nullptr);
 		if (connection < 0) {
 			const int accept_error = errno;

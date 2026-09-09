@@ -1,6 +1,7 @@
 // Copyright 2026 FogCast contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "capture_diagnostic.hpp"
 #include "daemon/controller.hpp"
 #include "daemon/server.hpp"
 #include "fake_hardware.hpp"
@@ -288,7 +289,6 @@ std::vector<int> FillListenerBacklog(const std::string& path)
 		assert(error == EAGAIN || error == EINPROGRESS);
 		return clients;
 	}
-	assert(false);
 	return clients;
 }
 
@@ -460,6 +460,65 @@ void TestIdleStopAcknowledgesSaveAdmissionFailure()
 	Contains(acknowledged, "\"state\":\"idle\"");
 	Contains(acknowledged, "\"error\":null");
 	assert(fixture.hardware.idle_calls == 1 && fixture.hardware.flush_calls == 0);
+}
+
+void TestMutationRequestsEmitFifoConsumeAndOptionalDump()
+{
+	mister_test::CaptureDiagnostic capture;
+	mister::DiagnosticInstall install(&capture);
+	Fixture fixture;
+	fixture.Start();
+	mister::daemon::Controller controller(fixture.runtime, "test-version");
+	Contains(controller.Handle(kLaunch), "\"state\":\"running_game\"");
+	Contains(controller.Handle(
+		std::string("{\"protocol\":2,\"operation\":\"load_core\",\"package_path\":\"/packages/custom\",\"package_id\":\"") +
+		kPackageId + "\"}"),
+		"\"ok\":true");
+	Contains(controller.Handle(kStop), "\"state\":\"idle\"");
+	assert(capture.Count("fifo.consume") >= 3);
+	bool launch = false, load_core = false, stop = false;
+	for (const auto& event : capture.events()) {
+		if (event.kind != "fifo.consume") continue;
+		if (mister_test::HasString(event, "operation", "launch") &&
+			mister_test::HasBool(event, "ok", true))
+			launch = true;
+		if (mister_test::HasString(event, "operation", "load_core") &&
+			mister_test::HasBool(event, "ok", true))
+			load_core = true;
+		if (mister_test::HasString(event, "operation", "stop") &&
+			mister_test::HasBool(event, "ok", true))
+			stop = true;
+	}
+	assert(launch && load_core && stop);
+
+	TempDirectory temporary;
+	const std::string dump = temporary.Entry("events.json");
+	mister::DiagnosticRing ring;
+	mister::DiagnosticFileSink file(ring, dump);
+	mister::InstallDiagnosticSink(&file);
+	mister::EmitFifoConsume("load_core", true);
+	const int descriptor = open(dump.c_str(), O_RDONLY | O_CLOEXEC);
+	assert(descriptor >= 0);
+	char buffer[4096];
+	const ssize_t count = read(descriptor, buffer, sizeof(buffer) - 1);
+	assert(count > 0);
+	assert(close(descriptor) == 0);
+	buffer[count] = 0;
+	const std::string body(buffer);
+	Contains(body, "\"kind\":\"fifo.consume\"");
+	Contains(body, "\"count\":1");
+	assert(unlink(dump.c_str()) == 0);
+	mister::InstallDiagnosticSink(nullptr);
+
+	const std::string blocked = temporary.Entry("blocked.json");
+	assert(mkfifo((blocked + ".tmp").c_str(), 0600) == 0);
+	mister::DiagnosticRing blocked_ring;
+	mister::DiagnosticFileSink blocked_file(blocked_ring, blocked);
+	mister::InstallDiagnosticSink(&blocked_file);
+	mister::EmitFifoConsume("stop", true);
+	assert(access(blocked.c_str(), F_OK) != 0);
+	assert(unlink((blocked + ".tmp").c_str()) == 0);
+	mister::InstallDiagnosticSink(nullptr);
 }
 
 void TestLaunchDevelopmentAndStopMapIdentityAndState()
@@ -1115,6 +1174,7 @@ int main()
 	TestOneRequestGetsOneNewlineResponseAndEof();
 	TestSecondRequestOnAConnectionIsNeverProcessed();
 	TestIncompleteAndOversizedRequestsAreInvalidThenClose();
+	TestMutationRequestsEmitFifoConsumeAndOptionalDump();
 	TestLaunchDevelopmentAndStopMapIdentityAndState();
 	TestProtocol2InspectionActivationDiagnosticAndBothStops();
 	TestProtocol1ProjectsAProtocol2OnlyActivationFailure();
@@ -1139,6 +1199,6 @@ int main()
 	TestOversizedVersionUsesBoundedValidFallback();
 	TestOversizedHardwareErrorUsesBoundedValidFallback();
 	TestDevelopmentInventsNoIdentityAndStderrEscapesFields();
-	puts("daemon_server_test: 29 passed");
+	puts("daemon_server_test: 30 passed");
 	return 0;
 }

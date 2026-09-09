@@ -4,6 +4,7 @@
 #include "native/core_loader.hpp"
 
 #include "native/artifacts.hpp"
+#include "native/diagnostic.hpp"
 #include "native/linux/spi.hpp"
 
 #include <unistd.h>
@@ -84,7 +85,10 @@ Error CoreLoader::Probe(std::string* output, std::uint64_t deadline)
 	request[0] = 0x0014;
 	std::vector<std::uint16_t> response;
 	const Error error = Exchange(spi_, kUserIoTarget, request, deadline, &response);
-	if (!error.ok()) return error;
+	if (!error.ok()) {
+		EmitCoreNameChange("", "", false);
+		return error;
+	}
 	std::string observed;
 	bool terminated = false;
 	for (std::size_t index = 1; index < response.size(); ++index) {
@@ -93,13 +97,18 @@ Error CoreLoader::Probe(std::string* output, std::uint64_t deadline)
 			terminated = true;
 			break;
 		}
-		if (byte < 0x20 || byte > 0x7e)
+		if (byte < 0x20 || byte > 0x7e) {
+			EmitCoreNameChange("", "", false);
 			return {ErrorCode::io_failed, "invalid observed core name"};
+		}
 		observed.push_back(static_cast<char>(byte));
 	}
-	if (!terminated || observed.empty())
+	if (!terminated || observed.empty()) {
+		EmitCoreNameChange("", "", false);
 		return {ErrorCode::io_failed, "missing observed core name"};
+	}
 	*output = observed;
+	EmitCoreNameChange("", observed, true);
 	return {};
 }
 

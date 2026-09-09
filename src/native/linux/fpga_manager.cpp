@@ -4,6 +4,7 @@
 #include "native/linux/fpga_manager.hpp"
 
 #include "native/artifacts.hpp"
+#include "native/diagnostic.hpp"
 
 #include <unistd.h>
 
@@ -11,6 +12,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <string>
+#include <vector>
 
 namespace mister {
 namespace native {
@@ -25,14 +27,46 @@ Error ProgrammingError(const char* phase, std::uint32_t last,
 	return {ErrorCode::program_failed, message};
 }
 
-NativeResult Failed(const Error& error, bool attempted)
+const char* ModeName(std::uint32_t status)
 {
+	switch (status & kFpgaModeMask) {
+	case kFpgaModeReset: return "reset";
+	case kFpgaModeConfiguration: return "configuration";
+	case kFpgaModeInitialization: return "initialization";
+	case kFpgaModeUser: return "user";
+	default: return "unknown";
+	}
+}
+
+void EmitFpgaManager(const char* mode, const char* severity, std::uint32_t status,
+	bool ok)
+{
+	std::vector<DiagnosticField> detail;
+	detail.push_back(DiagnosticString("mode", mode == nullptr ? "" : mode));
+	detail.push_back(DiagnosticBool("ok", ok));
+	detail.push_back(DiagnosticString("status", DiagnosticHex32(status)));
+	const std::string sysfs_state =
+		ReadDiagnosticFile("/sys/class/fpga_manager/fpga0/state");
+	const std::string sysfs_status =
+		ReadDiagnosticFile("/sys/class/fpga_manager/fpga0/status");
+	if (!sysfs_state.empty())
+		detail.push_back(DiagnosticString("sysfs_state", sysfs_state));
+	if (!sysfs_status.empty())
+		detail.push_back(DiagnosticString("sysfs_status", sysfs_status));
+	EmitDiagnostic(kDiagnosticLayerFpga, kDiagnosticKindFpgaManager, severity,
+		detail);
+}
+
+NativeResult Failed(const Error& error, bool attempted, std::uint32_t status = 0)
+{
+	EmitFpgaManager("failed", "error", status, false);
 	return {error, attempted};
 }
 
-NativeResult Failed(const std::string& message, bool attempted)
+NativeResult Failed(const std::string& message, bool attempted,
+	std::uint32_t status = 0)
 {
-	return {{ErrorCode::program_failed, message}, attempted};
+	return Failed(Error{ErrorCode::program_failed, message}, attempted, status);
 }
 
 class ProgrammingState {
@@ -159,8 +193,9 @@ NativeResult LinuxFpgaManager::Program(const Artifact& artifact,
 	Error error = state.Read(kFpgaStatusAddress, &status, "preflight STAT", 0);
 	if (!error.ok()) return Failed(error, false);
 	state.last_status_ = status;
+	EmitFpgaManager(ModeName(status), "ok", status, true);
 	error = state.Read(kFpgaControlAddress, &state.control_, "preflight CTRL", 0);
-	if (!error.ok()) return Failed(error, false);
+	if (!error.ok()) return Failed(error, false, state.last_status_);
 
 	const std::uint32_t msel =
 		(status & kFpgaMselMask) >> kFpgaMselShift;
@@ -190,7 +225,8 @@ NativeResult LinuxFpgaManager::Program(const Artifact& artifact,
 	if (!error.ok()) return Failed(error, state.write_attempted_);
 
 	error = state.WaitMode(kFpgaModeReset, false, "reset phase");
-	if (!error.ok()) return Failed(error, state.write_attempted_);
+	if (!error.ok()) return Failed(error, state.write_attempted_, state.last_status_);
+	EmitFpgaManager("reset", "ok", state.last_status_, true);
 	if (profile == ProgrammingProfile::mister_v1) {
 		error = state.Read(kFpgaGpoAddress, &state.gpo_,
 			"MiSTer destination GPO", 0);
@@ -206,7 +242,8 @@ NativeResult LinuxFpgaManager::Program(const Artifact& artifact,
 	if (!error.ok()) return Failed(error, state.write_attempted_);
 	error = state.WaitMode(kFpgaModeConfiguration, false,
 		"configuration phase");
-	if (!error.ok()) return Failed(error, state.write_attempted_);
+	if (!error.ok()) return Failed(error, state.write_attempted_, state.last_status_);
+	EmitFpgaManager("configuration", "ok", state.last_status_, true);
 	error = state.Write(kFpgaMonitorEoiAddress, kFpgaMonitorClearAll,
 		"configuration monitor EOI");
 	if (!error.ok()) return Failed(error, state.write_attempted_);
@@ -261,11 +298,13 @@ NativeResult LinuxFpgaManager::Program(const Artifact& artifact,
 	error = state.RunDclk(4, "DCLK 0x4");
 	if (!error.ok()) return Failed(error, state.write_attempted_);
 	error = state.WaitMode(kFpgaModeInitialization, true, "initialization phase");
-	if (!error.ok()) return Failed(error, state.write_attempted_);
+	if (!error.ok()) return Failed(error, state.write_attempted_, state.last_status_);
+	EmitFpgaManager("initialization", "ok", state.last_status_, true);
 	error = state.RunDclk(0x5000, "DCLK 0x5000");
 	if (!error.ok()) return Failed(error, state.write_attempted_);
 	error = state.WaitMode(kFpgaModeUser, false, "user mode");
-	if (!error.ok()) return Failed(error, state.write_attempted_);
+	if (!error.ok()) return Failed(error, state.write_attempted_, state.last_status_);
+	EmitFpgaManager("user", "ok", state.last_status_, true);
 	error = state.UpdateControl(kFpgaControlEnableMask, 0,
 		"configuration manager disable");
 	if (!error.ok()) return Failed(error, state.write_attempted_);

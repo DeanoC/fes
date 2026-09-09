@@ -1,6 +1,7 @@
 // Copyright 2026 FogCast contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "capture_diagnostic.hpp"
 #include "fake_mmio.hpp"
 #include "native/artifacts.hpp"
 #include "native/linux/fpga_manager.hpp"
@@ -219,6 +220,54 @@ void PushReadFailureAfter(mister_test::FakeMmio& mmio,
 		mmio.PushReadError(address, {});
 	mmio.PushReadError(address,
 		{mister::ErrorCode::io_failed, "scripted readback failure"});
+}
+
+void TestProgramEmitsFpgaManagerStateAndFailure()
+{
+	mister_test::CaptureDiagnostic capture;
+	mister::DiagnosticInstall install(&capture);
+	TempArtifact input(8);
+	mister_test::FakeMmio mmio;
+	ConfigureSuccess(mmio);
+	FixedClock clock(1);
+	mister::native::LinuxFpgaManager manager(mmio, clock);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 100);
+	EXPECT(result.error.ok());
+	EXPECT(capture.Count("fpga_manager.state") >= 5);
+	bool saw_reset = false;
+	bool saw_user = false;
+	for (const auto& event : capture.events()) {
+		if (event.kind != "fpga_manager.state") continue;
+		EXPECT(event.layer == "fpga");
+		if (mister_test::HasString(event, "mode", "reset") &&
+			mister_test::HasBool(event, "ok", true))
+			saw_reset = true;
+		if (mister_test::HasString(event, "mode", "user") &&
+			mister_test::HasBool(event, "ok", true))
+			saw_user = true;
+	}
+	EXPECT(saw_reset);
+	EXPECT(saw_user);
+
+	capture.Clear();
+	mister_test::FakeMmio failing;
+	ConfigurePreflight(failing, 9);
+	failing.PushReadError(kStatus,
+		{mister::ErrorCode::io_failed, "scripted preflight failure"});
+	mister::native::LinuxFpgaManager failing_manager(failing, clock);
+	const auto failed = failing_manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 100);
+	EXPECT(!failed.error.ok());
+	EXPECT(capture.Count("fpga_manager.state") >= 1);
+	bool saw_failed = false;
+	for (const auto& event : capture.events()) {
+		if (event.kind == "fpga_manager.state" &&
+			mister_test::HasString(event, "mode", "failed") &&
+			mister_test::HasBool(event, "ok", false))
+			saw_failed = true;
+	}
+	EXPECT(saw_failed);
 }
 
 void TestProgramsWithExactContainmentConfigurationAndReleaseOrder()
@@ -801,6 +850,8 @@ int main()
 	int count = 0;
 	Run("write-only L3 remap release",
 		TestWriteOnlyRemapReleaseWritesLiteralBeforeCoreNormal, &count);
+	Run("fpga_manager diagnostic state",
+		TestProgramEmitsFpgaManagerStateAndFailure, &count);
 	Run("exact containment/configuration/release order",
 		TestProgramsWithExactContainmentConfigurationAndReleaseOrder, &count);
 	Run("FES GP initialization after reset",
