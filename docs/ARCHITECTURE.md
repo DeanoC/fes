@@ -298,7 +298,7 @@ Native SDL3 UI
   -> POST /api/v1/session/launch
   -> POST /api/v1/session/development-rbf (raw octet-stream from a local path OSK)
   -> GET /api/v1/session (poll; now-playing or DIAGNOSTIC development chrome)
-  -> GET /api/v1/session/events?after= (poll; sofa event list)
+  -> GET /api/v1/session/events?after= (poll; sofa event list; additive flight_id)
   -> GET /api/v1/session/preview (optional MJPEG; 404/503/inactive is unavailable)
   -> POST /api/v1/session/stop
   -> GET /api/v1/health (poll; kit chrome)
@@ -308,6 +308,14 @@ Native SDL3 UI
   -> host session service
   -> existing FPGA launch path
 ```
+
+`GET /api/v1/session/events` keeps the existing protocol 1 event object.
+The host also sets an optional `flight_id` UUID on those events: one new id
+per session launch, development-RBF or described-package load, and per
+orphaned stop. Related events in that flight (launch through active through
+stop of that session) repeat the same id. User stop of an active session
+reuses the launch id. A failed launch leaves the previous id in place. The
+field is omitted until a flight has been allocated.
 
 TV overscan insets, sofa layout (`grid`, `shelf`, or `list`), the local
 attract on/off gate, and the look name are local to the tenfoot process (CLI `-safe-area` /

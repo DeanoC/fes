@@ -11,6 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/google/uuid"
 )
 
 type sessionService interface {
@@ -62,8 +63,13 @@ type sessionResult struct {
 	CorePackage *protocol.CorePackageStatus `json:"core_package,omitempty"`
 }
 
+// sessionEvent is one public host session event. Protocol 1 fields are
+// unchanged; flight_id is an additive UUID for one launch, stop, or
+// development-RBF / described-package mutation and the related events in
+// that flight.
 type sessionEvent struct {
 	Sequence uint64                  `json:"sequence"`
+	FlightID string                  `json:"flight_id,omitempty"`
 	Event    string                  `json:"event"`
 	State    protocol.State          `json:"state"`
 	GameID   *string                 `json:"game_id,omitempty"`
@@ -87,6 +93,7 @@ type sessionCoordinator struct {
 	observationMu   sync.Mutex
 	busy            bool
 	sequence        uint64
+	flightID        string
 	events          []sessionEvent
 }
 
@@ -100,12 +107,34 @@ func newSessionCoordinator(service sessionService, remoteInput host.RemoteInputC
 	return &sessionCoordinator{service: service, remoteInput: remoteInput, media: media}
 }
 
+func (s *sessionCoordinator) beginFlight() {
+	id := uuid.NewString()
+	s.mu.Lock()
+	s.flightID = id
+	s.mu.Unlock()
+}
+
+func (s *sessionCoordinator) restoreFlight(id string) {
+	s.mu.Lock()
+	s.flightID = id
+	s.mu.Unlock()
+}
+
+func (s *sessionCoordinator) ensureFlight() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.flightID == "" {
+		s.flightID = uuid.NewString()
+	}
+}
+
 func (s *sessionCoordinator) record(event string, result sessionResult, progress *sessionProgress) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.sequence++
 	s.events = append(s.events, sessionEvent{
 		Sequence: s.sequence,
+		FlightID: s.flightID,
 		Event:    event,
 		State:    result.State,
 		GameID:   result.GameID,
@@ -374,10 +403,13 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 	}
 	s.mu.Lock()
 	previousExecution := s.execution
+	previousFlight := s.flightID
 	s.mu.Unlock()
 	if err := s.stopMediaBounded(previousExecution); err != nil {
 		return sessionResult{}, err
 	}
+
+	s.beginFlight()
 
 	s.mu.Lock()
 	s.execution = execution
@@ -390,6 +422,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 	if execution == fogcast.ExecutionHostOnly {
 		if err := s.startMedia(ctx, id, execution); err != nil {
 			s.restoreExecution(previousExecution)
+			s.restoreFlight(previousFlight)
 			return sessionResult{}, err
 		}
 	}
@@ -401,6 +434,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 	if err != nil {
 		_ = s.stopMediaBounded(execution)
 		s.restoreExecution(previousExecution)
+		s.restoreFlight(previousFlight)
 		return sessionResult{}, err
 	}
 	result := s.publicSession(resp.Status, &progress)
@@ -521,6 +555,7 @@ func (s *sessionCoordinator) loadDevelopmentRBF(ctx context.Context, size int64,
 		}
 		return sessionResult{}, err
 	}
+	s.beginFlight()
 	s.mu.Lock()
 	s.execution = fogcast.ExecutionFPGADevelopment
 	s.mediaHandle = nil
@@ -605,6 +640,7 @@ func (s *sessionCoordinator) finishCoreLoad(ctx context.Context, status protocol
 		s.mediaState = ""
 	}
 	s.mu.Unlock()
+	s.beginFlight()
 	if detachErr == nil && s.remoteInput != nil && inputEligibleStatus(status) {
 		core := sessionCore(status)
 		if core == "" || s.attachInputForStatus(ctx, status) != nil {
@@ -774,6 +810,7 @@ func (s *sessionCoordinator) stop(ctx context.Context) (sessionResult, error) {
 	if _, err := s.developmentActive(ctx); err != nil {
 		return sessionResult{}, err
 	}
+	s.ensureFlight()
 
 	var inputErr error
 	if s.remoteInput != nil {
