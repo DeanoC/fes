@@ -154,11 +154,23 @@ including merged PR #6 byte-masked TDP, merged PR #5 unmasked TDP, merged PR #4
 mixed-width SDP, merged PR #3 20-bit byte enables, merged PR #2 independent
 CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair it with nextpnr
-`2c9f9c5`.
+`a1f8dbb5`.
 
-The current nextpnr pin `2c9f9c5cf06615affdefc8c346bbd7d26a47f6b6` is
-merged PR #42 (`8c0c8e7db1a9b0ba101ae9fb26a38a450209e091` onto
-`eefa26d3ec3151630ccd556824fd8ebfa9df4976`). It adds
+The current nextpnr pin `a1f8dbb5434fd88bc014ce059dd6b7ca74512693` is
+merged PR #43 (`298e7588ebaecf76245bf60d174048b0d23a0756` onto
+`2c9f9c5cf06615affdefc8c346bbd7d26a47f6b6`). It adds
+dedicated Cyclone V SDR input registers: `FAST_INPUT_REGISTER ON` absorbs
+a directly connected `MISTRAL_FF` driven by a unidirectional `MISTRAL_IB`
+into `MISTRAL_SDRIN`. The captured result is GPIO `DATAIN.3` and the clock
+is GPIO `CLKIN.0`. The supported flop has constant `ENA=1`, inactive
+`ACLR=1`, `SCLR=0`, `SLOAD=0`, exactly one consumer of the input-buffer
+output and a non-inverted clock; unsupported controls, inverted clocks,
+data fanout and parameters fail closed. `FAST_INPUT_REGISTER OFF` keeps
+the fabric flop. There is no characterized GPIO input-register setup/hold
+or clock-to-Q model, so those arcs stay outside timing analysis. It sits
+on `2c9f9c5cf06615affdefc8c346bbd7d26a47f6b6`, merged PR #42
+(`8c0c8e7db1a9b0ba101ae9fb26a38a450209e091` onto
+`eefa26d3ec3151630ccd556824fd8ebfa9df4976`). That pin adds
 dedicated Cyclone V SDR output registers: `FAST_OUTPUT_REGISTER ON` absorbs
 a directly connected `MISTRAL_FF` into the constrained `MISTRAL_OB` as
 `MISTRAL_SDROUT`. The supported flop has constant `ENA=1`, inactive `ACLR=1`,
@@ -1057,6 +1069,29 @@ beats for ten samples. Load JSON timed out; GPI and probe still passed.
 This does not measure the registered pin waveform and is not
 external-interface timing closure.
 
+`640_sdr_input` captures PIN_Y15 through a dedicated flop with
+`FAST_INPUT_REGISTER ON`. GPI signature `0x5E01` identifies the fabric
+beat protocol. Simulation uses the Verilog flop; it does not model analog
+GPIO-register delay. nextpnr absorbs that flop into `MISTRAL_SDRIN` on the
+existing GPIO BEL. The packed register is outside characterized timing.
+The kit probe observes fabric counters, not the pin waveform. Simulation
+and OSS are supported; Quartus comparison is not implemented. See
+`experiments/640_sdr_input/expected.md`.
+
+The OSS `640_sdr_input` artifact has SHA-256
+`e450523a6cc81cbc33525d4baf8ea9b8a8efdfa73e9b6c3ce8385194240a759a`
+and size 1,953,411 bytes. nextpnr packed the dedicated capture flop into
+`MISTRAL_SDRIN` on `MISTRAL_IO.64.0.0` (PIN_Y15). Its reported Fmax is
+269.687 MHz against the 50 MHz constraint. Utilization is one HPS GP, two
+IO cells, and no PLL, memory or DSP. The current nextpnr pin `a1f8dbb5`
+with Yosys `fca8ca0a` reproduces those same RBF bytes. Exact-artifact kit
+diagnostics on
+2026-09-09 returned GPI signature `0x5E01` with changing paired fabric
+beats for ten samples. Load JSON timed out; GPI and probe still passed.
+`stop` completed development reboot recovery and left the lease free.
+This does not measure the registered pin waveform and is not
+input-interface timing closure.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
@@ -1067,8 +1102,9 @@ M10K simple dual-port RAM, independent-clock 10-bit and 20-bit M10K true
 dual-port RAM, independent-clock byte-masked 20-bit and 16-bit TDP M10K RAM,
 independent-clock mixed-width 20/10, 10/20, 16/8 and 8/16 TDP M10K RAM, the
 50→74.25 MHz fractional-N PLL profile, dedicated 50 MHz DDR clock
-forwarding (fabric GPI only), and dedicated SDR output registers (fabric
-GPI only; GPIO-register timing uncharacterized). It does not establish native game acceptance.
+forwarding (fabric GPI only), dedicated SDR output registers (fabric GPI
+only; GPIO-register timing uncharacterized), and dedicated SDR input
+registers (fabric GPI only; GPIO-register timing uncharacterized). It does not establish native game acceptance.
 
 ## Standalone Pong game
 

@@ -26,7 +26,7 @@ BOARD_CONSTRAINTS = (
     "boards/de10nano/clocks.sdc",
 )
 ORDINARY_RESOURCES = frozenset(
-    {"MISTRAL_BUF", "MISTRAL_CLKENA", "MISTRAL_COMB", "MISTRAL_FF", "MISTRAL_IO", "MISTRAL_DDROUT", "MISTRAL_SDROUT"}
+    {"MISTRAL_BUF", "MISTRAL_CLKENA", "MISTRAL_COMB", "MISTRAL_FF", "MISTRAL_IO", "MISTRAL_DDROUT", "MISTRAL_SDROUT", "MISTRAL_SDRIN"}
 )
 MLAB_INIT_CELL = re.compile(r"^storage\.stored\.([0-7])\.0\.0$")
 
@@ -4160,6 +4160,40 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                         "experiments/020_linux_mailbox/sim/hps_gp_model.v",
                     ),
                     tb="experiments/630_sdr_output/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "640_sdr_input": ExperimentPolicy(
+            name="640_sdr_input",
+            sources=("experiments/640_sdr_input/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            constraints=(
+                "experiments/640_sdr_input/pins.qsf",
+                "boards/de10nano/clocks.sdc",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            forbidden_source_patterns=(*_COMMON_SOURCE_PATTERNS, "LED", "GPIO", "external_gpio"),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/640_sdr_input/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                    ),
+                    tb="experiments/640_sdr_input/sim/tb.cpp",
                 ),
             ),
         ),
