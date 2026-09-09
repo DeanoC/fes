@@ -59,6 +59,7 @@ func run() error {
 	selftestTransition := flag.Bool("selftest-transition", false, "paint curtain, wipe, and glitch scene overlays, then exit")
 	selftestMarquee := flag.Bool("selftest-marquee", false, "paint attract and detail marquee/banner strips, then exit")
 	selftestSearch := flag.Bool("selftest-search", false, "paint catalog search OSK, filter, empty, restore, then exit")
+	selftestBezel := flag.Bool("selftest-bezel", false, "paint soft vignette, optional bezel, and pause chrome, then exit")
 	noTransition := flag.Bool("no-transition", false, "disable kit scene transition overlays")
 	flag.Parse()
 	if !*noTransition {
@@ -88,7 +89,7 @@ func run() error {
 		}
 		return runThemeSelftest(fb)
 	}
-	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestSeries || *selftestMotion || *selftestWheel || *selftestStrip || *selftestAtmosphere || *selftestLayouts || *selftestPacks || *selftestBadges || *selftestTransition || *selftestMarquee || *selftestSearch {
+	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestSeries || *selftestMotion || *selftestWheel || *selftestStrip || *selftestAtmosphere || *selftestLayouts || *selftestPacks || *selftestBadges || *selftestTransition || *selftestMarquee || *selftestSearch || *selftestBezel {
 		fb := "/dev/fb0"
 		configTheme := ""
 		if c, err := kitlauncher.LoadConfig(*configPath); err == nil {
@@ -100,6 +101,9 @@ func run() error {
 		th, err := loadKitTheme(*themeSpec, configTheme)
 		if err != nil {
 			return err
+		}
+		if *selftestBezel {
+			return runBezelSelftest(fb, th)
 		}
 		if *selftestMarquee {
 			return runMarqueeSelftest(fb, th)
@@ -622,6 +626,7 @@ func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCach
 		g.SeriesFocus = m.SeriesFocus
 		g.SeriesActive = m.SeriesActive
 	}
+	g.Session = m.SessionChrome()
 	return g
 }
 
@@ -655,6 +660,7 @@ func modelDetailFrame(m kitlauncher.Model, covers *tenfoot.CoverCache, presentat
 		SeriesLabel:  asciiLabel(m.SeriesLabel),
 		SeriesFocus:  m.SeriesFocus,
 		SeriesActive: m.SeriesActive,
+		Session:      m.SessionChrome(),
 	}
 	if len(m.Series) > 0 {
 		frame.Series = make([]fbgrid.Tile, 0, len(m.Series))
@@ -870,6 +876,7 @@ func modelWheelFrame(m kitlauncher.Model, covers, stills *tenfoot.CoverCache, pr
 		Color:    th.SystemColor(m.Shelf),
 		Focus:    m.WheelIndex(),
 		Theme:    th,
+		Session:  m.SessionChrome(),
 	}
 	frame.Items = make([]fbgrid.WheelItem, 0, len(items))
 	for _, item := range items {

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
+	"github.com/DeanoC/FogCast/host/tenfoot/fbgrid"
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
@@ -33,6 +34,36 @@ func TestMenuAndGameControlsRemainSeparate(t *testing.T) {
 	m.Session.State = "idle"
 	if m.Input(a, time.Now()) != "" {
 		t.Fatal("offline launch")
+	}
+}
+
+func TestSessionChromeDoesNotStealEastOrStart(t *testing.T) {
+	m := Model{
+		Games:     []tenfoot.Game{{ID: "sonic", Title: "Sonic 2", Launchable: true}},
+		Catalog:   []tenfoot.Game{{ID: "sonic", Title: "Sonic 2", Launchable: true}},
+		Connected: true, TargetReady: true,
+	}
+	m.Session.State = "active"
+	m.Session.GameID = "sonic"
+	chrome := m.SessionChrome()
+	if chrome.State != "active" || chrome.Title != "Sonic 2" || chrome.Hint != fbgrid.SessionKitHint {
+		t.Fatalf("chrome %+v", chrome)
+	}
+	now := time.Now()
+	for _, name := range []string{"b", "start", "a", "y", "x"} {
+		e, err := remoteinput.NormalizeGamepad(name, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if action := m.Input(e, now); action != "" {
+			t.Fatalf("%s stole %q while session active", name, action)
+		}
+	}
+	m.Busy = true
+	m.Message = "Stopping game"
+	m.Session.State = "active"
+	if m.SessionChrome().State != "stopping" {
+		t.Fatalf("busy stop chrome %+v", m.SessionChrome())
 	}
 }
 

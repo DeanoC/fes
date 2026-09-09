@@ -145,6 +145,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			present(m)
 		} else {
 			m.Message = "Stopping game"
+			present(m)
 		}
 		go func() {
 			o := observation{epoch: e, mutation: true}

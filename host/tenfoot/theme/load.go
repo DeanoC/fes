@@ -33,6 +33,10 @@ type fileTheme struct {
 	FooterBar         string            `json:"footer_bar" toml:"footer_bar"`
 	CoverFrame        string            `json:"cover_frame" toml:"cover_frame"`
 	CoverFrameWidth   int               `json:"cover_frame_width" toml:"cover_frame_width"`
+	Vignette          string            `json:"vignette" toml:"vignette"`
+	VignetteA         *int              `json:"vignette_alpha" toml:"vignette_alpha"`
+	Bezel             string            `json:"bezel" toml:"bezel"`
+	BezelWidth        int               `json:"bezel_width" toml:"bezel_width"`
 	Transition        string            `json:"transition" toml:"transition"`
 	Pad               int               `json:"pad" toml:"pad"`
 	Gap               int               `json:"gap" toml:"gap"`
@@ -120,6 +124,7 @@ func (raw fileTheme) theme() (Theme, error) {
 	t := Theme{
 		Name:            strings.TrimSpace(raw.Name),
 		CoverFrameWidth: raw.CoverFrameWidth,
+		BezelWidth:      raw.BezelWidth,
 		Pad:             raw.Pad,
 		Gap:             raw.Gap,
 		Border:          raw.Border,
@@ -152,6 +157,10 @@ func (raw fileTheme) theme() (Theme, error) {
 	if raw.StatusBold != nil {
 		t.StatusBold = *raw.StatusBold
 		t.statusBoldSet = true
+	}
+	if raw.VignetteA != nil {
+		t.VignetteA = *raw.VignetteA
+		t.vignetteASet = true
 	}
 	var err error
 	if t.Transition, err = parseTransition(raw.Transition); err != nil {
@@ -191,6 +200,12 @@ func (raw fileTheme) theme() (Theme, error) {
 		return Theme{}, err
 	}
 	if t.CoverFrame, err = parseHex(raw.CoverFrame); err != nil {
+		return Theme{}, err
+	}
+	if t.Vignette, err = parseHex(raw.Vignette); err != nil {
+		return Theme{}, err
+	}
+	if t.Bezel, err = parseHex(raw.Bezel); err != nil {
 		return Theme{}, err
 	}
 	if len(raw.Systems) > 0 {

@@ -34,6 +34,13 @@ type Theme struct {
 	FooterBar         gfx.Color
 	CoverFrame        gfx.Color
 	CoverFrameWidth   int
+	// Vignette is the edge-darken colour. VignetteA is peak alpha at the
+	// outer stage edge (0 disables). Zero-alpha Vignette inherits Default.
+	Vignette  gfx.Color
+	VignetteA int
+	// Bezel is the optional thin TV-ish frame. BezelWidth 0 hides it.
+	Bezel      gfx.Color
+	BezelWidth int
 	// Transition is none, curtain, wipe, or glitch. Empty inherits Default
 	// (curtain) in Complete. "none" is an honest no-op overlay.
 	Transition string
@@ -70,6 +77,7 @@ type Theme struct {
 	bodyBoldSet    bool
 	captionBoldSet bool
 	statusBoldSet  bool
+	vignetteASet   bool
 
 	Systems map[string]gfx.Color
 }
@@ -92,6 +100,11 @@ func Default() Theme {
 		FooterBar:         gfx.RGB(16, 16, 24),
 		CoverFrame:        gfx.Color{},
 		CoverFrameWidth:   0,
+		Vignette:          gfx.RGB(0, 0, 0),
+		VignetteA:         96,
+		Bezel:             gfx.RGB(255, 220, 0),
+		BezelWidth:        0,
+		vignetteASet:      true,
 		Transition:        "curtain",
 		Pad:               16,
 		Gap:               8,
@@ -135,6 +148,11 @@ func Arcade() Theme {
 		FooterBar:         gfx.RGB(255, 34, 0),
 		CoverFrame:        gfx.RGB(255, 230, 0),
 		CoverFrameWidth:   3,
+		Vignette:          gfx.RGB(0, 0, 0),
+		VignetteA:         110,
+		Bezel:             gfx.RGB(255, 230, 0),
+		BezelWidth:        2,
+		vignetteASet:      true,
 		Transition:        "glitch",
 		Pad:               16,
 		Gap:               8,
@@ -182,6 +200,11 @@ func Night() Theme {
 		FooterBar:         gfx.RGB(10, 32, 64),
 		CoverFrame:        gfx.RGB(61, 184, 255),
 		CoverFrameWidth:   2,
+		Vignette:          gfx.RGB(0, 0, 0),
+		VignetteA:         128,
+		Bezel:             gfx.RGB(61, 184, 255),
+		BezelWidth:        2,
+		vignetteASet:      true,
 		Transition:        "wipe",
 		Pad:               16,
 		Gap:               8,
@@ -259,6 +282,21 @@ func (t Theme) Complete() Theme {
 	t.CoverFrame = completeColor(t.CoverFrame, d.CoverFrame)
 	if t.CoverFrameWidth < 0 {
 		t.CoverFrameWidth = d.CoverFrameWidth
+	}
+	t.Vignette = completeColor(t.Vignette, d.Vignette)
+	if !t.vignetteASet {
+		t.VignetteA = d.VignetteA
+		t.vignetteASet = true
+	}
+	if t.VignetteA < 0 {
+		t.VignetteA = 0
+	}
+	if t.VignetteA > 255 {
+		t.VignetteA = 255
+	}
+	t.Bezel = completeColor(t.Bezel, d.Bezel)
+	if t.BezelWidth < 0 {
+		t.BezelWidth = d.BezelWidth
 	}
 	if strings.TrimSpace(t.Transition) == "" {
 		t.Transition = d.Transition
@@ -435,6 +473,10 @@ func (t Theme) Equal(o Theme) bool {
 		t.FooterBar != o.FooterBar ||
 		t.CoverFrame != o.CoverFrame ||
 		t.CoverFrameWidth != o.CoverFrameWidth ||
+		t.Vignette != o.Vignette ||
+		t.VignetteA != o.VignetteA ||
+		t.Bezel != o.Bezel ||
+		t.BezelWidth != o.BezelWidth ||
 		t.Transition != o.Transition ||
 		t.Pad != o.Pad ||
 		t.Gap != o.Gap ||

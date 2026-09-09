@@ -1,11 +1,13 @@
 package kitlauncher
 
 import (
+	"strings"
+	"time"
+
 	"github.com/DeanoC/FogCast/host/tenfoot"
 	"github.com/DeanoC/FogCast/host/tenfoot/fbgrid"
 	"github.com/DeanoC/FogCast/kitlauncher/controller"
 	"github.com/DeanoC/FogCast/remoteinput"
-	"time"
 )
 
 const axisDeadzone int32 = 8000
@@ -196,3 +198,45 @@ func (m *Model) Tick(now time.Time) string {
 // Failed sessions retain host-side cleanup state, so they use the same
 // Select+Start recovery path as active sessions.
 func sessionCanStop(state string) bool { return state == "active" || state == "failed" }
+
+// SessionChrome is pause overlay state for fbgrid paint. East/B, Start, and
+// Guide stay on the existing input map; only Select+Start requests Stop.
+func (m Model) SessionChrome() fbgrid.SessionChrome {
+	state := m.Session.State
+	if m.Busy {
+		if strings.Contains(strings.ToLower(m.Message), "stop") {
+			state = "stopping"
+		} else if !fbgrid.SessionLive(fbgrid.SessionChrome{State: state}) {
+			state = "launching"
+		}
+	}
+	hint := fbgrid.SessionKitHint
+	if state == "failed" {
+		hint = fbgrid.SessionKitRetryHint
+	}
+	return fbgrid.SessionChrome{
+		State: state,
+		Title: m.SessionTitle(),
+		Hint:  hint,
+	}
+}
+
+// SessionTitle is the catalog title for the host session game id.
+func (m Model) SessionTitle() string {
+	id := strings.TrimSpace(m.Session.GameID)
+	if id == "" {
+		return ""
+	}
+	for _, pool := range [][]tenfoot.Game{m.Catalog, m.Games, m.Strip} {
+		for _, game := range pool {
+			if game.ID != id {
+				continue
+			}
+			if title := strings.TrimSpace(game.Title); title != "" {
+				return title
+			}
+			return id
+		}
+	}
+	return id
+}

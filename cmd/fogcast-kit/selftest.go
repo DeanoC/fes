@@ -706,6 +706,148 @@ func runSearchSelftest(fbPath string, th theme.Theme) error {
 	return err
 }
 
+func runBezelSelftest(fbPath string, th theme.Theme) error {
+	d, err := gfx.OpenLinuxFB(fbPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	report, err := exerciseBezelGrid(d, th)
+	fmt.Print(report)
+	return err
+}
+
+func exerciseBezelGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
+	th = th.Complete()
+	cfg := d.Config()
+	var b strings.Builder
+	g := fbgrid.New(cfg.Width, cfg.Height)
+	fbgrid.ApplyTheme(&g, th)
+	fbgrid.Paint(d, g)
+	d.Present()
+	vx, vy, ok := fbgrid.VignetteSample(cfg.Width, cfg.Height, g.HeaderH, g.FooterH, th)
+	if !ok {
+		return b.String(), fmt.Errorf("vignette sample")
+	}
+	gotB, gotG, gotR, _, err := gfx.SampleBGRX(d.Destination(), cfg, vx, vy)
+	if err != nil {
+		return b.String(), err
+	}
+	a := fbgrid.VignetteAlphaAt(vx, vy, cfg.Width, cfg.Height, g.HeaderH, g.FooterH, th)
+	dim := fbgrid.VignetteDim(th.Background, th.Vignette, a)
+	fmt.Fprintf(&b, "vignette stage=(%d,%d) bgrx=%d,%d,%d dim=%d,%d,%d a=%d\n",
+		vx, vy, gotB, gotG, gotR, dim.B, dim.G, dim.R, a)
+	if gotB != dim.B || gotG != dim.G || gotR != dim.R {
+		return b.String(), fmt.Errorf("vignette bgrx %d,%d,%d want %d,%d,%d", gotB, gotG, gotR, dim.B, dim.G, dim.R)
+	}
+	hx, hy, ok := g.HighlightSample()
+	if !ok {
+		return b.String(), fmt.Errorf("vignette highlight")
+	}
+	hlB, hlG, hlR, _, err := gfx.SampleBGRX(d.Destination(), cfg, hx, hy)
+	if err != nil {
+		return b.String(), err
+	}
+	if hlB != th.Highlight.B || hlG != th.Highlight.G || hlR != th.Highlight.R {
+		return b.String(), fmt.Errorf("vignette highlight bgrx %d,%d,%d", hlB, hlG, hlR)
+	}
+
+	arcade := theme.Arcade()
+	fbgrid.ApplyTheme(&g, arcade)
+	fbgrid.Paint(d, g)
+	d.Present()
+	bx, by, ok := fbgrid.BezelSample(cfg.Width, cfg.Height, arcade)
+	if !ok {
+		return b.String(), fmt.Errorf("arcade bezel sample")
+	}
+	bB, bG, bR, _, err := gfx.SampleBGRX(d.Destination(), cfg, bx, by)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "bezel pack=arcade sample=(%d,%d) bgrx=%d,%d,%d want=%d,%d,%d\n",
+		bx, by, bB, bG, bR, arcade.Bezel.B, arcade.Bezel.G, arcade.Bezel.R)
+	if bB != arcade.Bezel.B || bG != arcade.Bezel.G || bR != arcade.Bezel.R {
+		return b.String(), fmt.Errorf("arcade bezel bgrx %d,%d,%d", bB, bG, bR)
+	}
+
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	m.SetCatalog(mixedCatalog())
+	m.Session.State = "active"
+	m.Session.GameID = "sonic"
+	g = paintModel(d, m, th)
+	if g.Session.State != "active" || g.Session.Title != "Sonic" {
+		return b.String(), fmt.Errorf("session chrome %+v", g.Session)
+	}
+	rec := gfx.NewRecorder()
+	fbgrid.Paint(rec, g)
+	var sawPaused, sawHint bool
+	for _, c := range rec.Calls {
+		if c.Op != "DrawText" {
+			continue
+		}
+		if c.Text == "Paused" {
+			sawPaused = true
+		}
+		if c.Text == fbgrid.SessionKitHint {
+			sawHint = true
+		}
+	}
+	if !sawPaused || !sawHint {
+		return b.String(), fmt.Errorf("pause copy paused=%v hint=%v ops=%v", sawPaused, sawHint, rec.Ops())
+	}
+	px, py, ok := fbgrid.SessionBadgeSample(cfg.Width, cfg.Height, kitLook(m, th))
+	if !ok {
+		return b.String(), fmt.Errorf("badge sample")
+	}
+	pB, pG, pR, _, err := gfx.SampleBGRX(d.Destination(), cfg, px, py)
+	if err != nil {
+		return b.String(), err
+	}
+	look := kitLook(m, th)
+	fmt.Fprintf(&b, "pause badge=(%d,%d) bgrx=%d,%d,%d title=%q hint=%q\n",
+		px, py, pB, pG, pR, g.Session.Title, g.Session.Hint)
+	if pB != look.Highlight.B || pG != look.Highlight.G || pR != look.Highlight.R {
+		return b.String(), fmt.Errorf("pause badge bgrx %d,%d,%d", pB, pG, pR)
+	}
+	now := time.Now()
+	for _, name := range []string{"b", "start", "a"} {
+		e, err := remoteinput.NormalizeGamepad(name, true)
+		if err != nil {
+			return b.String(), err
+		}
+		if action := m.Input(e, now); action != "" {
+			return b.String(), fmt.Errorf("%s stole %q", name, action)
+		}
+	}
+	fmt.Fprintf(&b, "input-kept b=1 start=1 a=1\n")
+
+	m.Session.State = "idle"
+	m.Session.GameID = ""
+	for m.Browse != fbgrid.BrowseSplit {
+		prev := m.Browse
+		press(&m, "y")
+		if m.Browse == prev {
+			return b.String(), fmt.Errorf("y stuck on %s", m.Browse)
+		}
+	}
+	split := paintModel(d, m, th)
+	if split.Kind != fbgrid.BrowseSplit {
+		return b.String(), fmt.Errorf("split kind %s", split.Kind)
+	}
+	if _, _, ok := split.HighlightSample(); !ok {
+		return b.String(), fmt.Errorf("split highlight")
+	}
+	fmt.Fprintf(&b, "split-layout kind=%s focus=%d\n", split.Kind, split.Focus)
+
+	nested, err := exerciseSearchGrid(d, th)
+	b.WriteString(nested)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "selftest-bezel PASS vignette=1 bezel=1 pause=1 input=1 split=1 nested-search=1\n")
+	return b.String(), nil
+}
+
 func oskType(m *kitlauncher.Model, text string) {
 	for _, r := range text {
 		id := "char-" + string(r)
@@ -1165,11 +1307,11 @@ func exercisePacksGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 		if err != nil {
 			return 0, 0, 0, 0, 0, 0, g.Header, err
 		}
-		bgY := g.HeaderH + 2
-		if bgY < 0 {
-			bgY = 0
+		sx, sy, ok := fbgrid.AtmosphereSample(g)
+		if !ok {
+			return 0, 0, 0, 0, 0, 0, g.Header, fmt.Errorf("%s: no stage sample", label)
 		}
-		bgB, bgG, bgR, _, err = gfx.SampleBGRX(d.Destination(), cfg, 2, bgY)
+		bgB, bgG, bgR, _, err = gfx.SampleBGRX(d.Destination(), cfg, sx, sy)
 		if err != nil {
 			return 0, 0, 0, 0, 0, 0, g.Header, err
 		}
@@ -1179,8 +1321,8 @@ func exercisePacksGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 		if bgB != look.Background.B || bgG != look.Background.G || bgR != look.Background.R {
 			return 0, 0, 0, 0, 0, 0, g.Header, fmt.Errorf("%s: background bgrx %d,%d,%d want %d,%d,%d", label, bgB, bgG, bgR, look.Background.B, look.Background.G, look.Background.R)
 		}
-		fmt.Fprintf(&b, "pack=%s id=%s highlight=(%d,%d) hl_bgrx=%d,%d,%d bg=(2,%d) bg_bgrx=%d,%d,%d header=%q title_px=%d header_bar=%s\n",
-			label, m.Pack, hx, hy, hlB, hlG, hlR, bgY, bgB, bgG, bgR, g.Header, look.TitlePx(), theme.FormatColor(look.HeaderBar))
+		fmt.Fprintf(&b, "pack=%s id=%s highlight=(%d,%d) hl_bgrx=%d,%d,%d bg=(%d,%d) bg_bgrx=%d,%d,%d header=%q title_px=%d header_bar=%s\n",
+			label, m.Pack, hx, hy, hlB, hlG, hlR, sx, sy, bgB, bgG, bgR, g.Header, look.TitlePx(), theme.FormatColor(look.HeaderBar))
 		return hlB, hlG, hlR, bgB, bgG, bgR, g.Header, nil
 	}
 
@@ -2188,11 +2330,11 @@ func exerciseThemeGrid(d *gfx.LinuxFB) (string, error) {
 		if err != nil {
 			return 0, 0, 0, 0, 0, 0, err
 		}
-		bgY := g.HeaderH + 2
-		if bgY < 0 {
-			bgY = 0
+		sx, sy, ok := fbgrid.AtmosphereSample(g)
+		if !ok {
+			return 0, 0, 0, 0, 0, 0, fmt.Errorf("%s: no stage sample", name)
 		}
-		bgB, bgG, bgR, _, err = gfx.SampleBGRX(d.Destination(), d.Config(), 2, bgY)
+		bgB, bgG, bgR, _, err = gfx.SampleBGRX(d.Destination(), d.Config(), sx, sy)
 		if err != nil {
 			return 0, 0, 0, 0, 0, 0, err
 		}
@@ -2202,8 +2344,8 @@ func exerciseThemeGrid(d *gfx.LinuxFB) (string, error) {
 		if bgB != th.Background.B || bgG != th.Background.G || bgR != th.Background.R {
 			return 0, 0, 0, 0, 0, 0, fmt.Errorf("%s: background bgrx %d,%d,%d want %d,%d,%d", name, bgB, bgG, bgR, th.Background.B, th.Background.G, th.Background.R)
 		}
-		fmt.Fprintf(&b, "theme=%s highlight=(%d,%d) hl_bgrx=%d,%d,%d bg=(2,%d) bg_bgrx=%d,%d,%d header=%s\n",
-			th.Name, hx, hy, hlB, hlG, hlR, bgY, bgB, bgG, bgR, theme.FormatColor(th.HeaderBar))
+		fmt.Fprintf(&b, "theme=%s highlight=(%d,%d) hl_bgrx=%d,%d,%d bg=(%d,%d) bg_bgrx=%d,%d,%d header=%s\n",
+			th.Name, hx, hy, hlB, hlG, hlR, sx, sy, bgB, bgG, bgR, theme.FormatColor(th.HeaderBar))
 		return hlB, hlG, hlR, bgB, bgG, bgR, nil
 	}
 	def := theme.Default()

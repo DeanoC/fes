@@ -126,7 +126,16 @@ fanart/backdrop behind chrome when presentation `backdrop_artwork_id` or an
 attract backdrop handle exists (`DecodeStill` through the existing still
 cache). Missing fanart uses a soft cover-wall of decoded covers already on
 the page; missing that art keeps the solid theme background. Atmosphere does
-not change focus, launch, or stop. When host `GET /api/v1/games?collection=recents` or `collection=favorites`
+not change focus, launch, or stop. A soft `vignette` / `vignette_alpha`
+edge darken paints on the wheel, browse layouts, and title pane after
+atmosphere so tiles and focus rings stay inside the pad; Neon and Sofa Dim
+add a 2px `bezel` frame and Classic leaves `bezel_width` at 0.
+`vignette_alpha` `0` disables the edge darken. When host `GET /api/v1/session`
+reports `active`, `launching`, `stopping`, or `failed`, `fbgrid` dims that
+same stage and paints a `Paused` (or Starting / Stopping / Retry Stop)
+badge with the catalog title and `Select+Start stop`. East/B, Start, and
+Guide are not remapped; Select+Start still requests Stop. The overlay is
+kit linuxfb chrome, not captured HDMI. When host `GET /api/v1/games?collection=recents` or `collection=favorites`
 returns titles, a single horizontal Recent / Favorites row paints under the
 browse view (covers and clear logos when those handles exist). Recents win on
 duplicates; the caption is `Recent`, `Favorites`, or `Recent / Favorites`.
@@ -256,7 +265,12 @@ fetched on kit.
 
 Run `go test -race ./kitlauncher/... ./host/tenfoot/inputmap ./host/tenfoot/theme ./host/tenfoot/fbgrid ./host/tenfoot/gfx ./host/tenfoot/anim ./cmd/fogcast-kit` for adapter tests. They
 exercise real HTTP transports with isolated servers and never open real input or
-framebuffer devices. On the kit, `fogcast-kit -selftest-search` opens Start search,
+framebuffer devices. On the kit, `fogcast-kit -selftest-bezel` paints the
+soft vignette, an Arcade bezel frame, and pause chrome over an active
+session, proves East/B and Start do not stop, keeps split layout, and
+re-runs search (which re-runs transition, packs, layouts, atmosphere,
+strip, wheel, motion, detail, attract, cover, text, nav, and shelf).
+On the kit, `fogcast-kit -selftest-search` opens Start search,
 types through the gamepad OSK, filters the current shelf, paints an honest empty
 miss, restores prior focus, keeps Y/X/Select, and re-runs transition (which re-runs
 packs, layouts, atmosphere, strip, wheel, motion, detail, attract, cover, text, nav,

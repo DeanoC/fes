@@ -487,6 +487,51 @@ func TestModelGridSearchMissHidesStripAndEmptyLabel(t *testing.T) {
 	}
 }
 
+func TestModelGridWiresSessionChrome(t *testing.T) {
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	m.SetCatalog([]tenfoot.Game{
+		{ID: "sonic", Title: "Sonic 2", System: "megadrive", Launchable: true},
+	})
+	g := modelGrid(m, 640, 480, nil, nil, theme.Default())
+	if fbgrid.SessionLive(g.Session) {
+		t.Fatalf("idle session %+v", g.Session)
+	}
+	m.Session.State = "active"
+	m.Session.GameID = "sonic"
+	g = modelGrid(m, 640, 480, nil, nil, theme.Default())
+	if g.Session.State != "active" || g.Session.Title != "Sonic 2" || g.Session.Hint != fbgrid.SessionKitHint {
+		t.Fatalf("active chrome %+v", g.Session)
+	}
+	frame := modelDetailFrame(m, nil, nil, theme.Default(), 640, 480)
+	if frame.Session.State != "active" || frame.Session.Title != "Sonic 2" {
+		t.Fatalf("detail chrome %+v", frame.Session)
+	}
+}
+
+func TestExerciseBezelGridPaintsVignettePauseAndNestsSearch(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseBezelGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-bezel PASS") || !strings.Contains(report, "selftest-search PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "vignette stage=") || !strings.Contains(report, "bezel pack=arcade") || !strings.Contains(report, "pause badge=") {
+		t.Fatalf("missing bezel evidence: %s", report)
+	}
+	if !strings.Contains(report, "input-kept") || !strings.Contains(report, "split-layout") {
+		t.Fatalf("missing overlay evidence: %s", report)
+	}
+}
+
 func TestExerciseSearchGridFiltersEmptyRestoresAndNestsTransition(t *testing.T) {
 	const w, h = 640, 480
 	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
