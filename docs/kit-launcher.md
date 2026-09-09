@@ -126,7 +126,8 @@ title pane when the strip is hidden (large cover from CoverCache/DecodeCover, ti
 role, meta from catalog year/genre/region plus presentation studio/players
 when the host `GET /api/v1/presentation/games/{id}` succeeds, and wrapped
 `summary` prose at the caption role). Empty summary draws no description
-block. Compact chips paint on grid, coverflow, wall, and the pane for
+block. A ready `marquee_id` paints a banner strip under the header; missing
+art hides that strip. Compact chips paint on grid, coverflow, wall, and the pane for
 players, rating, completion, and portable when those presentation fields
 exist (portable also uses handheld catalog systems); missing chips stay
 hidden. Play-count and last-played stay off the pane body; the wheel hero
@@ -176,7 +177,10 @@ Stop/save errors retain the retry operation. After the host `idle_seconds` from
 `GET /api/v1/library/attract` (default 60s; 1s is allowed) with no pad input,
 no busy/session transition, and a ready host, the kit leaves the grid for an
 attract stage: backdrop, then cover, then marquee, decoded with `DecodeStill`
-and cycled with `anim` fade-through-black. When the staged row has a video
+and cycled with `anim` fade-through-black. A distinct marquee or presentation
+`marquee_id` also paints a banner strip under the header alongside that still,
+motion preview, or 2×2 wall; a marquee-only row keeps the still fallback and
+hides the duplicate strip. When the staged row has a video
 handle plus stills, attract auto-cycles those stills (and presentation
 `screenshot_ids` when fetched) every two seconds under a VIDEO badge and a
 `preview` caption — the same kit-safe motion path as the title pane. Four or
@@ -216,7 +220,10 @@ panel without a letter. Ready logos replace the grid label-bar text and the
 detail title; missing or still-loading logos keep today's text labels.
 Presentation and artwork fetching are asynchronous and
 do not block the present loop. The title pane paints the focused cover (and current screenshot or
-video-preview still, when present) through the same cache. Video bytes are
+video-preview still, when present) through the same cache. Presentation
+`marquee_id` paints a wide strip under the header when that handle is ready;
+missing or still-loading marquees hide the strip and leave cover, meta,
+badges, and the screenshot/preview slot on today's layout. Video bytes are
 not fetched on kit; the preview uses already-admitted still artwork. After idle, attract stills use the same artwork GET with `DecodeStill`
 (Catmull–Rom to a 720p-class stage) and `fbgrid.PaintAttract`. A video handle
 on the staged row cycles those stills as an honest motion preview; four or more
@@ -226,7 +233,12 @@ fetched on kit.
 
 Run `go test -race ./kitlauncher/... ./host/tenfoot/inputmap ./host/tenfoot/theme ./host/tenfoot/fbgrid ./host/tenfoot/gfx ./host/tenfoot/anim ./cmd/fogcast-kit` for adapter tests. They
 exercise real HTTP transports with isolated servers and never open real input or
-framebuffer devices. On the kit, `fogcast-kit -selftest-transition` paints curtain, wipe, and glitch
+framebuffer devices. On the kit, `fogcast-kit -selftest-marquee` paints a banner
+strip on attract beside a still and a motion preview, hides the strip when the
+handle is absent or is the only still, paints the same strip on the title pane
+without crushing cover, meta, badges, or VIDEO preview, keeps Y/X/A, and
+re-runs transition (which re-runs packs, layouts, atmosphere, strip, wheel,
+motion, detail, attract, cover, text, nav, and shelf). On the kit, `fogcast-kit -selftest-transition` paints curtain, wipe, and glitch
 overlays on a 4×3 grid, proves `none` is a no-op, keeps A launch during a
 detail cut, and re-runs packs (which re-runs layouts, atmosphere, strip,
 wheel, motion, detail, attract, cover, text, nav, and shelf). On the kit, `fogcast-kit -selftest-badges` paints players/rating/completion/portable
@@ -315,7 +327,8 @@ archive = "/absolute/path/to/Metadata.zip"
 4. Rebuild and run `fogcast-kit` (`make build-fogcast-kit`, CGO-free ARMv7).
    Visible tiles prefetch presentation then artwork; titles without a match keep
    the existing placeholder. Clear logos use the same artwork GET via `logo_id`
-   and fall back to text labels when the handle is missing.
+   and fall back to text labels when the handle is missing. Arcade-Marquee and
+Banner files use the same artwork GET via `marquee_id` and hide when absent.
 
 Do not put provider secrets in launcher JSON, logs, or pull requests. Local
 `library_media` covers still win when `Game.Cover` is set.

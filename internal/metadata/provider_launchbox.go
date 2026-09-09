@@ -54,13 +54,15 @@ type launchBoxXMLImage struct {
 }
 
 type launchBoxIndexedGame struct {
-	record    launchBoxGameRecord
-	aliases   []string
-	cover     string
-	coverType string
-	logo      string
-	logoType  string
-	system    protocol.System
+	record      launchBoxGameRecord
+	aliases     []string
+	cover       string
+	coverType   string
+	logo        string
+	logoType    string
+	marquee     string
+	marqueeType string
+	system      protocol.System
 }
 
 type launchBoxCatalogBatch struct {
@@ -172,6 +174,11 @@ func LoadLaunchBoxCatalog(reader io.Reader) (*LaunchBoxCatalog, error) {
 			candidate.Artwork = append(candidate.Artwork, ArtworkRef{Role: ArtworkLogo, ID: handle})
 			catalog.covers[handle] = game.logo
 		}
+		if game.marquee != "" {
+			handle := launchBoxArtworkHandle(game.marquee)
+			candidate.Artwork = append(candidate.Artwork, ArtworkRef{Role: ArtworkMarquee, ID: handle})
+			catalog.covers[handle] = game.marquee
+		}
 		catalog.candidates[game.system] = append(catalog.candidates[game.system], candidate)
 	}
 	return catalog, nil
@@ -268,6 +275,12 @@ func (b *launchBoxCatalogBatch) putLaunchBoxRecord(record launchBoxRecord) error
 				current.logoType = record.image.typeName
 			}
 		}
+		if rank := validLaunchBoxImageTypeRank("marquee", record.image.typeName); rank >= 0 {
+			if current.marquee == "" || rank < validLaunchBoxImageTypeRank("marquee", current.marqueeType) {
+				current.marquee = record.image.fileName
+				current.marqueeType = record.image.typeName
+			}
+		}
 	}
 	return nil
 }
@@ -304,7 +317,7 @@ type cachedLaunchBoxCover struct {
 	body []byte
 }
 
-// NewLaunchBoxRuntime serves catalog text and official covers and logos.
+// NewLaunchBoxRuntime serves catalog text and official covers, logos, and marquees.
 func NewLaunchBoxRuntime(catalog *LaunchBoxCatalog, client *http.Client) Runtime {
 	return newLaunchBoxCatalogRuntime(catalog, client, "")
 }
@@ -370,6 +383,10 @@ func (r *launchBoxCatalogRuntime) Lookup(_ context.Context, input LookupInput) (
 		case ArtworkLogo:
 			if result.Presentation.LogoArtworkID == "" {
 				result.Presentation.LogoArtworkID = art.ID
+			}
+		case ArtworkMarquee:
+			if result.Presentation.MarqueeArtworkID == "" {
+				result.Presentation.MarqueeArtworkID = art.ID
 			}
 		}
 	}
@@ -642,7 +659,7 @@ func OpenLaunchBoxArchive(path string, client *http.Client) (Runtime, error) {
 	return OpenLaunchBoxArchiveWithCache(path, client, "")
 }
 
-// OpenLaunchBoxArchiveWithCache loads the zip and stores covers and logos under cacheDir.
+// OpenLaunchBoxArchiveWithCache loads the zip and stores covers, logos, and marquees under cacheDir.
 func OpenLaunchBoxArchiveWithCache(path string, client *http.Client, cacheDir string) (Runtime, error) {
 	file, err := os.Open(path)
 	if err != nil {

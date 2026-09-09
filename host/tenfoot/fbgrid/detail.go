@@ -25,6 +25,8 @@ type DetailFrame struct {
 	ShotCaption   string
 	VideoBadge    bool
 	Badges        []Badge
+	// Marquee is optional banner/marquee strip art. Nil hides the strip.
+	Marquee *image.RGBA
 	// Atmosphere is optional fanart behind chrome. When nil, PaintDetail
 	// dims the title cover across the stage if one is present.
 	Atmosphere *image.RGBA
@@ -64,13 +66,20 @@ func PaintDetail(d gfx.Device, f DetailFrame) {
 		d.FillRect(gfx.Rect{X: 0, Y: float32(fy), W: float32(f.Width), H: float32(f.Height - fy)}, th.FooterBar)
 	}
 	withShot := f.Shot != nil || f.ShotCaption != "" || f.VideoBadge
-	_, text0, _ := DetailLayout(f.Width, f.Height, th, withShot, 0, 0)
+	marqueeH := detailMarqueeHeight(f, th)
+	_, text0, _ := DetailLayout(f.Width, f.Height, th, withShot, 0, 0, marqueeH)
 	logoH := 0
 	if f.Logo != nil {
 		logoH = logoFitHeight(f.Logo, int(text0.W), detailLogoMaxH)
 	}
-	metaLines, descLines, bodyH := wrapDetailCopy(f, th, int(text0.W), logoH, withShot, f.Height)
-	cover, text, shot := DetailLayout(f.Width, f.Height, th, withShot, logoH, bodyH)
+	metaLines, descLines, bodyH := wrapDetailCopy(f, th, int(text0.W), logoH, withShot, f.Height, marqueeH)
+	cover, text, shot := DetailLayout(f.Width, f.Height, th, withShot, logoH, bodyH, marqueeH)
+	if marqueeH > 0 {
+		if band := DetailMarqueeRect(f.Width, f.Height, th, f.Marquee); band.H >= 1 {
+			d.FillRect(band, letterboxFill(th.HeaderBar, th))
+			paintCover(d, f.Marquee, band)
+		}
+	}
 	fill := f.Color
 	if fill == (gfx.Color{}) {
 		fill = th.SystemColor("")
@@ -177,9 +186,10 @@ const (
 	detailDescMaxLines = 8
 	detailShotMinH     = 48
 	detailCopyGap      = 8
+	detailMarqueeMaxH  = 72
 )
 
-func wrapDetailCopy(f DetailFrame, th theme.Theme, textW, logoH int, withShot bool, height int) (metaLines, descLines []string, bodyH int) {
+func wrapDetailCopy(f DetailFrame, th theme.Theme, textW, logoH int, withShot bool, height, marqueeH int) (metaLines, descLines []string, bodyH int) {
 	th = th.Complete()
 	titleBlock := gfx.TextHeightWeight(th.TitlePx(), th.TitleWeight())
 	if logoH > titleBlock {
@@ -205,8 +215,14 @@ func wrapDetailCopy(f DetailFrame, th theme.Theme, textW, logoH int, withShot bo
 		footerH = 0
 	}
 	stageH := height - headerH - footerH - 2*pad
+	if marqueeH > 0 {
+		stageH -= marqueeH + detailCopyGap
+	}
 	if stageH < 1 {
 		stageH = height - headerH - footerH
+		if marqueeH > 0 {
+			stageH -= marqueeH + detailCopyGap
+		}
 		if stageH < 1 {
 			stageH = height
 		}
@@ -253,7 +269,8 @@ func wrapDetailCopy(f DetailFrame, th theme.Theme, textW, logoH int, withShot bo
 
 // DetailLayout is the cover, title/meta, and optional screenshot rects.
 // bodyH is the title-column height in pixels; 0 uses title plus one body line.
-func DetailLayout(width, height int, th theme.Theme, withShot bool, logoH, bodyH int) (cover, text, shot gfx.Rect) {
+// marqueeH reserves a banner strip under the header; 0 keeps today's layout.
+func DetailLayout(width, height int, th theme.Theme, withShot bool, logoH, bodyH, marqueeH int) (cover, text, shot gfx.Rect) {
 	th = th.Complete()
 	pad := th.Pad
 	if pad < 8 {
@@ -269,9 +286,19 @@ func DetailLayout(width, height int, th theme.Theme, withShot bool, logoH, bodyH
 	}
 	stageY := headerH + pad
 	stageH := height - headerH - footerH - 2*pad
+	if marqueeH > 0 {
+		stageY += marqueeH + detailCopyGap
+		stageH -= marqueeH + detailCopyGap
+	}
 	if stageH < 1 {
 		stageY = headerH
+		if marqueeH > 0 {
+			stageY += marqueeH + detailCopyGap
+		}
 		stageH = height - headerH - footerH
+		if marqueeH > 0 {
+			stageH -= marqueeH + detailCopyGap
+		}
 		if stageH < 1 {
 			stageH = height
 			stageY = 0
@@ -326,7 +353,7 @@ func DetailLayout(width, height int, th theme.Theme, withShot bool, logoH, bodyH
 
 // DetailCoverSample is a pixel inside the large cover cell.
 func DetailCoverSample(width, height int, th theme.Theme) (x, y int, ok bool) {
-	cover, _, _ := DetailLayout(width, height, th, false, 0, 0)
+	cover, _, _ := DetailLayout(width, height, th, false, 0, 0, 0)
 	if cover.W < 4 || cover.H < 4 {
 		return 0, 0, false
 	}
@@ -337,7 +364,7 @@ func DetailCoverSample(width, height int, th theme.Theme) (x, y int, ok bool) {
 
 // DetailTitleOrigin is the top-left of the title DrawText or logo slot.
 func DetailTitleOrigin(width, height int, th theme.Theme) (x, y int, ok bool) {
-	_, text, _ := DetailLayout(width, height, th, false, 0, 0)
+	_, text, _ := DetailLayout(width, height, th, false, 0, 0, 0)
 	if text.W < 1 || text.H < 1 {
 		return 0, 0, false
 	}
@@ -350,9 +377,9 @@ func DetailLogoSample(width, height int, th theme.Theme, logo *image.RGBA) (x, y
 		return 0, 0, false
 	}
 	b := logo.Bounds()
-	_, text, _ := DetailLayout(width, height, th, false, 0, 0)
+	_, text, _ := DetailLayout(width, height, th, false, 0, 0, 0)
 	logoH := logoFitHeight(logo, int(text.W), detailLogoMaxH)
-	_, text, _ = DetailLayout(width, height, th, false, logoH, 0)
+	_, text, _ = DetailLayout(width, height, th, false, logoH, 0, 0)
 	dx, dy, dw, dh := tenfoot.CoverDestRect(int(text.X), int(text.Y), int(text.W), logoH, b.Dx(), b.Dy())
 	if dw < 2 || dh < 2 {
 		return 0, 0, false
@@ -417,13 +444,88 @@ func detailShotRect(width, height int, th theme.Theme, f DetailFrame) (cover, te
 	f.Height = height
 	f.Theme = th
 	withShot := f.Shot != nil || f.ShotCaption != "" || f.VideoBadge
-	_, text0, _ := DetailLayout(width, height, th, withShot, 0, 0)
+	marqueeH := detailMarqueeHeight(f, th)
+	_, text0, _ := DetailLayout(width, height, th, withShot, 0, 0, marqueeH)
 	logoH := 0
 	if f.Logo != nil {
 		logoH = logoFitHeight(f.Logo, int(text0.W), detailLogoMaxH)
 	}
-	_, _, bodyH := wrapDetailCopy(f, th, int(text0.W), logoH, withShot, height)
-	return DetailLayout(width, height, th, withShot, logoH, bodyH)
+	_, _, bodyH := wrapDetailCopy(f, th, int(text0.W), logoH, withShot, height, marqueeH)
+	return DetailLayout(width, height, th, withShot, logoH, bodyH, marqueeH)
+}
+
+func detailMarqueeHeight(f DetailFrame, th theme.Theme) int {
+	if f.Marquee == nil {
+		return 0
+	}
+	th = th.Complete()
+	pad := th.Pad
+	if pad < 8 {
+		pad = 8
+	}
+	maxW := f.Width - 2*pad
+	if maxW < 8 {
+		maxW = f.Width
+	}
+	h := logoFitHeight(f.Marquee, maxW, detailMarqueeMaxH)
+	if h < 1 {
+		return 0
+	}
+	headerH := th.HeaderH
+	footerH := th.FooterH
+	if headerH < 0 {
+		headerH = 0
+	}
+	if footerH < 0 {
+		footerH = 0
+	}
+	stageH := f.Height - headerH - footerH - 2*pad
+	if h+detailCopyGap+detailShotMinH > stageH {
+		return 0
+	}
+	return h
+}
+
+// DetailMarqueeRect is the inset banner strip under the header, or empty.
+func DetailMarqueeRect(width, height int, th theme.Theme, img *image.RGBA) gfx.Rect {
+	f := DetailFrame{Width: width, Height: height, Theme: th, Marquee: img}
+	h := detailMarqueeHeight(f, th)
+	if h < 1 {
+		return gfx.Rect{}
+	}
+	th = th.Complete()
+	pad := th.Pad
+	if pad < 8 {
+		pad = 8
+	}
+	headerH := th.HeaderH
+	if headerH < 0 {
+		headerH = 0
+	}
+	maxW := width - 2*pad
+	if maxW < 1 {
+		maxW = width
+		pad = 0
+	}
+	return gfx.Rect{X: float32(pad), Y: float32(headerH + pad), W: float32(maxW), H: float32(h)}
+}
+
+// DetailMarqueeSample is a pixel inside the banner strip.
+func DetailMarqueeSample(width, height int, th theme.Theme, img *image.RGBA) (x, y int, ok bool) {
+	r := DetailMarqueeRect(width, height, th, img)
+	if r.W < 4 || r.H < 4 {
+		return 0, 0, false
+	}
+	return int(r.X + r.W/2), int(r.Y + r.H/2), true
+}
+
+// DetailCoverSampleFor is a cover-cell pixel for a full detail frame.
+func DetailCoverSampleFor(width, height int, th theme.Theme, f DetailFrame) (x, y int, ok bool) {
+	cover, _, _ := detailShotRect(width, height, th, f)
+	if cover.W < 4 || cover.H < 4 {
+		return 0, 0, false
+	}
+	return int(cover.X + cover.W/2), int(cover.Y + cover.H/2), true
 }
 
 func logoFitHeight(img *image.RGBA, maxW, maxH int) int {

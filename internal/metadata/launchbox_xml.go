@@ -1063,7 +1063,7 @@ func validLaunchBoxImageType(value string) bool {
 	switch value {
 	case "Box - Front", "Box - Front - Reconstructed", "Fanart - Box - Front",
 		"Fanart - Background", "Screenshot - Gameplay", "Screenshot - Game Title",
-		"Clear Logo":
+		"Clear Logo", "Banner", "Arcade - Marquee":
 		return true
 	default:
 		return false
@@ -1093,6 +1093,13 @@ func validLaunchBoxImageTypeRank(role, value string) int {
 		switch value {
 		case "Clear Logo":
 			return 0
+		}
+	} else if role == "marquee" {
+		switch value {
+		case "Arcade - Marquee":
+			return 0
+		case "Banner":
+			return 1
 		}
 	}
 	return -1

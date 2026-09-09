@@ -39,6 +39,7 @@ type AttractView struct {
 	Caption    string
 	ShotIndex  int
 	Wall       []AttractWallTile
+	Marquee    string
 }
 
 func playableStillItems(items []tenfoot.AttractItem) []tenfoot.AttractItem {
@@ -317,6 +318,17 @@ func attractPreviewCaption(index, count int) string {
 	return fmt.Sprintf("preview %d / %d", index+1, count)
 }
 
+func (m Model) attractMarqueeHandle(item tenfoot.AttractItem) string {
+	handle := tenfoot.AttractMarqueeHandle(item, m.attractPresentationFor(item.GameID))
+	if handle == "" {
+		return ""
+	}
+	if item.StillHandle() == handle {
+		return ""
+	}
+	return handle
+}
+
 func (m Model) attractShotHandle(item tenfoot.AttractItem) string {
 	if !m.attractHasMotion(item) {
 		return item.StillHandle()
@@ -467,6 +479,7 @@ func (m *Model) AttractView(now time.Time) AttractView {
 	view.GameID = item.GameID
 	view.Platform = item.Platform
 	view.Handle = m.attractShotHandle(item)
+	view.Marquee = m.attractMarqueeHandle(item)
 	view.Index = m.attractIndex
 	view.Motion = m.attractHasMotion(item)
 	if view.Motion {
@@ -532,6 +545,7 @@ func (m *Model) AttractPrefetchHandles() []string {
 			add(handle)
 		}
 		add(item.StillHandle())
+		add(m.attractMarqueeHandle(item))
 	}
 	if m.attractWallEnabled() {
 		n := len(m.attractItems)

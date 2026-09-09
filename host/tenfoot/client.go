@@ -66,6 +66,7 @@ type PresentationInfo struct {
 	CoverArtworkID    string   `json:"cover_artwork_id"`
 	BackdropArtworkID string   `json:"backdrop_artwork_id,omitempty"`
 	LogoID            string   `json:"logo_id,omitempty"`
+	MarqueeID         string   `json:"marquee_id,omitempty"`
 	VideoID           string   `json:"video_id,omitempty"`
 	Summary           string   `json:"summary"`
 	Year              string   `json:"year"`
@@ -699,6 +700,22 @@ func LogoHandle(presentation Presentation) string {
 	return normalizeHandle(presentation.Presentation.LogoID)
 }
 
+// MarqueeHandle returns a 64-hex banner/marquee handle from presentation.
+func MarqueeHandle(presentation Presentation) string {
+	if presentation.Presentation == nil {
+		return ""
+	}
+	return normalizeHandle(presentation.Presentation.MarqueeID)
+}
+
+// AttractMarqueeHandle prefers presentation marquee_id, then the attract row.
+func AttractMarqueeHandle(item AttractItem, p Presentation) string {
+	if handle := MarqueeHandle(p); handle != "" {
+		return handle
+	}
+	return normalizeHandle(item.Marquee)
+}
+
 // BackdropHandle returns a 64-hex fanart/backdrop handle from presentation.
 func BackdropHandle(presentation Presentation) string {
 	if presentation.Presentation == nil {
@@ -732,7 +749,7 @@ func AttractPreviewHandles(item AttractItem, p Presentation) []string {
 	var shots []string
 	cover := normalizeHandle(item.Cover)
 	backdrop := normalizeHandle(item.Backdrop)
-	marquee := normalizeHandle(item.Marquee)
+	marquee := AttractMarqueeHandle(item, p)
 	if p.Presentation != nil {
 		shots = screenshotHandles(p.Presentation.ScreenshotIDs)
 		if cover == "" {

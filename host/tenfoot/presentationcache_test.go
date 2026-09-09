@@ -110,6 +110,13 @@ func TestLogoHandleAndCollectLogoHandles(t *testing.T) {
 	if got := CollectBackdropHandles(games, 0, len(games), nil); got != nil {
 		t.Fatalf("nil presentation backdrop = %#v", got)
 	}
+	marquee := strings.Repeat("99", 32)
+	if got := MarqueeHandle(Presentation{Presentation: &PresentationInfo{MarqueeID: marquee}}); got != marquee {
+		t.Fatalf("marquee = %q", got)
+	}
+	if got := MarqueeHandle(Presentation{Presentation: &PresentationInfo{LogoID: logo}}); got != "" {
+		t.Fatalf("logo-only marquee = %q", got)
+	}
 }
 
 func TestPresentationCacheFetchesEvictsAndSkipsRetry(t *testing.T) {

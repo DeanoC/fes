@@ -208,3 +208,55 @@ func TestPaintAttractWallHighlightsCurrentAndHidesNeighborMotion(t *testing.T) {
 	sy := int(cell.Y + cell.H/2)
 	assertBGRX(t, dst, cfg, sx, sy, 200, 80, 40, 0)
 }
+
+func TestPaintAttractMarqueeStripBesideStillAndHidesWhenAbsent(t *testing.T) {
+	t.Parallel()
+	const w, h = 640, 480
+	th := theme.Default()
+	still := image.NewRGBA(image.Rect(0, 0, 40, 8))
+	marquee := image.NewRGBA(image.Rect(0, 0, 80, 12))
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 40; x++ {
+			still.Set(x, y, color.RGBA{R: 255, G: 32, B: 160, A: 255})
+		}
+	}
+	for y := 0; y < 12; y++ {
+		for x := 0; x < 80; x++ {
+			marquee.Set(x, y, color.RGBA{R: 16, G: 200, B: 48, A: 255})
+		}
+	}
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	frame := AttractFrame{
+		Width: w, Height: h, Title: "Mario", Image: still, Marquee: marquee, Theme: th,
+	}
+	PaintAttract(d, frame)
+	d.Present()
+	mx, my, ok := AttractMarqueeSample(w, h, marquee, th)
+	if !ok {
+		t.Fatal("marquee sample")
+	}
+	assertBGRX(t, dst, cfg, mx, my, 48, 200, 16, 0)
+	dest := AttractStillDestFor(frame)
+	sx := int(dest.X + dest.W/2)
+	sy := int(dest.Y + dest.H/2)
+	assertBGRX(t, dst, cfg, sx, sy, 160, 32, 255, 0)
+	if sy <= my {
+		t.Fatalf("still y=%d did not sit below marquee y=%d", sy, my)
+	}
+
+	PaintAttract(d, AttractFrame{Width: w, Height: h, Title: "Mario", Image: still, Theme: th})
+	d.Present()
+	gotB, gotG, gotR, _, err := gfx.SampleBGRX(dst, cfg, mx, my)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotB == 48 && gotG == 200 && gotR == 16 {
+		t.Fatal("absent marquee kept banner pixels")
+	}
+}
