@@ -406,7 +406,11 @@ func TestPaintAppliesThemeTokens(t *testing.T) {
 	hl := theme.Arcade().Highlight
 	assertBGRX(t, dst, cfg, hx, hy, hl.B, hl.G, hl.R, 0)
 	bg := theme.Arcade().Background
-	assertBGRX(t, dst, cfg, 2, g.HeaderH+2, bg.B, bg.G, bg.R, 0)
+	sx, sy, ok := AtmosphereSample(g)
+	if !ok {
+		t.Fatal("arcade stage sample")
+	}
+	assertBGRX(t, dst, cfg, sx, sy, bg.B, bg.G, bg.R, 0)
 	chrome := theme.Arcade().HeaderBar
 	assertBGRX(t, dst, cfg, 8, 2, chrome.B, chrome.G, chrome.R, 0)
 	if theme.Arcade().Highlight == theme.Default().Highlight {

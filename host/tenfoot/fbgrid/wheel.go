@@ -44,6 +44,9 @@ type WheelFrame struct {
 	Theme      theme.Theme
 	Now        time.Time
 	PopAt      time.Time
+	// Session is optional pause overlay chrome when the host reports a live
+	// session. Empty State leaves the wheel undimmed.
+	Session SessionChrome
 }
 
 // PaintWheel draws the platform wheel. It does not Present.
@@ -163,6 +166,7 @@ func PaintWheel(d gfx.Device, f WheelFrame) {
 	}
 	status = gfx.FitTextWeight(status, statusSize, f.Width-16, statusW)
 	d.DrawTextWeight(8, chromeTextY(footerTop, footerH, gfx.TextHeightWeight(statusSize, statusW), false), status, statusSize, statusW, th.Status)
+	paintLivingRoomChrome(d, f.Width, f.Height, headerH, footerH, th, f.Session)
 }
 
 func paintWheelStrip(d gfx.Device, f WheelFrame, th theme.Theme, strip gfx.Rect) {

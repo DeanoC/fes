@@ -76,6 +76,9 @@ func TestDefaultPreservesKitTokens(t *testing.T) {
 	if th.Transition != "curtain" {
 		t.Fatalf("default transition %q", th.Transition)
 	}
+	if th.VignetteA != 96 || th.BezelWidth != 0 {
+		t.Fatalf("default vignette/bezel a=%d w=%d", th.VignetteA, th.BezelWidth)
+	}
 	if th.TitleWeight() != gfx.WeightBold || th.HeaderWeight() != gfx.WeightBold {
 		t.Fatalf("default title/header weight %s/%s", th.TitleWeight(), th.HeaderWeight())
 	}
@@ -98,6 +101,12 @@ func TestArcadeDiffersFromDefault(t *testing.T) {
 	}
 	if a.HeaderBar == d.HeaderBar || a.CoverFrameWidth == 0 {
 		t.Fatal("arcade chrome")
+	}
+	if a.VignetteA == d.VignetteA || a.BezelWidth == 0 {
+		t.Fatalf("arcade vignette/bezel a=%d w=%d", a.VignetteA, a.BezelWidth)
+	}
+	if Night().BezelWidth == 0 || Night().VignetteA <= d.VignetteA {
+		t.Fatalf("night vignette/bezel a=%d w=%d", Night().VignetteA, Night().BezelWidth)
 	}
 	if a.Transition != "glitch" || Night().Transition != "wipe" {
 		t.Fatalf("pack transitions arcade=%q night=%q", a.Transition, Night().Transition)
@@ -218,6 +227,32 @@ func TestLoadPartialJSONInheritsDefault(t *testing.T) {
 	}
 	if th.TitleWeight() != gfx.WeightBold || th.StatusWeight() != gfx.WeightRegular {
 		t.Fatalf("partial weights title=%s status=%s", th.TitleWeight(), th.StatusWeight())
+	}
+}
+
+func TestVignetteAlphaZeroDisablesAndOmittedInherits(t *testing.T) {
+	t.Parallel()
+	if (Theme{}).Complete().VignetteA != Default().VignetteA {
+		t.Fatal("omitted vignette_alpha should inherit default")
+	}
+	off := Theme{VignetteA: 0, vignetteASet: true}.Complete()
+	if off.VignetteA != 0 {
+		t.Fatalf("explicit 0 became %d", off.VignetteA)
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "off.json")
+	if err := os.WriteFile(path, []byte(`{"name":"quiet","vignette_alpha":0}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	th, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if th.VignetteA != 0 {
+		t.Fatalf("loaded zero vignette_alpha %d", th.VignetteA)
+	}
+	if th.BezelWidth != 0 {
+		t.Fatalf("omitted bezel_width %d", th.BezelWidth)
 	}
 }
 

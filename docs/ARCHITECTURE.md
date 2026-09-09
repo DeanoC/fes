@@ -286,7 +286,7 @@ linuxfb is a kit framebuffer Device, not the SDL sofa shell.
 `gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.
 
 Tenfoot looks are data-driven. `host/tenfoot/theme` loads colour, spacing,
-typography roles, and cover-chrome tokens from a built-in name (`default`,
+typography roles, cover-chrome, vignette, and bezel tokens from a built-in name (`default`,
 `arcade`, `night`) or a JSON/TOML file. Roles are explicit pixel sizes
 (`title_px`, `body_px`, `caption_px`, `status_px`). Paint calls `TitlePx`,
 `BodyPx`, `CaptionPx`, and `StatusPx` so fallback math stays in the theme
@@ -650,7 +650,13 @@ scale ~1.06 over ~160ms); confirm eases a white pulse out over
 paints dimmed presentation `backdrop_artwork_id` (or an attract backdrop)
 cover-fill behind the wheel, browse layouts, strip, and title pane when that
 handle decodes; otherwise a cover-wall of visible decoded covers; otherwise
-the solid theme background. Atmosphere is paint-only. The kit
+the solid theme background. Atmosphere is paint-only. Theme tokens
+`vignette` / `vignette_alpha` paint a soft stage-edge darken on the wheel,
+browse layouts, and title pane; `bezel` / `bezel_width` paint an optional
+thin frame (Neon and Sofa Dim use 2px; Classic stays 0). A live host
+session (`active` / `launching` / `stopping` / `failed`) dims that layer
+and paints pause chrome (`Paused` plus Select+Start) without stealing
+East/B, Start, or Guide. The kit
 also loads `GET /api/v1/games` with `collection=recents` and
 `collection=favorites` (best-effort; a miss hides the row) and paints a
 single horizontal strip under browse when at least one title exists.

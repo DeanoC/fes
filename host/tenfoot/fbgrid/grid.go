@@ -135,6 +135,9 @@ type Grid struct {
 	// EmptyLabel is optional stage copy when Tiles is empty (search misses).
 	// Ordinary empty catalogs leave this blank and keep chrome only.
 	EmptyLabel string
+	// Session is optional pause overlay chrome when the host reports a live
+	// session. Empty State leaves browse undimmed.
+	Session SessionChrome
 }
 
 // New lays out FakeTiles for a w×h framebuffer.

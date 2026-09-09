@@ -123,7 +123,15 @@ confirm is a white pulse that eases out over `ConfirmFrames` rather than a
 flat flash. Browse paints a dimmed fanart/backdrop behind chrome when presentation
 `backdrop_artwork_id` or an attract backdrop exists; otherwise a soft
 cover-wall of decoded covers, or the solid theme background when no art is
-present. Focus rings and header/footer stay opaque. A Recent / Favorites strip paints under the grid when host
+present. Focus rings and header/footer stay opaque. A soft theme-token
+vignette darkens the stage edges on the wheel, browse grid / coverflow /
+wall / split, and title pane; Neon and Sofa Dim also paint a thin bezel
+frame (`bezel_width`, default off on Classic). `vignette_alpha` `0` in a
+theme file turns the vignette off. When the host session is `active`,
+`launching`, `stopping`, or `failed`, a dimmed pause overlay paints a
+`Paused` / session badge plus the existing Select+Start stop hint; East/B,
+Start, and Guide stay on the input map (Select+Start still stops; B does
+not). The overlay is linuxfb menu chrome, not a fake HDMI mirror. A Recent / Favorites strip paints under the grid when host
 `collection=recents` or `collection=favorites` returns at least one title
 (recents first, then favorites, labeled honestly); an empty row is omitted.
 Down that cannot move focus further (last catalog row) enters that strip, or

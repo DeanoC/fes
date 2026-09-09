@@ -35,6 +35,9 @@ type DetailFrame struct {
 	SeriesLabel  string
 	SeriesFocus  int
 	SeriesActive bool
+	// Session is optional pause overlay chrome when the host reports a live
+	// session. Empty State leaves the pane undimmed.
+	Session SessionChrome
 }
 
 // PaintDetail draws a living-room title pane. It does not Present.
@@ -183,6 +186,7 @@ func PaintDetail(d gfx.Device, f DetailFrame) {
 	hint = gfx.FitTextWeight(hint, statusSize, f.Width-16, statusW)
 	d.DrawTextWeight(8, chromeTextY(footerTop, footerH, gfx.TextHeightWeight(statusSize, statusW), false), hint, statusSize, statusW, th.Status)
 	paintDetailSeries(d, f, th)
+	paintLivingRoomChrome(d, f.Width, f.Height, headerH, footerH, th, f.Session)
 }
 
 const (

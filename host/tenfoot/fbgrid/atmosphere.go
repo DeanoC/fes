@@ -156,43 +156,17 @@ func AtmosphereDim(src, scrim gfx.Color) gfx.Color {
 	)
 }
 
-// AtmosphereSample is a pad pixel in the stage, not on a tile or chrome bar.
+// AtmosphereSample is a pad pixel in the stage, not on a tile, chrome bar,
+// vignette band, or bezel.
 func AtmosphereSample(g Grid) (x, y int, ok bool) {
-	if g.Width < 1 || g.Height < 1 {
-		return 0, 0, false
-	}
-	x = 2
-	y = g.HeaderH + 2
-	if y < 0 {
-		y = 0
-	}
-	if y >= g.Height {
-		y = g.Height / 2
-	}
-	if x >= g.Width {
-		x = 0
-	}
-	return x, y, true
+	return StagePadSample(g.Width, g.Height, g.HeaderH, g.FooterH, g.Theme)
 }
 
-// WheelAtmosphereSample is a pad pixel around the hero, below the header.
+// WheelAtmosphereSample is a pad pixel around the hero, below the header
+// and past the vignette band.
 func WheelAtmosphereSample(width, height int, th theme.Theme) (x, y int, ok bool) {
-	if width < 1 || height < 1 {
-		return 0, 0, false
-	}
 	th = th.Complete()
-	x = 2
-	y = th.HeaderH + 2
-	if y < 0 {
-		y = 0
-	}
-	if y >= height {
-		y = height / 2
-	}
-	if x >= width {
-		x = 0
-	}
-	return x, y, true
+	return StagePadSample(width, height, th.HeaderH, th.FooterH, th)
 }
 
 // DetailAtmosphereSample is a pad pixel on the title pane, below the header.
