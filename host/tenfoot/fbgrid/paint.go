@@ -62,6 +62,7 @@ func Paint(d gfx.Device, g Grid) {
 	status = gfx.FitTextWeight(status, statusSize, g.Width-16, statusW)
 	d.DrawTextWeight(8, chromeTextY(footerTop, g.Height-footerTop, gfx.TextHeightWeight(statusSize, statusW), false), status, statusSize, statusW, th.Status)
 	paintLivingRoomChrome(d, g.Width, g.Height, g.HeaderH, g.FooterH, th, g.Session)
+	PaintAudioChrome(d, g.Width, g.Height, th, g.Audio)
 }
 
 func paintOrder(g Grid) []int {

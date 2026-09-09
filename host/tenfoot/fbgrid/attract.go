@@ -5,6 +5,7 @@ import (
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
 	"github.com/DeanoC/FogCast/host/tenfoot/anim"
+	"github.com/DeanoC/FogCast/host/tenfoot/audioreact"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 )
@@ -30,6 +31,8 @@ type AttractFrame struct {
 	// Marquee is optional banner/marquee strip art. Nil hides the strip.
 	Marquee *image.RGBA
 	Theme   theme.Theme
+	// Audio is optional edge chrome. Zero skips paint (default).
+	Audio audioreact.Sample
 }
 
 // PaintAttract draws title chrome and a still (or empty idle panel) using
@@ -114,8 +117,10 @@ func PaintAttract(d gfx.Device, f AttractFrame) {
 	if footerTop < 0 {
 		footerTop = 0
 	}
+	hint = audioreact.AppendHint(hint, f.Audio)
 	hint = gfx.FitTextWeight(hint, statusSize, f.Width-16, statusW)
 	d.DrawTextWeight(8, chromeTextY(footerTop, footerH, gfx.TextHeightWeight(statusSize, statusW), false), hint, statusSize, statusW, th.Status)
+	PaintAudioChrome(d, f.Width, f.Height, th, f.Audio)
 }
 
 func paintAttractIdlePanel(d gfx.Device, stage gfx.Rect, th theme.Theme) {

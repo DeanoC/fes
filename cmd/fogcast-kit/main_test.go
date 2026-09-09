@@ -532,6 +532,30 @@ func TestExerciseBezelGridPaintsVignettePauseAndNestsSearch(t *testing.T) {
 	}
 }
 
+func TestExerciseAudioChromePaintsMeasuredIdleAndStaysHonest(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseAudioChrome(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-audio-chrome PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "probe measured=0") {
+		t.Fatalf("missing honest probe: %s", report)
+	}
+	if !strings.Contains(report, "probe-honest=1") || !strings.Contains(report, "idle-hint=1") {
+		t.Fatalf("missing honesty evidence: %s", report)
+	}
+}
+
 func TestExerciseSearchGridFiltersEmptyRestoresAndNestsTransition(t *testing.T) {
 	const w, h = 640, 480
 	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}

@@ -177,7 +177,15 @@ short overlay from the active theme `transition` token: Classic **curtain**,
 Neon **glitch**, Sofa Dim **wipe**. Attract does not arm while the search OSK
 is open. Durations stay under 400ms and do not
 block pad input. `transition` `none`, `-no-transition`, or
-`FOGCAST_NO_TRANSITION=1` skips the overlay. Missing cover art uses the same
+`FOGCAST_NO_TRANSITION=1` skips the overlay. Attract edge chrome is off by
+default. `-audio-chrome`, `launcher.json` `audio_chrome`, a theme file
+`audio_chrome` token, or `FOGCAST_AUDIO_CHROME=1` paints theme-highlight edge
+bars from a measured 0..1 file (`-audio-level-file` /
+`FOGCAST_AUDIO_LEVEL_FILE`) on attract and browse. The kit ALSA Dummy card
+is not a game-audio meter and is not treated as one. With the gate on and no
+file, attract uses a labeled `idle pulse` instead of claiming HDMI or FPGA
+audio. `-selftest-audio-chrome` injects fake levels and samples the edge.
+Missing cover art uses the same
 placeholder path as the grid. The wheel footer hint is
 `A open | L/R platform | X neon` (X names the next pack: `neon`, `dim`, or
 `classic`); the search OSK footer is

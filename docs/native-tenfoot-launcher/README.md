@@ -153,7 +153,10 @@ Coverflow → Wall → Split → Grid. X (West) cycles theme packs Classic → N
 without stealing Y or D-pad; the last pack is stored in `launcher.json`.
 Detail, attract, wheel, layout, and pack cuts play that pack's short overlay
 (curtain, wipe, or glitch) without holding pad input; `transition` `none`
-disables it.
+disables it. Kit attract can paint a theme-highlight edge pulse when
+`-audio-chrome` / `audio_chrome` is on. Without a measured 0..1 level file
+that pulse is an attract-only `idle pulse` (the kit Dummy ALSA device is not
+FPGA HDMI audio). Built-in packs leave it off.
 A Recent / Favorites strip paints under the grid when those host collections
 return titles, and hides when they are empty. Last-row Down enters the
 strip; A opens the title pane; B or Up return to the grid. The kit title pane is a

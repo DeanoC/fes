@@ -44,6 +44,10 @@ type Theme struct {
 	// Transition is none, curtain, wipe, or glitch. Empty inherits Default
 	// (curtain) in Complete. "none" is an honest no-op overlay.
 	Transition string
+	// AudioChrome enables kit edge chrome. Built-ins stay false. A measured
+	// level file or test injector drives the bars; otherwise attract may
+	// use a labeled idle pulse. This is not FPGA HDMI audio.
+	AudioChrome bool
 
 	Pad     int
 	Gap     int
@@ -78,6 +82,7 @@ type Theme struct {
 	captionBoldSet bool
 	statusBoldSet  bool
 	vignetteASet   bool
+	audioChromeSet bool
 
 	Systems map[string]gfx.Color
 }
@@ -125,6 +130,7 @@ func Default() Theme {
 		bodyBoldSet:       true,
 		captionBoldSet:    true,
 		statusBoldSet:     true,
+		audioChromeSet:    true,
 		Systems:           defaultSystems(),
 	}
 }
@@ -173,6 +179,7 @@ func Arcade() Theme {
 		bodyBoldSet:       true,
 		captionBoldSet:    true,
 		statusBoldSet:     true,
+		audioChromeSet:    true,
 		Systems: map[string]gfx.Color{
 			"pong":      gfx.RGB(57, 255, 20),
 			"megadrive": gfx.RGB(255, 140, 0),
@@ -225,6 +232,7 @@ func Night() Theme {
 		bodyBoldSet:       true,
 		captionBoldSet:    true,
 		statusBoldSet:     true,
+		audioChromeSet:    true,
 		Systems: map[string]gfx.Color{
 			"pong":      gfx.RGB(200, 160, 40),
 			"megadrive": gfx.RGB(40, 90, 160),
@@ -356,6 +364,10 @@ func (t Theme) Complete() Theme {
 	if !t.statusBoldSet {
 		t.StatusBold = d.StatusBold
 		t.statusBoldSet = true
+	}
+	if !t.audioChromeSet {
+		t.AudioChrome = d.AudioChrome
+		t.audioChromeSet = true
 	}
 	t.Systems = mergeSystems(d.Systems, t.Systems)
 	return t
@@ -494,7 +506,8 @@ func (t Theme) Equal(o Theme) bool {
 		t.HeaderBold != o.HeaderBold ||
 		t.BodyBold != o.BodyBold ||
 		t.CaptionBold != o.CaptionBold ||
-		t.StatusBold != o.StatusBold {
+		t.StatusBold != o.StatusBold ||
+		t.AudioChrome != o.AudioChrome {
 		return false
 	}
 	if len(t.Systems) != len(o.Systems) {

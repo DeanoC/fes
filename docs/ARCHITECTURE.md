@@ -727,7 +727,15 @@ video handle paint a 2×2 wall of neighboring stills with the staged tile
 highlighted; titles without a video handle keep the stills attract. Full clip
 playback is a follow-up. Any pad input returns to the same shelf and focus;
 A/South may launch the current attract title. An empty playlist shows a themed
-idle panel rather than a frozen grid. Aspect-fit letterbox bars mix the system colour toward
+idle panel rather than a frozen grid. Attract edge chrome is off by default.
+A measured 0..1 level file (`-audio-level-file` / `FOGCAST_AUDIO_LEVEL_FILE`)
+drives theme-highlight bars on attract and on browse/wheel/detail; the
+designated kit exposes only ALSA Dummy capture/playback, which is not FPGA
+HDMI audio, and `GET /api/v1/session` has no audio level. Enabling
+`-audio-chrome`, `launcher.json` `audio_chrome`, a theme `audio_chrome`
+token, or `FOGCAST_AUDIO_CHROME=1` without a meter paints a quiet attract-only
+`idle pulse` labeled in the footer so it is not claimed as game audio. Built-in
+packs keep the token false. Aspect-fit letterbox bars mix the system colour toward
 the theme label bar; focused cells add a 1px inner highlight. Header uses the title role, tile names use body, placeholder
 lettermarks use caption, and the footer uses status. They rasterize the
 embedded Go Regular face (no kit system fonts) and truncate with an ellipsis
