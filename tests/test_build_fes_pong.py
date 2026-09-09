@@ -123,10 +123,12 @@ class BuildFesPongTests(unittest.TestCase):
             "HDMI_TX_D[21]": "PIN_AG6",
             "HDMI_TX_D[22]": "PIN_AF9",
             "HDMI_TX_D[23]": "PIN_AE8",
+            "HDMI_I2C_SCL": "PIN_U10",
+            "HDMI_I2C_SDA": "PIN_AA4",
         }
         for signal, pin in expected_pins.items():
             self.assertEqual(qsf.count(f"set_location_assignment {pin} -to {signal}\n"), 1)
-        self.assertEqual(qsf.count('set_instance_assignment -name IO_STANDARD "3.3-V LVTTL"'), 6)
+        self.assertEqual(qsf.count('set_instance_assignment -name IO_STANDARD "3.3-V LVTTL"'), 8)
 
         game = (ROOT / "cores/pong/rtl/pong_game.sv").read_text(encoding="utf-8")
         self.assertIn("output logic signed [9:0] ball_x, ball_y, player_y, ai_y", game)
@@ -204,6 +206,27 @@ class BuildFesPongTests(unittest.TestCase):
             + "\n",
             encoding="utf-8",
         )
+        for filename in ("synth.json", "routed.json"):
+            design = json.loads((output / filename).read_text())
+            cells = design["modules"]["top"]["cells"]
+            design["modules"]["top"]["ports"] = {
+                "HDMI_I2C_SCL": {"direction": "inout", "bits": [20]},
+                "HDMI_I2C_SDA": {"direction": "inout", "bits": [21]},
+            }
+            cells["hdmi_i2c"] = {
+                "type": "cyclonev_hps_interface_peripheral_i2c",
+                "attributes": {"NEXTPNR_BEL" if filename == "routed.json" else "BEL":
+                               "cyclonev_hps_interface_peripheral_i2c.52.60.0"},
+                "connections": {"out_clk": [10], "out_data": [11], "scl": [12], "sda": [13]},
+            }
+            for name, enable, feedback, pin, bel in (
+                ("hdmi_scl_pad", 10, 12, "PIN_U10", "MISTRAL_IO.6.0.0"),
+                ("hdmi_sda_pad", 11, 13, "PIN_AA4", "MISTRAL_IO.4.0.2"),
+            ):
+                cells[name] = {"type": "MISTRAL_IO",
+                    "attributes": {"LOC": pin, "NEXTPNR_BEL": bel},
+                    "connections": {"I": ["0"], "OE": [enable], "O": [feedback], "PAD": [20 if enable == 10 else 21]}}
+            (output / filename).write_text(json.dumps(design))
         (output / "core.rbf").write_bytes(b"rbf\n")
         (output / "nextpnr.log").write_text(
             "Info: constraining clock net 'FPGA_CLK1_50' to 50.00 MHz\n"
@@ -229,6 +252,7 @@ class BuildFesPongTests(unittest.TestCase):
                         "altera_pll": {"used": 1, "available": 2},
                         "cyclonev_hps_interface_mpu_general_purpose": {"used": 1, "available": 1},
                         "cyclonev_oscillator": {"used": 0, "available": 1},
+                        "cyclonev_hps_interface_peripheral_i2c": {"used": 1, "available": 4},
                         "MISTRAL_M10K": {"used": 0, "available": 553},
                         "MISTRAL_MUL9X9": {"used": 0, "available": 112},
                     },
@@ -236,6 +260,37 @@ class BuildFesPongTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+
+    def test_evidence_rejects_unsafe_i2c_wiring(self) -> None:
+        mutations = (
+            ("hdmi_scl_pad", "connections", "I", ["1"]),
+            ("hdmi_scl_pad", "connections", "PAD", [21]),
+            ("hdmi_scl_pad", "connections", "OE", [11]),
+            ("hdmi_sda_pad", "connections", "O", [12]),
+            ("hdmi_scl_pad", "attributes", "LOC", "PIN_AA4"),
+            ("hdmi_i2c", "attributes", "NEXTPNR_BEL", "cyclonev_hps_interface_peripheral_i2c.52.59.0"),
+        )
+        for cell, group, key, value in mutations:
+            with self.subTest(cell=cell, key=key), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory)
+                self._write_passing_outputs(output)
+                path = output / "routed.json"
+                design = json.loads(path.read_text())
+                design["modules"]["top"]["cells"][cell][group][key] = value
+                path.write_text(json.dumps(design))
+                with self.assertRaisesRegex(BuildError, "I2C"):
+                    validate_build_evidence(output)
+
+    def test_evidence_rejects_missing_hdmi_i2c(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            self._write_passing_outputs(output)
+            for filename in ("synth.json", "routed.json"):
+                design = json.loads((output / filename).read_text())
+                design["modules"]["top"]["cells"].pop("hdmi_i2c", None)
+                (output / filename).write_text(json.dumps(design))
+            with self.assertRaisesRegex(BuildError, "I2C"):
+                validate_build_evidence(output)
 
     def test_evidence_requires_exact_resources_route_and_both_clocks(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

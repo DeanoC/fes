@@ -262,7 +262,10 @@ produces a programmable RBF.
 `make sim-fes-pong` tests the separate `fes.simple-game` GP transport and exact
 74.25 MHz-domain 720p raster model. It reuses only `pong_game.sv` from the
 MiSTer Pong and simulates the board top with independently driven,
-simulation-only HPS and PLL boundaries.
+simulation-only HPS and PLL boundaries. The board test also checks HDMI I2C
+low-or-release drive and feedback from an external device. The standalone shell
+uses the HPS I2C bridge at X52/Y60 with U10/AA4 pads; its export checks require
+that exact route and constant-low output data.
 
 `make build-fes-pong` authenticates the repository-local Yosys,
 nextpnr-mistral and Mistral cache against `toolchain.lock`, constructs canonical

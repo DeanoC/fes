@@ -66,6 +66,7 @@ ORDINARY_RESOURCES = frozenset(
 REQUIRED_RESOURCES = {
     "altera_pll": 1,
     "cyclonev_hps_interface_mpu_general_purpose": 1,
+    "cyclonev_hps_interface_peripheral_i2c": 1,
 }
 FORBIDDEN_RESOURCES = frozenset(
     {
@@ -442,6 +443,52 @@ def _reference_clock_evidence(source_root: Path, route_text: str) -> dict[str, o
     }
 
 
+def _i2c_evidence(design: dict, label: str) -> None:
+    module = design.get("modules", {}).get(TOP, {})
+    cells = module.get("cells", {})
+    bridges = [cell for cell in cells.values()
+               if cell.get("type") == "cyclonev_hps_interface_peripheral_i2c"]
+    if len(bridges) != 1:
+        raise BuildError(f"{label} HDMI I2C requires exactly one HPS bridge")
+    bridge = bridges[0]
+    site = "cyclonev_hps_interface_peripheral_i2c.52.60.0"
+    placement = "NEXTPNR_BEL" if label == "routed" else "BEL"
+    if bridge.get("attributes", {}).get(placement) != site:
+        raise BuildError(f"{label} HDMI I2C must use HPS site X52 Y60")
+    connections = bridge.get("connections", {})
+    if (set(connections) != {"out_clk", "out_data", "scl", "sda"}
+            or any(not isinstance(bits, list) or len(bits) != 1
+                   or type(bits[0]) is not int for bits in connections.values())
+            or len({bits[0] for bits in connections.values()}) != 4):
+        raise BuildError(f"{label} HDMI I2C requires four distinct signal nets")
+    grounds = [["0"]]
+    if label == "routed":
+        grounds += [cell.get("connections", {}).get("Q") for cell in cells.values()
+                    if cell.get("type") == "MISTRAL_CONST"
+                    and re.fullmatch("0+", str(cell.get("parameters", {}).get("LUT", "")))
+                    and isinstance(cell.get("connections", {}).get("Q"), list)
+                    and len(cell["connections"]["Q"]) == 1]
+    for name, enable, feedback, pin, bel in (
+        ("hdmi_scl_pad", "out_clk", "scl", "PIN_U10", "MISTRAL_IO.6.0.0"),
+        ("hdmi_sda_pad", "out_data", "sda", "PIN_AA4", "MISTRAL_IO.4.0.2"),
+    ):
+        pad = cells.get(name, {})
+        ports = pad.get("connections", {})
+        if (pad.get("type") != "MISTRAL_IO" or ports.get("I") not in grounds
+                or ports.get("OE") != connections[enable]
+                or ports.get("O") != connections[feedback]):
+            raise BuildError(f"{label} HDMI I2C {name} must drive low or release with pad feedback")
+        port_name = "HDMI_I2C_SCL" if enable == "out_clk" else "HDMI_I2C_SDA"
+        port = module.get("ports", {}).get(port_name, {})
+        if (port.get("direction") != "inout" or not isinstance(port.get("bits"), list)
+                or len(port["bits"]) != 1 or ports.get("PAD") != port["bits"]):
+            raise BuildError(f"{label} HDMI I2C {name} must connect its bidirectional pad")
+        if label == "routed" and (
+                pad.get("attributes", {}).get("LOC") != pin
+                or pad.get("attributes", {}).get("NEXTPNR_BEL") != bel):
+            raise BuildError(f"routed HDMI I2C {name} must use {pin}")
+
+
 def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     output = Path(output)
     source_root = Path(source_root)
@@ -452,6 +499,8 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
         raise BuildError("routed design does not contain the top module")
     _pll_cell_parameters(synthesis, "synthesized")
     _pll_cell_parameters(routed, "routed")
+    _i2c_evidence(synthesis, "synthesized")
+    _i2c_evidence(routed, "routed")
     counts = _cell_counts(synthesis)
     for name, expected in REQUIRED_RESOURCES.items():
         if counts.get(name, 0) != expected:

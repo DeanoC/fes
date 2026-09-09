@@ -85,6 +85,25 @@ struct Board {
 int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
     Board board;
+    // The HPS I2C path is combinational and independent of the pixel clock.
+    for (unsigned hps_low = 0; hps_low != 4; ++hps_low) {
+        for (unsigned external_low = 0; external_low != 4; ++external_low) {
+            board.root.top__DOT__hdmi_i2c__DOT__out_clk = hps_low & 1;
+            board.root.top__DOT__hdmi_i2c__DOT__out_data = (hps_low >> 1) & 1;
+            board.root.top__DOT__hdmi_scl_pad__DOT__external_low = external_low & 1;
+            board.root.top__DOT__hdmi_sda_pad__DOT__external_low = (external_low >> 1) & 1;
+            board.dut.eval();
+            require(!board.root.top__DOT__hdmi_scl_pad__DOT__drive_high &&
+                    !board.root.top__DOT__hdmi_sda_pad__DOT__drive_high,
+                    "I2C pad actively drives high");
+            require(board.root.top__DOT__hdmi_scl_pad__DOT__drive_low == bool(hps_low & 1) &&
+                    board.root.top__DOT__hdmi_sda_pad__DOT__drive_low == bool(hps_low & 2),
+                    "I2C low enable is inverted or crossed");
+            require(board.root.top__DOT__hdmi_i2c__DOT__observed_scl == !(hps_low & 1 || external_low & 1) &&
+                    board.root.top__DOT__hdmi_i2c__DOT__observed_sda == !(hps_low & 2 || external_low & 2),
+                    "I2C pad feedback does not reflect wired-AND bus");
+        }
+    }
     bool toggle = false;
     require(board.gpi() == 0xf5000000u, "initial mailbox state");
 
@@ -133,6 +152,6 @@ int main(int argc, char **argv) {
                 !board.root.top__DOT__core__DOT__game__DOT__playing,
             "game did not observe the coherent reset vector after frame tick");
 
-    std::cout << "FES board: independent reference/pixel phases and coherent frame-edge controls passed\n";
+    std::cout << "FES board: I2C low/release/feedback, independent reference/pixel phases and coherent frame-edge controls passed\n";
     return EXIT_SUCCESS;
 }

@@ -1074,7 +1074,8 @@ gameplay reset. `fes_pong_core` connects the existing `pong_game` directly to
 that pixel domain with `CLOCK_HZ=74250000` and one frame tick per raster frame.
 
 `cores/fes-pong/rtl/top.v` exports `FPGA_CLK1_50`, `HDMI_TX_CLK`,
-`HDMI_TX_D[23:0]`, `HDMI_TX_DE`, `HDMI_TX_HS` and `HDMI_TX_VS`. It instantiates
+`HDMI_TX_D[23:0]`, `HDMI_TX_DE`, `HDMI_TX_HS`, `HDMI_TX_VS` and the
+bidirectional `HDMI_I2C_SCL`/`HDMI_I2C_SDA` pins. It instantiates
 the HPS GP primitive without fabric SDRAM and clocks the mailbox, gameplay and
 raster from the same pixel clock. The GP request toggle remains the only
 asynchronous HPS signal synchronized into that domain; accepted reset and button
@@ -1083,6 +1084,17 @@ multi-bit clock crossing. If the pixel clock is absent, the initial signature,
 ACK-zero, reset and neutral-button state remains visible, but new requests do
 not ACK. Activation consequently fails instead of accepting a core whose video
 clock is stopped.
+
+The HDMI control path uses `cyclonev_hps_interface_peripheral_i2c` at the
+explicit `BEL` site `cyclonev_hps_interface_peripheral_i2c.52.60.0`, connecting
+Linux's existing HPS I2C controller to SCL U10 and SDA AA4. Each explicit
+`MISTRAL_IO` has constant-zero data, the matching HPS low-enable on OE, and
+pad feedback returned to the HPS. This preserves low-or-release behavior
+through OSS synthesis; neither line may actively drive high. The source `BEL`
+attribute places the internal hard block because QSF `HPS_LOCATION` does not
+place internal cells in this lane. Simulation covers all combinations of HPS
+and external-device low enables, with digital pull-ups and observable drive
+intent; it does not model analog bus timing or replace hardware validation.
 
 Top has the synthesis parameter `BUILD_ID[127:0]`. The standalone build recipe
 overrides that parameter with the 32 hexadecimal digits of the build-record ID; identity
@@ -1101,7 +1113,7 @@ checked 50→74.25 MHz single-output fractional-N declaration as
 `610_pll_frac_7425`: direct operation, zero phase, 50% duty and
 `fractional_vco_multiplier="true"`. Integer mode is not accepted for this
 rate. `constraints.qsf` assigns the DE10-Nano 50 MHz input and the ADV7513
-RGB888, DE, sync and pixel-clock pins.
+RGB888, DE, sync, pixel-clock and I2C pins.
 
 `scripts/build_fes_pong.py`, invoked by `make build-fes-pong`, is the sole
 standalone recipe. Its source set is `pixel_pll.v`, `top.v`, `fes_gp.v`,
@@ -1113,19 +1125,21 @@ target; all outputs stay under `build/fes-pong/`.
 
 Before synthesis, the recipe requires a clean source checkout, checks every
 recipe/source/constraint/ABI/lock input is tracked and non-symlinked,
-authenticates Yosys `10891a9e0256a0eac70c329aa64c633902fc6bc6`, Mistral
-`b28e30a36b5139aaed5a5d361a30b542e6b7c758` and nextpnr-mistral
-`ef294430c57b1d64c52f15129adcc6236ecbce01` through their canonical cache
-stamps and executable digests, then writes canonical `build-inputs.json`.
+authenticates Yosys, Mistral and nextpnr-mistral against the recipe's expected
+commits and `toolchain.lock` through their canonical cache stamps and executable
+digests, then writes canonical `build-inputs.json`.
 The record uses `scripts/build_fes_pong.py` as its recipe,
 `cores/fes-pong/generated/fes_gp.vh` as its tracked ABI definition, and an empty
 dependency map because the build is self-contained in this checkout.
 
 Export remains unreachable until the routed JSON contains top, synthesis and
-utilization each show exactly one `altera_pll` and one HPS GP primitive, no
+utilization each show exactly one `altera_pll`, one HPS GP primitive and one
+HPS I2C primitive, no
 forbidden memory/DSP synthesis cell or utilization resource is used, the known
 `cyclonev_oscillator` utilization row is present with zero use, and the route
-log proves normal completion. The single sequential timing domain must meet its
+log proves normal completion. Synthesized and routed evidence must preserve the
+I2C low-or-release topology and pad feedback; routed evidence must use the exact
+HPS site and U10/AA4 pads. The single sequential timing domain must meet its
 74.25 MHz pixel constraint. The 50 MHz reference has no sequential Fmax row;
 the recipe instead requires the tracked SDC's exact 20.000 ns constraint, its
 application in the route log, and identical fixed fractional PLL parameters in
