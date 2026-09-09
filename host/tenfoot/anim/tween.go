@@ -1,6 +1,6 @@
 // Package anim is CGO-free timed 2D helpers for tenfoot FPGA/software
-// backends: eases, rect moves, colour fades, and a still-cycle attract
-// proof. It talks only to gfx.Device.
+// backends: eases, rect moves, colour fades, kit scene overlays, and a
+// still-cycle attract proof. It talks only to gfx.Device.
 package anim
 
 import (

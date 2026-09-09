@@ -406,6 +406,194 @@ func runPacksSelftest(fbPath string, th theme.Theme) error {
 	return err
 }
 
+func runTransitionSelftest(fbPath string, th theme.Theme) error {
+	d, err := gfx.OpenLinuxFB(fbPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	report, err := exerciseTransitionGrid(d, th)
+	fmt.Print(report)
+	return err
+}
+
+func exerciseTransitionGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
+	th = th.Complete()
+	cfg := d.Config()
+	var b strings.Builder
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true, Pack: theme.PackClassic}
+	m.SetCatalog(mixedShelfGames())
+	g := paintModel(d, m, th)
+	if g.Kind != fbgrid.BrowseGrid {
+		return b.String(), fmt.Errorf("origin kind=%s", g.Kind)
+	}
+	ix, iy, ok := g.PanelSample(0)
+	if !ok {
+		return b.String(), fmt.Errorf("origin panel")
+	}
+	look := kitLook(m, th)
+	tile := fbgrid.PlaceholderPanel(g.Tiles[0].Color, look, false)
+	gotB, gotG, gotR, _, err := gfx.SampleBGRX(d.Destination(), cfg, ix, iy)
+	if err != nil {
+		return b.String(), err
+	}
+	if gotB != tile.B || gotG != tile.G || gotR != tile.R {
+		return b.String(), fmt.Errorf("settled tile bgrx %d,%d,%d want %d,%d,%d", gotB, gotG, gotR, tile.B, tile.G, tile.R)
+	}
+	fmt.Fprintf(&b, "settled kind=%s tile=(%d,%d) bgrx=%d,%d,%d curtain=%s wipe=%s glitch=%s\n",
+		g.Kind, ix, iy, gotB, gotG, gotR, anim.CurtainDuration, anim.WipeDuration, anim.GlitchDuration)
+	if anim.CurtainDuration > anim.MaxDuration || anim.WipeDuration > anim.MaxDuration || anim.GlitchDuration > anim.MaxDuration {
+		return b.String(), fmt.Errorf("duration cap")
+	}
+
+	dst := gfx.Rect{X: 0, Y: 0, W: float32(cfg.Width), H: float32(cfg.Height)}
+	classic := theme.Default()
+	overlay := func(style anim.Style, t float64, look theme.Theme) error {
+		fbgrid.Paint(d, g)
+		anim.PaintTransition(d, dst, style, t, transitionColors(look))
+		d.Present()
+		return nil
+	}
+
+	if err := overlay(anim.StyleCurtain, 0, classic); err != nil {
+		return b.String(), err
+	}
+	cB, cG, cR, _, err := gfx.SampleBGRX(d.Destination(), cfg, ix, iy)
+	if err != nil {
+		return b.String(), err
+	}
+	fill := classic.HeaderBar
+	if cB != fill.B || cG != fill.G || cR != fill.R {
+		return b.String(), fmt.Errorf("curtain-t0 tile bgrx %d,%d,%d want fill %d,%d,%d", cB, cG, cR, fill.B, fill.G, fill.R)
+	}
+	if cB == tile.B && cG == tile.G && cR == tile.R {
+		return b.String(), fmt.Errorf("curtain-t0 left tile revealed")
+	}
+	fmt.Fprintf(&b, "curtain-t0 tile=(%d,%d) bgrx=%d,%d,%d fill=%s\n", ix, iy, cB, cG, cR, theme.FormatColor(fill))
+
+	if err := overlay(anim.StyleCurtain, 1, classic); err != nil {
+		return b.String(), err
+	}
+	sB, sG, sR, _, err := gfx.SampleBGRX(d.Destination(), cfg, ix, iy)
+	if err != nil {
+		return b.String(), err
+	}
+	if sB != tile.B || sG != tile.G || sR != tile.R {
+		return b.String(), fmt.Errorf("curtain-settled tile bgrx %d,%d,%d", sB, sG, sR)
+	}
+
+	if err := overlay(anim.StyleWipe, 0.5, theme.Night()); err != nil {
+		return b.String(), err
+	}
+	leftB, leftG, leftR, _, err := gfx.SampleBGRX(d.Destination(), cfg, cfg.Width/8, cfg.Height/2)
+	if err != nil {
+		return b.String(), err
+	}
+	rightB, rightG, rightR, _, err := gfx.SampleBGRX(d.Destination(), cfg, 7*cfg.Width/8, cfg.Height/2)
+	if err != nil {
+		return b.String(), err
+	}
+	if leftB == rightB && leftG == rightG && leftR == rightR {
+		return b.String(), fmt.Errorf("wipe-mid left and right matched %d,%d,%d", leftB, leftG, leftR)
+	}
+	wipeFill := theme.Night().HeaderBar
+	if rightB != wipeFill.B || rightG != wipeFill.G || rightR != wipeFill.R {
+		return b.String(), fmt.Errorf("wipe-mid right bgrx %d,%d,%d want fill %d,%d,%d", rightB, rightG, rightR, wipeFill.B, wipeFill.G, wipeFill.R)
+	}
+	fmt.Fprintf(&b, "wipe-mid left=(%d,%d) bgrx=%d,%d,%d right=(%d,%d) bgrx=%d,%d,%d\n",
+		cfg.Width/8, cfg.Height/2, leftB, leftG, leftR, 7*cfg.Width/8, cfg.Height/2, rightB, rightG, rightR)
+
+	if err := overlay(anim.StyleNone, 0, classic); err != nil {
+		return b.String(), err
+	}
+	nB, nG, nR, _, err := gfx.SampleBGRX(d.Destination(), cfg, ix, iy)
+	if err != nil {
+		return b.String(), err
+	}
+	if nB != tile.B || nG != tile.G || nR != tile.R {
+		return b.String(), fmt.Errorf("none overlay mutated tile %d,%d,%d", nB, nG, nR)
+	}
+	fmt.Fprintf(&b, "none-noop tile bgrx=%d,%d,%d\n", nB, nG, nR)
+
+	neon := theme.Arcade()
+	if err := overlay(anim.ParseStyle(neon.Transition), 0.45, neon); err != nil {
+		return b.String(), err
+	}
+	gB, gG, gR, _, err := gfx.SampleBGRX(d.Destination(), cfg, ix, iy)
+	if err != nil {
+		return b.String(), err
+	}
+	if gB == tile.B && gG == tile.G && gR == tile.R {
+		return b.String(), fmt.Errorf("glitch-mid unchanged")
+	}
+	glitchPix := [3]byte{gB, gG, gR}
+	if err := overlay(anim.StyleCurtain, 0.45, classic); err != nil {
+		return b.String(), err
+	}
+	cuB, cuG, cuR, _, err := gfx.SampleBGRX(d.Destination(), cfg, ix, iy)
+	if err != nil {
+		return b.String(), err
+	}
+	if cuB == glitchPix[0] && cuG == glitchPix[1] && cuR == glitchPix[2] {
+		return b.String(), fmt.Errorf("glitch-mid matched curtain-mid")
+	}
+	fmt.Fprintf(&b, "glitch-mid tile bgrx=%d,%d,%d neon_transition=%s curtain-mid bgrx=%d,%d,%d\n",
+		gB, gG, gR, neon.Transition, cuB, cuG, cuR)
+
+	now := time.Unix(20, 0)
+	var fx sceneFX
+	fx.observe(modelScene(m), anim.StyleCurtain, now)
+	if fx.active(now) {
+		return b.String(), fmt.Errorf("first observe should not start fx")
+	}
+	press(&m, "y")
+	if m.Browse != fbgrid.BrowseCoverflow {
+		return b.String(), fmt.Errorf("y browse %s", m.Browse)
+	}
+	fx.observe(modelScene(m), kitTransitionStyle(kitLook(m, th), false), now)
+	if !fx.active(now) || fx.style != anim.StyleCurtain {
+		return b.String(), fmt.Errorf("layout fx active=%v style=%s", fx.active(now), fx.style)
+	}
+	if fx.progress(now) != 0 {
+		return b.String(), fmt.Errorf("layout fx t0 %v", fx.progress(now))
+	}
+	if fx.active(now.Add(anim.CurtainDuration)) {
+		return b.String(), fmt.Errorf("layout fx still active after duration")
+	}
+
+	press(&m, "x")
+	if m.Pack != theme.PackNeon {
+		return b.String(), fmt.Errorf("x pack %s", m.Pack)
+	}
+	fx.observe(modelScene(m), kitTransitionStyle(kitLook(m, th), false), now.Add(time.Second))
+	if fx.style != anim.StyleGlitch {
+		return b.String(), fmt.Errorf("pack fx style %s", fx.style)
+	}
+
+	press(&m, "b")
+	if !m.DetailOpen {
+		return b.String(), fmt.Errorf("b did not open detail")
+	}
+	a, _ := remoteinput.NormalizeGamepad("a", true)
+	if action := m.Input(a, now); action != "launch" {
+		return b.String(), fmt.Errorf("A during detail fx %q", action)
+	}
+	fmt.Fprintf(&b, "hooks layout=%s pack=%s detail=1 launch-still-a=1 disabled=%s\n",
+		m.Browse, m.Pack, kitTransitionStyle(classic, true))
+
+	if kitTransitionStyle(theme.Theme{Transition: "none"}.Complete(), false) != anim.StyleNone {
+		return b.String(), fmt.Errorf("theme none should be no-op")
+	}
+
+	packs, err := exercisePacksGrid(d, th)
+	b.WriteString(packs)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "selftest-transition PASS curtain=1 wipe=1 glitch=1 none=1 nested-packs=1\n")
+	return b.String(), nil
+}
+
 func exercisePacksGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	th = th.Complete()
 	cfg := d.Config()
@@ -1337,13 +1525,6 @@ func exerciseMotionGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	if g.ConfirmPulseAmount() <= 0.2 || g.ConfirmPulseAmount() >= 0.95 {
 		return b.String(), fmt.Errorf("confirm-mid amount %v", g.ConfirmPulseAmount())
 	}
-
-	fade0 := fbgrid.DetailFadeFromBlack(0)
-	fade1 := fbgrid.DetailFadeFromBlack(fbgrid.DetailFadeDuration)
-	if fade0 <= fade1 || fade1 != 0 {
-		return b.String(), fmt.Errorf("detail fade open=%v settled=%v", fade0, fade1)
-	}
-	fmt.Fprintf(&b, "motion detail-fade open=%.3f settled=%.3f\n", fade0, fade1)
 
 	detail, err := exerciseDetailGrid(d, th)
 	b.WriteString(detail)

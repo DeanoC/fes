@@ -73,6 +73,9 @@ func TestDefaultPreservesKitTokens(t *testing.T) {
 	if th.TitlePx() != 20 || th.BodyPx() != 13 || th.CaptionPx() != 12 || th.StatusPx() != 14 {
 		t.Fatalf("type roles title=%d body=%d caption=%d status=%d", th.TitlePx(), th.BodyPx(), th.CaptionPx(), th.StatusPx())
 	}
+	if th.Transition != "curtain" {
+		t.Fatalf("default transition %q", th.Transition)
+	}
 	if th.TitleWeight() != gfx.WeightBold || th.HeaderWeight() != gfx.WeightBold {
 		t.Fatalf("default title/header weight %s/%s", th.TitleWeight(), th.HeaderWeight())
 	}
@@ -95,6 +98,9 @@ func TestArcadeDiffersFromDefault(t *testing.T) {
 	}
 	if a.HeaderBar == d.HeaderBar || a.CoverFrameWidth == 0 {
 		t.Fatal("arcade chrome")
+	}
+	if a.Transition != "glitch" || Night().Transition != "wipe" {
+		t.Fatalf("pack transitions arcade=%q night=%q", a.Transition, Night().Transition)
 	}
 }
 
@@ -302,6 +308,47 @@ func TestTitleBoldTokens(t *testing.T) {
 	}
 	if bodyBold.TitleWeight() != gfx.WeightBold || bodyBold.BodyWeight() != gfx.WeightBold || bodyBold.StatusWeight() != gfx.WeightRegular {
 		t.Fatalf("body_bold title=%s body=%s status=%s", bodyBold.TitleWeight(), bodyBold.BodyWeight(), bodyBold.StatusWeight())
+	}
+}
+
+func TestTransitionTokenNoneAndUnknown(t *testing.T) {
+	t.Parallel()
+	if (Theme{}).Complete().Transition != "curtain" {
+		t.Fatal("omitted transition should inherit curtain")
+	}
+	none := Theme{Transition: "none"}.Complete()
+	if none.Transition != "none" {
+		t.Fatalf("none became %q", none.Transition)
+	}
+	if none.Equal(Default()) {
+		t.Fatal("none should not equal default curtain")
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "none.json")
+	if err := os.WriteFile(path, []byte(`{"name":"quiet","transition":"none"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	th, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if th.Transition != "none" {
+		t.Fatalf("loaded none %q", th.Transition)
+	}
+	bad := filepath.Join(dir, "bad-fx.json")
+	if err := os.WriteFile(bad, []byte(`{"transition":"sparkle"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(bad); err == nil {
+		t.Fatal("unknown transition")
+	}
+	static := filepath.Join(dir, "static.json")
+	if err := os.WriteFile(static, []byte(`{"transition":"static"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	st, err := Load(static)
+	if err != nil || st.Transition != "glitch" {
+		t.Fatalf("static alias: %+v %v", st, err)
 	}
 }
 

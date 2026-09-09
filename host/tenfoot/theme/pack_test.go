@@ -32,6 +32,9 @@ func TestPackRosterHasClassicNeonAndSofaDim(t *testing.T) {
 	if neon.Highlight == dim.Highlight || neon.Background == dim.Background {
 		t.Fatal("neon and sofa-dim colors overlap")
 	}
+	if classic.Transition != "curtain" || neon.Transition != "glitch" || dim.Transition != "wipe" {
+		t.Fatalf("pack transitions classic=%q neon=%q dim=%q", classic.Transition, neon.Transition, dim.Transition)
+	}
 }
 
 func TestNormalizePackAliases(t *testing.T) {

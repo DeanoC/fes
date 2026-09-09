@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
-	"github.com/DeanoC/FogCast/host/tenfoot/anim"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 )
@@ -30,8 +29,6 @@ type DetailFrame struct {
 	// dims the title cover across the stage if one is present.
 	Atmosphere *image.RGBA
 	Theme      theme.Theme
-	// FadeFromBlack is overlay alpha in [0, 1]. Zero (default) is fully visible.
-	FadeFromBlack float64
 }
 
 // PaintDetail draws a living-room title pane. It does not Present.
@@ -172,9 +169,6 @@ func PaintDetail(d gfx.Device, f DetailFrame) {
 	}
 	hint = gfx.FitTextWeight(hint, statusSize, f.Width-16, statusW)
 	d.DrawTextWeight(8, chromeTextY(footerTop, footerH, gfx.TextHeightWeight(statusSize, statusW), false), hint, statusSize, statusW, th.Status)
-	if f.FadeFromBlack > 0 {
-		anim.FadeOverlay(d, gfx.Rect{X: 0, Y: 0, W: float32(f.Width), H: float32(f.Height)}, f.FadeFromBlack)
-	}
 }
 
 const (

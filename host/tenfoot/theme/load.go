@@ -33,6 +33,7 @@ type fileTheme struct {
 	FooterBar         string            `json:"footer_bar" toml:"footer_bar"`
 	CoverFrame        string            `json:"cover_frame" toml:"cover_frame"`
 	CoverFrameWidth   int               `json:"cover_frame_width" toml:"cover_frame_width"`
+	Transition        string            `json:"transition" toml:"transition"`
 	Pad               int               `json:"pad" toml:"pad"`
 	Gap               int               `json:"gap" toml:"gap"`
 	Border            int               `json:"border" toml:"border"`
@@ -153,6 +154,9 @@ func (raw fileTheme) theme() (Theme, error) {
 		t.statusBoldSet = true
 	}
 	var err error
+	if t.Transition, err = parseTransition(raw.Transition); err != nil {
+		return Theme{}, err
+	}
 	if t.Background, err = parseHex(raw.Background); err != nil {
 		return Theme{}, err
 	}
@@ -200,6 +204,19 @@ func (raw fileTheme) theme() (Theme, error) {
 		}
 	}
 	return t, nil
+}
+
+func parseTransition(s string) (string, error) {
+	s = strings.ToLower(strings.TrimSpace(s))
+	switch s {
+	case "", "none", "curtain", "wipe", "glitch", "static":
+		if s == "static" {
+			return "glitch", nil
+		}
+		return s, nil
+	default:
+		return "", fmt.Errorf("theme: transition %q must be none, curtain, wipe, or glitch", s)
+	}
 }
 
 func parseHex(s string) (gfx.Color, error) {

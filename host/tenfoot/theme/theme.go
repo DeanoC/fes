@@ -34,6 +34,9 @@ type Theme struct {
 	FooterBar         gfx.Color
 	CoverFrame        gfx.Color
 	CoverFrameWidth   int
+	// Transition is none, curtain, wipe, or glitch. Empty inherits Default
+	// (curtain) in Complete. "none" is an honest no-op overlay.
+	Transition string
 
 	Pad     int
 	Gap     int
@@ -89,6 +92,7 @@ func Default() Theme {
 		FooterBar:         gfx.RGB(16, 16, 24),
 		CoverFrame:        gfx.Color{},
 		CoverFrameWidth:   0,
+		Transition:        "curtain",
 		Pad:               16,
 		Gap:               8,
 		Border:            4,
@@ -131,6 +135,7 @@ func Arcade() Theme {
 		FooterBar:         gfx.RGB(255, 34, 0),
 		CoverFrame:        gfx.RGB(255, 230, 0),
 		CoverFrameWidth:   3,
+		Transition:        "glitch",
 		Pad:               16,
 		Gap:               8,
 		Border:            6,
@@ -177,6 +182,7 @@ func Night() Theme {
 		FooterBar:         gfx.RGB(10, 32, 64),
 		CoverFrame:        gfx.RGB(61, 184, 255),
 		CoverFrameWidth:   2,
+		Transition:        "wipe",
 		Pad:               16,
 		Gap:               8,
 		Border:            4,
@@ -253,6 +259,11 @@ func (t Theme) Complete() Theme {
 	t.CoverFrame = completeColor(t.CoverFrame, d.CoverFrame)
 	if t.CoverFrameWidth < 0 {
 		t.CoverFrameWidth = d.CoverFrameWidth
+	}
+	if strings.TrimSpace(t.Transition) == "" {
+		t.Transition = d.Transition
+	} else {
+		t.Transition = strings.ToLower(strings.TrimSpace(t.Transition))
 	}
 	if t.Pad <= 0 {
 		t.Pad = d.Pad
@@ -424,6 +435,7 @@ func (t Theme) Equal(o Theme) bool {
 		t.FooterBar != o.FooterBar ||
 		t.CoverFrame != o.CoverFrame ||
 		t.CoverFrameWidth != o.CoverFrameWidth ||
+		t.Transition != o.Transition ||
 		t.Pad != o.Pad ||
 		t.Gap != o.Gap ||
 		t.Border != o.Border ||

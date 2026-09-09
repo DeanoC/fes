@@ -131,8 +131,12 @@ screenshots when `screenshot_ids` has two or more. When presentation
 motion preview: it auto-cycles those screenshots plus backdrop/cover posters
 under a VIDEO badge and a `preview` caption. The CGO-free kit path does not
 decode H.264. Titles without a video handle keep today's still carousel.
-Opening the pane uses a
-short fade-from-black overlay. Attract does not arm
+Opening the pane, showing or hiding attract, entering or leaving the
+platform wheel, and switching layout or theme pack play a short
+theme-driven overlay: Classic a curtain, Neon a glitch/static burst,
+Sofa Dim a wipe (`host/tenfoot/anim`, under 400ms). `transition` `none`
+in a theme file, `-no-transition`, or `FOGCAST_NO_TRANSITION=1` is an
+honest no-op. Pad input is not held while the overlay paints. Attract does not arm
 while the pane is open. Missing description copy is omitted rather than
 drawn as an empty box. Cells show host cover art when a catalog
 `Game.Cover` or LaunchBox/IGDB presentation cover handle is available,
@@ -162,9 +166,10 @@ is set. Paint
 tokens (background, highlight, flash, system palette, header/footer chrome)
 come from `host/tenfoot/theme`: built-in `default` / pack **Classic** match
 today's kit look, and **Neon** (`arcade`) / **Sofa Dim** (`night`) (or a
-JSON/TOML file) swap colours, type roles, and chrome accents without forking
-UI code. Select with `-theme`, `theme` in `launcher.json`, or
-`FOGCAST_THEME`; on the kit, X (West) cycles the three packs at runtime.
+JSON/TOML file) swap colours, type roles, chrome accents, and scene
+transitions without forking UI code. Select with `-theme`, `theme` in
+`launcher.json`, or `FOGCAST_THEME`; on the kit, X (West) cycles the three
+packs at runtime.
 The
 grid is a view of `kitlauncher.Model` and does not own host requests, input
 leases, or FPGA transitions. Kit input opens every eligible USB pad, merges

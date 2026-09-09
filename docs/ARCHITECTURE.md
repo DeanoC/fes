@@ -664,7 +664,12 @@ without a video handle keep the still screenshot carousel.
 A/South still launches from browse. The pane's A plays the
 focused title, East/B and Up return to the same shelf and focus, and
 shoulder or D-pad L/R cycle `screenshot_ids` (or preview stills) when two or more are present.
-The pane opens with a cheap fade-from-black overlay. Attract does not arm while the pane is open. Catalog cells paint decoded box-art from
+Meaningful scene cuts (detail open/close, attract show/hide, wheel
+enter/leave, Y layout, X pack) paint a short CGO-free overlay from the
+theme `transition` token through `host/tenfoot/anim`: Classic a curtain,
+Neon a glitch/static burst, Sofa Dim a wipe. Overlays settle in under
+400ms and do not block pad input. `transition` `none`, `-no-transition`,
+or `FOGCAST_NO_TRANSITION=1` is an honest no-op. Attract does not arm while the pane is open. Catalog cells paint decoded box-art from
 `GET /api/v1/presentation/artwork/{handle}` when a catalog `Game.Cover` or a
 presentation `cover_artwork_id` is present. Presentation `logo_id` (LaunchBox
 Clear Logo, or a `library_media` RoleLogo overlay that wins when present)

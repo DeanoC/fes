@@ -1,13 +1,11 @@
 package fbgrid
 
 import (
-	"image/color"
 	"testing"
 	"time"
 
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/linuxinput"
-	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 )
 
 func TestIdleTicksDoNotStartFocusPop(t *testing.T) {
@@ -165,20 +163,6 @@ func TestArmPopUsesWallClock(t *testing.T) {
 	}
 }
 
-func TestDetailFadeFromBlackSettles(t *testing.T) {
-	t.Parallel()
-	if got := DetailFadeFromBlack(0); got != DetailFadePeak {
-		t.Fatalf("open %v want %v", got, DetailFadePeak)
-	}
-	mid := DetailFadeFromBlack(DetailFadeDuration / 2)
-	if mid <= 0 || mid >= DetailFadePeak {
-		t.Fatalf("mid %v", mid)
-	}
-	if got := DetailFadeFromBlack(DetailFadeDuration); got != 0 {
-		t.Fatalf("settled %v", got)
-	}
-}
-
 func TestPaintFocusPopChangesPixels(t *testing.T) {
 	t.Parallel()
 	const w, h = 640, 480
@@ -295,44 +279,6 @@ func TestPaintConfirmPulseDiffersMid(t *testing.T) {
 		t.Fatal("highlight")
 	}
 	assertBGRX(t, dst, cfg, hx, hy, 0, 220, 255, 0)
-}
-
-func TestPaintDetailFadeFromBlackDiffers(t *testing.T) {
-	t.Parallel()
-	const w, h = 640, 480
-	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
-	dst := make([]byte, cfg.Height*cfg.Stride)
-	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
-	th := theme.Default()
-	frame := DetailFrame{
-		Width: w, Height: h, Title: "Mario", Theme: th,
-		Color: th.SystemColor("snes"),
-	}
-	PaintDetail(d, frame)
-	d.Present()
-	settled := d.Snapshot()
-	cx, cy, ok := DetailCoverSample(w, h, th)
-	if !ok {
-		t.Fatal("cover sample")
-	}
-	panel := PlaceholderPanel(frame.Color, th.Complete(), false)
-	assertBGRX(t, dst, cfg, cx, cy, panel.B, panel.G, panel.R, 0)
-
-	frame.FadeFromBlack = DetailFadeFromBlack(0)
-	PaintDetail(d, frame)
-	d.Present()
-	faded := d.Snapshot()
-	if bytesEqual(settled.Pix, faded.Pix) {
-		t.Fatal("open fade matched settled pane")
-	}
-	p := faded.RGBAAt(cx, cy)
-	if p == (color.RGBA{R: panel.R, G: panel.G, B: panel.B, A: 255}) {
-		t.Fatal("open fade left cover sample unchanged")
-	}
 }
 
 func bytesEqual(a, b []byte) bool {

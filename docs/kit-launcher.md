@@ -56,8 +56,8 @@ names. The same remapper is what linuxinput-derived paths and the tenfoot
 Look tokens live in `host/tenfoot/theme`. Built-in **default** / pack **Classic**
 keep the current kit pixels (highlight BGRX 0,220,255,0, flash white, system
 palette). **Neon** (`arcade`) and **Sofa Dim** (`night`) are named living-room
-packs: colours, type roles, and chrome accents already admitted by the theme
-engine. `-theme` (then optional `theme` in
+packs: colours, type roles, chrome accents, and a scene `transition`
+(curtain / glitch / wipe). `-theme` (then optional `theme` in
 `launcher.json`, then `FOGCAST_THEME`) selects a pack or builtin name, or a
 JSON/TOML file. X (West) cycles Classic → Neon → Sofa Dim → Classic on the
 wheel, browse, strip, and title pane without stealing D-pad or Y; the last
@@ -86,7 +86,7 @@ Focus changes play a short ease-in-out pop: the focused highlight ring
 grows about its cell (~1.06 scale, ~160ms via `anim.Tween`) while unfocused
 tiles keep their `CellOrigin` layout. South/A confirm is a white pulse that
 eases out over `ConfirmFrames` (launch path unchanged). The present loop
-paints while pop or a title-pane open fade is active instead of waiting for
+paints while pop or a scene overlay is active instead of waiting for
 the usual 100ms same-key skip.
 
 Browse starts on a platform wheel: a horizontal clear-logo / wordmark strip
@@ -142,9 +142,12 @@ backdrop/cover posters every two seconds, paints a VIDEO badge, and captions
 the slot `preview` (or `preview N / M`). That path does not decode H.264 on
 the CGO-free ARMv7 binary; full clip playback is a follow-up. Titles without
 a video handle keep today's still carousel. Attract does not arm while the pane is open; opening it notes
-activity so idle does not fire underneath. The pane uses a short
-fade-from-black overlay (`DetailFadeDuration`) that settles to the existing
-paint. Missing cover art uses the same
+activity so idle does not fire underneath. Meaningful scene cuts (detail
+open/close, attract show/hide, wheel enter/leave, Y layout, X pack) paint a
+short overlay from the active theme `transition` token: Classic **curtain**,
+Neon **glitch**, Sofa Dim **wipe**. Durations stay under 400ms and do not
+block pad input. `transition` `none`, `-no-transition`, or
+`FOGCAST_NO_TRANSITION=1` skips the overlay. Missing cover art uses the same
 placeholder path as the grid. The wheel footer hint is
 `A open | L/R platform | X neon` (X names the next pack: `neon`, `dim`, or
 `classic`); the browse footer after entering from the wheel is
@@ -223,7 +226,10 @@ fetched on kit.
 
 Run `go test -race ./kitlauncher/... ./host/tenfoot/inputmap ./host/tenfoot/theme ./host/tenfoot/fbgrid ./host/tenfoot/gfx ./host/tenfoot/anim ./cmd/fogcast-kit` for adapter tests. They
 exercise real HTTP transports with isolated servers and never open real input or
-framebuffer devices. On the kit, `fogcast-kit -selftest-badges` paints players/rating/completion/portable
+framebuffer devices. On the kit, `fogcast-kit -selftest-transition` paints curtain, wipe, and glitch
+overlays on a 4×3 grid, proves `none` is a no-op, keeps A launch during a
+detail cut, and re-runs packs (which re-runs layouts, atmosphere, strip,
+wheel, motion, detail, attract, cover, text, nav, and shelf). On the kit, `fogcast-kit -selftest-badges` paints players/rating/completion/portable
 chips on grid, coverflow, wall, and the title pane, hides empty chips, samples
 theme-pack highlight fills so covers stay readable, paints wheel play-stats,
 keeps Y/X/A, and re-runs packs (which re-runs layouts, atmosphere, strip,
