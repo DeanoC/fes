@@ -232,6 +232,32 @@ func TestCoreLoadReportsFailurePhaseInJSONAndHumanOutput(t *testing.T) {
 	}
 }
 
+func TestCoreLoadPreservesUnsupportedCompatibilityError(t *testing.T) {
+	path := writeCLIPackage(t, true)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/session/development-core" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = io.WriteString(w, `{"error":{"code":"UNSUPPORTED_OPERATION","message":"private target path and credential","phase":"compatibility"}}`)
+	}))
+	defer server.Close()
+	for _, jsonOutput := range []bool{false, true} {
+		args := []string{"--api", server.URL, "core-load", path}
+		if jsonOutput {
+			args = append([]string{"--json"}, args...)
+		}
+		var stdout, stderr bytes.Buffer
+		if exit := Run(context.Background(), args, &stdout, &stderr, nil); exit != 1 {
+			t.Fatalf("json=%v exit=%d", jsonOutput, exit)
+		}
+		output := stdout.String() + stderr.String()
+		if !strings.Contains(output, "UNSUPPORTED_OPERATION") || !strings.Contains(output, "compatibility") || strings.Contains(output, "private") || strings.Contains(output, "credential") {
+			t.Fatalf("json=%v output=%q", jsonOutput, output)
+		}
+	}
+}
+
 func TestCoreAPIOriginPrecedenceAndValidation(t *testing.T) {
 	t.Setenv("FOGCAST_API", "https://env.example:8443")
 	for _, test := range []struct {
