@@ -34,13 +34,24 @@ class ConsistencyTest(unittest.TestCase):
             if not canonical.exists():
                 canonical.mkdir(parents=True)
                 (canonical / 'fixture').write_bytes(f'{source}\n'.encode())
-            shutil.copytree(canonical, self.sources[component] / destination,
-                            dirs_exist_ok=True)
         for source, component, destination in self.module.COPIED_FILES:
             canonical = self.sources['mister-packages'] / source
             if not canonical.exists():
                 canonical.parent.mkdir(parents=True, exist_ok=True)
                 canonical.write_bytes(f'{source}\n'.encode())
+            copied = self.sources[component] / destination
+            copied.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(canonical, copied)
+        # Populate canonical single-file fixtures before copying a tree that
+        # also contains those files (persistence is shared both ways).
+        for source, component, destination in self.module.COPIED_TREES:
+            shutil.copytree(self.sources['mister-packages'] / source,
+                            self.sources[component] / destination,
+                            dirs_exist_ok=True)
+        for owner, source, component, destination in self.module.COMPONENT_FIXTURES:
+            canonical = self.sources[owner] / source
+            canonical.parent.mkdir(parents=True, exist_ok=True)
+            canonical.write_bytes(f'{source}\n'.encode())
             copied = self.sources[component] / destination
             copied.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(canonical, copied)
@@ -65,7 +76,7 @@ class ConsistencyTest(unittest.TestCase):
 
     def test_selected_sources_and_validation_coverage(self):
         self.assertEqual(self.module.check(self.root, self.sources), {
-            'generated_files': 12, 'source_pin_copies': 4, 'fixture_copies': 5})
+            'generated_files': 12, 'source_pin_copies': 4, 'fixture_copies': 9})
         self.assertEqual({source for command, source in self.calls if command == 'validate'}, {
             'packages/platform/de10_nano.yaml', 'packages/system/megadrive.yaml',
             'packages/system/pong.yaml', 'packages/system/snes.yaml', 'packages/system/nes.yaml',
@@ -77,6 +88,8 @@ class ConsistencyTest(unittest.TestCase):
                           for _, component, destination in self.module.COPIED_TREES]
         fixture_copies += [(component, destination, destination)
                            for _, component, destination in self.module.COPIED_FILES]
+        fixture_copies += [(component, destination, destination)
+                           for _, _, component, destination in self.module.COMPONENT_FIXTURES]
         for component, destination, file_destination in fixture_copies:
             with self.subTest(destination=destination):
                 copied = (self.sources[component] / file_destination if file_destination else

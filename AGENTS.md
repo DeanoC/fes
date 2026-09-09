@@ -30,6 +30,12 @@ physical transitions in the runtime and network/session coordination in the
 FogCast agent. Image assembly still uses the selected FogCast builder until
 the separately scoped assembly migration is complete.
 
+For described-core settings or progress, read the [core persistence guide](docs/core-persistence.md).
+Keep the data layout and wire contract in mister-packages, capture and durable
+record handling in libmister-runtime, and library context and APIs in FogCast.
+Development loads stay volatile; library loads explicitly bind persistent data.
+Do not infer persistence from a display name, package path or raw RBF.
+
 ## Keep worker and integration checkouts separate
 
 Keep `sources/` checkouts clean: they are pinned integration build inputs.

@@ -23,10 +23,17 @@ COPIED_TREES = (
     ('testdata/core-bundle-v2', 'FogCast', 'internal/corepackage/testdata/core-bundle-v2'),
     ('testdata/core-bundle-v2', 'libmister-runtime', 'tests/fixtures/core-bundle-v2'),
     ('testdata/core-bundle-v2', 'misteross', 'tests/fixtures/core-bundle-v2'),
+    ('testdata/core-persistence-v1', 'libmister-runtime', 'tests/fixtures/core-persistence-v1'),
 )
 COPIED_FILES = (
     ('testdata/fes-gp-v1/exchanges.json', 'libmister-runtime', 'tests/fixtures/fes-gp-v1/exchanges.json'),
     ('testdata/fes-gp-v1/exchanges.json', 'misteross', 'cores/fes-pong/generated/exchanges.json'),
+    ('testdata/core-persistence-v1/exchanges.json', 'misteross', 'cores/fes-pong/generated/persistence-exchanges.json'),
+    ('testdata/core-persistence-v1/records.json', 'FogCast', 'internal/misterruntime/testdata/core-persistence-v1/records.json'),
+)
+COMPONENT_FIXTURES = (
+    ('libmister-runtime', 'tests/fixtures/protocol-v2-persistence-responses.jsonl',
+     'FogCast', 'internal/misterruntime/testdata/protocol-v2-persistence-responses.jsonl'),
 )
 CORE_SOURCES = ('megadrive', 'snes', 'nes')
 
@@ -75,6 +82,9 @@ def check(root: Path, sources: dict[str, Path] | None = None):
     for source, component, destination in COPIED_FILES:
         if (packages / source).read_bytes() != (sources[component] / destination).read_bytes():
             raise ValueError(f'fixture {component}/{destination} differs from mister-packages')
+    for owner, source, component, destination in COMPONENT_FIXTURES:
+        if (sources[owner] / source).read_bytes() != (sources[component] / destination).read_bytes():
+            raise ValueError(f'fixture {component}/{destination} differs from {owner}')
     # The validated emitter report is a line-oriented key/value representation;
     # YAML parsing and schema validation stay with the package's own Go loader.
     count = 0
@@ -107,7 +117,7 @@ def check(root: Path, sources: dict[str, Path] | None = None):
                     raise ValueError(f'{component}/{filename}: {".".join(sections)}.{field} differs from mister-packages source pin')
         count += len(copies)
     return {'generated_files': len(GENERATED), 'source_pin_copies': count,
-            'fixture_copies': len(COPIED_TREES) + len(COPIED_FILES)}
+            'fixture_copies': len(COPIED_TREES) + len(COPIED_FILES) + len(COMPONENT_FIXTURES)}
 
 
 def main():
