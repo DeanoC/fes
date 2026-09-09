@@ -87,8 +87,10 @@ lease_gen?, run_id?, layer, kind, severity, detail}`. `flight_id`, when present,
 is the canonical host UUID v4 from #205; lease generations and run IDs remain
 opaque join strings. The ring includes lease lifecycle events and the target/runtime
 hooks that can be observed locally (FIFO dispatch, descriptor open,
-CORENAME/Main transitions, and ownership/program/recovery fences); unavailable
-Main or `fpga_manager` observations are left absent rather than fabricated.
+CORENAME/Main transitions, and ownership/program/recovery fences). The native
+adapter also drains `/run/mister-runtime.events.json` from mister-runtime into
+the same ring when that dump is present. Unavailable Main or `fpga_manager`
+observations are left absent rather than fabricated.
 
 Before an intentional reboot, while holding the current kit lease, persist the
 window with the authenticated target-agent call:

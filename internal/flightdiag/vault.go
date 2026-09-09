@@ -39,6 +39,7 @@ var DefaultKeyPaths = []KeyPath{
 	{Name: "owner", Path: "/media/fat/fogcast/owner.json"},
 	{Name: "CORENAME", Path: "/tmp/CORENAME"},
 	{Name: "fpga_manager", Path: "/sys/class/fpga_manager/fpga0/state"},
+	{Name: "runtime_events", Path: "/run/mister-runtime.events.json"},
 	{Name: "FAT note", Path: "/media/fat/fogcast/fat-note"},
 }
 

@@ -47,7 +47,9 @@ target event ring, and the lease-admitted
 `POST /v1/kit/debug/snapshot-before-reboot` writes a diagnostic evidence
 directory before an intentional reboot. The latter records the ring window and
 bounded evidence for the journal, owner, `/tmp/CORENAME`, FPGA-manager state,
-and a FAT-side note. It reuses the current kit lease and does not create a
+the native `/run/mister-runtime.events.json` dump when present, and a FAT-side
+note. The native adapter drains that dump into the same ring; it does not invent
+`flight_id`, `lease_gen`, or `run_id`. It reuses the current kit lease and does not create a
 third process or bypass the existing runtime path. `flight_id` is the optional
 canonical host UUID v4 from #205 and is retained only when a caller already has
 one; `lease_gen` and `run_id` remain opaque join strings. The target never
