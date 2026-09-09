@@ -14,6 +14,7 @@ host software and target root filesystem.
 | Create component worktrees and use incremental builds | [Development guide](development.md) |
 | Build, provision or verify a flashable native disk image | [Bootable media](bootable-media.md) |
 | Build versioned appliance releases and use automatic update fallback | [Appliance releases](appliance-releases.md) |
+| Build, inspect and load described FPGA core packages | [Described FPGA core packages](core-packages.md) |
 | Decide where a change belongs or crosses a boundary | [Component boundaries](component-boundaries.md) |
 | Continue the Pong, SNES and NES milestone | [Multi-system development](multi-system-development.md) |
 | Develop and validate SNES cartridge saves | [SNES saves](snes-saves.md) |
@@ -49,6 +50,15 @@ recorded in [the narrow-wire acceptance record](validation/2026-09-08-native-nes
 
 Evidence describes the exact artifacts tested. It does not automatically apply
 to later source edits, another profile or a different device.
+
+## Described-core design
+
+[Described FPGA cores and ABI dispatch](superpowers/specs/2026-09-08-rbf-abi-design.md)
+defines format-2 core packages, raw-RBF MiSTer compatibility and the standalone
+Mistral Pong milestone. The [implementation plan](superpowers/plans/2026-09-08-rbf-abi.md)
+retains its task history and acceptance checks. The software and image-selection
+path is implemented; physical acceptance still requires evidence for the exact
+assembled image.
 
 ## Earlier designs and plans
 

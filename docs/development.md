@@ -69,7 +69,11 @@ component remote; a local-only commit will break recursive clones elsewhere.
 The default is `native-integration-dev`. Select a historical profile explicitly
 with `PROFILE=native-dev` or `PROFILE=native-source-dev`; their evidence applies
 to those revisions and artifacts. Source builds require the configured
-Quartus toolchain (`QUARTUS_ROOTDIR`). Build and verify do not deploy.
+Quartus toolchain (`QUARTUS_ROOTDIR`). Build and verify do not deploy. The
+default profile also authenticates the pinned open-source misteross tools before
+selecting its described FES Pong package. See
+[described FPGA core packages](core-packages.md) for first-checkout setup and
+the inspect/load/Stop workflow. Host-only builds do not require those tools.
 
 During component development, use the narrow relevant component tests and
 build only changed artifacts. For target diagnostics, follow the selected
@@ -92,7 +96,10 @@ The development Buildroot volume retains the compiler, libraries and package
 outputs. The Go agent uses Go's compilation cache; the runtime package is cleaned
 and rebuilt when its selected commit changes. An unchanged complete output is
 reused after receipt/hash checks. Otherwise, full Buildroot finalization runs to
-install the current agent, selected RBF set and build-input record.
+install the current agent, selected RBF set and build-input record. A package
+selection change retains the compiler/base volume but forces final image
+assembly. The development receipt binds the emitted package selection and the
+exact external `manifest.toml` and `core.rbf` bytes.
 A failed build leaves no development success receipt; the next invocation can
 resume package compilation.
 

@@ -82,6 +82,24 @@ class NativeDevTest(unittest.TestCase):
             (output / 'linux.img').write_bytes(b'changed')
             self.assertIsNone(native_dev.seed_digest(output, info))
 
+    def test_seed_accepts_bound_derived_package_fingerprint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)
+            base_info = {'sources': {'FogCast': 'abc'}, 'profile': {'version': '1'}, 'go': 'go1'}
+            package = {'inputs': {'selection': {'package_id': 'a' * 64},
+                                  'selection_sha256': 'b' * 64,
+                                  'manifest_sha256': 'c' * 64,
+                                  'core_rbf_sha256': 'd' * 64}}
+            fingerprint, info = build.image_fingerprint('base', base_info, package)
+            (output / 'inputs.json').write_text(json.dumps(info))
+            (output / 'linux.img').write_bytes(b'cold')
+            sha = build.digest(output / 'linux.img')
+            (output / 'reproducibility.txt').write_text(
+                f'run_1_sha256={sha}\nrun_2_sha256={sha}\n')
+            build.write_receipt(output, 'image', fingerprint,
+                                ['linux.img', 'reproducibility.txt', 'inputs.json'])
+            self.assertEqual(native_dev.seed_digest(output, info), sha)
+
     def test_unchanged_development_output_skips_build_tools(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -113,6 +131,24 @@ class NativeDevTest(unittest.TestCase):
                 (bundle / (core + '.rbf')).write_text(core)
                 (bundle / (core + '-rbf.toml')).write_text('bundle-' + core)
                 (built / (core + '.selection.toml')).write_text('selection-' + core)
+            package_id = 'a' * 64
+            package_source = root / 'package'
+            package_source.mkdir()
+            (package_source / 'manifest.toml').write_bytes(b'manifest')
+            (package_source / 'core.rbf').write_bytes(b'package-rbf')
+            package_selection = root / 'fes-pong.package-selection.toml'
+            package_selection.write_bytes(b'format = 2\n')
+            (built / 'fes-pong.package-selection.toml').write_bytes(package_selection.read_bytes())
+            package = {
+                'directory': package_source,
+                'selection_path': package_selection,
+                'inputs': {
+                    'selection': {'package_id': package_id},
+                    'selection_sha256': build.digest(package_selection),
+                    'manifest_sha256': build.digest(package_source / 'manifest.toml'),
+                    'core_rbf_sha256': build.digest(package_source / 'core.rbf'),
+                },
+            }
             with patch.object(native_dev, 'base_key', return_value='base'), \
                  patch.object(native_dev, 'seed_base'), \
                  patch.object(native_dev, 'git', return_value='a' * 40), \
@@ -120,15 +156,78 @@ class NativeDevTest(unittest.TestCase):
                  patch.object(native_dev, 'run') as run:
                 native_dev.build_development(root, fogcast, root / 'runtime', 'native-integration-dev',
                     {'bundle_interface': 'selection', 'fpga_cores': list(cores)}, {}, 'candidate',
-                    {'TARGET_IMAGE_CONTAINER_RUNTIME': 'docker'}, ['make'], bundles)
+                    {'TARGET_IMAGE_CONTAINER_RUNTIME': 'docker'}, ['make'], bundles, package)
             for call in run.call_args_list:
                 if str(call.args[0][0]).endswith('verify-target-image.sh'):
                     self.assertEqual(call.kwargs['env']['NATIVE_RUNTIME_SYSTEMS'], 'megadrive pong snes nes')
+                    self.assertEqual(call.kwargs['env']['FES_PONG_PACKAGE_DIR'], str(package_source))
+                    self.assertEqual(call.kwargs['env']['FES_PONG_PACKAGE_SELECTION'],
+                                     str(package_selection))
+            fetch = next(call.args[0] for call in run.call_args_list
+                         if 'target-image-native-fetch' in call.args[0])
+            self.assertIn('FES_PONG_PACKAGE_DIR=' + str(package_source), fetch)
+            self.assertIn('FES_PONG_PACKAGE_SELECTION=' + str(package_selection), fetch)
+            scripts = [call.args[0][-1] for call in run.call_args_list
+                       if len(call.args[0]) >= 4 and call.args[0][-3:-1] == ['sh', '-c']]
+            self.assertTrue(any('fes-pong.package-selection.toml' in script for script in scripts))
             output = root / 'out/native-integration-dev/development'
             self.assertTrue(build.reusable(output, 'development', 'candidate'))
+            build.verify_package_outputs(output, package)
+            published = output / 'core-packages' / package_id
+            published.chmod(0o755)
+            (published / '.unreceipted').write_text('stray')
+            published.chmod(0o555)
+            with patch.object(native_dev, 'run', side_effect=AssertionError('must not rebuild')), \
+                 self.assertRaisesRegex(ValueError, 'changed|differs'):
+                native_dev.build_development(root, fogcast, root / 'runtime',
+                    'native-integration-dev',
+                    {'bundle_interface': 'selection', 'fpga_cores': list(cores)}, {},
+                    'candidate', {'TARGET_IMAGE_CONTAINER_RUNTIME': 'docker'}, ['make'],
+                    bundles, package)
+            published.chmod(0o755)
+            (published / '.unreceipted').unlink()
+            published.chmod(0o555)
             # A changed extra core, not only the original Mega Drive, invalidates reuse.
             (output / 'snes.rbf').write_text('changed')
             self.assertFalse(build.reusable(output, 'development', 'candidate'))
+
+    def test_package_free_development_rebuild_removes_previous_package_outputs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fogcast = root / 'FogCast'
+            (fogcast / 'build').mkdir(parents=True)
+            (fogcast / 'scripts').mkdir()
+            (fogcast / 'scripts/build-target-image.sh').write_text('epoch=1234567890\n')
+            (fogcast / 'build/target-image.sources.lock.toml').write_text(
+                '[container]\nimage="base"\ndigest="sha256:abc"\nplatform="linux/amd64"\n')
+            cores = ('megadrive',)
+            bundles = {'megadrive': root / 'megadrive'}
+            bundles['megadrive'].mkdir()
+            for name in ('megadrive.rbf', 'megadrive-rbf.toml'):
+                (bundles['megadrive'] / name).write_text(name)
+            built = fogcast / 'build/output/target-image/fes-development'
+            built.mkdir(parents=True)
+            for name in ('linux.img', 'manifest.tsv', 'library-report.tsv',
+                         'megadrive.selection.toml'):
+                (built / name).write_text(name)
+            output = root / 'out/native-integration-dev/development'
+            old = output / 'core-packages' / ('a' * 64)
+            old.mkdir(parents=True)
+            (old / 'manifest.toml').write_text('old')
+            (old / 'core.rbf').write_text('old')
+            (output / 'fes-pong.package-selection.toml').write_text('old')
+            with patch.object(native_dev, 'base_key', return_value='base'), \
+                 patch.object(native_dev, 'seed_base'), \
+                 patch.object(native_dev, 'git', return_value='a' * 40), \
+                 patch.object(native_dev.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0)), \
+                 patch.object(native_dev, 'run'):
+                native_dev.build_development(root, fogcast, root / 'runtime',
+                    'native-integration-dev', {'bundle_interface': 'selection'}, {},
+                    'package-free', {'TARGET_IMAGE_CONTAINER_RUNTIME': 'docker'},
+                    ['make'], bundles, None)
+            self.assertFalse((output / 'fes-pong.package-selection.toml').exists())
+            self.assertFalse((output / 'core-packages').exists())
+            build.verify_package_outputs(output, None)
 
     def test_development_receipt_cannot_satisfy_release_reuse(self):
         with tempfile.TemporaryDirectory() as tmp:

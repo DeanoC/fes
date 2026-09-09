@@ -96,9 +96,11 @@ session-lifecycle evidence in the [dated FES acceptance record](validation/2026-
 historical profiles remain Mega Drive-only.
 
 `make check` validates source identity and cleanliness, the FogCast runtime
-lock, package YAML, nine generated consumer files, and copied Mega Drive/SNES/NES
-source pins. It regenerates to temporary files and never edits consumers. It
-covers the selected DE10-Nano and four system definitions.
+lock, package YAML, twelve generated consumer files, five shared fixture copies,
+and copied Mega Drive/SNES/NES source pins. It regenerates to temporary files
+and never edits consumers. The format-2 additions are the actual runtime C++
+ABI/programming consumers and misteross Verilog ABI consumer. FogCast uses the
+negotiated runtime ABI registry, so no unused generated Go allowlist is added.
 
 The old review's unmerged-consumer concern is resolved: FogCast main consumes
 `generated.MegaDriveExpectedCore` and `generated.MegaDriveCartridgeIndex` through

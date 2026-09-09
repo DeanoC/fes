@@ -9,7 +9,9 @@ import subprocess
 import tomllib
 
 from build import (digest, output_volume, publish_file, reusable, run, write_receipt,
-                   selected_cores, bundle_arguments)
+                   selected_cores, bundle_arguments, package_arguments,
+                   publish_package_state, recorded_image_fingerprint,
+                   verify_package_outputs)
 from inputs import git
 
 # Keep the clean builder's absolute path: Buildroot host tools are not relocatable.
@@ -38,7 +40,7 @@ def seed_digest(output, info):
         if any(previous.get(key) != info.get(key) for key in ('sources', 'profile', 'go')):
             return None
         receipt = json.loads((output / 'image.json').read_text())
-        recorded = hashlib.sha256(json.dumps(previous, sort_keys=True).encode()).hexdigest()
+        recorded = recorded_image_fingerprint(previous)
         if receipt['inputs'] != recorded:
             return None
         if not {'linux.img', 'reproducibility.txt'} <= receipt['files'].keys():
@@ -87,15 +89,16 @@ mv /dest/seed-in-progress /dest/work-2-native-dev
 
 
 def build_development(root, fogcast, runtime, profile_name, profile, info,
-                      fingerprint, env, child_make, bundles):
+                      fingerprint, env, child_make, bundles, package=None):
     if profile.get('bundle_interface') != 'selection':
         raise ValueError('make dev requires native-integration-dev; historical profiles stay cold')
     output = root / 'out' / profile_name / 'development'
     if reusable(output, 'development', fingerprint):
+        verify_package_outputs(output, package)
         print('Development: reusing checked output; nothing to rebuild', flush=True)
         return
     cores = selected_cores(profile)
-    selection_args = bundle_arguments(cores, bundles)
+    selection_args = bundle_arguments(cores, bundles) + package_arguments(package)
     key = base_key(fogcast)
     volume = output_volume(root, profile_name + '-development-' + key)
     output.mkdir(parents=True, exist_ok=True)
@@ -136,6 +139,11 @@ def build_development(root, fogcast, runtime, profile_name, profile, info,
         f'chmod 0444 {EXPORT}/{core}.selection.toml.new\n'
         f'mv {EXPORT}/{core}.selection.toml.new {EXPORT}/{core}.selection.toml'
         for core in cores)
+    if package is not None:
+        selection_copy += f'''\nrm -f {EXPORT}/fes-pong.package-selection.toml.new
+cp /work/build/cache/target-image/native/fes-pong.package-selection.toml {EXPORT}/fes-pong.package-selection.toml.new
+chmod 0444 {EXPORT}/fes-pong.package-selection.toml.new
+mv {EXPORT}/fes-pong.package-selection.toml.new {EXPORT}/fes-pong.package-selection.toml'''
     script = f'''set -eu
 test "$(id -u)" -ne 0
 rm -rf /target-image-output/seed-in-progress
@@ -170,6 +178,9 @@ mv {EXPORT}/linux.img.new {EXPORT}/linux.img
         for name in (core + '.rbf', core + '-rbf.toml'):
             publish_file(bundles[core] / name, output / name)
             names.append(name)
+    names.extend(publish_package_state(
+        package, built / 'fes-pong.package-selection.toml' if package is not None else None,
+        output))
     record = dict(info, build_mode='incremental-development', base_key=key,
                   output_volume=volume, structural='pass', two_pass_reproducibility='not-run')
     (output / 'inputs.json').write_text(json.dumps(record, indent=2, sort_keys=True) + '\n')

@@ -115,6 +115,51 @@ class ReceiptTest(unittest.TestCase):
                 "qemu_log_sha256": qemu_log_sha256,
             })
 
+    def test_verified_image_accepts_derived_package_fingerprint_from_bound_inputs(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import build
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp)
+            image_sha256, _ = self.make_verified_output(build, output)
+            package_inputs = {'selection': {'package_id': 'a' * 64},
+                              'selection_sha256': 'b' * 64,
+                              'manifest_sha256': 'c' * 64,
+                              'core_rbf_sha256': 'd' * 64}
+            derived, info = build.image_fingerprint('base-fingerprint', {'sources': {}},
+                {'inputs': package_inputs})
+            (output / 'inputs.json').write_text(json.dumps(info, sort_keys=True))
+            build.write_receipt(output, 'image', derived,
+                                ['linux.img', 'reproducibility.txt', 'inputs.json'])
+            self.assertEqual(build.load_verified_image(output, 'base-fingerprint')['rootfs_sha256'],
+                             image_sha256)
+            data = json.loads((output / 'inputs.json').read_text())
+            data['fpga_packages'][0]['selection_sha256'] = 'e' * 64
+            (output / 'inputs.json').write_text(json.dumps(data, sort_keys=True))
+            with self.assertRaisesRegex(ValueError, 'stale'):
+                build.load_verified_image(output, 'base-fingerprint')
+
+    def test_host_only_refresh_preserves_package_bound_image_inputs_and_media_lookup(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import build
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp)
+            image_sha256, _ = self.make_verified_output(build, output)
+            package_inputs = {'selection': {'package_id': 'a' * 64},
+                              'selection_sha256': 'b' * 64,
+                              'manifest_sha256': 'c' * 64,
+                              'core_rbf_sha256': 'd' * 64}
+            derived, image_info = build.image_fingerprint('base-fingerprint',
+                {'sources': {}}, {'inputs': package_inputs})
+            (output / 'inputs.json').write_text(json.dumps(image_info, sort_keys=True))
+            build.write_receipt(output, 'image', derived,
+                                ['linux.img', 'reproducibility.txt', 'inputs.json'])
+
+            build.publish_action_inputs(output, 'host', {'sources': {}, 'profile': {}})
+
+            self.assertEqual(json.loads((output / 'inputs.json').read_text()), image_info)
+            self.assertEqual(build.load_verified_image(output, 'base-fingerprint')['rootfs_sha256'],
+                             image_sha256)
+
     def test_republish_read_only_selection(self):
         sys.path.insert(0, str(SCRIPTS))
         import build
