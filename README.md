@@ -243,6 +243,10 @@ development possible with both the open-source Mistral toolchain and Quartus.
   through HPS GP. Simulation uses a 25 MHz digital stand-in; the analog ratio
   is kit-only. Run `make sim EXP=610_pll_frac_7425` and
   `make oss EXP=610_pll_frac_7425`; no Quartus comparison lane is implemented.
+- `620_ddr_clock`, dedicated 50 MHz DDR clock forwarding onto PIN_W15 with a
+  fabric GPI beat. Simulation copies the reference onto the output; the analog
+  pin waveform is not measured. Run `make sim EXP=620_ddr_clock` and
+  `make oss EXP=620_ddr_clock`; no Quartus comparison lane is implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under

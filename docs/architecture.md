@@ -154,15 +154,19 @@ including merged PR #6 byte-masked TDP, merged PR #5 unmasked TDP, merged PR #4
 mixed-width SDP, merged PR #3 20-bit byte enables, merged PR #2 independent
 CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair it with nextpnr
-`5e31bf41`.
+`eefa26d3`.
 
-The current nextpnr pin `5e31bf41f47c0b2403f77c6fb679ca306e9b2cd0` adds
-the four existing HPS peripheral I2C sites, HDMI routing checks, and a GPIO
-input-buffer fix that preserves external input on bidirectional pads. It also
-routes explicit constant-zero and constant-one `MISTRAL_FF.DATAIN` values
-through real fabric sources: Cyclone V flip-flops have no hard constant data
-selector, so folding a zero away could otherwise select unrelated co-packed
-logic after reset. It builds on
+The current nextpnr pin `eefa26d3ec3151630ccd556824fd8ebfa9df4976` merges
+dedicated DDR clock forwarding from merged PR #40 with the four existing HPS
+peripheral I2C sites, HDMI routing checks, and a GPIO input-buffer fix that
+preserves external input on bidirectional pads. Width-one `altddio_out` with
+complementary constant `datain_h`/`datain_l` packs into `MISTRAL_DDROUT` on
+the existing GPIO BEL; fabric DDR data is rejected. It also routes explicit
+constant-zero and constant-one `MISTRAL_FF.DATAIN` values through real fabric
+sources: Cyclone V flip-flops have no hard constant data selector, so folding
+a zero away could otherwise select unrelated co-packed logic after reset. The
+merge parents are `9180a91a8c9412cc96238527c20f8e6d30ce0052` (PR #40) and
+`5e31bf41f47c0b2403f77c6fb679ca306e9b2cd0`. It builds on
 `ef294430c57b1d64c52f15129adcc6236ecbce01`. That baseline includes merged PR #39: a single 50→74.25 MHz fractional-N
 output (`fractional_vco_multiplier="true"`, direct mode, 0 phase, 50% duty,
 M=8 N=1 C6=6, K=`0xe8f5c239`, calculated 74,249,999.83243954 Hz). Integer
@@ -1000,6 +1004,26 @@ buffers, and one HPS GP. Exact-artifact kit diagnostics on 2026-09-08 returned
 zero while reset and 6082–6083 after relock for ten cycles with GPI signature
 `0xD742`.
 
+`620_ddr_clock` forwards the 50 MHz reference through a width-one
+`altddio_out` onto PIN_W15. GPI signature `0xDD01` identifies the fabric
+beat protocol. Simulation copies the reference onto `DDR_OUT`; it does not
+model analog DDR registers or pin delay. The kit probe observes fabric
+counters, not the forwarded pin waveform. Simulation and OSS are supported;
+Quartus comparison is not implemented. See
+`experiments/620_ddr_clock/expected.md`.
+
+The OSS `620_ddr_clock` artifact has SHA-256
+`3daaca5aa964c73cf383a0d5334284998b399bef8c58c2248e7b1f6b62e92df5`
+and size 1,953,412 bytes. nextpnr packed `altddio_out` into `MISTRAL_DDROUT`
+on `MISTRAL_IO.89.8.1` (PIN_W15, normal phase). Its reported Fmax is
+322.372 MHz against the 50 MHz constraint. Utilization is one HPS GP, two
+IO cells, and no PLL, memory or DSP. The current nextpnr pin `eefa26d3`
+with Yosys `fca8ca0a` reproduces those same RBF bytes. Exact-artifact kit
+diagnostics on 2026-09-09 returned GPI signature `0xDD01` with changing
+paired fabric beats for ten samples. Load JSON timed out; GPI and probe
+still passed. `stop` completed development reboot recovery and left the
+lease free. This does not measure the forwarded pin waveform.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
@@ -1008,9 +1032,9 @@ contents, independent-clock 20-bit and 40-bit M10K simple dual-port RAM,
 20-bit M10K byte-enable lanes with independent clocks, mixed-width 40↔10
 M10K simple dual-port RAM, independent-clock 10-bit and 20-bit M10K true
 dual-port RAM, independent-clock byte-masked 20-bit and 16-bit TDP M10K RAM,
-independent-clock mixed-width 20/10, 10/20, 16/8 and 8/16 TDP M10K RAM, and
-the 50→74.25 MHz fractional-N PLL profile. It does not establish native game
-acceptance.
+independent-clock mixed-width 20/10, 10/20, 16/8 and 8/16 TDP M10K RAM, the
+50→74.25 MHz fractional-N PLL profile, and dedicated 50 MHz DDR clock
+forwarding (fabric GPI only). It does not establish native game acceptance.
 
 ## Standalone Pong game
 
