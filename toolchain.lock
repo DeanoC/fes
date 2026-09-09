@@ -2,7 +2,7 @@
 repo = "https://github.com/DeanoC/yosys.git"
 commit = "fca8ca0a5354e52ce0e158bc6e1eed481e590ed8"
 order = 10
-rationale = "Adds the kept Cyclone V HPS peripheral I2C declaration and synthesis regression on 10891a9e0256a0eac70c329aa64c633902fc6bc6. Preserves that base's CMake build surface, mixed-width TDP M10K and earlier ALM support. Pair with nextpnr cb0dab2 for the FES Pong HDMI I2C route; fixed reviewed local commit pending publication."
+rationale = "Adds the kept Cyclone V HPS peripheral I2C declaration and synthesis regression on 10891a9e0256a0eac70c329aa64c633902fc6bc6. Preserves that base's CMake build surface, mixed-width TDP M10K and earlier ALM support. Pair with nextpnr 5e31bf41 for the FES Pong HDMI I2C route; fixed reviewed local commit pending publication."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
@@ -12,9 +12,9 @@ rationale = "DeanoC fork for nextpnr ef29443 Cyclone V MUL9X9/MUL18X18/MUL27X27,
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "cb0dab2da29f50e869327534c90215e569d7430f"
+commit = "5e31bf41f47c0b2403f77c6fb679ca306e9b2cd0"
 order = 30
-rationale = "Adds four existing Cyclone V HPS peripheral I2C sites, exact HDMI low-or-release routing tests, and bidirectional GPIO input-buffer preservation on ef294430c57b1d64c52f15129adcc6236ecbce01. Preserves the base's 50-to-74.25 MHz fractional PLL and mixed-width TDP support. Uses unchanged Mistral b28e30a and Yosys fca8ca0a; fixed reviewed local commit pending publication."
+rationale = "Adds four existing Cyclone V HPS peripheral I2C sites, exact HDMI low-or-release routing tests, bidirectional GPIO input-buffer preservation, and physical routing of explicit flip-flop constant data on ef294430c57b1d64c52f15129adcc6236ecbce01. Preserves the base's 50-to-74.25 MHz fractional PLL and mixed-width TDP support. Uses unchanged Mistral b28e30a and Yosys fca8ca0a; fixed reviewed local commit pending publication."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
