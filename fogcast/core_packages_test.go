@@ -279,3 +279,67 @@ func TestStopUsesUploadTimeoutForPendingPackageRejection(t *testing.T) {
 		t.Fatalf("stop = %+v, %v", status, err)
 	}
 }
+
+func TestActivatedLibraryPackageRetainsFailedHostCleanup(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	catalogStore, err := catalog.OpenContext(ctx, filepath.Join(root, "catalog.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer catalogStore.Close()
+	packages, err := corepackage.NewStore(filepath.Join(root, "packages"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := &packageLibraryClient{fakeServiceClient: &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}}}
+	s := newService(Config{RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, catalogStore, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+	s.corePackages = packages
+	raw := libraryPackageFixture(t, "0.1.0")
+	installed, _, err := s.ImportCorePackage(ctx, int64(len(raw)), bytes.NewReader(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.inspection = protocol.CoreInspection{PackageID: installed.PackageID, Descriptor: installed.Descriptor, Compatible: true}
+	entry, err := s.CreateCoreEntry(ctx, "Cleanup Pong", installed.PackageID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	core := installed.Descriptor.Core.ID
+	active := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core, CorePackage: &protocol.CorePackageStatus{PackageID: installed.PackageID, Generation: 7, ABI: protocol.RuntimeContract{ID: installed.Descriptor.ABI.ID, Major: 1}, BuildID: installed.Descriptor.Build.ID, Gamepad: true}}
+	client.coreLoad = func(context.Context, int64, io.Reader) (protocol.Status, error) {
+		client.statusResult = active
+		return active, nil
+	}
+	executor := &fakeHostExecutor{stopErr: errors.New("host cleanup failed")}
+	s.hostExecutor = executor
+	s.activeExecution = ExecutionHostOnly
+	s.activeGameID = "host-game"
+	response, err := s.Launch(ctx, entry.GameID, nil)
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Phase != "recovery" {
+		t.Fatalf("launch error: %v", err)
+	}
+	if s.activeExecution != ExecutionHostOnly || s.packageRejection == nil || response.Status.LastError == nil {
+		t.Fatalf("lost host cleanup owner: execution=%s status=%+v", s.activeExecution, response.Status)
+	}
+	status, err := s.Status(ctx)
+	if err != nil || status.LastError == nil || status.CorePackage == nil || status.GameID != nil || s.activeGameID != "host-game" {
+		t.Fatalf("pending cleanup hidden: %+v %v", status, err)
+	}
+	// A replacement must finish pending cleanup before dispatching another package.
+	client.stopResult = protocol.Status{State: protocol.StateIdle}
+	if _, err = s.Launch(ctx, entry.GameID, nil); err == nil || client.coreCalls != 1 {
+		t.Fatalf("replacement skipped cleanup: calls=%d err=%v", client.coreCalls, err)
+	}
+	client.statusResult = protocol.Status{State: protocol.StateIdle}
+	if _, err = s.Stop(ctx); err == nil {
+		t.Fatal("idle reported while host cleanup still fails")
+	}
+	stops := client.stopCalls
+	executor.stopErr = nil
+	status, err = s.Stop(ctx)
+	if err != nil || status.State != protocol.StateIdle || s.activeExecution != "" || s.packageRejection != nil || executor.stopCalls != 4 || client.stopCalls != stops {
+		t.Fatalf("cleanup retry: %+v %v host=%d target=%d/%d execution=%s", status, err, executor.stopCalls, client.stopCalls, stops, s.activeExecution)
+	}
+}

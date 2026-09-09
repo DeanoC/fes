@@ -879,3 +879,10 @@ records the library identity only for the exact confirmed package generation.
 Changing the selection affects future launches. Runtime status stays truthful;
 the host adds its explicit library association and does not infer one after a
 restart. Existing ordinary cartridge launch and Stop paths remain in place.
+
+A confirmed package activation commits its host-side ownership only after the
+previous host executor stops successfully. If that cleanup fails, the service
+retains the host owner and a package recovery marker, reports the observed
+FPGA package with the recovery error, and blocks input attachment. Stop or a
+subsequent package launch retries target recovery and host cleanup before
+clearing either pending owner.

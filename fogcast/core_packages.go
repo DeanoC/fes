@@ -248,8 +248,9 @@ type coreLoadSource struct {
 	entry *catalog.CoreEntry
 }
 
-// stopRejectedCore owns recovery of a contradictory package response, including
-// an earlier host executor whose cleanup failed. Caller holds lifecycle admission.
+// stopRejectedCore owns recovery when package activation cannot be accepted,
+// including an earlier host executor whose cleanup failed after target success.
+// Caller holds lifecycle admission.
 func (s *Service) stopRejectedCore(ctx context.Context) (protocol.Status, error) {
 	if s.discoveryEnabled() {
 		if _, err := s.refreshTargetConnection(ctx); err != nil {

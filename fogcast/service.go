@@ -1275,8 +1275,18 @@ func (s *Service) loadCore(parent context.Context, source func(context.Context) 
 		}
 		return status, rejection
 	}
+	// Keep the previous host owner until its executor is confirmed stopped.
+	// A successful target activation can still require recovery of both owners.
+	if hostCleanupErr := s.stopHostOnlyIfActive(ctx); hostCleanupErr != nil {
+		cleanupErr := &protocol.APIError{Code: protocol.CodeInternal, Message: "host cleanup failed after core package activation", Phase: "recovery"}
+		s.executionMu.Lock()
+		s.packageRejection = cleanupErr
+		s.executionMu.Unlock()
+		status.GameID, status.System = nil, nil
+		status.LastError = cleanupErr
+		return status, cleanupErr
+	}
 	s.executionMu.Lock()
-	previousHostOnly := s.activeExecution == ExecutionHostOnly
 	s.activeExecution = ExecutionFPGADevelopment
 	s.activeTarget = s.selectedTarget
 	s.activeGameID, s.activeSystem = "", ""
@@ -1292,11 +1302,6 @@ func (s *Service) loadCore(parent context.Context, source func(context.Context) 
 	s.selectedTargetReconciled = false
 	s.selectedTargetRepairAllowed = false
 	s.executionMu.Unlock()
-	if previousHostOnly {
-		if s.hostExecutor == nil || s.hostExecutor.Stop(ctx) != nil {
-			return status, &protocol.APIError{Code: protocol.CodeInternal, Message: "host cleanup failed after core package activation", Phase: "recovery"}
-		}
-	}
 	return status, nil
 }
 
@@ -1483,7 +1488,9 @@ func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 			status.System = systemPtr(s.activeSystem)
 		} else {
 			s.activePackageID, s.activePackageGeneration = "", 0
-			s.activeGameID, s.activeSystem = "", ""
+			if s.activeExecution != ExecutionHostOnly {
+				s.activeGameID, s.activeSystem = "", ""
+			}
 		}
 		if s.packageRejection != nil {
 			rejection := *s.packageRejection

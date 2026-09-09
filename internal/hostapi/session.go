@@ -647,8 +647,9 @@ func hostOnlyCorePackageCleanupFailure(execution string, status protocol.Status,
 	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeInternal || apiErr.Phase != "recovery" {
 		return false
 	}
-	if status.Development && status.CorePackage != nil && status.LastError.Code == protocol.CodeUnrecognizedCore && status.LastError.Phase == "identity" {
-		return true
+	if status.Development && status.CorePackage != nil {
+		return (status.LastError.Code == protocol.CodeUnrecognizedCore && status.LastError.Phase == "identity") ||
+			(status.LastError.Code == protocol.CodeInternal && status.LastError.Phase == "recovery")
 	}
 	return status.State == protocol.StateIdle && status.GameID == nil && status.System == nil &&
 		status.ExpectedCore == nil && status.ObservedCore == nil && !status.Development &&

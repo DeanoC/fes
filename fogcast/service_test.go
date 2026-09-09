@@ -2507,7 +2507,7 @@ func TestServiceCorePackageDoesNotTreatAmbiguousTransferAsConfirmedIdleFailure(t
 	}
 }
 
-func TestServiceCorePackagePublishesTargetBeforeHostCleanupFailure(t *testing.T) {
+func TestServiceCorePackageReportsTargetWhileRetainingHostCleanupOwner(t *testing.T) {
 	active := protocol.Status{State: protocol.StateActive, Development: true,
 		CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 8,
 			ABI: protocol.RuntimeContract{ID: "fes.simple-game", Major: 1}, BuildID: strings.Repeat("b", 32)}}
@@ -2517,8 +2517,13 @@ func TestServiceCorePackagePublishesTargetBeforeHostCleanupFailure(t *testing.T)
 	service := newTestServiceWithExecution(&fakeServiceCatalog{}, &fakeServicePreparer{}, client, ExecutionPolicy{Host: hostExecutor})
 	service.activeExecution, service.activeGameID = ExecutionHostOnly, "prior-host-game"
 	status, err := service.LoadCore(context.Background(), 5, strings.NewReader("fcore"))
-	if err == nil || status.CorePackage == nil || service.activeExecution != ExecutionFPGADevelopment || service.activeGameID != "" {
+	if err == nil || status.CorePackage == nil || status.LastError == nil || service.activeExecution != ExecutionHostOnly || service.activeGameID != "prior-host-game" {
 		t.Fatalf("status=%+v error=%v execution=%q game=%q", status, err, service.activeExecution, service.activeGameID)
+	}
+	client.statusResult = active
+	status, err = service.Status(context.Background())
+	if err != nil || status.CorePackage == nil || status.LastError == nil || status.GameID != nil {
+		t.Fatalf("target observation lost during pending host cleanup: %+v %v", status, err)
 	}
 }
 

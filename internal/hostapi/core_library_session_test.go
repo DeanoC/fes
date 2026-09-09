@@ -68,3 +68,25 @@ func TestLibraryPackageIdentityFailureNeverAttachesInput(t *testing.T) {
 		t.Fatalf("response=%d attach=%v detach=%v", response.Code, input.attach, input.detach)
 	}
 }
+
+func TestLibraryPackageHostCleanupFailureRetainsMediaAndBlocksInput(t *testing.T) {
+	game, system, core := "host-game", protocol.SystemSNES, "fes.pong"
+	service := &fakeService{execution: fogcast.ExecutionHostOnly, launch: protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &game, System: &system}}, status: protocol.Status{State: protocol.StateActive, GameID: &game, System: &system}}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
+	media := &fakeMediaSession{}
+	handler := hostapi.New(service, hostapi.WithRemoteInput(input), hostapi.WithMediaSession(media))
+	if result := launchSession(t, handler, game); result.Code != http.StatusOK {
+		t.Fatalf("host launch: %s", result.Body.String())
+	}
+	attached := len(input.attach)
+	failure := &protocol.APIError{Code: protocol.CodeInternal, Phase: "recovery", Message: "host cleanup failed after core package activation"}
+	active := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core, LastError: failure, CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 9, ABI: protocol.RuntimeContract{ID: "fes.simple-game", Major: 1}, BuildID: strings.Repeat("b", 32), Gamepad: true}}
+	service.execution = fogcast.ExecutionFPGADevelopment
+	service.launch = protocol.CachedLaunchResponse{Status: active}
+	service.launchErr = failure
+	service.status = active
+	result := launchSession(t, handler, "core-pong")
+	if result.Code == http.StatusOK || len(input.attach) != attached || len(media.stop) != 0 {
+		t.Fatalf("cleanup owner retired: status=%d attach=%v media.stop=%v", result.Code, input.attach, media.stop)
+	}
+}
