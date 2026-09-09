@@ -1,8 +1,15 @@
 package main
 
 import (
+	"bytes"
+	"context"
+	"image"
+	"image/color"
+	"image/png"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
 	"github.com/DeanoC/FogCast/host/tenfoot/anim"
@@ -12,7 +19,6 @@ import (
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 	"github.com/DeanoC/FogCast/kitlauncher"
 	"github.com/DeanoC/FogCast/remoteinput"
-	"time"
 )
 
 func TestPadsSelftestReportsIdentityBeforeOpen(t *testing.T) {
@@ -202,10 +208,50 @@ func TestGameTileLeavesCoverEmptyUntilCached(t *testing.T) {
 	}
 }
 
+func TestGameTilePaintsDiskCoverWithoutHost(t *testing.T) {
+	handle := strings.Repeat("ab", 32)
+	store, err := kitlauncher.OpenDiskStore(filepath.Join(t.TempDir(), "launcher-cache"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := image.NewRGBA(image.Rect(0, 0, 8, 8))
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 8; x++ {
+			src.Set(x, y, color.RGBA{R: 10, G: 200, B: 30, A: 255})
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, src); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveArtwork(handle, buf.Bytes()); err != nil {
+		t.Fatal(err)
+	}
+	covers := tenfoot.NewCoverCache()
+	covers.SetStore(store)
+	covers.Keep([]string{handle})
+	covers.Request(context.Background(), nil, []string{handle})
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if covers.Image(handle) != nil {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive", Cover: handle}, covers, tenfoot.Presentation{}, theme.Default(), 18)
+	if tile.Cover == nil || tile.CoverKind != fbgrid.CoverPresent {
+		t.Fatalf("disk cover kind=%d cover=%v", tile.CoverKind, tile.Cover != nil)
+	}
+}
+
 func TestModelFooterReportsConnectionBeforeController(t *testing.T) {
-	m := kitlauncher.Model{Message: "Host unavailable - reconnecting", ControllerConnected: false}
-	if got := modelFooter(m); got != "Host unavailable - reconnecting" {
+	m := kitlauncher.Model{Message: kitlauncher.OfflineMessage, ControllerConnected: false}
+	if got := modelFooter(m); got != kitlauncher.OfflineMessage {
 		t.Fatalf("footer %q", got)
+	}
+	m = kitlauncher.Model{Connected: false, TargetReady: false, Message: "", ControllerConnected: false}
+	if got := modelFooter(m); got != kitlauncher.OfflineMessage {
+		t.Fatalf("disconnected footer %q", got)
 	}
 	m = kitlauncher.Model{Connected: true, TargetReady: true, Message: "", ControllerConnected: false}
 	if got := modelFooter(m); got != "Connect USB gamepad" {

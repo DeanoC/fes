@@ -6,11 +6,14 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/host/tenfoot"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
@@ -169,6 +172,169 @@ func TestUnavailableHostStillRendersAndExits(t *testing.T) {
 	if draws == 0 {
 		t.Fatal("connecting screen never rendered")
 	}
+}
+
+func TestRunPaintsLocalCatalogBeforeHostHTTP(t *testing.T) {
+	var gamesHits atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v1/games") {
+			gamesHits.Add(1)
+		}
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+	cfg := writeKitConfig(t, t.TempDir(), server.URL)
+	handle := strings.Repeat("ab", 32)
+	client := NewClient(cfg)
+	if client.Cache == nil {
+		t.Fatal("expected launcher cache beside config")
+	}
+	if err := client.Cache.SaveCatalog(CatalogSnapshot{
+		Games: []tenfoot.Game{{ID: "sonic", Title: "Sonic", System: "megadrive", Cover: handle, Launchable: true}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	var painted atomic.Bool
+	var firstCount atomic.Int64
+	err := Run(ctx, client, func(m Model) {
+		if firstCount.Add(1) == 1 {
+			if len(m.Catalog) != 1 || m.Catalog[0].ID != "sonic" || m.Catalog[0].Cover != handle {
+				t.Errorf("first paint catalog %#v", m.Catalog)
+			}
+			if gamesHits.Load() != 0 {
+				t.Errorf("first paint waited on games HTTP hits=%d", gamesHits.Load())
+			}
+			painted.Store(len(m.Catalog) == 1 && m.Catalog[0].ID == "sonic")
+			cancel()
+		}
+	}, func() (Pad, error) { return nil, errors.New("no pad") })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !painted.Load() {
+		t.Fatal("did not paint local catalog before host HTTP")
+	}
+	if gamesHits.Load() != 0 {
+		t.Fatalf("catalog HTTP hits=%d", gamesHits.Load())
+	}
+}
+
+func TestRunOfflineFooterUsesLocalLibraryCopy(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "down", http.StatusBadGateway)
+	}))
+	defer server.Close()
+	cfg := writeKitConfig(t, t.TempDir(), server.URL)
+	client := NewClient(cfg)
+	if err := client.Cache.SaveCatalog(CatalogSnapshot{
+		Games: []tenfoot.Game{{ID: "mario", Title: "Mario", System: "snes", Launchable: true}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	var painted, offline atomic.Bool
+	err := Run(ctx, client, func(m Model) {
+		if len(m.Catalog) == 1 && m.Catalog[0].ID == "mario" {
+			painted.Store(true)
+		}
+		if m.Message == OfflineMessage && !m.Connected {
+			offline.Store(true)
+		}
+		if painted.Load() && offline.Load() {
+			cancel()
+		}
+	}, func() (Pad, error) { return nil, errors.New("no pad") })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !painted.Load() {
+		t.Fatal("local catalog was not painted")
+	}
+	if !offline.Load() {
+		t.Fatal("offline footer was not honest")
+	}
+}
+
+func TestRunEmptyCacheStaysOfflineWithoutHang(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "down", http.StatusBadGateway)
+	}))
+	defer server.Close()
+	cfg := writeKitConfig(t, t.TempDir(), server.URL)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	var draws atomic.Int64
+	var offline atomic.Bool
+	err := Run(ctx, NewClient(cfg), func(m Model) {
+		draws.Add(1)
+		if len(m.Catalog) != 0 {
+			t.Errorf("empty cache painted catalog %#v", m.Catalog)
+		}
+		if m.Message == OfflineMessage {
+			offline.Store(true)
+			cancel()
+		}
+	}, func() (Pad, error) { return nil, errors.New("no pad") })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if draws.Load() == 0 {
+		t.Fatal("empty cache hung without a frame")
+	}
+	if !offline.Load() {
+		t.Fatal("empty cache did not label offline")
+	}
+}
+
+func TestRunPersistsHostCatalogForNextBoot(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/session":
+			_, _ = w.Write([]byte(`{"state":"idle"}`))
+		case "/api/v1/health":
+			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
+		case "/api/v1/platforms":
+			_, _ = w.Write([]byte(`{"platforms":[{"id":"megadrive","game_count":1}]}`))
+		case "/api/v1/games":
+			_, _ = w.Write([]byte(`{"games":[{"id":"sonic","title":"Sonic","system":"megadrive","cover":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","launchable":true}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	cfg := writeKitConfig(t, t.TempDir(), server.URL)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	client := NewClient(cfg)
+	err := Run(ctx, client, func(m Model) {
+		if m.Connected && len(m.Catalog) == 1 && m.Catalog[0].ID == "sonic" {
+			cancel()
+		}
+	}, func() (Pad, error) { return nil, errors.New("no pad") })
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap, ok := client.Cache.LoadCatalog()
+	if !ok || len(snap.Games) != 1 || snap.Games[0].ID != "sonic" || snap.Games[0].Cover == "" {
+		t.Fatalf("persisted snapshot %#v ok=%v", snap, ok)
+	}
+}
+
+func writeKitConfig(t *testing.T, dir, api string) Config {
+	t.Helper()
+	p := filepath.Join(dir, "launcher.json")
+	body := `{"api":"` + api + `","token":"12345678901234567890123456789012","target_id":"73dc9f5f-1a12-4a95-a820-a9b4e600769a"}`
+	if err := os.WriteFile(p, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadConfig(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cfg
 }
 
 type pressPad struct{ n int }

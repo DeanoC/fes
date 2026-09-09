@@ -40,7 +40,7 @@ type observation struct {
 func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pad, error)) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	m := Model{Message: "Connecting to FogCast", Shelf: normalizeShelf(c.config.Shelf), Pack: theme.NormalizePack(c.config.Theme), WheelOpen: true}
+	m := Model{Message: connectingMessage, Shelf: normalizeShelf(c.config.Shelf), Pack: theme.NormalizePack(c.config.Theme), WheelOpen: true}
 	var pad Pad
 	var stream *InputStream
 	streamKey := ""
@@ -65,6 +65,12 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	lastCatalog := time.Time{}
 	attractLoaded := false
 	lastAttract := time.Time{}
+	if applyLocalSnapshot(&m, c) {
+		catalogLoaded = true
+	}
+	if present != nil {
+		present(m)
+	}
 	send := func(o observation) {
 		select {
 		case results <- o:
@@ -100,6 +106,12 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				if o.err == nil {
 					o.strip, o.stripLabel, o.recents = loadStrip(ctx, c)
 					o.haveStrip = true
+					persistSnapshot(c, CatalogSnapshot{
+						Games:      o.games,
+						Strip:      o.strip,
+						StripLabel: o.stripLabel,
+						Recents:    o.recents,
+					})
 				}
 			}
 			if o.err == nil && loadAttract {
@@ -188,7 +200,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			if o.err != nil {
 				m.Connected = false
 				if !m.Busy {
-					m.Message = "Host unavailable - reconnecting"
+					m.Message = OfflineMessage
 				}
 				closeInput()
 				continue
@@ -206,7 +218,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.Message = "Kit unavailable"
 				} else if !m.TargetReady && m.Session.State != "active" {
 					m.Message = "Kit not ready"
-				} else if m.Message == "Connecting to FogCast" || m.Message == "Host unavailable - reconnecting" || m.Message == "Kit in use" || m.Message == "Kit unavailable" || m.Message == "Kit not ready" {
+				} else if isTransientStatus(m.Message) {
 					m.Message = ""
 				}
 				if o.games != nil {

@@ -27,7 +27,10 @@ Each request sends `Authorization: Bearer <token>` and
 `X-FogCast-Target-ID: <target_id>`. The configured selected target must match the
 paired identity. Target settings updates and admitted launcher operations are
 serialized so an address/selection edit cannot redirect an in-flight launch.
-An absent host remains a client reconnect state; this is not an offline library.
+An absent host no longer blanks the kit shelf: `fogcast-kit` paints the last-good
+catalog and covers from `/media/fat/fogcast/launcher-cache/` and labels the footer
+`Offline - local library`. Launch and session APIs still require the host; this is
+not hostless play.
 
 Allowed operations are:
 

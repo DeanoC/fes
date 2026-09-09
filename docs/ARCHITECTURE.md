@@ -414,7 +414,9 @@ FES owns compatible source selection and release/media assembly. FogCast supplie
 `cmd/fes-boot`, the target update API, and `cmd/fes-update`. Online releases replace
 only a content-addressed read-only ext4 system image. The locked kernel, U-Boot,
 and fixed `/linux/linux.img` bootstrap stay outside that operation. Configurations,
-target identity, cache, and SNES saves remain on FAT outside every rootfs.
+target identity, ROM cache, launcher catalog/cover cache, and SNES saves remain
+on FAT outside every rootfs. Replacing the system image does not wipe
+`/media/fat/fogcast/cache` or `/media/fat/fogcast/launcher-cache`.
 
 The kernel loop-mounts the bootstrap as before. Its PID 1 verifies the selected
 image, consumes a pending trial durably, attaches another read-only loop, and uses
@@ -716,6 +718,11 @@ coverage; physical reboot and DHCP acceptance belongs to the selected FES image.
 
 The native image packages `fogcast-kit`, a CGO-free controller/session adapter
 with a living-room platform wheel and a live catalog browse renderer.
+`fogcast-kit` writes a last-good catalog snapshot and cover blobs under
+`/media/fat/fogcast/launcher-cache/` (beside `launcher.json`, separate from the
+ROM cache). Boot paints that shelf from disk before host games HTTP, decodes
+visible covers from disk first, and labels an absent host `Offline - local library`.
+Launch still requires the host.
 The wheel is the top-level browse view: a horizontal clear-logo / wordmark
 strip plus a hero for the focused system. Catalog rows are grouped into system
 shelves (`All` plus each system present in the loaded games, typically pong,

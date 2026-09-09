@@ -16,10 +16,15 @@ Build with `make build-fogcast-kit`. The native image installs the command and
 supervises it after runtime and agent startup. Its default configuration is
 `/media/fat/fogcast/launcher.json`; FES generates and embeds that file through
 its launcher setup/media workflow. Missing configuration causes a readable
-service error and retry; late host/network startup stays on the connecting screen.
-See [the host connection contract](launcher-host.md) for listener configuration
-and exact HTTP/input-stream schemas. The host remains required for browsing and
-launch. Host endpoint configuration is explicit; target discovery is separate.
+service error and retry. A successful host catalog fetch also writes
+`/media/fat/fogcast/launcher-cache/` (catalog snapshot plus cover files keyed by
+artwork handle). That tree lives on FAT beside `launcher.json` and the ROM cache;
+replacing the system image does not wipe it. Boot paints the last-good shelf from
+disk before host games HTTP and decodes visible covers from disk first. An absent
+host shows `Offline - local library` rather than an endless reconnect. Launch still
+requires the host. See [the host connection contract](launcher-host.md) for listener
+configuration and exact HTTP/input-stream schemas. Host endpoint configuration is
+explicit; target discovery is separate.
 
 ## Physical controls
 

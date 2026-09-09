@@ -109,6 +109,7 @@ type Client struct {
 	config  Config
 	HTTP    *http.Client
 	Library *tenfoot.Client
+	Cache   *DiskStore
 }
 type authenticated struct {
 	base   http.RoundTripper
@@ -127,7 +128,13 @@ func NewClient(c Config) *Client {
 	// Poll and mutation clients carry different whole-request deadlines.
 	// A shared header deadline would incorrectly shorten Launch/Stop.
 	h := &http.Client{Transport: authenticated{transport, c}, Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	return &Client{config: c, HTTP: h, Library: tenfoot.NewClient(c.API, h)}
+	client := &Client{config: c, HTTP: h, Library: tenfoot.NewClient(c.API, h)}
+	if root := cacheRoot(c); root != "" {
+		if store, err := OpenDiskStore(root); err == nil {
+			client.Cache = store
+		}
+	}
+	return client
 }
 
 type Session struct {
