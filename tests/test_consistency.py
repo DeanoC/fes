@@ -29,18 +29,18 @@ class ConsistencyTest(unittest.TestCase):
             path = self.sources[component] / destination
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b'generated\n')
-        canonical_root = Path(__file__).resolve().parents[1] / 'sources/mister-packages'
         for source, component, destination in self.module.COPIED_TREES:
             canonical = self.sources['mister-packages'] / source
             if not canonical.exists():
-                shutil.copytree(canonical_root / source, canonical)
+                canonical.mkdir(parents=True)
+                (canonical / 'fixture').write_bytes(f'{source}\n'.encode())
             shutil.copytree(canonical, self.sources[component] / destination,
                             dirs_exist_ok=True)
         for source, component, destination in self.module.COPIED_FILES:
             canonical = self.sources['mister-packages'] / source
             if not canonical.exists():
                 canonical.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(canonical_root / source, canonical)
+                canonical.write_bytes(f'{source}\n'.encode())
             copied = self.sources[component] / destination
             copied.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(canonical, copied)
@@ -87,6 +87,34 @@ class ConsistencyTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'fixture.*differs'):
                     self.module.check(self.root, self.sources)
                 copied.write_bytes(original)
+
+    def test_missing_shared_fixture_tree_roots_are_rejected(self):
+        source, component, destination = self.module.COPIED_TREES[0]
+        for fixture_root in (
+            self.sources['mister-packages'] / source,
+            self.sources[component] / destination,
+        ):
+            with self.subTest(fixture_root=fixture_root):
+                shutil.rmtree(fixture_root)
+                with self.assertRaisesRegex(ValueError, 'fixture.*must be a directory'):
+                    self.module.check(self.root, self.sources)
+                fixture_root.mkdir(parents=True)
+                (fixture_root / 'fixture').write_bytes(f'{source}\n'.encode())
+
+    def test_nondirectory_shared_fixture_tree_roots_are_rejected(self):
+        source, component, destination = self.module.COPIED_TREES[0]
+        for fixture_root in (
+            self.sources['mister-packages'] / source,
+            self.sources[component] / destination,
+        ):
+            with self.subTest(fixture_root=fixture_root):
+                shutil.rmtree(fixture_root)
+                fixture_root.write_bytes(b'not a fixture tree\n')
+                with self.assertRaisesRegex(ValueError, 'fixture.*must be a directory'):
+                    self.module.check(self.root, self.sources)
+                fixture_root.unlink()
+                fixture_root.mkdir(parents=True)
+                (fixture_root / 'fixture').write_bytes(f'{source}\n'.encode())
 
     def test_generated_consumer_drift(self):
         for _, _, component, destination in self.module.GENERATED:

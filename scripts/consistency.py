@@ -61,6 +61,10 @@ def check(root: Path, sources: dict[str, Path] | None = None):
     for source, component, destination in COPIED_TREES:
         canonical = packages / source
         consumer = sources[component] / destination
+        if not canonical.is_dir() or canonical.is_symlink():
+            raise ValueError(f'fixture mister-packages/{source} must be a directory')
+        if not consumer.is_dir() or consumer.is_symlink():
+            raise ValueError(f'fixture {component}/{destination} must be a directory')
         canonical_files = {path.relative_to(canonical) for path in canonical.rglob('*') if path.is_file()}
         consumer_files = {path.relative_to(consumer) for path in consumer.rglob('*') if path.is_file()}
         if canonical_files != consumer_files:
