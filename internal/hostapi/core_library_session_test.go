@@ -90,3 +90,43 @@ func TestLibraryPackageHostCleanupFailureRetainsMediaAndBlocksInput(t *testing.T
 		t.Fatalf("cleanup owner retired: status=%d attach=%v media.stop=%v", result.Code, input.attach, media.stop)
 	}
 }
+
+func TestCoreSaveFailureRestoresInputOnlyForSameResumedGeneration(t *testing.T) {
+	for _, kind := range []string{"resumed", "new generation", "recovery"} {
+		t.Run(kind, func(t *testing.T) {
+			core, game := "fes.pong", "core-pong"
+			active := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core, GameID: &game, CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 7, Gamepad: true, PersistenceMode: "persistent"}}
+			input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
+			service := &fakeService{status: active, execution: fogcast.ExecutionFPGADevelopment, launch: protocol.CachedLaunchResponse{Status: active}}
+			handler := hostapi.New(service, hostapi.WithRemoteInput(input))
+			if out := launchSession(t, handler, game); out.Code != 200 {
+				t.Fatal(out.Body)
+			}
+			attached := len(input.attach)
+			service.stopErr = &protocol.APIError{Code: protocol.CodeSaveFailed, Message: "save failed", Phase: "save"}
+			failed := active
+			copy := *active.CorePackage
+			failed.CorePackage = &copy
+			failed.LastError = service.stopErr.(*protocol.APIError)
+			if kind == "new generation" {
+				failed.CorePackage.Generation++
+			}
+			if kind == "recovery" {
+				failed.State = protocol.StateFailed
+				failed.LastError = &protocol.APIError{Code: protocol.CodeSaveFailed, Message: "recovery", Phase: "recovery"}
+			}
+			service.status = failed
+			out := serve(t, handler, http.MethodPost, "/api/v1/session/stop")
+			if out.Code == 200 {
+				t.Fatal("failed save reported success")
+			}
+			want := attached
+			if kind == "resumed" {
+				want++
+			}
+			if len(input.attach) != want {
+				t.Fatalf("attach=%v want count=%d body=%s", input.attach, want, out.Body)
+			}
+		})
+	}
+}

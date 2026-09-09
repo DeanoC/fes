@@ -60,17 +60,27 @@ func validCoreInspection(inspection protocol.CoreInspection) bool {
 // LoadCore sends one bounded package mutation through the client's shared kit
 // lease and accepts only a complete custom-development status.
 func (c *Client) LoadCore(ctx context.Context, size int64, content io.Reader) (protocol.Status, error) {
+	return c.loadCore(ctx, size, content, "")
+}
+func (c *Client) loadCore(ctx context.Context, size int64, content io.Reader, libraryID string) (protocol.Status, error) {
 	if size < 1 || size > corepackage.MaxArchiveSize || content == nil {
 		return protocol.Status{}, fmt.Errorf("development core input is invalid")
 	}
+	path := "/v1/development/core"
+	if libraryID != "" {
+		path = "/v1/library/core/load"
+	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		c.endpoint("/v1/development/core", nil).String(), readOnlyReader{Reader: content})
+		c.endpoint(path, nil).String(), readOnlyReader{Reader: content})
 	if err != nil {
 		return protocol.Status{}, fmt.Errorf("create request: %w", err)
 	}
 	request.ContentLength = size
 	request.Header.Set("Authorization", "Bearer "+c.token)
 	request.Header.Set("Content-Type", "application/octet-stream")
+	if libraryID != "" {
+		request.Header.Set("X-FogCast-Package-ID", libraryID)
+	}
 	if err := c.authorizeMutation(request); err != nil {
 		return protocol.Status{}, err
 	}
@@ -86,7 +96,7 @@ func (c *Client) LoadCore(ctx context.Context, size int64, content io.Reader) (p
 	if err := decodeResponse(response, &status); err != nil {
 		return protocol.Status{}, err
 	}
-	if !validCorePackageStatus(status) {
+	if !validCorePackageStatus(status) || (libraryID != "" && (status.CorePackage.PackageID != libraryID || (status.CorePackage.PersistenceMode != "persistent" && status.CorePackage.PersistenceMode != "volatile"))) {
 		return protocol.Status{}, fmt.Errorf("development core response does not match requested load")
 	}
 	return status, nil

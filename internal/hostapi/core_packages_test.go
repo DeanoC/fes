@@ -12,6 +12,7 @@ import (
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/internal/corepackage"
 	"github.com/DeanoC/FogCast/internal/hostapi"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 type coreLibraryAPIService struct {
@@ -98,5 +99,50 @@ func TestCorePackageReadRoutesRejectBodies(t *testing.T) {
 				t.Fatalf("response = %d %s", response.Code, response.Body.String())
 			}
 		})
+	}
+}
+
+type coreDataAPIService struct {
+	coreLibraryAPIService
+	updates int
+	update  protocol.CoreSettingsUpdate
+}
+
+func (s *coreDataAPIService) CoreSettings(context.Context, string) (fogcast.CoreDataResult, error) {
+	return fogcast.CoreDataResult{}, nil
+}
+func (s *coreDataAPIService) CoreProgress(context.Context, string) (fogcast.CoreDataResult, error) {
+	return fogcast.CoreDataResult{}, nil
+}
+func (s *coreDataAPIService) SetCoreSettings(_ context.Context, _ string, u protocol.CoreSettingsUpdate) (fogcast.CoreDataResult, error) {
+	s.updates++
+	s.update = u
+	return fogcast.CoreDataResult{}, nil
+}
+func TestCoreDataAPIRequiresCompleteTypedCASAndEmptyReads(t *testing.T) {
+	s := &coreDataAPIService{}
+	handler := hostapi.New(s)
+	for _, tc := range []struct {
+		method, path, body string
+		code               int
+	}{
+		{"GET", "settings", "", 200}, {"GET", "progress", "", 200}, {"GET", "progress", "{}", 400},
+		{"PUT", "settings", `{"expected_package_id":"` + strings.Repeat("a", 64) + `","expected_revision":"absent","paddle_speed":2}`, 200},
+		{"PUT", "settings", `{"expected_package_id":"` + strings.Repeat("a", 64) + `","expected_revision":"absent"}`, 400},
+		{"PUT", "settings", `{"expected_package_id":"` + strings.Repeat("a", 64) + `","expected_revision":"absent","paddle_speed":null}`, 400},
+		{"PUT", "settings", `{"expected_package_id":"` + strings.Repeat("a", 64) + `","expected_revision":"absent","paddle_speed":3}`, 400},
+		{"PUT", "settings", `{"expected_package_id":"` + strings.Repeat("a", 64) + `","expected_revision":"absent","paddle_speed":1,"data_root":"/tmp"}`, 400},
+	} {
+		req := httptest.NewRequest(tc.method, "/api/v1/library/core-entries/core-pong/"+tc.path, strings.NewReader(tc.body))
+		req.Host = "127.0.0.1"
+		req.Header.Set("Content-Type", "application/json")
+		out := httptest.NewRecorder()
+		handler.ServeHTTP(out, req)
+		if out.Code != tc.code {
+			t.Fatalf("%s %s %s got %d %s", tc.method, tc.path, tc.body, out.Code, out.Body)
+		}
+	}
+	if s.updates != 1 || s.update.PaddleSpeed != 2 {
+		t.Fatalf("updates=%d update=%+v", s.updates, s.update)
 	}
 }

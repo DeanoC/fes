@@ -81,6 +81,9 @@ func retryableSaveFailure(response Response) bool {
 	}
 	response.Error = nil
 	response.OK = true
+	if validDevelopmentRunning(response) {
+		return true
+	}
 	spec, _ := core.DefaultRegistry().Lookup(protocol.SystemSNES)
 	return validProfileState(response, spec, "running_game")
 }

@@ -243,6 +243,12 @@ func (s *sessionCoordinator) reconcileInput(ctx context.Context, st protocol.Sta
 		s.mu.Lock()
 		current := s.inputBinding
 		s.mu.Unlock()
+		if st.LastError != nil && st.LastError.Code == protocol.CodeSaveFailed && current != desired {
+			if input.State != host.RemoteInputDetached {
+				return s.detachInputNow(ctx, "session_reconcile")
+			}
+			return nil
+		}
 		if current == desired && (input.State == host.RemoteInputAttached || input.State == host.RemoteInputReconnecting) {
 			return nil
 		}
@@ -775,6 +781,9 @@ func (s *sessionCoordinator) stop(ctx context.Context) (sessionResult, error) {
 		return sessionResult{}, err
 	}
 
+	s.mu.Lock()
+	priorBinding := s.inputBinding
+	s.mu.Unlock()
 	var inputErr error
 	if s.remoteInput != nil {
 		inputErr = s.detachInputNow(ctx, "session_stop")
@@ -799,6 +808,18 @@ func (s *sessionCoordinator) stop(ctx context.Context) (sessionResult, error) {
 		return sessionResult{}, mediaErr
 	}
 	if serviceErr != nil {
+		var failure *protocol.APIError
+		if errors.As(serviceErr, &failure) && failure.Code == protocol.CodeSaveFailed && inputErr == nil && s.remoteInput != nil && priorBinding.packageID != "" {
+			observation, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			status, statusErr := s.service.Status(observation)
+			if statusErr == nil && resumedCoreDataStatus(status) && inputBindingForStatus(status) == priorBinding {
+				if attachErr := s.attachInputForStatus(observation, status); attachErr != nil {
+					cancel()
+					return sessionResult{}, remoteInputError()
+				}
+			}
+			cancel()
+		}
 		return sessionResult{}, serviceErr
 	}
 	if inputErr != nil {
@@ -1099,7 +1120,7 @@ func inputEligibleStatus(status protocol.Status) bool {
 	if !status.Development {
 		return true
 	}
-	return corePackageInputStatus(status) && status.CorePackage.Gamepad
+	return (corePackageInputStatus(status) || resumedCoreDataStatus(status)) && status.CorePackage.Gamepad
 }
 
 func inputBindingForStatus(status protocol.Status) sessionInputBinding {
@@ -1165,4 +1186,9 @@ func publicEvents(events []sessionEvent) []sessionEvent {
 
 type sessionEventsResult struct {
 	Events []sessionEvent `json:"events"`
+}
+
+func resumedCoreDataStatus(status protocol.Status) bool {
+	return status.State == protocol.StateActive && status.Development && status.Recovery == "" && status.CorePackage != nil && status.CorePackage.Generation != 0 && status.CorePackage.PersistenceMode == "persistent" &&
+		(status.LastError == nil || (status.LastError.Code == protocol.CodeSaveFailed && status.LastError.Phase == "save"))
 }

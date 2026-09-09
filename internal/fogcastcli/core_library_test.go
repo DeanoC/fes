@@ -123,3 +123,40 @@ func cliCoreArchive(t *testing.T) (string, []byte, corepackage.Inspection) {
 	}
 	return path, data, inspection
 }
+
+func TestCoreDataCommandsUseHostAPIAndNumericSpeed(t *testing.T) {
+	for _, command := range []string{"core-settings", "core-progress", "core-settings-set"} {
+		t.Run(command, func(t *testing.T) {
+			calls := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				suffix := "settings"
+				method := "GET"
+				if command == "core-progress" {
+					suffix = "progress"
+				}
+				if command == "core-settings-set" {
+					method = "PUT"
+					var body map[string]any
+					json.NewDecoder(r.Body).Decode(&body)
+					if body["paddle_speed"] != float64(0) || body["expected_revision"] != "absent" {
+						t.Errorf("body=%v", body)
+					}
+				}
+				if r.Method != method || r.URL.Path != "/api/v1/library/core-entries/core-pong/"+suffix {
+					t.Errorf("request=%s %s", r.Method, r.URL)
+				}
+				io.WriteString(w, `{"revision":"absent"}`)
+			}))
+			defer server.Close()
+			args := []string{"--api", server.URL, "--json", command, "core-pong"}
+			if command == "core-settings-set" {
+				args = append(args, strings.Repeat("a", 64), "absent", "0")
+			}
+			var out, stderr bytes.Buffer
+			if code := Run(context.Background(), args, &out, &stderr, nil); code != 0 || calls != 1 {
+				t.Fatalf("exit=%d calls=%d stderr=%s", code, calls, &stderr)
+			}
+		})
+	}
+}

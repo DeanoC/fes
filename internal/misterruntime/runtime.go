@@ -84,6 +84,7 @@ func NewRuntime(control Control, bootIDFile string, pollInterval, healthTimeout 
 }
 
 type CoreActivation struct {
+	PersistenceMode  string
 	PackageID        string
 	Descriptor       corepackage.Descriptor
 	Generation       uint64
@@ -133,7 +134,7 @@ func (r *Runtime) InspectCore(ctx context.Context, size int64, content io.Reader
 		return protocol.CoreInspection{}, apiErr
 	}
 	result := protocol.CoreInspection{PackageID: staged.PackageID,
-		Descriptor: staged.Descriptor, Compatible: remote.Compatible}
+		Descriptor: staged.Descriptor, Compatible: remote.Compatible, PersistenceLayout: remote.PersistenceLayout}
 	if remote.CompatibilityError != nil {
 		result.CompatibilityError = mapProtocol2Error(remote.CompatibilityError)
 	}
@@ -167,6 +168,9 @@ func (r *Runtime) inspectStagedCore(ctx context.Context, staged corepackage.Stag
 
 func (r *Runtime) LoadCoreOwned(admission, observation, operationOwner context.Context,
 	size int64, content io.Reader) (activation CoreActivation, attempted bool, apiErr *protocol.APIError) {
+	return r.loadCoreOwned(admission, observation, operationOwner, size, content, "")
+}
+func (r *Runtime) loadCoreOwned(admission, observation, operationOwner context.Context, size int64, content io.Reader, libraryID string) (activation CoreActivation, attempted bool, apiErr *protocol.APIError) {
 	if r.corePackageRoot == "" {
 		return CoreActivation{}, false, unsupportedOperationError()
 	}
@@ -178,6 +182,12 @@ func (r *Runtime) LoadCoreOwned(admission, observation, operationOwner context.C
 	if err != nil {
 		return CoreActivation{}, false, &protocol.APIError{
 			Code: protocol.CodeInvalidArchive, Message: "core package is invalid", Phase: "admission"}
+	}
+	if libraryID != "" && staged.PackageID != libraryID {
+		if err := staged.Cleanup(); err != nil {
+			r.retainRetired(staged)
+		}
+		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "package identity differs from request", Phase: "admission"}
 	}
 	cleanupStaged := true
 	defer func() {
@@ -197,6 +207,29 @@ func (r *Runtime) LoadCoreOwned(admission, observation, operationOwner context.C
 	if !inspection.Compatible {
 		return CoreActivation{}, false,
 			mapProtocol2Error(inspection.CompatibilityError)
+	}
+	expectedMode := "volatile"
+	if libraryID != "" {
+		inspector, ok := r.control.(protocol2DataControl)
+		if !ok {
+			return CoreActivation{}, false, unsupportedOperationError()
+		}
+		if _, ok := r.control.(protocol2LibraryControl); !ok {
+			return CoreActivation{}, false, unsupportedOperationError()
+		}
+		data, err := inspector.InspectCoreData(admission, staged.Directory, staged.PackageID, CoreDataRoot)
+		if err != nil {
+			return CoreActivation{}, false, unavailableError()
+		}
+		if !data.OK || data.Error != nil {
+			failure := mapCoreDataError(data.Error)
+			failure.Phase = "admission"
+			return CoreActivation{}, false, failure
+		}
+		if data.CoreData == nil || data.CoreData.PackageID != staged.PackageID || !(protocol.CoreDataInspection{CoreData: *data.CoreData, Descriptor: staged.Descriptor}).Valid() || !reflect.DeepEqual(data.CoreData.Layout, inspection.PersistenceLayout) {
+			return CoreActivation{}, false, unavailableError()
+		}
+		expectedMode = data.CoreData.Mode
 	}
 	var before *Protocol2Response
 	statusControl, hasStatus := r.control.(protocol2StatusControl)
@@ -227,8 +260,13 @@ func (r *Runtime) LoadCoreOwned(admission, observation, operationOwner context.C
 		}
 	}()
 
-	response, callErr := control.LoadCore(operationOwner,
-		staged.Directory, staged.PackageID)
+	var response Protocol2Response
+	var callErr error
+	if libraryID != "" {
+		response, callErr = r.control.(protocol2LibraryControl).LoadLibraryCore(operationOwner, staged.Directory, staged.PackageID, CoreDataRoot)
+	} else {
+		response, callErr = control.LoadCore(operationOwner, staged.Directory, staged.PackageID)
+	}
 	attempted = callErr == nil || protocol2MutationAttempted(callErr)
 	if callErr != nil {
 		if errors.Is(callErr, errProtocol2Unsupported) {
@@ -241,6 +279,13 @@ func (r *Runtime) LoadCoreOwned(admission, observation, operationOwner context.C
 					statusControl, staged, *before)
 				switch disposition {
 				case coreLoadConfirmed:
+					if observed.PersistenceMode != expectedMode {
+						r.retainRetired(staged)
+						cleanupStaged = false
+						failure := unavailableError()
+						failure.Phase = "recovery"
+						return CoreActivation{}, true, failure
+					}
 					r.replaceActivePackage(staged)
 					cleanupStaged = false
 					return observed, true, nil
@@ -266,6 +311,18 @@ func (r *Runtime) LoadCoreOwned(admission, observation, operationOwner context.C
 		apiErr := mapProtocol2Error(response.Error)
 		attempted = !protocol2PreMutationFailure(response.Error)
 		preserveInput = !attempted
+		if response.Error != nil && response.Error.Phase == "core_data" && (response.Error.Code == "corrupt_data" || response.Error.Code == "incompatible_data" || response.Error.Code == "save_failed") && before != nil && sameProtocol2RuntimeState(*before, response) {
+			attempted = false
+			preserveInput = true
+			apiErr.Phase = "admission"
+		}
+		if response.Error != nil && response.Error.Code == "save_failed" {
+			preserveInput = before != nil && sameProtocol2RuntimeState(*before, response) && (response.State == "running_development" || response.State == "running_game" || response.State == "idle")
+			attempted = !preserveInput
+			if attempted {
+				apiErr.Phase = "recovery"
+			}
+		}
 		return CoreActivation{}, attempted, apiErr
 	}
 	if response.State != "running_development" || response.Execution != "development" ||
@@ -274,6 +331,13 @@ func (r *Runtime) LoadCoreOwned(admission, observation, operationOwner context.C
 		return CoreActivation{}, true, unavailableError()
 	}
 	activation = activationFromProtocol2(staged.PackageID, staged.Descriptor, response)
+	if activation.PersistenceMode != expectedMode {
+		r.retainRetired(staged)
+		cleanupStaged = false
+		failure := unavailableError()
+		failure.Phase = "recovery"
+		return CoreActivation{}, true, failure
+	}
 	r.replaceActivePackage(staged)
 	cleanupStaged = false
 	return activation, true, nil
@@ -285,8 +349,11 @@ func replacementBarrierError() *protocol.APIError {
 }
 
 func activationFromProtocol2(packageID string, descriptor corepackage.Descriptor, response Protocol2Response) CoreActivation {
-	activation := CoreActivation{PackageID: packageID, Descriptor: descriptor,
+	activation := CoreActivation{PackageID: packageID, Descriptor: descriptor, PersistenceMode: "volatile",
 		ActiveInterfaces: append([]Protocol2Interface(nil), response.Capabilities.ActiveInterfaces...)}
+	if response.ActivePackage != nil && response.ActivePackage.PersistenceMode != "" {
+		activation.PersistenceMode = response.ActivePackage.PersistenceMode
+	}
 	if response.Generation != nil {
 		activation.Generation = *response.Generation
 	}
@@ -451,6 +518,17 @@ func (r *Runtime) ConfirmIdle(ctx context.Context) bool {
 }
 
 func (r *Runtime) StopReady() bool {
+	r.packageMu.Lock()
+	ownsPackage := r.activePackage != nil || len(r.retiredPackages) != 0
+	r.packageMu.Unlock()
+	if ownsPackage {
+		if control, ok := r.control.(protocol2StatusControl); ok {
+			ctx, cancel := context.WithTimeout(context.Background(), r.healthTimeout)
+			defer cancel()
+			response, err := control.Protocol2Status(ctx)
+			return err == nil && (response.State == "idle" || response.State == "running_development" || (response.State == "reboot_required" && response.ActivePackage != nil))
+		}
+	}
 	response, err := r.boundedStatus(context.Background())
 	return err == nil && (validIdle(response) || validNativeRunning(response) || validDevelopmentRunning(response) || retryableSaveFailure(response))
 }
@@ -518,6 +596,9 @@ func (r *Runtime) reconcileProtocol2(ctx context.Context, control protocol2Statu
 			status.LastError = mapOptionalProtocol2Error(response.Error)
 			return status, false
 		case "reboot_required":
+			if response.ActivePackage != nil {
+				return r.reconcileActiveCore(response, true), false
+			}
 			apiErr := mapProtocol2Error(response.Error)
 			return protocol.Status{State: protocol.StateFailed, Recovery: protocol.RecoveryRebootRequired, LastError: apiErr}, false
 		case "running_game":
@@ -533,27 +614,7 @@ func (r *Runtime) reconcileProtocol2(ctx context.Context, control protocol2Statu
 				ExpectedCore: &expected, ObservedCore: &observed,
 				LastError: mapOptionalProtocol2Error(response.Error)}, false
 		case "running_development":
-			status := protocol.Status{State: protocol.StateActive, Development: true,
-				LastError: mapOptionalProtocol2Error(response.Error)}
-			if response.Core != nil {
-				observed := *response.Core
-				status.ObservedCore = &observed
-			}
-			if response.ActivePackage == nil {
-				return status, false
-			}
-			if r.corePackageRoot == "" || response.Generation == nil {
-				return unavailableStatus(), false
-			}
-			adopted, err := corepackage.Adopt(r.corePackageRoot)
-			activeIndex := matchingAdoptedPackage(adopted, *response.ActivePackage)
-			if err != nil || activeIndex < 0 {
-				return unavailableStatus(), false
-			}
-			r.adoptActivePackage(adopted, activeIndex)
-			activation := activationFromProtocol2(adopted[activeIndex].PackageID, adopted[activeIndex].Descriptor, response)
-			status.CorePackage = corePackageStatus(activation)
-			return status, false
+			return r.reconcileActiveCore(response, false), false
 		default:
 			return unavailableStatus(), false
 		}
@@ -593,7 +654,7 @@ func corePackageStatus(activation CoreActivation) *protocol.CorePackageStatus {
 	for index, value := range activation.ActiveInterfaces {
 		interfaces[index] = protocol.RuntimeInterface{ID: value.ID, Major: value.Major, Minor: value.Minor}
 	}
-	return &protocol.CorePackageStatus{PackageID: activation.PackageID, Generation: activation.Generation,
+	return &protocol.CorePackageStatus{PackageID: activation.PackageID, Generation: activation.Generation, PersistenceMode: activation.PersistenceMode,
 		ABI:     protocol.RuntimeContract{ID: activation.Descriptor.ABI.ID, Major: uint16(activation.Descriptor.ABI.Major), Minor: uint16(activation.Descriptor.ABI.Minor)},
 		BuildID: activation.Descriptor.Build.ID, ActiveInterfaces: interfaces, Gamepad: activation.Gamepad}
 }
@@ -923,6 +984,14 @@ func (r *Runtime) stopWithRecovery(admission, operation context.Context, owned b
 		}
 		ctx = operation
 	}
+	r.packageMu.Lock()
+	ownsPackage := r.activePackage != nil || len(r.retiredPackages) != 0
+	r.packageMu.Unlock()
+	if ownsPackage {
+		if control, ok := r.control.(protocol2StopControl); ok {
+			return r.stopCorePackage(ctx, control)
+		}
+	}
 	response, err := r.control.Stop(ctx)
 	if err != nil {
 		// The mutation may have completed before its reply was lost. Observe
@@ -942,6 +1011,14 @@ func (r *Runtime) stopWithRecovery(admission, operation context.Context, owned b
 		return "", protocol.RecoveryRebootRequired, nil
 	}
 	if err == nil && response.Error != nil {
+		if response.Error.Code == "save_failed" {
+			r.packageMu.Lock()
+			custom := r.activePackage != nil
+			r.packageMu.Unlock()
+			if custom {
+				return "", "", mapProtocol2Error(&Protocol2Error{Code: "save_failed", Phase: "save"})
+			}
+		}
 		return "", "", mapRemoteError(response.Error)
 	}
 	if err != nil || !validCleanIdle(response) {
@@ -1135,10 +1212,63 @@ func mapProtocol2Error(remote *Protocol2Error) *protocol.APIError {
 		result.Code = protocol.CodeUnsupportedOperation
 	case "busy":
 		result.Code = protocol.CodeBusy
+	case "corrupt_data":
+		result.Code = protocol.CodeCorruptData
+		result.Message = "stored core data is corrupt"
+		result.Expected = ""
+		result.Observed = ""
+	case "incompatible_data":
+		result.Code = protocol.CodeIncompatibleData
+		result.Message = "stored or active core data is incompatible"
+		result.Expected = ""
+		result.Observed = ""
+	case "stale_revision":
+		result.Code = protocol.CodeStaleRevision
+		result.Message = "core data revision changed; refresh before retrying"
+		result.Expected = ""
+		result.Observed = ""
+	case "save_failed":
+		result.Code = protocol.CodeSaveFailed
+		result.Message = "core data could not be durably written; inspect status before retrying"
+		result.Expected = ""
+		result.Observed = ""
+	case "idle_failed":
+		result.Code = protocol.CodeMiSTerUnavailable
+		result.Message = "target runtime recovery is required"
+		result.Expected = ""
+		result.Observed = ""
 	case "core_mismatch":
 		result.Code = protocol.CodeUnrecognizedCore
 	default:
 		result.Code = protocol.CodeMiSTerUnavailable
 	}
 	return result
+}
+
+func (r *Runtime) reconcileActiveCore(response Protocol2Response, recovery bool) protocol.Status {
+	status := protocol.Status{State: protocol.StateActive, Development: true,
+		LastError: mapOptionalProtocol2Error(response.Error)}
+	if recovery {
+		status.State = protocol.StateFailed
+		status.Recovery = protocol.RecoveryRebootRequired
+	}
+	if response.Core != nil {
+		observed := *response.Core
+		status.ObservedCore = &observed
+	}
+	if response.ActivePackage == nil {
+		return status
+	}
+	if r.corePackageRoot == "" || response.Generation == nil {
+		return unavailableStatus()
+	}
+	adopted, err := corepackage.Adopt(r.corePackageRoot)
+	activeIndex := matchingAdoptedPackage(adopted, *response.ActivePackage)
+	if err != nil || activeIndex < 0 {
+		return unavailableStatus()
+	}
+	r.adoptActivePackage(adopted, activeIndex)
+	activation := activationFromProtocol2(adopted[activeIndex].PackageID, adopted[activeIndex].Descriptor, response)
+	status.CorePackage = corePackageStatus(activation)
+	return status
 }

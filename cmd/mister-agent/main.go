@@ -148,6 +148,9 @@ func runtimeDependencies(backend runtimeBackend, nativeControl misterruntime.Con
 
 func newNativeRuntime(control misterruntime.Control, rebootPath string) *misterruntime.Runtime {
 	_ = os.MkdirAll(developmentCoreRoot, 0o700)
+	// The fixed target data root outlives package staging and image updates.
+	// The runtime validates storage access and refuses launch/update if this failed.
+	_ = os.MkdirAll(misterruntime.CoreDataRoot, 0o700)
 	return misterruntime.NewRuntime(control, bootIDFile, 25*time.Millisecond, 250*time.Millisecond,
 		misterruntime.WithDevelopmentRBFPath(developmentRBFPath),
 		misterruntime.WithCorePackageRoot(developmentCoreRoot),

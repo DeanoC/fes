@@ -24,10 +24,18 @@ type packageLibraryClient struct {
 
 func (c *packageLibraryClient) InspectCore(ctx context.Context, n int64, r io.Reader) (protocol.CoreInspection, error) {
 	c.inspections++
+	staged, err := corepackage.Stage(ctx, os.TempDir(), n, r)
+	if err != nil {
+		return protocol.CoreInspection{}, err
+	}
+	defer staged.Cleanup()
+	if staged.PackageID != c.inspection.PackageID {
+		return protocol.CoreInspection{PackageID: staged.PackageID, Descriptor: staged.Descriptor, Compatible: true}, nil
+	}
 	return c.inspection, nil
 }
 
-func libraryPackageFixture(t *testing.T, version string) []byte {
+func libraryPackageFixture(t *testing.T, version string, extras ...string) []byte {
 	t.Helper()
 	base := "../internal/corepackage/testdata/core-bundle-v2/"
 	manifest, err := os.ReadFile(base + "manifests/valid-basic.toml")
@@ -35,6 +43,9 @@ func libraryPackageFixture(t *testing.T, version string) []byte {
 		t.Fatal(err)
 	}
 	manifest = bytes.Replace(manifest, []byte(`version = "0.1.0"`), []byte(`version = "`+version+`"`), 1)
+	for _, extra := range extras {
+		manifest = append(manifest, []byte(extra)...)
+	}
 	payload, err := os.ReadFile(base + "payloads/fes-fixture.rbf")
 	if err != nil {
 		t.Fatal(err)
@@ -342,4 +353,19 @@ func TestActivatedLibraryPackageRetainsFailedHostCleanup(t *testing.T) {
 	if err != nil || status.State != protocol.StateIdle || s.activeExecution != "" || s.packageRejection != nil || executor.stopCalls != 4 || client.stopCalls != stops {
 		t.Fatalf("cleanup retry: %+v %v host=%d target=%d/%d execution=%s", status, err, executor.stopCalls, client.stopCalls, stops, s.activeExecution)
 	}
+}
+
+func (c *packageLibraryClient) InspectCoreData(ctx context.Context, n int64, r io.Reader, id string) (protocol.CoreDataInspection, error) {
+	staged, err := corepackage.Stage(ctx, os.TempDir(), n, r)
+	if err != nil {
+		return protocol.CoreDataInspection{}, err
+	}
+	defer staged.Cleanup()
+	return protocol.CoreDataInspection{CoreData: protocol.CoreData{PackageID: staged.PackageID, CoreID: staged.Descriptor.Core.ID, Mode: "volatile", Revision: "absent", PaddleSpeed: 1}, Descriptor: staged.Descriptor}, nil
+}
+func (c *packageLibraryClient) UpdateCoreSettings(context.Context, int64, io.Reader, protocol.CoreSettingsUpdate) (protocol.CoreDataInspection, error) {
+	return protocol.CoreDataInspection{}, errors.New("unexpected settings write")
+}
+func (c *packageLibraryClient) LoadLibraryCore(ctx context.Context, n int64, r io.Reader, id string) (protocol.Status, error) {
+	return c.LoadCore(ctx, n, r)
 }

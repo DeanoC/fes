@@ -8,7 +8,10 @@ and content selection; the MiSTer is a small, directly controlled target.
 
 - [Installed FPGA core packages](docs/core-package-library.md) with explicit
   version selection and ROM-less entries in the normal library. Import and
-  selection do not replace a running core.
+  selection do not replace a running core. Library FES Pong packages with the
+  persistence interfaces retain paddle speed and best rally on the target;
+  [settings/progress APIs and CLI](docs/core-package-library.md#persistent-settings-and-progress)
+  expose durable data. Development package loads remain volatile.
 
 
 - Thousands of catalogued games across the systems in

@@ -21,6 +21,7 @@ func WithDevelopment(controller DevelopmentController) Option {
 }
 
 func registerDevelopmentRoutes(mux *http.ServeMux, token string, controller DevelopmentController) {
+	registerCoreDataRoutes(mux, token, controller)
 	mux.Handle("/v1/development/rbf", authenticate(token, exactMethod(http.MethodPost, developmentRBFHandler(controller))))
 	mux.Handle("/v1/development/core", authenticate(token, exactMethod(http.MethodPost, developmentCoreHandler(controller))))
 	mux.Handle("/v1/development/core/inspect", authenticate(token, exactMethod(http.MethodPost, developmentCoreInspectionHandler(controller))))
