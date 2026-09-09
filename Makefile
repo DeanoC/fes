@@ -21,6 +21,8 @@ all: test
 
 test:
 	$(PYTHON) -m unittest discover -s tests -p 'test_core_bundle_fixtures.py' -v
+	$(PYTHON) -m unittest discover -s tests -p 'test_core_persistence_fixtures.py' -v
+	$(PYTHON) scripts/core_persistence_fixtures.py --check
 	$(GO) test ./...
 	$(GO) run ./cmd/mister-packages validate $(PLATFORM)
 	$(GO) run ./cmd/mister-packages diff-oracle $(PLATFORM) $(ORACLE)
@@ -58,6 +60,8 @@ emit-verilog:
 
 fixtures:
 	$(PYTHON) scripts/core_bundle_fixtures.py
+	$(PYTHON) scripts/core_persistence_fixtures.py
 
 check-fixtures:
 	$(PYTHON) scripts/core_bundle_fixtures.py --check
+	$(PYTHON) scripts/core_persistence_fixtures.py --check

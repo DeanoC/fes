@@ -360,3 +360,44 @@ final toggle. Its `build_id` is synthetic
 `00112233445566778899aabbccddeeff`; the identity words encode adjacent ID byte
 pairs with the first byte low. It is a wire fixture, not hardware acceptance
 evidence.
+
+## Core persistence interfaces
+
+The optional extension to the `fes.simple-game` registry keeps the base ABI and
+transport at 1.0. A persistent Pong package declares both `fes.persistence.words`
+1.0 (live capability bit 2) and `fes.pong.progress` 1.0 (bit 3) as required.
+Exactly one registered layout accompanies the persistence transport. These bits
+fit the 16-bit live identity word; existing volatile packages retain bits 0/1.
+
+The generated constants describe data-control opcode 4 (index 0, arguments
+freeze=0, begin=1, commit=2, resume=3), read opcode 5, write opcode 6, and info
+opcode 7. Info indexes 0–3 report word count, layout tag, major and minor.
+Pong tag 1 maps to `fes.pong.progress` 1.0 with exactly two words: paddle-speed
+enum 0/1/2 and best rally (u16). The transfer bound is 256 words. Error 4 means
+invalid state; existing invalid-opcode/index/argument errors remain 1/2/3.
+
+Freeze requires released gameplay and latches a complete immutable snapshot
+before ACK; repeated freeze retains it. Reads require frozen state. Begin clears
+restore staging while gameplay reset is held. Writes populate indexed staging;
+commit requires all words and valid values, atomically updates persistent data,
+then closes staging while reset stays held. Invalid speed is rejected at commit.
+Resume requires frozen state and releases it without gameplay reset. Invalid
+requests do not modify state. Runtime owns timeout ambiguity and recovery;
+these declarations do not execute physical operations.
+
+`testdata/core-persistence-v1/records.json` defines canonical synthetic disk
+records for `fes.pong`: ASCII `FESDATA1`, 32-byte SHA-256(core ID), four LE u16
+values (layout-ID byte length, major, minor, word count), ASCII layout ID,
+LE u16 payload words, then SHA-256 of all preceding bytes. No padding or trailing
+bytes is allowed. IDs follow the existing at-most-96-byte grammar and word count
+is 1–256, bounding the record at 688 bytes. Pong admits exactly its layout 1.0,
+two words, and speed 0–2. The API revision is lowercase SHA-256 of the complete
+record; a missing record uses the string `absent`. Its default payload is [1,0].
+The storage namespace/path and atomic durability operations belong to consumers.
+
+`testdata/core-persistence-v1/exchanges.json` extends the synthetic identity
+sequence to capabilities 15 and covers data admission, staging, commit, freeze,
+read and resume, including invalid requests. It leaves the original volatile
+`fes-gp-v1` vectors unchanged. Regenerate with
+`python3 scripts/core_persistence_fixtures.py`, or use `--check` to compare.
+These fixtures establish byte contracts, not hardware acceptance.

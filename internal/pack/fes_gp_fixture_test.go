@@ -149,7 +149,11 @@ func TestFesGpGoldenExchangeFixture(t *testing.T) {
 	identityWords[constants("FesGpIdentityAbiMinorIndex")] = uint16(constants("FesGpAbiMinor"))
 	var capabilities uint16
 	for _, iface := range abi.Interfaces {
-		capabilities |= 1 << iface.CapabilityBit
+		// This retained v1 fixture describes the original volatile core, not
+		// every interface that a newer runtime can support.
+		if iface.ID == "fes.gamepad" || iface.ID == "fes.video.fixed-720p60" {
+			capabilities |= 1 << iface.CapabilityBit
+		}
 	}
 	identityWords[constants("FesGpIdentityCapabilitiesIndex")] = capabilities
 	buildID, err := hex.DecodeString(fixtureSet.BuildID)
