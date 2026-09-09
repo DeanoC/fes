@@ -15,6 +15,18 @@ GENERATED = (
     ('emit-cpp', 'packages/system/snes.yaml', 'libmister-runtime', 'src/native/generated/snes.hpp'),
     ('emit-cpp', 'packages/system/nes.yaml', 'libmister-runtime', 'src/native/generated/nes.hpp'),
     ('emit-cpp', 'packages/platform/de10_nano.yaml', 'libmister-runtime', 'src/native/generated/de10_nano.hpp'),
+    ('emit-cpp', 'packages/abi/fes_simple_game.yaml', 'libmister-runtime', 'src/native/generated/fes_gp.hpp'),
+    ('emit-verilog', 'packages/abi/fes_simple_game.yaml', 'misteross', 'cores/fes-pong/generated/fes_gp.vh'),
+    ('emit-cpp', 'packages/programming/de10_nano.yaml', 'libmister-runtime', 'src/native/generated/de10_nano_programming.hpp'),
+)
+COPIED_TREES = (
+    ('testdata/core-bundle-v2', 'FogCast', 'internal/corepackage/testdata/core-bundle-v2'),
+    ('testdata/core-bundle-v2', 'libmister-runtime', 'tests/fixtures/core-bundle-v2'),
+    ('testdata/core-bundle-v2', 'misteross', 'tests/fixtures/core-bundle-v2'),
+)
+COPIED_FILES = (
+    ('testdata/fes-gp-v1/exchanges.json', 'libmister-runtime', 'tests/fixtures/fes-gp-v1/exchanges.json'),
+    ('testdata/fes-gp-v1/exchanges.json', 'misteross', 'cores/fes-pong/generated/exchanges.json'),
 )
 CORE_SOURCES = ('megadrive', 'snes', 'nes')
 
@@ -46,6 +58,23 @@ def check(root: Path, sources: dict[str, Path] | None = None):
             consumer = sources[component] / destination
             if emitted.read_bytes() != consumer.read_bytes():
                 raise ValueError(f'generated {component}/{destination} differs from mister-packages; regenerate it in the consumer repository')
+    for source, component, destination in COPIED_TREES:
+        canonical = packages / source
+        consumer = sources[component] / destination
+        if not canonical.is_dir() or canonical.is_symlink():
+            raise ValueError(f'fixture mister-packages/{source} must be a directory')
+        if not consumer.is_dir() or consumer.is_symlink():
+            raise ValueError(f'fixture {component}/{destination} must be a directory')
+        canonical_files = {path.relative_to(canonical) for path in canonical.rglob('*') if path.is_file()}
+        consumer_files = {path.relative_to(consumer) for path in consumer.rglob('*') if path.is_file()}
+        if canonical_files != consumer_files:
+            raise ValueError(f'fixture {component}/{destination} differs from mister-packages member set')
+        for relative in canonical_files:
+            if (canonical / relative).read_bytes() != (consumer / relative).read_bytes():
+                raise ValueError(f'fixture {component}/{destination}/{relative} differs from mister-packages')
+    for source, component, destination in COPIED_FILES:
+        if (packages / source).read_bytes() != (sources[component] / destination).read_bytes():
+            raise ValueError(f'fixture {component}/{destination} differs from mister-packages')
     # The validated emitter report is a line-oriented key/value representation;
     # YAML parsing and schema validation stay with the package's own Go loader.
     count = 0
@@ -77,7 +106,8 @@ def check(root: Path, sources: dict[str, Path] | None = None):
                 if copied.get(field) != report[canonical]:
                     raise ValueError(f'{component}/{filename}: {".".join(sections)}.{field} differs from mister-packages source pin')
         count += len(copies)
-    return {'generated_files': len(GENERATED), 'source_pin_copies': count}
+    return {'generated_files': len(GENERATED), 'source_pin_copies': count,
+            'fixture_copies': len(COPIED_TREES) + len(COPIED_FILES)}
 
 
 def main():
@@ -88,7 +118,7 @@ def main():
         result = check(root)
     except (ValueError, KeyError, OSError, subprocess.CalledProcessError) as error:
         raise SystemExit(f'consistency: {error}') from error
-    print(f"consistency: package YAML valid; {result['generated_files']} generated consumers and {result['source_pin_copies']} copied source pins match")
+    print(f"consistency: package YAML valid; {result['generated_files']} generated consumers, {result['fixture_copies']} fixture copies and {result['source_pin_copies']} copied source pins match")
 
 
 if __name__ == '__main__':

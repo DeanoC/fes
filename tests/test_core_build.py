@@ -1,7 +1,9 @@
 """The selected profile controls the complete installed FPGA core set."""
 from pathlib import Path
+import hashlib
 import sys
 import tempfile
+import tomllib
 import unittest
 from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
@@ -17,6 +19,26 @@ class CoreBuildTest(unittest.TestCase):
         for cores in ([], ['pong'], ['megadrive', 'pong'], ['megadrive', 'snes', 'pong'], ['megadrive', 'pong', 'pong'], ['megadrive', '../snes']):
             with self.subTest(cores=cores), self.assertRaises(ValueError):
                 build.selected_cores({'fpga_cores': cores})
+
+    def test_only_integration_profile_selects_the_closed_fes_pong_recipe(self):
+        selection = {'fpga_packages': [{'core_id': 'fes.pong'}]}
+        self.assertEqual(build.selected_packages(selection, 'native-integration-dev'),
+                         ('fes.pong',))
+        self.assertEqual(build.selected_packages({}, 'native-dev'), ())
+        self.assertEqual(build.selected_packages({'fpga_packages': []}, 'native-integration-dev'), ())
+        for profile_name, profile in (
+            ('native-dev', selection),
+            ('native-source-dev', selection),
+            ('native-integration-dev', {'fpga_packages': [{'core_id': 'pong'}]}),
+            ('native-integration-dev', {'fpga_packages': [{'core_id': 'fes.pong'}, {'core_id': 'fes.pong'}]}),
+            ('native-integration-dev', {'fpga_packages': {'core_id': 'fes.pong'}}),
+        ):
+            with self.subTest(profile=profile_name, value=profile), self.assertRaises(ValueError):
+                build.selected_packages(profile, profile_name)
+        repository_profile = tomllib.loads((Path(__file__).resolve().parents[1] /
+                                             'profiles/native-integration-dev.toml').read_text())
+        self.assertEqual(build.selected_packages(repository_profile, 'native-integration-dev'),
+                         ('fes.pong',))
 
     def test_bundle_arguments_require_exact_selected_set(self):
         cores = ('megadrive', 'pong', 'snes', 'nes')
@@ -34,12 +56,170 @@ class CoreBuildTest(unittest.TestCase):
         with patch.dict('os.environ', {'PONG_RBF_BUNDLE': '/untrusted',
                                       'SNES_RBF_BUNDLE': '/wrong',
                                       'NES_RBF_BUNDLE': '/also-wrong',
-                                      'NATIVE_RUNTIME_SYSTEMS': 'pong'}):
+                                      'NATIVE_RUNTIME_SYSTEMS': 'pong',
+                                      'FES_PONG_PACKAGE_DIR': '/untrusted-package',
+                                      'FES_PONG_PACKAGE_SELECTION': '/untrusted-selection'}):
             env = build_environment()
         self.assertFalse('PONG_RBF_BUNDLE' in env)
         self.assertFalse('SNES_RBF_BUNDLE' in env)
         self.assertFalse('NES_RBF_BUNDLE' in env)
         self.assertFalse('NATIVE_RUNTIME_SYSTEMS' in env)
+        self.assertFalse('FES_PONG_PACKAGE_DIR' in env)
+        self.assertFalse('FES_PONG_PACKAGE_SELECTION' in env)
+
+    def test_package_arguments_and_image_fingerprint_bind_exact_selection_bytes(self):
+        package = {
+            'directory': Path('/packages/identity'),
+            'selection_path': Path('/records/fes-pong.package-selection.toml'),
+            'inputs': {
+                'selection': {'format': 2, 'kind': 'core-package', 'core_id': 'fes.pong',
+                              'package_id': 'a' * 64, 'payload_sha256': 'b' * 64,
+                              'misteross_revision': 'c' * 40,
+                              'mister_packages_revision': 'd' * 40,
+                              'install_path': '/usr/share/mister-runtime/core-packages/' + 'a' * 64},
+                'selection_sha256': 'e' * 64,
+                'manifest_sha256': 'f' * 64,
+                'core_rbf_sha256': 'b' * 64,
+            },
+        }
+        self.assertEqual(build.package_arguments(package), [
+            'FES_PONG_PACKAGE_DIR=/packages/identity',
+            'FES_PONG_PACKAGE_SELECTION=/records/fes-pong.package-selection.toml'])
+        first, first_info = build.image_fingerprint('base', {'sources': {}}, package)
+        changed = dict(package, inputs=dict(package['inputs'], selection_sha256='0' * 64))
+        second, _ = build.image_fingerprint('base', {'sources': {}}, changed)
+        self.assertNotEqual(first, second)
+        self.assertEqual(first_info['fpga_packages'], [package['inputs']])
+        self.assertEqual(first_info['image_base_fingerprint'], 'base')
+        self.assertEqual(first_info['image_fingerprint'], first)
+
+    def test_host_build_fingerprint_ignores_package_recipe_selection(self):
+        revisions = {'FogCast': 'a' * 40}
+        plain, plain_info = build.build_fingerprint(revisions, {'version': '1'}, 'go test')
+        selected, selected_info = build.build_fingerprint(revisions, {
+            'version': '1', 'fpga_packages': [{'core_id': 'fes.pong'}]}, 'go test')
+        self.assertEqual(selected, plain)
+        self.assertEqual(selected_info, plain_info)
+
+    def test_published_package_outputs_are_closed_and_byte_exact(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source'
+            output = root / 'output'
+            source.mkdir()
+            output.mkdir()
+            identity = 'a' * 64
+            (source / 'manifest.toml').write_bytes(b'manifest')
+            (source / 'core.rbf').write_bytes(b'payload')
+            selection = root / 'selected.toml'
+            selection.write_bytes(b'format = 2\n')
+            built = root / 'built.toml'
+            built.write_bytes(selection.read_bytes())
+            stale = output / 'core-packages/stale'
+            stale.mkdir(parents=True)
+            (stale / 'old').write_bytes(b'old')
+            package = {
+                'directory': source,
+                'selection_path': selection,
+                'inputs': {
+                    'selection': {'package_id': identity},
+                    'selection_sha256': hashlib.sha256(selection.read_bytes()).hexdigest(),
+                    'manifest_sha256': hashlib.sha256(b'manifest').hexdigest(),
+                    'core_rbf_sha256': hashlib.sha256(b'payload').hexdigest(),
+                },
+            }
+            names = build.publish_package_outputs(package, built, output)
+            self.assertEqual(names, [
+                'fes-pong.package-selection.toml',
+                f'core-packages/{identity}/manifest.toml',
+                f'core-packages/{identity}/core.rbf'])
+            build.verify_package_outputs(output, package)
+            self.assertEqual([path.name for path in (output / 'core-packages').iterdir()], [identity])
+            payload = output / 'core-packages' / identity / 'core.rbf'
+            payload.chmod(0o644)
+            payload.write_bytes(b'changed')
+            with self.assertRaisesRegex(ValueError, 'changed|differs'):
+                build.verify_package_outputs(output, package)
+
+            payload.write_bytes(b'payload')
+            payload.chmod(0o444)
+            package_directory = output / 'core-packages' / identity
+            for name, create in (
+                ('extra', lambda path: path.write_bytes(b'extra')),
+                ('.hidden', lambda path: path.write_bytes(b'hidden')),
+                ('link', lambda path: path.symlink_to(source / 'manifest.toml')),
+                ('directory', lambda path: path.mkdir()),
+            ):
+                with self.subTest(stray=name):
+                    package_directory.chmod(0o755)
+                    stray = package_directory / name
+                    create(stray)
+                    package_directory.chmod(0o555)
+                    with self.assertRaisesRegex(ValueError, 'changed|differs'):
+                        build.verify_package_outputs(output, package)
+                    package_directory.chmod(0o755)
+                    if stray.is_symlink() or stray.is_file():
+                        stray.unlink()
+                    else:
+                        stray.rmdir()
+                    package_directory.chmod(0o555)
+
+    def test_package_free_publication_removes_closed_previous_selection(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)
+            selection = output / 'fes-pong.package-selection.toml'
+            selection.write_bytes(b'selection')
+            selection.chmod(0o444)
+            package = output / 'core-packages' / ('a' * 64)
+            package.mkdir(parents=True)
+            (package / 'manifest.toml').write_bytes(b'manifest')
+            (package / 'core.rbf').write_bytes(b'payload')
+            package.chmod(0o555)
+            (output / 'core-packages').chmod(0o555)
+
+            self.assertEqual(build.publish_package_state(None, None, output), [])
+            self.assertFalse(selection.exists())
+            self.assertFalse((output / 'core-packages').exists())
+            self.assertEqual(build.verify_package_outputs(output, None), [])
+
+    def test_package_free_publication_rejects_symlink_destinations_without_following(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / 'output'
+            ambient = root / 'ambient'
+            output.mkdir()
+            ambient.mkdir()
+            marker = ambient / 'keep'
+            marker.write_bytes(b'unchanged')
+            (output / 'core-packages').symlink_to(ambient, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, 'non-symlink'):
+                build.publish_package_state(None, None, output)
+            self.assertEqual(marker.read_bytes(), b'unchanged')
+
+    def test_package_publication_does_not_follow_existing_output_symlink(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / 'output'
+            output.mkdir()
+            ambient = root / 'ambient'
+            ambient.mkdir()
+            marker = ambient / 'keep'
+            marker.write_bytes(b'unchanged')
+            (output / 'core-packages').symlink_to(ambient, target_is_directory=True)
+            source = root / 'source'
+            source.mkdir()
+            (source / 'manifest.toml').write_bytes(b'manifest')
+            (source / 'core.rbf').write_bytes(b'payload')
+            selection = root / 'selection.toml'
+            selection.write_bytes(b'format = 2\n')
+            package = {'directory': source, 'selection_path': selection, 'inputs': {
+                'selection': {'package_id': 'a' * 64},
+                'selection_sha256': build.digest(selection),
+                'manifest_sha256': build.digest(source / 'manifest.toml'),
+                'core_rbf_sha256': build.digest(source / 'core.rbf')}}
+            with self.assertRaisesRegex(ValueError, 'non-symlink'):
+                build.publish_package_outputs(package, selection, output)
+            self.assertEqual(marker.read_bytes(), b'unchanged')
 
     def test_cached_bundle_is_checked_with_selected_source_and_recipe(self):
         with tempfile.TemporaryDirectory() as tmp:

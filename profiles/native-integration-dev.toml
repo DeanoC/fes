@@ -7,5 +7,8 @@ fpga_cores = ["megadrive", "pong", "snes", "nes"]
 quartus_version = "17.0.2"
 bundle_interface = "selection"
 check_packages = true
+
+[[fpga_packages]]
+core_id = "fes.pong"
 # Current component revisions are the parent gitlinks. Historical profiles
 # explicitly select earlier commits; this profile integrates the current set.

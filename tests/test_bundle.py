@@ -4,6 +4,7 @@ from pathlib import Path
 import tempfile
 import tomllib
 import unittest
+from unittest.mock import patch
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts/bundle.py"
 
@@ -164,6 +165,141 @@ toolchain = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
                 manifest_path.symlink_to(target)
                 with self.assertRaisesRegex(ValueError, "symlink"):
                     load()
+
+    def test_misteross_origin_is_reset_to_the_authenticated_repository(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            import subprocess
+            subprocess.run(['git', 'init', '-q', source], check=True)
+            subprocess.run(['git', '-C', source, 'remote', 'add', 'origin', '/local/source'], check=True)
+            module.authenticate_misteross_origin(source)
+            self.assertEqual(subprocess.check_output(
+                ['git', '-C', source, 'remote', 'get-url', '--all', 'origin'], text=True).strip(),
+                module.MISTEROSS_REPOSITORY)
+
+    def test_package_resolution_reuses_only_one_matching_validated_candidate(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            store = source / 'build/packages'
+            store.mkdir(parents=True)
+            identity = 'a' * 64
+            record = b'{"canonical":true}\n'
+            sidecar = store / f'{identity}.build-inputs.json'
+            sidecar.write_bytes(record)
+            sidecar.chmod(0o444)
+            package = store / identity
+            package.mkdir()
+            (package / 'manifest.toml').write_bytes(b'manifest')
+            (package / 'core.rbf').write_bytes(b'payload')
+            payload_sha = hashlib.sha256(b'payload').hexdigest()
+            selection_path = source / 'selection.toml'
+            inspected = {
+                'package_id': identity,
+                'manifest': {'core': {'id': 'fes.pong'},
+                             'payload': {'sha256': payload_sha},
+                             'build': {'revision': 'c' * 40}},
+                'manifest_sha256': hashlib.sha256(b'manifest').hexdigest(),
+                'core_rbf_sha256': payload_sha,
+            }
+            with patch.object(module, 'canonical_package_record', return_value=record), \
+                 patch.object(module, '_inspect_package_candidate', return_value=inspected), \
+                 patch.object(module, '_build_fes_pong', side_effect=AssertionError('unexpected build')):
+                resolved = module.resolve_core_package(source, 'd' * 40, selection_path)
+            self.assertEqual(resolved['directory'], package)
+            self.assertEqual(resolved['inputs']['selection']['package_id'], identity)
+            self.assertEqual(resolved['inputs']['selection']['mister_packages_revision'], 'd' * 40)
+            self.assertEqual(resolved['selection_path'], selection_path)
+            self.assertEqual(selection_path.stat().st_mode & 0o777, 0o444)
+
+            second = store / (('e' * 64) + '.build-inputs.json')
+            second.write_bytes(record)
+            second.chmod(0o444)
+            (store / ('e' * 64)).mkdir()
+            (store / ('e' * 64) / 'manifest.toml').write_bytes(b'manifest')
+            (store / ('e' * 64) / 'core.rbf').write_bytes(b'payload')
+            with patch.object(module, 'canonical_package_record', return_value=record), \
+                 patch.object(module, '_inspect_package_candidate',
+                              side_effect=lambda _, package, __: dict(
+                                  inspected, package_id=Path(package).name)):
+                with self.assertRaisesRegex(ValueError, 'multiple'):
+                    module.resolve_core_package(source, 'd' * 40, selection_path)
+
+    def test_package_resolution_builds_once_when_no_canonical_candidate_exists(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            store = source / 'build/packages'
+            identity = 'a' * 64
+            record = b'{"canonical":true}\n'
+            inspected = {
+                'package_id': identity,
+                'manifest': {'core': {'id': 'fes.pong'},
+                             'payload': {'sha256': hashlib.sha256(b'payload').hexdigest()},
+                             'build': {'revision': 'c' * 40}},
+                'manifest_sha256': hashlib.sha256(b'manifest').hexdigest(),
+                'core_rbf_sha256': hashlib.sha256(b'payload').hexdigest(),
+            }
+            def build_once(_):
+                store.mkdir(parents=True)
+                (store / f'{identity}.build-inputs.json').write_bytes(record)
+                (store / f'{identity}.build-inputs.json').chmod(0o444)
+                (store / identity).mkdir()
+                (store / identity / 'manifest.toml').write_bytes(b'manifest')
+                (store / identity / 'core.rbf').write_bytes(b'payload')
+            with patch.object(module, 'canonical_package_record', return_value=record), \
+                 patch.object(module, '_inspect_package_candidate', return_value=inspected), \
+                 patch.object(module, '_build_fes_pong', side_effect=build_once) as build_package:
+                module.resolve_core_package(source, 'd' * 40, source / 'selection.toml')
+            build_package.assert_called_once_with(source)
+
+    def test_package_resolution_rejects_symlinked_store_and_candidate(self):
+        module = self.module()
+        for link in ('store', 'package'):
+            with self.subTest(link=link), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                source = root / 'source'
+                ambient = root / 'ambient'
+                (source / 'build').mkdir(parents=True)
+                ambient.mkdir()
+                identity = 'a' * 64
+                record = b'{"canonical":true}\n'
+                if link == 'store':
+                    store = ambient / 'packages'
+                    store.mkdir()
+                    (source / 'build/packages').symlink_to(store, target_is_directory=True)
+                else:
+                    store = source / 'build/packages'
+                    store.mkdir()
+                sidecar = store / f'{identity}.build-inputs.json'
+                sidecar.write_bytes(record)
+                sidecar.chmod(0o444)
+                ambient_package = ambient / identity
+                ambient_package.mkdir(exist_ok=True)
+                if link == 'store':
+                    package = store / identity
+                    package.mkdir()
+                else:
+                    (store / identity).symlink_to(ambient_package, target_is_directory=True)
+                with patch.object(module, 'canonical_package_record', return_value=record), \
+                     patch.object(module, '_inspect_package_candidate',
+                                  side_effect=AssertionError('symlink reached reader')):
+                    with self.assertRaisesRegex(ValueError, 'symlink|contained|store'):
+                        module.resolve_core_package(source, 'd' * 40, source / 'selection.toml')
+
+    def test_package_resolution_rejects_symlinked_source_checkout(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            actual = root / 'actual'
+            actual.mkdir()
+            source = root / 'source'
+            source.symlink_to(actual, target_is_directory=True)
+            with patch.object(module, 'canonical_package_record',
+                              side_effect=AssertionError('symlink reached producer')):
+                with self.assertRaisesRegex(ValueError, 'non-symlink'):
+                    module.resolve_core_package(source, 'd' * 40, root / 'selection.toml')
 
 
 if __name__ == "__main__":

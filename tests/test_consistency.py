@@ -3,6 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 import os
+import shutil
 import subprocess
 import sys
 from unittest.mock import patch
@@ -28,6 +29,21 @@ class ConsistencyTest(unittest.TestCase):
             path = self.sources[component] / destination
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b'generated\n')
+        for source, component, destination in self.module.COPIED_TREES:
+            canonical = self.sources['mister-packages'] / source
+            if not canonical.exists():
+                canonical.mkdir(parents=True)
+                (canonical / 'fixture').write_bytes(f'{source}\n'.encode())
+            shutil.copytree(canonical, self.sources[component] / destination,
+                            dirs_exist_ok=True)
+        for source, component, destination in self.module.COPIED_FILES:
+            canonical = self.sources['mister-packages'] / source
+            if not canonical.exists():
+                canonical.parent.mkdir(parents=True, exist_ok=True)
+                canonical.write_bytes(f'{source}\n'.encode())
+            copied = self.sources[component] / destination
+            copied.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(canonical, copied)
         self.core = self.sources['misteross'] / 'cores.lock'
         self.core.write_text('[core.megadrive]\nrepo="https://example.org/core"\ncommit="abc"\nrbf_path="releases/core.rbf"\nrbf_sha256="def"\nrbf_size=123\nproject="MegaDrive.qpf"\n')
         self.core.write_text(self.core.read_text() + self.core.read_text().replace('[core.megadrive]', '[core.snes]').replace('MegaDrive.qpf', 'SNES.qpf') + self.core.read_text().replace('[core.megadrive]', '[core.nes]').replace('MegaDrive.qpf', 'NES.qpf'))
@@ -48,11 +64,57 @@ class ConsistencyTest(unittest.TestCase):
         self.addCleanup(self.mock.stop)
 
     def test_selected_sources_and_validation_coverage(self):
-        self.assertEqual(self.module.check(self.root, self.sources), {'generated_files': 9, 'source_pin_copies': 4})
+        self.assertEqual(self.module.check(self.root, self.sources), {
+            'generated_files': 12, 'source_pin_copies': 4, 'fixture_copies': 5})
         self.assertEqual({source for command, source in self.calls if command == 'validate'}, {
             'packages/platform/de10_nano.yaml', 'packages/system/megadrive.yaml',
             'packages/system/pong.yaml', 'packages/system/snes.yaml', 'packages/system/nes.yaml',
+            'packages/abi/fes_simple_game.yaml', 'packages/programming/de10_nano.yaml',
             'packages/source/megadrive_mister.yaml', 'packages/source/snes_mister.yaml', 'packages/source/nes_mister.yaml'})
+
+    def test_shared_fixture_copy_drift(self):
+        fixture_copies = [(component, destination, None)
+                          for _, component, destination in self.module.COPIED_TREES]
+        fixture_copies += [(component, destination, destination)
+                           for _, component, destination in self.module.COPIED_FILES]
+        for component, destination, file_destination in fixture_copies:
+            with self.subTest(destination=destination):
+                copied = (self.sources[component] / file_destination if file_destination else
+                          next(path for path in (self.sources[component] / destination).rglob('*')
+                               if path.is_file()))
+                original = copied.read_bytes()
+                copied.write_bytes(original + b'drift')
+                with self.assertRaisesRegex(ValueError, 'fixture.*differs'):
+                    self.module.check(self.root, self.sources)
+                copied.write_bytes(original)
+
+    def test_missing_shared_fixture_tree_roots_are_rejected(self):
+        source, component, destination = self.module.COPIED_TREES[0]
+        for fixture_root in (
+            self.sources['mister-packages'] / source,
+            self.sources[component] / destination,
+        ):
+            with self.subTest(fixture_root=fixture_root):
+                shutil.rmtree(fixture_root)
+                with self.assertRaisesRegex(ValueError, 'fixture.*must be a directory'):
+                    self.module.check(self.root, self.sources)
+                fixture_root.mkdir(parents=True)
+                (fixture_root / 'fixture').write_bytes(f'{source}\n'.encode())
+
+    def test_nondirectory_shared_fixture_tree_roots_are_rejected(self):
+        source, component, destination = self.module.COPIED_TREES[0]
+        for fixture_root in (
+            self.sources['mister-packages'] / source,
+            self.sources[component] / destination,
+        ):
+            with self.subTest(fixture_root=fixture_root):
+                shutil.rmtree(fixture_root)
+                fixture_root.write_bytes(b'not a fixture tree\n')
+                with self.assertRaisesRegex(ValueError, 'fixture.*must be a directory'):
+                    self.module.check(self.root, self.sources)
+                fixture_root.unlink()
+                fixture_root.mkdir(parents=True)
+                (fixture_root / 'fixture').write_bytes(f'{source}\n'.encode())
 
     def test_generated_consumer_drift(self):
         for _, _, component, destination in self.module.GENERATED:

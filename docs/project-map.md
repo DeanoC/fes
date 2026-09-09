@@ -50,11 +50,13 @@ integration, not a production dependency of its native image.
 
 ## How a build fits together
 
-mister-packages definitions generate checked-in consumers used by FogCast and
-the runtime, and describe upstream core sources. misteross produces the FPGA
-bundle. FES selects component commits, checks that their definitions and locks
-agree, then invokes the selected FogCast image recipes to assemble the agent,
-runtime, libraries and RBFs. Moving whole-system image assembly into FES is a
+mister-packages definitions generate checked-in consumers used by the runtime
+and FPGA source, and describe upstream core sources. FogCast consumes the
+runtime-advertised ABI registry without a second static Go allowlist. misteross
+produces format-1 FPGA bundles and the described format-2 FES Pong package. FES
+selects component commits, checks that their definitions and locks agree, then
+invokes the selected FogCast image recipes to assemble the agent, runtime,
+libraries, catalog RBFs and the described package. Moving whole-system image assembly into FES is a
 separate planned migration; there is currently one authoritative child recipe.
 
 ## Directory guide
@@ -92,6 +94,7 @@ recorded cache volume before removing it.
   sharing Git history with the component repository.
 - **RBF:** the binary FPGA configuration loaded by the runtime.
 - **Bundle:** an RBF plus provenance describing its source and build recipe.
+- **Core package:** a closed format-2 manifest and RBF with a content-derived immutable package ID.
 - **Selection record:** the normalized description of the core installed in an
   image, including its origin and hash.
 - **Receipt:** input fingerprint and output hashes used to detect stale or

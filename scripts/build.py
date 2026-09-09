@@ -81,7 +81,9 @@ def recipe_fingerprint(paths):
 
 
 def build_fingerprint(revisions, profile, toolchain):
-    data = {"sources": revisions, "profile": profile, "go": toolchain,
+    host_profile = dict(profile)
+    host_profile.pop("fpga_packages", None)
+    data = {"sources": revisions, "profile": host_profile, "go": toolchain,
             "recipe": recipe_fingerprint(BUILD_RECIPE_FILES)}
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest(), data
 
@@ -123,8 +125,17 @@ def load_verified_host(output, fingerprint):
 
 
 def load_verified_image(output, fingerprint):
-    if not reusable(output, "image", fingerprint):
-        raise ValueError("cold image receipt is missing or stale; run make build and make verify")
+    selected_fingerprint = fingerprint
+    if not reusable(output, "image", selected_fingerprint):
+        try:
+            inputs = json.loads((Path(output) / "inputs.json").read_text())
+            derived = recorded_image_fingerprint(inputs)
+            if (inputs.get("image_base_fingerprint") != fingerprint or
+                    not reusable(output, "image", derived)):
+                raise ValueError
+            selected_fingerprint = derived
+        except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
+            raise ValueError("cold image receipt is missing or stale; run make build and make verify") from None
     try:
         receipt = json.loads((output / "image.json").read_text())
         verification = json.loads((output / "verification.json").read_text())
@@ -182,6 +193,198 @@ def selected_cores(profile):
     return tuple(cores)
 
 
+def selected_packages(profile, profile_name):
+    packages = profile.get("fpga_packages", [])
+    if not isinstance(packages, list):
+        raise ValueError("fpga_packages must be an array of tables")
+    if not packages:
+        return ()
+    if (profile_name != "native-integration-dev" or packages != [{"core_id": "fes.pong"}]):
+        raise ValueError("only native-integration-dev may select the fes.pong package recipe")
+    return ("fes.pong",)
+
+
+def package_arguments(package):
+    if package is None:
+        return []
+    return ["FES_PONG_PACKAGE_DIR=" + str(package["directory"]),
+            "FES_PONG_PACKAGE_SELECTION=" + str(package["selection_path"])]
+
+
+def image_fingerprint(base_fingerprint, info, package):
+    if package is None:
+        return base_fingerprint, dict(info)
+    package_inputs = package["inputs"]
+    data = {"base_fingerprint": base_fingerprint, "fpga_packages": [package_inputs]}
+    fingerprint = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
+    enriched = dict(info, fpga_packages=[package_inputs],
+                    image_base_fingerprint=base_fingerprint, image_fingerprint=fingerprint)
+    return fingerprint, enriched
+
+
+def recorded_image_fingerprint(info):
+    """Recover the receipt key from a persisted base or package image record."""
+    packages = info.get("fpga_packages")
+    if packages is None:
+        return hashlib.sha256(json.dumps(info, sort_keys=True).encode()).hexdigest()
+    base = info.get("image_base_fingerprint")
+    if type(base) is not str or type(packages) is not list or len(packages) != 1:
+        raise ValueError("invalid persisted package image inputs")
+    fingerprint = hashlib.sha256(json.dumps({
+        "base_fingerprint": base, "fpga_packages": packages,
+    }, sort_keys=True).encode()).hexdigest()
+    if info.get("image_fingerprint") != fingerprint:
+        raise ValueError("persisted package image fingerprint differs from its inputs")
+    return fingerprint
+
+
+def package_output_names(package):
+    identity = package["inputs"]["selection"]["package_id"]
+    if not re.fullmatch(r"[0-9a-f]{64}", identity):
+        raise ValueError("selected package has an invalid package ID")
+    prefix = "core-packages/" + identity + "/"
+    return ["fes-pong.package-selection.toml", prefix + "manifest.toml", prefix + "core.rbf"]
+
+
+def verify_package_outputs(output, package):
+    """Require a closed parent copy of the exact selected package bytes."""
+    output = Path(output)
+    if package is None:
+        try:
+            for path in (output / "fes-pong.package-selection.toml",
+                         output / "core-packages"):
+                try:
+                    path.lstat()
+                except FileNotFoundError:
+                    continue
+                raise ValueError
+        except (OSError, ValueError):
+            raise ValueError("package-free output contains stale FES Pong package files") from None
+        return []
+    names = package_output_names(package)
+    identity = package["inputs"]["selection"]["package_id"]
+    root = output / "core-packages"
+    directory = root / identity
+    try:
+        for path in (root, directory):
+            metadata = path.lstat()
+            if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+                raise ValueError
+        if sorted(entry.name for entry in root.iterdir()) != [identity]:
+            raise ValueError
+        if sorted(entry.name for entry in directory.iterdir()) != ["core.rbf", "manifest.toml"]:
+            raise ValueError
+        expected = {
+            output / names[0]: package["inputs"]["selection_sha256"],
+            output / names[1]: package["inputs"]["manifest_sha256"],
+            output / names[2]: package["inputs"]["core_rbf_sha256"],
+        }
+        for path, expected_sha256 in expected.items():
+            metadata = path.lstat()
+            if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+                raise ValueError
+            if digest(path) != expected_sha256:
+                raise ValueError
+    except (OSError, ValueError):
+        raise ValueError("published FES Pong package changed or differs from its selection") from None
+    return names
+
+
+def _remove_package_outputs(output):
+    """Remove a previous package pair without following output symlinks."""
+    output = Path(output)
+    selection = output / "fes-pong.package-selection.toml"
+    root = output / "core-packages"
+    present = []
+    for path, expected in ((selection, stat.S_ISREG), (root, stat.S_ISDIR)):
+        try:
+            metadata = path.lstat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(metadata.st_mode) or not expected(metadata.st_mode):
+            raise ValueError("package output destination must be a non-symlink regular file or directory")
+        present.append(path)
+    if selection in present:
+        selection.unlink()
+    if root in present:
+        for current, directories, files in os.walk(root, topdown=False, followlinks=False):
+            for name in files + directories:
+                path = Path(current) / name
+                metadata = path.lstat()
+                if not stat.S_ISLNK(metadata.st_mode):
+                    path.chmod(0o755 if stat.S_ISDIR(metadata.st_mode) else 0o644)
+        root.chmod(0o755)
+        shutil.rmtree(root)
+
+
+def publish_package_state(package, built_selection, output):
+    """Publish the selected pair, or close a successful package-free output."""
+    if package is None:
+        _remove_package_outputs(output)
+        return verify_package_outputs(output, None)
+    return publish_package_outputs(package, built_selection, output)
+
+
+def publish_action_inputs(output, action, info):
+    """Publish image inputs only for actions that own image output."""
+    if action not in ("build", "image", "rebuild"):
+        return False
+    output = Path(output)
+    temporary = output / "inputs.json.tmp"
+    temporary.write_text(json.dumps(info, indent=2, sort_keys=True) + "\n")
+    temporary.replace(output / "inputs.json")
+    return True
+
+
+def publish_package_outputs(package, built_selection, output):
+    """Publish the child-emitted record and an exact closed package directory."""
+    output = Path(output)
+    built_selection = Path(built_selection)
+    names = package_output_names(package)
+    try:
+        metadata = built_selection.lstat()
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+            raise ValueError
+        if built_selection.read_bytes() != Path(package["selection_path"]).read_bytes():
+            raise ValueError
+    except (OSError, ValueError):
+        raise ValueError("child FES Pong selection differs from selected inputs") from None
+    identity = package["inputs"]["selection"]["package_id"]
+    staged_root = output / ".core-packages.new"
+    if staged_root.exists() or staged_root.is_symlink():
+        if staged_root.is_symlink() or not staged_root.is_dir():
+            raise ValueError("package staging destination must be a non-symlink directory")
+        shutil.rmtree(staged_root)
+    staged = staged_root / identity
+    staged.mkdir(parents=True)
+    try:
+        for name in ("manifest.toml", "core.rbf"):
+            shutil.copy2(Path(package["directory"]) / name, staged / name)
+            (staged / name).chmod(0o444)
+        staged.chmod(0o555)
+        staged_root.chmod(0o555)
+        old_root = output / "core-packages"
+        if old_root.exists() or old_root.is_symlink():
+            if old_root.is_symlink() or not old_root.is_dir():
+                raise ValueError("package output destination must be a non-symlink directory")
+            for path in old_root.rglob("*"):
+                if not path.is_symlink():
+                    path.chmod(0o755 if path.is_dir() else 0o644)
+            old_root.chmod(0o755)
+            shutil.rmtree(old_root)
+        staged_root.replace(old_root)
+        publish_file(built_selection, output / names[0])
+        verify_package_outputs(output, package)
+        return names
+    finally:
+        if staged_root.exists():
+            for path in staged_root.rglob("*"):
+                if not path.is_symlink():
+                    path.chmod(0o755 if path.is_dir() else 0o644)
+            staged_root.chmod(0o755)
+            shutil.rmtree(staged_root)
+
+
 def bundle_arguments(cores, bundles):
     if set(cores) != set(bundles):
         raise ValueError("bundle set differs from selected cores")
@@ -236,6 +439,7 @@ def main():
     profile = tomllib.loads((ROOT / "profiles" / (args.profile + ".toml")).read_text())
     revisions = validate(ROOT, profile)
     cores = selected_cores(profile)
+    package_recipes = selected_packages(profile, args.profile)
     if platform.system() != "Linux" or platform.machine() not in ("x86_64", "amd64"):
         raise ValueError("this initial image builder requires Linux amd64")
     container = os.environ.get("CONTAINER_RUNTIME", "docker")
@@ -276,6 +480,14 @@ def main():
             "git", "-C", str(fogcast), "show", "HEAD:build/native-runtime.inputs.lock.toml"
         ]))
         fp, info = build_fingerprint(revisions, profile, toolchain)
+        package = None
+        image_fp, image_info = fp, info
+        if package_recipes and args.action in ("build", "image", "verify", "rebuild", "dev"):
+            recipe_source = source_checkout("misteross", revisions["misteross"])
+            package = core_bundle.resolve_core_package(
+                recipe_source, revisions["mister-packages"],
+                output / "fes-pong.package-selection.toml")
+            image_fp, image_info = image_fingerprint(fp, info, package)
         env["TARGET_IMAGE_CONTAINER_RUNTIME"] = container
         env["TARGET_IMAGE_OUTPUT_VOLUME"] = output_volume(ROOT, args.profile)
         # The host has a small /tmp tmpfs; Go temporary files belong in out/.
@@ -289,8 +501,8 @@ def main():
             from native_dev import build_development
             runtime = source_checkout("libmister-runtime", revisions["libmister-runtime"])
             bundles = build_bundles(revisions, env, cores)
-            build_development(ROOT, fogcast, runtime, args.profile, profile, info,
-                              fp, env, child_make, bundles)
+            build_development(ROOT, fogcast, runtime, args.profile, profile, image_info,
+                              image_fp, env, child_make, bundles, package)
             return
         if args.action in ("build", "host", "rebuild"):
             if args.action != "rebuild" and reusable(output, "host", fp):
@@ -309,8 +521,9 @@ def main():
                      "-o", output / "fogcast-api", "./cmd/fogcast-api"], cwd=fogcast, env=api_env)
                 write_receipt(output, "host", fp, ["fogcast", "fogcast-api"])
         if args.action in ("build", "image", "rebuild"):
-            if args.action != "rebuild" and reusable(output, "image", fp):
+            if args.action != "rebuild" and reusable(output, "image", image_fp):
                 print("Image: reusing verified output", flush=True)
+                verify_package_outputs(output, package)
                 if profile.get("fpga_source") == "misteross":
                     recipe_source = source_checkout("misteross", revisions["misteross"])
                     for core in cores:
@@ -335,7 +548,7 @@ def main():
                     if profile.get("bundle_interface") == "selection":
                         run(child_make + ["target-image-native",
                             "LIBMISTER_RUNTIME_DIR=" + str(runtime),
-                            *bundle_arguments(cores, bundles)], env=env)
+                            *bundle_arguments(cores, bundles), *package_arguments(package)], env=env)
                     else:
                         run([fogcast / "scripts/target-image-container.sh", "fetch",
                              "/work/scripts/fetch-native-runtime-inputs.sh"], env=env)
@@ -350,7 +563,8 @@ def main():
                     run(child_make + ["target-image-native", "LIBMISTER_RUNTIME_DIR=" + str(runtime)], env=env)
                 # Verification reads the runtime commit from the image/lock; no source mount required.
                 run(child_make + ["target-image-native-verify"],
-                    env=dict(env, NATIVE_RUNTIME_SYSTEMS=" ".join(cores)))
+                    env=dict(env, NATIVE_RUNTIME_SYSTEMS=" ".join(cores),
+                             **dict(argument.split("=", 1) for argument in package_arguments(package))))
                 built = fogcast / "build/output/target-image/native-dev"
                 names = ["linux.img", "reproducibility.txt", "manifest.tsv", "library-report.tsv"]
                 if profile.get("bundle_interface") == "selection":
@@ -362,10 +576,17 @@ def main():
                         for name in (core + "-rbf.toml", core + ".rbf"):
                             publish_file(bundles[core] / name, output / name)
                             names.append(name)
-                write_receipt(output, "image", fp, names)
+                names.extend(publish_package_state(
+                    package,
+                    built / "fes-pong.package-selection.toml" if package is not None else None,
+                    output))
+                publish_action_inputs(output, args.action, image_info)
+                names.append("inputs.json")
+                write_receipt(output, "image", image_fp, names)
         if args.action == "verify":
-            if not reusable(output, "host", fp) or not reusable(output, "image", fp):
+            if not reusable(output, "host", fp) or not reusable(output, "image", image_fp):
                 raise ValueError("build outputs are missing, changed, or stale; run make build")
+            verify_package_outputs(output, package)
             if profile.get("fpga_source") == "misteross":
                 recipe_source = source_checkout("misteross", revisions["misteross"])
                 recipe_sha = digest(recipe_source / "scripts/rebuild_core.py")
@@ -380,9 +601,11 @@ def main():
             if not built.is_file() or digest(built) != digest(output / "linux.img"):
                 raise ValueError("child image differs from published image; run make rebuild")
             run(child_make + ["target-image-native-verify"],
-                    env=dict(env, NATIVE_RUNTIME_SYSTEMS=" ".join(cores)))
+                    env=dict(env, NATIVE_RUNTIME_SYSTEMS=" ".join(cores),
+                             **dict(argument.split("=", 1) for argument in package_arguments(package))))
             run(child_make + ["target-image-native-qemu-smoke"],
-                env=dict(env, NATIVE_RUNTIME_SYSTEMS=" ".join(cores)))
+                env=dict(env, NATIVE_RUNTIME_SYSTEMS=" ".join(cores),
+                         **dict(argument.split("=", 1) for argument in package_arguments(package))))
             shutil.copy2(fogcast / "build/output/target-image/native-dev/qemu-smoke.log", output / "qemu-smoke.log")
             actual = digest(output / "linux.img")
             evidence = dict(line.split("=", 1) for line in (output / "reproducibility.txt").read_text().splitlines())
@@ -394,8 +617,6 @@ def main():
             (output / "verification.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
             print("Two-pass reproducibility, structural and QEMU packaging checks passed.", flush=True)
             print(f"Historical image hash match: {matches} (see README provenance note)", flush=True)
-        (output / "inputs.json").write_text(json.dumps(info, indent=2, sort_keys=True) + "\n")
-
 if __name__ == "__main__":
     try:
         main()

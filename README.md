@@ -13,6 +13,7 @@ Agents: read [AGENTS.md](AGENTS.md), then the
 - [Getting started](docs/getting-started.md): setup, build choices, running the host and common failures.
 - [Bootable media](docs/bootable-media.md): build, provision and verify a flashable native image.
 - [Appliance releases](docs/appliance-releases.md): versioned images, prepared cards, network updates and automatic fallback.
+- [Described FPGA core packages](docs/core-packages.md): build, inspect, load and stop the standalone FES Pong package.
 - [Project map](docs/project-map.md): what runs where, component responsibilities and directory layout.
 - [Agent workflow](docs/agent-workflow.md): assignments, worktrees, integration and handoffs.
 - [Documentation index](docs/README.md): current guides, validation records and historical plans.
@@ -48,7 +49,7 @@ make host
 For an existing checkout, inspect local changes before running
 `git submodule update --init --recursive`; preserve component work first.
 `make check` verifies clean pinned sources, the runtime lock, package YAML,
-nine generated consumers and copied Mega Drive/SNES/NES source pins. It needs Go,
+twelve generated consumers, five shared fixture copies and copied Mega Drive/SNES/NES source pins. It needs Go,
 not Docker or Quartus. `make host` builds the Linux CLI and browser API server. Run `make doctor`
 when preparing for container/image builds. See [getting started](docs/getting-started.md)
 for Git authentication and a minimal host configuration.
@@ -69,8 +70,9 @@ make verify
 ```
 
 The default `native-integration-dev` selects component revisions through the
-submodule gitlinks and packages source-built Mega Drive, Pong, SNES and NES
-cores. Each core has its own validated bundle and installed selection record;
+submodule gitlinks, packages source-built Mega Drive, Pong, SNES and NES cores,
+and installs the described standalone `fes.pong` development package. Each
+format-1 core has its own validated bundle and installed selection record;
 the selected NES image has exact video and session-lifecycle acceptance recorded
 in [the dated FES validation](docs/validation/2026-09-08-native-nes-wire-acceptance.md).
 Historical profiles retain their Mega Drive-only inputs.
@@ -88,6 +90,8 @@ out/native-integration-dev/
   {megadrive,pong,snes,nes}.rbf selected source-built cores
   <core>-rbf.toml              FPGA build provenance for each core
   <core>.selection.toml        installed-core selection for each core
+  fes-pong.package-selection.toml described-package selection
+  core-packages/<package-id>/  exact manifest.toml and core.rbf
   inputs.json                 selected sources, profile, Go and parent recipe
   host.json / image.json      input fingerprints and output hashes
   reproducibility.txt         independent image hashes
@@ -135,7 +139,7 @@ two-pass evidence is in [integration validation](docs/integration-validation.md)
 
 | Profile | Selected source combination |
 | --- | --- |
-| `native-integration-dev` (default) | Current gitlinks, three source-built cores, package consistency |
+| `native-integration-dev` (default) | Current gitlinks, four source-built catalog cores and described FES Pong package |
 | `native-dev` | Original FogCast `cd85971` / runtime `443b603`, upstream core |
 | `native-source-dev` | Same original pair, source-built core and historical lock overlay |
 
