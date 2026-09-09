@@ -143,6 +143,16 @@ and elapsed-time checks account for those sampling gaps. Stop returned idle,
 and subsequent checks confirmed agent readiness and a free lease. The user
 confirmed the preceding reboots came from another test.
 
+The user subsequently reported that the visible launcher had not returned.
+Runtime idle and agent readiness did not establish launcher readiness: the
+reboot had removed the temporary launcher bind mount, and the immutable image's
+older binary crashed on the current `classic` theme configuration. Under a
+fresh maintenance lease, the existing FAT launcher was bound back onto
+`/usr/sbin/fogcast-kit` and restarted. HDMI capture then confirmed the visible
+platform menu and the launcher process remained running. This temporary
+binding does not survive reboot; final image integration must pair the launcher
+with its configuration and verify visible menu restoration explicitly.
+
 A separate startup race caused the agent to report unavailable when the runtime
 socket was not yet accepting requests. FogCast's reviewed local fix retries
 read-only protocol 2 status within the existing startup deadline. Its unit tests
