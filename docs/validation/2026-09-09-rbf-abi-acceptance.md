@@ -2,7 +2,9 @@
 
 Status: **diagnostic validation only; milestone acceptance incomplete**.
 The assembled development image passed structural verification, but standalone
-FES Pong failed HDMI initialization. Two-pass image reproducibility, QEMU checks,
+FES Pong initially failed HDMI initialization. A corrected build now displays
+video and accepts controller input, but its ball motion is faulty.
+Two-pass image reproducibility, QEMU checks,
 and acceptance against the final corrected image remain pending.
 
 ## Tested source and artifact identity
@@ -82,6 +84,18 @@ The unchanged FAT launcher and configuration were restored, the original UI host
 remained running, and the diagnostic lease was observed free.
 
 ## Remaining acceptance
+
+The rebuilt package `ce656471f730590e30489864ab3c592454ed583db75b8523402c7df71dd311d7`
+uses misteross `6568162086167a35b923b14778706312950671c2` and the reviewed nextpnr
+input-buffer fix `cb0dab2da29f50e869327534c90215e569d7430f`. Its payload SHA-256 is
+`f7a62b60a7bc31ad9379a874baf95e217c8e9ea50a0d1828b210dbadb8e8c7c1`, embedded
+build ID `aaa8596c943c16bb0f752e92021db397`, and reported timing 83.94 MHz.
+The runtime confirmed the live identity and HDMI link; capture showed the Pong
+playfield. The user confirmed paddle movement and Select+Start return to a
+usable launcher, but reported flickering and incorrect ball motion after Start.
+A recorded repeat showed the ball at the top edge and unexpected motion.
+This package therefore remains a failed gameplay diagnostic. The first formal
+image assembly was stopped before completion while this fault is investigated.
 
 A separate startup race caused the agent to report unavailable when the runtime
 socket was not yet accepting requests. FogCast's reviewed local fix retries
