@@ -89,9 +89,20 @@ right; Up/Down walk the list. Empty catalogs
 hide tiles and keep chrome. Shoulder L/R (and Select)
 cycle platforms on the wheel and still cycle system shelves in the grid
 (`All` plus each system present in the loaded catalog); the
-header shows the active shelf and counts (`MEGADRIVE 12/40`), plus `FLOW`,
+header shows the active shelf and counts (`MEGADRIVE 12/40`), plus `SEARCH`
+when a query is filtering the shelf, plus `FLOW`,
 `WALL`, or `SPLIT` when that layout is active. A/South on the
 wheel enters that system's browse view; East/B on the browse view returns to the wheel.
+Start opens living-room search on the current shelf (from the wheel it enters that
+system's browse first) and reuses the existing gamepad OSK (`host/tenfoot` TextField):
+D-pad moves keys, A types, L/R page letters/symbols, B clears a non-empty query or
+closes, and Start/Done commits. The query is a case-insensitive substring of the
+title, or of the clear-logo wordmark fallback (system id) when the title is empty.
+An empty query restores the full shelf; no matches paint an honest `No matches`
+stage and hide tiles. After the OSK closes, D-pad and A/B match browse on the
+filtered results; exiting search restores the prior focus when that title is still
+on the shelf. Start does not steal Y (layout), X (theme pack), Select (shelf), or
+Select+Start (stop).
 The focused platform paints hardware/fanart/backdrop when attract, presentation
 `backdrop_artwork_id`, or a representative cover handle exists, otherwise a
 theme-tinted placeholder, with game-count chrome plus a play rollup when host
@@ -136,12 +147,13 @@ motion preview: it auto-cycles those screenshots plus backdrop/cover posters
 under a VIDEO badge and a `preview` caption. The CGO-free kit path does not
 decode H.264. Titles without a video handle keep today's still carousel.
 Opening the pane, showing or hiding attract, entering or leaving the
-platform wheel, and switching layout or theme pack play a short
+platform wheel, switching layout or theme pack, and opening or closing
+search play a short
 theme-driven overlay: Classic a curtain, Neon a glitch/static burst,
 Sofa Dim a wipe (`host/tenfoot/anim`, under 400ms). `transition` `none`
 in a theme file, `-no-transition`, or `FOGCAST_NO_TRANSITION=1` is an
 honest no-op. Pad input is not held while the overlay paints. Attract does not arm
-while the pane is open. Missing description copy is omitted rather than
+while the pane or search OSK is open. Missing description copy is omitted rather than
 drawn as an empty box. Cells show host cover art when a catalog
 `Game.Cover` or LaunchBox/IGDB presentation cover handle is available,
 Catmull–Rom downscaled at decode, with a theme-tinted

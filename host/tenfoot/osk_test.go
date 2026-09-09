@@ -1,6 +1,9 @@
 package tenfoot
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestMaskSecretUsesBullets(t *testing.T) {
 	t.Parallel()
@@ -96,6 +99,21 @@ func TestTextFieldActivateInsertBackspaceClearDone(t *testing.T) {
 	field.Activate()
 	if field.OSK.page != oskPageSymbols {
 		t.Fatalf("page = %d", field.OSK.page)
+	}
+}
+
+func TestOSKKitHintFitsKitFooter(t *testing.T) {
+	t.Parallel()
+	letters := OSKKitHint(oskPageLetters)
+	symbols := OSKKitHint(oskPageSymbols)
+	if !strings.Contains(letters, "START done") || !strings.Contains(letters, "L/R abc") {
+		t.Fatalf("letters %q", letters)
+	}
+	if !strings.Contains(symbols, "L/R 123") || strings.Contains(letters, "quit") {
+		t.Fatalf("symbols %q letters %q", symbols, letters)
+	}
+	if len(letters) > 40 || len(symbols) > 40 {
+		t.Fatalf("hint too long letters=%d symbols=%d", len(letters), len(symbols))
 	}
 }
 

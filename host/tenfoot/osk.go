@@ -301,3 +301,14 @@ func oskHint(page int) string {
 	}
 	return "A type  B clear/close  " + charset + "  Y close  START quit"
 }
+
+// OSKKitHint is the living-room footer while the kit search keyboard is open.
+// Start commits the query (it is not sofa quit); Y/X/Select stay unused so
+// they cannot steal layout, pack, or shelf.
+func OSKKitHint(page int) string {
+	charset := "L/R abc"
+	if page == oskPageSymbols {
+		charset = "L/R 123"
+	}
+	return "A type | B clear | " + charset + " | START done"
+}

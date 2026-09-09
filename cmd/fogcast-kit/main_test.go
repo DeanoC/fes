@@ -455,6 +455,30 @@ func TestExerciseMarqueeGridPaintsStripAndNestsTransition(t *testing.T) {
 	}
 }
 
+func TestExerciseSearchGridFiltersEmptyRestoresAndNestsTransition(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseSearchGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-search PASS") || !strings.Contains(report, "selftest-transition PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "filter query=") || !strings.Contains(report, "empty-miss") || !strings.Contains(report, "restore id=") {
+		t.Fatalf("missing search evidence: %s", report)
+	}
+	if !strings.Contains(report, "logo-fallback") || !strings.Contains(report, "wheel-start") {
+		t.Fatalf("missing fallback/wheel evidence: %s", report)
+	}
+}
+
 func TestExerciseTransitionGridPaintsCurtainWipeGlitchAndNestsPacks(t *testing.T) {
 	const w, h = 640, 480
 	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}

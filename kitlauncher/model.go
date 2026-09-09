@@ -52,6 +52,11 @@ type Model struct {
 	detailFromStrip                                   bool
 	Browse                                            fbgrid.BrowseKind
 	Pack                                              string
+	SearchOpen                                        bool
+	SearchQuery                                       string
+	searchField                                       tenfoot.TextField
+	searchRestoreID                                   string
+	searchPool                                        []tenfoot.Game
 }
 
 func (m *Model) ResetControls() { m.chord = controller.Chord{}; m.axisX = 0; m.axisY = 0 }
@@ -72,10 +77,21 @@ func (m *Model) Input(e remoteinput.Event, now time.Time) string {
 	if m.AttractActive {
 		return m.inputAttract(e, dx, dy, now)
 	}
+	if m.SearchOpen {
+		return m.inputSearch(e, dx, dy, now)
+	}
 	if m.DetailOpen {
+		if e.Kind == remoteinput.KindButton && e.Action == remoteinput.ActionPress && e.Code == remoteinput.ButtonStart {
+			m.openSearch(now)
+			return ""
+		}
 		return m.inputDetail(e, dx, dy, now)
 	}
 	if m.WheelOpen {
+		if e.Kind == remoteinput.KindButton && e.Action == remoteinput.ActionPress && e.Code == remoteinput.ButtonStart {
+			m.openSearch(now)
+			return ""
+		}
 		return m.inputWheel(e, dx, dy, now)
 	}
 	if significantPad(e, dx, dy) {
@@ -83,6 +99,9 @@ func (m *Model) Input(e remoteinput.Event, now time.Time) string {
 	}
 	if e.Kind == remoteinput.KindButton && e.Action == remoteinput.ActionPress {
 		switch e.Code {
+		case remoteinput.ButtonStart:
+			m.openSearch(now)
+			return ""
 		case remoteinput.ButtonL:
 			m.CycleShelf(-1)
 		case remoteinput.ButtonR, remoteinput.ButtonSelect:

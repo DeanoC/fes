@@ -57,6 +57,7 @@ func run() error {
 	selftestBadges := flag.Bool("selftest-badges", false, "paint tile/detail badges and wheel play-stats, then exit")
 	selftestTransition := flag.Bool("selftest-transition", false, "paint curtain, wipe, and glitch scene overlays, then exit")
 	selftestMarquee := flag.Bool("selftest-marquee", false, "paint attract and detail marquee/banner strips, then exit")
+	selftestSearch := flag.Bool("selftest-search", false, "paint catalog search OSK, filter, empty, restore, then exit")
 	noTransition := flag.Bool("no-transition", false, "disable kit scene transition overlays")
 	flag.Parse()
 	if !*noTransition {
@@ -86,7 +87,7 @@ func run() error {
 		}
 		return runThemeSelftest(fb)
 	}
-	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestMotion || *selftestWheel || *selftestStrip || *selftestAtmosphere || *selftestLayouts || *selftestPacks || *selftestBadges || *selftestTransition || *selftestMarquee {
+	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestMotion || *selftestWheel || *selftestStrip || *selftestAtmosphere || *selftestLayouts || *selftestPacks || *selftestBadges || *selftestTransition || *selftestMarquee || *selftestSearch {
 		fb := "/dev/fb0"
 		configTheme := ""
 		if c, err := kitlauncher.LoadConfig(*configPath); err == nil {
@@ -104,6 +105,9 @@ func run() error {
 		}
 		if *selftestMotion {
 			return runMotionSelftest(fb, th)
+		}
+		if *selftestSearch {
+			return runSearchSelftest(fb, th)
 		}
 		if *selftestBadges {
 			return runBadgesSelftest(fb, th)
@@ -326,6 +330,9 @@ func run() error {
 			return
 		}
 		fbgrid.Paint(d, grid)
+		if m.SearchOpen {
+			fbgrid.PaintOSK(d, modelOSKFrame(m, w, h, look, grid))
+		}
 		paintSceneFX(d, w, h, fx, now, look)
 		d.Present()
 	}
@@ -359,6 +366,9 @@ func kitLook(m kitlauncher.Model, fallback theme.Theme) theme.Theme {
 
 func packHeader(m kitlauncher.Model) string {
 	header := m.HeaderChrome()
+	if tag := m.SearchTag(); tag != "" && !m.WheelOpen && !m.DetailOpen {
+		header = header + "  " + tag
+	}
 	if tag := m.Browse.HeaderTag(); tag != "" && !m.WheelOpen && !m.DetailOpen {
 		header = header + "  " + tag
 	}
@@ -386,9 +396,9 @@ func loadKitRemapper(flagSpec, configSpec string) (*inputmap.Remapper, error) {
 type renderKey struct {
 	Focus, GameCount, AttractIndex, AttractFade, Shot, StripFocus int
 	FocusID, Message, Shelf, AttractHandle, Preview, StripID      string
-	SessionState, Execution, GameID                               string
+	SessionState, Execution, GameID, Query, OSKFocus              string
 	Busy, Connected, TargetReady, ControllerConnected             bool
-	Attract, Detail, Wheel, Video, Strip                          bool
+	Attract, Detail, Wheel, Video, Strip, Search                  bool
 	Covers, Stills, Presentations                                 uint64
 	Browse                                                        fbgrid.BrowseKind
 	Pack                                                          string
@@ -412,7 +422,8 @@ func modelRenderKey(m kitlauncher.Model, covers, presentations uint64) renderKey
 		Preview: m.ShotHandle(), Video: m.HasVideoPreview(),
 		Strip: m.StripActive, StripFocus: m.StripFocus, StripID: stripID,
 		Covers: covers, Presentations: presentations, Browse: m.Browse,
-		Pack: m.Pack,
+		Pack: m.Pack, Search: m.SearchOpen, Query: m.SearchQuery,
+		OSKFocus: m.SearchSnapshot().FocusID,
 	}
 }
 
@@ -469,6 +480,7 @@ type sceneSig struct {
 	attract bool
 	detail  bool
 	wheel   bool
+	search  bool
 	browse  fbgrid.BrowseKind
 	pack    string
 }
@@ -478,6 +490,7 @@ func modelScene(m kitlauncher.Model) sceneSig {
 		attract: m.AttractActive,
 		detail:  m.DetailOpen,
 		wheel:   m.WheelOpen,
+		search:  m.SearchOpen,
 		browse:  m.Browse,
 		pack:    m.Pack,
 	}
@@ -569,7 +582,10 @@ func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCach
 		g.Focus = m.Focus - start
 	}
 	g.Footer = modelFooter(m)
-	if len(m.Strip) > 0 {
+	if strings.TrimSpace(m.SearchQuery) != "" && len(m.Games) == 0 {
+		g.EmptyLabel = "No matches"
+	}
+	if len(m.Strip) > 0 && !m.SearchOpen {
 		strip := make([]fbgrid.Tile, 0, len(m.Strip))
 		for _, game := range m.Strip {
 			pres := tenfoot.Presentation{}
@@ -581,6 +597,17 @@ func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCach
 		g.SetStrip(strip, asciiLabel(m.StripLabel), m.StripFocus, m.StripActive)
 	}
 	return g
+}
+
+func modelOSKFrame(m kitlauncher.Model, width, height int, th theme.Theme, g fbgrid.Grid) fbgrid.OSKFrame {
+	return fbgrid.OSKFrame{
+		Width:   width,
+		Height:  height,
+		HeaderH: g.HeaderH,
+		FooterH: g.FooterH,
+		OSK:     m.SearchSnapshot(),
+		Theme:   th,
+	}
 }
 
 func modelDetailFrame(m kitlauncher.Model, covers *tenfoot.CoverCache, presentations *tenfoot.PresentationCache, th theme.Theme, width, height int) fbgrid.DetailFrame {

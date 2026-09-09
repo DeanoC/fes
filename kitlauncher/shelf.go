@@ -93,6 +93,7 @@ func (m *Model) SetCatalog(games []tenfoot.Game) {
 	keep := focusedID(m.Games, m.Focus)
 	m.Catalog = append([]tenfoot.Game(nil), games...)
 	m.Shelves = deriveShelves(m.Catalog)
+	m.searchPool = nil
 	m.Shelf = normalizeShelf(m.Shelf)
 	if !shelfPresent(m.Shelves, m.Shelf) {
 		m.Shelf = ShelfAll
@@ -127,9 +128,7 @@ func (m *Model) CycleShelf(dir int) {
 
 func (m *Model) applyFilter(keepID string) {
 	m.Shelf = normalizeShelf(m.Shelf)
-	if m.Shelves != nil {
-		m.Games = filterGames(m.Catalog, m.Shelf)
-	}
+	m.Games = filterSearch(m.baseGames(), m.SearchQuery)
 	m.Focus = focusIndex(m.Games, keepID)
 	if m.DetailOpen && m.detailFromStrip {
 		if _, ok := m.stripGame(); !ok {

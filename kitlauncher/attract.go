@@ -133,7 +133,7 @@ func (m *Model) resetAttractPreview() {
 }
 
 func (m *Model) attractBlocked() bool {
-	if m.Busy || !m.Connected || !m.TargetReady || m.DetailOpen {
+	if m.Busy || !m.Connected || !m.TargetReady || m.DetailOpen || m.SearchOpen {
 		return true
 	}
 	switch m.Session.State {
