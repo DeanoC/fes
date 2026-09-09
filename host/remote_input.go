@@ -873,6 +873,16 @@ func (r *RemoteInput) ClaimSource(sessionID string) (RemoteInputEventSource, err
 	if r.source != "" {
 		return nil, ErrRemoteInputBusy
 	}
+	if r.conn == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), r.grace)
+		err := r.ensureConnectionLocked(ctx)
+		cancel()
+		if err != nil {
+			r.state = RemoteInputReconnecting
+			r.ready = false
+			return nil, ErrRemoteInputInvalid
+		}
+	}
 	r.sourceGeneration++
 	r.source = "launcher"
 	return &RemoteInputSource{owner: r, session: r.session, generation: r.sourceGeneration}, nil

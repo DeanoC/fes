@@ -249,9 +249,10 @@ input only for native games or active custom packages with `fes.gamepad`; raw
 development RBF sessions remain input-disabled. Manual input attachment uses
 the same predicate.
 
-The kit launcher opens a stream only for a ready, nonempty input session that
-is native or a capable custom development package. Its stream identity includes
-the package generation, so readiness, capability, session, execution, or
+The kit launcher opens a stream only for a nonempty input session that is ready
+or reconnecting and is native or a capable custom development package. A
+same-session reconnect keeps the stream identity and re-establishes the target
+transport before accepting another source; capability, session, execution, or
 generation changes close the old stream before another event can be sent.
 `fogcast core-inspect PATH` validates locally without opening the FogCast
 service. `fogcast core-load PATH` validates and streams an archive through the

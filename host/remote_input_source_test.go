@@ -85,6 +85,36 @@ func TestRemoteInputSourceExclusiveAndSessionBound(t *testing.T) {
 	}
 }
 
+func TestRemoteInputSourceReclaimsReconnectWithoutWaitingForAnEvent(t *testing.T) {
+	input, err := host.NewRemoteInput(host.RemoteInputConfig{Starter: &testBridgeStarter{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer input.Close()
+	if err = input.Attach(context.Background(), "Pong"); err != nil {
+		t.Fatal(err)
+	}
+	sessionID := input.Status().SessionID
+	source, err := input.ClaimSource(sessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = source.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if status := input.Status(); status.State != host.RemoteInputReconnecting || status.Ready {
+		t.Fatalf("closed source status = %#v", status)
+	}
+	replacement, err := input.ClaimSource(sessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer replacement.Close()
+	if status := input.Status(); status.State != host.RemoteInputAttached || !status.Ready || status.SessionID != sessionID {
+		t.Fatalf("reclaimed source status = %#v", status)
+	}
+}
+
 func TestRemoteInputDesktopSourceBlocksLauncher(t *testing.T) {
 	input, err := host.NewRemoteInput(host.RemoteInputConfig{Starter: &testBridgeStarter{}})
 	if err != nil {

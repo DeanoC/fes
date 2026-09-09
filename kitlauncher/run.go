@@ -305,7 +305,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 }
 
 func inputStreamKey(session Session) string {
-	if session.State != "active" || !session.Input.Ready || session.Input.SessionID == "" {
+	if session.State != "active" || (!session.Input.Ready && session.Input.State != "reconnecting") || session.Input.SessionID == "" {
 		return ""
 	}
 	switch session.Execution {

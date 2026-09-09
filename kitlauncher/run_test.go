@@ -122,16 +122,22 @@ func TestLoadCatalogFiltersByPlatform(t *testing.T) {
 
 func TestInputStreamKeyAdmitsNativeAndCapableCustomAndRetiresOtherSessions(t *testing.T) {
 	native := Session{State: "active", Execution: "fpga_native"}
-	native.Input.Ready, native.Input.SessionID = true, "native-session"
+	native.Input.State, native.Input.Ready, native.Input.SessionID = "attached", true, "native-session"
 	if inputStreamKey(native) == "" {
 		t.Fatal("native session was not eligible")
 	}
 	custom := Session{State: "active", Execution: "fpga_development",
 		CorePackage: &CorePackageSession{Generation: 7, Gamepad: true}}
-	custom.Input.Ready, custom.Input.SessionID = true, "custom-session"
+	custom.Input.State, custom.Input.Ready, custom.Input.SessionID = "attached", true, "custom-session"
 	first := inputStreamKey(custom)
 	if first == "" {
 		t.Fatal("capable custom session was not eligible")
+	}
+	reconnecting := custom
+	reconnecting.Input.State = "reconnecting"
+	reconnecting.Input.Ready = false
+	if next := inputStreamKey(reconnecting); next != first {
+		t.Fatalf("same-generation reconnect changed stream key: %q then %q", first, next)
 	}
 	custom.CorePackage.Generation = 8
 	if next := inputStreamKey(custom); next == "" || next == first {
@@ -140,6 +146,8 @@ func TestInputStreamKeyAdmitsNativeAndCapableCustomAndRetiresOtherSessions(t *te
 	for name, session := range map[string]Session{
 		"raw":        {State: "active", Execution: "fpga_development"},
 		"not-ready":  func() Session { v := custom; v.Input.Ready = false; return v }(),
+		"failed":     func() Session { v := custom; v.Input.State = "failed"; v.Input.Ready = false; return v }(),
+		"detached":   func() Session { v := custom; v.Input.State = "detached"; v.Input.Ready = false; return v }(),
 		"no-gamepad": func() Session { v := custom; v.CorePackage = &CorePackageSession{Generation: 8}; return v }(),
 	} {
 		if got := inputStreamKey(session); got != "" {
