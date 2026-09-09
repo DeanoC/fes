@@ -7,7 +7,8 @@ shelf, the filtered games list, selected index, connection and
 session status, controller presence and a readable message. This boundary lets
 the renderer use the shared `host/tenfoot/fbgrid` primitive without owning
 network, input leases, or FPGA transitions. The kit view pages the live catalog
-as a 4×3 grid, a coverflow focus row, or a 6×3 cover wall; the standalone `tenfoot-linuxfb-grid` command remains a hardcoded
+as a 4×3 grid, a coverflow focus row, a 6×3 cover wall, or a split list plus
+hero; the standalone `tenfoot-linuxfb-grid` command remains a hardcoded
 paint/input fixture for framebuffer tests. Existing SDL rendering files are
 unchanged.
 
@@ -91,10 +92,12 @@ the usual 100ms same-key skip.
 Browse starts on a platform wheel: a horizontal clear-logo / wordmark strip
 and a hero for the focused system. D-pad, left stick, Shoulder L/R, and Select
 cycle platforms; A/South enters the filtered catalog browse (default 4×3 grid).
-East/B on browse returns to the wheel. Y (North) on browse cycles
-Grid → Coverflow → Wall → Grid. Coverflow is a scaled focus row of five titles
+East/B on browse returns to the wheel. Y (North) is the layout switch chord
+on browse: Grid → Coverflow → Wall → Split → Grid. Coverflow is a scaled focus row of five titles
 with the focused cover largest and its name (or ready clear logo) at the title
-role; wall is a denser 6×3 mosaic with caption labels. Y is ignored on the
+role; wall is a denser 6×3 mosaic with caption labels; split is a vertical
+clear-logo (or title) list with a focused cover and short meta
+(platform/year/genre/studio/players/region when those fields exist). Y is ignored on the
 wheel, title pane, and attract. X (West) cycles theme packs Classic → Neon →
 Sofa Dim → Classic on the wheel, browse, strip, and title pane; attract still
 dismisses on X. The last pack is stored in `launcher.json`. An empty catalog hides tiles and keeps chrome. The hero paints an attract still for that system,
@@ -146,7 +149,7 @@ placeholder path as the grid. The wheel footer hint is
 `A open | L/R platform | X neon` (X names the next pack: `neon`, `dim`, or
 `classic`); the browse footer after entering from the wheel is
 `A play | B platforms | L/R | Y flow` (Y names the next layout: `flow`, `wall`,
-or `grid`); a browse view that never used the wheel (selftests)
+`split`, or `grid`); a browse view that never used the wheel (selftests)
 keeps `A play | B detail | L/R | Y flow`; the strip footer is
 `A detail | B grid | L/R`; the pane footer is `A play | B back`
 (or `A play | B back | L/R shots` when screenshots can cycle, or
@@ -156,10 +159,11 @@ and keeps focus when that game is still visible; otherwise focus lands on the
 first launchable title. The last shelf is stored in `launcher.json` when that
 file was loaded from disk. Left/right move one cell and clamp at the ends of
 the current row; up/down move by the layout column count (four on the grid, six
-on the wall, one row of titles on coverflow) and clamp
+on the wall, one row of titles on coverflow, one column of titles on split) and clamp
 at the first and last catalog rows. Crossing a page updates the painted
 window because `Model.Focus` stays an index into the visible shelf. Coverflow
-down that cannot change rows enters the recent strip or title pane. Stick motion
+down that cannot change rows enters the recent strip or title pane. Split
+left/right clamp; last-item down enters the strip or title pane. Stick motion
 steps on the rising edge only; holding a deflection does not repeat. During
 native play, events flow through the authenticated host stream into the existing
 leased virtual pad. Hold Select + Start together for one second to request
@@ -228,8 +232,9 @@ Sofa Dim then Classic, samples highlight and background so the three looks
 differ, keeps Y layout cycle and D-pad browse, paints a Neon wheel hint, keeps
 A launch, and re-runs layouts (which re-runs atmosphere, strip, wheel, motion,
 detail, attract, cover, text, nav, and shelf). On the kit, `fogcast-kit -selftest-layouts` paints the 4×3 grid, cycles Y to
-coverflow then wall, samples a larger focused coverflow tile and a denser wall
-cell, hides an empty coverflow, keeps A launch, and re-runs atmosphere (which
+coverflow then wall then split, samples a larger focused coverflow tile, a denser wall
+cell, and a split list-plus-hero with short meta, hides empty coverflow and split,
+keeps A launch, and re-runs atmosphere (which
 re-runs strip, wheel, motion, detail, attract, cover, text, nav, and shelf).
 On the kit, `fogcast-kit -selftest-atmosphere` paints dimmed fanart behind the
 grid, proves a missing-art stage stays the theme background, paints a

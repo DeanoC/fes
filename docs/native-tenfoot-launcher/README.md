@@ -148,7 +148,7 @@ titles with a video handle paint a 2×2 attract wall. Any pad input returns to
 the platform wheel or catalog grid. The kit
 opens on a platform wheel (`fbgrid.PaintWheel`) and A enters catalog browse
 (default 4×3 grid); East/B on browse returns to the wheel. Y cycles Grid →
-Coverflow → Wall → Grid. X (West) cycles theme packs Classic → Neon → Sofa Dim
+Coverflow → Wall → Split → Grid. X (West) cycles theme packs Classic → Neon → Sofa Dim
 without stealing Y or D-pad; the last pack is stored in `launcher.json`.
 A Recent / Favorites strip paints under the grid when those host collections
 return titles, and hides when they are empty. Last-row Down enters the

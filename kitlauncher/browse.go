@@ -2,8 +2,9 @@ package kitlauncher
 
 import "github.com/DeanoC/FogCast/host/tenfoot/fbgrid"
 
-// CycleBrowse advances the catalog presentation. Y is ignored on the
-// platform wheel, title pane, and attract so it cannot steal those views.
+// CycleBrowse advances the catalog presentation (Grid → Coverflow → Wall →
+// Split → Grid). Y is ignored on the platform wheel, title pane, and attract
+// so it cannot steal those views.
 func (m *Model) CycleBrowse() {
 	if m == nil || m.WheelOpen || m.DetailOpen || m.AttractActive {
 		return

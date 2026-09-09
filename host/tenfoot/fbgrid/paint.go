@@ -45,6 +45,7 @@ func Paint(d gfx.Device, g Grid) {
 		paintTile(d, g, th, i, g.Tiles[i])
 	}
 	paintCoverflowTitle(d, g, th)
+	paintSplitHero(d, g, th)
 	paintStrip(d, g, th)
 	status := g.Footer
 	if status == "" {
@@ -87,6 +88,10 @@ func paintOrder(g Grid) []int {
 }
 
 func paintTile(d gfx.Device, g Grid, th theme.Theme, i int, tile Tile) {
+	if g.Kind == BrowseSplit {
+		paintSplitRow(d, g, th, i, tile)
+		return
+	}
 	r, ok := g.tileRect(i)
 	if !ok {
 		return
@@ -186,6 +191,126 @@ func paintTile(d gfx.Device, g Grid, th theme.Theme, i int, tile Tile) {
 		textY = int(inner.Y)
 	}
 	d.DrawTextWeight(textX, textY, name, labelSize, labelW, th.Label)
+}
+
+func paintSplitRow(d gfx.Device, g Grid, th theme.Theme, i int, tile Tile) {
+	r, ok := g.tileRect(i)
+	if !ok {
+		return
+	}
+	fill := tile.Color
+	flashing := g.ConfirmLeft > 0 && i == g.ConfirmIndex
+	if flashing {
+		fill = g.confirmFill(tile.Color, th.Flash)
+	}
+	inner := r
+	focused := i == g.Focus && !g.StripActive
+	if focused {
+		d.FillRect(r, th.Highlight)
+		if in, ok := g.tileInner(i); ok {
+			inner = in
+		}
+		d.FillRect(inner, fill)
+	} else {
+		d.FillRect(r, fill)
+	}
+	if flashing {
+		return
+	}
+	padX := float32(6)
+	padY := float32(4)
+	cell := gfx.Rect{
+		X: inner.X + padX,
+		Y: inner.Y + padY,
+		W: inner.W - 2*padX,
+		H: inner.H - 2*padY,
+	}
+	if cell.W < 1 {
+		cell.W = 1
+	}
+	if cell.H < 1 {
+		cell.H = 1
+	}
+	if tile.Logo != nil {
+		paintCover(d, tile.Logo, cell)
+	} else {
+		labelSize := th.BodyPx()
+		labelW := th.BodyWeight()
+		if focused {
+			labelW = th.TitleWeight()
+		}
+		name := gfx.FitTextWeight(tile.Name, labelSize, int(cell.W), labelW)
+		textH := gfx.TextHeightWeight(labelSize, labelW)
+		y := int(cell.Y) + (int(cell.H)-textH)/2
+		if y < int(cell.Y) {
+			y = int(cell.Y)
+		}
+		d.DrawTextWeight(int(cell.X), y, name, labelSize, labelW, th.Label)
+	}
+	if focused {
+		paintRectOutline(d, inner, 1, th.Highlight)
+	}
+}
+
+func paintSplitHero(d gfx.Device, g Grid, th theme.Theme) {
+	if d == nil || g.Kind != BrowseSplit {
+		return
+	}
+	if g.Focus < 0 || g.Focus >= len(g.Tiles) {
+		return
+	}
+	cover, titleR, metaR := g.splitHeroSlots()
+	if cover.W < 1 || cover.H < 1 {
+		return
+	}
+	tile := g.Tiles[g.Focus]
+	fill := tile.Color
+	if fill == (gfx.Color{}) {
+		fill = th.SystemColor("")
+	}
+	inner := cover
+	if th.CoverFrameWidth > 0 && inner.W > float32(2*th.CoverFrameWidth) && inner.H > float32(2*th.CoverFrameWidth) {
+		d.FillRect(inner, th.CoverFrame)
+		fw := float32(th.CoverFrameWidth)
+		inner = gfx.Rect{
+			X: inner.X + fw,
+			Y: inner.Y + fw,
+			W: inner.W - 2*fw,
+			H: inner.H - 2*fw,
+		}
+	}
+	if tile.Cover != nil {
+		d.FillRect(inner, letterboxFill(fill, th))
+		paintCover(d, tile.Cover, inner)
+	} else {
+		paintPlaceholder(d, inner, tile.Name, fill, th, tile.CoverKind == CoverLoading)
+	}
+	if titleR.W >= 1 && titleR.H >= 1 && tile.Name != "" {
+		size := th.TitlePx()
+		weight := th.TitleWeight()
+		name := gfx.FitTextWeight(tile.Name, size, int(titleR.W), weight)
+		textH := gfx.TextHeightWeight(size, weight)
+		y := int(titleR.Y) + (int(titleR.H)-textH)/2
+		if y < int(titleR.Y) {
+			y = int(titleR.Y)
+		}
+		d.DrawTextWeight(int(titleR.X), y, name, size, weight, th.Header)
+	}
+	if metaR.W < 1 || metaR.H < 1 {
+		return
+	}
+	lines := splitMetaLines(tile.Meta, th, int(metaR.W))
+	if len(lines) == 0 {
+		return
+	}
+	metaSize := th.BodyPx()
+	metaW := th.BodyWeight()
+	lineH := gfx.TextHeightWeight(metaSize, metaW)
+	y := int(metaR.Y)
+	for _, line := range lines {
+		d.DrawTextWeight(int(metaR.X), y, line, metaSize, metaW, th.Label)
+		y += lineH
+	}
 }
 
 func paintCoverflowTitle(d gfx.Device, g Grid, th theme.Theme) {

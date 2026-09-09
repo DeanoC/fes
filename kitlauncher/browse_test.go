@@ -28,8 +28,12 @@ func TestYCyclesBrowseLayoutsWithoutStealingDpad(t *testing.T) {
 		t.Fatalf("y2 %s", m.Browse)
 	}
 	pressNamed(&m, "y", now)
-	if m.Browse != fbgrid.BrowseGrid {
+	if m.Browse != fbgrid.BrowseSplit {
 		t.Fatalf("y3 %s", m.Browse)
+	}
+	pressNamed(&m, "y", now)
+	if m.Browse != fbgrid.BrowseGrid {
+		t.Fatalf("y4 %s", m.Browse)
 	}
 	if m.Focus != 1 {
 		t.Fatalf("focus lost %d", m.Focus)
@@ -108,6 +112,54 @@ func TestWallDownMovesBySixAndLastRowOpensDetail(t *testing.T) {
 	}
 }
 
+func TestSplitUpDownWalksListAndLastOpensDetail(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true, Games: makeGames(8), Browse: fbgrid.BrowseSplit}
+	now := time.Unix(1, 0)
+	pressNamed(&m, "dpad-down", now)
+	if m.Focus != 1 || m.DetailOpen {
+		t.Fatalf("split down focus=%d detail=%v", m.Focus, m.DetailOpen)
+	}
+	pressNamed(&m, "dpad-right", now)
+	if m.Focus != 1 {
+		t.Fatalf("split right stole focus %d", m.Focus)
+	}
+	pressNamed(&m, "dpad-left", now)
+	if m.Focus != 1 {
+		t.Fatalf("split left stole focus %d", m.Focus)
+	}
+	pressNamed(&m, "dpad-up", now)
+	if m.Focus != 0 {
+		t.Fatalf("split up %d", m.Focus)
+	}
+	m.Focus = 7
+	pressNamed(&m, "dpad-down", now)
+	if !m.DetailOpen || m.Focus != 7 {
+		t.Fatalf("split last-row detail=%v focus=%d", m.DetailOpen, m.Focus)
+	}
+}
+
+func TestSplitALaunchesAndBOpensDetail(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true, Games: makeGames(4), Browse: fbgrid.BrowseSplit}
+	now := time.Unix(1, 0)
+	if action := pressNamed(&m, "a", now); action != "launch" {
+		t.Fatalf("split A %q", action)
+	}
+	if action := pressNamed(&m, "b", now); action != "" || !m.DetailOpen {
+		t.Fatalf("split B action=%q detail=%v", action, m.DetailOpen)
+	}
+}
+
+func TestSplitDownEntersStripWhenPresent(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true, Games: makeGames(4), Browse: fbgrid.BrowseSplit}
+	now := time.Unix(1, 0)
+	m.Focus = 3
+	m.SetStrip([]tenfoot.Game{{ID: "recent", Title: "Recent", Launchable: true}}, "Recent")
+	pressNamed(&m, "dpad-down", now)
+	if !m.StripActive || m.DetailOpen || m.Focus != 3 {
+		t.Fatalf("split down strip=%v detail=%v focus=%d", m.StripActive, m.DetailOpen, m.Focus)
+	}
+}
+
 func TestEmptyCatalogYStillCyclesAndHidesTiles(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	now := time.Unix(1, 0)
@@ -144,7 +196,11 @@ func TestGridHintNamesNextLayout(t *testing.T) {
 		t.Fatalf("flow %q", got)
 	}
 	m.Browse = fbgrid.BrowseWall
-	if got := m.GridHint(); got != "A play | B platforms | L/R | Y grid" {
+	if got := m.GridHint(); got != "A play | B platforms | L/R | Y split" {
 		t.Fatalf("wall %q", got)
+	}
+	m.Browse = fbgrid.BrowseSplit
+	if got := m.GridHint(); got != "A play | B platforms | L/R | Y grid" {
+		t.Fatalf("split %q", got)
 	}
 }

@@ -22,7 +22,10 @@ import (
 	"syscall"
 )
 
-const gridPageSize = fbgrid.DefaultPageSize
+const (
+	gridPageSize   = fbgrid.DefaultPageSize
+	chromeLabelMax = 40
+)
 
 func main() {
 	if err := run(); err != nil {
@@ -48,7 +51,7 @@ func run() error {
 	selftestWheel := flag.Bool("selftest-wheel", false, "paint platform wheel and hero, enter a system grid, then exit")
 	selftestStrip := flag.Bool("selftest-strip", false, "paint recent/favorites strip, hand off from grid, then exit")
 	selftestAtmosphere := flag.Bool("selftest-atmosphere", false, "paint dimmed fanart/cover-wall behind chrome, then exit")
-	selftestLayouts := flag.Bool("selftest-layouts", false, "paint coverflow and cover-wall browse, cycle Y, then exit")
+	selftestLayouts := flag.Bool("selftest-layouts", false, "paint coverflow, cover-wall, and split browse, cycle Y, then exit")
 	selftestPacks := flag.Bool("selftest-packs", false, "paint Classic/Neon/Sofa Dim packs, cycle X, then exit")
 	selftestBadges := flag.Bool("selftest-badges", false, "paint tile/detail badges and wheel play-stats, then exit")
 	flag.Parse()
@@ -237,7 +240,7 @@ func run() error {
 		}
 		start, end := catalogPage(m.Focus, len(m.Games), m.Browse)
 		prefetch := end + fbgrid.BrowsePageSize(m.Browse)
-		if m.Browse == fbgrid.BrowseCoverflow {
+		if m.Browse == fbgrid.BrowseCoverflow || m.Browse == fbgrid.BrowseSplit {
 			prefetch = end + 2
 		}
 		if prefetch > len(m.Games) {
@@ -446,17 +449,21 @@ func catalogPage(focus, n int, kind fbgrid.BrowseKind) (start, end int) {
 func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCache, presentations *tenfoot.PresentationCache, th theme.Theme) fbgrid.Grid {
 	start, end := catalogPage(m.Focus, len(m.Games), m.Browse)
 	tiles := make([]fbgrid.Tile, 0, end-start)
+	nameMax := 18
+	if m.Browse == fbgrid.BrowseSplit {
+		nameMax = 28
+	}
 	for _, game := range m.Games[start:end] {
 		pres := tenfoot.Presentation{}
 		if presentations != nil {
 			pres = presentations.Get(game.ID)
 		}
-		tiles = append(tiles, gameTile(game, covers, pres, th))
+		tiles = append(tiles, gameTile(game, covers, pres, th, nameMax))
 	}
 	g := fbgrid.NewWithTiles(width, height, tiles)
 	g.Kind = m.Browse
 	fbgrid.ApplyTheme(&g, th)
-	g.Header = truncateLabel(asciiLabel(packHeader(m)), 36)
+	g.Header = truncateLabel(asciiLabel(packHeader(m)), chromeLabelMax)
 	if m.Focus >= start && m.Focus < end {
 		g.Focus = m.Focus - start
 	}
@@ -468,7 +475,7 @@ func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCach
 			if presentations != nil {
 				pres = presentations.Get(game.ID)
 			}
-			strip = append(strip, gameTile(game, covers, pres, th))
+			strip = append(strip, gameTile(game, covers, pres, th, 18))
 		}
 		g.SetStrip(strip, asciiLabel(m.StripLabel), m.StripFocus, m.StripActive)
 	}
@@ -484,7 +491,7 @@ func modelDetailFrame(m kitlauncher.Model, covers *tenfoot.CoverCache, presentat
 	frame := fbgrid.DetailFrame{
 		Width:       width,
 		Height:      height,
-		Header:      truncateLabel(asciiLabel(packHeader(m)), 36),
+		Header:      truncateLabel(asciiLabel(packHeader(m)), chromeLabelMax),
 		Title:       title,
 		Meta:        kitMetaLine(detail.MetaFacts()),
 		Description: asciiLabel(detail.Summary),
@@ -619,7 +626,7 @@ func attractFrame(view kitlauncher.AttractView, stills *tenfoot.CoverCache, th t
 	return frame
 }
 
-func gameTile(game tenfoot.Game, covers *tenfoot.CoverCache, pres tenfoot.Presentation, th theme.Theme) fbgrid.Tile {
+func gameTile(game tenfoot.Game, covers *tenfoot.CoverCache, pres tenfoot.Presentation, th theme.Theme, nameMax int) fbgrid.Tile {
 	name := asciiLabel(game.Title)
 	if name == "" {
 		name = asciiLabel(game.System)
@@ -627,7 +634,16 @@ func gameTile(game tenfoot.Game, covers *tenfoot.CoverCache, pres tenfoot.Presen
 	if name == "" {
 		name = "UNTITLED"
 	}
-	tile := fbgrid.Tile{Name: truncateLabel(name, 18), Color: th.SystemColor(game.System), CoverKind: fbgrid.CoverMissing, Badges: kitlauncher.TitleBadges(game, pres)}
+	if nameMax < 4 {
+		nameMax = 18
+	}
+	tile := fbgrid.Tile{
+		Name:      truncateLabel(name, nameMax),
+		Color:     th.SystemColor(game.System),
+		CoverKind: fbgrid.CoverMissing,
+		Badges:    kitlauncher.TitleBadges(game, pres),
+		Meta:      tileMeta(game, pres),
+	}
 	if handle := tenfoot.CoverHandle(game, pres); handle != "" {
 		if covers != nil {
 			tile.Cover = covers.Image(handle)
@@ -667,7 +683,7 @@ func modelFooter(m kitlauncher.Model) string {
 			status = m.GridHint()
 		}
 	}
-	return truncateLabel(asciiLabel(status), 36)
+	return truncateLabel(asciiLabel(status), chromeLabelMax)
 }
 
 func modelWheelFrame(m kitlauncher.Model, covers, stills *tenfoot.CoverCache, presentations *tenfoot.PresentationCache, th theme.Theme, width, height int) fbgrid.WheelFrame {
@@ -676,7 +692,7 @@ func modelWheelFrame(m kitlauncher.Model, covers, stills *tenfoot.CoverCache, pr
 	frame := fbgrid.WheelFrame{
 		Width:    width,
 		Height:   height,
-		Header:   truncateLabel(asciiLabel(packHeader(m)), 36),
+		Header:   truncateLabel(asciiLabel(packHeader(m)), chromeLabelMax),
 		Footer:   modelFooter(m),
 		Title:    asciiLabel(m.ShelfLabel()),
 		Stats:    asciiLabel(m.WheelStats()),
@@ -720,6 +736,14 @@ func modelWheelFrame(m kitlauncher.Model, covers, stills *tenfoot.CoverCache, pr
 
 func kitMetaLine(facts string) string {
 	return asciiLabel(strings.ReplaceAll(facts, "  \u00b7  ", " | "))
+}
+
+func tileMeta(game tenfoot.Game, pres tenfoot.Presentation) string {
+	d := tenfoot.GameDetail(game, pres)
+	if d.Platform != "" {
+		d.Platform = strings.ToUpper(d.Platform)
+	}
+	return kitMetaLine(d.MetaFacts())
 }
 
 func asciiLabel(s string) string {
