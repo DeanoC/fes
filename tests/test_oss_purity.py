@@ -83,6 +83,8 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/630_sdr_output/pins.qsf",
             "experiments/640_sdr_input/rtl/top.v",
             "experiments/640_sdr_input/pins.qsf",
+            "experiments/650_ddr_input/rtl/top.v",
+            "experiments/650_ddr_input/pins.qsf",
             "experiments/210_pll_duty/rtl/top.v",
             "experiments/220_pll_phase/rtl/top.v",
             "experiments/230_pll_phase_180/rtl/top.v",
@@ -150,7 +152,7 @@ class OssPipelinePurityTests(unittest.TestCase):
 
         pins = {
             "yosys": "fca8ca0a5354e52ce0e158bc6e1eed481e590ed8",
-            "nextpnr": "a1f8dbb5434fd88bc014ce059dd6b7ca74512693",
+            "nextpnr": "9144784db9b4b85c1257be4d1943b9ac11ceb3e8",
         }
         for lock_name, commit in pins.items():
             evidence = external_build / lock_name if symlink_build_tools else build / lock_name
@@ -423,6 +425,19 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertIn("experiments/640_sdr_input/pins.qsf", commands)
         self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
         self.assertNotIn("hps_gp_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_ddr_input(self) -> None:
+        result = self._run("--print-commands", "--experiment", "650_ddr_input")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/650_ddr_input/rtl/top.v", commands)
+        self.assertIn("experiments/650_ddr_input/pins.qsf", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("altddio_in_model.v", commands)
         self.assertIn("--freq 50", commands)
         self.assertIn("--compress-rbf", commands)
         self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
