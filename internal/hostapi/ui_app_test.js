@@ -9,6 +9,9 @@ const {
   gamesPath,
   gameDetailPath,
   launchRequest,
+  clientStamp,
+  stampHeaders,
+  uiEventRequest,
   sessionRequest,
   stopRequest,
   attachInputRequest,
@@ -445,6 +448,10 @@ async function runBrowserApp({ adapter, responses, sessionResponses, globals, at
     if (pathOnly === '/api/v1/library/settings') {
       return jsonResponse(librarySettings);
     }
+    if (pathOnly === '/api/v1/debug/ui-events') {
+      calls.push({ path: requestPath, options });
+      return jsonResponse({ count: 1 });
+    }
     if (pathOnly.startsWith('/api/v1/presentation/games/')) {
       calls.push({ path: requestPath, options });
       const id = decodeURIComponent(pathOnly.slice('/api/v1/presentation/games/'.length));
@@ -500,6 +507,7 @@ async function runCollectionEditorApp({ collections = [], writeResponses = [], o
     if (pathOnly === '/api/v1/library/attract') return jsonResponse({ items: [], idle_seconds: 60 });
     if (pathOnly === '/api/v1/library/settings') return jsonResponse({ attract_idle_seconds: 60, preferred_regions: ['usa', 'world'] });
     if (pathOnly === '/api/v1/library/facets') return jsonResponse({ genres: [], years: [] });
+    if (pathOnly === '/api/v1/debug/ui-events') return jsonResponse({ count: 1 });
     if (pathOnly === '/api/v1/library/collections') return jsonResponse({ collections });
     if (pathOnly.startsWith('/api/v1/library/collections/')) {
       const method = options && options.method;
@@ -1422,6 +1430,15 @@ test('launchRequest preserves the exact live game ID contract', () => {
   assert.equal(request.options.method, 'POST');
   assert.equal(request.options.headers['Content-Type'], 'application/json');
   assert.deepEqual(JSON.parse(request.options.body), { game_id: 'live-id' });
+  const stamped = launchRequest({ id: 'live-id' }, {
+    ts_utc: '2026-09-09T12:00:00.000Z',
+    mono_ms: 12,
+    flight_id: 'de305d54-75b4-431b-adb2-eb6b9e546014',
+  });
+  assert.deepEqual(JSON.parse(stamped.options.body), { game_id: 'live-id' });
+  assert.equal(stamped.options.headers['X-FogCast-Client-Ts-Utc'], '2026-09-09T12:00:00.000Z');
+  assert.equal(stamped.options.headers['X-FogCast-Client-Mono-Ms'], '12');
+  assert.equal(stamped.options.headers['X-FogCast-Flight-Id'], 'de305d54-75b4-431b-adb2-eb6b9e546014');
 });
 
 test('detail rendering owns the prompt and preserves the labelled active heading', () => {
@@ -1749,7 +1766,8 @@ test('browser render paths keep cards, detail, and launch usable across metadata
 
     await launchButton.click();
     assert.match(browserText(document.nodes.get('launch-actions')), /launch_success/);
-    assert.equal(calls[2].options.body, '{"game_id":"megadrive-sonic-test"}');
+    const launch = calls.find(call => call.path === '/api/v1/session/launch');
+    assert.equal(launch.options.body, '{"game_id":"megadrive-sonic-test"}');
   }
   assert.equal(metadataForCalls, 4, 'metadataFor must run only for the accepted catalog records and detail');
 });
@@ -1862,7 +1880,8 @@ test('browser rendering falls back for shape-complete invalid presentation value
   assert.ok(launchButton);
   await launchButton.click();
   assert.match(browserText(document.nodes.get('launch-actions')), /launch_success/);
-  assert.equal(calls[2].options.body, '{"game_id":"megadrive-sonic-test"}');
+  const launch = calls.find(call => call.path === '/api/v1/session/launch');
+  assert.equal(launch.options.body, '{"game_id":"megadrive-sonic-test"}');
 });
 
 test('2xx launch responses require a valid active sessionResult and preserve retryable errors', async () => {
@@ -2453,7 +2472,8 @@ test('session panel renders only accepted fields, reconstructs active title, and
   assert.ok(stopCall);
   assert.equal(stopCall.options.method, 'POST');
   assert.equal(stopCall.options.body, undefined);
-  assert.equal(stopCall.options.headers, undefined);
+  assert.ok(stopCall.options.headers['X-FogCast-Client-Ts-Utc']);
+  assert.ok(stopCall.options.headers['X-FogCast-Client-Mono-Ms']);
 });
 
 test('Play on ActRaiser drives fpga_native launch, shows attached input, and Stop/Detach clear session UX', async () => {
@@ -10748,6 +10768,7 @@ test('detail facts show Source ZIP or ROM and omit unknown kind', async () => {
     path === '/api/v1/games'
     || path.startsWith('/api/v1/games/')
     || path.startsWith('/api/v1/presentation/games/')
+    || path === '/api/v1/debug/ui-events'
   )), true);
   const zipFacts = detailFactsFrom(document);
   assert.ok(zipFacts.some(fact => fact.label === 'Source' && fact.value === 'ZIP'));
@@ -11773,4 +11794,69 @@ test('case-folded Sonic vs SONIC Version options keep dump titles while Cover Ho
   assert.doesNotMatch(body.children[1].textContent, /USA|ZIP|ROM|SONIC/);
   assert.equal(body.children[2].className, 'game-meta game-meta-variant');
   assert.equal(body.children.length, 3);
+});
+
+test('client stamps and ui event requests carry wall and mono clocks', () => {
+  const stamp = clientStamp('de305d54-75b4-431b-adb2-eb6b9e546014');
+  assert.match(stamp.ts_utc, /Z$/);
+  assert.equal(typeof stamp.mono_ms, 'number');
+  assert.ok(stamp.mono_ms >= 0);
+  assert.equal(stamp.flight_id, 'de305d54-75b4-431b-adb2-eb6b9e546014');
+  const headers = stampHeaders(stamp);
+  assert.equal(headers['X-FogCast-Client-Ts-Utc'], stamp.ts_utc);
+  assert.equal(headers['X-FogCast-Client-Mono-Ms'], String(stamp.mono_ms));
+  assert.equal(headers['X-FogCast-Flight-Id'], stamp.flight_id);
+  const event = uiEventRequest('ui.focus', { game_id: 'pong' }, stamp);
+  assert.equal(event.path, '/api/v1/debug/ui-events');
+  const body = JSON.parse(event.options.body);
+  assert.equal(body.kind, 'ui.focus');
+  assert.equal(body.layer, 'ui');
+  assert.equal(body.flight_id, stamp.flight_id);
+  assert.equal(body.detail.game_id, 'pong');
+});
+
+test('parseSession keeps an additive flight_id', () => {
+  const session = parseSession({
+    state: 'active',
+    game_id: 'megadrive-sonic-test',
+    system: 'megadrive',
+    flight_id: 'de305d54-75b4-431b-adb2-eb6b9e546014',
+  });
+  assert.equal(session.flight_id, 'de305d54-75b4-431b-adb2-eb6b9e546014');
+});
+
+test('controller launch and stop send client stamp headers', async () => {
+  const flight = 'de305d54-75b4-431b-adb2-eb6b9e546014';
+  const { calls, fetchImpl } = routedFetch({
+    '/api/v1/games': [jsonResponse({ games: [availableGame('megadrive-sonic-test', 'Sonic')] })],
+    '/api/v1/games/megadrive-sonic-test': [jsonResponse(availableGame('megadrive-sonic-test', 'Sonic'))],
+    '/api/v1/session': [
+      jsonResponse(sessionFixture({ state: 'idle' })),
+      jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive', flight_id: flight })),
+      jsonResponse(sessionFixture({ state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive', flight_id: flight })),
+      jsonResponse(sessionFixture({ state: 'idle', flight_id: flight })),
+      jsonResponse(sessionFixture({ state: 'idle', flight_id: flight })),
+    ],
+    '/api/v1/session/launch': [jsonResponse(sessionFixture({
+      state: 'active', game_id: 'megadrive-sonic-test', system: 'megadrive', flight_id: flight,
+    }))],
+    '/api/v1/session/stop': [jsonResponse(sessionFixture({ state: 'idle', flight_id: flight }))],
+  });
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadCatalog('');
+  await controller.loadSession();
+  await controller.selectGame('megadrive-sonic-test');
+  await controller.launchSelected();
+  const launch = calls.find(call => call.path === '/api/v1/session/launch');
+  assert.ok(launch);
+  assert.equal(JSON.parse(launch.options.body).game_id, 'megadrive-sonic-test');
+  assert.ok(launch.options.headers['X-FogCast-Client-Ts-Utc']);
+  assert.ok(launch.options.headers['X-FogCast-Client-Mono-Ms']);
+  assert.equal(controller.getState().flightId, flight);
+  await controller.stopSession();
+  const stop = calls.find(call => call.path === '/api/v1/session/stop');
+  assert.ok(stop);
+  assert.equal(stop.options.body, undefined);
+  assert.ok(stop.options.headers['X-FogCast-Client-Ts-Utc']);
+  assert.equal(stop.options.headers['X-FogCast-Flight-Id'], flight);
 });

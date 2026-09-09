@@ -61,12 +61,14 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 	inputProfile := fs.String("input-profile", envOr("FOGCAST_INPUT_PROFILE", ""), "identity, swap-ab, or JSON profile path (default identity)")
 	themeSpec := fs.String("theme", "", "classic/default, neon/arcade, sofa-dim/night, or JSON/TOML path (default classic)")
 	gfxName := fs.String("gfx", envOr("TENFOOT_GFX", ""), "sdl (default), software, fpga, or fpga-stub")
+	debugHUD := fs.Bool("debug-hud", envTruthy("FOGCAST_DEBUG_HUD"), "paint the optional corner overlay (flight, lease gen/ttl, last error)")
 	if err := fs.Parse(args); err != nil {
 		return tenfoot.Options{}, err
 	}
 	safeAreaSet := false
 	layoutSet := false
 	noAttractSet := envNoAttract
+	debugHUDSet := envTruthy("FOGCAST_DEBUG_HUD")
 	fs.Visit(func(f *flag.Flag) {
 		if f.Name == "safe-area" {
 			safeAreaSet = true
@@ -76,6 +78,9 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 		}
 		if f.Name == "no-attract" {
 			noAttractSet = true
+		}
+		if f.Name == "debug-hud" {
+			debugHUDSet = true
 		}
 	})
 	return tenfoot.Options{
@@ -96,6 +101,8 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 		InputProfile: *inputProfile,
 		Theme:        *themeSpec,
 		GFX:          *gfxName,
+		DebugHUD:     *debugHUD,
+		DebugHUDSet:  debugHUDSet,
 	}, nil
 }
 

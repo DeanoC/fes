@@ -557,6 +557,12 @@ class FixtureServer extends EventEmitter {
       await this.deliver(record, response, selected || this.unexpectedResponse(record, 500, 'stop response queue exhausted'));
       return;
     }
+    if (url.pathname === '/api/v1/debug/ui-events' && request.method === 'POST') {
+      await this.deliver(record, response, {
+        fixture: 'ui-events.json', status: 200, hold: false, delayMs: 0, override: { count: 1 },
+      });
+      return;
+    }
     await this.deliver(record, response, this.unexpectedResponse(record, 404, 'unexpected fixture route'));
   }
 

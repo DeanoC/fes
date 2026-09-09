@@ -61,6 +61,7 @@ type sessionResult struct {
 	Progress    *sessionProgress            `json:"progress,omitempty"`
 	Input       *host.RemoteInputStatus     `json:"input,omitempty"`
 	CorePackage *protocol.CorePackageStatus `json:"core_package,omitempty"`
+	FlightID    string                      `json:"flight_id,omitempty"`
 }
 
 // sessionEvent is one public host session event. Protocol 1 fields are
@@ -68,15 +69,19 @@ type sessionResult struct {
 // development-RBF / described-package mutation and the related events in
 // that flight.
 type sessionEvent struct {
-	Sequence uint64                  `json:"sequence"`
-	FlightID string                  `json:"flight_id,omitempty"`
-	Event    string                  `json:"event"`
-	State    protocol.State          `json:"state"`
-	GameID   *string                 `json:"game_id,omitempty"`
-	System   *protocol.System        `json:"system,omitempty"`
-	Media    string                  `json:"media,omitempty"`
-	Progress *sessionProgress        `json:"progress,omitempty"`
-	Input    *host.RemoteInputStatus `json:"input,omitempty"`
+	Sequence     uint64                  `json:"sequence"`
+	FlightID     string                  `json:"flight_id,omitempty"`
+	TSUTC        string                  `json:"ts_utc"`
+	MonoMS       int64                   `json:"mono_ms"`
+	ClientTSUTC  string                  `json:"client_ts_utc,omitempty"`
+	ClientMonoMS *int64                  `json:"client_mono_ms,omitempty"`
+	Event        string                  `json:"event"`
+	State        protocol.State          `json:"state"`
+	GameID       *string                 `json:"game_id,omitempty"`
+	System       *protocol.System        `json:"system,omitempty"`
+	Media        string                  `json:"media,omitempty"`
+	Progress     *sessionProgress        `json:"progress,omitempty"`
+	Input        *host.RemoteInputStatus `json:"input,omitempty"`
 }
 
 type sessionCoordinator struct {
@@ -94,6 +99,7 @@ type sessionCoordinator struct {
 	busy            bool
 	sequence        uint64
 	flightID        string
+	started         time.Time
 	events          []sessionEvent
 }
 
@@ -104,7 +110,7 @@ type sessionInputBinding struct {
 }
 
 func newSessionCoordinator(service sessionService, remoteInput host.RemoteInputController, media MediaSession) *sessionCoordinator {
-	return &sessionCoordinator{service: service, remoteInput: remoteInput, media: media}
+	return &sessionCoordinator{service: service, remoteInput: remoteInput, media: media, started: time.Now()}
 }
 
 func (s *sessionCoordinator) beginFlight() {
@@ -129,12 +135,21 @@ func (s *sessionCoordinator) ensureFlight() {
 }
 
 func (s *sessionCoordinator) record(event string, result sessionResult, progress *sessionProgress) {
+	s.recordStamp(event, result, progress, clientStamp{})
+}
+
+func (s *sessionCoordinator) recordStamp(event string, result sessionResult, progress *sessionProgress, stamp clientStamp) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.started.IsZero() {
+		s.started = time.Now()
+	}
 	s.sequence++
-	s.events = append(s.events, sessionEvent{
+	item := sessionEvent{
 		Sequence: s.sequence,
 		FlightID: s.flightID,
+		TSUTC:    time.Now().UTC().Format(time.RFC3339Nano),
+		MonoMS:   time.Since(s.started).Milliseconds(),
 		Event:    event,
 		State:    result.State,
 		GameID:   result.GameID,
@@ -142,7 +157,15 @@ func (s *sessionCoordinator) record(event string, result sessionResult, progress
 		Media:    result.Media,
 		Progress: progress,
 		Input:    cloneRemoteInputStatus(result.Input),
-	})
+	}
+	if stamp.TsUTC != "" {
+		item.ClientTSUTC = stamp.TsUTC
+	}
+	if stamp.MonoSet {
+		mono := stamp.MonoMS
+		item.ClientMonoMS = &mono
+	}
+	s.events = append(s.events, item)
 	if len(s.events) > 256 {
 		s.events = s.events[len(s.events)-256:]
 	}
@@ -358,7 +381,7 @@ func (s *sessionCoordinator) watchMedia(handle MediaHandle, generation uint64, e
 	}()
 }
 
-func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResult, error) {
+func (s *sessionCoordinator) launch(ctx context.Context, id string, stamp clientStamp) (sessionResult, error) {
 	if !s.begin() {
 		return sessionResult{}, busyError()
 	}
@@ -378,7 +401,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 	}
 	if execution == fogcast.ExecutionFPGADevelopment {
 		response, err := s.service.Launch(ctx, id, nil)
-		result, err := s.finishCoreLoad(ctx, response.Status, err, "session.launch")
+		result, err := s.finishCoreLoad(ctx, response.Status, err, "session.launch", stamp)
 		if err == nil && result.State == protocol.StateActive {
 			if recorder, ok := s.service.(interface {
 				RecordPlay(context.Context, string) error
@@ -475,7 +498,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 		result.Execution = execution
 		result.Media = s.currentMediaState()
 	}
-	s.record("session.launch", result, &progress)
+	s.recordStamp("session.launch", result, &progress, stamp)
 	if resp.Status.State == protocol.StateActive {
 		if recorder, ok := s.service.(interface {
 			RecordPlay(context.Context, string) error
@@ -486,7 +509,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 	return result, nil
 }
 
-func (s *sessionCoordinator) loadDevelopmentRBF(ctx context.Context, size int64, content io.Reader) (sessionResult, error) {
+func (s *sessionCoordinator) loadDevelopmentRBF(ctx context.Context, size int64, content io.Reader, stamp clientStamp) (sessionResult, error) {
 	if !s.begin() {
 		return sessionResult{}, busyError()
 	}
@@ -564,11 +587,11 @@ func (s *sessionCoordinator) loadDevelopmentRBF(ctx context.Context, size int64,
 	s.mu.Unlock()
 	result := s.publicSession(status, nil)
 	result.Execution = fogcast.ExecutionFPGADevelopment
-	s.record("session.development_rbf", result, nil)
+	s.recordStamp("session.development_rbf", result, nil, stamp)
 	return result, nil
 }
 
-func (s *sessionCoordinator) loadDevelopmentCore(ctx context.Context, size int64, content io.Reader) (sessionResult, error) {
+func (s *sessionCoordinator) loadDevelopmentCore(ctx context.Context, size int64, content io.Reader, stamp clientStamp) (sessionResult, error) {
 	if !s.begin() {
 		return sessionResult{}, busyError()
 	}
@@ -580,13 +603,13 @@ func (s *sessionCoordinator) loadDevelopmentCore(ctx context.Context, size int64
 		return sessionResult{}, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
 	}
 	status, err := loader.LoadCore(ctx, size, content)
-	return s.finishCoreLoad(ctx, status, err, "session.development_core")
+	return s.finishCoreLoad(ctx, status, err, "session.development_core", stamp)
 }
 
 // finishCoreLoad shares the confirmed-package ownership transition between
 // explicit development loading and package-backed library entries.
 // The caller holds observationMu and the coordinator operation admission.
-func (s *sessionCoordinator) finishCoreLoad(ctx context.Context, status protocol.Status, err error, event string) (sessionResult, error) {
+func (s *sessionCoordinator) finishCoreLoad(ctx context.Context, status protocol.Status, err error, event string, stamp clientStamp) (sessionResult, error) {
 	var identityErr *protocol.APIError
 	if errors.As(err, &identityErr) && identityErr.Phase == "identity" {
 		status.LastError = identityErr
@@ -649,7 +672,7 @@ func (s *sessionCoordinator) finishCoreLoad(ctx context.Context, status protocol
 	}
 	result := s.publicSession(status, nil)
 	result.Execution = fogcast.ExecutionFPGADevelopment
-	s.record(event, result, nil)
+	s.recordStamp(event, result, nil, stamp)
 	if err != nil {
 		return result, err
 	}
@@ -800,7 +823,7 @@ func (s *sessionCoordinator) stopMediaBounded(execution string) error {
 	return first
 }
 
-func (s *sessionCoordinator) stop(ctx context.Context) (sessionResult, error) {
+func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp) (sessionResult, error) {
 	if !s.begin() {
 		return sessionResult{}, busyError()
 	}
@@ -872,7 +895,7 @@ func (s *sessionCoordinator) stop(ctx context.Context) (sessionResult, error) {
 			}
 		}
 	}
-	s.record("session.stop", result, nil)
+	s.recordStamp("session.stop", result, nil, stamp)
 	return result, nil
 }
 
@@ -1070,6 +1093,9 @@ func (s *sessionCoordinator) end() {
 
 func (s *sessionCoordinator) publicSession(st protocol.Status, progress *sessionProgress) sessionResult {
 	result := publicSession(st, progress)
+	s.mu.Lock()
+	result.FlightID = s.flightID
+	s.mu.Unlock()
 	if s.remoteInput != nil {
 		input := s.remoteInput.Status()
 		result.Input = &input

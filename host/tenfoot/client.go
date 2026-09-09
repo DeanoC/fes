@@ -266,18 +266,24 @@ type SessionResult struct {
 	DevelopmentSessionState string
 	ErrorCode               string
 	ErrorMessage            string
+	FlightID                string
 }
 
 // SessionEvent is one row from GET /api/v1/session/events.
 type SessionEvent struct {
-	Sequence uint64           `json:"sequence"`
-	Event    string           `json:"event"`
-	State    string           `json:"state"`
-	GameID   string           `json:"game_id,omitempty"`
-	System   string           `json:"system,omitempty"`
-	Media    string           `json:"media,omitempty"`
-	Progress *SessionProgress `json:"progress,omitempty"`
-	Input    *SessionInput    `json:"input,omitempty"`
+	Sequence     uint64           `json:"sequence"`
+	FlightID     string           `json:"flight_id,omitempty"`
+	TSUTC        string           `json:"ts_utc,omitempty"`
+	MonoMS       int64            `json:"mono_ms,omitempty"`
+	ClientTSUTC  string           `json:"client_ts_utc,omitempty"`
+	ClientMonoMS *int64           `json:"client_mono_ms,omitempty"`
+	Event        string           `json:"event"`
+	State        string           `json:"state"`
+	GameID       string           `json:"game_id,omitempty"`
+	System       string           `json:"system,omitempty"`
+	Media        string           `json:"media,omitempty"`
+	Progress     *SessionProgress `json:"progress,omitempty"`
+	Input        *SessionInput    `json:"input,omitempty"`
 }
 
 // KitLeaseStatus is GET /v1/kit/lease on the selected target (status-only).
@@ -1110,8 +1116,13 @@ func sniffVideoMIME(header []byte) string {
 	return ""
 }
 
-// Launch posts {game_id} to POST /api/v1/session/launch.
+// Launch posts {game_id} to POST /api/v1/session/launch with client clocks.
 func (c *Client) Launch(ctx context.Context, gameID string) (LaunchResult, error) {
+	return c.LaunchStamped(ctx, gameID, ClientStampNow())
+}
+
+// LaunchStamped is Launch with an explicit sofa/tenfoot stamp.
+func (c *Client) LaunchStamped(ctx context.Context, gameID string, stamp ClientStamp) (LaunchResult, error) {
 	gameID = strings.TrimSpace(gameID)
 	if gameID == "" {
 		return LaunchResult{}, fmt.Errorf("game id is empty")
@@ -1128,6 +1139,7 @@ func (c *Client) Launch(ctx context.Context, gameID string) (LaunchResult, error
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+	applyClientStamp(req, stamp)
 	resp, err := c.launchHTTP.Do(req)
 	if err != nil {
 		return LaunchResult{}, err
@@ -1172,14 +1184,19 @@ func (c *Client) SessionEvents(ctx context.Context, after uint64) ([]SessionEven
 	}
 	var wire struct {
 		Events []struct {
-			Sequence uint64           `json:"sequence"`
-			Event    string           `json:"event"`
-			State    string           `json:"state"`
-			GameID   *string          `json:"game_id"`
-			System   *string          `json:"system"`
-			Media    string           `json:"media"`
-			Progress *SessionProgress `json:"progress"`
-			Input    *SessionInput    `json:"input"`
+			Sequence     uint64           `json:"sequence"`
+			FlightID     string           `json:"flight_id"`
+			TSUTC        string           `json:"ts_utc"`
+			MonoMS       int64            `json:"mono_ms"`
+			ClientTSUTC  string           `json:"client_ts_utc"`
+			ClientMonoMS *int64           `json:"client_mono_ms"`
+			Event        string           `json:"event"`
+			State        string           `json:"state"`
+			GameID       *string          `json:"game_id"`
+			System       *string          `json:"system"`
+			Media        string           `json:"media"`
+			Progress     *SessionProgress `json:"progress"`
+			Input        *SessionInput    `json:"input"`
 		} `json:"events"`
 	}
 	if err := json.Unmarshal(body, &wire); err != nil {
@@ -1188,12 +1205,17 @@ func (c *Client) SessionEvents(ctx context.Context, after uint64) ([]SessionEven
 	out := make([]SessionEvent, 0, len(wire.Events))
 	for _, row := range wire.Events {
 		ev := SessionEvent{
-			Sequence: row.Sequence,
-			Event:    strings.TrimSpace(row.Event),
-			State:    strings.TrimSpace(row.State),
-			Media:    strings.TrimSpace(row.Media),
-			Progress: row.Progress,
-			Input:    row.Input,
+			Sequence:     row.Sequence,
+			FlightID:     strings.TrimSpace(row.FlightID),
+			TSUTC:        strings.TrimSpace(row.TSUTC),
+			MonoMS:       row.MonoMS,
+			ClientTSUTC:  strings.TrimSpace(row.ClientTSUTC),
+			ClientMonoMS: row.ClientMonoMS,
+			Event:        strings.TrimSpace(row.Event),
+			State:        strings.TrimSpace(row.State),
+			Media:        strings.TrimSpace(row.Media),
+			Progress:     row.Progress,
+			Input:        row.Input,
 		}
 		if row.GameID != nil {
 			ev.GameID = strings.TrimSpace(*row.GameID)
@@ -1413,6 +1435,7 @@ func (c *Client) LoadDevelopmentRBF(ctx context.Context, size int64, content io.
 	req.ContentLength = size
 	req.Header.Set("Content-Type", "application/octet-stream")
 	req.Header.Set("Accept", "application/json")
+	applyClientStamp(req, ClientStampNow())
 	resp, err := c.launchHTTP.Do(req)
 	if err != nil {
 		return SessionResult{}, err
@@ -1435,13 +1458,19 @@ func (c *Client) LoadDevelopmentRBF(ctx context.Context, size int64, content io.
 	return result, nil
 }
 
-// Stop posts an empty body to POST /api/v1/session/stop.
+// Stop posts an empty body to POST /api/v1/session/stop with client clocks.
 func (c *Client) Stop(ctx context.Context) (SessionResult, error) {
+	return c.StopStamped(ctx, ClientStampNow())
+}
+
+// StopStamped is Stop with an explicit sofa/tenfoot stamp.
+func (c *Client) StopStamped(ctx context.Context, stamp ClientStamp) (SessionResult, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/session/stop", http.NoBody)
 	if err != nil {
 		return SessionResult{}, err
 	}
 	req.Header.Set("Accept", "application/json")
+	applyClientStamp(req, stamp)
 	resp, err := c.stopHTTP.Do(req)
 	if err != nil {
 		return SessionResult{}, err
@@ -1462,6 +1491,47 @@ func (c *Client) Stop(ctx context.Context) (SessionResult, error) {
 		return result, fmt.Errorf("stop response: expected idle session, got %q", result.State)
 	}
 	return result, nil
+}
+
+// PostUIEvent posts one sofa/tenfoot action to POST /api/v1/debug/ui-events.
+// Failures are returned to the caller; the sofa treats them as best-effort.
+func (c *Client) PostUIEvent(ctx context.Context, event UIEvent) error {
+	if c == nil {
+		return fmt.Errorf("host client is nil")
+	}
+	event.Kind = strings.TrimSpace(event.Kind)
+	if event.Kind == "" {
+		return fmt.Errorf("ui event kind is empty")
+	}
+	if strings.TrimSpace(event.Layer) == "" {
+		event.Layer = "ui"
+	}
+	if strings.TrimSpace(event.Severity) == "" {
+		event.Severity = "ok"
+	}
+	if strings.TrimSpace(event.TSUTC) == "" {
+		event.TSUTC = ClientStampNow().TsUTC
+	}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/debug/ui-events", bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("ui event: HTTP %d", resp.StatusCode)
+	}
+	return nil
 }
 
 // Health loads GET /api/v1/health. A transport failure means the host process
@@ -1634,6 +1704,7 @@ func decodeSessionBody(status int, body []byte) (SessionResult, error) {
 		Media                   string           `json:"media"`
 		Progress                *SessionProgress `json:"progress"`
 		Input                   *SessionInput    `json:"input"`
+		FlightID                string           `json:"flight_id"`
 		Development             *bool            `json:"development"`
 		DevelopmentActive       *bool            `json:"development_active"`
 		DevelopmentSessionState string           `json:"development_session_state"`
@@ -1654,6 +1725,7 @@ func decodeSessionBody(status int, body []byte) (SessionResult, error) {
 	}
 	result.Execution = strings.TrimSpace(wire.Execution)
 	result.Media = strings.TrimSpace(wire.Media)
+	result.FlightID = strings.TrimSpace(wire.FlightID)
 	result.Progress = wire.Progress
 	result.Input = wire.Input
 	result.DevelopmentSessionState = strings.TrimSpace(wire.DevelopmentSessionState)

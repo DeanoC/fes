@@ -38,6 +38,11 @@ type Options struct {
 	// night/sofa-dim) or a JSON/TOML
 	// file path. Empty is default.
 	Theme string
+	// DebugHUD paints the optional corner overlay (flight, lease gen/ttl,
+	// last error). Off by default. -debug-hud, tenfoot.json debug_hud, or
+	// FOGCAST_DEBUG_HUD.
+	DebugHUD    bool
+	DebugHUDSet bool
 }
 
 func (o Options) prefsPath() string {
@@ -108,6 +113,13 @@ func (o Options) normalized() Options {
 	}
 	if strings.TrimSpace(o.Theme) == "" {
 		o.Theme = strings.TrimSpace(os.Getenv("FOGCAST_THEME"))
+	}
+	if envTruthy(os.Getenv("FOGCAST_DEBUG_HUD")) {
+		o.DebugHUD = true
+		o.DebugHUDSet = true
+	}
+	if !o.DebugHUDSet && prefsErr == nil && prefs.DebugHUD {
+		o.DebugHUD = true
 	}
 	return o
 }

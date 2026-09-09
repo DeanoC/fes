@@ -86,6 +86,7 @@ func (a *App) setLayoutLocked(mode LayoutKind, persist bool) {
 func (a *App) cycleLayoutLocked() {
 	a.setLayoutLocked(a.grid.Mode.Next(), true)
 	a.status = "layout " + a.grid.Mode.Label()
+	a.stampNavLocked("layout")
 }
 
 func (a *App) persistPrefsLocked(field string) {

@@ -108,13 +108,18 @@ Only after that snapshot should the existing leased development-reboot path be
 called. The snapshot request requires the current opaque `lease_gen` and never
 claims or mutates the kit by itself.
 
-The fog-flight S0/S1 page can poll the authenticated kit dump beside its
+The fog-flight page polls the authenticated kit dump beside its
 existing `/v1/health`, `/v1/kit/lease`, and `/v1/status` polls, render the
 events by `layer`/`severity`, and join to host session events only when a
 `flight_id` is actually present. It should preserve `run_id` and `lease_gen`
 as opaque join fields, label vault results diagnostic, and continue to use the
 host events endpoint at `:8787` when available; launcher `:8789` is not a
-target-event join source.
+target-event join source. Tenfoot and the sofa browser stamp launch, stop,
+focus, and nav with client wall + monotonic clocks. Host session events repeat
+those client clocks next to host `ts_utc`/`mono_ms`; focus/nav also land on
+`GET /api/v1/debug/ui-events`. fog-flight builds a per-flight latency
+waterfall from client → host → target when both ends are present and leaves
+missing layers labelled missing.
 
 ## On-kit controller launcher
 
