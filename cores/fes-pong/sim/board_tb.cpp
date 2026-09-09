@@ -19,8 +19,8 @@ void require(bool condition, const std::string &message) {
     if (!condition) fail(message);
 }
 
-uint32_t command(bool toggle, uint8_t opcode, uint16_t argument) {
-    return (toggle ? 0x80000000u : 0u) | (uint32_t(opcode) << 24) | argument;
+uint32_t command(bool toggle, uint8_t opcode, uint16_t argument, uint8_t index = 0) {
+    return (toggle ? 0x80000000u : 0u) | (uint32_t(opcode) << 24) | (uint32_t(index) << 16) | argument;
 }
 
 struct Board {
@@ -68,12 +68,12 @@ struct Board {
     }
 
     void exchange(bool &toggle, uint8_t opcode, uint16_t argument,
-                  const std::string &name) {
-        set_gpo(command(toggle, opcode, argument));
+                  const std::string &name, uint8_t index = 0) {
+        set_gpo(command(toggle, opcode, argument, index));
         pixel_tick();
         const uint32_t held = gpi();
         toggle = !toggle;
-        set_gpo(command(toggle, opcode, argument));
+        set_gpo(command(toggle, opcode, argument, index));
         wait_ack(toggle, name);
         require(gpi() != held || (((held >> 23) & 1u) == unsigned(toggle)),
                 name + ": response did not commit with ACK");
@@ -152,6 +152,90 @@ int main(int argc, char **argv) {
                 !board.root.top__DOT__core__DOT__game__DOT__playing,
             "game did not observe the coherent reset vector after frame tick");
 
-    std::cout << "FES board: I2C low/release/feedback, independent reference/pixel phases and coherent frame-edge controls passed\n";
+    // Restore through the production mailbox; game reset never owns the record.
+    auto ok = [&](uint8_t opcode, uint16_t argument, uint8_t index=0) {
+        board.exchange(toggle, opcode, argument, "persistence board exchange", index);
+        require(!(board.gpi() & 0x00400000u), "unexpected persistence error");
+        return uint16_t(board.gpi());
+    };
+    ok(4,1); ok(6,2); ok(6,17,1); ok(4,2);
+    require(board.root.top__DOT__mailbox_reset && board.root.top__DOT__paddle_speed==2,
+            "restore must apply speed while reset stays held");
+    ok(2,1); board.pixel_tick();
+    // Directed positions accelerate collision coverage; every record change is
+    // still caused by the actual shared game collision logic and event wiring.
+    auto return_frame = [&]() {
+        board.root.top__DOT__core__DOT__game__DOT__playing=1;
+        board.root.top__DOT__core__DOT__game__DOT__ball_x=19;
+        board.root.top__DOT__core__DOT__game__DOT__ball_y=112;
+        board.root.top__DOT__core__DOT__game__DOT__player_y=104;
+        board.root.top__DOT__core__DOT__game__DOT__rightward=0;
+        board.root.top__DOT__core__DOT__game__DOT__downward=1;
+        board.root.top__DOT__core__DOT__game__DOT__vertical_speed=1;
+        board.root.top__DOT__core__DOT__video__DOT__horizontal=1649;
+        board.root.top__DOT__core__DOT__video__DOT__vertical=749;
+        board.dut.eval(); board.pixel_tick();
+        require(board.root.top__DOT__player_return, "player collision must emit return pulse");
+        board.pixel_tick();
+        require(!board.root.top__DOT__player_return, "return event must last one clock");
+    };
+    for(unsigned i=0;i<18;++i) return_frame();
+    require(board.root.top__DOT__mailbox__DOT__current_rally==18 &&
+            board.root.top__DOT__mailbox__DOT__best_rally==18,
+            "unfinished rally updates restored record immediately");
+
+    // Arrange the 19th return on the exact edge accepting freeze. Its pulse
+    // reaches the mailbox one edge later and must be drained before ACK.
+    board.set_gpo(command(toggle,4,0)); board.pixel_tick(); toggle=!toggle;
+    board.set_gpo(command(toggle,4,0)); board.pixel_tick(); board.pixel_tick();
+    return_frame(); board.wait_ack(toggle,"collision-edge freeze");
+    require(board.root.top__DOT__game_frozen && !board.root.top__DOT__mailbox_reset,
+            "freeze must hold game without reset");
+    require(ok(5,0)==2 && ok(5,0,1)==19, "freeze lost final running-edge return");
+    auto bx=board.root.top__DOT__core__DOT__game__DOT__ball_x;
+    auto by=board.root.top__DOT__core__DOT__game__DOT__ball_y;
+    auto py=board.root.top__DOT__core__DOT__game__DOT__player_y;
+    auto tone_left=board.root.top__DOT__core__DOT__game__DOT__tone_left;
+    ok(3,2);
+    for(unsigned i=0;i<200;++i) board.pixel_tick();
+    ok(4,0);
+    require(ok(5,0,1)==19 && board.root.top__DOT__core__DOT__game__DOT__ball_x==bx &&
+            board.root.top__DOT__core__DOT__game__DOT__ball_y==by &&
+            board.root.top__DOT__core__DOT__game__DOT__player_y==py &&
+            board.root.top__DOT__core__DOT__game__DOT__tone_left==tone_left,
+            "repeated freeze must retain snapshot and full gameplay");
+    ok(4,3);
+    require(!board.root.top__DOT__game_frozen && board.root.top__DOT__core__DOT__game__DOT__playing &&
+            board.root.top__DOT__core__DOT__game__DOT__ball_x==bx,
+            "resume must retain the running game's position");
+    ok(3,0);
+    for(unsigned i=19;i<65540;++i) return_frame();
+    require(board.root.top__DOT__mailbox__DOT__current_rally==65535 &&
+            board.root.top__DOT__mailbox__DOT__best_rally==65535,
+            "current and best rally must saturate at u16 max");
+
+    // Both scoring sides terminate a rally independently of 0-9 score wrap.
+    for(unsigned side=0;side<2;++side) {
+        for(unsigned score=0;score<10;++score) {
+            board.root.top__DOT__core__DOT__game__DOT__playing=1;
+            board.root.top__DOT__core__DOT__game__DOT__ball_x=side ? 316 : 0;
+            board.root.top__DOT__core__DOT__game__DOT__rightward=side;
+            board.root.top__DOT__core__DOT__video__DOT__horizontal=1649;
+            board.root.top__DOT__core__DOT__video__DOT__vertical=749;
+            board.dut.eval(); board.pixel_tick();
+            require(board.root.top__DOT__point,"point event missing");
+            board.pixel_tick();
+            require(!board.root.top__DOT__point && board.root.top__DOT__mailbox__DOT__current_rally==0,
+                    "point must end current rally");
+        }
+    }
+    require(board.root.top__DOT__core__DOT__game__DOT__player_score==0 &&
+            board.root.top__DOT__core__DOT__game__DOT__ai_score==0,
+            "display scores must retain wrap after nine");
+    ok(2,0); board.pixel_tick();
+    require(board.root.top__DOT__mailbox__DOT__best_rally==65535 &&
+            board.root.top__DOT__paddle_speed==2, "game reset must retain persistent registers");
+
+    std::cout << "FES board: I2C/clock domains, restore, collision-edge freeze/resume, rally saturation and score wrap passed\n";
     return EXIT_SUCCESS;
 }

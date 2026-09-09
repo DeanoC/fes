@@ -5,11 +5,14 @@ module pong_game #(
     parameter integer CLOCK_HZ = 50000000
 ) (
     input logic clk, reset, frame_tick, up, down, start,
+    input logic freeze,
+    input logic [1:0] paddle_speed,
     input logic [9:0] pixel_x, pixel_y,
     output logic [7:0] red, green, blue,
     output logic tone, playing,
     output logic signed [9:0] ball_x, ball_y, player_y, ai_y,
-    output logic [3:0] player_score, ai_score
+    output logic [3:0] player_score, ai_score,
+    output logic player_return, point
 );
     localparam integer HALF_PERIOD = CLOCK_HZ / 2000;
     localparam integer TONE_LENGTH = CLOCK_HZ / 10;
@@ -18,13 +21,21 @@ module pong_game #(
     integer tone_left, tone_phase;
     logic signed [9:0] next_x, next_y, speed_extended;
 
+    logic signed [9:0] paddle_step;
     always_comb begin
+        case (paddle_speed)
+            2'd0: paddle_step = 10'sd2;
+            2'd2: paddle_step = 10'sd6;
+            default: paddle_step = 10'sd4;
+        endcase
         speed_extended = {{7{vertical_speed[2]}}, vertical_speed};
         next_x = ball_x + (rightward ? 10'sd3 : -10'sd3);
         next_y = ball_y + (downward ? speed_extended : -speed_extended);
     end
 
     always_ff @(posedge clk) begin
+        player_return <= 1'b0;
+        point <= 1'b0;
         if (reset) begin
             ball_x <= 10'sd158; ball_y <= 10'sd118;
             player_y <= 10'sd104; ai_y <= 10'sd104;
@@ -33,7 +44,7 @@ module pong_game #(
             tone <= 0; tone_left <= 0; tone_phase <= 0;
             start_held <= 0;
             vertical_speed <= 3'sd2;
-        end else begin
+        end else if (!freeze) begin
             if (tone_left > 0) begin
                 tone_left <= tone_left - 1;
                 if (tone_phase == HALF_PERIOD - 1) begin
@@ -45,8 +56,8 @@ module pong_game #(
             end
             if (frame_tick) begin
                 start_held <= start;
-                if (up && !down) player_y <= (player_y < 10'sd4) ? 10'sd0 : player_y - 10'sd4;
-                if (down && !up) player_y <= (player_y > 10'sd204) ? 10'sd208 : player_y + 10'sd4;
+                if (up && !down) player_y <= (player_y < paddle_step) ? 10'sd0 : player_y - paddle_step;
+                if (down && !up) player_y <= (player_y > 10'sd208 - paddle_step) ? 10'sd208 : player_y + paddle_step;
                 if (!playing) begin
                     if (start && !start_held) playing <= 1;
                 end else begin
@@ -61,6 +72,7 @@ module pong_game #(
                     end
                     if (!rightward && ball_x >= 10'sd16 && next_x <= 10'sd16 &&
                         next_y + 10'sd4 > player_y && next_y < player_y + 10'sd32) begin
+                        player_return <= 1'b1;
                         ball_x <= 10'sd16; rightward <= 1;
                         downward <= (next_y + 10'sd2 >= player_y + 10'sd16);
                         vertical_speed <= (next_y + 10'sd2 < player_y + 10'sd8 ||
@@ -77,6 +89,7 @@ module pong_game #(
                         tone_left <= TONE_LENGTH;
                     end
                     if (next_x < 10'sd0 || next_x > 10'sd316) begin
+                        point <= 1'b1;
                         if (next_x < 10'sd0)
                             ai_score <= (ai_score == 9) ? 0 : ai_score + 1'b1;
                         else player_score <= (player_score == 9) ? 0 : player_score + 1'b1;

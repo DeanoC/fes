@@ -26,6 +26,8 @@ int main(int argc, char **argv) {
     core.pixel_clk = 0;
     core.game_reset = 1;
     core.buttons = 0;
+    core.game_frozen = 0;
+    core.paddle_speed = 1;
     core.eval();
 
     constexpr uint32_t kHTotal = 1650;

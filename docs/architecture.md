@@ -1026,11 +1026,16 @@ another press. Decimal scores wrap after nine. Reset clears scores and restores
 the same positions and initial left/down trajectory every time.
 
 The synchronous interface takes `clk`, `reset`, `frame_tick`, `up`, `down`,
-`start` and 10-bit `pixel_x`/`pixel_y`. A one-clock `frame_tick` advances game
+`start`, `freeze`, 2-bit `paddle_speed` and 10-bit `pixel_x`/`pixel_y`. A one-clock `frame_tick` advances game
 state; raster coordinates select RGB pixels independently. Outputs are 8-bit
 `red`/`green`/`blue`, `tone`, `playing`, integer top-left positions
 `ball_x`/`ball_y`/`player_y`/`ai_y`, and 4-bit decimal scores
-`player_score`/`ai_score`. Paddles are 4x32 at x=12 and x=304; the ball is 4x4.
+`player_score`/`ai_score`, plus single-clock `player_return` and `point` event
+pulses. Speed enums 0/1/2 select 2/4/6 pixels per frame; movement saturates at
+0 and 208 for all three speeds. Freeze holds positions, scores, serve/start
+state and tone counters; raster generation remains independent. The original
+MiSTer wrapper ties freeze low and selects normal speed (enum 1).
+Paddles are 4x32 at x=12 and x=304; the ball is 4x4.
 Out-of-range raster coordinates produce black. Seven-segment score glyphs
 appear above the playfield. `CLOCK_HZ` sets a 1 kHz square-wave collision/score
 tone lasting approximately 100 ms; set it to the wrapper's actual game clock
@@ -1051,9 +1056,10 @@ module includes the board/HPS wrapper. Simulation is not hardware evidence.
 ## FES GP and fixed 720p Pong shell
 
 `cores/fes-pong/rtl/fes_gp.v` implements `fes.simple-game` 1.0 on the Cyclone V
-HPS general-purpose port. Its public ports are the 50 MHz destination `clk`,
-32-bit HPS `gpo`, fixed 128-bit `build_id`, 32-bit FPGA `gpi`, and the gameplay
-outputs `game_reset` and `buttons[7:0]`. FPGA configuration state starts with a
+HPS general-purpose port. Its clock is the 74.25 MHz pixel domain. Ports include
+32-bit HPS `gpo`, fixed 128-bit `build_id`, 32-bit FPGA `gpi`, gameplay
+`game_reset`, `game_frozen`, `buttons[7:0]`, and `paddle_speed[1:0]`, plus
+`player_return`/`point` inputs from the shared game. FPGA configuration state starts with a
 stable `0xF5` signature, ACK zero, gameplay held in reset and neutral input.
 The request toggle crosses two `async_reg` stages. The state machine consumes
 the held payload only when that synchronized toggle differs from the retained
@@ -1062,14 +1068,42 @@ reset. Invalid opcode, index and argument responses have no gameplay effect.
 
 The checked-in `cores/fes-pong/generated/fes_gp.vh` is the unedited Verilog
 emitter output from `mister-packages/packages/abi/fes_simple_game.yaml`.
-`cores/fes-pong/generated/exchanges.json` is the matching unedited stateful GP
-fixture: it declares request toggle zero and synthetic build ID
-`00112233445566778899aabbccddeeff`, then carries one contiguous exchange
-sequence. `make sim-fes-pong` reads that JSON at runtime and verifies field hold,
-varied host-to-FPGA edge placement, one effect per toggle, exact GPI words,
-error isolation and reset behavior. The copied include and fixture have SHA-256
-`a765645d4b657ccc31803d9f48857bd2fef67a5fb072fa3a136c9d295c2a5e23`
-and `04f0f1a783cfe4f480de3e0ce09ceb6c8cd74a5a28dacc652d616da74726529a`.
+`cores/fes-pong/generated/persistence-exchanges.json` is the unedited shared
+persistence fixture. It declares request toggle zero, synthetic build ID
+`00112233445566778899aabbccddeeff`, and all four live capability bits (15).
+The retained `exchanges.json` remains the original volatile fixture with bits
+0/1 only; the persistent core runs the newer sequence. `make sim-fes-pong`
+verifies exact GPI words, varied host-to-FPGA edge placement, field holding,
+one effect per toggle and error isolation.
+
+The format-2 package is `fes.pong` version 1.1.0 and requires
+`fes.persistence.words` 1.0 and `fes.pong.progress` 1.0 in addition to gamepad
+and fixed video. Base ABI and transport remain 1.0. Data-info opcode 7 reports
+[2,1,1,0] for word count, layout tag, major and minor. Persistent words are the
+speed enum (default 1) and best rally (default 0). Gameplay reset clears the
+current rally but never the restored words. Player-return events increase the
+current rally and immediately update best, both saturating at 65535; either
+point event clears current. Display scores remain independent and wrap at 9.
+
+Data-control opcode 4 selects freeze/begin/commit/resume with arguments 0–3.
+Freeze first holds the game, drains its registered event pulse, then latches
+both snapshot words and acknowledges; reads (opcode 5) are available only
+while frozen. Repeated freeze retains the original snapshot. Resume releases
+freeze without resetting gameplay. Begin requires held gameplay reset and
+clears the staging bitmap. Writes (opcode 6) populate two staging words; commit
+requires both words and a valid speed before atomically publishing either.
+Invalid-speed validation occurs at commit, allowing a corrected staging write.
+Commit closes staging and leaves reset held for ordinary gameplay release.
+Invalid opcode/index/argument/state leaves live data and control unchanged.
+Gameplay hold-reset or release discards unfinished staging; reset also ends
+freeze. Volatile launches may release defaults without restoring.
+
+The simulation covers restore [2,17], failed/partial commits, fresh staging,
+invalid controls/indexes, reset preservation, speed saturation, and defaults.
+The production board-top harness drives actual collision logic at directed
+positions to test final-edge freeze draining, immediate unfinished records,
+65535 saturation, both point events and unchanged decimal score wrap. These
+are digital host checks, not timing or physical acceptance.
 
 `cores/fes-pong/rtl/video_720p.v` advances one pixel on every supplied pixel
 clock: 1280 active, 110 front porch, 40 positive-sync clocks and 220 back porch

@@ -595,7 +595,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
             "id": "fes.pong",
             "name": "FES Pong",
             "description": "Standalone fixed-720p Pong for the FES general-purpose ABI",
-            "version": "1.0.0",
+            "version": "1.1.0",
         },
         "target": {
             "platform": "de10_nano",
@@ -607,6 +607,8 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
         "interfaces": [
             {"id": "fes.gamepad", "major": 1, "minor": 0, "required": True},
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.persistence.words", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.pong.progress", "major": 1, "minor": 0, "required": True},
         ],
         "build": {
             "id": build_identity(record),
