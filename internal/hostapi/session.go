@@ -336,6 +336,29 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 	defer s.end()
 	s.observationMu.Lock()
 	defer s.observationMu.Unlock()
+	// Package admission must run before retiring the previous input/media owner.
+	execution := fogcast.ExecutionFPGANative
+	if resolver, ok := s.service.(sessionExecutionService); ok {
+		resolved, err := resolver.SessionExecution(ctx, id)
+		if err != nil {
+			return sessionResult{}, err
+		}
+		if resolved != "" {
+			execution = resolved
+		}
+	}
+	if execution == fogcast.ExecutionFPGADevelopment {
+		response, err := s.service.Launch(ctx, id, nil)
+		result, err := s.finishCoreLoad(ctx, response.Status, err, "session.launch")
+		if err == nil && result.State == protocol.StateActive {
+			if recorder, ok := s.service.(interface {
+				RecordPlay(context.Context, string) error
+			}); ok {
+				_ = recorder.RecordPlay(ctx, id)
+			}
+		}
+		return result, err
+	}
 	development, err := s.developmentActive(ctx)
 	if err != nil {
 		return sessionResult{}, err
@@ -356,16 +379,6 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 		return sessionResult{}, err
 	}
 
-	execution := fogcast.ExecutionFPGANative
-	if resolver, ok := s.service.(sessionExecutionService); ok {
-		resolved, err := resolver.SessionExecution(ctx, id)
-		if err != nil {
-			return sessionResult{}, err
-		}
-		if resolved != "" {
-			execution = resolved
-		}
-	}
 	s.mu.Lock()
 	s.execution = execution
 	s.terminalStatus = nil
@@ -532,6 +545,18 @@ func (s *sessionCoordinator) loadDevelopmentCore(ctx context.Context, size int64
 		return sessionResult{}, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
 	}
 	status, err := loader.LoadCore(ctx, size, content)
+	return s.finishCoreLoad(ctx, status, err, "session.development_core")
+}
+
+// finishCoreLoad shares the confirmed-package ownership transition between
+// explicit development loading and package-backed library entries.
+// The caller holds observationMu and the coordinator operation admission.
+func (s *sessionCoordinator) finishCoreLoad(ctx context.Context, status protocol.Status, err error, event string) (sessionResult, error) {
+	var identityErr *protocol.APIError
+	if errors.As(err, &identityErr) && identityErr.Phase == "identity" {
+		status.LastError = identityErr
+	}
+
 	if err != nil && corePackagePreMutationFailure(err) {
 		// These failures are proven to precede target mutation, so the current
 		// host-owned input and media session still describe the active target.
@@ -588,7 +613,7 @@ func (s *sessionCoordinator) loadDevelopmentCore(ctx context.Context, size int64
 	}
 	result := s.publicSession(status, nil)
 	result.Execution = fogcast.ExecutionFPGADevelopment
-	s.record("session.development_core", result, nil)
+	s.record(event, result, nil)
 	if err != nil {
 		return result, err
 	}
@@ -621,6 +646,10 @@ func hostOnlyCorePackageCleanupFailure(execution string, status protocol.Status,
 	var apiErr *protocol.APIError
 	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeInternal || apiErr.Phase != "recovery" {
 		return false
+	}
+	if status.Development && status.CorePackage != nil {
+		return (status.LastError.Code == protocol.CodeUnrecognizedCore && status.LastError.Phase == "identity") ||
+			(status.LastError.Code == protocol.CodeInternal && status.LastError.Phase == "recovery")
 	}
 	return status.State == protocol.StateIdle && status.GameID == nil && status.System == nil &&
 		status.ExpectedCore == nil && status.ObservedCore == nil && !status.Development &&

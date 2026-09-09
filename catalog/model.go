@@ -23,8 +23,9 @@ type ScanReport struct {
 type SourceKind string
 
 const (
-	SourceKindRaw SourceKind = "raw"
-	SourceKindZIP SourceKind = "zip"
+	SourceKindRaw         SourceKind = "raw"
+	SourceKindZIP         SourceKind = "zip"
+	SourceKindCorePackage SourceKind = "core_package"
 )
 
 type SourceState string

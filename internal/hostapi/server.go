@@ -180,6 +180,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 		}
 	}
 	mux := http.NewServeMux()
+	registerCoreLibrary(mux, service)
 	session := newSessionCoordinator(service, config.remoteInput, config.media)
 	mux.HandleFunc("GET /api/v1/session", func(w http.ResponseWriter, r *http.Request) {
 		result, err := session.status(r.Context())
@@ -686,6 +687,9 @@ func publicGame(game catalog.Game) gameResult {
 		Execution: fogcast.ExecutionFPGANative, Platform: game.System, Launchable: catalog.Launchable(game.System),
 		CanonicalTitle: canonical, Region: game.Region, Revision: game.Revision, DumpFlags: game.DumpFlags,
 		GroupKey: game.GroupKey, VariantCount: game.VariantCount, Genre: game.Genre, Year: game.Year,
+	}
+	if game.Kind == catalog.SourceKindCorePackage {
+		result.Execution = fogcast.ExecutionFPGADevelopment
 	}
 	if result.VariantCount <= 0 {
 		result.VariantCount = 1

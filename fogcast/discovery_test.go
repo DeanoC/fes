@@ -338,3 +338,25 @@ func TestLegacyPeerReportsReadinessAndActivityWithoutLeaseExtension(t *testing.T
 		})
 	}
 }
+
+func TestTargetInvalidationClearsPackageAssociationAndRejection(t *testing.T) {
+	for _, execution := range []string{ExecutionFPGADevelopment, ExecutionHostOnly} {
+		t.Run(execution, func(t *testing.T) {
+			base, _ := url.Parse("http://127.0.0.1:8182")
+			client := host.NewClient(base, "test", nil)
+			s := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+			s.activeExecution = execution
+			s.activeGameID = "prior"
+			s.activePackageID = "package"
+			s.activePackageGeneration = 7
+			s.packageRejection = &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Phase: "identity"}
+			s.invalidateTargetSession(client)
+			if s.activePackageID != "" || s.activePackageGeneration != 0 || s.packageRejection != nil {
+				t.Fatal("obsolete target package state survived invalidation")
+			}
+			if execution == ExecutionHostOnly && s.activeGameID != "prior" {
+				t.Fatal("target invalidation discarded independent host owner")
+			}
+		})
+	}
+}

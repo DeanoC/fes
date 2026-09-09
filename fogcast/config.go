@@ -23,6 +23,8 @@ import (
 )
 
 type Paths struct {
+	CorePackages string
+
 	Config          string
 	Index           string
 	Staging         string
@@ -41,6 +43,7 @@ func DefaultPaths() (Paths, error) {
 	share := filepath.Join(home, ".local", "share", "fogcast")
 	cache := filepath.Join(home, ".cache", "fogcast")
 	return Paths{
+		CorePackages:    filepath.Join(share, "core-packages"),
 		Config:          filepath.Join(home, ".config", "fogcast", "config.toml"),
 		Index:           filepath.Join(share, "library.sqlite3"),
 		Staging:         filepath.Join(cache, "staging"),

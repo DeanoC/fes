@@ -3,6 +3,7 @@ package host
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +12,50 @@ import (
 	"github.com/DeanoC/FogCast/internal/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
 )
+
+// InspectCore sends one bounded package to the target runtime's read-only
+// compatibility authority. It deliberately does not authorize a kit mutation.
+func (c *Client) InspectCore(ctx context.Context, size int64, content io.Reader) (protocol.CoreInspection, error) {
+	if size < 1 || size > corepackage.MaxArchiveSize || content == nil {
+		return protocol.CoreInspection{}, fmt.Errorf("development core input is invalid")
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		c.endpoint("/v1/development/core/inspect", nil).String(), readOnlyReader{Reader: content})
+	if err != nil {
+		return protocol.CoreInspection{}, fmt.Errorf("create request: %w", err)
+	}
+	request.ContentLength = size
+	request.Header.Set("Authorization", "Bearer "+c.token)
+	request.Header.Set("Content-Type", "application/octet-stream")
+	response, err := c.httpClient.Do(request)
+	if err != nil {
+		if response != nil && response.Body != nil {
+			_ = response.Body.Close()
+		}
+		return protocol.CoreInspection{}, errors.Join(&protocol.APIError{
+			Code: protocol.CodeTransferFailed, Message: "core package inspection transfer failed"}, err)
+	}
+	defer response.Body.Close()
+	var inspection protocol.CoreInspection
+	if err := decodeResponse(response, &inspection); err != nil {
+		return protocol.CoreInspection{}, err
+	}
+	if !validCoreInspection(inspection) {
+		return protocol.CoreInspection{}, fmt.Errorf("development core inspection response is invalid")
+	}
+	return inspection, nil
+}
+
+func validCoreInspection(inspection protocol.CoreInspection) bool {
+	if !lowerHex(inspection.PackageID, 64) || corepackage.ValidateDescriptor(inspection.Descriptor) != nil {
+		return false
+	}
+	if inspection.Compatible {
+		return inspection.CompatibilityError == nil
+	}
+	return inspection.CompatibilityError != nil && inspection.CompatibilityError.Code != "" &&
+		inspection.CompatibilityError.Message != "" && inspection.CompatibilityError.Phase == "compatibility"
+}
 
 // LoadCore sends one bounded package mutation through the client's shared kit
 // lease and accepts only a complete custom-development status.

@@ -49,6 +49,10 @@ type ownedCoreRuntime interface {
 	LoadCoreOwned(context.Context, context.Context, context.Context, int64, io.Reader) (misterruntime.CoreActivation, bool, *protocol.APIError)
 }
 
+type coreInspectingRuntime interface {
+	InspectCore(context.Context, int64, io.Reader) (protocol.CoreInspection, *protocol.APIError)
+}
+
 type ownedStopRuntime interface {
 	StopOwned(context.Context, context.Context) (observed string, apiErr *protocol.APIError)
 }
@@ -433,6 +437,22 @@ func (c *Coordinator) LoadCore(parent context.Context, size int64, content io.Re
 	}
 	c.set(active)
 	return c.Status(), nil
+}
+
+// InspectCore serializes the read-only runtime inspection with target
+// transitions while leaving the published game/session state unchanged.
+func (c *Coordinator) InspectCore(parent context.Context, size int64, content io.Reader) (protocol.CoreInspection, *protocol.APIError) {
+	if !c.begin() {
+		return protocol.CoreInspection{}, &protocol.APIError{Code: protocol.CodeBusy,
+			Message: "another launch or stop transition is running"}
+	}
+	defer c.end()
+	runtime, ok := c.runtime.(coreInspectingRuntime)
+	if !ok {
+		return protocol.CoreInspection{}, &protocol.APIError{Code: protocol.CodeUnsupportedOperation,
+			Message: "requested operation is unsupported"}
+	}
+	return runtime.InspectCore(parent, size, content)
 }
 
 func (c *Coordinator) Stop(parent context.Context) (protocol.Status, *protocol.APIError) {

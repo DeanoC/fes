@@ -29,6 +29,32 @@ type confirmingPackageRuntime struct {
 	confirmContext context.Context
 }
 
+type inspectingPackageRuntime struct {
+	fakeRuntime
+	inspection protocol.CoreInspection
+	inspectErr *protocol.APIError
+	started    chan struct{}
+	release    chan struct{}
+	calls      int
+}
+
+func (r *inspectingPackageRuntime) InspectCore(ctx context.Context, size int64, body io.Reader) (protocol.CoreInspection, *protocol.APIError) {
+	r.calls++
+	data, err := io.ReadAll(body)
+	if err != nil || int64(len(data)) != size {
+		return protocol.CoreInspection{}, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "bad package"}
+	}
+	if r.started != nil {
+		close(r.started)
+		select {
+		case <-r.release:
+		case <-ctx.Done():
+			return protocol.CoreInspection{}, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "cancelled"}
+		}
+	}
+	return r.inspection, r.inspectErr
+}
+
 func (r *confirmingPackageRuntime) ConfirmIdle(ctx context.Context) bool {
 	r.confirmCalls++
 	r.confirmContext = ctx
@@ -48,6 +74,51 @@ func (r *packageRuntime) LoadCoreOwned(_ context.Context, _ context.Context, _ c
 func activeGameStatus() protocol.Status {
 	game, system, coreName := "game", protocol.SystemMegaDrive, "MegaDrive"
 	return protocol.Status{State: protocol.StateActive, GameID: &game, System: &system, ExpectedCore: &coreName, ObservedCore: &coreName}
+}
+
+func TestCoordinatorInspectionPreservesActiveSession(t *testing.T) {
+	active := activeGameStatus()
+	runtime := &inspectingPackageRuntime{fakeRuntime: fakeRuntime{reconciled: active}, inspection: protocol.CoreInspection{
+		PackageID: strings.Repeat("a", 64), Compatible: true,
+	}}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), 0, 0)
+	coordinator.Initialize(context.Background())
+
+	inspection, apiErr := coordinator.InspectCore(context.Background(), 7, strings.NewReader("package"))
+	after := coordinator.Status()
+	if apiErr != nil || !inspection.Compatible || runtime.calls != 1 || after.State != active.State ||
+		after.GameID == nil || *after.GameID != *active.GameID {
+		t.Fatalf("inspection=%#v error=%#v calls=%d status=%#v", inspection, apiErr, runtime.calls, after)
+	}
+}
+
+func TestCoordinatorInspectionSerializesWithTransitions(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	runtime := &inspectingPackageRuntime{started: started, release: release,
+		inspection: protocol.CoreInspection{PackageID: strings.Repeat("a", 64), Compatible: true}}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), 0, 0)
+	done := make(chan *protocol.APIError, 1)
+	go func() {
+		_, apiErr := coordinator.InspectCore(context.Background(), 7, strings.NewReader("package"))
+		done <- apiErr
+	}()
+	<-started
+	if _, apiErr := coordinator.Stop(context.Background()); apiErr == nil || apiErr.Code != protocol.CodeBusy {
+		t.Fatalf("overlapping stop error=%#v", apiErr)
+	}
+	close(release)
+	if apiErr := <-done; apiErr != nil {
+		t.Fatalf("inspection error=%#v", apiErr)
+	}
+}
+
+func TestCoordinatorInspectionRejectsUnsupportedRuntime(t *testing.T) {
+	coordinator := agent.New(&fakeRuntime{}, core.DefaultRegistry(), 0, 0)
+	_, apiErr := coordinator.InspectCore(context.Background(), 7, strings.NewReader("package"))
+	if apiErr == nil || apiErr.Code != protocol.CodeUnsupportedOperation {
+		t.Fatalf("inspection error=%#v", apiErr)
+	}
 }
 
 func TestCoordinatorPreservesActiveSessionForPreMutationPackageFailure(t *testing.T) {

@@ -187,6 +187,9 @@ func (s Scanner) Scan(ctx context.Context, roots []Root) (ScanReport, error) {
 
 	report := ScanReport{Roots: make([]RootReport, 0, len(roots))}
 	for _, root := range roots {
+		if err := rejectCorePackageRoot(root); err != nil {
+			return report, err
+		}
 		if s.Debug != nil {
 			s.Debug(fmt.Sprintf("scan root start: %s (%s)", root.ID, root.System))
 		}

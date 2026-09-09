@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/DeanoC/FogCast/host"
+	"github.com/DeanoC/FogCast/internal/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -156,6 +157,116 @@ func TestClientDevelopmentCoreStreamsLeasedPackageAndRequiresCustomStatus(t *tes
 	if err != nil || status.CorePackage == nil || status.CorePackage.Generation != 7 || !status.CorePackage.Gamepad {
 		t.Fatalf("status=%#v error=%v", status, err)
 	}
+}
+
+func TestClientDevelopmentCoreInspectionStreamsWithoutKitLease(t *testing.T) {
+	payload := []byte("fcore")
+	want := protocol.CoreInspection{PackageID: strings.Repeat("a", 64),
+		Descriptor: validCoreInspectionDescriptor(), Compatible: true}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/development/core/inspect" ||
+			r.ContentLength != int64(len(payload)) || r.Header.Get("Content-Type") != "application/octet-stream" ||
+			r.Header.Get("Authorization") != "Bearer test-token" || r.Header.Get("X-FogCast-Kit-Lease") != "" {
+			t.Errorf("request=%s %s length=%d type=%q auth=%q lease=%q", r.Method, r.URL.Path,
+				r.ContentLength, r.Header.Get("Content-Type"), r.Header.Get("Authorization"), r.Header.Get("X-FogCast-Kit-Lease"))
+		}
+		body, _ := io.ReadAll(r.Body)
+		if !bytes.Equal(body, payload) {
+			t.Errorf("body=%q", body)
+		}
+		_ = json.NewEncoder(w).Encode(want)
+	}))
+	defer server.Close()
+	baseURL, _ := url.Parse(server.URL)
+
+	got, err := host.NewClient(baseURL, "test-token", server.Client()).InspectCore(
+		context.Background(), int64(len(payload)), bytes.NewReader(payload))
+	if err != nil || got.PackageID != want.PackageID || !got.Compatible || got.CompatibilityError != nil ||
+		got.Descriptor.Core.ID != want.Descriptor.Core.ID {
+		t.Fatalf("inspection=%#v error=%v", got, err)
+	}
+}
+
+func TestClientDevelopmentCoreInspectionAcceptsStructuredIncompatibility(t *testing.T) {
+	want := protocol.CoreInspection{PackageID: strings.Repeat("a", 64),
+		Descriptor: validCoreInspectionDescriptor(), Compatible: false,
+		CompatibilityError: &protocol.APIError{Code: protocol.CodeUnsupportedOperation,
+			Message: "required interface unavailable", Phase: "compatibility",
+			Expected: "fes.gamepad@1.0", Observed: "none"}}
+	transport := &staticResponseTransport{body: string(mustJSON(t, want))}
+	got, err := contentClientWithTransport(transport).InspectCore(context.Background(), 3, strings.NewReader("pkg"))
+	if err != nil || got.Compatible || got.CompatibilityError == nil ||
+		got.CompatibilityError.Expected != "fes.gamepad@1.0" || got.CompatibilityError.Observed != "none" {
+		t.Fatalf("inspection=%#v error=%v", got, err)
+	}
+}
+
+func TestClientDevelopmentCoreInspectionRejectsInvalidInputAndResponse(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		size        int64
+		reader      io.Reader
+		response    protocol.CoreInspection
+		wantRequest bool
+	}{
+		{name: "empty input", size: 0, reader: strings.NewReader(""), wantRequest: false},
+		{name: "missing reader", size: 3, wantRequest: false},
+		{name: "invalid package id", size: 3, reader: strings.NewReader("pkg"), response: protocol.CoreInspection{PackageID: "bad", Descriptor: validCoreInspectionDescriptor(), Compatible: true}, wantRequest: true},
+		{name: "invalid descriptor", size: 3, reader: strings.NewReader("pkg"), response: protocol.CoreInspection{PackageID: strings.Repeat("a", 64), Compatible: true}, wantRequest: true},
+		{name: "compatible with error", size: 3, reader: strings.NewReader("pkg"), response: protocol.CoreInspection{PackageID: strings.Repeat("a", 64), Descriptor: validCoreInspectionDescriptor(), Compatible: true, CompatibilityError: &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "bad", Phase: "compatibility"}}, wantRequest: true},
+		{name: "incompatible without error", size: 3, reader: strings.NewReader("pkg"), response: protocol.CoreInspection{PackageID: strings.Repeat("a", 64), Descriptor: validCoreInspectionDescriptor()}, wantRequest: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var client *host.Client
+			counter := &countingResponseTransport{}
+			if test.wantRequest {
+				client = contentClientWithTransport(&staticResponseTransport{body: string(mustJSON(t, test.response))})
+			} else {
+				client = contentClientWithTransport(counter)
+			}
+			_, err := client.InspectCore(context.Background(), test.size, test.reader)
+			if err == nil {
+				t.Fatal("invalid inspection accepted")
+			}
+			if !test.wantRequest && counter.calls != 0 {
+				t.Fatalf("transport calls=%d", counter.calls)
+			}
+		})
+	}
+}
+
+func TestClientDevelopmentCoreInspectionTransportFailureIsNotAMutation(t *testing.T) {
+	_, err := contentClientWithTransport(&developmentDeadlineTransport{}).InspectCore(
+		context.Background(), 3, strings.NewReader("pkg"))
+	var apiErr *protocol.APIError
+	if !errors.Is(err, context.DeadlineExceeded) || !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeTransferFailed {
+		t.Fatalf("lost inspection response error=%v", err)
+	}
+	if ambiguous, ok := err.(interface{ AmbiguousMutation() bool }); ok && ambiguous.AmbiguousMutation() {
+		t.Fatalf("read-only inspection was classified as an ambiguous mutation: %T", err)
+	}
+}
+
+func validCoreInspectionDescriptor() corepackage.Descriptor {
+	return corepackage.Descriptor{
+		Format:     2,
+		Core:       corepackage.Core{ID: "fes.pong", Name: "FES Pong", Description: "test", Version: "1.0.0"},
+		Target:     corepackage.Target{Platform: "de10_nano", Device: "5CSEBA6U23I7", ProgrammingProfile: "fes-gp-v1"},
+		Payload:    corepackage.Payload{File: "core.rbf", Size: 3, SHA256: strings.Repeat("b", 64)},
+		ABI:        corepackage.Contract{ID: "fes.simple-game", Major: 1},
+		Interfaces: []corepackage.Interface{{ID: "fes.gamepad", Major: 1, Required: true}},
+		Build: corepackage.Build{ID: strings.Repeat("c", 32), Repository: "https://example.invalid/fes-pong",
+			Revision: strings.Repeat("d", 40), RecipeSHA256: strings.Repeat("e", 64), Toolchain: "test toolchain"},
+	}
+}
+
+func mustJSON(t *testing.T, value any) []byte {
+	t.Helper()
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
 }
 
 func TestClientDevelopmentRBFRejectsMismatchedStatus(t *testing.T) {

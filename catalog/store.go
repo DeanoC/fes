@@ -249,6 +249,9 @@ func (a *contentLaunchAdmission) Close() error {
 }
 
 func (s *Store) BeginRootScan(ctx context.Context, root Root) (*ScanSession, error) {
+	if err := rejectCorePackageRoot(root); err != nil {
+		return nil, err
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("begin scan for root %q: %w", root.ID, err)
@@ -458,7 +461,7 @@ const reasonLibraryRebound = "library_path_changed"
 // Libraries returns stored library identities. Folder-watch uses this to
 // retire SNES rows that are no longer the configured source of truth.
 func (s *Store) Libraries(ctx context.Context) ([]Root, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, system, root FROM libraries WHERE root != ? ORDER BY id`, builtinRoot)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, system, root FROM libraries WHERE root NOT IN (?, ?) ORDER BY id`, builtinRoot, corePackageRoot)
 	if err != nil {
 		return nil, fmt.Errorf("list catalog libraries: %w", err)
 	}
@@ -484,6 +487,9 @@ func (s *Store) RetireLibrary(ctx context.Context, libraryID string) error {
 	libraryID = strings.TrimSpace(libraryID)
 	if libraryID == "" {
 		return fmt.Errorf("retire catalog library: empty id")
+	}
+	if libraryID == corePackageLibraryID {
+		return fmt.Errorf("%w: reserved core package collection cannot be retired", ErrInvalidCoreEntry)
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -517,6 +523,9 @@ func (s *Store) RetireLibrary(ctx context.Context, libraryID string) error {
 // them under root.ID. A same-system id at another path remains for
 // RebindLibrary to move.
 func (s *Store) ReleaseLibraryRoot(ctx context.Context, root Root) error {
+	if err := rejectCorePackageRoot(root); err != nil {
+		return err
+	}
 	root.ID = strings.TrimSpace(root.ID)
 	if root.ID == "" {
 		return fmt.Errorf("release catalog library root: empty id")
@@ -580,6 +589,9 @@ func (s *Store) ReleaseLibraryRoot(ctx context.Context, root Root) error {
 // catalog rows are removed so callers cannot launch content collected from the
 // old root; a following scan recreates matching game ids from the new root.
 func (s *Store) RebindLibrary(ctx context.Context, root Root) error {
+	if err := rejectCorePackageRoot(root); err != nil {
+		return err
+	}
 	root.ID = strings.TrimSpace(root.ID)
 	if root.ID == "" {
 		return fmt.Errorf("rebind catalog library: empty id")
@@ -638,6 +650,9 @@ func (s *Store) RebindLibrary(ctx context.Context, root Root) error {
 }
 
 func (s *Store) MarkRootOffline(ctx context.Context, root Root, reason string) (RootReport, error) {
+	if err := rejectCorePackageRoot(root); err != nil {
+		return RootReport{}, err
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return RootReport{}, fmt.Errorf("begin offline update for root %q: %w", root.ID, err)

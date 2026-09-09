@@ -6,6 +6,11 @@ and content selection; the MiSTer is a small, directly controlled target.
 
 ## What works now
 
+- [Installed FPGA core packages](docs/core-package-library.md) with explicit
+  version selection and ROM-less entries in the normal library. Import and
+  selection do not replace a running core.
+
+
 - Thousands of catalogued games across the systems in
   `internal/systems/table.go`.
 - Real FPGA game launches on the designated MiSTer Pi.

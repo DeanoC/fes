@@ -71,10 +71,10 @@ func TestSchemaMigratesNewDatabaseAndRejectsFutureVersion(t *testing.T) {
 	if err := db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 4 {
-		t.Fatalf("user_version = %d, want 4", version)
+	if version != 5 {
+		t.Fatalf("user_version = %d, want 5", version)
 	}
-	rows, err := db.QueryContext(ctx, "SELECT name FROM sqlite_master WHERE type IN ('table', 'index') AND name IN ('games', 'libraries', 'games_fts', 'games_system_title_id') ORDER BY name")
+	rows, err := db.QueryContext(ctx, "SELECT name FROM sqlite_master WHERE type IN ('table', 'index') AND name IN ('core_entries', 'games', 'libraries', 'games_fts', 'games_system_title_id') ORDER BY name")
 	if err != nil {
 		t.Fatalf("list tables: %v", err)
 	}
@@ -90,11 +90,11 @@ func TestSchemaMigratesNewDatabaseAndRejectsFutureVersion(t *testing.T) {
 	if err := rows.Err(); err != nil {
 		t.Fatalf("iterate tables: %v", err)
 	}
-	if want := []string{"games", "games_fts", "games_system_title_id", "libraries"}; !reflect.DeepEqual(names, want) {
+	if want := []string{"core_entries", "games", "games_fts", "games_system_title_id", "libraries"}; !reflect.DeepEqual(names, want) {
 		t.Fatalf("schema objects = %v, want %v", names, want)
 	}
 
-	if _, err := db.ExecContext(ctx, "PRAGMA user_version = 5"); err != nil {
+	if _, err := db.ExecContext(ctx, "PRAGMA user_version = 6"); err != nil {
 		t.Fatalf("set future user_version: %v", err)
 	}
 	if err := db.Close(); err != nil {
