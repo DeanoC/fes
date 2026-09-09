@@ -1,10 +1,61 @@
-# Schema `mister-packages.v1`
+# Schemas
+
+## Core bundle manifest format 2
+
+[`schema/core-bundle-v2.json`](../schema/core-bundle-v2.json) is the Draft
+2020-12 structural schema for a parsed format-2 `manifest.toml`. It requires
+only the declared fields and rejects unknown fields. ABI and interface IDs are
+validated as well-formed IDs; compatibility with a runtime registry is a
+separate consumer decision, so an unknown but well-formed ABI remains
+inspectable.
+
+The root contains `format = 2` and the tables `core`, `target`, `payload`,
+`abi`, `interfaces`, and `build`. `core.system` is the only optional field. A
+non-MiSTer package may omit it, and `interfaces` may be empty.
+
+- Core, ABI, interface, platform, profile, and optional system IDs match
+  `[a-z][a-z0-9_.-]{0,95}`.
+- Core names contain 1 through 128 UTF-8 bytes. Descriptions contain at most
+  2,048 UTF-8 bytes and may be empty. Full SemVer 2.0.0 syntax is accepted for
+  `core.version`, including prerelease and build metadata.
+- ABI and interface majors are 1 through 65,535; minors are 0 through 65,535.
+  The TOML values must be integers, not integral floats or Booleans.
+- Payloads are named `core.rbf`, contain 1 through 33,554,432 bytes, and carry
+  their exact size and lowercase SHA-256 digest.
+- Build IDs are 32 lowercase hex digits. Revisions are full 40-hex Git commits,
+  recipe hashes are 64 lowercase hex digits, repositories are HTTPS URLs without
+  embedded credentials, and toolchain descriptions contain 1 through 1,024
+  UTF-8 bytes.
+- Every string excludes control characters. A manifest contains 1 through
+  65,536 bytes and must be valid UTF-8 and TOML.
+
+JSON Schema counts Unicode code points rather than UTF-8 bytes. The schema
+records byte bounds with `x-fes-maxUtf8Bytes`; readers enforce those bounds on
+the decoded TOML strings. Readers also reject duplicate TOML keys, duplicate
+interface IDs, non-integer TOML scalars where integers are required, and payload
+size or digest mismatches. These are semantic checks rather than TOML
+reserialization rules.
+
+The package identity is lowercase SHA-256 over
+`FES-CORE-PACKAGE-2\n`, then a little-endian 64-bit manifest length and the
+exact manifest bytes, then a little-endian 64-bit payload length and the exact
+payload bytes. Manifest bytes are never normalized before hashing.
+
+[`testdata/core-bundle-v2/cases.json`](../testdata/core-bundle-v2/cases.json)
+indexes positive and negative fixtures. Paths are relative to that directory.
+Valid entries include their package identity; invalid entries include a reason.
+The fixture payload is synthetic test-only data and must never be deployed.
+Positive fixtures include literal strings, dotted keys, inline tables, full
+SemVer, and exact multibyte bounds so consumers test TOML meaning rather than a
+single canonical spelling.
+
+## Package schema `mister-packages.v1`
 
 Every package file starts with:
 
 ```yaml
 schema: mister-packages.v1
-kind: platform | board | soc | cpu | register_bank | system | core_source
+kind: platform | board | soc | cpu | register_bank | system | core_source | abi | programming_profiles
 id: unique.dot.or.slash.free.id
 ```
 
@@ -229,3 +280,83 @@ in Auto mode, using the synthesized metadata. Ordinary cartridges require
 no external coprocessor firmware. Enhancement chips, interleaved dumps,
 ExHiROM, BS-X/Sufami, and persistent saves remain outside this profile's
 initial runtime scope.
+
+## abi
+
+An ABI describes a versioned wire contract. It contains no MMIO addresses,
+bridge settings, reset scripts, or executable programming instructions.
+
+```yaml
+kind: abi
+id: fes.simple-game
+major: 1
+minor: 0
+tag: 1
+constants:
+  - name: FesGpSignature
+    value: 0xf5000000
+interfaces:
+  - id: fes.gamepad
+    major: 1
+    minor: 0
+    capability_bit: 0
+```
+
+ABI and interface IDs use `[a-z][a-z0-9_.-]{0,95}`. ABI and interface majors
+are 1 through 65,535, minors are 0 through 65,535, capability bits are 0
+through 31, and constant values are unsigned 32-bit integers. Constant names,
+interface IDs, and capability bits are unique within an ABI. `tag` is optional
+and reads as zero when absent: `mister` 1.0 has no fabricated FES GP
+live-identity tag, while `fes.simple-game` has tag 1.
+
+`packages/abi/fes_simple_game.yaml` owns the FES GP signature,
+request/ACK/error masks, identity words and indices, opcodes, error replies,
+button masks, and interface capability assignments. The C++ and Go emitters
+preserve its `FesGp` names; the Verilog emitter converts them to guarded
+`FES_GP_*` macros.
+
+## programming_profiles
+
+A programming-profile registry names the platform/device and approved
+profile/ABI-major pairs. It remains descriptive: runtime owns each profile's
+electrical setup, containment, reset ordering, and bridge release.
+
+```yaml
+kind: programming_profiles
+id: de10_nano
+platform: de10_nano
+device: 5CSEBA6U23I7
+profiles:
+  - id: fes-gp-v1
+    diagnostic_only: false
+    abis:
+      - id: fes.simple-game
+        major: 1
+  - id: development-contained-v1
+    diagnostic_only: true
+    abis: []
+```
+
+Profile IDs are unique. A normal profile contains one or more unique ABI-major
+pairs; a diagnostic-only profile contains no pair. The DE10-Nano registry
+contains only `mister-v1`/`mister` major 1 and `fes-gp-v1`/`fes.simple-game`
+major 1. `development-contained-v1` is explicitly diagnostic-only and has no
+ABI fallback.
+
+`emit-cpp` represents every row as `GeneratedProgrammingProfilePair` with
+`profile`, `abi`, `major`, and `diagnostic_only`; a diagnostic row uses
+`nullptr`, zero, and `true`. `emit-go` emits the equivalent
+`ProgrammingProfilePair`. Runtime consumers combine a matching profile/ABI
+major row with the ABI file's declared ABI minor and interfaces; they do not
+duplicate mailbox constants or infer an unlisted pairing.
+
+`testdata/fes-gp-v1/exchanges.json` is the source-independent FES GP v1
+fixture: it records a field write followed by a toggle for all 16 identity
+words, the required initial `identity-word-zero` exchange, toggle-back,
+invalid opcode/index/argument replies, gameplay reset, and neutral buttons.
+Its top-level `initial_request_toggle` starts one contiguous sequence, so each
+exchange begins with the preceding final toggle and its GPI ACK equals the new
+final toggle. Its `build_id` is synthetic
+`00112233445566778899aabbccddeeff`; the identity words encode adjacent ID byte
+pairs with the first byte low. It is a wire fixture, not hardware acceptance
+evidence.

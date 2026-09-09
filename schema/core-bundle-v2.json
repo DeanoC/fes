@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FES core bundle format 2 manifest",
+  "description": "Structural schema for manifest.toml after TOML parsing. Archive, exact TOML scalar type, UTF-8 byte length, duplicate interface ID, and payload byte checks remain reader requirements.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "core", "target", "payload", "abi", "interfaces", "build"],
+  "properties": {
+    "format": {
+      "type": "integer",
+      "const": 2
+    },
+    "core": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "description", "version"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*(?![\\s\\S])",
+          "x-fes-maxUtf8Bytes": 128
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2048,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*(?![\\s\\S])",
+          "x-fes-maxUtf8Bytes": 2048
+        },
+        "version": { "$ref": "#/$defs/semver" },
+        "system": { "$ref": "#/$defs/id" }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["platform", "device", "programming_profile"],
+      "properties": {
+        "platform": { "$ref": "#/$defs/id" },
+        "device": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*(?![\\s\\S])"
+        },
+        "programming_profile": { "$ref": "#/$defs/id" }
+      }
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "size", "sha256"],
+      "properties": {
+        "file": { "const": "core.rbf" },
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 33554432
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}(?![\\s\\S])"
+        }
+      }
+    },
+    "abi": { "$ref": "#/$defs/versionedContract" },
+    "interfaces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "major", "minor", "required"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "major": { "$ref": "#/$defs/major" },
+          "minor": { "$ref": "#/$defs/minor" },
+          "required": { "type": "boolean" }
+        }
+      }
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "repository", "revision", "recipe_sha256", "toolchain"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}(?![\\s\\S])"
+        },
+        "repository": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://(?![^/?#]*@)[^/?#\\u0000-\\u0020\\u007f-\\u009f]+(?:[/?#][^\\u0000-\\u0020\\u007f-\\u009f]*)?(?![\\s\\S])"
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^[0-9A-Fa-f]{40}(?![\\s\\S])"
+        },
+        "recipe_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}(?![\\s\\S])"
+        },
+        "toolchain": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*(?![\\s\\S])",
+          "x-fes-maxUtf8Bytes": 1024
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[a-z][a-z0-9_.-]{0,95}(?![\\s\\S])"
+    },
+    "major": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "minor": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 65535
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?![\\s\\S])"
+    },
+    "versionedContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "major", "minor"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "major": { "$ref": "#/$defs/major" },
+        "minor": { "$ref": "#/$defs/minor" }
+      }
+    }
+  }
+}

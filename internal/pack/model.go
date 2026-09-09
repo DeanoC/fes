@@ -263,3 +263,52 @@ type Symbol struct {
 	Kind  string
 	From  string
 }
+
+// ABIFile declares one versioned FPGA software contract. It describes wire
+// constants and advertised interfaces; it never contains MMIO or reset recipes.
+type ABIFile struct {
+	Schema      string         `yaml:"schema"`
+	Kind        string         `yaml:"kind"`
+	ID          string         `yaml:"id"`
+	Description string         `yaml:"description"`
+	Major       uint16         `yaml:"major"`
+	Minor       uint16         `yaml:"minor"`
+	Tag         uint16         `yaml:"tag"`
+	Constants   []ABIConstant  `yaml:"constants"`
+	Interfaces  []ABIInterface `yaml:"interfaces"`
+}
+
+type ABIConstant struct {
+	Name  string        `yaml:"name"`
+	Value hexnum.Uint64 `yaml:"value"`
+}
+
+type ABIInterface struct {
+	ID            string `yaml:"id"`
+	Major         uint16 `yaml:"major"`
+	Minor         uint16 `yaml:"minor"`
+	CapabilityBit uint8  `yaml:"capability_bit"`
+}
+
+// ProgrammingProfilesFile is the platform registry of approved ABI-major
+// pairings. Profiles are declarative names; runtime owns the actual lifecycle.
+type ProgrammingProfilesFile struct {
+	Schema      string               `yaml:"schema"`
+	Kind        string               `yaml:"kind"`
+	ID          string               `yaml:"id"`
+	Description string               `yaml:"description"`
+	Platform    string               `yaml:"platform"`
+	Device      string               `yaml:"device"`
+	Profiles    []ProgrammingProfile `yaml:"profiles"`
+}
+
+type ProgrammingProfile struct {
+	ID             string     `yaml:"id"`
+	DiagnosticOnly bool       `yaml:"diagnostic_only"`
+	ABIs           []ABIMajor `yaml:"abis"`
+}
+
+type ABIMajor struct {
+	ID    string `yaml:"id"`
+	Major uint16 `yaml:"major"`
+}

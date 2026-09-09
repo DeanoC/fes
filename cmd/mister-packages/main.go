@@ -6,6 +6,7 @@ import (
 
 	"github.com/DeanoC/mister-packages/internal/emitcpp"
 	"github.com/DeanoC/mister-packages/internal/emitgo"
+	"github.com/DeanoC/mister-packages/internal/emitverilog"
 	"github.com/DeanoC/mister-packages/internal/pack"
 )
 
@@ -61,6 +62,17 @@ func run(command string, args []string) error {
 		}
 		fmt.Print(text)
 		return nil
+	case "emit-verilog":
+		path, err := inputPath(args)
+		if err != nil {
+			return err
+		}
+		text, err := emitVerilogPath(path)
+		if err != nil {
+			return err
+		}
+		fmt.Print(text)
+		return nil
 	case "diff-oracle":
 		if len(args) < 2 {
 			return fmt.Errorf("usage: mister-packages diff-oracle <package.yaml> <oracle.yaml>")
@@ -109,8 +121,20 @@ func validatePath(path string) (string, error) {
 			return "", err
 		}
 		return src.ID, nil
+	case "abi":
+		abi, err := pack.LoadABI(path)
+		if err != nil {
+			return "", err
+		}
+		return abi.ID, nil
+	case "programming_profiles":
+		profiles, err := pack.LoadProgrammingProfiles(path)
+		if err != nil {
+			return "", err
+		}
+		return profiles.ID, nil
 	default:
-		return "", fmt.Errorf("%s: kind %q is not platform, system, or core_source", path, kind)
+		return "", fmt.Errorf("%s: kind %q is not platform, system, core_source, abi, or programming_profiles", path, kind)
 	}
 }
 
@@ -148,14 +172,28 @@ func emitGoPath(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if kind != "system" {
-		return "", fmt.Errorf("%s: emit-go expects kind system, got %q", path, kind)
+	switch kind {
+	case "system":
+		sys, err := pack.LoadSystem(path)
+		if err != nil {
+			return "", err
+		}
+		return emitgo.GenerateSystem(sys)
+	case "abi":
+		abi, err := pack.LoadABI(path)
+		if err != nil {
+			return "", err
+		}
+		return emitgo.GenerateABI(abi)
+	case "programming_profiles":
+		profiles, err := pack.LoadProgrammingProfiles(path)
+		if err != nil {
+			return "", err
+		}
+		return emitgo.GenerateProgrammingProfiles(profiles)
+	default:
+		return "", fmt.Errorf("%s: emit-go expects kind system, abi, or programming_profiles, got %q", path, kind)
 	}
-	sys, err := pack.LoadSystem(path)
-	if err != nil {
-		return "", err
-	}
-	return emitgo.GenerateSystem(sys)
 }
 
 func emitPath(path string) (string, error) {
@@ -176,9 +214,36 @@ func emitPath(path string) (string, error) {
 			return "", err
 		}
 		return emitcpp.GenerateSystem(sys)
+	case "abi":
+		abi, err := pack.LoadABI(path)
+		if err != nil {
+			return "", err
+		}
+		return emitcpp.GenerateABI(abi)
+	case "programming_profiles":
+		profiles, err := pack.LoadProgrammingProfiles(path)
+		if err != nil {
+			return "", err
+		}
+		return emitcpp.GenerateProgrammingProfiles(profiles)
 	default:
-		return "", fmt.Errorf("%s: kind %q is not platform or system", path, kind)
+		return "", fmt.Errorf("%s: emit-cpp expects kind platform, system, abi, or programming_profiles, got %q", path, kind)
 	}
+}
+
+func emitVerilogPath(path string) (string, error) {
+	kind, err := pack.PeekKind(path)
+	if err != nil {
+		return "", err
+	}
+	if kind != "abi" {
+		return "", fmt.Errorf("%s: emit-verilog expects kind abi, got %q", path, kind)
+	}
+	abi, err := pack.LoadABI(path)
+	if err != nil {
+		return "", err
+	}
+	return emitverilog.GenerateABI(abi)
 }
 
 func diffOracle(packagePath, oraclePath string) error {
@@ -258,10 +323,11 @@ Commands:
   validate [package.yaml]
   report [package.yaml]
   emit-cpp [package.yaml]
-  emit-go [system.yaml]
+  emit-go [system.yaml|abi.yaml|programming.yaml]
+  emit-verilog [abi.yaml]
   diff-oracle <package.yaml> <oracle.yaml>
 
 Default package is packages/platform/de10_nano.yaml.
-Package kind is platform, system, or core_source.
+Package kind is platform, system, core_source, abi, or programming_profiles.
 `)
 }
