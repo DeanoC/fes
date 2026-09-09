@@ -209,6 +209,8 @@ func (m *Model) inputAttract(e remoteinput.Event, dx, dy int, now time.Time) str
 	item, ok := m.currentAttractItem()
 	m.noteActivity(now)
 	if e.Kind == remoteinput.KindButton && e.Action == remoteinput.ActionPress && e.Code == remoteinput.ButtonA && ok && item.Launchable && strings.TrimSpace(item.GameID) != "" {
+		// focusedGame prefers the strip while it is active; attract A launches the still.
+		m.leaveStrip()
 		if !m.focusGame(item.GameID) {
 			m.launchID = strings.TrimSpace(item.GameID)
 		}
@@ -249,10 +251,10 @@ func (m *Model) consumeLaunchID() string {
 	if id != "" {
 		return id
 	}
-	if len(m.Games) == 0 || m.Focus < 0 || m.Focus >= len(m.Games) {
-		return ""
+	if game, ok := m.focusedGame(); ok {
+		return game.ID
 	}
-	return m.Games[m.Focus].ID
+	return ""
 }
 
 // AttractView is the current stills stage, including crossfade progress.

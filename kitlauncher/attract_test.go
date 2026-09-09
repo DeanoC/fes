@@ -176,6 +176,69 @@ func TestAttractALaunchesCurrentItem(t *testing.T) {
 	}
 }
 
+func TestAttractAFromStripLaunchesAttractGame(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true}
+	m.SetCatalog(mixedCatalog())
+	m.SetStrip([]tenfoot.Game{
+		{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true},
+	}, "Recent")
+	m.Focus = len(m.Games) - 1
+	now := time.Unix(1, 0)
+	if action := pressNamed(&m, "dpad-down", now); action != "" || !m.StripActive {
+		t.Fatalf("enter strip action=%q strip=%v", action, m.StripActive)
+	}
+	m.SetAttractIdle(time.Millisecond)
+	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{stillItem("mario", "Mario", handleAA())}})
+	t0 := time.Unix(2, 0)
+	m.lastInput = t0
+	m.Tick(t0)
+	m.Tick(t0.Add(5 * time.Millisecond))
+	if !m.AttractActive || !m.StripActive {
+		t.Fatalf("attract=%v strip=%v", m.AttractActive, m.StripActive)
+	}
+	a, _ := remoteinput.NormalizeGamepad("a", true)
+	if action := m.Input(a, t0.Add(10*time.Millisecond)); action != "launch" {
+		t.Fatalf("A action %q", action)
+	}
+	if m.AttractActive || m.StripActive {
+		t.Fatalf("after A attract=%v strip=%v", m.AttractActive, m.StripActive)
+	}
+	if m.Games[m.Focus].ID != "mario" {
+		t.Fatalf("grid focus %s", m.Games[m.Focus].ID)
+	}
+	if id := m.consumeLaunchID(); id != "mario" {
+		t.Fatalf("launch id %q", id)
+	}
+}
+
+func TestAttractBFromStripReturnsToStrip(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true}
+	m.SetCatalog(mixedCatalog())
+	m.SetStrip([]tenfoot.Game{
+		{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true},
+	}, "Recent")
+	m.Focus = len(m.Games) - 1
+	now := time.Unix(1, 0)
+	pressNamed(&m, "dpad-down", now)
+	if !m.StripActive {
+		t.Fatal("expected strip")
+	}
+	m.SetAttractIdle(time.Millisecond)
+	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{stillItem("mario", "Mario", handleAA())}})
+	t0 := time.Unix(2, 0)
+	m.lastInput = t0
+	m.Tick(t0.Add(5 * time.Millisecond))
+	if !m.AttractActive {
+		t.Fatal("expected attract")
+	}
+	if action := pressNamed(&m, "b", t0.Add(10*time.Millisecond)); action != "" || m.AttractActive || !m.StripActive {
+		t.Fatalf("B action=%q attract=%v strip=%v", action, m.AttractActive, m.StripActive)
+	}
+	if m.Games[m.Focus].ID != "zelda" {
+		t.Fatalf("grid focus %s", m.Games[m.Focus].ID)
+	}
+}
+
 func TestAttractALaunchesUnknownGameID(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetCatalog(mixedCatalog())

@@ -290,6 +290,27 @@ func TestExerciseFPGAAnimProof(t *testing.T) {
 	}
 }
 
+func TestExerciseStripGridPaintsHandoffAndHidesEmpty(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseStripGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-strip PASS") || !strings.Contains(report, "selftest-wheel PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "enter-strip") || !strings.Contains(report, "strip-detail") || !strings.Contains(report, "hide-empty") {
+		t.Fatalf("missing strip evidence: %s", report)
+	}
+}
+
 func TestExerciseWheelGridPaintsHeroEntersAndNestsMotion(t *testing.T) {
 	const w, h = 640, 480
 	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}

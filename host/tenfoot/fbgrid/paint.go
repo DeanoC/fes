@@ -43,6 +43,7 @@ func Paint(d gfx.Device, g Grid) {
 		}
 		paintTile(d, g, th, i, g.Tiles[i])
 	}
+	paintStrip(d, g, th)
 	status := g.Footer
 	if status == "" {
 		status = g.Status()
@@ -91,7 +92,8 @@ func paintTile(d gfx.Device, g Grid, th theme.Theme, i int, tile Tile) {
 		fill = g.confirmFill(tile.Color, th.Flash)
 	}
 	inner := r
-	if i == g.Focus {
+	focused := i == g.Focus && !g.StripActive
+	if focused {
 		d.FillRect(r, th.Highlight)
 		if in, ok := g.tileInner(i); ok {
 			inner = in
@@ -118,7 +120,7 @@ func paintTile(d gfx.Device, g Grid, th theme.Theme, i int, tile Tile) {
 		} else {
 			paintPlaceholder(d, inner, tile.Name, fill, th, tile.CoverKind == CoverLoading)
 		}
-		if i == g.Focus {
+		if focused {
 			paintRectOutline(d, inner, 1, th.Highlight)
 		}
 	}
@@ -167,6 +169,113 @@ func paintTile(d gfx.Device, g Grid, th theme.Theme, i int, tile Tile) {
 	}
 	name := gfx.FitTextWeight(tile.Name, labelSize, maxW, labelW)
 	textY := int(inner.Y+inner.H) - textH - 2
+	if textY < int(inner.Y) {
+		textY = int(inner.Y)
+	}
+	d.DrawTextWeight(textX, textY, name, labelSize, labelW, th.Label)
+}
+
+func paintStrip(d gfx.Device, g Grid, th theme.Theme) {
+	n := g.stripVisible()
+	if d == nil || n == 0 {
+		return
+	}
+	lx, ly, ok := g.StripLabelOrigin()
+	if ok {
+		label := stripLabelText(g, th)
+		size := th.CaptionPx()
+		weight := th.CaptionWeight()
+		textH := gfx.TextHeightWeight(size, weight)
+		y := chromeTextY(ly, g.stripLabelH(), textH, true)
+		d.DrawTextWeight(lx, y, label, size, weight, th.Header)
+	}
+	for i := 0; i < n; i++ {
+		paintStripTile(d, g, th, i, g.Strip[i])
+	}
+}
+
+func paintStripTile(d gfx.Device, g Grid, th theme.Theme, i int, tile Tile) {
+	r, ok := g.stripTileRect(i)
+	if !ok {
+		return
+	}
+	fill := tile.Color
+	inner := r
+	focused := g.StripActive && i == g.StripFocus
+	if focused {
+		d.FillRect(r, th.Highlight)
+		if in, ok := g.stripTileInner(i); ok {
+			inner = in
+		}
+		d.FillRect(inner, fill)
+	} else {
+		d.FillRect(r, fill)
+	}
+	if th.CoverFrameWidth > 0 && inner.W > float32(2*th.CoverFrameWidth) && inner.H > float32(2*th.CoverFrameWidth) {
+		d.FillRect(inner, th.CoverFrame)
+		fw := float32(th.CoverFrameWidth)
+		inner = gfx.Rect{
+			X: inner.X + fw,
+			Y: inner.Y + fw,
+			W: inner.W - 2*fw,
+			H: inner.H - 2*fw,
+		}
+		d.FillRect(inner, fill)
+	}
+	if tile.Cover != nil {
+		d.FillRect(inner, letterboxFill(fill, th))
+		paintCover(d, tile.Cover, inner)
+	} else {
+		paintPlaceholder(d, inner, tile.Name, fill, th, tile.CoverKind == CoverLoading)
+	}
+	if focused {
+		paintRectOutline(d, inner, 1, th.Highlight)
+	}
+	labelSize := th.CaptionPx()
+	labelW := th.CaptionWeight()
+	textH := gfx.TextHeightWeight(labelSize, labelW)
+	barH := float32(textH + 4)
+	if barH < 12 {
+		barH = 12
+	}
+	if tile.Logo != nil && barH < 18 {
+		barH = 18
+	}
+	if barH > inner.H {
+		barH = inner.H
+	}
+	bar := gfx.Rect{
+		X: inner.X,
+		Y: inner.Y + inner.H - barH,
+		W: inner.W,
+		H: barH,
+	}
+	d.FillRect(bar, th.LabelBar)
+	if tile.Logo != nil {
+		padX := float32(2)
+		padY := float32(1)
+		logoCell := gfx.Rect{
+			X: bar.X + padX,
+			Y: bar.Y + padY,
+			W: bar.W - 2*padX,
+			H: bar.H - 2*padY,
+		}
+		if logoCell.W < 1 {
+			logoCell.W = 1
+		}
+		if logoCell.H < 1 {
+			logoCell.H = 1
+		}
+		paintCover(d, tile.Logo, logoCell)
+		return
+	}
+	textX := int(inner.X) + 2
+	maxW := int(inner.W) - 4
+	if maxW < 1 {
+		maxW = 1
+	}
+	name := gfx.FitTextWeight(tile.Name, labelSize, maxW, labelW)
+	textY := int(inner.Y+inner.H) - textH - 1
 	if textY < int(inner.Y) {
 		textY = int(inner.Y)
 	}

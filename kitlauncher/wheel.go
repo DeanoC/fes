@@ -56,6 +56,7 @@ func (m *Model) showWheel(now time.Time) {
 		return
 	}
 	m.closeDetail()
+	m.leaveStrip()
 	m.WheelOpen = true
 	m.fromWheel = false
 	m.noteActivity(now)
@@ -194,6 +195,9 @@ func (m Model) WheelHint() string {
 
 // GridHint is the idle footer on the filtered game grid.
 func (m Model) GridHint() string {
+	if m.StripActive {
+		return m.stripHint()
+	}
 	if m.fromWheel {
 		return "A play | B platforms | L/R shelf"
 	}

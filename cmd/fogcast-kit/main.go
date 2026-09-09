@@ -45,6 +45,7 @@ func run() error {
 	selftestDetail := flag.Bool("selftest-detail", false, "open/close title detail, paint cover and title ink, then exit")
 	selftestMotion := flag.Bool("selftest-motion", false, "prove focus pop and confirm pulse over ticks, then exit")
 	selftestWheel := flag.Bool("selftest-wheel", false, "paint platform wheel and hero, enter a system grid, then exit")
+	selftestStrip := flag.Bool("selftest-strip", false, "paint recent/favorites strip, hand off from grid, then exit")
 	flag.Parse()
 	if *selftestFPGA {
 		fb := "/dev/fb0"
@@ -67,7 +68,7 @@ func run() error {
 		}
 		return runThemeSelftest(fb)
 	}
-	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestMotion || *selftestWheel {
+	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestMotion || *selftestWheel || *selftestStrip {
 		fb := "/dev/fb0"
 		configTheme := ""
 		if c, err := kitlauncher.LoadConfig(*configPath); err == nil {
@@ -82,6 +83,9 @@ func run() error {
 		}
 		if *selftestMotion {
 			return runMotionSelftest(fb, th)
+		}
+		if *selftestStrip {
+			return runStripSelftest(fb, th)
 		}
 		if *selftestWheel {
 			return runWheelSelftest(fb, th)
@@ -211,13 +215,16 @@ func run() error {
 			prefetch = len(m.Games)
 		}
 		ids := tenfoot.PageIDs(m.Games, start, prefetch)
+		ids = append(ids, tenfoot.PageIDs(m.Strip, 0, len(m.Strip))...)
 		presentations.Keep(ids)
 		presentations.Request(ctx, client.Library, ids)
 		handles := tenfoot.CollectCoverHandles(m.Games, start, prefetch, presentations.Get)
 		handles = append(handles, tenfoot.CollectLogoHandles(m.Games, start, prefetch, presentations.Get)...)
+		handles = append(handles, tenfoot.CollectCoverHandles(m.Strip, 0, len(m.Strip), presentations.Get)...)
+		handles = append(handles, tenfoot.CollectLogoHandles(m.Strip, 0, len(m.Strip), presentations.Get)...)
 		if m.DetailOpen {
 			handles = append(handles, m.DetailPrefetchHandles()...)
-			if game, ok := focusedGame(m); ok {
+			if game, ok := m.FocusedGame(); ok {
 				pres := presentations.Get(game.ID)
 				if handle := tenfoot.CoverHandle(game, pres); handle != "" {
 					handles = append(handles, handle)
@@ -297,18 +304,22 @@ func loadKitRemapper(flagSpec, configSpec string) (*inputmap.Remapper, error) {
 }
 
 type renderKey struct {
-	Focus, GameCount, AttractIndex, AttractFade, Shot int
-	FocusID, Message, Shelf, AttractHandle, Preview   string
-	SessionState, Execution, GameID                   string
-	Busy, Connected, TargetReady, ControllerConnected bool
-	Attract, Detail, Wheel, Video                     bool
-	Covers, Stills, Presentations                     uint64
+	Focus, GameCount, AttractIndex, AttractFade, Shot, StripFocus int
+	FocusID, Message, Shelf, AttractHandle, Preview, StripID      string
+	SessionState, Execution, GameID                               string
+	Busy, Connected, TargetReady, ControllerConnected             bool
+	Attract, Detail, Wheel, Video, Strip                          bool
+	Covers, Stills, Presentations                                 uint64
 }
 
 func modelRenderKey(m kitlauncher.Model, covers, presentations uint64) renderKey {
 	focusID := ""
-	if m.Focus >= 0 && m.Focus < len(m.Games) {
-		focusID = m.Games[m.Focus].ID
+	if game, ok := m.FocusedGame(); ok {
+		focusID = game.ID
+	}
+	stripID := ""
+	if m.StripFocus >= 0 && m.StripFocus < len(m.Strip) {
+		stripID = m.Strip[m.StripFocus].ID
 	}
 	return renderKey{
 		Focus: m.Focus, GameCount: len(m.Games), FocusID: focusID,
@@ -317,6 +328,7 @@ func modelRenderKey(m kitlauncher.Model, covers, presentations uint64) renderKey
 		TargetReady: m.TargetReady, ControllerConnected: m.ControllerConnected,
 		Detail: m.DetailOpen, Wheel: m.WheelOpen, Shot: m.ShotIndex(),
 		Preview: m.ShotHandle(), Video: m.HasVideoPreview(),
+		Strip: m.StripActive, StripFocus: m.StripFocus, StripID: stripID,
 		Covers: covers, Presentations: presentations,
 	}
 }
@@ -357,6 +369,17 @@ func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCach
 		g.Focus = m.Focus - start
 	}
 	g.Footer = modelFooter(m)
+	if len(m.Strip) > 0 {
+		strip := make([]fbgrid.Tile, 0, len(m.Strip))
+		for _, game := range m.Strip {
+			pres := tenfoot.Presentation{}
+			if presentations != nil {
+				pres = presentations.Get(game.ID)
+			}
+			strip = append(strip, gameTile(game, covers, pres, th))
+		}
+		g.SetStrip(strip, asciiLabel(m.StripLabel), m.StripFocus, m.StripActive)
+	}
 	return g
 }
 
@@ -377,7 +400,7 @@ func modelDetailFrame(m kitlauncher.Model, covers *tenfoot.CoverCache, presentat
 		Theme:       th,
 		Color:       th.SystemColor(detail.Platform),
 	}
-	if game, ok := focusedGame(m); ok {
+	if game, ok := m.FocusedGame(); ok {
 		frame.Color = th.SystemColor(game.System)
 		pres := tenfoot.Presentation{}
 		if presentations != nil {
@@ -429,13 +452,6 @@ func detailFooter(m kitlauncher.Model) string {
 		return msg
 	}
 	return m.DetailHint()
-}
-
-func focusedGame(m kitlauncher.Model) (tenfoot.Game, bool) {
-	if m.Focus < 0 || m.Focus >= len(m.Games) {
-		return tenfoot.Game{}, false
-	}
-	return m.Games[m.Focus], true
 }
 
 func shotCaption(index, count int) string {
