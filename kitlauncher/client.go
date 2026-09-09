@@ -25,6 +25,7 @@ type Config struct {
 	InputProfile string `json:"input_profile,omitempty"`
 	Theme        string `json:"theme,omitempty"`
 	Shelf        string `json:"shelf,omitempty"`
+	AudioChrome  bool   `json:"audio_chrome,omitempty"`
 	path         string `json:"-"`
 }
 
@@ -66,6 +67,7 @@ func SaveConfig(c Config) error {
 		InputProfile string `json:"input_profile,omitempty"`
 		Theme        string `json:"theme,omitempty"`
 		Shelf        string `json:"shelf,omitempty"`
+		AudioChrome  bool   `json:"audio_chrome,omitempty"`
 	}{
 		API:          c.API,
 		Token:        c.Token,
@@ -74,6 +76,7 @@ func SaveConfig(c Config) error {
 		InputProfile: c.InputProfile,
 		Theme:        c.Theme,
 		Shelf:        normalizeShelf(c.Shelf),
+		AudioChrome:  c.AudioChrome,
 	}
 	data, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {

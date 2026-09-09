@@ -188,6 +188,13 @@ H.264 decode. Four or more stills-backed titles with at least one video handle
 paint a 2×2 wall of neighboring stills with the staged tile highlighted. Titles
 without a video handle keep today's stills attract; an empty playlist uses a
 themed idle panel instead of a frozen grid. Full clip playback is a follow-up.
+Attract (and browse, when a measured 0..1 file is supplied) can paint a
+theme-highlight edge pulse. The designated kit has only an ALSA Dummy card,
+which is not FPGA HDMI audio; there is no host session level either. Chrome
+stays off unless `-audio-chrome`, `launcher.json` `audio_chrome`, theme
+`audio_chrome`, or `FOGCAST_AUDIO_CHROME=1`. With the gate on and no meter,
+attract uses a quiet labeled `idle pulse` rather than claiming game audio.
+`-audio-level-file` (or `FOGCAST_AUDIO_LEVEL_FILE`) is the measured injector.
 Title-detail video handles use the screenshot/poster preview above. Header, tile names, placeholder lettermarks, and footer use the embedded Go
 UI faces through `gfx.DrawText` / `gfx.DrawTextWeight` (CGO-free; no system
 fonts on the kit) at theme typography roles `title_px` / `body_px` /

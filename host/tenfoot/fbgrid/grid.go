@@ -7,6 +7,7 @@ import (
 	"image"
 	"time"
 
+	"github.com/DeanoC/FogCast/host/tenfoot/audioreact"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/linuxinput"
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
@@ -138,6 +139,8 @@ type Grid struct {
 	// Session is optional pause overlay chrome when the host reports a live
 	// session. Empty State leaves browse undimmed.
 	Session SessionChrome
+	// Audio is optional edge chrome. Zero skips paint (default).
+	Audio audioreact.Sample
 }
 
 // New lays out FakeTiles for a w×h framebuffer.

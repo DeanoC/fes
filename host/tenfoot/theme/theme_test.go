@@ -79,6 +79,9 @@ func TestDefaultPreservesKitTokens(t *testing.T) {
 	if th.VignetteA != 96 || th.BezelWidth != 0 {
 		t.Fatalf("default vignette/bezel a=%d w=%d", th.VignetteA, th.BezelWidth)
 	}
+	if th.AudioChrome {
+		t.Fatal("default audio chrome must stay off")
+	}
 	if th.TitleWeight() != gfx.WeightBold || th.HeaderWeight() != gfx.WeightBold {
 		t.Fatalf("default title/header weight %s/%s", th.TitleWeight(), th.HeaderWeight())
 	}
@@ -253,6 +256,30 @@ func TestVignetteAlphaZeroDisablesAndOmittedInherits(t *testing.T) {
 	}
 	if th.BezelWidth != 0 {
 		t.Fatalf("omitted bezel_width %d", th.BezelWidth)
+	}
+}
+
+func TestLoadAudioChromeToken(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	on := filepath.Join(dir, "on.json")
+	if err := os.WriteFile(on, []byte(`{"audio_chrome":true}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	th, err := Load(on)
+	if err != nil || !th.AudioChrome {
+		t.Fatalf("on %+v %v", th, err)
+	}
+	off := filepath.Join(dir, "off.json")
+	if err := os.WriteFile(off, []byte(`{"audio_chrome":false}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	th, err = Load(off)
+	if err != nil || th.AudioChrome {
+		t.Fatalf("off %+v %v", th, err)
+	}
+	if Default().AudioChrome || Arcade().AudioChrome || Night().AudioChrome {
+		t.Fatal("built-ins must not enable audio chrome")
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
 	"github.com/DeanoC/FogCast/host/tenfoot/anim"
+	"github.com/DeanoC/FogCast/host/tenfoot/audioreact"
 	"github.com/DeanoC/FogCast/host/tenfoot/fbgrid"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
@@ -60,7 +61,10 @@ func run() error {
 	selftestMarquee := flag.Bool("selftest-marquee", false, "paint attract and detail marquee/banner strips, then exit")
 	selftestSearch := flag.Bool("selftest-search", false, "paint catalog search OSK, filter, empty, restore, then exit")
 	selftestBezel := flag.Bool("selftest-bezel", false, "paint soft vignette, optional bezel, and pause chrome, then exit")
+	selftestAudio := flag.Bool("selftest-audio-chrome", false, "paint attract edge chrome from injected levels, then exit")
 	noTransition := flag.Bool("no-transition", false, "disable kit scene transition overlays")
+	audioChrome := flag.Bool("audio-chrome", false, "paint attract edge chrome from a measured level file, or a labeled idle pulse when none exists")
+	audioLevelFile := flag.String("audio-level-file", "", "optional 0..1 level file used as a measured injector")
 	flag.Parse()
 	if !*noTransition {
 		switch strings.ToLower(strings.TrimSpace(os.Getenv("FOGCAST_NO_TRANSITION"))) {
@@ -89,7 +93,7 @@ func run() error {
 		}
 		return runThemeSelftest(fb)
 	}
-	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestSeries || *selftestMotion || *selftestWheel || *selftestStrip || *selftestAtmosphere || *selftestLayouts || *selftestPacks || *selftestBadges || *selftestTransition || *selftestMarquee || *selftestSearch || *selftestBezel {
+	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestSeries || *selftestMotion || *selftestWheel || *selftestStrip || *selftestAtmosphere || *selftestLayouts || *selftestPacks || *selftestBadges || *selftestTransition || *selftestMarquee || *selftestSearch || *selftestBezel || *selftestAudio {
 		fb := "/dev/fb0"
 		configTheme := ""
 		if c, err := kitlauncher.LoadConfig(*configPath); err == nil {
@@ -104,6 +108,9 @@ func run() error {
 		}
 		if *selftestBezel {
 			return runBezelSelftest(fb, th)
+		}
+		if *selftestAudio {
+			return runAudioChromeSelftest(fb, th)
 		}
 		if *selftestMarquee {
 			return runMarqueeSelftest(fb, th)
@@ -188,9 +195,23 @@ func run() error {
 	var popAt time.Time
 	var fx sceneFX
 	fxOff := *noTransition
+	audioEnabled := audioreact.Enabled(*audioChrome, os.Getenv("FOGCAST_AUDIO_CHROME"), c.AudioChrome, th.AudioChrome)
+	levelFile := strings.TrimSpace(*audioLevelFile)
+	if levelFile == "" {
+		levelFile = strings.TrimSpace(os.Getenv("FOGCAST_AUDIO_LEVEL_FILE"))
+	}
+	var measured audioreact.Source
+	if audioEnabled && levelFile != "" {
+		measured = audioreact.FileSource{Path: levelFile}
+	}
+	audioSource := audioreact.Combined{Measured: measured, Idle: audioreact.IdlePulse{Enabled: audioEnabled}}
 	present := func(m kitlauncher.Model) {
 		now := time.Now()
 		look := kitLook(m, th)
+		sample := audioreact.Sample{}
+		if audioEnabled {
+			sample = audioSource.Sample(now, m.AttractActive && !m.Busy)
+		}
 		fx.observe(modelScene(m), kitTransitionStyle(look, fxOff), now)
 		if m.AttractActive && !m.Busy {
 			lastFocus = -1
@@ -207,13 +228,17 @@ func run() error {
 			key.Preview = view.Caption
 			key.Video = view.Motion
 			key.Stills = stills.Generation()
+			key.Audio = audioreact.Quantize(sample.Level, 16)
+			key.AudioKind = string(sample.Kind)
 			if !fx.active(now) && now.Sub(last) < 100*time.Millisecond && key == lastKey {
 				return
 			}
 			last = now
 			lastKey = key
 			cfg := d.Config()
-			fbgrid.PaintAttract(d, attractFrame(view, stills, look, cfg.Width, cfg.Height))
+			frame := attractFrame(view, stills, look, cfg.Width, cfg.Height)
+			frame.Audio = sample
+			fbgrid.PaintAttract(d, frame)
 			paintSceneFX(d, cfg.Width, cfg.Height, fx, now, look)
 			d.Present()
 			return
@@ -254,9 +279,12 @@ func run() error {
 			lastFocus = wheelFocus
 			frame.Now = now
 			frame.PopAt = popAt
+			frame.Audio = sample
 			key := modelRenderKey(m, covers.Generation(), presentations.Generation())
 			key.Wheel = true
 			key.Stills = stills.Generation()
+			key.Audio = audioreact.Quantize(sample.Level, 16)
+			key.AudioKind = string(sample.Kind)
 			if !frame.MotionActive() && !fx.active(now) && now.Sub(last) < 100*time.Millisecond && key == lastKey {
 				return
 			}
@@ -318,8 +346,11 @@ func run() error {
 		}
 		lastFocus = grid.Focus
 		fbgrid.ArmPop(&grid, popAt, now)
+		grid.Audio = sample
 		key := modelRenderKey(m, covers.Generation(), presentations.Generation())
 		key.Stills = stills.Generation()
+		key.Audio = audioreact.Quantize(sample.Level, 16)
+		key.AudioKind = string(sample.Kind)
 		if !grid.MotionActive() && !fx.active(now) && now.Sub(last) < 100*time.Millisecond && key == lastKey {
 			return
 		}
@@ -335,6 +366,7 @@ func run() error {
 				}
 			}
 			frame.Marquee = stillImage(stills, mq)
+			frame.Audio = sample
 			fbgrid.PaintDetail(d, frame)
 			paintSceneFX(d, w, h, fx, now, look)
 			d.Present()
@@ -413,6 +445,8 @@ type renderKey struct {
 	Covers, Stills, Presentations                                              uint64
 	Browse                                                                     fbgrid.BrowseKind
 	Pack                                                                       string
+	Audio                                                                      int
+	AudioKind                                                                  string
 }
 
 func modelRenderKey(m kitlauncher.Model, covers, presentations uint64) renderKey {

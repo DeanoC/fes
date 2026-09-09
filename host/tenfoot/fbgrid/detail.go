@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
+	"github.com/DeanoC/FogCast/host/tenfoot/audioreact"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 )
@@ -38,6 +39,8 @@ type DetailFrame struct {
 	// Session is optional pause overlay chrome when the host reports a live
 	// session. Empty State leaves the pane undimmed.
 	Session SessionChrome
+	// Audio is optional edge chrome. Zero skips paint (default).
+	Audio audioreact.Sample
 }
 
 // PaintDetail draws a living-room title pane. It does not Present.
@@ -187,6 +190,7 @@ func PaintDetail(d gfx.Device, f DetailFrame) {
 	d.DrawTextWeight(8, chromeTextY(footerTop, footerH, gfx.TextHeightWeight(statusSize, statusW), false), hint, statusSize, statusW, th.Status)
 	paintDetailSeries(d, f, th)
 	paintLivingRoomChrome(d, f.Width, f.Height, headerH, footerH, th, f.Session)
+	PaintAudioChrome(d, f.Width, f.Height, th, f.Audio)
 }
 
 const (

@@ -12,6 +12,7 @@ import (
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
 	"github.com/DeanoC/FogCast/host/tenfoot/anim"
+	"github.com/DeanoC/FogCast/host/tenfoot/audioreact"
 	"github.com/DeanoC/FogCast/host/tenfoot/fbgrid"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
@@ -717,6 +718,17 @@ func runBezelSelftest(fbPath string, th theme.Theme) error {
 	return err
 }
 
+func runAudioChromeSelftest(fbPath string, th theme.Theme) error {
+	d, err := gfx.OpenLinuxFB(fbPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	report, err := exerciseAudioChrome(d, th)
+	fmt.Print(report)
+	return err
+}
+
 func exerciseBezelGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	th = th.Complete()
 	cfg := d.Config()
@@ -845,6 +857,122 @@ func exerciseBezelGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 		return b.String(), err
 	}
 	fmt.Fprintf(&b, "selftest-bezel PASS vignette=1 bezel=1 pause=1 input=1 split=1 nested-search=1\n")
+	return b.String(), nil
+}
+
+func exerciseAudioChrome(d *gfx.LinuxFB, th theme.Theme) (string, error) {
+	th = th.Complete()
+	cfg := d.Config()
+	var b strings.Builder
+	probe := audioreact.Probe()
+	fmt.Fprintf(&b, "probe %s\n", probe)
+	if probe.Measured {
+		return b.String(), fmt.Errorf("probe claimed a meter")
+	}
+
+	off := fbgrid.AttractFrame{Width: cfg.Width, Height: cfg.Height, Empty: true, Theme: th}
+	fbgrid.PaintAttract(d, off)
+	d.Present()
+	ex, ey, ok := fbgrid.AudioEdgeSample(cfg.Width, cfg.Height)
+	if !ok {
+		return b.String(), fmt.Errorf("edge sample")
+	}
+	offB, offG, offR, _, err := gfx.SampleBGRX(d.Destination(), cfg, ex, ey)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "off edge=(%d,%d) bgrx=%d,%d,%d\n", ex, ey, offB, offG, offR)
+	if offB != th.AttractBackground.B || offG != th.AttractBackground.G || offR != th.AttractBackground.R {
+		return b.String(), fmt.Errorf("default chrome painted without a source")
+	}
+
+	var inj audioreact.Injector
+	inj.Set(1, audioreact.KindMeasured)
+	on := off
+	on.Audio = inj.Sample(time.Time{})
+	fbgrid.PaintAttract(d, on)
+	d.Present()
+	onB, onG, onR, _, err := gfx.SampleBGRX(d.Destination(), cfg, ex, ey)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "measured edge bgrx=%d,%d,%d kind=%s level=1\n", onB, onG, onR, on.Audio.Kind)
+	if onB == offB && onG == offG && onR == offR {
+		return b.String(), fmt.Errorf("measured level left edge unchanged")
+	}
+
+	inj.Set(0, audioreact.KindMeasured)
+	zero := off
+	zero.Audio = inj.Sample(time.Time{})
+	fbgrid.PaintAttract(d, zero)
+	d.Present()
+	zB, zG, zR, _, err := gfx.SampleBGRX(d.Destination(), cfg, ex, ey)
+	if err != nil {
+		return b.String(), err
+	}
+	if zB != offB || zG != offG || zR != offR {
+		return b.String(), fmt.Errorf("zero level kept chrome bgrx=%d,%d,%d", zB, zG, zR)
+	}
+
+	idle := (audioreact.IdlePulse{Enabled: true, Period: 2 * time.Second, Peak: 0.4}).Sample(time.Unix(1, 0))
+	if idle.Kind != audioreact.KindSynthetic {
+		return b.String(), fmt.Errorf("idle kind %s", idle.Kind)
+	}
+	syn := off
+	syn.Audio = idle
+	rec := gfx.NewRecorder()
+	fbgrid.PaintAttract(rec, syn)
+	var sawIdle bool
+	for _, c := range rec.Calls {
+		if c.Op == "DrawText" && strings.Contains(c.Text, audioreact.IdleHint) {
+			sawIdle = true
+		}
+		if c.Op == "DrawText" && strings.Contains(strings.ToLower(c.Text), "audio") {
+			return b.String(), fmt.Errorf("synthetic hint claimed audio %q", c.Text)
+		}
+	}
+	if !sawIdle {
+		return b.String(), fmt.Errorf("missing idle pulse hint ops=%v", rec.Ops())
+	}
+	fbgrid.PaintAttract(d, syn)
+	d.Present()
+	sB, sG, sR, _, err := gfx.SampleBGRX(d.Destination(), cfg, ex, ey)
+	if err != nil {
+		return b.String(), err
+	}
+	if sB == offB && sG == offG && sR == offR {
+		return b.String(), fmt.Errorf("idle pulse left edge unchanged")
+	}
+
+	browse := fbgrid.New(cfg.Width, cfg.Height)
+	fbgrid.ApplyTheme(&browse, th)
+	fbgrid.Paint(d, browse)
+	d.Present()
+	bB, bG, bR, _, err := gfx.SampleBGRX(d.Destination(), cfg, ex, ey)
+	if err != nil {
+		return b.String(), err
+	}
+	browse.Audio = audioreact.Sample{Level: 1, Kind: audioreact.KindMeasured}
+	fbgrid.Paint(d, browse)
+	d.Present()
+	mB, mG, mR, _, err := gfx.SampleBGRX(d.Destination(), cfg, ex, ey)
+	if err != nil {
+		return b.String(), err
+	}
+	if mB == bB && mG == bG && mR == bR {
+		return b.String(), fmt.Errorf("browse measured chrome missing")
+	}
+	browse.Audio = audioreact.Sample{Level: 0.4, Kind: audioreact.KindSynthetic}
+	fbgrid.Paint(d, browse)
+	d.Present()
+	// Paint itself will show synthetic if given one; the live loop withholds
+	// idle pulse from browse. Combined covers that contract.
+	c := audioreact.Combined{Idle: audioreact.IdlePulse{Enabled: true, Period: time.Second, Peak: 0.4}}
+	if got := c.Sample(time.Unix(1, 0), false); got.Kind != audioreact.KindNone {
+		return b.String(), fmt.Errorf("browse received idle pulse %+v", got)
+	}
+
+	fmt.Fprintf(&b, "selftest-audio-chrome PASS measured=1 idle-hint=1 browse-measured=1 probe-honest=1\n")
 	return b.String(), nil
 }
 

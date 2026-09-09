@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/host/tenfoot/anim"
+	"github.com/DeanoC/FogCast/host/tenfoot/audioreact"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 )
@@ -47,6 +48,8 @@ type WheelFrame struct {
 	// Session is optional pause overlay chrome when the host reports a live
 	// session. Empty State leaves the wheel undimmed.
 	Session SessionChrome
+	// Audio is optional edge chrome. Zero skips paint (default).
+	Audio audioreact.Sample
 }
 
 // PaintWheel draws the platform wheel. It does not Present.
@@ -167,6 +170,7 @@ func PaintWheel(d gfx.Device, f WheelFrame) {
 	status = gfx.FitTextWeight(status, statusSize, f.Width-16, statusW)
 	d.DrawTextWeight(8, chromeTextY(footerTop, footerH, gfx.TextHeightWeight(statusSize, statusW), false), status, statusSize, statusW, th.Status)
 	paintLivingRoomChrome(d, f.Width, f.Height, headerH, footerH, th, f.Session)
+	PaintAudioChrome(d, f.Width, f.Height, th, f.Audio)
 }
 
 func paintWheelStrip(d gfx.Device, f WheelFrame, th theme.Theme, strip gfx.Rect) {

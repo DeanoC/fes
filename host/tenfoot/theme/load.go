@@ -55,6 +55,7 @@ type fileTheme struct {
 	BodyBold          *bool             `json:"body_bold" toml:"body_bold"`
 	CaptionBold       *bool             `json:"caption_bold" toml:"caption_bold"`
 	StatusBold        *bool             `json:"status_bold" toml:"status_bold"`
+	AudioChrome       *bool             `json:"audio_chrome" toml:"audio_chrome"`
 	Systems           map[string]string `json:"systems" toml:"systems"`
 }
 
@@ -161,6 +162,10 @@ func (raw fileTheme) theme() (Theme, error) {
 	if raw.VignetteA != nil {
 		t.VignetteA = *raw.VignetteA
 		t.vignetteASet = true
+	}
+	if raw.AudioChrome != nil {
+		t.AudioChrome = *raw.AudioChrome
+		t.audioChromeSet = true
 	}
 	var err error
 	if t.Transition, err = parseTransition(raw.Transition); err != nil {
