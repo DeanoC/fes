@@ -1,17 +1,15 @@
 # RBF ABI hardware validation — 2026-09-09
 
-Status: **integrated recovery passed; unsupported-package input preservation failed**.
-The assembled development image passed structural verification, but standalone
-FES Pong initially failed HDMI initialization, followed by faulty ball motion.
-Hardware diagnostics now verify a nextpnr correction with the original Pong
-RTL: smooth motion, both paddle bounces, and return to centre after a point.
-The final pinned package passed its separate gameplay diagnostic. The final
-image now passes two-pass reproducibility, structural and QEMU checks and boots
-its own matching launcher. The user confirmed both catalog Pong and standalone
-FES Pong play and return to the menu. Negative recovery acceptance remains
-pending; see the checkpoints below.
+Status: **final integrated image acceptance passed**.
 
-## Tested source and artifact identity
+The user confirmed standalone Pong play, return to the launcher and subsequent
+menu navigation on the earlier image. The final rebuilt image passed package
+activation, unsupported-ABI input preservation, forced input reconnect,
+repeated identity-mismatch recovery, subsequent game launch and raw-RBF loading.
+The checkpoints below retain the initial failures and distinguish physical
+confirmation from automated final-image checks.
+
+## Initial tested source and artifact identity
 
 These revisions describe the image actually tested, rather than later fixes.
 
@@ -299,7 +297,7 @@ active package/generation, but **did not preserve input readiness**: the bridge
 connection closed during the 3.519-second rejection request. The session
 changed from attached/ready to reconnecting/not-ready, followed by launcher
 source detachment. Explicit Stop succeeded. This is failed acceptance evidence
-and remains under investigation.
+and was investigated in the checkpoints below.
 
 Cleanup restored the prior ordinary launcher configuration (SHA-256
 `ade9d4fd13b4a0d58dc3b380f53e03f83e6a3634aa63df693a7361190be8b815`),
@@ -312,7 +310,7 @@ launcher subsequently loaded its 3,629-game catalog, although the captured
 footer still indicated reconnecting; physical menu input was not retested.
 The previous image remains retained as `/media/fat/linux/fesprv.img`.
 
-Evidence: `out/acceptance/20260909T121537Z-final-image`. FES #12 remains draft.
+Evidence: `out/acceptance/20260909T121537Z-final-image`. FES #12 remained draft at this checkpoint.
 
 
 A repeat on the same immutable image, with a temporary launcher pairing and
@@ -328,4 +326,54 @@ session while reconnecting, and the host restores its transport before granting
 the new source, without waiting for a controller event. Focused regressions
 failed before the fix and passed afterward; affected host/launcher/API tests,
 race checks and vet passed, with independent review. Hardware diagnostics and
-a rebuilt integrated image for this follow-up are pending.
+the rebuilt integrated image passed in the final checkpoint below.
+
+
+## Final integrated image acceptance
+
+The tested image was built from FES
+`2145a291515a3bbbdbba41c99750084f72269ff4`, FogCast
+`bda3c220aef9011e7fdc928cf574f1dce8b83746`, runtime
+`04b20509a5501c1fdf6400e21a8dd6567d6c5e33`, misteross
+`11c3ee1fbb4d0324a5fd8b3168a7be89a9ecea26` and mister-packages
+`a5c97eb94b5cad68568368b07a4321fe0b4c5623`.
+
+Image SHA-256:
+`aa500c82fcc449f62e073d7db89088bf04172dc0df051d3b9e36846f3801d986`.
+Two independent clean build passes produced identical images; structural and
+QEMU verification passed. The kit booted this image with its own runtime,
+agent and launcher, without executable or launcher-configuration bind mounts.
+
+- Standalone Pong activated with the expected package, ABI, build ID and input
+  source. Video capture showed the expected display.
+- Unsupported ABI rejection preserved the active package, session and ready
+  input source. Stop returned to idle.
+- Pausing and resuming the launcher forced input reconnection. The same session
+  recovered without a controller event: frames advanced from 1 to 157, releases
+  from 0 to 1, and state resynchronizations from 0 to 1. Stop returned to idle.
+- Two build-ID mismatch attempts rejected during identity validation and
+  recovered to idle. HTTP retained expected `70ba707329b4e7c8c86d4389e6fa510a`
+  and observed `60ba707329b4e7c8c86d4389e6fa510a` IDs.
+- Subsequent 007 launch with attached launcher input and Stop passed without
+  reboot. Raw MiSTer-compatible MegaDrive RBF load and Stop also passed.
+
+Cleanup stopped the isolated host, restored the original launcher configuration
+and restarted the image launcher. The ordinary host reported ready/reachable,
+and the kit lease was free. The previous image is retained as
+`/media/fat/linux/fsold2.img`.
+
+Evidence: `out/acceptance/20260909T132757Z-final-image`. Physical gameplay
+confirmation belongs to the earlier image, not this final rebuild. The Pong
+RTL and packaged RBF are unchanged between these checks.
+
+## Validation-only review follow-up
+
+Commit `8182504` makes consistency-test fixtures self-contained and rejects
+missing or non-directory fixture roots. Independent review was clean; the
+isolated fresh checkout passed 192 parent tests with 36 skips, and all 12
+focused consistency tests passed.
+
+This follow-up changes a script included in the build-recipe fingerprint.
+The image receipts and hardware evidence above therefore remain attributed to
+FES `2145a29`; they are not receipts for the later validation/documentation
+commits. A future build at the new head must regenerate its receipts normally.
