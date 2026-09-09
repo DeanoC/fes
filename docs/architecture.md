@@ -154,10 +154,11 @@ including merged PR #6 byte-masked TDP, merged PR #5 unmasked TDP, merged PR #4
 mixed-width SDP, merged PR #3 20-bit byte enables, merged PR #2 independent
 CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair it with nextpnr
-`69556b7`.
+`cb0dab2`.
 
-The current nextpnr pin `69556b7e58eae3dda9b38df438267481c951863d` adds
-the four existing HPS peripheral I2C sites and HDMI routing checks on
+The current nextpnr pin `cb0dab2da29f50e869327534c90215e569d7430f` adds
+the four existing HPS peripheral I2C sites, HDMI routing checks, and a GPIO
+input-buffer fix that preserves external input on bidirectional pads. It builds on
 `ef294430c57b1d64c52f15129adcc6236ecbce01`. That baseline includes merged PR #39: a single 50→74.25 MHz fractional-N
 output (`fractional_vco_multiplier="true"`, direct mode, 0 phase, 50% duty,
 M=8 N=1 C6=6, K=`0xe8f5c239`, calculated 74,249,999.83243954 Hz). Integer

@@ -340,7 +340,7 @@ class CompareBuildsTests(unittest.TestCase):
                         "sha256": _sha256(oss_yosys),
                     },
                     "nextpnr-mistral": {
-                        "commit": "69556b7e58eae3dda9b38df438267481c951863d",
+                        "commit": "cb0dab2da29f50e869327534c90215e569d7430f",
                         "path": "build/toolchain/install/bin/nextpnr-mistral",
                         "sha256": _sha256(oss_nextpnr),
                     },
@@ -351,7 +351,7 @@ class CompareBuildsTests(unittest.TestCase):
                 if lane == "oracle"
                 else {
                     "yosys": "fca8ca0a5354e52ce0e158bc6e1eed481e590ed8",
-                    "nextpnr": "69556b7e58eae3dda9b38df438267481c951863d",
+                    "nextpnr": "cb0dab2da29f50e869327534c90215e569d7430f",
                 }
             ),
             "reproducibility": {"rbf_sha256": digest, "rbf_size_bytes": rbf.stat().st_size},

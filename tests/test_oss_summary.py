@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SUMMARY = ROOT / "scripts" / "oss_summary.py"
 YOSYS_COMMIT = "fca8ca0a5354e52ce0e158bc6e1eed481e590ed8"
-NEXTPNR_COMMIT = "69556b7e58eae3dda9b38df438267481c951863d"
+NEXTPNR_COMMIT = "cb0dab2da29f50e869327534c90215e569d7430f"
 YOSYS_DIGEST = "a" * 64
 NEXTPNR_DIGEST = "b" * 64
 SOURCE_HASHES = {

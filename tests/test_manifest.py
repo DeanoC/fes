@@ -352,14 +352,14 @@ class ManifestTests(unittest.TestCase):
                     "sha256": hashlib.sha256(yosys.read_bytes()).hexdigest(),
                 },
                 "nextpnr-mistral": {
-                    "commit": "69556b7e58eae3dda9b38df438267481c951863d",
+                    "commit": "cb0dab2da29f50e869327534c90215e569d7430f",
                     "path": "build/toolchain/install/bin/nextpnr-mistral",
                     "sha256": hashlib.sha256(nextpnr.read_bytes()).hexdigest(),
                 },
             },
             "tool_pins": {
                 "yosys": "fca8ca0a5354e52ce0e158bc6e1eed481e590ed8",
-                "nextpnr": "69556b7e58eae3dda9b38df438267481c951863d",
+                "nextpnr": "cb0dab2da29f50e869327534c90215e569d7430f",
             },
             "reproducibility": {
                 "rbf_sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
