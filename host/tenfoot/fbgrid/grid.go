@@ -25,14 +25,15 @@ const (
 )
 
 // Tile is one catalog cell: a short label, a solid colour fallback, optional
-// decoded cover pixels, the cover-fetch kind used for placeholders, and an
-// optional clear logo for the label bar.
+// decoded cover pixels, the cover-fetch kind used for placeholders, an
+// optional clear logo for the label bar, and optional metadata chips.
 type Tile struct {
 	Name      string
 	Color     gfx.Color
 	Cover     *image.RGBA
 	CoverKind CoverKind
 	Logo      *image.RGBA
+	Badges    []Badge
 }
 
 const (

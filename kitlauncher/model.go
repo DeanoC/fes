@@ -48,6 +48,7 @@ type Model struct {
 	StripLabel                                        string
 	StripFocus                                        int
 	StripActive                                       bool
+	Recents                                           []tenfoot.Game
 	detailFromStrip                                   bool
 	Browse                                            fbgrid.BrowseKind
 	Pack                                              string

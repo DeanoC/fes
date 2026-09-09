@@ -156,8 +156,11 @@ strip; A opens the title pane; B or Up return to the grid. The kit title pane is
 sibling `fbgrid.PaintDetail` over the same catalog focus: last-row
 Down opens it when the strip is hidden, East/B and Up return, and A still launches. The pane
 shows admitted genre/year/players/region/studio plus wrapped `summary`
-description when those fields exist; it omits empty copy and does not
-invent series, last-played, or play-count. A presentation `video_id`
+description when those fields exist; it omits empty copy. Compact chips
+paint on kit tiles and the pane for players, rating, completion, and
+portable when presentation (or a handheld catalog system) already carries
+them. Play-count and last-played stay off the pane body; the platform
+wheel rolls them up from host games when those fields are admitted. A presentation `video_id`
 paints a VIDEO badge and cycles screenshot/poster stills as an honest
 motion preview (no H.264 decode on the CGO-free kit).
 

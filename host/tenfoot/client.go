@@ -36,19 +36,21 @@ const (
 
 // Game is one catalog row from GET /api/v1/games.
 type Game struct {
-	ID          string   `json:"id"`
-	Title       string   `json:"title"`
-	System      string   `json:"system"`
-	Cover       string   `json:"cover,omitempty"`
-	Genre       string   `json:"genre,omitempty"`
-	Year        string   `json:"year,omitempty"`
-	Region      string   `json:"region,omitempty"`
-	State       string   `json:"state"`
-	RootOnline  bool     `json:"root_online"`
-	Launchable  bool     `json:"launchable"`
-	Favorite    bool     `json:"favorite,omitempty"`
-	Collections []string `json:"collections,omitempty"`
-	Variants    []Game   `json:"variants,omitempty"`
+	ID           string   `json:"id"`
+	Title        string   `json:"title"`
+	System       string   `json:"system"`
+	Cover        string   `json:"cover,omitempty"`
+	Genre        string   `json:"genre,omitempty"`
+	Year         string   `json:"year,omitempty"`
+	Region       string   `json:"region,omitempty"`
+	State        string   `json:"state"`
+	RootOnline   bool     `json:"root_online"`
+	Launchable   bool     `json:"launchable"`
+	Favorite     bool     `json:"favorite,omitempty"`
+	PlayCount    int64    `json:"play_count,omitempty"`
+	LastPlayedAt int64    `json:"last_played_at,omitempty"`
+	Collections  []string `json:"collections,omitempty"`
+	Variants     []Game   `json:"variants,omitempty"`
 }
 
 // Presentation is GET /api/v1/presentation/games/{id}.
@@ -70,6 +72,9 @@ type PresentationInfo struct {
 	Genre             string   `json:"genre"`
 	Studio            string   `json:"studio"`
 	Players           string   `json:"players"`
+	Rating            string   `json:"rating,omitempty"`
+	Completion        string   `json:"completion,omitempty"`
+	Portable          bool     `json:"portable,omitempty"`
 	ScreenshotIDs     []string `json:"screenshot_ids,omitempty"`
 }
 

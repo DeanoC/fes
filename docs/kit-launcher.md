@@ -100,8 +100,9 @@ Sofa Dim → Classic on the wheel, browse, strip, and title pane; attract still
 dismisses on X. The last pack is stored in `launcher.json`. An empty catalog hides tiles and keeps chrome. The hero paints an attract still for that system,
 then presentation `backdrop_artwork_id`, then a representative catalog/presentation
 cover; missing art uses the same theme-tinted placeholder as the grid. Light
-stats chrome is the shelf game count plus a representative title when the
-catalog already has one. Wheel cells use a representative `logo_id` when
+stats chrome is the shelf game count, a play-count rollup when host games
+carry `play_count`, and last-played (or a representative title) when that
+exists. Wheel cells use a representative `logo_id` when
 presentation has one, else a bold text label. Browse uses the D-pad and left
 stick to select, Shoulder L/R
 (or Select) to cycle system shelves as a secondary filter, and A to launch.
@@ -122,8 +123,11 @@ title pane when the strip is hidden (large cover from CoverCache/DecodeCover, ti
 role, meta from catalog year/genre/region plus presentation studio/players
 when the host `GET /api/v1/presentation/games/{id}` succeeds, and wrapped
 `summary` prose at the caption role). Empty summary draws no description
-block. Series, last-played, and play-count are not on those public payloads
-and stay omitted.
+block. Compact chips paint on grid, coverflow, wall, and the pane for
+players, rating, completion, and portable when those presentation fields
+exist (portable also uses handheld catalog systems); missing chips stay
+hidden. Play-count and last-played stay off the pane body; the wheel hero
+rolls them up from host `play_count` / `last_played_at` when admitted.
 A stays launch on the grid and is not used to enter the pane. The pane closes
 on East/B or Up and restores the same shelf and focus. A on the pane launches
 the focused title through the same session path as the grid. Shoulder L/R and
@@ -215,7 +219,11 @@ fetched on kit.
 
 Run `go test -race ./kitlauncher/... ./host/tenfoot/inputmap ./host/tenfoot/theme ./host/tenfoot/fbgrid ./host/tenfoot/gfx ./host/tenfoot/anim ./cmd/fogcast-kit` for adapter tests. They
 exercise real HTTP transports with isolated servers and never open real input or
-framebuffer devices. On the kit, `fogcast-kit -selftest-packs` paints Classic, cycles X to Neon then
+framebuffer devices. On the kit, `fogcast-kit -selftest-badges` paints players/rating/completion/portable
+chips on grid, coverflow, wall, and the title pane, hides empty chips, samples
+theme-pack highlight fills so covers stay readable, paints wheel play-stats,
+keeps Y/X/A, and re-runs packs (which re-runs layouts, atmosphere, strip,
+wheel, motion, detail, attract, cover, text, nav, and shelf). On the kit, `fogcast-kit -selftest-packs` paints Classic, cycles X to Neon then
 Sofa Dim then Classic, samples highlight and background so the three looks
 differ, keeps Y layout cycle and D-pad browse, paints a Neon wheel hint, keeps
 A launch, and re-runs layouts (which re-runs atmosphere, strip, wheel, motion,

@@ -25,6 +25,7 @@ type DetailFrame struct {
 	Shot          *image.RGBA
 	ShotCaption   string
 	VideoBadge    bool
+	Badges        []Badge
 	// Atmosphere is optional fanart behind chrome. When nil, PaintDetail
 	// dims the title cover across the stage if one is present.
 	Atmosphere *image.RGBA
@@ -110,6 +111,12 @@ func PaintDetail(d gfx.Device, f DetailFrame) {
 		d.DrawTextWeight(int(text.X), int(text.Y), title, titleSize, titleW, th.Header)
 	}
 	copyY := int(text.Y) + titleBlockH
+	if len(f.Badges) > 0 {
+		rowH := badgeRowHeight(th)
+		copyY += detailCopyGap
+		paintDetailBadges(d, gfx.Rect{X: text.X, Y: float32(copyY), W: text.W, H: float32(rowH)}, f.Badges, th)
+		copyY += rowH
+	}
 	if len(metaLines) > 0 {
 		metaSize := th.BodyPx()
 		metaW := th.BodyWeight()
@@ -213,6 +220,9 @@ func wrapDetailCopy(f DetailFrame, th theme.Theme, textW, logoH int, withShot bo
 
 	metaLines = gfx.WrapTextWeight(strings.TrimSpace(f.Meta), metaSize, textW, detailMetaMaxLines, metaWeight)
 	used := titleBlock
+	if len(f.Badges) > 0 {
+		used += detailCopyGap + badgeRowHeight(th)
+	}
 	if len(metaLines) > 0 {
 		used += detailCopyGap + len(metaLines)*metaLineH
 	}

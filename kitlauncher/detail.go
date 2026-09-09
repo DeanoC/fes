@@ -279,3 +279,12 @@ func (m Model) presentationFor(id string) tenfoot.Presentation {
 	}
 	return tenfoot.Presentation{}
 }
+
+// FocusPresentation is the host payload stored for the focused title, if any.
+func (m Model) FocusPresentation() tenfoot.Presentation {
+	game, ok := m.focusedGame()
+	if !ok {
+		return tenfoot.Presentation{}
+	}
+	return m.presentationFor(game.ID)
+}

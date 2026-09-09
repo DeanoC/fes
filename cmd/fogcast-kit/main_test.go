@@ -155,6 +155,23 @@ func TestGameTileLeavesLogoEmptyUntilReady(t *testing.T) {
 	}
 }
 
+func TestGameTileBadgesFromPresentationAndHidesEmpty(t *testing.T) {
+	th := theme.Default()
+	plain := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive"}, nil, tenfoot.Presentation{}, th)
+	if len(plain.Badges) != 0 {
+		t.Fatalf("empty badges %+v", plain.Badges)
+	}
+	pres := tenfoot.Presentation{Presentation: &tenfoot.PresentationInfo{Players: "2", Rating: "4.5"}}
+	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive"}, nil, pres, th)
+	if len(tile.Badges) != 2 || tile.Badges[0].Label != "2P" || tile.Badges[1].Label != "4.5" {
+		t.Fatalf("badges %+v", tile.Badges)
+	}
+	gb := gameTile(tenfoot.Game{Title: "Zelda", System: "gb"}, nil, tenfoot.Presentation{}, th)
+	if len(gb.Badges) != 1 || gb.Badges[0].Label != "PORT" {
+		t.Fatalf("gb badges %+v", gb.Badges)
+	}
+}
+
 func TestGameTileLeavesCoverEmptyUntilCached(t *testing.T) {
 	handle := strings.Repeat("ab", 32)
 	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive", Cover: handle}, tenfoot.NewCoverCache(), tenfoot.Presentation{}, theme.Default())
@@ -338,6 +355,27 @@ func TestExerciseFPGAAnimProof(t *testing.T) {
 	}
 	if !strings.Contains(report, "selftest-fpga PASS") || !strings.Contains(report, "HW=not-yet") || !strings.Contains(report, "backend=fpga") {
 		t.Fatalf("report %s", report)
+	}
+}
+
+func TestExerciseBadgesGridPaintsChipsWheelStatsAndNestsPacks(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseBadgesGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-badges PASS") || !strings.Contains(report, "selftest-packs PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "grid badge=") || !strings.Contains(report, "detail badge=") || !strings.Contains(report, "wheel stats=") {
+		t.Fatalf("missing badge evidence: %s", report)
 	}
 }
 

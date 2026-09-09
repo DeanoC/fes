@@ -56,21 +56,24 @@ func TestLoadStripUsesRecentsAndFavorites(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	games, label := loadStrip(context.Background(), NewClient(Config{API: server.URL}))
+	games, label, recents := loadStrip(context.Background(), NewClient(Config{API: server.URL}))
 	if label != "Recent / Favorites" || len(games) != 3 {
 		t.Fatalf("strip %q n=%d ids=%v", label, len(games), ids(games))
 	}
 	if games[0].ID != "sonic" || games[1].ID != "mario" || games[2].ID != "pong" {
 		t.Fatalf("order %v", ids(games))
 	}
+	if len(recents) != 2 || recents[0].ID != "sonic" {
+		t.Fatalf("recents %v", ids(recents))
+	}
 
 	empty := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"games":[]}`))
 	}))
 	defer empty.Close()
-	games, label = loadStrip(context.Background(), NewClient(Config{API: empty.URL}))
-	if label != "" || len(games) != 0 {
-		t.Fatalf("empty strip %q n=%d", label, len(games))
+	games, label, recents = loadStrip(context.Background(), NewClient(Config{API: empty.URL}))
+	if label != "" || len(games) != 0 || len(recents) != 0 {
+		t.Fatalf("empty strip %q n=%d recents=%d", label, len(games), len(recents))
 	}
 
 	recentOnly := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -81,9 +84,9 @@ func TestLoadStripUsesRecentsAndFavorites(t *testing.T) {
 		http.NotFound(w, r)
 	}))
 	defer recentOnly.Close()
-	games, label = loadStrip(context.Background(), NewClient(Config{API: recentOnly.URL}))
-	if label != "Recent" || len(games) != 1 || games[0].ID != "sonic" {
-		t.Fatalf("recent-only %q n=%d", label, len(games))
+	games, label, recents = loadStrip(context.Background(), NewClient(Config{API: recentOnly.URL}))
+	if label != "Recent" || len(games) != 1 || games[0].ID != "sonic" || len(recents) != 1 {
+		t.Fatalf("recent-only %q n=%d recents=%d", label, len(games), len(recents))
 	}
 }
 

@@ -621,8 +621,9 @@ still cycle shelves as a secondary filter; the themed header shows
 `FOGCAST  MEGADRIVE 12/40`, plus `FLOW` or `WALL` when that layout is active,
 and `NEON` or `DIM` when that pack is active. Classic stays untagged. The hero paints an attract still, presentation
 `backdrop_artwork_id`, or representative cover when a handle exists, otherwise
-a theme-tinted placeholder, with game-count chrome and a representative title
-when one is cheap from the loaded catalog. Wheel cells use a representative
+a theme-tinted placeholder, with game-count chrome plus a play-count and
+last-played rollup when host games already carry `play_count` /
+`last_played_at` (recents order is the fallback last-played). Wheel cells use a representative
 `logo_id` when presentation has one, else a bold wordmark. D-pad
 and left-stick focus in the grid and wall moves in two
 dimensions through `fbgrid.MoveFocus`: left/right clamp on the current row,
@@ -646,8 +647,11 @@ through `fbgrid.PaintDetail` when the strip is hidden (large cover, title at `Ti
 catalog plus `GET /api/v1/presentation/games/{id}` when the pane is open).
 Admitted facts are platform, year, genre, studio, players, and region when
 those fields are present; `summary` wraps as caption-role description and is
-omitted when empty. Series, last-played, and play-count are not on the public
-games or presentation payloads, so the pane does not invent them.
+omitted when empty. Compact chips paint on browse tiles and the title pane
+for players, rating, completion, and portable when presentation (or handheld
+catalog system identity) already carries them; empty chips stay hidden rather
+than inventing rating or completion. Play-count and last-played stay off the
+pane body; the platform-wheel hero rolls them up from the games payload.
 When `video_id` is present (library_media overlay on the same presentation
 payload), the pane paints an honest motion preview: it auto-cycles
 `screenshot_ids` then unique backdrop/cover posters under a VIDEO badge and

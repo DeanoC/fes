@@ -288,7 +288,7 @@ func handleGamesList(w http.ResponseWriter, r *http.Request, service Service) {
 	}
 	for index, game := range result.Games {
 		if state, ok := states[game.ID]; ok {
-			result.Games[index].Favorite = state.Favorite
+			applyUserState(&result.Games[index], state)
 		}
 		if owned, ok := membership[game.ID]; ok {
 			result.Games[index].Collections = owned
@@ -532,10 +532,23 @@ func handleAttract(w http.ResponseWriter, r *http.Request, service Service) {
 	writeJSON(w, http.StatusOK, map[string]any{"items": items, "idle_seconds": attractor.AttractIdleSeconds()})
 }
 
+func applyUserState(result *gameResult, state libraryuser.State) {
+	if result == nil {
+		return
+	}
+	result.Favorite = state.Favorite
+	if state.PlayCount > 0 {
+		result.PlayCount = state.PlayCount
+	}
+	if state.LastPlayedAt > 0 {
+		result.LastPlayedAt = state.LastPlayedAt
+	}
+}
+
 func enrichGameResult(ctx context.Context, service Service, result gameResult) gameResult {
 	if users, ok := service.(favoriteService); ok {
 		if state, err := users.LibraryState(ctx, result.ID); err == nil {
-			result.Favorite = state.Favorite
+			applyUserState(&result, state)
 		}
 	}
 	if collections, ok := service.(collectionService); ok {

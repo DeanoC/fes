@@ -131,7 +131,7 @@ func PaintWheel(d gfx.Device, f WheelFrame) {
 	meta := f.Stats
 	if f.Featured != "" {
 		if meta != "" {
-			meta = meta + "  ·  " + f.Featured
+			meta = meta + "  |  " + f.Featured
 		} else {
 			meta = f.Featured
 		}
