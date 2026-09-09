@@ -257,6 +257,11 @@ development possible with both the open-source Mistral toolchain and Quartus.
   Verilog flop; analog GPIO-register delay is not modelled. Run
   `make sim EXP=640_sdr_input` and `make oss EXP=640_sdr_input`; no
   Quartus comparison lane is implemented.
+- `650_ddr_input`, dedicated DDR input register on PIN_Y15 with a fabric
+  GPI beat. Simulation uses a digital `altddio_in` stand-in; analog
+  GPIO-register delay is not modelled. Run `make sim EXP=650_ddr_input`
+  and `make oss EXP=650_ddr_input`; no Quartus comparison lane is
+  implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under

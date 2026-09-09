@@ -154,11 +154,20 @@ including merged PR #6 byte-masked TDP, merged PR #5 unmasked TDP, merged PR #4
 mixed-width SDP, merged PR #3 20-bit byte enables, merged PR #2 independent
 CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair it with nextpnr
-`a1f8dbb5`.
+`9144784d`.
 
-The current nextpnr pin `a1f8dbb5434fd88bc014ce059dd6b7ca74512693` is
+The current nextpnr pin `9144784db9b4b85c1257be4d1943b9ac11ceb3e8` is
+merged PR #44 (`7a0447cb2c24d4d09ed4d96d1f692420b714441c` onto
+`a1f8dbb5434fd88bc014ce059dd6b7ca74512693`). It adds
+dedicated Cyclone V DDR input registers: a width-one `altddio_in` with
+inactive controls packs into `MISTRAL_DDRIN`. High/low captures use GPIO
+`DATAIN.3`/`DATAIN.2` and the clock uses GPIO `CLKIN.0`. Unsupported
+widths, parameters, dynamic controls, inverted clocks, indirect data and
+aliased outputs fail closed. There is no characterized GPIO input-register
+setup/hold or clock-to-Q model, so those arcs stay outside timing analysis.
+It sits on `a1f8dbb5434fd88bc014ce059dd6b7ca74512693`,
 merged PR #43 (`298e7588ebaecf76245bf60d174048b0d23a0756` onto
-`2c9f9c5cf06615affdefc8c346bbd7d26a47f6b6`). It adds
+`2c9f9c5cf06615affdefc8c346bbd7d26a47f6b6`). That pin adds
 dedicated Cyclone V SDR input registers: `FAST_INPUT_REGISTER ON` absorbs
 a directly connected `MISTRAL_FF` driven by a unidirectional `MISTRAL_IB`
 into `MISTRAL_SDRIN`. The captured result is GPIO `DATAIN.3` and the clock
@@ -1092,6 +1101,26 @@ beats for ten samples. Load JSON timed out; GPI and probe still passed.
 This does not measure the registered pin waveform and is not
 input-interface timing closure.
 
+`650_ddr_input` captures PIN_Y15 through a width-one `altddio_in`. GPI
+signature `0xDD02` identifies the fabric beat protocol. Simulation uses a
+digital stand-in; it does not model analog GPIO-register delay. nextpnr
+packs that cell into `MISTRAL_DDRIN` on the existing GPIO BEL. The packed
+register is outside characterized timing. The kit probe observes fabric
+counters, not the pin waveform. Simulation and OSS are supported; Quartus
+comparison is not implemented. See `experiments/650_ddr_input/expected.md`.
+
+The OSS `650_ddr_input` artifact has SHA-256
+`e7f2aa1cccf4ee970b6a4e3811faff04aa0b7eb111f76859a3e93646d91d4afb`
+and size 1,953,384 bytes. nextpnr packed `altddio_in` into `MISTRAL_DDRIN`
+on `MISTRAL_IO.64.0.0` (PIN_Y15). Its reported Fmax is 323.625 MHz against
+the 50 MHz constraint. Utilization is one HPS GP, two IO cells, and no
+PLL, memory or DSP. The current nextpnr pin `9144784d` with Yosys
+`fca8ca0a` reproduces those same RBF bytes. Exact-artifact kit diagnostics on 2026-09-09 returned
+GPI signature `0xDD02` with changing paired fabric beats for ten samples.
+Load JSON timed out; GPI and probe still passed. `stop` completed
+development reboot recovery and left the lease free. This does not measure
+the registered pin waveform and is not input-interface timing closure.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
@@ -1104,7 +1133,9 @@ independent-clock mixed-width 20/10, 10/20, 16/8 and 8/16 TDP M10K RAM, the
 50→74.25 MHz fractional-N PLL profile, dedicated 50 MHz DDR clock
 forwarding (fabric GPI only), dedicated SDR output registers (fabric GPI
 only; GPIO-register timing uncharacterized), and dedicated SDR input
-registers (fabric GPI only; GPIO-register timing uncharacterized). It does not establish native game acceptance.
+registers (fabric GPI only; GPIO-register timing uncharacterized), and
+dedicated DDR input registers (fabric GPI only; GPIO-register timing
+uncharacterized). It does not establish native game acceptance.
 
 ## Standalone Pong game
 
