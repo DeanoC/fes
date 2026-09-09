@@ -855,3 +855,27 @@ See [kit adapter](kit-launcher.md) and [host connection contract](launcher-host.
 for setup, controls, exact routes, timeouts and ownership. The existing browser
 listener remains loopback-only. The SDL sofa layout and the kit browse views are separate
 renderers over the same session model and do not own physical transitions.
+
+
+## Installed core packages and library entries
+
+The host package store validates and atomically publishes immutable archives by
+package ID. Catalog schema v5 associates a stable ROM-less game entry with one
+explicit package ID; importing a version does not select or activate it.
+The `fpga` browse platform is not a cartridge/runtime system. Library scans
+exclude its logical root. See [package library API and operations](core-package-library.md).
+
+`fogcast/core_packages.go` owns installation, inspection and checked selection.
+`internal/hostapi/core_packages.go` exposes those operations. Read-only target
+`POST /v1/development/core/inspect` stages and invokes native `inspect_core`
+without acquiring a physical lease or replacing input. The target runtime
+remains the compatibility authority. Target transitions can report busy;
+failed inspection cleanup cannot report compatibility success.
+
+Package-backed `session/launch` uses the same confirmed-package transition as
+the development loader, before ordinary game launch detaches prior input/media.
+The service resolves selected immutable bytes under lifecycle admission, then
+records the library identity only for the exact confirmed package generation.
+Changing the selection affects future launches. Runtime status stays truthful;
+the host adds its explicit library association and does not infer one after a
+restart. Existing ordinary cartridge launch and Stop paths remain in place.

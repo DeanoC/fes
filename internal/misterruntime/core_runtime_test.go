@@ -17,6 +17,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/corepackage"
 
 	"github.com/DeanoC/FogCast/internal/misterruntime"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 type packageControl struct {
@@ -26,6 +27,7 @@ type packageControl struct {
 	loadErr               error
 	remoteErr             *misterruntime.Protocol2Error
 	beforeReply           func(string)
+	beforeInspectReply    func(string)
 	activePath            string
 	activeID              string
 	status2               *misterruntime.Protocol2Response
@@ -36,6 +38,10 @@ type packageControl struct {
 	legacyStatusCalls     int
 	inspectCompatible     *bool
 	inspectCompatibility  *misterruntime.Protocol2Error
+	inspectCalls          int
+	inspectErr            error
+	inspectPackageID      string
+	inspectDescriptor     *corepackage.Descriptor
 	blockFirstObservation bool
 	lostReply             bool
 	preserveOnLost        bool
@@ -90,7 +96,11 @@ func (c *packageControl) Protocol2Status(ctx context.Context) (misterruntime.Pro
 	return c.protocol2Status(ctx)
 }
 
-func (c *packageControl) InspectCore(_ context.Context, path, packageID string) (misterruntime.Protocol2Response, error) {
+func (c *packageControl) InspectCore(ctx context.Context, path, packageID string) (misterruntime.Protocol2Response, error) {
+	c.inspectCalls++
+	if c.inspectErr != nil {
+		return misterruntime.Protocol2Response{}, c.inspectErr
+	}
 	inspection, err := corepackageInspection(path)
 	if err != nil {
 		return misterruntime.Protocol2Response{}, err
@@ -99,13 +109,158 @@ func (c *packageControl) InspectCore(_ context.Context, path, packageID string) 
 	if c.inspectCompatible != nil {
 		compatible = *c.inspectCompatible
 	}
+	returnedID := packageID
+	if c.inspectPackageID != "" {
+		returnedID = c.inspectPackageID
+	}
+	descriptor := inspection.Descriptor
+	if c.inspectDescriptor != nil {
+		descriptor = *c.inspectDescriptor
+	}
+	if c.beforeInspectReply != nil {
+		c.beforeInspectReply(path)
+	}
+	if err := ctx.Err(); err != nil {
+		return misterruntime.Protocol2Response{}, err
+	}
 	return misterruntime.Protocol2Response{
 		Protocol: 2, OK: true, State: "idle", Execution: "none", Version: "test",
 		InspectedPackage: &misterruntime.Protocol2Inspection{
-			PackageID: packageID, Descriptor: inspection.Descriptor,
+			PackageID: returnedID, Descriptor: descriptor,
 			Compatible: compatible, CompatibilityError: c.inspectCompatibility,
 		},
 	}, nil
+}
+
+func TestCorePackageInspectionUsesRuntimeAuthorityAndCleansStaging(t *testing.T) {
+	root := t.TempDir()
+	archive := canonicalCoreArchive(t)
+	control := &packageControl{}
+	barrier := &replacementBarrier{}
+	runtime := misterruntime.NewRuntime(control, "", 0, 0,
+		misterruntime.WithCorePackageRoot(root), misterruntime.WithCoreReplacementBarrier(barrier))
+
+	inspection, apiErr := runtime.InspectCore(context.Background(), int64(len(archive)), bytes.NewReader(archive))
+	if apiErr != nil || !inspection.Compatible || inspection.CompatibilityError != nil ||
+		inspection.PackageID == "" || inspection.Descriptor.Core.ID != "fes.pong" || control.inspectCalls != 1 ||
+		control.loadCalls != 0 || barrier.begins != 0 {
+		t.Fatalf("inspection=%#v error=%#v inspect=%d loads=%d barriers=%d", inspection, apiErr,
+			control.inspectCalls, control.loadCalls, barrier.begins)
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("staging root after inspection=%v error=%v", entries, err)
+	}
+}
+
+func TestCorePackageInspectionReturnsIncompatibilityAsData(t *testing.T) {
+	archive := canonicalCoreArchive(t)
+	compatible := false
+	control := &packageControl{inspectCompatible: &compatible,
+		inspectCompatibility: &misterruntime.Protocol2Error{Code: "unsupported_interface", Message: "missing input", Phase: "compatibility", Expected: stringPointer("fes.gamepad@1.0")}}
+	runtime := misterruntime.NewRuntime(control, "", 0, 0,
+		misterruntime.WithCorePackageRoot(t.TempDir()))
+
+	inspection, apiErr := runtime.InspectCore(context.Background(), int64(len(archive)), bytes.NewReader(archive))
+	if apiErr != nil || inspection.Compatible || inspection.CompatibilityError == nil ||
+		inspection.CompatibilityError.Code != protocol.CodeUnsupportedOperation ||
+		inspection.CompatibilityError.Phase != "compatibility" || inspection.CompatibilityError.Expected != "fes.gamepad@1.0" {
+		t.Fatalf("inspection=%#v error=%#v", inspection, apiErr)
+	}
+}
+
+func TestCorePackageInspectionFailsClosedOnRuntimeIdentityMismatch(t *testing.T) {
+	archive := canonicalCoreArchive(t)
+	for _, test := range []struct {
+		name    string
+		control *packageControl
+	}{
+		{name: "package id", control: &packageControl{inspectPackageID: strings.Repeat("d", 64)}},
+		{name: "descriptor", control: &packageControl{inspectDescriptor: &corepackage.Descriptor{}}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			runtime := misterruntime.NewRuntime(test.control, "", 0, 0,
+				misterruntime.WithCorePackageRoot(t.TempDir()))
+			inspection, apiErr := runtime.InspectCore(context.Background(), int64(len(archive)), bytes.NewReader(archive))
+			if apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable || inspection.PackageID != "" {
+				t.Fatalf("inspection=%#v error=%#v", inspection, apiErr)
+			}
+		})
+	}
+}
+
+func TestCorePackageInspectionFailsClosedOnContradictoryCompatibility(t *testing.T) {
+	archive := canonicalCoreArchive(t)
+	for _, test := range []struct {
+		name          string
+		compatible    bool
+		compatibility *misterruntime.Protocol2Error
+	}{
+		{name: "compatible with error", compatible: true,
+			compatibility: &misterruntime.Protocol2Error{Code: "unsupported_interface", Message: "missing", Phase: "compatibility"}},
+		{name: "incompatible without error", compatible: false},
+		{name: "incompatible error from wrong phase", compatible: false,
+			compatibility: &misterruntime.Protocol2Error{Code: "unsupported_interface", Message: "missing", Phase: "request"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			control := &packageControl{inspectCompatible: &test.compatible, inspectCompatibility: test.compatibility}
+			runtime := misterruntime.NewRuntime(control, "", 0, 0,
+				misterruntime.WithCorePackageRoot(t.TempDir()))
+
+			inspection, apiErr := runtime.InspectCore(context.Background(), int64(len(archive)), bytes.NewReader(archive))
+			if apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable || inspection.PackageID != "" {
+				t.Fatalf("inspection=%#v error=%#v", inspection, apiErr)
+			}
+		})
+	}
+}
+
+func TestCorePackageInspectionCancellationCleansStaging(t *testing.T) {
+	root := t.TempDir()
+	archive := canonicalCoreArchive(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	control := &packageControl{beforeInspectReply: func(string) { cancel() }}
+	runtime := misterruntime.NewRuntime(control, "", 0, 0,
+		misterruntime.WithCorePackageRoot(root))
+
+	inspection, apiErr := runtime.InspectCore(ctx, int64(len(archive)), bytes.NewReader(archive))
+	if apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable || inspection.PackageID != "" {
+		t.Fatalf("inspection=%#v error=%#v", inspection, apiErr)
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("staging root after cancellation=%v error=%v", entries, err)
+	}
+}
+
+func TestCorePackageInspectionCleanupFailureCannotReportCompatibility(t *testing.T) {
+	root := t.TempDir()
+	moved := root + "-moved"
+	archive := canonicalCoreArchive(t)
+	control := &packageControl{beforeInspectReply: func(string) {
+		if err := os.Rename(root, moved); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Mkdir(root, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}}
+	runtime := misterruntime.NewRuntime(control, "", 0, 0,
+		misterruntime.WithCorePackageRoot(root))
+
+	inspection, apiErr := runtime.InspectCore(context.Background(), int64(len(archive)), bytes.NewReader(archive))
+	if apiErr == nil || apiErr.Code != protocol.CodeInternal || apiErr.Phase != "recovery" || inspection.Compatible {
+		t.Fatalf("inspection=%#v error=%#v", inspection, apiErr)
+	}
+	if err := os.Remove(root); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(moved, root); err != nil {
+		t.Fatal(err)
+	}
+	if _, stopErr := runtime.Stop(context.Background()); stopErr != nil {
+		t.Fatal(stopErr)
+	}
 }
 
 func (c *packageControl) protocol2Status(ctx context.Context) (misterruntime.Protocol2Response, error) {

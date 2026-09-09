@@ -96,8 +96,73 @@ type protocol2CoreControl interface {
 	LoadCore(context.Context, string, string) (Protocol2Response, error)
 }
 
+type protocol2InspectionControl interface {
+	InspectCore(context.Context, string, string) (Protocol2Response, error)
+}
+
 type protocol2StatusControl interface {
 	Protocol2Status(context.Context) (Protocol2Response, error)
+}
+
+// InspectCore stages one bounded package for the existing runtime authority,
+// verifies its exact identity and descriptor, and removes the private staging
+// publication without changing the active hardware state.
+func (r *Runtime) InspectCore(ctx context.Context, size int64, content io.Reader) (
+	inspection protocol.CoreInspection, apiErr *protocol.APIError) {
+	if r.corePackageRoot == "" {
+		return protocol.CoreInspection{}, unsupportedOperationError()
+	}
+	if _, ok := r.control.(protocol2InspectionControl); !ok {
+		return protocol.CoreInspection{}, unsupportedOperationError()
+	}
+	staged, err := corepackage.Stage(ctx, r.corePackageRoot, size, content)
+	if err != nil {
+		return protocol.CoreInspection{}, &protocol.APIError{
+			Code: protocol.CodeInvalidArchive, Message: "core package is invalid", Phase: "admission"}
+	}
+	defer func() {
+		if err := staged.Cleanup(); err != nil {
+			r.retainRetired(staged)
+			inspection = protocol.CoreInspection{}
+			apiErr = &protocol.APIError{Code: protocol.CodeInternal,
+				Message: "staged core package could not be cleaned up", Phase: "recovery"}
+		}
+	}()
+	remote, apiErr := r.inspectStagedCore(ctx, staged)
+	if apiErr != nil {
+		return protocol.CoreInspection{}, apiErr
+	}
+	result := protocol.CoreInspection{PackageID: staged.PackageID,
+		Descriptor: staged.Descriptor, Compatible: remote.Compatible}
+	if remote.CompatibilityError != nil {
+		result.CompatibilityError = mapProtocol2Error(remote.CompatibilityError)
+	}
+	return result, nil
+}
+
+func (r *Runtime) inspectStagedCore(ctx context.Context, staged corepackage.Staged) (*Protocol2Inspection, *protocol.APIError) {
+	inspector, ok := r.control.(protocol2InspectionControl)
+	if !ok {
+		return nil, unsupportedOperationError()
+	}
+	response, err := inspector.InspectCore(ctx, staged.Directory, staged.PackageID)
+	if err != nil {
+		if errors.Is(err, errProtocol2Unsupported) {
+			return nil, unsupportedOperationError()
+		}
+		return nil, unavailableError()
+	}
+	if !response.OK || response.Error != nil {
+		return nil, mapProtocol2Error(response.Error)
+	}
+	if response.InspectedPackage == nil ||
+		response.InspectedPackage.PackageID != staged.PackageID ||
+		!reflect.DeepEqual(response.InspectedPackage.Descriptor, staged.Descriptor) ||
+		response.InspectedPackage.Compatible == (response.InspectedPackage.CompatibilityError != nil) ||
+		(!response.InspectedPackage.Compatible && response.InspectedPackage.CompatibilityError.Phase != "compatibility") {
+		return nil, unavailableError()
+	}
+	return response.InspectedPackage, nil
 }
 
 func (r *Runtime) LoadCoreOwned(admission, observation, operationOwner context.Context,
@@ -125,31 +190,13 @@ func (r *Runtime) LoadCoreOwned(admission, observation, operationOwner context.C
 	if admission.Err() != nil || observation.Err() != nil || operationOwner.Err() != nil {
 		return CoreActivation{}, false, unavailableError()
 	}
-	inspector, ok := r.control.(interface {
-		InspectCore(context.Context, string, string) (Protocol2Response, error)
-	})
-	if !ok {
-		return CoreActivation{}, false, unsupportedOperationError()
-	}
-	inspection, inspectErr := inspector.InspectCore(admission,
-		staged.Directory, staged.PackageID)
+	inspection, inspectErr := r.inspectStagedCore(admission, staged)
 	if inspectErr != nil {
-		if errors.Is(inspectErr, errProtocol2Unsupported) {
-			return CoreActivation{}, false, unsupportedOperationError()
-		}
-		return CoreActivation{}, false, unavailableError()
+		return CoreActivation{}, false, inspectErr
 	}
-	if !inspection.OK || inspection.Error != nil {
-		return CoreActivation{}, false, mapProtocol2Error(inspection.Error)
-	}
-	if inspection.InspectedPackage == nil ||
-		inspection.InspectedPackage.PackageID != staged.PackageID ||
-		!reflect.DeepEqual(inspection.InspectedPackage.Descriptor, staged.Descriptor) {
-		return CoreActivation{}, false, unavailableError()
-	}
-	if !inspection.InspectedPackage.Compatible {
+	if !inspection.Compatible {
 		return CoreActivation{}, false,
-			mapProtocol2Error(inspection.InspectedPackage.CompatibilityError)
+			mapProtocol2Error(inspection.CompatibilityError)
 	}
 	var before *Protocol2Response
 	statusControl, hasStatus := r.control.(protocol2StatusControl)

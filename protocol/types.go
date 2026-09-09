@@ -1,5 +1,7 @@
 package protocol
 
+import "github.com/DeanoC/FogCast/internal/corepackage"
+
 const MaxDevelopmentRBFBytes int64 = 32 << 20
 
 const RecoveryRebootRequired = "reboot_required"
@@ -72,6 +74,15 @@ func (e *APIError) Error() string {
 
 type ErrorEnvelope struct {
 	Error APIError `json:"error"`
+}
+
+// CoreInspection is the target runtime's read-only compatibility observation
+// for one exact core package.
+type CoreInspection struct {
+	PackageID          string                 `json:"package_id"`
+	Descriptor         corepackage.Descriptor `json:"descriptor"`
+	Compatible         bool                   `json:"compatible"`
+	CompatibilityError *APIError              `json:"compatibility_error"`
 }
 
 type Health struct {

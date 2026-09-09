@@ -281,6 +281,8 @@ func (s *Service) invalidateTargetSession(client *host.Client) {
 	if s.activeExecution != ExecutionHostOnly {
 		s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
 	}
+	s.activePackageID, s.activePackageGeneration = "", 0
+	s.packageRejection = nil
 	s.stoppedKitLease = nil
 	s.selectedTargetReconciled = false
 }

@@ -191,19 +191,23 @@ type Service struct {
 	nextLookup     time.Time
 	lookupFailures uint
 
-	stoppedKitLease     *host.KitLease
-	closeKitLeases      func(context.Context) error
-	catalog             serviceCatalog
-	scanner             serviceScanner
-	preparer            servicePreparer
-	roots               []catalog.Root
-	rootsByID           map[string]catalog.Root
-	configPath          string
-	configWriteMu       sync.Mutex
-	targets             []TargetConfig
-	selectedTarget      string
-	targetClients       map[string]serviceClient
-	targetClientFactory func(TargetConfig) (serviceClient, error)
+	stoppedKitLease         *host.KitLease
+	closeKitLeases          func(context.Context) error
+	corePackages            *corepackage.Store
+	activePackageID         string
+	activePackageGeneration uint64
+	packageRejection        *protocol.APIError
+	catalog                 serviceCatalog
+	scanner                 serviceScanner
+	preparer                servicePreparer
+	roots                   []catalog.Root
+	rootsByID               map[string]catalog.Root
+	configPath              string
+	configWriteMu           sync.Mutex
+	targets                 []TargetConfig
+	selectedTarget          string
+	targetClients           map[string]serviceClient
+	targetClientFactory     func(TargetConfig) (serviceClient, error)
 	// Existing media/input composition captures its selected connection at startup.
 	targetSwitchLocked       bool
 	targetMu                 sync.RWMutex
@@ -399,6 +403,15 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 		options = append(options, WithLibraryMedia(media))
 	}
 	service := newService(config, paths, store, scanner, preparer, client, options...)
+	packageRoot := paths.CorePackages
+	if packageRoot == "" {
+		packageRoot = filepath.Join(filepath.Dir(paths.Index), "core-packages")
+	}
+	service.corePackages, err = corepackage.NewStore(packageRoot)
+	if err != nil {
+		return fail("open installed core packages", err)
+	}
+
 	if err := service.retireSupersededLibraries(ctx); err != nil {
 		return fail("retire superseded mapped libraries", err)
 	}
@@ -529,6 +542,9 @@ func (s *Service) DevelopmentSessionState(ctx context.Context) (bool, string, er
 }
 
 func (s *Service) resolveExecution(ctx context.Context, game catalog.Game) (string, error) {
+	if game.Kind == catalog.SourceKindCorePackage {
+		return ExecutionFPGADevelopment, nil
+	}
 	execution, err := s.executionResolver.Resolve(ctx, game)
 	if err != nil {
 		return "", canonicalError(protocol.CodeInternal, safeContextError(err))
@@ -558,6 +574,14 @@ func (s *Service) SetUploadReadDelay(delay time.Duration) {
 }
 
 func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFunc) (protocol.CachedLaunchResponse, error) {
+	if store, ok := s.catalog.(coreEntryCatalog); ok {
+		if _, err := store.CoreEntry(ctx, gameID); err == nil {
+			return s.launchCoreEntry(ctx, gameID)
+		} else if !errors.Is(err, catalog.ErrCoreEntryNotFound) {
+			return protocol.CachedLaunchResponse{}, mapCoreEntryError(err)
+		}
+	}
+
 	if err := ctx.Err(); err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
@@ -609,6 +633,8 @@ func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFu
 					s.activeExecution = ExecutionFPGANative
 					s.activeTarget = s.selectedTarget
 					s.activeGameID, s.activeSystem = game.ID, game.System
+					s.packageRejection = nil
+					s.activePackageID, s.activePackageGeneration = "", 0
 				}
 				s.executionMu.Unlock()
 			}
@@ -1050,7 +1076,7 @@ func (s *Service) QueryGames(ctx context.Context, query catalog.Query) (catalog.
 }
 
 func (s *Service) PlatformLaunchable(system protocol.System) bool {
-	return catalog.Launchable(system) || s.hostLaunchable(system)
+	return system == catalog.CorePlatform || catalog.Launchable(system) || s.hostLaunchable(system)
 }
 
 func (s *Service) Platforms(ctx context.Context) ([]catalog.PlatformInfo, error) {
@@ -1145,6 +1171,8 @@ func (s *Service) LoadDevelopmentRBF(parent context.Context, size int64, content
 	s.activeExecution = ExecutionFPGADevelopment
 	s.activeTarget = s.selectedTarget
 	s.activeGameID, s.activeSystem = "", ""
+	s.activePackageID, s.activePackageGeneration = "", 0
+	s.packageRejection = nil
 	s.selectedTargetReconciled = false
 	s.selectedTargetRepairAllowed = false
 	s.executionMu.Unlock()
@@ -1158,6 +1186,10 @@ func (s *Service) LoadCore(parent context.Context, size int64, content io.Reader
 	if size <= 0 || size > corepackage.MaxArchiveSize || content == nil {
 		return protocol.Status{}, corePackageRequestFailure(canonicalError(protocol.CodeBadRequest, nil))
 	}
+	return s.loadCore(parent, func(context.Context) (coreLoadSource, error) { return coreLoadSource{size: size, body: content}, nil })
+}
+
+func (s *Service) loadCore(parent context.Context, source func(context.Context) (coreLoadSource, error)) (protocol.Status, error) {
 	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
 	defer cancel()
 	releaseLifecycle, err := s.acquireLifecycle(ctx)
@@ -1165,6 +1197,20 @@ func (s *Service) LoadCore(parent context.Context, size int64, content io.Reader
 		return protocol.Status{}, corePackageRequestFailure(err)
 	}
 	defer releaseLifecycle()
+
+	s.executionMu.Lock()
+	pendingRejection := s.packageRejection != nil
+	s.executionMu.Unlock()
+	if pendingRejection {
+		if status, err := s.stopRejectedCore(ctx); err != nil {
+			return status, err
+		}
+	}
+	selected, err := source(ctx)
+	if err != nil {
+		return protocol.Status{}, corePackageRequestFailure(err)
+	}
+	size, content := selected.size, selected.body
 	if s.discoveryEnabled() {
 		if _, err := s.refreshTargetConnection(ctx); err != nil {
 			return protocol.Status{}, corePackageRequestFailure(canonicalRemoteError(err, protocol.CodeMiSTerUnavailable))
@@ -1200,11 +1246,49 @@ func (s *Service) LoadCore(parent context.Context, size int64, content io.Reader
 	if !validServiceCorePackageStatus(status) {
 		return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
 	}
+
+	if selected.entry != nil && status.CorePackage.PackageID != selected.entry.PackageID {
+		rejection := &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Message: "activated package differs from selected library package", Phase: "identity", Expected: selected.entry.PackageID, Observed: status.CorePackage.PackageID}
+		recoveryCtx, recoveryCancel := serviceTimeout(parent, s.coreLoadReconcileTimeout)
+		recovered, stopErr := client.Stop(recoveryCtx)
+		if stopErr != nil || !validRecoveredDevelopmentStatus(recovered) || recovered.CorePackage != nil {
+			recovered, stopErr = client.Status(recoveryCtx)
+		}
+		recoveryCancel()
+		if stopErr == nil && validRecoveredDevelopmentStatus(recovered) && recovered.CorePackage == nil {
+			recovered.LastError = rejection
+			return s.retireExecutionAfterConfirmedIdleCorePackageFailure(ctx, recovered, rejection)
+		}
+
+		hostCleanupErr := s.stopHostOnlyIfActive(ctx)
+		s.executionMu.Lock()
+		if hostCleanupErr == nil {
+			s.activeExecution, s.activeTarget = ExecutionFPGADevelopment, s.selectedTarget
+			s.activeGameID, s.activeSystem = "", ""
+			s.activePackageID, s.activePackageGeneration = "", 0
+		}
+		s.packageRejection = rejection
+		s.executionMu.Unlock()
+		status.LastError = rejection
+		if hostCleanupErr != nil {
+			return status, &protocol.APIError{Code: protocol.CodeInternal, Message: "host cleanup failed after core package rejection", Phase: "recovery"}
+		}
+		return status, rejection
+	}
 	s.executionMu.Lock()
 	previousHostOnly := s.activeExecution == ExecutionHostOnly
 	s.activeExecution = ExecutionFPGADevelopment
 	s.activeTarget = s.selectedTarget
 	s.activeGameID, s.activeSystem = "", ""
+	s.activePackageID, s.activePackageGeneration = "", 0
+	s.packageRejection = nil
+	if selected.entry != nil && status.CorePackage.PackageID == selected.entry.PackageID {
+		s.activeGameID, s.activeSystem = selected.entry.GameID, catalog.CorePlatform
+		s.activePackageID, s.activePackageGeneration = selected.entry.PackageID, status.CorePackage.Generation
+		status.GameID = stringPtr(s.activeGameID)
+		status.System = systemPtr(s.activeSystem)
+	}
+
 	s.selectedTargetReconciled = false
 	s.selectedTargetRepairAllowed = false
 	s.executionMu.Unlock()
@@ -1223,6 +1307,8 @@ func (s *Service) retireExecutionAfterConfirmedIdleCorePackageFailure(ctx contex
 	s.selectedTargetRepairAllowed = false
 	if s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment {
 		s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
+		s.packageRejection = nil
+		s.activePackageID, s.activePackageGeneration = "", 0
 	}
 	s.executionMu.Unlock()
 	if !previousHostOnly {
@@ -1234,6 +1320,8 @@ func (s *Service) retireExecutionAfterConfirmedIdleCorePackageFailure(ctx contex
 	s.executionMu.Lock()
 	if s.activeExecution == ExecutionHostOnly {
 		s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
+		s.packageRejection = nil
+		s.activePackageID, s.activePackageGeneration = "", 0
 	}
 	s.executionMu.Unlock()
 	return status, loadErr
@@ -1338,7 +1426,7 @@ func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 	}
 	defer releaseLifecycle()
 	s.executionMu.Lock()
-	localExecution := s.activeExecution == ExecutionHostOnly
+	localExecution := s.activeExecution == ExecutionHostOnly && s.packageRejection == nil
 	s.executionMu.Unlock()
 	if !localExecution && s.discoveryEnabled() {
 		if _, err := s.refreshTargetConnection(ctx); err != nil {
@@ -1348,7 +1436,7 @@ func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
 	s.executionMu.Lock()
-	hostOnly := s.activeExecution == ExecutionHostOnly
+	hostOnly := s.activeExecution == ExecutionHostOnly && s.packageRejection == nil
 	gameID, system := s.activeGameID, s.activeSystem
 	s.executionMu.Unlock()
 	if hostOnly {
@@ -1362,6 +1450,8 @@ func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 		if status.State == hostexec.Idle {
 			s.executionMu.Lock()
 			s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
+			s.packageRejection = nil
+			s.activePackageID, s.activePackageGeneration = "", 0
 			s.executionMu.Unlock()
 			return protocol.Status{State: protocol.StateIdle}, nil
 		}
@@ -1385,6 +1475,21 @@ func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 			s.activeExecution = ExecutionFPGADevelopment
 			s.activeTarget = s.selectedTarget
 			s.activeGameID, s.activeSystem = "", ""
+			s.activePackageID, s.activePackageGeneration = "", 0
+		}
+
+		if status.CorePackage != nil && s.activePackageID != "" && s.activePackageID == status.CorePackage.PackageID && s.activePackageGeneration == status.CorePackage.Generation && s.activeTarget == s.selectedTarget && s.activeGameID != "" {
+			status.GameID = stringPtr(s.activeGameID)
+			status.System = systemPtr(s.activeSystem)
+		} else {
+			s.activePackageID, s.activePackageGeneration = "", 0
+			s.activeGameID, s.activeSystem = "", ""
+		}
+		if s.packageRejection != nil {
+			rejection := *s.packageRejection
+			status.LastError = &rejection
+			status.GameID = nil
+			status.System = nil
 		}
 		s.executionMu.Unlock()
 	} else if status.State == protocol.StateActive {
@@ -1408,6 +1513,8 @@ func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 		s.selectedTargetRepairAllowed = false
 		if s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment {
 			s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
+			s.packageRejection = nil
+			s.activePackageID, s.activePackageGeneration = "", 0
 		}
 		s.executionMu.Unlock()
 	} else {
@@ -1416,6 +1523,14 @@ func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 		s.selectedTargetRepairAllowed = false
 		s.executionMu.Unlock()
 	}
+	s.executionMu.Lock()
+	if s.packageRejection != nil {
+		rejection := *s.packageRejection
+		status.LastError = &rejection
+		status.GameID = nil
+		status.System = nil
+	}
+	s.executionMu.Unlock()
 	return status, nil
 }
 
@@ -1432,9 +1547,10 @@ func (s *Service) allowSelectedTargetRepair(parent context.Context) {
 func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 	s.executionMu.Lock()
 	activeExecution := s.activeExecution
+	pendingRejection := s.packageRejection != nil
 	s.executionMu.Unlock()
 	timeout := s.requestTimeout
-	if activeExecution == ExecutionFPGADevelopment {
+	if activeExecution == ExecutionFPGADevelopment || pendingRejection {
 		timeout = s.uploadTimeout
 	}
 	ctx, cancel := serviceTimeout(parent, timeout)
@@ -1444,6 +1560,13 @@ func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 		return protocol.Status{}, err
 	}
 	defer releaseLifecycle()
+	s.executionMu.Lock()
+	pendingRejection = s.packageRejection != nil
+	s.executionMu.Unlock()
+	if pendingRejection {
+		return s.stopRejectedCore(ctx)
+	}
+
 	if activeExecution != ExecutionHostOnly && s.discoveryEnabled() {
 		if _, err := s.refreshTargetConnection(ctx); err != nil {
 			return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
@@ -1501,6 +1624,8 @@ func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 	s.executionMu.Lock()
 	if s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment {
 		s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
+		s.packageRejection = nil
+		s.activePackageID, s.activePackageGeneration = "", 0
 	}
 	s.selectedTargetReconciled = status.State == protocol.StateIdle
 	s.selectedTargetRepairAllowed = false
@@ -1688,6 +1813,8 @@ func (s *Service) launchHostOnly(ctx context.Context, game catalog.Game, root ca
 	s.activeExecution = ExecutionHostOnly
 	s.activeTarget = ""
 	s.activeGameID, s.activeSystem = game.ID, game.System
+	s.packageRejection = nil
+	s.activePackageID, s.activePackageGeneration = "", 0
 	s.executionMu.Unlock()
 	if err := prepared.Remove(); err != nil {
 		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, romsource.ErrCleanupRetained)
@@ -1761,6 +1888,8 @@ func (s *Service) launchHostPath(ctx context.Context, game catalog.Game, root ca
 	s.activeExecution = ExecutionHostOnly
 	s.activeTarget = ""
 	s.activeGameID, s.activeSystem = game.ID, game.System
+	s.packageRejection = nil
+	s.activePackageID, s.activePackageGeneration = "", 0
 	s.executionMu.Unlock()
 	gameID, system := game.ID, game.System
 	return protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system}}, false, nil
@@ -2078,6 +2207,8 @@ func (s *Service) launchFPGANative(parent context.Context, game catalog.Game, ro
 	s.activeExecution = ExecutionFPGANative
 	s.activeTarget = s.selectedTarget
 	s.activeGameID, s.activeSystem = game.ID, game.System
+	s.packageRejection = nil
+	s.activePackageID, s.activePackageGeneration = "", 0
 	s.executionMu.Unlock()
 	return protocol.CachedLaunchResponse{Status: status}, false, nil
 }
@@ -2098,6 +2229,8 @@ func (s *Service) stopHostOnlyIfActive(ctx context.Context) error {
 	s.executionMu.Lock()
 	if s.activeExecution == ExecutionHostOnly {
 		s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
+		s.packageRejection = nil
+		s.activePackageID, s.activePackageGeneration = "", 0
 	}
 	s.executionMu.Unlock()
 	return nil

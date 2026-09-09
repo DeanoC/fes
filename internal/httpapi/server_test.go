@@ -11,9 +11,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DeanoC/FogCast/internal/corepackage"
 	"github.com/DeanoC/FogCast/internal/httpapi"
+	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -30,13 +32,27 @@ type fakeController struct {
 }
 
 type fakeDevelopmentController struct {
-	status      protocol.Status
-	size        int64
-	body        []byte
-	calls       int
-	rebootCalls int
-	coreCalls   int
-	coreErr     *protocol.APIError
+	status       protocol.Status
+	size         int64
+	body         []byte
+	calls        int
+	rebootCalls  int
+	coreCalls    int
+	coreErr      *protocol.APIError
+	inspectCalls int
+	inspection   protocol.CoreInspection
+	inspectErr   *protocol.APIError
+}
+
+func (f *fakeDevelopmentController) InspectCore(_ context.Context, size int64, content io.Reader) (protocol.CoreInspection, *protocol.APIError) {
+	body, err := io.ReadAll(content)
+	if err != nil {
+		return protocol.CoreInspection{}, &protocol.APIError{Code: protocol.CodeInternal, Message: "test reader failed"}
+	}
+	f.inspectCalls++
+	f.size = size
+	f.body = append([]byte(nil), body...)
+	return f.inspection, f.inspectErr
 }
 
 func (f *fakeDevelopmentController) LoadCore(_ context.Context, size int64, content io.Reader) (protocol.Status, *protocol.APIError) {
@@ -175,6 +191,88 @@ func TestDevelopmentCoreUploadStreamsToControllerAndPreservesStructuredError(t *
 	if response.Code != http.StatusUnprocessableEntity || !strings.Contains(response.Body.String(), `"phase":"compatibility"`) ||
 		!strings.Contains(response.Body.String(), `"expected":"fes.simple-game@1.0"`) {
 		t.Fatalf("response=%d %s", response.Code, response.Body.String())
+	}
+}
+
+func TestDevelopmentCoreInspectionIsAuthenticatedBoundedAndDoesNotRequireKitLease(t *testing.T) {
+	payload := []byte("canonical-fcore")
+	development := &fakeDevelopmentController{inspection: protocol.CoreInspection{
+		PackageID:  strings.Repeat("a", 64),
+		Descriptor: corepackage.Descriptor{Core: corepackage.Core{ID: "fes.pong"}},
+		Compatible: true,
+	}}
+	leases := kitlease.New(time.Minute, func(context.Context) error { return nil })
+	defer leases.Close()
+	handler := httpapi.New(&fakeController{}, "test-token", "0.1.0", discardLogger(),
+		httpapi.WithDevelopment(development), httpapi.WithKitLease(leases))
+	request := httptest.NewRequest(http.MethodPost, "/v1/development/core/inspect", bytes.NewReader(payload))
+	request.ContentLength = int64(len(payload))
+	request.Header.Set("Authorization", "Bearer test-token")
+	request.Header.Set("Content-Type", "application/octet-stream")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK || development.inspectCalls != 1 ||
+		development.size != int64(len(payload)) || !bytes.Equal(development.body, payload) {
+		t.Fatalf("response=%d %s calls=%d size=%d body=%q", response.Code, response.Body.String(), development.inspectCalls, development.size, development.body)
+	}
+	var got protocol.CoreInspection
+	if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil || got.PackageID != development.inspection.PackageID ||
+		got.Descriptor.Core.ID != "fes.pong" || !got.Compatible || got.CompatibilityError != nil {
+		t.Fatalf("inspection=%#v error=%v", got, err)
+	}
+}
+
+func TestDevelopmentCoreInspectionReturnsStructuredIncompatibilityAsData(t *testing.T) {
+	development := &fakeDevelopmentController{inspection: protocol.CoreInspection{
+		PackageID: strings.Repeat("a", 64), Compatible: false,
+		CompatibilityError: &protocol.APIError{Code: protocol.CodeUnsupportedOperation,
+			Message: "required interface unavailable", Phase: "compatibility", Expected: "fes.gamepad@1.0"},
+	}}
+	handler := httpapi.New(&fakeController{}, "test-token", "0.1.0", discardLogger(), httpapi.WithDevelopment(development))
+	request := httptest.NewRequest(http.MethodPost, "/v1/development/core/inspect", strings.NewReader("pkg"))
+	request.ContentLength = 3
+	request.Header.Set("Authorization", "Bearer test-token")
+	request.Header.Set("Content-Type", "application/octet-stream")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	var got protocol.CoreInspection
+	if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &got) != nil || got.Compatible ||
+		got.CompatibilityError == nil || got.CompatibilityError.Code != protocol.CodeUnsupportedOperation ||
+		got.CompatibilityError.Phase != "compatibility" || got.CompatibilityError.Expected != "fes.gamepad@1.0" {
+		t.Fatalf("response=%d %s inspection=%#v", response.Code, response.Body.String(), got)
+	}
+}
+
+func TestDevelopmentCoreInspectionRejectsUnauthenticatedAndInvalidUploadsBeforeRead(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		authorization string
+		contentType   string
+		length        int64
+		wantStatus    int
+	}{
+		{name: "unauthenticated", contentType: "application/octet-stream", length: 3, wantStatus: http.StatusUnauthorized},
+		{name: "wrong media type", authorization: "Bearer test-token", contentType: "application/json", length: 3, wantStatus: http.StatusBadRequest},
+		{name: "empty", authorization: "Bearer test-token", contentType: "application/octet-stream", length: 0, wantStatus: http.StatusBadRequest},
+		{name: "too large", authorization: "Bearer test-token", contentType: "application/octet-stream", length: corepackage.MaxArchiveSize + 1, wantStatus: http.StatusBadRequest},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			development := &fakeDevelopmentController{}
+			handler := httpapi.New(&fakeController{}, "test-token", "0.1.0", discardLogger(), httpapi.WithDevelopment(development))
+			body := &observedReader{data: []byte("bad"), err: io.EOF}
+			request := httptest.NewRequest(http.MethodPost, "/v1/development/core/inspect", body)
+			request.ContentLength = test.length
+			request.Header.Set("Authorization", test.authorization)
+			request.Header.Set("Content-Type", test.contentType)
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != test.wantStatus || development.inspectCalls != 0 || body.reads != 0 {
+				t.Fatalf("response=%d %s calls=%d reads=%d", response.Code, response.Body.String(), development.inspectCalls, body.reads)
+			}
+		})
 	}
 }
 

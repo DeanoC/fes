@@ -21,14 +21,20 @@ type PlatformRegistry struct {
 	byID map[protocol.System]Platform
 }
 
+// CorePlatform is the browse-only catalog grouping for installed FPGA core
+// packages. Package activation is resolved by the host and has no cartridge
+// protocol system mapping.
+const CorePlatform protocol.System = "fpga"
+
 func DefaultPlatforms() PlatformRegistry {
 	rows := systems.Rows()
-	platforms := make([]Platform, 0, len(rows))
+	platforms := make([]Platform, 0, len(rows)+1)
 	for _, row := range rows {
 		platform := Platform{ID: row.PlatformID, Label: row.Label, Extensions: platformExtensions(row.Extensions...)}
 		platform.LaunchSystem = row.LaunchSystem
 		platforms = append(platforms, platform)
 	}
+	platforms = append(platforms, Platform{ID: CorePlatform, Label: "FPGA cores", Extensions: platformExtensions()})
 	return NewPlatformRegistry(platforms...)
 }
 

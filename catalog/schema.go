@@ -8,7 +8,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 4
+const schemaVersion = 5
 
 const schemaV1 = `
 CREATE TABLE libraries (
@@ -91,6 +91,15 @@ CREATE INDEX IF NOT EXISTS games_year ON games(year);
 PRAGMA user_version = 4;
 `
 
+const schemaV5 = `
+CREATE TABLE core_entries (
+  game_id TEXT PRIMARY KEY REFERENCES games(game_id) ON DELETE CASCADE,
+  core_id TEXT NOT NULL UNIQUE,
+  package_id TEXT NOT NULL
+);
+PRAGMA user_version = 5;
+`
+
 func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if _, err := connection.ExecContext(ctx, "BEGIN EXCLUSIVE"); err != nil {
 		return fmt.Errorf("begin catalog migration: %w", err)
@@ -137,6 +146,12 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 			return fmt.Errorf("backfill catalog dump fields: %w", err)
 		}
 		version = 4
+	}
+	if version == 4 {
+		if _, err := connection.ExecContext(ctx, schemaV5); err != nil {
+			return fmt.Errorf("apply catalog schema version 5: %w", err)
+		}
+		version = 5
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {
 		return fmt.Errorf("commit catalog migration: %w", err)
