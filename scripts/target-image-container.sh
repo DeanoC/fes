@@ -35,6 +35,8 @@ esac
 
 
 "$repo_root/scripts/native-extra-cores.sh" validate
+package_enabled=0
+if [ -n "${FES_PONG_PACKAGE_DIR:-}" ]; then package_enabled=1; fi
 run_container() {
   if [ "${NATIVE_RUNTIME_SYSTEMS:-megadrive}" = 'megadrive pong snes nes' ]; then
     # Bundles are needed only for fetch; run/verify consume the sealed cache.
@@ -43,12 +45,30 @@ run_container() {
         case "$bundle" in /*) ;; *) echo 'absolute native extra-core bundles required' >&2; exit 2 ;; esac
         [ -d "$bundle" ] && [ ! -L "$bundle" ] || exit 2
       done
+      if [ "$package_enabled" -eq 1 ]; then
+        exec "$runtime" run --env 'NATIVE_RUNTIME_SYSTEMS=megadrive pong snes nes' \
+          --volume "$PONG_RBF_BUNDLE:/pong-rbf-bundle:ro" --env PONG_RBF_BUNDLE=/pong-rbf-bundle \
+          --volume "$SNES_RBF_BUNDLE:/snes-rbf-bundle:ro" --env SNES_RBF_BUNDLE=/snes-rbf-bundle \
+          --volume "$NES_RBF_BUNDLE:/nes-rbf-bundle:ro" --env NES_RBF_BUNDLE=/nes-rbf-bundle \
+          --volume "$FES_PONG_PACKAGE_DIR:/fes-pong-package:ro" --env FES_PONG_PACKAGE_DIR=/fes-pong-package \
+          --volume "$FES_PONG_PACKAGE_SELECTION:/fes-pong-package-selection.toml:ro" --env FES_PONG_PACKAGE_SELECTION=/fes-pong-package-selection.toml "$@"
+      fi
       exec "$runtime" run --env 'NATIVE_RUNTIME_SYSTEMS=megadrive pong snes nes' \
         --volume "$PONG_RBF_BUNDLE:/pong-rbf-bundle:ro" --env PONG_RBF_BUNDLE=/pong-rbf-bundle \
         --volume "$SNES_RBF_BUNDLE:/snes-rbf-bundle:ro" --env SNES_RBF_BUNDLE=/snes-rbf-bundle \
         --volume "$NES_RBF_BUNDLE:/nes-rbf-bundle:ro" --env NES_RBF_BUNDLE=/nes-rbf-bundle "$@"
     fi
+    if [ "$package_enabled" -eq 1 ]; then
+      exec "$runtime" run --env 'NATIVE_RUNTIME_SYSTEMS=megadrive pong snes nes' \
+        --volume "$FES_PONG_PACKAGE_DIR:/fes-pong-package:ro" --env FES_PONG_PACKAGE_DIR=/fes-pong-package \
+        --volume "$FES_PONG_PACKAGE_SELECTION:/fes-pong-package-selection.toml:ro" --env FES_PONG_PACKAGE_SELECTION=/fes-pong-package-selection.toml "$@"
+    fi
     exec "$runtime" run --env 'NATIVE_RUNTIME_SYSTEMS=megadrive pong snes nes' "$@"
+  fi
+  if [ "$package_enabled" -eq 1 ]; then
+    exec "$runtime" run \
+      --volume "$FES_PONG_PACKAGE_DIR:/fes-pong-package:ro" --env FES_PONG_PACKAGE_DIR=/fes-pong-package \
+      --volume "$FES_PONG_PACKAGE_SELECTION:/fes-pong-package-selection.toml:ro" --env FES_PONG_PACKAGE_SELECTION=/fes-pong-package-selection.toml "$@"
   fi
   exec "$runtime" run "$@"
 }

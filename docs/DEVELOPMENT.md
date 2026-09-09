@@ -99,6 +99,34 @@ physical video, input and audio require acceptance of the exact assembled
 image. Basic SNES supports ordinary LoROM/HiROM cartridges, without enhancement
 chips or persistent saves.
 
+### FES Pong format-2 image package
+
+FES may select one sealed `fes.pong` package by passing both trusted absolute
+inputs below to image fetch, build, and verification:
+
+```sh
+export FES_PONG_PACKAGE_DIR=/absolute/path/to/<package-id>
+export FES_PONG_PACKAGE_SELECTION=/absolute/path/to/fes-pong.package-selection.toml
+```
+
+The pair is all-or-nothing and is mounted read-only in image containers. The
+package directory contains exactly `manifest.toml` and `core.rbf`; the closed
+selection records format/kind, core and package IDs, payload SHA-256, the
+selected misteross and mister-packages revisions, and the derived install
+path. `target-image-lock select-package` copies a validated pair into the
+native cache. `verify-package` reinspects the exact bytes, while
+`verify-package --print-inputs` emits the canonical package projection used by
+the installed build-input record and image verifier.
+
+The image installs the two members read-only beneath
+`/usr/share/mister-runtime/core-packages/<package-id>/` and installs the
+selection as
+`/usr/share/mister-runtime/selections/fes-pong.package.toml`. Both cold image
+passes compare the external `fes-pong.package-selection.toml` byte-for-byte.
+Removing the input pair removes cached and installed package state. The FES
+orchestrator derives these inputs from its selected recipe; they are not an
+ambient package lookup or fallback mechanism.
+
 ### Native Mega Drive RBF selection
 
 Source-built Mega Drive selection is the native image default; use the explicit upstream selection for fallback.

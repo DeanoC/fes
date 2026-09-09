@@ -350,6 +350,7 @@ EOF
         selection_label=$(read_native_selection_value label)
         [ -z "$selection_label" ] || printf 'megadrive_label=%s\n' "$selection_label"
       fi
+      "$repo/scripts/native-extra-cores.sh" build-inputs "$(dirname "$native_selection_file")" "$root"
     } > "$expected_inputs"
     cmp "$expected_inputs" "$root/usr/share/mister-runtime/build-inputs" >/dev/null 2>&1 || {
       printf '%s\n' 'verify-target-image: native build-input record differs from the selection' >&2

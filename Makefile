@@ -1,5 +1,5 @@
 # Explicit native image selection applies consistently to fetch/build/verify/QEMU.
-export NATIVE_RUNTIME_SYSTEMS PONG_RBF_BUNDLE SNES_RBF_BUNDLE NES_RBF_BUNDLE
+export NATIVE_RUNTIME_SYSTEMS PONG_RBF_BUNDLE SNES_RBF_BUNDLE NES_RBF_BUNDLE FES_PONG_PACKAGE_DIR FES_PONG_PACKAGE_SELECTION
 
 VERSION ?= 0.1.0
 REVISION ?= $(shell git rev-parse --verify HEAD 2>/dev/null || printf unknown)

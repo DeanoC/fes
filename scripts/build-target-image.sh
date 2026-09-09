@@ -373,6 +373,20 @@ if [ "$variant" = native-dev ]; then
       cmp "$output_root/work-1-$variant/$system.selection.toml" "$output_root/work-2-$variant/$system.selection.toml"
     done
   fi
+  if [ -n "${FES_PONG_PACKAGE_DIR:-}" ]; then
+    cmp "$output_root/work-1-$variant/fes-pong.package-selection.toml" \
+      "$output_root/work-2-$variant/fes-pong.package-selection.toml" || {
+      printf '%s\n' 'build-target-image: FES Pong package selection differs between reproducible outputs' >&2
+      exit 1
+    }
+  else
+    for work in "$output_root/work-1-$variant" "$output_root/work-2-$variant"; do
+      [ ! -e "$work/fes-pong.package-selection.toml" ] && [ ! -L "$work/fes-pong.package-selection.toml" ] || {
+        printf '%s\n' 'build-target-image: unselected FES Pong package selection was retained' >&2
+        exit 1
+      }
+    done
+  fi
 fi
 
 final_dir=$output_root/$variant

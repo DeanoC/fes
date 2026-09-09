@@ -433,11 +433,19 @@ The `native-dev` image instead starts image-owned `mister-runtime` and
 then image-owned `mister-agent --runtime native`. It contains exactly one
 locked idle RBF and one selected Mega Drive RBF under `/usr/share/mister-runtime`,
 plus the explicitly selected sealed Pong, SNES and NES RBFs when the four-system
-profile is requested,
+profile is requested. FES may additionally supply one closed format-2
+`fes.pong` package/selection pair. The image selector validates and copies only
+`manifest.toml` and `core.rbf`, installs them beneath the exact package ID, and
+retains the external producer/package selection beside the image,
 has no Main startup or legacy Menu-configuration helper, has no
 `/dev/MiSTer_cmd` wait, and retains the same read-only root with volatile
 `/run`, `/tmp`, and `/var/log`. Its build-input record identifies the runtime
-commit, agent binary, idle RBF, and selected Mega Drive RBF provenance. Its QEMU
+commit, agent binary, idle RBF, and selected Mega Drive RBF provenance. When the
+format-2 package is selected, the record also identifies the exact selection
+digest, package and payload IDs, producer/schema revisions, and install path.
+The verifier reconstructs that projection from the installed package and
+external selection; it does not infer selection from cache or image contents.
+Its QEMU
 smoke proves only root filesystem and init packaging; it does not emulate FPGA
 programming, prove target readiness, or establish game or development-RBF
 support. The designated-kit idle, Mega Drive launch/input/Stop/relaunch,

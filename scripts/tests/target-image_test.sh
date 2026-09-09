@@ -3,7 +3,7 @@ set -eu
 
 repo=$(CDPATH='' cd -- "$(dirname "$0")/../.." && pwd)
 fixture=$(mktemp -d "${TMPDIR:-/tmp}/fogcast-target-image-image.XXXXXX")
-trap 'rm -rf "$fixture"' EXIT INT TERM
+trap 'chmod -R u+w "$fixture" 2>/dev/null || true; rm -rf "$fixture"' EXIT INT TERM
 
 for curl_symbol in BR2_PACKAGE_LIBCURL BR2_PACKAGE_LIBCURL_CURL; do
   grep -Fqx "$curl_symbol=y" \
@@ -148,8 +148,7 @@ size = 1
 install_path = '/usr/share/mister-runtime/cores/megadrive.rbf'
 EOF
 chmod 0444 "$fake_selection"
-if [ "${NATIVE_RUNTIME_SYSTEMS:-megadrive}" = 'megadrive pong snes nes' ] &&
-  [ -n "${TARGET_IMAGE_EXTRA_CORE_CACHE:-}" ]; then
+if [ -n "${TARGET_IMAGE_EXTRA_CORE_CACHE:-}" ]; then
   NATIVE_RUNTIME_SYSTEMS='megadrive pong snes nes' \
     sh "$repo/scripts/native-extra-cores.sh" copy-records \
       "$TARGET_IMAGE_EXTRA_CORE_CACHE" "$(dirname "$fake_selection")"
@@ -431,11 +430,14 @@ native_root=$fixture/native-root
 make_root "$prod_root" prod
 make_root "$dev_root" dev
 make_root "$native_root" native-dev
-if [ "${NATIVE_RUNTIME_SYSTEMS:-megadrive}" = 'megadrive pong snes nes' ] &&
-  [ -n "${TARGET_IMAGE_EXTRA_CORE_CACHE:-}" ]; then
-  NATIVE_RUNTIME_SYSTEMS='megadrive pong snes nes' \
-    sh "$repo/scripts/native-extra-cores.sh" install \
-      "$TARGET_IMAGE_EXTRA_CORE_CACHE" "$native_root"
+if [ -n "${TARGET_IMAGE_EXTRA_CORE_CACHE:-}" ] &&
+  { [ "${NATIVE_RUNTIME_SYSTEMS:-megadrive}" = 'megadrive pong snes nes' ] ||
+    [ -n "${FES_PONG_PACKAGE_DIR:-}" ]; }; then
+  sh "$repo/scripts/native-extra-cores.sh" install \
+    "$TARGET_IMAGE_EXTRA_CORE_CACHE" "$native_root"
+  sh "$repo/scripts/native-extra-cores.sh" build-inputs \
+    "$TARGET_IMAGE_EXTRA_CORE_CACHE" "$native_root" >> \
+    "$native_root/usr/share/mister-runtime/build-inputs"
 fi
 verify_fixture prod "$prod_root" "$fixture/prod.manifest" "$fixture/prod.libraries"
 verify_fixture dev "$dev_root" "$fixture/dev.manifest" "$fixture/dev.libraries"
