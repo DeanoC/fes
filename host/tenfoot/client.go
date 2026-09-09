@@ -135,6 +135,11 @@ type AttractPlaylist struct {
 	IdleSeconds int           `json:"idle_seconds"`
 }
 
+// BackdropHandle is the 64-hex fanart/backdrop handle, or empty.
+func (item AttractItem) BackdropHandle() string {
+	return normalizeHandle(item.Backdrop)
+}
+
 // StillHandle prefers backdrop, then cover, then marquee. Video is ignored.
 func (item AttractItem) StillHandle() string {
 	handles := item.StillHandles()

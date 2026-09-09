@@ -95,6 +95,21 @@ func TestLogoHandleAndCollectLogoHandles(t *testing.T) {
 	if got := BackdropHandle(Presentation{Presentation: &PresentationInfo{CoverArtworkID: strings.Repeat("11", 32)}}); got != "" {
 		t.Fatalf("cover-only backdrop = %q", got)
 	}
+	got = CollectBackdropHandles(games, 0, len(games), func(id string) Presentation {
+		if id == "sonic" {
+			return Presentation{Presentation: &PresentationInfo{BackdropArtworkID: backdrop}}
+		}
+		if id == "mario" {
+			return Presentation{Presentation: &PresentationInfo{BackdropArtworkID: other}}
+		}
+		return pres[id]
+	})
+	if len(got) != 2 || got[0] != backdrop || got[1] != other {
+		t.Fatalf("backdrop handles = %#v", got)
+	}
+	if got := CollectBackdropHandles(games, 0, len(games), nil); got != nil {
+		t.Fatalf("nil presentation backdrop = %#v", got)
+	}
 }
 
 func TestPresentationCacheFetchesEvictsAndSkipsRetry(t *testing.T) {

@@ -93,7 +93,12 @@ catalog already has one. Wheel cells use a representative `logo_id` when
 presentation has one, else a bold text label. The grid uses the D-pad and left
 stick in two dimensions to select, Shoulder L/R
 (or Select) to cycle system shelves as a secondary filter, and A to launch.
-When host `GET /api/v1/games?collection=recents` or `collection=favorites`
+The wheel, 4×3 grid, recent strip, and title pane paint a dimmed
+fanart/backdrop behind chrome when presentation `backdrop_artwork_id` or an
+attract backdrop handle exists (`DecodeStill` through the existing still
+cache). Missing fanart uses a soft cover-wall of decoded covers already on
+the page; missing that art keeps the solid theme background. Atmosphere does
+not change focus, launch, or stop. When host `GET /api/v1/games?collection=recents` or `collection=favorites`
 returns titles, a single horizontal Recent / Favorites row paints under the
 4×3 grid (covers and clear logos when those handles exist). Recents win on
 duplicates; the caption is `Recent`, `Favorites`, or `Recent / Favorites`.
@@ -185,7 +190,12 @@ paint a themed idle panel instead of hanging on the grid.
 
 Run `go test -race ./kitlauncher/... ./host/tenfoot/inputmap ./host/tenfoot/theme ./host/tenfoot/fbgrid ./host/tenfoot/gfx ./host/tenfoot/anim ./cmd/fogcast-kit` for adapter tests. They
 exercise real HTTP transports with isolated servers and never open real input or
-framebuffer devices. On the kit, `fogcast-kit -selftest-strip` paints a Recent row under the grid, enters it
+framebuffer devices. On the kit, `fogcast-kit -selftest-atmosphere` paints dimmed fanart behind the
+grid, proves a missing-art stage stays the theme background, paints a
+cover-wall from decoded covers, dims the wheel stage around a bright hero,
+dims the title pane around a bright cover, and re-runs strip (which re-runs
+wheel, motion, detail, attract, cover, text, nav, and shelf).
+On the kit, `fogcast-kit -selftest-strip` paints a Recent row under the grid, enters it
 from last-row Down, moves L/R, opens detail on A, returns on B, hides the
 row when empty, and re-runs wheel (which re-runs motion, detail, attract,
 cover, text, nav, and shelf). `fogcast-kit -selftest-wheel` paints the platform

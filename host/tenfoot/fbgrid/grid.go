@@ -118,6 +118,10 @@ type Grid struct {
 	StripActive    bool
 	StripCellW     int
 	StripCellH     int
+	// Atmosphere is optional fanart/backdrop painted cover-fill behind chrome.
+	// When nil, Paint uses a dimmed cover-wall of decoded tile/strip covers.
+	// When those are also empty, the stage stays the solid theme background.
+	Atmosphere *image.RGBA
 }
 
 // New lays out FakeTiles for a w×h framebuffer.

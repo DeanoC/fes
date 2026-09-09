@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"image"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -46,6 +47,7 @@ func run() error {
 	selftestMotion := flag.Bool("selftest-motion", false, "prove focus pop and confirm pulse over ticks, then exit")
 	selftestWheel := flag.Bool("selftest-wheel", false, "paint platform wheel and hero, enter a system grid, then exit")
 	selftestStrip := flag.Bool("selftest-strip", false, "paint recent/favorites strip, hand off from grid, then exit")
+	selftestAtmosphere := flag.Bool("selftest-atmosphere", false, "paint dimmed fanart/cover-wall behind chrome, then exit")
 	flag.Parse()
 	if *selftestFPGA {
 		fb := "/dev/fb0"
@@ -68,7 +70,7 @@ func run() error {
 		}
 		return runThemeSelftest(fb)
 	}
-	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestMotion || *selftestWheel || *selftestStrip {
+	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestMotion || *selftestWheel || *selftestStrip || *selftestAtmosphere {
 		fb := "/dev/fb0"
 		configTheme := ""
 		if c, err := kitlauncher.LoadConfig(*configPath); err == nil {
@@ -83,6 +85,9 @@ func run() error {
 		}
 		if *selftestMotion {
 			return runMotionSelftest(fb, th)
+		}
+		if *selftestAtmosphere {
+			return runAtmosphereSelftest(fb, th)
 		}
 		if *selftestStrip {
 			return runStripSelftest(fb, th)
@@ -222,6 +227,7 @@ func run() error {
 		handles = append(handles, tenfoot.CollectLogoHandles(m.Games, start, prefetch, presentations.Get)...)
 		handles = append(handles, tenfoot.CollectCoverHandles(m.Strip, 0, len(m.Strip), presentations.Get)...)
 		handles = append(handles, tenfoot.CollectLogoHandles(m.Strip, 0, len(m.Strip), presentations.Get)...)
+		backdropHandles := atmospherePrefetchHandles(m, presentations, start, prefetch)
 		if m.DetailOpen {
 			handles = append(handles, m.DetailPrefetchHandles()...)
 			if game, ok := m.FocusedGame(); ok {
@@ -236,9 +242,12 @@ func run() error {
 		}
 		covers.Keep(handles)
 		covers.Request(ctx, client.Library, handles)
+		stills.Keep(backdropHandles)
+		stills.Request(ctx, client.Library, backdropHandles)
 		cfg := d.Config()
 		w, h := cfg.Width, cfg.Height
 		grid := modelGrid(m, w, h, covers, presentations, th)
+		grid.Atmosphere = stillImage(stills, atmosphereHandle(m, presentations))
 		if lastFocus >= 0 && grid.Focus != lastFocus {
 			popAt = now
 		}
@@ -255,6 +264,7 @@ func run() error {
 			detailWas = false
 		}
 		key := modelRenderKey(m, covers.Generation(), presentations.Generation())
+		key.Stills = stills.Generation()
 		if !grid.MotionActive() && fade <= 0 && now.Sub(last) < 100*time.Millisecond && key == lastKey {
 			return
 		}
@@ -262,6 +272,7 @@ func run() error {
 		lastKey = key
 		if m.DetailOpen {
 			frame := modelDetailFrame(m, covers, presentations, th, w, h)
+			frame.Atmosphere = stillImage(stills, atmosphereHandle(m, presentations))
 			frame.FadeFromBlack = fade
 			fbgrid.PaintDetail(d, frame)
 			d.Present()
@@ -331,6 +342,51 @@ func modelRenderKey(m kitlauncher.Model, covers, presentations uint64) renderKey
 		Strip: m.StripActive, StripFocus: m.StripFocus, StripID: stripID,
 		Covers: covers, Presentations: presentations,
 	}
+}
+
+func atmosphereHandle(m kitlauncher.Model, presentations *tenfoot.PresentationCache) string {
+	pres := tenfoot.Presentation{}
+	if presentations != nil {
+		if game, ok := m.FocusedGame(); ok {
+			pres = presentations.Get(game.ID)
+		} else if game, ok := m.WheelGame(m.Shelf); ok {
+			pres = presentations.Get(game.ID)
+		}
+	}
+	return m.AtmosphereHandle(pres)
+}
+
+func atmospherePrefetchHandles(m kitlauncher.Model, presentations *tenfoot.PresentationCache, start, prefetch int) []string {
+	lookup := func(string) tenfoot.Presentation { return tenfoot.Presentation{} }
+	if presentations != nil {
+		lookup = presentations.Get
+	}
+	handles := tenfoot.CollectBackdropHandles(m.Games, start, prefetch, lookup)
+	handles = append(handles, tenfoot.CollectBackdropHandles(m.Strip, 0, len(m.Strip), lookup)...)
+	if handle := atmosphereHandle(m, presentations); handle != "" {
+		out := make([]string, 0, len(handles)+1)
+		out = append(out, handle)
+		seen := map[string]struct{}{handle: {}}
+		for _, h := range handles {
+			if _, ok := seen[h]; ok {
+				continue
+			}
+			seen[h] = struct{}{}
+			out = append(out, h)
+		}
+		return out
+	}
+	return handles
+}
+
+func stillImage(stills *tenfoot.CoverCache, handle string) *image.RGBA {
+	if stills == nil || handle == "" {
+		return nil
+	}
+	if stills.Status(handle) != tenfoot.CoverReady {
+		return nil
+	}
+	return stills.Image(handle)
 }
 
 func catalogPage(focus, n int) (start, end int) {
