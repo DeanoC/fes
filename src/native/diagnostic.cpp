@@ -4,6 +4,7 @@
 #include "native/diagnostic.hpp"
 
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -348,8 +349,14 @@ std::string DiagnosticHex32(std::uint32_t value)
 std::string ReadDiagnosticFile(const char* path, std::size_t maximum_bytes)
 {
 	if (path == nullptr || maximum_bytes == 0) return {};
-	const int descriptor = open(path, O_RDONLY | O_CLOEXEC);
+	const int descriptor = open(path,
+		O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK);
 	if (descriptor < 0) return {};
+	struct stat metadata = {};
+	if (fstat(descriptor, &metadata) != 0 || !S_ISREG(metadata.st_mode)) {
+		close(descriptor);
+		return {};
+	}
 	std::string bytes(maximum_bytes, '\0');
 	const ssize_t count = read(descriptor, &bytes[0], maximum_bytes);
 	close(descriptor);

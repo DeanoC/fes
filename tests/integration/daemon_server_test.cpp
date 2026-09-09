@@ -509,6 +509,16 @@ void TestMutationRequestsEmitFifoConsumeAndOptionalDump()
 	Contains(body, "\"count\":1");
 	assert(unlink(dump.c_str()) == 0);
 	mister::InstallDiagnosticSink(nullptr);
+
+	const std::string blocked = temporary.Entry("blocked.json");
+	assert(mkfifo((blocked + ".tmp").c_str(), 0600) == 0);
+	mister::DiagnosticRing blocked_ring;
+	mister::DiagnosticFileSink blocked_file(blocked_ring, blocked);
+	mister::InstallDiagnosticSink(&blocked_file);
+	mister::EmitFifoConsume("stop", true);
+	assert(access(blocked.c_str(), F_OK) != 0);
+	assert(unlink((blocked + ".tmp").c_str()) == 0);
+	mister::InstallDiagnosticSink(nullptr);
 }
 
 void TestLaunchDevelopmentAndStopMapIdentityAndState()

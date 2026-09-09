@@ -152,7 +152,10 @@ already names:
 - typed fences `fence.ownership`, `fence.handoff`, `fence.program`,
   `fence.abi`, and `fence.recovery`
 
-Unavailable Main FIFO or sysfs observations stay absent. The dump is
+Unavailable Main FIFO or sysfs observations stay absent. Optional CORENAME
+and sysfs files are opened `O_NOFOLLOW|O_NONBLOCK` and omitted unless they are
+regular files, so a FIFO or symlink cannot stall Probe or FPGA programming.
+Dump publish uses the same flags on its temporary file. The dump is
 read-mostly and never bypasses the lifecycle or FPGA ownership path.
 
 ## Lifecycle and ownership

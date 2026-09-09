@@ -5,7 +5,11 @@
 #include "native/diagnostic.hpp"
 
 #include <assert.h>
+#include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include <string>
 
@@ -134,6 +138,25 @@ void TestSnapshotEnvelopeMatchesAgentDump()
 	assert(json.find("\"kind\":\"main.start\"") != std::string::npos);
 }
 
+void TestOptionalDiagnosticFilesSkipFifosAndKeepRegularBytes()
+{
+	char pattern[] = "/tmp/libmister-diagnostic.XXXXXX";
+	char* directory = mkdtemp(pattern);
+	assert(directory != nullptr);
+	const std::string fifo = std::string(directory) + "/core";
+	const std::string regular = std::string(directory) + "/name";
+	assert(mkfifo(fifo.c_str(), 0600) == 0);
+	const int descriptor = open(regular.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0600);
+	assert(descriptor >= 0);
+	assert(write(descriptor, "MENU\n", 5) == 5);
+	assert(close(descriptor) == 0);
+	assert(mister::ReadDiagnosticFile(fifo.c_str()).empty());
+	assert(mister::ReadDiagnosticFile(regular.c_str()) == "MENU");
+	assert(unlink(fifo.c_str()) == 0);
+	assert(unlink(regular.c_str()) == 0);
+	assert(rmdir(directory) == 0);
+}
+
 } // namespace
 
 int main()
@@ -146,6 +169,7 @@ int main()
 	TestClearJoinStopsCopying();
 	TestCoreNameLeaveMenuIsTyped();
 	TestSnapshotEnvelopeMatchesAgentDump();
-	puts("diagnostic_test: 8 passed");
+	TestOptionalDiagnosticFilesSkipFifosAndKeepRegularBytes();
+	puts("diagnostic_test: 9 passed");
 	return 0;
 }
