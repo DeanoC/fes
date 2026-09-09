@@ -349,3 +349,144 @@ func TestAttractPrefetchCurrentAndNext(t *testing.T) {
 		t.Fatalf("handles %v", got)
 	}
 }
+
+func handleCC() string { return "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" }
+func handleDD() string { return "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd" }
+func handleEE() string { return "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" }
+
+func videoItem(id, title, video, backdrop, cover string) tenfoot.AttractItem {
+	return tenfoot.AttractItem{
+		GameID:     id,
+		Title:      title,
+		Platform:   "snes",
+		Video:      video,
+		Backdrop:   backdrop,
+		Cover:      cover,
+		Launchable: true,
+	}
+}
+
+func TestAttractMotionCyclesStillsWhenVideoPresent(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true}
+	m.SetAttractIdle(time.Millisecond)
+	m.SetAttractCycle(10 * time.Second)
+	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{
+		videoItem("mario", "Mario", handleEE(), handleAA(), handleBB()),
+	}})
+	t0 := time.Unix(0, 0)
+	m.Tick(t0)
+	enter := t0.Add(5 * time.Millisecond)
+	m.Tick(enter)
+	view := m.AttractView(enter)
+	if !view.Motion || view.Handle != handleAA() || view.Caption != "preview 1 / 2" {
+		t.Fatalf("origin %+v", view)
+	}
+	m.Tick(enter.Add(2*time.Second + time.Millisecond))
+	view = m.AttractView(enter.Add(2*time.Second + time.Millisecond))
+	if view.Handle != handleBB() || view.ShotIndex != 1 || view.Caption != "preview 2 / 2" {
+		t.Fatalf("cycle %+v", view)
+	}
+	if !view.Motion {
+		t.Fatal("lost motion chrome")
+	}
+}
+
+func TestAttractStillsFallbackHidesMotionChrome(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true}
+	m.SetAttractIdle(time.Millisecond)
+	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{
+		stillItem("mario", "Mario", handleAA()),
+	}})
+	t0 := time.Unix(0, 0)
+	m.Tick(t0)
+	m.Tick(t0.Add(5 * time.Millisecond))
+	view := m.AttractView(t0.Add(5 * time.Millisecond))
+	if view.Motion || view.Caption != "" || view.Handle != handleAA() || len(view.Wall) != 0 {
+		t.Fatalf("stills grew motion chrome %+v", view)
+	}
+}
+
+func TestAttractMotionUsesPresentationScreenshots(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true, AttractActive: true}
+	m.attractItems = []tenfoot.AttractItem{videoItem("mario", "Mario", handleEE(), handleAA(), "")}
+	shot := handleCC()
+	m.ApplyAttractPresentation("mario", tenfoot.Presentation{
+		Presentation: &tenfoot.PresentationInfo{
+			VideoID:       handleEE(),
+			ScreenshotIDs: []string{shot, handleBB()},
+		},
+	})
+	view := m.AttractView(time.Unix(1, 0))
+	if !view.Motion || view.Handle != shot {
+		t.Fatalf("presentation stills %+v", view)
+	}
+	got := m.AttractPrefetchHandles()
+	if len(got) < 3 || got[0] != shot {
+		t.Fatalf("prefetch %v", got)
+	}
+}
+
+func TestAttractWallWhenFourTitlesIncludeVideo(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true}
+	m.SetAttractIdle(time.Millisecond)
+	m.SetAttractCycle(10 * time.Second)
+	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{
+		videoItem("mario", "Mario", handleEE(), handleAA(), handleBB()),
+		stillItem("sonic", "Sonic", handleCC()),
+		stillItem("zelda", "Zelda", handleDD()),
+		stillItem("pong", "Pong", handleAA()),
+	}})
+	t0 := time.Unix(0, 0)
+	m.Tick(t0)
+	enter := t0.Add(5 * time.Millisecond)
+	m.Tick(enter)
+	view := m.AttractView(enter)
+	if !view.Motion || len(view.Wall) != 4 {
+		t.Fatalf("wall %+v", view)
+	}
+	if view.Wall[0].Handle != handleAA() || !view.Wall[0].Motion {
+		t.Fatalf("tile0 %+v", view.Wall[0])
+	}
+	if view.Wall[1].Handle != handleCC() || view.Wall[1].Motion {
+		t.Fatalf("tile1 claimed motion %+v", view.Wall[1])
+	}
+	if view.FadeT != 0 || view.NextHandle != "" {
+		t.Fatalf("wall kept title fade %+v", view)
+	}
+	m.Tick(enter.Add(2*time.Second + time.Millisecond))
+	view = m.AttractView(enter.Add(2*time.Second + time.Millisecond))
+	if view.Wall[0].Handle != handleBB() {
+		t.Fatalf("wall did not cycle current %+v", view.Wall[0])
+	}
+}
+
+func TestAttractMotionALaunchesStagedGameFromStrip(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true}
+	m.SetCatalog(mixedCatalog())
+	m.SetStrip([]tenfoot.Game{
+		{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true},
+	}, "Recent")
+	m.Focus = len(m.Games) - 1
+	now := time.Unix(1, 0)
+	if action := pressNamed(&m, "dpad-down", now); action != "" || !m.StripActive {
+		t.Fatalf("enter strip action=%q strip=%v", action, m.StripActive)
+	}
+	m.SetAttractIdle(time.Millisecond)
+	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{
+		videoItem("mario", "Mario", handleEE(), handleAA(), handleBB()),
+	}})
+	t0 := time.Unix(2, 0)
+	m.lastInput = t0
+	m.Tick(t0)
+	m.Tick(t0.Add(5 * time.Millisecond))
+	a, _ := remoteinput.NormalizeGamepad("a", true)
+	if action := m.Input(a, t0.Add(10*time.Millisecond)); action != "launch" {
+		t.Fatalf("A action %q", action)
+	}
+	if m.AttractActive || m.StripActive {
+		t.Fatalf("after A attract=%v strip=%v", m.AttractActive, m.StripActive)
+	}
+	if id := m.consumeLaunchID(); id != "mario" {
+		t.Fatalf("launch id %q", id)
+	}
+}

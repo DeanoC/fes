@@ -420,6 +420,12 @@ func TestExerciseAttractGridPaintsStillAndDismisses(t *testing.T) {
 	if !strings.Contains(report, "attract still=") || !strings.Contains(report, "empty-panel") {
 		t.Fatalf("missing still/empty evidence: %s", report)
 	}
+	if !strings.Contains(report, "attract motion-preview") || !strings.Contains(report, "attract motion-cycle=1") || !strings.Contains(report, "stills-fallback video=0") || !strings.Contains(report, "attract wall=1") {
+		t.Fatalf("missing attract motion evidence: %s", report)
+	}
+	if !strings.Contains(report, "motion=1") || !strings.Contains(report, "stills-fallback=1") || !strings.Contains(report, "wall=1") {
+		t.Fatalf("missing attract motion pass flags: %s", report)
+	}
 }
 
 func TestExerciseCoverGridPaintsArtAndPlaceholder(t *testing.T) {

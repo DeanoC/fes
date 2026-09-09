@@ -122,10 +122,15 @@ a flat system fill. Presentation `logo_id` (LaunchBox Clear Logo, or a
 `library_media` RoleLogo overlay) paints on the detail title and grid label
 bar; missing logos keep the existing bold/regular text labels. The visible 4×3 page and the next page prefetch those
 handles asynchronously; missing metadata still uses the placeholder. After the host attract `idle_seconds` with no pad input, the
-kit shows a stills attract (title chrome plus backdrop/cover/marquee artwork)
-and returns to the same shelf and focus on any input. Attract does not decode
-video on kit; an empty playlist uses a themed idle panel instead of a frozen
-grid. Title-detail video handles use the screenshot/poster preview above. Header, tile names, placeholder lettermarks, and footer use the embedded Go
+kit shows an attract stage (title chrome plus backdrop/cover/marquee artwork)
+and returns to the same shelf and focus on any input. When the staged title has
+a video handle plus stills, attract auto-cycles those stills under a VIDEO badge
+and a `preview` caption — the same kit-safe motion path as title-detail, not
+H.264 decode. Four or more stills-backed titles with at least one video handle
+paint a 2×2 wall of neighboring stills with the staged tile highlighted. Titles
+without a video handle keep today's stills attract; an empty playlist uses a
+themed idle panel instead of a frozen grid. Full clip playback is a follow-up.
+Title-detail video handles use the screenshot/poster preview above. Header, tile names, placeholder lettermarks, and footer use the embedded Go
 UI faces through `gfx.DrawText` / `gfx.DrawTextWeight` (CGO-free; no system
 fonts on the kit) at theme typography roles `title_px` / `body_px` /
 `caption_px` / `status_px` (legacy `header_scale` / `label_scale` /

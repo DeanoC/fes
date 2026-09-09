@@ -3,6 +3,7 @@ package fbgrid
 import (
 	"image"
 	"image/color"
+	"strings"
 	"testing"
 
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
@@ -96,4 +97,114 @@ func TestPaintAttractUsesThemeBackground(t *testing.T) {
 	if arcade.AttractBackground == theme.Default().AttractBackground {
 		t.Fatal("arcade attract background matches default")
 	}
+}
+
+func TestPaintAttractVideoBadgeAndStillsFallback(t *testing.T) {
+	t.Parallel()
+	const w, h = 640, 480
+	th := theme.Default()
+	still := image.NewRGBA(image.Rect(0, 0, 40, 8))
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 40; x++ {
+			still.Set(x, y, color.RGBA{R: 255, G: 32, B: 160, A: 255})
+		}
+	}
+	frame := AttractFrame{
+		Width: w, Height: h, Title: "Mario", Image: still,
+		VideoBadge: true, Caption: "preview 1 / 2", Theme: th,
+	}
+	rec := gfx.NewRecorder()
+	PaintAttract(rec, frame)
+	var sawVideo, sawPreview bool
+	for _, c := range rec.Calls {
+		if c.Op != "DrawText" {
+			continue
+		}
+		if c.Text == "VIDEO" {
+			sawVideo = true
+		}
+		if strings.Contains(c.Text, "preview") {
+			sawPreview = true
+		}
+	}
+	if !sawVideo || !sawPreview {
+		t.Fatalf("motion paint video=%v preview=%v ops=%v", sawVideo, sawPreview, rec.Ops())
+	}
+
+	stillRec := gfx.NewRecorder()
+	PaintAttract(stillRec, AttractFrame{Width: w, Height: h, Title: "Mario", Image: still, Theme: th})
+	for _, c := range stillRec.Calls {
+		if c.Op == "DrawText" && (c.Text == "VIDEO" || strings.Contains(c.Text, "preview")) {
+			t.Fatalf("stills-only painted %q", c.Text)
+		}
+	}
+
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	PaintAttract(d, frame)
+	d.Present()
+	bx, by, ok := AttractVideoBadgeSample(w, h, still, th)
+	if !ok {
+		t.Fatal("badge sample")
+	}
+	assertBGRX(t, dst, cfg, bx, by, 0, 220, 255, 0)
+}
+
+func TestPaintAttractWallHighlightsCurrentAndHidesNeighborMotion(t *testing.T) {
+	t.Parallel()
+	const w, h = 640, 480
+	th := theme.Default()
+	mario := image.NewRGBA(image.Rect(0, 0, 8, 8))
+	sonic := image.NewRGBA(image.Rect(0, 0, 8, 8))
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 8; x++ {
+			mario.Set(x, y, color.RGBA{R: 255, G: 32, B: 160, A: 255})
+			sonic.Set(x, y, color.RGBA{R: 40, G: 80, B: 200, A: 255})
+		}
+	}
+	frame := AttractFrame{
+		Width: w, Height: h, Title: "Mario", VideoBadge: true, Caption: "preview",
+		Wall: []AttractWallTile{
+			{Image: mario, Video: true},
+			{Image: sonic},
+			{Image: sonic},
+			{Image: sonic},
+		},
+		Theme: th,
+	}
+	rec := gfx.NewRecorder()
+	PaintAttract(rec, frame)
+	var sawVideo bool
+	for _, c := range rec.Calls {
+		if c.Op == "DrawText" && c.Text == "VIDEO" {
+			sawVideo = true
+		}
+	}
+	if !sawVideo {
+		t.Fatalf("wall missing VIDEO ops=%v", rec.Ops())
+	}
+
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	PaintAttract(d, frame)
+	d.Present()
+	bx, by, ok := AttractWallBadgeSample(w, h, th)
+	if !ok {
+		t.Fatal("wall badge sample")
+	}
+	assertBGRX(t, dst, cfg, bx, by, 0, 220, 255, 0)
+	cell := AttractWallCell(w, h, 1, th)
+	sx := int(cell.X + cell.W/2)
+	sy := int(cell.Y + cell.H/2)
+	assertBGRX(t, dst, cfg, sx, sy, 200, 80, 40, 0)
 }

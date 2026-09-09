@@ -140,6 +140,11 @@ func (item AttractItem) BackdropHandle() string {
 	return normalizeHandle(item.Backdrop)
 }
 
+// VideoHandle is the 64-hex library_media / attract video handle, or empty.
+func (item AttractItem) VideoHandle() string {
+	return normalizeHandle(item.Video)
+}
+
 // StillHandle prefers backdrop, then cover, then marquee. Video is ignored.
 func (item AttractItem) StillHandle() string {
 	handles := item.StillHandles()
@@ -703,6 +708,36 @@ func VideoHandle(presentation Presentation) string {
 		return ""
 	}
 	return normalizeHandle(presentation.Presentation.VideoID)
+}
+
+// AttractPreviewHandles selects kit-safe stills for idle attract.
+// Without a video handle this is the item's backdrop/cover/marquee. With a
+// video handle it prefers presentation screenshot_ids then unique
+// backdrop/cover/marquee so attract can cycle a motion preview without
+// decoding H.264 on the CGO-free kit path.
+func AttractPreviewHandles(item AttractItem, p Presentation) []string {
+	video := item.VideoHandle()
+	if video == "" {
+		video = VideoHandle(p)
+	}
+	stills := item.StillHandles()
+	if video == "" {
+		return stills
+	}
+	var shots []string
+	cover := normalizeHandle(item.Cover)
+	backdrop := normalizeHandle(item.Backdrop)
+	marquee := normalizeHandle(item.Marquee)
+	if p.Presentation != nil {
+		shots = screenshotHandles(p.Presentation.ScreenshotIDs)
+		if cover == "" {
+			cover = normalizeHandle(p.Presentation.CoverArtworkID)
+		}
+		if backdrop == "" {
+			backdrop = normalizeHandle(p.Presentation.BackdropArtworkID)
+		}
+	}
+	return appendUniqueHandles(shots, backdrop, cover, marquee)
 }
 
 // DetailPreviewHandles selects kit-safe stills for the title pane.

@@ -81,6 +81,10 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			if game, ok := m.focusedGame(); ok {
 				detailID = game.ID
 			}
+		} else if m.AttractActive {
+			if item, ok := m.currentAttractItem(); ok {
+				detailID = strings.TrimSpace(item.GameID)
+			}
 		}
 		go func() {
 			o := observation{epoch: e}
@@ -219,7 +223,11 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					lastAttract = time.Now()
 				}
 				if o.haveDetail {
-					m.ApplyPresentation(o.detailID, o.presentation)
+					if m.DetailOpen {
+						m.ApplyPresentation(o.detailID, o.presentation)
+					} else if m.AttractActive {
+						m.ApplyAttractPresentation(o.detailID, o.presentation)
+					}
 				}
 			}
 		case now := <-tick.C:

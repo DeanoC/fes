@@ -42,7 +42,7 @@ func run() error {
 	selftestText := flag.Bool("selftest-text", false, "paint UI-face chrome and prove it is not DebugText, then exit")
 	selftestBold := flag.Bool("selftest-bold", false, "prove title chrome uses gobold, nest detail/text/nav, then exit")
 	selftestCover := flag.Bool("selftest-cover", false, "paint cover decode, placeholder, and chrome polish, then exit")
-	selftestAttract := flag.Bool("selftest-attract", false, "arm short idle stills attract, paint a still, dismiss, then exit")
+	selftestAttract := flag.Bool("selftest-attract", false, "arm short idle attract, paint stills and kit-safe motion, dismiss, then exit")
 	selftestDetail := flag.Bool("selftest-detail", false, "open/close title detail, paint cover and title ink, then exit")
 	selftestMotion := flag.Bool("selftest-motion", false, "prove focus pop and confirm pulse over ticks, then exit")
 	selftestWheel := flag.Bool("selftest-wheel", false, "paint platform wheel and hero, enter a system grid, then exit")
@@ -154,6 +154,9 @@ func run() error {
 			key.AttractIndex = view.Index
 			key.AttractHandle = view.Handle
 			key.AttractFade = int(view.FadeT * 10)
+			key.Shot = view.ShotIndex
+			key.Preview = view.Caption
+			key.Video = view.Motion
 			key.Stills = stills.Generation()
 			if now.Sub(last) < 100*time.Millisecond && key == lastKey {
 				return
@@ -532,12 +535,14 @@ func previewCaption(index, count int) string {
 
 func attractFrame(view kitlauncher.AttractView, stills *tenfoot.CoverCache, th theme.Theme, width, height int) fbgrid.AttractFrame {
 	frame := fbgrid.AttractFrame{
-		Width:  width,
-		Height: height,
-		Title:  asciiLabel(view.Title),
-		Empty:  view.Empty,
-		FadeT:  view.FadeT,
-		Theme:  th,
+		Width:      width,
+		Height:     height,
+		Title:      asciiLabel(view.Title),
+		Empty:      view.Empty,
+		FadeT:      view.FadeT,
+		VideoBadge: view.Motion,
+		Caption:    asciiLabel(view.Caption),
+		Theme:      th,
 	}
 	if view.Empty {
 		frame.Hint = "any back"
@@ -546,12 +551,30 @@ func attractFrame(view kitlauncher.AttractView, stills *tenfoot.CoverCache, th t
 		}
 		return frame
 	}
-	frame.Hint = "A play | any back"
+	if view.Motion {
+		cap := frame.Caption
+		if cap == "" {
+			cap = "preview"
+		}
+		frame.Hint = "A play | any back | " + cap
+	} else {
+		frame.Hint = "A play | any back"
+	}
 	if stills != nil {
 		frame.Image = stills.Image(view.Handle)
 		if view.NextHandle != "" && view.FadeT > 0 {
 			frame.Next = stills.Image(view.NextHandle)
 		}
+	}
+	if len(view.Wall) >= 4 {
+		wall := make([]fbgrid.AttractWallTile, 4)
+		for i := 0; i < 4; i++ {
+			if stills != nil {
+				wall[i].Image = stills.Image(view.Wall[i].Handle)
+			}
+			wall[i].Video = view.Wall[i].Motion
+		}
+		frame.Wall = wall
 	}
 	if frame.Title == "" {
 		frame.Title = "FOGCAST"

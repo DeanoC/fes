@@ -139,8 +139,11 @@ attract item dismisses and launches. A South/North hold that began before
 attract does not launch the attract title on release. `-smoke` implies
 `-no-attract`. Linux without `ffmpeg` skips the video download and keeps the
 stills fallback. GUI video smoke on a Linux display is NEED. The on-kit
-`fogcast-kit` adapter arms the same host idle and paints stills only (no video
-decode); any pad input returns to the platform wheel or catalog grid. The kit
+`fogcast-kit` adapter arms the same host idle and paints stills, or a kit-safe
+screenshot/poster motion preview when the staged title has a video handle
+(no H.264 decode; full clip playback is a follow-up). Four or more stills-backed
+titles with a video handle paint a 2×2 attract wall. Any pad input returns to
+the platform wheel or catalog grid. The kit
 opens on a platform wheel (`fbgrid.PaintWheel`) and A enters the 4×3 grid; East/B
 on the grid returns to the wheel. A Recent / Favorites strip paints under the grid when those host collections
 return titles, and hides when they are empty. Last-row Down enters the

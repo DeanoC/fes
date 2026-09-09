@@ -9,7 +9,13 @@ import (
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 )
 
-// AttractFrame is one living-room stills (or empty idle) paint.
+// AttractWallTile is one 2×2 attract-wall cell.
+type AttractWallTile struct {
+	Image *image.RGBA
+	Video bool
+}
+
+// AttractFrame is one living-room stills/motion (or empty idle) paint.
 type AttractFrame struct {
 	Width, Height int
 	Title         string
@@ -18,6 +24,9 @@ type AttractFrame struct {
 	Next          *image.RGBA
 	FadeT         float64
 	Empty         bool
+	VideoBadge    bool
+	Caption       string
+	Wall          []AttractWallTile
 	Theme         theme.Theme
 }
 
@@ -56,10 +65,16 @@ func PaintAttract(d gfx.Device, f AttractFrame) {
 		stageY = 0
 	}
 	stage := gfx.Rect{X: 0, Y: float32(stageY), W: float32(f.Width), H: float32(stageH)}
-	if f.Empty || (f.Image == nil && f.Next == nil) {
+	if f.Empty || (f.Image == nil && f.Next == nil && len(f.Wall) < 4) {
 		paintAttractIdlePanel(d, stage, th)
+	} else if len(f.Wall) >= 4 {
+		paintAttractWall(d, stage, f.Wall, th)
 	} else {
 		paintAttractStill(d, stage, f.Image, f.Next, f.FadeT)
+		if f.VideoBadge {
+			dest := AttractStillDest(f.Width, f.Height, f.Image, th)
+			paintVideoBadge(d, dest, th)
+		}
 	}
 	title := f.Title
 	if title == "" {
@@ -71,9 +86,14 @@ func PaintAttract(d gfx.Device, f AttractFrame) {
 	d.DrawTextWeight(16, chromeTextY(0, headerH, gfx.TextHeightWeight(titleSize, titleW), true), title, titleSize, titleW, th.Header)
 	hint := f.Hint
 	if hint == "" {
-		if f.Empty {
+		switch {
+		case f.Empty:
 			hint = "any back"
-		} else {
+		case f.VideoBadge && f.Caption != "":
+			hint = "A play | any back | " + f.Caption
+		case f.VideoBadge:
+			hint = "A play | any back | preview"
+		default:
 			hint = "A play | any back"
 		}
 	}
@@ -109,6 +129,37 @@ func paintAttractIdlePanel(d gfx.Device, stage gfx.Rect, th theme.Theme) {
 	caption = gfx.FitTextWeight(caption, captionSize, int(stage.W)-32, captionW)
 	cw := gfx.MeasureTextWeight(caption, captionSize, captionW)
 	d.DrawTextWeight(x0+(int(stage.W)-cw)/2, y0+titleH+gap, caption, captionSize, captionW, th.Label)
+}
+
+func paintAttractWall(d gfx.Device, stage gfx.Rect, tiles []AttractWallTile, th theme.Theme) {
+	if d == nil || len(tiles) < 4 {
+		return
+	}
+	const gap float32 = 6
+	cellW := (stage.W - gap) / 2
+	cellH := (stage.H - gap) / 2
+	if cellW < 8 || cellH < 8 {
+		return
+	}
+	for i := 0; i < 4; i++ {
+		col := i % 2
+		row := i / 2
+		r := gfx.Rect{
+			X: stage.X + float32(col)*(cellW+gap),
+			Y: stage.Y + float32(row)*(cellH+gap),
+			W: cellW,
+			H: cellH,
+		}
+		if tiles[i].Image != nil {
+			paintCover(d, tiles[i].Image, r)
+		}
+		if i == 0 {
+			paintRectOutline(d, r, 3, th.Highlight)
+			if tiles[i].Video {
+				paintVideoBadge(d, r, th)
+			}
+		}
+	}
 }
 
 func paintAttractStill(d gfx.Device, stage gfx.Rect, img, next *image.RGBA, fadeT float64) {
@@ -178,6 +229,52 @@ func AttractLetterboxSample(width, height int, th theme.Theme) (x, y int, ok boo
 		y = height - 1
 	}
 	return x, y, true
+}
+
+// AttractWallCell is the 2×2 cell rectangle for wall index 0..3.
+func AttractWallCell(width, height, index int, th theme.Theme) gfx.Rect {
+	th = th.Complete()
+	if index < 0 {
+		index = 0
+	}
+	if index > 3 {
+		index = 3
+	}
+	stageY := th.HeaderH
+	stageH := height - th.HeaderH - th.FooterH
+	if stageH < 1 {
+		stageY = 0
+		stageH = height
+	}
+	const gap float32 = 6
+	cellW := (float32(width) - gap) / 2
+	cellH := (float32(stageH) - gap) / 2
+	col := index % 2
+	row := index / 2
+	return gfx.Rect{
+		X: float32(col) * (cellW + gap),
+		Y: float32(stageY) + float32(row)*(cellH+gap),
+		W: cellW,
+		H: cellH,
+	}
+}
+
+// AttractVideoBadgeSample is a pixel inside the VIDEO badge fill on a still stage.
+func AttractVideoBadgeSample(width, height int, img *image.RGBA, th theme.Theme) (x, y int, ok bool) {
+	dest := AttractStillDest(width, height, img, th)
+	if dest.W < 24 || dest.H < 12 {
+		return 0, 0, false
+	}
+	return int(dest.X + 5), int(dest.Y + 5), true
+}
+
+// AttractWallBadgeSample is a pixel inside the VIDEO badge on wall cell 0.
+func AttractWallBadgeSample(width, height int, th theme.Theme) (x, y int, ok bool) {
+	r := AttractWallCell(width, height, 0, th)
+	if r.W < 24 || r.H < 12 {
+		return 0, 0, false
+	}
+	return int(r.X + 5), int(r.Y + 5), true
 }
 
 // AttractStillDest is the aspect-fit rectangle used for a still inside the stage.

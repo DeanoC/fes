@@ -39,6 +39,10 @@ type Model struct {
 	attractIndex                                      int
 	attractShownAt                                    time.Time
 	attractCycleAt                                    time.Time
+	attractPresentationID                             string
+	attractPresentation                               tenfoot.Presentation
+	attractShotIndex                                  int
+	attractPreviewAt                                  time.Time
 	launchID                                          string
 	Strip                                             []tenfoot.Game
 	StripLabel                                        string

@@ -147,15 +147,21 @@ ordinary Stop; both must release before rearming. Individual Start and Select
 remain game controls while a session can stop; B does not stop gameplay.
 Stop/save errors retain the retry operation. After the host `idle_seconds` from
 `GET /api/v1/library/attract` (default 60s; 1s is allowed) with no pad input,
-no busy/session transition, and a ready host, the kit leaves the grid for a
-stills attract: backdrop, then cover, then marquee, decoded with `DecodeStill`
-and cycled with `anim` fade-through-black. Title chrome uses the theme
+no busy/session transition, and a ready host, the kit leaves the grid for an
+attract stage: backdrop, then cover, then marquee, decoded with `DecodeStill`
+and cycled with `anim` fade-through-black. When the staged row has a video
+handle plus stills, attract auto-cycles those stills (and presentation
+`screenshot_ids` when fetched) every two seconds under a VIDEO badge and a
+`preview` caption — the same kit-safe motion path as the title pane. Four or
+more stills-backed rows with at least one video handle paint a 2×2 wall of
+neighboring stills with the staged tile highlighted. Title chrome uses the theme
 `AttractBackground` and title/status roles. A/South on a launchable still
 launches that title when a game id is present; any other pad input dismisses
-and returns to the same shelf and focus. Kit attract is stills-only; video
-handles are ignored. An empty playlist (or video-only rows) still enters a
-themed idle panel (`Idle` / `No attract stills`) so the grid is not frozen;
-any input returns to the grid.
+and returns to the same shelf and focus. The CGO-free kit path does not decode
+H.264; full clip playback is a follow-up. Titles without a video handle keep
+today's stills attract and hide the VIDEO chrome. An empty playlist (or
+video-only rows) still enters a themed idle panel (`Idle` / `No attract stills`)
+so the grid is not frozen; any input returns to the grid.
 
 The host source stream releases controls on close/timeout, and an attachment ID
 prevents old input affecting a new session. Its source is exclusive; the launcher
@@ -185,8 +191,11 @@ Presentation and artwork fetching are asynchronous and
 do not block the present loop. The title pane paints the focused cover (and current screenshot or
 video-preview still, when present) through the same cache. Video bytes are
 not fetched on kit; the preview uses already-admitted still artwork. After idle, attract stills use the same artwork GET with `DecodeStill`
-(Catmull–Rom to a 720p-class stage) and `fbgrid.PaintAttract`. Empty playlists
-paint a themed idle panel instead of hanging on the grid.
+(Catmull–Rom to a 720p-class stage) and `fbgrid.PaintAttract`. A video handle
+on the staged row cycles those stills as an honest motion preview; four or more
+stills-backed rows with a video handle paint a 2×2 wall. Empty playlists
+paint a themed idle panel instead of hanging on the grid. Video bytes are not
+fetched on kit.
 
 Run `go test -race ./kitlauncher/... ./host/tenfoot/inputmap ./host/tenfoot/theme ./host/tenfoot/fbgrid ./host/tenfoot/gfx ./host/tenfoot/anim ./cmd/fogcast-kit` for adapter tests. They
 exercise real HTTP transports with isolated servers and never open real input or
@@ -218,7 +227,9 @@ title ink uses Bold, and re-runs detail (which re-runs attract, cover, text,
 nav, and shelf). `fogcast-kit -selftest-cover`
 decodes a cover, paints missing and loading placeholders, samples the art and
 panel pixels, and re-runs text (which re-runs nav plus shelf). `fogcast-kit -selftest-attract`
-arms a short idle, paints a decoded still plus an empty idle panel, dismisses on
+arms a short idle, paints a decoded still plus an empty idle panel, paints a
+kit-safe VIDEO motion preview and a stills-only neighbour without that chrome,
+paints a 2×2 wall when four titles include a video handle, dismisses on
 pad input with shelf and focus unchanged, and re-runs cover (which re-runs text,
 nav, and shelf). `fogcast-kit -selftest-detail` opens and closes the title pane
 (East/B, last-row Down, Up), paints a large cover plus title ink at `TitlePx`,
