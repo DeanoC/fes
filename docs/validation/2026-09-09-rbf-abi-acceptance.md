@@ -49,9 +49,39 @@ retained before replacement; this test did not exercise automatic image fallback
 The tested standalone design omitted the FPGA route between the HPS I2C
 controller and the HDMI transmitter. Working MiSTer cores provide this route
 through the HPS peripheral I2C primitive and the board's U10/AA4 pins. Supporting
-that primitive in the pinned OSS tools and adding the board wiring are required
-before producing a new standalone package. The failed package above must remain
-identified as failed hardware evidence.
+that primitive and board wiring subsequently produced the second diagnostic
+package below. The first package remains failed hardware evidence.
+
+## HDMI I2C isolation
+
+The second package used misteross `c3f348417ea9845933c90b7114f0f89429c8f330`,
+Yosys `fca8ca0a5354e52ce0e158bc6e1eed481e590ed8` and nextpnr
+`69556b7e58eae3dda9b38df438267481c951863d`. Its package ID was
+`e53f52103d972b6f65865bc22ad516022fae8ac22987b118da91916129d5eccf`,
+payload SHA-256 `30db8543e388145e2cc48e94c9ecd6deff84378660315526c5755f7a3c7c713c`,
+and embedded build ID `4c468eec77a9d4adafe06e985798b2e9`.
+It passed routing checks and reported 77.51 MHz timing, but physical HDMI
+initialization still failed. This test retained the development image above,
+using the rebuilt host and temporary launcher from FogCast
+`50afe95f4efb3b177d1cc0d9cef806a303cdad9e`.
+
+Two temporary RBFs isolated the hardware configuration through the explicit raw
+diagnostic path. Neither was exported as an accepted package:
+
+| Diagnostic payload SHA-256 | Isolated change | Physical result |
+| --- | --- | --- |
+| `610a4f72efc7396d21aa5f4c17a9a20678fe3524e83dc4af97ffbc73842a885f` | Invert HPS SCL feedback; one CRAM bit. | I2C read timed out. The working Quartus core uses a different feedback route, so its inversion setting does not transfer to this design. |
+| `abc5f896ea8de6dde93bd23590e6691e9f6add317ff7a000b541c0d8874aeed4` | Restore the two bidirectional GPIO input settings from `IOCSR_STD=DIS` to their database defaults; four PRAM bits, routes and inversions unchanged. | During the raw probe, HDMI registers read successfully: power `0x50` while quiesced and status `0xf8`. Automatic recovery after the expected MiSTer probe failure restored MENU without reboot; power returned to `0x10`. Explicit Stop then returned idle. |
+
+Target payload hashes were verified. Runtime log snapshots immediately before
+and after the successful reads showed programming completed and no recovery yet.
+The second result isolates nextpnr's
+output-only input-buffer setting being applied to bidirectional pins. A reviewed
+source fix, rebuilt package and complete video/input test are still required.
+The unchanged FAT launcher and configuration were restored, the original UI host
+remained running, and the diagnostic lease was observed free.
+
+## Remaining acceptance
 
 A separate startup race caused the agent to report unavailable when the runtime
 socket was not yet accepting requests. FogCast's reviewed local fix retries
